@@ -33,7 +33,7 @@ This project name is ASGARD, Retrieved from
 <https://github.com/mikuru1096/ASGARD_GRBAfterglow>
 ### Quick Start
 The usage of this code is very simple.
-Ensure you have GNU compilers installed on your system.
+Ensure you have GNU compilers, python, and python-numpy,matplotlib installed on your system.
 
 For Ubuntu/Debian systems:
 ```shell
@@ -52,7 +52,7 @@ After compilation completes, generate your first multi-band afterglow light curv
 ```shell
 python hand_my.py
 ```
-If you already have the matplotlib package installed, the program should generate the first multi-band afterglow light curve image for you.
+The program should generate the first multiband afterglow light curve image for you.
 ### Documentation
 In merger.py, we have provided the basic invocation method of the program, along with simple comments for the keywords.
 ### Current Status
