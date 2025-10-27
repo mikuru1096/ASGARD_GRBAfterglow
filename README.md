@@ -1,14 +1,16 @@
-Copyright (c) 2025 Jia Ren
+# ASGARD: GRB Afterglow Analysis Tool
 
-This source code is governed by the BSD 3-Clause License.
+## License
+**Copyright (c) 2025 Jia Ren**  
 
-Furthermore, if you use, adapt, or reference the core algorithms from this project in other software projects (whether open-source or proprietary), 
-you are required to provide explicit attribution to this original code project in your project's documentation, 'About' section, or any publicly published papers.
+This source code is governed by the **BSD 3-Clause License**.
 
-The recommended citation bibilography format is:
+## Attribution Requirement
+If you use, adapt, or reference the core algorithms from this project in other software projects (whether open-source or proprietary), you are required to provide explicit attribution to this original code project in your project's documentation, 'About' section, or any publicly published papers.
 
-       @ARTICLE{2024ApJ...962..115R,
-
+### Recommended Citation Format
+```bibtex
+@ARTICLE{2024ApJ...962..115R,
        author = {{Ren}, Jia and {Wang}, Yun and {Dai}, Zi-Gao},
        title = "{Jet Structure and Burst Environment of GRB 221009A}",
        journal = {\apj},
@@ -25,24 +27,30 @@ The recommended citation bibilography format is:
        primaryClass = {astro-ph.HE},
        adsurl = {https://ui.adsabs.harvard.edu/abs/2024ApJ...962..115R},
       adsnote = {Provided by the SAO/NASA Astrophysics Data System}
-      }
+}
 
-This project name is ASGARD, Retrieved from https://github.com/mikuru1096/ASGARD_GRBAfterglow
+This project name is ASGARD, Retrieved from
+<https://github.com/mikuru1096/ASGARD_GRBAfterglow>
 
-The usage of this code is very simple. Please ensure that you have gnu on your computer. If not, run
+The usage of this code is very simple.
+Ensure you have GNU compilers installed on your system.
+
+For Ubuntu/Debian systems:
     sudo apt install gcc g++ gfortran
-for Ubuntu Linux system.
 
-Clone this repository to your local machine and run 
+Clone this repository to your local machine:
+    git clone https://github.com/mikuru1096/ASGARD_GRBAfterglow
+    cd ASGARD_GRBAfterglow
+Run the installation script:
     bash install.sh
     
-After a short wait for the compilation to complete, now run 
+After compilation completes, generate your first multi-band afterglow light curve:
     python hand_my.py
-    
+
 If you already have the matplotlib package installed, the program should generate the first multi-band afterglow light curve image for you.
 
 In merger.py, we have provided the basic invocation method of the program, along with simple comments for the keywords.
 
 Due to current progress limitations, we are not yet able to provide a complete demonstration of the afterglow fitting workflow. However, please start exploring and try to integrate it into your own fitting framework!
 
-We have a website available at \url{hetools.xyz} that requires no installation, for comparing the results of ASGARD and jetsimpy. Feel free to give it a try!
+We have a website available at <https://hetools.xyz> that requires no installation, for comparing the results of ASGARD and jetsimpy. Feel free to give it a try!
