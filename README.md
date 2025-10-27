@@ -48,7 +48,7 @@ Run the installation script:
 ```shell
 bash install.sh
 ```
-After compilation completes, generate your first multi-band afterglow light curve:
+After compilation completes, run:
 ```shell
 python hand_my.py
 ```
