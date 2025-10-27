@@ -36,8 +36,9 @@ The usage of this code is very simple.
 Ensure you have GNU compilers installed on your system.
 
 For Ubuntu/Debian systems:
+```shell
     sudo apt install gcc g++ gfortran
-
+```
 Clone this repository to your local machine:
 ```shell
 git clone https://github.com/mikuru1096/ASGARD_GRBAfterglow
