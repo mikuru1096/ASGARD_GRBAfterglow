@@ -28,7 +28,7 @@ If you use, adapt, or reference the core algorithms from this project in other s
        adsurl = {https://ui.adsabs.harvard.edu/abs/2024ApJ...962..115R},
       adsnote = {Provided by the SAO/NASA Astrophysics Data System}
 }
-
+```
 This project name is ASGARD, Retrieved from
 <https://github.com/mikuru1096/ASGARD_GRBAfterglow>
 
