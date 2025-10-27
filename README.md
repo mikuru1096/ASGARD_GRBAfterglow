@@ -29,7 +29,7 @@ If you use, adapt, or reference the core algorithms from this project in other s
       adsnote = {Provided by the SAO/NASA Astrophysics Data System}
 }
 ```
-This project name is ASGARD, Retrieved from  
+This project name is ASGARD, Retrieved from
 <https://github.com/mikuru1096/ASGARD_GRBAfterglow>
 ### Quick Start
 The usage of this code is very simple.
