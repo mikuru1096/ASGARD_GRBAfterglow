@@ -39,18 +39,25 @@ For Ubuntu/Debian systems:
     sudo apt install gcc g++ gfortran
 
 Clone this repository to your local machine:
+```shell
     git clone https://github.com/mikuru1096/ASGARD_GRBAfterglow
     cd ASGARD_GRBAfterglow
+```
 Run the installation script:
+```shell
     bash install.sh
-    
+```
 After compilation completes, generate your first multi-band afterglow light curve:
+```shell
     python hand_my.py
-
+```
 If you already have the matplotlib package installed, the program should generate the first multi-band afterglow light curve image for you.
 
 In merger.py, we have provided the basic invocation method of the program, along with simple comments for the keywords.
 
-Due to current progress limitations, we are not yet able to provide a complete demonstration of the afterglow fitting workflow. However, please start exploring and try to integrate it into your own fitting framework!
+Due to current progress limitations, we are not yet able to provide a complete demonstration of the afterglow fitting workflow. 
+However, please start exploring and try to integrate it into your own fitting framework!
 
-We have a website available at <https://hetools.xyz> that requires no installation, for comparing the results of ASGARD and jetsimpy. Feel free to give it a try!
+We have a website available at
+    <https://hetools.xyz>
+that requires no installation, for comparing the results of ASGARD and jetsimpy. Feel free to give it a try!
