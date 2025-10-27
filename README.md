@@ -59,5 +59,5 @@ Due to current progress limitations, we are not yet able to provide a complete d
 However, please start exploring and try to integrate it into your own fitting framework!
 ### Web Interface
 We have a website available at  
-       <https://hetools.xyz>
+       <https://hetools.xyz>  
 that requires no installation, for comparing the results of ASGARD and jetsimpy. Feel free to give it a try!
