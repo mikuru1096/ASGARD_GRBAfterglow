@@ -1,0 +1,60 @@
+MODULE Constants
+  IMPLICIT REAL(8)(A-H,O-Z)
+    real(8),parameter ::zero=0.0d0
+    real(8),parameter ::one=1.0d0
+    real(8),parameter ::two=2.0d0
+    real(8),parameter ::ten=1.0d1
+    real(8),parameter ::pi=3.141592653589793238462643d0
+    real(8),parameter ::Para_Jy2erg=1.0d-23
+    real(8),parameter ::Para_muJy2erg=Para_Jy2erg*1.0d-6
+    real(8),parameter ::Para_erg2Jy=1.0/Para_Jy2erg
+    real(8),parameter ::Para_eV2erg=1.602d-12
+    real(8),parameter ::Para_keV2erg=Para_eV2erg*1.0d3
+    real(8),parameter ::Para_erg2eV=1.0d0/Para_eV2erg
+    real(8),parameter ::Para_erg2keV=1.0d-3*Para_erg2eV
+    real(8),parameter ::Para_pc2cm=3.1d18
+    real(8),parameter ::Para_kpc2cm=Para_pc2cm*1.0d3
+    real(8),parameter ::Para_Mpc2cm=Para_kpc2cm*1.0d3
+    real(8),parameter ::Para_Gpc2cm=Para_Mpc2cm*1.0d3
+    real(8),parameter ::Para_Radian2Degree=180.0d0/pi
+    real(8),parameter ::Para_Degree2Radian=pi/180.0d0
+    real(8),parameter ::Para_Day2Second=86400.0d0
+    real(8),parameter ::Para_Year2Second=365.0d0*Para_Day2Second
+    real(8),parameter ::Para_h=6.626176d-27
+    real(8),parameter ::Para_a=7.56566d-15
+    real(8),parameter ::Para_c=2.99792458d10
+    real(8),parameter ::Para_c_Inverse=1.0d0/Para_c
+    real(8),parameter ::Para_G=6.6720d-8
+    real(8),parameter ::Para_m_Solor=1.99d33
+    real(8),parameter ::Para_k=1.3806d-16
+    real(8),parameter ::Para_k_keV=Para_k*Para_erg2keV
+    real(8),parameter ::Para_Mu=1.66057d-24
+    real(8),parameter ::Para_k_es=0.4d0
+    real(8),parameter ::Para_m_e=9.1095d-28
+    real(8),parameter ::Para_m_energy=Para_m_e*Para_c*Para_c
+    real(8),parameter ::Para_m_e_keV=511.0034d0
+    real(8),parameter ::Para_e=4.803242d-10
+    real(8),parameter ::Para_m_p=1.673d-24
+    real(8),parameter ::Para_m_p_E=Para_m_p*Para_c*Para_c
+    real(8),parameter ::Para_m_p_DIV_m_e=1.8365d3
+    real(8),parameter ::Para_SigmaT=6.6524586d-25
+    real(8),parameter ::Para_rc=Para_h/(2.0d0*pi/Para_m_e/Para_c)
+    real(8),parameter ::Para_Day=Para_Day2Second
+    real(8),parameter ::Para_Year=Para_Year2Second
+      !!------------------------------------------------------------
+    real(8),parameter ::Para_Sigma=Para_a*Para_c/4.0d0
+    real(8),parameter ::Para_Hz2eV=Para_h*Para_erg2eV
+    real(8),parameter ::Para_Hz2keV=Para_h*Para_erg2keV
+    real(8),parameter ::Para_Hz2MeV=1.0d-3*Para_Hz2keV
+    real(8),parameter ::Para_Hz2GeV=1.0d-3*Para_Hz2MeV
+
+    real(8),parameter ::Para_TeV2Hz=1.0d3/Para_Hz2GeV
+    real(8),parameter ::Para_GeV2Hz=1.0d0/Para_Hz2GeV
+    real(8),parameter ::Para_MeV2Hz=1.0d0/Para_Hz2MeV
+    real(8),parameter ::Para_keV2Hz=1.0d0/Para_Hz2keV
+    real(8),parameter ::Para_eV2Hz=1.0d0/Para_Hz2eV
+    real(8),parameter ::Para_h_keV=Para_h*Para_erg2keV
+    real(8),parameter ::Para_h_MeV=Para_h_keV*1.0d-3
+    real(8),parameter ::Para_h_GeV=Para_h_keV*1.0d-6
+
+END MODULE

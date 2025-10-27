@@ -1,0 +1,10 @@
+Done: frequencies Vobs should passed in from outside the fortran code.
+Done: gamma-gamma annihilation should be calculated with the spectra both of SYN and SSC.
+ So it should be calculated after the SYN and SSC codes, and called as a module in python codes.
+Done: EBL code should be callable as a module in python codes, and it should be wrote with a interpolation algorithm.
+TODO: The code of sensitivities of different detectors should be callable as a module in python codes.
+ It should has two parts, time-dependent and energy dependent.
+TODO: The results must be output as $LATEX$ and PDF files.
+TODO: The electron spectrum part has implemented with openmp, but the acceleration efficiency may be low. 
+ It is due to that the implementation of acceleration is deep inside the DO LOOP, i.e., under the DO LOOP of sheel radius,
+ which means the operations per thread is compressed.
