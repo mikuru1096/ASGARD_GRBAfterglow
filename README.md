@@ -30,7 +30,7 @@ If you use, adapt, or reference the core algorithms from this project in other s
 }
 ```
 This project name is ASGARD, Retrieved from
-<https://github.com/mikuru1096/ASGARD_GRBAfterglow>
+       <https://github.com/mikuru1096/ASGARD_GRBAfterglow>
 ### Quick Start
 The usage of this code is very simple.
 Ensure you have GNU compilers installed on your system.
@@ -59,5 +59,5 @@ Due to current progress limitations, we are not yet able to provide a complete d
 However, please start exploring and try to integrate it into your own fitting framework!
 ### Web Interface
 We have a website available at
-    <https://hetools.xyz>
+       <https://hetools.xyz>
 that requires no installation, for comparing the results of ASGARD and jetsimpy. Feel free to give it a try!
