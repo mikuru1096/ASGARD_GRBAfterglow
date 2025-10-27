@@ -33,7 +33,7 @@ This project name is ASGARD, Retrieved from
 <https://github.com/mikuru1096/ASGARD_GRBAfterglow>
 ### Quick Start
 The usage of this code is very simple.
-Ensure you have GNU compilers, python <= 3.12, numpy and matplotlib installed on your system.
+Ensure you have GNU compilers, python <= 3.11, numpy and matplotlib installed on your system.
 
 For Ubuntu/Debian systems:
 ```shell
