@@ -28,3 +28,21 @@ The recommended citation bibilography format is:
       }
 
 This project name is ASGARD, Retrieved from https://github.com/mikuru1096/ASGARD_GRBAfterglow
+
+The usage of this code is very simple. Please ensure that you have gnu on your computer. If not, run
+    sudo apt install gcc g++ gfortran
+for Ubuntu Linux system.
+
+Clone this repository to your local machine and run 
+    bash install.sh
+    
+After a short wait for the compilation to complete, now run 
+    python hand_my.py
+    
+If you already have the matplotlib package installed, the program should generate the first multi-band afterglow light curve image for you.
+
+In merger.py, we have provided the basic invocation method of the program, along with simple comments for the keywords.
+
+Due to current progress limitations, we are not yet able to provide a complete demonstration of the afterglow fitting workflow. However, please start exploring and try to integrate it into your own fitting framework!
+
+We have a website available at \url{hetools.xyz} that requires no installation, for comparing the results of ASGARD and jetsimpy. Feel free to give it a try!
