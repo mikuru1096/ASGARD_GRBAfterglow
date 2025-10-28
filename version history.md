@@ -1,6 +1,6 @@
 **v0.1**  Early-stage forward shock synchrotron radiation code.  
 **v0.2**  Project initiation, named HE_pipeline, developed SSC module.  
-**v0.3**  Developed $\gamma-\gamma$ annihilation module.  
+**v0.3**  Developed $\gamma\gamma$ annihilation module.  
 **v0.4**  Developed EBL absorption module.  
 **v0.x**  Extensive code refactoring and bug fixes.  
 **v1.0**  First version completed during the 2021 Spring Festival, applied to GRB 190829A.  
@@ -13,7 +13,7 @@
 **v3.1**  Introduced structured jet implementation based on Python multiprocessing.  
 **v3.2**  Introduced forward and reverse shock implementation.  
 **v3.2.1**  Fixed an issue where specific parameter combinations caused an excessively small initial afterglow time T00, leading to reverse shock dynamics calculation failure. (Feedback from Yun Wang)  
-**v3.3**  Minor update (forward shock) based on a more realistic Compton Y-factor solution (Nakar).  
+**v3.3**  Minor update (forward shock) based on a more realistic Compton Y parameter solution (Nakar).  
 **v3.4**  Program efficiency optimization: merged synchrotron radiation module into electron spectrum calculation module.  
 
 **v4.0**  Expanded IC cooling module to three methods (`dot_gam_e_ssc`, Nakar, Fan). The first two are nearly consistent, while Fan becomes unreliable in strong IC cooling regions.  
