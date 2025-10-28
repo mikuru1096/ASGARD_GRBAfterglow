@@ -1,6 +1,6 @@
 # ASGARD: GRB Afterglow Analysis Tool
 
-**A Standard GRB afterglow Radiation Diagnoser (ASGARD) is a state-of-art simulation code for GRB afterglow. **
+## A Standard GRB afterglow Radiation Diagnoser (ASGARD) is a state-of-art simulation code for GRB afterglow. 
 
 The code is entirely based on numerical partial differential equation methods to solve the evolution of the afterglow electron spectrum, while precisely handling the cooling process of electrons via Compton scattering. It self-consistently computes synchrotron radiation and synchrotron self-Compton (SSC) radiation using high-order integration schemes and fully accounts for observational effects. The calculated afterglow radiation spectrum covers the entire electromagnetic range from radio to very high energies (VHE), with proper treatment of synchrotron self-absorption (SSA, based on radiative transfer) and $\gamma\gamma$ annihilation (based on scattering cross-sections).
 
