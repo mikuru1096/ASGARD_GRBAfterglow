@@ -120,7 +120,7 @@ def fit(*args,**kwargs):
     
     # Flag for the method of calculating the Compton cooling factor. 
     # 1 full numerical  2 Nakar 2007  3 Fan 2003
-    index_Y = kwargs.get('index_Y', 1) 
+    index_Y = kwargs.get('index_Y', 2) 
     
     # Flag for the numerical method of calculating the Synchrotron Radiation. 
     # 1 trapezoidal O(h^2) 2 composite Simpson O(h^4)
@@ -157,7 +157,7 @@ def fit(*args,**kwargs):
     GeV_Frequency = [1e24]
     TeV_Frequency = [1e27]
     
-    Frequencies = np.concatenate((XRT, opt, radio,GeV_Frequency,TeV_Frequency), axis=0)
+    Frequencies = np.concatenate((XRT, opt, radio, GeV_Frequency, TeV_Frequency), axis=0)
     Num_nu_obs = len(Frequencies)
 
     # parameters of afterglow
