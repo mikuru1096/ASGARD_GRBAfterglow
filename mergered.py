@@ -93,7 +93,7 @@ def fit(*args,**kwargs):
     OpeningAngle_jet = kwargs.get('OpeningAngle_jet')  # Openning angle of jet
     f_e = kwargs.get('f_e',1.0)  # Non-thermal fraction of electrons
     dNe = kwargs.get('dNe')  # Uniform ambient medium density
-    A_star = kwargs.get('A_star', -1)  # Steller wind parameter
+    A_star = kwargs.get('A_star', -1)  # Steller wind parameter, < 0 for Uniform ambient medium. If enabled dNe & A_star > 0 simultaneously, it enters the Wind-to-ISM density jump scenario. Set dNe be a very small value 1e-15 for Wind-dominated scenario.
     E_iso = kwargs.get('E_iso')  # Isotropic kinetic energy of jet
     z = kwargs.get('z')  # Redshift
     
