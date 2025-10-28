@@ -19,6 +19,6 @@
 **v4.0**  Expanded IC cooling module to three methods (`dot_gam_e_ssc`, Nakar, Fan). The first two are nearly consistent, while Fan becomes unreliable in strong IC cooling regions.  
 Speed ranking: Fan > Nakar > `dot_gam_e_ssc`; accuracy ranking is the opposite.  
 **v4.0.1**  Fixed an issue in SED interpolation where flux values were incorrectly positioned at grid center i+1/2 instead of i-1/2, causing slightly elevated results (<1%). (Feedback from Jian-heZheng)  
-**v4.0.2**  Added `dot_gam_e_ssa` module to calculate SSA-induced pile-up effects. (Beta version)
-**v4.0.3**  Corrected the initial mass issue in Region 2 of reverse shock dynamics (Yan), which previously led to unphysical crossing timescales and incorrect light curve morphology. (Feedback from Yun Wang)  
+**v4.0.2**  Added `dot_gam_e_ssa` module to calculate SSA-induced pile-up effects.
+**v4.0.3**  Corrected the initial mass issue in Region 2 of reverse shock dynamics (Yan), which previously lead to unphysical crossing timescales and incorrect light curve morphology. (Feedback from Yun Wang)  
 **v4.0.4**  Resolved a historical issue with the Compton Y parameter, introduced in an uncertain version, which caused underestimation of `hat_gamma_e` in the Fan method. Cumulative updates.
