@@ -314,10 +314,11 @@ end subroutine electron_cell_geometry
 subroutine electron_find_high_energy_front(Num_gam_e,x_edge,dN_x,x_cut_high)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: Num_gam_e
-    integer :: I_gam_e,last_active
+    integer :: I_gam_e,last_active,peak_idx,front_idx
     real(8), intent(in) :: x_edge(Num_gam_e+1),dN_x(Num_gam_e)
     real(8), intent(out) :: x_cut_high
     real(8) :: x_center(Num_gam_e),dx_cell(Num_gam_e),peak_val,threshold,q0,q1,qth,frac
+    real(8) :: qlog(Num_gam_e),drop,best_drop,x_cut_grad,x_cut_thresh
 
     call electron_cell_geometry(Num_gam_e,x_edge,x_center,dx_cell)
     peak_val=maxval(dN_x)
@@ -326,28 +327,56 @@ subroutine electron_find_high_energy_front(Num_gam_e,x_edge,dN_x,x_cut_high)
         return
     end if
 
-    threshold=max(1d-30,1d-8*peak_val)
+    peak_idx=1
+    do I_gam_e=2,Num_gam_e
+        if (dN_x(I_gam_e) > dN_x(peak_idx)) peak_idx=I_gam_e
+    end do
+    do I_gam_e=1,Num_gam_e
+        qlog(I_gam_e)=dlog10(one+max(dN_x(I_gam_e),zero))
+    end do
+
+    threshold=max(1d-30,1d-10*peak_val)
     last_active=0
     do I_gam_e=1,Num_gam_e
         if (dN_x(I_gam_e) > threshold) last_active=I_gam_e
     end do
 
+    x_cut_thresh=x_edge(Num_gam_e+1)
     if (last_active <= 0) then
-        x_cut_high=x_edge(Num_gam_e+1)
+        x_cut_thresh=x_edge(Num_gam_e+1)
     else if (last_active >= Num_gam_e) then
-        x_cut_high=x_edge(Num_gam_e+1)
+        x_cut_thresh=x_edge(Num_gam_e+1)
     else
         q0=dlog10(one+max(dN_x(last_active),zero))
         q1=dlog10(one+max(dN_x(last_active+1),zero))
         qth=dlog10(one+threshold)
         if (abs(q1-q0) <= 1d-30) then
-            x_cut_high=0.5d0*(x_center(last_active)+x_center(last_active+1))
+            x_cut_thresh=0.5d0*(x_center(last_active)+x_center(last_active+1))
         else
             frac=(qth-q0)/(q1-q0)
             frac=max(zero,min(one,frac))
-            x_cut_high=x_center(last_active)+frac*(x_center(last_active+1)-x_center(last_active))
+            x_cut_thresh=x_center(last_active)+frac*(x_center(last_active+1)-x_center(last_active))
         end if
     end if
+
+    front_idx=min(max(peak_idx,1),Num_gam_e-1)
+    best_drop=zero
+    do I_gam_e=peak_idx,Num_gam_e-1
+        drop=(qlog(I_gam_e)-qlog(I_gam_e+1))/max(x_center(I_gam_e+1)-x_center(I_gam_e),1d-30)
+        if (drop > best_drop) then
+            best_drop=drop
+            front_idx=I_gam_e
+        end if
+        if (dN_x(I_gam_e) <= threshold .and. dN_x(I_gam_e+1) <= threshold) exit
+    end do
+    x_cut_grad=0.5d0*(x_edge(front_idx+1)+x_edge(front_idx+2))
+
+    if (best_drop > zero) then
+        x_cut_high=min(x_cut_thresh,x_cut_grad)
+    else
+        x_cut_high=x_cut_thresh
+    end if
+    x_cut_high=max(x_edge(1),min(x_cut_high,x_edge(Num_gam_e+1)))
 end subroutine electron_find_high_energy_front
 
 subroutine electron_find_low_energy_front(Num_gam_e,x_edge,dN_x,x_cut_low)
@@ -527,28 +556,35 @@ end subroutine electron_anchor_characteristic_edges
 subroutine electron_anchor_high_energy_edges(Num_gam_e,x_edge_old,x_edge_new,x_cut_high,window_dex)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: Num_gam_e
-    integer :: tail_cells,I_edge,anchor_idx
+    integer :: tail_cells,I_edge,anchor_idx,n_tail
     real(8), intent(in) :: x_edge_old(Num_gam_e+1),x_cut_high,window_dex
     real(8), intent(inout) :: x_edge_new(Num_gam_e+1)
-    real(8) :: x_hi,x_prev,x_lo,x_cut,eps_spacing,s
+    real(8) :: x_hi,x_prev,x_front,x_band_lo,x_band_hi,eps_spacing,s,w_front,front_lo
 
-    tail_cells=min(4,max(3,Num_gam_e/8))
+    tail_cells=min(7,max(5,Num_gam_e/6))
     anchor_idx=Num_gam_e+1-tail_cells
     if (anchor_idx <= 1) return
 
     eps_spacing=1d-8
     x_hi=x_edge_old(Num_gam_e+1)
     x_prev=x_edge_new(anchor_idx-1)
-    x_cut=min(max(x_cut_high,x_prev+4d0*eps_spacing),x_hi-3d0*eps_spacing)
-    x_lo=max(x_prev+2d0*eps_spacing,min(x_cut-1.2d0*max(window_dex,1d-4),x_hi-5d0*eps_spacing))
+    n_tail=Num_gam_e+1-anchor_idx
+    if (n_tail < 4) return
 
-    if (x_cut <= x_lo+2d0*eps_spacing) return
+    w_front=max(0.6d0*max(window_dex,1d-4),2d-2)
+    x_front=min(max(x_cut_high,x_prev+6d0*eps_spacing),x_hi-real(n_tail+1,8)*eps_spacing)
+    front_lo=max(x_prev+2d0*eps_spacing,min(x_front-0.8d0*w_front,x_hi-real(n_tail,8)*eps_spacing))
+    x_band_lo=max(front_lo,min(x_front-0.25d0*w_front,x_hi-real(n_tail-1,8)*eps_spacing))
+    x_band_hi=min(x_hi-real(n_tail-3,8)*eps_spacing,max(x_front+0.35d0*w_front,x_band_lo+2d0*eps_spacing))
 
-    x_edge_new(anchor_idx)=x_lo
-    x_edge_new(anchor_idx+1)=x_cut
-    do I_edge=anchor_idx+2,Num_gam_e+1
-        s=real(I_edge-(anchor_idx+1),8)/real(Num_gam_e-anchor_idx,8)
-        x_edge_new(I_edge)=x_cut+(x_hi-x_cut)*s*s
+    if (x_band_hi <= x_band_lo+2d0*eps_spacing) return
+
+    x_edge_new(anchor_idx)=x_band_lo
+    x_edge_new(anchor_idx+1)=max(x_band_lo+eps_spacing,min(x_front,x_band_hi-eps_spacing))
+    x_edge_new(anchor_idx+2)=x_band_hi
+    do I_edge=anchor_idx+3,Num_gam_e+1
+        s=real(I_edge-(anchor_idx+2),8)/real(Num_gam_e-anchor_idx-1,8)
+        x_edge_new(I_edge)=x_band_hi+(x_hi-x_band_hi)*s*s
     end do
 
     do I_edge=anchor_idx+1,Num_gam_e+1

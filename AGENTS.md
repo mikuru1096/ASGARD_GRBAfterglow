@@ -542,6 +542,7 @@ plot_spectrum(result, times_s=[1e3, 1e4, 1e5], quantity="nufnu")
 - `slc1_mmg2` 路径下的高层 SSC 主链已经从直接 `ssc_spec_nonuniform(...)` 切换到 auxiliary uniform `log(gamma)` 网格重建后再调用旧 `ssc_spec(...)`。
 - `ssc_spec_nonuniform(...)` 现在保留为诊断/对照工具，不再作为 `slc1_mmg2` 高层主链默认路径。
 - `tests/ssc_aux_grid_scheme_check.py` 现在除了比较共动系 SSC 谱外，还输出观测量侧前向 SSC 在 `X-ray/TeV` 的光变平滑性，以及 `slc1_mmg2` 相对 `fullhide/slc1` 的偏差，用于直接检查 aux-grid 主链在观测量侧是否连续平滑。
+- `slc1_mmg2` 的前沿保峰问题当前已进入数值层修正：优先改高能前沿定位与高能锚带，而不是在非数值层补保护；本轮 `electron_common.f90` 已做 line truncation 复查，并用手工 `gfortran -c` 验证 `electron_common/calling_modules/FS_electron_slc1/FS_electron_fullhide` 编译链通过。当前 `python build_extensions.py --module FS_electron_slc1` 在本环境仍会被 `f2py/meson` 的 `electron_common.mod` 依赖顺序问题卡住，这一项不能误判成新数值改动本身未通过编译。
 - 当前后续工作重点应放在 SSC/RS/cross-zone IC 的物理一致性核查与基准收束，而不是继续堆新接口。
 
 ## 13. 2026-04 Runtime Update
