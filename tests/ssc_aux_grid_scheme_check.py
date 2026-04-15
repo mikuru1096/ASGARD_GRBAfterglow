@@ -13,105 +13,15 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from asgard_presets import build_baseline_config
-from asgard_runtime import solve_dynamics
+from asgard_runtime import solve_dynamics, solve_electron
+from asgard_ssc import compute_ssc_auxiliary_grid
 from asgard_setup import build_simulation_setup
 from src import Radiation
 import src.Electron.FS_electron_slc1 as slc1_module
 
 
-OUTPUT_JSON = ROOT / "output" / "vegasafterglow_doc" / "ssc_aux_grid_scheme.json"
+OUTPUT_JSON = ROOT / "output" / "asgard_doc" / "ssc_aux_grid_scheme.json"
 AUX_COUNTS = (40, 64, 121)
-
-
-def _shell_support_bounds(work_x_edge_log10: np.ndarray, work_d_n_x: np.ndarray) -> tuple[float, float]:
-    x_lo = np.inf
-    x_hi = -np.inf
-    for i_shell in range(work_d_n_x.shape[1]):
-        q_shell = np.asarray(work_d_n_x[:, i_shell], dtype=float)
-        peak = float(np.max(q_shell))
-        if not np.isfinite(peak) or peak <= 0.0:
-            continue
-        active = np.where(q_shell >= 1.0e-12 * peak)[0]
-        if active.size == 0:
-            continue
-        x_lo = min(x_lo, float(work_x_edge_log10[active[0], i_shell]))
-        x_hi = max(x_hi, float(work_x_edge_log10[active[-1] + 1, i_shell]))
-    if not np.isfinite(x_lo) or not np.isfinite(x_hi) or x_hi <= x_lo:
-        x_lo = float(np.min(work_x_edge_log10))
-        x_hi = float(np.max(work_x_edge_log10))
-    return x_lo, x_hi
-
-
-def _project_shell_conservative(x_old_edge: np.ndarray, q_old: np.ndarray, x_new_edge: np.ndarray) -> np.ndarray:
-    n_old = q_old.shape[0]
-    n_new = x_new_edge.shape[0] - 1
-    q_new_int = np.zeros(n_new, dtype=float)
-    i_old = 0
-    i_new = 0
-    while i_old < n_old and i_new < n_new:
-        x_lo = max(x_old_edge[i_old], x_new_edge[i_new])
-        x_hi = min(x_old_edge[i_old + 1], x_new_edge[i_new + 1])
-        if x_hi > x_lo:
-            q_new_int[i_new] += q_old[i_old] * (x_hi - x_lo)
-        if x_old_edge[i_old + 1] <= x_new_edge[i_new + 1]:
-            i_old += 1
-        else:
-            i_new += 1
-    widths = np.diff(x_new_edge)
-    return q_new_int / widths
-
-
-def _build_aux_edges(work_x_edge_log10: np.ndarray, work_d_n_x: np.ndarray, num_aux: int) -> np.ndarray:
-    x_lo, x_hi = _shell_support_bounds(work_x_edge_log10, work_d_n_x)
-    margin = 0.08
-    return np.linspace(x_lo - margin, x_hi + margin, num_aux + 1, dtype=float)
-
-
-def _project_work_to_aux_conservative(
-    work_x_edge_log10: np.ndarray,
-    work_d_n_x: np.ndarray,
-    num_aux: int,
-) -> tuple[np.ndarray, np.ndarray]:
-    x_aux_edge = _build_aux_edges(work_x_edge_log10, work_d_n_x, num_aux)
-    d_n_x_aux = np.empty((num_aux, work_d_n_x.shape[1]), dtype=float)
-    for i_shell in range(work_d_n_x.shape[1]):
-        d_n_x_aux[:, i_shell] = _project_shell_conservative(
-            np.asarray(work_x_edge_log10[:, i_shell], dtype=float),
-            np.asarray(work_d_n_x[:, i_shell], dtype=float),
-            x_aux_edge,
-        )
-    gam_aux = 10.0 ** (0.5 * (x_aux_edge[:-1] + x_aux_edge[1:]))
-    d_n_gam_aux = d_n_x_aux / (gam_aux[:, None] * np.log(10.0))
-    return gam_aux, np.asfortranarray(d_n_gam_aux)
-
-
-def _project_work_to_aux_center_log(
-    work_x_edge_log10: np.ndarray,
-    work_d_n_x: np.ndarray,
-    num_aux: int,
-    renormalize: bool,
-) -> tuple[np.ndarray, np.ndarray]:
-    x_aux_edge = _build_aux_edges(work_x_edge_log10, work_d_n_x, num_aux)
-    x_aux = 0.5 * (x_aux_edge[:-1] + x_aux_edge[1:])
-    q_aux = np.zeros((num_aux, work_d_n_x.shape[1]), dtype=float)
-    tiny = 1.0e-300
-    for i_shell in range(work_d_n_x.shape[1]):
-        x_old = 0.5 * (work_x_edge_log10[:-1, i_shell] + work_x_edge_log10[1:, i_shell])
-        q_old = np.asarray(work_d_n_x[:, i_shell], dtype=float)
-        y_old = np.log(np.maximum(q_old, tiny))
-        y_new = np.interp(x_aux, x_old, y_old, left=np.log(tiny), right=np.log(tiny))
-        q_new = np.exp(y_new)
-        if renormalize:
-            widths_old = np.diff(work_x_edge_log10[:, i_shell])
-            widths_new = np.diff(x_aux_edge)
-            integ_old = float(np.sum(q_old * widths_old))
-            integ_new = float(np.sum(q_new * widths_new))
-            if integ_new > 0.0:
-                q_new *= integ_old / integ_new
-        q_aux[:, i_shell] = q_new
-    gam_aux = 10.0 ** x_aux
-    d_n_gam_aux = q_aux / (gam_aux[:, None] * np.log(10.0))
-    return np.asfortranarray(gam_aux), np.asfortranarray(d_n_gam_aux)
 
 
 def _timed_ssc_public(
@@ -145,22 +55,17 @@ def _timed_ssc_aux(
     v_seed: np.ndarray,
     seed_syn: np.ndarray,
     num_aux: int,
-    projection: str,
 ) -> tuple[float, np.ndarray]:
     t0 = perf_counter()
-    if projection == "conservative":
-        gam_aux, d_n_gam_aux = _project_work_to_aux_conservative(work_x_edge_log10, work_d_n_x, num_aux)
-    elif projection == "center_log":
-        gam_aux, d_n_gam_aux = _project_work_to_aux_center_log(
-            work_x_edge_log10, work_d_n_x, num_aux, renormalize=False
-        )
-    elif projection == "center_log_renorm":
-        gam_aux, d_n_gam_aux = _project_work_to_aux_center_log(
-            work_x_edge_log10, work_d_n_x, num_aux, renormalize=True
-        )
-    else:
-        raise ValueError(f"unknown projection: {projection}")
-    p_ssc, _ = Radiation.ssc_spec(radius, np.asfortranarray(gam_aux), d_n_gam_aux, v_seed, seed_syn, 1)
+    p_ssc, _ = compute_ssc_auxiliary_grid(
+        radius,
+        work_x_edge_log10,
+        work_d_n_x,
+        v_seed,
+        seed_syn,
+        1,
+        num_auxiliary_gamma=num_aux,
+    )
     return perf_counter() - t0, np.asarray(p_ssc)
 
 
@@ -178,6 +83,40 @@ def _summary_against_reference(candidate: np.ndarray, reference: np.ndarray) -> 
         "core_median_rel": float(np.median(rel_core)),
         "core_max_rel": float(np.max(rel_core)),
     }
+
+
+def _high_energy_smoothness(values: np.ndarray) -> dict[str, float]:
+    arr = np.asarray(values, dtype=float)
+    mask = np.isfinite(arr) & (arr > 0.0)
+    if np.count_nonzero(mask) < 3:
+        return {"max_curvature_dex": float("inf"), "rms_curvature_dex": float("inf")}
+    logy = np.log10(arr[mask])
+    curvature = np.diff(logy, n=2)
+    return {
+        "max_curvature_dex": float(np.max(np.abs(curvature))),
+        "rms_curvature_dex": float(np.sqrt(np.mean(curvature * curvature))),
+    }
+
+
+def _compute_reference_ssc(config, solver_name: str) -> np.ndarray:
+    reference_config = build_baseline_config(**vars(config))
+    reference_config.electron_solver = solver_name
+    reference_config.num_gam_e = 161
+    reference_config.num_nu = config.num_nu
+    reference_config.num_r = config.num_r
+    reference_config.num_tobs = config.num_tobs
+    setup = build_simulation_setup(reference_config)
+    dynamics = solve_dynamics(setup.boundary, reference_config)
+    electron = solve_electron(setup.boundary, dynamics, setup.seed_frequency_hz, reference_config)
+    ssc, _ = Radiation.ssc_spec(
+        np.asfortranarray(dynamics.radius),
+        np.asfortranarray(electron.gam_e),
+        np.asfortranarray(electron.d_n_gam_e),
+        np.asfortranarray(setup.seed_frequency_hz),
+        np.asfortranarray(electron.seed_syn),
+        1,
+    )
+    return np.asarray(ssc, dtype=float)
 
 
 def main() -> None:
@@ -228,6 +167,9 @@ def main() -> None:
 
     public_seconds, public_ssc = _timed_ssc_public(radius, gam_e, d_n_gam_e, v_seed, seed_syn)
     nonuniform_seconds, nonuniform_ssc = _timed_ssc_nonuniform(radius, work_x_edge_log10, work_d_n_x, v_seed, seed_syn)
+    fullhide_ref = _compute_reference_ssc(config, "fullhide")
+    slc1_ref = _compute_reference_ssc(config, "slc1")
+    high_energy_index = int(np.argmax(v_seed >= 2.4e26)) if np.any(v_seed >= 2.4e26) else v_seed.shape[0] - 1
 
     payload: dict[str, object] = {
         "config": {
@@ -239,35 +181,49 @@ def main() -> None:
             "d_ne": float(config.d_ne),
             "a_star": float(config.a_star),
         },
+        "validation_basis": "current_dirty_tree_state",
         "reference": {
-            "scheme": "direct_nonuniform_ssc",
-            "seconds": float(nonuniform_seconds),
+            "physical": {
+                "fullhide_highres": {"num_gam_e": 161, "num_nu": int(config.num_nu)},
+                "slc1_highres": {"num_gam_e": 161, "num_nu": int(config.num_nu)},
+            },
+            "diagnostic_only": {
+                "scheme": "direct_nonuniform_ssc",
+                "seconds": float(nonuniform_seconds),
+            },
         },
         "public_uniform": {
             "seconds": float(public_seconds),
             **_summary_against_reference(public_ssc, nonuniform_ssc),
             "speedup_vs_nonuniform": float(nonuniform_seconds / public_seconds),
+            "vs_fullhide_highres": _summary_against_reference(public_ssc, fullhide_ref),
+            "vs_slc1_highres": _summary_against_reference(public_ssc, slc1_ref),
         },
         "aux_uniform": {},
+        "diagnostic_nonuniform": {
+            "vs_fullhide_highres": _summary_against_reference(nonuniform_ssc, fullhide_ref),
+            "vs_slc1_highres": _summary_against_reference(nonuniform_ssc, slc1_ref),
+        },
     }
 
-    for projection in ("conservative", "center_log", "center_log_renorm"):
-        payload["aux_uniform"][projection] = {}
-        for num_aux in AUX_COUNTS:
-            aux_seconds, aux_ssc = _timed_ssc_aux(
-                radius,
-                work_x_edge_log10,
-                work_d_n_x,
-                v_seed,
-                seed_syn,
-                num_aux,
-                projection,
-            )
-            payload["aux_uniform"][projection][str(num_aux)] = {
-                "seconds": float(aux_seconds),
-                **_summary_against_reference(aux_ssc, nonuniform_ssc),
-                "speedup_vs_nonuniform": float(nonuniform_seconds / aux_seconds),
-            }
+    for num_aux in AUX_COUNTS:
+        aux_seconds, aux_ssc = _timed_ssc_aux(
+            radius,
+            work_x_edge_log10,
+            work_d_n_x,
+            v_seed,
+            seed_syn,
+            num_aux,
+        )
+        payload["aux_uniform"][str(num_aux)] = {
+            "seconds": float(aux_seconds),
+            "speedup_vs_nonuniform": float(nonuniform_seconds / aux_seconds),
+            "vs_public_uniform": _summary_against_reference(aux_ssc, public_ssc),
+            "vs_nonuniform": _summary_against_reference(aux_ssc, nonuniform_ssc),
+            "vs_fullhide_highres": _summary_against_reference(aux_ssc, fullhide_ref),
+            "vs_slc1_highres": _summary_against_reference(aux_ssc, slc1_ref),
+            "tev_shell_smoothness": _high_energy_smoothness(aux_ssc[high_energy_index]),
+        }
 
     OUTPUT_JSON.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT_JSON.write_text(json.dumps(payload, indent=2), encoding="utf-8")

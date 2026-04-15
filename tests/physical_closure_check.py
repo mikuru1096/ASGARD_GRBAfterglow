@@ -12,13 +12,13 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from VegasAfterglow import ISM, Model, Observer, Radiation, Setups, TophatJet, units
+from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet, units
 from asgard_component_backend import build_query_setup, observe_spectra_from_setup, solve_component_spectra_from_setup
 from asgard_presets import build_baseline_config, build_reverse_demo_config
 from asgard_runtime import solve_dynamics, solve_electron, solve_reverse_shock_emission
 from asgard_setup import build_simulation_setup
 from src import Radiation as RadiationKernel, constants
-from tests.vegasafterglow_comprehensive_validation import (
+from tests.asgard_comprehensive_validation import (
     REGIME_TEST_CONFIGS,
     REGRESSION_RESOLUTION,
     SPECTRAL_TOLERANCE,

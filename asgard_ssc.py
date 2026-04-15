@@ -6,6 +6,9 @@ from asgard_models import FitConfig
 from src import Radiation, constants
 
 
+DEFAULT_AUXILIARY_GAMMA_COUNT = 64
+
+
 def _ambient_density(radius_cm: np.ndarray, config: FitConfig) -> np.ndarray:
     radius_cm = np.asarray(radius_cm, dtype=float)
     if config.a_star > 0.0:
@@ -121,6 +124,155 @@ def _interp_positive_loglog(source_grid: np.ndarray, values: np.ndarray, target_
         if np.any(inside):
             out[inside, i] = np.exp(np.interp(log_target[inside], x, y))
     return out
+
+
+def _shell_support_bounds(work_x_edge_log10: np.ndarray, work_d_n_x: np.ndarray) -> tuple[float, float]:
+    x_lo = np.inf
+    x_hi = -np.inf
+    for i_shell in range(work_d_n_x.shape[1]):
+        q_shell = np.asarray(work_d_n_x[:, i_shell], dtype=float)
+        peak = float(np.max(q_shell))
+        if not np.isfinite(peak) or peak <= 0.0:
+            continue
+        active = np.where(q_shell >= 1.0e-12 * peak)[0]
+        if active.size == 0:
+            continue
+        x_lo = min(x_lo, float(work_x_edge_log10[active[0], i_shell]))
+        x_hi = max(x_hi, float(work_x_edge_log10[active[-1] + 1, i_shell]))
+    if not np.isfinite(x_lo) or not np.isfinite(x_hi) or x_hi <= x_lo:
+        x_lo = float(np.min(work_x_edge_log10))
+        x_hi = float(np.max(work_x_edge_log10))
+    return x_lo, x_hi
+
+
+def _build_auxiliary_gamma_edges(
+    work_x_edge_log10: np.ndarray,
+    work_d_n_x: np.ndarray,
+    num_auxiliary_gamma: int,
+) -> np.ndarray:
+    x_lo, x_hi = _shell_support_bounds(work_x_edge_log10, work_d_n_x)
+    margin = 0.08
+    return np.linspace(x_lo - margin, x_hi + margin, num_auxiliary_gamma + 1, dtype=float)
+
+
+def _minmod(a: float, b: float) -> float:
+    if a * b <= 0.0:
+        return 0.0
+    return a if abs(a) <= abs(b) else b
+
+
+def _minmod3(a: float, b: float, c: float) -> float:
+    return _minmod(a, _minmod(b, c))
+
+
+def _loglinear_cell_int(qlog_center: float, slope: float, x_center: float, xa: float, xb: float) -> float:
+    if xb <= xa:
+        return 0.0
+    if abs(slope) <= 1.0e-14:
+        return (10.0**qlog_center - 1.0) * (xb - xa)
+    alpha = slope
+    beta = qlog_center - alpha * x_center
+    ln10 = np.log(10.0)
+    u_a = (beta + alpha * xa) * ln10
+    u_b = (beta + alpha * xb) * ln10
+    u_max = max(u_a, u_b)
+    exp_span = np.exp(u_b - u_max) - np.exp(u_a - u_max)
+    return np.exp(u_max) * exp_span / (alpha * ln10) - (xb - xa)
+
+
+def _build_log_prefix_nonuniform(x_edge_old: np.ndarray, q_old: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    num_old = q_old.shape[0]
+    x_center = 0.5 * (x_edge_old[:-1] + x_edge_old[1:])
+    qlog = np.log10(1.0 + np.maximum(q_old, 0.0))
+    slope = np.zeros(num_old, dtype=float)
+    for i_cell in range(1, num_old - 1):
+        dl = (qlog[i_cell] - qlog[i_cell - 1]) / max(x_center[i_cell] - x_center[i_cell - 1], 1.0e-30)
+        dr = (qlog[i_cell + 1] - qlog[i_cell]) / max(x_center[i_cell + 1] - x_center[i_cell], 1.0e-30)
+        dc = (qlog[i_cell + 1] - qlog[i_cell - 1]) / max(x_center[i_cell + 1] - x_center[i_cell - 1], 1.0e-30)
+        slope[i_cell] = _minmod3(2.0 * dl, dc, 2.0 * dr)
+    prefix = np.zeros(num_old + 1, dtype=float)
+    for i_cell in range(num_old):
+        prefix[i_cell + 1] = prefix[i_cell] + _loglinear_cell_int(
+            qlog[i_cell],
+            slope[i_cell],
+            x_center[i_cell],
+            x_edge_old[i_cell],
+            x_edge_old[i_cell + 1],
+        )
+    return prefix, qlog, slope, x_center
+
+
+def _log_prefix_eval_nonuniform(
+    x_edge_old: np.ndarray,
+    prefix: np.ndarray,
+    qlog: np.ndarray,
+    slope: np.ndarray,
+    x_center: np.ndarray,
+    x_eval: float,
+) -> float:
+    xa = max(float(x_edge_old[0]), min(float(x_eval), float(x_edge_old[-1])))
+    if xa <= x_edge_old[0]:
+        return 0.0
+    if xa >= x_edge_old[-1]:
+        return float(prefix[-1])
+    i_cell = int(np.searchsorted(x_edge_old[1:], xa, side="left"))
+    return float(prefix[i_cell]) + _loglinear_cell_int(qlog[i_cell], slope[i_cell], x_center[i_cell], x_edge_old[i_cell], xa)
+
+
+def _conservative_remap_log_nonuniform(x_edge_old: np.ndarray, x_edge_new: np.ndarray, q_old: np.ndarray) -> np.ndarray:
+    prefix, qlog, slope, x_center = _build_log_prefix_nonuniform(x_edge_old, q_old)
+    num_new = x_edge_new.shape[0] - 1
+    q_new = np.zeros(num_new, dtype=float)
+    for i_cell in range(num_new):
+        dx_cell = max(float(x_edge_new[i_cell + 1] - x_edge_new[i_cell]), 1.0e-30)
+        right = _log_prefix_eval_nonuniform(x_edge_old, prefix, qlog, slope, x_center, float(x_edge_new[i_cell + 1]))
+        left = _log_prefix_eval_nonuniform(x_edge_old, prefix, qlog, slope, x_center, float(x_edge_new[i_cell]))
+        q_new[i_cell] = max((right - left) / dx_cell, 0.0)
+    return q_new
+
+
+def project_work_grid_to_auxiliary_gamma(
+    work_x_edge_log10: np.ndarray,
+    work_d_n_x: np.ndarray,
+    num_auxiliary_gamma: int = DEFAULT_AUXILIARY_GAMMA_COUNT,
+) -> tuple[np.ndarray, np.ndarray]:
+    x_aux_edge = _build_auxiliary_gamma_edges(work_x_edge_log10, work_d_n_x, num_auxiliary_gamma)
+    x_aux = 0.5 * (x_aux_edge[:-1] + x_aux_edge[1:])
+    q_aux = np.zeros((num_auxiliary_gamma, work_d_n_x.shape[1]), dtype=float)
+    for i_shell in range(work_d_n_x.shape[1]):
+        q_aux[:, i_shell] = _conservative_remap_log_nonuniform(
+            np.asarray(work_x_edge_log10[:, i_shell], dtype=float),
+            x_aux_edge,
+            np.asarray(work_d_n_x[:, i_shell], dtype=float),
+        )
+
+    gam_aux = np.power(10.0, x_aux)
+    d_n_gam_aux = q_aux / (gam_aux[:, None] * np.log(10.0))
+    return np.asfortranarray(gam_aux), np.asfortranarray(d_n_gam_aux)
+
+
+def compute_ssc_auxiliary_grid(
+    radius_cm: np.ndarray,
+    work_x_edge_log10: np.ndarray,
+    work_d_n_x: np.ndarray,
+    seed_frequency_hz: np.ndarray,
+    seed_field: np.ndarray,
+    num_threads: int,
+    num_auxiliary_gamma: int = DEFAULT_AUXILIARY_GAMMA_COUNT,
+) -> tuple[np.ndarray, np.ndarray]:
+    gam_aux, d_n_gam_aux = project_work_grid_to_auxiliary_gamma(
+        np.asarray(work_x_edge_log10, dtype=float),
+        np.asarray(work_d_n_x, dtype=float),
+        num_auxiliary_gamma=num_auxiliary_gamma,
+    )
+    return Radiation.ssc_spec(
+        np.asfortranarray(np.asarray(radius_cm, dtype=float)),
+        gam_aux,
+        d_n_gam_aux,
+        np.asfortranarray(np.asarray(seed_frequency_hz, dtype=float)),
+        np.asfortranarray(np.asarray(seed_field, dtype=float)),
+        num_threads,
+    )
 
 
 def _build_forward_ssc_grid(

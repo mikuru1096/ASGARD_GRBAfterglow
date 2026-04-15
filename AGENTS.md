@@ -11,11 +11,16 @@ ASGARD 是一个用于 GRB 余辉建模与拟合的数值代码库。当前仓�
 - 补齐能谱输出与绘图接口。
 - 修复已知坏点，但不在非数值模拟代码中添加“数值保护式”逻辑。
 
+- 默认只做与当前改动直接相关的最少编译和最小回归测试；不要无关地全量重编译或全量回归，除非当前问题本身要求那样做。
+- 主进程负责构建计划、review、处理困难任务；可并行且边界清晰的其余任务优先交给子进程完成。
+- 使用子进程时必须严格控制子进程上下文长度，只传递完成当前子任务所必需的最小上下文；每轮对话都要检查上下文占用。
+- 当任一工作线程或子进程的上下文窗口达到上限的 80% 时，必须自动进行一次上下文压缩，再继续后续工作。
+- 给子进程分配任务时，优先使用能够完成该子任务的最快、最便宜模型；由主线程自行判断能力与成本的平衡，不默认使用高成本模型。
+
 ## 1.1 子 Agent 使用约束
 
 - 当前项目允许使用子 agents 协助分析与实现。
 - 同一轮任务中最多使用 `5` 个子 agents。
-- 只有在它们能明确减少重复搜索、缩短验证时间或并行排查热点时才使用。
 - 主线阻塞修改仍由主 agent 直接完成，不把关键路径完全外包。
 
 ## 2. 当前目录结构
@@ -458,14 +463,16 @@ python tests\regression_check.py
 
 截至本文件更新时，已完成以下检查：
 
-- `python build_extensions.py` 通过
-- `python hand_my.py` 通过
-- `python tests\regression_check.py` 通过
+- `python tests\ssc_aux_route_check.py` 通过
+- `python tests\ssc_aux_grid_scheme_check.py` 通过
+- `python tests\physical_closure_check.py` 通过
+- `src/Radiation/SSC_spec.f90` 已完成 line truncation 复查
 
-回归阈值：
+当前默认策略：
 
-- 对 `xrt/optr/9GHz` 三条光变曲线，新旧结果相对偏差要求 `<= 3%`
-- 当前基线对比结果为 `0.000000`
+- 只做与当前改动直接相关的最少编译和最小回归测试。
+- 不把无关全量重编译或全量回归作为默认检查动作。
+- Windows 下若已有 `.pyd` 被当前 Python 进程占用，`python build_extensions.py` 可能因目标文件无法覆盖而失败；这类锁文件问题不应被误判为当前物理或接口改动本身出错。
 
 ## 9. Fortran 代码检查要求
 
@@ -479,6 +486,7 @@ python tests\regression_check.py
 - `src/Interpolation/SED_interpolation.f90`
 - `src/Interpolation/SED_interpolation_structured.f90`
 - `src/Electron/FS_electron_t2g2.f90`
+- `src/Radiation/SSC_spec.f90`
 
 都已做超长行拆分处理，不改公式。
 
@@ -495,6 +503,8 @@ python tests\regression_check.py
 4. 若物理结果异常，应先定位单位、网格、插值或接口错误，再考虑文献对照。
 5. 默认不生成稠密能谱；只有显式启用 `spectrum_output.enabled=True` 才计算。
 6. 当前默认电子演化路径是 `FS_electron_fullhide`，不是 `FS_electron_t2g2`。
+7. 每完成一次重要迭代，都要同步更新 `AGENTS.md`，删改已过时条目，并补上新的项目事实、约束和当前基准。
+8. 每完成一次已被接受的修改后，都要及时执行一次 git commit；提交时只包含当前修改直接相关的文件，不混入无关脏树改动。
 
 ## 11. 最小调用示例
 
@@ -528,8 +538,10 @@ plot_spectrum(result, times_s=[1e3, 1e4, 1e5], quantity="nufnu")
 - 能谱数据管线已经补齐。
 - 能谱绘图接口已经可用。
 - 现有重构没有改动 Fortran 数值物理公式。
-- `reverse=True` 不再静默失效，而是显式提示缺少反向激波参数接口。
-- 当前后续工作应优先放在反向激波参数建模、测试和物理一致性核查，而不是继续扩写新接口。
+- 反向激波参数接口已经接入 `ReverseShockConfig`，FS/RS 特征频率和公开示例链路已经打通。
+- `slc1_mmg2` 路径下的高层 SSC 主链已经从直接 `ssc_spec_nonuniform(...)` 切换到 auxiliary uniform `log(gamma)` 网格重建后再调用旧 `ssc_spec(...)`。
+- `ssc_spec_nonuniform(...)` 现在保留为诊断/对照工具，不再作为 `slc1_mmg2` 高层主链默认路径。
+- 当前后续工作重点应放在 SSC/RS/cross-zone IC 的物理一致性核查与基准收束，而不是继续堆新接口。
 
 ## 13. 2026-04 Runtime Update
 
@@ -539,11 +551,9 @@ plot_spectrum(result, times_s=[1e3, 1e4, 1e5], quantity="nufnu")
   - `Radiation.seed_reverse`
 - 当前实现方式：
   - 若启用反向激波，主动力学使用 `dynamics_reverse` 返回的 `R_Tobs/R_Gamma/R`
-  - 正激波电子谱与 SSC 仍按原主链计算
-  - 反向激波当前只接入同步辐射
-  - 总观测谱使用 `L_syn,FS + L_syn,RS + L_ssc,FS`
-  - `gamma-gamma` 吸收使用 `seed_syn,FS + seed_syn,RS + seed_ssc,FS`
-- 当前没有接入反向激波 SSC，也没有接入区间耦合 IC。
+  - `slc1_mmg2` 的 FS-SSC 高层主链当前走 auxiliary-grid 重建后复用 `ssc_spec(...)`
+  - 总观测谱当前已接入 `FS synchrotron + FS-SSC + RS synchrotron + RS-SSC + cross-zone IC`
+  - `gamma-gamma` 吸收当前使用 `seed_syn,FS + seed_syn,RS + seed_ssc,FS + seed_ssc,RS + seed_cross-zone,IC`
 - 新增 `asgard_observables.py`，统一管理波段、频率表和多波段后处理。
 - `FitResult` 现在显式区分两套时间轴：
   - `t_obs_s`：观测光变与能谱输出时间轴。
@@ -599,9 +609,9 @@ plot_spectrum(result, times_s=[1e3, 1e4, 1e5], quantity="nufnu")
 2. 结果对象扩充
    - 评估是否将 FS/RS 的更多中间物理量纳入只读结果对象
    - 目标是减少脚本层再次回探内部模块
-3. 反向激波物理链路继续补齐
-   - 现阶段仅有 RS synchrotron
-   - 是否接入 RS-SSC 与区间耦合 IC，需要单独做物理口径确认后再动
+3. SSC / 反向激波物理链路继续核查
+   - `RS-SSC` 与区间耦合 `IC` 已接入，但当前重点不是继续盲目扩链，而是做物理口径、平滑性与参考解一致性核查
+   - `slc1_mmg2` 的 aux-grid SSC 主链已经替代 direct nonuniform 主链，后续应继续围绕这条路径做基准收束
 4. 测试继续前移
    - 将更多 API 契约和绘图输出检查固定到 `tests/`
    - 保持每轮重构后先做接口回归，再做物理曲线回归

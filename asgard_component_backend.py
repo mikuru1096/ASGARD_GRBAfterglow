@@ -18,6 +18,7 @@ from asgard_runtime import (
     solve_electron,
     solve_reverse_shock_emission,
 )
+from asgard_ssc import compute_ssc_auxiliary_grid
 from asgard_setup import build_seed_frequency_grid, build_simulation_setup
 from src import Radiation, constants
 
@@ -550,7 +551,7 @@ def _compute_ssc_spectrum(
         return _timed_call(
             timings,
             label,
-            Radiation.ssc_spec_nonuniform,
+            compute_ssc_auxiliary_grid,
             radius_cm,
             electron.work_x_edge_log10,
             electron.work_d_n_x,
