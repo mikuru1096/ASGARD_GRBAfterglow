@@ -16,7 +16,7 @@ if str(ROOT) not in sys.path:
 import src.Electron.FS_electron_fullhide as fullhide_module
 
 
-OUTPUT_JSON = ROOT / "output" / "vegasafterglow_doc" / "electron_operator_scheme.json"
+OUTPUT_JSON = ROOT / "output" / "asgard_doc" / "electron_operator_scheme.json"
 
 ecommon = fullhide_module.electron_common
 

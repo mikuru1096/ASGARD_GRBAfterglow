@@ -1,4 +1,4 @@
-from VegasAfterglow import (
+from ASGARD import (
     ISM, Model, Observer, Radiation, Setups, TophatJet, observe,
 )
 from asgard_plot import plot_characteristic_frequencies, plot_light_curve

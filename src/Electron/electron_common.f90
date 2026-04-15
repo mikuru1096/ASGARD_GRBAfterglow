@@ -1,4 +1,4 @@
-module electron_common
+﻿module electron_common
     use constants
     use adaptive_resampling_mod, only: adaptive_resampling_log
     implicit none
@@ -1442,4 +1442,48 @@ subroutine electron_external_density(A_star,dNe_ISM,R_loc,R0,R_tr,f_jump,f_wide,
     end if
 end subroutine electron_external_density
 
+
+subroutine electron_ppm_point_values_nonuniform(Num_src,x_src_edge, &
+     q_src,Num_tgt,x_tgt,q_tgt)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: Num_src, Num_tgt
+    real(8), intent(in) :: x_src_edge(Num_src+1), q_src(Num_src)
+    real(8), intent(in) :: x_tgt(Num_tgt)
+    real(8), intent(out) :: q_tgt(Num_tgt)
+    real(8) :: q_left(Num_src), q_right(Num_src)
+    real(8) :: xi, coeff_c
+    integer :: i_tgt, i_src, lo, hi, mid
+
+    call electron_ppm_interfaces_nonuniform(Num_src,x_src_edge, &
+         q_src,q_left,q_right)
+
+    do i_tgt = 1, Num_tgt
+        q_tgt(i_tgt) = zero
+    end do
+
+    do i_tgt = 1, Num_tgt
+        if (x_tgt(i_tgt) < x_src_edge(1)) cycle
+        if (x_tgt(i_tgt) > x_src_edge(Num_src+1)) cycle
+        ! binary search for source cell
+        lo = 1
+        hi = Num_src
+        do while (lo < hi)
+            mid = (lo + hi) / 2
+            if (x_tgt(i_tgt) > x_src_edge(mid+1)) then
+                lo = mid + 1
+            else
+                hi = mid
+            end if
+        end do
+        i_src = lo
+        ! PPM parabola evaluation in cell i_src
+        xi = (x_tgt(i_tgt) - x_src_edge(i_src)) &
+             / (x_src_edge(i_src+1) - x_src_edge(i_src))
+        coeff_c = q_src(i_src) &
+             - 0.5d0*(q_left(i_src) + q_right(i_src))
+        q_tgt(i_tgt) = q_left(i_src) &
+             + xi*(q_right(i_src) - q_left(i_src) + 6d0*coeff_c) &
+             + 6d0*coeff_c*xi*(1d0 - xi)
+    end do
+end subroutine electron_ppm_point_values_nonuniform
 end module electron_common

@@ -15,11 +15,11 @@ if str(ROOT) not in sys.path:
 
 from asgard_component_backend import build_query_setup, profile_observe_spectra_from_setup
 from asgard_models import default_num_threads
-from VegasAfterglow import ISM, Model, Observer, Radiation, Setups, TophatJet
-from VegasAfterglow.api import _build_fit_config_for_patch
+from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet
+from ASGARD.api import _build_fit_config_for_patch
 
 
-OUTPUT_DIR = ROOT / "output" / "vegasafterglow_doc"
+OUTPUT_DIR = ROOT / "output" / "asgard_doc"
 TIMES_S = np.logspace(2.0, 8.0, 100)
 FREQS_HZ = np.array([1.0e9, 1.0e14, 1.0e18], dtype=float)
 SERIAL_THREADS = 1
@@ -147,7 +147,7 @@ def main() -> None:
     for ax, (title, payload) in zip(np.atleast_1d(axes), cases.items()):
         _plot_case(ax, title, payload["serial"], payload["parallel"])
     axes[0].legend(loc="lower right")
-    fig.suptitle("ASGARD / VegasAfterglow-style subroutine timings")
+    fig.suptitle("ASGARD / ASGARD-style subroutine timings")
     fig.savefig(output_png, dpi=200)
     fig.savefig(output_pdf)
     plt.close(fig)

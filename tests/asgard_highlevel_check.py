@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from VegasAfterglow import Fitter, ISM, Magnetar, Model, ObsData, Observer, ParamDef, Radiation, Scale, TophatJet, units
+from ASGARD import Fitter, ISM, Magnetar, Model, ObsData, Observer, ParamDef, Radiation, Scale, TophatJet, units
 
 
 def main() -> None:
@@ -72,7 +72,7 @@ def main() -> None:
     assert np.isclose(units.GHz, 1.0e9)
     assert np.isclose(units.mJy, 1.0e-3)
 
-    print("PASS: VegasAfterglow high-level check succeeded.")
+    print("PASS: ASGARD high-level check succeeded.")
 
 
 if __name__ == "__main__":

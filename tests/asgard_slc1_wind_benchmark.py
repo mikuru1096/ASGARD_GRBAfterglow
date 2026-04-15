@@ -13,10 +13,10 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from VegasAfterglow import Fitter, Model, ObsData, Observer, ParamDef, Radiation, Scale, Setups, TophatJet, Wind, units
+from ASGARD import Fitter, Model, ObsData, Observer, ParamDef, Radiation, Scale, Setups, TophatJet, Wind, units
 
 
-OUTPUT_DIR = ROOT / "output" / "vegasafterglow_doc"
+OUTPUT_DIR = ROOT / "output" / "asgard_doc"
 OUTPUT_JSON = OUTPUT_DIR / "slc1_wind_benchmark_compare.json"
 OUTPUT_PNG = OUTPUT_DIR / "slc1_wind_benchmark_compare.png"
 OUTPUT_PDF = OUTPUT_DIR / "slc1_wind_benchmark_compare.pdf"

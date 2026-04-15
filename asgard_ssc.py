@@ -231,6 +231,52 @@ def _conservative_remap_log_nonuniform(x_edge_old: np.ndarray, x_edge_new: np.nd
     return q_new
 
 
+def _ppm_interfaces_nonuniform(x_edge: np.ndarray, q: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    x_center = 0.5 * (x_edge[:-1] + x_edge[1:])
+    dx_cell = x_edge[1:] - x_edge[:-1]
+    slope = np.zeros_like(q, dtype=float)
+    for i_cell in range(1, q.shape[0] - 1):
+        dl = (q[i_cell] - q[i_cell - 1]) / max(x_center[i_cell] - x_center[i_cell - 1], 1.0e-30)
+        dr = (q[i_cell + 1] - q[i_cell]) / max(x_center[i_cell + 1] - x_center[i_cell], 1.0e-30)
+        dc = (q[i_cell + 1] - q[i_cell - 1]) / max(x_center[i_cell + 1] - x_center[i_cell - 1], 1.0e-30)
+        slope[i_cell] = _minmod3(2.0 * dl, dc, 2.0 * dr)
+
+    q_left = np.array(q, copy=True)
+    q_right = np.array(q, copy=True)
+    for i_cell in range(1, q.shape[0] - 1):
+        q_left[i_cell] = q[i_cell] - 0.5 * slope[i_cell] * dx_cell[i_cell]
+        q_right[i_cell] = q[i_cell] + 0.5 * slope[i_cell] * dx_cell[i_cell]
+        q_min = min(q[i_cell - 1], q[i_cell], q[i_cell + 1])
+        q_max = max(q[i_cell - 1], q[i_cell], q[i_cell + 1])
+        q_left[i_cell] = max(q_min, min(q_max, q_left[i_cell]))
+        q_right[i_cell] = max(q_min, min(q_max, q_right[i_cell]))
+        if (q_right[i_cell] - q[i_cell]) * (q[i_cell] - q_left[i_cell]) <= 0.0:
+            q_left[i_cell] = q[i_cell]
+            q_right[i_cell] = q[i_cell]
+        else:
+            q_bar = 0.5 * (q_left[i_cell] + q_right[i_cell])
+            dq = q_right[i_cell] - q_left[i_cell]
+            if dq * (q[i_cell] - q_bar) > dq * dq / 6.0:
+                q_left[i_cell] = 3.0 * q[i_cell] - 2.0 * q_right[i_cell]
+            elif dq * (q[i_cell] - q_bar) < -dq * dq / 6.0:
+                q_right[i_cell] = 3.0 * q[i_cell] - 2.0 * q_left[i_cell]
+    return q_left, q_right
+
+
+def _ppm_point_values_nonuniform(x_src_edge: np.ndarray, q_src: np.ndarray, x_tgt: np.ndarray) -> np.ndarray:
+    q_left, q_right = _ppm_interfaces_nonuniform(x_src_edge, q_src)
+    q_tgt = np.zeros_like(x_tgt, dtype=float)
+    for i_tgt, x_val in enumerate(x_tgt):
+        if x_val < x_src_edge[0] or x_val > x_src_edge[-1]:
+            continue
+        i_src = int(np.searchsorted(x_src_edge[1:], x_val, side="left"))
+        dx = max(x_src_edge[i_src + 1] - x_src_edge[i_src], 1.0e-30)
+        xi = (x_val - x_src_edge[i_src]) / dx
+        coeff_c = q_src[i_src] - 0.5 * (q_left[i_src] + q_right[i_src])
+        q_tgt[i_tgt] = q_left[i_src] + xi * (q_right[i_src] - q_left[i_src] + 6.0 * coeff_c) + 6.0 * coeff_c * xi * (1.0 - xi)
+    return np.maximum(q_tgt, 0.0)
+
+
 def project_work_grid_to_auxiliary_gamma(
     work_x_edge_log10: np.ndarray,
     work_d_n_x: np.ndarray,
@@ -238,13 +284,18 @@ def project_work_grid_to_auxiliary_gamma(
 ) -> tuple[np.ndarray, np.ndarray]:
     x_aux_edge = _build_auxiliary_gamma_edges(work_x_edge_log10, work_d_n_x, num_auxiliary_gamma)
     x_aux = 0.5 * (x_aux_edge[:-1] + x_aux_edge[1:])
+    dx_aux = x_aux_edge[1:] - x_aux_edge[:-1]
     q_aux = np.zeros((num_auxiliary_gamma, work_d_n_x.shape[1]), dtype=float)
     for i_shell in range(work_d_n_x.shape[1]):
-        q_aux[:, i_shell] = _conservative_remap_log_nonuniform(
-            np.asarray(work_x_edge_log10[:, i_shell], dtype=float),
-            x_aux_edge,
-            np.asarray(work_d_n_x[:, i_shell], dtype=float),
-        )
+        x_src_edge = np.asarray(work_x_edge_log10[:, i_shell], dtype=float)
+        q_src = np.asarray(work_d_n_x[:, i_shell], dtype=float)
+        q_aux_avg = _conservative_remap_log_nonuniform(x_src_edge, x_aux_edge, q_src)
+        q_aux_shell = _ppm_point_values_nonuniform(x_aux_edge, q_aux_avg, x_aux)
+        total_src = float(np.sum(q_src * np.diff(x_src_edge)))
+        total_aux = float(np.sum(q_aux_shell * dx_aux))
+        if total_src > 0.0 and total_aux > 0.0:
+            q_aux_shell *= total_src / total_aux
+        q_aux[:, i_shell] = q_aux_shell
 
     gam_aux = np.power(10.0, x_aux)
     d_n_gam_aux = q_aux / (gam_aux[:, None] * np.log(10.0))

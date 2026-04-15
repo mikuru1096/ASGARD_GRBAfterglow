@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from VegasAfterglow import Fitter, ISM, Model, ObsData, Observer, ParamDef, Radiation, Scale, TophatJet, Wind, units
+from ASGARD import Fitter, ISM, Model, ObsData, Observer, ParamDef, Radiation, Scale, TophatJet, Wind, units
 
 
 def _run_case(name, fn):

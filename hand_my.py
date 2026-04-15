@@ -1,4 +1,4 @@
-from VegasAfterglow import (
+from ASGARD import (
     ISM, Model, Observer, Radiation, Setups, TophatJet, observe,
 )
 from asgard_models import SpectrumOutputConfig

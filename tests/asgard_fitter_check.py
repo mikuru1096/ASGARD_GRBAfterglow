@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from VegasAfterglow import Fitter, ISM, Model, ObsData, Observer, ParamDef, Radiation, Scale, Setups, TophatJet
+from ASGARD import Fitter, ISM, Model, ObsData, Observer, ParamDef, Radiation, Scale, Setups, TophatJet
 
 
 def main() -> None:
@@ -42,7 +42,7 @@ def main() -> None:
     loglike = fitter.loglike(values)
     assert np.isfinite(loglike)
 
-    print("PASS: VegasAfterglow fitter check succeeded.")
+    print("PASS: ASGARD fitter check succeeded.")
 
 
 if __name__ == "__main__":

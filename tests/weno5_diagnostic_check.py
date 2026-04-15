@@ -18,7 +18,7 @@ import src.Electron.FS_electron_weno5 as weno5_module
 from src import constants
 
 
-OUTPUT_JSON = ROOT / "output" / "vegasafterglow_doc" / "weno5_diagnostic.json"
+OUTPUT_JSON = ROOT / "output" / "asgard_doc" / "weno5_diagnostic.json"
 
 
 def _ambient_density(radius_cm: float, config) -> float:

@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from VegasAfterglow import ISM, Model, Observer, Radiation, Setups, TophatJet, Wind, units
+from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet, Wind, units
 
 
 OUTPUT_DIR = ROOT / "output" / "benchmark_exp_tail"

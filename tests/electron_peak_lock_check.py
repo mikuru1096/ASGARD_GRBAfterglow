@@ -17,7 +17,7 @@ from asgard_setup import build_simulation_setup
 from src import constants
 
 
-OUTPUT_JSON = ROOT / "output" / "vegasafterglow_doc" / "electron_peak_lock_diagnostic.json"
+OUTPUT_JSON = ROOT / "output" / "asgard_doc" / "electron_peak_lock_diagnostic.json"
 
 
 def _support_metrics(gamma: np.ndarray, spectrum: np.ndarray) -> dict[str, float]:

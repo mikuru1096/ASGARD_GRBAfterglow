@@ -10,8 +10,8 @@ from matplotlib.colors import LinearSegmentedColormap
 
 
 ROOT = Path(__file__).resolve().parents[1]
-INPUT_JSON = ROOT / "output" / "vegasafterglow_doc" / "comprehensive_validation_asgard.json"
-OUTPUT_DIR = ROOT / "output" / "vegasafterglow_doc"
+INPUT_JSON = ROOT / "output" / "asgard_doc" / "comprehensive_validation_asgard.json"
+OUTPUT_DIR = ROOT / "output" / "asgard_doc"
 OUTPUT_PDF = OUTPUT_DIR / "comprehensive_validation_summary.pdf"
 
 
@@ -135,7 +135,7 @@ def _draw_overview(fig, payload: dict) -> None:
     ax0.axis("off")
     summary = payload["summary"]
     text = (
-        "ASGARD vs VegasAfterglow Summary\n\n"
+        "ASGARD vs ASGARD Summary\n\n"
         f"Benchmark pass: {summary['benchmark_pass']}\n"
         f"Regression pass: {summary['regression_pass']}\n"
         f"Regression total: {summary['regression_total']}\n"

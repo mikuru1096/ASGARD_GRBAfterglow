@@ -11,7 +11,7 @@ if str(ROOT) not in sys.path:
 
 from asgard_models import ReverseShockConfig, SpectrumOutputConfig
 from asgard_presets import build_baseline_config
-from VegasAfterglow import ISM, Model, Observer, Radiation, Setups, TophatJet, observe
+from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet, observe
 
 
 def build_contract_model_and_config():

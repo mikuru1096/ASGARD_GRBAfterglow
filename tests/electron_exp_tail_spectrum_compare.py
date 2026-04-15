@@ -13,8 +13,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from VegasAfterglow import ISM, Model, Observer, Radiation, Setups, TophatJet, Wind
-from VegasAfterglow.api import _build_fit_config_for_patch, _resolve_patch_state
+from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet, Wind
+from ASGARD.api import _build_fit_config_for_patch, _resolve_patch_state
 
 
 OUTPUT_DIR = ROOT / "output" / "benchmark_exp_tail"

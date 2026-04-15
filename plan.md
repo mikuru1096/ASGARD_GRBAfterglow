@@ -16,7 +16,7 @@
 - 电子默认求解器：`fullhide`
 - 当前主链门槛：
   - `python tests/regression_check.py`
-  - `python tests/vegasafterglow_comprehensive_validation.py`
+  - `python tests/ASGARD_comprehensive_validation.py`
   - `python tests/bug_audit_check.py`
   - `python tests/physical_closure_check.py`
 - 当前稳定回归结果：
@@ -32,7 +32,7 @@
 ### 2.1 电子谱有效收敛阶偏低
 
 当前结果见：
-- `output/vegasafterglow_doc/order_convergence.json`
+- `output/ASGARD_doc/order_convergence.json`
 
 当前实测：
 - `fullhide-electron-spectrum = 0.5442`
@@ -153,7 +153,7 @@
 ### 3.2 电子谱分解测阶的最新结果
 
 最新结果见：
-- `output/vegasafterglow_doc/order_convergence.json`
+- `output/ASGARD_doc/order_convergence.json`
 
 当前新增拆分指标后，结论是：
 
@@ -198,7 +198,7 @@
 ### 3.4 固定动力学下的 `peak_gamma` 锁网格诊断
 
 最新结果见：
-- `output/vegasafterglow_doc/electron_peak_lock_diagnostic.json`
+- `output/ASGARD_doc/electron_peak_lock_diagnostic.json`
 
 当前直接诊断结论：
 
@@ -238,7 +238,7 @@
 ### 3.5 初始谱亚格点投影的单独实验结果
 
 最新结果见：
-- `output/vegasafterglow_doc/electron_initial_projection.json`
+- `output/ASGARD_doc/electron_initial_projection.json`
 
 当前直接结论：
 - 单独把初始谱从“格点中心硬切”改成“log-gamma 单元内积分”，**不能单独解决** `peak_gamma` 锁网格
@@ -269,7 +269,7 @@
 ### 3.6 冻结冷却系数的离线量化结果
 
 最新结果见：
-- `output/vegasafterglow_doc/electron_cooling_lag.json`
+- `output/ASGARD_doc/electron_cooling_lag.json`
 
 实验定义：
 - 不改默认链
@@ -298,7 +298,7 @@
 ### 3.7 正性截断 `max(zero, ...)` 的离线量化结果
 
 最新结果见：
-- `output/vegasafterglow_doc/electron_clipping.json`
+- `output/ASGARD_doc/electron_clipping.json`
 
 实验定义：
 - 不改默认链
@@ -317,7 +317,7 @@
 ### 3.8 源项硬切 / 源项亚格点投影的离线量化结果
 
 最新结果见：
-- `output/vegasafterglow_doc/electron_source_projection.json`
+- `output/ASGARD_doc/electron_source_projection.json`
 
 实验定义：
 - 不改默认链
@@ -340,7 +340,7 @@
 ### 3.9 operator-only 诊断：默认输运核本身会锁峰位
 
 最新结果见：
-- `output/vegasafterglow_doc/electron_operator_only.json`
+- `output/ASGARD_doc/electron_operator_only.json`
 
 实验定义：
 - 完全去掉源项
@@ -365,7 +365,7 @@
 ### 3.10 纯 operator 定阶结果
 
 最新结果见：
-- `output/vegasafterglow_doc/electron_operator_scheme.json`
+- `output/ASGARD_doc/electron_operator_scheme.json`
 
 实验定义：
 - 完全去掉源项和额外耦合
@@ -479,7 +479,7 @@
 
 更新基准前必须同时满足：
 - `regression_check` 通过
-- `vegasafterglow_comprehensive_validation` 通过
+- `ASGARD_comprehensive_validation` 通过
 - `bug_audit_check` 通过
 - `physical_closure_check` 通过
 - 默认电子链的电子谱有效阶数达到可接受水平
@@ -496,7 +496,7 @@
 
 每轮都必须执行：
 - `python tests/regression_check.py`
-- `python tests/vegasafterglow_comprehensive_validation.py`
+- `python tests/ASGARD_comprehensive_validation.py`
 - `python tests/bug_audit_check.py`
 - `python tests/physical_closure_check.py`
 
@@ -557,7 +557,7 @@
 ### 7.2 `slc1` 当前 observed order
 
 结果文件：
-- `output/vegasafterglow_doc/order_convergence.json`
+- `output/ASGARD_doc/order_convergence.json`
 
 当前 `slc1`：
 - `bands-flux ≈ 0.622`
@@ -574,12 +574,12 @@
 ### 7.3 `slc1` 最新 benchmark / profile / 图
 
 结果文件：
-- `output/vegasafterglow_doc/slc1_benchmark_compare.json`
-- `output/vegasafterglow_doc/slc1_benchmark_compare.png`
-- `output/vegasafterglow_doc/slc1_subroutine_profile.json`
-- `output/vegasafterglow_doc/slc1_subroutine_profile.png`
-- `output/vegasafterglow_doc/slc1_quick-lc.png`
-- `output/vegasafterglow_doc/slc1_quick-spec.png`
+- `output/ASGARD_doc/slc1_benchmark_compare.json`
+- `output/ASGARD_doc/slc1_benchmark_compare.png`
+- `output/ASGARD_doc/slc1_subroutine_profile.json`
+- `output/ASGARD_doc/slc1_subroutine_profile.png`
+- `output/ASGARD_doc/slc1_quick-lc.png`
+- `output/ASGARD_doc/slc1_quick-spec.png`
 
 关键 benchmark：
 - `quickstart: 1.497 s -> 1.314 s`
@@ -677,7 +677,7 @@ stage-level profile（Tophat sync）：
 - line truncate 检查通过。
 - 主链门槛全部通过：
   - `regression_check`
-  - `vegasafterglow_comprehensive_validation`
+  - `ASGARD_comprehensive_validation`
   - `bug_audit_check`
   - `physical_closure_check`
 
@@ -723,12 +723,12 @@ stage-level profile（Tophat sync）：
 ### 7.8 星风环境 benchmark
 
 新增脚本：
-- `tests/vegasafterglow_slc1_wind_benchmark.py`
+- `tests/ASGARD_slc1_wind_benchmark.py`
 
 输出文件：
-- `output/vegasafterglow_doc/slc1_wind_benchmark_compare.json`
-- `output/vegasafterglow_doc/slc1_wind_benchmark_compare.png`
-- `output/vegasafterglow_doc/slc1_wind_benchmark_compare.pdf`
+- `output/ASGARD_doc/slc1_wind_benchmark_compare.json`
+- `output/ASGARD_doc/slc1_wind_benchmark_compare.png`
+- `output/ASGARD_doc/slc1_wind_benchmark_compare.pdf`
 
 环境：
 - `TophatJet(theta_c=0.1, E_iso=1.0e52, Gamma0=300.0)`

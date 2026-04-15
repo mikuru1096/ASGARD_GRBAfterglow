@@ -11,8 +11,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-import VegasAfterglow.api as va_api
-from VegasAfterglow import ISM, Model, Observer, Radiation, Setups, TophatJet
+import ASGARD.api as asgard_api
+from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet
 
 
 def _build_model() -> Model:
@@ -40,7 +40,7 @@ def main() -> None:
     frequencies_hz = np.logspace(9.0, 21.0, 128)
 
     model = _build_model()
-    with patch.object(va_api, "solve_model_state_from_setup", wraps=va_api.solve_model_state_from_setup) as solve_mock:
+    with patch.object(asgard_api, "solve_model_state_from_setup", wraps=asgard_api.solve_model_state_from_setup) as solve_mock:
         adaptive = model.flux_density_grid(time_s, frequencies_hz)
         solve_count = solve_mock.call_count
 

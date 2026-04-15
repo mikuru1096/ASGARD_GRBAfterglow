@@ -20,7 +20,7 @@ from asgard_setup import build_simulation_setup
 import src.Electron.FS_electron_fullhide as electron_module
 
 
-OUTPUT_DIR = ROOT / "output" / "vegasafterglow_doc"
+OUTPUT_DIR = ROOT / "output" / "asgard_doc"
 SERIAL_THREADS = 1
 PARALLEL_THREADS = default_num_threads()
 PROFILE_REPEATS = 12

@@ -15,15 +15,15 @@ if str(ROOT) not in sys.path:
 
 from matplotlib.colors import LogNorm
 
-from VegasAfterglow import ISM, Model, Observer, Radiation, TophatJet, units
+from ASGARD import ISM, Model, Observer, Radiation, TophatJet, units
 from asgard_presets import build_baseline_config
 from asgard_runtime import solve_dynamics
 from asgard_setup import build_simulation_setup
 from src import constants
-from tests.vegasafterglow_comprehensive_validation import REGIME_TEST_CONFIGS, _make_model, fit_powerlaw
+from tests.ASGARD_comprehensive_validation import REGIME_TEST_CONFIGS, _make_model, fit_powerlaw
 
 
-OUTPUT_DIR = ROOT / "output" / "vegasafterglow_doc"
+OUTPUT_DIR = ROOT / "output" / "asgard_doc"
 
 
 def _label_from_value(value: float, unit: str) -> str:

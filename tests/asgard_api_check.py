@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from VegasAfterglow import GaussianJet, ISM, Medium, Model, Observer, Radiation, Setups, TophatJet, Wind
+from ASGARD import GaussianJet, ISM, Medium, Model, Observer, Radiation, Setups, TophatJet, Wind
 
 
 def main() -> None:
@@ -106,7 +106,7 @@ def main() -> None:
     rel_custom_wind_inner = np.max(np.abs(custom_wind_inner_grid - wind_inner_grid) / np.maximum(wind_inner_grid, 1.0e-99))
     assert rel_custom_wind_inner <= 3.0e-2
 
-    print("PASS: VegasAfterglow API check succeeded.")
+    print("PASS: ASGARD API check succeeded.")
 
 
 if __name__ == "__main__":

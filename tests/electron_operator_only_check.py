@@ -18,7 +18,7 @@ from asgard_setup import build_simulation_setup
 import src.Electron.FS_electron_fullhide as fullhide_module
 
 
-OUTPUT_JSON = ROOT / "output" / "vegasafterglow_doc" / "electron_operator_only.json"
+OUTPUT_JSON = ROOT / "output" / "asgard_doc" / "electron_operator_only.json"
 
 
 ecommon = fullhide_module.electron_common

@@ -24,7 +24,7 @@ import src.Electron.FS_electron_t2g1 as t2g1_module
 import src.Electron.FS_electron_weno5 as weno5_module
 
 
-OUTPUT_JSON = ROOT / "output" / "vegasafterglow_doc" / "electron_solver_comparison.json"
+OUTPUT_JSON = ROOT / "output" / "asgard_doc" / "electron_solver_comparison.json"
 
 
 def _run_direct_fullhide(boundary, r_tobs, r_gamma, radius, v_seed, config, adaptive: bool):

@@ -18,7 +18,7 @@ from asgard_setup import build_simulation_setup
 from src import constants
 
 
-OUTPUT_JSON = ROOT / "output" / "vegasafterglow_doc" / "electron_initial_projection.json"
+OUTPUT_JSON = ROOT / "output" / "asgard_doc" / "electron_initial_projection.json"
 
 
 def _log_cell_edges(gamma: np.ndarray) -> np.ndarray:

@@ -20,8 +20,8 @@ from asgard_setup import build_simulation_setup
 from asgard_postprocess import compute_band_fluxes
 
 
-OUTPUT_JSON = ROOT / "output" / "vegasafterglow_doc" / "order_convergence.json"
-CACHE_DIR = ROOT / "output" / "vegasafterglow_doc" / "order_convergence_cache"
+OUTPUT_JSON = ROOT / "output" / "asgard_doc" / "order_convergence.json"
+CACHE_DIR = ROOT / "output" / "asgard_doc" / "order_convergence_cache"
 ORDER_CACHE_VERSION = 9
 
 

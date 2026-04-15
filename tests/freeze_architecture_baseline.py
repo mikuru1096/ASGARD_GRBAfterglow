@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from VegasAfterglow import ISM, Model, Observer, Radiation, Setups, TophatJet
+from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet
 from tests.bug_audit_check import (
     check_component_finiteness_and_closure,
     check_monotonic_arrays,
@@ -29,7 +29,7 @@ from tests.physical_closure_check import (
 )
 
 
-OUTPUT_DIR = ROOT / "output" / "vegasafterglow_doc"
+OUTPUT_DIR = ROOT / "output" / "asgard_doc"
 JSON_OUT = ROOT / "tests" / "baseline_architecture.json"
 NPZ_OUT = ROOT / "tests" / "baseline_architecture_observed.npz"
 

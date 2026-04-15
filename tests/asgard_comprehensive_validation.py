@@ -15,10 +15,10 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from VegasAfterglow import ISM, Model, Observer, Radiation, Setups, TophatJet, GaussianJet, PowerLawJet, Wind
+from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet, GaussianJet, PowerLawJet, Wind
 
 
-OUTPUT_JSON = ROOT / "output" / "vegasafterglow_doc" / "comprehensive_validation_asgard.json"
+OUTPUT_JSON = ROOT / "output" / "asgard_doc" / "comprehensive_validation_asgard.json"
 
 FIDUCIAL_RESOLUTION = (0.1, 0.25, 10)
 REGRESSION_RESOLUTION = (0.3, 2.0, 15)
@@ -551,7 +551,7 @@ def main() -> None:
     payload = {
         "timestamp": datetime.now().isoformat(),
         "methodology": {
-            "source": "VegasAfterglow validation docs/scripts",
+            "source": "ASGARD validation docs/scripts",
             "benchmark_note": "Representative subset of benchmark configs was used. Direct top-hat keeps convergence scans; structured-jet entries keep timing-only benchmarks to stay tractable on the current Python patch backend.",
             "fiducial_resolution": FIDUCIAL_RESOLUTION,
             "regression_resolution": REGRESSION_RESOLUTION,

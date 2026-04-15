@@ -11,8 +11,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-import VegasAfterglow.api as va_api
-from VegasAfterglow import GaussianJet, ISM, Model, Observer, Radiation, Setups, TophatJet
+import ASGARD.api as asgard_api
+from ASGARD import GaussianJet, ISM, Model, Observer, Radiation, Setups, TophatJet
 
 
 def _build_direct_model() -> Model:
@@ -62,7 +62,7 @@ def main() -> None:
     frequencies_hz = np.array([9.0e9, 4.84e14], dtype=float)
 
     direct_model = _build_direct_model()
-    with patch.object(va_api, "solve_model_state_from_setup", wraps=va_api.solve_model_state_from_setup) as solve_mock:
+    with patch.object(asgard_api, "solve_model_state_from_setup", wraps=asgard_api.solve_model_state_from_setup) as solve_mock:
         direct_model.flux_density_grid(times_s, frequencies_hz)
         solve_after_flux = solve_mock.call_count
         direct_model.spectrum(1.0e3, frequencies_hz)
@@ -75,7 +75,7 @@ def main() -> None:
     assert direct_states[0].setup.observer_time_s.size == direct_model.setups.num_tobs
 
     structured_model = _build_structured_model()
-    with patch.object(va_api, "solve_model_state_from_setup", wraps=va_api.solve_model_state_from_setup) as solve_mock:
+    with patch.object(asgard_api, "solve_model_state_from_setup", wraps=asgard_api.solve_model_state_from_setup) as solve_mock:
         structured_model.flux_density_grid(times_s, frequencies_hz)
         solve_after_flux = solve_mock.call_count
         structured_model.details(1.0e2, 1.0e5)

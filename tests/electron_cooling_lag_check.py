@@ -19,7 +19,7 @@ import src.Electron.FS_electron_fullhide as fullhide_module
 from src import constants
 
 
-OUTPUT_JSON = ROOT / "output" / "vegasafterglow_doc" / "electron_cooling_lag.json"
+OUTPUT_JSON = ROOT / "output" / "asgard_doc" / "electron_cooling_lag.json"
 
 
 get_y = fullhide_module.get_y
