@@ -15,7 +15,9 @@ if str(ROOT) not in sys.path:
 from asgard_presets import build_baseline_config
 from asgard_runtime import solve_dynamics, solve_electron
 from asgard_setup import build_simulation_setup
-from mergered import run_fit
+from asgard_component_backend import solve_model_state_from_setup, extract_physical_solution_from_state
+from asgard_setup import build_simulation_setup
+from asgard_postprocess import compute_band_fluxes
 
 
 OUTPUT_JSON = ROOT / "output" / "vegasafterglow_doc" / "order_convergence.json"
@@ -83,10 +85,13 @@ def _observed_case(solver: str, n: int) -> dict[str, np.ndarray]:
         num_tobs=64,
         include_forward_ssc=True,
     )
-    res = run_fit(cfg)
+    setup = build_simulation_setup(cfg)
+    state = solve_model_state_from_setup(cfg, setup)
+    physical = extract_physical_solution_from_state(state)
+    bands_flux = compute_band_fluxes(setup, physical, cfg)
     payload = {
-        "bands_flux": np.asarray(res.bands_flux, dtype=float),
-        "nu_a": np.asarray(res.nu_a, dtype=float),
+        "bands_flux": np.asarray(bands_flux, dtype=float),
+        "nu_a": np.asarray(physical.nu_a, dtype=float),
     }
     _save_npz_cache(path, **payload)
     return payload

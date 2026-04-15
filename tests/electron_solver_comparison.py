@@ -15,7 +15,9 @@ if str(ROOT) not in sys.path:
 from asgard_presets import build_baseline_config
 from asgard_runtime import solve_dynamics
 from asgard_setup import build_simulation_setup
-from asgard_solver import run_fit
+from asgard_component_backend import solve_model_state_from_setup, extract_physical_solution_from_state
+from asgard_setup import build_simulation_setup
+from asgard_postprocess import compute_band_fluxes
 import src.Electron.FS_electron_fullhide as fullhide_module
 import src.Electron.FS_electron_slc1 as slc1_module
 import src.Electron.FS_electron_t2g1 as t2g1_module
@@ -169,14 +171,17 @@ def _run_observed_solver(name: str, base_config):
     config.electron_solver = "fullhide" if name == "fullhide_adaptive" else name
     config.electron_adaptive_substeps = name == "fullhide_adaptive"
     start = perf_counter()
-    result = run_fit(config)
+    setup = build_simulation_setup(config)
+    state = solve_model_state_from_setup(config, setup)
+    physical = extract_physical_solution_from_state(state)
+    bands_flux = compute_band_fluxes(setup, physical, config)
     elapsed = perf_counter() - start
     return {
         "seconds": elapsed,
-        "bands_flux": np.asarray(result.bands_flux),
-        "nu_m": np.asarray(result.nu_m),
-        "nu_c": np.asarray(result.nu_c),
-        "nu_a": np.asarray(result.nu_a),
+        "bands_flux": np.asarray(bands_flux),
+        "nu_m": np.asarray(physical.nu_m),
+        "nu_c": np.asarray(physical.nu_c),
+        "nu_a": np.asarray(physical.nu_a),
     }
 
 

@@ -1,5 +1,6 @@
 from .api import (
     Ejecta,
+    observe,
     FitResult,
     Fitter,
     GaussianJet,
@@ -41,5 +42,6 @@ __all__ = [
     "Setups",
     "Fitter",
     "FitResult",
+    "observe",
     "units",
 ]

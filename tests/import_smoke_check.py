@@ -22,8 +22,8 @@ def main() -> None:
         finally:
             os.chdir(prev_cwd)
 
-        assert hasattr(hand_my, "build_demo_config")
-        assert hasattr(hand_reverse, "build_demo_config")
+        assert hasattr(hand_my, "build_demo_model")
+        assert hasattr(hand_reverse, "build_demo_model")
         assert not any(Path(tmpdir).glob("*.pdf"))
 
     print("PASS: import smoke check succeeded.")

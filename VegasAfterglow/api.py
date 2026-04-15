@@ -22,7 +22,7 @@ from asgard_component_backend import (
 )
 from asgard_models import FitConfig, ReverseShockConfig, SpectrumOutputConfig, default_num_threads
 from asgard_observables import OUTPUT_BANDS, build_multiband_observer_frequencies, combine_multiband_flux
-from asgard_postprocess import compute_light_curve_redchi
+from asgard_postprocess import compute_light_curve_redchi, build_spectrum_frequency_grid
 from asgard_presets import build_baseline_config
 from src import constants
 
@@ -2475,3 +2475,63 @@ def _coerce_model(cfg: Any) -> Model:
 
     resolutions = cfg.get("resolutions")
     return Model(medium=medium, jet=jet, observer=observer, fwd_rad=fwd_rad, rvs_rad=rvs_rad, setups=setups, resolutions=resolutions)
+
+
+def observe(
+    model: Model,
+    config: Optional[FitConfig] = None,
+    spectrum_output: Optional[SpectrumOutputConfig] = None,
+):
+    from asgard_models import FitResult as _PhysicalFitResult
+
+    setups = model.setups
+    t_obs_s = np.logspace(
+        np.log10(setups.observer_time_min_s),
+        np.log10(setups.observer_time_max_s),
+        setups.num_tobs,
+    )
+
+    n_xrt, all_freqs = build_multiband_observer_frequencies()
+    grid_result = model.flux_density_grid(t_obs_s, all_freqs)
+    bands_flux = combine_multiband_flux(grid_result.total, all_freqs, n_xrt)
+
+    details = model.details()
+    char_time = details.fwd.t_obs
+
+    rs_nu_m = None
+    rs_nu_c = None
+    rs_nu_a = None
+    if details.rev is not None:
+        rs_nu_m = details.rev.nu_m
+        rs_nu_c = details.rev.nu_c
+        rs_nu_a = details.rev.nu_a
+
+    redchi = 0.0
+    if config is not None:
+        redchi = compute_light_curve_redchi(bands_flux, t_obs_s, config)
+
+    spectrum_freq_hz = None
+    spectrum_fnu = None
+    if spectrum_output is not None and spectrum_output.enabled:
+        spec_freqs = build_spectrum_frequency_grid(
+            type('_Cfg', (), {'spectrum_output': spectrum_output})()
+        )
+        spec_grid = model.flux_density_grid(t_obs_s, spec_freqs)
+        spectrum_freq_hz = spec_freqs
+        spectrum_fnu = spec_grid.total
+
+    return _PhysicalFitResult(
+        t_obs_s=t_obs_s,
+        characteristic_time_s=char_time,
+        bands=OUTPUT_BANDS,
+        bands_flux=bands_flux,
+        redchi=redchi,
+        nu_m=details.fwd.nu_m,
+        nu_c=details.fwd.nu_c,
+        nu_a=details.fwd.nu_a,
+        rs_nu_m=rs_nu_m,
+        rs_nu_c=rs_nu_c,
+        rs_nu_a=rs_nu_a,
+        spectrum_freq_hz=spectrum_freq_hz,
+        spectrum_fnu=spectrum_fnu,
+    )

@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import numpy as np
 
+from asgard_component_backend import solve_model_state_from_setup, extract_physical_solution_from_state
 from asgard_models import FitConfig
+from asgard_postprocess import compute_band_fluxes, compute_light_curve_redchi
 from asgard_presets import build_baseline_config
-from mergered import run_fit
+from asgard_setup import build_simulation_setup
 
 
 def build_inference_config(
@@ -30,7 +32,6 @@ def build_inference_config(
         epsilon_b=epsilon_b,
         z=1.0,
         num_gam_e=101,
-        num_r=100,
         **overrides,
     )
 
@@ -61,7 +62,11 @@ def build_log_inference_config(
 
 
 def evaluate_fit_loglike(config: FitConfig) -> float:
-    redchi = run_fit(config).redchi
+    setup = build_simulation_setup(config)
+    state = solve_model_state_from_setup(config, setup)
+    physical = extract_physical_solution_from_state(state)
+    bands_flux = compute_band_fluxes(setup, physical, config)
+    redchi = compute_light_curve_redchi(bands_flux, setup.observer_time_s, config)
     if np.isnan(redchi):
         redchi = np.inf
     return -0.5 * redchi

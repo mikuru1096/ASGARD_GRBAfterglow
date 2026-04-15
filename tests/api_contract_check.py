@@ -11,15 +11,11 @@ if str(ROOT) not in sys.path:
 
 from asgard_models import ReverseShockConfig, SpectrumOutputConfig
 from asgard_presets import build_baseline_config
-from mergered import (
-    plot_characteristic_frequencies,
-    plot_spectrum,
-    run_fit,
-)
+from VegasAfterglow import ISM, Model, Observer, Radiation, Setups, TophatJet, observe
 
 
-def build_contract_config():
-    return build_baseline_config(
+def build_contract_model_and_config():
+    c = build_baseline_config(
         num_gam_e=161,
         num_nu=161,
         num_r=240,
@@ -34,10 +30,25 @@ def build_contract_config():
         ),
         spectrum_output=SpectrumOutputConfig(enabled=True, num_nu_obs=96),
     )
+    jet = TophatJet(E_iso=c.e_iso, Gamma0=c.eta_0, theta_j=c.opening_angle_jet)
+    medium = ISM(n_ism=c.d_ne)
+    fwd_rad = Radiation(eps_e=c.epsilon_e, eps_B=c.epsilon_b, p=c.p, xi_N=c.f_e, ssc=True)
+    rvs_rad = Radiation(eps_e=c.reverse_shock.epsilon_e, eps_B=c.reverse_shock.epsilon_b, p=c.reverse_shock.p, xi_N=c.reverse_shock.f_e)
+    observer = Observer(z=c.z, theta_obs=c.theta_v)
+    setups = Setups(
+        num_r=c.num_r, num_theta=c.num_theta, num_phi=c.num_phi,
+        num_gam_e=c.num_gam_e, num_nu=c.num_nu, num_tobs=c.num_tobs,
+        observer_time_min_s=10**c.t_obs_min_log10,
+        observer_time_max_s=10**c.t_obs_max_log10,
+        ssc_cooling=True, rvs_shock=True,
+    )
+    model = Model(medium=medium, jet=jet, observer=observer, fwd_rad=fwd_rad, rvs_rad=rvs_rad, setups=setups)
+    return model, c
 
 
 def main() -> None:
-    result = run_fit(build_contract_config())
+    model, config = build_contract_model_and_config()
+    result = observe(model, config=config, spectrum_output=config.spectrum_output)
 
     assert result.characteristic_time_s.shape == result.nu_m.shape
     assert result.characteristic_time_s.shape == result.nu_c.shape
@@ -54,6 +65,7 @@ def main() -> None:
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir_path = Path(tmpdir)
+        from asgard_plot import plot_characteristic_frequencies, plot_spectrum
         freq_plot = tmpdir_path / "characteristic.pdf"
         spec_plot = tmpdir_path / "spectrum.pdf"
 

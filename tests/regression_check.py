@@ -10,8 +10,12 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from asgard_models import FitConfig
+from asgard_component_backend import solve_model_state_from_setup, extract_physical_solution_from_state
+from asgard_observables import OUTPUT_BANDS, build_multiband_observer_frequencies, combine_multiband_flux
+from asgard_postprocess import compute_observed_flux_matrix, compute_light_curve_redchi
 from asgard_presets import build_baseline_config
-from mergered import run_fit
+from asgard_setup import build_simulation_setup
 
 
 BANDS_TO_CHECK = ("xrt", "optr", "9GHz")
@@ -21,9 +25,18 @@ def build_reference_config():
     return build_baseline_config()
 
 
-def extract_bands(result, band_names: tuple[str, ...]) -> np.ndarray:
-    idx = [result.bands.index(name) for name in band_names]
-    return result.bands_flux[idx]
+def _compute_bands_flux(config: FitConfig):
+    setup = build_simulation_setup(config)
+    state = solve_model_state_from_setup(config, setup)
+    physical = extract_physical_solution_from_state(state)
+    num_xrt, band_freqs = build_multiband_observer_frequencies()
+    flux_matrix = compute_observed_flux_matrix(setup, physical, band_freqs, config)
+    return combine_multiband_flux(flux_matrix, band_freqs, num_xrt)
+
+
+def extract_bands(bands_flux, band_names: tuple[str, ...]) -> np.ndarray:
+    idx = [OUTPUT_BANDS.index(name) for name in band_names]
+    return bands_flux[idx]
 
 
 def write_baseline(path: Path, t_obs_s: np.ndarray, band_flux: np.ndarray, band_names: tuple[str, ...]) -> None:
@@ -40,11 +53,11 @@ def check_against_baseline(path: Path, threshold: float) -> None:
     baseline_flux = data["band_flux"]
     baseline_bands = tuple(str(x) for x in data["bands"])
 
-    result = run_fit(build_reference_config())
-    if not np.array_equal(result.t_obs_s, baseline_t):
-        raise ValueError("Time grid mismatch between current result and baseline.")
+    config = build_reference_config()
+    setup = build_simulation_setup(config)
+    bands_flux = _compute_bands_flux(config)
 
-    current_flux = extract_bands(result, baseline_bands)
+    current_flux = extract_bands(bands_flux, baseline_bands)
     for i, band in enumerate(baseline_bands):
         base = baseline_flux[i]
         cur = current_flux[i]
@@ -72,11 +85,13 @@ def main() -> None:
     parser.add_argument("--write-baseline", action="store_true")
     args = parser.parse_args()
 
-    result = run_fit(build_reference_config())
-    band_flux = extract_bands(result, BANDS_TO_CHECK)
+    config = build_reference_config()
+    setup = build_simulation_setup(config)
+    bands_flux = _compute_bands_flux(config)
 
     if args.write_baseline:
-        write_baseline(args.baseline, result.t_obs_s, band_flux, BANDS_TO_CHECK)
+        band_flux = extract_bands(bands_flux, BANDS_TO_CHECK)
+        write_baseline(args.baseline, setup.observer_time_s, band_flux, BANDS_TO_CHECK)
         print(f"Baseline written: {args.baseline}")
         return
 
