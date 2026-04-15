@@ -9,6 +9,7 @@ subroutine sed_interpolation_structured(Boundary, angle_narrow_jet, R_Tobs1,R_ga
                              n,Num_nu,Num_nu_obs,Num_Tobs,Num_Theta,Num_R,Num_Phi,n_threads, P_tot_obs)
     !$ use omp_lib
     use constants
+    use interpolation_common
     IMPLICIT REAL(8)(A-H,O-Z)
     !##############################################################################################
     integer, intent(in) :: n,Num_nu,Num_nu_obs,Num_Tobs,Num_Theta,Num_R,Num_Phi,n_threads
@@ -19,15 +20,15 @@ subroutine sed_interpolation_structured(Boundary, angle_narrow_jet, R_Tobs1,R_ga
     real(8), intent(out) :: P_tot_obs(Num_nu_obs,Num_Tobs)
     
     
-    allocatable :: R_Tobs(:,:),DP(:,:),V_seed_temp(:,:),P_tot_temp(:,:),P_tot_obs_temp(:,:),V_obs_log(:)
-    allocate (R_Tobs(Num_R,Num_Theta),DP(Num_nu,Num_Theta),V_seed_temp(Num_nu,Num_Theta), &
-              P_tot_temp(Num_nu,Num_Theta),P_tot_obs_temp(Num_nu_obs,Num_Tobs),V_obs_log(Num_nu))
+    real(8), allocatable :: P_tot_obs_temp(:,:),V_obs_log(:),V_seed_log(:)
+    real(8) :: R_Tobs_theta(Num_R),DP_theta(Num_nu),P_tot_log_theta(Num_nu), &
+               V_seed_log_theta(Num_nu), &
+               P_tot_log_lo(Num_nu),P_tot_log_hi(Num_nu),log_gamma_lo,log_gamma_hi,log_domega_4pi, &
+               log_doppler_redshift
+    integer :: last_k2
+    allocate (P_tot_obs_temp(Num_nu_obs,Num_Tobs),V_obs_log(Num_nu_obs),V_seed_log(Num_nu))
     
     
-    V_seed_temp=zero
-    DP=zero
-    R_Tobs=zero
-    P_tot_temp=zero
     P_tot_obs_temp=zero
     P_tot_obs=zero
     
@@ -37,67 +38,63 @@ subroutine sed_interpolation_structured(Boundary, angle_narrow_jet, R_Tobs1,R_ga
     OpeningAngle_jet = Boundary(9)
     Tv = Boundary(10)
     
-    dPhi=pi/Num_Phi !Num_Phi
-    if (Num_Phi==1) then
-        dPhi=pi/1440d0
-    end if
+    call interpolation_phi_setup(Num_Phi,dPhi,phi_scale)
     dtheta=OpeningAngle_jet/Num_Theta
     V_obs_log = log(V_obs)
+    V_seed_log = log(V_seed)
     
-    !$OMP PARALLEL num_threads(n_threads),reduction(+:P_tot_obs_temp)
-    !$OMP DO SIMD
+    !$OMP PARALLEL num_threads(n_threads), reduction(+:P_tot_obs_temp), private(I_Theta, Taa_center, domega, &
+    !$OMP& i_Phi, Phi_center, DMu, K1, II, K2, Ratio, DG, DR, Beta, doppler, &
+    !$OMP& R_Tobs_theta, DP_theta, P_tot_log_theta, V_seed_log_theta, P_tot_log_lo, P_tot_log_hi, &
+    !$OMP& last_k2, log_gamma_lo, log_gamma_hi, log_domega_4pi, log_doppler_redshift)
+    !$OMP DO SCHEDULE(GUIDED,4)
     do I_Theta=1,Num_Theta
-       Taa=dtheta*(I_Theta+0.5)
-       if (angle_narrow_jet>Taa) cycle
-       domega=dsin(Taa)*dtheta*dPhi
+       Taa_center=dtheta*(I_Theta-0.5d0)
+       if (angle_narrow_jet>Taa_center) cycle
+       domega=dsin(Taa_center)*dtheta*dPhi
+       log_domega_4pi=log(domega)-log(4.0d0*pi)
        do i_Phi=1,Num_Phi
           Phi_center=(i_Phi-0.5)*dPhi
           DMu=dcos(Tv)*dcos(Taa_center)+dsin(Tv)*dsin(Taa_center)*dcos(Phi_center)
-          R_Tobs(:,I_Theta)=R_Tobs1(:,I_Theta)+R(:,I_Theta)*(one-DMu)*(one+z)/Para_c       
+          R_Tobs_theta=R_Tobs1(:,I_Theta)+R(:,I_Theta)*(one-DMu)*(one+z)/Para_c
+          II=1
+          last_k2=0
           do K1=1,Num_Tobs
-             II=1
-             if (Tobs(K1) < R_Tobs(1,I_Theta) .or. Tobs(K1) > R_Tobs(Num_R,I_Theta)) cycle
-             do K2=II,Num_R-1
-                if ((Tobs(K1) >= R_Tobs(K2,I_Theta)).and.(Tobs(K1) < R_Tobs(K2+1,I_Theta))) then
-                   Ratio=(Tobs(K1)-R_Tobs(K2,I_Theta))/(R_Tobs(K2+1,I_Theta)-R_Tobs(K2,I_Theta))
-                   DG=exp(log(R_gamma(K2,I_Theta))+Ratio*(log(R_gamma(K2+1,I_Theta))-log(R_gamma(K2,I_Theta))))
-                   DR=R(K2,I_Theta)+Ratio*(R(K2+1,I_Theta)-R(K2,I_Theta))
-                   DP(:,I_Theta)=log(P_tot(:,K2,I_Theta))+Ratio*(log(P_tot(:,K2+1,I_Theta))-log(P_tot(:,K2,I_Theta)))
-                   !linear interpolation to get the intrinsic SED at EATS.
-                   Beta=dsqrt(one-DG**(-2))
+             if (Tobs(K1) < R_Tobs_theta(1) .or. Tobs(K1) > R_Tobs_theta(Num_R)) cycle
+             do while (II < Num_R-1 .and. Tobs(K1) >= R_Tobs_theta(II+1))
+                II=II+1
+             end do
+             K2=II
+             if ((Tobs(K1) >= R_Tobs_theta(K2)).and.(Tobs(K1) < R_Tobs_theta(K2+1))) then
+                 if (K2 /= last_k2) then
+                     log_gamma_lo=log(R_gamma(K2,I_Theta))
+                     log_gamma_hi=log(R_gamma(K2+1,I_Theta))
+                     P_tot_log_lo=log(P_tot(:,K2,I_Theta))
+                     P_tot_log_hi=log(P_tot(:,K2+1,I_Theta))
+                     last_k2=K2
+                 end if
+                 Ratio=(Tobs(K1)-R_Tobs_theta(K2))/(R_Tobs_theta(K2+1)-R_Tobs_theta(K2))
+                 DG=exp(log_gamma_lo+Ratio*(log_gamma_hi-log_gamma_lo))
+                 DP_theta=P_tot_log_lo+Ratio*(P_tot_log_hi-P_tot_log_lo)
+                 !linear interpolation to get the intrinsic SED at EATS.
+                 Beta=dsqrt(one-DG**(-2))
 
-                   doppler=DG*(one-Beta*DMu) !Doppler factor, changed with R
-                   V_seed_temp(:,I_Theta)=log(V_seed/(doppler*(one+z))) !For frequency that has decayed with D, and shifted with (1+z)
-                   P_tot_temp(:,I_Theta)=max(-199d0,DP(:,I_Theta)+log(domega)-log(4.0*pi)-3d0*log(doppler)) !For flux that has decayed with D^3
-                   
-                   do i_nu1=1,Num_nu_obs
-                      do i_nu2=1,Num_nu-1
-                         if (V_obs_log(i_nu1) > V_seed_temp(i_nu2,I_Theta) .and. &
-                             V_obs_log(i_nu1) <= V_seed_temp(i_nu2+1,I_Theta)) then
-                             Ratio=(V_obs_log(i_nu1)-V_seed_temp(i_nu2,I_Theta))/ &
-                                   (V_seed_temp(i_nu2+1,I_Theta)-V_seed_temp(i_nu2,I_Theta))
-                             P_tot_obs_temp(i_nu1,K1)=P_tot_obs_temp(i_nu1,K1)+exp(P_tot_temp(i_nu2,I_Theta)+ &
-                                                   Ratio*(P_tot_temp(i_nu2+1,I_Theta)-P_tot_temp(i_nu2,I_Theta)))
-                             !another logarithm interpolation from the Doppler boosted freqency to the observed frequency
-                         end if
-                      end do
-                   end do
-                   II=K2
-                   exit
-               end if
-            end do   
+                 doppler=DG*(one-Beta*DMu) !Doppler factor, changed with R
+                 log_doppler_redshift=log(doppler)+log(one+z)
+                 P_tot_log_theta=max(-199d0,DP_theta+log_domega_4pi-3d0*log(doppler))
+                 V_seed_log_theta=V_seed_log-log_doppler_redshift
+                 call interpolation_accumulate_log_sed(V_seed_log_theta,P_tot_log_theta, &
+                                                       Num_nu,V_obs_log,Num_nu_obs,P_tot_obs_temp(:,K1))
+             end if
          end do
        end do
     end do
-    !$OMP END DO SIMD
+    !$OMP END DO
     !$OMP END PARALLEL
 
-    P_tot_obs=P_tot_obs_temp*two!*Num_Phi
-    if (Num_phi==1) then
-        P_tot_obs=P_tot_obs_temp*two*1440d0
-    end if
+    P_tot_obs=P_tot_obs_temp*phi_scale
     
-    deallocate (R_Tobs,DP,V_seed_temp,P_tot_temp,P_tot_obs_temp)
+    deallocate (P_tot_obs_temp,V_obs_log,V_seed_log)
     
     
     return

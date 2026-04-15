@@ -2,6 +2,7 @@ subroutine seed_reverse(T_cross,R_cross,e3_cross,gam20, Delta_t,b_r, &
                         Boundary,R_Tobs,R_gamma,R,gam_e,dN_gam_e,V_seed,n,Num_nu,Num_R,Num_gam_e,n_threads, P_syn_spec,seed_syn)
     !$ use omp_lib
     use constants
+    use radiation_common
     IMPLICIT REAL(8)(A-H,O-Z)
     !***********************************************************
     integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,n_threads
@@ -34,28 +35,15 @@ subroutine seed_reverse(T_cross,R_cross,e3_cross,gam20, Delta_t,b_r, &
     end if
     
     !$ call omp_set_dynamic(.true.)
-    !$OMP PARALLEL num_threads(n_threads)
-    !$OMP DO SIMD
+    !$OMP PARALLEL num_threads(n_threads), private(I_R, I_nu, I_gam_e, Gam0, Beta, Gth, Rariv2, dNe, &
+    !$OMP& e2, e3, DB, dInteg, Tau, gam_e_mean2, Vc, x, Fx, dN, dgam_e, ddN, P_v, temp_abs)
+    !$OMP DO COLLAPSE(2) SCHEDULE(STATIC)
     do I_R=1,Num_R
         Gam0=R_gamma(I_R)
         Beta=dsqrt(one-Gam0**(-2))
         Gth=Gam0-one
         Rariv2=R(I_R)**2
-            
-        if (A_star >= zero) then
-            dNe_wind=A_star*3.0d35/Rariv2
-            if (dNe_wind <= dNe_ISM/4.0d0) then
-                dNe=dNe_ISM
-            else
-                dNe=dNe_wind
-            end if
-        else
-            dNe=dNe_ISM
-        end if
-        
-        if (R(I_R)<R0) then
-            dNe=A_star*3.0d35/R0**2
-        end if
+        call radiation_external_density(A_star,dNe_ISM,R(I_R),R0,dNe)
         
         e2=4d0*Gam0*Gam0*dNe*Para_m_p*para_c*para_c
         if (R(I_R) < R_cross) then
@@ -84,15 +72,15 @@ subroutine seed_reverse(T_cross,R_cross,e3_cross,gam20, Delta_t,b_r, &
             end do
             P_v=Temp_syn*DB*dInteg ! with units in erg/Hz/cm^2/s
             Tau=1.025d4*Tau/Rariv2/4d0/pi*DB/V_seed(I_nu)**2 !Synchrotron self absorption effect
-            if ((Tau-1d-4) < 1d-5) Tau=1d-4
-            P_v=P_v*(one-dexp(-Tau))/Tau !Radiation transfer equation for the emission-absortion plasma
+            call radiation_transfer_factor(Tau,temp_abs)
+            P_v=P_v*temp_abs !Radiation transfer equation for the emission-absortion plasma
 
             seed_syn(I_nu,I_R)=seed_syn(I_nu,I_R)+P_v/(Rariv2*V_seed(I_nu))
             P_syn_spec(I_nu,I_R)=P_syn_spec(I_nu,I_R)+P_v
             !Power of synchrotron radiation that be emitted, intrinsic, send to main program
         end do
     end do
-    !$OMP END DO SIMD
+    !$OMP END DO
     !$OMP END PARALLEL
 
 100 continue

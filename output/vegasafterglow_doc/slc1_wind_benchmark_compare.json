@@ -1,0 +1,188 @@
+{
+  "fullhide": [
+    {
+      "name": "quickstart",
+      "status": "PASS",
+      "seconds": 1.5471592999529094,
+      "payload": {
+        "shape": [
+          1
+        ],
+        "value": 2.7262803559065196e-24
+      }
+    },
+    {
+      "name": "lightcurve_grid",
+      "status": "PASS",
+      "seconds": 2.380004799924791,
+      "payload": {
+        "shape": [
+          3,
+          100
+        ],
+        "peak": 2.6920571156566975e-24
+      }
+    },
+    {
+      "name": "spectrum_grid",
+      "status": "PASS",
+      "seconds": 2.1562136000720784,
+      "payload": {
+        "shape": [
+          100,
+          3
+        ],
+        "peak": 2.9466556535858975e-24
+      }
+    },
+    {
+      "name": "pair_points",
+      "status": "PASS",
+      "seconds": 2.3568488000892103,
+      "payload": {
+        "shape": [
+          128
+        ],
+        "median": 2.8276894045920587e-26
+      }
+    },
+    {
+      "name": "exposures",
+      "status": "PASS",
+      "seconds": 2.1627682000398636,
+      "payload": {
+        "shape": [
+          32
+        ],
+        "median": 9.96694192430929e-25
+      }
+    },
+    {
+      "name": "details",
+      "status": "PASS",
+      "seconds": 2.095971899922006,
+      "payload": {
+        "n_t": 300,
+        "n_patches": 1
+      }
+    },
+    {
+      "name": "fitter_cfg",
+      "status": "PASS",
+      "seconds": 3.5119930000510067,
+      "payload": {
+        "best_loglike": -6.32231998009487e-29,
+        "best_params": {
+          "E_iso": 52.0,
+          "p": 2.3
+        }
+      }
+    },
+    {
+      "name": "sky_image",
+      "status": "PASS",
+      "seconds": 6.093423800077289,
+      "payload": {
+        "shape": [
+          1,
+          64,
+          64
+        ],
+        "ratio": 0.8264714937225707
+      }
+    }
+  ],
+  "slc1": [
+    {
+      "name": "quickstart",
+      "status": "PASS",
+      "seconds": 1.2925001999828964,
+      "payload": {
+        "shape": [
+          1
+        ],
+        "value": 2.754242545737387e-24
+      }
+    },
+    {
+      "name": "lightcurve_grid",
+      "status": "PASS",
+      "seconds": 1.5434755999594927,
+      "payload": {
+        "shape": [
+          3,
+          100
+        ],
+        "peak": 2.7283583819067183e-24
+      }
+    },
+    {
+      "name": "spectrum_grid",
+      "status": "PASS",
+      "seconds": 1.4412129999836907,
+      "payload": {
+        "shape": [
+          100,
+          3
+        ],
+        "peak": 2.9982822721138065e-24
+      }
+    },
+    {
+      "name": "pair_points",
+      "status": "PASS",
+      "seconds": 1.6059920999687165,
+      "payload": {
+        "shape": [
+          128
+        ],
+        "median": 2.812945465328949e-26
+      }
+    },
+    {
+      "name": "exposures",
+      "status": "PASS",
+      "seconds": 1.4290783999022096,
+      "payload": {
+        "shape": [
+          32
+        ],
+        "median": 9.943564623965814e-25
+      }
+    },
+    {
+      "name": "details",
+      "status": "PASS",
+      "seconds": 1.366751900059171,
+      "payload": {
+        "n_t": 300,
+        "n_patches": 1
+      }
+    },
+    {
+      "name": "fitter_cfg",
+      "status": "PASS",
+      "seconds": 2.952038999996148,
+      "payload": {
+        "best_loglike": -0.034264287518847795,
+        "best_params": {
+          "E_iso": 52.0,
+          "p": 2.3
+        }
+      }
+    },
+    {
+      "name": "sky_image",
+      "status": "PASS",
+      "seconds": 4.145942600094713,
+      "payload": {
+        "shape": [
+          1,
+          64,
+          64
+        ],
+        "ratio": 0.8272154919204251
+      }
+    }
+  ]
+}

@@ -1,0 +1,1173 @@
+{
+  "timestamp": "2026-04-15T18:34:41.087971",
+  "methodology": {
+    "source": "VegasAfterglow validation docs/scripts",
+    "benchmark_note": "Representative subset of benchmark configs was used. Direct top-hat keeps convergence scans; structured-jet entries keep timing-only benchmarks to stay tractable on the current Python patch backend.",
+    "fiducial_resolution": [
+      0.1,
+      0.25,
+      10
+    ],
+    "regression_resolution": [
+      0.3,
+      2.0,
+      15
+    ],
+    "phi_values": [
+      0.1,
+      0.15,
+      0.2,
+      0.25
+    ],
+    "theta_values": [
+      0.25,
+      0.5,
+      0.75,
+      1.0
+    ],
+    "t_values": [
+      5,
+      10,
+      15,
+      20
+    ],
+    "benchmark_phi_values": [
+      0.1,
+      0.2
+    ],
+    "benchmark_theta_values": [
+      0.25,
+      0.75
+    ],
+    "benchmark_t_values": [
+      10,
+      20
+    ]
+  },
+  "benchmark": [
+    {
+      "config": {
+        "jet": "tophat",
+        "medium": "ISM",
+        "radiation": "synchrotron",
+        "theta_ratio": 0,
+        "scan_dims": [
+          "phi",
+          "theta",
+          "t"
+        ]
+      },
+      "timing_ms": 787.4183000531048,
+      "convergence": {
+        "phi": {
+          "fiducial": 0.1,
+          "worst_mean_error": 1.6615838112217714e-16,
+          "worst_max_error": 6.241546880414595e-16,
+          "status": "pass",
+          "scan": {
+            "0.1": {
+              "Radio": {
+                "max": 4.749392381221793e-16,
+                "mean": 5.4716494820690555e-17
+              },
+              "Optical": {
+                "max": 6.241546880414595e-16,
+                "mean": 1.6615838112217714e-16
+              },
+              "X-ray": {
+                "max": 2.3829934357017064e-16,
+                "mean": 6.704212758162223e-17
+              }
+            },
+            "0.2": {
+              "Radio": {
+                "max": 1.8165869972610743e-16,
+                "mean": 5.404591308894091e-17
+              },
+              "Optical": {
+                "max": 3.4322161757012075e-16,
+                "mean": 1.152183002480734e-16
+              },
+              "X-ray": {
+                "max": 2.733925138379593e-16,
+                "mean": 1.3759478533731296e-16
+              }
+            }
+          }
+        },
+        "theta": {
+          "fiducial": 0.25,
+          "worst_mean_error": 2.0447874562638933e-16,
+          "worst_max_error": 6.241546880414595e-16,
+          "status": "pass",
+          "scan": {
+            "0.25": {
+              "Radio": {
+                "max": 4.749392381221793e-16,
+                "mean": 9.460626739587183e-17
+              },
+              "Optical": {
+                "max": 6.241546880414595e-16,
+                "mean": 2.0447874562638933e-16
+              },
+              "X-ray": {
+                "max": 2.6616720871378803e-16,
+                "mean": 7.201792739643213e-17
+              }
+            },
+            "0.75": {
+              "Radio": {
+                "max": 1.9344371328709917e-16,
+                "mean": 1.0890048414868471e-16
+              },
+              "Optical": {
+                "max": 4.181838409337205e-16,
+                "mean": 1.4219939218274402e-16
+              },
+              "X-ray": {
+                "max": 3.7980956760595736e-16,
+                "mean": 6.491995953605279e-17
+              }
+            }
+          }
+        },
+        "t": {
+          "fiducial": 10,
+          "worst_mean_error": 1.5341605101033425e-16,
+          "worst_max_error": 6.241546880414595e-16,
+          "status": "pass",
+          "scan": {
+            "10": {
+              "Radio": {
+                "max": 4.749392381221793e-16,
+                "mean": 6.759104942984775e-17
+              },
+              "Optical": {
+                "max": 6.241546880414595e-16,
+                "mean": 1.5341605101033425e-16
+              },
+              "X-ray": {
+                "max": 3.5501001849001794e-16,
+                "mean": 9.221498140619566e-17
+              }
+            },
+            "20": {
+              "Radio": {
+                "max": 1.9344371328709912e-16,
+                "mean": 5.435084805382535e-17
+              },
+              "Optical": {
+                "max": 2.9325718494337144e-16,
+                "mean": 9.063873556849128e-17
+              },
+              "X-ray": {
+                "max": 3.5501001849001794e-16,
+                "mean": 1.5425293920442022e-16
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "config": {
+        "jet": "gaussian",
+        "medium": "ISM",
+        "radiation": "synchrotron",
+        "theta_ratio": 1,
+        "scan_dims": []
+      },
+      "timing_ms": 794.4709000876173,
+      "convergence": {}
+    }
+  ],
+  "regression": [
+    {
+      "name": "fwd-ISM-coasting-u",
+      "category": "fwd",
+      "passed": true,
+      "expected": 0.0,
+      "measured": -4.239201567750478e-05,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "fwd-ISM-coasting-r",
+      "category": "fwd",
+      "passed": true,
+      "expected": 1.0,
+      "measured": 0.9989920506993079,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "fwd-ISM-coasting-B",
+      "category": "fwd",
+      "passed": true,
+      "expected": 0.0,
+      "measured": -4.24624365098041e-05,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "fwd-ISM-coasting-N_p",
+      "category": "fwd",
+      "passed": true,
+      "expected": 3.0,
+      "measured": 2.9969761495848632,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "fwd-ISM-coasting-nu_m",
+      "category": "fwd",
+      "passed": true,
+      "expected": 0.0,
+      "measured": -0.00021658885377115036,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "fwd-ISM-coasting-nu_c",
+      "category": "fwd",
+      "passed": true,
+      "expected": -2.0,
+      "measured": -1.9997834741547669,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "fwd-ISM-coasting-nu_M",
+      "category": "fwd",
+      "passed": true,
+      "expected": 0.0,
+      "measured": -4.23917830449005e-05,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "fwd-ISM-BM-u",
+      "category": "fwd",
+      "passed": true,
+      "expected": -0.375,
+      "measured": -0.3829690970304719,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "fwd-ISM-BM-r",
+      "category": "fwd",
+      "passed": true,
+      "expected": 0.25,
+      "measured": 0.26610874471386436,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "fwd-ISM-BM-B",
+      "category": "fwd",
+      "passed": true,
+      "expected": -0.375,
+      "measured": -0.38898321037433375,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "fwd-ISM-BM-N_p",
+      "category": "fwd",
+      "passed": true,
+      "expected": 0.75,
+      "measured": 0.7983262641673805,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "fwd-ISM-BM-nu_m",
+      "category": "fwd",
+      "passed": true,
+      "expected": -1.5,
+      "measured": -1.5532040143273758,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "fwd-ISM-BM-nu_c",
+      "category": "fwd",
+      "passed": true,
+      "expected": -0.5,
+      "measured": -0.4516141898891127,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "fwd-ISM-BM-nu_M",
+      "category": "fwd",
+      "passed": true,
+      "expected": -0.375,
+      "measured": -0.38276025220560034,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "fwd-ISM-deep_newtonian-u",
+      "category": "fwd",
+      "passed": true,
+      "expected": -0.6,
+      "measured": -0.5988262353932317,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "fwd-ISM-deep_newtonian-r",
+      "category": "fwd",
+      "passed": true,
+      "expected": 0.4,
+      "measured": 0.3991215888895736,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "fwd-ISM-deep_newtonian-B",
+      "category": "fwd",
+      "passed": true,
+      "expected": -0.6,
+      "measured": -0.5988265532344444,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "fwd-ISM-deep_newtonian-N_p",
+      "category": "fwd",
+      "passed": true,
+      "expected": 1.2,
+      "measured": 1.197364776604179,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "fwd-ISM-deep_newtonian-nu_m",
+      "category": "fwd",
+      "passed": true,
+      "expected": -0.6,
+      "measured": -0.5996851768153145,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "fwd-ISM-deep_newtonian-nu_c",
+      "category": "fwd",
+      "passed": true,
+      "expected": -0.2,
+      "measured": -0.20418542249884966,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "fwd-ISM-deep_newtonian-nu_M",
+      "category": "fwd",
+      "passed": true,
+      "expected": 0.0,
+      "measured": -0.000839841599579658,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "fwd-wind-coasting-u",
+      "category": "fwd",
+      "passed": true,
+      "expected": 0.0,
+      "measured": -0.0035278363812491966,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "fwd-wind-coasting-r",
+      "category": "fwd",
+      "passed": true,
+      "expected": 1.0,
+      "measured": 0.9968176270209619,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "fwd-wind-coasting-B",
+      "category": "fwd",
+      "passed": true,
+      "expected": -1.0,
+      "measured": -1.0003704064598848,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "fwd-wind-coasting-N_p",
+      "category": "fwd",
+      "passed": true,
+      "expected": 1.0,
+      "measured": 0.9970049881166716,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "fwd-wind-coasting-nu_m",
+      "category": "fwd",
+      "passed": true,
+      "expected": -1.0,
+      "measured": -1.012239486934214,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "fwd-wind-coasting-nu_c",
+      "category": "fwd",
+      "passed": true,
+      "expected": 1.0,
+      "measured": 1.005854979980825,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "fwd-wind-coasting-nu_M",
+      "category": "fwd",
+      "passed": true,
+      "expected": 0.0,
+      "measured": -0.0035274733062635446,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "fwd-wind-BM-u",
+      "category": "fwd",
+      "passed": true,
+      "expected": -0.25,
+      "measured": -0.24862503894955446,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "fwd-wind-BM-r",
+      "category": "fwd",
+      "passed": true,
+      "expected": 0.5,
+      "measured": 0.5136712091250845,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "fwd-wind-BM-B",
+      "category": "fwd",
+      "passed": true,
+      "expected": -0.75,
+      "measured": -0.7771894012846876,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "fwd-wind-BM-N_p",
+      "category": "fwd",
+      "passed": true,
+      "expected": 0.5,
+      "measured": 0.5136712134981729,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "fwd-wind-BM-nu_m",
+      "category": "fwd",
+      "passed": true,
+      "expected": -1.5,
+      "measured": -1.5625126223975334,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "fwd-wind-BM-nu_c",
+      "category": "fwd",
+      "passed": true,
+      "expected": 0.5,
+      "measured": 0.5736007712424246,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "fwd-wind-BM-nu_M",
+      "category": "fwd",
+      "passed": true,
+      "expected": -0.25,
+      "measured": -0.24615868097358254,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "fwd-wind-deep_newtonian-u",
+      "category": "fwd",
+      "passed": true,
+      "expected": -0.3333333333333333,
+      "measured": -0.33175812886190914,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "fwd-wind-deep_newtonian-r",
+      "category": "fwd",
+      "passed": true,
+      "expected": 0.6666666666666666,
+      "measured": 0.6635233090331948,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "fwd-wind-deep_newtonian-B",
+      "category": "fwd",
+      "passed": true,
+      "expected": -1.0,
+      "measured": -0.995289195294603,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "fwd-wind-deep_newtonian-N_p",
+      "category": "fwd",
+      "passed": true,
+      "expected": 0.6666666666666666,
+      "measured": 0.6635233090331973,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "fwd-wind-deep_newtonian-nu_m",
+      "category": "fwd",
+      "passed": true,
+      "expected": -1.0,
+      "measured": -0.9986014216491059,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "fwd-wind-deep_newtonian-nu_c",
+      "category": "fwd",
+      "passed": true,
+      "expected": 1.0,
+      "measured": 0.9829474904217609,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "fwd-wind-deep_newtonian-nu_M",
+      "category": "fwd",
+      "passed": true,
+      "expected": 0.0,
+      "measured": -0.0031751403491862965,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "rvs-thin-ISM-crossing-r",
+      "category": "rvs",
+      "passed": true,
+      "expected": 1.0,
+      "measured": 0.9909774934339657,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "rvs-thin-ISM-crossing-B",
+      "category": "rvs",
+      "passed": true,
+      "expected": 0.0,
+      "measured": -0.0008775580683319072,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "rvs-thin-ISM-crossing-N_p",
+      "category": "rvs",
+      "passed": true,
+      "expected": 1.5,
+      "measured": 1.493747371437109,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "rvs-thin-ISM-post_crossing-r",
+      "category": "rvs",
+      "passed": true,
+      "expected": 0.25,
+      "measured": 0.25433147508247717,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "rvs-thin-ISM-post_crossing-N_p",
+      "category": "rvs",
+      "passed": true,
+      "expected": 0.0,
+      "measured": 0.0,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "rvs-thin-ISM-deep_newtonian-r",
+      "category": "rvs",
+      "passed": true,
+      "expected": 0.4,
+      "measured": 0.3994335405008601,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "rvs-thin-ISM-deep_newtonian-N_p",
+      "category": "rvs",
+      "passed": true,
+      "expected": 0.0,
+      "measured": 0.0,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "rvs-thin-ISM-crossing-nu_m",
+      "category": "rvs",
+      "passed": true,
+      "expected": 0.0,
+      "measured": -0.0017551210261403658,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "rvs-thin-ISM-crossing-nu_c",
+      "category": "rvs",
+      "passed": true,
+      "expected": -2.0,
+      "measured": -1.9964897726161928,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "rvs-thin-ISM-crossing-nu_M",
+      "category": "rvs",
+      "passed": true,
+      "expected": 0.0,
+      "measured": -0.0008775629578067303,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "rvs-thin-wind-crossing-r",
+      "category": "rvs",
+      "passed": true,
+      "expected": 1.0,
+      "measured": 0.947259855218476,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "rvs-thin-wind-crossing-B",
+      "category": "rvs",
+      "passed": true,
+      "expected": -1.0,
+      "measured": -0.9862503108188149,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "rvs-thin-wind-crossing-N_p",
+      "category": "rvs",
+      "passed": true,
+      "expected": 0.5,
+      "measured": 0.47567297515786794,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "rvs-thin-wind-post_crossing-r",
+      "category": "rvs",
+      "passed": true,
+      "expected": 0.5,
+      "measured": 0.5203967524582028,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "rvs-thin-wind-post_crossing-N_p",
+      "category": "rvs",
+      "passed": true,
+      "expected": 0.0,
+      "measured": 0.0,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "rvs-thin-wind-deep_newtonian-r",
+      "category": "rvs",
+      "passed": true,
+      "expected": 0.6666666666666666,
+      "measured": 0.6583007844414602,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "rvs-thin-wind-deep_newtonian-N_p",
+      "category": "rvs",
+      "passed": true,
+      "expected": 0.0,
+      "measured": 0.0,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "rvs-thin-wind-crossing-nu_m",
+      "category": "rvs",
+      "passed": true,
+      "expected": -1.0,
+      "measured": -1.0252501775939167,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "rvs-thin-wind-crossing-nu_c",
+      "category": "rvs",
+      "passed": true,
+      "expected": 1.0,
+      "measured": 0.9977319768820166,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "rvs-thin-wind-crossing-nu_M",
+      "category": "rvs",
+      "passed": true,
+      "expected": 0.0,
+      "measured": -0.038999866775099014,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "rvs-thick-ISM-crossing-r",
+      "category": "rvs",
+      "passed": true,
+      "expected": 0.5,
+      "measured": 0.5073972331630284,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "rvs-thick-ISM-crossing-B",
+      "category": "rvs",
+      "passed": true,
+      "expected": -0.25,
+      "measured": -0.2475749823350728,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "rvs-thick-ISM-crossing-N_p",
+      "category": "rvs",
+      "passed": true,
+      "expected": 1.0,
+      "measured": 1.0242114151359076,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "rvs-thick-ISM-post_crossing-r",
+      "category": "rvs",
+      "passed": true,
+      "expected": 0.25,
+      "measured": 0.273512854985707,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "rvs-thick-ISM-post_crossing-N_p",
+      "category": "rvs",
+      "passed": true,
+      "expected": 0.0,
+      "measured": 0.0,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "rvs-thick-ISM-deep_newtonian-r",
+      "category": "rvs",
+      "passed": true,
+      "expected": 0.4,
+      "measured": 0.39889602407068053,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "rvs-thick-ISM-deep_newtonian-N_p",
+      "category": "rvs",
+      "passed": true,
+      "expected": 0.0,
+      "measured": 0.0,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "rvs-thick-ISM-crossing-nu_c",
+      "category": "rvs",
+      "passed": true,
+      "expected": -1.0,
+      "measured": -1.0101563463954302,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "rvs-thick-ISM-crossing-nu_M",
+      "category": "rvs",
+      "passed": true,
+      "expected": -0.25,
+      "measured": -0.24803125807079326,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "rvs-thick-wind-crossing-r",
+      "category": "rvs",
+      "passed": true,
+      "expected": 1.0,
+      "measured": 0.9999988314877609,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "rvs-thick-wind-crossing-B",
+      "category": "rvs",
+      "passed": true,
+      "expected": -1.0,
+      "measured": -0.9999988314880229,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "rvs-thick-wind-crossing-N_p",
+      "category": "rvs",
+      "passed": true,
+      "expected": 1.0,
+      "measured": 1.0000002346200363,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "rvs-thick-wind-post_crossing-r",
+      "category": "rvs",
+      "passed": true,
+      "expected": 0.5,
+      "measured": 0.5170196210534803,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "rvs-thick-wind-post_crossing-N_p",
+      "category": "rvs",
+      "passed": true,
+      "expected": 0.0,
+      "measured": 0.0,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "rvs-thick-wind-deep_newtonian-r",
+      "category": "rvs",
+      "passed": true,
+      "expected": 0.6666666666666666,
+      "measured": 0.6587552629222401,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "rvs-thick-wind-deep_newtonian-N_p",
+      "category": "rvs",
+      "passed": true,
+      "expected": 0.0,
+      "measured": 0.0,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "rvs-thick-wind-crossing-nu_m",
+      "category": "rvs",
+      "passed": true,
+      "expected": -1.0,
+      "measured": -0.9999988314871817,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "rvs-thick-wind-crossing-nu_c",
+      "category": "rvs",
+      "passed": true,
+      "expected": 1.0,
+      "measured": 0.9999964944643416,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "rvs-thick-wind-crossing-nu_M",
+      "category": "rvs",
+      "passed": true,
+      "expected": 0.0,
+      "measured": -2.538469836704521e-13,
+      "tolerance": 0.1,
+      "extra": {}
+    },
+    {
+      "name": "regime-I-below_nu_a",
+      "category": "spectrum",
+      "passed": true,
+      "expected": 2.0,
+      "measured": 1.9996544046836608,
+      "tolerance": 0.15,
+      "extra": {
+        "actual_regime": "I",
+        "expected_regime": "I",
+        "global_fit": 1.9986375730628887,
+        "probe_frequency_hz": 15838758.14229605
+      }
+    },
+    {
+      "name": "regime-I-nu_a_to_nu_m",
+      "category": "spectrum",
+      "passed": true,
+      "expected": 0.3333333333333333,
+      "measured": 0.333291114364694,
+      "tolerance": 0.15,
+      "extra": {
+        "actual_regime": "I",
+        "expected_regime": "I",
+        "global_fit": 0.33182827019488464,
+        "probe_frequency_hz": 20127347008.320484
+      }
+    },
+    {
+      "name": "regime-I-nu_m_to_nu_c",
+      "category": "spectrum",
+      "passed": true,
+      "expected": -0.6000000000000001,
+      "measured": -0.5989015265988517,
+      "tolerance": 0.15,
+      "extra": {
+        "actual_regime": "I",
+        "expected_regime": "I",
+        "global_fit": -0.6245828288572385,
+        "probe_frequency_hz": 356308724196589.7
+      }
+    },
+    {
+      "name": "regime-I-above_nu_c",
+      "category": "spectrum",
+      "passed": true,
+      "expected": -1.1,
+      "measured": -1.0906263515135337,
+      "tolerance": 0.15,
+      "extra": {
+        "actual_regime": "I",
+        "expected_regime": "I",
+        "global_fit": -1.0825822470954007,
+        "probe_frequency_hz": 6.05410130077244e+19
+      }
+    },
+    {
+      "name": "regime-II-below_nu_m",
+      "category": "spectrum",
+      "passed": true,
+      "expected": 2.0,
+      "measured": 1.9968185937017033,
+      "tolerance": 0.15,
+      "extra": {
+        "actual_regime": "II",
+        "expected_regime": "II",
+        "global_fit": 1.9903585121506064,
+        "probe_frequency_hz": 799876.8968186459
+      }
+    },
+    {
+      "name": "regime-II-nu_m_to_nu_a",
+      "category": "spectrum",
+      "passed": true,
+      "expected": 2.5,
+      "measured": 2.3771660613738232,
+      "tolerance": 0.15,
+      "extra": {
+        "actual_regime": "II",
+        "expected_regime": "II",
+        "global_fit": 2.2964879183832467,
+        "probe_frequency_hz": 7307364896.006187
+      }
+    },
+    {
+      "name": "regime-II-nu_a_to_nu_c",
+      "category": "spectrum",
+      "passed": true,
+      "expected": -0.6000000000000001,
+      "measured": -0.6930864135128176,
+      "tolerance": 0.15,
+      "extra": {
+        "actual_regime": "II",
+        "expected_regime": "II",
+        "global_fit": -0.7601288686611692,
+        "probe_frequency_hz": 1792576595238.4487
+      }
+    },
+    {
+      "name": "regime-II-above_nu_c",
+      "category": "spectrum",
+      "passed": true,
+      "expected": -1.1,
+      "measured": -1.0905183558507772,
+      "tolerance": 0.15,
+      "extra": {
+        "actual_regime": "II",
+        "expected_regime": "II",
+        "global_fit": -1.0820555840998412,
+        "probe_frequency_hz": 9.7530884800447e+16
+      }
+    },
+    {
+      "name": "regime-III-below_nu_a",
+      "category": "spectrum",
+      "passed": true,
+      "expected": 2.0,
+      "measured": 2.0016128561929833,
+      "tolerance": 0.15,
+      "extra": {
+        "actual_regime": "III",
+        "expected_regime": "III",
+        "global_fit": 2.0049095473458913,
+        "probe_frequency_hz": 2455337.9566452773
+      }
+    },
+    {
+      "name": "regime-III-nu_a_to_nu_c",
+      "category": "spectrum",
+      "passed": true,
+      "expected": 0.3333333333333333,
+      "measured": 0.25365402511715185,
+      "tolerance": 0.15,
+      "extra": {
+        "actual_regime": "III",
+        "expected_regime": "III",
+        "global_fit": 0.11704213667395556,
+        "probe_frequency_hz": 15265174433.670483
+      }
+    },
+    {
+      "name": "regime-III-above_nu_m",
+      "category": "spectrum",
+      "passed": true,
+      "expected": -1.1,
+      "measured": -1.1130511110873722,
+      "tolerance": 0.15,
+      "extra": {
+        "actual_regime": "III",
+        "expected_regime": "III",
+        "global_fit": -1.119485249072539,
+        "probe_frequency_hz": 5.6690195566979656e+16
+      }
+    },
+    {
+      "name": "regime-IV-below_nu_c",
+      "category": "spectrum",
+      "passed": true,
+      "expected": 2.0,
+      "measured": 2.000242504571205,
+      "tolerance": 0.15,
+      "extra": {
+        "actual_regime": "IV",
+        "expected_regime": "IV",
+        "global_fit": 2.000742657074501,
+        "probe_frequency_hz": 1186969.234067128
+      }
+    },
+    {
+      "name": "regime-IV-nu_c_to_nu_a",
+      "category": "spectrum",
+      "passed": true,
+      "expected": 2.0,
+      "measured": 2.0462924102328293,
+      "tolerance": 0.15,
+      "extra": {
+        "actual_regime": "IV",
+        "expected_regime": "IV",
+        "global_fit": 2.07859331047453,
+        "probe_frequency_hz": 1106639121.1579282
+      }
+    },
+    {
+      "name": "regime-IV-nu_a_to_nu_m",
+      "category": "spectrum",
+      "passed": true,
+      "expected": -0.5,
+      "measured": -0.4652856031573986,
+      "tolerance": 0.15,
+      "extra": {
+        "actual_regime": "IV",
+        "expected_regime": "IV",
+        "global_fit": -0.43975567851162356,
+        "probe_frequency_hz": 1122137321730.4714
+      }
+    },
+    {
+      "name": "regime-IV-above_nu_m",
+      "category": "spectrum",
+      "passed": true,
+      "expected": -1.1,
+      "measured": -1.1033570447719705,
+      "tolerance": 0.15,
+      "extra": {
+        "actual_regime": "IV",
+        "expected_regime": "IV",
+        "global_fit": -1.104991537657053,
+        "probe_frequency_hz": 1.8739479679888384e+17
+      }
+    },
+    {
+      "name": "regime-V-below_nu_c",
+      "category": "spectrum",
+      "passed": true,
+      "expected": 2.0,
+      "measured": 2.0000004286108006,
+      "tolerance": 0.15,
+      "extra": {
+        "actual_regime": "V",
+        "expected_regime": "V",
+        "global_fit": 2.0000011901616355,
+        "probe_frequency_hz": 10128.82223934496
+      }
+    },
+    {
+      "name": "regime-V-nu_c_to_nu_m",
+      "category": "spectrum",
+      "passed": true,
+      "expected": 2.0,
+      "measured": 2.000163086567091,
+      "tolerance": 0.15,
+      "extra": {
+        "actual_regime": "V",
+        "expected_regime": "V",
+        "global_fit": 2.0009556451789208,
+        "probe_frequency_hz": 56875680.35094675
+      }
+    },
+    {
+      "name": "regime-V-above_nu_a",
+      "category": "spectrum",
+      "passed": true,
+      "expected": -1.1,
+      "measured": -1.1075019665882047,
+      "tolerance": 0.15,
+      "extra": {
+        "actual_regime": "V",
+        "expected_regime": "V",
+        "global_fit": -1.1101661844027575,
+        "probe_frequency_hz": 271012129335152.94
+      }
+    }
+  ],
+  "summary": {
+    "benchmark_pass": true,
+    "regression_pass": true,
+    "regression_total": 99,
+    "regression_failed": 0
+  }
+}

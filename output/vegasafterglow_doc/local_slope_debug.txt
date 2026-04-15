@@ -1,0 +1,95 @@
+REGIME II nua=2.016065e+11 num=4.926645e+08 nuc=1.613708e+15
+  around nua
+    mid=1.461203e+11 slope=1.843281
+    mid=1.648450e+11 slope=1.843328
+    mid=1.859692e+11 slope=0.771798
+    mid=2.098003e+11 slope=0.733454
+    mid=2.366853e+11 slope=0.395999
+    mid=2.670155e+11 slope=-0.037063
+    mid=3.012324e+11 slope=-0.037051
+  around num
+    mid=3.519270e+08 slope=1.846105
+    mid=3.970249e+08 slope=1.844477
+    mid=4.479019e+08 slope=1.842921
+    mid=5.052986e+08 slope=1.842921
+    mid=5.700504e+08 slope=1.852092
+    mid=6.430998e+08 slope=1.852227
+    mid=7.255103e+08 slope=1.864483
+  around nuc
+    mid=1.095803e+15 slope=-0.989805
+    mid=1.236226e+15 slope=-0.997683
+    mid=1.394643e+15 slope=-1.001524
+    mid=1.573360e+15 slope=-1.003101
+    mid=1.774979e+15 slope=-1.012407
+    mid=2.002435e+15 slope=-1.012407
+    mid=2.259038e+15 slope=-1.018610
+  closest slope 2.500000 at mid=7.996222e+10 actual=2.478542
+  closest slope 2.000000 at mid=5.903357e+05 actual=1.997558
+  closest slope 0.333333 at mid=2.366853e+11 actual=0.395999
+  closest slope -0.500000 at mid=4.325110e+11 actual=-0.464972
+  closest slope -0.600000 at mid=6.210014e+11 actual=-0.620163
+  closest slope -1.100000 at mid=3.168803e+17 actual=-1.100207
+
+REGIME III nua=1.511022e+09 num=3.926527e+15 nuc=4.711305e+13
+  around nua
+    mid=1.023874e+09 slope=1.543411
+    mid=1.153961e+09 slope=1.543441
+    mid=1.300575e+09 slope=1.275361
+    mid=1.465818e+09 slope=1.174903
+    mid=1.652055e+09 slope=1.105705
+    mid=1.861955e+09 slope=0.866451
+    mid=2.098522e+09 slope=0.866469
+  around num
+    mid=2.827260e+15 slope=-0.674870
+    mid=3.186473e+15 slope=-0.716295
+    mid=3.591325e+15 slope=-0.716238
+    mid=4.047616e+15 slope=-0.754274
+    mid=4.561879e+15 slope=-0.772616
+    mid=5.141481e+15 slope=-0.783076
+    mid=5.794724e+15 slope=-0.834196
+  around nuc
+    mid=3.383910e+13 slope=-0.319289
+    mid=3.813848e+13 slope=-0.325421
+    mid=4.298410e+13 slope=-0.329233
+    mid=4.844538e+13 slope=-0.344736
+    mid=5.460054e+13 slope=-0.344736
+    mid=6.153772e+13 slope=-0.357821
+    mid=6.935630e+13 slope=-0.363466
+  closest slope 2.500000 at mid=4.432359e+08 actual=2.047563
+  closest slope 2.000000 at mid=1.604143e+06 actual=2.001134
+  closest slope 0.333333 at mid=6.157638e+09 actual=0.343063
+  closest slope -0.500000 at mid=5.298374e+14 actual=-0.498776
+  closest slope -0.600000 at mid=1.554688e+15 actual=-0.590763
+  closest slope -1.100000 at mid=3.927760e+16 actual=-1.106121
+
+REGIME IV nua=1.127175e+11 num=2.920997e+15 nuc=6.895353e+08
+  around nua
+    mid=7.657079e+10 slope=2.197272
+    mid=8.647601e+10 slope=1.466782
+    mid=9.766258e+10 slope=1.466784
+    mid=1.102962e+11 slope=0.871646
+    mid=1.245642e+11 slope=0.521815
+    mid=1.406779e+11 slope=0.444852
+    mid=1.588760e+11 slope=-0.033394
+  around num
+    mid=2.098919e+15 slope=-0.631083
+    mid=2.370436e+15 slope=-0.656638
+    mid=2.677076e+15 slope=-0.691770
+    mid=3.023383e+15 slope=-0.691770
+    mid=3.414489e+15 slope=-0.756272
+    mid=3.856189e+15 slope=-0.761133
+    mid=4.355026e+15 slope=-0.794346
+  around nuc
+    mid=4.624842e+08 slope=2.023742
+    mid=5.223113e+08 slope=2.026930
+    mid=5.898776e+08 slope=2.026930
+    mid=6.661844e+08 slope=2.034687
+    mid=7.523622e+08 slope=2.034847
+    mid=8.496881e+08 slope=2.039962
+    mid=9.596040e+08 slope=2.045316
+  closest slope 2.500000 at mid=5.315762e+10 actual=2.466647
+  closest slope 2.000000 at mid=7.327786e+05 actual=2.000173
+  closest slope 0.333333 at mid=1.406779e+11 actual=0.444852
+  closest slope -0.500000 at mid=8.957110e+14 actual=-0.503220
+  closest slope -0.600000 at mid=1.457129e+15 actual=-0.579729
+  closest slope -1.100000 at mid=2.117453e+16 actual=-1.099897

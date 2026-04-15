@@ -88,7 +88,9 @@ def _parse_observation_data(table, name):
 
 def _convert_time_units(range_data, name):
     """Convert time units"""
-    return range_data if name.endswith('keV') or name.endswith('xrt') or name.endswith('XRT') else range_data * 86400
+    # Observational light-curve time columns in this project are stored in days.
+    # The model time grid is in seconds.
+    return range_data * 86400
 
 def _validate_model_range(range_data, model_serial):
     """Verify whether the model scope covers the data"""

@@ -2,39 +2,27 @@
 from __future__ import absolute_import, unicode_literals, print_function
 from pymultinest.solve import solve
 import os
-import numpy as np
-from mergered import fit
+from asgard_inference import build_inference_config, evaluate_fit_loglike
 
-try: os.mkdir('chains')
-except OSError: pass
-
-
-# number of dimensions our problem has
-parameters = ["$log_{10}n_0$",
-              "$log_{10}A_{\\star}$",
-              "$log_{10}E_{\\rm k,iso}$", 
-              "$p$", 
-              "$log_{10}\\Gamma$", 
-              "$log_{10}\\epsilon_{e}$", 
-              "$log_{10}\\epsilon_{B}$",
-               "$log_{10}\\theta_{j}$",
-              "$\\theta_v/\\theta_j$",
-              "$log_{10}\\xi_e$",
-              "$E(B-V)$",
-              "$Ly\\alpha(A_r)$",
- #             "$f_{\\rm sys}$"
-              ]
-              
-n_params = len(parameters)
-# name of the output files
-prefix = "chains/3-"
-
-# make marginal plots by running:
-# $ python multinest_marginals.py chains/3-
-# For that, we need to store the parameter names:
 import json
-with open('%sparams.json' % prefix, 'w') as f:
-	json.dump(parameters, f, indent=2)
+
+
+parameters = [
+    "$log_{10}n_0$",
+    "$log_{10}A_{\\star}$",
+    "$log_{10}E_{\\rm k,iso}$",
+    "$p$",
+    "$log_{10}\\Gamma$",
+    "$log_{10}\\epsilon_{e}$",
+    "$log_{10}\\epsilon_{B}$",
+    "$log_{10}\\theta_{j}$",
+    "$\\theta_v/\\theta_j$",
+    "$log_{10}\\xi_e$",
+    "$E(B-V)$",
+    "$Ly\\alpha(A_r)$",
+]
+n_params = len(parameters)
+prefix = "chains/3-"
 
 
 # probability function, taken from the eggbox problem.
@@ -78,55 +66,54 @@ def myloglike(params):
 
     z = 4.59
     
-    Num_threads = 8
+    config = build_inference_config(
+        d_ne=n_0,
+        a_star=A_star,
+        z=z,
+        ebv=Ebv,
+        lyman_ar=Lyman_Ar,
+        f_sys=f_sys,
+        theta_v=theta_v,
+        num_phi=50,
+        num_threads=8,
+        num_r=500,
+        num_theta=300,
+        eta_0=Eta_0,
+        epsilon_e=Epsilon_e,
+        epsilon_b=Epsilon_b,
+        p=p,
+        opening_angle_jet=theta_j,
+        f_e=f_e,
+        e_iso=E_iso,
+    )
 
-    params={
-        'dNe': n_0,
-        'A_star': A_star,
-        'R0': 10 ** 9,
-        'z': z,
-        'Ebv': Ebv,
-        'Lyman_Ar': Lyman_Ar,
-        'f_sys': f_sys,
-        'theta_v': theta_v,
-        'Num_phi': 50,
-        'index_Y': 2,   # 1 full numerical  2 Nakar  3 Fan
-        'Num_threads': Num_threads,
-        'Num_gam_e': 101,
-        'Num_R': 500,
-        'Num_theta': 300,
-        'weno5': False,
-        'reverse': False,
-
-        'Eta_0': Eta_0,
-        'Epsilon_e': Epsilon_e,
-        'Epsilon_b': Epsilon_b,
-        'p': p,
-        'OpeningAngle_jet': theta_j,
-        'f_e': f_e,
-        'E_iso': E_iso,
-        'plot_syn_curve': False,
-        'plot_spectrum': False,
-        'do_plot_spec': False,
-        'plot_LC': False,
-       }
-
-    redchi = fit(**params)
-
-    if np.isnan(redchi):
-        redchi = np.inf
-
-    return -0.5 * redchi
+    return evaluate_fit_loglike(config)
 
 
-# run MultiNest
-result = solve(LogLikelihood=myloglike, Prior=prior_transform, 
-	n_dims=n_params, outputfiles_basename=prefix, verbose=True)
+def main() -> None:
+    try:
+        os.mkdir("chains")
+    except OSError:
+        pass
 
-print()
-print('evidence: %(logZ).1f +- %(logZerr).1f' % result)
-print()
-print('parameter values:')
-for name, col in zip(parameters, result['samples'].transpose()):
-	print('%15s : %.3f +- %.3f' % (name, col.mean(), col.std()))
+    with open(f"{prefix}params.json", "w") as f:
+        json.dump(parameters, f, indent=2)
 
+    result = solve(
+        LogLikelihood=myloglike,
+        Prior=prior_transform,
+        n_dims=n_params,
+        outputfiles_basename=prefix,
+        verbose=True,
+    )
+
+    print()
+    print("evidence: %(logZ).1f +- %(logZerr).1f" % result)
+    print()
+    print("parameter values:")
+    for name, col in zip(parameters, result["samples"].transpose()):
+        print("%15s : %.3f +- %.3f" % (name, col.mean(), col.std()))
+
+
+if __name__ == "__main__":
+    main()

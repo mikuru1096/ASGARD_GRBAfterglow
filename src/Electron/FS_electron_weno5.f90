@@ -2,6 +2,7 @@ subroutine fs_electron_weno5(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num
                                 gam_e,dN_gam_e,P_syn,Seed_syn)
     !$ use omp_lib
     use constants
+    use electron_common
     use get_Y
     IMPLICIT REAL(8)(A-H,O-Z)
     integer, intent(in) :: n,Num_R,Num_gam_e
@@ -16,8 +17,8 @@ subroutine fs_electron_weno5(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num
             dEl1(Num_gam_e),x(Num_gam_e),dN_x(Num_gam_e),dF1(Num_gam_e),fp(Num_gam_e), &
             flux(0:Num_gam_e), temp_store(3,Num_gam_e),Compton(Num_gam_e), &
               dot_gam_e(Num_gam_e),dot_gam_e_SSA(Num_gam_e),Compton1(Num_gam_e))
-    allocate(dN_x_extended(1-2:Num_gam_e+3),temp_store_extended(3, 1-2:Num_gam_e+3),&
-             fp_extended(1-2:Num_gam_e+3),flux_extended(1-2:Num_gam_e+3),dEl1_extended(1-2:Num_gam_e+3)) !ghost cells
+    allocate(dN_x_extended(1-3:Num_gam_e+3),temp_store_extended(3, 1-3:Num_gam_e+3),&
+             fp_extended(1-3:Num_gam_e+3),flux_extended(0:Num_gam_e),dEl1_extended(1-3:Num_gam_e+3)) !ghost cells
 
     !***********************[Parameter Initial]**********************
     Eta_0=Boundary(1)
@@ -40,95 +41,36 @@ subroutine fs_electron_weno5(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num
     Seed_syn=zero
     
     !*****************Part 1: given the boundary consition [Using the analytical approximation]*********************
-    if (A_star > zero) then
-        dNe_wind=A_star*3.0d35/R(1)**2
-        Para_N_e_ini=4d0*pi*R_ini*A_star*3.0d35
-        if (dNe_wind <= dNe_ISM/4d0) then
-            dNe=dNe_ISM
-        else
-            dNe=dNe_wind
-        end if
-    else
-        dNe=dNe_ISM
-        Para_N_e_ini=4d0/3d0*pi*R_ini**3*dNe_ISM
-    end if
-    
-    if (R(1)<R0) then
-        dNe=A_star*3.0d35/R0**2*4
-        Para_N_e_ini=4d0/3d0*pi*R_ini**3*dNe_ISM
-    end if
+    call electron_initial_density(A_star,dNe_ISM,R_ini,R(1),R0,dNe,Para_N_e_ini)
 
     DB=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma(1)*(R_Gamma(1)-one)))
     Gam_e_max=3d0*Para_m_energy/dsqrt(8d0*DB*Para_e**3)
     DB_min=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma(Num_R)*(R_Gamma(Num_R)-one)))
     Gam_e_max_max=3d0*Para_m_energy/dsqrt(8d0*DB_min*Para_e**3)
-    Gam_e_m=(p-two)/(p-one)*Epsilon_e/f_e*1836d0*(R_Gamma(1)-one)+one
-    if (p<2.05 .and. p>=2.0) then
-        Gam_e_m=0.05d0/1.05d0*Epsilon_e/f_e*1836d0*(R_Gamma(1)-one)+one
-    else if (p<2 .and. p>1) then
-        Gam_e_m=((two-p)/(p-one)*Epsilon_e/f_e*1836d0*(R_Gamma(1)-one)*Gam_e_max**(p-two))**(one/(p-one))+one
-    end if
+    temp_gam=Epsilon_e/f_e*1836d0*(R_Gamma(1)-one)
+    call electron_gamma_m_exact(p,temp_gam,Gam_e_max,Gam_e_m)
     Gam_e_c=7.7d8/(one+dsqrt(Epsilon_e/Epsilon_b))/R_Gamma(1)/DB**2/(R_Tobs(1)/two)
-    do I_gam_e=1,Num_gam_e
-        Gam_e(I_gam_e)=3d0*ten**(dlog10(Gam_e_max_max)*(I_gam_e-1)/(Num_gam_e-1))
-        if (Gam_e_m > Gam_e_c) then
-            if (Gam_e_c > Gam_e(I_gam_e) .or. Gam_e_max < Gam_e(I_gam_e)) then
-                dN_gam_e(I_gam_e,1)=zero
-            else
-                Q1=Para_N_e_ini*Gam_e_c
-                if (Gam_e_m > Gam_e(I_gam_e)) then
-                    dN_gam_e(I_gam_e,1)=Q1*Gam_e(I_gam_e)**(-2)
-                else
-                    dN_gam_e(I_gam_e,1)=Q1*Gam_e_m**(p-one)*Gam_e(I_gam_e)**(-(p+one))
-                end if
-            end if
-        else
-            if (Gam_e_m > Gam_e(I_gam_e) .or. Gam_e_max < Gam_e(I_gam_e)) then
-                dN_gam_e(I_gam_e,1)=zero
-            else
-                Q1=Para_N_e_ini*Gam_e_m**(p-one)
-                if (Gam_e_c > Gam_e(I_gam_e)) then
-                    dN_gam_e(I_gam_e,1)=Q1*Gam_e(I_gam_e)**(-p)
-                else
-                    dN_gam_e(I_gam_e,1)=Q1*Gam_e_c*Gam_e(I_gam_e)**(-(p+one))
-                end if
-            end if
-        end if
-    end do
+    call electron_build_gamma_grid(Num_gam_e,Gam_e_max_max,Gam_e)
+    call electron_initial_powerlaw_exp_cutoff(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,Gam_e,dN_gam_e(:,1))
     !*******************Part 1 is completed [has been checked and there is no bug]**********************************
     !*******************Part 2: To calculate the electron distribution**********************************************
     dN_x=dN_gam_e(:,1)*gam_e*dlog(ten)
     d_x=dlog10(gam_e(2)/gam_e(1))
     factor_adv=Para_sigmaT/(6.0d0*pi*Para_m_energy)
-    para_minus_gam_e_p=one/(gam_e-one)**p*gam_e*dlog(ten)
+    para_minus_gam_e_p=gam_e**(-p)*gam_e*dlog(ten)
     
+    CFL_target=0.8d0
+
     do I_tobs=2,Num_R
         R_loc=R(I_tobs-1)
         R_Gamma_loc=(R_Gamma(I_tobs)+R_Gamma(I_tobs-1))/two
-        if (A_star > zero) then
-            dNe_wind=A_star*3.0d35/R_loc**2
-            if (dNe_wind <= dNe_ISM/4d0) then
-                dNe=dNe_ISM
-            else
-                dNe=dNe_wind
-            end if
-        else
-            dNe=dNe_ISM
-        end if
-        
-        if (R_loc<R0) then
-            dNe=A_star*3.0d35/R0**2
-        end if
+        call electron_external_density(A_star,dNe_ISM,R_loc,R0,R_tr,f_jump,f_wide,0,dNe)
 
         DB=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma_loc*(R_Gamma_loc-one)))
         Gam_e_max=3d0*Para_m_energy/dsqrt(8d0*DB*Para_e**3)
-        Gam_e_m=(p-two)/(p-one)*Epsilon_e*1836d0*(R_Gamma_loc-one)/f_e+one
-        if (p<2.05 .and. p>=2.0) then
-            Gam_e_m=0.05d0/1.05d0*Epsilon_e*1836d0*(R_Gamma_loc-one)/f_e+one
-        else if (p<2 .and. p>1) then
-            Gam_e_m=((two-p)/(p-one)*Epsilon_e/f_e*1836d0*(R_Gamma_loc-one)*Gam_e_max**(p-two))**(one/(p-one))+one
-        end if
-        Gam_e_m_p=(p-one)*(Gam_e_m-one)**(p-one)
+        temp_gam=Epsilon_e/f_e*1836d0*(R_Gamma_loc-one)
+        call electron_gamma_m_exact(p,temp_gam,Gam_e_max,Gam_e_m)
+        Gam_e_m_p=(one-p)/(Gam_e_max**(one-p)-Gam_e_m**(one-p))
         Gam_e_c=7.7d8*(one+z)/R_Gamma_loc/DB**2/R_Tobs(I_tobs)
 
         beta_Gam=dsqrt(one-one/R_Gamma_loc**2)
@@ -136,83 +78,42 @@ subroutine fs_electron_weno5(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num
         dDR=0.1/(f_r*Gam_e_max+1.333/(R(I_tobs)+R(I_tobs-1)))
         !***********************[Here we have presented the choice on Delta_r]******************************************
         dDD=R(I_tobs)-R(I_tobs-1)
-        L1=Int(dDD/dDR)
-        L1=L1+10
-        dDR=dDD/L1
-        CFL=dDR/d_x
         dN_x=dN_gam_e(:,I_tobs-1)*gam_e*dlog(ten)
         
         call get_syn(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e(:,I_tobs-1),V_seed, &
                      P_syn(:,I_tobs),Seed_syn(:,I_tobs))
         
-        call get_SSA_numerical(DB,Num_gam_e,Num_nu,n_threads,gam_e,V_seed,Seed_syn(:,I_tobs), dot_gam_e_SSA)
-        
-        select case(index_Y)
-        
-        case(1)
-        call get_IC_numerical(Num_gam_e,Num_nu,n_threads,gam_e,V_seed,Seed_syn(:,I_tobs), &
-                       dot_gam_e)
-        
-        dEl=(f_r+(dot_gam_e-dot_gam_e_SSA)/beta_Gam/R_Gamma_loc/para_c)*gam_e
-        
-        case(2)
-        call get_Y_Nakar(Num_gam_e,Num_nu,n_threads,gam_e,V_seed,P_syn(:,I_tobs), &
-                         Compton)
-
-        Q=4d0*pi*R_loc*R_loc*para_c
-        Compton=one+Compton/Q/(4d0*R_Gamma_loc*R_Gamma_loc*dNe*Para_m_p_E)
-        Gam_e_max=Gam_e_max/sqrt(Compton(Num_gam_e))
-        dEl=(f_r*Compton-dot_gam_e_SSA/beta_Gam/R_Gamma_loc/para_c)*gam_e
-        
-        case(3)
-        call get_Y_Fan(Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,gam_e, &
-                       Compton)
-        Compton=one+Compton
-        Gam_e_max=Gam_e_max/sqrt(Compton(Num_gam_e))
-        dEl=(f_r*Compton-dot_gam_e_SSA/beta_Gam/R_Gamma_loc/para_c)*gam_e
-        
-        case default
-         
-        print*, 'invalid Compton case, check your chosen model!'
-        stop
-         
-        end select
+        call get_forward_cooling(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc, &
+                                 R_Gamma_loc,beta_Gam,dNe,Num_gam_e,Num_nu,n_threads,gam_e,V_seed, &
+                                 P_syn(:,I_tobs),Seed_syn(:,I_tobs),dEl)
         
         dEl(1:Num_gam_e-1)=(dEl(1:Num_gam_e-1)+dEl(2:Num_gam_e))*0.5d0
         dEl(Num_gam_e)=dEl(Num_gam_e-1)*0.5d0
+        dEl1=(dEl+one/R_loc)/dlog(ten)
+
+        L1=Int(dDD/dDR)+10
+        WENO_speed_max=maxval(abs(dEl1))
+        L1=max(L1,ceiling(dDD*WENO_speed_max/(CFL_target*d_x)))
+        dDR=dDD/L1
+        CFL=dDR/d_x
         
         do L=1,L1
             R_loc=R_loc+dDR
             
-            if (A_star > zero) then
-                dNe_wind=A_star*3.0d35/R_loc**2
-                if (dNe_wind <= dNe_ISM/4d0) then
-                    dNe=dNe_ISM
-                else
-                    dNe=dNe_wind
-                end if
-            else
-            !    dNe=dNe_ISM
-                dNe=dNe_ISM*(1.0+(f_jump-1d0)*exp(-(log10(R_loc)-log10(R_tr))**2/(2*f_wide*f_wide)))
-            end if
-        
-            if (R_loc<R0) then
-                dNe=A_star*3.0d35/R0**2
-            end if
+            call electron_external_density(A_star,dNe_ISM,R_loc,R0,R_tr,f_jump,f_wide,1,dNe)
             
             dEl1=(dEl+one/R_loc)/dlog(ten)
-            Q=4d0/3d0*pi*(3d0*R_loc**2+dDR*(3d0*R_loc+dDR))*dNe*f_e*Gam_e_m_p  !here Q is Q_0*\gamma_m**p
-            dF1=zero
-            where(gam_e<Gam_e_max .and. gam_e>Gam_e_m) dF1=Q*para_minus_gam_e_p
+            call electron_injection_prefactor(R_loc,dDR,dNe,f_e,Gam_e_m_p,Q)
+            call electron_build_source_term_exp_cutoff(Num_gam_e,gam_e,Gam_e_m,Gam_e_max,Q,p,dF1)
 !            dF1=dF1+Q*para_maxwell/Gam_e_m_p*(one-f_e)
             
             
-            dN_x_extended(1-2:0) = dN_x(1)
+            dN_x_extended(1-3:0) = dN_x(1)
             dN_x_extended(1:Num_gam_e) = dN_x
             dN_x_extended(Num_gam_e+1:Num_gam_e+3) = dN_x(Num_gam_e)
             temp_store_extended(1,:) = dN_x_extended
             
-            dEl1_extended(1-2:0) = dEl1(1)
+            dEl1_extended(1-3:0) = dEl1(1)
             dEl1_extended(1:Num_gam_e) = dEl1
             dEl1_extended(Num_gam_e+1:Num_gam_e+3) = dEl1(Num_gam_e)
 
@@ -222,7 +123,7 @@ subroutine fs_electron_weno5(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num
         
               fp_extended = dEl1_extended * dN_x_extended
         
-              do i_gam_e = 1, Num_gam_e
+              do i_gam_e = 0, Num_gam_e
                  if (dEl1_extended(i_gam_e) <= 0.0d0) then
                     flux_extended(i_gam_e) = fpx(fp_extended(i_gam_e-2:i_gam_e+2))
                  else
@@ -232,25 +133,24 @@ subroutine fs_electron_weno5(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num
         
               if(j==1) then
                 do i = 1, Num_gam_e
-                   dN_x_extended(i) = temp_store_extended(1,i) + CFL*(flux_extended(i)-flux_extended(i-1))
+                   dN_x_extended(i) = temp_store_extended(1,i) + CFL*(flux_extended(i)-flux_extended(i-1)) + dF1(i)*dDR
                 end do
                 temp_store_extended(2,:) = dN_x_extended
               else if(j==2) then
                 do i = 1, Num_gam_e
                    dN_x_extended(i) = 0.75d0*temp_store_extended(1,i) + 0.25d0*(temp_store_extended(2,i) + &
-                                  CFL*(flux_extended(i)-flux_extended(i-1)))
+                                  CFL*(flux_extended(i)-flux_extended(i-1))) + 0.25d0*dF1(i)*dDR
                 end do
                 temp_store_extended(3,:) = dN_x_extended
               else if(j==3) then
                 do i = 1, Num_gam_e
                    dN_x_extended(i) = (temp_store_extended(1,i) + 2.0d0*(temp_store_extended(3,i) + &
-                                  CFL*(flux_extended(i)-flux_extended(i-1))))/3.0d0
+                                  CFL*(flux_extended(i)-flux_extended(i-1))))/3.0d0 + 2.0d0/3.0d0*dF1(i)*dDR
                 end do
               end if
            end do
            
            dN_x = dN_x_extended(1:Num_gam_e)
-           dN_x = dN_x + dF1*dDR
             
            where(dN_x < 0.0d0) dN_x = 0.0d0
         
@@ -268,9 +168,9 @@ end subroutine
 
 subroutine update_ghost_cells(arr, n)
         integer, intent(in) :: n
-        real(8), intent(inout) :: arr(1-2:n+3)
+        real(8), intent(inout) :: arr(1-3:n+3)
         
-        arr(1-2:0) = arr(1)
+        arr(1-3:0) = arr(1)
         arr(n+1:n+3) = arr(n)
         
         ! Periodic boundary conditions, not used.
@@ -306,7 +206,7 @@ function fpx(fps)
     
     tao5 = abs(beta(1) - beta(3))
     
-    alpha(:) = omega(:)*( 1.0d0 + tao5/(beta(:)+eps) )
+    alpha(:) = omega(:)*( 1.0d0 + (tao5/(beta(:)+eps))**2 )
     totalpha = alpha(1) + alpha(2) + alpha(3)
     
     if(totalpha < eps) then
@@ -345,7 +245,7 @@ function fmx(fms)
     
     tao5 = abs(beta(1) - beta(3))
     
-    alpha(:) = omega(:)*( 1.0d0 + tao5/(beta(:)+eps) )
+    alpha(:) = omega(:)*( 1.0d0 + (tao5/(beta(:)+eps))**2 )
     totalpha = alpha(1) + alpha(2) + alpha(3)
     
     if(totalpha < eps) then

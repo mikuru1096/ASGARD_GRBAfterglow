@@ -1,0 +1,492 @@
+{
+  "ism": {
+    "fullhide": [
+      {
+        "name": "quickstart",
+        "status": "PASS",
+        "seconds": 1.9133611000142992,
+        "payload": {
+          "shape": [
+            1
+          ],
+          "value": 2.601209047127147e-24
+        }
+      },
+      {
+        "name": "lightcurve_grid",
+        "status": "PASS",
+        "seconds": 2.2391218999400735,
+        "payload": {
+          "shape": [
+            3,
+            60
+          ],
+          "peak": 2.5465635363946513e-24
+        }
+      },
+      {
+        "name": "spectrum_grid",
+        "status": "PASS",
+        "seconds": 2.149231699993834,
+        "payload": {
+          "shape": [
+            72,
+            3
+          ],
+          "peak": 2.6984404560293117e-24
+        }
+      },
+      {
+        "name": "pair_points",
+        "status": "PASS",
+        "seconds": 2.2008484000107273,
+        "payload": {
+          "shape": [
+            64
+          ],
+          "median": 1.904687006394433e-27
+        }
+      },
+      {
+        "name": "exposures",
+        "status": "PASS",
+        "seconds": 2.0402555000036955,
+        "payload": {
+          "shape": [
+            24
+          ],
+          "median": 9.458897668383209e-25
+        }
+      },
+      {
+        "name": "details",
+        "status": "PASS",
+        "seconds": 1.963378299959004,
+        "payload": {
+          "n_t": 160,
+          "n_patches": 1
+        }
+      },
+      {
+        "name": "sky_image",
+        "status": "PASS",
+        "seconds": 5.867567399982363,
+        "payload": {
+          "shape": [
+            1,
+            64,
+            64
+          ],
+          "ratio": 1.0174105848590773
+        }
+      }
+    ],
+    "slc1": [
+      {
+        "name": "quickstart",
+        "status": "PASS",
+        "seconds": 0.5205968000227585,
+        "payload": {
+          "shape": [
+            1
+          ],
+          "value": 2.6319850342160733e-24
+        }
+      },
+      {
+        "name": "lightcurve_grid",
+        "status": "PASS",
+        "seconds": 0.619008700014092,
+        "payload": {
+          "shape": [
+            3,
+            60
+          ],
+          "peak": 2.485279281174937e-24
+        }
+      },
+      {
+        "name": "spectrum_grid",
+        "status": "PASS",
+        "seconds": 0.5078250999795273,
+        "payload": {
+          "shape": [
+            72,
+            3
+          ],
+          "peak": 2.7238958283723e-24
+        }
+      },
+      {
+        "name": "pair_points",
+        "status": "PASS",
+        "seconds": 0.5390899999765679,
+        "payload": {
+          "shape": [
+            64
+          ],
+          "median": 2.2608967719638247e-27
+        }
+      },
+      {
+        "name": "exposures",
+        "status": "PASS",
+        "seconds": 0.6114001999376342,
+        "payload": {
+          "shape": [
+            24
+          ],
+          "median": 1.0139316361707698e-24
+        }
+      },
+      {
+        "name": "details",
+        "status": "PASS",
+        "seconds": 0.500143300043419,
+        "payload": {
+          "n_t": 160,
+          "n_patches": 1
+        }
+      },
+      {
+        "name": "sky_image",
+        "status": "PASS",
+        "seconds": 1.5497192000038922,
+        "payload": {
+          "shape": [
+            1,
+            64,
+            64
+          ],
+          "ratio": 1.0180013322070274
+        }
+      }
+    ],
+    "slc1_mmg2": [
+      {
+        "name": "quickstart",
+        "status": "PASS",
+        "seconds": 0.525287099997513,
+        "payload": {
+          "shape": [
+            1
+          ],
+          "value": 2.91336061585046e-24
+        }
+      },
+      {
+        "name": "lightcurve_grid",
+        "status": "PASS",
+        "seconds": 0.5968678999925032,
+        "payload": {
+          "shape": [
+            3,
+            60
+          ],
+          "peak": 2.7051445413194203e-24
+        }
+      },
+      {
+        "name": "spectrum_grid",
+        "status": "PASS",
+        "seconds": 0.5362711000489071,
+        "payload": {
+          "shape": [
+            72,
+            3
+          ],
+          "peak": 3.110560129545154e-24
+        }
+      },
+      {
+        "name": "pair_points",
+        "status": "PASS",
+        "seconds": 0.5732359000248834,
+        "payload": {
+          "shape": [
+            64
+          ],
+          "median": 3.258120213547291e-27
+        }
+      },
+      {
+        "name": "exposures",
+        "status": "PASS",
+        "seconds": 0.5969178000232205,
+        "payload": {
+          "shape": [
+            24
+          ],
+          "median": 1.0867257070058032e-24
+        }
+      },
+      {
+        "name": "details",
+        "status": "PASS",
+        "seconds": 0.645409999997355,
+        "payload": {
+          "n_t": 160,
+          "n_patches": 1
+        }
+      },
+      {
+        "name": "sky_image",
+        "status": "PASS",
+        "seconds": 1.9937113000778481,
+        "payload": {
+          "shape": [
+            1,
+            64,
+            64
+          ],
+          "ratio": 1.0177018999991705
+        }
+      }
+    ]
+  },
+  "wind": {
+    "fullhide": [
+      {
+        "name": "quickstart",
+        "status": "PASS",
+        "seconds": 1.893513199989684,
+        "payload": {
+          "shape": [
+            1
+          ],
+          "value": 2.5602774880061545e-24
+        }
+      },
+      {
+        "name": "lightcurve_grid",
+        "status": "PASS",
+        "seconds": 2.451834399951622,
+        "payload": {
+          "shape": [
+            3,
+            60
+          ],
+          "peak": 2.519445128944658e-24
+        }
+      },
+      {
+        "name": "spectrum_grid",
+        "status": "PASS",
+        "seconds": 2.3996764000039548,
+        "payload": {
+          "shape": [
+            72,
+            3
+          ],
+          "peak": 2.727141454247224e-24
+        }
+      },
+      {
+        "name": "pair_points",
+        "status": "PASS",
+        "seconds": 2.4746526000089943,
+        "payload": {
+          "shape": [
+            64
+          ],
+          "median": 1.9076362511918813e-27
+        }
+      },
+      {
+        "name": "exposures",
+        "status": "PASS",
+        "seconds": 2.2078047998948023,
+        "payload": {
+          "shape": [
+            24
+          ],
+          "median": 8.863352999498984e-25
+        }
+      },
+      {
+        "name": "details",
+        "status": "PASS",
+        "seconds": 2.2808806999819353,
+        "payload": {
+          "n_t": 160,
+          "n_patches": 1
+        }
+      },
+      {
+        "name": "sky_image",
+        "status": "PASS",
+        "seconds": 6.575750700081699,
+        "payload": {
+          "shape": [
+            1,
+            64,
+            64
+          ],
+          "ratio": 0.7961430331257793
+        }
+      }
+    ],
+    "slc1": [
+      {
+        "name": "quickstart",
+        "status": "PASS",
+        "seconds": 0.6498608000110835,
+        "payload": {
+          "shape": [
+            1
+          ],
+          "value": 2.5596126441606197e-24
+        }
+      },
+      {
+        "name": "lightcurve_grid",
+        "status": "PASS",
+        "seconds": 0.8464649999514222,
+        "payload": {
+          "shape": [
+            3,
+            60
+          ],
+          "peak": 2.585324004910246e-24
+        }
+      },
+      {
+        "name": "spectrum_grid",
+        "status": "PASS",
+        "seconds": 0.6901988999452442,
+        "payload": {
+          "shape": [
+            72,
+            3
+          ],
+          "peak": 2.6956746652496037e-24
+        }
+      },
+      {
+        "name": "pair_points",
+        "status": "PASS",
+        "seconds": 0.7989949999609962,
+        "payload": {
+          "shape": [
+            64
+          ],
+          "median": 2.1759177080019993e-27
+        }
+      },
+      {
+        "name": "exposures",
+        "status": "PASS",
+        "seconds": 0.7909315000288188,
+        "payload": {
+          "shape": [
+            24
+          ],
+          "median": 9.255823432581054e-25
+        }
+      },
+      {
+        "name": "details",
+        "status": "PASS",
+        "seconds": 0.7465446999995038,
+        "payload": {
+          "n_t": 160,
+          "n_patches": 1
+        }
+      },
+      {
+        "name": "sky_image",
+        "status": "PASS",
+        "seconds": 1.8062464999966323,
+        "payload": {
+          "shape": [
+            1,
+            64,
+            64
+          ],
+          "ratio": 0.8237625220578811
+        }
+      }
+    ],
+    "slc1_mmg2": [
+      {
+        "name": "quickstart",
+        "status": "PASS",
+        "seconds": 0.5206482000648975,
+        "payload": {
+          "shape": [
+            1
+          ],
+          "value": 2.84961658487383e-24
+        }
+      },
+      {
+        "name": "lightcurve_grid",
+        "status": "PASS",
+        "seconds": 0.7663736999966204,
+        "payload": {
+          "shape": [
+            3,
+            60
+          ],
+          "peak": 2.8533776010460246e-24
+        }
+      },
+      {
+        "name": "spectrum_grid",
+        "status": "PASS",
+        "seconds": 0.5554314000764862,
+        "payload": {
+          "shape": [
+            72,
+            3
+          ],
+          "peak": 3.083173300002342e-24
+        }
+      },
+      {
+        "name": "pair_points",
+        "status": "PASS",
+        "seconds": 0.637831800035201,
+        "payload": {
+          "shape": [
+            64
+          ],
+          "median": 3.365800538447957e-27
+        }
+      },
+      {
+        "name": "exposures",
+        "status": "PASS",
+        "seconds": 0.6198897999711335,
+        "payload": {
+          "shape": [
+            24
+          ],
+          "median": 1.0645150492045337e-24
+        }
+      },
+      {
+        "name": "details",
+        "status": "PASS",
+        "seconds": 0.6188651999691501,
+        "payload": {
+          "n_t": 160,
+          "n_patches": 1
+        }
+      },
+      {
+        "name": "sky_image",
+        "status": "PASS",
+        "seconds": 1.681287599960342,
+        "payload": {
+          "shape": [
+            1,
+            64,
+            64
+          ],
+          "ratio": 0.7964878000223963
+        }
+      }
+    ]
+  }
+}

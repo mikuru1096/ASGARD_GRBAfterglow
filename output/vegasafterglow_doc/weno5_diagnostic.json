@@ -1,0 +1,43 @@
+{
+  "cases": [
+    {
+      "num_points": 61,
+      "first_bad_shell": 132,
+      "bands_flux_max": 3.07742309983432e+30,
+      "d_n_gam_e_max": 1.4360527084725035e+53,
+      "nu_a_max": 60795863.475741945,
+      "base_l1_shell80": 380,
+      "cfl_geom_shell80": 72673652782735.34,
+      "max_speed_shell80": 1.931394829072044e-13,
+      "cfl_eff_shell80": 14.036151719435221,
+      "required_l1_cfl1_shell80": 5334,
+      "stabilized_l1_cfl08_shell80": 6668
+    },
+    {
+      "num_points": 121,
+      "first_bad_shell": 131,
+      "bands_flux_max": 3.1153193792483183e+30,
+      "d_n_gam_e_max": 1.5025438822008882e+53,
+      "nu_a_max": 57014554.72966976,
+      "base_l1_shell80": 380,
+      "cfl_geom_shell80": 145347305565470.72,
+      "max_speed_shell80": 1.9313948290690653e-13,
+      "cfl_eff_shell80": 28.072303438827152,
+      "required_l1_cfl1_shell80": 10668,
+      "stabilized_l1_cfl08_shell80": 13335
+    },
+    {
+      "num_points": 241,
+      "first_bad_shell": 131,
+      "bands_flux_max": 3.1033520695013745e+30,
+      "d_n_gam_e_max": 1.4810618158149187e+53,
+      "nu_a_max": 57089276.3861582,
+      "base_l1_shell80": 380,
+      "cfl_geom_shell80": 290694611130941.25,
+      "max_speed_shell80": 1.9313948290709674e-13,
+      "cfl_eff_shell80": 56.14460687770956,
+      "required_l1_cfl1_shell80": 21335,
+      "stabilized_l1_cfl08_shell80": 26669
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "Tophat sync": {
+    "serial": {
+      "num_threads": 1,
+      "timings": {
+        "Dynamics.dynamics_forward": 0.0017363500082865357,
+        "Electron.fs_electron_fullhide": 4.606942450045608,
+        "Interpolation.sed_interpolation [fwd_ssc]": 0.0,
+        "Interpolation.sed_interpolation [fwd_sync]": 0.5719492500065826,
+        "Interpolation.sed_interpolation [total]": 0.0,
+        "Radiation.annihilation": 0.0876877999980934,
+        "Total pipeline": 5.270240549987648
+      }
+    },
+    "parallel": {
+      "num_threads": 32,
+      "timings": {
+        "Dynamics.dynamics_forward": 0.0018362000118941069,
+        "Electron.fs_electron_fullhide": 3.7366748499916866,
+        "Interpolation.sed_interpolation [fwd_ssc]": 0.0,
+        "Interpolation.sed_interpolation [fwd_sync]": 0.041037000017240644,
+        "Interpolation.sed_interpolation [total]": 0.0,
+        "Radiation.annihilation": 0.0465552500099875,
+        "Total pipeline": 3.8285961999790743
+      }
+    }
+  },
+  "Tophat full SSC": {
+    "serial": {
+      "num_threads": 1,
+      "timings": {
+        "Dynamics.dynamics_forward": 0.001816549978684634,
+        "Electron.fs_electron_fullhide": 4.731414700043388,
+        "Interpolation.sed_interpolation [fwd_ssc]": 0.6171117999474518,
+        "Interpolation.sed_interpolation [fwd_sync]": 0.5792872500023805,
+        "Interpolation.sed_interpolation [total]": 0.0,
+        "Radiation.annihilation": 0.09079099999507889,
+        "Radiation.ssc_spec [FS]": 1.386884449981153,
+        "Total pipeline": 7.409394349961076
+      }
+    },
+    "parallel": {
+      "num_threads": 32,
+      "timings": {
+        "Dynamics.dynamics_forward": 0.0016038499888963997,
+        "Electron.fs_electron_fullhide": 3.750405050057452,
+        "Interpolation.sed_interpolation [fwd_ssc]": 0.032734649954363704,
+        "Interpolation.sed_interpolation [fwd_sync]": 0.030149600002914667,
+        "Interpolation.sed_interpolation [total]": 0.0,
+        "Radiation.annihilation": 0.04574204998789355,
+        "Radiation.ssc_spec [FS]": 0.10902245005127043,
+        "Total pipeline": 3.971895949973259
+      }
+    }
+  }
+}

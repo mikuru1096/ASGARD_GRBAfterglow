@@ -1,12 +1,12 @@
 subroutine dynamics_reverse (Delta_t,e_r,b_r,p_r,f_e_r,Boundary,n,Num_R,Num_gam_e, &
-                             T_cross,R_cross,e3_cross,gam20,R_Tobs,R_Gamma,R,gam_e,dN_gam_e)
+                             T_cross,R_cross,e3_cross,gam20,R_Tobs,R_Gamma,R,M2,M3,gam_e,dN_gam_e)
     !$ use omp_lib
     use constants
     IMPLICIT REAL(8)(A-H,O-Z)
     integer, intent(in) :: n,Num_R,Num_gam_e
     real(8), intent(in) :: Boundary(n)
     real(8), intent(in) :: Delta_t,e_r,b_r,p_r,f_e_r
-    real(8), intent(out) :: T_cross,R_cross,e3_cross,gam20,R_Tobs(Num_R),R(Num_R)
+    real(8), intent(out) :: T_cross,R_cross,e3_cross,gam20,R_Tobs(Num_R),R(Num_R),M2(Num_R),M3(Num_R)
     real(8), intent(out) :: dN_gam_e(Num_gam_e,Num_R),gam_e(Num_gam_e),R_Gamma(Num_R)
 
     real(8),allocatable,dimension (:) :: dEl,principal,x,dF1,up,temp1,temp2,temp3,Y,dB3_serial, &
@@ -44,14 +44,7 @@ subroutine dynamics_reverse (Delta_t,e_r,b_r,p_r,f_e_r,Boundary,n,Num_R,Num_gam_
     
     !**********************[Time bin]**********************
     DM_0=E_iso/((Eta_0-one)*4d0*pi*Para_m_p_E)
-    
-    R_dec_ISM=(dNe_ISM*Eta_0/DM_0)**(-one/3d0)
-    if (A_star > zero) then
-        R_dec_wind=DM_0/(2.0d35*A_star*Eta_0)
-        R_dec=min(R_dec_wind,R_dec_ISM)
-    else
-        R_dec=R_dec_ISM
-    end if
+    call reverse_deceleration_radius(A_star,dNe_ISM,Eta_0,DM_0,R_dec)
     
     T_cross=-1d0
     T00=Y(4)*(one/dsqrt(one-one/Eta_0**2)-one)/Para_c
@@ -59,14 +52,15 @@ subroutine dynamics_reverse (Delta_t,e_r,b_r,p_r,f_e_r,Boundary,n,Num_R,Num_gam_
     t_dec=R_dec/(two*Eta_0*Eta_0*Para_c)
     Grid_Tobs_bin=min(log10(T00)-2.0,dlog10(t_dec*0.1))
     T_log10=T_log10_duration-Grid_Tobs_bin
+    Num_R1=Num_R-1
     !   log time bin
 
     do I_tobs=1,Num_R
-        T=T00+ten**(Grid_Tobs_bin+T_log10*(I_tobs-one)/(Num_R-1))
+        T=T00+ten**(Grid_Tobs_bin+T_log10*(I_tobs-one)/Num_R1)
         if (I_tobs < one) then
-            H=ten**(Grid_Tobs_bin+T_log10*(I_tobs-one)/(Num_R-1))
+            H=ten**(Grid_Tobs_bin+T_log10*(I_tobs-one)/Num_R1)
         else
-            H=ten**(Grid_Tobs_bin+T_log10*I_tobs/(Num_R-1))-ten**(Grid_Tobs_bin+T_log10*(I_tobs-one)/(Num_R-1))
+            H=ten**(Grid_Tobs_bin+T_log10*I_tobs/Num_R1)-ten**(Grid_Tobs_bin+T_log10*(I_tobs-one)/Num_R1)
         end if
         
         call GRKT4(dB3,T_cross,R_cross,e3_cross,gam20, T,H,Y,para_m_ej,Delta_0,eta_0,A_star, &
@@ -74,6 +68,8 @@ subroutine dynamics_reverse (Delta_t,e_r,b_r,p_r,f_e_r,Boundary,n,Num_R,Num_gam_
         R_Tobs(I_tobs)=T*(one+z)
         R_Gamma(I_tobs)=Y(1)
         R(I_tobs)=Y(2)
+        M2(I_tobs)=Y(3)
+        M3(I_tobs)=Y(4)
         dB3_serial(I_tobs)=dB3
     end do
 
@@ -83,61 +79,18 @@ subroutine dynamics_reverse (Delta_t,e_r,b_r,p_r,f_e_r,Boundary,n,Num_R,Num_gam_
     dB3_serial(1)=dB3_serial(2)
     dB=dB3_serial(1)
     gamma34=1.001
-    Gam_e_max=3d0*Para_m_energy/dsqrt(8d0*dB*Para_e**3)
-    Gam_e_m=(p_r-two)/(p_r-one)*e_r/f_e_r*1836d0*(gamma34-one)+one
-    if (p_r-2.05 < 0.001) then
-        Gam_e_m=0.05d0/1.05d0*e_r*1836d0*(gamma34-one)+one
-    end if
+    call reverse_gamma_extrema(dB,gamma34,factor2,f_e_r,Gam_e_max,Gam_e_m)
     Gam_e_c=7.7d8/(one+dsqrt(e_r/b_r))/R_Gamma(1)/dB**2/(R_Tobs(1)/two)
     
     
-    if (A_star > zero) then
-        dNe_wind=A_star*3.0d35/R(1)**2
-        if (dNe_wind <= dNe_ISM/4d0) then
-            dNe=dNe_ISM
-        else
-            dNe=dNe_wind
-        end if
-    else
-        dNe=dNe_ISM
-    end if
+    call reverse_external_density(A_star,dNe_ISM,R(1),dNe)
 
     DB_min=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma(Num_R)*(R_Gamma(Num_R)-one)))
     Gam_e_max_max=3d0*Para_m_energy/dsqrt(8d0*DB_min*Para_e**3)
     
     do I_gam_e=1,Num_gam_e
         Gam_e(I_gam_e)=3d0*ten**(dlog10(Gam_e_max_max)*(I_gam_e-1)/(Num_gam_e-1))
-        if (Gam_e_m > Gam_e_c) then
-            Q1=1d10*Gam_e_c
-            if ((Gam_e_c-Gam_e(I_gam_e)) > one) then
-                dN_gam_e(I_gam_e,1)=zero
-            else
-                if (Gam_e_m > Gam_e(I_gam_e)) then
-                    dN_gam_e(I_gam_e,1)=Q1*Gam_e(I_gam_e)**(-2)
-                else
-                    if (Gam_e_max > Gam_e(I_gam_e)) then
-                        dN_gam_e(I_gam_e,1)=Q1*Gam_e_m**(p_r-one)*Gam_e(I_gam_e)**(-(p_r+one))
-                    else
-                        dN_gam_e(I_gam_e,1)=zero
-                    end if
-                end if
-            end if
-        else
-            Q1=1d10*Gam_e_m**(p_r-one)
-            if (Gam_e_m > Gam_e(I_gam_e)) then
-                dN_gam_e(I_gam_e,1)=zero
-            else
-                if (Gam_e_c > Gam_e(I_gam_e)) then
-                    dN_gam_e(I_gam_e,1)=Q1*Gam_e(I_gam_e)**(-p_r)
-                else
-                    if (Gam_e_max > Gam_e(I_gam_e)) then
-                        dN_gam_e(I_gam_e,1)=Q1*Gam_e_c*Gam_e(I_gam_e)**(-(p_r+one))
-                    else
-                        dN_gam_e(I_gam_e,1)=zero
-                    end if
-                end if
-            end if
-        end if
+        call reverse_initial_electron_bin(Gam_e(I_gam_e),Gam_e_m,Gam_e_c,Gam_e_max,p_r,dN_gam_e(I_gam_e,1))
     end do
     !*******************Part 1 is completed [has been checked and there is no bug]**********************************
     !*******************Part 2: To calculate the electron distribution**********************************************
@@ -156,11 +109,7 @@ subroutine dynamics_reverse (Delta_t,e_r,b_r,p_r,f_e_r,Boundary,n,Num_R,Num_gam_
         gamma34=(one-beta2*beta4)*eta_0*R_Gamma_loc
 !        dB=0.39*sqrt(b_r*R_n4)*gamma34
         dB=(dB3_serial(I_tobs)+dB3_serial(I_tobs-1))/two
-        Gam_e_max=3d0*Para_m_energy/dsqrt(8d0*dB*Para_e**3)
-        Gam_e_m=(p_r-two)/(p_r-one)*e_r*1836d0*(gamma34-one)/f_e_r+one
-        if (p_r-2.05 < 0.001) then
-            Gam_e_m=0.05d0/1.05d0*e_r*1836d0*(gamma34-one)/f_e_r+one
-        end if
+        call reverse_gamma_extrema(dB,gamma34,factor2,f_e_r,Gam_e_max,Gam_e_m)
         Gam_e_c=7.7d8*(one+z)/R_Gamma_loc/dB**2/R_Tobs(I_tobs)
         eta=(Gam_e_m/Gam_e_c)**(p_r-two)
         if (eta-one > 0.001) eta=one
@@ -180,34 +129,7 @@ subroutine dynamics_reverse (Delta_t,e_r,b_r,p_r,f_e_r,Boundary,n,Num_R,Num_gam_
             IF (Num_gam_e-i_gam_e > 0.1) THEN
 !*****************************[The general inverse Compton effect]******************************
                 hat_gam=5.4246D6*sqrt(R_Gamma_loc/(DB*gam_e(i_gam_e+1)))
-                IF (Gam_e_m-Gam_e_c > 0.0) THEN
-                    IF (hat_gam-Gam_e_c < 0.0) THEN
-                        eta_NK=0.0
-                    ELSE
-                        IF (hat_gam-Gam_e_m < 0.0) THEN
-                            Step1=(p_r-1)/(p_r-2)*Gam_e_m-Gam_e_c
-                            eta_NK=(hat_gam-Gam_e_c)/Step1
-                        ELSE
-                            Step2=Gam_e_m**(p_r-1)*hat_gam**(2-p_r)
-                            Step3=(p_r-1)*Gam_e_m-(p_r-2)*Gam_e_c
-                            eta_NK=1-Step2/Step3
-                        END IF
-                    END IF
-                ELSE
-                    IF (hat_gam-Gam_e_m < 0.0) THEN
-                        eta_NK=0.0
-                    ELSE
-                        IF (hat_gam-Gam_e_c < 0.0) THEN
-                            Step4=Gam_e_c**(3-p_r)/(p_r-2.0)-Gam_e_m**(3-p_r)
-                            eta_NK=(hat_gam**(3-p_r)-Gam_e_m**(3-p_r))/Step4
-                        ELSE
-                            Step5=(3-p_r)*Gam_e_c*hat_gam**(2-p_r)
-                            Step6=Gam_e_c**(3.0-p_r)-(p_r-2)*Gam_e_m**(3.0-p_r)
-                            eta_NK=1-Step5/Step6
-                        END IF
-                    END IF
-                END IF
-                Compton=(-1.0+dsqrt(1.0+4.0*eta*eta_NK*e_r/b_r))/2.0
+                call reverse_compton_factor(eta,e_r,b_r,p_r,Gam_e_m,Gam_e_c,hat_gam,Compton)
 !**********************************************************************
                 f_r1=f_r*(1.0+Compton)
                 dEl(i_gam_e)=f_r1*gam_e(i_gam_e)
@@ -254,20 +176,30 @@ subroutine dynamics_reverse (Delta_t,e_r,b_r,p_r,f_e_r,Boundary,n,Num_R,Num_gam_
     return
 end subroutine dynamics_reverse
 
-subroutine F(dB3,T_cross,R_cross,e3_cross,gam20, &
-             T,Y,D,para_m_ej,Delta_0,eta_0,A_star,dNe_ISM,Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,f_e_r)
+subroutine reverse_deceleration_radius(A_star,dNe_ISM,Eta_0,DM_0,R_dec)
     use constants
-    IMPLICIT REAL(8)(A-H,O-Z)
-    DIMENSION Y(4),D(4)
-    
-    gam2=Y(1)
-    RR=Y(2)
-    para_m2=Y(3)
-    para_m3=Y(4)
-    
-    if (A_star >= 0.0) then
-        dNe_wind=A_star*3.0D35/RR**2
-        if (dNe_wind <= dNe_ISM/4.0) then
+    implicit real(8)(A-H,O-Z)
+    real(8), intent(in) :: A_star,dNe_ISM,Eta_0,DM_0
+    real(8), intent(out) :: R_dec
+
+    R_dec_ISM=(dNe_ISM*Eta_0/DM_0)**(-one/3d0)
+    if (A_star > zero) then
+        R_dec_wind=DM_0/(2.0d35*A_star*Eta_0)
+        R_dec=min(R_dec_wind,R_dec_ISM)
+    else
+        R_dec=R_dec_ISM
+    end if
+end subroutine reverse_deceleration_radius
+
+subroutine reverse_external_density(A_star,dNe_ISM,RR,dNe)
+    use constants
+    implicit real(8)(A-H,O-Z)
+    real(8), intent(in) :: A_star,dNe_ISM,RR
+    real(8), intent(out) :: dNe
+
+    if (A_star >= 0.0d0) then
+        dNe_wind=A_star*3.0d35/RR**2
+        if (dNe_wind <= dNe_ISM/4d0) then
             dNe=dNe_ISM
         else
             dNe=dNe_wind
@@ -275,6 +207,108 @@ subroutine F(dB3,T_cross,R_cross,e3_cross,gam20, &
     else
         dNe=dNe_ISM
     end if
+end subroutine reverse_external_density
+
+subroutine reverse_gamma_extrema(dB,gamma34,factor2,f_e_r,Gam_e_max,Gam_e_m)
+    use constants
+    implicit real(8)(A-H,O-Z)
+    real(8), intent(in) :: dB,gamma34,factor2,f_e_r
+    real(8), intent(out) :: Gam_e_max,Gam_e_m
+
+    Gam_e_max=3d0*Para_m_energy/dsqrt(8d0*dB*Para_e**3)
+    Gam_e_m=factor2*(gamma34-one)/f_e_r+one
+end subroutine reverse_gamma_extrema
+
+subroutine reverse_initial_electron_bin(Gam_e_val,Gam_e_m,Gam_e_c,Gam_e_max,p_r,dN_val)
+    use constants
+    implicit real(8)(A-H,O-Z)
+    real(8), intent(in) :: Gam_e_val,Gam_e_m,Gam_e_c,Gam_e_max,p_r
+    real(8), intent(out) :: dN_val
+
+    if (Gam_e_m > Gam_e_c) then
+        Q1=1d10*Gam_e_c
+        if ((Gam_e_c-Gam_e_val) > one) then
+            dN_val=zero
+        else
+            if (Gam_e_m > Gam_e_val) then
+                dN_val=Q1*Gam_e_val**(-2)
+            else
+                if (Gam_e_max > Gam_e_val) then
+                    dN_val=Q1*Gam_e_m**(p_r-one)*Gam_e_val**(-(p_r+one))
+                else
+                    dN_val=zero
+                end if
+            end if
+        end if
+    else
+        Q1=1d10*Gam_e_m**(p_r-one)
+        if (Gam_e_m > Gam_e_val) then
+            dN_val=zero
+        else
+            if (Gam_e_c > Gam_e_val) then
+                dN_val=Q1*Gam_e_val**(-p_r)
+            else
+                if (Gam_e_max > Gam_e_val) then
+                    dN_val=Q1*Gam_e_c*Gam_e_val**(-(p_r+one))
+                else
+                    dN_val=zero
+                end if
+            end if
+        end if
+    end if
+end subroutine reverse_initial_electron_bin
+
+subroutine reverse_compton_factor(eta,e_r,b_r,p_r,Gam_e_m,Gam_e_c,hat_gam,Compton)
+    use constants
+    implicit real(8)(A-H,O-Z)
+    real(8), intent(in) :: eta,e_r,b_r,p_r,Gam_e_m,Gam_e_c,hat_gam
+    real(8), intent(out) :: Compton
+
+    IF (Gam_e_m-Gam_e_c > 0.0d0) THEN
+        IF (hat_gam-Gam_e_c < 0.0d0) THEN
+            eta_NK=0.0d0
+        ELSE
+            IF (hat_gam-Gam_e_m < 0.0d0) THEN
+                Step1=(p_r-1d0)/(p_r-2d0)*Gam_e_m-Gam_e_c
+                eta_NK=(hat_gam-Gam_e_c)/Step1
+            ELSE
+                Step2=Gam_e_m**(p_r-1d0)*hat_gam**(2d0-p_r)
+                Step3=(p_r-1d0)*Gam_e_m-(p_r-2d0)*Gam_e_c
+                eta_NK=1d0-Step2/Step3
+            END IF
+        END IF
+    ELSE
+        IF (hat_gam-Gam_e_m < 0.0d0) THEN
+            eta_NK=0.0d0
+        ELSE
+            IF (hat_gam-Gam_e_c < 0.0d0) THEN
+                Step4=Gam_e_c**(3d0-p_r)/(p_r-2.0d0)-Gam_e_m**(3d0-p_r)
+                eta_NK=(hat_gam**(3d0-p_r)-Gam_e_m**(3d0-p_r))/Step4
+            ELSE
+                Step5=(3d0-p_r)*Gam_e_c*hat_gam**(2d0-p_r)
+                Step6=Gam_e_c**(3.0d0-p_r)-(p_r-2d0)*Gam_e_m**(3.0d0-p_r)
+                eta_NK=1d0-Step5/Step6
+            END IF
+        END IF
+    END IF
+    Compton=(-1.0d0+dsqrt(1.0d0+4.0d0*eta*eta_NK*e_r/b_r))/2.0d0
+end subroutine reverse_compton_factor
+
+subroutine F(dB3,T_cross,R_cross,e3_cross,gam20, &
+             T,Y,D,para_m_ej,Delta_0,eta_0,A_star,dNe_ISM,Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,f_e_r)
+    use constants
+    IMPLICIT REAL(8)(A-H,O-Z)
+    real(8), intent(inout) :: dB3,T_cross,R_cross,e3_cross,gam20
+    real(8), intent(in) :: T,para_m_ej,Delta_0,eta_0,A_star,dNe_ISM,Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,f_e_r
+    real(8), intent(in) :: Y(4)
+    real(8), intent(out) :: D(4)
+    
+    gam2=Y(1)
+    RR=Y(2)
+    para_m2=Y(3)
+    para_m3=Y(4)
+    
+    call reverse_external_density(A_star,dNe_ISM,RR,dNe)
     
     u2=dsqrt(gam2*gam2-one)
     u4=dsqrt(eta_0*eta_0-one)
@@ -311,7 +345,7 @@ subroutine F(dB3,T_cross,R_cross,e3_cross,gam20, &
 
     dgam2_1=-para1*((gam2*gam2-one)*dNe+(gam2*gam34-eta_0)*(beta4-betars)*eta_0*para_n4)
     dgam2_2=(para_m2+para_m3+(one-eps2)*(two*gam2-one)*para_m2+(one-eps3)*(gam34-one)*para_m3+ &
-            (one-eps3)*gam2*para_m3*(eta_0*(one-beta4*beta2)-eta_0*beta4/(gam2**2*beta2)))
+ &          (one-eps3)*gam2*para_m3*(eta_0*(one-beta4*beta2)-eta_0*beta4/(gam2**2*beta2)))
     dgam2=dgam2_1/dgam2_2
 
     dR=beta2/(one-beta2)*para_c
@@ -337,7 +371,9 @@ end subroutine F
 SUBROUTINE GRKT4(dB3,T_cross,R_cross,e3_cross,gam20, T,H,Y,para_m_ej,Delta_0,eta_0,A_star, &
                  dNe_ISM,Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,f_e_r)
     IMPLICIT REAL(8)(A-H,O-Z)
-    DIMENSION Y(4),D(4),A(4),B(4),C(4),G(4),E(4)
+    real(8), intent(inout) :: dB3,T_cross,R_cross,e3_cross,gam20,T,Y(4)
+    real(8), intent(in) :: H,para_m_ej,Delta_0,eta_0,A_star,dNe_ISM,Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,f_e_r
+    real(8) :: D(4),A(4),B(4),C(4),G(4),E(4)
     
     EPS=1d-5
     HH=H
@@ -381,4 +417,3 @@ SUBROUTINE GRKT4(dB3,T_cross,R_cross,e3_cross,gam20, T,H,Y,para_m_ej,Delta_0,eta
 
     return
 end subroutine GRKT4
-

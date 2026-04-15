@@ -15,18 +15,17 @@ subroutine fs_electron_t2g2(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_
     real(8), intent(out) :: dN_gam_e(Num_gam_e,Num_R),gam_e(Num_gam_e),P_syn(Num_nu,Num_R), &
                             Seed_syn(Num_nu,Num_R), V_m(Num_R), V_c(Num_R), V_a(Num_R)
     
-    ! 主要数组
+    ! Main work arrays
     real(8),allocatable,dimension (:) :: dEl,dF1,para_minus_gam_e_p,dot_gam_e_SSA, &
                                          dN_x,Compton,dot_gam_e
     real(8),allocatable,dimension (:) :: v_eff, dEL_mean
     real(8),allocatable,dimension (:) :: a_diag, b_diag, c_diag, rhs, sol
     
-    ! 分配数组
+    ! Allocate work arrays
     allocate (dEl(Num_gam_e), dF1(Num_gam_e), para_minus_gam_e_p(Num_gam_e), &
               dot_gam_e_SSA(Num_gam_e), dN_x(Num_gam_e), Compton(Num_gam_e), &
               dot_gam_e(Num_gam_e), v_eff(Num_gam_e), dEL_mean(Num_gam_e))
     
-    ! 参数初始化
     Eta_0=Boundary(1)
     R_ini=Boundary(4)
     Epsilon_e=Boundary(5)
@@ -49,7 +48,6 @@ subroutine fs_electron_t2g2(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_
     V_c=zero
     V_a=zero
 
-    ! 第一部分：初始条件
     if (A_star > zero) then
         dNe_wind=A_star*3.0d35/R(1)**2
         Para_N_e_ini=4d0*pi*R_ini*A_star*3.0d35
@@ -107,7 +105,6 @@ subroutine fs_electron_t2g2(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_
         end if
     end do
     
-    ! 第二部分：电子分布计算
     dN_x=dN_gam_e(:,1)*gam_e*dlog(ten)
     d_x=dlog10(gam_e(2)/gam_e(1))
     para_minus_gam_e_p=one/(gam_e-one)**p*gam_e*dlog(ten)
@@ -192,10 +189,9 @@ subroutine fs_electron_t2g2(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_
             stop
         end select
         
-        ! 计算速度v = dEl/γ (冷却速度为负)
+        ! Effective cooling velocity v = dEl / gamma_e
         v_eff = dEl/gam_e
         
-        ! 子步长循环
         do L=1,L1
             R_loc=R_loc+dDR
             
@@ -218,62 +214,54 @@ subroutine fs_electron_t2g2(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_
             dF1=zero
             where(gam_e<Gam_e_max .and. gam_e>Gam_e_m) dF1=Q*para_minus_gam_e_p
 
-            ! ============== 二阶上风格式（Beam-Warming） ==============
-            ! 分配三对角矩阵数组
+            ! ============== Beam-Warming upwind solver ==============
             allocate(a_diag(Num_gam_e), b_diag(Num_gam_e), c_diag(Num_gam_e), &
                      rhs(Num_gam_e), sol(Num_gam_e))
             
-            ! 初始化
             a_diag = zero
             b_diag = zero
             c_diag = zero
             rhs = zero
             sol = zero
             
-            ! ---------- 边界条件 ----------
-            ! i=1: Dirichlet边界，n_1 = 0
+            ! ---------- Boundary conditions ----------
+            ! i=1: Dirichlet boundary, n_1 = 0
             b_diag(1) = 1.0d0
             rhs(1) = 0.0d0
             
-            ! i=2: 使用一阶上风格式（因为缺少i=0点）
-            ! 方程: n_2 + Δr/Δx * v_2 * n_2 - Δr/Δx * v_1 * n_1 + Δr/R * n_2 = n_2_old + Δr*S_2
-            ! 整理: (1 + CFL*v_2 + dDR/R) * n_2 - CFL*v_1 * n_1 = n_2_old + Δr*S_2
-            a_diag(2) = -CFL * v_eff(1)  ! n_1的系数
-            b_diag(2) = 1.0d0 + CFL * (v_eff(2) + one/R_loc/log(ten))  ! n_2的系数
+            ! i=2: first-order upwind because i=0 is unavailable
+            ! Equation: n_2 + dr/dx*v_2*n_2 - dr/dx*v_1*n_1 + dr/R*n_2 = n_2_old + dr*S_2
+            ! Rearranged: (1 + CFL*v_2 + dDR/R) * n_2 - CFL*v_1*n_1 = n_2_old + dr*S_2
+            a_diag(2) = -CFL * v_eff(1)  ! n_1 coefficient
+            b_diag(2) = 1.0d0 + CFL * (v_eff(2) + one/R_loc/log(ten))  ! n_2 coefficient
             rhs(2) = dN_x(2) + dDR * dF1(2)
             
-            ! ---------- 内部点: 二阶上风格式 ----------
-            ! 对于冷却问题(v<0)，二阶上风格式(Beam-Warming):
-            ! ∂(v·n)/∂x ≈ (3v_i·n_i - 4v_{i-1}·n_{i-1} + v_{i-2}·n_{i-2})/(2Δx)
-            ! 注意: 将n_{i-2}项显式处理（用旧时间步的值）
+            ! ---------- Interior points: second-order upwind ----------
+            ! For the cooling case (v < 0), use the Beam-Warming stencil.
+            ! d(v*n)/dx ~= (3*v_i*n_i - 4*v_{i-1}*n_{i-1} + v_{i-2}*n_{i-2}) / (2*dx)
+            ! Treat the n_{i-2} term explicitly with values from the previous step.
             do i = 3, Num_gam_e-1
-                ! 左端项系数（隐式）
-                a_diag(i) = -(2.0d0 * CFL) * v_eff(i-1)  ! n_{i-1}的系数
-                b_diag(i) = 1.0d0 + (1.5d0 * CFL) * (v_eff(i) + one/R_loc/log(ten))  ! n_i的系数
-                
-                ! 右端项
+                a_diag(i) = -(2.0d0 * CFL) * v_eff(i-1)  ! n_{i-1} coefficient
+                b_diag(i) = 1.0d0 + (1.5d0 * CFL) * (v_eff(i) + one/R_loc/log(ten))  ! n_i coefficient
                 rhs(i) = dN_x(i) + dDR * dF1(i) - (0.5d0 * CFL) * v_eff(i-2) * dN_x(i-2)
             end do
             
-            ! ---------- 高能边界 ----------
-            ! i=Num_gam_e: 使用一阶格式，假设零梯度边界
-            ! 简化: 用一阶格式处理高能边界
+            ! ---------- High-energy boundary ----------
+            ! i=Num_gam_e: first-order upwind at high-energy boundary
             a_diag(Num_gam_e) = -CFL * v_eff(Num_gam_e-1)
             b_diag(Num_gam_e) = 1.0d0 + CFL * (v_eff(Num_gam_e) + one/R_loc/log(ten))
             rhs(Num_gam_e) = dN_x(Num_gam_e) + dDR * dF1(Num_gam_e)
             
-            ! ---------- 求解三对角系统 ----------
-            ! 注意: 这是一个下三角矩阵，可以用前向代入法求解
-            ! 但我们使用通用的追赶法（适用于一般三对角矩阵）
+            ! ---------- Solve the tridiagonal system ----------
+            ! solve tridiagonal system
             call thomas_solve_tridiag(Num_gam_e, a_diag, b_diag, c_diag, rhs, sol)
             
-            ! 确保非负
+            ! Enforce non-negative solution
             where(sol < zero) sol = zero
             
-            ! 更新解
             dN_x = sol
             
-            ! 释放数组
+            ! Release local tridiagonal buffers
             deallocate(a_diag, b_diag, c_diag, rhs, sol)
 
             if (L1 == L) then
@@ -282,7 +270,6 @@ subroutine fs_electron_t2g2(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_
         end do
     end do
 
-    ! 释放所有数组
     deallocate (dEl, dF1, para_minus_gam_e_p, dot_gam_e_SSA, dN_x, &
                 Compton, dot_gam_e, v_eff, dEL_mean)
 
@@ -290,7 +277,7 @@ subroutine fs_electron_t2g2(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_
     
 contains
 
-    ! 追赶法求解三对角系统
+    ! Thomas algorithm for a tridiagonal linear system
     subroutine thomas_solve_tridiag(n, a, b, c, d, x)
         implicit none
         integer, intent(in) :: n
@@ -301,7 +288,7 @@ contains
         
         allocate(cp(n), dp(n))
         
-        ! 前向消元
+        ! Forward elimination
         cp(1) = c(1) / b(1)
         dp(1) = d(1) / b(1)
         
@@ -310,7 +297,7 @@ contains
             dp(i) = (d(i) - a(i) * dp(i-1)) / (b(i) - a(i) * cp(i-1))
         end do
         
-        ! 回代
+        ! Back substitution
         x(n) = dp(n)
         do i = n-1, 1, -1
             x(i) = dp(i) - cp(i) * x(i+1)

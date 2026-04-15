@@ -1,0 +1,35 @@
+{
+  "fullhide": {
+    "timings": {
+      "Dynamics.dynamics_forward": 0.001932599931024015,
+      "Electron.fs_electron_fullhide": 3.4932172499829903,
+      "Interpolation.sed_interpolation [fwd_ssc]": 0.0,
+      "Interpolation.sed_interpolation [fwd_sync]": 0.026170099969021976,
+      "Interpolation.sed_interpolation [total]": 0.0,
+      "Radiation.annihilation": 0.04073479998623952,
+      "Total pipeline": 3.563639600004535
+    }
+  },
+  "slc1": {
+    "timings": {
+      "Dynamics.dynamics_forward": 0.0019116000621579587,
+      "Electron.fs_electron_slc1": 1.2149435500032268,
+      "Interpolation.sed_interpolation [fwd_ssc]": 0.0,
+      "Interpolation.sed_interpolation [fwd_sync]": 0.026898749987594783,
+      "Interpolation.sed_interpolation [total]": 0.0,
+      "Radiation.annihilation": 0.042717450007330626,
+      "Total pipeline": 1.2877727000159211
+    }
+  },
+  "slc1_mmg2": {
+    "timings": {
+      "Dynamics.dynamics_forward": 0.0018960500601679087,
+      "Electron.slc1_mmg2": 1.2576778000220656,
+      "Interpolation.sed_interpolation [fwd_ssc]": 0.0,
+      "Interpolation.sed_interpolation [fwd_sync]": 0.026999749999959022,
+      "Interpolation.sed_interpolation [total]": 0.0,
+      "Radiation.annihilation": 0.043498999963048846,
+      "Total pipeline": 1.3315486999927089
+    }
+  }
+}

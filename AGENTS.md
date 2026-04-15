@@ -1,0 +1,607 @@
+# ASGARD Agent Notes
+
+## 1. 项目定位
+
+ASGARD 是一个用于 GRB 余辉建模与拟合的数值代码库。当前仓库的主目标不是重写物理核，而是在保留 Fortran 数值求解器的前提下，统一 Python 接口、构建链路、后处理和测试入口。
+
+当前第一阶段重构的边界非常明确：
+
+- 保留 Fortran 数值离散、辐射公式和主计算流程。
+- 将 Python 入口统一为 `FitConfig -> run_fit -> FitResult`。
+- 补齐能谱输出与绘图接口。
+- 修复已知坏点，但不在非数值模拟代码中添加“数值保护式”逻辑。
+
+## 1.1 子 Agent 使用约束
+
+- 当前项目允许使用子 agents 协助分析与实现。
+- 同一轮任务中最多使用 `5` 个子 agents。
+- 只有在它们能明确减少重复搜索、缩短验证时间或并行排查热点时才使用。
+- 主线阻塞修改仍由主 agent 直接完成，不把关键路径完全外包。
+
+## 2. 当前目录结构
+
+### 顶层 Python 门面
+
+- `mergered.py`
+  - 当前门面模块。
+  - 导出 `FitConfig`、`FitResult`、`run_fit`、`plot_light_curve`、`plot_spectrum`。
+  - 保留旧 `fit(**kwargs)` 兼容包装，但不再是主接口。
+
+- `asgard_models.py`
+  - 定义配置与结果数据结构。
+  - 包含：
+    - `SpectrumOutputConfig`
+    - `FitConfig`
+    - `FitResult`
+    - 波段和频率常量
+
+- `asgard_solver.py`
+  - 新的单入口编排层。
+  - 负责：
+    - 构建观测时间网格
+    - 构建频率网格
+    - 调用动力学、电子谱、辐射、插值模块
+    - 组装多波段光变
+    - 计算 `redchi`
+    - 在启用时生成稠密能谱矩阵
+
+- `asgard_runtime.py`
+  - 运行时绑定层。
+  - 负责按 `FitConfig` 选择真实 Fortran 后端。
+  - 当前已经接通：
+    - `weno5=False` -> `FS_electron_fullhide`
+    - `weno5=True` -> `FS_electron_weno5`
+  - `reverse=True` 当前显式报错，不再作为静默无效开关保留。
+
+- `asgard_plot.py`
+  - 绘图层。
+  - 提供：
+    - `plot_light_curve(result, ...)`
+    - `plot_spectrum(result, times_s, quantity="nufnu"|"fnu", ...)`
+
+### 运行与拟合脚本
+
+- `hand_my.py`
+  - 最小运行示例。
+  - 当前已迁移到新 API，并包含能谱输出调用。
+
+- `MCMC.py`
+  - MCMC 采样入口，已迁移到新 API。
+
+- `pymultinest_demo.py`
+  - MultiNest 示例入口，已迁移到新 API。
+
+### 拟合与观测数据
+
+- `cal_chi2_light_curve.py`
+  - 光变卡方模块。
+  - 读取 `data_light_curve/` 下的观测文件。
+  - 当前已修正时间单位：数据按“天”读入，统一转换为“秒”后与模型比较。
+
+- `cal_chi2_spectrum.py`
+  - 能谱卡方模块。
+  - 当前已重写为可正常解析 2/3/4/6 列数据格式。
+
+- `data_light_curve/`
+  - 光变观测数据。
+
+- `data_spectrum/`
+  - 能谱观测数据。
+
+### Fortran 数值核
+
+- `src/Dynamics/`
+  - 激波动力学演化。
+
+- `src/Electron/`
+  - 电子分布演化与同步辐射相关物理。
+
+- `src/Radiation/`
+  - SSC、对湮灭、EBL 等辐射过程。
+
+- `src/Interpolation/`
+  - 从共动系谱到观测者谱的 EATS 与多普勒插值。
+
+- `src/Constants.f90`
+  - 全局常数与单位换算。
+
+## 3. 当前公开 API
+
+### `FitConfig`
+
+统一管理以下输入：
+
+- 动力学参数：
+  - `index_dyn`
+  - `num_r`
+  - `eta_0`
+  - `e_iso`
+  - `d_ne`
+  - `a_star`
+  - `r_tr`
+  - `f_jump`
+  - `f_wide`
+  - `r0`
+  - 注能参数 `e_inj_t1/e_inj_t2/l_inj_0/q_inj`
+
+- 微物理参数：
+  - `epsilon_e`
+  - `epsilon_b`
+  - `p`
+  - `f_e`
+  - `index_y`
+  - `index_syn_integr`
+
+- 观测与几何参数：
+  - `z`
+  - `opening_angle_jet`
+  - `theta_v`
+  - `num_theta`
+  - `num_phi`
+
+- 网格与输出参数：
+  - `num_gam_e`
+  - `num_nu`
+  - `num_tobs`
+  - `t_obs_min_log10`
+  - `t_obs_max_log10`
+  - `plot_lc`
+  - `show_plots`
+
+- 能谱输出子配置：
+  - `spectrum_output.enabled`
+  - `spectrum_output.num_nu_obs`
+  - `spectrum_output.nu_min_hz`
+  - `spectrum_output.nu_max_hz`
+
+### `FitResult`
+
+统一返回：
+
+- `t_obs_s`
+- `bands`
+- `bands_flux`
+- `redchi`
+- `nu_m`
+- `nu_c`
+- `nu_a`
+- `spectrum_freq_hz`
+- `spectrum_fnu`
+
+其中：
+
+- `bands_flux` 的行顺序与 `result.bands` 一致。
+- 默认仅在 `spectrum_output.enabled=True` 时填充 `spectrum_freq_hz` 与 `spectrum_fnu`。
+
+### 主入口
+
+```python
+from mergered import FitConfig, run_fit
+
+config = FitConfig()
+result = run_fit(config)
+```
+
+### 新增能谱绘图接口
+
+```python
+from mergered import plot_spectrum
+
+fig = plot_spectrum(
+    result,
+    times_s=[1e3, 1e4, 1e5],
+    quantity="nufnu",
+    outfile="Radiation_Spectra.pdf",
+    show=False,
+)
+```
+
+接口行为：
+
+- `quantity` 只允许 `"nufnu"` 或 `"fnu"`。
+- `times_s` 按最近邻观测时刻取样。
+- 若 `result` 不含能谱矩阵，明确抛出异常，不做静默回退。
+
+## 4. 数值主链与物理含义
+
+当前主链在 `asgard_solver.py::run_fit` 中按下面顺序执行：
+
+1. 动力学：`Dynamics.dynamics_forward`
+2. 电子谱：`Electron.fs_electron_fullhide`
+3. SSC：`Radiation.ssc_spec`
+4. `gamma-gamma` 湮灭：`Radiation.annihilation`
+5. 观测者系插值：`Interpolation.sed_interpolation`
+6. 光变卡方：`cal_chi2_light_curve`
+
+### 4.1 动力学模块
+
+文件：
+
+- `src/Dynamics/Dynamics_forward.f90`
+- `src/Dynamics/Dynamics_reverse.f90`
+
+当前默认路径使用 `dynamics_forward`。
+
+`Dynamics_forward.f90` 中：
+
+- 状态量是 `Y = (Gamma, m, U, R)`。
+- 时间推进采用 `GRKT4`，本质是带误差控制的 RK4 子步细分。
+- 支持三种动力学闭合：
+  - `index_dyn = 1`：Huang 模型
+  - `index_dyn = 2`：Pe'er 模型
+  - `index_dyn = 3`：Zhang 模型
+
+环境与额外物理：
+
+- `A_star > 0` 时走风环境近似，密度按 `n \propto R^{-2}`。
+- `A_star <= 0` 时走 ISM，并允许在 `R_tr` 附近加入对数高斯密度跃迁。
+- `E_inj_t1/E_inj_t2/l_inj_0/q_inj` 控制注能项。
+- `R0` 用于近端半径截断设定。
+
+### 4.2 电子分布模块
+
+文件：
+
+- `src/Electron/FS_electron_fullhide.f90`
+- `src/Electron/FS_electron_weno5.f90`
+- `src/Electron/FS_electron_t2g1.f90`
+- `src/Electron/FS_electron_t2g2.f90`
+
+当前默认运行路径是 `fs_electron_fullhide`。
+
+该模块做了两件核心事情：
+
+1. 根据 `gamma_m`、`gamma_c`、`gamma_max` 初始化电子分布。
+2. 在对数 `gamma_e` 网格上推进电子连续性方程。
+
+物理上包含：
+
+- 注入谱
+- 同步冷却
+- IC 冷却
+- SSA 对电子冷却项的反馈
+- 输出同步辐射特征频率 `nu_m`、`nu_c`、`nu_a`
+
+当前 `index_y` 控制 Compton-Y 的处理：
+
+- `1`：数值 IC
+- `2`：Nakar 近似
+- `3`：Fan 近似
+
+当前 `index_syn_integr` 控制同步辐射积分方式：
+
+- `1`：普通实现
+- `2`：Simpson 积分实现
+
+### 4.3 SSC 模块
+
+文件：
+
+- `src/Radiation/SSC_spec.f90`
+
+特点：
+
+- 在频率和电子能量两层上做复合 Simpson 积分。
+- 散射核中显式包含 Klein-Nishina 修正变量 `q` 和 `q_gamma`。
+- 输出：
+  - `P_SSC_spec`
+  - `seed_SSC`
+
+这一步给出 SSC 辐射功率和后续吸收所需的 SSC seed field。
+
+### 4.4 `gamma-gamma` 湮灭模块
+
+文件：
+
+- `src/Radiation/Annihilation.f90`
+
+物理作用：
+
+- 对高能辐射加入 `gamma-gamma -> e+e-` 吸收。
+- 使用角向积分与目标光子场积分得到光深 `tau`。
+- 最终返回吸收因子
+
+```text
+absorption = (1 - exp(-tau)) / tau
+```
+
+当前实现同时使用同步 seed 和 SSC seed。
+
+### 4.5 观测者系插值
+
+文件：
+
+- `src/Interpolation/SED_interpolation.f90`
+- `src/Interpolation/SED_interpolation_structured.f90`
+
+物理作用：
+
+- 将共动系谱通过 EATS 和 Doppler boosting 映射到观测者系。
+- 在半径和频率两个方向上都采用对数插值。
+- 几何项由 `theta`、`phi` 网格离散完成。
+
+当前 Python 主链默认调用：
+
+- `Interpolation.sed_interpolation`
+
+### 4.6 光变与能谱后处理
+
+多波段光变在 `asgard_solver.py` 中由一组固定观测频率构造：
+
+- XRT：`0.5-10 keV`，先做频率积分得到能流
+- 光学：`g/r/i/z`
+- 射电：`9/5.5/3 GHz`
+- 高能：`1 GeV` 与 `1 TeV`
+
+当 `spectrum_output.enabled=True` 时：
+
+- 额外构造一组稠密观测频率网格
+- 直接计算 `spectrum_fnu(freq, time)`
+- 供 `plot_spectrum` 后处理调用
+
+## 5. 目前重构后的软件结构
+
+这次重构的原则是“接口改造优先，不碰数值核公式”。
+
+实际分层如下：
+
+1. 配置层：`asgard_models.py`
+2. 运行时绑定层：`asgard_runtime.py`
+3. 求解编排层：`asgard_solver.py`
+4. 绘图层：`asgard_plot.py`
+5. 兼容门面层：`mergered.py`
+6. 拟合脚本层：`hand_my.py`、`MCMC.py`、`pymultinest_demo.py`
+
+这样做的直接结果是：
+
+- 拟合、示例、测试都走同一个 `run_fit(config)`；
+- 新增能谱输出不需要再在旧 `fit(**kwargs)` 上堆参数；
+- 主链不再把调试绘图和求解流程混在一起。
+
+## 6. 构建与运行
+
+### 唯一真实构建入口
+
+- `build_extensions.py`
+
+它负责用 `numpy.f2py` 编译以下扩展：
+
+- `Constants`
+- `Dynamics_forward`
+- `Dynamics_reverse`
+- `FS_electron_weno5`
+- `FS_electron_fullhide`
+- `FS_electron_t2g1`
+- `SED_interpolation`
+- `SED_interpolation_structured`
+- `Annihilation`
+- `Seed_reverse`
+- `SSC_spec`
+
+### Linux 包装入口
+
+- `install.sh`
+
+当前仅作为 Linux 上调用 `build_extensions.py` 的薄包装，不再维护第二套构建逻辑。
+
+### Windows 说明
+
+- `src/__init__.py` 保留了 `ASGARD_MINGW_BIN` 机制。
+- 在 Windows 上如果需要显式指定 MinGW DLL 路径，可设置：
+
+```powershell
+$env:ASGARD_MINGW_BIN="C:\msys64\mingw64\bin"
+```
+
+### 常用命令
+
+编译：
+
+```powershell
+python build_extensions.py
+```
+
+运行示例：
+
+```powershell
+python hand_my.py
+```
+
+回归测试：
+
+```powershell
+python tests\regression_check.py
+```
+
+## 7. 已完成修复
+
+### `Cal_ebl.py`
+
+文件：
+
+- `src/Radiation/Cal_ebl.py`
+
+已修复：
+
+- `Path` 导入
+- 变量名错误
+- 旧插值实现替换
+- 保持 `cal_ebl(z, v_obs, model)` 接口
+
+### `cal_chi2_spectrum.py`
+
+已修复：
+
+- 编码/语法损坏
+- 多列数据解析
+- 异常处理路径
+
+### `cal_chi2_light_curve.py`
+
+已修复：
+
+- 观测时间单位不一致问题
+- 当前明确将光变数据时间列按“天”转成“秒”
+
+这一步是必要修正，不是保护性绕过。因为模型输出 `t_obs_s` 的单位就是秒。
+
+### `src/Electron/calling_modules.f90`
+
+已修复：
+
+- `get_nu_a` 在第一档频率就满足 `tau <= 1` 时，`Tau_high` 未定义的问题
+- 现在若吸收转折频率落在搜索下界以下，返回搜索下界 `1e4 Hz`
+
+这不是保护性分支，而是把原来缺失的搜索边界条件补完整。
+
+## 8. 编译与回归现状
+
+截至本文件更新时，已完成以下检查：
+
+- `python build_extensions.py` 通过
+- `python hand_my.py` 通过
+- `python tests\regression_check.py` 通过
+
+回归阈值：
+
+- 对 `xrt/optr/9GHz` 三条光变曲线，新旧结果相对偏差要求 `<= 3%`
+- 当前基线对比结果为 `0.000000`
+
+## 9. Fortran 代码检查要求
+
+当前仓库明确要求：
+
+- Fortran 代码必须做编译检查。
+- 必须检查 line truncation。
+
+当前状态：
+
+- `src/Interpolation/SED_interpolation.f90`
+- `src/Interpolation/SED_interpolation_structured.f90`
+- `src/Electron/FS_electron_t2g2.f90`
+
+都已做超长行拆分处理，不改公式。
+
+其中：
+
+- `FS_electron_t2g2.f90` 已完成独立编译检查；
+- 该文件目前不是默认运行路径，但代码本身已恢复到可编译状态。
+
+## 10. 约束与后续开发原则
+
+1. 第一阶段不改 Fortran 数值核公式与离散方案。
+2. 新功能优先放在 Python 接口层、编排层和后处理层。
+3. 非数值模拟代码禁止添加数值保护。
+4. 若物理结果异常，应先定位单位、网格、插值或接口错误，再考虑文献对照。
+5. 默认不生成稠密能谱；只有显式启用 `spectrum_output.enabled=True` 才计算。
+6. 当前默认电子演化路径是 `FS_electron_fullhide`，不是 `FS_electron_t2g2`。
+
+## 11. 最小调用示例
+
+```python
+from mergered import FitConfig, SpectrumOutputConfig, run_fit, plot_light_curve, plot_spectrum
+
+config = FitConfig(
+    z=0.4,
+    eta_0=1.0e2,
+    epsilon_e=1.0e-1,
+    epsilon_b=1.0e-3,
+    p=2.5,
+    opening_angle_jet=1.0e-1,
+    theta_v=0.0,
+    f_e=1.0e-1,
+    e_iso=1.0e53,
+    d_ne=1.0e-1,
+    a_star=-1.0,
+    spectrum_output=SpectrumOutputConfig(enabled=True, num_nu_obs=200),
+)
+
+result = run_fit(config)
+plot_light_curve(result)
+plot_spectrum(result, times_s=[1e3, 1e4, 1e5], quantity="nufnu")
+```
+
+## 12. 当前最重要的事实
+
+- 主入口已经统一到 `run_fit(config)`。
+- `weno5` 已经在新 API 中真正接通。
+- 能谱数据管线已经补齐。
+- 能谱绘图接口已经可用。
+- 现有重构没有改动 Fortran 数值物理公式。
+- `reverse=True` 不再静默失效，而是显式提示缺少反向激波参数接口。
+- 当前后续工作应优先放在反向激波参数建模、测试和物理一致性核查，而不是继续扩写新接口。
+
+## 13. 2026-04 Runtime Update
+
+- 新增 `ReverseShockConfig`，作为 `FitConfig.reverse_shock` 子配置。
+- 当前反向激波链路已经接入新 API：
+  - `Dynamics.dynamics_reverse`
+  - `Radiation.seed_reverse`
+- 当前实现方式：
+  - 若启用反向激波，主动力学使用 `dynamics_reverse` 返回的 `R_Tobs/R_Gamma/R`
+  - 正激波电子谱与 SSC 仍按原主链计算
+  - 反向激波当前只接入同步辐射
+  - 总观测谱使用 `L_syn,FS + L_syn,RS + L_ssc,FS`
+  - `gamma-gamma` 吸收使用 `seed_syn,FS + seed_syn,RS + seed_ssc,FS`
+- 当前没有接入反向激波 SSC，也没有接入区间耦合 IC。
+- 新增 `asgard_observables.py`，统一管理波段、频率表和多波段后处理。
+- `FitResult` 现在显式区分两套时间轴：
+  - `t_obs_s`：观测光变与能谱输出时间轴。
+  - `characteristic_time_s`：`nu_m/nu_c/nu_a` 与 `rs_nu_m/rs_nu_c/rs_nu_a` 的特征频率时间轴。
+- 新增 `plot_characteristic_frequencies(result, include_reverse=True, ...)`，按 `characteristic_time_s` 绘制 FS/RS 特征频率，避免将内部动力学网格误当作观测输出网格。
+- 新增 `hand_reverse.py`，作为反向激波 API 与 FS/RS 特征频率绘图的公开示例脚本。
+- 新增 `PhysicalSolution`，作为主链物理求解与观测后处理之间的中间结果对象。
+- 新增 `asgard_postprocess.py`，统一承载：
+  - 观测频率投影
+  - 多波段光变聚合
+  - `redchi` 计算
+  - 稠密能谱后处理
+- `asgard_solver.py` 不再在主链中传递长位置元组，而是返回 `PhysicalSolution` 后交给后处理层。
+- `tests/api_contract_check.py` 已加入回归集合，检查：
+  - `characteristic_time_s` 与 `nu_m/nu_c/nu_a`、`rs_nu_*` 的 shape 一致
+  - `spectrum_fnu.shape == (N_nu, N_tobs)`
+  - `plot_characteristic_frequencies` 与 `plot_spectrum` 可正常输出文件
+- `hand_my.py`、`hand_reverse.py`、`MCMC.py`、`pymultinest_demo.py` 已改为 `main()` 入口，导入时不再执行计算。
+- 新增 `asgard_inference.py`，统一 `MCMC.py` 与 `pymultinest_demo.py` 的 `FitConfig` 装配默认值，避免推断脚本默认网格和物理开关继续漂移。
+- 新增 `asgard_legacy.py`，承接旧 `fit(**kwargs)` 的参数映射；`mergered.py` 现在只保留门面导出与弃用提示。
+- 新增 `tests/legacy_api_check.py`，检查旧接口仍可返回有限 `redchi`，且会发出 `DeprecationWarning`。
+- 新增 `SimulationSetup` 与 `asgard_setup.py`，统一管理：
+  - `luminosity_distance_cm`
+  - `boundary`
+  - `seed_frequency_hz`
+  - `observer_time_s`
+- `asgard_postprocess.py` 现在只接收 `SimulationSetup + PhysicalSolution`，不再在接口上传递多组裸数组。
+- 新增 `asgard_presets.py`，统一基线、能谱示例和反向激波示例配置。
+- 新增 `tests/import_smoke_check.py`，检查 `hand_my.py` 与 `hand_reverse.py` 导入时无绘图副作用。
+- 当前总辐射已接入 `RS-SSC`：
+  - `L_tot = L_syn,FS + L_syn,RS + L_ssc,FS + L_ssc,RS`
+  - `gamma-gamma` 吸收种子场当前使用 `seed_syn,FS + seed_syn,RS + seed_ssc,FS + seed_ssc,RS`
+- 新增 `asgard_coupling.py`，当前区间耦合 IC 实现采用：
+  - `FS` 与 `RS` 共用接触不连续面速度 `Gamma_2`
+  - 用 `m2/m3` 反推两区共动厚度 `Δ'_2` 与 `Δ'_3`
+  - 用 `0.5(Δ'_2+Δ'_3)/c` 构造中心到中心的共动传播延迟
+  - 在共动时间轴上对外区同步种子场做延迟插值
+  - 再复用 `ssc_spec` 计算
+    - `FS` 电子散射 `RS` 光子
+    - `RS` 电子散射 `FS` 光子
+- 当前区间耦合 IC 的角分布仍采用半球因子 `1/2`，因为现有 `seed_syn` 是球壳平均量，不包含更细的角分辨信息。
+- 为支持双区几何，`Dynamics_forward.f90` 现在导出 `m2`，`Dynamics_reverse.f90` 现在导出 `m2/m3`。
+- 新增 `tests/coupled_ic_check.py`，检查：
+  - 双区几何量有限且非负
+  - 共动时间单调
+  - 两个区间耦合 IC 分量有限且非零
+
+## 14. 后续重构路线
+
+1. 推断脚本统一
+   - 抽出 `MCMC.py` 与 `pymultinest_demo.py` 的公共参数装配逻辑
+   - 避免不同推断脚本继续分叉出不同默认物理设置
+2. 结果对象扩充
+   - 评估是否将 FS/RS 的更多中间物理量纳入只读结果对象
+   - 目标是减少脚本层再次回探内部模块
+3. 反向激波物理链路继续补齐
+   - 现阶段仅有 RS synchrotron
+   - 是否接入 RS-SSC 与区间耦合 IC，需要单独做物理口径确认后再动
+4. 测试继续前移
+   - 将更多 API 契约和绘图输出检查固定到 `tests/`
+   - 保持每轮重构后先做接口回归，再做物理曲线回归
