@@ -658,3 +658,4 @@ plot_spectrum(result, times_s=[1e3, 1e4, 1e5], quantity="nufnu")
   - 构建入口已固定
   - 诊断链已固定
   - 物理/数值改进尚未完成，不能宣称任务结束
+- 当前新增 `doc.md`，作为下一阶段主线任务清单的短文档基准；后续默认先以 `doc.md` 的任务顺序推进，再同步回写 `AGENTS.md`。
