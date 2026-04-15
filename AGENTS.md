@@ -633,3 +633,28 @@ plot_spectrum(result, times_s=[1e3, 1e4, 1e5], quantity="nufnu")
   - `output/asgard_doc/mmg2_front_old.npz`
   - `output/asgard_doc/mmg2_front_new.npz`
   - `output/asgard_doc/mmg2_front_observed_compare.png`
+
+## 16. 2026-04 Order And Build Baseline
+
+- `tests/order_convergence_check.py` 已从“只检查 `slc1_mmg2` 是否正阶”升级为正式主线诊断：
+  - 电子谱链单独检查 `fullhide/slc1/slc1_mmg2`
+  - 辐射谱链单独检查 `synchrotron/SSC/observer-side total` 以及 band flux、`nu_a`
+  - 当前判据明确写死为：
+    - 电子谱链有效阶数 `> 2`
+    - 辐射谱链有效阶数 `> 2`
+- `dynamics-forward` 仍单独保留为独立检查项，只要求有效阶数为正，不与电子谱链和辐射谱链混为一谈。
+- `build_extensions.py` 当前对 `FS_electron_slc1` 已加入受控 fallback：
+  - 先尝试原来的 `numpy.f2py -c` 直接构建
+  - 若再次触发 Windows + Python 3.12 + meson 的 Fortran module 排序问题，则自动改走“按依赖顺序手工编译对象文件 + 生成最小 `pyf` + 再由 `f2py` 链接”的路径
+  - fallback 仍只服务当前运行时所需的 `fs_electron_slc1/fs_electron_slc1_mmg2`
+- 这轮主线目标已经明确收束为：
+  - 先把阶数验证和 `FS_electron_slc1` 可复现构建入口固定下来
+  - 再决定是否需要继续改 `slc1/slc1_mmg2` 的数值层以把电子谱链和辐射谱链都推到二阶以上
+- 当前 `python tests/order_convergence_check.py` 已能稳定产出 `output/asgard_doc/order_convergence.json`，且第一轮真实结果表明：
+  - 电子谱链当前远未整体达到二阶，最低项出现在 `slc1_mmg2-electron-support-low`
+  - 辐射谱链中 `slc1_mmg2` 的 `sync/ssc/observer total/bands` 已有多项超过二阶，但 `nu_a` 仍未过线
+  - `fullhide/slc1` 的 observer-side 与部分 SSC/SSA 项仍低于二阶，说明降阶不只在 moving-mesh
+- 因而“算法阶数任务”当前状态应被视为：
+  - 构建入口已固定
+  - 诊断链已固定
+  - 物理/数值改进尚未完成，不能宣称任务结束

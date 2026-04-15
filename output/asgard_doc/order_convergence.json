@@ -1,44 +1,491 @@
 {
+  "targets": {
+    "electron": 2.0,
+    "radiation": 2.0
+  },
+  "summary": {
+    "electron": {
+      "count": 15,
+      "failed": 12,
+      "min_measured_order": -2.9900091892142098
+    },
+    "radiation": {
+      "count": 15,
+      "failed": 7,
+      "min_measured_order": 0.9685785301713555
+    },
+    "dynamics": {
+      "count": 2,
+      "failed": 0,
+      "min_measured_order": 0.9727301042857923
+    }
+  },
   "results": [
     {
-      "name": "slc1_mmg2-bands-flux",
-      "hypothesis": "slc1_mmg2 是固定网格数的 moving-mesh 半拉格朗日电子求解器，目标是在 20-40 网格下把特征电子能量位置和观测量收敛阶抬到二阶附近。",
+      "name": "dynamics-forward-gamma",
+      "category": "dynamics",
+      "target_order": 0.0,
+      "hypothesis": "动力学观测系 Gamma 的有效收敛阶至少应为正。",
       "refinement_ratio": 2.0,
-      "coarse_error": 31.192599145143475,
-      "medium_error": 1.1585378758043112,
-      "measured_order": 4.750826655520684,
+      "coarse_error": 0.08545931582223697,
+      "medium_error": 0.043545017809174295,
+      "measured_order": 0.9727301042857923,
       "passed": true,
       "extra": {
-        "num_gam_e_num_nu": [
-          20,
-          32,
-          40
+        "num_r": [
+          80,
+          160,
+          320
         ]
       }
     },
     {
-      "name": "slc1_mmg2-nu_a",
-      "hypothesis": "nu_a 是 SSA 派生量；只要链路稳定，它的有效收敛阶应为正。",
+      "name": "dynamics-forward-radius",
+      "category": "dynamics",
+      "target_order": 0.0,
+      "hypothesis": "动力学观测系半径 R(t_obs) 的有效收敛阶至少应为正。",
       "refinement_ratio": 2.0,
-      "coarse_error": 0.472995782819982,
-      "medium_error": 0.17050671444092239,
-      "measured_order": 1.4719987679681774,
+      "coarse_error": 0.22535669389543897,
+      "medium_error": 0.10217706714839825,
+      "measured_order": 1.1411388729885177,
+      "passed": true,
+      "extra": {
+        "num_r": [
+          80,
+          160,
+          320
+        ]
+      }
+    },
+    {
+      "name": "fullhide-electron-spectrum",
+      "category": "electron",
+      "target_order": 2.0,
+      "hypothesis": "整条电子谱的混合有效阶数，包含峰位漂移、支撑区漂移和谱形误差。",
+      "refinement_ratio": 2.0,
+      "coarse_error": NaN,
+      "medium_error": NaN,
+      "measured_order": 0.5441907622964832,
+      "passed": false,
+      "extra": {
+        "num_gam_e_num_nu": [
+          61,
+          121,
+          241
+        ],
+        "shell_fractions": [
+          0.3,
+          0.5,
+          0.8
+        ]
+      }
+    },
+    {
+      "name": "fullhide-electron-peak-gamma",
+      "category": "electron",
+      "target_order": 2.0,
+      "hypothesis": "谱峰位置误差的有效阶数，直接反映电子谱主峰跟踪精度。",
+      "refinement_ratio": 2.0,
+      "coarse_error": NaN,
+      "medium_error": NaN,
+      "measured_order": -9.610279511444756e-16,
+      "passed": false,
+      "extra": {
+        "num_gam_e_num_nu": [
+          61,
+          121,
+          241
+        ],
+        "shell_fractions": [
+          0.3,
+          0.5,
+          0.8
+        ]
+      }
+    },
+    {
+      "name": "fullhide-electron-support-low",
+      "category": "electron",
+      "target_order": 2.0,
+      "hypothesis": "低能支撑边界 g_lo 误差的有效阶数。",
+      "refinement_ratio": 2.0,
+      "coarse_error": NaN,
+      "medium_error": NaN,
+      "measured_order": 0.45978532350007406,
+      "passed": false,
+      "extra": {
+        "num_gam_e_num_nu": [
+          61,
+          121,
+          241
+        ],
+        "shell_fractions": [
+          0.3,
+          0.5,
+          0.8
+        ]
+      }
+    },
+    {
+      "name": "fullhide-electron-support-high",
+      "category": "electron",
+      "target_order": 2.0,
+      "hypothesis": "高能支撑边界 g_hi 误差的有效阶数。",
+      "refinement_ratio": 2.0,
+      "coarse_error": NaN,
+      "medium_error": NaN,
+      "measured_order": 0.43003765833928403,
+      "passed": false,
+      "extra": {
+        "num_gam_e_num_nu": [
+          61,
+          121,
+          241
+        ],
+        "shell_fractions": [
+          0.3,
+          0.5,
+          0.8
+        ]
+      }
+    },
+    {
+      "name": "fullhide-electron-shape-aligned",
+      "category": "electron",
+      "target_order": 2.0,
+      "hypothesis": "对齐峰位后的谱形误差有效阶数，用于排除纯平移误差。",
+      "refinement_ratio": 2.0,
+      "coarse_error": NaN,
+      "medium_error": NaN,
+      "measured_order": 0.5133033793418513,
+      "passed": false,
+      "extra": {
+        "num_gam_e_num_nu": [
+          61,
+          121,
+          241
+        ],
+        "shell_fractions": [
+          0.3,
+          0.5,
+          0.8
+        ]
+      }
+    },
+    {
+      "name": "fullhide-radiation-sync-spectrum",
+      "category": "radiation",
+      "target_order": 2.0,
+      "hypothesis": "前向 synchrotron 共动谱的有效阶数。",
+      "refinement_ratio": 2.0,
+      "coarse_error": NaN,
+      "medium_error": NaN,
+      "measured_order": 4.736584256927997,
       "passed": true,
       "extra": {
         "num_gam_e_num_nu": [
-          20,
-          32,
-          40
+          61,
+          121,
+          241
+        ],
+        "observer_num_nu": 48
+      }
+    },
+    {
+      "name": "fullhide-radiation-ssc-spectrum",
+      "category": "radiation",
+      "target_order": 2.0,
+      "hypothesis": "前向 SSC 共动谱的有效阶数。",
+      "refinement_ratio": 2.0,
+      "coarse_error": NaN,
+      "medium_error": NaN,
+      "measured_order": 1.8382609693908434,
+      "passed": false,
+      "extra": {
+        "num_gam_e_num_nu": [
+          61,
+          121,
+          241
+        ],
+        "observer_num_nu": 48
+      }
+    },
+    {
+      "name": "fullhide-radiation-observer-total",
+      "category": "radiation",
+      "target_order": 2.0,
+      "hypothesis": "observer-side 总观测矩阵的有效阶数，覆盖插值与 EATS 投影。",
+      "refinement_ratio": 2.0,
+      "coarse_error": NaN,
+      "medium_error": NaN,
+      "measured_order": 1.4607864289284362,
+      "passed": false,
+      "extra": {
+        "num_gam_e_num_nu": [
+          61,
+          121,
+          241
+        ],
+        "observer_num_nu": 48
+      }
+    },
+    {
+      "name": "fullhide-radiation-bands-flux",
+      "category": "radiation",
+      "target_order": 2.0,
+      "hypothesis": "多波段光变聚合后的有效阶数。",
+      "refinement_ratio": 2.0,
+      "coarse_error": NaN,
+      "medium_error": NaN,
+      "measured_order": 1.4849199744387513,
+      "passed": false,
+      "extra": {
+        "num_gam_e_num_nu": [
+          61,
+          121,
+          241
+        ],
+        "observer_num_nu": 48
+      }
+    },
+    {
+      "name": "fullhide-radiation-nu_a",
+      "category": "radiation",
+      "target_order": 2.0,
+      "hypothesis": "SSA 派生特征频率 nu_a 的有效阶数。",
+      "refinement_ratio": 2.0,
+      "coarse_error": NaN,
+      "medium_error": NaN,
+      "measured_order": 3.0441542861068434,
+      "passed": true,
+      "extra": {
+        "num_gam_e_num_nu": [
+          61,
+          121,
+          241
+        ],
+        "observer_num_nu": 48
+      }
+    },
+    {
+      "name": "slc1-electron-spectrum",
+      "category": "electron",
+      "target_order": 2.0,
+      "hypothesis": "整条电子谱的混合有效阶数，包含峰位漂移、支撑区漂移和谱形误差。",
+      "refinement_ratio": 2.0,
+      "coarse_error": NaN,
+      "medium_error": NaN,
+      "measured_order": 0.33137324023592646,
+      "passed": false,
+      "extra": {
+        "num_gam_e_num_nu": [
+          61,
+          121,
+          241
+        ],
+        "shell_fractions": [
+          0.3,
+          0.5,
+          0.8
         ]
+      }
+    },
+    {
+      "name": "slc1-electron-peak-gamma",
+      "category": "electron",
+      "target_order": 2.0,
+      "hypothesis": "谱峰位置误差的有效阶数，直接反映电子谱主峰跟踪精度。",
+      "refinement_ratio": 2.0,
+      "coarse_error": NaN,
+      "medium_error": NaN,
+      "measured_order": 1.0662335464023969,
+      "passed": false,
+      "extra": {
+        "num_gam_e_num_nu": [
+          61,
+          121,
+          241
+        ],
+        "shell_fractions": [
+          0.3,
+          0.5,
+          0.8
+        ]
+      }
+    },
+    {
+      "name": "slc1-electron-support-low",
+      "category": "electron",
+      "target_order": 2.0,
+      "hypothesis": "低能支撑边界 g_lo 误差的有效阶数。",
+      "refinement_ratio": 2.0,
+      "coarse_error": NaN,
+      "medium_error": NaN,
+      "measured_order": 5.534275029077447,
+      "passed": true,
+      "extra": {
+        "num_gam_e_num_nu": [
+          61,
+          121,
+          241
+        ],
+        "shell_fractions": [
+          0.3,
+          0.5,
+          0.8
+        ]
+      }
+    },
+    {
+      "name": "slc1-electron-support-high",
+      "category": "electron",
+      "target_order": 2.0,
+      "hypothesis": "高能支撑边界 g_hi 误差的有效阶数。",
+      "refinement_ratio": 2.0,
+      "coarse_error": NaN,
+      "medium_error": NaN,
+      "measured_order": 0.15520509194728016,
+      "passed": false,
+      "extra": {
+        "num_gam_e_num_nu": [
+          61,
+          121,
+          241
+        ],
+        "shell_fractions": [
+          0.3,
+          0.5,
+          0.8
+        ]
+      }
+    },
+    {
+      "name": "slc1-electron-shape-aligned",
+      "category": "electron",
+      "target_order": 2.0,
+      "hypothesis": "对齐峰位后的谱形误差有效阶数，用于排除纯平移误差。",
+      "refinement_ratio": 2.0,
+      "coarse_error": NaN,
+      "medium_error": NaN,
+      "measured_order": 1.472974267363016,
+      "passed": false,
+      "extra": {
+        "num_gam_e_num_nu": [
+          61,
+          121,
+          241
+        ],
+        "shell_fractions": [
+          0.3,
+          0.5,
+          0.8
+        ]
+      }
+    },
+    {
+      "name": "slc1-radiation-sync-spectrum",
+      "category": "radiation",
+      "target_order": 2.0,
+      "hypothesis": "前向 synchrotron 共动谱的有效阶数。",
+      "refinement_ratio": 2.0,
+      "coarse_error": NaN,
+      "medium_error": NaN,
+      "measured_order": 10.963491853856436,
+      "passed": true,
+      "extra": {
+        "num_gam_e_num_nu": [
+          61,
+          121,
+          241
+        ],
+        "observer_num_nu": 48
+      }
+    },
+    {
+      "name": "slc1-radiation-ssc-spectrum",
+      "category": "radiation",
+      "target_order": 2.0,
+      "hypothesis": "前向 SSC 共动谱的有效阶数。",
+      "refinement_ratio": 2.0,
+      "coarse_error": NaN,
+      "medium_error": NaN,
+      "measured_order": 4.283317842620949,
+      "passed": true,
+      "extra": {
+        "num_gam_e_num_nu": [
+          61,
+          121,
+          241
+        ],
+        "observer_num_nu": 48
+      }
+    },
+    {
+      "name": "slc1-radiation-observer-total",
+      "category": "radiation",
+      "target_order": 2.0,
+      "hypothesis": "observer-side 总观测矩阵的有效阶数，覆盖插值与 EATS 投影。",
+      "refinement_ratio": 2.0,
+      "coarse_error": NaN,
+      "medium_error": NaN,
+      "measured_order": 1.2540468057989114,
+      "passed": false,
+      "extra": {
+        "num_gam_e_num_nu": [
+          61,
+          121,
+          241
+        ],
+        "observer_num_nu": 48
+      }
+    },
+    {
+      "name": "slc1-radiation-bands-flux",
+      "category": "radiation",
+      "target_order": 2.0,
+      "hypothesis": "多波段光变聚合后的有效阶数。",
+      "refinement_ratio": 2.0,
+      "coarse_error": NaN,
+      "medium_error": NaN,
+      "measured_order": 0.9685785301713555,
+      "passed": false,
+      "extra": {
+        "num_gam_e_num_nu": [
+          61,
+          121,
+          241
+        ],
+        "observer_num_nu": 48
+      }
+    },
+    {
+      "name": "slc1-radiation-nu_a",
+      "category": "radiation",
+      "target_order": 2.0,
+      "hypothesis": "SSA 派生特征频率 nu_a 的有效阶数。",
+      "refinement_ratio": 2.0,
+      "coarse_error": NaN,
+      "medium_error": NaN,
+      "measured_order": 1.0497935839243764,
+      "passed": false,
+      "extra": {
+        "num_gam_e_num_nu": [
+          61,
+          121,
+          241
+        ],
+        "observer_num_nu": 48
       }
     },
     {
       "name": "slc1_mmg2-electron-spectrum",
+      "category": "electron",
+      "target_order": 2.0,
       "hypothesis": "整条电子谱的混合有效阶数，包含峰位漂移、支撑区漂移和谱形误差。",
       "refinement_ratio": 1.631578947368421,
-      "coarse_error": 0.769114238539536,
-      "medium_error": 0.28303467314675174,
-      "measured_order": 2.0420257930626065,
+      "coarse_error": NaN,
+      "medium_error": NaN,
+      "measured_order": 3.5046891738435573,
       "passed": true,
       "extra": {
         "num_gam_e_num_nu": [
@@ -55,12 +502,14 @@
     },
     {
       "name": "slc1_mmg2-electron-peak-gamma",
-      "hypothesis": "谱峰位置误差的有效阶数；若该项低，主问题在峰位锁网格。",
+      "category": "electron",
+      "target_order": 2.0,
+      "hypothesis": "谱峰位置误差的有效阶数，直接反映电子谱主峰跟踪精度。",
       "refinement_ratio": 1.631578947368421,
-      "coarse_error": 0.8335440389153495,
-      "medium_error": 0.4031415423630423,
-      "measured_order": 1.4838146219937296,
-      "passed": true,
+      "coarse_error": NaN,
+      "medium_error": NaN,
+      "measured_order": 1.854555827652919,
+      "passed": false,
       "extra": {
         "num_gam_e_num_nu": [
           20,
@@ -76,12 +525,14 @@
     },
     {
       "name": "slc1_mmg2-electron-support-low",
-      "hypothesis": "低能支撑边界 g_lo 误差的有效阶数；若该项低，主问题在低能端边界和注入/冷却切换。",
+      "category": "electron",
+      "target_order": 2.0,
+      "hypothesis": "低能支撑边界 g_lo 误差的有效阶数。",
       "refinement_ratio": 1.631578947368421,
-      "coarse_error": 3.3530065607906,
-      "medium_error": 0.741929352513463,
-      "measured_order": 3.0811237764913457,
-      "passed": true,
+      "coarse_error": NaN,
+      "medium_error": NaN,
+      "measured_order": -2.9900091892142098,
+      "passed": false,
       "extra": {
         "num_gam_e_num_nu": [
           20,
@@ -97,11 +548,13 @@
     },
     {
       "name": "slc1_mmg2-electron-support-high",
-      "hypothesis": "高能支撑边界 g_hi 误差的有效阶数；若该项低，主问题在高能截止和高能耗散。",
+      "category": "electron",
+      "target_order": 2.0,
+      "hypothesis": "高能支撑边界 g_hi 误差的有效阶数。",
       "refinement_ratio": 1.631578947368421,
-      "coarse_error": 0.27864349750479683,
-      "medium_error": 0.04209668436454044,
-      "measured_order": 3.8606292473106927,
+      "coarse_error": NaN,
+      "medium_error": NaN,
+      "measured_order": 7.29852904920706,
       "passed": true,
       "extra": {
         "num_gam_e_num_nu": [
@@ -118,12 +571,14 @@
     },
     {
       "name": "slc1_mmg2-electron-shape-aligned",
-      "hypothesis": "对齐峰位后的谱形误差有效阶数；若该项仍低，主问题在谱形离散本身。",
+      "category": "electron",
+      "target_order": 2.0,
+      "hypothesis": "对齐峰位后的谱形误差有效阶数，用于排除纯平移误差。",
       "refinement_ratio": 1.631578947368421,
-      "coarse_error": 1.4057038420112904,
-      "medium_error": 0.45453757413124013,
-      "measured_order": 2.3062341390545433,
-      "passed": true,
+      "coarse_error": NaN,
+      "medium_error": NaN,
+      "measured_order": -0.49650057313840806,
+      "passed": false,
       "extra": {
         "num_gam_e_num_nu": [
           20,
@@ -136,8 +591,103 @@
           0.8
         ]
       }
+    },
+    {
+      "name": "slc1_mmg2-radiation-sync-spectrum",
+      "category": "radiation",
+      "target_order": 2.0,
+      "hypothesis": "前向 synchrotron 共动谱的有效阶数。",
+      "refinement_ratio": 2.0,
+      "coarse_error": NaN,
+      "medium_error": NaN,
+      "measured_order": 12.048001303541065,
+      "passed": true,
+      "extra": {
+        "num_gam_e_num_nu": [
+          20,
+          32,
+          40
+        ],
+        "observer_num_nu": 48
+      }
+    },
+    {
+      "name": "slc1_mmg2-radiation-ssc-spectrum",
+      "category": "radiation",
+      "target_order": 2.0,
+      "hypothesis": "前向 SSC 共动谱的有效阶数。",
+      "refinement_ratio": 2.0,
+      "coarse_error": NaN,
+      "medium_error": NaN,
+      "measured_order": 157.10979540506207,
+      "passed": true,
+      "extra": {
+        "num_gam_e_num_nu": [
+          20,
+          32,
+          40
+        ],
+        "observer_num_nu": 48
+      }
+    },
+    {
+      "name": "slc1_mmg2-radiation-observer-total",
+      "category": "radiation",
+      "target_order": 2.0,
+      "hypothesis": "observer-side 总观测矩阵的有效阶数，覆盖插值与 EATS 投影。",
+      "refinement_ratio": 2.0,
+      "coarse_error": NaN,
+      "medium_error": NaN,
+      "measured_order": 2.2359043192663455,
+      "passed": true,
+      "extra": {
+        "num_gam_e_num_nu": [
+          20,
+          32,
+          40
+        ],
+        "observer_num_nu": 48
+      }
+    },
+    {
+      "name": "slc1_mmg2-radiation-bands-flux",
+      "category": "radiation",
+      "target_order": 2.0,
+      "hypothesis": "多波段光变聚合后的有效阶数。",
+      "refinement_ratio": 2.0,
+      "coarse_error": NaN,
+      "medium_error": NaN,
+      "measured_order": 4.197544344488134,
+      "passed": true,
+      "extra": {
+        "num_gam_e_num_nu": [
+          20,
+          32,
+          40
+        ],
+        "observer_num_nu": 48
+      }
+    },
+    {
+      "name": "slc1_mmg2-radiation-nu_a",
+      "category": "radiation",
+      "target_order": 2.0,
+      "hypothesis": "SSA 派生特征频率 nu_a 的有效阶数。",
+      "refinement_ratio": 2.0,
+      "coarse_error": NaN,
+      "medium_error": NaN,
+      "measured_order": 1.5639574368396085,
+      "passed": false,
+      "extra": {
+        "num_gam_e_num_nu": [
+          20,
+          32,
+          40
+        ],
+        "observer_num_nu": 48
+      }
     }
   ],
-  "total": 7,
-  "failed": 0
+  "total": 32,
+  "failed": 19
 }

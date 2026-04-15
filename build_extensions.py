@@ -4,6 +4,8 @@ import argparse
 import hashlib
 import json
 import os
+import shlex
+import shutil
 import subprocess
 import sys
 import time
@@ -13,7 +15,7 @@ from pathlib import Path
 COMMON_FLAGS = "-Ofast -march=native -funroll-loops -ffast-math -fno-signed-zeros -fno-trapping-math"
 OMP_FLAGS = f"-fopenmp {COMMON_FLAGS} -flto"
 OPENMP_LIBS = ["-lgomp"]
-BUILD_LOGIC_VERSION = 2
+BUILD_LOGIC_VERSION = 3
 
 
 def _configure_windows_toolchain_env() -> None:
@@ -125,6 +127,134 @@ def _tail_output(text: str, max_lines: int = 120) -> str:
     if len(lines) <= max_lines:
         return "\n".join(lines)
     return "\n".join(lines[-max_lines:])
+
+
+def _run_command(
+    command: list[str],
+    cwd: Path,
+    env: dict[str, str],
+    log_path: Path,
+    verbose: bool,
+) -> subprocess.CompletedProcess[str]:
+    if verbose:
+        return subprocess.run(command, cwd=cwd, check=True, env=env, text=True)
+    result = subprocess.run(
+        command,
+        cwd=cwd,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+        errors="replace",
+    )
+    _write_build_log(log_path, command, cwd, result)
+    if result.returncode != 0:
+        output = "\n".join(part for part in (result.stdout, result.stderr) if part)
+        tail = _tail_output(output)
+        print(f"Build failed for {' '.join(command[:3])}. Full log: {log_path}")
+        if tail:
+            print(tail)
+        raise subprocess.CalledProcessError(result.returncode, command)
+    return result
+
+
+def _build_fs_electron_slc1_fallback(
+    root: Path,
+    module_name: str,
+    cwd: Path,
+    sources: list[str],
+    log_dir: Path,
+    verbose: bool,
+    fflags: str | None,
+    extra_args: list[str] | None,
+) -> float:
+    env = os.environ.copy()
+    py_dir = Path(sys.executable).resolve().parent
+    py_scripts = py_dir / "Scripts"
+    extra_path_entries = [str(py_dir)]
+    if py_scripts.is_dir():
+        extra_path_entries.append(str(py_scripts))
+    if os.name == "nt":
+        mingw_bin = env.get("ASGARD_MINGW_BIN", r"C:\msys64\mingw64\bin")
+        mingw_dir = Path(mingw_bin)
+        if mingw_dir.is_dir():
+            extra_path_entries.insert(0, mingw_bin)
+            gcc = mingw_dir / "gcc.exe"
+            gxx = mingw_dir / "g++.exe"
+            gfortran = mingw_dir / "gfortran.exe"
+            ar = mingw_dir / "gcc-ar.exe"
+            if gcc.is_file():
+                env["CC"] = str(gcc)
+            if gxx.is_file():
+                env["CXX"] = str(gxx)
+            if gfortran.is_file():
+                env["FC"] = str(gfortran)
+            if ar.is_file():
+                env["AR"] = str(ar)
+    env["PATH"] = os.pathsep.join(extra_path_entries) + os.pathsep + env["PATH"]
+    if fflags is not None:
+        env["FFLAGS"] = fflags
+        env["F90FLAGS"] = fflags
+
+    fc = env.get("FC") or shutil.which("gfortran", path=env["PATH"])
+    if not fc:
+        raise RuntimeError("FS_electron_slc1 fallback build requires gfortran in PATH or FC.")
+
+    build_dir = root / ".buildcache" / "fs_electron_slc1_fallback" / module_name
+    build_dir.mkdir(parents=True, exist_ok=True)
+    for path in build_dir.glob("*"):
+        if path.is_file():
+            path.unlink()
+
+    compile_flags = shlex.split(fflags or "")
+    compile_flags.extend(["-I", str(build_dir), "-J", str(build_dir)])
+    object_paths: list[Path] = []
+    start = time.perf_counter()
+    for source in sources:
+        source_path = (cwd / source).resolve()
+        object_path = build_dir / f"{source_path.stem}.o"
+        command = [fc, "-c", *compile_flags, str(source_path), "-o", str(object_path)]
+        _run_command(command, cwd, env, log_dir / f"{module_name}_fallback_compile_{source_path.stem}.log", verbose)
+        object_paths.append(object_path)
+
+    pyf_path = build_dir / f"{module_name}.pyf"
+    source_rel = os.path.relpath((cwd / "FS_electron_slc1.f90").resolve(), build_dir)
+    signature_command = [
+        sys.executable,
+        "-m",
+        "numpy.f2py",
+        "-m",
+        module_name,
+        "-h",
+        pyf_path.name,
+        "--overwrite-signature",
+        source_rel,
+        "only:",
+        "fs_electron_slc1",
+        "fs_electron_slc1_mmg2",
+        ":",
+    ]
+    _run_command(signature_command, build_dir, env, log_dir / f"{module_name}_fallback_signature.log", verbose)
+
+    link_command = [
+        sys.executable,
+        "-m",
+        "numpy.f2py",
+        "-c",
+        pyf_path.name,
+        *(str(path) for path in object_paths),
+        "-m",
+        module_name,
+    ]
+    if extra_args:
+        link_command.extend(extra_args)
+    _run_command(link_command, build_dir, env, log_dir / f"{module_name}_fallback_link.log", verbose)
+    for built_path in _module_output_paths(build_dir, module_name):
+        target_path = cwd / built_path.name
+        if target_path.exists():
+            target_path.unlink()
+        built_path.replace(target_path)
+    return time.perf_counter() - start
 
 
 def _build_module(
@@ -252,15 +382,30 @@ def main() -> None:
                 print(f"Skip {module_name}: outputs are newer than sources")
                 continue
         print(f"Build {module_name}")
-        elapsed = _build_module(
-            module_name,
-            cwd,
-            sources,
-            log_dir,
-            args.verbose,
-            fflags,
-            extra_args,
-        )
+        try:
+            elapsed = _build_module(
+                module_name,
+                cwd,
+                sources,
+                log_dir,
+                args.verbose,
+                fflags,
+                extra_args,
+            )
+        except subprocess.CalledProcessError:
+            if module_name != "FS_electron_slc1":
+                raise
+            print("Retry FS_electron_slc1 with ordered object build fallback")
+            elapsed = _build_fs_electron_slc1_fallback(
+                root,
+                module_name,
+                cwd,
+                sources,
+                log_dir,
+                args.verbose,
+                fflags,
+                extra_args,
+            )
         cache[module_name] = signature
         print(f"Done {module_name}: {elapsed:.2f}s")
     _save_cache(cache_path, cache)
