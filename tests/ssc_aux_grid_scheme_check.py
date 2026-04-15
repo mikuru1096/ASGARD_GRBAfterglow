@@ -13,6 +13,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from asgard_presets import build_baseline_config
+from asgard_component_backend import build_query_setup, observe_spectra_from_setup, solve_model_state_from_setup
 from asgard_runtime import solve_dynamics, solve_electron
 from asgard_ssc import compute_ssc_auxiliary_grid
 from asgard_setup import build_simulation_setup
@@ -98,6 +99,17 @@ def _high_energy_smoothness(values: np.ndarray) -> dict[str, float]:
     }
 
 
+def _observed_lightcurve_summary(config, solver_name: str, times_s: np.ndarray, frequencies_hz: np.ndarray) -> dict[str, np.ndarray]:
+    query_config = build_baseline_config(**vars(config))
+    query_config.electron_solver = solver_name
+    if solver_name == "fullhide":
+        query_config.num_gam_e = 161
+    setup = build_query_setup(query_config, times_s, frequencies_hz)
+    state = solve_model_state_from_setup(query_config, setup)
+    observed = observe_spectra_from_setup(query_config, state.component_spectra, setup, frequencies_hz)
+    return {key: np.asarray(value, dtype=float) for key, value in observed.items() if value is not None}
+
+
 def _compute_reference_ssc(config, solver_name: str) -> np.ndarray:
     reference_config = build_baseline_config(**vars(config))
     reference_config.electron_solver = solver_name
@@ -170,6 +182,11 @@ def main() -> None:
     fullhide_ref = _compute_reference_ssc(config, "fullhide")
     slc1_ref = _compute_reference_ssc(config, "slc1")
     high_energy_index = int(np.argmax(v_seed >= 2.4e26)) if np.any(v_seed >= 2.4e26) else v_seed.shape[0] - 1
+    observer_time_s = np.logspace(2.0, 8.0, 80)
+    observer_freq_hz = np.array([1.0e18, 2.4e26], dtype=float)
+    observed_fullhide = _observed_lightcurve_summary(config, "fullhide", observer_time_s, observer_freq_hz)
+    observed_slc1 = _observed_lightcurve_summary(config, "slc1", observer_time_s, observer_freq_hz)
+    observed_mmg2 = _observed_lightcurve_summary(config, "slc1_mmg2", observer_time_s, observer_freq_hz)
 
     payload: dict[str, object] = {
         "config": {
@@ -203,6 +220,39 @@ def main() -> None:
         "diagnostic_nonuniform": {
             "vs_fullhide_highres": _summary_against_reference(nonuniform_ssc, fullhide_ref),
             "vs_slc1_highres": _summary_against_reference(nonuniform_ssc, slc1_ref),
+        },
+        "observed_forward_ssc_lightcurve": {
+            "times_s": {
+                "min": float(observer_time_s[0]),
+                "max": float(observer_time_s[-1]),
+                "count": int(observer_time_s.size),
+            },
+            "frequencies_hz": {
+                "xray": float(observer_freq_hz[0]),
+                "tev": float(observer_freq_hz[1]),
+            },
+            "smoothness": {
+                "fullhide": {
+                    "xray": _high_energy_smoothness(observed_fullhide["fwd_ssc"][0]),
+                    "tev": _high_energy_smoothness(observed_fullhide["fwd_ssc"][1]),
+                },
+                "slc1": {
+                    "xray": _high_energy_smoothness(observed_slc1["fwd_ssc"][0]),
+                    "tev": _high_energy_smoothness(observed_slc1["fwd_ssc"][1]),
+                },
+                "slc1_mmg2": {
+                    "xray": _high_energy_smoothness(observed_mmg2["fwd_ssc"][0]),
+                    "tev": _high_energy_smoothness(observed_mmg2["fwd_ssc"][1]),
+                },
+            },
+            "slc1_mmg2_vs_fullhide": {
+                "xray": _summary_against_reference(observed_mmg2["fwd_ssc"][0], observed_fullhide["fwd_ssc"][0]),
+                "tev": _summary_against_reference(observed_mmg2["fwd_ssc"][1], observed_fullhide["fwd_ssc"][1]),
+            },
+            "slc1_mmg2_vs_slc1": {
+                "xray": _summary_against_reference(observed_mmg2["fwd_ssc"][0], observed_slc1["fwd_ssc"][0]),
+                "tev": _summary_against_reference(observed_mmg2["fwd_ssc"][1], observed_slc1["fwd_ssc"][1]),
+            },
         },
     }
 
