@@ -617,3 +617,19 @@ plot_spectrum(result, times_s=[1e3, 1e4, 1e5], quantity="nufnu")
 4. 测试继续前移
    - 将更多 API 契约和绘图输出检查固定到 `tests/`
    - 保持每轮重构后先做接口回归，再做物理曲线回归
+
+## 15. 2026-04 MMG2 Front Update
+
+- `mmg2` 激波前沿抹峰问题已经进入数值层修正，不再接受非数值绕过。
+- 本轮已修改 `src/Electron/electron_common.f90`：
+  - `electron_find_high_energy_front(...)` 改为优先跟踪峰值后的最大下降梯度位置。
+  - `electron_anchor_high_energy_edges(...)` 改为给高能前沿留更密的局部锚带，并增加尾部单元数。
+- 新增 `tests/mmg2_front_sharpness_check.py`，输出 `fullhide/slc1/slc1_mmg2` 以及 `mmg2 public/work-grid` 的前沿指标。
+- 本轮 Fortran 改动已完成 line truncation 复查，并通过手工 `gfortran -c` 链式编译检查。
+- 当前 Windows + Python 3.12 + `numpy.f2py/meson` 对 `FS_electron_slc1` 仍存在 Fortran module 依赖排序问题：`calling_modules.f90` 会早于 `electron_common.mod` 被编译。
+- 为保持最少必要编译与回归，本轮采用“手工最小 `f2py` wrapper + 手工链接”生成新的 `src/Electron/FS_electron_slc1.cp312-win_amd64.pyd` 运行时，只暴露当前主线所需的 `fs_electron_slc1/fs_electron_slc1_mmg2`。
+- 当前主线验收文件：
+  - `output/asgard_doc/mmg2_front_sharpness.json`
+  - `output/asgard_doc/mmg2_front_old.npz`
+  - `output/asgard_doc/mmg2_front_new.npz`
+  - `output/asgard_doc/mmg2_front_observed_compare.png`
