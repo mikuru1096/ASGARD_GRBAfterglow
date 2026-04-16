@@ -1714,31 +1714,37 @@ subroutine electron_prepare_radiation_spectrum(Num_gam_e,gam_e,dN_gam_e,Num_gam_
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: Num_gam_e
     integer, intent(out) :: Num_gam_rad
-    integer :: I_gam_e,first_pos,last_pos,n_active,m_target,n_resampled,info
+    integer :: I_gam_e,left_pos,right_pos,first_pos,last_pos,n_active,m_target,n_resampled,info
     integer :: idx(Num_gam_e),out_idx,src_idx,last_added_idx
     real(8), intent(in) :: gam_e(Num_gam_e),dN_gam_e(Num_gam_e)
     real(8), intent(out) :: gam_e_rad(Num_gam_e),dN_gam_e_rad(Num_gam_e)
 
+    first_pos = 0
+    last_pos = 0
+    left_pos = 1
+    right_pos = Num_gam_e
+    do while (left_pos <= right_pos .and. (first_pos == 0 .or. last_pos == 0))
+        if (first_pos == 0) then
+            if (dN_gam_e(left_pos) > zero) then
+                first_pos = left_pos
+            else
+                left_pos = left_pos + 1
+            end if
+        end if
+
+        if (last_pos == 0 .and. right_pos >= left_pos) then
+            if (dN_gam_e(right_pos) > zero) then
+                last_pos = right_pos
+            else
+                right_pos = right_pos - 1
+            end if
+        end if
+    end do
+
     gam_e_rad = gam_e
     dN_gam_e_rad = dN_gam_e
     Num_gam_rad = Num_gam_e
-
-    first_pos = 0
-    do I_gam_e = 1, Num_gam_e
-        if (dN_gam_e(I_gam_e) > zero) then
-            first_pos = I_gam_e
-            exit
-        end if
-    end do
     if (first_pos == 0) return
-
-    last_pos = first_pos
-    do I_gam_e = Num_gam_e, first_pos, -1
-        if (dN_gam_e(I_gam_e) > zero) then
-            last_pos = I_gam_e
-            exit
-        end if
-    end do
 
     n_active = last_pos - first_pos + 1
     if (n_active <= radiation_resample_threshold) return
@@ -1749,6 +1755,9 @@ subroutine electron_prepare_radiation_spectrum(Num_gam_e,gam_e,dN_gam_e,Num_gam_
     call adaptive_resampling_log(gam_e(first_pos:last_pos), dN_gam_e(first_pos:last_pos), n_active, &
                                  m_target, radiation_resample_smoothness, idx(1:m_target), n_resampled, info)
     if (info /= 0 .or. n_resampled <= 0) return
+
+    gam_e_rad = zero
+    dN_gam_e_rad = zero
 
     out_idx = 0
     if (first_pos > 1) then

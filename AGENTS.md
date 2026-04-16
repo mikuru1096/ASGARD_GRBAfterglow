@@ -991,3 +991,30 @@ plot_spectrum(result, times_s=[1e3, 1e4, 1e5], quantity="nufnu")
 - 当前下一步仍是：
   - 看 nonuniform-density adaptive 分支是否也有可提前裁步的纯调度开销
   - 或继续下探 `electron_prepare_radiation_spectrum(...)` 的触发频率与扫描次数
+
+## 33. 2026-04 Charint And Radiation Prep Follow-up
+
+- 本轮已把上一轮的两个后续性能点都实际推进：
+  - `src/Electron/FS_electron_charint.f90`
+  - `src/Electron/electron_common.f90::electron_prepare_radiation_spectrum(...)`
+- `FS_electron_charint.f90`
+  - adaptive while-loop 现在在进入 uniform / nonuniform 分支前统一先做几何上界裁步
+  - nonuniform-density 分支在步长被拒绝时，不再固定 `0.5*dR_try`
+  - 现改为按 `step_limit / step_error` 比例直接缩步，再夹到 `dR_min`
+  - 目的仍是减少纯调度性空转，不改接受判据本身
+- `electron_prepare_radiation_spectrum(...)`
+  - 不再一进子程序就无条件整段复制 `gam_e/dN_gam_e`
+  - 先用双端扫描找 `first_pos/last_pos`
+  - 只有在确认“不需要重采样”时才走整段保留路径
+  - 真正进入重采样路径后，输出数组再单独写入并把尾部清零
+  - 这样减少了高频调用下的无效整段拷贝
+- 本轮最小验证：
+  - `python build_extensions.py --module FS_electron_charint --force` 通过
+  - `python build_extensions.py --module FS_electron_fullhide --force` 通过
+  - `src/Electron/FS_electron_charint.f90` 与 `src/Electron/electron_common.f90` 的长行扫描当前为空
+- 当前方向确认：
+  - `plan.md` 的主线仍应理解为三件事
+    - 维持 compiled fast-path
+    - 维持新用户最小入口
+    - 维持 benchmark / plot 入口
+  - 当前这轮继续压电子核纯开销，仍符合这个方向，没有回到旧接口树或旧验证树

@@ -191,12 +191,12 @@ subroutine fs_electron_charint(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,N
             do while (dR_left > zero)
                 dR_try=min(dR_try,dR_left)
                 if (dR_left < 1.5d0*dR_try) dR_try=dR_left
+                step_limit=charint_substep_rtol_relax*substep_rtol
+                if (step_limit > zero) then
+                    dR_cap=step_limit*max(R_loc,1d-30)/max(one-0.5d0*step_limit,0.5d0)
+                    if (dR_cap > dR_min) dR_try=min(dR_try,dR_cap)
+                end if
                 if (is_uniform_density) then
-                    step_limit=charint_substep_rtol_relax*substep_rtol
-                    if (step_limit > zero) then
-                        dR_cap=step_limit*max(R_loc,1d-30)/max(one-0.5d0*step_limit,0.5d0)
-                        if (dR_cap > dR_min) dR_try=min(dR_try,dR_cap)
-                    end if
                     R_mid=R_loc+0.5d0*dR_try
                     step_error=dR_try/max(R_mid,1d-30)
                     if (step_error > charint_substep_rtol_relax*substep_rtol .and. dR_try > dR_min) then
@@ -223,7 +223,7 @@ subroutine fs_electron_charint(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,N
                     call electron_external_density(A_star,dNe_ISM,R_mid,R0,R_tr,f_jump,f_wide,1,dNe_mid)
                     step_error=max(dR_try/max(R_mid,1d-30),abs(dNe_right-dNe)/max(abs(dNe),1d-99))
                     if (step_error > charint_substep_rtol_relax*substep_rtol .and. dR_try > dR_min) then
-                        dR_try=max(0.5d0*dR_try,dR_min)
+                        dR_try=max(0.9d0*step_limit*dR_try/max(step_error,1d-30),dR_min)
                         cycle
                     end if
 
