@@ -276,6 +276,24 @@ subroutine electron_conservative_remap_export_nonuniform(Num_gam_e,x_edge_old,x_
     call electron_conservative_remap_nonuniform(Num_gam_e,x_edge_old,x_edge_new,q_old,q_new)
 end subroutine electron_conservative_remap_export_nonuniform
 
+subroutine electron_conservative_remap_log_nonuniform_prepared(Num_gam_e,x_edge_old,x_edge_new,prefix,qlog,slope,x_center,q_new)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: Num_gam_e
+    integer :: I_gam_e
+    real(8), intent(in) :: x_edge_old(Num_gam_e+1),x_edge_new(Num_gam_e+1)
+    real(8), intent(in) :: prefix(0:Num_gam_e),qlog(Num_gam_e),slope(Num_gam_e),x_center(Num_gam_e)
+    real(8), intent(out) :: q_new(Num_gam_e)
+    real(8) :: dx_cell
+
+    do I_gam_e=1,Num_gam_e
+        dx_cell=max(x_edge_new(I_gam_e+1)-x_edge_new(I_gam_e),1d-30)
+        q_new(I_gam_e)= &
+            (electron_log_prefix_eval_nonuniform(Num_gam_e,x_edge_old,prefix,qlog,slope,x_center,x_edge_new(I_gam_e+1)) - &
+             electron_log_prefix_eval_nonuniform(Num_gam_e,x_edge_old,prefix,qlog,slope,x_center,x_edge_new(I_gam_e)))/dx_cell
+    end do
+    q_new=max(zero,q_new)
+end subroutine electron_conservative_remap_log_nonuniform_prepared
+
 real(8) function electron_loglinear_cell_int(qlog_center,slope,x_center,xa,xb)
     implicit real(8)(A-H,O-Z)
     real(8), intent(in) :: qlog_center,slope,x_center,xa,xb
@@ -350,19 +368,12 @@ end function electron_log_prefix_eval_nonuniform
 subroutine electron_conservative_remap_log_nonuniform(Num_gam_e,x_edge_old,x_edge_new,q_old,q_new)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: Num_gam_e
-    integer :: I_gam_e
     real(8), intent(in) :: x_edge_old(Num_gam_e+1),x_edge_new(Num_gam_e+1),q_old(Num_gam_e)
     real(8), intent(out) :: q_new(Num_gam_e)
-    real(8) :: prefix(0:Num_gam_e),qlog(Num_gam_e),slope(Num_gam_e),x_center(Num_gam_e),dx_cell
+    real(8) :: prefix(0:Num_gam_e),qlog(Num_gam_e),slope(Num_gam_e),x_center(Num_gam_e)
 
     call electron_log_prefix_nonuniform(Num_gam_e,x_edge_old,q_old,prefix,qlog,slope,x_center)
-    do I_gam_e=1,Num_gam_e
-        dx_cell=max(x_edge_new(I_gam_e+1)-x_edge_new(I_gam_e),1d-30)
-        q_new(I_gam_e)= &
-            (electron_log_prefix_eval_nonuniform(Num_gam_e,x_edge_old,prefix,qlog,slope,x_center,x_edge_new(I_gam_e+1)) - &
-             electron_log_prefix_eval_nonuniform(Num_gam_e,x_edge_old,prefix,qlog,slope,x_center,x_edge_new(I_gam_e)))/dx_cell
-    end do
-    q_new=max(zero,q_new)
+    call electron_conservative_remap_log_nonuniform_prepared(Num_gam_e,x_edge_old,x_edge_new,prefix,qlog,slope,x_center,q_new)
 end subroutine electron_conservative_remap_log_nonuniform
 
 subroutine electron_semi_lagrangian_transport_nonuniform(Num_gam_e,dDR,x_edge,face_coeff,dN_x_in,dN_x_out)
@@ -792,26 +803,28 @@ subroutine electron_characteristic_step_affine_u(Num_gam_e,dDR,x_edge,a_u,b_u,dF
     call electron_trace_affine_u_edges_batch(Num_gam_e,charint_quad_order+1,u_now_edge,lag_arr,a_u,b_u,x_back_batch)
 
     x_back=x_back_batch(:,1)
-    call electron_conservative_remap_nonuniform_prepared(Num_gam_e,x_edge,x_back,dN_x_in,q_left_state,q_right_state,prefix_state,dN_transport)
+    call electron_conservative_remap_nonuniform_prepared(Num_gam_e,x_edge,x_back,dN_x_in, &
+                                                         q_left_state,q_right_state,prefix_state,dN_transport)
 
     dN_source=zero
     do I_quad=1,charint_quad_order
         x_back=x_back_batch(:,I_quad+1)
-        call electron_conservative_remap_nonuniform_prepared(Num_gam_e,x_edge,x_back,dF1,q_left_source,q_right_source,prefix_source,dN_quad)
+        call electron_conservative_remap_nonuniform_prepared(Num_gam_e,x_edge,x_back,dF1, &
+                                                             q_left_source,q_right_source,prefix_source,dN_quad)
         dN_source=dN_source+charint_quad_weights(I_quad)*dN_quad
     end do
     dN_x_out=max(zero,dN_transport+dDR*dN_source)
 end subroutine electron_characteristic_step_affine_u
 
 subroutine electron_characteristic_step_affine_u_prepared_source(Num_gam_e,dDR,x_edge,a_u,b_u,source_scale, &
-                                                                 dF1_shape,q_left_source,q_right_source, &
-                                                                 prefix_source,dN_x_in,dN_x_out)
+                                                                 prefix_source,qlog_source,slope_source,x_center_source, &
+                                                                 dN_x_in,dN_x_out)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: Num_gam_e
     integer :: I_quad
     real(8), intent(in) :: dDR,x_edge(Num_gam_e+1),a_u,b_u,source_scale
-    real(8), intent(in) :: dF1_shape(Num_gam_e),q_left_source(Num_gam_e),q_right_source(Num_gam_e)
-    real(8), intent(in) :: prefix_source(0:Num_gam_e),dN_x_in(Num_gam_e)
+    real(8), intent(in) :: prefix_source(0:Num_gam_e),qlog_source(Num_gam_e),slope_source(Num_gam_e),x_center_source(Num_gam_e)
+    real(8), intent(in) :: dN_x_in(Num_gam_e)
     real(8), intent(out) :: dN_x_out(Num_gam_e)
     real(8) :: x_back(Num_gam_e+1),u_now_edge(Num_gam_e+1),lag_arr(charint_quad_order+1)
     real(8) :: x_back_batch(Num_gam_e+1,charint_quad_order+1)
@@ -828,12 +841,14 @@ subroutine electron_characteristic_step_affine_u_prepared_source(Num_gam_e,dDR,x
     call electron_trace_affine_u_edges_batch(Num_gam_e,charint_quad_order+1,u_now_edge,lag_arr,a_u,b_u,x_back_batch)
 
     x_back=x_back_batch(:,1)
-    call electron_conservative_remap_nonuniform_prepared(Num_gam_e,x_edge,x_back,dN_x_in,q_left_state,q_right_state,prefix_state,dN_transport)
+    call electron_conservative_remap_nonuniform_prepared(Num_gam_e,x_edge,x_back,dN_x_in, &
+                                                         q_left_state,q_right_state,prefix_state,dN_transport)
 
     dN_source=zero
     do I_quad=1,charint_quad_order
         x_back=x_back_batch(:,I_quad+1)
-        call electron_conservative_remap_nonuniform_prepared(Num_gam_e,x_edge,x_back,dF1_shape,q_left_source,q_right_source,prefix_source,dN_quad)
+        call electron_conservative_remap_log_nonuniform_prepared(Num_gam_e,x_edge,x_back,prefix_source,qlog_source,slope_source, &
+                                                                 x_center_source,dN_quad)
         dN_source=dN_source+charint_quad_weights(I_quad)*dN_quad
     end do
     dN_x_out=max(zero,dN_transport+dDR*source_scale*dN_source)
@@ -860,29 +875,32 @@ subroutine electron_characteristic_step_piecewise_u(Num_gam_e,dDR,x_edge,gam_e,d
     do I_quad=1,charint_quad_order
         lag_arr(I_quad+1)=charint_quad_nodes(I_quad)*dDR
     end do
-    call electron_trace_piecewise_affine_u_edges_batch(Num_gam_e,charint_quad_order+1,u_edge,u_edge,a_cell,b_cell,lag_arr,x_back_batch)
+    call electron_trace_piecewise_affine_u_edges_batch(Num_gam_e,charint_quad_order+1,u_edge,u_edge, &
+                                                       a_cell,b_cell,lag_arr,x_back_batch)
 
     x_back=x_back_batch(:,1)
-    call electron_conservative_remap_nonuniform_prepared(Num_gam_e,x_edge,x_back,dN_x_in,q_left_state,q_right_state,prefix_state,dN_transport)
+    call electron_conservative_remap_nonuniform_prepared(Num_gam_e,x_edge,x_back,dN_x_in, &
+                                                         q_left_state,q_right_state,prefix_state,dN_transport)
 
     dN_source=zero
     do I_quad=1,charint_quad_order
         x_back=x_back_batch(:,I_quad+1)
-        call electron_conservative_remap_nonuniform_prepared(Num_gam_e,x_edge,x_back,dF1,q_left_source,q_right_source,prefix_source,dN_quad)
+        call electron_conservative_remap_nonuniform_prepared(Num_gam_e,x_edge,x_back,dF1, &
+                                                             q_left_source,q_right_source,prefix_source,dN_quad)
         dN_source=dN_source+charint_quad_weights(I_quad)*dN_quad
     end do
     dN_x_out=max(zero,dN_transport+dDR*dN_source)
 end subroutine electron_characteristic_step_piecewise_u
 
 subroutine electron_characteristic_step_piecewise_u_prepared_source(Num_gam_e,dDR,x_edge,gam_e,dEl,R_loc,source_scale, &
-                                                                    dF1_shape,q_left_source,q_right_source, &
-                                                                    prefix_source,dN_x_in,dN_x_out)
+                                                                    prefix_source,qlog_source,slope_source,x_center_source, &
+                                                                    dN_x_in,dN_x_out)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: Num_gam_e
     integer :: I_quad
     real(8), intent(in) :: dDR,x_edge(Num_gam_e+1),gam_e(Num_gam_e),dEl(Num_gam_e),R_loc,source_scale
-    real(8), intent(in) :: dF1_shape(Num_gam_e),q_left_source(Num_gam_e),q_right_source(Num_gam_e)
-    real(8), intent(in) :: prefix_source(0:Num_gam_e),dN_x_in(Num_gam_e)
+    real(8), intent(in) :: prefix_source(0:Num_gam_e),qlog_source(Num_gam_e),slope_source(Num_gam_e),x_center_source(Num_gam_e)
+    real(8), intent(in) :: dN_x_in(Num_gam_e)
     real(8), intent(out) :: dN_x_out(Num_gam_e)
     real(8) :: x_back(Num_gam_e+1),u_edge(Num_gam_e+1),a_cell(Num_gam_e),b_cell(Num_gam_e)
     real(8) :: lag_arr(charint_quad_order+1),x_back_batch(Num_gam_e+1,charint_quad_order+1)
@@ -896,15 +914,18 @@ subroutine electron_characteristic_step_piecewise_u_prepared_source(Num_gam_e,dD
     do I_quad=1,charint_quad_order
         lag_arr(I_quad+1)=charint_quad_nodes(I_quad)*dDR
     end do
-    call electron_trace_piecewise_affine_u_edges_batch(Num_gam_e,charint_quad_order+1,u_edge,u_edge,a_cell,b_cell,lag_arr,x_back_batch)
+    call electron_trace_piecewise_affine_u_edges_batch(Num_gam_e,charint_quad_order+1,u_edge,u_edge, &
+                                                       a_cell,b_cell,lag_arr,x_back_batch)
 
     x_back=x_back_batch(:,1)
-    call electron_conservative_remap_nonuniform_prepared(Num_gam_e,x_edge,x_back,dN_x_in,q_left_state,q_right_state,prefix_state,dN_transport)
+    call electron_conservative_remap_nonuniform_prepared(Num_gam_e,x_edge,x_back,dN_x_in, &
+                                                         q_left_state,q_right_state,prefix_state,dN_transport)
 
     dN_source=zero
     do I_quad=1,charint_quad_order
         x_back=x_back_batch(:,I_quad+1)
-        call electron_conservative_remap_nonuniform_prepared(Num_gam_e,x_edge,x_back,dF1_shape,q_left_source,q_right_source,prefix_source,dN_quad)
+        call electron_conservative_remap_log_nonuniform_prepared(Num_gam_e,x_edge,x_back,prefix_source,qlog_source,slope_source, &
+                                                                 x_center_source,dN_quad)
         dN_source=dN_source+charint_quad_weights(I_quad)*dN_quad
     end do
     dN_x_out=max(zero,dN_transport+dDR*source_scale*dN_source)

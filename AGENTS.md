@@ -884,3 +884,29 @@ plot_spectrum(result, times_s=[1e3, 1e4, 1e5], quantity="nufnu")
   - 先按真实职责改名，再考虑压短
   - 不为“看起来统一”制造新包装层
   - 公开物理对象名谨慎处理，优先先改内部高频函数
+
+## 29. 2026-04 Charint Source Remap Update
+
+- 本轮 `charint` 数值核已继续下沉到 source 积分链，不再只停留在 Python 侧整理。
+- 当前改动范围仅限 prepared-source 路径：
+  - `src/Electron/FS_electron_charint.f90`
+  - `src/Electron/electron_common.f90`
+- 已做的数值改动：
+  - `dF1_shape` 的 prepared remap 不再走普通 PPM 接口值 `q_left/q_right/prefix` 组合。
+  - 当前改为：
+    - 先对正定源项形状做 `electron_log_prefix_nonuniform(...)`
+    - 再在 prepared-source characteristic step 里用 `electron_conservative_remap_log_nonuniform_prepared(...)` 做回溯边界积分
+  - `dN_x` 主输运 remap 仍保留原有 conservative remap，不混改 transport 链。
+- 本轮目的不是加保护，而是让指数 cutoff 源项的重映射与其正定、陡尾结构更匹配，优先缩小 source 积分带来的尾部与 cutoff 离散误差。
+- 本轮编译检查结果：
+  - 固定环境下 `python build_extensions.py --module FS_electron_charint --force` 通过
+  - 仍先触发 `f2py/meson` 失败，再由 ordered-object fallback 成功生成 `.pyd`
+  - 改动文件已做长行扫描，当前未留下 `>132` 字符的新增长行
+- 本轮最小 smoke：
+  - 通过 `import src` 加载 MinGW DLL 路径后，`FS_electron_charint` 可正常导入
+  - `fs_electron_charint`
+  - `fs_electron_charint_affine_step_test`
+- 后续 `charint` 主线继续按这个顺序推进：
+  - 先看 source-shape log-remap 对谱尾和平滑性的实际改善
+  - 再决定是否继续处理 PPM state remap / cutoff edge builder
+  - 不在非数值层补保护

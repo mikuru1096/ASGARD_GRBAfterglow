@@ -428,7 +428,7 @@ class Setups:
 
 
 @dataclass
-class BranchView:
+class FluxPair:
     sync: np.ndarray
     ssc: np.ndarray
 
@@ -438,7 +438,7 @@ class BranchView:
 
 
 @dataclass
-class DetailView:
+class CharTrack:
     t_obs: np.ndarray
     radius: np.ndarray
     Gamma: np.ndarray
@@ -452,25 +452,25 @@ class DetailView:
 
 
 @dataclass
-class ModelDetails:
-    fwd: DetailView
-    rev: Optional[DetailView]
+class TrackBundle:
+    fwd: CharTrack
+    rev: Optional[CharTrack]
     patches: list[dict[str, float]]
 
     @property
-    def rvs(self) -> Optional[DetailView]:
+    def rvs(self) -> Optional[CharTrack]:
         return self.rev
 
 
 @dataclass
-class ModelFluxResult:
+class FluxResult:
     total: np.ndarray
-    fwd: BranchView
-    rev: BranchView
+    fwd: FluxPair
+    rev: FluxPair
     cross_ic: Optional[np.ndarray]
 
     @property
-    def rvs(self) -> BranchView:
+    def rvs(self) -> FluxPair:
         return self.rev
 
     @property
@@ -496,7 +496,7 @@ class SkyImage:
 
 
 @dataclass
-class ObsData:
+class ObsSet:
     flux_density: list[dict[str, Any]] = field(default_factory=list)
     spectrum: list[dict[str, Any]] = field(default_factory=list)
     flux: list[dict[str, Any]] = field(default_factory=list)
@@ -592,7 +592,7 @@ class ObsData:
                 indices.append(idx)
         return np.asarray(sorted(set(indices)), dtype=int)
 
-class ParamDef:
+class Param:
     def __init__(self, name: str, *args, scale: Scale = Scale.LINEAR) -> None:
         self.name = name
         self.path: Optional[str]
@@ -609,7 +609,7 @@ class ParamDef:
             if len(args) >= 3:
                 scale = args[2]
         else:
-            raise TypeError("ParamDef requires either (name, path, lower, upper, scale) or (name, lower, upper, scale).")
+            raise TypeError("Param requires either (name, path, lower, upper, scale) or (name, lower, upper, scale).")
         self.scale = Scale(scale)
 
     def transform(self, value: float) -> float:
@@ -633,6 +633,14 @@ class FitResult:
     logzerr: Optional[float] = None
     labels: Optional[list[str]] = None
     top_k_params: Optional[list[dict[str, float]]] = None
+
+
+BranchView = FluxPair
+DetailView = CharTrack
+ModelDetails = TrackBundle
+ModelFluxResult = FluxResult
+ObsData = ObsSet
+ParamDef = Param
 
 
 class Model:
