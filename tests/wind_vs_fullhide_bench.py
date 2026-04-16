@@ -23,7 +23,7 @@ OUTPUT_PNG = OUTPUT_DIR / "slc1_wind_benchmark_compare.png"
 OUTPUT_PDF = OUTPUT_DIR / "slc1_wind_benchmark_compare.pdf"
 
 
-def _build_wind_model(solver: str) -> Model:
+def _build_solver_model(solver: str) -> Model:
     return Model(
         TophatJet(theta_c=0.1, E_iso=1.0e52, Gamma0=300.0),
         Wind(A_star=0.1, n0=1.0),
@@ -46,14 +46,14 @@ def _run_case(name, fn):
 
 def _cases_for_solver(solver: str) -> list[dict]:
     def case_quickstart():
-        model = _build_wind_model(solver)
+        model = _build_solver_model(solver)
         value = model.flux_density(np.array([1.0e4]), np.array([1.0e14])).total
         assert value.shape == (1,)
         assert np.all(np.isfinite(value))
         return {"shape": list(value.shape), "value": float(value[0])}
 
     def case_lightcurve_grid():
-        model = _build_wind_model(solver)
+        model = _build_solver_model(solver)
         times = np.logspace(2.0, 8.0, 100)
         bands = np.array([1.0e9, 1.0e14, 1.0e18])
         grid = model.flux_density_grid(times, bands).total
@@ -62,7 +62,7 @@ def _cases_for_solver(solver: str) -> list[dict]:
         return {"shape": list(grid.shape), "peak": float(np.max(grid))}
 
     def case_spectrum_grid():
-        model = _build_wind_model(solver)
+        model = _build_solver_model(solver)
         times = np.array([1.0e3, 1.0e5, 1.0e7])
         freqs = np.logspace(9.0, 22.0, 100)
         grid = model.flux_density_grid(times, freqs).total
@@ -71,7 +71,7 @@ def _cases_for_solver(solver: str) -> list[dict]:
         return {"shape": list(grid.shape), "peak": float(np.max(grid))}
 
     def case_pairs():
-        model = _build_wind_model(solver)
+        model = _build_solver_model(solver)
         times = np.logspace(2.0, 8.0, 128)
         freqs = np.logspace(9.0, 18.0, 128)
         values = model.flux_density(times, freqs).total
@@ -80,7 +80,7 @@ def _cases_for_solver(solver: str) -> list[dict]:
         return {"shape": list(values.shape), "median": float(np.median(values))}
 
     def case_exposures():
-        model = _build_wind_model(solver)
+        model = _build_solver_model(solver)
         times = np.logspace(2.0, 6.0, 32)
         freqs = np.full(times.shape, 1.0e14)
         exposures = 0.2 * times
@@ -90,7 +90,7 @@ def _cases_for_solver(solver: str) -> list[dict]:
         return {"shape": list(values.shape), "median": float(np.median(values))}
 
     def case_details():
-        model = _build_wind_model(solver)
+        model = _build_solver_model(solver)
         details = model.details(t_min=1.0e2, t_max=1.0e6)
         assert details.fwd.t_obs.ndim == 1
         assert np.all(np.isfinite(details.fwd.t_obs))
@@ -98,7 +98,7 @@ def _cases_for_solver(solver: str) -> list[dict]:
         return {"n_t": int(details.fwd.t_obs.shape[0]), "n_patches": len(details.patches)}
 
     def case_fitter_cfg():
-        truth_model = _build_wind_model(solver)
+        truth_model = _build_solver_model(solver)
         times = np.logspace(2.0, 4.0, 8)
         freqs = np.full(times.shape, 1.0e14)
         flux = truth_model.flux_density(times, freqs).total
@@ -132,7 +132,7 @@ def _cases_for_solver(solver: str) -> list[dict]:
         return {"best_loglike": float(result.best_loglike), "best_params": result.best_params}
 
     def case_sky_image():
-        model = _build_wind_model(solver)
+        model = _build_solver_model(solver)
         t_obs = np.array([1.0e6])
         nu_obs = 1.0e9
         img = model.sky_image(t_obs, nu_obs=nu_obs, fov=500.0 * units.uas, npixel=64)
@@ -157,7 +157,7 @@ def _cases_for_solver(solver: str) -> list[dict]:
     return [_run_case(name, fn) for name, fn in cases]
 
 
-def _plot(results: dict[str, list[dict]]) -> None:
+def _plot_compare(results: dict[str, list[dict]]) -> None:
     names = [item["name"] for item in results["fullhide"]]
     fullhide_seconds = np.array([item["seconds"] for item in results["fullhide"]], dtype=float)
     slc1_seconds = np.array([item["seconds"] for item in results["slc1"]], dtype=float)
@@ -192,7 +192,7 @@ def main() -> None:
     with OUTPUT_JSON.open("w", encoding="utf-8") as fh:
         json.dump(results, fh, indent=2, ensure_ascii=False)
 
-    _plot(results)
+    _plot_compare(results)
 
     print(OUTPUT_JSON)
     print(OUTPUT_PNG)

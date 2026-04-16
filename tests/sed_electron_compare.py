@@ -144,7 +144,7 @@ def _collect_electron(model: Model) -> tuple[np.ndarray, np.ndarray]:
     return ELECTRON_TARGET_GAMMA, electron_grid
 
 
-def _collect() -> dict[str, dict[str, np.ndarray]]:
+def _collect_compare_data() -> dict[str, dict[str, np.ndarray]]:
     data: dict[str, dict[str, np.ndarray]] = {}
     for medium_name in MEDIA:
         data[medium_name] = {}
@@ -160,7 +160,7 @@ def _collect() -> dict[str, dict[str, np.ndarray]]:
     return data
 
 
-def _plot(data: dict[str, dict[str, np.ndarray | dict[str, np.ndarray]]]) -> None:
+def _plot_compare(data: dict[str, dict[str, np.ndarray | dict[str, np.ndarray]]]) -> None:
     plt.rcParams.update(PLOT_STYLE)
     colors = {1.0e3: "#1f77b4", 1.0e5: "#ff7f0e", 1.0e7: "#2ca02c"}
     linestyles = {"fullhide": "-", "slc1": "--", "charint": "-."}
@@ -236,7 +236,7 @@ def _plot(data: dict[str, dict[str, np.ndarray | dict[str, np.ndarray]]]) -> Non
 
 def main() -> None:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    data = _collect()
+    data = _collect_compare_data()
     np.savez(
         OUTPUT_NPZ,
         times=TIMES,
@@ -255,7 +255,7 @@ def main() -> None:
         wind_electron_slc1=data["wind"]["slc1"]["electron"],
         wind_electron_charint=data["wind"]["charint"]["electron"],
     )
-    _plot(data)
+    _plot_compare(data)
     print(OUTPUT_NPZ)
     print(OUTPUT_PNG)
     print(OUTPUT_PDF)

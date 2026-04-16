@@ -5,17 +5,17 @@
 - 生产推断快路径已经接入，不再依赖旧的逐数据集重复求值。
 - 当前默认推断链：
   - `ASGARD/api.py::observe`
-  - `asgard_inference.py`
-  - `asgard_component_backend.py` 的 `mode="total_only"`
-- `Fitter.loglike()`、`MCMC.py`、`pymultinest_demo.py` 都已经切到 compiled fast-path。
+  - `asgard_fit.py`
+  - `asgard_state.py` 的 `mode="total_only"`
+- `Fitter.loglike()`、`mcmc_fit.py`、`multinest_fit.py` 都已经切到 compiled fast-path。
 - 新用户入口已经收束到少数脚本：
-  - `hand_my.py`
-  - `tests/asgard_readme_benchmark.py`
-  - `tests/asgard_slc1_benchmark.py`
-  - `tests/asgard_slc1_wind_benchmark.py`
-  - `tests/asgard_doc_plots.py`
-  - `tests/electron_exp_tail_doc_style_plots.py`
-  - `tests/electron_exp_tail_spectrum_compare.py`
+  - `lc_spec_demo.py`
+  - `tests/readme_smoke_bench.py`
+  - `tests/slc1_vs_fullhide_bench.py`
+  - `tests/wind_vs_fullhide_bench.py`
+  - `tests/doc_figures.py`
+  - `tests/ic_doc_plots.py`
+  - `tests/sed_electron_compare.py`
 
 ## 2. 已经做完，后续不再重复做
 
@@ -31,8 +31,8 @@
 1. 配置层：`asgard_models.py`
 2. 运行时绑定层：`asgard_runtime.py`
 3. 观测与后处理层：`ASGARD/api.py`、`asgard_postprocess.py`
-4. 采样与推断层：`asgard_inference.py`、`MCMC.py`、`pymultinest_demo.py`
-5. 最小示例层：`hand_my.py`
+4. 采样与推断层：`asgard_fit.py`、`mcmc_fit.py`、`multinest_fit.py`
+5. 最小示例层：`lc_spec_demo.py`
 6. benchmark 与绘图层：`tests/`
 
 ## 4. 后续只保留的工作
@@ -40,12 +40,12 @@
 ### 4.1 推断链
 
 - 继续维持 compiled fast-path 的简单结构。
-- 如果要改推断逻辑，优先改 `asgard_inference.py`，不要再分裂出新入口。
+- 如果要改推断逻辑，优先改 `asgard_fit.py`，不要再分裂出新入口。
 - 如果观测块的复用策略要调整，只允许在当前结构内改，不回到旧的多层调用链。
 
 ### 4.2 新用户入口
 
-- `hand_my.py` 保持为最短可运行 demo。
+- `lc_spec_demo.py` 保持为最短可运行 demo。
 - `tests/` 只保留两类入口：
   - benchmark
   - plot

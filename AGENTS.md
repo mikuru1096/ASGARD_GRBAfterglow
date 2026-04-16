@@ -67,14 +67,14 @@ ASGARD 是一个用于 GRB 余辉建模与拟合的数值代码库。当前仓�
 
 ### 运行与拟合脚本
 
-- `hand_my.py`
+- `lc_spec_demo.py`
   - 最小运行示例。
   - 当前已迁移到新 API，并包含能谱输出调用。
 
-- `MCMC.py`
+- `mcmc_fit.py`
   - MCMC 采样入口，已迁移到新 API。
 
-- `pymultinest_demo.py`
+- `multinest_fit.py`
   - MultiNest 示例入口，已迁移到新 API。
 
 ### 拟合与观测数据
@@ -356,7 +356,7 @@ absorption = (1 - exp(-tau)) / tau
 3. 观测与后处理层：`ASGARD/api.py`、`asgard_postprocess.py`
 4. 绘图层：`asgard_plot.py`
 5. 包门面层：`ASGARD/__init__.py`
-6. 示例与拟合脚本层：`hand_my.py`、`MCMC.py`、`pymultinest_demo.py`
+6. 示例与拟合脚本层：`lc_spec_demo.py`、`mcmc_fit.py`、`multinest_fit.py`
 
 这样做的直接结果是：
 
@@ -410,7 +410,7 @@ python build_extensions.py
 运行示例：
 
 ```powershell
-python hand_my.py
+python lc_spec_demo.py
 ```
 
 回归测试：
@@ -569,8 +569,8 @@ plot_spectrum(result, times_s=[1e3, 1e4, 1e5], quantity="nufnu")
   - `redchi` 计算
   - 稠密能谱后处理
 - `ASGARD/api.py` 现在直接返回 `PhysicalSolution` 后交给后处理层。
-- `hand_my.py`、`MCMC.py`、`pymultinest_demo.py` 已改为 `main()` 入口，导入时不再执行计算。
-- 新增 `asgard_inference.py`，统一 `MCMC.py` 与 `pymultinest_demo.py` 的 `FitConfig` 装配默认值，避免推断脚本默认网格和物理开关继续漂移。
+- `lc_spec_demo.py`、`mcmc_fit.py`、`multinest_fit.py` 已改为 `main()` 入口，导入时不再执行计算。
+- 新增 `asgard_fit.py`，统一 `mcmc_fit.py` 与 `multinest_fit.py` 的 `FitConfig` 装配默认值，避免推断脚本默认网格和物理开关继续漂移。
 - `ASGARD/__init__.py` 现在承担包门面导出。
 - 新增 `tests/legacy_api_check.py`，检查旧接口仍可返回有限 `redchi`，且会发出 `DeprecationWarning`。
 - 新增 `SimulationSetup` 与 `asgard_setup.py`，统一管理：
@@ -601,7 +601,7 @@ plot_spectrum(result, times_s=[1e3, 1e4, 1e5], quantity="nufnu")
 ## 14. 后续重构路线
 
 1. 推断脚本统一
-   - 抽出 `MCMC.py` 与 `pymultinest_demo.py` 的公共参数装配逻辑
+   - 抽出 `mcmc_fit.py` 与 `multinest_fit.py` 的公共参数装配逻辑
    - 避免不同推断脚本继续分叉出不同默认物理设置
 2. 结果对象扩充
    - 评估是否将 FS/RS 的更多中间物理量纳入只读结果对象
@@ -733,7 +733,7 @@ plot_spectrum(result, times_s=[1e3, 1e4, 1e5], quantity="nufnu")
 
 - `tests/order_convergence_check.py`
   - 三组粗阶数网格固定为 `61 / 101 / 161`
-- `tests/electron_exp_tail_spectrum_compare.py`
+- `tests/sed_electron_compare.py`
   - 当前谱图电子网格固定为统一 `121 / 121 / 121`
 - `tests/electron_solver_comparison.py`
   - 当前 benchmark 电子网格固定为统一 `121 / 121 / 121`
@@ -792,20 +792,18 @@ plot_spectrum(result, times_s=[1e3, 1e4, 1e5], quantity="nufnu")
 ## 26. 2026-04 Inference Fastpath Update
 
 - 当前已新增生产推断 fast-path，目标是压缩 Python 调用链开销，而不是改动 Fortran 物理核。
-- `asgard_component_backend.py` 当前已新增 observer-side `mode` 分支：
+- `asgard_state.py` 当前已新增 observer-side `mode` 分支：
   - `full_components`
   - `total_only`
 - 生产推断当前默认走 `total_only`：
   - 只对 `component_spectra.total` 调一次 `Interpolation.sed_interpolation`
   - 不再为 `fwd_sync/fwd_ssc/rev_sync/rev_ssc/cross_ic` 分量逐个做 observer-side 插值
-- `asgard_inference.py` 当前已新增：
-  - `compile_inference_problem(...)`
-  - `evaluate_compiled_loglike(...)`
-  - `populate_inference_config(...)`
-  - `populate_log_inference_config(...)`
-- `evaluate_fit_loglike(config)` 当前已切到 compiled `FitConfig` light-curve fast-path：
-  - `solve_model_state_from_setup(...)`
-  - `observe_flux_grid_from_state(..., mode="total_only")`
+- `asgard_fit.py` 当前已新增：
+  - `compile_problem(...)`
+  - `eval_loglike(...)`
+- `eval_fit(config)` 当前已切到 compiled `FitConfig` light-curve fast-path：
+  - `solve_state_from_setup(...)`
+  - `project_flux_grid(..., mode="total_only")`
   - `combine_multiband_flux(...)`
   - `compute_light_curve_redchi(...)`
 - `ASGARD.api.Fitter.loglike(...)` 当前已切到 compiled observation-block 路径：
@@ -816,17 +814,17 @@ plot_spectrum(result, times_s=[1e3, 1e4, 1e5], quantity="nufnu")
   - 这是有意保留的
   - 原因是不同时间覆盖范围的 dataset 若盲目共用一个 solve grid，会引入可见 observer-side 偏差
   - 当前实现改为“按请求块复用”，优先保证结果与旧路径一致
-- `MCMC.py` 与 `pymultinest_demo.py` 当前已改为：
+- `mcmc_fit.py` 与 `multinest_fit.py` 当前已改为：
   - 进程内只初始化一次 compiled problem
   - 复用单个 `FitConfig` 模板对象
   - 每个参数点评估时仅更新必要字段，再调用 compiled loglike
 - 当前 `tests/` 目录只保留面向新用户的 benchmark / plot 入口：
-  - `tests/asgard_readme_benchmark.py`
-  - `tests/asgard_slc1_benchmark.py`
-  - `tests/asgard_slc1_wind_benchmark.py`
-  - `tests/asgard_doc_plots.py`
-  - `tests/electron_exp_tail_doc_style_plots.py`
-  - `tests/electron_exp_tail_spectrum_compare.py`
+  - `tests/readme_smoke_bench.py`
+  - `tests/slc1_vs_fullhide_bench.py`
+  - `tests/wind_vs_fullhide_bench.py`
+  - `tests/doc_figures.py`
+  - `tests/ic_doc_plots.py`
+  - `tests/sed_electron_compare.py`
 - 旧的深层验证 / inference profile 脚本已经移除，不再作为日常入口：
   - `tests/asgard_comprehensive_validation.py`
   - `tests/asgard_summary_plots.py`
@@ -836,24 +834,22 @@ plot_spectrum(result, times_s=[1e3, 1e4, 1e5], quantity="nufnu")
 ## 26. 2026-04 Inference Fastpath Update
 
 - 生产推断 fast-path 已接入，目标是减少 Python 调用链重复开销，不改 Fortran 物理核公式。
-- `asgard_component_backend.py` 新增观测模式分流：
+- `asgard_state.py` 新增观测模式分流：
   - `mode="full_components"`：保留旧行为，逐分量 observer 插值。
   - `mode="total_only"`：只对 `component_spectra.total` 做一次 observer 插值。
-- `asgard_inference.py` 已新增 compiled 推断入口：
-  - `compile_inference_problem(...)`
-  - `evaluate_compiled_loglike(...)`
-  - `populate_inference_config(...)`
-  - `populate_log_inference_config(...)`
-- `evaluate_fit_loglike(config)` 已改为走 compiled config fast-path。
+- `asgard_fit.py` 已新增 compiled 推断入口：
+  - `compile_problem(...)`
+  - `eval_loglike(...)`
+- `eval_fit(config)` 已改为走 compiled config fast-path。
 - `ASGARD/api.py` 中：
   - `Fitter.loglike(...)` 改为内部转调 compiled 推断入口。
   - `Fitter` 在 `add_flux_density/add_spectrum/add_flux/fit(param_defs|resolution)` 时会失效并重建 compiled 缓存。
-  - 新增 `_compute_total_matrix(...)` 及 direct/patch 的 total-only 观测求值路径，避免推断链默认重复分量插值。
-- `MCMC.py` 与 `pymultinest_demo.py` 已改为：
+  - 新增 `_total_matrix(...)` 及 direct/patch 的 total-only 观测求值路径，避免推断链默认重复分量插值。
+- `mcmc_fit.py` 与 `multinest_fit.py` 已改为：
   - 启动时构建一次 compiled context
-  - 每个参数点仅就地更新配置并调用 `evaluate_compiled_loglike(...)`
+  - 每个参数点仅就地更新配置并调用 `eval_loglike(...)`
   - 不再每点评估时重新构造完整求解入口
-- 当前推断 fast-path 仍保留在 `asgard_inference.py` / `ASGARD.api` 中，供主入口复用；但日常脚本层不再维护单独的 inference profile/check 入口。
+- 当前推断 fast-path 仍保留在 `asgard_fit.py` / `ASGARD.api` 中，供主入口复用；但日常脚本层不再维护单独的 inference profile/check 入口。
 
 ## 27. 2026-04 Plan Compression
 
@@ -868,3 +864,23 @@ plot_spectrum(result, times_s=[1e3, 1e4, 1e5], quantity="nufnu")
   - 生产推断的逐分量 observer 路径
   - 生产推断的逐点评估 `deepcopy(model)` 路径
 - 若结构要变，先同步 `AGENTS.md` 和 `plan.md`，再动代码。
+
+## 28. 2026-04 Naming Cleanup
+
+- 当前 Python 主链已完成一轮按真实职责的重命名，优先覆盖：
+  - 推断模块：`asgard_fit.py`
+  - 状态/观测模块：`asgard_state.py`
+  - 最小 demo：`lc_spec_demo.py`
+  - 采样脚本：`mcmc_fit.py`、`multinest_fit.py`
+  - benchmark / plot 脚本：`tests/readme_smoke_bench.py`、`tests/slc1_vs_fullhide_bench.py`、`tests/wind_vs_fullhide_bench.py`、`tests/doc_figures.py`、`tests/ic_doc_plots.py`、`tests/sed_electron_compare.py`
+- 当前主链内部已压短的高频函数包括：
+  - `compile_problem(...)`
+  - `eval_loglike(...)`
+  - `solve_state_from_setup(...)`
+  - `project_flux_grid(...)`
+  - `_solve_patch_state(...)`
+  - `_total_matrix(...)`
+- 后续命名调整默认规则：
+  - 先按真实职责改名，再考虑压短
+  - 不为“看起来统一”制造新包装层
+  - 公开物理对象名谨慎处理，优先先改内部高频函数

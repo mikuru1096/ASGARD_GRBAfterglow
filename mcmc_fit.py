@@ -3,7 +3,7 @@ import corner
 from schwimmbad import MPIPool
 import numpy as np
 
-from asgard_inference import compile_inference_problem, evaluate_compiled_loglike
+from asgard_fit import compile_problem, eval_loglike
 from asgard_models import FitConfig
 
 
@@ -53,7 +53,7 @@ def lnlike(theta):
     config = _config_from_theta(theta)
     if config is None:
         return -1e308
-    return evaluate_compiled_loglike(_get_compiled_problem(), config)
+    return eval_loglike(_get_compiled_problem(), config)
 
 
 def _config_from_theta(theta):
@@ -76,7 +76,7 @@ def _config_from_theta(theta):
 def _get_compiled_problem():
     global COMPILED_PROBLEM
     if COMPILED_PROBLEM is None:
-        COMPILED_PROBLEM = compile_inference_problem(BASE_CONFIG)
+        COMPILED_PROBLEM = compile_problem(BASE_CONFIG)
     return COMPILED_PROBLEM
 
 

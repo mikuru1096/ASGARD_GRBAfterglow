@@ -9,16 +9,16 @@ from typing import Any, Callable, Optional
 
 import numpy as np
 
-from asgard_component_backend import (
-    ComponentSpectra,
-    build_solve_time_grid,
-    build_query_setup,
-    observe_spectra_from_setup,
-    solve_component_spectra_from_setup,
-    ModelState,
-    observe_flux_grid_from_state,
-    solve_model_state_from_setup,
-    state_covers_request,
+from asgard_state import (
+    FluxComponents,
+    SolveState,
+    covers,
+    make_query_setup,
+    make_tgrid,
+    observe_components_from_setup,
+    project_flux_grid,
+    solve_spectra_from_setup,
+    solve_state_from_setup,
 )
 from asgard_models import FitConfig, ReverseShockConfig, SpectrumOutputConfig, default_num_threads
 from asgard_observables import OUTPUT_BANDS, build_multiband_observer_frequencies, combine_multiband_flux
@@ -805,9 +805,9 @@ class Model:
         times_s = np.asarray(times_s, dtype=float)
         nu_hz = np.asarray(nu_hz, dtype=float)
         if isinstance(self.jet, TophatJet) and self._supports_direct_kernel():
-            model_result = _evaluate_direct_model(self, times_s, nu_hz)
+            model_result = _solve_direct_model(self, times_s, nu_hz)
         else:
-            model_result = _evaluate_patch_model(self, times_s, nu_hz)
+            model_result = _solve_patch_model(self, times_s, nu_hz)
         self._last_details = model_result[1]
         return model_result[0]
 
@@ -816,7 +816,7 @@ class Model:
         if isinstance(self.jet, TophatJet) and self._supports_direct_kernel():
             details = _evaluate_direct_details(self, times_s)
         else:
-            details = _evaluate_patch_details(self, times_s)
+            details = _patch_details(self, times_s)
         self._last_details = details
         return details
 
@@ -849,7 +849,7 @@ class Fitter:
             model = None
         if cfg is None and config_kwargs:
             cfg = config_kwargs
-        self.model = model if model is not None else _coerce_model(cfg)
+        self.model = model if model is not None else _as_model(cfg)
         self.data = ObsData() if data is None else data
         self.params = [] if params is None else list(params)
         self.num_workers = int(num_workers)
@@ -860,18 +860,18 @@ class Fitter:
         for param in self.params:
             if param.name in values or param.is_fixed():
                 raw_value = param.lower if param.is_fixed() else values[param.name]
-                path = _resolve_param_path(model, param)
+                path = _param_path(model, param)
                 _set_dotted_attr(model, path, param.transform(raw_value))
         return model
 
     def loglike(self, values: dict[str, float]) -> float:
         if self._compiled_problem is None:
-            from asgard_inference import compile_inference_problem
+            from asgard_fit import compile_problem
 
-            self._compiled_problem = compile_inference_problem(self.data, self.model, params=self.params)
-        from asgard_inference import evaluate_compiled_loglike
+            self._compiled_problem = compile_problem(self.data, self.model, params=self.params)
+        from asgard_fit import eval_loglike
 
-        return evaluate_compiled_loglike(self._compiled_problem, values)
+        return eval_loglike(self._compiled_problem, values)
 
     def flux_density_grid(self, values: dict[str, float], times_s: np.ndarray, nu_hz: np.ndarray) -> ModelFluxResult:
         return self.build_model(values).flux_density_grid(times_s, nu_hz)
@@ -1072,7 +1072,7 @@ def _model_signature(model: Model) -> str:
     return digest.hexdigest()
 
 
-def _observe_result_from_components(observed: dict[str, np.ndarray | None]) -> ModelFluxResult:
+def _pack_flux(observed: dict[str, np.ndarray | None]) -> ModelFluxResult:
     total = np.asarray(observed["total"], dtype=float)
     fwd_sync = np.zeros_like(total) if observed["fwd_sync"] is None else np.asarray(observed["fwd_sync"], dtype=float)
     fwd_ssc = np.zeros_like(total) if observed["fwd_ssc"] is None else np.asarray(observed["fwd_ssc"], dtype=float)
@@ -1087,23 +1087,23 @@ def _observe_result_from_components(observed: dict[str, np.ndarray | None]) -> M
     )
 
 
-def _observe_state(
-    state: ModelState,
+def _observe_parts(
+    state: SolveState,
     times_s: np.ndarray,
     nu_hz: np.ndarray,
     mode: str = "full_components",
 ) -> ModelFluxResult:
-    observed_state = observe_flux_grid_from_state(state, times_s, nu_hz, mode=mode)
-    return _observe_result_from_components(observed_state.components)
+    observed_state = project_flux_grid(state, times_s, nu_hz, mode=mode)
+    return _pack_flux(observed_state.components)
 
 
-def _observe_total_state(
-    state: ModelState,
+def _observe_total(
+    state: SolveState,
     times_s: np.ndarray,
     nu_hz: np.ndarray,
     timings: Optional[dict[str, float]] = None,
 ) -> np.ndarray:
-    observed_state = observe_flux_grid_from_state(state, times_s, nu_hz, timings=timings, mode="total_only")
+    observed_state = project_flux_grid(state, times_s, nu_hz, timings=timings, mode="total_only")
     return np.asarray(observed_state.components["total"], dtype=float)
 
 
@@ -1633,14 +1633,14 @@ def _adaptive_exposure_average(
     )
 
 
-def _resolve_patch_state(
+def _solve_patch_state(
     model: Model,
     config: FitConfig,
     times_s: np.ndarray,
     requested_frequencies_hz: np.ndarray | None,
     timings: Optional[dict[str, float]] = None,
-) -> ModelState:
-    solve_times_s = build_solve_time_grid(times_s, model.setups.num_tobs)
+) -> SolveState:
+    solve_times_s = make_tgrid(times_s, model.setups.num_tobs)
     if requested_frequencies_hz is not None:
         solve_t_min = min(float(model.setups.observer_time_min_s), float(np.min(times_s)))
         solve_count = max(int(model.setups.num_tobs), int(np.unique(times_s).size))
@@ -1657,8 +1657,8 @@ def _resolve_patch_state(
                 log_t_max = log_t_max_requested + log_step
             solve_t_max = 10.0**log_t_max
         solve_times_s = np.logspace(np.log10(solve_t_min), np.log10(solve_t_max), solve_count)
-    setup = build_query_setup(config, solve_times_s, requested_frequencies_hz)
-    state = solve_model_state_from_setup(
+    setup = make_query_setup(config, solve_times_s, requested_frequencies_hz)
+    state = solve_state_from_setup(
         config,
         setup,
         timings=timings,
@@ -1667,7 +1667,7 @@ def _resolve_patch_state(
     return state
 
 
-def _evaluate_direct_total_matrix(
+def _direct_total(
     model: Model,
     times_s: np.ndarray,
     nu_hz: np.ndarray,
@@ -1682,18 +1682,18 @@ def _evaluate_direct_total_matrix(
         gamma0=model.jet.lf,
         theta_center=0.0,
     )
-    state = _resolve_patch_state(model, config, times_s, nu_hz, timings=timings)
-    return _observe_total_state(state, times_s, nu_hz, timings=timings)
+    state = _solve_patch_state(model, config, times_s, nu_hz, timings=timings)
+    return _observe_total(state, times_s, nu_hz, timings=timings)
 
 
-def _evaluate_patch_total_matrix(
+def _patch_total(
     model: Model,
     times_s: np.ndarray,
     nu_hz: np.ndarray,
     timings: Optional[dict[str, float]] = None,
 ) -> np.ndarray:
     total = np.zeros((nu_hz.shape[0], times_s.shape[0]), dtype=float)
-    for phi_center, theta_center, patch_half_angle in _iter_jet_patches(model):
+    for phi_center, theta_center, patch_half_angle in _iter_patches(model):
         e_iso = model.jet.energy_iso(phi_center, theta_center)
         gamma0 = model.jet.gamma0(phi_center, theta_center)
         if e_iso <= 0.0 or gamma0 <= 1.0:
@@ -1708,12 +1708,12 @@ def _evaluate_patch_total_matrix(
             gamma0=gamma0,
             theta_center=theta_center,
         )
-        state = _resolve_patch_state(model, config, times_s, nu_hz, timings=timings)
-        total += _observe_total_state(state, times_s, nu_hz, timings=timings)
+        state = _solve_patch_state(model, config, times_s, nu_hz, timings=timings)
+        total += _observe_total(state, times_s, nu_hz, timings=timings)
     return total
 
 
-def _compute_total_matrix(
+def _total_matrix(
     model: Model,
     times_s: np.ndarray,
     nu_hz: np.ndarray,
@@ -1722,11 +1722,11 @@ def _compute_total_matrix(
     times_s = np.asarray(times_s, dtype=float)
     nu_hz = np.asarray(nu_hz, dtype=float)
     if isinstance(model.jet, TophatJet) and model._supports_direct_kernel():
-        return _evaluate_direct_total_matrix(model, times_s, nu_hz, timings=timings)
-    return _evaluate_patch_total_matrix(model, times_s, nu_hz, timings=timings)
+        return _direct_total(model, times_s, nu_hz, timings=timings)
+    return _patch_total(model, times_s, nu_hz, timings=timings)
 
 
-def _evaluate_direct_model(model: Model, times_s: np.ndarray, nu_hz: np.ndarray) -> tuple[ModelFluxResult, ModelDetails]:
+def _solve_direct_model(model: Model, times_s: np.ndarray, nu_hz: np.ndarray) -> tuple[ModelFluxResult, ModelDetails]:
     config = _build_fit_config_for_patch(
         model,
         phi_center=0.0,
@@ -1736,9 +1736,9 @@ def _evaluate_direct_model(model: Model, times_s: np.ndarray, nu_hz: np.ndarray)
         gamma0=model.jet.lf,
         theta_center=0.0,
     )
-    state = _resolve_patch_state(model, config, times_s, nu_hz)
-    observed = _observe_state(state, times_s, nu_hz)
-    details = _build_details(state.component_spectra, patches=[{"phi": 0.0, "theta": 0.0, "weight": 1.0}])
+    state = _solve_patch_state(model, config, times_s, nu_hz)
+    observed = _observe_parts(state, times_s, nu_hz)
+    details = _make_details(state.components, patches=[{"phi": 0.0, "theta": 0.0, "weight": 1.0}])
     return observed, details
 
 
@@ -1752,11 +1752,11 @@ def _evaluate_direct_details(model: Model, times_s: np.ndarray) -> ModelDetails:
         gamma0=model.jet.lf,
         theta_center=0.0,
     )
-    state = _resolve_patch_state(model, config, times_s, None)
-    return _build_details(state.component_spectra, patches=[{"phi": 0.0, "theta": 0.0, "weight": 1.0}])
+    state = _solve_patch_state(model, config, times_s, None)
+    return _make_details(state.components, patches=[{"phi": 0.0, "theta": 0.0, "weight": 1.0}])
 
 
-def _evaluate_patch_model(model: Model, times_s: np.ndarray, nu_hz: np.ndarray) -> tuple[ModelFluxResult, ModelDetails]:
+def _solve_patch_model(model: Model, times_s: np.ndarray, nu_hz: np.ndarray) -> tuple[ModelFluxResult, ModelDetails]:
     total = np.zeros((nu_hz.shape[0], times_s.shape[0]), dtype=float)
     fwd_sync_total = np.zeros_like(total)
     fwd_ssc_total = np.zeros_like(total)
@@ -1767,7 +1767,7 @@ def _evaluate_patch_model(model: Model, times_s: np.ndarray, nu_hz: np.ndarray) 
     details_fwd: Optional[DetailView] = None
     details_rev: Optional[DetailView] = None
 
-    for phi_center, theta_center, patch_half_angle in _iter_jet_patches(model):
+    for phi_center, theta_center, patch_half_angle in _iter_patches(model):
         e_iso = model.jet.energy_iso(phi_center, theta_center)
         gamma0 = model.jet.gamma0(phi_center, theta_center)
         if e_iso <= 0.0 or gamma0 <= 1.0:
@@ -1782,8 +1782,8 @@ def _evaluate_patch_model(model: Model, times_s: np.ndarray, nu_hz: np.ndarray) 
             gamma0=gamma0,
             theta_center=theta_center,
         )
-        state = _resolve_patch_state(model, config, times_s, nu_hz)
-        observed = _observe_state(state, times_s, nu_hz)
+        state = _solve_patch_state(model, config, times_s, nu_hz)
+        observed = _observe_parts(state, times_s, nu_hz)
         total += observed.total
         fwd_sync_total += observed.fwd.sync
         fwd_ssc_total += observed.fwd.ssc
@@ -1802,7 +1802,7 @@ def _evaluate_patch_model(model: Model, times_s: np.ndarray, nu_hz: np.ndarray) 
             }
         )
         if details_fwd is None:
-            details = _build_details(state.component_spectra, patches_meta)
+            details = _make_details(state.components, patches_meta)
             details_fwd = details.fwd
             details_rev = details.rev
 
@@ -1819,11 +1819,11 @@ def _evaluate_patch_model(model: Model, times_s: np.ndarray, nu_hz: np.ndarray) 
     )
 
 
-def _evaluate_patch_details(model: Model, times_s: np.ndarray) -> ModelDetails:
+def _patch_details(model: Model, times_s: np.ndarray) -> ModelDetails:
     patches_meta: list[dict[str, float]] = []
-    first_component: Optional[ComponentSpectra] = None
+    first_component: Optional[FluxComponents] = None
 
-    for phi_center, theta_center, patch_half_angle in _iter_jet_patches(model):
+    for phi_center, theta_center, patch_half_angle in _iter_patches(model):
         e_iso = model.jet.energy_iso(phi_center, theta_center)
         gamma0 = model.jet.gamma0(phi_center, theta_center)
         if e_iso <= 0.0 or gamma0 <= 1.0:
@@ -1849,11 +1849,11 @@ def _evaluate_patch_details(model: Model, times_s: np.ndarray) -> ModelDetails:
                 gamma0=gamma0,
                 theta_center=theta_center,
             )
-            first_component = _resolve_patch_state(model, config, times_s, None).component_spectra
+            first_component = _solve_patch_state(model, config, times_s, None).components
 
     if first_component is None:
         raise ValueError("No active jet patches were found for the requested structured jet.")
-    return _build_details(first_component, patches_meta)
+    return _make_details(first_component, patches_meta)
 
 
 def _render_sky_image(model: Model, times_s: np.ndarray, nu_obs: float, fov: float, npixel: int) -> SkyImage:
@@ -1865,7 +1865,7 @@ def _render_sky_image(model: Model, times_s: np.ndarray, nu_obs: float, fov: flo
     angular_diameter_distance_cm = _angular_diameter_distance_cm(model.observer)
     sightline, sky_x_axis, sky_y_axis = _sky_basis(model.observer)
     frequencies_hz = np.array([nu_obs], dtype=float)
-    for phi_center, theta_center, patch_half_angle in _iter_sky_image_patches(model, npixel):
+    for phi_center, theta_center, patch_half_angle in _iter_img_patches(model, npixel):
         e_iso = model.jet.energy_iso(phi_center, theta_center)
         gamma0 = model.jet.gamma0(phi_center, theta_center)
         if e_iso <= 0.0 or gamma0 <= 1.0:
@@ -1880,8 +1880,8 @@ def _render_sky_image(model: Model, times_s: np.ndarray, nu_obs: float, fov: flo
             gamma0=gamma0,
             theta_center=theta_center,
         )
-        state = _resolve_patch_state(model, config, times_s, frequencies_hz)
-        observed = _observe_state(state, times_s, frequencies_hz)
+        state = _solve_patch_state(model, config, times_s, frequencies_hz)
+        observed = _observe_parts(state, times_s, frequencies_hz)
         patch_flux = np.asarray(observed.total[0, :], dtype=float)
         radius_cm = _interpolate_positive_series(
             state.component_spectra.fwd.characteristic_time_s,
@@ -1989,39 +1989,39 @@ def _build_fit_config_for_patch(
     return config
 
 
-def _build_details(component_spectra: ComponentSpectra, patches: list[dict[str, float]]) -> ModelDetails:
+def _make_details(components: FluxComponents, patches: list[dict[str, float]]) -> ModelDetails:
     return ModelDetails(
         fwd=DetailView(
-            t_obs=component_spectra.fwd.characteristic_time_s,
-            radius=component_spectra.fwd.radius_cm,
-            Gamma=component_spectra.fwd.gamma,
-            N_p=component_spectra.fwd.swept_mass_g / constants.para_m_p,
-            Doppler=component_spectra.fwd.doppler,
-            B_comv=component_spectra.fwd.magnetic_field_g,
-            nu_m=component_spectra.fwd.nu_m,
-            nu_c=component_spectra.fwd.nu_c,
-            nu_a=component_spectra.fwd.nu_a,
-            nu_M=component_spectra.fwd.nu_M,
+            t_obs=components.fwd.characteristic_time_s,
+            radius=components.fwd.radius_cm,
+            Gamma=components.fwd.gamma,
+            N_p=components.fwd.swept_mass_g / constants.para_m_p,
+            Doppler=components.fwd.doppler,
+            B_comv=components.fwd.magnetic_field_g,
+            nu_m=components.fwd.nu_m,
+            nu_c=components.fwd.nu_c,
+            nu_a=components.fwd.nu_a,
+            nu_M=components.fwd.nu_M,
         ),
         rev=None
-        if component_spectra.rev is None
+        if components.rev is None
         else DetailView(
-            t_obs=component_spectra.rev.characteristic_time_s,
-            radius=component_spectra.rev.radius_cm,
-            Gamma=component_spectra.rev.gamma,
-            N_p=component_spectra.rev.swept_mass_g / constants.para_m_p,
-            Doppler=component_spectra.rev.doppler,
-            B_comv=component_spectra.rev.magnetic_field_g,
-            nu_m=component_spectra.rev.nu_m,
-            nu_c=component_spectra.rev.nu_c,
-            nu_a=component_spectra.rev.nu_a,
-            nu_M=component_spectra.rev.nu_M,
+            t_obs=components.rev.characteristic_time_s,
+            radius=components.rev.radius_cm,
+            Gamma=components.rev.gamma,
+            N_p=components.rev.swept_mass_g / constants.para_m_p,
+            Doppler=components.rev.doppler,
+            B_comv=components.rev.magnetic_field_g,
+            nu_m=components.rev.nu_m,
+            nu_c=components.rev.nu_c,
+            nu_a=components.rev.nu_a,
+            nu_M=components.rev.nu_M,
         ),
         patches=patches,
     )
 
 
-def _iter_jet_patches(model: Model):
+def _iter_patches(model: Model):
     theta_edges = np.linspace(0.0, model.jet.theta_max, model.setups.patch_theta + 1)
     phi_edges = np.linspace(0.0, 2.0 * np.pi, model.setups.patch_phi + 1)
     for i_theta in range(model.setups.patch_theta):
@@ -2037,7 +2037,7 @@ def _iter_jet_patches(model: Model):
             yield phi_center, theta_center, patch_half_angle
 
 
-def _iter_sky_image_patches(model: Model, npixel: int):
+def _iter_img_patches(model: Model, npixel: int):
     theta_bins = min(model.setups.patch_theta, max(2, int(np.ceil(np.sqrt(npixel) / 6.0))))
     phi_bins = min(model.setups.patch_phi, max(12, 6 * theta_bins))
     theta_edges = np.linspace(0.0, model.jet.theta_max, theta_bins + 1)
@@ -2291,7 +2291,7 @@ def _evaluate_kernel_density(radius: np.ndarray, params: dict[str, float]) -> np
     return density
 
 
-def _resolve_param_path(model: Model, param: ParamDef) -> str:
+def _param_path(model: Model, param: ParamDef) -> str:
     if param.path is not None:
         return param.path
     name = param.name.lower()
@@ -2350,7 +2350,7 @@ def _resolve_param_path(model: Model, param: ParamDef) -> str:
     return alias_map[name]
 
 
-def _coerce_model(cfg: Any) -> Model:
+def _as_model(cfg: Any) -> Model:
     if isinstance(cfg, Model):
         return cfg
     if cfg is None:

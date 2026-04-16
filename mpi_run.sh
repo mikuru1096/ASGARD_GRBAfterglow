@@ -13,4 +13,4 @@
 
 # running the command
 
-mpirun -np 32 python pymultinest_demo.py
+mpirun -np 32 python multinest_fit.py

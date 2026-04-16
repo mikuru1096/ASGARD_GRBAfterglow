@@ -24,7 +24,7 @@ from src import Radiation, constants
 
 
 @dataclass
-class BranchDetails:
+class BranchState:
     characteristic_time_s: np.ndarray
     gamma: np.ndarray
     radius_cm: np.ndarray
@@ -38,40 +38,40 @@ class BranchDetails:
 
 
 @dataclass
-class ComponentSpectra:
+class FluxComponents:
     total: np.ndarray
     fwd_sync: np.ndarray
     fwd_ssc: np.ndarray
     rev_sync: Optional[np.ndarray]
     rev_ssc: Optional[np.ndarray]
     cross_ic: Optional[np.ndarray]
-    fwd: BranchDetails
-    rev: Optional[BranchDetails]
+    fwd: BranchState
+    rev: Optional[BranchState]
 
 
 @dataclass
-class ModelState:
+class SolveState:
     config: FitConfig
     setup: SimulationSetup
     policy: ExecutionPolicy
     dynamics: DynamicsSolution
     electron: ElectronSolution
     reverse_emission: Optional[ReverseShockEmission]
-    component_spectra: ComponentSpectra
+    components: FluxComponents
     requested_frequency_min_hz: Optional[float]
     requested_frequency_max_hz: Optional[float]
     timings: dict[str, float] = field(default_factory=dict)
 
 
 @dataclass
-class ObservedState:
-    state: ModelState
+class ObsState:
+    state: SolveState
     setup: SimulationSetup
     frequencies_hz: np.ndarray
     components: dict[str, np.ndarray | None]
 
 
-def build_execution_policy(config: FitConfig) -> ExecutionPolicy:
+def make_policy(config: FitConfig) -> ExecutionPolicy:
     return ExecutionPolicy(num_threads=config.num_threads)
 
 
@@ -94,7 +94,7 @@ def _required_solve_time_count(observer_time_s: np.ndarray, default_num_tobs: in
     return max(int(default_num_tobs), int(np.unique(observer_time_s).size))
 
 
-def build_solve_time_grid(observer_time_s: np.ndarray, default_num_tobs: int) -> np.ndarray:
+def make_tgrid(observer_time_s: np.ndarray, default_num_tobs: int) -> np.ndarray:
     observer_time_s = np.asarray(observer_time_s, dtype=float)
     if observer_time_s.size == 0:
         raise ValueError("observer_time_s must be non-empty.")
@@ -108,7 +108,7 @@ def build_solve_time_grid(observer_time_s: np.ndarray, default_num_tobs: int) ->
     return np.logspace(np.log10(t_min), np.log10(t_max), num_tobs)
 
 
-def build_query_config(
+def make_query_cfg(
     config: FitConfig,
     observer_time_s: np.ndarray,
 ) -> FitConfig:
@@ -120,27 +120,27 @@ def build_query_config(
     return query
 
 
-def build_query_setup(
+def make_query_setup(
     config: FitConfig,
     observer_time_s: np.ndarray,
     requested_frequencies_hz: np.ndarray | None = None,
 ):
-    setup = build_simulation_setup(build_query_config(config, observer_time_s))
+    setup = build_simulation_setup(make_query_cfg(config, observer_time_s))
     setup.observer_time_s = np.asarray(observer_time_s, dtype=float)
     if requested_frequencies_hz is not None:
         setup.seed_frequency_hz = build_seed_frequency_grid(config, requested_frequencies_hz)
     return setup
 
 
-def solve_model_state(
+def solve_state(
     config: FitConfig,
     observer_time_s: np.ndarray,
     requested_frequencies_hz: np.ndarray | None = None,
     timings: Optional[dict[str, float]] = None,
     policy: Optional[ExecutionPolicy] = None,
-) -> ModelState:
-    setup = build_query_setup(config, observer_time_s, requested_frequencies_hz)
-    return solve_model_state_from_setup(
+) -> SolveState:
+    setup = make_query_setup(config, observer_time_s, requested_frequencies_hz)
+    return solve_state_from_setup(
         config,
         setup,
         timings=timings,
@@ -149,22 +149,22 @@ def solve_model_state(
     )
 
 
-def solve_component_spectra(
+def solve_spectra(
     config: FitConfig,
     observer_time_s: np.ndarray,
     requested_frequencies_hz: np.ndarray | None = None,
-) -> ComponentSpectra:
-    return solve_model_state(config, observer_time_s, requested_frequencies_hz).component_spectra
+) -> FluxComponents:
+    return solve_state(config, observer_time_s, requested_frequencies_hz).components
 
 
-def solve_model_state_from_setup(
+def solve_state_from_setup(
     config: FitConfig,
     setup,
     timings: Optional[dict[str, float]] = None,
     policy: Optional[ExecutionPolicy] = None,
     requested_frequencies_hz: np.ndarray | None = None,
-) -> ModelState:
-    execution_policy = build_execution_policy(config) if policy is None else policy
+) -> SolveState:
+    execution_policy = make_policy(config) if policy is None else policy
     if config.reverse or config.reverse_shock.enabled:
         dynamics_label = "Dynamics.dynamics_reverse"
     else:
@@ -190,32 +190,32 @@ def solve_model_state_from_setup(
             setup.seed_frequency_hz,
             config,
         )
-    component_spectra = _assemble_component_spectra(setup, config, dynamics, electron, reverse_emission, timings=timings)
+    components = _build_components(setup, config, dynamics, electron, reverse_emission, timings=timings)
     freq_min, freq_max = _requested_frequency_bounds(requested_frequencies_hz)
-    return ModelState(
+    return SolveState(
         config=config,
         setup=setup,
         policy=execution_policy,
         dynamics=dynamics,
         electron=electron,
         reverse_emission=reverse_emission,
-        component_spectra=component_spectra,
+        components=components,
         requested_frequency_min_hz=freq_min,
         requested_frequency_max_hz=freq_max,
         timings={} if timings is None else dict(timings),
     )
 
 
-def solve_component_spectra_from_setup(
+def solve_spectra_from_setup(
     config: FitConfig,
     setup,
     timings: Optional[dict[str, float]] = None,
-) -> ComponentSpectra:
-    return solve_model_state_from_setup(config, setup, timings=timings).component_spectra
+) -> FluxComponents:
+    return solve_state_from_setup(config, setup, timings=timings).components
 
 
 def _build_observer_setup_from_state(
-    state: ModelState,
+    state: SolveState,
     observer_time_s: np.ndarray,
 ) -> SimulationSetup:
     return SimulationSetup(
@@ -226,8 +226,8 @@ def _build_observer_setup_from_state(
     )
 
 
-def state_covers_request(
-    state: ModelState,
+def covers(
+    state: SolveState,
     observer_time_s: np.ndarray,
     frequencies_hz: np.ndarray | None = None,
 ) -> bool:
@@ -252,23 +252,23 @@ def state_covers_request(
     return freq_min >= state.requested_frequency_min_hz and freq_max <= state.requested_frequency_max_hz
 
 
-def observe_flux_grid_from_state(
-    state: ModelState,
+def project_flux_grid(
+    state: SolveState,
     observer_time_s: np.ndarray,
     frequencies_hz: np.ndarray,
     timings: Optional[dict[str, float]] = None,
     mode: str = "full_components",
-) -> ObservedState:
+) -> ObsState:
     setup = _build_observer_setup_from_state(state, observer_time_s)
-    observed = observe_spectra_from_setup(
+    observed = observe_components_from_setup(
         state.config,
-        state.component_spectra,
+        state.components,
         setup,
         frequencies_hz,
         timings=timings,
         mode=mode,
     )
-    return ObservedState(
+    return ObsState(
         state=state,
         setup=setup,
         frequencies_hz=np.asarray(frequencies_hz, dtype=float),
@@ -276,14 +276,14 @@ def observe_flux_grid_from_state(
     )
 
 
-def observe_spectrum_from_state(
-    state: ModelState,
+def project_spec(
+    state: SolveState,
     time_s: float,
     frequencies_hz: np.ndarray,
     timings: Optional[dict[str, float]] = None,
     mode: str = "full_components",
-) -> ObservedState:
-    return observe_flux_grid_from_state(
+) -> ObsState:
+    return project_flux_grid(
         state,
         np.array([time_s], dtype=float),
         frequencies_hz,
@@ -292,39 +292,39 @@ def observe_spectrum_from_state(
     )
 
 
-def extract_details_from_state(state: ModelState) -> dict[str, Optional[BranchDetails]]:
-    return {"fwd": state.component_spectra.fwd, "rev": state.component_spectra.rev}
+def state_details(state: SolveState) -> dict[str, Optional[BranchState]]:
+    return {"fwd": state.components.fwd, "rev": state.components.rev}
 
 
-def extract_physical_solution_from_state(state: ModelState) -> PhysicalSolution:
-    rev = state.component_spectra.rev
+def to_physical_solution(state: SolveState) -> PhysicalSolution:
+    rev = state.components.rev
     return PhysicalSolution(
-        characteristic_time_s=state.component_spectra.fwd.characteristic_time_s,
-        gamma=state.component_spectra.fwd.gamma,
-        radius_cm=state.component_spectra.fwd.radius_cm,
-        absorbed_spectral_flux=state.component_spectra.total,
-        nu_m=state.component_spectra.fwd.nu_m,
-        nu_c=state.component_spectra.fwd.nu_c,
-        nu_a=state.component_spectra.fwd.nu_a,
+        characteristic_time_s=state.components.fwd.characteristic_time_s,
+        gamma=state.components.fwd.gamma,
+        radius_cm=state.components.fwd.radius_cm,
+        absorbed_spectral_flux=state.components.total,
+        nu_m=state.components.fwd.nu_m,
+        nu_c=state.components.fwd.nu_c,
+        nu_a=state.components.fwd.nu_a,
         rs_nu_m=None if rev is None else rev.nu_m,
         rs_nu_c=None if rev is None else rev.nu_c,
         rs_nu_a=None if rev is None else rev.nu_a,
     )
 
 
-def observe_spectra(
+def observe_components(
     config: FitConfig,
-    component_spectra: ComponentSpectra,
+    components: FluxComponents,
     observer_time_s: np.ndarray,
     frequencies_hz: np.ndarray,
 ) -> dict[str, np.ndarray]:
-    setup = build_query_setup(config, observer_time_s, frequencies_hz)
-    return observe_spectra_from_setup(config, component_spectra, setup, frequencies_hz)
+    setup = make_query_setup(config, observer_time_s, frequencies_hz)
+    return observe_components_from_setup(config, components, setup, frequencies_hz)
 
 
-def observe_spectra_from_setup(
+def observe_components_from_setup(
     config: FitConfig,
-    component_spectra: ComponentSpectra,
+    components: FluxComponents,
     setup,
     frequencies_hz: np.ndarray,
     timings: Optional[dict[str, float]] = None,
@@ -334,13 +334,13 @@ def observe_spectra_from_setup(
     if mode not in {"full_components", "total_only"}:
         raise ValueError(f"Unsupported observe mode: {mode}")
     if mode == "total_only":
-        total = _observe_component(
+        total = _project_component(
             setup,
-            component_spectra.fwd.characteristic_time_s,
-            component_spectra.fwd.gamma,
-            component_spectra.fwd.radius_cm,
+            components.fwd.characteristic_time_s,
+            components.fwd.gamma,
+            components.fwd.radius_cm,
             setup.seed_frequency_hz,
-            component_spectra.total,
+            components.total,
             frequencies_hz,
             config,
             timings=timings,
@@ -356,25 +356,25 @@ def observe_spectra_from_setup(
         }
 
     observed = {
-        "fwd_sync": _observe_component(
+        "fwd_sync": _project_component(
             setup,
-            component_spectra.fwd.characteristic_time_s,
-            component_spectra.fwd.gamma,
-            component_spectra.fwd.radius_cm,
+            components.fwd.characteristic_time_s,
+            components.fwd.gamma,
+            components.fwd.radius_cm,
             setup.seed_frequency_hz,
-            component_spectra.fwd_sync,
+            components.fwd_sync,
             frequencies_hz,
             config,
             timings=timings,
             label="Interpolation.sed_interpolation [fwd_sync]",
         ),
-        "fwd_ssc": _observe_component(
+        "fwd_ssc": _project_component(
             setup,
-            component_spectra.fwd.characteristic_time_s,
-            component_spectra.fwd.gamma,
-            component_spectra.fwd.radius_cm,
+            components.fwd.characteristic_time_s,
+            components.fwd.gamma,
+            components.fwd.radius_cm,
             setup.seed_frequency_hz,
-            component_spectra.fwd_ssc,
+            components.fwd_ssc,
             frequencies_hz,
             config,
             timings=timings,
@@ -384,40 +384,40 @@ def observe_spectra_from_setup(
     observed["rev_sync"] = None
     observed["rev_ssc"] = None
     observed["cross_ic"] = None
-    if component_spectra.rev_sync is not None:
-        observed["rev_sync"] = _observe_component(
+    if components.rev_sync is not None:
+        observed["rev_sync"] = _project_component(
             setup,
-            component_spectra.fwd.characteristic_time_s,
-            component_spectra.fwd.gamma,
-            component_spectra.fwd.radius_cm,
+            components.fwd.characteristic_time_s,
+            components.fwd.gamma,
+            components.fwd.radius_cm,
             setup.seed_frequency_hz,
-            component_spectra.rev_sync,
+            components.rev_sync,
             frequencies_hz,
             config,
             timings=timings,
             label="Interpolation.sed_interpolation [rev_sync]",
         )
-    if component_spectra.rev_ssc is not None:
-        observed["rev_ssc"] = _observe_component(
+    if components.rev_ssc is not None:
+        observed["rev_ssc"] = _project_component(
             setup,
-            component_spectra.fwd.characteristic_time_s,
-            component_spectra.fwd.gamma,
-            component_spectra.fwd.radius_cm,
+            components.fwd.characteristic_time_s,
+            components.fwd.gamma,
+            components.fwd.radius_cm,
             setup.seed_frequency_hz,
-            component_spectra.rev_ssc,
+            components.rev_ssc,
             frequencies_hz,
             config,
             timings=timings,
             label="Interpolation.sed_interpolation [rev_ssc]",
         )
-    if component_spectra.cross_ic is not None:
-        observed["cross_ic"] = _observe_component(
+    if components.cross_ic is not None:
+        observed["cross_ic"] = _project_component(
             setup,
-            component_spectra.fwd.characteristic_time_s,
-            component_spectra.fwd.gamma,
-            component_spectra.fwd.radius_cm,
+            components.fwd.characteristic_time_s,
+            components.fwd.gamma,
+            components.fwd.radius_cm,
             setup.seed_frequency_hz,
-            component_spectra.cross_ic,
+            components.cross_ic,
             frequencies_hz,
             config,
             timings=timings,
@@ -436,21 +436,21 @@ def observe_spectra_from_setup(
     return observed
 
 
-def _assemble_component_spectra(
+def _build_components(
     setup,
     config: FitConfig,
     dynamics: DynamicsSolution,
     electron: ElectronSolution,
     reverse_emission: Optional[ReverseShockEmission],
     timings: Optional[dict[str, float]] = None,
-) -> ComponentSpectra:
+) -> FluxComponents:
     fwd_sync = electron.l_syn_spec
     seed_syn_absorption = electron.seed_syn.copy()
     zero_component = np.zeros_like(fwd_sync)
     fwd_ssc = zero_component
     seed_ssc_total = zero_component
     if config.include_forward_ssc:
-        fwd_ssc, seed_ssc_total = _compute_ssc_spectrum(
+        fwd_ssc, seed_ssc_total = _ssc_spectrum(
             dynamics.radius,
             electron,
             setup.seed_frequency_hz,
@@ -467,7 +467,7 @@ def _assemble_component_spectra(
     if reverse_emission is not None:
         rev_sync = reverse_emission.l_syn_spec
         seed_syn_absorption = seed_syn_absorption + reverse_emission.seed_syn
-        rev_details = BranchDetails(
+        rev_details = BranchState(
             characteristic_time_s=dynamics.r_tobs,
             gamma=dynamics.r_gamma,
             radius_cm=dynamics.radius,
@@ -499,7 +499,7 @@ def _assemble_component_spectra(
                 reverse_emission.seed_syn,
                 coupling_geometry,
             )
-            l_cic_fs_spec, seed_cic_fs = _compute_ssc_spectrum(
+            l_cic_fs_spec, seed_cic_fs = _ssc_spectrum(
                 dynamics.radius,
                 electron,
                 setup.seed_frequency_hz,
@@ -549,14 +549,14 @@ def _assemble_component_spectra(
     if absorbed_cross_ic is not None:
         total = total + absorbed_cross_ic
 
-    return ComponentSpectra(
+    return FluxComponents(
         total=total,
         fwd_sync=absorbed_fwd_sync,
         fwd_ssc=absorbed_fwd_ssc,
         rev_sync=absorbed_rev_sync,
         rev_ssc=absorbed_rev_ssc,
         cross_ic=absorbed_cross_ic,
-        fwd=BranchDetails(
+        fwd=BranchState(
             characteristic_time_s=dynamics.r_tobs,
             gamma=dynamics.r_gamma,
             radius_cm=dynamics.radius,
@@ -572,7 +572,7 @@ def _assemble_component_spectra(
     )
 
 
-def _compute_ssc_spectrum(
+def _ssc_spectrum(
     radius_cm: np.ndarray,
     electron: ElectronSolution,
     seed_frequency_hz: np.ndarray,
@@ -606,7 +606,7 @@ def _compute_ssc_spectrum(
     )
 
 
-def _observe_component(
+def _project_component(
     setup,
     characteristic_time_s: np.ndarray,
     gamma: np.ndarray,
@@ -636,15 +636,15 @@ def _observe_component(
     )
 
 
-def profile_observe_spectra_from_setup(
+def profile_observe_setup(
     config: FitConfig,
     setup,
     frequencies_hz: np.ndarray,
-) -> tuple[ComponentSpectra, dict[str, np.ndarray], dict[str, float]]:
+) -> tuple[FluxComponents, dict[str, np.ndarray], dict[str, float]]:
     timings: dict[str, float] = {}
-    component_spectra = solve_component_spectra_from_setup(config, setup, timings=timings)
-    observed = observe_spectra_from_setup(config, component_spectra, setup, frequencies_hz, timings=timings)
-    return component_spectra, observed, timings
+    components = solve_spectra_from_setup(config, setup, timings=timings)
+    observed = observe_components_from_setup(config, components, setup, frequencies_hz, timings=timings)
+    return components, observed, timings
 
 
 def _timed_call(timings: Optional[dict[str, float]], label: Optional[str], func, *args):

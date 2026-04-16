@@ -6,8 +6,8 @@ from typing import Any, Optional
 
 import numpy as np
 
-from ASGARD.api import Model, ObsData, ParamDef, _compute_total_matrix, _coerce_model, _resolve_param_path
-from asgard_component_backend import observe_flux_grid_from_state, solve_model_state_from_setup
+from ASGARD.api import Model, ObsData, ParamDef, _as_model, _param_path, _total_matrix
+from asgard_state import project_flux_grid, solve_state_from_setup
 from asgard_models import FitConfig
 from asgard_observables import build_multiband_observer_frequencies, combine_multiband_flux
 from asgard_postprocess import compute_light_curve_redchi
@@ -15,7 +15,7 @@ from asgard_setup import build_simulation_setup
 
 
 @dataclass(frozen=True)
-class CompiledParamBinding:
+class ParamBinding:
     name: str
     target: Any
     attr_name: str
@@ -25,7 +25,7 @@ class CompiledParamBinding:
 
 
 @dataclass(frozen=True)
-class CompiledFluxDensityDataset:
+class FluxData:
     pair_mode: bool
     time_indices: np.ndarray
     freq_indices: np.ndarray
@@ -34,7 +34,7 @@ class CompiledFluxDensityDataset:
 
 
 @dataclass(frozen=True)
-class CompiledSpectrumDataset:
+class SpecData:
     time_index: int
     freq_indices: np.ndarray
     flux: np.ndarray
@@ -42,7 +42,7 @@ class CompiledSpectrumDataset:
 
 
 @dataclass(frozen=True)
-class CompiledBandFluxDataset:
+class BandData:
     time_index: int
     freq_indices: np.ndarray
     sample_frequencies_hz: np.ndarray
@@ -51,100 +51,100 @@ class CompiledBandFluxDataset:
 
 
 @dataclass(frozen=True)
-class CompiledObservationBlock:
+class ObsBlock:
     observer_time_s: np.ndarray
     requested_frequencies_hz: np.ndarray
-    flux_density: tuple[CompiledFluxDensityDataset, ...]
-    spectra: tuple[CompiledSpectrumDataset, ...]
-    band_fluxes: tuple[CompiledBandFluxDataset, ...]
+    flux_density: tuple[FluxData, ...]
+    spectra: tuple[SpecData, ...]
+    band_fluxes: tuple[BandData, ...]
 
 
 @dataclass(frozen=True)
-class CompiledObservations:
-    blocks: tuple[CompiledObservationBlock, ...]
+class ObsPlan:
+    blocks: tuple[ObsBlock, ...]
 
 
 @dataclass
-class FastInferenceProblem:
+class InferenceProblem:
     model: Model
-    observations: CompiledObservations
-    param_bindings: tuple[CompiledParamBinding, ...]
+    observations: ObsPlan
+    param_bindings: tuple[ParamBinding, ...]
 
 
 @dataclass(frozen=True)
-class FastFitConfigProblem:
+class FitProblem:
     observer_time_s: np.ndarray
     requested_frequencies_hz: np.ndarray
     num_xrt: int
 
 
-def compile_inference_problem(
+def compile_problem(
     data_or_config,
     model_or_config: Any | None = None,
     *,
     params: Optional[list[ParamDef]] = None,
 ):
     if isinstance(data_or_config, FitConfig) and model_or_config is None:
-        return _compile_fit_config_problem(data_or_config)
+        return _compile_cfg(data_or_config)
 
     data = data_or_config if isinstance(data_or_config, ObsData) else None
     if data is None:
-        raise TypeError("compile_inference_problem expects either (config) or (ObsData, model_or_config).")
-    model = model_or_config if isinstance(model_or_config, Model) else _coerce_model(model_or_config)
-    return _compile_model_problem(data, model, params=params)
+        raise TypeError("compile_problem expects either (config) or (ObsData, model_or_config).")
+    model = model_or_config if isinstance(model_or_config, Model) else _as_model(model_or_config)
+    return _compile_model(data, model, params=params)
 
 
-def evaluate_compiled_loglike(
+def eval_loglike(
     problem,
     params_or_config,
     *,
     timings: Optional[dict[str, float]] = None,
 ) -> float:
-    if isinstance(problem, FastFitConfigProblem):
+    if isinstance(problem, FitProblem):
         if not isinstance(params_or_config, FitConfig):
-            raise TypeError("FastFitConfigProblem expects a FitConfig input.")
-        return _evaluate_fit_config_problem(problem, params_or_config, timings=timings)
-    if isinstance(problem, FastInferenceProblem):
+            raise TypeError("FitProblem expects a FitConfig input.")
+        return _eval_cfg(problem, params_or_config, timings=timings)
+    if isinstance(problem, InferenceProblem):
         if not isinstance(params_or_config, dict):
-            raise TypeError("FastInferenceProblem expects a parameter dictionary.")
-        return _evaluate_model_problem(problem, params_or_config, timings=timings)
+            raise TypeError("InferenceProblem expects a parameter dictionary.")
+        return _eval_model(problem, params_or_config, timings=timings)
     raise TypeError(f"Unsupported compiled inference problem: {type(problem)!r}")
 
 
-def evaluate_fit_loglike(config: FitConfig) -> float:
-    problem = _compile_fit_config_problem(config)
-    return _evaluate_fit_config_problem(problem, config)
+def eval_fit(config: FitConfig) -> float:
+    problem = _compile_cfg(config)
+    return _eval_cfg(problem, config)
 
 
-def _compile_fit_config_problem(config: FitConfig) -> FastFitConfigProblem:
+def _compile_cfg(config: FitConfig) -> FitProblem:
     num_xrt, requested_frequencies_hz = build_multiband_observer_frequencies()
     setup = build_simulation_setup(config)
-    return FastFitConfigProblem(
+    return FitProblem(
         observer_time_s=np.asarray(setup.observer_time_s, dtype=float),
         requested_frequencies_hz=np.asarray(requested_frequencies_hz, dtype=float),
         num_xrt=num_xrt,
     )
 
 
-def _compile_model_problem(
+def _compile_model(
     data: ObsData,
     model: Model,
     *,
     params: Optional[list[ParamDef]] = None,
-) -> FastInferenceProblem:
-    observations = _compile_observations(data)
-    bindings = _compile_param_bindings(model, [] if params is None else params)
-    return FastInferenceProblem(
+) -> InferenceProblem:
+    observations = _compile_obs(data)
+    bindings = _compile_params(model, [] if params is None else params)
+    return InferenceProblem(
         model=model,
         observations=observations,
         param_bindings=bindings,
     )
 
 
-def _compile_observations(
+def _compile_obs(
     data: ObsData,
-) -> CompiledObservations:
-    blocks: list[CompiledObservationBlock] = []
+) -> ObsPlan:
+    blocks: list[ObsBlock] = []
 
     for dataset in data.flux_density:
         times_s = np.asarray(dataset["times_s"], dtype=float)
@@ -154,14 +154,14 @@ def _compile_observations(
         observer_time_s = np.unique(times_s.reshape(-1))
         requested_frequencies_hz = np.unique(frequencies_hz.reshape(-1))
         blocks.append(
-            CompiledObservationBlock(
+            ObsBlock(
                 observer_time_s=observer_time_s,
                 requested_frequencies_hz=requested_frequencies_hz,
                 flux_density=(
-                    CompiledFluxDensityDataset(
+                    FluxData(
                         pair_mode=times_s.shape == frequencies_hz.shape,
-                        time_indices=_indices_from_values(observer_time_s, times_s.reshape(-1)),
-                        freq_indices=_indices_from_values(requested_frequencies_hz, frequencies_hz.reshape(-1)),
+                        time_indices=_idx(observer_time_s, times_s.reshape(-1)),
+                        freq_indices=_idx(requested_frequencies_hz, frequencies_hz.reshape(-1)),
                         flux=flux,
                         flux_err=flux_err,
                     ),
@@ -177,14 +177,14 @@ def _compile_observations(
         observer_time_s = np.array([time_s], dtype=float)
         requested_frequencies_hz = np.unique(frequencies_hz)
         blocks.append(
-            CompiledObservationBlock(
+            ObsBlock(
                 observer_time_s=observer_time_s,
                 requested_frequencies_hz=requested_frequencies_hz,
                 flux_density=(),
                 spectra=(
-                    CompiledSpectrumDataset(
+                    SpecData(
                         time_index=0,
-                        freq_indices=_indices_from_values(requested_frequencies_hz, frequencies_hz),
+                        freq_indices=_idx(requested_frequencies_hz, frequencies_hz),
                         flux=np.asarray(dataset["flux"], dtype=float),
                         flux_err=np.asarray(dataset["flux_err"], dtype=float),
                     ),
@@ -202,15 +202,15 @@ def _compile_observations(
         )
         requested_frequencies_hz = np.unique(sample_frequencies_hz)
         blocks.append(
-            CompiledObservationBlock(
+            ObsBlock(
                 observer_time_s=np.array([time_s], dtype=float),
                 requested_frequencies_hz=requested_frequencies_hz,
                 flux_density=(),
                 spectra=(),
                 band_fluxes=(
-                    CompiledBandFluxDataset(
+                    BandData(
                         time_index=0,
-                        freq_indices=_indices_from_values(requested_frequencies_hz, sample_frequencies_hz),
+                        freq_indices=_idx(requested_frequencies_hz, sample_frequencies_hz),
                         sample_frequencies_hz=sample_frequencies_hz,
                         flux=float(dataset["flux"]),
                         flux_err=float(dataset["flux_err"]),
@@ -221,7 +221,7 @@ def _compile_observations(
 
     if not blocks:
         blocks.append(
-            CompiledObservationBlock(
+            ObsBlock(
                 observer_time_s=np.array([1.0e2], dtype=float),
                 requested_frequencies_hz=np.array([1.0e14], dtype=float),
                 flux_density=(),
@@ -229,16 +229,16 @@ def _compile_observations(
                 band_fluxes=(),
             )
         )
-    return CompiledObservations(blocks=tuple(blocks))
+    return ObsPlan(blocks=tuple(blocks))
 
 
-def _compile_param_bindings(model: Model, params: list[ParamDef]) -> tuple[CompiledParamBinding, ...]:
-    bindings: list[CompiledParamBinding] = []
+def _compile_params(model: Model, params: list[ParamDef]) -> tuple[ParamBinding, ...]:
+    bindings: list[ParamBinding] = []
     for param in params:
-        path = _resolve_param_path(model, param)
-        target, attr_name = _resolve_target_attr(model, path)
+        path = _param_path(model, param)
+        target, attr_name = _find_attr(model, path)
         bindings.append(
-            CompiledParamBinding(
+            ParamBinding(
                 name=param.name,
                 target=target,
                 attr_name=attr_name,
@@ -250,7 +250,7 @@ def _compile_param_bindings(model: Model, params: list[ParamDef]) -> tuple[Compi
     return tuple(bindings)
 
 
-def _resolve_target_attr(root: Any, path: str) -> tuple[Any, str]:
+def _find_attr(root: Any, path: str) -> tuple[Any, str]:
     target = root
     parts = path.split(".")
     for name in parts[:-1]:
@@ -258,7 +258,7 @@ def _resolve_target_attr(root: Any, path: str) -> tuple[Any, str]:
     return target, parts[-1]
 
 
-def _indices_from_values(reference: np.ndarray, values: np.ndarray) -> np.ndarray:
+def _idx(reference: np.ndarray, values: np.ndarray) -> np.ndarray:
     indices = np.searchsorted(reference, np.asarray(values, dtype=float))
     if np.any(indices >= reference.shape[0]):
         raise ValueError("Compiled inference request could not map values onto the unified grid.")
@@ -267,21 +267,21 @@ def _indices_from_values(reference: np.ndarray, values: np.ndarray) -> np.ndarra
     return indices.astype(int, copy=False)
 
 
-def _evaluate_fit_config_problem(
-    problem: FastFitConfigProblem,
+def _eval_cfg(
+    problem: FitProblem,
     config: FitConfig,
     *,
     timings: Optional[dict[str, float]] = None,
 ) -> float:
     setup = build_simulation_setup(config)
     setup.observer_time_s = np.array(problem.observer_time_s, dtype=float, copy=True)
-    state = solve_model_state_from_setup(
+    state = solve_state_from_setup(
         config,
         setup,
         timings=timings,
         requested_frequencies_hz=problem.requested_frequencies_hz,
     )
-    observed = observe_flux_grid_from_state(
+    observed = project_flux_grid(
         state,
         problem.observer_time_s,
         problem.requested_frequencies_hz,
@@ -296,8 +296,8 @@ def _evaluate_fit_config_problem(
     return -0.5 * redchi
 
 
-def _evaluate_model_problem(
-    problem: FastInferenceProblem,
+def _eval_model(
+    problem: InferenceProblem,
     values: dict[str, float],
     *,
     timings: Optional[dict[str, float]] = None,
@@ -306,10 +306,10 @@ def _evaluate_model_problem(
     try:
         for binding in problem.param_bindings:
             original_values.append((binding.target, binding.attr_name, getattr(binding.target, binding.attr_name)))
-            transformed = _resolve_binding_value(binding, values)
+            transformed = _bind_value(binding, values)
             setattr(binding.target, binding.attr_name, transformed)
         total_matrices = [
-            _compute_total_matrix(
+            _total_matrix(
                 problem.model,
                 block.observer_time_s,
                 block.requested_frequencies_hz,
@@ -344,7 +344,7 @@ def _evaluate_model_problem(
     return loglike
 
 
-def _resolve_binding_value(binding: CompiledParamBinding, values: dict[str, float]) -> float:
+def _bind_value(binding: ParamBinding, values: dict[str, float]) -> float:
     raw_value = binding.fixed_value if binding.fixed_value is not None else float(values[binding.name])
     if binding.scale in {"log", "log10"}:
         return 10.0**raw_value
