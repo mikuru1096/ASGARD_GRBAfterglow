@@ -850,6 +850,7 @@ plot_spectrum(result, times_s=[1e3, 1e4, 1e5], quantity="nufnu")
   - 每个参数点仅就地更新配置并调用 `eval_loglike(...)`
   - 不再每点评估时重新构造完整求解入口
 - 当前推断 fast-path 仍保留在 `asgard_fit.py` / `ASGARD.api` 中，供主入口复用；但日常脚本层不再维护单独的 inference profile/check 入口。
+- 默认烟测 `tests/readme_smoke_bench.py` 现在覆盖 `fullhide/slc1/charint` 三个 solver，且默认走 `quick` 小网格。
 
 ## 27. 2026-04 Plan Compression
 
@@ -1018,3 +1019,23 @@ plot_spectrum(result, times_s=[1e3, 1e4, 1e5], quantity="nufnu")
     - 维持新用户最小入口
     - 维持 benchmark / plot 入口
   - 当前这轮继续压电子核纯开销，仍符合这个方向，没有回到旧接口树或旧验证树
+
+## 34. 2026-04 Test Output Hygiene
+
+- 当前测试入口已经改成“边跑边报”：
+  - `tests/readme_smoke_bench.py`
+  - `tests/slc1_vs_fullhide_bench.py`
+  - `tests/wind_vs_fullhide_bench.py`
+  - `tests/doc_figures.py`
+  - `tests/ic_doc_plots.py`
+  - `tests/sed_electron_compare.py`
+- 默认要求：
+  - 每个 case 跑完立刻打印状态
+  - 不再自动写 JSON / NPZ 旁路文件
+  - 只保留图像输出
+- `tests/doc_figures.py --high` 现在按 VegasAfterglow README 的示例口径运行：
+  - lightcurve / spectrum 100 点
+  - pair / exposure 200 点
+  - 仍保留 quick 小网格作为默认烟测
+- `ASGARD/api.py::_render_sky_image` 已修正旧字段名残留：
+  - `component_spectra` -> `components`

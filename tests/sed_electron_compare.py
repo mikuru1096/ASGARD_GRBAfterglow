@@ -14,21 +14,21 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet, Wind
-from ASGARD.api import _build_fit_config_for_patch, _resolve_patch_state
+from ASGARD.api import _build_fit_config_for_patch, _solve_patch_state
 from asgard_paths import BENCHMARK_EXP_TAIL_DIR
 
 
 OUTPUT_DIR = BENCHMARK_EXP_TAIL_DIR
-OUTPUT_NPZ = OUTPUT_DIR / "spectrum_compare_data.npz"
 OUTPUT_PNG = OUTPUT_DIR / "spectrum_compare.png"
 OUTPUT_PDF = OUTPUT_DIR / "spectrum_compare.pdf"
 
+MODE = "high" if "--high" in sys.argv else "quick"
 SOLVERS = ("fullhide", "slc1", "charint")
 MEDIA = ("ism", "wind")
 TIMES = np.array([1.0e3, 1.0e5, 1.0e7], dtype=float)
-FREQS = np.logspace(7.0, 30.0, 220)
-ELECTRON_TARGET_GAMMA = np.logspace(np.log10(3.0), 8.0, 240)
-NUM_GAM_BY_SOLVER = {"fullhide": 121, "slc1": 121, "charint": 121}
+FREQS = np.logspace(7.0, 30.0, 64 if MODE == "quick" else 220)
+ELECTRON_TARGET_GAMMA = np.logspace(np.log10(3.0), 8.0, 80 if MODE == "quick" else 240)
+NUM_GAM_BY_SOLVER = {"fullhide": 81 if MODE == "quick" else 121, "slc1": 81 if MODE == "quick" else 121, "charint": 81 if MODE == "quick" else 121}
 IC_EPSILON_E = 0.2
 IC_EPSILON_B = 1.0e-5
 IC_P = 2.3
@@ -65,8 +65,10 @@ def _build_model(solver: str, medium_name: str) -> Model:
         setups=Setups(
             electron_solver=solver,
             num_gam_e=NUM_GAM_BY_SOLVER[solver],
-            num_nu=121,
-            num_r=160,
+            num_nu=49 if MODE == "quick" else 121,
+            num_r=80 if MODE == "quick" else 160,
+            num_theta=80 if MODE == "quick" else 160,
+            num_tobs=48 if MODE == "quick" else 200,
             electron_adaptive_substeps=False,
         ),
     )
@@ -132,7 +134,7 @@ def _collect_electron(model: Model) -> tuple[np.ndarray, np.ndarray]:
         gamma0=model.jet.lf,
         theta_center=0.0,
     )
-    state = _resolve_patch_state(model, config, TIMES, FREQS)
+    state = _solve_patch_state(model, config, TIMES, FREQS)
     electron_grid = np.zeros((ELECTRON_TARGET_GAMMA.shape[0], TIMES.shape[0]), dtype=float)
     for time_index, t_obs in enumerate(TIMES):
         shell_index = int(np.argmin(np.abs(state.dynamics.r_tobs - t_obs)))
@@ -149,6 +151,7 @@ def _collect_compare_data() -> dict[str, dict[str, np.ndarray]]:
     for medium_name in MEDIA:
         data[medium_name] = {}
         for solver in SOLVERS:
+            print(f"  collect {medium_name}/{solver} ...", flush=True)
             model = _build_model(solver, medium_name)
             sed_grid = model.flux_density_grid(TIMES, FREQS).total
             gam_grid, electron_grid = _collect_electron(model)
@@ -237,26 +240,7 @@ def _plot_compare(data: dict[str, dict[str, np.ndarray | dict[str, np.ndarray]]]
 def main() -> None:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     data = _collect_compare_data()
-    np.savez(
-        OUTPUT_NPZ,
-        times=TIMES,
-        freqs=FREQS,
-        electron_gamma=ELECTRON_TARGET_GAMMA,
-        ism_fullhide=data["ism"]["fullhide"]["sed"],
-        ism_slc1=data["ism"]["slc1"]["sed"],
-        ism_charint=data["ism"]["charint"]["sed"],
-        wind_fullhide=data["wind"]["fullhide"]["sed"],
-        wind_slc1=data["wind"]["slc1"]["sed"],
-        wind_charint=data["wind"]["charint"]["sed"],
-        ism_electron_fullhide=data["ism"]["fullhide"]["electron"],
-        ism_electron_slc1=data["ism"]["slc1"]["electron"],
-        ism_electron_charint=data["ism"]["charint"]["electron"],
-        wind_electron_fullhide=data["wind"]["fullhide"]["electron"],
-        wind_electron_slc1=data["wind"]["slc1"]["electron"],
-        wind_electron_charint=data["wind"]["charint"]["electron"],
-    )
     _plot_compare(data)
-    print(OUTPUT_NPZ)
     print(OUTPUT_PNG)
     print(OUTPUT_PDF)
 

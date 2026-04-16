@@ -1892,8 +1892,8 @@ def _render_sky_image(model: Model, times_s: np.ndarray, nu_obs: float, fov: flo
         observed = _observe_parts(state, times_s, frequencies_hz)
         patch_flux = np.asarray(observed.total[0, :], dtype=float)
         radius_cm = _interpolate_positive_series(
-            state.component_spectra.fwd.characteristic_time_s,
-            state.component_spectra.fwd.radius_cm,
+            state.components.fwd.characteristic_time_s,
+            state.components.fwd.radius_cm,
             times_s,
         )
         if not np.any(np.isfinite(patch_flux) & (patch_flux > 0.0)):

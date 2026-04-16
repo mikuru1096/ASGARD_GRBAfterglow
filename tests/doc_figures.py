@@ -16,7 +16,13 @@ if str(ROOT) not in sys.path:
 from asgard_paths import ASGARD_DOC_DIR
 from matplotlib.colors import LogNorm
 
-from ASGARD import ISM, Model, Observer, Radiation, TophatJet, units
+from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet, units
+
+MODE = "high" if "--high" in sys.argv else "quick"
+GRID = {
+    "quick": {"lc": 48, "spec": 64, "pair": 32, "expo": 32, "sky_pix": 48, "sky_times": 8, "sky_flux_times": 12, "gam": 81, "nu": 49, "r": 80, "theta": 80, "tobs": 48},
+    "high": {"lc": 100, "spec": 100, "pair": 200, "expo": 200, "sky_pix": 128, "sky_times": 3, "sky_flux_times": 30, "gam": 201, "nu": 201, "r": 300, "theta": 300, "tobs": 200},
+}[MODE]
 
 
 OUTPUT_DIR = ASGARD_DOC_DIR
@@ -33,12 +39,29 @@ def _base_model() -> Model:
     jet = TophatJet(theta_c=0.1, E_iso=1.0e52, Gamma0=300.0)
     obs = Observer(lumi_dist=1.0e26, z=0.1, theta_obs=0.0)
     rad = Radiation(eps_e=1.0e-1, eps_B=1.0e-3, p=2.3)
-    return Model(jet=jet, medium=medium, observer=obs, fwd_rad=rad)
+    return Model(
+        jet=jet,
+        medium=medium,
+        observer=obs,
+        fwd_rad=rad,
+        setups=Setups(
+            num_gam_e=GRID["gam"],
+            num_nu=GRID["nu"],
+            num_r=GRID["r"],
+            num_theta=GRID["theta"],
+            num_tobs=GRID["tobs"],
+            electron_adaptive_substeps=False,
+        ),
+    )
+
+
+def _res() -> tuple[float, float, int]:
+    return (0.08, 0.15, 10) if MODE == "high" else (0.12, 0.25, 8)
 
 
 def plot_lightcurves() -> Path:
     model = _base_model()
-    times = np.logspace(2.0, 8.0, 200)
+    times = np.logspace(2.0, 8.0, GRID["lc"])
     bands = np.array([1.0e9, 1.0e14, 1.0e17])
     results = model.flux_density_grid(times, bands)
 
@@ -62,8 +85,8 @@ def plot_lightcurves() -> Path:
 def plot_spectra() -> Path:
     model = _base_model()
     bands = np.array([1.0e9, 1.0e14, 1.0e17])
-    frequencies = np.logspace(5.0, 22.0, 200)
-    epochs = np.array([1.0e2, 1.0e3, 1.0e4, 1.0e5, 1.0e6, 1.0e7, 1.0e8])
+    frequencies = np.logspace(5.0, 22.0, GRID["spec"])
+    epochs = np.array([1.0e2, 1.0e4, 1.0e6, 1.0e8]) if MODE == "quick" else np.array([1.0e2, 1.0e3, 1.0e4, 1.0e5, 1.0e6, 1.0e7, 1.0e8])
     results = model.flux_density_grid(epochs, frequencies)
 
     plt.figure(figsize=(4.8, 3.6), dpi=200)
@@ -89,9 +112,24 @@ def plot_reverse_shock() -> Path:
     obs = Observer(lumi_dist=1.0e26, z=0.1, theta_obs=0.0)
     fwd_rad = Radiation(eps_e=1.0e-1, eps_B=1.0e-3, p=2.3)
     rvs_rad = Radiation(eps_e=1.0e-2, eps_B=1.0e-4, p=2.4)
-    model = Model(jet=jet, medium=medium, observer=obs, fwd_rad=fwd_rad, rvs_rad=rvs_rad, resolutions=(0.15, 0.5, 10))
+    model = Model(
+        jet=jet,
+        medium=medium,
+        observer=obs,
+        fwd_rad=fwd_rad,
+        rvs_rad=rvs_rad,
+        setups=Setups(
+            num_gam_e=GRID["gam"],
+            num_nu=GRID["spec"],
+            num_r=GRID["r"],
+            num_theta=GRID["theta"],
+            num_tobs=GRID["tobs"],
+            electron_adaptive_substeps=False,
+        ),
+        resolutions=_res(),
+    )
 
-    times = np.logspace(2.0, 8.0, 200)
+    times = np.logspace(2.0, 8.0, GRID["lc"])
     bands = np.array([1.0e9, 1.0e14, 1.0e17])
     results = model.flux_density_grid(times, bands)
 
@@ -116,9 +154,23 @@ def plot_ssc() -> Path:
     jet = TophatJet(theta_c=0.1, E_iso=1.0e52, Gamma0=300.0)
     obs = Observer(lumi_dist=1.0e26, z=0.1, theta_obs=0.0)
     rad = Radiation(eps_e=1.0e-1, eps_B=1.0e-3, p=2.3, ssc=True, kn=True)
-    model = Model(jet=jet, medium=medium, observer=obs, fwd_rad=rad)
+    model = Model(
+        jet=jet,
+        medium=medium,
+        observer=obs,
+        fwd_rad=rad,
+        setups=Setups(
+            num_gam_e=GRID["gam"],
+            num_nu=GRID["spec"],
+            num_r=GRID["r"],
+            num_theta=GRID["theta"],
+            num_tobs=GRID["tobs"],
+            electron_adaptive_substeps=False,
+        ),
+        resolutions=_res(),
+    )
 
-    times = np.logspace(2.0, 8.0, 200)
+    times = np.logspace(2.0, 8.0, GRID["lc"])
     bands = np.array([1.0e9, 1.0e14, 1.0e17])
     results = model.flux_density_grid(times, bands)
 
@@ -140,11 +192,11 @@ def plot_ssc() -> Path:
 
 def plot_pairs_and_exposures() -> Path:
     model = _base_model()
-    times = np.logspace(2.0, 8.0, 128)
-    freqs = np.logspace(9.0, 17.0, 128)
+    times = np.logspace(2.0, 8.0, GRID["pair"])
+    freqs = np.logspace(9.0, 17.0, GRID["pair"])
     exposures = 0.2 * times
     pair_flux = model.flux_density(times, freqs)
-    expo_flux = model.flux_density_exposures(times, freqs, exposures, num_subsamples=8)
+    expo_flux = model.flux_density_exposures(times, freqs, exposures, num_subsamples=4 if MODE == "quick" else 8)
 
     fig, axes = plt.subplots(2, 1, figsize=(4.8, 5.6), dpi=200, sharex=True)
     axes[0].loglog(times, pair_flux.total, label="paired points")
@@ -171,9 +223,17 @@ def plot_sky_image_single() -> Path:
         medium=ISM(n_ism=1.0),
         observer=Observer(lumi_dist=1.0e26, z=0.1, theta_obs=0.0),
         fwd_rad=Radiation(eps_e=1.0e-1, eps_B=1.0e-3, p=2.3),
-        resolutions=(0.08, 0.15, 10),
+        setups=Setups(
+            num_gam_e=GRID["gam"],
+            num_nu=GRID["spec"],
+            num_r=GRID["r"],
+            num_theta=GRID["theta"],
+            num_tobs=GRID["sky_times"],
+            electron_adaptive_substeps=False,
+        ),
+        resolutions=_res(),
     )
-    img = model.sky_image([1.0e6], nu_obs=1.0e9, fov=500.0 * units.uas, npixel=128)
+    img = model.sky_image([1.0e6], nu_obs=1.0e9, fov=500.0 * units.uas, npixel=GRID["sky_pix"])
     fig, ax = plt.subplots(figsize=(4.5, 3.8), dpi=200)
     extent = img.extent / units.uas
     im = ax.imshow(img.image[0].T, origin="lower", extent=extent, cmap="inferno", norm=LogNorm())
@@ -194,10 +254,18 @@ def plot_sky_image_offaxis() -> Path:
         medium=ISM(n_ism=1.0),
         observer=Observer(lumi_dist=1.0e26, z=0.1, theta_obs=0.4),
         fwd_rad=Radiation(eps_e=1.0e-1, eps_B=1.0e-3, p=2.3),
-        resolutions=(0.08, 0.15, 10),
+        setups=Setups(
+            num_gam_e=GRID["gam"],
+            num_nu=GRID["spec"],
+            num_r=GRID["r"],
+            num_theta=GRID["theta"],
+            num_tobs=GRID["sky_times"],
+            electron_adaptive_substeps=False,
+        ),
+        resolutions=_res(),
     )
-    times = np.array([1.0e5, 1.0e6, 1.0e7])
-    imgs = model.sky_image(times, nu_obs=1.0e9, fov=5000.0 * units.uas, npixel=128)
+    times = np.array([1.0e5, 1.0e6, 1.0e7]) if MODE == "high" else np.array([1.0e5, 1.0e6, 1.0e7])
+    imgs = model.sky_image(times, nu_obs=1.0e9, fov=5000.0 * units.uas, npixel=GRID["sky_pix"])
     extent = imgs.extent / units.uas
     vmin = imgs.image[imgs.image > 0.0].min()
     vmax = imgs.image.max()
@@ -227,11 +295,19 @@ def plot_sky_image_flux_comparison() -> Path:
         medium=ISM(n_ism=1.0),
         observer=Observer(lumi_dist=1.0e26, z=0.1, theta_obs=0.0),
         fwd_rad=Radiation(eps_e=1.0e-1, eps_B=1.0e-3, p=2.3),
-        resolutions=(0.08, 0.15, 10),
+        setups=Setups(
+            num_gam_e=GRID["gam"],
+            num_nu=GRID["spec"],
+            num_r=GRID["r"],
+            num_theta=GRID["theta"],
+            num_tobs=GRID["sky_flux_times"],
+            electron_adaptive_substeps=False,
+        ),
+        resolutions=_res(),
     )
-    t_obs = np.logspace(3.0, 8.0, 30)
+    t_obs = np.logspace(3.0, 8.0, GRID["sky_flux_times"])
     nu_obs = 1.0e9
-    img = model.sky_image(t_obs, nu_obs=nu_obs, fov=2000.0 * units.uas, npixel=128)
+    img = model.sky_image(t_obs, nu_obs=nu_obs, fov=2000.0 * units.uas, npixel=GRID["sky_pix"])
     flux_from_image = img.image.sum(axis=(1, 2)) * img.pixel_solid_angle
     flux_direct = model.flux_density_grid(t_obs, np.array([nu_obs])).total[0, :]
 
@@ -262,18 +338,20 @@ def plot_sky_image_flux_comparison() -> Path:
 
 def main() -> None:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    outputs = [
-        plot_lightcurves(),
-        plot_spectra(),
-        plot_reverse_shock(),
-        plot_ssc(),
-        plot_pairs_and_exposures(),
-        plot_sky_image_single(),
-        plot_sky_image_offaxis(),
-        plot_sky_image_flux_comparison(),
+    plots = [
+        ("lightcurves", plot_lightcurves),
+        ("spectra", plot_spectra),
+        ("reverse_shock", plot_reverse_shock),
+        ("ssc", plot_ssc),
+        ("pairs", plot_pairs_and_exposures),
+        ("sky_single", plot_sky_image_single),
+        ("sky_offaxis", plot_sky_image_offaxis),
+        ("sky_flux", plot_sky_image_flux_comparison),
     ]
-    for path in outputs:
-        print(path)
+    total = len(plots)
+    for idx, (name, fn) in enumerate(plots, start=1):
+        print(f"[{idx}/{total}] {name} ...", flush=True)
+        print(fn(), flush=True)
 
 
 if __name__ == "__main__":

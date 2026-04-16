@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-import json
 import sys
 import time
 
@@ -16,9 +15,14 @@ if str(ROOT) not in sys.path:
 from asgard_paths import ASGARD_DOC_DIR
 from ASGARD import Fitter, ISM, Model, ObsData, Observer, ParamDef, Radiation, Scale, Setups, TophatJet, Wind, units
 
+MODE = "high" if "--high" in sys.argv else "quick"
+GRID = {
+    "quick": {"lc": 24, "spec": 32, "pair": 24, "expo": 12, "fit_steps": 4, "fit_burn": 1, "pix": 24, "gam": 81, "nu": 49, "r": 80, "theta": 80, "tobs": 48},
+    "high": {"lc": 100, "spec": 100, "pair": 200, "expo": 200, "fit_steps": 12, "fit_burn": 4, "pix": 64, "gam": 201, "nu": 201, "r": 300, "theta": 300, "tobs": 200},
+}[MODE]
+
 
 OUTPUT_DIR = ASGARD_DOC_DIR
-OUTPUT_JSON = OUTPUT_DIR / "slc1_benchmark_compare.json"
 OUTPUT_PNG = OUTPUT_DIR / "slc1_benchmark_compare.png"
 OUTPUT_PDF = OUTPUT_DIR / "slc1_benchmark_compare.pdf"
 
@@ -29,19 +33,30 @@ def _build_solver_model(solver: str) -> Model:
         ISM(1.0),
         Observer(1.0e26, 0.1, 0.0),
         Radiation(0.1, 1.0e-3, 2.3),
-        setups=Setups(electron_solver=solver),
+        setups=Setups(
+            electron_solver=solver,
+            num_gam_e=GRID["gam"],
+            num_nu=GRID["nu"],
+            num_r=GRID["r"],
+            num_theta=GRID["theta"],
+            num_tobs=GRID["tobs"],
+            electron_adaptive_substeps=False,
+        ),
     )
 
 
 def _run_case(name, fn):
+    print(f"  {name} ...", flush=True)
     t0 = time.perf_counter()
     try:
         payload = fn()
-        return {"name": name, "status": "PASS", "seconds": time.perf_counter() - t0, "payload": payload}
+        item = {"name": name, "status": "PASS", "seconds": time.perf_counter() - t0, "payload": payload}
     except NotImplementedError as exc:
-        return {"name": name, "status": "UNSUPPORTED", "seconds": time.perf_counter() - t0, "payload": str(exc)}
+        item = {"name": name, "status": "UNSUPPORTED", "seconds": time.perf_counter() - t0, "payload": str(exc)}
     except Exception as exc:
-        return {"name": name, "status": "FAIL", "seconds": time.perf_counter() - t0, "payload": f"{type(exc).__name__}: {exc}"}
+        item = {"name": name, "status": "FAIL", "seconds": time.perf_counter() - t0, "payload": f"{type(exc).__name__}: {exc}"}
+    print(f"  {name}: {item['status']} {item['seconds']:.2f}s", flush=True)
+    return item
 
 
 def _cases_for_solver(solver: str) -> list[dict]:
@@ -54,38 +69,38 @@ def _cases_for_solver(solver: str) -> list[dict]:
 
     def case_lightcurve_grid():
         model = _build_solver_model(solver)
-        times = np.logspace(2.0, 8.0, 100)
+        times = np.logspace(2.0, 8.0, GRID["lc"])
         bands = np.array([1.0e9, 1.0e14, 1.0e18])
         grid = model.flux_density_grid(times, bands).total
-        assert grid.shape == (3, 100)
+        assert grid.shape == (3, GRID["lc"])
         assert np.all(np.isfinite(grid))
         return {"shape": list(grid.shape), "peak": float(np.max(grid))}
 
     def case_spectrum_grid():
         model = _build_solver_model(solver)
         times = np.array([1.0e3, 1.0e5, 1.0e7])
-        freqs = np.logspace(9.0, 22.0, 100)
+        freqs = np.logspace(9.0, 22.0, GRID["spec"])
         grid = model.flux_density_grid(times, freqs).total
-        assert grid.shape == (100, 3)
+        assert grid.shape == (GRID["spec"], 3)
         assert np.all(np.isfinite(grid))
         return {"shape": list(grid.shape), "peak": float(np.max(grid))}
 
     def case_pairs():
         model = _build_solver_model(solver)
-        times = np.logspace(2.0, 8.0, 128)
-        freqs = np.logspace(9.0, 18.0, 128)
+        times = np.logspace(2.0, 8.0, GRID["pair"])
+        freqs = np.logspace(9.0, 18.0, GRID["pair"])
         values = model.flux_density(times, freqs).total
-        assert values.shape == (128,)
+        assert values.shape == (GRID["pair"],)
         assert np.all(np.isfinite(values))
         return {"shape": list(values.shape), "median": float(np.median(values))}
 
     def case_exposures():
         model = _build_solver_model(solver)
-        times = np.logspace(2.0, 6.0, 32)
+        times = np.logspace(2.0, 6.0, GRID["expo"])
         freqs = np.full(times.shape, 1.0e14)
         exposures = 0.2 * times
         values = model.flux_density_exposures(times, freqs, exposures).total
-        assert values.shape == (32,)
+        assert values.shape == (GRID["expo"],)
         assert np.all(np.isfinite(values))
         return {"shape": list(values.shape), "median": float(np.median(values))}
 
@@ -131,8 +146,8 @@ def _cases_for_solver(solver: str) -> list[dict]:
                 ParamDef("E_iso", 52.0, 52.0, Scale.log),
                 ParamDef("p", 2.3, 2.3, Scale.fixed),
             ],
-            nsteps=12,
-            nburn=4,
+            nsteps=GRID["fit_steps"],
+            nburn=GRID["fit_burn"],
         )
         assert np.isfinite(result.best_loglike)
         return {"best_loglike": float(result.best_loglike), "best_params": result.best_params}
@@ -141,11 +156,11 @@ def _cases_for_solver(solver: str) -> list[dict]:
         model = _build_solver_model(solver)
         t_obs = np.array([1.0e6])
         nu_obs = 1.0e9
-        img = model.sky_image(t_obs, nu_obs=nu_obs, fov=500.0 * units.uas, npixel=64)
+        img = model.sky_image(t_obs, nu_obs=nu_obs, fov=500.0 * units.uas, npixel=GRID["pix"])
         flux_from_image = img.image.sum(axis=(1, 2)) * img.pixel_solid_angle
         flux_direct = model.flux_density_grid(t_obs, np.array([nu_obs])).total[0, :]
         ratio = flux_from_image / flux_direct
-        assert img.image.shape == (1, 64, 64)
+        assert img.image.shape == (1, GRID["pix"], GRID["pix"])
         assert np.all(np.isfinite(img.image))
         assert np.isfinite(ratio[0])
         return {"shape": list(img.image.shape), "ratio": float(ratio[0])}
@@ -160,7 +175,11 @@ def _cases_for_solver(solver: str) -> list[dict]:
         ("fitter_cfg", case_fitter_cfg),
         ("sky_image", case_sky_image),
     ]
-    return [_run_case(name, fn) for name, fn in cases]
+    results = []
+    total = len(cases)
+    for idx, (name, fn) in enumerate(cases, start=1):
+        results.append(_run_case(f"[{idx}/{total}] {solver}:{name}", lambda fn=fn, solver=solver: fn()))
+    return results
 
 
 def _plot_compare(results: dict[str, list[dict]]) -> None:
@@ -190,20 +209,12 @@ def _plot_compare(results: dict[str, list[dict]]) -> None:
 
 def main() -> None:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    results = {
-        "fullhide": _cases_for_solver("fullhide"),
-        "slc1": _cases_for_solver("slc1"),
-    }
-
-    with OUTPUT_JSON.open("w", encoding="utf-8") as fh:
-        json.dump(results, fh, indent=2, ensure_ascii=False)
+    results = {"fullhide": _cases_for_solver("fullhide"), "slc1": _cases_for_solver("slc1")}
 
     _plot_compare(results)
 
-    print(OUTPUT_JSON)
     print(OUTPUT_PNG)
     print(OUTPUT_PDF)
-    print(json.dumps(results, indent=2, ensure_ascii=False))
 
     failed = [
         (solver, item["name"], item["payload"])

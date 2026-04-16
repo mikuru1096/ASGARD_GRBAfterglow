@@ -17,6 +17,7 @@ from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet, Wind
 
 OUTPUT_DIR = BENCHMARK_EXP_TAIL_DIR
 
+MODE = "high" if "--high" in sys.argv else "quick"
 BANDS = {
     "Radio": 3.0e9,
     "Optical": 4.6e14,
@@ -24,9 +25,31 @@ BANDS = {
     "GeV": 2.417989e23,
     "TeV": 2.417989e26,
 }
+GRID = {
+    "quick": {
+        "times": 48,
+        "wind_times": 48,
+        "spec_freqs": 64,
+        "num_gam": {"fullhide": 81, "slc1": 41},
+        "num_nu": 49,
+        "num_r": 80,
+        "num_theta": 80,
+        "num_tobs": 48,
+    },
+    "high": {
+        "times": 220,
+        "wind_times": 240,
+        "spec_freqs": 240,
+        "num_gam": {"fullhide": 121, "slc1": 41},
+        "num_nu": 121,
+        "num_r": 160,
+        "num_theta": 160,
+        "num_tobs": 200,
+    },
+}[MODE]
+
 SOLVERS = ("fullhide", "slc1")
 LINESTYLES = {"fullhide": "-", "slc1": "--"}
-NUM_GAM_BY_SOLVER = {"fullhide": 121, "slc1": 41}
 IC_EPSILON_E = 0.2
 IC_EPSILON_B = 1.0e-5
 IC_P = 2.3
@@ -52,9 +75,11 @@ def _build_model(solver: str, medium_name: str) -> Model:
         fwd_rad=Radiation(IC_EPSILON_E, IC_EPSILON_B, IC_P, ssc=True, kn=True),
         setups=Setups(
             electron_solver=solver,
-            num_gam_e=NUM_GAM_BY_SOLVER[solver],
-            num_nu=121,
-            num_r=160,
+            num_gam_e=GRID["num_gam"][solver],
+            num_nu=GRID["num_nu"],
+            num_r=GRID["num_r"],
+            num_theta=GRID["num_theta"],
+            num_tobs=GRID["num_tobs"],
             electron_adaptive_substeps=False,
         ),
     )
@@ -79,7 +104,7 @@ def _tight_log_ylim(ax, arrays: list[np.ndarray], lower_q: float = 0.03, upper_q
 
 
 def _plot_multiband_lightcurves() -> Path:
-    times = np.logspace(0.0, 8.0, 220)
+    times = np.logspace(0.0, 8.0, GRID["times"])
     freqs = np.array(list(BANDS.values()), dtype=float)
     colors = plt.cm.viridis(np.linspace(0.0, 1.0, len(freqs)))
 
@@ -106,7 +131,7 @@ def _plot_multiband_lightcurves() -> Path:
 
 
 def _plot_wind_lightcurves() -> Path:
-    times = np.logspace(0.0, 8.0, 240)
+    times = np.logspace(0.0, 8.0, GRID["wind_times"])
     freqs = np.array(list(BANDS.values()), dtype=float)
     model = _build_model("fullhide", "wind")
     result = model.flux_density_grid(times, freqs).total
@@ -129,7 +154,7 @@ def _plot_wind_lightcurves() -> Path:
 
 
 def _plot_wind_spectra() -> Path:
-    freqs = np.logspace(7.0, 30.0, 240)
+    freqs = np.logspace(7.0, 30.0, GRID["spec_freqs"])
     epochs = np.array([1.0e3, 1.0e5, 1.0e7], dtype=float)
     model = _build_model("fullhide", "wind")
     result = model.flux_density_grid(epochs, freqs).total
@@ -157,13 +182,15 @@ def _plot_wind_spectra() -> Path:
 
 def main() -> None:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    outputs = [
-        _plot_multiband_lightcurves(),
-        _plot_wind_lightcurves(),
-        _plot_wind_spectra(),
+    plots = [
+        ("multiband_lightcurves", _plot_multiband_lightcurves),
+        ("wind_lightcurves", _plot_wind_lightcurves),
+        ("wind_spectra", _plot_wind_spectra),
     ]
-    for out in outputs:
-        print(out)
+    total = len(plots)
+    for idx, (name, fn) in enumerate(plots, start=1):
+        print(f"[{idx}/{total}] {name} ...", flush=True)
+        print(fn(), flush=True)
 
 
 if __name__ == "__main__":
