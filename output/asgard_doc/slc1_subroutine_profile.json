@@ -1,35 +1,35 @@
 {
   "fullhide": {
     "timings": {
-      "Dynamics.dynamics_forward": 0.001932599931024015,
-      "Electron.fs_electron_fullhide": 3.4932172499829903,
+      "Dynamics.dynamics_forward": 0.0018835999653674662,
+      "Electron.fs_electron_fullhide": 5.184576900035609,
       "Interpolation.sed_interpolation [fwd_ssc]": 0.0,
-      "Interpolation.sed_interpolation [fwd_sync]": 0.026170099969021976,
+      "Interpolation.sed_interpolation [fwd_sync]": 0.05521445005433634,
       "Interpolation.sed_interpolation [total]": 0.0,
-      "Radiation.annihilation": 0.04073479998623952,
-      "Total pipeline": 3.563639600004535
+      "Radiation.annihilation": 0.056076050037518144,
+      "Total pipeline": 5.299428450001869
     }
   },
   "slc1": {
     "timings": {
-      "Dynamics.dynamics_forward": 0.0019116000621579587,
-      "Electron.fs_electron_slc1": 1.2149435500032268,
+      "Dynamics.dynamics_forward": 0.0018430000054650009,
+      "Electron.fs_electron_slc1": 1.622532700013835,
       "Interpolation.sed_interpolation [fwd_ssc]": 0.0,
-      "Interpolation.sed_interpolation [fwd_sync]": 0.026898749987594783,
+      "Interpolation.sed_interpolation [fwd_sync]": 0.06431149994023144,
       "Interpolation.sed_interpolation [total]": 0.0,
-      "Radiation.annihilation": 0.042717450007330626,
-      "Total pipeline": 1.2877727000159211
+      "Radiation.annihilation": 0.06065400002989918,
+      "Total pipeline": 1.7506446500192396
     }
   },
   "slc1_mmg2": {
     "timings": {
-      "Dynamics.dynamics_forward": 0.0018960500601679087,
-      "Electron.slc1_mmg2": 1.2576778000220656,
+      "Dynamics.dynamics_forward": 0.0018644000519998372,
+      "Electron.slc1_mmg2": 1.7400398500612937,
       "Interpolation.sed_interpolation [fwd_ssc]": 0.0,
-      "Interpolation.sed_interpolation [fwd_sync]": 0.026999749999959022,
+      "Interpolation.sed_interpolation [fwd_sync]": 0.057040149928070605,
       "Interpolation.sed_interpolation [total]": 0.0,
-      "Radiation.annihilation": 0.043498999963048846,
-      "Total pipeline": 1.3315486999927089
+      "Radiation.annihilation": 0.05704589997185394,
+      "Total pipeline": 1.8574787999968976
     }
   }
 }

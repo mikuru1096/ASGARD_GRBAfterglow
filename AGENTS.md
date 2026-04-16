@@ -1,4 +1,4 @@
-# ASGARD Agent Notes
+﻿# ASGARD Agent Notes
 
 ## 1. 项目定位
 
@@ -19,6 +19,7 @@ ASGARD 是一个用于 GRB 余辉建模与拟合的数值代码库。当前仓�
 
 ## 1.1 子 Agent 使用约束
 
+- subagent_model = "gpt-5.4-mini"
 - 当前项目允许使用子 agents 协助分析与实现。
 - 同一轮任务中最多使用 `5` 个子 agents。
 - 主线阻塞修改仍由主 agent 直接完成，不把关键路径完全外包。
@@ -659,3 +660,110 @@ plot_spectrum(result, times_s=[1e3, 1e4, 1e5], quantity="nufnu")
   - 诊断链已固定
   - 物理/数值改进尚未完成，不能宣称任务结束
 - 当前新增 `doc.md`，作为下一阶段主线任务清单的短文档基准；后续默认先以 `doc.md` 的任务顺序推进，再同步回写 `AGENTS.md`。
+
+## 18. 2026-04 SLC1 Solver Note
+
+- ?????????`CC` ? `fullhide` ??????????????? `CC` ??????????
+- `slc1` ???????????? `conservative SL + IMEX`?
+
+## 19. 2026-04 Charint Current Baseline
+
+- `charint` 已接入运行时：
+  - `FitConfig.electron_solver="charint"`
+  - 主文件：
+    - `src/Electron/FS_electron_charint.f90`
+    - `src/Electron/electron_common.f90`
+- 当前有效算法口径：
+  - 固定网格 `x = log10(gamma)`
+  - 特征变量 `u = 1/gamma`
+  - `index_y=0`：
+    - affine characteristic
+    - 数值源项版本
+    - 不再使用 exact-source 链
+  - `index_y=1/2/3`：
+    - piecewise-affine characteristic
+  - 源项时间积分：
+    - `4` 点 `Gauss-Legendre`
+- 当前有效子步口径：
+  - `charint_cfl_relax = 32`
+  - `charint_substep_rtol_relax = 8`
+  - `L1 = max(4,min(64,...))`
+- 当前保留的主核优化：
+  - `electron_prepare_conservative_remap_nonuniform(...)`
+  - `electron_conservative_remap_nonuniform_prepared(...)`
+  - `electron_ppm_prefix_sweep_nonuniform(...)`
+  - affine / piecewise tracing 的 batch 路径
+  - `index_y=0` 的 prepared-source 路径
+- 当前不再保留的实验链：
+  - `index_y=0` exact-source
+  - 幂律段时间闭式
+
+## 20. 2026-04 Charint Rules
+
+- `charint` 理论阶数口径固定为整体二阶。
+- 当前不再把以下量作为 `charint` 主线验收项：
+  - `peak-gamma`
+  - 低能前沿结构
+  - `g_lo` 跳变
+- 粗阶数诊断只保留：
+  - `electron-spectrum`
+  - `radiation-bands-flux`
+  - `dynamics-forward-gamma/radius`
+- benchmark 默认只比较：
+  - `fullhide`
+  - `slc1`
+  - `charint`
+- 非必要不跑重 benchmark。
+- 涉及 `FS_electron_charint` 的编译与回归必须顺序执行，不能并行占用 `.pyd`。
+- `charint` 后续 done-when 固定为：
+  - 相对 `fullhide` 达到 `10x`
+  - 相对 `slc1` 达到 `5x`
+  - 精度不低于当前基线
+
+## 21. 2026-04 Build Environment
+
+- 固定编译环境：
+  - `python = C:\Users\jia\AppData\Local\Programs\Python\Python312\python.exe`
+  - `gfortran = C:\msys64\mingw64\bin\gfortran.exe`
+  - `ASGARD_MINGW_BIN = C:\msys64\mingw64\bin`
+  - `CC = C:\msys64\mingw64\bin\gcc.exe`
+  - `CXX = C:\msys64\mingw64\bin\g++.exe`
+  - `FC/F77/F90 = C:\msys64\mingw64\bin\gfortran.exe`
+  - `AR = C:\msys64\mingw64\bin\gcc-ar.exe`
+- 当前最小编译命令：
+  - `python build_extensions.py --module FS_electron_charint --force`
+- `FS_electron_charint` 与 `FS_electron_slc1` 当前都依赖 ordered-object fallback。
+- 最近一次 `FS_electron_charint` 编译已通过，fallback 日志未见 `line truncation`。
+
+## 22. 2026-04 Current Test Grids
+
+- `tests/order_convergence_check.py`
+  - 三组粗阶数网格固定为 `61 / 101 / 161`
+- `tests/electron_exp_tail_spectrum_compare.py`
+  - 当前谱图电子网格固定为统一 `121 / 121 / 121`
+- `tests/electron_solver_comparison.py`
+  - 当前 benchmark 电子网格固定为统一 `121 / 121 / 121`
+
+## 23. 2026-04 Current Charint Facts
+
+- 旧 `MC-limited` 线性 remap 核不是恢复较好结果的主因。
+- 激进 `CFL/rtol/L1` 单独也不是恢复较好结果的主因。
+- 把 `index_y=0` 从 exact-source 撤回到数值源项版本后，当前粗阶数结果回到：
+  - `charint-electron-spectrum ≈ 0.8606`
+  - `charint-radiation-bands-flux ≈ 0.7480`
+- 当前最新谱图输出：
+  - `output/benchmark_exp_tail/spectrum_compare.png`
+  - `output/benchmark_exp_tail/spectrum_compare.pdf`
+
+## 24. 2026-04 Git Backup Rule
+
+- 每次发生重大代码更新后，必须执行一次 git 备份。
+- “重大代码更新”至少包括：
+  - Fortran 数值核主逻辑改动
+  - 构建链路改动
+  - 运行时绑定改动
+  - 测试口径或 benchmark 口径改动
+- git 备份要求：
+  - 先更新 `AGENTS.md`
+  - 再提交当前有效版本
+  - 提交信息必须明确说明这次备份对应的主线变更

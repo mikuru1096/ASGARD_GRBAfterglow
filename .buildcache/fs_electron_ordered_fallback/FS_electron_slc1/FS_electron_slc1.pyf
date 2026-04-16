@@ -1,0 +1,35 @@
+!    -*- f90 -*-
+! Note: the context of this file is case sensitive.
+
+python module FS_electron_slc1 ! in 
+    interface  ! in :FS_electron_slc1
+        subroutine fs_electron_slc1(boundary,r_tobs,r_gamma,r,v_seed,n,num_nu,num_r,num_gam_e,index_y,index_syn_intger,n_threads,gam_e,dn_gam_e,p_syn,seed_syn,v_m,v_c,v_a) ! in :FS_electron_slc1:..\..\..\src\Electron\FS_electron_slc1.f90
+            use constants
+            use electron_common
+            use get_y
+            real(kind=8) dimension(n),intent(in) :: boundary
+            real(kind=8) dimension(num_r),intent(in) :: r_tobs
+            real(kind=8) dimension(num_r),intent(in),depend(num_r) :: r_gamma
+            real(kind=8) dimension(num_r),intent(in),depend(num_r) :: r
+            real(kind=8) dimension(num_nu),intent(in) :: v_seed
+            integer, optional,intent(in),check(shape(boundary, 0) == n),depend(boundary) :: n=shape(boundary, 0)
+            integer, optional,intent(in),check(shape(v_seed, 0) == num_nu),depend(v_seed) :: num_nu=shape(v_seed, 0)
+            integer, optional,intent(in),check(shape(r_tobs, 0) == num_r),depend(r_tobs) :: num_r=shape(r_tobs, 0)
+            integer intent(in) :: num_gam_e
+            integer intent(in) :: index_y
+            integer intent(in) :: index_syn_intger
+            integer intent(in) :: n_threads
+            real(kind=8) dimension(num_gam_e),intent(out),depend(num_gam_e) :: gam_e
+            real(kind=8) dimension(num_gam_e,num_r),intent(out),depend(num_r,num_gam_e) :: dn_gam_e
+            real(kind=8) dimension(num_nu,num_r),intent(out),depend(num_nu,num_r) :: p_syn
+            real(kind=8) dimension(num_nu,num_r),intent(out),depend(num_nu,num_r) :: seed_syn
+            real(kind=8) dimension(num_r),intent(out),depend(num_r) :: v_m
+            real(kind=8) dimension(num_r),intent(out),depend(num_r) :: v_c
+            real(kind=8) dimension(num_r),intent(out),depend(num_r) :: v_a
+        end subroutine fs_electron_slc1
+    end interface 
+end python module FS_electron_slc1
+
+! This file was auto-generated with f2py (version:2.4.4).
+! See:
+! https://web.archive.org/web/20140822061353/http://cens.ioc.ee/projects/f2py2e

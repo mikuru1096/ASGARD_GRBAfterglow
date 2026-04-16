@@ -302,35 +302,28 @@ def _run_benchmark_subset():
         bands = SSC_BANDS if cfg["radiation"] in ("full_ssc", "ssc_kn") else CONVERGENCE_BANDS
         t_lc = BENCHMARK_T_LC
         nu_arr = np.array(list(bands.values()))
-        flux_cache: dict[tuple[float, float, float], np.ndarray] = {}
 
-        def _cached_flux(resolution):
-            key = tuple(float(x) for x in resolution)
-            cached = flux_cache.get(key)
-            if cached is not None:
-                return cached
-            cache_model = _make_model(
+        def _compute_flux(resolution):
+            model_for_resolution = _make_model(
                 cfg["medium"],
                 jet_name=cfg["jet"],
                 radiation_name=cfg["radiation"],
                 theta_ratio=cfg["theta_ratio"],
-                resolutions=key,
+                resolutions=tuple(float(x) for x in resolution),
                 benchmark_mode=True,
             )
-            cached = _extract_flux_component(cache_model.flux_density_grid(t_lc, nu_arr), cfg["radiation"])
-            flux_cache[key] = cached
-            return cached
+            return _extract_flux_component(model_for_resolution.flux_density_grid(t_lc, nu_arr), cfg["radiation"])
 
         for dim in cfg.get("scan_dims", ()):
             values, idx = dim_specs[dim]
             ref_res = list(FIDUCIAL_RESOLUTION)
             ref_res[idx] = max(values) * 1.2
-            ref_flux = _cached_flux(tuple(ref_res))
+            ref_flux = _compute_flux(tuple(ref_res))
             errors = {}
             for value in values:
                 res = list(FIDUCIAL_RESOLUTION)
                 res[idx] = value
-                flux = _cached_flux(tuple(res))
+                flux = _compute_flux(tuple(res))
                 band_err = {}
                 for k, band in enumerate(bands):
                     ref = ref_flux[k, :]

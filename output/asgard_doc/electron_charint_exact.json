@@ -1,0 +1,37 @@
+{
+  "target_rel_tol": 1e-12,
+  "target_abs_tol": 1e-12,
+  "cases": [
+    {
+      "name": "transport-only-static",
+      "ddr": 0.25,
+      "a_u": 0.0,
+      "b_u": 0.0,
+      "rel_error": 9.564998366001348e-16,
+      "abs_error": 3.1086244689504383e-15,
+      "particle_rel_error": 0.0,
+      "passed": true
+    },
+    {
+      "name": "source-only-static",
+      "ddr": 0.25,
+      "a_u": 0.0,
+      "b_u": 0.0,
+      "rel_error": 3.425831047414769e-15,
+      "abs_error": 1.4988010832439613e-15,
+      "particle_rel_error": 3.806478941571965e-16,
+      "passed": true
+    },
+    {
+      "name": "transport-plus-source-static",
+      "ddr": 0.25,
+      "a_u": 0.0,
+      "b_u": 0.0,
+      "rel_error": 0.0,
+      "abs_error": 0.0,
+      "particle_rel_error": 0.0,
+      "passed": true
+    }
+  ],
+  "failed": 0
+}

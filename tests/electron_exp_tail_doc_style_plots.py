@@ -23,9 +23,9 @@ BANDS = {
     "GeV": 2.417989e23,
     "TeV": 2.417989e26,
 }
-SOLVERS = ("fullhide", "slc1", "slc1_mmg2")
-LINESTYLES = {"fullhide": "-", "slc1": "--", "slc1_mmg2": ":"}
-NUM_GAM_BY_SOLVER = {"fullhide": 121, "slc1": 32, "slc1_mmg2": 32}
+SOLVERS = ("fullhide", "slc1")
+LINESTYLES = {"fullhide": "-", "slc1": "--"}
+NUM_GAM_BY_SOLVER = {"fullhide": 121, "slc1": 41}
 IC_EPSILON_E = 0.2
 IC_EPSILON_B = 1.0e-5
 IC_P = 2.3
@@ -49,7 +49,13 @@ def _build_model(solver: str, medium_name: str) -> Model:
         medium=medium,
         observer=Observer(1.0e26, 0.1, 0.0),
         fwd_rad=Radiation(IC_EPSILON_E, IC_EPSILON_B, IC_P, ssc=True, kn=True),
-        setups=Setups(electron_solver=solver, num_gam_e=NUM_GAM_BY_SOLVER[solver], num_nu=121, num_r=160),
+        setups=Setups(
+            electron_solver=solver,
+            num_gam_e=NUM_GAM_BY_SOLVER[solver],
+            num_nu=121,
+            num_r=160,
+            electron_adaptive_substeps=False,
+        ),
     )
 
 

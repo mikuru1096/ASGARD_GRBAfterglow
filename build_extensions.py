@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
-import json
 import os
 import shlex
 import shutil
@@ -15,9 +13,6 @@ from pathlib import Path
 COMMON_FLAGS = "-Ofast -march=native -funroll-loops -ffast-math -fno-signed-zeros -fno-trapping-math"
 OMP_FLAGS = f"-fopenmp {COMMON_FLAGS} -flto"
 OPENMP_LIBS = ["-lgomp"]
-BUILD_LOGIC_VERSION = 3
-
-
 def _configure_windows_toolchain_env() -> None:
     if os.name != "nt":
         return
@@ -58,53 +53,6 @@ def _module_output_paths(directory: Path, module_name: str) -> list[Path]:
     for pattern in (f"{module_name}*.pyd", f"{module_name}*.so"):
         outputs.extend(directory.glob(pattern))
     return outputs
-
-
-def _hash_module_inputs(root: Path, cwd: Path, sources: list[str], fflags: str | None, extra_args: list[str] | None) -> str:
-    digest = hashlib.sha256()
-    digest.update(str(BUILD_LOGIC_VERSION).encode())
-    digest.update(sys.version.encode())
-    digest.update(os.name.encode())
-    digest.update(str(fflags).encode())
-    digest.update(json.dumps(extra_args or []).encode())
-    for source in sources:
-        source_path = (cwd / source).resolve()
-        digest.update(str(source_path.relative_to(root)).encode())
-        digest.update(source_path.read_bytes())
-    return digest.hexdigest()
-
-
-def _latest_timestamp(paths: list[Path]) -> float:
-    return max(path.stat().st_mtime for path in paths)
-
-
-def _is_timestamp_fresh(directory: Path, module_name: str, sources: list[str], script_path: Path) -> bool:
-    outputs = _module_output_paths(directory, module_name)
-    if not outputs:
-        return False
-    newest_output = _latest_timestamp(outputs)
-    dependency_paths = [(directory / source).resolve() for source in sources]
-    dependency_paths.append(script_path)
-    newest_dependency = _latest_timestamp(dependency_paths)
-    return newest_output >= newest_dependency
-
-
-def _load_cache(cache_path: Path) -> dict[str, str]:
-    if not cache_path.is_file():
-        return {}
-    try:
-        data = json.loads(cache_path.read_text())
-    except json.JSONDecodeError:
-        return {}
-    if not isinstance(data, dict):
-        return {}
-    return {str(key): str(value) for key, value in data.items()}
-
-
-def _save_cache(cache_path: Path, cache: dict[str, str]) -> None:
-    cache_path.parent.mkdir(parents=True, exist_ok=True)
-    cache_path.write_text(json.dumps(cache, indent=2, sort_keys=True))
-
 
 def _write_build_log(log_path: Path, command: list[str], cwd: Path, result: subprocess.CompletedProcess[str]) -> None:
     log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -158,7 +106,7 @@ def _run_command(
     return result
 
 
-def _build_fs_electron_slc1_fallback(
+def _build_fs_electron_ordered_fallback(
     root: Path,
     module_name: str,
     cwd: Path,
@@ -198,9 +146,9 @@ def _build_fs_electron_slc1_fallback(
 
     fc = env.get("FC") or shutil.which("gfortran", path=env["PATH"])
     if not fc:
-        raise RuntimeError("FS_electron_slc1 fallback build requires gfortran in PATH or FC.")
+        raise RuntimeError(f"{module_name} fallback build requires gfortran in PATH or FC.")
 
-    build_dir = root / ".buildcache" / "fs_electron_slc1_fallback" / module_name
+    build_dir = root / ".buildcache" / "fs_electron_ordered_fallback" / module_name
     build_dir.mkdir(parents=True, exist_ok=True)
     for path in build_dir.glob("*"):
         if path.is_file():
@@ -218,7 +166,11 @@ def _build_fs_electron_slc1_fallback(
         object_paths.append(object_path)
 
     pyf_path = build_dir / f"{module_name}.pyf"
-    source_rel = os.path.relpath((cwd / "FS_electron_slc1.f90").resolve(), build_dir)
+    main_source_name = f"{module_name}.f90"
+    source_rel = os.path.relpath((cwd / main_source_name).resolve(), build_dir)
+    entry_names = [module_name.lower()]
+    if module_name == "FS_electron_charint":
+        entry_names.append("fs_electron_charint_affine_step_test")
     signature_command = [
         sys.executable,
         "-m",
@@ -230,8 +182,7 @@ def _build_fs_electron_slc1_fallback(
         "--overwrite-signature",
         source_rel,
         "only:",
-        "fs_electron_slc1",
-        "fs_electron_slc1_mmg2",
+        *entry_names,
         ":",
     ]
     _run_command(signature_command, build_dir, env, log_dir / f"{module_name}_fallback_signature.log", verbose)
@@ -327,14 +278,13 @@ def _build_module(
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--force", action="store_true", help="rebuild all selected modules")
-    parser.add_argument("--clean", action="store_true", help="remove built artifacts and cache before building")
+    parser.add_argument("--clean", action="store_true", help="remove built artifacts before building")
     parser.add_argument("--module", action="append", dest="modules", help="only build the named module; can be repeated")
     parser.add_argument("--verbose", action="store_true", help="stream raw f2py/meson output")
     args = parser.parse_args()
 
     _configure_windows_toolchain_env()
     root = Path(__file__).resolve().parent
-    cache_path = root / ".buildcache" / "extensions.json"
     log_dir = root / ".buildcache" / "logs"
     src = root / "src"
     dyn = src / "Dynamics"
@@ -347,6 +297,7 @@ def main() -> None:
         ("Dynamics_forward", dyn, ["../Constants.f90", "dynamics_common.f90", "Dynamics_forward.f90"], COMMON_FLAGS, None),
         ("FS_electron_weno5", ele, ["../Constants.f90", "../utils/adaptive_2nd_resampling_mod.f90", "electron_common.f90", "calling_modules.f90", "FS_electron_weno5.f90"], OMP_FLAGS, OPENMP_LIBS),
         ("FS_electron_slc1", ele, ["../Constants.f90", "../utils/adaptive_2nd_resampling_mod.f90", "electron_common.f90", "calling_modules.f90", "FS_electron_slc1.f90"], OMP_FLAGS, OPENMP_LIBS),
+        ("FS_electron_charint", ele, ["../Constants.f90", "../utils/adaptive_2nd_resampling_mod.f90", "electron_common.f90", "calling_modules.f90", "FS_electron_charint.f90"], OMP_FLAGS, OPENMP_LIBS),
         ("FS_electron_fullhide", ele, ["../Constants.f90", "../utils/adaptive_2nd_resampling_mod.f90", "electron_common.f90", "calling_modules.f90", "FS_electron_fullhide.f90"], OMP_FLAGS, OPENMP_LIBS),
         ("FS_electron_t2g1", ele, ["../Constants.f90", "../utils/adaptive_2nd_resampling_mod.f90", "electron_common.f90", "calling_modules.f90", "FS_electron_t2g1.f90"], OMP_FLAGS, OPENMP_LIBS),
         ("SED_interpolation", itp, ["../Constants.f90", "interpolation_common.f90", "SED_interpolation.f90"], OMP_FLAGS, OPENMP_LIBS),
@@ -364,23 +315,9 @@ def main() -> None:
     if args.clean:
         for directory in (src, dyn, ele, itp, rad):
             _clean_build_outputs(directory)
-        if cache_path.exists():
-            cache_path.unlink()
-
-    cache = _load_cache(cache_path)
 
     print("Compile start")
     for module_name, cwd, sources, fflags, extra_args in modules:
-        signature = _hash_module_inputs(root, cwd, sources, fflags, extra_args)
-        if not args.force:
-            cached_signature = cache.get(module_name)
-            if cached_signature == signature and _module_output_paths(cwd, module_name):
-                print(f"Skip {module_name}: unchanged")
-                continue
-            if cached_signature is None and _is_timestamp_fresh(cwd, module_name, sources, Path(__file__).resolve()):
-                cache[module_name] = signature
-                print(f"Skip {module_name}: outputs are newer than sources")
-                continue
         print(f"Build {module_name}")
         try:
             elapsed = _build_module(
@@ -393,10 +330,10 @@ def main() -> None:
                 extra_args,
             )
         except subprocess.CalledProcessError:
-            if module_name != "FS_electron_slc1":
+            if module_name not in {"FS_electron_slc1", "FS_electron_charint"}:
                 raise
-            print("Retry FS_electron_slc1 with ordered object build fallback")
-            elapsed = _build_fs_electron_slc1_fallback(
+            print(f"Retry {module_name} with ordered object build fallback")
+            elapsed = _build_fs_electron_ordered_fallback(
                 root,
                 module_name,
                 cwd,
@@ -406,9 +343,7 @@ def main() -> None:
                 fflags,
                 extra_args,
             )
-        cache[module_name] = signature
         print(f"Done {module_name}: {elapsed:.2f}s")
-    _save_cache(cache_path, cache)
     print("Compile complete!")
 
 

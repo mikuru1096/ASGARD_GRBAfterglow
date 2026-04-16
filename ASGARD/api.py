@@ -664,9 +664,6 @@ class Model:
         if resolutions is not None:
             self._apply_resolutions(resolutions)
         self._last_details: Optional[ModelDetails] = None
-        self._details_cache: dict[tuple[float, float, int, str], ModelDetails] = {}
-        self._state_cache: dict[str, list[ModelState]] = {}
-        self._observed_cache: dict[tuple[str, str, str], ModelFluxResult] = {}
 
     def flux_density_grid(self, times_s: np.ndarray, nu_hz: np.ndarray) -> ModelFluxResult:
         times_s = np.asarray(times_s, dtype=float)
@@ -768,11 +765,8 @@ class Model:
         if t_min is not None or t_max is not None:
             t1 = self.setups.observer_time_min_s if t_min is None else float(t_min)
             t2 = self.setups.observer_time_max_s if t_max is None else float(t_max)
-            key = (t1, t2, self.setups.num_tobs, _model_signature(self))
-            if key not in self._details_cache:
-                times = np.logspace(np.log10(t1), np.log10(t2), self.setups.num_tobs)
-                self._details_cache[key] = self._compute_details_only(times)
-            self._last_details = self._details_cache[key]
+            times = np.logspace(np.log10(t1), np.log10(t2), self.setups.num_tobs)
+            self._last_details = self._compute_details_only(times)
         elif self._last_details is None:
             self._last_details = self._compute_details_only(self.default_times())
         return self._last_details
@@ -1085,25 +1079,6 @@ def _model_signature(model: Model) -> str:
     return digest.hexdigest()
 
 
-def _find_cached_state(
-    model: Model,
-    state_signature: str,
-    times_s: np.ndarray,
-    frequencies_hz: np.ndarray | None,
-) -> Optional[ModelState]:
-    for state in model._state_cache.get(state_signature, []):
-        if state_covers_request(state, times_s, frequencies_hz):
-            return state
-    return None
-
-
-def _remember_state(model: Model, state_signature: str, state: ModelState) -> ModelState:
-    bucket = model._state_cache.setdefault(state_signature, [])
-    bucket.append(state)
-    bucket.sort(key=lambda item: float(np.max(item.setup.observer_time_s)))
-    return state
-
-
 def _observe_result_from_components(observed: dict[str, np.ndarray | None]) -> ModelFluxResult:
     total = np.asarray(observed["total"], dtype=float)
     rev_sync = np.zeros_like(total) if observed["rev_sync"] is None else np.asarray(observed["rev_sync"], dtype=float)
@@ -1117,21 +1092,13 @@ def _observe_result_from_components(observed: dict[str, np.ndarray | None]) -> M
     )
 
 
-def _observe_cached_state(
-    model: Model,
+def _observe_state(
     state: ModelState,
     times_s: np.ndarray,
     nu_hz: np.ndarray,
 ) -> ModelFluxResult:
-    state_signature = _fit_config_signature(state.config)
-    query_key = (state_signature, _array_signature(times_s), _array_signature(nu_hz))
-    cached = model._observed_cache.get(query_key)
-    if cached is not None:
-        return cached
     observed_state = observe_flux_grid_from_state(state, times_s, nu_hz)
-    result = _observe_result_from_components(observed_state.components)
-    model._observed_cache[query_key] = result
-    return result
+    return _observe_result_from_components(observed_state.components)
 
 
 def _log_time_midpoint(t_left: float, t_right: float) -> float:
@@ -1666,10 +1633,6 @@ def _resolve_patch_state(
     times_s: np.ndarray,
     requested_frequencies_hz: np.ndarray | None,
 ) -> ModelState:
-    state_signature = _fit_config_signature(config)
-    cached = _find_cached_state(model, state_signature, times_s, requested_frequencies_hz)
-    if cached is not None:
-        return cached
     solve_times_s = build_solve_time_grid(times_s, model.setups.num_tobs)
     if requested_frequencies_hz is not None:
         solve_t_min = min(float(model.setups.observer_time_min_s), float(np.min(times_s)))
@@ -1693,7 +1656,7 @@ def _resolve_patch_state(
         setup,
         requested_frequencies_hz=requested_frequencies_hz,
     )
-    return _remember_state(model, state_signature, state)
+    return state
 
 
 def _evaluate_direct_model(model: Model, times_s: np.ndarray, nu_hz: np.ndarray) -> tuple[ModelFluxResult, ModelDetails]:
@@ -1707,7 +1670,7 @@ def _evaluate_direct_model(model: Model, times_s: np.ndarray, nu_hz: np.ndarray)
         theta_center=0.0,
     )
     state = _resolve_patch_state(model, config, times_s, nu_hz)
-    observed = _observe_cached_state(model, state, times_s, nu_hz)
+    observed = _observe_state(state, times_s, nu_hz)
     details = _build_details(state.component_spectra, patches=[{"phi": 0.0, "theta": 0.0, "weight": 1.0}])
     return observed, details
 
@@ -1753,7 +1716,7 @@ def _evaluate_patch_model(model: Model, times_s: np.ndarray, nu_hz: np.ndarray) 
             theta_center=theta_center,
         )
         state = _resolve_patch_state(model, config, times_s, nu_hz)
-        observed = _observe_cached_state(model, state, times_s, nu_hz)
+        observed = _observe_state(state, times_s, nu_hz)
         total += observed.total
         fwd_sync_total += observed.fwd.sync
         fwd_ssc_total += observed.fwd.ssc
@@ -1835,44 +1798,29 @@ def _render_sky_image(model: Model, times_s: np.ndarray, nu_obs: float, fov: flo
     angular_diameter_distance_cm = _angular_diameter_distance_cm(model.observer)
     sightline, sky_x_axis, sky_y_axis = _sky_basis(model.observer)
     frequencies_hz = np.array([nu_obs], dtype=float)
-    use_ring_cache = _sky_image_can_cache_azimuthally(model)
-    ring_cache: dict[tuple[float, float, float, float], tuple[np.ndarray, np.ndarray]] = {}
-
     for phi_center, theta_center, patch_half_angle in _iter_sky_image_patches(model, npixel):
         e_iso = model.jet.energy_iso(phi_center, theta_center)
         gamma0 = model.jet.gamma0(phi_center, theta_center)
         if e_iso <= 0.0 or gamma0 <= 1.0:
             continue
-        cache_key = (
-            round(theta_center, 12),
-            round(patch_half_angle, 12),
-            round(e_iso, 6),
-            round(gamma0, 6),
+        theta_v = _angular_separation(theta_center, phi_center, model.observer.theta_obs, model.observer.phi_obs)
+        config = _build_fit_config_for_patch(
+            model,
+            phi_center=phi_center,
+            theta_v=theta_v,
+            opening_angle_jet=patch_half_angle,
+            e_iso=e_iso,
+            gamma0=gamma0,
+            theta_center=theta_center,
         )
-        cached = ring_cache.get(cache_key) if use_ring_cache else None
-        if cached is None:
-            theta_v = _angular_separation(theta_center, phi_center, model.observer.theta_obs, model.observer.phi_obs)
-            config = _build_fit_config_for_patch(
-                model,
-                phi_center=phi_center,
-                theta_v=theta_v,
-                opening_angle_jet=patch_half_angle,
-                e_iso=e_iso,
-                gamma0=gamma0,
-                theta_center=theta_center,
-            )
-            state = _resolve_patch_state(model, config, times_s, frequencies_hz)
-            observed = _observe_cached_state(model, state, times_s, frequencies_hz)
-            patch_flux = np.asarray(observed.total[0, :], dtype=float)
-            radius_cm = _interpolate_positive_series(
-                state.component_spectra.fwd.characteristic_time_s,
-                state.component_spectra.fwd.radius_cm,
-                times_s,
-            )
-            if use_ring_cache:
-                ring_cache[cache_key] = (patch_flux, radius_cm)
-        else:
-            patch_flux, radius_cm = cached
+        state = _resolve_patch_state(model, config, times_s, frequencies_hz)
+        observed = _observe_state(state, times_s, frequencies_hz)
+        patch_flux = np.asarray(observed.total[0, :], dtype=float)
+        radius_cm = _interpolate_positive_series(
+            state.component_spectra.fwd.characteristic_time_s,
+            state.component_spectra.fwd.radius_cm,
+            times_s,
+        )
         if not np.any(np.isfinite(patch_flux) & (patch_flux > 0.0)):
             continue
 
@@ -2046,15 +1994,6 @@ def _angular_separation(theta1: float, phi1: float, theta2: float, phi2: float) 
         + np.sin(theta1) * np.sin(theta2) * np.cos(phi1 - phi2)
     )
     return float(np.arccos(np.clip(cos_alpha, -1.0, 1.0)))
-
-
-def _sky_image_can_cache_azimuthally(model: Model) -> bool:
-    if abs(model.observer.theta_obs) > 1.0e-12:
-        return False
-    if not isinstance(model.medium, (ISM, Wind)):
-        return False
-    return _jet_is_axisymmetric(model.jet)
-
 
 def _jet_is_axisymmetric(jet: Jet) -> bool:
     return isinstance(jet, (TophatJet, GaussianJet, PowerLawJet, TwoComponentJet, StepPowerLawJet))

@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-import importlib
-
 import numpy as np
 
 import src.Electron.FS_electron_weno5 as electron_weno5_module
@@ -24,6 +22,10 @@ except ImportError:
             import src.Electron.FS_electron_slc1_v2 as electron_slc1_module
         except ImportError:
             import src.Electron.FS_electron_slc1 as electron_slc1_module
+try:
+    import src.Electron.FS_electron_charint as electron_charint_module
+except ImportError:
+    import src.Electron.FS_electron_charint as electron_charint_module
 from asgard_models import FitConfig
 from src import Dynamics, Electron, Radiation, constants
 
@@ -81,22 +83,6 @@ class ReverseShockEmission:
     nu_M: np.ndarray
 
 
-def _slc1_module_supports_work_grid(module) -> bool:
-    fn = getattr(module, "fs_electron_slc1_mmg2", None)
-    if fn is None:
-        return False
-    doc = getattr(fn, "__doc__", "") or ""
-    return "work_x_edge_log10" in doc and "work_dn_x" in doc
-
-
-def _resolve_slc1_runtime_module(solver_name: str):
-    if solver_name not in {"slc1_mmg", "slc1_mmg2"}:
-        return electron_slc1_module
-    if _slc1_module_supports_work_grid(electron_slc1_module):
-        return electron_slc1_module
-    return importlib.import_module("src.Electron.FS_electron_slc1")
-
-
 def solve_dynamics(boundary: np.ndarray, config: FitConfig) -> DynamicsSolution:
     reverse_params = _resolve_reverse_shock_parameters(config)
     if reverse_params is None:
@@ -144,7 +130,6 @@ def solve_electron(
     config: FitConfig,
 ) -> ElectronSolution:
     solver_name = _resolve_electron_solver(config)
-    slc1_runtime_module = _resolve_slc1_runtime_module(solver_name)
     if solver_name == "weno5":
         gam_e, d_n_gam_e, l_syn_spec, seed_syn = Electron.fs_electron_weno5(
             boundary,
@@ -181,7 +166,7 @@ def solve_electron(
         return ElectronSolution(gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a)
 
     if solver_name == "slc1":
-        gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = slc1_runtime_module.fs_electron_slc1(
+        gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = electron_slc1_module.fs_electron_slc1(
             boundary,
             dynamics.r_tobs,
             dynamics.r_gamma,
@@ -194,8 +179,8 @@ def solve_electron(
         )
         return ElectronSolution(gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a)
 
-    if solver_name in {"slc1_mmg", "slc1_mmg2"}:
-        result = slc1_runtime_module.fs_electron_slc1_mmg2(
+    if solver_name == "charint":
+        gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = electron_charint_module.fs_electron_charint(
             boundary,
             dynamics.r_tobs,
             dynamics.r_gamma,
@@ -205,34 +190,12 @@ def solve_electron(
             config.index_y,
             config.index_syn_integr,
             config.num_threads,
+            1 if config.electron_adaptive_substeps else 0,
+            config.electron_substep_rtol,
+            config.electron_substep_min,
+            config.electron_substep_max,
         )
-        if len(result) == 9:
-            (
-                gam_e,
-                d_n_gam_e,
-                l_syn_spec,
-                seed_syn,
-                nu_m,
-                nu_c,
-                nu_a,
-                work_x_edge_log10,
-                work_d_n_x,
-            ) = result
-        else:
-            gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = result
-            work_x_edge_log10 = None
-            work_d_n_x = None
-        return ElectronSolution(
-            gam_e,
-            d_n_gam_e,
-            l_syn_spec,
-            seed_syn,
-            nu_m,
-            nu_c,
-            nu_a,
-            work_x_edge_log10=None if work_x_edge_log10 is None else np.asarray(work_x_edge_log10),
-            work_d_n_x=None if work_d_n_x is None else np.asarray(work_d_n_x),
-        )
+        return ElectronSolution(gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a)
 
     gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = Electron.fs_electron_fullhide(
         boundary,
@@ -256,7 +219,7 @@ def _resolve_electron_solver(config: FitConfig) -> str:
     if config.weno5:
         return "weno5"
     solver_name = config.electron_solver.lower()
-    if solver_name not in {"fullhide", "t2g1", "weno5", "slc1", "slc1_mmg", "slc1_mmg2"}:
+    if solver_name not in {"fullhide", "t2g1", "weno5", "slc1", "charint"}:
         raise ValueError(f"Unsupported electron solver: {config.electron_solver}")
     return solver_name
 

@@ -23,7 +23,7 @@ OUTPUT_DIR = ROOT / "output" / "asgard_doc"
 TIMES_S = np.logspace(2.0, 8.0, 100)
 FREQS_HZ = np.array([1.0e9, 1.0e14, 1.0e18], dtype=float)
 PROFILE_REPEATS = 2
-NUM_GAM_BY_SOLVER = {"fullhide": 121, "slc1": 32, "slc1_mmg2": 32}
+NUM_GAM_BY_SOLVER = {"fullhide": 121, "slc1": 32}
 
 
 def _build_model(solver: str) -> Model:
@@ -89,40 +89,34 @@ def _profile_solver(solver: str) -> dict[str, object]:
 def _plot(compare: dict[str, dict[str, object]]) -> None:
     fullhide_timings = compare["fullhide"]["timings"]
     slc1_timings = compare["slc1"]["timings"]
-    mmg2_timings = compare["slc1_mmg2"]["timings"]
     labels = [
         label
         for label in sorted(
-            set(fullhide_timings) | set(slc1_timings) | set(mmg2_timings),
-            key=lambda name: max(fullhide_timings.get(name, 0.0), slc1_timings.get(name, 0.0), mmg2_timings.get(name, 0.0)),
+            set(fullhide_timings) | set(slc1_timings),
+            key=lambda name: max(fullhide_timings.get(name, 0.0), slc1_timings.get(name, 0.0)),
             reverse=True,
         )
-        if max(fullhide_timings.get(label, 0.0), slc1_timings.get(label, 0.0), mmg2_timings.get(label, 0.0)) > 0.0
+        if max(fullhide_timings.get(label, 0.0), slc1_timings.get(label, 0.0)) > 0.0
     ]
     y = np.arange(len(labels), dtype=float)
     v0 = np.array([fullhide_timings.get(label, 0.0) for label in labels], dtype=float)
     v1 = np.array([slc1_timings.get(label, 0.0) for label in labels], dtype=float)
-    v2 = np.array([mmg2_timings.get(label, 0.0) for label in labels], dtype=float)
 
     fig, ax = plt.subplots(figsize=(12, 8), constrained_layout=True)
-    ax.barh(y - 0.26, v0, height=0.24, label="fullhide")
-    ax.barh(y, v1, height=0.24, label="slc1")
-    ax.barh(y + 0.26, v2, height=0.24, label="slc1_mmg2")
+    ax.barh(y - 0.16, v0, height=0.30, label="fullhide")
+    ax.barh(y + 0.16, v1, height=0.30, label="slc1")
     ax.set_yticks(y, labels)
     ax.invert_yaxis()
     ax.set_xlabel("seconds")
-    ax.set_title("ASGARD subroutine timings: fullhide vs slc1 vs slc1_mmg2")
+    ax.set_title("ASGARD subroutine timings: fullhide vs slc1")
     ax.grid(axis="x", alpha=0.3)
     ax.legend(loc="lower right")
 
-    max_value = max(float(v0.max(initial=0.0)), float(v1.max(initial=0.0)), float(v2.max(initial=0.0)))
+    max_value = max(float(v0.max(initial=0.0)), float(v1.max(initial=0.0)))
     dx = 0.01 * max(max_value, 1.0)
     for yi, a, b in zip(y, v0, v1):
         if b > 0.0:
-            ax.text(b + dx, yi, f"x{a / b:.2f}", va="center", fontsize=8)
-    for yi, a, b in zip(y, v0, v2):
-        if b > 0.0:
-            ax.text(b + dx, yi + 0.26, f"x{a / b:.2f}", va="center", fontsize=8)
+            ax.text(b + dx, yi + 0.16, f"x{a / b:.2f}", va="center", fontsize=8)
 
     fig.savefig(OUTPUT_DIR / "slc1_subroutine_profile.png", dpi=200)
     fig.savefig(OUTPUT_DIR / "slc1_subroutine_profile.pdf")
@@ -134,7 +128,6 @@ def main() -> None:
     compare = {
         "fullhide": _profile_solver("fullhide"),
         "slc1": _profile_solver("slc1"),
-        "slc1_mmg2": _profile_solver("slc1_mmg2"),
     }
     output_json = OUTPUT_DIR / "slc1_subroutine_profile.json"
     with output_json.open("w", encoding="utf-8") as fh:

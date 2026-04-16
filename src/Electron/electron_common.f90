@@ -6,6 +6,15 @@
     integer, parameter :: radiation_resample_threshold = 180
     integer, parameter :: radiation_resample_target = 160
     integer, parameter :: radiation_resample_smoothness = 4
+    integer, parameter :: charint_quad_order = 4
+    real(8), parameter :: charint_cfl_relax = 32d0
+    real(8), parameter :: charint_substep_rtol_relax = 8d0
+    real(8), parameter :: inv_log_ten = 4.3429448190325182765d-1
+    real(8), parameter :: tiny_u_char = 1d-300
+    real(8), parameter :: charint_quad_nodes(charint_quad_order) = &
+        (/6.9431844202973714d-2, 3.3000947820757187d-1, 6.6999052179242813d-1, 9.3056815579702629d-1/)
+    real(8), parameter :: charint_quad_weights(charint_quad_order) = &
+        (/1.7392742256872693d-1, 3.2607257743127307d-1, 3.2607257743127307d-1, 1.7392742256872693d-1/)
 
 contains
 
@@ -64,28 +73,49 @@ subroutine electron_mc_slopes_nonuniform(Num_gam_e,x_center,q,slope)
     end do
 end subroutine electron_mc_slopes_nonuniform
 
+real(8) function electron_quadratic_interp3(x0,y0,x1,y1,x2,y2,x)
+    implicit real(8)(A-H,O-Z)
+    real(8), intent(in) :: x0,y0,x1,y1,x2,y2,x
+    real(8) :: l0,l1,l2
+
+    l0=((x-x1)*(x-x2))/max((x0-x1)*(x0-x2),1d-30)
+    l1=((x-x0)*(x-x2))/max((x1-x0)*(x1-x2),1d-30)
+    l2=((x-x0)*(x-x1))/max((x2-x0)*(x2-x1),1d-30)
+    electron_quadratic_interp3=y0*l0+y1*l1+y2*l2
+end function electron_quadratic_interp3
+
 subroutine electron_ppm_interfaces_nonuniform(Num_gam_e,x_edge,q,q_left,q_right)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: Num_gam_e
     integer :: I_gam_e
     real(8), intent(in) :: x_edge(Num_gam_e+1),q(Num_gam_e)
     real(8), intent(out) :: q_left(Num_gam_e),q_right(Num_gam_e)
-    real(8) :: x_center(Num_gam_e),dx_cell(Num_gam_e),slope(Num_gam_e)
+    real(8) :: x_center(Num_gam_e),dx_cell(Num_gam_e)
     real(8) :: q_min,q_max,q_bar,dq
 
     call electron_cell_geometry(Num_gam_e,x_edge,x_center,dx_cell)
-    call electron_mc_slopes_nonuniform(Num_gam_e,x_center,q,slope)
     q_left=q
     q_right=q
 
+    if (Num_gam_e >= 3) then
+        q_right(1)=electron_quadratic_interp3(x_center(1),q(1),x_center(2),q(2),x_center(3),q(3),x_edge(2))
+        q_left(Num_gam_e)=electron_quadratic_interp3(x_center(Num_gam_e-2),q(Num_gam_e-2), &
+                                                     x_center(Num_gam_e-1),q(Num_gam_e-1), &
+                                                     x_center(Num_gam_e),q(Num_gam_e),x_edge(Num_gam_e))
+    end if
+
     do I_gam_e=2,Num_gam_e-1
-        q_left(I_gam_e)=q(I_gam_e)-0.5d0*slope(I_gam_e)*dx_cell(I_gam_e)
-        q_right(I_gam_e)=q(I_gam_e)+0.5d0*slope(I_gam_e)*dx_cell(I_gam_e)
+        q_left(I_gam_e)=electron_quadratic_interp3(x_center(I_gam_e-1),q(I_gam_e-1), &
+                                                   x_center(I_gam_e),q(I_gam_e), &
+                                                   x_center(I_gam_e+1),q(I_gam_e+1),x_edge(I_gam_e))
+        q_right(I_gam_e)=electron_quadratic_interp3(x_center(I_gam_e-1),q(I_gam_e-1), &
+                                                    x_center(I_gam_e),q(I_gam_e), &
+                                                    x_center(I_gam_e+1),q(I_gam_e+1),x_edge(I_gam_e+1))
         q_min=min(q(I_gam_e-1),min(q(I_gam_e),q(I_gam_e+1)))
         q_max=max(q(I_gam_e-1),max(q(I_gam_e),q(I_gam_e+1)))
         q_left(I_gam_e)=max(q_min,min(q_max,q_left(I_gam_e)))
         q_right(I_gam_e)=max(q_min,min(q_max,q_right(I_gam_e)))
-        if ((q_right(I_gam_e)-q(I_gam_e))*(q(I_gam_e)-q_left(I_gam_e)) <= zero) then
+        if ((q(I_gam_e+1)-q(I_gam_e))*(q(I_gam_e)-q(I_gam_e-1)) <= zero) then
             q_left(I_gam_e)=q(I_gam_e)
             q_right(I_gam_e)=q(I_gam_e)
         else
@@ -98,7 +128,27 @@ subroutine electron_ppm_interfaces_nonuniform(Num_gam_e,x_edge,q,q_left,q_right)
             end if
         end if
     end do
+
+    if (Num_gam_e >= 2) then
+        q_min=min(q(1),q(2))
+        q_max=max(q(1),q(2))
+        q_left(1)=max(q_min,min(q_max,q_left(1)))
+        q_right(1)=max(q_min,min(q_max,q_right(1)))
+        q_min=min(q(Num_gam_e-1),q(Num_gam_e))
+        q_max=max(q(Num_gam_e-1),q(Num_gam_e))
+        q_left(Num_gam_e)=max(q_min,min(q_max,q_left(Num_gam_e)))
+        q_right(Num_gam_e)=max(q_min,min(q_max,q_right(Num_gam_e)))
+    end if
 end subroutine electron_ppm_interfaces_nonuniform
+
+subroutine electron_ppm_interfaces_remap_nonuniform(Num_gam_e,x_edge,q,q_left,q_right)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: Num_gam_e
+    real(8), intent(in) :: x_edge(Num_gam_e+1),q(Num_gam_e)
+    real(8), intent(out) :: q_left(Num_gam_e),q_right(Num_gam_e)
+
+    call electron_ppm_interfaces_nonuniform(Num_gam_e,x_edge,q,q_left,q_right)
+end subroutine electron_ppm_interfaces_remap_nonuniform
 
 subroutine electron_ppm_prefix_nonuniform(Num_gam_e,x_edge,q,q_left,q_right,prefix)
     implicit real(8)(A-H,O-Z)
@@ -151,6 +201,60 @@ real(8) function electron_ppm_prefix_eval_nonuniform(Num_gam_e,x_edge,q,q_left,q
                               x_edge(I_gam_e),dx_cell,x_edge(I_gam_e),xa)
 end function electron_ppm_prefix_eval_nonuniform
 
+subroutine electron_prepare_conservative_remap_nonuniform(Num_gam_e,x_edge,q,q_left,q_right,prefix)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: Num_gam_e
+    real(8), intent(in) :: x_edge(Num_gam_e+1),q(Num_gam_e)
+    real(8), intent(out) :: q_left(Num_gam_e),q_right(Num_gam_e),prefix(0:Num_gam_e)
+
+    call electron_ppm_interfaces_nonuniform(Num_gam_e,x_edge,q,q_left,q_right)
+    call electron_ppm_prefix_nonuniform(Num_gam_e,x_edge,q,q_left,q_right,prefix)
+end subroutine electron_prepare_conservative_remap_nonuniform
+
+subroutine electron_ppm_prefix_sweep_nonuniform(Num_gam_e,x_edge,q,q_left,q_right,prefix,Num_eval,x_eval,prefix_eval)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: Num_gam_e,Num_eval
+    integer :: I_eval,I_gam_e
+    real(8), intent(in) :: x_edge(Num_gam_e+1),q(Num_gam_e),q_left(Num_gam_e),q_right(Num_gam_e),prefix(0:Num_gam_e)
+    real(8), intent(in) :: x_eval(Num_eval)
+    real(8), intent(out) :: prefix_eval(Num_eval)
+    real(8) :: xa,dx_cell
+
+    I_gam_e=1
+    do I_eval=1,Num_eval
+        xa=max(x_edge(1),min(x_eval(I_eval),x_edge(Num_gam_e+1)))
+        if (xa <= x_edge(1)) then
+            prefix_eval(I_eval)=zero
+        else if (xa >= x_edge(Num_gam_e+1)) then
+            prefix_eval(I_eval)=prefix(Num_gam_e)
+        else
+            do while (I_gam_e < Num_gam_e .and. xa > x_edge(I_gam_e+1))
+                I_gam_e=I_gam_e+1
+            end do
+            dx_cell=x_edge(I_gam_e+1)-x_edge(I_gam_e)
+            prefix_eval(I_eval)=prefix(I_gam_e-1)+ &
+                electron_ppm_cell_int(q(I_gam_e),q_left(I_gam_e),q_right(I_gam_e),x_edge(I_gam_e),dx_cell,x_edge(I_gam_e),xa)
+        end if
+    end do
+end subroutine electron_ppm_prefix_sweep_nonuniform
+
+subroutine electron_conservative_remap_nonuniform_prepared(Num_gam_e,x_edge_old,x_edge_new,q_old,q_left,q_right,prefix,q_new)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: Num_gam_e
+    integer :: I_gam_e
+    real(8), intent(in) :: x_edge_old(Num_gam_e+1),x_edge_new(Num_gam_e+1),q_old(Num_gam_e)
+    real(8), intent(in) :: q_left(Num_gam_e),q_right(Num_gam_e),prefix(0:Num_gam_e)
+    real(8), intent(out) :: q_new(Num_gam_e)
+    real(8) :: dx_cell,prefix_new(Num_gam_e+1)
+
+    call electron_ppm_prefix_sweep_nonuniform(Num_gam_e,x_edge_old,q_old,q_left,q_right,prefix,Num_gam_e+1,x_edge_new,prefix_new)
+    do I_gam_e=1,Num_gam_e
+        dx_cell=max(x_edge_new(I_gam_e+1)-x_edge_new(I_gam_e),1d-30)
+        q_new(I_gam_e)=(prefix_new(I_gam_e+1)-prefix_new(I_gam_e))/dx_cell
+    end do
+    q_new=max(zero,q_new)
+end subroutine electron_conservative_remap_nonuniform_prepared
+
 subroutine electron_conservative_remap_nonuniform(Num_gam_e,x_edge_old,x_edge_new,q_old,q_new)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: Num_gam_e
@@ -159,16 +263,18 @@ subroutine electron_conservative_remap_nonuniform(Num_gam_e,x_edge_old,x_edge_ne
     real(8), intent(out) :: q_new(Num_gam_e)
     real(8) :: q_left(Num_gam_e),q_right(Num_gam_e),prefix(0:Num_gam_e),dx_cell
 
-    call electron_ppm_interfaces_nonuniform(Num_gam_e,x_edge_old,q_old,q_left,q_right)
-    call electron_ppm_prefix_nonuniform(Num_gam_e,x_edge_old,q_old,q_left,q_right,prefix)
-    do I_gam_e=1,Num_gam_e
-        dx_cell=max(x_edge_new(I_gam_e+1)-x_edge_new(I_gam_e),1d-30)
-        q_new(I_gam_e)= &
-            (electron_ppm_prefix_eval_nonuniform(Num_gam_e,x_edge_old,q_old,q_left,q_right,prefix,x_edge_new(I_gam_e+1)) - &
-             electron_ppm_prefix_eval_nonuniform(Num_gam_e,x_edge_old,q_old,q_left,q_right,prefix,x_edge_new(I_gam_e)))/dx_cell
-    end do
-    q_new=max(zero,q_new)
+    call electron_prepare_conservative_remap_nonuniform(Num_gam_e,x_edge_old,q_old,q_left,q_right,prefix)
+    call electron_conservative_remap_nonuniform_prepared(Num_gam_e,x_edge_old,x_edge_new,q_old,q_left,q_right,prefix,q_new)
 end subroutine electron_conservative_remap_nonuniform
+
+subroutine electron_conservative_remap_export_nonuniform(Num_gam_e,x_edge_old,x_edge_new,q_old,q_new)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: Num_gam_e
+    real(8), intent(in) :: x_edge_old(Num_gam_e+1),x_edge_new(Num_gam_e+1),q_old(Num_gam_e)
+    real(8), intent(out) :: q_new(Num_gam_e)
+
+    call electron_conservative_remap_nonuniform(Num_gam_e,x_edge_old,x_edge_new,q_old,q_new)
+end subroutine electron_conservative_remap_export_nonuniform
 
 real(8) function electron_loglinear_cell_int(qlog_center,slope,x_center,xa,xb)
     implicit real(8)(A-H,O-Z)
@@ -298,6 +404,512 @@ subroutine electron_semi_lagrangian_step_nonuniform(Num_gam_e,dDR,x_edge,face_co
     call electron_apply_source_step(Num_gam_e,0.5d0*dDR,dF1,dN_x_out,dN_x_out)
 end subroutine electron_semi_lagrangian_step_nonuniform
 
+subroutine electron_u_edges_from_x(Num_gam_e,x_edge,u_edge)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: Num_gam_e
+    integer :: I_gam_e
+    real(8), intent(in) :: x_edge(Num_gam_e+1)
+    real(8), intent(out) :: u_edge(Num_gam_e+1)
+
+    do I_gam_e=1,Num_gam_e+1
+        u_edge(I_gam_e)=ten**(-x_edge(I_gam_e))
+    end do
+end subroutine electron_u_edges_from_x
+
+real(8) function electron_x_from_u(u)
+    implicit real(8)(A-H,O-Z)
+    real(8), intent(in) :: u
+
+    electron_x_from_u=-dlog(max(u,tiny_u_char))*inv_log_ten
+end function electron_x_from_u
+
+real(8) function electron_affine_u_back(u_now,lag,a_u,b_u)
+    implicit real(8)(A-H,O-Z)
+    real(8), intent(in) :: u_now,lag,a_u,b_u
+    real(8) :: shift
+
+    if (abs(b_u) <= 1d-30) then
+        electron_affine_u_back=u_now-a_u*lag
+        return
+    end if
+
+    shift=a_u/b_u
+    electron_affine_u_back=(u_now+shift)*dexp(-b_u*lag)-shift
+end function electron_affine_u_back
+
+real(8) function electron_affine_u_cross_lag(u_start,u_target,a_u,b_u)
+    implicit real(8)(A-H,O-Z)
+    real(8), intent(in) :: u_start,u_target,a_u,b_u
+    real(8) :: vel_back,shift,num,den
+
+    electron_affine_u_cross_lag=1d300
+    if (abs(u_target-u_start) <= 1d-30*max(one,abs(u_start),abs(u_target))) then
+        electron_affine_u_cross_lag=zero
+        return
+    end if
+
+    if (abs(b_u) <= 1d-30) then
+        vel_back=-a_u
+        if (abs(vel_back) <= 1d-40) return
+        electron_affine_u_cross_lag=(u_target-u_start)/vel_back
+    else
+        shift=a_u/b_u
+        num=u_start+shift
+        den=u_target+shift
+        if (num <= zero .or. den <= zero) return
+        electron_affine_u_cross_lag=dlog(num/den)/b_u
+    end if
+
+    if (electron_affine_u_cross_lag < zero) electron_affine_u_cross_lag=1d300
+end function electron_affine_u_cross_lag
+
+subroutine electron_trace_affine_u_edges(Num_gam_e,u_now_edge,lag,a_u,b_u,x_back)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: Num_gam_e
+    integer :: I_gam_e
+    real(8), intent(in) :: u_now_edge(Num_gam_e+1),lag,a_u,b_u
+    real(8), intent(out) :: x_back(Num_gam_e+1)
+    real(8) :: u_prev,shift,exp_fac
+
+    if (abs(b_u) <= 1d-30) then
+        do I_gam_e=1,Num_gam_e+1
+            u_prev=u_now_edge(I_gam_e)-a_u*lag
+            x_back(I_gam_e)=electron_x_from_u(u_prev)
+        end do
+        return
+    end if
+
+    shift=a_u/b_u
+    exp_fac=dexp(-b_u*lag)
+    do I_gam_e=1,Num_gam_e+1
+        u_prev=(u_now_edge(I_gam_e)+shift)*exp_fac-shift
+        x_back(I_gam_e)=electron_x_from_u(u_prev)
+    end do
+end subroutine electron_trace_affine_u_edges
+
+subroutine electron_trace_affine_u_edges_batch(Num_gam_e,Num_lag,u_now_edge,lag_arr,a_u,b_u,x_back_batch)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: Num_gam_e,Num_lag
+    integer :: I_gam_e,I_lag
+    real(8), intent(in) :: u_now_edge(Num_gam_e+1),lag_arr(Num_lag),a_u,b_u
+    real(8), intent(out) :: x_back_batch(Num_gam_e+1,Num_lag)
+    real(8) :: u_prev,shift,exp_fac(Num_lag)
+
+    if (abs(b_u) <= 1d-30) then
+        do I_lag=1,Num_lag
+            do I_gam_e=1,Num_gam_e+1
+                u_prev=u_now_edge(I_gam_e)-a_u*lag_arr(I_lag)
+                x_back_batch(I_gam_e,I_lag)=electron_x_from_u(u_prev)
+            end do
+        end do
+        return
+    end if
+
+    shift=a_u/b_u
+    do I_lag=1,Num_lag
+        exp_fac(I_lag)=dexp(-b_u*lag_arr(I_lag))
+    end do
+    do I_lag=1,Num_lag
+        do I_gam_e=1,Num_gam_e+1
+            u_prev=(u_now_edge(I_gam_e)+shift)*exp_fac(I_lag)-shift
+            x_back_batch(I_gam_e,I_lag)=electron_x_from_u(u_prev)
+        end do
+    end do
+end subroutine electron_trace_affine_u_edges_batch
+
+subroutine electron_build_piecewise_affine_u(Num_gam_e,x_edge,gam_e,dEl,R_loc,u_edge,a_cell,b_cell)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: Num_gam_e
+    integer :: I_gam_e
+    real(8), intent(in) :: x_edge(Num_gam_e+1),gam_e(Num_gam_e),dEl(Num_gam_e),R_loc
+    real(8), intent(out) :: u_edge(Num_gam_e+1),a_cell(Num_gam_e),b_cell(Num_gam_e)
+    real(8) :: u_center(Num_gam_e),w_center(Num_gam_e),w_edge(Num_gam_e+1)
+    real(8) :: frac,du,slope
+
+    call electron_u_edges_from_x(Num_gam_e,x_edge,u_edge)
+    do I_gam_e=1,Num_gam_e
+        u_center(I_gam_e)=one/gam_e(I_gam_e)
+        w_center(I_gam_e)=u_center(I_gam_e)*dEl(I_gam_e)
+    end do
+
+    w_edge(1)=w_center(1)
+    do I_gam_e=2,Num_gam_e
+        if (abs(u_center(I_gam_e)-u_center(I_gam_e-1)) <= 1d-40) then
+            w_edge(I_gam_e)=0.5d0*(w_center(I_gam_e-1)+w_center(I_gam_e))
+        else
+            frac=(u_edge(I_gam_e)-u_center(I_gam_e-1))/(u_center(I_gam_e)-u_center(I_gam_e-1))
+            w_edge(I_gam_e)=w_center(I_gam_e-1)+frac*(w_center(I_gam_e)-w_center(I_gam_e-1))
+        end if
+    end do
+    w_edge(Num_gam_e+1)=w_center(Num_gam_e)
+
+    do I_gam_e=1,Num_gam_e
+        du=u_edge(I_gam_e+1)-u_edge(I_gam_e)
+        if (abs(du) <= 1d-40) then
+            slope=zero
+        else
+            slope=(w_edge(I_gam_e+1)-w_edge(I_gam_e))/du
+        end if
+        a_cell(I_gam_e)=w_edge(I_gam_e)-slope*u_edge(I_gam_e)
+        b_cell(I_gam_e)=slope+one/R_loc
+    end do
+end subroutine electron_build_piecewise_affine_u
+
+subroutine electron_find_u_cell_desc(Num_gam_e,u_edge,u_val,I_cell)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: Num_gam_e
+    integer, intent(out) :: I_cell
+    integer :: left,right,mid
+    real(8), intent(in) :: u_edge(Num_gam_e+1),u_val
+
+    if (u_val >= u_edge(1)) then
+        I_cell=1
+        return
+    end if
+    if (u_val <= u_edge(Num_gam_e+1)) then
+        I_cell=Num_gam_e
+        return
+    end if
+
+    left=1
+    right=Num_gam_e
+    do while (left < right)
+        mid=(left+right)/2
+        if (u_val <= u_edge(mid+1)) then
+            left=mid+1
+        else
+            right=mid
+        end if
+    end do
+    I_cell=left
+end subroutine electron_find_u_cell_desc
+
+subroutine electron_find_u_cell_desc_hint(Num_gam_e,u_edge,u_val,I_cell)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: Num_gam_e
+    integer, intent(inout) :: I_cell
+    real(8), intent(in) :: u_edge(Num_gam_e+1),u_val
+
+    if (u_val >= u_edge(1)) then
+        I_cell=1
+        return
+    end if
+    if (u_val <= u_edge(Num_gam_e+1)) then
+        I_cell=Num_gam_e
+        return
+    end if
+
+    I_cell=max(1,min(Num_gam_e,I_cell))
+    do while (I_cell < Num_gam_e .and. u_val <= u_edge(I_cell+1))
+        I_cell=I_cell+1
+    end do
+    do while (I_cell > 1 .and. u_val > u_edge(I_cell))
+        I_cell=I_cell-1
+    end do
+end subroutine electron_find_u_cell_desc_hint
+
+subroutine electron_trace_piecewise_affine_u_edge_from_cell(Num_gam_e,u_edge,a_cell,b_cell,lag,u_now,I_cell_start,u_back)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: Num_gam_e
+    integer, intent(in) :: I_cell_start
+    integer :: I_cell
+    real(8), intent(in) :: u_edge(Num_gam_e+1),a_cell(Num_gam_e),b_cell(Num_gam_e),lag,u_now
+    real(8), intent(out) :: u_back
+    real(8) :: s_rem,u_cur,g_cur,u_bound,s_hit,a_cur,b_cur,shift,num,den,vel_back
+
+    if (lag <= zero) then
+        u_back=u_now
+        return
+    end if
+
+    I_cell=max(1,min(Num_gam_e,I_cell_start))
+    u_cur=u_now
+    s_rem=lag
+    do while (s_rem > 1d-14*max(lag,one))
+        a_cur=a_cell(I_cell)
+        b_cur=b_cell(I_cell)
+        g_cur=a_cur+b_cur*u_cur
+        if (abs(g_cur) <= 1d-40) then
+            u_back=u_cur
+            return
+        end if
+
+        if (g_cur > zero) then
+            if (I_cell == Num_gam_e) then
+                if (abs(b_cur) <= 1d-30) then
+                    u_back=u_cur-a_cur*s_rem
+                else
+                    shift=a_cur/b_cur
+                    u_back=(u_cur+shift)*dexp(-b_cur*s_rem)-shift
+                end if
+                return
+            end if
+            u_bound=u_edge(I_cell+1)
+            s_hit=1d300
+            if (abs(u_bound-u_cur) <= 1d-30*max(one,abs(u_cur),abs(u_bound))) then
+                s_hit=zero
+            else if (abs(b_cur) <= 1d-30) then
+                vel_back=-a_cur
+                if (abs(vel_back) > 1d-40) s_hit=(u_bound-u_cur)/vel_back
+            else
+                shift=a_cur/b_cur
+                num=u_cur+shift
+                den=u_bound+shift
+                if (num > zero .and. den > zero) s_hit=dlog(num/den)/b_cur
+            end if
+            if (s_hit < zero) s_hit=1d300
+            if (s_hit >= s_rem .or. s_hit >= 1d290) then
+                if (abs(b_cur) <= 1d-30) then
+                    u_back=u_cur-a_cur*s_rem
+                else
+                    if (abs(b_cur) > 1d-30) shift=a_cur/b_cur
+                    u_back=(u_cur+shift)*dexp(-b_cur*s_rem)-shift
+                end if
+                return
+            end if
+            s_rem=s_rem-s_hit
+            I_cell=min(Num_gam_e,I_cell+1)
+            u_cur=max(u_edge(Num_gam_e+1),u_bound*(one-1d-12))
+        else
+            if (I_cell == 1) then
+                u_bound=u_edge(1)
+                s_hit=1d300
+                if (abs(u_bound-u_cur) <= 1d-30*max(one,abs(u_cur),abs(u_bound))) then
+                    s_hit=zero
+                else if (abs(b_cur) <= 1d-30) then
+                    vel_back=-a_cur
+                    if (abs(vel_back) > 1d-40) s_hit=(u_bound-u_cur)/vel_back
+                else
+                    shift=a_cur/b_cur
+                    num=u_cur+shift
+                    den=u_bound+shift
+                    if (num > zero .and. den > zero) s_hit=dlog(num/den)/b_cur
+                end if
+                if (s_hit < zero) s_hit=1d300
+                if (s_hit >= s_rem .or. s_hit >= 1d290) then
+                    if (abs(b_cur) <= 1d-30) then
+                        u_back=u_cur-a_cur*s_rem
+                    else
+                        if (abs(b_cur) > 1d-30) shift=a_cur/b_cur
+                        u_back=(u_cur+shift)*dexp(-b_cur*s_rem)-shift
+                    end if
+                else
+                    u_back=u_edge(1)
+                end if
+                return
+            end if
+            u_bound=u_edge(I_cell)
+            s_hit=1d300
+            if (abs(u_bound-u_cur) <= 1d-30*max(one,abs(u_cur),abs(u_bound))) then
+                s_hit=zero
+            else if (abs(b_cur) <= 1d-30) then
+                vel_back=-a_cur
+                if (abs(vel_back) > 1d-40) s_hit=(u_bound-u_cur)/vel_back
+            else
+                shift=a_cur/b_cur
+                num=u_cur+shift
+                den=u_bound+shift
+                if (num > zero .and. den > zero) s_hit=dlog(num/den)/b_cur
+            end if
+            if (s_hit < zero) s_hit=1d300
+            if (s_hit >= s_rem .or. s_hit >= 1d290) then
+                if (abs(b_cur) <= 1d-30) then
+                    u_back=u_cur-a_cur*s_rem
+                else
+                    if (abs(b_cur) > 1d-30) shift=a_cur/b_cur
+                    u_back=(u_cur+shift)*dexp(-b_cur*s_rem)-shift
+                end if
+                return
+            end if
+            s_rem=s_rem-s_hit
+            I_cell=max(1,I_cell-1)
+            u_cur=min(u_edge(1),u_bound*(one+1d-12))
+        end if
+    end do
+
+    u_back=u_cur
+end subroutine electron_trace_piecewise_affine_u_edge_from_cell
+
+subroutine electron_trace_piecewise_affine_u_edge(Num_gam_e,u_edge,a_cell,b_cell,lag,u_now,u_back)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: Num_gam_e
+    integer :: I_cell
+    real(8), intent(in) :: u_edge(Num_gam_e+1),a_cell(Num_gam_e),b_cell(Num_gam_e),lag,u_now
+    real(8), intent(out) :: u_back
+
+    call electron_find_u_cell_desc(Num_gam_e,u_edge,u_now,I_cell)
+    call electron_trace_piecewise_affine_u_edge_from_cell(Num_gam_e,u_edge,a_cell,b_cell,lag,u_now,I_cell,u_back)
+end subroutine electron_trace_piecewise_affine_u_edge
+
+subroutine electron_trace_piecewise_affine_u_edges(Num_gam_e,u_now_edge,u_edge,a_cell,b_cell,lag,x_back)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: Num_gam_e
+    integer :: I_gam_e,I_cell
+    real(8), intent(in) :: u_now_edge(Num_gam_e+1),u_edge(Num_gam_e+1),a_cell(Num_gam_e),b_cell(Num_gam_e),lag
+    real(8), intent(out) :: x_back(Num_gam_e+1)
+    real(8) :: u_prev
+
+    I_cell=1
+    do I_gam_e=1,Num_gam_e+1
+        call electron_find_u_cell_desc_hint(Num_gam_e,u_edge,u_now_edge(I_gam_e),I_cell)
+        call electron_trace_piecewise_affine_u_edge_from_cell(Num_gam_e,u_edge,a_cell,b_cell,lag,u_now_edge(I_gam_e),I_cell,u_prev)
+        x_back(I_gam_e)=electron_x_from_u(u_prev)
+    end do
+end subroutine electron_trace_piecewise_affine_u_edges
+
+subroutine electron_trace_piecewise_affine_u_edges_batch(Num_gam_e,Num_lag,u_now_edge,u_edge,a_cell,b_cell,lag_arr,x_back_batch)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: Num_gam_e,Num_lag
+    integer :: I_lag
+    real(8), intent(in) :: u_now_edge(Num_gam_e+1),u_edge(Num_gam_e+1),a_cell(Num_gam_e),b_cell(Num_gam_e),lag_arr(Num_lag)
+    real(8), intent(out) :: x_back_batch(Num_gam_e+1,Num_lag)
+
+    do I_lag=1,Num_lag
+        call electron_trace_piecewise_affine_u_edges(Num_gam_e,u_now_edge,u_edge,a_cell,b_cell,lag_arr(I_lag),x_back_batch(:,I_lag))
+    end do
+end subroutine electron_trace_piecewise_affine_u_edges_batch
+
+subroutine electron_characteristic_step_affine_u(Num_gam_e,dDR,x_edge,a_u,b_u,dF1,dN_x_in,dN_x_out)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: Num_gam_e
+    integer :: I_quad
+    real(8), intent(in) :: dDR,x_edge(Num_gam_e+1),a_u,b_u,dF1(Num_gam_e),dN_x_in(Num_gam_e)
+    real(8), intent(out) :: dN_x_out(Num_gam_e)
+    real(8) :: x_back(Num_gam_e+1),u_now_edge(Num_gam_e+1),lag_arr(charint_quad_order+1)
+    real(8) :: x_back_batch(Num_gam_e+1,charint_quad_order+1)
+    real(8) :: dN_transport(Num_gam_e),dN_source(Num_gam_e),dN_quad(Num_gam_e)
+    real(8) :: q_left_state(Num_gam_e),q_right_state(Num_gam_e),prefix_state(0:Num_gam_e)
+    real(8) :: q_left_source(Num_gam_e),q_right_source(Num_gam_e),prefix_source(0:Num_gam_e)
+
+    call electron_u_edges_from_x(Num_gam_e,x_edge,u_now_edge)
+    call electron_prepare_conservative_remap_nonuniform(Num_gam_e,x_edge,dN_x_in,q_left_state,q_right_state,prefix_state)
+    call electron_prepare_conservative_remap_nonuniform(Num_gam_e,x_edge,dF1,q_left_source,q_right_source,prefix_source)
+
+    lag_arr(1)=dDR
+    do I_quad=1,charint_quad_order
+        lag_arr(I_quad+1)=charint_quad_nodes(I_quad)*dDR
+    end do
+    call electron_trace_affine_u_edges_batch(Num_gam_e,charint_quad_order+1,u_now_edge,lag_arr,a_u,b_u,x_back_batch)
+
+    x_back=x_back_batch(:,1)
+    call electron_conservative_remap_nonuniform_prepared(Num_gam_e,x_edge,x_back,dN_x_in,q_left_state,q_right_state,prefix_state,dN_transport)
+
+    dN_source=zero
+    do I_quad=1,charint_quad_order
+        x_back=x_back_batch(:,I_quad+1)
+        call electron_conservative_remap_nonuniform_prepared(Num_gam_e,x_edge,x_back,dF1,q_left_source,q_right_source,prefix_source,dN_quad)
+        dN_source=dN_source+charint_quad_weights(I_quad)*dN_quad
+    end do
+    dN_x_out=max(zero,dN_transport+dDR*dN_source)
+end subroutine electron_characteristic_step_affine_u
+
+subroutine electron_characteristic_step_affine_u_prepared_source(Num_gam_e,dDR,x_edge,a_u,b_u,source_scale, &
+                                                                 dF1_shape,q_left_source,q_right_source, &
+                                                                 prefix_source,dN_x_in,dN_x_out)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: Num_gam_e
+    integer :: I_quad
+    real(8), intent(in) :: dDR,x_edge(Num_gam_e+1),a_u,b_u,source_scale
+    real(8), intent(in) :: dF1_shape(Num_gam_e),q_left_source(Num_gam_e),q_right_source(Num_gam_e)
+    real(8), intent(in) :: prefix_source(0:Num_gam_e),dN_x_in(Num_gam_e)
+    real(8), intent(out) :: dN_x_out(Num_gam_e)
+    real(8) :: x_back(Num_gam_e+1),u_now_edge(Num_gam_e+1),lag_arr(charint_quad_order+1)
+    real(8) :: x_back_batch(Num_gam_e+1,charint_quad_order+1)
+    real(8) :: dN_transport(Num_gam_e),dN_source(Num_gam_e),dN_quad(Num_gam_e)
+    real(8) :: q_left_state(Num_gam_e),q_right_state(Num_gam_e),prefix_state(0:Num_gam_e)
+
+    call electron_u_edges_from_x(Num_gam_e,x_edge,u_now_edge)
+    call electron_prepare_conservative_remap_nonuniform(Num_gam_e,x_edge,dN_x_in,q_left_state,q_right_state,prefix_state)
+
+    lag_arr(1)=dDR
+    do I_quad=1,charint_quad_order
+        lag_arr(I_quad+1)=charint_quad_nodes(I_quad)*dDR
+    end do
+    call electron_trace_affine_u_edges_batch(Num_gam_e,charint_quad_order+1,u_now_edge,lag_arr,a_u,b_u,x_back_batch)
+
+    x_back=x_back_batch(:,1)
+    call electron_conservative_remap_nonuniform_prepared(Num_gam_e,x_edge,x_back,dN_x_in,q_left_state,q_right_state,prefix_state,dN_transport)
+
+    dN_source=zero
+    do I_quad=1,charint_quad_order
+        x_back=x_back_batch(:,I_quad+1)
+        call electron_conservative_remap_nonuniform_prepared(Num_gam_e,x_edge,x_back,dF1_shape,q_left_source,q_right_source,prefix_source,dN_quad)
+        dN_source=dN_source+charint_quad_weights(I_quad)*dN_quad
+    end do
+    dN_x_out=max(zero,dN_transport+dDR*source_scale*dN_source)
+end subroutine electron_characteristic_step_affine_u_prepared_source
+
+subroutine electron_characteristic_step_piecewise_u(Num_gam_e,dDR,x_edge,gam_e,dEl,R_loc,dF1,dN_x_in,dN_x_out)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: Num_gam_e
+    integer :: I_quad
+    real(8), intent(in) :: dDR,x_edge(Num_gam_e+1),gam_e(Num_gam_e),dEl(Num_gam_e),R_loc
+    real(8), intent(in) :: dF1(Num_gam_e),dN_x_in(Num_gam_e)
+    real(8), intent(out) :: dN_x_out(Num_gam_e)
+    real(8) :: x_back(Num_gam_e+1),u_edge(Num_gam_e+1),a_cell(Num_gam_e),b_cell(Num_gam_e)
+    real(8) :: lag_arr(charint_quad_order+1),x_back_batch(Num_gam_e+1,charint_quad_order+1)
+    real(8) :: dN_transport(Num_gam_e),dN_source(Num_gam_e),dN_quad(Num_gam_e)
+    real(8) :: q_left_state(Num_gam_e),q_right_state(Num_gam_e),prefix_state(0:Num_gam_e)
+    real(8) :: q_left_source(Num_gam_e),q_right_source(Num_gam_e),prefix_source(0:Num_gam_e)
+
+    call electron_build_piecewise_affine_u(Num_gam_e,x_edge,gam_e,dEl,R_loc,u_edge,a_cell,b_cell)
+    call electron_prepare_conservative_remap_nonuniform(Num_gam_e,x_edge,dN_x_in,q_left_state,q_right_state,prefix_state)
+    call electron_prepare_conservative_remap_nonuniform(Num_gam_e,x_edge,dF1,q_left_source,q_right_source,prefix_source)
+
+    lag_arr(1)=dDR
+    do I_quad=1,charint_quad_order
+        lag_arr(I_quad+1)=charint_quad_nodes(I_quad)*dDR
+    end do
+    call electron_trace_piecewise_affine_u_edges_batch(Num_gam_e,charint_quad_order+1,u_edge,u_edge,a_cell,b_cell,lag_arr,x_back_batch)
+
+    x_back=x_back_batch(:,1)
+    call electron_conservative_remap_nonuniform_prepared(Num_gam_e,x_edge,x_back,dN_x_in,q_left_state,q_right_state,prefix_state,dN_transport)
+
+    dN_source=zero
+    do I_quad=1,charint_quad_order
+        x_back=x_back_batch(:,I_quad+1)
+        call electron_conservative_remap_nonuniform_prepared(Num_gam_e,x_edge,x_back,dF1,q_left_source,q_right_source,prefix_source,dN_quad)
+        dN_source=dN_source+charint_quad_weights(I_quad)*dN_quad
+    end do
+    dN_x_out=max(zero,dN_transport+dDR*dN_source)
+end subroutine electron_characteristic_step_piecewise_u
+
+subroutine electron_characteristic_step_piecewise_u_prepared_source(Num_gam_e,dDR,x_edge,gam_e,dEl,R_loc,source_scale, &
+                                                                    dF1_shape,q_left_source,q_right_source, &
+                                                                    prefix_source,dN_x_in,dN_x_out)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: Num_gam_e
+    integer :: I_quad
+    real(8), intent(in) :: dDR,x_edge(Num_gam_e+1),gam_e(Num_gam_e),dEl(Num_gam_e),R_loc,source_scale
+    real(8), intent(in) :: dF1_shape(Num_gam_e),q_left_source(Num_gam_e),q_right_source(Num_gam_e)
+    real(8), intent(in) :: prefix_source(0:Num_gam_e),dN_x_in(Num_gam_e)
+    real(8), intent(out) :: dN_x_out(Num_gam_e)
+    real(8) :: x_back(Num_gam_e+1),u_edge(Num_gam_e+1),a_cell(Num_gam_e),b_cell(Num_gam_e)
+    real(8) :: lag_arr(charint_quad_order+1),x_back_batch(Num_gam_e+1,charint_quad_order+1)
+    real(8) :: dN_transport(Num_gam_e),dN_source(Num_gam_e),dN_quad(Num_gam_e)
+    real(8) :: q_left_state(Num_gam_e),q_right_state(Num_gam_e),prefix_state(0:Num_gam_e)
+
+    call electron_build_piecewise_affine_u(Num_gam_e,x_edge,gam_e,dEl,R_loc,u_edge,a_cell,b_cell)
+    call electron_prepare_conservative_remap_nonuniform(Num_gam_e,x_edge,dN_x_in,q_left_state,q_right_state,prefix_state)
+
+    lag_arr(1)=dDR
+    do I_quad=1,charint_quad_order
+        lag_arr(I_quad+1)=charint_quad_nodes(I_quad)*dDR
+    end do
+    call electron_trace_piecewise_affine_u_edges_batch(Num_gam_e,charint_quad_order+1,u_edge,u_edge,a_cell,b_cell,lag_arr,x_back_batch)
+
+    x_back=x_back_batch(:,1)
+    call electron_conservative_remap_nonuniform_prepared(Num_gam_e,x_edge,x_back,dN_x_in,q_left_state,q_right_state,prefix_state,dN_transport)
+
+    dN_source=zero
+    do I_quad=1,charint_quad_order
+        x_back=x_back_batch(:,I_quad+1)
+        call electron_conservative_remap_nonuniform_prepared(Num_gam_e,x_edge,x_back,dF1_shape,q_left_source,q_right_source,prefix_source,dN_quad)
+        dN_source=dN_source+charint_quad_weights(I_quad)*dN_quad
+    end do
+    dN_x_out=max(zero,dN_transport+dDR*source_scale*dN_source)
+end subroutine electron_characteristic_step_piecewise_u_prepared_source
+
 subroutine electron_cell_geometry(Num_gam_e,x_edge,x_center,dx_cell)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: Num_gam_e
@@ -385,10 +997,16 @@ subroutine electron_find_low_energy_front(Num_gam_e,x_edge,dN_x,x_cut_low)
     integer :: I_gam_e,first_active
     real(8), intent(in) :: x_edge(Num_gam_e+1),dN_x(Num_gam_e)
     real(8), intent(out) :: x_cut_low
-    real(8) :: x_center(Num_gam_e),dx_cell(Num_gam_e),peak_val,threshold,q0,q1,qth,frac
+    real(8) :: x_center(Num_gam_e),dx_cell(Num_gam_e),gam_center(Num_gam_e)
+    real(8) :: dN_gam(Num_gam_e),peak_val,threshold,q0,q1,qth,frac
 
     call electron_cell_geometry(Num_gam_e,x_edge,x_center,dx_cell)
-    peak_val=maxval(dN_x)
+    do I_gam_e=1,Num_gam_e
+        gam_center(I_gam_e)=ten**x_center(I_gam_e)
+        dN_gam(I_gam_e)=dN_x(I_gam_e)/max(gam_center(I_gam_e)*dlog(ten),1d-30)
+    end do
+
+    peak_val=maxval(dN_gam)
     if (peak_val <= zero) then
         x_cut_low=x_edge(1)
         return
@@ -397,7 +1015,7 @@ subroutine electron_find_low_energy_front(Num_gam_e,x_edge,dN_x,x_cut_low)
     threshold=max(1d-30,1d-15*peak_val)
     first_active=Num_gam_e+1
     do I_gam_e=1,Num_gam_e
-        if (dN_x(I_gam_e) > threshold) then
+        if (dN_gam(I_gam_e) > threshold) then
             first_active=I_gam_e
             exit
         end if
@@ -408,8 +1026,8 @@ subroutine electron_find_low_energy_front(Num_gam_e,x_edge,dN_x,x_cut_low)
     else if (first_active <= 1) then
         x_cut_low=x_edge(1)
     else
-        q0=dlog10(one+max(dN_x(first_active-1),zero))
-        q1=dlog10(one+max(dN_x(first_active),zero))
+        q0=dlog10(one+max(dN_gam(first_active-1),zero))
+        q1=dlog10(one+max(dN_gam(first_active),zero))
         qth=dlog10(one+threshold)
         if (abs(q1-q0) <= 1d-30) then
             x_cut_low=0.5d0*(x_center(first_active-1)+x_center(first_active))
@@ -487,7 +1105,7 @@ subroutine electron_anchor_low_energy_edges(Num_gam_e,x_edge_old,x_edge_new,x_cu
     real(8), intent(inout) :: x_edge_new(Num_gam_e+1)
     real(8) :: x_lo,x_next,x_hi,x_cut,eps_spacing,s,min_head_span
 
-    head_cells=min(9,max(6,Num_gam_e/4))
+    head_cells=min(9,max(4,Num_gam_e/4))
     anchor_idx=head_cells+1
     if (anchor_idx >= Num_gam_e+1) return
 
@@ -506,7 +1124,7 @@ subroutine electron_anchor_low_energy_edges(Num_gam_e,x_edge_old,x_edge_new,x_cu
     x_edge_new(anchor_idx-1)=x_cut
     do I_edge=2,anchor_idx-2
         s=real(I_edge-1,8)/real(anchor_idx-2,8)
-        x_edge_new(I_edge)=x_lo+(x_cut-x_lo)*(two*s-s*s)
+        x_edge_new(I_edge)=x_lo+(x_cut-x_lo)*s
     end do
 
     do I_edge=2,anchor_idx
@@ -1251,6 +1869,7 @@ subroutine electron_ppm_interfaces(Num_gam_e,d_x,q,q_left,q_right)
             end if
         end if
     end do
+
 end subroutine electron_ppm_interfaces
 
 real(8) function electron_ppm_cell_int(qc,q_left,q_right,cell_lo,d_x,xl,xr)
@@ -1349,17 +1968,57 @@ real(8) function electron_ppm_prefix_eval(Num_gam_e,d_x,q,q_left,q_right,prefix,
         electron_ppm_cell_int(q(I_gam_e),q_left(I_gam_e),q_right(I_gam_e),cell_lo,d_x,cell_lo,xa)
 end function electron_ppm_prefix_eval
 
+real(8) function electron_ppm_interval_integral(Num_gam_e,d_x,q,q_left,q_right,x_l,x_r)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: Num_gam_e
+    integer :: i_left,i_right,I_gam_e
+    real(8), intent(in) :: d_x,q(Num_gam_e),q_left(Num_gam_e),q_right(Num_gam_e),x_l,x_r
+    real(8) :: xa,xb,cell_lo,cell_hi
+
+    xa=max(zero,min(x_l,Num_gam_e*d_x))
+    xb=max(zero,min(x_r,Num_gam_e*d_x))
+    if (xb <= xa) then
+        electron_ppm_interval_integral=zero
+        return
+    end if
+
+    i_left=max(1,min(Num_gam_e,int(xa/d_x)+1))
+    i_right=max(1,min(Num_gam_e,int((xb-1d-15)/d_x)+1))
+    electron_ppm_interval_integral=zero
+
+    if (i_left == i_right) then
+        cell_lo=(i_left-1)*d_x
+        electron_ppm_interval_integral=electron_ppm_cell_int(q(i_left),q_left(i_left),q_right(i_left),cell_lo,d_x,xa,xb)
+        return
+    end if
+
+    cell_lo=(i_left-1)*d_x
+    cell_hi=i_left*d_x
+    electron_ppm_interval_integral=electron_ppm_interval_integral + &
+        electron_ppm_cell_int(q(i_left),q_left(i_left),q_right(i_left),cell_lo,d_x,xa,cell_hi)
+
+    do I_gam_e=i_left+1,i_right-1
+        cell_lo=(I_gam_e-1)*d_x
+        cell_hi=I_gam_e*d_x
+        electron_ppm_interval_integral=electron_ppm_interval_integral + &
+            electron_ppm_cell_int(q(I_gam_e),q_left(I_gam_e),q_right(I_gam_e),cell_lo,d_x,cell_lo,cell_hi)
+    end do
+
+    cell_lo=(i_right-1)*d_x
+    electron_ppm_interval_integral=electron_ppm_interval_integral + &
+        electron_ppm_cell_int(q(i_right),q_left(i_right),q_right(i_right),cell_lo,d_x,cell_lo,xb)
+end function electron_ppm_interval_integral
+
 subroutine electron_semi_lagrangian_transport(Num_gam_e,dDR,d_x,face_coeff,dN_x_in,dN_x_out)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: Num_gam_e
     integer :: I_gam_e
     real(8), intent(in) :: dDR,d_x,face_coeff(Num_gam_e-1),dN_x_in(Num_gam_e)
     real(8), intent(out) :: dN_x_out(Num_gam_e)
-    real(8) :: vel_face(0:Num_gam_e),x_edge(0:Num_gam_e),dep_l,dep_r,prefix(0:Num_gam_e)
+    real(8) :: vel_face(0:Num_gam_e),x_edge(0:Num_gam_e),dep_l,dep_r
     real(8) :: q_left(Num_gam_e),q_right(Num_gam_e)
 
     call electron_ppm_interfaces(Num_gam_e,d_x,dN_x_in,q_left,q_right)
-    call electron_ppm_prefix(Num_gam_e,d_x,dN_x_in,q_left,q_right,prefix)
     do I_gam_e=0,Num_gam_e
         x_edge(I_gam_e)=I_gam_e*d_x
     end do
@@ -1371,9 +2030,8 @@ subroutine electron_semi_lagrangian_transport(Num_gam_e,dDR,d_x,face_coeff,dN_x_
     do I_gam_e=1,Num_gam_e
         dep_l=x_edge(I_gam_e-1)-vel_face(I_gam_e-1)*dDR
         dep_r=x_edge(I_gam_e)-vel_face(I_gam_e)*dDR
-        dN_x_out(I_gam_e)= &
-            (electron_ppm_prefix_eval(Num_gam_e,d_x,dN_x_in,q_left,q_right,prefix,dep_r)- &
-             electron_ppm_prefix_eval(Num_gam_e,d_x,dN_x_in,q_left,q_right,prefix,dep_l))/d_x
+        if (I_gam_e == 1) dep_l=x_edge(0)
+        dN_x_out(I_gam_e)=electron_ppm_interval_integral(Num_gam_e,d_x,dN_x_in,q_left,q_right,dep_l,dep_r)/d_x
     end do
     dN_x_out=max(zero,dN_x_out)
 end subroutine electron_semi_lagrangian_transport
@@ -1398,6 +2056,31 @@ subroutine electron_semi_lagrangian_step(Num_gam_e,dDR,d_x,face_coeff,dF1,dN_x_i
     call electron_semi_lagrangian_transport(Num_gam_e,dDR,d_x,face_coeff,dN_half,dN_x_out)
     call electron_apply_source_step(Num_gam_e,0.5d0*dDR,dF1,dN_x_out,dN_x_out)
 end subroutine electron_semi_lagrangian_step
+
+subroutine electron_transport_implicit_step(Num_gam_e,dDR,d_x,face_coeff,dN_x_rhs,dN_x_out)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: Num_gam_e
+    real(8), intent(in) :: dDR,d_x,face_coeff(Num_gam_e-1),dN_x_rhs(Num_gam_e)
+    real(8), intent(out) :: dN_x_out(Num_gam_e)
+    real(8) :: principal(Num_gam_e),up(Num_gam_e-1),temp1(Num_gam_e-1),temp2(Num_gam_e)
+
+    up=-(dDR/d_x)*face_coeff
+    call electron_prepare_implicit_coeffs(Num_gam_e,one,up,principal,temp1)
+    temp2=dN_x_rhs/principal
+    call electron_backward_sweep(Num_gam_e,temp1,temp2,dN_x_out)
+end subroutine electron_transport_implicit_step
+
+subroutine electron_semi_lagrangian_imex_step(Num_gam_e,dDR,d_x,face_coeff,dF1,dN_x_in,dN_x_out)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: Num_gam_e
+    real(8), intent(in) :: dDR,d_x,face_coeff(Num_gam_e-1),dF1(Num_gam_e),dN_x_in(Num_gam_e)
+    real(8), intent(out) :: dN_x_out(Num_gam_e)
+    real(8) :: dN_x_sl(Num_gam_e),dN_x_rhs(Num_gam_e)
+
+    call electron_semi_lagrangian_transport(Num_gam_e,dDR,d_x,face_coeff,dN_x_in,dN_x_sl)
+    dN_x_rhs=dN_x_sl+dDR*dF1
+    call electron_transport_implicit_step(Num_gam_e,dDR,d_x,face_coeff,dN_x_rhs,dN_x_out)
+end subroutine electron_semi_lagrangian_imex_step
 
 subroutine electron_fullhide_step(Num_gam_e,R_loc,dDR,d_x,dEL_mean,dF1,dN_x_in,dN_x_out)
     implicit real(8)(A-H,O-Z)

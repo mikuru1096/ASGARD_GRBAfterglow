@@ -24,9 +24,9 @@ MULTIBAND_NPZ = OUTPUT_DIR / "multiband_afterglow_data.npz"
 MULTIBAND_PNG = OUTPUT_DIR / "multiband_afterglow_compare.png"
 MULTIBAND_PDF = OUTPUT_DIR / "multiband_afterglow_compare.pdf"
 
-SOLVERS = ("fullhide", "slc1", "slc1_mmg2")
+SOLVERS = ("fullhide", "slc1", "charint")
 MEDIA = ("ism", "wind")
-NUM_GAM_BY_SOLVER = {"fullhide": 121, "slc1": 32, "slc1_mmg2": 32}
+NUM_GAM_BY_SOLVER = {"fullhide": 121, "slc1": 121, "charint": 121}
 IC_EPSILON_E = 0.2
 IC_EPSILON_B = 1.0e-5
 IC_P = 2.3
@@ -57,7 +57,13 @@ def _build_model(solver: str, medium_name: str) -> Model:
         medium=medium,
         observer=Observer(1.0e26, 0.1, 0.0),
         fwd_rad=Radiation(IC_EPSILON_E, IC_EPSILON_B, IC_P, ssc=True, kn=True),
-        setups=Setups(electron_solver=solver, num_gam_e=NUM_GAM_BY_SOLVER[solver], num_nu=121, num_r=160),
+        setups=Setups(
+            electron_solver=solver,
+            num_gam_e=NUM_GAM_BY_SOLVER[solver],
+            num_nu=121,
+            num_r=160,
+            electron_adaptive_substeps=False,
+        ),
     )
 
 
@@ -179,7 +185,7 @@ def _plot_benchmark(results: dict[str, dict[str, list[dict]]]) -> None:
     names = [item["name"] for item in results["ism"]["fullhide"]]
     x = np.arange(len(names), dtype=float)
     width = 0.35
-    colors = {"fullhide": "#1f77b4", "slc1": "#2ca02c", "slc1_mmg2": "#d62728"}
+    colors = {"fullhide": "#1f77b4", "slc1": "#2ca02c", "charint": "#ff7f0e"}
 
     fig, axes = plt.subplots(1, 2, figsize=(14, 5.5), constrained_layout=True, sharey=True)
     for ax, medium_name in zip(axes, MEDIA):
@@ -212,7 +218,7 @@ def _multiband_curves() -> dict[str, dict[str, dict[str, np.ndarray]]]:
 
 
 def _plot_multiband(curves: dict[str, dict[str, dict[str, np.ndarray]]]) -> None:
-    colors = {"fullhide": "#1f77b4", "slc1": "#2ca02c", "slc1_mmg2": "#d62728"}
+    colors = {"fullhide": "#1f77b4", "slc1": "#2ca02c", "charint": "#ff7f0e"}
     fig, axes = plt.subplots(len(BANDS), len(MEDIA), figsize=(11, 13), constrained_layout=True, sharex=True)
     for col, medium_name in enumerate(MEDIA):
         for row, (band_name, freq) in enumerate(BANDS.items()):
@@ -262,10 +268,10 @@ def main() -> None:
         wind_times=curves["wind"]["fullhide"]["times"],
         ism_fullhide=curves["ism"]["fullhide"]["flux"],
         ism_slc1=curves["ism"]["slc1"]["flux"],
-        ism_slc1_mmg2=curves["ism"]["slc1_mmg2"]["flux"],
+        ism_charint=curves["ism"]["charint"]["flux"],
         wind_fullhide=curves["wind"]["fullhide"]["flux"],
         wind_slc1=curves["wind"]["slc1"]["flux"],
-        wind_slc1_mmg2=curves["wind"]["slc1_mmg2"]["flux"],
+        wind_charint=curves["wind"]["charint"]["flux"],
     )
     _plot_multiband(curves)
 

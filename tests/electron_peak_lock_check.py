@@ -54,7 +54,7 @@ def _nearest_grid_metric(gamma_grid: np.ndarray, target: float) -> dict[str, flo
 def main() -> None:
     num_values = [61, 121, 241]
     shell_fracs = [0.3, 0.5, 0.8]
-    solvers = ["fullhide", "t2g1", "weno5"]
+    solvers = ["fullhide", "slc1", "charint", "t2g1", "weno5"]
 
     base_cfg = build_baseline_config(
         electron_solver="fullhide",

@@ -22,12 +22,12 @@ OUTPUT_NPZ = OUTPUT_DIR / "spectrum_compare_data.npz"
 OUTPUT_PNG = OUTPUT_DIR / "spectrum_compare.png"
 OUTPUT_PDF = OUTPUT_DIR / "spectrum_compare.pdf"
 
-SOLVERS = ("fullhide", "slc1", "slc1_mmg2")
+SOLVERS = ("fullhide", "slc1", "charint")
 MEDIA = ("ism", "wind")
 TIMES = np.array([1.0e3, 1.0e5, 1.0e7], dtype=float)
 FREQS = np.logspace(7.0, 30.0, 220)
 ELECTRON_TARGET_GAMMA = np.logspace(np.log10(3.0), 8.0, 240)
-NUM_GAM_BY_SOLVER = {"fullhide": 121, "slc1": 32, "slc1_mmg2": 32}
+NUM_GAM_BY_SOLVER = {"fullhide": 121, "slc1": 121, "charint": 121}
 IC_EPSILON_E = 0.2
 IC_EPSILON_B = 1.0e-5
 IC_P = 2.3
@@ -61,7 +61,13 @@ def _build_model(solver: str, medium_name: str) -> Model:
         medium=medium,
         observer=Observer(1.0e26, 0.1, 0.0),
         fwd_rad=Radiation(IC_EPSILON_E, IC_EPSILON_B, IC_P, ssc=True, kn=True),
-        setups=Setups(electron_solver=solver, num_gam_e=NUM_GAM_BY_SOLVER[solver], num_nu=121, num_r=160),
+        setups=Setups(
+            electron_solver=solver,
+            num_gam_e=NUM_GAM_BY_SOLVER[solver],
+            num_nu=121,
+            num_r=160,
+            electron_adaptive_substeps=False,
+        ),
     )
 
 
@@ -156,7 +162,7 @@ def _collect() -> dict[str, dict[str, np.ndarray]]:
 def _plot(data: dict[str, dict[str, np.ndarray | dict[str, np.ndarray]]]) -> None:
     plt.rcParams.update(PLOT_STYLE)
     colors = {1.0e3: "#1f77b4", 1.0e5: "#ff7f0e", 1.0e7: "#2ca02c"}
-    linestyles = {"fullhide": "-", "slc1": "--", "slc1_mmg2": ":"}
+    linestyles = {"fullhide": "-", "slc1": "--", "charint": "-."}
 
     fig, axes = plt.subplots(
         2,
@@ -237,16 +243,16 @@ def main() -> None:
         electron_gamma=ELECTRON_TARGET_GAMMA,
         ism_fullhide=data["ism"]["fullhide"]["sed"],
         ism_slc1=data["ism"]["slc1"]["sed"],
-        ism_slc1_mmg2=data["ism"]["slc1_mmg2"]["sed"],
+        ism_charint=data["ism"]["charint"]["sed"],
         wind_fullhide=data["wind"]["fullhide"]["sed"],
         wind_slc1=data["wind"]["slc1"]["sed"],
-        wind_slc1_mmg2=data["wind"]["slc1_mmg2"]["sed"],
+        wind_charint=data["wind"]["charint"]["sed"],
         ism_electron_fullhide=data["ism"]["fullhide"]["electron"],
         ism_electron_slc1=data["ism"]["slc1"]["electron"],
-        ism_electron_slc1_mmg2=data["ism"]["slc1_mmg2"]["electron"],
+        ism_electron_charint=data["ism"]["charint"]["electron"],
         wind_electron_fullhide=data["wind"]["fullhide"]["electron"],
         wind_electron_slc1=data["wind"]["slc1"]["electron"],
-        wind_electron_slc1_mmg2=data["wind"]["slc1_mmg2"]["electron"],
+        wind_electron_charint=data["wind"]["charint"]["electron"],
     )
     _plot(data)
     print(OUTPUT_NPZ)
