@@ -2,12 +2,8 @@
 from __future__ import absolute_import, unicode_literals, print_function
 from pymultinest.solve import solve
 import os
-from asgard_inference import (
-    build_inference_config,
-    compile_inference_problem,
-    evaluate_compiled_loglike,
-    populate_inference_config,
-)
+from asgard_inference import compile_inference_problem, evaluate_compiled_loglike
+from asgard_models import FitConfig
 
 import json
 
@@ -29,7 +25,28 @@ parameters = [
 n_params = len(parameters)
 prefix = "chains/3-"
 COMPILED_PROBLEM = None
-COMPILED_CONFIG = None
+BASE_CONFIG = FitConfig(
+    num_threads=8,
+    num_r=500,
+    num_theta=300,
+    num_phi=50,
+    num_tobs=200,
+    t_obs_min_log10=2.0,
+    t_obs_max_log10=8.0,
+    z=4.59,
+    d_ne=1.0,
+    a_star=1.0,
+    eta_0=100.0,
+    epsilon_e=1.0e-2,
+    epsilon_b=1.0e-5,
+    p=2.3,
+    opening_angle_jet=0.1,
+    f_e=0.1,
+    e_iso=1.0e55,
+    ebv=0.0,
+    lyman_ar=0.0,
+    f_sys=-1.0,
+)
 
 
 # probability function, taken from the eggbox problem.
@@ -73,56 +90,69 @@ def myloglike(params):
 
     z = 4.59
     
-    problem, config = _get_compiled_context()
-    populate_inference_config(
-        config,
-        d_ne=n_0,
-        a_star=A_star,
-        z=z,
-        ebv=Ebv,
-        lyman_ar=Lyman_Ar,
-        f_sys=f_sys,
-        theta_v=theta_v,
-        num_phi=50,
-        num_threads=8,
-        num_r=500,
-        num_theta=300,
-        eta_0=Eta_0,
-        epsilon_e=Epsilon_e,
-        epsilon_b=Epsilon_b,
+    config = _config_from_params(
+        n_0=n_0,
+        A_star=A_star,
+        E_iso=E_iso,
         p=p,
-        opening_angle_jet=theta_j,
+        Eta_0=Eta_0,
+        Epsilon_e=Epsilon_e,
+        Epsilon_b=Epsilon_b,
+        theta_j=theta_j,
+        theta_v=theta_v,
         f_e=f_e,
-        e_iso=E_iso,
+        Ebv=Ebv,
+        Lyman_Ar=Lyman_Ar,
+        f_sys=f_sys,
+        z=z,
     )
-    return evaluate_compiled_loglike(problem, config)
+    if config is None:
+        return -1e308
+    return evaluate_compiled_loglike(_get_compiled_problem(), config)
 
 
-def _get_compiled_context():
-    global COMPILED_PROBLEM, COMPILED_CONFIG
-    if COMPILED_PROBLEM is None or COMPILED_CONFIG is None:
-        COMPILED_CONFIG = build_inference_config(
-            d_ne=1.0,
-            a_star=1.0,
-            z=4.59,
-            ebv=0.0,
-            lyman_ar=0.0,
-            f_sys=-1.0,
-            theta_v=0.0,
-            num_phi=50,
-            num_threads=8,
-            num_r=500,
-            num_theta=300,
-            eta_0=100.0,
-            epsilon_e=1.0e-2,
-            epsilon_b=1.0e-5,
-            p=2.3,
-            opening_angle_jet=0.1,
-            f_e=0.1,
-            e_iso=1.0e55,
-        )
-        COMPILED_PROBLEM = compile_inference_problem(COMPILED_CONFIG)
-    return COMPILED_PROBLEM, COMPILED_CONFIG
+def _config_from_params(
+    *,
+    n_0: float,
+    A_star: float,
+    E_iso: float,
+    p: float,
+    Eta_0: float,
+    Epsilon_e: float,
+    Epsilon_b: float,
+    theta_j: float,
+    theta_v: float,
+    f_e: float,
+    Ebv: float,
+    Lyman_Ar: float,
+    f_sys: float,
+    z: float,
+):
+    if Epsilon_e < Epsilon_b or Eta_0 < -theta_j:
+        return None
+    config = FitConfig(**vars(BASE_CONFIG))
+    config.d_ne = 10.0**n_0
+    config.a_star = 10.0**A_star
+    config.e_iso = 10.0**E_iso
+    config.p = float(p)
+    config.eta_0 = 10.0**Eta_0
+    config.epsilon_e = 10.0**Epsilon_e
+    config.epsilon_b = 10.0**Epsilon_b
+    config.opening_angle_jet = 10.0**theta_j
+    config.theta_v = theta_v * config.opening_angle_jet
+    config.f_e = 10.0**f_e
+    config.ebv = float(Ebv)
+    config.lyman_ar = float(Lyman_Ar)
+    config.f_sys = float(f_sys)
+    config.z = float(z)
+    return config
+
+
+def _get_compiled_problem():
+    global COMPILED_PROBLEM
+    if COMPILED_PROBLEM is None:
+        COMPILED_PROBLEM = compile_inference_problem(BASE_CONFIG)
+    return COMPILED_PROBLEM
 
 
 def main() -> None:

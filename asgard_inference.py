@@ -11,7 +11,6 @@ from asgard_component_backend import observe_flux_grid_from_state, solve_model_s
 from asgard_models import FitConfig
 from asgard_observables import build_multiband_observer_frequencies, combine_multiband_flux
 from asgard_postprocess import compute_light_curve_redchi
-from asgard_presets import build_baseline_config
 from asgard_setup import build_simulation_setup
 
 
@@ -77,130 +76,6 @@ class FastFitConfigProblem:
     observer_time_s: np.ndarray
     requested_frequencies_hz: np.ndarray
     num_xrt: int
-
-
-def build_inference_config(
-    *,
-    e_iso: float,
-    p: float,
-    eta_0: float,
-    epsilon_e: float,
-    epsilon_b: float,
-    f_e: float,
-    d_ne: float,
-    opening_angle_jet: float,
-    **overrides,
-) -> FitConfig:
-    inference_defaults = {
-        "num_gam_e": 101,
-        "num_nu": 121,
-        "num_tobs": 128,
-        "num_theta": 180,
-        "num_phi": 1,
-    }
-    for key, value in inference_defaults.items():
-        overrides.setdefault(key, value)
-    return build_baseline_config(
-        f_e=f_e,
-        e_iso=e_iso,
-        d_ne=d_ne,
-        eta_0=eta_0,
-        p=p,
-        opening_angle_jet=opening_angle_jet,
-        epsilon_e=epsilon_e,
-        epsilon_b=epsilon_b,
-        z=1.0,
-        **overrides,
-    )
-
-
-def build_log_inference_config(
-    *,
-    e_iso_log10: float,
-    p: float,
-    eta_0_log10: float,
-    epsilon_e_log10: float,
-    epsilon_b_log10: float,
-    f_e_log10: float,
-    d_ne_log10: float,
-    opening_angle_jet_log10: float,
-    **overrides,
-) -> FitConfig:
-    config = build_inference_config(
-        f_e=1.0,
-        e_iso=1.0,
-        d_ne=1.0,
-        eta_0=1.0,
-        p=p,
-        opening_angle_jet=1.0,
-        epsilon_e=1.0,
-        epsilon_b=1.0,
-        **overrides,
-    )
-    return populate_log_inference_config(
-        config,
-        f_e_log10=f_e_log10,
-        e_iso_log10=e_iso_log10,
-        d_ne_log10=d_ne_log10,
-        eta_0_log10=eta_0_log10,
-        p=p,
-        opening_angle_jet_log10=opening_angle_jet_log10,
-        epsilon_e_log10=epsilon_e_log10,
-        epsilon_b_log10=epsilon_b_log10,
-    )
-
-
-def populate_inference_config(
-    config: FitConfig,
-    *,
-    e_iso: float,
-    p: float,
-    eta_0: float,
-    epsilon_e: float,
-    epsilon_b: float,
-    f_e: float,
-    d_ne: float,
-    opening_angle_jet: float,
-    **overrides,
-) -> FitConfig:
-    config.e_iso = float(e_iso)
-    config.p = float(p)
-    config.eta_0 = float(eta_0)
-    config.epsilon_e = float(epsilon_e)
-    config.epsilon_b = float(epsilon_b)
-    config.f_e = float(f_e)
-    config.d_ne = float(d_ne)
-    config.opening_angle_jet = float(opening_angle_jet)
-    for key, value in overrides.items():
-        setattr(config, key, value)
-    return config
-
-
-def populate_log_inference_config(
-    config: FitConfig,
-    *,
-    e_iso_log10: float,
-    p: float,
-    eta_0_log10: float,
-    epsilon_e_log10: float,
-    epsilon_b_log10: float,
-    f_e_log10: float,
-    d_ne_log10: float,
-    opening_angle_jet_log10: float,
-    **overrides,
-) -> FitConfig:
-    return populate_inference_config(
-        config,
-        f_e=10.0**f_e_log10,
-        e_iso=10.0**e_iso_log10,
-        d_ne=10.0**d_ne_log10,
-        eta_0=10.0**eta_0_log10,
-        p=p,
-        opening_angle_jet=10.0**opening_angle_jet_log10,
-        epsilon_e=10.0**epsilon_e_log10,
-        epsilon_b=10.0**epsilon_b_log10,
-        **overrides,
-    )
 
 
 def compile_inference_problem(

@@ -17,11 +17,6 @@ from asgard_paths import ASGARD_DOC_DIR
 from matplotlib.colors import LogNorm
 
 from ASGARD import ISM, Model, Observer, Radiation, TophatJet, units
-from asgard_presets import build_baseline_config
-from asgard_runtime import solve_dynamics
-from asgard_setup import build_simulation_setup
-from src import constants
-from tests.ASGARD_comprehensive_validation import REGIME_TEST_CONFIGS, _make_model, fit_powerlaw
 
 
 OUTPUT_DIR = ASGARD_DOC_DIR
@@ -170,63 +165,6 @@ def plot_pairs_and_exposures() -> Path:
     return out
 
 
-def plot_supported_internal_evolution() -> Path:
-    config = build_baseline_config(
-        z=0.1,
-        d_ne=1.0,
-        opening_angle_jet=0.3,
-        theta_v=0.0,
-        e_iso=1.0e52,
-        eta_0=100.0,
-        epsilon_e=1.0e-1,
-        epsilon_b=1.0e-3,
-        p=2.3,
-        num_tobs=300,
-        num_r=300,
-    )
-    setup = build_simulation_setup(config)
-    dynamics = solve_dynamics(setup.boundary, config)
-
-    gamma = dynamics.r_gamma
-    radius = dynamics.radius
-    beta = np.sqrt(np.maximum(1.0 - gamma**-2, 1.0e-30))
-    dr = np.diff(radius, prepend=radius[0])
-    t_src = np.cumsum(dr / (beta * constants.para_c))
-    t_comv = np.cumsum(dr / (beta * gamma * constants.para_c))
-    t_obs = dynamics.r_tobs
-
-    b_comv = 0.39 * np.sqrt(config.epsilon_b * config.d_ne * gamma * np.maximum(gamma - 1.0, 0.0))
-    n_p = dynamics.swept_mass_g / constants.para_m_p
-    n_e = config.f_e * n_p
-    quantities = [
-        (gamma, r"$\Gamma$"),
-        (b_comv, r"$B^\prime$ [G]"),
-        (n_p, r"$N_p$"),
-        (radius, r"$r$ [cm]"),
-        (n_e, r"$N_e$"),
-    ]
-    frames = [
-        (t_src, r"$t_{\rm src}$ [s]", "source frame"),
-        (t_comv, r"$t^\prime$ [s]", "comoving frame"),
-        (t_obs, r"$t_{\rm obs}$ [s]", "observer frame"),
-    ]
-    fig = plt.figure(figsize=(12.6, 12.0), dpi=180)
-    for i, (time_axis, xlabel, title) in enumerate(frames):
-        for j, (values, ylabel) in enumerate(quantities):
-            ax = plt.subplot(len(quantities), len(frames), j * len(frames) + i + 1)
-            if j == 0:
-                ax.set_title(title)
-            ax.loglog(time_axis, values, color=f"C{i}", lw=1.8)
-            ax.set_xlabel(xlabel)
-            ax.set_ylabel(ylabel)
-            ax.grid(True, which="both", alpha=0.2)
-    plt.tight_layout()
-    out = OUTPUT_DIR / "shock-evolution-supported.png"
-    plt.savefig(out, dpi=300, bbox_inches="tight")
-    plt.close()
-    return out
-
-
 def plot_sky_image_single() -> Path:
     model = Model(
         jet=TophatJet(theta_c=0.1, E_iso=1.0e52, Gamma0=200.0),
@@ -322,56 +260,6 @@ def plot_sky_image_flux_comparison() -> Path:
     return out
 
 
-def plot_radio_slope_diagnostics() -> Path:
-    fig, axes = plt.subplots(1, 2, figsize=(10.0, 3.8), dpi=200, constrained_layout=True)
-    for ax, regime in zip(axes, ("I", "II")):
-        cfg = REGIME_TEST_CONFIGS[regime]
-        model = _make_model(
-            cfg["medium"],
-            resolutions=(0.3, 2.0, 15),
-            eps_e=cfg.get("eps_e", 0.01),
-            eps_B=cfg.get("eps_B", 0.01),
-            xi_e=cfg.get("xi_e", 1.0),
-            n_ism=cfg.get("n_ism", 1.0),
-            A_star=cfg.get("A_star", 0.1),
-        )
-        t_obs = cfg["t"]
-        details = model.details(t_obs * 0.9, t_obs * 1.1)
-        idx = int(np.argmin(np.abs(np.asarray(details.fwd.t_obs) - t_obs)))
-        nu_a = float(np.asarray(details.fwd.nu_a)[idx])
-        nu_m = float(np.asarray(details.fwd.nu_m)[idx])
-
-        if regime == "I":
-            freq = np.logspace(np.log10(nu_a / 500.0), np.log10(nu_a / 20.0), 24)
-            expected = 2.0
-            label = r"$\nu < \nu_a$"
-        else:
-            freq = np.logspace(np.log10(nu_m * 6.0), np.log10(nu_a / 10.0), 24)
-            expected = 2.5
-            label = r"$\nu_m < \nu < \nu_a$"
-
-        flux = model.flux_density(np.full_like(freq, t_obs), freq).total
-        slope = fit_powerlaw(freq, flux)
-        anchor = np.median(flux[(flux > 0.0) & np.isfinite(flux)])
-        fit_line = anchor * (freq / np.median(freq)) ** expected
-
-        ax.loglog(freq, flux, "o-", color="C0", label=f"measured, slope={slope:.3f}")
-        ax.loglog(freq, fit_line, "--", color="C1", label=f"expected={expected:.1f}")
-        ax.axvline(nu_a, color="k", ls="--", lw=0.8, label=r"$\nu_a$")
-        if regime == "II":
-            ax.axvline(nu_m, color="gray", ls=":", lw=0.8, label=r"$\nu_m$")
-        ax.set_title(f"Regime {regime}: {label}")
-        ax.set_xlabel("Frequency (Hz)")
-        ax.set_ylabel(r"Flux density (erg/cm$^2$/s/Hz)")
-        ax.legend(fontsize=8)
-        ax.grid(True, which="both", alpha=0.2)
-
-    out = OUTPUT_DIR / "radio_slope_diagnostics.png"
-    fig.savefig(out, dpi=300, bbox_inches="tight")
-    plt.close(fig)
-    return out
-
-
 def main() -> None:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     outputs = [
@@ -380,11 +268,9 @@ def main() -> None:
         plot_reverse_shock(),
         plot_ssc(),
         plot_pairs_and_exposures(),
-        plot_supported_internal_evolution(),
         plot_sky_image_single(),
         plot_sky_image_offaxis(),
         plot_sky_image_flux_comparison(),
-        plot_radio_slope_diagnostics(),
     ]
     for path in outputs:
         print(path)

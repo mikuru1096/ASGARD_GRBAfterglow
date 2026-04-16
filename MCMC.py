@@ -3,16 +3,33 @@ import corner
 from schwimmbad import MPIPool
 import numpy as np
 
-from asgard_inference import (
-    build_log_inference_config,
-    compile_inference_problem,
-    evaluate_compiled_loglike,
-    populate_log_inference_config,
-)
+from asgard_inference import compile_inference_problem, evaluate_compiled_loglike
+from asgard_models import FitConfig
 
 
 COMPILED_PROBLEM = None
-COMPILED_CONFIG = None
+BASE_CONFIG = FitConfig(
+    num_threads=20,
+    num_r=100,
+    num_theta=300,
+    num_phi=50,
+    num_tobs=128,
+    t_obs_min_log10=2.0,
+    t_obs_max_log10=8.0,
+    z=1.0,
+    d_ne=1.0,
+    a_star=1.0,
+    eta_0=100.0,
+    epsilon_e=1.0e-2,
+    epsilon_b=1.0e-5,
+    p=2.3,
+    opening_angle_jet=0.1,
+    f_e=0.1,
+    e_iso=1.0e55,
+    ebv=0.0,
+    lyman_ar=0.0,
+    f_sys=-1.0,
+)
 
 
 def lnprior(theta):  # the log-prior probability function(system error): theta is the parameter spaces
@@ -33,44 +50,34 @@ def lnprior(theta):  # the log-prior probability function(system error): theta i
 
 def lnlike(theta):
     (E_iso, p, Eta_0, dNe, OpeningAngle_jet, Epsilon_e, Epsilon_b, f_e) = theta
-    problem, config = _get_compiled_context()
-    populate_log_inference_config(
-        config,
-        f_e_log10=f_e,
-        e_iso_log10=E_iso,
-        d_ne_log10=dNe,
-        eta_0_log10=Eta_0,
-        p=p,
-        opening_angle_jet_log10=OpeningAngle_jet,
-        epsilon_e_log10=Epsilon_e,
-        epsilon_b_log10=Epsilon_b,
-        z=1.0,
-        theta_v=0.0,
-        num_threads=20,
-        num_r=100,
-    )
-    return evaluate_compiled_loglike(problem, config)
+    config = _config_from_theta(theta)
+    if config is None:
+        return -1e308
+    return evaluate_compiled_loglike(_get_compiled_problem(), config)
 
 
-def _get_compiled_context():
-    global COMPILED_PROBLEM, COMPILED_CONFIG
-    if COMPILED_PROBLEM is None or COMPILED_CONFIG is None:
-        COMPILED_CONFIG = build_log_inference_config(
-            f_e_log10=-1.0,
-            e_iso_log10=53.0,
-            d_ne_log10=-1.0,
-            eta_0_log10=2.0,
-            p=2.5,
-            opening_angle_jet_log10=-1.0,
-            epsilon_e_log10=-1.0,
-            epsilon_b_log10=-3.0,
-            z=1.0,
-            theta_v=0.0,
-            num_threads=20,
-            num_r=100,
-        )
-        COMPILED_PROBLEM = compile_inference_problem(COMPILED_CONFIG)
-    return COMPILED_PROBLEM, COMPILED_CONFIG
+def _config_from_theta(theta):
+    E_iso, p, Eta_0, dNe, OpeningAngle_jet, Epsilon_e, Epsilon_b, f_e = theta
+    if Epsilon_e < Epsilon_b or Eta_0 < -OpeningAngle_jet:
+        return None
+    config = FitConfig(**vars(BASE_CONFIG))
+    config.e_iso = 10.0**E_iso
+    config.p = float(p)
+    config.eta_0 = 10.0**Eta_0
+    config.d_ne = 10.0**dNe
+    config.opening_angle_jet = 10.0**OpeningAngle_jet
+    config.epsilon_e = 10.0**Epsilon_e
+    config.epsilon_b = 10.0**Epsilon_b
+    config.f_e = 10.0**f_e
+    config.theta_v = 0.0
+    return config
+
+
+def _get_compiled_problem():
+    global COMPILED_PROBLEM
+    if COMPILED_PROBLEM is None:
+        COMPILED_PROBLEM = compile_inference_problem(BASE_CONFIG)
+    return COMPILED_PROBLEM
 
 
 def lnprob(theta):

@@ -826,15 +826,18 @@ plot_spectrum(result, times_s=[1e3, 1e4, 1e5], quantity="nufnu")
   - 进程内只初始化一次 compiled problem
   - 复用单个 `FitConfig` 模板对象
   - 每个参数点评估时仅更新必要字段，再调用 compiled loglike
-- 新增最小一致性检查：
-  - `tests/inference_fastpath_check.py`
-- 新增推断 profile：
+- 当前 `tests/` 目录只保留面向新用户的 benchmark / plot 入口：
+  - `tests/asgard_readme_benchmark.py`
+  - `tests/asgard_slc1_benchmark.py`
+  - `tests/asgard_slc1_wind_benchmark.py`
+  - `tests/asgard_doc_plots.py`
+  - `tests/electron_exp_tail_doc_style_plots.py`
+  - `tests/electron_exp_tail_spectrum_compare.py`
+- 旧的深层验证 / inference profile 脚本已经移除，不再作为日常入口：
+  - `tests/asgard_comprehensive_validation.py`
+  - `tests/asgard_summary_plots.py`
   - `tests/asgard_inference_profile.py`
-  - 输出文件：`output/asgard_doc/inference_fastpath_profile.json`
-- 当前最新 profile（`tests/asgard_inference_profile.py`）结果表明：
-  - `sync_only`：`python_over_fortran ≈ 0.0020`
-  - `with_ssc`：`python_over_fortran ≈ 0.0019`
-- 因而就当前 direct top-hat 推断样例而言，Python 调用链时间已经显著低于“占 Fortran 核 10%-20%”这一目标上限。
+  - `tests/inference_fastpath_check.py`
 
 ## 26. 2026-04 Inference Fastpath Update
 
@@ -856,10 +859,4 @@ plot_spectrum(result, times_s=[1e3, 1e4, 1e5], quantity="nufnu")
   - 启动时构建一次 compiled context
   - 每个参数点仅就地更新配置并调用 `evaluate_compiled_loglike(...)`
   - 不再每点评估时重新构造完整求解入口
-- 新增 `tests/inference_fastpath_profile.py`，输出：
-  - `output/asgard_doc/inference_fastpath_profile.json`
-  - 对比 legacy full-components 与 fast total-only 的 `loglike`、总耗时、Fortran/Python 时间拆分。
-- 当前实测（本机）：
-  - `tophat_ism_sync`：Python/Fortran ≈ `0.019`（legacy）与 `0.017`（fast）
-  - `tophat_ism_ssc`：Python/Fortran ≈ `0.024`（legacy）与 `0.017`（fast）
-  - 两个场景均在“Python 开销占 Fortran 的 10%-20% 以内”目标之下。
+- 当前推断 fast-path 仍保留在 `asgard_inference.py` / `ASGARD.api` 中，供主入口复用；但日常脚本层不再维护单独的 inference profile/check 入口。

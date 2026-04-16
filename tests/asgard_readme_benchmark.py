@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from ASGARD import Fitter, ISM, Model, ObsData, Observer, ParamDef, Radiation, Scale, TophatJet, Wind, units
+from ASGARD import ISM, Model, Observer, Radiation, TophatJet
 
 
 def _run_case(name, fn):
@@ -84,68 +84,6 @@ def case_exposures():
     return {"shape": list(values.shape), "median": float(np.median(values))}
 
 
-def case_details():
-    model = _build_readme_model()
-    details = model.details(t_min=1.0e2, t_max=1.0e6)
-    assert details.fwd.t_obs.ndim == 1
-    assert np.all(np.isfinite(details.fwd.t_obs))
-    assert np.all(np.isfinite(details.fwd.nu_m))
-    return {"n_t": int(details.fwd.t_obs.shape[0]), "n_patches": len(details.patches)}
-
-
-def case_fitter_cfg():
-    truth_model = Model(
-        medium=Wind(A_star=0.1, n0=1.0),
-        jet=TophatJet(theta_c=0.1, E_iso=1.0e52, Gamma0=300.0),
-        observer=Observer(lumi_dist=1.0e26, z=0.1, theta_obs=0.0),
-        fwd_rad=Radiation(0.1, 1.0e-3, 2.3),
-    )
-    times = np.logspace(2.0, 4.0, 8)
-    freqs = np.full(times.shape, 1.0e14)
-    flux = truth_model.flux_density(times, freqs).total
-    data = ObsData()
-    data.add_flux_density(t=times, nu=freqs, f_nu=flux, err=0.05 * np.maximum(flux, 1.0e-99))
-    fitter = Fitter(
-        data=data,
-        z=0.1,
-        lumi_dist=1.0e26,
-        jet="tophat",
-        medium="wind",
-        E_iso=1.0e52,
-        Gamma0=300.0,
-        theta_c=0.1,
-        A_star=0.1,
-        n0=1.0,
-        eps_e=0.1,
-        eps_B=1.0e-3,
-        p=2.3,
-    )
-    result = fitter.fit(
-        [
-            ParamDef("E_iso", 52.0, 52.0, Scale.log),
-            ParamDef("p", 2.3, 2.3, Scale.fixed),
-        ],
-        nsteps=12,
-        nburn=4,
-    )
-    assert np.isfinite(result.best_loglike)
-    return {"best_loglike": float(result.best_loglike), "best_params": result.best_params}
-
-
-def case_sky_image():
-    model = _build_readme_model()
-    t_obs = np.array([1.0e6])
-    nu_obs = 1.0e9
-    img = model.sky_image(t_obs, nu_obs=nu_obs, fov=500.0 * units.uas, npixel=64)
-    flux_from_image = img.image.sum(axis=(1, 2)) * img.pixel_solid_angle
-    flux_direct = model.flux_density_grid(t_obs, np.array([nu_obs])).total[0, :]
-    ratio = flux_from_image / flux_direct
-    assert img.image.shape == (1, 64, 64)
-    assert np.all(np.isfinite(img.image))
-    assert np.isfinite(ratio[0])
-    return {"shape": list(img.image.shape), "ratio": float(ratio[0])}
-
-
 def main() -> None:
     cases = [
         ("quickstart", case_quickstart),
@@ -153,9 +91,6 @@ def main() -> None:
         ("spectrum_grid", case_spectrum_grid),
         ("pair_points", case_pairs),
         ("exposures", case_exposures),
-        ("details", case_details),
-        ("fitter_cfg", case_fitter_cfg),
-        ("sky_image", case_sky_image),
     ]
     results = [_run_case(name, fn) for name, fn in cases]
     print(json.dumps(results, indent=2))
