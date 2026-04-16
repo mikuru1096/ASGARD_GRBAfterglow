@@ -101,12 +101,12 @@ contains
         
         ! find indices
         indices = 0
+        idx = 1
         do k = 1, m
-            idx = 1
             do while (idx <= n .and. c(idx) < t(k))
                 idx = idx + 1
             end do
-            
+
             if (idx > n) idx = n
             indices(k) = idx
         end do
@@ -150,30 +150,19 @@ contains
             integer, intent(in) :: input(n_input)
             integer, intent(out) :: n_output
             integer, intent(out) :: output(n_input)
-            integer :: i, j
-            logical :: duplicate
+            integer :: i
             
             n_output = 0
             output = 0
             
             do i = 1, n_input
                 if (input(i) == 0) cycle
-                
-                duplicate = .false.
-                do j = 1, n_output
-                    if (output(j) == input(i)) then
-                        duplicate = .true.
-                        exit
-                    end if
-                end do
-                
-                if (.not. duplicate) then
+
+                if (n_output == 0 .or. output(n_output) /= input(i)) then
                     n_output = n_output + 1
                     output(n_output) = input(i)
                 end if
             end do
-            
-            call sort_integers(output, n_output)
         end subroutine unique_sorted
         
         ! bubble sort

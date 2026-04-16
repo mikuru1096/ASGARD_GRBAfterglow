@@ -952,3 +952,21 @@ plot_spectrum(result, times_s=[1e3, 1e4, 1e5], quantity="nufnu")
   - 不再把 IDE 缓存、`__pycache__`、历史脚本塞回源码树
   - 不再在主入口保留指向不存在二进制备份名的导入回退
   - 性能优化优先从当前保留 solver 和公共电子/辐射核下手，不回头抢救已删除旧实现
+
+## 31. 2026-04 Resampling Hotspot Update
+
+- 本轮已开始进入 `src/` 的性能优化阶段，第一刀落在公共电子重采样模块：
+  - `src/Electron/adaptive_resampling_mod.f90`
+- 当前已实施的纯算法级提速：
+  - `adaptive_resampling_log(...)` 中生成 `indices` 时，不再对每个目标点从 `idx=1` 重新扫描累积权重数组 `c`
+  - 现改为单调递增的一次 sweep，时间复杂度从近似 `O(m*n)` 收到 `O(m+n)`
+  - `unique_sorted(...)` 不再做二次复杂度的重复检查
+  - 现利用 `indices` 本身的单调性，改成线性去重，不再额外排序
+- 这些改动只去掉重复工作，不改采样准则、不改物理公式，也不改重采样输出口径。
+- 本轮最小验证：
+  - `python build_extensions.py --module FS_electron_charint --force` 通过
+  - `python build_extensions.py --module FS_electron_fullhide --force` 通过
+  - 两者仍表现为 `meson` 直编失败、ordered fallback 成功，这是当前环境事实，不是本轮优化引入的新问题
+- 当前下一优先级性能点：
+  - `FS_electron_charint.f90` 的 adaptive substep 回退链
+  - `electron_prepare_radiation_spectrum(...)` 的前后沿扫描与重采样触发频率
