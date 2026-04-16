@@ -23,8 +23,8 @@ GRID = {
 
 
 OUTPUT_DIR = ASGARD_DOC_DIR
-OUTPUT_PNG = OUTPUT_DIR / "slc1_benchmark_compare.png"
-OUTPUT_PDF = OUTPUT_DIR / "slc1_benchmark_compare.pdf"
+OUTPUT_PNG = OUTPUT_DIR / "fullhide_charint_benchmark_compare.png"
+OUTPUT_PDF = OUTPUT_DIR / "fullhide_charint_benchmark_compare.pdf"
 
 
 def _build_solver_model(solver: str) -> Model:
@@ -185,20 +185,20 @@ def _cases_for_solver(solver: str) -> list[dict]:
 def _plot_compare(results: dict[str, list[dict]]) -> None:
     names = [item["name"] for item in results["fullhide"]]
     fullhide_seconds = np.array([item["seconds"] for item in results["fullhide"]], dtype=float)
-    slc1_seconds = np.array([item["seconds"] for item in results["slc1"]], dtype=float)
+    charint_seconds = np.array([item["seconds"] for item in results["charint"]], dtype=float)
     x = np.arange(len(names), dtype=float)
     width = 0.38
 
     fig, ax = plt.subplots(figsize=(12, 5.5), constrained_layout=True)
     ax.bar(x - width / 2.0, fullhide_seconds, width=width, label="fullhide")
-    ax.bar(x + width / 2.0, slc1_seconds, width=width, label="slc1")
+    ax.bar(x + width / 2.0, charint_seconds, width=width, label="charint")
     ax.set_xticks(x, names, rotation=20, ha="right")
     ax.set_ylabel("seconds")
-    ax.set_title("ASGARD README benchmark: fullhide vs slc1")
+    ax.set_title("ASGARD benchmark: fullhide vs charint")
     ax.grid(axis="y", alpha=0.3)
     ax.legend()
 
-    for xi, s0, s1 in zip(x, fullhide_seconds, slc1_seconds):
+    for xi, s0, s1 in zip(x, fullhide_seconds, charint_seconds):
         if s1 > 0.0:
             ax.text(xi + width / 2.0, s1, f"x{s0/s1:.2f}", ha="center", va="bottom", fontsize=8)
 
@@ -209,7 +209,7 @@ def _plot_compare(results: dict[str, list[dict]]) -> None:
 
 def main() -> None:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    results = {"fullhide": _cases_for_solver("fullhide"), "slc1": _cases_for_solver("slc1")}
+    results = {"fullhide": _cases_for_solver("fullhide"), "charint": _cases_for_solver("charint")}
 
     _plot_compare(results)
 

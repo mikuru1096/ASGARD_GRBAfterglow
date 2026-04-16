@@ -18,7 +18,7 @@ GRID = {
     "quick": {"lc": 24, "spec": 32, "pair": 24, "expo": 12, "gam": 81, "nu": 49, "r": 80, "theta": 80, "tobs": 48},
     "high": {"lc": 100, "spec": 100, "pair": 200, "expo": 200, "gam": 201, "nu": 201, "r": 300, "theta": 300, "tobs": 200},
 }[MODE]
-SOLVERS = ("fullhide", "slc1", "charint")
+SOLVERS = ("fullhide", "charint")
 
 
 def _run_case(name, fn):
