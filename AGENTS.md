@@ -854,3 +854,17 @@ plot_spectrum(result, times_s=[1e3, 1e4, 1e5], quantity="nufnu")
   - 每个参数点仅就地更新配置并调用 `evaluate_compiled_loglike(...)`
   - 不再每点评估时重新构造完整求解入口
 - 当前推断 fast-path 仍保留在 `asgard_inference.py` / `ASGARD.api` 中，供主入口复用；但日常脚本层不再维护单独的 inference profile/check 入口。
+
+## 27. 2026-04 Plan Compression
+
+- 当前 `plan.md` 已压缩为后续执行准绳，优先级高于历史性路线描述。
+- 后续默认只做三类工作：
+  - 维持 compiled 推断 fast-path
+  - 维持新用户最小入口
+  - 维持 benchmark / plot 入口
+- 明确不再推进的内容：
+  - 新的 inference profile/check 脚本
+  - 旧验证脚本树
+  - 生产推断的逐分量 observer 路径
+  - 生产推断的逐点评估 `deepcopy(model)` 路径
+- 若结构要变，先同步 `AGENTS.md` 和 `plan.md`，再动代码。
