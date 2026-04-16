@@ -73,3 +73,13 @@
 - 不把内部诊断工具包装成默认新用户入口。
 - 不为未确认的收益新增抽象层。
 - 不把 `tests/` 再扩成“所有诊断都放进去”的集合。
+
+## 7. 已记录的待修复物理问题
+
+- **高优先：charint 高频电子端异常抬起（fast 测试集中）**
+  - 表现：在快网格测试下，`electron_solver="charint"` 在电子高能端或等效高频辐射端出现非物理抬起。
+  - 现判：更像 Fortran 核层问题，优先排除接口/外层采样误差。
+  - 暂行要求（本周内）：
+    - 定位 `src/Electron/FS_electron_charint.f90` + `src/Electron/electron_common.f90` 中高能前沿/重映射路径（含 `electron_find_high_energy_front`、`electron_anchor_high_energy_edges`、可变步长步进逻辑）。
+    - 在不改物理公式前提下，只做最小核逻辑修复。
+    - 加入一个回归检查（只在快测试或专用回归中触发），确保高能尾不再出现单调性反转。
