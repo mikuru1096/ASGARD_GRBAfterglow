@@ -28,10 +28,9 @@ ASGARD 是一个用于 GRB 余辉建模与拟合的数值代码库。当前仓�
 
 ### 顶层 Python 门面
 
-- `mergered.py`
-  - 当前门面模块。
-  - 导出 `FitConfig`、`FitResult`、`run_fit`、`plot_light_curve`、`plot_spectrum`。
-  - 保留旧 `fit(**kwargs)` 兼容包装，但不再是主接口。
+- `ASGARD/__init__.py`
+  - 当前包门面模块。
+  - 导出 `Model`、`Fitter`、`FitResult`、`observe`、`Setups`、`Radiation` 等核心对象。
 
 - `asgard_models.py`
   - 定义配置与结果数据结构。
@@ -41,15 +40,16 @@ ASGARD 是一个用于 GRB 余辉建模与拟合的数值代码库。当前仓�
     - `FitResult`
     - 波段和频率常量
 
-- `asgard_solver.py`
-  - 新的单入口编排层。
+- `ASGARD/api.py`
+  - 当前主入口编排层。
   - 负责：
     - 构建观测时间网格
-    - 构建频率网格
     - 调用动力学、电子谱、辐射、插值模块
     - 组装多波段光变
     - 计算 `redchi`
-    - 在启用时生成稠密能谱矩阵
+
+- `asgard_postprocess.py`
+  - 承担后处理与稠密能谱矩阵生成。
 
 - `asgard_runtime.py`
   - 运行时绑定层。
@@ -210,7 +210,7 @@ fig = plot_spectrum(
 
 ## 4. 数值主链与物理含义
 
-当前主链在 `asgard_solver.py::run_fit` 中按下面顺序执行：
+当前主链在 `ASGARD/api.py::observe` 中按下面顺序执行：
 
 1. 动力学：`Dynamics.dynamics_forward`
 2. 电子谱：`Electron.fs_electron_fullhide`
@@ -332,7 +332,7 @@ absorption = (1 - exp(-tau)) / tau
 
 ### 4.6 光变与能谱后处理
 
-多波段光变在 `asgard_solver.py` 中由一组固定观测频率构造：
+多波段光变在 `ASGARD/api.py::observe` 中由一组固定观测频率构造：
 
 - XRT：`0.5-10 keV`，先做频率积分得到能流
 - 光学：`g/r/i/z`
@@ -353,10 +353,10 @@ absorption = (1 - exp(-tau)) / tau
 
 1. 配置层：`asgard_models.py`
 2. 运行时绑定层：`asgard_runtime.py`
-3. 求解编排层：`asgard_solver.py`
+3. 观测与后处理层：`ASGARD/api.py`、`asgard_postprocess.py`
 4. 绘图层：`asgard_plot.py`
-5. 兼容门面层：`mergered.py`
-6. 拟合脚本层：`hand_my.py`、`MCMC.py`、`pymultinest_demo.py`
+5. 包门面层：`ASGARD/__init__.py`
+6. 示例与拟合脚本层：`hand_my.py`、`MCMC.py`、`pymultinest_demo.py`
 
 这样做的直接结果是：
 
@@ -562,21 +562,16 @@ plot_spectrum(result, times_s=[1e3, 1e4, 1e5], quantity="nufnu")
   - `t_obs_s`：观测光变与能谱输出时间轴。
   - `characteristic_time_s`：`nu_m/nu_c/nu_a` 与 `rs_nu_m/rs_nu_c/rs_nu_a` 的特征频率时间轴。
 - 新增 `plot_characteristic_frequencies(result, include_reverse=True, ...)`，按 `characteristic_time_s` 绘制 FS/RS 特征频率，避免将内部动力学网格误当作观测输出网格。
-- 新增 `hand_reverse.py`，作为反向激波 API 与 FS/RS 特征频率绘图的公开示例脚本。
 - 新增 `PhysicalSolution`，作为主链物理求解与观测后处理之间的中间结果对象。
 - 新增 `asgard_postprocess.py`，统一承载：
   - 观测频率投影
   - 多波段光变聚合
   - `redchi` 计算
   - 稠密能谱后处理
-- `asgard_solver.py` 不再在主链中传递长位置元组，而是返回 `PhysicalSolution` 后交给后处理层。
-- `tests/api_contract_check.py` 已加入回归集合，检查：
-  - `characteristic_time_s` 与 `nu_m/nu_c/nu_a`、`rs_nu_*` 的 shape 一致
-  - `spectrum_fnu.shape == (N_nu, N_tobs)`
-  - `plot_characteristic_frequencies` 与 `plot_spectrum` 可正常输出文件
-- `hand_my.py`、`hand_reverse.py`、`MCMC.py`、`pymultinest_demo.py` 已改为 `main()` 入口，导入时不再执行计算。
+- `ASGARD/api.py` 现在直接返回 `PhysicalSolution` 后交给后处理层。
+- `hand_my.py`、`MCMC.py`、`pymultinest_demo.py` 已改为 `main()` 入口，导入时不再执行计算。
 - 新增 `asgard_inference.py`，统一 `MCMC.py` 与 `pymultinest_demo.py` 的 `FitConfig` 装配默认值，避免推断脚本默认网格和物理开关继续漂移。
-- 新增 `asgard_legacy.py`，承接旧 `fit(**kwargs)` 的参数映射；`mergered.py` 现在只保留门面导出与弃用提示。
+- `ASGARD/__init__.py` 现在承担包门面导出。
 - 新增 `tests/legacy_api_check.py`，检查旧接口仍可返回有限 `redchi`，且会发出 `DeprecationWarning`。
 - 新增 `SimulationSetup` 与 `asgard_setup.py`，统一管理：
   - `luminosity_distance_cm`
@@ -585,7 +580,6 @@ plot_spectrum(result, times_s=[1e3, 1e4, 1e5], quantity="nufnu")
   - `observer_time_s`
 - `asgard_postprocess.py` 现在只接收 `SimulationSetup + PhysicalSolution`，不再在接口上传递多组裸数组。
 - 新增 `asgard_presets.py`，统一基线、能谱示例和反向激波示例配置。
-- 新增 `tests/import_smoke_check.py`，检查 `hand_my.py` 与 `hand_reverse.py` 导入时无绘图副作用。
 - 当前总辐射已接入 `RS-SSC`：
   - `L_tot = L_syn,FS + L_syn,RS + L_ssc,FS + L_ssc,RS`
   - `gamma-gamma` 吸收种子场当前使用 `seed_syn,FS + seed_syn,RS + seed_ssc,FS + seed_ssc,RS`

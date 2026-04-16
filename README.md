@@ -79,7 +79,7 @@ python hand_my.py
 
 If you already have the matplotlib package installed, the program should generate the first multi-band afterglow light curve image for you.
 ### Documentation
-In `mergered.py`, we have provided the basic invocation method of the program, along with simple comments for the keywords.
+The main public entry point is `hand_my.py` for the simplest end-to-end demo. For the benchmark and plotting workflow, use the scripts under `tests/`.
 ### Current Status
 Due to current progress limitations, we are not yet able to provide a complete demonstration of the afterglow fitting workflow. 
 However, please start exploring and try to integrate it into your own fitting framework!
