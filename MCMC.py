@@ -3,7 +3,16 @@ import corner
 from schwimmbad import MPIPool
 import numpy as np
 
-from asgard_inference import build_log_inference_config, evaluate_fit_loglike
+from asgard_inference import (
+    build_log_inference_config,
+    compile_inference_problem,
+    evaluate_compiled_loglike,
+    populate_log_inference_config,
+)
+
+
+COMPILED_PROBLEM = None
+COMPILED_CONFIG = None
 
 
 def lnprior(theta):  # the log-prior probability function(system error): theta is the parameter spaces
@@ -24,8 +33,9 @@ def lnprior(theta):  # the log-prior probability function(system error): theta i
 
 def lnlike(theta):
     (E_iso, p, Eta_0, dNe, OpeningAngle_jet, Epsilon_e, Epsilon_b, f_e) = theta
-
-    config = build_log_inference_config(
+    problem, config = _get_compiled_context()
+    populate_log_inference_config(
+        config,
         f_e_log10=f_e,
         e_iso_log10=E_iso,
         d_ne_log10=dNe,
@@ -39,7 +49,28 @@ def lnlike(theta):
         num_threads=20,
         num_r=100,
     )
-    return evaluate_fit_loglike(config)
+    return evaluate_compiled_loglike(problem, config)
+
+
+def _get_compiled_context():
+    global COMPILED_PROBLEM, COMPILED_CONFIG
+    if COMPILED_PROBLEM is None or COMPILED_CONFIG is None:
+        COMPILED_CONFIG = build_log_inference_config(
+            f_e_log10=-1.0,
+            e_iso_log10=53.0,
+            d_ne_log10=-1.0,
+            eta_0_log10=2.0,
+            p=2.5,
+            opening_angle_jet_log10=-1.0,
+            epsilon_e_log10=-1.0,
+            epsilon_b_log10=-3.0,
+            z=1.0,
+            theta_v=0.0,
+            num_threads=20,
+            num_r=100,
+        )
+        COMPILED_PROBLEM = compile_inference_problem(COMPILED_CONFIG)
+    return COMPILED_PROBLEM, COMPILED_CONFIG
 
 
 def lnprob(theta):

@@ -2,7 +2,12 @@
 from __future__ import absolute_import, unicode_literals, print_function
 from pymultinest.solve import solve
 import os
-from asgard_inference import build_inference_config, evaluate_fit_loglike
+from asgard_inference import (
+    build_inference_config,
+    compile_inference_problem,
+    evaluate_compiled_loglike,
+    populate_inference_config,
+)
 
 import json
 
@@ -23,6 +28,8 @@ parameters = [
 ]
 n_params = len(parameters)
 prefix = "chains/3-"
+COMPILED_PROBLEM = None
+COMPILED_CONFIG = None
 
 
 # probability function, taken from the eggbox problem.
@@ -66,7 +73,9 @@ def myloglike(params):
 
     z = 4.59
     
-    config = build_inference_config(
+    problem, config = _get_compiled_context()
+    populate_inference_config(
+        config,
         d_ne=n_0,
         a_star=A_star,
         z=z,
@@ -86,8 +95,34 @@ def myloglike(params):
         f_e=f_e,
         e_iso=E_iso,
     )
+    return evaluate_compiled_loglike(problem, config)
 
-    return evaluate_fit_loglike(config)
+
+def _get_compiled_context():
+    global COMPILED_PROBLEM, COMPILED_CONFIG
+    if COMPILED_PROBLEM is None or COMPILED_CONFIG is None:
+        COMPILED_CONFIG = build_inference_config(
+            d_ne=1.0,
+            a_star=1.0,
+            z=4.59,
+            ebv=0.0,
+            lyman_ar=0.0,
+            f_sys=-1.0,
+            theta_v=0.0,
+            num_phi=50,
+            num_threads=8,
+            num_r=500,
+            num_theta=300,
+            eta_0=100.0,
+            epsilon_e=1.0e-2,
+            epsilon_b=1.0e-5,
+            p=2.3,
+            opening_angle_jet=0.1,
+            f_e=0.1,
+            e_iso=1.0e55,
+        )
+        COMPILED_PROBLEM = compile_inference_problem(COMPILED_CONFIG)
+    return COMPILED_PROBLEM, COMPILED_CONFIG
 
 
 def main() -> None:

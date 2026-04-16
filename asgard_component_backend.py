@@ -68,7 +68,7 @@ class ObservedState:
     state: ModelState
     setup: SimulationSetup
     frequencies_hz: np.ndarray
-    components: dict[str, np.ndarray]
+    components: dict[str, np.ndarray | None]
 
 
 def build_execution_policy(config: FitConfig) -> ExecutionPolicy:
@@ -257,6 +257,7 @@ def observe_flux_grid_from_state(
     observer_time_s: np.ndarray,
     frequencies_hz: np.ndarray,
     timings: Optional[dict[str, float]] = None,
+    mode: str = "full_components",
 ) -> ObservedState:
     setup = _build_observer_setup_from_state(state, observer_time_s)
     observed = observe_spectra_from_setup(
@@ -265,6 +266,7 @@ def observe_flux_grid_from_state(
         setup,
         frequencies_hz,
         timings=timings,
+        mode=mode,
     )
     return ObservedState(
         state=state,
@@ -279,8 +281,15 @@ def observe_spectrum_from_state(
     time_s: float,
     frequencies_hz: np.ndarray,
     timings: Optional[dict[str, float]] = None,
+    mode: str = "full_components",
 ) -> ObservedState:
-    return observe_flux_grid_from_state(state, np.array([time_s], dtype=float), frequencies_hz, timings=timings)
+    return observe_flux_grid_from_state(
+        state,
+        np.array([time_s], dtype=float),
+        frequencies_hz,
+        timings=timings,
+        mode=mode,
+    )
 
 
 def extract_details_from_state(state: ModelState) -> dict[str, Optional[BranchDetails]]:
@@ -319,8 +328,33 @@ def observe_spectra_from_setup(
     setup,
     frequencies_hz: np.ndarray,
     timings: Optional[dict[str, float]] = None,
-) -> dict[str, np.ndarray]:
+    mode: str = "full_components",
+) -> dict[str, np.ndarray | None]:
     frequencies_hz = np.asarray(frequencies_hz, dtype=float)
+    if mode not in {"full_components", "total_only"}:
+        raise ValueError(f"Unsupported observe mode: {mode}")
+    if mode == "total_only":
+        total = _observe_component(
+            setup,
+            component_spectra.fwd.characteristic_time_s,
+            component_spectra.fwd.gamma,
+            component_spectra.fwd.radius_cm,
+            setup.seed_frequency_hz,
+            component_spectra.total,
+            frequencies_hz,
+            config,
+            timings=timings,
+            label="Interpolation.sed_interpolation [total]",
+        )
+        return {
+            "total": total,
+            "fwd_sync": None,
+            "fwd_ssc": None,
+            "rev_sync": None,
+            "rev_ssc": None,
+            "cross_ic": None,
+        }
+
     observed = {
         "fwd_sync": _observe_component(
             setup,

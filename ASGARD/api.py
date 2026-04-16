@@ -853,6 +853,7 @@ class Fitter:
         self.data = ObsData() if data is None else data
         self.params = [] if params is None else list(params)
         self.num_workers = int(num_workers)
+        self._compiled_problem = None
 
     def build_model(self, values: dict[str, float]) -> Model:
         model = deepcopy(self.model)
@@ -864,38 +865,28 @@ class Fitter:
         return model
 
     def loglike(self, values: dict[str, float]) -> float:
-        model = self.build_model(values)
-        loglike = 0.0
-        for dataset in self.data.flux_density:
-            pred = _evaluate_flux_observations(model, dataset["times_s"], dataset["frequencies_hz"])
-            resid = (pred - dataset["flux"]) / dataset["flux_err"]
-            loglike -= 0.5 * float(np.sum(resid * resid))
-        for dataset in self.data.spectrum:
-            pred = model.spectrum(dataset["time_s"], dataset["frequencies_hz"])
-            resid = (pred - dataset["flux"]) / dataset["flux_err"]
-            loglike -= 0.5 * float(np.sum(resid * resid))
-        for dataset in self.data.flux:
-            pred = model.flux(
-                dataset["time_s"],
-                dataset["nu_min_hz"],
-                dataset["nu_max_hz"],
-                num_points=dataset["num_points"],
-            )
-            resid = (pred - dataset["flux"]) / dataset["flux_err"]
-            loglike -= 0.5 * float(resid * resid)
-        return loglike
+        if self._compiled_problem is None:
+            from asgard_inference import compile_inference_problem
+
+            self._compiled_problem = compile_inference_problem(self.data, self.model, params=self.params)
+        from asgard_inference import evaluate_compiled_loglike
+
+        return evaluate_compiled_loglike(self._compiled_problem, values)
 
     def flux_density_grid(self, values: dict[str, float], times_s: np.ndarray, nu_hz: np.ndarray) -> ModelFluxResult:
         return self.build_model(values).flux_density_grid(times_s, nu_hz)
 
     def add_flux_density(self, *args, **kwargs) -> None:
         self.data.add_flux_density(*args, **kwargs)
+        self._compiled_problem = None
 
     def add_spectrum(self, *args, **kwargs) -> None:
         self.data.add_spectrum(*args, **kwargs)
+        self._compiled_problem = None
 
     def add_flux(self, *args, **kwargs) -> None:
         self.data.add_flux(*args, **kwargs)
+        self._compiled_problem = None
 
     def run_emcee(self, initial: np.ndarray, nwalkers: int, nsteps: int) -> FitResult:
         import emcee
@@ -975,6 +966,7 @@ class Fitter:
     ) -> FitResult:
         if param_defs is not None:
             self.params = list(param_defs)
+            self._compiled_problem = None
         if not self.params:
             raise ValueError("No parameter definitions were provided to Fitter.fit().")
         if nsteps is not None:
@@ -985,6 +977,7 @@ class Fitter:
             self.num_workers = int(npool)
         if resolution is not None:
             self.model._apply_resolutions(resolution)
+            self._compiled_problem = None
 
         active_params = [param for param in self.params if not param.is_fixed()]
         if sampler.lower() in ("multinest", "pymultinest"):
@@ -1081,12 +1074,14 @@ def _model_signature(model: Model) -> str:
 
 def _observe_result_from_components(observed: dict[str, np.ndarray | None]) -> ModelFluxResult:
     total = np.asarray(observed["total"], dtype=float)
+    fwd_sync = np.zeros_like(total) if observed["fwd_sync"] is None else np.asarray(observed["fwd_sync"], dtype=float)
+    fwd_ssc = np.zeros_like(total) if observed["fwd_ssc"] is None else np.asarray(observed["fwd_ssc"], dtype=float)
     rev_sync = np.zeros_like(total) if observed["rev_sync"] is None else np.asarray(observed["rev_sync"], dtype=float)
     rev_ssc = np.zeros_like(total) if observed["rev_ssc"] is None else np.asarray(observed["rev_ssc"], dtype=float)
     cross_ic = None if observed["cross_ic"] is None else np.asarray(observed["cross_ic"], dtype=float)
     return ModelFluxResult(
         total=total,
-        fwd=BranchView(sync=np.asarray(observed["fwd_sync"], dtype=float), ssc=np.asarray(observed["fwd_ssc"], dtype=float)),
+        fwd=BranchView(sync=fwd_sync, ssc=fwd_ssc),
         rev=BranchView(sync=rev_sync, ssc=rev_ssc),
         cross_ic=cross_ic,
     )
@@ -1096,9 +1091,20 @@ def _observe_state(
     state: ModelState,
     times_s: np.ndarray,
     nu_hz: np.ndarray,
+    mode: str = "full_components",
 ) -> ModelFluxResult:
-    observed_state = observe_flux_grid_from_state(state, times_s, nu_hz)
+    observed_state = observe_flux_grid_from_state(state, times_s, nu_hz, mode=mode)
     return _observe_result_from_components(observed_state.components)
+
+
+def _observe_total_state(
+    state: ModelState,
+    times_s: np.ndarray,
+    nu_hz: np.ndarray,
+    timings: Optional[dict[str, float]] = None,
+) -> np.ndarray:
+    observed_state = observe_flux_grid_from_state(state, times_s, nu_hz, timings=timings, mode="total_only")
+    return np.asarray(observed_state.components["total"], dtype=float)
 
 
 def _log_time_midpoint(t_left: float, t_right: float) -> float:
@@ -1632,6 +1638,7 @@ def _resolve_patch_state(
     config: FitConfig,
     times_s: np.ndarray,
     requested_frequencies_hz: np.ndarray | None,
+    timings: Optional[dict[str, float]] = None,
 ) -> ModelState:
     solve_times_s = build_solve_time_grid(times_s, model.setups.num_tobs)
     if requested_frequencies_hz is not None:
@@ -1654,9 +1661,69 @@ def _resolve_patch_state(
     state = solve_model_state_from_setup(
         config,
         setup,
+        timings=timings,
         requested_frequencies_hz=requested_frequencies_hz,
     )
     return state
+
+
+def _evaluate_direct_total_matrix(
+    model: Model,
+    times_s: np.ndarray,
+    nu_hz: np.ndarray,
+    timings: Optional[dict[str, float]] = None,
+) -> np.ndarray:
+    config = _build_fit_config_for_patch(
+        model,
+        phi_center=0.0,
+        theta_v=model.observer.theta_obs,
+        opening_angle_jet=model.jet.theta_j,
+        e_iso=model.jet.E_iso,
+        gamma0=model.jet.lf,
+        theta_center=0.0,
+    )
+    state = _resolve_patch_state(model, config, times_s, nu_hz, timings=timings)
+    return _observe_total_state(state, times_s, nu_hz, timings=timings)
+
+
+def _evaluate_patch_total_matrix(
+    model: Model,
+    times_s: np.ndarray,
+    nu_hz: np.ndarray,
+    timings: Optional[dict[str, float]] = None,
+) -> np.ndarray:
+    total = np.zeros((nu_hz.shape[0], times_s.shape[0]), dtype=float)
+    for phi_center, theta_center, patch_half_angle in _iter_jet_patches(model):
+        e_iso = model.jet.energy_iso(phi_center, theta_center)
+        gamma0 = model.jet.gamma0(phi_center, theta_center)
+        if e_iso <= 0.0 or gamma0 <= 1.0:
+            continue
+        theta_v = _angular_separation(theta_center, phi_center, model.observer.theta_obs, model.observer.phi_obs)
+        config = _build_fit_config_for_patch(
+            model,
+            phi_center=phi_center,
+            theta_v=theta_v,
+            opening_angle_jet=patch_half_angle,
+            e_iso=e_iso,
+            gamma0=gamma0,
+            theta_center=theta_center,
+        )
+        state = _resolve_patch_state(model, config, times_s, nu_hz, timings=timings)
+        total += _observe_total_state(state, times_s, nu_hz, timings=timings)
+    return total
+
+
+def _compute_total_matrix(
+    model: Model,
+    times_s: np.ndarray,
+    nu_hz: np.ndarray,
+    timings: Optional[dict[str, float]] = None,
+) -> np.ndarray:
+    times_s = np.asarray(times_s, dtype=float)
+    nu_hz = np.asarray(nu_hz, dtype=float)
+    if isinstance(model.jet, TophatJet) and model._supports_direct_kernel():
+        return _evaluate_direct_total_matrix(model, times_s, nu_hz, timings=timings)
+    return _evaluate_patch_total_matrix(model, times_s, nu_hz, timings=timings)
 
 
 def _evaluate_direct_model(model: Model, times_s: np.ndarray, nu_hz: np.ndarray) -> tuple[ModelFluxResult, ModelDetails]:

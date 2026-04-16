@@ -794,3 +794,72 @@ plot_spectrum(result, times_s=[1e3, 1e4, 1e5], quantity="nufnu")
   - ????
   - ????
   - ????
+
+## 26. 2026-04 Inference Fastpath Update
+
+- 当前已新增生产推断 fast-path，目标是压缩 Python 调用链开销，而不是改动 Fortran 物理核。
+- `asgard_component_backend.py` 当前已新增 observer-side `mode` 分支：
+  - `full_components`
+  - `total_only`
+- 生产推断当前默认走 `total_only`：
+  - 只对 `component_spectra.total` 调一次 `Interpolation.sed_interpolation`
+  - 不再为 `fwd_sync/fwd_ssc/rev_sync/rev_ssc/cross_ic` 分量逐个做 observer-side 插值
+- `asgard_inference.py` 当前已新增：
+  - `compile_inference_problem(...)`
+  - `evaluate_compiled_loglike(...)`
+  - `populate_inference_config(...)`
+  - `populate_log_inference_config(...)`
+- `evaluate_fit_loglike(config)` 当前已切到 compiled `FitConfig` light-curve fast-path：
+  - `solve_model_state_from_setup(...)`
+  - `observe_flux_grid_from_state(..., mode="total_only")`
+  - `combine_multiband_flux(...)`
+  - `compute_light_curve_redchi(...)`
+- `ASGARD.api.Fitter.loglike(...)` 当前已切到 compiled observation-block 路径：
+  - 不再逐次 `deepcopy(model)` 后按 dataset 临时拼调用
+  - 当前会预编译 dataset 请求块和参数绑定
+  - 参数评估时对模型对象做就地参数覆写，评估后恢复原值
+- 对通用 `Fitter` 路径，当前没有强行把所有 dataset 合并到单一 solve grid：
+  - 这是有意保留的
+  - 原因是不同时间覆盖范围的 dataset 若盲目共用一个 solve grid，会引入可见 observer-side 偏差
+  - 当前实现改为“按请求块复用”，优先保证结果与旧路径一致
+- `MCMC.py` 与 `pymultinest_demo.py` 当前已改为：
+  - 进程内只初始化一次 compiled problem
+  - 复用单个 `FitConfig` 模板对象
+  - 每个参数点评估时仅更新必要字段，再调用 compiled loglike
+- 新增最小一致性检查：
+  - `tests/inference_fastpath_check.py`
+- 新增推断 profile：
+  - `tests/asgard_inference_profile.py`
+  - 输出文件：`output/asgard_doc/inference_fastpath_profile.json`
+- 当前最新 profile（`tests/asgard_inference_profile.py`）结果表明：
+  - `sync_only`：`python_over_fortran ≈ 0.0020`
+  - `with_ssc`：`python_over_fortran ≈ 0.0019`
+- 因而就当前 direct top-hat 推断样例而言，Python 调用链时间已经显著低于“占 Fortran 核 10%-20%”这一目标上限。
+
+## 26. 2026-04 Inference Fastpath Update
+
+- 生产推断 fast-path 已接入，目标是减少 Python 调用链重复开销，不改 Fortran 物理核公式。
+- `asgard_component_backend.py` 新增观测模式分流：
+  - `mode="full_components"`：保留旧行为，逐分量 observer 插值。
+  - `mode="total_only"`：只对 `component_spectra.total` 做一次 observer 插值。
+- `asgard_inference.py` 已新增 compiled 推断入口：
+  - `compile_inference_problem(...)`
+  - `evaluate_compiled_loglike(...)`
+  - `populate_inference_config(...)`
+  - `populate_log_inference_config(...)`
+- `evaluate_fit_loglike(config)` 已改为走 compiled config fast-path。
+- `ASGARD/api.py` 中：
+  - `Fitter.loglike(...)` 改为内部转调 compiled 推断入口。
+  - `Fitter` 在 `add_flux_density/add_spectrum/add_flux/fit(param_defs|resolution)` 时会失效并重建 compiled 缓存。
+  - 新增 `_compute_total_matrix(...)` 及 direct/patch 的 total-only 观测求值路径，避免推断链默认重复分量插值。
+- `MCMC.py` 与 `pymultinest_demo.py` 已改为：
+  - 启动时构建一次 compiled context
+  - 每个参数点仅就地更新配置并调用 `evaluate_compiled_loglike(...)`
+  - 不再每点评估时重新构造完整求解入口
+- 新增 `tests/inference_fastpath_profile.py`，输出：
+  - `output/asgard_doc/inference_fastpath_profile.json`
+  - 对比 legacy full-components 与 fast total-only 的 `loglike`、总耗时、Fortran/Python 时间拆分。
+- 当前实测（本机）：
+  - `tophat_ism_sync`：Python/Fortran ≈ `0.019`（legacy）与 `0.017`（fast）
+  - `tophat_ism_ssc`：Python/Fortran ≈ `0.024`（legacy）与 `0.017`（fast）
+  - 两个场景均在“Python 开销占 Fortran 的 10%-20% 以内”目标之下。
