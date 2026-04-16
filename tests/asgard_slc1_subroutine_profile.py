@@ -13,13 +13,14 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from asgard_paths import ASGARD_DOC_DIR
 from asgard_component_backend import build_query_setup, profile_observe_spectra_from_setup
 from asgard_models import default_num_threads
 from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet
 from ASGARD.api import _build_fit_config_for_patch
 
 
-OUTPUT_DIR = ROOT / "output" / "asgard_doc"
+OUTPUT_DIR = ASGARD_DOC_DIR
 TIMES_S = np.logspace(2.0, 8.0, 100)
 FREQS_HZ = np.array([1.0e9, 1.0e14, 1.0e18], dtype=float)
 PROFILE_REPEATS = 2

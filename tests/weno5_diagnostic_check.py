@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from asgard_paths import asgard_doc_path
 from asgard_presets import build_baseline_config
 from asgard_setup import build_simulation_setup
 from asgard_runtime import solve_dynamics, solve_electron
@@ -18,7 +19,7 @@ import src.Electron.FS_electron_weno5 as weno5_module
 from src import constants
 
 
-OUTPUT_JSON = ROOT / "output" / "asgard_doc" / "weno5_diagnostic.json"
+OUTPUT_JSON = asgard_doc_path("weno5_diagnostic.json")
 
 
 def _ambient_density(radius_cm: float, config) -> float:

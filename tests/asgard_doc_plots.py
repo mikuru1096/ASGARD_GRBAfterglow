@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from asgard_paths import ASGARD_DOC_DIR
 from matplotlib.colors import LogNorm
 
 from ASGARD import ISM, Model, Observer, Radiation, TophatJet, units
@@ -23,7 +24,7 @@ from src import constants
 from tests.ASGARD_comprehensive_validation import REGIME_TEST_CONFIGS, _make_model, fit_powerlaw
 
 
-OUTPUT_DIR = ROOT / "output" / "asgard_doc"
+OUTPUT_DIR = ASGARD_DOC_DIR
 
 
 def _label_from_value(value: float, unit: str) -> str:

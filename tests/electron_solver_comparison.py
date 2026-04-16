@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from asgard_paths import asgard_doc_path
 from asgard_component_backend import extract_physical_solution_from_state, solve_model_state_from_setup
 from asgard_postprocess import compute_band_fluxes
 from asgard_presets import build_baseline_config
@@ -22,7 +23,7 @@ import src.Electron.FS_electron_fullhide as fullhide_module
 import src.Electron.FS_electron_slc1 as slc1_module
 
 
-OUTPUT_JSON = ROOT / "output" / "asgard_doc" / "electron_solver_comparison.json"
+OUTPUT_JSON = asgard_doc_path("electron_solver_comparison.json")
 SOLVERS = ("fullhide", "slc1", "charint")
 NUM_GAM_BY_SOLVER = {
     "fullhide": 121,

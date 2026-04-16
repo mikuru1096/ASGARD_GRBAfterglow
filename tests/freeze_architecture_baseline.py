@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from asgard_paths import ASGARD_DOC_DIR
 from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet
 from tests.bug_audit_check import (
     check_component_finiteness_and_closure,
@@ -29,7 +30,7 @@ from tests.physical_closure_check import (
 )
 
 
-OUTPUT_DIR = ROOT / "output" / "asgard_doc"
+OUTPUT_DIR = ASGARD_DOC_DIR
 JSON_OUT = ROOT / "tests" / "baseline_architecture.json"
 NPZ_OUT = ROOT / "tests" / "baseline_architecture_observed.npz"
 

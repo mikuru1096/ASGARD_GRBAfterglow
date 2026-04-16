@@ -15,10 +15,11 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from asgard_paths import asgard_doc_path
 from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet, GaussianJet, PowerLawJet, Wind
 
 
-OUTPUT_JSON = ROOT / "output" / "asgard_doc" / "comprehensive_validation_asgard.json"
+OUTPUT_JSON = asgard_doc_path("comprehensive_validation_asgard.json")
 
 FIDUCIAL_RESOLUTION = (0.1, 0.25, 10)
 REGRESSION_RESOLUTION = (0.3, 2.0, 15)

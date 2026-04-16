@@ -11,10 +11,11 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from asgard_paths import asgard_doc_path
 import src.Electron.FS_electron_charint as charint_module
 
 
-OUTPUT_JSON = ROOT / "output" / "asgard_doc" / "electron_charint_exact.json"
+OUTPUT_JSON = asgard_doc_path("electron_charint_exact.json")
 REL_TOL = 1.0e-12
 ABS_TOL = 1.0e-12
 

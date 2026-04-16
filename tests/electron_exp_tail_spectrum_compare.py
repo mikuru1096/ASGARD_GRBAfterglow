@@ -15,9 +15,10 @@ if str(ROOT) not in sys.path:
 
 from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet, Wind
 from ASGARD.api import _build_fit_config_for_patch, _resolve_patch_state
+from asgard_paths import BENCHMARK_EXP_TAIL_DIR
 
 
-OUTPUT_DIR = ROOT / "output" / "benchmark_exp_tail"
+OUTPUT_DIR = BENCHMARK_EXP_TAIL_DIR
 OUTPUT_NPZ = OUTPUT_DIR / "spectrum_compare_data.npz"
 OUTPUT_PNG = OUTPUT_DIR / "spectrum_compare.png"
 OUTPUT_PDF = OUTPUT_DIR / "spectrum_compare.pdf"

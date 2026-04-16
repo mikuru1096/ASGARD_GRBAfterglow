@@ -11,12 +11,13 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from asgard_paths import asgard_doc_path
 from asgard_presets import build_baseline_config
 from asgard_runtime import solve_dynamics, solve_electron
 from asgard_setup import build_simulation_setup
 
 
-OUTPUT_JSON = ROOT / "output" / "asgard_doc" / "electron_charint_smoothness.json"
+OUTPUT_JSON = asgard_doc_path("electron_charint_smoothness.json")
 MAX_LOG_JUMP = 0.25
 SAWTOOTH_TOL_DEX = 0.03
 

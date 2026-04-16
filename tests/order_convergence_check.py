@@ -17,9 +17,10 @@ from asgard_postprocess import compute_band_fluxes
 from asgard_presets import build_baseline_config
 from asgard_runtime import solve_dynamics, solve_electron
 from asgard_setup import build_simulation_setup
+from asgard_paths import asgard_doc_path
 
 
-OUTPUT_JSON = ROOT / "output" / "asgard_doc" / "order_convergence.json"
+OUTPUT_JSON = asgard_doc_path("order_convergence.json")
 ELECTRON_ORDER_TARGET = 2.0
 RADIATION_ORDER_TARGET = 2.0
 

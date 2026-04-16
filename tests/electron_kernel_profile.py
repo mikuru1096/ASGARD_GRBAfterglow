@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from asgard_paths import ASGARD_DOC_DIR
 from asgard_models import default_num_threads
 from asgard_presets import build_baseline_config
 from asgard_runtime import solve_dynamics, solve_electron
@@ -20,7 +21,7 @@ from asgard_setup import build_simulation_setup
 import src.Electron.FS_electron_fullhide as electron_module
 
 
-OUTPUT_DIR = ROOT / "output" / "asgard_doc"
+OUTPUT_DIR = ASGARD_DOC_DIR
 SERIAL_THREADS = 1
 PARALLEL_THREADS = default_num_threads()
 PROFILE_REPEATS = 12

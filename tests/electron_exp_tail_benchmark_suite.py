@@ -14,9 +14,10 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet, Wind, units
+from asgard_paths import BENCHMARK_EXP_TAIL_DIR
 
 
-OUTPUT_DIR = ROOT / "output" / "benchmark_exp_tail"
+OUTPUT_DIR = BENCHMARK_EXP_TAIL_DIR
 BENCHMARK_JSON = OUTPUT_DIR / "benchmark_compare.json"
 BENCHMARK_PNG = OUTPUT_DIR / "benchmark_compare.png"
 BENCHMARK_PDF = OUTPUT_DIR / "benchmark_compare.pdf"

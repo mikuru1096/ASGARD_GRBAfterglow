@@ -12,13 +12,14 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from asgard_paths import asgard_doc_path
 from asgard_presets import build_baseline_config
 from asgard_runtime import _minimum_electron_lorentz_factor, solve_dynamics, solve_electron
 from asgard_setup import build_simulation_setup
 import src.Electron.FS_electron_fullhide as fullhide_module
 
 
-OUTPUT_JSON = ROOT / "output" / "asgard_doc" / "electron_operator_only.json"
+OUTPUT_JSON = asgard_doc_path("electron_operator_only.json")
 
 
 ecommon = fullhide_module.electron_common

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import sys
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -10,8 +11,13 @@ from matplotlib.colors import LinearSegmentedColormap
 
 
 ROOT = Path(__file__).resolve().parents[1]
-INPUT_JSON = ROOT / "output" / "asgard_doc" / "comprehensive_validation_asgard.json"
-OUTPUT_DIR = ROOT / "output" / "asgard_doc"
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from asgard_paths import ASGARD_DOC_DIR, asgard_doc_path
+
+INPUT_JSON = asgard_doc_path("comprehensive_validation_asgard.json")
+OUTPUT_DIR = ASGARD_DOC_DIR
 OUTPUT_PDF = OUTPUT_DIR / "comprehensive_validation_summary.pdf"
 
 
