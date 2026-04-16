@@ -970,3 +970,24 @@ plot_spectrum(result, times_s=[1e3, 1e4, 1e5], quantity="nufnu")
 - 当前下一优先级性能点：
   - `FS_electron_charint.f90` 的 adaptive substep 回退链
   - `electron_prepare_radiation_spectrum(...)` 的前后沿扫描与重采样触发频率
+
+## 32. 2026-04 Charint Adaptive Step Update
+
+- 本轮已继续优化 `src/Electron/FS_electron_charint.f90` 的 adaptive substep 链，但只改 uniform-density 分支。
+- 当前改动：
+  - 在 `is_uniform_density` 的 adaptive while-loop 里，先根据现有接受判据
+    - `step_error = dR_try / R_mid`
+    - `step_error <= charint_substep_rtol_relax * substep_rtol`
+  - 解析地构造一个 `dR_cap`
+  - 对 `dR_try` 先做上界裁剪，再进入原来的接受/回退逻辑
+- 这一步的作用是：
+  - 减少“先试一步、再因纯几何误差超标而回退”的空转
+  - 不改接受判据本身
+  - 不改非均匀密度分支
+  - 不改物理公式
+- 本轮最小验证：
+  - `python build_extensions.py --module FS_electron_charint --force` 通过
+  - `import FS_electron_charint` smoke 通过
+- 当前下一步仍是：
+  - 看 nonuniform-density adaptive 分支是否也有可提前裁步的纯调度开销
+  - 或继续下探 `electron_prepare_radiation_spectrum(...)` 的触发频率与扫描次数

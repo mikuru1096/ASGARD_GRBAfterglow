@@ -192,6 +192,11 @@ subroutine fs_electron_charint(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,N
                 dR_try=min(dR_try,dR_left)
                 if (dR_left < 1.5d0*dR_try) dR_try=dR_left
                 if (is_uniform_density) then
+                    step_limit=charint_substep_rtol_relax*substep_rtol
+                    if (step_limit > zero) then
+                        dR_cap=step_limit*max(R_loc,1d-30)/max(one-0.5d0*step_limit,0.5d0)
+                        if (dR_cap > dR_min) dR_try=min(dR_try,dR_cap)
+                    end if
                     R_mid=R_loc+0.5d0*dR_try
                     step_error=dR_try/max(R_mid,1d-30)
                     if (step_error > charint_substep_rtol_relax*substep_rtol .and. dR_try > dR_min) then
