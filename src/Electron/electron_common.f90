@@ -817,13 +817,13 @@ subroutine electron_characteristic_step_affine_u(Num_gam_e,dDR,x_edge,a_u,b_u,dF
 end subroutine electron_characteristic_step_affine_u
 
 subroutine electron_characteristic_step_affine_u_prepared_source(Num_gam_e,dDR,x_edge,a_u,b_u,source_scale, &
-                                                                 prefix_source,qlog_source,slope_source,x_center_source, &
-                                                                 dN_x_in,dN_x_out)
+                                                                 q_left_source_lin,q_right_source_lin,prefix_source_lin,dF1,dN_x_in,dN_x_out)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: Num_gam_e
     integer :: I_quad
     real(8), intent(in) :: dDR,x_edge(Num_gam_e+1),a_u,b_u,source_scale
-    real(8), intent(in) :: prefix_source(0:Num_gam_e),qlog_source(Num_gam_e),slope_source(Num_gam_e),x_center_source(Num_gam_e)
+    real(8), intent(in) :: dF1(Num_gam_e)
+    real(8), intent(in) :: q_left_source_lin(Num_gam_e),q_right_source_lin(Num_gam_e),prefix_source_lin(0:Num_gam_e)
     real(8), intent(in) :: dN_x_in(Num_gam_e)
     real(8), intent(out) :: dN_x_out(Num_gam_e)
     real(8) :: x_back(Num_gam_e+1),u_now_edge(Num_gam_e+1),lag_arr(charint_quad_order+1)
@@ -847,8 +847,8 @@ subroutine electron_characteristic_step_affine_u_prepared_source(Num_gam_e,dDR,x
     dN_source=zero
     do I_quad=1,charint_quad_order
         x_back=x_back_batch(:,I_quad+1)
-        call electron_conservative_remap_log_nonuniform_prepared(Num_gam_e,x_edge,x_back,prefix_source,qlog_source,slope_source, &
-                                                                 x_center_source,dN_quad)
+        call electron_conservative_remap_nonuniform_prepared(Num_gam_e,x_edge,x_back,dF1, &
+                                                           q_left_source_lin,q_right_source_lin,prefix_source_lin,dN_quad)
         dN_source=dN_source+charint_quad_weights(I_quad)*dN_quad
     end do
     dN_x_out=max(zero,dN_transport+dDR*source_scale*dN_source)
@@ -893,13 +893,14 @@ subroutine electron_characteristic_step_piecewise_u(Num_gam_e,dDR,x_edge,gam_e,d
 end subroutine electron_characteristic_step_piecewise_u
 
 subroutine electron_characteristic_step_piecewise_u_prepared_source(Num_gam_e,dDR,x_edge,gam_e,dEl,R_loc,source_scale, &
-                                                                    prefix_source,qlog_source,slope_source,x_center_source, &
-                                                                    dN_x_in,dN_x_out)
+                                                                    q_left_source_lin,q_right_source_lin,prefix_source_lin, &
+                                                                    dF1,dN_x_in,dN_x_out)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: Num_gam_e
     integer :: I_quad
     real(8), intent(in) :: dDR,x_edge(Num_gam_e+1),gam_e(Num_gam_e),dEl(Num_gam_e),R_loc,source_scale
-    real(8), intent(in) :: prefix_source(0:Num_gam_e),qlog_source(Num_gam_e),slope_source(Num_gam_e),x_center_source(Num_gam_e)
+    real(8), intent(in) :: dF1(Num_gam_e)
+    real(8), intent(in) :: q_left_source_lin(Num_gam_e),q_right_source_lin(Num_gam_e),prefix_source_lin(0:Num_gam_e)
     real(8), intent(in) :: dN_x_in(Num_gam_e)
     real(8), intent(out) :: dN_x_out(Num_gam_e)
     real(8) :: x_back(Num_gam_e+1),u_edge(Num_gam_e+1),a_cell(Num_gam_e),b_cell(Num_gam_e)
@@ -924,8 +925,8 @@ subroutine electron_characteristic_step_piecewise_u_prepared_source(Num_gam_e,dD
     dN_source=zero
     do I_quad=1,charint_quad_order
         x_back=x_back_batch(:,I_quad+1)
-        call electron_conservative_remap_log_nonuniform_prepared(Num_gam_e,x_edge,x_back,prefix_source,qlog_source,slope_source, &
-                                                                 x_center_source,dN_quad)
+        call electron_conservative_remap_nonuniform_prepared(Num_gam_e,x_edge,x_back,dF1, &
+                                                           q_left_source_lin,q_right_source_lin,prefix_source_lin,dN_quad)
         dN_source=dN_source+charint_quad_weights(I_quad)*dN_quad
     end do
     dN_x_out=max(zero,dN_transport+dDR*source_scale*dN_source)

@@ -12,15 +12,14 @@ subroutine fs_electron_charint(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,N
                             Seed_syn(Num_nu,Num_R),V_m(Num_R),V_c(Num_R),V_a(Num_R)
 
     real(8), allocatable :: dEl_base(:),dEl_step(:),dN_x(:),dN_step(:),dF1(:),dF1_shape(:),x_edge(:)
-    real(8), allocatable :: prefix_source_shape(:),qlog_source_shape(:),slope_source_shape(:),x_center_source_shape(:)
+    real(8), allocatable :: q_left_source_shape(:),q_right_source_shape(:),prefix_source_lin_shape(:)
     real(8), allocatable :: gam_e_rad(:),dN_gam_e_rad(:)
     logical :: is_uniform_density
     integer :: Num_gam_rad
 
     allocate(dEl_base(Num_gam_e),dEl_step(Num_gam_e),dN_x(Num_gam_e),dN_step(Num_gam_e), &
              dF1(Num_gam_e),dF1_shape(Num_gam_e),x_edge(Num_gam_e+1),gam_e_rad(Num_gam_e),dN_gam_e_rad(Num_gam_e), &
-             prefix_source_shape(0:Num_gam_e),qlog_source_shape(Num_gam_e),slope_source_shape(Num_gam_e), &
-             x_center_source_shape(Num_gam_e))
+             q_left_source_shape(Num_gam_e),q_right_source_shape(Num_gam_e),prefix_source_lin_shape(0:Num_gam_e))
 
     Eta_0=Boundary(1)
     R_ini=Boundary(4)
@@ -102,8 +101,8 @@ subroutine fs_electron_charint(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,N
                 call electron_gamma_m_exact(p,temp_gam,Gam_e_max_step,Gam_e_m_step)
                 Gam_e_m_p_step=(one-p)/(Gam_e_max_step**(one-p)-Gam_e_m_step**(one-p))
                 call electron_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m_step,Gam_e_max_step,one,p,dF1_shape)
-                call electron_log_prefix_nonuniform(Num_gam_e,x_edge,dF1_shape,prefix_source_shape, &
-                                                    qlog_source_shape,slope_source_shape,x_center_source_shape)
+                call electron_prepare_conservative_remap_nonuniform(Num_gam_e,x_edge,dF1_shape, &
+                                                                   q_left_source_shape,q_right_source_shape,prefix_source_lin_shape)
 
                 if (index_Y == 0) then
                     cooling_scale=one/(beta_Gam*R_Gamma_loc)
@@ -117,13 +116,11 @@ subroutine fs_electron_charint(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,N
                     if (index_Y == 0) then
                         b_ad=one/R_mid
                         call electron_characteristic_step_affine_u_prepared_source( &
-                            Num_gam_e,dDR,x_edge,a_rad,b_ad,Q,prefix_source_shape, &
-                            qlog_source_shape,slope_source_shape,x_center_source_shape,dN_x,dN_step)
+                            Num_gam_e,dDR,x_edge,a_rad,b_ad,Q,q_left_source_shape,q_right_source_shape,prefix_source_lin_shape,dF1_shape,dN_x,dN_step)
                     else
                         dEl_step=dEl_base
                         call electron_characteristic_step_piecewise_u_prepared_source( &
-                            Num_gam_e,dDR,x_edge,gam_e,dEl_step,R_mid,Q,prefix_source_shape, &
-                            qlog_source_shape,slope_source_shape,x_center_source_shape,dN_x,dN_step)
+                            Num_gam_e,dDR,x_edge,gam_e,dEl_step,R_mid,Q,q_left_source_shape,q_right_source_shape,prefix_source_lin_shape,dF1_shape,dN_x,dN_step)
                     end if
 
                     dN_x=dN_step
@@ -180,8 +177,8 @@ subroutine fs_electron_charint(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,N
                 call electron_gamma_m_exact(p,temp_gam,Gam_e_max_step,Gam_e_m_step)
                 Gam_e_m_p_step=(one-p)/(Gam_e_max_step**(one-p)-Gam_e_m_step**(one-p))
                 call electron_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m_step,Gam_e_max_step,one,p,dF1_shape)
-                call electron_log_prefix_nonuniform(Num_gam_e,x_edge,dF1_shape,prefix_source_shape, &
-                                                    qlog_source_shape,slope_source_shape,x_center_source_shape)
+                call electron_prepare_conservative_remap_nonuniform(Num_gam_e,x_edge,dF1_shape, &
+                                                                   q_left_source_shape,q_right_source_shape,prefix_source_lin_shape)
                 if (index_Y == 0) then
                     cooling_scale=one/(beta_Gam*R_Gamma_loc)
                     a_rad=1.35d-19*DB_step**2*cooling_scale/pi
@@ -208,13 +205,11 @@ subroutine fs_electron_charint(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,N
                     if (index_Y == 0) then
                         b_ad=one/R_mid
                         call electron_characteristic_step_affine_u_prepared_source( &
-                            Num_gam_e,dR_try,x_edge,a_rad,b_ad,Q,prefix_source_shape, &
-                            qlog_source_shape,slope_source_shape,x_center_source_shape,dN_x,dN_step)
+                            Num_gam_e,dR_try,x_edge,a_rad,b_ad,Q,q_left_source_shape,q_right_source_shape,prefix_source_lin_shape,dF1_shape,dN_x,dN_step)
                     else
                         dEl_step=dEl_base
                         call electron_characteristic_step_piecewise_u_prepared_source( &
-                            Num_gam_e,dR_try,x_edge,gam_e,dEl_step,R_mid,Q,prefix_source_shape, &
-                            qlog_source_shape,slope_source_shape,x_center_source_shape,dN_x,dN_step)
+                            Num_gam_e,dR_try,x_edge,gam_e,dEl_step,R_mid,Q,q_left_source_shape,q_right_source_shape,prefix_source_lin_shape,dF1_shape,dN_x,dN_step)
                     end if
                 else
                     R_right=R_loc+dR_try
@@ -272,7 +267,7 @@ subroutine fs_electron_charint(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,N
     end do
 
     deallocate(dEl_base,dEl_step,dN_x,dN_step,dF1,dF1_shape,x_edge,gam_e_rad,dN_gam_e_rad, &
-               prefix_source_shape,qlog_source_shape,slope_source_shape,x_center_source_shape)
+               q_left_source_shape,q_right_source_shape,prefix_source_lin_shape)
 end subroutine fs_electron_charint
 
 subroutine fs_electron_charint_affine_step_test(Num_gam_e,dDR,x_edge,a_u,b_u,dF1,dN_x_in,dN_x_out)

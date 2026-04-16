@@ -1039,3 +1039,17 @@ plot_spectrum(result, times_s=[1e3, 1e4, 1e5], quantity="nufnu")
   - 仍保留 quick 小网格作为默认烟测
 - `ASGARD/api.py::_render_sky_image` 已修正旧字段名残留：
   - `component_spectra` -> `components`
+
+## 35. 2026-04 Charint High-Energy Tail Fix
+
+- 快速基准中观察到 `charint` 高能电子分布尾端“非正常抬起”后，确认属于 Fortran 核源项重映射链路问题，当前已在核内修复：
+  - `src/Electron/FS_electron_charint.f90`
+    - 统一对 uniform-density 段的源项 `dF1_shape` 预计算线性守恒 remap 参数
+    - `electron_characteristic_step_*_prepared_source` 调用改用该参数
+  - `src/Electron/electron_common.f90`
+    - `electron_characteristic_step_affine_u_prepared_source` 与 `electron_characteristic_step_piecewise_u_prepared_source` 的 prepared-source 重映射从 log-remap 换为
+      `electron_conservative_remap_nonuniform_prepared`（线性重映射）
+- 最小验证：
+  - `python build_extensions.py --module FS_electron_charint --force` 通过（环境触发 ordered fallback 成功）
+  - `python tests/readme_smoke_bench.py` quick 全通道通过（fullhide/charint）
+  - `python tests/sed_electron_compare.py` 可产出对比图，曲线端点无明显抬升特征
