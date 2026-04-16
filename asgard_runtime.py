@@ -4,28 +4,9 @@ from dataclasses import dataclass
 import numpy as np
 
 import src.Electron.FS_electron_weno5 as electron_weno5_module
-try:
-    import src.Electron.FS_electron_t2g1_v3 as electron_t2g1_module
-except ImportError:
-    try:
-        import src.Electron.FS_electron_t2g1_v2 as electron_t2g1_module
-    except ImportError:
-        import src.Electron.FS_electron_t2g1 as electron_t2g1_module
-
-try:
-    import src.Electron.FS_electron_slc1 as electron_slc1_module
-except ImportError:
-    try:
-        import src.Electron.FS_electron_slc1_v3 as electron_slc1_module
-    except ImportError:
-        try:
-            import src.Electron.FS_electron_slc1_v2 as electron_slc1_module
-        except ImportError:
-            import src.Electron.FS_electron_slc1 as electron_slc1_module
-try:
-    import src.Electron.FS_electron_charint as electron_charint_module
-except ImportError:
-    import src.Electron.FS_electron_charint as electron_charint_module
+import src.Electron.FS_electron_t2g1 as electron_t2g1_module
+import src.Electron.FS_electron_slc1 as electron_slc1_module
+import src.Electron.FS_electron_charint as electron_charint_module
 from asgard_models import FitConfig
 from src import Dynamics, Electron, Radiation, constants
 

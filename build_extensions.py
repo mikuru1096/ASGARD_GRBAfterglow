@@ -295,11 +295,11 @@ def main() -> None:
         ("Constants", src, ["Constants.f90"], None, None),
         ("Dynamics_reverse", dyn, ["../Constants.f90", "Dynamics_reverse.f90"], COMMON_FLAGS, None),
         ("Dynamics_forward", dyn, ["../Constants.f90", "dynamics_common.f90", "Dynamics_forward.f90"], COMMON_FLAGS, None),
-        ("FS_electron_weno5", ele, ["../Constants.f90", "../utils/adaptive_2nd_resampling_mod.f90", "electron_common.f90", "calling_modules.f90", "FS_electron_weno5.f90"], OMP_FLAGS, OPENMP_LIBS),
-        ("FS_electron_slc1", ele, ["../Constants.f90", "../utils/adaptive_2nd_resampling_mod.f90", "electron_common.f90", "calling_modules.f90", "FS_electron_slc1.f90"], OMP_FLAGS, OPENMP_LIBS),
-        ("FS_electron_charint", ele, ["../Constants.f90", "../utils/adaptive_2nd_resampling_mod.f90", "electron_common.f90", "calling_modules.f90", "FS_electron_charint.f90"], OMP_FLAGS, OPENMP_LIBS),
-        ("FS_electron_fullhide", ele, ["../Constants.f90", "../utils/adaptive_2nd_resampling_mod.f90", "electron_common.f90", "calling_modules.f90", "FS_electron_fullhide.f90"], OMP_FLAGS, OPENMP_LIBS),
-        ("FS_electron_t2g1", ele, ["../Constants.f90", "../utils/adaptive_2nd_resampling_mod.f90", "electron_common.f90", "calling_modules.f90", "FS_electron_t2g1.f90"], OMP_FLAGS, OPENMP_LIBS),
+        ("FS_electron_weno5", ele, ["../Constants.f90", "adaptive_resampling_mod.f90", "electron_common.f90", "calling_modules.f90", "FS_electron_weno5.f90"], OMP_FLAGS, OPENMP_LIBS),
+        ("FS_electron_slc1", ele, ["../Constants.f90", "adaptive_resampling_mod.f90", "electron_common.f90", "calling_modules.f90", "FS_electron_slc1.f90"], OMP_FLAGS, OPENMP_LIBS),
+        ("FS_electron_charint", ele, ["../Constants.f90", "adaptive_resampling_mod.f90", "electron_common.f90", "calling_modules.f90", "FS_electron_charint.f90"], OMP_FLAGS, OPENMP_LIBS),
+        ("FS_electron_fullhide", ele, ["../Constants.f90", "adaptive_resampling_mod.f90", "electron_common.f90", "calling_modules.f90", "FS_electron_fullhide.f90"], OMP_FLAGS, OPENMP_LIBS),
+        ("FS_electron_t2g1", ele, ["../Constants.f90", "adaptive_resampling_mod.f90", "electron_common.f90", "calling_modules.f90", "FS_electron_t2g1.f90"], OMP_FLAGS, OPENMP_LIBS),
         ("SED_interpolation", itp, ["../Constants.f90", "interpolation_common.f90", "SED_interpolation.f90"], OMP_FLAGS, OPENMP_LIBS),
         ("SED_interpolation_structured", itp, ["../Constants.f90", "interpolation_common.f90", "SED_interpolation_structured.f90"], OMP_FLAGS, OPENMP_LIBS),
         ("Annihilation", rad, ["../Constants.f90", "radiation_common.f90", "Annihilation.f90"], OMP_FLAGS, OPENMP_LIBS),
@@ -330,7 +330,13 @@ def main() -> None:
                 extra_args,
             )
         except subprocess.CalledProcessError:
-            if module_name not in {"FS_electron_slc1", "FS_electron_charint"}:
+            if module_name not in {
+                "FS_electron_weno5",
+                "FS_electron_slc1",
+                "FS_electron_charint",
+                "FS_electron_fullhide",
+                "FS_electron_t2g1",
+            }:
                 raise
             print(f"Retry {module_name} with ordered object build fallback")
             elapsed = _build_fs_electron_ordered_fallback(

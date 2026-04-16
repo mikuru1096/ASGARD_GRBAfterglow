@@ -910,3 +910,45 @@ plot_spectrum(result, times_s=[1e3, 1e4, 1e5], quantity="nufnu")
   - 先看 source-shape log-remap 对谱尾和平滑性的实际改善
   - 再决定是否继续处理 PPM state remap / cutoff edge builder
   - 不在非数值层补保护
+
+## 30. 2026-04 Src Cleanup Baseline
+
+- 本轮已对 `src/` 做第一轮真实清理，目标是把源码树收回到“新用户能看懂、构建链能自洽”的最小集合。
+- 已删除的明显无效/历史遗留源码：
+  - `src/plot_module.py`
+  - `src/plotdata.py`
+  - `src/Electron/FS_electron_upwind.f90`
+  - `src/Electron/FS_electron_t2g2.f90`
+  - `src/utils/(test) read_sigma_KN_IC.f90`
+  - `src/utils/adaptive_1st_resampling_mod.f90`
+  - `src/utils/Dynamics_CIP.f90`
+  - `src/utils/Dynamics_Analy.f90`
+- 已删除的非源码噪声：
+  - `src/.idea/`
+  - `src/**/__pycache__/`
+- `src/Electron/__init__.py` 已去掉对不存在 `v2/v3` 二进制变体的回退导入，只保留当前真实存在且仍被构建链支持的 solver：
+  - `fullhide`
+  - `slc1`
+  - `charint`
+  - `weno5`
+  - `t2g1`
+- `asgard_runtime.py` 已同步去掉对 `*_v2/*_v3` 旧模块名的导入回退。
+- `src` 包和各子包 `__init__.py` 已清掉乱码 docstring 和过时注释，改成最小职责说明。
+- `adaptive_2nd_resampling_mod.f90` 已从 `src/utils/` 迁到 `src/Electron/adaptive_resampling_mod.f90`：
+  - 文件名现在与模块名 `adaptive_resampling_mod` 一致
+  - `build_extensions.py` 已同步改到新的相对路径
+- 当前电子构建链的 ordered fallback 已从仅 `slc1/charint` 扩展到全部保留 solver：
+  - `FS_electron_weno5`
+  - `FS_electron_slc1`
+  - `FS_electron_charint`
+  - `FS_electron_fullhide`
+  - `FS_electron_t2g1`
+- 本轮最小验证：
+  - `python -m py_compile build_extensions.py asgard_runtime.py src/.../__init__.py` 通过
+  - `python build_extensions.py --module FS_electron_charint --force` 通过
+  - `python build_extensions.py --module FS_electron_fullhide --force` 通过
+  - 当前 `src/**/*.f90` 的 `>132` 字符长行扫描未发现残留项
+- 后续对 `src/` 的规则：
+  - 不再把 IDE 缓存、`__pycache__`、历史脚本塞回源码树
+  - 不再在主入口保留指向不存在二进制备份名的导入回退
+  - 性能优化优先从当前保留 solver 和公共电子/辐射核下手，不回头抢救已删除旧实现

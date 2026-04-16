@@ -7,18 +7,12 @@ if os.name == "nt" and hasattr(os, "add_dll_directory"):
 
 from src.Constants import constants
 
+__all__ = [
+    "constants",
+    "Dynamics",
+    "Electron",
+    "Interpolation",
+    "Radiation",
+]
 
-__all__ = ["constants", #constants
-           "Dynamics",
-           "Electron",
-           "Interpolation",
-           "Radiation"
-          ]
-
-__doc__ = '''
-
-          施工中
-
-
-
-          '''
+__doc__ = "ASGARD Fortran runtime package."
