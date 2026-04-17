@@ -311,17 +311,33 @@ def compute_ssc_auxiliary_grid(
     num_threads: int,
     num_auxiliary_gamma: int = DEFAULT_AUXILIARY_GAMMA_COUNT,
 ) -> tuple[np.ndarray, np.ndarray]:
+    radius_cm = np.asfortranarray(np.asarray(radius_cm, dtype=float))
+    work_x_edge_log10 = np.asfortranarray(np.asarray(work_x_edge_log10, dtype=float))
+    work_d_n_x = np.asfortranarray(np.asarray(work_d_n_x, dtype=float))
+    seed_frequency_hz = np.asfortranarray(np.asarray(seed_frequency_hz, dtype=float))
+    seed_field = np.asfortranarray(np.asarray(seed_field, dtype=float))
+
+    if work_x_edge_log10.ndim == 2 and work_d_n_x.ndim == 2:
+        return Radiation.ssc_spec_nonuniform(
+            radius_cm,
+            work_x_edge_log10,
+            work_d_n_x,
+            seed_frequency_hz,
+            seed_field,
+            num_threads,
+        )
+
     gam_aux, d_n_gam_aux = project_work_grid_to_auxiliary_gamma(
-        np.asarray(work_x_edge_log10, dtype=float),
-        np.asarray(work_d_n_x, dtype=float),
+        work_x_edge_log10,
+        work_d_n_x,
         num_auxiliary_gamma=num_auxiliary_gamma,
     )
     return Radiation.ssc_spec(
-        np.asfortranarray(np.asarray(radius_cm, dtype=float)),
+        radius_cm,
         gam_aux,
         d_n_gam_aux,
-        np.asfortranarray(np.asarray(seed_frequency_hz, dtype=float)),
-        np.asfortranarray(np.asarray(seed_field, dtype=float)),
+        seed_frequency_hz,
+        seed_field,
         num_threads,
     )
 
