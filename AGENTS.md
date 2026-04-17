@@ -1217,4 +1217,8 @@ um_nu rather than the ASGARD-style keyword.
   - `compare_spectrum.png` 频率网格从 `240` 点降到 `160` 点
   - 单幅 sky image 的 `npixel` 从 `64/48/24` 降到 `48/40/20` 等更轻量口径
 - `shock_quantities` 和 `photon_quantities` 现在共享同一份 `details()` 结果，不再各自重复求解。
-- 最新整套对比脚本仍能完整重绘全部图，墙钟时间进一步降到约 `33.7 s`。
+- 最新整套对比脚本仍能完整重绘全部图，墙钟时间进一步降到约 `33.3 s`。
+- `compare_spectrum.png` 和 `compare_basic_lc_spec.png` 现在都改成 `SED` 口径展示，频率上限已扩展到覆盖 `100 TeV`。
+- 当前反向激波仍保留约一个量级的 ASGARD/Vegas 差异时，直接数值诊断显示主因仍是：
+  - `N_p` 的总量/固角口径差，Vegas 侧与 ASGARD 侧相差约 `4π`
+  - `gamma_m` 相关的热洛伦兹因子闭合差异，峰值时刻 ASGARD/Vegas 的 RS 峰值比约 `16`

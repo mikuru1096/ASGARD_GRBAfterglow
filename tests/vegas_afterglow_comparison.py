@@ -54,7 +54,7 @@ FWD_P = 2.3
 RVS_P = 2.4
 BASIC_TIMES = np.logspace(0.0, 8.0, 160)
 BASIC_BANDS = np.array([1.0e9, 1.0e14, 1.0e17], dtype=float)
-BASIC_FREQS = np.logspace(5.0, 22.0, 160)
+BASIC_FREQS = np.logspace(5.0, 29.0, 160)
 BASIC_EPOCHS = np.array([1.0e2, 1.0e3, 1.0e4, 1.0e5, 1.0e6, 1.0e7, 1.0e8], dtype=float)
 OFFAXIS_SKY_TIMES = np.logspace(5.0, 8.0, 3)
 SINGLE_SKY_TIME = np.array([1.0e6], dtype=float)
@@ -68,6 +68,7 @@ SPEED_EXPO = np.logspace(2.0, 6.0, 8)
 SPEED_SPEC_TIMES = np.array([1.0e3, 1.0e5, 1.0e7], dtype=float)
 SPEED_SPEC_FREQS = np.logspace(9.0, 22.0, 24)
 SPEED_SKY_NPIXEL = 20
+SPECTRUM_COMPARE_FREQS = np.logspace(8.0, 29.0, 160)
 
 
 def _save(fig, path: Path) -> Path:
@@ -250,8 +251,8 @@ def _build_basic_lc_spec() -> Path:
 
     freqs = BASIC_FREQS
     epochs = BASIC_EPOCHS
-    sed_as = model_asgard.flux_density_grid(epochs, freqs).total
-    sed_vg = model_vegas.flux_density_grid(epochs, freqs).total
+    sed_as = model_asgard.flux_density_grid(epochs, freqs).total * freqs[:, None]
+    sed_vg = model_vegas.flux_density_grid(epochs, freqs).total * freqs[:, None]
     colors2 = plt.cm.viridis(np.linspace(0, 1, len(epochs)))
     for i, t in enumerate(epochs):
         label = _label(t, "s")
@@ -264,8 +265,8 @@ def _build_basic_lc_spec() -> Path:
     axes[0].set_ylabel(r"Flux Density (erg/cm$^2$/s/Hz)")
     axes[0].set_title("Light Curves")
     axes[1].set_xlabel("Frequency [Hz]")
-    axes[1].set_ylabel(r"Flux Density (erg/cm$^2$/s/Hz)")
-    axes[1].set_title("Spectra")
+    axes[1].set_ylabel(r"$\nu F_\nu$ (erg/cm$^2$/s)")
+    axes[1].set_title("SED")
     axes[0].legend(fontsize=7, ncol=1)
     axes[1].legend(fontsize=6, ncol=2)
     return _save(fig, OUTPUT_DIR / "compare_basic_lc_spec.png")
@@ -754,36 +755,45 @@ def _build_speed_compare() -> Path:
     return _save(fig, OUTPUT_DIR / "compare_speed_profile.png")
 
 
-def _build_spectrum_compare() -> Path:
+def _build_spectrum_compare(*, quantity: str = "sed") -> Path:
     model_asgard = _build_asgard_model(include_ssc=True)
     model_vegas = _build_vegas_model(include_ssc=True)
     times = SPEED_SPEC_TIMES
-    freqs = np.logspace(8.0, 27.0, 160)
+    freqs = SPECTRUM_COMPARE_FREQS
 
-    as_res = model_asgard.flux_density_grid(times, freqs)
-    vg_res = model_vegas.flux_density_grid(times, freqs)
+    kind = quantity.lower()
+    if kind == "sed":
+        kind = "nufnu"
+    if kind not in ("nufnu", "fnu"):
+        raise ValueError("quantity must be 'sed', 'nufnu', or 'fnu'.")
+
+    as_res = model_asgard.flux_density_grid(times, freqs).total
+    vg_res = model_vegas.flux_density_grid(times, freqs).total
+    if kind == "nufnu":
+        as_res = as_res * freqs[:, None]
+        vg_res = vg_res * freqs[:, None]
 
     fig, axes = plt.subplots(1, 3, figsize=(12.6, 4.0), dpi=200, sharey=True)
     for i, t_obs in enumerate(times):
         ax = axes[i]
-        ax.loglog(freqs, np.asarray(as_res.total[:, i], dtype=float), color="C0", lw=1.8, label="ASGARD")
-        ax.loglog(freqs, np.asarray(vg_res.total[:, i], dtype=float), color="C1", ls="--", lw=1.5, label="Vegas")
+        ax.loglog(freqs, np.asarray(as_res[:, i], dtype=float), color="C0", lw=1.8, label="ASGARD")
+        ax.loglog(freqs, np.asarray(vg_res[:, i], dtype=float), color="C1", ls="--", lw=1.5, label="Vegas")
         ax.set_title(_label(t_obs, "s"))
         ax.set_xlabel("Frequency [Hz]")
         ax.grid(alpha=0.25, which="both")
-    axes[0].set_ylabel(r"$F_\nu$ [erg s$^{-1}$ cm$^{-2}$ Hz$^{-1}$]")
+    axes[0].set_ylabel(r"$\nu F_\nu$ [erg s$^{-1}$ cm$^{-2}$]" if kind == "nufnu" else r"$F_\nu$ [erg s$^{-1}$ cm$^{-2}$ Hz$^{-1}$]")
     axes[0].legend(fontsize=8, loc="best")
-    fig.suptitle("Spectrum comparison", y=1.02)
+    fig.suptitle("SED comparison" if kind == "nufnu" else "Spectrum comparison", y=1.02)
     return _save(fig, OUTPUT_DIR / "compare_spectrum.png")
 
 
-def main() -> None:
+def main(*, spectrum_quantity: str = "sed") -> None:
     builders = [
         ("basic_lc_spec", _build_basic_lc_spec),
         ("basic_bolometric", _build_basic_bolometric),
         ("reverse_shock_lc", _build_reverse_shock_lc),
         ("ssc_lc", _build_ssc_lc),
-        ("spectrum_compare", _build_spectrum_compare),
+        ("spectrum_compare", lambda: _build_spectrum_compare(quantity=spectrum_quantity)),
         ("shock_quantities", _build_shock_quantities),
         ("photon_quantities", _build_photon_quantities),
         ("sky_image_single", _build_sky_single),

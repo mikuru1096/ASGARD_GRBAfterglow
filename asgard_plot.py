@@ -6,6 +6,119 @@ import numpy as np
 from asgard_models import FitResult
 from asgard_observables import LIGHT_CURVE_PLOT_SPECS
 
+
+def _normalize_spectrum_quantity(quantity: str) -> str:
+    kind = quantity.lower()
+    if kind == "sed":
+        return "nufnu"
+    if kind not in ("nufnu", "fnu"):
+        raise ValueError("quantity must be 'sed', 'nufnu', or 'fnu'.")
+    return kind
+
+
+def _to_2d_matrix(values: np.ndarray, name: str) -> np.ndarray:
+    arr = np.asarray(values, dtype=float)
+    if arr.ndim != 2:
+        raise ValueError(f"{name} must be a 2D array, got shape {arr.shape}.")
+    return arr
+
+
+def plot_flux_matrix(
+    times_s: np.ndarray,
+    freq_hz: np.ndarray,
+    flux_matrix: np.ndarray,
+    labels: list[str] | None = None,
+    scales: list[float] | None = None,
+    outfile: str = "Flux_Matrix.pdf",
+    show: bool = False,
+    xlabel: str = "Time [s]",
+    ylabel: str = "Flux [erg cm$^{-2}$ s$^{-1}$ Hz$^{-1}$]",
+    title: str = "Flux Curves",
+    linewidth: float = 2.0,
+):
+    times = np.asarray(times_s, dtype=float)
+    freq = np.asarray(freq_hz, dtype=float)
+    matrix = _to_2d_matrix(flux_matrix, "flux_matrix")
+    if matrix.shape[0] != freq.size:
+        raise ValueError(f"flux_matrix shape {matrix.shape} does not match len(freq_hz)={freq.size}.")
+    if matrix.shape[1] != times.size:
+        raise ValueError(f"flux_matrix shape {matrix.shape} does not match len(times_s)={times.size}.")
+
+    n = matrix.shape[0]
+    if labels is None:
+        labels = [f"{f:.3g} Hz" for f in freq]
+    if scales is None:
+        scales = [1.0] * n
+    if len(scales) != n:
+        raise ValueError(f"scales length {len(scales)} does not match n_curves {n}.")
+
+    fig, ax = plt.subplots(figsize=(10, 8))
+    for i in range(n):
+        ax.loglog(times, matrix[i] * scales[i], color=f"C{i}", linewidth=linewidth, label=labels[i])
+
+    ax.set_xlabel(xlabel, fontsize=14)
+    ax.set_ylabel(ylabel, fontsize=14)
+    ax.set_title(title, fontsize=18)
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.tick_params(which="both", direction="in", bottom=True, top=True, left=True, right=True, labelsize=14)
+    if n > 0:
+        ax.legend(bbox_to_anchor=(1, 1), loc="upper right", ncol=1, borderaxespad=0.5, fancybox=True, fontsize=10)
+
+    fig.savefig(outfile, dpi=300, bbox_inches="tight")
+    if show:
+        plt.show()
+    return fig
+
+
+def plot_sed_grid(
+    times_s: np.ndarray,
+    freqs_hz: np.ndarray,
+    sed_matrix: np.ndarray,
+    labels: list[str] | None = None,
+    outfile: str = "SED.pdf",
+    show: bool = False,
+    quantity: str = "nufnu",
+    xlabel: str = "Frequency [Hz]",
+    ylabel: str | None = None,
+    title: str = "Observed Spectra",
+    linewidth: float = 2.0,
+):
+    quantity = _normalize_spectrum_quantity(quantity)
+
+    times = np.asarray(times_s, dtype=float)
+    freqs = np.asarray(freqs_hz, dtype=float)
+    sed = _to_2d_matrix(sed_matrix, "sed_matrix")
+    if sed.shape[0] != freqs.size or sed.shape[1] != times.size:
+        raise ValueError(
+            f"sed_matrix shape {sed.shape} should be ({freqs.size}, {times.size})."
+        )
+
+    if labels is None:
+        labels = [f"t={times[i]:.3e} s" for i in range(len(times))]
+
+    if ylabel is None:
+        ylabel = r"$\nu F_\nu$ [erg cm$^{-2}$ s$^{-1}$]" if quantity == "nufnu" else r"$F_\nu$ [erg cm$^{-2}$ s$^{-1}$ Hz$^{-1}$]"
+
+    fig, ax = plt.subplots(figsize=(9, 7))
+    for i in range(times.size):
+        spec = sed[:, i] * freqs if quantity == "nufnu" else sed[:, i]
+        ax.loglog(freqs, spec, linewidth=linewidth, label=labels[i])
+
+    ax.set_xlabel(xlabel, fontsize=13)
+    ax.set_ylabel(ylabel, fontsize=13)
+    ax.set_title(title, fontsize=16)
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.tick_params(which="both", direction="in", top=True, right=True, labelsize=12)
+    ax.legend(loc="best", fontsize=10, ncol=2)
+
+    fig.savefig(outfile, dpi=300, bbox_inches="tight")
+    if show:
+        plt.show()
+    return fig
+
+
 FORWARD_CHARACTERISTIC_SPECS = (
     ("nu_m", "#FF4500", r"FS $\nu_m$", "-"),
     ("nu_c", "#1E90FF", r"FS $\nu_c$", "-"),
@@ -53,8 +166,7 @@ def plot_spectrum(
 ) -> plt.Figure:
     if result.spectrum_fnu is None or result.spectrum_freq_hz is None:
         raise ValueError("FitResult does not contain spectrum data. Enable spectrum_output in FitConfig first.")
-    if quantity not in ("nufnu", "fnu"):
-        raise ValueError("quantity must be 'nufnu' or 'fnu'.")
+    quantity = _normalize_spectrum_quantity(quantity)
 
     frequencies = result.spectrum_freq_hz
     spectrum = result.spectrum_fnu
