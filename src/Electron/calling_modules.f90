@@ -414,14 +414,21 @@ real(8) :: x2a,x2b,x3a,x3b
            (5d0/9d0)*electron_tau_integrand_x(x3b,x0,x1,dN10,dN11,ddN10,ddN11,V_cal,DB,factor))
 end subroutine electron_tau_gauss_cell
 
-subroutine electron_syn_cell_adaptive(x0,x1,dN0,dN1,dN10,dN11,ddN10,ddN11, &
-                                      V_cal,DB,factor,rel_tol,p_int,tau_int)
+recursive subroutine electron_syn_cell_adaptive(x0,x1,dN0,dN1,dN10,dN11,ddN10,ddN11, &
+                                                 V_cal,DB,factor,rel_tol,p_int,tau_int,depth,max_depth)
 implicit REAL(8)(A-H,O-Z)
+integer, intent(in), optional :: depth
+integer, intent(in), optional :: max_depth
 real(8), intent(in) :: x0,x1,dN0,dN1,dN10,dN11,ddN10,ddN11,V_cal,DB,factor,rel_tol
 real(8), intent(out) :: p_int,tau_int
 real(8) :: p2,p3,t2,t3,xm,dNm,dN1m,ddN1m,err_p,err_t,ref_p,ref_t
 real(8) :: p3_l,p3_r,t3_l,t3_r
+integer :: depth_loc, depth_limit
 
+    depth_loc = 0
+    if (present(depth)) depth_loc = depth
+    depth_limit = 2
+    if (present(max_depth)) depth_limit = max_depth
     call electron_syn_gauss_cell(x0,x1,dN0,dN1,V_cal,DB,factor,p2,p3)
     call electron_tau_gauss_cell(x0,x1,dN10,dN11,ddN10,ddN11,V_cal,DB,factor,t2,t3)
     ref_p=max(abs(p3),1d-30)
@@ -433,14 +440,19 @@ real(8) :: p3_l,p3_r,t3_l,t3_r
         p_int=p3
         tau_int=t3
     else
+        if (depth_loc >= depth_limit) then
+            p_int=p3
+            tau_int=t3
+            return
+        end if
         xm=0.5d0*(x0+x1)
         dNm=0.5d0*(dN0+dN1)
         dN1m=electron_hermite_interp_x(xm,x0,x1,dN10,dN11,ddN10,ddN11)
         ddN1m=electron_hermite_derivative_x(xm,x0,x1,dN10,dN11,ddN10,ddN11)
-        call electron_syn_gauss_cell(x0,xm,dN0,dNm,V_cal,DB,factor,p2,p3_l)
-        call electron_syn_gauss_cell(xm,x1,dNm,dN1,V_cal,DB,factor,p2,p3_r)
-        call electron_tau_gauss_cell(x0,xm,dN10,dN1m,ddN10,ddN1m,V_cal,DB,factor,t2,t3_l)
-        call electron_tau_gauss_cell(xm,x1,dN1m,dN11,ddN1m,ddN11,V_cal,DB,factor,t2,t3_r)
+        call electron_syn_cell_adaptive(x0,xm,dN0,dNm,dN10,dN1m,ddN10,ddN1m, &
+                                        V_cal,DB,factor,rel_tol,p3_l,t3_l,depth_loc+1,depth_limit)
+        call electron_syn_cell_adaptive(xm,x1,dNm,dN1,dN1m,dN11,ddN1m,ddN11, &
+                                        V_cal,DB,factor,rel_tol,p3_r,t3_r,depth_loc+1,depth_limit)
         p_int=p3_l+p3_r
         tau_int=t3_l+t3_r
     end if
@@ -478,7 +490,7 @@ real(8) :: factor,Temp_syn,Rariv2,temp_para
                                           dN_gam_e(I_gam_e),dN_gam_e(I_gam_e+1), &
                                           dN1(I_gam_e),dN1(I_gam_e+1), &
                                           ddN1(I_gam_e),ddN1(I_gam_e+1), &
-                                          V_cal,DB,factor,rel_tol,cell_int,tau_cell)
+                                          V_cal,DB,factor,rel_tol,cell_int,tau_cell,0,8)
           dInteg=dInteg+cell_int
           Tau=Tau+tau_cell
        end do
@@ -1189,21 +1201,32 @@ real(8) :: xm,dx,w2,w3a,x2a,x2b,x3a,x3b
            (5d0/9d0)*electron_tau_ppm_integrand_x(x3b,cell_lo,cell_hi,qc,q_l,q_r,V_cal,DB,factor))
 end subroutine electron_tau_ppm_gauss_cell
 
-subroutine electron_tau_ppm_cell_adaptive(x0,x1,qc,q_l,q_r,V_cal,DB,factor,rel_tol,tau_int)
+recursive subroutine electron_tau_ppm_cell_adaptive(x0,x1,qc,q_l,q_r,V_cal,DB,factor,rel_tol,tau_int,depth,max_depth)
 implicit REAL(8)(A-H,O-Z)
+integer, intent(in), optional :: depth
+integer, intent(in), optional :: max_depth
 real(8), intent(in) :: x0,x1,qc,q_l,q_r,V_cal,DB,factor,rel_tol
 real(8), intent(out) :: tau_int
 real(8) :: t2,t3,xm,ref_t,err_t,t3_l,t3_r
+integer :: depth_loc, depth_limit
 
+    depth_loc = 0
+    if (present(depth)) depth_loc = depth
+    depth_limit = 12
+    if (present(max_depth)) depth_limit = max_depth
     call electron_tau_ppm_gauss_cell(x0,x1,x0,x1,qc,q_l,q_r,V_cal,DB,factor,t2,t3)
     ref_t=max(abs(t3),1d-30)
     err_t=abs(t3-t2)/ref_t
     if (err_t <= rel_tol) then
         tau_int=t3
     else
+        if (depth_loc >= depth_limit) then
+            tau_int=t3
+            return
+        end if
         xm=0.5d0*(x0+x1)
-        call electron_tau_ppm_gauss_cell(x0,xm,x0,x1,qc,q_l,q_r,V_cal,DB,factor,t2,t3_l)
-        call electron_tau_ppm_gauss_cell(xm,x1,x0,x1,qc,q_l,q_r,V_cal,DB,factor,t2,t3_r)
+        call electron_tau_ppm_cell_adaptive(x0,xm,qc,q_l,q_r,V_cal,DB,factor,rel_tol,t3_l,depth_loc+1,depth_limit)
+        call electron_tau_ppm_cell_adaptive(xm,x1,qc,q_l,q_r,V_cal,DB,factor,rel_tol,t3_r,depth_loc+1,depth_limit)
         tau_int=t3_l+t3_r
     end if
 end subroutine electron_tau_ppm_cell_adaptive
