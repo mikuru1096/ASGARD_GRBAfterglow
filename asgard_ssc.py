@@ -374,11 +374,11 @@ def _build_forward_ssc_grid(
         float(full_grid_hz[-1]),
         np.array(break_list, dtype=float),
         np.array(weight_list, dtype=float),
-        pts_per_decade=3.0,
-        max_refined_breaks=4,
-        refine_radius_decades=0.5,
-        refine_factor=3.0,
-        max_points=min(128, full_grid_hz.shape[0]),
+        pts_per_decade=5.0,
+        max_refined_breaks=6,
+        refine_radius_decades=0.35,
+        refine_factor=4.0,
+        max_points=max(full_grid_hz.shape[0], int(np.ceil(1.5 * full_grid_hz.shape[0]))),
     )
 
 
@@ -403,6 +403,58 @@ def compute_forward_ssc_adaptive(
         radius_cm,
         gam_e,
         d_n_gam_e,
+        reduced_grid_hz,
+        reduced_seed,
+        config.num_threads,
+    )
+    p_ssc_full = _interp_positive_loglog(reduced_grid_hz, p_ssc_reduced, full_grid_hz)
+    seed_ssc_full = _interp_positive_loglog(reduced_grid_hz, seed_ssc_reduced, full_grid_hz)
+    return p_ssc_full, seed_ssc_full
+
+
+def _densify_log_grid(grid_hz: np.ndarray, target_points: int) -> np.ndarray:
+    grid = np.asarray(grid_hz, dtype=float)
+    grid = grid[np.isfinite(grid) & (grid > 0.0)]
+    if grid.size == 0:
+        raise ValueError("grid_hz must contain positive finite values.")
+    grid = np.unique(np.sort(grid))
+    if grid.size >= target_points:
+        return grid
+
+    while grid.size < target_points:
+        if grid.size < 2:
+            grid = np.array([grid[0], grid[0] * 10.0], dtype=float)
+            continue
+        gaps = np.diff(np.log(grid))
+        idx = int(np.argmax(gaps))
+        midpoint = float(np.exp(0.5 * (np.log(grid[idx]) + np.log(grid[idx + 1]))))
+        if midpoint <= grid[idx] or midpoint >= grid[idx + 1]:
+            break
+        grid = np.insert(grid, idx + 1, midpoint)
+    return grid
+
+
+def compute_forward_ssc_seed_adaptive(
+    radius_cm: np.ndarray,
+    work_x_edge_log10: np.ndarray,
+    work_d_n_x: np.ndarray,
+    full_grid_hz: np.ndarray,
+    seed_syn: np.ndarray,
+    gamma_bulk: np.ndarray,
+    nu_a: np.ndarray,
+    nu_m: np.ndarray,
+    nu_c: np.ndarray,
+    config: FitConfig,
+) -> tuple[np.ndarray, np.ndarray]:
+    reduced_grid_hz = _build_forward_ssc_grid(full_grid_hz, seed_syn, gamma_bulk, radius_cm, nu_a, nu_m, nu_c, config)
+    target_points = max(full_grid_hz.shape[0], int(np.ceil(1.5 * full_grid_hz.shape[0])))
+    if reduced_grid_hz.shape[0] < target_points:
+        reduced_grid_hz = _densify_log_grid(reduced_grid_hz, target_points)
+    reduced_seed = _interp_positive_loglog(full_grid_hz, seed_syn, reduced_grid_hz)
+    p_ssc_reduced, seed_ssc_reduced = compute_ssc_auxiliary_grid(
+        radius_cm,
+        work_x_edge_log10,
+        work_d_n_x,
         reduced_grid_hz,
         reduced_seed,
         config.num_threads,

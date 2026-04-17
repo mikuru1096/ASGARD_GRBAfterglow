@@ -551,6 +551,7 @@ plot_spectrum(result, times_s=[1e3, 1e4, 1e5], quantity="nufnu")
 - `tests/ssc_aux_grid_scheme_check.py` 现在除了比较共动系 SSC 谱外，还输出观测量侧前向 SSC 在 `X-ray/TeV` 的光变平滑性，以及 `slc1_mmg2` 相对 `fullhide/slc1` 的偏差，用于直接检查 aux-grid 主链在观测量侧是否连续平滑。
 - 当前 FS/RS SSC 主路径已经改成优先直接调用 `Radiation.ssc_spec_nonuniform(...)`，不再先压成固定 `64` 点均匀辅助电子网格；旧的均匀重映射仅作为兼容回退。
 - 当前 SSA 路径里 `electron_syn_cell_adaptive(...)` 已改成真正递归，但默认只保留浅层自适应；`get_nu_a(...)` 额外传入更深的专用深度，以优先保证 SSA 曲线平滑而不把普通同步辐射积分拖慢。
+- 当前前向 SSC 还额外使用按 `nu_a/nu_m/nu_c/nu_M` 自适应细化的内部 seed 频率网格，再把结果插回原始频率轴，目标是直接改善 `compare_spectrum` 的 SSC 分量谱型。
 - `slc1_mmg2` 的前沿保峰问题当前已进入数值层修正：优先改高能前沿定位与高能锚带，而不是在非数值层补保护；本轮 `electron_common.f90` 已做 line truncation 复查，并用手工 `gfortran -c` 验证 `electron_common/calling_modules/FS_electron_slc1/FS_electron_fullhide` 编译链通过。当前 `python build_extensions.py --module FS_electron_slc1` 在本环境仍会被 `f2py/meson` 的 `electron_common.mod` 依赖顺序问题卡住，这一项不能误判成新数值改动本身未通过编译。
 - 当前后续工作重点应放在 SSC/RS/cross-zone IC 的物理一致性核查与基准收束，而不是继续堆新接口。
 - `Dynamics.dynamics_forward` 第四个返回量在 Python 侧历史上被命名为 `swept_mass_g`，但这条链上实际承载的是 `R_m`/累计粒子数，不应再除以 `m_p` 后当作 `N_p`。

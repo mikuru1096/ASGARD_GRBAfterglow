@@ -18,7 +18,7 @@ from asgard_runtime import (
     solve_electron,
     solve_reverse_shock_emission,
 )
-from asgard_ssc import compute_ssc_auxiliary_grid
+from asgard_ssc import compute_forward_ssc_seed_adaptive, compute_ssc_auxiliary_grid
 from asgard_setup import build_seed_frequency_grid, build_simulation_setup
 from src import Radiation, constants
 
@@ -455,6 +455,7 @@ def _build_components(
             electron,
             setup.seed_frequency_hz,
             electron.seed_syn,
+            config,
             config.num_threads,
             timings,
             "Radiation.ssc_spec [FS]",
@@ -504,6 +505,7 @@ def _build_components(
                 electron,
                 setup.seed_frequency_hz,
                 seed_rs_to_fs,
+                config,
                 config.num_threads,
                 timings,
                 "Radiation.ssc_spec [CIC-FS]",
@@ -577,11 +579,28 @@ def _ssc_spectrum(
     electron: ElectronSolution,
     seed_frequency_hz: np.ndarray,
     seed_field: np.ndarray,
+    config: FitConfig,
     num_threads: int,
     timings: Optional[dict[str, float]],
     label: str,
 ) -> tuple[np.ndarray, np.ndarray]:
     if electron.work_x_edge_log10 is not None and electron.work_d_n_x is not None:
+        if config.include_forward_ssc:
+            return _timed_call(
+                timings,
+                label,
+                compute_forward_ssc_seed_adaptive,
+                radius_cm,
+                electron.work_x_edge_log10,
+                electron.work_d_n_x,
+                seed_frequency_hz,
+                seed_field,
+                electron.gamma,
+                electron.nu_a,
+                electron.nu_m,
+                electron.nu_c,
+                config,
+            )
         return _timed_call(
             timings,
             label,
