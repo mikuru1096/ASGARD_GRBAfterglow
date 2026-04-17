@@ -1222,3 +1222,4 @@ um_nu rather than the ASGARD-style keyword.
 - 当前反向激波仍保留约一个量级的 ASGARD/Vegas 差异时，直接数值诊断显示主因仍是：
   - `N_p` 的总量/固角口径差，Vegas 侧与 ASGARD 侧相差约 `4π`
   - `gamma_m` 相关的热洛伦兹因子闭合差异，峰值时刻 ASGARD/Vegas 的 RS 峰值比约 `16`
+- `compare_shock_quantities.png` 与 `compare_photon_quantities.png` 之前曾因 `model_v` 漏引用退化成 note 图，现已恢复为正常曲线图。

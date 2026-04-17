@@ -392,6 +392,7 @@ def _with_note(name: str, note: str) -> Path:
 
 def _build_shock_quantities() -> Path:
     da, dv = _cached_details_pair(False, False, 0.0, 1.0, 1.0e8)
+    vegas_z = 0.1
 
     attrs = ["Gamma", "B_comv", "N_p", "nu_m", "nu_c", "nu_a"]
     t_ref = _reference_series(da.fwd.t_obs)
@@ -409,7 +410,7 @@ def _build_shock_quantities() -> Path:
                 yv = yv * (4.0 * np.pi)
             if attr in {"nu_m", "nu_c"}:
                 doppler_v = _reference_series(dv.fwd.Doppler)
-                yv = _to_lab_frequency_frame(yv, doppler_v, model_v.observer.z)
+                yv = _to_lab_frequency_frame(yv, doppler_v, vegas_z)
             tv = _reference_series(dv.fwd.t_obs)
             yv = _safe_log_interp(t_ref, tv, yv)
             _plot_two_line_sets(ax, t_ref, [(ya, "C0", f"ASGARD {attr}"), (yv, "C1", f"Vegas {attr}")], "t_obs [s]")
@@ -427,6 +428,7 @@ def _build_shock_quantities() -> Path:
 
 def _build_photon_quantities() -> Path:
     da, dv = _cached_details_pair(False, False, 0.0, 1.0, 1.0e8)
+    vegas_z = 0.1
     attrs = ["nu_a", "nu_m", "nu_c"]
     t_ref = _reference_series(da.fwd.t_obs)
     if t_ref.ndim != 1:
@@ -439,7 +441,7 @@ def _build_photon_quantities() -> Path:
         yv_raw = _reference_series(getattr(dv.fwd, attr))
         if attr in {"nu_m", "nu_c"}:
             doppler_v = _reference_series(dv.fwd.Doppler)
-            yv_raw = _to_lab_frequency_frame(yv_raw, doppler_v, model_v.observer.z)
+            yv_raw = _to_lab_frequency_frame(yv_raw, doppler_v, vegas_z)
         tv = _reference_series(dv.fwd.t_obs)
         yv = _safe_log_interp(t_ref, tv, yv_raw)
         _plot_two_line_sets(ax, t_ref, [(ya, "C0", f"ASGARD {attr}"), (yv, "C1", f"Vegas {attr}")], "t_obs [s]")
