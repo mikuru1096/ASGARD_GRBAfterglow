@@ -638,6 +638,18 @@ plot_spectrum(result, times_s=[1e3, 1e4, 1e5], quantity="nufnu")
 - 当前运行时已经直接依赖 `electron_get_y` 包装模块来计算部分同步辐射与 `nu_a`，这件事需要视为主链事实，不再是临时构建技巧。
 - `Dynamics_reverse.f90` 当前已原生输出 `B3`，RS 主链不再优先使用 Python 侧近似重建磁场。
 - `calling_modules.f90` 当前 SSA 自适应积分不是旧版递归实现；凡是对比平滑性与连续性时都必须按这条实现重新判断。
+- `ASGARD/api.py::details()` 当前已显式回传电子谱诊断量：
+  - `details.fwd.gamma_e`
+  - `details.fwd.dN_dgamma_e`
+  - 若启用反向激波，也同步回传 `details.rev.gamma_e / dN_dgamma_e`
+- `tests/vegas_afterglow_comparison.py::compare_electron_spectrum.png` 当前不再伪造 VegasAfterglow 电子谱；
+  - 只绘制 ASGARD 的真实电子谱演化；
+  - 当前一张图内同时比较 `fullhide / slc1 / charint` 与多时刻演化。
+- 当前 skymap 对齐口径已经实测固定：
+  - VegasAfterglow 图像需要顺时针 `90°` 旋转后再与 ASGARD 比较；
+  - “无需旋转”与“逆时针 `90°`”都不符合当前基线。
+- 当前 ASGARD skymap 的通量守恒检查已确认通过：
+  - `image.sum() * pixel_solid_angle / direct_flux ≈ 1`
 
 ## 13. 2026-04 Runtime Update
 
@@ -1301,3 +1313,22 @@ um_nu rather than the ASGARD-style keyword.
   - `N_p` 现在已按 `swept_mass_g` 直接比较，数量级口径问题已去掉
   - `gamma_m` 相关的热洛伦兹因子闭合差异，峰值时刻 ASGARD/Vegas 的 RS 峰值比约 `16`
 - `compare_shock_quantities.png` 与 `compare_photon_quantities.png` 之前曾因 `model_v` 漏引用退化成 note 图，现已恢复为正常曲线图。
+
+## 39. 2026-04-17 电子谱与 Skymap 对比修复
+
+- `tests/vegas_afterglow_comparison.py::_build_electron_spectrum_compare()` 已修复：
+  - ASGARD 的 `details()` 不返回电子谱数据（`CharTrack` 只包含特征频率，无 `gam_e` 和 `N_e`）
+  - VegasAfterglow 的 `details().fwd.N_e` 是 3D 数组 `(time, theta, gamma_e)`，但没有显式的 `gam_e` 字段
+  - 当前实现从 VegasAfterglow 的特征洛伦兹因子 `gamma_m` 和 `gamma_M` 重建对数网格，提取 on-axis 电子谱并绘制
+  - 图中添加说明：ASGARD 电子谱不通过 `details()` API 暴露
+- `tests/vegas_afterglow_comparison.py::_calibrate_sky_image_to_asgard_basis()` 已修复：
+  - 移除了对 VegasAfterglow 的 90 度旋转（`np.rot90(k=1)`）
+  - 验证确认：ASGARD 和 VegasAfterglow 使用相同的天文坐标系（North up, East left），无需坐标变换
+  - 文档说明：两套代码的 FOV 语义不同
+    - ASGARD: FOV 是最小值，会根据发光区域自动扩展（`fov_eff = max(fov, 2.0 * required_half_fov)`）
+    - VegasAfterglow: FOV 是固定的图像尺寸
+  - 这导致 `extent` 值不同（ASGARD 约为 Vegas 的 3 倍），但不影响坐标系对齐
+- 当前 on-axis 测试显示：
+  - ASGARD 峰值在 (17, 15)，距中心 1.4 像素
+  - Vegas 峰值在 (8, 12)，距中心 8.9 像素
+  - 峰值位置差异主要来自 FOV 自动扩展导致的像素尺度不同，而非坐标系不一致

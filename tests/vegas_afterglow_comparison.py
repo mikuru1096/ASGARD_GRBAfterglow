@@ -9,6 +9,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
+from matplotlib.lines import Line2D
 from matplotlib.ticker import LogFormatter
 import numpy as np
 
@@ -36,6 +37,32 @@ from VegasAfterglow import units as vegas_units
 
 OUTPUT_DIR = ASGARD_DOC_DIR / "vegas_afterglow_compare"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+# ============================================================================
+# Unified Color Scheme for Scientific Aesthetics
+# ============================================================================
+ASGARD_COLOR = "#1f77b4"  # Professional blue
+VEGAS_COLOR = "#ff7f0e"   # Professional orange
+ASGARD_ALPHA = 0.8
+VEGAS_ALPHA = 0.7
+GRID_ALPHA = 0.25
+GRID_STYLE = {"alpha": GRID_ALPHA, "linestyle": ":", "linewidth": 0.5}
+
+# Plot style settings
+plt.rcParams.update({
+    'font.size': 10,
+    'axes.labelsize': 11,
+    'axes.titlesize': 12,
+    'xtick.labelsize': 9,
+    'ytick.labelsize': 9,
+    'legend.fontsize': 9,
+    'figure.dpi': 180,
+    'savefig.dpi': 200,
+    'axes.grid': True,
+    'grid.alpha': GRID_ALPHA,
+    'grid.linestyle': ':',
+    'grid.linewidth': 0.5,
+})
 
 MEDIUM_ISM_N = 1.0
 MEDIUM_WIND_ASTAR = 1.0
@@ -70,6 +97,10 @@ SPEED_SPEC_FREQS = np.logspace(9.0, 22.0, 24)
 SPEED_SKY_NPIXEL = 20
 SPECTRUM_COMPARE_FREQS = np.logspace(8.0, 29.0, 240)
 SPECTRUM_COMPARE_NUM_NU = 81
+ELECTRON_COMPARE_TIMES = np.array([1.0e2, 3.0e2, 1.0e3, 1.0e4, 1.0e5, 1.0e6, 1.0e7], dtype=float)
+ELECTRON_COMPARE_SOLVERS = ("fullhide", "slc1", "charint")
+ELECTRON_COMPARE_NUM_GAM_E = {"fullhide": 81, "slc1": 81, "charint": 41}
+ELECTRON_COMPARE_LINESTYLES = {"fullhide": "-", "slc1": "--", "charint": "-."}
 
 
 def _save(fig, path: Path) -> Path:
@@ -106,9 +137,21 @@ def _reference_series(values: np.ndarray) -> np.ndarray:
 
 
 def _calibrate_sky_image_to_asgard_basis(image: np.ndarray, backend: str) -> np.ndarray:
-    if backend.lower() == "vegasafterglow":
-        return np.rot90(np.asarray(image, dtype=float), 3)
-    return np.asarray(image, dtype=float)
+    """
+    Calibrate sky image to ASGARD coordinate basis.
+
+    Current off-axis comparison baseline shows that the VegasAfterglow image
+    basis is rotated relative to the ASGARD basis. A 90-degree clockwise
+    rotation is required before comparing image morphology or center-of-light.
+
+    Note: FOV semantics still differ between codes:
+    - ASGARD: FOV is a lower bound and may auto-expand to include emission
+    - VegasAfterglow: FOV is the fixed rendered window
+    """
+    arr = np.asarray(image, dtype=float)
+    if backend == "VegasAfterglow":
+        return np.rot90(arr, 3)
+    return arr
 
 
 def _shared_positive_log_norm(*images: np.ndarray) -> LogNorm:
@@ -151,6 +194,8 @@ def _build_asgard_model(
     include_ssc: bool = False,
     theta_obs: float = 0.0,
     num_nu: int = 49,
+    electron_solver: str = "charint",
+    num_gam_e: int | None = None,
 ) -> Model:
     medium = ISM(n_ism=1.0)
     jet = TophatJet(theta_c=0.1, E_iso=1.0e52, Gamma0=300.0, duration=REVERSE_DURATION_S)
@@ -164,13 +209,13 @@ def _build_asgard_model(
         kn=True,
     )
     kwargs = dict(
-        num_gam_e=ASGARD_CHARINT_NUM_GAM_E,
+        num_gam_e=ASGARD_CHARINT_NUM_GAM_E if num_gam_e is None else int(num_gam_e),
         num_nu=num_nu,
         num_r=REVERSE_NUM_R if include_reverse else BASE_NUM_R,
         num_theta=80,
         num_tobs=48,
         electron_adaptive_substeps=False,
-        electron_solver="charint",
+        electron_solver=electron_solver,
     )
     return Model(
         jet=jet,
@@ -248,8 +293,8 @@ def _build_basic_lc_spec() -> Path:
     colors = plt.cm.tab10(np.linspace(0, 1, len(bands)))
     for i, nu in enumerate(bands):
         label = _label(nu, "Hz")
-        axes[0].loglog(times, lc_as[i, :], color=colors[i], ls="-", lw=1.8, label=f"ASGARD {label}")
-        axes[0].loglog(times, lc_vg[i, :], color=colors[i], ls="--", lw=1.4, label=f"Vegas {label}")
+        axes[0].loglog(times, lc_as[i, :], color=colors[i], ls="-", lw=1.8, alpha=ASGARD_ALPHA, label=f"ASGARD {label}")
+        axes[0].loglog(times, lc_vg[i, :], color=colors[i], ls="--", lw=1.4, alpha=VEGAS_ALPHA, label=f"Vegas {label}")
 
     freqs = BASIC_FREQS
     epochs = BASIC_EPOCHS
@@ -259,8 +304,8 @@ def _build_basic_lc_spec() -> Path:
     colors2 = plt.cm.viridis(np.linspace(0, 1, len(epochs)))
     for i, t in enumerate(epochs):
         label = _label(t, "s")
-        axes[1].loglog(freqs, sed_as[:, i], color=colors2[i], ls="-", lw=1.6, label=f"ASGARD t={label}")
-        axes[1].loglog(freqs, sed_vg[:, i], color=colors2[i], ls="--", lw=1.2, label=f"Vegas t={label}")
+        axes[1].loglog(freqs, sed_as[:, i], color=colors2[i], ls="-", lw=1.6, alpha=ASGARD_ALPHA, label=f"ASGARD t={label}")
+        axes[1].loglog(freqs, sed_vg[:, i], color=colors2[i], ls="--", lw=1.2, alpha=VEGAS_ALPHA, label=f"Vegas t={label}")
     for idx, band in enumerate(bands):
         axes[1].axvline(band, ls="--", alpha=0.4, color=f"C{idx}")
 
@@ -288,14 +333,15 @@ def _build_basic_bolometric() -> Path:
 
     fig = plt.figure(figsize=(8.4, 4.8), dpi=200)
     ax = plt.gca()
-    ax.loglog(times, bat_as, label="ASGARD Swift/BAT", lw=2, color="C0")
-    ax.loglog(times, bat_vg, label="VegasAfterglow Swift/BAT", lw=2, ls="--", color="C0")
-    ax.loglog(times, opt_as, label="ASGARD V-band", lw=2, color="C1")
-    ax.loglog(times, opt_vg, label="VegasAfterglow V-band", lw=2, ls="--", color="C1")
+    ax.loglog(times, bat_as, label="ASGARD Swift/BAT", lw=2, color="C0", alpha=ASGARD_ALPHA)
+    ax.loglog(times, bat_vg, label="VegasAfterglow Swift/BAT", lw=2, ls="--", color="C0", alpha=VEGAS_ALPHA)
+    ax.loglog(times, opt_as, label="ASGARD V-band", lw=2, color="C1", alpha=ASGARD_ALPHA)
+    ax.loglog(times, opt_vg, label="VegasAfterglow V-band", lw=2, ls="--", color="C1", alpha=VEGAS_ALPHA)
     ax.set_xlabel("Time [s]")
     ax.set_ylabel(r"Integrated Flux (erg/cm$^2$/s)")
     ax.set_title("Broadband Light Curves")
     ax.legend(fontsize=8)
+    ax.grid(**GRID_STYLE)
     return _save(fig, OUTPUT_DIR / "compare_basic_bolometric.png")
 
 
@@ -316,10 +362,10 @@ def _build_reverse_shock_lc() -> Path:
         fwd_v = np.asarray(vg_res.fwd.sync[i, :], dtype=float)
         rvs_a = np.asarray(as_res.rvs.sync[i, :], dtype=float)
         rvs_v = np.asarray(vg_res.rvs.sync[i, :], dtype=float)
-        ax.loglog(times, fwd_a, color=f"C{i}", lw=1.8, label=f"ASGARD fwd {label}")
-        ax.loglog(times, fwd_v, color=f"C{i}", ls="--", lw=1.3, label=f"Vegas fwd {label}")
-        ax.loglog(times, rvs_a, color=f"C{i}", ls="-.", lw=1.8, alpha=0.8, label=f"ASGARD rvs {label}")
-        ax.loglog(times, rvs_v, color=f"C{i}", ls=":", lw=1.6, alpha=0.8, label=f"Vegas rvs {label}")
+        ax.loglog(times, fwd_a, color=f"C{i}", lw=1.8, alpha=ASGARD_ALPHA, label=f"ASGARD fwd {label}")
+        ax.loglog(times, fwd_v, color=f"C{i}", ls="--", lw=1.3, alpha=VEGAS_ALPHA, label=f"Vegas fwd {label}")
+        ax.loglog(times, rvs_a, color=f"C{i}", ls="-.", lw=1.8, alpha=0.7, label=f"ASGARD rvs {label}")
+        ax.loglog(times, rvs_v, color=f"C{i}", ls=":", lw=1.6, alpha=0.6, label=f"Vegas rvs {label}")
         all_series.extend([fwd_a, fwd_v, rvs_a, rvs_v])
 
     peak_flux = 0.0
@@ -335,6 +381,7 @@ def _build_reverse_shock_lc() -> Path:
     ax.set_ylabel(r"Flux Density (erg/cm$^2$/s/Hz)")
     ax.set_title("Forward + reverse shock")
     ax.legend(fontsize=6.2, ncol=2)
+    ax.grid(**GRID_STYLE)
     return _save(fig, OUTPUT_DIR / "compare_reverse_shock_lc.png")
 
 
@@ -351,15 +398,16 @@ def _build_ssc_lc() -> Path:
     ax = plt.gca()
     for i, nu in enumerate(bands):
         label = _label(nu, "Hz")
-        ax.loglog(times, as_res.fwd.sync[i, :], color=f"C{i}", lw=1.8, label=f"ASGARD sync {label}")
-        ax.loglog(times, as_res.fwd.ssc[i, :], ls="--", color=f"C{i}", lw=1.4, label=f"ASGARD SSC {label}")
-        ax.loglog(times, vg_res.fwd.sync[i, :], color=f"C{i}", ls=":", lw=1.2, label=f"Vegas sync {label}")
-        ax.loglog(times, vg_res.fwd.ssc[i, :], color=f"C{i}", ls="-.", lw=1.0, label=f"Vegas SSC {label}")
+        ax.loglog(times, as_res.fwd.sync[i, :], color=f"C{i}", lw=1.8, alpha=ASGARD_ALPHA, label=f"ASGARD sync {label}")
+        ax.loglog(times, as_res.fwd.ssc[i, :], ls="--", color=f"C{i}", lw=1.4, alpha=ASGARD_ALPHA, label=f"ASGARD SSC {label}")
+        ax.loglog(times, vg_res.fwd.sync[i, :], color=f"C{i}", ls=":", lw=1.2, alpha=VEGAS_ALPHA, label=f"Vegas sync {label}")
+        ax.loglog(times, vg_res.fwd.ssc[i, :], color=f"C{i}", ls="-.", lw=1.0, alpha=VEGAS_ALPHA, label=f"Vegas SSC {label}")
 
     ax.set_xlabel("Time [s]")
     ax.set_ylabel(r"Flux Density (erg/cm$^2$/s/Hz)")
     ax.set_title("Synchrotron and SSC")
     ax.legend(fontsize=6.8, ncol=2)
+    ax.grid(**GRID_STYLE)
     return _save(fig, OUTPUT_DIR / "compare_ssc_lc.png")
 
 
@@ -370,8 +418,9 @@ def _plot_two_line_sets(ax, x: np.ndarray, lines: list[tuple[np.ndarray, str, st
         mask = np.isfinite(x) & np.isfinite(y) & (x > 0.0) & (y > 0.0)
         if not mask.any():
             continue
-        ax.loglog(x[mask], y[mask], color=color, label=label)
+        ax.loglog(x[mask], y[mask], color=color, label=label, alpha=0.8)
     ax.set_xlabel(x_label)
+    ax.grid(**GRID_STYLE)
 
 
 def _sample_theta_curve(model, attribute: str, theta: np.ndarray) -> np.ndarray:
@@ -418,7 +467,7 @@ def _build_shock_quantities() -> Path:
                 yv = _to_lab_frequency_frame(yv, doppler_v, vegas_z)
             tv = _reference_series(dv.fwd.t_obs)
             yv = _safe_log_interp(t_ref, tv, yv)
-            _plot_two_line_sets(ax, t_ref, [(ya, "C0", f"ASGARD {attr}"), (yv, "C1", f"Vegas {attr}")], "t_obs [s]")
+            _plot_two_line_sets(ax, t_ref, [(ya, ASGARD_COLOR, f"ASGARD {attr}"), (yv, VEGAS_COLOR, f"Vegas {attr}")], "t_obs [s]")
             ax.set_ylabel(attr)
             ax.set_xlabel("t_obs [s]")
             ax.set_xscale("log")
@@ -449,7 +498,7 @@ def _build_photon_quantities() -> Path:
             yv_raw = _to_lab_frequency_frame(yv_raw, doppler_v, vegas_z)
         tv = _reference_series(dv.fwd.t_obs)
         yv = _safe_log_interp(t_ref, tv, yv_raw)
-        _plot_two_line_sets(ax, t_ref, [(ya, "C0", f"ASGARD {attr}"), (yv, "C1", f"Vegas {attr}")], "t_obs [s]")
+        _plot_two_line_sets(ax, t_ref, [(ya, ASGARD_COLOR, f"ASGARD {attr}"), (yv, VEGAS_COLOR, f"Vegas {attr}")], "t_obs [s]")
         ax.set_xlabel(r"t_obs [s]")
         ax.set_ylabel(attr)
         ax.set_title(attr)
@@ -783,15 +832,77 @@ def _build_spectrum_compare(*, quantity: str = "sed") -> Path:
     fig, axes = plt.subplots(1, 3, figsize=(12.6, 4.0), dpi=200, sharey=True)
     for i, t_obs in enumerate(times):
         ax = axes[i]
-        ax.loglog(freqs, np.asarray(as_res[:, i], dtype=float), color="C0", lw=1.8, label="ASGARD")
-        ax.loglog(freqs, np.asarray(vg_res[:, i], dtype=float), color="C1", ls="--", lw=1.5, label="Vegas")
+        ax.loglog(freqs, np.asarray(as_res[:, i], dtype=float), color=ASGARD_COLOR, lw=1.8, alpha=ASGARD_ALPHA, label="ASGARD")
+        ax.loglog(freqs, np.asarray(vg_res[:, i], dtype=float), color=VEGAS_COLOR, ls="--", lw=1.5, alpha=VEGAS_ALPHA, label="Vegas")
         ax.set_title(_label(t_obs, "s"))
         ax.set_xlabel("Frequency [Hz]")
-        ax.grid(alpha=0.25, which="both")
+        ax.grid(**GRID_STYLE)
     axes[0].set_ylabel(r"$\nu F_\nu$ [erg s$^{-1}$ cm$^{-2}$]" if kind == "nufnu" else r"$F_\nu$ [erg s$^{-1}$ cm$^{-2}$ Hz$^{-1}$]")
     axes[0].legend(fontsize=8, loc="best")
     fig.suptitle("SED comparison" if kind == "nufnu" else "Spectrum comparison", y=1.02)
     return _save(fig, OUTPUT_DIR / "compare_spectrum.png")
+
+
+def _build_electron_spectrum_compare() -> Path:
+    """Plot ASGARD electron-spectrum evolution for multiple solvers and times."""
+    fig, ax = plt.subplots(1, 1, figsize=(9.2, 6.0), dpi=200)
+    colors = plt.cm.viridis(np.linspace(0.08, 0.92, ELECTRON_COMPARE_TIMES.size))
+    time_handles: list[Line2D] = []
+    solver_handles: list[Line2D] = []
+    for color, t_obs in zip(colors, ELECTRON_COMPARE_TIMES):
+        time_handles.append(Line2D([0], [0], color=color, lw=2.3, ls="-", label=fr"$t_{{\rm obs}}\approx {t_obs:.1e}\,\rm s$"))
+    for solver in ELECTRON_COMPARE_SOLVERS:
+        solver_handles.append(
+            Line2D(
+                [0],
+                [0],
+                color="black",
+                lw=2.0,
+                ls=ELECTRON_COMPARE_LINESTYLES[solver],
+                label=solver,
+            )
+        )
+
+    for solver in ELECTRON_COMPARE_SOLVERS:
+        model_asgard = _build_asgard_model(
+            electron_solver=solver,
+            num_gam_e=ELECTRON_COMPARE_NUM_GAM_E[solver],
+        )
+        details = model_asgard.details(float(ELECTRON_COMPARE_TIMES[0]), float(ELECTRON_COMPARE_TIMES[-1]))
+        if details.fwd.gamma_e is None or details.fwd.dN_dgamma_e is None:
+            continue
+        gamma_e_asgard = np.asarray(details.fwd.gamma_e, dtype=float)
+        dnde_asgard = np.asarray(details.fwd.dN_dgamma_e, dtype=float)
+        characteristic_times = np.asarray(details.fwd.t_obs, dtype=float)
+        for color, t_obs in zip(colors, ELECTRON_COMPARE_TIMES):
+            i_time = int(np.argmin(np.abs(characteristic_times - t_obs)))
+            asgard_slice = dnde_asgard[:, i_time]
+            mask_a = (
+                np.isfinite(gamma_e_asgard)
+                & np.isfinite(asgard_slice)
+                & (gamma_e_asgard > 0.0)
+                & (asgard_slice > 0.0)
+            )
+            if np.any(mask_a):
+                ax.loglog(
+                    gamma_e_asgard[mask_a],
+                    asgard_slice[mask_a],
+                    color=color,
+                    lw=1.8,
+                    alpha=0.9,
+                    ls=ELECTRON_COMPARE_LINESTYLES[solver],
+                )
+
+    ax.set_xlabel(r"Electron Lorentz factor $\gamma_e$")
+    ax.set_ylabel(r"$dN_e/d\gamma_e$")
+    ax.set_title("ASGARD Electron-Spectrum Evolution")
+    if ax.lines:
+        legend_times = ax.legend(handles=time_handles, fontsize=8.5, loc="lower left", title="Time")
+        ax.add_artist(legend_times)
+        ax.legend(handles=solver_handles, fontsize=8.5, loc="upper right", title="Solver")
+    ax.grid(**GRID_STYLE)
+
+    return _save(fig, OUTPUT_DIR / "compare_electron_spectrum.png")
 
 
 def main(*, spectrum_quantity: str = "sed") -> None:
@@ -801,6 +912,7 @@ def main(*, spectrum_quantity: str = "sed") -> None:
         ("reverse_shock_lc", _build_reverse_shock_lc),
         ("ssc_lc", _build_ssc_lc),
         ("spectrum_compare", lambda: _build_spectrum_compare(quantity=spectrum_quantity)),
+        ("electron_spectrum", _build_electron_spectrum_compare),
         ("shock_quantities", _build_shock_quantities),
         ("photon_quantities", _build_photon_quantities),
         ("sky_image_single", _build_sky_single),

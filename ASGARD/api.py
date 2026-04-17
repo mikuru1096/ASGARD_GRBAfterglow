@@ -450,6 +450,8 @@ class CharTrack:
     nu_c: np.ndarray
     nu_a: np.ndarray
     nu_M: np.ndarray
+    gamma_e: Optional[np.ndarray] = None
+    dN_dgamma_e: Optional[np.ndarray] = None
 
 
 @dataclass
@@ -1717,7 +1719,7 @@ def _solve_direct_model(model: Model, times_s: np.ndarray, nu_hz: np.ndarray) ->
     )
     state = _solve_patch_state(model, config, times_s, nu_hz)
     observed = _observe_parts(state, times_s, nu_hz)
-    details = _make_details(state.components, patches=[{"phi": 0.0, "theta": 0.0, "weight": 1.0}])
+    details = _make_details(state.components, patches=[{"phi": 0.0, "theta": 0.0, "weight": 1.0}], state=state)
     return observed, details
 
 
@@ -1732,7 +1734,7 @@ def _evaluate_direct_details(model: Model, times_s: np.ndarray) -> ModelDetails:
         theta_center=0.0,
     )
     state = _solve_patch_state(model, config, times_s, None)
-    return _make_details(state.components, patches=[{"phi": 0.0, "theta": 0.0, "weight": 1.0}])
+    return _make_details(state.components, patches=[{"phi": 0.0, "theta": 0.0, "weight": 1.0}], state=state)
 
 
 def _solve_patch_model(model: Model, times_s: np.ndarray, nu_hz: np.ndarray) -> tuple[ModelFluxResult, ModelDetails]:
@@ -1781,7 +1783,7 @@ def _solve_patch_model(model: Model, times_s: np.ndarray, nu_hz: np.ndarray) -> 
             }
         )
         if details_fwd is None:
-            details = _make_details(state.components, patches_meta)
+            details = _make_details(state.components, patches_meta, state=state)
             details_fwd = details.fwd
             details_rev = details.rev
 
@@ -1801,6 +1803,7 @@ def _solve_patch_model(model: Model, times_s: np.ndarray, nu_hz: np.ndarray) -> 
 def _patch_details(model: Model, times_s: np.ndarray) -> ModelDetails:
     patches_meta: list[dict[str, float]] = []
     first_component: Optional[FluxComponents] = None
+    first_details: Optional[ModelDetails] = None
 
     for phi_center, theta_center, patch_half_angle in _iter_patches(model):
         e_iso = model.jet.energy_iso(phi_center, theta_center)
@@ -1828,11 +1831,13 @@ def _patch_details(model: Model, times_s: np.ndarray) -> ModelDetails:
                 gamma0=gamma0,
                 theta_center=theta_center,
             )
-            first_component = _solve_patch_state(model, config, times_s, None).components
+            first_state = _solve_patch_state(model, config, times_s, None)
+            first_component = first_state.components
+            first_details = _make_details(first_component, patches_meta, state=first_state)
 
-    if first_component is None:
+    if first_component is None or first_details is None:
         raise ValueError("No active jet patches were found for the requested structured jet.")
-    return _make_details(first_component, patches_meta)
+    return first_details
 
 
 def _render_sky_image(model: Model, times_s: np.ndarray, nu_obs: float, fov: float, npixel: int) -> SkyImage:
@@ -1995,7 +2000,18 @@ def _build_fit_config_for_patch(
     return config
 
 
-def _make_details(components: FluxComponents, patches: list[dict[str, float]]) -> ModelDetails:
+def _make_details(
+    components: FluxComponents,
+    patches: list[dict[str, float]],
+    state: Optional[SolveState] = None,
+) -> ModelDetails:
+    fwd_gamma_e = None if state is None else np.asarray(state.electron.gam_e, dtype=float)
+    fwd_dnde = None if state is None else np.asarray(state.electron.d_n_gam_e, dtype=float)
+    rev_gamma_e = None
+    rev_dnde = None
+    if state is not None and state.dynamics.reverse_shock is not None:
+        rev_gamma_e = np.asarray(state.dynamics.reverse_shock.gam_e, dtype=float)
+        rev_dnde = np.asarray(state.dynamics.reverse_shock.d_n_gam_e, dtype=float)
     return ModelDetails(
         fwd=DetailView(
             t_obs=components.fwd.characteristic_time_s,
@@ -2008,6 +2024,8 @@ def _make_details(components: FluxComponents, patches: list[dict[str, float]]) -
             nu_c=components.fwd.nu_c,
             nu_a=components.fwd.nu_a,
             nu_M=components.fwd.nu_M,
+            gamma_e=fwd_gamma_e,
+            dN_dgamma_e=fwd_dnde,
         ),
         rev=None
         if components.rev is None
@@ -2022,6 +2040,8 @@ def _make_details(components: FluxComponents, patches: list[dict[str, float]]) -
             nu_c=components.rev.nu_c,
             nu_a=components.rev.nu_a,
             nu_M=components.rev.nu_M,
+            gamma_e=rev_gamma_e,
+            dN_dgamma_e=rev_dnde,
         ),
         patches=patches,
     )
