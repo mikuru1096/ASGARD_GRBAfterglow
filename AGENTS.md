@@ -24,6 +24,41 @@ ASGARD 是一个用于 GRB 余辉建模与拟合的数值代码库。当前仓�
 - 同一轮任务中最多使用 `5` 个子 agents。
 - 主线阻塞修改仍由主 agent 直接完成，不把关键路径完全外包。
 
+## 1.2 2026-04-17 当前冻结基线
+
+- 从本次冻结开始，当前工作树就是唯一基线；若本文件后续历史条目与本节冲突，以本节为准。
+- 当前主线变更性质：
+  - 以 Python 结构整理和运行时口径收束为主，不是新一轮 Fortran 物理核重写。
+  - `asgard_config.py`、`asgard_types.py`、`asgard_physics_utils.py` 已进入当前基线，不再视为实验文件。
+  - `asgard_models.py` 当前是兼容导出层；新代码优先直接从 `asgard_config.py` 与 `asgard_types.py` 导入。
+- 当前运行时新增的真实依赖：
+  - `asgard_runtime.py` 已直接导入 `src.Electron.electron_get_y`。
+  - `electron_get_y.f90` 负责为 `get_nu_a/get_syn_selected` 提供单独的 `f2py` 包装，不是新的辐射物理模块。
+- 当前反向激波基线：
+  - `src/Dynamics/Dynamics_reverse.f90` 已显式输出 `B3`。
+  - `asgard_runtime.py` 的 RS 同步辐射与 `nu_a` 当前优先直接使用 `Dynamics_reverse` 给出的 `B3` 和 `electron_get_y` 包装接口。
+  - `Dynamics_reverse.f90` 里的 RS 注入热洛伦兹因子口径当前使用 `gam34-1`，不再使用 `gam2-1`。
+- 当前电子/SSA 口径：
+  - `src/Electron/calling_modules.f90` 里的 `electron_syn_cell_adaptive(...)` 与 `electron_tau_ppm_cell_adaptive(...)` 当前是浅层二分后直接积分版本，不再保留递归深挖实现。
+  - 因而凡是涉及 SSA/`nu_a` 平滑性的后续判断，都必须以这条当前实现为准，不能继续引用旧条目中“真递归深度自适应”的表述。
+- 当前构建链基线：
+  - `build_extensions.py` 的 ordered-object fallback 已覆盖：
+    - `FS_electron_slc1`
+    - `FS_electron_charint`
+    - `FS_electron_weno5`
+    - `FS_electron_fullhide`
+    - `FS_electron_t2g1`
+    - `electron_get_y`
+  - Windows 下若 `numpy.f2py/meson` 直编失败，优先接受上述 fallback，而不是把它误判成当前代码物理错误。
+- 本次冻结前已做的最小检查：
+  - `import ASGARD, asgard_config, asgard_types, asgard_physics_utils` 通过。
+  - `python build_extensions.py --module Dynamics_reverse --force` 通过。
+  - `python build_extensions.py --module electron_get_y --force` 在直编失败后已成功走 fallback 完成构建。
+- 当前文档约束：
+  - `AGENTS.md` 记录当前事实与已确认约束。
+  - `plan.md` 只保留当前主线，不再保留 Claude 阶段性 refactor 计划。
+  - `CLAUDE.md` 仅保留为外部工具兼容入口，内容不得与 `AGENTS.md` 冲突。
+
 ## 2. 当前目录结构
 
 ### 顶层 Python 门面
@@ -33,12 +68,33 @@ ASGARD 是一个用于 GRB 余辉建模与拟合的数值代码库。当前仓�
   - 导出 `Model`、`Fitter`、`FitResult`、`observe`、`Setups`、`Radiation` 等核心对象。
 
 - `asgard_models.py`
-  - 定义配置与结果数据结构。
-  - 包含：
-    - `SpectrumOutputConfig`
-    - `FitConfig`
+  - 当前兼容导出层。
+  - 主要保留：
+    - 兼容导出的配置对象
+    - `PhysicalSolution`
+    - `SimulationSetup`
     - `FitResult`
-    - 波段和频率常量
+
+- `asgard_config.py`
+  - 当前配置定义主入口。
+  - 包含：
+    - `PhysicsConfig`
+    - `NumericalConfig`
+    - `OutputConfig`
+    - `SimulationConfig`
+    - 兼容层 `FitConfig`
+
+- `asgard_types.py`
+  - 当前集中维护跨模块 dataclass。
+  - 包含运行时、状态、拟合和 API 结果类型。
+
+- `asgard_physics_utils.py`
+  - 当前集中维护共享物理小函数。
+  - 包含：
+    - `ambient_density`
+    - `compute_doppler`
+    - `compute_magnetic_field`
+    - `compute_maximum_synchrotron_frequency`
 
 - `ASGARD/api.py`
   - 当前主入口编排层。
@@ -351,7 +407,7 @@ absorption = (1 - exp(-tau)) / tau
 
 实际分层如下：
 
-1. 配置层：`asgard_models.py`
+1. 配置层：`asgard_config.py`、`asgard_models.py`
 2. 运行时绑定层：`asgard_runtime.py`
 3. 观测与后处理层：`ASGARD/api.py`、`asgard_postprocess.py`
 4. 绘图层：`asgard_plot.py`
@@ -378,11 +434,17 @@ absorption = (1 - exp(-tau)) / tau
 - `FS_electron_weno5`
 - `FS_electron_fullhide`
 - `FS_electron_t2g1`
+- `electron_get_y`
 - `SED_interpolation`
 - `SED_interpolation_structured`
 - `Annihilation`
 - `Seed_reverse`
 - `SSC_spec`
+
+Windows 当前补充事实：
+
+- 对 `FS_electron_slc1/FS_electron_charint/FS_electron_weno5/FS_electron_fullhide/FS_electron_t2g1/electron_get_y`，若直编触发 module 顺序或 meson 侧失败，`build_extensions.py` 会自动切到 ordered-object fallback。
+- `electron_get_y` 当前已经进入运行时主链，不能再把它当作仅供实验的辅助编译目标。
 
 ### Linux 包装入口
 
@@ -474,6 +536,9 @@ rtk pwsh -Command '& "C:\Users\jia\AppData\Local\Programs\Python\Python312\pytho
 - `python tests\ssc_aux_grid_scheme_check.py` 通过
 - `python tests\physical_closure_check.py` 通过
 - `src/Radiation/SSC_spec.f90` 已完成 line truncation 复查
+- `python build_extensions.py --module Dynamics_reverse --force` 通过
+- `python build_extensions.py --module electron_get_y --force` 已通过 ordered-object fallback 完成构建
+- `import ASGARD, asgard_config, asgard_types, asgard_physics_utils` 通过
 
 当前默认策略：
 
@@ -501,6 +566,9 @@ rtk pwsh -Command '& "C:\Users\jia\AppData\Local\Programs\Python\Python312\pytho
 
 - `FS_electron_t2g2.f90` 已完成独立编译检查；
 - 该文件目前不是默认运行路径，但代码本身已恢复到可编译状态。
+- `Dynamics_reverse.f90` 本轮已完成定向编译检查。
+- `electron_get_y.f90` 本轮已完成构建检查；直编失败后 fallback 构建成功。
+- `calling_modules.f90` 当前最新实现已经变更了 SSA/同步辐射单元积分口径；后续若修改该文件，必须重新做 line truncation 与最小编译检查，且要重新核查 `nu_a` 平滑性。
 
 ## 10. 约束与后续开发原则
 
@@ -541,10 +609,11 @@ plot_spectrum(result, times_s=[1e3, 1e4, 1e5], quantity="nufnu")
 ## 12. 当前最重要的事实
 
 - 主入口已经统一到 `run_fit(config)`。
+- 当前配置定义主入口已扩展为 `asgard_config.py`；`asgard_models.py` 主要承担兼容导出。
 - `weno5` 已经在新 API 中真正接通。
 - 能谱数据管线已经补齐。
 - 能谱绘图接口已经可用。
-- 现有重构没有改动 Fortran 数值物理公式。
+- 当前主线没有系统性重写 Fortran 数值核，但当前基线已包含少量真实 Fortran 口径修正与运行时输出口径调整。
 - 反向激波参数接口已经接入 `ReverseShockConfig`，FS/RS 特征频率和公开示例链路已经打通。
 - `slc1_mmg2` 路径下的高层 SSC 主链已经从直接 `ssc_spec_nonuniform(...)` 切换到 auxiliary uniform `log(gamma)` 网格重建后再调用旧 `ssc_spec(...)`。
 - `ssc_spec_nonuniform(...)` 现在保留为诊断/对照工具，不再作为 `slc1_mmg2` 高层主链默认路径。
@@ -566,6 +635,9 @@ plot_spectrum(result, times_s=[1e3, 1e4, 1e5], quantity="nufnu")
 - `shock_quantities` 和 `photon_quantities` 中的 VegasAfterglow 频率类量现在先按 `Doppler/(1+z)` 转到 lab/observer frame 再与 ASGARD 对比，因为 Vegas 的内部传递口径是共动系。
 - 进一步核对发现，VegasAfterglow 的 `nu_a` 原始输出满足 `nu_a ≈ 4.2e6 * B * gamma_a^2`，即它保留的是共动系 SSA 频率；ASGARD 的 `nu_a` 则已经转成观测者系。
 - 对比脚本里 `nu_m/nu_c` 继续按 frame 转换处理，但 `nu_a` 先保留 Vegas 原始值直接对比 ASGARD；从当前数据看，`nu_a` 的最小差异出现在不额外做 Vegas frame 转换时。
+- 当前运行时已经直接依赖 `electron_get_y` 包装模块来计算部分同步辐射与 `nu_a`，这件事需要视为主链事实，不再是临时构建技巧。
+- `Dynamics_reverse.f90` 当前已原生输出 `B3`，RS 主链不再优先使用 Python 侧近似重建磁场。
+- `calling_modules.f90` 当前 SSA 自适应积分不是旧版递归实现；凡是对比平滑性与连续性时都必须按这条实现重新判断。
 
 ## 13. 2026-04 Runtime Update
 
