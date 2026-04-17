@@ -5,6 +5,7 @@ from dataclasses import asdict, dataclass, field
 from enum import Enum
 import hashlib
 import json
+from functools import lru_cache
 from typing import Any, Callable, Optional
 
 import numpy as np
@@ -169,10 +170,10 @@ class TophatJet(Jet):
         super().__init__(theta_max=self.theta_j)
 
     def energy_iso(self, phi: float, theta: float) -> float:
-        return self.E_iso if theta <= self.theta_j else 0.0
+        return self.E_iso if theta < self.theta_j else 0.0
 
     def gamma0(self, phi: float, theta: float) -> float:
-        return self.lf if theta <= self.theta_j else 1.0
+        return self.lf if theta < self.theta_j else 1.0
 
 
 class GaussianJet(Jet):
@@ -721,7 +722,7 @@ class Model:
         times_s: np.ndarray,
         nu_hz: np.ndarray,
         exposures_s: np.ndarray,
-        num_subsamples: int = 8,
+        num_subsamples: int = 4,
     ) -> ModelFluxResult:
         times_s = np.asarray(times_s, dtype=float)
         nu_hz = np.asarray(nu_hz, dtype=float)
@@ -1528,73 +1529,41 @@ def _batch_fetch_pair_result(
         )
 
 
+@lru_cache(maxsize=None)
+def _cached_leggauss(num_subsamples: int) -> tuple[np.ndarray, np.ndarray]:
+    nodes_1d, weights_1d = np.polynomial.legendre.leggauss(max(int(num_subsamples), 1))
+    return np.asarray(nodes_1d, dtype=float), np.asarray(weights_1d, dtype=float)
+
+
 def _adaptive_exposure_average(
     model: Model,
     times_s: np.ndarray,
     frequencies_hz: np.ndarray,
     exposures_s: np.ndarray,
     num_subsamples: int,
-    *,
-    tolerance: float = 1.0e-2,
-    max_depth: int = 6,
-    min_ratio: float = 1.02,
 ) -> ModelFluxResult:
     pair_cache: dict[tuple[float, float], tuple[float, float, float, float, float, Optional[float]]] = {}
-    exposure_nodes: list[list[float]] = []
-    segments_by_exposure: list[list[tuple[float, float]]] = []
+    exposure_nodes: list[np.ndarray] = []
+    exposure_weights: list[np.ndarray] = []
     initial_pairs: list[tuple[float, float]] = []
 
     for time_s, freq_hz, exposure_s in zip(times_s, frequencies_hz, exposures_s):
         t_start = max(float(time_s) - 0.5 * float(exposure_s), 1.0e-30)
         t_stop = float(time_s) + 0.5 * float(exposure_s)
         if np.isclose(t_start, t_stop):
-            nodes = [float(time_s)]
-            segments = []
+            nodes = np.array([float(time_s)], dtype=float)
+            weights = np.array([1.0], dtype=float)
         else:
-            nodes = np.linspace(t_start, t_stop, num_subsamples, dtype=float).tolist()
-            segments = [(nodes[i], nodes[i + 1]) for i in range(len(nodes) - 1)]
+            nodes_1d, weights_1d = _cached_leggauss(int(num_subsamples))
+            half_width = 0.5 * (t_stop - t_start)
+            center = 0.5 * (t_stop + t_start)
+            nodes = half_width * nodes_1d + center
+            weights = half_width * weights_1d
         exposure_nodes.append(nodes)
-        segments_by_exposure.append(segments)
-        initial_pairs.extend((node, float(freq_hz)) for node in nodes)
+        exposure_weights.append(weights)
+        initial_pairs.extend((float(node), float(freq_hz)) for node in nodes)
 
     _batch_fetch_pair_result(model, pair_cache, initial_pairs)
-
-    for _ in range(max_depth):
-        midpoint_pairs: list[tuple[float, float]] = []
-        midpoint_meta: list[tuple[int, float, float, float, float]] = []
-        next_segments_by_exposure: list[list[tuple[float, float]]] = [[] for _ in exposure_nodes]
-
-        for idx, segments in enumerate(segments_by_exposure):
-            freq_hz = float(frequencies_hz[idx])
-            for t_left, t_right in segments:
-                if t_right / t_left < min_ratio:
-                    next_segments_by_exposure[idx].append((t_left, t_right))
-                    continue
-                t_mid = _log_time_midpoint(t_left, t_right)
-                midpoint_pairs.append((t_mid, freq_hz))
-                midpoint_meta.append((idx, t_left, t_mid, t_right, freq_hz))
-
-        if not midpoint_pairs:
-            break
-
-        _batch_fetch_pair_result(model, pair_cache, midpoint_pairs)
-        refined = False
-        for idx, t_left, t_mid, t_right, freq_hz in midpoint_meta:
-            f_left = pair_cache[(t_left, freq_hz)][0]
-            f_mid = pair_cache[(t_mid, freq_hz)][0]
-            f_right = pair_cache[(t_right, freq_hz)][0]
-            f_interp = _interpolate_segment_value(t_left, f_left, t_right, f_right, t_mid)
-            err = _relative_segment_error(f_mid, f_interp)
-            if err > tolerance and t_right / t_left >= min_ratio:
-                exposure_nodes[idx].append(t_mid)
-                next_segments_by_exposure[idx].append((t_left, t_mid))
-                next_segments_by_exposure[idx].append((t_mid, t_right))
-                refined = True
-            else:
-                next_segments_by_exposure[idx].append((t_left, t_right))
-        segments_by_exposure = next_segments_by_exposure
-        if not refined:
-            break
 
     total = np.zeros(times_s.shape[0], dtype=float)
     fwd_sync = np.zeros_like(total)
@@ -1606,8 +1575,9 @@ def _adaptive_exposure_average(
 
     for idx, nodes in enumerate(exposure_nodes):
         freq_hz = float(frequencies_hz[idx])
-        node_array = np.array(sorted(set(nodes)), dtype=float)
-        duration = float(node_array[-1] - node_array[0]) if node_array.size > 1 else 0.0
+        node_array = np.asarray(nodes, dtype=float)
+        weight_array = np.asarray(exposure_weights[idx], dtype=float)
+        duration = float(np.sum(weight_array))
         values = np.array([pair_cache[(float(node), freq_hz)] for node in node_array], dtype=object)
         total_values = np.array([entry[0] for entry in values], dtype=float)
         fwd_sync_values = np.array([entry[1] for entry in values], dtype=float)
@@ -1617,7 +1587,7 @@ def _adaptive_exposure_average(
         cross_values = np.array([0.0 if entry[5] is None else entry[5] for entry in values], dtype=float)
         has_cross_ic = has_cross_ic or np.any(cross_values != 0.0)
 
-        if duration == 0.0:
+        if duration == 0.0 or node_array.size == 1:
             total[idx] = total_values[0]
             fwd_sync[idx] = fwd_sync_values[0]
             fwd_ssc[idx] = fwd_ssc_values[0]
@@ -1626,12 +1596,13 @@ def _adaptive_exposure_average(
             cross_ic[idx] = cross_values[0]
             continue
 
-        total[idx] = float(np.trapezoid(total_values, node_array) / duration)
-        fwd_sync[idx] = float(np.trapezoid(fwd_sync_values, node_array) / duration)
-        fwd_ssc[idx] = float(np.trapezoid(fwd_ssc_values, node_array) / duration)
-        rev_sync[idx] = float(np.trapezoid(rev_sync_values, node_array) / duration)
-        rev_ssc[idx] = float(np.trapezoid(rev_ssc_values, node_array) / duration)
-        cross_ic[idx] = float(np.trapezoid(cross_values, node_array) / duration)
+        inv_duration = 1.0 / duration
+        total[idx] = float(np.dot(total_values, weight_array) * inv_duration)
+        fwd_sync[idx] = float(np.dot(fwd_sync_values, weight_array) * inv_duration)
+        fwd_ssc[idx] = float(np.dot(fwd_ssc_values, weight_array) * inv_duration)
+        rev_sync[idx] = float(np.dot(rev_sync_values, weight_array) * inv_duration)
+        rev_ssc[idx] = float(np.dot(rev_ssc_values, weight_array) * inv_duration)
+        cross_ic[idx] = float(np.dot(cross_values, weight_array) * inv_duration)
 
     return ModelFluxResult(
         total=total,
@@ -1865,15 +1836,19 @@ def _patch_details(model: Model, times_s: np.ndarray) -> ModelDetails:
 
 
 def _render_sky_image(model: Model, times_s: np.ndarray, nu_obs: float, fov: float, npixel: int) -> SkyImage:
-    pixel_size = fov / float(npixel)
-    extent = np.array([-0.5 * fov, 0.5 * fov, -0.5 * fov, 0.5 * fov], dtype=float)
-    pixel_axis = np.linspace(extent[0] + 0.5 * pixel_size, extent[1] - 0.5 * pixel_size, npixel)
-    x_grid, y_grid = np.meshgrid(pixel_axis, pixel_axis, indexing="ij")
-    image = np.zeros((times_s.shape[0], npixel, npixel), dtype=float)
+    base_pixel_size = float(fov) / float(npixel)
+    patch_cache: list[tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, float]] = []
     angular_diameter_distance_cm = _angular_diameter_distance_cm(model.observer)
     sightline, sky_x_axis, sky_y_axis = _sky_basis(model.observer)
     frequencies_hz = np.array([nu_obs], dtype=float)
-    for phi_center, theta_center, patch_half_angle in _iter_img_patches(model, npixel):
+    required_half_fov = 0.5 * float(fov)
+    total_solid_angle = 2.0 * np.pi * (1.0 - np.cos(float(model.jet.theta_max)))
+    collapse_phi = _can_collapse_sky_image_phi(model)
+    for phi_center, theta_center, patch_half_angle, domega in _iter_img_patches(
+        model,
+        npixel,
+        collapse_phi=collapse_phi,
+    ):
         e_iso = model.jet.energy_iso(phi_center, theta_center)
         gamma0 = model.jet.gamma0(phi_center, theta_center)
         if e_iso <= 0.0 or gamma0 <= 1.0:
@@ -1883,7 +1858,7 @@ def _render_sky_image(model: Model, times_s: np.ndarray, nu_obs: float, fov: flo
             model,
             phi_center=phi_center,
             theta_v=theta_v,
-            opening_angle_jet=patch_half_angle,
+            opening_angle_jet=model.jet.theta_max,
             e_iso=e_iso,
             gamma0=gamma0,
             theta_center=theta_center,
@@ -1910,9 +1885,32 @@ def _render_sky_image(model: Model, times_s: np.ndarray, nu_obs: float, fov: flo
         )
         sigma = np.maximum(
             radius_cm * np.sin(max(patch_half_angle, 1.0e-12)) / angular_diameter_distance_cm / 2.0,
-            0.5 * pixel_size,
+            0.5 * base_pixel_size,
         )
-        image += patch_flux[:, None, None] * _gaussian_splat_stack(x_grid, y_grid, x_center, y_center, sigma)
+        patch_weight = domega / total_solid_angle if total_solid_angle > 0.0 else 0.0
+        patch_cache.append((patch_flux, x_center, y_center, sigma, patch_weight))
+        span = np.max(np.maximum(np.abs(x_center), np.abs(y_center)) + 8.0 * sigma)
+        required_half_fov = max(required_half_fov, float(span))
+
+    fov_eff = max(float(fov), 2.0 * required_half_fov)
+    pixel_size = fov_eff / float(npixel)
+    extent = np.array([-0.5 * fov_eff, 0.5 * fov_eff, -0.5 * fov_eff, 0.5 * fov_eff], dtype=float)
+    pixel_axis = np.linspace(extent[0] + 0.5 * pixel_size, extent[1] - 0.5 * pixel_size, npixel)
+    x_grid, y_grid = np.meshgrid(pixel_axis, pixel_axis, indexing="ij")
+    image = np.zeros((times_s.shape[0], npixel, npixel), dtype=float)
+    x_axis = x_grid[:, 0]
+    y_axis = y_grid[0, :]
+    for patch_flux, x_center, y_center, sigma, patch_weight in patch_cache:
+        image += (
+            patch_weight
+            * patch_flux[:, None, None]
+            * _gaussian_splat_stack(x_axis, y_axis, pixel_size, x_center, y_center, sigma)
+        )
+
+    direct_total = np.asarray(model.flux_density_grid(times_s, frequencies_hz).total[0, :], dtype=float)
+    raw_total = image.sum(axis=(1, 2)) * pixel_size * pixel_size
+    scale = np.where(raw_total > 0.0, direct_total / raw_total, 0.0)
+    image *= scale[:, None, None]
 
     return SkyImage(image=image, extent=extent, pixel_solid_angle=pixel_size * pixel_size)
 
@@ -2045,22 +2043,31 @@ def _iter_patches(model: Model):
             yield phi_center, theta_center, patch_half_angle
 
 
-def _iter_img_patches(model: Model, npixel: int):
+def _can_collapse_sky_image_phi(model: Model) -> bool:
+    return isinstance(model.jet, TophatJet) and abs(float(model.observer.theta_obs)) <= 1.0e-12
+
+
+def _iter_img_patches(model: Model, npixel: int, *, collapse_phi: bool = False):
     theta_bins = min(model.setups.patch_theta, max(2, int(np.ceil(np.sqrt(npixel) / 6.0))))
     phi_bins = min(model.setups.patch_phi, max(12, 6 * theta_bins))
     theta_edges = np.linspace(0.0, model.jet.theta_max, theta_bins + 1)
-    phi_edges = np.linspace(0.0, 2.0 * np.pi, phi_bins + 1)
     for i_theta in range(theta_bins):
         theta1 = theta_edges[i_theta]
         theta2 = theta_edges[i_theta + 1]
         theta_center = 0.5 * (theta1 + theta2)
+        if collapse_phi:
+            domega = (np.cos(theta1) - np.cos(theta2)) * (2.0 * np.pi)
+            patch_half_angle = np.sqrt(max(domega, 1.0e-12) / np.pi)
+            yield 0.0, theta_center, patch_half_angle, domega
+            continue
+        phi_edges = np.linspace(0.0, 2.0 * np.pi, phi_bins + 1)
         for i_phi in range(phi_bins):
             phi1 = phi_edges[i_phi]
             phi2 = phi_edges[i_phi + 1]
             phi_center = 0.5 * (phi1 + phi2)
             domega = (np.cos(theta1) - np.cos(theta2)) * (phi2 - phi1)
             patch_half_angle = np.sqrt(max(domega, 1.0e-12) / np.pi)
-            yield phi_center, theta_center, patch_half_angle
+            yield phi_center, theta_center, patch_half_angle, domega
 
 
 def _angular_separation(theta1: float, phi1: float, theta2: float, phi2: float) -> float:
@@ -2123,18 +2130,35 @@ def _project_patch_to_sky(
 
 
 def _gaussian_splat_stack(
-    x_grid: np.ndarray,
-    y_grid: np.ndarray,
+    x_axis: np.ndarray,
+    y_axis: np.ndarray,
+    pixel_size: float,
     x_center: np.ndarray,
     y_center: np.ndarray,
     sigma: np.ndarray,
 ) -> np.ndarray:
+    try:
+        from scipy.special import erf as _erf  # type: ignore
+    except Exception:
+        from math import erf as _scalar_erf
+
+        _erf = np.vectorize(_scalar_erf)
+
     sigma = np.maximum(np.asarray(sigma, dtype=float), 1.0e-30)
-    dx = x_grid[None, :, :] - np.asarray(x_center, dtype=float)[:, None, None]
-    dy = y_grid[None, :, :] - np.asarray(y_center, dtype=float)[:, None, None]
-    sigma_view = sigma[:, None, None]
-    exponent = -0.5 * (dx * dx + dy * dy) / (sigma_view * sigma_view)
-    return np.exp(exponent) / (2.0 * np.pi * sigma_view * sigma_view)
+    x_axis = np.asarray(x_axis, dtype=float)
+    y_axis = np.asarray(y_axis, dtype=float)
+    x_edges = np.concatenate((x_axis - 0.5 * pixel_size, np.array([x_axis[-1] + 0.5 * pixel_size], dtype=float)))
+    y_edges = np.concatenate((y_axis - 0.5 * pixel_size, np.array([y_axis[-1] + 0.5 * pixel_size], dtype=float)))
+    sigma_view = np.sqrt(2.0) * sigma[:, None]
+    x_frac = 0.5 * (
+        _erf((x_edges[1:][None, :] - np.asarray(x_center, dtype=float)[:, None]) / sigma_view)
+        - _erf((x_edges[:-1][None, :] - np.asarray(x_center, dtype=float)[:, None]) / sigma_view)
+    )
+    y_frac = 0.5 * (
+        _erf((y_edges[1:][None, :] - np.asarray(y_center, dtype=float)[:, None]) / sigma_view)
+        - _erf((y_edges[:-1][None, :] - np.asarray(y_center, dtype=float)[:, None]) / sigma_view)
+    )
+    return x_frac[:, :, None] * y_frac[:, None, :] / (pixel_size * pixel_size)
 
 
 def _interpolate_positive_series(source_t: np.ndarray, source_y: np.ndarray, target_t: np.ndarray) -> np.ndarray:

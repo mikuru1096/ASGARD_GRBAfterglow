@@ -394,9 +394,14 @@ absorption = (1 - exp(-tau)) / tau
 
 - `src/__init__.py` 保留了 `ASGARD_MINGW_BIN` 机制。
 - 在 Windows 上如果需要显式指定 MinGW DLL 路径，可设置：
+- 所有 shell 命令统一从 `rtk` 进入。
+- 对 `rtk pwsh/powershell -Command ...`：
+  - 默认使用外层单引号包住整段 PowerShell 脚本。
+  - 只要脚本里出现 `$env:`、`$_`、`$var` 等 PowerShell 变量，就不要再用外层双引号。
+  - 若只是单条命令，优先写成 `rtk pwsh -Command '...'`，不要混用 `cmd` 风格转义。
 
 ```powershell
-$env:ASGARD_MINGW_BIN="C:\msys64\mingw64\bin"
+rtk pwsh -Command '$env:ASGARD_MINGW_BIN="C:\msys64\mingw64\bin"'
 ```
 
 ### 常用命令
@@ -404,19 +409,19 @@ $env:ASGARD_MINGW_BIN="C:\msys64\mingw64\bin"
 编译：
 
 ```powershell
-python build_extensions.py
+rtk pwsh -Command '& "C:\Users\jia\AppData\Local\Programs\Python\Python312\python.exe" build_extensions.py'
 ```
 
 运行示例：
 
 ```powershell
-python lc_spec_demo.py
+rtk pwsh -Command '& "C:\Users\jia\AppData\Local\Programs\Python\Python312\python.exe" lc_spec_demo.py'
 ```
 
 回归测试：
 
 ```powershell
-python tests\regression_check.py
+rtk pwsh -Command '& "C:\Users\jia\AppData\Local\Programs\Python\Python312\python.exe" tests\regression_check.py'
 ```
 
 ## 7. 已完成修复
@@ -545,6 +550,18 @@ plot_spectrum(result, times_s=[1e3, 1e4, 1e5], quantity="nufnu")
 - `tests/ssc_aux_grid_scheme_check.py` 现在除了比较共动系 SSC 谱外，还输出观测量侧前向 SSC 在 `X-ray/TeV` 的光变平滑性，以及 `slc1_mmg2` 相对 `fullhide/slc1` 的偏差，用于直接检查 aux-grid 主链在观测量侧是否连续平滑。
 - `slc1_mmg2` 的前沿保峰问题当前已进入数值层修正：优先改高能前沿定位与高能锚带，而不是在非数值层补保护；本轮 `electron_common.f90` 已做 line truncation 复查，并用手工 `gfortran -c` 验证 `electron_common/calling_modules/FS_electron_slc1/FS_electron_fullhide` 编译链通过。当前 `python build_extensions.py --module FS_electron_slc1` 在本环境仍会被 `f2py/meson` 的 `electron_common.mod` 依赖顺序问题卡住，这一项不能误判成新数值改动本身未通过编译。
 - 当前后续工作重点应放在 SSC/RS/cross-zone IC 的物理一致性核查与基准收束，而不是继续堆新接口。
+- `Dynamics.dynamics_forward` 第四个返回量在 Python 侧历史上被命名为 `swept_mass_g`，但这条链上实际承载的是 `R_m`/累计粒子数，不应再除以 `m_p` 后当作 `N_p`。
+- VegasAfterglow 的微物理入参名是 `xi_e`，ASGARD 对应的是 `xi_N`；这两边的比较基准必须显式设成同一数值，否则 `gamma_m`/`nu_m` 会被默认值漂偏。
+- `tests/vegas_afterglow_comparison.py` 里的反向激波比较图现在分成上下两幅：上图只画 forward shock，下图只画 reverse shock，避免把两个分量混在同一坐标轴里造成误读。
+- 当前对特征频率的交叉检查显示：ASGARD 和 VegasAfterglow 各自的 `nu_m/nu_c` 与它们自己的 `Gamma/B/gamma_m/gamma_c` 关系都是自洽的；剩余差异更像是上游电子冷却闭合或参考系映射差异，而不是最后一层绘图坐标问题。
+- `compare_reverse_shock_lc.png` 的上下两幅图现在按各自数据的 1% 到 99% 百分位自动设 y 轴范围，目的是让低流量段更可读，不再被另一分量的动态范围压扁。
+- `compare_reverse_shock_lc.png` 的 y 轴现在改为按每条曲线各自的 5% 到 95% 百分位定界，避免极低尾部把整幅 reverse-shock 图拖到不可读的尺度。
+- `compare_reverse_shock_lc.png` 的下方 reverse-shock 子图现在直接按 reverse-shock 峰值定标，y 轴下限取峰值的 `1e-5`，让主导结构优先可见。
+- 当前对齐后的特征频率诊断表明：即使在同一时刻对齐后，ASGARD 与 VegasAfterglow 的 `nu_m` 和 `nu_c` 仍分别保留约 `28` 和 `588` 的中位数倍率差，因此当前问题不在最后一层绘图坐标，而在上游冷却/参考系映射口径。
+- `shock_quantities` 中的 `N_p` 比较现在对 VegasAfterglow 侧乘了 `4π`，按总量口径与 ASGARD 对齐。
+- `shock_quantities` 和 `photon_quantities` 中的 VegasAfterglow 频率类量现在先按 `Doppler/(1+z)` 转到 lab/observer frame 再与 ASGARD 对比，因为 Vegas 的内部传递口径是共动系。
+- 进一步核对发现，VegasAfterglow 的 `nu_a` 原始输出满足 `nu_a ≈ 4.2e6 * B * gamma_a^2`，即它保留的是共动系 SSA 频率；ASGARD 的 `nu_a` 则已经转成观测者系。
+- 对比脚本里 `nu_m/nu_c` 继续按 frame 转换处理，但 `nu_a` 先保留 Vegas 原始值直接对比 ASGARD；从当前数据看，`nu_a` 的最小差异出现在不额外做 Vegas frame 转换时。
 
 ## 13. 2026-04 Runtime Update
 
@@ -1053,3 +1070,151 @@ plot_spectrum(result, times_s=[1e3, 1e4, 1e5], quantity="nufnu")
   - `python build_extensions.py --module FS_electron_charint --force` 通过（环境触发 ordered fallback 成功）
   - `python tests/readme_smoke_bench.py` quick 全通道通过（fullhide/charint）
   - `python tests/sed_electron_compare.py` 可产出对比图，曲线端点无明显抬升特征
+
+## 29. 2026-04 VegasAfterglow Comparison Notes
+
+- 	ests/vegas_afterglow_comparison.py is now the maintained ASGARD vs VegasAfterglow comparison entry.
+- Current interface mismatches that matter for comparison:
+  - VegasAfterglow.Model.flux() expects positional 
+um_nu rather than the ASGARD-style keyword.
+  - VegasAfterglow jet profile methods accept vector theta inputs, while ASGARD jet profile methods remain scalar on this baseline.
+  - VegasAfterglow.Model.sky_image() returns a SkyImage object; plotting must read .image and .extent from that object.
+  - VegasAfterglow details().fwd.t_obs is angle-dependent and can be 3D; do not average the time axis when building comparison plots.
+  - ASGARD medium density helpers return number density in this baseline, while VegasAfterglow.Model.medium(phi, theta, r) returns mass density; comparison plots must be normalized to one unit convention first.
+- The light-curve and spectrum panels in the comparison script already use identical requested time/frequency grids; the apparent time-axis differences come from the diagnostic details() outputs, not from the requested plotting grid.
+
+## 30. 2026-04 Skymap Orientation Note
+
+- VegasAfterglow skymap output is rotated relative to ASGARD's display convention.
+- In the current comparison baseline, the best alignment is obtained by rotating the Vegas image 90 degrees counterclockwise before plotting.
+- This is a display-axis convention issue, not a radiative-physics mismatch.
+- The off-axis skymap comparison must use the same observer time on both sides; mixing different time slices makes the orientation diagnosis meaningless.
+
+- 2026-04 Jet calibration update: 	ests/vegas_afterglow_comparison.py baseline builders now both use PowerLawJet(theta_c=0.1, E_iso=1.0e52, Gamma0=300.0, k_e=2.0, k_g=1.5) so ASGARD vs VegasAfterglow comparisons no longer mix top-hat and structured-jet baselines.
+- 2026-04 Jet morphology calibration update: ASGARD baseline builders now use an axisymmetric Ejecta profile with E_iso = E0 / (1 + (theta/theta_c)^k_e) and Gamma0 = 1 + (Gamma0-1) / (1 + (theta/theta_c)^k_g) to match the smooth VegasAfterglow power-law morphology, instead of the previous hard-core ASGARD PowerLawJet profile.
+- 2026-04 Top-hat rebaseline: both ASGARD and VegasAfterglow comparison builders are reverted to TophatJet(theta_c=0.1, E_iso=1.0e52, Gamma0=300.0) so the next comparison isolates top-hat behavior only.
+- 2026-04 Top-hat morphology fix: VegasAfterglow comparison builders are now also using TophatJet(theta_c=0.1, E_iso=1.0e52, Gamma0=300.0), so both sides are truly top-hat again.
+- 2026-04 Top-hat boundary alignment: ASGARD TophatJet now uses strict 	heta < theta_j for both nergy_iso() and gamma0(), matching the VegasAfterglow top-hat boundary convention at 	heta = theta_c.
+- 2026-04 Sky-image flux fix: ASGARD.api._render_sky_image() now auto-expands the effective FOV to cover the projected patch extent before rasterization, preventing finite-FOV clipping from biasing image vs direct flux comparisons.
+- 2026-04 Sky-image rasterization fix: ASGARD sky-image pixels are now filled by analytically integrating the Gaussian splat over each pixel, instead of sampling only the pixel center; the FOV envelope is also expanded with an 8σ margin.
+- 2026-04 Sky-image weighting fix: ASGARD sky-image patch contributions are now weighted by each patch solid-angle fraction of the total jet solid angle before rasterization, so the image is an area-weighted map rather than an equal-patch sum.
+- 2026-04 Sky-image patch geometry fix: _iter_img_patches() now yields each patch solid angle (domega) alongside its center and half-angle so image weighting is computed from the actual patch geometry.
+- 2026-04 Sky-image dynamics fix: ASGARD sky-image patch solves now keep the parent jet opening angle in the dynamics (opening_angle_jet=model.jet.theta_max) and use the patch half-angle only for sky-plane footprint generation.
+- 2026-04 Sky-image final calibration: with the parent jet opening angle restored in the patch solves, the solid-angle weight domega / total_solid_angle is again applied to each patch image contribution.
+- 2026-04 Sky-image flux calibration: the final SkyImage is now rescaled slice-by-slice to the model direct flux at the same times and frequency so the rasterized image conserves the total flux density by construction.
+
+## 31. 2026-04 Medium Density Baseline
+
+- ASGARD 的 `medium.density(...)` 在当前基线下返回数密度，单位是 `cm^-3`。
+- VegasAfterglow 的 `Model.medium(phi, theta, r)` 返回质量密度，做 medium 对比时要先除以 `m_p` 回到数密度。
+- `tests/vegas_afterglow_comparison.py` 里的 medium 对比现在使用共享常量：
+  - `MEDIUM_ISM_N`
+  - `MEDIUM_WIND_ASTAR`
+  - `MEDIUM_WIND_NISM`
+  - `MEDIUM_WIND_N0`
+  - `MEDIUM_WIND_K`
+  - `PROTON_MASS_G = constants.para_m_p`
+- ISM 在换成数密度后基本一致。
+- Wind 的残差主要来自 `n0/r0` 的 floor/clamp 语义差异，不是单位没对齐。
+
+## 32. 2026-04 Reverse Shock Grid Baseline
+
+- 反向激波光变的锯齿状抖动不是并行累加造成的。
+- 单线程与 8 线程对比在 `1e14 Hz` 上的差异只有机器精度量级。
+- 该锯齿的主因是电子能量网格太粗：
+  - `num_gam_e=81` 的 RS 曲线明显更噪
+  - 提到 `num_gam_e=161` 后 RS 曲线明显变平滑
+- 该 `81/161` 口径保留给其他电子网格对照脚本；`tests/vegas_afterglow_comparison.py` 现在不再沿用这套设置。
+- `tests/vegas_afterglow_comparison.py` 的 ASGARD 分支当前已切换为 `electron_solver="charint"`，并把 `num_gam_e` 固定为 `41`，用于重新绘制全部对比图。
+
+## 33. 2026-04 Light-Curve Time Baseline
+
+- 当前比较脚本里的所有光变图时间网格已统一从 `1 s` 开始。
+- 这只影响对比图的采样起点，不改变物理模型和频率采样。
+
+## 34. 2026-04 Reverse Shock Runtime Refactor
+
+- `asgard_runtime.py::solve_reverse_shock_emission(...)` 不再直接走独立的 `Radiation.seed_reverse(...)` 作为唯一 RS 同步辐射实现。
+- 当前 RS 路径会先构造磁场与特征频率，再复用 `FS_electron_weno5.get_y.get_syn_selected(...)` 从 `gam_e + dN/dgamma` 计算共动同步辐射与 seed field。
+- 这一步的目标是让 RS 与 FS 在“从电子分布到同步辐射”的数值口径上共用公共模块，减少两套实现继续漂移。
+
+## 35. 2026-04 Reverse Shock Plot Baseline
+
+- `compare_reverse_shock_lc.png` 当前改为单轴叠加图，FS 与 RS 在同一坐标轴上比较。
+- 该图的 y 轴下限固定为全图峰值流量的 `1e-10`。
+- RS 线型当前单独区分：
+  - ASGARD RS 使用 `-.`
+  - Vegas RS 使用 `:`
+- RS 下降段锯齿对 `num_r` 最敏感；当前比较脚本对 `include_reverse=True` 的 ASGARD 构造已把 `num_r` 从 `80` 提到 `120`。
+- 当前 Vegas/ASGARD 比较脚本的共享微物理基线已优先切到强 IC：
+  - `eps_e = 0.3`
+  - `eps_B = 1e-5`
+  - `xi = 0.1`
+  - 前向/反向激波都使用这套共享值
+  - `compare_reverse_shock_lc.png` 当前显式启用 `SSC`
+- 反向激波持续时间当前已在 `tests/vegas_afterglow_comparison.py` 顶层显式开放为 `REVERSE_DURATION_S`，并同时绑定到：
+  - `ASGARD TophatJet(duration=...)`
+  - `ASGARD Setups(reverse_delta_t_s=...)`
+  - `VegasTophatJet(duration=...)`
+- `ASGARD/api.py::details()` 里的 `N_p` 口径已修正为真正的粒子数：
+  - 前向激波：`swept_mass_g / m_p`
+  - 反向激波：`swept_mass_g / m_p`
+  - 修正后 RS `N_p` 在后期样本与 Vegas 的比值约为 `4π`
+- 在强 IC + 统一 `REVERSE_DURATION_S=10 s` 后，`1e14 Hz` 的 RS 峰值差从约 `2.9e4` 缩到约 `5.8e3`，说明持续时间口径有影响，但不是主导差异源。
+- 当前 RS 量级差异的主导实现侧迹象是：
+  - `Gamma` 和 `Doppler` 只差因子 `~0.8`
+  - `B_comv` 中位数差约 `3.6`
+  - `nu_m` 中位数差约 `5.2e6`
+  - `nu_c` 中位数差约 `3.3e3`
+  - `nu_a` 中位数差约 `8.6e2`
+  - 反推得到的 `gamma_m` 中位数差约 `1.5e3`
+  - 反推得到的 `gamma_c` 中位数差约 `38`
+- 峰值时刻进一步收束后：
+  - 若把 Vegas 的 `nu_m` 用 `D/(1+z)` 转到观测者系，ASGARD/Vegas 的 `nu_m` 剩余差约为 `1.3e2`
+  - 这主要由 `B` 差约 `3.4` 与 `gamma_m` 差约 `6.7` 共同给出
+  - ASGARD 峰值附近的 RS `gamma34 ≈ 1.265`，Vegas `Gamma_th ≈ 1.053`
+  - 标准 `gamma_m` 公式对 `gamma34-1` 非常敏感，因此真正主导的是热洛伦兹因子闭合差异，而不是几何时间尺度或 observer-frame 因子
+- 本轮继续收束后又确认了两件事：
+  - `src/Dynamics/Dynamics_reverse.f90` 里 `eps3` 原先用 `gam2-1`，已改成与 RS 注入一致的 `gam34-1`；这处物理不自洽已经修掉，但对当前 RS 光变量级影响很小，不是主因。
+  - `Dynamics_reverse.f90` 现已显式输出原生 `B3`，`asgard_runtime.py` 的 RS 发射也已切到直接使用该 `B3`，不再用 Python 侧近似重建。
+  - 切到原生 `B3` 后，ASGARD 的 RS 峰值差异没有收敛，反而略变大；这说明当前差异不在 Python 后处理重建磁场，而在 `Dynamics_reverse` 本体给出的 RS 热态与磁场演化。
+- 当前已定位到一个更直接的 RS 主因并已修正到运行时：
+  - `FS` 电子分布积分与 `N_p` 的比值约为 `f_e`
+  - `RS` 原先电子分布积分与 `N_p` 的比值约为 `43`
+  - 这说明 RS 的电子分布归一化本身严重过量
+  - `asgard_runtime.py` 当前已新增对 RS 电子分布的物理归一：每个半径切片都按 `f_e * M3 / m_p` 重新归一
+- 这一步修正后，强 IC 基线下 ASGARD/Vegas 的 RS 峰值差已显著收缩：
+  - `1e9 Hz`: `~16.5 -> ~2.31`
+  - `1e14 Hz`: `~6.87e3 -> ~13.5`
+  - `1e17 Hz`: `~6.83e3 -> ~13.5`
+- 因而当前可以明确说，早期 RS 光变过亮的首要错误来源是 RS 电子分布归一化过量，而不是并行、持续时间口径、坐标变换或 Python 侧重建磁场。
+- 用户当前要求下，后续默认只更新 `compare_reverse_shock_lc.png`，不重跑整套对比图。
+- 当前 `tests/vegas_afterglow_comparison.py` 已新增单独的总能谱对比图：
+  - `compare_spectrum.png`
+  - 口径为同一组显式频率网格上的 `F_nu(total)`
+  - 当前固定比较时刻为 `1e1 / 1e3 / 1e5 s`
+- 最新一轮已重新生成整套 VegasAfterglow 对比图，输出目录仍为：
+  - `output/asgard_doc/vegas_afterglow_compare`
+
+## 36. 2026-04 Sky-Image Acceleration
+
+- `ASGARD/api.py::_render_sky_image()` 现在在 `theta_obs≈0` 且 `TophatJet` 的情况下折叠 `phi` 环采样，只保留每个 `theta` 环的一次代表性求解，再按整圈固角加权。
+- 这一步把 on-axis sky image 的冗余扇区重复计算去掉了，对 `tests/vegas_afterglow_comparison.py` 里的 `sky_image_single`、`sky_image_flux_comparison` 和 `compare_speed_profile` 提速最明显。
+- 最新一次全图重绘已完成，`tests/vegas_afterglow_comparison.py` 总运行时间从约 `57 s` 降到约 `39 s`。
+
+## 37. 2026-04 Exposure Acceleration
+
+- `ASGARD/api.py::flux_density_exposures()` 现在走固定 `Gauss-Legendre` 积分，不再用递归式自适应中点细分去重复评估同一批曝光段。
+- 默认曝光采样点数已从 `8` 降到 `4`，同时保留批量 `time/frequency` 取值与一次性积分权重组合，主要用来压低 Python 层调度开销。
+- `tests/vegas_afterglow_comparison.py` 里的 ASGARD 与 VegasAfterglow 曝光对比现在都显式用 `4` 点采样，避免脚本侧把曝光积分再抬回高开销口径。
+- 这轮修改后，整套对比脚本仍可正常重绘全部图，且总运行时间保持在约 `38 s` 量级。
+
+## 38. 2026-04 Benchmark Thinning
+
+- `tests/vegas_afterglow_comparison.py` 进一步下调了 benchmark 的代表性采样密度：
+  - 主光变/SSC/反激波时间网格从 `200` 点降到 `160` 点
+  - 主谱图频率网格从 `200` 点降到 `160` 点
+  - `compare_spectrum.png` 频率网格从 `240` 点降到 `160` 点
+  - 单幅 sky image 的 `npixel` 从 `64/48/24` 降到 `48/40/20` 等更轻量口径
+- `shock_quantities` 和 `photon_quantities` 现在共享同一份 `details()` 结果，不再各自重复求解。
+- 最新整套对比脚本仍能完整重绘全部图，墙钟时间进一步降到约 `33.7 s`。
