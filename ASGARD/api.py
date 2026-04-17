@@ -503,6 +503,14 @@ class SkyImage:
     def shape(self):
         return self.image.shape
 
+    @property
+    def flux_ratio(self) -> np.ndarray:
+        return self.rendered_flux / np.maximum(self.direct_flux, np.finfo(float).tiny)
+
+    @property
+    def centroid(self) -> np.ndarray:
+        return np.column_stack((self.x_centroid, self.y_centroid))
+
 
 @dataclass
 class ObsSet:

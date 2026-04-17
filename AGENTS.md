@@ -661,6 +661,9 @@ plot_spectrum(result, times_s=[1e3, 1e4, 1e5], quantity="nufnu")
   - `x_centroid`
   - `y_centroid`
   - `pixel_size`
+  - 以及派生属性：
+    - `flux_ratio`
+    - `centroid`
 - `tests/vegas_afterglow_comparison.py` 当前已经直接复用这些字段：
   - `compare_sky_image_flux_comparison.png` 对 ASGARD 不再手工重复积分图像
   - `compare_sky_image_centroid.png` 已新增，用于比较离轴 skymap 质心随时间的演化

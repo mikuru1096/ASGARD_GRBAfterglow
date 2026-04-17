@@ -604,7 +604,7 @@ def _build_sky_flux_comparison() -> Path:
     axes[0].set_ylabel(r"Flux density (erg/cm$^2$/s/Hz)")
     axes[0].legend(fontsize=8)
 
-    ratio_a = flux_from_image_a / np.maximum(direct_a, np.finfo(float).tiny)
+    ratio_a = np.asarray(img_a.flux_ratio, dtype=float)
     ratio_v = flux_from_image_v / np.maximum(direct_v, np.finfo(float).tiny)
     axes[1].semilogx(times, ratio_a, "o-", ms=3.5, color="C1", label="ASGARD")
     axes[1].semilogx(times, ratio_v, "x-", ms=3.5, color="C3", label="Vegas")
@@ -626,8 +626,9 @@ def _build_sky_centroid_comparison() -> Path:
     img_a = model_a.sky_image(times, nu_obs=nu_obs, fov=5000.0 * units.uas, npixel=40)
     img_v = model_v.sky_image(times, nu_obs=nu_obs, fov=5000.0 * vegas_units.uas, npixel=40)
 
-    x_a = np.asarray(img_a.x_centroid, dtype=float) / units.uas
-    y_a = np.asarray(img_a.y_centroid, dtype=float) / units.uas
+    centroid_a = np.asarray(img_a.centroid, dtype=float) / units.uas
+    x_a = centroid_a[:, 0]
+    y_a = centroid_a[:, 1]
     img_v_cal = np.asarray([_calibrate_sky_image_to_asgard_basis(frame, "VegasAfterglow") for frame in img_v.image], dtype=float)
     x_v_raw, y_v_raw = _centroid_from_image_stack(img_v_cal, img_v.extent)
     x_v = x_v_raw / vegas_units.uas
