@@ -8,12 +8,20 @@ from typing import Optional
 import numpy as np
 
 from asgard_coupling import build_coupled_shock_geometry, build_cross_zone_seed_fields
-from asgard_models import ExecutionPolicy, FitConfig, PhysicalSolution, SimulationSetup
-from asgard_postprocess import interpolate_observed_flux
-from asgard_runtime import (
+from asgard_config import ExecutionPolicy, FitConfig
+from asgard_models import PhysicalSolution, SimulationSetup
+from asgard_types import (
+    BranchState,
+    FluxComponents,
+    SolveState,
+    ObsState,
     DynamicsSolution,
     ElectronSolution,
     ReverseShockEmission,
+)
+from asgard_physics_utils import ambient_density, compute_doppler, compute_magnetic_field, compute_maximum_synchrotron_frequency
+from asgard_postprocess import interpolate_observed_flux
+from asgard_runtime import (
     solve_dynamics,
     solve_electron,
     solve_reverse_shock_emission,
@@ -21,54 +29,6 @@ from asgard_runtime import (
 from asgard_ssc import compute_forward_ssc_seed_adaptive, compute_ssc_auxiliary_grid
 from asgard_setup import build_seed_frequency_grid, build_simulation_setup
 from src import Radiation, constants
-
-
-@dataclass
-class BranchState:
-    characteristic_time_s: np.ndarray
-    gamma: np.ndarray
-    radius_cm: np.ndarray
-    swept_mass_g: np.ndarray
-    doppler: np.ndarray
-    magnetic_field_g: np.ndarray
-    nu_m: np.ndarray
-    nu_c: np.ndarray
-    nu_a: np.ndarray
-    nu_M: np.ndarray
-
-
-@dataclass
-class FluxComponents:
-    total: np.ndarray
-    fwd_sync: np.ndarray
-    fwd_ssc: np.ndarray
-    rev_sync: Optional[np.ndarray]
-    rev_ssc: Optional[np.ndarray]
-    cross_ic: Optional[np.ndarray]
-    fwd: BranchState
-    rev: Optional[BranchState]
-
-
-@dataclass
-class SolveState:
-    config: FitConfig
-    setup: SimulationSetup
-    policy: ExecutionPolicy
-    dynamics: DynamicsSolution
-    electron: ElectronSolution
-    reverse_emission: Optional[ReverseShockEmission]
-    components: FluxComponents
-    requested_frequency_min_hz: Optional[float]
-    requested_frequency_max_hz: Optional[float]
-    timings: dict[str, float] = field(default_factory=dict)
-
-
-@dataclass
-class ObsState:
-    state: SolveState
-    setup: SimulationSetup
-    frequencies_hz: np.ndarray
-    components: dict[str, np.ndarray | None]
 
 
 def make_policy(config: FitConfig) -> ExecutionPolicy:
@@ -676,34 +636,20 @@ def _timed_call(timings: Optional[dict[str, float]], label: Optional[str], func,
 
 
 def _compute_doppler(gamma: np.ndarray, redshift: float) -> np.ndarray:
-    beta = np.sqrt(1.0 - gamma**-2)
-    return 1.0 / (gamma * (1.0 - beta) * (1.0 + redshift))
+    """DEPRECATED: Use asgard_physics_utils.compute_doppler instead."""
+    return compute_doppler(gamma, redshift)
 
 
 def _ambient_density(radius_cm: np.ndarray, config: FitConfig) -> np.ndarray:
-    radius = np.asarray(radius_cm, dtype=float)
-    if config.a_star > 0.0:
-        d_ne_wind = config.a_star * 3.0e35 / radius**2
-        density = np.where(d_ne_wind <= config.d_ne / 4.0, config.d_ne, d_ne_wind)
-    else:
-        density = config.d_ne * (
-            1.0
-            + (config.f_jump - 1.0)
-            * np.exp(-(np.log10(radius) - np.log10(config.r_tr)) ** 2 / (2.0 * config.f_wide**2))
-        )
-    if np.any(radius < config.r0) and config.a_star > 0.0:
-        density = density.copy()
-        density[radius < config.r0] = config.a_star * 3.0e35 / config.r0**2
-    return density
+    """DEPRECATED: Use asgard_physics_utils.ambient_density instead."""
+    return ambient_density(radius_cm, config)
 
 
 def _compute_forward_magnetic_field(gamma: np.ndarray, radius_cm: np.ndarray, config: FitConfig) -> np.ndarray:
-    density = _ambient_density(radius_cm, config)
-    return 0.39 * np.sqrt(config.epsilon_b * density * gamma * np.maximum(gamma - 1.0, 0.0))
+    """DEPRECATED: Use asgard_physics_utils.compute_magnetic_field instead."""
+    return compute_magnetic_field(gamma, radius_cm, config)
 
 
 def _compute_maximum_synchrotron_frequency(gamma: np.ndarray, radius_cm: np.ndarray, config: FitConfig) -> np.ndarray:
-    magnetic_field = _compute_forward_magnetic_field(gamma, radius_cm, config)
-    doppler = _compute_doppler(gamma, config.z)
-    gam_e_max = 3.0 * constants.para_m_energy / np.sqrt(8.0 * magnetic_field * constants.para_e**3)
-    return 4.2e6 * magnetic_field * gam_e_max**2 * doppler
+    """DEPRECATED: Use asgard_physics_utils.compute_maximum_synchrotron_frequency instead."""
+    return compute_maximum_synchrotron_frequency(gamma, radius_cm, config)

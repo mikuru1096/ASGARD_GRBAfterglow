@@ -171,6 +171,8 @@ def _build_fs_electron_ordered_fallback(
     entry_names = [module_name.lower()]
     if module_name == "FS_electron_charint":
         entry_names.append("fs_electron_charint_affine_step_test")
+    if module_name == "electron_get_y":
+        entry_names = ["get_nu_a", "get_syn_selected"]
     signature_command = [
         sys.executable,
         "-m",
@@ -300,6 +302,7 @@ def main() -> None:
         ("FS_electron_charint", ele, ["../Constants.f90", "adaptive_resampling_mod.f90", "electron_common.f90", "calling_modules.f90", "FS_electron_charint.f90"], OMP_FLAGS, OPENMP_LIBS),
         ("FS_electron_fullhide", ele, ["../Constants.f90", "adaptive_resampling_mod.f90", "electron_common.f90", "calling_modules.f90", "FS_electron_fullhide.f90"], OMP_FLAGS, OPENMP_LIBS),
         ("FS_electron_t2g1", ele, ["../Constants.f90", "adaptive_resampling_mod.f90", "electron_common.f90", "calling_modules.f90", "FS_electron_t2g1.f90"], OMP_FLAGS, OPENMP_LIBS),
+        ("electron_get_y", ele, ["../Constants.f90", "adaptive_resampling_mod.f90", "electron_common.f90", "calling_modules.f90", "electron_get_y.f90"], OMP_FLAGS, OPENMP_LIBS),
         ("SED_interpolation", itp, ["../Constants.f90", "interpolation_common.f90", "SED_interpolation.f90"], OMP_FLAGS, OPENMP_LIBS),
         ("SED_interpolation_structured", itp, ["../Constants.f90", "interpolation_common.f90", "SED_interpolation_structured.f90"], OMP_FLAGS, OPENMP_LIBS),
         ("Annihilation", rad, ["../Constants.f90", "radiation_common.f90", "Annihilation.f90"], OMP_FLAGS, OPENMP_LIBS),
@@ -336,6 +339,7 @@ def main() -> None:
                 "FS_electron_charint",
                 "FS_electron_fullhide",
                 "FS_electron_t2g1",
+                "electron_get_y",
             }:
                 raise
             print(f"Retry {module_name} with ordered object build fallback")

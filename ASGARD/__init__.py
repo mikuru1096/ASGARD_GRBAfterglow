@@ -27,6 +27,13 @@ from .api import (
     Wind,
 )
 from . import units
+from asgard_plot import (
+    plot_characteristic_frequencies,
+    plot_flux_matrix,
+    plot_light_curve,
+    plot_sed_grid,
+    plot_spectrum,
+)
 
 __all__ = [
     "Medium",
@@ -49,6 +56,11 @@ __all__ = [
     "Scale",
     "Setups",
     "Fitter",
+    "plot_flux_matrix",
+    "plot_light_curve",
+    "plot_sed_grid",
+    "plot_spectrum",
+    "plot_characteristic_frequencies",
     "FitResult",
     "FluxPair",
     "FluxResult",

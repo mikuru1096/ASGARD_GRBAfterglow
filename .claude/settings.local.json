@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find \"C:/Users/jia/Documents/New project/ASGARD_GRBAfterglow\" -name \"*.py\" -type f -exec wc -l {} +)",
+      "Bash(python -c \"from asgard_config import SimulationConfig, PhysicsConfig, NumericalConfig, OutputConfig, FitConfig; print\\('Import successful'\\)\")",
+      "Bash(python -c \"from asgard_models import FitConfig, SimulationConfig, PhysicsConfig; print\\('Backward compatibility OK'\\)\")",
+      "Bash(python -c ' *)",
+      "Bash(python -c \"from asgard_types import FluxComponents, BranchState, DynamicsSolution, ElectronSolution; print\\('asgard_types.py imports successfully'\\)\")",
+      "Bash(python -c \"from asgard_runtime import solve_dynamics, solve_electron; print\\('asgard_runtime still imports correctly'\\)\")",
+      "Bash(python -c \"from asgard_state import solve_state_from_setup; print\\('asgard_state imports correctly'\\)\")",
+      "Bash(python -c \"from asgard_ssc import compute_ssc_auxiliary_grid; print\\('asgard_ssc imports correctly'\\)\")",
+      "Bash(timeout 30 python lc_spec_demo.py)",
+      "Bash(python tests/vegas_afterglow_comparison.py)",
+      "Bash(rtk python -c ' *)",
+      "Bash(python -c \"from ASGARD import Model, ISM, TophatJet, Observer; m = Model\\(jet=TophatJet\\(\\), medium=ISM\\(\\), observer=Observer\\(\\)\\); d = m.details\\(1e5, 1e18\\); print\\(dir\\(d.fwd\\)\\)\")",
+      "Bash(python verify_fixes.py)"
+    ]
+  }
+}

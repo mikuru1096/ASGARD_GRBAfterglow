@@ -1,12 +1,12 @@
 subroutine dynamics_reverse (Delta_t,e_r,b_r,p_r,f_e_r,Boundary,n,Num_R,Num_gam_e, &
-                             T_cross,R_cross,e3_cross,gam20,R_Tobs,R_Gamma,R,M2,M3,gam_e,dN_gam_e)
+                             T_cross,R_cross,e3_cross,gam20,R_Tobs,R_Gamma,R,M2,M3,B3,gam_e,dN_gam_e)
     !$ use omp_lib
     use constants
     IMPLICIT REAL(8)(A-H,O-Z)
     integer, intent(in) :: n,Num_R,Num_gam_e
     real(8), intent(in) :: Boundary(n)
     real(8), intent(in) :: Delta_t,e_r,b_r,p_r,f_e_r
-    real(8), intent(out) :: T_cross,R_cross,e3_cross,gam20,R_Tobs(Num_R),R(Num_R),M2(Num_R),M3(Num_R)
+    real(8), intent(out) :: T_cross,R_cross,e3_cross,gam20,R_Tobs(Num_R),R(Num_R),M2(Num_R),M3(Num_R),B3(Num_R)
     real(8), intent(out) :: dN_gam_e(Num_gam_e,Num_R),gam_e(Num_gam_e),R_Gamma(Num_R)
 
     real(8),allocatable,dimension (:) :: dEl,principal,x,dF1,up,temp1,temp2,temp3,Y,dB3_serial, &
@@ -72,6 +72,7 @@ subroutine dynamics_reverse (Delta_t,e_r,b_r,p_r,f_e_r,Boundary,n,Num_R,Num_gam_
         M3(I_tobs)=Y(4)
         dB3_serial(I_tobs)=dB3
     end do
+    B3 = dB3_serial
 
     factor2=(p_r-two)/(p_r-one)*e_r*1836.5
     if (p_r<2.05) factor2=0.05/1.05*e_r*1836.5
@@ -340,7 +341,7 @@ subroutine F(dB3,T_cross,R_cross,e3_cross,gam20, &
         gam_c3=7.739d8/(dB3*dB3*gam2*T)
     end if
     
-    gam_m3=e_r/f_e_r*1836d0*(p_r-two)*(gam2-one)/(p_r-one)+one
+    gam_m3=e_r/f_e_r*1836d0*(p_r-two)*(gam34-one)/(p_r-one)+one
     eps3=e_r*min(one,(gam_m3/gam_c3)**(p_r-two))
 
     dgam2_1=-para1*((gam2*gam2-one)*dNe+(gam2*gam34-eta_0)*(beta4-betars)*eta_0*para_n4)

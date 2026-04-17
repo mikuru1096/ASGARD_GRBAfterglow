@@ -7,61 +7,17 @@ import src.Electron.FS_electron_weno5 as electron_weno5_module
 import src.Electron.FS_electron_t2g1 as electron_t2g1_module
 import src.Electron.FS_electron_slc1 as electron_slc1_module
 import src.Electron.FS_electron_charint as electron_charint_module
-from asgard_models import FitConfig
-from src import Dynamics, Electron, Radiation, constants
-
-
-@dataclass
-class ReverseShockParameters:
-    delta_t_s: float
-    epsilon_e: float
-    epsilon_b: float
-    p: float
-    f_e: float
-
-
-@dataclass
-class ReverseShockDynamics:
-    t_cross: float
-    r_cross: float
-    e3_cross: float
-    gam20: float
-    swept_mass_g: np.ndarray
-    gam_e: np.ndarray
-    d_n_gam_e: np.ndarray
-
-
-@dataclass
-class DynamicsSolution:
-    r_tobs: np.ndarray
-    r_gamma: np.ndarray
-    radius: np.ndarray
-    swept_mass_g: np.ndarray
-    reverse_shock: ReverseShockDynamics | None = None
-
-
-@dataclass
-class ElectronSolution:
-    gam_e: np.ndarray
-    d_n_gam_e: np.ndarray
-    l_syn_spec: np.ndarray
-    seed_syn: np.ndarray
-    nu_m: np.ndarray
-    nu_c: np.ndarray
-    nu_a: np.ndarray
-    work_x_edge_log10: np.ndarray | None = None
-    work_d_n_x: np.ndarray | None = None
-
-
-@dataclass
-class ReverseShockEmission:
-    l_syn_spec: np.ndarray
-    seed_syn: np.ndarray
-    magnetic_field_g: np.ndarray
-    nu_m: np.ndarray
-    nu_c: np.ndarray
-    nu_a: np.ndarray
-    nu_M: np.ndarray
+import src.Electron.electron_get_y as electron_get_y_module
+from asgard_config import FitConfig
+from asgard_types import (
+    ReverseShockParameters,
+    ReverseShockDynamics,
+    DynamicsSolution,
+    ElectronSolution,
+    ReverseShockEmission,
+)
+from asgard_physics_utils import ambient_density, doppler_denominator, compute_magnetic_field
+from src import Dynamics, Electron, constants
 
 
 def solve_dynamics(boundary: np.ndarray, config: FitConfig) -> DynamicsSolution:
@@ -80,6 +36,7 @@ def solve_dynamics(boundary: np.ndarray, config: FitConfig) -> DynamicsSolution:
         radius,
         swept_mass_g,
         swept_reverse_mass_g,
+        magnetic_field_g,
         gam_e,
         d_n_gam_e,
     ) = Dynamics.dynamics_reverse(
@@ -98,8 +55,9 @@ def solve_dynamics(boundary: np.ndarray, config: FitConfig) -> DynamicsSolution:
         e3_cross,
         gam20,
         swept_reverse_mass_g,
+        magnetic_field_g,
         gam_e,
-        d_n_gam_e,
+        _renormalize_reverse_shock_distribution(gam_e, d_n_gam_e, swept_reverse_mass_g, reverse_params.f_e),
     )
     return DynamicsSolution(r_tobs, r_gamma, radius, swept_mass_g, reverse_shock=reverse_shock)
 
@@ -215,27 +173,18 @@ def solve_reverse_shock_emission(
     if reverse_params is None or dynamics.reverse_shock is None:
         return None
 
-    l_syn_spec, seed_syn = Radiation.seed_reverse(
-        dynamics.reverse_shock.t_cross,
-        dynamics.reverse_shock.r_cross,
-        dynamics.reverse_shock.e3_cross,
-        dynamics.reverse_shock.gam20,
-        reverse_params.delta_t_s,
-        reverse_params.epsilon_b,
-        boundary,
-        dynamics.r_tobs,
-        dynamics.r_gamma,
-        dynamics.radius,
-        dynamics.reverse_shock.gam_e,
-        dynamics.reverse_shock.d_n_gam_e,
-        v_seed,
-        config.num_threads,
-    )
-    nu_m, nu_c, nu_a, magnetic_field_g, nu_M = _compute_reverse_shock_characteristic_frequencies(
+    (
+        nu_m,
+        nu_c,
+        nu_a,
+        magnetic_field_g,
+        nu_M,
+    ) = _compute_reverse_shock_characteristic_frequencies(
         config,
         reverse_params,
         dynamics,
     )
+    l_syn_spec, seed_syn = _compute_reverse_shock_synchrotron_emission(dynamics, v_seed, config)
     return ReverseShockEmission(
         l_syn_spec=l_syn_spec,
         seed_syn=seed_syn,
@@ -245,6 +194,38 @@ def solve_reverse_shock_emission(
         nu_a=nu_a,
         nu_M=nu_M,
     )
+
+
+def _compute_reverse_shock_synchrotron_emission(
+    dynamics: DynamicsSolution,
+    v_seed: np.ndarray,
+    config: FitConfig,
+) -> tuple[np.ndarray, np.ndarray]:
+    if dynamics.reverse_shock is None:
+        raise ValueError("Reverse shock dynamics are required to compute reverse emission.")
+    num_nu = v_seed.shape[0]
+    num_r = dynamics.radius.shape[0]
+    l_syn_spec = np.zeros((num_nu, num_r), dtype=float)
+    seed_syn = np.zeros((num_nu, num_r), dtype=float)
+    magnetic_field_g = np.asarray(dynamics.reverse_shock.magnetic_field_g, dtype=float)
+
+    for i in range(num_r):
+        db = float(magnetic_field_g[i])
+        radius_loc = float(dynamics.radius[i])
+        if not np.isfinite(db) or not np.isfinite(radius_loc) or db <= 0.0 or radius_loc <= 0.0:
+            continue
+        p_syn_i, seed_syn_i = electron_get_y_module.get_syn_selected(
+            config.index_syn_integr,
+            radius_loc,
+            db,
+            config.num_threads,
+            dynamics.reverse_shock.gam_e,
+            dynamics.reverse_shock.d_n_gam_e[:, i],
+            v_seed,
+        )
+        l_syn_spec[:, i] = np.asarray(p_syn_i, dtype=float)
+        seed_syn[:, i] = np.asarray(seed_syn_i, dtype=float)
+    return l_syn_spec, seed_syn
 
 
 def _resolve_reverse_shock_parameters(config: FitConfig) -> ReverseShockParameters | None:
@@ -317,15 +298,7 @@ def _compute_reverse_shock_characteristic_frequencies(
         beta2 = np.sqrt(1.0 - gamma2**-2)
         gamma34 = (1.0 - beta2 * beta4) * eta_0 * gamma2
 
-        d_ne = _reverse_ambient_density(radius_loc, config)
-        e2 = 4.0 * gamma2 * gamma2 * d_ne * constants.para_m_p_e
-        if radius_loc < dynamics.reverse_shock.r_cross:
-            e3 = e2
-        else:
-            e3 = dynamics.reverse_shock.e3_cross * (dynamics.reverse_shock.r_cross / radius_loc) ** 3
-            e3 = e3 * gamma2 / dynamics.reverse_shock.gam20
-
-        db = np.sqrt(8.0 * np.pi * reverse_params.epsilon_b * e3)
+        db = float(dynamics.reverse_shock.magnetic_field_g[i - 1])
         magnetic_field_g[i - 1] = db
         gam_e_max = 3.0 * constants.para_m_energy / np.sqrt(8.0 * db * constants.para_e**3)
         gam_e_m = _minimum_reverse_shock_electron_lorentz_factor(reverse_params, gamma34, gam_e_max)
@@ -337,7 +310,7 @@ def _compute_reverse_shock_characteristic_frequencies(
         nu_c[i - 1] = _synchrotron_frequency(db, gam_e_c, doppler_den)
         nu_M[i - 1] = _synchrotron_frequency(db, gam_e_max, doppler_den)
 
-        nu_a_comoving = electron_weno5_module.get_y.get_nu_a(
+        nu_a_comoving = electron_get_y_module.get_nu_a(
             radius_loc,
             db,
             dynamics.reverse_shock.gam_e,
@@ -348,29 +321,69 @@ def _compute_reverse_shock_characteristic_frequencies(
     return nu_m, nu_c, nu_a, magnetic_field_g, nu_M
 
 
-def _ambient_density(radius_cm: float, config: FitConfig) -> float:
-    if config.a_star > 0.0:
-        d_ne_wind = config.a_star * 3.0e35 / radius_cm**2
-        if d_ne_wind <= config.d_ne / 4.0:
-            d_ne = config.d_ne
-        else:
-            d_ne = d_ne_wind
-    else:
-        d_ne = config.d_ne * (
-            1.0
-            + (config.f_jump - 1.0)
-            * np.exp(-(np.log10(radius_cm) - np.log10(config.r_tr)) ** 2 / (2.0 * config.f_wide**2))
+def _compute_synchrotron_emission_from_distribution(
+    radius_cm: np.ndarray,
+    magnetic_field_g: np.ndarray,
+    gam_e: np.ndarray,
+    d_n_gam_e: np.ndarray,
+    v_seed: np.ndarray,
+    config: FitConfig,
+) -> tuple[np.ndarray, np.ndarray]:
+    num_nu = v_seed.shape[0]
+    num_r = radius_cm.shape[0]
+    l_syn_spec = np.zeros((num_nu, num_r), dtype=float)
+    seed_syn = np.zeros((num_nu, num_r), dtype=float)
+
+    for i in range(num_r):
+        db = float(magnetic_field_g[i])
+        radius_loc = float(radius_cm[i])
+        if not np.isfinite(db) or not np.isfinite(radius_loc) or db <= 0.0 or radius_loc <= 0.0:
+            continue
+        p_syn_i, seed_syn_i = electron_weno5_module.get_y.get_syn_selected(
+            config.index_syn_integr,
+            radius_loc,
+            db,
+            config.num_threads,
+            gam_e,
+            d_n_gam_e[:, i],
+            v_seed,
         )
+        l_syn_spec[:, i] = np.asarray(p_syn_i, dtype=float)
+        seed_syn[:, i] = np.asarray(seed_syn_i, dtype=float)
 
-    if radius_cm < config.r0:
-        d_ne = config.a_star * 3.0e35 / config.r0**2
+    return l_syn_spec, seed_syn
 
-    return d_ne
+
+
+
+def _renormalize_reverse_shock_distribution(
+    gam_e: np.ndarray,
+    d_n_gam_e: np.ndarray,
+    swept_mass_g: np.ndarray,
+    f_e: float,
+) -> np.ndarray:
+    gam = np.asarray(gam_e, dtype=float)
+    dist = np.asarray(d_n_gam_e, dtype=float).copy()
+    targets = np.asarray(swept_mass_g, dtype=float) / constants.para_m_p * float(f_e)
+    for i in range(dist.shape[1]):
+        total = float(np.trapezoid(dist[:, i], gam))
+        target = float(targets[i])
+        if not np.isfinite(total) or total <= 0.0:
+            continue
+        if not np.isfinite(target) or target <= 0.0:
+            continue
+        dist[:, i] *= target / total
+    return dist
+
+
+def _ambient_density(radius_cm: float, config: FitConfig) -> float:
+    """DEPRECATED: Use asgard_physics_utils.ambient_density instead."""
+    return ambient_density(radius_cm, config)
 
 
 def _doppler_denominator(gamma_bulk: float, redshift: float) -> float:
-    beta_bulk = np.sqrt(1.0 - gamma_bulk**-2)
-    return gamma_bulk * (1.0 - beta_bulk) * (1.0 + redshift)
+    """DEPRECATED: Use asgard_physics_utils.doppler_denominator instead."""
+    return doppler_denominator(gamma_bulk, redshift)
 
 
 def _synchrotron_frequency(magnetic_field_g: float, electron_lorentz_factor: float, doppler_den: float) -> float:

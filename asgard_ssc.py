@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from asgard_models import FitConfig
+from asgard_config import FitConfig
+from asgard_physics_utils import ambient_density, compute_magnetic_field, compute_doppler
 from src import Radiation, constants
 
 
@@ -10,25 +11,13 @@ DEFAULT_AUXILIARY_GAMMA_COUNT = 64
 
 
 def _ambient_density(radius_cm: np.ndarray, config: FitConfig) -> np.ndarray:
-    radius_cm = np.asarray(radius_cm, dtype=float)
-    if config.a_star > 0.0:
-        d_ne_wind = config.a_star * 3.0e35 / radius_cm**2
-        d_ne = np.where(d_ne_wind <= config.d_ne / 4.0, config.d_ne, d_ne_wind)
-    else:
-        d_ne = config.d_ne * (
-            1.0
-            + (config.f_jump - 1.0)
-            * np.exp(-(np.log10(radius_cm) - np.log10(config.r_tr)) ** 2 / (2.0 * config.f_wide**2))
-        )
-
-    if config.a_star > 0.0:
-        d_ne = np.where(radius_cm < config.r0, config.a_star * 3.0e35 / config.r0**2, d_ne)
-    return d_ne
+    """DEPRECATED: Use asgard_physics_utils.ambient_density instead."""
+    return ambient_density(radius_cm, config)
 
 
 def _compute_forward_nu_M(gamma: np.ndarray, radius_cm: np.ndarray, config: FitConfig) -> np.ndarray:
-    magnetic_field = 0.39 * np.sqrt(config.epsilon_b * _ambient_density(radius_cm, config) * gamma * np.maximum(gamma - 1.0, 0.0))
-    doppler = gamma * (1.0 - np.sqrt(1.0 - gamma**-2)) * (1.0 + config.z)
+    magnetic_field = compute_magnetic_field(gamma, radius_cm, config)
+    doppler = compute_doppler(gamma, config.z)
     gam_e_max = 3.0 * constants.para_m_energy / np.sqrt(8.0 * magnetic_field * constants.para_e**3)
     return 4.2e6 * magnetic_field * gam_e_max**2 / doppler
 

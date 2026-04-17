@@ -4,7 +4,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from asgard_models import FitConfig
+from asgard_config import FitConfig
+from asgard_physics_utils import ambient_density
 from src import constants
 
 
@@ -101,9 +102,5 @@ def _retarded_seed_interpolation(
 
 
 def _ambient_density_for_coupling(radius_cm: float, config: FitConfig) -> float:
-    if config.a_star >= 0.0:
-        d_ne_wind = config.a_star * 3.0e35 / radius_cm**2
-        if d_ne_wind <= config.d_ne / 4.0:
-            return config.d_ne
-        return d_ne_wind
-    return config.d_ne
+    """DEPRECATED: Use asgard_physics_utils.ambient_density instead."""
+    return ambient_density(radius_cm, config)

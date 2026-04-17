@@ -25,8 +25,8 @@ python module FS_electron_charint ! in
             integer intent(in) :: substep_max
             real(kind=8) dimension(num_gam_e),intent(out),depend(num_gam_e) :: gam_e
             real(kind=8) dimension(num_gam_e,num_r),intent(out),depend(num_r,num_gam_e) :: dn_gam_e
-            real(kind=8) dimension(num_nu,num_r),intent(out),depend(num_r,num_nu) :: p_syn
-            real(kind=8) dimension(num_nu,num_r),intent(out),depend(num_r,num_nu) :: seed_syn
+            real(kind=8) dimension(num_nu,num_r),intent(out),depend(num_nu,num_r) :: p_syn
+            real(kind=8) dimension(num_nu,num_r),intent(out),depend(num_nu,num_r) :: seed_syn
             real(kind=8) dimension(num_r),intent(out),depend(num_r) :: v_m
             real(kind=8) dimension(num_r),intent(out),depend(num_r) :: v_c
             real(kind=8) dimension(num_r),intent(out),depend(num_r) :: v_a

@@ -180,6 +180,30 @@ def _centroid_from_image_stack(image_stack: np.ndarray, extent: np.ndarray) -> t
     return x_centroid, y_centroid
 
 
+def _vegas_sky_compare_payload(sky_image) -> dict[str, np.ndarray]:
+    """
+    Prepare VegasAfterglow sky-image outputs for direct comparison against ASGARD.
+
+    This helper is intentionally comparison-only: it applies the current
+    rotation convention, computes image-integrated flux, and derives centroids
+    in the ASGARD display basis.
+    """
+    image = np.asarray(sky_image.image, dtype=float)
+    image_cal = np.asarray(
+        [_calibrate_sky_image_to_asgard_basis(frame, "VegasAfterglow") for frame in image],
+        dtype=float,
+    )
+    x_centroid, y_centroid = _centroid_from_image_stack(image_cal, sky_image.extent)
+    rendered_flux = image.sum(axis=(1, 2)) * float(sky_image.pixel_solid_angle)
+    return {
+        "image_cal": image_cal,
+        "extent_uas": np.asarray(sky_image.extent, dtype=float) / vegas_units.uas,
+        "rendered_flux": rendered_flux,
+        "x_centroid_uas": x_centroid / vegas_units.uas,
+        "y_centroid_uas": y_centroid / vegas_units.uas,
+    }
+
+
 def _safe_log_interp(x_ref: np.ndarray, x_src: np.ndarray, y_src: np.ndarray) -> np.ndarray:
     x_ref = np.asarray(x_ref, dtype=float)
     x_src = np.asarray(x_src, dtype=float)
@@ -530,7 +554,8 @@ def _build_sky_single() -> Path:
     model_v = _build_vegas_model()
     sky_a = model_a.sky_image(SINGLE_SKY_TIME, nu_obs=1.0e9, fov=500.0 * units.uas, npixel=SINGLE_SKY_NPIXEL)
     sky_v = model_v.sky_image(SINGLE_SKY_TIME, nu_obs=1.0e9, fov=500.0 * vegas_units.uas, npixel=SINGLE_SKY_NPIXEL)
-    img_v = _calibrate_sky_image_to_asgard_basis(sky_v.image[0], "VegasAfterglow")
+    vegas_payload = _vegas_sky_compare_payload(sky_v)
+    img_v = vegas_payload["image_cal"][0]
     img_a = _calibrate_sky_image_to_asgard_basis(sky_a.image[0], "ASGARD")
     norm = _shared_positive_log_norm(img_v, img_a)
 
@@ -540,7 +565,7 @@ def _build_sky_single() -> Path:
         (axes[1], sky_a, "ASGARD", "inferno", units.uas),
     ]:
         img = img_v if title == "VegasAfterglow" else img_a
-        extent = sky.extent / unit
+        extent = vegas_payload["extent_uas"] if title == "VegasAfterglow" else sky.extent / unit
         im = ax.imshow(np.where(img > 0, img, np.nan).T, origin="lower", extent=extent, cmap="magma", norm=norm)
         ax.set_title(f"{title}: t=10^6 s, nu=1 GHz")
         ax.set_xlabel(r"$\Delta x$ ($\mu$as)")
@@ -555,13 +580,14 @@ def _build_sky_offaxis() -> Path:
     times = OFFAXIS_SKY_TIMES
     img_a = model_a.sky_image(times, nu_obs=1.0e9, fov=5000.0 * units.uas, npixel=40)
     img_v = model_v.sky_image(times, nu_obs=1.0e9, fov=5000.0 * vegas_units.uas, npixel=40)
+    vegas_payload = _vegas_sky_compare_payload(img_v)
     idx = -1
-    img_v_cal = _calibrate_sky_image_to_asgard_basis(img_v.image[idx], "VegasAfterglow")
+    img_v_cal = vegas_payload["image_cal"][idx]
     img_a_cal = _calibrate_sky_image_to_asgard_basis(img_a.image[idx], "ASGARD")
     norm = _shared_positive_log_norm(img_v_cal, img_a_cal)
 
     fig, axes = plt.subplots(1, 2, figsize=(11.0, 4.2), dpi=180)
-    extent_v = img_v.extent / vegas_units.uas
+    extent_v = vegas_payload["extent_uas"]
     extent_a = img_a.extent / units.uas
     title = f"{times[idx]:.1e} s"
     for i, (ax, image, extent, name, cmap) in enumerate(
@@ -591,8 +617,9 @@ def _build_sky_flux_comparison() -> Path:
 
     img_a = model_a.sky_image(times, nu_obs=nu_obs, fov=2000.0 * units.uas, npixel=FLUX_SKY_NPIXEL)
     img_v = model_v.sky_image(times, nu_obs=nu_obs, fov=2000.0 * vegas_units.uas, npixel=FLUX_SKY_NPIXEL)
+    vegas_payload = _vegas_sky_compare_payload(img_v)
     flux_from_image_a = np.asarray(img_a.rendered_flux, dtype=float)
-    flux_from_image_v = np.asarray(img_v.image, dtype=float).sum(axis=(1, 2)) * float(img_v.pixel_solid_angle)
+    flux_from_image_v = vegas_payload["rendered_flux"]
     direct_a = np.asarray(img_a.direct_flux, dtype=float)
     direct_v = model_v.flux_density_grid(times, np.array([nu_obs])).total[0, :]
 
@@ -625,14 +652,13 @@ def _build_sky_centroid_comparison() -> Path:
 
     img_a = model_a.sky_image(times, nu_obs=nu_obs, fov=5000.0 * units.uas, npixel=40)
     img_v = model_v.sky_image(times, nu_obs=nu_obs, fov=5000.0 * vegas_units.uas, npixel=40)
+    vegas_payload = _vegas_sky_compare_payload(img_v)
 
     centroid_a = np.asarray(img_a.centroid, dtype=float) / units.uas
     x_a = centroid_a[:, 0]
     y_a = centroid_a[:, 1]
-    img_v_cal = np.asarray([_calibrate_sky_image_to_asgard_basis(frame, "VegasAfterglow") for frame in img_v.image], dtype=float)
-    x_v_raw, y_v_raw = _centroid_from_image_stack(img_v_cal, img_v.extent)
-    x_v = x_v_raw / vegas_units.uas
-    y_v = y_v_raw / vegas_units.uas
+    x_v = vegas_payload["x_centroid_uas"]
+    y_v = vegas_payload["y_centroid_uas"]
 
     fig, axes = plt.subplots(2, 1, figsize=(6.8, 6.0), dpi=180, sharex=True, gridspec_kw={"hspace": 0.08})
     axes[0].semilogx(times, x_a, color=ASGARD_COLOR, lw=1.6, alpha=ASGARD_ALPHA, label="ASGARD")

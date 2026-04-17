@@ -667,6 +667,11 @@ plot_spectrum(result, times_s=[1e3, 1e4, 1e5], quantity="nufnu")
 - `tests/vegas_afterglow_comparison.py` 当前已经直接复用这些字段：
   - `compare_sky_image_flux_comparison.png` 对 ASGARD 不再手工重复积分图像
   - `compare_sky_image_centroid.png` 已新增，用于比较离轴 skymap 质心随时间的演化
+- 当前 VegasAfterglow 侧的 skymap 适配逻辑已经集中到对比脚本内部的单独 helper：
+  - 统一处理顺时针 `90°` 旋转
+  - 统一处理图像积分得到 `rendered_flux`
+  - 统一处理比较口径下的 `x/y centroid`
+  - 目的只是把跨代码比较适配集中管理，不把这类逻辑再误写成 ASGARD 主接口事实
 
 ## 13. 2026-04 Runtime Update
 
