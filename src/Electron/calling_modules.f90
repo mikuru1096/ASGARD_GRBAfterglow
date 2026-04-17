@@ -921,6 +921,7 @@ allocate (dN1(Num_gam_e),ddN1(Num_gam_e),x_gam(Num_gam_e))
     call electron_fill_quadratic_slopes(x_gam,dN1,ddN1,Num_gam_e)
     
     V_a_floor=ten**4d0
+    V_a_min=ten**(-20d0)
     V_a_cap=one
     do I_gam_e=1,Num_gam_e-1
        Vc=4.2d6*((gam_e(I_gam_e)+gam_e(I_gam_e+1))**2/4d0)*DB
@@ -931,10 +932,23 @@ allocate (dN1(Num_gam_e),ddN1(Num_gam_e),x_gam(Num_gam_e))
     V_low=V_a_floor
     call evaluate_tau(V_low,Tau_low)
     if (Tau_low <= one) then
-       V_a=V_a_floor
+        do I_nu=1,26
+           if (V_low <= V_a_min) exit
+           V_high=V_low
+           Tau_high=Tau_low
+           V_low=max(V_a_min,V_low/ten)
+           call evaluate_tau(V_low,Tau_low)
+           if (Tau_low > one) exit
+        end do
+
+        if (Tau_low > one) then
+           call refine_nu_a_bracket(V_low,Tau_low,V_high,Tau_high,V_a)
+        else
+           V_a=V_low
+        end if
     else
-       V_high=V_low
-       Tau_high=Tau_low
+        V_high=V_low
+        Tau_high=Tau_low
        do I_nu=1,26
           V_low=V_high
           Tau_low=Tau_high
@@ -1043,6 +1057,7 @@ allocate(x_edge(Num_gam_e+1),q_y(Num_gam_e),q_left(Num_gam_e),q_right(Num_gam_e)
     call electron_ppm_interfaces_nonuniform(Num_gam_e,x_edge,q_y,q_left,q_right)
 
     V_a_floor=ten**4d0
+    V_a_min=ten**(-20d0)
     V_a_cap=one
     do I_gam_e=1,Num_gam_e
        gam_mid=dexp(0.5d0*(x_edge(I_gam_e)+x_edge(I_gam_e+1)))
@@ -1054,10 +1069,23 @@ allocate(x_edge(Num_gam_e+1),q_y(Num_gam_e),q_left(Num_gam_e),q_right(Num_gam_e)
     V_low=V_a_floor
     call evaluate_tau(V_low,Tau_low)
     if (Tau_low <= one) then
-       V_a=V_a_floor
+        do I_nu=1,26
+           if (V_low <= V_a_min) exit
+           V_high=V_low
+           Tau_high=Tau_low
+           V_low=max(V_a_min,V_low/ten)
+           call evaluate_tau(V_low,Tau_low)
+           if (Tau_low > one) exit
+        end do
+
+        if (Tau_low > one) then
+           call refine_nu_a_bracket_nonuniform(V_low,Tau_low,V_high,Tau_high,V_a)
+        else
+           V_a=V_low
+        end if
     else
-       V_high=V_low
-       Tau_high=Tau_low
+        V_high=V_low
+        Tau_high=Tau_low
        do I_nu=1,26
           V_low=V_high
           Tau_low=Tau_high

@@ -266,6 +266,22 @@ subroutine fs_electron_charint(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,N
         dN_gam_e(:,I_tobs)=dN_x/gam_e/dlog(ten)
     end do
 
+    R_loc=R(Num_R)
+    R_Gamma_loc=R_Gamma(Num_R)
+    call electron_external_density(A_star,dNe_ISM,R_loc,R0,R_tr,f_jump,f_wide,1,dNe)
+    DB=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma_loc*(R_Gamma_loc-one)))
+    beta_Gam=sqrt(one-one/R_Gamma_loc**2)
+    Gam_e_max=3d0*Para_m_energy/dsqrt(8d0*DB*Para_e**3)
+    temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma_loc-one)
+    call electron_gamma_m_exact(p,temp_gam,Gam_e_max,Gam_e_m)
+    Gam_e_c=7.7d8*(one+z)/R_Gamma_loc/DB**2/R_Tobs(Num_R)
+    V_m(Num_R)=4.2d6*DB*Gam_e_m*Gam_e_m/(R_Gamma_loc*(1d0-beta_Gam)*(one+z))
+    V_c(Num_R)=4.2d6*DB*Gam_e_c*Gam_e_c/(R_Gamma_loc*(1d0-beta_Gam)*(one+z))
+    call electron_prepare_radiation_spectrum(Num_gam_e,gam_e,dN_gam_e(:,Num_R), &
+                                             Num_gam_rad,gam_e_rad,dN_gam_e_rad)
+    call get_nu_a(R_loc,DB,Num_gam_rad,gam_e_rad(1:Num_gam_rad),dN_gam_e_rad(1:Num_gam_rad),temp)
+    V_a(Num_R)=temp/(R_Gamma_loc*(1d0-beta_Gam)*(one+z))
+
     deallocate(dEl_base,dEl_step,dN_x,dN_step,dF1,dF1_shape,x_edge,gam_e_rad,dN_gam_e_rad, &
                q_left_source_shape,q_right_source_shape,prefix_source_lin_shape)
 end subroutine fs_electron_charint

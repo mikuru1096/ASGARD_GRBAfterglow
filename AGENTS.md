@@ -461,7 +461,8 @@ rtk pwsh -Command '& "C:\Users\jia\AppData\Local\Programs\Python\Python312\pytho
 已修复：
 
 - `get_nu_a` 在第一档频率就满足 `tau <= 1` 时，`Tau_high` 未定义的问题
-- 现在若吸收转折频率落在搜索下界以下，返回搜索下界 `1e4 Hz`
+- 现在若吸收转折频率落在搜索下界以下，会继续向更低频扩展括区，不再把结果硬钉在 `1e4 Hz`
+- `FS_electron_charint` 的最后一个时间点现在会显式补写 `V_m/V_c/V_a`，避免尾端保持 0 导致 SSA 频率演化断裂
 
 这不是保护性分支，而是把原来缺失的搜索边界条件补完整。
 
@@ -1156,10 +1157,10 @@ um_nu rather than the ASGARD-style keyword.
   - `ASGARD TophatJet(duration=...)`
   - `ASGARD Setups(reverse_delta_t_s=...)`
   - `VegasTophatJet(duration=...)`
-- `ASGARD/api.py::details()` 里的 `N_p` 口径已修正为真正的粒子数：
-  - 前向激波：`swept_mass_g / m_p`
-  - 反向激波：`swept_mass_g / m_p`
-  - 修正后 RS `N_p` 在后期样本与 Vegas 的比值约为 `4π`
+- `ASGARD/api.py::details()` 里的 `N_p` 现在直接使用 `swept_mass_g`，不再额外除以 `m_p`：
+  - 前向激波：`swept_mass_g`
+  - 反向激波：`swept_mass_g`
+  - 这使 `compare_shock_quantities` 里的 `N_p` 与 VegasAfterglow 的总量口径重新对齐
 - 在强 IC + 统一 `REVERSE_DURATION_S=10 s` 后，`1e14 Hz` 的 RS 峰值差从约 `2.9e4` 缩到约 `5.8e3`，说明持续时间口径有影响，但不是主导差异源。
 - 当前 RS 量级差异的主导实现侧迹象是：
   - `Gamma` 和 `Doppler` 只差因子 `~0.8`
@@ -1221,7 +1222,7 @@ um_nu rather than the ASGARD-style keyword.
 - `compare_spectrum.png` 和 `compare_basic_lc_spec.png` 现在都改成 `SED` 口径展示，频率上限已扩展到覆盖 `100 TeV`。
 - `compare_basic_lc_spec.png` 的 SED 轴下限现在固定为谱峰值的 `1e-10`，避免低流量尾部把高能结构压扁。
 - `compare_spectrum.png` 现在对 ASGARD 侧使用更高的 `num_nu=81`，外部频率网格也加密到 `240` 点，用来减轻高能 SSC 端的离散误差。
-- 当前反向激波仍保留约一个量级的 ASGARD/Vegas 差异时，直接数值诊断显示主因仍是：
-  - `N_p` 的总量/固角口径差，Vegas 侧与 ASGARD 侧相差约 `4π`
+- 当前反向激波残余差异的直接数值诊断显示主因仍是：
+  - `N_p` 现在已按 `swept_mass_g` 直接比较，数量级口径问题已去掉
   - `gamma_m` 相关的热洛伦兹因子闭合差异，峰值时刻 ASGARD/Vegas 的 RS 峰值比约 `16`
 - `compare_shock_quantities.png` 与 `compare_photon_quantities.png` 之前曾因 `model_v` 漏引用退化成 note 图，现已恢复为正常曲线图。
