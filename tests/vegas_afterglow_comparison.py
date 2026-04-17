@@ -451,30 +451,29 @@ def _build_shock_quantities() -> Path:
     attrs = ["Gamma", "B_comv", "N_p", "nu_m", "nu_c", "nu_a"]
     t_ref = _reference_series(da.fwd.t_obs)
     if t_ref.ndim != 1:
-        return _with_note("shock_quantities", "ASGARD shock details are not 1D on this baseline.")
+        raise RuntimeError("ASGARD shock details are not 1D; compare_shock_quantities requires a 1D characteristic-time track.")
 
     fig, axes = plt.subplots(2, 3, figsize=(12.5, 7.0), dpi=200)
     axes = axes.ravel()
     for i, attr in enumerate(attrs):
         ax = axes[i]
-        if hasattr(da.fwd, attr) and hasattr(dv.fwd, attr):
-            ya = _reference_series(getattr(da.fwd, attr))
-            yv = _reference_series(getattr(dv.fwd, attr))
-            if attr == "N_p":
-                yv = yv * (4.0 * np.pi)
-            if attr in {"nu_m", "nu_c"}:
-                doppler_v = _reference_series(dv.fwd.Doppler)
-                yv = _to_lab_frequency_frame(yv, doppler_v, vegas_z)
-            tv = _reference_series(dv.fwd.t_obs)
-            yv = _safe_log_interp(t_ref, tv, yv)
-            _plot_two_line_sets(ax, t_ref, [(ya, ASGARD_COLOR, f"ASGARD {attr}"), (yv, VEGAS_COLOR, f"Vegas {attr}")], "t_obs [s]")
-            ax.set_ylabel(attr)
-            ax.set_xlabel("t_obs [s]")
-            ax.set_xscale("log")
-            ax.set_yscale("log")
-            ax.xaxis.set_major_formatter(LogFormatter())
-        else:
-            ax.text(0.1, 0.55, f"{attr}: not available in both", fontsize=9)
+        if not (hasattr(da.fwd, attr) and hasattr(dv.fwd, attr)):
+            raise RuntimeError(f"{attr} is not available in both ASGARD and VegasAfterglow shock details.")
+        ya = _reference_series(getattr(da.fwd, attr))
+        yv = _reference_series(getattr(dv.fwd, attr))
+        if attr == "N_p":
+            yv = yv * (4.0 * np.pi)
+        if attr in {"nu_m", "nu_c"}:
+            doppler_v = _reference_series(dv.fwd.Doppler)
+            yv = _to_lab_frequency_frame(yv, doppler_v, vegas_z)
+        tv = _reference_series(dv.fwd.t_obs)
+        yv = _safe_log_interp(t_ref, tv, yv)
+        _plot_two_line_sets(ax, t_ref, [(ya, ASGARD_COLOR, f"ASGARD {attr}"), (yv, VEGAS_COLOR, f"Vegas {attr}")], "t_obs [s]")
+        ax.set_ylabel(attr)
+        ax.set_xlabel("t_obs [s]")
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+        ax.xaxis.set_major_formatter(LogFormatter())
         ax.set_title(attr)
     plt.tight_layout()
     return _save(fig, OUTPUT_DIR / "compare_shock_quantities.png")
@@ -486,7 +485,7 @@ def _build_photon_quantities() -> Path:
     attrs = ["nu_a", "nu_m", "nu_c"]
     t_ref = _reference_series(da.fwd.t_obs)
     if t_ref.ndim != 1:
-        return _with_note("photon_quantities", "ASGARD photon quantities are not 1D on this baseline.")
+        raise RuntimeError("ASGARD photon quantities are not 1D; compare_photon_quantities requires a 1D characteristic-time track.")
 
     fig, axes = plt.subplots(1, 3, figsize=(12.0, 3.6), dpi=200)
     for i, attr in enumerate(attrs):
@@ -850,14 +849,14 @@ def _build_electron_spectrum_compare() -> Path:
     time_handles: list[Line2D] = []
     solver_handles: list[Line2D] = []
     for color, t_obs in zip(colors, ELECTRON_COMPARE_TIMES):
-        time_handles.append(Line2D([0], [0], color=color, lw=2.3, ls="-", label=fr"$t_{{\rm obs}}\approx {t_obs:.1e}\,\rm s$"))
+        time_handles.append(Line2D([0], [0], color=color, lw=1.4, ls="-", label=fr"$t_{{\rm obs}}\approx {t_obs:.1e}\,\rm s$"))
     for solver in ELECTRON_COMPARE_SOLVERS:
         solver_handles.append(
             Line2D(
                 [0],
                 [0],
                 color="black",
-                lw=2.0,
+                lw=1.4,
                 ls=ELECTRON_COMPARE_LINESTYLES[solver],
                 label=solver,
             )
@@ -888,7 +887,7 @@ def _build_electron_spectrum_compare() -> Path:
                     gamma_e_asgard[mask_a],
                     asgard_slice[mask_a],
                     color=color,
-                    lw=1.8,
+                    lw=1.05,
                     alpha=0.9,
                     ls=ELECTRON_COMPARE_LINESTYLES[solver],
                 )
@@ -896,6 +895,7 @@ def _build_electron_spectrum_compare() -> Path:
     ax.set_xlabel(r"Electron Lorentz factor $\gamma_e$")
     ax.set_ylabel(r"$dN_e/d\gamma_e$")
     ax.set_title("ASGARD Electron-Spectrum Evolution")
+    ax.set_ylim(bottom=1.0e15)
     if ax.lines:
         legend_times = ax.legend(handles=time_handles, fontsize=8.5, loc="lower left", title="Time")
         ax.add_artist(legend_times)

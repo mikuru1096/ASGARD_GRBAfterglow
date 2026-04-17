@@ -644,7 +644,11 @@ plot_spectrum(result, times_s=[1e3, 1e4, 1e5], quantity="nufnu")
   - 若启用反向激波，也同步回传 `details.rev.gamma_e / dN_dgamma_e`
 - `tests/vegas_afterglow_comparison.py::compare_electron_spectrum.png` 当前不再伪造 VegasAfterglow 电子谱；
   - 只绘制 ASGARD 的真实电子谱演化；
-  - 当前一张图内同时比较 `fullhide / slc1 / charint` 与多时刻演化。
+  - 当前一张图内同时比较 `fullhide / slc1 / charint` 与多时刻演化；
+  - 当前图样式基线为细线，并将 y 轴下边界截断在 `1e15`。
+- `tests/vegas_afterglow_comparison.py::compare_shock_quantities` 与 `compare_photon_quantities`
+  - 当前不再在维度或字段异常时退化生成 note 图；
+  - 若当前真实回传量不满足作图前提，将直接报错，避免旧式占位图混入输出目录。
 - 当前 skymap 对齐口径已经实测固定：
   - VegasAfterglow 图像需要顺时针 `90°` 旋转后再与 ASGARD 比较；
   - “无需旋转”与“逆时针 `90°`”都不符合当前基线。
