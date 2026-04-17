@@ -1219,6 +1219,8 @@ um_nu rather than the ASGARD-style keyword.
 - `shock_quantities` 和 `photon_quantities` 现在共享同一份 `details()` 结果，不再各自重复求解。
 - 最新整套对比脚本仍能完整重绘全部图，墙钟时间进一步降到约 `33.3 s`。
 - `compare_spectrum.png` 和 `compare_basic_lc_spec.png` 现在都改成 `SED` 口径展示，频率上限已扩展到覆盖 `100 TeV`。
+- `compare_basic_lc_spec.png` 的 SED 轴下限现在固定为谱峰值的 `1e-10`，避免低流量尾部把高能结构压扁。
+- `compare_spectrum.png` 现在对 ASGARD 侧使用更高的 `num_nu=81`，外部频率网格也加密到 `240` 点，用来减轻高能 SSC 端的离散误差。
 - 当前反向激波仍保留约一个量级的 ASGARD/Vegas 差异时，直接数值诊断显示主因仍是：
   - `N_p` 的总量/固角口径差，Vegas 侧与 ASGARD 侧相差约 `4π`
   - `gamma_m` 相关的热洛伦兹因子闭合差异，峰值时刻 ASGARD/Vegas 的 RS 峰值比约 `16`
