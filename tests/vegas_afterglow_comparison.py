@@ -88,6 +88,7 @@ SINGLE_SKY_TIME = np.array([1.0e6], dtype=float)
 SINGLE_SKY_NPIXEL = 48
 FLUX_SKY_TIMES = np.logspace(0.0, 8.0, 20)
 FLUX_SKY_NPIXEL = 48
+SKY_CENTROID_TIMES = np.logspace(5.0, 8.0, 12)
 SPEED_TIMES = np.logspace(2.0, 8.0, 16)
 SPEED_BANDS = np.array([1.0e9, 1.0e14, 1.0e17], dtype=float)
 SPEED_FREQS = np.logspace(9.0, 18.0, 16)
@@ -161,6 +162,22 @@ def _shared_positive_log_norm(*images: np.ndarray) -> LogNorm:
         return LogNorm()
     stacked = np.concatenate(positive)
     return LogNorm(vmin=float(np.min(stacked)), vmax=float(np.max(stacked)))
+
+
+def _centroid_from_image_stack(image_stack: np.ndarray, extent: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    arr = np.asarray(image_stack, dtype=float)
+    x_axis = np.linspace(float(extent[0]), float(extent[1]), arr.shape[1])
+    y_axis = np.linspace(float(extent[2]), float(extent[3]), arr.shape[2])
+    x_weights = arr.sum(axis=2)
+    y_weights = arr.sum(axis=1)
+    total = arr.sum(axis=(1, 2))
+    x_centroid = np.zeros(arr.shape[0], dtype=float)
+    y_centroid = np.zeros(arr.shape[0], dtype=float)
+    valid = total > 0.0
+    if np.any(valid):
+        x_centroid[valid] = np.sum(x_weights[valid, :] * x_axis[None, :], axis=1) / total[valid]
+        y_centroid[valid] = np.sum(y_weights[valid, :] * y_axis[None, :], axis=1) / total[valid]
+    return x_centroid, y_centroid
 
 
 def _safe_log_interp(x_ref: np.ndarray, x_src: np.ndarray, y_src: np.ndarray) -> np.ndarray:
@@ -574,9 +591,9 @@ def _build_sky_flux_comparison() -> Path:
 
     img_a = model_a.sky_image(times, nu_obs=nu_obs, fov=2000.0 * units.uas, npixel=FLUX_SKY_NPIXEL)
     img_v = model_v.sky_image(times, nu_obs=nu_obs, fov=2000.0 * vegas_units.uas, npixel=FLUX_SKY_NPIXEL)
-    flux_from_image_a = img_a.image.sum(axis=(1, 2)) * img_a.pixel_solid_angle
-    flux_from_image_v = img_v.image.sum(axis=(1, 2)) * img_v.pixel_solid_angle
-    direct_a = model_a.flux_density_grid(times, np.array([nu_obs])).total[0, :]
+    flux_from_image_a = np.asarray(img_a.rendered_flux, dtype=float)
+    flux_from_image_v = np.asarray(img_v.image, dtype=float).sum(axis=(1, 2)) * float(img_v.pixel_solid_angle)
+    direct_a = np.asarray(img_a.direct_flux, dtype=float)
     direct_v = model_v.flux_density_grid(times, np.array([nu_obs])).total[0, :]
 
     fig, axes = plt.subplots(2, 1, figsize=(6.6, 6.0), dpi=180, sharex=True, gridspec_kw={"height_ratios": [3, 1], "hspace": 0.05})
@@ -598,6 +615,39 @@ def _build_sky_flux_comparison() -> Path:
     axes[1].set_ylim(0.95, 1.05)
 
     return _save(fig, OUTPUT_DIR / "compare_sky_image_flux_comparison.png")
+
+
+def _build_sky_centroid_comparison() -> Path:
+    model_a = _build_asgard_model(theta_obs=0.4)
+    model_v = _build_vegas_model(theta_obs=0.4)
+    times = SKY_CENTROID_TIMES
+    nu_obs = 1.0e9
+
+    img_a = model_a.sky_image(times, nu_obs=nu_obs, fov=5000.0 * units.uas, npixel=40)
+    img_v = model_v.sky_image(times, nu_obs=nu_obs, fov=5000.0 * vegas_units.uas, npixel=40)
+
+    x_a = np.asarray(img_a.x_centroid, dtype=float) / units.uas
+    y_a = np.asarray(img_a.y_centroid, dtype=float) / units.uas
+    img_v_cal = np.asarray([_calibrate_sky_image_to_asgard_basis(frame, "VegasAfterglow") for frame in img_v.image], dtype=float)
+    x_v_raw, y_v_raw = _centroid_from_image_stack(img_v_cal, img_v.extent)
+    x_v = x_v_raw / vegas_units.uas
+    y_v = y_v_raw / vegas_units.uas
+
+    fig, axes = plt.subplots(2, 1, figsize=(6.8, 6.0), dpi=180, sharex=True, gridspec_kw={"hspace": 0.08})
+    axes[0].semilogx(times, x_a, color=ASGARD_COLOR, lw=1.6, alpha=ASGARD_ALPHA, label="ASGARD")
+    axes[0].semilogx(times, x_v, color=VEGAS_COLOR, ls="--", lw=1.4, alpha=VEGAS_ALPHA, label="Vegas")
+    axes[0].set_ylabel(r"$x_c$ ($\mu$as)")
+    axes[0].legend(fontsize=8)
+    axes[0].grid(**GRID_STYLE)
+
+    axes[1].semilogx(times, y_a, color=ASGARD_COLOR, lw=1.6, alpha=ASGARD_ALPHA, label="ASGARD")
+    axes[1].semilogx(times, y_v, color=VEGAS_COLOR, ls="--", lw=1.4, alpha=VEGAS_ALPHA, label="Vegas")
+    axes[1].set_xlabel("Observer time [s]")
+    axes[1].set_ylabel(r"$y_c$ ($\mu$as)")
+    axes[1].grid(**GRID_STYLE)
+
+    fig.suptitle("Sky-image centroid comparison", y=0.98)
+    return _save(fig, OUTPUT_DIR / "compare_sky_image_centroid.png")
 
 
 def _build_introspection_jet() -> Path:
@@ -918,6 +968,7 @@ def main(*, spectrum_quantity: str = "sed") -> None:
         ("sky_image_single", _build_sky_single),
         ("sky_image_offaxis", _build_sky_offaxis),
         ("sky_image_flux_comparison", _build_sky_flux_comparison),
+        ("sky_image_centroid", _build_sky_centroid_comparison),
         ("introspection_jet", _build_introspection_jet),
         ("introspection_medium", _build_introspection_medium),
         ("introspection_twocomp", _build_introspection_twocomp),

@@ -492,6 +492,12 @@ class SkyImage:
     image: np.ndarray
     extent: np.ndarray
     pixel_solid_angle: float
+    pixel_size: float
+    direct_flux: np.ndarray
+    rendered_flux: np.ndarray
+    normalization_scale: np.ndarray
+    x_centroid: np.ndarray
+    y_centroid: np.ndarray
 
     @property
     def shape(self):
@@ -1916,8 +1922,32 @@ def _render_sky_image(model: Model, times_s: np.ndarray, nu_obs: float, fov: flo
     raw_total = image.sum(axis=(1, 2)) * pixel_size * pixel_size
     scale = np.where(raw_total > 0.0, direct_total / raw_total, 0.0)
     image *= scale[:, None, None]
+    rendered_total = image.sum(axis=(1, 2)) * pixel_size * pixel_size
+    x_centroid = np.zeros(times_s.shape[0], dtype=float)
+    y_centroid = np.zeros(times_s.shape[0], dtype=float)
+    x_weights = image.sum(axis=2)
+    y_weights = image.sum(axis=1)
+    total_brightness = image.sum(axis=(1, 2))
+    valid = total_brightness > 0.0
+    if np.any(valid):
+        x_centroid[valid] = (
+            np.sum(x_weights[valid, :] * pixel_axis[None, :], axis=1) / total_brightness[valid]
+        )
+        y_centroid[valid] = (
+            np.sum(y_weights[valid, :] * pixel_axis[None, :], axis=1) / total_brightness[valid]
+        )
 
-    return SkyImage(image=image, extent=extent, pixel_solid_angle=pixel_size * pixel_size)
+    return SkyImage(
+        image=image,
+        extent=extent,
+        pixel_solid_angle=pixel_size * pixel_size,
+        pixel_size=pixel_size,
+        direct_flux=direct_total,
+        rendered_flux=rendered_total,
+        normalization_scale=scale,
+        x_centroid=x_centroid,
+        y_centroid=y_centroid,
+    )
 
 
 def _build_fit_config_for_patch(

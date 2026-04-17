@@ -654,6 +654,16 @@ plot_spectrum(result, times_s=[1e3, 1e4, 1e5], quantity="nufnu")
   - “无需旋转”与“逆时针 `90°`”都不符合当前基线。
 - 当前 ASGARD skymap 的通量守恒检查已确认通过：
   - `image.sum() * pixel_solid_angle / direct_flux ≈ 1`
+- `ASGARD/api.py::SkyImage` 当前已扩展最小 skymap 诊断字段：
+  - `direct_flux`
+  - `rendered_flux`
+  - `normalization_scale`
+  - `x_centroid`
+  - `y_centroid`
+  - `pixel_size`
+- `tests/vegas_afterglow_comparison.py` 当前已经直接复用这些字段：
+  - `compare_sky_image_flux_comparison.png` 对 ASGARD 不再手工重复积分图像
+  - `compare_sky_image_centroid.png` 已新增，用于比较离轴 skymap 质心随时间的演化
 
 ## 13. 2026-04 Runtime Update
 
