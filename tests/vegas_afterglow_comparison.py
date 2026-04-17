@@ -271,7 +271,7 @@ def _build_basic_lc_spec() -> Path:
     axes[1].set_ylabel(r"$\nu F_\nu$ (erg/cm$^2$/s)")
     axes[1].set_title("SED")
     if spec_peak > 0.0:
-        axes[1].set_ylim(bottom=spec_peak * 1.0e-10)
+        axes[1].set_ylim(bottom=spec_peak * 1.0e-17)
     axes[0].legend(fontsize=7, ncol=1)
     axes[1].legend(fontsize=6, ncol=2)
     return _save(fig, OUTPUT_DIR / "compare_basic_lc_spec.png")
