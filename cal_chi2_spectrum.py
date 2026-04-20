@@ -2,7 +2,8 @@ from pathlib import Path
 import warnings
 
 import numpy as np
-from scipy import interpolate
+
+from chi2_utils import build_model_interpolators, load_observation_table, validate_model_range
 
 
 def cal_chi2_spectrum(name_fit, model_curves, model_serial):
@@ -11,10 +12,7 @@ def cal_chi2_spectrum(name_fit, model_curves, model_serial):
         raise FileNotFoundError(f"Data directory does not exist: {data_dir}")
 
     chi2_total = 0.0
-    model_interpolators = []
-    for i in range(len(name_fit)):
-        interp = interpolate.interp1d(model_serial, model_curves[i, :], kind="linear", bounds_error=False, fill_value=np.nan)
-        model_interpolators.append(interp)
+    model_interpolators = build_model_interpolators(model_curves, model_serial)
 
     for data_file in data_dir.glob("*"):
         if not data_file.is_file():
@@ -25,12 +23,10 @@ def cal_chi2_spectrum(name_fit, model_curves, model_serial):
             continue
 
         try:
-            table = np.loadtxt(data_file)
-            if table.ndim == 1:
-                table = table.reshape(1, -1)
+            table = load_observation_table(data_file)
 
             range_data, flux_data, flux_err = _parse_spectrum_data(table)
-            _validate_model_range(range_data, model_serial)
+            validate_model_range(range_data, model_serial)
 
             band_idx = name_fit.index(name)
             fit_flux = model_interpolators[band_idx](range_data)
@@ -71,13 +67,6 @@ def _parse_spectrum_data(table):
         raise ValueError(f"The observation data should be 2 to 6 columns. Currently, there are {n_cols} columns.")
 
     return range_data, flux_data, flux_err
-
-
-def _validate_model_range(range_data, model_serial):
-    if np.min(range_data) < model_serial[0] or np.max(range_data) > model_serial[-1]:
-        raise ValueError("The model curve cannot fully cover the data range.")
-
-
 def _get_spectrum_uncertainties(flux_data, flux_err, fit_flux, n_cols):
     if n_cols == 6:
         flux_err_up = flux_err[0]

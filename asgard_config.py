@@ -37,6 +37,8 @@ class SpectrumOutputConfig:
     num_nu_obs: int = 180
     nu_min_hz: float = 1.0e-6 * constants.para_ev2hz
     nu_max_hz: float = 1.0e-3 * constants.para_tev2hz
+    time_s: Optional[float] = None
+    dataset_names: tuple[str, ...] = field(default_factory=tuple)
 
 
 @dataclass
@@ -72,6 +74,9 @@ class PhysicsConfig:
     # Microphysics
     epsilon_e: float = 1.0e-1
     epsilon_b: float = 1.0e-3
+    epsilon_b_floor: Optional[float] = None
+    magnetic_decay_alpha_t: float = 0.0
+    magnetic_decay_t0_s: float = 1.0
     p: float = 2.5
     f_e: float = 1.0e-1
 
@@ -122,13 +127,18 @@ class NumericalConfig:
     num_gam_e: int = 201
     num_nu: int = 201
     num_tobs: int = 200
+    num_chi: Optional[int] = None
 
     # Time grid
     t_obs_min_log10: float = 2.0
     t_obs_max_log10: float = 8.0
 
     # Solver selection
-    electron_solver: str = "fullhide"
+    electron_solver: str = "fullhide_1d"
+    cooling_kernel: str = "legacy"
+    radiation_kernel: str = "legacy"
+    dynamics_kernel: str = "forward_legacy"
+    geometry_kernel: str = "sed_legacy"
     index_dyn: int = 3
     index_y: int = 2
     index_syn_integr: int = 2
@@ -180,7 +190,11 @@ class FitConfig:
     index_dyn: int = 3
     index_y: int = 2
     index_syn_integr: int = 2
-    electron_solver: str = "fullhide"
+    electron_solver: str = "fullhide_1d"
+    cooling_kernel: str = "legacy"
+    radiation_kernel: str = "legacy"
+    dynamics_kernel: str = "forward_legacy"
+    geometry_kernel: str = "sed_legacy"
     electron_adaptive_substeps: bool = False
     electron_substep_rtol: float = 2.0e-2
     electron_substep_min: int = 25
@@ -191,11 +205,15 @@ class FitConfig:
     num_r: int = 300
     num_theta: int = 300
     num_phi: int = 1
+    num_chi: Optional[int] = None
 
     z: float = 0.4
     eta_0: float = 1.0e2
     epsilon_e: float = 1.0e-1
     epsilon_b: float = 1.0e-3
+    epsilon_b_floor: Optional[float] = None
+    magnetic_decay_alpha_t: float = 0.0
+    magnetic_decay_t0_s: float = 1.0
     p: float = 2.5
     opening_angle_jet: float = 1.0e-1
     theta_v: float = 0.0
@@ -238,6 +256,9 @@ class FitConfig:
         physics = PhysicsConfig(
             epsilon_e=self.epsilon_e,
             epsilon_b=self.epsilon_b,
+            epsilon_b_floor=self.epsilon_b_floor,
+            magnetic_decay_alpha_t=self.magnetic_decay_alpha_t,
+            magnetic_decay_t0_s=self.magnetic_decay_t0_s,
             p=self.p,
             f_e=self.f_e,
             eta_0=self.eta_0,
@@ -275,9 +296,14 @@ class FitConfig:
             num_gam_e=self.num_gam_e,
             num_nu=self.num_nu,
             num_tobs=self.num_tobs,
+            num_chi=self.num_chi,
             t_obs_min_log10=self.t_obs_min_log10,
             t_obs_max_log10=self.t_obs_max_log10,
             electron_solver=self.electron_solver,
+            cooling_kernel=self.cooling_kernel,
+            radiation_kernel=self.radiation_kernel,
+            dynamics_kernel=self.dynamics_kernel,
+            geometry_kernel=self.geometry_kernel,
             index_dyn=self.index_dyn,
             index_y=self.index_y,
             index_syn_integr=self.index_syn_integr,

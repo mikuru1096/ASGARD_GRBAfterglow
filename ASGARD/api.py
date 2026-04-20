@@ -23,7 +23,13 @@ from asgard_state import (
 )
 from asgard_models import FitConfig, ReverseShockConfig, SpectrumOutputConfig, default_num_threads
 from asgard_observables import OUTPUT_BANDS, build_multiband_observer_frequencies, combine_multiband_flux
-from asgard_postprocess import compute_light_curve_redchi, build_spectrum_frequency_grid
+from asgard_postprocess import (
+    build_spectrum_dataset_names,
+    build_spectrum_frequency_grid,
+    compute_light_curve_redchi,
+    compute_spectrum_redchi,
+    select_spectrum_time_index,
+)
 from asgard_presets import build_baseline_config
 from src import constants
 
@@ -385,6 +391,9 @@ class Radiation:
     eps_e: float
     eps_B: float
     p: float
+    epsilon_b_floor: float | None = None
+    magnetic_decay_alpha_t: float = 0.0
+    magnetic_decay_t0_s: float = 1.0
     xi_N: float = 0.1
     ssc: bool = False
     kn: bool = False
@@ -418,7 +427,12 @@ class Setups:
     reverse_delta_t_s: float = 10.0
     include_cross_zone_ic: bool = False
     weno5: bool = False
-    electron_solver: str = "fullhide"
+    electron_solver: str = "fullhide_1d"
+    cooling_kernel: str = "legacy"
+    radiation_kernel: str = "legacy"
+    dynamics_kernel: str = "forward_legacy"
+    geometry_kernel: str = "sed_legacy"
+    num_chi: Optional[int] = None
     electron_adaptive_substeps: bool = False
     electron_substep_rtol: float = 2.0e-2
     electron_substep_min: int = 25
@@ -450,6 +464,8 @@ class CharTrack:
     nu_c: np.ndarray
     nu_a: np.ndarray
     nu_M: np.ndarray
+    cooling_timescale_s: Optional[np.ndarray] = None
+    dynamical_timescale_s: Optional[np.ndarray] = None
     gamma_e: Optional[np.ndarray] = None
     dN_dgamma_e: Optional[np.ndarray] = None
 
@@ -689,6 +705,8 @@ class Model:
         if resolutions is not None:
             self._apply_resolutions(resolutions)
         self._last_details: Optional[ModelDetails] = None
+        self._raw_cache: dict[tuple[str, str], tuple[ModelFluxResult, ModelDetails]] = {}
+        self._details_cache: dict[str, ModelDetails] = {}
 
     def flux_density_grid(self, times_s: np.ndarray, nu_hz: np.ndarray) -> ModelFluxResult:
         times_s = np.asarray(times_s, dtype=float)
@@ -829,20 +847,32 @@ class Model:
     def _compute_raw(self, times_s: np.ndarray, nu_hz: np.ndarray) -> ModelFluxResult:
         times_s = np.asarray(times_s, dtype=float)
         nu_hz = np.asarray(nu_hz, dtype=float)
+        cache_key = (_array_signature(times_s), _array_signature(nu_hz))
+        cached = self._raw_cache.get(cache_key)
+        if cached is not None:
+            self._last_details = cached[1]
+            return cached[0]
         if isinstance(self.jet, TophatJet) and self._supports_direct_kernel():
             model_result = _solve_direct_model(self, times_s, nu_hz)
         else:
             model_result = _solve_patch_model(self, times_s, nu_hz)
         self._last_details = model_result[1]
+        _remember_cache_entry(self._raw_cache, cache_key, model_result)
         return model_result[0]
 
     def _compute_details_only(self, times_s: np.ndarray) -> ModelDetails:
         times_s = np.asarray(times_s, dtype=float)
+        cache_key = _array_signature(times_s)
+        cached = self._details_cache.get(cache_key)
+        if cached is not None:
+            self._last_details = cached
+            return cached
         if isinstance(self.jet, TophatJet) and self._supports_direct_kernel():
             details = _evaluate_direct_details(self, times_s)
         else:
             details = _patch_details(self, times_s)
         self._last_details = details
+        _remember_cache_entry(self._details_cache, cache_key, details)
         return details
 
     def _supports_direct_kernel(self) -> bool:
@@ -857,6 +887,9 @@ class Model:
         self.setups.num_phi = self.setups.patch_phi
         decades = np.log10(self.setups.observer_time_max_s / self.setups.observer_time_min_s)
         self.setups.num_tobs = max(8, int(np.ceil(decades * float(t_ppd))))
+        self._last_details = None
+        self._raw_cache.clear()
+        self._details_cache.clear()
 
 
 class Fitter:
@@ -1067,6 +1100,12 @@ def _array_signature(values: np.ndarray) -> str:
     digest.update(np.asarray(array.shape, dtype=np.int64).tobytes())
     digest.update(array.view(np.uint8))
     return digest.hexdigest()
+
+
+def _remember_cache_entry(cache: dict, key, value, max_items: int = 8) -> None:
+    cache[key] = value
+    if len(cache) > max_items:
+        cache.pop(next(iter(cache)))
 
 
 def _fit_config_signature(config: FitConfig) -> str:
@@ -1991,6 +2030,11 @@ def _build_fit_config_for_patch(
         index_dyn=model.setups.index_dyn,
         index_syn_integr=model.setups.index_syn_integr,
         electron_solver=model.setups.electron_solver,
+        cooling_kernel=model.setups.cooling_kernel,
+        radiation_kernel=model.setups.radiation_kernel,
+        dynamics_kernel=model.setups.dynamics_kernel,
+        geometry_kernel=model.setups.geometry_kernel,
+        num_chi=model.setups.num_chi,
         electron_adaptive_substeps=model.setups.electron_adaptive_substeps,
         electron_substep_rtol=model.setups.electron_substep_rtol,
         electron_substep_min=model.setups.electron_substep_min,
@@ -2003,6 +2047,9 @@ def _build_fit_config_for_patch(
         eta_0=gamma0,
         epsilon_e=model.fwd_rad.eps_e,
         epsilon_b=model.fwd_rad.eps_B,
+        epsilon_b_floor=model.fwd_rad.epsilon_b_floor,
+        magnetic_decay_alpha_t=model.fwd_rad.magnetic_decay_alpha_t,
+        magnetic_decay_t0_s=model.fwd_rad.magnetic_decay_t0_s,
         p=model.fwd_rad.p,
         f_e=model.fwd_rad.xi_N,
         index_y=index_y,
@@ -2062,6 +2109,8 @@ def _make_details(
             nu_c=components.fwd.nu_c,
             nu_a=components.fwd.nu_a,
             nu_M=components.fwd.nu_M,
+            cooling_timescale_s=components.fwd.cooling_timescale_s,
+            dynamical_timescale_s=components.fwd.dynamical_timescale_s,
             gamma_e=fwd_gamma_e,
             dN_dgamma_e=fwd_dnde,
         ),
@@ -2078,6 +2127,8 @@ def _make_details(
             nu_c=components.rev.nu_c,
             nu_a=components.rev.nu_a,
             nu_M=components.rev.nu_M,
+            cooling_timescale_s=components.rev.cooling_timescale_s,
+            dynamical_timescale_s=components.rev.dynamical_timescale_s,
             gamma_e=rev_gamma_e,
             dN_dgamma_e=rev_dnde,
         ),
@@ -2552,6 +2603,9 @@ def _as_model(cfg: Any) -> Model:
         Radiation(
             eps_e=cfg.get("eps_e", cfg.get("epsilon_e", 1.0e-1)),
             eps_B=cfg.get("eps_B", cfg.get("epsilon_B", 1.0e-3)),
+            epsilon_b_floor=cfg.get("eps_B_floor", cfg.get("epsilon_B_floor")),
+            magnetic_decay_alpha_t=cfg.get("magnetic_decay_alpha_t", 0.0),
+            magnetic_decay_t0_s=cfg.get("magnetic_decay_t0_s", 1.0),
             p=cfg.get("p", 2.5),
             xi_N=cfg.get("xi_N", cfg.get("f_e", 1.0e-1)),
             ssc=cfg.get("ssc", setups.fwd_ssc),
@@ -2608,6 +2662,8 @@ def observe(
 
     spectrum_freq_hz = None
     spectrum_fnu = None
+    spectrum_redchi = None
+    spectrum_time_s = None
     if spectrum_output is not None and spectrum_output.enabled:
         spec_freqs = build_spectrum_frequency_grid(
             type('_Cfg', (), {'spectrum_output': spectrum_output})()
@@ -2615,6 +2671,14 @@ def observe(
         spec_grid = model.flux_density_grid(t_obs_s, spec_freqs)
         spectrum_freq_hz = spec_freqs
         spectrum_fnu = spec_grid.total
+        if spectrum_output.time_s is not None or len(spectrum_output.dataset_names) > 0:
+            spec_idx = select_spectrum_time_index(t_obs_s, spectrum_output.time_s)
+            spectrum_time_s = float(t_obs_s[spec_idx])
+            spectrum_redchi = compute_spectrum_redchi(
+                spectrum_fnu[:, spec_idx],
+                spectrum_freq_hz,
+                spectrum_names=spectrum_output.dataset_names or build_spectrum_dataset_names(),
+            )
 
     return _PhysicalFitResult(
         t_obs_s=t_obs_s,
@@ -2622,12 +2686,99 @@ def observe(
         bands=OUTPUT_BANDS,
         bands_flux=bands_flux,
         redchi=redchi,
+        spectrum_redchi=spectrum_redchi,
         nu_m=details.fwd.nu_m,
         nu_c=details.fwd.nu_c,
         nu_a=details.fwd.nu_a,
         rs_nu_m=rs_nu_m,
         rs_nu_c=rs_nu_c,
         rs_nu_a=rs_nu_a,
+        spectrum_time_s=spectrum_time_s,
         spectrum_freq_hz=spectrum_freq_hz,
         spectrum_fnu=spectrum_fnu,
     )
+
+
+def _build_model_from_fit_config(config: FitConfig) -> Model:
+    ssc_enabled = config.index_y != 0
+    kn_enabled = config.index_y == 1
+    reverse = getattr(config, "reverse_shock", None)
+    reverse_enabled = bool(reverse and reverse.enabled)
+
+    if config.a_star > 0.0:
+        medium = Wind(A_star=config.a_star, n0=config.d_ne)
+    else:
+        medium = ISM(n_ism=config.d_ne)
+
+    reverse_delta_t_s = 10.0
+    if reverse and reverse.delta_t_s is not None:
+        reverse_delta_t_s = float(reverse.delta_t_s)
+
+    rvs_rad = None
+    if reverse_enabled:
+        rvs_rad = Radiation(
+            eps_e=reverse.epsilon_e if reverse.epsilon_e is not None else config.epsilon_e,
+            eps_B=reverse.epsilon_b if reverse.epsilon_b is not None else config.epsilon_b,
+            p=reverse.p if reverse.p is not None else config.p,
+            xi_N=reverse.f_e if reverse.f_e is not None else config.f_e,
+            ssc=bool(reverse.include_ssc),
+            kn=kn_enabled,
+        )
+
+    return Model(
+        jet=TophatJet(E_iso=config.e_iso, Gamma0=config.eta_0, theta_j=config.opening_angle_jet, duration=reverse_delta_t_s if reverse_enabled else None),
+        medium=medium,
+        observer=Observer(z=config.z, theta_obs=config.theta_v, lumi_dist_cm=config.luminosity_distance_cm_override),
+        fwd_rad=Radiation(
+            eps_e=config.epsilon_e,
+            eps_B=config.epsilon_b,
+            epsilon_b_floor=config.epsilon_b_floor,
+            magnetic_decay_alpha_t=config.magnetic_decay_alpha_t,
+            magnetic_decay_t0_s=config.magnetic_decay_t0_s,
+            p=config.p,
+            xi_N=config.f_e,
+            ssc=ssc_enabled,
+            kn=kn_enabled,
+        ),
+        rvs_rad=rvs_rad,
+        setups=Setups(
+            z=config.z,
+            theta_obs=config.theta_v,
+            rvs_shock=reverse_enabled,
+            fwd_ssc=ssc_enabled,
+            rvs_ssc=bool(reverse.include_ssc) if reverse_enabled else False,
+            ssc_cooling=ssc_enabled,
+            kn=kn_enabled,
+            num_threads=config.num_threads,
+            num_gam_e=config.num_gam_e,
+            num_nu=config.num_nu,
+            num_r=config.num_r,
+            num_theta=config.num_theta,
+            num_phi=config.num_phi,
+            num_tobs=config.num_tobs,
+            observer_time_min_s=10 ** config.t_obs_min_log10,
+            observer_time_max_s=10 ** config.t_obs_max_log10,
+            initial_radius_cm=config.initial_radius_cm,
+            reverse_delta_t_s=reverse_delta_t_s,
+            include_cross_zone_ic=bool(reverse.include_cross_zone_ic) if reverse_enabled else False,
+            weno5=config.weno5,
+            electron_solver=config.electron_solver,
+            cooling_kernel=config.cooling_kernel,
+            radiation_kernel=config.radiation_kernel,
+            dynamics_kernel=config.dynamics_kernel,
+            geometry_kernel=config.geometry_kernel,
+            num_chi=config.num_chi,
+            electron_adaptive_substeps=config.electron_adaptive_substeps,
+            electron_substep_rtol=config.electron_substep_rtol,
+            electron_substep_min=config.electron_substep_min,
+            electron_substep_max=config.electron_substep_max,
+            index_dyn=config.index_dyn,
+            index_syn_integr=config.index_syn_integr,
+        ),
+    )
+
+
+def run_fit(config: Optional[FitConfig] = None) -> FitResult:
+    cfg = FitConfig() if config is None else config
+    model = _build_model_from_fit_config(cfg)
+    return observe(model, config=cfg, spectrum_output=cfg.spectrum_output)

@@ -1,12 +1,12 @@
 import numpy as np
 from pathlib import Path
-from scipy import interpolate
 import warnings
 
+from chi2_utils import build_model_interpolators, load_observation_table, validate_model_range
 from extinc import opt_extinction
 
 def cal_chi2_light_curve(bands_fit, model_curves, model_serial, frequency, 
-                        Rv, Ebv, zeropointflux, z, f_sys):
+                        Rv, Ebv, zeropointflux, z, f_sys, lyman_ar=0.0):
 
     data_dir = Path(__file__).parent / "data_light_curve"
     
@@ -15,13 +15,7 @@ def cal_chi2_light_curve(bands_fit, model_curves, model_serial, frequency,
     
     chi2_total = 0.0
     
-    # Pre-create interpolator (to avoid repeatedly creating in the loop)
-    model_interpolators = []
-    for i in range(len(bands_fit)):
-        interp = interpolate.interp1d(model_serial, model_curves[i, :], 
-                                    kind='linear', bounds_error=False, 
-                                    fill_value=np.nan)
-        model_interpolators.append(interp)
+    model_interpolators = build_model_interpolators(model_curves, model_serial)
     
     
     for data_file in data_dir.glob("*"):
@@ -33,9 +27,7 @@ def cal_chi2_light_curve(bands_fit, model_curves, model_serial, frequency,
             continue
             
         try:
-            table = np.loadtxt(data_file)
-            if table.ndim == 1:
-                table = table.reshape(1, -1)
+            table = load_observation_table(data_file)
             
             range_data, flux_data, flux_err = _parse_observation_data(table, name)
             
@@ -43,11 +35,11 @@ def cal_chi2_light_curve(bands_fit, model_curves, model_serial, frequency,
             if name.startswith('opt'):
                 flux_data, flux_err = opt_extinction(
                     flux_data, flux_err, frequency[band_idx], Rv, Ebv, 
-                    zeropointflux[band_idx])
+                    zeropointflux[band_idx], redshift=z, lyman_ar=lyman_ar)
             
             range_data = _convert_time_units(range_data, name)
             
-            _validate_model_range(range_data, model_serial)
+            validate_model_range(range_data, model_serial)
             
             fit_flux = model_interpolators[band_idx](range_data)
             if np.any(np.isnan(fit_flux)):
@@ -91,11 +83,6 @@ def _convert_time_units(range_data, name):
     # Observational light-curve time columns in this project are stored in days.
     # The model time grid is in seconds.
     return range_data * 86400
-
-def _validate_model_range(range_data, model_serial):
-    """Verify whether the model scope covers the data"""
-    if np.min(range_data) < model_serial[0] or np.max(range_data) > model_serial[-1]:
-        raise ValueError('The model curve cannot fully cover the data range.')
 
 def _get_uncertainties(flux_data, flux_err, fit_flux, n_cols):
     return np.where(fit_flux > flux_data, flux_err, -flux_err) if n_cols == 6 else flux_err

@@ -65,8 +65,10 @@ class FitResult:
     rs_nu_m: Optional[np.ndarray] = None
     rs_nu_c: Optional[np.ndarray] = None
     rs_nu_a: Optional[np.ndarray] = None
+    spectrum_time_s: Optional[float] = None
     spectrum_freq_hz: Optional[np.ndarray] = None
     spectrum_fnu: Optional[np.ndarray] = None
+    spectrum_redchi: Optional[float] = None
 
 
 __all__ = [
@@ -83,4 +85,3 @@ __all__ = [
     "SimulationSetup",
     "FitResult",
 ]
-
