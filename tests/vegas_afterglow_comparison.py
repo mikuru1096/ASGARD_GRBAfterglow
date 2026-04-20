@@ -77,12 +77,18 @@ REVERSE_DURATION_S = 10.0
 STRONG_IC_EPS_E = 3.0e-1
 STRONG_IC_EPS_B = 1.0e-5
 STRONG_IC_XI = 1.0e-1
+DECAY_ALPHA_T = -0.5
+DECAY_T0_S = 1.0e2
+DECAY_EPSB_FLOOR_FACTOR = 1.0e-3
 FWD_P = 2.3
 RVS_P = 2.4
 BASIC_TIMES = np.logspace(0.0, 8.0, 160)
 BASIC_BANDS = np.array([1.0e9, 1.0e14, 1.0e17], dtype=float)
 BASIC_FREQS = np.logspace(5.0, 29.0, 160)
 BASIC_EPOCHS = np.array([1.0e2, 1.0e3, 1.0e4, 1.0e5, 1.0e6, 1.0e7, 1.0e8], dtype=float)
+MAGNETIC_DECAY_BANDS = np.array([1.0e9, 1.0e12, 1.0e14, 1.0e17, 1.0e20, 1.0e23, 1.0e16 * constants.para_ev2hz], dtype=float)
+MAGNETIC_DECAY_FREQS = np.logspace(8.0, np.log10(1.0e16 * constants.para_ev2hz), 320)
+MAGNETIC_DECAY_EPOCHS = np.array([1.0e2, 1.0e4, 1.0e6, 1.0e8], dtype=float)
 OFFAXIS_SKY_TIMES = np.logspace(5.0, 8.0, 3)
 SINGLE_SKY_TIME = np.array([1.0e6], dtype=float)
 SINGLE_SKY_NPIXEL = 48
@@ -99,9 +105,10 @@ SPEED_SKY_NPIXEL = 20
 SPECTRUM_COMPARE_FREQS = np.logspace(8.0, 29.0, 240)
 SPECTRUM_COMPARE_NUM_NU = 81
 ELECTRON_COMPARE_TIMES = np.array([1.0e2, 3.0e2, 1.0e3, 1.0e4, 1.0e5, 1.0e6, 1.0e7], dtype=float)
-ELECTRON_COMPARE_SOLVERS = ("fullhide", "slc1", "charint")
-ELECTRON_COMPARE_NUM_GAM_E = {"fullhide": 81, "slc1": 81, "charint": 41}
-ELECTRON_COMPARE_LINESTYLES = {"fullhide": "-", "slc1": "--", "charint": "-."}
+ELECTRON_COMPARE_SOLVERS = ("fullhide_1d", "fullhide_2d", "slc1_1d", "charint_1d")
+ELECTRON_COMPARE_NUM_GAM_E = {"fullhide_1d": 81, "fullhide_2d": 81, "slc1_1d": 81, "charint_1d": 41}
+ELECTRON_COMPARE_NUM_CHI = {"fullhide_1d": None, "fullhide_2d": 8, "slc1_1d": None, "charint_1d": None}
+ELECTRON_COMPARE_LINESTYLES = {"fullhide_1d": "-", "fullhide_2d": ":", "slc1_1d": "--", "charint_1d": "-."}
 
 
 def _save(fig, path: Path) -> Path:
@@ -235,8 +242,12 @@ def _build_asgard_model(
     include_ssc: bool = False,
     theta_obs: float = 0.0,
     num_nu: int = 49,
-    electron_solver: str = "charint",
+    electron_solver: str = "charint_1d",
     num_gam_e: int | None = None,
+    num_chi: int | None = None,
+    magnetic_decay_alpha_t: float = 0.0,
+    magnetic_decay_t0_s: float = 1.0,
+    epsilon_b_floor: float | None = None,
 ) -> Model:
     medium = ISM(n_ism=1.0)
     jet = TophatJet(theta_c=0.1, E_iso=1.0e52, Gamma0=300.0, duration=REVERSE_DURATION_S)
@@ -244,6 +255,9 @@ def _build_asgard_model(
     fwd_rad = Radiation(
         eps_e=STRONG_IC_EPS_E,
         eps_B=STRONG_IC_EPS_B,
+        epsilon_b_floor=epsilon_b_floor,
+        magnetic_decay_alpha_t=magnetic_decay_alpha_t,
+        magnetic_decay_t0_s=magnetic_decay_t0_s,
         p=FWD_P,
         xi_N=STRONG_IC_XI,
         ssc=include_ssc,
@@ -257,6 +271,7 @@ def _build_asgard_model(
         num_tobs=48,
         electron_adaptive_substeps=False,
         electron_solver=electron_solver,
+        num_chi=num_chi,
     )
     return Model(
         jet=jet,
@@ -266,6 +281,9 @@ def _build_asgard_model(
         rvs_rad=Radiation(
             eps_e=STRONG_IC_EPS_E,
             eps_B=STRONG_IC_EPS_B,
+            epsilon_b_floor=epsilon_b_floor,
+            magnetic_decay_alpha_t=magnetic_decay_alpha_t,
+            magnetic_decay_t0_s=magnetic_decay_t0_s,
             p=RVS_P,
             xi_N=STRONG_IC_XI,
             ssc=include_ssc,
@@ -919,20 +937,118 @@ def _build_spectrum_compare(*, quantity: str = "sed") -> Path:
     return _save(fig, OUTPUT_DIR / "compare_spectrum.png")
 
 
-def _build_electron_spectrum_compare() -> Path:
-    """Plot ASGARD electron-spectrum evolution for multiple solvers and times."""
-    fig, ax = plt.subplots(1, 1, figsize=(9.2, 6.0), dpi=200)
-    colors = plt.cm.viridis(np.linspace(0.08, 0.92, ELECTRON_COMPARE_TIMES.size))
+def _build_solver_sed_compare() -> Path:
+    times = SPEED_SPEC_TIMES
+    freqs_hz = np.logspace(np.log10(SPECTRUM_COMPARE_FREQS[0]), np.log10(1.0e16 * constants.para_ev2hz), 280)
+    energy_ev = freqs_hz / constants.para_ev2hz
+
+    vegas_sed = np.asarray(_build_vegas_model(include_ssc=True).flux_density_grid(times, freqs_hz).total, dtype=float)
+    vegas_sed = vegas_sed * freqs_hz[:, None]
+
+    asgard_sed: dict[str, np.ndarray] = {}
+    for solver in ELECTRON_COMPARE_SOLVERS:
+        model_asgard = _build_asgard_model(
+            include_ssc=True,
+            num_nu=SPECTRUM_COMPARE_NUM_NU,
+            electron_solver=solver,
+            num_gam_e=ELECTRON_COMPARE_NUM_GAM_E[solver],
+            num_chi=ELECTRON_COMPARE_NUM_CHI[solver],
+        )
+        sed = np.asarray(model_asgard.flux_density_grid(times, freqs_hz).total, dtype=float)
+        asgard_sed[solver] = sed * freqs_hz[:, None]
+
+    spec_peak = float(max(np.nanmax(vegas_sed), max(np.nanmax(sed) for sed in asgard_sed.values())))
+    late_spec_peak = float(
+        max(
+            np.nanmax(vegas_sed[:, -1]),
+            max(np.nanmax(sed[:, -1]) for sed in asgard_sed.values()),
+        )
+    )
+    colors = plt.cm.viridis(np.linspace(0.0, 1.0, len(times)))
+    fig, ax = plt.subplots(1, 1, figsize=(7.6, 5.2), dpi=200)
     time_handles: list[Line2D] = []
     solver_handles: list[Line2D] = []
-    for color, t_obs in zip(colors, ELECTRON_COMPARE_TIMES):
-        time_handles.append(Line2D([0], [0], color=color, lw=1.4, ls="-", label=fr"$t_{{\rm obs}}\approx {t_obs:.1e}\,\rm s$"))
+
+    for i_time, t_obs in enumerate(times):
+        label = _label(t_obs, "s")
+        time_handles.append(Line2D([0], [0], color=colors[i_time], lw=1.8, ls="-", alpha=0.9, label=f"t={label}"))
+        ax.loglog(
+            energy_ev,
+            np.asarray(vegas_sed[:, i_time], dtype=float),
+            color=colors[i_time],
+            ls="--",
+            lw=1.2,
+            alpha=VEGAS_ALPHA,
+        )
+        for solver in ELECTRON_COMPARE_SOLVERS:
+            ax.loglog(
+                energy_ev,
+                np.asarray(asgard_sed[solver][:, i_time], dtype=float),
+                color=colors[i_time],
+                ls=ELECTRON_COMPARE_LINESTYLES[solver],
+                lw=1.6,
+                alpha=ASGARD_ALPHA,
+            )
+
+    for solver in ELECTRON_COMPARE_SOLVERS:
+        solver_handles.append(
+            Line2D([0], [0], color="black", lw=1.6, ls=ELECTRON_COMPARE_LINESTYLES[solver], label=f"ASGARD {solver}")
+        )
+    solver_handles.append(
+        Line2D([0], [0], color="black", lw=1.2, ls="--", label="VegasAfterglow")
+    )
+
+    ax.set_xlabel("Energy [eV]")
+    ax.set_ylabel(r"$\nu F_\nu$ (erg/cm$^2$/s)")
+    ax.set_title("SED Comparison")
+    ax.grid(**GRID_STYLE)
+    if spec_peak > 0.0:
+        ax.set_ylim(late_spec_peak * 1.0e-5, spec_peak * 2.0)
+    ax.set_xlim(float(energy_ev[0]), 1.0e16)
+    legend_times = ax.legend(
+        handles=time_handles,
+        fontsize=7,
+        ncol=1,
+        loc="upper left",
+        bbox_to_anchor=(1.01, 1.0),
+        borderaxespad=0.0,
+        title="Epochs",
+        frameon=False,
+    )
+    ax.add_artist(legend_times)
+    ax.legend(
+        handles=solver_handles,
+        fontsize=7,
+        ncol=1,
+        loc="upper left",
+        bbox_to_anchor=(1.01, 0.55),
+        borderaxespad=0.0,
+        title="Curves",
+        frameon=False,
+    )
+    return _save(fig, OUTPUT_DIR / "compare_sed_three_solvers_vs_vegas.png")
+
+
+def _build_electron_spectrum_compare(*, magnetic_decay: bool = False) -> Path:
+    """Plot ASGARD electron-spectrum evolution for multiple solvers and times."""
+    n_times = ELECTRON_COMPARE_TIMES.size
+    n_cols = 4
+    n_rows = int(np.ceil(n_times / n_cols))
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(14.2, 7.2), dpi=200, sharex=True, sharey=True)
+    axes_flat = np.asarray(axes, dtype=object).ravel()
+    solver_colors = {
+        "fullhide_1d": "#111111",
+        "fullhide_2d": "#0072B2",
+        "slc1_1d": "#D55E00",
+        "charint_1d": "#009E73",
+    }
+    solver_handles: list[Line2D] = []
     for solver in ELECTRON_COMPARE_SOLVERS:
         solver_handles.append(
             Line2D(
                 [0],
                 [0],
-                color="black",
+                color=solver_colors[solver],
                 lw=1.4,
                 ls=ELECTRON_COMPARE_LINESTYLES[solver],
                 label=solver,
@@ -940,9 +1056,18 @@ def _build_electron_spectrum_compare() -> Path:
         )
 
     for solver in ELECTRON_COMPARE_SOLVERS:
+        decay_kwargs = {}
+        if magnetic_decay:
+            decay_kwargs = dict(
+                magnetic_decay_alpha_t=DECAY_ALPHA_T,
+                magnetic_decay_t0_s=DECAY_T0_S,
+                epsilon_b_floor=STRONG_IC_EPS_B * DECAY_EPSB_FLOOR_FACTOR,
+            )
         model_asgard = _build_asgard_model(
             electron_solver=solver,
             num_gam_e=ELECTRON_COMPARE_NUM_GAM_E[solver],
+            num_chi=ELECTRON_COMPARE_NUM_CHI[solver],
+            **decay_kwargs,
         )
         details = model_asgard.details(float(ELECTRON_COMPARE_TIMES[0]), float(ELECTRON_COMPARE_TIMES[-1]))
         if details.fwd.gamma_e is None or details.fwd.dN_dgamma_e is None:
@@ -950,7 +1075,8 @@ def _build_electron_spectrum_compare() -> Path:
         gamma_e_asgard = np.asarray(details.fwd.gamma_e, dtype=float)
         dnde_asgard = np.asarray(details.fwd.dN_dgamma_e, dtype=float)
         characteristic_times = np.asarray(details.fwd.t_obs, dtype=float)
-        for color, t_obs in zip(colors, ELECTRON_COMPARE_TIMES):
+        for i_panel, t_obs in enumerate(ELECTRON_COMPARE_TIMES):
+            ax = axes_flat[i_panel]
             i_time = int(np.argmin(np.abs(characteristic_times - t_obs)))
             asgard_slice = dnde_asgard[:, i_time]
             mask_a = (
@@ -963,23 +1089,146 @@ def _build_electron_spectrum_compare() -> Path:
                 ax.loglog(
                     gamma_e_asgard[mask_a],
                     asgard_slice[mask_a],
-                    color=color,
+                    color=solver_colors[solver],
                     lw=1.05,
                     alpha=0.9,
                     ls=ELECTRON_COMPARE_LINESTYLES[solver],
                 )
+                ax.set_title(fr"$t_{{\rm obs}}\approx {t_obs:.1e}\,\rm s$" "\n" fr"shell $t={characteristic_times[i_time]:.2e}\,\rm s$")
 
-    ax.set_xlabel(r"Electron Lorentz factor $\gamma_e$")
-    ax.set_ylabel(r"$dN_e/d\gamma_e$")
-    ax.set_title("ASGARD Electron-Spectrum Evolution")
-    ax.set_ylim(bottom=1.0e15)
-    if ax.lines:
-        legend_times = ax.legend(handles=time_handles, fontsize=8.5, loc="lower left", title="Time")
-        ax.add_artist(legend_times)
-        ax.legend(handles=solver_handles, fontsize=8.5, loc="upper right", title="Solver")
-    ax.grid(**GRID_STYLE)
+    for ax in axes_flat[n_times:]:
+        ax.set_visible(False)
+    for ax in axes_flat[:n_times]:
+        ax.set_ylim(bottom=1.0e15)
+        ax.grid(**GRID_STYLE)
+    for ax in axes_flat[(n_rows - 1) * n_cols:n_times]:
+        ax.set_xlabel(r"Electron Lorentz factor $\gamma_e$")
+    for ax in axes_flat[::n_cols]:
+        ax.set_ylabel(r"$dN_e/d\gamma_e$")
+    axes_flat[0].legend(handles=solver_handles, fontsize=8.0, loc="lower left", title="Solver")
+    if magnetic_decay:
+        fig.suptitle(
+            rf"ASGARD Electron-Spectrum Evolution With Decaying Magnetic Field "
+            rf"($\alpha_t={DECAY_ALPHA_T:.1f}$)",
+            y=0.995,
+        )
+    else:
+        fig.suptitle("ASGARD Electron-Spectrum Evolution", y=0.995)
+    fig.tight_layout()
 
-    return _save(fig, OUTPUT_DIR / "compare_electron_spectrum.png")
+    filename = "compare_electron_spectrum_magnetic_decay.png" if magnetic_decay else "compare_electron_spectrum.png"
+    return _save(fig, OUTPUT_DIR / filename)
+
+
+def _build_magnetic_decay_compare() -> Path:
+    model_base = _build_asgard_model(include_ssc=True, electron_solver="fullhide_2d", num_gam_e=81, num_chi=8)
+    model_decay = _build_asgard_model(
+        include_ssc=True,
+        electron_solver="fullhide_2d",
+        num_gam_e=81,
+        num_chi=8,
+        magnetic_decay_alpha_t=DECAY_ALPHA_T,
+        magnetic_decay_t0_s=DECAY_T0_S,
+        epsilon_b_floor=STRONG_IC_EPS_B * DECAY_EPSB_FLOOR_FACTOR,
+    )
+    times = BASIC_TIMES
+    bands = MAGNETIC_DECAY_BANDS
+    spectrum_freqs = MAGNETIC_DECAY_FREQS
+    spectrum_epochs = MAGNETIC_DECAY_EPOCHS
+    details_base = model_base.details(1.0e2, 1.0e8)
+    details_decay = model_decay.details(1.0e2, 1.0e8)
+    lc_base = np.asarray(model_base.flux_density_grid(times, bands).total, dtype=float)
+    lc_decay = np.asarray(model_decay.flux_density_grid(times, bands).total, dtype=float)
+    spec_base = np.asarray(model_base.flux_density_grid(spectrum_epochs, spectrum_freqs).total, dtype=float) * spectrum_freqs[:, None]
+    spec_decay = np.asarray(model_decay.flux_density_grid(spectrum_epochs, spectrum_freqs).total, dtype=float) * spectrum_freqs[:, None]
+
+    fig, axes = plt.subplots(2, 2, figsize=(12.6, 7.0), dpi=200, sharex="col")
+    colors = plt.cm.tab10(np.linspace(0, 1, bands.size))
+    for i, nu in enumerate(bands):
+        label = _label(nu, "Hz")
+        axes[0, 0].loglog(times, lc_base[i, :], color=colors[i], lw=1.8, alpha=ASGARD_ALPHA, label=f"baseline {label}")
+        axes[0, 0].loglog(times, lc_decay[i, :], color=colors[i], lw=1.4, ls="--", alpha=0.85, label=f"decay {label}")
+        ratio = np.divide(lc_decay[i, :], lc_base[i, :], out=np.full_like(times, np.nan, dtype=float), where=lc_base[i, :] > 0.0)
+        mask = np.isfinite(ratio) & (ratio > 0.0)
+        if np.any(mask):
+            axes[1, 0].semilogx(times[mask], ratio[mask], color=colors[i], lw=1.5, label=label)
+    axes[0, 0].set_ylabel(r"Flux Density (erg/cm$^2$/s/Hz)")
+    axes[0, 0].set_title("ASGARD 2D Magnetic-Decay Light Curves")
+    axes[0, 0].grid(**GRID_STYLE)
+    axes[0, 0].legend(fontsize=5.8, ncol=2)
+    axes[1, 0].axhline(1.0, color="k", ls=":", lw=1.0)
+    axes[1, 0].set_xlabel("Time [s]")
+    axes[1, 0].set_ylabel("decay / baseline")
+    axes[1, 0].grid(**GRID_STYLE)
+    axes[1, 0].legend(fontsize=7, ncol=1)
+
+    time_base = np.asarray(details_base.fwd.t_obs, dtype=float)
+    time_decay = np.asarray(details_decay.fwd.t_obs, dtype=float)
+    freq_sets = [
+        (np.asarray(details_base.fwd.nu_m, dtype=float), np.asarray(details_decay.fwd.nu_m, dtype=float), r"$\nu_m$", "C0"),
+        (np.asarray(details_base.fwd.nu_c, dtype=float), np.asarray(details_decay.fwd.nu_c, dtype=float), r"$\nu_c$", "C1"),
+        (np.asarray(details_base.fwd.nu_a, dtype=float), np.asarray(details_decay.fwd.nu_a, dtype=float), r"$\nu_a$", "C2"),
+    ]
+    for base_arr, decay_arr, label, color in freq_sets:
+        for arr, tt, ls, alpha, prefix in [
+            (base_arr, time_base, "-", ASGARD_ALPHA, "baseline"),
+            (decay_arr, time_decay, "--", 0.85, "decay"),
+        ]:
+            mask = np.isfinite(tt) & np.isfinite(arr) & (tt > 0.0) & (arr > 0.0)
+            if np.any(mask):
+                axes[0, 1].loglog(tt[mask], arr[mask], color=color, lw=1.5, ls=ls, alpha=alpha, label=f"{prefix} {label}")
+        decay_interp = _safe_log_interp(time_base, time_decay, decay_arr)
+        ratio = np.divide(decay_interp, base_arr, out=np.full_like(base_arr, np.nan, dtype=float), where=base_arr > 0.0)
+        mask = np.isfinite(time_base) & np.isfinite(ratio) & (time_base > 0.0) & (ratio > 0.0)
+        if np.any(mask):
+            axes[1, 1].semilogx(time_base[mask], ratio[mask], color=color, lw=1.5, label=label)
+    axes[0, 1].set_ylabel("Frequency [Hz]")
+    axes[0, 1].set_title(
+        rf"$\alpha_t={DECAY_ALPHA_T:.1f},\ t_0'={DECAY_T0_S:.1e}\,$s, "
+        rf"$\epsilon_{{B,\rm floor}}/\epsilon_{{B,+}}={DECAY_EPSB_FLOOR_FACTOR:.1e}$"
+    )
+    axes[0, 1].grid(**GRID_STYLE)
+    axes[0, 1].legend(fontsize=6.5, ncol=2)
+    axes[1, 1].axhline(1.0, color="k", ls=":", lw=1.0)
+    axes[1, 1].set_xlabel("Time [s]")
+    axes[1, 1].set_ylabel("decay / baseline")
+    axes[1, 1].grid(**GRID_STYLE)
+    axes[1, 1].legend(fontsize=7)
+    plt.tight_layout()
+    lc_path = _save(fig, OUTPUT_DIR / "compare_magnetic_decay_2d.png")
+
+    fig, axes = plt.subplots(2, 1, figsize=(8.2, 7.0), dpi=200, sharex=True, height_ratios=[3.0, 1.25])
+    colors = plt.cm.viridis(np.linspace(0.1, 0.9, spectrum_epochs.size))
+    energy_ev = spectrum_freqs / constants.para_ev2hz
+    spec_peak = float(np.nanmax([np.nanmax(spec_base), np.nanmax(spec_decay)]))
+    for i_epoch, (color, t_obs) in enumerate(zip(colors, spectrum_epochs)):
+        label = fr"$t={t_obs:.0e}\,$s"
+        axes[0].loglog(energy_ev, spec_base[:, i_epoch], color=color, lw=1.7, alpha=ASGARD_ALPHA, label=f"baseline {label}")
+        axes[0].loglog(energy_ev, spec_decay[:, i_epoch], color=color, lw=1.4, ls="--", alpha=0.88, label=f"decay {label}")
+        ratio = np.divide(
+            spec_decay[:, i_epoch],
+            spec_base[:, i_epoch],
+            out=np.full_like(spectrum_freqs, np.nan, dtype=float),
+            where=spec_base[:, i_epoch] > 0.0,
+        )
+        mask = np.isfinite(ratio) & (ratio > 0.0)
+        if np.any(mask):
+            axes[1].semilogx(energy_ev[mask], ratio[mask], color=color, lw=1.4, label=label)
+    axes[0].set_ylabel(r"$\nu F_\nu$ (erg/cm$^2$/s)")
+    axes[0].set_title("ASGARD 2D Magnetic-Decay Broadband Spectra")
+    if np.isfinite(spec_peak) and spec_peak > 0.0:
+        axes[0].set_ylim(bottom=spec_peak * 1.0e-15)
+    axes[0].grid(**GRID_STYLE)
+    axes[0].legend(fontsize=6.2, ncol=2)
+    axes[1].axhline(1.0, color="k", ls=":", lw=1.0)
+    axes[1].set_xlabel("Photon energy [eV]")
+    axes[1].set_ylabel("decay / baseline")
+    axes[1].grid(**GRID_STYLE)
+    axes[1].legend(fontsize=7, ncol=2)
+    axes[0].set_xlim(energy_ev[0], energy_ev[-1])
+    plt.tight_layout()
+    _save(fig, OUTPUT_DIR / "compare_magnetic_decay_2d_broadband_spectrum.png")
+    return lc_path
 
 
 def main(*, spectrum_quantity: str = "sed") -> None:
@@ -989,7 +1238,9 @@ def main(*, spectrum_quantity: str = "sed") -> None:
         ("reverse_shock_lc", _build_reverse_shock_lc),
         ("ssc_lc", _build_ssc_lc),
         ("spectrum_compare", lambda: _build_spectrum_compare(quantity=spectrum_quantity)),
+        ("solver_sed_compare", _build_solver_sed_compare),
         ("electron_spectrum", _build_electron_spectrum_compare),
+        ("magnetic_decay_2d", _build_magnetic_decay_compare),
         ("shock_quantities", _build_shock_quantities),
         ("photon_quantities", _build_photon_quantities),
         ("sky_image_single", _build_sky_single),

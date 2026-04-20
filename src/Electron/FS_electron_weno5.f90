@@ -1,4 +1,4 @@
-subroutine fs_electron_weno5(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e,index_Y,n_threads, &
+subroutine fs_electron_weno5_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e,index_Y,n_threads, &
                                 gam_e,dN_gam_e,P_syn,Seed_syn)
     !$ use omp_lib
     use constants

@@ -132,10 +132,17 @@ def solve_state_from_setup(
     dynamics = _timed_call(timings, dynamics_label, solve_dynamics, setup.boundary, config)
     solver_name = config.electron_solver.lower()
     electron_label_map = {
-        "fullhide": "Electron.fs_electron_fullhide",
-        "t2g1": "Electron.fs_electron_t2g1",
-        "slc1": "Electron.fs_electron_slc1",
-        "weno5": "Electron.fs_electron_weno5",
+        "fullhide": "Electron.fs_electron_fullhide_1d",
+        "fullhide_1d": "Electron.fs_electron_fullhide_1d",
+        "fullhide_2d": "Electron.fs_electron_fullhide_2d",
+        "t2g1": "Electron.fs_electron_t2g1_1d",
+        "t2g1_1d": "Electron.fs_electron_t2g1_1d",
+        "slc1": "Electron.fs_electron_slc1_1d",
+        "slc1_1d": "Electron.fs_electron_slc1_1d",
+        "charint": "Electron.fs_electron_charint_1d",
+        "charint_1d": "Electron.fs_electron_charint_1d",
+        "weno5": "Electron.fs_electron_weno5_1d",
+        "weno5_1d": "Electron.fs_electron_weno5_1d",
     }
     electron_label = electron_label_map.get(solver_name, f"Electron.{solver_name}")
     electron = _timed_call(timings, electron_label, solve_electron, setup.boundary, dynamics, setup.seed_frequency_hz, config)
@@ -529,6 +536,8 @@ def _build_components(
             nu_c=electron.nu_c,
             nu_a=electron.nu_a,
             nu_M=_compute_maximum_synchrotron_frequency(dynamics.r_gamma, dynamics.radius, config),
+            cooling_timescale_s=electron.cooling_timescale_s,
+            dynamical_timescale_s=electron.dynamical_timescale_s,
         ),
         rev=rev_details,
     )

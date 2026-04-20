@@ -1,4 +1,4 @@
-subroutine fs_electron_slc1(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads, &
+subroutine fs_electron_slc1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads, &
                             gam_e,dN_gam_e,P_syn,Seed_syn,V_m,V_c,V_a)
     !$ use omp_lib
     use constants
@@ -121,4 +121,4 @@ subroutine fs_electron_slc1(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_
     end do
 
     deallocate(dEl,dEL_mean,dEL_mean_base,dN_x,dN_step,dF1,x_edge,gam_e_rad,dN_gam_e_rad)
-end subroutine fs_electron_slc1
+end subroutine fs_electron_slc1_1d

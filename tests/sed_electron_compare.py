@@ -23,12 +23,23 @@ OUTPUT_PNG = OUTPUT_DIR / "spectrum_compare.png"
 OUTPUT_PDF = OUTPUT_DIR / "spectrum_compare.pdf"
 
 MODE = "high" if "--high" in sys.argv else "quick"
-SOLVERS = ("fullhide", "slc1", "charint")
+SOLVERS = ("fullhide_1d", "fullhide_2d", "slc1_1d", "charint_1d")
 MEDIA = ("ism", "wind")
 TIMES = np.array([1.0e3, 1.0e5, 1.0e7], dtype=float)
 FREQS = np.logspace(7.0, 30.0, 64 if MODE == "quick" else 220)
 ELECTRON_TARGET_GAMMA = np.logspace(np.log10(3.0), 8.0, 80 if MODE == "quick" else 240)
-NUM_GAM_BY_SOLVER = {"fullhide": 81 if MODE == "quick" else 121, "slc1": 81 if MODE == "quick" else 121, "charint": 81 if MODE == "quick" else 121}
+NUM_GAM_BY_SOLVER = {
+    "fullhide_1d": 81 if MODE == "quick" else 121,
+    "fullhide_2d": 81 if MODE == "quick" else 121,
+    "slc1_1d": 81 if MODE == "quick" else 121,
+    "charint_1d": 81 if MODE == "quick" else 121,
+}
+NUM_CHI_BY_SOLVER = {
+    "fullhide_1d": None,
+    "fullhide_2d": 8 if MODE == "quick" else 16,
+    "slc1_1d": None,
+    "charint_1d": None,
+}
 IC_EPSILON_E = 0.2
 IC_EPSILON_B = 1.0e-5
 IC_P = 2.3
@@ -69,6 +80,7 @@ def _build_model(solver: str, medium_name: str) -> Model:
             num_r=80 if MODE == "quick" else 160,
             num_theta=80 if MODE == "quick" else 160,
             num_tobs=48 if MODE == "quick" else 200,
+            num_chi=NUM_CHI_BY_SOLVER[solver],
             electron_adaptive_substeps=False,
         ),
     )
@@ -166,7 +178,7 @@ def _collect_compare_data() -> dict[str, dict[str, np.ndarray]]:
 def _plot_compare(data: dict[str, dict[str, np.ndarray | dict[str, np.ndarray]]]) -> None:
     plt.rcParams.update(PLOT_STYLE)
     colors = {1.0e3: "#1f77b4", 1.0e5: "#ff7f0e", 1.0e7: "#2ca02c"}
-    linestyles = {"fullhide": "-", "slc1": "--", "charint": "-."}
+    linestyles = {"fullhide_1d": "-", "fullhide_2d": ":", "slc1_1d": "--", "charint_1d": "-."}
 
     fig, axes = plt.subplots(
         2,

@@ -3,7 +3,7 @@
 !****************************************************************************************
 !******************************* main program *******************************************
 !****************************************************************************************
-subroutine fs_electron_fullhide(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads, &
+subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads, &
                                 adaptive_substeps,substep_rtol,substep_min,substep_max,gam_e,dN_gam_e,P_syn,Seed_syn,V_m,V_c,V_a)
     !$ use omp_lib
     use constants
@@ -18,8 +18,12 @@ subroutine fs_electron_fullhide(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,
     
     real(8),allocatable,dimension (:) :: dEl,dEL_mean,principal,x,up,dN_x,temp1,temp2,temp3, &
                                          gam_e_rad,dN_gam_e_rad,dN_full,dN_half,dN_half2,dF1,dEL_mean_base,dEL_mean_step
-    logical :: is_uniform_density
-    integer :: Num_gam_rad
+    logical :: is_uniform_density,budget_diag_enabled
+    integer :: Num_gam_rad,src_lo,src_hi,active_hi
+    integer :: env_len,env_status
+    character(len=32) :: diag_env
+    real(8) :: shell_peak,support_floor,max_xi_coeff,dDR_xi,ln10
+    real(8) :: n_before_step,n_after_step,inj_step,rel_loss_xi_max
     allocate (dEl(Num_gam_e),dEL_mean(Num_gam_e-1),principal(Num_gam_e),x(Num_gam_e), &
               up(Num_gam_e-1),dN_x(Num_gam_e),temp1(Num_gam_e-1),temp2(Num_gam_e), &
               temp3(Num_gam_e-1),gam_e_rad(Num_gam_e),dN_gam_e_rad(Num_gam_e),dN_full(Num_gam_e), &
@@ -65,12 +69,21 @@ subroutine fs_electron_fullhide(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,
     !*******************Part 2: To calculate the electron distribution**********************************************
     dN_x=dN_gam_e(:,1)*gam_e*dlog(ten)
     d_x=dlog10(gam_e(2)/gam_e(1))
+    ln10=dlog(ten)
     is_uniform_density=(A_star <= zero .and. f_jump == one)
+    budget_diag_enabled=.false.
+    diag_env=''
+    call get_environment_variable('ASGARD_DIAG_1D_BUDGET',diag_env,length=env_len,status=env_status)
+    if (env_status == 0 .and. env_len > 0) then
+        if (diag_env(1:1) /= '0') budget_diag_enabled=.true.
+    end if
+    rel_loss_xi_max=zero
 !    factor_adv=Para_sigmaT/(6.0d0*pi*Para_m_energy)
 
     do I_tobs=2,Num_R
         R_loc=R(I_tobs-1)
         R_Gamma_loc=(R_Gamma(I_tobs)+R_Gamma(I_tobs-1))/two
+        beta_Gam=dsqrt(max(zero,one-one/R_Gamma_loc**2))
         call electron_external_density(A_star,dNe_ISM,R_loc,R0,R_tr,f_jump,f_wide,1,dNe)
 
         DB=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma_loc*(R_Gamma_loc-one)))
@@ -81,14 +94,8 @@ subroutine fs_electron_fullhide(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,
         Gam_e_c=7.7d8*(one+z)/R_Gamma_loc/DB**2/R_Tobs(I_tobs)
         dNe_shell=dNe
 
-        beta_Gam=sqrt(one-one/R_Gamma_loc**2)
-        f_r=(1.35d-19)/beta_Gam/R_Gamma_loc*DB**2/pi
-        dDR=0.1/(f_r*Gam_e_max+1.333/(R(I_tobs)+R(I_tobs-1)))
-        !***********************[Here we have presented the choice on Delta_r]******************************************
         dDD=R(I_tobs)-R(I_tobs-1)
-        L1=max(100,min(1000,Int(dDD/dDR)))
-        dDR=dDD/L1
-        CFL=dDR/d_x
+        dDR=dDD
         dN_x=dN_gam_e(:,I_tobs-1)*gam_e*dlog(ten)
         call electron_prepare_radiation_spectrum(Num_gam_e,gam_e,dN_gam_e(:,I_tobs-1), &
                                                  Num_gam_rad,gam_e_rad,dN_gam_e_rad)
@@ -122,8 +129,25 @@ subroutine fs_electron_fullhide(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,
 
         call electron_loss_mean(Num_gam_e,dEl,dEL_mean)
         dEL_mean_base=dEL_mean
+        call electron_source_bounds(Num_gam_e,gam_e,Gam_e_m,Gam_e_max,src_lo,src_hi)
+        shell_peak=maxval(dN_x)
+        support_floor=1d-12*shell_peak
+        active_hi=max(2,src_hi)
+        do I_gam_e=Num_gam_e,2,-1
+            if (dN_x(I_gam_e) > support_floor) then
+                active_hi=max(active_hi,I_gam_e)
+                exit
+            end if
+        end do
+        max_xi_coeff=maxval(dabs(dEL_mean(1:active_hi-1)+one/R_loc/ln10))
+        dDR_xi=huge(one)
+        if (max_xi_coeff > zero) dDR_xi=0.4d0*d_x/max_xi_coeff
 
         if (adaptive_substeps == 0) then
+            dDR=min(dDD,dDR_xi)
+            L1=max(1,ceiling(dDD/max(dDR,tiny(one))))
+            dDR=dDD/dble(L1)
+            CFL=dDR/d_x
             do L=1,L1
                 R_loc=R_loc+dDR
                 
@@ -137,6 +161,10 @@ subroutine fs_electron_fullhide(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,
                 Gam_e_m_p_step=(one-p)/(Gam_e_max_step**(one-p)-Gam_e_m_step**(one-p))
                 call electron_injection_prefactor(R_loc,dDR,dNe,f_e,Gam_e_m_p_step,Q)
                 call electron_build_source_term_exp_cutoff(Num_gam_e,gam_e,Gam_e_m_step,Gam_e_max_step,Q,p,dF1)
+                if (budget_diag_enabled) then
+                    n_before_step=sum(dN_x)*d_x
+                    inj_step=dDR*sum(dF1)*d_x
+                end if
                 if (dNe_shell > zero) then
                     dEL_mean_step=dEL_mean_base*(dNe/dNe_shell)
                 else
@@ -149,6 +177,13 @@ subroutine fs_electron_fullhide(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,
                 temp2=dN_x/principal
                 temp2=temp2+dDR*dF1/principal
                 call electron_backward_sweep(Num_gam_e,temp1,temp2,x)
+                if (budget_diag_enabled) then
+                    n_after_step=sum(x)*d_x
+                    rel_loss_xi_max=max(rel_loss_xi_max,max(zero,(n_before_step+inj_step-n_after_step)/max(n_before_step+inj_step,tiny(one))))
+                    if (I_tobs <= 6 .and. L == L1) then
+                        print '(A,1X,I4,1X,ES12.4,1X,ES12.4,1X,ES12.4)', 'BUDGET1D shell', I_tobs, n_before_step, inj_step, n_after_step
+                    end if
+                end if
                 dN_x=x
 
                 if (L1 == L) then
@@ -158,7 +193,7 @@ subroutine fs_electron_fullhide(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,
         else
             dR_min=dDD/max(substep_max,1)
             dR_max=dDD/max(substep_min,1)
-            dR_try=min(dDR,dR_max)
+            dR_try=min(min(dDR_xi,dR_max),dDD)
             dR_left=dDD
 
             do while (dR_left > zero)
@@ -237,6 +272,9 @@ subroutine fs_electron_fullhide(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,
 
     deallocate (dEl,dEL_mean,principal,x,up,dN_x,temp1,temp2,temp3,gam_e_rad,dN_gam_e_rad, &
                 dN_full,dN_half,dN_half2,dF1,dEL_mean_base,dEL_mean_step)
+    if (budget_diag_enabled) then
+        print '(A,1X,ES12.4)', 'BUDGET1D max_rel_loss', rel_loss_xi_max
+    end if
 
     return
-end subroutine fs_electron_fullhide
+end subroutine fs_electron_fullhide_1d

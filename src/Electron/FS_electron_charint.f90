@@ -1,5 +1,5 @@
-subroutine fs_electron_charint(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads, &
-                               adaptive_substeps,substep_rtol,substep_min,substep_max,gam_e,dN_gam_e,P_syn,Seed_syn,V_m,V_c,V_a)
+subroutine fs_electron_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads, &
+                                adaptive_substeps,substep_rtol,substep_min,substep_max,gam_e,dN_gam_e,P_syn,Seed_syn,V_m,V_c,V_a)
     !$ use omp_lib
     use constants
     use electron_common
@@ -284,9 +284,9 @@ subroutine fs_electron_charint(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,N
 
     deallocate(dEl_base,dEl_step,dN_x,dN_step,dF1,dF1_shape,x_edge,gam_e_rad,dN_gam_e_rad, &
                q_left_source_shape,q_right_source_shape,prefix_source_lin_shape)
-end subroutine fs_electron_charint
+end subroutine fs_electron_charint_1d
 
-subroutine fs_electron_charint_affine_step_test(Num_gam_e,dDR,x_edge,a_u,b_u,dF1,dN_x_in,dN_x_out)
+subroutine fs_electron_charint_1d_affine_step_test(Num_gam_e,dDR,x_edge,a_u,b_u,dF1,dN_x_in,dN_x_out)
     use electron_common
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: Num_gam_e
@@ -294,4 +294,4 @@ subroutine fs_electron_charint_affine_step_test(Num_gam_e,dDR,x_edge,a_u,b_u,dF1
     real(8), intent(out) :: dN_x_out(Num_gam_e)
 
     call electron_characteristic_step_affine_u(Num_gam_e,dDR,x_edge,a_u,b_u,dF1,dN_x_in,dN_x_out)
-end subroutine fs_electron_charint_affine_step_test
+end subroutine fs_electron_charint_1d_affine_step_test

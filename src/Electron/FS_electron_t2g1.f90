@@ -4,8 +4,8 @@
 !****************************************************************************************
 !******************************* main program *******************************************
 !****************************************************************************************
-subroutine fs_electron_t2g1(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads, &
-                                gam_e,dN_gam_e,P_syn,Seed_syn,V_m,V_c,V_a)
+subroutine fs_electron_t2g1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads, &
+                            gam_e,dN_gam_e,P_syn,Seed_syn,V_m,V_c,V_a)
     !$ use omp_lib
     use constants
     use electron_common
@@ -162,4 +162,4 @@ subroutine fs_electron_t2g1(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_
                 para_maxwell,temp3,temp4,Compton,Compton1,gam_e_rad,dN_gam_e_rad)
 
     return
-end subroutine fs_electron_t2g1
+end subroutine fs_electron_t2g1_1d

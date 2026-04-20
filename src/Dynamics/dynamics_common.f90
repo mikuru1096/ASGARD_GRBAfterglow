@@ -1,5 +1,6 @@
 module dynamics_common
     use constants
+    use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
     implicit none
 
 contains
@@ -55,6 +56,14 @@ subroutine dynamics_rk4_error_n(Y,G,M,P)
 
     P=0.0d0
     do I=1,M
+        if (.not. ieee_is_finite(Y(I)) .or. .not. ieee_is_finite(G(I))) then
+            P=huge(one)
+            return
+        end if
+        if (Y(I)+G(I) <= zero) then
+            P=huge(one)
+            return
+        end if
         Q=2.0d0*abs(Y(I)-G(I))/(Y(I)+G(I))
         if (Q > P) P=Q
     end do

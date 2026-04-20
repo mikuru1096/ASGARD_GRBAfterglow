@@ -5,6 +5,7 @@ from .api import (
     FluxResult,
     ObsSet,
     observe,
+    run_fit,
     Param,
     FitResult,
     Fitter,
@@ -27,6 +28,7 @@ from .api import (
     Wind,
 )
 from . import units
+from asgard_postprocess import compute_spectrum_redchi
 from asgard_plot import (
     plot_characteristic_frequencies,
     plot_flux_matrix,
@@ -61,11 +63,13 @@ __all__ = [
     "plot_sed_grid",
     "plot_spectrum",
     "plot_characteristic_frequencies",
+    "compute_spectrum_redchi",
     "FitResult",
     "FluxPair",
     "FluxResult",
     "CharTrack",
     "TrackBundle",
     "observe",
+    "run_fit",
     "units",
 ]

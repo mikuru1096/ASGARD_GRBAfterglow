@@ -11,14 +11,15 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet
+from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet, run_fit
+from asgard_config import FitConfig
 
 MODE = "high" if "--high" in sys.argv else "quick"
 GRID = {
     "quick": {"lc": 24, "spec": 32, "pair": 24, "expo": 12, "gam": 81, "nu": 49, "r": 80, "theta": 80, "tobs": 48},
     "high": {"lc": 100, "spec": 100, "pair": 200, "expo": 200, "gam": 201, "nu": 201, "r": 300, "theta": 300, "tobs": 200},
 }[MODE]
-SOLVERS = ("fullhide", "charint")
+SOLVERS = ("fullhide_1d", "fullhide_2d", "charint_1d")
 
 
 def _run_case(name, fn):
@@ -36,6 +37,7 @@ def _run_case(name, fn):
 
 
 def _build_readme_model(solver: str) -> Model:
+    num_chi = 8 if solver == "fullhide_2d" else None
     return Model(
         TophatJet(0.1, 1.0e52, 300.0),
         ISM(1.0),
@@ -48,6 +50,7 @@ def _build_readme_model(solver: str) -> Model:
             num_r=GRID["r"],
             num_theta=GRID["theta"],
             num_tobs=GRID["tobs"],
+            num_chi=num_chi,
             electron_adaptive_substeps=False,
         ),
     )
@@ -102,6 +105,38 @@ def case_exposures(solver: str):
     return {"solver": solver, "shape": list(values.shape), "median": float(np.median(values))}
 
 
+def _finite_relmax(lhs: np.ndarray, rhs: np.ndarray) -> float:
+    lhs = np.asarray(lhs, dtype=float)
+    rhs = np.asarray(rhs, dtype=float)
+    mask = np.isfinite(lhs) & np.isfinite(rhs)
+    if not np.any(mask):
+        return float("nan")
+    scale = np.maximum(np.abs(lhs[mask]), 1.0e-300)
+    return float(np.max(np.abs(lhs[mask] - rhs[mask]) / scale))
+
+
+def case_public_run_fit(solver: str):
+    result = run_fit(
+        FitConfig(
+            electron_solver=solver,
+            num_gam_e=GRID["gam"],
+            num_nu=GRID["nu"],
+            num_r=GRID["r"],
+            num_theta=GRID["theta"],
+            num_tobs=GRID["tobs"],
+            num_chi=8 if solver == "fullhide_2d" else None,
+            plot_lc=False,
+            show_plots=False,
+        )
+    )
+    assert np.all(np.isfinite(result.bands_flux))
+    return {
+        "solver": solver,
+        "bands_shape": list(result.bands_flux.shape),
+        "nu_m0": float(result.nu_m[0]),
+    }
+
+
 def main() -> None:
     cases = [
         ("quickstart", case_quickstart),
@@ -118,6 +153,9 @@ def main() -> None:
             done += 1
             label = f"[{done}/{total}] {solver}:{name}"
             results.append(_run_case(label, lambda fn=fn, solver=solver: fn(solver)))
+    results.append(_run_case("[extra] public_run_fit:fullhide_1d", lambda: case_public_run_fit("fullhide_1d")))
+    results.append(_run_case("[extra] public_run_fit:fullhide_2d", lambda: case_public_run_fit("fullhide_2d")))
+    results.append(_run_case("[extra] public_run_fit:charint_1d", lambda: case_public_run_fit("charint_1d")))
 
     failed = [item for item in results if item["status"] == "FAIL"]
     if failed:

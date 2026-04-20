@@ -78,7 +78,13 @@ subroutine forward_external_density(A_star,dNe_ISM,RR,f_jump,R_tr,f_wide,R0,dNe)
         dNe=dNe_ISM*(1.0+(f_jump-1d0)*exp(-(log10(RR)-log10(R_tr))**2/(2*f_wide*f_wide)))
     end if
 
-    if (RR < R0) dNe=A_star*3.0d35/R0**2
+    if (RR < R0) then
+        if (A_star > zero) then
+            dNe=A_star*3.0d35/R0**2
+        else
+            dNe=dNe_ISM
+        end if
+    end if
 end subroutine forward_external_density
 
 subroutine forward_rk4_cycle(T,Y,H,N,M,D,B,E,A,Epsilon_e,E_iso,Eta_0,dNe_ISM,A_star,Eb,pp,z0,f_e, &
@@ -251,6 +257,7 @@ end subroutine F
 SUBROUTINE GRKT4(T,H,Y,M,EPS,D,B,C,G,E,Epsilon_e,E_iso,Eta_0,dNe_ISM,A_star,Eb,pp,z0,f_e,&
 E_inj_t1,E_inj_t2,E_inj,E_inj_q,R_tr,f_jump,f_wide,R0,index_dyn)
     use dynamics_common
+    use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
     IMPLICIT REAL(8)(A-H,O-Z)
     integer, intent(in) :: M,index_dyn
     real(8), intent(inout) :: T,Y(M),D(M),B(M),C(M),G(M),E(M)
@@ -260,17 +267,27 @@ E_inj_t1,E_inj_t2,E_inj,E_inj_q,R_tr,f_jump,f_wide,R0,index_dyn)
 
     HH=H
     N=1
+    if (index_dyn == 3 .and. T > zero) then
+        do while (HH > 0.5d0*T)
+            HH=HH/2.0d0
+            N=N+N
+        end do
+    end if
     P=1+EPS
     X=T
     C=Y
-    do while (P >= EPS)
+    do while (.not. (P < EPS))
         call dynamics_rk4_coefficients(HH,A)
         G=Y
         Y=C
         T=X
         call forward_rk4_cycle(T,Y,HH,N,M,D,B,E,A,Epsilon_e,E_iso,Eta_0,dNe_ISM,A_star,Eb,pp,z0,f_e, &
         E_inj_t1,E_inj_t2,E_inj,E_inj_q,R_tr,f_jump,f_wide,R0,index_dyn)
-        call dynamics_rk4_error_n(Y,G,M,P)
+        if (all(ieee_is_finite(Y(1:M))) .and. all(ieee_is_finite(G(1:M)))) then
+            call dynamics_rk4_error_n(Y,G,M,P)
+        else
+            P=huge(1.0d0)
+        end if
         HH=HH/2.0
         N=N+N
     end do

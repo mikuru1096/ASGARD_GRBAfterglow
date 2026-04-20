@@ -140,6 +140,9 @@ def _build_fs_electron_ordered_fallback(
             if ar.is_file():
                 env["AR"] = str(ar)
     env["PATH"] = os.pathsep.join(extra_path_entries) + os.pathsep + env["PATH"]
+    fflags_override = env.get("ASGARD_FFLAGS_OVERRIDE")
+    if fflags_override:
+        fflags = fflags_override
     if fflags is not None:
         env["FFLAGS"] = fflags
         env["F90FLAGS"] = fflags
@@ -166,11 +169,11 @@ def _build_fs_electron_ordered_fallback(
         object_paths.append(object_path)
 
     pyf_path = build_dir / f"{module_name}.pyf"
-    main_source_name = f"{module_name}.f90"
+    main_source_name = Path(sources[-1]).name
     source_rel = os.path.relpath((cwd / main_source_name).resolve(), build_dir)
     entry_names = [module_name.lower()]
-    if module_name == "FS_electron_charint":
-        entry_names.append("fs_electron_charint_affine_step_test")
+    if module_name == "FS_electron_charint_1d":
+        entry_names.append("fs_electron_charint_1d_affine_step_test")
     if module_name == "electron_get_y":
         entry_names = ["get_nu_a", "get_syn_selected"]
     signature_command = [
@@ -243,6 +246,9 @@ def _build_module(
             if ar.is_file():
                 env["AR"] = str(ar)
     env["PATH"] = os.pathsep.join(extra_path_entries) + os.pathsep + env["PATH"]
+    fflags_override = env.get("ASGARD_FFLAGS_OVERRIDE")
+    if fflags_override:
+        fflags = fflags_override
     if fflags is not None:
         env["FFLAGS"] = fflags
         env["F90FLAGS"] = fflags
@@ -297,19 +303,29 @@ def main() -> None:
         ("Constants", src, ["Constants.f90"], None, None),
         ("Dynamics_reverse", dyn, ["../Constants.f90", "Dynamics_reverse.f90"], COMMON_FLAGS, None),
         ("Dynamics_forward", dyn, ["../Constants.f90", "dynamics_common.f90", "Dynamics_forward.f90"], COMMON_FLAGS, None),
-        ("FS_electron_weno5", ele, ["../Constants.f90", "adaptive_resampling_mod.f90", "electron_common.f90", "calling_modules.f90", "FS_electron_weno5.f90"], OMP_FLAGS, OPENMP_LIBS),
-        ("FS_electron_slc1", ele, ["../Constants.f90", "adaptive_resampling_mod.f90", "electron_common.f90", "calling_modules.f90", "FS_electron_slc1.f90"], OMP_FLAGS, OPENMP_LIBS),
-        ("FS_electron_charint", ele, ["../Constants.f90", "adaptive_resampling_mod.f90", "electron_common.f90", "calling_modules.f90", "FS_electron_charint.f90"], OMP_FLAGS, OPENMP_LIBS),
-        ("FS_electron_fullhide", ele, ["../Constants.f90", "adaptive_resampling_mod.f90", "electron_common.f90", "calling_modules.f90", "FS_electron_fullhide.f90"], OMP_FLAGS, OPENMP_LIBS),
-        ("FS_electron_t2g1", ele, ["../Constants.f90", "adaptive_resampling_mod.f90", "electron_common.f90", "calling_modules.f90", "FS_electron_t2g1.f90"], OMP_FLAGS, OPENMP_LIBS),
-        ("electron_get_y", ele, ["../Constants.f90", "adaptive_resampling_mod.f90", "electron_common.f90", "calling_modules.f90", "electron_get_y.f90"], OMP_FLAGS, OPENMP_LIBS),
+        ("FS_electron_weno5_1d", ele, ["../Constants.f90", "adaptive_resampling_mod.f90", "electron_common.f90", "electron_radiation_kernel.f90", "electron_cooling_kernel.f90", "calling_modules.f90", "FS_electron_weno5.f90"], OMP_FLAGS, OPENMP_LIBS),
+        ("FS_electron_slc1_1d", ele, ["../Constants.f90", "adaptive_resampling_mod.f90", "electron_common.f90", "electron_radiation_kernel.f90", "electron_cooling_kernel.f90", "calling_modules.f90", "FS_electron_slc1.f90"], OMP_FLAGS, OPENMP_LIBS),
+        ("FS_electron_charint_1d", ele, ["../Constants.f90", "adaptive_resampling_mod.f90", "electron_common.f90", "electron_radiation_kernel.f90", "electron_cooling_kernel.f90", "calling_modules.f90", "FS_electron_charint.f90"], OMP_FLAGS, OPENMP_LIBS),
+        ("FS_electron_fullhide_1d", ele, ["../Constants.f90", "adaptive_resampling_mod.f90", "electron_common.f90", "electron_radiation_kernel.f90", "electron_cooling_kernel.f90", "electron_seed_history_kernel.f90", "calling_modules.f90", "FS_electron_fullhide.f90"], OMP_FLAGS, OPENMP_LIBS),
+        ("FS_electron_fullhide_2d", ele, ["../Constants.f90", "adaptive_resampling_mod.f90", "electron_common.f90", "electron_radiation_kernel.f90", "electron_cooling_kernel.f90", "electron_seed_history_kernel.f90", "electron_transport_2d_kernel.f90", "calling_modules.f90", "FS_electron_fullhide_2d.f90"], OMP_FLAGS, OPENMP_LIBS),
+        ("FS_electron_t2g1_1d", ele, ["../Constants.f90", "adaptive_resampling_mod.f90", "electron_common.f90", "electron_radiation_kernel.f90", "electron_cooling_kernel.f90", "calling_modules.f90", "FS_electron_t2g1.f90"], OMP_FLAGS, OPENMP_LIBS),
+        ("electron_get_y", ele, ["../Constants.f90", "adaptive_resampling_mod.f90", "electron_common.f90", "electron_radiation_kernel.f90", "electron_cooling_kernel.f90", "calling_modules.f90", "electron_get_y.f90"], OMP_FLAGS, OPENMP_LIBS),
         ("SED_interpolation", itp, ["../Constants.f90", "interpolation_common.f90", "SED_interpolation.f90"], OMP_FLAGS, OPENMP_LIBS),
         ("SED_interpolation_structured", itp, ["../Constants.f90", "interpolation_common.f90", "SED_interpolation_structured.f90"], OMP_FLAGS, OPENMP_LIBS),
         ("Annihilation", rad, ["../Constants.f90", "radiation_common.f90", "Annihilation.f90"], OMP_FLAGS, OPENMP_LIBS),
         ("Seed_reverse", rad, ["../Constants.f90", "radiation_common.f90", "Seed_reverse.f90"], OMP_FLAGS, OPENMP_LIBS),
         ("SSC_spec", rad, ["../Constants.f90", "radiation_common.f90", "SSC_spec.f90"], OMP_FLAGS, OPENMP_LIBS),
     ]
+    module_aliases = {
+        "FS_electron_weno5": "FS_electron_weno5_1d",
+        "FS_electron_slc1": "FS_electron_slc1_1d",
+        "FS_electron_charint": "FS_electron_charint_1d",
+        "FS_electron_fullhide": "FS_electron_fullhide_1d",
+        "FS_electron_t2g1": "FS_electron_t2g1_1d",
+    }
     selected = set(args.modules or [])
+    if selected:
+        selected = {module_aliases.get(name, name) for name in selected}
     if selected:
         modules = [spec for spec in modules if spec[0] in selected]
         missing = selected.difference({spec[0] for spec in modules})
@@ -334,11 +350,12 @@ def main() -> None:
             )
         except subprocess.CalledProcessError:
             if module_name not in {
-                "FS_electron_weno5",
-                "FS_electron_slc1",
-                "FS_electron_charint",
-                "FS_electron_fullhide",
-                "FS_electron_t2g1",
+                "FS_electron_weno5_1d",
+                "FS_electron_slc1_1d",
+                "FS_electron_charint_1d",
+                "FS_electron_fullhide_1d",
+                "FS_electron_fullhide_2d",
+                "FS_electron_t2g1_1d",
                 "electron_get_y",
             }:
                 raise

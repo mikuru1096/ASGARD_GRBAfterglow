@@ -30,7 +30,7 @@ GRID = {
         "times": 48,
         "wind_times": 48,
         "spec_freqs": 64,
-        "num_gam": {"fullhide": 81, "slc1": 41},
+        "num_gam": {"fullhide_1d": 81, "slc1_1d": 41},
         "num_nu": 49,
         "num_r": 80,
         "num_theta": 80,
@@ -40,7 +40,7 @@ GRID = {
         "times": 220,
         "wind_times": 240,
         "spec_freqs": 240,
-        "num_gam": {"fullhide": 121, "slc1": 41},
+        "num_gam": {"fullhide_1d": 121, "slc1_1d": 41},
         "num_nu": 121,
         "num_r": 160,
         "num_theta": 160,
@@ -48,8 +48,8 @@ GRID = {
     },
 }[MODE]
 
-SOLVERS = ("fullhide", "slc1")
-LINESTYLES = {"fullhide": "-", "slc1": "--"}
+SOLVERS = ("fullhide_1d", "slc1_1d")
+LINESTYLES = {"fullhide_1d": "-", "slc1_1d": "--"}
 IC_EPSILON_E = 0.2
 IC_EPSILON_B = 1.0e-5
 IC_P = 2.3
@@ -133,7 +133,7 @@ def _plot_multiband_lightcurves() -> Path:
 def _plot_wind_lightcurves() -> Path:
     times = np.logspace(0.0, 8.0, GRID["wind_times"])
     freqs = np.array(list(BANDS.values()), dtype=float)
-    model = _build_model("fullhide", "wind")
+    model = _build_model("fullhide_1d", "wind")
     result = model.flux_density_grid(times, freqs).total
 
     plt.figure(figsize=(4.8, 3.6), dpi=220)
@@ -156,7 +156,7 @@ def _plot_wind_lightcurves() -> Path:
 def _plot_wind_spectra() -> Path:
     freqs = np.logspace(7.0, 30.0, GRID["spec_freqs"])
     epochs = np.array([1.0e3, 1.0e5, 1.0e7], dtype=float)
-    model = _build_model("fullhide", "wind")
+    model = _build_model("fullhide_1d", "wind")
     result = model.flux_density_grid(epochs, freqs).total
     sed = freqs[:, None] * result
     colors = plt.cm.viridis(np.linspace(0.0, 1.0, len(epochs)))

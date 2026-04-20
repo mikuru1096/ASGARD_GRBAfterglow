@@ -30,6 +30,8 @@ class BranchState:
     nu_c: np.ndarray
     nu_a: np.ndarray
     nu_M: np.ndarray
+    cooling_timescale_s: np.ndarray | None = None
+    dynamical_timescale_s: np.ndarray | None = None
 
 
 @dataclass
@@ -116,6 +118,10 @@ class ElectronSolution:
     nu_m: np.ndarray
     nu_c: np.ndarray
     nu_a: np.ndarray
+    d_n_gam_e_chi: np.ndarray | None = None
+    chi_grid: np.ndarray | None = None
+    cooling_timescale_s: np.ndarray | None = None
+    dynamical_timescale_s: np.ndarray | None = None
     work_x_edge_log10: np.ndarray | None = None
     work_d_n_x: np.ndarray | None = None
 
@@ -241,6 +247,8 @@ class CharTrack:
     nu_c: np.ndarray
     nu_a: np.ndarray
     nu_M: np.ndarray
+    cooling_timescale_s: np.ndarray | None = None
+    dynamical_timescale_s: np.ndarray | None = None
 
 
 @dataclass

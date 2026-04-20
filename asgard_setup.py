@@ -56,6 +56,7 @@ def build_boundary(config: FitConfig, luminosity_distance_cm: float) -> np.ndarr
     m_0 = 1.0e12
     u_0 = 1.0e13
     r_0 = config.initial_radius_cm
+    epsilon_b_floor = config.epsilon_b if config.epsilon_b_floor is None else config.epsilon_b_floor
     return np.array(
         [
             config.eta_0,
@@ -81,6 +82,9 @@ def build_boundary(config: FitConfig, luminosity_distance_cm: float) -> np.ndarr
             config.r_tr,
             config.f_jump,
             config.f_wide,
+            epsilon_b_floor,
+            config.magnetic_decay_alpha_t,
+            config.magnetic_decay_t0_s,
             config.r0,
         ],
         dtype=float,

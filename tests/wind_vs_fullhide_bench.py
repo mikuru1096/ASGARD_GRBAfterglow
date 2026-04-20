@@ -23,8 +23,8 @@ GRID = {
 
 
 OUTPUT_DIR = ASGARD_DOC_DIR
-OUTPUT_PNG = OUTPUT_DIR / "fullhide_charint_wind_benchmark_compare.png"
-OUTPUT_PDF = OUTPUT_DIR / "fullhide_charint_wind_benchmark_compare.pdf"
+OUTPUT_PNG = OUTPUT_DIR / "fullhide_1d_charint_1d_wind_benchmark_compare.png"
+OUTPUT_PDF = OUTPUT_DIR / "fullhide_1d_charint_1d_wind_benchmark_compare.pdf"
 
 
 def _build_solver_model(solver: str) -> Model:
@@ -177,18 +177,18 @@ def _cases_for_solver(solver: str) -> list[dict]:
 
 
 def _plot_compare(results: dict[str, list[dict]]) -> None:
-    names = [item["name"] for item in results["fullhide"]]
-    fullhide_seconds = np.array([item["seconds"] for item in results["fullhide"]], dtype=float)
-    charint_seconds = np.array([item["seconds"] for item in results["charint"]], dtype=float)
+    names = [item["name"] for item in results["fullhide_1d"]]
+    fullhide_seconds = np.array([item["seconds"] for item in results["fullhide_1d"]], dtype=float)
+    charint_seconds = np.array([item["seconds"] for item in results["charint_1d"]], dtype=float)
     x = np.arange(len(names), dtype=float)
     width = 0.38
 
     fig, ax = plt.subplots(figsize=(12, 5.5), constrained_layout=True)
-    ax.bar(x - width / 2.0, fullhide_seconds, width=width, label="fullhide")
-    ax.bar(x + width / 2.0, charint_seconds, width=width, label="charint")
+    ax.bar(x - width / 2.0, fullhide_seconds, width=width, label="fullhide_1d")
+    ax.bar(x + width / 2.0, charint_seconds, width=width, label="charint_1d")
     ax.set_xticks(x, names, rotation=20, ha="right")
     ax.set_ylabel("seconds")
-    ax.set_title("ASGARD wind benchmark: fullhide vs charint")
+    ax.set_title("ASGARD wind benchmark: fullhide_1d vs charint_1d")
     ax.grid(axis="y", alpha=0.3)
     ax.legend()
 
@@ -203,7 +203,7 @@ def _plot_compare(results: dict[str, list[dict]]) -> None:
 
 def main() -> None:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    results = {"fullhide": _cases_for_solver("fullhide"), "charint": _cases_for_solver("charint")}
+    results = {"fullhide_1d": _cases_for_solver("fullhide_1d"), "charint_1d": _cases_for_solver("charint_1d")}
 
     _plot_compare(results)
 

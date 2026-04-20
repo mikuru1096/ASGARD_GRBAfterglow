@@ -1594,6 +1594,56 @@ subroutine electron_loss_mean(Num_gam_e,dEl,dEL_mean)
     dEL_mean=(dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/two/dlog(ten)
 end subroutine electron_loss_mean
 
+subroutine electron_gamma_c_from_loss_mean(Num_gam_e,gam_e,dEL_mean,R_loc,Gam_e_c)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: Num_gam_e
+    integer :: I_gam_e, I_cross
+    real(8), intent(in) :: gam_e(Num_gam_e),dEL_mean(Num_gam_e-1),R_loc
+    real(8), intent(out) :: Gam_e_c
+    real(8) :: coeff_target,gam_mid(Num_gam_e-1)
+    real(8) :: x0,x1,y0,y1,ytarget,xroot
+
+    coeff_target=one/(R_loc*dlog(ten))
+    do I_gam_e=1,Num_gam_e-1
+        gam_mid(I_gam_e)=dsqrt(gam_e(I_gam_e)*gam_e(I_gam_e+1))
+    end do
+
+    if (dEL_mean(Num_gam_e-1) <= coeff_target) then
+        Gam_e_c=gam_mid(Num_gam_e-1)
+        return
+    end if
+    if (dEL_mean(1) >= coeff_target) then
+        Gam_e_c=gam_mid(1)
+        return
+    end if
+
+    I_cross=0
+    do I_gam_e=Num_gam_e-2,1,-1
+        if (dEL_mean(I_gam_e) <= coeff_target .and. dEL_mean(I_gam_e+1) > coeff_target) then
+            I_cross=I_gam_e
+            exit
+        end if
+    end do
+
+    if (I_cross == 0) then
+        Gam_e_c=gam_mid(Num_gam_e-1)
+        return
+    end if
+
+    x0=dlog(gam_mid(I_cross))
+    x1=dlog(gam_mid(I_cross+1))
+    y0=dlog(max(dEL_mean(I_cross),tiny(one)))
+    y1=dlog(max(dEL_mean(I_cross+1),tiny(one)))
+    ytarget=dlog(coeff_target)
+
+    if (y1 == y0) then
+        xroot=0.5d0*(x0+x1)
+    else
+        xroot=x0+(ytarget-y0)*(x1-x0)/(y1-y0)
+    end if
+    Gam_e_c=dexp(xroot)
+end subroutine electron_gamma_c_from_loss_mean
+
 subroutine electron_injection_prefactor(R_loc,dDR,dNe,f_e,Gam_e_m_p,Q)
     implicit real(8)(A-H,O-Z)
     real(8), intent(in) :: R_loc,dDR,dNe,f_e,Gam_e_m_p
@@ -2162,7 +2212,11 @@ subroutine electron_initial_density(A_star,dNe_ISM,R_ini,R_start,R0,dNe,Para_N_e
     end if
 
     if (R_start < R0) then
-        dNe=A_star*3.0d35/R0**2*4d0
+        if (A_star > zero) then
+            dNe=A_star*3.0d35/R0**2*4d0
+        else
+            dNe=dNe_ISM
+        end if
         Para_N_e_ini=4d0/3d0*pi*R_ini**3*dNe_ISM
     end if
 end subroutine electron_initial_density
@@ -2188,7 +2242,11 @@ subroutine electron_external_density(A_star,dNe_ISM,R_loc,R0,R_tr,f_jump,f_wide,
     end if
 
     if (R_loc < R0) then
-        dNe=A_star*3.0d35/R0**2
+        if (A_star > zero) then
+            dNe=A_star*3.0d35/R0**2
+        else
+            dNe=dNe_ISM
+        end if
     end if
 end subroutine electron_external_density
 

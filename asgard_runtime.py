@@ -3,10 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 import numpy as np
 
-import src.Electron.FS_electron_weno5 as electron_weno5_module
-import src.Electron.FS_electron_t2g1 as electron_t2g1_module
-import src.Electron.FS_electron_slc1 as electron_slc1_module
-import src.Electron.FS_electron_charint as electron_charint_module
+import src.Electron.FS_electron_weno5_1d as electron_weno5_module
+import src.Electron.FS_electron_t2g1_1d as electron_t2g1_module
+import src.Electron.FS_electron_slc1_1d as electron_slc1_module
+import src.Electron.FS_electron_charint_1d as electron_charint_module
+import src.Electron.FS_electron_fullhide_1d as electron_fullhide_1d_module
+import src.Electron.FS_electron_fullhide_2d as electron_fullhide_2d_module
 import src.Electron.electron_get_y as electron_get_y_module
 from asgard_config import FitConfig
 from asgard_types import (
@@ -18,6 +20,25 @@ from asgard_types import (
 )
 from asgard_physics_utils import ambient_density, doppler_denominator, compute_magnetic_field
 from src import Dynamics, Electron, constants
+
+
+_ELECTRON_SOLVER_ALIASES = {
+    "fullhide": "fullhide_1d",
+    "fullhide_1d": "fullhide_1d",
+    "fullhide_2d": "fullhide_2d",
+    "slc1": "slc1_1d",
+    "slc1_1d": "slc1_1d",
+    "charint": "charint_1d",
+    "charint_1d": "charint_1d",
+    "t2g1": "t2g1_1d",
+    "t2g1_1d": "t2g1_1d",
+    "weno5": "weno5_1d",
+    "weno5_1d": "weno5_1d",
+}
+
+_COOLING_KERNEL_ALIASES = {
+    "legacy": "legacy",
+}
 
 
 def solve_dynamics(boundary: np.ndarray, config: FitConfig) -> DynamicsSolution:
@@ -69,8 +90,9 @@ def solve_electron(
     config: FitConfig,
 ) -> ElectronSolution:
     solver_name = _resolve_electron_solver(config)
-    if solver_name == "weno5":
-        gam_e, d_n_gam_e, l_syn_spec, seed_syn = Electron.fs_electron_weno5(
+    _resolve_cooling_kernel(config)
+    if solver_name == "weno5_1d":
+        gam_e, d_n_gam_e, l_syn_spec, seed_syn = electron_weno5_module.fs_electron_weno5_1d(
             boundary,
             dynamics.r_tobs,
             dynamics.r_gamma,
@@ -88,10 +110,20 @@ def solve_electron(
             gam_e,
             d_n_gam_e,
         )
-        return ElectronSolution(gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a)
+        return _build_electron_solution(
+            config,
+            dynamics,
+            gam_e,
+            d_n_gam_e,
+            l_syn_spec,
+            seed_syn,
+            nu_m,
+            nu_c,
+            nu_a,
+        )
 
-    if solver_name == "t2g1":
-        gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = electron_t2g1_module.fs_electron_t2g1(
+    if solver_name == "t2g1_1d":
+        gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = electron_t2g1_module.fs_electron_t2g1_1d(
             boundary,
             dynamics.r_tobs,
             dynamics.r_gamma,
@@ -102,10 +134,20 @@ def solve_electron(
             config.index_syn_integr,
             config.num_threads,
         )
-        return ElectronSolution(gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a)
+        return _build_electron_solution(
+            config,
+            dynamics,
+            gam_e,
+            d_n_gam_e,
+            l_syn_spec,
+            seed_syn,
+            nu_m,
+            nu_c,
+            nu_a,
+        )
 
-    if solver_name == "slc1":
-        gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = electron_slc1_module.fs_electron_slc1(
+    if solver_name == "slc1_1d":
+        gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = electron_slc1_module.fs_electron_slc1_1d(
             boundary,
             dynamics.r_tobs,
             dynamics.r_gamma,
@@ -116,10 +158,20 @@ def solve_electron(
             config.index_syn_integr,
             config.num_threads,
         )
-        return ElectronSolution(gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a)
+        return _build_electron_solution(
+            config,
+            dynamics,
+            gam_e,
+            d_n_gam_e,
+            l_syn_spec,
+            seed_syn,
+            nu_m,
+            nu_c,
+            nu_a,
+        )
 
-    if solver_name == "charint":
-        gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = electron_charint_module.fs_electron_charint(
+    if solver_name == "charint_1d":
+        gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = electron_charint_module.fs_electron_charint_1d(
             boundary,
             dynamics.r_tobs,
             dynamics.r_gamma,
@@ -134,9 +186,48 @@ def solve_electron(
             config.electron_substep_min,
             config.electron_substep_max,
         )
-        return ElectronSolution(gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a)
+        return _build_electron_solution(
+            config,
+            dynamics,
+            gam_e,
+            d_n_gam_e,
+            l_syn_spec,
+            seed_syn,
+            nu_m,
+            nu_c,
+            nu_a,
+        )
 
-    gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = Electron.fs_electron_fullhide(
+    if solver_name == "fullhide_2d":
+        num_chi = _resolve_num_chi(config, solver_name)
+        gam_e, d_n_gam_e_chi, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = electron_fullhide_2d_module.fs_electron_fullhide_2d(
+            boundary,
+            dynamics.r_tobs,
+            dynamics.r_gamma,
+            dynamics.radius,
+            v_seed,
+            config.num_gam_e,
+            num_chi,
+            config.index_y,
+            config.index_syn_integr,
+            config.num_threads,
+        )
+        chi_grid = _build_log_chi_grid(dynamics.r_gamma, num_chi)
+        return _build_electron_solution(
+            config,
+            dynamics,
+            gam_e,
+            d_n_gam_e,
+            l_syn_spec,
+            seed_syn,
+            nu_m,
+            nu_c,
+            nu_a,
+            d_n_gam_e_chi=d_n_gam_e_chi,
+            chi_grid=chi_grid,
+        )
+
+    gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = electron_fullhide_1d_module.fs_electron_fullhide_1d(
         boundary,
         dynamics.r_tobs,
         dynamics.r_gamma,
@@ -151,16 +242,121 @@ def solve_electron(
         config.electron_substep_min,
         config.electron_substep_max,
     )
-    return ElectronSolution(gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a)
+    return _build_electron_solution(
+        config,
+        dynamics,
+        gam_e,
+        d_n_gam_e,
+        l_syn_spec,
+        seed_syn,
+        nu_m,
+        nu_c,
+        nu_a,
+    )
 
 
 def _resolve_electron_solver(config: FitConfig) -> str:
     if config.weno5:
-        return "weno5"
-    solver_name = config.electron_solver.lower()
-    if solver_name not in {"fullhide", "t2g1", "weno5", "slc1", "charint"}:
+        return "weno5_1d"
+    solver_name = _ELECTRON_SOLVER_ALIASES.get(config.electron_solver.lower())
+    if solver_name is None:
         raise ValueError(f"Unsupported electron solver: {config.electron_solver}")
     return solver_name
+
+
+def _resolve_cooling_kernel(config: FitConfig) -> str:
+    cooling_kernel = _COOLING_KERNEL_ALIASES.get(config.cooling_kernel.lower())
+    if cooling_kernel is None:
+        raise ValueError(f"Unsupported cooling kernel: {config.cooling_kernel}")
+    return cooling_kernel
+
+
+def _resolve_num_chi(config: FitConfig, solver_name: str | None = None) -> int:
+    resolved_solver = _resolve_electron_solver(config) if solver_name is None else solver_name
+    user_value = config.num_chi
+    if resolved_solver.endswith("_1d"):
+        return 1 if user_value is None else 1
+    if user_value is None:
+        return 64
+    if int(user_value) < 2:
+        raise ValueError("num_chi must be >= 2 for 2d electron solvers.")
+    return int(user_value)
+
+
+def _build_log_chi_grid(r_gamma: np.ndarray, num_chi: int) -> np.ndarray:
+    gamma_arr = np.asarray(r_gamma, dtype=float)
+    chi_max = 1.0 + 8.0 * np.max(gamma_arr * gamma_arr)
+    deta = np.log10(chi_max) / float(num_chi)
+    eta_grid = (np.arange(num_chi, dtype=float) + 0.5) * deta
+    return np.power(10.0, eta_grid)
+
+
+def _build_electron_solution(
+    config: FitConfig,
+    dynamics: DynamicsSolution,
+    gam_e: np.ndarray,
+    d_n_gam_e: np.ndarray,
+    l_syn_spec: np.ndarray,
+    seed_syn: np.ndarray,
+    nu_m: np.ndarray,
+    nu_c: np.ndarray,
+    nu_a: np.ndarray,
+    *,
+    d_n_gam_e_chi: np.ndarray | None = None,
+    chi_grid: np.ndarray | None = None,
+) -> ElectronSolution:
+    cooling_timescale_s, dynamical_timescale_s = _compute_forward_timescales(
+        dynamics.r_gamma,
+        dynamics.radius,
+        nu_c,
+        config,
+    )
+    return ElectronSolution(
+        gam_e=np.asarray(gam_e, dtype=float),
+        d_n_gam_e=np.asarray(d_n_gam_e, dtype=float),
+        l_syn_spec=np.asarray(l_syn_spec, dtype=float),
+        seed_syn=np.asarray(seed_syn, dtype=float),
+        nu_m=np.asarray(nu_m, dtype=float),
+        nu_c=np.asarray(nu_c, dtype=float),
+        nu_a=np.asarray(nu_a, dtype=float),
+        d_n_gam_e_chi=None if d_n_gam_e_chi is None else np.asarray(d_n_gam_e_chi, dtype=float),
+        chi_grid=None if chi_grid is None else np.asarray(chi_grid, dtype=float),
+        cooling_timescale_s=cooling_timescale_s,
+        dynamical_timescale_s=dynamical_timescale_s,
+    )
+
+
+def _compute_forward_timescales(
+    r_gamma: np.ndarray,
+    radius_cm: np.ndarray,
+    nu_c: np.ndarray,
+    config: FitConfig,
+) -> tuple[np.ndarray, np.ndarray]:
+    gamma = np.asarray(r_gamma, dtype=float)
+    radius = np.asarray(radius_cm, dtype=float)
+    nu_c_arr = np.asarray(nu_c, dtype=float)
+    magnetic_field_g = np.asarray(compute_magnetic_field(gamma, radius, config), dtype=float)
+    doppler_den = np.asarray(doppler_denominator(gamma, config.z), dtype=float)
+    beta = np.zeros_like(gamma)
+    valid_gamma = gamma > 1.0
+    beta[valid_gamma] = np.sqrt(1.0 - gamma[valid_gamma] ** (-2.0))
+
+    gamma_c = np.zeros_like(nu_c_arr)
+    valid = (magnetic_field_g > 0.0) & (doppler_den > 0.0) & (nu_c_arr > 0.0)
+    gamma_c[valid] = np.sqrt(nu_c_arr[valid] * doppler_den[valid] / (4.2e6 * magnetic_field_g[valid]))
+
+    cooling_timescale_s = np.zeros_like(nu_c_arr)
+    valid_cooling = valid & (gamma > 0.0)
+    cooling_timescale_s[valid_cooling] = (
+        7.7e8
+        * (1.0 + float(config.z))
+        / (gamma[valid_cooling] * magnetic_field_g[valid_cooling] ** 2 * gamma_c[valid_cooling])
+    )
+
+    dynamical_timescale_s = np.zeros_like(radius)
+    valid_dyn = beta > 0.0
+    dynamical_timescale_s[valid_dyn] = radius[valid_dyn] / (gamma[valid_dyn] * beta[valid_dyn] * constants.para_c)
+    return cooling_timescale_s, dynamical_timescale_s
 
 
 def solve_reverse_shock_emission(
