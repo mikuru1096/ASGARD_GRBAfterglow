@@ -36,7 +36,7 @@ subroutine fs_electron_fullhide_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
     real(8), allocatable :: dEl(:), dEL_mean(:), kappa2_arr(:)
     real(8), allocatable :: dN_init(:), dN_init_log(:), U_log(:,:), source_eta1(:)
     real(8), allocatable :: eta_grid(:), chi_grid(:), eta_face(:), chi_face(:)
-    real(8), allocatable :: a_arr(:), dln_a_dR_arr(:), dF1(:), shell_population(:), dEL_mean_shell(:)
+    real(8), allocatable :: a_arr(:), dln_a_dR_arr(:), dF1(:), shell_population(:), chi_population(:), dEL_mean_shell(:)
     real(8), allocatable :: V_m_chi(:), V_c_chi(:), V_a_chi(:), chi_weight(:), Epsilon_b_chi(:), DB_chi(:), t_decay_chi(:)
     real(8), allocatable :: proper_time_arr(:), x_face_hist(:,:), x_comov_face_hist(:,:), x_comov_hist(:,:), dx_comov_hist(:,:), dN_cell(:)
     real(8), allocatable :: beta_hist(:,:)
@@ -69,7 +69,7 @@ subroutine fs_electron_fullhide_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
     character(len=32) :: profile_env
 
     allocate(dEl(Num_gam_e), dEL_mean(Num_gam_e-1), dEL_mean_shell(Num_gam_e-1), kappa2_arr(Num_gam_e), &
-             dN_init(Num_gam_e), dN_init_log(Num_gam_e), dF1(Num_gam_e), shell_population(Num_gam_e), &
+             dN_init(Num_gam_e), dN_init_log(Num_gam_e), dF1(Num_gam_e), shell_population(Num_gam_e), chi_population(Num_chi), &
              V_m_chi(Num_chi), V_c_chi(Num_chi), V_a_chi(Num_chi), chi_weight(Num_chi), Epsilon_b_chi(Num_chi), DB_chi(Num_chi), t_decay_chi(Num_chi), &
              source_eta1(Num_gam_e), U_log(Num_gam_e, Num_chi), eta_grid(Num_chi), &
              chi_grid(Num_chi), eta_face(0:Num_chi), chi_face(0:Num_chi), &
@@ -330,7 +330,9 @@ subroutine fs_electron_fullhide_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
             end do
         end if
         shell_population = sum(U_log, dim=2)
-        shell_peak = max(maxval(shell_population), maxval(dF1))
+        chi_population = sum(U_log, dim=1)
+        chi_peak = maxval(shell_population)
+        shell_peak = max(chi_peak, maxval(dF1))
         support_floor = 1d-12*shell_peak
         active_hi = max(2, src_hi)
         if (shell_peak > zero) then
@@ -341,7 +343,18 @@ subroutine fs_electron_fullhide_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
                 end if
             end do
         end if
-        max_xi_coeff = maxval(dabs(dEL_mean_chi(1:active_hi-1,:) + one/R_loc/ln10))
+        max_xi_coeff = zero
+        if (active_hi > 1) then
+            do I_chi = 1, Num_chi
+                if (chi_peak > zero) then
+                    if (chi_population(I_chi) <= 1d-10*chi_peak) cycle
+                end if
+                max_xi_coeff = max(max_xi_coeff, maxval(dabs(dEL_mean_chi(1:active_hi-1,I_chi) + one/R_loc/ln10)))
+            end do
+            if (max_xi_coeff <= zero) then
+                max_xi_coeff = maxval(dabs(dEL_mean_chi(1:active_hi-1,:) + one/R_loc/ln10))
+            end if
+        end if
 
         dDR_xi = huge(one)
         if (max_xi_coeff > zero) dDR_xi = 0.4d0*d_x_E/max_xi_coeff
@@ -552,7 +565,7 @@ subroutine fs_electron_fullhide_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
         print '(A,1X,I12)', 'PROFILE fullhide_2d eta_calls', eta_calls
         print '(A,1X,I12)', 'PROFILE fullhide_2d xi_calls', xi_calls
     end if
-    deallocate(dEl, dEL_mean, dEL_mean_shell, kappa2_arr, dN_init, dN_init_log, dF1, shell_population, U_log, source_eta1, &
+    deallocate(dEl, dEL_mean, dEL_mean_shell, kappa2_arr, dN_init, dN_init_log, dF1, shell_population, chi_population, U_log, source_eta1, &
                V_m_chi, V_c_chi, V_a_chi, chi_weight, Epsilon_b_chi, DB_chi, t_decay_chi, eta_grid, chi_grid, eta_face, chi_face, a_arr, dln_a_dR_arr, proper_time_arr, x_face_hist, x_comov_face_hist, &
                x_comov_hist, dx_comov_hist, beta_hist, dN_cell, P_local, V_cool, P_hist, Seed_hist, Tau_hist, &
                P_hist_cool, Seed_hist_cool, Tau_pair_hist_cool, P_eff_cool_chi, Seed_eff_cool_chi, cooling_aux_chi, dEl_chi, dEL_mean_chi, kappa2_chi)
