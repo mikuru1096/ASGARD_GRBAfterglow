@@ -1,3 +1,4 @@
+!f2py: skip
 module electron_cooling_kernel
   use constants
   use electron_radiation_kernel, only: first_greater_monotonic, first_greater_monotonic_window, &
@@ -5,7 +6,8 @@ module electron_cooling_kernel
                                        electron_ssa_segment
   private
 
-  public :: get_forward_cooling, prepare_forward_cooling_aux, assemble_forward_cooling, assemble_forward_cooling_split, &
+  public :: get_forward_cooling, prepare_forward_cooling_aux, prepare_forward_cooling_aux_batch, &
+            assemble_forward_cooling, assemble_forward_cooling_split, &
             assemble_forward_cooling_split_batch
   public :: get_SSA_numerical, get_SSA_numerical_batch, get_IC_numerical, get_Y_Nakar, get_Y_Fan
 
@@ -19,7 +21,8 @@ module electron_cooling_kernel
   real(8), allocatable, save :: ssa_prefactor_low_cache(:), ssa_prefactor_high_cache(:), ssa_dot_batch_cache(:,:)
   integer, save :: ic_num_gam_cache=0, ic_num_nu_cache=0
   logical, save :: ic_grid_cache_ready=.false.
-  real(8), allocatable, save :: ic_d_nu_cache(:), ic_gam_e_mean_cache(:), ic_e_seed_cache(:), ic_x_seed_cache(:), ic_v_seed_mid_cache(:)
+  real(8), allocatable, save :: ic_d_nu_cache(:), ic_gam_e_mean_cache(:), &
+                                ic_e_seed_cache(:), ic_x_seed_cache(:), ic_v_seed_mid_cache(:)
   integer, save :: y_nakar_num_gam_cache=0
   real(8), allocatable, save :: y_nakar_hat_nu_cache(:), y_nakar_prefix_cache(:)
 
@@ -41,7 +44,8 @@ integer, intent(in) :: Num_gam_e,Num_chi
     end if
 
     if (Num_chi > 0) then
-        if (.not. allocated(ssa_dot_batch_cache) .or. ssa_geom_num_gam_cache /= Num_gam_e .or. ssa_geom_num_chi_cache /= Num_chi) then
+        if (.not. allocated(ssa_dot_batch_cache) .or. ssa_geom_num_gam_cache /= Num_gam_e .or. &
+            ssa_geom_num_chi_cache /= Num_chi) then
             if (allocated(ssa_dot_batch_cache)) deallocate(ssa_dot_batch_cache)
             allocate(ssa_dot_batch_cache(Num_gam_e,Num_chi))
             ssa_geom_num_chi_cache=Num_chi
@@ -61,7 +65,8 @@ logical :: rebuild
     end if
     if (.not. rebuild) then
         if (allocated(ic_x_seed_cache)) rebuild = any(ic_x_seed_cache /= dlog(V_seed))
-        if (.not. rebuild .and. allocated(ic_gam_e_mean_cache)) rebuild = any(ic_gam_e_mean_cache /= (gam_e(1:Num_gam_e-1)+gam_e(2:Num_gam_e))/two)
+        if (.not. rebuild .and. allocated(ic_gam_e_mean_cache)) rebuild = &
+            any(ic_gam_e_mean_cache /= (gam_e(1:Num_gam_e-1)+gam_e(2:Num_gam_e))/two)
     end if
     if (.not. rebuild) return
 
@@ -247,6 +252,26 @@ real(8), intent(out) :: cooling_aux(Num_gam_e)
     end select
 end subroutine prepare_forward_cooling_aux
 
+subroutine prepare_forward_cooling_aux_batch(index_Y,Num_gam_e,Num_nu,Num_chi,n_threads,gam_e,V_seed,P_syn,Seed_syn,cooling_aux)
+implicit REAL(8)(A-H,O-Z)
+integer, intent(in) :: index_Y,Num_gam_e,Num_nu,Num_chi,n_threads
+real(8), intent(in) :: gam_e(Num_gam_e),V_seed(Num_nu),P_syn(Num_nu,Num_chi),Seed_syn(Num_nu,Num_chi)
+real(8), intent(out) :: cooling_aux(Num_gam_e,Num_chi)
+
+    cooling_aux=zero
+    select case(index_Y)
+    case(1)
+        do I_chi=1,Num_chi
+            call get_IC_numerical(Num_gam_e,Num_nu,n_threads,gam_e,V_seed,Seed_syn(:,I_chi),cooling_aux(:,I_chi))
+        end do
+    case(2)
+        do I_chi=1,Num_chi
+            call get_Y_Nakar(Num_gam_e,Num_nu,n_threads,gam_e,V_seed,P_syn(:,I_chi),cooling_aux(:,I_chi))
+        end do
+    case default
+    end select
+end subroutine prepare_forward_cooling_aux_batch
+
 subroutine assemble_forward_cooling(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc,R_Gamma_loc, &
                                     beta_Gam,dNe,Num_gam_e,Num_nu,n_threads,gam_e,V_seed,P_syn,Seed_syn,cooling_aux,dEl)
 implicit REAL(8)(A-H,O-Z)
@@ -255,11 +280,9 @@ real(8), intent(in) :: Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,R_loc,R_Gamma_lo
 real(8), intent(inout) :: Gam_e_max
 real(8), intent(in) :: gam_e(Num_gam_e),V_seed(Num_nu),P_syn(Num_nu),Seed_syn(Num_nu),cooling_aux(Num_gam_e)
 real(8), intent(out) :: dEl(Num_gam_e)
-real(8) :: Compton(Num_gam_e),dot_gam_e_SSA(Num_gam_e)
 
-    call get_SSA_numerical(DB,Num_gam_e,Num_nu,n_threads,gam_e,V_seed,Seed_syn,dot_gam_e_SSA)
-    call assemble_forward_cooling_from_terms(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc,R_Gamma_loc, &
-                                             beta_Gam,dNe,Num_gam_e,gam_e,Compton,dot_gam_e_SSA,cooling_aux,dEl)
+    call assemble_forward_cooling_with_ssa(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc,R_Gamma_loc, &
+                                           beta_Gam,dNe,Num_gam_e,Num_nu,n_threads,gam_e,V_seed,Seed_syn,cooling_aux,dEl)
 end subroutine assemble_forward_cooling
 
 subroutine assemble_forward_cooling_split(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc,R_Gamma_loc, &
@@ -269,13 +292,12 @@ implicit REAL(8)(A-H,O-Z)
 integer, intent(in) :: index_Y,Num_gam_e,Num_nu,n_threads
 real(8), intent(in) :: Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,R_loc,R_Gamma_loc,beta_Gam,dNe
 real(8), intent(inout) :: Gam_e_max
-real(8), intent(in) :: gam_e(Num_gam_e),V_seed(Num_nu),P_syn_ic(Num_nu),Seed_syn_ic(Num_nu),Seed_syn_ssa(Num_nu),cooling_aux(Num_gam_e)
+    real(8), intent(in) :: gam_e(Num_gam_e),V_seed(Num_nu),P_syn_ic(Num_nu),Seed_syn_ic(Num_nu), &
+                           Seed_syn_ssa(Num_nu),cooling_aux(Num_gam_e)
 real(8), intent(out) :: dEl(Num_gam_e)
-real(8) :: Compton(Num_gam_e),dot_gam_e_SSA(Num_gam_e)
 
-    call get_SSA_numerical(DB,Num_gam_e,Num_nu,n_threads,gam_e,V_seed,Seed_syn_ssa,dot_gam_e_SSA)
-    call assemble_forward_cooling_from_terms(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc,R_Gamma_loc, &
-                                             beta_Gam,dNe,Num_gam_e,gam_e,Compton,dot_gam_e_SSA,cooling_aux,dEl)
+    call assemble_forward_cooling_with_ssa(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc,R_Gamma_loc, &
+                                           beta_Gam,dNe,Num_gam_e,Num_nu,n_threads,gam_e,V_seed,Seed_syn_ssa,cooling_aux,dEl)
 end subroutine assemble_forward_cooling_split
 
 subroutine assemble_forward_cooling_split_batch(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc,R_Gamma_loc, &
@@ -300,6 +322,21 @@ real(8) :: Compton(Num_gam_e),Gam_e_max_cell
                                                 cooling_aux(:,I_chi),dEl(:,I_chi))
     end do
 end subroutine assemble_forward_cooling_split_batch
+
+subroutine assemble_forward_cooling_with_ssa(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc,R_Gamma_loc, &
+                                             beta_Gam,dNe,Num_gam_e,Num_nu,n_threads,gam_e,V_seed,Seed_syn_ssa,cooling_aux,dEl)
+implicit REAL(8)(A-H,O-Z)
+integer, intent(in) :: index_Y,Num_gam_e,Num_nu,n_threads
+real(8), intent(in) :: Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,R_loc,R_Gamma_loc,beta_Gam,dNe
+real(8), intent(inout) :: Gam_e_max
+real(8), intent(in) :: gam_e(Num_gam_e),V_seed(Num_nu),Seed_syn_ssa(Num_nu),cooling_aux(Num_gam_e)
+real(8), intent(out) :: dEl(Num_gam_e)
+real(8) :: Compton(Num_gam_e),dot_gam_e_SSA(Num_gam_e)
+
+    call get_SSA_numerical(DB,Num_gam_e,Num_nu,n_threads,gam_e,V_seed,Seed_syn_ssa,dot_gam_e_SSA)
+    call assemble_forward_cooling_from_terms(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc,R_Gamma_loc, &
+                                             beta_Gam,dNe,Num_gam_e,gam_e,Compton,dot_gam_e_SSA,cooling_aux,dEl)
+end subroutine assemble_forward_cooling_with_ssa
 
 subroutine assemble_forward_cooling_from_terms(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc,R_Gamma_loc, &
                                                beta_Gam,dNe,Num_gam_e,gam_e,Compton,dot_gam_e_SSA,cooling_aux,dEl)
@@ -361,10 +398,12 @@ real(8), intent(out) :: dot_gam_e(Num_gam_e)
 
     call ensure_ssa_seed_cache(Num_nu,V_seed)
     call ensure_ssa_geometry_workspace(Num_gam_e,0)
-    call build_ssa_geometry(DB,Num_gam_e,Num_nu,gam_e,ssa_low_idx_cache,ssa_upper_idx_cache,ssa_low_first_cache,ssa_low_last_cache, &
-                            ssa_high_first_cache,ssa_prefactor_low_cache,ssa_prefactor_high_cache,Cyclotron_nu)
-    call accumulate_ssa_for_seed(Num_gam_e,Num_nu,gam_e,Seed_syn,ssa_low_idx_cache,ssa_upper_idx_cache,ssa_low_first_cache,ssa_low_last_cache, &
-                                 ssa_high_first_cache,ssa_prefactor_low_cache,ssa_prefactor_high_cache,Cyclotron_nu,dot_gam_e)
+    call build_ssa_geometry(DB,Num_gam_e,Num_nu,gam_e,ssa_low_idx_cache,ssa_upper_idx_cache, &
+                            ssa_low_first_cache,ssa_low_last_cache,ssa_high_first_cache, &
+                            ssa_prefactor_low_cache,ssa_prefactor_high_cache,Cyclotron_nu)
+    call accumulate_ssa_for_seed(Num_gam_e,Num_nu,gam_e,Seed_syn,ssa_low_idx_cache,ssa_upper_idx_cache, &
+                                 ssa_low_first_cache,ssa_low_last_cache,ssa_high_first_cache, &
+                                 ssa_prefactor_low_cache,ssa_prefactor_high_cache,Cyclotron_nu,dot_gam_e)
 
 end subroutine get_SSA_numerical
 
@@ -380,8 +419,9 @@ integer :: batch_work
 
     call ensure_ssa_seed_cache(Num_nu,V_seed)
     call ensure_ssa_geometry_workspace(Num_gam_e,Num_chi)
-    call build_ssa_geometry(DB,Num_gam_e,Num_nu,gam_e,ssa_low_idx_cache,ssa_upper_idx_cache,ssa_low_first_cache,ssa_low_last_cache, &
-                            ssa_high_first_cache,ssa_prefactor_low_cache,ssa_prefactor_high_cache,Cyclotron_nu)
+    call build_ssa_geometry(DB,Num_gam_e,Num_nu,gam_e,ssa_low_idx_cache,ssa_upper_idx_cache, &
+                            ssa_low_first_cache,ssa_low_last_cache,ssa_high_first_cache, &
+                            ssa_prefactor_low_cache,ssa_prefactor_high_cache,Cyclotron_nu)
 
     dot_gam_e_batch=zero
     batch_work = Num_gam_e*Num_chi
@@ -399,8 +439,9 @@ integer :: batch_work
                 cell_low=max(ssa_seed_v_low(I_nu),V_lowlim)
                 cell_high=min(ssa_seed_v_high(I_nu),V_uplim)
                 if (cell_high > cell_low) then
-                   ssa_sum=ssa_sum+electron_ssa_segment(cell_low,cell_high,Seed_syn_batch(I_nu,I_chi),Seed_syn_batch(I_nu+1,I_chi), &
-                                                        ssa_prefactor_low_cache(I_gam_e),1,Cyclotron_nu,V_uplim)
+                   ssa_sum=ssa_sum+electron_ssa_segment(cell_low,cell_high,Seed_syn_batch(I_nu,I_chi), &
+                                                        Seed_syn_batch(I_nu+1,I_chi),ssa_prefactor_low_cache(I_gam_e), &
+                                                        1,Cyclotron_nu,V_uplim)
                 end if
              end do
 
@@ -408,8 +449,9 @@ integer :: batch_work
                 cell_low=max(ssa_seed_v_low(I_nu),V_uplim)
                 cell_high=ssa_seed_v_high(I_nu)
                 if (cell_high > cell_low) then
-                   ssa_sum=ssa_sum+electron_ssa_segment(cell_low,cell_high,Seed_syn_batch(I_nu,I_chi),Seed_syn_batch(I_nu+1,I_chi), &
-                                                        ssa_prefactor_high_cache(I_gam_e),2,Cyclotron_nu,V_uplim)
+                   ssa_sum=ssa_sum+electron_ssa_segment(cell_low,cell_high,Seed_syn_batch(I_nu,I_chi), &
+                                                        Seed_syn_batch(I_nu+1,I_chi),ssa_prefactor_high_cache(I_gam_e), &
+                                                        2,Cyclotron_nu,V_uplim)
                 end if
              end do
 
@@ -432,8 +474,9 @@ integer :: batch_work
                 cell_low=max(ssa_seed_v_low(I_nu),V_lowlim)
                 cell_high=min(ssa_seed_v_high(I_nu),V_uplim)
                 if (cell_high > cell_low) then
-                   ssa_sum=ssa_sum+electron_ssa_segment(cell_low,cell_high,Seed_syn_batch(I_nu,I_chi),Seed_syn_batch(I_nu+1,I_chi), &
-                                                        ssa_prefactor_low_cache(I_gam_e),1,Cyclotron_nu,V_uplim)
+                   ssa_sum=ssa_sum+electron_ssa_segment(cell_low,cell_high,Seed_syn_batch(I_nu,I_chi), &
+                                                        Seed_syn_batch(I_nu+1,I_chi),ssa_prefactor_low_cache(I_gam_e), &
+                                                        1,Cyclotron_nu,V_uplim)
                 end if
              end do
 
@@ -441,8 +484,9 @@ integer :: batch_work
                 cell_low=max(ssa_seed_v_low(I_nu),V_uplim)
                 cell_high=ssa_seed_v_high(I_nu)
                 if (cell_high > cell_low) then
-                   ssa_sum=ssa_sum+electron_ssa_segment(cell_low,cell_high,Seed_syn_batch(I_nu,I_chi),Seed_syn_batch(I_nu+1,I_chi), &
-                                                        ssa_prefactor_high_cache(I_gam_e),2,Cyclotron_nu,V_uplim)
+                   ssa_sum=ssa_sum+electron_ssa_segment(cell_low,cell_high,Seed_syn_batch(I_nu,I_chi), &
+                                                        Seed_syn_batch(I_nu+1,I_chi),ssa_prefactor_high_cache(I_gam_e), &
+                                                        2,Cyclotron_nu,V_uplim)
                 end if
              end do
 

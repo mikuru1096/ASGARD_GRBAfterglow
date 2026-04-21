@@ -13,11 +13,12 @@ subroutine fs_electron_fullhide_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
                                electron_gamma_m_exact, electron_initial_powerlaw_exp_cutoff, &
                                electron_injection_prefactor, electron_build_source_term_exp_cutoff, &
                                electron_loss_mean, electron_gamma_c_from_loss_mean, electron_source_bounds
-    use electron_cooling_kernel, only: prepare_forward_cooling_aux, assemble_forward_cooling_split, &
+    use electron_cooling_kernel, only: prepare_forward_cooling_aux_batch, assemble_forward_cooling_split, &
                                        assemble_forward_cooling_split_batch
     use electron_radiation_kernel, only: get_syn_state, get_nu_a_2d_cell_path, reduce_syn_shell_from_chi, &
-                                         build_reduced_log_grid, compress_syn_state_logbands
+                                         build_reduced_log_grid, project_syn_state_logbands
     use electron_seed_history_kernel, only: integrate_downstream_proper_time, accumulate_comoving_history_fields
+    use radiation_common, only: radiation_pair_tau_headon_segment
     use electron_transport_2d_kernel, only: compute_log_chi_geometry, get_shock_transport_state, &
                                              compute_downstream_comoving_grid, bm_beta2_lab, bm_beta2_shock, advance_eta_logchi_implicit, &
                                              advance_energy_loggamma_chi
@@ -42,7 +43,7 @@ subroutine fs_electron_fullhide_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
     real(8), allocatable :: P_local(:,:), kappa2_chi(:,:)
     real(8), allocatable :: V_cool(:)
     real(8), allocatable :: P_hist(:,:,:), Seed_hist(:,:,:), Tau_hist(:,:,:)
-    real(8), allocatable :: P_hist_cool(:,:,:), Seed_hist_cool(:,:,:), Tau_hist_cool(:,:,:)
+    real(8), allocatable :: P_hist_cool(:,:,:), Seed_hist_cool(:,:,:), Tau_hist_cool(:,:,:), Tau_pair_hist_cool(:,:,:), Tau_prop_hist_cool(:,:,:)
     real(8), allocatable :: P_eff_cool_chi(:,:), Seed_eff_cool_chi(:,:)
     real(8), allocatable :: cooling_aux_chi(:,:), dEl_chi(:,:), dEL_mean_chi(:,:)
 
@@ -128,6 +129,7 @@ subroutine fs_electron_fullhide_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
     Num_nu_cool = min(4, Num_nu)
     allocate(V_cool(Num_nu_cool), P_hist(Num_nu, Num_chi, Num_R), Seed_hist(Num_nu, Num_chi, Num_R), Tau_hist(Num_nu, Num_chi, Num_R), &
              P_hist_cool(Num_nu_cool, Num_chi, Num_R), Seed_hist_cool(Num_nu_cool, Num_chi, Num_R), Tau_hist_cool(Num_nu_cool, Num_chi, Num_R), &
+             Tau_pair_hist_cool(Num_nu_cool, Num_chi, Num_R), Tau_prop_hist_cool(Num_nu_cool, Num_chi, Num_R), &
              P_eff_cool_chi(Num_nu_cool, Num_chi), Seed_eff_cool_chi(Num_nu_cool, Num_chi))
     call build_reduced_log_grid(Num_nu,V_seed,Num_nu_cool,V_cool)
 
@@ -189,8 +191,12 @@ subroutine fs_electron_fullhide_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
         if (profile_enabled) call cpu_time(t_start)
         call get_syn_state(R(1),DB_chi(I_chi),Num_gam_e,Num_nu,n_threads,gam_e,dN_cell,V_seed, &
                        P_local(:,I_chi),P_hist(:,I_chi,1),Seed_hist(:,I_chi,1),Tau_hist(:,I_chi,1))
-        call compress_syn_state_logbands(Num_nu,V_seed,P_hist(:,I_chi,1),Seed_hist(:,I_chi,1),Tau_hist(:,I_chi,1), &
-                                         Num_nu_cool,V_cool,P_hist_cool(:,I_chi,1),Seed_hist_cool(:,I_chi,1),Tau_hist_cool(:,I_chi,1))
+        call project_syn_state_logbands(Num_nu,V_seed,P_hist(:,I_chi,1),Seed_hist(:,I_chi,1),Tau_hist(:,I_chi,1), &
+                                        Num_nu_cool,V_cool,P_hist_cool(:,I_chi,1),Seed_hist_cool(:,I_chi,1),Tau_hist_cool(:,I_chi,1))
+        Tau_pair_hist_cool(:,I_chi,1) = zero
+        call radiation_pair_tau_headon_segment(V_cool,Num_nu_cool,Seed_hist_cool(:,I_chi,1),dx_comov_hist(I_chi,1), &
+                                               Tau_pair_hist_cool(:,I_chi,1))
+        Tau_prop_hist_cool(:,I_chi,1) = Tau_hist_cool(:,I_chi,1) + Tau_pair_hist_cool(:,I_chi,1)
         if (profile_enabled) then
             call cpu_time(t_stop)
             t_syn_state = t_syn_state + (t_stop-t_start)
@@ -217,7 +223,7 @@ subroutine fs_electron_fullhide_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
 
         if (profile_enabled) call cpu_time(t_start)
         call accumulate_comoving_history_fields(I_tobs-1,Num_R,Num_chi,Num_nu_cool,proper_time_arr,V_cool, &
-                                                x_comov_face_hist,x_comov_hist,dx_comov_hist,beta_hist,Tau_hist_cool,P_hist_cool,Seed_hist_cool, &
+                                                x_comov_face_hist,x_comov_hist,dx_comov_hist,beta_hist,Tau_prop_hist_cool,P_hist_cool,Seed_hist_cool, &
                                                 P_eff_cool_chi,Seed_eff_cool_chi)
         history_calls = history_calls + 1
         if (profile_enabled) then
@@ -236,16 +242,14 @@ subroutine fs_electron_fullhide_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
             DB_chi(I_chi) = 0.39d0*dsqrt(Epsilon_b_chi(I_chi)*dNe*(R_Gamma_loc*(R_Gamma_loc-one)))
         end do
 
-        do I_chi = 1, Num_chi
-            if (profile_enabled) call cpu_time(t_start)
-            call prepare_forward_cooling_aux(index_Y,Num_gam_e,Num_nu_cool,n_threads,gam_e,V_cool, &
-                                             P_eff_cool_chi(:,I_chi),Seed_eff_cool_chi(:,I_chi),cooling_aux_chi(:,I_chi))
-            if (profile_enabled) then
-                call cpu_time(t_stop)
-                t_prepare_aux = t_prepare_aux + (t_stop-t_start)
-            end if
-            prepare_aux_calls = prepare_aux_calls + 1
-        end do
+        if (profile_enabled) call cpu_time(t_start)
+        call prepare_forward_cooling_aux_batch(index_Y,Num_gam_e,Num_nu_cool,Num_chi,n_threads,gam_e,V_cool, &
+                                               P_eff_cool_chi,Seed_eff_cool_chi,cooling_aux_chi)
+        if (profile_enabled) then
+            call cpu_time(t_stop)
+            t_prepare_aux = t_prepare_aux + (t_stop-t_start)
+        end if
+        prepare_aux_calls = prepare_aux_calls + 1
         if (profile_enabled) call cpu_time(t_start)
         if (magnetic_decay_active) then
             do I_chi = 1, Num_chi
@@ -415,8 +419,12 @@ subroutine fs_electron_fullhide_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
             if (profile_enabled) call cpu_time(t_start)
             call get_syn_state(R(I_tobs),DB_chi(I_chi),Num_gam_e,Num_nu,n_threads,gam_e,dN_cell,V_seed, &
                                P_local(:,I_chi),P_hist(:,I_chi,I_tobs),Seed_hist(:,I_chi,I_tobs),Tau_hist(:,I_chi,I_tobs))
-            call compress_syn_state_logbands(Num_nu,V_seed,P_hist(:,I_chi,I_tobs),Seed_hist(:,I_chi,I_tobs),Tau_hist(:,I_chi,I_tobs), &
-                                             Num_nu_cool,V_cool,P_hist_cool(:,I_chi,I_tobs),Seed_hist_cool(:,I_chi,I_tobs),Tau_hist_cool(:,I_chi,I_tobs))
+            call project_syn_state_logbands(Num_nu,V_seed,P_hist(:,I_chi,I_tobs),Seed_hist(:,I_chi,I_tobs),Tau_hist(:,I_chi,I_tobs), &
+                                            Num_nu_cool,V_cool,P_hist_cool(:,I_chi,I_tobs),Seed_hist_cool(:,I_chi,I_tobs),Tau_hist_cool(:,I_chi,I_tobs))
+            Tau_pair_hist_cool(:,I_chi,I_tobs) = zero
+            call radiation_pair_tau_headon_segment(V_cool,Num_nu_cool,Seed_hist_cool(:,I_chi,I_tobs),dx_comov_hist(I_chi,I_tobs), &
+                                                   Tau_pair_hist_cool(:,I_chi,I_tobs))
+            Tau_prop_hist_cool(:,I_chi,I_tobs) = Tau_hist_cool(:,I_chi,I_tobs) + Tau_pair_hist_cool(:,I_chi,I_tobs)
             if (profile_enabled) then
                 call cpu_time(t_stop)
                 t_syn_state = t_syn_state + (t_stop-t_start)
@@ -439,23 +447,21 @@ subroutine fs_electron_fullhide_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
                                    P_syn(:,Num_R),Seed_syn(:,Num_R))
     if (profile_enabled) call cpu_time(t_start)
     call accumulate_comoving_history_fields(Num_R,Num_R,Num_chi,Num_nu_cool,proper_time_arr,V_cool, &
-                                            x_comov_face_hist,x_comov_hist,dx_comov_hist,beta_hist,Tau_hist_cool,P_hist_cool,Seed_hist_cool, &
+                                            x_comov_face_hist,x_comov_hist,dx_comov_hist,beta_hist,Tau_prop_hist_cool,P_hist_cool,Seed_hist_cool, &
                                             P_eff_cool_chi,Seed_eff_cool_chi)
     history_calls = history_calls + 1
     if (profile_enabled) then
         call cpu_time(t_stop)
         t_hist_accum = t_hist_accum + (t_stop-t_start)
     end if
-    do I_chi = 1, Num_chi
-        if (profile_enabled) call cpu_time(t_start)
-        call prepare_forward_cooling_aux(index_Y,Num_gam_e,Num_nu_cool,n_threads,gam_e,V_cool, &
-                                         P_eff_cool_chi(:,I_chi),Seed_eff_cool_chi(:,I_chi),cooling_aux_chi(:,I_chi))
-        if (profile_enabled) then
-            call cpu_time(t_stop)
-            t_prepare_aux = t_prepare_aux + (t_stop-t_start)
-        end if
-        prepare_aux_calls = prepare_aux_calls + 1
-    end do
+    if (profile_enabled) call cpu_time(t_start)
+    call prepare_forward_cooling_aux_batch(index_Y,Num_gam_e,Num_nu_cool,Num_chi,n_threads,gam_e,V_cool, &
+                                           P_eff_cool_chi,Seed_eff_cool_chi,cooling_aux_chi)
+    if (profile_enabled) then
+        call cpu_time(t_stop)
+        t_prepare_aux = t_prepare_aux + (t_stop-t_start)
+    end if
+    prepare_aux_calls = prepare_aux_calls + 1
     if (profile_enabled) call cpu_time(t_start)
     do I_chi = 1, Num_chi
         beta_2_sh_loc = bm_beta2_shock(R_Gamma_loc,chi_grid(I_chi))
@@ -549,5 +555,5 @@ subroutine fs_electron_fullhide_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
     deallocate(dEl, dEL_mean, dEL_mean_shell, kappa2_arr, dN_init, dN_init_log, dF1, shell_population, U_log, source_eta1, &
                V_m_chi, V_c_chi, V_a_chi, chi_weight, Epsilon_b_chi, DB_chi, t_decay_chi, eta_grid, chi_grid, eta_face, chi_face, a_arr, dln_a_dR_arr, proper_time_arr, x_face_hist, x_comov_face_hist, &
                x_comov_hist, dx_comov_hist, beta_hist, dN_cell, P_local, V_cool, P_hist, Seed_hist, Tau_hist, &
-               P_hist_cool, Seed_hist_cool, Tau_hist_cool, P_eff_cool_chi, Seed_eff_cool_chi, cooling_aux_chi, dEl_chi, dEL_mean_chi, kappa2_chi)
+               P_hist_cool, Seed_hist_cool, Tau_pair_hist_cool, P_eff_cool_chi, Seed_eff_cool_chi, cooling_aux_chi, dEl_chi, dEL_mean_chi, kappa2_chi)
 end subroutine fs_electron_fullhide_2d

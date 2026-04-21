@@ -1,12 +1,14 @@
+!f2py: skip
 module electron_radiation_kernel
   use constants
   use electron_common, only: electron_ppm_interfaces_nonuniform
+  use radiation_common, only: radiation_syn_seed_core
   private
 
     public :: first_greater_monotonic, first_greater_monotonic_window
     public :: besselk, get_syn, get_syn_state, get_syn_simpson, get_syn_selected, get_nu_a, get_nu_a_nonuniform
     public :: get_nu_a_2d_path, get_nu_a_2d_cell_path, reduce_syn_shell_from_chi
-    public :: build_reduced_log_grid, compress_syn_state_logbands
+    public :: build_reduced_log_grid, compress_syn_state_logbands, project_syn_state_logbands
     public :: get_syn_adaptive
     public :: electron_powerlaw_interp, electron_integrate_powerlaw_segment, electron_ssa_segment
     public :: electron_fill_quadratic_slopes, electron_ppm_value_derivative_nonuniform
@@ -214,66 +216,52 @@ real(8) :: V_lo,V_hi,dln_band
             dln_band=dlog(V_hi/V_lo)
             P_out(I_out)=electron_integrate_piecewise_powerlaw(Num_nu_in,V_in,P_in,V_lo,V_hi)/max(V_hi-V_lo,tiny(one))
             Seed_out(I_out)=electron_integrate_piecewise_powerlaw(Num_nu_in,V_in,Seed_in,V_lo,V_hi)/max(V_hi-V_lo,tiny(one))
-            Tau_out(I_out)=max(electron_integrate_piecewise_powerlaw(Num_nu_in,V_in,Tau_in/V_in,V_lo,V_hi)/max(dln_band,tiny(one)),1d-4)
+            Tau_out(I_out)=max(electron_integrate_piecewise_powerlaw(Num_nu_in,V_in,Tau_in/V_in,V_lo,V_hi) / &
+                               max(dln_band,tiny(one)),1d-4)
         end if
     end do
 end subroutine compress_syn_state_logbands
 
+subroutine project_syn_state_logbands(Num_nu_in,V_in,P_in,Seed_in,Tau_in,Num_nu_out,V_out,P_out,Seed_out,Tau_out)
+implicit REAL(8)(A-H,O-Z)
+integer, intent(in) :: Num_nu_in,Num_nu_out
+integer :: I_out, idx_lo, idx_hi
+real(8), intent(in) :: V_in(Num_nu_in),P_in(Num_nu_in),Seed_in(Num_nu_in),Tau_in(Num_nu_in),V_out(Num_nu_out)
+real(8), intent(out) :: P_out(Num_nu_out),Seed_out(Num_nu_out),Tau_out(Num_nu_out)
+real(8) :: V_tar
+
+    idx_lo=1
+    do I_out=1,Num_nu_out
+        V_tar=min(max(V_out(I_out),V_in(1)),V_in(Num_nu_in))
+        if (V_tar <= V_in(1)) then
+            P_out(I_out)=max(P_in(1),zero)
+            Seed_out(I_out)=max(Seed_in(1),zero)
+            Tau_out(I_out)=max(Tau_in(1),1d-4)
+            cycle
+        end if
+        if (V_tar >= V_in(Num_nu_in)) then
+            P_out(I_out)=max(P_in(Num_nu_in),zero)
+            Seed_out(I_out)=max(Seed_in(Num_nu_in),zero)
+            Tau_out(I_out)=max(Tau_in(Num_nu_in),1d-4)
+            cycle
+        end if
+
+        call first_greater_monotonic_window(V_in,Num_nu_in,idx_lo,V_tar,idx_hi)
+        idx_lo=max(1,min(idx_hi-1,Num_nu_in-1))
+        P_out(I_out)=max(electron_powerlaw_interp(V_in(idx_lo),V_in(idx_hi),P_in(idx_lo),P_in(idx_hi),V_tar),zero)
+        Seed_out(I_out)=max(electron_powerlaw_interp(V_in(idx_lo),V_in(idx_hi),Seed_in(idx_lo),Seed_in(idx_hi),V_tar),zero)
+        Tau_out(I_out)=max(electron_powerlaw_interp(V_in(idx_lo),V_in(idx_hi),Tau_in(idx_lo),Tau_in(idx_hi),V_tar),1d-4)
+    end do
+end subroutine project_syn_state_logbands
+
 subroutine get_syn_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
                          P_emit,P_syn,Seed_syn,Tau_syn)
-!$ use omp_lib
 implicit REAL(8)(A-H,O-Z)
 integer, intent(in) :: Num_gam_e,Num_nu,n_threads
 real(8), intent(in) :: R_loc,DB,gam_e(Num_gam_e),dN_gam_e(Num_gam_e),V_seed(Num_nu)
 real(8), intent(out) ::P_emit(Num_nu),P_syn(Num_nu),Seed_syn(Num_nu),Tau_syn(Num_nu)
-
-real(8),allocatable,dimension (:) :: dN1,ddN
-allocate (dN1(Num_gam_e),ddN(Num_gam_e-1))
-
-    factor=(3.62d0/pi)**2
-    Temp_syn=dsqrt(3d0)*para_e*para_e*para_e/Para_m_energy
-    Rariv2=R_loc*R_loc
-    dN1=dN_gam_e/(gam_e*gam_e)
-    ddN=dN1(1:Num_gam_e-1)-dN1(2:Num_gam_e)
-    
-    !$ call omp_set_dynamic(.true.)
-    !$OMP PARALLEL num_threads(n_threads), private(I_nu,I_gam_e,V_cal,dInteg,Tau,Vc,x,Fx,P_v, &
-    !$OMP& gam_e_mean2,dN,dgam_e,ratio_v)
-    !$OMP DO SCHEDULE(STATIC)
-    do I_nu=1,Num_nu
-       V_cal=V_seed(I_nu)
-       dInteg=zero
-       Tau=zero
-       do I_gam_e=1,Num_gam_e-1
-          gam_e_mean2=(gam_e(I_gam_e)+gam_e(I_gam_e+1))**2/4d0
-          Vc=(4.2d6)*gam_e_mean2*DB !Which is $\nu_c$
-          x=V_cal/Vc !Which is ($\nu/\nu_c$)
-          ratio_v=Vc/V_cal
-          Fx=1.81d0*dexp(-x)/dsqrt(ratio_v**(2d0/3d0)+factor) !Approximate function of synchrotron radiation spectrum
-!         Fx=2.149d0*x**(one/3.0d0)*dexp(-x) !!Another approximate function
-          dN=(dN_gam_e(I_gam_e)+dN_gam_e(I_gam_e+1))/two
-          dgam_e=gam_e(I_gam_e+1)-gam_e(I_gam_e)
-          dInteg=dInteg+dN*Fx*dgam_e
-          !====================  [SSA]  ======================
-          Tau=Tau+gam_e_mean2*ddN(I_gam_e)*Fx
-          !Synchrotron self absorption effect
-          !===================================================
-       end do
-       P_v=Temp_syn*DB*dInteg ! with units in erg/Hz/s
-       Tau=1.046d4*Tau*DB/(4d0*pi*Rariv2*V_cal*V_cal) !Synchrotron self absorption effect
-       if ((Tau-1d-4) < 1d-5) Tau=1d-4
-       P_emit(I_nu)=P_v
-       Tau_syn(I_nu)=Tau
-       P_syn(I_nu)=P_v*(one-dexp(-Tau))/Tau !Radiation transfer equation for the emission-absorption plasma
-       Seed_syn(I_nu)=P_syn(I_nu)/(Rariv2*V_cal)
-    end do
-    !$OMP END DO
-    !$OMP END PARALLEL
-
-    temp_para=4d0*pi*Para_c*Para_h
-    Seed_syn=Seed_syn/temp_para
-
-deallocate (dN1,ddN)
+    call radiation_syn_seed_core(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed,1.046d4, &
+                                 P_emit,P_syn,Seed_syn,Tau_syn)
 end subroutine get_syn_state
 
 real(8) function electron_syn_fx(gam,V_cal,DB,factor)
@@ -1016,7 +1004,6 @@ allocate (dN1(Num_gam_e),ddN1(Num_gam_e),x_gam(Num_gam_e))
     dN1=dN_gam_e/(gam_e*gam_e)
     x_gam=dlog(gam_e)
     call electron_fill_quadratic_slopes(x_gam,dN1,ddN1,Num_gam_e)
-    
     V_a_floor=ten**4d0
     V_a_min=ten**(-20d0)
     V_a_cap=one
@@ -1152,7 +1139,6 @@ allocate(x_edge(Num_gam_e+1),q_y(Num_gam_e),q_left(Num_gam_e),q_right(Num_gam_e)
     x_edge=dlog(ten)*x_edge_log10
     q_y=dN_x/dlog(ten)
     call electron_ppm_interfaces_nonuniform(Num_gam_e,x_edge,q_y,q_left,q_right)
-
     V_a_floor=ten**4d0
     V_a_min=ten**(-20d0)
     V_a_cap=one
