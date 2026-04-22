@@ -1,0 +1,64 @@
+[build-system]
+requires = [
+    "setuptools>=68",
+    "wheel",
+    "numpy>=1.24",
+    "meson>=1.2",
+    "ninja",
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "asgard-grb-afterglow"
+version = "4.2.1"
+description = "ASGARD GRB afterglow simulation and fitting toolkit"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { file = "License" }
+authors = [
+    { name = "Jia Ren" },
+]
+keywords = ["astrophysics", "grb", "afterglow", "fortran", "radiation"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: BSD License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Fortran",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Topic :: Scientific/Engineering :: Astronomy",
+]
+dependencies = [
+    "numpy",
+    "scipy",
+    "matplotlib",
+    "astropy",
+    "extinction",
+    "h5py",
+    "tqdm",
+]
+
+[project.optional-dependencies]
+fit = [
+    "emcee",
+    "corner",
+    "schwimmbad",
+    "pymultinest",
+]
+compare = [
+    "VegasAfterglow",
+]
+
+[project.urls]
+Homepage = "https://github.com/mikuru1096/ASGARD_GRBAfterglow"
+
+[project.scripts]
+asgard-demo = "lc_spec_demo:main"
+asgard-build = "build_extensions:main"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["ASGARD*", "asgard_core*", "src*"]

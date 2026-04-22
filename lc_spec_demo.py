@@ -1,6 +1,6 @@
 from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet, observe
-from asgard_plot import plot_light_curve, plot_spectrum
-from asgard_presets import build_spectrum_demo_config
+from asgard_core.asgard_plot import plot_light_curve, plot_spectrum
+from asgard_core.asgard_presets import build_spectrum_demo_config
 
 
 def main() -> None:

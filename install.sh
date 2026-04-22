@@ -2,4 +2,4 @@
 set -euo pipefail
 
 PYTHON_BIN="${PYTHON_BIN:-python3}"
-"${PYTHON_BIN}" build_extensions.py
+"${PYTHON_BIN}" install.py "$@"

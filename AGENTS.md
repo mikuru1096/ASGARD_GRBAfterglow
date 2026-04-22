@@ -4,9 +4,10 @@
 
 - Reply to the user in Chinese.
 - Prefix shell commands with `rtk`.
-- Default direct Fortran check environment is WSL Ubuntu:
-  - `wsl.exe -d Ubuntu -- bash -lc '...'`
-- Use native Windows Python only for runtime extension builds that must produce Windows `.pyd` artifacts.
+- All builds, compile checks, and runtime commands must run inside WSL Ubuntu.
+- Default environment is `WSL + uv`.
+- `rtk` is available inside WSL and must be used from WSL only.
+- Do not use `wsl.exe`, PowerShell, Windows CMD, native Windows Python, or any other Windows-side command for this repository unless the user explicitly reverts this policy.
 - Do not add numerical guards to non-simulation code.
 - Do not hide discontinuities or non-smooth physical results with plotting or post-processing changes.
 - If a physical time-evolution quantity is not continuous and smooth, treat it as a likely numerical or physics bug until checked.
@@ -18,16 +19,31 @@
 
 ## Build Commands
 
-Windows runtime extension build:
+WSL runtime extension build:
 
-```powershell
-rtk powershell -Command '& "C:\Users\jia\AppData\Local\Programs\Python\Python312\python.exe" build_extensions.py --module FS_electron_fullhide_2d --force'
+```bash
+rtk uv run python build_extensions.py --module FS_electron_fullhide_2d --force
+```
+
+WSL runtime extension build (`charint_2d`):
+
+```bash
+rtk uv run python build_extensions.py --module FS_electron_charint_2d --force
 ```
 
 WSL toolchain check:
 
-```powershell
-rtk powershell -Command "wsl.exe -d Ubuntu -- bash -lc 'cd /mnt/c/Users/jia/Documents/New\ project/ASGARD_GRBAfterglow && /usr/bin/gfortran --version'"
+```bash
+rtk /usr/bin/gfortran --version
+```
+
+WSL import smoke:
+
+```bash
+rtk uv run python - <<'PY'
+import ASGARD
+print("import-ok")
+PY
 ```
 
 ## Public Runtime Status
@@ -39,6 +55,7 @@ rtk powershell -Command "wsl.exe -d Ubuntu -- bash -lc 'cd /mnt/c/Users/jia/Docu
   - `fullhide_1d`
   - `slc1_1d`
   - `charint_1d`
+  - `charint_2d`
   - `t2g1_1d`
   - `weno5_1d`
   - `fullhide_2d`
@@ -76,6 +93,11 @@ rtk powershell -Command "wsl.exe -d Ubuntu -- bash -lc 'cd /mnt/c/Users/jia/Docu
   - shell cooling assembly once per shell
   - substep cooling assembly disabled
   - substeps still update dynamics interpolation, density, injection, eta transport, and xi advance
+- `charint_2d` uses:
+  - shared `fullhide_2d` outer physics, history, and shell diagnostics
+  - characteristic eta/log-chi advection
+  - implicit eta/log-chi diffusion
+  - characteristic xi/log-gamma advance
 
 ## Current Test Entrypoints
 

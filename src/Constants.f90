@@ -1,3 +1,4 @@
+!f2py: skip
 MODULE Constants
   IMPLICIT REAL(8)(A-H,O-Z)
     real(8),parameter ::zero=0.0d0

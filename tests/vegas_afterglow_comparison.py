@@ -109,10 +109,10 @@ SPEED_SKY_NPIXEL = 20
 SPECTRUM_COMPARE_FREQS = np.logspace(8.0, 29.0, 240)
 SPECTRUM_COMPARE_NUM_NU = 81
 ELECTRON_COMPARE_TIMES = np.array([1.0e2, 3.0e2, 1.0e3, 1.0e4, 1.0e5, 1.0e6, 1.0e7], dtype=float)
-ELECTRON_COMPARE_SOLVERS = ("fullhide_1d", "fullhide_2d", "slc1_1d", "charint_1d")
-ELECTRON_COMPARE_NUM_GAM_E = {"fullhide_1d": 81, "fullhide_2d": 81, "slc1_1d": 81, "charint_1d": 41}
-ELECTRON_COMPARE_NUM_CHI = {"fullhide_1d": None, "fullhide_2d": 8, "slc1_1d": None, "charint_1d": None}
-ELECTRON_COMPARE_LINESTYLES = {"fullhide_1d": "-", "fullhide_2d": ":", "slc1_1d": "--", "charint_1d": "-."}
+ELECTRON_COMPARE_SOLVERS = ("fullhide_1d", "fullhide_2d", "slc1_1d", "charint_1d", "charint_2d")
+ELECTRON_COMPARE_NUM_GAM_E = {"fullhide_1d": 81, "fullhide_2d": 81, "slc1_1d": 81, "charint_1d": 41, "charint_2d": 41}
+ELECTRON_COMPARE_NUM_CHI = {"fullhide_1d": None, "fullhide_2d": 8, "slc1_1d": None, "charint_1d": None, "charint_2d": 8}
+ELECTRON_COMPARE_LINESTYLES = {"fullhide_1d": "-", "fullhide_2d": ":", "slc1_1d": "--", "charint_1d": "-.", "charint_2d": (0, (5, 1.4))}
 
 
 def _save(fig, path: Path) -> Path:
@@ -1045,6 +1045,7 @@ def _build_electron_spectrum_compare(*, magnetic_decay: bool = False) -> Path:
         "fullhide_2d": "#0072B2",
         "slc1_1d": "#D55E00",
         "charint_1d": "#009E73",
+        "charint_2d": "#D55E00",
     }
     solver_handles: list[Line2D] = []
     for solver in ELECTRON_COMPARE_SOLVERS:
@@ -1161,18 +1162,30 @@ def _build_magnetic_decay_compare() -> Path:
     fig, axes = plt.subplots(2, 2, figsize=(12.6, 7.0), dpi=200, sharex="col")
     colors = plt.cm.tab10(np.linspace(0, 1, bands.size))
     order_desc = np.argsort(bands)[::-1]
+    lc_peak = 0.0
     for rank, i in enumerate(order_desc):
         nu = bands[i]
         shift = 10.0 ** (-MAGNETIC_DECAY_LC_SHIFT_DEX * rank)
         label = _label(nu, "Hz")
         shift_tag = f" x1e-{MAGNETIC_DECAY_LC_SHIFT_DEX * rank:.0f}" if rank > 0 else ""
-        axes[0, 0].loglog(times, lc_base[i, :] * shift, color=colors[i], lw=1.8, alpha=ASGARD_ALPHA, label=f"baseline {label}{shift_tag}")
-        axes[0, 0].loglog(times, lc_decay[i, :] * shift, color=colors[i], lw=1.4, ls="--", alpha=0.85, label=f"decay {label}{shift_tag}")
-        ratio = np.divide(lc_decay[i, :], lc_base[i, :], out=np.full_like(times, np.nan, dtype=float), where=lc_base[i, :] > 0.0)
+        base_shifted = lc_base[i, :] * shift
+        decay_shifted = lc_decay[i, :] * shift
+        lc_peak = max(lc_peak, float(np.nanmax(base_shifted)), float(np.nanmax(decay_shifted)))
+        axes[0, 0].loglog(times, base_shifted, color=colors[i], lw=1.8, alpha=ASGARD_ALPHA, label=f"baseline {label}{shift_tag}")
+        axes[0, 0].loglog(times, decay_shifted, color=colors[i], lw=1.4, ls="--", alpha=0.85, label=f"decay {label}{shift_tag}")
+        band_floor = max(1.0e-99, float(np.nanmax(lc_base[i, :])) * 1.0e-4)
+        ratio = np.divide(
+            lc_decay[i, :],
+            lc_base[i, :],
+            out=np.full_like(times, np.nan, dtype=float),
+            where=lc_base[i, :] > band_floor,
+        )
         mask = np.isfinite(ratio) & (ratio > 0.0)
         if np.any(mask):
             axes[1, 0].semilogx(times[mask], ratio[mask], color=colors[i], lw=1.5, label=label)
     axes[0, 0].set_ylabel(r"Energy Flux (erg/cm$^2$/s)")
+    if np.isfinite(lc_peak) and lc_peak > 0.0:
+        axes[0, 0].set_ylim(bottom=lc_peak * 1.0e-20)
     axes[0, 0].set_title("ASGARD 2D Magnetic-Decay Light Curves")
     axes[0, 0].grid(**GRID_STYLE)
     axes[0, 0].legend(fontsize=5.8, ncol=2)
@@ -1184,6 +1197,8 @@ def _build_magnetic_decay_compare() -> Path:
 
     time_base = np.asarray(details_base.fwd.t_obs, dtype=float)
     time_decay = np.asarray(details_decay.fwd.t_obs, dtype=float)
+    t_min_plot = float(np.min(times))
+    t_max_plot = float(np.max(times))
     freq_sets = [
         (np.asarray(details_base.fwd.nu_m, dtype=float), np.asarray(details_decay.fwd.nu_m, dtype=float), r"$\nu_m$", "C0"),
         (np.asarray(details_base.fwd.nu_c, dtype=float), np.asarray(details_decay.fwd.nu_c, dtype=float), r"$\nu_c$", "C1"),
@@ -1194,14 +1209,29 @@ def _build_magnetic_decay_compare() -> Path:
             (base_arr, time_base, "-", ASGARD_ALPHA, "baseline"),
             (decay_arr, time_decay, "--", 0.85, "decay"),
         ]:
-            mask = np.isfinite(tt) & np.isfinite(arr) & (tt > 0.0) & (arr > 0.0)
+            mask = (
+                np.isfinite(tt)
+                & np.isfinite(arr)
+                & (tt > 0.0)
+                & (arr > 0.0)
+                & (tt >= t_min_plot)
+                & (tt <= t_max_plot)
+            )
             if np.any(mask):
                 axes[0, 1].loglog(tt[mask], arr[mask], color=color, lw=1.5, ls=ls, alpha=alpha, label=f"{prefix} {label}")
-        decay_interp = _safe_log_interp(time_base, time_decay, decay_arr)
-        ratio = np.divide(decay_interp, base_arr, out=np.full_like(base_arr, np.nan, dtype=float), where=base_arr > 0.0)
-        mask = np.isfinite(time_base) & np.isfinite(ratio) & (time_base > 0.0) & (ratio > 0.0)
+        base_mask = np.isfinite(time_base) & np.isfinite(base_arr) & (time_base >= t_min_plot) & (time_base <= t_max_plot)
+        decay_mask = np.isfinite(time_decay) & np.isfinite(decay_arr) & (time_decay >= t_min_plot) & (time_decay <= t_max_plot)
+        if np.any(base_mask) and np.any(decay_mask):
+            time_base_clip = time_base[base_mask]
+            base_clip = base_arr[base_mask]
+            decay_interp = _safe_log_interp(time_base_clip, time_decay[decay_mask], decay_arr[decay_mask])
+            ratio = np.divide(decay_interp, base_clip, out=np.full_like(base_clip, np.nan, dtype=float), where=base_clip > 0.0)
+        else:
+            time_base_clip = np.array([], dtype=float)
+            ratio = np.array([], dtype=float)
+        mask = np.isfinite(time_base_clip) & np.isfinite(ratio) & (time_base_clip > 0.0) & (ratio > 0.0)
         if np.any(mask):
-            axes[1, 1].semilogx(time_base[mask], ratio[mask], color=color, lw=1.5, label=label)
+            axes[1, 1].semilogx(time_base_clip[mask], ratio[mask], color=color, lw=1.5, label=label)
     axes[0, 1].set_ylabel("Frequency [Hz]")
     axes[0, 1].set_title(
         rf"$\alpha_t={DECAY_ALPHA_T:.1f},\ t_0'={DECAY_T0_S:.1e}\,$s, "
@@ -1244,11 +1274,32 @@ def _build_magnetic_decay_compare() -> Path:
             label = fr"$t={t_obs:.0e}\,$s"
             ax_spec.loglog(energy_ev, spec_base[:, i_epoch], color=color, lw=1.7, alpha=ASGARD_ALPHA, label=f"baseline {label}")
             ax_spec.loglog(energy_ev, spec_decay[:, i_epoch], color=color, lw=1.4, ls="--", alpha=0.88, label=f"decay {label}")
+            base_floor = max(1.0e-99, float(np.nanmax(spec_base[:, i_epoch])) * 1.0e-3)
+            decay_floor = max(1.0e-99, float(np.nanmax(spec_decay[:, i_epoch])) * 1.0e-3)
+            valid = (spec_base[:, i_epoch] > base_floor) & (spec_decay[:, i_epoch] > decay_floor)
+            if np.any(valid):
+                peak_idx = int(np.argmax(spec_base[:, i_epoch]))
+                idx_valid = np.where(valid)[0]
+                split_points = np.where(np.diff(idx_valid) > 1)[0]
+                starts = np.concatenate(([0], split_points + 1))
+                ends = np.concatenate((split_points + 1, [idx_valid.size]))
+                keep = np.zeros_like(valid)
+                for i_seg in range(starts.size):
+                    seg_idx = idx_valid[starts[i_seg]:ends[i_seg]]
+                    if seg_idx.size == 0:
+                        continue
+                    if seg_idx[0] <= peak_idx <= seg_idx[-1]:
+                        keep[seg_idx] = True
+                        break
+                if not np.any(keep):
+                    keep[valid] = True
+            else:
+                keep = valid
             ratio = np.divide(
                 spec_decay[:, i_epoch],
                 spec_base[:, i_epoch],
                 out=np.full_like(spectrum_freqs, np.nan, dtype=float),
-                where=spec_base[:, i_epoch] > 0.0,
+                where=keep,
             )
             mask = np.isfinite(ratio) & (ratio > 0.0)
             if np.any(mask):

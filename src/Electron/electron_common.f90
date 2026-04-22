@@ -1,4 +1,5 @@
-﻿module electron_common
+!f2py: skip
+module electron_common
     use constants
     use adaptive_resampling_mod, only: adaptive_resampling_log
     implicit none
@@ -43,18 +44,6 @@ subroutine electron_log_cell_edges(Num_gam_e,gam_e,x_edge)
     end do
     x_edge(Num_gam_e+1)=dlog10(gam_e(Num_gam_e))+0.5d0*(dlog10(gam_e(Num_gam_e))-dlog10(gam_e(Num_gam_e-1)))
 end subroutine electron_log_cell_edges
-
-subroutine electron_gamma_from_edges(Num_gam_e,x_edge,gam_e)
-    implicit real(8)(A-H,O-Z)
-    integer, intent(in) :: Num_gam_e
-    integer :: I_gam_e
-    real(8), intent(in) :: x_edge(Num_gam_e+1)
-    real(8), intent(out) :: gam_e(Num_gam_e)
-
-    do I_gam_e=1,Num_gam_e
-        gam_e(I_gam_e)=ten**(0.5d0*(x_edge(I_gam_e)+x_edge(I_gam_e+1)))
-    end do
-end subroutine electron_gamma_from_edges
 
 subroutine electron_mc_slopes_nonuniform(Num_gam_e,x_center,q,slope)
     implicit real(8)(A-H,O-Z)
@@ -140,15 +129,6 @@ subroutine electron_ppm_interfaces_nonuniform(Num_gam_e,x_edge,q,q_left,q_right)
         q_right(Num_gam_e)=max(q_min,min(q_max,q_right(Num_gam_e)))
     end if
 end subroutine electron_ppm_interfaces_nonuniform
-
-subroutine electron_ppm_interfaces_remap_nonuniform(Num_gam_e,x_edge,q,q_left,q_right)
-    implicit real(8)(A-H,O-Z)
-    integer, intent(in) :: Num_gam_e
-    real(8), intent(in) :: x_edge(Num_gam_e+1),q(Num_gam_e)
-    real(8), intent(out) :: q_left(Num_gam_e),q_right(Num_gam_e)
-
-    call electron_ppm_interfaces_nonuniform(Num_gam_e,x_edge,q,q_left,q_right)
-end subroutine electron_ppm_interfaces_remap_nonuniform
 
 subroutine electron_ppm_prefix_nonuniform(Num_gam_e,x_edge,q,q_left,q_right,prefix)
     implicit real(8)(A-H,O-Z)
@@ -267,15 +247,6 @@ subroutine electron_conservative_remap_nonuniform(Num_gam_e,x_edge_old,x_edge_ne
     call electron_conservative_remap_nonuniform_prepared(Num_gam_e,x_edge_old,x_edge_new,q_old,q_left,q_right,prefix,q_new)
 end subroutine electron_conservative_remap_nonuniform
 
-subroutine electron_conservative_remap_export_nonuniform(Num_gam_e,x_edge_old,x_edge_new,q_old,q_new)
-    implicit real(8)(A-H,O-Z)
-    integer, intent(in) :: Num_gam_e
-    real(8), intent(in) :: x_edge_old(Num_gam_e+1),x_edge_new(Num_gam_e+1),q_old(Num_gam_e)
-    real(8), intent(out) :: q_new(Num_gam_e)
-
-    call electron_conservative_remap_nonuniform(Num_gam_e,x_edge_old,x_edge_new,q_old,q_new)
-end subroutine electron_conservative_remap_export_nonuniform
-
 subroutine electron_conservative_remap_log_nonuniform_prepared(Num_gam_e,x_edge_old,x_edge_new,prefix,qlog,slope,x_center,q_new)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: Num_gam_e
@@ -365,17 +336,6 @@ real(8) function electron_log_prefix_eval_nonuniform(Num_gam_e,x_edge,prefix,qlo
         electron_loglinear_cell_int(qlog(I_gam_e),slope(I_gam_e),x_center(I_gam_e),x_edge(I_gam_e),xa)
 end function electron_log_prefix_eval_nonuniform
 
-subroutine electron_conservative_remap_log_nonuniform(Num_gam_e,x_edge_old,x_edge_new,q_old,q_new)
-    implicit real(8)(A-H,O-Z)
-    integer, intent(in) :: Num_gam_e
-    real(8), intent(in) :: x_edge_old(Num_gam_e+1),x_edge_new(Num_gam_e+1),q_old(Num_gam_e)
-    real(8), intent(out) :: q_new(Num_gam_e)
-    real(8) :: prefix(0:Num_gam_e),qlog(Num_gam_e),slope(Num_gam_e),x_center(Num_gam_e)
-
-    call electron_log_prefix_nonuniform(Num_gam_e,x_edge_old,q_old,prefix,qlog,slope,x_center)
-    call electron_conservative_remap_log_nonuniform_prepared(Num_gam_e,x_edge_old,x_edge_new,prefix,qlog,slope,x_center,q_new)
-end subroutine electron_conservative_remap_log_nonuniform
-
 subroutine electron_semi_lagrangian_transport_nonuniform(Num_gam_e,dDR,x_edge,face_coeff,dN_x_in,dN_x_out)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: Num_gam_e
@@ -433,46 +393,6 @@ real(8) function electron_x_from_u(u)
 
     electron_x_from_u=-dlog(max(u,tiny_u_char))*inv_log_ten
 end function electron_x_from_u
-
-real(8) function electron_affine_u_back(u_now,lag,a_u,b_u)
-    implicit real(8)(A-H,O-Z)
-    real(8), intent(in) :: u_now,lag,a_u,b_u
-    real(8) :: shift
-
-    if (abs(b_u) <= 1d-30) then
-        electron_affine_u_back=u_now-a_u*lag
-        return
-    end if
-
-    shift=a_u/b_u
-    electron_affine_u_back=(u_now+shift)*dexp(-b_u*lag)-shift
-end function electron_affine_u_back
-
-real(8) function electron_affine_u_cross_lag(u_start,u_target,a_u,b_u)
-    implicit real(8)(A-H,O-Z)
-    real(8), intent(in) :: u_start,u_target,a_u,b_u
-    real(8) :: vel_back,shift,num,den
-
-    electron_affine_u_cross_lag=1d300
-    if (abs(u_target-u_start) <= 1d-30*max(one,abs(u_start),abs(u_target))) then
-        electron_affine_u_cross_lag=zero
-        return
-    end if
-
-    if (abs(b_u) <= 1d-30) then
-        vel_back=-a_u
-        if (abs(vel_back) <= 1d-40) return
-        electron_affine_u_cross_lag=(u_target-u_start)/vel_back
-    else
-        shift=a_u/b_u
-        num=u_start+shift
-        den=u_target+shift
-        if (num <= zero .or. den <= zero) return
-        electron_affine_u_cross_lag=dlog(num/den)/b_u
-    end if
-
-    if (electron_affine_u_cross_lag < zero) electron_affine_u_cross_lag=1d300
-end function electron_affine_u_cross_lag
 
 subroutine electron_trace_affine_u_edges(Num_gam_e,u_now_edge,lag,a_u,b_u,x_back)
     implicit real(8)(A-H,O-Z)
@@ -741,17 +661,6 @@ subroutine electron_trace_piecewise_affine_u_edge_from_cell(Num_gam_e,u_edge,a_c
     u_back=u_cur
 end subroutine electron_trace_piecewise_affine_u_edge_from_cell
 
-subroutine electron_trace_piecewise_affine_u_edge(Num_gam_e,u_edge,a_cell,b_cell,lag,u_now,u_back)
-    implicit real(8)(A-H,O-Z)
-    integer, intent(in) :: Num_gam_e
-    integer :: I_cell
-    real(8), intent(in) :: u_edge(Num_gam_e+1),a_cell(Num_gam_e),b_cell(Num_gam_e),lag,u_now
-    real(8), intent(out) :: u_back
-
-    call electron_find_u_cell_desc(Num_gam_e,u_edge,u_now,I_cell)
-    call electron_trace_piecewise_affine_u_edge_from_cell(Num_gam_e,u_edge,a_cell,b_cell,lag,u_now,I_cell,u_back)
-end subroutine electron_trace_piecewise_affine_u_edge
-
 subroutine electron_trace_piecewise_affine_u_edges(Num_gam_e,u_now_edge,u_edge,a_cell,b_cell,lag,x_back)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: Num_gam_e
@@ -780,31 +689,40 @@ subroutine electron_trace_piecewise_affine_u_edges_batch(Num_gam_e,Num_lag,u_now
     end do
 end subroutine electron_trace_piecewise_affine_u_edges_batch
 
-subroutine electron_characteristic_step_affine_u(Num_gam_e,dDR,x_edge,a_u,b_u,dF1,dN_x_in,dN_x_out)
+subroutine electron_characteristic_lag_grid(dDR,lag_arr)
     implicit real(8)(A-H,O-Z)
-    integer, intent(in) :: Num_gam_e
     integer :: I_quad
-    real(8), intent(in) :: dDR,x_edge(Num_gam_e+1),a_u,b_u,dF1(Num_gam_e),dN_x_in(Num_gam_e)
-    real(8), intent(out) :: dN_x_out(Num_gam_e)
-    real(8) :: x_back(Num_gam_e+1),u_now_edge(Num_gam_e+1),lag_arr(charint_quad_order+1)
-    real(8) :: x_back_batch(Num_gam_e+1,charint_quad_order+1)
-    real(8) :: dN_transport(Num_gam_e),dN_source(Num_gam_e),dN_quad(Num_gam_e)
-    real(8) :: q_left_state(Num_gam_e),q_right_state(Num_gam_e),prefix_state(0:Num_gam_e)
-    real(8) :: q_left_source(Num_gam_e),q_right_source(Num_gam_e),prefix_source(0:Num_gam_e)
-
-    call electron_u_edges_from_x(Num_gam_e,x_edge,u_now_edge)
-    call electron_prepare_conservative_remap_nonuniform(Num_gam_e,x_edge,dN_x_in,q_left_state,q_right_state,prefix_state)
-    call electron_prepare_conservative_remap_nonuniform(Num_gam_e,x_edge,dF1,q_left_source,q_right_source,prefix_source)
+    real(8), intent(in) :: dDR
+    real(8), intent(out) :: lag_arr(5)
 
     lag_arr(1)=dDR
     do I_quad=1,charint_quad_order
         lag_arr(I_quad+1)=charint_quad_nodes(I_quad)*dDR
     end do
-    call electron_trace_affine_u_edges_batch(Num_gam_e,charint_quad_order+1,u_now_edge,lag_arr,a_u,b_u,x_back_batch)
+end subroutine electron_characteristic_lag_grid
+
+subroutine electron_characteristic_step_prepared_core(Num_gam_e,dDR,x_edge,x_back_batch,source_scale, &
+                                                      q_left_source,q_right_source,prefix_source,dF1,dN_x_in,dN_x_out)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: Num_gam_e
+    integer :: I_quad
+    real(8), intent(in) :: dDR,x_edge(Num_gam_e+1),source_scale
+    real(8), intent(in) :: x_back_batch(Num_gam_e+1,5),dF1(Num_gam_e),dN_x_in(Num_gam_e)
+    real(8), intent(in) :: q_left_source(Num_gam_e),q_right_source(Num_gam_e),prefix_source(0:Num_gam_e)
+    real(8), intent(out) :: dN_x_out(Num_gam_e)
+    real(8) :: x_back(Num_gam_e+1),dN_transport(Num_gam_e),dN_source(Num_gam_e),dN_quad(Num_gam_e)
+    real(8) :: q_left_state(Num_gam_e),q_right_state(Num_gam_e),prefix_state(0:Num_gam_e)
+
+    call electron_prepare_conservative_remap_nonuniform(Num_gam_e,x_edge,dN_x_in,q_left_state,q_right_state,prefix_state)
 
     x_back=x_back_batch(:,1)
     call electron_conservative_remap_nonuniform_prepared(Num_gam_e,x_edge,x_back,dN_x_in, &
                                                          q_left_state,q_right_state,prefix_state,dN_transport)
+
+    if (source_scale == zero) then
+        dN_x_out = max(zero, dN_transport)
+        return
+    end if
 
     dN_source=zero
     do I_quad=1,charint_quad_order
@@ -813,83 +731,77 @@ subroutine electron_characteristic_step_affine_u(Num_gam_e,dDR,x_edge,a_u,b_u,dF
                                                              q_left_source,q_right_source,prefix_source,dN_quad)
         dN_source=dN_source+charint_quad_weights(I_quad)*dN_quad
     end do
-    dN_x_out=max(zero,dN_transport+dDR*dN_source)
+
+    dN_x_out=max(zero,dN_transport+dDR*source_scale*dN_source)
+end subroutine electron_characteristic_step_prepared_core
+
+subroutine electron_characteristic_step_affine_u(Num_gam_e,dDR,x_edge,a_u,b_u,dF1,dN_x_in,dN_x_out)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: Num_gam_e
+    real(8), intent(in) :: dDR,x_edge(Num_gam_e+1),a_u,b_u,dF1(Num_gam_e),dN_x_in(Num_gam_e)
+    real(8), intent(out) :: dN_x_out(Num_gam_e)
+    real(8) :: u_now_edge(Num_gam_e+1),lag_arr(5)
+    real(8) :: x_back_batch(Num_gam_e+1,5)
+    real(8) :: q_left_source(Num_gam_e),q_right_source(Num_gam_e),prefix_source(0:Num_gam_e)
+
+    call electron_u_edges_from_x(Num_gam_e,x_edge,u_now_edge)
+    call electron_prepare_conservative_remap_nonuniform(Num_gam_e,x_edge,dF1,q_left_source,q_right_source,prefix_source)
+    call electron_characteristic_lag_grid(dDR,lag_arr)
+    call electron_trace_affine_u_edges_batch(Num_gam_e,charint_quad_order+1,u_now_edge,lag_arr,a_u,b_u,x_back_batch)
+    call electron_characteristic_step_prepared_core(Num_gam_e,dDR,x_edge,x_back_batch,one, &
+                                                    q_left_source,q_right_source,prefix_source,dF1,dN_x_in,dN_x_out)
 end subroutine electron_characteristic_step_affine_u
 
 subroutine electron_characteristic_step_affine_u_prepared_source(Num_gam_e,dDR,x_edge,a_u,b_u,source_scale, &
-                                                                 q_left_source_lin,q_right_source_lin,prefix_source_lin,dF1,dN_x_in,dN_x_out)
+                                                                 q_left_source_lin,q_right_source_lin, &
+                                                                 prefix_source_lin,dF1,dN_x_in,dN_x_out)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: Num_gam_e
-    integer :: I_quad
     real(8), intent(in) :: dDR,x_edge(Num_gam_e+1),a_u,b_u,source_scale
     real(8), intent(in) :: dF1(Num_gam_e)
     real(8), intent(in) :: q_left_source_lin(Num_gam_e),q_right_source_lin(Num_gam_e),prefix_source_lin(0:Num_gam_e)
     real(8), intent(in) :: dN_x_in(Num_gam_e)
     real(8), intent(out) :: dN_x_out(Num_gam_e)
-    real(8) :: x_back(Num_gam_e+1),u_now_edge(Num_gam_e+1),lag_arr(charint_quad_order+1)
-    real(8) :: x_back_batch(Num_gam_e+1,charint_quad_order+1)
-    real(8) :: dN_transport(Num_gam_e),dN_source(Num_gam_e),dN_quad(Num_gam_e)
-    real(8) :: q_left_state(Num_gam_e),q_right_state(Num_gam_e),prefix_state(0:Num_gam_e)
+    real(8) :: u_now_edge(Num_gam_e+1),lag_arr(5)
+    real(8) :: x_back_batch(Num_gam_e+1,5)
 
     call electron_u_edges_from_x(Num_gam_e,x_edge,u_now_edge)
-    call electron_prepare_conservative_remap_nonuniform(Num_gam_e,x_edge,dN_x_in,q_left_state,q_right_state,prefix_state)
-
-    lag_arr(1)=dDR
-    do I_quad=1,charint_quad_order
-        lag_arr(I_quad+1)=charint_quad_nodes(I_quad)*dDR
-    end do
+    call electron_characteristic_lag_grid(dDR,lag_arr)
     call electron_trace_affine_u_edges_batch(Num_gam_e,charint_quad_order+1,u_now_edge,lag_arr,a_u,b_u,x_back_batch)
-
-    x_back=x_back_batch(:,1)
-    call electron_conservative_remap_nonuniform_prepared(Num_gam_e,x_edge,x_back,dN_x_in, &
-                                                         q_left_state,q_right_state,prefix_state,dN_transport)
-
-    dN_source=zero
-    do I_quad=1,charint_quad_order
-        x_back=x_back_batch(:,I_quad+1)
-        call electron_conservative_remap_nonuniform_prepared(Num_gam_e,x_edge,x_back,dF1, &
-                                                           q_left_source_lin,q_right_source_lin,prefix_source_lin,dN_quad)
-        dN_source=dN_source+charint_quad_weights(I_quad)*dN_quad
-    end do
-    dN_x_out=max(zero,dN_transport+dDR*source_scale*dN_source)
+    call electron_characteristic_step_prepared_core(Num_gam_e,dDR,x_edge,x_back_batch,source_scale, &
+                                                    q_left_source_lin,q_right_source_lin,prefix_source_lin,dF1,dN_x_in,dN_x_out)
 end subroutine electron_characteristic_step_affine_u_prepared_source
+
+subroutine electron_characteristic_transport_affine_u(Num_gam_e,dDR,x_edge,a_u,b_u,dN_x_in,dN_x_out)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: Num_gam_e
+    real(8), intent(in) :: dDR,x_edge(Num_gam_e+1),a_u,b_u
+    real(8), intent(in) :: dN_x_in(Num_gam_e)
+    real(8), intent(out) :: dN_x_out(Num_gam_e)
+    real(8) :: u_now_edge(Num_gam_e+1),x_back(Num_gam_e+1)
+
+    call electron_u_edges_from_x(Num_gam_e,x_edge,u_now_edge)
+    call electron_trace_affine_u_edges(Num_gam_e,u_now_edge,dDR,a_u,b_u,x_back)
+    call electron_conservative_remap_nonuniform(Num_gam_e,x_edge,x_back,dN_x_in,dN_x_out)
+end subroutine electron_characteristic_transport_affine_u
 
 subroutine electron_characteristic_step_piecewise_u(Num_gam_e,dDR,x_edge,gam_e,dEl,R_loc,dF1,dN_x_in,dN_x_out)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: Num_gam_e
-    integer :: I_quad
     real(8), intent(in) :: dDR,x_edge(Num_gam_e+1),gam_e(Num_gam_e),dEl(Num_gam_e),R_loc
     real(8), intent(in) :: dF1(Num_gam_e),dN_x_in(Num_gam_e)
     real(8), intent(out) :: dN_x_out(Num_gam_e)
-    real(8) :: x_back(Num_gam_e+1),u_edge(Num_gam_e+1),a_cell(Num_gam_e),b_cell(Num_gam_e)
-    real(8) :: lag_arr(charint_quad_order+1),x_back_batch(Num_gam_e+1,charint_quad_order+1)
-    real(8) :: dN_transport(Num_gam_e),dN_source(Num_gam_e),dN_quad(Num_gam_e)
-    real(8) :: q_left_state(Num_gam_e),q_right_state(Num_gam_e),prefix_state(0:Num_gam_e)
+    real(8) :: u_edge(Num_gam_e+1),a_cell(Num_gam_e),b_cell(Num_gam_e)
+    real(8) :: lag_arr(5),x_back_batch(Num_gam_e+1,5)
     real(8) :: q_left_source(Num_gam_e),q_right_source(Num_gam_e),prefix_source(0:Num_gam_e)
 
     call electron_build_piecewise_affine_u(Num_gam_e,x_edge,gam_e,dEl,R_loc,u_edge,a_cell,b_cell)
-    call electron_prepare_conservative_remap_nonuniform(Num_gam_e,x_edge,dN_x_in,q_left_state,q_right_state,prefix_state)
     call electron_prepare_conservative_remap_nonuniform(Num_gam_e,x_edge,dF1,q_left_source,q_right_source,prefix_source)
-
-    lag_arr(1)=dDR
-    do I_quad=1,charint_quad_order
-        lag_arr(I_quad+1)=charint_quad_nodes(I_quad)*dDR
-    end do
+    call electron_characteristic_lag_grid(dDR,lag_arr)
     call electron_trace_piecewise_affine_u_edges_batch(Num_gam_e,charint_quad_order+1,u_edge,u_edge, &
                                                        a_cell,b_cell,lag_arr,x_back_batch)
-
-    x_back=x_back_batch(:,1)
-    call electron_conservative_remap_nonuniform_prepared(Num_gam_e,x_edge,x_back,dN_x_in, &
-                                                         q_left_state,q_right_state,prefix_state,dN_transport)
-
-    dN_source=zero
-    do I_quad=1,charint_quad_order
-        x_back=x_back_batch(:,I_quad+1)
-        call electron_conservative_remap_nonuniform_prepared(Num_gam_e,x_edge,x_back,dF1, &
-                                                             q_left_source,q_right_source,prefix_source,dN_quad)
-        dN_source=dN_source+charint_quad_weights(I_quad)*dN_quad
-    end do
-    dN_x_out=max(zero,dN_transport+dDR*dN_source)
+    call electron_characteristic_step_prepared_core(Num_gam_e,dDR,x_edge,x_back_batch,one, &
+                                                    q_left_source,q_right_source,prefix_source,dF1,dN_x_in,dN_x_out)
 end subroutine electron_characteristic_step_piecewise_u
 
 subroutine electron_characteristic_step_piecewise_u_prepared_source(Num_gam_e,dDR,x_edge,gam_e,dEl,R_loc,source_scale, &
@@ -897,40 +809,34 @@ subroutine electron_characteristic_step_piecewise_u_prepared_source(Num_gam_e,dD
                                                                     dF1,dN_x_in,dN_x_out)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: Num_gam_e
-    integer :: I_quad
     real(8), intent(in) :: dDR,x_edge(Num_gam_e+1),gam_e(Num_gam_e),dEl(Num_gam_e),R_loc,source_scale
     real(8), intent(in) :: dF1(Num_gam_e)
     real(8), intent(in) :: q_left_source_lin(Num_gam_e),q_right_source_lin(Num_gam_e),prefix_source_lin(0:Num_gam_e)
     real(8), intent(in) :: dN_x_in(Num_gam_e)
     real(8), intent(out) :: dN_x_out(Num_gam_e)
-    real(8) :: x_back(Num_gam_e+1),u_edge(Num_gam_e+1),a_cell(Num_gam_e),b_cell(Num_gam_e)
-    real(8) :: lag_arr(charint_quad_order+1),x_back_batch(Num_gam_e+1,charint_quad_order+1)
-    real(8) :: dN_transport(Num_gam_e),dN_source(Num_gam_e),dN_quad(Num_gam_e)
-    real(8) :: q_left_state(Num_gam_e),q_right_state(Num_gam_e),prefix_state(0:Num_gam_e)
+    real(8) :: u_edge(Num_gam_e+1),a_cell(Num_gam_e),b_cell(Num_gam_e)
+    real(8) :: lag_arr(5),x_back_batch(Num_gam_e+1,5)
 
     call electron_build_piecewise_affine_u(Num_gam_e,x_edge,gam_e,dEl,R_loc,u_edge,a_cell,b_cell)
-    call electron_prepare_conservative_remap_nonuniform(Num_gam_e,x_edge,dN_x_in,q_left_state,q_right_state,prefix_state)
-
-    lag_arr(1)=dDR
-    do I_quad=1,charint_quad_order
-        lag_arr(I_quad+1)=charint_quad_nodes(I_quad)*dDR
-    end do
+    call electron_characteristic_lag_grid(dDR,lag_arr)
     call electron_trace_piecewise_affine_u_edges_batch(Num_gam_e,charint_quad_order+1,u_edge,u_edge, &
                                                        a_cell,b_cell,lag_arr,x_back_batch)
-
-    x_back=x_back_batch(:,1)
-    call electron_conservative_remap_nonuniform_prepared(Num_gam_e,x_edge,x_back,dN_x_in, &
-                                                         q_left_state,q_right_state,prefix_state,dN_transport)
-
-    dN_source=zero
-    do I_quad=1,charint_quad_order
-        x_back=x_back_batch(:,I_quad+1)
-        call electron_conservative_remap_nonuniform_prepared(Num_gam_e,x_edge,x_back,dF1, &
-                                                           q_left_source_lin,q_right_source_lin,prefix_source_lin,dN_quad)
-        dN_source=dN_source+charint_quad_weights(I_quad)*dN_quad
-    end do
-    dN_x_out=max(zero,dN_transport+dDR*source_scale*dN_source)
+    call electron_characteristic_step_prepared_core(Num_gam_e,dDR,x_edge,x_back_batch,source_scale, &
+                                                    q_left_source_lin,q_right_source_lin,prefix_source_lin,dF1,dN_x_in,dN_x_out)
 end subroutine electron_characteristic_step_piecewise_u_prepared_source
+
+subroutine electron_characteristic_transport_piecewise_u(Num_gam_e,dDR,x_edge,gam_e,dEl,R_loc,dN_x_in,dN_x_out)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: Num_gam_e
+    real(8), intent(in) :: dDR,x_edge(Num_gam_e+1),gam_e(Num_gam_e),dEl(Num_gam_e),R_loc
+    real(8), intent(in) :: dN_x_in(Num_gam_e)
+    real(8), intent(out) :: dN_x_out(Num_gam_e)
+    real(8) :: u_edge(Num_gam_e+1),a_cell(Num_gam_e),b_cell(Num_gam_e),x_back(Num_gam_e+1)
+
+    call electron_build_piecewise_affine_u(Num_gam_e,x_edge,gam_e,dEl,R_loc,u_edge,a_cell,b_cell)
+    call electron_trace_piecewise_affine_u_edges(Num_gam_e,u_edge,u_edge,a_cell,b_cell,dDR,x_back)
+    call electron_conservative_remap_nonuniform(Num_gam_e,x_edge,x_back,dN_x_in,dN_x_out)
+end subroutine electron_characteristic_transport_piecewise_u
 
 subroutine electron_cell_geometry(Num_gam_e,x_edge,x_center,dx_cell)
     implicit real(8)(A-H,O-Z)

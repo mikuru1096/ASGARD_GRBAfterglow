@@ -1,6 +1,13 @@
+!f2py: skip
 module electron_transport_2d_kernel
   use constants
-  use electron_common, only: electron_prepare_implicit_coeffs, electron_backward_sweep
+  use electron_common, only: electron_prepare_implicit_coeffs, electron_backward_sweep, &
+                             electron_log_cell_edges, &
+                             electron_prepare_conservative_remap_nonuniform, &
+                             electron_ppm_prefix_eval_nonuniform, &
+                             electron_characteristic_step_affine_u, electron_characteristic_step_piecewise_u, &
+                             electron_characteristic_transport_affine_u, &
+                             electron_characteristic_transport_piecewise_u
   implicit real(8)(a-h,o-z)
   private
 
@@ -8,6 +15,8 @@ module electron_transport_2d_kernel
   public :: compute_downstream_comoving_grid
   public :: bm_beta2_lab, bm_beta2_shock
   public :: advance_eta_logchi_implicit, advance_energy_loggamma_chi
+  public :: advance_eta_logchi_advection_charint, advance_eta_logchi_diffusion_implicit
+  public :: advance_energy_loggamma_chi_charint
 
 contains
 
@@ -143,6 +152,86 @@ subroutine solve_tridiagonal(Num_cell, lower, diag, upper, rhs, sol)
     end do
 end subroutine solve_tridiagonal
 
+subroutine advance_eta_logchi_advection_charint(U_log, Num_gam_e, Num_chi, active_hi, deta, eta_face, chi_face, &
+                                                Gamma_sh, a_loc, dln_a_dR_loc, beta_sh, source_eta1, dR_step)
+    integer, intent(in) :: Num_gam_e, Num_chi, active_hi
+    real(8), intent(inout) :: U_log(Num_gam_e, Num_chi)
+    real(8), intent(in) :: deta, eta_face(0:Num_chi), chi_face(0:Num_chi)
+    real(8), intent(in) :: Gamma_sh, a_loc, dln_a_dR_loc, beta_sh, source_eta1(Num_gam_e), dR_step
+
+    real(8) :: A_eta_face(1:Num_chi), eta_back(0:Num_chi)
+    real(8) :: U_eta_in(Num_chi), U_eta_out(Num_chi)
+    real(8) :: q_left(Num_chi), q_right(Num_chi), prefix(0:Num_chi)
+    integer :: I_gam_e, I_face
+
+    call eta_face_transport_coeffs(Gamma_sh, Num_chi, chi_face, a_loc, dln_a_dR_loc, beta_sh, A_eta_face)
+
+    eta_back(0) = eta_face(0)
+    do I_face = 1, Num_chi
+        eta_back(I_face) = eta_face(I_face) - dR_step*A_eta_face(I_face)
+    end do
+
+    do I_gam_e = 1, active_hi
+        U_eta_in = U_log(I_gam_e, :)
+        U_eta_in(1) = U_eta_in(1) + dR_step*source_eta1(I_gam_e)
+        call electron_prepare_conservative_remap_nonuniform(Num_chi, eta_face, U_eta_in, q_left, q_right, prefix)
+        do I_face = 1, Num_chi
+            U_eta_out(I_face) = (electron_ppm_prefix_eval_nonuniform(Num_chi, eta_face, U_eta_in, q_left, q_right, prefix, eta_back(I_face)) - &
+                                 electron_ppm_prefix_eval_nonuniform(Num_chi, eta_face, U_eta_in, q_left, q_right, prefix, eta_back(I_face-1))) / deta
+        end do
+        U_log(I_gam_e, :) = max(zero, U_eta_out)
+    end do
+end subroutine advance_eta_logchi_advection_charint
+
+subroutine advance_eta_logchi_diffusion_implicit(U_log, Num_gam_e, Num_chi, active_hi, deta, chi_face, Gamma_sh, a_loc, &
+                                                 dln_a_dR_loc, beta_sh, kappa2_chi, dR_step)
+    integer, intent(in) :: Num_gam_e, Num_chi, active_hi
+    real(8), intent(inout) :: U_log(Num_gam_e, Num_chi)
+    real(8), intent(in) :: deta, chi_face(0:Num_chi), Gamma_sh, a_loc, dln_a_dR_loc
+    real(8), intent(in) :: beta_sh, kappa2_chi(Num_gam_e,Num_chi), dR_step
+
+    real(8) :: A_eta_face(1:Num_chi)
+    real(8) :: diff_face_left_base(1:Num_chi), diff_face_right_base(1:Num_chi)
+    real(8) :: lower(Num_chi), diag(Num_chi), upper(Num_chi), rhs(Num_chi), sol(Num_chi)
+    real(8) :: lambda_eta, diff_prefactor, coeff_left, coeff_right, ln10, kappa_face
+    integer :: I_gam_e, I_face, I_chi
+
+    ln10 = dlog(ten)
+    lambda_eta = dR_step/deta
+    call eta_face_transport_coeffs(Gamma_sh, Num_chi, chi_face, a_loc, dln_a_dR_loc, beta_sh, A_eta_face)
+
+    diff_face_left_base = zero
+    diff_face_right_base = zero
+    do I_face = 1, Num_chi-1
+        diff_prefactor = a_loc*a_loc/(chi_face(I_face)*chi_face(I_face)*beta_sh*para_c*ln10*ln10)
+        coeff_left = diff_prefactor/deta + 0.5d0*ln10*diff_prefactor
+        coeff_right = -diff_prefactor/deta + 0.5d0*ln10*diff_prefactor
+        diff_face_left_base(I_face) = coeff_left
+        diff_face_right_base(I_face) = coeff_right
+    end do
+
+    do I_gam_e = 1, active_hi
+        lower = zero
+        diag = one
+        upper = zero
+        do I_chi = 1, Num_chi
+            if (I_chi < Num_chi) then
+                kappa_face = 0.5d0*(kappa2_chi(I_gam_e,I_chi)+kappa2_chi(I_gam_e,I_chi+1))
+                diag(I_chi) = diag(I_chi) + lambda_eta*kappa_face*diff_face_left_base(I_chi)
+                upper(I_chi) = upper(I_chi) + lambda_eta*kappa_face*diff_face_right_base(I_chi)
+            end if
+            if (I_chi > 1) then
+                kappa_face = 0.5d0*(kappa2_chi(I_gam_e,I_chi-1)+kappa2_chi(I_gam_e,I_chi))
+                lower(I_chi) = lower(I_chi) - lambda_eta*kappa_face*diff_face_left_base(I_chi-1)
+                diag(I_chi) = diag(I_chi) - lambda_eta*kappa_face*diff_face_right_base(I_chi-1)
+            end if
+        end do
+        rhs = U_log(I_gam_e, :)
+        call solve_tridiagonal(Num_chi, lower, diag, upper, rhs, sol)
+        U_log(I_gam_e, :) = max(zero, sol)
+    end do
+end subroutine advance_eta_logchi_diffusion_implicit
+
 subroutine advance_eta_logchi_implicit(U_log, Num_gam_e, Num_chi, active_hi, deta, chi_face, Gamma_sh, a_loc, dln_a_dR_loc, &
                                        beta_sh, kappa2_chi, source_eta1, dR_step)
     integer, intent(in) :: Num_gam_e, Num_chi, active_hi
@@ -235,8 +324,39 @@ subroutine advance_energy_loggamma_chi(U_log, Num_gam_e, Num_chi, dEL_mean_chi, 
         call electron_prepare_implicit_coeffs(Num_gam_e, one, up, principal, temp1)
         rhs = U_log(:, I_chi) / principal
         call electron_backward_sweep(Num_gam_e, temp1, rhs, sol)
-        U_log(:, I_chi) = sol
+        U_log(:, I_chi) = max(zero, sol)
+        U_log(Num_gam_e, I_chi) = zero
     end do
 end subroutine advance_energy_loggamma_chi
+
+subroutine advance_energy_loggamma_chi_charint(U_log, Num_gam_e, Num_chi, gam_e, DB_chi, dEl_chi, R_loc, &
+                                               Gamma_sh, beta_sh, index_Y, dR_step, active_chi_hi)
+    integer, intent(in) :: Num_gam_e, Num_chi, index_Y
+    integer, intent(in), optional :: active_chi_hi
+    real(8), intent(inout) :: U_log(Num_gam_e, Num_chi)
+    real(8), intent(in) :: gam_e(Num_gam_e), DB_chi(Num_chi), dEl_chi(Num_gam_e, Num_chi)
+    real(8), intent(in) :: R_loc, Gamma_sh, beta_sh, dR_step
+
+    real(8) :: x_edge(Num_gam_e+1), U_in(Num_gam_e), U_out(Num_gam_e)
+    real(8) :: a_rad, b_ad
+    integer :: I_chi, chi_hi
+
+    call electron_log_cell_edges(Num_gam_e, gam_e, x_edge)
+
+    chi_hi = Num_chi
+    if (present(active_chi_hi)) chi_hi = max(1, min(Num_chi, active_chi_hi))
+    do I_chi = 1, chi_hi
+        U_in = U_log(:, I_chi)
+        if (index_Y == 0) then
+            a_rad = 1.35d-19*DB_chi(I_chi)**2/(max(beta_sh*Gamma_sh, tiny(one))*pi)
+            b_ad = one/R_loc
+            call electron_characteristic_transport_affine_u(Num_gam_e, dR_step, x_edge, a_rad, b_ad, U_in, U_out)
+        else
+            call electron_characteristic_transport_piecewise_u(Num_gam_e, dR_step, x_edge, gam_e, &
+                                                               dEl_chi(:,I_chi), R_loc, U_in, U_out)
+        end if
+        U_log(:, I_chi) = U_out
+    end do
+end subroutine advance_energy_loggamma_chi_charint
 
 end module electron_transport_2d_kernel

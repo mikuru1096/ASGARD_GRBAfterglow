@@ -1,3 +1,4 @@
+!f2py: skip
 module interpolation_common
     use constants
     implicit none

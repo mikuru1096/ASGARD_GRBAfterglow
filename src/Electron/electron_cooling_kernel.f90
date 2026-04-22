@@ -541,7 +541,10 @@ real(8) :: kn_factor
              else
                 if (E_Vloc2eV > uplim) exit
                 temp=game-E_Vloc2eV
+                if (temp <= zero) exit
                 q=E_Vloc2eV/(kn_factor*temp)
+                if (q <= zero) cycle
+                if (q >= one) exit
                 fssc=two*q*(log(q)-q)+one+q+ &
                 0.5d0*(one-q)*(4d0*game*E_t2eV*q)**2/(1+4d0*game*q*E_t2eV)
              end if

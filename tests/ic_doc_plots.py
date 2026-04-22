@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from asgard_paths import BENCHMARK_EXP_TAIL_DIR
+from asgard_core.asgard_paths import BENCHMARK_EXP_TAIL_DIR
 from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet, Wind
 
 

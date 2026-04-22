@@ -68,9 +68,17 @@ Install dependencies
 ```shell
 pip install -r Requirements.txt
 ```
-Run the installation script:
+Run the automatic installation script. It detects Windows vs Ubuntu/Linux and builds the native modules accordingly:
+```shell
+python install.py
+```
+On Ubuntu/Linux you can also use:
 ```shell
 bash install.sh
+```
+On Windows PowerShell:
+```powershell
+.\install.ps1
 ```
 After compilation completes, run:
 ```shell
@@ -80,6 +88,8 @@ python lc_spec_demo.py
 If you already have the matplotlib package installed, the program should generate the first multi-band afterglow light curve image for you.
 ### Documentation
 The main public entry point is `lc_spec_demo.py` for the simplest end-to-end demo. For the benchmark and plotting workflow, use the scripts under `tests/`.
+Sampling and batch fitting helper scripts now live under `scripts/fitting/`.
+The project is now packaged in PyPI-style layout with `pyproject.toml` and `setup.py`. Local source installation uses `pip install .` and triggers automatic native compilation through the package build hook.
 ### Current Status
 Due to current progress limitations, we are not yet able to provide a complete demonstration of the afterglow fitting workflow. 
 However, please start exploring and try to integrate it into your own fitting framework!

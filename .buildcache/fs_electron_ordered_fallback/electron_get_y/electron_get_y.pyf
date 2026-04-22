@@ -3,8 +3,8 @@
 
 python module electron_get_y ! in 
     interface  ! in :electron_get_y
-        subroutine get_nu_a(r_loc,db,gam_e,dn_gam_e,v_a,num_gam_e) ! in :electron_get_y:..\..\..\src\Electron\electron_get_y.f90
-            use get_y, only: get_nu_a_impl=>get_nu_a
+        subroutine get_nu_a(r_loc,db,gam_e,dn_gam_e,v_a,num_gam_e) ! in :electron_get_y:../../../src/Electron/electron_get_y.f90
+            use electron_radiation_kernel, only: get_nu_a_impl=>get_nu_a
             real(kind=8) intent(in) :: r_loc
             real(kind=8) intent(in) :: db
             real(kind=8) dimension(num_gam_e),intent(in) :: gam_e
@@ -12,8 +12,8 @@ python module electron_get_y ! in
             real(kind=8) intent(out) :: v_a
             integer, optional,intent(in),check(shape(gam_e, 0) == num_gam_e),depend(gam_e) :: num_gam_e=shape(gam_e, 0)
         end subroutine get_nu_a
-        subroutine get_syn_selected(index_syn_intger,r_loc,db,n_threads,gam_e,dn_gam_e,v_seed,p_syn,seed_syn,num_gam_e,num_nu) ! in :electron_get_y:..\..\..\src\Electron\electron_get_y.f90
-            use get_y, only: get_syn_selected_impl=>get_syn_selected
+        subroutine get_syn_selected(index_syn_intger,r_loc,db,n_threads,gam_e,dn_gam_e,v_seed,p_syn,seed_syn,num_gam_e,num_nu) ! in :electron_get_y:../../../src/Electron/electron_get_y.f90
+            use electron_radiation_kernel, only: get_syn_selected_impl=>get_syn_selected
             integer intent(in) :: index_syn_intger
             real(kind=8) intent(in) :: r_loc
             real(kind=8) intent(in) :: db

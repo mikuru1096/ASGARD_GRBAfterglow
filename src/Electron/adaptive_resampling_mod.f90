@@ -1,3 +1,4 @@
+!f2py: skip
 module adaptive_resampling_mod
     implicit none
     integer, parameter :: dp = kind(1.0d0)
@@ -190,7 +191,7 @@ contains
             integer, allocatable :: missing_indices(:)
             logical, allocatable :: present(:)
             
-            ! 使用逻辑数组标记哪些索引已经存在
+            ! Mark indices that are already present
             allocate(present(n_total))
             present = .false.
             
@@ -200,7 +201,7 @@ contains
                 end if
             end do
             
-            ! 计算缺失的索引数量	
+            ! Count missing indices
             missing_count = 0
             do i = 1, n_total
                 if (.not. present(i)) then
@@ -208,7 +209,7 @@ contains
                 end if
             end do
             
-            ! 分配内存并收集缺失的索引
+            ! Allocate memory and collect missing indices
             if (missing_count > 0) then
                 allocate(missing_indices(missing_count))
                 missing_count = 0
@@ -219,12 +220,12 @@ contains
                     end if
                 end do
             else
-                ! 如果没有缺失索引，创建一个空数组
+                ! Create an empty array when nothing is missing
                 allocate(missing_indices(1))
                 missing_count = 0
             end if
             
-            ! 补充缺失的索引
+            ! Fill in the missing indices
             new_indices(1:n_current) = current_indices(1:n_current)
             
             if (missing_count > 0) then
@@ -237,17 +238,17 @@ contains
                     end if
                 end do
             else
-                ! 如果没有缺失索引，均匀补充
+                ! Fill uniformly when nothing is missing
                 do k = 1, m_target - n_current
                     i = nint((k-1) * real(n_total, dp) / max(1, m_target - n_current - 1)) + 1
                     new_indices(n_current + k) = min(i, n_total)
                 end do
             end if
             
-            ! 排序新索引
+            ! Sort the new indices
             call sort_integers(new_indices, m_target)
             
-            ! 释放内存
+            ! Release memory
             if (allocated(present)) deallocate(present)
             if (allocated(missing_indices)) deallocate(missing_indices)
         end subroutine supplement_indices

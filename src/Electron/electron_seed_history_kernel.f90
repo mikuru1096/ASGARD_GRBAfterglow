@@ -1,3 +1,4 @@
+!f2py: skip
 module electron_seed_history_kernel
   use constants
   implicit none

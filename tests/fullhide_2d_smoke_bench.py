@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 import sys
-import time
 
 import numpy as np
 
@@ -12,8 +11,9 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet
-from asgard_config import FitConfig
-from asgard_state import solve_state
+from asgard_core.asgard_config import FitConfig
+from asgard_core.asgard_state import solve_state
+from tests._bench_common import run_case
 
 
 NUM_GAM_E = 8
@@ -24,14 +24,14 @@ NUM_THETA = 8
 NUM_TOBS = 4
 
 
-def _build_model() -> Model:
+def _build_model(solver: str) -> Model:
     return Model(
         TophatJet(0.1, 1.0e52, 300.0),
         ISM(1.0),
         Observer(1.0e26, 0.1, 0.0),
         Radiation(0.1, 1.0e-3, 2.3),
         setups=Setups(
-            electron_solver="fullhide_2d",
+            electron_solver=solver,
             num_gam_e=NUM_GAM_E,
             num_chi=NUM_CHI,
             num_nu=NUM_NU,
@@ -43,22 +43,8 @@ def _build_model() -> Model:
     )
 
 
-def _run_case(name, fn):
-    print(f"  {name} ...", flush=True)
-    t0 = time.perf_counter()
-    try:
-        payload = fn()
-        item = {"name": name, "status": "PASS", "seconds": time.perf_counter() - t0, "payload": payload}
-    except NotImplementedError as exc:
-        item = {"name": name, "status": "UNSUPPORTED", "seconds": time.perf_counter() - t0, "payload": str(exc)}
-    except Exception as exc:
-        item = {"name": name, "status": "FAIL", "seconds": time.perf_counter() - t0, "payload": f"{type(exc).__name__}: {exc}"}
-    print(f"  {name}: {item['status']} {item['seconds']:.2f}s", flush=True)
-    return item
-
-
 def case_basic_smoke():
-    model = _build_model()
+    model = _build_model("charint_2d")
     flux = model.flux_density(np.array([1.0e4]), np.array([1.0e14])).total
     assert flux.shape == (1,)
     assert np.all(np.isfinite(flux))
@@ -68,7 +54,7 @@ def case_basic_smoke():
 def case_electron_grid():
     state = solve_state(
         FitConfig(
-            electron_solver="fullhide_2d",
+            electron_solver="charint_2d",
             num_gam_e=NUM_GAM_E,
             num_chi=NUM_CHI,
             num_nu=NUM_NU,
@@ -102,8 +88,8 @@ def case_electron_grid():
 
 def main() -> None:
     results = [
-        _run_case("[1/2] fullhide_2d:basic_smoke", case_basic_smoke),
-        _run_case("[2/2] fullhide_2d:electron_grid", case_electron_grid),
+        run_case("[1/2] charint_2d:basic_smoke", case_basic_smoke),
+        run_case("[2/2] charint_2d:electron_grid", case_electron_grid),
     ]
 
     failed = [item for item in results if item["status"] == "FAIL"]

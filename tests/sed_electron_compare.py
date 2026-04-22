@@ -15,7 +15,7 @@ if str(ROOT) not in sys.path:
 
 from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet, Wind
 from ASGARD.api import _build_fit_config_for_patch, _solve_patch_state
-from asgard_paths import BENCHMARK_EXP_TAIL_DIR
+from asgard_core.asgard_paths import BENCHMARK_EXP_TAIL_DIR
 
 
 OUTPUT_DIR = BENCHMARK_EXP_TAIL_DIR
@@ -23,7 +23,7 @@ OUTPUT_PNG = OUTPUT_DIR / "spectrum_compare.png"
 OUTPUT_PDF = OUTPUT_DIR / "spectrum_compare.pdf"
 
 MODE = "high" if "--high" in sys.argv else "quick"
-SOLVERS = ("fullhide_1d", "fullhide_2d", "slc1_1d", "charint_1d")
+SOLVERS = ("fullhide_1d", "fullhide_2d", "slc1_1d", "charint_1d", "charint_2d")
 MEDIA = ("ism", "wind")
 TIMES = np.array([1.0e3, 1.0e5, 1.0e7], dtype=float)
 FREQS = np.logspace(7.0, 30.0, 64 if MODE == "quick" else 220)
@@ -33,12 +33,14 @@ NUM_GAM_BY_SOLVER = {
     "fullhide_2d": 81 if MODE == "quick" else 121,
     "slc1_1d": 81 if MODE == "quick" else 121,
     "charint_1d": 81 if MODE == "quick" else 121,
+    "charint_2d": 81 if MODE == "quick" else 121,
 }
 NUM_CHI_BY_SOLVER = {
     "fullhide_1d": None,
     "fullhide_2d": 8 if MODE == "quick" else 16,
     "slc1_1d": None,
     "charint_1d": None,
+    "charint_2d": 8 if MODE == "quick" else 16,
 }
 IC_EPSILON_E = 0.2
 IC_EPSILON_B = 1.0e-5
@@ -178,7 +180,7 @@ def _collect_compare_data() -> dict[str, dict[str, np.ndarray]]:
 def _plot_compare(data: dict[str, dict[str, np.ndarray | dict[str, np.ndarray]]]) -> None:
     plt.rcParams.update(PLOT_STYLE)
     colors = {1.0e3: "#1f77b4", 1.0e5: "#ff7f0e", 1.0e7: "#2ca02c"}
-    linestyles = {"fullhide_1d": "-", "fullhide_2d": ":", "slc1_1d": "--", "charint_1d": "-."}
+    linestyles = {"fullhide_1d": "-", "fullhide_2d": ":", "slc1_1d": "--", "charint_1d": "-.", "charint_2d": (0, (5, 1.4))}
 
     fig, axes = plt.subplots(
         2,

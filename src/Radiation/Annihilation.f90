@@ -13,7 +13,7 @@ subroutine annihilation(R_gamma,R,V_seed,seed_syn,seed_ssc,Num_nu,Num_R,n_thread
                 sigma_kernel(:,:,:)
     integer, allocatable :: nu2_start(:,:),nu2_stop(:,:)
     integer :: i_low, i_high, i_mid
-    real(8) :: lo_target, hi_target
+    real(8) :: lo_target, hi_target,s_center
                 
     allocate (seed_tot(Num_nu,Num_R),dRariv_Sigma(Num_R),ep1(1,Num_nu),ep2(Num_nu-1,1),ep2ep1(Num_nu-1,Num_nu), &
             dVloc(Num_nu-1),V_mid(Num_nu-1),seed_tot_mid(Num_nu-1,Num_R),beta(Num_R), &
@@ -93,12 +93,9 @@ subroutine annihilation(R_gamma,R,V_seed,seed_syn,seed_ssc,Num_nu,Num_R,n_thread
             if (nu2_start(i_cos,Nu_s1) > nu2_stop(i_cos,Nu_s1)) nu2_stop(i_cos,Nu_s1)=0
             if (nu2_stop(i_cos,Nu_s1) <= 0) cycle
             do Nu_s2=nu2_start(i_cos,Nu_s1),nu2_stop(i_cos,Nu_s1)
-                Temp_s0=ep2ep1(Nu_s2,Nu_s1)*z_grid(i_cos)
-                if (Temp_s0 <= one .or. Temp_s0 >= 1.0d12) cycle
-                Temp_b02=one-one/Temp_s0
-                Temp_b0=dsqrt(Temp_b02)
-                Temp_log=dlog((one+Temp_b0)/(one-Temp_b0))
-                sigma_kernel(Nu_s2,Nu_s1,i_cos)=(one-Temp_b02)*((3.0d0-Temp_b02*Temp_b02)*Temp_log-two*Temp_b0*(two-Temp_b02))
+                s_center=ep2ep1(Nu_s2,Nu_s1)*z_grid(i_cos)
+                if (s_center <= one .or. s_center >= 1.0d12) cycle
+                sigma_kernel(Nu_s2,Nu_s1,i_cos)=radiation_pair_cross_section(s_center)/Cross_Area
             end do
         end do
     end do
