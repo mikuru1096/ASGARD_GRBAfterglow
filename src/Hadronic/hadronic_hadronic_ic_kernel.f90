@@ -162,6 +162,7 @@ subroutine hadronic_hadronic_ic_compute_channel(num_ph,photons_on_had_grid_per_g
     real(8) :: z
 
     epsilon_ic = zero
+    !$OMP PARALLEL DO if(num_ph*num_had >= 8192) schedule(static) private(i,j,src_idx,j0,z)
     do j=1,num_ph
         j0 = j - 1
         z = zero
@@ -175,6 +176,7 @@ subroutine hadronic_hadronic_ic_compute_channel(num_ph,photons_on_had_grid_per_g
         end do
         epsilon_ic(j) = z*dln_energy*coeff_cgs
     end do
+    !$OMP END PARALLEL DO
 end subroutine hadronic_hadronic_ic_compute_channel
 
 real(8) function hadronic_hadronic_ic_coeff(mass_gev)

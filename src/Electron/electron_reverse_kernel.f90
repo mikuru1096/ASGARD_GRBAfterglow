@@ -3,7 +3,8 @@ module electron_reverse_kernel
     use dynamics_common, only: dynamics_external_density_base, dynamics_reverse_gamma_extrema
     use electron_transport_common, only: electron_prepare_implicit_coeffs_common, electron_backward_sweep_common
     use electron_radiation_kernel, only: get_syn_selected
-    use electron_cooling_kernel, only: get_IC_numerical, get_Y_Nakar, get_Y_Fan
+    use electron_cooling_kernel, only: get_IC_numerical
+    use electron_y_kernel, only: get_Y_Nakar, get_Y_Fan
     implicit none
 contains
 

@@ -7,7 +7,7 @@ from typing import Optional
 
 import numpy as np
 
-import src.Electron.electron_get_y as electron_get_y_module
+from src.Electron.electron_radiation import electron_radiation_kernel as electron_radiation_module
 from asgard_core.asgard_coupling import build_coupled_shock_geometry, build_cross_zone_seed_fields
 from asgard_core.asgard_config import ExecutionPolicy, FitConfig
 from asgard_core.asgard_models import PhysicalSolution, SimulationSetup
@@ -904,7 +904,7 @@ def _compute_pair_production_branch(
             ),
             _hadronic_shell_dt(np.asarray(dynamics.r_tobs, dtype=float), i_r),
         )
-        p_syn_i, seed_syn_i = electron_get_y_module.get_syn_selected(
+        p_syn_i, seed_syn_i = electron_radiation_module.get_syn_selected(
             int(config.index_syn_integr),
             float(dynamics.radius[i_r]),
             float(max(magnetic_field_g[i_r], 1.0e-30)),
@@ -942,7 +942,7 @@ def _forward_synchrotron_absorption_transfer(
         if magnetic_field[i_shell] <= 0.0:
             continue
         transfer[:, i_shell] = np.asarray(
-            electron_get_y_module.get_syn_transfer(
+            electron_radiation_module.get_syn_transfer(
                 float(radius[i_shell]),
                 float(magnetic_field[i_shell]),
                 int(config.num_threads),
@@ -1045,7 +1045,7 @@ def _merge_bh_into_forward_electrons(
     l_syn_total = np.zeros((num_nu, num_shell), dtype=float)
     seed_syn_total = np.zeros((num_nu, num_shell), dtype=float)
     for i_shell in range(num_shell):
-        p_syn_i, seed_syn_i = electron_get_y_module.get_syn_selected(
+        p_syn_i, seed_syn_i = electron_radiation_module.get_syn_selected(
             int(config.index_syn_integr),
             float(radius_cm[i_shell]),
             float(max(magnetic_field_g[i_shell], 1.0e-30)),

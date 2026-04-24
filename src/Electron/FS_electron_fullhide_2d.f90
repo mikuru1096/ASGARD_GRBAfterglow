@@ -28,11 +28,13 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
                                          use_charint_transport, profile_tag)
     !$ use omp_lib
     use constants
-    use electron_common, only: electron_build_gamma_grid, electron_initial_density, electron_external_density, &
+    use dynamics_common, only: dynamics_external_density_profile
+    use electron_common, only: electron_initial_density, electron_initialize_spectrum, &
+                               electron_initial_profile_exp_cutoff, electron_initial_grid_gamma, &
                                electron_gamma_m_exact, electron_injection_prefactor, &
-                               electron_loss_mean, electron_gamma_c_from_loss_mean, electron_source_bounds
-    use electron_injection_profiles, only: electron_initial_powerlaw_exp_cutoff, electron_build_source_term_exp_cutoff
-    use electron_cooling_kernel, only: prepare_forward_cooling_aux_batch, assemble_forward_cooling_split, &
+                               electron_gamma_c_from_loss_mean, electron_source_bounds
+    use electron_injection_profiles, only: electron_build_source_term_exp_cutoff
+    use electron_forward_kernel, only: prepare_forward_cooling_aux_batch, assemble_forward_cooling_split, &
                                        assemble_forward_cooling_split_batch
     use electron_radiation_kernel, only: get_syn_state, get_nu_a_2d_cell_path, reduce_syn_shell_from_chi, &
                                          build_reduced_log_grid, project_syn_state_logbands
@@ -185,10 +187,10 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
     call electron_gamma_m_exact(p,temp_gam,Gam_e_max,Gam_e_m)
     Gam_e_c       = 7.7d8/(one+dsqrt(Epsilon_e/Epsilon_b))/R_Gamma(1)/DB**2/(R_Tobs(1)/two)
 
-    call electron_build_gamma_grid(Num_gam_e,Gam_e_max_max,gam_e)
+    call electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
+                                      electron_initial_profile_exp_cutoff,electron_initial_grid_gamma,gam_e,dN_init)
     d_x_E = dlog10(gam_e(2)/gam_e(1))
 
-    call electron_initial_powerlaw_exp_cutoff(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,gam_e,dN_init)
     dN_init_log = dN_init * gam_e * ln10
 
     U_log(:,1) = dN_init_log / deta
@@ -237,7 +239,7 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
         R_loc       = R(I_tobs-1)
         R_Gamma_loc = (R_Gamma(I_tobs)+R_Gamma(I_tobs-1))/two
 
-        call electron_external_density(A_star,dNe_ISM,R_loc,R0,R_tr,f_jump,f_wide,1,dNe)
+        call dynamics_external_density_profile(A_star,dNe_ISM,R_loc,R0,1,R_tr,f_jump,f_wide,dNe)
 
         DB        = 0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma_loc*(R_Gamma_loc-one)))
         Gam_e_max = 3d0*Para_m_energy/dsqrt(8d0*DB*Para_e**3)
@@ -293,7 +295,7 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
                                                     Num_nu_cool,n_threads,gam_e,V_cool, &
                                                     P_eff_cool_chi(:,I_chi),Seed_eff_cool_chi(:,I_chi),Seed_eff_cool_chi(:,I_chi), &
                                                     cooling_aux_chi(:,I_chi),dEl_chi(:,I_chi))
-                call electron_loss_mean(Num_gam_e,dEl_chi(:,I_chi),dEL_mean_chi(:,I_chi))
+                dEL_mean_chi(:,I_chi)=(dEl_chi(2:Num_gam_e,I_chi)+dEl_chi(1:Num_gam_e-1,I_chi))/two/dlog(ten)
                 kappa2_chi(:,I_chi) = gam_e*Para_m_energy*para_c/(3d0*Para_e*DB_chi(I_chi))
             end do
         else
@@ -302,7 +304,7 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
                                                       beta_sh,dNe,Num_gam_e,Num_nu_cool,Num_chi,n_threads,gam_e,V_cool, &
                                                       P_eff_cool_chi,Seed_eff_cool_chi,Seed_eff_cool_chi,cooling_aux_chi,dEl_chi)
             do I_chi = 1, Num_chi
-                call electron_loss_mean(Num_gam_e,dEl_chi(:,I_chi),dEL_mean_chi(:,I_chi))
+                dEL_mean_chi(:,I_chi)=(dEl_chi(2:Num_gam_e,I_chi)+dEl_chi(1:Num_gam_e-1,I_chi))/two/dlog(ten)
             end do
             do I_chi = 1, Num_chi
                 kappa2_chi(:,I_chi) = gam_e*Para_m_energy*para_c/(3d0*Para_e*DB)
@@ -428,7 +430,7 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
             a_sub = 8d0*Gamma_sh_sub*Gamma_sh_sub/R_sub
             dln_a_dR_sub = (one-frac_sub)*dln_a_dR_arr(I_tobs-1) + frac_sub*dln_a_dR_arr(I_tobs)
 
-            call electron_external_density(A_star,dNe_ISM,R_sub,R0,R_tr,f_jump,f_wide,1,dNe)
+            call dynamics_external_density_profile(A_star,dNe_ISM,R_sub,R0,1,R_tr,f_jump,f_wide,dNe)
 
             DB = 0.39d0*dsqrt(Epsilon_b*dNe*(Gamma_sh_sub*(Gamma_sh_sub-one)))
             Gam_e_max = 3d0*Para_m_energy/dsqrt(8d0*DB*Para_e**3)
@@ -447,7 +449,7 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
                 call advance_eta_logchi_advection_charint(U_log, Num_gam_e, Num_chi, active_hi, deta, eta_face, chi_face, &
                                                           Gamma_sh_sub, a_sub, dln_a_dR_sub, beta_sh, source_eta1, dDR)
                 call advance_eta_logchi_diffusion_implicit(U_log, Num_gam_e, Num_chi, active_hi, deta, chi_face, Gamma_sh_sub, &
-                                                           a_sub, dln_a_dR_sub, beta_sh, kappa2_chi, dDR)
+                                                           a_sub, dln_a_dR_sub, beta_sh, kappa2_chi, dDR, n_threads)
                 eta_calls = eta_calls + 1
                 if (profile_enabled) then
                     call cpu_time(t_stop)
@@ -456,7 +458,7 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
 
                 if (profile_enabled) call cpu_time(t_start)
                 call advance_energy_loggamma_chi_charint(U_log, Num_gam_e, Num_chi, gam_e, DB_chi, dEl_chi, R_sub, &
-                                                         Gamma_sh_sub, beta_sh, index_Y, dDR, active_chi_hi)
+                                                         Gamma_sh_sub, beta_sh, index_Y, dDR, active_chi_hi, n_threads)
                 xi_calls = xi_calls + 1
                 if (profile_enabled) then
                     call cpu_time(t_stop)
@@ -465,7 +467,7 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
             else
                 if (profile_enabled) call cpu_time(t_start)
                 call advance_eta_logchi_implicit(U_log, Num_gam_e, Num_chi, active_hi, deta, chi_face, Gamma_sh_sub, &
-                                                 a_sub, dln_a_dR_sub, beta_sh, kappa2_chi, source_eta1, dDR)
+                                                 a_sub, dln_a_dR_sub, beta_sh, kappa2_chi, source_eta1, dDR, n_threads)
                 eta_calls = eta_calls + 1
                 if (profile_enabled) then
                     call cpu_time(t_stop)
@@ -473,7 +475,7 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
                 end if
 
                 if (profile_enabled) call cpu_time(t_start)
-                call advance_energy_loggamma_chi(U_log, Num_gam_e, Num_chi, dEL_mean_chi, R_sub, d_x_E, dDR)
+                call advance_energy_loggamma_chi(U_log, Num_gam_e, Num_chi, dEL_mean_chi, R_sub, d_x_E, dDR, n_threads)
                 xi_calls = xi_calls + 1
                 if (profile_enabled) then
                     call cpu_time(t_stop)
@@ -490,7 +492,7 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
         do I_chi = 1, Num_chi
             dN_gam_e_total(:, I_tobs) = dN_gam_e_total(:, I_tobs) + U_log(:, I_chi)*deta/(gam_e*ln10)
         end do
-        call electron_external_density(A_star,dNe_ISM,R(I_tobs),R0,R_tr,f_jump,f_wide,1,dNe)
+        call dynamics_external_density_profile(A_star,dNe_ISM,R(I_tobs),R0,1,R_tr,f_jump,f_wide,dNe)
         call compute_downstream_comoving_grid(Num_chi,R(I_tobs),R_Gamma(I_tobs),chi_face,chi_grid, &
                                               x_face_hist(:,I_tobs),x_comov_face_hist(:,I_tobs),x_comov_hist(:,I_tobs), &
                                               dx_comov_hist(:,I_tobs))
@@ -527,7 +529,7 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
 
     R_loc = R(Num_R)
     R_Gamma_loc = R_Gamma(Num_R)
-    call electron_external_density(A_star,dNe_ISM,R_loc,R0,R_tr,f_jump,f_wide,1,dNe)
+    call dynamics_external_density_profile(A_star,dNe_ISM,R_loc,R0,1,R_tr,f_jump,f_wide,dNe)
     DB = 0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma_loc*(R_Gamma_loc-one)))
     Gam_e_max = 3d0*Para_m_energy/dsqrt(8d0*DB*Para_e**3)
     temp_gam = Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma_loc-one)
@@ -578,14 +580,14 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
                                                 Num_nu_cool,n_threads,gam_e,V_cool, &
                                                 P_eff_cool_chi(:,I_chi),Seed_eff_cool_chi(:,I_chi),Seed_eff_cool_chi(:,I_chi), &
                                                 cooling_aux_chi(:,I_chi),dEl_chi(:,I_chi))
-            call electron_loss_mean(Num_gam_e,dEl_chi(:,I_chi),dEL_mean_chi(:,I_chi))
+            dEL_mean_chi(:,I_chi)=(dEl_chi(2:Num_gam_e,I_chi)+dEl_chi(1:Num_gam_e-1,I_chi))/two/dlog(ten)
         end do
     else
         call assemble_forward_cooling_split_batch(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc,R_Gamma_loc, &
                                                   beta_sh,dNe,Num_gam_e,Num_nu_cool,Num_chi,n_threads,gam_e,V_cool, &
                                                   P_eff_cool_chi,Seed_eff_cool_chi,Seed_eff_cool_chi,cooling_aux_chi,dEl_chi)
         do I_chi = 1, Num_chi
-            call electron_loss_mean(Num_gam_e,dEl_chi(:,I_chi),dEL_mean_chi(:,I_chi))
+            dEL_mean_chi(:,I_chi)=(dEl_chi(2:Num_gam_e,I_chi)+dEl_chi(1:Num_gam_e-1,I_chi))/two/dlog(ten)
         end do
     end if
     if (profile_enabled) then

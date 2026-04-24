@@ -98,10 +98,7 @@ def main() -> None:
         install_command.extend(["-e", target])
     else:
         install_command.append(target)
-    if args.skip_build:
-        os.environ["ASGARD_SKIP_NATIVE_BUILD"] = "1"
-    else:
-        os.environ.pop("ASGARD_SKIP_NATIVE_BUILD", None)
+    os.environ["ASGARD_SKIP_NATIVE_BUILD"] = "1"
     _run(install_command)
     if not args.skip_build:
         _run([str(py), "build_extensions.py", "--force"])

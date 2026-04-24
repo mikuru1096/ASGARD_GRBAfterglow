@@ -11,6 +11,7 @@
 - Do not add numerical guards to non-simulation code.
 - Do not hide discontinuities or non-smooth physical results with plotting or post-processing changes.
 - If a physical time-evolution quantity is not continuous and smooth, treat it as a likely numerical or physics bug until checked.
+- Fortran code must stay idiomatic Fortran; do not introduce Python-style syntax, naming habits, or generated-code structure.
 - Avoid adding diagnostic scripts unless they will remain useful as regression tests.
 - After important Fortran changes, run:
   - the affected `build_extensions.py` target
@@ -23,6 +24,8 @@ Current optimization pass keeps the WSL + uv build surface below fixed; do not s
 Kernel2 optimization continues under the same fixed WSL + uv build surface and must remain behavior-preserving.
 Electron-kernel optimization pass covers `src/Electron/*kernel*.f90` plus shared electron core files, with no public API or physics changes.
 Current electron pass also collapses duplicated seed-history mapping and reuses the shared 2D transport core for `charint_2d` while preserving the existing charint timestep cap and eta-window logic.
+Python decorator optimization pass is limited to deterministic orchestration caches and must not change physics formulas, grid construction semantics, or Fortran microphysics ownership.
+Build-speed pass keeps default WSL + uv builds in development mode without LTO; use `--lto` only for explicit release/performance comparison builds.
 
 Cleanup baseline for this pass:
 
@@ -40,6 +43,12 @@ WSL runtime extension build:
 
 ```bash
 rtk uv run python build_extensions.py --module FS_electron_fullhide_2d --force
+```
+
+WSL runtime extension release/performance build with LTO:
+
+```bash
+rtk uv run python build_extensions.py --module FS_electron_fullhide_2d --force --lto
 ```
 
 WSL runtime extension build (`charint_2d`):
@@ -175,7 +184,7 @@ PY
 - `src/Electron/electron_cooling_kernel.f90`
 - `src/Electron/electron_seed_history_kernel.f90`
 - `src/Electron/electron_transport_2d_kernel.f90`
-- `src/Electron/calling_modules.f90` remains the aggregate export layer.
+- `src/Electron/electron_y_kernel.f90`
 
 ## Current 2D State
 

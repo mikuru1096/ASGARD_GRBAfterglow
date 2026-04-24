@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from functools import lru_cache
+
 import numpy as np
 from astropy import units
 from astropy.cosmology import FlatLambdaCDM
@@ -8,10 +10,15 @@ from asgard_core.asgard_models import FitConfig, SimulationSetup
 from src import constants
 
 
+@lru_cache(maxsize=None)
+def _luminosity_distance_cm(redshift: float) -> float:
+    cosmo = FlatLambdaCDM(H0=67.8, Om0=0.308)
+    return float(cosmo.luminosity_distance(redshift).to(units.cm).value)
+
+
 def build_simulation_setup(config: FitConfig) -> SimulationSetup:
     if config.luminosity_distance_cm_override is None:
-        cosmo = FlatLambdaCDM(H0=67.8, Om0=0.308)
-        luminosity_distance_cm = cosmo.luminosity_distance(config.z).to(units.cm).value
+        luminosity_distance_cm = _luminosity_distance_cm(float(config.z))
     else:
         luminosity_distance_cm = config.luminosity_distance_cm_override
     return SimulationSetup(

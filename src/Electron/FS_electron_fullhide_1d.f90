@@ -7,10 +7,13 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
                                 adaptive_substeps,substep_rtol,substep_min,substep_max,gam_e,dN_gam_e,P_syn,Seed_syn,V_m,V_c,V_a)
     !$ use omp_lib
     use constants
+    use dynamics_common, only: dynamics_external_density_profile
     use electron_common
-    use electron_injection_profiles, only: electron_initial_powerlaw_exp_cutoff, electron_build_source_term_exp_cutoff
-    use get_Y
-    use electron_forward_kernel, only: electron_forward_cooling_step
+    use electron_injection_profiles, only: electron_build_source_term_exp_cutoff
+    use electron_radiation_kernel, only: get_nu_a, get_syn_selected
+    use electron_forward_kernel, only: get_forward_cooling
+    use electron_transport_common, only: electron_prepare_implicit_coeffs_common, electron_backward_sweep_common, &
+                                         electron_fullhide_step
     IMPLICIT REAL(8)(A-H,O-Z)
     integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,adaptive_substeps,substep_min,substep_max
     real(8), intent(in) :: Boundary(n),R_Tobs(Num_R),R_Gamma(Num_R),R(Num_R),V_seed(Num_nu)
@@ -65,8 +68,8 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
     temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma(1)-one)
     call electron_gamma_m_exact(p,temp_gam,Gam_e_max,Gam_e_m)
     Gam_e_c=7.7d8/(one+dsqrt(Epsilon_e/Epsilon_b))/R_Gamma(1)/DB**2/(R_Tobs(1)/two)
-    call electron_build_gamma_grid(Num_gam_e,Gam_e_max_max,Gam_e)
-    call electron_initial_powerlaw_exp_cutoff(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,Gam_e,dN_gam_e(:,1))
+    call electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
+                                      electron_initial_profile_exp_cutoff,electron_initial_grid_gamma,gam_e,dN_gam_e(:,1))
     !*******************Part 1 is completed [has been checked and there is no bug]**********************************
     !*******************Part 2: To calculate the electron distribution**********************************************
     dN_x=dN_gam_e(:,1)*gam_e*dlog(ten)
@@ -86,7 +89,7 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
         R_loc=R(I_tobs-1)
         R_Gamma_loc=(R_Gamma(I_tobs)+R_Gamma(I_tobs-1))/two
         beta_Gam=dsqrt(max(zero,one-one/R_Gamma_loc**2))
-        call electron_external_density(A_star,dNe_ISM,R_loc,R0,R_tr,f_jump,f_wide,1,dNe)
+        call dynamics_external_density_profile(A_star,dNe_ISM,R_loc,R0,1,R_tr,f_jump,f_wide,dNe)
 
         DB=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma_loc*(R_Gamma_loc-one)))
         Gam_e_max=3d0*Para_m_energy/dsqrt(8d0*DB*Para_e**3)
@@ -115,7 +118,7 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
                               gam_e,dN_gam_e(:,I_tobs-1),V_seed, &
                               P_syn(:,I_tobs),Seed_syn(:,I_tobs))
         
-        call electron_forward_cooling_step(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc, &
+        call get_forward_cooling(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc, &
                                  R_Gamma_loc,beta_Gam,dNe,Num_gam_e,Num_nu,n_threads,gam_e,V_seed, &
                                  P_syn(:,I_tobs),Seed_syn(:,I_tobs),dEl)
          
@@ -129,7 +132,7 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
 !        para_maxwell=para_maxwell/para_normalize*gam_e*dlog(ten)
 
 
-        call electron_loss_mean(Num_gam_e,dEl,dEL_mean)
+        dEL_mean=(dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/two/dlog(ten)
         dEL_mean_base=dEL_mean
         call electron_source_bounds(Num_gam_e,gam_e,Gam_e_m,Gam_e_max,src_lo,src_hi)
         shell_peak=maxval(dN_x)
@@ -154,7 +157,7 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
                 R_loc=R_loc+dDR
                 
                 if (.not. is_uniform_density) then
-                    call electron_external_density(A_star,dNe_ISM,R_loc,R0,R_tr,f_jump,f_wide,1,dNe)
+                    call dynamics_external_density_profile(A_star,dNe_ISM,R_loc,R0,1,R_tr,f_jump,f_wide,dNe)
                 end if
                 DB_step=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma_loc*(R_Gamma_loc-one)))
                 Gam_e_max_step=3d0*Para_m_energy/dsqrt(8d0*DB_step*Para_e**3)
@@ -175,15 +178,17 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
 
                 temp3=dEL_mean_step+one/R_loc/dlog(ten)
                 up=-CFL*temp3 !up
-                call electron_prepare_implicit_coeffs(Num_gam_e,one,up,principal,temp1)
+                call electron_prepare_implicit_coeffs_common(Num_gam_e,one,up,principal,temp1)
                 temp2=dN_x/principal
                 temp2=temp2+dDR*dF1/principal
-                call electron_backward_sweep(Num_gam_e,temp1,temp2,x)
+                call electron_backward_sweep_common(Num_gam_e,temp1,temp2,x)
                 if (budget_diag_enabled) then
                     n_after_step=sum(x)*d_x
-                    rel_loss_xi_max=max(rel_loss_xi_max,max(zero,(n_before_step+inj_step-n_after_step)/max(n_before_step+inj_step,tiny(one))))
+                    rel_loss_xi_max=max(rel_loss_xi_max, &
+                        max(zero,(n_before_step+inj_step-n_after_step)/max(n_before_step+inj_step,tiny(one))))
                     if (I_tobs <= 6 .and. L == L1) then
-                        print '(A,1X,I4,1X,ES12.4,1X,ES12.4,1X,ES12.4)', 'BUDGET1D shell', I_tobs, n_before_step, inj_step, n_after_step
+                        print '(A,1X,I4,1X,ES12.4,1X,ES12.4,1X,ES12.4)', &
+                              'BUDGET1D shell', I_tobs, n_before_step, inj_step, n_after_step
                     end if
                 end if
                 dN_x=x
@@ -206,7 +211,7 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
                 if (is_uniform_density) then
                     dNe_full=dNe
                 else
-                    call electron_external_density(A_star,dNe_ISM,R_full,R0,R_tr,f_jump,f_wide,1,dNe_full)
+                    call dynamics_external_density_profile(A_star,dNe_ISM,R_full,R0,1,R_tr,f_jump,f_wide,dNe_full)
                 end if
                 DB_full=0.39d0*dsqrt(Epsilon_b*dNe_full*(R_Gamma_loc*(R_Gamma_loc-one)))
                 Gam_e_max_full=3d0*Para_m_energy/dsqrt(8d0*DB_full*Para_e**3)
@@ -227,7 +232,7 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
                 if (is_uniform_density) then
                     dNe_half=dNe
                 else
-                    call electron_external_density(A_star,dNe_ISM,R_half,R0,R_tr,f_jump,f_wide,1,dNe_half)
+                    call dynamics_external_density_profile(A_star,dNe_ISM,R_half,R0,1,R_tr,f_jump,f_wide,dNe_half)
                 end if
                 DB_half=0.39d0*dsqrt(Epsilon_b*dNe_half*(R_Gamma_loc*(R_Gamma_loc-one)))
                 Gam_e_max_half=3d0*Para_m_energy/dsqrt(8d0*DB_half*Para_e**3)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
 import shlex
 import shutil
@@ -12,7 +13,8 @@ from pathlib import Path
 
 
 COMMON_FLAGS = "-Ofast -march=native -funroll-loops -ffast-math -fno-signed-zeros -fno-trapping-math -ffree-line-length-none"
-OMP_FLAGS = f"-fopenmp {COMMON_FLAGS} -flto"
+OMP_FLAGS = f"-fopenmp {COMMON_FLAGS}"
+OMP_LTO_FLAGS = f"{OMP_FLAGS} -flto"
 OPENMP_LIBS = ["-lgomp"]
 DIRECT_ORDERED_BUILD_MODULES = {
     "FS_electron_weno5_1d",
@@ -23,14 +25,14 @@ DIRECT_ORDERED_BUILD_MODULES = {
     "FS_electron_fullhide_2d",
     "FS_electron_t2g1_1d",
     "FS_hadronic_1d",
-    "electron_get_y",
+    "electron_radiation",
     "electron_reverse_kernel",
     "Seed_reverse",
     "SSC_spec",
 }
 F2PY_ENTRYPOINTS = {
     "FS_electron_charint_1d": ("fs_electron_charint_1d", "fs_electron_charint_1d_affine_step_test"),
-    "electron_get_y": ("get_nu_a", "get_syn_selected", "get_syn_transfer"),
+    "electron_radiation": ("get_nu_a", "get_syn_selected", "get_syn_transfer"),
     "electron_reverse_kernel": ("electron_reverse_evolve",),
     "SSC_spec": ("ssc_spec", "ssc_spec_nonuniform"),
     "FS_hadronic_1d": (
@@ -63,19 +65,28 @@ ELECTRON_COMMON_SOURCES = (
     "electron_common.f90",
     "electron_radiation_kernel.f90",
     "electron_cooling_kernel.f90",
+    "electron_y_kernel.f90",
     "electron_forward_kernel.f90",
 )
-ELECTRON_1D_SOURCES = (*ELECTRON_COMMON_SOURCES, "calling_modules.f90")
+ELECTRON_RADIATION_SOURCES = (
+    "../Constants.f90",
+    "../Dynamics/dynamics_common.f90",
+    "../Radiation/radiation_common.f90",
+    "electron_transport_common.f90",
+    "adaptive_resampling_mod.f90",
+    "electron_injection_profiles.f90",
+    "electron_common.f90",
+    "electron_radiation_kernel.f90",
+)
+ELECTRON_1D_SOURCES = ELECTRON_COMMON_SOURCES
 ELECTRON_HISTORY_SOURCES = (
     *ELECTRON_COMMON_SOURCES,
     "electron_seed_history_kernel.f90",
-    "calling_modules.f90",
 )
 ELECTRON_2D_SOURCES = (
     *ELECTRON_COMMON_SOURCES,
     "electron_seed_history_kernel.f90",
     "electron_transport_2d_kernel.f90",
-    "calling_modules.f90",
 )
 HADRONIC_1D_SOURCES = (
     "../Constants.f90",
@@ -141,11 +152,40 @@ def _clean_build_outputs(directory: Path) -> None:
             path.unlink()
 
 
+def _build_cache_root(root: Path) -> Path:
+    override = os.environ.get("ASGARD_BUILD_CACHE_DIR")
+    if override:
+        return Path(override).expanduser().resolve()
+    digest = hashlib.sha1(str(root).encode("utf-8")).hexdigest()[:16]
+    return Path(os.environ.get("TMPDIR", "/tmp")) / "asgard_buildcache" / digest
+
+
 def _module_output_paths(directory: Path, module_name: str) -> list[Path]:
     outputs: list[Path] = []
     for pattern in (f"{module_name}*.pyd", f"{module_name}*.so"):
         outputs.extend(directory.glob(pattern))
     return outputs
+
+
+def _sources_newer_than(outputs: list[Path], cwd: Path, sources: list[str]) -> bool:
+    if not outputs:
+        return True
+    output_mtime = min(path.stat().st_mtime for path in outputs)
+    return any((cwd / source).resolve().stat().st_mtime > output_mtime for source in sources)
+
+
+def _read_text_if_exists(path: Path) -> str:
+    if not path.is_file():
+        return ""
+    return path.read_text(encoding="utf-8")
+
+
+def _object_current(object_path: Path, source_path: Path, manifest_path: Path, manifest_text: str) -> bool:
+    if not object_path.is_file():
+        return False
+    if _read_text_if_exists(manifest_path) != manifest_text:
+        return False
+    return object_path.stat().st_mtime >= source_path.stat().st_mtime
 
 
 def _write_build_log(log_path: Path, command: list[str], cwd: Path, result: subprocess.CompletedProcess[str]) -> None:
@@ -209,6 +249,7 @@ def _build_ordered_object_module(
     verbose: bool,
     fflags: str | None,
     extra_args: list[str] | None,
+    force: bool,
 ) -> float:
     env = _prepare_build_env()
     fflags_override = env.get("ASGARD_FFLAGS_OVERRIDE")
@@ -222,51 +263,83 @@ def _build_ordered_object_module(
     if not fc:
         raise RuntimeError(f"{module_name} fallback build requires gfortran in PATH or FC.")
 
-    build_dir = root / ".buildcache" / "fs_electron_ordered_fallback" / module_name
+    outputs = _module_output_paths(cwd, module_name)
+    if not force and not _sources_newer_than(outputs, cwd, sources):
+        return 0.0
+
+    build_dir = _build_cache_root(root) / "ordered_fallback" / module_name
     build_dir.mkdir(parents=True, exist_ok=True)
-    for path in build_dir.glob("*"):
-        if path.is_file():
-            path.unlink()
 
     compile_flags = shlex.split(fflags or "")
     compile_flags.append("-fPIC")
     compile_flags.extend(["-I", str(build_dir), "-J", str(build_dir)])
     object_paths: list[Path] = []
     start = time.perf_counter()
+    dirty_seen = False
     for source in sources:
         source_path = (cwd / source).resolve()
         object_path = build_dir / f"{source_path.stem}.o"
-        command = [fc, "-c", *compile_flags, str(source_path), "-o", str(object_path)]
-        _run_command(command, cwd, env, log_dir / f"{module_name}_fallback_compile_{source_path.stem}.log", verbose)
+        manifest_path = build_dir / f"{source_path.stem}.manifest"
+        manifest_text = "\n".join(
+            [
+                f"source={source_path}",
+                f"fc={fc}",
+                f"flags={shlex.join(compile_flags)}",
+            ]
+        )
+        if dirty_seen or not _object_current(object_path, source_path, manifest_path, manifest_text):
+            command = [fc, "-c", *compile_flags, str(source_path), "-o", str(object_path)]
+            _run_command(command, cwd, env, log_dir / f"{module_name}_fallback_compile_{source_path.stem}.log", verbose)
+            manifest_path.write_text(manifest_text, encoding="utf-8")
+            dirty_seen = True
         object_paths.append(object_path)
 
     pyf_path = build_dir / f"{module_name}.pyf"
     main_source_name = Path(sources[-1]).name
-    source_rel = os.path.relpath((cwd / main_source_name).resolve(), build_dir)
+    main_source_path = (cwd / main_source_name).resolve()
+    signature_source_path = build_dir / main_source_name
+    if not signature_source_path.is_file() or signature_source_path.stat().st_mtime < main_source_path.stat().st_mtime:
+        shutil.copy2(main_source_path, signature_source_path)
     entry_names = list(F2PY_ENTRYPOINTS.get(module_name, (module_name.lower(),)))
-    signature_command = [
-        sys.executable,
-        "-m",
-        "numpy.f2py",
-        "-m",
-        module_name,
-        "-h",
-        pyf_path.name,
-        "--overwrite-signature",
-        source_rel,
-        "only:",
-        *entry_names,
-        ":",
-    ]
-    _run_command(signature_command, build_dir, env, log_dir / f"{module_name}_fallback_signature.log", verbose)
+    wrapper_manifest_path = build_dir / "wrapper.manifest"
+    wrapper_manifest_text = "\n".join(
+        [
+            f"main={main_source_path}",
+            f"entries={','.join(entry_names)}",
+            f"python={sys.executable}",
+        ]
+    )
+    wrapper_outputs = [build_dir / f"{module_name}module.c"]
+    wrapper_current = (
+        _read_text_if_exists(wrapper_manifest_path) == wrapper_manifest_text
+        and all(path.is_file() for path in wrapper_outputs)
+        and all(path.stat().st_mtime >= (cwd / main_source_name).resolve().stat().st_mtime for path in wrapper_outputs)
+    )
+    if not wrapper_current:
+        signature_command = [
+            sys.executable,
+            "-m",
+            "numpy.f2py",
+            "-m",
+            module_name,
+            "-h",
+            pyf_path.name,
+            "--overwrite-signature",
+            signature_source_path.name,
+            "only:",
+            *entry_names,
+            ":",
+        ]
+        _run_command(signature_command, build_dir, env, log_dir / f"{module_name}_fallback_signature.log", verbose)
 
-    wrapper_command = [
-        sys.executable,
-        "-m",
-        "numpy.f2py",
-        pyf_path.name,
-    ]
-    _run_command(wrapper_command, build_dir, env, log_dir / f"{module_name}_fallback_wrapper.log", verbose)
+        wrapper_command = [
+            sys.executable,
+            "-m",
+            "numpy.f2py",
+            pyf_path.name,
+        ]
+        _run_command(wrapper_command, build_dir, env, log_dir / f"{module_name}_fallback_wrapper.log", verbose)
+        wrapper_manifest_path.write_text(wrapper_manifest_text, encoding="utf-8")
 
     import numpy as np
 
@@ -281,19 +354,26 @@ def _build_ordered_object_module(
     c_objects: list[Path] = []
     for source in (build_dir / f"{module_name}module.c", f2py_src / "fortranobject.c"):
         object_path = build_dir / f"{source.stem}.o"
-        compile_c = [
-            cc,
-            "-c",
+        c_flags = [
             "-fPIC",
             f"-I{py_include}",
             f"-I{py_platinclude}",
             f"-I{np.get_include()}",
             f"-I{f2py_src}",
-            str(source),
-            "-o",
-            str(object_path),
         ]
-        _run_command(compile_c, build_dir, env, log_dir / f"{module_name}_fallback_compile_{source.stem}.log", verbose)
+        manifest_path = build_dir / f"{source.stem}.manifest"
+        manifest_text = "\n".join([f"source={source}", f"cc={cc}", f"flags={shlex.join(c_flags)}"])
+        if not _object_current(object_path, source, manifest_path, manifest_text):
+            compile_c = [
+                cc,
+                "-c",
+                *c_flags,
+                str(source),
+                "-o",
+                str(object_path),
+            ]
+            _run_command(compile_c, build_dir, env, log_dir / f"{module_name}_fallback_compile_{source.stem}.log", verbose)
+            manifest_path.write_text(manifest_text, encoding="utf-8")
         c_objects.append(object_path)
 
     wrapper_sources = [
@@ -304,14 +384,18 @@ def _build_ordered_object_module(
         if not wrapper_source.is_file():
             continue
         wrapper_object = build_dir / f"{wrapper_source.stem}.o"
-        compile_wrapper = [fc, "-c", "-fPIC", str(wrapper_source), "-o", str(wrapper_object)]
-        _run_command(
-            compile_wrapper,
-            build_dir,
-            env,
-            log_dir / f"{module_name}_fallback_compile_{wrapper_source.stem}.log",
-            verbose,
-        )
+        manifest_path = build_dir / f"{wrapper_source.stem}.manifest"
+        manifest_text = "\n".join([f"source={wrapper_source}", f"fc={fc}", "flags=-fPIC"])
+        if not _object_current(wrapper_object, wrapper_source, manifest_path, manifest_text):
+            compile_wrapper = [fc, "-c", "-fPIC", str(wrapper_source), "-o", str(wrapper_object)]
+            _run_command(
+                compile_wrapper,
+                build_dir,
+                env,
+                log_dir / f"{module_name}_fallback_compile_{wrapper_source.stem}.log",
+                verbose,
+            )
+            manifest_path.write_text(manifest_text, encoding="utf-8")
         object_paths.append(wrapper_object)
 
     output_path = build_dir / f"{module_name}{ext_suffix}"
@@ -330,7 +414,8 @@ def _build_ordered_object_module(
         target_path = cwd / built_path.name
         if target_path.exists():
             target_path.unlink()
-        built_path.replace(target_path)
+        shutil.copy2(built_path, target_path)
+        built_path.unlink()
     return time.perf_counter() - start
 
 
@@ -342,6 +427,7 @@ def _build_module(
     verbose: bool,
     fflags: str | None = None,
     extra_args: list[str] | None = None,
+    force: bool = False,
 ) -> float:
     env = _prepare_build_env()
     fflags_override = env.get("ASGARD_FFLAGS_OVERRIDE")
@@ -350,6 +436,10 @@ def _build_module(
     if fflags is not None:
         env["FFLAGS"] = fflags
         env["F90FLAGS"] = fflags
+
+    outputs = _module_output_paths(cwd, module_name)
+    if not force and not _sources_newer_than(outputs, cwd, sources):
+        return 0.0
 
     command = [sys.executable, "-m", "numpy.f2py", "-m", module_name, "-c", *sources]
     if extra_args:
@@ -387,6 +477,7 @@ def main() -> None:
     parser.add_argument("--clean", action="store_true", help="remove built artifacts before building")
     parser.add_argument("--module", action="append", dest="modules", help="only build the named module; can be repeated")
     parser.add_argument("--verbose", action="store_true", help="stream raw f2py/meson output")
+    parser.add_argument("--lto", action="store_true", help="enable link-time optimization for release/performance builds")
     args = parser.parse_args()
 
     root = Path(__file__).resolve().parent
@@ -397,25 +488,26 @@ def main() -> None:
     itp = src / "Interpolation"
     rad = src / "Radiation"
     had = src / "Hadronic"
+    omp_flags = OMP_LTO_FLAGS if args.lto else OMP_FLAGS
     modules = [
         ("Constants", src, ["Constants.f90"], None, None),
         ("Dynamics_reverse", dyn, _with_main(DYNAMICS_COMMON_SOURCES, "Dynamics_reverse.f90"), COMMON_FLAGS, None),
         ("Dynamics_forward", dyn, _with_main(DYNAMICS_COMMON_SOURCES, "Dynamics_forward.f90"), COMMON_FLAGS, None),
-        ("FS_electron_weno5_1d", ele, _with_main(ELECTRON_1D_SOURCES, "FS_electron_weno5_1d.f90"), OMP_FLAGS, OPENMP_LIBS),
-        ("FS_electron_slc1_1d", ele, _with_main(ELECTRON_1D_SOURCES, "FS_electron_slc1_1d.f90"), OMP_FLAGS, OPENMP_LIBS),
-        ("FS_electron_charint_1d", ele, _with_main(ELECTRON_1D_SOURCES, "FS_electron_charint_1d.f90"), OMP_FLAGS, OPENMP_LIBS),
-        ("FS_electron_fullhide_1d", ele, _with_main(ELECTRON_HISTORY_SOURCES, "FS_electron_fullhide_1d.f90"), OMP_FLAGS, OPENMP_LIBS),
-        ("FS_electron_fullhide_2d", ele, _with_main(ELECTRON_2D_SOURCES, "FS_electron_fullhide_2d.f90"), OMP_FLAGS, OPENMP_LIBS),
-        ("FS_electron_charint_2d", ele, [*ELECTRON_2D_SOURCES, "FS_electron_fullhide_2d.f90", "FS_electron_charint_2d.f90"], OMP_FLAGS, OPENMP_LIBS),
-        ("FS_electron_t2g1_1d", ele, _with_main(ELECTRON_1D_SOURCES, "FS_electron_t2g1_1d.f90"), OMP_FLAGS, OPENMP_LIBS),
-        ("electron_get_y", ele, _with_main(ELECTRON_1D_SOURCES, "electron_get_y.f90"), OMP_FLAGS, OPENMP_LIBS),
-        ("electron_reverse_kernel", ele, _with_main(ELECTRON_1D_SOURCES, "electron_reverse_kernel.f90"), OMP_FLAGS, OPENMP_LIBS),
-        ("SED_interpolation", itp, ["../Constants.f90", "interpolation_common.f90", "SED_interpolation.f90"], OMP_FLAGS, OPENMP_LIBS),
-        ("SED_interpolation_structured", itp, ["../Constants.f90", "interpolation_common.f90", "SED_interpolation_structured.f90"], OMP_FLAGS, OPENMP_LIBS),
-        ("Annihilation", rad, _with_main(RADIATION_COMMON_SOURCES, "Annihilation.f90"), OMP_FLAGS, OPENMP_LIBS),
-        ("Seed_reverse", rad, _with_main(RADIATION_COMMON_SOURCES, "Seed_reverse.f90"), OMP_FLAGS, OPENMP_LIBS),
-        ("SSC_spec", rad, _with_main(RADIATION_COMMON_SOURCES, "SSC_spec.f90"), OMP_FLAGS, OPENMP_LIBS),
-        ("FS_hadronic_1d", had, _with_main(HADRONIC_1D_SOURCES, "FS_hadronic_1d.f90"), OMP_FLAGS, OPENMP_LIBS),
+        ("FS_electron_weno5_1d", ele, _with_main(ELECTRON_1D_SOURCES, "FS_electron_weno5_1d.f90"), omp_flags, OPENMP_LIBS),
+        ("FS_electron_slc1_1d", ele, _with_main(ELECTRON_1D_SOURCES, "FS_electron_slc1_1d.f90"), omp_flags, OPENMP_LIBS),
+        ("FS_electron_charint_1d", ele, _with_main(ELECTRON_1D_SOURCES, "FS_electron_charint_1d.f90"), omp_flags, OPENMP_LIBS),
+        ("FS_electron_fullhide_1d", ele, _with_main(ELECTRON_HISTORY_SOURCES, "FS_electron_fullhide_1d.f90"), omp_flags, OPENMP_LIBS),
+        ("FS_electron_fullhide_2d", ele, _with_main(ELECTRON_2D_SOURCES, "FS_electron_fullhide_2d.f90"), omp_flags, OPENMP_LIBS),
+        ("FS_electron_charint_2d", ele, [*ELECTRON_2D_SOURCES, "FS_electron_fullhide_2d.f90", "FS_electron_charint_2d.f90"], omp_flags, OPENMP_LIBS),
+        ("FS_electron_t2g1_1d", ele, _with_main(ELECTRON_1D_SOURCES, "FS_electron_t2g1_1d.f90"), omp_flags, OPENMP_LIBS),
+        ("electron_radiation", ele, ELECTRON_RADIATION_SOURCES, omp_flags, OPENMP_LIBS),
+        ("electron_reverse_kernel", ele, _with_main(ELECTRON_1D_SOURCES, "electron_reverse_kernel.f90"), omp_flags, OPENMP_LIBS),
+        ("SED_interpolation", itp, ["../Constants.f90", "interpolation_common.f90", "SED_interpolation.f90"], omp_flags, OPENMP_LIBS),
+        ("SED_interpolation_structured", itp, ["../Constants.f90", "interpolation_common.f90", "SED_interpolation_structured.f90"], omp_flags, OPENMP_LIBS),
+        ("Annihilation", rad, _with_main(RADIATION_COMMON_SOURCES, "Annihilation.f90"), omp_flags, OPENMP_LIBS),
+        ("Seed_reverse", rad, _with_main(RADIATION_COMMON_SOURCES, "Seed_reverse.f90"), omp_flags, OPENMP_LIBS),
+        ("SSC_spec", rad, _with_main(RADIATION_COMMON_SOURCES, "SSC_spec.f90"), omp_flags, OPENMP_LIBS),
+        ("FS_hadronic_1d", had, _with_main(HADRONIC_1D_SOURCES, "FS_hadronic_1d.f90"), omp_flags, OPENMP_LIBS),
     ]
     module_aliases = {
         "FS_electron_weno5": "FS_electron_weno5_1d",
@@ -449,6 +541,7 @@ def main() -> None:
                 args.verbose,
                 fflags,
                 extra_args,
+                args.force,
             )
             print(f"Done {module_name}: {elapsed:.2f}s")
             continue
@@ -460,6 +553,7 @@ def main() -> None:
             args.verbose,
             fflags,
             extra_args,
+            args.force,
         )
         print(f"Done {module_name}: {elapsed:.2f}s")
     print("Compile complete!")

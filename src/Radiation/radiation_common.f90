@@ -128,43 +128,72 @@ subroutine radiation_syn_seed_core(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_
     integer, intent(in) :: Num_gam_e,Num_nu,n_threads
     real(8), intent(in) :: R_loc,DB,gam_e(Num_gam_e),dN_gam_e(Num_gam_e),V_seed(Num_nu),ssa_prefactor
     real(8), intent(out) :: P_emit(Num_nu),P_syn(Num_nu),Seed_syn(Num_nu),Tau_syn(Num_nu)
-    integer :: I_nu,I_gam_e
+    integer :: I_nu,I_gam_e,work_items
     real(8) :: factor,Temp_syn,Rariv2,temp_para
     real(8) :: V_cal,dInteg,Tau,Vc,x,ratio_v,Fx,P_v,gam_e_mean2,dN,dgam_e,ddN,temp_abs
 
     factor=(3.62d0/pi)**2
     Temp_syn=dsqrt(3d0)*para_e*para_e*para_e/Para_m_energy
     Rariv2=R_loc*R_loc
-    !$OMP PARALLEL num_threads(n_threads), private(I_nu,I_gam_e,V_cal,dInteg,Tau,Vc,x,ratio_v,Fx,P_v, &
-    !$OMP& gam_e_mean2,dN,dgam_e,ddN,temp_abs)
-    !$OMP DO SCHEDULE(STATIC)
-    do I_nu=1,Num_nu
-        V_cal=V_seed(I_nu)
-        dInteg=zero
-        Tau=zero
-        do I_gam_e=1,Num_gam_e-1
-            gam_e_mean2=(gam_e(I_gam_e)+gam_e(I_gam_e+1))**2/4d0
-            Vc=(4.2d6)*gam_e_mean2*DB
-            x=V_cal/Vc
-            ratio_v=Vc/V_cal
-            Fx=1.81d0*dexp(-x)/dsqrt(ratio_v**(2d0/3d0)+factor)
-            dN=(dN_gam_e(I_gam_e)+dN_gam_e(I_gam_e+1))/two
-            dgam_e=gam_e(I_gam_e+1)-gam_e(I_gam_e)
-            dInteg=dInteg+dN*Fx*dgam_e
-            ddN=dN_gam_e(I_gam_e)/(gam_e(I_gam_e)*gam_e(I_gam_e)) - &
-                dN_gam_e(I_gam_e+1)/(gam_e(I_gam_e+1)*gam_e(I_gam_e+1))
-            Tau=Tau+gam_e_mean2*ddN*Fx
+    work_items=Num_nu*(Num_gam_e-1)
+    if (n_threads <= 1 .or. work_items < 8192) then
+        do I_nu=1,Num_nu
+            V_cal=V_seed(I_nu)
+            dInteg=zero
+            Tau=zero
+            do I_gam_e=1,Num_gam_e-1
+                gam_e_mean2=(gam_e(I_gam_e)+gam_e(I_gam_e+1))**2/4d0
+                Vc=(4.2d6)*gam_e_mean2*DB
+                x=V_cal/Vc
+                ratio_v=Vc/V_cal
+                Fx=1.81d0*dexp(-x)/dsqrt(ratio_v**(2d0/3d0)+factor)
+                dN=(dN_gam_e(I_gam_e)+dN_gam_e(I_gam_e+1))/two
+                dgam_e=gam_e(I_gam_e+1)-gam_e(I_gam_e)
+                dInteg=dInteg+dN*Fx*dgam_e
+                ddN=dN_gam_e(I_gam_e)/(gam_e(I_gam_e)*gam_e(I_gam_e)) - &
+                    dN_gam_e(I_gam_e+1)/(gam_e(I_gam_e+1)*gam_e(I_gam_e+1))
+                Tau=Tau+gam_e_mean2*ddN*Fx
+            end do
+            P_v=Temp_syn*DB*dInteg
+            Tau=ssa_prefactor*Tau*DB/(4d0*pi*Rariv2*V_cal*V_cal)
+            P_emit(I_nu)=P_v
+            Tau_syn(I_nu)=Tau
+            call radiation_transfer_factor(Tau,temp_abs)
+            P_syn(I_nu)=P_v*temp_abs
+            Seed_syn(I_nu)=P_syn(I_nu)/(Rariv2*V_cal)
         end do
-        P_v=Temp_syn*DB*dInteg
-        Tau=ssa_prefactor*Tau*DB/(4d0*pi*Rariv2*V_cal*V_cal)
-        P_emit(I_nu)=P_v
-        Tau_syn(I_nu)=Tau
-        call radiation_transfer_factor(Tau,temp_abs)
-        P_syn(I_nu)=P_v*temp_abs
-        Seed_syn(I_nu)=P_syn(I_nu)/(Rariv2*V_cal)
-    end do
-    !$OMP END DO
-    !$OMP END PARALLEL
+    else
+        !$OMP PARALLEL num_threads(n_threads), private(I_nu,I_gam_e,V_cal,dInteg,Tau,Vc,x,ratio_v,Fx,P_v, &
+        !$OMP& gam_e_mean2,dN,dgam_e,ddN,temp_abs)
+        !$OMP DO SCHEDULE(STATIC)
+        do I_nu=1,Num_nu
+            V_cal=V_seed(I_nu)
+            dInteg=zero
+            Tau=zero
+            do I_gam_e=1,Num_gam_e-1
+                gam_e_mean2=(gam_e(I_gam_e)+gam_e(I_gam_e+1))**2/4d0
+                Vc=(4.2d6)*gam_e_mean2*DB
+                x=V_cal/Vc
+                ratio_v=Vc/V_cal
+                Fx=1.81d0*dexp(-x)/dsqrt(ratio_v**(2d0/3d0)+factor)
+                dN=(dN_gam_e(I_gam_e)+dN_gam_e(I_gam_e+1))/two
+                dgam_e=gam_e(I_gam_e+1)-gam_e(I_gam_e)
+                dInteg=dInteg+dN*Fx*dgam_e
+                ddN=dN_gam_e(I_gam_e)/(gam_e(I_gam_e)*gam_e(I_gam_e)) - &
+                    dN_gam_e(I_gam_e+1)/(gam_e(I_gam_e+1)*gam_e(I_gam_e+1))
+                Tau=Tau+gam_e_mean2*ddN*Fx
+            end do
+            P_v=Temp_syn*DB*dInteg
+            Tau=ssa_prefactor*Tau*DB/(4d0*pi*Rariv2*V_cal*V_cal)
+            P_emit(I_nu)=P_v
+            Tau_syn(I_nu)=Tau
+            call radiation_transfer_factor(Tau,temp_abs)
+            P_syn(I_nu)=P_v*temp_abs
+            Seed_syn(I_nu)=P_syn(I_nu)/(Rariv2*V_cal)
+        end do
+        !$OMP END DO
+        !$OMP END PARALLEL
+    end if
 
     temp_para=4d0*pi*Para_c*Para_h
     Seed_syn=Seed_syn/temp_para

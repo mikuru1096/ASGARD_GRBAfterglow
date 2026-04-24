@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from functools import lru_cache
+
 import numpy as np
 
 from src import constants
@@ -27,12 +29,18 @@ LIGHT_CURVE_PLOT_SPECS = (
 )
 
 
-def build_multiband_observer_frequencies() -> tuple[int, np.ndarray]:
+@lru_cache(maxsize=1)
+def _cached_multiband_observer_frequencies() -> tuple[int, np.ndarray]:
     num_xrt = 8
     xrt_low = 0.5 * constants.para_kev2hz
     xrt_high = 10.0 * constants.para_kev2hz
     xrt = np.logspace(np.log10(xrt_low), np.log10(xrt_high), num_xrt)
     return num_xrt, np.concatenate((xrt, POINT_SOURCE_FREQUENCIES_HZ, HIGH_ENERGY_FREQUENCIES_HZ), axis=0)
+
+
+def build_multiband_observer_frequencies() -> tuple[int, np.ndarray]:
+    num_xrt, frequencies_hz = _cached_multiband_observer_frequencies()
+    return num_xrt, frequencies_hz.copy()
 
 
 def combine_multiband_flux(flux_matrix: np.ndarray, frequencies_hz: np.ndarray, num_xrt: int) -> np.ndarray:

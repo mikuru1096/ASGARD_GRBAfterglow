@@ -70,6 +70,8 @@ subroutine hadronic_calc_pair_injection_full(num_e,gm_e,num_ph,x_ph,pp_ng,dln,in
     real(8) :: accum,r_alpha_phot,r_eps_raw
 
     epspair_ssc = zero
+    !$OMP PARALLEL DO if((num_e-2)*(num_ph-ind_min_energy_pho) >= 8192) schedule(dynamic,1) &
+    !$OMP& private(i,j,k,outer,inner,kmax,accum)
     do i=2,num_e-1
         outer = hadronic_outer_pp(gm_e(i),dln,ind_min_energy_pho,num_ph)
         accum = zero
@@ -82,6 +84,7 @@ subroutine hadronic_calc_pair_injection_full(num_e,gm_e,num_ph,x_ph,pp_ng,dln,in
         end do
         epspair_ssc(i) = accum*dln*dln*0.75d0*gm_e(i)
     end do
+    !$OMP END PARALLEL DO
 
     r_alpha_phot = sum( &
         x_ph(ind_min_energy_pho+1:num_ph) * afpair_ssc(ind_min_energy_pho+1:num_ph) * &
@@ -101,6 +104,7 @@ subroutine hadronic_build_photon_loss_kernel(num_ph,x_ph,dln,photons_log_ssc,afp
     integer :: i,j
     real(8) :: accum
 
+    !$OMP PARALLEL DO if(num_ph*num_ph >= 8192) schedule(static) private(i,j,accum)
     do i=1,num_ph
         accum = zero
         do j=1,num_ph
@@ -108,6 +112,7 @@ subroutine hadronic_build_photon_loss_kernel(num_ph,x_ph,dln,photons_log_ssc,afp
         end do
         afpair_ssc(i) = dln*accum
     end do
+    !$OMP END PARALLEL DO
 end subroutine hadronic_build_photon_loss_kernel
 
 real(8) function hadronic_phibar(a,b)

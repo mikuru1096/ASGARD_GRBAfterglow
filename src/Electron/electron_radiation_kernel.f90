@@ -1,12 +1,11 @@
-!f2py: skip
 module electron_radiation_kernel
   use constants
-  use electron_common, only: electron_ppm_interfaces_nonuniform
+  use electron_transport_common, only: electron_ppm_interfaces_nonuniform
   use radiation_common, only: radiation_syn_seed_core
   private
 
     public :: first_greater_monotonic, first_greater_monotonic_window
-    public :: besselk, get_syn, get_syn_state, get_syn_simpson, get_syn_selected, get_nu_a, get_nu_a_nonuniform
+    public :: besselk, get_syn, get_syn_state, get_syn_simpson, get_syn_selected, get_syn_transfer, get_nu_a, get_nu_a_nonuniform
     public :: get_nu_a_2d_path, get_nu_a_2d_cell_path, reduce_syn_shell_from_chi
     public :: build_reduced_log_grid, compress_syn_state_logbands, project_syn_state_logbands
     public :: get_syn_adaptive
@@ -608,6 +607,24 @@ real(8) :: h_ref,h_loc
         stop
     end select
 end subroutine get_syn_selected
+
+subroutine get_syn_transfer(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed,Transfer_syn)
+implicit none
+integer, intent(in) :: Num_gam_e,Num_nu,n_threads
+real(8), intent(in) :: R_loc,DB,gam_e(Num_gam_e),dN_gam_e(Num_gam_e),V_seed(Num_nu)
+real(8), intent(out) :: Transfer_syn(Num_nu)
+real(8) :: P_emit(Num_nu),P_syn(Num_nu),Seed_syn(Num_nu),Tau_syn(Num_nu)
+integer :: I_nu
+
+    call get_syn_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed,P_emit,P_syn,Seed_syn,Tau_syn)
+    do I_nu=1,Num_nu
+        if (P_emit(I_nu) > 0d0 .and. P_syn(I_nu) >= 0d0) then
+            Transfer_syn(I_nu)=P_syn(I_nu)/P_emit(I_nu)
+        else
+            Transfer_syn(I_nu)=one
+        end if
+    end do
+end subroutine get_syn_transfer
 
 subroutine get_syn_simpson(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
                    P_syn,Seed_syn)

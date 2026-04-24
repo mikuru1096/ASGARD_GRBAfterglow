@@ -310,6 +310,7 @@ subroutine hadronic_secondary_compute_ic_channel(num_ph,photons_on_had_grid_per_
     real(8) :: z
 
     rate_per_gev = zero
+    !$OMP PARALLEL DO if(num_ph*num_had >= 8192) schedule(static) private(i,j,j0,src_idx,z)
     do j=1,num_ph
         j0 = j - 1
         z = zero
@@ -323,6 +324,7 @@ subroutine hadronic_secondary_compute_ic_channel(num_ph,photons_on_had_grid_per_
         end do
         rate_per_gev(j) = z*dln_energy*coeff_cgs
     end do
+    !$OMP END PARALLEL DO
 end subroutine hadronic_secondary_compute_ic_channel
 
 real(8) function hadronic_secondary_ic_coeff(mass_gev)

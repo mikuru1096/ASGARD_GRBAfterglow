@@ -26,12 +26,12 @@ class build_native(Command):
         self.force = None
 
     def finalize_options(self) -> None:
-        self.force = True
+        self.force = False
 
     def run(self) -> None:
         if _skip_native_build():
             return
-        command = [sys.executable, "build_extensions.py", "--force"]
+        command = [sys.executable, "build_extensions.py"]
         subprocess.run(command, cwd=ROOT, check=True)
 
 
@@ -81,8 +81,8 @@ setup(
             "FS_electron_fullhide_2d*.pyd",
             "FS_electron_t2g1_1d*.so",
             "FS_electron_t2g1_1d*.pyd",
-            "electron_get_y*.so",
-            "electron_get_y*.pyd",
+            "electron_radiation*.so",
+            "electron_radiation*.pyd",
             "electron_reverse_kernel*.so",
             "electron_reverse_kernel*.pyd",
             "*.f90",

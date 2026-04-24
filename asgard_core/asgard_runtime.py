@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
 from importlib import import_module
 import numpy as np
 
-import src.Electron.electron_get_y as electron_get_y_module
+from src.Electron.electron_radiation import electron_radiation_kernel as electron_radiation_module
 import src.Hadronic.FS_hadronic_1d as hadronic_legacy_module
 from asgard_core.hadronic_am3_solver import (
     AM3_PROCESS_LABELS,
@@ -84,10 +85,12 @@ _ELECTRON_MODULES = {
 }
 
 
+@lru_cache(maxsize=None)
 def _electron_module(solver: str):
     return import_module(_ELECTRON_MODULES[solver])
 
 
+@lru_cache(maxsize=1)
 def _electron_reverse_module():
     return import_module("src.Electron.electron_reverse_kernel")
 
@@ -1136,7 +1139,7 @@ def _solve_hadronic_hummer_transport_coupled(
                 loss_bh_e,
                 dt_s,
             )
-            p_bh_i, seed_bh_i = electron_get_y_module.get_syn_selected(
+            p_bh_i, seed_bh_i = electron_radiation_module.get_syn_selected(
                 int(config.index_syn_integr),
                 float(radius[i_r]),
                 max(float(b_field[i_r]), 1.0e-30),
@@ -1623,7 +1626,7 @@ def _compute_reverse_shock_synchrotron_emission(
         radius_loc = float(dynamics.radius[i])
         if not np.isfinite(db) or not np.isfinite(radius_loc) or db <= 0.0 or radius_loc <= 0.0:
             continue
-        p_syn_i, seed_syn_i = electron_get_y_module.get_syn_selected(
+        p_syn_i, seed_syn_i = electron_radiation_module.get_syn_selected(
             config.index_syn_integr,
             radius_loc,
             db,
@@ -1680,7 +1683,7 @@ def _compute_characteristic_frequencies_weno5(
         nu_m[i - 1] = _synchrotron_frequency(db, gam_e_m, doppler_den)
         nu_c[i - 1] = _synchrotron_frequency(db, gam_e_c, doppler_den)
 
-        nu_a_comoving = electron_get_y_module.get_nu_a(radius_loc, db, gam_e, d_n_gam_e[:, i - 1])
+        nu_a_comoving = electron_radiation_module.get_nu_a(radius_loc, db, gam_e, d_n_gam_e[:, i - 1])
         nu_a[i - 1] = nu_a_comoving / doppler_den
 
     return nu_m, nu_c, nu_a
@@ -1723,7 +1726,7 @@ def _compute_reverse_shock_characteristic_frequencies(
         nu_c[i - 1] = _synchrotron_frequency(db, gam_e_c, doppler_den)
         nu_M[i - 1] = _synchrotron_frequency(db, gam_e_max, doppler_den)
 
-        nu_a_comoving = electron_get_y_module.get_nu_a(
+        nu_a_comoving = electron_radiation_module.get_nu_a(
             radius_loc,
             db,
             gam_e,
@@ -1752,7 +1755,7 @@ def _compute_synchrotron_emission_from_distribution(
         radius_loc = float(radius_cm[i])
         if not np.isfinite(db) or not np.isfinite(radius_loc) or db <= 0.0 or radius_loc <= 0.0:
             continue
-        p_syn_i, seed_syn_i = electron_get_y_module.get_syn_selected(
+        p_syn_i, seed_syn_i = electron_radiation_module.get_syn_selected(
             config.index_syn_integr,
             radius_loc,
             db,

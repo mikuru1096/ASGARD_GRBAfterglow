@@ -2,11 +2,12 @@ subroutine fs_electron_slc1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,N
                             gam_e,dN_gam_e,P_syn,Seed_syn,V_m,V_c,V_a)
     !$ use omp_lib
     use constants
+    use dynamics_common, only: dynamics_external_density_profile
     use electron_common
-    use electron_injection_profiles, only: electron_profile_log_cell_edges, electron_initial_powerlaw_exp_cutoff_edges, &
-                                           electron_build_source_term_exp_cutoff_edges
-    use get_Y
-    use electron_forward_kernel, only: electron_forward_cooling_step
+    use electron_transport_common, only: electron_semi_lagrangian_step
+    use electron_injection_profiles, only: electron_build_source_term_exp_cutoff_edges
+    use electron_radiation_kernel, only: get_nu_a, get_syn_selected
+    use electron_forward_kernel, only: get_forward_cooling
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads
     real(8), intent(in) :: Boundary(n),R_Tobs(Num_R),R_Gamma(Num_R),R(Num_R),V_seed(Num_nu)
@@ -49,9 +50,8 @@ subroutine fs_electron_slc1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,N
     temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma(1)-one)
     call electron_gamma_m_exact(p,temp_gam,Gam_e_max,Gam_e_m)
     Gam_e_c=7.7d8/(one+dsqrt(Epsilon_e/Epsilon_b))/R_Gamma(1)/DB**2/(R_Tobs(1)/two)
-    call electron_build_gamma_grid(Num_gam_e,Gam_e_max_max,Gam_e)
-    call electron_profile_log_cell_edges(Num_gam_e,gam_e,x_edge)
-    call electron_initial_powerlaw_exp_cutoff_edges(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,x_edge,dN_x)
+    call electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
+                                      electron_initial_profile_exp_cutoff,electron_initial_grid_log_edges,gam_e,dN_x,x_edge)
     dN_gam_e(:,1)=dN_x/gam_e/dlog(ten)
     d_x=dlog10(gam_e(2)/gam_e(1))
     is_uniform_density=(A_star <= zero .and. f_jump == one)
@@ -59,7 +59,7 @@ subroutine fs_electron_slc1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,N
     do I_tobs=2,Num_R
         R_loc=R(I_tobs-1)
         R_Gamma_loc=(R_Gamma(I_tobs)+R_Gamma(I_tobs-1))/two
-        call electron_external_density(A_star,dNe_ISM,R_loc,R0,R_tr,f_jump,f_wide,1,dNe)
+        call dynamics_external_density_profile(A_star,dNe_ISM,R_loc,R0,1,R_tr,f_jump,f_wide,dNe)
 
         DB=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma_loc*(R_Gamma_loc-one)))
         Gam_e_max=3d0*Para_m_energy/dsqrt(8d0*DB*Para_e**3)
@@ -85,19 +85,19 @@ subroutine fs_electron_slc1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,N
 
         call get_syn_selected(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads, &
                               gam_e,dN_gam_e(:,I_tobs-1),V_seed,P_syn(:,I_tobs),Seed_syn(:,I_tobs))
-        call electron_forward_cooling_step(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc, &
+        call get_forward_cooling(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc, &
                                  R_Gamma_loc,beta_Gam,dNe,Num_gam_e,Num_nu,n_threads,gam_e,V_seed, &
                                  P_syn(:,I_tobs),Seed_syn(:,I_tobs),dEl)
-        call electron_loss_mean(Num_gam_e,dEl,dEL_mean_base)
+        dEL_mean_base=(dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/two/dlog(ten)
 
         do L=1,L1
             R_left=R_loc
             dNe_left=dNe
             R_right=R_left+dDR
             if (.not. is_uniform_density) then
-                call electron_external_density(A_star,dNe_ISM,R_right,R0,R_tr,f_jump,f_wide,1,dNe_right)
+                call dynamics_external_density_profile(A_star,dNe_ISM,R_right,R0,1,R_tr,f_jump,f_wide,dNe_right)
                 R_mid=0.5d0*(R_left+R_right)
-                call electron_external_density(A_star,dNe_ISM,R_mid,R0,R_tr,f_jump,f_wide,1,dNe_mid)
+                call dynamics_external_density_profile(A_star,dNe_ISM,R_mid,R0,1,R_tr,f_jump,f_wide,dNe_mid)
             else
                 dNe_right=dNe_left
                 R_mid=0.5d0*(R_left+R_right)

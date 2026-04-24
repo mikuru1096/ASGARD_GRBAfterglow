@@ -6,10 +6,7 @@ module electron_cooling_kernel
                                        electron_ssa_segment
   private
 
-  public :: get_forward_cooling, prepare_forward_cooling_aux, prepare_forward_cooling_aux_batch, &
-            assemble_forward_cooling, assemble_forward_cooling_split, &
-            assemble_forward_cooling_split_batch
-  public :: get_SSA_numerical, get_SSA_numerical_batch, get_IC_numerical, get_Y_Nakar, get_Y_Fan
+  public :: get_SSA_numerical, get_SSA_numerical_batch, get_IC_numerical
 
   integer, save :: ssa_seed_num_nu_cache=0
   logical, save :: ssa_seed_cache_ready=.false.
@@ -23,8 +20,6 @@ module electron_cooling_kernel
   logical, save :: ic_grid_cache_ready=.false.
   real(8), allocatable, save :: ic_d_nu_cache(:), ic_gam_e_mean_cache(:), &
                                 ic_e_seed_cache(:), ic_x_seed_cache(:), ic_v_seed_mid_cache(:)
-  integer, save :: y_nakar_num_gam_cache=0
-  real(8), allocatable, save :: y_nakar_hat_nu_cache(:), y_nakar_prefix_cache(:)
 
 contains
 
@@ -84,24 +79,6 @@ logical :: rebuild
     ic_num_nu_cache=Num_nu
     ic_grid_cache_ready=.true.
 end subroutine ensure_ic_grid_cache
-
-subroutine ensure_y_nakar_workspace(Num_gam_e,Num_nu,gam_e)
-implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: Num_gam_e,Num_nu
-real(8), intent(in) :: gam_e(Num_gam_e)
-logical :: rebuild
-
-    rebuild=.not. allocated(y_nakar_hat_nu_cache)
-    if (.not. rebuild) rebuild = (y_nakar_num_gam_cache /= Num_gam_e)
-    if (.not. rebuild) rebuild = (size(y_nakar_prefix_cache) /= Num_nu)
-    if (.not. rebuild) rebuild = any(y_nakar_hat_nu_cache /= Para_m_energy/Para_h/gam_e)
-    if (.not. rebuild) return
-
-    if (allocated(y_nakar_hat_nu_cache)) deallocate(y_nakar_hat_nu_cache,y_nakar_prefix_cache)
-    allocate(y_nakar_hat_nu_cache(Num_gam_e),y_nakar_prefix_cache(Num_nu))
-    y_nakar_hat_nu_cache=Para_m_energy/Para_h/gam_e
-    y_nakar_num_gam_cache=Num_gam_e
-end subroutine ensure_y_nakar_workspace
 
 subroutine ensure_ssa_seed_cache(Num_nu,V_seed)
 implicit REAL(8)(A-H,O-Z)
@@ -236,159 +213,6 @@ real(8), intent(out) :: dot_gam_e(Num_gam_e)
     end do
 end subroutine accumulate_ssa_for_seed
 
-subroutine prepare_forward_cooling_aux(index_Y,Num_gam_e,Num_nu,n_threads,gam_e,V_seed,P_syn,Seed_syn,cooling_aux)
-implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: index_Y,Num_gam_e,Num_nu,n_threads
-real(8), intent(in) :: gam_e(Num_gam_e),V_seed(Num_nu),P_syn(Num_nu),Seed_syn(Num_nu)
-real(8), intent(out) :: cooling_aux(Num_gam_e)
-
-    cooling_aux=zero
-    select case(index_Y)
-    case(1)
-        call get_IC_numerical(Num_gam_e,Num_nu,n_threads,gam_e,V_seed,Seed_syn,cooling_aux)
-    case(2)
-        call get_Y_Nakar(Num_gam_e,Num_nu,n_threads,gam_e,V_seed,P_syn,cooling_aux)
-    case default
-    end select
-end subroutine prepare_forward_cooling_aux
-
-subroutine prepare_forward_cooling_aux_batch(index_Y,Num_gam_e,Num_nu,Num_chi,n_threads,gam_e,V_seed,P_syn,Seed_syn,cooling_aux)
-implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: index_Y,Num_gam_e,Num_nu,Num_chi,n_threads
-real(8), intent(in) :: gam_e(Num_gam_e),V_seed(Num_nu),P_syn(Num_nu,Num_chi),Seed_syn(Num_nu,Num_chi)
-real(8), intent(out) :: cooling_aux(Num_gam_e,Num_chi)
-
-    cooling_aux=zero
-    select case(index_Y)
-    case(1)
-        do I_chi=1,Num_chi
-            call get_IC_numerical(Num_gam_e,Num_nu,n_threads,gam_e,V_seed,Seed_syn(:,I_chi),cooling_aux(:,I_chi))
-        end do
-    case(2)
-        do I_chi=1,Num_chi
-            call get_Y_Nakar(Num_gam_e,Num_nu,n_threads,gam_e,V_seed,P_syn(:,I_chi),cooling_aux(:,I_chi))
-        end do
-    case default
-    end select
-end subroutine prepare_forward_cooling_aux_batch
-
-subroutine assemble_forward_cooling(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc,R_Gamma_loc, &
-                                    beta_Gam,dNe,Num_gam_e,Num_nu,n_threads,gam_e,V_seed,P_syn,Seed_syn,cooling_aux,dEl)
-implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: index_Y,Num_gam_e,Num_nu,n_threads
-real(8), intent(in) :: Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,R_loc,R_Gamma_loc,beta_Gam,dNe
-real(8), intent(inout) :: Gam_e_max
-real(8), intent(in) :: gam_e(Num_gam_e),V_seed(Num_nu),P_syn(Num_nu),Seed_syn(Num_nu),cooling_aux(Num_gam_e)
-real(8), intent(out) :: dEl(Num_gam_e)
-
-    call assemble_forward_cooling_with_ssa(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc,R_Gamma_loc, &
-                                           beta_Gam,dNe,Num_gam_e,Num_nu,n_threads,gam_e,V_seed,Seed_syn,cooling_aux,dEl)
-end subroutine assemble_forward_cooling
-
-subroutine assemble_forward_cooling_split(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc,R_Gamma_loc, &
-                                          beta_Gam,dNe,Num_gam_e,Num_nu,n_threads,gam_e,V_seed, &
-                                          P_syn_ic,Seed_syn_ic,Seed_syn_ssa,cooling_aux,dEl)
-implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: index_Y,Num_gam_e,Num_nu,n_threads
-real(8), intent(in) :: Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,R_loc,R_Gamma_loc,beta_Gam,dNe
-real(8), intent(inout) :: Gam_e_max
-    real(8), intent(in) :: gam_e(Num_gam_e),V_seed(Num_nu),P_syn_ic(Num_nu),Seed_syn_ic(Num_nu), &
-                           Seed_syn_ssa(Num_nu),cooling_aux(Num_gam_e)
-real(8), intent(out) :: dEl(Num_gam_e)
-
-    call assemble_forward_cooling_with_ssa(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc,R_Gamma_loc, &
-                                           beta_Gam,dNe,Num_gam_e,Num_nu,n_threads,gam_e,V_seed,Seed_syn_ssa,cooling_aux,dEl)
-end subroutine assemble_forward_cooling_split
-
-subroutine assemble_forward_cooling_split_batch(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc,R_Gamma_loc, &
-                                                beta_Gam,dNe,Num_gam_e,Num_nu,Num_chi,n_threads,gam_e,V_seed, &
-                                                P_syn_ic,Seed_syn_ic,Seed_syn_ssa,cooling_aux,dEl)
-implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: index_Y,Num_gam_e,Num_nu,Num_chi,n_threads
-real(8), intent(in) :: Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,R_loc,R_Gamma_loc,beta_Gam,dNe
-real(8), intent(inout) :: Gam_e_max
-real(8), intent(in) :: gam_e(Num_gam_e),V_seed(Num_nu),P_syn_ic(Num_nu,Num_chi),Seed_syn_ic(Num_nu,Num_chi), &
-                       Seed_syn_ssa(Num_nu,Num_chi),cooling_aux(Num_gam_e,Num_chi)
-real(8), intent(out) :: dEl(Num_gam_e,Num_chi)
-real(8) :: Compton(Num_gam_e),Gam_e_max_cell
-
-    call ensure_ssa_geometry_workspace(Num_gam_e,Num_chi)
-    call get_SSA_numerical_batch(DB,Num_gam_e,Num_nu,Num_chi,n_threads,gam_e,V_seed,Seed_syn_ssa,ssa_dot_batch_cache)
-
-    do I_chi=1,Num_chi
-       Gam_e_max_cell=Gam_e_max
-       call assemble_forward_cooling_from_terms(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max_cell,R_loc,R_Gamma_loc, &
-                                                beta_Gam,dNe,Num_gam_e,gam_e,Compton,ssa_dot_batch_cache(:,I_chi), &
-                                                cooling_aux(:,I_chi),dEl(:,I_chi))
-    end do
-end subroutine assemble_forward_cooling_split_batch
-
-subroutine assemble_forward_cooling_with_ssa(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc,R_Gamma_loc, &
-                                             beta_Gam,dNe,Num_gam_e,Num_nu,n_threads,gam_e,V_seed,Seed_syn_ssa,cooling_aux,dEl)
-implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: index_Y,Num_gam_e,Num_nu,n_threads
-real(8), intent(in) :: Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,R_loc,R_Gamma_loc,beta_Gam,dNe
-real(8), intent(inout) :: Gam_e_max
-real(8), intent(in) :: gam_e(Num_gam_e),V_seed(Num_nu),Seed_syn_ssa(Num_nu),cooling_aux(Num_gam_e)
-real(8), intent(out) :: dEl(Num_gam_e)
-real(8) :: Compton(Num_gam_e),dot_gam_e_SSA(Num_gam_e)
-
-    call get_SSA_numerical(DB,Num_gam_e,Num_nu,n_threads,gam_e,V_seed,Seed_syn_ssa,dot_gam_e_SSA)
-    call assemble_forward_cooling_from_terms(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc,R_Gamma_loc, &
-                                             beta_Gam,dNe,Num_gam_e,gam_e,Compton,dot_gam_e_SSA,cooling_aux,dEl)
-end subroutine assemble_forward_cooling_with_ssa
-
-subroutine assemble_forward_cooling_from_terms(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc,R_Gamma_loc, &
-                                               beta_Gam,dNe,Num_gam_e,gam_e,Compton,dot_gam_e_SSA,cooling_aux,dEl)
-implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: index_Y,Num_gam_e
-real(8), intent(in) :: Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,R_loc,R_Gamma_loc,beta_Gam,dNe
-real(8), intent(inout) :: Gam_e_max
-real(8), intent(in) :: gam_e(Num_gam_e)
-real(8), intent(inout) :: Compton(Num_gam_e)
-real(8), intent(in) :: dot_gam_e_SSA(Num_gam_e),cooling_aux(Num_gam_e)
-real(8), intent(out) :: dEl(Num_gam_e)
-
-    cooling_scale=one/(beta_Gam*R_Gamma_loc)
-    ssa_scale=cooling_scale/para_c
-    f_r=1.35d-19*DB**2*cooling_scale/pi
-
-    select case(index_Y)
-    case(0)
-        dEl=(f_r-dot_gam_e_SSA*ssa_scale)*gam_e
-    case(1)
-        dEl=(f_r+(cooling_aux-dot_gam_e_SSA)*ssa_scale)*gam_e
-    case(2)
-        Q=4d0*pi*R_loc*R_loc*para_c
-        Compton=one+cooling_aux/Q/(4d0*R_Gamma_loc*R_Gamma_loc*dNe*Para_m_p_E)
-        Gam_e_max=Gam_e_max/sqrt(Compton(Num_gam_e))
-        dEl=(f_r*Compton-dot_gam_e_SSA*ssa_scale)*gam_e
-    case(3)
-        call get_Y_Fan(Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,gam_e,Compton)
-        Compton=one+Compton
-        Gam_e_max=Gam_e_max/sqrt(Compton(Num_gam_e))
-        dEl=(f_r*Compton-dot_gam_e_SSA*ssa_scale)*gam_e
-    case default
-        print*, 'invalid Compton case, check your chosen model!'
-        stop
-    end select
-end subroutine assemble_forward_cooling_from_terms
-
-subroutine get_forward_cooling(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc,R_Gamma_loc, &
-                               beta_Gam,dNe,Num_gam_e,Num_nu,n_threads,gam_e,V_seed,P_syn,Seed_syn,dEl)
-implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: index_Y,Num_gam_e,Num_nu,n_threads
-real(8), intent(in) :: Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,R_loc,R_Gamma_loc,beta_Gam,dNe
-real(8), intent(inout) :: Gam_e_max
-real(8), intent(in) :: gam_e(Num_gam_e),V_seed(Num_nu),P_syn(Num_nu),Seed_syn(Num_nu)
-real(8), intent(out) :: dEl(Num_gam_e)
-real(8) :: cooling_aux(Num_gam_e)
-
-    call prepare_forward_cooling_aux(index_Y,Num_gam_e,Num_nu,n_threads,gam_e,V_seed,P_syn,Seed_syn,cooling_aux)
-    call assemble_forward_cooling(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc,R_Gamma_loc, &
-                                  beta_Gam,dNe,Num_gam_e,Num_nu,n_threads,gam_e,V_seed,P_syn,Seed_syn,cooling_aux,dEl)
-end subroutine get_forward_cooling
-
 subroutine get_SSA_numerical(DB,Num_gam_e,Num_nu,n_threads,gam_e,V_seed,Seed_syn, dot_gam_e)
 !$ use omp_lib
 implicit REAL(8)(A-H,O-Z)
@@ -494,6 +318,7 @@ real(8), intent(out) :: dot_gam_e(Num_gam_e)
 
 real(8),allocatable,dimension (:) :: photon_number
 real(8) :: kn_factor
+integer :: work_items
 
     call ensure_ic_grid_cache(Num_gam_e,Num_nu,gam_e,V_seed)
     allocate (photon_number(Num_nu-1))
@@ -504,157 +329,86 @@ real(8) :: kn_factor
        photon_number(I_nu)=electron_powerlaw_interp(V_seed(I_nu),V_seed(I_nu+1), &
                                                     Seed_syn(I_nu),Seed_syn(I_nu+1),ic_v_seed_mid_cache(I_nu))
     end do
-    
-    !$OMP PARALLEL num_threads(n_threads), &
-    !$OMP& private(i_gam_e, dInteg1, game, game_pow, var, I_nu, dInteg2, &
-    !$OMP& V_t, E_t2eV, Nu_s, fssc, Vloc, E_Vloc2eV, uplim, temp, q, kn_factor)
-    !$OMP DO SCHEDULE(STATIC)
-    do i_gam_e=1,Num_gam_e-1
-       dInteg1=zero
-       game=ic_gam_e_mean_cache(i_gam_e)
-       game_pow=game*game
-       var=0.25d0/game_pow
-       do I_nu=1,Num_nu-1
-          dInteg2=zero
-          V_t=ic_v_seed_mid_cache(I_nu)
-          E_t2eV=ic_e_seed_cache(I_nu)
-          kn_factor=4d0*game*E_t2eV
-          uplim=(4d0*game_pow*E_t2eV)/(one+kn_factor)
-          do Nu_s=1,Num_nu-1
-             fssc=zero
-             Vloc=ic_v_seed_mid_cache(Nu_s)
-             E_Vloc2eV=ic_e_seed_cache(Nu_s)
-             if (Vloc > var*V_t .and. Vloc <= V_t) then
-                fssc=Vloc/V_t-var
-             else
-                if (E_Vloc2eV > uplim) exit
-                temp=game-E_Vloc2eV
-                if (temp <= zero) exit
-                q=E_Vloc2eV/(kn_factor*temp)
-                if (q <= zero) cycle
-                if (q >= one) exit
-                fssc=two*q*(log(q)-q)+one+q+ &
-                0.5d0*(one-q)*(4d0*game*E_t2eV*q)**2/(1+4d0*game*q*E_t2eV)
-             end if
-             dInteg2=dInteg2+Vloc*fssc*ic_d_nu_cache(Nu_s)
+
+    work_items=(Num_gam_e-1)*(Num_nu-1)*(Num_nu-1)
+    if (n_threads <= 1 .or. work_items < 8192) then
+       do i_gam_e=1,Num_gam_e-1
+          dInteg1=zero
+          game=ic_gam_e_mean_cache(i_gam_e)
+          game_pow=game*game
+          var=0.25d0/game_pow
+          do I_nu=1,Num_nu-1
+             dInteg2=zero
+             V_t=ic_v_seed_mid_cache(I_nu)
+             E_t2eV=ic_e_seed_cache(I_nu)
+             kn_factor=4d0*game*E_t2eV
+             uplim=(4d0*game_pow*E_t2eV)/(one+kn_factor)
+             do Nu_s=1,Num_nu-1
+                fssc=zero
+                Vloc=ic_v_seed_mid_cache(Nu_s)
+                E_Vloc2eV=ic_e_seed_cache(Nu_s)
+                if (Vloc > var*V_t .and. Vloc <= V_t) then
+                   fssc=Vloc/V_t-var
+                else
+                   if (E_Vloc2eV > uplim) exit
+                   temp=game-E_Vloc2eV
+                   if (temp <= zero) exit
+                   q=E_Vloc2eV/(kn_factor*temp)
+                   if (q <= zero) cycle
+                   if (q >= one) exit
+                   fssc=two*q*(log(q)-q)+one+q+ &
+                   0.5d0*(one-q)*(4d0*game*E_t2eV*q)**2/(1+4d0*game*q*E_t2eV)
+                end if
+                dInteg2=dInteg2+Vloc*fssc*ic_d_nu_cache(Nu_s)
+             end do
+             dot_gam_e(i_gam_e)=dot_gam_e(i_gam_e)+photon_number(I_nu)/V_t*ic_d_nu_cache(I_nu)*dInteg2
           end do
-          dot_gam_e(i_gam_e)=dot_gam_e(i_gam_e)+photon_number(I_nu)/V_t*ic_d_nu_cache(I_nu)*dInteg2
        end do
-    end do
-    !$OMP END DO
-    !$OMP END PARALLEL
+    else
+       !$OMP PARALLEL num_threads(n_threads), &
+       !$OMP& private(i_gam_e, dInteg1, game, game_pow, var, I_nu, dInteg2, &
+       !$OMP& V_t, E_t2eV, Nu_s, fssc, Vloc, E_Vloc2eV, uplim, temp, q, kn_factor)
+       !$OMP DO SCHEDULE(STATIC)
+       do i_gam_e=1,Num_gam_e-1
+          dInteg1=zero
+          game=ic_gam_e_mean_cache(i_gam_e)
+          game_pow=game*game
+          var=0.25d0/game_pow
+          do I_nu=1,Num_nu-1
+             dInteg2=zero
+             V_t=ic_v_seed_mid_cache(I_nu)
+             E_t2eV=ic_e_seed_cache(I_nu)
+             kn_factor=4d0*game*E_t2eV
+             uplim=(4d0*game_pow*E_t2eV)/(one+kn_factor)
+             do Nu_s=1,Num_nu-1
+                fssc=zero
+                Vloc=ic_v_seed_mid_cache(Nu_s)
+                E_Vloc2eV=ic_e_seed_cache(Nu_s)
+                if (Vloc > var*V_t .and. Vloc <= V_t) then
+                   fssc=Vloc/V_t-var
+                else
+                   if (E_Vloc2eV > uplim) exit
+                   temp=game-E_Vloc2eV
+                   if (temp <= zero) exit
+                   q=E_Vloc2eV/(kn_factor*temp)
+                   if (q <= zero) cycle
+                   if (q >= one) exit
+                   fssc=two*q*(log(q)-q)+one+q+ &
+                   0.5d0*(one-q)*(4d0*game*E_t2eV*q)**2/(1+4d0*game*q*E_t2eV)
+                end if
+                dInteg2=dInteg2+Vloc*fssc*ic_d_nu_cache(Nu_s)
+             end do
+             dot_gam_e(i_gam_e)=dot_gam_e(i_gam_e)+photon_number(I_nu)/V_t*ic_d_nu_cache(I_nu)*dInteg2
+          end do
+       end do
+       !$OMP END DO
+       !$OMP END PARALLEL
+    end if
 
     dot_gam_e=dot_gam_e/gam_e/gam_e*para_h*Para_h*Para_SigmaT/para_m_energy
     dot_gam_e(Num_gam_e)=0.99*dot_gam_e(Num_gam_e-1)
 
 deallocate (photon_number)
 end subroutine get_IC_numerical
-
-subroutine get_Y_Nakar(Num_gam_e,Num_nu,n_threads,gam_e,V_seed,P_syn, Compton)
-!$ use omp_lib
-implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: Num_gam_e,Num_nu,n_threads
-real(8), intent(in) :: gam_e(Num_gam_e),V_seed(Num_nu),P_syn(Num_nu)
-real(8), intent(out) :: Compton(Num_gam_e)
-
-    call ensure_y_nakar_workspace(Num_gam_e,Num_nu,gam_e)
-
-    Compton=zero
-    var_Compensation=zero
-    y_nakar_prefix_cache(1)=zero
-    do I_nu=2,Num_nu
-       y_nakar_prefix_cache(I_nu)=y_nakar_prefix_cache(I_nu-1)+ &
-                        electron_integrate_powerlaw_segment(V_seed(I_nu-1),V_seed(I_nu), &
-                                                            P_syn(I_nu-1),P_syn(I_nu))
-    end do
-
-    !$OMP PARALLEL num_threads(n_threads), private(I_Compton, I_nu, temp, var_Compensation, V_loc)
-    !$OMP DO SCHEDULE(STATIC)
-    do I_Compton=1,Num_gam_e
-       if (y_nakar_hat_nu_cache(I_Compton) <= V_seed(1)) cycle
-       call first_greater_monotonic_window(V_seed,Num_nu,2,y_nakar_hat_nu_cache(I_Compton),I_nu)
-       if (I_nu <= Num_nu) then
-          V_loc=min(y_nakar_hat_nu_cache(I_Compton),V_seed(I_nu))
-          Compton(I_Compton)=y_nakar_prefix_cache(I_nu-1)+ &
-                             electron_integrate_powerlaw_segment(V_seed(I_nu-1),V_loc, &
-                                 P_syn(I_nu-1), &
-                                 electron_powerlaw_interp(V_seed(I_nu-1),V_seed(I_nu), &
-                                                          P_syn(I_nu-1),P_syn(I_nu),V_loc))
-       else
-          Compton(I_Compton)=y_nakar_prefix_cache(Num_nu)
-       end if
-    end do
-    !$OMP END DO
-    !$OMP END PARALLEL
-end subroutine get_Y_Nakar
-
-subroutine get_Y_Fan(Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,gam_e, Compton)
-implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: Num_gam_e
-real(8), intent(in) :: Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,gam_e(Num_gam_e)
-real(8), intent(out) :: Compton(Num_gam_e)
-
-    eta=(Gam_e_m/Gam_e_c)**(p-two)
-    if (eta-one > 0.001) eta=one
-
-        do i_gam_e=1,Num_gam_e
-            if (Num_gam_e > i_gam_e) then
-                hat_gam=5.4246D6/sqrt(DB*gam_e(i_gam_e+1))
-                if (Gam_e_m > Gam_e_c) then
-                    if (hat_gam < Gam_e_c) then
-                        eta_NK=zero
-                    else
-                        if (hat_gam < Gam_e_m) then
-                            if (p>2) then
-                                Step1=(p-1)/(p-2)*Gam_e_m-Gam_e_c
-                                eta_NK=(hat_gam-Gam_e_c)/Step1
-                            else
-                                Step1=Gam_e_m**(p-1)*Gam_e_max**(2-p)-(p-1)*Gam_e_m-(2-p)*Gam_e_c
-                                eta_NK=(2-p)*(hat_gam-Gam_e_c)/Step1
-                            end if
-                        else
-                            if (p>2) then
-                                Step2=Gam_e_m**(p-1)*hat_gam**(2-p)
-                                Step3=(p-1)*Gam_e_m-(p-2)*Gam_e_c
-                                eta_NK=1-Step2/Step3
-                            else
-                                Step2=Gam_e_m**(p-1)*Gam_e_max**(2-p)-(p-1)*Gam_e_m-(2-p)*Gam_e_c
-                                Step3=Gam_e_m**(p-1)*(Gam_e_max**(2-p)-hat_gam**(2-p))
-                                eta_NK=1-Step2/Step3
-                            end if
-                        end if
-                    end if
-                else
-                    if (hat_gam < Gam_e_m) then
-                        eta_NK=zero
-                    else
-                        if (hat_gam < Gam_e_c) then
-                            if (p>2) then
-                                Step4=Gam_e_c**(3-p)/(p-2.0)-Gam_e_m**(3-p)
-                                eta_NK=(hat_gam**(3-p)-Gam_e_m**(3-p))/Step4
-                            else
-                                Step4=(3-p)*Gam_e_c*Gam_e_max**(2-p)-Gam_e_c**(3-p)-(2-p)*Gam_e_m**(3-p)
-                                eta_NK=(2-p)*(hat_gam**(3-p)-Gam_e_m**(3-p))/Step4
-                            end if
-                        else
-                            if (p>2) then
-                                Step5=(3-p)*Gam_e_c*hat_gam**(2-p)
-                                Step6=Gam_e_c**(3.0-p)-(p-2)*Gam_e_m**(3.0-p)
-                                eta_NK=1-Step5/Step6
-                            else
-                                Step5=(3-p)*Gam_e_c*(Gam_e_max**(2-p)-hat_gam**(2-p))
-                                Step6=(3-p)*Gam_e_c*Gam_e_max**(2-p)-Gam_e_c**(3-p)-(2-p)*Gam_e_m**(3-p)
-                                eta_NK=1-Step5/Step6
-                            end if
-                        end if
-                    end if
-                end if
-                Compton(i_gam_e)=0.5d0*(-1.0+sqrt(1.0+4.0*eta*eta_NK*Epsilon_e/Epsilon_b))
-            else
-                Compton(i_gam_e)=0.99*Compton(i_gam_e-1)
-            end if
-        end do
-
-end subroutine get_Y_Fan
 
 end module electron_cooling_kernel

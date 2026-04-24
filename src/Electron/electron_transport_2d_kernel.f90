@@ -1,12 +1,9 @@
 !f2py: skip
 module electron_transport_2d_kernel
   use constants
-  use electron_common, only: electron_prepare_implicit_coeffs, electron_backward_sweep, &
-                             electron_prepare_conservative_remap_nonuniform, &
-                             electron_ppm_prefix_eval_nonuniform, &
-                             electron_characteristic_step_affine_u, electron_characteristic_step_piecewise_u, &
-                             electron_characteristic_transport_affine_u, &
-                             electron_characteristic_transport_piecewise_u
+  use electron_transport_common, only: electron_prepare_implicit_coeffs_common, electron_backward_sweep_common, &
+                             electron_prepare_conservative_remap_nonuniform, electron_ppm_prefix_eval_nonuniform, &
+                             electron_characteristic_update, electron_cooling_affine, electron_cooling_piecewise
   use electron_injection_profiles, only: electron_profile_log_cell_edges
   implicit real(8)(a-h,o-z)
   private
@@ -187,8 +184,8 @@ subroutine advance_eta_logchi_advection_charint(U_log, Num_gam_e, Num_chi, activ
 end subroutine advance_eta_logchi_advection_charint
 
 subroutine advance_eta_logchi_diffusion_implicit(U_log, Num_gam_e, Num_chi, active_hi, deta, chi_face, Gamma_sh, a_loc, &
-                                                 dln_a_dR_loc, beta_sh, kappa2_chi, dR_step)
-    integer, intent(in) :: Num_gam_e, Num_chi, active_hi
+                                                 dln_a_dR_loc, beta_sh, kappa2_chi, dR_step, n_threads)
+    integer, intent(in) :: Num_gam_e, Num_chi, active_hi, n_threads
     real(8), intent(inout) :: U_log(Num_gam_e, Num_chi)
     real(8), intent(in) :: deta, chi_face(0:Num_chi), Gamma_sh, a_loc, dln_a_dR_loc
     real(8), intent(in) :: beta_sh, kappa2_chi(Num_gam_e,Num_chi), dR_step
@@ -234,8 +231,8 @@ subroutine advance_eta_logchi_diffusion_implicit(U_log, Num_gam_e, Num_chi, acti
 end subroutine advance_eta_logchi_diffusion_implicit
 
 subroutine advance_eta_logchi_implicit(U_log, Num_gam_e, Num_chi, active_hi, deta, chi_face, Gamma_sh, a_loc, dln_a_dR_loc, &
-                                       beta_sh, kappa2_chi, source_eta1, dR_step)
-    integer, intent(in) :: Num_gam_e, Num_chi, active_hi
+                                       beta_sh, kappa2_chi, source_eta1, dR_step, n_threads)
+    integer, intent(in) :: Num_gam_e, Num_chi, active_hi, n_threads
     real(8), intent(inout) :: U_log(Num_gam_e, Num_chi)
     real(8), intent(in) :: deta, chi_face(0:Num_chi), Gamma_sh, a_loc, dln_a_dR_loc
       real(8), intent(in) :: beta_sh, kappa2_chi(Num_gam_e,Num_chi), source_eta1(Num_gam_e)
@@ -284,6 +281,8 @@ subroutine advance_eta_logchi_implicit(U_log, Num_gam_e, Num_chi, active_hi, det
         end if
     end do
 
+    !$OMP PARALLEL DO num_threads(n_threads) if(n_threads > 1 .and. active_hi*Num_chi >= 512) schedule(static) &
+    !$OMP& private(I_gam_e,I_chi,kappa_face,lower,diag,upper,rhs,sol)
     do I_gam_e = 1, active_hi
         lower = lower_base
         diag = diag_base
@@ -306,10 +305,11 @@ subroutine advance_eta_logchi_implicit(U_log, Num_gam_e, Num_chi, active_hi, det
         call solve_tridiagonal(Num_chi, lower, diag, upper, rhs, sol)
         U_log(I_gam_e, :) = max(zero, sol)
     end do
+    !$OMP END PARALLEL DO
 end subroutine advance_eta_logchi_implicit
 
-subroutine advance_energy_loggamma_chi(U_log, Num_gam_e, Num_chi, dEL_mean_chi, R_loc, d_x_E, dR_step)
-    integer, intent(in) :: Num_gam_e, Num_chi
+subroutine advance_energy_loggamma_chi(U_log, Num_gam_e, Num_chi, dEL_mean_chi, R_loc, d_x_E, dR_step, n_threads)
+    integer, intent(in) :: Num_gam_e, Num_chi, n_threads
     real(8), intent(inout) :: U_log(Num_gam_e, Num_chi)
     real(8), intent(in) :: dEL_mean_chi(Num_gam_e-1, Num_chi), R_loc, d_x_E, dR_step
 
@@ -320,20 +320,23 @@ subroutine advance_energy_loggamma_chi(U_log, Num_gam_e, Num_chi, dEL_mean_chi, 
     CFL = dR_step/d_x_E
     ad_coeff = one/(R_loc*dlog(ten))
 
+    !$OMP PARALLEL DO num_threads(n_threads) if(n_threads > 1 .and. Num_chi*Num_gam_e >= 512) schedule(static) &
+    !$OMP& private(I_chi,coeff_xi,up,principal,temp1,rhs,sol)
     do I_chi = 1, Num_chi
         coeff_xi = dEL_mean_chi(:, I_chi) + ad_coeff
         up = -CFL*coeff_xi
-        call electron_prepare_implicit_coeffs(Num_gam_e, one, up, principal, temp1)
+        call electron_prepare_implicit_coeffs_common(Num_gam_e, one, up, principal, temp1)
         rhs = U_log(:, I_chi) / principal
-        call electron_backward_sweep(Num_gam_e, temp1, rhs, sol)
+        call electron_backward_sweep_common(Num_gam_e, temp1, rhs, sol)
         U_log(:, I_chi) = max(zero, sol)
         U_log(Num_gam_e, I_chi) = zero
     end do
+    !$OMP END PARALLEL DO
 end subroutine advance_energy_loggamma_chi
 
 subroutine advance_energy_loggamma_chi_charint(U_log, Num_gam_e, Num_chi, gam_e, DB_chi, dEl_chi, R_loc, &
-                                               Gamma_sh, beta_sh, index_Y, dR_step, active_chi_hi)
-    integer, intent(in) :: Num_gam_e, Num_chi, index_Y
+                                               Gamma_sh, beta_sh, index_Y, dR_step, active_chi_hi, n_threads)
+    integer, intent(in) :: Num_gam_e, Num_chi, index_Y, n_threads
     integer, intent(in), optional :: active_chi_hi
     real(8), intent(inout) :: U_log(Num_gam_e, Num_chi)
     real(8), intent(in) :: gam_e(Num_gam_e), DB_chi(Num_chi), dEl_chi(Num_gam_e, Num_chi)
@@ -352,10 +355,11 @@ subroutine advance_energy_loggamma_chi_charint(U_log, Num_gam_e, Num_chi, gam_e,
         if (index_Y == 0) then
             a_rad = 1.35d-19*DB_chi(I_chi)**2/(max(beta_sh*Gamma_sh, tiny(one))*pi)
             b_ad = one/R_loc
-            call electron_characteristic_transport_affine_u(Num_gam_e, dR_step, x_edge, a_rad, b_ad, U_in, U_out)
+            call electron_characteristic_update(Num_gam_e, dR_step, x_edge, electron_cooling_affine, &
+                                                 a_rad, b_ad, gam_e, dEl_chi(:,I_chi), R_loc, zero, U_in, U_in, U_out)
         else
-            call electron_characteristic_transport_piecewise_u(Num_gam_e, dR_step, x_edge, gam_e, &
-                                                               dEl_chi(:,I_chi), R_loc, U_in, U_out)
+            call electron_characteristic_update(Num_gam_e, dR_step, x_edge, electron_cooling_piecewise, &
+                                                 zero, zero, gam_e, dEl_chi(:,I_chi), R_loc, zero, U_in, U_in, U_out)
         end if
         U_log(:, I_chi) = U_out
     end do

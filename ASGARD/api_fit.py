@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass
+from functools import cached_property
 from typing import Any, Optional
 
 import numpy as np
@@ -74,7 +75,12 @@ class Fitter:
         self.data = ObsData() if data is None else data
         self.params = [] if params is None else list(params)
         self.num_workers = int(num_workers)
-        self._compiled_problem = None
+
+    @cached_property
+    def _compiled_problem(self):
+        from asgard_core.asgard_fit import compile_problem
+
+        return compile_problem(self.data, self.model, params=self.params)
 
     def build_model(self, values: dict[str, float]) -> Model:
         model = deepcopy(self.model)
@@ -88,10 +94,6 @@ class Fitter:
         return model
 
     def loglike(self, values: dict[str, float]) -> float:
-        if self._compiled_problem is None:
-            from asgard_core.asgard_fit import compile_problem
-
-            self._compiled_problem = compile_problem(self.data, self.model, params=self.params)
         from asgard_core.asgard_fit import eval_loglike
 
         return eval_loglike(self._compiled_problem, values)
@@ -101,15 +103,15 @@ class Fitter:
 
     def add_flux_density(self, *args, **kwargs) -> None:
         self.data.add_flux_density(*args, **kwargs)
-        self._compiled_problem = None
+        self.__dict__.pop("_compiled_problem", None)
 
     def add_spectrum(self, *args, **kwargs) -> None:
         self.data.add_spectrum(*args, **kwargs)
-        self._compiled_problem = None
+        self.__dict__.pop("_compiled_problem", None)
 
     def add_flux(self, *args, **kwargs) -> None:
         self.data.add_flux(*args, **kwargs)
-        self._compiled_problem = None
+        self.__dict__.pop("_compiled_problem", None)
 
     def run_emcee(self, initial: np.ndarray, nwalkers: int, nsteps: int) -> FitResult:
         import emcee
