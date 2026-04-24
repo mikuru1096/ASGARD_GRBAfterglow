@@ -36,6 +36,27 @@ subroutine dynamics_external_density_base(A_star,dNe_ISM,RR,dNe)
     end if
 end subroutine dynamics_external_density_base
 
+subroutine dynamics_external_density_profile(A_star,dNe_ISM,RR,R0,apply_jump,R_tr,f_jump,f_wide,dNe)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: apply_jump
+    real(8), intent(in) :: A_star,dNe_ISM,RR,R0,R_tr,f_jump,f_wide
+    real(8), intent(out) :: dNe
+
+    call dynamics_external_density_base(A_star,dNe_ISM,RR,dNe)
+
+    if (A_star <= zero .and. apply_jump /= 0) then
+        dNe=dNe_ISM*(one+(f_jump-one)*exp(-(log10(RR)-log10(R_tr))**2/(two*f_wide*f_wide)))
+    end if
+
+    if (RR < R0) then
+        if (A_star > zero) then
+            dNe=A_star*3.0d35/R0**2
+        else
+            dNe=dNe_ISM
+        end if
+    end if
+end subroutine dynamics_external_density_profile
+
 subroutine dynamics_rk4_coefficients(HH,A)
     implicit real(8)(A-H,O-Z)
     real(8), intent(in) :: HH
@@ -57,24 +78,16 @@ subroutine dynamics_rk4_error_n(Y,G,M,P)
     P=0.0d0
     do I=1,M
         if (.not. ieee_is_finite(Y(I)) .or. .not. ieee_is_finite(G(I))) then
-            P=huge(one)
+            P=huge(1.0d0)
             return
         end if
         if (Y(I)+G(I) <= zero) then
-            P=huge(one)
+            P=huge(1.0d0)
             return
         end if
         Q=2.0d0*abs(Y(I)-G(I))/(Y(I)+G(I))
         if (Q > P) P=Q
     end do
 end subroutine dynamics_rk4_error_n
-
-subroutine dynamics_rk4_error4(Y,G,P)
-    implicit real(8)(A-H,O-Z)
-    real(8), intent(in) :: Y(4),G(4)
-    real(8), intent(out) :: P
-
-    call dynamics_rk4_error_n(Y,G,4,P)
-end subroutine dynamics_rk4_error4
 
 end module dynamics_common

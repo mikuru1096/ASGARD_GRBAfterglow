@@ -8,14 +8,18 @@ The code's greatest strengths lie in its exceptional computational efficiency an
 
 **ASGARD** is written in `Fortran`, and its computational processes are highly parallelized using `OpenMP`. When combined with `MPI` parallelization schemes employing `emcee` or `pymultinest` samplers, the code can operate with extremely high efficiency on personal computers, workstations, and even computing clusters. For instance, in the case of on-axis-viewed top-hat jet synchrotron radiation, sampling a million times on a single-node dual-socket EPYC 9754 system requires only a few hours.
 
-## What has been updated recently?
-1. The interface for energy injection has been opened, supporting energy injection in the form of black hole accretion. 
-2. Added density jump behavior in a uniform environment, enabling the modeling of a dense shell (e.g., a gas cloud) or a cavity at a distance R from the progenitor star radius, with a density profile following a log-Gaussian distribution. 
-3. Added output for the characteristic synchrotron radiation frequencies: $\nu_m$, $\nu_c$, and $\nu_a$.
-4. Now we use the `meson`-based `f2py` compilation process, which significantly accelerates the build. Moreover, this improvement allows us to lift the previous restrictions on Python versions—only require `Python >= 3.8` as a baseline.
+## Highlights
+1. Numerical PDE solvers for forward-shock electron transport, including multiple 1D schemes and active 2D paths.
+2. Self-consistent synchrotron, SSC, SSA, and $\gamma\gamma$ attenuation in the formal observer chain.
+3. Reverse-shock radiation support in the current runtime.
+4. An active 1D forward-shock hadronic path under ongoing development.
 
-## Current progress
-1. Make $\chi^2$ calculation and extinction correction modules Standardization.
+## Current Development Notes
+- The authoritative development status is tracked in:
+  - `AGENTS.md`
+  - `PLAN.md`
+- Benchmark and comparison scripts live under `tests/`.
+- Generated benchmark figures under `output/` are artifacts, not source documentation.
 
 ## License
 **Copyright (c) 2025 Jia Ren**  
@@ -91,8 +95,8 @@ The main public entry point is `lc_spec_demo.py` for the simplest end-to-end dem
 Sampling and batch fitting helper scripts now live under `scripts/fitting/`.
 The project is now packaged in PyPI-style layout with `pyproject.toml` and `setup.py`. Local source installation uses `pip install .` and triggers automatic native compilation through the package build hook.
 ### Current Status
-Due to current progress limitations, we are not yet able to provide a complete demonstration of the afterglow fitting workflow. 
-However, please start exploring and try to integrate it into your own fitting framework!
+The public runtime is usable for forward-shock afterglow calculations and benchmark workflows.
+The hadronic branch is under active structural development and should be treated as a research path rather than a finished public interface.
 ### Web Interface
 We have a website available at <https://hetools.xyz>  
 that requires no installation, for comparing the results of **ASGARD** and **jetsimpy**. Feel free to give it a try!

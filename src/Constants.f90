@@ -26,7 +26,8 @@ MODULE Constants
     real(8),parameter ::Para_c=2.99792458d10
     real(8),parameter ::Para_c_Inverse=1.0d0/Para_c
     real(8),parameter ::Para_G=6.6720d-8
-    real(8),parameter ::Para_m_Solor=1.99d33
+    real(8),parameter ::Para_m_Solar=1.99d33
+    real(8),parameter ::Para_m_Solor=Para_m_Solar
     real(8),parameter ::Para_k=1.3806d-16
     real(8),parameter ::Para_k_keV=Para_k*Para_erg2keV
     real(8),parameter ::Para_Mu=1.66057d-24

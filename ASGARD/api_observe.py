@@ -14,6 +14,7 @@ from asgard_core.asgard_state import (
     solve_state_from_setup,
 )
 from asgard_core.asgard_models import FitConfig, ReverseShockConfig, SpectrumOutputConfig
+from asgard_core.asgard_config import HadronicConfig
 from asgard_core.asgard_observables import OUTPUT_BANDS, build_multiband_observer_frequencies, combine_multiband_flux
 from asgard_core.asgard_postprocess import (
     build_spectrum_dataset_names,
@@ -464,6 +465,22 @@ def _build_fit_config_for_patch(
         initial_radius_cm=model.setups.initial_radius_cm,
         spectrum_output=SpectrumOutputConfig(enabled=False),
     )
+    config.hadronic = HadronicConfig(
+        enabled=bool(model.setups.hadronic_enabled and model.fwd_rad.epsilon_p > 0.0),
+        solver=str(model.setups.hadronic_solver),
+        epsilon_p=float(model.fwd_rad.epsilon_p),
+        p_p=float(model.fwd_rad.p),
+        eta_acc=float(model.fwd_rad.eta_acc),
+        num_gam_p=int(model.setups.num_gam_p),
+        include_proton_synch=bool(model.fwd_rad.proton_synch),
+        include_pg=bool(model.fwd_rad.pg),
+        include_bethe_heitler=bool(model.fwd_rad.bethe_heitler),
+        include_hadronic_inverse_compton=bool(model.fwd_rad.hadronic_inverse_compton),
+        include_pp=bool(model.fwd_rad.pp),
+        include_neutrino=bool(model.fwd_rad.neutrino),
+        pgamma_scheme=str(model.setups.pgamma_scheme if model.setups.pgamma_scheme != "disabled" else model.fwd_rad.pgamma_scheme),
+        num_nu_nu=int(model.setups.num_nu_nu),
+    )
     magnetar = getattr(model.jet, "magnetar", None)
     if magnetar is not None and _jet_magnetar_active(model.jet, 0.0 if theta_center is None else theta_center):
         config.l_inj_0 = float(magnetar.L0)
@@ -498,6 +515,37 @@ def _make_details(
 ) -> ModelDetails:
     fwd_gamma_e = None if state is None else np.asarray(state.electron.gam_e, dtype=float)
     fwd_dnde = None if state is None else np.asarray(state.electron.d_n_gam_e, dtype=float)
+    fwd_dnde_bh = None if state is None or state.electron.d_n_gam_e_bh is None else np.asarray(state.electron.d_n_gam_e_bh, dtype=float)
+    fwd_gamma_p = None if state is None or state.hadronic is None else np.asarray(state.hadronic.gam_p, dtype=float)
+    fwd_dndp = None if state is None or state.hadronic is None else np.asarray(state.hadronic.d_n_gam_p, dtype=float)
+    fwd_gamma_secondary = None if state is None or state.hadronic is None or state.hadronic.gam_secondary is None else np.asarray(state.hadronic.gam_secondary, dtype=float)
+    fwd_dndn = None if state is None or state.hadronic is None or state.hadronic.d_n_gam_n is None else np.asarray(state.hadronic.d_n_gam_n, dtype=float)
+    fwd_dndpi_plus = None if state is None or state.hadronic is None or state.hadronic.d_n_gam_pi_plus is None else np.asarray(state.hadronic.d_n_gam_pi_plus, dtype=float)
+    fwd_dndpi_minus = None if state is None or state.hadronic is None or state.hadronic.d_n_gam_pi_minus is None else np.asarray(state.hadronic.d_n_gam_pi_minus, dtype=float)
+    fwd_dndmu_ml = None if state is None or state.hadronic is None or state.hadronic.d_n_gam_mu_minus_left is None else np.asarray(state.hadronic.d_n_gam_mu_minus_left, dtype=float)
+    fwd_dndmu_mr = None if state is None or state.hadronic is None or state.hadronic.d_n_gam_mu_minus_right is None else np.asarray(state.hadronic.d_n_gam_mu_minus_right, dtype=float)
+    fwd_dndmu_pl = None if state is None or state.hadronic is None or state.hadronic.d_n_gam_mu_plus_left is None else np.asarray(state.hadronic.d_n_gam_mu_plus_left, dtype=float)
+    fwd_dndmu_pr = None if state is None or state.hadronic is None or state.hadronic.d_n_gam_mu_plus_right is None else np.asarray(state.hadronic.d_n_gam_mu_plus_right, dtype=float)
+    fwd_had_gamma = None
+    if state is not None and state.hadronic is not None:
+        fwd_had_gamma = np.asarray(state.hadronic.l_had_syn_spec + state.hadronic.l_had_pg_gamma, dtype=float)
+        if state.hadronic.l_had_pion_synch is not None:
+            fwd_had_gamma = fwd_had_gamma + np.asarray(state.hadronic.l_had_pion_synch, dtype=float)
+        if state.hadronic.l_had_muon_synch is not None:
+            fwd_had_gamma = fwd_had_gamma + np.asarray(state.hadronic.l_had_muon_synch, dtype=float)
+        if state.hadronic.l_had_pion_inverse_compton is not None:
+            fwd_had_gamma = fwd_had_gamma + np.asarray(state.hadronic.l_had_pion_inverse_compton, dtype=float)
+        if state.hadronic.l_had_muon_inverse_compton is not None:
+            fwd_had_gamma = fwd_had_gamma + np.asarray(state.hadronic.l_had_muon_inverse_compton, dtype=float)
+    fwd_had_pi_syn = None if state is None or state.hadronic is None or state.hadronic.l_had_pion_synch is None else np.asarray(state.hadronic.l_had_pion_synch, dtype=float)
+    fwd_had_mu_syn = None if state is None or state.hadronic is None or state.hadronic.l_had_muon_synch is None else np.asarray(state.hadronic.l_had_muon_synch, dtype=float)
+    fwd_had_pi_ic = None if state is None or state.hadronic is None or state.hadronic.l_had_pion_inverse_compton is None else np.asarray(state.hadronic.l_had_pion_inverse_compton, dtype=float)
+    fwd_had_mu_ic = None if state is None or state.hadronic is None or state.hadronic.l_had_muon_inverse_compton is None else np.asarray(state.hadronic.l_had_muon_inverse_compton, dtype=float)
+    fwd_nu_freq = None
+    fwd_nu_lum = None
+    if state is not None and state.hadronic is not None and state.config.hadronic.include_neutrino:
+        fwd_nu_freq = np.asarray(state.hadronic.neutrino_frequency_hz, dtype=float)
+        fwd_nu_lum = np.asarray(state.hadronic.neutrino_luminosity, dtype=float)
     rev_gamma_e = None
     rev_dnde = None
     if state is not None and state.dynamics.reverse_shock is not None:
@@ -519,6 +567,24 @@ def _make_details(
             dynamical_timescale_s=components.fwd.dynamical_timescale_s,
             gamma_e=fwd_gamma_e,
             dN_dgamma_e=fwd_dnde,
+            dN_dgamma_e_bh=fwd_dnde_bh,
+            gamma_p=fwd_gamma_p,
+            dN_dgamma_p=fwd_dndp,
+            gamma_secondary=fwd_gamma_secondary,
+            dN_dgamma_n=fwd_dndn,
+            dN_dgamma_pi_plus=fwd_dndpi_plus,
+            dN_dgamma_pi_minus=fwd_dndpi_minus,
+            dN_dgamma_mu_minus_left=fwd_dndmu_ml,
+            dN_dgamma_mu_minus_right=fwd_dndmu_mr,
+            dN_dgamma_mu_plus_left=fwd_dndmu_pl,
+            dN_dgamma_mu_plus_right=fwd_dndmu_pr,
+            hadronic_gamma=fwd_had_gamma,
+            hadronic_pion_synch=fwd_had_pi_syn,
+            hadronic_muon_synch=fwd_had_mu_syn,
+            hadronic_pion_inverse_compton=fwd_had_pi_ic,
+            hadronic_muon_inverse_compton=fwd_had_mu_ic,
+            neutrino_frequency_hz=fwd_nu_freq,
+            neutrino_luminosity=fwd_nu_lum,
         ),
         rev=None
         if components.rev is None

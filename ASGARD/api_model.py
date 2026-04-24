@@ -368,12 +368,21 @@ class Radiation:
     eps_e: float
     eps_B: float
     p: float
+    epsilon_p: float = 0.0
     epsilon_b_floor: float | None = None
     magnetic_decay_alpha_t: float = 0.0
     magnetic_decay_t0_s: float = 1.0
     xi_N: float = 0.1
     ssc: bool = False
     kn: bool = False
+    proton_synch: bool = True
+    pg: bool = False
+    bethe_heitler: bool = False
+    hadronic_inverse_compton: bool = False
+    pp: bool = False
+    neutrino: bool = False
+    eta_acc: float = 1.0
+    pgamma_scheme: str = "disabled"
 
 
 @dataclass
@@ -414,6 +423,11 @@ class Setups:
     electron_substep_rtol: float = 2.0e-2
     electron_substep_min: int = 25
     electron_substep_max: int = 150
+    hadronic_enabled: bool = False
+    hadronic_solver: str = "legacy_1d"
+    num_gam_p: int = 161
+    num_nu_nu: int = 121
+    pgamma_scheme: str = "disabled"
     index_dyn: int = 3
     index_syn_integr: int = 2
     clean: bool = True
@@ -445,6 +459,24 @@ class CharTrack:
     dynamical_timescale_s: Optional[np.ndarray] = None
     gamma_e: Optional[np.ndarray] = None
     dN_dgamma_e: Optional[np.ndarray] = None
+    dN_dgamma_e_bh: Optional[np.ndarray] = None
+    gamma_p: Optional[np.ndarray] = None
+    dN_dgamma_p: Optional[np.ndarray] = None
+    gamma_secondary: Optional[np.ndarray] = None
+    dN_dgamma_n: Optional[np.ndarray] = None
+    dN_dgamma_pi_plus: Optional[np.ndarray] = None
+    dN_dgamma_pi_minus: Optional[np.ndarray] = None
+    dN_dgamma_mu_minus_left: Optional[np.ndarray] = None
+    dN_dgamma_mu_minus_right: Optional[np.ndarray] = None
+    dN_dgamma_mu_plus_left: Optional[np.ndarray] = None
+    dN_dgamma_mu_plus_right: Optional[np.ndarray] = None
+    hadronic_gamma: Optional[np.ndarray] = None
+    hadronic_pion_synch: Optional[np.ndarray] = None
+    hadronic_muon_synch: Optional[np.ndarray] = None
+    hadronic_pion_inverse_compton: Optional[np.ndarray] = None
+    hadronic_muon_inverse_compton: Optional[np.ndarray] = None
+    neutrino_frequency_hz: Optional[np.ndarray] = None
+    neutrino_luminosity: Optional[np.ndarray] = None
 
 
 @dataclass
@@ -653,16 +685,13 @@ class Model:
         nu_hz = np.asarray(nu_hz, dtype=float)
         from .api_observe import _extract_pair_flux
 
-        if times_s.ndim == 1 and nu_hz.ndim == 1 and times_s.shape == nu_hz.shape:
-            unique_freqs, inverse = np.unique(nu_hz, return_inverse=True)
-            result = self.flux_density_grid(times_s, unique_freqs)
-            pair_index = np.arange(times_s.shape[0], dtype=int)
-            pair_total = result.total[inverse, pair_index]
-            pair_fwd_sync = result.fwd.sync[inverse, pair_index]
-            pair_fwd_ssc = result.fwd.ssc[inverse, pair_index]
-            pair_rev_sync = result.rev.sync[inverse, pair_index]
-            pair_rev_ssc = result.rev.ssc[inverse, pair_index]
-            pair_cross_ic = None if result.cross_ic is None else result.cross_ic[inverse, pair_index]
+        def pack(result: ModelFluxResult, extract: Callable[[np.ndarray], np.ndarray]) -> ModelFluxResult:
+            pair_total = extract(result.total)
+            pair_fwd_sync = extract(result.fwd.sync)
+            pair_fwd_ssc = extract(result.fwd.ssc)
+            pair_rev_sync = extract(result.rev.sync)
+            pair_rev_ssc = extract(result.rev.ssc)
+            pair_cross_ic = None if result.cross_ic is None else extract(result.cross_ic)
             return ModelFluxResult(
                 total=pair_total,
                 fwd=BranchView(sync=pair_fwd_sync, ssc=pair_fwd_ssc),
@@ -670,19 +699,14 @@ class Model:
                 cross_ic=pair_cross_ic,
             )
 
+        if times_s.ndim == 1 and nu_hz.ndim == 1 and times_s.shape == nu_hz.shape:
+            unique_freqs, inverse = np.unique(nu_hz, return_inverse=True)
+            result = self.flux_density_grid(times_s, unique_freqs)
+            pair_index = np.arange(times_s.shape[0], dtype=int)
+            return pack(result, lambda values: values[inverse, pair_index])
+
         result = self._compute(times_s, nu_hz)
-        pair_total = _extract_pair_flux(result.total, times_s, nu_hz)
-        pair_fwd_sync = _extract_pair_flux(result.fwd.sync, times_s, nu_hz)
-        pair_fwd_ssc = _extract_pair_flux(result.fwd.ssc, times_s, nu_hz)
-        pair_rev_sync = _extract_pair_flux(result.rev.sync, times_s, nu_hz)
-        pair_rev_ssc = _extract_pair_flux(result.rev.ssc, times_s, nu_hz)
-        pair_cross_ic = None if result.cross_ic is None else _extract_pair_flux(result.cross_ic, times_s, nu_hz)
-        return ModelFluxResult(
-            total=pair_total,
-            fwd=BranchView(sync=pair_fwd_sync, ssc=pair_fwd_ssc),
-            rev=BranchView(sync=pair_rev_sync, ssc=pair_rev_ssc),
-            cross_ic=pair_cross_ic,
-        )
+        return pack(result, lambda values: _extract_pair_flux(values, times_s, nu_hz))
 
     def flux_density_exposures(
         self,

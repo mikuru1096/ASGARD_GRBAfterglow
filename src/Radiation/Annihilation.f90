@@ -1,11 +1,12 @@
 ! Created by  on 2021/1/31.
-subroutine annihilation(R_gamma,R,V_seed,seed_syn,seed_ssc,Num_nu,Num_R,n_threads, absorption)
+subroutine annihilation(R_gamma,R,V_seed,seed_syn,seed_ssc,tau_extra,Num_nu,Num_R,n_threads, absorption)
     !$ use omp_lib
     use constants
     use radiation_common
     IMPLICIT REAL(8)(A-H,O-Z)
     integer, intent(in) :: Num_R,Num_nu,n_threads
-    real(8), intent(in) :: R_gamma(Num_R),R(Num_R),V_seed(Num_nu),seed_syn(Num_nu,Num_R),seed_ssc(Num_nu,Num_R)
+    real(8), intent(in) :: R_gamma(Num_R),R(Num_R),V_seed(Num_nu),seed_syn(Num_nu,Num_R),seed_ssc(Num_nu,Num_R), &
+                           tau_extra(Num_nu,Num_R)
     real(8), intent(out) :: absorption(Num_nu,Num_R)
 
     allocatable :: seed_tot(:,:),seed_tot_mid(:,:),ep1(:,:),ep2(:,:),ep2ep1(:,:),dVloc(:),V_mid(:), &
@@ -122,7 +123,7 @@ subroutine annihilation(R_gamma,R,V_seed,seed_syn,seed_ssc,Num_nu,Num_R,n_thread
                 )
                 Tau=Tau+Tau1*cos_weight(i_cos,I_R)
             end do
-            Tau=Tau*dRariv_Sigma(I_R)/two
+            Tau=Tau*dRariv_Sigma(I_R)/two + tau_extra(Nu_s1,I_R)
             call radiation_transfer_factor(Tau,temp_abs)
             absorption(Nu_s1,I_R)=absorption(Nu_s1,I_R)+temp_abs
         end do

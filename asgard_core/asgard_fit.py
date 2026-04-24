@@ -6,7 +6,9 @@ from typing import Any, Optional
 
 import numpy as np
 
-from ASGARD.api import Model, ObsData, ParamDef, _as_model, _param_path, _total_matrix
+from ASGARD.api_fit import ParamDef
+from ASGARD.api_model import Model, ObsData
+from ASGARD.api_observe import _as_model, _param_path, _total_matrix
 from asgard_core.asgard_numpy import trapezoid
 from asgard_core.asgard_state import project_flux_grid, solve_state_from_setup
 from asgard_core.asgard_models import FitConfig

@@ -1,7 +1,10 @@
 !f2py: skip
 module radiation_common
     use constants
+    use dynamics_common, only: dynamics_external_density_profile
     implicit none
+    real(8), parameter :: tau_transfer_floor = 1.0d-4
+    real(8), parameter :: tau_transfer_guard = 1.0d-5
 
 contains
 
@@ -48,11 +51,13 @@ end function radiation_powerlaw_interp
 
 subroutine radiation_transfer_factor(Tau, factor)
     implicit real(8)(A-H,O-Z)
-    real(8), intent(inout) :: Tau
+    real(8), intent(in) :: Tau
     real(8), intent(out) :: factor
+    real(8) :: Tau_eff
 
-    if ((Tau - 1.0d-4) < 1.0d-5) Tau = 1.0d-4
-    factor = (one - dexp(-Tau)) / Tau
+    Tau_eff = Tau
+    if ((Tau_eff - tau_transfer_floor) < tau_transfer_guard) Tau_eff = tau_transfer_floor
+    factor = (one - dexp(-Tau_eff)) / Tau_eff
 end subroutine radiation_transfer_factor
 
 subroutine radiation_prepare_annihilation_grid(V_seed, Num_nu, ep1, ep2, dVloc, V_mid)
@@ -170,20 +175,7 @@ subroutine radiation_external_density(A_star,dNe_ISM,R_loc,R0,dNe)
     real(8), intent(in) :: A_star,dNe_ISM,R_loc,R0
     real(8), intent(out) :: dNe
 
-    if (A_star >= zero) then
-        dNe_wind=A_star*3.0d35/R_loc**2
-        if (dNe_wind <= dNe_ISM/4.0d0) then
-            dNe=dNe_ISM
-        else
-            dNe=dNe_wind
-        end if
-    else
-        dNe=dNe_ISM
-    end if
-
-    if (R_loc < R0) then
-        dNe=A_star*3.0d35/R0**2
-    end if
+    call dynamics_external_density_profile(A_star,dNe_ISM,R_loc,R0,0,one,one,one,dNe)
 end subroutine radiation_external_density
 
 end module radiation_common

@@ -1,0 +1,267 @@
+!f2py: skip
+module electron_injection_profiles
+    use constants
+    implicit none
+
+contains
+
+real(8) function electron_dnx_powerlaw_cutoff_value(x,coeff,slope,Gam_e_max)
+    implicit real(8)(A-H,O-Z)
+    real(8), intent(in) :: x,coeff,slope,Gam_e_max
+    real(8) :: gam,cutoff_factor
+
+    gam=ten**x
+    if (gam <= zero .or. coeff <= zero) then
+        electron_dnx_powerlaw_cutoff_value=zero
+        return
+    end if
+
+    cutoff_factor=one
+    if (Gam_e_max > zero .and. gam > Gam_e_max) cutoff_factor=dexp(one-gam/Gam_e_max)
+    electron_dnx_powerlaw_cutoff_value=coeff*dlog(ten)*gam**(one-slope)*cutoff_factor
+end function electron_dnx_powerlaw_cutoff_value
+
+real(8) function electron_dnx_gauss3_integral(coeff,slope,Gam_e_max,x_lo,x_hi)
+    implicit real(8)(A-H,O-Z)
+    integer :: I_q
+    real(8), intent(in) :: coeff,slope,Gam_e_max,x_lo,x_hi
+    real(8), parameter :: xi(3)=(/-dsqrt(3d0/5d0),zero,dsqrt(3d0/5d0)/)
+    real(8), parameter :: wi(3)=(/5d0/9d0,8d0/9d0,5d0/9d0/)
+    real(8) :: half_dx,x_mid,x_eval,quad
+
+    if (x_hi <= x_lo) then
+        electron_dnx_gauss3_integral=zero
+        return
+    end if
+
+    half_dx=0.5d0*(x_hi-x_lo)
+    x_mid=0.5d0*(x_hi+x_lo)
+    quad=zero
+    do I_q=1,3
+        x_eval=x_mid+half_dx*xi(I_q)
+        quad=quad+wi(I_q)*electron_dnx_powerlaw_cutoff_value(x_eval,coeff,slope,Gam_e_max)
+    end do
+    electron_dnx_gauss3_integral=half_dx*quad
+end function electron_dnx_gauss3_integral
+
+subroutine electron_add_dnx_segment(cell_lo,cell_hi,active_lo,active_hi,coeff,slope,Gam_e_max,acc)
+    implicit real(8)(A-H,O-Z)
+    real(8), intent(in) :: cell_lo,cell_hi,active_lo,active_hi,coeff,slope,Gam_e_max
+    real(8), intent(inout) :: acc
+    real(8) :: x_lo,x_hi,x_cut
+
+    if (coeff <= zero .or. cell_hi <= cell_lo .or. active_hi <= active_lo) return
+    x_lo=max(cell_lo,active_lo)
+    x_hi=min(cell_hi,active_hi)
+    if (x_hi <= x_lo) return
+
+    x_cut=dlog10(max(Gam_e_max,1d-300))
+    if (x_lo < x_cut .and. x_hi > x_cut) then
+        acc=acc+electron_dnx_gauss3_integral(coeff,slope,Gam_e_max,x_lo,x_cut)
+        acc=acc+electron_dnx_gauss3_integral(coeff,slope,Gam_e_max,x_cut,x_hi)
+    else
+        acc=acc+electron_dnx_gauss3_integral(coeff,slope,Gam_e_max,x_lo,x_hi)
+    end if
+end subroutine electron_add_dnx_segment
+
+subroutine electron_profile_log_cell_edges(Num_gam_e,gam_e,x_edge)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: Num_gam_e
+    integer :: I_gam_e
+    real(8), intent(in) :: gam_e(Num_gam_e)
+    real(8), intent(out) :: x_edge(Num_gam_e+1)
+
+    x_edge(1)=dlog10(gam_e(1))-0.5d0*(dlog10(gam_e(2))-dlog10(gam_e(1)))
+    do I_gam_e=2,Num_gam_e
+        x_edge(I_gam_e)=0.5d0*(dlog10(gam_e(I_gam_e-1))+dlog10(gam_e(I_gam_e)))
+    end do
+    x_edge(Num_gam_e+1)=dlog10(gam_e(Num_gam_e))+0.5d0*(dlog10(gam_e(Num_gam_e))-dlog10(gam_e(Num_gam_e-1)))
+end subroutine electron_profile_log_cell_edges
+
+subroutine electron_initial_powerlaw(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,gam_e,dN_gam_e_1)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: Num_gam_e
+    integer :: I_gam_e
+    real(8), intent(in) :: Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,gam_e(Num_gam_e)
+    real(8), intent(out) :: dN_gam_e_1(Num_gam_e)
+    do I_gam_e=1,Num_gam_e
+        if (Gam_e_m > Gam_e_c) then
+            if (Gam_e_c > Gam_e(I_gam_e) .or. Gam_e_max < Gam_e(I_gam_e)) then
+                dN_gam_e_1(I_gam_e)=zero
+            else
+                Q1=Para_N_e_ini*Gam_e_c
+                if (Gam_e_m > Gam_e(I_gam_e)) then
+                    dN_gam_e_1(I_gam_e)=Q1*Gam_e(I_gam_e)**(-2)
+                else
+                    dN_gam_e_1(I_gam_e)=Q1*Gam_e_m**(p-one)*Gam_e(I_gam_e)**(-(p+one))
+                end if
+            end if
+        else
+            if (Gam_e_m > Gam_e(I_gam_e) .or. Gam_e_max < Gam_e(I_gam_e)) then
+                dN_gam_e_1(I_gam_e)=zero
+            else
+                Q1=Para_N_e_ini*Gam_e_m**(p-one)
+                if (Gam_e_c > Gam_e(I_gam_e)) then
+                    dN_gam_e_1(I_gam_e)=Q1*Gam_e(I_gam_e)**(-p)
+                else
+                    dN_gam_e_1(I_gam_e)=Q1*Gam_e_c*Gam_e(I_gam_e)**(-(p+one))
+                end if
+            end if
+        end if
+    end do
+end subroutine electron_initial_powerlaw
+
+subroutine electron_initial_powerlaw_exp_cutoff(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,gam_e,dN_gam_e_1)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: Num_gam_e
+    integer :: I_gam_e
+    real(8), intent(in) :: Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,gam_e(Num_gam_e)
+    real(8), intent(out) :: dN_gam_e_1(Num_gam_e)
+    real(8) :: cutoff_factor
+
+    dN_gam_e_1=zero
+    if (Gam_e_max <= zero) return
+
+    do I_gam_e=1,Num_gam_e
+        if (Gam_e_m > Gam_e_c) then
+            if (Gam_e_c > Gam_e(I_gam_e)) then
+                dN_gam_e_1(I_gam_e)=zero
+            else if (Gam_e_m > Gam_e(I_gam_e)) then
+                cutoff_factor=one
+                if (Gam_e(I_gam_e) > Gam_e_max) cutoff_factor=dexp(one-Gam_e(I_gam_e)/Gam_e_max)
+                dN_gam_e_1(I_gam_e)=Para_N_e_ini*Gam_e_c*Gam_e(I_gam_e)**(-2)*cutoff_factor
+            else
+                cutoff_factor=one
+                if (Gam_e(I_gam_e) > Gam_e_max) cutoff_factor=dexp(one-Gam_e(I_gam_e)/Gam_e_max)
+                dN_gam_e_1(I_gam_e)=Para_N_e_ini*Gam_e_c*Gam_e_m**(p-one)*Gam_e(I_gam_e)**(-(p+one))*cutoff_factor
+            end if
+        else
+            if (Gam_e_m > Gam_e(I_gam_e)) then
+                dN_gam_e_1(I_gam_e)=zero
+            else if (Gam_e_c > Gam_e(I_gam_e)) then
+                cutoff_factor=one
+                if (Gam_e(I_gam_e) > Gam_e_max) cutoff_factor=dexp(one-Gam_e(I_gam_e)/Gam_e_max)
+                dN_gam_e_1(I_gam_e)=Para_N_e_ini*Gam_e_m**(p-one)*Gam_e(I_gam_e)**(-p)*cutoff_factor
+            else
+                cutoff_factor=one
+                if (Gam_e(I_gam_e) > Gam_e_max) cutoff_factor=dexp(one-Gam_e(I_gam_e)/Gam_e_max)
+                dN_gam_e_1(I_gam_e)=Para_N_e_ini*Gam_e_m**(p-one)*Gam_e_c*Gam_e(I_gam_e)**(-(p+one))*cutoff_factor
+            end if
+        end if
+    end do
+end subroutine electron_initial_powerlaw_exp_cutoff
+
+subroutine electron_initial_powerlaw_exp_cutoff_edges(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,x_edge,dN_x_1)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: Num_gam_e
+    integer :: I_gam_e
+    real(8), intent(in) :: Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,x_edge(Num_gam_e+1)
+    real(8), intent(out) :: dN_x_1(Num_gam_e)
+    real(8) :: cell_lo,cell_hi,dx_cell,seg_sum,x_m,x_c,coeff_lo,coeff_hi,huge_x
+
+    dN_x_1=zero
+    if (Gam_e_max <= zero) return
+
+    x_m=dlog10(max(Gam_e_m,1d-300))
+    x_c=dlog10(max(Gam_e_c,1d-300))
+    huge_x=1d300
+
+    do I_gam_e=1,Num_gam_e
+        cell_lo=x_edge(I_gam_e)
+        cell_hi=x_edge(I_gam_e+1)
+        dx_cell=cell_hi-cell_lo
+        if (dx_cell <= zero) cycle
+
+        seg_sum=zero
+        if (Gam_e_m > Gam_e_c) then
+            coeff_lo=Para_N_e_ini*Gam_e_c
+            coeff_hi=Para_N_e_ini*Gam_e_c*Gam_e_m**(p-one)
+            call electron_add_dnx_segment(cell_lo,cell_hi,x_c,x_m,coeff_lo,2d0,Gam_e_max,seg_sum)
+            call electron_add_dnx_segment(cell_lo,cell_hi,x_m,huge_x,coeff_hi,p+one,Gam_e_max,seg_sum)
+        else
+            coeff_lo=Para_N_e_ini*Gam_e_m**(p-one)
+            coeff_hi=coeff_lo*Gam_e_c
+            call electron_add_dnx_segment(cell_lo,cell_hi,x_m,x_c,coeff_lo,p,Gam_e_max,seg_sum)
+            call electron_add_dnx_segment(cell_lo,cell_hi,x_c,huge_x,coeff_hi,p+one,Gam_e_max,seg_sum)
+        end if
+        dN_x_1(I_gam_e)=seg_sum/dx_cell
+    end do
+end subroutine electron_initial_powerlaw_exp_cutoff_edges
+
+subroutine electron_build_source_term(Num_gam_e,gam_e,Gam_e_m,Gam_e_max,Q,p,dF1)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: Num_gam_e
+    real(8), intent(in) :: gam_e(Num_gam_e),Gam_e_m,Gam_e_max,Q,p
+    real(8), intent(out) :: dF1(Num_gam_e)
+
+    dF1=zero
+    where(gam_e<Gam_e_max .and. gam_e>Gam_e_m) dF1=Q*gam_e**(-p)*gam_e*dlog(ten)
+end subroutine electron_build_source_term
+
+subroutine electron_build_source_term_exp_cutoff(Num_gam_e,gam_e,Gam_e_m,Gam_e_max,Q,p,dF1)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: Num_gam_e
+    integer :: I_gam_e
+    real(8), intent(in) :: gam_e(Num_gam_e),Gam_e_m,Gam_e_max,Q,p
+    real(8), intent(out) :: dF1(Num_gam_e)
+    real(8) :: cutoff_factor
+
+    dF1=zero
+    if (Gam_e_max <= zero) return
+
+    do I_gam_e=1,Num_gam_e
+        if (gam_e(I_gam_e) <= Gam_e_m) cycle
+        cutoff_factor=one
+        if (gam_e(I_gam_e) > Gam_e_max) cutoff_factor=dexp(one-gam_e(I_gam_e)/Gam_e_max)
+        dF1(I_gam_e)=Q*gam_e(I_gam_e)**(-p)*cutoff_factor*gam_e(I_gam_e)*dlog(ten)
+    end do
+end subroutine electron_build_source_term_exp_cutoff
+
+subroutine electron_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m,Gam_e_max,Q,p,dF1)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: Num_gam_e
+    integer :: I_gam_e
+    real(8), intent(in) :: x_edge(Num_gam_e+1),Gam_e_m,Gam_e_max,Q,p
+    real(8), intent(out) :: dF1(Num_gam_e)
+    real(8) :: cell_lo,cell_hi,dx_cell,seg_sum,x_m,huge_x
+
+    dF1=zero
+    if (Gam_e_max <= zero .or. Q <= zero) return
+
+    x_m=dlog10(max(Gam_e_m,1d-300))
+    huge_x=1d300
+    do I_gam_e=1,Num_gam_e
+        cell_lo=x_edge(I_gam_e)
+        cell_hi=x_edge(I_gam_e+1)
+        dx_cell=cell_hi-cell_lo
+        if (dx_cell <= zero) cycle
+        seg_sum=zero
+        call electron_add_dnx_segment(cell_lo,cell_hi,x_m,huge_x,Q,p,Gam_e_max,seg_sum)
+        dF1(I_gam_e)=seg_sum/dx_cell
+    end do
+end subroutine electron_build_source_term_exp_cutoff_edges
+
+subroutine electron_build_source_term_profile(Num_gam_e,gam_e,Gam_e_m,Gam_e_max,Q,profile,dF1)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: Num_gam_e
+    integer :: I_gam_e
+    real(8), intent(in) :: gam_e(Num_gam_e),Gam_e_m,Gam_e_max,Q,profile(Num_gam_e)
+    real(8), intent(out) :: dF1(Num_gam_e)
+    real(8) :: x_edge(Num_gam_e+1),x_lo,x_hi,cell_lo,cell_hi,dx_cell
+
+    dF1=zero
+    call electron_profile_log_cell_edges(Num_gam_e,gam_e,x_edge)
+    x_lo=dlog10(Gam_e_m)
+    x_hi=dlog10(Gam_e_max)
+
+    do I_gam_e=1,Num_gam_e
+        cell_lo=max(x_edge(I_gam_e),x_lo)
+        cell_hi=min(x_edge(I_gam_e+1),x_hi)
+        if (cell_hi > cell_lo) then
+            dx_cell=x_edge(I_gam_e+1)-x_edge(I_gam_e)
+            dF1(I_gam_e)=Q*profile(I_gam_e)*(cell_hi-cell_lo)/dx_cell
+        end if
+    end do
+end subroutine electron_build_source_term_profile
+
+end module electron_injection_profiles

@@ -26,6 +26,18 @@ python module electron_get_y ! in
             integer, optional,intent(in),check(shape(gam_e, 0) == num_gam_e),depend(gam_e) :: num_gam_e=shape(gam_e, 0)
             integer, optional,intent(in),check(shape(v_seed, 0) == num_nu),depend(v_seed) :: num_nu=shape(v_seed, 0)
         end subroutine get_syn_selected
+        subroutine get_syn_transfer(r_loc,db,n_threads,gam_e,dn_gam_e,v_seed,transfer_syn,num_gam_e,num_nu) ! in :electron_get_y:../../../src/Electron/electron_get_y.f90
+            use electron_radiation_kernel, only: get_syn_state
+            real(kind=8) intent(in) :: r_loc
+            real(kind=8) intent(in) :: db
+            integer intent(in) :: n_threads
+            real(kind=8) dimension(num_gam_e),intent(in) :: gam_e
+            real(kind=8) dimension(num_gam_e),intent(in),depend(num_gam_e) :: dn_gam_e
+            real(kind=8) dimension(num_nu),intent(in) :: v_seed
+            real(kind=8) dimension(num_nu),intent(out),depend(num_nu) :: transfer_syn
+            integer, optional,intent(in),check(shape(gam_e, 0) == num_gam_e),depend(gam_e) :: num_gam_e=shape(gam_e, 0)
+            integer, optional,intent(in),check(shape(v_seed, 0) == num_nu),depend(v_seed) :: num_nu=shape(v_seed, 0)
+        end subroutine get_syn_transfer
     end interface 
 end python module electron_get_y
 

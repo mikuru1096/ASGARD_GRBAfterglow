@@ -1,0 +1,282 @@
+!f2py: skip
+module hadronic_acceleration_kernel
+    use constants
+    implicit none
+    private
+
+    real(8), parameter :: light_speed_cgs = 2.99792458d10
+    real(8), parameter :: sigma_t_cgs = 6.6524587158d-25
+    real(8), parameter :: elementary_charge_esu = 4.803204712570263d-10
+    real(8), parameter :: erg_per_gev = 1.602176634d-3
+    real(8), parameter :: electron_mass_gev = 5.1099895d-4
+    real(8), parameter :: proton_mass_gev = 9.382720813d-1
+    real(8), parameter :: neutron_mass_gev = 9.395654133d-1
+    real(8), parameter :: pion_charged_mass_gev = 1.3957039d-1
+    real(8), parameter :: muon_mass_gev = 1.056583755d-1
+    real(8), parameter :: gev_to_gram = erg_per_gev/(light_speed_cgs*light_speed_cgs)
+    real(8), parameter :: electron_mass_g = electron_mass_gev*gev_to_gram
+
+    public :: hadronic_species_properties
+    public :: hadronic_acceleration_timescale_s
+    public :: hadronic_proton_acceleration_timescale_s
+    public :: hadronic_synchrotron_cooling_timescale_s
+    public :: hadronic_external_photon_cooling_timescale_s
+    public :: hadronic_species_injection_operator
+    public :: hadronic_estimate_max_gamma
+    public :: hadronic_acceleration_operator
+
+contains
+
+subroutine hadronic_species_properties(species,mass_gev,charge_number,mass_g,abs_charge_esu)
+    character(len=*), intent(in) :: species
+    real(8), intent(out) :: mass_gev,mass_g,abs_charge_esu
+    integer, intent(out) :: charge_number
+
+    select case (trim(species))
+    case ("proton")
+        mass_gev = proton_mass_gev
+        charge_number = 1
+    case ("neutron")
+        mass_gev = neutron_mass_gev
+        charge_number = 0
+    case ("pion_plus")
+        mass_gev = pion_charged_mass_gev
+        charge_number = 1
+    case ("pion_minus")
+        mass_gev = pion_charged_mass_gev
+        charge_number = -1
+    case ("muon_plus")
+        mass_gev = muon_mass_gev
+        charge_number = 1
+    case ("muon_minus")
+        mass_gev = muon_mass_gev
+        charge_number = -1
+    case default
+        error stop "hadronic_species_properties: unsupported species."
+    end select
+
+    mass_g = mass_gev*gev_to_gram
+    abs_charge_esu = dabs(dble(charge_number))*elementary_charge_esu
+end subroutine hadronic_species_properties
+
+subroutine hadronic_acceleration_timescale_s(num_gamma,species,gamma,b_field_g,eta_acc,t_acc)
+    integer, intent(in) :: num_gamma
+    character(len=*), intent(in) :: species
+    real(8), intent(in) :: gamma(num_gamma),b_field_g,eta_acc
+    real(8), intent(out) :: t_acc(num_gamma)
+    integer :: i_gam,charge_number
+    real(8) :: mass_gev,mass_g,abs_charge_esu
+
+    call hadronic_species_properties(species,mass_gev,charge_number,mass_g,abs_charge_esu)
+    if (b_field_g <= zero) error stop "hadronic_acceleration_timescale_s: b_field_g must be > 0."
+    if (eta_acc <= zero) error stop "hadronic_acceleration_timescale_s: eta_acc must be > 0."
+    if (abs_charge_esu <= zero) then
+        error stop "hadronic_acceleration_timescale_s: species has zero charge."
+    end if
+
+    do i_gam=1,num_gamma
+        if (gamma(i_gam) <= zero) error stop "hadronic_acceleration_timescale_s: gamma must be > 0."
+        t_acc(i_gam) = eta_acc*gamma(i_gam)*mass_g*light_speed_cgs/(abs_charge_esu*b_field_g)
+    end do
+end subroutine hadronic_acceleration_timescale_s
+
+subroutine hadronic_proton_acceleration_timescale_s(num_gamma,gamma,b_field_g,eta_acc,t_acc)
+    integer, intent(in) :: num_gamma
+    real(8), intent(in) :: gamma(num_gamma),b_field_g,eta_acc
+    real(8), intent(out) :: t_acc(num_gamma)
+
+    call hadronic_acceleration_timescale_s(num_gamma,"proton",gamma,b_field_g,eta_acc,t_acc)
+end subroutine hadronic_proton_acceleration_timescale_s
+
+subroutine hadronic_synchrotron_cooling_timescale_s(num_gamma,species,gamma,b_field_g,t_syn)
+    integer, intent(in) :: num_gamma
+    character(len=*), intent(in) :: species
+    real(8), intent(in) :: gamma(num_gamma),b_field_g
+    real(8), intent(out) :: t_syn(num_gamma)
+    integer :: i_gam,charge_number
+    real(8) :: mass_gev,mass_g,abs_charge_esu
+
+    call hadronic_species_properties(species,mass_gev,charge_number,mass_g,abs_charge_esu)
+    if (b_field_g <= zero) then
+        error stop "hadronic_synchrotron_cooling_timescale_s: b_field_g must be > 0."
+    end if
+
+    do i_gam=1,num_gamma
+        if (gamma(i_gam) <= zero) then
+            error stop "hadronic_synchrotron_cooling_timescale_s: gamma must be > 0."
+        end if
+        t_syn(i_gam) = 6d0*pi*(mass_g**3)*light_speed_cgs / &
+                       (sigma_t_cgs*(electron_mass_g**2)*(b_field_g**2)*gamma(i_gam))
+    end do
+end subroutine hadronic_synchrotron_cooling_timescale_s
+
+subroutine hadronic_external_photon_cooling_timescale_s(num_gamma,gamma,cooling_rate,t_ext)
+    integer, intent(in) :: num_gamma
+    real(8), intent(in) :: gamma(num_gamma),cooling_rate(num_gamma)
+    real(8), intent(out) :: t_ext(num_gamma)
+    integer :: i_gam
+
+    do i_gam=1,num_gamma
+        if (gamma(i_gam) <= zero) then
+            error stop "hadronic_external_photon_cooling_timescale_s: gamma must be > 0."
+        end if
+        if (cooling_rate(i_gam) <= zero) then
+            error stop "hadronic_external_photon_cooling_timescale_s: cooling_rate must be > 0."
+        end if
+        t_ext(i_gam) = gamma(i_gam)/cooling_rate(i_gam)
+    end do
+end subroutine hadronic_external_photon_cooling_timescale_s
+
+subroutine hadronic_species_injection_operator(num_gamma,gamma,species,luminosity_erg_s, &
+                                               spectral_index,gamma_min,gamma_max,gamma_cut, &
+                                               has_gamma_cut,q_inj)
+    integer, intent(in) :: num_gamma
+    character(len=*), intent(in) :: species
+    real(8), intent(in) :: gamma(num_gamma),luminosity_erg_s,spectral_index
+    real(8), intent(in) :: gamma_min,gamma_max,gamma_cut
+    logical, intent(in) :: has_gamma_cut
+    real(8), intent(out) :: q_inj(num_gamma)
+    integer :: i_gam,charge_number
+    real(8) :: mass_gev,mass_g,abs_charge_esu,mass_energy_erg,norm,q0
+    real(8) :: shape(num_gamma),integrand(num_gamma)
+
+    call hadronic_species_properties(species,mass_gev,charge_number,mass_g,abs_charge_esu)
+    if (gamma_min <= zero .or. gamma_max <= zero .or. gamma_min >= gamma_max) then
+        error stop "hadronic_species_injection_operator: require 0 < gamma_min < gamma_max."
+    end if
+    if (luminosity_erg_s <= zero) then
+        error stop "hadronic_species_injection_operator: luminosity_erg_s must be > 0."
+    end if
+    if (has_gamma_cut .and. gamma_cut <= zero) then
+        error stop "hadronic_species_injection_operator: gamma_cut must be > 0."
+    end if
+
+    do i_gam=1,num_gamma
+        if (gamma(i_gam) <= zero) error stop "hadronic_species_injection_operator: gamma must be > 0."
+        shape(i_gam) = zero
+        if (gamma(i_gam) >= gamma_min .and. gamma(i_gam) <= gamma_max) then
+            shape(i_gam) = gamma(i_gam)**(-spectral_index)
+            if (has_gamma_cut) then
+                shape(i_gam) = shape(i_gam)*dexp(-gamma(i_gam)/gamma_cut)
+            end if
+        end if
+        integrand(i_gam) = shape(i_gam)*gamma(i_gam)
+    end do
+
+    norm = hadronic_trapezoid(num_gamma,gamma,integrand)
+    if (norm <= zero) then
+        error stop "hadronic_species_injection_operator: normalization integral must be > 0."
+    end if
+
+    mass_energy_erg = mass_gev*erg_per_gev
+    q0 = luminosity_erg_s/(mass_energy_erg*norm)
+    q_inj = q0*shape
+end subroutine hadronic_species_injection_operator
+
+subroutine hadronic_estimate_max_gamma(species,b_field_g,radius_cm,gamma_bulk,eta_acc, &
+                                       num_gamma_scan,gamma_scan,external_cooling_rate, &
+                                       has_external_cooling,gamma_max,gamma_dyn,gamma_syn, &
+                                       gamma_ext,has_gamma_ext)
+    character(len=*), intent(in) :: species
+    real(8), intent(in) :: b_field_g,radius_cm,gamma_bulk,eta_acc
+    integer, intent(in) :: num_gamma_scan
+    real(8), intent(in) :: gamma_scan(num_gamma_scan),external_cooling_rate(num_gamma_scan)
+    logical, intent(in) :: has_external_cooling
+    real(8), intent(out) :: gamma_max,gamma_dyn,gamma_syn,gamma_ext
+    logical, intent(out) :: has_gamma_ext
+    integer :: i_gam,charge_number,i_cross
+    real(8) :: mass_gev,mass_g,abs_charge_esu,t_dyn
+    real(8) :: t_acc(num_gamma_scan),t_ext(num_gamma_scan),ratio_lo,ratio_hi
+    real(8) :: x0,x1,y0,y1,x_star
+
+    call hadronic_species_properties(species,mass_gev,charge_number,mass_g,abs_charge_esu)
+    if (abs_charge_esu <= zero) then
+        error stop "hadronic_estimate_max_gamma: species has zero charge."
+    end if
+    if (b_field_g <= zero .or. radius_cm <= zero .or. gamma_bulk <= zero .or. eta_acc <= zero) then
+        error stop "hadronic_estimate_max_gamma: physical inputs must be > 0."
+    end if
+
+    t_dyn = radius_cm/(gamma_bulk*light_speed_cgs)
+    gamma_dyn = abs_charge_esu*b_field_g*t_dyn/(eta_acc*mass_g*light_speed_cgs)
+    gamma_syn = dsqrt(6d0*pi*abs_charge_esu*(mass_g**2) / &
+                (eta_acc*sigma_t_cgs*(electron_mass_g**2)*b_field_g))
+
+    has_gamma_ext = .false.
+    gamma_ext = zero
+    gamma_max = dmin1(gamma_dyn,gamma_syn)
+
+    if (.not. has_external_cooling) return
+
+    call hadronic_acceleration_timescale_s(num_gamma_scan,species,gamma_scan,b_field_g,eta_acc,t_acc)
+    call hadronic_external_photon_cooling_timescale_s(num_gamma_scan,gamma_scan,external_cooling_rate,t_ext)
+
+    i_cross = 0
+    do i_gam=1,num_gamma_scan-1
+        ratio_lo = t_acc(i_gam)-t_ext(i_gam)
+        ratio_hi = t_acc(i_gam+1)-t_ext(i_gam+1)
+        if (ratio_lo == zero .or. ratio_lo*ratio_hi <= zero .or. ratio_hi == zero) then
+            i_cross = i_gam
+            exit
+        end if
+    end do
+    if (i_cross == 0) return
+
+    if (t_acc(i_cross) == t_ext(i_cross)) then
+        gamma_ext = gamma_scan(i_cross)
+    else if (t_acc(i_cross+1) == t_ext(i_cross+1)) then
+        gamma_ext = gamma_scan(i_cross+1)
+    else
+        x0 = dlog(gamma_scan(i_cross))
+        x1 = dlog(gamma_scan(i_cross+1))
+        y0 = dlog(t_acc(i_cross)/t_ext(i_cross))
+        y1 = dlog(t_acc(i_cross+1)/t_ext(i_cross+1))
+        x_star = x0-y0*(x1-x0)/(y1-y0)
+        gamma_ext = dexp(x_star)
+    end if
+
+    has_gamma_ext = .true.
+    gamma_max = dmin1(gamma_max,gamma_ext)
+end subroutine hadronic_estimate_max_gamma
+
+subroutine hadronic_acceleration_operator(num_gamma,species,gamma,b_field_g,eta_acc, &
+                                          luminosity_erg_s,spectral_index,gamma_min, &
+                                          gamma_max_inj,gamma_cut,has_gamma_cut, &
+                                          radius_cm,gamma_bulk,num_gamma_scan,gamma_scan, &
+                                          external_cooling_rate,has_external_cooling, &
+                                          t_acc,t_syn,q_inj,gamma_max,gamma_dyn,gamma_syn, &
+                                          gamma_ext,has_gamma_ext)
+    integer, intent(in) :: num_gamma,num_gamma_scan
+    character(len=*), intent(in) :: species
+    real(8), intent(in) :: gamma(num_gamma),b_field_g,eta_acc,luminosity_erg_s,spectral_index
+    real(8), intent(in) :: gamma_min,gamma_max_inj,gamma_cut,radius_cm,gamma_bulk
+    real(8), intent(in) :: gamma_scan(num_gamma_scan),external_cooling_rate(num_gamma_scan)
+    logical, intent(in) :: has_gamma_cut,has_external_cooling
+    real(8), intent(out) :: t_acc(num_gamma),t_syn(num_gamma),q_inj(num_gamma)
+    real(8), intent(out) :: gamma_max,gamma_dyn,gamma_syn,gamma_ext
+    logical, intent(out) :: has_gamma_ext
+
+    call hadronic_acceleration_timescale_s(num_gamma,species,gamma,b_field_g,eta_acc,t_acc)
+    call hadronic_synchrotron_cooling_timescale_s(num_gamma,species,gamma,b_field_g,t_syn)
+    call hadronic_species_injection_operator(num_gamma,gamma,species,luminosity_erg_s, &
+                                             spectral_index,gamma_min,gamma_max_inj, &
+                                             gamma_cut,has_gamma_cut,q_inj)
+    call hadronic_estimate_max_gamma(species,b_field_g,radius_cm,gamma_bulk,eta_acc, &
+                                     num_gamma_scan,gamma_scan,external_cooling_rate, &
+                                     has_external_cooling,gamma_max,gamma_dyn,gamma_syn, &
+                                     gamma_ext,has_gamma_ext)
+end subroutine hadronic_acceleration_operator
+
+real(8) function hadronic_trapezoid(num_x,x,y)
+    integer, intent(in) :: num_x
+    real(8), intent(in) :: x(num_x),y(num_x)
+    integer :: i_x
+
+    hadronic_trapezoid = zero
+    if (num_x <= 1) return
+    do i_x=1,num_x-1
+        hadronic_trapezoid = hadronic_trapezoid + 5d-1*(y(i_x)+y(i_x+1))*(x(i_x+1)-x(i_x))
+    end do
+end function hadronic_trapezoid
+
+end module hadronic_acceleration_kernel

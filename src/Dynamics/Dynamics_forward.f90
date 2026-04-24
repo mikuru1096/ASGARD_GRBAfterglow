@@ -49,7 +49,7 @@ subroutine dynamics_forward(Boundary,n,Num_R,index_dyn, R_Tobs,R_Gamma,R,R_m)
     !   log time bin
     do I_tobs=1,Num_R
         T=0.0*T00+ten**(Grid_Tobs_bin+T_log10*(I_tobs-one)/Num_R1)
-        if (I_tobs < one) then
+        if (I_tobs == 1) then
             H=ten**(Grid_Tobs_bin+T_log10*(I_tobs-one)/Num_R1)
         else
             H=ten**(Grid_Tobs_bin+T_log10*I_tobs/Num_R1)-ten**(Grid_Tobs_bin+T_log10*(I_tobs-one)/Num_R1)
@@ -67,24 +67,12 @@ subroutine dynamics_forward(Boundary,n,Num_R,index_dyn, R_Tobs,R_Gamma,R,R_m)
 end subroutine dynamics_forward
 
 subroutine forward_external_density(A_star,dNe_ISM,RR,f_jump,R_tr,f_wide,R0,dNe)
-    use constants
     use dynamics_common
     implicit real(8)(A-H,O-Z)
     real(8), intent(in) :: A_star,dNe_ISM,RR,f_jump,R_tr,f_wide,R0
     real(8), intent(out) :: dNe
 
-    call dynamics_external_density_base(A_star,dNe_ISM,RR,dNe)
-    if (A_star <= zero) then
-        dNe=dNe_ISM*(1.0+(f_jump-1d0)*exp(-(log10(RR)-log10(R_tr))**2/(2*f_wide*f_wide)))
-    end if
-
-    if (RR < R0) then
-        if (A_star > zero) then
-            dNe=A_star*3.0d35/R0**2
-        else
-            dNe=dNe_ISM
-        end if
-    end if
+    call dynamics_external_density_profile(A_star,dNe_ISM,RR,R0,1,R_tr,f_jump,f_wide,dNe)
 end subroutine forward_external_density
 
 subroutine forward_rk4_cycle(T,Y,H,N,M,D,B,E,A,Epsilon_e,E_iso,Eta_0,dNe_ISM,A_star,Eb,pp,z0,f_e, &
@@ -220,14 +208,16 @@ SUBROUTINE F(T, Y, M, D, E_e, E_iso, Eta_0, dNe_ISM, A_star, E_b, p, z, f_e, &
     real(8), intent(in) :: E_inj_t1,E_inj_t2,E_inj,E_inj_q,R_tr,f_jump,f_wide,R0
     real(8), intent(in) :: Y(M)
     real(8), intent(out) :: D(M)
+    real(8), parameter :: forward_synch_b_coeff=0.39d0
+    real(8), parameter :: forward_gamma_c_coeff=7.739d8
 
     call forward_external_density(A_star,dNe_ISM,Y(4),f_jump,R_tr,f_wide,R0,dNe)
     call forward_energy_injection(T,E_inj_t1,E_inj_t2,E_inj,E_inj_q,z,t_1,t_2,A)
     
     Epe=E_e
-    dB=0.39d0*dsqrt((E_b*dNe)*(Y(1)**2-one))
-    gam_c=7.739d8/(dB**2*Y(1)*T)
-    gam_m=Epe/f_e*1836d0*(p-two)*(Y(1)-one)/(p-one)+one
+    dB=forward_synch_b_coeff*dsqrt((E_b*dNe)*(Y(1)**2-one))
+    gam_c=forward_gamma_c_coeff/(dB**2*Y(1)*T)
+    gam_m=Epe/f_e*Para_m_p_div_m_e*(p-two)*(Y(1)-one)/(p-one)+one
     if ((gam_c-gam_m) > 0.001 .and. p>=2) Epe=Epe*(gam_m/gam_c)**(p-two)
     Bgam=dsqrt(one-one/Y(1)**2)
     call forward_shock_kinematics(Y(1),Bgam,D00,D01)

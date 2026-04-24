@@ -50,3 +50,6 @@ htmlcov/
 
 .buildcache/
 output/benchmark_exp_tail/
+output/asgard_doc/hadronic_pgamma_compare/
+output/asgard_doc/hadronic_pgamma_process_compare/
+output/asgard_doc/vegas_afterglow_compare_wind_strong_ic/

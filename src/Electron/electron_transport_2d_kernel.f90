@@ -176,8 +176,11 @@ subroutine advance_eta_logchi_advection_charint(U_log, Num_gam_e, Num_chi, activ
         U_eta_in(1) = U_eta_in(1) + dR_step*source_eta1(I_gam_e)
         call electron_prepare_conservative_remap_nonuniform(Num_chi, eta_face, U_eta_in, q_left, q_right, prefix)
         do I_face = 1, Num_chi
-            U_eta_out(I_face) = (electron_ppm_prefix_eval_nonuniform(Num_chi, eta_face, U_eta_in, q_left, q_right, prefix, eta_back(I_face)) - &
-                                 electron_ppm_prefix_eval_nonuniform(Num_chi, eta_face, U_eta_in, q_left, q_right, prefix, eta_back(I_face-1))) / deta
+            U_eta_out(I_face) = &
+                (electron_ppm_prefix_eval_nonuniform(Num_chi, eta_face, U_eta_in, &
+                                                     q_left, q_right, prefix, eta_back(I_face)) - &
+                 electron_ppm_prefix_eval_nonuniform(Num_chi, eta_face, U_eta_in, &
+                                                     q_left, q_right, prefix, eta_back(I_face-1))) / deta
         end do
         U_log(I_gam_e, :) = max(zero, U_eta_out)
     end do
@@ -190,7 +193,6 @@ subroutine advance_eta_logchi_diffusion_implicit(U_log, Num_gam_e, Num_chi, acti
     real(8), intent(in) :: deta, chi_face(0:Num_chi), Gamma_sh, a_loc, dln_a_dR_loc
     real(8), intent(in) :: beta_sh, kappa2_chi(Num_gam_e,Num_chi), dR_step
 
-    real(8) :: A_eta_face(1:Num_chi)
     real(8) :: diff_face_left_base(1:Num_chi), diff_face_right_base(1:Num_chi)
     real(8) :: lower(Num_chi), diag(Num_chi), upper(Num_chi), rhs(Num_chi), sol(Num_chi)
     real(8) :: lambda_eta, diff_prefactor, coeff_left, coeff_right, ln10, kappa_face
@@ -198,7 +200,6 @@ subroutine advance_eta_logchi_diffusion_implicit(U_log, Num_gam_e, Num_chi, acti
 
     ln10 = dlog(ten)
     lambda_eta = dR_step/deta
-    call eta_face_transport_coeffs(Gamma_sh, Num_chi, chi_face, a_loc, dln_a_dR_loc, beta_sh, A_eta_face)
 
     diff_face_left_base = zero
     diff_face_right_base = zero
@@ -313,13 +314,14 @@ subroutine advance_energy_loggamma_chi(U_log, Num_gam_e, Num_chi, dEL_mean_chi, 
     real(8), intent(in) :: dEL_mean_chi(Num_gam_e-1, Num_chi), R_loc, d_x_E, dR_step
 
     real(8) :: coeff_xi(Num_gam_e-1), up(Num_gam_e-1), principal(Num_gam_e)
-    real(8) :: temp1(Num_gam_e-1), rhs(Num_gam_e), sol(Num_gam_e), CFL
+    real(8) :: temp1(Num_gam_e-1), rhs(Num_gam_e), sol(Num_gam_e), CFL, ad_coeff
     integer :: I_chi
 
     CFL = dR_step/d_x_E
+    ad_coeff = one/(R_loc*dlog(ten))
 
     do I_chi = 1, Num_chi
-        coeff_xi = dEL_mean_chi(:, I_chi) + one/R_loc/dlog(ten)
+        coeff_xi = dEL_mean_chi(:, I_chi) + ad_coeff
         up = -CFL*coeff_xi
         call electron_prepare_implicit_coeffs(Num_gam_e, one, up, principal, temp1)
         rhs = U_log(:, I_chi) / principal

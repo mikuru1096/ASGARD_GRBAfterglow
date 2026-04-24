@@ -365,16 +365,6 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
         shell_population = sum(U_log, dim=2)
         chi_population = sum(U_log, dim=1)
         chi_peak = maxval(shell_population)
-        active_chi_hi = Num_chi
-        if (chi_peak > zero) then
-            active_chi_hi = 1
-            do I_chi = Num_chi, 1, -1
-                if (chi_population(I_chi) > 1d-10*chi_peak) then
-                    active_chi_hi = min(Num_chi, I_chi+1)
-                    exit
-                end if
-            end do
-        end if
         shell_peak = max(chi_peak, maxval(dF1))
         support_floor = 1d-12*shell_peak
         active_hi = max(2, src_hi)
@@ -401,10 +391,20 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
 
         dDR_xi = huge(one)
         if (max_xi_coeff > zero) dDR_xi = 0.4d0*d_x_E/max_xi_coeff
+        active_chi_hi = Num_chi
+        if (chi_peak > zero) then
+            active_chi_hi = 1
+            do I_chi = Num_chi, 1, -1
+                if (chi_population(I_chi) > 1d-10*chi_peak) then
+                    active_chi_hi = min(Num_chi, I_chi+1)
+                    exit
+                end if
+            end do
+        end if
         dDR_eta = huge(one)
         if (use_charint_transport) then
             max_eta_coeff = zero
-            do I_chi = 1, Num_chi
+            do I_chi = 1, max(1, active_chi_hi)
                 beta_2_sh_loc = bm_beta2_shock(R_Gamma_loc,chi_face(I_chi))
                 max_eta_coeff = max(max_eta_coeff, dabs((8d0*R_Gamma_loc*R_Gamma_loc/R_loc) * &
                                                         beta_2_sh_loc/(chi_face(I_chi)*beta_sh) + &
@@ -416,6 +416,7 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
         dDD     = R(I_tobs)-R(I_tobs-1)
         dDR_try = min(dDD, min(dDR_xi, dDR_eta))
         L1      = max(1, ceiling(dDD/max(dDR_try, tiny(one))))
+        if (use_charint_transport) L1 = min(L1, 2048)
         dDR     = dDD/dble(L1)
         total_substeps = total_substeps + L1
         max_shell_substeps = max(max_shell_substeps, L1)

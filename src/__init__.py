@@ -11,6 +11,7 @@ __all__ = [
     "constants",
     "Dynamics",
     "Electron",
+    "Hadronic",
     "Interpolation",
     "Radiation",
 ]

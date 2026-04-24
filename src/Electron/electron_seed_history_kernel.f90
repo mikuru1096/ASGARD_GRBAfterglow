@@ -172,16 +172,30 @@ real(8) :: attenuation(Num_nu),delta_tau_total,x_src,x_tgt,x_prev,x_curr,dt_seg,
                     x_prev = x_curr
                     if (x_prev <= x_tgt) exit
                 end do
-                call add_doppler_shifted_history_mapped(Num_nu,doppler_rel,source_weight,attenuation, &
-                                                        hist_valid_map_ws,hist_idx_lo_map_ws,hist_log_frac_map_ws, &
-                                                        P_hist(:,I_src_chi,I_src_t),3d0,P_eff(:,I_tgt_chi))
-                call add_doppler_shifted_history_mapped(Num_nu,doppler_rel,source_weight,attenuation, &
-                                                        hist_valid_map_ws,hist_idx_lo_map_ws,hist_log_frac_map_ws, &
-                                                        Seed_hist(:,I_src_chi,I_src_t),2d0,Seed_eff(:,I_tgt_chi))
+                call add_doppler_shifted_history_pair_mapped(Num_nu,doppler_rel,source_weight,attenuation, &
+                                                             hist_valid_map_ws,hist_idx_lo_map_ws,hist_log_frac_map_ws, &
+                                                             P_hist(:,I_src_chi,I_src_t),Seed_hist(:,I_src_chi,I_src_t), &
+                                                             P_eff(:,I_tgt_chi),Seed_eff(:,I_tgt_chi))
             end do
         end do
     end do
 end subroutine accumulate_comoving_history_fields
+
+subroutine add_doppler_shifted_history_pair_mapped(Num_nu,doppler_rel,source_weight,attenuation,valid_map,idx_lo_map, &
+                                                   log_frac_map,P_src,Seed_src,P_tgt,Seed_tgt)
+implicit REAL(8)(A-H,O-Z)
+integer, intent(in) :: Num_nu
+logical, intent(in) :: valid_map(Num_nu)
+integer, intent(in) :: idx_lo_map(Num_nu)
+real(8), intent(in) :: doppler_rel,source_weight,attenuation(Num_nu),log_frac_map(Num_nu)
+real(8), intent(in) :: P_src(Num_nu),Seed_src(Num_nu)
+real(8), intent(inout) :: P_tgt(Num_nu),Seed_tgt(Num_nu)
+
+    call add_doppler_shifted_history_mapped(Num_nu,doppler_rel,source_weight,attenuation,valid_map,idx_lo_map, &
+                                            log_frac_map,P_src,3d0,P_tgt)
+    call add_doppler_shifted_history_mapped(Num_nu,doppler_rel,source_weight,attenuation,valid_map,idx_lo_map, &
+                                            log_frac_map,Seed_src,2d0,Seed_tgt)
+end subroutine add_doppler_shifted_history_pair_mapped
 
 subroutine build_doppler_map(Num_nu,V_seed,doppler_rel,valid_map,idx_lo_map,log_frac_map)
 implicit REAL(8)(A-H,O-Z)
@@ -291,7 +305,8 @@ real(8) :: frac_start,frac_stop
     if (I_start == I_stop) then
         if (x_start > x_stop) then
             do I_nu = 1, Num_nu
-                attenuation(I_nu) = attenuation(I_nu) * history_transfer_weight((x_start-x_stop)*inv_dx_cell(I_start)*tau_cell(I_nu,I_start))
+                attenuation(I_nu) = attenuation(I_nu) * &
+                    history_transfer_weight((x_start-x_stop)*inv_dx_cell(I_start)*tau_cell(I_nu,I_start))
             end do
         end if
         return
@@ -322,59 +337,69 @@ subroutine locate_path_start_cell(Num_chi,x_face,x_pos,I_cell)
 implicit REAL(8)(A-H,O-Z)
 integer, intent(in) :: Num_chi
 integer, intent(out) :: I_cell
-integer :: left,right,mid
 real(8), intent(in) :: x_face(0:Num_chi),x_pos
 
-    if (x_pos <= x_face(1)) then
-        I_cell = 1
-        return
-    end if
-    if (x_pos >= x_face(Num_chi)) then
-        I_cell = Num_chi
-        return
-    end if
-
-    left = 1
-    right = Num_chi
-    do while (left < right)
-        mid = (left+right+1)/2
-        if (x_face(mid) < x_pos) then
-            left = mid
-        else
-            right = mid-1
-        end if
-    end do
-    I_cell = left + 1
+    call locate_path_cell(Num_chi,x_face,x_pos,.true.,I_cell)
 end subroutine locate_path_start_cell
 
 subroutine locate_path_stop_cell(Num_chi,x_face,x_pos,I_cell)
 implicit REAL(8)(A-H,O-Z)
 integer, intent(in) :: Num_chi
 integer, intent(out) :: I_cell
-integer :: left,right,mid
 real(8), intent(in) :: x_face(0:Num_chi),x_pos
 
-    if (x_pos <= x_face(0)) then
-        I_cell = 1
-        return
-    end if
+    call locate_path_cell(Num_chi,x_face,x_pos,.false.,I_cell)
+end subroutine locate_path_stop_cell
+
+subroutine locate_path_cell(Num_chi,x_face,x_pos,use_upper_face,I_cell)
+implicit REAL(8)(A-H,O-Z)
+integer, intent(in) :: Num_chi
+integer, intent(out) :: I_cell
+integer :: left,right,mid
+real(8), intent(in) :: x_face(0:Num_chi),x_pos
+logical, intent(in) :: use_upper_face
+
     if (x_pos >= x_face(Num_chi)) then
         I_cell = Num_chi
         return
+    end if
+    if (use_upper_face) then
+        if (x_pos <= x_face(1)) then
+            I_cell = 1
+            return
+        end if
+    else
+        if (x_pos <= x_face(0)) then
+            I_cell = 1
+            return
+        end if
     end if
 
     left = 1
     right = Num_chi
     do while (left < right)
-        mid = (left+right)/2
-        if (x_face(mid) > x_pos) then
-            right = mid
+        if (use_upper_face) then
+            mid = (left+right+1)/2
+            if (x_face(mid) < x_pos) then
+                left = mid
+            else
+                right = mid-1
+            end if
         else
-            left = mid + 1
+            mid = (left+right)/2
+            if (x_face(mid) > x_pos) then
+                right = mid
+            else
+                left = mid + 1
+            end if
         end if
     end do
-    I_cell = left
-end subroutine locate_path_stop_cell
+    if (use_upper_face) then
+        I_cell = left + 1
+    else
+        I_cell = left
+    end if
+end subroutine locate_path_cell
 
 elemental real(8) function history_transfer_weight(tau_segment)
 implicit REAL(8)(A-H,O-Z)

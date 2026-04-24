@@ -72,7 +72,7 @@ subroutine fs_electron_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_
         f_r=(1.35d-19)/beta_Gam/R_Gamma_loc*DB**2/pi
         dDR=charint_cfl_relax*0.1d0/(f_r*Gam_e_max+1.333d0/(R(I_tobs)+R(I_tobs-1)))
         dDD=R(I_tobs)-R(I_tobs-1)
-        L1=max(4,min(64,ceiling(dDD/max(dDR,1d-30))))
+        L1=max(4,min(2048,ceiling(dDD/max(dDR,1d-30))))
         dDR=dDD/L1
 
         call electron_prepare_radiation_spectrum(Num_gam_e,gam_e,dN_gam_e(:,I_tobs-1), &
@@ -100,7 +100,7 @@ subroutine fs_electron_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_
                 temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma_loc-one)
                 call electron_gamma_m_exact(p,temp_gam,Gam_e_max_step,Gam_e_m_step)
                 Gam_e_m_p_step=(one-p)/(Gam_e_max_step**(one-p)-Gam_e_m_step**(one-p))
-                call electron_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m_step,Gam_e_max_step,one,p,dF1_shape)
+                call electron_build_source_term_exp_cutoff(Num_gam_e,gam_e,Gam_e_m_step,Gam_e_max_step,one,p,dF1_shape)
                 call electron_prepare_conservative_remap_nonuniform(Num_gam_e,x_edge,dF1_shape, &
                                                                    q_left_source_shape,q_right_source_shape,prefix_source_lin_shape)
 
@@ -116,11 +116,13 @@ subroutine fs_electron_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_
                     if (index_Y == 0) then
                         b_ad=one/R_mid
                         call electron_characteristic_step_affine_u_prepared_source( &
-                            Num_gam_e,dDR,x_edge,a_rad,b_ad,Q,q_left_source_shape,q_right_source_shape,prefix_source_lin_shape,dF1_shape,dN_x,dN_step)
+                            Num_gam_e,dDR,x_edge,a_rad,b_ad,Q,q_left_source_shape,q_right_source_shape, &
+                            prefix_source_lin_shape,dF1_shape,dN_x,dN_step)
                     else
                         dEl_step=dEl_base
                         call electron_characteristic_step_piecewise_u_prepared_source( &
-                            Num_gam_e,dDR,x_edge,gam_e,dEl_step,R_mid,Q,q_left_source_shape,q_right_source_shape,prefix_source_lin_shape,dF1_shape,dN_x,dN_step)
+                            Num_gam_e,dDR,x_edge,gam_e,dEl_step,R_mid,Q,q_left_source_shape,q_right_source_shape, &
+                            prefix_source_lin_shape,dF1_shape,dN_x,dN_step)
                     end if
 
                     dN_x=dN_step
@@ -142,7 +144,7 @@ subroutine fs_electron_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_
                     call electron_gamma_m_exact(p,temp_gam,Gam_e_max_step,Gam_e_m_step)
                     Gam_e_m_p_step=(one-p)/(Gam_e_max_step**(one-p)-Gam_e_m_step**(one-p))
                     call electron_injection_prefactor(R_mid,dDR,dNe_mid,f_e,Gam_e_m_p_step,Q)
-                    call electron_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m_step,Gam_e_max_step,Q,p,dF1)
+                    call electron_build_source_term_exp_cutoff(Num_gam_e,gam_e,Gam_e_m_step,Gam_e_max_step,Q,p,dF1)
 
                     if (index_Y == 0) then
                         cooling_scale=one/(beta_Gam*R_Gamma_loc)
@@ -176,7 +178,7 @@ subroutine fs_electron_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_
                 temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma_loc-one)
                 call electron_gamma_m_exact(p,temp_gam,Gam_e_max_step,Gam_e_m_step)
                 Gam_e_m_p_step=(one-p)/(Gam_e_max_step**(one-p)-Gam_e_m_step**(one-p))
-                call electron_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m_step,Gam_e_max_step,one,p,dF1_shape)
+                call electron_build_source_term_exp_cutoff(Num_gam_e,gam_e,Gam_e_m_step,Gam_e_max_step,one,p,dF1_shape)
                 call electron_prepare_conservative_remap_nonuniform(Num_gam_e,x_edge,dF1_shape, &
                                                                    q_left_source_shape,q_right_source_shape,prefix_source_lin_shape)
                 if (index_Y == 0) then
@@ -205,11 +207,13 @@ subroutine fs_electron_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_
                     if (index_Y == 0) then
                         b_ad=one/R_mid
                         call electron_characteristic_step_affine_u_prepared_source( &
-                            Num_gam_e,dR_try,x_edge,a_rad,b_ad,Q,q_left_source_shape,q_right_source_shape,prefix_source_lin_shape,dF1_shape,dN_x,dN_step)
+                            Num_gam_e,dR_try,x_edge,a_rad,b_ad,Q,q_left_source_shape,q_right_source_shape, &
+                            prefix_source_lin_shape,dF1_shape,dN_x,dN_step)
                     else
                         dEl_step=dEl_base
                         call electron_characteristic_step_piecewise_u_prepared_source( &
-                            Num_gam_e,dR_try,x_edge,gam_e,dEl_step,R_mid,Q,q_left_source_shape,q_right_source_shape,prefix_source_lin_shape,dF1_shape,dN_x,dN_step)
+                            Num_gam_e,dR_try,x_edge,gam_e,dEl_step,R_mid,Q,q_left_source_shape,q_right_source_shape, &
+                            prefix_source_lin_shape,dF1_shape,dN_x,dN_step)
                     end if
                 else
                     R_right=R_loc+dR_try
@@ -228,7 +232,7 @@ subroutine fs_electron_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_
                     call electron_gamma_m_exact(p,temp_gam,Gam_e_max_step,Gam_e_m_step)
                     Gam_e_m_p_step=(one-p)/(Gam_e_max_step**(one-p)-Gam_e_m_step**(one-p))
                     call electron_injection_prefactor(R_mid,dR_try,dNe_mid,f_e,Gam_e_m_p_step,Q)
-                    call electron_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m_step,Gam_e_max_step,Q,p,dF1)
+                    call electron_build_source_term_exp_cutoff(Num_gam_e,gam_e,Gam_e_m_step,Gam_e_max_step,Q,p,dF1)
                     if (index_Y == 0) then
                         cooling_scale=one/(beta_Gam*R_Gamma_loc)
                         a_rad=1.35d-19*DB_step**2*cooling_scale/pi

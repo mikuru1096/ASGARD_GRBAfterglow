@@ -11,6 +11,7 @@ from __future__ import annotations
 from asgard_core.asgard_config import (
     ExecutionPolicy,
     FitConfig,
+    HadronicConfig,
     NumericalConfig,
     OutputConfig,
     PhysicsConfig,
@@ -81,6 +82,7 @@ __all__ = [
     "OutputConfig",
     "SimulationConfig",
     "FitConfig",
+    "HadronicConfig",
     "PhysicalSolution",
     "SimulationSetup",
     "FitResult",

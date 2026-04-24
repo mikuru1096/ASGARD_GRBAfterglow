@@ -8,7 +8,7 @@ providing a single source of truth for data structures.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any, ClassVar, Optional
 
 import numpy as np
 
@@ -40,11 +40,52 @@ class FluxComponents:
     total: np.ndarray
     fwd_sync: np.ndarray
     fwd_ssc: np.ndarray
+    fwd_hadronic_gamma: Optional[np.ndarray]
+    fwd_hadronic_bethe_heitler: Optional[np.ndarray]
+    fwd_hadronic_inverse_compton: Optional[np.ndarray]
+    fwd_hadronic_pair_production: Optional[np.ndarray]
     rev_sync: Optional[np.ndarray]
     rev_ssc: Optional[np.ndarray]
     cross_ic: Optional[np.ndarray]
     fwd: BranchState
     rev: Optional[BranchState]
+
+
+@dataclass(frozen=True)
+class SolverAdapterReport:
+    """Thin solver-adapter report exposed to the orchestration layer."""
+    solver: str
+    grid_semantics: str
+    status: str
+    diagnostics: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class PhotonFieldState:
+    """Photon-field contract passed between electron, hadronic, and observer stages."""
+    producer: ClassVar[str] = "photon_field_stage"
+    consumers: ClassVar[tuple[str, ...]] = ("hadronic_stage", "observer_stage")
+    mutable_fields: ClassVar[tuple[str, ...]] = ()
+
+    seed_frequency_hz: np.ndarray
+    forward_syn_seed: np.ndarray
+    hadronic_forward_ssc_seed: np.ndarray
+    hadronic_target_seed: np.ndarray
+    absorption_syn_seed: np.ndarray
+    absorption_ssc_seed: np.ndarray
+
+
+@dataclass
+class ObserverState:
+    """Observer-side assembly state prior to interpolation onto query grids."""
+    producer: ClassVar[str] = "observer_stage"
+    consumers: ClassVar[tuple[str, ...]] = ("projection_stage", "api")
+    mutable_fields: ClassVar[tuple[str, ...]] = ()
+
+    prefactor: np.ndarray
+    tau_extra: np.ndarray
+    tau_pair: np.ndarray
+    components: FluxComponents
 
 
 @dataclass
@@ -55,11 +96,15 @@ class SolveState:
     policy: Any  # ExecutionPolicy
     dynamics: Any  # DynamicsSolution
     electron: Any  # ElectronSolution
+    photon_field: PhotonFieldState
+    hadronic: Optional[Any]  # HadronicSolution
+    observer: ObserverState
     reverse_emission: Optional[Any]  # ReverseShockEmission
     components: FluxComponents
     requested_frequency_min_hz: Optional[float]
     requested_frequency_max_hz: Optional[float]
     timings: dict[str, float] = field(default_factory=dict)
+    adapter_reports: dict[str, SolverAdapterReport] = field(default_factory=dict)
 
 
 @dataclass
@@ -101,6 +146,10 @@ class ReverseShockDynamics:
 @dataclass
 class DynamicsSolution:
     """Solution from dynamics solver."""
+    producer: ClassVar[str] = "dynamics_stage"
+    consumers: ClassVar[tuple[str, ...]] = ("electron_stage", "observer_stage")
+    mutable_fields: ClassVar[tuple[str, ...]] = ()
+
     r_tobs: np.ndarray
     r_gamma: np.ndarray
     radius: np.ndarray
@@ -111,6 +160,10 @@ class DynamicsSolution:
 @dataclass
 class ElectronSolution:
     """Solution from electron solver."""
+    producer: ClassVar[str] = "electron_stage"
+    consumers: ClassVar[tuple[str, ...]] = ("photon_field_stage", "hadronic_stage", "observer_stage")
+    mutable_fields: ClassVar[tuple[str, ...]] = ("d_n_gam_e_bh", "l_syn_spec", "seed_syn")
+
     gam_e: np.ndarray
     d_n_gam_e: np.ndarray
     l_syn_spec: np.ndarray
@@ -118,6 +171,7 @@ class ElectronSolution:
     nu_m: np.ndarray
     nu_c: np.ndarray
     nu_a: np.ndarray
+    d_n_gam_e_bh: np.ndarray | None = None
     d_n_gam_e_chi: np.ndarray | None = None
     chi_grid: np.ndarray | None = None
     cooling_timescale_s: np.ndarray | None = None
@@ -136,6 +190,43 @@ class ReverseShockEmission:
     nu_c: np.ndarray
     nu_a: np.ndarray
     nu_M: np.ndarray
+
+
+@dataclass
+class HadronicSolution:
+    """Solution from the 1d hadronic solver."""
+    producer: ClassVar[str] = "hadronic_stage"
+    consumers: ClassVar[tuple[str, ...]] = ("observer_stage", "api")
+    mutable_fields: ClassVar[tuple[str, ...]] = ()
+
+    solver: str
+    gam_p: np.ndarray
+    d_n_gam_p: np.ndarray
+    l_had_syn_spec: np.ndarray
+    seed_had_syn: np.ndarray
+    l_had_pg_gamma: np.ndarray
+    neutrino_frequency_hz: np.ndarray
+    neutrino_luminosity: np.ndarray
+    l_had_bethe_heitler: np.ndarray | None = None
+    seed_had_bethe_heitler: np.ndarray | None = None
+    d_n_gam_e_bh: np.ndarray | None = None
+    l_had_hadronic_inverse_compton: np.ndarray | None = None
+    l_had_pair_production: np.ndarray | None = None
+    gam_secondary: np.ndarray | None = None
+    d_n_gam_n: np.ndarray | None = None
+    d_n_gam_pi_plus: np.ndarray | None = None
+    d_n_gam_pi_minus: np.ndarray | None = None
+    d_n_gam_mu_minus_left: np.ndarray | None = None
+    d_n_gam_mu_minus_right: np.ndarray | None = None
+    d_n_gam_mu_plus_left: np.ndarray | None = None
+    d_n_gam_mu_plus_right: np.ndarray | None = None
+    l_had_pion_synch: np.ndarray | None = None
+    l_had_muon_synch: np.ndarray | None = None
+    l_had_pion_inverse_compton: np.ndarray | None = None
+    l_had_muon_inverse_compton: np.ndarray | None = None
+    tau_pg: np.ndarray | None = None
+    pg_photon_survival: np.ndarray | None = None
+    am3_process_power: np.ndarray | None = None
 
 
 # ============================================================================
@@ -258,17 +349,29 @@ class TrackBundle:
     rev: Optional[CharTrack]
 
 
+DynamicsState = DynamicsSolution
+ElectronState = ElectronSolution
+HadronicState = HadronicSolution
+
+
 __all__ = [
     # State types
     "BranchState",
     "FluxComponents",
+    "SolverAdapterReport",
+    "PhotonFieldState",
+    "ObserverState",
     "SolveState",
     "ObsState",
     # Solver types
     "ReverseShockParameters",
     "ReverseShockDynamics",
     "DynamicsSolution",
+    "DynamicsState",
     "ElectronSolution",
+    "ElectronState",
+    "HadronicSolution",
+    "HadronicState",
     "ReverseShockEmission",
     # Fitting types
     "ParamBinding",

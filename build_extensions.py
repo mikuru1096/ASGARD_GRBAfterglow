@@ -14,6 +14,86 @@ from pathlib import Path
 COMMON_FLAGS = "-Ofast -march=native -funroll-loops -ffast-math -fno-signed-zeros -fno-trapping-math -ffree-line-length-none"
 OMP_FLAGS = f"-fopenmp {COMMON_FLAGS} -flto"
 OPENMP_LIBS = ["-lgomp"]
+DIRECT_ORDERED_BUILD_MODULES = {
+    "FS_electron_weno5_1d",
+    "FS_electron_slc1_1d",
+    "FS_electron_charint_1d",
+    "FS_electron_charint_2d",
+    "FS_electron_fullhide_1d",
+    "FS_electron_fullhide_2d",
+    "FS_electron_t2g1_1d",
+    "FS_hadronic_1d",
+    "electron_get_y",
+    "Seed_reverse",
+    "SSC_spec",
+}
+F2PY_ENTRYPOINTS = {
+    "FS_electron_charint_1d": ("fs_electron_charint_1d", "fs_electron_charint_1d_affine_step_test"),
+    "electron_get_y": ("get_nu_a", "get_syn_selected", "get_syn_transfer"),
+    "SSC_spec": ("ssc_spec", "ssc_spec_nonuniform"),
+    "FS_hadronic_1d": (
+        "fs_hadronic_1d",
+        "fs_hadronic_proton_syn_shell",
+        "fs_hadronic_pgamma_operator_shell",
+        "fs_hadronic_pair_production_shell",
+        "fs_hadronic_pp_delta_shell",
+        "fs_hadronic_bethe_heitler_shell",
+        "fs_hadronic_hadronic_ic_shell",
+        "fs_hadronic_species_transport_shell",
+        "fs_hadronic_acceleration_shell",
+        "fs_hadronic_secondary_radiation_shell",
+        "fs_hadronic_decay_operator_shell",
+    ),
+}
+DYNAMICS_COMMON_SOURCES = ("../Constants.f90", "dynamics_common.f90")
+RADIATION_COMMON_SOURCES = (
+    "../Constants.f90",
+    "../Dynamics/dynamics_common.f90",
+    "radiation_common.f90",
+)
+ELECTRON_COMMON_SOURCES = (
+    "../Constants.f90",
+    "../Dynamics/dynamics_common.f90",
+    "../Radiation/radiation_common.f90",
+    "adaptive_resampling_mod.f90",
+    "electron_injection_profiles.f90",
+    "electron_common.f90",
+    "electron_radiation_kernel.f90",
+    "electron_cooling_kernel.f90",
+)
+ELECTRON_1D_SOURCES = (*ELECTRON_COMMON_SOURCES, "calling_modules.f90")
+ELECTRON_HISTORY_SOURCES = (
+    *ELECTRON_COMMON_SOURCES,
+    "electron_seed_history_kernel.f90",
+    "calling_modules.f90",
+)
+ELECTRON_2D_SOURCES = (
+    *ELECTRON_COMMON_SOURCES,
+    "electron_seed_history_kernel.f90",
+    "electron_transport_2d_kernel.f90",
+    "calling_modules.f90",
+)
+HADRONIC_1D_SOURCES = (
+    "../Constants.f90",
+    "../Dynamics/dynamics_common.f90",
+    "../Radiation/radiation_common.f90",
+    "hadronic_common.f90",
+    "hadronic_transport_kernel.f90",
+    "hadronic_radiation_kernel.f90",
+    "hadronic_interaction_kernel.f90",
+    "hadronic_pair_production_kernel.f90",
+    "hadronic_pp_kernel.f90",
+    "hadronic_bethe_heitler_kernel.f90",
+    "hadronic_hadronic_ic_kernel.f90",
+    "hadronic_species_transport_kernel.f90",
+    "hadronic_acceleration_kernel.f90",
+    "hadronic_secondary_radiation_kernel.f90",
+    "hadronic_decay_kernel.f90",
+)
+
+
+def _with_main(common_sources: tuple[str, ...], main_source: str) -> list[str]:
+    return [*common_sources, main_source]
 
 
 def _detect_build_platform() -> str:
@@ -62,6 +142,7 @@ def _module_output_paths(directory: Path, module_name: str) -> list[Path]:
     for pattern in (f"{module_name}*.pyd", f"{module_name}*.so"):
         outputs.extend(directory.glob(pattern))
     return outputs
+
 
 def _write_build_log(log_path: Path, command: list[str], cwd: Path, result: subprocess.CompletedProcess[str]) -> None:
     log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -115,7 +196,7 @@ def _run_command(
     return result
 
 
-def _build_fs_electron_ordered_fallback(
+def _build_ordered_object_module(
     root: Path,
     module_name: str,
     cwd: Path,
@@ -158,13 +239,7 @@ def _build_fs_electron_ordered_fallback(
     pyf_path = build_dir / f"{module_name}.pyf"
     main_source_name = Path(sources[-1]).name
     source_rel = os.path.relpath((cwd / main_source_name).resolve(), build_dir)
-    entry_names = [module_name.lower()]
-    if module_name == "FS_electron_charint_1d":
-        entry_names.append("fs_electron_charint_1d_affine_step_test")
-    if module_name == "electron_get_y":
-        entry_names = ["get_nu_a", "get_syn_selected"]
-    if module_name == "SSC_spec":
-        entry_names = ["ssc_spec", "ssc_spec_nonuniform"]
+    entry_names = list(F2PY_ENTRYPOINTS.get(module_name, (module_name.lower(),)))
     signature_command = [
         sys.executable,
         "-m",
@@ -217,11 +292,22 @@ def _build_fs_electron_ordered_fallback(
         _run_command(compile_c, build_dir, env, log_dir / f"{module_name}_fallback_compile_{source.stem}.log", verbose)
         c_objects.append(object_path)
 
-    wrapper_source = build_dir / f"{module_name}-f2pywrappers.f"
-    wrapper_object = build_dir / f"{module_name}-f2pywrappers.o"
-    if wrapper_source.is_file():
+    wrapper_sources = [
+        build_dir / f"{module_name}-f2pywrappers.f",
+        build_dir / f"{module_name}-f2pywrappers2.f90",
+    ]
+    for wrapper_source in wrapper_sources:
+        if not wrapper_source.is_file():
+            continue
+        wrapper_object = build_dir / f"{wrapper_source.stem}.o"
         compile_wrapper = [fc, "-c", "-fPIC", str(wrapper_source), "-o", str(wrapper_object)]
-        _run_command(compile_wrapper, build_dir, env, log_dir / f"{module_name}_fallback_compile_wrappers.log", verbose)
+        _run_command(
+            compile_wrapper,
+            build_dir,
+            env,
+            log_dir / f"{module_name}_fallback_compile_{wrapper_source.stem}.log",
+            verbose,
+        )
         object_paths.append(wrapper_object)
 
     output_path = build_dir / f"{module_name}{ext_suffix}"
@@ -306,23 +392,25 @@ def main() -> None:
     ele = src / "Electron"
     itp = src / "Interpolation"
     rad = src / "Radiation"
+    had = src / "Hadronic"
     modules = [
         ("Constants", src, ["Constants.f90"], None, None),
-        ("Dynamics_reverse", dyn, ["../Constants.f90", "Dynamics_reverse.f90"], COMMON_FLAGS, None),
-        ("Dynamics_forward", dyn, ["../Constants.f90", "dynamics_common.f90", "Dynamics_forward.f90"], COMMON_FLAGS, None),
-        ("FS_electron_weno5_1d", ele, ["../Constants.f90", "../Radiation/radiation_common.f90", "adaptive_resampling_mod.f90", "electron_common.f90", "electron_radiation_kernel.f90", "electron_cooling_kernel.f90", "calling_modules.f90", "FS_electron_weno5_1d.f90"], OMP_FLAGS, OPENMP_LIBS),
-        ("FS_electron_slc1_1d", ele, ["../Constants.f90", "../Radiation/radiation_common.f90", "adaptive_resampling_mod.f90", "electron_common.f90", "electron_radiation_kernel.f90", "electron_cooling_kernel.f90", "calling_modules.f90", "FS_electron_slc1_1d.f90"], OMP_FLAGS, OPENMP_LIBS),
-        ("FS_electron_charint_1d", ele, ["../Constants.f90", "../Radiation/radiation_common.f90", "adaptive_resampling_mod.f90", "electron_common.f90", "electron_radiation_kernel.f90", "electron_cooling_kernel.f90", "calling_modules.f90", "FS_electron_charint_1d.f90"], OMP_FLAGS, OPENMP_LIBS),
-        ("FS_electron_fullhide_1d", ele, ["../Constants.f90", "../Radiation/radiation_common.f90", "adaptive_resampling_mod.f90", "electron_common.f90", "electron_radiation_kernel.f90", "electron_cooling_kernel.f90", "electron_seed_history_kernel.f90", "calling_modules.f90", "FS_electron_fullhide_1d.f90"], OMP_FLAGS, OPENMP_LIBS),
-        ("FS_electron_fullhide_2d", ele, ["../Constants.f90", "../Radiation/radiation_common.f90", "adaptive_resampling_mod.f90", "electron_common.f90", "electron_radiation_kernel.f90", "electron_cooling_kernel.f90", "electron_seed_history_kernel.f90", "electron_transport_2d_kernel.f90", "calling_modules.f90", "FS_electron_fullhide_2d.f90"], OMP_FLAGS, OPENMP_LIBS),
-        ("FS_electron_charint_2d", ele, ["../Constants.f90", "../Radiation/radiation_common.f90", "adaptive_resampling_mod.f90", "electron_common.f90", "electron_radiation_kernel.f90", "electron_cooling_kernel.f90", "electron_seed_history_kernel.f90", "electron_transport_2d_kernel.f90", "calling_modules.f90", "FS_electron_charint_2d.f90"], OMP_FLAGS, OPENMP_LIBS),
-        ("FS_electron_t2g1_1d", ele, ["../Constants.f90", "../Radiation/radiation_common.f90", "adaptive_resampling_mod.f90", "electron_common.f90", "electron_radiation_kernel.f90", "electron_cooling_kernel.f90", "calling_modules.f90", "FS_electron_t2g1_1d.f90"], OMP_FLAGS, OPENMP_LIBS),
-        ("electron_get_y", ele, ["../Constants.f90", "../Radiation/radiation_common.f90", "adaptive_resampling_mod.f90", "electron_common.f90", "electron_radiation_kernel.f90", "electron_cooling_kernel.f90", "calling_modules.f90", "electron_get_y.f90"], OMP_FLAGS, OPENMP_LIBS),
+        ("Dynamics_reverse", dyn, _with_main(DYNAMICS_COMMON_SOURCES, "Dynamics_reverse.f90"), COMMON_FLAGS, None),
+        ("Dynamics_forward", dyn, _with_main(DYNAMICS_COMMON_SOURCES, "Dynamics_forward.f90"), COMMON_FLAGS, None),
+        ("FS_electron_weno5_1d", ele, _with_main(ELECTRON_1D_SOURCES, "FS_electron_weno5_1d.f90"), OMP_FLAGS, OPENMP_LIBS),
+        ("FS_electron_slc1_1d", ele, _with_main(ELECTRON_1D_SOURCES, "FS_electron_slc1_1d.f90"), OMP_FLAGS, OPENMP_LIBS),
+        ("FS_electron_charint_1d", ele, _with_main(ELECTRON_1D_SOURCES, "FS_electron_charint_1d.f90"), OMP_FLAGS, OPENMP_LIBS),
+        ("FS_electron_fullhide_1d", ele, _with_main(ELECTRON_HISTORY_SOURCES, "FS_electron_fullhide_1d.f90"), OMP_FLAGS, OPENMP_LIBS),
+        ("FS_electron_fullhide_2d", ele, _with_main(ELECTRON_2D_SOURCES, "FS_electron_fullhide_2d.f90"), OMP_FLAGS, OPENMP_LIBS),
+        ("FS_electron_charint_2d", ele, [*ELECTRON_2D_SOURCES, "FS_electron_fullhide_2d.f90", "FS_electron_charint_2d.f90"], OMP_FLAGS, OPENMP_LIBS),
+        ("FS_electron_t2g1_1d", ele, _with_main(ELECTRON_1D_SOURCES, "FS_electron_t2g1_1d.f90"), OMP_FLAGS, OPENMP_LIBS),
+        ("electron_get_y", ele, _with_main(ELECTRON_1D_SOURCES, "electron_get_y.f90"), OMP_FLAGS, OPENMP_LIBS),
         ("SED_interpolation", itp, ["../Constants.f90", "interpolation_common.f90", "SED_interpolation.f90"], OMP_FLAGS, OPENMP_LIBS),
         ("SED_interpolation_structured", itp, ["../Constants.f90", "interpolation_common.f90", "SED_interpolation_structured.f90"], OMP_FLAGS, OPENMP_LIBS),
-        ("Annihilation", rad, ["../Constants.f90", "radiation_common.f90", "Annihilation.f90"], OMP_FLAGS, OPENMP_LIBS),
-        ("Seed_reverse", rad, ["../Constants.f90", "radiation_common.f90", "Seed_reverse.f90"], OMP_FLAGS, OPENMP_LIBS),
-        ("SSC_spec", rad, ["../Constants.f90", "radiation_common.f90", "SSC_spec.f90"], OMP_FLAGS, OPENMP_LIBS),
+        ("Annihilation", rad, _with_main(RADIATION_COMMON_SOURCES, "Annihilation.f90"), OMP_FLAGS, OPENMP_LIBS),
+        ("Seed_reverse", rad, _with_main(RADIATION_COMMON_SOURCES, "Seed_reverse.f90"), OMP_FLAGS, OPENMP_LIBS),
+        ("SSC_spec", rad, _with_main(RADIATION_COMMON_SOURCES, "SSC_spec.f90"), OMP_FLAGS, OPENMP_LIBS),
+        ("FS_hadronic_1d", had, _with_main(HADRONIC_1D_SOURCES, "FS_hadronic_1d.f90"), OMP_FLAGS, OPENMP_LIBS),
     ]
     module_aliases = {
         "FS_electron_weno5": "FS_electron_weno5_1d",
@@ -340,26 +428,14 @@ def main() -> None:
         if missing:
             raise SystemExit(f"Unknown module(s): {', '.join(sorted(missing))}")
     if args.clean:
-        for directory in (src, dyn, ele, itp, rad):
+        for directory in (src, dyn, ele, had, itp, rad):
             _clean_build_outputs(directory)
 
     print(f"Compile start ({_detect_build_platform()})")
-    direct_ordered_build = {
-        "electron_get_y",
-        "FS_electron_weno5_1d",
-        "FS_electron_slc1_1d",
-        "FS_electron_charint_1d",
-        "FS_electron_charint_2d",
-        "FS_electron_fullhide_1d",
-        "FS_electron_fullhide_2d",
-        "FS_electron_t2g1_1d",
-        "Seed_reverse",
-        "SSC_spec",
-    }
     for module_name, cwd, sources, fflags, extra_args in modules:
         print(f"Build {module_name}")
-        if module_name in direct_ordered_build:
-            elapsed = _build_fs_electron_ordered_fallback(
+        if module_name in DIRECT_ORDERED_BUILD_MODULES:
+            elapsed = _build_ordered_object_module(
                 root,
                 module_name,
                 cwd,
@@ -371,40 +447,15 @@ def main() -> None:
             )
             print(f"Done {module_name}: {elapsed:.2f}s")
             continue
-        try:
-            elapsed = _build_module(
-                module_name,
-                cwd,
-                sources,
-                log_dir,
-                args.verbose,
-                fflags,
-                extra_args,
-            )
-        except subprocess.CalledProcessError:
-            if module_name not in {
-                "FS_electron_weno5_1d",
-                "FS_electron_slc1_1d",
-                "FS_electron_charint_1d",
-                "FS_electron_charint_2d",
-                "FS_electron_fullhide_1d",
-                "FS_electron_fullhide_2d",
-                "FS_electron_t2g1_1d",
-                "Seed_reverse",
-                "SSC_spec",
-            }:
-                raise
-            print(f"Retry {module_name} with ordered object build fallback")
-            elapsed = _build_fs_electron_ordered_fallback(
-                root,
-                module_name,
-                cwd,
-                sources,
-                log_dir,
-                args.verbose,
-                fflags,
-                extra_args,
-            )
+        elapsed = _build_module(
+            module_name,
+            cwd,
+            sources,
+            log_dir,
+            args.verbose,
+            fflags,
+            extra_args,
+        )
         print(f"Done {module_name}: {elapsed:.2f}s")
     print("Compile complete!")
 

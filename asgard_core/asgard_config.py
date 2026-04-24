@@ -54,6 +54,26 @@ class ReverseShockConfig:
     include_cross_zone_ic: bool = False
 
 
+@dataclass
+class HadronicConfig:
+    """Configuration for forward-shock hadronic emission."""
+    enabled: bool = False
+    solver: str = "legacy_1d"
+    epsilon_p: float = 0.0
+    p_p: float = 2.2
+    eta_acc: float = 1.0
+    num_gam_p: int = 161
+    include_proton_synch: bool = True
+    include_pg: bool = False
+    include_neutrino: bool = False
+    include_bethe_heitler: bool = False
+    include_hadronic_inverse_compton: bool = False
+    include_pair_production: bool = False
+    include_pp: bool = False
+    pgamma_scheme: str = "disabled"
+    num_nu_nu: int = 121
+
+
 @dataclass(frozen=True)
 class ExecutionPolicy:
     """Execution policy for parallel computation."""
@@ -115,6 +135,7 @@ class PhysicsConfig:
 
     # Reverse shock
     reverse_shock: ReverseShockConfig = field(default_factory=ReverseShockConfig)
+    hadronic: HadronicConfig = field(default_factory=HadronicConfig)
 
 
 @dataclass
@@ -250,6 +271,127 @@ class FitConfig:
 
     spectrum_output: SpectrumOutputConfig = field(default_factory=SpectrumOutputConfig)
     reverse_shock: ReverseShockConfig = field(default_factory=ReverseShockConfig)
+    hadronic: HadronicConfig = field(default_factory=HadronicConfig)
+
+    @property
+    def hadronic_enabled(self) -> bool:
+        return bool(self.hadronic.enabled)
+
+    @hadronic_enabled.setter
+    def hadronic_enabled(self, value: bool) -> None:
+        self.hadronic.enabled = bool(value)
+
+    @property
+    def hadronic_solver(self) -> str:
+        return str(self.hadronic.solver)
+
+    @hadronic_solver.setter
+    def hadronic_solver(self, value: str) -> None:
+        self.hadronic.solver = str(value)
+
+    @property
+    def epsilon_p(self) -> float:
+        return float(self.hadronic.epsilon_p)
+
+    @epsilon_p.setter
+    def epsilon_p(self, value: float) -> None:
+        self.hadronic.epsilon_p = float(value)
+
+    @property
+    def p_p(self) -> float:
+        return float(self.hadronic.p_p)
+
+    @p_p.setter
+    def p_p(self, value: float) -> None:
+        self.hadronic.p_p = float(value)
+
+    @property
+    def eta_acc(self) -> float:
+        return float(self.hadronic.eta_acc)
+
+    @eta_acc.setter
+    def eta_acc(self, value: float) -> None:
+        self.hadronic.eta_acc = float(value)
+
+    @property
+    def num_gam_p(self) -> int:
+        return int(self.hadronic.num_gam_p)
+
+    @num_gam_p.setter
+    def num_gam_p(self, value: int) -> None:
+        self.hadronic.num_gam_p = int(value)
+
+    @property
+    def include_proton_synch(self) -> bool:
+        return bool(self.hadronic.include_proton_synch)
+
+    @include_proton_synch.setter
+    def include_proton_synch(self, value: bool) -> None:
+        self.hadronic.include_proton_synch = bool(value)
+
+    @property
+    def include_pg(self) -> bool:
+        return bool(self.hadronic.include_pg)
+
+    @include_pg.setter
+    def include_pg(self, value: bool) -> None:
+        self.hadronic.include_pg = bool(value)
+
+    @property
+    def include_neutrino(self) -> bool:
+        return bool(self.hadronic.include_neutrino)
+
+    @include_neutrino.setter
+    def include_neutrino(self, value: bool) -> None:
+        self.hadronic.include_neutrino = bool(value)
+
+    @property
+    def pgamma_scheme(self) -> str:
+        return str(self.hadronic.pgamma_scheme)
+
+    @pgamma_scheme.setter
+    def pgamma_scheme(self, value: str) -> None:
+        self.hadronic.pgamma_scheme = str(value)
+
+    @property
+    def num_nu_nu(self) -> int:
+        return int(self.hadronic.num_nu_nu)
+
+    @num_nu_nu.setter
+    def num_nu_nu(self, value: int) -> None:
+        self.hadronic.num_nu_nu = int(value)
+
+    @property
+    def include_bethe_heitler(self) -> bool:
+        return bool(self.hadronic.include_bethe_heitler)
+
+    @include_bethe_heitler.setter
+    def include_bethe_heitler(self, value: bool) -> None:
+        self.hadronic.include_bethe_heitler = bool(value)
+
+    @property
+    def include_hadronic_inverse_compton(self) -> bool:
+        return bool(self.hadronic.include_hadronic_inverse_compton)
+
+    @include_hadronic_inverse_compton.setter
+    def include_hadronic_inverse_compton(self, value: bool) -> None:
+        self.hadronic.include_hadronic_inverse_compton = bool(value)
+
+    @property
+    def include_pair_production(self) -> bool:
+        return bool(self.hadronic.include_pair_production)
+
+    @include_pair_production.setter
+    def include_pair_production(self, value: bool) -> None:
+        self.hadronic.include_pair_production = bool(value)
+
+    @property
+    def include_pp(self) -> bool:
+        return bool(self.hadronic.include_pp)
+
+    @include_pp.setter
+    def include_pp(self, value: bool) -> None:
+        self.hadronic.include_pp = bool(value)
 
     def to_simulation_config(self) -> SimulationConfig:
         """Convert FitConfig to new SimulationConfig format."""
@@ -283,6 +425,7 @@ class FitConfig:
             f_jump=self.f_jump,
             f_wide=self.f_wide,
             reverse_shock=self.reverse_shock,
+            hadronic=self.hadronic,
         )
 
         execution = ExecutionPolicy(

@@ -2,12 +2,16 @@ subroutine dynamics_reverse (Delta_t,e_r,b_r,p_r,f_e_r,Boundary,n,Num_R,Num_gam_
                              T_cross,R_cross,e3_cross,gam20,R_Tobs,R_Gamma,R,M2,M3,B3,gam_e,dN_gam_e)
     !$ use omp_lib
     use constants
+    use dynamics_common, only: dynamics_deceleration_radius, dynamics_external_density_base
     IMPLICIT REAL(8)(A-H,O-Z)
     integer, intent(in) :: n,Num_R,Num_gam_e
     real(8), intent(in) :: Boundary(n)
     real(8), intent(in) :: Delta_t,e_r,b_r,p_r,f_e_r
     real(8), intent(out) :: T_cross,R_cross,e3_cross,gam20,R_Tobs(Num_R),R(Num_R),M2(Num_R),M3(Num_R),B3(Num_R)
     real(8), intent(out) :: dN_gam_e(Num_gam_e,Num_R),gam_e(Num_gam_e),R_Gamma(Num_R)
+    real(8), parameter :: reverse_gamma_c_coeff=7.7d8
+    real(8), parameter :: reverse_synch_b_coeff=0.39d0
+    real(8), parameter :: reverse_adv_coeff=1.35d-19
 
     real(8),allocatable,dimension (:) :: dEl,principal,x,dF1,up,temp1,temp2,temp3,Y,dB3_serial, &
                                          dN_x,para_minus_gam_e_p
@@ -44,7 +48,7 @@ subroutine dynamics_reverse (Delta_t,e_r,b_r,p_r,f_e_r,Boundary,n,Num_R,Num_gam_
     
     !**********************[Time bin]**********************
     DM_0=E_iso/((Eta_0-one)*4d0*pi*Para_m_p_E)
-    call reverse_deceleration_radius(A_star,dNe_ISM,Eta_0,DM_0,R_dec)
+    call dynamics_deceleration_radius(A_star,dNe_ISM,Eta_0,DM_0,R_dec)
     
     T_cross=-1d0
     T00=Y(4)*(one/dsqrt(one-one/Eta_0**2)-one)/Para_c
@@ -57,7 +61,7 @@ subroutine dynamics_reverse (Delta_t,e_r,b_r,p_r,f_e_r,Boundary,n,Num_R,Num_gam_
 
     do I_tobs=1,Num_R
         T=T00+ten**(Grid_Tobs_bin+T_log10*(I_tobs-one)/Num_R1)
-        if (I_tobs < one) then
+        if (I_tobs == 1) then
             H=ten**(Grid_Tobs_bin+T_log10*(I_tobs-one)/Num_R1)
         else
             H=ten**(Grid_Tobs_bin+T_log10*I_tobs/Num_R1)-ten**(Grid_Tobs_bin+T_log10*(I_tobs-one)/Num_R1)
@@ -74,19 +78,19 @@ subroutine dynamics_reverse (Delta_t,e_r,b_r,p_r,f_e_r,Boundary,n,Num_R,Num_gam_
     end do
     B3 = dB3_serial
 
-    factor2=(p_r-two)/(p_r-one)*e_r*1836.5
-    if (p_r<2.05) factor2=0.05/1.05*e_r*1836.5
+    factor2=(p_r-two)/(p_r-one)*e_r*Para_m_p_div_m_e
+    if (p_r<2.05) factor2=0.05/1.05*e_r*Para_m_p_div_m_e
 
-    dB3_serial(1)=dB3_serial(2)
+    dB3_serial(1)=dB3_serial(min(2,Num_R))
     dB=dB3_serial(1)
     gamma34=1.001
     call reverse_gamma_extrema(dB,gamma34,factor2,f_e_r,Gam_e_max,Gam_e_m)
-    Gam_e_c=7.7d8/(one+dsqrt(e_r/b_r))/R_Gamma(1)/dB**2/(R_Tobs(1)/two)
+    Gam_e_c=reverse_gamma_c_coeff/(one+dsqrt(e_r/b_r))/R_Gamma(1)/dB**2/(R_Tobs(1)/two)
     
     
-    call reverse_external_density(A_star,dNe_ISM,R(1),dNe)
+    call dynamics_external_density_base(A_star,dNe_ISM,R(1),dNe)
 
-    DB_min=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma(Num_R)*(R_Gamma(Num_R)-one)))
+    DB_min=reverse_synch_b_coeff*dsqrt(Epsilon_b*dNe*(R_Gamma(Num_R)*(R_Gamma(Num_R)-one)))
     Gam_e_max_max=3d0*Para_m_energy/dsqrt(8d0*DB_min*Para_e**3)
     
     do I_gam_e=1,Num_gam_e
@@ -111,10 +115,10 @@ subroutine dynamics_reverse (Delta_t,e_r,b_r,p_r,f_e_r,Boundary,n,Num_R,Num_gam_
 !        dB=0.39*sqrt(b_r*R_n4)*gamma34
         dB=(dB3_serial(I_tobs)+dB3_serial(I_tobs-1))/two
         call reverse_gamma_extrema(dB,gamma34,factor2,f_e_r,Gam_e_max,Gam_e_m)
-        Gam_e_c=7.7d8*(one+z)/R_Gamma_loc/dB**2/R_Tobs(I_tobs)
+        Gam_e_c=reverse_gamma_c_coeff*(one+z)/R_Gamma_loc/dB**2/R_Tobs(I_tobs)
         eta=(Gam_e_m/Gam_e_c)**(p_r-two)
         if (eta-one > 0.001) eta=one
-        f_r=1.35d-19/beta2/R_Gamma_loc*dB**2/pi
+        f_r=reverse_adv_coeff/beta2/R_Gamma_loc*dB**2/pi
         dDR=0.7/(f_r*Gam_e_max+1.333/(R(I_tobs)+R(I_tobs-1)))
         !***********************[Here we have presented the choice on Delta_r]******************************************
         dDD=R(I_tobs)-R(I_tobs-1)
@@ -176,39 +180,6 @@ subroutine dynamics_reverse (Delta_t,e_r,b_r,p_r,f_e_r,Boundary,n,Num_R,Num_gam_
 
     return
 end subroutine dynamics_reverse
-
-subroutine reverse_deceleration_radius(A_star,dNe_ISM,Eta_0,DM_0,R_dec)
-    use constants
-    implicit real(8)(A-H,O-Z)
-    real(8), intent(in) :: A_star,dNe_ISM,Eta_0,DM_0
-    real(8), intent(out) :: R_dec
-
-    R_dec_ISM=(dNe_ISM*Eta_0/DM_0)**(-one/3d0)
-    if (A_star > zero) then
-        R_dec_wind=DM_0/(2.0d35*A_star*Eta_0)
-        R_dec=min(R_dec_wind,R_dec_ISM)
-    else
-        R_dec=R_dec_ISM
-    end if
-end subroutine reverse_deceleration_radius
-
-subroutine reverse_external_density(A_star,dNe_ISM,RR,dNe)
-    use constants
-    implicit real(8)(A-H,O-Z)
-    real(8), intent(in) :: A_star,dNe_ISM,RR
-    real(8), intent(out) :: dNe
-
-    if (A_star >= 0.0d0) then
-        dNe_wind=A_star*3.0d35/RR**2
-        if (dNe_wind <= dNe_ISM/4d0) then
-            dNe=dNe_ISM
-        else
-            dNe=dNe_wind
-        end if
-    else
-        dNe=dNe_ISM
-    end if
-end subroutine reverse_external_density
 
 subroutine reverse_gamma_extrema(dB,gamma34,factor2,f_e_r,Gam_e_max,Gam_e_m)
     use constants
@@ -298,18 +269,21 @@ end subroutine reverse_compton_factor
 subroutine F(dB3,T_cross,R_cross,e3_cross,gam20, &
              T,Y,D,para_m_ej,Delta_0,eta_0,A_star,dNe_ISM,Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,f_e_r)
     use constants
+    use dynamics_common, only: dynamics_external_density_base
     IMPLICIT REAL(8)(A-H,O-Z)
     real(8), intent(inout) :: dB3,T_cross,R_cross,e3_cross,gam20
     real(8), intent(in) :: T,para_m_ej,Delta_0,eta_0,A_star,dNe_ISM,Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,f_e_r
     real(8), intent(in) :: Y(4)
     real(8), intent(out) :: D(4)
+    real(8), parameter :: reverse_synch_b_coeff=0.39d0
+    real(8), parameter :: reverse_gamma_c_precise_coeff=7.739d8
     
     gam2=Y(1)
     RR=Y(2)
     para_m2=Y(3)
     para_m3=Y(4)
     
-    call reverse_external_density(A_star,dNe_ISM,RR,dNe)
+    call dynamics_external_density_base(A_star,dNe_ISM,RR,dNe)
     
     u2=dsqrt(gam2*gam2-one)
     u4=dsqrt(eta_0*eta_0-one)
@@ -324,9 +298,9 @@ subroutine F(dB3,T_cross,R_cross,e3_cross,gam20, &
     para_n3=(4.0*gam34+3.0)*para_n4
     betars=(u2*para_n3-u4*para_n4)/(gam2*para_n3-eta_0*para_n4)
 
-    dB2=0.39d0*dsqrt((Epsilon_b*dNe)*(gam2*gam2-one))
-    gam_c2=7.739d8/(dB2*dB2*gam2*T)
-    gam_m2=Epsilon_e/f_e*1836d0*(p_f-two)*(gam2-one)/(p_f-one)+one
+    dB2=reverse_synch_b_coeff*dsqrt((Epsilon_b*dNe)*(gam2*gam2-one))
+    gam_c2=reverse_gamma_c_precise_coeff/(dB2*dB2*gam2*T)
+    gam_m2=Epsilon_e/f_e*Para_m_p_div_m_e*(p_f-two)*(gam2-one)/(p_f-one)+one
     eps2=Epsilon_e*min(one,(gam_m2/gam_c2)**(p_f-two))
 
     e2=4d0*gam2*gam2*dNe*Para_m_p_E
@@ -338,10 +312,10 @@ subroutine F(dB3,T_cross,R_cross,e3_cross,gam20, &
     else
         e3=e3_cross*(R_cross/RR)**3*gam2/gam20
         dB3=dsqrt(8d0*pi*b_r*e3)
-        gam_c3=7.739d8/(dB3*dB3*gam2*T)
+        gam_c3=reverse_gamma_c_precise_coeff/(dB3*dB3*gam2*T)
     end if
     
-    gam_m3=e_r/f_e_r*1836d0*(p_r-two)*(gam34-one)/(p_r-one)+one
+    gam_m3=e_r/f_e_r*Para_m_p_div_m_e*(p_r-two)*(gam34-one)/(p_r-one)+one
     eps3=e_r*min(one,(gam_m3/gam_c3)**(p_r-two))
 
     dgam2_1=-para1*((gam2*gam2-one)*dNe+(gam2*gam34-eta_0)*(beta4-betars)*eta_0*para_n4)
@@ -371,6 +345,7 @@ end subroutine F
 
 SUBROUTINE GRKT4(dB3,T_cross,R_cross,e3_cross,gam20, T,H,Y,para_m_ej,Delta_0,eta_0,A_star, &
                  dNe_ISM,Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,f_e_r)
+    use dynamics_common, only: dynamics_rk4_coefficients, dynamics_rk4_error_n
     IMPLICIT REAL(8)(A-H,O-Z)
     real(8), intent(inout) :: dB3,T_cross,R_cross,e3_cross,gam20,T,Y(4)
     real(8), intent(in) :: H,para_m_ej,Delta_0,eta_0,A_star,dNe_ISM,Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,f_e_r
@@ -383,10 +358,7 @@ SUBROUTINE GRKT4(dB3,T_cross,R_cross,e3_cross,gam20, T,H,Y,para_m_ej,Delta_0,eta
     X=T
     C=Y
     do while (P >= EPS)
-        A(1)=0.5*HH
-        A(2)=A(1)
-        A(3)=HH
-        A(4)=HH
+        call dynamics_rk4_coefficients(HH,A)
         G=Y
         Y=C
         DT=H/N
@@ -406,11 +378,7 @@ SUBROUTINE GRKT4(dB3,T_cross,R_cross,e3_cross,gam20, T,H,Y,para_m_ej,Delta_0,eta
             Y=B+HH*D/6.0
             T=T+DT
         end do
-        P=0.0
-        do I=1,4
-            Q=2.0*abs(Y(I)-G(I))/(Y(I)+G(I))
-            if (Q > P) P=Q
-        end do
+        call dynamics_rk4_error_n(Y,G,4,P)
         HH=0.5*HH
         N=N+N
     end do

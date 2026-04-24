@@ -1,7 +1,16 @@
 !f2py: skip
 module electron_common
     use constants
+    use dynamics_common, only: dynamics_external_density_profile
     use adaptive_resampling_mod, only: adaptive_resampling_log
+    use electron_injection_profiles, only: &
+        electron_initial_powerlaw_impl => electron_initial_powerlaw, &
+        electron_initial_powerlaw_exp_cutoff_impl => electron_initial_powerlaw_exp_cutoff, &
+        electron_initial_powerlaw_exp_cutoff_edges_impl => electron_initial_powerlaw_exp_cutoff_edges, &
+        electron_build_source_term_impl => electron_build_source_term, &
+        electron_build_source_term_exp_cutoff_impl => electron_build_source_term_exp_cutoff, &
+        electron_build_source_term_exp_cutoff_edges_impl => electron_build_source_term_exp_cutoff_edges, &
+        electron_build_source_term_profile_impl => electron_build_source_term_profile
     implicit none
 
     integer, parameter :: radiation_resample_threshold = 180
@@ -705,19 +714,27 @@ subroutine electron_characteristic_step_prepared_core(Num_gam_e,dDR,x_edge,x_bac
                                                       q_left_source,q_right_source,prefix_source,dF1,dN_x_in,dN_x_out)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: Num_gam_e
-    integer :: I_quad
+    integer :: I_quad,I_gam_e
     real(8), intent(in) :: dDR,x_edge(Num_gam_e+1),source_scale
     real(8), intent(in) :: x_back_batch(Num_gam_e+1,5),dF1(Num_gam_e),dN_x_in(Num_gam_e)
     real(8), intent(in) :: q_left_source(Num_gam_e),q_right_source(Num_gam_e),prefix_source(0:Num_gam_e)
     real(8), intent(out) :: dN_x_out(Num_gam_e)
     real(8) :: x_back(Num_gam_e+1),dN_transport(Num_gam_e),dN_source(Num_gam_e),dN_quad(Num_gam_e)
     real(8) :: q_left_state(Num_gam_e),q_right_state(Num_gam_e),prefix_state(0:Num_gam_e)
+    real(8) :: dx_cur
 
     call electron_prepare_conservative_remap_nonuniform(Num_gam_e,x_edge,dN_x_in,q_left_state,q_right_state,prefix_state)
 
     x_back=x_back_batch(:,1)
-    call electron_conservative_remap_nonuniform_prepared(Num_gam_e,x_edge,x_back,dN_x_in, &
-                                                         q_left_state,q_right_state,prefix_state,dN_transport)
+    do I_gam_e=1,Num_gam_e
+        dx_cur=max(x_edge(I_gam_e+1)-x_edge(I_gam_e),1d-30)
+        dN_transport(I_gam_e)= &
+            (electron_ppm_prefix_eval_nonuniform(Num_gam_e,x_edge,dN_x_in, &
+                                                 q_left_state,q_right_state,prefix_state,x_back(I_gam_e+1)) - &
+             electron_ppm_prefix_eval_nonuniform(Num_gam_e,x_edge,dN_x_in, &
+                                                 q_left_state,q_right_state,prefix_state,x_back(I_gam_e)))/dx_cur
+    end do
+    dN_transport=max(zero,dN_transport)
 
     if (source_scale == zero) then
         dN_x_out = max(zero, dN_transport)
@@ -727,8 +744,15 @@ subroutine electron_characteristic_step_prepared_core(Num_gam_e,dDR,x_edge,x_bac
     dN_source=zero
     do I_quad=1,charint_quad_order
         x_back=x_back_batch(:,I_quad+1)
-        call electron_conservative_remap_nonuniform_prepared(Num_gam_e,x_edge,x_back,dF1, &
-                                                             q_left_source,q_right_source,prefix_source,dN_quad)
+        do I_gam_e=1,Num_gam_e
+            dx_cur=max(x_edge(I_gam_e+1)-x_edge(I_gam_e),1d-30)
+            dN_quad(I_gam_e)= &
+                (electron_ppm_prefix_eval_nonuniform(Num_gam_e,x_edge,dF1, &
+                                                     q_left_source,q_right_source,prefix_source,x_back(I_gam_e+1)) - &
+                 electron_ppm_prefix_eval_nonuniform(Num_gam_e,x_edge,dF1, &
+                                                     q_left_source,q_right_source,prefix_source,x_back(I_gam_e)))/dx_cur
+        end do
+        dN_quad=max(zero,dN_quad)
         dN_source=dN_source+charint_quad_weights(I_quad)*dN_quad
     end do
 
@@ -775,14 +799,25 @@ end subroutine electron_characteristic_step_affine_u_prepared_source
 subroutine electron_characteristic_transport_affine_u(Num_gam_e,dDR,x_edge,a_u,b_u,dN_x_in,dN_x_out)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: Num_gam_e
+    integer :: I_gam_e
     real(8), intent(in) :: dDR,x_edge(Num_gam_e+1),a_u,b_u
     real(8), intent(in) :: dN_x_in(Num_gam_e)
     real(8), intent(out) :: dN_x_out(Num_gam_e)
     real(8) :: u_now_edge(Num_gam_e+1),x_back(Num_gam_e+1)
+    real(8) :: q_left_state(Num_gam_e),q_right_state(Num_gam_e),prefix_state(0:Num_gam_e),dx_cur
 
     call electron_u_edges_from_x(Num_gam_e,x_edge,u_now_edge)
     call electron_trace_affine_u_edges(Num_gam_e,u_now_edge,dDR,a_u,b_u,x_back)
-    call electron_conservative_remap_nonuniform(Num_gam_e,x_edge,x_back,dN_x_in,dN_x_out)
+    call electron_prepare_conservative_remap_nonuniform(Num_gam_e,x_edge,dN_x_in,q_left_state,q_right_state,prefix_state)
+    do I_gam_e=1,Num_gam_e
+        dx_cur=max(x_edge(I_gam_e+1)-x_edge(I_gam_e),1d-30)
+        dN_x_out(I_gam_e)= &
+            (electron_ppm_prefix_eval_nonuniform(Num_gam_e,x_edge,dN_x_in, &
+                                                 q_left_state,q_right_state,prefix_state,x_back(I_gam_e+1)) - &
+             electron_ppm_prefix_eval_nonuniform(Num_gam_e,x_edge,dN_x_in, &
+                                                 q_left_state,q_right_state,prefix_state,x_back(I_gam_e)))/dx_cur
+    end do
+    dN_x_out=max(zero,dN_x_out)
 end subroutine electron_characteristic_transport_affine_u
 
 subroutine electron_characteristic_step_piecewise_u(Num_gam_e,dDR,x_edge,gam_e,dEl,R_loc,dF1,dN_x_in,dN_x_out)
@@ -828,14 +863,25 @@ end subroutine electron_characteristic_step_piecewise_u_prepared_source
 subroutine electron_characteristic_transport_piecewise_u(Num_gam_e,dDR,x_edge,gam_e,dEl,R_loc,dN_x_in,dN_x_out)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: Num_gam_e
+    integer :: I_gam_e
     real(8), intent(in) :: dDR,x_edge(Num_gam_e+1),gam_e(Num_gam_e),dEl(Num_gam_e),R_loc
     real(8), intent(in) :: dN_x_in(Num_gam_e)
     real(8), intent(out) :: dN_x_out(Num_gam_e)
     real(8) :: u_edge(Num_gam_e+1),a_cell(Num_gam_e),b_cell(Num_gam_e),x_back(Num_gam_e+1)
+    real(8) :: q_left_state(Num_gam_e),q_right_state(Num_gam_e),prefix_state(0:Num_gam_e),dx_cur
 
     call electron_build_piecewise_affine_u(Num_gam_e,x_edge,gam_e,dEl,R_loc,u_edge,a_cell,b_cell)
     call electron_trace_piecewise_affine_u_edges(Num_gam_e,u_edge,u_edge,a_cell,b_cell,dDR,x_back)
-    call electron_conservative_remap_nonuniform(Num_gam_e,x_edge,x_back,dN_x_in,dN_x_out)
+    call electron_prepare_conservative_remap_nonuniform(Num_gam_e,x_edge,dN_x_in,q_left_state,q_right_state,prefix_state)
+    do I_gam_e=1,Num_gam_e
+        dx_cur=max(x_edge(I_gam_e+1)-x_edge(I_gam_e),1d-30)
+        dN_x_out(I_gam_e)= &
+            (electron_ppm_prefix_eval_nonuniform(Num_gam_e,x_edge,dN_x_in, &
+                                                 q_left_state,q_right_state,prefix_state,x_back(I_gam_e+1)) - &
+             electron_ppm_prefix_eval_nonuniform(Num_gam_e,x_edge,dN_x_in, &
+                                                 q_left_state,q_right_state,prefix_state,x_back(I_gam_e)))/dx_cur
+    end do
+    dN_x_out=max(zero,dN_x_out)
 end subroutine electron_characteristic_transport_piecewise_u
 
 subroutine electron_cell_geometry(Num_gam_e,x_edge,x_center,dx_cell)
@@ -1284,173 +1330,28 @@ subroutine electron_fill_powerlaw_interval(Num_gam_e,gam_e,x_edge,A,slope,gam_lo
     end do
 end subroutine electron_fill_powerlaw_interval
 
-real(8) function electron_dnx_powerlaw_cutoff_value(x,coeff,slope,Gam_e_max)
-    implicit real(8)(A-H,O-Z)
-    real(8), intent(in) :: x,coeff,slope,Gam_e_max
-    real(8) :: gam,cutoff_factor
-
-    if (coeff <= zero .or. Gam_e_max <= zero) then
-        electron_dnx_powerlaw_cutoff_value=zero
-        return
-    end if
-
-    gam=ten**x
-    cutoff_factor=one
-    if (gam > Gam_e_max) cutoff_factor=dexp(one-gam/Gam_e_max)
-    electron_dnx_powerlaw_cutoff_value=coeff*dlog(ten)*gam**(one-slope)*cutoff_factor
-end function electron_dnx_powerlaw_cutoff_value
-
-real(8) function electron_dnx_gauss3_integral(coeff,slope,Gam_e_max,x_lo,x_hi)
-    implicit real(8)(A-H,O-Z)
-    integer :: I_q
-    real(8), intent(in) :: coeff,slope,Gam_e_max,x_lo,x_hi
-    real(8), parameter :: xi(3)=(/-dsqrt(3d0/5d0),zero,dsqrt(3d0/5d0)/)
-    real(8), parameter :: wi(3)=(/5d0/9d0,8d0/9d0,5d0/9d0/)
-    real(8) :: half_dx,x_mid,x_eval,quad
-
-    if (x_hi <= x_lo) then
-        electron_dnx_gauss3_integral=zero
-        return
-    end if
-
-    half_dx=0.5d0*(x_hi-x_lo)
-    x_mid=0.5d0*(x_hi+x_lo)
-    quad=zero
-    do I_q=1,3
-        x_eval=x_mid+half_dx*xi(I_q)
-        quad=quad+wi(I_q)*electron_dnx_powerlaw_cutoff_value(x_eval,coeff,slope,Gam_e_max)
-    end do
-    electron_dnx_gauss3_integral=half_dx*quad
-end function electron_dnx_gauss3_integral
-
-subroutine electron_add_dnx_segment(cell_lo,cell_hi,active_lo,active_hi,coeff,slope,Gam_e_max,acc)
-    implicit real(8)(A-H,O-Z)
-    real(8), intent(in) :: cell_lo,cell_hi,active_lo,active_hi,coeff,slope,Gam_e_max
-    real(8), intent(inout) :: acc
-    real(8) :: x_lo,x_hi,x_cut
-
-    if (coeff <= zero .or. cell_hi <= cell_lo .or. active_hi <= active_lo) return
-    x_lo=max(cell_lo,active_lo)
-    x_hi=min(cell_hi,active_hi)
-    if (x_hi <= x_lo) return
-
-    x_cut=dlog10(max(Gam_e_max,1d-300))
-    if (x_lo < x_cut .and. x_hi > x_cut) then
-        acc=acc+electron_dnx_gauss3_integral(coeff,slope,Gam_e_max,x_lo,x_cut)
-        acc=acc+electron_dnx_gauss3_integral(coeff,slope,Gam_e_max,x_cut,x_hi)
-    else
-        acc=acc+electron_dnx_gauss3_integral(coeff,slope,Gam_e_max,x_lo,x_hi)
-    end if
-end subroutine electron_add_dnx_segment
-
 subroutine electron_initial_powerlaw(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,gam_e,dN_gam_e_1)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: Num_gam_e
-    integer :: I_gam_e
     real(8), intent(in) :: Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,gam_e(Num_gam_e)
     real(8), intent(out) :: dN_gam_e_1(Num_gam_e)
-    do I_gam_e=1,Num_gam_e
-        if (Gam_e_m > Gam_e_c) then
-            if (Gam_e_c > Gam_e(I_gam_e) .or. Gam_e_max < Gam_e(I_gam_e)) then
-                dN_gam_e_1(I_gam_e)=zero
-            else
-                Q1=Para_N_e_ini*Gam_e_c
-                if (Gam_e_m > Gam_e(I_gam_e)) then
-                    dN_gam_e_1(I_gam_e)=Q1*Gam_e(I_gam_e)**(-2)
-                else
-                    dN_gam_e_1(I_gam_e)=Q1*Gam_e_m**(p-one)*Gam_e(I_gam_e)**(-(p+one))
-                end if
-            end if
-        else
-            if (Gam_e_m > Gam_e(I_gam_e) .or. Gam_e_max < Gam_e(I_gam_e)) then
-                dN_gam_e_1(I_gam_e)=zero
-            else
-                Q1=Para_N_e_ini*Gam_e_m**(p-one)
-                if (Gam_e_c > Gam_e(I_gam_e)) then
-                    dN_gam_e_1(I_gam_e)=Q1*Gam_e(I_gam_e)**(-p)
-                else
-                    dN_gam_e_1(I_gam_e)=Q1*Gam_e_c*Gam_e(I_gam_e)**(-(p+one))
-                end if
-            end if
-        end if
-    end do
+    call electron_initial_powerlaw_impl(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,gam_e,dN_gam_e_1)
 end subroutine electron_initial_powerlaw
 
 subroutine electron_initial_powerlaw_exp_cutoff(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,gam_e,dN_gam_e_1)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: Num_gam_e
-    integer :: I_gam_e
     real(8), intent(in) :: Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,gam_e(Num_gam_e)
     real(8), intent(out) :: dN_gam_e_1(Num_gam_e)
-    real(8) :: cutoff_factor
-
-    dN_gam_e_1=zero
-    if (Gam_e_max <= zero) return
-
-    do I_gam_e=1,Num_gam_e
-        if (Gam_e_m > Gam_e_c) then
-            if (Gam_e_c > Gam_e(I_gam_e)) then
-                dN_gam_e_1(I_gam_e)=zero
-            else if (Gam_e_m > Gam_e(I_gam_e)) then
-                cutoff_factor=one
-                if (Gam_e(I_gam_e) > Gam_e_max) cutoff_factor=dexp(one-Gam_e(I_gam_e)/Gam_e_max)
-                dN_gam_e_1(I_gam_e)=Para_N_e_ini*Gam_e_c*Gam_e(I_gam_e)**(-2)*cutoff_factor
-            else
-                cutoff_factor=one
-                if (Gam_e(I_gam_e) > Gam_e_max) cutoff_factor=dexp(one-Gam_e(I_gam_e)/Gam_e_max)
-                dN_gam_e_1(I_gam_e)=Para_N_e_ini*Gam_e_c*Gam_e_m**(p-one)*Gam_e(I_gam_e)**(-(p+one))*cutoff_factor
-            end if
-        else
-            if (Gam_e_m > Gam_e(I_gam_e)) then
-                dN_gam_e_1(I_gam_e)=zero
-            else if (Gam_e_c > Gam_e(I_gam_e)) then
-                cutoff_factor=one
-                if (Gam_e(I_gam_e) > Gam_e_max) cutoff_factor=dexp(one-Gam_e(I_gam_e)/Gam_e_max)
-                dN_gam_e_1(I_gam_e)=Para_N_e_ini*Gam_e_m**(p-one)*Gam_e(I_gam_e)**(-p)*cutoff_factor
-            else
-                cutoff_factor=one
-                if (Gam_e(I_gam_e) > Gam_e_max) cutoff_factor=dexp(one-Gam_e(I_gam_e)/Gam_e_max)
-                dN_gam_e_1(I_gam_e)=Para_N_e_ini*Gam_e_m**(p-one)*Gam_e_c*Gam_e(I_gam_e)**(-(p+one))*cutoff_factor
-            end if
-        end if
-    end do
+    call electron_initial_powerlaw_exp_cutoff_impl(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,gam_e,dN_gam_e_1)
 end subroutine electron_initial_powerlaw_exp_cutoff
 
 subroutine electron_initial_powerlaw_exp_cutoff_edges(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,x_edge,dN_x_1)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: Num_gam_e
-    integer :: I_gam_e
     real(8), intent(in) :: Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,x_edge(Num_gam_e+1)
     real(8), intent(out) :: dN_x_1(Num_gam_e)
-    real(8) :: cell_lo,cell_hi,dx_cell,seg_sum,x_m,x_c,coeff_lo,coeff_hi,huge_x
-
-    dN_x_1=zero
-    if (Gam_e_max <= zero) return
-
-    x_m=dlog10(max(Gam_e_m,1d-300))
-    x_c=dlog10(max(Gam_e_c,1d-300))
-    huge_x=1d300
-
-    do I_gam_e=1,Num_gam_e
-        cell_lo=x_edge(I_gam_e)
-        cell_hi=x_edge(I_gam_e+1)
-        dx_cell=cell_hi-cell_lo
-        if (dx_cell <= zero) cycle
-
-        seg_sum=zero
-        if (Gam_e_m > Gam_e_c) then
-            coeff_lo=Para_N_e_ini*Gam_e_c
-            coeff_hi=Para_N_e_ini*Gam_e_c*Gam_e_m**(p-one)
-            call electron_add_dnx_segment(cell_lo,cell_hi,x_c,x_m,coeff_lo,2d0,Gam_e_max,seg_sum)
-            call electron_add_dnx_segment(cell_lo,cell_hi,x_m,huge_x,coeff_hi,p+one,Gam_e_max,seg_sum)
-        else
-            coeff_lo=Para_N_e_ini*Gam_e_m**(p-one)
-            coeff_hi=coeff_lo*Gam_e_c
-            call electron_add_dnx_segment(cell_lo,cell_hi,x_m,x_c,coeff_lo,p,Gam_e_max,seg_sum)
-            call electron_add_dnx_segment(cell_lo,cell_hi,x_c,huge_x,coeff_hi,p+one,Gam_e_max,seg_sum)
-        end if
-        dN_x_1(I_gam_e)=seg_sum/dx_cell
-    end do
+    call electron_initial_powerlaw_exp_cutoff_edges_impl(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,x_edge,dN_x_1)
 end subroutine electron_initial_powerlaw_exp_cutoff_edges
 
 subroutine electron_gamma_m_near_two(p,threshold,coeff,temp_gam,Gam_e_max,Gam_e_m)
@@ -1563,75 +1464,31 @@ subroutine electron_build_source_term(Num_gam_e,gam_e,Gam_e_m,Gam_e_max,Q,p,dF1)
     integer, intent(in) :: Num_gam_e
     real(8), intent(in) :: gam_e(Num_gam_e),Gam_e_m,Gam_e_max,Q,p
     real(8), intent(out) :: dF1(Num_gam_e)
-
-    dF1=zero
-    where(gam_e<Gam_e_max .and. gam_e>Gam_e_m) dF1=Q*gam_e**(-p)*gam_e*dlog(ten)
+    call electron_build_source_term_impl(Num_gam_e,gam_e,Gam_e_m,Gam_e_max,Q,p,dF1)
 end subroutine electron_build_source_term
 
 subroutine electron_build_source_term_exp_cutoff(Num_gam_e,gam_e,Gam_e_m,Gam_e_max,Q,p,dF1)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: Num_gam_e
-    integer :: I_gam_e
     real(8), intent(in) :: gam_e(Num_gam_e),Gam_e_m,Gam_e_max,Q,p
     real(8), intent(out) :: dF1(Num_gam_e)
-    real(8) :: cutoff_factor
-
-    dF1=zero
-    if (Gam_e_max <= zero) return
-
-    do I_gam_e=1,Num_gam_e
-        if (gam_e(I_gam_e) <= Gam_e_m) cycle
-        cutoff_factor=one
-        if (gam_e(I_gam_e) > Gam_e_max) cutoff_factor=dexp(one-gam_e(I_gam_e)/Gam_e_max)
-        dF1(I_gam_e)=Q*gam_e(I_gam_e)**(-p)*cutoff_factor*gam_e(I_gam_e)*dlog(ten)
-    end do
+    call electron_build_source_term_exp_cutoff_impl(Num_gam_e,gam_e,Gam_e_m,Gam_e_max,Q,p,dF1)
 end subroutine electron_build_source_term_exp_cutoff
 
 subroutine electron_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m,Gam_e_max,Q,p,dF1)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: Num_gam_e
-    integer :: I_gam_e
     real(8), intent(in) :: x_edge(Num_gam_e+1),Gam_e_m,Gam_e_max,Q,p
     real(8), intent(out) :: dF1(Num_gam_e)
-    real(8) :: cell_lo,cell_hi,dx_cell,seg_sum,x_m,huge_x
-
-    dF1=zero
-    if (Gam_e_max <= zero .or. Q <= zero) return
-
-    x_m=dlog10(max(Gam_e_m,1d-300))
-    huge_x=1d300
-    do I_gam_e=1,Num_gam_e
-        cell_lo=x_edge(I_gam_e)
-        cell_hi=x_edge(I_gam_e+1)
-        dx_cell=cell_hi-cell_lo
-        if (dx_cell <= zero) cycle
-        seg_sum=zero
-        call electron_add_dnx_segment(cell_lo,cell_hi,x_m,huge_x,Q,p,Gam_e_max,seg_sum)
-        dF1(I_gam_e)=seg_sum/dx_cell
-    end do
+    call electron_build_source_term_exp_cutoff_edges_impl(Num_gam_e,x_edge,Gam_e_m,Gam_e_max,Q,p,dF1)
 end subroutine electron_build_source_term_exp_cutoff_edges
 
 subroutine electron_build_source_term_profile(Num_gam_e,gam_e,Gam_e_m,Gam_e_max,Q,profile,dF1)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: Num_gam_e
-    integer :: I_gam_e
     real(8), intent(in) :: gam_e(Num_gam_e),Gam_e_m,Gam_e_max,Q,profile(Num_gam_e)
     real(8), intent(out) :: dF1(Num_gam_e)
-    real(8) :: x_edge(Num_gam_e+1),x_lo,x_hi,cell_lo,cell_hi,dx_cell
-
-    dF1=zero
-    call electron_log_cell_edges(Num_gam_e,gam_e,x_edge)
-    x_lo=dlog10(Gam_e_m)
-    x_hi=dlog10(Gam_e_max)
-
-    do I_gam_e=1,Num_gam_e
-        cell_lo=max(x_edge(I_gam_e),x_lo)
-        cell_hi=min(x_edge(I_gam_e+1),x_hi)
-        if (cell_hi > cell_lo) then
-            dx_cell=x_edge(I_gam_e+1)-x_edge(I_gam_e)
-            dF1(I_gam_e)=Q*profile(I_gam_e)*(cell_hi-cell_lo)/dx_cell
-        end if
-    end do
+    call electron_build_source_term_profile_impl(Num_gam_e,gam_e,Gam_e_m,Gam_e_max,Q,profile,dF1)
 end subroutine electron_build_source_term_profile
 
 subroutine electron_source_bounds(Num_gam_e,gam_e,Gam_e_m,Gam_e_max,src_lo,src_hi)
@@ -1800,62 +1657,18 @@ real(8) function electron_minmod3(a,b,c)
     electron_minmod3=electron_minmod(a,electron_minmod(b,c))
 end function electron_minmod3
 
-subroutine electron_mc_slopes(Num_gam_e,d_x,q,slope)
-    implicit real(8)(A-H,O-Z)
-    integer, intent(in) :: Num_gam_e
-    integer :: I_gam_e
-    real(8), intent(in) :: d_x,q(Num_gam_e)
-    real(8), intent(out) :: slope(Num_gam_e)
-    real(8) :: dl,dr,dc
-
-    slope=zero
-    do I_gam_e=2,Num_gam_e-1
-        dl=(q(I_gam_e)-q(I_gam_e-1))/d_x
-        dr=(q(I_gam_e+1)-q(I_gam_e))/d_x
-        dc=0.5d0*(q(I_gam_e+1)-q(I_gam_e-1))/d_x
-        slope(I_gam_e)=electron_minmod3(two*dl,dc,two*dr)
-    end do
-end subroutine electron_mc_slopes
-
-real(8) function electron_cell_linear_integral(qc,slope,xc,xl,xr)
-    implicit real(8)(A-H,O-Z)
-    real(8), intent(in) :: qc,slope,xc,xl,xr
-
-    electron_cell_linear_integral=qc*(xr-xl)+0.5d0*slope*((xr-xc)**2-(xl-xc)**2)
-end function electron_cell_linear_integral
-
 subroutine electron_ppm_interfaces(Num_gam_e,d_x,q,q_left,q_right)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: Num_gam_e
-    integer :: I_gam_e
     real(8), intent(in) :: d_x,q(Num_gam_e)
     real(8), intent(out) :: q_left(Num_gam_e),q_right(Num_gam_e)
-    real(8) :: slope(Num_gam_e),q_min,q_max,q_bar,dq
+    integer :: I_gam_e
+    real(8) :: x_edge(Num_gam_e+1)
 
-    call electron_mc_slopes(Num_gam_e,d_x,q,slope)
-    q_left=q
-    q_right=q
-
-    do I_gam_e=2,Num_gam_e-1
-        q_left(I_gam_e)=q(I_gam_e)-0.5d0*slope(I_gam_e)*d_x
-        q_right(I_gam_e)=q(I_gam_e)+0.5d0*slope(I_gam_e)*d_x
-        q_min=min(q(I_gam_e-1),min(q(I_gam_e),q(I_gam_e+1)))
-        q_max=max(q(I_gam_e-1),max(q(I_gam_e),q(I_gam_e+1)))
-        q_left(I_gam_e)=max(q_min,min(q_max,q_left(I_gam_e)))
-        q_right(I_gam_e)=max(q_min,min(q_max,q_right(I_gam_e)))
-        if ((q_right(I_gam_e)-q(I_gam_e))*(q(I_gam_e)-q_left(I_gam_e)) <= zero) then
-            q_left(I_gam_e)=q(I_gam_e)
-            q_right(I_gam_e)=q(I_gam_e)
-        else
-            q_bar=0.5d0*(q_left(I_gam_e)+q_right(I_gam_e))
-            dq=q_right(I_gam_e)-q_left(I_gam_e)
-            if (dq*(q(I_gam_e)-q_bar) > dq*dq/6d0) then
-                q_left(I_gam_e)=3d0*q(I_gam_e)-2d0*q_right(I_gam_e)
-            else if (dq*(q(I_gam_e)-q_bar) < -dq*dq/6d0) then
-                q_right(I_gam_e)=3d0*q(I_gam_e)-2d0*q_left(I_gam_e)
-            end if
-        end if
+    do I_gam_e=1,Num_gam_e+1
+        x_edge(I_gam_e)=dble(I_gam_e-1)*d_x
     end do
+    call electron_ppm_interfaces_nonuniform(Num_gam_e,x_edge,q,q_left,q_right)
 
 end subroutine electron_ppm_interfaces
 
@@ -1874,127 +1687,32 @@ real(8) function electron_ppm_cell_int(qc,q_left,q_right,cell_lo,d_x,xl,xr)
         (q6/3d0)*(xi_r*xi_r*xi_r-xi_l*xi_l*xi_l))
 end function electron_ppm_cell_int
 
-subroutine electron_linear_prefix_integral(Num_gam_e,d_x,q,slope,prefix)
-    implicit real(8)(A-H,O-Z)
-    integer, intent(in) :: Num_gam_e
-    integer :: I_gam_e
-    real(8), intent(in) :: d_x,q(Num_gam_e),slope(Num_gam_e)
-    real(8), intent(out) :: prefix(0:Num_gam_e)
-    real(8) :: cell_lo,cell_hi,xc
-
-    prefix(0)=zero
-    do I_gam_e=1,Num_gam_e
-        cell_lo=(I_gam_e-1)*d_x
-        cell_hi=I_gam_e*d_x
-        xc=0.5d0*(cell_lo+cell_hi)
-        prefix(I_gam_e)=prefix(I_gam_e-1)+electron_cell_linear_integral(q(I_gam_e),slope(I_gam_e),xc,cell_lo,cell_hi)
-    end do
-end subroutine electron_linear_prefix_integral
-
 subroutine electron_ppm_prefix(Num_gam_e,d_x,q,q_left,q_right,prefix)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: Num_gam_e
     integer :: I_gam_e
     real(8), intent(in) :: d_x,q(Num_gam_e),q_left(Num_gam_e),q_right(Num_gam_e)
     real(8), intent(out) :: prefix(0:Num_gam_e)
-    real(8) :: cell_lo,cell_hi
+    real(8) :: x_edge(Num_gam_e+1)
 
-    prefix(0)=zero
-    do I_gam_e=1,Num_gam_e
-        cell_lo=(I_gam_e-1)*d_x
-        cell_hi=I_gam_e*d_x
-        prefix(I_gam_e)=prefix(I_gam_e-1)+ &
-            electron_ppm_cell_int(q(I_gam_e),q_left(I_gam_e),q_right(I_gam_e),cell_lo,d_x,cell_lo,cell_hi)
+    do I_gam_e=1,Num_gam_e+1
+        x_edge(I_gam_e)=dble(I_gam_e-1)*d_x
     end do
+    call electron_ppm_prefix_nonuniform(Num_gam_e,x_edge,q,q_left,q_right,prefix)
 end subroutine electron_ppm_prefix
-
-real(8) function electron_prefix_integral_eval(Num_gam_e,d_x,q,slope,prefix,x_eval)
-    implicit real(8)(A-H,O-Z)
-    integer, intent(in) :: Num_gam_e
-    integer :: I_gam_e
-    real(8), intent(in) :: d_x,q(Num_gam_e),slope(Num_gam_e),prefix(0:Num_gam_e),x_eval
-    real(8) :: xa,cell_lo,xc
-
-    xa=max(zero,min(x_eval,Num_gam_e*d_x))
-    if (xa <= zero) then
-        electron_prefix_integral_eval=zero
-        return
-    end if
-    if (xa >= Num_gam_e*d_x) then
-        electron_prefix_integral_eval=prefix(Num_gam_e)
-        return
-    end if
-
-    I_gam_e=max(1,min(Num_gam_e,int(xa/d_x)+1))
-    cell_lo=(I_gam_e-1)*d_x
-    xc=cell_lo+0.5d0*d_x
-    electron_prefix_integral_eval=prefix(I_gam_e-1)+ &
-        electron_cell_linear_integral(q(I_gam_e),slope(I_gam_e),xc,cell_lo,xa)
-end function electron_prefix_integral_eval
 
 real(8) function electron_ppm_prefix_eval(Num_gam_e,d_x,q,q_left,q_right,prefix,x_eval)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: Num_gam_e
     integer :: I_gam_e
     real(8), intent(in) :: d_x,q(Num_gam_e),q_left(Num_gam_e),q_right(Num_gam_e),prefix(0:Num_gam_e),x_eval
-    real(8) :: xa,cell_lo
+    real(8) :: x_edge(Num_gam_e+1)
 
-    xa=max(zero,min(x_eval,Num_gam_e*d_x))
-    if (xa <= zero) then
-        electron_ppm_prefix_eval=zero
-        return
-    end if
-    if (xa >= Num_gam_e*d_x) then
-        electron_ppm_prefix_eval=prefix(Num_gam_e)
-        return
-    end if
-
-    I_gam_e=max(1,min(Num_gam_e,int(xa/d_x)+1))
-    cell_lo=(I_gam_e-1)*d_x
-    electron_ppm_prefix_eval=prefix(I_gam_e-1)+ &
-        electron_ppm_cell_int(q(I_gam_e),q_left(I_gam_e),q_right(I_gam_e),cell_lo,d_x,cell_lo,xa)
-end function electron_ppm_prefix_eval
-
-real(8) function electron_ppm_interval_integral(Num_gam_e,d_x,q,q_left,q_right,x_l,x_r)
-    implicit real(8)(A-H,O-Z)
-    integer, intent(in) :: Num_gam_e
-    integer :: i_left,i_right,I_gam_e
-    real(8), intent(in) :: d_x,q(Num_gam_e),q_left(Num_gam_e),q_right(Num_gam_e),x_l,x_r
-    real(8) :: xa,xb,cell_lo,cell_hi
-
-    xa=max(zero,min(x_l,Num_gam_e*d_x))
-    xb=max(zero,min(x_r,Num_gam_e*d_x))
-    if (xb <= xa) then
-        electron_ppm_interval_integral=zero
-        return
-    end if
-
-    i_left=max(1,min(Num_gam_e,int(xa/d_x)+1))
-    i_right=max(1,min(Num_gam_e,int((xb-1d-15)/d_x)+1))
-    electron_ppm_interval_integral=zero
-
-    if (i_left == i_right) then
-        cell_lo=(i_left-1)*d_x
-        electron_ppm_interval_integral=electron_ppm_cell_int(q(i_left),q_left(i_left),q_right(i_left),cell_lo,d_x,xa,xb)
-        return
-    end if
-
-    cell_lo=(i_left-1)*d_x
-    cell_hi=i_left*d_x
-    electron_ppm_interval_integral=electron_ppm_interval_integral + &
-        electron_ppm_cell_int(q(i_left),q_left(i_left),q_right(i_left),cell_lo,d_x,xa,cell_hi)
-
-    do I_gam_e=i_left+1,i_right-1
-        cell_lo=(I_gam_e-1)*d_x
-        cell_hi=I_gam_e*d_x
-        electron_ppm_interval_integral=electron_ppm_interval_integral + &
-            electron_ppm_cell_int(q(I_gam_e),q_left(I_gam_e),q_right(I_gam_e),cell_lo,d_x,cell_lo,cell_hi)
+    do I_gam_e=1,Num_gam_e+1
+        x_edge(I_gam_e)=dble(I_gam_e-1)*d_x
     end do
-
-    cell_lo=(i_right-1)*d_x
-    electron_ppm_interval_integral=electron_ppm_interval_integral + &
-        electron_ppm_cell_int(q(i_right),q_left(i_right),q_right(i_right),cell_lo,d_x,cell_lo,xb)
-end function electron_ppm_interval_integral
+    electron_ppm_prefix_eval=electron_ppm_prefix_eval_nonuniform(Num_gam_e,x_edge,q,q_left,q_right,prefix,x_eval)
+end function electron_ppm_prefix_eval
 
 subroutine electron_semi_lagrangian_transport(Num_gam_e,dDR,d_x,face_coeff,dN_x_in,dN_x_out)
     implicit real(8)(A-H,O-Z)
@@ -2002,25 +1720,12 @@ subroutine electron_semi_lagrangian_transport(Num_gam_e,dDR,d_x,face_coeff,dN_x_
     integer :: I_gam_e
     real(8), intent(in) :: dDR,d_x,face_coeff(Num_gam_e-1),dN_x_in(Num_gam_e)
     real(8), intent(out) :: dN_x_out(Num_gam_e)
-    real(8) :: vel_face(0:Num_gam_e),x_edge(0:Num_gam_e),dep_l,dep_r
-    real(8) :: q_left(Num_gam_e),q_right(Num_gam_e)
+    real(8) :: x_edge(Num_gam_e+1)
 
-    call electron_ppm_interfaces(Num_gam_e,d_x,dN_x_in,q_left,q_right)
-    do I_gam_e=0,Num_gam_e
-        x_edge(I_gam_e)=I_gam_e*d_x
+    do I_gam_e=1,Num_gam_e+1
+        x_edge(I_gam_e)=dble(I_gam_e-1)*d_x
     end do
-
-    vel_face(0)=-face_coeff(1)
-    vel_face(1:Num_gam_e-1)=-face_coeff
-    vel_face(Num_gam_e)=vel_face(Num_gam_e-1)
-
-    do I_gam_e=1,Num_gam_e
-        dep_l=x_edge(I_gam_e-1)-vel_face(I_gam_e-1)*dDR
-        dep_r=x_edge(I_gam_e)-vel_face(I_gam_e)*dDR
-        if (I_gam_e == 1) dep_l=x_edge(0)
-        dN_x_out(I_gam_e)=electron_ppm_interval_integral(Num_gam_e,d_x,dN_x_in,q_left,q_right,dep_l,dep_r)/d_x
-    end do
-    dN_x_out=max(zero,dN_x_out)
+    call electron_semi_lagrangian_transport_nonuniform(Num_gam_e,dDR,x_edge,face_coeff,dN_x_in,dN_x_out)
 end subroutine electron_semi_lagrangian_transport
 
 subroutine electron_apply_source_step(Num_gam_e,dDR,dF1,dN_x_in,dN_x_out)
@@ -2128,32 +1833,11 @@ subroutine electron_initial_density(A_star,dNe_ISM,R_ini,R_start,R0,dNe,Para_N_e
 end subroutine electron_initial_density
 
 subroutine electron_external_density(A_star,dNe_ISM,R_loc,R0,R_tr,f_jump,f_wide,apply_jump,dNe)
-    implicit real(8)(A-H,O-Z)
     integer, intent(in) :: apply_jump
     real(8), intent(in) :: A_star,dNe_ISM,R_loc,R0,R_tr,f_jump,f_wide
     real(8), intent(out) :: dNe
 
-    if (A_star > zero) then
-        dNe_wind=A_star*3.0d35/R_loc**2
-        if (dNe_wind <= dNe_ISM/4d0) then
-            dNe=dNe_ISM
-        else
-            dNe=dNe_wind
-        end if
-    else
-        dNe=dNe_ISM
-        if (apply_jump /= 0) then
-            dNe=dNe_ISM*(1d0+(f_jump-1d0)*exp(-(log10(R_loc)-log10(R_tr))**2/(2d0*f_wide*f_wide)))
-        end if
-    end if
-
-    if (R_loc < R0) then
-        if (A_star > zero) then
-            dNe=A_star*3.0d35/R0**2
-        else
-            dNe=dNe_ISM
-        end if
-    end if
+    call dynamics_external_density_profile(A_star,dNe_ISM,R_loc,R0,apply_jump,R_tr,f_jump,f_wide,dNe)
 end subroutine electron_external_density
 
 
