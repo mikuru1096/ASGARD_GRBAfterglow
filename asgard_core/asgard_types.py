@@ -139,8 +139,8 @@ class ReverseShockDynamics:
     gam20: float
     swept_mass_g: np.ndarray
     magnetic_field_g: np.ndarray
-    gam_e: np.ndarray
-    d_n_gam_e: np.ndarray
+    gam_e: np.ndarray | None = None
+    d_n_gam_e: np.ndarray | None = None
 
 
 @dataclass

@@ -2,12 +2,12 @@
 module electron_transport_2d_kernel
   use constants
   use electron_common, only: electron_prepare_implicit_coeffs, electron_backward_sweep, &
-                             electron_log_cell_edges, &
                              electron_prepare_conservative_remap_nonuniform, &
                              electron_ppm_prefix_eval_nonuniform, &
                              electron_characteristic_step_affine_u, electron_characteristic_step_piecewise_u, &
                              electron_characteristic_transport_affine_u, &
                              electron_characteristic_transport_piecewise_u
+  use electron_injection_profiles, only: electron_profile_log_cell_edges
   implicit real(8)(a-h,o-z)
   private
 
@@ -343,7 +343,7 @@ subroutine advance_energy_loggamma_chi_charint(U_log, Num_gam_e, Num_chi, gam_e,
     real(8) :: a_rad, b_ad
     integer :: I_chi, chi_hi
 
-    call electron_log_cell_edges(Num_gam_e, gam_e, x_edge)
+    call electron_profile_log_cell_edges(Num_gam_e, gam_e, x_edge)
 
     chi_hi = Num_chi
     if (present(active_chi_hi)) chi_hi = max(1, min(Num_chi, active_chi_hi))

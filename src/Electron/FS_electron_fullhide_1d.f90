@@ -8,7 +8,9 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
     !$ use omp_lib
     use constants
     use electron_common
+    use electron_injection_profiles, only: electron_initial_powerlaw_exp_cutoff, electron_build_source_term_exp_cutoff
     use get_Y
+    use electron_forward_kernel, only: electron_forward_cooling_step
     IMPLICIT REAL(8)(A-H,O-Z)
     integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,adaptive_substeps,substep_min,substep_max
     real(8), intent(in) :: Boundary(n),R_Tobs(Num_R),R_Gamma(Num_R),R(Num_R),V_seed(Num_nu)
@@ -113,7 +115,7 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
                               gam_e,dN_gam_e(:,I_tobs-1),V_seed, &
                               P_syn(:,I_tobs),Seed_syn(:,I_tobs))
         
-        call get_forward_cooling(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc, &
+        call electron_forward_cooling_step(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc, &
                                  R_Gamma_loc,beta_Gam,dNe,Num_gam_e,Num_nu,n_threads,gam_e,V_seed, &
                                  P_syn(:,I_tobs),Seed_syn(:,I_tobs),dEl)
          

@@ -31,6 +31,7 @@ rtk uv run python build_extensions.py --module FS_electron_fullhide_2d --force
 rtk uv run python build_extensions.py --module FS_electron_charint_2d --force
 rtk /usr/bin/gfortran --version
 rtk uv run python tests/readme_smoke_bench.py
+rtk uv run python tests/reverse_shock_smoke.py
 rtk uv run python tests/hadronic_1d_smoke.py
 rtk uv run python tests/hadronic_species_transport_smoke.py
 ```
@@ -200,6 +201,7 @@ PY
 ## Current Test Entrypoints
 
 - `tests/readme_smoke_bench.py`
+- `tests/reverse_shock_smoke.py`
 - `tests/fullhide_2d_smoke_bench.py`
 - `tests/fullhide_2d_medium_diag.py`
 - `tests/vegas_afterglow_comparison.py`

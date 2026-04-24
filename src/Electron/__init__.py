@@ -12,6 +12,7 @@ _SOLVERS = {
     "fs_electron_slc1_1d": "FS_electron_slc1_1d",
     "fs_electron_t2g1_1d": "FS_electron_t2g1_1d",
     "fs_electron_weno5_1d": "FS_electron_weno5_1d",
+    "electron_reverse_kernel": "electron_reverse_kernel",
 }
 _ALIASES = {
     "fs_electron_charint": "fs_electron_charint_1d",

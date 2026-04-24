@@ -83,6 +83,8 @@ setup(
             "FS_electron_t2g1_1d*.pyd",
             "electron_get_y*.so",
             "electron_get_y*.pyd",
+            "electron_reverse_kernel*.so",
+            "electron_reverse_kernel*.pyd",
             "*.f90",
         ],
         "src.Interpolation": ["SED_interpolation*.so", "SED_interpolation*.pyd", "SED_interpolation_structured*.so", "SED_interpolation_structured*.pyd", "*.f90"],

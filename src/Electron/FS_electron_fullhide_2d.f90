@@ -29,9 +29,9 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
     !$ use omp_lib
     use constants
     use electron_common, only: electron_build_gamma_grid, electron_initial_density, electron_external_density, &
-                               electron_gamma_m_exact, electron_initial_powerlaw_exp_cutoff, &
-                               electron_injection_prefactor, electron_build_source_term_exp_cutoff, &
+                               electron_gamma_m_exact, electron_injection_prefactor, &
                                electron_loss_mean, electron_gamma_c_from_loss_mean, electron_source_bounds
+    use electron_injection_profiles, only: electron_initial_powerlaw_exp_cutoff, electron_build_source_term_exp_cutoff
     use electron_cooling_kernel, only: prepare_forward_cooling_aux_batch, assemble_forward_cooling_split, &
                                        assemble_forward_cooling_split_batch
     use electron_radiation_kernel, only: get_syn_state, get_nu_a_2d_cell_path, reduce_syn_shell_from_chi, &

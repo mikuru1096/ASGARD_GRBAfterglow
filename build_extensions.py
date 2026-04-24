@@ -24,12 +24,14 @@ DIRECT_ORDERED_BUILD_MODULES = {
     "FS_electron_t2g1_1d",
     "FS_hadronic_1d",
     "electron_get_y",
+    "electron_reverse_kernel",
     "Seed_reverse",
     "SSC_spec",
 }
 F2PY_ENTRYPOINTS = {
     "FS_electron_charint_1d": ("fs_electron_charint_1d", "fs_electron_charint_1d_affine_step_test"),
     "electron_get_y": ("get_nu_a", "get_syn_selected", "get_syn_transfer"),
+    "electron_reverse_kernel": ("electron_reverse_evolve",),
     "SSC_spec": ("ssc_spec", "ssc_spec_nonuniform"),
     "FS_hadronic_1d": (
         "fs_hadronic_1d",
@@ -55,11 +57,13 @@ ELECTRON_COMMON_SOURCES = (
     "../Constants.f90",
     "../Dynamics/dynamics_common.f90",
     "../Radiation/radiation_common.f90",
+    "electron_transport_common.f90",
     "adaptive_resampling_mod.f90",
     "electron_injection_profiles.f90",
     "electron_common.f90",
     "electron_radiation_kernel.f90",
     "electron_cooling_kernel.f90",
+    "electron_forward_kernel.f90",
 )
 ELECTRON_1D_SOURCES = (*ELECTRON_COMMON_SOURCES, "calling_modules.f90")
 ELECTRON_HISTORY_SOURCES = (
@@ -405,6 +409,7 @@ def main() -> None:
         ("FS_electron_charint_2d", ele, [*ELECTRON_2D_SOURCES, "FS_electron_fullhide_2d.f90", "FS_electron_charint_2d.f90"], OMP_FLAGS, OPENMP_LIBS),
         ("FS_electron_t2g1_1d", ele, _with_main(ELECTRON_1D_SOURCES, "FS_electron_t2g1_1d.f90"), OMP_FLAGS, OPENMP_LIBS),
         ("electron_get_y", ele, _with_main(ELECTRON_1D_SOURCES, "electron_get_y.f90"), OMP_FLAGS, OPENMP_LIBS),
+        ("electron_reverse_kernel", ele, _with_main(ELECTRON_1D_SOURCES, "electron_reverse_kernel.f90"), OMP_FLAGS, OPENMP_LIBS),
         ("SED_interpolation", itp, ["../Constants.f90", "interpolation_common.f90", "SED_interpolation.f90"], OMP_FLAGS, OPENMP_LIBS),
         ("SED_interpolation_structured", itp, ["../Constants.f90", "interpolation_common.f90", "SED_interpolation_structured.f90"], OMP_FLAGS, OPENMP_LIBS),
         ("Annihilation", rad, _with_main(RADIATION_COMMON_SOURCES, "Annihilation.f90"), OMP_FLAGS, OPENMP_LIBS),

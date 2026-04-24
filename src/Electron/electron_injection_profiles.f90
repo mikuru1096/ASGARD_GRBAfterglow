@@ -5,6 +5,38 @@ module electron_injection_profiles
 
 contains
 
+pure real(8) function electron_exp_cutoff_factor(gam,Gam_e_max)
+    implicit real(8)(A-H,O-Z)
+    real(8), intent(in) :: gam,Gam_e_max
+
+    electron_exp_cutoff_factor=one
+    if (gam > Gam_e_max) electron_exp_cutoff_factor=dexp(one-gam/Gam_e_max)
+end function electron_exp_cutoff_factor
+
+subroutine electron_initial_powerlaw_params(Para_N_e_ini,p,Gam_e_m,Gam_e_c,gam,active,coeff,slope)
+    implicit real(8)(A-H,O-Z)
+    logical, intent(out) :: active
+    real(8), intent(in) :: Para_N_e_ini,p,Gam_e_m,Gam_e_c,gam
+    real(8), intent(out) :: coeff,slope
+
+    active=.false.
+    coeff=zero
+    slope=zero
+    if (Gam_e_m > Gam_e_c) then
+        if (gam < Gam_e_c) return
+        active=.true.
+        coeff=Para_N_e_ini*Gam_e_c
+        slope=merge(2d0,p+one,gam < Gam_e_m)
+        if (gam >= Gam_e_m) coeff=coeff*Gam_e_m**(p-one)
+    else
+        if (gam < Gam_e_m) return
+        active=.true.
+        coeff=Para_N_e_ini*Gam_e_m**(p-one)
+        slope=merge(p,p+one,gam < Gam_e_c)
+        if (gam >= Gam_e_c) coeff=coeff*Gam_e_c
+    end if
+end subroutine electron_initial_powerlaw_params
+
 real(8) function electron_dnx_powerlaw_cutoff_value(x,coeff,slope,Gam_e_max)
     implicit real(8)(A-H,O-Z)
     real(8), intent(in) :: x,coeff,slope,Gam_e_max
@@ -84,29 +116,19 @@ subroutine electron_initial_powerlaw(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,Nu
     integer :: I_gam_e
     real(8), intent(in) :: Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,gam_e(Num_gam_e)
     real(8), intent(out) :: dN_gam_e_1(Num_gam_e)
+    logical :: active
+    real(8) :: coeff,slope
+
     do I_gam_e=1,Num_gam_e
-        if (Gam_e_m > Gam_e_c) then
-            if (Gam_e_c > Gam_e(I_gam_e) .or. Gam_e_max < Gam_e(I_gam_e)) then
-                dN_gam_e_1(I_gam_e)=zero
-            else
-                Q1=Para_N_e_ini*Gam_e_c
-                if (Gam_e_m > Gam_e(I_gam_e)) then
-                    dN_gam_e_1(I_gam_e)=Q1*Gam_e(I_gam_e)**(-2)
-                else
-                    dN_gam_e_1(I_gam_e)=Q1*Gam_e_m**(p-one)*Gam_e(I_gam_e)**(-(p+one))
-                end if
-            end if
+        if (gam_e(I_gam_e) > Gam_e_max) then
+            dN_gam_e_1(I_gam_e)=zero
+            cycle
+        end if
+        call electron_initial_powerlaw_params(Para_N_e_ini,p,Gam_e_m,Gam_e_c,gam_e(I_gam_e),active,coeff,slope)
+        if (active) then
+            dN_gam_e_1(I_gam_e)=coeff*gam_e(I_gam_e)**(-slope)
         else
-            if (Gam_e_m > Gam_e(I_gam_e) .or. Gam_e_max < Gam_e(I_gam_e)) then
-                dN_gam_e_1(I_gam_e)=zero
-            else
-                Q1=Para_N_e_ini*Gam_e_m**(p-one)
-                if (Gam_e_c > Gam_e(I_gam_e)) then
-                    dN_gam_e_1(I_gam_e)=Q1*Gam_e(I_gam_e)**(-p)
-                else
-                    dN_gam_e_1(I_gam_e)=Q1*Gam_e_c*Gam_e(I_gam_e)**(-(p+one))
-                end if
-            end if
+            dN_gam_e_1(I_gam_e)=zero
         end if
     end do
 end subroutine electron_initial_powerlaw
@@ -117,37 +139,15 @@ subroutine electron_initial_powerlaw_exp_cutoff(Para_N_e_ini,p,Gam_e_m,Gam_e_c,G
     integer :: I_gam_e
     real(8), intent(in) :: Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,gam_e(Num_gam_e)
     real(8), intent(out) :: dN_gam_e_1(Num_gam_e)
-    real(8) :: cutoff_factor
+    logical :: active
+    real(8) :: coeff,slope
 
     dN_gam_e_1=zero
     if (Gam_e_max <= zero) return
 
     do I_gam_e=1,Num_gam_e
-        if (Gam_e_m > Gam_e_c) then
-            if (Gam_e_c > Gam_e(I_gam_e)) then
-                dN_gam_e_1(I_gam_e)=zero
-            else if (Gam_e_m > Gam_e(I_gam_e)) then
-                cutoff_factor=one
-                if (Gam_e(I_gam_e) > Gam_e_max) cutoff_factor=dexp(one-Gam_e(I_gam_e)/Gam_e_max)
-                dN_gam_e_1(I_gam_e)=Para_N_e_ini*Gam_e_c*Gam_e(I_gam_e)**(-2)*cutoff_factor
-            else
-                cutoff_factor=one
-                if (Gam_e(I_gam_e) > Gam_e_max) cutoff_factor=dexp(one-Gam_e(I_gam_e)/Gam_e_max)
-                dN_gam_e_1(I_gam_e)=Para_N_e_ini*Gam_e_c*Gam_e_m**(p-one)*Gam_e(I_gam_e)**(-(p+one))*cutoff_factor
-            end if
-        else
-            if (Gam_e_m > Gam_e(I_gam_e)) then
-                dN_gam_e_1(I_gam_e)=zero
-            else if (Gam_e_c > Gam_e(I_gam_e)) then
-                cutoff_factor=one
-                if (Gam_e(I_gam_e) > Gam_e_max) cutoff_factor=dexp(one-Gam_e(I_gam_e)/Gam_e_max)
-                dN_gam_e_1(I_gam_e)=Para_N_e_ini*Gam_e_m**(p-one)*Gam_e(I_gam_e)**(-p)*cutoff_factor
-            else
-                cutoff_factor=one
-                if (Gam_e(I_gam_e) > Gam_e_max) cutoff_factor=dexp(one-Gam_e(I_gam_e)/Gam_e_max)
-                dN_gam_e_1(I_gam_e)=Para_N_e_ini*Gam_e_m**(p-one)*Gam_e_c*Gam_e(I_gam_e)**(-(p+one))*cutoff_factor
-            end if
-        end if
+        call electron_initial_powerlaw_params(Para_N_e_ini,p,Gam_e_m,Gam_e_c,gam_e(I_gam_e),active,coeff,slope)
+        if (active) dN_gam_e_1(I_gam_e)=coeff*gam_e(I_gam_e)**(-slope)*electron_exp_cutoff_factor(gam_e(I_gam_e),Gam_e_max)
     end do
 end subroutine electron_initial_powerlaw_exp_cutoff
 
@@ -204,16 +204,13 @@ subroutine electron_build_source_term_exp_cutoff(Num_gam_e,gam_e,Gam_e_m,Gam_e_m
     integer :: I_gam_e
     real(8), intent(in) :: gam_e(Num_gam_e),Gam_e_m,Gam_e_max,Q,p
     real(8), intent(out) :: dF1(Num_gam_e)
-    real(8) :: cutoff_factor
 
     dF1=zero
     if (Gam_e_max <= zero) return
 
     do I_gam_e=1,Num_gam_e
         if (gam_e(I_gam_e) <= Gam_e_m) cycle
-        cutoff_factor=one
-        if (gam_e(I_gam_e) > Gam_e_max) cutoff_factor=dexp(one-gam_e(I_gam_e)/Gam_e_max)
-        dF1(I_gam_e)=Q*gam_e(I_gam_e)**(-p)*cutoff_factor*gam_e(I_gam_e)*dlog(ten)
+        dF1(I_gam_e)=Q*gam_e(I_gam_e)**(one-p)*dlog(ten)*electron_exp_cutoff_factor(gam_e(I_gam_e),Gam_e_max)
     end do
 end subroutine electron_build_source_term_exp_cutoff
 

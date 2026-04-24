@@ -87,6 +87,10 @@ _ELECTRON_MODULES = {
 def _electron_module(solver: str):
     return import_module(_ELECTRON_MODULES[solver])
 
+
+def _electron_reverse_module():
+    return import_module("src.Electron.electron_reverse_kernel")
+
 _HADRONIC_SOLVER_ALIASES = {
     "legacy": "legacy_1d",
     "legacy_1d": "legacy_1d",
@@ -161,8 +165,6 @@ def solve_dynamics(
         swept_mass_g,
         swept_reverse_mass_g,
         magnetic_field_g,
-        gam_e,
-        d_n_gam_e,
     ) = Dynamics.dynamics_reverse(
         reverse_params.delta_t_s,
         reverse_params.epsilon_e,
@@ -171,7 +173,6 @@ def solve_dynamics(
         reverse_params.f_e,
         boundary,
         config.num_r,
-        config.num_gam_e,
     )
     reverse_shock = ReverseShockDynamics(
         t_cross,
@@ -180,8 +181,6 @@ def solve_dynamics(
         gam20,
         swept_reverse_mass_g,
         magnetic_field_g,
-        gam_e,
-        _renormalize_reverse_shock_distribution(gam_e, d_n_gam_e, swept_reverse_mass_g, reverse_params.f_e),
     )
     solution = DynamicsSolution(r_tobs, r_gamma, radius, swept_mass_g, reverse_shock=reverse_shock)
     if return_report:
@@ -1530,6 +1529,15 @@ def solve_reverse_shock_emission(
     if reverse_params is None or dynamics.reverse_shock is None:
         return None
 
+    gam_e, d_n_gam_e = _solve_reverse_shock_electrons(boundary, dynamics, v_seed, config, reverse_params)
+    dynamics.reverse_shock.gam_e = gam_e
+    dynamics.reverse_shock.d_n_gam_e = _renormalize_reverse_shock_distribution(
+        gam_e,
+        d_n_gam_e,
+        dynamics.reverse_shock.swept_mass_g,
+        reverse_params.f_e,
+    )
+
     (
         nu_m,
         nu_c,
@@ -1553,6 +1561,46 @@ def solve_reverse_shock_emission(
     )
 
 
+def _solve_reverse_shock_electrons(
+    boundary: np.ndarray,
+    dynamics: DynamicsSolution,
+    v_seed: np.ndarray,
+    config: FitConfig,
+    reverse_params: ReverseShockParameters,
+) -> tuple[np.ndarray, np.ndarray]:
+    if dynamics.reverse_shock is None:
+        raise ValueError("Reverse shock dynamics are required to compute reverse electrons.")
+    module = _electron_reverse_module().electron_reverse_kernel
+    delta_0 = reverse_params.delta_t_s * constants.para_c
+    para_m_ej = config.e_iso / config.eta_0 / constants.para_c**2
+    gam_e, d_n_gam_e = module.electron_reverse_evolve(
+        delta_0,
+        reverse_params.epsilon_e,
+        reverse_params.epsilon_b,
+        reverse_params.p,
+        reverse_params.f_e,
+        config.eta_0,
+        config.epsilon_e,
+        config.epsilon_b,
+        config.z,
+        boundary[11],
+        boundary[10],
+        para_m_ej,
+        dynamics.reverse_shock.t_cross,
+        dynamics.reverse_shock.r_cross,
+        dynamics.r_tobs,
+        dynamics.r_gamma,
+        dynamics.radius,
+        dynamics.reverse_shock.magnetic_field_g,
+        v_seed,
+        config.num_gam_e,
+        config.index_y,
+        config.index_syn_integr,
+        config.num_threads,
+    )
+    return np.asarray(gam_e, dtype=float), np.asarray(d_n_gam_e, dtype=float)
+
+
 def _compute_reverse_shock_synchrotron_emission(
     dynamics: DynamicsSolution,
     v_seed: np.ndarray,
@@ -1560,6 +1608,10 @@ def _compute_reverse_shock_synchrotron_emission(
 ) -> tuple[np.ndarray, np.ndarray]:
     if dynamics.reverse_shock is None:
         raise ValueError("Reverse shock dynamics are required to compute reverse emission.")
+    gam_e = dynamics.reverse_shock.gam_e
+    d_n_gam_e = dynamics.reverse_shock.d_n_gam_e
+    if gam_e is None or d_n_gam_e is None:
+        raise ValueError("Reverse shock electrons are required to compute reverse emission.")
     num_nu = v_seed.shape[0]
     num_r = dynamics.radius.shape[0]
     l_syn_spec = np.zeros((num_nu, num_r), dtype=float)
@@ -1576,8 +1628,8 @@ def _compute_reverse_shock_synchrotron_emission(
             radius_loc,
             db,
             config.num_threads,
-            dynamics.reverse_shock.gam_e,
-            dynamics.reverse_shock.d_n_gam_e[:, i],
+            gam_e,
+            d_n_gam_e[:, i],
             v_seed,
         )
         l_syn_spec[:, i] = np.asarray(p_syn_i, dtype=float)
@@ -1645,10 +1697,14 @@ def _compute_reverse_shock_characteristic_frequencies(
     nu_a = np.zeros(num_r, dtype=float)
     magnetic_field_g = np.zeros(num_r, dtype=float)
     nu_M = np.zeros(num_r, dtype=float)
+    gam_e = dynamics.reverse_shock.gam_e
+    d_n_gam_e = dynamics.reverse_shock.d_n_gam_e
+    if gam_e is None or d_n_gam_e is None:
+        raise ValueError("Reverse shock electrons are required to compute reverse characteristic frequencies.")
 
     eta_0 = config.eta_0
     beta4 = np.sqrt(1.0 - eta_0**-2)
-    gamma_floor = float(dynamics.reverse_shock.gam_e[0])
+    gamma_floor = float(gam_e[0])
     for i in range(1, num_r):
         radius_loc = dynamics.radius[i - 1]
         gamma2 = 0.5 * (dynamics.r_gamma[i - 1] + dynamics.r_gamma[i])
@@ -1670,8 +1726,8 @@ def _compute_reverse_shock_characteristic_frequencies(
         nu_a_comoving = electron_get_y_module.get_nu_a(
             radius_loc,
             db,
-            dynamics.reverse_shock.gam_e,
-            dynamics.reverse_shock.d_n_gam_e[:, i - 1],
+            gam_e,
+            d_n_gam_e[:, i - 1],
         )
         nu_a[i - 1] = nu_a_comoving / doppler_den
 

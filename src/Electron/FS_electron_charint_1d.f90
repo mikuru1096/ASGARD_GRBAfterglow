@@ -3,7 +3,10 @@ subroutine fs_electron_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_
     !$ use omp_lib
     use constants
     use electron_common
+    use electron_injection_profiles, only: electron_profile_log_cell_edges, electron_initial_powerlaw_exp_cutoff_edges, &
+                                           electron_build_source_term_exp_cutoff
     use get_Y
+    use electron_forward_kernel, only: electron_forward_cooling_step
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads,adaptive_substeps,substep_min,substep_max
     real(8), intent(in) :: Boundary(n),R_Tobs(Num_R),R_Gamma(Num_R),R(Num_R),V_seed(Num_nu)
@@ -50,7 +53,7 @@ subroutine fs_electron_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_
     call electron_gamma_m_exact(p,temp_gam,Gam_e_max,Gam_e_m)
     Gam_e_c=7.7d8/(one+dsqrt(Epsilon_e/Epsilon_b))/R_Gamma(1)/DB**2/(R_Tobs(1)/two)
     call electron_build_gamma_grid(Num_gam_e,Gam_e_max_max,gam_e)
-    call electron_log_cell_edges(Num_gam_e,gam_e,x_edge)
+    call electron_profile_log_cell_edges(Num_gam_e,gam_e,x_edge)
     call electron_initial_powerlaw_exp_cutoff_edges(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,x_edge,dN_x)
     dN_gam_e(:,1)=dN_x/gam_e/dlog(ten)
     is_uniform_density=(A_star <= zero .and. f_jump == one)
@@ -87,7 +90,7 @@ subroutine fs_electron_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_
         if (index_Y == 0) then
             dEl_base=zero
         else
-            call get_forward_cooling(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc, &
+            call electron_forward_cooling_step(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc, &
                                      R_Gamma_loc,beta_Gam,dNe,Num_gam_e,Num_nu,n_threads,gam_e,V_seed, &
                                      P_syn(:,I_tobs),Seed_syn(:,I_tobs),dEl_base)
         end if
