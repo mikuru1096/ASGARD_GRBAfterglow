@@ -1,3 +1,4 @@
+! 电子1D半拉格朗日格式主驱动：初始化→壳层循环（辐射+冷却+半拉格朗日步进）。
 subroutine fs_electron_slc1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads, &
                             gam_e,dN_gam_e,P_syn,Seed_syn,V_m,V_c,V_a)
     !$ use omp_lib
@@ -7,7 +8,7 @@ subroutine fs_electron_slc1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,N
     use electron_transport_common, only: electron_semi_lagrangian_step
     use electron_injection_profiles, only: electron_build_source_term_exp_cutoff_edges
     use electron_radiation_kernel, only: get_nu_a, get_syn_selected
-    use electron_forward_kernel, only: get_forward_cooling
+    use electron_cooling_kernel, only: get_forward_cooling
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads
     real(8), intent(in) :: Boundary(n),R_Tobs(Num_R),R_Gamma(Num_R),R(Num_R),V_seed(Num_nu)
@@ -51,7 +52,7 @@ subroutine fs_electron_slc1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,N
     call electron_gamma_m_exact(p,temp_gam,Gam_e_max,Gam_e_m)
     Gam_e_c=7.7d8/(one+dsqrt(Epsilon_e/Epsilon_b))/R_Gamma(1)/DB**2/(R_Tobs(1)/two)
     call electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
-                                      electron_initial_profile_exp_cutoff,electron_initial_grid_log_edges,gam_e,dN_x,x_edge)
+                                      electron_initial_grid_log_edges,gam_e,dN_x,x_edge)
     dN_gam_e(:,1)=dN_x/gam_e/dlog(ten)
     d_x=dlog10(gam_e(2)/gam_e(1))
     is_uniform_density=(A_star <= zero .and. f_jump == one)

@@ -3,6 +3,7 @@
 !****************************************************************************************
 !******************************* main program *******************************************
 !****************************************************************************************
+! 电子1D全隐格式主驱动：自适应子步+隐式迎风冷却，支持均匀/非均匀介质和粒子数守恒诊断。
 subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads, &
                                 adaptive_substeps,substep_rtol,substep_min,substep_max,gam_e,dN_gam_e,P_syn,Seed_syn,V_m,V_c,V_a)
     !$ use omp_lib
@@ -11,7 +12,7 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
     use electron_common
     use electron_injection_profiles, only: electron_build_source_term_exp_cutoff
     use electron_radiation_kernel, only: get_nu_a, get_syn_selected
-    use electron_forward_kernel, only: get_forward_cooling
+    use electron_cooling_kernel, only: get_forward_cooling
     use electron_transport_common, only: electron_prepare_implicit_coeffs_common, electron_backward_sweep_common, &
                                          electron_fullhide_step
     IMPLICIT REAL(8)(A-H,O-Z)
@@ -69,7 +70,7 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
     call electron_gamma_m_exact(p,temp_gam,Gam_e_max,Gam_e_m)
     Gam_e_c=7.7d8/(one+dsqrt(Epsilon_e/Epsilon_b))/R_Gamma(1)/DB**2/(R_Tobs(1)/two)
     call electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
-                                      electron_initial_profile_exp_cutoff,electron_initial_grid_gamma,gam_e,dN_gam_e(:,1))
+                                      electron_initial_grid_gamma,gam_e,dN_gam_e(:,1))
     !*******************Part 1 is completed [has been checked and there is no bug]**********************************
     !*******************Part 2: To calculate the electron distribution**********************************************
     dN_x=dN_gam_e(:,1)*gam_e*dlog(ten)

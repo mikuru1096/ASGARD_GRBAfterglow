@@ -1,3 +1,4 @@
+! 电子1D WENO5格式主驱动：三阶TVD Runge-Kutta + WENO5通量重构。
 subroutine fs_electron_weno5_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e,index_Y,n_threads, &
                                 gam_e,dN_gam_e,P_syn,Seed_syn)
     !$ use omp_lib
@@ -6,7 +7,7 @@ subroutine fs_electron_weno5_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,
     use electron_common
     use electron_injection_profiles, only: electron_build_source_term_exp_cutoff
     use electron_radiation_kernel, only: get_syn
-    use electron_forward_kernel, only: get_forward_cooling
+    use electron_cooling_kernel, only: get_forward_cooling
     IMPLICIT REAL(8)(A-H,O-Z)
     integer, intent(in) :: n,Num_R,Num_gam_e
     real(8), intent(in) :: Boundary(n),R_Tobs(Num_R),R_Gamma(Num_R),R(Num_R),V_seed(Num_nu)
@@ -54,7 +55,7 @@ subroutine fs_electron_weno5_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,
     call electron_gamma_m_exact(p,temp_gam,Gam_e_max,Gam_e_m)
     Gam_e_c=7.7d8/(one+dsqrt(Epsilon_e/Epsilon_b))/R_Gamma(1)/DB**2/(R_Tobs(1)/two)
     call electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
-                                      electron_initial_profile_exp_cutoff,electron_initial_grid_gamma,gam_e,dN_gam_e(:,1))
+                                      electron_initial_grid_gamma,gam_e,dN_gam_e(:,1))
     !*******************Part 1 is completed [has been checked and there is no bug]**********************************
     !*******************Part 2: To calculate the electron distribution**********************************************
     dN_x=dN_gam_e(:,1)*gam_e*dlog(ten)
@@ -169,6 +170,7 @@ subroutine fs_electron_weno5_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,
     return
 end subroutine
 
+! 更新WENO5鬼点：零阶外推（复制边界值）。
 subroutine update_ghost_cells(arr, n)
         integer, intent(in) :: n
         real(8), intent(inout) :: arr(1-3:n+3)
@@ -183,6 +185,7 @@ subroutine update_ghost_cells(arr, n)
         ! arr(n+2) = arr(2)
     end subroutine update_ghost_cells
 
+! WENO5正通量重构 f⁺(f_{i-2},...,f_{i+2})。
 function fpx(fps)
     real(8) :: fps(-2:2), fpx
     real(8) :: omega(3), fu(3), beta(3)
@@ -222,6 +225,7 @@ function fpx(fps)
     return
 end function fpx
 
+! WENO5负通量重构 f⁻(f_{i-1},...,f_{i+3})。
 function fmx(fms)
     real(8) :: fms(-1:3), fmx
     real(8) :: omega(3), fu(3), beta(3)

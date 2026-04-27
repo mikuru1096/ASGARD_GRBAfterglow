@@ -1,3 +1,4 @@
+! 电子2D特征线积分主驱动：调用fs_electron_transport_2d_core执行(γ,χ)二维输运。
 subroutine fs_electron_charint_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e, &
                                   Num_chi,index_Y,index_syn_intger,n_threads, &
                                   gam_e,dN_gam_e,dN_gam_e_total,P_syn,Seed_syn,V_m,V_c,V_a)

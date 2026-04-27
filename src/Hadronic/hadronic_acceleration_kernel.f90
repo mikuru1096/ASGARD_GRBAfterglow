@@ -18,7 +18,6 @@ module hadronic_acceleration_kernel
 
     public :: hadronic_species_properties
     public :: hadronic_acceleration_timescale_s
-    public :: hadronic_proton_acceleration_timescale_s
     public :: hadronic_synchrotron_cooling_timescale_s
     public :: hadronic_external_photon_cooling_timescale_s
     public :: hadronic_species_injection_operator
@@ -27,6 +26,7 @@ module hadronic_acceleration_kernel
 
 contains
 
+! 查询粒子种类（质子、中子、π介子、μ子）的质量、电荷数等基本属性。
 subroutine hadronic_species_properties(species,mass_gev,charge_number,mass_g,abs_charge_esu)
     character(len=*), intent(in) :: species
     real(8), intent(out) :: mass_gev,mass_g,abs_charge_esu
@@ -59,6 +59,7 @@ subroutine hadronic_species_properties(species,mass_gev,charge_number,mass_g,abs
     abs_charge_esu = dabs(dble(charge_number))*elementary_charge_esu
 end subroutine hadronic_species_properties
 
+! 计算粒子在磁场中的费米加速时标 t_acc = eta_acc * gamma * m * c / (|q| * B)。
 subroutine hadronic_acceleration_timescale_s(num_gamma,species,gamma,b_field_g,eta_acc,t_acc)
     integer, intent(in) :: num_gamma
     character(len=*), intent(in) :: species
@@ -80,14 +81,7 @@ subroutine hadronic_acceleration_timescale_s(num_gamma,species,gamma,b_field_g,e
     end do
 end subroutine hadronic_acceleration_timescale_s
 
-subroutine hadronic_proton_acceleration_timescale_s(num_gamma,gamma,b_field_g,eta_acc,t_acc)
-    integer, intent(in) :: num_gamma
-    real(8), intent(in) :: gamma(num_gamma),b_field_g,eta_acc
-    real(8), intent(out) :: t_acc(num_gamma)
-
-    call hadronic_acceleration_timescale_s(num_gamma,"proton",gamma,b_field_g,eta_acc,t_acc)
-end subroutine hadronic_proton_acceleration_timescale_s
-
+! 计算粒子在磁场中的同步辐射冷却时标。
 subroutine hadronic_synchrotron_cooling_timescale_s(num_gamma,species,gamma,b_field_g,t_syn)
     integer, intent(in) :: num_gamma
     character(len=*), intent(in) :: species
@@ -110,6 +104,7 @@ subroutine hadronic_synchrotron_cooling_timescale_s(num_gamma,species,gamma,b_fi
     end do
 end subroutine hadronic_synchrotron_cooling_timescale_s
 
+! 根据给定的外部冷却率计算外部光子场冷却时标 t_ext = gamma / cooling_rate。
 subroutine hadronic_external_photon_cooling_timescale_s(num_gamma,gamma,cooling_rate,t_ext)
     integer, intent(in) :: num_gamma
     real(8), intent(in) :: gamma(num_gamma),cooling_rate(num_gamma)
@@ -127,6 +122,7 @@ subroutine hadronic_external_photon_cooling_timescale_s(num_gamma,gamma,cooling_
     end do
 end subroutine hadronic_external_photon_cooling_timescale_s
 
+! 计算粒子注入源项：幂律谱分布 × 指数截断，按光度归一化。
 subroutine hadronic_species_injection_operator(num_gamma,gamma,species,luminosity_erg_s, &
                                                spectral_index,gamma_min,gamma_max,gamma_cut, &
                                                has_gamma_cut,q_inj)
@@ -173,6 +169,7 @@ subroutine hadronic_species_injection_operator(num_gamma,gamma,species,luminosit
     q_inj = q0*shape
 end subroutine hadronic_species_injection_operator
 
+! 通过平衡加速、同步冷却、动力学和外部冷却时标来估计粒子的最大洛伦兹因子。
 subroutine hadronic_estimate_max_gamma(species,b_field_g,radius_cm,gamma_bulk,eta_acc, &
                                        num_gamma_scan,gamma_scan,external_cooling_rate, &
                                        has_external_cooling,gamma_max,gamma_dyn,gamma_syn, &
@@ -239,6 +236,7 @@ subroutine hadronic_estimate_max_gamma(species,b_field_g,radius_cm,gamma_bulk,et
     gamma_max = dmin1(gamma_max,gamma_ext)
 end subroutine hadronic_estimate_max_gamma
 
+! 统一调用加速时标、同步冷却、注入源项和最大能量估计，完成粒子加速算子的完整计算。
 subroutine hadronic_acceleration_operator(num_gamma,species,gamma,b_field_g,eta_acc, &
                                           luminosity_erg_s,spectral_index,gamma_min, &
                                           gamma_max_inj,gamma_cut,has_gamma_cut, &
@@ -267,6 +265,7 @@ subroutine hadronic_acceleration_operator(num_gamma,species,gamma,b_field_g,eta_
                                      gamma_ext,has_gamma_ext)
 end subroutine hadronic_acceleration_operator
 
+! 梯形法则数值积分。
 real(8) function hadronic_trapezoid(num_x,x,y)
     integer, intent(in) :: num_x
     real(8), intent(in) :: x(num_x),y(num_x)

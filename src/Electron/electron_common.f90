@@ -2,23 +2,21 @@
 module electron_common
     use constants
     use adaptive_resampling_mod, only: adaptive_resampling_log
-    use electron_injection_profiles, only: electron_profile_log_cell_edges, electron_initial_powerlaw, &
+    use electron_injection_profiles, only: electron_profile_log_cell_edges, &
                                      electron_initial_powerlaw_exp_cutoff, electron_initial_powerlaw_exp_cutoff_edges
     implicit none
     integer, parameter :: radiation_resample_threshold = 180
     integer, parameter :: radiation_resample_target = 160
     integer, parameter :: radiation_resample_smoothness = 4
-    integer, parameter :: electron_initial_profile_powerlaw = 0
-    integer, parameter :: electron_initial_profile_exp_cutoff = 1
     integer, parameter :: electron_initial_grid_gamma = 0
     integer, parameter :: electron_initial_grid_log_edges = 1
 contains
 
 ! 初始化电子能谱，并按需生成 gamma 或 log-gamma 边界网格。
 subroutine electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
-                                        profile_mode,grid_mode,gam_e,dN_init,x_edge)
+                                        grid_mode,gam_e,dN_init,x_edge)
     implicit none
-    integer, intent(in) :: Num_gam_e,profile_mode,grid_mode
+    integer, intent(in) :: Num_gam_e,grid_mode
     integer :: I_gam_e
     real(8), intent(in) :: Gam_e_max_max,Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max
     real(8), intent(out) :: gam_e(Num_gam_e),dN_init(Num_gam_e)
@@ -29,41 +27,15 @@ subroutine electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,G
     end do
     select case (grid_mode)
     case (electron_initial_grid_gamma)
-        select case (profile_mode)
-        case (electron_initial_profile_powerlaw)
-            call electron_initial_powerlaw(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,gam_e,dN_init)
-        case (electron_initial_profile_exp_cutoff)
-            call electron_initial_powerlaw_exp_cutoff(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,gam_e,dN_init)
-        case default
-            error stop 'unknown electron_initialize_spectrum profile_mode'
-        end select
+        call electron_initial_powerlaw_exp_cutoff(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,gam_e,dN_init)
     case (electron_initial_grid_log_edges)
         if (.not. present(x_edge)) error stop 'electron_initialize_spectrum requires x_edge'
         call electron_profile_log_cell_edges(Num_gam_e,gam_e,x_edge)
-        select case (profile_mode)
-        case (electron_initial_profile_exp_cutoff)
-            call electron_initial_powerlaw_exp_cutoff_edges(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,x_edge,dN_init)
-        case default
-            error stop 'unsupported edge-grid electron_initialize_spectrum profile_mode'
-        end select
+        call electron_initial_powerlaw_exp_cutoff_edges(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,x_edge,dN_init)
     case default
         error stop 'unknown electron_initialize_spectrum grid_mode'
     end select
 end subroutine electron_initialize_spectrum
-
-! 计算 p 接近 2 时的注入最小洛伦兹因子近似。
-subroutine electron_gamma_m_near_two(p,threshold,coeff,temp_gam,Gam_e_max,Gam_e_m)
-    implicit none
-    real(8), intent(in) :: p,threshold,coeff,temp_gam,Gam_e_max
-    real(8), intent(out) :: Gam_e_m
-
-    Gam_e_m=(p-two)/(p-one)*temp_gam+one
-    if (p<threshold .and. p>=two) then
-        Gam_e_m=coeff/(one+coeff)*temp_gam+one
-    else if (p<two .and. p>one) then
-        Gam_e_m=((two-p)/(p-one)*temp_gam*Gam_e_max**(p-two))**(one/(p-one))+one
-    end if
-end subroutine electron_gamma_m_near_two
 
 ! 按完整 p 分支计算注入最小洛伦兹因子。
 subroutine electron_gamma_m_exact(p,temp_gam,Gam_e_max,Gam_e_m)

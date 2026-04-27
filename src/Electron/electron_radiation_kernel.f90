@@ -1,19 +1,19 @@
 module electron_radiation_kernel
   use constants
-  use electron_transport_common, only: electron_ppm_interfaces_nonuniform
   use radiation_common, only: radiation_syn_seed_core
   private
 
     public :: first_greater_monotonic, first_greater_monotonic_window
-    public :: besselk, get_syn, get_syn_state, get_syn_simpson, get_syn_selected, get_syn_transfer, get_nu_a, get_nu_a_nonuniform
+    public :: besselk, get_syn, get_syn_state, get_syn_selected, get_syn_transfer, get_nu_a
     public :: get_nu_a_2d_path, get_nu_a_2d_cell_path, reduce_syn_shell_from_chi
-    public :: build_reduced_log_grid, compress_syn_state_logbands, project_syn_state_logbands
+    public :: build_reduced_log_grid, project_syn_state_logbands
     public :: get_syn_adaptive
     public :: electron_powerlaw_interp, electron_integrate_powerlaw_segment, electron_ssa_segment
-    public :: electron_fill_quadratic_slopes, electron_ppm_value_derivative_nonuniform
+    public :: electron_fill_quadratic_slopes
 
 contains
 
+! 在单调递增数组arr的[left,right]区间内二分查找第一个 > target 的索引。
 subroutine first_greater_monotonic_from(arr,left,right,target,idx)
 implicit none
 integer, intent(in) :: left,right
@@ -34,6 +34,7 @@ integer :: lo,hi,mid
     idx=lo
 end subroutine first_greater_monotonic_from
 
+! 在全数组arr(1:n)中二分查找第一个 > target 的索引，含边界快速返回。
 subroutine first_greater_monotonic(arr,n,target,idx)
 implicit none
 integer, intent(in) :: n
@@ -52,6 +53,7 @@ integer, intent(out) :: idx
     call first_greater_monotonic_from(arr,1,n,target,idx)
 end subroutine first_greater_monotonic
 
+! 从start_idx开始在arr(1:n)中查找第一个 > target 的索引（带游标加速）。
 subroutine first_greater_monotonic_window(arr,n,start_idx,target,idx)
 implicit none
 integer, intent(in) :: n,start_idx
@@ -137,6 +139,7 @@ real(8) :: P_emit(Num_nu),Tau_syn(Num_nu)
     call get_syn_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed,P_emit,P_syn,Seed_syn,Tau_syn)
 end subroutine get_syn
 
+! 构建约化对数频率网格：在85%高频处加密采样，用于冷却计算的轻量级频率表。
 subroutine build_reduced_log_grid(Num_nu_in,V_in,Num_nu_out,V_out)
 implicit REAL(8)(A-H,O-Z)
 integer, intent(in) :: Num_nu_in,Num_nu_out
@@ -165,60 +168,7 @@ real(8) :: x0,x1,x_tail_start
     end if
 end subroutine build_reduced_log_grid
 
-real(8) function electron_integrate_piecewise_powerlaw(Num_nu,V_grid,Y_grid,V_lo,V_hi)
-implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: Num_nu
-integer :: I_nu
-real(8), intent(in) :: V_grid(Num_nu),Y_grid(Num_nu),V_lo,V_hi
-real(8) :: seg_lo,seg_hi
-
-    electron_integrate_piecewise_powerlaw=zero
-    if (V_hi <= V_lo) return
-    do I_nu=1,Num_nu-1
-        seg_lo=max(V_lo,V_grid(I_nu))
-        seg_hi=min(V_hi,V_grid(I_nu+1))
-        if (seg_hi <= seg_lo) cycle
-        electron_integrate_piecewise_powerlaw=electron_integrate_piecewise_powerlaw + &
-            electron_integrate_powerlaw_segment(seg_lo,seg_hi, &
-                electron_powerlaw_interp(V_grid(I_nu),V_grid(I_nu+1),Y_grid(I_nu),Y_grid(I_nu+1),seg_lo), &
-                electron_powerlaw_interp(V_grid(I_nu),V_grid(I_nu+1),Y_grid(I_nu),Y_grid(I_nu+1),seg_hi))
-    end do
-end function electron_integrate_piecewise_powerlaw
-
-subroutine compress_syn_state_logbands(Num_nu_in,V_in,P_in,Seed_in,Tau_in,Num_nu_out,V_out,P_out,Seed_out,Tau_out)
-implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: Num_nu_in,Num_nu_out
-integer :: I_out
-real(8), intent(in) :: V_in(Num_nu_in),P_in(Num_nu_in),Seed_in(Num_nu_in),Tau_in(Num_nu_in),V_out(Num_nu_out)
-real(8), intent(out) :: P_out(Num_nu_out),Seed_out(Num_nu_out),Tau_out(Num_nu_out)
-real(8) :: V_lo,V_hi,dln_band
-
-    do I_out=1,Num_nu_out
-        if (I_out == 1) then
-            V_lo=V_out(1)
-        else
-            V_lo=dsqrt(V_out(I_out-1)*V_out(I_out))
-        end if
-        if (I_out == Num_nu_out) then
-            V_hi=V_out(Num_nu_out)
-        else
-            V_hi=dsqrt(V_out(I_out)*V_out(I_out+1))
-        end if
-
-        if (V_hi <= V_lo) then
-            P_out(I_out)=max(P_in(1),zero)
-            Seed_out(I_out)=max(Seed_in(1),zero)
-            Tau_out(I_out)=max(Tau_in(1),1d-4)
-        else
-            dln_band=dlog(V_hi/V_lo)
-            P_out(I_out)=electron_integrate_piecewise_powerlaw(Num_nu_in,V_in,P_in,V_lo,V_hi)/max(V_hi-V_lo,tiny(one))
-            Seed_out(I_out)=electron_integrate_piecewise_powerlaw(Num_nu_in,V_in,Seed_in,V_lo,V_hi)/max(V_hi-V_lo,tiny(one))
-            Tau_out(I_out)=max(electron_integrate_piecewise_powerlaw(Num_nu_in,V_in,Tau_in/V_in,V_lo,V_hi) / &
-                               max(dln_band,tiny(one)),1d-4)
-        end if
-    end do
-end subroutine compress_syn_state_logbands
-
+! 将同步辐射状态(P,Seed,Tau)从原频率网格幂律插值投影到约化频率网格。
 subroutine project_syn_state_logbands(Num_nu_in,V_in,P_in,Seed_in,Tau_in,Num_nu_out,V_out,P_out,Seed_out,Tau_out)
 implicit REAL(8)(A-H,O-Z)
 integer, intent(in) :: Num_nu_in,Num_nu_out
@@ -251,6 +201,7 @@ real(8) :: V_tar
     end do
 end subroutine project_syn_state_logbands
 
+! 调用radiation_syn_seed_core计算同步辐射发射功率、SSA光深、转移后谱和种子光子场。
 subroutine get_syn_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
                          P_emit,P_syn,Seed_syn,Tau_syn)
 implicit REAL(8)(A-H,O-Z)
@@ -261,6 +212,7 @@ real(8), intent(out) ::P_emit(Num_nu),P_syn(Num_nu),Seed_syn(Num_nu),Tau_syn(Num
                                  P_emit,P_syn,Seed_syn,Tau_syn)
 end subroutine get_syn_state
 
+! 同步辐射F(x)核：F(x) = 1.81 e^(-x)/√(x^(-2/3)+factor)，x=ν/ν_c。
 real(8) function electron_syn_fx(gam,V_cal,DB,factor)
 implicit REAL(8)(A-H,O-Z)
 real(8), intent(in) :: gam,V_cal,DB,factor
@@ -272,6 +224,7 @@ real(8) :: Vc,x,ratio_v
     electron_syn_fx=1.81d0*dexp(-x)/dsqrt(ratio_v**(2d0/3d0)+factor)
 end function electron_syn_fx
 
+! 线性插值：x∈[x0,x1]→y，等距时取平均。
 real(8) function electron_linear_interp(x0,x1,y0,y1,x)
 implicit REAL(8)(A-H,O-Z)
 real(8), intent(in) :: x0,x1,y0,y1,x
@@ -283,6 +236,7 @@ real(8), intent(in) :: x0,x1,y0,y1,x
     end if
 end function electron_linear_interp
 
+! 同步辐射被积函数：dN/dx * F(x) * γ，用于发射功率积分。
 real(8) function electron_syn_integrand_x(x,x0,x1,dN0,dN1,V_cal,DB,factor)
 implicit REAL(8)(A-H,O-Z)
 real(8), intent(in) :: x,x0,x1,dN0,dN1,V_cal,DB,factor
@@ -293,6 +247,7 @@ real(8) :: gam,dN
     electron_syn_integrand_x=dN*electron_syn_fx(gam,V_cal,DB,factor)*gam
 end function electron_syn_integrand_x
 
+! 幂律插值：两端为正时做log-log线性插值，否则退化为线性插值。
 real(8) function electron_powerlaw_interp(v0,v1,y0,y1,v)
 implicit REAL(8)(A-H,O-Z)
 real(8), intent(in) :: v0,v1,y0,y1,v
@@ -317,6 +272,7 @@ real(8) :: slope
     end if
 end function electron_powerlaw_interp
 
+! 对数空间2点Gauss-Legendre节点和权重：(v_g1, v_g2)为频率节点，(w_g1, w_g2)含dv权重。
 subroutine electron_log_gauss2_interval(v0,v1,v_g1,v_g2,w_g1,w_g2)
 implicit REAL(8)(A-H,O-Z)
 real(8), intent(in) :: v0,v1
@@ -334,6 +290,7 @@ real(8) :: x0,x1,xm,dx,w2
     w_g2=dx*v_g2
 end subroutine electron_log_gauss2_interval
 
+! 对幂律插值函数在[v0,v1]上做2点Gauss-Legendre积分。
 real(8) function electron_integrate_powerlaw_segment(v0,v1,y0,y1)
 implicit REAL(8)(A-H,O-Z)
 real(8), intent(in) :: v0,v1,y0,y1
@@ -350,6 +307,7 @@ real(8) :: vg1,vg2,wg1,wg2
         wg2*electron_powerlaw_interp(v0,v1,y0,y1,vg2)
 end function electron_integrate_powerlaw_segment
 
+! SSA冷却率段积分：mode=1低频Σ∝ν^(-5/3)，mode=2高频Σ∝(ν_c/ν)e^(-ν/ν_uplim)。
 real(8) function electron_ssa_segment(v0,v1,seed0,seed1,sigma_prefactor,mode,Cyclotron_nu,V_uplim)
 implicit REAL(8)(A-H,O-Z)
 integer, intent(in) :: mode
@@ -381,6 +339,7 @@ real(8) :: vg1,vg2,wg1,wg2,seed_loc,sigma_loc
     electron_ssa_segment=electron_ssa_segment+wg2*sigma_loc*seed_loc*para_h*vg2*para_c
 end function electron_ssa_segment
 
+! 三点二次插值的导数值（Lagrange基函数求导）。
 real(8) function electron_quadratic_derivative_x(x,xl,xc,xr,yl,yc,yr)
 implicit REAL(8)(A-H,O-Z)
 real(8), intent(in) :: x,xl,xc,xr,yl,yc,yr
@@ -391,6 +350,7 @@ real(8), intent(in) :: x,xl,xc,xr,yl,yc,yr
         yr*(two*x-xl-xc)/((xr-xl)*(xr-xc))
 end function electron_quadratic_derivative_x
 
+! 用三点二次插值填充Hermite插值所需的导数数组。
 subroutine electron_fill_quadratic_slopes(x_arr,y_arr,dy_arr,n)
 implicit REAL(8)(A-H,O-Z)
 integer, intent(in) :: n
@@ -408,6 +368,7 @@ integer :: i
                                               y_arr(n-2),y_arr(n-1),y_arr(n))
 end subroutine electron_fill_quadratic_slopes
 
+! 三次Hermite插值求值：q(x)=h00*y0+h10*dy0+h01*y1+h11*dy1。
 real(8) function electron_hermite_interp_x(x,x0,x1,y0,y1,dy0,dy1)
 implicit REAL(8)(A-H,O-Z)
 real(8), intent(in) :: x,x0,x1,y0,y1,dy0,dy1
@@ -421,6 +382,7 @@ real(8) :: h,s
                                (s*s*s-s*s)*h*dy1
 end function electron_hermite_interp_x
 
+! 三次Hermite插值的导数值。
 real(8) function electron_hermite_derivative_x(x,x0,x1,y0,y1,dy0,dy1)
 implicit REAL(8)(A-H,O-Z)
 real(8), intent(in) :: x,x0,x1,y0,y1,dy0,dy1
@@ -434,6 +396,7 @@ real(8) :: h,s
                                    (3d0*s*s-2d0*s)*dy1
 end function electron_hermite_derivative_x
 
+! SSA光深被积函数：-d(dN/dγ)/dx * γ² * F(x)。
 real(8) function electron_tau_integrand_x(x,x0,x1,dN10,dN11,ddN10,ddN11,V_cal,DB,factor)
 implicit REAL(8)(A-H,O-Z)
 real(8), intent(in) :: x,x0,x1,dN10,dN11,ddN10,ddN11,V_cal,DB,factor
@@ -444,6 +407,7 @@ real(8) :: gam,d_dN1_dx
     electron_tau_integrand_x=-d_dN1_dx*gam*gam*electron_syn_fx(gam,V_cal,DB,factor)
 end function electron_tau_integrand_x
 
+! 单网格单元同步发射功率的2点+3点Gauss积分（用于自适应误差估计）。
 subroutine electron_syn_gauss_cell(x0,x1,dN0,dN1,V_cal,DB,factor,p2,p3)
 implicit REAL(8)(A-H,O-Z)
 real(8), intent(in) :: x0,x1,dN0,dN1,V_cal,DB,factor
@@ -467,6 +431,7 @@ real(8) :: x2a,x2b,x3a,x3b
            (5d0/9d0)*electron_syn_integrand_x(x3b,x0,x1,dN0,dN1,V_cal,DB,factor))
 end subroutine electron_syn_gauss_cell
 
+! 单网格单元SSA光深的2点+3点Gauss积分（用于自适应误差估计）。
 subroutine electron_tau_gauss_cell(x0,x1,dN10,dN11,ddN10,ddN11,V_cal,DB,factor,t2,t3)
 implicit REAL(8)(A-H,O-Z)
 real(8), intent(in) :: x0,x1,dN10,dN11,ddN10,ddN11,V_cal,DB,factor
@@ -496,6 +461,7 @@ real(8) :: x2a,x2b,x3a,x3b
            (5d0/9d0)*electron_tau_integrand_x(x3b,x0,x1,dN10,dN11,ddN10,ddN11,V_cal,DB,factor))
 end subroutine electron_tau_gauss_cell
 
+! 自适应同步辐射单元积分：2点/3点Gauss误差估计，超差时对半细分。
 subroutine electron_syn_cell_adaptive(x0,x1,dN0,dN1,dN10,dN11,ddN10,ddN11, &
                                       V_cal,DB,factor,rel_tol,p_int,tau_int)
 implicit REAL(8)(A-H,O-Z)
@@ -528,6 +494,7 @@ real(8) :: p3_l,p3_r,t3_l,t3_r
     end if
 end subroutine electron_syn_cell_adaptive
 
+! 自适应同步辐射计算：Hermite插值电子谱+Gauss自适应积分，精度可控。
 subroutine get_syn_adaptive(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
                             P_syn,Seed_syn)
 !$ use omp_lib
@@ -579,6 +546,7 @@ real(8) :: factor,Temp_syn,Rariv2,temp_para
     deallocate(dN1,ddN1,x_gam)
 end subroutine get_syn_adaptive
 
+! 同步辐射计算选择器：按index_syn_intger选择标准/自适应/transfer-only方案。
 subroutine get_syn_selected(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
                             P_syn,Seed_syn)
 implicit REAL(8)(A-H,O-Z)
@@ -608,6 +576,7 @@ real(8) :: h_ref,h_loc
     end select
 end subroutine get_syn_selected
 
+! 计算同步辐射转移函数：Transfer = P_absorbed / P_emit，即(1-e^(-τ))/τ。
 subroutine get_syn_transfer(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed,Transfer_syn)
 implicit none
 integer, intent(in) :: Num_gam_e,Num_nu,n_threads
@@ -626,87 +595,7 @@ integer :: I_nu
     end do
 end subroutine get_syn_transfer
 
-subroutine get_syn_simpson(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
-                   P_syn,Seed_syn)
-!$ use omp_lib
-implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: Num_gam_e,Num_nu,n_threads
-real(8), intent(in) :: R_loc,DB,gam_e(Num_gam_e),dN_gam_e(Num_gam_e),V_seed(Num_nu)
-real(8), intent(out) ::P_syn(Num_nu),Seed_syn(Num_nu)
-
-real(8),allocatable,dimension (:) :: dN1,ddN
-allocate (dN1(Num_gam_e),ddN(Num_gam_e-1))
-
-    if (Num_gam_e > 2) then
-        h = log(gam_e(2))-log(gam_e(1))
-        do I_gam_e=3,Num_gam_e
-            if (abs((log(gam_e(I_gam_e))-log(gam_e(I_gam_e-1)))-h) > 1d-6*max(abs(h),1d-30)) then
-                deallocate(dN1,ddN)
-                call get_syn(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed,P_syn,Seed_syn)
-                return
-            end if
-        end do
-    end if
-
-    factor=(3.62d0/pi)**2
-    Temp_syn=dsqrt(3d0)*para_e*para_e*para_e/Para_m_energy
-    Rariv2=R_loc*R_loc
-    dN1=dN_gam_e/(gam_e*gam_e)
-    ddN=dN1(1:Num_gam_e-1)-dN1(2:Num_gam_e)
-    
-    h = log(gam_e(2))-log(gam_e(1))
-    
-    !$ call omp_set_dynamic(.true.)
-    !$OMP PARALLEL num_threads(n_threads), private(I_nu,I_gam_e,V_cal,dInteg,Tau,Vc,x,Fx,P_v,simpson_sum, &
-    !$OMP& val,gam_e_mean2,ratio_v)
-    !$OMP DO SCHEDULE(STATIC)
-    do I_nu=1,Num_nu
-       V_cal=V_seed(I_nu)
-       dInteg=zero
-       Tau=zero
-
-       ! \int f(x)dx \prox (h/3)[f(x0) + 4f(x1) + 2f(x2) + 4f(x3) + ... + f(xn)]
-       simpson_sum = zero
-       do I_gam_e=1,Num_gam_e
-           Vc = (4.2d6)*gam_e(I_gam_e)**2*DB
-           x = V_cal/Vc
-           ratio_v = Vc/V_cal
-           Fx = 1.81d0*exp(-x)/sqrt(ratio_v**(2d0/3d0)+factor)
-           val = dN_gam_e(I_gam_e) * Fx * gam_e(I_gam_e)
-           if (I_gam_e == 1 .or. I_gam_e == Num_gam_e) then
-               simpson_sum = simpson_sum + val
-           else if (mod(I_gam_e,2) == 0) then
-               simpson_sum = simpson_sum + 4d0 * val
-           else
-               simpson_sum = simpson_sum + two * val
-           endif
-       end do
-       dInteg = (h/3.0d0) * simpson_sum
-       ! ====================  [SSA]  ======================
-       do I_gam_e=1,Num_gam_e-1
-          gam_e_mean2=(gam_e(I_gam_e)+gam_e(I_gam_e+1))**2/4d0
-          Vc=(4.2d6)*gam_e_mean2*DB
-          x=V_cal/Vc
-          ratio_v=Vc/V_cal
-          Fx=1.81d0*exp(-x)/sqrt(ratio_v**(2d0/3d0)+factor)
-          Tau=Tau+gam_e_mean2*ddN(I_gam_e)*Fx
-       end do
-       ! ===================================================
-       P_v=Temp_syn*DB*dInteg
-       Tau=1.046d4*Tau*DB/(4d0*pi*Rariv2*V_cal*V_cal)
-       if ((Tau-1d-4) < 1d-5) Tau=1d-4
-       P_syn(I_nu)=P_v*(one-exp(-Tau))/Tau
-       Seed_syn(I_nu)=P_syn(I_nu)/(Rariv2*V_cal)
-    end do
-    !$OMP END DO
-    !$OMP END PARALLEL
-
-    temp_para=4d0*pi*Para_c*Para_h
-    Seed_syn=Seed_syn/temp_para
-
-deallocate (dN1,ddN)
-end subroutine get_syn_simpson
-
+! 计算SSA频率ν_a：二分搜索+对数割线法求解τ(ν_a)=1。
 subroutine get_nu_a(R_loc,DB,Num_gam_e,gam_e,dN_gam_e, &
                        V_a)
 !$ use omp_lib
@@ -780,6 +669,7 @@ return
 
 contains
 
+! 计算给定频率ν处的SSA光深（遍历电子能格自适应积分）。
 subroutine evaluate_tau(V_cal,Tau)
 implicit REAL(8)(A-H,O-Z)
 real(8), intent(in) :: V_cal
@@ -798,6 +688,7 @@ real(8) :: tau_cell,discard
     Tau=1.046d4*Tau*DB/(4d0*pi*Rariv2*V_cal*V_cal)
 end subroutine evaluate_tau
 
+! 对数空间割线法迭代精化ν_a：在[V_low,V_high]内求解τ(ν)=1，最多10次迭代。
 subroutine refine_nu_a_bracket(V_low,Tau_low,V_high,Tau_high,V_root)
 implicit REAL(8)(A-H,O-Z)
 real(8), intent(inout) :: V_low,Tau_low,V_high,Tau_high
@@ -844,217 +735,7 @@ integer :: I_iter
 end subroutine refine_nu_a_bracket
 end subroutine get_nu_a
 
-subroutine get_nu_a_nonuniform(R_loc,DB,Num_gam_e,x_edge_log10,dN_x,V_a)
-implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: Num_gam_e
-real(8), intent(in) :: R_loc,DB,x_edge_log10(Num_gam_e+1),dN_x(Num_gam_e)
-real(8), intent(out) :: V_a
-real(8), parameter :: rel_tol=5d-4
-
-real(8), allocatable :: x_edge(:),q_y(:),q_left(:),q_right(:)
-allocate(x_edge(Num_gam_e+1),q_y(Num_gam_e),q_left(Num_gam_e),q_right(Num_gam_e))
-
-    factor=(3.62d0/pi)**2
-    Rariv2=R_loc*R_loc
-    x_edge=dlog(ten)*x_edge_log10
-    q_y=dN_x/dlog(ten)
-    call electron_ppm_interfaces_nonuniform(Num_gam_e,x_edge,q_y,q_left,q_right)
-    V_a_floor=ten**4d0
-    V_a_min=ten**(-20d0)
-    V_a_cap=one
-    do I_gam_e=1,Num_gam_e
-       gam_mid=dexp(0.5d0*(x_edge(I_gam_e)+x_edge(I_gam_e+1)))
-       Vc=4.2d6*gam_mid*gam_mid*DB
-       if (Vc > V_a_cap) V_a_cap=Vc
-    end do
-    V_a_cap=max(ten**14d0, min(ten**30d0, ten*V_a_cap))
-
-    V_low=V_a_floor
-    call evaluate_tau(V_low,Tau_low)
-    if (Tau_low <= one) then
-        do I_nu=1,26
-           if (V_low <= V_a_min) exit
-           V_high=V_low
-           Tau_high=Tau_low
-           V_low=max(V_a_min,V_low/ten)
-           call evaluate_tau(V_low,Tau_low)
-           if (Tau_low > one) exit
-        end do
-
-        if (Tau_low > one) then
-           call refine_nu_a_bracket_nonuniform(V_low,Tau_low,V_high,Tau_high,V_a)
-        else
-           V_a=V_low
-        end if
-    else
-        V_high=V_low
-        Tau_high=Tau_low
-       do I_nu=1,26
-          V_low=V_high
-          Tau_low=Tau_high
-          if (V_high >= V_a_cap) exit
-          V_high=min(V_a_cap, ten*V_high)
-          call evaluate_tau(V_high,Tau_high)
-          if (Tau_high <= one) exit
-       end do
-
-       if (Tau_high > one) then
-          V_a=V_high
-          print*, 'nu_a_comoving larger than adaptive upper bound!', V_a_cap
-       else
-          if (Tau_low <= one .or. Tau_low == Tau_high) then
-             V_a=V_high
-          else
-             call refine_nu_a_bracket_nonuniform(V_low,Tau_low,V_high,Tau_high,V_a)
-          end if
-       end if
-    end if
-
-    deallocate(x_edge,q_y,q_left,q_right)
-
-return
-
-contains
-
-subroutine evaluate_tau(V_cal,Tau)
-implicit REAL(8)(A-H,O-Z)
-real(8), intent(in) :: V_cal
-real(8), intent(out) :: Tau
-real(8) :: tau_cell
-
-    Tau=zero
-    do I_gam_e=1,Num_gam_e
-       call electron_tau_ppm_cell_adaptive(x_edge(I_gam_e),x_edge(I_gam_e+1), &
-                                           q_y(I_gam_e),q_left(I_gam_e),q_right(I_gam_e), &
-                                           V_cal,DB,factor,rel_tol,tau_cell)
-       Tau=Tau+tau_cell
-    end do
-    Tau=1.046d4*Tau*DB/(4d0*pi*Rariv2*V_cal*V_cal)
-end subroutine evaluate_tau
-
-subroutine electron_ppm_value_derivative_nonuniform(x,cell_lo,cell_hi,qc,q_l,q_r,q_val,dqdx)
-implicit REAL(8)(A-H,O-Z)
-real(8), intent(in) :: x,cell_lo,cell_hi,qc,q_l,q_r
-real(8), intent(out) :: q_val,dqdx
-real(8) :: dx_cell,xi,q6,bcoef
-
-    dx_cell=cell_hi-cell_lo
-    if (dx_cell <= zero) then
-        q_val=qc
-        dqdx=zero
-        return
-    end if
-
-    xi=(x-cell_lo)/dx_cell
-    xi=max(zero,min(one,xi))
-    q6=6d0*qc-3d0*(q_l+q_r)
-    bcoef=q_r-q_l+q6
-    q_val=q_l+bcoef*xi-q6*xi*xi
-    dqdx=(bcoef-two*q6*xi)/dx_cell
-end subroutine electron_ppm_value_derivative_nonuniform
-
-real(8) function electron_tau_ppm_integrand_x(x,cell_lo,cell_hi,qc,q_l,q_r,V_cal,DB,factor)
-implicit REAL(8)(A-H,O-Z)
-real(8), intent(in) :: x,cell_lo,cell_hi,qc,q_l,q_r,V_cal,DB,factor
-real(8) :: gam,q_val,dqdx,d_dN1_dx
-
-    call electron_ppm_value_derivative_nonuniform(x,cell_lo,cell_hi,qc,q_l,q_r,q_val,dqdx)
-    gam=dexp(x)
-    d_dN1_dx=(dqdx-3d0*q_val)/(gam*gam*gam)
-    electron_tau_ppm_integrand_x=-d_dN1_dx*gam*gam*electron_syn_fx(gam,V_cal,DB,factor)
-end function electron_tau_ppm_integrand_x
-
-subroutine electron_tau_ppm_gauss_cell(x0,x1,cell_lo,cell_hi,qc,q_l,q_r,V_cal,DB,factor,t2,t3)
-implicit REAL(8)(A-H,O-Z)
-real(8), intent(in) :: x0,x1,cell_lo,cell_hi,qc,q_l,q_r,V_cal,DB,factor
-real(8), intent(out) :: t2,t3
-real(8) :: xm,dx,w2,w3a,x2a,x2b,x3a,x3b
-
-    if (x1 <= x0) then
-        t2=zero
-        t3=zero
-        return
-    end if
-
-    xm=0.5d0*(x0+x1)
-    dx=0.5d0*(x1-x0)
-    w2=one/dsqrt(3d0)
-    x2a=xm-dx*w2
-    x2b=xm+dx*w2
-    t2=dx*(electron_tau_ppm_integrand_x(x2a,cell_lo,cell_hi,qc,q_l,q_r,V_cal,DB,factor)+ &
-           electron_tau_ppm_integrand_x(x2b,cell_lo,cell_hi,qc,q_l,q_r,V_cal,DB,factor))
-
-    w3a=dsqrt(3d0/5d0)
-    x3a=xm-dx*w3a
-    x3b=xm+dx*w3a
-    t3=dx*((5d0/9d0)*electron_tau_ppm_integrand_x(x3a,cell_lo,cell_hi,qc,q_l,q_r,V_cal,DB,factor)+ &
-           (8d0/9d0)*electron_tau_ppm_integrand_x(xm ,cell_lo,cell_hi,qc,q_l,q_r,V_cal,DB,factor)+ &
-           (5d0/9d0)*electron_tau_ppm_integrand_x(x3b,cell_lo,cell_hi,qc,q_l,q_r,V_cal,DB,factor))
-end subroutine electron_tau_ppm_gauss_cell
-
-subroutine electron_tau_ppm_cell_adaptive(x0,x1,qc,q_l,q_r,V_cal,DB,factor,rel_tol,tau_int)
-implicit REAL(8)(A-H,O-Z)
-real(8), intent(in) :: x0,x1,qc,q_l,q_r,V_cal,DB,factor,rel_tol
-real(8), intent(out) :: tau_int
-real(8) :: t2,t3,xm,ref_t,err_t,t3_l,t3_r
-
-    call electron_tau_ppm_gauss_cell(x0,x1,x0,x1,qc,q_l,q_r,V_cal,DB,factor,t2,t3)
-    ref_t=max(abs(t3),1d-30)
-    err_t=abs(t3-t2)/ref_t
-    if (err_t <= rel_tol) then
-        tau_int=t3
-    else
-        xm=0.5d0*(x0+x1)
-        call electron_tau_ppm_gauss_cell(x0,xm,x0,x1,qc,q_l,q_r,V_cal,DB,factor,t2,t3_l)
-        call electron_tau_ppm_gauss_cell(xm,x1,x0,x1,qc,q_l,q_r,V_cal,DB,factor,t2,t3_r)
-        tau_int=t3_l+t3_r
-    end if
-end subroutine electron_tau_ppm_cell_adaptive
-
-subroutine refine_nu_a_bracket_nonuniform(V_low,Tau_low,V_high,Tau_high,V_root)
-implicit REAL(8)(A-H,O-Z)
-real(8), intent(inout) :: V_low,Tau_low,V_high,Tau_high
-real(8), intent(out) :: V_root
-real(8) :: log_v_low,log_v_high,log_v_mid,log_tau_low,log_tau_high
-real(8) :: V_mid,Tau_mid
-integer :: I_iter
-
-    log_v_low=dlog(V_low)
-    log_v_high=dlog(V_high)
-    do I_iter=1,10
-        log_tau_low=dlog(Tau_low)
-        log_tau_high=dlog(Tau_high)
-        if (log_tau_low == log_tau_high) then
-            log_v_mid=0.5d0*(log_v_low+log_v_high)
-        else
-            log_v_mid=log_v_low-log_tau_low*(log_v_high-log_v_low)/(log_tau_high-log_tau_low)
-        end if
-        log_v_mid=max(log_v_low,min(log_v_high,log_v_mid))
-        V_mid=dexp(log_v_mid)
-        call evaluate_tau(V_mid,Tau_mid)
-        if (Tau_mid > one) then
-            V_low=V_mid
-            Tau_low=Tau_mid
-            log_v_low=log_v_mid
-        else
-            V_high=V_mid
-            Tau_high=Tau_mid
-            log_v_high=log_v_mid
-        end if
-        if (abs(log_v_high-log_v_low) <= 5d-3) exit
-    end do
-
-    log_tau_low=dlog(Tau_low)
-    log_tau_high=dlog(Tau_high)
-    if (log_tau_low == log_tau_high) then
-        V_root=dexp(0.5d0*(log_v_low+log_v_high))
-    else
-        V_root=dexp(log_v_low-log_tau_low*(log_v_high-log_v_low)/(log_tau_high-log_tau_low))
-    end if
-    V_root=min(max(V_root,V_low),V_high)
-end subroutine refine_nu_a_bracket_nonuniform
-end subroutine get_nu_a_nonuniform
-
+! 2D路径积分ν_a：累加所有χ列的光深后求解τ_total(ν_a)=1。
 subroutine get_nu_a_2d_path(Num_nu,Num_chi,V_seed,Tau_chi,V_a)
 implicit REAL(8)(A-H,O-Z)
 integer, intent(in) :: Num_nu,Num_chi
@@ -1071,6 +752,7 @@ real(8) :: Tau_path(Num_nu)
     call get_nu_a_from_tau_grid(Num_nu,V_seed,Tau_path,V_a)
 end subroutine get_nu_a_2d_path
 
+! 2D逐列ν_a：对每个χ列累加光深后求解τ_cumul(ν_a)=1，输出各列ν_a(χ)。
 subroutine get_nu_a_2d_cell_path(Num_nu,Num_chi,V_seed,Tau_chi,V_a_chi)
 implicit REAL(8)(A-H,O-Z)
 integer, intent(in) :: Num_nu,Num_chi
@@ -1086,6 +768,7 @@ real(8) :: Tau_path(Num_nu)
     end do
 end subroutine get_nu_a_2d_cell_path
 
+! 将χ分辨的同步辐射谱加权求和为壳层平均谱：Σ χ dη ln(10) * Q(χ)。
 subroutine reduce_syn_shell_from_chi(Num_nu,Num_chi,deta,chi_grid,P_chi,Seed_chi,P_shell,Seed_shell)
 implicit REAL(8)(A-H,O-Z)
 integer, intent(in) :: Num_nu,Num_chi
@@ -1104,6 +787,7 @@ real(8) :: weight,ln10
     end do
 end subroutine reduce_syn_shell_from_chi
 
+! 从光深网格求解ν_a：在τ穿越1的位置对数插值。
 subroutine get_nu_a_from_tau_grid(Num_nu,V_seed,Tau_grid,V_a)
 implicit REAL(8)(A-H,O-Z)
 integer, intent(in) :: Num_nu
@@ -1142,6 +826,7 @@ real(8) :: Tau_left,Tau_right
     call interpolate_log_tau_root(V_seed(I_cross-1),Tau_left,V_seed(I_cross),Tau_right,V_a)
 end subroutine get_nu_a_from_tau_grid
 
+! 对数-对数空间线性插值求解τ(ν)=1的根ν_a。
 subroutine interpolate_log_tau_root(V_left,Tau_left,V_right,Tau_right,V_root)
 implicit REAL(8)(A-H,O-Z)
 real(8), intent(in) :: V_left,Tau_left,V_right,Tau_right

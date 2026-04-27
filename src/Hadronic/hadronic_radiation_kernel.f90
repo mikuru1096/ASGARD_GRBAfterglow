@@ -6,6 +6,7 @@ module hadronic_radiation_kernel
 
 contains
 
+! 质子同步辐射超相对论核函数：分段解析/多项式近似计算 F(x)。
 real(8) function hadronic_syn_kernel_ultrarel(V_nu,gam_p,B_field_g)
     implicit real(8)(A-H,O-Z)
     real(8), intent(in) :: V_nu,gam_p,B_field_g
@@ -49,6 +50,7 @@ real(8) function hadronic_syn_kernel_ultrarel(V_nu,gam_p,B_field_g)
     end if
 end function hadronic_syn_kernel_ultrarel
 
+! 计算质子同步辐射发射功率和种子光子场，对质子谱卷积同步核函数。
 subroutine hadronic_get_proton_syn_state(R_loc,B_field_g,Num_gam_p,Num_nu,gam_p,dN_gam_p,V_seed,P_had_syn,Seed_had_syn)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: Num_gam_p,Num_nu

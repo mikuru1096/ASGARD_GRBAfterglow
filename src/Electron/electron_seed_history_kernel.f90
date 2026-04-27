@@ -179,6 +179,7 @@ real(8) :: nu_src
 end subroutine build_doppler_map
 
 ! 按预计算对数分数做 log-log 插值。
+! 按预计算对数分数做 log-log 插值：y = y0 * exp(log_frac * log(y1/y0))。
 real(8) function loglog_interp_mapped(y0,y1,log_frac)
 implicit none
 real(8), intent(in) :: y0,y1,log_frac
@@ -191,6 +192,7 @@ real(8), intent(in) :: y0,y1,log_frac
 end function loglog_interp_mapped
 
 ! 计算从历史源区到当前目标区的相对多普勒因子。
+! 计算从历史源区到当前目标区的相对多普勒因子：D = γ_rel(1+β_rel)。
 real(8) function relative_doppler_backward(beta_src,beta_tgt)
 implicit none
 real(8), intent(in) :: beta_src,beta_tgt

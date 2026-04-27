@@ -5,7 +5,8 @@ module adaptive_resampling_mod
     
 contains
     
-    subroutine adaptive_resampling_log(x, f1, n, m, g, indices, n_resampled, info)
+    ! 对数空间自适应重采样：基于二阶导数曲率权重，将n点网格重采样为m点。
+subroutine adaptive_resampling_log(x, f1, n, m, g, indices, n_resampled, info)
 
         integer, intent(in) :: n, m, g
         real(dp), intent(in) :: x(n), f1(n)
@@ -125,7 +126,8 @@ contains
         
     contains
     
-        subroutine moving_average(input, n, window, output)
+        ! 滑动平均平滑：窗口半径为window/2。
+subroutine moving_average(input, n, window, output)
             integer, intent(in) :: n, window
             real(dp), intent(in) :: input(n)
             real(dp), intent(out) :: output(n)
@@ -146,7 +148,8 @@ contains
             end do
         end subroutine moving_average
         
-        subroutine unique_sorted(input, n_input, output, n_output)
+        ! 提取有序数组中的唯一值（去重）。
+subroutine unique_sorted(input, n_input, output, n_output)
             integer, intent(in) :: n_input
             integer, intent(in) :: input(n_input)
             integer, intent(out) :: n_output
@@ -167,7 +170,8 @@ contains
         end subroutine unique_sorted
         
         ! bubble sort
-        subroutine sort_integers(arr, n)
+        ! 冒泡排序整型数组。
+subroutine sort_integers(arr, n)
             integer, intent(in) :: n
             integer, intent(inout) :: arr(n)
             integer :: i, j, temp
@@ -183,7 +187,8 @@ contains
             end do
         end subroutine sort_integers
         
-        subroutine supplement_indices(current_indices, n_current, n_total, m_target, new_indices)
+        ! 补充不足的索引点：从缺失索引中均匀选取，填充至目标数量m_target。
+subroutine supplement_indices(current_indices, n_current, n_total, m_target, new_indices)
             integer, intent(in) :: n_current, n_total, m_target
             integer, intent(in) :: current_indices(n_current)
             integer, intent(out) :: new_indices(m_target)

@@ -5,6 +5,7 @@ module electron_injection_profiles
 
 contains
 
+! 指数截断因子：γ > Gam_e_max 时返回 exp(1-γ/Gam_e_max)，否则返回1。
 pure real(8) function electron_exp_cutoff_factor(gam,Gam_e_max)
     implicit real(8)(A-H,O-Z)
     real(8), intent(in) :: gam,Gam_e_max
@@ -13,6 +14,7 @@ pure real(8) function electron_exp_cutoff_factor(gam,Gam_e_max)
     if (gam > Gam_e_max) electron_exp_cutoff_factor=dexp(one-gam/Gam_e_max)
 end function electron_exp_cutoff_factor
 
+! 根据快冷却/慢冷却分支返回幂律注入参数：系数coeff和谱指数slope。
 subroutine electron_initial_powerlaw_params(Para_N_e_ini,p,Gam_e_m,Gam_e_c,gam,active,coeff,slope)
     implicit real(8)(A-H,O-Z)
     logical, intent(out) :: active
@@ -37,6 +39,7 @@ subroutine electron_initial_powerlaw_params(Para_N_e_ini,p,Gam_e_m,Gam_e_c,gam,a
     end if
 end subroutine electron_initial_powerlaw_params
 
+! 幂律+指数截断的 dN/dx 值：dN/dx = coeff * ln(10) * γ^(1-slope) * cutoff(γ)。
 real(8) function electron_dnx_powerlaw_cutoff_value(x,coeff,slope,Gam_e_max)
     implicit real(8)(A-H,O-Z)
     real(8), intent(in) :: x,coeff,slope,Gam_e_max
@@ -53,6 +56,7 @@ real(8) function electron_dnx_powerlaw_cutoff_value(x,coeff,slope,Gam_e_max)
     electron_dnx_powerlaw_cutoff_value=coeff*dlog(ten)*gam**(one-slope)*cutoff_factor
 end function electron_dnx_powerlaw_cutoff_value
 
+! 3点Gauss-Legendre积分：在[x_lo, x_hi]上对dN/dx进行数值积分。
 real(8) function electron_dnx_gauss3_integral(coeff,slope,Gam_e_max,x_lo,x_hi)
     implicit real(8)(A-H,O-Z)
     integer :: I_q
@@ -76,6 +80,7 @@ real(8) function electron_dnx_gauss3_integral(coeff,slope,Gam_e_max,x_lo,x_hi)
     electron_dnx_gauss3_integral=half_dx*quad
 end function electron_dnx_gauss3_integral
 
+! 将激活区间上的dN/dx积分累加到acc，在Gam_e_max处自动分段处理截断。
 subroutine electron_add_dnx_segment(cell_lo,cell_hi,active_lo,active_hi,coeff,slope,Gam_e_max,acc)
     implicit real(8)(A-H,O-Z)
     real(8), intent(in) :: cell_lo,cell_hi,active_lo,active_hi,coeff,slope,Gam_e_max
@@ -96,6 +101,7 @@ subroutine electron_add_dnx_segment(cell_lo,cell_hi,active_lo,active_hi,coeff,sl
     end if
 end subroutine electron_add_dnx_segment
 
+! 由网格中心值推导log10(gamma)的单元边界。
 subroutine electron_profile_log_cell_edges(Num_gam_e,gam_e,x_edge)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: Num_gam_e
@@ -110,29 +116,7 @@ subroutine electron_profile_log_cell_edges(Num_gam_e,gam_e,x_edge)
     x_edge(Num_gam_e+1)=dlog10(gam_e(Num_gam_e))+0.5d0*(dlog10(gam_e(Num_gam_e))-dlog10(gam_e(Num_gam_e-1)))
 end subroutine electron_profile_log_cell_edges
 
-subroutine electron_initial_powerlaw(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,gam_e,dN_gam_e_1)
-    implicit real(8)(A-H,O-Z)
-    integer, intent(in) :: Num_gam_e
-    integer :: I_gam_e
-    real(8), intent(in) :: Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,gam_e(Num_gam_e)
-    real(8), intent(out) :: dN_gam_e_1(Num_gam_e)
-    logical :: active
-    real(8) :: coeff,slope
-
-    do I_gam_e=1,Num_gam_e
-        if (gam_e(I_gam_e) > Gam_e_max) then
-            dN_gam_e_1(I_gam_e)=zero
-            cycle
-        end if
-        call electron_initial_powerlaw_params(Para_N_e_ini,p,Gam_e_m,Gam_e_c,gam_e(I_gam_e),active,coeff,slope)
-        if (active) then
-            dN_gam_e_1(I_gam_e)=coeff*gam_e(I_gam_e)**(-slope)
-        else
-            dN_gam_e_1(I_gam_e)=zero
-        end if
-    end do
-end subroutine electron_initial_powerlaw
-
+! 生成快/慢冷却幂律+指数截断的初始电子谱 dN/dγ（网格中心值）。
 subroutine electron_initial_powerlaw_exp_cutoff(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,gam_e,dN_gam_e_1)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: Num_gam_e
@@ -151,6 +135,7 @@ subroutine electron_initial_powerlaw_exp_cutoff(Para_N_e_ini,p,Gam_e_m,Gam_e_c,G
     end do
 end subroutine electron_initial_powerlaw_exp_cutoff
 
+! 生成快/慢冷却幂律+指数截断的初始电子谱 dN/dx（网格单元平均，保正/守恒）。
 subroutine electron_initial_powerlaw_exp_cutoff_edges(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,x_edge,dN_x_1)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: Num_gam_e
@@ -188,16 +173,7 @@ subroutine electron_initial_powerlaw_exp_cutoff_edges(Para_N_e_ini,p,Gam_e_m,Gam
     end do
 end subroutine electron_initial_powerlaw_exp_cutoff_edges
 
-subroutine electron_build_source_term(Num_gam_e,gam_e,Gam_e_m,Gam_e_max,Q,p,dF1)
-    implicit real(8)(A-H,O-Z)
-    integer, intent(in) :: Num_gam_e
-    real(8), intent(in) :: gam_e(Num_gam_e),Gam_e_m,Gam_e_max,Q,p
-    real(8), intent(out) :: dF1(Num_gam_e)
-
-    dF1=zero
-    where(gam_e<Gam_e_max .and. gam_e>Gam_e_m) dF1=Q*gam_e**(-p)*gam_e*dlog(ten)
-end subroutine electron_build_source_term
-
+! 构建幂律+指数截断源项 dF/dx（网格中心值）。
 subroutine electron_build_source_term_exp_cutoff(Num_gam_e,gam_e,Gam_e_m,Gam_e_max,Q,p,dF1)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: Num_gam_e
@@ -214,6 +190,7 @@ subroutine electron_build_source_term_exp_cutoff(Num_gam_e,gam_e,Gam_e_m,Gam_e_m
     end do
 end subroutine electron_build_source_term_exp_cutoff
 
+! 构建幂律+指数截断源项 dF/dx（网格单元平均，保正/守恒）。
 subroutine electron_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m,Gam_e_max,Q,p,dF1)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: Num_gam_e
@@ -237,28 +214,5 @@ subroutine electron_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m,
         dF1(I_gam_e)=seg_sum/dx_cell
     end do
 end subroutine electron_build_source_term_exp_cutoff_edges
-
-subroutine electron_build_source_term_profile(Num_gam_e,gam_e,Gam_e_m,Gam_e_max,Q,profile,dF1)
-    implicit real(8)(A-H,O-Z)
-    integer, intent(in) :: Num_gam_e
-    integer :: I_gam_e
-    real(8), intent(in) :: gam_e(Num_gam_e),Gam_e_m,Gam_e_max,Q,profile(Num_gam_e)
-    real(8), intent(out) :: dF1(Num_gam_e)
-    real(8) :: x_edge(Num_gam_e+1),x_lo,x_hi,cell_lo,cell_hi,dx_cell
-
-    dF1=zero
-    call electron_profile_log_cell_edges(Num_gam_e,gam_e,x_edge)
-    x_lo=dlog10(Gam_e_m)
-    x_hi=dlog10(Gam_e_max)
-
-    do I_gam_e=1,Num_gam_e
-        cell_lo=max(x_edge(I_gam_e),x_lo)
-        cell_hi=min(x_edge(I_gam_e+1),x_hi)
-        if (cell_hi > cell_lo) then
-            dx_cell=x_edge(I_gam_e+1)-x_edge(I_gam_e)
-            dF1(I_gam_e)=Q*profile(I_gam_e)*(cell_hi-cell_lo)/dx_cell
-        end if
-    end do
-end subroutine electron_build_source_term_profile
 
 end module electron_injection_profiles

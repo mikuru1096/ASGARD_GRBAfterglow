@@ -14,6 +14,7 @@ module electron_transport_common
         (/1.7392742256872693d-1, 3.2607257743127307d-1, 3.2607257743127307d-1, 1.7392742256872693d-1/)
 contains
 
+! 准备隐式迎风输运系数：计算主对角元principal和上三角系数temp1。
 subroutine electron_prepare_implicit_coeffs_common(Num_gam_e,diag_base,up,principal,temp1)
     implicit none
     integer, intent(in) :: Num_gam_e
@@ -25,6 +26,7 @@ subroutine electron_prepare_implicit_coeffs_common(Num_gam_e,diag_base,up,princi
     temp1=up/(principal(2:Num_gam_e)+principal(1:Num_gam_e-1))*two
 end subroutine electron_prepare_implicit_coeffs_common
 
+! 隐式迎风输运后向回代求解：从高能向低能端回代，解截断为非负。
 subroutine electron_backward_sweep_common(Num_gam_e,temp1,temp2,x)
     implicit none
     integer, intent(in) :: Num_gam_e
@@ -60,7 +62,10 @@ subroutine electron_ppm_interfaces_nonuniform(Num_gam_e,x_edge,q,q_left,q_right)
     real(8), intent(out) :: q_left(Num_gam_e),q_right(Num_gam_e)
     real(8) :: x_center(Num_gam_e),dx_cell(Num_gam_e)
     real(8) :: q_min,q_max,q_bar,dq
-    call electron_cell_geometry(Num_gam_e,x_edge,x_center,dx_cell)
+    do I_gam_e=1,Num_gam_e
+        x_center(I_gam_e)=0.5d0*(x_edge(I_gam_e)+x_edge(I_gam_e+1))
+        dx_cell(I_gam_e)=x_edge(I_gam_e+1)-x_edge(I_gam_e)
+    end do
     q_left=q
     q_right=q
     if (Num_gam_e >= 3) then
@@ -443,20 +448,6 @@ end subroutine electron_trace_piecewise_affine_u_edges_batch
 
 
 
-! 构造特征线源项积分使用的当前步长和 Gauss 节点滞后时间。
-subroutine electron_characteristic_lag_grid(dDR,lag_arr)
-    implicit none
-    integer :: I_quad
-    real(8), intent(in) :: dDR
-    real(8), intent(out) :: lag_arr(5)
-    lag_arr(1)=dDR
-    do I_quad=1,charint_quad_order
-        lag_arr(I_quad+1)=charint_quad_nodes(I_quad)*dDR
-    end do
-end subroutine electron_characteristic_lag_grid
-
-
-
 ! 用已回溯边界和源项 PPM 积分完成特征线输运核心更新。
 subroutine electron_characteristic_core(Num_gam_e,dDR,x_edge,x_back_batch,source_scale,dF1,dN_x_in,dN_x_out)
     implicit none
@@ -502,8 +493,11 @@ subroutine electron_characteristic_update(Num_gam_e,dDR,x_edge,cooling_mode,a_u,
     real(8), intent(out) :: dN_x_out(Num_gam_e)
     real(8) :: lag_arr(5),x_back_batch(Num_gam_e+1,5),u_edge(Num_gam_e+1)
     real(8) :: a_cell(Num_gam_e),b_cell(Num_gam_e)
-    integer :: Num_lag
-    call electron_characteristic_lag_grid(dDR,lag_arr)
+    integer :: Num_lag,I_quad
+    lag_arr(1)=dDR
+    do I_quad=1,charint_quad_order
+        lag_arr(I_quad+1)=charint_quad_nodes(I_quad)*dDR
+    end do
     Num_lag=charint_quad_order+1
     if (source_scale == zero) Num_lag=1
     select case (cooling_mode)
@@ -520,20 +514,6 @@ subroutine electron_characteristic_update(Num_gam_e,dDR,x_edge,cooling_mode,a_u,
                                            dN_x_in,dN_x_out)
 end subroutine electron_characteristic_update
 
-
-
-! 由单元边界计算单元中心和宽度。
-subroutine electron_cell_geometry(Num_gam_e,x_edge,x_center,dx_cell)
-    implicit none
-    integer, intent(in) :: Num_gam_e
-    integer :: I_gam_e
-    real(8), intent(in) :: x_edge(Num_gam_e+1)
-    real(8), intent(out) :: x_center(Num_gam_e),dx_cell(Num_gam_e)
-    do I_gam_e=1,Num_gam_e
-        x_center(I_gam_e)=0.5d0*(x_edge(I_gam_e)+x_edge(I_gam_e+1))
-        dx_cell(I_gam_e)=x_edge(I_gam_e+1)-x_edge(I_gam_e)
-    end do
-end subroutine electron_cell_geometry
 
 
 

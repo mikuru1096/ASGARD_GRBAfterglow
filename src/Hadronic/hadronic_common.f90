@@ -4,9 +4,12 @@ module hadronic_common
     implicit none
     real(8), parameter :: hadronic_eta_acc_floor = 1d-12
     real(8), parameter :: hadronic_bfield_floor = 1d-30
+    real(8), parameter :: hadronic_proton_mass_gev = 0.9382720813d0
+    real(8), parameter :: hadronic_electron_mass_gev = 5.1099895d-4
 
 contains
 
+! 构建质子的对数均匀洛伦兹因子网格。
 subroutine hadronic_build_gamma_p_grid(Num_gam_p,gam_p_min,gam_p_max,gam_p)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: Num_gam_p
@@ -28,6 +31,7 @@ subroutine hadronic_build_gamma_p_grid(Num_gam_p,gam_p_min,gam_p_max,gam_p)
     end do
 end subroutine hadronic_build_gamma_p_grid
 
+! 初始化粒子数密度为零。
 subroutine hadronic_initial_density(Num_gam_p,dN_gam_p)
     integer, intent(in) :: Num_gam_p
     real(8), intent(out) :: dN_gam_p(Num_gam_p)
@@ -35,6 +39,7 @@ subroutine hadronic_initial_density(Num_gam_p,dN_gam_p)
     dN_gam_p=zero
 end subroutine hadronic_initial_density
 
+! 在洛伦兹因子网格中查找源项范围 [gam_p_min, gam_p_max] 对应的索引上下界。
 subroutine hadronic_source_bounds(Num_gam_p,gam_p,gam_p_min,gam_p_max,i_lo,i_hi)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: Num_gam_p
@@ -58,6 +63,7 @@ subroutine hadronic_source_bounds(Num_gam_p,gam_p,gam_p_min,gam_p_max,i_lo,i_hi)
     end do
 end subroutine hadronic_source_bounds
 
+! 由网格中心值构建网格单元边界，边界取相邻中心值的几何平均。
 subroutine hadronic_build_gamma_edges(Num_gam_p,gam_p,gam_edge)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: Num_gam_p
@@ -78,6 +84,7 @@ subroutine hadronic_build_gamma_edges(Num_gam_p,gam_p,gam_edge)
     gam_edge(Num_gam_p+1)=gam_p(Num_gam_p)*dsqrt(gam_p(Num_gam_p)/gam_p(Num_gam_p-1))
 end subroutine hadronic_build_gamma_edges
 
+! 计算壳层在观测者时间中的时间步长 dt = R_tobs(i) - R_tobs(i-1)。
 real(8) function hadronic_shell_dt(R_tobs,i_shell)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: i_shell
@@ -90,6 +97,7 @@ real(8) function hadronic_shell_dt(R_tobs,i_shell)
     end if
 end function hadronic_shell_dt
 
+! 计算动力学时标 t_dyn = R / (Gamma_bulk * c)。
 real(8) function hadronic_dynamical_time(R_loc,Gamma_bulk)
     implicit real(8)(A-H,O-Z)
     real(8), intent(in) :: R_loc,Gamma_bulk
@@ -97,6 +105,7 @@ real(8) function hadronic_dynamical_time(R_loc,Gamma_bulk)
     hadronic_dynamical_time=max(R_loc/(max(Gamma_bulk,one)*Para_c),one)
 end function hadronic_dynamical_time
 
+! 由加速-冷却平衡估计质子最大洛伦兹因子，取动力学限制和同步冷却限制的较小值。
 real(8) function hadronic_gamma_p_max(B_field_g,t_dyn_s,eta_acc)
     implicit real(8)(A-H,O-Z)
     real(8), intent(in) :: B_field_g,t_dyn_s,eta_acc
@@ -107,5 +116,30 @@ real(8) function hadronic_gamma_p_max(B_field_g,t_dyn_s,eta_acc)
             max(B_field_g,hadronic_bfield_floor))) * Para_m_p_div_m_e
     hadronic_gamma_p_max=max(ten,min(gam_dyn,gam_syn))
 end function hadronic_gamma_p_max
+
+! 验证能量网格为严格递增、正值且对数均匀分布，可选返回对数间距。
+subroutine hadronic_validate_log_grid(num_grid,energy_grid,name,dln_out)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: num_grid
+    real(8), intent(in) :: energy_grid(num_grid)
+    character(*), intent(in) :: name
+    real(8), intent(out), optional :: dln_out
+    integer :: i
+    real(8) :: dln_local,dln_i
+
+    if (num_grid < 2) error stop trim(name)//" must contain at least two points."
+    if (energy_grid(1) <= zero) error stop trim(name)//" must be strictly positive."
+    do i=2,num_grid
+        if (energy_grid(i) <= zero) error stop trim(name)//" must be strictly positive."
+        if (energy_grid(i) <= energy_grid(i-1)) error stop trim(name)//" must be strictly increasing."
+    end do
+    dln_local = dlog(energy_grid(2)/energy_grid(1))
+    do i=3,num_grid
+        dln_i = dlog(energy_grid(i)/energy_grid(i-1))
+        if (dabs(dln_i-dln_local) > dmax1(1d-12,1d-6*dabs(dln_local))) &
+            error stop trim(name)//" must be logarithmically uniform."
+    end do
+    if (present(dln_out)) dln_out = dln_local
+end subroutine hadronic_validate_log_grid
 
 end module hadronic_common

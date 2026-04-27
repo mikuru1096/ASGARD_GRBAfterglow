@@ -1,3 +1,4 @@
+! 电子1D特征线积分主驱动：初始化电子谱→壳层循环（辐射+冷却+特征线更新），支持均匀/非均匀介质。
 subroutine fs_electron_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads, &
                                 adaptive_substeps,substep_rtol,substep_min,substep_max,gam_e,dN_gam_e,P_syn,Seed_syn,V_m,V_c,V_a)
     !$ use omp_lib
@@ -8,7 +9,7 @@ subroutine fs_electron_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_
         electron_cooling_affine, electron_cooling_piecewise, electron_characteristic_update
     use electron_injection_profiles, only: electron_build_source_term_exp_cutoff
     use electron_radiation_kernel, only: get_nu_a, get_syn_selected
-    use electron_forward_kernel, only: get_forward_cooling
+    use electron_cooling_kernel, only: get_forward_cooling
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads,adaptive_substeps,substep_min,substep_max
     real(8), intent(in) :: Boundary(n),R_Tobs(Num_R),R_Gamma(Num_R),R(Num_R),V_seed(Num_nu)
@@ -53,7 +54,7 @@ subroutine fs_electron_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_
     call electron_gamma_m_exact(p,temp_gam,Gam_e_max,Gam_e_m)
     Gam_e_c=7.7d8/(one+dsqrt(Epsilon_e/Epsilon_b))/R_Gamma(1)/DB**2/(R_Tobs(1)/two)
     call electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
-                                      electron_initial_profile_exp_cutoff,electron_initial_grid_log_edges,gam_e,dN_x,x_edge)
+                                      electron_initial_grid_log_edges,gam_e,dN_x,x_edge)
     dN_gam_e(:,1)=dN_x/gam_e/dlog(ten)
     is_uniform_density=(A_star <= zero .and. f_jump == one)
 
@@ -285,16 +286,3 @@ subroutine fs_electron_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_
 
     deallocate(dEl_base,dEl_step,dN_x,dN_step,dF1,dF1_shape,x_edge,gam_e_rad,dN_gam_e_rad)
 end subroutine fs_electron_charint_1d
-
-subroutine fs_electron_charint_1d_affine_step_test(Num_gam_e,dDR,x_edge,a_u,b_u,dF1,dN_x_in,dN_x_out)
-    use electron_common
-    use electron_transport_common, only: charint_cfl_relax, charint_substep_rtol_relax, &
-        electron_cooling_affine, electron_cooling_piecewise, electron_characteristic_update
-    implicit real(8)(A-H,O-Z)
-    integer, intent(in) :: Num_gam_e
-    real(8), intent(in) :: dDR,x_edge(Num_gam_e+1),a_u,b_u,dF1(Num_gam_e),dN_x_in(Num_gam_e)
-    real(8), intent(out) :: dN_x_out(Num_gam_e)
-
-    call electron_characteristic_update(Num_gam_e,dDR,x_edge,electron_cooling_affine, &
-        a_u,b_u,dN_x_in,dN_x_in,one,one,dF1,dN_x_in,dN_x_out)
-end subroutine fs_electron_charint_1d_affine_step_test

@@ -20,6 +20,7 @@ module hadronic_species_transport_kernel
 
 contains
 
+! 球对称膨胀发散率：3*v_exp/r，用于绝热冷却计算。
 real(8) function hadronic_species_spherical_divergence_rate(radius_cm,expansion_speed_cm_s)
     real(8), intent(in) :: radius_cm, expansion_speed_cm_s
 
@@ -32,6 +33,7 @@ real(8) function hadronic_species_spherical_divergence_rate(radius_cm,expansion_
     hadronic_species_spherical_divergence_rate = 3d0*expansion_speed_cm_s/radius_cm
 end function hadronic_species_spherical_divergence_rate
 
+! 计算粒子同步辐射冷却率 dγ/dt = -(4/3)σ_T,c U_B γ²/(m c)，中性粒子返回零。
 subroutine hadronic_species_synchrotron_dgamma_dt(num_gamma,gamma,b_field_g,mass_gev,charge_number,dgamma_dt)
     integer, intent(in) :: num_gamma
     integer, intent(in) :: charge_number
@@ -60,6 +62,7 @@ subroutine hadronic_species_synchrotron_dgamma_dt(num_gamma,gamma,b_field_g,mass
     end do
 end subroutine hadronic_species_synchrotron_dgamma_dt
 
+! 计算绝热冷却率 dγ/dt = -(∇·v/3)γ。
 subroutine hadronic_species_adiabatic_dgamma_dt(num_gamma,gamma,divergence_rate_s_inv,dgamma_dt)
     integer, intent(in) :: num_gamma
     real(8), intent(in) :: gamma(num_gamma), divergence_rate_s_inv
@@ -76,6 +79,7 @@ subroutine hadronic_species_adiabatic_dgamma_dt(num_gamma,gamma,divergence_rate_
     end do
 end subroutine hadronic_species_adiabatic_dgamma_dt
 
+! 粒子种类输运主算子：对中子/π±/μ子各分量推进冷却+衰变，使用迎风+Strang分裂格式。
 subroutine hadronic_species_advance_operator(num_gamma,gamma,dt_s,b_field_g,divergence_rate_s_inv, &
                                              neutron_prev,pion_plus_prev,pion_minus_prev, &
                                              muon_minus_left_prev,muon_minus_right_prev, &
@@ -90,20 +94,20 @@ subroutine hadronic_species_advance_operator(num_gamma,gamma,dt_s,b_field_g,dive
                                              muon_plus_left_next,muon_plus_right_next)
     integer, intent(in) :: num_gamma
     real(8), intent(in) :: gamma(num_gamma), dt_s, b_field_g, divergence_rate_s_inv
-    real(8), intent(in) :: neutron_prev(num_gamma), pion_plus_prev(num_gamma), pion_minus_prev(num_gamma)
-    real(8), intent(in) :: muon_minus_left_prev(num_gamma), muon_minus_right_prev(num_gamma)
-    real(8), intent(in) :: muon_plus_left_prev(num_gamma), muon_plus_right_prev(num_gamma)
-    real(8), intent(in) :: neutron_source_per_gamma_s(num_gamma), pion_plus_source_per_gamma_s(num_gamma)
-    real(8), intent(in) :: pion_minus_source_per_gamma_s(num_gamma)
-    real(8), intent(in) :: muon_minus_left_source_per_gamma_s(num_gamma)
-    real(8), intent(in) :: muon_minus_right_source_per_gamma_s(num_gamma)
-    real(8), intent(in) :: muon_plus_left_source_per_gamma_s(num_gamma)
-    real(8), intent(in) :: muon_plus_right_source_per_gamma_s(num_gamma)
-    real(8), intent(out) :: neutron_next(num_gamma), pion_plus_next(num_gamma), pion_minus_next(num_gamma)
-    real(8), intent(out) :: muon_minus_left_next(num_gamma), muon_minus_right_next(num_gamma)
-    real(8), intent(out) :: muon_plus_left_next(num_gamma), muon_plus_right_next(num_gamma)
-    real(8) :: dgamma_syn_pion(num_gamma), dgamma_syn_muon(num_gamma)
-    real(8) :: dgamma_ad(num_gamma), dgamma_total(num_gamma)
+    ! 上一步粒子谱（7分量）
+    real(8), intent(in) :: neutron_prev(num_gamma), pion_plus_prev(num_gamma), pion_minus_prev(num_gamma), &
+        muon_minus_left_prev(num_gamma), muon_minus_right_prev(num_gamma), &
+        muon_plus_left_prev(num_gamma), muon_plus_right_prev(num_gamma)
+    ! 源项（7分量）
+    real(8), intent(in) :: neutron_source_per_gamma_s(num_gamma), pion_plus_source_per_gamma_s(num_gamma), &
+        pion_minus_source_per_gamma_s(num_gamma), muon_minus_left_source_per_gamma_s(num_gamma), &
+        muon_minus_right_source_per_gamma_s(num_gamma), muon_plus_left_source_per_gamma_s(num_gamma), &
+        muon_plus_right_source_per_gamma_s(num_gamma)
+    ! 下一步粒子谱（7分量）
+    real(8), intent(out) :: neutron_next(num_gamma), pion_plus_next(num_gamma), pion_minus_next(num_gamma), &
+        muon_minus_left_next(num_gamma), muon_minus_right_next(num_gamma), &
+        muon_plus_left_next(num_gamma), muon_plus_right_next(num_gamma)
+    real(8) :: dgamma_syn_pion(num_gamma), dgamma_syn_muon(num_gamma), dgamma_ad(num_gamma), dgamma_total(num_gamma)
 
     if (dt_s <= zero) then
         error stop "hadronic species transport: dt_s must be positive."
@@ -156,6 +160,7 @@ subroutine hadronic_species_advance_operator(num_gamma,gamma,dt_s,b_field_g,dive
                                       muon_decay_s,dgamma_total,muon_plus_right_next)
 end subroutine hadronic_species_advance_operator
 
+! 单一种类输运推进：迎风格式+Strang分裂（半衰变步-输运-半衰变步），Courant自适应子步。
 subroutine hadronic_species_advance_one(num_gamma,gamma,density_prev,source_per_gamma_s,dt_s, &
                                         decay_lifetime_s,dgamma_dt,density_next)
     integer, intent(in) :: num_gamma
@@ -223,6 +228,7 @@ subroutine hadronic_species_advance_one(num_gamma,gamma,density_prev,source_per_
     end do
 end subroutine hadronic_species_advance_one
 
+! 验证gamma网格至少2点、全正、严格递增。
 subroutine hadronic_species_validate_gamma_grid(num_gamma,gamma)
     integer, intent(in) :: num_gamma
     real(8), intent(in) :: gamma(num_gamma)
@@ -243,6 +249,7 @@ subroutine hadronic_species_validate_gamma_grid(num_gamma,gamma)
     end do
 end subroutine hadronic_species_validate_gamma_grid
 
+! 验证数组所有值为非负。
 subroutine hadronic_species_validate_non_negative(num_gamma,values,name)
     integer, intent(in) :: num_gamma
     real(8), intent(in) :: values(num_gamma)
@@ -256,6 +263,7 @@ subroutine hadronic_species_validate_non_negative(num_gamma,values,name)
     end do
 end subroutine hadronic_species_validate_non_negative
 
+! 检验并返回gamma网格的平均对数间距（允许松弛容差）。
 real(8) function hadronic_species_log_spacing(num_gamma,gamma)
     integer, intent(in) :: num_gamma
     real(8), intent(in) :: gamma(num_gamma)

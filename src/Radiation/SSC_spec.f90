@@ -1,3 +1,4 @@
+! 计算同步自康普顿（SSC）辐射谱：均匀对数网格上对电子谱和种子光子双重Simpson积分。
 subroutine ssc_spec(R,gam_e,dN_gam_e,V_seed,seed,Num_nu,Num_R,Num_gam_e,n_threads, P_SSC_spec,seed_SSC)
     use constants
     use radiation_common
@@ -28,9 +29,7 @@ subroutine ssc_spec(R,gam_e,dN_gam_e,V_seed,seed,Num_nu,Num_R,Num_gam_e,n_thread
     allocate (weighted_dN_over_gam(Num_gam_e,Num_R), weighted_seed(Num_nu,Num_R))
     allocate (tail_weighted_dN(Num_gam_e+1,Num_R), tail_weighted_dN_inv2(Num_gam_e+1,Num_R))
     allocate (gamma_start(Num_nu), gamma_low(Num_nu,Num_nu), gamma_high(Num_nu,Num_nu))
-    
-!    call system_clock(int1)
-    
+
     para_hEme = Para_h/para_m_energy
 
     h_nu = log(V_seed(2))-log(V_seed(1))
@@ -188,9 +187,11 @@ subroutine ssc_spec(R,gam_e,dN_gam_e,V_seed,seed,Num_nu,Num_R,Num_gam_e,n_thread
     return
 end subroutine ssc_spec
 
+! 计算非均匀网格SSC辐射谱：PPM重构电子谱 + Gauss-Legendre种子积分 + minmod斜率限制器。
 subroutine ssc_spec_nonuniform(R,x_edge_log10,dN_x,V_seed,seed,Num_nu,Num_R,Num_gam_e,n_threads, &
                                P_SSC_spec,seed_SSC)
     use constants
+    use radiation_common
     !$ use omp_lib
     implicit REAL(8)(A-H,O-Z)
     integer, intent(in) :: Num_nu,Num_R,Num_gam_e,n_threads
@@ -281,8 +282,8 @@ subroutine ssc_spec_nonuniform(R,x_edge_log10,dN_x,V_seed,seed,Num_nu,Num_R,Num_
                     end if
                     V_seed_loc=dexp(x_seed_loc)
                     E_seed_loc=V_seed_loc*para_hEme
-                    seed_loc=seed_log_interp(V_seed(Nu_s),V_seed(Nu_s+1),seed(Nu_s,I_R), &
-                                             seed(Nu_s+1,I_R),V_seed_loc)
+                    seed_loc=radiation_powerlaw_interp(V_seed(Nu_s),V_seed(Nu_s+1),seed(Nu_s,I_R), &
+                                                        seed(Nu_s+1,I_R),V_seed_loc)
                     if (seed_loc <= zero) cycle
                     seed_weight=dx_seed*seed_loc
                     if (V_seed_loc < Vloc) then
@@ -316,35 +317,7 @@ subroutine ssc_spec_nonuniform(R,x_edge_log10,dN_x,V_seed,seed,Num_nu,Num_R,Num_
 
 contains
 
-subroutine first_greater_monotonic(arr,n,target,idx)
-    implicit none
-    integer, intent(in) :: n
-    real(8), intent(in) :: arr(n),target
-    integer, intent(out) :: idx
-    integer :: left,right,mid
-
-    if (arr(1) > target) then
-        idx=1
-        return
-    end if
-    if (arr(n) <= target) then
-        idx=n+1
-        return
-    end if
-
-    left=1
-    right=n
-    do while (left < right)
-        mid=(left+right)/2
-        if (arr(mid) > target) then
-            right=mid
-        else
-            left=mid+1
-        end if
-    end do
-    idx=left
-end subroutine first_greater_monotonic
-
+! 二分查找第一个网格单元，其右边界 > x_floor。
 integer function first_cell_above_edge(x_edge_col,n,x_floor)
     implicit none
     integer, intent(in) :: n
@@ -373,17 +346,7 @@ integer function first_cell_above_edge(x_edge_col,n,x_floor)
     first_cell_above_edge=left
 end function first_cell_above_edge
 
-real(8) function inv_gamma_power_integral(x0,x1,power)
-    implicit REAL(8)(A-H,O-Z)
-    real(8), intent(in) :: x0,x1,power
-
-    if (x1 <= x0) then
-        inv_gamma_power_integral=zero
-    else
-        inv_gamma_power_integral=(ten**(-power*x0)-ten**(-power*x1))/(power*dlog(ten))
-    end if
-end function inv_gamma_power_integral
-
+! minmod斜率限制器：同号取绝对值最小者，异号返回零。
 real(8) function ssc_minmod(a,b)
     implicit REAL(8)(A-H,O-Z)
     real(8), intent(in) :: a,b
@@ -395,6 +358,7 @@ real(8) function ssc_minmod(a,b)
     end if
 end function ssc_minmod
 
+! 计算线性重构剖面在x点的值：q(x) = q̄ + slope*(x - xc)，截断负值为零。
 real(8) function linear_profile_value(x,qbar,slope,xc)
     implicit REAL(8)(A-H,O-Z)
     real(8), intent(in) :: x,qbar,slope,xc
@@ -402,6 +366,7 @@ real(8) function linear_profile_value(x,qbar,slope,xc)
     linear_profile_value=max(zero,qbar+slope*(x-xc))
 end function linear_profile_value
 
+! 计算线性重构剖面在[x0,x1]上的γ^(-power)矩积分（解析公式）。
 real(8) function linear_gamma_moment(x0,x1,qbar,slope,xc,power)
     implicit REAL(8)(A-H,O-Z)
     real(8), intent(in) :: x0,x1,qbar,slope,xc,power
@@ -420,6 +385,7 @@ real(8) function linear_gamma_moment(x0,x1,qbar,slope,xc,power)
     linear_gamma_moment=qbar*i0+slope*(i1-xc*i0)
 end function linear_gamma_moment
 
+! 低能种子区（ν_seed < ν_obs）单个网格单元的SSC散射积分。
 real(8) function ssc_low_gamma_cell(x0,x1,qbar,slope,xc,Vloc,V_seed_loc,Ephoton2eV)
     implicit REAL(8)(A-H,O-Z)
     real(8), intent(in) :: x0,x1,qbar,slope,xc,Vloc,V_seed_loc,Ephoton2eV
@@ -457,6 +423,7 @@ real(8) function ssc_low_gamma_cell(x0,x1,qbar,slope,xc,Vloc,V_seed_loc,Ephoton2
     ssc_low_gamma_cell=ssc_low_gamma_cell*dx
 end function ssc_low_gamma_cell
 
+! 低能种子区（ν_seed < ν_obs）的完整SSC散射积分，遍历电子能格。
 real(8) function ssc_low_gamma_integral(I_R,x_floor,Vloc,V_seed_loc,Ephoton2eV)
     implicit REAL(8)(A-H,O-Z)
     integer, intent(in) :: I_R
@@ -480,6 +447,7 @@ real(8) function ssc_low_gamma_integral(I_R,x_floor,Vloc,V_seed_loc,Ephoton2eV)
     end do
 end function ssc_low_gamma_integral
 
+! 高能种子区（ν_seed ≥ ν_obs）SSC尾部积分，利用预计算的gamma矩加速。
 real(8) function ssc_high_gamma_tail(I_R,x_floor,ratio_v)
     implicit REAL(8)(A-H,O-Z)
     integer, intent(in) :: I_R
@@ -500,29 +468,5 @@ real(8) function ssc_high_gamma_tail(I_R,x_floor,ratio_v)
     ssc_high_gamma_tail=ratio_v*(part2+tail_gamma(i_start+1,I_R))- &
                         0.25d0*(part4+tail_gamma_inv2(i_start+1,I_R))
 end function ssc_high_gamma_tail
-
-real(8) function seed_log_interp(v0,v1,y0,y1,v)
-    implicit REAL(8)(A-H,O-Z)
-    real(8), intent(in) :: v0,v1,y0,y1,v
-    real(8) :: slope
-
-    if (v <= v0) then
-        seed_log_interp=y0
-        return
-    end if
-    if (v >= v1) then
-        seed_log_interp=y1
-        return
-    end if
-
-    if (v1 <= v0) then
-        seed_log_interp=0.5d0*(y0+y1)
-    else if (y0 > zero .and. y1 > zero) then
-        slope=dlog(y1/y0)/dlog(v1/v0)
-        seed_log_interp=y0*(v/v0)**slope
-    else
-        seed_log_interp=y0+(y1-y0)*(v-v0)/(v1-v0)
-    end if
-end function seed_log_interp
 
 end subroutine ssc_spec_nonuniform

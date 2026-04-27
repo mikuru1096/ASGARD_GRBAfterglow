@@ -5,19 +5,7 @@ module interpolation_common
 
 contains
 
-subroutine interpolation_phi_setup(Num_Phi, dPhi, phi_scale)
-    implicit real(8)(A-H,O-Z)
-    integer, intent(in) :: Num_Phi
-    real(8), intent(out) :: dPhi, phi_scale
-
-    dPhi = pi / Num_Phi
-    phi_scale = two
-    if (Num_Phi == 1) then
-        dPhi = pi / 1440d0
-        phi_scale = two * 1440d0
-    end if
-end subroutine interpolation_phi_setup
-
+! 在对数-线性空间中插值并累加SED到观测网格：源为(log x, log y)，目标为log x，输出累加线性y。
 subroutine interpolation_accumulate_log_sed(src_x, src_y, num_src, dst_x, num_dst, accum)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: num_src, num_dst

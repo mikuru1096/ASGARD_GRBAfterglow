@@ -31,7 +31,7 @@ DIRECT_ORDERED_BUILD_MODULES = {
     "SSC_spec",
 }
 F2PY_ENTRYPOINTS = {
-    "FS_electron_charint_1d": ("fs_electron_charint_1d", "fs_electron_charint_1d_affine_step_test"),
+    "FS_electron_charint_1d": ("fs_electron_charint_1d",),
     "electron_radiation": ("get_nu_a", "get_syn_selected", "get_syn_transfer"),
     "electron_reverse_kernel": ("electron_reverse_evolve",),
     "SSC_spec": ("ssc_spec", "ssc_spec_nonuniform"),
@@ -65,8 +65,6 @@ ELECTRON_COMMON_SOURCES = (
     "electron_common.f90",
     "electron_radiation_kernel.f90",
     "electron_cooling_kernel.f90",
-    "electron_y_kernel.f90",
-    "electron_forward_kernel.f90",
 )
 ELECTRON_RADIATION_SOURCES = (
     "../Constants.f90",

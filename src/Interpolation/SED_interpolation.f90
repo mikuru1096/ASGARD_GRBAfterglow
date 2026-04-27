@@ -5,6 +5,7 @@
 !to produce the observed SED 'F_tot_obs' after consider the EATS and Doppler boosting effect.
 !##################################################################################################
 
+! 将共动系SED插值到观测系：EATS时间修正 + 多普勒增亮 + 红移，均匀角网格。
 subroutine sed_interpolation(Boundary,R_Tobs1,R_gamma,R,F_tot,V_seed,V_obs,Tobs, &
                              n,Num_nu,Num_nu_obs,Num_Tobs,Num_Theta,Num_R,Num_Phi,n_threads, F_tot_obs)
     !$ use omp_lib
@@ -36,7 +37,12 @@ subroutine sed_interpolation(Boundary,R_Tobs1,R_gamma,R,F_tot,V_seed,V_obs,Tobs,
     OpeningAngle_jet = Boundary(9)
     Tv = Boundary(10)
     
-    call interpolation_phi_setup(Num_Phi,dPhi,phi_scale)
+    dPhi = pi / Num_Phi
+    phi_scale = two
+    if (Num_Phi == 1) then
+        dPhi = pi / 1440d0
+        phi_scale = two * 1440d0
+    end if
     dtheta=OpeningAngle_jet/Num_Theta
 
     V_obs_log = log(V_obs)

@@ -1,6 +1,7 @@
 !f2py: skip
 module hadronic_pp_kernel
     use constants
+    use hadronic_common, only: hadronic_validate_log_grid
     implicit none
     private
 
@@ -14,6 +15,7 @@ module hadronic_pp_kernel
 
 contains
 
+! pp δ-近似算子：基于Kelner+2006非弹性截面，计算pp碰撞产生的γ、ν和e±源项。
 subroutine hadronic_pp_delta_operator(num_p,proton_energy_gev,proton_density_per_gev, &
                                       target_proton_density_cm3,num_gamma,gamma_energy_gev, &
                                       num_nu,neutrino_energy_gev,num_pair,pair_energy_gev, &
@@ -81,6 +83,7 @@ subroutine hadronic_pp_delta_operator(num_p,proton_energy_gev,proton_density_per
                                             x_pair,charged_frac_loc,pair_rate_per_gev)
 end subroutine hadronic_pp_delta_operator
 
+! Kelner+2006 pp非弹性截面参数化：σ_inel(E_p) = (34.3 + 1.88L + 0.25L²)·(1-(E_th/E_k)⁴)² mb。
 subroutine hadronic_pp_sigma_inelastic_kelner2006(num_p,proton_energy_gev,sigma_inel_cm2)
     integer, intent(in) :: num_p
     real(8), intent(in) :: proton_energy_gev(num_p)
@@ -106,11 +109,13 @@ subroutine hadronic_pp_sigma_inelastic_kelner2006(num_p,proton_energy_gev,sigma_
     end do
 end subroutine hadronic_pp_sigma_inelastic_kelner2006
 
+! pp反应阈值动能：E_th = 2m_π⁰ + m_π⁰²/(2m_p) ≈ 0.28 GeV。
 real(8) function hadronic_pp_threshold_kinetic_energy_gev()
     hadronic_pp_threshold_kinetic_energy_gev = two*pion0_mass_gev + &
                                                pion0_mass_gev*pion0_mass_gev/(two*proton_mass_gev)
 end function hadronic_pp_threshold_kinetic_energy_gev
 
+! δ-近似次级粒子源项：次级粒子能量 = 能量份额 × 母粒子能量，多重数加权。
 subroutine hadronic_pp_delta_secondary_source(num_secondary,secondary_energy_gev,num_parent, &
                                               parent_energy_gev,parent_rate_per_gev, &
                                               energy_fraction,multiplicity,secondary_rate_per_gev)
@@ -133,6 +138,7 @@ subroutine hadronic_pp_delta_secondary_source(num_secondary,secondary_energy_gev
     secondary_rate_per_gev = (multiplicity/energy_fraction)*sampled_parent
 end subroutine hadronic_pp_delta_secondary_source
 
+! 双对数空间中正值的线性插值，仅使用y>0的区间。
 subroutine hadronic_pp_loglog_interp_positive(num_x,x,y,num_x_new,x_new,y_new)
     integer, intent(in) :: num_x,num_x_new
     real(8), intent(in) :: x(num_x),y(num_x),x_new(num_x_new)
@@ -171,6 +177,7 @@ subroutine hadronic_pp_loglog_interp_positive(num_x,x,y,num_x_new,x_new,y_new)
     end do
 end subroutine hadronic_pp_loglog_interp_positive
 
+! 二分查找单调递增数组x中x_eval所在的区间上界索引。
 integer function hadronic_pp_upper_bracket(num_x,x,x_eval)
     integer, intent(in) :: num_x
     real(8), intent(in) :: x(num_x),x_eval
@@ -198,6 +205,7 @@ integer function hadronic_pp_upper_bracket(num_x,x,x_eval)
     hadronic_pp_upper_bracket = ilo
 end function hadronic_pp_upper_bracket
 
+! 双对数空间中单次线性插值求值。
 real(8) function hadronic_pp_loglog_linear_eval(x0,x1,y0,y1,x_eval)
     real(8), intent(in) :: x0,x1,y0,y1,x_eval
     real(8) :: lx0,lx1,ly0,ly1,lx_eval,frac
@@ -211,6 +219,7 @@ real(8) function hadronic_pp_loglog_linear_eval(x0,x1,y0,y1,x_eval)
     hadronic_pp_loglog_linear_eval = ly0 + frac*(ly1 - ly0)
 end function hadronic_pp_loglog_linear_eval
 
+! 验证密度网格与能量网格大小一致。
 subroutine hadronic_pp_validate_density_grid(num_p,proton_energy_gev,proton_density_per_gev)
     integer, intent(in) :: num_p
     real(8), intent(in) :: proton_energy_gev(num_p),proton_density_per_gev(num_p)
@@ -221,28 +230,14 @@ subroutine hadronic_pp_validate_density_grid(num_p,proton_energy_gev,proton_dens
     end if
 end subroutine hadronic_pp_validate_density_grid
 
+! 验证网格为非空且对数均匀（包装hadronic_validate_log_grid）。
 subroutine hadronic_pp_validate_grid(num_x,x,name)
     integer, intent(in) :: num_x
     real(8), intent(in) :: x(num_x)
     character(*), intent(in) :: name
-    integer :: i
 
-    if (num_x < 2) then
-        error stop "hadronic_pp_validate_grid: grid must contain at least two points."
-    end if
-    do i=1,num_x
-        if (x(i) <= zero) then
-            error stop "hadronic_pp_validate_grid: grid values must be strictly positive."
-        end if
-    end do
-    do i=1,num_x-1
-        if (x(i+1) <= x(i)) then
-            error stop "hadronic_pp_validate_grid: grid must be strictly increasing."
-        end if
-    end do
-    if (len_trim(name) <= 0) then
-        error stop "hadronic_pp_validate_grid: internal name must be non-empty."
-    end if
+    if (len_trim(name) <= 0) error stop "hadronic_pp_validate_grid: internal name must be non-empty."
+    call hadronic_validate_log_grid(num_x,x,name)
 end subroutine hadronic_pp_validate_grid
 
 end module hadronic_pp_kernel

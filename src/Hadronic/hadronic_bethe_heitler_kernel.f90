@@ -1,13 +1,13 @@
 !f2py: skip
 module hadronic_bethe_heitler_kernel
     use constants
+    use hadronic_common, only: hadronic_proton_mass_gev, hadronic_electron_mass_gev, &
+                               hadronic_validate_log_grid
     implicit none
     private
 
     real(8), parameter :: sigma_t_cgs = 6.6524587158d-25
     real(8), parameter :: fine_structure_alpha = 1.0d0/137.0d0
-    real(8), parameter :: electron_mass_gev = 5.1099895d-4
-    real(8), parameter :: proton_mass_gev = 0.9382720813d0
     real(8), parameter :: pi_local = 3.1415926535897932384626433832795d0
     integer, parameter :: bh_outer_bins = 5
     integer, parameter :: bh_inner_bins = 5
@@ -16,6 +16,7 @@ module hadronic_bethe_heitler_kernel
 
 contains
 
+! Bethe-Heitler过程主算子：计算质子-光子碰撞产生的正负电子对注入率和质子能量损失率。
 subroutine hadronic_bethe_heitler_operator(num_p,proton_energy_gev,proton_density_per_gev,num_ph,photon_energy_gev, &
                                            photon_density_per_gev,num_e,electron_energy_gev,pair_rate_per_gev, &
                                            proton_loss_rate)
@@ -31,21 +32,21 @@ subroutine hadronic_bethe_heitler_operator(num_p,proton_energy_gev,proton_densit
     real(8) :: k_inj_rate,k_loss_rate
     integer :: i_e,j_p,k_ph
 
-    call hadronic_check_strictly_increasing(num_p,proton_energy_gev,"proton_energy_gev")
-    call hadronic_check_strictly_increasing(num_ph,photon_energy_gev,"photon_energy_gev")
-    call hadronic_check_strictly_increasing(num_e,electron_energy_gev,"electron_energy_gev")
+    call hadronic_validate_log_grid(num_p,proton_energy_gev,"proton_energy_gev")
+    call hadronic_validate_log_grid(num_ph,photon_energy_gev,"photon_energy_gev")
+    call hadronic_validate_log_grid(num_e,electron_energy_gev,"electron_energy_gev")
 
     dln_ep = hadronic_uniform_log_spacing(num_p,proton_energy_gev,"proton_energy_gev")
     dln_eph = hadronic_uniform_log_spacing(num_ph,photon_energy_gev,"photon_energy_gev")
 
     proton_log_density = proton_energy_gev*proton_density_per_gev
     photon_log_density = photon_energy_gev*photon_density_per_gev
-    gp_arr = proton_energy_gev/proton_mass_gev
-    eph_dimless = photon_energy_gev/electron_mass_gev
-    ee_dimless = electron_energy_gev/electron_mass_gev
+    gp_arr = proton_energy_gev/hadronic_proton_mass_gev
+    eph_dimless = photon_energy_gev/hadronic_electron_mass_gev
+    ee_dimless = electron_energy_gev/hadronic_electron_mass_gev
 
     k_inj_rate = para_c*3.0d0*sigma_t_cgs*fine_structure_alpha/(16.0d0*pi_local)
-    k_loss_rate = (3.0d0/(8.0d0*pi_local))*fine_structure_alpha*sigma_t_cgs*para_c*(electron_mass_gev/proton_mass_gev)
+    k_loss_rate = (3.0d0/(8.0d0*pi_local))*fine_structure_alpha*sigma_t_cgs*para_c*(hadronic_electron_mass_gev/hadronic_proton_mass_gev)
 
     pair_log_source = zero
     proton_loss_rate = zero
@@ -66,47 +67,17 @@ subroutine hadronic_bethe_heitler_operator(num_p,proton_energy_gev,proton_densit
     pair_rate_per_gev = pair_log_source/electron_energy_gev
 end subroutine hadronic_bethe_heitler_operator
 
-subroutine hadronic_check_strictly_increasing(num_values,values,name)
-    integer, intent(in) :: num_values
-    real(8), intent(in) :: values(num_values)
-    character(*), intent(in) :: name
-    integer :: i
-
-    if (num_values < 2) then
-        error stop trim(name)//" must contain at least two points."
-    end if
-
-    do i=1,num_values
-        if (values(i) <= zero) then
-            error stop trim(name)//" must be strictly positive."
-        end if
-    end do
-
-    do i=2,num_values
-        if (values(i) <= values(i-1)) then
-            error stop trim(name)//" must be strictly increasing."
-        end if
-    end do
-end subroutine hadronic_check_strictly_increasing
-
+! 检查网格为对数均匀并返回对数间距。
 real(8) function hadronic_uniform_log_spacing(num_values,values,name)
     integer, intent(in) :: num_values
     real(8), intent(in) :: values(num_values)
     character(*), intent(in) :: name
-    integer :: i
-    real(8) :: dln,delta,tol
-
-    dln = dlog(values(2)) - dlog(values(1))
-    do i=3,num_values
-        delta = dlog(values(i)) - dlog(values(i-1))
-        tol = dmax1(1.0d-12,1.0d-6*dabs(dln))
-        if (dabs(delta-dln) > tol) then
-            error stop trim(name)//" must be logarithmically uniform."
-        end if
-    end do
-    hadronic_uniform_log_spacing = dln
+    real(8) :: dln_local
+    call hadronic_validate_log_grid(num_values,values,name,dln_local)
+    hadronic_uniform_log_spacing = dln_local
 end function hadronic_uniform_log_spacing
 
+! Bethe-Heitler电子产生核：计算给定质子/光子能量下产生能量为ee的电子的微分谱。
 real(8) function hadronic_bh_kernel_electron_generation(ee,gp,eph)
     real(8), intent(in) :: ee,gp,eph
     real(8) :: upper,lower,diff
@@ -123,6 +94,7 @@ real(8) function hadronic_bh_kernel_electron_generation(ee,gp,eph)
                                              ee/(2.0d0*gp*gp*gp*eph*eph)
 end function hadronic_bh_kernel_electron_generation
 
+! Bethe-Heitler外层积分核（对omega积分）。
 real(8) function hadronic_bh_outer(gp,ee,omega)
     real(8), intent(in) :: gp,ee,omega
     real(8), parameter :: reg_outer = 1.0d-5
@@ -142,6 +114,7 @@ real(8) function hadronic_bh_outer(gp,ee,omega)
     hadronic_bh_outer = hadronic_rk4_4(hadronic_bh_inner,lower,upper,gp,ee,omega,bh_inner_bins)
 end function hadronic_bh_outer
 
+! Bethe-Heitler内层积分核（对ebar积分）。
 real(8) function hadronic_bh_inner(gp,ee,omega,ebar)
     real(8), intent(in) :: gp,ee,omega,ebar
     real(8), parameter :: reg_inner = 1.0d-20
@@ -157,6 +130,7 @@ real(8) function hadronic_bh_inner(gp,ee,omega,ebar)
     hadronic_bh_inner = omega*hadronic_bh_sigma_w(omega,ebar,ksi)/pbar
 end function hadronic_bh_inner
 
+! Bethe-Heitler微分截面 σ(ω, ε̄, ξ) 的解析表达式（Blumenthal 1970）。
 real(8) function hadronic_bh_sigma_w(omega,ebar,ksi)
     real(8), intent(in) :: omega,ebar,ksi
     real(8), parameter :: reg_sigma = 1.0d-30
@@ -195,11 +169,13 @@ real(8) function hadronic_bh_sigma_w(omega,ebar,ksi)
     hadronic_bh_sigma_w = a0*(a1 + a2 + a3 + a4 + a50*(a51 + a52 + a53) + a6 + a7)
 end function hadronic_bh_sigma_w
 
+! Bethe-Heitler质子能量损失核函数。
 real(8) function hadronic_bh_kernel_proton_loss(gp,eph)
     real(8), intent(in) :: gp,eph
     hadronic_bh_kernel_proton_loss = 0.5d0*hadronic_bh_eloss_kernel_phi(2.0d0*gp*eph)/(gp*gp*eph*eph)
 end function hadronic_bh_kernel_proton_loss
 
+! Bethe-Heitler能量损失核 φ(x) 的分段近似（低能多项式/高能对数）。
 real(8) function hadronic_bh_eloss_kernel_phi(xval)
     real(8), intent(in) :: xval
     real(8) :: zval,zlog
@@ -220,6 +196,7 @@ real(8) function hadronic_bh_eloss_kernel_phi(xval)
                                    (1.0d0 - 2.910d0/xval - 78.35d0/(xval*xval) - 1837.0d0/(xval**3))
 end function hadronic_bh_eloss_kernel_phi
 
+! 三参数版本的三阶Runge-Kutta（RK4-3/8规则）数值积分。
 real(8) function hadronic_rk4_3(func,lower,upper,var0,var1,n_bins)
     interface
         function func(arg0,arg1,arg2) result(value)
@@ -244,6 +221,7 @@ real(8) function hadronic_rk4_3(func,lower,upper,var0,var1,n_bins)
     end do
 end function hadronic_rk4_3
 
+! 四参数版本的三阶Runge-Kutta（RK4-3/8规则）数值积分。
 real(8) function hadronic_rk4_4(func,lower,upper,var0,var1,var2,n_bins)
     interface
         function func(arg0,arg1,arg2,arg3) result(value)

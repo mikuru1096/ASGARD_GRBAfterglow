@@ -1,7 +1,9 @@
+! 计算反向激波区域的同步辐射谱及其种子光子场，包含外介质密度剖面。
 subroutine seed_reverse(T_cross,R_cross,e3_cross,gam20, Delta_t,b_r, &
                         Boundary,R_Tobs,R_gamma,R,gam_e,dN_gam_e,V_seed,n,Num_nu,Num_R,Num_gam_e,n_threads, P_syn_spec,seed_syn)
     !$ use omp_lib
     use constants
+    use dynamics_common, only: dynamics_external_density_profile
     use radiation_common
     IMPLICIT REAL(8)(A-H,O-Z)
     !***********************************************************
@@ -31,7 +33,7 @@ subroutine seed_reverse(T_cross,R_cross,e3_cross,gam20, Delta_t,b_r, &
     
     do I_R=1,Num_R
         Gam0=R_gamma(I_R)
-        call radiation_external_density(A_star,dNe_ISM,R(I_R),R0,dNe)
+        call dynamics_external_density_profile(A_star,dNe_ISM,R(I_R),R0,0,one,one,one,dNe)
         
         e2=4d0*Gam0*Gam0*dNe*Para_m_p*para_c*para_c
         if (R(I_R) < R_cross) then

@@ -1,8 +1,8 @@
 !f2py: skip
 module hadronic_interaction_kernel
     use constants
+    use hadronic_common, only: hadronic_proton_mass_gev
     implicit none
-    real(8), parameter :: proton_mass_gev = 0.9382720813d0
     real(8), parameter :: microbarn_to_cm2 = 1.0d-30
 
     real(8), parameter :: it1_er(28) = (/ &
@@ -87,22 +87,23 @@ module hadronic_interaction_kernel
 
 contains
 
+! Hummer2010光介子产生主算子：计算pγ相互作用产生的π介子、重子再注入及粒子损失率。
 subroutine hadronic_pg_hummer2010_operator(Num_gam_p,Num_nu,hadron_energy_gev,hadron_density_per_gev,photon_energy_gev, &
                                            photon_density_per_gev,neutron_density_per_gev,pion0_source_rate_per_gev, &
                                            pion_plus_source_rate_per_gev,pion_minus_source_rate_per_gev, &
                                            proton_reinjection_rate_per_gev,neutron_reinjection_rate_per_gev, &
                                            proton_loss_rate,neutron_loss_rate,photon_loss_rate)
     integer, intent(in) :: Num_gam_p,Num_nu
-    real(8), intent(in) :: hadron_energy_gev(Num_gam_p),hadron_density_per_gev(Num_gam_p),photon_energy_gev(Num_nu)
-    real(8), intent(in) :: photon_density_per_gev(Num_nu),neutron_density_per_gev(Num_gam_p)
-    real(8), intent(out) :: pion0_source_rate_per_gev(Num_gam_p),pion_plus_source_rate_per_gev(Num_gam_p)
-    real(8), intent(out) :: pion_minus_source_rate_per_gev(Num_gam_p),proton_reinjection_rate_per_gev(Num_gam_p)
-    real(8), intent(out) :: neutron_reinjection_rate_per_gev(Num_gam_p),proton_loss_rate(Num_gam_p)
-    real(8), intent(out) :: neutron_loss_rate(Num_gam_p),photon_loss_rate(Num_nu)
-    integer :: i_gam,i_nu,it
-    real(8) :: dln_ep,dln_eg,gamma_p,src_p,src_n,ep,y,rate_it
-    real(8) :: proton_log_density(Num_gam_p),neutron_log_density(Num_gam_p),photon_log_density(Num_nu)
-    real(8) :: ph_conv_res(28),ph_conv_dir(9),ph_conv_mul(14)
+    real(8), intent(in) :: hadron_energy_gev(Num_gam_p), hadron_density_per_gev(Num_gam_p), &
+        photon_energy_gev(Num_nu), photon_density_per_gev(Num_nu), neutron_density_per_gev(Num_gam_p)
+    real(8), intent(out) :: pion0_source_rate_per_gev(Num_gam_p), pion_plus_source_rate_per_gev(Num_gam_p), &
+        pion_minus_source_rate_per_gev(Num_gam_p), proton_reinjection_rate_per_gev(Num_gam_p), &
+        neutron_reinjection_rate_per_gev(Num_gam_p), proton_loss_rate(Num_gam_p), &
+        neutron_loss_rate(Num_gam_p), photon_loss_rate(Num_nu)
+    integer :: i_gam, i_nu, it
+    real(8) :: dln_ep, dln_eg, gamma_p, src_p, src_n, ep, y, rate_it
+    real(8) :: proton_log_density(Num_gam_p), neutron_log_density(Num_gam_p), photon_log_density(Num_nu)
+    real(8) :: ph_conv_res(28), ph_conv_dir(9), ph_conv_mul(14)
 
     dln_ep = dlog(hadron_energy_gev(2)/hadron_energy_gev(1))
     dln_eg = dlog(photon_energy_gev(2)/photon_energy_gev(1))
@@ -124,7 +125,7 @@ subroutine hadronic_pg_hummer2010_operator(Num_gam_p,Num_nu,hadron_energy_gev,ha
         src_n = neutron_log_density(i_gam)
         if (src_p <= zero .and. src_n <= zero) cycle
         ep = hadron_energy_gev(i_gam)
-        gamma_p = ep / proton_mass_gev
+        gamma_p = ep / hadronic_proton_mass_gev
         call hadronic_pg_family_rates_res(gamma_p,Num_nu,photon_energy_gev,photon_log_density,dln_eg,ph_conv_res)
         call hadronic_pg_family_rates_dir(gamma_p,Num_nu,photon_energy_gev,photon_log_density,dln_eg,ph_conv_dir)
         call hadronic_pg_family_rates_mul(gamma_p,Num_nu,photon_energy_gev,photon_log_density,dln_eg,ph_conv_mul)
@@ -180,24 +181,7 @@ subroutine hadronic_pg_hummer2010_operator(Num_gam_p,Num_nu,hadron_energy_gev,ha
     neutron_reinjection_rate_per_gev = neutron_reinjection_rate_per_gev / hadron_energy_gev
 end subroutine hadronic_pg_hummer2010_operator
 
-subroutine hadronic_pg_timescale(Num_gam_p,gam_p,Num_nu,V_seed,Seed_target,t_pg)
-    integer, intent(in) :: Num_gam_p,Num_nu
-    real(8), intent(in) :: gam_p(Num_gam_p),V_seed(Num_nu),Seed_target(Num_nu)
-    real(8), intent(out) :: t_pg(Num_gam_p)
-
-    t_pg=zero
-    error stop "hadronic_pg_timescale is not implemented: replace with a literature-based p-gamma kernel."
-end subroutine hadronic_pg_timescale
-
-subroutine hadronic_pg_pion_source(Num_gam_p,gam_p,dN_gam_p,t_pg,power_pg)
-    integer, intent(in) :: Num_gam_p
-    real(8), intent(in) :: gam_p(Num_gam_p),dN_gam_p(Num_gam_p),t_pg(Num_gam_p)
-    real(8), intent(out) :: power_pg(Num_gam_p)
-
-    power_pg=zero
-    error stop "hadronic_pg_pion_source is not implemented: replace with a literature-based pion source kernel."
-end subroutine hadronic_pg_pion_source
-
+! 将pγ相互作用产生的π介子多重数按能量偏移χ分配到网格上。
 subroutine hadronic_pg_deposit_family(nfam,i_gam,dln_ep,src_p,src_n,chi_arr,mult_pi0_p,mult_pip_p,mult_pim_p, &
                                       mult_pi0_n,mult_pip_n,mult_pim_n,ph_conv,qpi0,qpip,qpim)
     integer, intent(in) :: nfam,i_gam
@@ -216,6 +200,7 @@ subroutine hadronic_pg_deposit_family(nfam,i_gam,dln_ep,src_p,src_n,chi_arr,mult
     end do
 end subroutine hadronic_pg_deposit_family
 
+! 将pγ相互作用产生的重子（质子/中子）按能量偏移χ分配到网格上。
 subroutine hadronic_pg_deposit_baryons(nfam,i_gam,dln_ep,src_p,src_n,chi_arr,mult_pro_p,mult_ntr_p,mult_pro_n,mult_ntr_n, &
                                        ph_conv,qpro,qntr)
     integer, intent(in) :: nfam,i_gam
@@ -232,6 +217,7 @@ subroutine hadronic_pg_deposit_baryons(nfam,i_gam,dln_ep,src_p,src_n,chi_arr,mul
     end do
 end subroutine hadronic_pg_deposit_baryons
 
+! 将权重点按对数能量偏移分配到目标数组的相邻网格点上（线性插值沉积）。
 subroutine hadronic_pg_deposit_shifted(target,i_gam,chi,dln_ep,weight)
     real(8), intent(inout) :: target(:)
     integer, intent(in) :: i_gam
@@ -247,6 +233,7 @@ subroutine hadronic_pg_deposit_shifted(target,i_gam,chi,dln_ep,weight)
     if (iright >= 1 .and. iright <= size(target)) target(iright) = target(iright) + frac*weight
 end subroutine hadronic_pg_deposit_shifted
 
+! 计算共振区（Δ共振）pγ相互作用率，对光子场卷积。
 subroutine hadronic_pg_family_rates_res(gamma_p,Num_nu,photon_energy_gev,photon_log_density,dln_eg,ph_conv)
     integer, intent(in) :: Num_nu
     real(8), intent(in) :: gamma_p,photon_energy_gev(Num_nu),photon_log_density(Num_nu),dln_eg
@@ -263,6 +250,7 @@ subroutine hadronic_pg_family_rates_res(gamma_p,Num_nu,photon_energy_gev,photon_
     end do
 end subroutine hadronic_pg_family_rates_res
 
+! 计算直接多π产生区pγ相互作用率，对光子场卷积。
 subroutine hadronic_pg_family_rates_dir(gamma_p,Num_nu,photon_energy_gev,photon_log_density,dln_eg,ph_conv)
     integer, intent(in) :: Num_nu
     real(8), intent(in) :: gamma_p,photon_energy_gev(Num_nu),photon_log_density(Num_nu),dln_eg
@@ -279,6 +267,7 @@ subroutine hadronic_pg_family_rates_dir(gamma_p,Num_nu,photon_energy_gev,photon_
     end do
 end subroutine hadronic_pg_family_rates_dir
 
+! 计算多π产生区（高能）pγ相互作用率，对光子场卷积。
 subroutine hadronic_pg_family_rates_mul(gamma_p,Num_nu,photon_energy_gev,photon_log_density,dln_eg,ph_conv)
     integer, intent(in) :: Num_nu
     real(8), intent(in) :: gamma_p,photon_energy_gev(Num_nu),photon_log_density(Num_nu),dln_eg
@@ -295,6 +284,7 @@ subroutine hadronic_pg_family_rates_mul(gamma_p,Num_nu,photon_energy_gev,photon_
     end do
 end subroutine hadronic_pg_family_rates_mul
 
+! 共振区质子/中子能量损失系数（求和有效通道）。
 real(8) function hadronic_pg_loss_coeff_res(ph_conv)
     real(8), intent(in) :: ph_conv(28)
     integer :: it
@@ -304,6 +294,7 @@ real(8) function hadronic_pg_loss_coeff_res(ph_conv)
     end do
 end function hadronic_pg_loss_coeff_res
 
+! 直接多π区质子/中子能量损失系数。
 real(8) function hadronic_pg_loss_coeff_dir(ph_conv)
     real(8), intent(in) :: ph_conv(9)
     integer :: it
@@ -313,6 +304,7 @@ real(8) function hadronic_pg_loss_coeff_dir(ph_conv)
     end do
 end function hadronic_pg_loss_coeff_dir
 
+! 高能多π区质子/中子能量损失系数。
 real(8) function hadronic_pg_loss_coeff_mul(ph_conv)
     real(8), intent(in) :: ph_conv(14)
     integer :: it
@@ -324,6 +316,7 @@ real(8) function hadronic_pg_loss_coeff_mul(ph_conv)
     end do
 end function hadronic_pg_loss_coeff_mul
 
+! 共振区光子损失率核函数。
 real(8) function hadronic_pg_family_photon_loss_res(it,y,dln_ep)
     integer, intent(in) :: it
     real(8), intent(in) :: y,dln_ep
@@ -331,12 +324,14 @@ real(8) function hadronic_pg_family_photon_loss_res(it,y,dln_ep)
                                          (it1_er(it)*it1_bout(it)*it1_g(it)) * hadronic_pg_kernel_res(it,y)
 end function hadronic_pg_family_photon_loss_res
 
+! 直接多π区光子损失率核函数。
 real(8) function hadronic_pg_family_photon_loss_dir(it,y,dln_ep)
     integer, intent(in) :: it
     real(8), intent(in) :: y,dln_ep
     hadronic_pg_family_photon_loss_dir = Para_c * microbarn_to_cm2 * dln_ep * hadronic_pg_kernel_dir(it,y)
 end function hadronic_pg_family_photon_loss_dir
 
+! 高能多π区光子损失率核函数。
 real(8) function hadronic_pg_family_photon_loss_mul(it,y,dln_ep)
     integer, intent(in) :: it
     real(8), intent(in) :: y,dln_ep
@@ -344,6 +339,7 @@ real(8) function hadronic_pg_family_photon_loss_mul(it,y,dln_ep)
                                          it3_sig(it) * hadronic_pg_kernel_mul(it,y)
 end function hadronic_pg_family_photon_loss_mul
 
+! 共振区pγ截面核：阶跃函数形式 σ ∝ 1/y^2，阈值为 ε_r/2。
 real(8) function hadronic_pg_kernel_res(it,y)
     integer, intent(in) :: it
     real(8), intent(in) :: y
@@ -354,6 +350,7 @@ real(8) function hadronic_pg_kernel_res(it,y)
     end if
 end function hadronic_pg_kernel_res
 
+! 高能多π区pγ截面核：分段函数形式，含常数平台和1/y^2尾部。
 real(8) function hadronic_pg_kernel_mul(it,y)
     integer, intent(in) :: it
     real(8), intent(in) :: y
@@ -366,6 +363,7 @@ real(8) function hadronic_pg_kernel_mul(it,y)
     end if
 end function hadronic_pg_kernel_mul
 
+! 直接多π区pγ截面核：通过分段单调函数 I(z) 的差分计算。
 real(8) function hadronic_pg_kernel_dir(it,y)
     integer, intent(in) :: it
     real(8), intent(in) :: y
@@ -380,6 +378,7 @@ real(8) function hadronic_pg_kernel_dir(it,y)
     end if
 end function hadronic_pg_kernel_dir
 
+! 直接多π区截面积分函数 I(z)：低z用四次多项式，高z用解析近似。
 real(8) function hadronic_pg_idir(it,z)
     integer, intent(in) :: it
     real(8), intent(in) :: z

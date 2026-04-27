@@ -1,13 +1,13 @@
 !f2py: skip
 module radiation_common
     use constants
-    use dynamics_common, only: dynamics_external_density_profile
     implicit none
     real(8), parameter :: tau_transfer_floor = 1.0d-4
     real(8), parameter :: tau_transfer_guard = 1.0d-5
 
 contains
 
+! 计算Simpson数值积分权重：[1,4,2,4,2,...,4,1]。
 subroutine compute_simpson_weights(weights, n)
     integer, intent(in) :: n
     integer :: i
@@ -25,6 +25,7 @@ subroutine compute_simpson_weights(weights, n)
     end if
 end subroutine compute_simpson_weights
 
+! 幂律插值（对数空间线性插值）：若两端为正则用log-log，否则用线性。
 real(8) function radiation_powerlaw_interp(v0,v1,y0,y1,v)
     implicit real(8)(A-H,O-Z)
     real(8), intent(in) :: v0,v1,y0,y1,v
@@ -49,6 +50,7 @@ real(8) function radiation_powerlaw_interp(v0,v1,y0,y1,v)
     end if
 end function radiation_powerlaw_interp
 
+! 辐射转移因子：(1 - e^(-τ))/τ，含底部保护避免除零。
 subroutine radiation_transfer_factor(Tau, factor)
     implicit real(8)(A-H,O-Z)
     real(8), intent(in) :: Tau
@@ -60,6 +62,7 @@ subroutine radiation_transfer_factor(Tau, factor)
     factor = (one - dexp(-Tau_eff)) / Tau_eff
 end subroutine radiation_transfer_factor
 
+! 准备湮灭计算网格：转换为以电子静能归一化的光子能量，计算中心值和体积元。
 subroutine radiation_prepare_annihilation_grid(V_seed, Num_nu, ep1, ep2, dVloc, V_mid)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: Num_nu
@@ -75,6 +78,7 @@ subroutine radiation_prepare_annihilation_grid(V_seed, Num_nu, ep1, ep2, dVloc, 
     dVloc=V_mid*(x_seed(2:Num_nu)-x_seed(1:Num_nu-1))
 end subroutine radiation_prepare_annihilation_grid
 
+! 光子-光子对产生截面（elemental）：σ_γγ(s) = 3/16 σ_T(1-β²)[(3-β⁴)ln((1+β)/(1-β))-2β(2-β²)]。
 elemental real(8) function radiation_pair_cross_section(s_center) result(sigma_pair)
     implicit real(8)(A-H,O-Z)
     real(8), intent(in) :: s_center
@@ -92,6 +96,7 @@ elemental real(8) function radiation_pair_cross_section(s_center) result(sigma_p
                  ((3.0d0-beta_sq*beta_sq)*log_term-two*beta_loc*(two-beta_sq))
 end function radiation_pair_cross_section
 
+! 对头碰撞近似下计算光子-光子对产生光深：单段路径积分。
 subroutine radiation_pair_tau_headon_segment(V_seed,Num_nu,Seed_target,dx_cm,Tau_pair)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: Num_nu
@@ -121,6 +126,7 @@ subroutine radiation_pair_tau_headon_segment(V_seed,Num_nu,Seed_target,dx_cm,Tau
     end do
 end subroutine radiation_pair_tau_headon_segment
 
+! 同步辐射核心计算：发射功率、SSA光深、转移后的同步谱和种子光子场。
 subroutine radiation_syn_seed_core(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed,ssa_prefactor, &
                                    P_emit,P_syn,Seed_syn,Tau_syn)
     !$ use omp_lib
@@ -198,13 +204,5 @@ subroutine radiation_syn_seed_core(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_
     temp_para=4d0*pi*Para_c*Para_h
     Seed_syn=Seed_syn/temp_para
 end subroutine radiation_syn_seed_core
-
-subroutine radiation_external_density(A_star,dNe_ISM,R_loc,R0,dNe)
-    implicit real(8)(A-H,O-Z)
-    real(8), intent(in) :: A_star,dNe_ISM,R_loc,R0
-    real(8), intent(out) :: dNe
-
-    call dynamics_external_density_profile(A_star,dNe_ISM,R_loc,R0,0,one,one,one,dNe)
-end subroutine radiation_external_density
 
 end module radiation_common

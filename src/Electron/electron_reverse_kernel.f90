@@ -3,11 +3,11 @@ module electron_reverse_kernel
     use dynamics_common, only: dynamics_external_density_base, dynamics_reverse_gamma_extrema
     use electron_transport_common, only: electron_prepare_implicit_coeffs_common, electron_backward_sweep_common
     use electron_radiation_kernel, only: get_syn_selected
-    use electron_cooling_kernel, only: get_IC_numerical
-    use electron_y_kernel, only: get_Y_Nakar, get_Y_Fan
+    use electron_cooling_kernel, only: get_IC_numerical, get_Y_Nakar, get_Y_Fan
     implicit none
 contains
 
+! 反向激波电子演化主驱动：注入→同步+IC冷却→隐式输运推进，支持4种Compton Y参数化。
 subroutine electron_reverse_evolve(Delta_0,e_r,b_r,p_r,f_e_r,eta_0,Epsilon_e,Epsilon_b,z,A_star,dNe_ISM,para_m_ej, &
                                    T_cross,R_cross,R_Tobs,R_Gamma,R,B3,V_seed,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger, &
                                    n_threads,gam_e,dN_gam_e)

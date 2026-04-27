@@ -4,6 +4,7 @@
 ! Coordinate definition:
 !   chi = 1 + 8 * Gamma_sh^2 * x / R
 !****************************************************************************************
+! 电子2D全隐格式主驱动：调用fs_electron_transport_2d_core执行(γ,χ)二维隐式输运。
 subroutine fs_electron_fullhide_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e, &
                                    Num_chi,index_Y,index_syn_intger,n_threads, &
                                    gam_e,dN_gam_e,dN_gam_e_total,P_syn,Seed_syn,V_m,V_c,V_a)
@@ -22,6 +23,7 @@ subroutine fs_electron_fullhide_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
                                        .false., 'fullhide_2d')
 end subroutine fs_electron_fullhide_2d
 
+! 电子2D输运核心：χ网格构建→壳层循环（历史场叠加+冷却+η对流/扩散+能量维冷却），支持charint/fullhide双模式。
 subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e, &
                                          Num_chi,index_Y,index_syn_intger,n_threads, &
                                          gam_e,dN_gam_e,dN_gam_e_total,P_syn,Seed_syn,V_m,V_c,V_a, &
@@ -30,11 +32,11 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
     use constants
     use dynamics_common, only: dynamics_external_density_profile
     use electron_common, only: electron_initial_density, electron_initialize_spectrum, &
-                               electron_initial_profile_exp_cutoff, electron_initial_grid_gamma, &
+                               electron_initial_grid_gamma, &
                                electron_gamma_m_exact, electron_injection_prefactor, &
                                electron_gamma_c_from_loss_mean, electron_source_bounds
     use electron_injection_profiles, only: electron_build_source_term_exp_cutoff
-    use electron_forward_kernel, only: prepare_forward_cooling_aux_batch, assemble_forward_cooling_split, &
+    use electron_cooling_kernel, only: prepare_forward_cooling_aux_batch, assemble_forward_cooling_split, &
                                        assemble_forward_cooling_split_batch
     use electron_radiation_kernel, only: get_syn_state, get_nu_a_2d_cell_path, reduce_syn_shell_from_chi, &
                                          build_reduced_log_grid, project_syn_state_logbands
@@ -188,7 +190,7 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
     Gam_e_c       = 7.7d8/(one+dsqrt(Epsilon_e/Epsilon_b))/R_Gamma(1)/DB**2/(R_Tobs(1)/two)
 
     call electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
-                                      electron_initial_profile_exp_cutoff,electron_initial_grid_gamma,gam_e,dN_init)
+                                      electron_initial_grid_gamma,gam_e,dN_init)
     d_x_E = dlog10(gam_e(2)/gam_e(1))
 
     dN_init_log = dN_init * gam_e * ln10

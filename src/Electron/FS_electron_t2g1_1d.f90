@@ -4,15 +4,16 @@
 !****************************************************************************************
 !******************************* main program *******************************************
 !****************************************************************************************
+! 电子1D三层隐式格式主驱动：二阶时间精度BDF2（启动用单步），迎风+隐式冷却输运。
 subroutine fs_electron_t2g1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads, &
                             gam_e,dN_gam_e,P_syn,Seed_syn,V_m,V_c,V_a)
     !$ use omp_lib
     use constants
     use dynamics_common, only: dynamics_external_density_profile
     use electron_common
-    use electron_injection_profiles, only: electron_build_source_term_profile
+    use electron_injection_profiles, only: electron_build_source_term_exp_cutoff
     use electron_radiation_kernel, only: get_nu_a, get_syn_selected
-    use electron_forward_kernel, only: get_forward_cooling
+    use electron_cooling_kernel, only: get_forward_cooling
     use electron_transport_common, only: electron_prepare_implicit_coeffs_common, electron_backward_sweep_common
     IMPLICIT REAL(8)(A-H,O-Z)
     integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger
@@ -20,14 +21,14 @@ subroutine fs_electron_t2g1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,N
     real(8), intent(out) :: dN_gam_e(Num_gam_e,Num_R),gam_e(Num_gam_e),P_syn(Num_nu,Num_R), &
                             Seed_syn(Num_nu,Num_R), V_m(Num_R), V_c(Num_R), V_a(Num_R)
     
-    real(8),allocatable,dimension (:) :: dEl,dEL_mean,dEL_mean_base,principal,x,dF1,up,para_minus_gam_e_p,dot_gam_e_SSA, &
+    real(8),allocatable,dimension (:) :: dEl,dEL_mean,dEL_mean_base,principal,x,dF1,up,dot_gam_e_SSA, &
                                          dN_x,dN_x_prev,temp1,temp2,temp3,temp4,para_maxwell,Compton,Compton1,dot_gam_e, &
                                          gam_e_rad,dN_gam_e_rad
     integer :: Num_gam_rad
     allocate (dEl(Num_gam_e),dEL_mean(Num_gam_e-1),dEL_mean_base(Num_gam_e-1),principal(Num_gam_e),x(Num_gam_e),dF1(Num_gam_e), &
               up(Num_gam_e-1),dN_x(Num_gam_e),dN_x_prev(Num_gam_e),temp1(Num_gam_e-1), &
               temp2(Num_gam_e),para_maxwell(Num_gam_e),temp3(Num_gam_e-1),temp4(Num_gam_e-1), &
-              para_minus_gam_e_p(Num_gam_e),Compton(Num_gam_e),dot_gam_e(Num_gam_e),dot_gam_e_SSA(Num_gam_e), &
+              Compton(Num_gam_e),dot_gam_e(Num_gam_e),dot_gam_e_SSA(Num_gam_e), &
               Compton1(Num_gam_e),gam_e_rad(Num_gam_e),dN_gam_e_rad(Num_gam_e))
     
     !***********************[Parameter Initial]**********************
@@ -60,17 +61,16 @@ subroutine fs_electron_t2g1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,N
     Gam_e_max=3d0*Para_m_energy/dsqrt(8d0*DB*Para_e**3)
     DB_min=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma(Num_R)*(R_Gamma(Num_R)-one)))
     Gam_e_max_max=3d0*Para_m_energy/dsqrt(8d0*DB_min*Para_e**3)
-    temp_gam=Epsilon_e/f_e*1836d0*(R_Gamma(1)-one)
-    call electron_gamma_m_near_two(p,2.01d0,0.01d0,temp_gam,Gam_e_max,Gam_e_m)
+    temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma(1)-one)
+    call electron_gamma_m_exact(p,temp_gam,Gam_e_max,Gam_e_m)
     Gam_e_c=7.7d8/(one+dsqrt(Epsilon_e/Epsilon_b))/R_Gamma(1)/DB**2/(R_Tobs(1)/two)
     call electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
-                                      electron_initial_profile_powerlaw,electron_initial_grid_gamma,gam_e,dN_gam_e(:,1))
+                                      electron_initial_grid_gamma,gam_e,dN_gam_e(:,1))
     !*******************Part 1 is completed [has been checked and there is no bug]**********************************
     !*******************Part 2: To calculate the electron distribution**********************************************
     dN_x=dN_gam_e(:,1)*gam_e*dlog(ten)
     dN_x_prev = dN_x
     d_x=dlog10(gam_e(2)/gam_e(1))
-    para_minus_gam_e_p=one/(gam_e-one)**p*gam_e*dlog(ten)
 
     ! For the first few steps, we need to use single-step methods
     ! We'll use a startup procedure
@@ -81,9 +81,9 @@ subroutine fs_electron_t2g1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,N
 
         DB=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma_loc*(R_Gamma_loc-one)))
         Gam_e_max=3d0*Para_m_energy/dsqrt(8d0*DB*Para_e**3)
-        temp_gam=Epsilon_e/f_e*1836d0*(R_Gamma_loc-one)
-        call electron_gamma_m_near_two(p,2.05d0,0.05d0,temp_gam,Gam_e_max,Gam_e_m)
-        Gam_e_m_p=(p-one)*(Gam_e_m-one)**(p-one)
+        temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma_loc-one)
+        call electron_gamma_m_exact(p,temp_gam,Gam_e_max,Gam_e_m)
+        Gam_e_m_p=(one-p)/(Gam_e_max**(one-p)-Gam_e_m**(one-p))
         Gam_e_c=7.7d8*(one+z)/R_Gamma_loc/DB**2/R_Tobs(I_tobs)
         dNe_shell=dNe
 
@@ -128,12 +128,12 @@ subroutine fs_electron_t2g1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,N
             call dynamics_external_density_profile(A_star,dNe_ISM,R_loc,R0,1,R_tr,f_jump,f_wide,dNe)
             DB_step=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma_loc*(R_Gamma_loc-one)))
             Gam_e_max_step=3d0*Para_m_energy/dsqrt(8d0*DB_step*Para_e**3)
-            temp_gam=Epsilon_e/f_e*1836d0*(R_Gamma_loc-one)
-            call electron_gamma_m_near_two(p,2.05d0,0.05d0,temp_gam,Gam_e_max_step,Gam_e_m_step)
-            Gam_e_m_p_step=(p-one)*(Gam_e_m_step-one)**(p-one)
-            
+            temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma_loc-one)
+            call electron_gamma_m_exact(p,temp_gam,Gam_e_max_step,Gam_e_m_step)
+            Gam_e_m_p_step=(one-p)/(Gam_e_max_step**(one-p)-Gam_e_m_step**(one-p))
+
             call electron_injection_prefactor(R_loc,dDR,dNe,f_e,Gam_e_m_p_step,Q)
-            call electron_build_source_term_profile(Num_gam_e,gam_e,Gam_e_m_step,Gam_e_max_step,Q,para_minus_gam_e_p,dF1)
+            call electron_build_source_term_exp_cutoff(Num_gam_e,gam_e,Gam_e_m_step,Gam_e_max_step,Q,p,dF1)
             if (dNe_shell > zero) then
                 dEL_mean=dEL_mean_base*(dNe/dNe_shell)
             else
@@ -162,7 +162,7 @@ subroutine fs_electron_t2g1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,N
         end do
     end do
 
-    deallocate (dEl,dEL_mean,dEL_mean_base,principal,x,dF1,up,para_minus_gam_e_p,dN_x,dN_x_prev,temp1,temp2, &
+    deallocate (dEl,dEL_mean,dEL_mean_base,principal,x,dF1,up,dN_x,dN_x_prev,temp1,temp2, &
                 para_maxwell,temp3,temp4,Compton,Compton1,gam_e_rad,dN_gam_e_rad)
 
     return

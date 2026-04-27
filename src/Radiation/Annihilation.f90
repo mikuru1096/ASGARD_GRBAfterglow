@@ -1,4 +1,5 @@
 ! Created by  on 2021/1/31.
+! 计算γ-γ湮灭吸收因子：对各向异性光子场积分对产生截面，含多普勒角度权重。
 subroutine annihilation(R_gamma,R,V_seed,seed_syn,seed_ssc,tau_extra,Num_nu,Num_R,n_threads, absorption)
     !$ use omp_lib
     use constants
@@ -101,8 +102,6 @@ subroutine annihilation(R_gamma,R,V_seed,seed_syn,seed_ssc,tau_extra,Num_nu,Num_
         end do
     end do
     
-!    call system_clock(int1)
-
     !$ call omp_set_dynamic(.true.)
     !$OMP PARALLEL num_threads(n_threads), private(I_R, Nu_s1, Tau, i_cos, Tau1, temp_abs)
     !$OMP DO
@@ -130,9 +129,6 @@ subroutine annihilation(R_gamma,R,V_seed,seed_syn,seed_ssc,tau_extra,Num_nu,Num_
     end do
     !$OMP END DO
     !$OMP END PARALLEL
-
-!    call system_clock(int2)
-!    print*, 'time=', (int2-int1)/1000.0
 
     deallocate(seed_tot,dRariv_Sigma,ep1,ep2,ep2ep1,dVloc,V_mid,seed_tot_mid,beta,seed_tot_mid_dVloc)
     deallocate(dcos_grid,z_grid,cos_weight,sigma_kernel,nu2_start,nu2_stop)

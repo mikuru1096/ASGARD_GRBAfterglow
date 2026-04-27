@@ -17,6 +17,7 @@ module electron_transport_2d_kernel
 
 contains
 
+! 构建对数χ几何网格：计算加速度项a=8Γ²/R及其导数，生成η=log₁₀(χ)均匀网格。
 subroutine compute_log_chi_geometry(Num_R, Num_chi, R, R_Gamma, a_arr, dln_a_dR_arr, &
                                     chi_max_global, deta, eta_face, eta_grid, chi_face, chi_grid)
     integer, intent(in) :: Num_R, Num_chi
@@ -56,6 +57,7 @@ subroutine compute_log_chi_geometry(Num_R, Num_chi, R, R_Gamma, a_arr, dln_a_dR_
     end do
 end subroutine compute_log_chi_geometry
 
+! 将激波系χ网格转换为下游共动系空间网格，含相对论长度收缩修正。
 subroutine compute_downstream_comoving_grid(Num_chi,R_shell,Gamma_sh,chi_face,chi_grid,x_face,x_comov_face,x_comov_center,dx_comov)
     integer, intent(in) :: Num_chi
     integer :: I_chi
@@ -76,6 +78,7 @@ subroutine compute_downstream_comoving_grid(Num_chi,R_shell,Gamma_sh,chi_face,ch
     end do
 end subroutine compute_downstream_comoving_grid
 
+! 计算激波输运状态量：激波速度β_sh，下游速度β_2及其相对激波的速度β_2_sh。
 subroutine get_shock_transport_state(Gamma_sh, beta_sh, beta_2, beta_2_sh)
     real(8), intent(in) :: Gamma_sh
     real(8), intent(out) :: beta_sh, beta_2, beta_2_sh
@@ -91,6 +94,7 @@ subroutine get_shock_transport_state(Gamma_sh, beta_sh, beta_2, beta_2_sh)
     beta_2_sh = (beta_sh-beta_2)/(one-beta_sh*beta_2)
 end subroutine get_shock_transport_state
 
+! BM解中实验室系下游速度：Γ_2 = Γ_sh/√(2χ)，β_2 = √(1-1/Γ_2²)。
 real(8) function bm_beta2_lab(Gamma_sh, chi_loc)
     real(8), intent(in) :: Gamma_sh, chi_loc
     real(8) :: Gamma_2
@@ -103,6 +107,7 @@ real(8) function bm_beta2_lab(Gamma_sh, chi_loc)
     end if
 end function bm_beta2_lab
 
+! BM解中下游相对激波的速度：β_2_sh = (β_sh-β_2)/(1-β_sh·β_2)。
 real(8) function bm_beta2_shock(Gamma_sh, chi_loc)
     real(8), intent(in) :: Gamma_sh, chi_loc
     real(8) :: beta_sh, beta_2
@@ -112,6 +117,7 @@ real(8) function bm_beta2_shock(Gamma_sh, chi_loc)
     bm_beta2_shock = (beta_sh-beta_2)/(one-beta_sh*beta_2)
 end function bm_beta2_shock
 
+! 计算η网格面上的输运系数A(η) = [a·β₂_sh/(χ·β_sh) + (χ-1)/χ·dln a/dR] / ln(10)。
 subroutine eta_face_transport_coeffs(Gamma_sh, Num_chi, chi_face, a_loc, dln_a_dR_loc, beta_sh, A_eta_face)
     integer, intent(in) :: Num_chi
     real(8), intent(in) :: Gamma_sh, chi_face(0:Num_chi), a_loc, dln_a_dR_loc, beta_sh
@@ -126,6 +132,7 @@ subroutine eta_face_transport_coeffs(Gamma_sh, Num_chi, chi_face, a_loc, dln_a_d
     end do
 end subroutine eta_face_transport_coeffs
 
+! Thomas算法求解三对角线性方程组。
 subroutine solve_tridiagonal(Num_cell, lower, diag, upper, rhs, sol)
     integer, intent(in) :: Num_cell
     real(8), intent(in) :: lower(Num_cell), diag(Num_cell), upper(Num_cell), rhs(Num_cell)
@@ -149,6 +156,7 @@ subroutine solve_tridiagonal(Num_cell, lower, diag, upper, rhs, sol)
     end do
 end subroutine solve_tridiagonal
 
+! η方向纯对流推进（特征线积分）：PPM重构+特征线回溯。
 subroutine advance_eta_logchi_advection_charint(U_log, Num_gam_e, Num_chi, active_hi, deta, eta_face, chi_face, &
                                                 Gamma_sh, a_loc, dln_a_dR_loc, beta_sh, source_eta1, dR_step)
     integer, intent(in) :: Num_gam_e, Num_chi, active_hi
@@ -183,6 +191,7 @@ subroutine advance_eta_logchi_advection_charint(U_log, Num_gam_e, Num_chi, activ
     end do
 end subroutine advance_eta_logchi_advection_charint
 
+! η方向纯扩散推进（隐式）：三对角求解扩散项 ∂_η(κ∂_η U)。
 subroutine advance_eta_logchi_diffusion_implicit(U_log, Num_gam_e, Num_chi, active_hi, deta, chi_face, Gamma_sh, a_loc, &
                                                  dln_a_dR_loc, beta_sh, kappa2_chi, dR_step, n_threads)
     integer, intent(in) :: Num_gam_e, Num_chi, active_hi, n_threads
@@ -230,6 +239,7 @@ subroutine advance_eta_logchi_diffusion_implicit(U_log, Num_gam_e, Num_chi, acti
     end do
 end subroutine advance_eta_logchi_diffusion_implicit
 
+! η方向对流+扩散联合隐式推进：迎风对流+中心扩散，三对角求解。
 subroutine advance_eta_logchi_implicit(U_log, Num_gam_e, Num_chi, active_hi, deta, chi_face, Gamma_sh, a_loc, dln_a_dR_loc, &
                                        beta_sh, kappa2_chi, source_eta1, dR_step, n_threads)
     integer, intent(in) :: Num_gam_e, Num_chi, active_hi, n_threads
@@ -308,6 +318,7 @@ subroutine advance_eta_logchi_implicit(U_log, Num_gam_e, Num_chi, active_hi, det
     !$OMP END PARALLEL DO
 end subroutine advance_eta_logchi_implicit
 
+! 能量维（log γ）冷却推进：隐式迎风格式，对每个χ柱独立求解三对角。
 subroutine advance_energy_loggamma_chi(U_log, Num_gam_e, Num_chi, dEL_mean_chi, R_loc, d_x_E, dR_step, n_threads)
     integer, intent(in) :: Num_gam_e, Num_chi, n_threads
     real(8), intent(inout) :: U_log(Num_gam_e, Num_chi)
@@ -334,6 +345,7 @@ subroutine advance_energy_loggamma_chi(U_log, Num_gam_e, Num_chi, dEL_mean_chi, 
     !$OMP END PARALLEL DO
 end subroutine advance_energy_loggamma_chi
 
+! 能量维冷却推进（特征线积分版）：对每个χ柱独立做电子冷却特征线更新。
 subroutine advance_energy_loggamma_chi_charint(U_log, Num_gam_e, Num_chi, gam_e, DB_chi, dEl_chi, R_loc, &
                                                Gamma_sh, beta_sh, index_Y, dR_step, active_chi_hi, n_threads)
     integer, intent(in) :: Num_gam_e, Num_chi, index_Y, n_threads

@@ -1,6 +1,7 @@
 !f2py: skip
 module hadronic_hadronic_ic_kernel
     use constants
+    use hadronic_common, only: hadronic_validate_log_grid
     implicit none
     private
 
@@ -17,6 +18,7 @@ module hadronic_hadronic_ic_kernel
 
 contains
 
+! 初始化强子IC计算核：验证网格一致性，为质子/π介子/μ子预计算kernel映射索引。
 subroutine hadronic_hadronic_ic_initialize_kernel(num_had,hadron_energy_gev,num_ph,photon_energy_gev, &
                                                   ind_min_energy_pho_hadgrid,dln_energy, &
                                                   delta_e_p,jmax_p,delta_e_pi,jmax_pi,delta_e_mu,jmax_mu)
@@ -42,6 +44,7 @@ subroutine hadronic_hadronic_ic_initialize_kernel(num_had,hadron_energy_gev,num_
                                                    ind_min_energy_pho_hadgrid,am3_mass_muon_gev,delta_e_mu,jmax_mu)
 end subroutine hadronic_hadronic_ic_initialize_kernel
 
+! 强子IC主算子：初始化kernel并计算质子/π介子/μ子的逆康普顿冷却率。
 subroutine hadronic_hadronic_ic_operator(num_had,hadron_energy_gev,num_ph,photon_energy_gev, &
                                          photons_on_had_grid_per_gev,protons_per_gev,pion_plus_per_gev, &
                                          pion_minus_per_gev,muon_minus_left_per_gev,muon_minus_right_per_gev, &
@@ -71,6 +74,7 @@ subroutine hadronic_hadronic_ic_operator(num_had,hadron_energy_gev,num_ph,photon
                                            coeff_pi_cgs,coeff_mu_cgs)
 end subroutine hadronic_hadronic_ic_operator
 
+! 使用预计算的kernel索引直接计算强子IC（跳过初始化步骤）。
 subroutine hadronic_hadronic_ic_operator_from_kernel(num_had,num_ph,photons_on_had_grid_per_gev, &
                                                      protons_per_gev,pion_plus_per_gev,pion_minus_per_gev, &
                                                      muon_minus_left_per_gev,muon_minus_right_per_gev, &
@@ -96,6 +100,7 @@ subroutine hadronic_hadronic_ic_operator_from_kernel(num_had,num_ph,photons_on_h
                                            coeff_pi_cgs,coeff_mu_cgs)
 end subroutine hadronic_hadronic_ic_operator_from_kernel
 
+! 应用IC kernel：分别对质子、π介子和μ子三个通道计算IC冷却率。
 subroutine hadronic_hadronic_ic_apply_kernel(num_had,num_ph,photons_on_had_grid_per_gev,protons_per_gev, &
                                              pion_plus_per_gev,pion_minus_per_gev,muon_minus_left_per_gev, &
                                              muon_minus_right_per_gev,muon_plus_left_per_gev,muon_plus_right_per_gev, &
@@ -129,6 +134,7 @@ subroutine hadronic_hadronic_ic_apply_kernel(num_had,num_ph,photons_on_had_grid_
                                               delta_e_mu,jmax_mu,dln_energy,coeff_mu_cgs,epsilon_mu_ic)
 end subroutine hadronic_hadronic_ic_apply_kernel
 
+! 为给定粒子种类构建IC映射kernel：计算delta_e（能量偏移）和jmax（最大光子索引）。
 subroutine hadronic_hadronic_ic_build_species_kernel(num_had,hadron_energy_gev,dln_energy,num_ph, &
                                                      ind_min_energy_pho_hadgrid,mass_gev,delta_e,jmax)
     integer, intent(in) :: num_had,num_ph,ind_min_energy_pho_hadgrid
@@ -153,6 +159,7 @@ subroutine hadronic_hadronic_ic_build_species_kernel(num_had,hadron_energy_gev,d
     end do
 end subroutine hadronic_hadronic_ic_build_species_kernel
 
+! 计算单个强子种类的IC通道：对光子能格进行卷积求和。
 subroutine hadronic_hadronic_ic_compute_channel(num_ph,photons_on_had_grid_per_gev,num_had,hadron_density_per_gev, &
                                                 delta_e,jmax,dln_energy,coeff_cgs,epsilon_ic)
     integer, intent(in) :: num_ph,num_had,delta_e(num_had),jmax(num_had)
@@ -179,6 +186,7 @@ subroutine hadronic_hadronic_ic_compute_channel(num_ph,photons_on_had_grid_per_g
     !$OMP END PARALLEL DO
 end subroutine hadronic_hadronic_ic_compute_channel
 
+! IC前因子系数：σ_T * c / (mass_ratio)^2。
 real(8) function hadronic_hadronic_ic_coeff(mass_gev)
     real(8), intent(in) :: mass_gev
     real(8) :: mass_ratio
@@ -187,34 +195,12 @@ real(8) function hadronic_hadronic_ic_coeff(mass_gev)
     hadronic_hadronic_ic_coeff = am3_c_cgs*am3_sigma_t_cgs/(mass_ratio*mass_ratio)
 end function hadronic_hadronic_ic_coeff
 
+! 获取能量网格的对数间距（调用验证逻辑）。
 real(8) function hadronic_hadronic_ic_log_spacing(num_grid,energy_grid)
     integer, intent(in) :: num_grid
     real(8), intent(in) :: energy_grid(num_grid)
-    integer :: i
-    real(8) :: dln_local,dln_i
-
-    if (num_grid < 2) then
-        error stop "hadronic IC requires at least two grid points."
-    end if
-    if (energy_grid(1) <= zero) then
-        error stop "hadronic IC requires positive grid energies."
-    end if
-
-    dln_local = dlog(energy_grid(2)/energy_grid(1))
-    do i=2,num_grid
-        if (energy_grid(i) <= zero) then
-            error stop "hadronic IC requires positive grid energies."
-        end if
-        if (energy_grid(i) <= energy_grid(i-1)) then
-            error stop "hadronic IC requires strictly increasing grids."
-        end if
-        if (i >= 3) then
-            dln_i = dlog(energy_grid(i)/energy_grid(i-1))
-            if (dabs(dln_i-dln_local) > dmax1(1d-12,1d-6*dabs(dln_local))) then
-                error stop "hadronic IC requires logarithmically uniform grids."
-            end if
-        end if
-    end do
+    real(8) :: dln_local
+    call hadronic_validate_log_grid(num_grid,energy_grid,"hadronic_IC_grid",dln_local)
     hadronic_hadronic_ic_log_spacing = dln_local
 end function hadronic_hadronic_ic_log_spacing
 

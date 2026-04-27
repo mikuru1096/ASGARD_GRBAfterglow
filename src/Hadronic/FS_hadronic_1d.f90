@@ -1,3 +1,4 @@
+! 单壳层质子同步辐射计算（包装hadronic_get_proton_syn_state）。
 subroutine fs_hadronic_proton_syn_shell(R_loc,B_field_g,Num_gam_p,Num_nu,gam_p,dN_gam_p,V_seed,P_had_syn,Seed_had_syn)
     use hadronic_radiation_kernel
     implicit real(8)(A-H,O-Z)
@@ -8,6 +9,7 @@ subroutine fs_hadronic_proton_syn_shell(R_loc,B_field_g,Num_gam_p,Num_nu,gam_p,d
     call hadronic_get_proton_syn_state(R_loc,B_field_g,Num_gam_p,Num_nu,gam_p,dN_gam_p,V_seed,P_had_syn,Seed_had_syn)
 end subroutine fs_hadronic_proton_syn_shell
 
+! 单壳层pγ相互作用算子（包装Hummer2010算子）。
 subroutine fs_hadronic_pgamma_operator_shell(Num_gam_p,Num_nu,hadron_energy_gev,hadron_density_per_gev,photon_energy_gev, &
                                              photon_density_per_gev,neutron_density_per_gev,pion0_source_rate_per_gev, &
                                              pion_plus_source_rate_per_gev,pion_minus_source_rate_per_gev, &
@@ -30,6 +32,7 @@ subroutine fs_hadronic_pgamma_operator_shell(Num_gam_p,Num_nu,hadron_energy_gev,
                                          proton_loss_rate,neutron_loss_rate,photon_loss_rate)
 end subroutine fs_hadronic_pgamma_operator_shell
 
+! 单壳层光子-光子对产生算子（包装hadronic_pair_production_operator）。
 subroutine fs_hadronic_pair_production_shell(Num_gamma,photon_energy_gev,photon_density_per_gev,Num_e,electron_energy_gev, &
                                              max_com_energy_factor,photon_loss_rate,pair_injection_rate_per_gev_per_species, &
                                              pair_injection_rate_per_gev_total,absorbed_power_gev_per_cm3_s, &
@@ -48,6 +51,7 @@ subroutine fs_hadronic_pair_production_shell(Num_gamma,photon_energy_gev,photon_
                                            injected_power_gev_per_cm3_s)
 end subroutine fs_hadronic_pair_production_shell
 
+! 单壳层pp δ-近似算子（包装hadronic_pp_delta_operator）。
 subroutine fs_hadronic_pp_delta_shell(Num_p,proton_energy_gev,proton_density_per_gev,target_proton_density_cm3, &
                                       Num_gamma,gamma_energy_gev,Num_nu,neutrino_energy_gev,Num_pair,pair_energy_gev, &
                                       kappa_inelastic,pion_energy_fraction,neutral_pion_fraction,gamma_rate_per_gev, &
@@ -74,6 +78,7 @@ subroutine fs_hadronic_pp_delta_shell(Num_p,proton_energy_gev,proton_density_per
                                     neutral_pion_fraction=neutral_pion_fraction)
 end subroutine fs_hadronic_pp_delta_shell
 
+! 单壳层Bethe-Heitler算子（包装hadronic_bethe_heitler_operator）。
 subroutine fs_hadronic_bethe_heitler_shell(Num_p,proton_energy_gev,proton_density_per_gev,Num_ph,photon_energy_gev, &
                                            photon_density_per_gev,Num_e,electron_energy_gev,pair_rate_per_gev, &
                                            proton_loss_rate)
@@ -90,6 +95,7 @@ subroutine fs_hadronic_bethe_heitler_shell(Num_p,proton_energy_gev,proton_densit
                                          proton_loss_rate)
 end subroutine fs_hadronic_bethe_heitler_shell
 
+! 单壳层强子IC算子（初始化kernel并计算所有强子种类IC率）。
 subroutine fs_hadronic_hadronic_ic_shell(Num_had,hadron_energy_gev,Num_ph,photon_energy_gev,photons_on_had_grid_per_gev, &
                                          protons_per_gev,pion_plus_per_gev,pion_minus_per_gev,muon_minus_left_per_gev, &
                                          muon_minus_right_per_gev,muon_plus_left_per_gev,muon_plus_right_per_gev, &
@@ -121,6 +127,7 @@ subroutine fs_hadronic_hadronic_ic_shell(Num_had,hadron_energy_gev,Num_ph,photon
                                                    coeff_mu_cgs)
 end subroutine fs_hadronic_hadronic_ic_shell
 
+! 单壳层粒子种类输运（包装hadronic_species_advance_operator）。
 subroutine fs_hadronic_species_transport_shell(Num_gamma,gamma,dt_s,b_field_g,divergence_rate_s_inv, &
                                                neutron_prev,pion_plus_prev,pion_minus_prev,muon_minus_left_prev, &
                                                muon_minus_right_prev,muon_plus_left_prev,muon_plus_right_prev, &
@@ -155,6 +162,7 @@ subroutine fs_hadronic_species_transport_shell(Num_gamma,gamma,dt_s,b_field_g,di
                                            muon_minus_left_next,muon_minus_right_next,muon_plus_left_next,muon_plus_right_next)
 end subroutine fs_hadronic_species_transport_shell
 
+! 单壳层粒子加速算子（包装hadronic_acceleration_operator）。
 subroutine fs_hadronic_acceleration_shell(Num_gamma,species,gamma,b_field_g,eta_acc,luminosity_erg_s,spectral_index, &
                                           gamma_min,gamma_max_inj,gamma_cut,has_gamma_cut,radius_cm,gamma_bulk, &
                                           Num_gamma_scan,gamma_scan,external_cooling_rate,has_external_cooling, &
@@ -177,6 +185,7 @@ subroutine fs_hadronic_acceleration_shell(Num_gamma,species,gamma,b_field_g,eta_
                                         t_acc,t_syn,q_inj,gamma_max,gamma_dyn,gamma_syn,gamma_ext,has_gamma_ext)
 end subroutine fs_hadronic_acceleration_shell
 
+! 单壳层次级粒子辐射算子（包装hadronic_secondary_radiation_operator）。
 subroutine fs_hadronic_secondary_radiation_shell(Num_had,hadron_energy_gev,Num_ph,photon_energy_gev,pion_plus_per_gev, &
                                                  pion_minus_per_gev,muon_minus_left_per_gev,muon_minus_right_per_gev, &
                                                  muon_plus_left_per_gev,muon_plus_right_per_gev,photons_on_had_grid_per_gev, &
@@ -205,6 +214,7 @@ subroutine fs_hadronic_secondary_radiation_shell(Num_had,hadron_energy_gev,Num_p
                                                ic_dln_energy,delta_e_pi,jmax_pi,delta_e_mu,jmax_mu)
 end subroutine fs_hadronic_secondary_radiation_shell
 
+! 单壳层粒子衰变算子（包装Hummer2010衰变算子）。
 subroutine fs_hadronic_decay_operator_shell(Num_gam_p,hadron_energy_gev,pion0_source_rate_per_gev,pion_plus_source_rate_per_gev, &
                                             pion_minus_source_rate_per_gev,Num_gamma,gamma_energy_gev,Num_nu,neutrino_energy_gev, &
                                             Num_proc,process_energy_gev,gamma_rate_per_gev,process_rate_per_gev, &
@@ -236,6 +246,7 @@ subroutine fs_hadronic_decay_operator_shell(Num_gam_p,hadron_energy_gev,pion0_so
                                             muon_electron_rate_per_gev,neutrino_rate_per_gev)
 end subroutine fs_hadronic_decay_operator_shell
 
+! 强子模块1D主驱动：遍历壳层，执行质子注入-冷却-输运循环，可选同步辐射。
 subroutine fs_hadronic_1d(R_Tobs,R_Gamma,R,shell_energy_inj_erg,B_field_g,V_seed,Seed_target,p_p,epsilon_p,eta_acc, &
                           include_proton_synch,include_pg,include_neutrino,Num_nu,Num_R,num_gam_p,num_nu_nu,n_threads, &
                           gam_p,dN_gam_p,P_had_syn,Seed_had_syn,P_had_pg_gamma,V_nu,P_nu_all)

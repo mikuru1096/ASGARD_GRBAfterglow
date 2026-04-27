@@ -6,6 +6,7 @@ module hadronic_transport_kernel
 
 contains
 
+! 质子幂律注入：Q_inj ∝ γ^(-p)，按给定能量预算归一化。
 subroutine hadronic_proton_injection_powerlaw(Num_gam_p,gam_p,p_p,energy_budget_erg,gam_p_min,gam_p_max,Q_inj)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: Num_gam_p
@@ -35,6 +36,7 @@ subroutine hadronic_proton_injection_powerlaw(Num_gam_p,gam_p,p_p,energy_budget_
     end do
 end subroutine hadronic_proton_injection_powerlaw
 
+! 计算质子能量损失率：绝热冷却 dγ/dt = γ/t_dyn 和同步冷却 dγ/dt ∝ γ²。
 subroutine hadronic_proton_loss_rates(Num_gam_p,gam_p,B_field_g,t_dyn_s,loss_ad,loss_syn,loss_total)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: Num_gam_p
@@ -51,6 +53,7 @@ subroutine hadronic_proton_loss_rates(Num_gam_p,gam_p,B_field_g,t_dyn_s,loss_ad,
     end do
 end subroutine hadronic_proton_loss_rates
 
+! 对数gamma空间迎风输运推进：用边心公式计算损失通量，更新粒子谱。
 subroutine hadronic_advance_energy_loggamma(Num_gam_p,gam_p,dN_prev,Q_inj,loss_total,dt_s,dN_next)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: Num_gam_p
