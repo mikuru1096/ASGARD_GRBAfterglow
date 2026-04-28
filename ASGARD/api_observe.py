@@ -482,6 +482,7 @@ def _build_fit_config_for_patch(
         num_nu_nu=int(model.setups.num_nu_nu),
         reverse_enabled=bool(model.setups.rvs_shock and model.fwd_rad.reverse_epsilon_p > 0.0),
         reverse_epsilon_p=float(model.fwd_rad.reverse_epsilon_p),
+        pp_model=int(getattr(model.fwd_rad, 'pp_model', -1)),
     )
     magnetar = getattr(model.jet, "magnetar", None)
     if magnetar is not None and _jet_magnetar_active(model.jet, 0.0 if theta_center is None else theta_center):

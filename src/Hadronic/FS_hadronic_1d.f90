@@ -336,3 +336,19 @@ subroutine fs_hadronic_pair_cascade_step(num_ph,photon_energy_gev,photon_density
                                 num_e,electron_energy_gev,b_field_g,path_time_s, &
                                 cascade_syn_spec,absorbed_power)
 end subroutine fs_hadronic_pair_cascade_step
+
+! pp 谱形模型: π⁰ 光子源谱 (SIBYLL=0, QGSJET=1, Geant4=2, Pythia8=3)
+subroutine fs_hadronic_pp_spectral_source(num_p,proton_kinetic_energy_gev, &
+    proton_density_per_gev,num_g,gamma_energy_gev,target_density_cm3,model, &
+    pi0_gamma_rate)
+    use hadronic_pp_models_kernel, only: hadronic_pp_pi0_source_spectrum
+    implicit none
+    integer, intent(in) :: num_p,num_g,model
+    real(8), intent(in) :: proton_kinetic_energy_gev(num_p),proton_density_per_gev(num_p)
+    real(8), intent(in) :: gamma_energy_gev(num_g),target_density_cm3
+    real(8), intent(out) :: pi0_gamma_rate(num_g)
+
+    call hadronic_pp_pi0_source_spectrum(num_p,proton_kinetic_energy_gev, &
+        proton_density_per_gev,num_g,gamma_energy_gev,target_density_cm3,model, &
+        pi0_gamma_rate)
+end subroutine fs_hadronic_pp_spectral_source
