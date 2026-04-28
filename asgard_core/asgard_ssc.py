@@ -33,9 +33,21 @@ def adaptive_log_grid_with_breaks(
     refine_factor: float = 3.0,
     max_points: int = 128,
 ) -> np.ndarray:
+    if not np.isfinite(grid_min) or not np.isfinite(grid_max) or grid_min <= 0.0 or grid_max <= grid_min:
+        raise ValueError("adaptive SSC grid bounds must be finite, positive, and strictly ordered.")
+    if not np.isfinite(pts_per_decade) or pts_per_decade <= 0.0:
+        raise ValueError("pts_per_decade must be positive.")
+    if int(max_refined_breaks) < 0:
+        raise ValueError("max_refined_breaks must be non-negative.")
+    if not np.isfinite(refine_radius_decades) or refine_radius_decades < 0.0:
+        raise ValueError("refine_radius_decades must be non-negative.")
+    if not np.isfinite(refine_factor) or refine_factor <= 0.0:
+        raise ValueError("refine_factor must be positive.")
+    if int(max_points) < 2:
+        raise ValueError("max_points must be at least 2.")
     lg_min = np.log10(grid_min)
     lg_max = np.log10(grid_max)
-    coarse_step = 1.0 / max(float(pts_per_decade), 1.0e-6)
+    coarse_step = 1.0 / float(pts_per_decade)
     fine_step = coarse_step / float(refine_factor)
     merge_eps = 0.5 * fine_step
 
@@ -55,7 +67,7 @@ def adaptive_log_grid_with_breaks(
     valid.sort(key=lambda item: item[1], reverse=True)
     n_refine = min(max_refined_breaks, len(valid))
 
-    span = max(lg_max - lg_min, 0.0)
+    span = lg_max - lg_min
     n_coarse = max(1, int(np.ceil(span / coarse_step)))
     points = [(lg_min + span * i / n_coarse, False) for i in range(n_coarse + 1)]
     for lg_value, _ in valid:
@@ -116,21 +128,30 @@ def _interp_positive_loglog(source_grid: np.ndarray, values: np.ndarray, target_
 
 
 def _shell_support_bounds(work_x_edge_log10: np.ndarray, work_d_n_x: np.ndarray) -> tuple[float, float]:
+    x_edge = np.asarray(work_x_edge_log10, dtype=float)
+    q_work = np.asarray(work_d_n_x, dtype=float)
+    if x_edge.ndim != 2 or q_work.ndim != 2:
+        raise ValueError("SSC auxiliary support bounds require 2D edge and work arrays.")
+    if x_edge.shape[1] != q_work.shape[1] or x_edge.shape[0] != q_work.shape[0] + 1:
+        raise ValueError("SSC auxiliary support bounds require edge shape (num_cell+1, num_shell).")
+    if not np.all(np.isfinite(x_edge)) or not np.all(np.isfinite(q_work)):
+        raise ValueError("SSC auxiliary support bounds require finite inputs.")
+    if np.any(q_work < 0.0):
+        raise ValueError("SSC auxiliary support bounds require non-negative work distributions.")
     x_lo = np.inf
     x_hi = -np.inf
-    for i_shell in range(work_d_n_x.shape[1]):
-        q_shell = np.asarray(work_d_n_x[:, i_shell], dtype=float)
-        peak = float(np.max(q_shell))
-        if not np.isfinite(peak) or peak <= 0.0:
-            continue
-        active = np.where(q_shell >= 1.0e-12 * peak)[0]
+    for i_shell in range(q_work.shape[1]):
+        shell_edge = x_edge[:, i_shell]
+        if np.any(np.diff(shell_edge) <= 0.0):
+            raise ValueError("SSC auxiliary support bounds require strictly increasing edge grids in every shell.")
+        q_shell = q_work[:, i_shell]
+        active = np.where(q_shell > 0.0)[0]
         if active.size == 0:
             continue
-        x_lo = min(x_lo, float(work_x_edge_log10[active[0], i_shell]))
-        x_hi = max(x_hi, float(work_x_edge_log10[active[-1] + 1, i_shell]))
+        x_lo = min(x_lo, float(shell_edge[active[0]]))
+        x_hi = max(x_hi, float(shell_edge[active[-1] + 1]))
     if not np.isfinite(x_lo) or not np.isfinite(x_hi) or x_hi <= x_lo:
-        x_lo = float(np.min(work_x_edge_log10))
-        x_hi = float(np.max(work_x_edge_log10))
+        raise ValueError("SSC auxiliary support bounds are undefined because the work distribution is identically zero.")
     return x_lo, x_hi
 
 
@@ -142,6 +163,21 @@ def _build_auxiliary_gamma_edges(
     x_lo, x_hi = _shell_support_bounds(work_x_edge_log10, work_d_n_x)
     margin = 0.08
     return np.linspace(x_lo - margin, x_hi + margin, num_auxiliary_gamma + 1, dtype=float)
+
+
+def _validate_nonuniform_log_grid(x_edge: np.ndarray, q: np.ndarray) -> None:
+    edge = np.asarray(x_edge, dtype=float)
+    values = np.asarray(q, dtype=float)
+    if edge.ndim != 1 or values.ndim != 1:
+        raise ValueError("nonuniform SSC helper expects 1D edge and value arrays.")
+    if edge.size != values.size + 1:
+        raise ValueError("nonuniform SSC edge grid must have one more element than cell values.")
+    if not np.all(np.isfinite(edge)) or not np.all(np.isfinite(values)):
+        raise ValueError("nonuniform SSC helper received non-finite inputs.")
+    if np.any(np.diff(edge) <= 0.0):
+        raise ValueError("nonuniform SSC edge grid must be strictly increasing.")
+    if np.any(values < 0.0):
+        raise ValueError("nonuniform SSC cell values must be non-negative.")
 
 
 def _minmod(a: float, b: float) -> float:
@@ -170,14 +206,15 @@ def _loglinear_cell_int(qlog_center: float, slope: float, x_center: float, xa: f
 
 
 def _build_log_prefix_nonuniform(x_edge_old: np.ndarray, q_old: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    _validate_nonuniform_log_grid(x_edge_old, q_old)
     num_old = q_old.shape[0]
     x_center = 0.5 * (x_edge_old[:-1] + x_edge_old[1:])
-    qlog = np.log10(1.0 + np.maximum(q_old, 0.0))
+    qlog = np.log10(1.0 + q_old)
     slope = np.zeros(num_old, dtype=float)
     for i_cell in range(1, num_old - 1):
-        dl = (qlog[i_cell] - qlog[i_cell - 1]) / max(x_center[i_cell] - x_center[i_cell - 1], 1.0e-30)
-        dr = (qlog[i_cell + 1] - qlog[i_cell]) / max(x_center[i_cell + 1] - x_center[i_cell], 1.0e-30)
-        dc = (qlog[i_cell + 1] - qlog[i_cell - 1]) / max(x_center[i_cell + 1] - x_center[i_cell - 1], 1.0e-30)
+        dl = (qlog[i_cell] - qlog[i_cell - 1]) / (x_center[i_cell] - x_center[i_cell - 1])
+        dr = (qlog[i_cell + 1] - qlog[i_cell]) / (x_center[i_cell + 1] - x_center[i_cell])
+        dc = (qlog[i_cell + 1] - qlog[i_cell - 1]) / (x_center[i_cell + 1] - x_center[i_cell - 1])
         slope[i_cell] = _minmod3(2.0 * dl, dc, 2.0 * dr)
     prefix = np.zeros(num_old + 1, dtype=float)
     for i_cell in range(num_old):
@@ -210,24 +247,29 @@ def _log_prefix_eval_nonuniform(
 
 def _conservative_remap_log_nonuniform(x_edge_old: np.ndarray, x_edge_new: np.ndarray, q_old: np.ndarray) -> np.ndarray:
     prefix, qlog, slope, x_center = _build_log_prefix_nonuniform(x_edge_old, q_old)
+    if np.any(np.diff(np.asarray(x_edge_new, dtype=float)) <= 0.0):
+        raise ValueError("target nonuniform SSC edge grid must be strictly increasing.")
     num_new = x_edge_new.shape[0] - 1
     q_new = np.zeros(num_new, dtype=float)
     for i_cell in range(num_new):
-        dx_cell = max(float(x_edge_new[i_cell + 1] - x_edge_new[i_cell]), 1.0e-30)
+        dx_cell = float(x_edge_new[i_cell + 1] - x_edge_new[i_cell])
         right = _log_prefix_eval_nonuniform(x_edge_old, prefix, qlog, slope, x_center, float(x_edge_new[i_cell + 1]))
         left = _log_prefix_eval_nonuniform(x_edge_old, prefix, qlog, slope, x_center, float(x_edge_new[i_cell]))
-        q_new[i_cell] = max((right - left) / dx_cell, 0.0)
+        q_new[i_cell] = (right - left) / dx_cell
+        if q_new[i_cell] < 0.0:
+            raise ValueError("conservative nonuniform SSC remap produced a negative cell average.")
     return q_new
 
 
 def _ppm_interfaces_nonuniform(x_edge: np.ndarray, q: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    _validate_nonuniform_log_grid(x_edge, q)
     x_center = 0.5 * (x_edge[:-1] + x_edge[1:])
     dx_cell = x_edge[1:] - x_edge[:-1]
     slope = np.zeros_like(q, dtype=float)
     for i_cell in range(1, q.shape[0] - 1):
-        dl = (q[i_cell] - q[i_cell - 1]) / max(x_center[i_cell] - x_center[i_cell - 1], 1.0e-30)
-        dr = (q[i_cell + 1] - q[i_cell]) / max(x_center[i_cell + 1] - x_center[i_cell], 1.0e-30)
-        dc = (q[i_cell + 1] - q[i_cell - 1]) / max(x_center[i_cell + 1] - x_center[i_cell - 1], 1.0e-30)
+        dl = (q[i_cell] - q[i_cell - 1]) / (x_center[i_cell] - x_center[i_cell - 1])
+        dr = (q[i_cell + 1] - q[i_cell]) / (x_center[i_cell + 1] - x_center[i_cell])
+        dc = (q[i_cell + 1] - q[i_cell - 1]) / (x_center[i_cell + 1] - x_center[i_cell - 1])
         slope[i_cell] = _minmod3(2.0 * dl, dc, 2.0 * dr)
 
     q_left = np.array(q, copy=True)
@@ -259,11 +301,13 @@ def _ppm_point_values_nonuniform(x_src_edge: np.ndarray, q_src: np.ndarray, x_tg
         if x_val < x_src_edge[0] or x_val > x_src_edge[-1]:
             continue
         i_src = int(np.searchsorted(x_src_edge[1:], x_val, side="left"))
-        dx = max(x_src_edge[i_src + 1] - x_src_edge[i_src], 1.0e-30)
+        dx = x_src_edge[i_src + 1] - x_src_edge[i_src]
         xi = (x_val - x_src_edge[i_src]) / dx
         coeff_c = q_src[i_src] - 0.5 * (q_left[i_src] + q_right[i_src])
         q_tgt[i_tgt] = q_left[i_src] + xi * (q_right[i_src] - q_left[i_src] + 6.0 * coeff_c) + 6.0 * coeff_c * xi * (1.0 - xi)
-    return np.maximum(q_tgt, 0.0)
+        if q_tgt[i_tgt] < 0.0:
+            raise ValueError("nonuniform SSC PPM reconstruction produced a negative point value.")
+    return q_tgt
 
 
 def project_work_grid_to_auxiliary_gamma(
@@ -305,6 +349,10 @@ def compute_ssc_auxiliary_grid(
     work_d_n_x = np.asfortranarray(np.asarray(work_d_n_x, dtype=float))
     seed_frequency_hz = np.asfortranarray(np.asarray(seed_frequency_hz, dtype=float))
     seed_field = np.asfortranarray(np.asarray(seed_field, dtype=float))
+
+    if np.all(work_d_n_x == 0.0):
+        zeros = np.zeros((seed_frequency_hz.shape[0], radius_cm.shape[0]), dtype=float, order="F")
+        return zeros, zeros.copy(order="F")
 
     if work_x_edge_log10.ndim == 2 and work_d_n_x.ndim == 2:
         return Radiation.ssc_spec_nonuniform(
@@ -354,7 +402,7 @@ def _build_forward_ssc_grid(
         for q in (0.1, 0.5, 0.9):
             value = float(np.quantile(valid, q))
             idx = int(np.clip(np.searchsorted(full_grid_hz, value), 0, full_grid_hz.shape[0] - 1))
-            weight = float(np.sum(seed_syn[idx])) / max(full_grid_hz[idx] * full_grid_hz[idx], 1.0)
+            weight = float(np.sum(seed_syn[idx])) / (full_grid_hz[idx] * full_grid_hz[idx])
             break_list.append(value)
             weight_list.append(weight)
 

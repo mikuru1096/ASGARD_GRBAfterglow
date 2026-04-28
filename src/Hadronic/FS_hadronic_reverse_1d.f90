@@ -18,12 +18,14 @@ subroutine fs_hadronic_reverse_1d(R_Tobs,R_Gamma,R,shell_energy_inj_erg,B_field_
     real(8) :: loss_ad(num_gam_p),loss_syn(num_gam_p),loss_total(num_gam_p)
 
     ! 估算质子最高 Lorentz 因子（取所有壳层的最大值）
-    gam_p_max_global=ten
-    do I_R=1,Num_R
+    t_dyn_s=hadronic_dynamical_time(R(1),R_Gamma(1))
+    gam_p_max_global=hadronic_gamma_p_max(B_field_g(1),t_dyn_s,ten)
+    do I_R=2,Num_R
         t_dyn_s=hadronic_dynamical_time(R(I_R),R_Gamma(I_R))
         gam_p_max_global=max(gam_p_max_global,hadronic_gamma_p_max( &
-            max(B_field_g(I_R),hadronic_bfield_floor),t_dyn_s,ten))
+            B_field_g(I_R),t_dyn_s,ten))
     end do
+    if (gam_p_max_global <= one+1d-3) error stop "reverse hadronic gamma_p_max must exceed the injection grid minimum."
     call hadronic_build_gamma_p_grid(num_gam_p,one+1d-3,gam_p_max_global,gam_p)
     call hadronic_initial_density(num_gam_p,dN_prev)
 
@@ -34,17 +36,18 @@ subroutine fs_hadronic_reverse_1d(R_Tobs,R_Gamma,R,shell_energy_inj_erg,B_field_
     do I_R=1,Num_R
         dt_s=hadronic_shell_dt(R_Tobs,I_R)
         t_dyn_s=hadronic_dynamical_time(R(I_R),R_Gamma(I_R))
-        energy_budget_erg=max(shell_energy_inj_erg(I_R),zero)
-        gam_p_min=max(1.1d0,R_Gamma(I_R))
+        if (shell_energy_inj_erg(I_R) < zero) error stop "reverse hadronic shell injection energy must be non-negative."
+        energy_budget_erg=shell_energy_inj_erg(I_R)
+        gam_p_min=max(gam_p(1),R_Gamma(I_R))
         call hadronic_proton_injection_powerlaw(num_gam_p,gam_p,2.2d0,energy_budget_erg, &
                                                 gam_p_min,gam_p(num_gam_p),Q_inj)
-        call hadronic_proton_loss_rates(num_gam_p,gam_p,max(B_field_g(I_R),hadronic_bfield_floor), &
+        call hadronic_proton_loss_rates(num_gam_p,gam_p,B_field_g(I_R), &
                                         t_dyn_s,loss_ad,loss_syn,loss_total)
         call hadronic_advance_energy_loggamma(num_gam_p,gam_p,dN_prev,Q_inj,loss_total,dt_s,dN_next)
         dN_gam_p(:,I_R)=dN_next
 
         if (include_proton_synch /= 0) then
-            call hadronic_get_proton_syn_state(R(I_R),max(B_field_g(I_R),hadronic_bfield_floor), &
+            call hadronic_get_proton_syn_state(R(I_R),B_field_g(I_R), &
                                                num_gam_p,Num_nu,gam_p,dN_next, &
                                                V_seed,P_had_syn(:,I_R),Seed_had_syn(:,I_R))
         end if

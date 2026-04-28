@@ -215,7 +215,6 @@ real(8) function sigma_inel_local(Tp)
     real(8), intent(in) :: Tp
     if (Tp <= 0d0) then; sigma_inel_local = 0d0; return; end if
     sigma_inel_local = 30.7d0 - 0.96d0*dlog(Tp) + 0.36d0*(dlog(Tp))**2  ! Kafexhiu+2014 fit
-    sigma_inel_local = max(sigma_inel_local, 10d0)
 end function
 
 ! ---- π⁰ 多重数 ----

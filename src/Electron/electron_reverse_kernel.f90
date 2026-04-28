@@ -18,8 +18,8 @@ subroutine electron_reverse_evolve(Delta_0,e_r,b_r,p_r,f_e_r,eta_0,Epsilon_e,Eps
     real(8), intent(in) :: R_Tobs(Num_R),R_Gamma(Num_R),R(Num_R),B3(Num_R),V_seed(Num_nu)
     real(8), intent(out) :: gam_e(Num_gam_e),dN_gam_e(Num_gam_e,Num_R)
     real(8), parameter :: reverse_gamma_c_coeff=7.7d8, reverse_synch_b_coeff=0.39d0, reverse_adv_coeff=1.35d-19
-    real(8) :: factor2,dB,gamma34,Gam_e_max,Gam_e_m,Gam_e_c,dNe,DB_min,Gam_e_max_max,d_x,R_loc,R_Gamma_loc,Delta
-    real(8) :: R_n4,beta4,beta2,eta,f_r,dDR,dDD,CFL,Q0,Q,Q1,Qshell,cooling_scale
+    real(8) :: factor2,dB,gamma34,Gam_e_max,Gam_e_m,Gam_e_c,dNe,DB_min,Gam_e_max_max,Gam_e_min_global,d_x,R_loc,R_Gamma_loc,Delta
+    real(8) :: R_n4,beta4,beta2,f_r,dDR,dDD,CFL,Q0,Q,Q1,Qshell,cooling_scale
     real(8), allocatable :: dEl(:),principal(:),x(:),dF1(:),up(:),temp1(:),temp2(:),temp3(:),dN_x(:),para_minus_gam_e_p(:)
     real(8), allocatable :: dB3_serial(:),P_syn(:),Seed_syn(:),cooling_aux(:),Compton(:)
 
@@ -31,6 +31,7 @@ subroutine electron_reverse_evolve(Delta_0,e_r,b_r,p_r,f_e_r,eta_0,Epsilon_e,Eps
 
     factor2=(p_r-two)/(p_r-one)*e_r*Para_m_p_div_m_e
     if (p_r < 2.05d0) factor2=0.05d0/1.05d0*e_r*Para_m_p_div_m_e
+    beta4=dsqrt(one-one/eta_0**2)
     dB3_serial(1)=dB3_serial(min(2,Num_R))
     dB=dB3_serial(1); gamma34=1.001d0
     call dynamics_reverse_gamma_extrema(dB,gamma34,factor2,f_e_r,Gam_e_max,Gam_e_m)
@@ -39,9 +40,25 @@ subroutine electron_reverse_evolve(Delta_0,e_r,b_r,p_r,f_e_r,eta_0,Epsilon_e,Eps
     call dynamics_external_density_base(A_star,dNe_ISM,R(1),dNe)
     DB_min=reverse_synch_b_coeff*dsqrt(Epsilon_b*dNe*(R_Gamma(Num_R)*(R_Gamma(Num_R)-one)))
     Gam_e_max_max=3d0*Para_m_energy/dsqrt(8d0*DB_min*Para_e**3)
+    Gam_e_min_global=Gam_e_m
+
+    do I_tobs=2,Num_R
+        R_Gamma_loc=(R_Gamma(I_tobs)+R_Gamma(I_tobs-1))/two
+        beta2=dsqrt(one-one/R_Gamma_loc**2)
+        gamma34=(one-beta2*beta4)*eta_0*R_Gamma_loc
+        dB=(dB3_serial(I_tobs)+dB3_serial(I_tobs-1))/two
+        call dynamics_reverse_gamma_extrema(dB,gamma34,factor2,f_e_r,Gam_e_max,Gam_e_m)
+        if (Gam_e_m < Gam_e_min_global) Gam_e_min_global=Gam_e_m
+    end do
+    if (Gam_e_min_global < one) Gam_e_min_global=one
+    if (Gam_e_max_max <= Gam_e_min_global) error stop "electron_reverse_evolve: reverse electron grid maximum must exceed minimum."
 
     do I_gam_e=1,Num_gam_e
-        gam_e(I_gam_e)=3d0*ten**(dlog10(Gam_e_max_max)*(I_gam_e-1)/(Num_gam_e-1))
+        if (Num_gam_e == 1) then
+            gam_e(I_gam_e)=Gam_e_min_global
+        else
+            gam_e(I_gam_e)=Gam_e_min_global*ten**(dlog10(Gam_e_max_max/Gam_e_min_global)*(I_gam_e-1)/(Num_gam_e-1))
+        end if
         dN_gam_e(I_gam_e,1)=zero
         if (Gam_e_m > Gam_e_c) then
             Q1=1d10*Gam_e_c
@@ -66,21 +83,25 @@ subroutine electron_reverse_evolve(Delta_0,e_r,b_r,p_r,f_e_r,eta_0,Epsilon_e,Eps
 
     dN_x=dN_gam_e(:,1)*gam_e*dlog(ten)
     d_x=dlog10(gam_e(2)/gam_e(1))
-    para_minus_gam_e_p=one/(gam_e-one)**p_r
+    para_minus_gam_e_p=zero
+    where(gam_e > one) para_minus_gam_e_p=one/(gam_e-one)**p_r
 
     do I_tobs=2,Num_R
         R_loc=R(I_tobs-1); R_Gamma_loc=(R_Gamma(I_tobs)+R_Gamma(I_tobs-1))/two
         Delta=max(Delta_0,R_loc/Eta_0**2)
         R_n4=para_m_ej/(4d0*pi*Para_m_p*R_loc*R_loc*Eta_0*Delta)
-        beta4=dsqrt(one-one/eta_0**2); beta2=dsqrt(one-one/R_Gamma_loc**2)
+        beta2=dsqrt(one-one/R_Gamma_loc**2)
         gamma34=(one-beta2*beta4)*eta_0*R_Gamma_loc
         dB=(dB3_serial(I_tobs)+dB3_serial(I_tobs-1))/two
         call dynamics_reverse_gamma_extrema(dB,gamma34,factor2,f_e_r,Gam_e_max,Gam_e_m)
         Gam_e_c=reverse_gamma_c_coeff*(one+z)/R_Gamma_loc/dB**2/R_Tobs(I_tobs)
-        eta=(Gam_e_m/Gam_e_c)**(p_r-two); if (eta > one+0.001d0) eta=one
         f_r=reverse_adv_coeff/beta2/R_Gamma_loc*dB**2/pi
         dDR=0.7d0/(f_r*Gam_e_max+1.333d0/(R(I_tobs)+R(I_tobs-1)))
-        dDD=R(I_tobs)-R(I_tobs-1); L1=max(100,min(1000,int(dDD/dDR))); dDR=dDD/L1; CFL=dDR/d_x
+        dDD=R(I_tobs)-R(I_tobs-1)
+        if (dDR <= zero) error stop "electron_reverse_evolve: characteristic reverse-electron step must be positive."
+        if (dDD <= zero) error stop "electron_reverse_evolve: radius grid must be strictly increasing."
+        L1=max(100,min(1000,int(dDD/dDR)))
+        dDR=dDD/L1; CFL=dDR/d_x
         dN_x=dN_gam_e(:,I_tobs-1)*gam_e*dlog(ten)
 
         call get_syn_selected(index_syn_intger,R(I_tobs-1),dB,Num_gam_e,Num_nu,n_threads, &
@@ -109,8 +130,6 @@ subroutine electron_reverse_evolve(Delta_0,e_r,b_r,p_r,f_e_r,eta_0,Epsilon_e,Eps
             print*, 'invalid Compton case, check your chosen model!'
             stop
         end select
-        dEl(Num_gam_e)=dEl(Num_gam_e)+0.1d0
-
         Q0=4d0*pi*R_n4*(p_r-one)*(Gam_e_m-one)**(p_r-one)*f_e_r
         do L=1,L1
             R_loc=R_loc+dDR

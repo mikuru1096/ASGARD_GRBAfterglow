@@ -19,7 +19,7 @@ subroutine ssc_spec(R,gam_e,dN_gam_e,V_seed,seed,Num_nu,Num_R,Num_gam_e,n_thread
     real(8), allocatable :: tail_weighted_dN(:,:), tail_weighted_dN_inv2(:,:)
     integer, allocatable :: gamma_start(:), gamma_low(:,:), gamma_high(:,:)
     integer :: i_low, i_high, i_mid
-    real(8) :: gamma_floor, temp_norm, h_nu_third, h_gam_third, q_coeff, kn_coeff
+    real(8) :: gamma_floor, temp_norm, h_nu_third, h_gam_third, q_coeff, kn_coeff, log_q
 
     allocate (simpson_weights(Num_gam_e), V_weights(Num_nu))
     allocate (E_seed(Num_nu), inv_gam(Num_gam_e), inv_gam2(Num_gam_e))
@@ -210,6 +210,14 @@ subroutine ssc_spec_nonuniform(R,x_edge_log10,dN_x,V_seed,seed,Num_nu,Num_R,Num_
     allocate(x_seed(Num_nu),radius_inv2(Num_R),x_center(Num_gam_e,Num_R),slope_q(Num_gam_e,Num_R))
     allocate(tail_gamma(Num_gam_e+1,Num_R),tail_gamma_inv2(Num_gam_e+1,Num_R))
 
+    if (any(R <= zero)) error stop "ssc_spec_nonuniform: radius must be positive."
+    if (any(V_seed <= zero)) error stop "ssc_spec_nonuniform: seed frequency grid must be positive."
+    if (any(seed < zero)) error stop "ssc_spec_nonuniform: seed photon field must be non-negative."
+    if (any(dN_x < zero)) error stop "ssc_spec_nonuniform: electron spectrum must be non-negative."
+    do Nu_s=1,Num_nu-1
+        if (V_seed(Nu_s+1) <= V_seed(Nu_s)) error stop "ssc_spec_nonuniform: seed frequency grid must be strictly increasing."
+    end do
+
     para_hEme=Para_h/para_m_energy
     x_seed=dlog(V_seed)
     radius_inv2=one/(R*R)
@@ -217,24 +225,29 @@ subroutine ssc_spec_nonuniform(R,x_edge_log10,dN_x,V_seed,seed,Num_nu,Num_R,Num_
 
     do I_R=1,Num_R
         do i_game=1,Num_gam_e
+            if (x_edge_log10(i_game+1,I_R) <= x_edge_log10(i_game,I_R)) then
+                error stop "ssc_spec_nonuniform: electron edge grid must be strictly increasing in every shell."
+            end if
+        end do
+        do i_game=1,Num_gam_e
             x_center(i_game,I_R)=0.5d0*(x_edge_log10(i_game,I_R)+x_edge_log10(i_game+1,I_R))
         end do
         do i_game=1,Num_gam_e
-            dx_log10=max(x_edge_log10(i_game+1,I_R)-x_edge_log10(i_game,I_R),1d-30)
+            dx_log10=x_edge_log10(i_game+1,I_R)-x_edge_log10(i_game,I_R)
             if (Num_gam_e == 1) then
                 slope_q(i_game,I_R)=zero
             else if (i_game == 1) then
-                right_slope=(dN_x(2,I_R)-dN_x(1,I_R))/max(x_center(2,I_R)-x_center(1,I_R),1d-30)
+                right_slope=(dN_x(2,I_R)-dN_x(1,I_R))/(x_center(2,I_R)-x_center(1,I_R))
                 slope_q(i_game,I_R)=right_slope
             else if (i_game == Num_gam_e) then
                 left_slope=(dN_x(Num_gam_e,I_R)-dN_x(Num_gam_e-1,I_R))/ &
-                           max(x_center(Num_gam_e,I_R)-x_center(Num_gam_e-1,I_R),1d-30)
+                           (x_center(Num_gam_e,I_R)-x_center(Num_gam_e-1,I_R))
                 slope_q(i_game,I_R)=left_slope
             else
                 left_slope=(dN_x(i_game,I_R)-dN_x(i_game-1,I_R))/ &
-                           max(x_center(i_game,I_R)-x_center(i_game-1,I_R),1d-30)
+                           (x_center(i_game,I_R)-x_center(i_game-1,I_R))
                 right_slope=(dN_x(i_game+1,I_R)-dN_x(i_game,I_R))/ &
-                            max(x_center(i_game+1,I_R)-x_center(i_game,I_R),1d-30)
+                            (x_center(i_game+1,I_R)-x_center(i_game,I_R))
                 slope_q(i_game,I_R)=ssc_minmod(left_slope,right_slope)
             end if
             slope_lim=two*dN_x(i_game,I_R)/dx_log10
@@ -362,8 +375,10 @@ end function ssc_minmod
 real(8) function linear_profile_value(x,qbar,slope,xc)
     implicit REAL(8)(A-H,O-Z)
     real(8), intent(in) :: x,qbar,slope,xc
-
-    linear_profile_value=max(zero,qbar+slope*(x-xc))
+    linear_profile_value=qbar+slope*(x-xc)
+    if (linear_profile_value < zero) then
+        error stop "ssc_spec_nonuniform: linear reconstruction became negative."
+    end if
 end function linear_profile_value
 
 ! 计算线性重构剖面在[x0,x1]上的γ^(-power)矩积分（解析公式）。
@@ -439,7 +454,8 @@ real(8) function ssc_low_gamma_integral(I_R,x_floor,Vloc,V_seed_loc,Ephoton2eV)
 
     ssc_low_gamma_integral=zero
     do i_game=i_start,Num_gam_e
-        x0=max(x_edge_log10(i_game,I_R),x_floor)
+        x0=x_edge_log10(i_game,I_R)
+        if (x_floor > x0) x0=x_floor
         x1=x_edge_log10(i_game+1,I_R)
         ssc_low_gamma_integral=ssc_low_gamma_integral+ &
             ssc_low_gamma_cell(x0,x1,dN_x(i_game,I_R),slope_q(i_game,I_R),x_center(i_game,I_R), &
@@ -461,7 +477,8 @@ real(8) function ssc_high_gamma_tail(I_R,x_floor,ratio_v)
         return
     end if
 
-    x0=max(x_edge_log10(i_start,I_R),x_floor)
+    x0=x_edge_log10(i_start,I_R)
+    if (x_floor > x0) x0=x_floor
     x1=x_edge_log10(i_start+1,I_R)
     part2=linear_gamma_moment(x0,x1,dN_x(i_start,I_R),slope_q(i_start,I_R),x_center(i_start,I_R),2d0)
     part4=linear_gamma_moment(x0,x1,dN_x(i_start,I_R),slope_q(i_start,I_R),x_center(i_start,I_R),4d0)

@@ -240,11 +240,13 @@ subroutine hadronic_pg_family_rates_res(gamma_p,Num_nu,photon_energy_gev,photon_
     real(8), intent(out) :: ph_conv(28)
     integer :: it,i_nu
     real(8) :: y,sumk
+    if (gamma_p <= zero) error stop "hadronic_pg_family_rates_res: gamma_p must be positive."
     do it=1,28
         sumk = zero
         do i_nu=1,Num_nu
             y = gamma_p * photon_energy_gev(i_nu)
-            if (two*y >= it1_er(it)) sumk = sumk + photon_log_density(i_nu) / (two*max(y,1d-300)**2)
+            if (photon_energy_gev(i_nu) <= zero) error stop "hadronic_pg_family_rates_res: photon energy grid must be positive."
+            if (two*y >= it1_er(it)) sumk = sumk + photon_log_density(i_nu) / (two*y*y)
         end do
         ph_conv(it) = Para_c * microbarn_to_cm2 * dln_eg * (it1_er(it)*it1_bout(it)*it1_g(it)) * sumk
     end do
@@ -343,8 +345,9 @@ end function hadronic_pg_family_photon_loss_mul
 real(8) function hadronic_pg_kernel_res(it,y)
     integer, intent(in) :: it
     real(8), intent(in) :: y
+    if (y <= zero) error stop "hadronic_pg_kernel_res: y must be positive."
     if (two*y >= it1_er(it)) then
-        hadronic_pg_kernel_res = one / (two * max(y,1d-300)**2)
+        hadronic_pg_kernel_res = one / (two * y * y)
     else
         hadronic_pg_kernel_res = zero
     end if
@@ -354,12 +357,13 @@ end function hadronic_pg_kernel_res
 real(8) function hadronic_pg_kernel_mul(it,y)
     integer, intent(in) :: it
     real(8), intent(in) :: y
+    if (y <= zero) error stop "hadronic_pg_kernel_mul: y must be positive."
     if (y < 0.5d0*it3_em(it)) then
         hadronic_pg_kernel_mul = zero
     else if (y < 0.5d0*it3_ex(it)) then
-        hadronic_pg_kernel_mul = one - it3_em(it)*it3_em(it)/(4d0*max(y,1d-300)**2)
+        hadronic_pg_kernel_mul = one - it3_em(it)*it3_em(it)/(4d0*y*y)
     else
-        hadronic_pg_kernel_mul = (it3_ex(it)*it3_ex(it)-it3_em(it)*it3_em(it))/(4d0*max(y,1d-300)**2)
+        hadronic_pg_kernel_mul = (it3_ex(it)*it3_ex(it)-it3_em(it)*it3_em(it))/(4d0*y*y)
     end if
 end function hadronic_pg_kernel_mul
 
@@ -368,13 +372,14 @@ real(8) function hadronic_pg_kernel_dir(it,y)
     integer, intent(in) :: it
     real(8), intent(in) :: y
     real(8) :: zz
+    if (y <= zero) error stop "hadronic_pg_kernel_dir: y must be positive."
     if (y < 0.5d0*it2_em(it)) then
         hadronic_pg_kernel_dir = zero
     else if (y < 0.5d0*it2_ex(it)) then
         zz = two*y
-        hadronic_pg_kernel_dir = (hadronic_pg_idir(it,zz)-hadronic_pg_idir(it,it2_em(it))) / (two*max(y,1d-300)**2)
+        hadronic_pg_kernel_dir = (hadronic_pg_idir(it,zz)-hadronic_pg_idir(it,it2_em(it))) / (two*y*y)
     else
-        hadronic_pg_kernel_dir = (hadronic_pg_idir(it,it2_ex(it))-hadronic_pg_idir(it,it2_em(it))) / (two*max(y,1d-300)**2)
+        hadronic_pg_kernel_dir = (hadronic_pg_idir(it,it2_ex(it))-hadronic_pg_idir(it,it2_em(it))) / (two*y*y)
     end if
 end function hadronic_pg_kernel_dir
 
@@ -384,7 +389,8 @@ real(8) function hadronic_pg_idir(it,z)
     real(8), intent(in) :: z
     real(8) :: x
     hadronic_pg_idir = zero
-    x = dlog10(0.5d0*max(z,1d-300))
+    if (z <= zero) error stop "hadronic_pg_idir: z must be positive."
+    x = dlog10(0.5d0*z)
     if (it <= 3) then
         if (z >= 0.17d0 .and. z < 0.96d0) then
             hadronic_pg_idir = 35.95d0 + 84.08d0*x + 110.76d0*x*x + 102.73d0*x*x*x + 40.47d0*x*x*x*x

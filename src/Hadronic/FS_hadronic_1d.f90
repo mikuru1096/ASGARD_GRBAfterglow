@@ -276,11 +276,13 @@ subroutine fs_hadronic_1d(R_Tobs,R_Gamma,R,shell_energy_inj_erg,B_field_g,V_seed
     allocate(dN_prev(num_gam_p),dN_next(num_gam_p),Q_inj(num_gam_p),loss_ad(num_gam_p),loss_syn(num_gam_p), &
              loss_total(num_gam_p),t_pg(num_gam_p),power_pg(num_gam_p),power_nu(num_gam_p),power_gamma(num_gam_p))
 
-    gam_p_max_global=ten
-    do I_R=1,Num_R
+    t_dyn_s=hadronic_dynamical_time(R(1),R_Gamma(1))
+    gam_p_max_global=hadronic_gamma_p_max(B_field_g(1),t_dyn_s,eta_acc)
+    do I_R=2,Num_R
         t_dyn_s=hadronic_dynamical_time(R(I_R),R_Gamma(I_R))
-        gam_p_max_global=max(gam_p_max_global,hadronic_gamma_p_max(max(B_field_g(I_R),1d-30),t_dyn_s,eta_acc))
+        gam_p_max_global=max(gam_p_max_global,hadronic_gamma_p_max(B_field_g(I_R),t_dyn_s,eta_acc))
     end do
+    if (gam_p_max_global <= one+1d-3) error stop "forward hadronic gamma_p_max must exceed the injection grid minimum."
     call hadronic_build_gamma_p_grid(num_gam_p,one+1d-3,gam_p_max_global,gam_p)
     call hadronic_initial_density(num_gam_p,dN_prev)
 
@@ -303,15 +305,16 @@ subroutine fs_hadronic_1d(R_Tobs,R_Gamma,R,shell_energy_inj_erg,B_field_g,V_seed
     do I_R=1,Num_R
         dt_s=hadronic_shell_dt(R_Tobs,I_R)
         t_dyn_s=hadronic_dynamical_time(R(I_R),R_Gamma(I_R))
-        energy_budget_erg=max(shell_energy_inj_erg(I_R),zero)
-        gam_p_min=max(1.1d0,R_Gamma(I_R))
+        if (shell_energy_inj_erg(I_R) < zero) error stop "hadronic shell injection energy must be non-negative."
+        energy_budget_erg=shell_energy_inj_erg(I_R)
+        gam_p_min=max(gam_p(1),R_Gamma(I_R))
         call hadronic_proton_injection_powerlaw(num_gam_p,gam_p,p_p,energy_budget_erg,gam_p_min,gam_p(num_gam_p),Q_inj)
-        call hadronic_proton_loss_rates(num_gam_p,gam_p,max(B_field_g(I_R),1d-30),t_dyn_s,loss_ad,loss_syn,loss_total)
+        call hadronic_proton_loss_rates(num_gam_p,gam_p,B_field_g(I_R),t_dyn_s,loss_ad,loss_syn,loss_total)
         call hadronic_advance_energy_loggamma(num_gam_p,gam_p,dN_prev,Q_inj,loss_total,dt_s,dN_next)
         dN_gam_p(:,I_R)=dN_next
 
         if (include_proton_synch /= 0) then
-            call hadronic_get_proton_syn_state(R(I_R),max(B_field_g(I_R),1d-30),num_gam_p,Num_nu,gam_p,dN_next, &
+            call hadronic_get_proton_syn_state(R(I_R),B_field_g(I_R),num_gam_p,Num_nu,gam_p,dN_next, &
                                                V_seed,P_had_syn(:,I_R),Seed_had_syn(:,I_R))
         end if
 
@@ -324,17 +327,17 @@ end subroutine fs_hadronic_1d
 ! 电磁对级联单步：调用 hadronic_pair_cascade_kernel 的 cascade_step。
 subroutine fs_hadronic_pair_cascade_step(num_ph,photon_energy_gev,photon_density, &
                                           num_e,electron_energy_gev,b_field_g,path_time_s, &
-                                          cascade_syn_spec,absorbed_power)
+                                          cascade_syn_spec,photon_loss_rate,absorbed_power)
     use hadronic_pair_cascade_kernel, only: hadronic_cascade_step
     implicit none
     integer, intent(in) :: num_ph,num_e
     real(8), intent(in) :: photon_energy_gev(num_ph),photon_density(num_ph)
     real(8), intent(in) :: electron_energy_gev(num_e),b_field_g,path_time_s
-    real(8), intent(out) :: cascade_syn_spec(num_ph),absorbed_power
+    real(8), intent(out) :: cascade_syn_spec(num_ph),photon_loss_rate(num_ph),absorbed_power
 
     call hadronic_cascade_step(num_ph,photon_energy_gev,photon_density, &
                                 num_e,electron_energy_gev,b_field_g,path_time_s, &
-                                cascade_syn_spec,absorbed_power)
+                                cascade_syn_spec,photon_loss_rate,absorbed_power)
 end subroutine fs_hadronic_pair_cascade_step
 
 ! pp 谱形模型: π⁰ 光子源谱 (SIBYLL=0, QGSJET=1, Geant4=2, Pythia8=3)

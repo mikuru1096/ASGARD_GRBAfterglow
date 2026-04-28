@@ -11,7 +11,7 @@
 
 ### 完整 f2py 编译
 ```bash
-wsl -e bash -c "source ~/.wsl_env && cd ~/projects/ASGARD_GRBAfterglow && uv run python build_extensions.py --module FS_electron_fullhide_1d --force"
+wsl -e bash -c "source ~/.wsl_env && cd \"/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow\" && TMPDIR=/tmp uv run python build_extensions.py --module FS_electron_fullhide_1d --force"
 ```
 **声明块压缩规则**: 同类型声明合并到一行，语义相近的量分组。B 类子程序声明块 ≤15 行。禁止每行只声明一个变量。
 

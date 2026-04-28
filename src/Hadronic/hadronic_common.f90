@@ -3,8 +3,6 @@ module hadronic_common
     use constants
     use quantum_synchrotron_kernel, only: quantum_chi_parameter, quantum_syn_cooling_factor
     implicit none
-    real(8), parameter :: hadronic_eta_acc_floor = 1d-12
-    real(8), parameter :: hadronic_bfield_floor = 1d-30
     ! 粒子静质量 [GeV/c^2]，引用 constants 模块定义。
     real(8), parameter :: hadronic_electron_mass_gev = Para_m_e_GeV
     real(8), parameter :: hadronic_proton_mass_gev = Para_m_p_GeV
@@ -24,13 +22,16 @@ subroutine hadronic_build_gamma_p_grid(Num_gam_p,gam_p_min,gam_p_max,gam_p)
     integer :: I_gam
     real(8) :: x_min,x_max,dx
 
-    if (Num_gam_p <= 1) then
-        gam_p(1)=max(gam_p_min,one)
+    if (Num_gam_p < 1) error stop "hadronic gamma grid must contain at least one point."
+    if (gam_p_min <= one) error stop "hadronic gamma grid minimum must exceed 1."
+    if (gam_p_max <= gam_p_min) error stop "hadronic gamma grid maximum must exceed minimum."
+    if (Num_gam_p == 1) then
+        gam_p(1)=gam_p_min
         return
     end if
 
-    x_min=dlog10(max(gam_p_min,one))
-    x_max=dlog10(max(gam_p_max,ten))
+    x_min=dlog10(gam_p_min)
+    x_max=dlog10(gam_p_max)
     dx=(x_max-x_min)/dble(Num_gam_p-1)
     do I_gam=1,Num_gam_p
         gam_p(I_gam)=ten**(x_min+dx*dble(I_gam-1))
@@ -78,11 +79,13 @@ subroutine hadronic_build_gamma_edges(Num_gam_p,gam_p,gam_edge)
     integer :: I_gam
 
     if (Num_gam_p == 1) then
-        gam_edge(1)=max(one,0.5d0*gam_p(1))
+        if (gam_p(1) <= one) error stop "hadronic gamma center must exceed 1."
+        gam_edge(1)=0.5d0*gam_p(1)
         gam_edge(2)=2d0*gam_p(1)
         return
     end if
 
+    if (gam_p(1) <= one) error stop "hadronic gamma grid minimum must exceed 1."
     gam_edge(1)=gam_p(1)*dsqrt(gam_p(1)/gam_p(2))
     do I_gam=2,Num_gam_p
         gam_edge(I_gam)=dsqrt(gam_p(I_gam-1)*gam_p(I_gam))
@@ -97,10 +100,11 @@ real(8) function hadronic_shell_dt(R_tobs,i_shell)
     real(8), intent(in) :: R_tobs(*)
 
     if (i_shell <= 1) then
-        hadronic_shell_dt=max(R_tobs(1),one)
+        hadronic_shell_dt=R_tobs(1)
     else
-        hadronic_shell_dt=max(R_tobs(i_shell)-R_tobs(i_shell-1),one)
+        hadronic_shell_dt=R_tobs(i_shell)-R_tobs(i_shell-1)
     end if
+    if (hadronic_shell_dt <= zero) error stop "hadronic shell dt must be positive."
 end function hadronic_shell_dt
 
 ! 计算动力学时标 t_dyn = R / (Gamma_bulk * c)。
@@ -108,7 +112,9 @@ real(8) function hadronic_dynamical_time(R_loc,Gamma_bulk)
     implicit real(8)(A-H,O-Z)
     real(8), intent(in) :: R_loc,Gamma_bulk
 
-    hadronic_dynamical_time=max(R_loc/(max(Gamma_bulk,one)*Para_c),one)
+    if (R_loc <= zero) error stop "hadronic dynamical time requires positive radius."
+    if (Gamma_bulk < one) error stop "hadronic dynamical time requires Gamma_bulk >= 1."
+    hadronic_dynamical_time=R_loc/(Gamma_bulk*Para_c)
 end function hadronic_dynamical_time
 
 ! 由加速-冷却平衡估计质子最大洛伦兹因子，取动力学限制和同步冷却限制的较小值。
@@ -117,10 +123,12 @@ real(8) function hadronic_gamma_p_max(B_field_g,t_dyn_s,eta_acc)
     real(8), intent(in) :: B_field_g,t_dyn_s,eta_acc
     real(8) :: gam_dyn,gam_syn
 
-    gam_dyn=Para_e*B_field_g*t_dyn_s/(max(eta_acc,hadronic_eta_acc_floor)*Para_m_p*Para_c)
-    gam_syn=dsqrt(6d0*pi*Para_e/(max(eta_acc,hadronic_eta_acc_floor)*Para_sigmaT* &
-            max(B_field_g,hadronic_bfield_floor))) * Para_m_p_div_m_e
-    hadronic_gamma_p_max=max(ten,min(gam_dyn,gam_syn))
+    if (B_field_g <= zero) error stop "hadronic_gamma_p_max requires B_field_g > 0."
+    if (t_dyn_s <= zero) error stop "hadronic_gamma_p_max requires t_dyn_s > 0."
+    if (eta_acc <= zero) error stop "hadronic_gamma_p_max requires eta_acc > 0."
+    gam_dyn=Para_e*B_field_g*t_dyn_s/(eta_acc*Para_m_p*Para_c)
+    gam_syn=dsqrt(6d0*pi*Para_e/(eta_acc*Para_sigmaT*B_field_g)) * Para_m_p_div_m_e
+    hadronic_gamma_p_max=min(gam_dyn,gam_syn)
 end function hadronic_gamma_p_max
 
 ! 验证能量网格为严格递增、正值且对数均匀分布，可选返回对数间距。

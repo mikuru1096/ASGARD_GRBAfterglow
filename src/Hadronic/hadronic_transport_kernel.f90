@@ -45,9 +45,11 @@ subroutine hadronic_proton_loss_rates(Num_gam_p,gam_p,B_field_g,t_dyn_s,loss_ad,
     integer :: I_gam
     real(8) :: coeff_syn
 
+    if (B_field_g < zero) error stop "hadronic proton loss rates require B_field_g >= 0."
+    if (t_dyn_s <= zero) error stop "hadronic proton loss rates require t_dyn_s > 0."
     coeff_syn=Para_sigmaT*B_field_g*B_field_g/(6d0*pi*Para_m_e*Para_c) / (Para_m_p_div_m_e**3)
     do I_gam=1,Num_gam_p
-        loss_ad(I_gam)=gam_p(I_gam)/max(t_dyn_s,one)
+        loss_ad(I_gam)=gam_p(I_gam)/t_dyn_s
         loss_syn(I_gam)=coeff_syn*gam_p(I_gam)*gam_p(I_gam)
         loss_total(I_gam)=loss_ad(I_gam)+loss_syn(I_gam)
     end do
@@ -64,6 +66,7 @@ subroutine hadronic_advance_energy_loggamma(Num_gam_p,gam_p,dN_prev,Q_inj,loss_t
     real(8) :: loss_edge,source_loc
 
     call hadronic_build_gamma_edges(Num_gam_p,gam_p,gam_edge)
+    if (dt_s <= zero) error stop "hadronic energy advance requires dt_s > 0."
     flux_edge=zero
     do I_gam=2,Num_gam_p
         loss_edge=0.5d0*(loss_total(I_gam-1)+loss_total(I_gam))
@@ -74,11 +77,12 @@ subroutine hadronic_advance_energy_loggamma(Num_gam_p,gam_p,dN_prev,Q_inj,loss_t
 
     do I_gam=1,Num_gam_p
         dgam_cell=gam_edge(I_gam+1)-gam_edge(I_gam)
+        if (dgam_cell <= zero) error stop "hadronic energy advance requires positive gamma cell width."
         ! Q_inj is normalized to the shell energy increment, so it is already
         ! the injected particle content of this step rather than a time rate.
         source_loc=Q_inj(I_gam)
-        dN_next(I_gam)=dN_prev(I_gam)+dt_s*(flux_edge(I_gam+1)-flux_edge(I_gam))/max(dgam_cell,1d-30)+source_loc
-        if (dN_next(I_gam) < zero) dN_next(I_gam)=zero
+        dN_next(I_gam)=dN_prev(I_gam)+dt_s*(flux_edge(I_gam+1)-flux_edge(I_gam))/dgam_cell+source_loc
+        if (dN_next(I_gam) < zero) error stop "hadronic energy advance produced negative particle density."
     end do
 end subroutine hadronic_advance_energy_loggamma
 

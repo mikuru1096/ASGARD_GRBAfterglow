@@ -870,15 +870,20 @@ def _compute_pair_production_branch(
     v_seed = np.asarray(seed_frequency_hz, dtype=float)
     seed_field = np.asarray(combined_seed_field_hz, dtype=float)
     gam_e = np.asarray(electron.gam_e, dtype=float)
+    radius = np.asarray(dynamics.radius, dtype=float)
+    gamma_bulk = np.asarray(dynamics.r_gamma, dtype=float)
+    magnetic_field = np.asarray(magnetic_field_g, dtype=float)
+    _validate_pair_production_branch_inputs(v_seed, seed_field, gam_e, radius, gamma_bulk, magnetic_field)
     e_e_gev = gam_e * _ELECTRON_MASS_GEV
     gam_edge = _hadronic_build_gamma_edges(gam_e)
     num_nu = int(v_seed.size)
-    num_r = int(np.asarray(dynamics.radius, dtype=float).size)
+    num_r = int(radius.size)
     pair_lum = np.zeros((num_nu, num_r), dtype=float)
     pair_seed = np.zeros((num_nu, num_r), dtype=float)
     tau_pair = np.zeros((num_nu, num_r), dtype=float)
     d_n_pair_prev = np.zeros(gam_e.size, dtype=float)
     photon_energy_gev, _ = photon_density_hz_to_gev(v_seed, np.ones_like(v_seed))
+    from asgard_core.hadronic_cascade import shell_path_time_seconds
 
     use_iterative_cascade = (
         int(getattr(config.hadronic, 'pair_cascade_iterations', 1)) > 1
@@ -893,17 +898,17 @@ def _compute_pair_production_branch(
                 photon_energy_gev=photon_energy_gev,
                 photon_density_per_gev=photon_density_per_gev,
                 electron_energy_gev=e_e_gev,
-                radius_cm=float(dynamics.radius[i_r]),
-                gamma_bulk=float(dynamics.r_gamma[i_r]),
-                b_field_g=float(magnetic_field_g[i_r]),
+                radius_cm=float(radius[i_r]),
+                gamma_bulk=float(gamma_bulk[i_r]),
+                b_field_g=float(magnetic_field[i_r]),
                 max_iterations=int(config.hadronic.pair_cascade_iterations),
             )
             pair_lum_shell = np.asarray(c_out.pair_syn_luminosity_hz, dtype=float) * (
-                4.0 * np.pi * float(dynamics.radius[i_r])**2
+                4.0 * np.pi * float(radius[i_r])**2
             )
             pair_lum[:, i_r] = pair_lum_shell
             pair_seed[:, i_r] = pair_lum_shell / (
-                max(float(dynamics.radius[i_r])**2, 1e-60)
+                float(radius[i_r])**2
                 * 4.0 * np.pi * constants.para_c * constants.para_h
             )
             tau_pair[:, i_r] = np.asarray(c_out.tau_pair_path, dtype=float)
@@ -913,34 +918,67 @@ def _compute_pair_production_branch(
                 photon_density_per_gev=photon_density_per_gev,
                 electron_energy_gev=e_e_gev,
             )
-            tau_pair[:, i_r] = np.maximum(np.asarray(ppair.photon_loss_rate, dtype=float), 0.0) * (
-                float(dynamics.radius[i_r]) / (12.0 * max(float(dynamics.r_gamma[i_r]), 1.0) * constants.para_c)
-            )
+            photon_loss_rate = np.asarray(ppair.photon_loss_rate, dtype=float)
+            if np.any(photon_loss_rate < 0.0):
+                raise RuntimeError("pair production Fortran kernel returned negative photon loss rate.")
+            tau_pair[:, i_r] = photon_loss_rate * shell_path_time_seconds(float(radius[i_r]), float(gamma_bulk[i_r]))
             q_pair = np.asarray(ppair.pair_injection_rate_per_gev_total, dtype=float) * (
                 (4.0 / 3.0) * np.pi * (
-                    float(dynamics.radius[i_r]) ** 3
-                    - (0.0 if i_r == 0 else float(dynamics.radius[i_r - 1]) ** 3)
+                    float(radius[i_r]) ** 3
+                    - (0.0 if i_r == 0 else float(radius[i_r - 1]) ** 3)
                 )
             ) * _ELECTRON_MASS_GEV
             d_n_pair = _hadronic_advance_energy_loggamma(
                 gam_e, gam_edge, d_n_pair_prev, q_pair,
                 _hadronic_electron_loss_rates(
-                    gam_e, float(magnetic_field_g[i_r]),
-                    float(dynamics.radius[i_r]) / (max(float(dynamics.r_gamma[i_r]), 1.0) * constants.para_c),
+                    gam_e, float(magnetic_field[i_r]),
+                    float(radius[i_r]) / (float(gamma_bulk[i_r]) * constants.para_c),
                 ),
                 _hadronic_shell_dt(np.asarray(dynamics.r_tobs, dtype=float), i_r),
             )
-            p_syn_i, seed_syn_i = electron_radiation_module.get_syn_selected(
-                int(config.index_syn_integr),
-                float(dynamics.radius[i_r]),
-                float(max(magnetic_field_g[i_r], 1.0e-30)),
-                int(config.num_threads),
-                gam_e, d_n_pair, v_seed,
-            )
-            pair_lum[:, i_r] = np.asarray(p_syn_i, dtype=float)
-            pair_seed[:, i_r] = np.asarray(seed_syn_i, dtype=float)
+            if magnetic_field[i_r] > 0.0:
+                p_syn_i, seed_syn_i = electron_radiation_module.get_syn_selected(
+                    int(config.index_syn_integr),
+                    float(radius[i_r]),
+                    float(magnetic_field[i_r]),
+                    int(config.num_threads),
+                    gam_e, d_n_pair, v_seed,
+                )
+                pair_lum[:, i_r] = np.asarray(p_syn_i, dtype=float)
+                pair_seed[:, i_r] = np.asarray(seed_syn_i, dtype=float)
             d_n_pair_prev = d_n_pair
     return pair_lum, pair_seed, tau_pair
+
+
+def _validate_pair_production_branch_inputs(
+    frequency_hz: np.ndarray,
+    seed_field_hz: np.ndarray,
+    gam_e: np.ndarray,
+    radius_cm: np.ndarray,
+    gamma_bulk: np.ndarray,
+    magnetic_field_g: np.ndarray,
+) -> None:
+    if frequency_hz.ndim != 1 or gam_e.ndim != 1:
+        raise ValueError("pair-production branch requires 1D frequency and electron grids.")
+    if radius_cm.ndim != 1 or gamma_bulk.shape != radius_cm.shape or magnetic_field_g.shape != radius_cm.shape:
+        raise ValueError("pair-production branch requires matching radius, gamma, and magnetic-field arrays.")
+    if seed_field_hz.shape != (frequency_hz.size, radius_cm.size):
+        raise ValueError("pair-production seed field shape must be (num_frequency, num_radius).")
+    arrays = (frequency_hz, seed_field_hz, gam_e, radius_cm, gamma_bulk, magnetic_field_g)
+    if not all(np.all(np.isfinite(arr)) for arr in arrays):
+        raise ValueError("pair-production branch inputs must be finite.")
+    if np.any(frequency_hz <= 0.0) or np.any(np.diff(frequency_hz) <= 0.0):
+        raise ValueError("pair-production frequency grid must be positive and strictly increasing.")
+    if np.any(gam_e < 1.0) or np.any(np.diff(gam_e) <= 0.0):
+        raise ValueError("pair-production electron gamma grid must start at gamma >= 1 and be strictly increasing.")
+    if np.any(seed_field_hz < 0.0):
+        raise ValueError("pair-production seed field must be non-negative.")
+    if np.any(radius_cm <= 0.0) or np.any(np.diff(radius_cm) <= 0.0):
+        raise ValueError("pair-production shell radii must be positive and strictly increasing.")
+    if np.any(gamma_bulk < 1.0):
+        raise ValueError("pair-production bulk Lorentz factors must be >= 1.")
+    if np.any(magnetic_field_g < 0.0):
+        raise ValueError("pair-production magnetic fields must be non-negative.")
 
 
 def _forward_synchrotron_absorption_transfer(
@@ -1069,10 +1107,16 @@ def _merge_bh_into_forward_electrons(
     l_syn_total = np.zeros((num_nu, num_shell), dtype=float)
     seed_syn_total = np.zeros((num_nu, num_shell), dtype=float)
     for i_shell in range(num_shell):
+        if radius_cm[i_shell] <= 0.0:
+            raise ValueError("BH electron merge requires positive shell radii.")
+        if magnetic_field_g[i_shell] < 0.0:
+            raise ValueError("BH electron merge requires non-negative magnetic fields.")
+        if magnetic_field_g[i_shell] == 0.0:
+            continue
         p_syn_i, seed_syn_i = electron_radiation_module.get_syn_selected(
             int(config.index_syn_integr),
             float(radius_cm[i_shell]),
-            float(max(magnetic_field_g[i_shell], 1.0e-30)),
+            float(magnetic_field_g[i_shell]),
             int(config.num_threads),
             np.asarray(electron.gam_e, dtype=float),
             np.asarray(total_distribution[:, i_shell], dtype=float),

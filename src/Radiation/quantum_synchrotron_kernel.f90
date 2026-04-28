@@ -19,8 +19,8 @@ pure real(8) function quantum_chi_parameter(gamma,b_field_g,mass_gev)
     real(8), intent(in) :: gamma,b_field_g,mass_gev
     real(8) :: mass_ratio
 
-    mass_ratio = Para_m_e_GeV / max(mass_gev, 1d-30)
-    quantum_chi_parameter = gamma * max(b_field_g, 0d0) / b_crit_electron * mass_ratio
+    mass_ratio = Para_m_e_GeV / mass_gev
+    quantum_chi_parameter = gamma * b_field_g / b_crit_electron * mass_ratio
 end function quantum_chi_parameter
 
 ! Landau 量子压制因子: f(χ) = 1 / (1 + √2 * χ^(2/3))²

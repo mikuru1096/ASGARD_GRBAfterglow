@@ -2,8 +2,6 @@
 module radiation_common
     use constants
     implicit none
-    real(8), parameter :: tau_transfer_floor = 1.0d-4
-    real(8), parameter :: tau_transfer_guard = 1.0d-5
 
 contains
 
@@ -50,16 +48,16 @@ real(8) function radiation_powerlaw_interp(v0,v1,y0,y1,v)
     end if
 end function radiation_powerlaw_interp
 
-! 辐射转移因子：(1 - e^(-τ))/τ，含底部保护避免除零。
+! 辐射转移因子：(1 - e^(-τ))/τ，τ=0 时取连续极限 1。
 subroutine radiation_transfer_factor(Tau, factor)
     implicit real(8)(A-H,O-Z)
     real(8), intent(in) :: Tau
     real(8), intent(out) :: factor
-    real(8) :: Tau_eff
-
-    Tau_eff = Tau
-    if ((Tau_eff - tau_transfer_floor) < tau_transfer_guard) Tau_eff = tau_transfer_floor
-    factor = (one - dexp(-Tau_eff)) / Tau_eff
+    if (Tau == zero) then
+        factor = one
+    else
+        factor = (one - dexp(-Tau)) / Tau
+    end if
 end subroutine radiation_transfer_factor
 
 ! 准备湮灭计算网格：转换为以电子静能归一化的光子能量，计算中心值和体积元。

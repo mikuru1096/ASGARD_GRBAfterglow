@@ -61,6 +61,8 @@ subroutine hadronic_get_proton_syn_state(R_loc,B_field_g,Num_gam_p,Num_nu,gam_p,
     real(8) :: dN_mid(Num_gam_p),dln_gam(Num_gam_p),temp_para,gam_mid(Num_gam_p)
 
     temp_syn=dsqrt(3d0)*Para_e*Para_e*Para_e/Para_m_p_E
+    if (R_loc <= zero) error stop "hadronic_get_proton_syn_state: radius must be positive."
+    if (B_field_g <= zero) error stop "hadronic_get_proton_syn_state: magnetic field must be positive."
     Rariv2=R_loc*R_loc
     P_had_syn=zero
     Seed_had_syn=zero
@@ -73,13 +75,14 @@ subroutine hadronic_get_proton_syn_state(R_loc,B_field_g,Num_gam_p,Num_nu,gam_p,
 
     do I_nu=1,Num_nu
         V_cal=V_seed(I_nu)
+        if (V_cal <= zero) error stop "hadronic_get_proton_syn_state: frequency grid must be positive."
         dInteg=zero
         do I_gam=1,Num_gam_p-1
             Fx=hadronic_syn_kernel_ultrarel(V_cal,gam_mid(I_gam),B_field_g)
             dInteg=dInteg+dN_mid(I_gam)*Fx*gam_mid(I_gam)*dln_gam(I_gam)
         end do
         P_had_syn(I_nu)=temp_syn*B_field_g*dInteg
-        Seed_had_syn(I_nu)=P_had_syn(I_nu)/(Rariv2*max(V_cal,1d-60))
+        Seed_had_syn(I_nu)=P_had_syn(I_nu)/(Rariv2*V_cal)
     end do
 
     temp_para=4d0*pi*Para_c*Para_h
