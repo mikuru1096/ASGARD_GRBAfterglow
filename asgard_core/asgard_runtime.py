@@ -842,7 +842,9 @@ def _solve_hadronic_hummer_transport_coupled(
             gam_edge,
             d_n_prev,
             q_inj,
-            _hadronic_continuous_loss_rates(gam_p, float(b_field[i_r]), t_dyn_s),
+            _hadronic_continuous_loss_rates(gam_p, float(b_field[i_r]), t_dyn_s,
+                quantum_syn=bool(config.hadronic.quantum_syn),
+                mass_gev=constants.para_m_p_gev),
             dt_s,
         )
         proton_density_trial_per_gev = d_n_trial / (shell_volume_loc * PROTON_MASS_GEV)
@@ -919,7 +921,11 @@ def _solve_hadronic_hummer_transport_coupled(
             pp_pair_q = shell_volume_loc * np.asarray(pp_output.pair_rate_per_gev, dtype=float) * ELECTRON_MASS_GEV
             timings["pp_delta"] += time.perf_counter() - t_pp_start
 
-        loss_total = _hadronic_continuous_loss_rates(gam_p, float(b_field[i_r]), t_dyn_s) + bh_loss + pp_loss
+        loss_total = _hadronic_continuous_loss_rates(
+            gam_p, float(b_field[i_r]), t_dyn_s,
+            quantum_syn=bool(config.hadronic.quantum_syn),
+            mass_gev=constants.para_m_p_gev,
+        ) + bh_loss + pp_loss
         d_n_next = _hadronic_advance_energy_loggamma(gam_p, gam_edge, d_n_prev, q_inj, loss_total, dt_s)
         pg_loss_rate = np.asarray(backend.proton_loss_rate, dtype=float)
         proton_sink = np.exp(-dt_s * pg_loss_rate)
@@ -1161,7 +1167,10 @@ def _solve_hadronic_hummer_transport_coupled(
             q_bh = np.array(pp_pair_q, copy=True)
             if bh_output is not None:
                 q_bh += shell_volume_loc * np.asarray(bh_output.pair_rate_per_gev, dtype=float) * ELECTRON_MASS_GEV
-            loss_bh_e = _hadronic_electron_loss_rates(gam_e, float(b_field[i_r]), t_dyn_s)
+            loss_bh_e = _hadronic_electron_loss_rates(
+                gam_e, float(b_field[i_r]), t_dyn_s,
+                quantum_syn=bool(config.hadronic.quantum_syn),
+            )
             d_n_bh_next = _hadronic_advance_energy_loggamma(
                 gam_e,
                 gam_e_edge,
@@ -1332,13 +1341,31 @@ def _hadronic_electron_loss_rates(
     gam_e: np.ndarray,
     b_field_g: float,
     t_dyn_s: float,
+    quantum_syn: bool = False,
 ) -> np.ndarray:
     gamma_e = np.asarray(gam_e, dtype=float)
     b2 = max(float(b_field_g), 0.0) ** 2
     coeff_syn = constants.para_sigmat * b2 / (6.0 * np.pi * constants.para_m_e * constants.para_c)
     loss_syn = coeff_syn * gamma_e * gamma_e
+    if quantum_syn:
+        loss_syn = loss_syn * _quantum_syn_cooling_factor(
+            gamma_e, b_field_g, constants.para_m_e_gev,
+        )
     loss_ad = gamma_e / max(float(t_dyn_s), 1.0)
     return loss_syn + loss_ad
+
+
+def _quantum_syn_cooling_factor(
+    gamma: np.ndarray, b_field_g: float, mass_gev: float,
+) -> np.ndarray:
+    b_crit = 4.414e13
+    chi = np.asarray(gamma, dtype=float) * max(float(b_field_g), 0.0) / b_crit
+    chi = chi * (constants.para_m_e_gev / max(float(mass_gev), 1e-30))
+    out = np.ones_like(chi, dtype=float)
+    active = chi > 1e-6
+    chi23 = chi[active] ** (2.0 / 3.0)
+    out[active] = 1.0 / (1.0 + np.sqrt(2.0) * chi23) ** 2
+    return out
 
 
 def _interp_positive_loglog(
@@ -1380,10 +1407,15 @@ def _interp_source_per_gamma(
     return shell_volume_cm3 * source_per_gev_s * mass_gev
 
 
-def _hadronic_continuous_loss_rates(gam_p: np.ndarray, b_field_g: float, t_dyn_s: float) -> np.ndarray:
+def _hadronic_continuous_loss_rates(
+    gam_p: np.ndarray, b_field_g: float, t_dyn_s: float,
+    quantum_syn: bool = False, mass_gev: float | None = None,
+) -> np.ndarray:
     coeff_syn = constants.para_sigmat * b_field_g * b_field_g / (6.0 * np.pi * constants.para_m_e * constants.para_c) / (constants.para_m_p_div_m_e ** 3)
     loss_ad = gam_p / max(float(t_dyn_s), 1.0)
     loss_syn = coeff_syn * gam_p * gam_p
+    if quantum_syn:
+        loss_syn = loss_syn * _quantum_syn_cooling_factor(gam_p, b_field_g, mass_gev or constants.para_m_p_gev)
     return loss_ad + loss_syn
 
 

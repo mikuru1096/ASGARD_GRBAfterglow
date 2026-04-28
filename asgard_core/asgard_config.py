@@ -75,6 +75,7 @@ class HadronicConfig:
     reverse_enabled: bool = False
     reverse_epsilon_p: float = 0.0
     pair_cascade_iterations: int = 1
+    quantum_syn: bool = False
 
 
 @dataclass(frozen=True)

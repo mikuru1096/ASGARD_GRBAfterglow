@@ -147,4 +147,26 @@ subroutine hadronic_validate_log_grid(num_grid,energy_grid,name,dln_out)
     if (present(dln_out)) dln_out = dln_local
 end subroutine hadronic_validate_log_grid
 
+! Landau 量子同步压制因子: f(χ) = 1/(1+√2·χ^(2/3))²
+! 适用于质子同步冷却率修正。
+! χ = γ * B / B_crit * m_e/m_particle
+real(8) function hadronic_quantum_syn_cooling_factor(gamma,b_field_g,mass_gev)
+    implicit real(8)(A-H,O-Z)
+    real(8), intent(in) :: gamma,b_field_g,mass_gev
+    real(8), parameter :: b_crit=4.414d13
+    real(8) :: chi,chi23
+
+    if (b_field_g <= 0d0 .or. gamma <= 1d0) then
+        hadronic_quantum_syn_cooling_factor = 1d0
+        return
+    end if
+    chi = gamma * b_field_g / b_crit * (hadronic_electron_mass_gev / max(mass_gev,1d-30))
+    if (chi <= 1d-6) then
+        hadronic_quantum_syn_cooling_factor = 1d0
+        return
+    end if
+    chi23 = chi**(2d0/3d0)
+    hadronic_quantum_syn_cooling_factor = 1d0 / (1d0 + dsqrt(2d0)*chi23)**2
+end function hadronic_quantum_syn_cooling_factor
+
 end module hadronic_common
