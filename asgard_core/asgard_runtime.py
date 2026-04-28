@@ -1211,6 +1211,19 @@ def _solve_hadronic_hummer_transport_coupled(
     l_had_pion_ic *= pg_photon_survival
     l_had_muon_ic *= pg_photon_survival
 
+    sed_components = {
+        "proton_synchrotron": l_had_syn_spec,
+        "pgamma_pi0_decay": l_had_pg_gamma,
+        "pion_synchrotron": l_had_pion_synch,
+        "muon_synchrotron": l_had_muon_synch,
+        "pion_inverse_compton": l_had_pion_ic,
+        "muon_inverse_compton": l_had_muon_ic,
+    }
+    if bool(config.hadronic.include_bethe_heitler):
+        sed_components["bethe_heitler"] = l_had_bh
+    if bool(config.hadronic.include_hadronic_inverse_compton):
+        sed_components["hadronic_inverse_compton"] = l_had_hic
+
     return HadronicSolution(
         solver="am3_1d",
         gam_p=gam_p,
@@ -1240,6 +1253,7 @@ def _solve_hadronic_hummer_transport_coupled(
         pg_photon_survival=pg_photon_survival if (bool(config.hadronic.include_pg) or bool(config.hadronic.include_neutrino)) else None,
         am3_process_power=am3_process_power,
         timings=timings,
+        sed_components=sed_components,
     )
 
 
