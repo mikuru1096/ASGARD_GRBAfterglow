@@ -74,6 +74,7 @@ class HadronicConfig:
     num_nu_nu: int = 121
     reverse_enabled: bool = False
     reverse_epsilon_p: float = 0.0
+    pair_cascade_iterations: int = 1
 
 
 @dataclass(frozen=True)

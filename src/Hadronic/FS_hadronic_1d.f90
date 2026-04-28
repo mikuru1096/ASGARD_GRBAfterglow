@@ -320,3 +320,19 @@ subroutine fs_hadronic_1d(R_Tobs,R_Gamma,R,shell_energy_inj_erg,B_field_g,V_seed
 
     deallocate(dN_prev,dN_next,Q_inj,loss_ad,loss_syn,loss_total,t_pg,power_pg,power_nu,power_gamma)
 end subroutine fs_hadronic_1d
+
+! 电磁对级联单步：调用 hadronic_pair_cascade_kernel 的 cascade_step。
+subroutine fs_hadronic_pair_cascade_step(num_ph,photon_energy_gev,photon_density, &
+                                          num_e,electron_energy_gev,b_field_g,path_time_s, &
+                                          cascade_syn_spec,absorbed_power)
+    use hadronic_pair_cascade_kernel, only: hadronic_cascade_step
+    implicit none
+    integer, intent(in) :: num_ph,num_e
+    real(8), intent(in) :: photon_energy_gev(num_ph),photon_density(num_ph)
+    real(8), intent(in) :: electron_energy_gev(num_e),b_field_g,path_time_s
+    real(8), intent(out) :: cascade_syn_spec(num_ph),absorbed_power
+
+    call hadronic_cascade_step(num_ph,photon_energy_gev,photon_density, &
+                                num_e,electron_energy_gev,b_field_g,path_time_s, &
+                                cascade_syn_spec,absorbed_power)
+end subroutine fs_hadronic_pair_cascade_step

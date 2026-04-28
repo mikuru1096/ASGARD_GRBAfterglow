@@ -879,46 +879,67 @@ def _compute_pair_production_branch(
     tau_pair = np.zeros((num_nu, num_r), dtype=float)
     d_n_pair_prev = np.zeros(gam_e.size, dtype=float)
     photon_energy_gev, _ = photon_density_hz_to_gev(v_seed, np.ones_like(v_seed))
+
+    use_iterative_cascade = (
+        int(getattr(config.hadronic, 'pair_cascade_iterations', 1)) > 1
+    )
+
     for i_r in range(num_r):
         _, photon_density_per_gev = photon_density_hz_to_gev(v_seed, seed_field[:, i_r])
-        ppair = solve_pair_production(
-            photon_energy_gev=photon_energy_gev,
-            photon_density_per_gev=photon_density_per_gev,
-            electron_energy_gev=e_e_gev,
-        )
-        tau_pair[:, i_r] = np.maximum(np.asarray(ppair.photon_loss_rate, dtype=float), 0.0) * (
-            float(dynamics.radius[i_r]) / (12.0 * max(float(dynamics.r_gamma[i_r]), 1.0) * constants.para_c)
-        )
-        q_pair = np.asarray(ppair.pair_injection_rate_per_gev_total, dtype=float) * (
-            (4.0 / 3.0) * np.pi * (
-                float(dynamics.radius[i_r]) ** 3
-                - (0.0 if i_r == 0 else float(dynamics.radius[i_r - 1]) ** 3)
+
+        if use_iterative_cascade:
+            from asgard_core.hadronic_cascade import compute_iterative_pair_cascade
+            c_out = compute_iterative_pair_cascade(
+                photon_energy_gev=photon_energy_gev,
+                photon_density_per_gev=photon_density_per_gev,
+                electron_energy_gev=e_e_gev,
+                radius_cm=float(dynamics.radius[i_r]),
+                gamma_bulk=float(dynamics.r_gamma[i_r]),
+                b_field_g=float(magnetic_field_g[i_r]),
+                max_iterations=int(config.hadronic.pair_cascade_iterations),
             )
-        ) * _ELECTRON_MASS_GEV
-        d_n_pair = _hadronic_advance_energy_loggamma(
-            gam_e,
-            gam_edge,
-            d_n_pair_prev,
-            q_pair,
-            _hadronic_electron_loss_rates(
-                gam_e,
-                float(magnetic_field_g[i_r]),
-                float(dynamics.radius[i_r]) / (max(float(dynamics.r_gamma[i_r]), 1.0) * constants.para_c),
-            ),
-            _hadronic_shell_dt(np.asarray(dynamics.r_tobs, dtype=float), i_r),
-        )
-        p_syn_i, seed_syn_i = electron_radiation_module.get_syn_selected(
-            int(config.index_syn_integr),
-            float(dynamics.radius[i_r]),
-            float(max(magnetic_field_g[i_r], 1.0e-30)),
-            int(config.num_threads),
-            gam_e,
-            d_n_pair,
-            v_seed,
-        )
-        pair_lum[:, i_r] = np.asarray(p_syn_i, dtype=float)
-        pair_seed[:, i_r] = np.asarray(seed_syn_i, dtype=float)
-        d_n_pair_prev = d_n_pair
+            pair_lum_shell = np.asarray(c_out.pair_syn_luminosity_hz, dtype=float) * (
+                4.0 * np.pi * float(dynamics.radius[i_r])**2
+            )
+            pair_lum[:, i_r] = pair_lum_shell
+            pair_seed[:, i_r] = pair_lum_shell / (
+                max(float(dynamics.radius[i_r])**2, 1e-60)
+                * 4.0 * np.pi * constants.para_c * constants.para_h
+            )
+            tau_pair[:, i_r] = np.asarray(c_out.tau_pair_path, dtype=float)
+        else:
+            ppair = solve_pair_production(
+                photon_energy_gev=photon_energy_gev,
+                photon_density_per_gev=photon_density_per_gev,
+                electron_energy_gev=e_e_gev,
+            )
+            tau_pair[:, i_r] = np.maximum(np.asarray(ppair.photon_loss_rate, dtype=float), 0.0) * (
+                float(dynamics.radius[i_r]) / (12.0 * max(float(dynamics.r_gamma[i_r]), 1.0) * constants.para_c)
+            )
+            q_pair = np.asarray(ppair.pair_injection_rate_per_gev_total, dtype=float) * (
+                (4.0 / 3.0) * np.pi * (
+                    float(dynamics.radius[i_r]) ** 3
+                    - (0.0 if i_r == 0 else float(dynamics.radius[i_r - 1]) ** 3)
+                )
+            ) * _ELECTRON_MASS_GEV
+            d_n_pair = _hadronic_advance_energy_loggamma(
+                gam_e, gam_edge, d_n_pair_prev, q_pair,
+                _hadronic_electron_loss_rates(
+                    gam_e, float(magnetic_field_g[i_r]),
+                    float(dynamics.radius[i_r]) / (max(float(dynamics.r_gamma[i_r]), 1.0) * constants.para_c),
+                ),
+                _hadronic_shell_dt(np.asarray(dynamics.r_tobs, dtype=float), i_r),
+            )
+            p_syn_i, seed_syn_i = electron_radiation_module.get_syn_selected(
+                int(config.index_syn_integr),
+                float(dynamics.radius[i_r]),
+                float(max(magnetic_field_g[i_r], 1.0e-30)),
+                int(config.num_threads),
+                gam_e, d_n_pair, v_seed,
+            )
+            pair_lum[:, i_r] = np.asarray(p_syn_i, dtype=float)
+            pair_seed[:, i_r] = np.asarray(seed_syn_i, dtype=float)
+            d_n_pair_prev = d_n_pair
     return pair_lum, pair_seed, tau_pair
 
 
