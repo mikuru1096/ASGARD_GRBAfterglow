@@ -72,6 +72,8 @@ class HadronicConfig:
     include_pp: bool = False
     pgamma_scheme: str = "disabled"
     num_nu_nu: int = 121
+    reverse_enabled: bool = False
+    reverse_epsilon_p: float = 0.0
 
 
 @dataclass(frozen=True)

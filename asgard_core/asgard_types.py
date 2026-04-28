@@ -190,6 +190,7 @@ class ReverseShockEmission:
     nu_c: np.ndarray
     nu_a: np.ndarray
     nu_M: np.ndarray
+    rs_hadronic: Optional[Any] = None
 
 
 @dataclass

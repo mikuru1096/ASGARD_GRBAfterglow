@@ -25,6 +25,7 @@ DIRECT_ORDERED_BUILD_MODULES = {
     "FS_electron_fullhide_2d",
     "FS_electron_t2g1_1d",
     "FS_hadronic_1d",
+    "FS_hadronic_reverse_1d",
     "electron_radiation",
     "electron_reverse_kernel",
     "Seed_reverse",
@@ -35,6 +36,7 @@ F2PY_ENTRYPOINTS = {
     "electron_radiation": ("get_nu_a", "get_syn_selected", "get_syn_transfer"),
     "electron_reverse_kernel": ("electron_reverse_evolve",),
     "SSC_spec": ("ssc_spec", "ssc_spec_nonuniform"),
+    "FS_hadronic_reverse_1d": ("fs_hadronic_reverse_1d",),
     "FS_hadronic_1d": (
         "fs_hadronic_1d",
         "fs_hadronic_proton_syn_shell",
@@ -506,6 +508,7 @@ def main() -> None:
         ("Seed_reverse", rad, _with_main(RADIATION_COMMON_SOURCES, "Seed_reverse.f90"), omp_flags, OPENMP_LIBS),
         ("SSC_spec", rad, _with_main(RADIATION_COMMON_SOURCES, "SSC_spec.f90"), omp_flags, OPENMP_LIBS),
         ("FS_hadronic_1d", had, _with_main(HADRONIC_1D_SOURCES, "FS_hadronic_1d.f90"), omp_flags, OPENMP_LIBS),
+        ("FS_hadronic_reverse_1d", had, _with_main(HADRONIC_1D_SOURCES, "FS_hadronic_reverse_1d.f90"), omp_flags, OPENMP_LIBS),
     ]
     module_aliases = {
         "FS_electron_weno5": "FS_electron_weno5_1d",

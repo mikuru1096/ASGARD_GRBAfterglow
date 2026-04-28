@@ -480,6 +480,8 @@ def _build_fit_config_for_patch(
         include_neutrino=bool(model.fwd_rad.neutrino),
         pgamma_scheme=str(model.setups.pgamma_scheme if model.setups.pgamma_scheme != "disabled" else model.fwd_rad.pgamma_scheme),
         num_nu_nu=int(model.setups.num_nu_nu),
+        reverse_enabled=bool(model.setups.rvs_shock and model.fwd_rad.reverse_epsilon_p > 0.0),
+        reverse_epsilon_p=float(model.fwd_rad.reverse_epsilon_p),
     )
     magnetar = getattr(model.jet, "magnetar", None)
     if magnetar is not None and _jet_magnetar_active(model.jet, 0.0 if theta_center is None else theta_center):

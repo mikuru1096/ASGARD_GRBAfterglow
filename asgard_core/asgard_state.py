@@ -676,6 +676,9 @@ def _assemble_observer_stage(
     if reverse_emission is not None:
         rev_sync = reverse_emission.l_syn_spec
         seed_syn_absorption = seed_syn_absorption + reverse_emission.seed_syn
+        if reverse_emission.rs_hadronic is not None:
+            seed_syn_absorption = seed_syn_absorption + reverse_emission.rs_hadronic.seed_had_syn
+            rev_sync = rev_sync + reverse_emission.rs_hadronic.l_had_syn_spec
         rev_details = BranchState(
             characteristic_time_s=dynamics.r_tobs,
             gamma=dynamics.r_gamma,

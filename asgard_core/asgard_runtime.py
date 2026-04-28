@@ -1587,6 +1587,22 @@ def solve_reverse_shock_emission(
         dynamics,
     )
     l_syn_spec, seed_syn = _compute_reverse_shock_synchrotron_emission(dynamics, v_seed, config)
+
+    rs_hadronic = None
+    if bool(config.hadronic.reverse_enabled) and float(config.hadronic.reverse_epsilon_p) > 0.0:
+        from asgard_core.hadronic_reverse import solve_rs_hadronic_core
+        rs_hadronic = solve_rs_hadronic_core(
+            r_tobs_s=dynamics.r_tobs,
+            r_gamma=dynamics.r_gamma,
+            radius_cm=dynamics.radius,
+            rs_swept_mass_g=dynamics.reverse_shock.swept_mass_g,
+            rs_b_field_g=dynamics.reverse_shock.magnetic_field_g,
+            v_seed_hz=v_seed,
+            num_gam_p=config.hadronic.num_gam_p,
+            epsilon_p=float(config.hadronic.reverse_epsilon_p),
+            include_proton_synch=bool(config.hadronic.include_proton_synch),
+        )
+
     return ReverseShockEmission(
         l_syn_spec=l_syn_spec,
         seed_syn=seed_syn,
@@ -1595,6 +1611,7 @@ def solve_reverse_shock_emission(
         nu_c=nu_c,
         nu_a=nu_a,
         nu_M=nu_M,
+        rs_hadronic=rs_hadronic,
     )
 
 

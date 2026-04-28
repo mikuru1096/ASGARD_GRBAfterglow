@@ -382,6 +382,7 @@ class Radiation:
     pp: bool = False
     neutrino: bool = False
     eta_acc: float = 1.0
+    reverse_epsilon_p: float = 0.0
     pgamma_scheme: str = "disabled"
 
 
