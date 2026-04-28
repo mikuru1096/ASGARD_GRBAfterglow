@@ -5,18 +5,20 @@
 !****************************************************************************************
 ! 电子1D全隐格式主驱动：自适应子步+隐式迎风冷却，支持均匀/非均匀介质和粒子数守恒诊断。
 subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads, &
-                                adaptive_substeps,substep_rtol,substep_min,substep_max,gam_e,dN_gam_e,P_syn,Seed_syn,V_m,V_c,V_a)
+                                   adaptive_substeps,substep_rtol,substep_min,substep_max,thermal_electrons, &
+                                   gam_e,dN_gam_e,P_syn,Seed_syn,V_m,V_c,V_a)
     !$ use omp_lib
     use constants
     use dynamics_common, only: dynamics_external_density_profile
     use electron_common
-    use electron_injection_profiles, only: electron_build_source_term_exp_cutoff
+    use electron_injection_profiles, only: electron_build_source_term_exp_cutoff, electron_add_thermal_source_term
     use electron_radiation_kernel, only: get_nu_a, get_syn_selected
     use electron_cooling_kernel, only: get_forward_cooling
     use electron_transport_common, only: electron_prepare_implicit_coeffs_common, electron_backward_sweep_common, &
                                          electron_fullhide_step
     IMPLICIT REAL(8)(A-H,O-Z)
-    integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,adaptive_substeps,substep_min,substep_max
+    integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads
+    integer, intent(in) :: adaptive_substeps,substep_min,substep_max,thermal_electrons
     real(8), intent(in) :: Boundary(n),R_Tobs(Num_R),R_Gamma(Num_R),R(Num_R),V_seed(Num_nu)
     real(8), intent(in) :: substep_rtol
     real(8), intent(out) :: dN_gam_e(Num_gam_e,Num_R),gam_e(Num_gam_e),P_syn(Num_nu,Num_R), &
@@ -52,6 +54,9 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
     f_jump=Boundary(22)
     f_wide=Boundary(23)
     R0=Boundary(n)
+    if (thermal_electrons /= 0) then
+        if (f_e <= zero .or. f_e > one) error stop 'thermal electrons require 0 < f_e <= 1'
+    end if
     
     P_syn=zero
     Seed_syn=zero
@@ -69,8 +74,11 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
     temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma(1)-one)
     call electron_gamma_m_exact(p,temp_gam,Gam_e_max,Gam_e_m)
     Gam_e_c=7.7d8/(one+dsqrt(Epsilon_e/Epsilon_b))/R_Gamma(1)/DB**2/(R_Tobs(1)/two)
+    if (R_Gamma(1) < one) error stop 'fs_electron_fullhide_1d requires initial Gamma >= 1'
+    beta_Gam=dsqrt(one-one/R_Gamma(1)**2)
     call electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
-                                      electron_initial_grid_gamma,gam_e,dN_gam_e(:,1))
+                                      electron_initial_grid_gamma,gam_e,dN_gam_e(:,1),thermal_electrons=thermal_electrons, &
+                                      f_e=f_e,four_v=R_Gamma(1)*beta_Gam)
     !*******************Part 1 is completed [has been checked and there is no bug]**********************************
     !*******************Part 2: To calculate the electron distribution**********************************************
     dN_x=dN_gam_e(:,1)*gam_e*dlog(ten)
@@ -89,7 +97,8 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
     do I_tobs=2,Num_R
         R_loc=R(I_tobs-1)
         R_Gamma_loc=(R_Gamma(I_tobs)+R_Gamma(I_tobs-1))/two
-        beta_Gam=dsqrt(max(zero,one-one/R_Gamma_loc**2))
+        if (R_Gamma_loc < one) error stop 'fs_electron_fullhide_1d requires Gamma >= 1'
+        beta_Gam=dsqrt(one-one/R_Gamma_loc**2)
         call dynamics_external_density_profile(A_star,dNe_ISM,R_loc,R0,1,R_tr,f_jump,f_wide,dNe)
 
         DB=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma_loc*(R_Gamma_loc-one)))
@@ -123,16 +132,6 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
                                  R_Gamma_loc,beta_Gam,dNe,Num_gam_e,Num_nu,n_threads,gam_e,V_seed, &
                                  P_syn(:,I_tobs),Seed_syn(:,I_tobs),dEl)
          
-!        four_v=R_Gamma_loc*beta_Gam
-!        theta=four_v/3d0*(four_v+1.07*four_v*four_v)/(one+four_v+1.07*four_v*four_v)
-!        theta=max(theta,2d-1)
-!        para_maxwell=gam_e*gam_e*dsqrt(one-one/gam_e**2)/theta/besselk(1d0/theta)* &
-!                     dexp(-gam_e/theta)
-!        para_normalize=sum((para_maxwell(2:Num_gam_e)+para_maxwell(1:Num_gam_e-1))* &
-!                       (gam_e(2:Num_gam_e)-gam_e(1:Num_gam_e-1)))/two
-!        para_maxwell=para_maxwell/para_normalize*gam_e*dlog(ten)
-
-
         dEL_mean=(dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/two/dlog(ten)
         dEL_mean_base=dEL_mean
         call electron_source_bounds(Num_gam_e,gam_e,Gam_e_m,Gam_e_max,src_lo,src_hi)
@@ -167,6 +166,10 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
                 Gam_e_m_p_step=(one-p)/(Gam_e_max_step**(one-p)-Gam_e_m_step**(one-p))
                 call electron_injection_prefactor(R_loc,dDR,dNe,f_e,Gam_e_m_p_step,Q)
                 call electron_build_source_term_exp_cutoff(Num_gam_e,gam_e,Gam_e_m_step,Gam_e_max_step,Q,p,dF1)
+                if (thermal_electrons /= 0) then
+                    call electron_add_thermal_source_term(Num_gam_e,gam_e,R_Gamma_loc*beta_Gam, &
+                                                          Q*(one-f_e)/(f_e*Gam_e_m_p_step),dF1)
+                end if
                 if (budget_diag_enabled) then
                     n_before_step=sum(dN_x)*d_x
                     inj_step=dDR*sum(dF1)*d_x
@@ -218,9 +221,13 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
                 Gam_e_max_full=3d0*Para_m_energy/dsqrt(8d0*DB_full*Para_e**3)
                 temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma_loc-one)
                 call electron_gamma_m_exact(p,temp_gam,Gam_e_max_full,Gam_e_m_full)
-                call electron_injection_prefactor(R_full,dR_try,dNe_full,f_e, &
-                                                  (one-p)/(Gam_e_max_full**(one-p)-Gam_e_m_full**(one-p)),Q)
+                Gam_e_m_p_full=(one-p)/(Gam_e_max_full**(one-p)-Gam_e_m_full**(one-p))
+                call electron_injection_prefactor(R_full,dR_try,dNe_full,f_e,Gam_e_m_p_full,Q)
                 call electron_build_source_term_exp_cutoff(Num_gam_e,gam_e,Gam_e_m_full,Gam_e_max_full,Q,p,dF1)
+                if (thermal_electrons /= 0) then
+                    thermal_count=Q*(one-f_e)/(f_e*Gam_e_m_p_full)
+                    call electron_add_thermal_source_term(Num_gam_e,gam_e,R_Gamma_loc*beta_Gam,thermal_count,dF1)
+                end if
                 if (dNe_shell > zero) then
                     dEL_mean_step=dEL_mean_base*(dNe_full/dNe_shell)
                 else
@@ -239,9 +246,13 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
                 Gam_e_max_half=3d0*Para_m_energy/dsqrt(8d0*DB_half*Para_e**3)
                 temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma_loc-one)
                 call electron_gamma_m_exact(p,temp_gam,Gam_e_max_half,Gam_e_m_half)
-                call electron_injection_prefactor(R_half,dR_half,dNe_half,f_e, &
-                                                  (one-p)/(Gam_e_max_half**(one-p)-Gam_e_m_half**(one-p)),Q)
+                Gam_e_m_p_half=(one-p)/(Gam_e_max_half**(one-p)-Gam_e_m_half**(one-p))
+                call electron_injection_prefactor(R_half,dR_half,dNe_half,f_e,Gam_e_m_p_half,Q)
                 call electron_build_source_term_exp_cutoff(Num_gam_e,gam_e,Gam_e_m_half,Gam_e_max_half,Q,p,dF1)
+                if (thermal_electrons /= 0) then
+                    thermal_count=Q*(one-f_e)/(f_e*Gam_e_m_p_half)
+                    call electron_add_thermal_source_term(Num_gam_e,gam_e,R_Gamma_loc*beta_Gam,thermal_count,dF1)
+                end if
                 if (dNe_shell > zero) then
                     dEL_mean_step=dEL_mean_base*(dNe_half/dNe_shell)
                 else
@@ -249,9 +260,12 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
                 end if
                 call electron_fullhide_step(Num_gam_e,R_half,dR_half,d_x,dEL_mean_step,dF1,dN_x,dN_half)
 
-                call electron_injection_prefactor(R_full,dR_half,dNe_full,f_e, &
-                                                  (one-p)/(Gam_e_max_full**(one-p)-Gam_e_m_full**(one-p)),Q)
+                call electron_injection_prefactor(R_full,dR_half,dNe_full,f_e,Gam_e_m_p_full,Q)
                 call electron_build_source_term_exp_cutoff(Num_gam_e,gam_e,Gam_e_m_full,Gam_e_max_full,Q,p,dF1)
+                if (thermal_electrons /= 0) then
+                    thermal_count=Q*(one-f_e)/(f_e*Gam_e_m_p_full)
+                    call electron_add_thermal_source_term(Num_gam_e,gam_e,R_Gamma_loc*beta_Gam,thermal_count,dF1)
+                end if
                 if (dNe_shell > zero) then
                     dEL_mean_step=dEL_mean_base*(dNe_full/dNe_shell)
                 else

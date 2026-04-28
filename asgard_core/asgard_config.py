@@ -177,6 +177,7 @@ class NumericalConfig:
 
     # Physics toggles
     include_forward_ssc: bool = True
+    thermal_electrons: bool = False
 
     # Execution policy
     execution: ExecutionPolicy = field(default_factory=ExecutionPolicy)
@@ -226,6 +227,7 @@ class FitConfig:
     electron_substep_min: int = 25
     electron_substep_max: int = 150
     include_forward_ssc: bool = True
+    thermal_electrons: bool = False
     num_gam_e: int = 201
     num_nu: int = 201
     num_r: int = 300
@@ -460,6 +462,7 @@ class FitConfig:
             electron_substep_min=self.electron_substep_min,
             electron_substep_max=self.electron_substep_max,
             include_forward_ssc=self.include_forward_ssc,
+            thermal_electrons=self.thermal_electrons,
             execution=execution,
         )
 

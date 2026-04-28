@@ -66,9 +66,9 @@ ELECTRON_COMMON_SOURCES = (
     "../Radiation/radiation_common.f90",
     "electron_transport_common.f90",
     "adaptive_resampling_mod.f90",
+    "electron_radiation_kernel.f90",
     "electron_injection_profiles.f90",
     "electron_common.f90",
-    "electron_radiation_kernel.f90",
     "electron_cooling_kernel.f90",
 )
 ELECTRON_RADIATION_SOURCES = (
@@ -77,8 +77,6 @@ ELECTRON_RADIATION_SOURCES = (
     "../Radiation/radiation_common.f90",
     "electron_transport_common.f90",
     "adaptive_resampling_mod.f90",
-    "electron_injection_profiles.f90",
-    "electron_common.f90",
     "electron_radiation_kernel.f90",
 )
 ELECTRON_1D_SOURCES = ELECTRON_COMMON_SOURCES
@@ -312,6 +310,7 @@ def _build_ordered_object_module(
         [
             f"main={main_source_path}",
             f"entries={','.join(entry_names)}",
+            f"sources={'|'.join(str((cwd / source).resolve()) for source in sources)}",
             f"python={sys.executable}",
         ]
     )

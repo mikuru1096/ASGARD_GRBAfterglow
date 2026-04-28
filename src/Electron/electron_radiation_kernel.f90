@@ -111,10 +111,20 @@ function besselk(var)
                  1.8626561e-02,1.0365680e-02,5.4526367e-03,2.6905368e-03,1.2347515e-03,5.2199962e-04,2.0112029e-04,&
                  6.9778918e-05,2.1509817e-05/)
 
-   besselk=0.0d0
+   if (var <= zero) error stop 'besselk requires var > 0'
+   if (var < minus_theta(1)) then
+       besselk=two/var**2
+       return
+   end if
+   if (var > minus_theta(100)) then
+       besselk=dsqrt(pi/(two*var))*dexp(-var)*(one+15d0/(8d0*var)+105d0/(128d0*var**2))
+       return
+   end if
+
+   besselk=zero
    
    do i=1,99
-       if (var > minus_theta(i) .and. var <= minus_theta(i+1)) then
+       if (var >= minus_theta(i) .and. var <= minus_theta(i+1)) then
            val = (var-minus_theta(i))/(minus_theta(i+1)-minus_theta(i))
            besselk = besselk2(i)+val*(besselk2(i+1)-besselk2(i))
            exit

@@ -3,7 +3,8 @@ module electron_common
     use constants
     use adaptive_resampling_mod, only: adaptive_resampling_log
     use electron_injection_profiles, only: electron_profile_log_cell_edges, &
-                                     electron_initial_powerlaw_exp_cutoff, electron_initial_powerlaw_exp_cutoff_edges
+                                     electron_initial_powerlaw_exp_cutoff, electron_initial_powerlaw_exp_cutoff_edges, &
+                                     electron_add_thermal_population
     implicit none
     integer, parameter :: radiation_resample_threshold = 180
     integer, parameter :: radiation_resample_target = 160
@@ -14,13 +15,15 @@ contains
 
 ! 初始化电子能谱，并按需生成 gamma 或 log-gamma 边界网格。
 subroutine electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
-                                        grid_mode,gam_e,dN_init,x_edge)
+                                        grid_mode,gam_e,dN_init,x_edge,thermal_electrons,f_e,four_v)
     implicit none
     integer, intent(in) :: Num_gam_e,grid_mode
     integer :: I_gam_e
     real(8), intent(in) :: Gam_e_max_max,Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max
     real(8), intent(out) :: gam_e(Num_gam_e),dN_init(Num_gam_e)
     real(8), intent(out), optional :: x_edge(Num_gam_e+1)
+    integer, intent(in), optional :: thermal_electrons
+    real(8), intent(in), optional :: f_e,four_v
 
     do I_gam_e=1,Num_gam_e
         gam_e(I_gam_e)=3d0*ten**(dlog10(Gam_e_max_max)*(I_gam_e-1)/(Num_gam_e-1))
@@ -35,6 +38,14 @@ subroutine electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,G
     case default
         error stop 'unknown electron_initialize_spectrum grid_mode'
     end select
+    if (present(thermal_electrons)) then
+        if (thermal_electrons /= 0) then
+            if (.not. present(f_e) .or. .not. present(four_v)) then
+                error stop 'electron_initialize_spectrum thermal branch requires f_e and four_v'
+            end if
+            call electron_add_thermal_population(Num_gam_e,gam_e,four_v,Para_N_e_ini*(one-f_e),dN_init)
+        end if
+    end if
 end subroutine electron_initialize_spectrum
 
 ! 按完整 p 分支计算注入最小洛伦兹因子。

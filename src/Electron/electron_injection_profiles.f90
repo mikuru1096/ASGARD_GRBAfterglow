@@ -1,6 +1,7 @@
 !f2py: skip
 module electron_injection_profiles
     use constants
+    use electron_radiation_kernel, only: besselk
     implicit none
 
 contains
@@ -214,5 +215,64 @@ subroutine electron_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m,
         dF1(I_gam_e)=seg_sum/dx_cell
     end do
 end subroutine electron_build_source_term_exp_cutoff_edges
+
+pure real(8) function electron_thermal_theta(four_v)
+    implicit none
+    real(8), intent(in) :: four_v
+
+    if (four_v <= zero) error stop 'electron_thermal_theta requires four_v > 0'
+    electron_thermal_theta=four_v*(four_v+1.07d0*four_v*four_v)/(3d0*(one+four_v+1.07d0*four_v*four_v))
+end function electron_thermal_theta
+
+subroutine electron_build_thermal_shape_dnx(Num_gam_e,gam_e,theta,shape_dnx)
+    implicit none
+    integer, intent(in) :: Num_gam_e
+    integer :: I_gam_e
+    real(8), intent(in) :: gam_e(Num_gam_e),theta
+    real(8), intent(out) :: shape_dnx(Num_gam_e)
+    real(8) :: shape_dgam(Num_gam_e),k2_theta,norm_dgam
+
+    if (theta <= zero) error stop 'electron_build_thermal_shape_dnx requires theta > 0'
+    if (any(gam_e <= one)) error stop 'thermal electron grid requires gamma > 1'
+
+    k2_theta=besselk(one/theta)
+    if (k2_theta <= zero) error stop 'besselk normalization vanished in thermal electron source'
+
+    do I_gam_e=1,Num_gam_e
+        shape_dgam(I_gam_e)=gam_e(I_gam_e)**2*dsqrt(one-one/gam_e(I_gam_e)**2) &
+                          *dexp(-gam_e(I_gam_e)/theta)/(theta*k2_theta)
+    end do
+    norm_dgam=sum((shape_dgam(2:Num_gam_e)+shape_dgam(1:Num_gam_e-1)) &
+            *(gam_e(2:Num_gam_e)-gam_e(1:Num_gam_e-1)))/two
+    if (norm_dgam <= zero) error stop 'thermal electron distribution normalization is non-positive'
+
+    shape_dnx=shape_dgam/norm_dgam*gam_e*dlog(ten)
+end subroutine electron_build_thermal_shape_dnx
+
+subroutine electron_add_thermal_source_term(Num_gam_e,gam_e,four_v,total_count,dF1)
+    implicit none
+    integer, intent(in) :: Num_gam_e
+    real(8), intent(in) :: gam_e(Num_gam_e),four_v,total_count
+    real(8), intent(inout) :: dF1(Num_gam_e)
+    real(8) :: shape_dnx(Num_gam_e),theta
+
+    if (total_count <= zero) return
+    theta=electron_thermal_theta(four_v)
+    call electron_build_thermal_shape_dnx(Num_gam_e,gam_e,theta,shape_dnx)
+    dF1=dF1+total_count*shape_dnx
+end subroutine electron_add_thermal_source_term
+
+subroutine electron_add_thermal_population(Num_gam_e,gam_e,four_v,total_count,dN_gam_e)
+    implicit none
+    integer, intent(in) :: Num_gam_e
+    real(8), intent(in) :: gam_e(Num_gam_e),four_v,total_count
+    real(8), intent(inout) :: dN_gam_e(Num_gam_e)
+    real(8) :: shape_dnx(Num_gam_e),theta
+
+    if (total_count <= zero) return
+    theta=electron_thermal_theta(four_v)
+    call electron_build_thermal_shape_dnx(Num_gam_e,gam_e,theta,shape_dnx)
+    dN_gam_e=dN_gam_e+total_count*shape_dnx/(gam_e*dlog(ten))
+end subroutine electron_add_thermal_population
 
 end module electron_injection_profiles

@@ -209,6 +209,8 @@ def solve_electron(
 ) -> ElectronSolution | tuple[ElectronSolution, SolverAdapterReport]:
     solver_name = _resolve_electron_solver(config)
     _resolve_cooling_kernel(config)
+    if config.thermal_electrons and solver_name != "fullhide_1d":
+        raise NotImplementedError("thermal_electrons currently requires electron_solver='fullhide_1d'.")
     if solver_name == "weno5_1d":
         electron_weno5_module = _electron_module(solver_name)
         gam_e, d_n_gam_e, l_syn_spec, seed_syn = electron_weno5_module.fs_electron_weno5_1d(
@@ -449,6 +451,7 @@ def solve_electron(
         config.electron_substep_rtol,
         config.electron_substep_min,
         config.electron_substep_max,
+        1 if config.thermal_electrons else 0,
     )
     solution = _build_electron_solution(
         config,

@@ -373,6 +373,7 @@ class Radiation:
     magnetic_decay_alpha_t: float = 0.0
     magnetic_decay_t0_s: float = 1.0
     xi_N: float = 0.1
+    thermal_electrons: bool = False
     ssc: bool = False
     kn: bool = False
     proton_synch: bool = True
