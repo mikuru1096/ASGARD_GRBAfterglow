@@ -5,10 +5,9 @@ module hadronic_pair_production_kernel
     implicit none
     private
 
-    real(8), parameter :: sigma_t_cgs = 6.6524587158d-25
     real(8), parameter :: reg = 1.0d-50
-    real(8), parameter :: t_ssc_cgs = dsqrt(sigma_t_cgs)/para_c
-    real(8), parameter :: n_ssc_cgs = sigma_t_cgs**(-1.5d0)
+    real(8), parameter :: t_ssc_cgs = dsqrt(Para_SigmaT)/Para_c
+    real(8), parameter :: n_ssc_cgs = Para_SigmaT**(-1.5d0)
     real(8), parameter :: rate_ssc_cgs = n_ssc_cgs/t_ssc_cgs
 
     public :: hadronic_pair_production_operator

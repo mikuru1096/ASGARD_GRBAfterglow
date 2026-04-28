@@ -4,8 +4,13 @@ module hadronic_common
     implicit none
     real(8), parameter :: hadronic_eta_acc_floor = 1d-12
     real(8), parameter :: hadronic_bfield_floor = 1d-30
-    real(8), parameter :: hadronic_proton_mass_gev = 0.9382720813d0
-    real(8), parameter :: hadronic_electron_mass_gev = 5.1099895d-4
+    ! 粒子静质量 [GeV/c^2]，引用 constants 模块定义。
+    real(8), parameter :: hadronic_electron_mass_gev = Para_m_e_GeV
+    real(8), parameter :: hadronic_proton_mass_gev = Para_m_p_GeV
+    real(8), parameter :: hadronic_neutron_mass_gev = Para_m_n_GeV
+    real(8), parameter :: hadronic_pion_charged_mass_gev = Para_m_pi_charged_GeV
+    real(8), parameter :: hadronic_pion0_mass_gev = Para_m_pi0_GeV
+    real(8), parameter :: hadronic_muon_mass_gev = Para_m_mu_GeV
 
 contains
 

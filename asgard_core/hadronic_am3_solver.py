@@ -17,7 +17,7 @@ from src import constants
 HUMMER_PROCESS_GROUP_LABELS: tuple[str, ...] = ("photopion", "pion_decay", "muon_decay")
 # Backward-compatible alias name used by older tests/reporting paths.
 AM3_PROCESS_LABELS: tuple[str, ...] = HUMMER_PROCESS_GROUP_LABELS
-GEV_TO_ERG = 1.602176634e-3
+GEV_TO_ERG = constants.para_gev2erg
 HUMMER2010_RESPONSE_BACKEND = "fortran_wrapped_response"
 KA2008_REFERENCE_BACKEND = "python_reference"
 

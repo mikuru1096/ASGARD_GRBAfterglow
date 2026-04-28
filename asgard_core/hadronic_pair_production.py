@@ -5,19 +5,19 @@ import math
 
 import numpy as np
 
+from src import constants
+
 try:
     import src.Hadronic.FS_hadronic_1d as hadronic_fortran_module
 except ImportError:
     hadronic_fortran_module = None
 
 
-LIGHT_SPEED_CGS = 2.99792458e10
-SIGMA_T_CGS = 6.6524587158e-25
-ELECTRON_MASS_GEV = 5.1099895e-4
+ELECTRON_MASS_GEV = constants.para_m_e_gev
 REG = 1.0e-50
 
-T_SSC_CGS = math.sqrt(SIGMA_T_CGS) / LIGHT_SPEED_CGS
-N_SSC_CGS = SIGMA_T_CGS ** (-1.5)
+T_SSC_CGS = math.sqrt(constants.para_sigmat) / constants.para_c
+N_SSC_CGS = constants.para_sigmat ** (-1.5)
 RATE_SSC_CGS = N_SSC_CGS / T_SSC_CGS
 
 _A0V = np.zeros(2101, dtype=float)

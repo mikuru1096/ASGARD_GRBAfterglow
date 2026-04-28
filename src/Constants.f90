@@ -44,6 +44,13 @@ MODULE Constants
     real(8),parameter ::Para_Day=Para_Day2Second
     real(8),parameter ::Para_Year=Para_Year2Second
       !!------------------------------------------------------------
+    real(8),parameter ::Para_GeV2erg=1.0d9*Para_eV2erg
+    real(8),parameter ::Para_m_e_GeV=Para_m_e_keV*1.0d-6
+    real(8),parameter ::Para_m_p_GeV=Para_m_p_E/Para_eV2erg*1.0d-9
+    real(8),parameter ::Para_m_n_GeV=9.395654205d-1
+    real(8),parameter ::Para_m_pi_charged_GeV=1.3957039d-1
+    real(8),parameter ::Para_m_pi0_GeV=1.349768d-1
+    real(8),parameter ::Para_m_mu_GeV=1.056583755d-1
     real(8),parameter ::Para_Sigma=Para_a*Para_c/4.0d0
     real(8),parameter ::Para_Hz2eV=Para_h*Para_erg2eV
     real(8),parameter ::Para_Hz2keV=Para_h*Para_erg2keV

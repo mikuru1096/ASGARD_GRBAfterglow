@@ -5,25 +5,26 @@ from typing import Callable, Mapping
 
 import numpy as np
 
+from src import constants
+
 try:
     import src.Hadronic.FS_hadronic_1d as hadronic_fortran_module
 except ImportError:
     hadronic_fortran_module = None
 
 
-LIGHT_SPEED_CGS = 2.99792458e10
-SIGMA_T_CGS = 6.6524587158e-25
-ELEMENTARY_CHARGE_ESU = 4.803204712570263e-10
-ERG_PER_GEV = 1.602176634e-3
+LIGHT_SPEED_CGS = constants.para_c
+SIGMA_T_CGS = constants.para_sigmat
+ELEMENTARY_CHARGE_ESU = constants.para_e
 
-ELECTRON_MASS_GEV = 5.1099895e-4
-PROTON_MASS_GEV = 0.9382720813
-NEUTRON_MASS_GEV = 0.9395654133
-PION_CHARGED_MASS_GEV = 0.13957039
-MUON_MASS_GEV = 0.1056583755
+ELECTRON_MASS_GEV = constants.para_m_e_gev
+PROTON_MASS_GEV = constants.para_m_p_gev
+NEUTRON_MASS_GEV = constants.para_m_n_gev
+PION_CHARGED_MASS_GEV = constants.para_m_pi_charged_gev
+MUON_MASS_GEV = constants.para_m_mu_gev
 
-GEV_TO_GRAM = ERG_PER_GEV / (LIGHT_SPEED_CGS * LIGHT_SPEED_CGS)
-ELECTRON_MASS_G = ELECTRON_MASS_GEV * GEV_TO_GRAM
+GEV_TO_GRAM = constants.para_gev2erg / (constants.para_c * constants.para_c)
+ELECTRON_MASS_G = constants.para_m_e
 _HAS_FORTRAN_ACCELERATION = hadronic_fortran_module is not None and hasattr(
     hadronic_fortran_module, "fs_hadronic_acceleration_shell"
 )

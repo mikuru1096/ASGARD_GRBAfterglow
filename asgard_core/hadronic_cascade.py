@@ -4,7 +4,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from asgard_core.hadronic_pair_production import LIGHT_SPEED_CGS, solve_pair_production
+from src import constants
+from asgard_core.hadronic_pair_production import solve_pair_production
 
 
 @dataclass(frozen=True)
@@ -37,7 +38,7 @@ def shell_path_time_seconds(radius_cm: float, gamma_bulk: float) -> float:
         raise ValueError("radius_cm must be > 0.")
     if gamma <= 0.0:
         raise ValueError("gamma_bulk must be > 0.")
-    return radius / (12.0 * gamma * LIGHT_SPEED_CGS)
+    return radius / (12.0 * gamma * constants.para_c)
 
 
 def compute_pair_cascade_bookkeeping(

@@ -5,17 +5,17 @@ import math
 
 import numpy as np
 
+from src import constants
+
 try:
     import src.Hadronic.FS_hadronic_1d as hadronic_fortran_module
 except ImportError:
     hadronic_fortran_module = None
 
 
-LIGHT_SPEED_CGS = 2.99792458e10
-SIGMA_T_CGS = 6.6524587158e-25
 FINE_STRUCTURE_ALPHA = 1.0 / 137.0
-ELECTRON_MASS_GEV = 5.1099895e-4
-PROTON_MASS_GEV = 0.9382720813
+ELECTRON_MASS_GEV = constants.para_m_e_gev
+PROTON_MASS_GEV = constants.para_m_p_gev
 
 _HAS_FORTRAN_BH = hadronic_fortran_module is not None and hasattr(
     hadronic_fortran_module, "fs_hadronic_bethe_heitler_shell"

@@ -33,7 +33,7 @@ subroutine electron_initial_powerlaw_params(Para_N_e_ini,p,Gam_e_m,Gam_e_c,gam,a
     else
         if (gam < Gam_e_m) return
         active=.true.
-        coeff=Para_N_e_ini*Gam_e_m**(p-one)
+        coeff=Para_N_e_ini*(p-one)*Gam_e_m**(p-one)
         slope=merge(p,p+one,gam < Gam_e_c)
         if (gam >= Gam_e_c) coeff=coeff*Gam_e_c
     end if
@@ -164,7 +164,7 @@ subroutine electron_initial_powerlaw_exp_cutoff_edges(Para_N_e_ini,p,Gam_e_m,Gam
             call electron_add_dnx_segment(cell_lo,cell_hi,x_c,x_m,coeff_lo,2d0,Gam_e_max,seg_sum)
             call electron_add_dnx_segment(cell_lo,cell_hi,x_m,huge_x,coeff_hi,p+one,Gam_e_max,seg_sum)
         else
-            coeff_lo=Para_N_e_ini*Gam_e_m**(p-one)
+            coeff_lo=Para_N_e_ini*(p-one)*Gam_e_m**(p-one)
             coeff_hi=coeff_lo*Gam_e_c
             call electron_add_dnx_segment(cell_lo,cell_hi,x_m,x_c,coeff_lo,p,Gam_e_max,seg_sum)
             call electron_add_dnx_segment(cell_lo,cell_hi,x_c,huge_x,coeff_hi,p+one,Gam_e_max,seg_sum)

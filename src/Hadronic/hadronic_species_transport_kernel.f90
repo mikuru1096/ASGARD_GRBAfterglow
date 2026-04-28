@@ -4,13 +4,13 @@ module hadronic_species_transport_kernel
     implicit none
     private
 
-    real(8), parameter :: neutron_mass_gev = 0.9395654205d0
-    real(8), parameter :: pion_mass_gev = 0.13957039d0
-    real(8), parameter :: muon_mass_gev = 0.1056583755d0
+    real(8), parameter :: neutron_mass_gev = Para_m_n_GeV
+    real(8), parameter :: pion_mass_gev = Para_m_pi_charged_GeV
+    real(8), parameter :: muon_mass_gev = Para_m_mu_GeV
     real(8), parameter :: neutron_beta_decay_s = 879.4d0
     real(8), parameter :: charged_pion_decay_s = 2.6033d-8
     real(8), parameter :: muon_decay_s = 2.1969811d-6
-    real(8), parameter :: gev_c2_to_g = 1.7826619216279d-24
+    real(8), parameter :: gev_c2_to_g = Para_GeV2erg / (Para_c * Para_c)
     real(8), parameter :: log_spacing_rtol = 1d-3
 
     public :: hadronic_species_spherical_divergence_rate

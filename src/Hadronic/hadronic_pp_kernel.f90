@@ -5,8 +5,8 @@ module hadronic_pp_kernel
     implicit none
     private
 
-    real(8), parameter :: proton_mass_gev = 0.9382720813d0
-    real(8), parameter :: pion0_mass_gev = 0.1349768d0
+    real(8), parameter :: proton_mass_gev = Para_m_p_GeV
+    real(8), parameter :: pion0_mass_gev = Para_m_pi0_GeV
     real(8), parameter :: mbarn_to_cm2 = 1.0d-27
 
     public :: hadronic_pp_delta_operator

@@ -477,6 +477,15 @@ class CharTrack:
     hadronic_muon_inverse_compton: Optional[np.ndarray] = None
     neutrino_frequency_hz: Optional[np.ndarray] = None
     neutrino_luminosity: Optional[np.ndarray] = None
+    seed_frequency_hz: Optional[np.ndarray] = None
+    l_had_syn_spec: Optional[np.ndarray] = None
+    l_had_pg_gamma_spec: Optional[np.ndarray] = None
+    l_had_bethe_heitler_spec: Optional[np.ndarray] = None
+    l_had_hadronic_ic_spec: Optional[np.ndarray] = None
+    am3_process_power: Optional[np.ndarray] = None
+    tau_pg: Optional[np.ndarray] = None
+    pg_photon_survival: Optional[np.ndarray] = None
+    timings: Optional[dict] = None
 
 
 @dataclass

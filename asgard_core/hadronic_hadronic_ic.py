@@ -4,18 +4,20 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from src import constants
+
 try:
     import src.Hadronic.FS_hadronic_1d as hadronic_fortran_module
 except ImportError:
     hadronic_fortran_module = None
 
 
-AM3_C_CGS = 2.99792458e10
-AM3_SIGMA_T_CGS = 6.6524587158e-25
-AM3_MASS_ELECTRON_GEV = 5.1099895e-4
-AM3_MASS_PROTON_GEV = 0.9382720813
-AM3_MASS_PION_CHARGED_GEV = 0.1396
-AM3_MASS_MUON_GEV = 0.10566
+AM3_C_CGS = constants.para_c
+AM3_SIGMA_T_CGS = constants.para_sigmat
+AM3_MASS_ELECTRON_GEV = constants.para_m_e_gev
+AM3_MASS_PROTON_GEV = constants.para_m_p_gev
+AM3_MASS_PION_CHARGED_GEV = constants.para_m_pi_charged_gev
+AM3_MASS_MUON_GEV = constants.para_m_mu_gev
 _HAS_FORTRAN_HADRONIC_IC = hadronic_fortran_module is not None and hasattr(
     hadronic_fortran_module, "fs_hadronic_hadronic_ic_shell"
 )

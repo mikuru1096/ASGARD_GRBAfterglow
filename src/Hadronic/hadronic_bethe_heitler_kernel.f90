@@ -6,9 +6,7 @@ module hadronic_bethe_heitler_kernel
     implicit none
     private
 
-    real(8), parameter :: sigma_t_cgs = 6.6524587158d-25
     real(8), parameter :: fine_structure_alpha = 1.0d0/137.0d0
-    real(8), parameter :: pi_local = 3.1415926535897932384626433832795d0
     integer, parameter :: bh_outer_bins = 5
     integer, parameter :: bh_inner_bins = 5
 
@@ -45,8 +43,9 @@ subroutine hadronic_bethe_heitler_operator(num_p,proton_energy_gev,proton_densit
     eph_dimless = photon_energy_gev/hadronic_electron_mass_gev
     ee_dimless = electron_energy_gev/hadronic_electron_mass_gev
 
-    k_inj_rate = para_c*3.0d0*sigma_t_cgs*fine_structure_alpha/(16.0d0*pi_local)
-    k_loss_rate = (3.0d0/(8.0d0*pi_local))*fine_structure_alpha*sigma_t_cgs*para_c*(hadronic_electron_mass_gev/hadronic_proton_mass_gev)
+    k_inj_rate = para_c*3.0d0*Para_SigmaT*fine_structure_alpha/(16.0d0*pi)
+    k_loss_rate = (3.0d0/(8.0d0*pi))*fine_structure_alpha*Para_SigmaT*para_c &
+        *(hadronic_electron_mass_gev/hadronic_proton_mass_gev)
 
     pair_log_source = zero
     proton_loss_rate = zero
@@ -186,7 +185,7 @@ real(8) function hadronic_bh_eloss_kernel_phi(xval)
     end if
     if (xval < 25.0d0) then
         zval = xval - 2.0d0
-        hadronic_bh_eloss_kernel_phi = (pi_local/12.0d0)*zval**4 / &
+        hadronic_bh_eloss_kernel_phi = (pi/12.0d0)*zval**4 / &
                                        (1.0d0 + 0.8048d0*zval + 0.1459d0*zval*zval + 1.137d-3*zval**3 - 3.879d-6*zval**4)
         return
     end if

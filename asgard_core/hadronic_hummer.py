@@ -4,6 +4,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from src import constants
+
 try:
     import src.Hadronic.FS_hadronic_1d as hadronic_fortran_module
 except ImportError:
@@ -21,12 +23,12 @@ HUMMER2010_OPERATOR_BACKEND = "fortran_operator" if _HAS_FORTRAN_PG_OPERATOR els
 HUMMER2010_DECAY_BACKEND = "fortran_decay" if _HAS_FORTRAN_DECAY_OPERATOR else "unavailable"
 
 
-PROTON_MASS_GEV = 0.9382720813
-PI_PLUS_MASS_GEV = 0.13957039
-MUON_MASS_GEV = 0.1056583755
+PROTON_MASS_GEV = constants.para_m_p_gev
+PI_PLUS_MASS_GEV = constants.para_m_pi_charged_gev
+MUON_MASS_GEV = constants.para_m_mu_gev
 CHARGED_PION_DECAY_S = 2.6033e-8
 MUON_DECAY_S = 2.1969811e-6
-GEV_TO_ERG = 1.602176634e-3
+GEV_TO_ERG = constants.para_gev2erg
 
 
 @dataclass(frozen=True)

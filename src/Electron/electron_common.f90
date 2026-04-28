@@ -270,7 +270,11 @@ subroutine electron_initial_density(A_star,dNe_ISM,R_ini,R_start,R0,dNe,Para_N_e
         else
             dNe=dNe_ISM
         end if
-        Para_N_e_ini=4d0/3d0*pi*R_ini**3*dNe_ISM
+        if (A_star > zero) then
+            Para_N_e_ini=4d0*pi*R_ini*A_star*3.0d35
+        else
+            Para_N_e_ini=4d0/3d0*pi*R_ini**3*dNe_ISM
+        end if
     end if
 end subroutine electron_initial_density
 

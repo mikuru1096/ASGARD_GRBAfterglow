@@ -546,6 +546,30 @@ def _make_details(
     if state is not None and state.hadronic is not None and state.config.hadronic.include_neutrino:
         fwd_nu_freq = np.asarray(state.hadronic.neutrino_frequency_hz, dtype=float)
         fwd_nu_lum = np.asarray(state.hadronic.neutrino_luminosity, dtype=float)
+    fwd_had_syn = None
+    fwd_had_pg_gamma = None
+    fwd_had_bh = None
+    fwd_had_hic = None
+    fwd_am3_power = None
+    fwd_tau_pg = None
+    fwd_pg_survival = None
+    fwd_timings = None
+    fwd_seed_freq = None
+    if state is not None and state.hadronic is not None:
+        fwd_seed_freq = np.asarray(state.photon_field.seed_frequency_hz, dtype=float)
+        fwd_had_syn = np.asarray(state.hadronic.l_had_syn_spec, dtype=float)
+        fwd_had_pg_gamma = np.asarray(state.hadronic.l_had_pg_gamma, dtype=float)
+        if state.hadronic.l_had_bethe_heitler is not None:
+            fwd_had_bh = np.asarray(state.hadronic.l_had_bethe_heitler, dtype=float)
+        if state.hadronic.l_had_hadronic_inverse_compton is not None:
+            fwd_had_hic = np.asarray(state.hadronic.l_had_hadronic_inverse_compton, dtype=float)
+        if state.hadronic.am3_process_power is not None:
+            fwd_am3_power = np.asarray(state.hadronic.am3_process_power, dtype=float)
+        if state.hadronic.tau_pg is not None:
+            fwd_tau_pg = np.asarray(state.hadronic.tau_pg, dtype=float)
+        if state.hadronic.pg_photon_survival is not None:
+            fwd_pg_survival = np.asarray(state.hadronic.pg_photon_survival, dtype=float)
+        fwd_timings = dict(state.hadronic.timings) if state.hadronic.timings else {}
     rev_gamma_e = None
     rev_dnde = None
     if state is not None and state.dynamics.reverse_shock is not None:
@@ -585,6 +609,15 @@ def _make_details(
             hadronic_muon_inverse_compton=fwd_had_mu_ic,
             neutrino_frequency_hz=fwd_nu_freq,
             neutrino_luminosity=fwd_nu_lum,
+            seed_frequency_hz=fwd_seed_freq,
+            l_had_syn_spec=fwd_had_syn,
+            l_had_pg_gamma_spec=fwd_had_pg_gamma,
+            l_had_bethe_heitler_spec=fwd_had_bh,
+            l_had_hadronic_ic_spec=fwd_had_hic,
+            am3_process_power=fwd_am3_power,
+            tau_pg=fwd_tau_pg,
+            pg_photon_survival=fwd_pg_survival,
+            timings=fwd_timings,
         ),
         rev=None
         if components.rev is None

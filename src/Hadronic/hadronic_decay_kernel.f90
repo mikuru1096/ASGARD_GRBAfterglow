@@ -4,8 +4,8 @@ module hadronic_decay_kernel
     use hadronic_common, only: hadronic_validate_log_grid
     implicit none
     private
-    real(8), parameter :: pi_plus_mass_gev = 0.13957039d0
-    real(8), parameter :: muon_mass_gev = 0.1056583755d0
+    real(8), parameter :: pi_plus_mass_gev = Para_m_pi_charged_GeV
+    real(8), parameter :: muon_mass_gev = Para_m_mu_GeV
     real(8), parameter :: charged_pion_decay_s = 2.6033d-8
     real(8), parameter :: muon_decay_s = 2.1969811d-6
 

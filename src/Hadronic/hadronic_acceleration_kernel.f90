@@ -1,20 +1,12 @@
 !f2py: skip
 module hadronic_acceleration_kernel
     use constants
+    use hadronic_common, only: hadronic_proton_mass_gev, hadronic_electron_mass_gev, &
+        hadronic_neutron_mass_gev, hadronic_pion_charged_mass_gev, hadronic_muon_mass_gev
     implicit none
     private
 
-    real(8), parameter :: light_speed_cgs = 2.99792458d10
-    real(8), parameter :: sigma_t_cgs = 6.6524587158d-25
-    real(8), parameter :: elementary_charge_esu = 4.803204712570263d-10
-    real(8), parameter :: erg_per_gev = 1.602176634d-3
-    real(8), parameter :: electron_mass_gev = 5.1099895d-4
-    real(8), parameter :: proton_mass_gev = 9.382720813d-1
-    real(8), parameter :: neutron_mass_gev = 9.395654133d-1
-    real(8), parameter :: pion_charged_mass_gev = 1.3957039d-1
-    real(8), parameter :: muon_mass_gev = 1.056583755d-1
-    real(8), parameter :: gev_to_gram = erg_per_gev/(light_speed_cgs*light_speed_cgs)
-    real(8), parameter :: electron_mass_g = electron_mass_gev*gev_to_gram
+    real(8), parameter :: gev_to_gram = 1d9 * Para_eV2erg / (Para_c * Para_c)
 
     public :: hadronic_species_properties
     public :: hadronic_acceleration_timescale_s
@@ -34,29 +26,29 @@ subroutine hadronic_species_properties(species,mass_gev,charge_number,mass_g,abs
 
     select case (trim(species))
     case ("proton")
-        mass_gev = proton_mass_gev
+        mass_gev = hadronic_proton_mass_gev
         charge_number = 1
     case ("neutron")
-        mass_gev = neutron_mass_gev
+        mass_gev = hadronic_neutron_mass_gev
         charge_number = 0
     case ("pion_plus")
-        mass_gev = pion_charged_mass_gev
+        mass_gev = hadronic_pion_charged_mass_gev
         charge_number = 1
     case ("pion_minus")
-        mass_gev = pion_charged_mass_gev
+        mass_gev = hadronic_pion_charged_mass_gev
         charge_number = -1
     case ("muon_plus")
-        mass_gev = muon_mass_gev
+        mass_gev = hadronic_muon_mass_gev
         charge_number = 1
     case ("muon_minus")
-        mass_gev = muon_mass_gev
+        mass_gev = hadronic_muon_mass_gev
         charge_number = -1
     case default
         error stop "hadronic_species_properties: unsupported species."
     end select
 
     mass_g = mass_gev*gev_to_gram
-    abs_charge_esu = dabs(dble(charge_number))*elementary_charge_esu
+    abs_charge_esu = dabs(dble(charge_number))*Para_e
 end subroutine hadronic_species_properties
 
 ! 计算粒子在磁场中的费米加速时标 t_acc = eta_acc * gamma * m * c / (|q| * B)。
@@ -77,7 +69,7 @@ subroutine hadronic_acceleration_timescale_s(num_gamma,species,gamma,b_field_g,e
 
     do i_gam=1,num_gamma
         if (gamma(i_gam) <= zero) error stop "hadronic_acceleration_timescale_s: gamma must be > 0."
-        t_acc(i_gam) = eta_acc*gamma(i_gam)*mass_g*light_speed_cgs/(abs_charge_esu*b_field_g)
+        t_acc(i_gam) = eta_acc*gamma(i_gam)*mass_g*Para_c/(abs_charge_esu*b_field_g)
     end do
 end subroutine hadronic_acceleration_timescale_s
 
@@ -99,8 +91,8 @@ subroutine hadronic_synchrotron_cooling_timescale_s(num_gamma,species,gamma,b_fi
         if (gamma(i_gam) <= zero) then
             error stop "hadronic_synchrotron_cooling_timescale_s: gamma must be > 0."
         end if
-        t_syn(i_gam) = 6d0*pi*(mass_g**3)*light_speed_cgs / &
-                       (sigma_t_cgs*(electron_mass_g**2)*(b_field_g**2)*gamma(i_gam))
+        t_syn(i_gam) = 6d0*pi*(mass_g**3)*Para_c / &
+                       (Para_SigmaT*(Para_m_e**2)*(b_field_g**2)*gamma(i_gam))
     end do
 end subroutine hadronic_synchrotron_cooling_timescale_s
 
@@ -164,7 +156,7 @@ subroutine hadronic_species_injection_operator(num_gamma,gamma,species,luminosit
         error stop "hadronic_species_injection_operator: normalization integral must be > 0."
     end if
 
-    mass_energy_erg = mass_gev*erg_per_gev
+    mass_energy_erg = mass_gev*Para_GeV2erg
     q0 = luminosity_erg_s/(mass_energy_erg*norm)
     q_inj = q0*shape
 end subroutine hadronic_species_injection_operator
@@ -194,10 +186,10 @@ subroutine hadronic_estimate_max_gamma(species,b_field_g,radius_cm,gamma_bulk,et
         error stop "hadronic_estimate_max_gamma: physical inputs must be > 0."
     end if
 
-    t_dyn = radius_cm/(gamma_bulk*light_speed_cgs)
-    gamma_dyn = abs_charge_esu*b_field_g*t_dyn/(eta_acc*mass_g*light_speed_cgs)
+    t_dyn = radius_cm/(gamma_bulk*Para_c)
+    gamma_dyn = abs_charge_esu*b_field_g*t_dyn/(eta_acc*mass_g*Para_c)
     gamma_syn = dsqrt(6d0*pi*abs_charge_esu*(mass_g**2) / &
-                (eta_acc*sigma_t_cgs*(electron_mass_g**2)*b_field_g))
+                (eta_acc*Para_SigmaT*(Para_m_e**2)*b_field_g))
 
     has_gamma_ext = .false.
     gamma_ext = zero

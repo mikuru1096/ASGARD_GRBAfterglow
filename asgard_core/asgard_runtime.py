@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from functools import lru_cache
 from importlib import import_module
+import time
 import numpy as np
 
 from src.Electron.electron_radiation import electron_radiation_kernel as electron_radiation_module
@@ -38,6 +39,7 @@ from asgard_core.hadronic_species_transport import (
     advance_species_transport_explicit,
 )
 from asgard_core.hadronic_hummer import GEV_TO_ERG, HUMMER2010_DECAY_BACKEND, HUMMER2010_OPERATOR_BACKEND, PROTON_MASS_GEV, solve_hummer2010_pgamma
+from src import constants
 from asgard_core.hadronic_pp import PP_DELTA_BACKEND, solve_pp_delta
 from asgard_core.hadronic_pgamma import photon_density_hz_to_gev
 from asgard_core.asgard_config import FitConfig
@@ -635,6 +637,7 @@ def solve_hadronic(
                 hadronic_ic_backend=HADRONIC_IC_BACKEND if bool(config.hadronic.include_hadronic_inverse_compton) else "disabled",
                 num_gam_p=num_gam_p,
                 num_nu=num_nu,
+                timings=solution.timings,
             )
         return solution
 
@@ -758,9 +761,9 @@ def _solve_hadronic_hummer_transport_coupled(
     neutrino_energy_gev = constants.para_h_gev * neutrino_frequency_hz
     photon_energy_gev, _ = photon_density_hz_to_gev(v_seed_arr, np.ones_like(v_seed_arr))
     gam_secondary = np.array(gam_p, copy=True)
-    neutron_energy_gev = gam_secondary * 0.9395654205
-    pion_energy_gev = gam_secondary * 0.13957039
-    muon_energy_gev = gam_secondary * 0.1056583755
+    neutron_energy_gev = gam_secondary * constants.para_m_n_gev
+    pion_energy_gev = gam_secondary * constants.para_m_pi_charged_gev
+    muon_energy_gev = gam_secondary * constants.para_m_mu_gev
 
     d_n_gam_p = np.zeros((num_gam_p, num_r), dtype=float)
     l_had_syn_spec = np.zeros((num_nu, num_r), dtype=float)
@@ -806,6 +809,19 @@ def _solve_hadronic_hummer_transport_coupled(
     process_energy_gev = photon_energy_gev
     shell_volume_cm3 = _hadronic_shell_volumes_from_radius(radius)
 
+    timings = {
+        "pg_interaction": 0.0,
+        "bethe_heitler": 0.0,
+        "pp_delta": 0.0,
+        "species_transport": 0.0,
+        "secondary_radiation": 0.0,
+        "hadronic_ic": 0.0,
+        "proton_synch": 0.0,
+        "bh_electron_radiation": 0.0,
+        "total": 0.0,
+    }
+    t_total_start = time.perf_counter()
+
     for i_r in range(num_r):
         dt_s = _hadronic_shell_dt(tobs, i_r)
         t_dyn_s = _hadronic_dynamical_time(radius[i_r], gamma_bulk[i_r])
@@ -830,7 +846,8 @@ def _solve_hadronic_hummer_transport_coupled(
             dt_s,
         )
         proton_density_trial_per_gev = d_n_trial / (shell_volume_loc * PROTON_MASS_GEV)
-        neutron_density_trial_per_gev = species_state_prev.neutron.density_per_gamma / (shell_volume_loc * 0.9395654205)
+        neutron_density_trial_per_gev = species_state_prev.neutron.density_per_gamma / (shell_volume_loc * constants.para_m_n_gev)
+        t_pg_start = time.perf_counter()
         _, photon_density_per_gev_trial = photon_density_hz_to_gev(v_seed_arr, seed_target_arr[:, i_r])
         backend_tau = solve_hummer2010_pgamma(
             proton_energy_gev=gam_p * PROTON_MASS_GEV,
@@ -859,12 +876,14 @@ def _solve_hadronic_hummer_transport_coupled(
             process_energy_gev=process_energy_gev,
             neutron_density_per_gev=neutron_density_trial_per_gev,
         )
+        timings["pg_interaction"] += time.perf_counter() - t_pg_start
         bh_output = None
         bh_loss = np.zeros_like(gam_p)
         pp_pair_q = np.zeros_like(gam_e)
         pp_gamma_lum = np.zeros_like(v_seed_arr)
         pp_nu_lum = np.zeros_like(neutrino_frequency_hz)
         if bool(config.hadronic.include_bethe_heitler):
+            t_bh_start = time.perf_counter()
             bh_output = solve_bethe_heitler(
                 proton_energy_gev=gam_p * PROTON_MASS_GEV,
                 proton_density_per_gev=proton_density_trial_per_gev,
@@ -873,8 +892,10 @@ def _solve_hadronic_hummer_transport_coupled(
                 electron_energy_gev=electron_energy_gev,
             )
             bh_loss = np.maximum(-np.asarray(bh_output.proton_loss_rate, dtype=float), 0.0)
+            timings["bethe_heitler"] += time.perf_counter() - t_bh_start
         pp_loss = np.zeros_like(gam_p)
         if bool(config.hadronic.include_pp):
+            t_pp_start = time.perf_counter()
             target_density_cm3 = float(ambient_density(np.array([radius[i_r]], dtype=float), config)[0])
             pp_output = solve_pp_delta(
                 proton_energy_gev=gam_p * PROTON_MASS_GEV,
@@ -896,6 +917,7 @@ def _solve_hadronic_hummer_transport_coupled(
                 shell_volume_loc,
             )
             pp_pair_q = shell_volume_loc * np.asarray(pp_output.pair_rate_per_gev, dtype=float) * ELECTRON_MASS_GEV
+            timings["pp_delta"] += time.perf_counter() - t_pp_start
 
         loss_total = _hadronic_continuous_loss_rates(gam_p, float(b_field[i_r]), t_dyn_s) + bh_loss + pp_loss
         d_n_next = _hadronic_advance_energy_loggamma(gam_p, gam_edge, d_n_prev, q_inj, loss_total, dt_s)
@@ -907,6 +929,7 @@ def _solve_hadronic_hummer_transport_coupled(
         d_n_gam_p[:, i_r] = d_n_next
 
         if bool(config.hadronic.include_proton_synch):
+            t_syn_start = time.perf_counter()
             p_syn_i, seed_syn_i = _hadronic_proton_syn_state(
                 float(radius[i_r]),
                 max(float(b_field[i_r]), 1.0e-30),
@@ -916,56 +939,58 @@ def _solve_hadronic_hummer_transport_coupled(
             )
             l_had_syn_spec[:, i_r] = p_syn_i
             seed_had_syn[:, i_r] = seed_syn_i
+            timings["proton_synch"] += time.perf_counter() - t_syn_start
 
         divergence_rate_s_inv = 3.0 / t_dyn_s
+        t_species_start = time.perf_counter()
         species_sources = HadronicSpeciesSources(
             neutron_per_gamma_s=_interp_source_per_gamma(
                 backend.hadron_energy_gev,
                 backend.neutron_reinjection_rate_per_gev,
                 neutron_energy_gev,
-                0.9395654205,
+                constants.para_m_n_gev,
                 shell_volume_loc,
             ),
             charged_pion_plus_per_gamma_s=_interp_source_per_gamma(
                 backend.hadron_energy_gev,
                 backend.pion_plus_source_rate_per_gev,
                 pion_energy_gev,
-                0.13957039,
+                constants.para_m_pi_charged_gev,
                 shell_volume_loc,
             ),
             charged_pion_minus_per_gamma_s=_interp_source_per_gamma(
                 backend.hadron_energy_gev,
                 backend.pion_minus_source_rate_per_gev,
                 pion_energy_gev,
-                0.13957039,
+                constants.para_m_pi_charged_gev,
                 shell_volume_loc,
             ),
             charged_muon_minus_left_per_gamma_s=_interp_source_per_gamma(
                 backend.hadron_energy_gev,
                 backend.muon_minus_left_source_rate_per_gev,
                 muon_energy_gev,
-                0.1056583755,
+                constants.para_m_mu_gev,
                 shell_volume_loc,
             ),
             charged_muon_minus_right_per_gamma_s=_interp_source_per_gamma(
                 backend.hadron_energy_gev,
                 backend.muon_minus_right_source_rate_per_gev,
                 muon_energy_gev,
-                0.1056583755,
+                constants.para_m_mu_gev,
                 shell_volume_loc,
             ),
             charged_muon_plus_left_per_gamma_s=_interp_source_per_gamma(
                 backend.hadron_energy_gev,
                 backend.muon_plus_left_source_rate_per_gev,
                 muon_energy_gev,
-                0.1056583755,
+                constants.para_m_mu_gev,
                 shell_volume_loc,
             ),
             charged_muon_plus_right_per_gamma_s=_interp_source_per_gamma(
                 backend.hadron_energy_gev,
                 backend.muon_plus_right_source_rate_per_gev,
                 muon_energy_gev,
-                0.1056583755,
+                constants.para_m_mu_gev,
                 shell_volume_loc,
             ),
         )
@@ -976,6 +1001,7 @@ def _solve_hadronic_hummer_transport_coupled(
             b_field_g=float(b_field[i_r]),
             divergence_rate_s_inv=divergence_rate_s_inv,
         )
+        timings["species_transport"] += time.perf_counter() - t_species_start
         neutron_sink = np.maximum(
             1.0 - dt_s * _interp_positive_loglog(backend.hadron_energy_gev, backend.neutron_loss_rate, neutron_energy_gev),
             0.0,
@@ -996,6 +1022,7 @@ def _solve_hadronic_hummer_transport_coupled(
         d_n_gam_mu_plus_left[:, i_r] = species_state_next.charged_muon.plus_left_density_per_gamma
         d_n_gam_mu_plus_right[:, i_r] = species_state_next.charged_muon.plus_right_density_per_gamma
 
+        t_sec_start = time.perf_counter()
         photon_energy_aligned_gev = _hadronic_aligned_photon_grid(gam_p * PROTON_MASS_GEV, photon_energy_gev)
         photon_density_aligned_per_gev = _interp_positive_loglog(
             photon_energy_gev,
@@ -1003,12 +1030,12 @@ def _solve_hadronic_hummer_transport_coupled(
             photon_energy_aligned_gev,
         )
         secondary_species = SecondarySpeciesDistribution(
-            pion_plus_per_gev=_interp_distribution_per_gev(pion_energy_gev, species_state_next.charged_pion.plus_density_per_gamma / (shell_volume_loc * 0.13957039), gam_p * PROTON_MASS_GEV),
-            pion_minus_per_gev=_interp_distribution_per_gev(pion_energy_gev, species_state_next.charged_pion.minus_density_per_gamma / (shell_volume_loc * 0.13957039), gam_p * PROTON_MASS_GEV),
-            muon_minus_left_per_gev=_interp_distribution_per_gev(muon_energy_gev, species_state_next.charged_muon.minus_left_density_per_gamma / (shell_volume_loc * 0.1056583755), gam_p * PROTON_MASS_GEV),
-            muon_minus_right_per_gev=_interp_distribution_per_gev(muon_energy_gev, species_state_next.charged_muon.minus_right_density_per_gamma / (shell_volume_loc * 0.1056583755), gam_p * PROTON_MASS_GEV),
-            muon_plus_left_per_gev=_interp_distribution_per_gev(muon_energy_gev, species_state_next.charged_muon.plus_left_density_per_gamma / (shell_volume_loc * 0.1056583755), gam_p * PROTON_MASS_GEV),
-            muon_plus_right_per_gev=_interp_distribution_per_gev(muon_energy_gev, species_state_next.charged_muon.plus_right_density_per_gamma / (shell_volume_loc * 0.1056583755), gam_p * PROTON_MASS_GEV),
+            pion_plus_per_gev=_interp_distribution_per_gev(pion_energy_gev, species_state_next.charged_pion.plus_density_per_gamma / (shell_volume_loc * constants.para_m_pi_charged_gev), gam_p * PROTON_MASS_GEV),
+            pion_minus_per_gev=_interp_distribution_per_gev(pion_energy_gev, species_state_next.charged_pion.minus_density_per_gamma / (shell_volume_loc * constants.para_m_pi_charged_gev), gam_p * PROTON_MASS_GEV),
+            muon_minus_left_per_gev=_interp_distribution_per_gev(muon_energy_gev, species_state_next.charged_muon.minus_left_density_per_gamma / (shell_volume_loc * constants.para_m_mu_gev), gam_p * PROTON_MASS_GEV),
+            muon_minus_right_per_gev=_interp_distribution_per_gev(muon_energy_gev, species_state_next.charged_muon.minus_right_density_per_gamma / (shell_volume_loc * constants.para_m_mu_gev), gam_p * PROTON_MASS_GEV),
+            muon_plus_left_per_gev=_interp_distribution_per_gev(muon_energy_gev, species_state_next.charged_muon.plus_left_density_per_gamma / (shell_volume_loc * constants.para_m_mu_gev), gam_p * PROTON_MASS_GEV),
+            muon_plus_right_per_gev=_interp_distribution_per_gev(muon_energy_gev, species_state_next.charged_muon.plus_right_density_per_gamma / (shell_volume_loc * constants.para_m_mu_gev), gam_p * PROTON_MASS_GEV),
         )
         secondary_target = SecondaryTargetPhotonField(
             photon_energy_gev=photon_energy_aligned_gev,
@@ -1021,6 +1048,7 @@ def _solve_hadronic_hummer_transport_coupled(
             target=secondary_target,
             magnetic_field_g=float(b_field[i_r]),
         )
+        timings["secondary_radiation"] += time.perf_counter() - t_sec_start
         l_had_pion_synch[:, i_r] = _interp_positive_loglog(
             secondary_radiation.photon_energy_gev,
             _energy_luminosity_from_rate_spectrum(
@@ -1092,6 +1120,7 @@ def _solve_hadronic_hummer_transport_coupled(
                 neutrino_luminosity[:, i_r] += pp_nu_lum
 
         if bool(config.hadronic.include_hadronic_inverse_compton):
+            t_hic_start = time.perf_counter()
             hic_photon_energy_gev = _hadronic_aligned_photon_grid(gam_p * PROTON_MASS_GEV, photon_energy_gev)
             hic_photon_density_per_gev = _interp_positive_loglog(
                 photon_energy_gev,
@@ -1125,8 +1154,10 @@ def _solve_hadronic_hummer_transport_coupled(
                 hic_lum_aligned,
                 photon_energy_gev,
             )
+            timings["hadronic_ic"] += time.perf_counter() - t_hic_start
 
         if bh_output is not None or bool(config.hadronic.include_pp):
+            t_bhe_start = time.perf_counter()
             q_bh = np.array(pp_pair_q, copy=True)
             if bh_output is not None:
                 q_bh += shell_volume_loc * np.asarray(bh_output.pair_rate_per_gev, dtype=float) * ELECTRON_MASS_GEV
@@ -1152,10 +1183,12 @@ def _solve_hadronic_hummer_transport_coupled(
             seed_had_bh[:, i_r] = np.asarray(seed_bh_i, dtype=float)
             d_n_gam_e_bh[:, i_r] = d_n_bh_next
             d_n_bh_prev = d_n_bh_next
+            timings["bh_electron_radiation"] += time.perf_counter() - t_bhe_start
 
         d_n_prev = d_n_next
         species_state_prev = species_state_next
 
+    timings["total"] = time.perf_counter() - t_total_start
     l_had_syn_spec *= pg_photon_survival
     seed_had_syn *= pg_photon_survival
     l_had_pg_gamma *= pg_photon_survival
@@ -1197,6 +1230,7 @@ def _solve_hadronic_hummer_transport_coupled(
         tau_pg=tau_pg if (bool(config.hadronic.include_pg) or bool(config.hadronic.include_neutrino)) else None,
         pg_photon_survival=pg_photon_survival if (bool(config.hadronic.include_pg) or bool(config.hadronic.include_neutrino)) else None,
         am3_process_power=am3_process_power,
+        timings=timings,
     )
 
 

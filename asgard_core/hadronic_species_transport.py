@@ -5,23 +5,25 @@ import math
 
 import numpy as np
 
+from src import constants
+
 try:
     import src.Hadronic.FS_hadronic_1d as hadronic_fortran_module
 except ImportError:
     hadronic_fortran_module = None
 
-NEUTRON_MASS_GEV = 0.9395654205
-PI_PLUS_MASS_GEV = 0.13957039
-MUON_MASS_GEV = 0.1056583755
+NEUTRON_MASS_GEV = constants.para_m_n_gev
+PI_PLUS_MASS_GEV = constants.para_m_pi_charged_gev
+MUON_MASS_GEV = constants.para_m_mu_gev
 
 NEUTRON_BETA_DECAY_S = 879.4
 CHARGED_PION_DECAY_S = 2.6033e-8
 MUON_DECAY_S = 2.1969811e-6
 
-LIGHT_SPEED_CGS = 2.99792458e10
-SIGMA_T_CGS = 6.6524587321e-25
-GEV_C2_TO_G = 1.7826619216279e-24
-ELECTRON_MASS_G = 9.1093837015e-28
+LIGHT_SPEED_CGS = constants.para_c
+SIGMA_T_CGS = constants.para_sigmat
+GEV_C2_TO_G = constants.para_gev2erg / (constants.para_c * constants.para_c)
+ELECTRON_MASS_G = constants.para_m_e
 _HAS_FORTRAN_SPECIES_TRANSPORT = hadronic_fortran_module is not None and hasattr(
     hadronic_fortran_module, "fs_hadronic_species_transport_shell"
 )

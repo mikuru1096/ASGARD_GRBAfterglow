@@ -227,6 +227,7 @@ class HadronicSolution:
     tau_pg: np.ndarray | None = None
     pg_photon_survival: np.ndarray | None = None
     am3_process_power: np.ndarray | None = None
+    timings: dict[str, float] = field(default_factory=dict)
 
 
 # ============================================================================

@@ -42,7 +42,7 @@ from asgard_core.asgard_setup import build_simulation_setup
 from src import Radiation, constants
 
 
-_ELECTRON_MASS_GEV = 5.1099895e-4
+_ELECTRON_MASS_GEV = constants.para_m_e_gev
 
 
 def make_policy(config: FitConfig) -> ExecutionPolicy:
