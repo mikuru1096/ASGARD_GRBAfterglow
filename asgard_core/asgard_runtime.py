@@ -1362,24 +1362,27 @@ def _hadronic_electron_loss_rates(
     coeff_syn = constants.para_sigmat * b2 / (6.0 * np.pi * constants.para_m_e * constants.para_c)
     loss_syn = coeff_syn * gamma_e * gamma_e
     if quantum_syn:
-        loss_syn = loss_syn * _quantum_syn_cooling_factor(
+        loss_syn = loss_syn * _quantum_syn_cooling_factor_fortran(
             gamma_e, b_field_g, constants.para_m_e_gev,
         )
     loss_ad = gamma_e / max(float(t_dyn_s), 1.0)
     return loss_syn + loss_ad
 
 
-def _quantum_syn_cooling_factor(
+def _quantum_syn_cooling_factor_fortran(
     gamma: np.ndarray, b_field_g: float, mass_gev: float,
 ) -> np.ndarray:
-    b_crit = 4.414e13
-    chi = np.asarray(gamma, dtype=float) * max(float(b_field_g), 0.0) / b_crit
-    chi = chi * (constants.para_m_e_gev / max(float(mass_gev), 1e-30))
-    out = np.ones_like(chi, dtype=float)
-    active = chi > 1e-6
-    chi23 = chi[active] ** (2.0 / 3.0)
-    out[active] = 1.0 / (1.0 + np.sqrt(2.0) * chi23) ** 2
-    return out
+    gamma_arr = np.asarray(gamma, dtype=float)
+    if not hasattr(hadronic_legacy_module, "fs_hadronic_quantum_syn_cooling_factor"):
+        raise RuntimeError("Quantum synchrotron cooling factor must be provided by the Fortran backend.")
+    return np.asarray(
+        hadronic_legacy_module.fs_hadronic_quantum_syn_cooling_factor(
+            gamma_arr,
+            float(b_field_g),
+            float(mass_gev),
+        ),
+        dtype=float,
+    )
 
 
 def _interp_positive_loglog(
@@ -1429,7 +1432,7 @@ def _hadronic_continuous_loss_rates(
     loss_ad = gam_p / max(float(t_dyn_s), 1.0)
     loss_syn = coeff_syn * gam_p * gam_p
     if quantum_syn:
-        loss_syn = loss_syn * _quantum_syn_cooling_factor(gam_p, b_field_g, mass_gev or constants.para_m_p_gev)
+        loss_syn = loss_syn * _quantum_syn_cooling_factor_fortran(gam_p, b_field_g, mass_gev or constants.para_m_p_gev)
     return loss_ad + loss_syn
 
 

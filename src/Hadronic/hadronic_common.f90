@@ -1,6 +1,7 @@
 !f2py: skip
 module hadronic_common
     use constants
+    use quantum_synchrotron_kernel, only: quantum_chi_parameter, quantum_syn_cooling_factor
     implicit none
     real(8), parameter :: hadronic_eta_acc_floor = 1d-12
     real(8), parameter :: hadronic_bfield_floor = 1d-30
@@ -153,20 +154,14 @@ end subroutine hadronic_validate_log_grid
 real(8) function hadronic_quantum_syn_cooling_factor(gamma,b_field_g,mass_gev)
     implicit real(8)(A-H,O-Z)
     real(8), intent(in) :: gamma,b_field_g,mass_gev
-    real(8), parameter :: b_crit=4.414d13
-    real(8) :: chi,chi23
+    real(8) :: chi
 
     if (b_field_g <= 0d0 .or. gamma <= 1d0) then
         hadronic_quantum_syn_cooling_factor = 1d0
         return
     end if
-    chi = gamma * b_field_g / b_crit * (hadronic_electron_mass_gev / max(mass_gev,1d-30))
-    if (chi <= 1d-6) then
-        hadronic_quantum_syn_cooling_factor = 1d0
-        return
-    end if
-    chi23 = chi**(2d0/3d0)
-    hadronic_quantum_syn_cooling_factor = 1d0 / (1d0 + dsqrt(2d0)*chi23)**2
+    chi = quantum_chi_parameter(gamma,b_field_g,mass_gev)
+    hadronic_quantum_syn_cooling_factor = quantum_syn_cooling_factor(chi)
 end function hadronic_quantum_syn_cooling_factor
 
 end module hadronic_common

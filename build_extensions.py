@@ -51,6 +51,7 @@ F2PY_ENTRYPOINTS = {
         "fs_hadronic_decay_operator_shell",
         "fs_hadronic_pair_cascade_step",
         "fs_hadronic_pp_spectral_source",
+        "fs_hadronic_quantum_syn_cooling_factor",
     ),
 }
 DYNAMICS_COMMON_SOURCES = ("../Constants.f90", "dynamics_common.f90")
@@ -94,6 +95,7 @@ HADRONIC_1D_SOURCES = (
     "../Constants.f90",
     "../Dynamics/dynamics_common.f90",
     "../Radiation/radiation_common.f90",
+    "../Radiation/quantum_synchrotron_kernel.f90",
     "hadronic_common.f90",
     "hadronic_transport_kernel.f90",
     "hadronic_radiation_kernel.f90",

@@ -352,3 +352,17 @@ subroutine fs_hadronic_pp_spectral_source(num_p,proton_kinetic_energy_gev, &
         proton_density_per_gev,num_g,gamma_energy_gev,target_density_cm3,model, &
         pi0_gamma_rate)
 end subroutine fs_hadronic_pp_spectral_source
+
+! 量子同步冷却压制因子：数组 wrapper，Python 只负责调度。
+subroutine fs_hadronic_quantum_syn_cooling_factor(num_gamma,gamma,b_field_g,mass_gev,factor)
+    use hadronic_common, only: hadronic_quantum_syn_cooling_factor
+    implicit none
+    integer, intent(in) :: num_gamma
+    real(8), intent(in) :: gamma(num_gamma),b_field_g,mass_gev
+    real(8), intent(out) :: factor(num_gamma)
+    integer :: i
+
+    do i=1,num_gamma
+        factor(i) = hadronic_quantum_syn_cooling_factor(gamma(i),b_field_g,mass_gev)
+    end do
+end subroutine fs_hadronic_quantum_syn_cooling_factor
