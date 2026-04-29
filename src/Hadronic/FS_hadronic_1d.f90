@@ -9,6 +9,20 @@ subroutine fs_hadronic_proton_syn_shell(R_loc,B_field_g,Num_gam_p,Num_nu,gam_p,d
     call hadronic_get_proton_syn_state(R_loc,B_field_g,Num_gam_p,Num_nu,gam_p,dN_gam_p,V_seed,P_had_syn,Seed_had_syn)
 end subroutine fs_hadronic_proton_syn_shell
 
+! 单壳层带电强子同步偏振率（输出专用，不参与通量演化）。
+subroutine fs_hadronic_syn_polarization_shell(Num_had,hadron_energy_gev,density_per_gev,Num_ph, &
+                                              photon_frequency_hz,particle_mass_gev,magnetic_field_g,p_index,Pi_nu)
+    use hadronic_radiation_kernel, only: hadronic_syn_polarization_fraction
+    implicit none
+    integer, intent(in) :: Num_had,Num_ph
+    real(8), intent(in) :: hadron_energy_gev(Num_had),density_per_gev(Num_had),photon_frequency_hz(Num_ph)
+    real(8), intent(in) :: particle_mass_gev,magnetic_field_g,p_index
+    real(8), intent(out) :: Pi_nu(Num_ph)
+
+    call hadronic_syn_polarization_fraction(Num_had,hadron_energy_gev,density_per_gev,Num_ph, &
+                                            photon_frequency_hz,particle_mass_gev,magnetic_field_g,p_index,Pi_nu)
+end subroutine fs_hadronic_syn_polarization_shell
+
 ! 单壳层pγ相互作用算子（包装Hummer2010算子）。
 subroutine fs_hadronic_pgamma_operator_shell(Num_gam_p,Num_nu,hadron_energy_gev,hadron_density_per_gev,photon_energy_gev, &
                                              photon_density_per_gev,neutron_density_per_gev,pion0_source_rate_per_gev, &

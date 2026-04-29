@@ -51,7 +51,7 @@ def solve_rs_hadronic_core(
     gam_p, dN_gam_p, P_had_syn, Seed_had_syn = _hadronic_reverse_module.fs_hadronic_reverse_1d(
         tobs, gamma, radius, shell_energy, b_field, v_seed,
         1 if include_proton_synch else 0,
-        num_nu, num_r, np_gam_p,
+        np_gam_p,
     )
     return ReverseShockHadronicSolution(
         gam_p=np.asarray(gam_p, dtype=float),

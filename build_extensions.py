@@ -33,13 +33,14 @@ DIRECT_ORDERED_BUILD_MODULES = {
 }
 F2PY_ENTRYPOINTS = {
     "FS_electron_charint_1d": ("fs_electron_charint_1d",),
-    "electron_radiation": ("get_nu_a", "get_syn_selected", "get_syn_transfer"),
+    "electron_radiation": ("get_nu_a", "get_syn_selected", "get_syn_transfer", "get_syn_polarization_selected"),
     "electron_reverse_kernel": ("electron_reverse_evolve",),
     "SSC_spec": ("ssc_spec", "ssc_spec_nonuniform"),
     "FS_hadronic_reverse_1d": ("fs_hadronic_reverse_1d",),
     "FS_hadronic_1d": (
         "fs_hadronic_1d",
         "fs_hadronic_proton_syn_shell",
+        "fs_hadronic_syn_polarization_shell",
         "fs_hadronic_pgamma_operator_shell",
         "fs_hadronic_pair_production_shell",
         "fs_hadronic_pp_delta_shell",

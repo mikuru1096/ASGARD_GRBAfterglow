@@ -549,6 +549,20 @@ class SkyImage:
 
 
 @dataclass
+class PolarizationResult:
+    I_sync: np.ndarray
+    Q: np.ndarray
+    U: np.ndarray
+    linear_polarization: np.ndarray
+    polarization_angle_rad: np.ndarray
+    components: dict[str, dict[str, np.ndarray]]
+
+    @property
+    def shape(self):
+        return self.I_sync.shape
+
+
+@dataclass
 class ObsSet:
     flux_density: list[dict[str, Any]] = field(default_factory=list)
     spectrum: list[dict[str, Any]] = field(default_factory=list)
@@ -755,6 +769,26 @@ class Model:
         from .api_observe import _render_sky_image
 
         return _render_sky_image(self, times_s, float(nu_obs), float(fov), int(npixel))
+
+    def polarization(
+        self,
+        times_s: np.ndarray,
+        nu_hz: np.ndarray,
+        *,
+        magnetic_geometry: str = "shock_random",
+        local_emissivity: str = "analytic_then_kernel",
+    ) -> PolarizationResult:
+        times_s = np.asarray(times_s, dtype=float)
+        nu_hz = np.asarray(nu_hz, dtype=float)
+        from .api_observe import _compute_polarization
+
+        return _compute_polarization(
+            self,
+            times_s,
+            nu_hz,
+            magnetic_geometry=magnetic_geometry,
+            local_emissivity=local_emissivity,
+        )
 
     def flux(self, time_s: np.ndarray | float, nu_min_hz: float, nu_max_hz: float, num_points: int = 64):
         times_s = np.atleast_1d(np.asarray(time_s, dtype=float))

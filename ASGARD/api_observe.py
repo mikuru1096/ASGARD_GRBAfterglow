@@ -8,11 +8,15 @@ import numpy as np
 from asgard_core.asgard_state import (
     FluxComponents,
     SolveState,
+    _build_observer_setup_from_state,
     make_query_setup,
     make_tgrid,
+    _forward_synchrotron_absorption_transfer,
+    _project_component,
     project_flux_grid,
     solve_state_from_setup,
 )
+from src.Electron.electron_radiation import electron_radiation_kernel as electron_radiation_module
 from asgard_core.asgard_models import FitConfig, ReverseShockConfig, SpectrumOutputConfig
 from asgard_core.asgard_config import HadronicConfig
 from asgard_core.asgard_observables import OUTPUT_BANDS, build_multiband_observer_frequencies, combine_multiband_flux
@@ -39,6 +43,7 @@ from .api_model import (
     ModelDetails,
     ModelFluxResult,
     Observer,
+    PolarizationResult,
     PowerLawJet,
     Radiation,
     Setups,
@@ -143,6 +148,429 @@ def _total_matrix(
     if isinstance(model.jet, TophatJet) and model._supports_direct_kernel():
         return _direct_total(model, times_s, nu_hz, timings=timings)
     return _patch_total(model, times_s, nu_hz, timings=timings)
+
+
+def _compute_polarization(
+    model: Model,
+    times_s: np.ndarray,
+    nu_hz: np.ndarray,
+    *,
+    magnetic_geometry: str,
+    local_emissivity: str,
+) -> PolarizationResult:
+    times_s = np.asarray(times_s, dtype=float)
+    nu_hz = np.asarray(nu_hz, dtype=float)
+    if times_s.ndim != 1 or nu_hz.ndim != 1:
+        raise ValueError("polarization() requires one-dimensional times_s and nu_hz grids.")
+    if times_s.size == 0 or nu_hz.size == 0:
+        raise ValueError("polarization() grids must be non-empty.")
+    if np.any(times_s <= 0.0) or np.any(nu_hz <= 0.0):
+        raise ValueError("polarization() times and frequencies must be positive.")
+    if magnetic_geometry not in {"shock_random", "toroidal"}:
+        raise ValueError("magnetic_geometry must be 'shock_random' or 'toroidal'.")
+    if local_emissivity not in {"analytic", "analytic_then_kernel"}:
+        raise ValueError("local_emissivity must be 'analytic' or 'analytic_then_kernel'.")
+    if magnetic_geometry == "toroidal" and not _jet_is_axisymmetric(model.jet):
+        raise NotImplementedError("toroidal polarization currently requires an axisymmetric jet.")
+
+    total_i = np.zeros((nu_hz.shape[0], times_s.shape[0]), dtype=float)
+    total_q = np.zeros_like(total_i)
+    total_u = np.zeros_like(total_i)
+    components = {
+        "fwd_sync": _empty_stokes(total_i),
+        "rev_sync": _empty_stokes(total_i),
+        "hadronic_sync": _empty_stokes(total_i),
+        "rev_hadronic_sync": _empty_stokes(total_i),
+    }
+    sightline, sky_x_axis, sky_y_axis = _sky_basis(model.observer)
+    active_patch_found = False
+
+    for phi_center, theta_center, patch_half_angle in _iter_patches(model):
+        e_iso = model.jet.energy_iso(phi_center, theta_center)
+        gamma0 = model.jet.gamma0(phi_center, theta_center)
+        if e_iso <= 0.0 or gamma0 <= 1.0:
+            continue
+        active_patch_found = True
+        patch_direction = _direction_vector(theta_center, phi_center)
+        theta_v = _angular_separation(theta_center, phi_center, model.observer.theta_obs, model.observer.phi_obs)
+        config = _build_fit_config_for_patch(
+            model,
+            phi_center=phi_center,
+            theta_v=theta_v,
+            opening_angle_jet=patch_half_angle,
+            e_iso=e_iso,
+            gamma0=gamma0,
+            theta_center=theta_center,
+        )
+        state = _solve_patch_state(model, config, times_s, nu_hz)
+        cos2pa, sin2pa = _patch_polarization_angle_factors(
+            magnetic_geometry,
+            patch_direction,
+            sightline,
+            sky_x_axis,
+            sky_y_axis,
+        )
+        _accumulate_patch_polarization(
+            components["fwd_sync"],
+            state,
+            state.components.fwd_sync,
+            times_s,
+            nu_hz,
+            _component_polarization_fraction(
+                state,
+                model.fwd_rad.p,
+                local_emissivity,
+                reverse=False,
+            ),
+            cos2pa,
+            sin2pa,
+            _shock_random_anisotropy(magnetic_geometry, theta_v, state.components.fwd.gamma),
+        )
+        if state.reverse_emission is not None and model.rvs_rad is not None:
+            rev_sync = np.asarray(state.reverse_emission.l_syn_spec, dtype=float) * np.asarray(state.observer.prefactor, dtype=float)
+            _accumulate_patch_polarization(
+                components["rev_sync"],
+                state,
+                rev_sync,
+                times_s,
+                nu_hz,
+                _component_polarization_fraction(
+                    state,
+                    model.rvs_rad.p,
+                    local_emissivity,
+                    reverse=True,
+                ),
+                cos2pa,
+                sin2pa,
+                _shock_random_anisotropy(magnetic_geometry, theta_v, _reverse_shock_gamma_array(state)),
+            )
+            rev_hadronic_sync = _patch_reverse_hadronic_synchrotron_component(state)
+            if rev_hadronic_sync is not None:
+                rev_hadronic_source, rev_hadronic_pi = rev_hadronic_sync
+                _accumulate_patch_polarization(
+                    components["rev_hadronic_sync"],
+                    state,
+                    rev_hadronic_source,
+                    times_s,
+                    nu_hz,
+                    rev_hadronic_pi,
+                    cos2pa,
+                    sin2pa,
+                    _shock_random_anisotropy(magnetic_geometry, theta_v, _reverse_shock_gamma_array(state)),
+                )
+        hadronic_sync = _patch_hadronic_synchrotron_component(state)
+        if hadronic_sync is not None:
+            hadronic_source, hadronic_pi = hadronic_sync
+            _accumulate_patch_polarization(
+                components["hadronic_sync"],
+                state,
+                hadronic_source,
+                times_s,
+                nu_hz,
+                hadronic_pi,
+                cos2pa,
+                sin2pa,
+                _shock_random_anisotropy(magnetic_geometry, theta_v, state.components.fwd.gamma),
+            )
+
+    if not active_patch_found:
+        raise ValueError("No active jet patches were found for polarization().")
+    for component in components.values():
+        total_i += component["I"]
+        total_q += component["Q"]
+        total_u += component["U"]
+    linear = np.zeros_like(total_i)
+    positive = total_i > 0.0
+    linear[positive] = np.sqrt(total_q[positive] * total_q[positive] + total_u[positive] * total_u[positive]) / total_i[positive]
+    pa = 0.5 * np.arctan2(total_u, total_q)
+    return PolarizationResult(
+        I_sync=total_i,
+        Q=total_q,
+        U=total_u,
+        linear_polarization=linear,
+        polarization_angle_rad=pa,
+        components=components,
+    )
+
+
+def _empty_stokes(template: np.ndarray) -> dict[str, np.ndarray]:
+    return {
+        "I": np.zeros_like(template),
+        "Q": np.zeros_like(template),
+        "U": np.zeros_like(template),
+    }
+
+
+def _synchrotron_intrinsic_polarization(p_index: float) -> float:
+    p = float(p_index)
+    return (p + 1.0) / (p + 7.0 / 3.0)
+
+
+def _component_polarization_fraction(
+    state: SolveState,
+    p_index: float,
+    local_emissivity: str,
+    *,
+    reverse: bool,
+) -> float | np.ndarray:
+    if local_emissivity == "analytic":
+        return _synchrotron_intrinsic_polarization(p_index)
+    if reverse:
+        if state.dynamics.reverse_shock is None or state.reverse_emission is None:
+            return _synchrotron_intrinsic_polarization(p_index)
+        gamma_grid = np.asarray(state.dynamics.reverse_shock.gam_e, dtype=float)
+        distribution = np.asarray(state.dynamics.reverse_shock.d_n_gam_e, dtype=float)
+        magnetic_field = np.asarray(state.dynamics.reverse_shock.magnetic_field_g, dtype=float)
+        radius_cm = np.full(magnetic_field.size, float(state.dynamics.reverse_shock.r_cross))
+    else:
+        gamma_grid = np.asarray(state.electron.gam_e, dtype=float)
+        distribution = np.asarray(state.electron.d_n_gam_e, dtype=float)
+        magnetic_field = np.asarray(state.components.fwd.magnetic_field_g, dtype=float)
+        radius_cm = np.asarray(state.components.fwd.radius_cm, dtype=float)
+    frequency = np.asarray(state.setup.seed_frequency_hz, dtype=float)
+    pi_grid = np.zeros((frequency.size, magnetic_field.size), dtype=float)
+    for i_shell in range(magnetic_field.size):
+        _, _, pi_nu = electron_radiation_module.get_syn_polarization_selected(
+            int(state.config.index_syn_integr),
+            float(radius_cm[i_shell]),
+            float(magnetic_field[i_shell]),
+            int(state.config.num_threads),
+            gamma_grid,
+            distribution[:, i_shell],
+            frequency,
+            float(p_index),
+        )
+        pi_grid[:, i_shell] = np.asarray(pi_nu, dtype=float)
+    return pi_grid
+
+
+def _shock_random_anisotropy(magnetic_geometry: str, theta_v: float, gamma: np.ndarray) -> np.ndarray:
+    if magnetic_geometry != "shock_random":
+        return np.ones_like(np.asarray(gamma, dtype=float))
+    gamma_arr = np.asarray(gamma, dtype=float)
+    beta = np.sqrt(1.0 - gamma_arr ** (-2))
+    mu = np.cos(float(theta_v))
+    mu_prime = (mu - beta) / (1.0 - beta * mu)
+    sin2_prime = 1.0 - mu_prime * mu_prime
+    return sin2_prime / (1.0 + mu_prime * mu_prime)
+
+
+def _reverse_shock_gamma_array(state: SolveState) -> np.ndarray:
+    return np.full_like(
+        np.asarray(state.reverse_emission.magnetic_field_g, dtype=float),
+        float(state.dynamics.reverse_shock.gam20),
+    )
+
+
+def _patch_polarization_angle_factors(
+    magnetic_geometry: str,
+    patch_direction: np.ndarray,
+    sightline: np.ndarray,
+    sky_x_axis: np.ndarray,
+    sky_y_axis: np.ndarray,
+) -> tuple[float, float]:
+    if magnetic_geometry == "shock_random":
+        e_vector = patch_direction - np.dot(patch_direction, sightline) * sightline
+    else:
+        jet_axis = np.array([0.0, 0.0, 1.0], dtype=float)
+        b_vector = np.cross(jet_axis, patch_direction)
+        e_vector = np.cross(sightline, b_vector)
+    e_x = float(np.dot(e_vector, sky_x_axis))
+    e_y = float(np.dot(e_vector, sky_y_axis))
+    norm = np.hypot(e_x, e_y)
+    if norm <= 0.0:
+        return 0.0, 0.0
+    e_x = e_x / norm
+    e_y = e_y / norm
+    return e_x * e_x - e_y * e_y, 2.0 * e_x * e_y
+
+
+def _accumulate_patch_polarization(
+    accumulator: dict[str, np.ndarray],
+    state: SolveState,
+    source_component: np.ndarray,
+    times_s: np.ndarray,
+    nu_hz: np.ndarray,
+    intrinsic_pi: float | np.ndarray,
+    cos2pa: float,
+    sin2pa: float,
+    shell_anisotropy: np.ndarray,
+) -> None:
+    source = np.asarray(source_component, dtype=float)
+    if not np.any(source):
+        return
+    i_obs = _project_component(
+        _build_observer_setup_from_state(state, times_s),
+        state.components.fwd.characteristic_time_s,
+        state.components.fwd.gamma,
+        state.components.fwd.radius_cm,
+        state.setup.seed_frequency_hz,
+        source,
+        nu_hz,
+        state.config,
+    )
+    pi_local = np.asarray(intrinsic_pi, dtype=float)
+    if pi_local.ndim == 0:
+        polarized_source = source * float(pi_local) * np.asarray(shell_anisotropy, dtype=float)[None, :]
+    else:
+        polarized_source = source * pi_local * np.asarray(shell_anisotropy, dtype=float)[None, :]
+    p_obs = _project_component(
+        _build_observer_setup_from_state(state, times_s),
+        state.components.fwd.characteristic_time_s,
+        state.components.fwd.gamma,
+        state.components.fwd.radius_cm,
+        state.setup.seed_frequency_hz,
+        polarized_source,
+        nu_hz,
+        state.config,
+    )
+    accumulator["I"] += i_obs
+    accumulator["Q"] += p_obs * cos2pa
+    accumulator["U"] += p_obs * sin2pa
+
+
+def _patch_hadronic_synchrotron_component(state: SolveState) -> tuple[np.ndarray, np.ndarray] | None:
+    if state.hadronic is None:
+        return None
+    from src import constants
+    import src.Hadronic.FS_hadronic_1d as hadronic_fortran_module
+
+    luminosity = np.asarray(state.hadronic.l_had_syn_spec, dtype=float)
+    weighted_pi_luminosity = luminosity * _hadronic_synchrotron_pi_grid(
+        state,
+        hadronic_fortran_module,
+        state.hadronic.gam_p * constants.para_m_p_gev,
+        state.hadronic.d_n_gam_p / constants.para_m_p_gev,
+        constants.para_m_p_gev,
+        luminosity,
+    )
+    if state.hadronic.l_had_pion_synch is not None:
+        pion_luminosity = np.asarray(state.hadronic.l_had_pion_synch, dtype=float)
+        pion_density = (
+            np.asarray(state.hadronic.d_n_gam_pi_plus, dtype=float)
+            + np.asarray(state.hadronic.d_n_gam_pi_minus, dtype=float)
+        ) / constants.para_m_pi_charged_gev
+        luminosity = luminosity + pion_luminosity
+        weighted_pi_luminosity = weighted_pi_luminosity + pion_luminosity * _hadronic_synchrotron_pi_grid(
+            state,
+            hadronic_fortran_module,
+            state.hadronic.gam_secondary * constants.para_m_pi_charged_gev,
+            pion_density,
+            constants.para_m_pi_charged_gev,
+            pion_luminosity,
+        )
+    if state.hadronic.l_had_muon_synch is not None:
+        muon_luminosity = np.asarray(state.hadronic.l_had_muon_synch, dtype=float)
+        muon_density = (
+            np.asarray(state.hadronic.d_n_gam_mu_minus_left, dtype=float)
+            + np.asarray(state.hadronic.d_n_gam_mu_minus_right, dtype=float)
+            + np.asarray(state.hadronic.d_n_gam_mu_plus_left, dtype=float)
+            + np.asarray(state.hadronic.d_n_gam_mu_plus_right, dtype=float)
+        ) / constants.para_m_mu_gev
+        luminosity = luminosity + muon_luminosity
+        weighted_pi_luminosity = weighted_pi_luminosity + muon_luminosity * _hadronic_synchrotron_pi_grid(
+            state,
+            hadronic_fortran_module,
+            state.hadronic.gam_secondary * constants.para_m_mu_gev,
+            muon_density,
+            constants.para_m_mu_gev,
+            muon_luminosity,
+        )
+    transfer = _forward_synchrotron_absorption_transfer(
+        electron=state.electron,
+        radius_cm=state.dynamics.radius,
+        magnetic_field_g=state.components.fwd.magnetic_field_g,
+        seed_frequency_hz=state.setup.seed_frequency_hz,
+        config=state.config,
+    )
+    source = luminosity * transfer * np.asarray(state.observer.prefactor, dtype=float)
+    pi_grid = np.zeros_like(luminosity)
+    positive = luminosity > 0.0
+    pi_grid[positive] = weighted_pi_luminosity[positive] / luminosity[positive]
+    return source, pi_grid
+
+
+def _patch_reverse_hadronic_synchrotron_component(state: SolveState) -> tuple[np.ndarray, np.ndarray] | None:
+    if state.reverse_emission is None or state.reverse_emission.rs_hadronic is None:
+        return None
+    from src import constants
+    import src.Hadronic.FS_hadronic_1d as hadronic_fortran_module
+
+    rs_hadronic = state.reverse_emission.rs_hadronic
+    luminosity = np.asarray(rs_hadronic.l_had_syn_spec, dtype=float)
+    source = luminosity * np.asarray(state.observer.prefactor, dtype=float)
+    pi_grid = _generic_hadronic_synchrotron_pi_grid(
+        hadronic_fortran_module,
+        rs_hadronic.gam_p * constants.para_m_p_gev,
+        np.asarray(rs_hadronic.d_n_gam_p, dtype=float) / constants.para_m_p_gev,
+        np.asarray(state.setup.seed_frequency_hz, dtype=float),
+        np.asarray(state.dynamics.reverse_shock.magnetic_field_g, dtype=float),
+        constants.para_m_p_gev,
+        float(state.config.hadronic.p_p),
+        luminosity,
+    )
+    return source, pi_grid
+
+
+def _hadronic_synchrotron_pi_grid(
+    state: SolveState,
+    hadronic_fortran_module,
+    hadron_energy_gev: np.ndarray,
+    density_per_gev: np.ndarray,
+    particle_mass_gev: float,
+    luminosity_grid: np.ndarray,
+) -> np.ndarray:
+    energy = np.asarray(hadron_energy_gev, dtype=float)
+    density = np.asarray(density_per_gev, dtype=float)
+    frequency = np.asarray(state.setup.seed_frequency_hz, dtype=float)
+    magnetic_field = np.asarray(state.components.fwd.magnetic_field_g, dtype=float)
+    return _generic_hadronic_synchrotron_pi_grid(
+        hadronic_fortran_module,
+        energy,
+        density,
+        frequency,
+        magnetic_field,
+        particle_mass_gev,
+        float(state.config.hadronic.p_p),
+        luminosity_grid,
+    )
+
+
+def _generic_hadronic_synchrotron_pi_grid(
+    hadronic_fortran_module,
+    hadron_energy_gev: np.ndarray,
+    density_per_gev: np.ndarray,
+    frequency_hz: np.ndarray,
+    magnetic_field_g: np.ndarray,
+    particle_mass_gev: float,
+    p_index: float,
+    luminosity_grid: np.ndarray,
+) -> np.ndarray:
+    energy = np.asarray(hadron_energy_gev, dtype=float)
+    density = np.asarray(density_per_gev, dtype=float)
+    frequency = np.asarray(frequency_hz, dtype=float)
+    magnetic_field = np.asarray(magnetic_field_g, dtype=float)
+    luminosity = np.asarray(luminosity_grid, dtype=float)
+    analytic_pi = _synchrotron_intrinsic_polarization(p_index)
+    pi_grid = np.zeros((frequency.size, magnetic_field.size), dtype=float)
+    for i_shell in range(magnetic_field.size):
+        if not np.any(luminosity[:, i_shell] > 0.0):
+            pi_grid[:, i_shell] = analytic_pi
+            continue
+        if magnetic_field[i_shell] <= 0.0:
+            raise RuntimeError("positive hadronic synchrotron luminosity requires magnetic_field_g > 0.")
+        pi_grid[:, i_shell] = np.asarray(
+            hadronic_fortran_module.fs_hadronic_syn_polarization_shell(
+                energy,
+                density[:, i_shell],
+                frequency,
+                float(particle_mass_gev),
+                float(magnetic_field[i_shell]),
+                float(p_index),
+            ),
+            dtype=float,
+        )
+    return pi_grid
 
 
 def _solve_direct_model(
