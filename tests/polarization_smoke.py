@@ -101,9 +101,9 @@ def test_reverse_and_hadronic_synchrotron_components() -> None:
 
 
 def test_fortran_polarization_kernel_conserves_intensity() -> None:
-    gamma = np.logspace(1.0, 4.0, 32)
+    gamma = np.logspace(0.0, 7.0, 64)
     dnde = gamma ** -2.3
-    freq = np.logspace(8.0, 18.0, 24)
+    freq = np.logspace(10.0, 14.0, 10)
     p_perp, p_parallel, pi_nu = electron_radiation_kernel.get_syn_polarization_selected(
         1,
         1.0e16,
@@ -117,7 +117,23 @@ def test_fortran_polarization_kernel_conserves_intensity() -> None:
     p_syn, _ = electron_radiation_kernel.get_syn_selected(1, 1.0e16, 1.0, 1, gamma, dnde, freq)
     assert np.allclose(p_perp + p_parallel, p_syn, rtol=1.0e-13, atol=0.0)
     expected = (2.3 + 1.0) / (2.3 + 7.0 / 3.0)
-    assert np.allclose(pi_nu, expected, rtol=1.0e-15, atol=0.0)
+    assert np.allclose(pi_nu, expected, rtol=1.0e-5, atol=0.0)
+
+
+def test_hadronic_polarization_kernel_powerlaw_limit() -> None:
+    energy = np.logspace(0.0, 10.0, 128) * constants.para_m_p_gev
+    density = energy ** -2.3
+    freq = np.logspace(10.0, 18.0, 10)
+    pi_nu = hadronic_fortran_module.fs_hadronic_syn_polarization_shell(
+        energy,
+        density,
+        freq,
+        constants.para_m_p_gev,
+        30.0,
+        2.3,
+    )
+    expected = (2.3 + 1.0) / (2.3 + 7.0 / 3.0)
+    assert np.allclose(pi_nu, expected, rtol=1.0e-5, atol=0.0)
 
 
 def test_fortran_polarization_kernel_tracks_curved_spectrum() -> None:
@@ -160,6 +176,7 @@ def main() -> None:
     test_toroidal_differs_from_shock_random()
     test_reverse_and_hadronic_synchrotron_components()
     test_fortran_polarization_kernel_conserves_intensity()
+    test_hadronic_polarization_kernel_powerlaw_limit()
     test_fortran_polarization_kernel_tracks_curved_spectrum()
     test_hadronic_polarization_kernel_tracks_curved_spectrum()
     print("polarization_smoke: ok")

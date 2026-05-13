@@ -2,6 +2,7 @@
 module hadronic_radiation_kernel
     use constants
     use hadronic_common
+    use synchrotron_polarization_kernel, only: synchrotron_polarized_components
     implicit none
     private
 
@@ -11,22 +12,31 @@ module hadronic_radiation_kernel
 
 contains
 
-! 任意带电强子同步辐射核函数：输入光子频率、粒子能量和粒子质量。
-real(8) function hadronic_syn_kernel_ultrarel_mass(V_nu,particle_energy_gev,particle_mass_gev,B_field_g)
+! 计算带电强子同步核的无量纲频率x=nu/nu_c，沿用现有总强度核的变量定义。
+real(8) function hadronic_syn_x_arg_mass(V_nu,particle_energy_gev,particle_mass_gev,B_field_g)
     implicit real(8)(A-H,O-Z)
     real(8), intent(in) :: V_nu,particle_energy_gev,particle_mass_gev,B_field_g
     real(8), parameter :: B_crit=4.41d13
-    real(8) :: mass_e_gev,energy_photon_gev,b_dimless,mass_ratio,xbar,x_arg,y,poly
+    real(8) :: mass_e_gev,energy_photon_gev,b_dimless,mass_ratio,xbar
 
     mass_e_gev=Para_m_energy*Para_erg2eV*1d-9
     energy_photon_gev=Para_h_GeV*V_nu
     b_dimless=B_field_g/B_crit
     mass_ratio=mass_e_gev/particle_mass_gev
     xbar=energy_photon_gev*particle_mass_gev/(3d0*particle_energy_gev*particle_energy_gev*b_dimless*mass_ratio*mass_ratio)
-    x_arg=two*xbar
+    hadronic_syn_x_arg_mass=two*xbar
+end function hadronic_syn_x_arg_mass
+
+! 任意带电强子同步辐射核函数：输入光子频率、粒子能量和粒子质量。
+real(8) function hadronic_syn_kernel_ultrarel_mass(V_nu,particle_energy_gev,particle_mass_gev,B_field_g)
+    implicit real(8)(A-H,O-Z)
+    real(8), intent(in) :: V_nu,particle_energy_gev,particle_mass_gev,B_field_g
+    real(8) :: x_arg,y,poly
+
+    x_arg=hadronic_syn_x_arg_mass(V_nu,particle_energy_gev,particle_mass_gev,B_field_g)
 
     if (x_arg < 1d-2) then
-        hadronic_syn_kernel_ultrarel_mass=1.80842d0*xbar**(1d0/3d0)*two**(-2d0/3d0)
+        hadronic_syn_kernel_ultrarel_mass=1.80842d0*(0.5d0*x_arg)**(1d0/3d0)*two**(-2d0/3d0)
     else if (x_arg < one) then
         y=dlog10(x_arg)
         poly=-0.35775237d0 &
@@ -102,7 +112,7 @@ subroutine hadronic_get_proton_syn_state(R_loc,B_field_g,Num_gam_p,Num_nu,gam_p,
     Seed_had_syn=Seed_had_syn/temp_para
 end subroutine hadronic_get_proton_syn_state
 
-! 输出专用强子同步频率依赖偏振率核：由粒子谱局域斜率和同步发射权重给出Pi_nu。
+! 输出专用强子同步频率依赖偏振率核：直接卷积(F+G)/2和(F-G)/2两个偏振发射核。
 subroutine hadronic_syn_polarization_fraction(num_had,hadron_energy_gev,density_per_gev,num_ph,photon_frequency_hz, &
                                               particle_mass_gev,magnetic_field_g,p_index,Pi_nu)
     implicit none
@@ -111,35 +121,31 @@ subroutine hadronic_syn_polarization_fraction(num_had,hadron_energy_gev,density_
     real(8), intent(in) :: particle_mass_gev,magnetic_field_g,p_index
     real(8), intent(out) :: Pi_nu(num_ph)
     integer :: i_ph,i_had
-    real(8) :: dInteg,dPol,e_mid,density_mid,dln_e,Fx,p_eff,pi_eff
+    real(8) :: dPerp,dParallel,total_pol,e_mid,density_mid,dln_e,x_arg,perp_kernel,parallel_kernel
 
     call hadronic_validate_log_grid(num_had,hadron_energy_gev,"hadron_energy_gev",dln_e)
     if (particle_mass_gev <= zero) error stop "hadronic_syn_polarization_fraction requires particle_mass_gev > 0."
     if (magnetic_field_g <= zero) error stop "hadronic_syn_polarization_fraction requires magnetic_field_g > 0."
+    if (p_index <= zero) error stop "hadronic_syn_polarization_fraction requires p_index > 0."
 
     do i_ph=1,num_ph
         if (photon_frequency_hz(i_ph) <= zero) error stop "hadronic_syn_polarization_fraction requires positive frequency."
-        dInteg=zero
-        dPol=zero
+        dPerp=zero
+        dParallel=zero
         do i_had=1,num_had-1
             density_mid=0.5d0*(density_per_gev(i_had)+density_per_gev(i_had+1))
             if (density_mid <= zero) cycle
             e_mid=dsqrt(hadron_energy_gev(i_had)*hadron_energy_gev(i_had+1))
-            Fx=hadronic_syn_kernel_ultrarel_mass(photon_frequency_hz(i_ph),e_mid,particle_mass_gev,magnetic_field_g)
-            if (density_per_gev(i_had) > zero .and. density_per_gev(i_had+1) > zero) then
-                p_eff=-dlog(density_per_gev(i_had+1)/density_per_gev(i_had))/ &
-                       dlog(hadron_energy_gev(i_had+1)/hadron_energy_gev(i_had))
-            else
-                p_eff=p_index
-            end if
-            pi_eff=(p_eff+1d0)/(p_eff+7d0/3d0)
-            dInteg=dInteg+density_mid*Fx*e_mid*dln_e
-            dPol=dPol+density_mid*Fx*pi_eff*e_mid*dln_e
+            x_arg=hadronic_syn_x_arg_mass(photon_frequency_hz(i_ph),e_mid,particle_mass_gev,magnetic_field_g)
+            call synchrotron_polarized_components(x_arg,perp_kernel,parallel_kernel)
+            dPerp=dPerp+density_mid*perp_kernel*e_mid*dln_e
+            dParallel=dParallel+density_mid*parallel_kernel*e_mid*dln_e
         end do
-        if (dInteg > zero) then
-            Pi_nu(i_ph)=dPol/dInteg
+        total_pol=dPerp+dParallel
+        if (total_pol > zero) then
+            Pi_nu(i_ph)=(dPerp-dParallel)/total_pol
         else
-            Pi_nu(i_ph)=(p_index+1d0)/(p_index+7d0/3d0)
+            Pi_nu(i_ph)=zero
         end if
     end do
 end subroutine hadronic_syn_polarization_fraction

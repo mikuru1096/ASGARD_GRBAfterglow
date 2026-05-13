@@ -1,6 +1,7 @@
 module electron_radiation_kernel
   use constants
   use radiation_common, only: radiation_syn_seed_core
+  use synchrotron_polarization_kernel, only: synchrotron_polarized_components
   private
 
     public :: first_greater_monotonic, first_greater_monotonic_window
@@ -586,7 +587,7 @@ real(8) :: h_ref,h_loc
     end select
 end subroutine get_syn_selected
 
-! 同步辐射偏振核：按电子谱局域斜率计算频率依赖的线偏振率，并保持总谱守恒。
+! 同步辐射偏振核：现有总谱给强度，F/G偏振核直接积分给频率依赖Pi。
 subroutine get_syn_polarization_selected(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads, &
                                          gam_e,dN_gam_e,V_seed,p_index,P_perp,P_parallel,Pi_nu)
 implicit none
@@ -595,50 +596,46 @@ real(8), intent(in) :: R_loc,DB,gam_e(Num_gam_e),dN_gam_e(Num_gam_e),V_seed(Num_
 real(8), intent(out) :: P_perp(Num_nu),P_parallel(Num_nu),Pi_nu(Num_nu)
 real(8) :: P_syn(Num_nu),Seed_syn(Num_nu),Pi_emit(Num_nu)
 
+    if (p_index <= zero) error stop "get_syn_polarization_selected requires p_index > 0."
     call get_syn_selected(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
                           P_syn,Seed_syn)
-    call get_syn_polarization_fraction(DB,Num_gam_e,Num_nu,gam_e,dN_gam_e,V_seed,p_index,Pi_emit)
+    call get_syn_polarization_fraction(DB,Num_gam_e,Num_nu,gam_e,dN_gam_e,V_seed,Pi_emit)
     Pi_nu=Pi_emit
     P_perp=0.5d0*(one+Pi_nu)*P_syn
     P_parallel=0.5d0*(one-Pi_nu)*P_syn
 end subroutine get_syn_polarization_selected
 
-! 输出专用局域偏振率核：用同步发射权重平均局域电子谱斜率给出的Pi(p_eff)。
-subroutine get_syn_polarization_fraction(DB,Num_gam_e,Num_nu,gam_e,dN_gam_e,V_seed,p_index,Pi_nu)
+! 输出专用局域偏振率核：对电子谱直接卷积(F+G)/2和(F-G)/2两个偏振发射核。
+subroutine get_syn_polarization_fraction(DB,Num_gam_e,Num_nu,gam_e,dN_gam_e,V_seed,Pi_nu)
 implicit none
 integer, intent(in) :: Num_gam_e,Num_nu
-real(8), intent(in) :: DB,gam_e(Num_gam_e),dN_gam_e(Num_gam_e),V_seed(Num_nu),p_index
+real(8), intent(in) :: DB,gam_e(Num_gam_e),dN_gam_e(Num_gam_e),V_seed(Num_nu)
 real(8), intent(out) :: Pi_nu(Num_nu)
 integer :: I_nu,I_gam_e
-real(8) :: factor,V_cal,dInteg,dPol,gam_e_mean2,Vc,x,ratio_v,Fx,dN,dgam_e,p_eff,pi_eff
+real(8) :: V_cal,dPerp,dParallel,total_pol,gam_e_mean2,Vc,x,dN,dgam_e,perp_kernel,parallel_kernel
 
-    factor=(3.62d0/pi)**2
+    if (DB <= zero) error stop "get_syn_polarization_fraction requires DB > 0."
     do I_nu=1,Num_nu
         V_cal=V_seed(I_nu)
-        dInteg=zero
-        dPol=zero
+        if (V_cal <= zero) error stop "get_syn_polarization_fraction requires positive frequency."
+        dPerp=zero
+        dParallel=zero
         do I_gam_e=1,Num_gam_e-1
             dN=(dN_gam_e(I_gam_e)+dN_gam_e(I_gam_e+1))/two
             if (dN <= zero) cycle
             gam_e_mean2=(gam_e(I_gam_e)+gam_e(I_gam_e+1))**2/4d0
             Vc=(4.2d6)*gam_e_mean2*DB
             x=V_cal/Vc
-            ratio_v=Vc/V_cal
-            Fx=1.81d0*dexp(-x)/dsqrt(ratio_v**(2d0/3d0)+factor)
             dgam_e=gam_e(I_gam_e+1)-gam_e(I_gam_e)
-            if (dN_gam_e(I_gam_e) > zero .and. dN_gam_e(I_gam_e+1) > zero) then
-                p_eff=-dlog(dN_gam_e(I_gam_e+1)/dN_gam_e(I_gam_e))/dlog(gam_e(I_gam_e+1)/gam_e(I_gam_e))
-            else
-                p_eff=p_index
-            end if
-            pi_eff=(p_eff+1d0)/(p_eff+7d0/3d0)
-            dInteg=dInteg+dN*Fx*dgam_e
-            dPol=dPol+dN*Fx*pi_eff*dgam_e
+            call synchrotron_polarized_components(x,perp_kernel,parallel_kernel)
+            dPerp=dPerp+dN*perp_kernel*dgam_e
+            dParallel=dParallel+dN*parallel_kernel*dgam_e
         end do
-        if (dInteg > zero) then
-            Pi_nu(I_nu)=dPol/dInteg
+        total_pol=dPerp+dParallel
+        if (total_pol > zero) then
+            Pi_nu(I_nu)=(dPerp-dParallel)/total_pol
         else
-            Pi_nu(I_nu)=(p_index+1d0)/(p_index+7d0/3d0)
+            Pi_nu(I_nu)=zero
         end if
     end do
 end subroutine get_syn_polarization_fraction
