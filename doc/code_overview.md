@@ -138,7 +138,7 @@ Benchmark: `tests/vegas_afterglow_comparison.py`, `tests/sed_electron_compare.py
 Not yet complete:
 - 2D / χ-resolved hadronic transport
 - inverse-Compton-mediated electromagnetic pair cascade beyond the current γγ pair/synch contract
-- corrected reverse-shock pre-crossing thermodynamics against VegasAfterglow
+- reverse-shock Vegas thermal-state parity: ASGARD pre-crossing shocked-ejecta thermodynamics is fixed, but ASGARD still lacks Vegas-style explicit `U3_th/m3` thermal-state closure for RS `gamma_m` and break-frequency evolution
 - jet spreading in the current backend
 - user-defined `Medium` kernel dispatch and wind profiles with `k != 2`
 - thermal electron branch outside `fullhide_1d`

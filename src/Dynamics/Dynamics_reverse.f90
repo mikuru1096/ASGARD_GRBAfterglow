@@ -56,27 +56,28 @@ subroutine F(dB3,T_cross,R_cross,e3_cross,gam20, &
     real(8), intent(out) :: D(4)
     real(8), parameter :: reverse_synch_b_coeff=0.39d0, reverse_gamma_c_precise_coeff=7.739d8
     real(8) :: gam2,RR,para_m2,para_m3,dNe,u2,u4,Delta,para1,para_n4,beta4,beta2,gam34,para_n3,betars
-    real(8) :: dB2,gam_c2,gam_m2,eps2,e2,e3,gam_c3,gam_m3,eps3,dgam2_1,dgam2_2,dgam2,dR,dm2,dm3
+    real(8) :: dB2,gam_c2,gam_m2,eps2,e3,gam_c3,gam_m3,eps3,dgam2_1,dgam2_2,dgam2,dR,dm2,dm3
 
     gam2=Y(1); RR=Y(2); para_m2=Y(3); para_m3=Y(4)
     call dynamics_external_density_base(A_star,dNe_ISM,RR,dNe)
     u2=dsqrt(gam2*gam2-one); u4=dsqrt(eta_0*eta_0-one); Delta=max(Delta_0,RR/eta_0**2)
     para1=4d0*pi*Para_m_p*RR*RR; para_n4=para_m_ej/(para1*eta_0*Delta)
-    beta4=u4/eta_0; beta2=u2/gam2; gam34=eta_0*gam2-u2*u4
+    beta4=u4/eta_0; beta2=u2/gam2
+    gam34=(gam2*gam2+eta_0*eta_0-one)/(eta_0*gam2+u2*u4)
     para_n3=(4d0*gam34+3d0)*para_n4; betars=(u2*para_n3-u4*para_n4)/(gam2*para_n3-eta_0*para_n4)
 
     dB2=reverse_synch_b_coeff*dsqrt((Epsilon_b*dNe)*(gam2*gam2-one))
     gam_c2=reverse_gamma_c_precise_coeff/(dB2*dB2*gam2*T)
     gam_m2=Epsilon_e/f_e*Para_m_p_div_m_e*(p_f-two)*(gam2-one)/(p_f-one)+one
     eps2=Epsilon_e*min(one,(gam_m2/gam_c2)**(p_f-two))
-    e2=4d0*gam2*gam2*dNe*Para_m_p_E
     if (T_cross < zero) then
-        e3=e2; e3_cross=e2; dB3=dB2; gam_c3=gam_c2
+        e3=(gam34-one)*para_n3*Para_m_p_E
+        e3_cross=e3
     else
         e3=e3_cross*(R_cross/RR)**3*gam2/gam20
-        dB3=dsqrt(8d0*pi*b_r*e3)
-        gam_c3=reverse_gamma_c_precise_coeff/(dB3*dB3*gam2*T)
     end if
+    dB3=dsqrt(8d0*pi*b_r*e3)
+    gam_c3=reverse_gamma_c_precise_coeff/(dB3*dB3*gam2*T)
     gam_m3=e_r/f_e_r*Para_m_p_div_m_e*(p_r-two)*(gam34-one)/(p_r-one)+one
     eps3=e_r*min(one,(gam_m3/gam_c3)**(p_r-two))
 
@@ -89,7 +90,7 @@ subroutine F(dB3,T_cross,R_cross,e3_cross,gam20, &
     if (para_m_ej > para_m3) then
         dm3=para1*(beta4-betars)*eta_0*para_n4*dR
     else
-        if (T_cross < zero) then
+        if (T_cross < zero .and. gam2 > one) then
             T_cross=T; R_cross=RR; gam20=gam2
         end if
         dm3=zero; dgam2_1=-u2**2*dm2/dR; dgam2_2=para_m_ej+(eps2+two*(one-eps2)*gam2)*para_m2; dgam2=dgam2_1/dgam2_2

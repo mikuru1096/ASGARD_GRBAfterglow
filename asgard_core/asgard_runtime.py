@@ -1968,12 +1968,12 @@ def _compute_reverse_shock_characteristic_frequencies(
         raise ValueError("Reverse shock electrons are required to compute reverse characteristic frequencies.")
 
     eta_0 = config.eta_0
-    beta4 = np.sqrt(1.0 - eta_0**-2)
+    u4 = np.sqrt(eta_0 * eta_0 - 1.0)
     for i in range(1, num_r):
         radius_loc = dynamics.radius[i - 1]
         gamma2 = 0.5 * (dynamics.r_gamma[i - 1] + dynamics.r_gamma[i])
-        beta2 = np.sqrt(1.0 - gamma2**-2)
-        gamma34 = (1.0 - beta2 * beta4) * eta_0 * gamma2
+        u2 = np.sqrt(gamma2 * gamma2 - 1.0)
+        gamma34 = (gamma2 * gamma2 + eta_0 * eta_0 - 1.0) / (eta_0 * gamma2 + u2 * u4)
 
         db = float(dynamics.reverse_shock.magnetic_field_g[i - 1])
         magnetic_field_g[i - 1] = db

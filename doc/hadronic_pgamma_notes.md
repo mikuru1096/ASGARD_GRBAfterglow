@@ -31,7 +31,7 @@
 未完成:
 - 2D / χ-resolved hadronic transport
 - inverse-Compton-mediated electromagnetic pair cascade beyond the current γγ pair/synch contract
-- reverse-shock pre-crossing thermodynamics correction against VegasAfterglow
+- reverse-shock Vegas thermal-state parity beyond the fixed pre-crossing shocked-ejecta thermodynamics
 
 ## AM3 Reference
 

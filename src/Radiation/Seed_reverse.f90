@@ -20,12 +20,15 @@ subroutine seed_reverse(T_cross,R_cross,e3_cross,gam20, Delta_t,b_r, &
     P_syn_spec=zero
     seed_syn=zero
     
+    Eta_0 = Boundary(1)
     E_b = Boundary(6)
     dNe_ISM = Boundary(11)
     A_star = Boundary(12)
+    E_iso = Boundary(14)
     f_e = Boundary(16)
     R0 = Boundary(n)
     Delta_0=Delta_t*para_c
+    para_m_ej=E_iso/Eta_0/para_c**2
     
     if (gam20 < one) then
         goto 100
@@ -35,9 +38,14 @@ subroutine seed_reverse(T_cross,R_cross,e3_cross,gam20, Delta_t,b_r, &
         Gam0=R_gamma(I_R)
         call dynamics_external_density_profile(A_star,dNe_ISM,R(I_R),R0,0,one,one,one,dNe)
         
-        e2=4d0*Gam0*Gam0*dNe*Para_m_p*para_c*para_c
         if (R(I_R) < R_cross) then
-            e3=e2
+            Delta=max(Delta_0,R(I_R)/Eta_0**2)
+            u2=dsqrt(Gam0*Gam0-one)
+            u4=dsqrt(Eta_0*Eta_0-one)
+            gam34=(Gam0*Gam0+Eta_0*Eta_0-one)/(Eta_0*Gam0+u2*u4)
+            para_n4=para_m_ej/(4d0*pi*Para_m_p*R(I_R)*R(I_R)*Eta_0*Delta)
+            para_n3=(4d0*gam34+3d0)*para_n4
+            e3=(gam34-one)*para_n3*Para_m_p_E
         else
             e3=e3_cross*(R_cross/R(I_R))**3*Gam0/gam20
         end if

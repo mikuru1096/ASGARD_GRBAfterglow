@@ -18,7 +18,8 @@ rtk bash -lc "source ~/.wsl_env && cd \"/mnt/c/Users/jia/Documents/New project/A
 
 - **Reverse-shock hadronic**: light backend `FS_hadronic_reverse_1d` covers RS proton injection/transport + proton synchrotron; when RS hadronic full-chain flags are enabled, the runtime reuses the formal 1D hadronic kernels for RS pγ/BH/pp/secondary/cascade coupling with RS seed photons and RS shell targets.
 - **Pair cascade**: `pair_cascade_iterations > 1` now uses a shell-sequence time-dependent γγ pair/synch cascade path; the legacy single-shell iterative kernel remains for low-level diagnostics.
-- **Not yet implemented**: 2D/chi-resolved hadronic transport; inverse-Compton-mediated electromagnetic pair cascade beyond the current γγ pair/synch contract.
+- **Reverse-shock Vegas benchmark**: crossing 前 shocked-ejecta thermodynamics 已修正；剩余 Vegas 差异来自 ASGARD 尚未显式演化区域 3 `U3_th/m3` thermal state。
+- **Not yet implemented**: 2D/chi-resolved hadronic transport; inverse-Compton-mediated electromagnetic pair cascade beyond the current γγ pair/synch contract; Vegas-style RS thermal-state closure.
 
 ## AM3 / ASGARD Coexistence
 

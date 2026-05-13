@@ -190,7 +190,7 @@ subroutine dynamics_rk4_reverse(rhs, dB3, T_cross, R_cross, e3_cross, gam20, T, 
     real(8), intent(inout) :: dB3, T_cross, R_cross, e3_cross, gam20, T, Y(4)
     real(8), intent(in) :: H, para_m_ej, Delta_0, eta_0, A_star, dNe_ISM, Epsilon_b, Epsilon_e, p_f, f_e, e_r, b_r, p_r, f_e_r
     real(8) :: D(4), A(4), B(4), C(4), G(4), E(4)
-    real(8) :: EPS, HH, P, X, DT, TT
+    real(8) :: EPS, HH, P, X, DT, TT, dB3_try, T_cross_try, R_cross_try, e3_cross_try, gam20_try
 
     EPS = 1d-5
     HH = H
@@ -204,8 +204,11 @@ subroutine dynamics_rk4_reverse(rhs, dB3, T_cross, R_cross, e3_cross, gam20, T, 
         Y = C
         DT = HH
         T = X
+        dB3_try=dB3; T_cross_try=T_cross; R_cross_try=R_cross
+        e3_cross_try=e3_cross; gam20_try=gam20
         do J = 1, N
-            call rhs(dB3, T_cross, R_cross, e3_cross, gam20, T, Y, D, para_m_ej, Delta_0, eta_0, A_star, dNe_ISM, &
+            call rhs(dB3_try, T_cross_try, R_cross_try, e3_cross_try, gam20_try, T, Y, D, &
+                     para_m_ej, Delta_0, eta_0, A_star, dNe_ISM, &
                      Epsilon_b, Epsilon_e, p_f, f_e, e_r, b_r, p_r, f_e_r)
             E = Y
             B = Y
@@ -213,13 +216,18 @@ subroutine dynamics_rk4_reverse(rhs, dB3, T_cross, R_cross, e3_cross, gam20, T, 
                 Y = E+A(K)*D
                 B = B+A(K+1)*D/3.0d0
                 TT = T+A(K)
-                call rhs(dB3, T_cross, R_cross, e3_cross, gam20, TT, Y, D, para_m_ej, Delta_0, eta_0, A_star, dNe_ISM, &
+                call rhs(dB3_try, T_cross_try, R_cross_try, e3_cross_try, gam20_try, TT, Y, D, &
+                         para_m_ej, Delta_0, eta_0, A_star, dNe_ISM, &
                          Epsilon_b, Epsilon_e, p_f, f_e, e_r, b_r, p_r, f_e_r)
             end do
             Y = B+HH*D/6.0d0
             T = T+DT
         end do
         call dynamics_rk4_error_n(Y, G, 4, P)
+        if (P < EPS) then
+            dB3=dB3_try; T_cross=T_cross_try; R_cross=R_cross_try
+            e3_cross=e3_cross_try; gam20=gam20_try
+        end if
         HH = 0.5d0*HH
         N = N+N
     end do

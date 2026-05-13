@@ -17,7 +17,7 @@
 - 2D / χ-resolved hadronic transport
 - Regenerated Vegas benchmark figures with complete hadronic chain
 - Inverse-Compton-mediated electromagnetic pair cascade beyond the current γγ pair/synch contract
-- Reverse-shock pre-crossing thermodynamics correction against VegasAfterglow
+- Reverse-shock Vegas thermal-state parity beyond the fixed pre-crossing shocked-ejecta thermodynamics
 
 RS hadronic proton injection/transport + proton synchrotron exists in `FS_hadronic_reverse_1d`. Full-chain RS pγ/BH/pp/secondary/cascade dispatch reuses `FS_hadronic_1d` formal kernels through the runtime wrapper. The legacy iterative pair-production synch branch remains as a diagnostic path; the main cascade path is the shell-sequence time-dependent γγ pair/synch cascade.
 
