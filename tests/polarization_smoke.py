@@ -121,37 +121,32 @@ def test_fortran_polarization_kernel_conserves_intensity() -> None:
     assert np.allclose(pi_nu, expected, rtol=1.0e-5, atol=0.0)
 
 
-def test_shock_random_stokes_projection_matches_unpolarized_intensity() -> None:
+def test_surface_element_projection_scales_with_solid_angle() -> None:
     boundary = np.ones(24, dtype=float)
-    boundary[7] = 0.0
-    boundary[8] = 0.08
-    boundary[9] = 0.0
-    radius = np.logspace(15.0, 17.0, 20)
-    gamma = np.linspace(80.0, 8.0, radius.size)
+    boundary[7] = 0.1
+    boundary[9] = 0.2
+    radius = np.logspace(15.0, 17.0, 18)
+    gamma = np.linspace(60.0, 6.0, radius.size)
     t0 = radius / constants.para_c
-    seed = np.logspace(9.0, 15.0, 32)
-    observed = np.array([1.0e10, 1.0e12, 1.0e14], dtype=float)
-    times = np.logspace(4.5, 6.5, 5)
-    source = np.outer(seed ** 0.1, radius ** -0.2)
-    polarized_source = 0.7 * source
-    old_i = Interpolation.sed_interpolation(boundary, t0, gamma, radius, source, seed, observed, times, 12, 24, 1)
-    new_i, new_q, new_u = Interpolation.sed_interpolation_shock_random_stokes(
+    seed = np.logspace(9.0, 15.0, 24)
+    observed = np.array([1.0e11, 1.0e13], dtype=float)
+    times = np.logspace(4.0, 6.0, 4)
+    source = np.outer(seed ** 0.2, radius ** -0.3)
+    domega = 2.0e-4
+    flux = Interpolation.sed_interpolation_surface_element(boundary, t0, gamma, radius, source, seed, observed, times, domega)
+    flux_double = Interpolation.sed_interpolation_surface_element(
         boundary,
         t0,
         gamma,
         radius,
         source,
-        polarized_source,
         seed,
         observed,
         times,
-        12,
-        24,
-        1,
+        2.0 * domega,
     )
-    assert np.allclose(new_i, old_i, rtol=1.0e-13, atol=0.0)
-    assert np.max(np.abs(new_q)) < 1.0e-12 * np.max(new_i)
-    assert np.max(np.abs(new_u)) == 0.0
+    assert np.any(flux > 0.0)
+    assert np.allclose(flux_double, 2.0 * flux, rtol=1.0e-13, atol=0.0)
 
 
 def test_hadronic_polarization_kernel_powerlaw_limit() -> None:
@@ -210,7 +205,7 @@ def main() -> None:
     test_toroidal_differs_from_shock_random()
     test_reverse_and_hadronic_synchrotron_components()
     test_fortran_polarization_kernel_conserves_intensity()
-    test_shock_random_stokes_projection_matches_unpolarized_intensity()
+    test_surface_element_projection_scales_with_solid_angle()
     test_hadronic_polarization_kernel_powerlaw_limit()
     test_fortran_polarization_kernel_tracks_curved_spectrum()
     test_hadronic_polarization_kernel_tracks_curved_spectrum()

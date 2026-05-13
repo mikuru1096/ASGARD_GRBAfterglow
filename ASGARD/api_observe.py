@@ -186,7 +186,7 @@ def _compute_polarization(
     sightline, sky_x_axis, sky_y_axis = _sky_basis(model.observer)
     active_patch_found = False
 
-    for phi_center, theta_center, patch_half_angle in _iter_patches(model):
+    for phi_center, theta_center, patch_half_angle, patch_solid_angle in _iter_patch_elements(model):
         e_iso = model.jet.energy_iso(phi_center, theta_center)
         gamma0 = model.jet.gamma0(phi_center, theta_center)
         if e_iso <= 0.0 or gamma0 <= 1.0:
@@ -226,7 +226,7 @@ def _compute_polarization(
             cos2pa,
             sin2pa,
             _shock_random_anisotropy(magnetic_geometry, theta_v, state.components.fwd.gamma),
-            magnetic_geometry,
+            patch_solid_angle,
         )
         if state.reverse_emission is not None and model.rvs_rad is not None:
             rev_sync = np.asarray(state.reverse_emission.l_syn_spec, dtype=float) * np.asarray(state.observer.prefactor, dtype=float)
@@ -245,7 +245,7 @@ def _compute_polarization(
                 cos2pa,
                 sin2pa,
                 _shock_random_anisotropy(magnetic_geometry, theta_v, _reverse_shock_gamma_array(state)),
-                magnetic_geometry,
+                patch_solid_angle,
             )
             rev_hadronic_sync = _patch_reverse_hadronic_synchrotron_component(state)
             if rev_hadronic_sync is not None:
@@ -260,7 +260,7 @@ def _compute_polarization(
                     cos2pa,
                     sin2pa,
                     _shock_random_anisotropy(magnetic_geometry, theta_v, _reverse_shock_gamma_array(state)),
-                    magnetic_geometry,
+                    patch_solid_angle,
                 )
         hadronic_sync = _patch_hadronic_synchrotron_component(state)
         if hadronic_sync is not None:
@@ -275,7 +275,7 @@ def _compute_polarization(
                 cos2pa,
                 sin2pa,
                 _shock_random_anisotropy(magnetic_geometry, theta_v, state.components.fwd.gamma),
-                magnetic_geometry,
+                patch_solid_angle,
             )
 
     if not active_patch_found:
@@ -400,7 +400,7 @@ def _accumulate_patch_polarization(
     cos2pa: float,
     sin2pa: float,
     shell_anisotropy: np.ndarray,
-    magnetic_geometry: str,
+    patch_solid_angle: float,
 ) -> None:
     source = np.asarray(source_component, dtype=float)
     if not np.any(source):
@@ -410,25 +410,9 @@ def _accumulate_patch_polarization(
         polarized_source = source * float(pi_local)
     else:
         polarized_source = source * pi_local
-    observer_setup = _build_observer_setup_from_state(state, times_s)
-    if magnetic_geometry == "shock_random":
-        i_obs, q_local, u_local = _project_shock_random_stokes(
-            observer_setup,
-            state.components.fwd.characteristic_time_s,
-            state.components.fwd.gamma,
-            state.components.fwd.radius_cm,
-            state.setup.seed_frequency_hz,
-            source,
-            polarized_source,
-            nu_hz,
-            state.config,
-        )
-        accumulator["I"] += i_obs
-        accumulator["Q"] += q_local * cos2pa - u_local * sin2pa
-        accumulator["U"] += q_local * sin2pa + u_local * cos2pa
-        return
     polarized_source = polarized_source * np.asarray(shell_anisotropy, dtype=float)[None, :]
-    i_obs = _project_component(
+    observer_setup = _build_observer_setup_from_state(state, times_s)
+    i_obs = _project_surface_element(
         observer_setup,
         state.components.fwd.characteristic_time_s,
         state.components.fwd.gamma,
@@ -436,9 +420,9 @@ def _accumulate_patch_polarization(
         state.setup.seed_frequency_hz,
         source,
         nu_hz,
-        state.config,
+        patch_solid_angle,
     )
-    p_obs = _project_component(
+    p_obs = _project_surface_element(
         observer_setup,
         state.components.fwd.characteristic_time_s,
         state.components.fwd.gamma,
@@ -446,51 +430,45 @@ def _accumulate_patch_polarization(
         state.setup.seed_frequency_hz,
         polarized_source,
         nu_hz,
-        state.config,
+        patch_solid_angle,
     )
     accumulator["I"] += i_obs
     accumulator["Q"] += p_obs * cos2pa
     accumulator["U"] += p_obs * sin2pa
 
 
-def _project_shock_random_stokes(
+def _project_surface_element(
     setup,
     characteristic_time_s: np.ndarray,
     gamma: np.ndarray,
     radius_cm: np.ndarray,
     seed_frequency_hz: np.ndarray,
     absorbed_spectral_flux: np.ndarray,
-    polarized_spectral_flux: np.ndarray,
     frequencies_hz: np.ndarray,
-    config: FitConfig,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """调用角元级随机场Stokes投影核，返回局域patch基底下的I/Q/U。"""
+    patch_solid_angle: float,
+) -> np.ndarray:
+    """按真实球面面元dOmega投影一个patch中心代表的同步辐射。"""
+    if not np.any(absorbed_spectral_flux):
+        return np.zeros((frequencies_hz.shape[0], setup.observer_time_s.shape[0]), dtype=float)
     frequencies_hz = np.asarray(frequencies_hz, dtype=float)
     order = np.argsort(frequencies_hz)
     sorted_frequencies = frequencies_hz[order]
-    i_sorted, q_sorted, u_sorted = Interpolation.sed_interpolation_shock_random_stokes(
+    flux_sorted = Interpolation.sed_interpolation_surface_element(
         setup.boundary,
         characteristic_time_s,
         gamma,
         radius_cm,
         absorbed_spectral_flux,
-        polarized_spectral_flux,
         seed_frequency_hz,
         sorted_frequencies,
         setup.observer_time_s,
-        config.num_theta,
-        config.num_phi,
-        config.num_threads,
+        float(patch_solid_angle),
     )
     if np.array_equal(order, np.arange(order.shape[0])):
-        return i_sorted, q_sorted, u_sorted
-    i_obs = np.empty_like(i_sorted)
-    q_obs = np.empty_like(q_sorted)
-    u_obs = np.empty_like(u_sorted)
-    i_obs[order] = i_sorted
-    q_obs[order] = q_sorted
-    u_obs[order] = u_sorted
-    return i_obs, q_obs, u_obs
+        return flux_sorted
+    flux_matrix = np.empty_like(flux_sorted)
+    flux_matrix[order] = flux_sorted
+    return flux_matrix
 
 
 def _patch_hadronic_synchrotron_component(state: SolveState) -> tuple[np.ndarray, np.ndarray] | None:
@@ -1138,6 +1116,12 @@ def _make_details(
 
 
 def _iter_patches(model: Model):
+    for phi_center, theta_center, patch_half_angle, _domega in _iter_patch_elements(model):
+        yield phi_center, theta_center, patch_half_angle
+
+
+def _iter_patch_elements(model: Model):
+    """生成真实球面经纬面元：中心方向、等面积圆半角和dOmega。"""
     theta_edges = np.linspace(0.0, model.jet.theta_max, model.setups.patch_theta + 1)
     phi_edges = np.linspace(0.0, 2.0 * np.pi, model.setups.patch_phi + 1)
     for i_theta in range(model.setups.patch_theta):
@@ -1150,7 +1134,7 @@ def _iter_patches(model: Model):
             phi_center = 0.5 * (phi1 + phi2)
             domega = (np.cos(theta1) - np.cos(theta2)) * (phi2 - phi1)
             patch_half_angle = np.sqrt(max(domega, 1.0e-12) / np.pi)
-            yield phi_center, theta_center, patch_half_angle
+            yield phi_center, theta_center, patch_half_angle, domega
 
 
 def _can_collapse_sky_image_phi(model: Model) -> bool:
