@@ -28,6 +28,7 @@ from asgard_core.asgard_postprocess import (
     select_spectrum_time_index,
 )
 from asgard_core.asgard_presets import build_baseline_config
+from src import Interpolation
 
 from .api_adaptive import _observe_parts, _observe_total
 from .api_fit import FitResult
@@ -225,6 +226,7 @@ def _compute_polarization(
             cos2pa,
             sin2pa,
             _shock_random_anisotropy(magnetic_geometry, theta_v, state.components.fwd.gamma),
+            magnetic_geometry,
         )
         if state.reverse_emission is not None and model.rvs_rad is not None:
             rev_sync = np.asarray(state.reverse_emission.l_syn_spec, dtype=float) * np.asarray(state.observer.prefactor, dtype=float)
@@ -243,6 +245,7 @@ def _compute_polarization(
                 cos2pa,
                 sin2pa,
                 _shock_random_anisotropy(magnetic_geometry, theta_v, _reverse_shock_gamma_array(state)),
+                magnetic_geometry,
             )
             rev_hadronic_sync = _patch_reverse_hadronic_synchrotron_component(state)
             if rev_hadronic_sync is not None:
@@ -257,6 +260,7 @@ def _compute_polarization(
                     cos2pa,
                     sin2pa,
                     _shock_random_anisotropy(magnetic_geometry, theta_v, _reverse_shock_gamma_array(state)),
+                    magnetic_geometry,
                 )
         hadronic_sync = _patch_hadronic_synchrotron_component(state)
         if hadronic_sync is not None:
@@ -271,6 +275,7 @@ def _compute_polarization(
                 cos2pa,
                 sin2pa,
                 _shock_random_anisotropy(magnetic_geometry, theta_v, state.components.fwd.gamma),
+                magnetic_geometry,
             )
 
     if not active_patch_found:
@@ -395,12 +400,36 @@ def _accumulate_patch_polarization(
     cos2pa: float,
     sin2pa: float,
     shell_anisotropy: np.ndarray,
+    magnetic_geometry: str,
 ) -> None:
     source = np.asarray(source_component, dtype=float)
     if not np.any(source):
         return
+    pi_local = np.asarray(intrinsic_pi, dtype=float)
+    if pi_local.ndim == 0:
+        polarized_source = source * float(pi_local)
+    else:
+        polarized_source = source * pi_local
+    observer_setup = _build_observer_setup_from_state(state, times_s)
+    if magnetic_geometry == "shock_random":
+        i_obs, q_local, u_local = _project_shock_random_stokes(
+            observer_setup,
+            state.components.fwd.characteristic_time_s,
+            state.components.fwd.gamma,
+            state.components.fwd.radius_cm,
+            state.setup.seed_frequency_hz,
+            source,
+            polarized_source,
+            nu_hz,
+            state.config,
+        )
+        accumulator["I"] += i_obs
+        accumulator["Q"] += q_local * cos2pa - u_local * sin2pa
+        accumulator["U"] += q_local * sin2pa + u_local * cos2pa
+        return
+    polarized_source = polarized_source * np.asarray(shell_anisotropy, dtype=float)[None, :]
     i_obs = _project_component(
-        _build_observer_setup_from_state(state, times_s),
+        observer_setup,
         state.components.fwd.characteristic_time_s,
         state.components.fwd.gamma,
         state.components.fwd.radius_cm,
@@ -409,13 +438,8 @@ def _accumulate_patch_polarization(
         nu_hz,
         state.config,
     )
-    pi_local = np.asarray(intrinsic_pi, dtype=float)
-    if pi_local.ndim == 0:
-        polarized_source = source * float(pi_local) * np.asarray(shell_anisotropy, dtype=float)[None, :]
-    else:
-        polarized_source = source * pi_local * np.asarray(shell_anisotropy, dtype=float)[None, :]
     p_obs = _project_component(
-        _build_observer_setup_from_state(state, times_s),
+        observer_setup,
         state.components.fwd.characteristic_time_s,
         state.components.fwd.gamma,
         state.components.fwd.radius_cm,
@@ -427,6 +451,46 @@ def _accumulate_patch_polarization(
     accumulator["I"] += i_obs
     accumulator["Q"] += p_obs * cos2pa
     accumulator["U"] += p_obs * sin2pa
+
+
+def _project_shock_random_stokes(
+    setup,
+    characteristic_time_s: np.ndarray,
+    gamma: np.ndarray,
+    radius_cm: np.ndarray,
+    seed_frequency_hz: np.ndarray,
+    absorbed_spectral_flux: np.ndarray,
+    polarized_spectral_flux: np.ndarray,
+    frequencies_hz: np.ndarray,
+    config: FitConfig,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """调用角元级随机场Stokes投影核，返回局域patch基底下的I/Q/U。"""
+    frequencies_hz = np.asarray(frequencies_hz, dtype=float)
+    order = np.argsort(frequencies_hz)
+    sorted_frequencies = frequencies_hz[order]
+    i_sorted, q_sorted, u_sorted = Interpolation.sed_interpolation_shock_random_stokes(
+        setup.boundary,
+        characteristic_time_s,
+        gamma,
+        radius_cm,
+        absorbed_spectral_flux,
+        polarized_spectral_flux,
+        seed_frequency_hz,
+        sorted_frequencies,
+        setup.observer_time_s,
+        config.num_theta,
+        config.num_phi,
+        config.num_threads,
+    )
+    if np.array_equal(order, np.arange(order.shape[0])):
+        return i_sorted, q_sorted, u_sorted
+    i_obs = np.empty_like(i_sorted)
+    q_obs = np.empty_like(q_sorted)
+    u_obs = np.empty_like(u_sorted)
+    i_obs[order] = i_sorted
+    q_obs[order] = q_sorted
+    u_obs[order] = u_sorted
+    return i_obs, q_obs, u_obs
 
 
 def _patch_hadronic_synchrotron_component(state: SolveState) -> tuple[np.ndarray, np.ndarray] | None:
