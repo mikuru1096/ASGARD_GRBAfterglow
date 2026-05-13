@@ -18,6 +18,7 @@ The code's greatest strengths lie in its exceptional computational efficiency an
 - The authoritative development status is tracked in:
   - `AGENTS.md`
   - `PLAN.md`
+  - `doc/code_overview.md`
 - Benchmark and comparison scripts live under `tests/`.
 - Generated benchmark figures under `output/` are artifacts, not source documentation.
 
@@ -96,7 +97,7 @@ Sampling and batch fitting helper scripts now live under `scripts/fitting/`.
 The project is now packaged in PyPI-style layout with `pyproject.toml` and `setup.py`. Local source installation uses `pip install .` and triggers automatic native compilation through the package build hook.
 ### Current Status
 The public runtime is usable for forward-shock afterglow calculations and benchmark workflows.
-The hadronic branch is under active structural development and should be treated as a research path rather than a finished public interface.
+The forward-shock hadronic branch is a formal 1D research path. Reverse-shock hadronic currently covers proton injection/transport plus proton synchrotron only; full reverse-shock interactions, chi-resolved hadronic transport, and the full time-dependent pair cascade PDE remain open work.
 ### Web Interface
 We have a website available at <https://hetools.xyz>  
 that requires no installation, for comparing the results of **ASGARD** and **jetsimpy**. Feel free to give it a try!

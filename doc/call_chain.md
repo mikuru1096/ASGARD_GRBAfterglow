@@ -9,12 +9,14 @@ flowchart TD
     B --> D["asgard_state.py\nsolve_state_from_setup"]
     D --> E["solve_dynamics"]
     D --> F["solve_electron"]
-    D --> G["solve_reverse_shock_emission"]
+    D --> G["solve_reverse_shock_emission\nRS electron + optional RS proton synch"]
     D --> H["photon_field_stage"]
     D --> I["solve_hadronic"]
     I --> J["BH e± merge → recompute seed_syn"]
     I --> K["pγ photon survival → photon field"]
+    I --> Q["pair production / optional iterative cascade"]
     H --> L["Radiation.annihilation\ngamma-gamma absorption"]
+    Q --> L
     K --> L
     J --> L
     G --> L
@@ -48,7 +50,7 @@ Model.flux_density_grid
   → solve_state_from_setup
   → solve_dynamics → solve_electron → photon_field_stage
   → solve_hadronic → solve_reverse_shock_emission
-  → Radiation.annihilation → Interpolation.sed_interpolation
+  → pair-production branch / Radiation.annihilation → Interpolation.sed_interpolation
   → combine_multiband_flux → FluxResult
 ```
 

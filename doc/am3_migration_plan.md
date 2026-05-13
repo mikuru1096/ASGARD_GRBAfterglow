@@ -13,9 +13,11 @@
 ## Remaining Gaps
 
 - Full time-dependent pair cascade PDE
-- Reverse-shock hadronic
+- Reverse-shock pγ/BH/pp/secondary/cascade coupling
 - 2D / χ-resolved hadronic transport
 - Regenerated Vegas benchmark figures with complete hadronic chain
+
+RS hadronic proton injection/transport + proton synchrotron now exists in `FS_hadronic_reverse_1d`. An iterative pair-production synch branch exists, but it is not the full time-dependent pair cascade PDE.
 
 ## Architecture Boundary
 
@@ -27,3 +29,4 @@
 ## AM3 Reference
 
 - `/mnt/c/Users/jia/Documents/New project/_external/am3_reference` (HEAD: `7aba970b`)
+- `~/projects/_external/am3_reference` is a WSL-home mirror at the same HEAD.

@@ -28,7 +28,7 @@
 ## Current Boundaries
 
 未完成:
-- reverse-shock hadronic
+- reverse-shock pγ/BH/pp/secondary/cascade; RS proton injection/transport + proton synchrotron 已接入
 - 2D / χ-resolved hadronic transport
 - full time-dependent pair cascade PDE
 

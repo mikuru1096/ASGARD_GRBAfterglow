@@ -6,6 +6,7 @@
 
 - `ASGARD/api_model.py`: `Model`, `Medium`, `ISM`, `Wind`, `TophatJet`, `GaussianJet`, `PowerLawJet`, `TwoComponentJet`, `StepPowerLawJet`, `Ejecta`, `Observer`, `Radiation`, `Setups`
   - `Model.flux_density_grid(times_s, nu_hz)`, `flux_density(times_s, nu_hz)`, `spectrum(time_s, nu_hz)`, `flux(time_s, nu_min, nu_max)`, `sky_image(t_obs, nu_obs, fov)`, `details()`
+  - `Model.polarization(times_s, nu_hz, magnetic_geometry=..., local_emissivity=...)`
 - `ASGARD/api_observe.py`: `observe(model, config)`, `run_fit(config)`
 - `ASGARD/api_fit.py`: `Fitter`, `Param`, `FitResult`
 - Electron solver names: `fullhide_1d`, `slc1_1d`, `charint_1d`, `charint_2d`, `t2g1_1d`, `weno5_1d`, `fullhide_2d`
@@ -56,6 +57,7 @@ Fitter.loglike → compile_problem → eval_loglike → solve_state_from_setup
 
 Hadronic Python modules (orchestration/wrapping/benchmark only):
 - Fortran wrappers: `hadronic_hummer.py`, `hadronic_bethe_heitler.py`, `hadronic_hadronic_ic.py`, `hadronic_pp.py`, `hadronic_pair_production.py`, `hadronic_species_transport.py`, `hadronic_secondary_radiation.py`, `hadronic_acceleration.py`
+- Reverse shock wrapper: `hadronic_reverse.py`
 - Reference/benchmark: `hadronic_pgamma.py`, `hadronic_am3_solver.py`, `hadronic_am3_benchmark.py`, `hadronic_cascade.py`
 
 Final AM3-derived microphysics lives in `src/Hadronic/*.f90`.
@@ -76,18 +78,22 @@ Final AM3-derived microphysics lives in `src/Hadronic/*.f90`.
 - `src/Radiation/Seed_reverse.f90`: reverse shock synchrotron radiation + seed
 - `src/Radiation/Annihilation.f90`: γ-γ absorption
 - `src/Radiation/radiation_common.f90`: Simpson weights, power-law interp, pair cross-section, synchrotron seed core, transfer factor
+- `src/Radiation/synchrotron_polarization_kernel.f90`: frequency-dependent synchrotron polarization emissivity
+- `src/Radiation/quantum_synchrotron_kernel.f90`: quantum synchrotron helper kernel
 - `src/Interpolation/SED_interpolation.f90`: observer-frame EATS/Doppler interpolation
 - `src/Interpolation/SED_interpolation_structured.f90`: structured jet interpolation
 - `src/Interpolation/interpolation_common.f90`: log-SED accumulation
 
 ### Hadronic
-`src/Hadronic/FS_hadronic_1d.f90` is the f2py entry point, dispatching to:
+`src/Hadronic/FS_hadronic_1d.f90` is the forward-shock f2py entry point, dispatching to:
 - `hadronic_transport_kernel.f90`: proton injection, adiabatic/synchrotron loss, log-γ energy advance
 - `hadronic_radiation_kernel.f90`: proton synchrotron
 - `hadronic_interaction_kernel.f90`: Hummer 2010 photopion operator
 - `hadronic_decay_kernel.f90`: π⁰→γ, π±/μ decay, neutrino emissivity
 - `hadronic_pair_production_kernel.f90`: γ-γ pair production (Aharonian+1983)
+- `hadronic_pair_cascade_kernel.f90`: single-step pair-cascade synchrotron kernel used by the iterative branch
 - `hadronic_pp_kernel.f90`: pp δ-channel (Kelner+2006)
+- `hadronic_pp_models_kernel.f90`: alternate pp source model helpers
 - `hadronic_bethe_heitler_kernel.f90`: Bethe-Heitler pair source + proton loss
 - `hadronic_hadronic_ic_kernel.f90`: hadronic inverse Compton
 - `hadronic_species_transport_kernel.f90`: neutron/π±/μ± explicit transport (upwind + Strang splitting)
@@ -95,7 +101,9 @@ Final AM3-derived microphysics lives in `src/Hadronic/*.f90`.
 - `hadronic_secondary_radiation_kernel.f90`: pion/muon synchrotron + IC
 - `hadronic_common.f90`: shared hadronic constants, grid builders, validation
 
-Shell-level entries exposed by `FS_hadronic_1d.f90`: `fs_hadronic_1d`, `fs_hadronic_proton_syn_shell`, `fs_hadronic_pgamma_operator_shell`, `fs_hadronic_pair_production_shell`, `fs_hadronic_pp_delta_shell`, `fs_hadronic_bethe_heitler_shell`, `fs_hadronic_hadronic_ic_shell`, `fs_hadronic_species_transport_shell`, `fs_hadronic_acceleration_shell`, `fs_hadronic_secondary_radiation_shell`, `fs_hadronic_decay_operator_shell`
+Reverse-shock hadronic entry: `src/Hadronic/FS_hadronic_reverse_1d.f90`, currently proton injection/transport + proton synchrotron only.
+
+Shell-level entries exposed by `FS_hadronic_1d.f90`: `fs_hadronic_1d`, `fs_hadronic_proton_syn_shell`, `fs_hadronic_syn_polarization_shell`, `fs_hadronic_pgamma_operator_shell`, `fs_hadronic_pair_production_shell`, `fs_hadronic_pp_delta_shell`, `fs_hadronic_bethe_heitler_shell`, `fs_hadronic_hadronic_ic_shell`, `fs_hadronic_species_transport_shell`, `fs_hadronic_acceleration_shell`, `fs_hadronic_secondary_radiation_shell`, `fs_hadronic_decay_operator_shell`, `fs_hadronic_pair_cascade_step`, `fs_hadronic_pp_spectral_source`, `fs_hadronic_quantum_syn_cooling_factor`
 
 ## 5. Hadronic Current State
 
@@ -103,15 +111,18 @@ Shell-level entries exposed by `FS_hadronic_1d.f90`: `fs_hadronic_1d`, `fs_hadro
 - **Solver names**: `legacy_1d` (proton transport + proton synchrotron only), `am3_1d` (current formal hadronic main path, forward shock + 1D electron only)
 - **`pgamma_scheme`**: `hummer_2010_response` (with transport feedback), `ka2008_reference` (emission-only, no transport feedback), `disabled`
 - **Active couplings**: proton injection/cooling, proton synchrotron, photopion (α_p, Q_p^reinj, α_γ^{pγ} as local shell survival), neutrino, Bethe-Heitler (proton cooling + e± feedback), pp (γ/ν/pair/proton-loss), hadronic IC (proton + pion/muon), explicit secondary transport (n/π±/μ±), secondary radiation (pion/muon synch + IC), pair production (observer-side attenuation + pair synchrotron branch)
+- **Reverse-shock hadronic**: 1D proton injection/transport + proton synchrotron is implemented through `FS_hadronic_reverse_1d`; reverse-shock pγ/BH/pp/secondary/cascade are not implemented.
+- **Pair cascade**: iterative pair-production synch branch exists when `pair_cascade_iterations > 1`; this is not the full time-dependent pair cascade PDE.
 
 ## 6. Build and Test
 
 Default: WSL Ubuntu + uv, commands prefixed with `rtk`.
 
 ```bash
-rtk uv run python build_extensions.py --module FS_electron_fullhide_2d --force
-rtk uv run python build_extensions.py --module FS_electron_charint_2d --force
-rtk uv run python build_extensions.py --module FS_hadronic_1d --force
+rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && TMPDIR=/tmp uv run python build_extensions.py --module FS_electron_fullhide_2d --force'
+rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && TMPDIR=/tmp uv run python build_extensions.py --module FS_electron_charint_2d --force'
+rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && TMPDIR=/tmp uv run python build_extensions.py --module FS_hadronic_1d --force'
+rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && TMPDIR=/tmp uv run python build_extensions.py --module FS_hadronic_reverse_1d --force'
 rtk /usr/bin/gfortran --version
 ```
 
@@ -124,9 +135,12 @@ Benchmark: `tests/vegas_afterglow_comparison.py`, `tests/sed_electron_compare.py
 ## 7. Known Boundaries
 
 Not yet complete:
-- reverse-shock hadronic processes
+- reverse-shock pγ/BH/pp/secondary/cascade processes
 - 2D / χ-resolved hadronic transport
 - full time-dependent pair cascade PDE
+- jet spreading in the current backend
+- user-defined `Medium` kernel dispatch and wind profiles with `k != 2`
+- thermal electron branch outside `fullhide_1d`
 
 Architectural boundaries:
 - ASGARD = shell-evolving blast-wave + observer projection
