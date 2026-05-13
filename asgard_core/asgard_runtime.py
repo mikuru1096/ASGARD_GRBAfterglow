@@ -735,6 +735,7 @@ def _solve_hadronic_hummer_transport_coupled(
     seed_target_hz: np.ndarray,
     shell_energy_inj_erg: np.ndarray,
     config: FitConfig,
+    pp_target_density_cm3: np.ndarray | None = None,
 ) -> HadronicSolution:
     radius = np.asarray(dynamics.radius, dtype=float)
     gamma_bulk = np.asarray(dynamics.r_gamma, dtype=float)
@@ -744,6 +745,9 @@ def _solve_hadronic_hummer_transport_coupled(
     seed_target_arr = np.asarray(seed_target_hz, dtype=float)
     shell_energy_inj = np.asarray(shell_energy_inj_erg, dtype=float)
     _validate_hadronic_transport_inputs(radius, gamma_bulk, tobs, b_field, v_seed_arr, seed_target_arr, shell_energy_inj)
+    pp_target_density_arr = None if pp_target_density_cm3 is None else np.asarray(pp_target_density_cm3, dtype=float)
+    if pp_target_density_arr is not None and pp_target_density_arr.shape != radius.shape:
+        raise ValueError("pp_target_density_cm3 must match the shell radius grid.")
     num_r = int(radius.size)
     num_nu = int(v_seed_arr.size)
     num_gam_p = int(config.hadronic.num_gam_p)
@@ -831,16 +835,18 @@ def _solve_hadronic_hummer_transport_coupled(
         dt_s = _hadronic_shell_dt(tobs, i_r)
         t_dyn_s = _hadronic_dynamical_time(radius[i_r], gamma_bulk[i_r])
         gam_p_min = max(float(gam_p[0]), float(gamma_bulk[i_r]))
-        q_inj = dt_s * species_injection_operator(
-            gam_p,
-            InjectionConfig(
-                species="proton",
-                luminosity_erg_s=float(shell_energy_inj[i_r]) / dt_s,
-                spectral_index=float(config.hadronic.p_p),
-                gamma_min=gam_p_min,
-                gamma_max=float(gam_p[-1]),
-            ),
-        )
+        q_inj = np.zeros_like(gam_p, dtype=float)
+        if float(shell_energy_inj[i_r]) > 0.0:
+            q_inj = dt_s * species_injection_operator(
+                gam_p,
+                InjectionConfig(
+                    species="proton",
+                    luminosity_erg_s=float(shell_energy_inj[i_r]) / dt_s,
+                    spectral_index=float(config.hadronic.p_p),
+                    gamma_min=gam_p_min,
+                    gamma_max=float(gam_p[-1]),
+                ),
+            )
         shell_volume_loc = float(shell_volume_cm3[i_r])
         d_n_trial = _hadronic_advance_energy_loggamma(
             gam_p,
@@ -906,7 +912,10 @@ def _solve_hadronic_hummer_transport_coupled(
         pp_loss = np.zeros_like(gam_p)
         if bool(config.hadronic.include_pp):
             t_pp_start = time.perf_counter()
-            target_density_cm3 = float(ambient_density(np.array([radius[i_r]], dtype=float), config)[0])
+            if pp_target_density_arr is None:
+                target_density_cm3 = float(ambient_density(np.array([radius[i_r]], dtype=float), config)[0])
+            else:
+                target_density_cm3 = float(pp_target_density_arr[i_r])
             pp_output = solve_pp_delta(
                 proton_energy_gev=gam_p * PROTON_MASS_GEV,
                 proton_density_per_gev=proton_density_trial_per_gev,
@@ -1734,18 +1743,34 @@ def solve_reverse_shock_emission(
 
     rs_hadronic = None
     if bool(config.hadronic.reverse_enabled) and float(config.hadronic.reverse_epsilon_p) > 0.0:
-        from asgard_core.hadronic_reverse import solve_rs_hadronic_core
-        rs_hadronic = solve_rs_hadronic_core(
-            r_tobs_s=dynamics.r_tobs,
-            r_gamma=dynamics.r_gamma,
-            radius_cm=dynamics.radius,
-            rs_swept_mass_g=dynamics.reverse_shock.swept_mass_g,
-            rs_b_field_g=dynamics.reverse_shock.magnetic_field_g,
-            v_seed_hz=v_seed,
-            num_gam_p=config.hadronic.num_gam_p,
-            epsilon_p=float(config.hadronic.reverse_epsilon_p),
-            include_proton_synch=bool(config.hadronic.include_proton_synch),
-        )
+        if _reverse_hadronic_requires_full_chain(config):
+            if (bool(config.hadronic.include_pg) or bool(config.hadronic.include_neutrino)) and (
+                _resolve_pgamma_scheme(config) != _PGAMMA_SCHEME_HUMMER2010_RESPONSE
+            ):
+                raise ValueError("Reverse-shock p-gamma currently requires pgamma_scheme='hummer_2010_response'.")
+            rs_hadronic = _solve_hadronic_hummer_transport_coupled(
+                dynamics,
+                np.asarray(dynamics.reverse_shock.magnetic_field_g, dtype=float),
+                gam_e,
+                v_seed,
+                seed_syn,
+                _reverse_hadronic_shell_energy(dynamics, config),
+                config,
+                pp_target_density_cm3=_reverse_hadronic_target_density(dynamics),
+            )
+        else:
+            from asgard_core.hadronic_reverse import solve_rs_hadronic_core
+            rs_hadronic = solve_rs_hadronic_core(
+                r_tobs_s=dynamics.r_tobs,
+                r_gamma=dynamics.r_gamma,
+                radius_cm=dynamics.radius,
+                rs_swept_mass_g=dynamics.reverse_shock.swept_mass_g,
+                rs_b_field_g=dynamics.reverse_shock.magnetic_field_g,
+                v_seed_hz=v_seed,
+                num_gam_p=config.hadronic.num_gam_p,
+                epsilon_p=float(config.hadronic.reverse_epsilon_p),
+                include_proton_synch=bool(config.hadronic.include_proton_synch),
+            )
 
     return ReverseShockEmission(
         l_syn_spec=l_syn_spec,
@@ -1757,6 +1782,48 @@ def solve_reverse_shock_emission(
         nu_M=nu_M,
         rs_hadronic=rs_hadronic,
     )
+
+
+def _reverse_hadronic_requires_full_chain(config: FitConfig) -> bool:
+    return any((
+        bool(config.hadronic.include_pg),
+        bool(config.hadronic.include_neutrino),
+        bool(config.hadronic.include_bethe_heitler),
+        bool(config.hadronic.include_hadronic_inverse_compton),
+        bool(config.hadronic.include_pp),
+    ))
+
+
+def _reverse_hadronic_shell_mass(dynamics: DynamicsSolution) -> np.ndarray:
+    if dynamics.reverse_shock is None:
+        raise ValueError("reverse-shock dynamics are required for RS hadronic shell mass.")
+    swept = np.asarray(dynamics.reverse_shock.swept_mass_g, dtype=float)
+    shell_mass = np.empty_like(swept)
+    shell_mass[0] = swept[0]
+    shell_mass[1:] = swept[1:] - swept[:-1]
+    return shell_mass
+
+
+def _reverse_hadronic_shell_energy(dynamics: DynamicsSolution, config: FitConfig) -> np.ndarray:
+    shell_mass = _reverse_hadronic_shell_mass(dynamics)
+    gamma = np.asarray(dynamics.r_gamma, dtype=float)
+    return (
+        float(config.hadronic.reverse_epsilon_p)
+        * shell_mass
+        * (gamma - 1.0)
+        * constants.para_c
+        * constants.para_c
+    )
+
+
+def _reverse_hadronic_target_density(dynamics: DynamicsSolution) -> np.ndarray:
+    radius = np.asarray(dynamics.radius, dtype=float)
+    shell_mass = _reverse_hadronic_shell_mass(dynamics)
+    prev_radius = np.empty_like(radius)
+    prev_radius[0] = 0.0
+    prev_radius[1:] = radius[:-1]
+    shell_volume = (4.0 / 3.0) * np.pi * (radius**3 - prev_radius**3)
+    return shell_mass / (constants.para_m_p * shell_volume)
 
 
 def _solve_reverse_shock_electrons(

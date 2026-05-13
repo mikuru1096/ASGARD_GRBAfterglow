@@ -16,9 +16,9 @@ rtk bash -lc "source ~/.wsl_env && cd \"/mnt/c/Users/jia/Documents/New project/A
 ```
 **声明块压缩规则**: 同类型声明合并到一行，语义相近的量分组。B 类子程序声明块 ≤15 行。禁止每行只声明一个变量。
 
-- **Reverse-shock hadronic**: formal 1D reverse-shock proton injection/transport + proton synchrotron branch is implemented; reverse-shock pγ/BH/pp/secondary species/cascade are not implemented.
-- **Pair cascade**: iterative pair-production synch branch and Fortran single-step cascade kernel exist; full time-dependent pair cascade PDE is not implemented.
-- **Not yet implemented**: 2D/chi-resolved hadronic transport, reverse-shock pγ/BH/pp/secondary/cascade, full time-dependent pair cascade PDE
+- **Reverse-shock hadronic**: light backend `FS_hadronic_reverse_1d` covers RS proton injection/transport + proton synchrotron; when RS hadronic full-chain flags are enabled, the runtime reuses the formal 1D hadronic kernels for RS pγ/BH/pp/secondary/cascade coupling with RS seed photons and RS shell targets.
+- **Pair cascade**: `pair_cascade_iterations > 1` now uses a shell-sequence time-dependent γγ pair/synch cascade path; the legacy single-shell iterative kernel remains for low-level diagnostics.
+- **Not yet implemented**: 2D/chi-resolved hadronic transport; inverse-Compton-mediated electromagnetic pair cascade beyond the current γγ pair/synch contract.
 
 ## AM3 / ASGARD Coexistence
 

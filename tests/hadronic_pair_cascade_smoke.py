@@ -10,8 +10,9 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from asgard_core.hadronic_cascade import compute_iterative_pair_cascade
+from asgard_core.hadronic_cascade import compute_iterative_pair_cascade, compute_time_dependent_pair_cascade_sequence
 from asgard_core.hadronic_pair_production import ELECTRON_MASS_GEV
+from src import constants
 
 
 def _aligned_inputs() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -66,9 +67,37 @@ def test_pair_cascade_zero_magnetic_field_boundary() -> None:
     assert out.absorbed_power_gev_per_cm3_s > 0.0
 
 
+def test_time_dependent_pair_cascade_sequence() -> None:
+    photon_energy_gev, photon_density_per_gev, electron_energy_gev = _aligned_inputs()
+    primary = np.stack((photon_density_per_gev, 0.8 * photon_density_per_gev), axis=1)
+    frequency_hz = photon_energy_gev * constants.para_gev2hz
+
+    out = compute_time_dependent_pair_cascade_sequence(
+        photon_energy_gev=photon_energy_gev,
+        primary_photon_density_per_gev=primary,
+        electron_energy_gev=electron_energy_gev,
+        frequency_hz=frequency_hz,
+        radius_cm=np.array([1.0e16, 1.2e16], dtype=float),
+        gamma_bulk=np.array([100.0, 95.0], dtype=float),
+        observer_time_s=np.array([100.0, 130.0], dtype=float),
+        b_field_g=np.array([1.0e10, 8.0e9], dtype=float),
+        num_threads=1,
+        index_syn_integr=2,
+        substeps_per_shell=2,
+    )
+
+    assert out.pair_density_per_gamma.shape == (electron_energy_gev.size, 2)
+    assert np.all(np.isfinite(out.pair_syn_luminosity_hz))
+    assert np.all(np.isfinite(out.pair_syn_seed_per_hz))
+    assert np.all(out.tau_pair_path >= 0.0)
+    assert float(np.max(out.pair_density_per_gamma[:, 1])) > 0.0
+    assert float(np.max(out.pair_syn_luminosity_hz)) > 0.0
+
+
 def main() -> None:
     test_pair_cascade_smoke()
     test_pair_cascade_zero_magnetic_field_boundary()
+    test_time_dependent_pair_cascade_sequence()
 
 
 if __name__ == "__main__":

@@ -14,6 +14,8 @@ from asgard_core.asgard_config import FitConfig
 from asgard_core.asgard_state import _compute_pair_production_branch
 from asgard_core.asgard_types import DynamicsSolution, ElectronSolution
 from asgard_core.hadronic_pair_production import ELECTRON_MASS_GEV
+from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet
+from ASGARD.api_observe import _build_fit_config_for_patch
 from src import constants
 
 
@@ -81,9 +83,30 @@ def test_pair_branch_iterative_tau_is_not_placeholder() -> None:
     assert float(np.max(tau_pair)) > 0.0
 
 
+def test_public_pair_cascade_config_mapping() -> None:
+    model = Model(
+        TophatJet(0.1, 1.0e52, 300.0),
+        ISM(1.0),
+        Observer(1.0e26, 0.1, 0.0),
+        Radiation(0.1, 1.0e-3, 2.3, epsilon_p=0.1, pair_production=True),
+        setups=Setups(hadronic_enabled=True, pair_cascade_iterations=3),
+    )
+    config = _build_fit_config_for_patch(
+        model,
+        phi_center=0.0,
+        theta_v=0.0,
+        opening_angle_jet=0.1,
+        e_iso=1.0e52,
+        gamma0=300.0,
+    )
+    assert config.hadronic.include_pair_production
+    assert config.hadronic.pair_cascade_iterations == 3
+
+
 def main() -> None:
     test_pair_branch_single_step_tau()
     test_pair_branch_iterative_tau_is_not_placeholder()
+    test_public_pair_cascade_config_mapping()
 
 
 if __name__ == "__main__":

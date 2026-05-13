@@ -385,6 +385,7 @@ class Radiation:
     eta_acc: float = 1.0
     reverse_epsilon_p: float = 0.0
     pgamma_scheme: str = "disabled"
+    pair_production: bool = False
 
 
 @dataclass
@@ -430,6 +431,7 @@ class Setups:
     num_gam_p: int = 161
     num_nu_nu: int = 121
     pgamma_scheme: str = "disabled"
+    pair_cascade_iterations: int = 1
     index_dyn: int = 3
     index_syn_integr: int = 2
     clean: bool = True

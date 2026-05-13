@@ -6,24 +6,24 @@
 
 - Public runtime: forward-shock afterglow API、电子同步/SSC/SSA、`gamma-gamma` 吸收、observer projection 和 benchmark workflow 可用。
 - Electron solvers: 1D `fullhide/slc1/charint/t2g1/weno5` 与 2D `fullhide_2d/charint_2d` 均在当前工作树登记；`fullhide_1d` 是默认稳定基线。
-- Reverse shock: electron synchrotron、RS SSC、FS/RS cross-zone IC 已接入；RS hadronic 目前只覆盖 1D proton injection/transport + proton synchrotron。
-- Forward-shock hadronic: `legacy_1d` 覆盖 proton transport + proton synchrotron；`am3_1d` 是当前正式研究路径，覆盖 p-gamma、BH、pp、hadronic IC、secondary species transport、secondary radiation、pair production branch、neutrino 等过程。
+- Reverse shock: electron synchrotron、RS SSC、FS/RS cross-zone IC 已接入；RS hadronic light path 覆盖 1D proton injection/transport + proton synchrotron，full-chain path 复用正式 1D hadronic kernels 覆盖 RS pγ/BH/pp/secondary/cascade coupling。
+- Forward-shock hadronic: `legacy_1d` 覆盖 proton transport + proton synchrotron；`am3_1d` 是当前正式研究路径，覆盖 p-gamma、BH、pp、hadronic IC、secondary species transport、secondary radiation、pair production branch、neutrino 等过程。`Radiation.pair_production=True` 且 `Setups.pair_cascade_iterations>1` 时，pair branch 使用 shell-sequence time-dependent γγ pair/synch cascade。
 - Polarization: `Model.polarization(...)` 已实现同步辐射 Stokes 路径，覆盖 FS/RS electron synch 与 FS/RS hadronic synch；非同步分支不混入偏振 Stokes。
 - AM3: 只作为 hadronic 微物理核和 benchmark 参考；ASGARD 的 dynamics/electron/observer 主链不由 AM3 替代。
 
 ## Todo
 
-1. Reverse-shock hadronic completion
-   - 明确 RS hadronic 物理目标后再扩展；当前未实现 RS p-gamma、BH、pp、secondary species、cascade。
-   - 新增过程必须先给出能量预算、目标光子场、observer coupling 的方程级定义。
+1. Reverse-shock dynamics benchmark fix
+   - VegasAfterglow 对照显示 RS 辐射差异首先来自 `src/Dynamics/Dynamics_reverse.f90` 中 crossing 前 `e3=e2`、`dB3=dB2` 的区域 3 磁场/内能设定；该路径把 RS 区域 3 磁场锁到 FS 区域 2，而不是由 shocked ejecta 的 γ34/n4 决定。
+   - 下一步应先重写 crossing 前 RS thermodynamics，再重跑 Vegas RS light-curve/break-frequency 诊断；不要用后处理归一化修补。
 
 2. 2D / chi-resolved hadronic transport
    - 先决定是否需要和 `fullhide_2d/charint_2d` 共用 `chi_grid` 与历史 photon field。
    - 若不能提供可检验的时空平滑诊断，不进入实现。
 
-3. Pair cascade
-   - 当前已有 iterative pair-production synch branch 与 Fortran single-step cascade kernel。
-   - 未完成的是 full time-dependent pair cascade PDE；除非有明确物理假设和 benchmark 目标，不做形式性扩展。
+3. Pair cascade extension boundary
+   - 当前主链已有 shell-sequence time-dependent γγ pair/synch cascade；legacy iterative pair-production synch kernel 只保留作诊断。
+   - 若要继续扩展到 IC-mediated electromagnetic cascade，必须先给出闭合的 photon/e± source-sink 方程和能量守恒 benchmark。
 
 4. Polarization timing diagnostic
    - Lan, Wu & Dai 2023 对照中峰值幅度基本一致，峰时偏早仍需定位。

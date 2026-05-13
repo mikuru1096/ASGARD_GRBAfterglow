@@ -14,7 +14,7 @@ if str(ROOT) not in sys.path:
 from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet
 
 
-def _build_rs_model(rs_eps_p: float = 0.0) -> Model:
+def _build_rs_model(rs_eps_p: float = 0.0, full_chain: bool = False) -> Model:
     return Model(
         TophatJet(0.1, 1.0e52, 300.0),
         ISM(1.0),
@@ -23,6 +23,11 @@ def _build_rs_model(rs_eps_p: float = 0.0) -> Model:
             0.1, 1.0e-3, 2.3,
             epsilon_p=0.0, proton_synch=True,
             reverse_epsilon_p=rs_eps_p,
+            pg=full_chain,
+            bethe_heitler=full_chain,
+            pp=full_chain,
+            neutrino=full_chain,
+            pgamma_scheme="hummer_2010_response" if full_chain else "disabled",
         ),
         rvs_rad=Radiation(0.1, 1.0e-3, 2.3, epsilon_p=0.0, proton_synch=True),
         setups=Setups(
@@ -53,9 +58,17 @@ def main() -> None:
     diff = had - base
     assert np.all(diff >= -1e-30), f"RS hadronic flux should not be negative: {diff}"
 
+    # 4. RS full hadronic chain: p-gamma/BH/pp/secondary paths should run through the formal 1D kernels.
+    full = _build_rs_model(0.2, full_chain=True).flux_density(
+        np.array([1e3, 1e5]), np.array([1e14, 1e18]),
+    ).total
+    assert np.all(np.isfinite(full))
+    assert np.any(full > base)
+
     print(f"base  flux: {base}")
     print(f"had   flux: {had}")
     print(f"delta flux: {diff}")
+    print(f"full  flux: {full}")
     print("RS hadronic smoke test PASSED")
 
 

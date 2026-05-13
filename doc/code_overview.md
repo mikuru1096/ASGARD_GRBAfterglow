@@ -5,8 +5,9 @@
 ## 1. Public API
 
 - `ASGARD/api_model.py`: `Model`, `Medium`, `ISM`, `Wind`, `TophatJet`, `GaussianJet`, `PowerLawJet`, `TwoComponentJet`, `StepPowerLawJet`, `Ejecta`, `Observer`, `Radiation`, `Setups`
-  - `Model.flux_density_grid(times_s, nu_hz)`, `flux_density(times_s, nu_hz)`, `spectrum(time_s, nu_hz)`, `flux(time_s, nu_min, nu_max)`, `sky_image(t_obs, nu_obs, fov)`, `details()`
+- `Model.flux_density_grid(times_s, nu_hz)`, `flux_density(times_s, nu_hz)`, `spectrum(time_s, nu_hz)`, `flux(time_s, nu_min, nu_max)`, `sky_image(t_obs, nu_obs, fov)`, `details()`
   - `Model.polarization(times_s, nu_hz, magnetic_geometry=..., local_emissivity=...)`
+- Hadronic public switches: `Radiation.pair_production`, `Radiation.pg`, `Radiation.bethe_heitler`, `Radiation.pp`, `Radiation.neutrino`, `Radiation.reverse_epsilon_p`; cascade substeps use `Setups.pair_cascade_iterations`
 - `ASGARD/api_observe.py`: `observe(model, config)`, `run_fit(config)`
 - `ASGARD/api_fit.py`: `Fitter`, `Param`, `FitResult`
 - Electron solver names: `fullhide_1d`, `slc1_1d`, `charint_1d`, `charint_2d`, `t2g1_1d`, `weno5_1d`, `fullhide_2d`
@@ -57,7 +58,7 @@ Fitter.loglike → compile_problem → eval_loglike → solve_state_from_setup
 
 Hadronic Python modules (orchestration/wrapping/benchmark only):
 - Fortran wrappers: `hadronic_hummer.py`, `hadronic_bethe_heitler.py`, `hadronic_hadronic_ic.py`, `hadronic_pp.py`, `hadronic_pair_production.py`, `hadronic_species_transport.py`, `hadronic_secondary_radiation.py`, `hadronic_acceleration.py`
-- Reverse shock wrapper: `hadronic_reverse.py`
+- Reverse shock wrapper: `hadronic_reverse.py`; full RS hadronic chain is dispatched from `asgard_runtime.py` through the formal 1D hadronic kernels when RS full-chain flags are enabled
 - Reference/benchmark: `hadronic_pgamma.py`, `hadronic_am3_solver.py`, `hadronic_am3_benchmark.py`, `hadronic_cascade.py`
 
 Final AM3-derived microphysics lives in `src/Hadronic/*.f90`.
@@ -101,7 +102,7 @@ Final AM3-derived microphysics lives in `src/Hadronic/*.f90`.
 - `hadronic_secondary_radiation_kernel.f90`: pion/muon synchrotron + IC
 - `hadronic_common.f90`: shared hadronic constants, grid builders, validation
 
-Reverse-shock hadronic entry: `src/Hadronic/FS_hadronic_reverse_1d.f90`, currently proton injection/transport + proton synchrotron only.
+Reverse-shock hadronic light entry: `src/Hadronic/FS_hadronic_reverse_1d.f90`, proton injection/transport + proton synchrotron only. Full-chain RS hadronic dispatch reuses the formal 1D hadronic kernels from `FS_hadronic_1d` through the Python runtime wrapper, with RS magnetic field, RS seed photons, RS shell energy and RS baryon target density.
 
 Shell-level entries exposed by `FS_hadronic_1d.f90`: `fs_hadronic_1d`, `fs_hadronic_proton_syn_shell`, `fs_hadronic_syn_polarization_shell`, `fs_hadronic_pgamma_operator_shell`, `fs_hadronic_pair_production_shell`, `fs_hadronic_pp_delta_shell`, `fs_hadronic_bethe_heitler_shell`, `fs_hadronic_hadronic_ic_shell`, `fs_hadronic_species_transport_shell`, `fs_hadronic_acceleration_shell`, `fs_hadronic_secondary_radiation_shell`, `fs_hadronic_decay_operator_shell`, `fs_hadronic_pair_cascade_step`, `fs_hadronic_pp_spectral_source`, `fs_hadronic_quantum_syn_cooling_factor`
 
@@ -111,8 +112,8 @@ Shell-level entries exposed by `FS_hadronic_1d.f90`: `fs_hadronic_1d`, `fs_hadro
 - **Solver names**: `legacy_1d` (proton transport + proton synchrotron only), `am3_1d` (current formal hadronic main path, forward shock + 1D electron only)
 - **`pgamma_scheme`**: `hummer_2010_response` (with transport feedback), `ka2008_reference` (emission-only, no transport feedback), `disabled`
 - **Active couplings**: proton injection/cooling, proton synchrotron, photopion (α_p, Q_p^reinj, α_γ^{pγ} as local shell survival), neutrino, Bethe-Heitler (proton cooling + e± feedback), pp (γ/ν/pair/proton-loss), hadronic IC (proton + pion/muon), explicit secondary transport (n/π±/μ±), secondary radiation (pion/muon synch + IC), pair production (observer-side attenuation + pair synchrotron branch)
-- **Reverse-shock hadronic**: 1D proton injection/transport + proton synchrotron is implemented through `FS_hadronic_reverse_1d`; reverse-shock pγ/BH/pp/secondary/cascade are not implemented.
-- **Pair cascade**: iterative pair-production synch branch exists when `pair_cascade_iterations > 1`; this is not the full time-dependent pair cascade PDE.
+- **Reverse-shock hadronic**: `FS_hadronic_reverse_1d` remains the light proton-synch path; full-chain RS pγ/BH/pp/secondary/cascade coupling is active when `reverse_epsilon_p > 0` and the corresponding hadronic process flags are enabled.
+- **Pair cascade**: `pair_cascade_iterations > 1` now selects a shell-sequence time-dependent γγ pair/synch cascade path; the old single-shell iterative kernel remains available in `hadronic_cascade.py` for diagnostics.
 
 ## 6. Build and Test
 
@@ -135,9 +136,9 @@ Benchmark: `tests/vegas_afterglow_comparison.py`, `tests/sed_electron_compare.py
 ## 7. Known Boundaries
 
 Not yet complete:
-- reverse-shock pγ/BH/pp/secondary/cascade processes
 - 2D / χ-resolved hadronic transport
-- full time-dependent pair cascade PDE
+- inverse-Compton-mediated electromagnetic pair cascade beyond the current γγ pair/synch contract
+- corrected reverse-shock pre-crossing thermodynamics against VegasAfterglow
 - jet spreading in the current backend
 - user-defined `Medium` kernel dispatch and wind profiles with `k != 2`
 - thermal electron branch outside `fullhide_1d`

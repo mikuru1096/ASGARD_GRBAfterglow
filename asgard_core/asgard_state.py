@@ -677,8 +677,12 @@ def _assemble_observer_stage(
         rev_sync = reverse_emission.l_syn_spec
         seed_syn_absorption = seed_syn_absorption + reverse_emission.seed_syn
         if reverse_emission.rs_hadronic is not None:
-            seed_syn_absorption = seed_syn_absorption + reverse_emission.rs_hadronic.seed_had_syn
-            rev_sync = rev_sync + reverse_emission.rs_hadronic.l_had_syn_spec
+            seed_syn_absorption = seed_syn_absorption + _reverse_hadronic_seed_density(
+                reverse_emission.rs_hadronic,
+                radius_cm=dynamics.radius,
+                seed_frequency_hz=setup.seed_frequency_hz,
+            )
+            rev_sync = rev_sync + _reverse_hadronic_luminosity(reverse_emission.rs_hadronic)
         rev_details = BranchState(
             characteristic_time_s=dynamics.r_tobs,
             gamma=dynamics.r_gamma,
@@ -888,65 +892,64 @@ def _compute_pair_production_branch(
     use_iterative_cascade = (
         int(getattr(config.hadronic, 'pair_cascade_iterations', 1)) > 1
     )
+    if use_iterative_cascade:
+        from asgard_core.hadronic_cascade import compute_time_dependent_pair_cascade_sequence
+        cascade = compute_time_dependent_pair_cascade_sequence(
+            photon_energy_gev=photon_energy_gev,
+            primary_photon_density_per_gev=seed_field / constants.para_h_gev,
+            electron_energy_gev=e_e_gev,
+            frequency_hz=v_seed,
+            radius_cm=radius,
+            gamma_bulk=gamma_bulk,
+            observer_time_s=np.asarray(dynamics.r_tobs, dtype=float),
+            b_field_g=magnetic_field,
+            num_threads=int(config.num_threads),
+            index_syn_integr=int(config.index_syn_integr),
+            substeps_per_shell=int(config.hadronic.pair_cascade_iterations),
+        )
+        return (
+            np.asarray(cascade.pair_syn_luminosity_hz, dtype=float),
+            np.asarray(cascade.pair_syn_seed_per_hz, dtype=float),
+            np.asarray(cascade.tau_pair_path, dtype=float),
+        )
 
     for i_r in range(num_r):
         _, photon_density_per_gev = photon_density_hz_to_gev(v_seed, seed_field[:, i_r])
 
-        if use_iterative_cascade:
-            from asgard_core.hadronic_cascade import compute_iterative_pair_cascade
-            c_out = compute_iterative_pair_cascade(
-                photon_energy_gev=photon_energy_gev,
-                photon_density_per_gev=photon_density_per_gev,
-                electron_energy_gev=e_e_gev,
-                radius_cm=float(radius[i_r]),
-                gamma_bulk=float(gamma_bulk[i_r]),
-                b_field_g=float(magnetic_field[i_r]),
-                max_iterations=int(config.hadronic.pair_cascade_iterations),
+        ppair = solve_pair_production(
+            photon_energy_gev=photon_energy_gev,
+            photon_density_per_gev=photon_density_per_gev,
+            electron_energy_gev=e_e_gev,
+        )
+        photon_loss_rate = np.asarray(ppair.photon_loss_rate, dtype=float)
+        if np.any(photon_loss_rate < 0.0):
+            raise RuntimeError("pair production Fortran kernel returned negative photon loss rate.")
+        tau_pair[:, i_r] = photon_loss_rate * shell_path_time_seconds(float(radius[i_r]), float(gamma_bulk[i_r]))
+        q_pair = np.asarray(ppair.pair_injection_rate_per_gev_total, dtype=float) * (
+            (4.0 / 3.0) * np.pi * (
+                float(radius[i_r]) ** 3
+                - (0.0 if i_r == 0 else float(radius[i_r - 1]) ** 3)
             )
-            pair_lum_shell = np.asarray(c_out.pair_syn_luminosity_hz, dtype=float) * (
-                4.0 * np.pi * float(radius[i_r])**2
+        ) * _ELECTRON_MASS_GEV
+        d_n_pair = _hadronic_advance_energy_loggamma(
+            gam_e, gam_edge, d_n_pair_prev, q_pair,
+            _hadronic_electron_loss_rates(
+                gam_e, float(magnetic_field[i_r]),
+                float(radius[i_r]) / (float(gamma_bulk[i_r]) * constants.para_c),
+            ),
+            _hadronic_shell_dt(np.asarray(dynamics.r_tobs, dtype=float), i_r),
+        )
+        if magnetic_field[i_r] > 0.0:
+            p_syn_i, seed_syn_i = electron_radiation_module.get_syn_selected(
+                int(config.index_syn_integr),
+                float(radius[i_r]),
+                float(magnetic_field[i_r]),
+                int(config.num_threads),
+                gam_e, d_n_pair, v_seed,
             )
-            pair_lum[:, i_r] = pair_lum_shell
-            pair_seed[:, i_r] = pair_lum_shell / (
-                float(radius[i_r])**2
-                * 4.0 * np.pi * constants.para_c * constants.para_h
-            )
-            tau_pair[:, i_r] = np.asarray(c_out.tau_pair_path, dtype=float)
-        else:
-            ppair = solve_pair_production(
-                photon_energy_gev=photon_energy_gev,
-                photon_density_per_gev=photon_density_per_gev,
-                electron_energy_gev=e_e_gev,
-            )
-            photon_loss_rate = np.asarray(ppair.photon_loss_rate, dtype=float)
-            if np.any(photon_loss_rate < 0.0):
-                raise RuntimeError("pair production Fortran kernel returned negative photon loss rate.")
-            tau_pair[:, i_r] = photon_loss_rate * shell_path_time_seconds(float(radius[i_r]), float(gamma_bulk[i_r]))
-            q_pair = np.asarray(ppair.pair_injection_rate_per_gev_total, dtype=float) * (
-                (4.0 / 3.0) * np.pi * (
-                    float(radius[i_r]) ** 3
-                    - (0.0 if i_r == 0 else float(radius[i_r - 1]) ** 3)
-                )
-            ) * _ELECTRON_MASS_GEV
-            d_n_pair = _hadronic_advance_energy_loggamma(
-                gam_e, gam_edge, d_n_pair_prev, q_pair,
-                _hadronic_electron_loss_rates(
-                    gam_e, float(magnetic_field[i_r]),
-                    float(radius[i_r]) / (float(gamma_bulk[i_r]) * constants.para_c),
-                ),
-                _hadronic_shell_dt(np.asarray(dynamics.r_tobs, dtype=float), i_r),
-            )
-            if magnetic_field[i_r] > 0.0:
-                p_syn_i, seed_syn_i = electron_radiation_module.get_syn_selected(
-                    int(config.index_syn_integr),
-                    float(radius[i_r]),
-                    float(magnetic_field[i_r]),
-                    int(config.num_threads),
-                    gam_e, d_n_pair, v_seed,
-                )
-                pair_lum[:, i_r] = np.asarray(p_syn_i, dtype=float)
-                pair_seed[:, i_r] = np.asarray(seed_syn_i, dtype=float)
-            d_n_pair_prev = d_n_pair
+            pair_lum[:, i_r] = np.asarray(p_syn_i, dtype=float)
+            pair_seed[:, i_r] = np.asarray(seed_syn_i, dtype=float)
+        d_n_pair_prev = d_n_pair
     return pair_lum, pair_seed, tau_pair
 
 
@@ -1029,14 +1032,47 @@ def _project_optional_luminosity(luminosity: np.ndarray | None, prefactor: np.nd
 
 def _hadronic_optional_luminosities(hadronic) -> tuple[tuple[str, np.ndarray | None], ...]:
     return (
-        ("bethe_heitler", hadronic.l_had_bethe_heitler),
-        ("inverse_compton", hadronic.l_had_hadronic_inverse_compton),
-        ("pair_production", hadronic.l_had_pair_production),
-        ("pion_synch", hadronic.l_had_pion_synch),
-        ("muon_synch", hadronic.l_had_muon_synch),
-        ("pion_inverse_compton", hadronic.l_had_pion_inverse_compton),
-        ("muon_inverse_compton", hadronic.l_had_muon_inverse_compton),
+        ("bethe_heitler", getattr(hadronic, "l_had_bethe_heitler", None)),
+        ("inverse_compton", getattr(hadronic, "l_had_hadronic_inverse_compton", None)),
+        ("pair_production", getattr(hadronic, "l_had_pair_production", None)),
+        ("pion_synch", getattr(hadronic, "l_had_pion_synch", None)),
+        ("muon_synch", getattr(hadronic, "l_had_muon_synch", None)),
+        ("pion_inverse_compton", getattr(hadronic, "l_had_pion_inverse_compton", None)),
+        ("muon_inverse_compton", getattr(hadronic, "l_had_muon_inverse_compton", None)),
     )
+
+
+def _reverse_hadronic_luminosity(rs_hadronic) -> np.ndarray:
+    total = np.asarray(rs_hadronic.l_had_syn_spec, dtype=float)
+    l_pg = getattr(rs_hadronic, "l_had_pg_gamma", None)
+    if l_pg is not None:
+        total = total + np.asarray(l_pg, dtype=float)
+    for _name, luminosity in _hadronic_optional_luminosities(rs_hadronic):
+        if luminosity is not None:
+            total = total + np.asarray(luminosity, dtype=float)
+    return total
+
+
+def _reverse_hadronic_seed_density(
+    rs_hadronic,
+    *,
+    radius_cm: np.ndarray,
+    seed_frequency_hz: np.ndarray,
+) -> np.ndarray:
+    seed_total = np.asarray(rs_hadronic.seed_had_syn, dtype=float)
+    seed_bh = getattr(rs_hadronic, "seed_had_bethe_heitler", None)
+    if seed_bh is not None:
+        seed_total = seed_total + np.asarray(seed_bh, dtype=float)
+    l_pg = getattr(rs_hadronic, "l_had_pg_gamma", None)
+    luminosities = (l_pg, *[item[1] for item in _hadronic_optional_luminosities(rs_hadronic)])
+    for luminosity in luminosities:
+        if luminosity is not None:
+            seed_total = seed_total + _seed_density_from_luminosity(
+                luminosity,
+                radius_cm=radius_cm,
+                seed_frequency_hz=seed_frequency_hz,
+            )
+    return seed_total
 
 
 def _hadronic_absorbed_luminosity(hadronic, ssa_transfer: np.ndarray) -> dict[str, np.ndarray | None]:

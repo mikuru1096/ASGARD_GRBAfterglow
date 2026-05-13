@@ -20,17 +20,18 @@
 - Bethe-Heitler: proton continuous cooling + secondary e± → merge into forward electron → recompute seed_syn
 - hadronic IC: proton channel; pion/muon IC via explicit secondary species
 - pp: γ, ν, pair source, proton loss
-- pair production: observer-side `tau_pair` attenuation + pair synchrotron branch
+- pair production: observer-side `tau_pair` attenuation + pair synchrotron branch; `pair_cascade_iterations > 1` selects the shell-sequence time-dependent γγ pair/synch cascade
 - explicit secondary species transport: n, π±, μ± (left/right)
 - secondary radiation: pion/muon synchrotron + IC
 - hadronic acceleration/injection operators
+- reverse-shock full-chain dispatch: when RS hadronic full-chain flags are enabled, the runtime reuses the formal 1D kernels with RS seed photons, RS magnetic field, RS shell energy and RS baryon target density
 
 ## Current Boundaries
 
 未完成:
-- reverse-shock pγ/BH/pp/secondary/cascade; RS proton injection/transport + proton synchrotron 已接入
 - 2D / χ-resolved hadronic transport
-- full time-dependent pair cascade PDE
+- inverse-Compton-mediated electromagnetic pair cascade beyond the current γγ pair/synch contract
+- reverse-shock pre-crossing thermodynamics correction against VegasAfterglow
 
 ## AM3 Reference
 

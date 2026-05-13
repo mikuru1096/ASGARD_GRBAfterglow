@@ -28,7 +28,7 @@ from asgard_core.asgard_postprocess import (
     select_spectrum_time_index,
 )
 from asgard_core.asgard_presets import build_baseline_config
-from src import Interpolation
+from src import Interpolation, constants
 
 from .api_adaptive import _observe_parts, _observe_total
 from .api_fit import FitResult
@@ -949,10 +949,12 @@ def _build_fit_config_for_patch(
         include_hadronic_inverse_compton=bool(model.fwd_rad.hadronic_inverse_compton),
         include_pp=bool(model.fwd_rad.pp),
         include_neutrino=bool(model.fwd_rad.neutrino),
+        include_pair_production=bool(model.fwd_rad.pair_production),
         pgamma_scheme=str(model.setups.pgamma_scheme if model.setups.pgamma_scheme != "disabled" else model.fwd_rad.pgamma_scheme),
         num_nu_nu=int(model.setups.num_nu_nu),
         reverse_enabled=bool(model.setups.rvs_shock and model.fwd_rad.reverse_epsilon_p > 0.0),
         reverse_epsilon_p=float(model.fwd_rad.reverse_epsilon_p),
+        pair_cascade_iterations=int(model.setups.pair_cascade_iterations),
         pp_model=int(getattr(model.fwd_rad, 'pp_model', -1)),
     )
     magnetar = getattr(model.jet, "magnetar", None)
@@ -1054,7 +1056,7 @@ def _make_details(
             t_obs=components.fwd.characteristic_time_s,
             radius=components.fwd.radius_cm,
             Gamma=components.fwd.gamma,
-            N_p=components.fwd.swept_mass_g,
+            N_p=np.asarray(components.fwd.swept_mass_g, dtype=float) / constants.para_m_p,
             Doppler=components.fwd.doppler,
             B_comv=components.fwd.magnetic_field_g,
             nu_m=components.fwd.nu_m,
@@ -1099,7 +1101,7 @@ def _make_details(
             t_obs=components.rev.characteristic_time_s,
             radius=components.rev.radius_cm,
             Gamma=components.rev.gamma,
-            N_p=components.rev.swept_mass_g,
+            N_p=np.asarray(components.rev.swept_mass_g, dtype=float) / constants.para_m_p,
             Doppler=components.rev.doppler,
             B_comv=components.rev.magnetic_field_g,
             nu_m=components.rev.nu_m,

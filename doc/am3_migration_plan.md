@@ -9,15 +9,17 @@
 - Explicit secondary species transport: n, π±, μ± (left/right)
 - Secondary radiation: pion/muon synchrotron + IC
 - Hadronic acceleration/injection operators
+- Shell-sequence time-dependent γγ pair/synch cascade path
+- Reverse-shock full-chain hadronic dispatch through the formal 1D kernels
 
 ## Remaining Gaps
 
-- Full time-dependent pair cascade PDE
-- Reverse-shock pγ/BH/pp/secondary/cascade coupling
 - 2D / χ-resolved hadronic transport
 - Regenerated Vegas benchmark figures with complete hadronic chain
+- Inverse-Compton-mediated electromagnetic pair cascade beyond the current γγ pair/synch contract
+- Reverse-shock pre-crossing thermodynamics correction against VegasAfterglow
 
-RS hadronic proton injection/transport + proton synchrotron now exists in `FS_hadronic_reverse_1d`. An iterative pair-production synch branch exists, but it is not the full time-dependent pair cascade PDE.
+RS hadronic proton injection/transport + proton synchrotron exists in `FS_hadronic_reverse_1d`. Full-chain RS pγ/BH/pp/secondary/cascade dispatch reuses `FS_hadronic_1d` formal kernels through the runtime wrapper. The legacy iterative pair-production synch branch remains as a diagnostic path; the main cascade path is the shell-sequence time-dependent γγ pair/synch cascade.
 
 ## Architecture Boundary
 

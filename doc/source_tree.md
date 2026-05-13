@@ -7,8 +7,8 @@
 - `ASGARD/` — 外部用户 API: `api_model.py`, `api_observe.py`, `api_fit.py`, `api_adaptive.py`
 - `asgard_core/` — 内部编排与物理耦合: `asgard_runtime.py`, `asgard_state.py`, `asgard_setup.py`, `asgard_ssc.py`, `asgard_types.py`
 - `asgard_core/hadronic_*.py` — hadronic Python wrappers/benchmarks (orchestration only; final microphysics → `src/Hadronic/`)
-- `asgard_core/hadronic_reverse.py` — RS hadronic proton transport + synchrotron wrapper
-- `asgard_core/hadronic_cascade.py` — iterative pair-production synch branch wrapper, not full time-dependent cascade PDE
+- `asgard_core/hadronic_reverse.py` — RS hadronic light proton transport + synchrotron wrapper
+- `asgard_core/hadronic_cascade.py` — pair-production synch diagnostics plus shell-sequence time-dependent γγ pair/synch cascade
 
 ## Fortran Runtime
 
