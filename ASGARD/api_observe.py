@@ -971,6 +971,7 @@ def _build_fit_config_for_patch(
             epsilon_b=model.rvs_rad.eps_B,
             p=model.rvs_rad.p,
             f_e=model.rvs_rad.xi_N,
+            sigma=model.setups.reverse_sigma,
             include_ssc=model.rvs_rad.ssc,
             include_cross_zone_ic=model.setups.include_cross_zone_ic,
         )
@@ -1472,6 +1473,7 @@ def _param_path(model: Model, param: ParamDef) -> str:
         "p_r": "rvs_rad.p",
         "xi_n_r": "rvs_rad.xi_N",
         "f_e_r": "rvs_rad.xi_N",
+        "reverse_sigma": "setups.reverse_sigma",
     }
     if name not in alias_map:
         raise KeyError(f"Cannot infer parameter path for {param.name}.")
@@ -1489,6 +1491,8 @@ def _as_model(cfg: Any) -> Model:
         raise TypeError("cfg must be a Model or a dictionary of model options.")
     setups_source = cfg.get("setups", Setups())
     setups = deepcopy(setups_source if isinstance(setups_source, Setups) else Setups(**setups_source))
+    if "reverse_sigma" in cfg:
+        setups.reverse_sigma = float(cfg["reverse_sigma"])
     observer = cfg.get(
         "observer",
         Observer(
@@ -1750,6 +1754,7 @@ def _build_model_from_fit_config(config: FitConfig) -> Model:
             observer_time_max_s=10 ** config.t_obs_max_log10,
             initial_radius_cm=config.initial_radius_cm,
             reverse_delta_t_s=reverse_delta_t_s,
+            reverse_sigma=float(reverse.sigma) if reverse_enabled else 0.0,
             include_cross_zone_ic=bool(reverse.include_cross_zone_ic) if reverse_enabled else False,
             weno5=config.weno5,
             electron_solver=config.electron_solver,

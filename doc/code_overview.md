@@ -8,6 +8,7 @@
 - `Model.flux_density_grid(times_s, nu_hz)`, `flux_density(times_s, nu_hz)`, `spectrum(time_s, nu_hz)`, `flux(time_s, nu_min, nu_max)`, `sky_image(t_obs, nu_obs, fov)`, `details()`
   - `Model.polarization(times_s, nu_hz, magnetic_geometry=..., local_emissivity=...)`
 - Hadronic public switches: `Radiation.pair_production`, `Radiation.pg`, `Radiation.bethe_heitler`, `Radiation.pp`, `Radiation.neutrino`, `Radiation.reverse_epsilon_p`; cascade substeps use `Setups.pair_cascade_iterations`
+- Reverse-shock magnetization switch: `ReverseShockConfig.sigma` / `Setups.reverse_sigma`
 - `ASGARD/api_observe.py`: `observe(model, config)`, `run_fit(config)`
 - `ASGARD/api_fit.py`: `Fitter`, `Param`, `FitResult`
 - Electron solver names: `fullhide_1d`, `slc1_1d`, `charint_1d`, `charint_2d`, `t2g1_1d`, `weno5_1d`, `fullhide_2d`
@@ -27,7 +28,7 @@ Model / observe / run_fit
 
 Core state objects (`asgard_core/asgard_types.py`):
 - `DynamicsSolution`: `r_tobs`, `r_gamma`, `radius`, `swept_mass_g`
-- `ReverseShockDynamics`: `M3`, `B3`, `U3/V3`, `gamma34` and crossing thermal records; `B3` is closed by the explicit region-3 thermal state
+- `ReverseShockDynamics`: `M3`, total `B3`, ordered crossing field `B3_ordered_cross`, `U3/V3`, `gamma34` and crossing thermal records; `B3` is the sum of turbulent `sqrt(8 pi epsilon_B,r U3/V3)` and the optional ordered upstream field amplified by the magnetized compression ratio
 - `ElectronSolution`: `gam_e`, `d_n_gam_e`, `l_syn_spec`, `seed_syn`, `nu_m`, `nu_c`, `nu_a`; 2D adds `d_n_gam_e_chi`, `chi_grid`; BH adds `d_n_gam_e_bh`
 - `PhotonFieldState`: forward synch seed, hadronic target field, absorption seed field
 - `HadronicSolution`: 1D hadronic proton/secondary/radiation results
@@ -68,7 +69,7 @@ Final AM3-derived microphysics lives in `src/Hadronic/*.f90`.
 
 ### Dynamics
 - `src/Dynamics/Dynamics_forward.f90`: forward shock dynamics, ISM/wind, density jumps, energy injection
-- `src/Dynamics/Dynamics_reverse.f90`: reverse shock dynamics with explicit region-3 `U3/V3/gamma34`; new injection uses shock-front `gamma34`, while RS magnetic field and post-crossing thermal evolution use `U3/V3`
+- `src/Dynamics/Dynamics_reverse.f90`: reverse shock dynamics with explicit region-3 `U3/V3/gamma34`; injection uses shock-front `gamma34`, turbulent field and post-crossing thermal evolution use `U3/V3`, and optional upstream `sigma_r` adds MHD-jump compression plus an ordered magnetic component; f2py returns `B3_ordered_cross` after `gamma_m_cross`
 - `src/Dynamics/dynamics_common.f90`: shared dynamics auxiliaries
 
 ### Electron

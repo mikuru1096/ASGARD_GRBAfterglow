@@ -6,18 +6,18 @@
 
 - Public runtime: forward-shock afterglow API、电子同步/SSC/SSA、`gamma-gamma` 吸收、observer projection 和 benchmark workflow 可用。
 - Electron solvers: 1D `fullhide/slc1/charint/t2g1/weno5` 与 2D `fullhide_2d/charint_2d` 均在当前工作树登记；`fullhide_1d` 是默认稳定基线。
-- Reverse shock: electron synchrotron、RS SSC、FS/RS cross-zone IC 已接入；RS 注入能标使用 shock-front `gamma34`，区域 3 磁场和 post-crossing 热演化使用显式 `U3/V3` thermal state；RS hadronic light path 覆盖 1D proton injection/transport + proton synchrotron，full-chain path 复用正式 1D hadronic kernels 覆盖 RS pγ/BH/pp/secondary/cascade coupling。
+- Reverse shock: electron synchrotron、RS SSC、FS/RS cross-zone IC 已接入；RS 注入能标使用 shock-front `gamma34`，区域 3 turbulent field 和 post-crossing 热演化使用显式 `U3/V3` thermal state；可选 upstream magnetization `sigma` 已接入 Python/Fortran 动力学契约，使用 Vegas MHD jump 的 `sigma` 依赖和 upstream ordered-field 公式，且以 ASGARD 非磁化 jump condition 固定 `sigma -> 0` 极限；RS hadronic light path 覆盖 1D proton injection/transport + proton synchrotron，full-chain path 复用正式 1D hadronic kernels 覆盖 RS pγ/BH/pp/secondary/cascade coupling。
 - Forward-shock hadronic: `legacy_1d` 覆盖 proton transport + proton synchrotron；`am3_1d` 是当前正式研究路径，覆盖 p-gamma、BH、pp、hadronic IC、secondary species transport、secondary radiation、pair production branch、neutrino 等过程。`Radiation.pair_production=True` 且 `Setups.pair_cascade_iterations>1` 时，pair branch 使用 shell-sequence time-dependent γγ pair/synch cascade。
 - Polarization: `Model.polarization(...)` 已实现同步辐射 Stokes 路径，覆盖 FS/RS electron synch 与 FS/RS hadronic synch；非同步分支不混入偏振 Stokes。
 - AM3: 只作为 hadronic 微物理核和 benchmark 参考；ASGARD 的 dynamics/electron/observer 主链不由 AM3 替代。
 
 ## Todo
 
-1. Magnetized-jet reverse shock
-   - 引入磁化喷流反向激波，与当前非磁化 RS 共用动力学、电子、辐射和 hadronic 计算核；新增磁化闭合只负责 shock jump condition、区域 3 热态/磁场注入和必要的状态变量。
-   - 从 VegasAfterglow 代码中抽取磁化激波跳跃条件求解器和磁场强度计算方法，先转写为可审计的 ASGARD 物理契约；Vegas 只提供算法来源和 comparison backend，不作为光变匹配目标。
-   - 物理验收条件：`sigma -> 0` 必须连续回到当前 unmagnetized RS 基线；`gamma34/U3/V3/B3/nu_m` 随时间平滑；crossing 前后能量、质量和 comoving/lab frame 单位契约必须明确。
-   - 实现边界：不在本任务中引入任意后处理 flux normalization，不写兜底分支；若 Vegas 公式与 ASGARD 显式 `U3/V3` 热态闭合冲突，优先保留 ASGARD 的守恒量闭合并记录差异。
+1. Magnetized-RS full-MHD upgrade decision
+   - 当前已完成基线：`ReverseShockConfig.sigma` / `Setups.reverse_sigma` 控制 upstream magnetization；`Dynamics_reverse` 在 `f_e_r` 后接收 `sigma_r`，并在 `gamma_m_cross` 后输出 `B3_ordered_cross`，Python 暴露为 `ReverseShockDynamics.ordered_magnetic_cross_g`。
+   - 当前闭合：Vegas MHD jump condition 只提供压缩比的 `sigma` 依赖；ASGARD 用 `(4 gamma34 + 3)` 固定零磁化极限；`B3 = sqrt(8 pi epsilon_B,r U3/V3) + B3_ordered`，crossing 后有序场随 `V3_cross/V3` 膨胀。
+   - 后续若要修改 `dU3_shock=(gamma34-1) dm3 c^2`，必须先给出完整 MHD 能量方程和文献 benchmark；不要用光变匹配或 Vegas 平均热态作为替代理由。
+   - 增加磁化 RS benchmark 图时只报告 `sigma` 扫描下 `B3/gamma34/U3/V3/nu_m/nu_c/nu_a` 平滑性和 `sigma -> 0` 极限，不设 “match Vegas light curve” 为验收条件。
 
 2. RS thermal-state diagnostics hardening
    - 当前 RS 动力学显式输出 `U3_th/V3_comoving/Gamma34_inst`；`B3=sqrt(8 pi epsilon_B,r U3/V3)`。

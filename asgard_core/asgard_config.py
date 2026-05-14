@@ -46,6 +46,7 @@ class ReverseShockConfig:
     """Configuration for reverse shock physics."""
     enabled: bool = False
     delta_t_s: Optional[float] = None
+    sigma: float = 0.0
     epsilon_e: Optional[float] = None
     epsilon_b: Optional[float] = None
     p: Optional[float] = None

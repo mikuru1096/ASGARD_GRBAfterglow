@@ -124,6 +124,7 @@ class ObsState:
 class ReverseShockParameters:
     """Parameters for reverse shock physics."""
     delta_t_s: float
+    sigma: float
     epsilon_e: float
     epsilon_b: float
     p: float
@@ -141,6 +142,7 @@ class ReverseShockDynamics:
     v3_cross_cm3: float
     m3_cross_g: float
     gamma_m_cross: float
+    ordered_magnetic_cross_g: float
     swept_mass_g: np.ndarray
     magnetic_field_g: np.ndarray
     internal_energy_erg: np.ndarray

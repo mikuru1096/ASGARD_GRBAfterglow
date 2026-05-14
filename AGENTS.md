@@ -18,7 +18,7 @@ rtk bash -lc "source ~/.wsl_env && cd \"/mnt/c/Users/jia/Documents/New project/A
 
 - **Reverse-shock hadronic**: light backend `FS_hadronic_reverse_1d` covers RS proton injection/transport + proton synchrotron; when RS hadronic full-chain flags are enabled, the runtime reuses the formal 1D hadronic kernels for RS pγ/BH/pp/secondary/cascade coupling with RS seed photons and RS shell targets.
 - **Pair cascade**: `pair_cascade_iterations > 1` now uses a shell-sequence time-dependent γγ pair/synch cascade path; the legacy single-shell iterative kernel remains for low-level diagnostics.
-- **Reverse-shock thermal baseline**: RS 注入能标使用 shock-front `gamma34`；区域 3 磁场和 post-crossing 热演化使用显式 `U3/V3` thermal state。VegasAfterglow 只作为 comparison backend，不作为物理基准。
+- **Reverse-shock thermal/magnetized baseline**: RS 注入能标使用 shock-front `gamma34`；区域 3 turbulent field 和 post-crossing 热演化使用显式 `U3/V3` thermal state；可选 upstream `sigma` 引入 MHD jump 压缩比和有序磁场，返回的 `B3` 是 turbulent + ordered total field，`sigma -> 0` 必须保持当前 unmagnetized baseline。VegasAfterglow 作为 jump-condition 来源和 comparison backend，不作为光变目标或物理基准。
 - **RS benchmark refresh**: `tests/vegas_afterglow_comparison.py --only reverse_shock_lc reverse_shock_thermal` 生成 RS 光变对照与热态闭合诊断图；图像是 artifact，必须能由脚本复现。
 - **Not yet implemented**: 2D/chi-resolved hadronic transport; inverse-Compton-mediated electromagnetic pair cascade beyond the current γγ pair/synch contract.
 

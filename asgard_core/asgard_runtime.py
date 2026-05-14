@@ -168,6 +168,7 @@ def solve_dynamics(
         v3_cross_cm3,
         m3_cross_g,
         gamma_m_cross,
+        ordered_magnetic_cross_g,
         r_tobs,
         r_gamma,
         radius,
@@ -183,6 +184,7 @@ def solve_dynamics(
         reverse_params.epsilon_b,
         reverse_params.p,
         reverse_params.f_e,
+        reverse_params.sigma,
         boundary,
         config.num_r,
     )
@@ -195,6 +197,7 @@ def solve_dynamics(
         v3_cross_cm3,
         m3_cross_g,
         gamma_m_cross,
+        ordered_magnetic_cross_g,
         swept_reverse_mass_g,
         magnetic_field_g,
         internal_energy_erg,
@@ -1923,9 +1926,12 @@ def _resolve_reverse_shock_parameters(config: FitConfig) -> ReverseShockParamete
 
     if config.reverse_shock.delta_t_s is None:
         raise ValueError("ReverseShockConfig.delta_t_s must be set when reverse shock is enabled.")
+    if config.reverse_shock.sigma < 0.0:
+        raise ValueError("ReverseShockConfig.sigma must be non-negative.")
 
     return ReverseShockParameters(
         delta_t_s=config.reverse_shock.delta_t_s,
+        sigma=config.reverse_shock.sigma,
         epsilon_e=config.epsilon_e if config.reverse_shock.epsilon_e is None else config.reverse_shock.epsilon_e,
         epsilon_b=config.epsilon_b if config.reverse_shock.epsilon_b is None else config.reverse_shock.epsilon_b,
         p=config.p if config.reverse_shock.p is None else config.reverse_shock.p,

@@ -414,6 +414,7 @@ class Setups:
     observer_time_max_s: float = 1.0e8
     initial_radius_cm: float = 1.0e14
     reverse_delta_t_s: float = 10.0
+    reverse_sigma: float = 0.0
     include_cross_zone_ic: bool = False
     weno5: bool = False
     electron_solver: str = "fullhide_1d"

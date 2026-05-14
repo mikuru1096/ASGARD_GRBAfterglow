@@ -15,7 +15,10 @@ from asgard_core.asgard_config import FitConfig, ReverseShockConfig
 from asgard_core.asgard_state import make_query_setup, solve_state_from_setup
 
 
-def _config(index_y: int) -> FitConfig:
+def _config(index_y: int, *, sigma: float | None = None) -> FitConfig:
+    reverse_kwargs = {}
+    if sigma is not None:
+        reverse_kwargs["sigma"] = sigma
     return FitConfig(
         index_y=index_y,
         index_syn_integr=2,
@@ -35,6 +38,7 @@ def _config(index_y: int) -> FitConfig:
             epsilon_b=1.0e-2,
             p=2.4,
             f_e=1.0,
+            **reverse_kwargs,
         ),
     )
 
@@ -58,6 +62,7 @@ def _run(index_y: int) -> None:
     assert np.all(np.isfinite(rs.internal_energy_erg))
     assert np.all(np.isfinite(rs.comoving_volume_cm3))
     assert np.all(np.isfinite(rs.gamma34))
+    assert np.isfinite(rs.ordered_magnetic_cross_g)
     assert np.all(rs.internal_energy_erg > 0.0)
     assert np.all(rs.comoving_volume_cm3 > 0.0)
     assert np.all(rs.magnetic_field_g >= 0.0)
@@ -68,9 +73,37 @@ def _run(index_y: int) -> None:
         assert np.all(np.diff(thermal_energy) <= 0.0)
 
 
+def _run_sigma_zero_baseline() -> None:
+    baseline = run_fit(_config(0))
+    sigma_zero = run_fit(_config(0, sigma=0.0))
+    assert np.allclose(sigma_zero.bands_flux, baseline.bands_flux, rtol=0.0, atol=0.0)
+    assert np.allclose(sigma_zero.rs_nu_m, baseline.rs_nu_m, rtol=0.0, atol=0.0)
+    assert np.allclose(sigma_zero.rs_nu_c, baseline.rs_nu_c, rtol=0.0, atol=0.0)
+    assert np.allclose(sigma_zero.rs_nu_a, baseline.rs_nu_a, rtol=0.0, atol=0.0)
+
+
+def _run_magnetized_interface() -> None:
+    config = _config(0, sigma=1.0e-2)
+    setup = make_query_setup(config, np.logspace(2.0, 5.0, 6), np.array([1.0e9, 1.0e14]))
+    state = solve_state_from_setup(config, setup)
+    rs = state.dynamics.reverse_shock
+    assert rs is not None
+    assert np.isfinite(rs.ordered_magnetic_cross_g)
+    assert rs.ordered_magnetic_cross_g > 0.0
+    assert np.all(np.isfinite(rs.magnetic_field_g))
+    assert np.all(np.isfinite(rs.internal_energy_erg))
+    assert np.all(np.isfinite(rs.comoving_volume_cm3))
+    assert np.all(np.isfinite(rs.gamma34))
+    assert np.all(rs.magnetic_field_g > 0.0)
+    assert np.all(rs.internal_energy_erg > 0.0)
+    assert np.all(rs.comoving_volume_cm3 > 0.0)
+
+
 def main() -> None:
     for index_y in (0, 3):
         _run(index_y)
+    _run_sigma_zero_baseline()
+    _run_magnetized_interface()
     print("reverse-shock-smoke-ok")
 
 
