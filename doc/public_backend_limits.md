@@ -13,7 +13,7 @@
   - 当前 kernel contract 只接受 `ISM` 和 `Wind(k=2)` 映射出的参数。
 - Wind `k != 2`:
   - `Wind._rho(...)` 和 `Wind.to_kernel_params()` 都拒绝 `k != 2`。
-  - 当前 Fortran/Python density contract 是 ISM + `A_star r^-2` wind + optional wind floor/cutoff，不是任意 `r^-k`。
+  - 当前 Fortran/Python density contract 是 `A_star r^-2` wind；当 `A_star 3e35 / R^2 <= n_ISM / 4` 时切到 ISM floor，不是任意 `r^-k`。
 - Thermal electrons outside `fullhide_1d`:
   - `solve_electron(...)` 在 `thermal_electrons=True` 且 solver 不是 `fullhide_1d` 时直接 `NotImplementedError`。
   - 现有 thermal branch 未定义到 `weno5_1d`, `slc1_1d`, `charint_*`, `fullhide_2d`。

@@ -1407,7 +1407,7 @@ def _evaluate_kernel_density(radius: np.ndarray, params: dict[str, float]) -> np
     radius = np.asarray(radius, dtype=float)
     if params["a_star"] > 0.0:
         wind = params["a_star"] * 3.0e35 / radius**2
-        density = np.maximum(params["d_ne"], wind)
+        density = np.where(wind <= params["d_ne"] / 4.0, params["d_ne"], wind)
     else:
         density = params["d_ne"] * (
             1.0

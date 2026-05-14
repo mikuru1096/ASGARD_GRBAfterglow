@@ -50,6 +50,17 @@ MODE_GRIDS = {
         "lc_times": 96,
         "sed_freqs": 180,
     },
+    "dense": {
+        "dyn_r": 180,
+        "dyn_theta": 40,
+        "model_gam": 81,
+        "model_nu": 101,
+        "model_r": 180,
+        "model_theta": 40,
+        "model_tobs": 72,
+        "lc_times": 160,
+        "sed_freqs": 240,
+    },
 }
 
 
@@ -375,7 +386,7 @@ def _plot_sed(
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--medium", choices=("ism", "wind"), default="ism")
-    parser.add_argument("--mode", choices=("quick", "full"), default="quick")
+    parser.add_argument("--mode", choices=("quick", "full", "dense"), default="quick")
     parser.add_argument("--output-dir", type=Path, default=None)
     args = parser.parse_args()
     grid = MODE_GRIDS[args.mode]

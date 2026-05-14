@@ -86,10 +86,9 @@ class Wind(Medium):
             raise NotImplementedError("The current ASGARD wind kernel only supports k=2.")
         radius = np.asarray(radius_cm, dtype=float)
         d_ne_wind = self.A_star * 3.0e35 / radius**2
-        values = d_ne_wind
+        values = np.where(d_ne_wind <= self.n_ism / 4.0, self.n_ism, d_ne_wind)
         if self.n0 is not None and np.isfinite(self.n0) and self.n0 > 0.0:
             values = np.minimum(values, float(self.n0))
-        values = np.maximum(self.n_ism, values)
         if values.ndim == 0:
             return float(values)
         return values
