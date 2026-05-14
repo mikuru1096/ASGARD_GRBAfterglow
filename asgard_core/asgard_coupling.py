@@ -45,7 +45,7 @@ def build_coupled_shock_geometry(dynamics, config: FitConfig) -> CoupledShockGeo
         n4 = shell_mass_g / (4.0 * np.pi * constants.para_m_p * radius_loc**2 * eta_0 * delta_shell_cm)
         u2 = np.sqrt(gamma_loc * gamma_loc - 1.0)
         u4 = np.sqrt(eta_0 * eta_0 - 1.0)
-        gamma34 = eta_0 * gamma_loc - u2 * u4
+        gamma34 = (gamma_loc * gamma_loc + eta_0 * eta_0 - 1.0) / (eta_0 * gamma_loc + u2 * u4)
         n3 = (4.0 * gamma34 + 3.0) * n4
         rs_width_cm[i] = (
             dynamics.reverse_shock.swept_mass_g[i] / (4.0 * np.pi * radius_loc**2 * n3 * constants.para_m_p)

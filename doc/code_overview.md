@@ -67,7 +67,7 @@ Final AM3-derived microphysics lives in `src/Hadronic/*.f90`.
 
 ### Dynamics
 - `src/Dynamics/Dynamics_forward.f90`: forward shock dynamics, ISM/wind, density jumps, energy injection
-- `src/Dynamics/Dynamics_reverse.f90`: reverse shock dynamics, RS initial electron spectrum, RS magnetic field
+- `src/Dynamics/Dynamics_reverse.f90`: reverse shock dynamics with explicit region-3 `U3/V3/gamma34`; RS magnetic field is derived from `U3/V3`
 - `src/Dynamics/dynamics_common.f90`: shared dynamics auxiliaries
 
 ### Electron
@@ -138,7 +138,7 @@ Benchmark: `tests/vegas_afterglow_comparison.py`, `tests/sed_electron_compare.py
 Not yet complete:
 - 2D / χ-resolved hadronic transport
 - inverse-Compton-mediated electromagnetic pair cascade beyond the current γγ pair/synch contract
-- reverse-shock Vegas thermal-state parity: ASGARD pre-crossing shocked-ejecta thermodynamics is fixed, but ASGARD still lacks Vegas-style explicit `U3_th/m3` thermal-state closure for RS `gamma_m` and break-frequency evolution
+- reverse-shock `nu_m` is a diagnostic break derived from local `gamma34` injection and post-crossing `U3/M3`; it does not replace the transported electron spectrum
 - jet spreading in the current backend
 - user-defined `Medium` kernel dispatch and wind profiles with `k != 2`
 - thermal electron branch outside `fullhide_1d`

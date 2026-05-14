@@ -164,12 +164,19 @@ def solve_dynamics(
         r_cross,
         e3_cross,
         gam20,
+        u3_cross_erg,
+        v3_cross_cm3,
+        m3_cross_g,
+        gamma_m_cross,
         r_tobs,
         r_gamma,
         radius,
         swept_mass_g,
         swept_reverse_mass_g,
         magnetic_field_g,
+        internal_energy_erg,
+        comoving_volume_cm3,
+        gamma34,
     ) = Dynamics.dynamics_reverse(
         reverse_params.delta_t_s,
         reverse_params.epsilon_e,
@@ -184,8 +191,15 @@ def solve_dynamics(
         r_cross,
         e3_cross,
         gam20,
+        u3_cross_erg,
+        v3_cross_cm3,
+        m3_cross_g,
+        gamma_m_cross,
         swept_reverse_mass_g,
         magnetic_field_g,
+        internal_energy_erg,
+        comoving_volume_cm3,
+        gamma34,
     )
     solution = DynamicsSolution(r_tobs, r_gamma, radius, swept_mass_g, reverse_shock=reverse_shock)
     if return_report:
@@ -1978,7 +1992,15 @@ def _compute_reverse_shock_characteristic_frequencies(
         db = float(dynamics.reverse_shock.magnetic_field_g[i - 1])
         magnetic_field_g[i - 1] = db
         gam_e_max = 3.0 * constants.para_m_energy / np.sqrt(8.0 * db * constants.para_e**3)
-        gam_e_m = _minimum_reverse_shock_electron_lorentz_factor(reverse_params, gamma34, gam_e_max)
+        if float(dynamics.radius[i - 1]) < float(dynamics.reverse_shock.r_cross):
+            gam_e_m = _minimum_reverse_shock_electron_lorentz_factor(reverse_params, gamma34, gam_e_max)
+        else:
+            energy_ratio = (
+                dynamics.reverse_shock.internal_energy_erg[i - 1]
+                / dynamics.reverse_shock.swept_mass_g[i - 1]
+                / (dynamics.reverse_shock.u3_cross_erg / dynamics.reverse_shock.m3_cross_g)
+            )
+            gam_e_m = 1.0 + (float(dynamics.reverse_shock.gamma_m_cross) - 1.0) * energy_ratio
         gam_e_c = 7.7e8 * (1.0 + config.z) / gamma2 / db**2 / dynamics.r_tobs[i]
         doppler_den = _doppler_denominator(gamma2, config.z)
 

@@ -137,8 +137,15 @@ class ReverseShockDynamics:
     r_cross: float
     e3_cross: float
     gam20: float
+    u3_cross_erg: float
+    v3_cross_cm3: float
+    m3_cross_g: float
+    gamma_m_cross: float
     swept_mass_g: np.ndarray
     magnetic_field_g: np.ndarray
+    internal_energy_erg: np.ndarray
+    comoving_volume_cm3: np.ndarray
+    gamma34: np.ndarray
     gam_e: np.ndarray | None = None
     d_n_gam_e: np.ndarray | None = None
 

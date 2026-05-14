@@ -31,7 +31,8 @@
 未完成:
 - 2D / χ-resolved hadronic transport
 - inverse-Compton-mediated electromagnetic pair cascade beyond the current γγ pair/synch contract
-- reverse-shock Vegas thermal-state parity beyond the fixed pre-crossing shocked-ejecta thermodynamics
+
+Reverse-shock baseline: ASGARD uses local `gamma34` injection with explicit region-3 `U3/V3` thermal-state evolution; VegasAfterglow is only a comparison backend.
 
 ## AM3 Reference
 

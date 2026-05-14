@@ -12,6 +12,7 @@ if str(ROOT) not in sys.path:
 
 from ASGARD import run_fit
 from asgard_core.asgard_config import FitConfig, ReverseShockConfig
+from asgard_core.asgard_state import make_query_setup, solve_state_from_setup
 
 
 def _config(index_y: int) -> FitConfig:
@@ -39,7 +40,8 @@ def _config(index_y: int) -> FitConfig:
 
 
 def _run(index_y: int) -> None:
-    result = run_fit(_config(index_y))
+    config = _config(index_y)
+    result = run_fit(config)
     assert result.rs_nu_m is not None
     assert result.rs_nu_c is not None
     assert result.rs_nu_a is not None
@@ -47,6 +49,23 @@ def _run(index_y: int) -> None:
     assert np.all(np.isfinite(result.rs_nu_m))
     assert np.all(np.isfinite(result.rs_nu_c))
     assert np.all(np.isfinite(result.rs_nu_a))
+
+    setup = make_query_setup(config, np.logspace(2.0, 5.0, 6), np.array([1.0e9, 1.0e14]))
+    state = solve_state_from_setup(config, setup)
+    rs = state.dynamics.reverse_shock
+    assert rs is not None
+    assert np.all(np.isfinite(rs.magnetic_field_g))
+    assert np.all(np.isfinite(rs.internal_energy_erg))
+    assert np.all(np.isfinite(rs.comoving_volume_cm3))
+    assert np.all(np.isfinite(rs.gamma34))
+    assert np.all(rs.internal_energy_erg > 0.0)
+    assert np.all(rs.comoving_volume_cm3 > 0.0)
+    assert np.all(rs.magnetic_field_g >= 0.0)
+    assert np.all(rs.gamma34 >= 1.0)
+    post = np.asarray(state.dynamics.radius, dtype=float) >= float(rs.r_cross)
+    if np.count_nonzero(post) > 2:
+        thermal_energy = rs.internal_energy_erg[post] / rs.swept_mass_g[post]
+        assert np.all(np.diff(thermal_energy) <= 0.0)
 
 
 def main() -> None:

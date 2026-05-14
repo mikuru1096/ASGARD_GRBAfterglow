@@ -16,14 +16,15 @@ module dynamics_common
     end interface
 
     abstract interface
-        subroutine dynamics_reverse_rhs_iface(dB3, T_cross, R_cross, e3_cross, gam20, T, Y, D, para_m_ej, Delta_0, eta_0, &
+        subroutine dynamics_reverse_rhs_iface(dB3, T_cross, R_cross, e3_cross, gam20, U3_cross, V3_cross, M3_cross, &
+                                              gam_m_cross, T, Y, D, para_m_ej, Delta_0, eta_0, &
                                               A_star, dNe_ISM, Epsilon_b, Epsilon_e, p_f, f_e, e_r, b_r, p_r, f_e_r)
             implicit none
-            real(8), intent(inout) :: dB3, T_cross, R_cross, e3_cross, gam20
+            real(8), intent(inout) :: dB3, T_cross, R_cross, e3_cross, gam20, U3_cross, V3_cross, M3_cross, gam_m_cross
             real(8), intent(in) :: T, para_m_ej, Delta_0, eta_0, A_star, dNe_ISM, Epsilon_b, Epsilon_e
             real(8), intent(in) :: p_f, f_e, e_r, b_r, p_r, f_e_r
-            real(8), intent(in) :: Y(4)
-            real(8), intent(out) :: D(4)
+            real(8), intent(in) :: Y(6)
+            real(8), intent(out) :: D(6)
         end subroutine dynamics_reverse_rhs_iface
     end interface
 
@@ -182,15 +183,17 @@ subroutine dynamics_rk4_forward(rhs, T, H, Y, M, EPS, D, B, C, G, E, Epsilon_e, 
     T = X
 end subroutine dynamics_rk4_forward
 
-subroutine dynamics_rk4_reverse(rhs, dB3, T_cross, R_cross, e3_cross, gam20, T, H, Y, para_m_ej, Delta_0, eta_0, A_star, &
+subroutine dynamics_rk4_reverse(rhs, dB3, T_cross, R_cross, e3_cross, gam20, U3_cross, V3_cross, M3_cross, &
+                                gam_m_cross, T, H, Y, para_m_ej, Delta_0, eta_0, A_star, &
                                 dNe_ISM, Epsilon_b, Epsilon_e, p_f, f_e, e_r, b_r, p_r, f_e_r)
     implicit none
     procedure(dynamics_reverse_rhs_iface) :: rhs
     integer :: N, J, K
-    real(8), intent(inout) :: dB3, T_cross, R_cross, e3_cross, gam20, T, Y(4)
+    real(8), intent(inout) :: dB3, T_cross, R_cross, e3_cross, gam20, U3_cross, V3_cross, M3_cross, gam_m_cross, T, Y(6)
     real(8), intent(in) :: H, para_m_ej, Delta_0, eta_0, A_star, dNe_ISM, Epsilon_b, Epsilon_e, p_f, f_e, e_r, b_r, p_r, f_e_r
-    real(8) :: D(4), A(4), B(4), C(4), G(4), E(4)
+    real(8) :: D(6), A(4), B(6), C(6), G(6), E(6)
     real(8) :: EPS, HH, P, X, DT, TT, dB3_try, T_cross_try, R_cross_try, e3_cross_try, gam20_try
+    real(8) :: U3_cross_try, V3_cross_try, M3_cross_try, gam_m_cross_try
 
     EPS = 1d-5
     HH = H
@@ -206,8 +209,10 @@ subroutine dynamics_rk4_reverse(rhs, dB3, T_cross, R_cross, e3_cross, gam20, T, 
         T = X
         dB3_try=dB3; T_cross_try=T_cross; R_cross_try=R_cross
         e3_cross_try=e3_cross; gam20_try=gam20
+        U3_cross_try=U3_cross; V3_cross_try=V3_cross; M3_cross_try=M3_cross; gam_m_cross_try=gam_m_cross
         do J = 1, N
-            call rhs(dB3_try, T_cross_try, R_cross_try, e3_cross_try, gam20_try, T, Y, D, &
+            call rhs(dB3_try, T_cross_try, R_cross_try, e3_cross_try, gam20_try, U3_cross_try, &
+                     V3_cross_try, M3_cross_try, gam_m_cross_try, T, Y, D, &
                      para_m_ej, Delta_0, eta_0, A_star, dNe_ISM, &
                      Epsilon_b, Epsilon_e, p_f, f_e, e_r, b_r, p_r, f_e_r)
             E = Y
@@ -216,17 +221,19 @@ subroutine dynamics_rk4_reverse(rhs, dB3, T_cross, R_cross, e3_cross, gam20, T, 
                 Y = E+A(K)*D
                 B = B+A(K+1)*D/3.0d0
                 TT = T+A(K)
-                call rhs(dB3_try, T_cross_try, R_cross_try, e3_cross_try, gam20_try, TT, Y, D, &
+                call rhs(dB3_try, T_cross_try, R_cross_try, e3_cross_try, gam20_try, U3_cross_try, &
+                         V3_cross_try, M3_cross_try, gam_m_cross_try, TT, Y, D, &
                          para_m_ej, Delta_0, eta_0, A_star, dNe_ISM, &
                          Epsilon_b, Epsilon_e, p_f, f_e, e_r, b_r, p_r, f_e_r)
             end do
             Y = B+HH*D/6.0d0
             T = T+DT
         end do
-        call dynamics_rk4_error_n(Y, G, 4, P)
+        call dynamics_rk4_error_n(Y, G, 6, P)
         if (P < EPS) then
             dB3=dB3_try; T_cross=T_cross_try; R_cross=R_cross_try
             e3_cross=e3_cross_try; gam20=gam20_try
+            U3_cross=U3_cross_try; V3_cross=V3_cross_try; M3_cross=M3_cross_try; gam_m_cross=gam_m_cross_try
         end if
         HH = 0.5d0*HH
         N = N+N
