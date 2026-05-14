@@ -13,34 +13,40 @@
 
 ## Todo
 
-1. RS thermal-state diagnostics hardening
+1. Magnetized-jet reverse shock
+   - 引入磁化喷流反向激波，与当前非磁化 RS 共用动力学、电子、辐射和 hadronic 计算核；新增磁化闭合只负责 shock jump condition、区域 3 热态/磁场注入和必要的状态变量。
+   - 从 VegasAfterglow 代码中抽取磁化激波跳跃条件求解器和磁场强度计算方法，先转写为可审计的 ASGARD 物理契约；Vegas 只提供算法来源和 comparison backend，不作为光变匹配目标。
+   - 物理验收条件：`sigma -> 0` 必须连续回到当前 unmagnetized RS 基线；`gamma34/U3/V3/B3/nu_m` 随时间平滑；crossing 前后能量、质量和 comoving/lab frame 单位契约必须明确。
+   - 实现边界：不在本任务中引入任意后处理 flux normalization，不写兜底分支；若 Vegas 公式与 ASGARD 显式 `U3/V3` 热态闭合冲突，优先保留 ASGARD 的守恒量闭合并记录差异。
+
+2. RS thermal-state diagnostics hardening
    - 当前 RS 动力学显式输出 `U3_th/V3_comoving/Gamma34_inst`；`B3=sqrt(8 pi epsilon_B,r U3/V3)`。
    - `details().rvs.nu_m` 是 diagnostic break：crossing 前用局部 `gamma34` 注入能标，crossing 后按 `U3/M3` 的绝热能量比演化，不替代输运后的电子谱峰。
    - 后续若要暴露更多 public detail，需要把 `U3/V3/gamma34` 作为诊断状态传出，而不是重新从 Vegas-style 平均热态反推。
 
-2. RS hadronic full-chain validation
+3. RS hadronic full-chain validation
    - 为 RS pγ/BH/pp/secondary/cascade 分别补最小能量预算诊断，确认 RS seed photons、`B3`、shell energy、baryon target density 的单位和 comoving/lab frame 契约。
    - 先验证过程级功率与粒子数演化的平滑性，再考虑更高维 transport。
 
-3. 2D / chi-resolved hadronic transport decision
+4. 2D / chi-resolved hadronic transport decision
    - 先决定是否需要和 `fullhide_2d/charint_2d` 共用 `chi_grid` 与历史 photon field。
    - 若不能提供可检验的时空平滑诊断和能量守恒 benchmark，不进入实现。
 
-4. Pair cascade extension boundary
+5. Pair cascade extension boundary
    - 当前主链已有 shell-sequence time-dependent γγ pair/synch cascade；legacy iterative pair-production synch kernel 只保留作诊断。
    - 若要继续扩展到 IC-mediated electromagnetic cascade，必须先给出闭合的 photon/e± source-sink 方程和能量守恒 benchmark。
 
-5. Polarization timing diagnostic
+6. Polarization timing diagnostic
    - Lan, Wu & Dai 2023 对照中峰值幅度基本一致，峰时偏早仍需定位。
    - 优先检查 dynamics/EATS 时间映射和真实 jet 面元权重，不做后处理平滑。
 
-6. Benchmark baseline refresh protocol
+7. Benchmark baseline refresh protocol
    - 重新生成 Vegas / literature benchmark 时，必须同时记录命令、git 基线、模块 build 状态和图像生成脚本。
    - RS benchmark 图必须标明 ASGARD 使用 “local gamma34 injection + explicit U3/V3 thermal state”，Vegas 使用平均 thermal-state closure。
    - VegasAfterglow 只作为 comparison backend；若 ASGARD 与 Vegas 差异来自平均 `Gamma_th` 与局部 shock-front injection 的模型差异，不作为失败。
    - 不提交失败占位图、临时 debug 脚本或 `.buildcache/`。
 
-7. Public API/backend limits
+8. Public API/backend limits
    - Jet spreading、自定义 `Medium` kernel dispatch、wind `k != 2`、thermal electrons outside `fullhide_1d` 都是明确未支持边界。
    - 这些边界只有在目标观测或物理问题需要时才进入实现。
 
