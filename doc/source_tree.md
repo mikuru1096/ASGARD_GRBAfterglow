@@ -13,6 +13,7 @@
 - `doc/pair_cascade_extension_boundary.md` — IC-mediated electromagnetic cascade 的扩展边界
 - `doc/polarization_timing_diagnostic.md` — Lan 2023 polarization 峰时偏移诊断
 - `doc/benchmark_refresh_protocol.md` — benchmark 重新生成的命令、build、artifact 和物理验收协议
+- `doc/public_backend_limits.md` — public API/backend 未支持和部分支持边界
 
 ## Fortran Runtime
 

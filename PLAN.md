@@ -24,12 +24,11 @@
 - Pair cascade extension: 决策记录见 `doc/pair_cascade_extension_boundary.md`。当前主链停在 shell-sequence time-dependent γγ pair/synch cascade；不进入 IC-mediated electromagnetic cascade，除非先给出 photon/e± source-sink 方程、IC kernel 契约和能量守恒 benchmark。
 - Polarization timing diagnostic: 诊断记录见 `doc/polarization_timing_diagnostic.md`。Lan 2023 overlay 的幅度已匹配到约 1%，峰时仍早约 0.54--0.62 倍；当前证据指向 dynamics/jet-evolution 模型边界，而不是 surface-element EATS 或 patch solid-angle 权重 bug。
 - Benchmark baseline refresh protocol: 协议见 `doc/benchmark_refresh_protocol.md`。重新生成 Vegas、literature 或 hadronic benchmark 时必须记录命令、HEAD、tracked diff 状态、扩展 build 状态、输出路径和物理验收口径。
+- Public API/backend limits: 边界记录见 `doc/public_backend_limits.md`。Jet spreading、自定义 `Medium` kernel dispatch、wind `k != 2`、thermal electrons outside `fullhide_1d` 都是明确未支持边界，只有在目标观测或物理问题需要时才进入实现。
 
 ## Todo
 
-1. Public API/backend limits
-   - Jet spreading、自定义 `Medium` kernel dispatch、wind `k != 2`、thermal electrons outside `fullhide_1d` 都是明确未支持边界。
-   - 这些边界只有在目标观测或物理问题需要时才进入实现。
+- No active TODO items. 新任务进入前先补充明确动机、物理假设、验收口径和受影响 build/test 范围。
 
 ## Validation Baseline
 

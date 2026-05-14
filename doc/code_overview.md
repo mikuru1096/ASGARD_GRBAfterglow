@@ -156,3 +156,4 @@ Architectural boundaries:
 - AM3 = microphysics/kernel reference only; must not replace ASGARD's dynamics/electron/observer chain
 - Final AM3-derived microphysics → `src/Hadronic/*.f90`; Python → orchestration only
 - Non-smooth physical time-evolution → treat as bug first
+- Public/backend unsupported boundaries are fixed in `doc/public_backend_limits.md`

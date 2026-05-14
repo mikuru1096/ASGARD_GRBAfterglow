@@ -23,6 +23,7 @@ rtk bash -lc "source ~/.wsl_env && cd \"/mnt/c/Users/jia/Documents/New project/A
 - **Benchmark refresh protocol**: 重新生成 benchmark 前后记录 git HEAD、`git status --short --branch`、`git diff --stat`、完整命令、受影响 Fortran build 状态、输出路径和物理验收口径；详见 `doc/benchmark_refresh_protocol.md`。
 - **2D/chi-resolved hadronic decision**: 当前不实现 2D/χ hadronic transport；正式 hadronic path 保持 1D shell 契约，直到 χ-local photon field、hadron density、secondary feedback 和 observer projection 的物理契约完成。
 - **Polarization timing diagnostic**: Lan 2023 overlay 的峰值幅度已匹配，峰时偏早主要指向 dynamics/jet-evolution benchmark；禁止在 polarization projection 层用经验时间因子或 smoothing 修正。
+- **Public/backend limits**: Jet spreading、自定义 `Medium` kernel dispatch、wind `k != 2`、thermal electrons outside `fullhide_1d` 是明确未支持边界；详见 `doc/public_backend_limits.md`。
 - **Not yet implemented**: 2D/chi-resolved hadronic transport; inverse-Compton-mediated electromagnetic pair cascade beyond the current γγ pair/synch contract.
 
 ## AM3 / ASGARD Coexistence
