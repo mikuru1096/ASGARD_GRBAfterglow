@@ -11,8 +11,8 @@ The code's greatest strengths lie in its exceptional computational efficiency an
 ## Highlights
 1. Numerical PDE solvers for forward-shock electron transport, including multiple 1D schemes and active 2D paths.
 2. Self-consistent synchrotron, SSC, SSA, and $\gamma\gamma$ attenuation in the formal observer chain.
-3. Reverse-shock radiation support in the current runtime.
-4. An active 1D forward-shock hadronic path under ongoing development.
+3. Reverse-shock electron synchrotron, RS SSC, cross-zone IC, and hadronic dispatch in the current runtime.
+4. Active 1D hadronic paths for forward shock and reverse-shock comparison workflows.
 
 ## Current Development Notes
 - The authoritative development status is tracked in:
@@ -21,6 +21,8 @@ The code's greatest strengths lie in its exceptional computational efficiency an
   - `doc/code_overview.md`
 - Benchmark and comparison scripts live under `tests/`.
 - Generated benchmark figures under `output/` are artifacts, not source documentation.
+- RS/Vegas benchmark refresh:
+  `uv run --extra compare python tests/vegas_afterglow_comparison.py --scenario baseline --only reverse_shock_lc reverse_shock_thermal`
 
 ## License
 **Copyright (c) 2025 Jia Ren**  
@@ -97,7 +99,9 @@ Sampling and batch fitting helper scripts now live under `scripts/fitting/`.
 The project is now packaged in PyPI-style layout with `pyproject.toml` and `setup.py`. Local source installation uses `pip install .` and triggers automatic native compilation through the package build hook.
 ### Current Status
 The public runtime is usable for forward-shock afterglow calculations and benchmark workflows.
-The forward-shock hadronic branch is a formal 1D research path. Reverse-shock hadronic has a light proton-synchrotron path plus a full-chain path for pγ/BH/pp/secondary/cascade coupling through the formal 1D hadronic kernels. The current pair cascade path is a shell-sequence time-dependent γγ pair/synch cascade. Chi-resolved hadronic transport remains open work.
+Reverse shock uses local shock-front `gamma34` for new electron injection, while region-3 magnetic field and post-crossing thermal evolution are closed by the explicit `U3/V3` thermal state. VegasAfterglow is a comparison backend, not the physical target for RS closure.
+
+The forward-shock hadronic branch is a formal 1D research path. Reverse-shock hadronic has a light proton-synchrotron path plus a full-chain path for pγ/BH/pp/secondary/cascade coupling through the formal 1D hadronic kernels. The current pair cascade path is a shell-sequence time-dependent γγ pair/synch cascade. Chi-resolved hadronic transport and inverse-Compton-mediated electromagnetic cascades remain open work.
 ### Web Interface
 We have a website available at <https://hetools.xyz>  
 that requires no installation, for comparing the results of **ASGARD** and **jetsimpy**. Feel free to give it a try!

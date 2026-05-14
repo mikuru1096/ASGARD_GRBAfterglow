@@ -591,6 +591,97 @@ def _build_reverse_shock_lc() -> Path:
     return _save(fig, OUTPUT_DIR / "compare_reverse_shock_lc.png")
 
 
+def _single_patch_state(model: Model, times_s: np.ndarray, frequencies_hz: np.ndarray):
+    config = _build_fit_config_for_patch(
+        model,
+        phi_center=0.0,
+        theta_v=model.observer.theta_obs,
+        opening_angle_jet=model.jet.theta_j,
+        e_iso=model.jet.E_iso,
+        gamma0=model.jet.lf,
+        theta_center=0.0,
+    )
+    return _solve_patch_state(model, config, times_s, frequencies_hz, solve_reference_times_s=times_s)
+
+
+def _plot_positive_series(ax, x: np.ndarray, y: np.ndarray, *, label: str, color: str, linestyle: str = "-") -> None:
+    x_arr = np.asarray(x, dtype=float)
+    y_arr = np.asarray(y, dtype=float)
+    mask = np.isfinite(x_arr) & np.isfinite(y_arr) & (x_arr > 0.0) & (y_arr > 0.0)
+    if np.any(mask):
+        ax.loglog(x_arr[mask], y_arr[mask], color=color, ls=linestyle, lw=1.45, label=label)
+
+
+def _build_reverse_shock_thermal_benchmark() -> Path:
+    model_asgard = _build_asgard_model(include_reverse=True, include_ssc=True)
+    model_vegas = _build_vegas_model(include_reverse=True, include_ssc=True)
+    detail_asgard = model_asgard.details(t_min=1.0, t_max=1.0e8)
+    detail_vegas = model_vegas.details(t_min=1.0, t_max=1.0e8)
+    state = _single_patch_state(model_asgard, BASIC_TIMES, BASIC_BANDS)
+    if state.dynamics.reverse_shock is None:
+        raise RuntimeError("reverse-shock dynamics are required for the RS thermal benchmark.")
+
+    t_ref = _reference_series(detail_asgard.rvs.t_obs)
+    t_vegas = _reference_series(detail_vegas.rvs.t_obs)
+    attrs = ("Gamma", "B_comv", "N_p", "nu_m", "nu_c", "nu_a")
+    vegas_z = _benchmark_scenario().z
+
+    fig, axes = plt.subplots(3, 3, figsize=(12.8, 9.2), dpi=200)
+    ratio_axes = axes[:2, :].ravel()
+    for ax, attr in zip(ratio_axes, attrs):
+        asgard_y = _reference_series(getattr(detail_asgard.rvs, attr))
+        vegas_y = _reference_series(getattr(detail_vegas.rvs, attr))
+        if attr == "N_p":
+            vegas_y = vegas_y * (4.0 * np.pi)
+        if attr in {"nu_m", "nu_c"}:
+            vegas_y = _to_lab_frequency_frame(vegas_y, _reference_series(detail_vegas.rvs.Doppler), vegas_z)
+        vegas_interp = _safe_log_interp(t_ref, t_vegas, vegas_y)
+        ratio = np.divide(
+            asgard_y,
+            vegas_interp,
+            out=np.full_like(asgard_y, np.nan, dtype=float),
+            where=(asgard_y > 0.0) & (vegas_interp > 0.0),
+        )
+        _plot_positive_series(ax, t_ref, ratio, label="ASGARD / Vegas", color=ASGARD_COLOR)
+        ax.axhline(1.0, color="black", ls=":", lw=0.9)
+        ax.set_title(f"RS {attr} ratio")
+        ax.set_xlabel("t_obs [s]")
+        ax.set_ylabel("ratio")
+        ax.grid(**GRID_STYLE)
+
+    rs = state.dynamics.reverse_shock
+    t_dyn = np.asarray(state.dynamics.r_tobs, dtype=float)
+    radius_dyn = np.asarray(state.dynamics.radius, dtype=float)
+    pre_cross = radius_dyn <= float(rs.r_cross)
+    t_cross_obs = float(t_dyn[int(np.argmin(np.abs(radius_dyn - float(rs.r_cross))))])
+    e3 = np.asarray(rs.internal_energy_erg, dtype=float) / np.asarray(rs.comoving_volume_cm3, dtype=float)
+    u3_per_m3 = np.asarray(rs.internal_energy_erg, dtype=float) / np.asarray(rs.swept_mass_g, dtype=float)
+    gamma34_injection = np.where(pre_cross, np.asarray(rs.gamma34, dtype=float), np.nan)
+
+    _plot_positive_series(axes[2, 0], t_dyn, gamma34_injection, label=r"$\gamma_{34}$", color=ASGARD_COLOR)
+    axes[2, 0].set_title(r"ASGARD pre-crossing injection $\gamma_{34}$")
+    axes[2, 0].set_xlabel("t_obs [s]")
+    axes[2, 0].set_ylabel(r"$\gamma_{34}$")
+
+    _plot_positive_series(axes[2, 1], t_dyn, e3, label=r"$U_3/V_3$", color=ASGARD_COLOR)
+    axes[2, 1].set_title(r"ASGARD region-3 thermal density")
+    axes[2, 1].set_xlabel("t_obs [s]")
+    axes[2, 1].set_ylabel(r"$U_3/V_3$ [erg cm$^{-3}$]")
+
+    _plot_positive_series(axes[2, 2], t_dyn, u3_per_m3, label=r"$U_3/M_3$", color=ASGARD_COLOR)
+    axes[2, 2].set_title(r"ASGARD post-crossing thermal scale")
+    axes[2, 2].set_xlabel("t_obs [s]")
+    axes[2, 2].set_ylabel(r"$U_3/M_3$ [erg g$^{-1}$]")
+
+    for ax in axes[2, :]:
+        ax.axvline(t_cross_obs, color="black", ls=":", lw=0.9, label="crossing")
+        ax.grid(**GRID_STYLE)
+        ax.legend(fontsize=8)
+    fig.suptitle("Reverse-shock benchmark: Vegas comparison and ASGARD thermal closure", y=0.995)
+    fig.tight_layout()
+    return _save(fig, OUTPUT_DIR / "compare_reverse_shock_thermal_benchmark.png")
+
+
 def _build_ssc_lc() -> Path:
     model_asgard = _build_asgard_model(include_ssc=True)
     model_vegas = _build_vegas_model(include_ssc=True)
@@ -1464,19 +1555,12 @@ def _build_magnetic_decay_compare() -> Path:
     return lc_path
 
 
-def main(*, spectrum_quantity: str = "sed", scenario: str = "baseline") -> None:
-    _set_benchmark_context(scenario)
-    params = _benchmark_scenario()
-    print(
-        "[scenario] "
-        f"{scenario}: E_iso={params.e_iso:.3e}, n_ism={params.n_ism:.3e}, "
-        f"eps_e={params.eps_e:.3e}, eps_B={params.eps_b:.3e}, "
-        f"xi_N={params.xi_n:.3e}, epsilon_p={params.epsilon_p:.3e}"
-    )
-    builders = [
+def _benchmark_builders(spectrum_quantity: str) -> list[tuple[str, Callable[[], Path]]]:
+    return [
         ("basic_lc_spec", _build_basic_lc_spec),
         ("basic_bolometric", _build_basic_bolometric),
         ("reverse_shock_lc", _build_reverse_shock_lc),
+        ("reverse_shock_thermal", _build_reverse_shock_thermal_benchmark),
         ("ssc_lc", _build_ssc_lc),
         ("spectrum_compare", lambda: _build_spectrum_compare(quantity=spectrum_quantity)),
         ("solver_sed_compare", _build_solver_sed_compare),
@@ -1491,14 +1575,32 @@ def main(*, spectrum_quantity: str = "sed", scenario: str = "baseline") -> None:
         ("introspection_jet", _build_introspection_jet),
         ("introspection_medium", _build_introspection_medium),
         ("introspection_twocomp", _build_introspection_twocomp),
+        ("speed_compare", _build_speed_compare),
     ]
+
+
+def main(*, spectrum_quantity: str = "sed", scenario: str = "baseline", only: tuple[str, ...] | None = None) -> None:
+    _set_benchmark_context(scenario)
+    params = _benchmark_scenario()
+    print(
+        "[scenario] "
+        f"{scenario}: E_iso={params.e_iso:.3e}, n_ism={params.n_ism:.3e}, "
+        f"eps_e={params.eps_e:.3e}, eps_B={params.eps_b:.3e}, "
+        f"xi_N={params.xi_n:.3e}, epsilon_p={params.epsilon_p:.3e}"
+    )
+    builders = _benchmark_builders(spectrum_quantity)
+    if only is not None:
+        builder_map = dict(builders)
+        unknown = [name for name in only if name not in builder_map]
+        if unknown:
+            known = ", ".join(name for name, _ in builders)
+            raise ValueError(f"unknown benchmark builder(s): {', '.join(unknown)}; expected one of: {known}")
+        builders = [(name, builder_map[name]) for name in only]
 
     generated: list[Path] = []
     for i, (name, builder) in enumerate(builders, start=1):
         print(f"[ {i}/{len(builders)} ] build {name}")
         generated.append(builder())
-
-    generated.append(_build_speed_compare())
 
     print(f"output: {OUTPUT_DIR}")
     for path in generated:
@@ -1519,5 +1621,15 @@ if __name__ == "__main__":
         default="sed",
         help="Quantity used in the three-solver spectrum comparison.",
     )
+    parser.add_argument(
+        "--only",
+        nargs="+",
+        default=None,
+        help="Run selected figure builders only, e.g. reverse_shock_lc reverse_shock_thermal.",
+    )
     args = parser.parse_args()
-    main(spectrum_quantity=args.spectrum_quantity, scenario=args.scenario)
+    main(
+        spectrum_quantity=args.spectrum_quantity,
+        scenario=args.scenario,
+        only=None if args.only is None else tuple(args.only),
+    )

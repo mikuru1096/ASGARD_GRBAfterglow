@@ -27,6 +27,7 @@ Model / observe / run_fit
 
 Core state objects (`asgard_core/asgard_types.py`):
 - `DynamicsSolution`: `r_tobs`, `r_gamma`, `radius`, `swept_mass_g`
+- `ReverseShockDynamics`: `M3`, `B3`, `U3/V3`, `gamma34` and crossing thermal records; `B3` is closed by the explicit region-3 thermal state
 - `ElectronSolution`: `gam_e`, `d_n_gam_e`, `l_syn_spec`, `seed_syn`, `nu_m`, `nu_c`, `nu_a`; 2D adds `d_n_gam_e_chi`, `chi_grid`; BH adds `d_n_gam_e_bh`
 - `PhotonFieldState`: forward synch seed, hadronic target field, absorption seed field
 - `HadronicSolution`: 1D hadronic proton/secondary/radiation results
@@ -58,7 +59,7 @@ Fitter.loglike → compile_problem → eval_loglike → solve_state_from_setup
 
 Hadronic Python modules (orchestration/wrapping/benchmark only):
 - Fortran wrappers: `hadronic_hummer.py`, `hadronic_bethe_heitler.py`, `hadronic_hadronic_ic.py`, `hadronic_pp.py`, `hadronic_pair_production.py`, `hadronic_species_transport.py`, `hadronic_secondary_radiation.py`, `hadronic_acceleration.py`
-- Reverse shock wrapper: `hadronic_reverse.py`; full RS hadronic chain is dispatched from `asgard_runtime.py` through the formal 1D hadronic kernels when RS full-chain flags are enabled
+- Reverse shock wrapper: `hadronic_reverse.py`; full RS hadronic chain is dispatched from `asgard_runtime.py` through the formal 1D hadronic kernels when RS full-chain flags are enabled. RS seed photons, RS `B3`, shell energy and baryon target density come from the ASGARD RS dynamics/thermal state, not from a Vegas-style averaged thermal closure.
 - Reference/benchmark: `hadronic_pgamma.py`, `hadronic_am3_solver.py`, `hadronic_am3_benchmark.py`, `hadronic_cascade.py`
 
 Final AM3-derived microphysics lives in `src/Hadronic/*.f90`.
@@ -67,7 +68,7 @@ Final AM3-derived microphysics lives in `src/Hadronic/*.f90`.
 
 ### Dynamics
 - `src/Dynamics/Dynamics_forward.f90`: forward shock dynamics, ISM/wind, density jumps, energy injection
-- `src/Dynamics/Dynamics_reverse.f90`: reverse shock dynamics with explicit region-3 `U3/V3/gamma34`; RS magnetic field is derived from `U3/V3`
+- `src/Dynamics/Dynamics_reverse.f90`: reverse shock dynamics with explicit region-3 `U3/V3/gamma34`; new injection uses shock-front `gamma34`, while RS magnetic field and post-crossing thermal evolution use `U3/V3`
 - `src/Dynamics/dynamics_common.f90`: shared dynamics auxiliaries
 
 ### Electron
@@ -102,7 +103,7 @@ Final AM3-derived microphysics lives in `src/Hadronic/*.f90`.
 - `hadronic_secondary_radiation_kernel.f90`: pion/muon synchrotron + IC
 - `hadronic_common.f90`: shared hadronic constants, grid builders, validation
 
-Reverse-shock hadronic light entry: `src/Hadronic/FS_hadronic_reverse_1d.f90`, proton injection/transport + proton synchrotron only. Full-chain RS hadronic dispatch reuses the formal 1D hadronic kernels from `FS_hadronic_1d` through the Python runtime wrapper, with RS magnetic field, RS seed photons, RS shell energy and RS baryon target density.
+Reverse-shock hadronic light entry: `src/Hadronic/FS_hadronic_reverse_1d.f90`, proton injection/transport + proton synchrotron only. Full-chain RS hadronic dispatch reuses the formal 1D hadronic kernels from `FS_hadronic_1d` through the Python runtime wrapper, with RS magnetic field, RS seed photons, RS shell energy and RS baryon target density. This is still a formal 1D dispatch path, not 2D / χ-resolved RS hadronic transport.
 
 Shell-level entries exposed by `FS_hadronic_1d.f90`: `fs_hadronic_1d`, `fs_hadronic_proton_syn_shell`, `fs_hadronic_syn_polarization_shell`, `fs_hadronic_pgamma_operator_shell`, `fs_hadronic_pair_production_shell`, `fs_hadronic_pp_delta_shell`, `fs_hadronic_bethe_heitler_shell`, `fs_hadronic_hadronic_ic_shell`, `fs_hadronic_species_transport_shell`, `fs_hadronic_acceleration_shell`, `fs_hadronic_secondary_radiation_shell`, `fs_hadronic_decay_operator_shell`, `fs_hadronic_pair_cascade_step`, `fs_hadronic_pp_spectral_source`, `fs_hadronic_quantum_syn_cooling_factor`
 
@@ -131,7 +132,8 @@ Smoke tests: `rtk uv run python tests/readme_smoke_bench.py`, `tests/fullhide_2d
 
 Hadronic regressions: `tests/hadronic_1d_smoke.py`, `tests/hadronic_species_transport_smoke.py`, `tests/hadronic_secondary_radiation_smoke.py`, `tests/hadronic_acceleration_smoke.py`, `tests/hadronic_bethe_heitler_smoke.py`, `tests/hadronic_hadronic_ic_smoke.py`, `tests/hadronic_pair_production_smoke.py`, `tests/hadronic_pp_smoke.py`, `tests/hadronic_pg_neutrino_1d_diag.py`, `tests/hadronic_proton_synch_1d_diag.py`, `tests/hadronic_pgamma_benchmark_report.py`
 
-Benchmark: `tests/vegas_afterglow_comparison.py`, `tests/sed_electron_compare.py`
+Benchmark: `tests/vegas_afterglow_comparison.py`, `tests/sed_electron_compare.py`. RS benchmark refresh:
+`rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run --extra compare python tests/vegas_afterglow_comparison.py --scenario baseline --only reverse_shock_lc reverse_shock_thermal'`
 
 ## 7. Known Boundaries
 

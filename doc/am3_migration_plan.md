@@ -1,6 +1,6 @@
 # AM3 Migration Plan (Historical Reference)
 
-本文档记录 ASGARD 中 AM3 微物理迁移的历史规划。大部分 P0/P1 项已完成。
+本文档记录 ASGARD 中 AM3 微物理迁移的历史规划。大部分 P0/P1 项已完成；当前权威 TODO 以 `PLAN.md` 为准。
 
 ## Completed Migration
 
