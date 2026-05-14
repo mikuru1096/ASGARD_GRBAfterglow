@@ -150,7 +150,7 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
 
         if (adaptive_substeps == 0) then
             dDR=min(dDD,dDR_xi)
-            L1=max(1,ceiling(dDD/max(dDR,tiny(one))))
+            L1=max(100,min(1000,ceiling(dDD/max(dDR,tiny(one)))))
             dDR=dDD/dble(L1)
             CFL=dDR/d_x
             do L=1,L1

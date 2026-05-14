@@ -16,31 +16,74 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet
+from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet, Wind
 from asgard_core.asgard_config import FitConfig, ReverseShockConfig
 from asgard_core.asgard_state import make_query_setup, solve_state_from_setup
 
 
 OUTPUT_DIR = ROOT / "output" / "asgard_doc" / "magnetized_rs_sigma_benchmark"
+WIND_OUTPUT_DIR = ROOT / "output" / "asgard_doc" / "magnetized_rs_sigma_benchmark_wind"
 SIGMAS = (0.0, 1.0e-4, 1.0e-3, 1.0e-2, 1.0e-1, 1.0)
 COLORS = ("#0072B2", "#D55E00", "#009E73", "#CC79A7", "#E69F00", "#000000")
 LINESTYLES = ("-", "--", "-.", ":", (0, (5, 1, 1, 1)), (0, (3, 1, 1, 1, 1, 1)))
 MARKERS = ("o", "s", "^", "D", "P", "X")
+MODE_GRIDS = {
+    "quick": {
+        "dyn_r": 80,
+        "dyn_theta": 20,
+        "model_gam": 41,
+        "model_nu": 51,
+        "model_r": 80,
+        "model_theta": 20,
+        "model_tobs": 32,
+        "lc_times": 48,
+        "sed_freqs": 96,
+    },
+    "full": {
+        "dyn_r": 120,
+        "dyn_theta": 32,
+        "model_gam": 81,
+        "model_nu": 81,
+        "model_r": 140,
+        "model_theta": 32,
+        "model_tobs": 48,
+        "lc_times": 96,
+        "sed_freqs": 180,
+    },
+}
 
 
-def _fit_config(sigma: float) -> FitConfig:
+def _medium_config(medium: str) -> dict[str, float]:
+    if medium == "ism":
+        return {"d_ne": 1.0e-1, "a_star": -1.0}
+    if medium == "wind":
+        return {"d_ne": 1.0e-1, "a_star": 1.0}
+    raise ValueError(f"unknown medium {medium!r}")
+
+
+def _medium_model(medium: str):
+    if medium == "ism":
+        return ISM(n_ism=1.0e-1)
+    if medium == "wind":
+        return Wind(Astar=1.0, n_ism=1.0e-1, k=2.0)
+    raise ValueError(f"unknown medium {medium!r}")
+
+
+def _fit_config(sigma: float, medium: str, grid: dict[str, int]) -> FitConfig:
+    medium_kwargs = _medium_config(medium)
     return FitConfig(
         index_y=0,
         index_syn_integr=2,
         num_threads=1,
-        num_gam_e=81,
+        num_gam_e=grid["model_gam"],
         num_nu=61,
-        num_r=120,
-        num_theta=32,
+        num_r=grid["dyn_r"],
+        num_theta=grid["dyn_theta"],
         num_tobs=40,
         reverse=True,
         plot_lc=False,
         show_plots=False,
+        **medium_kwargs,
         reverse_shock=ReverseShockConfig(
             enabled=True,
             delta_t_s=10.0,
@@ -53,10 +96,10 @@ def _fit_config(sigma: float) -> FitConfig:
     )
 
 
-def _model(sigma: float) -> Model:
+def _model(sigma: float, medium: str, grid: dict[str, int]) -> Model:
     return Model(
         jet=TophatJet(E_iso=1.0e53, Gamma0=1.0e2, theta_j=1.0e-1, duration=10.0),
-        medium=ISM(n_ism=1.0e-1),
+        medium=_medium_model(medium),
         observer=Observer(z=0.4, theta_obs=0.0),
         fwd_rad=Radiation(eps_e=1.0e-1, eps_B=1.0e-3, p=2.5, xi_N=1.0e-1, ssc=False),
         rvs_rad=Radiation(eps_e=1.0e-1, eps_B=1.0e-2, p=2.4, xi_N=1.0, ssc=False),
@@ -67,11 +110,11 @@ def _model(sigma: float) -> Model:
             fwd_ssc=False,
             rvs_ssc=False,
             num_threads=1,
-            num_gam_e=81,
-            num_nu=81,
-            num_r=140,
-            num_theta=32,
-            num_tobs=48,
+            num_gam_e=grid["model_gam"],
+            num_nu=grid["model_nu"],
+            num_r=grid["model_r"],
+            num_theta=grid["model_theta"],
+            num_tobs=grid["model_tobs"],
             observer_time_min_s=1.0e0,
             observer_time_max_s=1.0e7,
             electron_solver="fullhide_1d",
@@ -134,11 +177,11 @@ def _write_csv(path: Path, rows: list[dict[str, object]]) -> None:
         writer.writerows(rows)
 
 
-def _solve_dynamics_scan(sigmas: tuple[float, ...]) -> tuple[list[dict[str, object]], list[tuple[float, np.ndarray, object, np.ndarray, np.ndarray]]]:
+def _solve_dynamics_scan(sigmas: tuple[float, ...], medium: str, grid: dict[str, int]) -> tuple[list[dict[str, object]], list[tuple[float, np.ndarray, object, np.ndarray, np.ndarray]]]:
     rows: list[dict[str, object]] = []
     series = []
     for sigma in sigmas:
-        cfg = _fit_config(sigma)
+        cfg = _fit_config(sigma, medium, grid)
         setup = make_query_setup(cfg, np.logspace(2.0, 6.0, 10), np.array([1.0e9, 1.0e14]))
         state = solve_state_from_setup(cfg, setup)
         rs = state.dynamics.reverse_shock
@@ -152,6 +195,7 @@ def _solve_dynamics_scan(sigmas: tuple[float, ...]) -> tuple[list[dict[str, obje
         post_mono = bool(np.all(np.diff(post_u) <= 0.0)) if post_u.size > 2 else True
         rows.append(
             {
+                "medium": medium,
                 "sigma": sigma,
                 "t_cross_s": float(rs.t_cross),
                 "r_cross_cm": float(rs.r_cross),
@@ -170,17 +214,17 @@ def _solve_dynamics_scan(sigmas: tuple[float, ...]) -> tuple[list[dict[str, obje
     return rows, series
 
 
-def _solve_observable_scan(sigmas: tuple[float, ...]):
-    lc_times = np.logspace(0.0, 7.0, 96)
+def _solve_observable_scan(sigmas: tuple[float, ...], medium: str, grid: dict[str, int]):
+    lc_times = np.logspace(0.0, 7.0, grid["lc_times"])
     lc_bands = np.array([1.0e9, 1.0e14, 1.0e18], dtype=float)
     sed_times = np.array([1.0e2, 1.0e3, 1.0e4, 1.0e5], dtype=float)
-    sed_freqs = np.logspace(7.0, 22.0, 180)
+    sed_freqs = np.logspace(7.0, 22.0, grid["sed_freqs"])
     lc_data = {}
     sed_data = {}
     lc_rows: list[dict[str, object]] = []
     sed_rows: list[dict[str, object]] = []
     for sigma in sigmas:
-        model = _model(sigma)
+        model = _model(sigma, medium, grid)
         lc = model.flux_density_grid(lc_times, lc_bands)
         sed = model.flux_density_grid(sed_times, sed_freqs)
         lc_total = np.asarray(lc.total, dtype=float)
@@ -196,6 +240,7 @@ def _solve_observable_scan(sigmas: tuple[float, ...]):
             rs_peak_idx = int(np.nanargmax(rs)) if np.nanmax(rs) > 0.0 else 0
             lc_rows.append(
                 {
+                    "medium": medium,
                     "sigma": sigma,
                     "nu_hz": float(nu_hz),
                     "total_peak_time_s": float(lc_times[peak_idx]),
@@ -212,6 +257,7 @@ def _solve_observable_scan(sigmas: tuple[float, ...]):
             rs_peak_idx = int(np.nanargmax(rs_nu_fnu)) if np.nanmax(rs_nu_fnu) > 0.0 else 0
             sed_rows.append(
                 {
+                    "medium": medium,
                     "sigma": sigma,
                     "time_s": float(time_s),
                     "total_peak_nu_hz": float(sed_freqs[peak_idx]),
@@ -223,7 +269,7 @@ def _solve_observable_scan(sigmas: tuple[float, ...]):
     return lc_times, lc_bands, lc_data, lc_rows, sed_times, sed_freqs, sed_data, sed_rows
 
 
-def _plot_dynamics(path: Path, series) -> None:
+def _plot_dynamics(path: Path, series, medium: str) -> None:
     fig, axes = plt.subplots(2, 2, figsize=(13, 9), sharex=True)
     x_min = 1.0
     x_max = max(float(item[1][-1]) for item in series)
@@ -247,19 +293,26 @@ def _plot_dynamics(path: Path, series) -> None:
     for ax in axes[-1, :]:
         ax.set_xlabel("observer time [s]")
     axes[0, 0].set_xlim(x_min, x_max)
-    fig.suptitle("ASGARD magnetized RS sigma scan: dynamics", y=0.995)
+    fig.suptitle(f"ASGARD magnetized RS sigma scan ({medium}): dynamics", y=0.995)
     fig.tight_layout()
     fig.savefig(path, dpi=180)
     plt.close(fig)
 
 
-def _plot_lightcurves(path: Path, lc_times: np.ndarray, lc_bands: np.ndarray, lc_data: dict[float, tuple[np.ndarray, np.ndarray]]) -> None:
+def _plot_lightcurves(
+    path: Path,
+    sigmas: tuple[float, ...],
+    lc_times: np.ndarray,
+    lc_bands: np.ndarray,
+    lc_data: dict[float, tuple[np.ndarray, np.ndarray]],
+    medium: str,
+) -> None:
     labels = ("1 GHz", "1e14 Hz", "1e18 Hz")
     fig, axes = plt.subplots(3, 2, figsize=(13, 12), sharex=True)
     for i_band, label in enumerate(labels):
-        total_curves = [lc_data[sigma][0][i_band] for sigma in SIGMAS]
-        rs_curves = [lc_data[sigma][1][i_band] for sigma in SIGMAS]
-        for i_sigma, sigma in enumerate(SIGMAS):
+        total_curves = [lc_data[sigma][0][i_band] for sigma in sigmas]
+        rs_curves = [lc_data[sigma][1][i_band] for sigma in sigmas]
+        for i_sigma, sigma in enumerate(sigmas):
             total, rs = lc_data[sigma]
             axes[i_band, 0].loglog(lc_times, _mask_for_display(total[i_band], rel_floor=1.0e-8), label=f"sigma={sigma:g}" if i_band == 0 else None, **_style(i_sigma))
             axes[i_band, 1].loglog(lc_times, _mask_for_display(rs[i_band], rel_floor=1.0e-8), **_style(i_sigma))
@@ -273,25 +326,33 @@ def _plot_lightcurves(path: Path, lc_times: np.ndarray, lc_bands: np.ndarray, lc
     for ax in axes[-1, :]:
         ax.set_xlabel("observer time [s]")
     axes[0, 0].set_xlim(lc_times[0], lc_times[-1])
-    fig.suptitle("ASGARD magnetized RS sigma scan: light curves", y=0.995)
+    fig.suptitle(f"ASGARD magnetized RS sigma scan ({medium}): light curves", y=0.995)
     fig.tight_layout()
     fig.savefig(path, dpi=180)
     plt.close(fig)
 
 
-def _plot_sed(path_total: Path, path_rs: Path, sed_times: np.ndarray, sed_freqs: np.ndarray, sed_data: dict[float, tuple[np.ndarray, np.ndarray]]) -> None:
+def _plot_sed(
+    path_total: Path,
+    path_rs: Path,
+    sigmas: tuple[float, ...],
+    sed_times: np.ndarray,
+    sed_freqs: np.ndarray,
+    sed_data: dict[float, tuple[np.ndarray, np.ndarray]],
+    medium: str,
+) -> None:
     for component, path, title, rel_floor in (
-        ("total", path_total, "ASGARD magnetized RS sigma scan: total SED", 1.0e-10),
-        ("rs", path_rs, "ASGARD magnetized RS sigma scan: RS synch SED", 1.0e-8),
+        ("total", path_total, f"ASGARD magnetized RS sigma scan ({medium}): total SED", 1.0e-10),
+        ("rs", path_rs, f"ASGARD magnetized RS sigma scan ({medium}): RS synch SED", 1.0e-8),
     ):
         fig, axes = plt.subplots(2, 2, figsize=(13, 10), sharex=True)
         for i_time, (ax, time_s) in enumerate(zip(axes.flat, sed_times)):
             curves = []
-            for sigma in SIGMAS:
+            for sigma in sigmas:
                 total, rs = sed_data[sigma]
                 matrix = total if component == "total" else rs
                 curves.append(sed_freqs * matrix[:, i_time])
-            for i_sigma, sigma in enumerate(SIGMAS):
+            for i_sigma, sigma in enumerate(sigmas):
                 total, rs = sed_data[sigma]
                 matrix = total if component == "total" else rs
                 y = sed_freqs * matrix[:, i_time]
@@ -313,25 +374,32 @@ def _plot_sed(path_total: Path, path_rs: Path, sed_times: np.ndarray, sed_freqs:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--output-dir", type=Path, default=OUTPUT_DIR)
+    parser.add_argument("--medium", choices=("ism", "wind"), default="ism")
+    parser.add_argument("--mode", choices=("quick", "full"), default="quick")
+    parser.add_argument("--output-dir", type=Path, default=None)
     args = parser.parse_args()
+    grid = MODE_GRIDS[args.mode]
     outdir = args.output_dir
+    if outdir is None:
+        outdir = WIND_OUTPUT_DIR if args.medium == "wind" else OUTPUT_DIR
     outdir.mkdir(parents=True, exist_ok=True)
 
-    dyn_rows, dyn_series = _solve_dynamics_scan(SIGMAS)
+    dyn_rows, dyn_series = _solve_dynamics_scan(SIGMAS, args.medium, grid)
     _write_csv(outdir / "sigma_scan_summary.csv", dyn_rows)
-    _plot_dynamics(outdir / "magnetized_rs_sigma_dynamics_readable.png", dyn_series)
+    _plot_dynamics(outdir / "magnetized_rs_sigma_dynamics_readable.png", dyn_series, args.medium)
 
-    lc_times, lc_bands, lc_data, lc_rows, sed_times, sed_freqs, sed_data, sed_rows = _solve_observable_scan(SIGMAS)
+    lc_times, lc_bands, lc_data, lc_rows, sed_times, sed_freqs, sed_data, sed_rows = _solve_observable_scan(SIGMAS, args.medium, grid)
     _write_csv(outdir / "sigma_scan_lightcurve_summary.csv", lc_rows)
     _write_csv(outdir / "sigma_scan_sed_summary.csv", sed_rows)
-    _plot_lightcurves(outdir / "magnetized_rs_sigma_lightcurves_readable.png", lc_times, lc_bands, lc_data)
+    _plot_lightcurves(outdir / "magnetized_rs_sigma_lightcurves_readable.png", SIGMAS, lc_times, lc_bands, lc_data, args.medium)
     _plot_sed(
         outdir / "magnetized_rs_sigma_sed_total_readable.png",
         outdir / "magnetized_rs_sigma_sed_rs_readable.png",
+        SIGMAS,
         sed_times,
         sed_freqs,
         sed_data,
+        args.medium,
     )
 
     print(f"wrote {outdir}")

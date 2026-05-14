@@ -425,8 +425,8 @@ class Setups:
     num_chi: Optional[int] = None
     electron_adaptive_substeps: bool = False
     electron_substep_rtol: float = 2.0e-2
-    electron_substep_min: int = 25
-    electron_substep_max: int = 150
+    electron_substep_min: int = 100
+    electron_substep_max: int = 1000
     hadronic_enabled: bool = False
     hadronic_solver: str = "legacy_1d"
     num_gam_p: int = 161

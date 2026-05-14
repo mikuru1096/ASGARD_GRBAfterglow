@@ -173,8 +173,8 @@ class NumericalConfig:
     # Adaptive stepping
     electron_adaptive_substeps: bool = False
     electron_substep_rtol: float = 2.0e-2
-    electron_substep_min: int = 25
-    electron_substep_max: int = 150
+    electron_substep_min: int = 100
+    electron_substep_max: int = 1000
 
     # Physics toggles
     include_forward_ssc: bool = True
@@ -225,8 +225,8 @@ class FitConfig:
     geometry_kernel: str = "sed_legacy"
     electron_adaptive_substeps: bool = False
     electron_substep_rtol: float = 2.0e-2
-    electron_substep_min: int = 25
-    electron_substep_max: int = 150
+    electron_substep_min: int = 100
+    electron_substep_max: int = 1000
     include_forward_ssc: bool = True
     thermal_electrons: bool = False
     num_gam_e: int = 201
