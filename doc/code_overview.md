@@ -57,6 +57,7 @@ Fitter.loglike → compile_problem → eval_loglike → solve_state_from_setup
 - `asgard_postprocess.py`: observer projection, band aggregation, fit postprocessing
 - `asgard_fit.py`: fit problem compilation, likelihood path
 - `asgard_types.py`: runtime dataclass contracts
+- Polarization timing diagnosis against Lan 2023 is recorded in `doc/polarization_timing_diagnostic.md`; current evidence points to dynamics / jet-evolution benchmarking before any projection-layer change.
 
 Hadronic Python modules (orchestration/wrapping/benchmark only):
 - Fortran wrappers: `hadronic_hummer.py`, `hadronic_bethe_heitler.py`, `hadronic_hadronic_ic.py`, `hadronic_pp.py`, `hadronic_pair_production.py`, `hadronic_species_transport.py`, `hadronic_secondary_radiation.py`, `hadronic_acceleration.py`
