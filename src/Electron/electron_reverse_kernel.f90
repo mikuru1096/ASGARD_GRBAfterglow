@@ -9,17 +9,19 @@ contains
 
 ! 反向激波电子演化主驱动：注入→同步+IC冷却→隐式输运推进，支持4种Compton Y参数化。
 subroutine electron_reverse_evolve(Delta_0,e_r,b_r,p_r,f_e_r,eta_0,Epsilon_e,Epsilon_b,z,A_star,dNe_ISM,para_m_ej, &
-                                   T_cross,R_cross,R_Tobs,R_Gamma,R,B3,V_seed,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger, &
-                                   n_threads,gam_e,dN_gam_e)
+                                   T_cross,R_cross,U3_cross,M3_cross,R_Tobs,R_Gamma,R,B3,M3_shell,U3_shell,V_seed, &
+                                   Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads,gam_e,dN_gam_e)
     implicit none
     integer, intent(in) :: Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads
-    integer :: I_tobs,I_gam_e,L1,L,i
-    real(8), intent(in) :: Delta_0,e_r,b_r,p_r,f_e_r,eta_0,Epsilon_e,Epsilon_b,z,A_star,dNe_ISM,para_m_ej,T_cross,R_cross
-    real(8), intent(in) :: R_Tobs(Num_R),R_Gamma(Num_R),R(Num_R),B3(Num_R),V_seed(Num_nu)
+    integer :: I_tobs,I_gam_e,L1,L
+    real(8), intent(in) :: Delta_0,e_r,b_r,p_r,f_e_r,eta_0,Epsilon_e,Epsilon_b,z,A_star,dNe_ISM,para_m_ej
+    real(8), intent(in) :: T_cross,R_cross,U3_cross,M3_cross
+    real(8), intent(in) :: R_Tobs(Num_R),R_Gamma(Num_R),R(Num_R),B3(Num_R),M3_shell(Num_R),U3_shell(Num_R),V_seed(Num_nu)
     real(8), intent(out) :: gam_e(Num_gam_e),dN_gam_e(Num_gam_e,Num_R)
     real(8), parameter :: reverse_gamma_c_coeff=7.7d8, reverse_synch_b_coeff=0.39d0, reverse_adv_coeff=1.35d-19
     real(8) :: factor2,dB,gamma34,Gam_e_max,Gam_e_m,Gam_e_c,dNe,DB_min,Gam_e_max_max,Gam_e_min_global,d_x,R_loc,R_Gamma_loc,Delta
     real(8) :: R_n4,beta4,beta2,u2,u4,f_r,dDR,dDD,CFL,Q0,Q,Q1,Qshell,cooling_scale
+    real(8) :: thermal_scale_lo,thermal_scale_hi,thermal_loss_rate,adiabatic_rate
     real(8), allocatable :: dEl(:),principal(:),x(:),dF1(:),up(:),temp1(:),temp2(:),temp3(:),dN_x(:),para_minus_gam_e_p(:)
     real(8), allocatable :: dB3_serial(:),P_syn(:),Seed_syn(:),cooling_aux(:),Compton(:)
 
@@ -102,6 +104,25 @@ subroutine electron_reverse_evolve(Delta_0,e_r,b_r,p_r,f_e_r,eta_0,Epsilon_e,Eps
         dDD=R(I_tobs)-R(I_tobs-1)
         if (dDR <= zero) error stop "electron_reverse_evolve: characteristic reverse-electron step must be positive."
         if (dDD <= zero) error stop "electron_reverse_evolve: radius grid must be strictly increasing."
+        thermal_loss_rate=zero
+        if (R(I_tobs) > R_cross) then
+            if (R(I_tobs-1) < R_cross) then
+                thermal_scale_lo=U3_cross/M3_cross
+                thermal_scale_hi=U3_shell(I_tobs)/M3_shell(I_tobs)
+            else
+                thermal_scale_lo=U3_shell(I_tobs-1)/M3_shell(I_tobs-1)
+                thermal_scale_hi=U3_shell(I_tobs)/M3_shell(I_tobs)
+            end if
+            if (thermal_scale_lo <= zero .or. thermal_scale_hi <= zero) &
+                error stop "electron_reverse_evolve: post-crossing thermal scale must be positive."
+            if (R(I_tobs-1) < R_cross) then
+                thermal_loss_rate=-dlog(thermal_scale_hi/thermal_scale_lo)/(R(I_tobs)-R_cross)
+            else
+                thermal_loss_rate=-dlog(thermal_scale_hi/thermal_scale_lo)/dDD
+            end if
+            if (thermal_loss_rate <= zero) &
+                error stop "electron_reverse_evolve: post-crossing thermal scale must decrease."
+        end if
         L1=max(100,min(1000,int(dDD/dDR)))
         dDR=dDD/L1; CFL=dDR/d_x
         dN_x=dN_gam_e(:,I_tobs-1)*gam_e*dlog(ten)
@@ -140,9 +161,14 @@ subroutine electron_reverse_evolve(Delta_0,e_r,b_r,p_r,f_e_r,eta_0,Epsilon_e,Eps
             else
                 Q=zero
             end if
+            if (R_loc <= R_cross) then
+                adiabatic_rate=one/R_loc
+            else
+                adiabatic_rate=thermal_loss_rate
+            end if
             dF1=zero
             where(gam_e < Gam_e_max .and. gam_e > Gam_e_m) dF1=Q*para_minus_gam_e_p*gam_e*dlog(ten)
-            temp3=((dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/two+one/R_loc)/dlog(ten)
+            temp3=((dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/two+adiabatic_rate)/dlog(ten)
             up=-CFL*temp3
             call electron_prepare_implicit_coeffs_common(Num_gam_e,one,up,principal,temp1)
             temp2=(dN_x+dDR*dF1)/principal

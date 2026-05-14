@@ -149,6 +149,47 @@ def test_surface_element_projection_scales_with_solid_angle() -> None:
     assert np.allclose(flux_double, 2.0 * flux, rtol=1.0e-13, atol=0.0)
 
 
+def test_surface_element_projection_uses_linear_time_reconstruction() -> None:
+    boundary = np.ones(24, dtype=float)
+    boundary[7] = 0.0
+    boundary[9] = 0.0
+    gamma = np.array([2.0, 2.0], dtype=float)
+    beta = np.sqrt(1.0 - gamma[0] ** -2)
+    doppler_den = gamma[0] * (1.0 - beta)
+    radius = np.array([1.0e15, 1.1e15], dtype=float)
+    t0 = np.array([1.0, 3.0], dtype=float)
+    seed = np.array([1.0e10, 2.0e10, 4.0e10], dtype=float)
+    observed = np.array([seed[1] / doppler_den], dtype=float)
+    source = np.column_stack([np.ones(seed.size), np.zeros(seed.size)])
+    endpoint, midpoint = Interpolation.sed_interpolation_surface_element(
+        boundary,
+        t0,
+        gamma,
+        radius,
+        source,
+        seed,
+        observed,
+        np.array([1.0, 2.0], dtype=float),
+        1.0e-4,
+    )[0]
+    assert midpoint / endpoint > 0.49
+    assert midpoint / endpoint < 0.51
+    source_with_cutoff = np.column_stack([np.array([0.0, 1.0, 1.0]), np.zeros(seed.size)])
+    cutoff_flux = Interpolation.sed_interpolation_surface_element(
+        boundary,
+        t0,
+        gamma,
+        radius,
+        source_with_cutoff,
+        seed,
+        np.array([np.sqrt(seed[0] * seed[1]) / doppler_den], dtype=float),
+        np.array([2.0], dtype=float),
+        1.0e-4,
+    )[0, 0]
+    assert np.isfinite(cutoff_flux)
+    assert cutoff_flux > 0.0
+
+
 def test_hadronic_polarization_kernel_powerlaw_limit() -> None:
     energy = np.logspace(0.0, 10.0, 128) * constants.para_m_p_gev
     density = energy ** -2.3
@@ -206,6 +247,7 @@ def main() -> None:
     test_reverse_and_hadronic_synchrotron_components()
     test_fortran_polarization_kernel_conserves_intensity()
     test_surface_element_projection_scales_with_solid_angle()
+    test_surface_element_projection_uses_linear_time_reconstruction()
     test_hadronic_polarization_kernel_powerlaw_limit()
     test_fortran_polarization_kernel_tracks_curved_spectrum()
     test_hadronic_polarization_kernel_tracks_curved_spectrum()

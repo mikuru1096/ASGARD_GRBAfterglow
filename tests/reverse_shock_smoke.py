@@ -12,6 +12,8 @@ if str(ROOT) not in sys.path:
 
 from ASGARD import run_fit
 from asgard_core.asgard_config import FitConfig, ReverseShockConfig
+from asgard_core.asgard_setup import build_simulation_setup
+from asgard_core.asgard_runtime import solve_dynamics
 from asgard_core.asgard_state import make_query_setup, solve_state_from_setup
 
 
@@ -99,11 +101,22 @@ def _run_magnetized_interface() -> None:
     assert np.all(rs.comoving_volume_cm3 > 0.0)
 
 
+def _run_dense_radius_grid() -> None:
+    config = _config(0)
+    config.num_r = 220
+    setup = build_simulation_setup(config)
+    dynamics = solve_dynamics(setup.boundary, config)
+    radius = np.asarray(dynamics.radius, dtype=float)
+    assert np.all(np.diff(radius) > 0.0)
+    assert radius[1] - radius[0] > np.spacing(radius[0])
+
+
 def main() -> None:
     for index_y in (0, 3):
         _run(index_y)
     _run_sigma_zero_baseline()
     _run_magnetized_interface()
+    _run_dense_radius_grid()
     print("reverse-shock-smoke-ok")
 
 

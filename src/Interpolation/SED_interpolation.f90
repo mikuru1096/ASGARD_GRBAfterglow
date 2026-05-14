@@ -21,9 +21,8 @@ subroutine sed_interpolation(Boundary,R_Tobs1,R_gamma,R,F_tot,V_seed,V_obs,Tobs,
     
     
     real(8), allocatable :: F_tot_obs_temp(:,:),V_obs_log(:),V_seed_log(:)
-    real(8) :: R_Tobs_theta(Num_R),DP_theta(Num_nu),F_tot_log_theta(Num_nu), &
-               V_seed_log_theta(Num_nu), &
-               F_tot_log_lo(Num_nu),F_tot_log_hi(Num_nu),log_gamma_lo,log_gamma_hi,log_domega_4pi, &
+    real(8) :: R_Tobs_theta(Num_R),F_tot_theta(Num_nu),F_tot_log_theta(Num_nu), &
+               V_seed_log_theta(Num_nu),log_gamma_lo,log_gamma_hi,log_domega_4pi, &
                log_doppler_redshift
     integer :: last_k2
     allocate (F_tot_obs_temp(Num_nu_obs,Num_Tobs),V_obs_log(Num_nu_obs),V_seed_log(Num_nu))
@@ -49,7 +48,7 @@ subroutine sed_interpolation(Boundary,R_Tobs1,R_gamma,R,F_tot,V_seed,V_obs,Tobs,
     V_seed_log = log(V_seed)
     !$OMP PARALLEL num_threads(n_threads), reduction(+:F_tot_obs_temp), private(I_Theta, Taa_boundary, &
     !$OMP& Taa_center, domega, i_Phi, Phi_center, DMu, K1, II, K2, Ratio, DG, Beta, doppler, &
-    !$OMP& R_Tobs_theta, DP_theta, F_tot_log_theta, V_seed_log_theta, F_tot_log_lo, F_tot_log_hi, &
+    !$OMP& R_Tobs_theta, F_tot_theta, F_tot_log_theta, V_seed_log_theta, &
     !$OMP& last_k2, log_gamma_lo, log_gamma_hi, log_domega_4pi, log_doppler_redshift)
     !$OMP DO SCHEDULE(GUIDED,4)
     do I_Theta=1,Num_Theta
@@ -73,19 +72,19 @@ subroutine sed_interpolation(Boundary,R_Tobs1,R_gamma,R,F_tot,V_seed,V_obs,Tobs,
                  if (K2 /= last_k2) then
                      log_gamma_lo=log(R_gamma(K2))
                      log_gamma_hi=log(R_gamma(K2+1))
-                     F_tot_log_lo=log(F_tot(:,K2))
-                     F_tot_log_hi=log(F_tot(:,K2+1))
                      last_k2=K2
                  end if
                  Ratio=(Tobs(K1)-R_Tobs_theta(K2))/(R_Tobs_theta(K2+1)-R_Tobs_theta(K2))
                  DG=exp(log_gamma_lo+Ratio*(log_gamma_hi-log_gamma_lo))
-                 DP_theta=F_tot_log_lo+Ratio*(F_tot_log_hi-F_tot_log_lo)
-                 !logarithm interpolation to get the intrinsic SED at EATS.
+                 ! 时间方向用非负通量重构；频率方向仍在 interpolation_common 中按 log SED 插值。
+                 F_tot_theta=(one-Ratio)*F_tot(:,K2)+Ratio*F_tot(:,K2+1)
+                 F_tot_log_theta=-huge(one)
+                 where(F_tot_theta > zero) F_tot_log_theta=log(F_tot_theta)
                  Beta=dsqrt(one-DG**(-2))
 
                  doppler=DG*(one-Beta*DMu) !Doppler factor, changed with R
                  log_doppler_redshift=log(doppler)+log(one+z)
-                 F_tot_log_theta=max(-199d0,DP_theta+log_domega_4pi-3d0*log(doppler))
+                 F_tot_log_theta=F_tot_log_theta+log_domega_4pi-3d0*log(doppler)
                  V_seed_log_theta=V_seed_log-log_doppler_redshift
                  call interpolation_accumulate_log_sed(V_seed_log_theta,F_tot_log_theta, &
                                                        Num_nu,V_obs_log,Num_nu_obs,F_tot_obs_temp(:,K1))
@@ -115,9 +114,8 @@ subroutine sed_interpolation_surface_element(Boundary,R_Tobs1,R_gamma,R,F_tot,V_
     real(8), intent(in) :: R_Tobs1(Num_R),R_gamma(Num_R),R(Num_R),F_tot(Num_nu,Num_R)
     real(8), intent(out) :: F_tot_obs(Num_nu_obs,Num_Tobs)
     real(8), allocatable :: V_obs_log(:),V_seed_log(:)
-    real(8) :: R_Tobs_theta(Num_R),DP_theta(Num_nu),F_tot_log_theta(Num_nu), &
-               V_seed_log_theta(Num_nu),F_tot_log_lo(Num_nu),F_tot_log_hi(Num_nu), &
-               log_gamma_lo,log_gamma_hi,log_domega_4pi,log_doppler_redshift
+    real(8) :: R_Tobs_theta(Num_R),F_tot_theta(Num_nu),F_tot_log_theta(Num_nu), &
+               V_seed_log_theta(Num_nu),log_gamma_lo,log_gamma_hi,log_domega_4pi,log_doppler_redshift
     integer :: last_k2
     allocate (V_obs_log(Num_nu_obs),V_seed_log(Num_nu))
 
@@ -140,16 +138,17 @@ subroutine sed_interpolation_surface_element(Boundary,R_Tobs1,R_gamma,R,F_tot,V_
        if ((Tobs(K1) >= R_Tobs_theta(K2)).and.(Tobs(K1) < R_Tobs_theta(K2+1))) then
            if (K2 /= last_k2) then
                log_gamma_lo=log(R_gamma(K2)); log_gamma_hi=log(R_gamma(K2+1))
-               F_tot_log_lo=log(F_tot(:,K2)); F_tot_log_hi=log(F_tot(:,K2+1))
                last_k2=K2
            end if
            Ratio=(Tobs(K1)-R_Tobs_theta(K2))/(R_Tobs_theta(K2+1)-R_Tobs_theta(K2))
            DG=exp(log_gamma_lo+Ratio*(log_gamma_hi-log_gamma_lo))
-           DP_theta=F_tot_log_lo+Ratio*(F_tot_log_hi-F_tot_log_lo)
+           F_tot_theta=(one-Ratio)*F_tot(:,K2)+Ratio*F_tot(:,K2+1)
+           F_tot_log_theta=-huge(one)
+           where(F_tot_theta > zero) F_tot_log_theta=log(F_tot_theta)
            Beta=dsqrt(one-DG**(-2))
            doppler=DG*(one-Beta*DMu)
            log_doppler_redshift=log(doppler)+log(one+z)
-           F_tot_log_theta=max(-199d0,DP_theta+log_domega_4pi-3d0*log(doppler))
+           F_tot_log_theta=F_tot_log_theta+log_domega_4pi-3d0*log(doppler)
            V_seed_log_theta=V_seed_log-log_doppler_redshift
            call interpolation_accumulate_log_sed(V_seed_log_theta,F_tot_log_theta, &
                                                  Num_nu,V_obs_log,Num_nu_obs,F_tot_obs(:,K1))

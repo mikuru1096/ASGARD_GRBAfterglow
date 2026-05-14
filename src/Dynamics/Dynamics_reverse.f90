@@ -42,7 +42,8 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
     call dynamics_deceleration_radius(A_star,dNe_ISM,Eta_0,DM_0,R_dec)
     T_cross=-1d0; U3_cross=zero; V3_cross=zero; M3_cross=zero; gam_m_cross=zero
     B3_ordered_cross=zero
-    T00=Y(4)*(one/dsqrt(one-one/Eta_0**2)-one)/Para_c
+    ! RS 状态向量中 Y(2) 是 shock 半径；初始到达时刻必须由半径而不是 swept mass 定义。
+    T00=Y(2)*(one/dsqrt(one-one/Eta_0**2)-one)/Para_c
     t_dec=R_dec/(two*Eta_0*Eta_0*Para_c)
     Grid_Tobs_bin=min(log10(T00)-2d0,dlog10(t_dec*0.1d0))
     T_log10=T_log10_duration-Grid_Tobs_bin; Num_R1=Num_R-1
