@@ -10,6 +10,7 @@
 - `asgard_core/hadronic_reverse.py` — RS hadronic light proton transport + synchrotron wrapper
 - `asgard_core/hadronic_cascade.py` — pair-production synch diagnostics plus shell-sequence time-dependent γγ pair/synch cascade
 - `doc/hadronic_chi_transport_decision.md` — 2D / χ-resolved hadronic transport 的当前决策边界
+- `doc/pair_cascade_extension_boundary.md` — IC-mediated electromagnetic cascade 的扩展边界
 
 ## Fortran Runtime
 

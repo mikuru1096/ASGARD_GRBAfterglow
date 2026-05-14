@@ -61,7 +61,7 @@ Fitter.loglike → compile_problem → eval_loglike → solve_state_from_setup
 Hadronic Python modules (orchestration/wrapping/benchmark only):
 - Fortran wrappers: `hadronic_hummer.py`, `hadronic_bethe_heitler.py`, `hadronic_hadronic_ic.py`, `hadronic_pp.py`, `hadronic_pair_production.py`, `hadronic_species_transport.py`, `hadronic_secondary_radiation.py`, `hadronic_acceleration.py`
 - Reverse shock wrapper: `hadronic_reverse.py`; full RS hadronic chain is dispatched from `asgard_runtime.py` through the formal 1D hadronic kernels when RS full-chain flags are enabled. RS seed photons, RS `B3`, shell energy and baryon target density come from the ASGARD RS dynamics/thermal state, not from a Vegas-style averaged thermal closure.
-- Reference/benchmark: `hadronic_pgamma.py`, `hadronic_am3_solver.py`, `hadronic_am3_benchmark.py`, `hadronic_cascade.py`
+- Reference/benchmark: `hadronic_pgamma.py`, `hadronic_am3_solver.py`, `hadronic_am3_benchmark.py`, `hadronic_cascade.py`; IC-mediated electromagnetic cascade remains outside the current pair-cascade contract, see `doc/pair_cascade_extension_boundary.md`
 
 Final AM3-derived microphysics lives in `src/Hadronic/*.f90`.
 
@@ -117,7 +117,7 @@ Shell-level entries exposed by `FS_hadronic_1d.f90`: `fs_hadronic_1d`, `fs_hadro
 - **`pgamma_scheme`**: `hummer_2010_response` (with transport feedback), `ka2008_reference` (emission-only, no transport feedback), `disabled`
 - **Active couplings**: proton injection/cooling, proton synchrotron, photopion (α_p, Q_p^reinj, α_γ^{pγ} as local shell survival), neutrino, Bethe-Heitler (proton cooling + e± feedback), pp (γ/ν/pair/proton-loss), hadronic IC (proton + pion/muon), explicit secondary transport (n/π±/μ±), secondary radiation (pion/muon synch + IC), pair production (observer-side attenuation + pair synchrotron branch)
 - **Reverse-shock hadronic**: `FS_hadronic_reverse_1d` remains the light proton-synch path; full-chain RS pγ/BH/pp/secondary/cascade coupling is active when `reverse_epsilon_p > 0` and the corresponding hadronic process flags are enabled.
-- **Pair cascade**: `pair_cascade_iterations > 1` now selects a shell-sequence time-dependent γγ pair/synch cascade path; the old single-shell iterative kernel remains available in `hadronic_cascade.py` for diagnostics.
+- **Pair cascade**: `pair_cascade_iterations > 1` now selects a shell-sequence time-dependent γγ pair/synch cascade path; the old single-shell iterative kernel remains available in `hadronic_cascade.py` for diagnostics. IC-mediated electromagnetic cascade is intentionally not part of this branch until a photon/e± source-sink and energy-budget contract is defined in `doc/pair_cascade_extension_boundary.md`.
 
 ## 6. Build and Test
 

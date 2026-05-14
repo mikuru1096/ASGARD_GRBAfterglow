@@ -18,27 +18,23 @@
 - RS hadronic baseline 已完成：light path 覆盖 RS proton injection/transport + proton synchrotron；full-chain path 复用正式 1D hadronic kernels，使用 RS seed photons、RS `B3`、shell energy 和 baryon target density。
 - RS benchmark refresh 已完成：`tests/vegas_afterglow_comparison.py --only reverse_shock_lc reverse_shock_thermal` 生成 RS 光变对照与热态闭合诊断；`tests/magnetized_rs_sigma_benchmark.py` 生成 sigma 扫描诊断。VegasAfterglow 是 comparison backend，不是光变目标或物理基准。
 
+## Completed Non-RS Decisions
+
+- 2D / χ-resolved hadronic transport: 决策记录见 `doc/hadronic_chi_transport_decision.md`。当前不实现；正式 hadronic path 保持 1D shell 契约，直到 χ-local photon、hadron、secondary feedback 和 observer projection 契约完成。
+- Pair cascade extension: 决策记录见 `doc/pair_cascade_extension_boundary.md`。当前主链停在 shell-sequence time-dependent γγ pair/synch cascade；不进入 IC-mediated electromagnetic cascade，除非先给出 photon/e± source-sink 方程、IC kernel 契约和能量守恒 benchmark。
+
 ## Todo
 
-1. 2D / chi-resolved hadronic transport decision
-   - 决策记录见 `doc/hadronic_chi_transport_decision.md`。
-   - 当前结论：不直接实现 2D / χ-resolved hadronic transport。现有 2D electron `chi_grid` 是电子输运和历史 photon-field 坐标；hadronic 主链的物理契约仍是 shell-level `frequency x radius` target photons、1D proton/secondary spectra 和 shell-local baryon/B/energy。
-   - 若后续确需进入实现，必须先定义 `PhotonFieldState` 的 `frequency x chi x radius` 版本、χ 权重/体积、hadron density per χ、secondary feedback 到 electron/observer 的映射，以及能量守恒和时空平滑 benchmark。
-
-2. Pair cascade extension boundary
-   - 当前主链已有 shell-sequence time-dependent γγ pair/synch cascade；legacy iterative pair-production synch kernel 只保留作诊断。
-   - 若要继续扩展到 IC-mediated electromagnetic cascade，必须先给出闭合的 photon/e± source-sink 方程和能量守恒 benchmark。
-
-3. Polarization timing diagnostic
+1. Polarization timing diagnostic
    - Lan, Wu & Dai 2023 对照中峰值幅度基本一致，峰时偏早仍需定位。
    - 优先检查 dynamics/EATS 时间映射和真实 jet 面元权重，不做后处理平滑。
 
-4. Benchmark baseline refresh protocol
+2. Benchmark baseline refresh protocol
    - 重新生成 Vegas / literature benchmark 时，必须同时记录命令、git 基线、模块 build 状态和图像生成脚本。
    - RS benchmark 图必须标明 ASGARD 使用 “local gamma34 injection + explicit U3/V3 thermal state”；VegasAfterglow 只作为 comparison backend。
    - 不提交失败占位图、临时 debug 脚本或 `.buildcache/`。
 
-5. Public API/backend limits
+3. Public API/backend limits
    - Jet spreading、自定义 `Medium` kernel dispatch、wind `k != 2`、thermal electrons outside `fullhide_1d` 都是明确未支持边界。
    - 这些边界只有在目标观测或物理问题需要时才进入实现。
 
