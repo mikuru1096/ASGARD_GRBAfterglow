@@ -106,6 +106,8 @@ Final AM3-derived microphysics lives in `src/Hadronic/*.f90`.
 
 Reverse-shock hadronic light entry: `src/Hadronic/FS_hadronic_reverse_1d.f90`, proton injection/transport + proton synchrotron only. Full-chain RS hadronic dispatch reuses the formal 1D hadronic kernels from `FS_hadronic_1d` through the Python runtime wrapper, with RS magnetic field, RS seed photons, RS shell energy and RS baryon target density. This is still a formal 1D dispatch path, not 2D / χ-resolved RS hadronic transport.
 
+2D / χ-resolved hadronic transport is intentionally not implemented. The current `chi_grid` belongs to the 2D electron transport contract, while `PhotonFieldState` and `HadronicSolution` are shell-level contracts. The implementation boundary and required physics contract are recorded in `doc/hadronic_chi_transport_decision.md`.
+
 Shell-level entries exposed by `FS_hadronic_1d.f90`: `fs_hadronic_1d`, `fs_hadronic_proton_syn_shell`, `fs_hadronic_syn_polarization_shell`, `fs_hadronic_pgamma_operator_shell`, `fs_hadronic_pair_production_shell`, `fs_hadronic_pp_delta_shell`, `fs_hadronic_bethe_heitler_shell`, `fs_hadronic_hadronic_ic_shell`, `fs_hadronic_species_transport_shell`, `fs_hadronic_acceleration_shell`, `fs_hadronic_secondary_radiation_shell`, `fs_hadronic_decay_operator_shell`, `fs_hadronic_pair_cascade_step`, `fs_hadronic_pp_spectral_source`, `fs_hadronic_quantum_syn_cooling_factor`
 
 ## 5. Hadronic Current State
@@ -139,7 +141,7 @@ Benchmark: `tests/vegas_afterglow_comparison.py`, `tests/sed_electron_compare.py
 ## 7. Known Boundaries
 
 Not yet complete:
-- 2D / χ-resolved hadronic transport
+- 2D / χ-resolved hadronic transport; current decision is to keep the formal 1D path until χ-local photon, hadron, secondary-feedback and observer-projection contracts are defined
 - inverse-Compton-mediated electromagnetic pair cascade beyond the current γγ pair/synch contract
 - reverse-shock `nu_m` is a diagnostic break derived from local `gamma34` injection and post-crossing `U3/M3`; it does not replace the transported electron spectrum
 - jet spreading in the current backend
