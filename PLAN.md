@@ -23,15 +23,11 @@
 - 2D / χ-resolved hadronic transport: 决策记录见 `doc/hadronic_chi_transport_decision.md`。当前不实现；正式 hadronic path 保持 1D shell 契约，直到 χ-local photon、hadron、secondary feedback 和 observer projection 契约完成。
 - Pair cascade extension: 决策记录见 `doc/pair_cascade_extension_boundary.md`。当前主链停在 shell-sequence time-dependent γγ pair/synch cascade；不进入 IC-mediated electromagnetic cascade，除非先给出 photon/e± source-sink 方程、IC kernel 契约和能量守恒 benchmark。
 - Polarization timing diagnostic: 诊断记录见 `doc/polarization_timing_diagnostic.md`。Lan 2023 overlay 的幅度已匹配到约 1%，峰时仍早约 0.54--0.62 倍；当前证据指向 dynamics/jet-evolution 模型边界，而不是 surface-element EATS 或 patch solid-angle 权重 bug。
+- Benchmark baseline refresh protocol: 协议见 `doc/benchmark_refresh_protocol.md`。重新生成 Vegas、literature 或 hadronic benchmark 时必须记录命令、HEAD、tracked diff 状态、扩展 build 状态、输出路径和物理验收口径。
 
 ## Todo
 
-1. Benchmark baseline refresh protocol
-   - 重新生成 Vegas / literature benchmark 时，必须同时记录命令、git 基线、模块 build 状态和图像生成脚本。
-   - RS benchmark 图必须标明 ASGARD 使用 “local gamma34 injection + explicit U3/V3 thermal state”；VegasAfterglow 只作为 comparison backend。
-   - 不提交失败占位图、临时 debug 脚本或 `.buildcache/`。
-
-2. Public API/backend limits
+1. Public API/backend limits
    - Jet spreading、自定义 `Medium` kernel dispatch、wind `k != 2`、thermal electrons outside `fullhide_1d` 都是明确未支持边界。
    - 这些边界只有在目标观测或物理问题需要时才进入实现。
 

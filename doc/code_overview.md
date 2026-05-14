@@ -139,6 +139,8 @@ Hadronic regressions: `tests/hadronic_1d_smoke.py`, `tests/hadronic_species_tran
 Benchmark: `tests/vegas_afterglow_comparison.py`, `tests/sed_electron_compare.py`. RS benchmark refresh:
 `rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run --extra compare python tests/vegas_afterglow_comparison.py --scenario baseline --only reverse_shock_lc reverse_shock_thermal'`
 
+Benchmark refresh protocol: `doc/benchmark_refresh_protocol.md`
+
 ## 7. Known Boundaries
 
 Not yet complete:
