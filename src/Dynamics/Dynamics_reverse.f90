@@ -101,10 +101,10 @@ subroutine F(dB3,T_cross,R_cross,e3_cross,gam20,U3_cross,V3_cross,M3_cross,gam_m
             B4_ordered=rs_b4_up(rho4,sigma_r)
             B3_ordered=B4_ordered*comp_ratio
         else
-            B3_ordered=B3_ordered_cross*V3_cross/V3
+            B3_ordered=B3_ordered_cross*V3_cross/V3*RR/R_cross
         end if
     end if
-    dB3=dsqrt(8d0*pi*b_r*e3)+B3_ordered
+    dB3=dsqrt(8d0*pi*b_r*e3+B3_ordered*B3_ordered)
     gam_c3=reverse_gamma_c_precise_coeff/(dB3*dB3*gam2*T)
     gam_m3=e_r/f_e_r*Para_m_p_div_m_e*(p_r-two)*(gam34-one)/(p_r-one)+one
     eps3=e_r*min(one,(gam_m3/gam_c3)**(p_r-two))

@@ -1,7 +1,8 @@
 module electron_reverse_kernel
     use constants
     use dynamics_common, only: dynamics_external_density_base, dynamics_reverse_gamma_extrema
-    use electron_transport_common, only: electron_prepare_implicit_coeffs_common, electron_backward_sweep_common
+    use electron_injection_profiles, only: electron_exp_cutoff_factor, electron_profile_log_cell_edges
+    use electron_transport_common, only: electron_fullhide_flux_split_step
     use electron_radiation_kernel, only: get_syn_selected
     use electron_cooling_kernel, only: get_IC_numerical, get_Y_Nakar, get_Y_Fan
     implicit none
@@ -20,14 +21,14 @@ subroutine electron_reverse_evolve(Delta_0,e_r,b_r,p_r,f_e_r,eta_0,Epsilon_e,Eps
     real(8), intent(out) :: gam_e(Num_gam_e),dN_gam_e(Num_gam_e,Num_R)
     real(8), parameter :: reverse_gamma_c_coeff=7.7d8, reverse_synch_b_coeff=0.39d0, reverse_adv_coeff=1.35d-19
     real(8) :: factor2,dB,gamma34,Gam_e_max,Gam_e_m,Gam_e_c,dNe,DB_min,Gam_e_max_max,Gam_e_min_global,d_x,R_loc,R_Gamma_loc,Delta
-    real(8) :: R_n4,beta4,beta2,u2,u4,f_r,dDR,dDD,CFL,Q0,Q,Q1,Qshell,cooling_scale
+    real(8) :: R_n4,beta4,beta2,u2,u4,f_r,dDR,dDD,Qshell,cooling_scale
     real(8) :: thermal_scale_lo,thermal_scale_hi,thermal_loss_rate,adiabatic_rate
-    real(8), allocatable :: dEl(:),principal(:),x(:),dF1(:),up(:),temp1(:),temp2(:),temp3(:),dN_x(:),para_minus_gam_e_p(:)
+    real(8) :: injection_rate,inj_hi,inj_width,mass_lo,mass_hi
+    real(8), allocatable :: dEl(:),x(:),dF1(:),temp3(:),dN_x(:),x_edge(:)
     real(8), allocatable :: dB3_serial(:),P_syn(:),Seed_syn(:),cooling_aux(:),Compton(:)
 
-    allocate(dEl(Num_gam_e),principal(Num_gam_e),x(Num_gam_e),dF1(Num_gam_e),up(Num_gam_e-1), &
-             temp1(Num_gam_e-1),temp2(Num_gam_e),temp3(Num_gam_e-1),dN_x(Num_gam_e), &
-             para_minus_gam_e_p(Num_gam_e),dB3_serial(Num_R),P_syn(Num_nu),Seed_syn(Num_nu), &
+    allocate(dEl(Num_gam_e),x(Num_gam_e),dF1(Num_gam_e),temp3(Num_gam_e-1),dN_x(Num_gam_e),x_edge(Num_gam_e+1), &
+             dB3_serial(Num_R),P_syn(Num_nu),Seed_syn(Num_nu), &
              cooling_aux(Num_gam_e),Compton(Num_gam_e))
     dB3_serial=B3
 
@@ -42,7 +43,7 @@ subroutine electron_reverse_evolve(Delta_0,e_r,b_r,p_r,f_e_r,eta_0,Epsilon_e,Eps
     call dynamics_external_density_base(A_star,dNe_ISM,R(1),dNe)
     DB_min=reverse_synch_b_coeff*dsqrt(Epsilon_b*dNe*(R_Gamma(Num_R)*(R_Gamma(Num_R)-one)))
     Gam_e_max_max=3d0*Para_m_energy/dsqrt(8d0*DB_min*Para_e**3)
-    Gam_e_min_global=Gam_e_m
+    Gam_e_min_global=one
 
     do I_tobs=2,Num_R
         R_Gamma_loc=(R_Gamma(I_tobs)+R_Gamma(I_tobs-1))/two
@@ -51,9 +52,7 @@ subroutine electron_reverse_evolve(Delta_0,e_r,b_r,p_r,f_e_r,eta_0,Epsilon_e,Eps
         gamma34=(R_Gamma_loc*R_Gamma_loc+eta_0*eta_0-one)/(eta_0*R_Gamma_loc+u2*u4)
         dB=(dB3_serial(I_tobs)+dB3_serial(I_tobs-1))/two
         call dynamics_reverse_gamma_extrema(dB,gamma34,factor2,f_e_r,Gam_e_max,Gam_e_m)
-        if (Gam_e_m < Gam_e_min_global) Gam_e_min_global=Gam_e_m
     end do
-    if (Gam_e_min_global < one) Gam_e_min_global=one
     if (Gam_e_max_max <= Gam_e_min_global) error stop "electron_reverse_evolve: reverse electron grid maximum must exceed minimum."
 
     do I_gam_e=1,Num_gam_e
@@ -63,31 +62,11 @@ subroutine electron_reverse_evolve(Delta_0,e_r,b_r,p_r,f_e_r,eta_0,Epsilon_e,Eps
             gam_e(I_gam_e)=Gam_e_min_global*ten**(dlog10(Gam_e_max_max/Gam_e_min_global)*(I_gam_e-1)/(Num_gam_e-1))
         end if
         dN_gam_e(I_gam_e,1)=zero
-        if (Gam_e_m > Gam_e_c) then
-            Q1=1d10*Gam_e_c
-            if ((Gam_e_c-gam_e(I_gam_e)) <= one) then
-                if (Gam_e_m > gam_e(I_gam_e)) then
-                    dN_gam_e(I_gam_e,1)=Q1*gam_e(I_gam_e)**(-2)
-                else if (Gam_e_max > gam_e(I_gam_e)) then
-                    dN_gam_e(I_gam_e,1)=Q1*Gam_e_m**(p_r-one)*gam_e(I_gam_e)**(-(p_r+one))
-                end if
-            end if
-        else
-            Q1=1d10*Gam_e_m**(p_r-one)
-            if (Gam_e_m <= gam_e(I_gam_e)) then
-                if (Gam_e_c > gam_e(I_gam_e)) then
-                    dN_gam_e(I_gam_e,1)=Q1*gam_e(I_gam_e)**(-p_r)
-                else if (Gam_e_max > gam_e(I_gam_e)) then
-                    dN_gam_e(I_gam_e,1)=Q1*Gam_e_c*gam_e(I_gam_e)**(-(p_r+one))
-                end if
-            end if
-        end if
     end do
 
     dN_x=dN_gam_e(:,1)*gam_e*dlog(ten)
     d_x=dlog10(gam_e(2)/gam_e(1))
-    para_minus_gam_e_p=zero
-    where(gam_e > one) para_minus_gam_e_p=one/(gam_e-one)**p_r
+    call electron_profile_log_cell_edges(Num_gam_e,gam_e,x_edge)
 
     do I_tobs=2,Num_R
         R_loc=R(I_tobs-1); R_Gamma_loc=(R_Gamma(I_tobs)+R_Gamma(I_tobs-1))/two
@@ -123,8 +102,21 @@ subroutine electron_reverse_evolve(Delta_0,e_r,b_r,p_r,f_e_r,eta_0,Epsilon_e,Eps
             if (thermal_loss_rate <= zero) &
                 error stop "electron_reverse_evolve: post-crossing thermal scale must decrease."
         end if
+        injection_rate=zero
+        if (R(I_tobs-1) < R_cross) then
+            inj_hi=min(R(I_tobs),R_cross)
+            if (inj_hi > R(I_tobs-1)) then
+                mass_lo=M3_shell(I_tobs-1)
+                if (I_tobs == 2) mass_lo=zero
+                mass_hi=M3_shell(I_tobs)
+                if (R(I_tobs) > R_cross) mass_hi=M3_cross
+                if (mass_hi < mass_lo) error stop "electron_reverse_evolve: reverse swept mass must not decrease."
+                inj_width=inj_hi-R(I_tobs-1)
+                injection_rate=f_e_r*(mass_hi-mass_lo)/(Para_m_p*inj_width)
+            end if
+        end if
         L1=max(100,min(1000,int(dDD/dDR)))
-        dDR=dDD/L1; CFL=dDR/d_x
+        dDR=dDD/L1
         dN_x=dN_gam_e(:,I_tobs-1)*gam_e*dlog(ten)
 
         call get_syn_selected(index_syn_intger,R(I_tobs-1),dB,Num_gam_e,Num_nu,n_threads, &
@@ -153,32 +145,64 @@ subroutine electron_reverse_evolve(Delta_0,e_r,b_r,p_r,f_e_r,eta_0,Epsilon_e,Eps
             print*, 'invalid Compton case, check your chosen model!'
             stop
         end select
-        Q0=4d0*pi*R_n4*(p_r-one)*(Gam_e_m-one)**(p_r-one)*f_e_r
         do L=1,L1
             R_loc=R_loc+dDR
             if (R_cross >= R_loc) then
-                Q=Q0*R_loc*R_loc
+                call reverse_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m,Gam_e_max,injection_rate,p_r,dF1)
             else
-                Q=zero
+                dF1=zero
             end if
             if (R_loc <= R_cross) then
                 adiabatic_rate=one/R_loc
             else
                 adiabatic_rate=thermal_loss_rate
             end if
-            dF1=zero
-            where(gam_e < Gam_e_max .and. gam_e > Gam_e_m) dF1=Q*para_minus_gam_e_p*gam_e*dlog(ten)
             temp3=((dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/two+adiabatic_rate)/dlog(ten)
-            up=-CFL*temp3
-            call electron_prepare_implicit_coeffs_common(Num_gam_e,one,up,principal,temp1)
-            temp2=(dN_x+dDR*dF1)/principal
-            call electron_backward_sweep_common(Num_gam_e,temp1,temp2,x)
+            call electron_fullhide_flux_split_step(Num_gam_e,dDR,d_x,temp3,dF1,dN_x,x,.true.)
             dN_x=x
             if (L == L1) dN_gam_e(:,I_tobs)=dN_x/gam_e/dlog(ten)
         end do
     end do
 
-    deallocate(dEl,principal,x,dF1,up,temp1,temp2,temp3,dN_x,para_minus_gam_e_p,dB3_serial,P_syn,Seed_syn,cooling_aux,Compton)
+    deallocate(dEl,x,dF1,temp3,dN_x,x_edge,dB3_serial,P_syn,Seed_syn,cooling_aux,Compton)
 end subroutine electron_reverse_evolve
+
+subroutine reverse_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m,Gam_e_max,injection_rate,p,dF1)
+    implicit none
+    integer, intent(in) :: Num_gam_e
+    integer :: I_gam_e,I_q
+    real(8), intent(in) :: x_edge(Num_gam_e+1),Gam_e_m,Gam_e_max,injection_rate,p
+    real(8), intent(out) :: dF1(Num_gam_e)
+    real(8), parameter :: xi(3)=(/-dsqrt(3d0/5d0),zero,dsqrt(3d0/5d0)/)
+    real(8), parameter :: wi(3)=(/5d0/9d0,8d0/9d0,5d0/9d0/)
+    real(8) :: cell_lo,cell_hi,dx_cell,half_dx,x_mid,x_eval,gam,cutoff_factor,cell_sum,shape_norm
+
+    dF1=zero
+    shape_norm=zero
+    if (Gam_e_max <= zero .or. injection_rate <= zero) return
+
+    do I_gam_e=1,Num_gam_e
+        cell_lo=x_edge(I_gam_e)
+        cell_hi=x_edge(I_gam_e+1)
+        dx_cell=cell_hi-cell_lo
+        if (dx_cell <= zero) cycle
+        half_dx=0.5d0*dx_cell
+        x_mid=0.5d0*(cell_lo+cell_hi)
+        cell_sum=zero
+        do I_q=1,3
+            x_eval=x_mid+half_dx*xi(I_q)
+            gam=ten**x_eval
+            if (gam > Gam_e_m) then
+                cutoff_factor=electron_exp_cutoff_factor(gam,Gam_e_max)
+                cell_sum=cell_sum+wi(I_q)*gam*dlog(ten)*(gam-one)**(-p)*cutoff_factor
+            end if
+        end do
+        cell_sum=half_dx*cell_sum
+        dF1(I_gam_e)=cell_sum/dx_cell
+        shape_norm=shape_norm+cell_sum
+    end do
+    if (shape_norm <= zero) error stop "reverse_build_source_term_exp_cutoff_edges: source shape vanished."
+    dF1=injection_rate*dF1/shape_norm
+end subroutine reverse_build_source_term_exp_cutoff_edges
 
 end module electron_reverse_kernel

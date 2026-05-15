@@ -561,6 +561,55 @@ end subroutine electron_semi_lagrangian_step
 
 
 
+! 用face速度正负分裂执行隐式守恒输运，适用于冷却和SSA加热共存的符号切换。
+subroutine electron_fullhide_flux_split_step(Num_gam_e,dDR,d_x,face_speed,dF1,dN_x_in,dN_x_out,close_low_boundary)
+    implicit none
+    integer, intent(in) :: Num_gam_e
+    integer :: I_gam_e
+    real(8), intent(in) :: dDR,d_x,face_speed(Num_gam_e-1),dF1(Num_gam_e),dN_x_in(Num_gam_e)
+    real(8), intent(out) :: dN_x_out(Num_gam_e)
+    logical, intent(in), optional :: close_low_boundary
+    logical :: low_boundary_closed
+    real(8) :: lambda,denom,a_plus(Num_gam_e-1),a_minus(Num_gam_e-1)
+    real(8) :: lower(Num_gam_e),diag(Num_gam_e),upper(Num_gam_e),rhs(Num_gam_e),cprime(Num_gam_e),dprime(Num_gam_e)
+
+    lambda=dDR/d_x
+    a_plus=max(face_speed,zero)
+    a_minus=min(face_speed,zero)
+    lower=zero; diag=one; upper=zero
+    rhs=dN_x_in+dDR*dF1
+    low_boundary_closed=.false.
+    if (present(close_low_boundary)) low_boundary_closed=close_low_boundary
+
+    do I_gam_e=1,Num_gam_e
+        if (I_gam_e == 1) then
+            if (.not. low_boundary_closed) diag(I_gam_e)=diag(I_gam_e)+lambda*a_plus(1)
+        else
+            diag(I_gam_e)=diag(I_gam_e)+lambda*a_plus(I_gam_e-1)
+            lower(I_gam_e)=-lambda*(-a_minus(I_gam_e-1))
+        end if
+        if (I_gam_e == Num_gam_e) then
+            diag(I_gam_e)=diag(I_gam_e)+lambda*(-a_minus(Num_gam_e-1))
+        else
+            diag(I_gam_e)=diag(I_gam_e)+lambda*(-a_minus(I_gam_e))
+            upper(I_gam_e)=-lambda*a_plus(I_gam_e)
+        end if
+    end do
+
+    cprime(1)=upper(1)/diag(1)
+    dprime(1)=rhs(1)/diag(1)
+    do I_gam_e=2,Num_gam_e
+        denom=diag(I_gam_e)-lower(I_gam_e)*cprime(I_gam_e-1)
+        if (I_gam_e < Num_gam_e) cprime(I_gam_e)=upper(I_gam_e)/denom
+        dprime(I_gam_e)=(rhs(I_gam_e)-lower(I_gam_e)*dprime(I_gam_e-1))/denom
+    end do
+    dN_x_out(Num_gam_e)=dprime(Num_gam_e)
+    do I_gam_e=Num_gam_e-1,1,-1
+        dN_x_out(I_gam_e)=dprime(I_gam_e)-cprime(I_gam_e)*dN_x_out(I_gam_e+1)
+    end do
+    dN_x_out=max(zero,dN_x_out)
+end subroutine electron_fullhide_flux_split_step
+
 ! 执行 fullhide 电子输运的隐式冷却和注入更新。
 subroutine electron_fullhide_step(Num_gam_e,R_loc,dDR,d_x,dEL_mean,dF1,dN_x_in,dN_x_out)
     implicit none
@@ -568,13 +617,10 @@ subroutine electron_fullhide_step(Num_gam_e,R_loc,dDR,d_x,dEL_mean,dF1,dN_x_in,d
     real(8), intent(in) :: R_loc,dDR,d_x
     real(8), intent(in) :: dEL_mean(Num_gam_e-1),dF1(Num_gam_e),dN_x_in(Num_gam_e)
     real(8), intent(out) :: dN_x_out(Num_gam_e)
-    real(8) :: principal(Num_gam_e),up(Num_gam_e-1),temp1(Num_gam_e-1),temp2(Num_gam_e),temp3(Num_gam_e-1)
-    temp3=dEL_mean+one/R_loc/dlog(ten)
-    up=-(dDR/d_x)*temp3
-    call electron_prepare_implicit_coeffs_common(Num_gam_e,one,up,principal,temp1)
-    temp2=dN_x_in/principal
-    temp2=temp2+dDR*dF1/principal
-    call electron_backward_sweep_common(Num_gam_e,temp1,temp2,dN_x_out)
+    real(8) :: face_speed(Num_gam_e-1)
+
+    face_speed=dEL_mean+one/R_loc/dlog(ten)
+    call electron_fullhide_flux_split_step(Num_gam_e,dDR,d_x,face_speed,dF1,dN_x_in,dN_x_out)
 end subroutine electron_fullhide_step
 
 

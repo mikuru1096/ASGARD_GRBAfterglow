@@ -180,12 +180,7 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
                     dEL_mean_step=dEL_mean_base
                 end if
 
-                temp3=dEL_mean_step+one/R_loc/dlog(ten)
-                up=-CFL*temp3 !up
-                call electron_prepare_implicit_coeffs_common(Num_gam_e,one,up,principal,temp1)
-                temp2=dN_x/principal
-                temp2=temp2+dDR*dF1/principal
-                call electron_backward_sweep_common(Num_gam_e,temp1,temp2,x)
+                call electron_fullhide_step(Num_gam_e,R_loc,dDR,d_x,dEL_mean_step,dF1,dN_x,x)
                 if (budget_diag_enabled) then
                     n_after_step=sum(x)*d_x
                     rel_loss_xi_max=max(rel_loss_xi_max, &

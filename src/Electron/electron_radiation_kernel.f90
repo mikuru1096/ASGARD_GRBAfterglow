@@ -10,7 +10,6 @@ module electron_radiation_kernel
     public :: build_reduced_log_grid, project_syn_state_logbands
     public :: get_syn_adaptive
     public :: electron_powerlaw_interp, electron_integrate_powerlaw_segment, electron_ssa_segment
-    public :: electron_fill_quadratic_slopes
 
 contains
 
@@ -350,80 +349,22 @@ real(8) :: vg1,vg2,wg1,wg2,seed_loc,sigma_loc
     electron_ssa_segment=electron_ssa_segment+wg2*sigma_loc*seed_loc*para_h*vg2*para_c
 end function electron_ssa_segment
 
-! 三点二次插值的导数值（Lagrange基函数求导）。
-real(8) function electron_quadratic_derivative_x(x,xl,xc,xr,yl,yc,yr)
+! SSA光深核函数：γ²F(ν/νc)，电子谱导数由有限体积端点差单独给出。
+real(8) function electron_tau_kernel_x(x,V_cal,DB,factor)
 implicit REAL(8)(A-H,O-Z)
-real(8), intent(in) :: x,xl,xc,xr,yl,yc,yr
-
-    electron_quadratic_derivative_x= &
-        yl*(two*x-xc-xr)/((xl-xc)*(xl-xr))+ &
-        yc*(two*x-xl-xr)/((xc-xl)*(xc-xr))+ &
-        yr*(two*x-xl-xc)/((xr-xl)*(xr-xc))
-end function electron_quadratic_derivative_x
-
-! 用三点二次插值填充Hermite插值所需的导数数组。
-subroutine electron_fill_quadratic_slopes(x_arr,y_arr,dy_arr,n)
-implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: n
-real(8), intent(in) :: x_arr(n),y_arr(n)
-real(8), intent(out) :: dy_arr(n)
-integer :: i
-
-    dy_arr(1)=electron_quadratic_derivative_x(x_arr(1),x_arr(1),x_arr(2),x_arr(3), &
-                                              y_arr(1),y_arr(2),y_arr(3))
-    do i=2,n-1
-        dy_arr(i)=electron_quadratic_derivative_x(x_arr(i),x_arr(i-1),x_arr(i),x_arr(i+1), &
-                                                  y_arr(i-1),y_arr(i),y_arr(i+1))
-    enddo
-    dy_arr(n)=electron_quadratic_derivative_x(x_arr(n),x_arr(n-2),x_arr(n-1),x_arr(n), &
-                                              y_arr(n-2),y_arr(n-1),y_arr(n))
-end subroutine electron_fill_quadratic_slopes
-
-! 三次Hermite插值求值：q(x)=h00*y0+h10*dy0+h01*y1+h11*dy1。
-real(8) function electron_hermite_interp_x(x,x0,x1,y0,y1,dy0,dy1)
-implicit REAL(8)(A-H,O-Z)
-real(8), intent(in) :: x,x0,x1,y0,y1,dy0,dy1
-real(8) :: h,s
-
-    h=x1-x0
-    s=(x-x0)/h
-    electron_hermite_interp_x=(two*s*s*s-three*s*s+one)*y0+ &
-                               (s*s*s-two*s*s+s)*h*dy0+ &
-                               (-two*s*s*s+three*s*s)*y1+ &
-                               (s*s*s-s*s)*h*dy1
-end function electron_hermite_interp_x
-
-! 三次Hermite插值的导数值。
-real(8) function electron_hermite_derivative_x(x,x0,x1,y0,y1,dy0,dy1)
-implicit REAL(8)(A-H,O-Z)
-real(8), intent(in) :: x,x0,x1,y0,y1,dy0,dy1
-real(8) :: h,s
-
-    h=x1-x0
-    s=(x-x0)/h
-    electron_hermite_derivative_x=((6d0*s*s-6d0*s)/h)*y0+ &
-                                   (3d0*s*s-4d0*s+one)*dy0+ &
-                                   ((-6d0*s*s+6d0*s)/h)*y1+ &
-                                   (3d0*s*s-2d0*s)*dy1
-end function electron_hermite_derivative_x
-
-! SSA光深被积函数：-d(dN/dγ)/dx * γ² * F(x)。
-real(8) function electron_tau_integrand_x(x,x0,x1,dN10,dN11,ddN10,ddN11,V_cal,DB,factor)
-implicit REAL(8)(A-H,O-Z)
-real(8), intent(in) :: x,x0,x1,dN10,dN11,ddN10,ddN11,V_cal,DB,factor
-real(8) :: gam,d_dN1_dx
+real(8), intent(in) :: x,V_cal,DB,factor
+real(8) :: gam
 
     gam=dexp(x)
-    d_dN1_dx=electron_hermite_derivative_x(x,x0,x1,dN10,dN11,ddN10,ddN11)
-    electron_tau_integrand_x=-d_dN1_dx*gam*gam*electron_syn_fx(gam,V_cal,DB,factor)
-end function electron_tau_integrand_x
+    electron_tau_kernel_x=gam*gam*electron_syn_fx(gam,V_cal,DB,factor)
+end function electron_tau_kernel_x
 
 ! 单网格单元同步发射功率的2点+3点Gauss积分（用于自适应误差估计）。
 subroutine electron_syn_gauss_cell(x0,x1,dN0,dN1,V_cal,DB,factor,p2,p3)
 implicit REAL(8)(A-H,O-Z)
 real(8), intent(in) :: x0,x1,dN0,dN1,V_cal,DB,factor
 real(8), intent(out) :: p2,p3
-real(8) :: xm,dx,w2,w3a,w3b
+real(8) :: xm,dx,w2,w3a
 real(8) :: x2a,x2b,x3a,x3b
 
     xm=0.5d0*(x0+x1)
@@ -442,12 +383,12 @@ real(8) :: x2a,x2b,x3a,x3b
            (5d0/9d0)*electron_syn_integrand_x(x3b,x0,x1,dN0,dN1,V_cal,DB,factor))
 end subroutine electron_syn_gauss_cell
 
-! 单网格单元SSA光深的2点+3点Gauss积分（用于自适应误差估计）。
-subroutine electron_tau_gauss_cell(x0,x1,dN10,dN11,ddN10,ddN11,V_cal,DB,factor,t2,t3)
+! 单网格单元SSA光深的2点+3点Gauss积分：有限体积端点差给出 -dq，Gauss积分给核函数平均。
+subroutine electron_tau_gauss_cell(x0,x1,dN10,dN11,V_cal,DB,factor,t2,t3)
 implicit REAL(8)(A-H,O-Z)
-real(8), intent(in) :: x0,x1,dN10,dN11,ddN10,ddN11,V_cal,DB,factor
+real(8), intent(in) :: x0,x1,dN10,dN11,V_cal,DB,factor
 real(8), intent(out) :: t2,t3
-real(8) :: xm,dx,w2,w3a
+real(8) :: xm,dx,width,w2,w3a,q_drop
 real(8) :: x2a,x2b,x3a,x3b
 
     if (x1 <= x0) then
@@ -458,31 +399,33 @@ real(8) :: x2a,x2b,x3a,x3b
 
     xm=0.5d0*(x0+x1)
     dx=0.5d0*(x1-x0)
+    width=x1-x0
+    q_drop=dN10-dN11
     w2=one/dsqrt(3d0)
     x2a=xm-dx*w2
     x2b=xm+dx*w2
-    t2=dx*(electron_tau_integrand_x(x2a,x0,x1,dN10,dN11,ddN10,ddN11,V_cal,DB,factor)+ &
-           electron_tau_integrand_x(x2b,x0,x1,dN10,dN11,ddN10,ddN11,V_cal,DB,factor))
+    t2=q_drop/width*dx*(electron_tau_kernel_x(x2a,V_cal,DB,factor)+ &
+                        electron_tau_kernel_x(x2b,V_cal,DB,factor))
 
     w3a=dsqrt(3d0/5d0)
     x3a=xm-dx*w3a
     x3b=xm+dx*w3a
-    t3=dx*((5d0/9d0)*electron_tau_integrand_x(x3a,x0,x1,dN10,dN11,ddN10,ddN11,V_cal,DB,factor)+ &
-           (8d0/9d0)*electron_tau_integrand_x(xm ,x0,x1,dN10,dN11,ddN10,ddN11,V_cal,DB,factor)+ &
-           (5d0/9d0)*electron_tau_integrand_x(x3b,x0,x1,dN10,dN11,ddN10,ddN11,V_cal,DB,factor))
+    t3=q_drop/width*dx*((5d0/9d0)*electron_tau_kernel_x(x3a,V_cal,DB,factor)+ &
+                        (8d0/9d0)*electron_tau_kernel_x(xm ,V_cal,DB,factor)+ &
+                        (5d0/9d0)*electron_tau_kernel_x(x3b,V_cal,DB,factor))
 end subroutine electron_tau_gauss_cell
 
-! 自适应同步辐射单元积分：2点/3点Gauss误差估计，超差时对半细分。
-subroutine electron_syn_cell_adaptive(x0,x1,dN0,dN1,dN10,dN11,ddN10,ddN11, &
+! 自适应同步辐射单元积分：发射率用线性重构，SSA光深用保守端点差重构。
+subroutine electron_syn_cell_adaptive(x0,x1,dN0,dN1,dN10,dN11, &
                                       V_cal,DB,factor,rel_tol,p_int,tau_int)
 implicit REAL(8)(A-H,O-Z)
-real(8), intent(in) :: x0,x1,dN0,dN1,dN10,dN11,ddN10,ddN11,V_cal,DB,factor,rel_tol
+real(8), intent(in) :: x0,x1,dN0,dN1,dN10,dN11,V_cal,DB,factor,rel_tol
 real(8), intent(out) :: p_int,tau_int
-real(8) :: p2,p3,t2,t3,xm,dNm,dN1m,ddN1m,err_p,err_t,ref_p,ref_t
+real(8) :: p2,p3,t2,t3,xm,dNm,dN1m,err_p,err_t,ref_p,ref_t
 real(8) :: p3_l,p3_r,t3_l,t3_r
 
     call electron_syn_gauss_cell(x0,x1,dN0,dN1,V_cal,DB,factor,p2,p3)
-    call electron_tau_gauss_cell(x0,x1,dN10,dN11,ddN10,ddN11,V_cal,DB,factor,t2,t3)
+    call electron_tau_gauss_cell(x0,x1,dN10,dN11,V_cal,DB,factor,t2,t3)
     ref_p=max(abs(p3),1d-30)
     ref_t=max(abs(t3),1d-30)
     err_p=abs(p3-p2)/ref_p
@@ -494,18 +437,17 @@ real(8) :: p3_l,p3_r,t3_l,t3_r
     else
         xm=0.5d0*(x0+x1)
         dNm=0.5d0*(dN0+dN1)
-        dN1m=electron_hermite_interp_x(xm,x0,x1,dN10,dN11,ddN10,ddN11)
-        ddN1m=electron_hermite_derivative_x(xm,x0,x1,dN10,dN11,ddN10,ddN11)
+        dN1m=0.5d0*(dN10+dN11)
         call electron_syn_gauss_cell(x0,xm,dN0,dNm,V_cal,DB,factor,p2,p3_l)
         call electron_syn_gauss_cell(xm,x1,dNm,dN1,V_cal,DB,factor,p2,p3_r)
-        call electron_tau_gauss_cell(x0,xm,dN10,dN1m,ddN10,ddN1m,V_cal,DB,factor,t2,t3_l)
-        call electron_tau_gauss_cell(xm,x1,dN1m,dN11,ddN1m,ddN11,V_cal,DB,factor,t2,t3_r)
+        call electron_tau_gauss_cell(x0,xm,dN10,dN1m,V_cal,DB,factor,t2,t3_l)
+        call electron_tau_gauss_cell(xm,x1,dN1m,dN11,V_cal,DB,factor,t2,t3_r)
         p_int=p3_l+p3_r
         tau_int=t3_l+t3_r
     end if
 end subroutine electron_syn_cell_adaptive
 
-! 自适应同步辐射计算：Hermite插值电子谱+Gauss自适应积分，精度可控。
+! 自适应同步辐射计算：发射率自适应积分，SSA光深按有限体积端点差守恒积分。
 subroutine get_syn_adaptive(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
                             P_syn,Seed_syn)
 !$ use omp_lib
@@ -514,17 +456,16 @@ integer, intent(in) :: Num_gam_e,Num_nu,n_threads
 real(8), intent(in) :: R_loc,DB,gam_e(Num_gam_e),dN_gam_e(Num_gam_e),V_seed(Num_nu)
 real(8), intent(out) :: P_syn(Num_nu),Seed_syn(Num_nu)
 real(8), parameter :: rel_tol=5d-4
-real(8), allocatable :: dN1(:),ddN1(:),x_gam(:)
+real(8), allocatable :: dN1(:),x_gam(:)
 real(8) :: factor,Temp_syn,Rariv2,temp_para
 
-    allocate(dN1(Num_gam_e),ddN1(Num_gam_e),x_gam(Num_gam_e))
+    allocate(dN1(Num_gam_e),x_gam(Num_gam_e))
 
     factor=(3.62d0/pi)**2
     Temp_syn=dsqrt(3d0)*para_e*para_e*para_e/Para_m_energy
     Rariv2=R_loc*R_loc
     dN1=dN_gam_e/(gam_e*gam_e)
     x_gam=dlog(gam_e)
-    call electron_fill_quadratic_slopes(x_gam,dN1,ddN1,Num_gam_e)
 
     !$OMP PARALLEL num_threads(n_threads), private(I_nu,I_gam_e,V_cal,dInteg,Tau,P_v, &
     !$OMP& cell_int,tau_cell)
@@ -537,7 +478,6 @@ real(8) :: factor,Temp_syn,Rariv2,temp_para
           call electron_syn_cell_adaptive(x_gam(I_gam_e),x_gam(I_gam_e+1), &
                                           dN_gam_e(I_gam_e),dN_gam_e(I_gam_e+1), &
                                           dN1(I_gam_e),dN1(I_gam_e+1), &
-                                          ddN1(I_gam_e),ddN1(I_gam_e+1), &
                                           V_cal,DB,factor,rel_tol,cell_int,tau_cell)
           dInteg=dInteg+cell_int
           Tau=Tau+tau_cell
@@ -554,7 +494,7 @@ real(8) :: factor,Temp_syn,Rariv2,temp_para
     temp_para=4d0*pi*Para_c*Para_h
     Seed_syn=Seed_syn/temp_para
 
-    deallocate(dN1,ddN1,x_gam)
+    deallocate(dN1,x_gam)
 end subroutine get_syn_adaptive
 
 ! 同步辐射计算选择器：按index_syn_intger选择标准/自适应/transfer-only方案。
@@ -669,14 +609,13 @@ real(8), intent(in) :: R_loc,DB,gam_e(Num_gam_e),dN_gam_e(Num_gam_e)
 real(8), intent(out) :: V_a
 real(8), parameter :: rel_tol=5d-4
 
-real(8),allocatable,dimension (:) :: dN1,ddN1,x_gam
-allocate (dN1(Num_gam_e),ddN1(Num_gam_e),x_gam(Num_gam_e))
+real(8),allocatable,dimension (:) :: dN1,x_gam
+allocate (dN1(Num_gam_e),x_gam(Num_gam_e))
 
     factor=(3.62d0/pi)**2
     Rariv2=R_loc*R_loc
     dN1=dN_gam_e/(gam_e*gam_e)
     x_gam=dlog(gam_e)
-    call electron_fill_quadratic_slopes(x_gam,dN1,ddN1,Num_gam_e)
     V_a_floor=ten**4d0
     V_a_min=ten**(-20d0)
     V_a_cap=one
@@ -727,7 +666,7 @@ allocate (dN1(Num_gam_e),ddN1(Num_gam_e),x_gam(Num_gam_e))
        end if
     end if
 
-    deallocate (dN1,ddN1,x_gam)
+    deallocate (dN1,x_gam)
 
 return
 
@@ -745,7 +684,6 @@ real(8) :: tau_cell,discard
        call electron_syn_cell_adaptive(x_gam(I_gam_e),x_gam(I_gam_e+1), &
                                        dN_gam_e(I_gam_e),dN_gam_e(I_gam_e+1), &
                                        dN1(I_gam_e),dN1(I_gam_e+1), &
-                                       ddN1(I_gam_e),ddN1(I_gam_e+1), &
                                        V_cal,DB,factor,rel_tol,discard,tau_cell)
        Tau=Tau+tau_cell
     end do
