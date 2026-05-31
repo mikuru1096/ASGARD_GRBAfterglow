@@ -14,8 +14,7 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
     use electron_injection_profiles, only: electron_build_source_term_exp_cutoff, electron_add_thermal_source_term
     use electron_radiation_kernel, only: get_nu_a, get_syn_selected
     use electron_cooling_kernel, only: get_forward_cooling
-    use electron_transport_common, only: electron_prepare_implicit_coeffs_common, electron_backward_sweep_common, &
-                                         electron_fullhide_step
+    use electron_transport_common, only: electron_fullhide_step
     IMPLICIT REAL(8)(A-H,O-Z)
     integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads
     integer, intent(in) :: adaptive_substeps,substep_min,substep_max,thermal_electrons
@@ -24,19 +23,18 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
     real(8), intent(out) :: dN_gam_e(Num_gam_e,Num_R),gam_e(Num_gam_e),P_syn(Num_nu,Num_R), &
                             Seed_syn(Num_nu,Num_R), V_m(Num_R), V_c(Num_R), V_a(Num_R)
     
-    real(8),allocatable,dimension (:) :: dEl,dEL_mean,principal,x,up,dN_x,temp1,temp2,temp3, &
-                                         gam_e_rad,dN_gam_e_rad,dN_full,dN_half,dN_half2,dF1,dEL_mean_base,dEL_mean_step
+    real(8),allocatable,dimension (:) :: dEl,dEL_mean,x,dN_x, &
+                                         dN_full,dN_half,dN_half2,dF1,dEL_mean_base,dEL_mean_step, &
+                                         gam_e_rad,dN_gam_e_rad
     logical :: is_uniform_density,budget_diag_enabled
-    integer :: Num_gam_rad,src_lo,src_hi,active_hi
-    integer :: env_len,env_status
+    integer :: Num_gam_rad,env_len,env_status
     character(len=32) :: diag_env
-    real(8) :: shell_peak,support_floor,max_xi_coeff,dDR_xi,ln10
+    real(8) :: dDR_xi,ln10
     real(8) :: n_before_step,n_after_step,inj_step,rel_loss_xi_max
-    allocate (dEl(Num_gam_e),dEL_mean(Num_gam_e-1),principal(Num_gam_e),x(Num_gam_e), &
-              up(Num_gam_e-1),dN_x(Num_gam_e),temp1(Num_gam_e-1),temp2(Num_gam_e), &
-              temp3(Num_gam_e-1),gam_e_rad(Num_gam_e),dN_gam_e_rad(Num_gam_e),dN_full(Num_gam_e), &
+    allocate (dEl(Num_gam_e),dEL_mean(Num_gam_e-1),x(Num_gam_e),dN_x(Num_gam_e), &
+              dN_full(Num_gam_e), &
               dN_half(Num_gam_e),dN_half2(Num_gam_e),dF1(Num_gam_e),dEL_mean_base(Num_gam_e-1), &
-              dEL_mean_step(Num_gam_e-1))
+              dEL_mean_step(Num_gam_e-1),gam_e_rad(Num_gam_e),dN_gam_e_rad(Num_gam_e))
     
     !***********************[Parameter Initial]**********************
     Eta_0=Boundary(1)
@@ -109,12 +107,12 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
         Gam_e_c=7.7d8*(one+z)/R_Gamma_loc/DB**2/R_Tobs(I_tobs)
         dNe_shell=dNe
 
+        f_r=(1.35d-19)/beta_Gam/R_Gamma_loc*DB**2/pi
+        dDR=0.1d0/(f_r*Gam_e_max+1.333d0/(R(I_tobs)+R(I_tobs-1)))
         dDD=R(I_tobs)-R(I_tobs-1)
-        dDR=dDD
         dN_x=dN_gam_e(:,I_tobs-1)*gam_e*dlog(ten)
         call electron_prepare_radiation_spectrum(Num_gam_e,gam_e,dN_gam_e(:,I_tobs-1), &
                                                  Num_gam_rad,gam_e_rad,dN_gam_e_rad)
-        
         V_m(I_tobs-1)=4.2d6*DB*Gam_e_m*Gam_e_m/(R_Gamma_loc*(1d0-beta_Gam)*(one+z))
         V_c(I_tobs-1)=4.2d6*DB*Gam_e_c*Gam_e_c/(R_Gamma_loc*(1d0-beta_Gam)*(one+z))
         call get_nu_a(R_loc,DB,Num_gam_rad,gam_e_rad(1:Num_gam_rad),dN_gam_e_rad(1:Num_gam_rad),temp)
@@ -125,8 +123,7 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
 !        Compton = zero
 
         call get_syn_selected(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads, &
-                              gam_e,dN_gam_e(:,I_tobs-1),V_seed, &
-                              P_syn(:,I_tobs),Seed_syn(:,I_tobs))
+                              gam_e,dN_gam_e(:,I_tobs-1),V_seed,P_syn(:,I_tobs),Seed_syn(:,I_tobs))
         
         call get_forward_cooling(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc, &
                                  R_Gamma_loc,beta_Gam,dNe,Num_gam_e,Num_nu,n_threads,gam_e,V_seed, &
@@ -134,67 +131,60 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
          
         dEL_mean=(dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/two/dlog(ten)
         dEL_mean_base=dEL_mean
-        call electron_source_bounds(Num_gam_e,gam_e,Gam_e_m,Gam_e_max,src_lo,src_hi)
-        shell_peak=maxval(dN_x)
-        support_floor=1d-12*shell_peak
-        active_hi=max(2,src_hi)
-        do I_gam_e=Num_gam_e,2,-1
-            if (dN_x(I_gam_e) > support_floor) then
-                active_hi=max(active_hi,I_gam_e)
-                exit
-            end if
-        end do
-        max_xi_coeff=maxval(dabs(dEL_mean(1:active_hi-1)+one/R_loc/ln10))
-        dDR_xi=huge(one)
-        if (max_xi_coeff > zero) dDR_xi=0.4d0*d_x/max_xi_coeff
-
+        dDR_xi=dDR
         if (adaptive_substeps == 0) then
-            dDR=min(dDD,dDR_xi)
-            L1=max(100,min(1000,ceiling(dDD/max(dDR,tiny(one)))))
+            L1=max(100,min(1000,int(dDD/max(dDR,tiny(one)))))
             dDR=dDD/dble(L1)
             CFL=dDR/d_x
+
             do L=1,L1
-                R_loc=R_loc+dDR
-                
-                if (.not. is_uniform_density) then
-                    call dynamics_external_density_profile(A_star,dNe_ISM,R_loc,R0,1,R_tr,f_jump,f_wide,dNe)
-                end if
-                DB_step=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma_loc*(R_Gamma_loc-one)))
-                Gam_e_max_step=3d0*Para_m_energy/dsqrt(8d0*DB_step*Para_e**3)
-                temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma_loc-one)
-                call electron_gamma_m_exact(p,temp_gam,Gam_e_max_step,Gam_e_m_step)
-                Gam_e_m_p_step=(one-p)/(Gam_e_max_step**(one-p)-Gam_e_m_step**(one-p))
-                call electron_injection_prefactor(R_loc,dDR,dNe,f_e,Gam_e_m_p_step,Q)
-                call electron_build_source_term_exp_cutoff(Num_gam_e,gam_e,Gam_e_m_step,Gam_e_max_step,Q,p,dF1)
-                if (thermal_electrons /= 0) then
-                    call electron_add_thermal_source_term(Num_gam_e,gam_e,R_Gamma_loc*beta_Gam, &
-                                                          Q*(one-f_e)/(f_e*Gam_e_m_p_step),dF1)
-                end if
-                if (budget_diag_enabled) then
-                    n_before_step=sum(dN_x)*d_x
-                    inj_step=dDR*sum(dF1)*d_x
-                end if
-                if (dNe_shell > zero) then
-                    dEL_mean_step=dEL_mean_base*(dNe/dNe_shell)
-                else
-                    dEL_mean_step=dEL_mean_base
-                end if
+                    R_loc=R_loc+dDR
 
-                call electron_fullhide_step(Num_gam_e,R_loc,dDR,d_x,dEL_mean_step,dF1,dN_x,x)
-                if (budget_diag_enabled) then
-                    n_after_step=sum(x)*d_x
-                    rel_loss_xi_max=max(rel_loss_xi_max, &
-                        max(zero,(n_before_step+inj_step-n_after_step)/max(n_before_step+inj_step,tiny(one))))
-                    if (I_tobs <= 6 .and. L == L1) then
-                        print '(A,1X,I4,1X,ES12.4,1X,ES12.4,1X,ES12.4)', &
-                              'BUDGET1D shell', I_tobs, n_before_step, inj_step, n_after_step
+                    if (is_uniform_density .and. thermal_electrons == 0) then
+                        Q=4d0/3d0*pi*(3d0*R_loc**2+dDR*(3d0*R_loc+dDR))*dNe*f_e*Gam_e_m_p
+                        dF1=zero
+                        where(gam_e < Gam_e_max .and. gam_e > Gam_e_m) dF1=Q*gam_e**(-p)*gam_e*ln10
+                    else
+                        call dynamics_external_density_profile(A_star,dNe_ISM,R_loc,R0,1,R_tr,f_jump,f_wide,dNe)
+                        DB_step=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma_loc*(R_Gamma_loc-one)))
+                        Gam_e_max_step=3d0*Para_m_energy/dsqrt(8d0*DB_step*Para_e**3)
+                        temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma_loc-one)
+                        call electron_gamma_m_exact(p,temp_gam,Gam_e_max_step,Gam_e_m_step)
+                        Gam_e_m_p_step=(one-p)/(Gam_e_max_step**(one-p)-Gam_e_m_step**(one-p))
+                        Q=4d0/3d0*pi*(3d0*R_loc**2+dDR*(3d0*R_loc+dDR))*dNe*f_e*Gam_e_m_p_step
+                        dF1=zero
+                        where(gam_e < Gam_e_max_step .and. gam_e > Gam_e_m_step) dF1=Q*gam_e**(-p)*gam_e*ln10
+                        if (thermal_electrons /= 0) then
+                            call electron_add_thermal_source_term(Num_gam_e,gam_e,R_Gamma_loc*beta_Gam, &
+                                                                  Q*(one-f_e)/(f_e*Gam_e_m_p_step),dF1)
+                        end if
+                        if (dNe_shell > zero) then
+                            dEL_mean_step=dEL_mean_base*(dNe/dNe_shell)
+                        else
+                            dEL_mean_step=dEL_mean_base
+                        end if
                     end if
-                end if
-                dN_x=x
+                    if (budget_diag_enabled) then
+                        n_before_step=sum(dN_x)*d_x
+                        inj_step=dDR*sum(dF1)*d_x
+                    end if
 
-                if (L1 == L) then
-                    dN_gam_e(:,I_tobs)=dN_x/gam_e/dlog(ten)
-                end if
+                    if (is_uniform_density .and. thermal_electrons == 0) dEL_mean_step=dEL_mean_base
+                    call electron_fullhide_step(Num_gam_e,R_loc,dDR,d_x,dEL_mean_step,dF1,dN_x,x)
+                    if (budget_diag_enabled) then
+                        n_after_step=sum(x)*d_x
+                        rel_loss_xi_max=max(rel_loss_xi_max, &
+                            max(zero,(n_before_step+inj_step-n_after_step)/max(n_before_step+inj_step,tiny(one))))
+                        if (I_tobs <= 6 .and. L == L1) then
+                            print '(A,1X,I4,1X,ES12.4,1X,ES12.4,1X,ES12.4)', &
+                                  'BUDGET1D shell', I_tobs, n_before_step, inj_step, n_after_step
+                        end if
+                    end if
+                    dN_x=x
+
+                    if (L1 == L) then
+                        dN_gam_e(:,I_tobs)=dN_x/gam_e/dlog(ten)
+                    end if
             end do
         else
             dR_min=dDD/max(substep_max,1)
@@ -287,8 +277,8 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
         end if
     end do
 
-    deallocate (dEl,dEL_mean,principal,x,up,dN_x,temp1,temp2,temp3,gam_e_rad,dN_gam_e_rad, &
-                dN_full,dN_half,dN_half2,dF1,dEL_mean_base,dEL_mean_step)
+    deallocate (dEl,dEL_mean,x,dN_x,dN_full,dN_half,dN_half2,dF1, &
+                dEL_mean_base,dEL_mean_step,gam_e_rad,dN_gam_e_rad)
     if (budget_diag_enabled) then
         print '(A,1X,ES12.4)', 'BUDGET1D max_rel_loss', rel_loss_xi_max
     end if

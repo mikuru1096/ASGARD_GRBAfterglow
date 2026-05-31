@@ -1043,95 +1043,103 @@ def _build_speed_compare() -> Path:
     freqs = SPEED_FREQS
     expo = SPEED_EXPO
     pairs = np.full(expo.shape, 1.0e14)
-    asgard_model = _build_asgard_model()
-    vegas_model = _build_vegas_model()
 
-    def asgard_quickstart():
-        return asgard_model.flux_density(np.array([1.0e4]), np.array([1.0e14])).total
+    def asgard_cases(model: Model) -> list[tuple[str, Callable[[], object]]]:
+        return [
+            ("quickstart", lambda: model.flux_density(np.array([1.0e4]), np.array([1.0e14])).total),
+            ("lightcurve", lambda: model.flux_density_grid(times, bands).total),
+            ("spectrum", lambda: model.flux_density_grid(SPEED_SPEC_TIMES, SPEED_SPEC_FREQS).total),
+            ("pair", lambda: model.flux_density(times, freqs).total),
+            ("exposure", lambda: model.flux_density_exposures(expo, pairs, 0.2 * expo, num_subsamples=4).total),
+            ("details", lambda: model.details(t_min=1.0e2, t_max=1.0e6)),
+            ("sky_image", lambda: model.sky_image(SINGLE_SKY_TIME, nu_obs=1.0e9, fov=500.0 * units.uas,
+                                                   npixel=SPEED_SKY_NPIXEL).image),
+        ]
 
-    def asgard_lc():
-        return asgard_model.flux_density_grid(times, bands).total
+    def make_vegas_cases(model: VegasModel) -> list[tuple[str, Callable[[], object]]]:
+        def vegas_quickstart():
+            return model.flux_density(np.array([1.0e4]), np.array([1.0e14]))
 
-    def asgard_spec():
-        return asgard_model.flux_density_grid(SPEED_SPEC_TIMES, SPEED_SPEC_FREQS).total
+        def vegas_lc():
+            return model.flux_density_grid(times, bands)
 
-    def asgard_pairs():
-        return asgard_model.flux_density(times, freqs).total
+        def vegas_spec():
+            return model.flux_density_grid(SPEED_SPEC_TIMES, SPEED_SPEC_FREQS)
 
-    def asgard_expo():
-        return asgard_model.flux_density_exposures(expo, pairs, 0.2 * expo, num_subsamples=4).total
+        def vegas_pairs():
+            return model.flux_density(times, freqs)
 
-    def asgard_details():
-        return asgard_model.details(t_min=1.0e2, t_max=1.0e6)
+        def vegas_expo():
+            return model.flux_density_exposures(expo, pairs, 0.2 * expo, num_points=4)
 
-    def asgard_sky():
-        return asgard_model.sky_image(SINGLE_SKY_TIME, nu_obs=1.0e9, fov=500.0 * units.uas, npixel=SPEED_SKY_NPIXEL).image
+        def vegas_details():
+            return model.details(1.0e2, 1.0e6)
 
-    def vegas_quickstart():
-        return vegas_model.flux_density(np.array([1.0e4]), np.array([1.0e14]))
+        def vegas_sky():
+            return model.sky_image(SINGLE_SKY_TIME, nu_obs=1.0e9, fov=500.0 * vegas_units.uas,
+                                   npixel=SPEED_SKY_NPIXEL).image
 
-    def vegas_lc():
-        return vegas_model.flux_density_grid(times, bands)
+        return [
+            ("quickstart", vegas_quickstart),
+            ("lightcurve", vegas_lc),
+            ("spectrum", vegas_spec),
+            ("pair", vegas_pairs),
+            ("exposure", vegas_expo),
+            ("details", vegas_details),
+            ("sky_image", vegas_sky),
+        ]
 
-    def vegas_spec():
-        return vegas_model.flux_density_grid(SPEED_SPEC_TIMES, SPEED_SPEC_FREQS)
-
-    def vegas_pairs():
-        return vegas_model.flux_density(times, freqs)
-
-    def vegas_expo():
-        return vegas_model.flux_density_exposures(expo, pairs, 0.2 * expo, num_points=4)
-
-    def vegas_details():
-        return vegas_model.details(1.0e2, 1.0e6)
-
-    def vegas_sky():
-        return vegas_model.sky_image(SINGLE_SKY_TIME, nu_obs=1.0e9, fov=500.0 * vegas_units.uas, npixel=SPEED_SKY_NPIXEL).image
-
-    asgard_cases = [
-        ("quickstart", asgard_quickstart),
-        ("lightcurve", asgard_lc),
-        ("spectrum", asgard_spec),
-        ("pair", asgard_pairs),
-        ("exposure", asgard_expo),
-        ("details", asgard_details),
-        ("sky_image", asgard_sky),
-    ]
-    vegas_cases = [
-        ("quickstart", vegas_quickstart),
-        ("lightcurve", vegas_lc),
-        ("spectrum", vegas_spec),
-        ("pair", vegas_pairs),
-        ("exposure", vegas_expo),
-        ("details", vegas_details),
-        ("sky_image", vegas_sky),
+    builders = [
+        (
+            "ASGARD fullhide_1d",
+            lambda: _build_asgard_model(electron_solver="fullhide_1d", num_gam_e=81),
+            asgard_cases,
+        ),
+        (
+            "ASGARD charint_1d",
+            lambda: _build_asgard_model(electron_solver="charint_1d"),
+            asgard_cases,
+        ),
+        ("VegasAfterglow", _build_vegas_model, make_vegas_cases),
     ]
 
-    asgard_times: list[float] = []
-    vegas_times: list[float] = []
-    for (name_a, fn_a), (name_v, fn_v) in zip(asgard_cases, vegas_cases):
-        if name_a != name_v:
-            continue
-        t_a, _ = _run_timed(name_a, fn_a)
-        t_v, _ = _run_timed(name_v, fn_v)
-        asgard_times.append(t_a)
-        vegas_times.append(t_v)
+    labels = ["quickstart", "lightcurve", "spectrum", "pair", "exposure", "details", "sky_image"]
+    cold_times = np.zeros((len(builders), len(labels)), dtype=float)
+    cached_times = np.zeros_like(cold_times)
+    for i_backend, (_backend_label, build_model, make_cases) in enumerate(builders):
+        for i_case, label in enumerate(labels):
+            _build_asgard_model.cache_clear()
+            _build_vegas_model.cache_clear()
+            model = build_model()
+            cases = dict(make_cases(model))
+            cold_times[i_backend, i_case], _ = _run_timed(label, cases[label])
 
-    x = np.arange(len(asgard_cases), dtype=float)
-    labels = [name for name, _ in asgard_cases]
-    fig, (ax_top, ax_bottom) = plt.subplots(2, 1, figsize=(11.0, 7.0), dpi=180, sharex=True)
-    ax_top.bar(x, asgard_times, width=0.45, color="C0", alpha=0.8)
-    ax_bottom.bar(x, vegas_times, width=0.45, color="C1", alpha=0.8)
-    ax_top.set_ylabel("ASGARD (s)")
-    ax_bottom.set_ylabel("VegasAfterglow (s)")
-    ax_bottom.set_xlabel("Benchmark case")
-    ax_top.set_title("Speed test: ASGARD (top) vs VegasAfterglow (bottom)")
-    ax_top.set_xticks(x)
-    ax_top.set_xticklabels(labels, rotation=20, ha="right")
-    ax_bottom.set_xticks(x)
-    ax_bottom.set_xticklabels(labels, rotation=20, ha="right")
-    for ax in (ax_top, ax_bottom):
+            _build_asgard_model.cache_clear()
+            _build_vegas_model.cache_clear()
+            model = build_model()
+            cases = dict(make_cases(model))
+            cases[label]()
+            cached_times[i_backend, i_case], _ = _run_timed(label, cases[label])
+
+    x = np.arange(len(labels), dtype=float)
+    fig, axes = plt.subplots(1, 2, figsize=(14.0, 5.6), dpi=180, sharey=True)
+    width = 0.25
+    offsets = (-width, 0.0, width)
+    colors = ("C0", "C2", "C1")
+    for ax, matrix, title in zip(axes, (cold_times, cached_times), ("Cold solve", "Cached query")):
+        for i_backend, (backend_label, _build_model, _make_cases) in enumerate(builders):
+            ax.bar(x + offsets[i_backend], matrix[i_backend], width=width, color=colors[i_backend], alpha=0.85,
+                   label=backend_label)
+        ax.set_yscale("log")
+        ax.set_title(title)
+        ax.set_xlabel("Benchmark case")
+        ax.set_xticks(x)
+        ax.set_xticklabels(labels, rotation=24, ha="right")
         ax.grid(axis="y", alpha=0.25)
+    axes[0].set_ylabel("Runtime (s)")
+    axes[0].legend(frameon=False, loc="upper right")
+    fig.suptitle("Speed profile: explicit first solve and warmed-cache query")
+    fig.tight_layout()
     return _save(fig, OUTPUT_DIR / "compare_speed_profile.png")
 
 

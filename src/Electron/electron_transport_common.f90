@@ -610,17 +610,27 @@ subroutine electron_fullhide_flux_split_step(Num_gam_e,dDR,d_x,face_speed,dF1,dN
     dN_x_out=max(zero,dN_x_out)
 end subroutine electron_fullhide_flux_split_step
 
-! 执行 fullhide 电子输运的隐式冷却和注入更新。
+! 执行 GitHub 基线 fullhide 电子输运的上三角隐式冷却和注入更新。
 subroutine electron_fullhide_step(Num_gam_e,R_loc,dDR,d_x,dEL_mean,dF1,dN_x_in,dN_x_out)
     implicit none
     integer, intent(in) :: Num_gam_e
+    integer :: I_gam_e
     real(8), intent(in) :: R_loc,dDR,d_x
     real(8), intent(in) :: dEL_mean(Num_gam_e-1),dF1(Num_gam_e),dN_x_in(Num_gam_e)
     real(8), intent(out) :: dN_x_out(Num_gam_e)
-    real(8) :: face_speed(Num_gam_e-1)
+    real(8) :: face_speed(Num_gam_e-1),up(Num_gam_e-1),principal(Num_gam_e),coupling(Num_gam_e-1),rhs(Num_gam_e)
 
     face_speed=dEL_mean+one/R_loc/dlog(ten)
-    call electron_fullhide_flux_split_step(Num_gam_e,dDR,d_x,face_speed,dF1,dN_x_in,dN_x_out)
+    up=-(dDR/d_x)*face_speed
+    principal(2:Num_gam_e)=one-up
+    principal(1)=principal(2)
+    coupling=two*up/(principal(2:Num_gam_e)+principal(1:Num_gam_e-1))
+    rhs=(dN_x_in+dDR*dF1)/principal
+
+    dN_x_out(Num_gam_e)=rhs(Num_gam_e)
+    do I_gam_e=Num_gam_e-1,1,-1
+        dN_x_out(I_gam_e)=max(zero,rhs(I_gam_e)-coupling(I_gam_e)*dN_x_out(I_gam_e+1))
+    end do
 end subroutine electron_fullhide_step
 
 
