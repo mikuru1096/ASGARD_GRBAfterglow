@@ -1,10 +1,10 @@
-# ASGARD Documentation Index
+# ASGARD 文档总入口
 
-本文档目录是当前工作树的统一入口。它面向三类读者：
+本文档是当前工作树的统一入口。它服务三类读者：
 
-- 使用者：需要安装、运行光变/谱/偏振/天图、读取输出。
-- 研究者：需要知道各物理模块的边界、开关和验收口径。
-- 开发者：需要修改 Fortran/Python 主链、重建扩展、刷新 benchmark、提交可追溯结果。
+- 使用者：安装项目、运行光变/谱/偏振/天图、读取输出。
+- 研究者：理解物理模块、开关、边界和验收口径。
+- 开发者：修改 Fortran/Python 主链、重建扩展、刷新 benchmark、提交可追溯结果。
 
 ## 推荐阅读路径
 
@@ -22,7 +22,7 @@
 3. `doc/code_overview.md`
 4. `doc/call_chain.md`
 
-做开发或刷新基准图：
+开发或刷新基准图：
 
 1. `AGENTS.md`
 2. `PLAN.md`
@@ -32,13 +32,13 @@
 
 专题决策记录：
 
-- `doc/public_backend_limits.md`: public API 和 backend 明确不支持/部分支持的边界。
-- `doc/hadronic_chi_transport_decision.md`: 当前不实现 2D / chi-resolved hadronic transport 的理由和前置物理契约。
-- `doc/pair_cascade_extension_boundary.md`: 当前 gamma-gamma pair/synch cascade 与 IC-mediated electromagnetic cascade 的边界。
-- `doc/polarization_timing_diagnostic.md`: Lan 2023 偏振峰时诊断。
-- `doc/hadronic_pgamma_notes.md`: p-gamma 微物理和基准说明。
-- `doc/am3_migration_plan.md`: AM3 共存、迁移和引用边界。
-- `doc/electron_solver_algorithms.md`: 电子输运算法说明。
+- `doc/public_backend_limits.md`：public API 与 backend 的不支持/部分支持边界。
+- `doc/hadronic_chi_transport_decision.md`：当前不实现 2D / chi-resolved hadronic transport 的理由和前置物理契约。
+- `doc/pair_cascade_extension_boundary.md`：当前 gamma-gamma pair/synch cascade 与 IC-mediated electromagnetic cascade 的边界。
+- `doc/polarization_timing_diagnostic.md`：Lan 2023 偏振峰时诊断。
+- `doc/hadronic_pgamma_notes.md`：p-gamma 微物理和基准说明。
+- `doc/am3_migration_plan.md`：AM3 共存、迁移和引用边界。
+- `doc/electron_solver_algorithms.md`：电子输运算法说明。
 
 ## 当前能力摘要
 
@@ -57,7 +57,7 @@ ASGARD 当前主线是 GRB afterglow 的 shell-evolving blast-wave + observer pr
 - 同步辐射偏振 Stokes 投影，覆盖 FS/RS electron synch 与 FS/RS hadronic synch。
 - `Model` public API、`Fitter` 拟合 API、benchmark/report 脚本。
 
-明确未实现或不作为当前物理契约的内容：
+明确未实现或不属于当前物理契约的内容：
 
 - 2D / chi-resolved hadronic transport。
 - IC-mediated electromagnetic cascade。
@@ -68,13 +68,13 @@ ASGARD 当前主线是 GRB afterglow 的 shell-evolving blast-wave + observer pr
 
 ## 核心入口
 
-Public Python API:
+Public Python API：
 
-- `ASGARD/api_model.py`: `Model`, `ISM`, `Wind`, jet classes, `Observer`, `Radiation`, `Setups`。
-- `ASGARD/api_observe.py`: `observe`, `run_fit` 以及 patch/observer 投影内部实现。
-- `ASGARD/api_fit.py`: `Fitter`, `Param`, `FitResult`。
+- `ASGARD/api_model.py`：`Model`, `ISM`, `Wind`, jet classes, `Observer`, `Radiation`, `Setups`。
+- `ASGARD/api_observe.py`：`observe`, `run_fit` 以及 patch/observer 投影内部实现。
+- `ASGARD/api_fit.py`：`Fitter`, `Param`, `FitResult`。
 
-Fortran build entry:
+Fortran 构建入口：
 
 - `build_extensions.py`
 
@@ -96,4 +96,4 @@ rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/AS
 - 物理边界必须写明原因、开关、验收口径和不可用范围。
 - Benchmark 图像和 CSV 只有在能由脚本复现且命令已记录时才进入版本库。
 - Fortran 或物理路径改动后的验证必须记录编译命令、line-truncation 检查和最小 smoke test。
-- 不使用经验 smoothing、fallback、后处理补丁去掩盖非连续或非光滑结果；物理量随时间/空间不光滑时优先查 bug。
+- 不使用经验 smoothing、fallback、后处理补丁掩盖非连续或非光滑结果；物理量随时间/空间不光滑时优先查 bug。

@@ -1,33 +1,17 @@
-# Public API Reference
+# 公开 API 参考
 
-本文档记录当前 public API 的稳定入口和语义边界。实现文件主要是 `ASGARD/api_model.py`, `ASGARD/api_observe.py`, `ASGARD/api_fit.py`。
+本文档记录当前 public API 的稳定入口和语义边界。实现文件主要是 `ASGARD/api_model.py`、`ASGARD/api_observe.py` 和 `ASGARD/api_fit.py`。
 
 ## 导入入口
 
 ```python
-from ASGARD import (
-    Model,
-    ISM,
-    Wind,
-    TophatJet,
-    GaussianJet,
-    PowerLawJet,
-    TwoComponentJet,
-    StepPowerLawJet,
-    Ejecta,
-    Observer,
-    Radiation,
-    Setups,
-    Fitter,
-    Param,
-    Scale,
-    observe,
-    run_fit,
-    units,
-)
+from ASGARD import Model, ISM, Wind, TophatJet, GaussianJet, PowerLawJet
+from ASGARD import TwoComponentJet, StepPowerLawJet, Ejecta
+from ASGARD import Observer, Radiation, Setups, Fitter, Param, Scale
+from ASGARD import observe, run_fit, units
 ```
 
-## Medium
+## 介质
 
 ### `ISM`
 
@@ -36,7 +20,7 @@ ISM(n_ism=1.0)
 ISM(n0=1.0)
 ```
 
-Kernel parameters:
+Kernel 参数：
 
 - `d_ne = n_ism`
 - `a_star = -1`
@@ -47,13 +31,13 @@ Kernel parameters:
 Wind(A_star=1.0, n_ism=0.1, n0=None, k=2.0)
 ```
 
-Current backend only supports `k=2.0`. If `n0` is set, wind density is capped by the corresponding transition radius.
+当前 backend 只支持 `k=2.0`。如果设置 `n0`，wind density 会由相应 transition radius 截断。
 
 ### `Medium`
 
-`Medium(rho=callable)` can evaluate density in Python, but current Fortran kernel dispatch does not support arbitrary user-defined media. See `doc/public_backend_limits.md`.
+`Medium(rho=callable)` 可以在 Python 层评估密度，但当前 Fortran kernel dispatch 不支持任意用户自定义介质。边界见 `doc/public_backend_limits.md`。
 
-## Jet
+## 喷流
 
 ### `TophatJet`
 
@@ -62,7 +46,7 @@ TophatJet(E_iso=1.0e52, Gamma0=300.0, theta_j=0.1)
 TophatJet(E_iso=1.0e52, lf=300.0, theta_j=0.1)
 ```
 
-Supported fields:
+常用字段：
 
 - `E_iso`
 - `lf` / `Gamma0`
@@ -71,42 +55,34 @@ Supported fields:
 - `magnetar`
 - `spreading`
 
-`spreading=True` is accepted at the object level but current backend does not implement jet spreading dynamics.
+`spreading=True` 在对象层可接受，但当前 backend 没有实现 jet spreading dynamics。
 
-### Structured jets
+### 结构化喷流
 
 ```python
 GaussianJet(E_iso=1.0e52, Gamma0=300.0, theta_c=0.05, theta_max=0.5)
 PowerLawJet(E_iso=1.0e52, Gamma0=300.0, theta_c=0.05, k=2.0, theta_max=0.5)
 TwoComponentJet(E_iso_c=1.0e52, Gamma0_c=300.0, E_iso_outer=1.0e50, Gamma0_outer=30.0, theta_c=0.05, theta_o=0.2)
-StepPowerLawJet(...)
-Ejecta(...)
 ```
 
-The public model evaluates patches through `energy_iso(phi, theta)` and `gamma0(phi, theta)`.
+Public model 通过 `energy_iso(phi, theta)` 和 `gamma0(phi, theta)` 评估 patch。
 
-## Observer
+## 观测者
 
 ```python
 Observer(z=0.1, theta_obs=0.0, phi_obs=0.0)
 Observer(lumi_dist_cm=1.0e28, z=0.1, theta_obs=0.0)
 ```
 
-If luminosity distance is not provided, cosmology utilities determine it from redshift in the runtime path.
+如果未提供 luminosity distance，runtime 会从 redshift 和宇宙学工具确定。
 
-## Radiation
+## 辐射参数
 
 ```python
-Radiation(
-    eps_e=0.1,
-    eps_B=1.0e-3,
-    p=2.3,
-    xi_N=0.1,
-    ssc=True,
-)
+Radiation(eps_e=0.1, eps_B=1.0e-3, p=2.3, xi_N=0.1, ssc=True)
 ```
 
-Main electron switches:
+主要电子开关：
 
 - `eps_e`
 - `eps_B`
@@ -119,7 +95,7 @@ Main electron switches:
 - `magnetic_decay_alpha_t`
 - `magnetic_decay_t0_s`
 
-Hadronic switches:
+强子开关：
 
 - `epsilon_p`
 - `proton_synch`
@@ -133,11 +109,11 @@ Hadronic switches:
 - `pair_production`
 - `reverse_epsilon_p`
 
-## Setups
+## 数值设置
 
-`Setups` controls numerical grids, solver selection, RS flags, hadronic flags and observer time range.
+`Setups` 控制数值网格、求解器选择、RS flags、hadronic flags 和观测者时间范围。
 
-Important fields:
+重要字段：
 
 - `num_r`, `num_theta`, `num_phi`, `num_tobs`
 - `num_gam_e`, `num_nu`, `num_chi`
@@ -152,7 +128,7 @@ Important fields:
 - `pair_cascade_iterations`
 - `num_threads`
 
-Solver aliases:
+Solver aliases：
 
 - `fullhide` -> `fullhide_1d`
 - `slc1` -> `slc1_1d`
@@ -160,7 +136,7 @@ Solver aliases:
 - `t2g1` -> `t2g1_1d`
 - `weno5` -> `weno5_1d`
 
-Registered solver names:
+已登记 solver names：
 
 - `fullhide_1d`
 - `slc1_1d`
@@ -170,91 +146,68 @@ Registered solver names:
 - `fullhide_2d`
 - `charint_2d`
 
-## Model
+## `Model`
 
-Construction:
+构造方式：
 
 ```python
 model = Model(jet=jet, medium=medium, observer=observer, fwd_rad=fwd_rad, rvs_rad=rvs_rad, setups=setups)
 ```
 
-Supported positional compatibility forms:
+兼容的位置参数形式：
 
 - `Model(jet, medium, observer, radiation)`
 - `Model(medium, jet, observer, radiation)`
 
-### `flux_density_grid(times_s, nu_hz)`
+主要方法：
 
-Full grid projection. `times_s` and `nu_hz` are one-dimensional arrays; output `total` has shape `(num_nu, num_time)`.
+- `flux_density_grid(times_s, nu_hz)`：完整二维网格投影，输出 `total` 形状为 `(num_nu, num_time)`。
+- `flux_density(times_s, nu_hz)`：点对投影，适合 matched `(time_i, nu_i)` 数组。
+- `flux_density_exposures(times_s, nu_hz, exposures_s, num_subsamples=4)`：曝光平均 flux density。
+- `spectrum(time_s, nu_hz)`：单时刻谱。
+- `flux(time_s, nu_min_hz, nu_max_hz, num_points=64)`：频段积分 flux。
+- `sky_image(t_obs, nu_obs, fov, npixel=128)`：观测者平面天图。
+- `polarization(times_s, nu_hz, magnetic_geometry="shock_random", local_emissivity="analytic_then_kernel")`：同步辐射 Stokes 和偏振诊断。
+- `details(t_min=None, t_max=None)`：内部动力学、电子、强子和观测者诊断状态。
 
-### `flux_density(times_s, nu_hz)`
-
-Pointwise projection for matched `(time_i, nu_i)` arrays, or extraction from a grid when shapes differ.
-
-### `flux_density_exposures(times_s, nu_hz, exposures_s, num_subsamples=4)`
-
-Exposure-averaged flux density. Input arrays must share the same shape.
-
-### `spectrum(time_s, nu_hz)`
-
-Single-time spectrum convenience wrapper.
-
-### `flux(time_s, nu_min_hz, nu_max_hz, num_points=64)`
-
-Band-integrated flux using log frequency sampling and trapezoid integration.
-
-### `sky_image(t_obs, nu_obs, fov, npixel=128)`
-
-Observer-plane sky image. `fov` is in angular units matching the `units` conversion used by caller.
-
-### `polarization(times_s, nu_hz, magnetic_geometry="shock_random", local_emissivity="analytic_then_kernel")`
-
-Returns Stokes and polarization fraction for synchrotron components.
-
-### `details(t_min=None, t_max=None)`
-
-Returns `ModelDetails`: dynamics tracks, branch diagnostics, characteristic frequencies and internal states.
-
-## Fitter
+## `Fitter`
 
 ```python
 from ASGARD import Fitter, Param, Scale
 
 fitter = Fitter(model=model)
 fitter.add_flux_density(times_s, nu_hz, flux, err)
-fitter.params = [
-    Param("logE", "jet.E_iso", 50.0, 54.0, Scale.LOG10),
-]
+fitter.params = [Param("logE", "jet.E_iso", 50.0, 54.0, Scale.LOG10)]
 ```
 
-`Param` forms:
+`Param` 形式：
 
 - `Param(name, lower, upper, scale)`
 - `Param(name, path, lower, upper, scale)`
 
-`Scale.LOG` and `Scale.LOG10` transform by `10**value`; `Scale.FIXED` always uses `lower`.
+`Scale.LOG` 和 `Scale.LOG10` 通过 `10**value` 转换；`Scale.FIXED` 固定使用 `lower`。
 
-Sampling helpers:
+采样辅助：
 
 - `Fitter.run_emcee(initial, nwalkers, nsteps)`
 - `Fitter.run_multinest(...)`
 
-## observe / run_fit
+## `observe` / `run_fit`
 
-`observe(model, config=..., spectrum_output=...)` is the lower-level execution entry used by demos and scripts. `Model` methods are preferred for ordinary interactive use.
+`observe(model, config=..., spectrum_output=...)` 是 demo 和脚本使用的较低层执行入口。普通交互使用优先选择 `Model` 方法。
 
-`run_fit(config)` is retained for compatibility with config-style workflows.
+`run_fit(config)` 保留给 config-style 工作流兼容使用。
 
-## Return Types
+## 返回类型
 
-Common result objects:
+常见结果对象：
 
-- `ModelFluxResult`: `total`, `fwd`, `rev`, `cross_ic`
-- `BranchView`: `sync`, `ssc`
-- `SkyImage`: image array and coordinate grids
-- `PolarizationResult`: Stokes and polarization diagnostics
-- `ModelDetails`: dynamics/electron/hadronic/observer diagnostic state
+- `ModelFluxResult`：`total`, `fwd`, `rev`, `cross_ic`
+- `BranchView`：`sync`, `ssc`
+- `SkyImage`：image array 和 coordinate grids
+- `PolarizationResult`：Stokes 和偏振诊断
+- `ModelDetails`：dynamics/electron/hadronic/observer 诊断状态
 
-## Public Boundary
+## 公开边界
 
-Public API accepts some options before the backend supports them. Unsupported options should fail explicitly rather than silently falling back. Current fixed boundaries are in `doc/public_backend_limits.md`.
+Public API 接受的部分选项先于 backend 完成。未支持选项应显式失败，而不是静默 fallback。当前固定边界见 `doc/public_backend_limits.md`。

@@ -1,4 +1,4 @@
-# Developer Guide
+# 开发指南
 
 本文档记录 ASGARD 当前开发工作流。它补充 `AGENTS.md`，不替代其中的硬性约束。
 
@@ -20,15 +20,15 @@ rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/AS
 
 ## Git 原则
 
-- 不要回滚用户已有改动，除非用户明确要求。
-- 不要用 `git reset --hard` 或 `git checkout --` 清理未确认改动。
-- 不要盲目 `git add .`。
+- 不回滚用户已有改动，除非用户明确要求。
+- 不用 `git reset --hard` 或 `git checkout --` 清理未确认改动。
+- 不盲目 `git add .`。
 - 生成 artifact 前后记录 HEAD、status、diff stat、命令和验收口径。
 - 完成任务后提交应只包含本任务文件。
 
 ## 代码分层
 
-Python:
+Python 负责：
 
 - public API
 - config / dataclass contracts
@@ -37,7 +37,7 @@ Python:
 - benchmark / plotting
 - fitting
 
-Fortran:
+Fortran 负责：
 
 - dynamics kernels
 - electron transport
@@ -69,7 +69,7 @@ Fortran:
 - B 类子程序声明块不超过 15 行。
 - 禁止每行只声明一个变量。
 
-## 修改 Python API 的流程
+## 修改 Python 接口的流程
 
 1. 确认 public API 名称和返回类型。
 2. 不改变现有兼容入口，除非任务要求。
@@ -122,7 +122,7 @@ Fortran:
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && git diff --check'
 ```
 
-Fortran:
+Fortran：
 
 ```bash
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && TMPDIR=/tmp uv run python build_extensions.py --module MODULE_NAME --force'
@@ -130,7 +130,7 @@ rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/AS
 
 然后跑 line-truncation 和最小 smoke。
 
-## Review Checklist
+## Review 检查表
 
 提交前逐项确认：
 
@@ -142,7 +142,7 @@ rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/AS
 - 受影响 benchmark 是否可复现。
 - `git status --short --branch` 是否只显示预期文件。
 
-## Release / Publish
+## 发布与推送
 
 推送前：
 

@@ -1,52 +1,112 @@
-# ASGARD: GRB Afterglow Analysis Tool
+# ASGARD：伽马射线暴余辉分析工具
 
-## A Standard GRB afterglow Radiation Diagnoser (ASGARD) is a state-of-the-art simulation code for GRB afterglow. 
+ASGARD 是面向伽马射线暴余辉的数值模拟、辐射计算和拟合工具。代码以 Fortran 数值核为核心，用 Python 提供公开 API、运行编排、观测投影、拟合接口和基准脚本。
 
-The code is entirely based on numerical partial differential equation methods to solve the evolution of the afterglow electron spectrum, while precisely handling the cooling process of electrons via Compton scattering. It self-consistently computes synchrotron radiation and synchrotron self-Compton (SSC) radiation using high-order integration schemes and fully accounts for observational effects. The calculated afterglow radiation spectrum covers the entire electromagnetic range from radio to very high energies (VHE), with proper treatment of synchrotron self-absorption (SSA, based on radiative transfer) and $\gamma\gamma$ annihilation (based on scattering cross-sections).
+ASGARD 的目标是从爆波动力学、粒子谱演化和辐射转移出发，直接计算多波段余辉光变、谱、天图、偏振以及强子辐射相关诊断。当前主线覆盖正激波电子同步辐射、SSC、SSA、gamma-gamma 吸收、观测者等到达时间投影；反激波电子辐射、反激波 SSC、FS/RS cross-zone IC；以及正式 1D shell 契约下的强子过程。
 
-The code's greatest strengths lie in its exceptional computational efficiency and accuracy. When employing the default first-order fully implicit scheme to solve the electron continuity equation, the code can rapidly and stably generate results even under extreme conditions, such as very strong magnetic fields ($\epsilon_B \sim 1$) and high ambient medium particle densities ($n \gg 10^6 \, \text{cm}^{-3}$). When using the WENO5 scheme, the code achieves fifth-order accuracy in resolving the electron spectrum. The calculation of synchrotron and SSC radiation is based on the composite Simpson's method (O($N^4$)).
+## 主要特性
 
-**ASGARD** is written in `Fortran`, and its computational processes are highly parallelized using `OpenMP`. When combined with `MPI` parallelization schemes employing `emcee` or `pymultinest` samplers, the code can operate with extremely high efficiency on personal computers, workstations, and even computing clusters. For instance, in the case of on-axis-viewed top-hat jet synchrotron radiation, sampling a million times on a single-node dual-socket EPYC 9754 system requires only a few hours.
+1. 正激波电子连续性方程的数值 PDE 求解器，包括多个 1D 求解器和已登记的 2D 电子输运路径。
+2. 自洽同步辐射、SSC、SSA 和 gamma-gamma 衰减。
+3. 反激波电子同步辐射、RS SSC、FS/RS cross-zone IC，以及反激波强子路径。
+4. 正激波强子 `legacy_1d` 与 formal `am3_1d` research path。
+5. 同步辐射偏振 Stokes 投影，覆盖 FS/RS electron synch 与 FS/RS hadronic synch。
+6. `Model` public API、`Fitter` 拟合 API、benchmark/report 脚本和可复现 artifact 协议。
 
-## Highlights
-1. Numerical PDE solvers for forward-shock electron transport, including multiple 1D schemes and active 2D paths.
-2. Self-consistent synchrotron, SSC, SSA, and $\gamma\gamma$ attenuation in the formal observer chain.
-3. Reverse-shock electron synchrotron, RS SSC, cross-zone IC, and hadronic dispatch in the current runtime.
-4. Active 1D hadronic paths for forward shock and reverse-shock comparison workflows.
+## 文档入口
 
-## Documentation
+完整文档从 `doc/index.md` 开始。
 
-The documentation entry point is `doc/index.md`.
+推荐阅读：
 
-Recommended reading:
+- `doc/installation.md`：环境、安装、本地 Fortran 扩展构建。
+- `doc/user_guide.md`：常用 `Model` 工作流，包括光变、谱、RS、hadronic、偏振、天图和拟合。
+- `doc/public_api.md`：当前 public API 契约。
+- `doc/physics_model.md`：已实现物理模块和明确边界。
+- `doc/numerical_methods.md`：Fortran 数值核、求解器族和数值验证目标。
+- `doc/validation_and_benchmarks.md`：build gate、smoke test、benchmark refresh 和 artifact policy。
+- `doc/developer_guide.md`：开发工作流和 review checklist。
+- `doc/code_overview.md`、`doc/source_tree.md`、`doc/call_chain.md`：实现结构图。
 
-- `doc/installation.md` — environment, native build, demo commands.
-- `doc/user_guide.md` — common `Model` workflows: light curves, spectra, RS, hadronic, polarization, sky image and fitting.
-- `doc/public_api.md` — current public API contracts.
-- `doc/physics_model.md` — implemented physics modules and explicit boundaries.
-- `doc/numerical_methods.md` — Fortran kernels, solver families and numerical validation targets.
-- `doc/validation_and_benchmarks.md` — build gates, smoke tests, benchmark refresh and artifact policy.
-- `doc/developer_guide.md` — development workflow and review checklist.
-- `doc/code_overview.md`, `doc/source_tree.md`, `doc/call_chain.md` — implementation map.
-
-Current development baseline:
+当前开发基线：
 
 - `AGENTS.md`
 - `PLAN.md`
 - `doc/code_overview.md`
 - `doc/public_backend_limits.md`
 
-Benchmark and comparison scripts live under `tests/` and `scripts/benchmarks/`. Generated benchmark figures under `output/` are artifacts; commit them only when they are reproducible documentation assets following `doc/benchmark_refresh_protocol.md`.
+Benchmark 和 comparison 脚本位于 `tests/` 与 `scripts/benchmarks/`。`output/` 下的图像和 CSV 是 artifact；只有在能由已提交脚本复现且符合 `doc/benchmark_refresh_protocol.md` 时才应提交。
 
-## License
-**Copyright (c) 2025 Jia Ren**  
+## 快速开始
 
-This source code is governed by the **BSD 3-Clause License**.
+确保系统中有 GNU 编译器、Python、NumPy、SciPy、Astropy 和 Matplotlib。Ubuntu/Debian 可先安装编译器：
 
-## Attribution Requirement
-If you use, adapt, or reference the core algorithms from this project in other software projects (whether open-source or proprietary), you are required to provide explicit attribution to this original code project in your project's documentation, 'About' section, or any publicly published papers.
+```shell
+sudo apt install gcc g++ gfortran
+```
 
-### Recommended Citation Format
+克隆仓库：
+
+```shell
+git clone https://github.com/mikuru1096/ASGARD_GRBAfterglow
+cd ASGARD_GRBAfterglow
+```
+
+安装依赖：
+
+```shell
+pip install -r Requirements.txt
+```
+
+运行自动安装脚本：
+
+```shell
+python install.py
+```
+
+Linux 也可以使用：
+
+```shell
+bash install.sh
+```
+
+Windows PowerShell 可使用：
+
+```powershell
+.\install.ps1
+```
+
+编译完成后运行 demo：
+
+```shell
+python lc_spec_demo.py
+```
+
+当前开发机器推荐使用 WSL Ubuntu + uv：
+
+```bash
+rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && TMPDIR=/tmp uv run python build_extensions.py --module FS_electron_fullhide_1d --force'
+rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python lc_spec_demo.py'
+```
+
+## 当前状态
+
+Public runtime 可用于正激波余辉计算和 benchmark 工作流。反激波使用局部 shock-front `gamma34` 作为新注入电子能标，区域 3 磁场和 crossing 后热演化由显式 `U3/V3` thermal state 闭合。VegasAfterglow 是 comparison backend，不是 ASGARD 的 RS 物理目标。
+
+正激波强子分支当前是正式 1D research path。反激波强子包含 light proton-synch path，并在开启 full-chain 过程时复用正式 1D hadronic kernels 处理 p-gamma、BH、pp、secondary 和 cascade coupling。当前 pair cascade 是 shell-sequence time-dependent gamma-gamma pair/synch cascade；2D/chi-resolved hadronic transport 和 IC-mediated electromagnetic cascade 仍是明确未实现边界。
+
+## 许可
+
+Copyright (c) 2025 Jia Ren
+
+本项目使用 BSD 3-Clause License。
+
+## 引用要求
+
+如果在其他软件项目、论文或公开材料中使用、改写或参考本项目核心算法，请在文档、说明页或论文中明确注明 ASGARD 项目来源。
+
+推荐引用：
+
 ```bibtex
 @ARTICLE{2024ApJ...962..115R,
        author = {{Ren}, Jia and {Wang}, Yun and {Dai}, Zi-Gao},
@@ -66,54 +126,12 @@ If you use, adapt, or reference the core algorithms from this project in other s
        adsurl = {https://ui.adsabs.harvard.edu/abs/2024ApJ...962..115R},
       adsnote = {Provided by the SAO/NASA Astrophysics Data System}
 }
-
 ```
 
-This project name is **ASGARD**, Retrieved from
-<https://github.com/mikuru1096/ASGARD_GRBAfterglow>
+项目名称：ASGARD
 
-### Quick Start
-The usage of this code is very simple.
-Ensure you have `GNU` compilers, `python >=3.8`, `numpy`, `astropy`, `scipy`, and `matplotlib` installed on your system.
-For Ubuntu/Debian systems:
-```shell
-sudo apt install gcc g++ gfortran
-```
+项目地址：<https://github.com/mikuru1096/ASGARD_GRBAfterglow>
 
-Clone this repository to your local machine:
-```shell
-git clone https://github.com/mikuru1096/ASGARD_GRBAfterglow
-cd ASGARD_GRBAfterglow
-```
-Install dependencies
-```shell
-pip install -r Requirements.txt
-```
-Run the automatic installation script. It detects Windows vs Ubuntu/Linux and builds the native modules accordingly:
-```shell
-python install.py
-```
-On Ubuntu/Linux you can also use:
-```shell
-bash install.sh
-```
-On Windows PowerShell:
-```powershell
-.\install.ps1
-```
-After compilation completes, run:
-```shell
-python lc_spec_demo.py
-```
+## Web 界面
 
-If you already have the matplotlib package installed, the program should generate the first multi-band afterglow light curve image for you.
-### Documentation
-The main public entry point is `lc_spec_demo.py` for the simplest end-to-end demo. Full project documentation starts at `doc/index.md`.
-### Current Status
-The public runtime is usable for forward-shock afterglow calculations and benchmark workflows.
-Reverse shock uses local shock-front `gamma34` for new electron injection, while region-3 magnetic field and post-crossing thermal evolution are closed by the explicit `U3/V3` thermal state. VegasAfterglow is a comparison backend, not the physical target for RS closure.
-
-The forward-shock hadronic branch is a formal 1D research path. Reverse-shock hadronic has a light proton-synchrotron path plus a full-chain path for pγ/BH/pp/secondary/cascade coupling through the formal 1D hadronic kernels. The current pair cascade path is a shell-sequence time-dependent γγ pair/synch cascade. Chi-resolved hadronic transport and inverse-Compton-mediated electromagnetic cascades remain open work.
-### Web Interface
-We have a website available at <https://hetools.xyz>  
-that requires no installation, for comparing the results of **ASGARD** and **jetsimpy**. Feel free to give it a try!
+在线界面位于 <https://hetools.xyz>，可用于比较 ASGARD 和 jetsimpy 的结果。

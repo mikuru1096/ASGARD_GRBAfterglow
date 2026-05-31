@@ -1,30 +1,30 @@
-# Numerical Methods
+# 数值方法
 
 本文档按实现模块整理当前数值方法和验证重点。
 
-## Dynamics
+## 动力学
 
-Forward dynamics:
+正激波动力学：
 
-- Source: `src/Dynamics/Dynamics_forward.f90`
-- Shared helpers: `src/Dynamics/dynamics_common.f90`
-- Supports ISM and wind `k=2` backend, density jump and energy injection paths.
+- Source：`src/Dynamics/Dynamics_forward.f90`
+- Shared helpers：`src/Dynamics/dynamics_common.f90`
+- 支持 ISM、wind `k=2` backend、density jump 和 energy injection paths。
 
-Reverse dynamics:
+反激波动力学：
 
-- Source: `src/Dynamics/Dynamics_reverse.f90`
-- Returns RS shell state, `gamma34`, `U3/V3`, turbulent and ordered magnetic field diagnostics.
-- Magnetized jump follows the current RS baseline contract; `sigma -> 0` is a required regression check.
+- Source：`src/Dynamics/Dynamics_reverse.f90`
+- 返回 RS shell state、`gamma34`、`U3/V3`、turbulent 和 ordered magnetic field diagnostics。
+- Magnetized jump 遵循当前 RS baseline 契约；`sigma -> 0` 是必须检查的回归极限。
 
-## Electron Energy Grid
+## 电子能量网格
 
-Electron solvers use log-gamma grids. Common helpers live in:
+电子求解器使用 log-gamma 网格。公共 helper 位于：
 
 - `src/Electron/electron_common.f90`
 - `src/Electron/electron_injection_profiles.f90`
 - `src/Electron/adaptive_resampling_mod.f90`
 
-Key numerical concerns:
+关键数值问题：
 
 - injection normalization
 - high-energy cutoff
@@ -32,104 +32,104 @@ Key numerical concerns:
 - conservative or implicit transport update
 - stable synchrotron/SSA seed recomputation
 
-## 1D Electron Solvers
+## 1D 电子求解器
 
 ### `fullhide_1d`
 
-Default public baseline:
+默认 public baseline：
 
-- Source: `src/Electron/FS_electron_fullhide_1d.f90`
-- Transport helper: `src/Electron/electron_transport_common.f90`
-- Cooling: `src/Electron/electron_cooling_kernel.f90`
-- Radiation: `src/Electron/electron_radiation_kernel.f90`
+- Source：`src/Electron/FS_electron_fullhide_1d.f90`
+- Transport helper：`src/Electron/electron_transport_common.f90`
+- Cooling：`src/Electron/electron_cooling_kernel.f90`
+- Radiation：`src/Electron/electron_radiation_kernel.f90`
 
-Strength:
+优势：
 
-- stable for stiff cooling and dense environments
-- fast enough for fitting
-- current baseline for public comparisons
+- stiff cooling 和高密度环境下稳定。
+- 足够快，适合拟合。
+- 当前 public comparison 的默认基线。
 
-Validation:
+验证：
 
-- compile `FS_electron_fullhide_1d`
-- `-Wline-truncation` on source closure
-- `tests/polarization_smoke.py` or relevant electron smoke
-- benchmark path when performance changes
+- 编译 `FS_electron_fullhide_1d`。
+- 对 source closure 执行 `-Wline-truncation`。
+- 跑 `tests/polarization_smoke.py` 或相关 electron smoke。
+- 性能改动需要跑 benchmark path。
 
 ### `weno5_1d`
 
-High-order spectrum-resolving solver:
+高阶电子谱解析求解器：
 
-- Source: `src/Electron/FS_electron_weno5_1d.f90`
-- Useful for resolving spectral shape, not necessarily default fitting path.
+- Source：`src/Electron/FS_electron_weno5_1d.f90`
+- 适合解析谱形，不一定是默认拟合路径。
 
 ### `charint_1d`, `slc1_1d`, `t2g1_1d`
 
-Alternative transport families retained for comparison, diagnostics and algorithmic experiments. They must remain buildable if touched.
+这些是保留的比较、诊断和算法实验路径。若触及相关代码，必须保持可编译。
 
-## 2D Electron Solvers
+## 2D 电子求解器
 
-2D path includes energy and chi-resolved electron transport:
+2D path 包含 energy 和 chi-resolved electron transport：
 
 - `src/Electron/FS_electron_fullhide_2d.f90`
 - `src/Electron/FS_electron_charint_2d.f90`
 - `src/Electron/electron_transport_2d_kernel.f90`
 - `src/Electron/electron_seed_history_kernel.f90`
 
-2D electron transport does not imply 2D hadronic transport. Hadronic state remains shell-level until a separate contract exists.
+2D electron transport 不等于 2D hadronic transport。Hadronic state 在定义新契约前仍保持 shell-level。
 
-Validation:
+验证：
 
 ```bash
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && TMPDIR=/tmp uv run python build_extensions.py --module FS_electron_fullhide_2d --force'
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/fullhide_2d_smoke_bench.py'
 ```
 
-## Cooling Assembly
+## 冷却组装
 
-Cooling kernel:
+Cooling kernel：
 
 - `src/Electron/electron_cooling_kernel.f90`
 
-Responsibilities:
+职责：
 
 - synchrotron cooling
 - IC / Compton auxiliary terms
 - SSA cooling
 - Nakar/Fan-style Y paths
-- batch cooling for 2D chi cells
+- 2D chi cells 的 batch cooling
 
-The cooling kernel separates photon-field preparation from final cooling assembly. This avoids recomputing IC auxiliary terms when SSA seed and IC seed are shared.
+Cooling kernel 把 photon-field preparation 与最终 cooling assembly 分开，避免共享 seed 时重复计算 IC auxiliary terms。
 
-## Radiation Integrals
+## 辐射积分
 
-Synchrotron:
+Synchrotron：
 
 - `src/Electron/electron_radiation_kernel.f90`
 - `src/Radiation/radiation_common.f90`
 
-SSC:
+SSC：
 
 - `src/Radiation/SSC_spec.f90`
 
-Gamma-gamma:
+Gamma-gamma：
 
 - `src/Radiation/Annihilation.f90`
 
-Reverse seed:
+Reverse seed：
 
 - `src/Radiation/Seed_reverse.f90`
 
-Numerical notes:
+数值注意事项：
 
-- Fixed-grid synchrotron path is the public fast path.
-- Adaptive synchrotron integration is diagnostic.
-- SSA transfer must remain continuous across frequency cells.
-- Do not add floor/guard terms unless they represent physical boundaries already present in the model.
+- Fixed-grid synchrotron path 是 public fast path。
+- Adaptive synchrotron integration 是 diagnostic path。
+- SSA transfer 必须在频率 cell 间保持连续。
+- 不添加没有物理边界支撑的 floor 或 guard terms。
 
-## Hadronic Kernels
+## 强子核
 
-Fortran sources:
+Fortran 源文件：
 
 - `src/Hadronic/FS_hadronic_1d.f90`
 - `src/Hadronic/FS_hadronic_reverse_1d.f90`
@@ -146,7 +146,7 @@ Fortran sources:
 - `src/Hadronic/hadronic_decay_kernel.f90`
 - `src/Hadronic/hadronic_pair_cascade_kernel.f90`
 
-Validation should be process-specific:
+验证应按过程拆分：
 
 - proton synch
 - p-gamma
@@ -157,29 +157,29 @@ Validation should be process-specific:
 - secondary radiation
 - pair production/cascade
 
-## Observer Interpolation
+## 观测者插值
 
-Interpolation sources:
+插值源文件：
 
 - `src/Interpolation/SED_interpolation.f90`
 - `src/Interpolation/SED_interpolation_structured.f90`
 - `src/Interpolation/interpolation_common.f90`
 
-Projection integrates local shell radiation over observer time/frequency grids. Projection-layer fixes must not be used to hide dynamics or transport bugs.
+Projection 对本地 shell radiation 做 observer time/frequency grid 上的投影。Projection-layer fix 不能用来掩盖 dynamics 或 transport bug。
 
-## Line-Truncation Check
+## 行截断检查
 
-For touched Fortran source closures, run from `/tmp` with a temporary module directory. Example for the `FS_electron_fullhide_1d` closure:
+Fortran source closure 必须从 `/tmp` 执行，并指定临时 module 目录。`FS_electron_fullhide_1d` 示例：
 
 ```bash
 rtk bash -lc 'source ~/.wsl_env && rm -rf /tmp/asgard_linecheck && mkdir -p /tmp/asgard_linecheck && cd /tmp && gfortran -cpp -fopenmp -Wall -Wline-truncation -fsyntax-only -J /tmp/asgard_linecheck -I /tmp/asgard_linecheck "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow/src/Constants.f90" "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow/src/Dynamics/dynamics_common.f90" "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow/src/Radiation/radiation_common.f90" "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow/src/Radiation/synchrotron_polarization_kernel.f90" "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow/src/Electron/electron_transport_common.f90" "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow/src/Electron/adaptive_resampling_mod.f90" "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow/src/Electron/electron_radiation_kernel.f90" "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow/src/Electron/electron_injection_profiles.f90" "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow/src/Electron/electron_common.f90" "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow/src/Electron/electron_cooling_kernel.f90" "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow/src/Electron/electron_seed_history_kernel.f90" "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow/src/Electron/FS_electron_fullhide_1d.f90"'
 ```
 
-Do not run this from the repository root, where stale `.mod` files can be picked up.
+不要从仓库根目录跑这个检查；仓库根目录里的旧 `.mod` 文件可能被误读。
 
-## Performance Notes
+## 性能说明
 
-- `fullhide_1d` is the default fitting path.
-- Cold solve time and cached query time must be reported separately.
-- Small grids can expose serial hot spots that are hidden in larger benchmark runs.
-- Benchmark scratch files belong under `/tmp`; only reproducible documentation artifacts should be committed.
+- `fullhide_1d` 是默认拟合路径。
+- Cold solve time 和 cached query time 必须分开报告。
+- 小网格可能暴露大网格 benchmark 隐藏的串行热点。
+- Benchmark scratch files 放在 `/tmp`；只有可复现的文档 artifact 才应提交。

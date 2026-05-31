@@ -1,4 +1,4 @@
-# Installation and Build
+# 安装与构建
 
 本文档固定 ASGARD 当前推荐安装、构建和本地运行方式。默认开发环境是 Windows 主机上的 WSL Ubuntu，Python 包管理使用 `uv`，shell 命令需要 `rtk` 前缀。
 
@@ -7,10 +7,10 @@
 最低要求：
 
 - Python `>=3.9`
-- GNU toolchain: `gcc`, `g++`, `gfortran`
-- OpenMP runtime: `libgomp`
-- Python packages: `numpy`, `scipy`, `matplotlib`, `astropy`, `extinction`, `h5py`, `tqdm`
-- Build packages: `setuptools`, `wheel`, `meson`, `ninja`
+- GNU 工具链：`gcc`, `g++`, `gfortran`
+- OpenMP runtime：`libgomp`
+- Python 依赖：`numpy`, `scipy`, `matplotlib`, `astropy`, `extinction`, `h5py`, `tqdm`
+- 构建依赖：`setuptools`, `wheel`, `meson`, `ninja`
 
 推荐开发环境：
 
@@ -28,13 +28,13 @@ pip install -r Requirements.txt
 python install.py
 ```
 
-在当前机器的推荐命令：
+当前机器推荐命令：
 
 ```bash
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv sync'
 ```
 
-如果只需要以本地源码方式安装：
+本地源码安装：
 
 ```bash
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv pip install -e .'
@@ -42,7 +42,7 @@ rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/AS
 
 ## 构建 Fortran 扩展
 
-ASGARD 的高代价数值核由 Fortran + f2py 构建。构建入口是：
+ASGARD 的高代价数值核由 Fortran + f2py 构建。构建入口是 `build_extensions.py`。
 
 ```bash
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && TMPDIR=/tmp uv run python build_extensions.py --module FS_electron_fullhide_1d --force'
@@ -92,7 +92,7 @@ rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/AS
 
 ## 常见问题
 
-### 找不到 Fortran extension
+### 找不到 Fortran 扩展
 
 先确认对应模块已构建：
 
@@ -104,13 +104,7 @@ rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/AS
 
 ### f2py 或 Meson 从 Windows temp 目录失败
 
-使用：
-
-```bash
-TMPDIR=/tmp
-```
-
-并从 WSL shell 调用构建命令。
+使用 `TMPDIR=/tmp`，并从 WSL shell 调用构建命令。
 
 ### `gh` 或 GitHub CLI 不存在
 
