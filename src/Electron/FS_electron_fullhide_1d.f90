@@ -118,10 +118,6 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
         call get_nu_a(R_loc,DB,Num_gam_rad,gam_e_rad(1:Num_gam_rad),dN_gam_e_rad(1:Num_gam_rad),temp)
         V_a(I_tobs-1)=temp/(R_Gamma_loc*(1d0-beta_Gam)*(one+z))
 
-        !Compton_max=one+(-one+dsqrt(one+4d0*eta*Epsilon_e/Epsilon_b))/two
-        !Gam_e_max=Gam_e_max!/sqrt(Compton_max)
-!        Compton = zero
-
         call get_syn_selected(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads, &
                               gam_e,dN_gam_e(:,I_tobs-1),V_seed,P_syn(:,I_tobs),Seed_syn(:,I_tobs))
         
@@ -135,7 +131,6 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
         if (adaptive_substeps == 0) then
             L1=max(100,min(1000,int(dDD/max(dDR,tiny(one)))))
             dDR=dDD/dble(L1)
-            CFL=dDR/d_x
 
             do L=1,L1
                     R_loc=R_loc+dDR

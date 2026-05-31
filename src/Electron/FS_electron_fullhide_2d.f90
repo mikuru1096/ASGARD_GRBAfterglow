@@ -294,8 +294,7 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
                 call assemble_forward_cooling_split(index_Y,Epsilon_e,Epsilon_b_chi(I_chi),p,DB_chi(I_chi), &
                                                     Gam_e_m_cell,Gam_e_c_cell, &
                                                     Gam_e_max_cell,R_loc,R_Gamma_loc,beta_sh,dNe,Num_gam_e, &
-                                                    Num_nu_cool,n_threads,gam_e,V_cool, &
-                                                    P_eff_cool_chi(:,I_chi),Seed_eff_cool_chi(:,I_chi),Seed_eff_cool_chi(:,I_chi), &
+                                                    Num_nu_cool,n_threads,gam_e,V_cool,Seed_eff_cool_chi(:,I_chi), &
                                                     cooling_aux_chi(:,I_chi),dEl_chi(:,I_chi))
                 dEL_mean_chi(:,I_chi)=(dEl_chi(2:Num_gam_e,I_chi)+dEl_chi(1:Num_gam_e-1,I_chi))/two/dlog(ten)
                 kappa2_chi(:,I_chi) = gam_e*Para_m_energy*para_c/(3d0*Para_e*DB_chi(I_chi))
@@ -304,7 +303,7 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
             call assemble_forward_cooling_split_batch(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c, &
                                                       Gam_e_max,R_loc,R_Gamma_loc, &
                                                       beta_sh,dNe,Num_gam_e,Num_nu_cool,Num_chi,n_threads,gam_e,V_cool, &
-                                                      P_eff_cool_chi,Seed_eff_cool_chi,Seed_eff_cool_chi,cooling_aux_chi,dEl_chi)
+                                                      Seed_eff_cool_chi,cooling_aux_chi,dEl_chi)
             do I_chi = 1, Num_chi
                 dEL_mean_chi(:,I_chi)=(dEl_chi(2:Num_gam_e,I_chi)+dEl_chi(1:Num_gam_e-1,I_chi))/two/dlog(ten)
             end do
@@ -578,15 +577,14 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
             Gam_e_c_cell = 7.7d8*(one+z)/R_Gamma_loc/DB_chi(I_chi)**2/max(R_Tobs(Num_R),tiny(one))
             call assemble_forward_cooling_split(index_Y,Epsilon_e,Epsilon_b_chi(I_chi),p,DB_chi(I_chi),Gam_e_m_cell,Gam_e_c_cell, &
                                                 Gam_e_max_cell,R_loc,R_Gamma_loc,beta_sh,dNe,Num_gam_e, &
-                                                Num_nu_cool,n_threads,gam_e,V_cool, &
-                                                P_eff_cool_chi(:,I_chi),Seed_eff_cool_chi(:,I_chi),Seed_eff_cool_chi(:,I_chi), &
+                                                Num_nu_cool,n_threads,gam_e,V_cool,Seed_eff_cool_chi(:,I_chi), &
                                                 cooling_aux_chi(:,I_chi),dEl_chi(:,I_chi))
             dEL_mean_chi(:,I_chi)=(dEl_chi(2:Num_gam_e,I_chi)+dEl_chi(1:Num_gam_e-1,I_chi))/two/dlog(ten)
         end do
     else
         call assemble_forward_cooling_split_batch(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc,R_Gamma_loc, &
                                                   beta_sh,dNe,Num_gam_e,Num_nu_cool,Num_chi,n_threads,gam_e,V_cool, &
-                                                  P_eff_cool_chi,Seed_eff_cool_chi,Seed_eff_cool_chi,cooling_aux_chi,dEl_chi)
+                                                  Seed_eff_cool_chi,cooling_aux_chi,dEl_chi)
         do I_chi = 1, Num_chi
             dEL_mean_chi(:,I_chi)=(dEl_chi(2:Num_gam_e,I_chi)+dEl_chi(1:Num_gam_e-1,I_chi))/two/dlog(ten)
         end do

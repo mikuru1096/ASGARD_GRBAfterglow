@@ -17,8 +17,7 @@ module electron_cooling_kernel
                                 ssa_seed_vg1(:), ssa_seed_vg2(:), ssa_seed_wg1(:), ssa_seed_wg2(:)
   integer, save :: ssa_geom_num_gam_cache=0
   integer, save :: ssa_geom_num_chi_cache=0
-  integer, allocatable, save :: ssa_low_idx_cache(:), ssa_upper_idx_cache(:), ssa_low_first_cache(:), ssa_low_last_cache(:), &
-                                ssa_high_first_cache(:)
+  integer, allocatable, save :: ssa_low_idx_cache(:), ssa_low_first_cache(:), ssa_low_last_cache(:), ssa_high_first_cache(:)
   real(8), allocatable, save :: ssa_prefactor_low_cache(:), ssa_prefactor_high_cache(:), ssa_dot_batch_cache(:,:)
   integer, save :: ic_num_gam_cache=0, ic_num_nu_cache=0
   logical, save :: ic_grid_cache_ready=.false.
@@ -38,12 +37,11 @@ integer, intent(in) :: Num_gam_e,Num_chi
 
     if (.not. allocated(ssa_low_idx_cache) .or. ssa_geom_num_gam_cache /= Num_gam_e) then
         if (allocated(ssa_low_idx_cache)) then
-            deallocate(ssa_low_idx_cache,ssa_upper_idx_cache,ssa_low_first_cache,ssa_low_last_cache, &
-                       ssa_high_first_cache,ssa_prefactor_low_cache,ssa_prefactor_high_cache)
+            deallocate(ssa_low_idx_cache,ssa_low_first_cache,ssa_low_last_cache,ssa_high_first_cache, &
+                       ssa_prefactor_low_cache,ssa_prefactor_high_cache)
         end if
-        allocate(ssa_low_idx_cache(Num_gam_e),ssa_upper_idx_cache(Num_gam_e),ssa_low_first_cache(Num_gam_e), &
-                 ssa_low_last_cache(Num_gam_e),ssa_high_first_cache(Num_gam_e),ssa_prefactor_low_cache(Num_gam_e), &
-                 ssa_prefactor_high_cache(Num_gam_e))
+        allocate(ssa_low_idx_cache(Num_gam_e),ssa_low_first_cache(Num_gam_e),ssa_low_last_cache(Num_gam_e), &
+                 ssa_high_first_cache(Num_gam_e),ssa_prefactor_low_cache(Num_gam_e),ssa_prefactor_high_cache(Num_gam_e))
         ssa_geom_num_gam_cache=Num_gam_e
     end if
 
@@ -146,15 +144,14 @@ integer, intent(inout) :: low_idx
 end subroutine advance_ssa_seed_cursor
 
 ! 构建SSA几何映射：对每个电子γ，计算种子频率的低频/高频索引范围和截面前因子。
-subroutine build_ssa_geometry(DB,Num_gam_e,Num_nu,gam_e,V_low_idx,V_upper_idx,V_low_first,V_low_last, &
-                              V_high_first,sigma_prefactor_low,sigma_prefactor_high,Cyclotron_nu)
+subroutine build_ssa_geometry(DB,Num_gam_e,Num_nu,gam_e,V_low_idx,V_low_first,V_low_last,V_high_first, &
+                              sigma_prefactor_low,sigma_prefactor_high,Cyclotron_nu)
 implicit REAL(8)(A-H,O-Z)
 integer, intent(in) :: Num_gam_e,Num_nu
 real(8), intent(in) :: DB,gam_e(Num_gam_e)
-integer, intent(out) :: V_low_idx(Num_gam_e),V_upper_idx(Num_gam_e),V_low_first(Num_gam_e),V_low_last(Num_gam_e), &
-                        V_high_first(Num_gam_e)
+integer, intent(out) :: V_low_idx(Num_gam_e),V_low_first(Num_gam_e),V_low_last(Num_gam_e),V_high_first(Num_gam_e)
 real(8), intent(out) :: sigma_prefactor_low(Num_gam_e),sigma_prefactor_high(Num_gam_e),Cyclotron_nu
-integer :: low_idx
+integer :: low_idx,upper_idx
 
     B_cr=4.4d13
     Temp1=2.5042d-22*B_cr/DB
@@ -173,14 +170,13 @@ integer :: low_idx
        V_low_idx(I_gam_e)=low_idx
 
        if (low_idx <= Num_nu) then
-          call first_greater_monotonic_window(ssa_seed_v_cache,Num_nu,low_idx,V_uplim,V_upper_idx(I_gam_e))
+          call first_greater_monotonic_window(ssa_seed_v_cache,Num_nu,low_idx,V_uplim,upper_idx)
           sigma_prefactor_low(I_gam_e)=Temp1*(3d0*V_lowlim)**(5d0/3d0)
           sigma_prefactor_high(I_gam_e)=Temp2/gam3
           V_low_first(I_gam_e)=max(1,low_idx-1)
-          V_low_last(I_gam_e)=min(Num_nu-1,V_upper_idx(I_gam_e)-1)
-          V_high_first(I_gam_e)=max(1,V_upper_idx(I_gam_e)-1)
+          V_low_last(I_gam_e)=min(Num_nu-1,upper_idx-1)
+          V_high_first(I_gam_e)=max(1,upper_idx-1)
        else
-          V_upper_idx(I_gam_e)=Num_nu+1
           sigma_prefactor_low(I_gam_e)=zero
           sigma_prefactor_high(I_gam_e)=zero
           V_low_first(I_gam_e)=1
@@ -219,14 +215,13 @@ real(8) :: seed_loc,sigma_loc,vg,wg
 end function ssa_cached_cell_segment
 
 ! 对给定种子光子场累加SSA冷却率：低频Σ ∝ ν^(5/3)，高频Σ ∝ 1/γ³。
-subroutine accumulate_ssa_for_seed(Num_gam_e,Num_nu,n_threads,gam_e,Seed_syn,V_low_idx,V_upper_idx,V_low_first,V_low_last, &
+subroutine accumulate_ssa_for_seed(Num_gam_e,Num_nu,n_threads,gam_e,Seed_syn,V_low_idx,V_low_first,V_low_last, &
                                    V_high_first,sigma_prefactor_low,sigma_prefactor_high,Cyclotron_nu,dot_gam_e)
 !$ use omp_lib
 implicit REAL(8)(A-H,O-Z)
 integer, intent(in) :: Num_gam_e,Num_nu,n_threads
 real(8), intent(in) :: gam_e(Num_gam_e),Seed_syn(Num_nu)
-integer, intent(in) :: V_low_idx(Num_gam_e),V_upper_idx(Num_gam_e),V_low_first(Num_gam_e),V_low_last(Num_gam_e), &
-                       V_high_first(Num_gam_e)
+integer, intent(in) :: V_low_idx(Num_gam_e),V_low_first(Num_gam_e),V_low_last(Num_gam_e),V_high_first(Num_gam_e)
 real(8), intent(in) :: sigma_prefactor_low(Num_gam_e),sigma_prefactor_high(Num_gam_e),Cyclotron_nu
 real(8), intent(out) :: dot_gam_e(Num_gam_e)
 integer, parameter :: parallel_work_threshold=512
@@ -329,11 +324,11 @@ real(8), intent(out) :: dot_gam_e(Num_gam_e)
 
     call ensure_ssa_seed_cache(Num_nu,V_seed)
     call ensure_ssa_geometry_workspace(Num_gam_e,0)
-    call build_ssa_geometry(DB,Num_gam_e,Num_nu,gam_e,ssa_low_idx_cache,ssa_upper_idx_cache, &
-                            ssa_low_first_cache,ssa_low_last_cache,ssa_high_first_cache, &
+    call build_ssa_geometry(DB,Num_gam_e,Num_nu,gam_e,ssa_low_idx_cache,ssa_low_first_cache,ssa_low_last_cache, &
+                            ssa_high_first_cache, &
                             ssa_prefactor_low_cache,ssa_prefactor_high_cache,Cyclotron_nu)
-    call accumulate_ssa_for_seed(Num_gam_e,Num_nu,n_threads,gam_e,Seed_syn,ssa_low_idx_cache,ssa_upper_idx_cache, &
-                                 ssa_low_first_cache,ssa_low_last_cache,ssa_high_first_cache, &
+    call accumulate_ssa_for_seed(Num_gam_e,Num_nu,n_threads,gam_e,Seed_syn,ssa_low_idx_cache,ssa_low_first_cache, &
+                                 ssa_low_last_cache,ssa_high_first_cache, &
                                  ssa_prefactor_low_cache,ssa_prefactor_high_cache,Cyclotron_nu,dot_gam_e)
 
 end subroutine get_SSA_numerical
@@ -404,8 +399,8 @@ integer :: batch_work
 
     call ensure_ssa_seed_cache(Num_nu,V_seed)
     call ensure_ssa_geometry_workspace(Num_gam_e,Num_chi)
-    call build_ssa_geometry(DB,Num_gam_e,Num_nu,gam_e,ssa_low_idx_cache,ssa_upper_idx_cache, &
-                            ssa_low_first_cache,ssa_low_last_cache,ssa_high_first_cache, &
+    call build_ssa_geometry(DB,Num_gam_e,Num_nu,gam_e,ssa_low_idx_cache,ssa_low_first_cache,ssa_low_last_cache, &
+                            ssa_high_first_cache, &
                             ssa_prefactor_low_cache,ssa_prefactor_high_cache,Cyclotron_nu)
 
     dot_gam_e_batch=zero
@@ -741,13 +736,12 @@ end subroutine prepare_forward_cooling_aux_batch
 ! 组装正激波冷却率 dγ/dR：SSA + 同步 + IC/Compton Y，分离SSA和IC计算。
 subroutine assemble_forward_cooling_split(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc,R_Gamma_loc, &
                                           beta_Gam,dNe,Num_gam_e,Num_nu,n_threads,gam_e,V_seed, &
-                                          P_syn_ic,Seed_syn_ic,Seed_syn_ssa,cooling_aux,dEl)
+                                          Seed_syn_ssa,cooling_aux,dEl)
 implicit REAL(8)(A-H,O-Z)
 integer, intent(in) :: index_Y,Num_gam_e,Num_nu,n_threads
 real(8), intent(in) :: Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,R_loc,R_Gamma_loc,beta_Gam,dNe
 real(8), intent(inout) :: Gam_e_max
-real(8), intent(in) :: gam_e(Num_gam_e),V_seed(Num_nu),P_syn_ic(Num_nu),Seed_syn_ic(Num_nu), &
-                       Seed_syn_ssa(Num_nu),cooling_aux(Num_gam_e)
+real(8), intent(in) :: gam_e(Num_gam_e),V_seed(Num_nu),Seed_syn_ssa(Num_nu),cooling_aux(Num_gam_e)
 real(8), intent(out) :: dEl(Num_gam_e)
 real(8) :: Compton(Num_gam_e),dot_gam_e_SSA(Num_gam_e)
 
@@ -759,13 +753,12 @@ end subroutine assemble_forward_cooling_split
 ! 批量版assemble_forward_cooling_split：对多个χ列分别组装冷却率。
 subroutine assemble_forward_cooling_split_batch(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc,R_Gamma_loc, &
                                                 beta_Gam,dNe,Num_gam_e,Num_nu,Num_chi,n_threads,gam_e,V_seed, &
-                                                P_syn_ic,Seed_syn_ic,Seed_syn_ssa,cooling_aux,dEl)
+                                                Seed_syn_ssa,cooling_aux,dEl)
 implicit REAL(8)(A-H,O-Z)
 integer, intent(in) :: index_Y,Num_gam_e,Num_nu,Num_chi,n_threads
 real(8), intent(in) :: Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,R_loc,R_Gamma_loc,beta_Gam,dNe
 real(8), intent(inout) :: Gam_e_max
-real(8), intent(in) :: gam_e(Num_gam_e),V_seed(Num_nu),P_syn_ic(Num_nu,Num_chi),Seed_syn_ic(Num_nu,Num_chi), &
-                       Seed_syn_ssa(Num_nu,Num_chi),cooling_aux(Num_gam_e,Num_chi)
+real(8), intent(in) :: gam_e(Num_gam_e),V_seed(Num_nu),Seed_syn_ssa(Num_nu,Num_chi),cooling_aux(Num_gam_e,Num_chi)
 real(8), intent(out) :: dEl(Num_gam_e,Num_chi)
 real(8) :: Compton(Num_gam_e),Gam_e_max_cell,dot_gam_e_SSA(Num_gam_e,Num_chi)
 integer :: I_chi
