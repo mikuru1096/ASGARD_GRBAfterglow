@@ -9,6 +9,17 @@
 - `asgard_core/hadronic_*.py` — hadronic Python wrappers/benchmarks (orchestration only; final microphysics → `src/Hadronic/`)
 - `asgard_core/hadronic_reverse.py` — RS hadronic light proton transport + synchrotron wrapper
 - `asgard_core/hadronic_cascade.py` — pair-production synch diagnostics plus shell-sequence time-dependent γγ pair/synch cascade
+
+## Documentation
+
+- `doc/index.md` — 文档总入口。
+- `doc/installation.md` — 环境、安装和 native extension 构建。
+- `doc/user_guide.md` — 常用 public API 工作流。
+- `doc/public_api.md` — public API 当前契约。
+- `doc/physics_model.md` — 已实现物理模块和边界。
+- `doc/numerical_methods.md` — 数值核、求解器和 line-truncation 检查。
+- `doc/validation_and_benchmarks.md` — build gate、smoke tests、benchmark refresh 和 artifact policy。
+- `doc/developer_guide.md` — 开发工作流、提交前检查和 review checklist。
 - `doc/hadronic_chi_transport_decision.md` — 2D / χ-resolved hadronic transport 的当前决策边界
 - `doc/pair_cascade_extension_boundary.md` — IC-mediated electromagnetic cascade 的扩展边界
 - `doc/polarization_timing_diagnostic.md` — Lan 2023 polarization 峰时偏移诊断

@@ -14,15 +14,29 @@ The code's greatest strengths lie in its exceptional computational efficiency an
 3. Reverse-shock electron synchrotron, RS SSC, cross-zone IC, and hadronic dispatch in the current runtime.
 4. Active 1D hadronic paths for forward shock and reverse-shock comparison workflows.
 
-## Current Development Notes
-- The authoritative development status is tracked in:
-  - `AGENTS.md`
-  - `PLAN.md`
-  - `doc/code_overview.md`
-- Benchmark and comparison scripts live under `tests/`.
-- Generated benchmark figures under `output/` are artifacts, not source documentation.
-- RS/Vegas benchmark refresh:
-  `uv run --extra compare python tests/vegas_afterglow_comparison.py --scenario baseline --only reverse_shock_lc reverse_shock_thermal`
+## Documentation
+
+The documentation entry point is `doc/index.md`.
+
+Recommended reading:
+
+- `doc/installation.md` — environment, native build, demo commands.
+- `doc/user_guide.md` — common `Model` workflows: light curves, spectra, RS, hadronic, polarization, sky image and fitting.
+- `doc/public_api.md` — current public API contracts.
+- `doc/physics_model.md` — implemented physics modules and explicit boundaries.
+- `doc/numerical_methods.md` — Fortran kernels, solver families and numerical validation targets.
+- `doc/validation_and_benchmarks.md` — build gates, smoke tests, benchmark refresh and artifact policy.
+- `doc/developer_guide.md` — development workflow and review checklist.
+- `doc/code_overview.md`, `doc/source_tree.md`, `doc/call_chain.md` — implementation map.
+
+Current development baseline:
+
+- `AGENTS.md`
+- `PLAN.md`
+- `doc/code_overview.md`
+- `doc/public_backend_limits.md`
+
+Benchmark and comparison scripts live under `tests/` and `scripts/benchmarks/`. Generated benchmark figures under `output/` are artifacts; commit them only when they are reproducible documentation assets following `doc/benchmark_refresh_protocol.md`.
 
 ## License
 **Copyright (c) 2025 Jia Ren**  
@@ -94,9 +108,7 @@ python lc_spec_demo.py
 
 If you already have the matplotlib package installed, the program should generate the first multi-band afterglow light curve image for you.
 ### Documentation
-The main public entry point is `lc_spec_demo.py` for the simplest end-to-end demo. For the benchmark and plotting workflow, use the scripts under `tests/`.
-Sampling and batch fitting helper scripts now live under `scripts/fitting/`.
-The project is now packaged in PyPI-style layout with `pyproject.toml` and `setup.py`. Local source installation uses `pip install .` and triggers automatic native compilation through the package build hook.
+The main public entry point is `lc_spec_demo.py` for the simplest end-to-end demo. Full project documentation starts at `doc/index.md`.
 ### Current Status
 The public runtime is usable for forward-shock afterglow calculations and benchmark workflows.
 Reverse shock uses local shock-front `gamma34` for new electron injection, while region-3 magnetic field and post-crossing thermal evolution are closed by the explicit `U3/V3` thermal state. VegasAfterglow is a comparison backend, not the physical target for RS closure.
