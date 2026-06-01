@@ -4,7 +4,7 @@
 
 ## 1. 公开 API
 
-- `ASGARD/api_model.py`：`Model`, `Medium`, `ISM`, `Wind`, `TophatJet`, `GaussianJet`, `PowerLawJet`, `TwoComponentJet`, `StepPowerLawJet`, `Ejecta`, `Observer`, `Radiation`, `Setups`。
+- `ASGARD/api_model.py`：`Model`, `Medium`, `JetProfile`, `ISM`, `Wind`, `TophatJet`, `GaussianJet`, `PowerLawJet`, `TwoComponentJet`, `StepPowerLawJet`, `Ejecta`, `Observer`, `Radiation`, `Setups`。`ISM/Wind` 与 named jet constructors 是 factory-style public constructors，返回带 `kind` 标记的 `Medium` / `JetProfile`。
 - `Model.flux_density_grid(times_s, nu_hz)`, `flux_density(times_s, nu_hz)`, `spectrum(time_s, nu_hz)`, `flux(time_s, nu_min, nu_max)`, `sky_image(t_obs, nu_obs, fov)`, `details()`。
 - `Model.polarization(times_s, nu_hz, magnetic_geometry=..., local_emissivity=...)`。
 - Hadronic public switches：`Radiation.pair_production`, `Radiation.pg`, `Radiation.bethe_heitler`, `Radiation.pp`, `Radiation.neutrino`, `Radiation.reverse_epsilon_p`；cascade substeps 使用 `Setups.pair_cascade_iterations`。
@@ -53,6 +53,7 @@ Fitter.loglike -> compile_problem -> eval_loglike -> solve_state_from_setup
 ## 3. Python 编排层
 
 - `asgard_setup.py`：`FitConfig -> SimulationSetup`。
+- `asgard_config.py`：`FitConfig`, `SimulationSetup`, `PhysicalSolution`, `FitResult` 和 runtime config dataclasses；旧 `asgard_models.py` compatibility shim 已移除。
 - `asgard_runtime.py`：backend selection、Fortran extension dispatch、array wrapping。
 - `asgard_state.py`：主状态机和跨阶段耦合。
 - `asgard_ssc.py`：forward SSC auxiliary grid 与 seed。

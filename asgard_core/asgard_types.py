@@ -317,50 +317,6 @@ class FitProblem:
     num_xrt: int
 
 
-# ============================================================================
-# API Result Types (from ASGARD/api.py)
-# ============================================================================
-
-@dataclass
-class FluxPair:
-    """Flux pair for a single component."""
-    sync: np.ndarray
-    ssc: np.ndarray
-
-
-@dataclass
-class FluxResult:
-    """Complete flux result from simulation."""
-    total: np.ndarray
-    fwd: FluxPair
-    rev: Optional[FluxPair]
-    cross_ic: Optional[np.ndarray]
-
-
-@dataclass
-class CharTrack:
-    """Characteristic quantities tracking."""
-    time_s: np.ndarray
-    gamma: np.ndarray
-    radius_cm: np.ndarray
-    swept_mass_g: np.ndarray
-    doppler: np.ndarray
-    magnetic_field_g: np.ndarray
-    nu_m: np.ndarray
-    nu_c: np.ndarray
-    nu_a: np.ndarray
-    nu_M: np.ndarray
-    cooling_timescale_s: np.ndarray | None = None
-    dynamical_timescale_s: np.ndarray | None = None
-
-
-@dataclass
-class TrackBundle:
-    """Bundle of tracking data for forward and reverse shocks."""
-    fwd: CharTrack
-    rev: Optional[CharTrack]
-
-
 DynamicsState = DynamicsSolution
 ElectronState = ElectronSolution
 HadronicState = HadronicSolution
@@ -394,9 +350,4 @@ __all__ = [
     "ObsPlan",
     "InferenceProblem",
     "FitProblem",
-    # API result types
-    "FluxPair",
-    "FluxResult",
-    "CharTrack",
-    "TrackBundle",
 ]

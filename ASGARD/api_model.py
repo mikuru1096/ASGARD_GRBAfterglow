@@ -3,11 +3,11 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Callable, Optional
+from typing import Callable, NamedTuple, Optional
 
 import numpy as np
 
-from asgard_core.asgard_models import default_num_threads
+from asgard_core.asgard_config import default_num_threads
 from asgard_core.asgard_numpy import trapezoid
 from asgard_core.asgard_observables import build_multiband_observer_frequencies, combine_multiband_flux
 
@@ -20,8 +20,15 @@ class Scale(str, Enum):
 
 @dataclass
 class Medium:
+    """Callable density profile. Use factory functions (make_ism_medium, make_wind_medium)."""
     rho: Callable[[float, float, float], float]
+    kind: str = "custom"
     label: str = "custom"
+    n_ism: float = 1.0
+    A_star: float = 0.0
+    n0: float | None = None
+    k: float = 2.0
+    kernel_params: dict | None = None
 
     def density(self, phi: float, theta: float, radius_cm: float) -> float:
         values = np.asarray(self.rho(phi, theta, radius_cm), dtype=float)
@@ -33,305 +40,336 @@ class Medium:
         return self.density(phi, theta, radius_cm)
 
     def to_kernel_params(self) -> dict[str, float]:
+        if self.kernel_params is not None:
+            return self.kernel_params
         raise NotImplementedError("User-defined Medium is not supported by the current ASGARD kernel.")
 
 
-@dataclass
-class ISM(Medium):
-    n_ism: float = 1.0
-
-    def __init__(self, n_ism: Optional[float] = None, n0: Optional[float] = None) -> None:
-        density = 1.0 if n_ism is None and n0 is None else float(n_ism if n_ism is not None else n0)
-        self.n_ism = density
-        super().__init__(rho=self._rho, label="ism")
-
-    def _rho(self, _phi: float, _theta: float, radius_cm: float):
-        radius = np.asarray(radius_cm, dtype=float)
-        values = np.full(radius.shape, self.n_ism, dtype=float)
-        if values.ndim == 0:
-            return float(values)
-        return values
-
-    def to_kernel_params(self) -> dict[str, float]:
-        return {"d_ne": self.n_ism, "a_star": -1.0}
+def make_ism_medium(n_ism: Optional[float] = None, n0: Optional[float] = None) -> Medium:
+    _n_ism = 1.0 if n_ism is None and n0 is None else float(n_ism if n_ism is not None else n0)
+    medium = Medium(
+        rho=lambda phi, theta, rc: float(np.full(np.asarray(rc).shape, medium.n_ism)),
+        kind="ism",
+        label="ism",
+        n_ism=_n_ism,
+        kernel_params={"d_ne": _n_ism, "a_star": -1.0},
+    )
+    return medium
 
 
-@dataclass
-class Wind(Medium):
-    A_star: float = 1.0
-    n_ism: float = 0.1
-    n0: Optional[float] = None
-    k: float = 2.0
-
-    def __init__(
-        self,
-        A_star: Optional[float] = None,
-        n_ism: Optional[float] = None,
-        n0: Optional[float] = None,
-        k: float = 2.0,
-        Astar: Optional[float] = None,
-    ) -> None:
-        self.A_star = float(A_star if A_star is not None else Astar)
-        self.n_ism = 0.1 if n_ism is None else float(n_ism)
-        self.n0 = None if n0 is None else float(n0)
-        self.k = float(k)
-        super().__init__(rho=self._rho, label="wind")
-
-    def _rho(self, _phi: float, _theta: float, radius_cm: float) -> float:
-        if self.k != 2.0:
-            raise NotImplementedError("The current ASGARD wind kernel only supports k=2.")
-        radius = np.asarray(radius_cm, dtype=float)
-        d_ne_wind = self.A_star * 3.0e35 / radius**2
-        values = np.where(d_ne_wind <= self.n_ism / 4.0, self.n_ism, d_ne_wind)
-        if self.n0 is not None and np.isfinite(self.n0) and self.n0 > 0.0:
-            values = np.minimum(values, float(self.n0))
-        if values.ndim == 0:
-            return float(values)
-        return values
-
-    def to_kernel_params(self) -> dict[str, float]:
-        if self.k != 2.0:
-            raise NotImplementedError("The current ASGARD wind kernel only supports k=2.")
-        r0 = 0.0
-        if self.n0 is not None and np.isfinite(self.n0) and self.n0 > 0.0:
-            r0 = float(np.sqrt(self.A_star * 3.0e35 / float(self.n0)))
-        return {"d_ne": self.n_ism, "a_star": self.A_star, "r0": r0}
+def make_wind_medium(
+    A_star: Optional[float] = None,
+    n_ism: Optional[float] = None,
+    n0: Optional[float] = None,
+    k: float = 2.0,
+    Astar: Optional[float] = None,
+) -> Medium:
+    _A_star = float(1.0 if A_star is None and Astar is None else A_star if A_star is not None else Astar)
+    _n_ism = 0.1 if n_ism is None else float(n_ism)
+    _n0 = None if n0 is None else float(n0)
+    _k = float(k)
+    medium = Medium(
+        rho=lambda phi, theta, rc: _wind_rho(medium, rc),
+        kind="wind",
+        label="wind",
+        n_ism=_n_ism,
+        A_star=_A_star,
+        n0=_n0,
+        k=_k,
+        kernel_params=_wind_kernel_params(_A_star, _n_ism, _n0, _k),
+    )
+    return medium
 
 
-@dataclass
-class Magnetar:
+def _wind_rho(medium: Medium, radius_cm) -> float:
+    if medium.k != 2.0:
+        raise NotImplementedError("The current ASGARD wind kernel only supports k=2.")
+    radius = np.asarray(radius_cm, dtype=float)
+    d_ne_wind = medium.A_star * 3.0e35 / radius**2
+    values = np.where(d_ne_wind <= medium.n_ism / 4.0, medium.n_ism, d_ne_wind)
+    if medium.n0 is not None and np.isfinite(medium.n0) and medium.n0 > 0.0:
+        values = np.minimum(values, float(medium.n0))
+    if values.ndim == 0:
+        return float(values)
+    return values
+
+
+def _wind_kernel_params(A_star: float, n_ism: float, n0: float | None, k: float) -> dict[str, float]:
+    if k != 2.0:
+        raise NotImplementedError("The current ASGARD wind kernel only supports k=2.")
+    r0 = 0.0
+    if n0 is not None and np.isfinite(n0) and n0 > 0.0:
+        r0 = float(np.sqrt(A_star * 3.0e35 / float(n0)))
+    return {"d_ne": n_ism, "a_star": A_star, "r0": r0}
+
+
+# Backward-compatible aliases
+ISM = make_ism_medium
+Wind = make_wind_medium
+
+
+class Magnetar(NamedTuple):
     L0: float
     t0: float
     q: float
 
 
-class Jet:
-    def __init__(self, theta_max: float) -> None:
-        self.theta_max = float(theta_max)
-
-    def energy_iso(self, phi: float, theta: float) -> float:
-        raise NotImplementedError
-
-    def gamma0(self, phi: float, theta: float) -> float:
-        raise NotImplementedError
+@dataclass
+class JetProfile:
+    """Unified jet profile. Use factory functions (make_tophat_jet, etc.) to construct."""
+    kind: str
+    theta_max: float
+    # Tophat / Gaussian / PowerLaw params
+    E_iso: float = 0.0
+    lf: float = 1.0
+    theta_j: float = 0.1
+    theta_c: float = 0.1
+    k_e: float = 2.0
+    k_g: float = 2.0
+    # TwoComponent params
+    E_iso_n: float = 0.0
+    lf_n: float = 1.0
+    theta_n: float = 0.0
+    E_iso_w: float = 0.0
+    lf_w: float = 1.0
+    theta_w: float = 0.0
+    # StepPowerLaw params
+    E_iso_c: float = 0.0
+    lf_c: float = 1.0
+    # Ejecta params
+    e_iso_fn: Callable[[float, float], float] | None = None
+    gamma0_fn: Callable[[float, float], float] | None = None
+    # Common
+    spreading: bool = False
+    duration: float | None = None
+    magnetar: Magnetar | None = None
 
     def is_active(self, phi: float, theta: float) -> bool:
         return self.energy_iso(phi, theta) > 0.0 and self.gamma0(phi, theta) > 1.0
 
 
-class TophatJet(Jet):
-    def __init__(
-        self,
-        *args,
-        E_iso: Optional[float] = None,
-        lf: Optional[float] = None,
-        theta_j: Optional[float] = None,
-        Gamma0: Optional[float] = None,
-        theta_c: Optional[float] = None,
-        duration: Optional[float] = None,
-        magnetar: Optional[Magnetar] = None,
-        spreading: bool = False,
-    ) -> None:
-        if len(args) == 3 and E_iso is None and lf is None and theta_j is None and Gamma0 is None and theta_c is None:
-            if float(args[0]) < 10.0 and float(args[1]) > 1.0e20:
-                theta_c, E_iso, Gamma0 = args
-            else:
-                E_iso, lf, theta_j = args
-        elif len(args) != 0:
-            raise TypeError("TophatJet accepts either keyword arguments or three positional arguments.")
-        self.E_iso = float(E_iso)
-        self.lf = float(lf if lf is not None else Gamma0)
-        self.theta_j = float(theta_j if theta_j is not None else theta_c)
-        self.duration = None if duration is None else float(duration)
-        self.magnetar = magnetar
-        self.spreading = bool(spreading)
-        super().__init__(theta_max=self.theta_j)
-
-    def energy_iso(self, phi: float, theta: float) -> float:
-        return self.E_iso if theta < self.theta_j else 0.0
-
-    def gamma0(self, phi: float, theta: float) -> float:
-        return self.lf if theta < self.theta_j else 1.0
-
-
-class GaussianJet(Jet):
-    def __init__(
-        self,
-        E_iso: float,
-        lf: Optional[float] = None,
-        theta_c: float = 0.1,
-        theta_max: float = 0.6,
-        Gamma0: Optional[float] = None,
-        duration: Optional[float] = None,
-        magnetar: Optional[Magnetar] = None,
-        spreading: bool = False,
-    ) -> None:
-        self.E_iso = float(E_iso)
-        self.lf = float(lf if lf is not None else Gamma0)
-        self.theta_c = float(theta_c)
-        self.duration = None if duration is None else float(duration)
-        self.magnetar = magnetar
-        self.spreading = bool(spreading)
-        super().__init__(theta_max=theta_max)
-
-    def energy_iso(self, phi: float, theta: float) -> float:
-        return self.E_iso * np.exp(-0.5 * (theta / self.theta_c) ** 2)
-
-    def gamma0(self, phi: float, theta: float) -> float:
-        return 1.0 + (self.lf - 1.0) * np.exp(-0.5 * (theta / self.theta_c) ** 2)
+def make_tophat_jet(
+    *args,
+    E_iso: Optional[float] = None,
+    lf: Optional[float] = None,
+    theta_j: Optional[float] = None,
+    Gamma0: Optional[float] = None,
+    theta_c: Optional[float] = None,
+    duration: Optional[float] = None,
+    magnetar: Optional[Magnetar] = None,
+    spreading: bool = False,
+) -> JetProfile:
+    if len(args) == 3 and E_iso is None and lf is None and theta_j is None and Gamma0 is None and theta_c is None:
+        if float(args[0]) < 10.0 and float(args[1]) > 1.0e20:
+            theta_c, E_iso, Gamma0 = args
+        else:
+            E_iso, lf, theta_j = args
+    elif len(args) != 0:
+        raise TypeError("make_tophat_jet accepts either keyword arguments or three positional arguments.")
+    _E_iso = float(E_iso)
+    _lf = float(lf if lf is not None else Gamma0)
+    _theta_j = float(theta_j if theta_j is not None else theta_c)
+    jet = JetProfile(
+        kind="tophat",
+        theta_max=_theta_j,
+        E_iso=_E_iso,
+        lf=_lf,
+        theta_j=_theta_j,
+        duration=None if duration is None else float(duration),
+        magnetar=magnetar,
+        spreading=bool(spreading),
+    )
+    jet.energy_iso = lambda phi, theta: jet.E_iso if theta < jet.theta_j else 0.0
+    jet.gamma0 = lambda phi, theta: jet.lf if theta < jet.theta_j else 1.0
+    return jet
 
 
-class PowerLawJet(Jet):
-    def __init__(
-        self,
-        E_iso: float,
-        lf: Optional[float] = None,
-        theta_c: float = 0.1,
-        k: Optional[float] = None,
-        theta_max: float = np.pi / 2.0,
-        Gamma0: Optional[float] = None,
-        k_e: Optional[float] = None,
-        k_g: Optional[float] = None,
-        duration: Optional[float] = None,
-        magnetar: Optional[Magnetar] = None,
-        spreading: bool = False,
-    ) -> None:
-        self.E_iso = float(E_iso)
-        self.lf = float(lf if lf is not None else Gamma0)
-        self.theta_c = float(theta_c)
-        self.k_e = float(k if k_e is None else k_e)
-        self.k_g = float(self.k_e if k_g is None else k_g)
-        self.duration = None if duration is None else float(duration)
-        self.magnetar = magnetar
-        self.spreading = bool(spreading)
-        super().__init__(theta_max=theta_max)
-
-    def energy_iso(self, phi: float, theta: float) -> float:
-        if theta <= self.theta_c:
-            return self.E_iso
-        return self.E_iso * (theta / self.theta_c) ** (-self.k_e)
-
-    def gamma0(self, phi: float, theta: float) -> float:
-        if theta <= self.theta_c:
-            return self.lf
-        return 1.0 + (self.lf - 1.0) * (theta / self.theta_c) ** (-self.k_g)
+def make_gaussian_jet(
+    E_iso: float,
+    lf: Optional[float] = None,
+    theta_c: float = 0.1,
+    theta_max: float = 0.6,
+    Gamma0: Optional[float] = None,
+    duration: Optional[float] = None,
+    magnetar: Optional[Magnetar] = None,
+    spreading: bool = False,
+) -> JetProfile:
+    jet = JetProfile(
+        kind="gaussian",
+        theta_max=theta_max,
+        E_iso=float(E_iso),
+        lf=float(lf if lf is not None else Gamma0),
+        theta_c=float(theta_c),
+        duration=None if duration is None else float(duration),
+        magnetar=magnetar,
+        spreading=bool(spreading),
+    )
+    jet.energy_iso = lambda phi, theta: jet.E_iso * np.exp(-0.5 * (theta / jet.theta_c) ** 2)
+    jet.gamma0 = lambda phi, theta: 1.0 + (jet.lf - 1.0) * np.exp(-0.5 * (theta / jet.theta_c) ** 2)
+    return jet
 
 
-class TwoComponentJet(Jet):
-    def __init__(
-        self,
-        E_iso_n: Optional[float] = None,
-        lf_n: Optional[float] = None,
-        theta_n: Optional[float] = None,
-        E_iso_w: Optional[float] = None,
-        lf_w: Optional[float] = None,
-        theta_w: Optional[float] = None,
-        E_iso_c: Optional[float] = None,
-        Gamma0_c: Optional[float] = None,
-        E_iso_outer: Optional[float] = None,
-        Gamma0_outer: Optional[float] = None,
-        theta_c: Optional[float] = None,
-        theta_o: Optional[float] = None,
-        duration: Optional[float] = None,
-        magnetar: Optional[Magnetar] = None,
-        spreading: bool = False,
-    ) -> None:
-        self.E_iso_n = float(E_iso_n if E_iso_n is not None else E_iso_c)
-        self.lf_n = float(lf_n if lf_n is not None else Gamma0_c)
-        self.theta_n = float(theta_n if theta_n is not None else theta_c)
-        self.E_iso_w = float(E_iso_w if E_iso_w is not None else E_iso_outer)
-        self.lf_w = float(lf_w if lf_w is not None else Gamma0_outer)
-        self.theta_w = float(theta_w if theta_w is not None else theta_o)
-        self.duration = None if duration is None else float(duration)
-        self.magnetar = magnetar
-        self.spreading = bool(spreading)
-        super().__init__(theta_max=self.theta_w)
-
-    def energy_iso(self, phi: float, theta: float) -> float:
-        if theta <= self.theta_n:
-            return self.E_iso_n
-        if theta <= self.theta_w:
-            return self.E_iso_w
-        return 0.0
-
-    def gamma0(self, phi: float, theta: float) -> float:
-        if theta <= self.theta_n:
-            return self.lf_n
-        if theta <= self.theta_w:
-            return self.lf_w
-        return 1.0
+def make_powerlaw_jet(
+    E_iso: float,
+    lf: Optional[float] = None,
+    theta_c: float = 0.1,
+    k: Optional[float] = None,
+    theta_max: float = np.pi / 2.0,
+    Gamma0: Optional[float] = None,
+    k_e: Optional[float] = None,
+    k_g: Optional[float] = None,
+    duration: Optional[float] = None,
+    magnetar: Optional[Magnetar] = None,
+    spreading: bool = False,
+) -> JetProfile:
+    _k_e = float(2.0 if k is None and k_e is None else k if k_e is None else k_e)
+    _k_g = float(_k_e if k_g is None else k_g)
+    jet = JetProfile(
+        kind="powerlaw",
+        theta_max=theta_max,
+        E_iso=float(E_iso),
+        lf=float(lf if lf is not None else Gamma0),
+        theta_c=float(theta_c),
+        k_e=_k_e,
+        k_g=_k_g,
+        duration=None if duration is None else float(duration),
+        magnetar=magnetar,
+        spreading=bool(spreading),
+    )
+    jet.energy_iso = lambda phi, theta: (
+        jet.E_iso if theta <= jet.theta_c
+        else jet.E_iso * (theta / jet.theta_c) ** (-jet.k_e)
+    )
+    jet.gamma0 = lambda phi, theta: (
+        jet.lf if theta <= jet.theta_c
+        else 1.0 + (jet.lf - 1.0) * (theta / jet.theta_c) ** (-jet.k_g)
+    )
+    return jet
 
 
-class StepPowerLawJet(Jet):
-    def __init__(
-        self,
-        E_iso_c: float,
-        lf_c: Optional[float] = None,
-        theta_c: float = 0.1,
-        E_iso_w: float = 1.0e51,
-        lf_w: Optional[float] = None,
-        theta_w: float = 0.3,
-        k: float = 2.0,
-        Gamma0_c: Optional[float] = None,
-        Gamma0_w: Optional[float] = None,
-        k_e: Optional[float] = None,
-        k_g: Optional[float] = None,
-        duration: Optional[float] = None,
-        magnetar: Optional[Magnetar] = None,
-        spreading: bool = False,
-    ) -> None:
-        self.E_iso_c = float(E_iso_c)
-        self.lf_c = float(lf_c if lf_c is not None else Gamma0_c)
-        self.theta_c = float(theta_c)
-        self.E_iso_w = float(E_iso_w)
-        self.lf_w = float(lf_w if lf_w is not None else Gamma0_w)
-        self.theta_w = float(theta_w)
-        self.k_e = float(k if k_e is None else k_e)
-        self.k_g = float(self.k_e if k_g is None else k_g)
-        self.duration = None if duration is None else float(duration)
-        self.magnetar = magnetar
-        self.spreading = bool(spreading)
-        super().__init__(theta_max=self.theta_w)
-
-    def energy_iso(self, phi: float, theta: float) -> float:
-        if theta <= self.theta_c:
-            return self.E_iso_c
-        if theta <= self.theta_w:
-            return self.E_iso_w * (theta / self.theta_c) ** (-self.k_e)
-        return 0.0
-
-    def gamma0(self, phi: float, theta: float) -> float:
-        if theta <= self.theta_c:
-            return self.lf_c
-        if theta <= self.theta_w:
-            return 1.0 + (self.lf_w - 1.0) * (theta / self.theta_c) ** (-self.k_g)
-        return 1.0
+def make_twocomponent_jet(
+    E_iso_n: Optional[float] = None,
+    lf_n: Optional[float] = None,
+    theta_n: Optional[float] = None,
+    E_iso_w: Optional[float] = None,
+    lf_w: Optional[float] = None,
+    theta_w: Optional[float] = None,
+    E_iso_c: Optional[float] = None,
+    Gamma0_c: Optional[float] = None,
+    E_iso_outer: Optional[float] = None,
+    Gamma0_outer: Optional[float] = None,
+    theta_c: Optional[float] = None,
+    theta_o: Optional[float] = None,
+    duration: Optional[float] = None,
+    magnetar: Optional[Magnetar] = None,
+    spreading: bool = False,
+) -> JetProfile:
+    jet = JetProfile(
+        kind="twocomponent",
+        theta_max=float(theta_w if theta_w is not None else theta_o),
+        E_iso_n=float(E_iso_n if E_iso_n is not None else E_iso_c),
+        lf_n=float(lf_n if lf_n is not None else Gamma0_c),
+        theta_n=float(theta_n if theta_n is not None else theta_c),
+        E_iso_w=float(E_iso_w if E_iso_w is not None else E_iso_outer),
+        lf_w=float(lf_w if lf_w is not None else Gamma0_outer),
+        theta_w=float(theta_w if theta_w is not None else theta_o),
+        duration=None if duration is None else float(duration),
+        magnetar=magnetar,
+        spreading=bool(spreading),
+    )
+    jet.energy_iso = lambda phi, theta: (
+        jet.E_iso_n if theta <= jet.theta_n
+        else jet.E_iso_w if theta <= jet.theta_w
+        else 0.0
+    )
+    jet.gamma0 = lambda phi, theta: (
+        jet.lf_n if theta <= jet.theta_n
+        else jet.lf_w if theta <= jet.theta_w
+        else 1.0
+    )
+    return jet
 
 
-class Ejecta(Jet):
-    def __init__(
-        self,
-        e_iso_fn: Optional[Callable[[float, float], float]] = None,
-        gamma0_fn: Optional[Callable[[float, float], float]] = None,
-        theta_max: float = np.pi / 2.0,
-        E_iso: Optional[Callable[[float, float], float]] = None,
-        Gamma0: Optional[Callable[[float, float], float]] = None,
-        duration: Optional[float] = None,
-        magnetar: Optional[Magnetar] = None,
-        spreading: bool = False,
-    ) -> None:
-        self.e_iso_fn = e_iso_fn if e_iso_fn is not None else E_iso
-        self.gamma0_fn = gamma0_fn if gamma0_fn is not None else Gamma0
-        self.duration = None if duration is None else float(duration)
-        self.magnetar = magnetar
-        self.spreading = bool(spreading)
-        super().__init__(theta_max=theta_max)
+def make_steppowerlaw_jet(
+    E_iso_c: float,
+    lf_c: Optional[float] = None,
+    theta_c: float = 0.1,
+    E_iso_w: float = 1.0e51,
+    lf_w: Optional[float] = None,
+    theta_w: float = 0.3,
+    k: float = 2.0,
+    Gamma0_c: Optional[float] = None,
+    Gamma0_w: Optional[float] = None,
+    k_e: Optional[float] = None,
+    k_g: Optional[float] = None,
+    duration: Optional[float] = None,
+    magnetar: Optional[Magnetar] = None,
+    spreading: bool = False,
+) -> JetProfile:
+    _k_e = float(k if k_e is None else k_e)
+    _k_g = float(_k_e if k_g is None else k_g)
+    jet = JetProfile(
+        kind="steppowerlaw",
+        theta_max=float(theta_w),
+        E_iso_c=float(E_iso_c),
+        lf_c=float(lf_c if lf_c is not None else Gamma0_c),
+        theta_c=float(theta_c),
+        E_iso_w=float(E_iso_w),
+        lf_w=float(lf_w if lf_w is not None else Gamma0_w),
+        theta_w=float(theta_w),
+        k_e=_k_e,
+        k_g=_k_g,
+        duration=None if duration is None else float(duration),
+        magnetar=magnetar,
+        spreading=bool(spreading),
+    )
+    jet.energy_iso = lambda phi, theta: (
+        jet.E_iso_c if theta <= jet.theta_c
+        else jet.E_iso_w * (theta / jet.theta_c) ** (-jet.k_e) if theta <= jet.theta_w
+        else 0.0
+    )
+    jet.gamma0 = lambda phi, theta: (
+        jet.lf_c if theta <= jet.theta_c
+        else 1.0 + (jet.lf_w - 1.0) * (theta / jet.theta_c) ** (-jet.k_g) if theta <= jet.theta_w
+        else 1.0
+    )
+    return jet
 
-    def energy_iso(self, phi: float, theta: float) -> float:
-        return float(self.e_iso_fn(phi, theta))
 
-    def gamma0(self, phi: float, theta: float) -> float:
-        return float(self.gamma0_fn(phi, theta))
+def make_ejecta_jet(
+    e_iso_fn: Optional[Callable[[float, float], float]] = None,
+    gamma0_fn: Optional[Callable[[float, float], float]] = None,
+    theta_max: float = np.pi / 2.0,
+    E_iso: Optional[Callable[[float, float], float]] = None,
+    Gamma0: Optional[Callable[[float, float], float]] = None,
+    duration: Optional[float] = None,
+    magnetar: Optional[Magnetar] = None,
+    spreading: bool = False,
+) -> JetProfile:
+    _e_iso_fn = e_iso_fn if e_iso_fn is not None else E_iso
+    _gamma0_fn = gamma0_fn if gamma0_fn is not None else Gamma0
+    jet = JetProfile(
+        kind="ejecta",
+        theta_max=theta_max,
+        e_iso_fn=_e_iso_fn,
+        gamma0_fn=_gamma0_fn,
+        duration=None if duration is None else float(duration),
+        magnetar=magnetar,
+        spreading=bool(spreading),
+    )
+    jet.energy_iso = lambda phi, theta: float(jet.e_iso_fn(phi, theta))
+    jet.gamma0 = lambda phi, theta: float(jet.gamma0_fn(phi, theta))
+    return jet
+
+
+# Backward-compatible aliases
+TophatJet = make_tophat_jet
+GaussianJet = make_gaussian_jet
+PowerLawJet = make_powerlaw_jet
+TwoComponentJet = make_twocomponent_jet
+StepPowerLawJet = make_steppowerlaw_jet
+Ejecta = make_ejecta_jet
+Jet = JetProfile
 
 
 class Observer:
@@ -609,13 +647,13 @@ class Model:
         resolutions: Optional[tuple[float, float, int]] = None,
         *args,
     ) -> None:
-        if len(args) == 4 and isinstance(args[0], Jet) and isinstance(args[1], Medium) and isinstance(args[2], Observer) and isinstance(args[3], Radiation):
+        if len(args) == 4 and isinstance(args[0], JetProfile) and isinstance(args[1], Medium) and isinstance(args[2], Observer) and isinstance(args[3], Radiation):
             jet, medium, observer, fwd_rad = args
-        elif len(args) == 4 and isinstance(args[0], Medium) and isinstance(args[1], Jet) and isinstance(args[2], Observer) and isinstance(args[3], Radiation):
+        elif len(args) == 4 and isinstance(args[0], Medium) and isinstance(args[1], JetProfile) and isinstance(args[2], Observer) and isinstance(args[3], Radiation):
             medium, jet, observer, fwd_rad = args
         elif len(args) != 0:
             raise TypeError("Model accepts either keyword arguments or positional (jet, medium, observer, radiation).")
-        elif isinstance(medium, Jet) and isinstance(jet, Medium) and isinstance(observer, Observer) and isinstance(fwd_rad, Radiation):
+        elif isinstance(medium, JetProfile) and isinstance(jet, Medium) and isinstance(observer, Observer) and isinstance(fwd_rad, Radiation):
             medium, jet = jet, medium
         self.medium = medium
         self.jet = jet
@@ -807,7 +845,7 @@ class Model:
         if cached is not None:
             self._last_details = cached[1]
             return cached[0]
-        if isinstance(self.jet, TophatJet) and self._supports_direct_kernel():
+        if self.jet.kind == "tophat" and self._supports_direct_kernel():
             model_result = _solve_direct_model(
                 self,
                 times_s,
@@ -835,7 +873,7 @@ class Model:
         if cached is not None:
             self._last_details = cached
             return cached
-        if isinstance(self.jet, TophatJet) and self._supports_direct_kernel():
+        if self.jet.kind == "tophat" and self._supports_direct_kernel():
             details = _evaluate_direct_details(self, times_s)
         else:
             details = _patch_details(self, times_s)
@@ -844,7 +882,7 @@ class Model:
         return details
 
     def _supports_direct_kernel(self) -> bool:
-        return isinstance(self.medium, (ISM, Wind))
+        return self.medium.kind in ("ism", "wind")
 
     def _apply_resolutions(self, resolutions: tuple[float, float, int]) -> None:
         theta_ppd, phi_ppd, t_ppd = resolutions

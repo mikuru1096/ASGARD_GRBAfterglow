@@ -4,7 +4,7 @@ from typing import Optional
 
 import numpy as np
 
-from asgard_core.asgard_models import FitConfig, PhysicalSolution, SimulationSetup
+from asgard_core.asgard_config import FitConfig, PhysicalSolution, SimulationSetup
 from asgard_core.asgard_observables import (
     FITTING_BANDS,
     FITTING_FREQUENCIES_HZ,

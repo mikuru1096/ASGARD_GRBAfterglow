@@ -17,7 +17,7 @@ from asgard_core.asgard_state import (
     solve_state_from_setup,
 )
 from src.Electron.electron_radiation import electron_radiation_kernel as electron_radiation_module
-from asgard_core.asgard_models import FitConfig, ReverseShockConfig, SpectrumOutputConfig
+from asgard_core.asgard_config import FitConfig, ReverseShockConfig, SpectrumOutputConfig
 from asgard_core.asgard_config import HadronicConfig
 from asgard_core.asgard_observables import OUTPUT_BANDS, build_multiband_observer_frequencies, combine_multiband_flux
 from asgard_core.asgard_postprocess import (
@@ -146,7 +146,7 @@ def _total_matrix(
 ) -> np.ndarray:
     times_s = np.asarray(times_s, dtype=float)
     nu_hz = np.asarray(nu_hz, dtype=float)
-    if isinstance(model.jet, TophatJet) and model._supports_direct_kernel():
+    if model.jet.kind == "tophat" and model._supports_direct_kernel():
         return _direct_total(model, times_s, nu_hz, timings=timings)
     return _patch_total(model, times_s, nu_hz, timings=timings)
 
@@ -1141,7 +1141,7 @@ def _iter_patch_elements(model: Model):
 
 
 def _can_collapse_sky_image_phi(model: Model) -> bool:
-    return isinstance(model.jet, TophatJet) and abs(float(model.observer.theta_obs)) <= 1.0e-12
+    return model.jet.kind == "tophat" and abs(float(model.observer.theta_obs)) <= 1.0e-12
 
 
 def _iter_img_patches(model: Model, npixel: int, *, collapse_phi: bool = False):
@@ -1175,7 +1175,7 @@ def _angular_separation(theta1: float, phi1: float, theta2: float, phi2: float) 
     return float(np.arccos(np.clip(cos_alpha, -1.0, 1.0)))
 
 def _jet_is_axisymmetric(jet: Jet) -> bool:
-    return isinstance(jet, (TophatJet, GaussianJet, PowerLawJet, TwoComponentJet, StepPowerLawJet))
+    return jet.kind in ("tophat", "gaussian", "powerlaw", "twocomponent", "steppowerlaw")
 
 
 def _sky_basis(observer: Observer) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -1307,16 +1307,16 @@ def _extract_pair_flux(grid: np.ndarray, times_s: np.ndarray, frequencies_hz: np
     raise ValueError("Cannot extract pairwise flux from the provided grid.")
 
 
-def _jet_magnetar_active(jet: Jet, theta_center: float) -> bool:
-    if isinstance(jet, (TophatJet, GaussianJet, PowerLawJet, StepPowerLawJet)):
+def _jet_magnetar_active(jet: JetProfile, theta_center: float) -> bool:
+    if jet.kind in ("tophat", "gaussian", "powerlaw", "steppowerlaw"):
         return theta_center <= getattr(jet, "theta_c", getattr(jet, "theta_j", jet.theta_max))
-    if isinstance(jet, TwoComponentJet):
+    if jet.kind == "twocomponent":
         return theta_center <= jet.theta_n
     return True
 
 
 def _project_medium_to_kernel(medium: Medium, *, phi_center: float, theta_center: float) -> dict[str, float]:
-    if isinstance(medium, (ISM, Wind)):
+    if medium.kind in ("ism", "wind"):
         return medium.to_kernel_params()
 
     radius = np.logspace(9.0, 19.0, 256)
@@ -1430,7 +1430,7 @@ def _param_path(model: Model, param: ParamDef) -> str:
         "log10_e_iso": "jet.E_iso",
         "gamma0": "jet.lf",
         "log10_gamma0": "jet.lf",
-        "theta_c": "jet.theta_j" if isinstance(model.jet, TophatJet) else "jet.theta_c",
+        "theta_c": "jet.theta_j" if model.jet.kind == "tophat" else "jet.theta_c",
         "theta_j": "jet.theta_j",
         "theta_obs": "observer.theta_obs",
         "z": "observer.z",
@@ -1625,7 +1625,7 @@ def observe(
     config: Optional[FitConfig] = None,
     spectrum_output: Optional[SpectrumOutputConfig] = None,
 ):
-    from asgard_core.asgard_models import FitResult as _PhysicalFitResult
+    from asgard_core.asgard_config import FitResult as _PhysicalFitResult
 
     setups = model.setups
     t_obs_s = np.logspace(

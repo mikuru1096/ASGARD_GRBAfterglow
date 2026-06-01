@@ -5,7 +5,7 @@
 ## Python 运行层
 
 - `ASGARD/`：外部用户 API，包括 `api_model.py`, `api_observe.py`, `api_fit.py`, `api_adaptive.py`。
-- `asgard_core/`：内部编排与物理耦合，包括 `asgard_runtime.py`, `asgard_state.py`, `asgard_setup.py`, `asgard_ssc.py`, `asgard_types.py`。
+- `asgard_core/`：内部编排与物理耦合，包括 `asgard_config.py`, `asgard_runtime.py`, `asgard_state.py`, `asgard_setup.py`, `asgard_ssc.py`, `asgard_types.py`。
 - `asgard_core/hadronic_*.py`：hadronic Python wrappers/benchmarks，只做 orchestration；最终微物理写入 `src/Hadronic/`。
 - `asgard_core/hadronic_reverse.py`：RS hadronic light proton transport + synchrotron wrapper。
 - `asgard_core/hadronic_cascade.py`：pair-production synch diagnostics 和 shell-sequence time-dependent γγ pair/synch cascade。

@@ -10,7 +10,7 @@ import numpy as np
 from src.Electron.electron_radiation import electron_radiation_kernel as electron_radiation_module
 from asgard_core.asgard_coupling import build_coupled_shock_geometry, build_cross_zone_seed_fields
 from asgard_core.asgard_config import ExecutionPolicy, FitConfig
-from asgard_core.asgard_models import PhysicalSolution, SimulationSetup
+from asgard_core.asgard_config import PhysicalSolution, SimulationSetup
 from asgard_core.hadronic_pair_production import solve_pair_production
 from asgard_core.hadronic_pgamma import photon_density_hz_to_gev
 from asgard_core.asgard_types import (

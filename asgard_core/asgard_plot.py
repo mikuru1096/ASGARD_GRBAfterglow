@@ -3,7 +3,7 @@ from __future__ import annotations
 import matplotlib.pyplot as plt
 import numpy as np
 
-from asgard_core.asgard_models import FitResult
+from asgard_core.asgard_config import FitResult
 from asgard_core.asgard_observables import LIGHT_CURVE_PLOT_SPECS
 
 

@@ -10,7 +10,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from asgard_core.asgard_fit import compile_problem, eval_loglike
-from asgard_core.asgard_models import FitConfig
+from asgard_core.asgard_config import FitConfig
 
 import json
 

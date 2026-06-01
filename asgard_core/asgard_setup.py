@@ -6,7 +6,7 @@ import numpy as np
 from astropy import units
 from astropy.cosmology import FlatLambdaCDM
 
-from asgard_core.asgard_models import FitConfig, SimulationSetup
+from asgard_core.asgard_config import FitConfig, SimulationSetup
 from src import constants
 
 

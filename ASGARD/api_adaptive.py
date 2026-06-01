@@ -8,7 +8,7 @@ from typing import Optional
 
 import numpy as np
 
-from asgard_core.asgard_models import FitConfig
+from asgard_core.asgard_config import FitConfig
 from asgard_core.asgard_state import SolveState, project_flux_grid
 
 from .api_model import FluxPair, Model, FluxResult

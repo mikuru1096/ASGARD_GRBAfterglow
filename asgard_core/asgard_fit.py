@@ -11,7 +11,7 @@ from ASGARD.api_model import Model
 from ASGARD.api_observe import _as_model, _param_path, _total_matrix
 from asgard_core.asgard_numpy import trapezoid
 from asgard_core.asgard_state import project_flux_grid, solve_state_from_setup
-from asgard_core.asgard_models import FitConfig
+from asgard_core.asgard_config import FitConfig
 from asgard_core.asgard_observables import build_multiband_observer_frequencies, combine_multiband_flux
 from asgard_core.asgard_postprocess import compute_light_curve_redchi
 from asgard_core.asgard_setup import build_simulation_setup

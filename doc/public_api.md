@@ -13,6 +13,8 @@ from ASGARD import observe, run_fit, units
 
 ## 介质
 
+`ISM` 和 `Wind` 是 public constructor aliases，返回 `Medium` 对象。backend dispatch 读取 `medium.kind` 与 `to_kernel_params()`，而不是依赖 Python subclass。
+
 ### `ISM`
 
 ```python
@@ -38,6 +40,8 @@ Wind(A_star=1.0, n_ism=0.1, n0=None, k=2.0)
 `Medium(rho=callable)` 可以在 Python 层评估密度，但当前 Fortran kernel dispatch 不支持任意用户自定义介质。边界见 `doc/public_backend_limits.md`。
 
 ## 喷流
+
+`TophatJet`, `GaussianJet`, `PowerLawJet`, `TwoComponentJet`, `StepPowerLawJet` 和 `Ejecta` 是 public constructor aliases，返回 `JetProfile` 对象。runtime 通过 `jet.kind` 选择直接 tophat kernel 或 patch projection。
 
 ### `TophatJet`
 
