@@ -38,14 +38,6 @@ subroutine hadronic_build_gamma_p_grid(Num_gam_p,gam_p_min,gam_p_max,gam_p)
     end do
 end subroutine hadronic_build_gamma_p_grid
 
-! 初始化粒子数密度为零。
-subroutine hadronic_initial_density(Num_gam_p,dN_gam_p)
-    integer, intent(in) :: Num_gam_p
-    real(8), intent(out) :: dN_gam_p(Num_gam_p)
-
-    dN_gam_p=zero
-end subroutine hadronic_initial_density
-
 ! 在洛伦兹因子网格中查找源项范围 [gam_p_min, gam_p_max] 对应的索引上下界。
 subroutine hadronic_source_bounds(Num_gam_p,gam_p,gam_p_min,gam_p_max,i_lo,i_hi)
     implicit real(8)(A-H,O-Z)

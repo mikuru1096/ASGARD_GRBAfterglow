@@ -497,140 +497,37 @@ def observe_components_from_setup(
             "cross_ic": None,
         }
 
-    observed = {
-        "fwd_sync": _project_component(
-            setup,
-            components.fwd.characteristic_time_s,
-            components.fwd.gamma,
-            components.fwd.radius_cm,
-            setup.seed_frequency_hz,
-            components.fwd_sync,
-            frequencies_hz,
-            config,
-            timings=timings,
-            label="Interpolation.sed_interpolation [fwd_sync]",
-        ),
-        "fwd_ssc": _project_component(
-            setup,
-            components.fwd.characteristic_time_s,
-            components.fwd.gamma,
-            components.fwd.radius_cm,
-            setup.seed_frequency_hz,
-            components.fwd_ssc,
-            frequencies_hz,
-            config,
-            timings=timings,
-            label="Interpolation.sed_interpolation [fwd_ssc]",
-        ),
-    }
-    observed["fwd_hadronic"] = None
-    if components.fwd_hadronic_gamma is not None:
-        observed["fwd_hadronic"] = _project_component(
-            setup,
-            components.fwd.characteristic_time_s,
-            components.fwd.gamma,
-            components.fwd.radius_cm,
-            setup.seed_frequency_hz,
-            components.fwd_hadronic_gamma,
-            frequencies_hz,
-            config,
-            timings=timings,
-            label="Interpolation.sed_interpolation [fwd_hadronic]",
-        )
-    observed["fwd_hadronic_bethe_heitler"] = None
-    if components.fwd_hadronic_bethe_heitler is not None:
-        observed["fwd_hadronic_bethe_heitler"] = _project_component(
-            setup,
-            components.fwd.characteristic_time_s,
-            components.fwd.gamma,
-            components.fwd.radius_cm,
-            setup.seed_frequency_hz,
-            components.fwd_hadronic_bethe_heitler,
-            frequencies_hz,
-            config,
-            timings=timings,
-            label="Interpolation.sed_interpolation [fwd_hadronic_bethe_heitler]",
-        )
-    observed["fwd_hadronic_inverse_compton"] = None
-    if components.fwd_hadronic_inverse_compton is not None:
-        observed["fwd_hadronic_inverse_compton"] = _project_component(
-            setup,
-            components.fwd.characteristic_time_s,
-            components.fwd.gamma,
-            components.fwd.radius_cm,
-            setup.seed_frequency_hz,
-            components.fwd_hadronic_inverse_compton,
-            frequencies_hz,
-            config,
-            timings=timings,
-            label="Interpolation.sed_interpolation [fwd_hadronic_inverse_compton]",
-        )
-    observed["fwd_hadronic_pair_production"] = None
-    if components.fwd_hadronic_pair_production is not None:
-        observed["fwd_hadronic_pair_production"] = _project_component(
-            setup,
-            components.fwd.characteristic_time_s,
-            components.fwd.gamma,
-            components.fwd.radius_cm,
-            setup.seed_frequency_hz,
-            components.fwd_hadronic_pair_production,
-            frequencies_hz,
-            config,
-            timings=timings,
-            label="Interpolation.sed_interpolation [fwd_hadronic_pair_production]",
-        )
-    observed["rev_sync"] = None
-    observed["rev_ssc"] = None
-    observed["cross_ic"] = None
-    if components.rev_sync is not None:
-        observed["rev_sync"] = _project_component(
-            setup,
-            components.fwd.characteristic_time_s,
-            components.fwd.gamma,
-            components.fwd.radius_cm,
-            setup.seed_frequency_hz,
-            components.rev_sync,
-            frequencies_hz,
-            config,
-            timings=timings,
-            label="Interpolation.sed_interpolation [rev_sync]",
-        )
-    if components.rev_ssc is not None:
-        observed["rev_ssc"] = _project_component(
-            setup,
-            components.fwd.characteristic_time_s,
-            components.fwd.gamma,
-            components.fwd.radius_cm,
-            setup.seed_frequency_hz,
-            components.rev_ssc,
-            frequencies_hz,
-            config,
-            timings=timings,
-            label="Interpolation.sed_interpolation [rev_ssc]",
-        )
-    if components.cross_ic is not None:
-        observed["cross_ic"] = _project_component(
-            setup,
-            components.fwd.characteristic_time_s,
-            components.fwd.gamma,
-            components.fwd.radius_cm,
-            setup.seed_frequency_hz,
-            components.cross_ic,
-            frequencies_hz,
-            config,
-            timings=timings,
-            label="Interpolation.sed_interpolation [cross_ic]",
-        )
-    observed["total"] = np.array(observed["fwd_sync"], dtype=float, copy=True)
-    observed["total"] += np.array(observed["fwd_ssc"], dtype=float, copy=False)
-    if observed["fwd_hadronic"] is not None:
-        observed["total"] += np.array(observed["fwd_hadronic"], dtype=float, copy=False)
-    if observed["rev_sync"] is not None:
-        observed["total"] += np.array(observed["rev_sync"], dtype=float, copy=False)
-    if observed["rev_ssc"] is not None:
-        observed["total"] += np.array(observed["rev_ssc"], dtype=float, copy=False)
-    if observed["cross_ic"] is not None:
-        observed["total"] += np.array(observed["cross_ic"], dtype=float, copy=False)
+    observed = {}
+    for key, attr in [
+        ("fwd_sync", "fwd_sync"),
+        ("fwd_ssc", "fwd_ssc"),
+        ("fwd_hadronic", "fwd_hadronic_gamma"),
+        ("fwd_hadronic_bethe_heitler", "fwd_hadronic_bethe_heitler"),
+        ("fwd_hadronic_inverse_compton", "fwd_hadronic_inverse_compton"),
+        ("fwd_hadronic_pair_production", "fwd_hadronic_pair_production"),
+        ("rev_sync", "rev_sync"),
+        ("rev_ssc", "rev_ssc"),
+        ("cross_ic", "cross_ic"),
+    ]:
+        source = getattr(components, attr)
+        observed[key] = None
+        if source is not None:
+            observed[key] = _project_component(
+                setup,
+                components.fwd.characteristic_time_s,
+                components.fwd.gamma,
+                components.fwd.radius_cm,
+                setup.seed_frequency_hz,
+                source,
+                frequencies_hz,
+                config,
+                timings=timings,
+                label=f"Interpolation.sed_interpolation [{key}]",
+            )
+    observed["total"] = sum(
+        (value for value in observed.values() if value is not None),
+        start=np.zeros_like(observed["fwd_sync"]),
+    )
     if timings is not None:
         timings.setdefault("Interpolation.sed_interpolation [total]", 0.0)
     return observed
@@ -650,40 +547,80 @@ def _assemble_observer_stage(
     fwd_sync = np.asarray(electron.l_syn_spec, dtype=float)
     if pg_photon_survival is not None:
         fwd_sync = fwd_sync * np.asarray(pg_photon_survival, dtype=float)
-    seed_syn_absorption = np.array(photon_field.absorption_syn_seed, dtype=float, copy=True)
-    zero_component = np.zeros_like(fwd_sync)
-    fwd_ssc = zero_component
-    seed_ssc_total = np.array(photon_field.absorption_ssc_seed, dtype=float, copy=True)
+    s = dict(
+        pg_photon_survival=pg_photon_survival,
+        fwd_sync=fwd_sync,
+        fwd_ssc=np.zeros_like(fwd_sync),
+        rev_sync=None,
+        rev_ssc=None,
+        cross_ic=None,
+        rev_details=None,
+        seed_syn_absorption=np.array(photon_field.absorption_syn_seed, dtype=float, copy=True),
+        seed_ssc_total=np.array(photon_field.absorption_ssc_seed, dtype=float, copy=True),
+        tau_extra=np.zeros_like(fwd_sync),
+        tau_pair=np.zeros_like(fwd_sync),
+        pair_lum_total=np.zeros_like(fwd_sync),
+        pair_seed_total=np.zeros_like(photon_field.absorption_syn_seed, dtype=float),
+        hadronic_ssa_transfer=np.ones_like(fwd_sync),
+        absorbed_fwd_hadronic_gamma=None,
+        absorbed_fwd_hadronic_bethe_heitler=None,
+        absorbed_fwd_hadronic_inverse_compton=None,
+        absorbed_fwd_hadronic_pair_production=None,
+    )
+    s = _stage_forward_ssc(s, setup, config, dynamics, electron, timings)
+    s = _stage_reverse_emission(s, setup, config, dynamics, electron, reverse_emission, timings)
+    s = _stage_hadronic_absorption(s, setup, config, dynamics, electron, hadronic)
+    s = _stage_pair_production(s, setup, config, dynamics, electron)
+    s = _stage_annihilation(s, setup, config, dynamics, timings)
+    return _stage_assemble_result(s, setup, config, dynamics, electron, hadronic)
+
+
+def _stage_forward_ssc(
+    s: dict,
+    setup,
+    config: FitConfig,
+    dynamics: DynamicsSolution,
+    electron: ElectronSolution,
+    timings: Optional[dict[str, float]],
+) -> dict:
     if config.include_forward_ssc:
-        fwd_ssc, seed_ssc_total = _ssc_spectrum(
+        s["fwd_ssc"], s["seed_ssc_total"] = _ssc_spectrum(
             dynamics.radius,
             electron,
             setup.seed_frequency_hz,
-            seed_syn_absorption,
+            s["seed_syn_absorption"],
             config,
             config.num_threads,
             timings,
             "Radiation.ssc_spec [FS]",
         )
-        if pg_photon_survival is not None:
-            fwd_ssc = np.asarray(fwd_ssc, dtype=float) * np.asarray(pg_photon_survival, dtype=float)
-            seed_ssc_total = np.asarray(seed_ssc_total, dtype=float) * np.asarray(pg_photon_survival, dtype=float)
+        if s["pg_photon_survival"] is not None:
+            survival = np.asarray(s["pg_photon_survival"], dtype=float)
+            s["fwd_ssc"] = np.asarray(s["fwd_ssc"], dtype=float) * survival
+            s["seed_ssc_total"] = np.asarray(s["seed_ssc_total"], dtype=float) * survival
+    return s
 
-    rev_sync = None
-    rev_ssc = None
-    cross_ic = None
-    rev_details = None
+
+def _stage_reverse_emission(
+    s: dict,
+    setup,
+    config: FitConfig,
+    dynamics: DynamicsSolution,
+    electron: ElectronSolution,
+    reverse_emission: Optional[ReverseShockEmission],
+    timings: Optional[dict[str, float]],
+) -> dict:
     if reverse_emission is not None:
-        rev_sync = reverse_emission.l_syn_spec
-        seed_syn_absorption = seed_syn_absorption + reverse_emission.seed_syn
+        s["rev_sync"] = reverse_emission.l_syn_spec
+        s["seed_syn_absorption"] = s["seed_syn_absorption"] + reverse_emission.seed_syn
         if reverse_emission.rs_hadronic is not None:
-            seed_syn_absorption = seed_syn_absorption + _reverse_hadronic_seed_density(
+            s["seed_syn_absorption"] = s["seed_syn_absorption"] + _reverse_hadronic_seed_density(
                 reverse_emission.rs_hadronic,
                 radius_cm=dynamics.radius,
                 seed_frequency_hz=setup.seed_frequency_hz,
             )
-            rev_sync = rev_sync + _reverse_hadronic_luminosity(reverse_emission.rs_hadronic)
-        rev_details = BranchState(
+            s["rev_sync"] = s["rev_sync"] + _reverse_hadronic_luminosity(reverse_emission.rs_hadronic)
+        s["rev_details"] = BranchState(
             characteristic_time_s=dynamics.r_tobs,
             gamma=dynamics.r_gamma,
             radius_cm=dynamics.radius,
@@ -696,7 +633,7 @@ def _assemble_observer_stage(
             nu_M=reverse_emission.nu_M,
         )
         if config.reverse_shock.include_ssc:
-            rev_ssc, seed_ssc_rs = _timed_call(
+            s["rev_ssc"], seed_ssc_rs = _timed_call(
                 timings,
                 "Radiation.ssc_spec [RS-SSC]",
                 Radiation.ssc_spec,
@@ -707,7 +644,7 @@ def _assemble_observer_stage(
                 reverse_emission.seed_syn,
                 config.num_threads,
             )
-            seed_ssc_total = seed_ssc_total + seed_ssc_rs
+            s["seed_ssc_total"] = s["seed_ssc_total"] + seed_ssc_rs
         if config.reverse_shock.include_cross_zone_ic:
             coupling_geometry = build_coupled_shock_geometry(dynamics, config)
             seed_fs_to_rs, seed_rs_to_fs = build_cross_zone_seed_fields(
@@ -736,50 +673,70 @@ def _assemble_observer_stage(
                 seed_fs_to_rs,
                 config.num_threads,
             )
-            cross_ic = l_cic_fs_spec + l_cic_rs_spec
-            seed_ssc_total = seed_ssc_total + seed_cic_fs + seed_cic_rs
+            s["cross_ic"] = l_cic_fs_spec + l_cic_rs_spec
+            s["seed_ssc_total"] = s["seed_ssc_total"] + seed_cic_fs + seed_cic_rs
+    return s
 
-    tau_extra = np.zeros_like(fwd_sync)
-    absorbed_fwd_hadronic_gamma = None
-    absorbed_fwd_hadronic_bethe_heitler = None
-    absorbed_fwd_hadronic_inverse_compton = None
-    absorbed_fwd_hadronic_pair_production = None
-    magnetic_field_g = compute_magnetic_field(dynamics.r_gamma, dynamics.radius, config)
-    hadronic_ssa_transfer = np.ones_like(fwd_sync)
+
+def _stage_hadronic_absorption(
+    s: dict,
+    setup,
+    config: FitConfig,
+    dynamics: DynamicsSolution,
+    electron: ElectronSolution,
+    hadronic,
+) -> dict:
+    s["magnetic_field_g"] = compute_magnetic_field(dynamics.r_gamma, dynamics.radius, config)
     if hadronic is not None:
-        hadronic_ssa_transfer = _forward_synchrotron_absorption_transfer(
+        s["hadronic_ssa_transfer"] = _forward_synchrotron_absorption_transfer(
             electron=electron,
             radius_cm=dynamics.radius,
-            magnetic_field_g=magnetic_field_g,
+            magnetic_field_g=s["magnetic_field_g"],
             seed_frequency_hz=setup.seed_frequency_hz,
             config=config,
         )
-        seed_syn_absorption = seed_syn_absorption + _hadronic_absorbed_seed_density(
+        s["seed_syn_absorption"] = s["seed_syn_absorption"] + _hadronic_absorbed_seed_density(
             hadronic=hadronic,
             radius_cm=dynamics.radius,
             seed_frequency_hz=setup.seed_frequency_hz,
-            ssa_transfer=hadronic_ssa_transfer,
+            ssa_transfer=s["hadronic_ssa_transfer"],
         )
+    return s
 
-    pair_seed_total = np.zeros_like(seed_syn_absorption)
-    pair_lum_total = np.zeros_like(fwd_sync)
-    tau_pair = np.zeros_like(fwd_sync)
+
+def _stage_pair_production(
+    s: dict,
+    setup,
+    config: FitConfig,
+    dynamics: DynamicsSolution,
+    electron: ElectronSolution,
+) -> dict:
     if bool(config.hadronic.include_pair_production):
-        pair_lum_total, pair_seed_total, tau_pair = _compute_pair_production_branch(
+        s["pair_lum_total"], s["pair_seed_total"], s["tau_pair"] = _compute_pair_production_branch(
             dynamics=dynamics,
             electron=electron,
-            combined_seed_field_hz=seed_syn_absorption + seed_ssc_total,
+            combined_seed_field_hz=s["seed_syn_absorption"] + s["seed_ssc_total"],
             seed_frequency_hz=setup.seed_frequency_hz,
-            magnetic_field_g=magnetic_field_g,
+            magnetic_field_g=s["magnetic_field_g"],
             config=config,
         )
-        seed_syn_absorption = seed_syn_absorption + pair_seed_total
-    tau_extra = tau_extra + tau_pair
-    annihilation_seed_syn = seed_syn_absorption
-    annihilation_seed_ssc = seed_ssc_total
+        s["seed_syn_absorption"] = s["seed_syn_absorption"] + s["pair_seed_total"]
+    s["tau_extra"] = s["tau_extra"] + s["tau_pair"]
+    return s
+
+
+def _stage_annihilation(
+    s: dict,
+    setup,
+    config: FitConfig,
+    dynamics: DynamicsSolution,
+    timings: Optional[dict[str, float]],
+) -> dict:
+    annihilation_seed_syn = s["seed_syn_absorption"]
+    annihilation_seed_ssc = s["seed_ssc_total"]
     if bool(config.hadronic.include_pair_production):
-        annihilation_seed_syn = np.zeros_like(seed_syn_absorption)
-        annihilation_seed_ssc = np.zeros_like(seed_ssc_total)
+        annihilation_seed_syn = np.zeros_like(s["seed_syn_absorption"])
+        annihilation_seed_ssc = np.zeros_like(s["seed_ssc_total"])
     absorption = _timed_call(
         timings,
         "Radiation.annihilation",
@@ -789,35 +746,46 @@ def _assemble_observer_stage(
         setup.seed_frequency_hz,
         annihilation_seed_syn,
         annihilation_seed_ssc,
-        tau_extra,
+        s["tau_extra"],
         config.num_threads,
     )
-    prefactor = absorption / (4.0 * np.pi * setup.luminosity_distance_cm**2) * (1.0 + config.z)
+    s["prefactor"] = absorption / (4.0 * np.pi * setup.luminosity_distance_cm**2) * (1.0 + config.z)
+    return s
 
-    absorbed_fwd_sync = fwd_sync * prefactor
-    absorbed_fwd_ssc = fwd_ssc * prefactor
+
+def _stage_assemble_result(
+    s: dict,
+    setup,
+    config: FitConfig,
+    dynamics: DynamicsSolution,
+    electron: ElectronSolution,
+    hadronic,
+) -> ObserverState:
+    prefactor = s["prefactor"]
+    absorbed_fwd_sync = s["fwd_sync"] * prefactor
+    absorbed_fwd_ssc = s["fwd_ssc"] * prefactor
     if hadronic is not None:
-        hadronic_luminosity = _hadronic_absorbed_luminosity(hadronic, hadronic_ssa_transfer)
+        hadronic_luminosity = _hadronic_absorbed_luminosity(hadronic, s["hadronic_ssa_transfer"])
         hadronic_gamma_total = hadronic_luminosity["total"]
-        absorbed_fwd_hadronic_bethe_heitler = _project_optional_luminosity(
+        s["absorbed_fwd_hadronic_bethe_heitler"] = _project_optional_luminosity(
             hadronic_luminosity["bethe_heitler"],
             prefactor,
         )
-        absorbed_fwd_hadronic_inverse_compton = _project_optional_luminosity(
+        s["absorbed_fwd_hadronic_inverse_compton"] = _project_optional_luminosity(
             hadronic_luminosity["inverse_compton"],
             prefactor,
         )
-        absorbed_fwd_hadronic_pair_production = _project_optional_luminosity(
+        s["absorbed_fwd_hadronic_pair_production"] = _project_optional_luminosity(
             hadronic_luminosity["pair_production"],
             prefactor,
         )
         if bool(config.hadronic.include_pair_production):
-            hadronic_gamma_total += pair_lum_total
-            absorbed_fwd_hadronic_pair_production = pair_lum_total * prefactor
-        absorbed_fwd_hadronic_gamma = hadronic_gamma_total * prefactor
-    absorbed_rev_sync = None if rev_sync is None else rev_sync * prefactor
-    absorbed_rev_ssc = None if rev_ssc is None else rev_ssc * prefactor
-    absorbed_cross_ic = None if cross_ic is None else cross_ic * prefactor
+            hadronic_gamma_total += s["pair_lum_total"]
+            s["absorbed_fwd_hadronic_pair_production"] = s["pair_lum_total"] * prefactor
+        s["absorbed_fwd_hadronic_gamma"] = hadronic_gamma_total * prefactor
+    absorbed_rev_sync = None if s["rev_sync"] is None else s["rev_sync"] * prefactor
+    absorbed_rev_ssc = None if s["rev_ssc"] is None else s["rev_ssc"] * prefactor
+    absorbed_cross_ic = None if s["cross_ic"] is None else s["cross_ic"] * prefactor
 
     total = absorbed_fwd_sync + absorbed_fwd_ssc
     if absorbed_rev_sync is not None:
@@ -826,21 +794,21 @@ def _assemble_observer_stage(
         total = total + absorbed_rev_ssc
     if absorbed_cross_ic is not None:
         total = total + absorbed_cross_ic
-    if absorbed_fwd_hadronic_gamma is not None:
-        total = total + absorbed_fwd_hadronic_gamma
+    if s["absorbed_fwd_hadronic_gamma"] is not None:
+        total = total + s["absorbed_fwd_hadronic_gamma"]
 
     return ObserverState(
         prefactor=np.asarray(prefactor, dtype=float),
-        tau_extra=np.asarray(tau_extra, dtype=float),
-        tau_pair=np.asarray(tau_pair, dtype=float),
+        tau_extra=np.asarray(s["tau_extra"], dtype=float),
+        tau_pair=np.asarray(s["tau_pair"], dtype=float),
         components=FluxComponents(
             total=total,
             fwd_sync=absorbed_fwd_sync,
             fwd_ssc=absorbed_fwd_ssc,
-            fwd_hadronic_gamma=absorbed_fwd_hadronic_gamma,
-            fwd_hadronic_bethe_heitler=absorbed_fwd_hadronic_bethe_heitler,
-            fwd_hadronic_inverse_compton=absorbed_fwd_hadronic_inverse_compton,
-            fwd_hadronic_pair_production=absorbed_fwd_hadronic_pair_production,
+            fwd_hadronic_gamma=s["absorbed_fwd_hadronic_gamma"],
+            fwd_hadronic_bethe_heitler=s["absorbed_fwd_hadronic_bethe_heitler"],
+            fwd_hadronic_inverse_compton=s["absorbed_fwd_hadronic_inverse_compton"],
+            fwd_hadronic_pair_production=s["absorbed_fwd_hadronic_pair_production"],
             rev_sync=absorbed_rev_sync,
             rev_ssc=absorbed_rev_ssc,
             cross_ic=absorbed_cross_ic,
@@ -858,7 +826,7 @@ def _assemble_observer_stage(
                 cooling_timescale_s=electron.cooling_timescale_s,
                 dynamical_timescale_s=electron.dynamical_timescale_s,
             ),
-            rev=rev_details,
+            rev=s["rev_details"],
         ),
     )
 

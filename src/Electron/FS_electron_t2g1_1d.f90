@@ -32,21 +32,8 @@ subroutine fs_electron_t2g1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,N
               Compton1(Num_gam_e),gam_e_rad(Num_gam_e),dN_gam_e_rad(Num_gam_e))
     
     !***********************[Parameter Initial]**********************
-    Eta_0=Boundary(1)
-    R_ini=Boundary(4)
-    Epsilon_e=Boundary(5)
-    Epsilon_b=Boundary(6)
-    p=Boundary(7)
-    z=Boundary(8)
-    dNe_ISM=Boundary(11)
-    A_star=Boundary(12)
-    E_iso=Boundary(14)
-    T_log10_duration=Boundary(15)
-    f_e=Boundary(16)
-    R_tr=Boundary(21)
-    f_jump=Boundary(22)
-    f_wide=Boundary(23)
-    R0=Boundary(n)
+    call electron_unpack_boundary(Boundary,n,Eta_0,R_ini,Epsilon_e,Epsilon_b,p,z,dNe_ISM,A_star, &
+                                  E_iso,T_log10_duration,f_e,R_tr,f_jump,f_wide,R0)
     
     P_syn=zero
     Seed_syn=zero

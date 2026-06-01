@@ -3,7 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Optional
+from typing import Callable, Optional
 
 import numpy as np
 
@@ -13,13 +13,9 @@ from asgard_core.asgard_observables import build_multiband_observer_frequencies,
 
 class Scale(str, Enum):
     LINEAR = "linear"
-    linear = "linear"
     LOG = "log"
-    log = "log"
     LOG10 = "log10"
-    log10 = "log10"
     FIXED = "fixed"
-    fixed = "fixed"
 
 
 @dataclass
@@ -442,11 +438,6 @@ class FluxPair:
     sync: np.ndarray
     ssc: np.ndarray
 
-    @property
-    def synch(self) -> np.ndarray:
-        return self.sync
-
-
 @dataclass
 class CharTrack:
     t_obs: np.ndarray
@@ -498,21 +489,12 @@ class TrackBundle:
     rev: Optional[CharTrack]
     patches: list[dict[str, float]]
 
-    @property
-    def rvs(self) -> Optional[CharTrack]:
-        return self.rev
-
-
 @dataclass
 class FluxResult:
     total: np.ndarray
     fwd: FluxPair
     rev: FluxPair
     cross_ic: Optional[np.ndarray]
-
-    @property
-    def rvs(self) -> FluxPair:
-        return self.rev
 
     @property
     def shape(self):
@@ -564,110 +546,55 @@ class PolarizationResult:
         return self.I_sync.shape
 
 
-@dataclass
-class ObsSet:
-    flux_density: list[dict[str, Any]] = field(default_factory=list)
-    spectrum: list[dict[str, Any]] = field(default_factory=list)
-    flux: list[dict[str, Any]] = field(default_factory=list)
-
-    def add_flux_density(
-        self,
-        times_s: Optional[np.ndarray] = None,
-        frequencies_hz: Optional[np.ndarray] = None,
-        flux: Optional[np.ndarray] = None,
-        flux_err: Optional[np.ndarray] = None,
-        *,
-        t: Optional[np.ndarray] = None,
-        nu: Optional[np.ndarray] = None,
-        f_nu: Optional[np.ndarray] = None,
-        err: Optional[np.ndarray] = None,
-    ) -> None:
-        self.flux_density.append(
-            {
-                "times_s": np.asarray(times_s if times_s is not None else t, dtype=float),
-                "frequencies_hz": np.asarray(frequencies_hz if frequencies_hz is not None else nu, dtype=float),
-                "flux": np.asarray(flux if flux is not None else f_nu, dtype=float),
-                "flux_err": np.asarray(flux_err if flux_err is not None else err, dtype=float),
-            }
-        )
-
-    def add_spectrum(
-        self,
-        time_s: Optional[float] = None,
-        frequencies_hz: Optional[np.ndarray] = None,
-        flux: Optional[np.ndarray] = None,
-        flux_err: Optional[np.ndarray] = None,
-        *,
-        t: Optional[float] = None,
-        nu: Optional[np.ndarray] = None,
-        f_nu: Optional[np.ndarray] = None,
-        err: Optional[np.ndarray] = None,
-    ) -> None:
-        self.spectrum.append(
-            {
-                "time_s": float(time_s if time_s is not None else t),
-                "frequencies_hz": np.asarray(frequencies_hz if frequencies_hz is not None else nu, dtype=float),
-                "flux": np.asarray(flux if flux is not None else f_nu, dtype=float),
-                "flux_err": np.asarray(flux_err if flux_err is not None else err, dtype=float),
-            }
-        )
-
-    def add_flux(
-        self,
-        nu_min_hz: Optional[float] = None,
-        nu_max_hz: Optional[float] = None,
-        time_s: Optional[float] = None,
-        flux: Optional[float] = None,
-        flux_err: Optional[float] = None,
-        *,
-        nu_min: Optional[float] = None,
-        nu_max: Optional[float] = None,
-        t: Optional[float] = None,
-        value: Optional[float] = None,
-        err: Optional[float] = None,
-        num_points: int = 64,
-    ) -> None:
-        self.flux.append(
-            {
-                "nu_min_hz": float(nu_min_hz if nu_min_hz is not None else nu_min),
-                "nu_max_hz": float(nu_max_hz if nu_max_hz is not None else nu_max),
-                "time_s": float(time_s if time_s is not None else t),
-                "flux": float(flux if flux is not None else value),
-                "flux_err": float(flux_err if flux_err is not None else err),
-                "num_points": int(num_points),
-            }
-        )
-
-    @staticmethod
-    def logscale_screen(times_s: np.ndarray, data_density: float = 5.0) -> np.ndarray:
-        times_s = np.asarray(times_s, dtype=float)
-        if times_s.ndim != 1:
-            raise ValueError("times_s must be one-dimensional.")
-        if times_s.size == 0:
-            return np.array([], dtype=int)
-        log_times = np.log10(times_s)
-        decades = max(log_times.max() - log_times.min(), 0.0)
-        num_bins = max(1, int(np.ceil(decades * data_density)))
-        edges = np.linspace(log_times.min(), log_times.max(), num_bins + 1)
-        indices: list[int] = []
-        for i in range(num_bins):
-            left = edges[i]
-            right = edges[i + 1]
-            mask = (log_times >= left) & (log_times < right if i < num_bins - 1 else log_times <= right)
-            if np.any(mask):
-                candidates = np.where(mask)[0]
-                center = 0.5 * (left + right)
-                idx = int(candidates[np.argmin(np.abs(log_times[candidates] - center))])
-                indices.append(idx)
-        return np.asarray(sorted(set(indices)), dtype=int)
+def make_flux_density_entry(
+    times_s: np.ndarray,
+    frequencies_hz: np.ndarray,
+    flux: np.ndarray,
+    flux_err: np.ndarray,
+) -> dict:
+    return dict(
+        times_s=np.asarray(times_s, dtype=float),
+        frequencies_hz=np.asarray(frequencies_hz, dtype=float),
+        flux=np.asarray(flux, dtype=float),
+        flux_err=np.asarray(flux_err, dtype=float),
+    )
 
 
+def make_spectrum_entry(
+    time_s: float,
+    frequencies_hz: np.ndarray,
+    flux: np.ndarray,
+    flux_err: np.ndarray,
+) -> dict:
+    return dict(
+        time_s=float(time_s),
+        frequencies_hz=np.asarray(frequencies_hz, dtype=float),
+        flux=np.asarray(flux, dtype=float),
+        flux_err=np.asarray(flux_err, dtype=float),
+    )
 
-BranchView = FluxPair
-DetailView = CharTrack
-ModelDetails = TrackBundle
-ModelFluxResult = FluxResult
-ObsData = ObsSet
+
+def make_flux_entry(
+    nu_min_hz: float,
+    nu_max_hz: float,
+    time_s: float,
+    flux: float,
+    flux_err: float,
+    num_points: int = 64,
+) -> dict:
+    return dict(
+        nu_min_hz=float(nu_min_hz),
+        nu_max_hz=float(nu_max_hz),
+        time_s=float(time_s),
+        flux=float(flux),
+        flux_err=float(flux_err),
+        num_points=int(num_points),
+    )
+
+
+def make_empty_obs() -> dict:
+    return dict(flux_density=[], spectrum=[], flux=[])
+
 
 
 class Model:
@@ -698,31 +625,31 @@ class Model:
         self.setups = deepcopy(Setups() if setups is None else setups)
         if resolutions is not None:
             self._apply_resolutions(resolutions)
-        self._last_details: Optional[ModelDetails] = None
-        self._raw_cache: dict[tuple[str, str], tuple[ModelFluxResult, ModelDetails]] = {}
-        self._details_cache: dict[str, ModelDetails] = {}
+        self._last_details: Optional[TrackBundle] = None
+        self._raw_cache: dict[tuple[str, str], tuple[FluxResult, TrackBundle]] = {}
+        self._details_cache: dict[str, TrackBundle] = {}
 
-    def flux_density_grid(self, times_s: np.ndarray, nu_hz: np.ndarray) -> ModelFluxResult:
+    def flux_density_grid(self, times_s: np.ndarray, nu_hz: np.ndarray) -> FluxResult:
         times_s = np.asarray(times_s, dtype=float)
         nu_hz = np.asarray(nu_hz, dtype=float)
         return self._compute_raw(times_s, nu_hz)
 
-    def flux_density(self, times_s: np.ndarray, nu_hz: np.ndarray) -> ModelFluxResult:
+    def flux_density(self, times_s: np.ndarray, nu_hz: np.ndarray) -> FluxResult:
         times_s = np.asarray(times_s, dtype=float)
         nu_hz = np.asarray(nu_hz, dtype=float)
         from .api_observe import _extract_pair_flux
 
-        def pack(result: ModelFluxResult, extract: Callable[[np.ndarray], np.ndarray]) -> ModelFluxResult:
+        def pack(result: FluxResult, extract: Callable[[np.ndarray], np.ndarray]) -> FluxResult:
             pair_total = extract(result.total)
             pair_fwd_sync = extract(result.fwd.sync)
             pair_fwd_ssc = extract(result.fwd.ssc)
             pair_rev_sync = extract(result.rev.sync)
             pair_rev_ssc = extract(result.rev.ssc)
             pair_cross_ic = None if result.cross_ic is None else extract(result.cross_ic)
-            return ModelFluxResult(
+            return FluxResult(
                 total=pair_total,
-                fwd=BranchView(sync=pair_fwd_sync, ssc=pair_fwd_ssc),
-                rev=BranchView(sync=pair_rev_sync, ssc=pair_rev_ssc),
+                fwd=FluxPair(sync=pair_fwd_sync, ssc=pair_fwd_ssc),
+                rev=FluxPair(sync=pair_rev_sync, ssc=pair_rev_ssc),
                 cross_ic=pair_cross_ic,
             )
 
@@ -741,7 +668,7 @@ class Model:
         nu_hz: np.ndarray,
         exposures_s: np.ndarray,
         num_subsamples: int = 4,
-    ) -> ModelFluxResult:
+    ) -> FluxResult:
         times_s = np.asarray(times_s, dtype=float)
         nu_hz = np.asarray(nu_hz, dtype=float)
         exposures_s = np.asarray(exposures_s, dtype=float)
@@ -802,17 +729,17 @@ class Model:
         rev_sync = trapezoid(result.rev.sync, nu_hz, axis=0)
         rev_ssc = trapezoid(result.rev.ssc, nu_hz, axis=0)
         cross_ic = None if result.cross_ic is None else trapezoid(result.cross_ic, nu_hz, axis=0)
-        band_result = ModelFluxResult(
+        band_result = FluxResult(
             total=total,
-            fwd=BranchView(sync=fwd_sync, ssc=fwd_ssc),
-            rev=BranchView(sync=rev_sync, ssc=rev_ssc),
+            fwd=FluxPair(sync=fwd_sync, ssc=fwd_ssc),
+            rev=FluxPair(sync=rev_sync, ssc=rev_ssc),
             cross_ic=cross_ic,
         )
         if np.asarray(time_s).ndim == 0:
             return float(band_result.total[0])
         return band_result
 
-    def details(self, t_min: Optional[float] = None, t_max: Optional[float] = None) -> ModelDetails:
+    def details(self, t_min: Optional[float] = None, t_max: Optional[float] = None) -> TrackBundle:
         if t_min is not None or t_max is not None:
             t1 = self.setups.observer_time_min_s if t_min is None else float(t_min)
             t2 = self.setups.observer_time_max_s if t_max is None else float(t_max)
@@ -832,7 +759,7 @@ class Model:
     def medium_rho(self, phi: float, theta: float, r_cm: float) -> float:
         return self.medium.density(phi, theta, r_cm)
 
-    def component_fluxes(self, times_s: np.ndarray, nu_hz: np.ndarray) -> ModelFluxResult:
+    def component_fluxes(self, times_s: np.ndarray, nu_hz: np.ndarray) -> FluxResult:
         return self._compute(times_s, nu_hz)
 
     def flux_density_bands(self, times_s: np.ndarray) -> np.ndarray:
@@ -857,7 +784,7 @@ class Model:
     def default_frequencies(self) -> np.ndarray:
         return np.logspace(np.log10(1.0e9), np.log10(1.0e24), 64)
 
-    def _compute(self, times_s: np.ndarray, nu_hz: np.ndarray) -> ModelFluxResult:
+    def _compute(self, times_s: np.ndarray, nu_hz: np.ndarray) -> FluxResult:
         return self._compute_raw(times_s, nu_hz)
 
     def _compute_raw(
@@ -866,7 +793,7 @@ class Model:
         nu_hz: np.ndarray,
         *,
         solve_reference_times_s: np.ndarray | None = None,
-    ) -> ModelFluxResult:
+    ) -> FluxResult:
         times_s = np.asarray(times_s, dtype=float)
         nu_hz = np.asarray(nu_hz, dtype=float)
         from .api_adaptive import _array_signature, _remember_cache_entry
@@ -898,7 +825,7 @@ class Model:
         _remember_cache_entry(self._raw_cache, cache_key, model_result)
         return model_result[0]
 
-    def _compute_details_only(self, times_s: np.ndarray) -> ModelDetails:
+    def _compute_details_only(self, times_s: np.ndarray) -> TrackBundle:
         times_s = np.asarray(times_s, dtype=float)
         from .api_adaptive import _array_signature, _remember_cache_entry
         from .api_observe import _evaluate_direct_details, _patch_details

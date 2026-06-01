@@ -33,6 +33,8 @@ DIRECT_ORDERED_BUILD_MODULES = {
 }
 F2PY_ENTRYPOINTS = {
     "FS_electron_charint_1d": ("fs_electron_charint_1d",),
+    "FS_electron_charint_2d": ("fs_electron_transport_2d_core",),
+    "FS_electron_fullhide_2d": ("fs_electron_transport_2d_core",),
     "electron_radiation": ("get_nu_a", "get_syn_selected", "get_syn_transfer", "get_syn_polarization_selected"),
     "electron_reverse_kernel": ("electron_reverse_evolve",),
     "SSC_spec": ("ssc_spec", "ssc_spec_nonuniform"),
@@ -83,7 +85,6 @@ ELECTRON_RADIATION_SOURCES = (
     "adaptive_resampling_mod.f90",
     "electron_radiation_kernel.f90",
 )
-ELECTRON_1D_SOURCES = ELECTRON_COMMON_SOURCES
 ELECTRON_HISTORY_SOURCES = (
     *ELECTRON_COMMON_SOURCES,
     "electron_seed_history_kernel.f90",
@@ -503,15 +504,15 @@ def main() -> None:
         ("Constants", src, ["Constants.f90"], None, None),
         ("Dynamics_reverse", dyn, _with_main(DYNAMICS_COMMON_SOURCES, "Dynamics_reverse.f90"), COMMON_FLAGS, None),
         ("Dynamics_forward", dyn, _with_main(DYNAMICS_COMMON_SOURCES, "Dynamics_forward.f90"), COMMON_FLAGS, None),
-        ("FS_electron_weno5_1d", ele, _with_main(ELECTRON_1D_SOURCES, "FS_electron_weno5_1d.f90"), omp_flags, OPENMP_LIBS),
-        ("FS_electron_slc1_1d", ele, _with_main(ELECTRON_1D_SOURCES, "FS_electron_slc1_1d.f90"), omp_flags, OPENMP_LIBS),
-        ("FS_electron_charint_1d", ele, _with_main(ELECTRON_1D_SOURCES, "FS_electron_charint_1d.f90"), omp_flags, OPENMP_LIBS),
+        ("FS_electron_weno5_1d", ele, _with_main(ELECTRON_COMMON_SOURCES, "FS_electron_weno5_1d.f90"), omp_flags, OPENMP_LIBS),
+        ("FS_electron_slc1_1d", ele, _with_main(ELECTRON_COMMON_SOURCES, "FS_electron_slc1_1d.f90"), omp_flags, OPENMP_LIBS),
+        ("FS_electron_charint_1d", ele, _with_main(ELECTRON_COMMON_SOURCES, "FS_electron_charint_1d.f90"), omp_flags, OPENMP_LIBS),
         ("FS_electron_fullhide_1d", ele, _with_main(ELECTRON_HISTORY_SOURCES, "FS_electron_fullhide_1d.f90"), omp_flags, OPENMP_LIBS),
         ("FS_electron_fullhide_2d", ele, _with_main(ELECTRON_2D_SOURCES, "FS_electron_fullhide_2d.f90"), omp_flags, OPENMP_LIBS),
-        ("FS_electron_charint_2d", ele, [*ELECTRON_2D_SOURCES, "FS_electron_fullhide_2d.f90", "FS_electron_charint_2d.f90"], omp_flags, OPENMP_LIBS),
-        ("FS_electron_t2g1_1d", ele, _with_main(ELECTRON_1D_SOURCES, "FS_electron_t2g1_1d.f90"), omp_flags, OPENMP_LIBS),
+        ("FS_electron_charint_2d", ele, _with_main(ELECTRON_2D_SOURCES, "FS_electron_fullhide_2d.f90"), omp_flags, OPENMP_LIBS),
+        ("FS_electron_t2g1_1d", ele, _with_main(ELECTRON_COMMON_SOURCES, "FS_electron_t2g1_1d.f90"), omp_flags, OPENMP_LIBS),
         ("electron_radiation", ele, ELECTRON_RADIATION_SOURCES, omp_flags, OPENMP_LIBS),
-        ("electron_reverse_kernel", ele, _with_main(ELECTRON_1D_SOURCES, "electron_reverse_kernel.f90"), omp_flags, OPENMP_LIBS),
+        ("electron_reverse_kernel", ele, _with_main(ELECTRON_COMMON_SOURCES, "electron_reverse_kernel.f90"), omp_flags, OPENMP_LIBS),
         ("SED_interpolation", itp, ["../Constants.f90", "interpolation_common.f90", "SED_interpolation.f90"], omp_flags, OPENMP_LIBS),
         ("SED_interpolation_structured", itp, ["../Constants.f90", "interpolation_common.f90", "SED_interpolation_structured.f90"], omp_flags, OPENMP_LIBS),
         ("Annihilation", rad, _with_main(RADIATION_COMMON_SOURCES, "Annihilation.f90"), omp_flags, OPENMP_LIBS),

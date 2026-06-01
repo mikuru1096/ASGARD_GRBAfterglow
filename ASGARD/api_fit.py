@@ -7,7 +7,7 @@ from typing import Any, Optional
 
 import numpy as np
 
-from .api_model import Model, ModelFluxResult, ObsData, Scale
+from .api_model import Model, FluxResult, Scale, make_empty_obs
 
 class Param:
     def __init__(self, name: str, *args, scale: Scale = Scale.LINEAR) -> None:
@@ -58,13 +58,13 @@ class Fitter:
     def __init__(
         self,
         model: Optional[Model] = None,
-        data: Optional[ObsData] = None,
+        data: Optional[dict] = None,
         params: Optional[list[ParamDef]] = None,
         cfg: Optional[Any] = None,
         num_workers: int = 1,
         **config_kwargs,
     ) -> None:
-        if isinstance(model, ObsData) and data is None:
+        if isinstance(model, dict) and data is None:
             data = model
             model = None
         if cfg is None and config_kwargs:
@@ -72,7 +72,7 @@ class Fitter:
         from .api_observe import _as_model
 
         self.model = model if model is not None else _as_model(cfg)
-        self.data = ObsData() if data is None else data
+        self.data = make_empty_obs() if data is None else data
         self.params = [] if params is None else list(params)
         self.num_workers = int(num_workers)
 
@@ -98,19 +98,39 @@ class Fitter:
 
         return eval_loglike(self._compiled_problem, values)
 
-    def flux_density_grid(self, values: dict[str, float], times_s: np.ndarray, nu_hz: np.ndarray) -> ModelFluxResult:
+    def flux_density_grid(self, values: dict[str, float], times_s: np.ndarray, nu_hz: np.ndarray) -> FluxResult:
         return self.build_model(values).flux_density_grid(times_s, nu_hz)
 
-    def add_flux_density(self, *args, **kwargs) -> None:
-        self.data.add_flux_density(*args, **kwargs)
+    def add_flux_density(self, times_s=None, frequencies_hz=None, flux=None, flux_err=None, **kwargs) -> None:
+        entry = make_flux_density_entry(
+            times_s if times_s is not None else kwargs.get("t"),
+            frequencies_hz if frequencies_hz is not None else kwargs.get("nu"),
+            flux if flux is not None else kwargs.get("f_nu"),
+            flux_err if flux_err is not None else kwargs.get("err"),
+        )
+        self.data["flux_density"].append(entry)
         self.__dict__.pop("_compiled_problem", None)
 
-    def add_spectrum(self, *args, **kwargs) -> None:
-        self.data.add_spectrum(*args, **kwargs)
+    def add_spectrum(self, time_s=None, frequencies_hz=None, flux=None, flux_err=None, **kwargs) -> None:
+        entry = make_spectrum_entry(
+            time_s if time_s is not None else kwargs.get("t"),
+            frequencies_hz if frequencies_hz is not None else kwargs.get("nu"),
+            flux if flux is not None else kwargs.get("f_nu"),
+            flux_err if flux_err is not None else kwargs.get("err"),
+        )
+        self.data["spectrum"].append(entry)
         self.__dict__.pop("_compiled_problem", None)
 
-    def add_flux(self, *args, **kwargs) -> None:
-        self.data.add_flux(*args, **kwargs)
+    def add_flux(self, nu_min_hz=None, nu_max_hz=None, time_s=None, flux=None, flux_err=None, num_points=64, **kwargs) -> None:
+        entry = make_flux_entry(
+            nu_min_hz if nu_min_hz is not None else kwargs.get("nu_min"),
+            nu_max_hz if nu_max_hz is not None else kwargs.get("nu_max"),
+            time_s if time_s is not None else kwargs.get("t"),
+            flux if flux is not None else kwargs.get("value"),
+            flux_err if flux_err is not None else kwargs.get("err"),
+            int(num_points),
+        )
+        self.data["flux"].append(entry)
         self.__dict__.pop("_compiled_problem", None)
 
     def run_emcee(self, initial: np.ndarray, nwalkers: int, nsteps: int) -> FitResult:

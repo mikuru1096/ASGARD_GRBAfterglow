@@ -7,7 +7,7 @@ from typing import Any, Optional
 import numpy as np
 
 from ASGARD.api_fit import ParamDef
-from ASGARD.api_model import Model, ObsData
+from ASGARD.api_model import Model
 from ASGARD.api_observe import _as_model, _param_path, _total_matrix
 from asgard_core.asgard_numpy import trapezoid
 from asgard_core.asgard_state import project_flux_grid, solve_state_from_setup
@@ -90,9 +90,9 @@ def compile_problem(
     if isinstance(data_or_config, FitConfig) and model_or_config is None:
         return _compile_cfg(data_or_config)
 
-    data = data_or_config if isinstance(data_or_config, ObsData) else None
+    data = data_or_config if isinstance(data_or_config, dict) else None
     if data is None:
-        raise TypeError("compile_problem expects either (config) or (ObsData, model_or_config).")
+        raise TypeError("compile_problem expects either (config) or (dict, model_or_config).")
     model = model_or_config if isinstance(model_or_config, Model) else _as_model(model_or_config)
     return _compile_model(data, model, params=params)
 
@@ -130,7 +130,7 @@ def _compile_cfg(config: FitConfig) -> FitProblem:
 
 
 def _compile_model(
-    data: ObsData,
+    data: dict,
     model: Model,
     *,
     params: Optional[list[ParamDef]] = None,
@@ -145,94 +145,135 @@ def _compile_model(
 
 
 def _compile_obs(
-    data: ObsData,
+    data: dict,
 ) -> ObsPlan:
     blocks: list[ObsBlock] = []
-
-    for dataset in data.flux_density:
+    for dataset in data["flux_density"]:
         times_s = np.asarray(dataset["times_s"], dtype=float)
         frequencies_hz = np.asarray(dataset["frequencies_hz"], dtype=float)
-        flux = np.asarray(dataset["flux"], dtype=float)
-        flux_err = np.asarray(dataset["flux_err"], dtype=float)
-        observer_time_s = np.unique(times_s.reshape(-1))
-        requested_frequencies_hz = np.unique(frequencies_hz.reshape(-1))
         blocks.append(
-            ObsBlock(
-                observer_time_s=observer_time_s,
-                requested_frequencies_hz=requested_frequencies_hz,
-                flux_density=(
-                    FluxData(
-                        pair_mode=times_s.shape == frequencies_hz.shape,
-                        time_indices=_idx(observer_time_s, times_s.reshape(-1)),
-                        freq_indices=_idx(requested_frequencies_hz, frequencies_hz.reshape(-1)),
-                        flux=flux,
-                        flux_err=flux_err,
-                    ),
-                ),
-                spectra=(),
-                band_fluxes=(),
+            _make_flux_block(
+                np.unique(times_s.reshape(-1)),
+                np.unique(frequencies_hz.reshape(-1)),
+                times_s,
+                frequencies_hz,
+                np.asarray(dataset["flux"], dtype=float),
+                np.asarray(dataset["flux_err"], dtype=float),
             )
         )
-
-    for dataset in data.spectrum:
+    for dataset in data["spectrum"]:
         time_s = float(dataset["time_s"])
         frequencies_hz = np.asarray(dataset["frequencies_hz"], dtype=float)
-        observer_time_s = np.array([time_s], dtype=float)
-        requested_frequencies_hz = np.unique(frequencies_hz)
         blocks.append(
-            ObsBlock(
-                observer_time_s=observer_time_s,
-                requested_frequencies_hz=requested_frequencies_hz,
-                flux_density=(),
-                spectra=(
-                    SpecData(
-                        time_index=0,
-                        freq_indices=_idx(requested_frequencies_hz, frequencies_hz),
-                        flux=np.asarray(dataset["flux"], dtype=float),
-                        flux_err=np.asarray(dataset["flux_err"], dtype=float),
-                    ),
-                ),
-                band_fluxes=(),
+            _make_spec_block(
+                np.array([time_s], dtype=float),
+                np.unique(frequencies_hz),
+                frequencies_hz,
+                np.asarray(dataset["flux"], dtype=float),
+                np.asarray(dataset["flux_err"], dtype=float),
             )
         )
-
-    for dataset in data.flux:
+    for dataset in data["flux"]:
         time_s = float(dataset["time_s"])
         sample_frequencies_hz = np.logspace(
             np.log10(float(dataset["nu_min_hz"])),
             np.log10(float(dataset["nu_max_hz"])),
             int(dataset["num_points"]),
         )
-        requested_frequencies_hz = np.unique(sample_frequencies_hz)
         blocks.append(
-            ObsBlock(
-                observer_time_s=np.array([time_s], dtype=float),
-                requested_frequencies_hz=requested_frequencies_hz,
-                flux_density=(),
-                spectra=(),
-                band_fluxes=(
-                    BandData(
-                        time_index=0,
-                        freq_indices=_idx(requested_frequencies_hz, sample_frequencies_hz),
-                        sample_frequencies_hz=sample_frequencies_hz,
-                        flux=float(dataset["flux"]),
-                        flux_err=float(dataset["flux_err"]),
-                    ),
-                ),
+            _make_band_block(
+                np.array([time_s], dtype=float),
+                np.unique(sample_frequencies_hz),
+                sample_frequencies_hz,
+                float(dataset["flux"]),
+                float(dataset["flux_err"]),
             )
         )
-
     if not blocks:
-        blocks.append(
-            ObsBlock(
-                observer_time_s=np.array([1.0e2], dtype=float),
-                requested_frequencies_hz=np.array([1.0e14], dtype=float),
-                flux_density=(),
-                spectra=(),
-                band_fluxes=(),
-            )
-        )
+        blocks.append(_make_default_block())
     return ObsPlan(blocks=tuple(blocks))
+
+
+def _make_flux_block(
+    observer_time_s: np.ndarray,
+    requested_frequencies_hz: np.ndarray,
+    times_s: np.ndarray,
+    frequencies_hz: np.ndarray,
+    flux: np.ndarray,
+    flux_err: np.ndarray,
+) -> ObsBlock:
+    return ObsBlock(
+        observer_time_s=observer_time_s,
+        requested_frequencies_hz=requested_frequencies_hz,
+        flux_density=(
+            FluxData(
+                pair_mode=times_s.shape == frequencies_hz.shape,
+                time_indices=_idx(observer_time_s, times_s.reshape(-1)),
+                freq_indices=_idx(requested_frequencies_hz, frequencies_hz.reshape(-1)),
+                flux=flux,
+                flux_err=flux_err,
+            ),
+        ),
+        spectra=(),
+        band_fluxes=(),
+    )
+
+
+def _make_spec_block(
+    observer_time_s: np.ndarray,
+    requested_frequencies_hz: np.ndarray,
+    frequencies_hz: np.ndarray,
+    flux: np.ndarray,
+    flux_err: np.ndarray,
+) -> ObsBlock:
+    return ObsBlock(
+        observer_time_s=observer_time_s,
+        requested_frequencies_hz=requested_frequencies_hz,
+        flux_density=(),
+        spectra=(
+            SpecData(
+                time_index=0,
+                freq_indices=_idx(requested_frequencies_hz, frequencies_hz),
+                flux=flux,
+                flux_err=flux_err,
+            ),
+        ),
+        band_fluxes=(),
+    )
+
+
+def _make_band_block(
+    observer_time_s: np.ndarray,
+    requested_frequencies_hz: np.ndarray,
+    sample_frequencies_hz: np.ndarray,
+    flux: float,
+    flux_err: float,
+) -> ObsBlock:
+    return ObsBlock(
+        observer_time_s=observer_time_s,
+        requested_frequencies_hz=requested_frequencies_hz,
+        flux_density=(),
+        spectra=(),
+        band_fluxes=(
+            BandData(
+                time_index=0,
+                freq_indices=_idx(requested_frequencies_hz, sample_frequencies_hz),
+                sample_frequencies_hz=sample_frequencies_hz,
+                flux=flux,
+                flux_err=flux_err,
+            ),
+        ),
+    )
+
+
+def _make_default_block() -> ObsBlock:
+    return ObsBlock(
+        observer_time_s=np.array([1.0e2], dtype=float),
+        requested_frequencies_hz=np.array([1.0e14], dtype=float),
+        flux_density=(),
+        spectra=(),
+        band_fluxes=(),
+    )
 
 
 def _compile_params(model: Model, params: list[ParamDef]) -> tuple[ParamBinding, ...]:

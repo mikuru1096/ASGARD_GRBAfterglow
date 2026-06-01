@@ -137,7 +137,7 @@ def plot_reverse_shock() -> Path:
     for i, nu in enumerate(bands):
         label = _label_from_value(nu, "Hz")
         plt.loglog(times, results.fwd.sync[i, :], label=f"{label} (fwd)")
-        plt.loglog(times, results.rvs.sync[i, :], ls="--", label=f"{label} (rvs)")
+        plt.loglog(times, results.rev.sync[i, :], ls="--", label=f"{label} (rvs)")
     plt.xlabel("Time (s)")
     plt.ylabel("Flux Density (erg/cm²/s/Hz)")
     plt.legend(ncol=2, fontsize=8)

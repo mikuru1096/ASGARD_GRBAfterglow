@@ -25,19 +25,8 @@ subroutine fs_electron_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_
     allocate(dEl_base(Num_gam_e),dEl_step(Num_gam_e),dN_x(Num_gam_e),dN_step(Num_gam_e), &
              dF1(Num_gam_e),dF1_shape(Num_gam_e),x_edge(Num_gam_e+1),gam_e_rad(Num_gam_e),dN_gam_e_rad(Num_gam_e))
 
-    Eta_0=Boundary(1)
-    R_ini=Boundary(4)
-    Epsilon_e=Boundary(5)
-    Epsilon_b=Boundary(6)
-    p=Boundary(7)
-    z=Boundary(8)
-    dNe_ISM=Boundary(11)
-    A_star=Boundary(12)
-    f_e=Boundary(16)
-    R_tr=Boundary(21)
-    f_jump=Boundary(22)
-    f_wide=Boundary(23)
-    R0=Boundary(n)
+    call electron_unpack_boundary(Boundary,n,Eta_0,R_ini,Epsilon_e,Epsilon_b,p,z,dNe_ISM,A_star, &
+                                  E_iso,T_log10_duration,f_e,R_tr,f_jump,f_wide,R0)
 
     P_syn=zero
     Seed_syn=zero

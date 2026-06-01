@@ -1,28 +1,3 @@
-! Calculate the electron distributions of forward shock.
-! Internal conserved variable:
-!   U(log10(gamma_e), log10(chi), R) = dN / (dlog10(gamma_e) dlog10(chi))
-! Coordinate definition:
-!   chi = 1 + 8 * Gamma_sh^2 * x / R
-!****************************************************************************************
-! 电子2D全隐格式主驱动：调用fs_electron_transport_2d_core执行(γ,χ)二维隐式输运。
-subroutine fs_electron_fullhide_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e, &
-                                   Num_chi,index_Y,index_syn_intger,n_threads, &
-                                   gam_e,dN_gam_e,dN_gam_e_total,P_syn,Seed_syn,V_m,V_c,V_a)
-    implicit real(8)(a-h,o-z)
-    integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,Num_chi,index_Y,index_syn_intger,n_threads
-    real(8), intent(in) :: Boundary(n),R_Tobs(Num_R),R_Gamma(Num_R),R(Num_R),V_seed(Num_nu)
-    real(8), intent(out) :: dN_gam_e(Num_gam_e, Num_chi, Num_R)
-    real(8), intent(out) :: dN_gam_e_total(Num_gam_e, Num_R)
-    real(8), intent(out) :: gam_e(Num_gam_e)
-    real(8), intent(out) :: P_syn(Num_nu, Num_R)
-    real(8), intent(out) :: Seed_syn(Num_nu, Num_R)
-    real(8), intent(out) :: V_m(Num_R), V_c(Num_R), V_a(Num_R)
-    call fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e, &
-                                       Num_chi,index_Y,index_syn_intger,n_threads, &
-                                       gam_e,dN_gam_e,dN_gam_e_total,P_syn,Seed_syn,V_m,V_c,V_a, &
-                                       .false., 'fullhide_2d')
-end subroutine fs_electron_fullhide_2d
-
 ! 电子2D输运核心：χ网格构建→壳层循环（历史场叠加+冷却+η对流/扩散+能量维冷却），支持charint/fullhide双模式。
 subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e, &
                                          Num_chi,index_Y,index_syn_intger,n_threads, &
@@ -31,7 +6,7 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
     !$ use omp_lib
     use constants
     use dynamics_common, only: dynamics_external_density_profile
-    use electron_common, only: electron_initial_density, electron_initialize_spectrum, &
+    use electron_common, only: electron_initial_density, electron_initialize_spectrum, electron_unpack_boundary, &
                                electron_initial_grid_gamma, &
                                electron_gamma_m_exact, electron_injection_prefactor, &
                                electron_gamma_c_from_loss_mean, electron_source_bounds
@@ -108,20 +83,8 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
              beta_hist(Num_chi, Num_R), dN_cell(Num_gam_e), P_local(Num_nu, Num_chi), kappa2_chi(Num_gam_e, Num_chi), &
              cooling_aux_chi(Num_gam_e, Num_chi), dEl_chi(Num_gam_e, Num_chi), dEL_mean_chi(Num_gam_e-1, Num_chi))
 
-    Eta_0            = Boundary(1)
-    R_ini            = Boundary(4)
-    Epsilon_e        = Boundary(5)
-    Epsilon_b        = Boundary(6)
-    p                = Boundary(7)
-    z                = Boundary(8)
-    dNe_ISM          = Boundary(11)
-    A_star           = Boundary(12)
-    E_iso            = Boundary(14)
-    T_log10_duration = Boundary(15)
-    f_e              = Boundary(16)
-    R_tr             = Boundary(21)
-    f_jump           = Boundary(22)
-    f_wide           = Boundary(23)
+    call electron_unpack_boundary(Boundary,n,Eta_0,R_ini,Epsilon_e,Epsilon_b,p,z,dNe_ISM,A_star, &
+                                  E_iso,T_log10_duration,f_e,R_tr,f_jump,f_wide,R0)
     Epsilon_b_floor  = Epsilon_b
     magnetic_decay_alpha_t = zero
     magnetic_decay_t0_s = one
@@ -130,7 +93,6 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
         magnetic_decay_alpha_t = Boundary(25)
         magnetic_decay_t0_s = Boundary(26)
     end if
-    R0               = Boundary(n)
     magnetic_decay_active = magnetic_decay_alpha_t < zero .and. magnetic_decay_t0_s > zero .and. &
                             Epsilon_b_floor > zero .and. Epsilon_b_floor < Epsilon_b
 

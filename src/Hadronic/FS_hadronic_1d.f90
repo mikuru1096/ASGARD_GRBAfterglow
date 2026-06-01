@@ -298,7 +298,7 @@ subroutine fs_hadronic_1d(R_Tobs,R_Gamma,R,shell_energy_inj_erg,B_field_g,V_seed
     end do
     if (gam_p_max_global <= one+1d-3) error stop "forward hadronic gamma_p_max must exceed the injection grid minimum."
     call hadronic_build_gamma_p_grid(num_gam_p,one+1d-3,gam_p_max_global,gam_p)
-    call hadronic_initial_density(num_gam_p,dN_prev)
+    dN_prev=zero
 
     V_nu=zero
     if (num_nu_nu > 1) then

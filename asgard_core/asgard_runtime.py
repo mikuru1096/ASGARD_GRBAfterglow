@@ -72,10 +72,6 @@ _ELECTRON_SOLVER_ALIASES = {
     "weno5_1d": "weno5_1d",
 }
 
-_COOLING_KERNEL_ALIASES = {
-    "legacy": "legacy",
-}
-
 _ELECTRON_MODULES = {
     "charint_1d": "src.Electron.FS_electron_charint_1d",
     "charint_2d": "src.Electron.FS_electron_charint_2d",
@@ -96,13 +92,6 @@ def _electron_module(solver: str):
 def _electron_reverse_module():
     return import_module("src.Electron.electron_reverse_kernel")
 
-_HADRONIC_SOLVER_ALIASES = {
-    "legacy": "legacy_1d",
-    "legacy_1d": "legacy_1d",
-    "am3": "am3_1d",
-    "am3_1d": "am3_1d",
-}
-
 _PGAMMA_SCHEME_DISABLED = "disabled"
 _PGAMMA_SCHEME_HUMMER2010_RESPONSE = "hummer_2010_response"
 _PGAMMA_SCHEME_KA2008_REFERENCE = "ka2008_reference"
@@ -111,8 +100,6 @@ _PGAMMA_SCHEME_ALIASES = {
     "disabled": _PGAMMA_SCHEME_DISABLED,
     "hummer_2010_response": _PGAMMA_SCHEME_HUMMER2010_RESPONSE,
     "ka2008_reference": _PGAMMA_SCHEME_KA2008_REFERENCE,
-}
-_PGAMMA_SCHEME_LEGACY_ALIASES = {
     "hummer_2010": _PGAMMA_SCHEME_HUMMER2010_RESPONSE,
     "hummer2010": _PGAMMA_SCHEME_HUMMER2010_RESPONSE,
     "ka2008": _PGAMMA_SCHEME_KA2008_REFERENCE,
@@ -225,7 +212,8 @@ def solve_electron(
     return_report: bool = False,
 ) -> ElectronSolution | tuple[ElectronSolution, SolverAdapterReport]:
     solver_name = _resolve_electron_solver(config)
-    _resolve_cooling_kernel(config)
+    if config.cooling_kernel.lower() != "legacy":
+        raise ValueError(f"Unsupported cooling kernel: {config.cooling_kernel}")
     if config.thermal_electrons and solver_name != "fullhide_1d":
         raise NotImplementedError("thermal_electrons currently requires electron_solver='fullhide_1d'.")
     if solver_name == "weno5_1d":
@@ -378,7 +366,7 @@ def solve_electron(
     if solver_name == "charint_2d":
         electron_charint_2d_module = _electron_module(solver_name)
         num_chi = _resolve_num_chi(config, solver_name)
-        gam_e, d_n_gam_e_chi, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = electron_charint_2d_module.fs_electron_charint_2d(
+        gam_e, d_n_gam_e_chi, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = electron_charint_2d_module.fs_electron_transport_2d_core(
             boundary,
             dynamics.r_tobs,
             dynamics.r_gamma,
@@ -389,6 +377,8 @@ def solve_electron(
             config.index_y,
             config.index_syn_integr,
             config.num_threads,
+            True,
+            "charint_2d",
         )
         chi_grid = _build_log_chi_grid(dynamics.r_gamma, num_chi)
         solution = _build_electron_solution(
@@ -417,7 +407,7 @@ def solve_electron(
     if solver_name == "fullhide_2d":
         electron_fullhide_2d_module = _electron_module(solver_name)
         num_chi = _resolve_num_chi(config, solver_name)
-        gam_e, d_n_gam_e_chi, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = electron_fullhide_2d_module.fs_electron_fullhide_2d(
+        gam_e, d_n_gam_e_chi, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = electron_fullhide_2d_module.fs_electron_transport_2d_core(
             boundary,
             dynamics.r_tobs,
             dynamics.r_gamma,
@@ -428,6 +418,8 @@ def solve_electron(
             config.index_y,
             config.index_syn_integr,
             config.num_threads,
+            False,
+            "fullhide_2d",
         )
         chi_grid = _build_log_chi_grid(dynamics.r_gamma, num_chi)
         solution = _build_electron_solution(
@@ -501,25 +493,9 @@ def _resolve_electron_solver(config: FitConfig) -> str:
     return solver_name
 
 
-def _resolve_cooling_kernel(config: FitConfig) -> str:
-    cooling_kernel = _COOLING_KERNEL_ALIASES.get(config.cooling_kernel.lower())
-    if cooling_kernel is None:
-        raise ValueError(f"Unsupported cooling kernel: {config.cooling_kernel}")
-    return cooling_kernel
-
-
-def _resolve_hadronic_solver(config: FitConfig) -> str:
-    solver_name = _HADRONIC_SOLVER_ALIASES.get(str(config.hadronic.solver).lower())
-    if solver_name is None:
-        raise ValueError(f"Unsupported hadronic solver: {config.hadronic.solver}")
-    return solver_name
-
-
 def _resolve_pgamma_scheme(config: FitConfig) -> str:
     key = str(config.hadronic.pgamma_scheme).lower()
     scheme_name = _PGAMMA_SCHEME_ALIASES.get(key)
-    if scheme_name is None:
-        scheme_name = _PGAMMA_SCHEME_LEGACY_ALIASES.get(key)
     if scheme_name is None:
         raise ValueError(f"Unsupported p-gamma scheme: {config.hadronic.pgamma_scheme}")
     return scheme_name
@@ -599,7 +575,15 @@ def solve_hadronic(
     if float(config.hadronic.epsilon_p) <= 0.0:
         report = _solver_report("hadronic_disabled", "log-gamma-1d", "disabled", backend="none")
         return (None, report) if return_report else None
-    hadronic_solver = _resolve_hadronic_solver(config)
+    hadronic_solver_key = str(config.hadronic.solver).lower()
+    if hadronic_solver_key == "legacy":
+        hadronic_solver = "legacy_1d"
+    elif hadronic_solver_key == "am3":
+        hadronic_solver = "am3_1d"
+    elif hadronic_solver_key in {"legacy_1d", "am3_1d"}:
+        hadronic_solver = hadronic_solver_key
+    else:
+        raise ValueError(f"Unsupported hadronic solver: {config.hadronic.solver}")
     pgamma_scheme = _resolve_pgamma_scheme(config)
     electron_solver = _resolve_electron_solver(config)
     if not electron_solver.endswith("_1d"):

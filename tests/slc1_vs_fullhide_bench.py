@@ -13,7 +13,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from asgard_core.asgard_paths import ASGARD_DOC_DIR
-from ASGARD import Fitter, ISM, Model, ObsData, Observer, ParamDef, Radiation, Scale, Setups, TophatJet, Wind, units
+from ASGARD import Fitter, ISM, Model, Observer, ParamDef, Radiation, Scale, Setups, TophatJet, Wind, units, make_empty_obs, make_flux_density_entry
 
 MODE = "high" if "--high" in sys.argv else "quick"
 GRID = {
@@ -123,8 +123,8 @@ def _cases_for_solver(solver: str) -> list[dict]:
         times = np.logspace(2.0, 4.0, 8)
         freqs = np.full(times.shape, 1.0e14)
         flux = truth_model.flux_density(times, freqs).total
-        data = ObsData()
-        data.add_flux_density(t=times, nu=freqs, f_nu=flux, err=0.05 * np.maximum(flux, 1.0e-99))
+        data = make_empty_obs()
+        data["flux_density"].append(make_flux_density_entry(times_s=times, frequencies_hz=freqs, flux=flux, flux_err=0.05 * np.maximum(flux, 1.0e-99)))
         fitter = Fitter(
             data=data,
             z=0.1,
@@ -143,8 +143,8 @@ def _cases_for_solver(solver: str) -> list[dict]:
         )
         result = fitter.fit(
             [
-                ParamDef("E_iso", 52.0, 52.0, Scale.log),
-                ParamDef("p", 2.3, 2.3, Scale.fixed),
+                ParamDef("E_iso", 52.0, 52.0, Scale.LOG),
+                ParamDef("p", 2.3, 2.3, Scale.FIXED),
             ],
             nsteps=GRID["fit_steps"],
             nburn=GRID["fit_burn"],

@@ -566,8 +566,8 @@ def _build_reverse_shock_lc() -> Path:
         label = _label(nu, "Hz")
         fwd_a = np.asarray(as_res.fwd.sync[i, :], dtype=float)
         fwd_v = np.asarray(vg_res.fwd.sync[i, :], dtype=float)
-        rvs_a = np.asarray(as_res.rvs.sync[i, :], dtype=float)
-        rvs_v = np.asarray(vg_res.rvs.sync[i, :], dtype=float)
+        rvs_a = np.asarray(as_res.rev.sync[i, :], dtype=float)
+        rvs_v = np.asarray(vg_res.rev.sync[i, :], dtype=float)
         ax.loglog(times, fwd_a, color=f"C{i}", lw=1.8, alpha=ASGARD_ALPHA, label=f"ASGARD fwd {label}")
         ax.loglog(times, fwd_v, color=f"C{i}", ls="--", lw=1.3, alpha=VEGAS_ALPHA, label=f"Vegas fwd {label}")
         ax.loglog(times, rvs_a, color=f"C{i}", ls="-.", lw=1.8, alpha=0.7, label=f"ASGARD rvs {label}")
@@ -621,20 +621,20 @@ def _build_reverse_shock_thermal_benchmark() -> Path:
     if state.dynamics.reverse_shock is None:
         raise RuntimeError("reverse-shock dynamics are required for the RS thermal benchmark.")
 
-    t_ref = _reference_series(detail_asgard.rvs.t_obs)
-    t_vegas = _reference_series(detail_vegas.rvs.t_obs)
+    t_ref = _reference_series(detail_asgard.rev.t_obs)
+    t_vegas = _reference_series(detail_vegas.rev.t_obs)
     attrs = ("Gamma", "B_comv", "N_p", "nu_m", "nu_c", "nu_a")
     vegas_z = _benchmark_scenario().z
 
     fig, axes = plt.subplots(3, 3, figsize=(12.8, 9.2), dpi=200)
     ratio_axes = axes[:2, :].ravel()
     for ax, attr in zip(ratio_axes, attrs):
-        asgard_y = _reference_series(getattr(detail_asgard.rvs, attr))
-        vegas_y = _reference_series(getattr(detail_vegas.rvs, attr))
+        asgard_y = _reference_series(getattr(detail_asgard.rev, attr))
+        vegas_y = _reference_series(getattr(detail_vegas.rev, attr))
         if attr == "N_p":
             vegas_y = vegas_y * (4.0 * np.pi)
         if attr in {"nu_m", "nu_c"}:
-            vegas_y = _to_lab_frequency_frame(vegas_y, _reference_series(detail_vegas.rvs.Doppler), vegas_z)
+            vegas_y = _to_lab_frequency_frame(vegas_y, _reference_series(detail_vegas.rev.Doppler), vegas_z)
         vegas_interp = _safe_log_interp(t_ref, t_vegas, vegas_y)
         ratio = np.divide(
             asgard_y,

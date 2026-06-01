@@ -33,16 +33,15 @@ from src import Interpolation, constants
 from .api_adaptive import _observe_parts, _observe_total
 from .api_fit import FitResult
 from .api_model import (
-    BranchView,
-    DetailView,
+    CharTrack,
+    FluxPair,
+    FluxResult,
     GaussianJet,
     ISM,
     Jet,
     Magnetar,
     Medium,
     Model,
-    ModelDetails,
-    ModelFluxResult,
     Observer,
     PolarizationResult,
     PowerLawJet,
@@ -51,6 +50,7 @@ from .api_model import (
     SkyImage,
     StepPowerLawJet,
     TophatJet,
+    TrackBundle,
     TwoComponentJet,
     Wind,
 )
@@ -620,7 +620,7 @@ def _solve_direct_model(
     times_s: np.ndarray,
     nu_hz: np.ndarray,
     solve_reference_times_s: np.ndarray | None = None,
-) -> tuple[ModelFluxResult, ModelDetails]:
+) -> tuple[FluxResult, TrackBundle]:
     config = _build_fit_config_for_patch(
         model,
         phi_center=0.0,
@@ -642,7 +642,7 @@ def _solve_direct_model(
     return observed, details
 
 
-def _evaluate_direct_details(model: Model, times_s: np.ndarray) -> ModelDetails:
+def _evaluate_direct_details(model: Model, times_s: np.ndarray) -> TrackBundle:
     config = _build_fit_config_for_patch(
         model,
         phi_center=0.0,
@@ -661,7 +661,7 @@ def _solve_patch_model(
     times_s: np.ndarray,
     nu_hz: np.ndarray,
     solve_reference_times_s: np.ndarray | None = None,
-) -> tuple[ModelFluxResult, ModelDetails]:
+) -> tuple[FluxResult, TrackBundle]:
     total = np.zeros((nu_hz.shape[0], times_s.shape[0]), dtype=float)
     fwd_sync_total = np.zeros_like(total)
     fwd_ssc_total = np.zeros_like(total)
@@ -669,8 +669,8 @@ def _solve_patch_model(
     rev_ssc_total = np.zeros_like(total)
     cross_ic_total = np.zeros_like(total)
     patches_meta: list[dict[str, float]] = []
-    details_fwd: Optional[DetailView] = None
-    details_rev: Optional[DetailView] = None
+    details_fwd: Optional[CharTrack] = None
+    details_rev: Optional[CharTrack] = None
 
     for phi_center, theta_center, patch_half_angle in _iter_patches(model):
         e_iso = model.jet.energy_iso(phi_center, theta_center)
@@ -720,20 +720,20 @@ def _solve_patch_model(
     if details_fwd is None:
         raise ValueError("No active jet patches were found for the requested structured jet.")
     return (
-        ModelFluxResult(
+        FluxResult(
             total=total,
-            fwd=BranchView(sync=fwd_sync_total, ssc=fwd_ssc_total),
-            rev=BranchView(sync=rev_sync_total, ssc=rev_ssc_total),
+            fwd=FluxPair(sync=fwd_sync_total, ssc=fwd_ssc_total),
+            rev=FluxPair(sync=rev_sync_total, ssc=rev_ssc_total),
             cross_ic=cross_ic_total,
         ),
-        ModelDetails(fwd=details_fwd, rev=details_rev, patches=patches_meta),
+        TrackBundle(fwd=details_fwd, rev=details_rev, patches=patches_meta),
     )
 
 
-def _patch_details(model: Model, times_s: np.ndarray) -> ModelDetails:
+def _patch_details(model: Model, times_s: np.ndarray) -> TrackBundle:
     patches_meta: list[dict[str, float]] = []
     first_component: Optional[FluxComponents] = None
-    first_details: Optional[ModelDetails] = None
+    first_details: Optional[TrackBundle] = None
 
     for phi_center, theta_center, patch_half_angle in _iter_patches(model):
         e_iso = model.jet.energy_iso(phi_center, theta_center)
@@ -989,7 +989,7 @@ def _make_details(
     components: FluxComponents,
     patches: list[dict[str, float]],
     state: Optional[SolveState] = None,
-) -> ModelDetails:
+) -> TrackBundle:
     fwd_gamma_e = None if state is None else np.asarray(state.electron.gam_e, dtype=float)
     fwd_dnde = None if state is None else np.asarray(state.electron.d_n_gam_e, dtype=float)
     fwd_dnde_bh = None if state is None or state.electron.d_n_gam_e_bh is None else np.asarray(state.electron.d_n_gam_e_bh, dtype=float)
@@ -1052,8 +1052,8 @@ def _make_details(
     if state is not None and state.dynamics.reverse_shock is not None:
         rev_gamma_e = np.asarray(state.dynamics.reverse_shock.gam_e, dtype=float)
         rev_dnde = np.asarray(state.dynamics.reverse_shock.d_n_gam_e, dtype=float)
-    return ModelDetails(
-        fwd=DetailView(
+    return TrackBundle(
+        fwd=CharTrack(
             t_obs=components.fwd.characteristic_time_s,
             radius=components.fwd.radius_cm,
             Gamma=components.fwd.gamma,
@@ -1098,7 +1098,7 @@ def _make_details(
         ),
         rev=None
         if components.rev is None
-        else DetailView(
+        else CharTrack(
             t_obs=components.rev.characteristic_time_s,
             radius=components.rev.radius_cm,
             Gamma=components.rev.gamma,

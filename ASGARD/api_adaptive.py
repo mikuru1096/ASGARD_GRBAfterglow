@@ -11,7 +11,7 @@ import numpy as np
 from asgard_core.asgard_models import FitConfig
 from asgard_core.asgard_state import SolveState, project_flux_grid
 
-from .api_model import BranchView, Model, ModelFluxResult
+from .api_model import FluxPair, Model, FluxResult
 
 def _array_signature(values: np.ndarray) -> str:
     array = np.ascontiguousarray(np.asarray(values, dtype=float))
@@ -56,17 +56,17 @@ def _model_signature(model: Model) -> str:
     return digest.hexdigest()
 
 
-def _pack_flux(observed: dict[str, np.ndarray | None]) -> ModelFluxResult:
+def _pack_flux(observed: dict[str, np.ndarray | None]) -> FluxResult:
     total = np.asarray(observed["total"], dtype=float)
     fwd_sync = np.zeros_like(total) if observed["fwd_sync"] is None else np.asarray(observed["fwd_sync"], dtype=float)
     fwd_ssc = np.zeros_like(total) if observed["fwd_ssc"] is None else np.asarray(observed["fwd_ssc"], dtype=float)
     rev_sync = np.zeros_like(total) if observed["rev_sync"] is None else np.asarray(observed["rev_sync"], dtype=float)
     rev_ssc = np.zeros_like(total) if observed["rev_ssc"] is None else np.asarray(observed["rev_ssc"], dtype=float)
     cross_ic = None if observed["cross_ic"] is None else np.asarray(observed["cross_ic"], dtype=float)
-    return ModelFluxResult(
+    return FluxResult(
         total=total,
-        fwd=BranchView(sync=fwd_sync, ssc=fwd_ssc),
-        rev=BranchView(sync=rev_sync, ssc=rev_ssc),
+        fwd=FluxPair(sync=fwd_sync, ssc=fwd_ssc),
+        rev=FluxPair(sync=rev_sync, ssc=rev_ssc),
         cross_ic=cross_ic,
     )
 
@@ -76,7 +76,7 @@ def _observe_parts(
     times_s: np.ndarray,
     nu_hz: np.ndarray,
     mode: str = "full_components",
-) -> ModelFluxResult:
+) -> FluxResult:
     observed_state = project_flux_grid(state, times_s, nu_hz, mode=mode)
     return _pack_flux(observed_state.components)
 
@@ -284,7 +284,7 @@ def _adaptive_flux_density_grid(
     max_depth: int = 6,
     min_ratio: float = 1.02,
     coarse_nodes: int = 16,
-) -> ModelFluxResult:
+) -> FluxResult:
     requested_times = np.asarray(times_s, dtype=float)
     order = np.argsort(requested_times)
     sorted_times = requested_times[order]
@@ -391,10 +391,10 @@ def _adaptive_flux_density_grid(
     rev_sync = rev_sync_sorted[:, inverse_order]
     rev_ssc = rev_ssc_sorted[:, inverse_order]
     cross_ic = None if cross_ic_sorted is None else cross_ic_sorted[:, inverse_order]
-    return ModelFluxResult(
+    return FluxResult(
         total=total,
-        fwd=BranchView(sync=fwd_sync, ssc=fwd_ssc),
-        rev=BranchView(sync=rev_sync, ssc=rev_ssc),
+        fwd=FluxPair(sync=fwd_sync, ssc=fwd_ssc),
+        rev=FluxPair(sync=rev_sync, ssc=rev_ssc),
         cross_ic=cross_ic,
     )
 
@@ -408,7 +408,7 @@ def _adaptive_spectrum_grid(
     max_depth: int = 6,
     min_ratio: float = 1.02,
     coarse_nodes: int = 16,
-) -> ModelFluxResult:
+) -> FluxResult:
     requested_freqs = np.asarray(nu_hz, dtype=float)
     order = np.argsort(requested_freqs)
     sorted_freqs = requested_freqs[order]
@@ -512,10 +512,10 @@ def _adaptive_spectrum_grid(
     rev_sync = rev_sync_sorted[inverse_order][:, None]
     rev_ssc = rev_ssc_sorted[inverse_order][:, None]
     cross_ic = None if cross_ic_sorted is None else cross_ic_sorted[inverse_order][:, None]
-    return ModelFluxResult(
+    return FluxResult(
         total=total,
-        fwd=BranchView(sync=fwd_sync, ssc=fwd_ssc),
-        rev=BranchView(sync=rev_sync, ssc=rev_ssc),
+        fwd=FluxPair(sync=fwd_sync, ssc=fwd_ssc),
+        rev=FluxPair(sync=rev_sync, ssc=rev_ssc),
         cross_ic=cross_ic,
     )
 
@@ -560,7 +560,7 @@ def _adaptive_exposure_average(
     frequencies_hz: np.ndarray,
     exposures_s: np.ndarray,
     num_subsamples: int,
-) -> ModelFluxResult:
+) -> FluxResult:
     pair_cache: dict[tuple[float, float], tuple[float, float, float, float, float, Optional[float]]] = {}
     exposure_nodes: list[np.ndarray] = []
     exposure_weights: list[np.ndarray] = []
@@ -623,9 +623,9 @@ def _adaptive_exposure_average(
         rev_ssc[idx] = float(np.dot(rev_ssc_values, weight_array) * inv_duration)
         cross_ic[idx] = float(np.dot(cross_values, weight_array) * inv_duration)
 
-    return ModelFluxResult(
+    return FluxResult(
         total=total,
-        fwd=BranchView(sync=fwd_sync, ssc=fwd_ssc),
-        rev=BranchView(sync=rev_sync, ssc=rev_ssc),
+        fwd=FluxPair(sync=fwd_sync, ssc=fwd_ssc),
+        rev=FluxPair(sync=rev_sync, ssc=rev_ssc),
         cross_ic=None if not has_cross_ic else cross_ic,
     )

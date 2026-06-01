@@ -13,6 +13,32 @@ module electron_common
     integer, parameter :: electron_initial_grid_log_edges = 1
 contains
 
+! 解包公共 Boundary 数组字段。
+subroutine electron_unpack_boundary(Boundary,n,Eta_0,R_ini,Epsilon_e,Epsilon_b,p,z,dNe_ISM,A_star, &
+                                    E_iso,T_log10_duration,f_e,R_tr,f_jump,f_wide,R0)
+    implicit none
+    integer, intent(in) :: n
+    real(8), intent(in) :: Boundary(n)
+    real(8), intent(out) :: Eta_0,R_ini,Epsilon_e,Epsilon_b,p,z,dNe_ISM,A_star
+    real(8), intent(out) :: E_iso,T_log10_duration,f_e,R_tr,f_jump,f_wide,R0
+
+    Eta_0=Boundary(1)
+    R_ini=Boundary(4)
+    Epsilon_e=Boundary(5)
+    Epsilon_b=Boundary(6)
+    p=Boundary(7)
+    z=Boundary(8)
+    dNe_ISM=Boundary(11)
+    A_star=Boundary(12)
+    E_iso=Boundary(14)
+    T_log10_duration=Boundary(15)
+    f_e=Boundary(16)
+    R_tr=Boundary(21)
+    f_jump=Boundary(22)
+    f_wide=Boundary(23)
+    R0=Boundary(n)
+end subroutine electron_unpack_boundary
+
 ! 初始化电子能谱，并按需生成 gamma 或 log-gamma 边界网格。
 subroutine electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
                                         grid_mode,gam_e,dN_init,x_edge,thermal_electrons,f_e,four_v)
