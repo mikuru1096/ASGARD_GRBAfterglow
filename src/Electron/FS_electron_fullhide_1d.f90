@@ -29,7 +29,7 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
     logical :: is_uniform_density,budget_diag_enabled
     integer :: Num_gam_rad,env_len,env_status
     character(len=32) :: diag_env
-    real(8) :: dDR_xi,ln10
+    real(8) :: dDR_xi
     real(8) :: n_before_step,n_after_step,inj_step,rel_loss_xi_max
     allocate (dEl(Num_gam_e),dEL_mean(Num_gam_e-1),x(Num_gam_e),dN_x(Num_gam_e), &
               dN_full(Num_gam_e), &
@@ -68,7 +68,6 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
     !*******************Part 2: To calculate the electron distribution**********************************************
     dN_x=dN_gam_e(:,1)*gam_e*dlog(ten)
     d_x=dlog10(gam_e(2)/gam_e(1))
-    ln10=dlog(ten)
     is_uniform_density=(A_star <= zero .and. f_jump == one)
     budget_diag_enabled=.false.
     diag_env=''
@@ -124,8 +123,7 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
 
                     if (is_uniform_density .and. thermal_electrons == 0) then
                         Q=4d0/3d0*pi*(3d0*R_loc**2+dDR*(3d0*R_loc+dDR))*dNe*f_e*Gam_e_m_p
-                        dF1=zero
-                        where(gam_e < Gam_e_max .and. gam_e > Gam_e_m) dF1=Q*gam_e**(-p)*gam_e*ln10
+                        call electron_build_source_term_exp_cutoff(Num_gam_e,gam_e,Gam_e_m,Gam_e_max,Q,p,dF1)
                     else
                         call dynamics_external_density_profile(A_star,dNe_ISM,R_loc,R0,1,R_tr,f_jump,f_wide,dNe)
                         DB_step=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma_loc*(R_Gamma_loc-one)))
@@ -134,8 +132,7 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
                         call electron_gamma_m_exact(p,temp_gam,Gam_e_max_step,Gam_e_m_step)
                         Gam_e_m_p_step=(one-p)/(Gam_e_max_step**(one-p)-Gam_e_m_step**(one-p))
                         Q=4d0/3d0*pi*(3d0*R_loc**2+dDR*(3d0*R_loc+dDR))*dNe*f_e*Gam_e_m_p_step
-                        dF1=zero
-                        where(gam_e < Gam_e_max_step .and. gam_e > Gam_e_m_step) dF1=Q*gam_e**(-p)*gam_e*ln10
+                        call electron_build_source_term_exp_cutoff(Num_gam_e,gam_e,Gam_e_m_step,Gam_e_max_step,Q,p,dF1)
                         if (thermal_electrons /= 0) then
                             call electron_add_thermal_source_term(Num_gam_e,gam_e,R_Gamma_loc*beta_Gam, &
                                                                   Q*(one-f_e)/(f_e*Gam_e_m_p_step),dF1)
