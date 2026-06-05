@@ -14,7 +14,7 @@ subroutine synchrotron_fg_kernel(x,Fx,Gx)
     real(8), intent(in) :: x
     real(8), intent(out) :: Fx,Gx
     real(8), parameter :: gamma_two_thirds=1.3541179394264004169d0
-    real(8) :: xp,common,large_corr_f,large_corr_g
+    real(8) :: xp,kernel,large_corr_f,large_corr_g
 
     if (x <= zero) error stop "synchrotron_fg_kernel requires x > 0."
 
@@ -23,11 +23,11 @@ subroutine synchrotron_fg_kernel(x,Fx,Gx)
         Fx=two**(2d0/3d0)*gamma_two_thirds*xp
         Gx=two**(-one/3d0)*gamma_two_thirds*xp
     else if (x > 50d0) then
-        common=dsqrt(pi*x/two)*dexp(-x)
+        kernel=dsqrt(pi*x/two)*dexp(-x)
         large_corr_f=one+55d0/(72d0*x)
         large_corr_g=one+7d0/(72d0*x)
-        Fx=common*large_corr_f
-        Gx=common*large_corr_g
+        Fx=kernel*large_corr_f
+        Gx=kernel*large_corr_g
     else
         call synchrotron_fg_integral(x,Fx,Gx)
     end if

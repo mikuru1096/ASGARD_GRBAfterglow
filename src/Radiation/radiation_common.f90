@@ -53,7 +53,7 @@ subroutine radiation_transfer_factor(Tau, factor)
     implicit real(8)(A-H,O-Z)
     real(8), intent(in) :: Tau
     real(8), intent(out) :: factor
-    if (Tau == zero) then
+    if (Tau <= 1d-4) then
         factor = one
     else
         factor = (one - dexp(-Tau)) / Tau
