@@ -16,7 +16,10 @@ def _luminosity_distance_cm(redshift: float) -> float:
     return float(cosmo.luminosity_distance(redshift).to(units.cm).value)
 
 
-def build_simulation_setup(config: FitConfig) -> SimulationSetup:
+def build_simulation_setup(
+    config: FitConfig,
+    requested_frequencies_hz: np.ndarray | None = None,
+) -> SimulationSetup:
     if config.luminosity_distance_cm_override is None:
         luminosity_distance_cm = _luminosity_distance_cm(float(config.z))
     else:
@@ -24,7 +27,7 @@ def build_simulation_setup(config: FitConfig) -> SimulationSetup:
     return SimulationSetup(
         luminosity_distance_cm=luminosity_distance_cm,
         boundary=build_boundary(config, luminosity_distance_cm),
-        seed_frequency_hz=build_seed_frequency_grid(config),
+        seed_frequency_hz=build_seed_frequency_grid(config, requested_frequencies_hz),
         observer_time_s=build_observer_time_grid(config),
     )
 

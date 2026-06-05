@@ -111,12 +111,33 @@ def _run_dense_radius_grid() -> None:
     assert radius[1] - radius[0] > np.spacing(radius[0])
 
 
+def _run_requested_frequency_seed_bounds() -> None:
+    config = _config(3)
+    config.eta_0 = 300.0
+    config.z = 0.1
+    requested = np.array([1.0e8, 1.0e30])
+    default_setup = build_simulation_setup(config)
+    query_setup = make_query_setup(config, np.array([1.0e3, 1.0e5]), requested)
+
+    beta0 = np.sqrt(1.0 - config.eta_0**-2)
+    min_doppler_den = config.eta_0 * (1.0 - beta0)
+    max_doppler_den = config.eta_0 * (1.0 + beta0)
+    redshift_factor = 1.0 + config.z
+    projected_min = query_setup.seed_frequency_hz[0] / (min_doppler_den * redshift_factor)
+    projected_max = query_setup.seed_frequency_hz[-1] / (max_doppler_den * redshift_factor)
+
+    assert query_setup.seed_frequency_hz[0] < default_setup.seed_frequency_hz[0]
+    assert projected_min < requested[0]
+    assert projected_max > requested[-1]
+
+
 def main() -> None:
     for index_y in (0, 3):
         _run(index_y)
     _run_sigma_zero_baseline()
     _run_magnetized_interface()
     _run_dense_radius_grid()
+    _run_requested_frequency_seed_bounds()
     print("reverse-shock-smoke-ok")
 
 

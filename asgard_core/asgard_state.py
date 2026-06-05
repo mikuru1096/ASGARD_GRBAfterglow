@@ -99,12 +99,8 @@ def make_query_setup(
     observer_time_s: np.ndarray,
     requested_frequencies_hz: np.ndarray | None = None,
 ):
-    setup = build_simulation_setup(make_query_cfg(config, observer_time_s))
+    setup = build_simulation_setup(make_query_cfg(config, observer_time_s), requested_frequencies_hz)
     setup.observer_time_s = np.asarray(observer_time_s, dtype=float)
-    # Keep the internal solve frequency grid invariant to query frequencies.
-    # Otherwise, merely adding an output frequency can change electron/SSC
-    # evolution and produce non-physical query-dependent solutions.
-    _ = requested_frequencies_hz
     return setup
 
 
