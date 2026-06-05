@@ -60,6 +60,7 @@ from src import Dynamics, Electron, constants
 _ELECTRON_SOLVER_ALIASES = {
     "fullhide": "fullhide_1d",
     "fullhide_1d": "fullhide_1d",
+    "fullhide_1d_hz": "fullhide_1d_hz",
     "fullhide_2d": "fullhide_2d",
     "slc1": "slc1_1d",
     "slc1_1d": "slc1_1d",
@@ -76,6 +77,7 @@ _ELECTRON_MODULES = {
     "charint_1d": "src.Electron.FS_electron_charint_1d",
     "charint_2d": "src.Electron.FS_electron_charint_2d",
     "fullhide_1d": "src.Electron.FS_electron_fullhide_1d",
+    "fullhide_1d_hz": "src.Electron.FS_electron_fullhide_1d_hz",
     "fullhide_2d": "src.Electron.FS_electron_fullhide_2d",
     "slc1_1d": "src.Electron.FS_electron_slc1_1d",
     "t2g1_1d": "src.Electron.FS_electron_t2g1_1d",
@@ -214,8 +216,8 @@ def solve_electron(
     solver_name = _resolve_electron_solver(config)
     if config.cooling_kernel.lower() != "legacy":
         raise ValueError(f"Unsupported cooling kernel: {config.cooling_kernel}")
-    if config.thermal_electrons and solver_name != "fullhide_1d":
-        raise NotImplementedError("thermal_electrons currently requires electron_solver='fullhide_1d'.")
+    if config.thermal_electrons and (solver_name not in ("fullhide_1d", "fullhide_1d_hz")):
+        raise NotImplementedError("thermal_electrons currently requires electron_solver='fullhide_1d' or 'fullhide_1d_hz'.")
     if solver_name == "weno5_1d":
         electron_weno5_module = _electron_module(solver_name)
         gam_e, d_n_gam_e, l_syn_spec, seed_syn = electron_weno5_module.fs_electron_weno5_1d(
@@ -442,6 +444,45 @@ def solve_electron(
                 "ok",
                 num_gam_e=int(config.num_gam_e),
                 num_chi=int(num_chi),
+            )
+        return solution
+
+    if solver_name == "fullhide_1d_hz":
+        electron_fullhide_1d_module = _electron_module("fullhide_1d_hz")
+        gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = electron_fullhide_1d_module.fs_electron_fullhide_1d_hz(
+            boundary,
+            dynamics.r_tobs,
+            dynamics.r_gamma,
+            dynamics.radius,
+            v_seed,
+            config.num_gam_e,
+            config.index_y,
+            config.index_syn_integr,
+            config.num_threads,
+            1 if config.electron_adaptive_substeps else 0,
+            config.electron_substep_rtol,
+            config.electron_substep_min,
+            config.electron_substep_max,
+            1 if config.thermal_electrons else 0,
+        )
+        solution = _build_electron_solution(
+            config,
+            dynamics,
+            gam_e,
+            d_n_gam_e,
+            l_syn_spec,
+            seed_syn,
+            nu_m,
+            nu_c,
+            nu_a,
+        )
+        if return_report:
+            return solution, _solver_report(
+                solver_name,
+                "log-gamma-1d",
+                "ok",
+                num_gam_e=int(config.num_gam_e),
+                num_chi=1,
             )
         return solution
 
