@@ -17,7 +17,7 @@
 
 ### 2. 2D electron extension 文档持续同步
 
-当前源码没有独立的 charint 2D Fortran 源文件。`FS_electron_charint_2d` 是 f2py extension 名称，由 `src/Electron/FS_electron_fullhide_2d.f90` 中的 `fs_electron_transport_2d_core` 构建，并通过 `use_charint_transport` 启用 charint 2D path。后续文档、测试和构建说明必须保持这个事实。
+当前源码没有独立的 charint 2D Fortran 源文件。`electron_forward_charint_2d` 是 f2py extension 名称，由 `src/Electron/electron_forward_transport_2d.f90` 中的 `fs_electron_transport_2d_core` 构建，并通过 `use_charint_transport` 启用 charint 2D path。后续文档、测试和构建说明必须保持这个事实。
 
 ### 3. `FitConfig -> SimulationConfig` 主链迁移
 

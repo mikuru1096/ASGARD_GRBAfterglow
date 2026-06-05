@@ -80,14 +80,14 @@ Hadronic Python 模块只做 orchestration、wrapping 和 benchmark：
 
 ### 电子
 
-- Main entries：`FS_electron_fullhide_1d.f90`, `FS_electron_fullhide_2d.f90`, `FS_electron_charint_1d.f90`, `FS_electron_slc1_1d.f90`, `FS_electron_t2g1_1d.f90`, `FS_electron_weno5_1d.f90`。`FS_electron_charint_2d` extension 复用 `FS_electron_fullhide_2d.f90` 中的 `fs_electron_transport_2d_core`，通过 `use_charint_transport` 选择 charint 2D path。
+- Main entries：`electron_forward_fullhide_1d.f90`, `electron_forward_transport_2d.f90`, `electron_forward_charint_1d.f90`, `electron_forward_slc1_1d.f90`, `electron_forward_t2g1_1d.f90`, `electron_forward_weno5_1d.f90`。`electron_forward_charint_2d` extension 复用 `electron_forward_transport_2d.f90` 中的 `fs_electron_transport_2d_core`，通过 `use_charint_transport` 选择 charint 2D path。
 - Shared kernels：`electron_common.f90`, `electron_cooling_kernel.f90`, `electron_radiation_kernel.f90`, `electron_seed_history_kernel.f90`, `electron_transport_2d_kernel.f90`, `electron_injection_profiles.f90`, `electron_transport_common.f90`, `electron_reverse_kernel.f90`, `adaptive_resampling_mod.f90`。
 
 ### 辐射与插值
 
-- `src/Radiation/SSC_spec.f90`：SSC spectrum 和 seed。
-- `src/Radiation/Seed_reverse.f90`：反激波同步辐射和 seed。
-- `src/Radiation/Annihilation.f90`：gamma-gamma absorption。
+- `src/Radiation/radiation_ssc_spectrum.f90`：SSC spectrum 和 seed。
+- `src/Radiation/radiation_reverse_seed.f90`：反激波同步辐射和 seed。
+- `src/Radiation/radiation_gamma_gamma_absorption.f90`：gamma-gamma absorption。
 - `src/Radiation/radiation_common.f90`：Simpson weights、power-law interpolation、pair cross-section、synchrotron seed core、transfer factor。
 - `src/Radiation/synchrotron_polarization_kernel.f90`：频率相关同步辐射偏振 emissivity。
 - `src/Radiation/quantum_synchrotron_kernel.f90`：quantum synchrotron helper。
@@ -96,7 +96,7 @@ Hadronic Python 模块只做 orchestration、wrapping 和 benchmark：
 
 ### 强子
 
-`src/Hadronic/FS_hadronic_1d.f90` 是 forward-shock f2py entry point，调度：
+`src/Hadronic/hadronic_forward_1d.f90` 是 forward-shock f2py entry point，调度：
 
 - `hadronic_transport_kernel.f90`：proton injection、adiabatic/synchrotron loss、log-gamma energy advance。
 - `hadronic_radiation_kernel.f90`：proton synchrotron。
@@ -112,7 +112,7 @@ Hadronic Python 模块只做 orchestration、wrapping 和 benchmark：
 - `hadronic_secondary_radiation_kernel.f90`：pion/muon synchrotron 与 IC。
 - `hadronic_common.f90`：共享常量、grid builders、validation。
 
-Reverse-shock hadronic light entry 是 `src/Hadronic/FS_hadronic_reverse_1d.f90`。Full-chain RS hadronic dispatch 通过 Python runtime wrapper 复用 `FS_hadronic_1d` formal 1D kernels，使用 RS magnetic field、RS seed photons、RS shell energy 和 RS baryon target density。
+Reverse-shock hadronic light entry 是 `src/Hadronic/hadronic_reverse_1d.f90`。Full-chain RS hadronic dispatch 通过 Python runtime wrapper 复用 `hadronic_forward_1d` formal 1D kernels，使用 RS magnetic field、RS seed photons、RS shell energy 和 RS baryon target density。
 
 2D / chi-resolved hadronic transport 有意不实现。当前 `chi_grid` 属于 2D electron transport contract，而 `PhotonFieldState` 与 `HadronicSolution` 是 shell-level contracts。边界见 `doc/hadronic_chi_transport_decision.md`。
 
@@ -128,8 +128,8 @@ Reverse-shock hadronic light entry 是 `src/Hadronic/FS_hadronic_reverse_1d.f90`
 默认：WSL Ubuntu + uv，命令使用 `rtk` 前缀。
 
 ```bash
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && TMPDIR=/tmp uv run python build_extensions.py --module FS_electron_fullhide_2d --force'
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && TMPDIR=/tmp uv run python build_extensions.py --module FS_hadronic_1d --force'
+rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && TMPDIR=/tmp uv run python build_extensions.py --module electron_forward_transport_2d --force'
+rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && TMPDIR=/tmp uv run python build_extensions.py --module hadronic_forward_1d --force'
 ```
 
 Smoke tests：`tests/readme_smoke_bench.py`, `tests/fullhide_2d_smoke_bench.py`, `tests/polarization_smoke.py`。

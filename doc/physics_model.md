@@ -81,7 +81,7 @@ SSA cooling 和 transfer：
 
 SSC：
 
-- `src/Radiation/SSC_spec.f90`
+- `src/Radiation/radiation_ssc_spectrum.f90`
 - `asgard_core/asgard_ssc.py`
 
 当前同步辐射积分选择中，`index_syn_integr=1/2` 是固定网格快速路径；adaptive path 只作为显式诊断路径使用，不作为 public 默认。
@@ -128,8 +128,8 @@ Hadronic process switches：
 
 RS hadronic：
 
-- `FS_hadronic_reverse_1d`：light proton injection/transport + proton synchrotron。
-- Full-chain RS path 使用 `FS_hadronic_1d` formal kernels，并使用 RS seed photons、RS `B3`、shell energy 和 baryon target density。
+- `hadronic_reverse_1d`：light proton injection/transport + proton synchrotron。
+- Full-chain RS path 使用 `hadronic_forward_1d` formal kernels，并使用 RS seed photons、RS `B3`、shell energy 和 baryon target density。
 
 当前 hadronic 边界：
 

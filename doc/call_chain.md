@@ -32,14 +32,14 @@ flowchart TD
 flowchart TD
     A["solve_dynamics"] --> B["Dynamics_forward / Dynamics_reverse"]
     B --> C["solve_electron"]
-    C --> D["FS_electron_fullhide_1d / charint_1d / weno5_1d / t2g1_1d / slc1_1d"]
-    C --> E["FS_electron_fullhide_2d / charint_2d"]
+    C --> D["electron_forward_fullhide_1d / charint_1d / weno5_1d / t2g1_1d / slc1_1d"]
+    C --> E["electron_forward_transport_2d / charint_2d"]
     D --> F["electron_common + electron_cooling_kernel + electron_radiation_kernel"]
     E --> G["electron_transport_2d_kernel + electron_seed_history_kernel"]
-    F --> H["radiation_common -> SSC_spec / Annihilation / Seed_reverse"]
+    F --> H["radiation_common -> radiation_ssc_spectrum / radiation_gamma_gamma_absorption / radiation_reverse_seed"]
     G --> H
     H --> I["SED_interpolation / SED_interpolation_structured"]
-    C --> J["solve_hadronic -> FS_hadronic_1d"]
+    C --> J["solve_hadronic -> hadronic_forward_1d"]
     J --> K["hadronic_transport + radiation + interaction + decay + pp + BH + IC + pair_prod + species_transport + acceleration + secondary_radiation"]
 ```
 

@@ -31,17 +31,17 @@
 - `src/Constants.f90`
 - `src/Dynamics/`：`dynamics_common.f90`, `Dynamics_forward.f90`, `Dynamics_reverse.f90`
 - `src/Electron/`：
-  - 1D/2D entries：`FS_electron_fullhide_1d.f90`, `FS_electron_fullhide_2d.f90`, `FS_electron_charint_1d.f90`, `FS_electron_slc1_1d.f90`, `FS_electron_t2g1_1d.f90`, `FS_electron_weno5_1d.f90`；`FS_electron_charint_2d` extension 由 `FS_electron_fullhide_2d.f90` 的 `fs_electron_transport_2d_core` 构建
+  - 1D/2D entries：`electron_forward_fullhide_1d.f90`, `electron_forward_transport_2d.f90`, `electron_forward_charint_1d.f90`, `electron_forward_slc1_1d.f90`, `electron_forward_t2g1_1d.f90`, `electron_forward_weno5_1d.f90`；`electron_forward_charint_2d` extension 由 `electron_forward_transport_2d.f90` 的 `fs_electron_transport_2d_core` 构建
   - Kernels：`electron_common.f90`, `electron_radiation_kernel.f90`, `electron_cooling_kernel.f90`, `electron_seed_history_kernel.f90`, `electron_transport_2d_kernel.f90`, `electron_injection_profiles.f90`, `electron_transport_common.f90`, `electron_reverse_kernel.f90`, `adaptive_resampling_mod.f90`
-- `src/Radiation/`：`radiation_common.f90`, `SSC_spec.f90`, `Annihilation.f90`, `Seed_reverse.f90`, `synchrotron_polarization_kernel.f90`, `quantum_synchrotron_kernel.f90`
+- `src/Radiation/`：`radiation_common.f90`, `radiation_ssc_spectrum.f90`, `radiation_gamma_gamma_absorption.f90`, `radiation_reverse_seed.f90`, `synchrotron_polarization_kernel.f90`, `quantum_synchrotron_kernel.f90`
 - `src/Hadronic/`：
-  - Entries：`FS_hadronic_1d.f90`, `FS_hadronic_reverse_1d.f90`
+  - Entries：`hadronic_forward_1d.f90`, `hadronic_reverse_1d.f90`
   - Kernels：`hadronic_common.f90`, `hadronic_transport_kernel.f90`, `hadronic_radiation_kernel.f90`, `hadronic_interaction_kernel.f90`, `hadronic_decay_kernel.f90`, `hadronic_pair_production_kernel.f90`, `hadronic_pair_cascade_kernel.f90`, `hadronic_pp_kernel.f90`, `hadronic_pp_models_kernel.f90`, `hadronic_bethe_heitler_kernel.f90`, `hadronic_hadronic_ic_kernel.f90`, `hadronic_species_transport_kernel.f90`, `hadronic_acceleration_kernel.f90`, `hadronic_secondary_radiation_kernel.f90`
 - `src/Interpolation/`：`SED_interpolation.f90`, `SED_interpolation_structured.f90`, `interpolation_common.f90`
 
 ## 构建入口
 
-- `build_extensions.py`：f2py 编译入口。已登记 active hadronic extensions：`FS_hadronic_1d`, `FS_hadronic_reverse_1d`。
+- `build_extensions.py`：f2py 编译入口。已登记 active hadronic extensions：`hadronic_forward_1d`, `hadronic_reverse_1d`。
 
 ## 测试与基准
 

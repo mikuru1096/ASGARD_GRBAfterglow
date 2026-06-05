@@ -1,4 +1,4 @@
-from src.Hadronic.FS_hadronic_1d import fs_hadronic_1d
+from src.Hadronic.hadronic_forward_1d import fs_hadronic_1d
 
 __all__ = [
     "fs_hadronic_1d",

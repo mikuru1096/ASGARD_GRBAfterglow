@@ -21,7 +21,7 @@
       "Bash(cmd.exe *)",
       "Bash(rtk python *)",
       "WebSearch",
-      "Bash(python build_extensions.py --module FS_electron_fullhide_1d --force)",
+      "Bash(python build_extensions.py --module electron_forward_fullhide_1d --force)",
       "Bash(rtk cd *)",
       "Bash(/c/msys64/mingw64/bin/gfortran.exe -fsyntax-only -Wall -Wline-truncation -cpp \"C:/Users/jia/Documents/New project/ASGARD_GRBAfterglow/src/Electron/electron_injection_profiles.f90\")",
       "Bash(export PATH=\"/c/msys64/mingw64/bin:$PATH\")",

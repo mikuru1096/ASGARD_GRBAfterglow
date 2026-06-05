@@ -7,7 +7,7 @@ import numpy as np
 from src import constants
 
 try:
-    import src.Hadronic.FS_hadronic_reverse_1d as _hadronic_reverse_module
+    import src.Hadronic.hadronic_reverse_1d as _hadronic_reverse_module
 except ImportError:
     _hadronic_reverse_module = None
 

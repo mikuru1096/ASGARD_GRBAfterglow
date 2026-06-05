@@ -18,7 +18,7 @@
 - 含完整 hadronic chain 的 Vegas benchmark figures 刷新。
 - 超出当前 γγ pair/synch contract 的 inverse-Compton-mediated electromagnetic pair cascade。
 
-RS hadronic proton injection/transport + proton synchrotron 已由 `FS_hadronic_reverse_1d` 覆盖。Full-chain RS pγ/BH/pp/secondary/cascade dispatch 通过 runtime wrapper 复用 `FS_hadronic_1d` formal kernels。Legacy iterative pair-production synch branch 只保留作诊断；主 cascade path 是 shell-sequence time-dependent γγ pair/synch cascade。
+RS hadronic proton injection/transport + proton synchrotron 已由 `hadronic_reverse_1d` 覆盖。Full-chain RS pγ/BH/pp/secondary/cascade dispatch 通过 runtime wrapper 复用 `hadronic_forward_1d` formal kernels。Legacy iterative pair-production synch branch 只保留作诊断；主 cascade path 是 shell-sequence time-dependent γγ pair/synch cascade。
 
 反激波动力学基线使用局部 `gamma34` 注入和显式 region-3 `U3/V3` thermal-state evolution。VegasAfterglow 是 comparison backend，不是物理目标。
 

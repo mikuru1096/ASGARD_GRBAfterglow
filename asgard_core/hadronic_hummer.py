@@ -7,7 +7,7 @@ import numpy as np
 from src import constants
 
 try:
-    import src.Hadronic.FS_hadronic_1d as hadronic_fortran_module
+    import src.Hadronic.hadronic_forward_1d as hadronic_fortran_module
 except ImportError:
     hadronic_fortran_module = None
 

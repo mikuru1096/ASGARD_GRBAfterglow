@@ -475,7 +475,7 @@ def _patch_hadronic_synchrotron_component(state: SolveState) -> tuple[np.ndarray
     if state.hadronic is None:
         return None
     from src import constants
-    import src.Hadronic.FS_hadronic_1d as hadronic_fortran_module
+    import src.Hadronic.hadronic_forward_1d as hadronic_fortran_module
 
     luminosity = np.asarray(state.hadronic.l_had_syn_spec, dtype=float)
     weighted_pi_luminosity = luminosity * _hadronic_synchrotron_pi_grid(
@@ -536,7 +536,7 @@ def _patch_reverse_hadronic_synchrotron_component(state: SolveState) -> tuple[np
     if state.reverse_emission is None or state.reverse_emission.rs_hadronic is None:
         return None
     from src import constants
-    import src.Hadronic.FS_hadronic_1d as hadronic_fortran_module
+    import src.Hadronic.hadronic_forward_1d as hadronic_fortran_module
 
     rs_hadronic = state.reverse_emission.rs_hadronic
     luminosity = np.asarray(rs_hadronic.l_had_syn_spec, dtype=float)

@@ -38,7 +38,7 @@
 
 默认 public baseline：
 
-- Source：`src/Electron/FS_electron_fullhide_1d.f90`
+- Source：`src/Electron/electron_forward_fullhide_1d.f90`
 - Transport helper：`src/Electron/electron_transport_common.f90`
 - Cooling：`src/Electron/electron_cooling_kernel.f90`
 - Radiation：`src/Electron/electron_radiation_kernel.f90`
@@ -51,7 +51,7 @@
 
 验证：
 
-- 编译 `FS_electron_fullhide_1d`。
+- 编译 `electron_forward_fullhide_1d`。
 - 对 source closure 执行 `-Wline-truncation`。
 - 跑 `tests/polarization_smoke.py` 或相关 electron smoke。
 - 性能改动需要跑 benchmark path。
@@ -60,7 +60,7 @@
 
 高阶电子谱解析求解器：
 
-- Source：`src/Electron/FS_electron_weno5_1d.f90`
+- Source：`src/Electron/electron_forward_weno5_1d.f90`
 - 适合解析谱形，不一定是默认拟合路径。
 
 ### `charint_1d`, `slc1_1d`, `t2g1_1d`
@@ -71,8 +71,8 @@
 
 2D path 包含 energy 和 chi-resolved electron transport：
 
-- `src/Electron/FS_electron_fullhide_2d.f90`
-- `FS_electron_charint_2d` extension：由 `src/Electron/FS_electron_fullhide_2d.f90` 中的 `fs_electron_transport_2d_core` 构建，运行时通过 `use_charint_transport` 启用 charint 2D path
+- `src/Electron/electron_forward_transport_2d.f90`
+- `electron_forward_charint_2d` extension：由 `src/Electron/electron_forward_transport_2d.f90` 中的 `fs_electron_transport_2d_core` 构建，运行时通过 `use_charint_transport` 启用 charint 2D path
 - `src/Electron/electron_transport_2d_kernel.f90`
 - `src/Electron/electron_seed_history_kernel.f90`
 
@@ -81,7 +81,7 @@
 验证：
 
 ```bash
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && TMPDIR=/tmp uv run python build_extensions.py --module FS_electron_fullhide_2d --force'
+rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && TMPDIR=/tmp uv run python build_extensions.py --module electron_forward_transport_2d --force'
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/fullhide_2d_smoke_bench.py'
 ```
 
@@ -110,15 +110,15 @@ Synchrotron：
 
 SSC：
 
-- `src/Radiation/SSC_spec.f90`
+- `src/Radiation/radiation_ssc_spectrum.f90`
 
 Gamma-gamma：
 
-- `src/Radiation/Annihilation.f90`
+- `src/Radiation/radiation_gamma_gamma_absorption.f90`
 
 Reverse seed：
 
-- `src/Radiation/Seed_reverse.f90`
+- `src/Radiation/radiation_reverse_seed.f90`
 
 数值注意事项：
 
@@ -131,8 +131,8 @@ Reverse seed：
 
 Fortran 源文件：
 
-- `src/Hadronic/FS_hadronic_1d.f90`
-- `src/Hadronic/FS_hadronic_reverse_1d.f90`
+- `src/Hadronic/hadronic_forward_1d.f90`
+- `src/Hadronic/hadronic_reverse_1d.f90`
 - `src/Hadronic/hadronic_transport_kernel.f90`
 - `src/Hadronic/hadronic_radiation_kernel.f90`
 - `src/Hadronic/hadronic_interaction_kernel.f90`
@@ -169,10 +169,10 @@ Projection 对本地 shell radiation 做 observer time/frequency grid 上的投�
 
 ## 行截断检查
 
-Fortran source closure 必须从 `/tmp` 执行，并指定临时 module 目录。`FS_electron_fullhide_1d` 示例：
+Fortran source closure 必须从 `/tmp` 执行，并指定临时 module 目录。`electron_forward_fullhide_1d` 示例：
 
 ```bash
-rtk bash -lc 'source ~/.wsl_env && rm -rf /tmp/asgard_linecheck && mkdir -p /tmp/asgard_linecheck && cd /tmp && gfortran -cpp -fopenmp -Wall -Wline-truncation -fsyntax-only -J /tmp/asgard_linecheck -I /tmp/asgard_linecheck "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow/src/Constants.f90" "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow/src/Dynamics/dynamics_common.f90" "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow/src/Radiation/radiation_common.f90" "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow/src/Radiation/synchrotron_polarization_kernel.f90" "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow/src/Electron/electron_transport_common.f90" "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow/src/Electron/adaptive_resampling_mod.f90" "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow/src/Electron/electron_radiation_kernel.f90" "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow/src/Electron/electron_injection_profiles.f90" "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow/src/Electron/electron_common.f90" "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow/src/Electron/electron_cooling_kernel.f90" "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow/src/Electron/electron_seed_history_kernel.f90" "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow/src/Electron/FS_electron_fullhide_1d.f90"'
+rtk bash -lc 'source ~/.wsl_env && rm -rf /tmp/asgard_linecheck && mkdir -p /tmp/asgard_linecheck && cd /tmp && gfortran -cpp -fopenmp -Wall -Wline-truncation -fsyntax-only -J /tmp/asgard_linecheck -I /tmp/asgard_linecheck "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow/src/Constants.f90" "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow/src/Dynamics/dynamics_common.f90" "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow/src/Radiation/radiation_common.f90" "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow/src/Radiation/synchrotron_polarization_kernel.f90" "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow/src/Electron/electron_transport_common.f90" "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow/src/Electron/adaptive_resampling_mod.f90" "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow/src/Electron/electron_radiation_kernel.f90" "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow/src/Electron/electron_injection_profiles.f90" "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow/src/Electron/electron_common.f90" "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow/src/Electron/electron_cooling_kernel.f90" "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow/src/Electron/electron_seed_history_kernel.f90" "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow/src/Electron/electron_forward_fullhide_1d.f90"'
 ```
 
 不要从仓库根目录跑这个检查；仓库根目录里的旧 `.mod` 文件可能被误读。

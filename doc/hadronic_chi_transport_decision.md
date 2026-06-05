@@ -20,7 +20,7 @@
 当前不进入 2D / χ-resolved hadronic transport 实现。继续使用 formal 1D hadronic path：
 
 - FS hadronic: `am3_1d` 为正式路径，`legacy_1d` 仅覆盖 proton transport + proton synch。
-- RS hadronic: light path 由 `FS_hadronic_reverse_1d` 覆盖 proton synch；full-chain RS path 复用 formal 1D hadronic kernels，使用 RS seed photons、RS `B3`、shell energy 和 baryon target density。
+- RS hadronic: light path 由 `hadronic_reverse_1d` 覆盖 proton synch；full-chain RS path 复用 formal 1D hadronic kernels，使用 RS seed photons、RS `B3`、shell energy 和 baryon target density。
 
 进入 2D 实现前必须先完成这些契约设计：
 

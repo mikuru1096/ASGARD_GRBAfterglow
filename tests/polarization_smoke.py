@@ -14,7 +14,7 @@ from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet
 from src import Interpolation
 from src.Electron.electron_radiation import electron_radiation_kernel
 from src import constants
-import src.Hadronic.FS_hadronic_1d as hadronic_fortran_module
+import src.Hadronic.hadronic_forward_1d as hadronic_fortran_module
 
 
 def _base_setups() -> Setups:

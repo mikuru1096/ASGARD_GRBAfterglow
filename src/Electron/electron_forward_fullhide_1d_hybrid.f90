@@ -4,9 +4,10 @@
 !******************************* main program *******************************************
 !****************************************************************************************
 
-subroutine fs_electron_fullhide_1d_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads, &
-                                   adaptive_substeps,substep_rtol,substep_min,substep_max,thermal_electrons, &
-                                   gam_e,dN_gam_e,P_syn,Seed_syn,V_m,V_c,V_a)
+subroutine fs_electron_fullhide_1d_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e, &
+                                      index_Y,index_syn_intger,n_threads,adaptive_substeps,substep_rtol, &
+                                      substep_min,substep_max,thermal_electrons,gam_e,dN_gam_e,P_syn, &
+                                      Seed_syn,V_m,V_c,V_a)
     !$ use omp_lib
     use constants
     use dynamics_common, only: dynamics_external_density_profile

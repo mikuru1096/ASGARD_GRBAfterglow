@@ -8,7 +8,7 @@ from asgard_core.hadronic_pair_production import ELECTRON_MASS_GEV, solve_pair_p
 from src import constants
 
 try:
-    import src.Hadronic.FS_hadronic_1d as hadronic_fortran_module
+    import src.Hadronic.hadronic_forward_1d as hadronic_fortran_module
 except ImportError:
     hadronic_fortran_module = None
 

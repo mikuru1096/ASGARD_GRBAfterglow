@@ -7,7 +7,7 @@ import time
 import numpy as np
 
 from src.Electron.electron_radiation import electron_radiation_kernel as electron_radiation_module
-import src.Hadronic.FS_hadronic_1d as hadronic_legacy_module
+import src.Hadronic.hadronic_forward_1d as hadronic_legacy_module
 from asgard_core.hadronic_am3_solver import (
     HUMMER_PROCESS_GROUP_LABELS,
     HUMMER2010_RESPONSE_BACKEND,
@@ -74,14 +74,14 @@ _ELECTRON_SOLVER_ALIASES = {
 }
 
 _ELECTRON_MODULES = {
-    "charint_1d": "src.Electron.FS_electron_charint_1d",
-    "charint_2d": "src.Electron.FS_electron_charint_2d",
-    "fullhide_1d": "src.Electron.FS_electron_fullhide_1d",
-    "fullhide_1d_hz": "src.Electron.FS_electron_fullhide_1d_hz",
-    "fullhide_2d": "src.Electron.FS_electron_fullhide_2d",
-    "slc1_1d": "src.Electron.FS_electron_slc1_1d",
-    "t2g1_1d": "src.Electron.FS_electron_t2g1_1d",
-    "weno5_1d": "src.Electron.FS_electron_weno5_1d",
+    "charint_1d": "src.Electron.electron_forward_charint_1d",
+    "charint_2d": "src.Electron.electron_forward_charint_2d",
+    "fullhide_1d": "src.Electron.electron_forward_fullhide_1d",
+    "fullhide_1d_hz": "src.Electron.electron_forward_fullhide_1d_hybrid",
+    "fullhide_2d": "src.Electron.electron_forward_transport_2d",
+    "slc1_1d": "src.Electron.electron_forward_slc1_1d",
+    "t2g1_1d": "src.Electron.electron_forward_t2g1_1d",
+    "weno5_1d": "src.Electron.electron_forward_weno5_1d",
 }
 
 
