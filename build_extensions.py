@@ -22,6 +22,7 @@ DIRECT_ORDERED_BUILD_MODULES = {
     "FS_electron_charint_1d",
     "FS_electron_charint_2d",
     "FS_electron_fullhide_1d",
+    "FS_electron_fullhide_1d_hz",
     "FS_electron_fullhide_2d",
     "FS_electron_t2g1_1d",
     "FS_hadronic_1d",
@@ -33,6 +34,7 @@ DIRECT_ORDERED_BUILD_MODULES = {
 }
 F2PY_ENTRYPOINTS = {
     "FS_electron_charint_1d": ("fs_electron_charint_1d",),
+    "FS_electron_charint_1d_hz": ("fs_electron_charint_1d_hz",),
     "FS_electron_charint_2d": ("fs_electron_transport_2d_core",),
     "FS_electron_fullhide_2d": ("fs_electron_transport_2d_core",),
     "electron_radiation": ("get_nu_a", "get_syn_selected", "get_syn_transfer", "get_syn_polarization_selected"),
@@ -89,6 +91,47 @@ ELECTRON_HISTORY_SOURCES = (
     *ELECTRON_COMMON_SOURCES,
     "electron_seed_history_kernel.f90",
 )
+ELECTRON_HISTORY_SOURCES_HZ = (
+    *ELECTRON_HISTORY_SOURCES,
+    "./slatec/dgamic.f",
+    "./slatec/d1mach.f",
+    "./slatec/d9gmic.f",
+    "./slatec/d9gmit.f",
+    "./slatec/d9lgic.f",
+    "./slatec/d9lgit.f",
+    "./slatec/dlgams.f",
+    "./slatec/dlngam.f",
+    "./slatec/d9lgmc.f",
+    "./slatec/dgamma.f",
+    "./slatec/dcsevl.f",
+    "./slatec/initds.f",
+    "./slatec/dgamlm.f",
+    "./slatec/dlamch.f",
+    "./slatec/lsame.f",
+    "./slatec/xerclr.f",
+    "./slatec/j4save.f",
+    "./slatec/xermsg.f",
+    "./slatec/fdump.f",
+    "./slatec/xercnt.f",
+    "./slatec/xerhlt.f",
+    "./slatec/xerprn.f",
+    "./slatec/xersve.f",
+    "./slatec/i1mach.f",
+    "./slatec/xgetua.f",
+    "./slatec/dbesk.f",
+    "./slatec/dasyik.f",
+    "./slatec/dbesk0.f",
+    "./slatec/dbesk1.f",
+    "./slatec/dbsk0e.f",
+    "./slatec/dbsk1e.f",
+    "./slatec/dbsknu.f",
+    "./slatec/dbesi0.f",
+    "./slatec/dbesi1.f",
+    "./slatec/dbsi0e.f",
+    "./slatec/dbsi1e.f",
+    "./slatec/specfun.f90",
+    "hybrid_spectrum_kernel_fast.f90",
+)
 ELECTRON_2D_SOURCES = (
     *ELECTRON_COMMON_SOURCES,
     "electron_seed_history_kernel.f90",
@@ -116,6 +159,21 @@ HADRONIC_1D_SOURCES = (
     "hadronic_pp_models_kernel.f90",
 )
 
+def convert_utf8_to_ascii(input_file, error_strategy='ignore'):
+    """
+    error_strategy 可选:
+    'ignore' - 直接丢弃非 ASCII 字符
+    'replace' - 将无法转换的字符替换为 '?'
+    'backslashreplace' - 转换为 Python 的 Unicode 转义字符串 (如 \u4e2d)
+    """
+    with open(input_file, 'r', encoding='utf-8') as f_in:
+        content = f_in.read()
+    
+    # 转换为字节流，再转回 ASCII 字符串
+    ascii_content = content.encode('ascii', errors=error_strategy).decode('ascii')
+    
+    with open(input_file, 'w', encoding='ascii') as f_out:
+        f_out.write(ascii_content)
 
 def _with_main(common_sources: tuple[str, ...], main_source: str) -> list[str]:
     return [*common_sources, main_source]
@@ -508,6 +566,8 @@ def main() -> None:
         ("FS_electron_slc1_1d", ele, _with_main(ELECTRON_COMMON_SOURCES, "FS_electron_slc1_1d.f90"), omp_flags, OPENMP_LIBS),
         ("FS_electron_charint_1d", ele, _with_main(ELECTRON_COMMON_SOURCES, "FS_electron_charint_1d.f90"), omp_flags, OPENMP_LIBS),
         ("FS_electron_fullhide_1d", ele, _with_main(ELECTRON_HISTORY_SOURCES, "FS_electron_fullhide_1d.f90"), omp_flags, OPENMP_LIBS),
+        #
+        ("FS_electron_fullhide_1d_hz", ele, _with_main(ELECTRON_HISTORY_SOURCES_HZ, "FS_electron_fullhide_1d_hz.f90"), omp_flags, OPENMP_LIBS),
         ("FS_electron_fullhide_2d", ele, _with_main(ELECTRON_2D_SOURCES, "FS_electron_fullhide_2d.f90"), omp_flags, OPENMP_LIBS),
         ("FS_electron_charint_2d", ele, _with_main(ELECTRON_2D_SOURCES, "FS_electron_fullhide_2d.f90"), omp_flags, OPENMP_LIBS),
         ("FS_electron_t2g1_1d", ele, _with_main(ELECTRON_COMMON_SOURCES, "FS_electron_t2g1_1d.f90"), omp_flags, OPENMP_LIBS),
@@ -543,6 +603,9 @@ def main() -> None:
     print(f"Compile start ({_detect_build_platform()})")
     for module_name, cwd, sources, fflags, extra_args in modules:
         print(f"Build {module_name}")
+        for _s in sources:
+            src_file = os.path.join(cwd, _s)
+            convert_utf8_to_ascii(src_file, 'ignore')
         if module_name in DIRECT_ORDERED_BUILD_MODULES:
             elapsed = _build_ordered_object_module(
                 root,
