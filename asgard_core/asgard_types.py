@@ -241,82 +241,6 @@ class HadronicSolution:
     sed_components: dict[str, np.ndarray] = field(default_factory=dict)
 
 
-# ============================================================================
-# Fitting Types (from asgard_fit.py)
-# ============================================================================
-
-@dataclass(frozen=True)
-class ParamBinding:
-    """Parameter binding for fitting."""
-    name: str
-    target: Any
-    attr_name: str
-    original_value: Any
-    scale: str
-    fixed_value: Optional[float]
-
-
-@dataclass(frozen=True)
-class FluxData:
-    """Flux density data for fitting."""
-    pair_mode: bool
-    time_indices: np.ndarray
-    freq_indices: np.ndarray
-    flux: np.ndarray
-    flux_err: np.ndarray
-
-
-@dataclass(frozen=True)
-class SpecData:
-    """Spectrum data for fitting."""
-    time_index: int
-    freq_indices: np.ndarray
-    flux: np.ndarray
-    flux_err: np.ndarray
-
-
-@dataclass(frozen=True)
-class BandData:
-    """Band-integrated flux data for fitting."""
-    time_index: int
-    freq_indices: np.ndarray
-    sample_frequencies_hz: np.ndarray
-    flux: float
-    flux_err: float
-
-
-@dataclass(frozen=True)
-class ObsBlock:
-    """Block of observations."""
-    observer_time_s: np.ndarray
-    requested_frequencies_hz: np.ndarray
-    flux_density: tuple[FluxData, ...]
-    spectra: tuple[SpecData, ...]
-    band_fluxes: tuple[BandData, ...]
-
-
-@dataclass(frozen=True)
-class ObsPlan:
-    """Plan for observations."""
-    blocks: tuple[ObsBlock, ...]
-
-
-@dataclass
-class InferenceProblem:
-    """Compiled inference problem."""
-    model: Any  # Model
-    observations: ObsPlan
-    param_bindings: tuple[ParamBinding, ...]
-
-
-@dataclass(frozen=True)
-class FitProblem:
-    """Compiled fit problem."""
-    observer_time_s: np.ndarray
-    requested_frequencies_hz: np.ndarray
-    num_xrt: int
-
-
 DynamicsState = DynamicsSolution
 ElectronState = ElectronSolution
 HadronicState = HadronicSolution
@@ -341,13 +265,4 @@ __all__ = [
     "HadronicSolution",
     "HadronicState",
     "ReverseShockEmission",
-    # Fitting types
-    "ParamBinding",
-    "FluxData",
-    "SpecData",
-    "BandData",
-    "ObsBlock",
-    "ObsPlan",
-    "InferenceProblem",
-    "FitProblem",
 ]

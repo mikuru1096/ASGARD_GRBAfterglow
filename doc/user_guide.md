@@ -32,7 +32,7 @@ result = model.flux_density_grid(times, freqs)
 print(result.total.shape)
 ```
 
-`flux_density_grid(times_s, nu_hz)` 返回 `ModelFluxResult`。其中：
+`flux_density_grid(times_s, nu_hz)` 返回 `FluxResult`。其中：
 
 - `total`：总 flux density。
 - `fwd.sync`, `fwd.ssc`：正激波同步辐射和 SSC。

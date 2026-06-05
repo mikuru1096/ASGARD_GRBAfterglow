@@ -72,7 +72,7 @@
 2D path 包含 energy 和 chi-resolved electron transport：
 
 - `src/Electron/FS_electron_fullhide_2d.f90`
-- `src/Electron/FS_electron_charint_2d.f90`
+- `FS_electron_charint_2d` extension：由 `src/Electron/FS_electron_fullhide_2d.f90` 中的 `fs_electron_transport_2d_core` 构建，运行时通过 `use_charint_transport` 启用 charint 2D path
 - `src/Electron/electron_transport_2d_kernel.f90`
 - `src/Electron/electron_seed_history_kernel.f90`
 

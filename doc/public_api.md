@@ -206,11 +206,11 @@ fitter.params = [Param("logE", "jet.E_iso", 50.0, 54.0, Scale.LOG10)]
 
 常见结果对象：
 
-- `ModelFluxResult`：`total`, `fwd`, `rev`, `cross_ic`
-- `BranchView`：`sync`, `ssc`
+- `FluxResult`：`total`, `fwd`, `rev`, `cross_ic`
+- `FluxPair`：`sync`, `ssc`
 - `SkyImage`：image array 和 coordinate grids
 - `PolarizationResult`：Stokes 和偏振诊断
-- `ModelDetails`：dynamics/electron/hadronic/observer 诊断状态
+- `TrackBundle`：forward/reverse dynamics, electron, hadronic, observer diagnostics
 
 ## 公开边界
 

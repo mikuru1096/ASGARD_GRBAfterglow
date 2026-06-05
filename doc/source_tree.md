@@ -31,7 +31,7 @@
 - `src/Constants.f90`
 - `src/Dynamics/`：`dynamics_common.f90`, `Dynamics_forward.f90`, `Dynamics_reverse.f90`
 - `src/Electron/`：
-  - 1D/2D entries：`FS_electron_fullhide_1d.f90`, `FS_electron_fullhide_2d.f90`, `FS_electron_charint_1d.f90`, `FS_electron_charint_2d.f90`, `FS_electron_slc1_1d.f90`, `FS_electron_t2g1_1d.f90`, `FS_electron_weno5_1d.f90`
+  - 1D/2D entries：`FS_electron_fullhide_1d.f90`, `FS_electron_fullhide_2d.f90`, `FS_electron_charint_1d.f90`, `FS_electron_slc1_1d.f90`, `FS_electron_t2g1_1d.f90`, `FS_electron_weno5_1d.f90`；`FS_electron_charint_2d` extension 由 `FS_electron_fullhide_2d.f90` 的 `fs_electron_transport_2d_core` 构建
   - Kernels：`electron_common.f90`, `electron_radiation_kernel.f90`, `electron_cooling_kernel.f90`, `electron_seed_history_kernel.f90`, `electron_transport_2d_kernel.f90`, `electron_injection_profiles.f90`, `electron_transport_common.f90`, `electron_reverse_kernel.f90`, `adaptive_resampling_mod.f90`
 - `src/Radiation/`：`radiation_common.f90`, `SSC_spec.f90`, `Annihilation.f90`, `Seed_reverse.f90`, `synchrotron_polarization_kernel.f90`, `quantum_synchrotron_kernel.f90`
 - `src/Hadronic/`：

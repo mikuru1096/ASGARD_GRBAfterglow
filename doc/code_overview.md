@@ -80,7 +80,7 @@ Hadronic Python 模块只做 orchestration、wrapping 和 benchmark：
 
 ### 电子
 
-- Main entries：`FS_electron_fullhide_1d.f90`, `FS_electron_fullhide_2d.f90`, `FS_electron_charint_1d.f90`, `FS_electron_charint_2d.f90`, `FS_electron_slc1_1d.f90`, `FS_electron_t2g1_1d.f90`, `FS_electron_weno5_1d.f90`。
+- Main entries：`FS_electron_fullhide_1d.f90`, `FS_electron_fullhide_2d.f90`, `FS_electron_charint_1d.f90`, `FS_electron_slc1_1d.f90`, `FS_electron_t2g1_1d.f90`, `FS_electron_weno5_1d.f90`。`FS_electron_charint_2d` extension 复用 `FS_electron_fullhide_2d.f90` 中的 `fs_electron_transport_2d_core`，通过 `use_charint_transport` 选择 charint 2D path。
 - Shared kernels：`electron_common.f90`, `electron_cooling_kernel.f90`, `electron_radiation_kernel.f90`, `electron_seed_history_kernel.f90`, `electron_transport_2d_kernel.f90`, `electron_injection_profiles.f90`, `electron_transport_common.f90`, `electron_reverse_kernel.f90`, `adaptive_resampling_mod.f90`。
 
 ### 辐射与插值
