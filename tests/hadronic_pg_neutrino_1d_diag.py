@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from asgard_core.hadronic_am3_solver import AM3_PROCESS_LABELS, solve_hummer_2010_response_processes
+from asgard_core.hadronic_am3_solver import HUMMER_PROCESS_GROUP_LABELS, solve_hummer_2010_response_processes
 
 
 def main() -> None:
@@ -37,7 +37,7 @@ def main() -> None:
     assert output.l_had_pg_gamma.shape == (v_seed_hz.size, radius_cm.size)
     assert output.neutrino_frequency_hz.shape == (48,)
     assert output.neutrino_luminosity.shape == (48, radius_cm.size)
-    assert output.am3_process_power.shape == (len(AM3_PROCESS_LABELS), gam_p.size, radius_cm.size)
+    assert output.am3_process_power.shape == (len(HUMMER_PROCESS_GROUP_LABELS), gam_p.size, radius_cm.size)
 
     assert np.all(np.isfinite(output.l_had_pg_gamma))
     assert np.all(np.isfinite(output.neutrino_luminosity))

@@ -37,7 +37,7 @@ def build_coupled_shock_geometry(dynamics, config: FitConfig) -> CoupledShockGeo
 
     for i, radius_loc in enumerate(radius_cm):
         gamma_loc = gamma[i]
-        n1 = _ambient_density_for_coupling(radius_loc, config)
+        n1 = ambient_density(radius_loc, config)
         n2 = 4.0 * gamma_loc * n1
         fs_width_cm[i] = dynamics.swept_mass_g[i] / (4.0 * np.pi * radius_loc**2 * n2 * constants.para_m_p)
 
@@ -99,8 +99,3 @@ def _retarded_seed_interpolation(
             right=seed_syn[i_nu, -1],
         )
     return shifted_seed
-
-
-def _ambient_density_for_coupling(radius_cm: float, config: FitConfig) -> float:
-    """DEPRECATED: Use asgard_physics_utils.ambient_density instead."""
-    return ambient_density(radius_cm, config)

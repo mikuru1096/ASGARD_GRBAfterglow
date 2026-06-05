@@ -9,7 +9,7 @@ import numpy as np
 from src.Electron.electron_radiation import electron_radiation_kernel as electron_radiation_module
 import src.Hadronic.FS_hadronic_1d as hadronic_legacy_module
 from asgard_core.hadronic_am3_solver import (
-    AM3_PROCESS_LABELS,
+    HUMMER_PROCESS_GROUP_LABELS,
     HUMMER2010_RESPONSE_BACKEND,
     KA2008_REFERENCE_BACKEND,
     solve_hummer_2010_response_processes,
@@ -736,7 +736,7 @@ def solve_hadronic(
             neutrino_luminosity = am3_output.neutrino_luminosity
         am3_process_power = am3_output.am3_process_power
     else:
-        am3_process_power = np.zeros((len(AM3_PROCESS_LABELS), num_gam_p, num_r), dtype=float)
+        am3_process_power = np.zeros((len(HUMMER_PROCESS_GROUP_LABELS), num_gam_p, num_r), dtype=float)
 
     solution = HadronicSolution(
         solver=hadronic_solver,
@@ -753,7 +753,7 @@ def solve_hadronic(
         l_had_pair_production=None,
         tau_pg=None,
         pg_photon_survival=None,
-        am3_process_power=np.asarray(am3_process_power, dtype=float).reshape(len(AM3_PROCESS_LABELS), num_gam_p, num_r),
+        am3_process_power=np.asarray(am3_process_power, dtype=float).reshape(len(HUMMER_PROCESS_GROUP_LABELS), num_gam_p, num_r),
     )
     if return_report:
         backend = "fortran_core" if hadronic_solver == "legacy_1d" else KA2008_REFERENCE_BACKEND
@@ -827,7 +827,7 @@ def _solve_hadronic_hummer_transport_coupled(
     tau_pg = np.zeros((num_nu, num_r), dtype=float)
     pg_photon_survival = np.ones((num_nu, num_r), dtype=float)
     neutrino_luminosity = np.zeros((num_nu_nu, num_r), dtype=float)
-    am3_process_power = np.zeros((len(AM3_PROCESS_LABELS), num_gam_p, num_r), dtype=float)
+    am3_process_power = np.zeros((len(HUMMER_PROCESS_GROUP_LABELS), num_gam_p, num_r), dtype=float)
     d_n_gam_n = np.zeros((gam_secondary.size, num_r), dtype=float)
     d_n_gam_pi_plus = np.zeros((gam_secondary.size, num_r), dtype=float)
     d_n_gam_pi_minus = np.zeros((gam_secondary.size, num_r), dtype=float)
@@ -1173,7 +1173,7 @@ def _solve_hadronic_hummer_transport_coupled(
                     backend.process_rate_per_gev[i_proc],
                     shell_volume_loc,
                 )
-                for i_proc in range(len(AM3_PROCESS_LABELS))
+                for i_proc in range(len(HUMMER_PROCESS_GROUP_LABELS))
             ])
             proton_energy_weight = d_n_next * (gam_p * PROTON_MASS_GEV)
             total_weight = float(trapezoid(proton_energy_weight, gam_p * PROTON_MASS_GEV))
@@ -1984,12 +1984,12 @@ def _compute_characteristic_frequencies_weno5(
     for i in range(1, num_r):
         radius_loc = radius[i - 1]
         gamma_loc = 0.5 * (r_gamma[i - 1] + r_gamma[i])
-        d_ne = _ambient_density(radius_loc, config)
+        d_ne = ambient_density(radius_loc, config)
         db = 0.39 * np.sqrt(config.epsilon_b * d_ne * (gamma_loc * (gamma_loc - 1.0)))
         gam_e_max = 3.0 * constants.para_m_energy / np.sqrt(8.0 * db * constants.para_e**3)
         gam_e_m = _minimum_electron_lorentz_factor(config, gamma_loc, gam_e_max)
         gam_e_c = 7.7e8 * (1.0 + config.z) / gamma_loc / db**2 / r_tobs[i]
-        doppler_den = _doppler_denominator(gamma_loc, config.z)
+        doppler_den = doppler_denominator(gamma_loc, config.z)
 
         nu_m[i - 1] = _synchrotron_frequency(db, gam_e_m, doppler_den)
         nu_c[i - 1] = _synchrotron_frequency(db, gam_e_c, doppler_den)
@@ -2037,7 +2037,7 @@ def _compute_reverse_shock_characteristic_frequencies(
             )
             gam_e_m = 1.0 + (float(dynamics.reverse_shock.gamma_m_cross) - 1.0) * energy_ratio
         gam_e_c = 7.7e8 * (1.0 + config.z) / gamma2 / db**2 / dynamics.r_tobs[i]
-        doppler_den = _doppler_denominator(gamma2, config.z)
+        doppler_den = doppler_denominator(gamma2, config.z)
 
         nu_m[i - 1] = _synchrotron_frequency(db, gam_e_m, doppler_den)
         nu_c[i - 1] = _synchrotron_frequency(db, gam_e_c, doppler_den)
@@ -2107,16 +2107,6 @@ def _renormalize_reverse_shock_distribution(
             continue
         dist[:, i] *= target / total
     return dist
-
-
-def _ambient_density(radius_cm: float, config: FitConfig) -> float:
-    """DEPRECATED: Use asgard_physics_utils.ambient_density instead."""
-    return ambient_density(radius_cm, config)
-
-
-def _doppler_denominator(gamma_bulk: float, redshift: float) -> float:
-    """DEPRECATED: Use asgard_physics_utils.doppler_denominator instead."""
-    return doppler_denominator(gamma_bulk, redshift)
 
 
 def _synchrotron_frequency(magnetic_field_g: float, electron_lorentz_factor: float, doppler_den: float) -> float:

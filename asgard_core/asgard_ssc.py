@@ -3,16 +3,11 @@ from __future__ import annotations
 import numpy as np
 
 from asgard_core.asgard_config import FitConfig
-from asgard_core.asgard_physics_utils import ambient_density, compute_magnetic_field, compute_doppler
+from asgard_core.asgard_physics_utils import compute_magnetic_field, compute_doppler
 from src import Radiation, constants
 
 
 DEFAULT_AUXILIARY_GAMMA_COUNT = 64
-
-
-def _ambient_density(radius_cm: np.ndarray, config: FitConfig) -> np.ndarray:
-    """DEPRECATED: Use asgard_physics_utils.ambient_density instead."""
-    return ambient_density(radius_cm, config)
 
 
 def _compute_forward_nu_M(gamma: np.ndarray, radius_cm: np.ndarray, config: FitConfig) -> np.ndarray:

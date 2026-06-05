@@ -15,8 +15,6 @@ from src import constants
 
 
 HUMMER_PROCESS_GROUP_LABELS: tuple[str, ...] = ("photopion", "pion_decay", "muon_decay")
-# Backward-compatible alias name used by older tests/reporting paths.
-AM3_PROCESS_LABELS: tuple[str, ...] = HUMMER_PROCESS_GROUP_LABELS
 GEV_TO_ERG = constants.para_gev2erg
 HUMMER2010_RESPONSE_BACKEND = "fortran_wrapped_response"
 KA2008_REFERENCE_BACKEND = "python_reference"
@@ -39,9 +37,6 @@ class HadronicProcessOutput:
     neutron_loss_rate: np.ndarray | None = None
     photon_loss_frequency_hz: np.ndarray | None = None
     photon_loss_rate: np.ndarray | None = None
-
-
-AM3HadronicOutput = HadronicProcessOutput
 
 
 @dataclass(frozen=True)
@@ -68,58 +63,6 @@ def solve_hummer_2010_response_processes(
 ) -> HadronicProcessOutput:
     """Canonical backend for pgamma_scheme='hummer_2010_response'."""
     return _solve_hummer_backend(
-        radius_cm,
-        gam_p,
-        d_n_gam_p,
-        v_seed_hz,
-        seed_target_hz,
-        num_nu_nu,
-        process_energy_gev=process_energy_gev,
-        include_pg=include_pg,
-        include_neutrino=include_neutrino,
-    )
-
-
-def solve_hummer2010_grouped_processes(
-    radius_cm: np.ndarray,
-    gam_p: np.ndarray,
-    d_n_gam_p: np.ndarray,
-    v_seed_hz: np.ndarray,
-    seed_target_hz: np.ndarray,
-    num_nu_nu: int,
-    process_energy_gev: np.ndarray | None = None,
-    *,
-    include_pg: bool,
-    include_neutrino: bool,
-) -> HadronicProcessOutput:
-    """Backward-compatible alias to solve_hummer_2010_response_processes."""
-    return solve_hummer_2010_response_processes(
-        radius_cm,
-        gam_p,
-        d_n_gam_p,
-        v_seed_hz,
-        seed_target_hz,
-        num_nu_nu,
-        process_energy_gev=process_energy_gev,
-        include_pg=include_pg,
-        include_neutrino=include_neutrino,
-    )
-
-
-def solve_am3_hadronic_processes(
-    radius_cm: np.ndarray,
-    gam_p: np.ndarray,
-    d_n_gam_p: np.ndarray,
-    v_seed_hz: np.ndarray,
-    seed_target_hz: np.ndarray,
-    num_nu_nu: int,
-    process_energy_gev: np.ndarray | None = None,
-    *,
-    include_pg: bool,
-    include_neutrino: bool,
-) -> HadronicProcessOutput:
-    """Backward-compatible alias to solve_hummer_2010_response_processes."""
-    return solve_hummer_2010_response_processes(
         radius_cm,
         gam_p,
         d_n_gam_p,
@@ -438,56 +381,6 @@ def solve_ka2008_reference_processes(
     )
 
 
-def solve_ka2008_grouped_processes(
-    radius_cm: np.ndarray,
-    gam_p: np.ndarray,
-    d_n_gam_p: np.ndarray,
-    v_seed_hz: np.ndarray,
-    seed_target_hz: np.ndarray,
-    num_nu_nu: int,
-    process_energy_gev: np.ndarray | None = None,
-    *,
-    include_pg: bool,
-    include_neutrino: bool,
-) -> HadronicProcessOutput:
-    """Backward-compatible alias to the KA2008 reference backend."""
-    return solve_ka2008_reference_processes(
-        radius_cm,
-        gam_p,
-        d_n_gam_p,
-        v_seed_hz,
-        seed_target_hz,
-        num_nu_nu,
-        process_energy_gev=process_energy_gev,
-        include_pg=include_pg,
-        include_neutrino=include_neutrino,
-    )
-
-
-def solve_aharonian_hadronic_processes(
-    radius_cm: np.ndarray,
-    gam_p: np.ndarray,
-    d_n_gam_p: np.ndarray,
-    v_seed_hz: np.ndarray,
-    seed_target_hz: np.ndarray,
-    num_nu_nu: int,
-    process_energy_gev: np.ndarray | None = None,
-    *,
-    include_pg: bool,
-    include_neutrino: bool,
-) -> HadronicProcessOutput:
-    """Backward-compatible alias to the KA2008 reference backend."""
-    return solve_ka2008_reference_processes(
-        radius_cm,
-        gam_p,
-        d_n_gam_p,
-        v_seed_hz,
-        seed_target_hz,
-        num_nu_nu,
-        process_energy_gev=process_energy_gev,
-        include_pg=include_pg,
-        include_neutrino=include_neutrino,
-    )
 
 
 def _solve_hummer_backend(

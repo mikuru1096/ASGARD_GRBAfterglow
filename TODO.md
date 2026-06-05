@@ -1,6 +1,6 @@
 # ASGARD 待优化项
 
-本文档只记录当前工作树仍成立的清理候选。已完成或已过期的旧 public alias、旧观测 builder、重复 enum member、冗余 property、旧 kernel alias 表和 pgamma 两阶段查找不再作为待办。
+本文档只记录当前工作树仍成立的清理候选。已完成或已过期的旧 public alias、旧观测 builder、重复 enum member、冗余 property、旧 kernel alias 表、零调用 hadronic alias、physics helper 薄 wrapper、旧 AM3 process-label alias 和 pgamma 两阶段查找不再作为待办。
 
 ## 原则
 
@@ -19,9 +19,13 @@
 
 当前源码没有独立的 charint 2D Fortran 源文件。`FS_electron_charint_2d` 是 f2py extension 名称，由 `src/Electron/FS_electron_fullhide_2d.f90` 中的 `fs_electron_transport_2d_core` 构建，并通过 `use_charint_transport` 启用 charint 2D path。后续文档、测试和构建说明必须保持这个事实。
 
-### 3. Public/API 类型命名统一
+### 3. `FitConfig -> SimulationConfig` 主链迁移
 
-当前公开结果类型为 `FluxResult`、`FluxPair`、`TrackBundle`。旧的 model/branch/details 结果别名不应重新引入。若文档或示例再次出现旧称，应直接改为当前公开类型。
+`FitConfig` 仍是当前 runtime、state、postprocess、tests 和 scripts 的主输入类型。不要只因为注释里写了 legacy 就删除它；只有当 `SimulationConfig` 贯穿运行主链并完成等价 smoke/benchmark 后，才能进入破坏性迁移。
+
+### 4. Public constructor alias 破坏性移除
+
+`ISM`、`Wind`、`TophatJet` 等 constructor aliases 是当前文档化公开入口。若后续要移除，必须作为 public API breaking change 单独处理，并同步 README、public API 文档、示例和 tests。
 
 ## 不做
 

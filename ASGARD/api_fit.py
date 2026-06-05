@@ -7,7 +7,15 @@ from typing import Any, Optional
 
 import numpy as np
 
-from .api_model import Model, FluxResult, Scale, make_empty_obs
+from .api_model import (
+    Model,
+    FluxResult,
+    Scale,
+    make_empty_obs,
+    make_flux_density_entry,
+    make_spectrum_entry,
+    make_flux_entry,
+)
 
 class Param:
     def __init__(self, name: str, *args, scale: Scale = Scale.LINEAR) -> None:

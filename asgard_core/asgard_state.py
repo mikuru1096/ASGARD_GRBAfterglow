@@ -621,7 +621,7 @@ def _stage_reverse_emission(
             gamma=dynamics.r_gamma,
             radius_cm=dynamics.radius,
             swept_mass_g=dynamics.reverse_shock.swept_mass_g,
-            doppler=_compute_doppler(dynamics.r_gamma, config.z),
+            doppler=compute_doppler(dynamics.r_gamma, config.z),
             magnetic_field_g=reverse_emission.magnetic_field_g,
             nu_m=reverse_emission.nu_m,
             nu_c=reverse_emission.nu_c,
@@ -813,12 +813,12 @@ def _stage_assemble_result(
                 gamma=dynamics.r_gamma,
                 radius_cm=dynamics.radius,
                 swept_mass_g=dynamics.swept_mass_g,
-                doppler=_compute_doppler(dynamics.r_gamma, config.z),
-                magnetic_field_g=_compute_forward_magnetic_field(dynamics.r_gamma, dynamics.radius, config),
+                doppler=compute_doppler(dynamics.r_gamma, config.z),
+                magnetic_field_g=compute_magnetic_field(dynamics.r_gamma, dynamics.radius, config),
                 nu_m=electron.nu_m,
                 nu_c=electron.nu_c,
                 nu_a=electron.nu_a,
-                nu_M=_compute_maximum_synchrotron_frequency(dynamics.r_gamma, dynamics.radius, config),
+                nu_M=compute_maximum_synchrotron_frequency(dynamics.r_gamma, dynamics.radius, config),
                 cooling_timescale_s=electron.cooling_timescale_s,
                 dynamical_timescale_s=electron.dynamical_timescale_s,
             ),
@@ -1241,23 +1241,3 @@ def _timed_call(timings: Optional[dict[str, float]], label: Optional[str], func,
     if timings is not None and label is not None:
         timings[label] = timings.get(label, 0.0) + elapsed
     return result
-
-
-def _compute_doppler(gamma: np.ndarray, redshift: float) -> np.ndarray:
-    """DEPRECATED: Use asgard_physics_utils.compute_doppler instead."""
-    return compute_doppler(gamma, redshift)
-
-
-def _ambient_density(radius_cm: np.ndarray, config: FitConfig) -> np.ndarray:
-    """DEPRECATED: Use asgard_physics_utils.ambient_density instead."""
-    return ambient_density(radius_cm, config)
-
-
-def _compute_forward_magnetic_field(gamma: np.ndarray, radius_cm: np.ndarray, config: FitConfig) -> np.ndarray:
-    """DEPRECATED: Use asgard_physics_utils.compute_magnetic_field instead."""
-    return compute_magnetic_field(gamma, radius_cm, config)
-
-
-def _compute_maximum_synchrotron_frequency(gamma: np.ndarray, radius_cm: np.ndarray, config: FitConfig) -> np.ndarray:
-    """DEPRECATED: Use asgard_physics_utils.compute_maximum_synchrotron_frequency instead."""
-    return compute_maximum_synchrotron_frequency(gamma, radius_cm, config)
