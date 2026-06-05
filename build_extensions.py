@@ -159,6 +159,21 @@ HADRONIC_1D_SOURCES = (
     "hadronic_pp_models_kernel.f90",
 )
 
+def convert_utf8_to_ascii(input_file, error_strategy='ignore'):
+    """
+    error_strategy 可选:
+    'ignore' - 直接丢弃非 ASCII 字符
+    'replace' - 将无法转换的字符替换为 '?'
+    'backslashreplace' - 转换为 Python 的 Unicode 转义字符串 (如 \u4e2d)
+    """
+    with open(input_file, 'r', encoding='utf-8') as f_in:
+        content = f_in.read()
+    
+    # 转换为字节流，再转回 ASCII 字符串
+    ascii_content = content.encode('ascii', errors=error_strategy).decode('ascii')
+    
+    with open(input_file, 'w', encoding='ascii') as f_out:
+        f_out.write(ascii_content)
 
 def _with_main(common_sources: tuple[str, ...], main_source: str) -> list[str]:
     return [*common_sources, main_source]
@@ -588,6 +603,9 @@ def main() -> None:
     print(f"Compile start ({_detect_build_platform()})")
     for module_name, cwd, sources, fflags, extra_args in modules:
         print(f"Build {module_name}")
+        for _s in sources:
+            src_file = os.path.join(cwd, _s)
+            convert_utf8_to_ascii(src_file, 'ignore')
         if module_name in DIRECT_ORDERED_BUILD_MODULES:
             elapsed = _build_ordered_object_module(
                 root,
