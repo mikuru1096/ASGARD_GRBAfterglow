@@ -98,7 +98,7 @@ Strang splitting 半拉格朗日: 半步源项 → 半拉格朗日输运 → 半
 
 ### 3.5 `weno5_1d`
 
-显式守恒律: WENO5 空间重构 + SSP RK3 时间推进。通量 `fp = dEl1 * dN_x`，按速度符号切换 `fpx/fmx`。常值外推 ghost cells。正性维护: `where(dN_x < 0) dN_x = 0`。
+显式守恒律: WENO5 空间重构 + SSP RK3 时间推进。通量 `fp = dEl1 * dN_x`，按速度符号切换 `weno5_positive_flux`/`weno5_negative_flux`。常值外推 ghost cells。正性维护: `where(dN_x < 0) dN_x = 0`。
 
 优点: 平滑区高阶。缺点: 显式 CFL 限制，刚性问题步长极小，截断负值影响守恒。
 

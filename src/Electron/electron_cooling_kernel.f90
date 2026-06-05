@@ -6,8 +6,8 @@ module electron_cooling_kernel
                                        electron_log_gauss2_interval, electron_ssa_segment
   private
 
-  public :: get_SSA_numerical, get_SSA_numerical_batch, get_IC_numerical
-  public :: get_Y_Nakar, get_Y_Fan
+  public :: electron_cooling_ssa_loss, electron_cooling_ssa_loss_batch, electron_cooling_ic_loss
+  public :: electron_cooling_y_nakar, electron_cooling_y_fan
   public :: get_forward_cooling, prepare_forward_cooling_aux, prepare_forward_cooling_aux_batch
   public :: assemble_forward_cooling_split, assemble_forward_cooling_split_batch
 
@@ -315,7 +315,7 @@ integer :: work_items
 end subroutine accumulate_ssa_for_seed
 
 ! 计算同步自吸收（SSA）冷却率 dγ/dt：构建几何→累加低频+高频贡献。
-subroutine get_SSA_numerical(DB,Num_gam_e,Num_nu,n_threads,gam_e,V_seed,Seed_syn, dot_gam_e)
+subroutine electron_cooling_ssa_loss(DB,Num_gam_e,Num_nu,n_threads,gam_e,V_seed,Seed_syn, dot_gam_e)
 !$ use omp_lib
 implicit REAL(8)(A-H,O-Z)
 integer, intent(in) :: Num_gam_e,Num_nu,n_threads
@@ -331,7 +331,7 @@ real(8), intent(out) :: dot_gam_e(Num_gam_e)
                                  ssa_low_last_cache,ssa_high_first_cache, &
                                  ssa_prefactor_low_cache,ssa_prefactor_high_cache,Cyclotron_nu,dot_gam_e)
 
-end subroutine get_SSA_numerical
+end subroutine electron_cooling_ssa_loss
 
 ! 批量模式下计算单个(γ, χ)单元的SSA冷却率。
 subroutine accumulate_ssa_batch_cell(Num_gam_e,Num_nu,Num_chi,I_gam_e,I_chi,gam_e,Seed_syn_batch,dot_gam_e_val)
@@ -387,7 +387,7 @@ real(8) :: gam,gam2,V_lowlim,V_uplim,ssa_sum,cell_low,cell_high
 end subroutine accumulate_ssa_batch_cell
 
 ! 批量SSA冷却率：对多个χ列的种子光子场同时计算SSA，可OpenMP并行。
-subroutine get_SSA_numerical_batch(DB,Num_gam_e,Num_nu,Num_chi,n_threads,gam_e,V_seed,Seed_syn_batch,dot_gam_e_batch)
+subroutine electron_cooling_ssa_loss_batch(DB,Num_gam_e,Num_nu,Num_chi,n_threads,gam_e,V_seed,Seed_syn_batch,dot_gam_e_batch)
 !$ use omp_lib
 implicit REAL(8)(A-H,O-Z)
 integer, intent(in) :: Num_gam_e,Num_nu,Num_chi,n_threads
@@ -423,10 +423,10 @@ integer :: batch_work
        end do
        !$OMP END PARALLEL DO
     end if
-end subroutine get_SSA_numerical_batch
+end subroutine electron_cooling_ssa_loss_batch
 
 ! 数值计算逆康普顿（IC）冷却率：双重积分（种子光子×散射截面），含Jones/Blumenthal核。
-subroutine get_IC_numerical(Num_gam_e,Num_nu,n_threads,gam_e,V_seed,Seed_syn, dot_gam_e)
+subroutine electron_cooling_ic_loss(Num_gam_e,Num_nu,n_threads,gam_e,V_seed,Seed_syn, dot_gam_e)
 !$ use omp_lib
 implicit REAL(8)(A-H,O-Z)
 integer, intent(in) :: Num_gam_e,Num_nu,n_threads
@@ -526,7 +526,7 @@ integer :: work_items
     dot_gam_e(Num_gam_e)=0.99*dot_gam_e(Num_gam_e-1)
 
 deallocate (photon_number)
-end subroutine get_IC_numerical
+end subroutine electron_cooling_ic_loss
 
 ! 确保Nakar Y参数工作数组已分配（缓存hat_nu、频率段Gauss节点和查找区间）。
 subroutine ensure_y_nakar_workspace(Num_gam_e,Num_nu,gam_e,V_seed)
@@ -570,7 +570,7 @@ logical :: rebuild
 end subroutine ensure_y_nakar_workspace
 
 ! Nakar+2009 Compton Y参数：Y(γ) = ∫_{ν̂(γ)}^{ν_max} P_syn(ν) dν，谱形依赖。
-subroutine get_Y_Nakar(Num_gam_e,Num_nu,n_threads,gam_e,V_seed,P_syn, Compton)
+subroutine electron_cooling_y_nakar(Num_gam_e,Num_nu,n_threads,gam_e,V_seed,P_syn, Compton)
 !$ use omp_lib
 implicit REAL(8)(A-H,O-Z)
 integer, intent(in) :: Num_gam_e,Num_nu,n_threads
@@ -628,10 +628,10 @@ real(8), intent(out) :: Compton(Num_gam_e)
        !$OMP END DO
        !$OMP END PARALLEL
     end if
-end subroutine get_Y_Nakar
+end subroutine electron_cooling_y_nakar
 
 ! Fan+2008 Compton Y参数：解析分段η_NK(γ) × η_rad，含快/慢冷却和谱指数分支。
-subroutine get_Y_Fan(Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,gam_e, Compton)
+subroutine electron_cooling_y_fan(Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,gam_e, Compton)
 implicit REAL(8)(A-H,O-Z)
 integer, intent(in) :: Num_gam_e
 real(8), intent(in) :: Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,gam_e(Num_gam_e)
@@ -692,7 +692,7 @@ integer :: i_gam_e
             Compton(i_gam_e)=0.99*Compton(i_gam_e-1)
         end if
     end do
-end subroutine get_Y_Fan
+end subroutine electron_cooling_y_fan
 
 ! 根据index_Y准备正激波冷却辅助量：IC数值积分或Nakar Y参数。
 subroutine prepare_forward_cooling_aux(index_Y,Num_gam_e,Num_nu,n_threads,gam_e,V_seed,P_syn,Seed_syn,cooling_aux)
@@ -704,9 +704,9 @@ real(8), intent(out) :: cooling_aux(Num_gam_e)
     cooling_aux=zero
     select case(index_Y)
     case(1)
-        call get_IC_numerical(Num_gam_e,Num_nu,n_threads,gam_e,V_seed,Seed_syn,cooling_aux)
+        call electron_cooling_ic_loss(Num_gam_e,Num_nu,n_threads,gam_e,V_seed,Seed_syn,cooling_aux)
     case(2)
-        call get_Y_Nakar(Num_gam_e,Num_nu,n_threads,gam_e,V_seed,P_syn,cooling_aux)
+        call electron_cooling_y_nakar(Num_gam_e,Num_nu,n_threads,gam_e,V_seed,P_syn,cooling_aux)
     case default
     end select
 end subroutine prepare_forward_cooling_aux
@@ -723,11 +723,11 @@ integer :: I_chi
     select case(index_Y)
     case(1)
         do I_chi=1,Num_chi
-            call get_IC_numerical(Num_gam_e,Num_nu,n_threads,gam_e,V_seed,Seed_syn(:,I_chi),cooling_aux(:,I_chi))
+            call electron_cooling_ic_loss(Num_gam_e,Num_nu,n_threads,gam_e,V_seed,Seed_syn(:,I_chi),cooling_aux(:,I_chi))
         end do
     case(2)
         do I_chi=1,Num_chi
-            call get_Y_Nakar(Num_gam_e,Num_nu,n_threads,gam_e,V_seed,P_syn(:,I_chi),cooling_aux(:,I_chi))
+            call electron_cooling_y_nakar(Num_gam_e,Num_nu,n_threads,gam_e,V_seed,P_syn(:,I_chi),cooling_aux(:,I_chi))
         end do
     case default
     end select
@@ -745,7 +745,7 @@ real(8), intent(in) :: gam_e(Num_gam_e),V_seed(Num_nu),Seed_syn_ssa(Num_nu),cool
 real(8), intent(out) :: dEl(Num_gam_e)
 real(8) :: Compton(Num_gam_e),dot_gam_e_SSA(Num_gam_e)
 
-    call get_SSA_numerical(DB,Num_gam_e,Num_nu,n_threads,gam_e,V_seed,Seed_syn_ssa,dot_gam_e_SSA)
+    call electron_cooling_ssa_loss(DB,Num_gam_e,Num_nu,n_threads,gam_e,V_seed,Seed_syn_ssa,dot_gam_e_SSA)
     call assemble_forward_cooling_from_terms(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc,R_Gamma_loc, &
                                              beta_Gam,dNe,Num_gam_e,gam_e,Compton,dot_gam_e_SSA,cooling_aux,dEl)
 end subroutine assemble_forward_cooling_split
@@ -763,7 +763,7 @@ real(8), intent(out) :: dEl(Num_gam_e,Num_chi)
 real(8) :: Compton(Num_gam_e),Gam_e_max_cell,dot_gam_e_SSA(Num_gam_e,Num_chi)
 integer :: I_chi
 
-    call get_SSA_numerical_batch(DB,Num_gam_e,Num_nu,Num_chi,n_threads,gam_e,V_seed,Seed_syn_ssa,dot_gam_e_SSA)
+    call electron_cooling_ssa_loss_batch(DB,Num_gam_e,Num_nu,Num_chi,n_threads,gam_e,V_seed,Seed_syn_ssa,dot_gam_e_SSA)
     do I_chi=1,Num_chi
        Gam_e_max_cell=Gam_e_max
        call assemble_forward_cooling_from_terms(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max_cell,R_loc,R_Gamma_loc, &
@@ -799,7 +799,7 @@ real(8), intent(out) :: dEl(Num_gam_e)
         Gam_e_max=Gam_e_max/sqrt(Compton(Num_gam_e))
         dEl=(f_r*Compton-dot_gam_e_SSA*ssa_scale)*gam_e
     case(3)
-        call get_Y_Fan(Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,gam_e,Compton)
+        call electron_cooling_y_fan(Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,gam_e,Compton)
         Compton=one+Compton
         Gam_e_max=Gam_e_max/sqrt(Compton(Num_gam_e))
         dEl=(f_r*Compton-dot_gam_e_SSA*ssa_scale)*gam_e
@@ -822,7 +822,7 @@ real(8) :: cooling_aux(Num_gam_e)
 real(8) :: Compton(Num_gam_e),dot_gam_e_SSA(Num_gam_e)
 
     call prepare_forward_cooling_aux(index_Y,Num_gam_e,Num_nu,n_threads,gam_e,V_seed,P_syn,Seed_syn,cooling_aux)
-    call get_SSA_numerical(DB,Num_gam_e,Num_nu,n_threads,gam_e,V_seed,Seed_syn,dot_gam_e_SSA)
+    call electron_cooling_ssa_loss(DB,Num_gam_e,Num_nu,n_threads,gam_e,V_seed,Seed_syn,dot_gam_e_SSA)
     call assemble_forward_cooling_from_terms(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc,R_Gamma_loc, &
                                              beta_Gam,dNe,Num_gam_e,gam_e,Compton,dot_gam_e_SSA,cooling_aux,dEl)
 end subroutine get_forward_cooling

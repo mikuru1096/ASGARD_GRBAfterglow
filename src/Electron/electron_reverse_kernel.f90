@@ -4,7 +4,7 @@ module electron_reverse_kernel
     use electron_injection_profiles, only: electron_exp_cutoff_factor, electron_profile_log_cell_edges
     use electron_transport_common, only: electron_fullhide_flux_split_step
     use electron_radiation_kernel, only: get_syn_selected
-    use electron_cooling_kernel, only: get_IC_numerical, get_Y_Nakar, get_Y_Fan
+    use electron_cooling_kernel, only: electron_cooling_ic_loss, electron_cooling_y_nakar, electron_cooling_y_fan
     implicit none
 contains
 
@@ -128,16 +128,16 @@ subroutine electron_reverse_evolve(Delta_0,e_r,b_r,p_r,f_e_r,eta_0,Epsilon_e,Eps
             dEl=f_r*gam_e
         case(1)
             cooling_scale=one/(beta2*R_Gamma_loc*Para_c)
-            call get_IC_numerical(Num_gam_e,Num_nu,n_threads,gam_e,V_seed,Seed_syn,cooling_aux)
+            call electron_cooling_ic_loss(Num_gam_e,Num_nu,n_threads,gam_e,V_seed,Seed_syn,cooling_aux)
             dEl=(f_r+cooling_aux*cooling_scale)*gam_e
         case(2)
             Qshell=4d0*pi*R(I_tobs-1)*R(I_tobs-1)*Para_c
-            call get_Y_Nakar(Num_gam_e,Num_nu,n_threads,gam_e,V_seed,P_syn,cooling_aux)
+            call electron_cooling_y_nakar(Num_gam_e,Num_nu,n_threads,gam_e,V_seed,P_syn,cooling_aux)
             Compton=one+cooling_aux/Qshell/(4d0*R_Gamma_loc*R_Gamma_loc*R_n4*Para_m_p_E)
             Gam_e_max=Gam_e_max/dsqrt(Compton(Num_gam_e))
             dEl=f_r*Compton*gam_e
         case(3)
-            call get_Y_Fan(e_r,b_r,p_r,dB,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,gam_e,Compton)
+            call electron_cooling_y_fan(e_r,b_r,p_r,dB,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,gam_e,Compton)
             Compton=one+Compton
             Gam_e_max=Gam_e_max/dsqrt(Compton(Num_gam_e))
             dEl=f_r*Compton*gam_e

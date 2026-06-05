@@ -110,15 +110,15 @@ subroutine fs_electron_weno5_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,
 
             do j=1,3
 
-              call update_ghost_cells(dN_x_extended, Num_gam_e)
+              call weno5_update_ghost_cells(dN_x_extended, Num_gam_e)
         
               fp_extended = dEl1_extended * dN_x_extended
         
               do i_gam_e = 0, Num_gam_e
                  if (dEl1_extended(i_gam_e) <= 0.0d0) then
-                    flux_extended(i_gam_e) = fpx(fp_extended(i_gam_e-2:i_gam_e+2))
+                    flux_extended(i_gam_e) = weno5_positive_flux(fp_extended(i_gam_e-2:i_gam_e+2))
                  else
-                    flux_extended(i_gam_e) = fmx(fp_extended(i_gam_e-1:i_gam_e+3))
+                    flux_extended(i_gam_e) = weno5_negative_flux(fp_extended(i_gam_e-1:i_gam_e+3))
                  end if
               end do
         
@@ -158,7 +158,7 @@ subroutine fs_electron_weno5_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,
 end subroutine
 
 ! 更新WENO5鬼点：零阶外推（复制边界值）。
-subroutine update_ghost_cells(arr, n)
+subroutine weno5_update_ghost_cells(arr, n)
         integer, intent(in) :: n
         real(8), intent(inout) :: arr(1-3:n+3)
         
@@ -170,11 +170,11 @@ subroutine update_ghost_cells(arr, n)
         ! arr(1-1) = arr(n)
         ! arr(n+1) = arr(1)
         ! arr(n+2) = arr(2)
-    end subroutine update_ghost_cells
+    end subroutine weno5_update_ghost_cells
 
 ! WENO5正通量重构 f⁺(f_{i-2},...,f_{i+2})。
-function fpx(fps)
-    real(8) :: fps(-2:2), fpx
+function weno5_positive_flux(fps)
+    real(8) :: fps(-2:2), weno5_positive_flux
     real(8) :: omega(3), fu(3), beta(3)
     real(8) :: tao5, totalpha, alpha(3), fomega(3), eps
 
@@ -182,7 +182,7 @@ function fpx(fps)
     eps=1d-30
     
     if(any(isnan(fps))) then
-        fpx = 0.0d0
+        weno5_positive_flux = 0.0d0
         return
     end if
     
@@ -203,18 +203,18 @@ function fpx(fps)
     totalpha = alpha(1) + alpha(2) + alpha(3)
     
     if(totalpha < eps) then
-        fpx = fu(2)
+        weno5_positive_flux = fu(2)
     else
         fomega(:) = alpha(:)/totalpha
-        fpx = fu(1)*fomega(1) + fu(2)*fomega(2) + fu(3)*fomega(3)
+        weno5_positive_flux = fu(1)*fomega(1) + fu(2)*fomega(2) + fu(3)*fomega(3)
     end if
     
     return
-end function fpx
+end function weno5_positive_flux
 
 ! WENO5负通量重构 f⁻(f_{i-1},...,f_{i+3})。
-function fmx(fms)
-    real(8) :: fms(-1:3), fmx
+function weno5_negative_flux(fms)
+    real(8) :: fms(-1:3), weno5_negative_flux
     real(8) :: omega(3), fu(3), beta(3)
     real(8) :: tao5, totalpha, alpha(3), fomega(3), eps
     
@@ -222,7 +222,7 @@ function fmx(fms)
     eps=1d-30
     
     if(any(isnan(fms))) then
-        fmx = 0.0d0
+        weno5_negative_flux = 0.0d0
         return
     end if
     
@@ -243,11 +243,11 @@ function fmx(fms)
     totalpha = alpha(1) + alpha(2) + alpha(3)
     
     if(totalpha < eps) then
-        fmx = fu(2)
+        weno5_negative_flux = fu(2)
     else
         fomega(:) = alpha(:)/totalpha
-        fmx = fu(1)*fomega(1) + fu(2)*fomega(2) + fu(3)*fomega(3)
+        weno5_negative_flux = fu(1)*fomega(1) + fu(2)*fomega(2) + fu(3)*fomega(3)
     end if
     
     return
-end function fmx
+end function weno5_negative_flux

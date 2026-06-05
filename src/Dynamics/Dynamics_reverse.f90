@@ -9,7 +9,7 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
     implicit none
     integer, intent(in) :: n,Num_R
     integer :: I_tobs, Num_R1
-    procedure(dynamics_reverse_rhs_iface) :: F
+    procedure(dynamics_reverse_rhs_iface) :: reverse_dynamics_rhs
     real(8), intent(in) :: Boundary(n),Delta_t,e_r,b_r,p_r,f_e_r,sigma_r
     real(8), intent(out) :: T_cross,R_cross,e3_cross,gam20,U3_cross,V3_cross,M3_cross,gam_m_cross,B3_ordered_cross
     real(8), intent(out) :: R_Tobs(Num_R),R(Num_R),M2(Num_R),M3(Num_R),B3(Num_R),R_Gamma(Num_R)
@@ -50,7 +50,8 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
 
     do I_tobs=1,Num_R
         call dynamics_log_time_step(T00,Grid_Tobs_bin,T_log10,Num_R1,I_tobs,T,H)
-        call dynamics_rk4_reverse(F,dB3,T_cross,R_cross,e3_cross,gam20,U3_cross,V3_cross,M3_cross, &
+        call dynamics_rk4_reverse(reverse_dynamics_rhs,dB3,T_cross,R_cross,e3_cross,gam20, &
+                                  U3_cross,V3_cross,M3_cross, &
                                   gam_m_cross,B3_ordered_cross,T,H,Y,para_m_ej,Delta_0,eta_0,A_star,dNe_ISM, &
                                   Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,f_e_r,sigma_r)
         R_Tobs(I_tobs)=T*(one+z); R_Gamma(I_tobs)=Y(1); R(I_tobs)=Y(2); M2(I_tobs)=Y(3); M3(I_tobs)=Y(4)
@@ -61,7 +62,7 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
     deallocate(Y)
 end subroutine dynamics_reverse
 
-subroutine F(dB3,T_cross,R_cross,e3_cross,gam20,U3_cross,V3_cross,M3_cross,gam_m_cross,B3_ordered_cross, &
+subroutine reverse_dynamics_rhs(dB3,T_cross,R_cross,e3_cross,gam20,U3_cross,V3_cross,M3_cross,gam_m_cross,B3_ordered_cross, &
              T,Y,D,para_m_ej,Delta_0,eta_0,A_star,dNe_ISM,Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,f_e_r,sigma_r)
     use constants
     use dynamics_common, only: dynamics_external_density_base, rs_mag_comp, rs_b4_up
@@ -140,4 +141,4 @@ subroutine F(dB3,T_cross,R_cross,e3_cross,gam20,U3_cross,V3_cross,M3_cross,gam_m
     dU3_ad=-(ad3-one)*U3*dV3_exp/V3
     dU3=dU3_shock+dU3_ad; dV3=dV3_shock+dV3_exp
     D=[dgam2,dR,dm2,dm3,dU3,dV3]
-end subroutine F
+end subroutine reverse_dynamics_rhs

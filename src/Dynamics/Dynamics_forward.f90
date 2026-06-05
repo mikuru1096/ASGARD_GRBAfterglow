@@ -5,7 +5,7 @@ subroutine dynamics_forward(Boundary,n,Num_R,index_dyn,R_Tobs,R_Gamma,R,R_m)
     implicit none
     integer, intent(in) :: n,Num_R,index_dyn
     integer :: I_tobs, Num_R1, M
-    procedure(dynamics_forward_rhs_iface) :: F
+    procedure(dynamics_forward_rhs_iface) :: forward_dynamics_rhs
     real(8), intent(in) :: Boundary(n)
     real(8), intent(out) :: R_Tobs(Num_R),R_Gamma(Num_R),R(Num_R),R_m(Num_R)
     real(8) :: Eta_0,Epsilon_e,Epsilon_b,p,z,dNe_ISM,A_star,E_iso,T_log10_duration,f_e
@@ -30,13 +30,15 @@ subroutine dynamics_forward(Boundary,n,Num_R,index_dyn,R_Tobs,R_Gamma,R,R_m)
 
     do I_tobs=1,Num_R
         call dynamics_log_time_step(zero,Grid_Tobs_bin,T_log10,Num_R1,I_tobs,T,H)
-        call dynamics_rk4_forward(F,T,H,Y,M,EPS,D,B,C,G,E,Epsilon_e,E_iso,Eta_0,dNe_ISM,A_star,Epsilon_b,p,z,f_e, &
+        call dynamics_rk4_forward(forward_dynamics_rhs,T,H,Y,M,EPS,D,B,C,G,E,Epsilon_e,E_iso,Eta_0, &
+                                  dNe_ISM,A_star,Epsilon_b,p,z,f_e, &
                                   E_inj_t1,E_inj_t2,E_inj,E_inj_q,R_tr,f_jump,f_wide,R0,index_dyn)
         R_Tobs(I_tobs)=T*(one+z); R_Gamma(I_tobs)=Y(1); R_m(I_tobs)=Y(2)/Para_m_p; R(I_tobs)=Y(4)
     end do
 end subroutine dynamics_forward
 
-subroutine F(T,Y,M,D,E_e,E_iso,Eta_0,dNe_ISM,A_star,E_b,p,z,f_e,E_inj_t1,E_inj_t2,E_inj,E_inj_q,R_tr,f_jump,f_wide,R0,index_dyn)
+subroutine forward_dynamics_rhs(T,Y,M,D,E_e,E_iso,Eta_0,dNe_ISM,A_star,E_b,p,z,f_e, &
+                                E_inj_t1,E_inj_t2,E_inj,E_inj_q,R_tr,f_jump,f_wide,R0,index_dyn)
     use constants
     use dynamics_common
     implicit none
@@ -94,4 +96,4 @@ subroutine F(T,Y,M,D,E_e,E_iso,Eta_0,dNe_ISM,A_star,E_b,p,z,f_e,E_inj_t1,E_inj_t
         D(1)=D011/D022*D00
         D(3)=((1d0-Epe)*(Y(1)-one)*dM/D00*Para_c**2-(hat_gam-one)*(3d0/Y(4)-one/Y(1)*D(1)/D00)*Y(3))*D00+A/D00
     end select
-end subroutine F
+end subroutine forward_dynamics_rhs
