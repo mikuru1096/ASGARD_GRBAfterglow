@@ -16,7 +16,7 @@
 - Magnetized RS baseline 已完成：`ReverseShockConfig.sigma` / `Setups.reverse_sigma` 控制 upstream magnetization；`Dynamics_reverse` 接收 `sigma_r`，Python 暴露 total `B3` 与 `ReverseShockDynamics.ordered_magnetic_cross_g`；`sigma -> 0` 固定回到当前非磁化 jump baseline。
 - RS thermal-state baseline 已完成：动力学显式输出 `U3_th/V3_comoving/Gamma34_inst`；`B3` 由 turbulent `sqrt(8 pi epsilon_B,r U3/V3)` 加 ordered upstream component 给出；`details().rvs.nu_m` 是 diagnostic break，不替代输运后的电子谱峰。
 - RS hadronic baseline 已完成：light path 覆盖 RS proton injection/transport + proton synchrotron；full-chain path 复用正式 1D hadronic kernels，使用 RS seed photons、RS `B3`、shell energy 和 baryon target density。
-- RS benchmark refresh 已完成：`tests/vegas_afterglow_comparison.py --only reverse_shock_lc reverse_shock_thermal` 生成 RS 光变对照与热态闭合诊断；`scripts/benchmarks/magnetized_rs_sigma_benchmark.py` 生成 sigma 扫描诊断。VegasAfterglow 是 comparison backend，不是光变目标或物理基准。
+- Vegas baseline refresh 已完成：`tests/vegas_afterglow_comparison.py --scenario baseline` 生成 baseline 全量 comparison figures；RS-only `--only reverse_shock_lc reverse_shock_thermal` 仍可用于窄刷新。`scripts/benchmarks/magnetized_rs_sigma_benchmark.py` 生成 sigma 扫描诊断。VegasAfterglow 是 comparison backend，不是光变目标或物理基准。
 
 ## Completed Non-RS Decisions
 
@@ -36,13 +36,16 @@
 
 ```bash
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && TMPDIR=/tmp uv run python build_extensions.py --module electron_forward_fullhide_1d --force'
+rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && TMPDIR=/tmp uv run python build_extensions.py --module electron_forward_charint_2d --force'
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && TMPDIR=/tmp uv run python build_extensions.py --module hadronic_forward_1d --force'
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/hadronic_1d_smoke.py'
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/hadronic_reverse_shock_smoke.py'
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/polarization_smoke.py'
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run --extra compare python tests/vegas_afterglow_comparison.py --scenario baseline --only reverse_shock_lc reverse_shock_thermal'
+rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run --extra compare python tests/vegas_afterglow_comparison.py --scenario baseline'
 ```
 
-当前 RS benchmark artifacts:
+当前 Vegas baseline benchmark artifacts:
 - `output/asgard_doc/vegas_afterglow_compare/compare_reverse_shock_lc.png`
 - `output/asgard_doc/vegas_afterglow_compare/compare_reverse_shock_thermal_benchmark.png`
+- `output/asgard_doc/vegas_afterglow_compare/compare_speed_profile.png`
+- `output/asgard_doc/vegas_afterglow_compare/compare_basic_lc_spec.png`

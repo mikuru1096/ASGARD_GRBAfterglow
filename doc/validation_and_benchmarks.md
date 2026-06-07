@@ -62,7 +62,7 @@ rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/AS
 Electron 2D：
 
 ```bash
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && TMPDIR=/tmp uv run python build_extensions.py --module electron_forward_transport_2d --force'
+rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && TMPDIR=/tmp uv run python build_extensions.py --module electron_forward_charint_2d --force'
 ```
 
 反激波电子：
@@ -98,7 +98,13 @@ Benchmark refresh 协议固定在 `doc/benchmark_refresh_protocol.md`。
 - 输出路径。
 - 物理验收口径。
 
-RS / Vegas comparison：
+Vegas baseline full comparison：
+
+```bash
+rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run --extra compare python tests/vegas_afterglow_comparison.py --scenario baseline'
+```
+
+RS-only Vegas comparison：
 
 ```bash
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run --extra compare python tests/vegas_afterglow_comparison.py --scenario baseline --only reverse_shock_lc reverse_shock_thermal'
@@ -151,6 +157,7 @@ Forward-shock：
 
 Reverse-shock：
 
+- Pre-crossing 的 `M3` crossing 端点应由 `m3_frac=1` 给出，不允许 RK step 跨越 pre/post 方程分支。
 - `sigma -> 0` 必须恢复 unmagnetized baseline。
 - `B3`, `gamma34`, `U3/V3`, `nu_m`, `nu_c`, `nu_a` 应平滑。
 - VegasAfterglow 是 comparison backend，不是目标真值。

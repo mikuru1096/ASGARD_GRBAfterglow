@@ -62,5 +62,5 @@
 
 ## 生成产物
 
-- `output/asgard_doc/vegas_afterglow_compare/`：由 `tests/vegas_afterglow_comparison.py` 生成的 Vegas/ASGARD comparison figures。
-- RS refresh artifacts：`compare_reverse_shock_lc.png`, `compare_reverse_shock_thermal_benchmark.png`。
+- `output/asgard_doc/vegas_afterglow_compare/`：由 `tests/vegas_afterglow_comparison.py --scenario baseline` 生成的 Vegas/ASGARD baseline comparison figures。
+- RS-specific artifacts：`compare_reverse_shock_lc.png`, `compare_reverse_shock_thermal_benchmark.png`。

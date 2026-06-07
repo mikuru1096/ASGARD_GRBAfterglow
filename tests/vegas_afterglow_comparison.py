@@ -208,13 +208,6 @@ def _run_timed(name: str, fn: Callable[[], object]) -> tuple[float, object]:
     return time.perf_counter() - t0, out
 
 
-def _collapse_curve(values: np.ndarray) -> np.ndarray:
-    arr = np.asarray(values, dtype=float)
-    while arr.ndim > 1:
-        arr = np.nanmean(arr, axis=0)
-    return arr
-
-
 def _reference_series(values: np.ndarray) -> np.ndarray:
     arr = np.asarray(values, dtype=float)
     while arr.ndim > 1:

@@ -9,12 +9,17 @@
 - Source：`src/Dynamics/Dynamics_forward.f90`
 - Shared helpers：`src/Dynamics/dynamics_common.f90`
 - 支持 ISM、wind `k=2` backend、density jump 和 energy injection paths。
+- 输出网格仍由 observer time 给定；`T>0` 的 RK4 refinement 在 `ln T` 上做等分加倍，实际 RHS 使用 `dY/dlnT = T dY/dT`。首段 `T<=0` 保留物理时间步。
 
 反激波动力学：
 
 - Source：`src/Dynamics/Dynamics_reverse.f90`
 - 返回 RS shell state、`gamma34`、`U3/V3`、turbulent 和 ordered magnetic field diagnostics。
 - Magnetized jump 遵循当前 RS baseline 契约；`sigma -> 0` 是必须检查的回归极限。
+- 状态内部使用无量纲 region-3 变量：`m3_frac=M3/M_ej`、`u3=U3/(M_ej c^2)`、`V3/V3_scale`。
+- Pre-crossing 使用 `ln(m3_frac)` 为自变量；`m3_frac` 在 RK stage 中按指数关系解析给出，`T` 作为状态积分，crossing 端点是 `m3_frac=1`。
+- Post-crossing 使用 `ln T` 等分加倍积分，`M3` 固定；RK step 不跨越 pre/post 方程分支。
+- 主要收敛判据覆盖 `Gamma/R/M2`，pre-crossing 还比较积分出的 `T`；`M3/U3/V3` 不进入主判据，但输出必须有限、连续、平滑。
 
 ## 电子能量网格
 
@@ -81,7 +86,7 @@
 验证：
 
 ```bash
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && TMPDIR=/tmp uv run python build_extensions.py --module electron_forward_transport_2d --force'
+rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && TMPDIR=/tmp uv run python build_extensions.py --module electron_forward_charint_2d --force'
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/fullhide_2d_smoke_bench.py'
 ```
 

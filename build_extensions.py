@@ -68,6 +68,13 @@ F2PY_ENTRYPOINTS = {
     "structured_jet_1d": ("structured_jet_flux_1d",),
 }
 DYNAMICS_COMMON_SOURCES = ("../Constants.f90", "dynamics_common.f90")
+F2PY_SKIP_DYNAMICS_COMMON_INTERNALS = (
+    "skip:",
+    "dynamics_rk4_forward_ln_step",
+    "dynamics_rk4_reverse",
+    "dynamics_rk4_reverse_pre_m3",
+    ":",
+)
 RADIATION_COMMON_SOURCES = (
     "../Constants.f90",
     "../Dynamics/dynamics_common.f90",
@@ -645,6 +652,7 @@ def main() -> None:
     print(f"Compile start ({_detect_build_platform()})")
     for module_name, cwd, sources, fflags, extra_args in modules:
         print(f"Build {module_name}")
+        module_extra_args = list(extra_args or [])
         if module_name in DIRECT_ORDERED_BUILD_MODULES:
             elapsed = _build_ordered_object_module(
                 root,
@@ -654,11 +662,13 @@ def main() -> None:
                 log_dir,
                 args.verbose,
                 fflags,
-                extra_args,
+                module_extra_args,
                 args.force,
             )
             print(f"Done {module_name}: {elapsed:.2f}s")
             continue
+        if any(Path(source).name == "dynamics_common.f90" for source in sources):
+            module_extra_args = [*F2PY_SKIP_DYNAMICS_COMMON_INTERNALS, *module_extra_args]
         elapsed = _build_module(
             module_name,
             cwd,
@@ -666,7 +676,7 @@ def main() -> None:
             log_dir,
             args.verbose,
             fflags,
-            extra_args,
+            module_extra_args,
             args.force,
         )
         print(f"Done {module_name}: {elapsed:.2f}s")
