@@ -37,6 +37,29 @@ rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/AS
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python scripts/benchmarks/magnetized_rs_sigma_benchmark.py --medium wind --mode quick'
 ```
 
+当前 magnetized RS scan 使用同一组爆发参数以让射电和光学 RS 都显著：`E_iso=1e54 erg`, `Gamma0=50`, `duration=500 s`, `rvs_eps_e=0.3`, `rvs_eps_B=0.1`。纯 ISM 使用 `n_ism=0.1 cm^-3`；纯 wind 使用 `Astar=0.05` 且 `n_ism=1e-15 cm^-3` 作为 ASGARD/Vegas 中的 ISM floor，不加入 wind-to-ISM 转变。
+
+Magnetized RS ASGARD/Vegas light-curve overlay：
+
+```bash
+rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python scripts/benchmarks/magnetized_rs_vegas_lc_compare.py --medium ism'
+rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python scripts/benchmarks/magnetized_rs_vegas_lc_compare.py --medium wind'
+```
+
+这两条命令输出：
+
+- `output/asgard_doc/magnetized_rs_sigma_benchmark/magnetized_rs_sigma_ism_vegas_lc_compare.png`
+- `output/asgard_doc/magnetized_rs_sigma_benchmark_wind/magnetized_rs_sigma_wind_vegas_lc_compare.png`
+
+VegasAfterglow 2.0.5 的 stock sdist 在纯 ISM、`sigma >= 1e-5` 时会给出全 0 reverse-shock synchrotron。刷新 overlay 前先对 2.0.5 sdist 应用本仓库记录的 patch，并把 patched wheel 安装进当前 uv 环境：
+
+```bash
+rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/_external/vegasafterglow_205_src/vegasafterglow-2.0.5" && git apply --unidiff-zero "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow/doc/patches/vegasafterglow-2.0.5-rvs-ism-compression.patch"'
+rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv pip install --force-reinstall --no-deps "/mnt/c/Users/jia/Documents/New project/_external/vegasafterglow_205_src/vegasafterglow-2.0.5"'
+```
+
+如果本地 Vegas source tree 已经应用过该 patch，第一条命令会因为补丁已存在而失败；此时应检查 `src/dynamics/reverse-shock.tpp` 中 `compression_advance <= 0` 边界和 `src/config/simulation-defaults.h` 中 `max_ode_steps = 1000000` 是否存在，而不是重复打补丁。
+
 Lan 2023 polarization overlay：
 
 ```bash

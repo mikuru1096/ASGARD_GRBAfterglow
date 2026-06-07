@@ -27,6 +27,7 @@ SIGMAS = (0.0, 1.0e-4, 1.0e-3, 1.0e-2, 1.0e-1, 1.0)
 COLORS = ("#0072B2", "#D55E00", "#009E73", "#CC79A7", "#E69F00", "#000000")
 LINESTYLES = ("-", "--", "-.", ":", (0, (5, 1, 1, 1)), (0, (3, 1, 1, 1, 1, 1)))
 MARKERS = ("o", "s", "^", "D", "P", "X")
+SCENARIO = {"e_iso": 1.0e54, "gamma0": 50.0, "duration": 500.0, "rs_eps_e": 0.3, "rs_eps_b": 1.0e-1}
 MODE_GRIDS = {
     "quick": {
         "dyn_r": 80,
@@ -68,7 +69,7 @@ def _medium_config(medium: str) -> dict[str, float]:
     if medium == "ism":
         return {"d_ne": 1.0e-1, "a_star": -1.0}
     if medium == "wind":
-        return {"d_ne": 1.0e-1, "a_star": 1.0}
+        return {"d_ne": 1.0e-15, "a_star": 5.0e-2}
     raise ValueError(f"unknown medium {medium!r}")
 
 
@@ -76,7 +77,7 @@ def _medium_model(medium: str):
     if medium == "ism":
         return ISM(n_ism=1.0e-1)
     if medium == "wind":
-        return Wind(Astar=1.0, n_ism=1.0e-1, k=2.0)
+        return Wind(Astar=5.0e-2, n_ism=1.0e-15, k=2.0)
     raise ValueError(f"unknown medium {medium!r}")
 
 
@@ -94,12 +95,14 @@ def _fit_config(sigma: float, medium: str, grid: dict[str, int]) -> FitConfig:
         reverse=True,
         plot_lc=False,
         show_plots=False,
+        e_iso=SCENARIO["e_iso"],
+        eta_0=SCENARIO["gamma0"],
         **medium_kwargs,
         reverse_shock=ReverseShockConfig(
             enabled=True,
-            delta_t_s=10.0,
-            epsilon_e=0.1,
-            epsilon_b=1.0e-2,
+            delta_t_s=SCENARIO["duration"],
+            epsilon_e=SCENARIO["rs_eps_e"],
+            epsilon_b=SCENARIO["rs_eps_b"],
             p=2.4,
             f_e=1.0,
             sigma=sigma,
@@ -109,14 +112,14 @@ def _fit_config(sigma: float, medium: str, grid: dict[str, int]) -> FitConfig:
 
 def _model(sigma: float, medium: str, grid: dict[str, int]) -> Model:
     return Model(
-        jet=TophatJet(E_iso=1.0e53, Gamma0=1.0e2, theta_j=1.0e-1, duration=10.0),
+        jet=TophatJet(E_iso=SCENARIO["e_iso"], Gamma0=SCENARIO["gamma0"], theta_j=1.0e-1, duration=SCENARIO["duration"]),
         medium=_medium_model(medium),
         observer=Observer(z=0.4, theta_obs=0.0),
         fwd_rad=Radiation(eps_e=1.0e-1, eps_B=1.0e-3, p=2.5, xi_N=1.0e-1, ssc=False),
-        rvs_rad=Radiation(eps_e=1.0e-1, eps_B=1.0e-2, p=2.4, xi_N=1.0, ssc=False),
+        rvs_rad=Radiation(eps_e=SCENARIO["rs_eps_e"], eps_B=SCENARIO["rs_eps_b"], p=2.4, xi_N=1.0, ssc=False),
         setups=Setups(
             rvs_shock=True,
-            reverse_delta_t_s=10.0,
+            reverse_delta_t_s=SCENARIO["duration"],
             reverse_sigma=sigma,
             fwd_ssc=False,
             rvs_ssc=False,
@@ -183,7 +186,7 @@ def _logjump(values: np.ndarray) -> float:
 
 def _write_csv(path: Path, rows: list[dict[str, object]]) -> None:
     with path.open("w", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=list(rows[0].keys()))
+        writer = csv.DictWriter(handle, fieldnames=list(rows[0].keys()), lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
 
