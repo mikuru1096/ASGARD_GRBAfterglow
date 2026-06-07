@@ -5,10 +5,7 @@ from typing import Any
 
 
 _BINDINGS = {
-    "sed_interpolation": "SED_interpolation",
-    "sed_interpolation_surface_element": "SED_interpolation",
-    "sed_interpolation_structured": "SED_interpolation_structured",
-    "sed_interpolation_structured_phi": "SED_interpolation_structured",
+    "structured_jet_flux_1d": "structured_jet_1d",
 }
 
 
@@ -22,4 +19,4 @@ def __getattr__(name: str) -> Any:
 
 
 __all__ = sorted(_BINDINGS)
-__doc__ = "Observer-frame SED interpolation bindings."
+__doc__ = "Structured jet Fortran aggregate bindings."

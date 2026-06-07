@@ -89,5 +89,6 @@ setup(
         ],
         "src.Interpolation": ["SED_interpolation*.so", "SED_interpolation*.pyd", "SED_interpolation_structured*.so", "SED_interpolation_structured*.pyd", "*.f90"],
         "src.Radiation": ["radiation_gamma_gamma_absorption*.so", "radiation_gamma_gamma_absorption*.pyd", "radiation_reverse_seed*.so", "radiation_reverse_seed*.pyd", "radiation_ssc_spectrum*.so", "radiation_ssc_spectrum*.pyd", "*.f90", "*.py"],
+        "src.Structured": ["structured_jet_1d*.so", "structured_jet_1d*.pyd", "*.f90", "*.py"],
     },
 )

@@ -662,6 +662,22 @@ def _solve_patch_model(
     nu_hz: np.ndarray,
     solve_reference_times_s: np.ndarray | None = None,
 ) -> tuple[FluxResult, TrackBundle]:
+    if str(getattr(model.setups, "structured_backend", "fortran_1d")).lower() != "python_patch":
+        if solve_reference_times_s is not None:
+            raise NotImplementedError("structured_backend='fortran_1d' does not yet support external solve_reference_times_s.")
+        from asgard_core.structured_jet_kernel import solve_structured_jet_fortran
+
+        return solve_structured_jet_fortran(model, times_s, nu_hz, _build_fit_config_for_patch)
+
+    return _solve_patch_model_python(model, times_s, nu_hz, solve_reference_times_s=solve_reference_times_s)
+
+
+def _solve_patch_model_python(
+    model: Model,
+    times_s: np.ndarray,
+    nu_hz: np.ndarray,
+    solve_reference_times_s: np.ndarray | None = None,
+) -> tuple[FluxResult, TrackBundle]:
     total = np.zeros((nu_hz.shape[0], times_s.shape[0]), dtype=float)
     fwd_sync_total = np.zeros_like(total)
     fwd_ssc_total = np.zeros_like(total)
@@ -911,6 +927,10 @@ def _build_fit_config_for_patch(
         radiation_kernel=model.setups.radiation_kernel,
         dynamics_kernel=model.setups.dynamics_kernel,
         geometry_kernel=model.setups.geometry_kernel,
+        structured_backend=model.setups.structured_backend,
+        structured_parallel_mode=model.setups.structured_parallel_mode,
+        structured_outer_threads=model.setups.structured_outer_threads,
+        structured_inner_threads=model.setups.structured_inner_threads,
         num_chi=model.setups.num_chi,
         electron_adaptive_substeps=model.setups.electron_adaptive_substeps,
         electron_substep_rtol=model.setups.electron_substep_rtol,
@@ -1762,6 +1782,10 @@ def _build_model_from_fit_config(config: FitConfig) -> Model:
             radiation_kernel=config.radiation_kernel,
             dynamics_kernel=config.dynamics_kernel,
             geometry_kernel=config.geometry_kernel,
+            structured_backend=config.structured_backend,
+            structured_parallel_mode=config.structured_parallel_mode,
+            structured_outer_threads=config.structured_outer_threads,
+            structured_inner_threads=config.structured_inner_threads,
             num_chi=config.num_chi,
             electron_adaptive_substeps=config.electron_adaptive_substeps,
             electron_substep_rtol=config.electron_substep_rtol,

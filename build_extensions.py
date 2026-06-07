@@ -31,6 +31,7 @@ DIRECT_ORDERED_BUILD_MODULES = {
     "electron_reverse_kernel",
     "radiation_reverse_seed",
     "radiation_ssc_spectrum",
+    "structured_jet_1d",
 }
 F2PY_ENTRYPOINTS = {
     "electron_forward_weno5_1d": ("fs_electron_weno5_1d",),
@@ -64,6 +65,7 @@ F2PY_ENTRYPOINTS = {
         "fs_hadronic_pp_spectral_source",
         "fs_hadronic_quantum_syn_cooling_factor",
     ),
+    "structured_jet_1d": ("structured_jet_flux_1d",),
 }
 DYNAMICS_COMMON_SOURCES = ("../Constants.f90", "dynamics_common.f90")
 RADIATION_COMMON_SOURCES = (
@@ -151,6 +153,7 @@ HADRONIC_1D_SOURCES = (
     "../Radiation/synchrotron_polarization_kernel.f90",
     "hadronic_common.f90",
     "hadronic_transport_kernel.f90",
+    "hadronic_transport_remap_kernel.f90",
     "hadronic_radiation_kernel.f90",
     "hadronic_interaction_kernel.f90",
     "hadronic_pair_production_kernel.f90",
@@ -161,8 +164,50 @@ HADRONIC_1D_SOURCES = (
     "hadronic_acceleration_kernel.f90",
     "hadronic_secondary_radiation_kernel.f90",
     "hadronic_decay_kernel.f90",
+    "hadronic_pgamma_hummer_1d.f90",
     "hadronic_pair_cascade_kernel.f90",
     "hadronic_pp_models_kernel.f90",
+)
+STRUCTURED_JET_1D_SOURCES = (
+    # Keep this list in module-topological order: every used module must be
+    # compiled before files that import it in the ordered-object build path.
+    "../Constants.f90",
+    "../Dynamics/dynamics_common.f90",
+    "../Radiation/radiation_common.f90",
+    "../Radiation/quantum_synchrotron_kernel.f90",
+    "../Radiation/synchrotron_polarization_kernel.f90",
+    "../Electron/electron_transport_common.f90",
+    "../Electron/adaptive_resampling_mod.f90",
+    "../Electron/electron_radiation_kernel.f90",
+    "../Electron/electron_injection_profiles.f90",
+    "../Electron/electron_common.f90",
+    "../Electron/electron_cooling_kernel.f90",
+    "../Electron/electron_seed_history_kernel.f90",
+    "../Hadronic/hadronic_common.f90",
+    "../Hadronic/hadronic_transport_kernel.f90",
+    "../Hadronic/hadronic_transport_remap_kernel.f90",
+    "../Hadronic/hadronic_radiation_kernel.f90",
+    "../Hadronic/hadronic_interaction_kernel.f90",
+    "../Hadronic/hadronic_pair_production_kernel.f90",
+    "../Hadronic/hadronic_pp_kernel.f90",
+    "../Hadronic/hadronic_bethe_heitler_kernel.f90",
+    "../Hadronic/hadronic_hadronic_ic_kernel.f90",
+    "../Hadronic/hadronic_species_transport_kernel.f90",
+    "../Hadronic/hadronic_acceleration_kernel.f90",
+    "../Hadronic/hadronic_secondary_radiation_kernel.f90",
+    "../Hadronic/hadronic_decay_kernel.f90",
+    "../Hadronic/hadronic_pgamma_hummer_1d.f90",
+    "../Hadronic/hadronic_pair_cascade_kernel.f90",
+    "../Hadronic/hadronic_pp_models_kernel.f90",
+    "../Dynamics/Dynamics_forward.f90",
+    "../Dynamics/Dynamics_reverse.f90",
+    "../Electron/electron_forward_fullhide_1d.f90",
+    "../Electron/electron_reverse_kernel.f90",
+    "../Radiation/radiation_ssc_spectrum.f90",
+    "../Radiation/radiation_gamma_gamma_absorption.f90",
+    "../Hadronic/hadronic_forward_1d.f90",
+    "../Interpolation/interpolation_common.f90",
+    "../Interpolation/SED_interpolation_structured.f90",
 )
 
 def convert_utf8_to_ascii(input_file, error_strategy='ignore'):
@@ -563,6 +608,7 @@ def main() -> None:
     itp = src / "Interpolation"
     rad = src / "Radiation"
     had = src / "Hadronic"
+    structured = src / "Structured"
     omp_flags = OMP_LTO_FLAGS if args.lto else OMP_FLAGS
     modules = [
         ("Constants", src, ["Constants.f90"], None, None),
@@ -586,6 +632,7 @@ def main() -> None:
         ("radiation_ssc_spectrum", rad, _with_main(RADIATION_COMMON_SOURCES, "radiation_ssc_spectrum.f90"), omp_flags, OPENMP_LIBS),
         ("hadronic_forward_1d", had, _with_main(HADRONIC_1D_SOURCES, "hadronic_forward_1d.f90"), omp_flags, OPENMP_LIBS),
         ("hadronic_reverse_1d", had, _with_main(HADRONIC_1D_SOURCES, "hadronic_reverse_1d.f90"), omp_flags, OPENMP_LIBS),
+        ("structured_jet_1d", structured, _with_main(STRUCTURED_JET_1D_SOURCES, "structured_jet_1d.f90"), omp_flags, OPENMP_LIBS),
     ]
     module_aliases = {
         "electron_forward_weno5": "electron_forward_weno5_1d",
@@ -603,7 +650,7 @@ def main() -> None:
         if missing:
             raise SystemExit(f"Unknown module(s): {', '.join(sorted(missing))}")
     if args.clean:
-        for directory in (src, dyn, ele, had, itp, rad):
+        for directory in (src, dyn, ele, had, itp, rad, structured):
             _clean_build_outputs(directory)
 
     print(f"Compile start ({_detect_build_platform()})")

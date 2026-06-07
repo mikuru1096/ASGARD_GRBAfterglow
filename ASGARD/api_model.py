@@ -455,6 +455,10 @@ class Setups:
     radiation_kernel: str = "legacy"
     dynamics_kernel: str = "forward_legacy"
     geometry_kernel: str = "sed_legacy"
+    structured_backend: str = "fortran_1d"
+    structured_parallel_mode: str = "outer"
+    structured_outer_threads: Optional[int] = None
+    structured_inner_threads: Optional[int] = None
     num_chi: Optional[int] = None
     electron_adaptive_substeps: bool = False
     electron_substep_rtol: float = 2.0e-2

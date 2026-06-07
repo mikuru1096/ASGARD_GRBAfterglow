@@ -1,4 +1,4 @@
-! 单壳层质子同步辐射计算（包装hadronic_get_proton_syn_state）。
+! Single-shell proton synchrotron wrapper.
 subroutine fs_hadronic_proton_syn_shell(R_loc,B_field_g,Num_gam_p,Num_nu,gam_p,dN_gam_p,V_seed,P_had_syn,Seed_had_syn)
     use hadronic_radiation_kernel
     implicit real(8)(A-H,O-Z)
@@ -9,7 +9,7 @@ subroutine fs_hadronic_proton_syn_shell(R_loc,B_field_g,Num_gam_p,Num_nu,gam_p,d
     call hadronic_get_proton_syn_state(R_loc,B_field_g,Num_gam_p,Num_nu,gam_p,dN_gam_p,V_seed,P_had_syn,Seed_had_syn)
 end subroutine fs_hadronic_proton_syn_shell
 
-! 单壳层带电强子同步偏振率（输出专用，不参与通量演化）。
+! Single-shell charged-hadron synchrotron polarization wrapper.
 subroutine fs_hadronic_syn_polarization_shell(Num_had,hadron_energy_gev,density_per_gev,Num_ph, &
                                               photon_frequency_hz,particle_mass_gev,magnetic_field_g,p_index,Pi_nu)
     use hadronic_radiation_kernel, only: hadronic_syn_polarization_fraction
@@ -23,7 +23,7 @@ subroutine fs_hadronic_syn_polarization_shell(Num_had,hadron_energy_gev,density_
                                             photon_frequency_hz,particle_mass_gev,magnetic_field_g,p_index,Pi_nu)
 end subroutine fs_hadronic_syn_polarization_shell
 
-! 单壳层pγ相互作用算子（包装Hummer2010算子）。
+! Single-shell Hummer 2010 p-gamma operator wrapper.
 subroutine fs_hadronic_pgamma_operator_shell(Num_gam_p,Num_nu,hadron_energy_gev,hadron_density_per_gev,photon_energy_gev, &
                                              photon_density_per_gev,neutron_density_per_gev,pion0_source_rate_per_gev, &
                                              pion_plus_source_rate_per_gev,pion_minus_source_rate_per_gev, &
@@ -46,7 +46,7 @@ subroutine fs_hadronic_pgamma_operator_shell(Num_gam_p,Num_nu,hadron_energy_gev,
                                          proton_loss_rate,neutron_loss_rate,photon_loss_rate)
 end subroutine fs_hadronic_pgamma_operator_shell
 
-! 单壳层光子-光子对产生算子（包装hadronic_pair_production_operator）。
+! Single-shell gamma-gamma pair-production wrapper.
 subroutine fs_hadronic_pair_production_shell(Num_gamma,photon_energy_gev,photon_density_per_gev,Num_e,electron_energy_gev, &
                                              max_com_energy_factor,photon_loss_rate,pair_injection_rate_per_gev_per_species, &
                                              pair_injection_rate_per_gev_total,absorbed_power_gev_per_cm3_s, &
@@ -65,7 +65,7 @@ subroutine fs_hadronic_pair_production_shell(Num_gamma,photon_energy_gev,photon_
                                            injected_power_gev_per_cm3_s)
 end subroutine fs_hadronic_pair_production_shell
 
-! 单壳层pp δ-近似算子（包装hadronic_pp_delta_operator）。
+! Single-shell pp delta-approximation wrapper.
 subroutine fs_hadronic_pp_delta_shell(Num_p,proton_energy_gev,proton_density_per_gev,target_proton_density_cm3, &
                                       Num_gamma,gamma_energy_gev,Num_nu,neutrino_energy_gev,Num_pair,pair_energy_gev, &
                                       kappa_inelastic,pion_energy_fraction,neutral_pion_fraction,gamma_rate_per_gev, &
@@ -92,7 +92,7 @@ subroutine fs_hadronic_pp_delta_shell(Num_p,proton_energy_gev,proton_density_per
                                     neutral_pion_fraction=neutral_pion_fraction)
 end subroutine fs_hadronic_pp_delta_shell
 
-! 单壳层Bethe-Heitler算子（包装hadronic_bethe_heitler_operator）。
+! Single-shell Bethe-Heitler wrapper.
 subroutine fs_hadronic_bethe_heitler_shell(Num_p,proton_energy_gev,proton_density_per_gev,Num_ph,photon_energy_gev, &
                                            photon_density_per_gev,Num_e,electron_energy_gev,pair_rate_per_gev, &
                                            proton_loss_rate)
@@ -109,7 +109,7 @@ subroutine fs_hadronic_bethe_heitler_shell(Num_p,proton_energy_gev,proton_densit
                                          proton_loss_rate)
 end subroutine fs_hadronic_bethe_heitler_shell
 
-! 单壳层强子IC算子（初始化kernel并计算所有强子种类IC率）。
+! Single-shell hadronic inverse-Compton wrapper.
 subroutine fs_hadronic_hadronic_ic_shell(Num_had,hadron_energy_gev,Num_ph,photon_energy_gev,photons_on_had_grid_per_gev, &
                                          protons_per_gev,pion_plus_per_gev,pion_minus_per_gev,muon_minus_left_per_gev, &
                                          muon_minus_right_per_gev,muon_plus_left_per_gev,muon_plus_right_per_gev, &
@@ -141,7 +141,7 @@ subroutine fs_hadronic_hadronic_ic_shell(Num_had,hadron_energy_gev,Num_ph,photon
                                                    coeff_mu_cgs)
 end subroutine fs_hadronic_hadronic_ic_shell
 
-! 单壳层粒子种类输运（包装hadronic_species_advance_operator）。
+! Single-shell secondary-species transport wrapper.
 subroutine fs_hadronic_species_transport_shell(Num_gamma,gamma,dt_s,b_field_g,divergence_rate_s_inv, &
                                                neutron_prev,pion_plus_prev,pion_minus_prev,muon_minus_left_prev, &
                                                muon_minus_right_prev,muon_plus_left_prev,muon_plus_right_prev, &
@@ -176,7 +176,7 @@ subroutine fs_hadronic_species_transport_shell(Num_gamma,gamma,dt_s,b_field_g,di
                                            muon_minus_left_next,muon_minus_right_next,muon_plus_left_next,muon_plus_right_next)
 end subroutine fs_hadronic_species_transport_shell
 
-! 单壳层粒子加速算子（包装hadronic_acceleration_operator）。
+! Single-shell hadronic acceleration wrapper.
 subroutine fs_hadronic_acceleration_shell(Num_gamma,species,gamma,b_field_g,eta_acc,luminosity_erg_s,spectral_index, &
                                           gamma_min,gamma_max_inj,gamma_cut,has_gamma_cut,radius_cm,gamma_bulk, &
                                           Num_gamma_scan,gamma_scan,external_cooling_rate,has_external_cooling, &
@@ -199,7 +199,7 @@ subroutine fs_hadronic_acceleration_shell(Num_gamma,species,gamma,b_field_g,eta_
                                         t_acc,t_syn,q_inj,gamma_max,gamma_dyn,gamma_syn,gamma_ext,has_gamma_ext)
 end subroutine fs_hadronic_acceleration_shell
 
-! 单壳层次级粒子辐射算子（包装hadronic_secondary_radiation_operator）。
+! Single-shell secondary-radiation wrapper.
 subroutine fs_hadronic_secondary_radiation_shell(Num_had,hadron_energy_gev,Num_ph,photon_energy_gev,pion_plus_per_gev, &
                                                  pion_minus_per_gev,muon_minus_left_per_gev,muon_minus_right_per_gev, &
                                                  muon_plus_left_per_gev,muon_plus_right_per_gev,photons_on_had_grid_per_gev, &
@@ -228,7 +228,7 @@ subroutine fs_hadronic_secondary_radiation_shell(Num_had,hadron_energy_gev,Num_p
                                                ic_dln_energy,delta_e_pi,jmax_pi,delta_e_mu,jmax_mu)
 end subroutine fs_hadronic_secondary_radiation_shell
 
-! 单壳层粒子衰变算子（包装Hummer2010衰变算子）。
+! Single-shell Hummer 2010 decay wrapper.
 subroutine fs_hadronic_decay_operator_shell(Num_gam_p,hadron_energy_gev,pion0_source_rate_per_gev,pion_plus_source_rate_per_gev, &
                                             pion_minus_source_rate_per_gev,Num_gamma,gamma_energy_gev,Num_nu,neutrino_energy_gev, &
                                             Num_proc,process_energy_gev,gamma_rate_per_gev,process_rate_per_gev, &
@@ -260,7 +260,7 @@ subroutine fs_hadronic_decay_operator_shell(Num_gam_p,hadron_energy_gev,pion0_so
                                             muon_electron_rate_per_gev,neutrino_rate_per_gev)
 end subroutine fs_hadronic_decay_operator_shell
 
-! 强子模块1D主驱动：遍历壳层，执行质子注入-冷却-输运循环，可选同步辐射。
+! Forward-shock 1D hadronic driver.
 subroutine fs_hadronic_1d(R_Tobs,R_Gamma,R,shell_energy_inj_erg,B_field_g,V_seed,Seed_target,p_p,epsilon_p,eta_acc, &
                           include_proton_synch,include_pg,include_neutrino,Num_nu,Num_R,num_gam_p,num_nu_nu,n_threads, &
                           gam_p,dN_gam_p,P_had_syn,Seed_had_syn,P_had_pg_gamma,V_nu,P_nu_all)
@@ -270,6 +270,9 @@ subroutine fs_hadronic_1d(R_Tobs,R_Gamma,R,shell_energy_inj_erg,B_field_g,V_seed
     use hadronic_radiation_kernel
     use hadronic_interaction_kernel
     use hadronic_decay_kernel
+    use hadronic_acceleration_kernel, only: hadronic_species_injection_operator, hadronic_estimate_max_gamma
+    use hadronic_pgamma_hummer_1d, only: hadronic_pgamma_hummer_shell
+    use hadronic_transport_remap_kernel, only: hadronic_advance_energy_loggamma_remap
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: include_proton_synch,include_pg,include_neutrino,Num_nu,Num_R,num_gam_p,num_nu_nu,n_threads
     real(8), intent(in) :: R_Tobs(Num_R),R_Gamma(Num_R),R(Num_R),shell_energy_inj_erg(Num_R),B_field_g(Num_R),V_seed(Num_nu)
@@ -278,23 +281,45 @@ subroutine fs_hadronic_1d(R_Tobs,R_Gamma,R,shell_energy_inj_erg,B_field_g,V_seed
     real(8), intent(out) :: gam_p(num_gam_p),dN_gam_p(num_gam_p,Num_R),P_had_syn(Num_nu,Num_R)
     real(8), intent(out) :: Seed_had_syn(Num_nu,Num_R),P_had_pg_gamma(Num_nu,Num_R)
     real(8), intent(out) :: V_nu(num_nu_nu),P_nu_all(num_nu_nu,Num_R)
-    integer :: I_R,I_prev
-    real(8) :: gam_p_max_global,t_dyn_s,dt_s,gam_p_min,energy_budget_erg
-    real(8), allocatable :: dN_prev(:),dN_next(:),Q_inj(:),loss_ad(:),loss_syn(:),loss_total(:)
-    real(8), allocatable :: t_pg(:),power_pg(:),power_nu(:),power_gamma(:)
+    integer :: I_R
+    real(8) :: gam_p_max_global,t_dyn_s,dt_s,gam_p_min,energy_budget_erg,shell_volume
+    real(8) :: gamma_max_loc,gamma_dyn,gamma_syn,gamma_ext,gamma_scan(2),external_rate(2)
+    logical :: has_gamma_ext
+    real(8), allocatable :: dN_prev(:),dN_next(:),Q_inj(:),loss_ad(:),loss_syn(:),loss_total(:),dN_trial(:),surv_pg(:)
+    real(8), allocatable :: n_prev(:),n_next(:),pip_prev(:),pip_next(:),pim_prev(:),pim_next(:)
+    real(8), allocatable :: muml_prev(:),muml_next(:),mumr_prev(:),mumr_next(:),mupl_prev(:),mupl_next(:)
+    real(8), allocatable :: mupr_prev(:),mupr_next(:)
+    logical :: use_hummer
 
-    if (include_pg /= 0 .or. include_neutrino /= 0) then
-        error stop "p-gamma and neutrino channels are disabled until a literature-based kernel is implemented."
+    allocate(dN_prev(num_gam_p),dN_next(num_gam_p),dN_trial(num_gam_p),Q_inj(num_gam_p),loss_ad(num_gam_p), & 
+             loss_syn(num_gam_p),loss_total(num_gam_p),surv_pg(Num_nu))
+    use_hummer=(include_pg /= 0 .or. include_neutrino /= 0)
+    if (use_hummer) then
+        allocate(n_prev(num_gam_p),n_next(num_gam_p),pip_prev(num_gam_p),pip_next(num_gam_p), &
+                 pim_prev(num_gam_p),pim_next(num_gam_p),muml_prev(num_gam_p),muml_next(num_gam_p), &
+                 mumr_prev(num_gam_p),mumr_next(num_gam_p),mupl_prev(num_gam_p),mupl_next(num_gam_p), &
+                 mupr_prev(num_gam_p),mupr_next(num_gam_p))
+        n_prev=zero; pip_prev=zero; pim_prev=zero; muml_prev=zero; mumr_prev=zero; mupl_prev=zero; mupr_prev=zero
     end if
 
-    allocate(dN_prev(num_gam_p),dN_next(num_gam_p),Q_inj(num_gam_p),loss_ad(num_gam_p),loss_syn(num_gam_p), &
-             loss_total(num_gam_p),t_pg(num_gam_p),power_pg(num_gam_p),power_nu(num_gam_p),power_gamma(num_gam_p))
-
+    gamma_scan=(/one,two/)
+    external_rate=(/one,two/)
     t_dyn_s=hadronic_dynamical_time(R(1),R_Gamma(1))
-    gam_p_max_global=hadronic_gamma_p_max(B_field_g(1),t_dyn_s,eta_acc)
+    if (use_hummer) then
+        call hadronic_estimate_max_gamma("proton",B_field_g(1),R(1),R_Gamma(1),eta_acc,2,gamma_scan,external_rate, &
+                                         .false.,gam_p_max_global,gamma_dyn,gamma_syn,gamma_ext,has_gamma_ext)
+    else
+        gam_p_max_global=hadronic_gamma_p_max(B_field_g(1),t_dyn_s,eta_acc)
+    end if
     do I_R=2,Num_R
         t_dyn_s=hadronic_dynamical_time(R(I_R),R_Gamma(I_R))
-        gam_p_max_global=max(gam_p_max_global,hadronic_gamma_p_max(B_field_g(I_R),t_dyn_s,eta_acc))
+        if (use_hummer) then
+            call hadronic_estimate_max_gamma("proton",B_field_g(I_R),R(I_R),R_Gamma(I_R),eta_acc,2,gamma_scan,external_rate, &
+                                             .false.,gamma_max_loc,gamma_dyn,gamma_syn,gamma_ext,has_gamma_ext)
+        else
+            gamma_max_loc=hadronic_gamma_p_max(B_field_g(I_R),t_dyn_s,eta_acc)
+        end if
+        gam_p_max_global=max(gam_p_max_global,gamma_max_loc)
     end do
     if (gam_p_max_global <= one+1d-3) error stop "forward hadronic gamma_p_max must exceed the injection grid minimum."
     call hadronic_build_gamma_p_grid(num_gam_p,one+1d-3,gam_p_max_global,gam_p)
@@ -322,23 +347,57 @@ subroutine fs_hadronic_1d(R_Tobs,R_Gamma,R,shell_energy_inj_erg,B_field_g,V_seed
         if (shell_energy_inj_erg(I_R) < zero) error stop "hadronic shell injection energy must be non-negative."
         energy_budget_erg=shell_energy_inj_erg(I_R)
         gam_p_min=max(gam_p(1),R_Gamma(I_R))
-        call hadronic_proton_injection_powerlaw(num_gam_p,gam_p,p_p,energy_budget_erg,gam_p_min,gam_p(num_gam_p),Q_inj)
+        if (use_hummer .and. energy_budget_erg > zero) then
+            call hadronic_species_injection_operator(num_gam_p,gam_p,"proton",energy_budget_erg/dt_s,p_p, &
+                                                     gam_p_min,gam_p(num_gam_p),one,.false.,Q_inj)
+            Q_inj=dt_s*Q_inj
+        else
+            call hadronic_proton_injection_powerlaw(num_gam_p,gam_p,p_p,energy_budget_erg,gam_p_min,gam_p(num_gam_p),Q_inj)
+        end if
         call hadronic_proton_loss_rates(num_gam_p,gam_p,B_field_g(I_R),t_dyn_s,loss_ad,loss_syn,loss_total)
-        call hadronic_advance_energy_loggamma(num_gam_p,gam_p,dN_prev,Q_inj,loss_total,dt_s,dN_next)
+        if (use_hummer) then
+            call hadronic_advance_energy_loggamma_remap(num_gam_p,gam_p,dN_prev,Q_inj,loss_total,dt_s,dN_trial)
+        else
+            call hadronic_advance_energy_loggamma(num_gam_p,gam_p,dN_prev,Q_inj,loss_total,dt_s,dN_trial)
+        end if
+        dN_next=dN_trial
+
+        surv_pg=one
+        if (use_hummer) then
+            if (I_R == 1) then
+                shell_volume=(4d0/3d0)*pi*R(I_R)**3
+            else
+                shell_volume=(4d0/3d0)*pi*(R(I_R)**3-R(I_R-1)**3)
+            end if
+            call hadronic_pgamma_hummer_shell(num_gam_p,Num_nu,num_nu_nu,dt_s,R(I_R),R_Gamma(I_R),B_field_g(I_R), &
+                                              shell_volume,gam_p,dN_trial,V_seed,Seed_target(:,I_R),V_nu, &
+                                              include_pg,include_neutrino, &
+                                              n_prev,pip_prev,pim_prev,muml_prev,mumr_prev,mupl_prev,mupr_prev, &
+                                              dN_next,n_next,pip_next,pim_next,muml_next,mumr_next,mupl_next,mupr_next, &
+                                              surv_pg,P_had_pg_gamma(:,I_R),P_nu_all(:,I_R))
+            n_prev=n_next; pip_prev=pip_next; pim_prev=pim_next
+            muml_prev=muml_next; mumr_prev=mumr_next; mupl_prev=mupl_next; mupr_prev=mupr_next
+        end if
         dN_gam_p(:,I_R)=dN_next
 
         if (include_proton_synch /= 0) then
             call hadronic_get_proton_syn_state(R(I_R),B_field_g(I_R),num_gam_p,Num_nu,gam_p,dN_next, &
                                                V_seed,P_had_syn(:,I_R),Seed_had_syn(:,I_R))
+            if (use_hummer) then
+                P_had_syn(:,I_R)=P_had_syn(:,I_R)*surv_pg
+                Seed_had_syn(:,I_R)=Seed_had_syn(:,I_R)*surv_pg
+            end if
         end if
 
         dN_prev=dN_next
     end do
 
-    deallocate(dN_prev,dN_next,Q_inj,loss_ad,loss_syn,loss_total,t_pg,power_pg,power_nu,power_gamma)
+    if (use_hummer) deallocate(n_prev,n_next,pip_prev,pip_next,pim_prev,pim_next,muml_prev,muml_next, &
+                               mumr_prev,mumr_next,mupl_prev,mupl_next,mupr_prev,mupr_next)
+    deallocate(dN_prev,dN_next,dN_trial,Q_inj,loss_ad,loss_syn,loss_total,surv_pg)
 end subroutine fs_hadronic_1d
 
-! 电磁对级联单步：调用 hadronic_pair_cascade_kernel 的 cascade_step。
+! Single-step electromagnetic pair-cascade wrapper.
 subroutine fs_hadronic_pair_cascade_step(num_ph,photon_energy_gev,photon_density, &
                                           num_e,electron_energy_gev,b_field_g,path_time_s, &
                                           cascade_syn_spec,photon_loss_rate,absorbed_power)
@@ -354,7 +413,7 @@ subroutine fs_hadronic_pair_cascade_step(num_ph,photon_energy_gev,photon_density
                                 cascade_syn_spec,photon_loss_rate,absorbed_power)
 end subroutine fs_hadronic_pair_cascade_step
 
-! pp 谱形模型: π⁰ 光子源谱 (SIBYLL=0, QGSJET=1, Geant4=2, Pythia8=3)
+! pp spectral source model: SIBYLL=0, QGSJET=1, Geant4=2, Pythia8=3.
 subroutine fs_hadronic_pp_spectral_source(num_p,proton_kinetic_energy_gev, &
     proton_density_per_gev,num_g,gamma_energy_gev,target_density_cm3,model, &
     pi0_gamma_rate)
@@ -370,7 +429,7 @@ subroutine fs_hadronic_pp_spectral_source(num_p,proton_kinetic_energy_gev, &
         pi0_gamma_rate)
 end subroutine fs_hadronic_pp_spectral_source
 
-! 量子同步冷却压制因子：数组 wrapper，Python 只负责调度。
+! Quantum synchrotron cooling-factor array wrapper.
 subroutine fs_hadronic_quantum_syn_cooling_factor(num_gamma,gamma,b_field_g,mass_gev,factor)
     use hadronic_common, only: hadronic_quantum_syn_cooling_factor
     implicit none
