@@ -581,6 +581,7 @@ subroutine dynamics_rk4_reverse_pre_m3(rhs, dB3, T_cross, R_cross, e3_cross, gam
     real(8), intent(inout) :: gam_m_cross, B3_ordered_cross, T_state, Y(6)
     real(8), intent(in) :: T_target, para_m_ej, V3_scale, Delta_0, eta_0, A_star, dNe_ISM, Epsilon_b, Epsilon_e
     real(8), intent(in) :: p_f, f_e, e_r, b_r, p_r, f_e_r, sigma_r
+    real(8), parameter :: pre_m3_log_step_max = 5d-2
     logical :: crossing_first, has_reference
     real(8) :: H_bound, H_event, H_lo, H_hi, H_mid, P, Q, dB3_try, T_try, T_ref, Y_try(6), G(6), D(6), dummy(8)
 
@@ -591,11 +592,11 @@ subroutine dynamics_rk4_reverse_pre_m3(rhs, dB3, T_cross, R_cross, e3_cross, gam
              Epsilon_b, Epsilon_e, p_f, f_e, e_r, b_r, p_r, f_e_r, sigma_r)
     reverse_rhs_phase = 0
     H_bound = log(one/Y(4))
-    H_hi = min(one, H_bound)
+    H_hi = min(pre_m3_log_step_max, H_bound)
     T_try = T_state
     Y_try = Y
     dB3_try = dB3
-    N_bracket = max(2, ceiling(H_hi))
+    N_bracket = max(2, ceiling(H_hi/pre_m3_log_step_max))
     call dynamics_rk4_reverse_pre_integrate(rhs, dB3_try, T_try, Y_try, H_hi, N_bracket, para_m_ej, V3_scale, &
                                             Delta_0, eta_0, A_star, dNe_ISM, Epsilon_b, Epsilon_e, &
                                             p_f, f_e, e_r, b_r, p_r, f_e_r, sigma_r)
@@ -604,7 +605,7 @@ subroutine dynamics_rk4_reverse_pre_m3(rhs, dB3, T_cross, R_cross, e3_cross, gam
         T_try = T_state
         Y_try = Y
         dB3_try = dB3
-        N_bracket = max(2, ceiling(H_hi))
+        N_bracket = max(2, ceiling(H_hi/pre_m3_log_step_max))
         call dynamics_rk4_reverse_pre_integrate(rhs, dB3_try, T_try, Y_try, H_hi, N_bracket, para_m_ej, V3_scale, &
                                                 Delta_0, eta_0, A_star, dNe_ISM, Epsilon_b, Epsilon_e, &
                                                 p_f, f_e, e_r, b_r, p_r, f_e_r, sigma_r)
@@ -619,7 +620,7 @@ subroutine dynamics_rk4_reverse_pre_m3(rhs, dB3, T_cross, R_cross, e3_cross, gam
             T_try = T_state
             Y_try = Y
             dB3_try = dB3
-            N_bracket = max(2, ceiling(H_mid))
+            N_bracket = max(2, ceiling(H_mid/pre_m3_log_step_max))
             call dynamics_rk4_reverse_pre_integrate(rhs, dB3_try, T_try, Y_try, H_mid, N_bracket, para_m_ej, V3_scale, &
                                                     Delta_0, eta_0, A_star, dNe_ISM, Epsilon_b, Epsilon_e, &
                                                     p_f, f_e, e_r, b_r, p_r, f_e_r, sigma_r)
