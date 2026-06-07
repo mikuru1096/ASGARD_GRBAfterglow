@@ -140,8 +140,7 @@ model = Model(
 强子路径约束：
 
 - 当前 formal path 是 1D shell contract。
-- 2D / chi-resolved hadronic transport 未实现。
-- IC-mediated electromagnetic cascade 未实现。
+- 未完成的 hadronic transport / cascade 扩展集中记录在根目录 `TODO.md`。
 - Python hadronic 模块只做 orchestration、wrapping、benchmark；最终微物理核在 `src/Hadronic/*.f90`。
 
 ## 偏振
@@ -214,11 +213,4 @@ ASGARD public API 使用 cgs 和 Hz/s：
 
 ## 使用边界
 
-不要把下面能力当作已支持：
-
-- 自定义 `Medium` 直接进入 Fortran kernel dispatch。
-- wind `k != 2`。
-- jet spreading 动力学 backend。
-- thermal electrons outside `fullhide_1d`。
-- 2D / chi-resolved hadronic transport。
-- IC-mediated electromagnetic cascade。
+不要把 public API 暴露但 backend 尚未支持的能力当作已支持。完整列表集中维护在根目录 `TODO.md` 和 `doc/public_backend_limits.md`。

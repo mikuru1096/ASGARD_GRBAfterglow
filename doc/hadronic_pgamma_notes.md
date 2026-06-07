@@ -28,9 +28,7 @@
 
 ## 当前边界
 
-未完成:
-- 2D / χ-resolved hadronic transport
-- 超出当前 γγ pair/synch contract 的 inverse-Compton-mediated electromagnetic pair cascade。
+Hadronic 未完成项集中维护在根目录 `TODO.md`。本文件只记录当前 pγ 耦合、命名和 AM3 参考边界。
 
 Reverse-shock baseline：ASGARD 使用局部 `gamma34` 注入和显式 region-3 `U3/V3` thermal-state evolution；VegasAfterglow 只是 comparison backend。
 

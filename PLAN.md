@@ -28,7 +28,7 @@
 
 ## Todo
 
-- No active TODO items. 新任务进入前先补充明确动机、物理假设、验收口径和受影响 build/test 范围。
+当前唯一 TODO / 未完成项入口是 `TODO.md`。本文档只记录基线和已完成决策，不再维护分散待办列表。
 
 ## Validation Baseline
 

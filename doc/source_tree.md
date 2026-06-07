@@ -1,11 +1,12 @@
 # ASGARD 源码树
 
-本文档是精简源码树索引。代码总览见 `doc/code_overview.md`。
+本文档是精简源码树索引。文档阅读入口见 `doc/index.md`；代码总览见 `doc/code_overview.md`。
 
 ## Python 运行层
 
 - `ASGARD/`：外部用户 API，包括 `api_model.py`, `api_observe.py`, `api_fit.py`, `api_adaptive.py`。
 - `asgard_core/`：内部编排与物理耦合，包括 `asgard_config.py`, `asgard_runtime.py`, `asgard_state.py`, `asgard_setup.py`, `asgard_ssc.py`, `asgard_types.py`。
+- `asgard_core/structured_jet_kernel.py`：结构化喷流 Fortran backend 薄中间层。
 - `asgard_core/hadronic_*.py`：hadronic Python wrappers/benchmarks，只做 orchestration；最终微物理写入 `src/Hadronic/`。
 - `asgard_core/hadronic_reverse.py`：RS hadronic light proton transport + synchrotron wrapper。
 - `asgard_core/hadronic_cascade.py`：pair-production synch diagnostics 和 shell-sequence time-dependent γγ pair/synch cascade。
@@ -13,6 +14,7 @@
 ## 文档
 
 - `doc/index.md`：文档总入口。
+- `TODO.md`：唯一 TODO / 未完成项入口。
 - `doc/installation.md`：环境、安装和 native extension 构建。
 - `doc/user_guide.md`：常用 public API 工作流。
 - `doc/public_api.md`：public API 当前契约。
@@ -20,6 +22,11 @@
 - `doc/numerical_methods.md`：数值核、求解器和 line-truncation 检查。
 - `doc/validation_and_benchmarks.md`：build gate、smoke tests、benchmark refresh 和 artifact policy。
 - `doc/developer_guide.md`：开发工作流、提交前检查和 review checklist。
+- `doc/call_chain.md`：public call chain 到 runtime/Fortran kernel 的路径。
+- `doc/code_overview.md`：代码结构、运行主链和关键边界。
+- `doc/electron_solver_algorithms.md`：电子输运算法说明。
+- `doc/hadronic_pgamma_notes.md`：p-gamma 微物理和基准说明。
+- `doc/am3_migration_plan.md`：AM3 共存、迁移和引用边界。
 - `doc/hadronic_chi_transport_decision.md`：2D / chi-resolved hadronic transport 的当前决策边界。
 - `doc/pair_cascade_extension_boundary.md`：IC-mediated electromagnetic cascade 的扩展边界。
 - `doc/polarization_timing_diagnostic.md`：Lan 2023 polarization 峰时偏移诊断。
@@ -36,7 +43,8 @@
 - `src/Radiation/`：`radiation_common.f90`, `radiation_ssc_spectrum.f90`, `radiation_gamma_gamma_absorption.f90`, `radiation_reverse_seed.f90`, `synchrotron_polarization_kernel.f90`, `quantum_synchrotron_kernel.f90`
 - `src/Hadronic/`：
   - Entries：`hadronic_forward_1d.f90`, `hadronic_reverse_1d.f90`
-  - Kernels：`hadronic_common.f90`, `hadronic_transport_kernel.f90`, `hadronic_radiation_kernel.f90`, `hadronic_interaction_kernel.f90`, `hadronic_decay_kernel.f90`, `hadronic_pair_production_kernel.f90`, `hadronic_pair_cascade_kernel.f90`, `hadronic_pp_kernel.f90`, `hadronic_pp_models_kernel.f90`, `hadronic_bethe_heitler_kernel.f90`, `hadronic_hadronic_ic_kernel.f90`, `hadronic_species_transport_kernel.f90`, `hadronic_acceleration_kernel.f90`, `hadronic_secondary_radiation_kernel.f90`
+  - Kernels：`hadronic_common.f90`, `hadronic_transport_kernel.f90`, `hadronic_transport_remap_kernel.f90`, `hadronic_radiation_kernel.f90`, `hadronic_interaction_kernel.f90`, `hadronic_pgamma_hummer_1d.f90`, `hadronic_decay_kernel.f90`, `hadronic_pair_production_kernel.f90`, `hadronic_pair_cascade_kernel.f90`, `hadronic_pp_kernel.f90`, `hadronic_pp_models_kernel.f90`, `hadronic_bethe_heitler_kernel.f90`, `hadronic_hadronic_ic_kernel.f90`, `hadronic_species_transport_kernel.f90`, `hadronic_acceleration_kernel.f90`, `hadronic_secondary_radiation_kernel.f90`
+- `src/Structured/`：`structured_jet_1d.f90` 聚合结构化喷流 theta/theta-phi 网格调度，复用现有 Fortran 动力学、电子、辐射、强子和 SED 插值核。
 - `src/Interpolation/`：`SED_interpolation.f90`, `SED_interpolation_structured.f90`, `interpolation_common.f90`
 
 ## 构建入口

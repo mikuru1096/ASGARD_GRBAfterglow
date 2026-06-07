@@ -1,6 +1,6 @@
 # ASGARD 代码总览
 
-本文档按当前工作树整理代码结构、运行主链和关键边界。电子算法细节见 `doc/electron_solver_algorithms.md`。
+本文档按当前工作树整理代码结构、运行主链和关键边界。电子算法细节见 `doc/electron_solver_algorithms.md`；当前唯一 TODO / 未完成项入口见根目录 `TODO.md`。
 
 ## 1. 公开 API
 
@@ -61,6 +61,7 @@ Fitter.loglike -> compile_problem -> eval_loglike -> solve_state_from_setup
 - `asgard_postprocess.py`：observer projection、band aggregation、fit postprocessing。
 - `asgard_fit.py`：fit problem compilation 和 likelihood path。
 - `asgard_types.py`：runtime dataclass contracts。
+- `structured_jet_kernel.py`：结构化喷流 Fortran backend 的薄中间层，负责采样结构化参数、选择轴对称/非轴对称分支、调用 `structured_jet_1d` 并组装 API 结果。
 
 Hadronic Python 模块只做 orchestration、wrapping 和 benchmark：
 
@@ -93,14 +94,17 @@ Hadronic Python 模块只做 orchestration、wrapping 和 benchmark：
 - `src/Radiation/quantum_synchrotron_kernel.f90`：quantum synchrotron helper。
 - `src/Interpolation/SED_interpolation.f90`：observer-frame EATS/Doppler interpolation。
 - `src/Interpolation/SED_interpolation_structured.f90`：structured jet interpolation。
+- `src/Structured/structured_jet_1d.f90`：结构化喷流 Fortran 聚合入口，调度 theta 或 theta-phi 网格并复用现有动力学、电子、辐射、强子和 SED 插值核。
 
 ### 强子
 
 `src/Hadronic/hadronic_forward_1d.f90` 是 forward-shock f2py entry point，调度：
 
 - `hadronic_transport_kernel.f90`：proton injection、adiabatic/synchrotron loss、log-gamma energy advance。
+- `hadronic_transport_remap_kernel.f90`：强子 transport 网格 remap helper。
 - `hadronic_radiation_kernel.f90`：proton synchrotron。
 - `hadronic_interaction_kernel.f90`：Hummer 2010 photopion operator。
+- `hadronic_pgamma_hummer_1d.f90`：Hummer pγ 1D aggregate helper，供 formal hadronic 和 structured jet path 复用。
 - `hadronic_decay_kernel.f90`：pi0 -> gamma、pi/mu decay、neutrino emissivity。
 - `hadronic_pair_production_kernel.f90`：gamma-gamma pair production。
 - `hadronic_pair_cascade_kernel.f90`：pair-cascade synchrotron kernel。
@@ -140,14 +144,7 @@ Benchmark：`tests/vegas_afterglow_comparison.py`, `tests/sed_electron_compare.p
 
 ## 7. 已知边界
 
-尚未完成：
-
-- 2D / chi-resolved hadronic transport。
-- IC-mediated electromagnetic pair cascade。
-- reverse-shock `nu_m` 是 diagnostic break，不替代 transported electron spectrum。
-- 当前 backend 中的 jet spreading。
-- 用户自定义 `Medium` kernel dispatch 和 wind `k != 2`。
-- `fullhide_1d` 之外的 thermal electrons。
+当前未完成项和 public/backend unsupported boundaries 集中维护在根目录 `TODO.md` 与 `doc/public_backend_limits.md`。本节只保留架构边界。
 
 架构边界：
 

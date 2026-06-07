@@ -26,13 +26,15 @@
 
 1. `AGENTS.md`
 2. `PLAN.md`
-3. `doc/developer_guide.md`
-4. `doc/validation_and_benchmarks.md`
-5. `doc/benchmark_refresh_protocol.md`
+3. `TODO.md`
+4. `doc/developer_guide.md`
+5. `doc/validation_and_benchmarks.md`
+6. `doc/benchmark_refresh_protocol.md`
 
 专题决策记录：
 
 - `doc/public_backend_limits.md`：public API 与 backend 的不支持/部分支持边界。
+- `TODO.md`：唯一 TODO / 未完成项入口。
 - `doc/hadronic_chi_transport_decision.md`：当前不实现 2D / chi-resolved hadronic transport 的理由和前置物理契约。
 - `doc/pair_cascade_extension_boundary.md`：当前 gamma-gamma pair/synch cascade 与 IC-mediated electromagnetic cascade 的边界。
 - `doc/polarization_timing_diagnostic.md`：Lan 2023 偏振峰时诊断。
@@ -57,14 +59,7 @@ ASGARD 当前主线是 GRB afterglow 的 shell-evolving blast-wave + observer pr
 - 同步辐射偏振 Stokes 投影，覆盖 FS/RS electron synch 与 FS/RS hadronic synch。
 - `Model` public API、`Fitter` 拟合 API、benchmark/report 脚本。
 
-明确未实现或不属于当前物理契约的内容：
-
-- 2D / chi-resolved hadronic transport。
-- IC-mediated electromagnetic cascade。
-- Jet spreading 的 backend 动力学支持。
-- 用户自定义 `Medium` 的 Fortran kernel dispatch。
-- wind `k != 2`。
-- `fullhide_1d` 之外的 thermal electron branch。
+未完成项、不支持 backend 边界和实现准入条件集中维护在根目录 `TODO.md` 与 `doc/public_backend_limits.md`，避免文档间分散待办列表。
 
 ## 核心入口
 

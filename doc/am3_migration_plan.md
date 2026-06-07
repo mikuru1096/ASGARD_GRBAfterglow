@@ -1,6 +1,6 @@
 # AM3 迁移计划（历史参考）
 
-本文档记录 ASGARD 中 AM3 微物理迁移的历史规划。大部分 P0/P1 项已完成；当前权威 TODO 以 `PLAN.md` 为准。
+本文档记录 ASGARD 中 AM3 微物理迁移的历史规划。大部分 P0/P1 项已完成；当前权威 TODO 以根目录 `TODO.md` 为准。
 
 ## 已完成迁移
 
@@ -12,11 +12,9 @@
 - Shell-sequence time-dependent γγ pair/synch cascade path 已接入。
 - Reverse-shock full-chain hadronic dispatch 已通过 formal 1D kernels 接入。
 
-## 保留缺口
+## 保留边界
 
-- 2D / chi-resolved hadronic transport。
-- 含完整 hadronic chain 的 Vegas benchmark figures 刷新。
-- 超出当前 γγ pair/synch contract 的 inverse-Compton-mediated electromagnetic pair cascade。
+仍未进入实现的 hadronic transport、cascade 和 benchmark refresh 条目集中维护在根目录 `TODO.md`。本文档只保留 AM3 共存与迁移历史。
 
 RS hadronic proton injection/transport + proton synchrotron 已由 `hadronic_reverse_1d` 覆盖。Full-chain RS pγ/BH/pp/secondary/cascade dispatch 通过 runtime wrapper 复用 `hadronic_forward_1d` formal kernels。Legacy iterative pair-production synch branch 只保留作诊断；主 cascade path 是 shell-sequence time-dependent γγ pair/synch cascade。
 

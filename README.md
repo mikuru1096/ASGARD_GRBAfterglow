@@ -32,6 +32,7 @@ ASGARD 的目标是从爆波动力学、粒子谱演化和辐射转移出发，�
 
 - `AGENTS.md`
 - `PLAN.md`
+- `TODO.md`
 - `doc/code_overview.md`
 - `doc/public_backend_limits.md`
 
@@ -93,7 +94,7 @@ rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/AS
 
 Public runtime 可用于正激波余辉计算和 benchmark 工作流。反激波使用局部 shock-front `gamma34` 作为新注入电子能标，区域 3 磁场和 crossing 后热演化由显式 `U3/V3` thermal state 闭合。VegasAfterglow 是 comparison backend，不是 ASGARD 的 RS 物理目标。
 
-正激波强子分支当前是正式 1D research path。反激波强子包含 light proton-synch path，并在开启 full-chain 过程时复用正式 1D hadronic kernels 处理 p-gamma、BH、pp、secondary 和 cascade coupling。当前 pair cascade 是 shell-sequence time-dependent gamma-gamma pair/synch cascade；2D/chi-resolved hadronic transport 和 IC-mediated electromagnetic cascade 仍是明确未实现边界。
+正激波强子分支当前是正式 1D research path。反激波强子包含 light proton-synch path，并在开启 full-chain 过程时复用正式 1D hadronic kernels 处理 p-gamma、BH、pp、secondary 和 cascade coupling。当前 pair cascade 是 shell-sequence time-dependent gamma-gamma pair/synch cascade；未完成项和 public/backend 边界见 `TODO.md` 与 `doc/public_backend_limits.md`。
 
 ## 许可
 
