@@ -193,13 +193,7 @@ fitter.params = [
 ll = fitter.loglike({"logE": 52.0, "logn": 0.0, "p": 2.3})
 ```
 
-采样脚本：
-
-- `scripts/fitting/mcmc_fit.py`
-- `scripts/fitting/multinest_fit.py`
-- `scripts/fitting/mpi_run.sh`
-
-正式拟合的 CPU/GPU 网格、采样和 posterior 产品应按当前任务的 fitting 规则执行。
+正式拟合使用 `ASGARD.Fitter` API 组织 likelihood；CPU/GPU 网格、采样和 posterior 产品应按当前任务的 fitting 规则执行。
 
 ## 输出单位
 

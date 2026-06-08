@@ -156,6 +156,7 @@ def solve_ka2008_reference_processes(
     am3_process_power = np.zeros((len(HUMMER_PROCESS_GROUP_LABELS), num_gam_p, num_r), dtype=float)
     process_luminosity = np.zeros((len(HUMMER_PROCESS_GROUP_LABELS), process_energy_arr.size, num_r), dtype=float)
     proton_energy_gev = gam_p_arr * PROTON_MASS_GEV
+    shell_volume_arr = _shell_volumes_from_radius(radius_arr)
 
     for i_r in range(num_r):
         if not include_pg and not include_neutrino:

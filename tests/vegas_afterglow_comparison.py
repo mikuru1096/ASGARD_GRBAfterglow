@@ -125,6 +125,8 @@ MEDIUM_WIND_N0 = 1.0e3
 MEDIUM_WIND_K = 2.0
 PROTON_MASS_G = constants.para_m_p
 ASGARD_CHARINT_NUM_GAM_E = 41
+# nu_a is an SSA root over the electron-spectrum derivative; this diagnostic needs a resolved gamma grid.
+PHOTON_QUANTITY_NUM_GAM_E = 161
 BASE_NUM_R = 80
 REVERSE_NUM_R = 120
 REVERSE_DURATION_S = 10.0
@@ -762,7 +764,9 @@ def _build_shock_quantities() -> Path:
 
 
 def _build_photon_quantities() -> Path:
-    da, dv = _cached_details_pair(False, False, 0.0, 1.0, 1.0e8)
+    model_asgard = _build_asgard_model(num_gam_e=PHOTON_QUANTITY_NUM_GAM_E)
+    model_vegas = _build_vegas_model()
+    da, dv = model_asgard.details(t_min=1.0, t_max=1.0e8), model_vegas.details(t_min=1.0, t_max=1.0e8)
     vegas_z = 0.1
     attrs = ["nu_a", "nu_m", "nu_c"]
     t_ref = _reference_series(da.fwd.t_obs)

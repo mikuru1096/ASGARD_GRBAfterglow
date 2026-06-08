@@ -15,6 +15,7 @@ except ImportError:
 
 ELEMENTARY_CHARGE_ESU = constants.para_e
 
+ERG_PER_GEV = constants.para_gev2erg
 ELECTRON_MASS_GEV = constants.para_m_e_gev
 PROTON_MASS_GEV = constants.para_m_p_gev
 NEUTRON_MASS_GEV = constants.para_m_n_gev

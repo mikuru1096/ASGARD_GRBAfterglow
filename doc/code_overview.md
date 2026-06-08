@@ -138,7 +138,7 @@ rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/AS
 
 Smoke tests：`tests/readme_smoke_bench.py`, `tests/fullhide_2d_smoke_bench.py`, `tests/polarization_smoke.py`。
 
-Hadronic regressions：`tests/hadronic_1d_smoke.py`, `tests/hadronic_species_transport_smoke.py`, `tests/hadronic_secondary_radiation_smoke.py`, `tests/hadronic_acceleration_smoke.py`, `tests/hadronic_bethe_heitler_smoke.py`, `tests/hadronic_hadronic_ic_smoke.py`, `tests/hadronic_pair_production_smoke.py`, `tests/hadronic_pp_smoke.py`, `tests/hadronic_pgamma_benchmark_report.py`。
+Hadronic regressions：`tests/hadronic_1d_smoke.py`, `tests/hadronic_species_transport_smoke.py`, `tests/hadronic_secondary_radiation_smoke.py`, `tests/hadronic_acceleration_smoke.py`, `tests/hadronic_bethe_heitler_smoke.py`, `tests/hadronic_hadronic_ic_smoke.py`, `tests/hadronic_pair_production_smoke.py`, `tests/hadronic_pp_smoke.py`。
 
 Benchmark：`tests/vegas_afterglow_comparison.py`, `tests/sed_electron_compare.py`。Benchmark refresh protocol 见 `doc/benchmark_refresh_protocol.md`。
 

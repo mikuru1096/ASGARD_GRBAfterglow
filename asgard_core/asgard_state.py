@@ -13,6 +13,7 @@ from asgard_core.asgard_config import ExecutionPolicy, FitConfig, SimulationSetu
 from asgard_core.hadronic_pair_production import solve_pair_production
 from asgard_core.hadronic_pgamma import photon_density_hz_to_gev
 from asgard_core.asgard_types import (
+    BranchState,
     FluxComponents,
     SolveState,
     ObsState,

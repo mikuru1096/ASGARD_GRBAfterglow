@@ -56,9 +56,9 @@
 - 基础 smoke：`tests/readme_smoke_bench.py`, `tests/reverse_shock_smoke.py`
 - 2D electron：`tests/fullhide_2d_smoke_bench.py`, `tests/fullhide_2d_medium_diag.py`
 - 比较与谱：`tests/vegas_afterglow_comparison.py`, `tests/sed_electron_compare.py`
-- Hadronic：`tests/hadronic_1d_smoke.py`, `tests/hadronic_species_transport_smoke.py`, `tests/hadronic_secondary_radiation_smoke.py`, `tests/hadronic_acceleration_smoke.py`, `tests/hadronic_bethe_heitler_smoke.py`, `tests/hadronic_hadronic_ic_smoke.py`, `tests/hadronic_pair_production_smoke.py`, `tests/hadronic_pp_smoke.py`, `tests/hadronic_pgamma_benchmark_report.py`
+- Hadronic：`tests/hadronic_1d_smoke.py`, `tests/hadronic_species_transport_smoke.py`, `tests/hadronic_secondary_radiation_smoke.py`, `tests/hadronic_acceleration_smoke.py`, `tests/hadronic_bethe_heitler_smoke.py`, `tests/hadronic_hadronic_ic_smoke.py`, `tests/hadronic_pair_production_smoke.py`, `tests/hadronic_pp_smoke.py`
 - Pair / polarization / RS：`tests/hadronic_pair_cascade_smoke.py`, `tests/hadronic_pair_branch_smoke.py`, `tests/hadronic_reverse_shock_smoke.py`, `tests/polarization_smoke.py`, `tests/polarization_baseline_bench.py`
-- AM3/reference comparisons：`tests/hadronic_am3_solver_smoke.py`, `tests/hadronic_am3_reference_compare_smoke.py`, `tests/hadronic_am3_acceleration_compare_smoke.py`, `tests/hadronic_am3_bethe_heitler_compare_smoke.py`, `tests/hadronic_pgamma_benchmark_compare.py`
+- AM3/reference comparisons：`tests/hadronic_am3_solver_smoke.py`, `tests/hadronic_am3_reference_compare_smoke.py`, `tests/hadronic_am3_acceleration_compare_smoke.py`, `tests/hadronic_am3_bethe_heitler_compare_smoke.py`
 
 ## 生成产物
 

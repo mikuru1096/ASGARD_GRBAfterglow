@@ -66,12 +66,6 @@ Lan 2023 polarization overlay：
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/polarization_literature_overlay.py'
 ```
 
-Hadronic pγ report：
-
-```bash
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/hadronic_pgamma_benchmark_report.py'
-```
-
 ## 构建门槛
 
 文档或 plotting-only 脚本改动只需：

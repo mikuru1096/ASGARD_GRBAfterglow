@@ -175,9 +175,6 @@ subroutine ssc_spec(R,gam_e,dN_gam_e,V_seed,seed,Num_nu,Num_R,Num_gam_e,n_thread
     Temp_para2=4.0d0*pi*Para_c*Para_h
     seed_SSC=seed_SSC/Temp_para2*Temp_para
     
-!    call system_clock(int2)
-!    print*, 'time=', (int2-int1)/1000.0
-    
     deallocate(simpson_weights, V_weights, E_seed, inv_gam, inv_gam2)
     deallocate(radius_inv2, inv_v_seed, log_inv_v_seed)
     deallocate(q_prefactor, q_gamma_coeff, kn_prefactor, log_q_prefactor)

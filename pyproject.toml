@@ -37,6 +37,7 @@ dependencies = [
     "extinction",
     "h5py",
     "tqdm",
+    "charset-normalizer",
 ]
 
 [project.optional-dependencies]
@@ -54,7 +55,6 @@ compare = [
 Homepage = "https://github.com/mikuru1096/ASGARD_GRBAfterglow"
 
 [project.scripts]
-asgard-demo = "lc_spec_demo:main"
 asgard-build = "build_extensions:main"
 
 [tool.setuptools]

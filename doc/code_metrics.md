@@ -1,6 +1,6 @@
 # ASGARD 代码规模统计
 
-统计时间戳：2026-06-08 17:45:39 CST
+统计时间戳：2026-06-08 19:38:31 CST
 
 ## 统计口径
 
@@ -13,8 +13,8 @@
 
 | 指标 | 文件数 | 行数 |
 | --- | ---: | ---: |
-| 项目总代码 | 186 | 43,777 |
-| `src/` Fortran 核代码 | 86 | 19,773 |
+| 项目总代码 | 173 | 39,588 |
+| `src/` Fortran 核代码 | 86 | 19,770 |
 
 ## Fortran 核分目录
 
@@ -26,7 +26,7 @@
 | `src/Electron/slatec` | 37 | 5,647 |
 | `src/Hadronic` | 18 | 4,325 |
 | `src/Interpolation` | 3 | 396 |
-| `src/Radiation` | 6 | 1,030 |
+| `src/Radiation` | 6 | 1,027 |
 | `src/Structured` | 1 | 331 |
 
 ## 本次统计命令
@@ -38,7 +38,7 @@ import subprocess
 
 code_exts = {".py", ".f90", ".F90", ".f", ".for", ".f95", ".c", ".h", ".hpp", ".cpp", ".sh"}
 files = subprocess.check_output(["git", "ls-files"], text=True).splitlines()
-code_files = [Path(p) for p in files if Path(p).suffix in code_exts]
+code_files = [Path(p) for p in files if Path(p).exists() and Path(p).suffix in code_exts]
 fortran_kernel_files = [
     p for p in code_files
     if p.parts and p.parts[0] == "src" and p.suffix.lower() in {".f90", ".f", ".for", ".f95"}

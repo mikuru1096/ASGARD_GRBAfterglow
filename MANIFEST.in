@@ -8,7 +8,6 @@ recursive-include ASGARD *.py
 recursive-include asgard_core *.py
 recursive-include asgard_core/data_light_curve *
 recursive-include asgard_core/data_spectrum *
-recursive-include scripts/fitting *.py *.sh
 recursive-include src *.py *.f90
 exclude src/*.pyd
 exclude src/*.so
