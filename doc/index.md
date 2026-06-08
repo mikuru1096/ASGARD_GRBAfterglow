@@ -21,6 +21,7 @@
 2. `doc/numerical_methods.md`
 3. `doc/code_overview.md`
 4. `doc/call_chain.md`
+5. `doc/code_metrics.md`
 
 开发或刷新基准图：
 
