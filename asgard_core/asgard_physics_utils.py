@@ -131,15 +131,3 @@ def compute_maximum_synchrotron_frequency(
     gam_e_max = 3.0 * constants.para_m_energy / np.sqrt(8.0 * magnetic_field * constants.para_e**3)
     return 4.2e6 * magnetic_field * gam_e_max**2 * doppler
 
-
-def compute_comoving_time(
-    observer_time_s: np.ndarray | float,
-    gamma: np.ndarray | float,
-    redshift: float,
-) -> np.ndarray | float:
-    """
-    Convert observer time to comoving time.
-
-    t_comoving = t_observer / (gamma * (1 + z))
-    """
-    return observer_time_s / (gamma * (1.0 + redshift))

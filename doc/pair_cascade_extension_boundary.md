@@ -4,9 +4,7 @@
 
 ## 当前契约
 
-- `asgard_core/hadronic_cascade.py` 提供两条路径：
-  - `compute_time_dependent_pair_cascade_sequence(...)`：主链使用的 shell-sequence time-dependent γγ pair/synch cascade。
-  - `compute_iterative_pair_cascade(...)`：legacy single-shell iterative synch branch，仅保留作诊断。
+- `asgard_core/hadronic_cascade.py` 提供 `compute_time_dependent_pair_cascade_sequence(...)`：主链使用的 shell-sequence time-dependent γγ pair/synch cascade。
 - `_compute_pair_production_branch(...)` 在 `pair_cascade_iterations > 1` 时调用 shell-sequence path，返回 `pair_syn_luminosity_hz`、`pair_syn_seed_per_hz` 和 `tau_pair_path`。
 - Fortran `hadronic_pair_cascade_kernel.f90` 的单步物理是 `γγ -> e± -> synchrotron photons`。它不演化 IC photons，也不把 IC photons 再反馈进 γγ target field。
 - 当前 public contract 中，`Radiation.pair_production=True` 加 `Setups.pair_cascade_iterations>1` 的含义是 γγ pair/synch cascade substeps，不是完整 electromagnetic cascade。
@@ -26,7 +24,6 @@ IC-mediated electromagnetic cascade 的闭合变量不同于当前 synch branch�
 
 - γγ absorption / pair injection 来自正式 pair-production operator。
 - `pair_cascade_iterations > 1` 使用 shell-sequence time-dependent γγ pair/synch cascade。
-- single-shell iterative cascade 只作低层诊断。
 - IC-mediated electromagnetic cascade 继续列为未实现边界。
 
 进入实现前必须先完成：

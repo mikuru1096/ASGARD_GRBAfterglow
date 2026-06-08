@@ -1,15 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Callable
-
 import numpy as np
 
 from asgard_core.asgard_numpy import trapezoid
 from src import constants
 
 
-EPSBAR_THR_GEV = 0.145
 MPI0_MASS_GEV = 0.137
 PROTON_MASS_GEV = constants.para_m_p_e * constants.para_erg2ev * 1.0e-9
 ETA0 = 2.0 * MPI0_MASS_GEV / PROTON_MASS_GEV + (MPI0_MASS_GEV / PROTON_MASS_GEV) ** 2
@@ -73,84 +69,6 @@ _TABLE3_NUEBAR = (
     np.array([2.63, 2.98, 2.31, 2.11, 2.03, 1.98, 2.02, 2.07, 2.24, 2.40], dtype=float),
     np.array([6.61e-19, 9.74e-18, 1.34e-16, 2.91e-16, 3.81e-16, 4.48e-16, 4.83e-16, 5.13e-16, 1.75e-15, 5.48e-15], dtype=float),
 )
-
-
-@dataclass(frozen=True)
-class PGammaMicrophysics:
-    label: str
-    sigma_kappa: Callable[[np.ndarray], np.ndarray]
-
-
-def strict_isotropic_pgamma_loss_rate(
-    gamma_p: np.ndarray,
-    nu_hz: np.ndarray,
-    photon_density_hz: np.ndarray,
-    microphysics: PGammaMicrophysics,
-    num_epsbar: int = 512,
-    epsbar_max_gev: float = 100.0,
-) -> np.ndarray:
-    """Exact isotropic p-gamma energy-loss integral for a supplied sigma*kappa model."""
-    gam = np.asarray(gamma_p, dtype=float)
-    freq = np.asarray(nu_hz, dtype=float)
-    density = np.asarray(photon_density_hz, dtype=float)
-    if gam.ndim != 1:
-        raise ValueError("gamma_p must be a 1d array.")
-    if freq.ndim != 1 or density.ndim != 1 or freq.shape != density.shape:
-        raise ValueError("nu_hz and photon_density_hz must be 1d arrays with the same shape.")
-    if np.any(freq <= 0.0):
-        raise ValueError("nu_hz must be positive.")
-    if np.any(np.diff(freq) <= 0.0):
-        raise ValueError("nu_hz must be strictly increasing for the tail integral.")
-    if np.any(density < 0.0):
-        raise ValueError("photon_density_hz must be non-negative.")
-    if np.any(gam <= 1.0):
-        raise ValueError("gamma_p must be > 1.")
-    if int(num_epsbar) < 2:
-        raise ValueError("num_epsbar must be >= 2.")
-    if float(epsbar_max_gev) <= EPSBAR_THR_GEV:
-        raise ValueError("epsbar_max_gev must be larger than the photomeson threshold.")
-
-    eps_gev = constants.para_h_gev * freq
-    density_gev = density / constants.para_h_gev
-    eps_min_needed = EPSBAR_THR_GEV / (2.0 * np.max(gam))
-    if eps_min_needed < eps_gev[0]:
-        raise ValueError(
-            "Photon grid does not extend to low enough energies for strict isotropic loss integration: "
-            f"need epsilon_min <= {eps_min_needed:.6e} GeV, got {eps_gev[0]:.6e} GeV."
-        )
-    integrand = density_gev / (eps_gev * eps_gev)
-    tail = _tail_integral(eps_gev, integrand)
-
-    epsbar = np.logspace(np.log10(EPSBAR_THR_GEV), np.log10(float(epsbar_max_gev)), int(num_epsbar))
-    sigma_kappa = np.asarray(microphysics.sigma_kappa(epsbar), dtype=float)
-    if sigma_kappa.shape != epsbar.shape:
-        raise ValueError("sigma_kappa must return an array with the same shape as epsbar.")
-
-    rates = np.zeros_like(gam)
-    for i, g in enumerate(gam):
-        eps_min = epsbar / (2.0 * g)
-        target = np.interp(eps_min, eps_gev, tail, left=tail[0], right=0.0)
-        outer = sigma_kappa * epsbar * target
-        rates[i] = constants.para_c * trapezoid(outer, epsbar) / (2.0 * g * g)
-    return rates
-
-
-def sigma_kappa_stecker_box(epsbar_gev: np.ndarray) -> np.ndarray:
-    """Simple benchmark kernel for the exact isotropic loss integral."""
-    eps = np.asarray(epsbar_gev, dtype=float)
-    out = np.zeros_like(eps)
-    resonance = (eps >= 0.2) & (eps < 0.5)
-    multipion = eps >= 0.5
-    out[resonance] = 340.0e-30 * 0.2
-    out[multipion] = 120.0e-30 * 0.6
-    return out
-
-
-def aharonian_2008_scheme() -> PGammaMicrophysics:
-    raise NotImplementedError(
-        "Aharonian 2008 p-gamma secondary-yield kernel is not transcribed yet. "
-        "Use strict_isotropic_pgamma_loss_rate with a benchmark microphysics model until the full scheme is added."
-    )
 
 
 def photon_density_hz_to_gev(photon_nu_hz: np.ndarray, photon_density_per_hz: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -285,13 +203,6 @@ def kelner_aharonian_2008_secondary_spectrum(
             outer[j] = f_p[j] * inner / ep
         spectrum[i] = trapezoid(outer, e_p)
     return spectrum
-
-
-def _tail_integral(x: np.ndarray, y: np.ndarray) -> np.ndarray:
-    tail = np.zeros_like(x)
-    for i in range(x.size - 2, -1, -1):
-        tail[i] = tail[i + 1] + 0.5 * (y[i + 1] + y[i]) * (x[i + 1] - x[i])
-    return tail
 
 
 def _interp_table_linear(x_tab: np.ndarray, y_tab: np.ndarray, x: np.ndarray) -> np.ndarray:

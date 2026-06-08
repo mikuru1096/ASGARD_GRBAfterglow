@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-import math
 
 import numpy as np
 
@@ -16,14 +15,6 @@ NEUTRON_MASS_GEV = constants.para_m_n_gev
 PI_PLUS_MASS_GEV = constants.para_m_pi_charged_gev
 MUON_MASS_GEV = constants.para_m_mu_gev
 
-NEUTRON_BETA_DECAY_S = 879.4
-CHARGED_PION_DECAY_S = 2.6033e-8
-MUON_DECAY_S = 2.1969811e-6
-
-LIGHT_SPEED_CGS = constants.para_c
-SIGMA_T_CGS = constants.para_sigmat
-GEV_C2_TO_G = constants.para_gev2erg / (constants.para_c * constants.para_c)
-ELECTRON_MASS_G = constants.para_m_e
 _HAS_FORTRAN_SPECIES_TRANSPORT = hadronic_fortran_module is not None and hasattr(
     hadronic_fortran_module, "fs_hadronic_species_transport_shell"
 )
@@ -77,46 +68,6 @@ def spherical_divergence_rate(radius_cm: float, expansion_speed_cm_s: float) -> 
     if expansion_speed_cm_s < 0.0:
         raise ValueError("expansion_speed_cm_s must be non-negative.")
     return 3.0 * expansion_speed_cm_s / radius_cm
-
-
-def decay_timescale_s(gamma: np.ndarray, proper_lifetime_s: float) -> np.ndarray:
-    gamma_arr = _as_strictly_increasing_1d(gamma, "gamma")
-    if proper_lifetime_s <= 0.0:
-        raise ValueError("proper_lifetime_s must be positive.")
-    return proper_lifetime_s * gamma_arr
-
-
-def synchrotron_dgamma_dt(
-    gamma: np.ndarray,
-    b_field_g: float,
-    mass_gev: float,
-    charge_number: float,
-) -> np.ndarray:
-    """Relativistic synchrotron cooling:
-    dgamma/dt = -(4/3) * sigma_T,s * U_B * gamma^2 / (m_s c),
-    sigma_T,s = sigma_T,e * Z^4 * (m_e/m_s)^2.
-    """
-    gamma_arr = _as_strictly_increasing_1d(gamma, "gamma")
-    if b_field_g < 0.0:
-        raise ValueError("b_field_g must be non-negative.")
-    if mass_gev <= 0.0:
-        raise ValueError("mass_gev must be positive.")
-    if charge_number == 0.0:
-        return np.zeros_like(gamma_arr)
-    mass_g = mass_gev * GEV_C2_TO_G
-    u_b = b_field_g * b_field_g / (8.0 * math.pi)
-    sigma_t_species = SIGMA_T_CGS * (charge_number**4) * (ELECTRON_MASS_G / mass_g) ** 2
-    return -(4.0 / 3.0) * sigma_t_species * u_b * gamma_arr * gamma_arr / (mass_g * LIGHT_SPEED_CGS)
-
-
-def adiabatic_dgamma_dt(gamma: np.ndarray, divergence_rate_s_inv: float) -> np.ndarray:
-    """Isotropic adiabatic cooling:
-    dgamma/dt = -(gamma/3) * div(v).
-    """
-    gamma_arr = _as_strictly_increasing_1d(gamma, "gamma")
-    if divergence_rate_s_inv < 0.0:
-        raise ValueError("divergence_rate_s_inv must be non-negative.")
-    return -(divergence_rate_s_inv / 3.0) * gamma_arr
 
 
 def advance_species_transport_explicit(

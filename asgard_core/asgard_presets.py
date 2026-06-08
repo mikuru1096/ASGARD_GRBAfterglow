@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from asgard_core.asgard_config import FitConfig, ReverseShockConfig, SpectrumOutputConfig, default_num_threads
+from asgard_core.asgard_config import FitConfig, SpectrumOutputConfig, default_num_threads
 
 
 def build_baseline_config(**overrides) -> FitConfig:
@@ -43,16 +43,3 @@ def build_spectrum_demo_config(**overrides) -> FitConfig:
         **overrides,
     )
 
-
-def build_reverse_demo_config(**overrides) -> FitConfig:
-    return build_baseline_config(
-        reverse_shock=ReverseShockConfig(
-            enabled=True,
-            delta_t_s=10.0,
-            epsilon_e=1.0e-1,
-            epsilon_b=1.0e-2,
-            p=2.4,
-            f_e=1.0,
-        ),
-        **overrides,
-    )

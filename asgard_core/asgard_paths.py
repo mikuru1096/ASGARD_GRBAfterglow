@@ -34,15 +34,3 @@ def ensure_output_dir(path: Path) -> Path:
 
 def asgard_doc_path(name: str) -> Path:
     return ASGARD_DOC_DIR / name
-
-
-def benchmark_exp_tail_path(name: str) -> Path:
-    return BENCHMARK_EXP_TAIL_DIR / name
-
-
-def data_light_curve_path(name: str) -> Path:
-    return DATA_LIGHT_CURVE_DIR / name
-
-
-def data_spectrum_path(name: str) -> Path:
-    return DATA_SPECTRUM_DIR / name

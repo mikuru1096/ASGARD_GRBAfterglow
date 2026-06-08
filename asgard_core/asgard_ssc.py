@@ -414,36 +414,6 @@ def _build_forward_ssc_grid(
     )
 
 
-def compute_forward_ssc_adaptive(
-    radius_cm: np.ndarray,
-    gam_e: np.ndarray,
-    d_n_gam_e: np.ndarray,
-    full_grid_hz: np.ndarray,
-    seed_syn: np.ndarray,
-    gamma_bulk: np.ndarray,
-    nu_a: np.ndarray,
-    nu_m: np.ndarray,
-    nu_c: np.ndarray,
-    config: FitConfig,
-) -> tuple[np.ndarray, np.ndarray]:
-    reduced_grid_hz = _build_forward_ssc_grid(full_grid_hz, seed_syn, gamma_bulk, radius_cm, nu_a, nu_m, nu_c, config)
-    if reduced_grid_hz.shape[0] >= full_grid_hz.shape[0]:
-        return Radiation.ssc_spec(radius_cm, gam_e, d_n_gam_e, full_grid_hz, seed_syn, config.num_threads)
-
-    reduced_seed = _interp_positive_loglog(full_grid_hz, seed_syn, reduced_grid_hz)
-    p_ssc_reduced, seed_ssc_reduced = Radiation.ssc_spec(
-        radius_cm,
-        gam_e,
-        d_n_gam_e,
-        reduced_grid_hz,
-        reduced_seed,
-        config.num_threads,
-    )
-    p_ssc_full = _interp_positive_loglog(reduced_grid_hz, p_ssc_reduced, full_grid_hz)
-    seed_ssc_full = _interp_positive_loglog(reduced_grid_hz, seed_ssc_reduced, full_grid_hz)
-    return p_ssc_full, seed_ssc_full
-
-
 def _densify_log_grid(grid_hz: np.ndarray, target_points: int) -> np.ndarray:
     grid = np.asarray(grid_hz, dtype=float)
     grid = grid[np.isfinite(grid) & (grid > 0.0)]

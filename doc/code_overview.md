@@ -63,11 +63,11 @@ Fitter.loglike -> compile_problem -> eval_loglike -> solve_state_from_setup
 - `asgard_types.py`：runtime dataclass contracts。
 - `structured_jet_kernel.py`：结构化喷流 Fortran backend 的薄中间层，负责采样结构化参数、选择轴对称/非轴对称分支、调用 `structured_jet_1d` 并组装 API 结果。
 
-Hadronic Python 模块只做 orchestration、wrapping 和 benchmark：
+Hadronic Python 模块只做 orchestration、wrapping 和正式 reference backend：
 
 - Fortran wrappers：`hadronic_hummer.py`, `hadronic_bethe_heitler.py`, `hadronic_hadronic_ic.py`, `hadronic_pp.py`, `hadronic_pair_production.py`, `hadronic_species_transport.py`, `hadronic_secondary_radiation.py`, `hadronic_acceleration.py`。
 - Reverse shock wrapper：`hadronic_reverse.py`；开启 RS full-chain flags 时，runtime 通过 formal 1D hadronic kernels 处理 RS seed photons、RS `B3`、shell energy 和 baryon target density。
-- Reference/benchmark：`hadronic_pgamma.py`, `hadronic_am3_solver.py`, `hadronic_am3_benchmark.py`, `hadronic_cascade.py`。
+- Reference/backend：`hadronic_pgamma.py`, `hadronic_am3_solver.py`, `hadronic_cascade.py`。
 
 最终 AM3-derived microphysics 位于 `src/Hadronic/*.f90`。
 

@@ -14,13 +14,13 @@ flowchart TD
     D --> I["求解强子过程"]
     I --> J["BH 次级电子并入正激波电子谱\n并重算 seed_syn"]
     I --> K["pγ 光子生存因子\n写回光子场"]
-    I --> Q["pair production / 可选迭代 cascade"]
+    I --> Q["pair production / shell-sequence cascade"]
     H --> L["Radiation.annihilation\ngamma-gamma 吸收"]
     Q --> L
     K --> L
     J --> L
     G --> L
-    L --> M["project_flux_grid / project_spec"]
+    L --> M["project_flux_grid"]
     M --> N["Interpolation.sed_interpolation\nEATS + Doppler + redshift"]
     N --> O["combine_multiband_flux"]
     O --> P["compute_light_curve_redchi"]

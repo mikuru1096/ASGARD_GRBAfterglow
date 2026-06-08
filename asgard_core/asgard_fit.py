@@ -114,11 +114,6 @@ def eval_loglike(
     raise TypeError(f"Unsupported compiled inference problem: {type(problem)!r}")
 
 
-def eval_fit(config: FitConfig) -> float:
-    problem = _compile_cfg(config)
-    return _eval_cfg(problem, config)
-
-
 def _compile_cfg(config: FitConfig) -> FitProblem:
     num_xrt, requested_frequencies_hz = build_multiband_observer_frequencies()
     setup = build_simulation_setup(config)

@@ -9,12 +9,10 @@ import numpy as np
 
 from src.Electron.electron_radiation import electron_radiation_kernel as electron_radiation_module
 from asgard_core.asgard_coupling import build_coupled_shock_geometry, build_cross_zone_seed_fields
-from asgard_core.asgard_config import ExecutionPolicy, FitConfig
-from asgard_core.asgard_config import PhysicalSolution, SimulationSetup
+from asgard_core.asgard_config import ExecutionPolicy, FitConfig, SimulationSetup
 from asgard_core.hadronic_pair_production import solve_pair_production
 from asgard_core.hadronic_pgamma import photon_density_hz_to_gev
 from asgard_core.asgard_types import (
-    BranchState,
     FluxComponents,
     SolveState,
     ObsState,
@@ -407,42 +405,6 @@ def project_flux_grid(
         setup=setup,
         frequencies_hz=np.asarray(frequencies_hz, dtype=float),
         components=observed,
-    )
-
-
-def project_spec(
-    state: SolveState,
-    time_s: float,
-    frequencies_hz: np.ndarray,
-    timings: Optional[dict[str, float]] = None,
-    mode: str = "full_components",
-) -> ObsState:
-    return project_flux_grid(
-        state,
-        np.array([time_s], dtype=float),
-        frequencies_hz,
-        timings=timings,
-        mode=mode,
-    )
-
-
-def state_details(state: SolveState) -> dict[str, Optional[BranchState]]:
-    return {"fwd": state.components.fwd, "rev": state.components.rev}
-
-
-def to_physical_solution(state: SolveState) -> PhysicalSolution:
-    rev = state.components.rev
-    return PhysicalSolution(
-        characteristic_time_s=state.components.fwd.characteristic_time_s,
-        gamma=state.components.fwd.gamma,
-        radius_cm=state.components.fwd.radius_cm,
-        absorbed_spectral_flux=state.components.total,
-        nu_m=state.components.fwd.nu_m,
-        nu_c=state.components.fwd.nu_c,
-        nu_a=state.components.fwd.nu_a,
-        rs_nu_m=None if rev is None else rev.nu_m,
-        rs_nu_c=None if rev is None else rev.nu_c,
-        rs_nu_a=None if rev is None else rev.nu_a,
     )
 
 
@@ -1221,17 +1183,6 @@ def _project_component(
         frequencies_hz,
         config,
     )
-
-
-def profile_observe_setup(
-    config: FitConfig,
-    setup,
-    frequencies_hz: np.ndarray,
-) -> tuple[FluxComponents, dict[str, np.ndarray], dict[str, float]]:
-    timings: dict[str, float] = {}
-    components = solve_spectra_from_setup(config, setup, timings=timings)
-    observed = observe_components_from_setup(config, components, setup, frequencies_hz, timings=timings)
-    return components, observed, timings
 
 
 def _timed_call(timings: Optional[dict[str, float]], label: Optional[str], func, *args, **kwargs):
