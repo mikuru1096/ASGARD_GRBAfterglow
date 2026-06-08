@@ -67,35 +67,44 @@ def build_boundary(config: FitConfig, luminosity_distance_cm: float) -> np.ndarr
     u_0 = 1.0e13
     r_0 = config.initial_radius_cm
     epsilon_b_floor = config.epsilon_b if config.epsilon_b_floor is None else config.epsilon_b_floor
-    return np.array(
-        [
-            config.eta_0,
-            m_0,
-            u_0,
-            r_0,
-            config.epsilon_e,
-            config.epsilon_b,
-            config.p,
-            config.z,
-            config.opening_angle_jet,
-            config.theta_v,
-            config.d_ne,
-            config.a_star,
-            luminosity_distance_cm,
-            config.e_iso,
-            t_end,
-            config.f_e,
-            config.e_inj_t1,
-            config.e_inj_t2,
-            config.l_inj_0,
-            config.q_inj,
-            config.r_tr,
-            config.f_jump,
-            config.f_wide,
-            epsilon_b_floor,
-            config.magnetic_decay_alpha_t,
-            config.magnetic_decay_t0_s,
-            config.r0,
-        ],
-        dtype=float,
-    )
+    transport_model = str(config.fullhide2d_transport_model).lower()
+    escape_mode = str(config.fullhide2d_escape_mode).lower()
+    if transport_model not in {"legacy", "pwn_cr_v1"}:
+        raise ValueError("fullhide2d_transport_model must be 'legacy' or 'pwn_cr_v1'.")
+    if escape_mode not in {"closed", "free_outer"}:
+        raise ValueError("fullhide2d_escape_mode must be 'closed' or 'free_outer'.")
+    boundary = [
+        config.eta_0,
+        m_0,
+        u_0,
+        r_0,
+        config.epsilon_e,
+        config.epsilon_b,
+        config.p,
+        config.z,
+        config.opening_angle_jet,
+        config.theta_v,
+        config.d_ne,
+        config.a_star,
+        luminosity_distance_cm,
+        config.e_iso,
+        t_end,
+        config.f_e,
+        config.e_inj_t1,
+        config.e_inj_t2,
+        config.l_inj_0,
+        config.q_inj,
+        config.r_tr,
+        config.f_jump,
+        config.f_wide,
+        epsilon_b_floor,
+        config.magnetic_decay_alpha_t,
+        config.magnetic_decay_t0_s,
+        config.r0,
+    ]
+    transport_selector = 1.0 if transport_model == "pwn_cr_v1" else 0.0
+    escape_selector = 1.0 if escape_mode == "free_outer" else 0.0
+    stochastic_accel_norm = float(config.fullhide2d_stochastic_accel_norm)
+    if transport_selector != 0.0 or stochastic_accel_norm != 0.0 or escape_selector != 0.0:
+        boundary.extend([transport_selector, stochastic_accel_norm, escape_selector])
+    return np.array(boundary, dtype=float)

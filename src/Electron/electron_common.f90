@@ -36,7 +36,12 @@ subroutine electron_unpack_boundary(Boundary,n,Eta_0,R_ini,Epsilon_e,Epsilon_b,p
     R_tr=Boundary(21)
     f_jump=Boundary(22)
     f_wide=Boundary(23)
-    R0=Boundary(n)
+    ! Modern Boundary arrays reserve slot 27 for the external-density radius scale R0.
+    if (n >= 27) then
+        R0=Boundary(27)
+    else
+        R0=Boundary(n)
+    end if
 end subroutine electron_unpack_boundary
 
 ! 初始化电子能谱，并按需生成 gamma 或 log-gamma 边界网格。

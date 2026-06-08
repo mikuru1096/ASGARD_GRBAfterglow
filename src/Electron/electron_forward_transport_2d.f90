@@ -18,10 +18,12 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
     use electron_seed_history_kernel, only: integrate_downstream_proper_time, accumulate_comoving_history_fields
     use radiation_common, only: radiation_pair_tau_headon_segment
     use electron_transport_2d_kernel, only: compute_log_chi_geometry, get_shock_transport_state, &
-                                             compute_downstream_comoving_grid, bm_beta2_lab, bm_beta2_shock
+                                             compute_downstream_comoving_grid, bm_beta2_lab, bm_beta2_shock, &
+                                             compute_bm_divergence_chi
     use electron_transport_2d_kernel, only: advance_eta_logchi_implicit, advance_eta_logchi_advection_charint, &
-                                             advance_eta_logchi_diffusion_implicit
-    use electron_transport_2d_kernel, only: advance_energy_loggamma_chi, advance_energy_loggamma_chi_charint
+                                             advance_eta_logchi_diffusion_implicit, advance_eta_logchi_pwncr_implicit
+    use electron_transport_2d_kernel, only: advance_energy_loggamma_chi, advance_energy_loggamma_chi_charint, &
+                                             advance_energy_loggamma_chi_pwncr, advance_energy_stochastic_loggamma_chi
     implicit real(8)(a-h,o-z)
 
     integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,Num_chi,index_Y,index_syn_intger,n_threads
@@ -49,11 +51,12 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
     real(8), allocatable :: P_hist_cool(:,:,:), Seed_hist_cool(:,:,:), Tau_hist_cool(:,:,:), &
                              Tau_pair_hist_cool(:,:,:), Tau_prop_hist_cool(:,:,:)
     real(8), allocatable :: P_eff_cool_chi(:,:), Seed_eff_cool_chi(:,:)
-    real(8), allocatable :: cooling_aux_chi(:,:), dEl_chi(:,:), dEL_mean_chi(:,:)
+    real(8), allocatable :: cooling_aux_chi(:,:), dEl_chi(:,:), dEL_mean_chi(:,:), adiabatic_log_coeff_chi(:)
 
     real(8) :: temp, chi_max_global, deta, d_x_E, ln10
     real(8) :: R_loc, R_Gamma_loc, dNe, Para_N_e_ini, DB, DB_min
     real(8) :: Epsilon_b_floor, magnetic_decay_alpha_t, magnetic_decay_t0_s
+    real(8) :: transport_model_selector, stochastic_accel_norm, escape_mode_selector
     real(8) :: Gam_e_max, Gam_e_max_max, Gam_e_m, Gam_e_c, Gam_e_c_diag, temp_gam
     real(8) :: Gam_e_max_cell, Gam_e_m_cell, Gam_e_c_cell, beta_2_sh_loc
     real(8) :: beta_sh, beta_2, beta_2_sh
@@ -69,7 +72,7 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
     integer :: total_substeps, max_shell_substeps, shell_cooling_calls, substep_cooling_calls
     integer :: prepare_aux_calls, history_calls, syn_state_calls, eta_calls, xi_calls
     integer :: env_len, env_status
-    logical :: profile_enabled, magnetic_decay_active
+    logical :: profile_enabled, magnetic_decay_active, pwn_cr_transport, free_outer_escape
     character(len=32) :: profile_env
 
     allocate(dEl(Num_gam_e), dEL_mean(Num_gam_e-1), dEL_mean_shell(Num_gam_e-1), kappa2_arr(Num_gam_e), &
@@ -81,7 +84,8 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
              a_arr(Num_R), dln_a_dR_arr(Num_R), proper_time_arr(Num_R), x_face_hist(0:Num_chi, Num_R), &
              x_comov_face_hist(0:Num_chi, Num_R), x_comov_hist(Num_chi, Num_R), dx_comov_hist(Num_chi, Num_R), &
              beta_hist(Num_chi, Num_R), dN_cell(Num_gam_e), P_local(Num_nu, Num_chi), kappa2_chi(Num_gam_e, Num_chi), &
-             cooling_aux_chi(Num_gam_e, Num_chi), dEl_chi(Num_gam_e, Num_chi), dEL_mean_chi(Num_gam_e-1, Num_chi))
+             cooling_aux_chi(Num_gam_e, Num_chi), dEl_chi(Num_gam_e, Num_chi), dEL_mean_chi(Num_gam_e-1, Num_chi), &
+             adiabatic_log_coeff_chi(Num_chi))
 
     call electron_unpack_boundary(Boundary,n,Eta_0,R_ini,Epsilon_e,Epsilon_b,p,z,dNe_ISM,A_star, &
                                   E_iso,T_log10_duration,f_e,R_tr,f_jump,f_wide,R0)
@@ -93,6 +97,16 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
         magnetic_decay_alpha_t = Boundary(25)
         magnetic_decay_t0_s = Boundary(26)
     end if
+    transport_model_selector = zero
+    stochastic_accel_norm = zero
+    escape_mode_selector = zero
+    if (n >= 30) then
+        transport_model_selector = Boundary(28)
+        stochastic_accel_norm = Boundary(29)
+        escape_mode_selector = Boundary(30)
+    end if
+    pwn_cr_transport = nint(transport_model_selector) == 1
+    free_outer_escape = nint(escape_mode_selector) == 1
     magnetic_decay_active = magnetic_decay_alpha_t < zero .and. magnetic_decay_t0_s > zero .and. &
                             Epsilon_b_floor > zero .and. Epsilon_b_floor < Epsilon_b
 
@@ -342,15 +356,24 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
             end do
         end if
         max_xi_coeff = zero
+        if (pwn_cr_transport) then
+            call compute_bm_divergence_chi(Num_chi, R_loc, R_Gamma_loc, beta_sh, chi_grid, adiabatic_log_coeff_chi)
+        else
+            adiabatic_log_coeff_chi = one/(R_loc*ln10)
+        end if
         if (active_hi > 1) then
             do I_chi = 1, Num_chi
                 if (chi_peak > zero) then
                     if (chi_population(I_chi) <= 1d-10*chi_peak) cycle
                 end if
-                max_xi_coeff = max(max_xi_coeff, maxval(dabs(dEL_mean_chi(1:active_hi-1,I_chi) + one/R_loc/ln10)))
+                max_xi_coeff = max(max_xi_coeff, &
+                                   maxval(dabs(dEL_mean_chi(1:active_hi-1,I_chi) + adiabatic_log_coeff_chi(I_chi))))
             end do
             if (max_xi_coeff <= zero) then
-                max_xi_coeff = maxval(dabs(dEL_mean_chi(1:active_hi-1,:) + one/R_loc/ln10))
+                do I_chi = 1, Num_chi
+                    max_xi_coeff = max(max_xi_coeff, &
+                                       maxval(dabs(dEL_mean_chi(1:active_hi-1,I_chi) + adiabatic_log_coeff_chi(I_chi))))
+                end do
             end if
         end if
 
@@ -400,6 +423,11 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
             call electron_gamma_m_exact(p,temp_gam,Gam_e_max,Gam_e_m)
             Gam_e_c = 7.7d8*(one+z)/Gamma_sh_sub/DB**2/max(R_Tobs(I_tobs),tiny(one))
             call get_shock_transport_state(Gamma_sh_sub, beta_sh, beta_2, beta_2_sh)
+            if (pwn_cr_transport) then
+                call compute_bm_divergence_chi(Num_chi, R_sub, Gamma_sh_sub, beta_sh, chi_grid, adiabatic_log_coeff_chi)
+            else
+                adiabatic_log_coeff_chi = one/(R_sub*ln10)
+            end if
 
             Gam_e_m_p = (one-p)/(Gam_e_max**(one-p)-Gam_e_m**(one-p))
             call electron_injection_prefactor(R_sub,dDR,dNe,f_e,Gam_e_m_p,Q)
@@ -428,8 +456,14 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
                 end if
             else
                 if (profile_enabled) call cpu_time(t_start)
-                call advance_eta_logchi_implicit(U_log, Num_gam_e, Num_chi, active_hi, deta, chi_face, Gamma_sh_sub, &
-                                                 a_sub, dln_a_dR_sub, beta_sh, kappa2_chi, source_eta1, dDR, n_threads)
+                if (pwn_cr_transport) then
+                    call advance_eta_logchi_pwncr_implicit(U_log, Num_gam_e, Num_chi, active_hi, deta, chi_face, &
+                                                           Gamma_sh_sub, a_sub, dln_a_dR_sub, beta_sh, kappa2_chi, &
+                                                           source_eta1, dDR, free_outer_escape, n_threads)
+                else
+                    call advance_eta_logchi_implicit(U_log, Num_gam_e, Num_chi, active_hi, deta, chi_face, Gamma_sh_sub, &
+                                                     a_sub, dln_a_dR_sub, beta_sh, kappa2_chi, source_eta1, dDR, n_threads)
+                end if
                 eta_calls = eta_calls + 1
                 if (profile_enabled) then
                     call cpu_time(t_stop)
@@ -437,7 +471,20 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
                 end if
 
                 if (profile_enabled) call cpu_time(t_start)
-                call advance_energy_loggamma_chi(U_log, Num_gam_e, Num_chi, dEL_mean_chi, R_sub, d_x_E, dDR, n_threads)
+                if (pwn_cr_transport) then
+                    if (stochastic_accel_norm > zero) then
+                        call advance_energy_stochastic_loggamma_chi(U_log, Num_gam_e, Num_chi, stochastic_accel_norm, &
+                                                                    R_sub, d_x_E, 0.5d0*dDR, n_threads)
+                    end if
+                    call advance_energy_loggamma_chi_pwncr(U_log, Num_gam_e, Num_chi, dEL_mean_chi, &
+                                                           adiabatic_log_coeff_chi, d_x_E, dDR, n_threads)
+                    if (stochastic_accel_norm > zero) then
+                        call advance_energy_stochastic_loggamma_chi(U_log, Num_gam_e, Num_chi, stochastic_accel_norm, &
+                                                                    R_sub, d_x_E, 0.5d0*dDR, n_threads)
+                    end if
+                else
+                    call advance_energy_loggamma_chi(U_log, Num_gam_e, Num_chi, dEL_mean_chi, R_sub, d_x_E, dDR, n_threads)
+                end if
                 xi_calls = xi_calls + 1
                 if (profile_enabled) then
                     call cpu_time(t_stop)
@@ -616,5 +663,5 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
                x_face_hist, x_comov_face_hist, &
                x_comov_hist, dx_comov_hist, beta_hist, dN_cell, P_local, V_cool, P_hist, Seed_hist, Tau_hist, &
                P_hist_cool, Seed_hist_cool, Tau_pair_hist_cool, P_eff_cool_chi, Seed_eff_cool_chi, &
-               cooling_aux_chi, dEl_chi, dEL_mean_chi, kappa2_chi)
+               cooling_aux_chi, dEl_chi, dEL_mean_chi, adiabatic_log_coeff_chi, kappa2_chi)
 end subroutine fs_electron_transport_2d_core

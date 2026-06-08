@@ -633,6 +633,57 @@ subroutine electron_fullhide_step(Num_gam_e,R_loc,dDR,d_x,dEL_mean,dF1,dN_x_in,d
     end do
 end subroutine electron_fullhide_step
 
+! CPU版space-time fullhide推进：使用GPU同源离散，但按step-major顺序回代以避免反对角同步开销。
+subroutine electron_fullhide_spacetime_sequence(Num_gam_e,Num_step,face_coupling,source_step, &
+                                                dN_x_in,dN_x_out)
+    !$ use omp_lib
+    implicit none
+    integer, intent(in) :: Num_gam_e,Num_step
+    integer :: I_gam_e,I_step
+    real(8), intent(in) :: face_coupling(Num_gam_e-1,Num_step),source_step(Num_gam_e,Num_step)
+    real(8), intent(in) :: dN_x_in(Num_gam_e)
+    real(8), intent(out) :: dN_x_out(Num_gam_e)
+    real(8) :: diag(Num_gam_e,Num_step),upper(Num_gam_e,Num_step),rhs(Num_gam_e,Num_step)
+    real(8) :: face_left,face_right,previous_step,upper_neighbor
+
+    diag=one
+    upper=zero
+    rhs=source_step
+    rhs(:,1)=rhs(:,1)+dN_x_in
+
+    do I_step=1,Num_step
+        do I_gam_e=1,Num_gam_e
+            face_left=zero
+            face_right=zero
+            if (I_gam_e > 1) face_left=face_coupling(I_gam_e-1,I_step)
+            if (I_gam_e < Num_gam_e) face_right=face_coupling(I_gam_e,I_step)
+
+            if (I_gam_e == 1) then
+                diag(I_gam_e,I_step)=one+face_right
+                upper(I_gam_e,I_step)=-face_right
+            else if (I_gam_e == Num_gam_e) then
+                diag(I_gam_e,I_step)=one+face_left
+            else
+                diag(I_gam_e,I_step)=one+face_left
+                upper(I_gam_e,I_step)=-face_right
+            end if
+        end do
+    end do
+
+    do I_step=1,Num_step
+        do I_gam_e=Num_gam_e,1,-1
+            previous_step=zero
+            if (I_step > 1) previous_step=rhs(I_gam_e,I_step-1)
+            upper_neighbor=zero
+            if (I_gam_e < Num_gam_e) upper_neighbor=rhs(I_gam_e+1,I_step)
+            rhs(I_gam_e,I_step)=max(zero,(rhs(I_gam_e,I_step)+previous_step &
+                                  -upper(I_gam_e,I_step)*upper_neighbor)/diag(I_gam_e,I_step))
+        end do
+    end do
+
+    dN_x_out=rhs(:,Num_step)
+end subroutine electron_fullhide_spacetime_sequence
+
 
 
 end module electron_transport_common

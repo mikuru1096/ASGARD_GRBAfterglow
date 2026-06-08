@@ -62,6 +62,7 @@ _ELECTRON_SOLVER_ALIASES = {
     "fullhide_1d": "fullhide_1d",
     "fullhide_1d_hz": "fullhide_1d_hz",
     "fullhide_2d": "fullhide_2d",
+    "fullhide_2d_pic": "fullhide_2d_pic",
     "slc1": "slc1_1d",
     "slc1_1d": "slc1_1d",
     "charint": "charint_1d",
@@ -79,6 +80,7 @@ _ELECTRON_MODULES = {
     "fullhide_1d": "src.Electron.electron_forward_fullhide_1d",
     "fullhide_1d_hz": "src.Electron.electron_forward_fullhide_1d_hybrid",
     "fullhide_2d": "src.Electron.electron_forward_transport_2d",
+    "fullhide_2d_pic": "src.Electron.electron_forward_transport_2d_pic",
     "slc1_1d": "src.Electron.electron_forward_slc1_1d",
     "t2g1_1d": "src.Electron.electron_forward_t2g1_1d",
     "weno5_1d": "src.Electron.electron_forward_weno5_1d",
@@ -441,6 +443,53 @@ def solve_electron(
             return solution, _solver_report(
                 solver_name,
                 "log-gamma-log-chi-2d",
+                "ok",
+                num_gam_e=int(config.num_gam_e),
+                num_chi=int(num_chi),
+            )
+        return solution
+
+    if solver_name == "fullhide_2d_pic":
+        electron_fullhide_2d_pic_module = _electron_module(solver_name)
+        num_chi = _resolve_num_chi(config, solver_name)
+        gam_e, d_n_gam_e_chi, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = (
+            electron_fullhide_2d_pic_module.fs_electron_transport_2d_pic_core(
+                boundary,
+                dynamics.r_tobs,
+                dynamics.r_gamma,
+                dynamics.radius,
+                v_seed,
+                config.num_gam_e,
+                num_chi,
+                config.index_y,
+                config.index_syn_integr,
+                config.num_threads,
+                False,
+                "fullhide_2d_pic",
+                bool(getattr(config, "electron_pic_uniform_b", False)),
+                float(getattr(config, "electron_pic_eta_acc", 1.0)),
+                float(getattr(config, "electron_pic_kappa_diff_scale", 1.0)),
+                float(getattr(config, "electron_pic_bw_factor", 1.0)),
+            )
+        )
+        chi_grid = _build_log_chi_grid(dynamics.r_gamma, num_chi)
+        solution = _build_electron_solution(
+            config,
+            dynamics,
+            gam_e,
+            d_n_gam_e,
+            l_syn_spec,
+            seed_syn,
+            nu_m,
+            nu_c,
+            nu_a,
+            d_n_gam_e_chi=d_n_gam_e_chi,
+            chi_grid=chi_grid,
+        )
+        if return_report:
+            return solution, _solver_report(
+                solver_name,
+                "log-gamma-log-chi-2d-pic",
                 "ok",
                 num_gam_e=int(config.num_gam_e),
                 num_chi=int(num_chi),

@@ -11,7 +11,10 @@ module electron_transport_2d_kernel
   public :: compute_log_chi_geometry, get_shock_transport_state
   public :: compute_downstream_comoving_grid
   public :: bm_beta2_lab, bm_beta2_shock
+  public :: compute_bm_divergence_chi
   public :: advance_eta_logchi_implicit, advance_energy_loggamma_chi
+  public :: advance_eta_logchi_pwncr_implicit, advance_energy_loggamma_chi_pwncr
+  public :: advance_energy_stochastic_loggamma_chi
   public :: advance_eta_logchi_advection_charint, advance_eta_logchi_diffusion_implicit
   public :: advance_energy_loggamma_chi_charint
 
@@ -116,6 +119,28 @@ real(8) function bm_beta2_shock(Gamma_sh, chi_loc)
     beta_2 = bm_beta2_lab(Gamma_sh, chi_loc)
     bm_beta2_shock = (beta_sh-beta_2)/(one-beta_sh*beta_2)
 end function bm_beta2_shock
+
+! BM下游局部散度：用实验室系径向速度场β(χ)计算(∇·v)/(3β_sh c)，返回log10 γ方程系数。
+subroutine compute_bm_divergence_chi(Num_chi, R_loc, Gamma_sh, beta_sh, chi_grid, adiabatic_log_coeff)
+    integer, intent(in) :: Num_chi
+    real(8), intent(in) :: R_loc, Gamma_sh, beta_sh, chi_grid(Num_chi)
+    real(8), intent(out) :: adiabatic_log_coeff(Num_chi)
+    real(8) :: Gamma_2, beta_2, radius_ratio, div_over_c, uniform_coeff
+    integer :: I_chi
+
+    uniform_coeff = one/(R_loc*dlog(ten))
+    do I_chi = 1, Num_chi
+        Gamma_2 = Gamma_sh/dsqrt(two*chi_grid(I_chi))
+        radius_ratio = one - (chi_grid(I_chi)-one)/(8d0*Gamma_sh*Gamma_sh)
+        if (Gamma_2 >= two .and. radius_ratio > zero) then
+            beta_2 = bm_beta2_lab(Gamma_sh, chi_grid(I_chi))
+            div_over_c = (two*beta_2/radius_ratio + 8d0/beta_2)/R_loc
+            adiabatic_log_coeff(I_chi) = div_over_c/(3d0*beta_sh*dlog(ten))
+        else
+            adiabatic_log_coeff(I_chi) = uniform_coeff
+        end if
+    end do
+end subroutine compute_bm_divergence_chi
 
 ! 计算η网格面上的输运系数A(η) = [a·β₂_sh/(χ·β_sh) + (χ-1)/χ·dln a/dR] / ln(10)。
 subroutine eta_face_transport_coeffs(Gamma_sh, Num_chi, chi_face, a_loc, dln_a_dR_loc, beta_sh, A_eta_face)
@@ -318,6 +343,89 @@ subroutine advance_eta_logchi_implicit(U_log, Num_gam_e, Num_chi, active_hi, det
     !$OMP END PARALLEL DO
 end subroutine advance_eta_logchi_implicit
 
+! PWN/CR η方向隐式输运：保守扩散，外边界可选零通量或自由逃逸。
+subroutine advance_eta_logchi_pwncr_implicit(U_log, Num_gam_e, Num_chi, active_hi, deta, chi_face, Gamma_sh, &
+                                             a_loc, dln_a_dR_loc, beta_sh, kappa2_chi, source_eta1, &
+                                             dR_step, free_outer_escape, n_threads)
+    integer, intent(in) :: Num_gam_e, Num_chi, active_hi, n_threads
+    logical, intent(in) :: free_outer_escape
+    real(8), intent(inout) :: U_log(Num_gam_e, Num_chi)
+    real(8), intent(in) :: deta, chi_face(0:Num_chi), Gamma_sh, a_loc, dln_a_dR_loc, beta_sh
+    real(8), intent(in) :: kappa2_chi(Num_gam_e,Num_chi), source_eta1(Num_gam_e), dR_step
+    real(8) :: A_eta_face(1:Num_chi), adv_face_left(1:Num_chi), adv_face_right(1:Num_chi)
+    real(8) :: diff_face_left_base(1:Num_chi), diff_face_right_base(1:Num_chi)
+    real(8) :: lower_base(Num_chi), diag_base(Num_chi), upper_base(Num_chi)
+    real(8) :: lower(Num_chi), diag(Num_chi), upper(Num_chi), rhs(Num_chi), sol(Num_chi)
+    real(8) :: lambda_eta, diff_prefactor, coeff_left, coeff_right, ln10, kappa_face
+    integer :: I_gam_e, I_face, I_chi
+
+    ln10 = dlog(ten)
+    lambda_eta = dR_step/deta
+    call eta_face_transport_coeffs(Gamma_sh, Num_chi, chi_face, a_loc, dln_a_dR_loc, beta_sh, A_eta_face)
+
+    adv_face_left = zero
+    adv_face_right = zero
+    diff_face_left_base = zero
+    diff_face_right_base = zero
+    do I_face = 1, Num_chi-1
+        if (A_eta_face(I_face) >= zero) then
+            adv_face_left(I_face) = A_eta_face(I_face)
+        else
+            adv_face_right(I_face) = A_eta_face(I_face)
+        end if
+        diff_prefactor = a_loc*a_loc/(chi_face(I_face)*chi_face(I_face)*beta_sh*para_c*ln10*ln10)
+        coeff_left = diff_prefactor/deta + 0.5d0*ln10*diff_prefactor
+        coeff_right = -diff_prefactor/deta + 0.5d0*ln10*diff_prefactor
+        diff_face_left_base(I_face) = coeff_left
+        diff_face_right_base(I_face) = coeff_right
+    end do
+    if (free_outer_escape) then
+        diff_prefactor = a_loc*a_loc/(chi_face(Num_chi)*chi_face(Num_chi)*beta_sh*para_c*ln10*ln10)
+        diff_face_left_base(Num_chi) = diff_prefactor/deta + 0.5d0*ln10*diff_prefactor
+        diff_face_right_base(Num_chi) = zero
+    end if
+    if (A_eta_face(Num_chi) > zero) adv_face_left(Num_chi) = A_eta_face(Num_chi)
+
+    lower_base = zero
+    diag_base = one
+    upper_base = zero
+    do I_chi = 1, Num_chi
+        diag_base(I_chi) = diag_base(I_chi) + lambda_eta*adv_face_left(I_chi)
+        if (I_chi < Num_chi) upper_base(I_chi) = upper_base(I_chi) + lambda_eta*adv_face_right(I_chi)
+        if (I_chi > 1) then
+            lower_base(I_chi) = lower_base(I_chi) - lambda_eta*adv_face_left(I_chi-1)
+            diag_base(I_chi) = diag_base(I_chi) - lambda_eta*adv_face_right(I_chi-1)
+        end if
+    end do
+
+    !$OMP PARALLEL DO num_threads(n_threads) if(n_threads > 1 .and. active_hi*Num_chi >= 512) schedule(static) &
+    !$OMP& private(I_gam_e,I_chi,kappa_face,lower,diag,upper,rhs,sol)
+    do I_gam_e = 1, active_hi
+        lower = lower_base
+        diag = diag_base
+        upper = upper_base
+        do I_chi = 1, Num_chi
+            if (I_chi < Num_chi) then
+                kappa_face = 0.5d0*(kappa2_chi(I_gam_e,I_chi)+kappa2_chi(I_gam_e,I_chi+1))
+                diag(I_chi) = diag(I_chi) + lambda_eta*kappa_face*diff_face_left_base(I_chi)
+                upper(I_chi) = upper(I_chi) + lambda_eta*kappa_face*diff_face_right_base(I_chi)
+            else if (free_outer_escape) then
+                diag(I_chi) = diag(I_chi) + lambda_eta*kappa2_chi(I_gam_e,I_chi)*diff_face_left_base(I_chi)
+            end if
+            if (I_chi > 1) then
+                kappa_face = 0.5d0*(kappa2_chi(I_gam_e,I_chi-1)+kappa2_chi(I_gam_e,I_chi))
+                lower(I_chi) = lower(I_chi) - lambda_eta*kappa_face*diff_face_left_base(I_chi-1)
+                diag(I_chi) = diag(I_chi) - lambda_eta*kappa_face*diff_face_right_base(I_chi-1)
+            end if
+        end do
+        rhs = U_log(I_gam_e, :)
+        rhs(1) = rhs(1) + dR_step*source_eta1(I_gam_e)
+        call solve_tridiagonal(Num_chi, lower, diag, upper, rhs, sol)
+        U_log(I_gam_e, :) = max(zero, sol)
+    end do
+    !$OMP END PARALLEL DO
+end subroutine advance_eta_logchi_pwncr_implicit
+
 ! 能量维（log γ）冷却推进：隐式迎风格式，对每个χ柱独立求解三对角。
 subroutine advance_energy_loggamma_chi(U_log, Num_gam_e, Num_chi, dEL_mean_chi, R_loc, d_x_E, dR_step, n_threads)
     integer, intent(in) :: Num_gam_e, Num_chi, n_threads
@@ -344,6 +452,66 @@ subroutine advance_energy_loggamma_chi(U_log, Num_gam_e, Num_chi, dEL_mean_chi, 
     end do
     !$OMP END PARALLEL DO
 end subroutine advance_energy_loggamma_chi
+
+! PWN/CR能量维冷却：辐射损失加BM局部散度给出的χ依赖绝热项。
+subroutine advance_energy_loggamma_chi_pwncr(U_log, Num_gam_e, Num_chi, dEL_mean_chi, adiabatic_log_coeff, &
+                                             d_x_E, dR_step, n_threads)
+    integer, intent(in) :: Num_gam_e, Num_chi, n_threads
+    real(8), intent(inout) :: U_log(Num_gam_e, Num_chi)
+    real(8), intent(in) :: dEL_mean_chi(Num_gam_e-1, Num_chi), adiabatic_log_coeff(Num_chi)
+    real(8), intent(in) :: d_x_E, dR_step
+    real(8) :: coeff_xi(Num_gam_e-1), up(Num_gam_e-1), principal(Num_gam_e)
+    real(8) :: temp1(Num_gam_e-1), rhs(Num_gam_e), sol(Num_gam_e), CFL
+    integer :: I_chi
+
+    CFL = dR_step/d_x_E
+    !$OMP PARALLEL DO num_threads(n_threads) if(n_threads > 1 .and. Num_chi*Num_gam_e >= 512) schedule(static) &
+    !$OMP& private(I_chi,coeff_xi,up,principal,temp1,rhs,sol)
+    do I_chi = 1, Num_chi
+        coeff_xi = dEL_mean_chi(:, I_chi) + adiabatic_log_coeff(I_chi)
+        up = -CFL*coeff_xi
+        call electron_prepare_implicit_coeffs_common(Num_gam_e, one, up, principal, temp1)
+        rhs = U_log(:, I_chi) / principal
+        call electron_backward_sweep_common(Num_gam_e, temp1, rhs, sol)
+        U_log(:, I_chi) = max(zero, sol)
+        U_log(Num_gam_e, I_chi) = zero
+    end do
+    !$OMP END PARALLEL DO
+end subroutine advance_energy_loggamma_chi_pwncr
+
+! 随机再加速：log γ空间零通量保守扩散步，用于Strang分裂的半步或整步。
+subroutine advance_energy_stochastic_loggamma_chi(U_log, Num_gam_e, Num_chi, stochastic_accel_norm, &
+                                                  R_loc, d_x_E, dR_step, n_threads)
+    integer, intent(in) :: Num_gam_e, Num_chi, n_threads
+    real(8), intent(inout) :: U_log(Num_gam_e, Num_chi)
+    real(8), intent(in) :: stochastic_accel_norm, R_loc, d_x_E, dR_step
+    real(8) :: lower(Num_gam_e), diag(Num_gam_e), upper(Num_gam_e), rhs(Num_gam_e), sol(Num_gam_e)
+    real(8) :: lambda_gamma
+    integer :: I_chi, I_gam_e
+
+    lambda_gamma = dR_step*stochastic_accel_norm/(R_loc*d_x_E*d_x_E)
+    lower = zero
+    diag = one
+    upper = zero
+    do I_gam_e = 1, Num_gam_e
+        if (I_gam_e > 1) lower(I_gam_e) = -lambda_gamma
+        if (I_gam_e < Num_gam_e) upper(I_gam_e) = -lambda_gamma
+        if (I_gam_e == 1 .or. I_gam_e == Num_gam_e) then
+            diag(I_gam_e) = one + lambda_gamma
+        else
+            diag(I_gam_e) = one + two*lambda_gamma
+        end if
+    end do
+
+    !$OMP PARALLEL DO num_threads(n_threads) if(n_threads > 1 .and. Num_chi*Num_gam_e >= 512) schedule(static) &
+    !$OMP& private(I_chi,rhs,sol)
+    do I_chi = 1, Num_chi
+        rhs = U_log(:, I_chi)
+        call solve_tridiagonal(Num_gam_e, lower, diag, upper, rhs, sol)
+        U_log(:, I_chi) = max(zero, sol)
+    end do
+    !$OMP END PARALLEL DO
+end subroutine advance_energy_stochastic_loggamma_chi
 
 ! 能量维冷却推进（特征线积分版）：对每个χ柱独立做电子冷却特征线更新。
 subroutine advance_energy_loggamma_chi_charint(U_log, Num_gam_e, Num_chi, gam_e, DB_chi, dEl_chi, R_loc, &

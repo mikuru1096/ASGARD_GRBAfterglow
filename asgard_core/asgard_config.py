@@ -189,6 +189,9 @@ class NumericalConfig:
     structured_parallel_mode: str = "outer"
     structured_outer_threads: Optional[int] = None
     structured_inner_threads: Optional[int] = None
+    fullhide2d_transport_model: str = "legacy"
+    fullhide2d_stochastic_accel_norm: float = 0.0
+    fullhide2d_escape_mode: str = "closed"
     index_dyn: int = 3
     index_y: int = 2
     index_syn_integr: int = 2
@@ -250,6 +253,9 @@ class FitConfig:
     structured_parallel_mode: str = "outer"
     structured_outer_threads: Optional[int] = None
     structured_inner_threads: Optional[int] = None
+    fullhide2d_transport_model: str = "legacy"
+    fullhide2d_stochastic_accel_norm: float = 0.0
+    fullhide2d_escape_mode: str = "closed"
     electron_adaptive_substeps: bool = False
     electron_substep_rtol: float = 2.0e-2
     electron_substep_min: int = 100
@@ -366,6 +372,9 @@ class FitConfig:
             structured_parallel_mode=self.structured_parallel_mode,
             structured_outer_threads=self.structured_outer_threads,
             structured_inner_threads=self.structured_inner_threads,
+            fullhide2d_transport_model=self.fullhide2d_transport_model,
+            fullhide2d_stochastic_accel_norm=self.fullhide2d_stochastic_accel_norm,
+            fullhide2d_escape_mode=self.fullhide2d_escape_mode,
             index_dyn=self.index_dyn,
             index_y=self.index_y,
             index_syn_integr=self.index_syn_integr,

@@ -460,6 +460,9 @@ class Setups:
     structured_outer_threads: Optional[int] = None
     structured_inner_threads: Optional[int] = None
     num_chi: Optional[int] = None
+    fullhide2d_transport_model: str = "legacy"
+    fullhide2d_stochastic_accel_norm: float = 0.0
+    fullhide2d_escape_mode: str = "closed"
     electron_adaptive_substeps: bool = False
     electron_substep_rtol: float = 2.0e-2
     electron_substep_min: int = 100
