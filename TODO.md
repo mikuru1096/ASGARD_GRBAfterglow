@@ -45,15 +45,11 @@ baseline Vegas comparison 已按 `doc/benchmark_refresh_protocol.md` 全量刷�
 
 ## 清理候选
 
-### 1. 2D electron extension 文档持续同步
-
-当前源码没有独立的 charint 2D Fortran 源文件。`electron_forward_charint_2d` 是 f2py extension 名称，由 `src/Electron/electron_forward_transport_2d.f90` 中的 `fs_electron_transport_2d_core` 构建，并通过 `use_charint_transport` 启用 charint 2D path。后续文档、测试和构建说明必须保持这个事实。
-
-### 2. `FitConfig -> SimulationConfig` 主链迁移
+### 1. `FitConfig -> SimulationConfig` 主链迁移
 
 `FitConfig` 仍是当前 runtime、state、postprocess、tests 和 scripts 的主输入类型。不要只因为注释里写了 legacy 就删除它；只有当 `SimulationConfig` 贯穿运行主链并完成等价 smoke/benchmark 后，才能进入破坏性迁移。
 
-### 3. Public constructor alias 破坏性移除
+### 2. Public constructor alias 破坏性移除
 
 `ISM`、`Wind`、`TophatJet` 等 constructor aliases 是当前文档化公开入口。若后续要移除，必须作为 public API breaking change 单独处理，并同步 README、public API 文档、示例和 tests。
 
