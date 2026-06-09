@@ -28,7 +28,9 @@ Thumbs.db
 *.orig
 *.rej
 
-.vscode/
+.vscode/*
+!.vscode/
+!.vscode/settings.json
 .idea/
 *.swp
 *.swo

@@ -1,0 +1,19 @@
+.editorconfig          text eol=lf working-tree-encoding=UTF-8
+.gitattributes         text eol=lf working-tree-encoding=UTF-8
+.githooks/*            text eol=lf working-tree-encoding=UTF-8
+.vscode/settings.json  text eol=lf working-tree-encoding=UTF-8
+tools/*.py             text eol=lf working-tree-encoding=UTF-8
+
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.pdf    binary
+*.npy    binary
+*.npz    binary
+*.h5     binary
+*.hdf5   binary
+*.so     binary
+*.pyd    binary
+*.dll    binary
+*.lib    binary
+*.a      binary

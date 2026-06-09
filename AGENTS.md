@@ -7,6 +7,7 @@
 - Fortran 代码保持 idiomatic Fortran 风格。
 - Fortran 重要改动后必须跑：受影响的 `build_extensions.py --force`、`-Wline-truncation` 检查、最小相关 smoke test。
 - 不要提交 `.buildcache/`、临时 debug 脚本、失败占位图。
+- 文本源文件统一 UTF-8 无 BOM + LF；跨 Windows/WSL 操作前运行 `rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tools/check_text_encoding.py'`。禁止用 PowerShell 重定向或未显式 UTF-8 的 `Set-Content` 写源码/文档。
 
 ## Build Commands
 

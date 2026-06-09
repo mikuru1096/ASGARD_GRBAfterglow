@@ -1,0 +1,16 @@
+#!/bin/sh
+set -eu
+
+for python_cmd in python python3 py; do
+    if command -v "$python_cmd" >/dev/null 2>&1 && "$python_cmd" --version >/dev/null 2>&1; then
+        if [ "$python_cmd" = py ]; then
+            py -3 tools/check_text_encoding.py --staged
+        else
+            "$python_cmd" tools/check_text_encoding.py --staged
+        fi
+        exit $?
+    fi
+done
+
+echo "No working Python interpreter found for tools/check_text_encoding.py" >&2
+exit 1
