@@ -121,6 +121,28 @@ def case_chi_eats_geometry_smoke():
     return {"flux_shape": list(flux.shape), "flux": float(flux[0])}
 
 
+def case_chi_eats_projection_kind_routes():
+    model = _build_model_with_geometry("fullhide_2d", "chi_eats_2d")
+    times = np.array([1.0e4, 3.0e4], dtype=float)
+    lightcurve_freqs = np.array([1.0e10, 1.0e14], dtype=float)
+    spectrum_freqs = np.array([1.0e10, 1.0e14, 1.0e18], dtype=float)
+    lightcurve = model.flux_density_grid(times, lightcurve_freqs, projection_kind="lightcurve").total
+    spectrum = model.spectrum(1.0e4, spectrum_freqs)
+    spectrum_grid = model.flux_density_grid(np.array([1.0e4]), spectrum_freqs, projection_kind="sed").total[:, 0]
+    assert lightcurve.shape == (lightcurve_freqs.size, times.size)
+    assert spectrum.shape == spectrum_freqs.shape
+    np.testing.assert_allclose(spectrum, spectrum_grid, rtol=0.0, atol=0.0)
+    assert np.all(np.isfinite(lightcurve))
+    assert np.all(np.isfinite(spectrum))
+    try:
+        model.flux_density_grid(times, lightcurve_freqs, projection_kind="bad")
+    except ValueError as exc:
+        assert "projection_kind" in str(exc)
+    else:
+        raise AssertionError("invalid projection_kind was accepted")
+    return {"lightcurve_shape": list(lightcurve.shape), "spectrum_shape": list(spectrum.shape)}
+
+
 def case_chi_eats_rejects_1d_solver():
     model = _build_model_with_geometry("fullhide_1d", "chi_eats_2d")
     try:
@@ -338,16 +360,17 @@ def case_chi_ssa_nonuniform_tau_matches_manual():
 
 def main() -> None:
     results = [
-        run_case("[1/10] fullhide_2d:basic_smoke", case_basic_smoke),
-        run_case("[2/10] fullhide_2d:electron_grid", case_electron_grid),
-        run_case("[3/10] fullhide_2d:chi_eats_geometry", case_chi_eats_geometry_smoke),
-        run_case("[4/10] chi_eats_2d:rejects_1d_solver", case_chi_eats_rejects_1d_solver),
-        run_case("[5/10] eats:rejects_off_axis_phi_collapse", case_off_axis_phi_collapse_rejected),
-        run_case("[6/10] eats:on_axis_phi_collapse", case_on_axis_phi_collapse_matches_explicit_phi),
-        run_case("[7/10] chi_eats_2d:delta_layer_thin_shell", case_chi_projection_delta_layer_matches_thin_shell),
-        run_case("[8/10] chi_eats_2d:finite_width_converges", case_chi_projection_finite_width_converges_to_thin_shell),
-        run_case("[9/10] chi_eats_2d:ssa_cell_split_invariance", case_chi_ssa_cell_split_invariance),
-        run_case("[10/10] chi_eats_2d:ssa_nonuniform_tau", case_chi_ssa_nonuniform_tau_matches_manual),
+        run_case("[1/11] fullhide_2d:basic_smoke", case_basic_smoke),
+        run_case("[2/11] fullhide_2d:electron_grid", case_electron_grid),
+        run_case("[3/11] fullhide_2d:chi_eats_geometry", case_chi_eats_geometry_smoke),
+        run_case("[4/11] chi_eats_2d:projection_kind_routes", case_chi_eats_projection_kind_routes),
+        run_case("[5/11] chi_eats_2d:rejects_1d_solver", case_chi_eats_rejects_1d_solver),
+        run_case("[6/11] eats:rejects_off_axis_phi_collapse", case_off_axis_phi_collapse_rejected),
+        run_case("[7/11] eats:on_axis_phi_collapse", case_on_axis_phi_collapse_matches_explicit_phi),
+        run_case("[8/11] chi_eats_2d:delta_layer_thin_shell", case_chi_projection_delta_layer_matches_thin_shell),
+        run_case("[9/11] chi_eats_2d:finite_width_converges", case_chi_projection_finite_width_converges_to_thin_shell),
+        run_case("[10/11] chi_eats_2d:ssa_cell_split_invariance", case_chi_ssa_cell_split_invariance),
+        run_case("[11/11] chi_eats_2d:ssa_nonuniform_tau", case_chi_ssa_nonuniform_tau_matches_manual),
     ]
 
     failed = [item for item in results if item["status"] == "FAIL"]

@@ -209,8 +209,8 @@ def _interp_positive_loglog(x_new: np.ndarray, x_old: np.ndarray, y_old: np.ndar
 
 def _collect_asgard_case(model: Model) -> dict[str, np.ndarray]:
     print(f"  collect ASGARD {model.medium.kind}/{model.setups.electron_solver}/{model.setups.fullhide2d_transport_model}", flush=True)
-    lc_fnu = np.asarray(model.flux_density_grid(LIGHTCURVE_TIMES, BANDS).total, dtype=float)
-    sed_fnu = np.asarray(model.flux_density_grid(TIMES, FREQS).total, dtype=float)
+    lc_fnu = np.asarray(model.flux_density_grid(LIGHTCURVE_TIMES, BANDS, projection_kind="lightcurve").total, dtype=float)
+    sed_fnu = np.asarray(model.flux_density_grid(TIMES, FREQS, projection_kind="sed").total, dtype=float)
     details = model.details(float(LIGHTCURVE_TIMES[0]), float(LIGHTCURVE_TIMES[-1]))
     t_detail = np.asarray(details.fwd.t_obs, dtype=float)
     gamma = np.asarray(details.fwd.gamma_e, dtype=float)

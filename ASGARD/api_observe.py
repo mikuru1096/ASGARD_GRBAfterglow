@@ -97,6 +97,7 @@ def _direct_total(
     times_s: np.ndarray,
     nu_hz: np.ndarray,
     timings: Optional[dict[str, float]] = None,
+    projection_kind: str = "lightcurve",
 ) -> np.ndarray:
     config = _build_fit_config_for_patch(
         model,
@@ -108,7 +109,7 @@ def _direct_total(
         theta_center=0.0,
     )
     state = _solve_patch_state(model, config, times_s, nu_hz, timings=timings)
-    return _observe_total(state, times_s, nu_hz, timings=timings)
+    return _observe_total(state, times_s, nu_hz, timings=timings, projection_kind=projection_kind)
 
 
 def _patch_total(
@@ -116,6 +117,7 @@ def _patch_total(
     times_s: np.ndarray,
     nu_hz: np.ndarray,
     timings: Optional[dict[str, float]] = None,
+    projection_kind: str = "lightcurve",
 ) -> np.ndarray:
     total = np.zeros((nu_hz.shape[0], times_s.shape[0]), dtype=float)
     for phi_center, theta_center, patch_half_angle in _iter_patches(model):
@@ -134,7 +136,7 @@ def _patch_total(
             theta_center=theta_center,
         )
         state = _solve_patch_state(model, config, times_s, nu_hz, timings=timings)
-        total += _observe_total(state, times_s, nu_hz, timings=timings)
+        total += _observe_total(state, times_s, nu_hz, timings=timings, projection_kind=projection_kind)
     return total
 
 
@@ -143,12 +145,13 @@ def _total_matrix(
     times_s: np.ndarray,
     nu_hz: np.ndarray,
     timings: Optional[dict[str, float]] = None,
+    projection_kind: str = "lightcurve",
 ) -> np.ndarray:
     times_s = np.asarray(times_s, dtype=float)
     nu_hz = np.asarray(nu_hz, dtype=float)
     if model.jet.kind == "tophat" and model._supports_direct_kernel():
-        return _direct_total(model, times_s, nu_hz, timings=timings)
-    return _patch_total(model, times_s, nu_hz, timings=timings)
+        return _direct_total(model, times_s, nu_hz, timings=timings, projection_kind=projection_kind)
+    return _patch_total(model, times_s, nu_hz, timings=timings, projection_kind=projection_kind)
 
 
 def _compute_polarization(
@@ -620,6 +623,7 @@ def _solve_direct_model(
     times_s: np.ndarray,
     nu_hz: np.ndarray,
     solve_reference_times_s: np.ndarray | None = None,
+    projection_kind: str = "lightcurve",
 ) -> tuple[FluxResult, TrackBundle]:
     config = _build_fit_config_for_patch(
         model,
@@ -637,7 +641,7 @@ def _solve_direct_model(
         nu_hz,
         solve_reference_times_s=solve_reference_times_s,
     )
-    observed = _observe_parts(state, times_s, nu_hz)
+    observed = _observe_parts(state, times_s, nu_hz, projection_kind=projection_kind)
     details = _make_details(state.components, patches=[{"phi": 0.0, "theta": 0.0, "weight": 1.0}], state=state)
     return observed, details
 
@@ -661,6 +665,7 @@ def _solve_patch_model(
     times_s: np.ndarray,
     nu_hz: np.ndarray,
     solve_reference_times_s: np.ndarray | None = None,
+    projection_kind: str = "lightcurve",
 ) -> tuple[FluxResult, TrackBundle]:
     if str(getattr(model.setups, "structured_backend", "fortran_1d")).lower() != "python_patch":
         if solve_reference_times_s is not None:
@@ -669,7 +674,13 @@ def _solve_patch_model(
 
         return solve_structured_jet_fortran(model, times_s, nu_hz, _build_fit_config_for_patch)
 
-    return _solve_patch_model_python(model, times_s, nu_hz, solve_reference_times_s=solve_reference_times_s)
+    return _solve_patch_model_python(
+        model,
+        times_s,
+        nu_hz,
+        solve_reference_times_s=solve_reference_times_s,
+        projection_kind=projection_kind,
+    )
 
 
 def _solve_patch_model_python(
@@ -677,6 +688,7 @@ def _solve_patch_model_python(
     times_s: np.ndarray,
     nu_hz: np.ndarray,
     solve_reference_times_s: np.ndarray | None = None,
+    projection_kind: str = "lightcurve",
 ) -> tuple[FluxResult, TrackBundle]:
     total = np.zeros((nu_hz.shape[0], times_s.shape[0]), dtype=float)
     fwd_sync_total = np.zeros_like(total)
@@ -710,7 +722,7 @@ def _solve_patch_model_python(
             nu_hz,
             solve_reference_times_s=solve_reference_times_s,
         )
-        observed = _observe_parts(state, times_s, nu_hz)
+        observed = _observe_parts(state, times_s, nu_hz, projection_kind=projection_kind)
         total += observed.total
         fwd_sync_total += observed.fwd.sync
         fwd_ssc_total += observed.fwd.ssc
@@ -1674,7 +1686,7 @@ def observe(
     )
 
     n_xrt, all_freqs = build_multiband_observer_frequencies()
-    grid_result = model.flux_density_grid(t_obs_s, all_freqs)
+    grid_result = model.flux_density_grid(t_obs_s, all_freqs, projection_kind="lightcurve")
     bands_flux = combine_multiband_flux(grid_result.total, all_freqs, n_xrt)
 
     details = model.details()
@@ -1700,7 +1712,7 @@ def observe(
         spec_freqs = build_spectrum_frequency_grid(
             type('_Cfg', (), {'spectrum_output': spectrum_output})()
         )
-        spec_grid = model.flux_density_grid(t_obs_s, spec_freqs)
+        spec_grid = model.flux_density_grid(t_obs_s, spec_freqs, projection_kind="sed")
         spectrum_freq_hz = spec_freqs
         spectrum_fnu = spec_grid.total
         if spectrum_output.time_s is not None or len(spectrum_output.dataset_names) > 0:

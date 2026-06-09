@@ -42,6 +42,7 @@ from src import Interpolation, Radiation, constants
 
 
 _ELECTRON_MASS_GEV = constants.para_m_e_gev
+_PROJECTION_KINDS = {"lightcurve", "sed"}
 
 
 def make_policy(config: FitConfig) -> ExecutionPolicy:
@@ -391,9 +392,11 @@ def project_flux_grid(
     frequencies_hz: np.ndarray,
     timings: Optional[dict[str, float]] = None,
     mode: str = "full_components",
+    projection_kind: str = "lightcurve",
 ) -> ObsState:
+    projection_kind = _normalize_projection_kind(projection_kind)
     setup = _build_observer_setup_from_state(state, observer_time_s)
-    if _uses_chi_eats_2d(state.config):
+    if _uses_chi_eats_2d(state.config) and projection_kind == "lightcurve":
         observed = _observe_components_chi_eats_2d(state, setup, frequencies_hz, timings=timings, mode=mode)
     else:
         observed = observe_components_from_setup(
@@ -410,6 +413,13 @@ def project_flux_grid(
         frequencies_hz=np.asarray(frequencies_hz, dtype=float),
         components=observed,
     )
+
+
+def _normalize_projection_kind(projection_kind: str) -> str:
+    kind = str(projection_kind).lower()
+    if kind not in _PROJECTION_KINDS:
+        raise ValueError("projection_kind must be 'lightcurve' or 'sed'.")
+    return kind
 
 
 def _uses_chi_eats_2d(config: FitConfig) -> bool:
@@ -451,6 +461,7 @@ def _project_chi_fwd_sync(
     order = np.argsort(frequencies_hz)
     sorted_frequencies = frequencies_hz[order]
     source_chi = np.asarray(state.electron.l_syn_spec_chi, dtype=float) * np.asarray(state.observer.prefactor, dtype=float)[:, None, :]
+    num_phi = 1 if float(state.config.theta_v) == 0.0 else int(state.config.num_phi)
     flux_sorted = _timed_call(
         timings,
         "Interpolation.sed_interpolation_chi [fwd_sync]",
@@ -467,7 +478,7 @@ def _project_chi_fwd_sync(
         sorted_frequencies,
         setup.observer_time_s,
         state.config.num_theta,
-        state.config.num_phi,
+        num_phi,
         state.config.num_threads,
     )
     if np.array_equal(order, np.arange(order.shape[0])):
@@ -484,22 +495,23 @@ def _observe_components_chi_eats_2d(
     timings: Optional[dict[str, float]],
     mode: str,
 ) -> dict[str, np.ndarray | None]:
-    observed = observe_components_from_setup(
-        state.config,
-        state.components,
-        setup,
-        frequencies_hz,
-        timings=timings,
-        mode="full_components",
-    )
-    observed["fwd_sync"] = _project_chi_fwd_sync(state, setup, frequencies_hz, timings)
-    observed["total"] = sum(
-        (value for key, value in observed.items() if key != "total" and value is not None),
-        start=np.zeros_like(observed["fwd_sync"]),
-    )
+    chi_fwd_sync = _project_chi_fwd_sync(state, setup, frequencies_hz, timings)
     if mode == "total_only":
+        non_chi_total = np.asarray(state.components.total, dtype=float) - np.asarray(state.components.fwd_sync, dtype=float)
+        shell_total_without_fwd_sync = _project_component(
+            setup,
+            state.components.fwd.characteristic_time_s,
+            state.components.fwd.gamma,
+            state.components.fwd.radius_cm,
+            setup.seed_frequency_hz,
+            non_chi_total,
+            frequencies_hz,
+            state.config,
+            timings=timings,
+            label="Interpolation.sed_interpolation [total_without_fwd_sync]",
+        )
         return {
-            "total": observed["total"],
+            "total": shell_total_without_fwd_sync + chi_fwd_sync,
             "fwd_sync": None,
             "fwd_ssc": None,
             "fwd_hadronic": None,
@@ -510,6 +522,19 @@ def _observe_components_chi_eats_2d(
             "rev_ssc": None,
             "cross_ic": None,
         }
+    observed = observe_components_from_setup(
+        state.config,
+        state.components,
+        setup,
+        frequencies_hz,
+        timings=timings,
+        mode="full_components",
+    )
+    observed["fwd_sync"] = chi_fwd_sync
+    observed["total"] = sum(
+        (value for key, value in observed.items() if key != "total" and value is not None),
+        start=np.zeros_like(observed["fwd_sync"]),
+    )
     if mode != "full_components":
         raise ValueError(f"Unsupported observe mode: {mode}")
     return observed

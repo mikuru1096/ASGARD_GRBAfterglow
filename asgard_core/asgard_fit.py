@@ -326,6 +326,7 @@ def _eval_cfg(
         problem.requested_frequencies_hz,
         timings=timings,
         mode="total_only",
+        projection_kind="lightcurve",
     )
     band_flux_matrix = np.asarray(observed.components["total"], dtype=float)
     bands_flux = combine_multiband_flux(band_flux_matrix, problem.requested_frequencies_hz, problem.num_xrt)
@@ -353,6 +354,7 @@ def _eval_model(
                 block.observer_time_s,
                 block.requested_frequencies_hz,
                 timings=timings,
+                projection_kind="lightcurve",
             )
             for block in problem.observations.blocks
         ]

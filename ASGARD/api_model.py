@@ -682,12 +682,24 @@ class Model:
         self._raw_cache: dict[tuple[str, str], tuple[FluxResult, TrackBundle]] = {}
         self._details_cache: dict[str, TrackBundle] = {}
 
-    def flux_density_grid(self, times_s: np.ndarray, nu_hz: np.ndarray) -> FluxResult:
+    def flux_density_grid(
+        self,
+        times_s: np.ndarray,
+        nu_hz: np.ndarray,
+        *,
+        projection_kind: str = "lightcurve",
+    ) -> FluxResult:
         times_s = np.asarray(times_s, dtype=float)
         nu_hz = np.asarray(nu_hz, dtype=float)
-        return self._compute_raw(times_s, nu_hz)
+        return self._compute_raw(times_s, nu_hz, projection_kind=projection_kind)
 
-    def flux_density(self, times_s: np.ndarray, nu_hz: np.ndarray) -> FluxResult:
+    def flux_density(
+        self,
+        times_s: np.ndarray,
+        nu_hz: np.ndarray,
+        *,
+        projection_kind: str = "lightcurve",
+    ) -> FluxResult:
         times_s = np.asarray(times_s, dtype=float)
         nu_hz = np.asarray(nu_hz, dtype=float)
         from .api_observe import _extract_pair_flux
@@ -708,11 +720,11 @@ class Model:
 
         if times_s.ndim == 1 and nu_hz.ndim == 1 and times_s.shape == nu_hz.shape:
             unique_freqs, inverse = np.unique(nu_hz, return_inverse=True)
-            result = self.flux_density_grid(times_s, unique_freqs)
+            result = self.flux_density_grid(times_s, unique_freqs, projection_kind=projection_kind)
             pair_index = np.arange(times_s.shape[0], dtype=int)
             return pack(result, lambda values: values[inverse, pair_index])
 
-        result = self._compute(times_s, nu_hz)
+        result = self._compute(times_s, nu_hz, projection_kind=projection_kind)
         return pack(result, lambda values: _extract_pair_flux(values, times_s, nu_hz))
 
     def flux_density_exposures(
@@ -733,8 +745,8 @@ class Model:
 
         return _adaptive_exposure_average(self, times_s, nu_hz, exposures_s, int(num_subsamples))
 
-    def spectrum(self, time_s: float, nu_hz: np.ndarray) -> np.ndarray:
-        return self.flux_density_grid(np.array([time_s], dtype=float), nu_hz).total[:, 0]
+    def spectrum(self, time_s: float, nu_hz: np.ndarray, *, projection_kind: str = "sed") -> np.ndarray:
+        return self.flux_density_grid(np.array([time_s], dtype=float), nu_hz, projection_kind=projection_kind).total[:, 0]
 
     def sky_image(self, t_obs: np.ndarray | float, nu_obs: float, fov: float, npixel: int = 128) -> SkyImage:
         times_s = np.atleast_1d(np.asarray(t_obs, dtype=float))
@@ -772,10 +784,18 @@ class Model:
             local_emissivity=local_emissivity,
         )
 
-    def flux(self, time_s: np.ndarray | float, nu_min_hz: float, nu_max_hz: float, num_points: int = 64):
+    def flux(
+        self,
+        time_s: np.ndarray | float,
+        nu_min_hz: float,
+        nu_max_hz: float,
+        num_points: int = 64,
+        *,
+        projection_kind: str = "sed",
+    ):
         times_s = np.atleast_1d(np.asarray(time_s, dtype=float))
         nu_hz = np.logspace(np.log10(nu_min_hz), np.log10(nu_max_hz), num_points)
-        result = self.flux_density_grid(times_s, nu_hz)
+        result = self.flux_density_grid(times_s, nu_hz, projection_kind=projection_kind)
         total = trapezoid(result.total, nu_hz, axis=0)
         fwd_sync = trapezoid(result.fwd.sync, nu_hz, axis=0)
         fwd_ssc = trapezoid(result.fwd.ssc, nu_hz, axis=0)
@@ -812,12 +832,18 @@ class Model:
     def medium_rho(self, phi: float, theta: float, r_cm: float) -> float:
         return self.medium.density(phi, theta, r_cm)
 
-    def component_fluxes(self, times_s: np.ndarray, nu_hz: np.ndarray) -> FluxResult:
-        return self._compute(times_s, nu_hz)
+    def component_fluxes(
+        self,
+        times_s: np.ndarray,
+        nu_hz: np.ndarray,
+        *,
+        projection_kind: str = "lightcurve",
+    ) -> FluxResult:
+        return self._compute(times_s, nu_hz, projection_kind=projection_kind)
 
-    def flux_density_bands(self, times_s: np.ndarray) -> np.ndarray:
+    def flux_density_bands(self, times_s: np.ndarray, *, projection_kind: str = "lightcurve") -> np.ndarray:
         frequencies_hz = build_multiband_observer_frequencies()[1]
-        total_matrix = self.flux_density_grid(times_s, frequencies_hz).total
+        total_matrix = self.flux_density_grid(times_s, frequencies_hz, projection_kind=projection_kind).total
         return combine_multiband_flux(total_matrix, frequencies_hz, 8)
 
     def default_times(self) -> np.ndarray:
@@ -837,8 +863,14 @@ class Model:
     def default_frequencies(self) -> np.ndarray:
         return np.logspace(np.log10(1.0e9), np.log10(1.0e24), 64)
 
-    def _compute(self, times_s: np.ndarray, nu_hz: np.ndarray) -> FluxResult:
-        return self._compute_raw(times_s, nu_hz)
+    def _compute(
+        self,
+        times_s: np.ndarray,
+        nu_hz: np.ndarray,
+        *,
+        projection_kind: str = "lightcurve",
+    ) -> FluxResult:
+        return self._compute_raw(times_s, nu_hz, projection_kind=projection_kind)
 
     def _compute_raw(
         self,
@@ -846,16 +878,19 @@ class Model:
         nu_hz: np.ndarray,
         *,
         solve_reference_times_s: np.ndarray | None = None,
+        projection_kind: str = "lightcurve",
     ) -> FluxResult:
         times_s = np.asarray(times_s, dtype=float)
         nu_hz = np.asarray(nu_hz, dtype=float)
+        from asgard_core.asgard_state import _normalize_projection_kind
         from .api_adaptive import _array_signature, _remember_cache_entry
         from .api_observe import _solve_direct_model, _solve_patch_model
 
+        projection_kind = _normalize_projection_kind(projection_kind)
         reference_signature = None
         if solve_reference_times_s is not None:
             reference_signature = _array_signature(np.asarray(solve_reference_times_s, dtype=float))
-        cache_key = (_array_signature(times_s), _array_signature(nu_hz), reference_signature)
+        cache_key = (_array_signature(times_s), _array_signature(nu_hz), reference_signature, projection_kind)
         cached = self._raw_cache.get(cache_key)
         if cached is not None:
             self._last_details = cached[1]
@@ -866,6 +901,7 @@ class Model:
                 times_s,
                 nu_hz,
                 solve_reference_times_s=solve_reference_times_s,
+                projection_kind=projection_kind,
             )
         else:
             model_result = _solve_patch_model(
@@ -873,6 +909,7 @@ class Model:
                 times_s,
                 nu_hz,
                 solve_reference_times_s=solve_reference_times_s,
+                projection_kind=projection_kind,
             )
         self._last_details = model_result[1]
         _remember_cache_entry(self._raw_cache, cache_key, model_result)

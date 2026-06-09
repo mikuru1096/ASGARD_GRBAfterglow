@@ -42,4 +42,35 @@ subroutine interpolation_accumulate_log_sed(src_x, src_y, num_src, dst_x, num_ds
     end do
 end subroutine interpolation_accumulate_log_sed
 
+! 源频率整体平移时，直接从线性SED对目标频率做对数频率插值并累加。
+subroutine interpolation_accumulate_shifted_linear_sed(src_x, src_y, num_src, dst_x, num_dst, log_shift, log_weight, accum)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: num_src, num_dst
+    real(8), intent(in) :: src_x(num_src), src_y(num_src), dst_x(num_dst), log_shift, log_weight
+    real(8), intent(inout) :: accum(num_dst)
+    integer :: i_dst, i_src
+    real(8) :: target_x, ratio, y_lo, y_hi, y_interp
+
+    i_src = 1
+    do i_dst = 1, num_dst
+        target_x = dst_x(i_dst) + log_shift
+        if (target_x <= src_x(1)) cycle
+        if (target_x > src_x(num_src)) exit
+        do while (i_src < num_src - 1 .and. target_x > src_x(i_src + 1))
+            i_src = i_src + 1
+        end do
+        if (target_x > src_x(i_src) .and. target_x <= src_x(i_src + 1)) then
+            ratio = (target_x - src_x(i_src)) / (src_x(i_src + 1) - src_x(i_src))
+            y_lo = src_y(i_src)
+            y_hi = src_y(i_src + 1)
+            if (y_lo > zero .and. y_hi > zero) then
+                y_interp = dexp(dlog(y_lo) + ratio * (dlog(y_hi) - dlog(y_lo)))
+            else
+                y_interp = (one-ratio)*y_lo + ratio*y_hi
+            end if
+            accum(i_dst) = accum(i_dst) + y_interp*dexp(log_weight)
+        end if
+    end do
+end subroutine interpolation_accumulate_shifted_linear_sed
+
 end module interpolation_common

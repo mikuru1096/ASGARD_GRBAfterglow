@@ -254,8 +254,11 @@ def _build_fit_config(
 def _collect_case(case: CaseSpec, grid: dict[str, int], medium: MediumSpec) -> dict[str, Any]:
     print(f"  collect {medium.name} {case.name}", flush=True)
     model = _build_model(case, grid, medium=medium)
-    lightcurve_fnu = np.asarray(model.flux_density_grid(LIGHTCURVE_TIMES, LIGHTCURVE_BANDS).total, dtype=float)
-    sed_fnu = np.asarray(model.flux_density_grid(SED_TIMES, SED_FREQUENCIES).total, dtype=float)
+    lightcurve_fnu = np.asarray(
+        model.flux_density_grid(LIGHTCURVE_TIMES, LIGHTCURVE_BANDS, projection_kind="lightcurve").total,
+        dtype=float,
+    )
+    sed_fnu = np.asarray(model.flux_density_grid(SED_TIMES, SED_FREQUENCIES, projection_kind="sed").total, dtype=float)
     state = solve_state(_build_fit_config(case, grid, medium=medium), LIGHTCURVE_TIMES, requested_frequencies_hz=SED_FREQUENCIES)
     out: dict[str, Any] = {
         "lightcurve_nufnu": LIGHTCURVE_BANDS[:, None] * lightcurve_fnu,
@@ -278,7 +281,7 @@ def _collect_case(case: CaseSpec, grid: dict[str, int], medium: MediumSpec) -> d
 def _collect_sed_case(case: CaseSpec, grid: dict[str, int], medium: MediumSpec) -> dict[str, np.ndarray]:
     print(f"  collect SED {medium.name} {case.name}", flush=True)
     model = _build_model(case, grid, medium=medium)
-    sed_fnu = np.asarray(model.flux_density_grid(SED_TIMES, SED_FREQUENCIES).total, dtype=float)
+    sed_fnu = np.asarray(model.flux_density_grid(SED_TIMES, SED_FREQUENCIES, projection_kind="sed").total, dtype=float)
     return {"sed_nufnu": SED_FREQUENCIES[:, None] * sed_fnu}
 
 
@@ -292,7 +295,10 @@ def _collect_lightcurve_case(
 ) -> dict[str, np.ndarray]:
     print(f"  collect LC {medium.name} {case.name} theta_v/theta_j={theta_v / theta_j:.2f}", flush=True)
     model = _build_model(case, grid, medium=medium, theta_j=theta_j, theta_v=theta_v)
-    lightcurve_fnu = np.asarray(model.flux_density_grid(LIGHTCURVE_TIMES, LIGHTCURVE_BANDS).total, dtype=float)
+    lightcurve_fnu = np.asarray(
+        model.flux_density_grid(LIGHTCURVE_TIMES, LIGHTCURVE_BANDS, projection_kind="lightcurve").total,
+        dtype=float,
+    )
     return {"lightcurve_nufnu": LIGHTCURVE_BANDS[:, None] * lightcurve_fnu}
 
 
@@ -669,7 +675,10 @@ def _collect_chi_grid_scan_case(solver: str, num_chi: int) -> dict[str, Any]:
     print(f"  collect chi-grid scan ISM {case.name} num_chi={num_chi}", flush=True)
     model = _build_model(case, grid, medium=ISM_SPEC, theta_j=THETA_J, theta_v=theta_v)
     tic = time.perf_counter()
-    lightcurve_fnu = np.asarray(model.flux_density_grid(CHI_GRID_SCAN_TIMES, LIGHTCURVE_BANDS).total, dtype=float)
+    lightcurve_fnu = np.asarray(
+        model.flux_density_grid(CHI_GRID_SCAN_TIMES, LIGHTCURVE_BANDS, projection_kind="lightcurve").total,
+        dtype=float,
+    )
     runtime_s = time.perf_counter() - tic
     return {"lightcurve_nufnu": LIGHTCURVE_BANDS[:, None] * lightcurve_fnu, "runtime_s": runtime_s, "grid": grid}
 
@@ -682,7 +691,7 @@ def _warm_chi_grid_scan_runtime(solver: str) -> None:
     case = CaseSpec(solver=solver, geometry_kernel="chi_eats_2d")
     print(f"  warm chi-grid scan ISM {case.name} num_chi={warm_chi}", flush=True)
     model = _build_model(case, grid, medium=ISM_SPEC, theta_j=THETA_J, theta_v=theta_v)
-    model.flux_density_grid(CHI_GRID_SCAN_TIMES, LIGHTCURVE_BANDS)
+    model.flux_density_grid(CHI_GRID_SCAN_TIMES, LIGHTCURVE_BANDS, projection_kind="lightcurve")
 
 
 def _plot_chi_grid_scan_solver(solver: str, scan_data: dict[int, dict[str, Any]], output_dir: Path) -> list[Path]:

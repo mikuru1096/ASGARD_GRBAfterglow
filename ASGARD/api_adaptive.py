@@ -76,8 +76,9 @@ def _observe_parts(
     times_s: np.ndarray,
     nu_hz: np.ndarray,
     mode: str = "full_components",
+    projection_kind: str = "lightcurve",
 ) -> FluxResult:
-    observed_state = project_flux_grid(state, times_s, nu_hz, mode=mode)
+    observed_state = project_flux_grid(state, times_s, nu_hz, mode=mode, projection_kind=projection_kind)
     return _pack_flux(observed_state.components)
 
 
@@ -86,8 +87,16 @@ def _observe_total(
     times_s: np.ndarray,
     nu_hz: np.ndarray,
     timings: Optional[dict[str, float]] = None,
+    projection_kind: str = "lightcurve",
 ) -> np.ndarray:
-    observed_state = project_flux_grid(state, times_s, nu_hz, timings=timings, mode="total_only")
+    observed_state = project_flux_grid(
+        state,
+        times_s,
+        nu_hz,
+        timings=timings,
+        mode="total_only",
+        projection_kind=projection_kind,
+    )
     return np.asarray(observed_state.components["total"], dtype=float)
 
 

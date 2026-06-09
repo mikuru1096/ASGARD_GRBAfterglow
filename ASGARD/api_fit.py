@@ -106,8 +106,15 @@ class Fitter:
 
         return eval_loglike(self._compiled_problem, values)
 
-    def flux_density_grid(self, values: dict[str, float], times_s: np.ndarray, nu_hz: np.ndarray) -> FluxResult:
-        return self.build_model(values).flux_density_grid(times_s, nu_hz)
+    def flux_density_grid(
+        self,
+        values: dict[str, float],
+        times_s: np.ndarray,
+        nu_hz: np.ndarray,
+        *,
+        projection_kind: str = "lightcurve",
+    ) -> FluxResult:
+        return self.build_model(values).flux_density_grid(times_s, nu_hz, projection_kind=projection_kind)
 
     def add_flux_density(self, times_s=None, frequencies_hz=None, flux=None, flux_err=None, **kwargs) -> None:
         entry = make_flux_density_entry(
