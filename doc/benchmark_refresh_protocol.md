@@ -112,7 +112,7 @@ Fortran line-truncation 检查使用 WSL gfortran，并在 touched source group 
 - Magnetized RS sigma scan 必须检查 `B3`, `gamma34`, `U3/V3`, `nu_m`, `nu_c`, `nu_a` 的平滑性和 `sigma -> 0` 极限。
 - Polarization overlay 必须分开报告 peak time 和 peak amplitude。不要用经验 time shift 或 smoothing 修正 timing mismatch。
 - Hadronic report 必须写明启用过程，以及路径是 formal 1D shell transport 还是已记录边界。
-- 2D chi-resolved EATS 图必须使用 `num_chi=24`、`num_r=300`、`num_theta=300`、偏轴 `num_phi=50`、对轴 `num_phi=1`、`t_obs=1e2-1e9 s`、SED `1e6-1e28 Hz`，分别检查 ISM 和纯 wind 环境下的 `chi_eats_2d / sed_legacy`、`2d / 1d` SED、以及不同 `theta_v/theta_j` 下 top-hat 光变 ratio 连续平滑；χ 诊断应显示 projection 网格随当前 shell 的有效 BM 厚度自适应，晚期不得出现全部 `chi_dvolume_weight` 同时归零导致的断崖。射电 SSA 敏感测试应检查 transport-to-projection χ remap 的 `sum(P*Delta chi)` 与 `sum(tau)` 守恒，以及 emitting cell 使用 τ 坐标平均 escape probability 后不再由 photosphere 落在哪个 χ cell 边界决定。图中 SSC 只是 shell-level forward SSC 对总通量的贡献，不属于 chi-resolved EATS 验收项。
+- 2D chi-resolved EATS 图必须使用 `num_chi=24`、`num_r=300`、`num_theta=300`、偏轴 `num_phi=50`、对轴 `num_phi=1`、`t_obs=1e2-1e9 s`、SED `1e6-1e28 Hz`，分别检查 ISM 和纯 wind 环境下的 `chi_eats_2d / sed_legacy`、`2d / 1d` SED、以及不同 `theta_v/theta_j` 下 top-hat 光变 ratio 连续平滑；χ 诊断应显示 projection 网格随当前 shell 的正半径 BM 壳层域自适应，晚期不得出现负半径、全部 `chi_dvolume_weight` 同时归零或源项截断导致的断崖。射电 SSA 敏感测试应检查 transport-to-projection χ remap 的 `sum(P*Delta chi)` 与 `sum(tau)` 守恒，以及 emitting cell 使用 τ 坐标平均 escape probability 后不再由 photosphere 落在哪个 χ cell 边界决定。图中 SSC 只是 shell-level forward SSC 对总通量的贡献，不属于 chi-resolved EATS 验收项。
 - ISM χ grid convergence scan 必须检查 `num_chi=32..512` 的 `F_chi/F_512` 曲线随时间连续，wall time 随 `num_chi` 递增趋势合理；CSV 保留完整 ratio min/median/max，不用显示范围裁剪替代原始数据。
 
 ## 产物策略

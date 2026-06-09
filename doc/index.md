@@ -42,6 +42,7 @@
 - `doc/hadronic_pgamma_notes.md`：p-gamma 微物理和基准说明。
 - `doc/am3_migration_plan.md`：AM3 共存、迁移和引用边界。
 - `doc/electron_solver_algorithms.md`：电子输运算法说明。
+- `doc/fullhide2d_pwn_cr_transport.md`：`fullhide2d_transport_model="pwn_cr_v1"` 的物理契约和边界布局。
 
 ## 当前能力摘要
 

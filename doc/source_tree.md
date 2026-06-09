@@ -30,6 +30,7 @@
 - `doc/hadronic_chi_transport_decision.md`：2D / chi-resolved hadronic transport 的当前决策边界。
 - `doc/pair_cascade_extension_boundary.md`：IC-mediated electromagnetic cascade 的扩展边界。
 - `doc/polarization_timing_diagnostic.md`：Lan 2023 polarization 峰时偏移诊断。
+- `doc/fullhide2d_pwn_cr_transport.md`：`fullhide2d_transport_model="pwn_cr_v1"` 的物理契约。
 - `doc/benchmark_refresh_protocol.md`：benchmark 重新生成的命令、build、artifact 和物理验收协议。
 - `doc/public_backend_limits.md`：public API/backend 未支持和部分支持边界。
 

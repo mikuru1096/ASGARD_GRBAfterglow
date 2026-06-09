@@ -170,7 +170,7 @@ Forward-shock：
 - Light curves 应平滑，除非物理 density jump 或 injection event 产生已记录特征。
 - Characteristic frequencies 应连续演化。
 - SSA breaks 不应出现 grid-cell discontinuity。
-- `geometry_kernel="chi_eats_2d"` 只验收 FS synchrotron+SSA；图中 forward SSC 仍是 shell-level 总通量贡献。Projection χ 网格必须跟随当前 shell 的有效 BM 厚度自适应，transport-to-projection χ remap 必须保守 `sum(P*Delta chi)` 和 `sum(tau)`，SSA survival 必须按 emitting cell 的 optical-depth coordinate 平均。图中不得出现由负半径、负通量、孤立尖峰或全部 `chi_dvolume_weight` 同时归零造成的光变断崖。2D/1D SED 与 top-hat 角度扫描允许离轴情况下出现 order-unity 以上差异，但光变和频谱方向应保持连续。
+- `geometry_kernel="chi_eats_2d"` 只验收 FS synchrotron+SSA；图中 forward SSC 仍是 shell-level 总通量贡献。Projection χ 网格必须跟随当前 shell 的正半径 BM 壳层域自适应，transport-to-projection χ remap 必须保守 `sum(P*Delta chi)` 和 `sum(tau)`，SSA survival 必须按 emitting cell 的 optical-depth coordinate 平均。图中不得出现由负半径、负通量、孤立尖峰、全部 `chi_dvolume_weight` 同时归零或源项截断造成的光变断崖。2D/1D SED 与 top-hat 角度扫描允许离轴情况下出现 order-unity 以上差异，但光变和频谱方向应保持连续。
 - ISM χ grid convergence scan 中 `num_chi=512` 是参考曲线；`F_chi/F_512` 的时间演化应连续，不允许用 smoothing 或显示裁剪掩盖孤立尖峰。
 
 Reverse-shock：
