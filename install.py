@@ -11,6 +11,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 
 
+def _utf8_env() -> dict[str, str]:
+    env = os.environ.copy()
+    env["PYTHONUTF8"] = "1"
+    env["PYTHONIOENCODING"] = "utf-8"
+    env["LANG"] = "C.UTF-8"
+    env["LC_ALL"] = "C.UTF-8"
+    return env
+
+
 def _detect_platform() -> str:
     if os.name == "nt":
         return "windows"
@@ -35,7 +44,7 @@ def _require_fortran_compiler(platform_name: str) -> None:
 
 
 def _run(command: list[str]) -> None:
-    subprocess.run(command, cwd=ROOT, check=True)
+    subprocess.run(command, cwd=ROOT, check=True, env=_utf8_env(), text=True, encoding="utf-8")
 
 
 def _venv_python(platform_name: str) -> Path:

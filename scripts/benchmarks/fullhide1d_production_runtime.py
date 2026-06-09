@@ -122,7 +122,7 @@ def main() -> None:
             print(row, flush=True)
             rows.append(row)
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    with args.output.open("w", newline="") as fh:
+    with args.output.open("w", newline="", encoding="utf-8") as fh:
         writer = csv.DictWriter(fh, fieldnames=list(rows[0].keys()))
         writer.writeheader()
         writer.writerows(rows)

@@ -233,6 +233,10 @@ def _detect_build_platform() -> str:
 
 def _prepare_build_env() -> dict[str, str]:
     env = os.environ.copy()
+    env["PYTHONUTF8"] = "1"
+    env["PYTHONIOENCODING"] = "utf-8"
+    env["LANG"] = "C.UTF-8"
+    env["LC_ALL"] = "C.UTF-8"
     py_dir = Path(sys.executable).resolve().parent
     extra_path_entries = [str(py_dir)]
     py_scripts = py_dir / "Scripts"
@@ -256,6 +260,13 @@ def _prepare_build_env() -> dict[str, str]:
                 os.add_dll_directory(mingw_bin)
     env["PATH"] = os.pathsep.join(extra_path_entries) + os.pathsep + env["PATH"]
     return env
+
+
+def _effective_fflags(env: dict[str, str], fflags: str | None) -> str:
+    override = env.get("ASGARD_FFLAGS_OVERRIDE")
+    if override:
+        return override
+    return fflags or ""
 
 
 def _clean_build_outputs(directory: Path) -> None:
@@ -331,7 +342,7 @@ def _run_command(
     verbose: bool,
 ) -> subprocess.CompletedProcess[str]:
     if verbose:
-        return subprocess.run(command, cwd=cwd, check=True, env=env, text=True)
+        return subprocess.run(command, cwd=cwd, check=True, env=env, text=True, encoding="utf-8")
     result = subprocess.run(
         command,
         cwd=cwd,
@@ -339,6 +350,7 @@ def _run_command(
         check=False,
         capture_output=True,
         text=True,
+        encoding="utf-8",
         errors="replace",
     )
     _write_build_log(log_path, command, cwd, result)
@@ -364,10 +376,8 @@ def _build_ordered_object_module(
     force: bool,
 ) -> float:
     env = _prepare_build_env()
-    fflags_override = env.get("ASGARD_FFLAGS_OVERRIDE")
-    if fflags_override:
-        fflags = fflags_override
-    if fflags is not None:
+    fflags = _effective_fflags(env, fflags)
+    if fflags:
         env["FFLAGS"] = fflags
         env["F90FLAGS"] = fflags
 
@@ -498,9 +508,10 @@ def _build_ordered_object_module(
             continue
         wrapper_object = build_dir / f"{wrapper_source.stem}.o"
         manifest_path = build_dir / f"{wrapper_source.stem}.manifest"
-        manifest_text = "\n".join([f"source={wrapper_source}", f"fc={fc}", "flags=-fPIC"])
+        wrapper_flags = ["-fPIC"]
+        manifest_text = "\n".join([f"source={wrapper_source}", f"fc={fc}", f"flags={shlex.join(wrapper_flags)}"])
         if not _object_current(wrapper_object, wrapper_source, manifest_path, manifest_text):
-            compile_wrapper = [fc, "-c", "-fPIC", str(wrapper_source), "-o", str(wrapper_object)]
+            compile_wrapper = [fc, "-c", *wrapper_flags, str(wrapper_source), "-o", str(wrapper_object)]
             _run_command(
                 compile_wrapper,
                 build_dir,
@@ -548,10 +559,8 @@ def _build_module(
     force: bool = False,
 ) -> float:
     env = _prepare_build_env()
-    fflags_override = env.get("ASGARD_FFLAGS_OVERRIDE")
-    if fflags_override:
-        fflags = fflags_override
-    if fflags is not None:
+    fflags = _effective_fflags(env, fflags)
+    if fflags:
         env["FFLAGS"] = fflags
         env["F90FLAGS"] = fflags
 
@@ -564,7 +573,7 @@ def _build_module(
         command.extend(extra_args)
     start = time.perf_counter()
     if verbose:
-        subprocess.run(command, cwd=cwd, check=True, env=env)
+        subprocess.run(command, cwd=cwd, check=True, env=env, text=True, encoding="utf-8")
         return time.perf_counter() - start
 
     result = subprocess.run(
@@ -574,6 +583,7 @@ def _build_module(
         check=False,
         capture_output=True,
         text=True,
+        encoding="utf-8",
         errors="replace",
     )
     elapsed = time.perf_counter() - start

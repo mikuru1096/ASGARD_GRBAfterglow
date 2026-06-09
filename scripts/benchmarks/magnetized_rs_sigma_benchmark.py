@@ -185,7 +185,7 @@ def _logjump(values: np.ndarray) -> float:
 
 
 def _write_csv(path: Path, rows: list[dict[str, object]]) -> None:
-    with path.open("w", newline="") as handle:
+    with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(rows[0].keys()), lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)

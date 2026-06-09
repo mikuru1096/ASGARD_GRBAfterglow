@@ -14,6 +14,15 @@ from setuptools.command.sdist import sdist as _sdist
 ROOT = Path(__file__).resolve().parent
 
 
+def _utf8_env() -> dict[str, str]:
+    env = os.environ.copy()
+    env["PYTHONUTF8"] = "1"
+    env["PYTHONIOENCODING"] = "utf-8"
+    env["LANG"] = "C.UTF-8"
+    env["LC_ALL"] = "C.UTF-8"
+    return env
+
+
 def _skip_native_build() -> bool:
     return os.environ.get("ASGARD_SKIP_NATIVE_BUILD") == "1"
 
@@ -32,7 +41,7 @@ class build_native(Command):
         if _skip_native_build():
             return
         command = [sys.executable, "build_extensions.py"]
-        subprocess.run(command, cwd=ROOT, check=True)
+        subprocess.run(command, cwd=ROOT, check=True, env=_utf8_env(), text=True, encoding="utf-8")
 
 
 class build_py(_build_py):

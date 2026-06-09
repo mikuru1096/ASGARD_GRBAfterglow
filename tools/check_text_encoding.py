@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import re
 import subprocess
 import sys
@@ -68,6 +69,44 @@ LATIN1_MOJIBAKE_CHARS = "".join(
 LATIN1_MOJIBAKE = re.compile(f"[{LATIN1_MOJIBAKE_CHARS}][\\u0080-\\u00ff]")
 C1_CONTROL = re.compile(r"[\u0080-\u009f]")
 PRIVATE_USE = re.compile(r"[\ue000-\uf8ff]")
+
+
+class PythonTextIoVisitor(ast.NodeVisitor):
+    def __init__(self) -> None:
+        self.problems: list[tuple[int, str]] = []
+
+    def visit_Call(self, node: ast.Call) -> None:
+        call_name = self._call_name(node.func)
+        if call_name in {"open", "Path.open"}:
+            if not self._has_keyword(node, "encoding") and not self._is_binary_open(node):
+                self.problems.append((node.lineno, f"{call_name} text IO without explicit encoding"))
+        elif call_name in {"Path.read_text", "Path.write_text"}:
+            if not self._has_keyword(node, "encoding"):
+                self.problems.append((node.lineno, f"{call_name} without explicit encoding"))
+        self.generic_visit(node)
+
+    @staticmethod
+    def _call_name(func: ast.AST) -> str | None:
+        if isinstance(func, ast.Name) and func.id == "open":
+            return "open"
+        if isinstance(func, ast.Attribute):
+            if func.attr in {"open", "read_text", "write_text"}:
+                return f"Path.{func.attr}"
+        return None
+
+    @staticmethod
+    def _has_keyword(node: ast.Call, name: str) -> bool:
+        return any(keyword.arg == name for keyword in node.keywords)
+
+    @staticmethod
+    def _is_binary_open(node: ast.Call) -> bool:
+        mode: ast.AST | None = None
+        if len(node.args) >= 2:
+            mode = node.args[1]
+        for keyword in node.keywords:
+            if keyword.arg == "mode":
+                mode = keyword.value
+        return isinstance(mode, ast.Constant) and isinstance(mode.value, str) and "b" in mode.value
 
 
 def run_git(root: Path, args: list[str]) -> list[str]:
@@ -145,7 +184,20 @@ def check_file(path: Path) -> list[str]:
         text = data.decode("utf-8")
     except UnicodeDecodeError as exc:
         return [f"{label}:{exc.start + 1}: invalid UTF-8 byte sequence"]
-    return [f"{label}:{line}: {reason}" for line, reason in mojibake_hits(text)]
+    problems = [f"{label}:{line}: {reason}" for line, reason in mojibake_hits(text)]
+    if path.suffix == ".py":
+        problems.extend(check_python_text_io(path, text))
+    return problems
+
+
+def check_python_text_io(path: Path, text: str) -> list[str]:
+    try:
+        tree = ast.parse(text, filename=str(path))
+    except SyntaxError:
+        return []
+    visitor = PythonTextIoVisitor()
+    visitor.visit(tree)
+    return [f"{path.as_posix()}:{line}: {reason}" for line, reason in visitor.problems]
 
 
 def main(argv: list[str] | None = None) -> int:
