@@ -504,6 +504,106 @@ def _scan_label(case: CaseSpec) -> str:
     return ", ".join(parts)
 
 
+def _plot_scan_lightcurves_absolute_group(
+    data: dict[str, dict[str, dict[str, np.ndarray]]],
+    cases: tuple[CaseSpec, ...],
+    output_dir: Path,
+    case_names: tuple[str, ...],
+    stem: str,
+    title: str,
+) -> list[Path]:
+    fig, axes = plt.subplots(len(BANDS), 2, figsize=(13.2, 11.8), constrained_layout=True, sharex="col")
+    case_lookup = {case.name: case for case in cases}
+    for col, medium_name in enumerate(("ism", "wind")):
+        for row, band in enumerate(BANDS):
+            ax = axes[row, col]
+            idx = int(np.where(BANDS == band)[0][0])
+            panel_values: list[np.ndarray] = []
+            for case_name in case_names:
+                if case_name == "fullhide_2d_legacy":
+                    color, style, marker = "#111111", "-", None
+                    label = "legacy"
+                else:
+                    color, style = SCAN_CASE_STYLES[case_name]
+                    marker = "o"
+                    label = _scan_label(case_lookup[case_name])
+                values = data[medium_name][case_name]["lightcurve_nufnu"][idx]
+                panel_values.append(values)
+                ax.loglog(
+                    LIGHTCURVE_TIMES,
+                    values,
+                    color=color,
+                    ls=style,
+                    lw=1.65,
+                    marker=marker,
+                    markevery=18,
+                    ms=2.5,
+                    label=label,
+                )
+            ax.set_title(f"{medium_name.upper()} {_label_frequency(float(band))}")
+            _setup_log_axes(ax, ylabel=r"$\nu F_\nu$ [erg cm$^{-2}$ s$^{-1}$]")
+            ylim = _positive_limits(panel_values, pad=0.22)
+            if ylim:
+                ax.set_ylim(*ylim)
+            if row == len(BANDS) - 1:
+                ax.set_xlabel("Observer time [s]")
+    handles = []
+    for case_name in case_names:
+        if case_name == "fullhide_2d_legacy":
+            handles.append(Line2D([0], [0], color="#111111", ls="-", lw=2.0, label="legacy"))
+        else:
+            handles.append(
+                Line2D(
+                    [0],
+                    [0],
+                    color=SCAN_CASE_STYLES[case_name][0],
+                    ls=SCAN_CASE_STYLES[case_name][1],
+                    marker="o",
+                    ms=3.0,
+                    lw=2.0,
+                    label=_scan_label(case_lookup[case_name]),
+                )
+            )
+    axes[0, 0].legend(handles=handles, frameon=False, fontsize=7.0, ncol=2, loc="best")
+    fig.suptitle(title)
+    return _save(fig, output_dir, stem)
+
+
+def _plot_scan_lightcurves_absolute(
+    data: dict[str, dict[str, dict[str, np.ndarray]]],
+    cases: tuple[CaseSpec, ...],
+    output_dir: Path,
+) -> list[Path]:
+    paths: list[Path] = []
+    paths.extend(
+        _plot_scan_lightcurves_absolute_group(
+            data,
+            cases,
+            output_dir,
+            ("fullhide_2d_legacy", "pwn_closed", "pwn_free", "pwn_accel", "pwn_free_accel"),
+            "parameter_scan_lightcurves_absolute_transport_accel",
+            "fullhide_2d PWN/CR parameter scan: absolute light curves, transport and acceleration",
+        )
+    )
+    paths.extend(
+        _plot_scan_lightcurves_absolute_group(
+            data,
+            cases,
+            output_dir,
+            (
+                "fullhide_2d_legacy",
+                "pwn_decay",
+                "pwn_free_decay",
+                "pwn_decay_accel",
+                "pwn_free_decay_accel",
+            ),
+            "parameter_scan_lightcurves_absolute_decay",
+            "fullhide_2d PWN/CR parameter scan: absolute light curves, microturbulence decay",
+        )
+    )
+    return paths
+
+
 def _plot_scan_lightcurve_ratios(
     data: dict[str, dict[str, dict[str, np.ndarray]]],
     cases: tuple[CaseSpec, ...],
@@ -907,6 +1007,7 @@ def main() -> None:
             for case in scan_cases:
                 scan_data[medium_name][case.name] = _collect_asgard_case(_build_asgard_model(case, medium_name, grid))
         scan_paths: list[Path] = []
+        scan_paths.extend(_plot_scan_lightcurves_absolute(scan_data, scan_cases, output_dir))
         scan_paths.extend(_plot_scan_lightcurve_ratios(scan_data, scan_cases, output_dir))
         scan_paths.extend(_plot_scan_sed_electron_ratios(scan_data, scan_cases, output_dir))
         scan_paths.extend(_plot_scan_break_ratios(scan_data, scan_cases, output_dir))
