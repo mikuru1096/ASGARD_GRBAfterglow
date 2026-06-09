@@ -138,4 +138,4 @@ Copyright (c) 2025 Jia Ren
 
 ## Web 界面
 
-在线界面位于 <https://hetools.xyz>，可用于比较 ASGARD 和 jetsimpy 的结果。
+在线界面位于 <https://hetools.cn>，可用于比较 ASGARD 和 jetsimpy 的结果。
