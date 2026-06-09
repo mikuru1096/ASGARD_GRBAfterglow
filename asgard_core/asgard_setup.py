@@ -20,6 +20,11 @@ def build_simulation_setup(
     config: FitConfig,
     requested_frequencies_hz: np.ndarray | None = None,
 ) -> SimulationSetup:
+    geometry_kernel = str(config.geometry_kernel).lower()
+    if geometry_kernel not in {"sed_legacy", "chi_eats_2d"}:
+        raise ValueError("geometry_kernel must be 'sed_legacy' or 'chi_eats_2d'.")
+    if geometry_kernel == "chi_eats_2d" and not str(config.electron_solver).lower().endswith("_2d"):
+        raise ValueError("geometry_kernel='chi_eats_2d' requires a 2d electron solver.")
     if config.luminosity_distance_cm_override is None:
         luminosity_distance_cm = _luminosity_distance_cm(float(config.z))
     else:

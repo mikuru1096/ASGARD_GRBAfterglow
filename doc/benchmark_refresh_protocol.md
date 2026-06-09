@@ -66,6 +66,22 @@ Lan 2023 polarization overlay：
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/polarization_literature_overlay.py'
 ```
 
+2D chi-resolved EATS benchmark：
+
+```bash
+rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python scripts/benchmarks/chi_eats_2d_benchmark.py --mode quick --solver fullhide_2d --medium both --only all'
+```
+
+该命令固定 `num_chi=24`，全图使用 `num_r=300`、`num_theta=300`、偏轴 `num_phi=50`；对轴 `theta_v=0` 使用 `num_phi=1`。观测时间覆盖 `1e2-1e9 s`，SED 频段覆盖 `1e6-1e28 Hz`。典型余辉参数为 `E_iso=1e53 erg`、`Gamma0=300`、`epsilon_e=0.1`、`epsilon_B=1e-3`、`epsilon_B_floor=epsilon_B`、`magnetic_decay_alpha_t=0`、`p=2.3`、`theta_j=0.1`、`z=0.1`；该设置要求 2D 壳层内部磁场在每个 shell 内为常数，不使用 χ 方向的特殊磁场剖面。对 `fullhide_2d` 在 ISM (`n=1 cm^-3`) 和纯 wind (`A*=0.1`, `n_ism=1e-15 cm^-3`) 下生成 `sed_legacy` 和 `chi_eats_2d` 的总通量对比图；其中总通量包含现有 shell-level forward SSC，`chi_eats_2d` 一期只替换 FS synchrotron+SSA observer projection。输出位于 `output/asgard_doc/chi_eats_2d_benchmark/`，包括 `chi_eats_2d` vs `sed_legacy` light curve/SED、χ 几何/辐射诊断、2D/1D SED、以及 top-hat `theta_v/theta_j = 0, 0.5, 1, 1.5, 3, 5` light-curve 对比 PNG/PDF；数值摘要写入 `chi_eats_2d_summary.csv` 和 `chi_eats_2d_metadata.json`。SSC、hadronic、pair cascade 仍按 shell-level contract，不能解读为 chi-resolved 闭环。偏轴 EATS 禁止使用 `num_phi=1`，因为 `num_phi=1` 是仅适用于 `theta_v=0` 的轴对称 φ 折叠。
+
+ISM χ grid convergence scan：
+
+```bash
+rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python scripts/benchmarks/chi_eats_2d_benchmark.py --mode quick --solver fullhide_2d --medium ism --only chi-grid-scan'
+```
+
+该命令固定 ISM 与 `fullhide_2d + chi_eats_2d`，使用 `theta_v/theta_j=0.5`，除 χ 以外的网格相对 quick benchmark 减半：`num_gam_e=16`、`num_nu=21`、`num_r=150`、`num_theta=150`、`num_phi=25`、`num_tobs=64`；扫描 `num_chi=32,64,128,256,512`，图中以 `num_chi=512` 为参考显示三个频段的 light-curve 收敛和 wall time。runtime 计时前先执行一次不入图的 `num_chi=32` warm-up，以排除首次调用的冷启动开销。输出为 `fullhide_2d_ism_chi_grid_scan.png/pdf`、`chi_grid_scan_ism_summary.csv`、`chi_grid_scan_ism_lightcurves.csv` 和 `chi_grid_scan_ism_metadata.json`。
+
 ## 构建门槛
 
 文档或 plotting-only 脚本改动只需：
@@ -96,6 +112,8 @@ Fortran line-truncation 检查使用 WSL gfortran，并在 touched source group 
 - Magnetized RS sigma scan 必须检查 `B3`, `gamma34`, `U3/V3`, `nu_m`, `nu_c`, `nu_a` 的平滑性和 `sigma -> 0` 极限。
 - Polarization overlay 必须分开报告 peak time 和 peak amplitude。不要用经验 time shift 或 smoothing 修正 timing mismatch。
 - Hadronic report 必须写明启用过程，以及路径是 formal 1D shell transport 还是已记录边界。
+- 2D chi-resolved EATS 图必须使用 `num_chi=24`、`num_r=300`、`num_theta=300`、偏轴 `num_phi=50`、对轴 `num_phi=1`、`t_obs=1e2-1e9 s`、SED `1e6-1e28 Hz`，分别检查 ISM 和纯 wind 环境下的 `chi_eats_2d / sed_legacy`、`2d / 1d` SED、以及不同 `theta_v/theta_j` 下 top-hat 光变 ratio 连续平滑；χ 诊断应显示 projection 网格随当前 shell 的有效 BM 厚度自适应，晚期不得出现全部 `chi_dvolume_weight` 同时归零导致的断崖。射电 SSA 敏感测试应检查 transport-to-projection χ remap 的 `sum(P*Delta chi)` 与 `sum(tau)` 守恒，以及 emitting cell 使用 τ 坐标平均 escape probability 后不再由 photosphere 落在哪个 χ cell 边界决定。图中 SSC 只是 shell-level forward SSC 对总通量的贡献，不属于 chi-resolved EATS 验收项。
+- ISM χ grid convergence scan 必须检查 `num_chi=32..512` 的 `F_chi/F_512` 曲线随时间连续，wall time 随 `num_chi` 递增趋势合理；CSV 保留完整 ratio min/median/max，不用显示范围裁剪替代原始数据。
 
 ## 产物策略
 

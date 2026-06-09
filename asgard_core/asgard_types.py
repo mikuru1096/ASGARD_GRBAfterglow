@@ -183,6 +183,12 @@ class ElectronSolution:
     d_n_gam_e_bh: np.ndarray | None = None
     d_n_gam_e_chi: np.ndarray | None = None
     chi_grid: np.ndarray | None = None
+    l_syn_spec_chi: np.ndarray | None = None
+    seed_syn_chi: np.ndarray | None = None
+    tau_syn_chi: np.ndarray | None = None
+    chi_radius_cm: np.ndarray | None = None
+    chi_gamma_bulk: np.ndarray | None = None
+    chi_dvolume_weight: np.ndarray | None = None
     cooling_timescale_s: np.ndarray | None = None
     dynamical_timescale_s: np.ndarray | None = None
     work_x_edge_log10: np.ndarray | None = None

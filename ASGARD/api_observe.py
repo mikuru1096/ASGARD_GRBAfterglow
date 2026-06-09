@@ -1016,6 +1016,14 @@ def _make_details(
     fwd_gamma_e = None if state is None else np.asarray(state.electron.gam_e, dtype=float)
     fwd_dnde = None if state is None else np.asarray(state.electron.d_n_gam_e, dtype=float)
     fwd_dnde_bh = None if state is None or state.electron.d_n_gam_e_bh is None else np.asarray(state.electron.d_n_gam_e_bh, dtype=float)
+    fwd_dnde_chi = None if state is None or state.electron.d_n_gam_e_chi is None else np.asarray(state.electron.d_n_gam_e_chi, dtype=float)
+    fwd_chi_grid = None if state is None or state.electron.chi_grid is None else np.asarray(state.electron.chi_grid, dtype=float)
+    fwd_lsyn_chi = None if state is None or state.electron.l_syn_spec_chi is None else np.asarray(state.electron.l_syn_spec_chi, dtype=float)
+    fwd_seed_chi = None if state is None or state.electron.seed_syn_chi is None else np.asarray(state.electron.seed_syn_chi, dtype=float)
+    fwd_tau_chi = None if state is None or state.electron.tau_syn_chi is None else np.asarray(state.electron.tau_syn_chi, dtype=float)
+    fwd_chi_radius = None if state is None or state.electron.chi_radius_cm is None else np.asarray(state.electron.chi_radius_cm, dtype=float)
+    fwd_chi_gamma = None if state is None or state.electron.chi_gamma_bulk is None else np.asarray(state.electron.chi_gamma_bulk, dtype=float)
+    fwd_chi_weight = None if state is None or state.electron.chi_dvolume_weight is None else np.asarray(state.electron.chi_dvolume_weight, dtype=float)
     fwd_gamma_p = None if state is None or state.hadronic is None else np.asarray(state.hadronic.gam_p, dtype=float)
     fwd_dndp = None if state is None or state.hadronic is None else np.asarray(state.hadronic.d_n_gam_p, dtype=float)
     fwd_gamma_secondary = None if state is None or state.hadronic is None or state.hadronic.gam_secondary is None else np.asarray(state.hadronic.gam_secondary, dtype=float)
@@ -1092,6 +1100,14 @@ def _make_details(
             gamma_e=fwd_gamma_e,
             dN_dgamma_e=fwd_dnde,
             dN_dgamma_e_bh=fwd_dnde_bh,
+            dN_dgamma_e_chi=fwd_dnde_chi,
+            chi_grid=fwd_chi_grid,
+            l_syn_spec_chi=fwd_lsyn_chi,
+            seed_syn_chi=fwd_seed_chi,
+            tau_syn_chi=fwd_tau_chi,
+            chi_radius_cm=fwd_chi_radius,
+            chi_gamma_bulk=fwd_chi_gamma,
+            chi_dvolume_weight=fwd_chi_weight,
             gamma_p=fwd_gamma_p,
             dN_dgamma_p=fwd_dndp,
             gamma_secondary=fwd_gamma_secondary,

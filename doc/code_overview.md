@@ -30,7 +30,7 @@ Model / observe / run_fit
 
 - `DynamicsSolution`：`r_tobs`, `r_gamma`, `radius`, `swept_mass_g`。
 - `ReverseShockDynamics`：`M3`, total `B3`, ordered crossing field `B3_ordered_cross`, `U3/V3`, `gamma34` 和 crossing thermal records；`B3` 是 turbulent `sqrt(8 pi epsilon_B,r U3/V3)` 与可选 ordered upstream field 的总和。
-- `ElectronSolution`：`gam_e`, `d_n_gam_e`, `l_syn_spec`, `seed_syn`, `nu_m`, `nu_c`, `nu_a`；2D 额外包含 `d_n_gam_e_chi`, `chi_grid`；BH 额外包含 `d_n_gam_e_bh`。
+- `ElectronSolution`：`gam_e`, `d_n_gam_e`, `l_syn_spec`, `seed_syn`, `nu_m`, `nu_c`, `nu_a`；2D 额外包含 `d_n_gam_e_chi`, `chi_grid`, `l_syn_spec_chi`, `seed_syn_chi`, `tau_syn_chi`, `chi_radius_cm`, `chi_gamma_bulk`, `chi_dvolume_weight`；BH 额外包含 `d_n_gam_e_bh`。
 - `PhotonFieldState`：forward synch seed、hadronic target field、absorption seed field。
 - `HadronicSolution`：1D hadronic proton/secondary/radiation results。
 - `ObserverState`：absorption factors、`tau_pair`、flux components。

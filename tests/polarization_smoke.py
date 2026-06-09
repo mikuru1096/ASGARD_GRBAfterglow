@@ -190,6 +190,113 @@ def test_surface_element_projection_uses_linear_time_reconstruction() -> None:
     assert cutoff_flux > 0.0
 
 
+def test_chi_surface_element_matches_single_shell_limit() -> None:
+    boundary = np.ones(24, dtype=float)
+    boundary[7] = 0.0
+    boundary[9] = 0.0
+    gamma = np.array([4.0, 4.0], dtype=float)
+    beta = np.sqrt(1.0 - gamma[0] ** -2)
+    doppler_den = gamma[0] * (1.0 - beta)
+    radius = np.array([1.0e15, 1.2e15], dtype=float)
+    t0 = np.array([1.0, 3.0], dtype=float)
+    seed = np.array([1.0e10, 2.0e10, 4.0e10], dtype=float)
+    observed = np.array([seed[1] / doppler_den], dtype=float)
+    source = np.column_stack([seed ** 0.1, 2.0 * seed ** 0.1])
+    legacy = Interpolation.sed_interpolation_surface_element(
+        boundary,
+        t0,
+        gamma,
+        radius,
+        source,
+        seed,
+        observed,
+        np.array([1.0, 2.0], dtype=float),
+        1.0e-4,
+    )
+    chi_flux = Interpolation.sed_interpolation_chi_surface_element(
+        boundary,
+        t0,
+        radius,
+        source[:, None, :],
+        np.zeros((seed.size, 1, radius.size), dtype=float),
+        radius[None, :],
+        gamma[None, :],
+        np.ones((1, radius.size), dtype=float),
+        seed,
+        observed,
+        np.array([1.0, 2.0], dtype=float),
+        1.0e-4,
+    )
+    assert np.allclose(chi_flux, legacy, rtol=1.0e-12, atol=0.0)
+
+
+def test_chi_full_projection_matches_single_chi_legacy_limit() -> None:
+    boundary = np.ones(24, dtype=float)
+    boundary[7] = 0.1
+    boundary[8] = 0.2
+    boundary[9] = 0.0
+    radius = np.logspace(15.0, 16.0, 8)
+    gamma = np.linspace(30.0, 10.0, radius.size)
+    t0 = radius / constants.para_c
+    seed = np.logspace(9.0, 15.0, 16)
+    observed = np.array([1.0e11, 1.0e13], dtype=float)
+    times = np.logspace(4.0, 5.0, 5)
+    source = np.outer(seed ** 0.2, radius ** -0.3)
+    legacy = Interpolation.sed_interpolation(
+        boundary,
+        t0,
+        gamma,
+        radius,
+        source,
+        seed,
+        observed,
+        times,
+        5,
+        4,
+        1,
+    )
+    chi_flux = Interpolation.sed_interpolation_chi(
+        boundary,
+        t0,
+        radius,
+        source[:, None, :],
+        np.zeros((seed.size, 1, radius.size), dtype=float),
+        radius[None, :],
+        gamma[None, :],
+        np.ones((1, radius.size), dtype=float),
+        seed,
+        observed,
+        times,
+        5,
+        4,
+        1,
+    )
+    assert np.any(legacy > 0.0)
+    assert np.allclose(chi_flux, legacy, rtol=1.0e-12, atol=0.0)
+
+
+def test_chi_surface_element_uses_local_gamma() -> None:
+    boundary = np.ones(24, dtype=float)
+    boundary[7] = 0.0
+    boundary[9] = 0.0
+    radius = np.array([1.0e15, 1.2e15], dtype=float)
+    t0 = np.array([1.0, 3.0], dtype=float)
+    seed = np.logspace(8.0, 16.0, 16)
+    observed = np.array([1.0e12], dtype=float)
+    source = np.repeat((seed ** 0.2)[:, None, None], radius.size, axis=2)
+    tau = np.zeros_like(source)
+    weight = np.ones((1, radius.size), dtype=float)
+    slow = Interpolation.sed_interpolation_chi_surface_element(
+        boundary, t0, radius, source, tau, radius[None, :], np.full((1, radius.size), 2.0), weight, seed, observed,
+        np.array([1.0, 2.0], dtype=float), 1.0e-4
+    )
+    fast = Interpolation.sed_interpolation_chi_surface_element(
+        boundary, t0, radius, source, tau, radius[None, :], np.full((1, radius.size), 20.0), weight, seed, observed,
+        np.array([1.0, 2.0], dtype=float), 1.0e-4
+    )
+    assert np.any(np.abs(fast - slow) > 0.0)
+
+
 def test_hadronic_polarization_kernel_powerlaw_limit() -> None:
     energy = np.logspace(0.0, 10.0, 128) * constants.para_m_p_gev
     density = energy ** -2.3
@@ -248,6 +355,9 @@ def main() -> None:
     test_fortran_polarization_kernel_conserves_intensity()
     test_surface_element_projection_scales_with_solid_angle()
     test_surface_element_projection_uses_linear_time_reconstruction()
+    test_chi_surface_element_matches_single_shell_limit()
+    test_chi_full_projection_matches_single_chi_legacy_limit()
+    test_chi_surface_element_uses_local_gamma()
     test_hadronic_polarization_kernel_powerlaw_limit()
     test_fortran_polarization_kernel_tracks_curved_spectrum()
     test_hadronic_polarization_kernel_tracks_curved_spectrum()

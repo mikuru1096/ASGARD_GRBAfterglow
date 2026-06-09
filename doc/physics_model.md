@@ -66,6 +66,14 @@ Python 层组织状态机、配置和观测投影；Fortran 层求解电子、�
 
 - `d_n_gam_e_chi`
 - `chi_grid`
+- `l_syn_spec_chi`
+- `seed_syn_chi`
+- `tau_syn_chi`
+- `chi_radius_cm`
+- `chi_gamma_bulk`
+- `chi_dvolume_weight`
+
+`geometry_kernel="chi_eats_2d"` 是 `fullhide_2d` / `charint_2d` 的 opt-in observer projection。该路径仅对 forward-shock synchrotron + SSA 使用 `chi` 分辨有限厚壳层 EATS：每个 `(R, chi)` 体元使用局域半径、BM downstream `Gamma_2`、`chi` 体积权重和向外 SSA optical-depth survival 投影到观测系。默认 `geometry_kernel="sed_legacy"` 保持 shell-integrated EATS。Projection 层对每个 shell 按当前 shock Lorentz factor 重铺 `chi` 网格，覆盖 `1 <= chi <= 1 + Gamma_sh^2/2` 的有效 BM 厚度；`chi_radius_cm`、`chi_gamma_bulk` 和 `chi_dvolume_weight` 均来自这组 shell-local projection 网格。Transport χ 网格到 projection χ 网格的映射使用 cell-overlap 保守重映射：`P_syn_chi` 和 `seed_syn_chi` 保守 `sum(P*Delta chi)`，`tau_syn_chi` 保守 cell-integrated optical depth。EATS SSA survival 对 emitting cell 使用 optical-depth coordinate 的 cell average `exp(-tau_front) * (1 - exp(-tau_cell)) / tau_cell`，而不是只取 cell inner edge 的 `exp(-tau_front)`。晚期 `Gamma_sh/sqrt(2 chi)` 低于 1 的体元使用 `Gamma=1` 的 trans-relativistic 投影极限，不再通过把全部 `chi_dvolume_weight` 置零制造光变断崖。
 
 ## 同步辐射、SSA 与 SSC
 
@@ -83,6 +91,8 @@ SSC：
 
 - `src/Radiation/radiation_ssc_spectrum.f90`
 - `asgard_core/asgard_ssc.py`
+
+SSC、hadronic、pair cascade 当前仍是 shell-level contract。启用 `chi_eats_2d` 不表示这些通道已经 `chi` 自洽。
 
 当前同步辐射积分选择中，`index_syn_integr=1/2` 是固定网格快速路径；adaptive path 只作为显式诊断路径使用，不作为 public 默认。
 

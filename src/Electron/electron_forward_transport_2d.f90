@@ -2,6 +2,7 @@
 subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e, &
                                          Num_chi,index_Y,index_syn_intger,n_threads, &
                                          gam_e,dN_gam_e,dN_gam_e_total,P_syn,Seed_syn,V_m,V_c,V_a, &
+                                         P_syn_chi,Seed_syn_chi,Tau_syn_chi,chi_radius,chi_gamma_bulk,chi_weight_out, &
                                          use_charint_transport, profile_tag)
     !$ use omp_lib
     use constants
@@ -36,6 +37,9 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
     real(8), intent(out) :: P_syn(Num_nu, Num_R)
     real(8), intent(out) :: Seed_syn(Num_nu, Num_R)
     real(8), intent(out) :: V_m(Num_R), V_c(Num_R), V_a(Num_R)
+    real(8), intent(out) :: P_syn_chi(Num_nu, Num_chi, Num_R), Seed_syn_chi(Num_nu, Num_chi, Num_R)
+    real(8), intent(out) :: Tau_syn_chi(Num_nu, Num_chi, Num_R)
+    real(8), intent(out) :: chi_radius(Num_chi, Num_R), chi_gamma_bulk(Num_chi, Num_R), chi_weight_out(Num_chi, Num_R)
 
     real(8), allocatable :: dEl(:), dEL_mean(:), kappa2_arr(:)
     real(8), allocatable :: dN_init(:), dN_init_log(:), U_log(:,:), source_eta1(:)
@@ -143,6 +147,12 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
 
     P_syn          = zero
     Seed_syn       = zero
+    P_syn_chi      = zero
+    Seed_syn_chi   = zero
+    Tau_syn_chi    = zero
+    chi_radius     = zero
+    chi_gamma_bulk = one
+    chi_weight_out = zero
     V_m            = zero
     V_c            = zero
     V_a            = zero
@@ -343,7 +353,7 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
         end if
         shell_population = sum(U_log, dim=2)
         chi_population = sum(U_log, dim=1)
-        chi_peak = maxval(shell_population)
+        chi_peak = maxval(chi_population)
         shell_peak = max(chi_peak, maxval(dF1))
         support_floor = 1d-12*shell_peak
         active_hi = max(2, src_hi)
@@ -639,6 +649,12 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
     end do
     V_c(Num_R) = dexp(temp/max(Q,tiny(one)))/(R_Gamma_loc*(1d0-beta_sh)*(one+z))
     V_a(Num_R) = V_a_chi(Num_chi)/(R_Gamma_loc*(1d0-beta_sh)*(one+z))
+    do I_tobs = 1, Num_R
+        call remap_chi_projection_shell(Num_nu,Num_chi,R(I_tobs),R_Gamma(I_tobs),chi_face, &
+                                        P_hist(:,:,I_tobs),Seed_hist(:,:,I_tobs),Tau_hist(:,:,I_tobs), &
+                                        P_syn_chi(:,:,I_tobs),Seed_syn_chi(:,:,I_tobs),Tau_syn_chi(:,:,I_tobs), &
+                                        chi_radius(:,I_tobs),chi_gamma_bulk(:,I_tobs),chi_weight_out(:,I_tobs))
+    end do
     if (profile_enabled) then
         print '(A,1X,F10.4)', 'PROFILE '//trim(profile_tag)//' history_s', t_hist_accum
         print '(A,1X,F10.4)', 'PROFILE '//trim(profile_tag)//' syn_state_s', t_syn_state
@@ -665,3 +681,56 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
                P_hist_cool, Seed_hist_cool, Tau_pair_hist_cool, P_eff_cool_chi, Seed_eff_cool_chi, &
                cooling_aux_chi, dEl_chi, dEL_mean_chi, adiabatic_log_coeff_chi, kappa2_chi)
 end subroutine fs_electron_transport_2d_core
+
+subroutine remap_chi_projection_shell(Num_nu,Num_chi,R_loc,Gamma_sh,chi_face_src,P_src,Seed_src,Tau_src, &
+                                      P_dst,Seed_dst,Tau_dst,chi_radius_dst,chi_gamma_dst,chi_weight_dst)
+    use constants
+    implicit real(8)(a-h,o-z)
+    integer, intent(in) :: Num_nu,Num_chi
+    real(8), intent(in) :: R_loc,Gamma_sh,chi_face_src(0:Num_chi)
+    real(8), intent(in) :: P_src(Num_nu,Num_chi),Seed_src(Num_nu,Num_chi),Tau_src(Num_nu,Num_chi)
+    real(8), intent(out) :: P_dst(Num_nu,Num_chi),Seed_dst(Num_nu,Num_chi),Tau_dst(Num_nu,Num_chi)
+    real(8), intent(out) :: chi_radius_dst(Num_chi),chi_gamma_dst(Num_chi),chi_weight_dst(Num_chi)
+    integer :: I_chi,I_nu,K
+    real(8) :: chi_eff_max,deta_proj,eta_loc,chi_loc,overlap,dst_lo,dst_hi,dst_weight
+    real(8) :: src_lo,src_hi,src_weight,radius_ratio,gamma_bm,ln10,overlap_lo,overlap_hi,overlap_weight
+    real(8) :: weighted_p,weighted_seed,weighted_tau
+
+    ln10 = dlog(ten)
+    chi_eff_max = min(chi_face_src(Num_chi),one + 0.5d0*Gamma_sh*Gamma_sh)
+    deta_proj = dlog10(chi_eff_max) / dble(Num_chi)
+    do I_chi = 1, Num_chi
+        eta_loc = (dble(I_chi)-0.5d0)*deta_proj
+        dst_lo = (dble(I_chi)-one)*deta_proj
+        dst_hi = dble(I_chi)*deta_proj
+        chi_loc = ten**eta_loc
+        dst_weight = ten**dst_hi - ten**dst_lo
+        radius_ratio = one - (chi_loc-one)/(8d0*Gamma_sh*Gamma_sh)
+        gamma_bm = Gamma_sh/dsqrt(two*chi_loc)
+        chi_radius_dst(I_chi) = R_loc*radius_ratio
+        chi_gamma_dst(I_chi) = max(one,gamma_bm)
+        chi_weight_dst(I_chi) = dst_weight
+        do I_nu = 1, Num_nu
+            weighted_p = zero
+            weighted_seed = zero
+            weighted_tau = zero
+            do K = 1, Num_chi
+                src_lo = dlog10(chi_face_src(K-1))
+                src_hi = dlog10(chi_face_src(K))
+                overlap = min(dst_hi,src_hi)-max(dst_lo,src_lo)
+                if (overlap > zero) then
+                    overlap_lo = max(dst_lo,src_lo)
+                    overlap_hi = min(dst_hi,src_hi)
+                    src_weight = ten**src_hi - ten**src_lo
+                    overlap_weight = ten**overlap_hi - ten**overlap_lo
+                    weighted_p = weighted_p + P_src(I_nu,K)*overlap_weight
+                    weighted_seed = weighted_seed + Seed_src(I_nu,K)*overlap_weight
+                    weighted_tau = weighted_tau + Tau_src(I_nu,K)*overlap_weight/src_weight
+                end if
+            end do
+            P_dst(I_nu,I_chi) = weighted_p/dst_weight
+            Seed_dst(I_nu,I_chi) = weighted_seed/dst_weight
+            Tau_dst(I_nu,I_chi) = weighted_tau
+        end do
+    end do
+end subroutine remap_chi_projection_shell

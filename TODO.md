@@ -17,7 +17,7 @@
 
 ### 1. 2D / chi-resolved hadronic transport
 
-当前 formal hadronic path 保持 1D shell 契约。暂不实现 2D / chi-resolved hadronic transport，直到 chi-local photon field、hadron density、secondary feedback 和 observer projection 的物理契约完成。决策记录见 `doc/hadronic_chi_transport_decision.md`。
+当前 formal hadronic path 保持 1D shell 契约。FS synchrotron + SSA 已有 `geometry_kernel="chi_eats_2d"` 的 chi-resolved observer projection；hadronic 仍暂不实现 2D / chi-resolved transport，直到 chi-local photon field、hadron density、secondary feedback 和 hadronic observer projection 的物理契约完成。决策记录见 `doc/hadronic_chi_transport_decision.md`。
 
 ### 2. IC-mediated electromagnetic cascade
 

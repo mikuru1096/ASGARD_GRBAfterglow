@@ -370,7 +370,22 @@ def solve_electron(
     if solver_name == "charint_2d":
         electron_charint_2d_module = _electron_module(solver_name)
         num_chi = _resolve_num_chi(config, solver_name)
-        gam_e, d_n_gam_e_chi, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = electron_charint_2d_module.fs_electron_transport_2d_core(
+        (
+            gam_e,
+            d_n_gam_e_chi,
+            d_n_gam_e,
+            l_syn_spec,
+            seed_syn,
+            nu_m,
+            nu_c,
+            nu_a,
+            l_syn_spec_chi,
+            seed_syn_chi,
+            tau_syn_chi,
+            chi_radius_cm,
+            chi_gamma_bulk,
+            chi_dvolume_weight,
+        ) = electron_charint_2d_module.fs_electron_transport_2d_core(
             boundary,
             dynamics.r_tobs,
             dynamics.r_gamma,
@@ -397,6 +412,12 @@ def solve_electron(
             nu_a,
             d_n_gam_e_chi=d_n_gam_e_chi,
             chi_grid=chi_grid,
+            l_syn_spec_chi=l_syn_spec_chi,
+            seed_syn_chi=seed_syn_chi,
+            tau_syn_chi=tau_syn_chi,
+            chi_radius_cm=chi_radius_cm,
+            chi_gamma_bulk=chi_gamma_bulk,
+            chi_dvolume_weight=chi_dvolume_weight,
         )
         if return_report:
             return solution, _solver_report(
@@ -411,7 +432,22 @@ def solve_electron(
     if solver_name == "fullhide_2d":
         electron_fullhide_2d_module = _electron_module(solver_name)
         num_chi = _resolve_num_chi(config, solver_name)
-        gam_e, d_n_gam_e_chi, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = electron_fullhide_2d_module.fs_electron_transport_2d_core(
+        (
+            gam_e,
+            d_n_gam_e_chi,
+            d_n_gam_e,
+            l_syn_spec,
+            seed_syn,
+            nu_m,
+            nu_c,
+            nu_a,
+            l_syn_spec_chi,
+            seed_syn_chi,
+            tau_syn_chi,
+            chi_radius_cm,
+            chi_gamma_bulk,
+            chi_dvolume_weight,
+        ) = electron_fullhide_2d_module.fs_electron_transport_2d_core(
             boundary,
             dynamics.r_tobs,
             dynamics.r_gamma,
@@ -438,6 +474,12 @@ def solve_electron(
             nu_a,
             d_n_gam_e_chi=d_n_gam_e_chi,
             chi_grid=chi_grid,
+            l_syn_spec_chi=l_syn_spec_chi,
+            seed_syn_chi=seed_syn_chi,
+            tau_syn_chi=tau_syn_chi,
+            chi_radius_cm=chi_radius_cm,
+            chi_gamma_bulk=chi_gamma_bulk,
+            chi_dvolume_weight=chi_dvolume_weight,
         )
         if return_report:
             return solution, _solver_report(
@@ -624,6 +666,12 @@ def _build_electron_solution(
     *,
     d_n_gam_e_chi: np.ndarray | None = None,
     chi_grid: np.ndarray | None = None,
+    l_syn_spec_chi: np.ndarray | None = None,
+    seed_syn_chi: np.ndarray | None = None,
+    tau_syn_chi: np.ndarray | None = None,
+    chi_radius_cm: np.ndarray | None = None,
+    chi_gamma_bulk: np.ndarray | None = None,
+    chi_dvolume_weight: np.ndarray | None = None,
 ) -> ElectronSolution:
     cooling_timescale_s, dynamical_timescale_s = _compute_forward_timescales(
         dynamics.r_gamma,
@@ -642,6 +690,12 @@ def _build_electron_solution(
         d_n_gam_e_bh=None,
         d_n_gam_e_chi=None if d_n_gam_e_chi is None else np.asarray(d_n_gam_e_chi, dtype=float),
         chi_grid=None if chi_grid is None else np.asarray(chi_grid, dtype=float),
+        l_syn_spec_chi=None if l_syn_spec_chi is None else np.asarray(l_syn_spec_chi, dtype=float),
+        seed_syn_chi=None if seed_syn_chi is None else np.asarray(seed_syn_chi, dtype=float),
+        tau_syn_chi=None if tau_syn_chi is None else np.asarray(tau_syn_chi, dtype=float),
+        chi_radius_cm=None if chi_radius_cm is None else np.asarray(chi_radius_cm, dtype=float),
+        chi_gamma_bulk=None if chi_gamma_bulk is None else np.asarray(chi_gamma_bulk, dtype=float),
+        chi_dvolume_weight=None if chi_dvolume_weight is None else np.asarray(chi_dvolume_weight, dtype=float),
         cooling_timescale_s=cooling_timescale_s,
         dynamical_timescale_s=dynamical_timescale_s,
     )

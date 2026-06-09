@@ -129,6 +129,22 @@ Runtime breakdown：
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python scripts/benchmarks/runtime_breakdown_benchmark.py'
 ```
 
+2D chi-resolved EATS：
+
+```bash
+rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python scripts/benchmarks/chi_eats_2d_benchmark.py --mode quick --solver fullhide_2d --medium both --only all'
+```
+
+该 benchmark 使用 `num_chi=24`、`num_r=300`、`num_theta=300`、偏轴 `num_phi=50`，对轴 `num_phi=1`；观测时间覆盖 `1e2-1e9 s`，SED 频段覆盖 `1e6-1e28 Hz`。典型余辉参数为 `E_iso=1e53 erg`、`Gamma0=300`、`epsilon_e=0.1`、`epsilon_B=1e-3`、`epsilon_B_floor=epsilon_B`、`magnetic_decay_alpha_t=0`、`p=2.3`、`theta_j=0.1`、`z=0.1`；2D 壳层内部磁场在每个 shell 内为常数，不使用 χ 方向的特殊磁场剖面。输出 `output/asgard_doc/chi_eats_2d_benchmark/` 下 ISM (`n=1 cm^-3`) 和纯 wind (`A*=0.1`, `n_ism=1e-15 cm^-3`) 两组条件的 `fullhide_2d` 总通量 `chi_eats_2d` vs `sed_legacy` light curve/SED、χ 几何诊断图、2D/1D SED 对比图，以及 top-hat `theta_v/theta_j = 0, 0.5, 1, 1.5, 3, 5` 光变对比图。总通量包含现有 shell-level forward SSC；`chi_eats_2d` 一期只替换 FS synchrotron+SSA observer projection。偏轴 EATS 禁止使用 `num_phi=1`，因为 `num_phi=1` 是仅适用于 `theta_v=0` 的轴对称 φ 折叠。
+
+ISM χ grid convergence scan：
+
+```bash
+rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python scripts/benchmarks/chi_eats_2d_benchmark.py --mode quick --solver fullhide_2d --medium ism --only chi-grid-scan'
+```
+
+该扫描固定 ISM、`theta_v/theta_j=0.5` 和 `fullhide_2d + chi_eats_2d`，使用半网格 `num_gam_e=16`、`num_nu=21`、`num_r=150`、`num_theta=150`、`num_phi=25`、`num_tobs=64`，比较 `num_chi=32,64,128,256,512`；runtime 计时前先执行一次不入图的 `num_chi=32` warm-up。输出 `fullhide_2d_ism_chi_grid_scan.png/pdf`，并写出 `chi_grid_scan_ism_summary.csv`、`chi_grid_scan_ism_lightcurves.csv` 和 `chi_grid_scan_ism_metadata.json`。
+
 ## 产物策略
 
 可以提交：
@@ -154,6 +170,8 @@ Forward-shock：
 - Light curves 应平滑，除非物理 density jump 或 injection event 产生已记录特征。
 - Characteristic frequencies 应连续演化。
 - SSA breaks 不应出现 grid-cell discontinuity。
+- `geometry_kernel="chi_eats_2d"` 只验收 FS synchrotron+SSA；图中 forward SSC 仍是 shell-level 总通量贡献。Projection χ 网格必须跟随当前 shell 的有效 BM 厚度自适应，transport-to-projection χ remap 必须保守 `sum(P*Delta chi)` 和 `sum(tau)`，SSA survival 必须按 emitting cell 的 optical-depth coordinate 平均。图中不得出现由负半径、负通量、孤立尖峰或全部 `chi_dvolume_weight` 同时归零造成的光变断崖。2D/1D SED 与 top-hat 角度扫描允许离轴情况下出现 order-unity 以上差异，但光变和频谱方向应保持连续。
+- ISM χ grid convergence scan 中 `num_chi=512` 是参考曲线；`F_chi/F_512` 的时间演化应连续，不允许用 smoothing 或显示裁剪掩盖孤立尖峰。
 
 Reverse-shock：
 

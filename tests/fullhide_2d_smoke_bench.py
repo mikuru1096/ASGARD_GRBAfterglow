@@ -13,6 +13,7 @@ if str(ROOT) not in sys.path:
 from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet
 from asgard_core.asgard_config import FitConfig
 from asgard_core.asgard_state import solve_state
+from src import Interpolation
 from tests._bench_common import run_case
 
 
@@ -43,8 +44,14 @@ def _build_model(solver: str) -> Model:
     )
 
 
+def _build_model_with_geometry(solver: str, geometry_kernel: str) -> Model:
+    model = _build_model(solver)
+    model.setups.geometry_kernel = geometry_kernel
+    return model
+
+
 def case_basic_smoke():
-    model = _build_model("charint_2d")
+    model = _build_model("fullhide_2d")
     flux = model.flux_density(np.array([1.0e4]), np.array([1.0e14])).total
     assert flux.shape == (1,)
     assert np.all(np.isfinite(flux))
@@ -54,7 +61,7 @@ def case_basic_smoke():
 def case_electron_grid():
     state = solve_state(
         FitConfig(
-            electron_solver="charint_2d",
+            electron_solver="fullhide_2d",
             num_gam_e=NUM_GAM_E,
             num_chi=NUM_CHI,
             num_nu=NUM_NU,
@@ -68,6 +75,12 @@ def case_electron_grid():
     chi_grid = np.asarray(electron.chi_grid, dtype=float)
     d_n_gam_e_chi = np.asarray(electron.d_n_gam_e_chi, dtype=float)
     d_n_gam_e = np.asarray(electron.d_n_gam_e, dtype=float)
+    l_syn_spec_chi = np.asarray(electron.l_syn_spec_chi, dtype=float)
+    seed_syn_chi = np.asarray(electron.seed_syn_chi, dtype=float)
+    tau_syn_chi = np.asarray(electron.tau_syn_chi, dtype=float)
+    chi_radius_cm = np.asarray(electron.chi_radius_cm, dtype=float)
+    chi_gamma_bulk = np.asarray(electron.chi_gamma_bulk, dtype=float)
+    chi_dvolume_weight = np.asarray(electron.chi_dvolume_weight, dtype=float)
 
     assert chi_grid.ndim == 1
     assert chi_grid.shape == (NUM_CHI,)
@@ -78,18 +91,174 @@ def case_electron_grid():
     assert d_n_gam_e_chi.shape[1] == NUM_CHI
     assert d_n_gam_e_chi.shape[2] == d_n_gam_e.shape[1]
     assert np.all(np.isfinite(d_n_gam_e_chi))
+    assert l_syn_spec_chi.shape == (NUM_NU, NUM_CHI, d_n_gam_e.shape[1])
+    assert seed_syn_chi.shape == l_syn_spec_chi.shape
+    assert tau_syn_chi.shape == l_syn_spec_chi.shape
+    assert chi_radius_cm.shape == (NUM_CHI, d_n_gam_e.shape[1])
+    assert chi_gamma_bulk.shape == chi_radius_cm.shape
+    assert chi_dvolume_weight.shape == chi_radius_cm.shape
+    assert np.all(np.isfinite(l_syn_spec_chi))
+    assert np.all(np.isfinite(seed_syn_chi))
+    assert np.all(np.isfinite(tau_syn_chi))
+    assert np.all(np.isfinite(chi_radius_cm))
+    assert np.all(np.isfinite(chi_gamma_bulk))
+    assert np.all(np.isfinite(chi_dvolume_weight))
 
     return {
         "chi_shape": list(chi_grid.shape),
         "d_n_gam_e_chi_shape": list(d_n_gam_e_chi.shape),
         "d_n_gam_e_shape": list(d_n_gam_e.shape),
+        "l_syn_spec_chi_shape": list(l_syn_spec_chi.shape),
     }
+
+
+def case_chi_eats_geometry_smoke():
+    model = _build_model_with_geometry("fullhide_2d", "chi_eats_2d")
+    flux = model.flux_density(np.array([1.0e4]), np.array([1.0e14])).total
+    assert flux.shape == (1,)
+    assert np.all(np.isfinite(flux))
+    return {"flux_shape": list(flux.shape), "flux": float(flux[0])}
+
+
+def case_chi_eats_rejects_1d_solver():
+    model = _build_model_with_geometry("fullhide_1d", "chi_eats_2d")
+    try:
+        model.flux_density(np.array([1.0e4]), np.array([1.0e14]))
+    except ValueError as exc:
+        assert "requires a 2d electron solver" in str(exc)
+        return {"error": str(exc)}
+    raise AssertionError("chi_eats_2d accepted a 1d electron solver")
+
+
+def case_off_axis_phi_collapse_rejected():
+    model = _build_model_with_geometry("fullhide_2d", "chi_eats_2d")
+    model.observer.theta_obs = 0.03
+    model.setups.num_phi = 1
+    try:
+        model.flux_density(np.array([1.0e4]), np.array([1.0e14]))
+    except ValueError as exc:
+        assert "off-axis EATS projection requires num_phi >= 2" in str(exc)
+        return {"error": str(exc)}
+    raise AssertionError("off-axis EATS projection accepted num_phi=1")
+
+
+def case_on_axis_phi_collapse_matches_explicit_phi():
+    boundary = np.zeros(30, dtype=float)
+    boundary[0] = 300.0
+    boundary[3] = 1.0e15
+    boundary[7] = 0.1
+    boundary[8] = 0.1
+    boundary[9] = 0.0
+    radius = np.geomspace(1.0e16, 1.0e18, 16)
+    gamma = np.geomspace(200.0, 20.0, radius.size)
+    r_tobs = (1.0 + boundary[7]) * radius / (2.0 * gamma**2) / 2.99792458e10
+    seed = np.geomspace(1.0e8, 1.0e20, 16)
+    obs = np.array([1.0e14])
+    tobs = np.geomspace(r_tobs[2], r_tobs[-2], 12)
+    source = (seed[:, None] / 1.0e12) ** 0.3 * (radius[None, :] / radius[0]) ** -1.1
+    collapsed = Interpolation.sed_interpolation(boundary, r_tobs, gamma, radius, source, seed, obs, tobs, 24, 1, 1)
+    explicit = Interpolation.sed_interpolation(boundary, r_tobs, gamma, radius, source, seed, obs, tobs, 24, 24, 1)
+    np.testing.assert_allclose(collapsed, explicit, rtol=1.0e-12, atol=1.0e-12)
+    return {"collapsed_sum": float(np.sum(collapsed)), "explicit_sum": float(np.sum(explicit))}
+
+
+def case_chi_ssa_cell_split_invariance():
+    boundary = np.zeros(30, dtype=float)
+    boundary[0] = 100.0
+    boundary[3] = 1.0e15
+    boundary[7] = 0.0
+    boundary[8] = 0.1
+    boundary[9] = 0.0
+    radius = np.linspace(1.0e16, 1.3e16, 4)
+    r_tobs = np.linspace(1.0e2, 4.0e2, radius.size)
+    theta_center = 0.5 * boundary[8]
+    arrival = r_tobs + (radius - radius * np.cos(theta_center)) / 2.99792458e10
+    seed = np.geomspace(1.0e6, 1.0e20, 64)
+    obs = np.array([1.0e10])
+    tobs = np.array([0.5 * (arrival[1] + arrival[2])])
+    values = []
+    for num_chi in (1, 2, 4, 8):
+        source = np.ones((seed.size, num_chi, radius.size), dtype=float) / float(num_chi)
+        tau = np.ones_like(source) * (2.0 / float(num_chi))
+        r_chi = np.tile(radius, (num_chi, 1))
+        gamma_chi = np.full((num_chi, radius.size), 30.0)
+        chi_weight = np.ones((num_chi, radius.size), dtype=float)
+        flux = Interpolation.sed_interpolation_chi(
+            boundary,
+            r_tobs,
+            radius,
+            source,
+            tau,
+            r_chi,
+            gamma_chi,
+            chi_weight,
+            seed,
+            obs,
+            tobs,
+            1,
+            1,
+            1,
+        )
+        values.append(float(flux[0, 0]))
+    np.testing.assert_allclose(values, values[-1], rtol=1.0e-12, atol=1.0e-12)
+    return {"flux_by_num_chi": values}
+
+
+def case_chi_ssa_nonuniform_tau_matches_manual():
+    boundary = np.ones(24, dtype=float)
+    boundary[7] = 0.0
+    boundary[9] = 0.0
+    gamma = 12.0
+    beta = np.sqrt(1.0 - gamma**-2)
+    doppler_den = gamma * (1.0 - beta)
+    radius = np.array([1.0e15, 1.2e15], dtype=float)
+    r_tobs = np.array([1.0, 3.0], dtype=float)
+    seed = np.array([1.0e9, 1.0e10, 1.0e11], dtype=float)
+    observed = np.array([seed[1] / doppler_den], dtype=float)
+    tobs = np.array([2.0], dtype=float)
+    d_omega = 1.0e-4
+    tau_profile = np.array([0.1, 1.3, 0.4, 2.2], dtype=float)
+    num_chi = tau_profile.size
+    source = np.ones((seed.size, num_chi, radius.size), dtype=float)
+    tau = np.repeat(tau_profile[None, :, None], seed.size, axis=0)
+    tau = np.repeat(tau, radius.size, axis=2)
+    r_chi = np.tile(radius, (num_chi, 1))
+    gamma_chi = np.full((num_chi, radius.size), gamma)
+    chi_weight = np.full((num_chi, radius.size), 1.0 / num_chi)
+    flux = Interpolation.sed_interpolation_chi_surface_element(
+        boundary,
+        r_tobs,
+        radius,
+        source,
+        tau,
+        r_chi,
+        gamma_chi,
+        chi_weight,
+        seed,
+        observed,
+        tobs,
+        d_omega,
+    )
+    front_tau = 0.0
+    escaped = 0.0
+    for tau_cell in tau_profile:
+        escaped += (1.0 / num_chi) * np.exp(-front_tau) * (1.0 - np.exp(-tau_cell)) / tau_cell
+        front_tau += tau_cell
+    expected = escaped * d_omega / (4.0 * np.pi) * doppler_den**-3
+    np.testing.assert_allclose(flux[0, 0], expected, rtol=1.0e-12, atol=0.0)
+    return {"flux": float(flux[0, 0]), "expected": float(expected)}
 
 
 def main() -> None:
     results = [
-        run_case("[1/2] charint_2d:basic_smoke", case_basic_smoke),
-        run_case("[2/2] charint_2d:electron_grid", case_electron_grid),
+        run_case("[1/8] fullhide_2d:basic_smoke", case_basic_smoke),
+        run_case("[2/8] fullhide_2d:electron_grid", case_electron_grid),
+        run_case("[3/8] fullhide_2d:chi_eats_geometry", case_chi_eats_geometry_smoke),
+        run_case("[4/8] chi_eats_2d:rejects_1d_solver", case_chi_eats_rejects_1d_solver),
+        run_case("[5/8] eats:rejects_off_axis_phi_collapse", case_off_axis_phi_collapse_rejected),
+        run_case("[6/8] eats:on_axis_phi_collapse", case_on_axis_phi_collapse_matches_explicit_phi),
+        run_case("[7/8] chi_eats_2d:ssa_cell_split_invariance", case_chi_ssa_cell_split_invariance),
+        run_case("[8/8] chi_eats_2d:ssa_nonuniform_tau", case_chi_ssa_nonuniform_tau_matches_manual),
     ]
 
     failed = [item for item in results if item["status"] == "FAIL"]

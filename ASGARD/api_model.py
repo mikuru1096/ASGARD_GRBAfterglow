@@ -500,6 +500,14 @@ class CharTrack:
     gamma_e: Optional[np.ndarray] = None
     dN_dgamma_e: Optional[np.ndarray] = None
     dN_dgamma_e_bh: Optional[np.ndarray] = None
+    dN_dgamma_e_chi: Optional[np.ndarray] = None
+    chi_grid: Optional[np.ndarray] = None
+    l_syn_spec_chi: Optional[np.ndarray] = None
+    seed_syn_chi: Optional[np.ndarray] = None
+    tau_syn_chi: Optional[np.ndarray] = None
+    chi_radius_cm: Optional[np.ndarray] = None
+    chi_gamma_bulk: Optional[np.ndarray] = None
+    chi_dvolume_weight: Optional[np.ndarray] = None
     gamma_p: Optional[np.ndarray] = None
     dN_dgamma_p: Optional[np.ndarray] = None
     gamma_secondary: Optional[np.ndarray] = None

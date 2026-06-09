@@ -38,7 +38,7 @@ from asgard_core.asgard_runtime import (
 )
 from asgard_core.asgard_ssc import compute_forward_ssc_seed_adaptive, compute_ssc_auxiliary_grid
 from asgard_core.asgard_setup import build_simulation_setup
-from src import Radiation, constants
+from src import Interpolation, Radiation, constants
 
 
 _ELECTRON_MASS_GEV = constants.para_m_e_gev
@@ -393,20 +393,126 @@ def project_flux_grid(
     mode: str = "full_components",
 ) -> ObsState:
     setup = _build_observer_setup_from_state(state, observer_time_s)
-    observed = observe_components_from_setup(
-        state.config,
-        state.components,
-        setup,
-        frequencies_hz,
-        timings=timings,
-        mode=mode,
-    )
+    if _uses_chi_eats_2d(state.config):
+        observed = _observe_components_chi_eats_2d(state, setup, frequencies_hz, timings=timings, mode=mode)
+    else:
+        observed = observe_components_from_setup(
+            state.config,
+            state.components,
+            setup,
+            frequencies_hz,
+            timings=timings,
+            mode=mode,
+        )
     return ObsState(
         state=state,
         setup=setup,
         frequencies_hz=np.asarray(frequencies_hz, dtype=float),
         components=observed,
     )
+
+
+def _uses_chi_eats_2d(config: FitConfig) -> bool:
+    return str(config.geometry_kernel).lower() == "chi_eats_2d"
+
+
+def _require_chi_eats_electron_state(state: SolveState) -> None:
+    if not str(state.config.electron_solver).lower().endswith("_2d"):
+        raise ValueError("geometry_kernel='chi_eats_2d' requires a 2d electron solver.")
+    missing = [
+        name
+        for name in (
+            "l_syn_spec_chi",
+            "tau_syn_chi",
+            "chi_radius_cm",
+            "chi_gamma_bulk",
+            "chi_dvolume_weight",
+        )
+        if getattr(state.electron, name) is None
+    ]
+    if missing:
+        raise RuntimeError("chi_eats_2d electron state is missing: " + ", ".join(missing))
+
+
+def _require_top_hat_phi_grid(config: FitConfig) -> None:
+    if float(config.theta_v) != 0.0 and int(config.num_phi) == 1:
+        raise ValueError("off-axis EATS projection requires num_phi >= 2; num_phi=1 is only valid for on-axis axial collapse.")
+
+
+def _project_chi_fwd_sync(
+    state: SolveState,
+    setup,
+    frequencies_hz: np.ndarray,
+    timings: Optional[dict[str, float]],
+) -> np.ndarray:
+    _require_chi_eats_electron_state(state)
+    _require_top_hat_phi_grid(state.config)
+    frequencies_hz = np.asarray(frequencies_hz, dtype=float)
+    order = np.argsort(frequencies_hz)
+    sorted_frequencies = frequencies_hz[order]
+    source_chi = np.asarray(state.electron.l_syn_spec_chi, dtype=float) * np.asarray(state.observer.prefactor, dtype=float)[:, None, :]
+    flux_sorted = _timed_call(
+        timings,
+        "Interpolation.sed_interpolation_chi [fwd_sync]",
+        Interpolation.sed_interpolation_chi,
+        setup.boundary,
+        state.components.fwd.characteristic_time_s,
+        state.components.fwd.radius_cm,
+        source_chi,
+        np.asarray(state.electron.tau_syn_chi, dtype=float),
+        np.asarray(state.electron.chi_radius_cm, dtype=float),
+        np.asarray(state.electron.chi_gamma_bulk, dtype=float),
+        np.asarray(state.electron.chi_dvolume_weight, dtype=float),
+        setup.seed_frequency_hz,
+        sorted_frequencies,
+        setup.observer_time_s,
+        state.config.num_theta,
+        state.config.num_phi,
+        state.config.num_threads,
+    )
+    if np.array_equal(order, np.arange(order.shape[0])):
+        return flux_sorted
+    flux_matrix = np.empty_like(flux_sorted)
+    flux_matrix[order] = flux_sorted
+    return flux_matrix
+
+
+def _observe_components_chi_eats_2d(
+    state: SolveState,
+    setup,
+    frequencies_hz: np.ndarray,
+    timings: Optional[dict[str, float]],
+    mode: str,
+) -> dict[str, np.ndarray | None]:
+    observed = observe_components_from_setup(
+        state.config,
+        state.components,
+        setup,
+        frequencies_hz,
+        timings=timings,
+        mode="full_components",
+    )
+    observed["fwd_sync"] = _project_chi_fwd_sync(state, setup, frequencies_hz, timings)
+    observed["total"] = sum(
+        (value for key, value in observed.items() if key != "total" and value is not None),
+        start=np.zeros_like(observed["fwd_sync"]),
+    )
+    if mode == "total_only":
+        return {
+            "total": observed["total"],
+            "fwd_sync": None,
+            "fwd_ssc": None,
+            "fwd_hadronic": None,
+            "fwd_hadronic_bethe_heitler": None,
+            "fwd_hadronic_inverse_compton": None,
+            "fwd_hadronic_pair_production": None,
+            "rev_sync": None,
+            "rev_ssc": None,
+            "cross_ic": None,
+        }
+    if mode != "full_components":
+        raise ValueError(f"Unsupported observe mode: {mode}")
+    return observed
 
 
 def observe_components(
@@ -1098,6 +1204,12 @@ def _merge_bh_into_forward_electrons(
         d_n_gam_e_bh=bh_distribution,
         d_n_gam_e_chi=None if electron.d_n_gam_e_chi is None else np.asarray(electron.d_n_gam_e_chi, dtype=float),
         chi_grid=None if electron.chi_grid is None else np.asarray(electron.chi_grid, dtype=float),
+        l_syn_spec_chi=None if electron.l_syn_spec_chi is None else np.asarray(electron.l_syn_spec_chi, dtype=float),
+        seed_syn_chi=None if electron.seed_syn_chi is None else np.asarray(electron.seed_syn_chi, dtype=float),
+        tau_syn_chi=None if electron.tau_syn_chi is None else np.asarray(electron.tau_syn_chi, dtype=float),
+        chi_radius_cm=None if electron.chi_radius_cm is None else np.asarray(electron.chi_radius_cm, dtype=float),
+        chi_gamma_bulk=None if electron.chi_gamma_bulk is None else np.asarray(electron.chi_gamma_bulk, dtype=float),
+        chi_dvolume_weight=None if electron.chi_dvolume_weight is None else np.asarray(electron.chi_dvolume_weight, dtype=float),
         cooling_timescale_s=None if electron.cooling_timescale_s is None else np.asarray(electron.cooling_timescale_s, dtype=float),
         dynamical_timescale_s=None if electron.dynamical_timescale_s is None else np.asarray(electron.dynamical_timescale_s, dtype=float),
         work_x_edge_log10=None if electron.work_x_edge_log10 is None else np.asarray(electron.work_x_edge_log10, dtype=float),
@@ -1172,6 +1284,7 @@ def _project_component(
         if timings is not None and label is not None:
             timings.setdefault(label, 0.0)
         return np.zeros((frequencies_hz.shape[0], setup.observer_time_s.shape[0]), dtype=float)
+    _require_top_hat_phi_grid(config)
     return _timed_call(
         timings,
         label,
