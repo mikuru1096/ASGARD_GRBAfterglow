@@ -1,6 +1,6 @@
 # ASGARD 代码规模统计
 
-统计时间戳：2026-06-08 19:38:31 CST
+统计时间戳：2026-06-10 CST
 
 ## 统计口径
 
@@ -13,8 +13,8 @@
 
 | 指标 | 文件数 | 行数 |
 | --- | ---: | ---: |
-| 项目总代码 | 173 | 39,588 |
-| `src/` Fortran 核代码 | 86 | 19,770 |
+| 项目总代码 | 179 | 44,260 |
+| `src/` Fortran 核代码 | 87 | 21,386 |
 
 ## Fortran 核分目录
 
@@ -22,17 +22,17 @@
 | --- | ---: | ---: |
 | `src` | 1 | 69 |
 | `src/Dynamics` | 3 | 1,007 |
-| `src/Electron` | 17 | 6,968 |
+| `src/Electron` | 18 | 8,258 |
 | `src/Electron/slatec` | 37 | 5,647 |
 | `src/Hadronic` | 18 | 4,325 |
-| `src/Interpolation` | 3 | 396 |
+| `src/Interpolation` | 3 | 722 |
 | `src/Radiation` | 6 | 1,027 |
 | `src/Structured` | 1 | 331 |
 
 ## 本次统计命令
 
 ```bash
-rtk wsl -e bash -c 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && python3 - <<'"'"'PY'"'"'
+rtk wsl -e bash -c 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python - <<'"'"'PY'"'"'
 from pathlib import Path
 import subprocess
 

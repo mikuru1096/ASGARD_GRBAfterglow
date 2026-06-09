@@ -53,6 +53,7 @@ ASGARD 当前主线是 GRB afterglow 的 shell-evolving blast-wave + observer pr
 - Forward-shock dynamics、电子输运、synchrotron、SSC、SSA、gamma-gamma absorption、observer projection。
 - 1D 电子求解器：`fullhide_1d`, `slc1_1d`, `charint_1d`, `t2g1_1d`, `weno5_1d`。
 - 2D 电子求解器：`fullhide_2d`, `charint_2d`。
+- `chi_eats_2d` observer projection：FS synchrotron+SSA 使用 χ 分辨有限厚壳层；`projection_kind="lightcurve"` 走专用光变投影，`projection_kind="sed"` 走通用 SED 插值器。
 - Reverse shock electron synchrotron、RS SSC、FS/RS cross-zone IC。
 - Reverse shock thermal/magnetized baseline：使用 shock-front `gamma34` 注入能标、显式 `U3/V3` thermal state、可选 upstream `sigma` 和 ordered magnetic component。
 - Forward-shock hadronic `legacy_1d` 与 formal `am3_1d` research path。

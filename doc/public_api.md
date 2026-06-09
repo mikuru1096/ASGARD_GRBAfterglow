@@ -165,14 +165,21 @@ model = Model(jet=jet, medium=medium, observer=observer, fwd_rad=fwd_rad, rvs_ra
 
 主要方法：
 
-- `flux_density_grid(times_s, nu_hz)`：完整二维网格投影，输出 `total` 形状为 `(num_nu, num_time)`。
-- `flux_density(times_s, nu_hz)`：点对投影，适合 matched `(time_i, nu_i)` 数组。
+- `flux_density_grid(times_s, nu_hz, projection_kind="lightcurve")`：完整二维网格投影，输出 `total` 形状为 `(num_nu, num_time)`。
+- `flux_density(times_s, nu_hz, projection_kind="lightcurve")`：点对投影，适合 matched `(time_i, nu_i)` 数组。
 - `flux_density_exposures(times_s, nu_hz, exposures_s, num_subsamples=4)`：曝光平均 flux density。
-- `spectrum(time_s, nu_hz)`：单时刻谱。
-- `flux(time_s, nu_min_hz, nu_max_hz, num_points=64)`：频段积分 flux。
+- `spectrum(time_s, nu_hz, projection_kind="sed")`：单时刻谱。
+- `flux(time_s, nu_min_hz, nu_max_hz, num_points=64, projection_kind="sed")`：频段积分 flux。
 - `sky_image(t_obs, nu_obs, fov, npixel=128)`：观测者平面天图。
 - `polarization(times_s, nu_hz, magnetic_geometry="shock_random", local_emissivity="analytic_then_kernel")`：同步辐射 Stokes 和偏振诊断。
 - `details(t_min=None, t_max=None)`：内部动力学、电子、强子和观测者诊断状态。
+
+`projection_kind` 只接受：
+
+- `"lightcurve"`：光变、拟合和多频段时间序列默认路径。对 `geometry_kernel="chi_eats_2d"`，FS synchrotron+SSA 使用 χ 分辨专用 EATS 投影；非 χ 分量保持 shell-level projection。
+- `"sed"`：固定时刻扫频率和频段积分默认路径。该路径使用通用 shell SED 插值器，避免为 SED-only 图走光变专用投影热路。
+
+`geometry_kernel="chi_eats_2d"` 是 opt-in 几何核，只支持 2D electron solver。它当前只使 FS synchrotron+SSA 的 lightcurve projection 使用 χ 分辨有限厚壳层；SSC、hadronic 和 pair cascade 仍保持 shell-level contract。
 
 ## `Fitter`
 

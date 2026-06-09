@@ -5,7 +5,7 @@
 ## 1. 公开 API
 
 - `ASGARD/api_model.py`：`Model`, `Medium`, `JetProfile`, `ISM`, `Wind`, `TophatJet`, `GaussianJet`, `PowerLawJet`, `TwoComponentJet`, `StepPowerLawJet`, `Ejecta`, `Observer`, `Radiation`, `Setups`。`ISM/Wind` 与 named jet constructors 是 factory-style public constructors，返回带 `kind` 标记的 `Medium` / `JetProfile`。
-- `Model.flux_density_grid(times_s, nu_hz)`, `flux_density(times_s, nu_hz)`, `spectrum(time_s, nu_hz)`, `flux(time_s, nu_min, nu_max)`, `sky_image(t_obs, nu_obs, fov)`, `details()`。
+- `Model.flux_density_grid(times_s, nu_hz, projection_kind="lightcurve")`, `flux_density(times_s, nu_hz, projection_kind="lightcurve")`, `spectrum(time_s, nu_hz, projection_kind="sed")`, `flux(time_s, nu_min, nu_max, projection_kind="sed")`, `sky_image(t_obs, nu_obs, fov)`, `details()`。
 - `Model.polarization(times_s, nu_hz, magnetic_geometry=..., local_emissivity=...)`。
 - Hadronic public switches：`Radiation.pair_production`, `Radiation.pg`, `Radiation.bethe_heitler`, `Radiation.pp`, `Radiation.neutrino`, `Radiation.reverse_epsilon_p`；cascade substeps 使用 `Setups.pair_cascade_iterations`。
 - Reverse-shock magnetization switch：`ReverseShockConfig.sigma` / `Setups.reverse_sigma`。
@@ -23,7 +23,7 @@ Model / observe / run_fit
   -> solve_dynamics -> solve_electron -> photon_field_stage
   -> solve_hadronic -> solve_reverse_shock_emission
   -> observer assembly -> Radiation.annihilation
-  -> Interpolation.sed_interpolation -> API result
+  -> project_flux_grid -> Interpolation.sed_interpolation[_chi] -> API result
 ```
 
 核心状态对象位于 `asgard_core/asgard_types.py`：
@@ -42,6 +42,7 @@ Model / observe / run_fit
 - `_build_photon_field_stage`：复制 electron `seed_syn`；hadronic SSC seed 写入 target field。
 - `_solve_hadronic_stage`：调用 `solve_hadronic`；BH 次级 e± 并入 forward electron 后重算 `l_syn_spec/seed_syn`；pγ photon survival 写回 photon field。
 - `_assemble_observer_stage`：组装 FS synch/SSC、RS synch/SSC、cross-zone IC 和 hadronic components；hadronic photons 使用 electron Fortran kernel 的 SSA transfer。
+- `project_flux_grid`：按 `projection_kind` 选择观测投影。`lightcurve` 是光变/拟合默认路径；在 `geometry_kernel="chi_eats_2d"` 下对 FS synchrotron+SSA 使用 χ 分辨 `sed_interpolation_chi`，并将非 χ 分量保持 shell-level projection。`sed` 是 `spectrum()` / `flux()` 默认路径，使用通用 shell SED 插值器。
 
 拟合最短路径：
 

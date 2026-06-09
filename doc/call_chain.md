@@ -20,9 +20,11 @@ flowchart TD
     K --> L
     J --> L
     G --> L
-    L --> M["project_flux_grid"]
-    M --> N["Interpolation.sed_interpolation\nEATS + Doppler + redshift"]
+    L --> M["project_flux_grid\nprojection_kind"]
+    M --> N["lightcurve:\nInterpolation.sed_interpolation_chi\nfor chi_eats_2d FS synch+SSA"]
+    M --> R["sed / shell components:\nInterpolation.sed_interpolation\nEATS + Doppler + redshift"]
     N --> O["combine_multiband_flux"]
+    R --> O
     O --> P["compute_light_curve_redchi"]
 ```
 
@@ -50,7 +52,8 @@ Model.flux_density_grid
   -> solve_state_from_setup
   -> solve_dynamics -> solve_electron -> photon_field_stage
   -> solve_hadronic -> solve_reverse_shock_emission
-  -> pair-production branch / Radiation.annihilation -> Interpolation.sed_interpolation
+  -> pair-production branch / Radiation.annihilation -> project_flux_grid
+  -> projection_kind="lightcurve" or "sed"
   -> combine_multiband_flux -> FluxResult
 ```
 

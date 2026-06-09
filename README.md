@@ -1,17 +1,18 @@
 # ASGARD：伽马射线暴余辉分析工具
 
-ASGARD 是面向伽马射线暴余辉的数值模拟、辐射计算和拟合工具。代码以 Fortran 数值核为核心，用 Python 提供公开 API、运行编排、观测投影、拟合接口和基准脚本。
+ASGARD 是面向伽马射线暴余辉的数值模拟、辐射计算和拟合工具。代码以 Fortran 数值核为核心，用 Python 提供公开 API、运行编排、观测投影、拟合接口和基准脚本。当前 public API 的默认工作流围绕 `Model`、`Fitter` 和可复现 benchmark 脚本组织。
 
 ASGARD 的目标是从爆波动力学、粒子谱演化和辐射转移出发，直接计算多波段余辉光变、谱、天图、偏振以及强子辐射相关诊断。当前主线覆盖正激波电子同步辐射、SSC、SSA、gamma-gamma 吸收、观测者等到达时间投影；反激波电子辐射、反激波 SSC、FS/RS cross-zone IC；以及正式 1D shell 契约下的强子过程。
 
 ## 主要特性
 
-1. 正激波电子连续性方程的数值 PDE 求解器，包括多个 1D 求解器和已登记的 2D 电子输运路径。
+1. 正激波电子连续性方程的数值 PDE 求解器，包括多个 1D 求解器和已登记的 `fullhide_2d` / `charint_2d` 输运路径。
 2. 自洽同步辐射、SSC、SSA 和 gamma-gamma 衰减。
 3. 反激波电子同步辐射、RS SSC、FS/RS cross-zone IC，以及反激波强子路径。
 4. 正激波强子 `legacy_1d` 与 formal `am3_1d` research path。
 5. 同步辐射偏振 Stokes 投影，覆盖 FS/RS electron synch 与 FS/RS hadronic synch。
-6. `Model` public API、`Fitter` 拟合 API、benchmark/report 脚本和可复现 artifact 协议。
+6. `geometry_kernel="chi_eats_2d"` 的 FS synchrotron+SSA 有限厚壳层观测投影；光变路径使用 χ 分辨专用投影，SED-only 路径可通过 `projection_kind="sed"` 使用通用 SED 插值器。
+7. `Model` public API、`Fitter` 拟合 API、benchmark/report 脚本和可复现 artifact 协议。
 
 ## 文档入口
 
@@ -94,7 +95,9 @@ rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/AS
 
 Public runtime 可用于正激波余辉计算和 benchmark 工作流。反激波使用局部 shock-front `gamma34` 作为新注入电子能标，区域 3 磁场和 crossing 后热演化由显式 `U3/V3` thermal state 闭合。VegasAfterglow 是 comparison backend，不是 ASGARD 的 RS 物理目标。
 
-正激波强子分支当前是正式 1D research path。反激波强子包含 light proton-synch path，并在开启 full-chain 过程时复用正式 1D hadronic kernels 处理 p-gamma、BH、pp、secondary 和 cascade coupling。当前 pair cascade 是 shell-sequence time-dependent gamma-gamma pair/synch cascade；未完成项和 public/backend 边界见 `TODO.md` 与 `doc/public_backend_limits.md`。
+正激波强子分支当前是正式 1D research path。反激波强子包含 light proton-synch path，并在开启 full-chain 过程时复用正式 1D hadronic kernels 处理 p-gamma、BH、pp、secondary 和 cascade coupling。当前 pair cascade 是 shell-sequence time-dependent gamma-gamma pair/synch cascade。
+
+2D χ-EATS 当前只替换 FS synchrotron+SSA 的 observer projection；SSC、hadronic 和 pair cascade 仍是 shell-level contract。`projection_kind="lightcurve"` 是光变/拟合默认路径，复用 χ 分辨专用投影；`projection_kind="sed"` 是 `spectrum()` 和频段积分默认路径，使用通用 shell SED 插值器，适合固定时刻扫频率。最近 quick grid 基准中，`fullhide_2d + chi_eats_2d` 的 solve 约 `1.8-1.9 s`，off-axis warm projection median 约 `0.43 s`，on-axis projection 约 `0.02 s`。未完成项和 public/backend 边界见 `TODO.md` 与 `doc/public_backend_limits.md`。
 
 ## 许可
 

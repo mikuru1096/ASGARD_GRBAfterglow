@@ -39,6 +39,8 @@ print(result.total.shape)
 - `rev.sync`, `rev.ssc`：反激波同步辐射和 SSC。
 - `cross_ic`：FS/RS cross-zone IC；未启用时为 `None`。
 
+默认 `projection_kind="lightcurve"`，适合光变、拟合和多频段时间序列。若启用 `geometry_kernel="chi_eats_2d"`，该路径对 FS synchrotron+SSA 使用 χ 分辨专用 EATS 投影；SSC、hadronic 和 pair cascade 仍保持 shell-level contract。
+
 ## 点对点流量
 
 观测数据若是 `(time_i, frequency_i)` 点对，可使用：
@@ -58,7 +60,7 @@ nu = np.logspace(8, 25, 200)
 sed = model.spectrum(1.0e4, nu)
 ```
 
-`spectrum(time_s, nu_hz)` 是 `flux_density_grid([time_s], nu_hz).total[:, 0]` 的便捷接口。
+`spectrum(time_s, nu_hz)` 是 `projection_kind="sed"` 的便捷接口，等价于 `flux_density_grid([time_s], nu_hz, projection_kind="sed").total[:, 0]`。该路径使用通用 shell SED 插值器，适合固定时刻扫频率；如果需要强制比较光变专用投影，可显式传入 `projection_kind="lightcurve"`。
 
 ## 频段积分流量
 
@@ -66,7 +68,29 @@ sed = model.spectrum(1.0e4, nu)
 band_flux = model.flux(time_s=1.0e4, nu_min_hz=1.0e14, nu_max_hz=1.0e18, num_points=96)
 ```
 
-`flux` 对频率网格积分，适合近似宽能段 flux。若需要严格仪器响应，应在外部使用响应矩阵或带权积分。
+`flux` 对频率网格积分，默认也使用 `projection_kind="sed"`，适合近似宽能段 flux。若需要严格仪器响应，应在外部使用响应矩阵或带权积分。
+
+## 2D χ-EATS 投影
+
+```python
+model = Model(
+    jet=TophatJet(E_iso=1.0e52, Gamma0=300.0, theta_j=0.1),
+    medium=ISM(n_ism=1.0),
+    observer=Observer(z=0.1, theta_obs=0.05),
+    fwd_rad=Radiation(eps_e=0.1, eps_B=1.0e-3, p=2.3, xi_N=0.1, ssc=True),
+    setups=Setups(
+        electron_solver="fullhide_2d",
+        geometry_kernel="chi_eats_2d",
+        num_chi=24,
+        num_phi=30,
+    ),
+)
+
+lc = model.flux_density_grid(times, freqs, projection_kind="lightcurve")
+sed = model.spectrum(1.0e5, np.logspace(8, 25, 200))
+```
+
+`chi_eats_2d` 只改变 FS synchrotron+SSA 的 observer projection。对轴观测可使用轴对称 φ 折叠；偏轴观测必须设置 `num_phi >= 2`。光变默认走 χ 分辨专用投影，单时刻 SED 默认走通用 SED 插值器。
 
 ## 曝光时间平均
 
