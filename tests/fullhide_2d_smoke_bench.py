@@ -103,6 +103,7 @@ def case_electron_grid():
     assert np.all(np.isfinite(chi_radius_cm))
     assert np.all(np.isfinite(chi_gamma_bulk))
     assert np.all(np.isfinite(chi_dvolume_weight))
+    assert np.all(chi_radius_cm > 0.0)
 
     return {
         "chi_shape": list(chi_grid.shape),
@@ -160,6 +161,92 @@ def case_on_axis_phi_collapse_matches_explicit_phi():
     explicit = Interpolation.sed_interpolation(boundary, r_tobs, gamma, radius, source, seed, obs, tobs, 24, 24, 1)
     np.testing.assert_allclose(collapsed, explicit, rtol=1.0e-12, atol=1.0e-12)
     return {"collapsed_sum": float(np.sum(collapsed)), "explicit_sum": float(np.sum(explicit))}
+
+
+def _thin_shell_projection_inputs():
+    boundary = np.zeros(30, dtype=float)
+    boundary[0] = 100.0
+    boundary[3] = 1.0e15
+    boundary[7] = 0.1
+    boundary[8] = 0.08
+    boundary[9] = 0.0
+    radius = np.geomspace(1.0e16, 5.0e17, 40)
+    gamma = np.geomspace(80.0, 12.0, radius.size)
+    r_tobs = (1.0 + boundary[7]) * radius / (2.0 * gamma**2) / 2.99792458e10
+    seed = np.geomspace(1.0e8, 1.0e20, 80)
+    obs = np.array([1.0e10, 1.0e14, 1.0e18], dtype=float)
+    theta_center = 0.5 * boundary[8]
+    arrival = r_tobs + radius * (1.0 - np.cos(theta_center)) * (1.0 + boundary[7]) / 2.99792458e10
+    tobs = np.geomspace(arrival[5], arrival[-6], 48)
+    source = (seed[:, None] / 1.0e12) ** 0.2 * (radius[None, :] / radius[0]) ** -0.8
+    return boundary, radius, gamma, r_tobs, seed, obs, tobs, source
+
+
+def case_chi_projection_delta_layer_matches_thin_shell():
+    boundary, radius, gamma, r_tobs, seed, obs, tobs, source = _thin_shell_projection_inputs()
+    legacy = Interpolation.sed_interpolation(boundary, r_tobs, gamma, radius, source, seed, obs, tobs, 32, 24, 1)
+    num_chi = 5
+    source_chi = np.zeros((seed.size, num_chi, radius.size), dtype=float)
+    source_chi[:, 0, :] = source
+    tau_chi = np.zeros_like(source_chi)
+    r_chi = np.tile(radius, (num_chi, 1))
+    gamma_chi = np.tile(gamma, (num_chi, 1))
+    chi_weight = np.ones((num_chi, radius.size), dtype=float)
+    projected = Interpolation.sed_interpolation_chi(
+        boundary,
+        r_tobs,
+        radius,
+        source_chi,
+        tau_chi,
+        r_chi,
+        gamma_chi,
+        chi_weight,
+        seed,
+        obs,
+        tobs,
+        32,
+        24,
+        1,
+    )
+    assert np.any(legacy > 0.0)
+    np.testing.assert_allclose(projected, legacy, rtol=1.0e-12, atol=1.0e-12)
+    return {"max_flux": float(np.max(legacy)), "max_abs_diff": float(np.max(np.abs(projected - legacy)))}
+
+
+def case_chi_projection_finite_width_converges_to_thin_shell():
+    boundary, radius, gamma, r_tobs, seed, obs, tobs, source = _thin_shell_projection_inputs()
+    legacy = Interpolation.sed_interpolation(boundary, r_tobs, gamma, radius, source, seed, obs, tobs, 32, 24, 1)
+    num_chi = 5
+    weights = np.array([0.52, 0.22, 0.13, 0.08, 0.05], dtype=float)[:, None]
+    source_chi = np.repeat(source[:, None, :], num_chi, axis=1)
+    tau_chi = np.zeros_like(source_chi)
+    chi_weight = np.repeat(weights, radius.size, axis=1)
+    offsets = np.linspace(0.0, 1.0, num_chi)[:, None]
+    mask = legacy > np.max(legacy) * 1.0e-12
+    errors = []
+    for eps in (0.5, 0.25, 0.125, 0.0625, 0.0):
+        r_chi = radius[None, :] * (1.0 - eps * 0.03 * offsets)
+        gamma_chi = gamma[None, :] * (1.0 - eps * 0.08 * offsets)
+        projected = Interpolation.sed_interpolation_chi(
+            boundary,
+            r_tobs,
+            radius,
+            source_chi,
+            tau_chi,
+            r_chi,
+            gamma_chi,
+            chi_weight,
+            seed,
+            obs,
+            tobs,
+            32,
+            24,
+            1,
+        )
+        errors.append(float(np.sqrt(np.mean((np.log(projected[mask]) - np.log(legacy[mask])) ** 2))))
+    assert all(later < earlier for earlier, later in zip(errors[:-2], errors[1:-1]))
+    assert errors[-1] < 1.0e-12
+    return {"log_rms_errors": errors}
 
 
 def case_chi_ssa_cell_split_invariance():
@@ -251,14 +338,16 @@ def case_chi_ssa_nonuniform_tau_matches_manual():
 
 def main() -> None:
     results = [
-        run_case("[1/8] fullhide_2d:basic_smoke", case_basic_smoke),
-        run_case("[2/8] fullhide_2d:electron_grid", case_electron_grid),
-        run_case("[3/8] fullhide_2d:chi_eats_geometry", case_chi_eats_geometry_smoke),
-        run_case("[4/8] chi_eats_2d:rejects_1d_solver", case_chi_eats_rejects_1d_solver),
-        run_case("[5/8] eats:rejects_off_axis_phi_collapse", case_off_axis_phi_collapse_rejected),
-        run_case("[6/8] eats:on_axis_phi_collapse", case_on_axis_phi_collapse_matches_explicit_phi),
-        run_case("[7/8] chi_eats_2d:ssa_cell_split_invariance", case_chi_ssa_cell_split_invariance),
-        run_case("[8/8] chi_eats_2d:ssa_nonuniform_tau", case_chi_ssa_nonuniform_tau_matches_manual),
+        run_case("[1/10] fullhide_2d:basic_smoke", case_basic_smoke),
+        run_case("[2/10] fullhide_2d:electron_grid", case_electron_grid),
+        run_case("[3/10] fullhide_2d:chi_eats_geometry", case_chi_eats_geometry_smoke),
+        run_case("[4/10] chi_eats_2d:rejects_1d_solver", case_chi_eats_rejects_1d_solver),
+        run_case("[5/10] eats:rejects_off_axis_phi_collapse", case_off_axis_phi_collapse_rejected),
+        run_case("[6/10] eats:on_axis_phi_collapse", case_on_axis_phi_collapse_matches_explicit_phi),
+        run_case("[7/10] chi_eats_2d:delta_layer_thin_shell", case_chi_projection_delta_layer_matches_thin_shell),
+        run_case("[8/10] chi_eats_2d:finite_width_converges", case_chi_projection_finite_width_converges_to_thin_shell),
+        run_case("[9/10] chi_eats_2d:ssa_cell_split_invariance", case_chi_ssa_cell_split_invariance),
+        run_case("[10/10] chi_eats_2d:ssa_nonuniform_tau", case_chi_ssa_nonuniform_tau_matches_manual),
     ]
 
     failed = [item for item in results if item["status"] == "FAIL"]

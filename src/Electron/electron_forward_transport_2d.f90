@@ -692,13 +692,17 @@ subroutine remap_chi_projection_shell(Num_nu,Num_chi,R_loc,Gamma_sh,chi_face_src
     real(8), intent(out) :: P_dst(Num_nu,Num_chi),Seed_dst(Num_nu,Num_chi),Tau_dst(Num_nu,Num_chi)
     real(8), intent(out) :: chi_radius_dst(Num_chi),chi_gamma_dst(Num_chi),chi_weight_dst(Num_chi)
     integer :: I_chi,I_nu,K
-    real(8) :: chi_eff_max,deta_proj,eta_loc,chi_loc,overlap,dst_lo,dst_hi,dst_weight
+    real(8) :: chi_proj_max,deta_proj,eta_loc,chi_loc,overlap,dst_lo,dst_hi,dst_weight
     real(8) :: src_lo,src_hi,src_weight,radius_ratio,gamma_bm,ln10,overlap_lo,overlap_hi,overlap_weight
-    real(8) :: weighted_p,weighted_seed,weighted_tau
+    real(8) :: weighted_p,weighted_seed,weighted_tau,src_eta_max,dst_eta_max,src_map_lo,src_map_hi,eta_scale
 
     ln10 = dlog(ten)
-    chi_eff_max = min(chi_face_src(Num_chi),one + 0.5d0*Gamma_sh*Gamma_sh)
-    deta_proj = dlog10(chi_eff_max) / dble(Num_chi)
+    chi_proj_max = one + 8d0*Gamma_sh*Gamma_sh
+    src_eta_max = dlog10(chi_face_src(Num_chi))
+    dst_eta_max = dlog10(chi_proj_max)
+    ! 保持全局χ源项积分守恒，同时将EATS几何限制在当前BM壳层的正半径域。
+    eta_scale = src_eta_max/dst_eta_max
+    deta_proj = dst_eta_max / dble(Num_chi)
     do I_chi = 1, Num_chi
         eta_loc = (dble(I_chi)-0.5d0)*deta_proj
         dst_lo = (dble(I_chi)-one)*deta_proj
@@ -714,13 +718,15 @@ subroutine remap_chi_projection_shell(Num_nu,Num_chi,R_loc,Gamma_sh,chi_face_src
             weighted_p = zero
             weighted_seed = zero
             weighted_tau = zero
+            src_map_lo = dst_lo*eta_scale
+            src_map_hi = dst_hi*eta_scale
             do K = 1, Num_chi
                 src_lo = dlog10(chi_face_src(K-1))
                 src_hi = dlog10(chi_face_src(K))
-                overlap = min(dst_hi,src_hi)-max(dst_lo,src_lo)
+                overlap = min(src_map_hi,src_hi)-max(src_map_lo,src_lo)
                 if (overlap > zero) then
-                    overlap_lo = max(dst_lo,src_lo)
-                    overlap_hi = min(dst_hi,src_hi)
+                    overlap_lo = max(src_map_lo,src_lo)
+                    overlap_hi = min(src_map_hi,src_hi)
                     src_weight = ten**src_hi - ten**src_lo
                     overlap_weight = ten**overlap_hi - ten**overlap_lo
                     weighted_p = weighted_p + P_src(I_nu,K)*overlap_weight
