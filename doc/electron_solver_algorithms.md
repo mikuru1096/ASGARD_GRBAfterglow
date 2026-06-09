@@ -106,7 +106,7 @@ Strang splitting 半拉格朗日: 半步源项 → 半拉格朗日输运 → 半
 
 χ 方向展开后激波区: χ-dependent 下游速度/磁场/历史光子场/SSA/pair opacity。
 
-数值: η 方向隐式平流-扩散-源项三对角; ξ 方向一阶隐式迎风。子步 `dDR_try = min(dDR_xi, dDR_eta, dDD)`。冷却用 reduced 6-band 网格 (`Num_nu_cool = min(6, Num_nu)`)。
+数值: η 方向隐式平流-扩散-源项三对角; ξ 方向一阶隐式迎风。子步 `dDR_try = min(dDR_xi, dDR_eta, dDD)`，其中 2D quick/formal 路径使用隐式算子的 `4 * Δx/|coeff|` 与 `4 * Δη/|coeff|` 精度步长并允许单壳一步完成。冷却用 reduced 6-band 网格 (`Num_nu_cool = min(6, Num_nu)`)。Python 调度层会把 2D electron kernel 的有效线程数限制到 `min(num_threads, num_chi, 4)`，避免小 χ/ν 网格上 OpenMP 过度并行。
 
 优点: 最完整 2D 物理基线。缺点: 代价大，ξ 一阶隐式抹平高能端。
 

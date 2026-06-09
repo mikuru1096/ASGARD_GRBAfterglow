@@ -370,6 +370,7 @@ def solve_electron(
     if solver_name == "charint_2d":
         electron_charint_2d_module = _electron_module(solver_name)
         num_chi = _resolve_num_chi(config, solver_name)
+        num_threads_2d = _effective_2d_num_threads(config, num_chi)
         (
             gam_e,
             d_n_gam_e_chi,
@@ -395,7 +396,7 @@ def solve_electron(
             num_chi,
             config.index_y,
             config.index_syn_integr,
-            config.num_threads,
+            num_threads_2d,
             True,
             "charint_2d",
         )
@@ -432,6 +433,7 @@ def solve_electron(
     if solver_name == "fullhide_2d":
         electron_fullhide_2d_module = _electron_module(solver_name)
         num_chi = _resolve_num_chi(config, solver_name)
+        num_threads_2d = _effective_2d_num_threads(config, num_chi)
         (
             gam_e,
             d_n_gam_e_chi,
@@ -457,7 +459,7 @@ def solve_electron(
             num_chi,
             config.index_y,
             config.index_syn_integr,
-            config.num_threads,
+            num_threads_2d,
             False,
             "fullhide_2d",
         )
@@ -643,6 +645,10 @@ def _resolve_num_chi(config: FitConfig, solver_name: str | None = None) -> int:
     if int(user_value) < 2:
         raise ValueError("num_chi must be >= 2 for 2d electron solvers.")
     return int(user_value)
+
+
+def _effective_2d_num_threads(config: FitConfig, num_chi: int) -> int:
+    return max(1, min(int(config.num_threads), int(num_chi), 4))
 
 
 def _build_log_chi_grid(r_gamma: np.ndarray, num_chi: int) -> np.ndarray:

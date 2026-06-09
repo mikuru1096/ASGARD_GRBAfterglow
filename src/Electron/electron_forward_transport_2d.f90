@@ -388,7 +388,7 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
         end if
 
         dDR_xi = huge(one)
-        if (max_xi_coeff > zero) dDR_xi = 0.4d0*d_x_E/max_xi_coeff
+        if (max_xi_coeff > zero) dDR_xi = 4d0*d_x_E/max_xi_coeff
         active_chi_hi = Num_chi
         if (chi_peak > zero) then
             active_chi_hi = 1
@@ -408,12 +408,12 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
                                                         beta_2_sh_loc/(chi_face(I_chi)*beta_sh) + &
                                                         ((chi_face(I_chi)-one)/chi_face(I_chi))*dln_a_dR_arr(I_tobs-1)) / ln10)
             end do
-            if (max_eta_coeff > zero) dDR_eta = 0.4d0*deta/max_eta_coeff
+            if (max_eta_coeff > zero) dDR_eta = 4d0*deta/max_eta_coeff
         end if
 
         dDD     = R(I_tobs)-R(I_tobs-1)
         dDR_try = min(dDD, min(dDR_xi, dDR_eta))
-        L1      = max(100, min(1000, ceiling(dDD/max(dDR_try, tiny(one)))))
+        L1      = max(1, min(1000, ceiling(dDD/max(dDR_try, tiny(one)))))
         dDR     = dDD/dble(L1)
         total_substeps = total_substeps + L1
         max_shell_substeps = max(max_shell_substeps, L1)
@@ -503,19 +503,15 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
             end if
         end do
 
-        do I_chi = 1, Num_chi
-            dN_gam_e(:, I_chi, I_tobs) = U_log(:, I_chi) / (ln10*ln10*gam_e*chi_grid(I_chi))
-        end do
-
-        dN_gam_e_total(:, I_tobs) = zero
-        do I_chi = 1, Num_chi
-            dN_gam_e_total(:, I_tobs) = dN_gam_e_total(:, I_tobs) + U_log(:, I_chi)*deta/(gam_e*ln10)
-        end do
         call dynamics_external_density_profile(A_star,dNe_ISM,R(I_tobs),R0,1,R_tr,f_jump,f_wide,dNe)
         call compute_downstream_comoving_grid(Num_chi,R(I_tobs),R_Gamma(I_tobs),chi_face,chi_grid, &
                                               x_face_hist(:,I_tobs),x_comov_face_hist(:,I_tobs),x_comov_hist(:,I_tobs), &
                                               dx_comov_hist(:,I_tobs))
+        if (profile_enabled) call cpu_time(t_start)
+        !$OMP PARALLEL DO num_threads(n_threads) if(n_threads > 1 .and. Num_chi*Num_nu >= 128) schedule(static) &
+        !$OMP& private(I_chi,beta_2_sh_loc)
         do I_chi = 1, Num_chi
+            dN_gam_e(:, I_chi, I_tobs) = U_log(:, I_chi) / (ln10*ln10*gam_e*chi_grid(I_chi))
             beta_hist(I_chi,I_tobs) = bm_beta2_lab(R_Gamma(I_tobs),chi_grid(I_chi))
             beta_2_sh_loc = bm_beta2_shock(R_Gamma(I_tobs),chi_grid(I_chi))
             t_decay_chi(I_chi) = x_comov_hist(I_chi,I_tobs)/max(beta_2_sh_loc*para_c,tiny(one))
@@ -526,9 +522,7 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
                 Epsilon_b_chi(I_chi) = Epsilon_b
             end if
             DB_chi(I_chi) = 0.39d0*dsqrt(Epsilon_b_chi(I_chi)*dNe*(R_Gamma(I_tobs)*(R_Gamma(I_tobs)-one)))
-            dN_cell = dN_gam_e(:,I_chi,I_tobs)
-            if (profile_enabled) call cpu_time(t_start)
-            call get_syn_state(R(I_tobs),DB_chi(I_chi),Num_gam_e,Num_nu,n_threads,gam_e,dN_cell,V_seed, &
+            call get_syn_state(R(I_tobs),DB_chi(I_chi),Num_gam_e,Num_nu,1,gam_e,dN_gam_e(:,I_chi,I_tobs),V_seed, &
                                P_local(:,I_chi),P_hist(:,I_chi,I_tobs),Seed_hist(:,I_chi,I_tobs),Tau_hist(:,I_chi,I_tobs))
             call project_syn_state_logbands(Num_nu,V_seed,P_hist(:,I_chi,I_tobs), &
                                             Seed_hist(:,I_chi,I_tobs),Tau_hist(:,I_chi,I_tobs), &
@@ -538,11 +532,17 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
             call radiation_pair_tau_headon_segment(V_cool,Num_nu_cool,Seed_hist_cool(:,I_chi,I_tobs),dx_comov_hist(I_chi,I_tobs), &
                                                    Tau_pair_hist_cool(:,I_chi,I_tobs))
             Tau_prop_hist_cool(:,I_chi,I_tobs) = Tau_hist_cool(:,I_chi,I_tobs) + Tau_pair_hist_cool(:,I_chi,I_tobs)
-            if (profile_enabled) then
-                call cpu_time(t_stop)
-                t_syn_state = t_syn_state + (t_stop-t_start)
-            end if
-            syn_state_calls = syn_state_calls + 1
+        end do
+        !$OMP END PARALLEL DO
+        if (profile_enabled) then
+            call cpu_time(t_stop)
+            t_syn_state = t_syn_state + (t_stop-t_start)
+        end if
+        syn_state_calls = syn_state_calls + Num_chi
+
+        dN_gam_e_total(:, I_tobs) = zero
+        do I_chi = 1, Num_chi
+            dN_gam_e_total(:, I_tobs) = dN_gam_e_total(:, I_tobs) + U_log(:, I_chi)*deta/(gam_e*ln10)
         end do
     end do
 
