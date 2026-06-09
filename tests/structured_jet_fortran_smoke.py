@@ -21,7 +21,7 @@ FREQS = np.array([1.0e10, 1.0e14])
 
 def _run_worker(args: list[str]) -> dict:
     command = [sys.executable, __file__, "--worker", *args]
-    result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True)
+    result = subprocess.run(command, cwd=ROOT, text=True, encoding="utf-8", capture_output=True)
     if result.returncode != 0:
         sys.stdout.write(result.stdout)
         sys.stderr.write(result.stderr)

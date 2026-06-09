@@ -569,6 +569,8 @@ def _build_module(
         return 0.0
 
     command = [sys.executable, "-m", "numpy.f2py", "-m", module_name, "-c", *sources]
+    if fflags:
+        command.extend([f"--f77flags={fflags}", f"--f90flags={fflags}"])
     if extra_args:
         command.extend(extra_args)
     start = time.perf_counter()

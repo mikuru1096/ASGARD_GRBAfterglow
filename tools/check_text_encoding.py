@@ -83,6 +83,9 @@ class PythonTextIoVisitor(ast.NodeVisitor):
         elif call_name in {"Path.read_text", "Path.write_text"}:
             if not self._has_keyword(node, "encoding"):
                 self.problems.append((node.lineno, f"{call_name} without explicit encoding"))
+        elif call_name in {"subprocess.run", "subprocess.check_output", "subprocess.Popen"}:
+            if self._uses_subprocess_text_mode(node) and not self._has_keyword(node, "encoding"):
+                self.problems.append((node.lineno, f"{call_name} text decoding without explicit encoding"))
         self.generic_visit(node)
 
     @staticmethod
@@ -92,6 +95,12 @@ class PythonTextIoVisitor(ast.NodeVisitor):
         if isinstance(func, ast.Attribute):
             if func.attr in {"open", "read_text", "write_text"}:
                 return f"Path.{func.attr}"
+            if (
+                func.attr in {"run", "check_output", "Popen"}
+                and isinstance(func.value, ast.Name)
+                and func.value.id == "subprocess"
+            ):
+                return f"subprocess.{func.attr}"
         return None
 
     @staticmethod
@@ -107,6 +116,13 @@ class PythonTextIoVisitor(ast.NodeVisitor):
             if keyword.arg == "mode":
                 mode = keyword.value
         return isinstance(mode, ast.Constant) and isinstance(mode.value, str) and "b" in mode.value
+
+    @staticmethod
+    def _uses_subprocess_text_mode(node: ast.Call) -> bool:
+        for keyword in node.keywords:
+            if keyword.arg in {"text", "universal_newlines"}:
+                return isinstance(keyword.value, ast.Constant) and keyword.value.value is True
+        return False
 
 
 def run_git(root: Path, args: list[str]) -> list[str]:

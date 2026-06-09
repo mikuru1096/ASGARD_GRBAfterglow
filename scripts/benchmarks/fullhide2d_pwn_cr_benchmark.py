@@ -133,7 +133,14 @@ def _parse_args() -> argparse.Namespace:
 
 
 def _git_head() -> str:
-    result = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, check=True, capture_output=True, text=True)
+    result = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
     return result.stdout.strip()
 
 
