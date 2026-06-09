@@ -43,18 +43,10 @@ Lan 2023 overlay 的峰值幅度已匹配，峰时仍偏早。当前证据指向
 
 baseline Vegas comparison 已按 `doc/benchmark_refresh_protocol.md` 全量刷新；含 AM3 对照或 hadronic-dominated scenario 的 FS formal hadronic benchmark figures 仍需在目标明确时单独刷新。刷新前后必须记录 HEAD、tracked diff、完整命令、受影响 Fortran build 状态、输出路径和物理验收口径。
 
-## 清理候选
-
-### 1. `FitConfig -> SimulationConfig` 主链迁移
-
-`FitConfig` 仍是当前 runtime、state、postprocess、tests 和 scripts 的主输入类型。不要只因为注释里写了 legacy 就删除它；只有当 `SimulationConfig` 贯穿运行主链并完成等价 smoke/benchmark 后，才能进入破坏性迁移。
-
-### 2. Public constructor alias 破坏性移除
-
-`ISM`、`Wind`、`TophatJet` 等 constructor aliases 是当前文档化公开入口。若后续要移除，必须作为 public API breaking change 单独处理，并同步 README、public API 文档、示例和 tests。
-
 ## 不做
 
 - 不删除 `tests/*.npz` baseline、`output/asgard_doc/**` benchmark artifacts 或文献/物理验收图，除非先按 benchmark refresh protocol 证明可复现且无记录价值。
 - 不清理 `.venv/`、`.vscode/`、`.codex-remote-attachments/` 等本地目录到 git diff。
 - 不把短小的纯函数改成类层级，也不为两个不同物理契约强行抽象统一。
+- 不做无目标驱动的 `FitConfig -> SimulationConfig` 主链迁移；`FitConfig` 仍是 runtime、state、postprocess、tests 和 scripts 的主输入类型。
+- 不做 `ISM`、`Wind`、`TophatJet` 等 public constructor alias 的破坏性移除；这些别名是当前文档化公开入口。
