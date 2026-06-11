@@ -321,6 +321,7 @@ implicit REAL(8)(A-H,O-Z)
 integer, intent(in) :: Num_gam_e,Num_nu,n_threads
 real(8), intent(in) :: gam_e(Num_gam_e),V_seed(Num_nu),Seed_syn(Num_nu)
 real(8), intent(out) :: dot_gam_e(Num_gam_e)
+real(8) :: Cyclotron_nu
 
     call ensure_ssa_seed_cache(Num_nu,V_seed)
     call ensure_ssa_geometry_workspace(Num_gam_e,0)
@@ -334,10 +335,11 @@ real(8), intent(out) :: dot_gam_e(Num_gam_e)
 end subroutine electron_cooling_ssa_loss
 
 ! 批量模式下计算单个(γ, χ)单元的SSA冷却率。
-subroutine accumulate_ssa_batch_cell(Num_gam_e,Num_nu,Num_chi,I_gam_e,I_chi,gam_e,Seed_syn_batch,dot_gam_e_val)
+subroutine accumulate_ssa_batch_cell(Num_gam_e,Num_nu,Num_chi,I_gam_e,I_chi,gam_e,Seed_syn_batch,Cyclotron_nu,dot_gam_e_val)
 implicit REAL(8)(A-H,O-Z)
 integer, intent(in) :: Num_gam_e,Num_nu,Num_chi,I_gam_e,I_chi
 real(8), intent(in) :: gam_e(Num_gam_e),Seed_syn_batch(Num_nu,Num_chi)
+real(8), intent(in) :: Cyclotron_nu
 real(8), intent(out) :: dot_gam_e_val
 integer :: I_nu
 real(8) :: gam,gam2,V_lowlim,V_uplim,ssa_sum,cell_low,cell_high
@@ -394,7 +396,7 @@ integer, intent(in) :: Num_gam_e,Num_nu,Num_chi,n_threads
 real(8), intent(in) :: gam_e(Num_gam_e),V_seed(Num_nu),Seed_syn_batch(Num_nu,Num_chi)
 real(8), intent(out) :: dot_gam_e_batch(Num_gam_e,Num_chi)
 integer :: I_chi,I_gam_e
-real(8) :: ssa_sum_cell
+real(8) :: Cyclotron_nu,ssa_sum_cell
 integer :: batch_work
 
     call ensure_ssa_seed_cache(Num_nu,V_seed)
@@ -408,7 +410,7 @@ integer :: batch_work
     if (n_threads <= 1 .or. batch_work < 512) then
        do I_chi=1,Num_chi
           do I_gam_e=1,Num_gam_e
-             call accumulate_ssa_batch_cell(Num_gam_e,Num_nu,Num_chi,I_gam_e,I_chi,gam_e,Seed_syn_batch,ssa_sum_cell)
+             call accumulate_ssa_batch_cell(Num_gam_e,Num_nu,Num_chi,I_gam_e,I_chi,gam_e,Seed_syn_batch,Cyclotron_nu,ssa_sum_cell)
              dot_gam_e_batch(I_gam_e,I_chi)=ssa_sum_cell
           end do
        end do
@@ -417,7 +419,7 @@ integer :: batch_work
        !$OMP& private(I_chi,I_gam_e,ssa_sum_cell)
        do I_chi=1,Num_chi
           do I_gam_e=1,Num_gam_e
-             call accumulate_ssa_batch_cell(Num_gam_e,Num_nu,Num_chi,I_gam_e,I_chi,gam_e,Seed_syn_batch,ssa_sum_cell)
+             call accumulate_ssa_batch_cell(Num_gam_e,Num_nu,Num_chi,I_gam_e,I_chi,gam_e,Seed_syn_batch,Cyclotron_nu,ssa_sum_cell)
              dot_gam_e_batch(I_gam_e,I_chi)=ssa_sum_cell
           end do
        end do
