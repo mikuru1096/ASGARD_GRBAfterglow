@@ -1018,6 +1018,10 @@ def _build_fit_config_for_patch(
     )
     for key, value in kernel_medium.items():
         setattr(config, key, value)
+    if model.medium.kind == "ism" and float(model.setups.f_jump) != 1.0:
+        config.r_tr = float(model.setups.r_tr)
+        config.f_jump = float(model.setups.f_jump)
+        config.f_wide = float(model.setups.f_wide)
     return config
 
 

@@ -1,6 +1,6 @@
 module electron_reverse_kernel
     use constants
-    use dynamics_common, only: dynamics_external_density_base, dynamics_reverse_gamma_extrema
+    use dynamics_common, only: dynamics_external_density_profile, dynamics_reverse_gamma_extrema
     use electron_injection_profiles, only: electron_exp_cutoff_factor, electron_profile_log_cell_edges
     use electron_transport_common, only: electron_fullhide_flux_split_step
     use electron_radiation_kernel, only: get_syn_selected
@@ -10,12 +10,14 @@ contains
 
 ! 反向激波电子演化主驱动：注入→同步+IC冷却→隐式输运推进，支持4种Compton Y参数化。
 subroutine electron_reverse_evolve(Delta_0,e_r,b_r,p_r,f_e_r,eta_0,Epsilon_e,Epsilon_b,z,A_star,dNe_ISM,para_m_ej, &
+                                   R_tr,f_jump,f_wide,R0, &
                                    T_cross,R_cross,U3_cross,M3_cross,R_Tobs,R_Gamma,R,B3,M3_shell,U3_shell,V_seed, &
                                    Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads,gam_e,dN_gam_e)
     implicit none
     integer, intent(in) :: Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads
     integer :: I_tobs,I_gam_e,L1,L
     real(8), intent(in) :: Delta_0,e_r,b_r,p_r,f_e_r,eta_0,Epsilon_e,Epsilon_b,z,A_star,dNe_ISM,para_m_ej
+    real(8), intent(in) :: R_tr,f_jump,f_wide,R0
     real(8), intent(in) :: T_cross,R_cross,U3_cross,M3_cross
     real(8), intent(in) :: R_Tobs(Num_R),R_Gamma(Num_R),R(Num_R),B3(Num_R),M3_shell(Num_R),U3_shell(Num_R),V_seed(Num_nu)
     real(8), intent(out) :: gam_e(Num_gam_e),dN_gam_e(Num_gam_e,Num_R)
@@ -40,7 +42,7 @@ subroutine electron_reverse_evolve(Delta_0,e_r,b_r,p_r,f_e_r,eta_0,Epsilon_e,Eps
     call dynamics_reverse_gamma_extrema(dB,gamma34,factor2,f_e_r,Gam_e_max,Gam_e_m)
     Gam_e_c=reverse_gamma_c_coeff/(one+dsqrt(e_r/b_r))/R_Gamma(1)/dB**2/(R_Tobs(1)/two)
 
-    call dynamics_external_density_base(A_star,dNe_ISM,R(1),dNe)
+    call dynamics_external_density_profile(A_star,dNe_ISM,R(1),R0,1,R_tr,f_jump,f_wide,dNe)
     DB_min=reverse_synch_b_coeff*dsqrt(Epsilon_b*dNe*(R_Gamma(Num_R)*(R_Gamma(Num_R)-one)))
     Gam_e_max_max=3d0*Para_m_energy/dsqrt(8d0*DB_min*Para_e**3)
     Gam_e_min_global=one

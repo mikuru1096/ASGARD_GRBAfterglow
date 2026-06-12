@@ -446,6 +446,9 @@ class Setups:
     observer_time_min_s: float = 1.0e2
     observer_time_max_s: float = 1.0e8
     initial_radius_cm: float = 1.0e14
+    r_tr: float = 1.0e18
+    f_jump: float = 1.0
+    f_wide: float = 0.1
     reverse_delta_t_s: float = 10.0
     reverse_sigma: float = 0.0
     include_cross_zone_ic: bool = False

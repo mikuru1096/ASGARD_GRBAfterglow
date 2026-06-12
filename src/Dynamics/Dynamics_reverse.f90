@@ -6,7 +6,7 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
     use dynamics_common, only: dynamics_deceleration_radius, dynamics_rk4_reverse, &
                                dynamics_rk4_reverse_pre_m3, &
                                dynamics_reverse_rhs_iface, dynamics_log_time_step, &
-                               rs_mag_comp
+                               dynamics_external_density_profile, rs_mag_comp
     implicit none
     integer, intent(in) :: n,Num_R
     integer :: I_tobs, Num_R1
@@ -16,6 +16,7 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
     real(8), intent(out) :: R_Tobs(Num_R),R(Num_R),M2(Num_R),M3(Num_R),B3(Num_R),R_Gamma(Num_R)
     real(8), intent(out) :: U3_th(Num_R),V3_comoving(Num_R),Gamma34_inst(Num_R)
     real(8) :: Eta_0,Epsilon_e,Epsilon_b,p_f,z,dNe_ISM,A_star,E_iso,T_log10_duration,f_e
+    real(8) :: R_tr,f_jump,f_wide,R0
     real(8) :: Delta_0,para_m_ej,V3_scale,para_m2,para_m3,DM_0,R_dec,T00,t_dec,Grid_Tobs_bin,T_log10,T,H,dB3
     real(8) :: T_state,T_target
     real(8) :: u2_init,u4_init,Delta_init,para_n4_init,gam34_init,para_n3_init,comp_init
@@ -24,6 +25,7 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
     allocate(Y(6))
     Eta_0=Boundary(1); R(1)=Boundary(4); Epsilon_e=Boundary(5); Epsilon_b=Boundary(6); p_f=Boundary(7); z=Boundary(8)
     dNe_ISM=Boundary(11); A_star=Boundary(12); E_iso=Boundary(14); T_log10_duration=Boundary(15); f_e=Boundary(16)
+    R_tr=Boundary(21); f_jump=Boundary(22); f_wide=Boundary(23); R0=Boundary(n)
     Delta_0=Delta_t*para_c; para_m_ej=E_iso/eta_0/para_c**2
 
     if (A_star > zero) then
@@ -60,14 +62,15 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
                 call dynamics_rk4_reverse_pre_m3(reverse_dynamics_rhs,dB3,T_cross,R_cross,e3_cross,gam20, &
                                                  U3_cross,V3_cross,M3_cross,gam_m_cross,B3_ordered_cross, &
                                                  T_state,T_target,Y,para_m_ej,V3_scale,Delta_0,eta_0,A_star,dNe_ISM, &
-                                                 Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,f_e_r,sigma_r)
+                                                 R_tr,f_jump,f_wide,R0,Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,f_e_r,sigma_r)
             else
                 H=T_target-T_state
                 T=T_state
                 call dynamics_rk4_reverse(reverse_dynamics_rhs,dB3,T_cross,R_cross,e3_cross,gam20, &
                                           U3_cross,V3_cross,M3_cross, &
                                           gam_m_cross,B3_ordered_cross,T,H,Y,para_m_ej,V3_scale,Delta_0, &
-                                          eta_0,A_star,dNe_ISM,Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,f_e_r,sigma_r)
+                                          eta_0,A_star,dNe_ISM,R_tr,f_jump,f_wide,R0, &
+                                          Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,f_e_r,sigma_r)
                 T_state=T_target
             end if
         end do
@@ -81,13 +84,14 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
 end subroutine dynamics_reverse
 
 subroutine reverse_dynamics_rhs(dB3,T_cross,R_cross,e3_cross,gam20,U3_cross,V3_cross,M3_cross,gam_m_cross,B3_ordered_cross, &
-             T,Y,D,para_m_ej,V3_scale,Delta_0,eta_0,A_star,dNe_ISM,Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,f_e_r, &
-             sigma_r)
+             T,Y,D,para_m_ej,V3_scale,Delta_0,eta_0,A_star,dNe_ISM,R_tr,f_jump,f_wide,R0, &
+             Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,f_e_r,sigma_r)
     use constants
-    use dynamics_common, only: dynamics_external_density_base, rs_mag_comp, rs_b4_up, reverse_rhs_phase
+    use dynamics_common, only: dynamics_external_density_profile, rs_mag_comp, rs_b4_up, reverse_rhs_phase
     implicit none
     real(8), intent(inout) :: dB3,T_cross,R_cross,e3_cross,gam20,U3_cross,V3_cross,M3_cross,gam_m_cross,B3_ordered_cross
-    real(8), intent(in) :: T,para_m_ej,V3_scale,Delta_0,eta_0,A_star,dNe_ISM,Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,f_e_r,sigma_r
+    real(8), intent(in) :: T,para_m_ej,V3_scale,Delta_0,eta_0,A_star,dNe_ISM,R_tr,f_jump,f_wide,R0
+    real(8), intent(in) :: Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,f_e_r,sigma_r
     real(8), intent(in) :: Y(6)
     real(8), intent(out) :: D(6)
     real(8), parameter :: reverse_synch_b_coeff=0.39d0, reverse_gamma_c_precise_coeff=7.739d8
@@ -144,7 +148,7 @@ contains
 
         gam2=Y(1); RR=Y(2); para_m2=Y(3); para_m3=Y(4)*para_m_ej
         U3=Y(5)*para_m_ej*para_c**2; V3=Y(6)*V3_scale
-        call dynamics_external_density_base(A_star,dNe_ISM,RR,dNe)
+        call dynamics_external_density_profile(A_star,dNe_ISM,RR,R0,1,R_tr,f_jump,f_wide,dNe)
         u2=dsqrt(gam2*gam2-one); u4=dsqrt(eta_0*eta_0-one); Delta=max(Delta_0,RR/eta_0**2)
         para1=4d0*pi*Para_m_p*RR*RR; para_n4=para_m_ej/(para1*eta_0*Delta)
         beta4=u4/eta_0; beta2=u2/gam2

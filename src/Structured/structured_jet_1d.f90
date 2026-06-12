@@ -325,6 +325,7 @@ subroutine structured_solve_element(Boundary,E_iso,Gamma0,V_seed,n,Num_nu,Num_R,
         para_m_ej=E_iso/Gamma0/Para_c**2
         call electron_reverse_evolve(reverse_delta_t_s*Para_c,reverse_epsilon_e,reverse_epsilon_b,reverse_p,reverse_f_e, &
                                      Gamma0,B_local(5),B_local(6),B_local(8),B_local(12),B_local(11),para_m_ej, &
+                                     B_local(21),B_local(22),B_local(23),B_local(n), &
                                      T_cross,R_cross,U3_cross,M3_cross,R_Tobs,R_Gamma,R,B3,M3,U3,V_seed, &
                                      Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads,gam_e_rev,dN_gam_e_rev)
         do ir=1,Num_R
