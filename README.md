@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="doc/assets/logo.png" alt="ASGARD logo" width="280">
+</p>
+
 # ASGARD：伽马射线暴余辉分析工具
 
 ASGARD 是面向伽马射线暴余辉的数值模拟、辐射计算和拟合工具。代码以 Fortran 数值核为核心，用 Python 提供公开 API、运行编排、观测投影、拟合接口和基准脚本。当前 public API 的默认工作流围绕 `Model`、`Fitter` 和可复现 benchmark 脚本组织。
