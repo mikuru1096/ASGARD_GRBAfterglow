@@ -6,6 +6,11 @@ module dynamics_common
                dynamics_rk4_reverse_plain_step, dynamics_rk4_reverse_event_step, &
                dynamics_rk4_reverse_pre_step, dynamics_rk4_reverse_pre_integrate
     integer :: reverse_rhs_phase = 0
+    integer, parameter :: density_jump_max = 8, density_boundary_r0_index = 27, density_boundary_count_index = 28
+    integer :: active_density_jump_count = 0
+    real(8) :: active_density_jump_r(density_jump_max) = zero
+    real(8) :: active_density_jump_factor(density_jump_max) = one
+    real(8) :: active_density_jump_width(density_jump_max) = one
 
     abstract interface
         subroutine dynamics_forward_rhs_iface(T, Y, M, D, &
@@ -85,7 +90,11 @@ subroutine dynamics_external_density_profile(A_star, dNe_ISM, RR, R0, apply_jump
     call dynamics_external_density_base(A_star, dNe_ISM, RR, dNe)
 
     if (A_star <= zero .and. apply_jump /= 0) then
-        dNe = dNe_ISM*(one+(f_jump-one)*exp(-(log10(RR)-log10(R_tr))**2/(two*f_wide*f_wide)))
+        if (active_density_jump_count > 0) then
+            call dynamics_density_multi_jump(dNe_ISM,RR,dNe)
+        else
+            dNe = dNe_ISM*(one+(f_jump-one)*exp(-(log10(RR)-log10(R_tr))**2/(two*f_wide*f_wide)))
+        end if
     end if
 
     if (RR < R0) then
@@ -96,6 +105,65 @@ subroutine dynamics_external_density_profile(A_star, dNe_ISM, RR, R0, apply_jump
         end if
     end if
 end subroutine dynamics_external_density_profile
+
+subroutine dynamics_set_density_jump_profile(Boundary, n)
+    implicit none
+    integer, intent(in) :: n
+    integer :: i, radius_index, factor_index, width_index
+    real(8), intent(in) :: Boundary(n)
+
+    active_density_jump_count = 0
+    active_density_jump_r = zero
+    active_density_jump_factor = one
+    active_density_jump_width = one
+    if (n < density_boundary_count_index) return
+    active_density_jump_count = nint(Boundary(density_boundary_count_index))
+    if (active_density_jump_count < 0 .or. active_density_jump_count > density_jump_max) &
+        error stop 'density jump count outside supported range'
+    radius_index = density_boundary_count_index+1
+    factor_index = radius_index+density_jump_max
+    width_index = factor_index+density_jump_max
+    if (active_density_jump_count > 0 .and. n < width_index+density_jump_max-1) &
+        error stop 'boundary is missing density jump arrays'
+    do i = 1, active_density_jump_count
+        active_density_jump_r(i) = Boundary(radius_index+i-1)
+        active_density_jump_factor(i) = Boundary(factor_index+i-1)
+        active_density_jump_width(i) = Boundary(width_index+i-1)
+        if (active_density_jump_r(i) <= zero .or. active_density_jump_factor(i) <= zero .or. &
+            active_density_jump_width(i) <= zero) &
+            error stop 'density jump radii, factors, and widths must be positive'
+    end do
+end subroutine dynamics_set_density_jump_profile
+
+subroutine dynamics_boundary_r0(Boundary, n, R0)
+    implicit none
+    integer, intent(in) :: n
+    real(8), intent(in) :: Boundary(n)
+    real(8), intent(out) :: R0
+
+    if (n >= density_boundary_r0_index) then
+        R0 = Boundary(density_boundary_r0_index)
+    else
+        R0 = Boundary(n)
+    end if
+end subroutine dynamics_boundary_r0
+
+subroutine dynamics_density_multi_jump(dNe_ISM, RR, dNe)
+    implicit none
+    integer :: i
+    real(8), intent(in) :: dNe_ISM, RR
+    real(8), intent(out) :: dNe
+    real(8) :: enhancement, log_radius
+
+    log_radius = log10(RR)
+    enhancement = one
+    do i = 1, active_density_jump_count
+        enhancement = enhancement+(active_density_jump_factor(i)-one)* &
+                      exp(-(log_radius-log10(active_density_jump_r(i)))**2/ &
+                      (two*active_density_jump_width(i)*active_density_jump_width(i)))
+    end do
+    dNe = dNe_ISM*enhancement
+end subroutine dynamics_density_multi_jump
 
 subroutine dynamics_log_time_step(T_base, Grid_Tobs_bin, T_log10, Num_R1, I_tobs, T, H)
     implicit none

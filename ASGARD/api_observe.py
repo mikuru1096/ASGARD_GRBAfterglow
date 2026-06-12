@@ -1022,6 +1022,14 @@ def _build_fit_config_for_patch(
         config.r_tr = float(model.setups.r_tr)
         config.f_jump = float(model.setups.f_jump)
         config.f_wide = float(model.setups.f_wide)
+    if model.medium.kind == "ism" and (
+        len(model.setups.jump_r_cm) > 0
+        or len(model.setups.jump_factor) > 0
+        or len(model.setups.jump_width_log10) > 0
+    ):
+        config.jump_r_cm = tuple(float(value) for value in model.setups.jump_r_cm)
+        config.jump_factor = tuple(float(value) for value in model.setups.jump_factor)
+        config.jump_width_log10 = tuple(float(value) for value in model.setups.jump_width_log10)
     return config
 
 
@@ -1102,9 +1110,12 @@ def _make_details(
         fwd_timings = dict(state.hadronic.timings) if state.hadronic.timings else {}
     rev_gamma_e = None
     rev_dnde = None
+    secondary_rs = None
     if state is not None and state.dynamics.reverse_shock is not None:
         rev_gamma_e = np.asarray(state.dynamics.reverse_shock.gam_e, dtype=float)
         rev_dnde = np.asarray(state.dynamics.reverse_shock.d_n_gam_e, dtype=float)
+    if state is not None and state.reverse_emission is not None:
+        secondary_rs = state.reverse_emission.secondary_rs
     return TrackBundle(
         fwd=CharTrack(
             t_obs=components.fwd.characteristic_time_s,
@@ -1175,6 +1186,14 @@ def _make_details(
             dynamical_timescale_s=components.rev.dynamical_timescale_s,
             gamma_e=rev_gamma_e,
             dN_dgamma_e=rev_dnde,
+            secondary_rs_gamma_contact=None if secondary_rs is None else secondary_rs.gamma_contact,
+            secondary_rs_pressure_3=None if secondary_rs is None else secondary_rs.pressure_3,
+            secondary_rs_gamma_43=None if secondary_rs is None else secondary_rs.gamma_43,
+            secondary_rs_u_diss=None if secondary_rs is None else secondary_rs.dissipated_energy_density,
+            secondary_rs_B=None if secondary_rs is None else secondary_rs.magnetic_field_g,
+            secondary_rs_nu_m=None if secondary_rs is None else secondary_rs.nu_m,
+            secondary_rs_nu_c=None if secondary_rs is None else secondary_rs.nu_c,
+            secondary_rs_nu_a=None if secondary_rs is None else secondary_rs.nu_a,
         ),
         patches=patches,
     )

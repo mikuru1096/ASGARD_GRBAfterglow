@@ -18,6 +18,29 @@ if TYPE_CHECKING:
     from asgard_core.asgard_config import FitConfig
 
 
+def density_jump_arrays(config: FitConfig) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    jump_r = np.asarray(config.jump_r_cm, dtype=float)
+    jump_factor = np.asarray(config.jump_factor, dtype=float)
+    jump_width = np.asarray(config.jump_width_log10, dtype=float)
+    if jump_r.size == 0 and jump_factor.size == 0 and jump_width.size == 0:
+        if float(config.f_jump) == 1.0:
+            return np.array([], dtype=float), np.array([], dtype=float), np.array([], dtype=float)
+        return (
+            np.array([float(config.r_tr)], dtype=float),
+            np.array([float(config.f_jump)], dtype=float),
+            np.array([float(config.f_wide)], dtype=float),
+        )
+    if jump_r.shape != jump_factor.shape or jump_r.shape != jump_width.shape:
+        raise ValueError("jump_r_cm, jump_factor, and jump_width_log10 must have the same length.")
+    if jump_r.size == 0:
+        return jump_r, jump_factor, jump_width
+    if not np.all(np.isfinite(jump_r)) or not np.all(np.isfinite(jump_factor)) or not np.all(np.isfinite(jump_width)):
+        raise ValueError("density jump arrays must contain finite values.")
+    if np.any(jump_r <= 0.0) or np.any(jump_factor <= 0.0) or np.any(jump_width <= 0.0):
+        raise ValueError("density jump radii, factors, and widths must be positive.")
+    return jump_r, jump_factor, jump_width
+
+
 def ambient_density(radius_cm: np.ndarray | float, config: FitConfig) -> np.ndarray | float:
     """
     Calculate ambient medium density at given radius.
@@ -34,11 +57,16 @@ def ambient_density(radius_cm: np.ndarray | float, config: FitConfig) -> np.ndar
         density = np.where(d_ne_wind <= config.d_ne / 4.0, config.d_ne, d_ne_wind)
     else:
         # ISM with optional density jump
-        density = config.d_ne * (
-            1.0
-            + (config.f_jump - 1.0)
-            * np.exp(-(np.log10(radius) - np.log10(config.r_tr)) ** 2 / (2.0 * config.f_wide**2))
-        )
+        jump_r, jump_factor, jump_width = density_jump_arrays(config)
+        density = np.full_like(radius, float(config.d_ne), dtype=float)
+        if jump_r.size > 0:
+            log_radius = np.log10(radius)
+            enhancement = np.ones_like(radius, dtype=float)
+            for radius_j, factor_j, width_j in zip(jump_r, jump_factor, jump_width):
+                enhancement = enhancement + (factor_j - 1.0) * np.exp(
+                    -(log_radius - np.log10(radius_j)) ** 2 / (2.0 * width_j**2)
+                )
+            density = config.d_ne * enhancement
 
     # Apply inner boundary cutoff for wind
     if config.a_star > 0.0 and config.r0 > 0.0:
@@ -130,4 +158,3 @@ def compute_maximum_synchrotron_frequency(
     doppler = compute_doppler(gamma, config.z, config.theta_v)
     gam_e_max = 3.0 * constants.para_m_energy / np.sqrt(8.0 * magnetic_field * constants.para_e**3)
     return 4.2e6 * magnetic_field * gam_e_max**2 * doppler
-

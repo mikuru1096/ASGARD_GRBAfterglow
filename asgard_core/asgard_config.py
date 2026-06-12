@@ -18,6 +18,8 @@ import numpy as np
 
 from src import constants
 
+MAX_DENSITY_JUMPS = 8
+
 
 def default_num_threads() -> int:
     """Get default number of threads from environment or CPU count."""
@@ -157,6 +159,9 @@ class PhysicsConfig:
     r_tr: float = 1.0e18
     f_jump: float = 1.0
     f_wide: float = 0.1
+    jump_r_cm: tuple[float, ...] = field(default_factory=tuple)
+    jump_factor: tuple[float, ...] = field(default_factory=tuple)
+    jump_width_log10: tuple[float, ...] = field(default_factory=tuple)
 
     # Reverse shock
     reverse_shock: ReverseShockConfig = field(default_factory=ReverseShockConfig)
@@ -301,6 +306,9 @@ class FitConfig:
     r_tr: float = 1.0e18
     f_jump: float = 1.0
     f_wide: float = 0.1
+    jump_r_cm: tuple[float, ...] = field(default_factory=tuple)
+    jump_factor: tuple[float, ...] = field(default_factory=tuple)
+    jump_width_log10: tuple[float, ...] = field(default_factory=tuple)
 
     num_tobs: int = 200
     t_obs_min_log10: float = 2.0
@@ -347,6 +355,9 @@ class FitConfig:
             r_tr=self.r_tr,
             f_jump=self.f_jump,
             f_wide=self.f_wide,
+            jump_r_cm=self.jump_r_cm,
+            jump_factor=self.jump_factor,
+            jump_width_log10=self.jump_width_log10,
             reverse_shock=self.reverse_shock,
             hadronic=self.hadronic,
         )

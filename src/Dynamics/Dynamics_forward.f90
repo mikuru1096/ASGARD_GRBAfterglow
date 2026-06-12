@@ -15,7 +15,9 @@ subroutine dynamics_forward(Boundary,n,Num_R,index_dyn,R_Tobs,R_Gamma,R,R_m)
     Eta_0=Boundary(1); Epsilon_e=Boundary(5); Epsilon_b=Boundary(6); p=Boundary(7); z=Boundary(8)
     dNe_ISM=Boundary(11); A_star=Boundary(12); E_iso=Boundary(14); T_log10_duration=Boundary(15); f_e=Boundary(16)
     E_inj_t1=Boundary(17); E_inj_t2=Boundary(18); E_inj=Boundary(19); E_inj_q=Boundary(20)
-    R_tr=Boundary(21); f_jump=Boundary(22); f_wide=Boundary(23); R0=Boundary(n)
+    R_tr=Boundary(21); f_jump=Boundary(22); f_wide=Boundary(23)
+    call dynamics_boundary_r0(Boundary,n,R0)
+    call dynamics_set_density_jump_profile(Boundary,n)
 
     Num_R1=Num_R-1
     Y=[Eta_0-0.001d0,Boundary(2),Boundary(3),Boundary(4)]

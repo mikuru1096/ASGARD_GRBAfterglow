@@ -3,7 +3,7 @@ subroutine seed_reverse(T_cross,R_cross,e3_cross,gam20, Delta_t,b_r, &
                         Boundary,R_Tobs,R_gamma,R,gam_e,dN_gam_e,V_seed,n,Num_nu,Num_R,Num_gam_e,n_threads, P_syn_spec,seed_syn)
     !$ use omp_lib
     use constants
-    use dynamics_common, only: dynamics_external_density_profile
+    use dynamics_common, only: dynamics_boundary_r0, dynamics_external_density_profile, dynamics_set_density_jump_profile
     use radiation_common
     IMPLICIT REAL(8)(A-H,O-Z)
     !***********************************************************
@@ -26,7 +26,8 @@ subroutine seed_reverse(T_cross,R_cross,e3_cross,gam20, Delta_t,b_r, &
     A_star = Boundary(12)
     E_iso = Boundary(14)
     f_e = Boundary(16)
-    R0 = Boundary(n)
+    call dynamics_boundary_r0(Boundary,n,R0)
+    call dynamics_set_density_jump_profile(Boundary,n)
     Delta_0=Delta_t*para_c
     para_m_ej=E_iso/Eta_0/para_c**2
 

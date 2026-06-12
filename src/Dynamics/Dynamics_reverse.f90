@@ -6,7 +6,8 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
     use dynamics_common, only: dynamics_deceleration_radius, dynamics_rk4_reverse, &
                                dynamics_rk4_reverse_pre_m3, &
                                dynamics_reverse_rhs_iface, dynamics_log_time_step, &
-                               dynamics_external_density_profile, rs_mag_comp
+                               dynamics_external_density_profile, rs_mag_comp, &
+                               dynamics_boundary_r0, dynamics_set_density_jump_profile
     implicit none
     integer, intent(in) :: n,Num_R
     integer :: I_tobs, Num_R1
@@ -25,7 +26,9 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
     allocate(Y(6))
     Eta_0=Boundary(1); R(1)=Boundary(4); Epsilon_e=Boundary(5); Epsilon_b=Boundary(6); p_f=Boundary(7); z=Boundary(8)
     dNe_ISM=Boundary(11); A_star=Boundary(12); E_iso=Boundary(14); T_log10_duration=Boundary(15); f_e=Boundary(16)
-    R_tr=Boundary(21); f_jump=Boundary(22); f_wide=Boundary(23); R0=Boundary(n)
+    R_tr=Boundary(21); f_jump=Boundary(22); f_wide=Boundary(23)
+    call dynamics_boundary_r0(Boundary,n,R0)
+    call dynamics_set_density_jump_profile(Boundary,n)
     Delta_0=Delta_t*para_c; para_m_ej=E_iso/eta_0/para_c**2
 
     if (A_star > zero) then
@@ -82,6 +85,50 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
 
     deallocate(Y)
 end subroutine dynamics_reverse
+
+subroutine secondary_reverse_contact_rh(gamma4,n1,n4,e4,p4,gamma_c,p3,gamma43)
+    use constants
+    implicit none
+    integer :: I
+    real(8), intent(in) :: gamma4,n1,n4,e4,p4
+    real(8), intent(out) :: gamma_c,p3,gamma43
+    real(8) :: lo,hi,mid,f_lo,f_hi,f_mid,beta_c,beta4
+
+    if (gamma4 <= one .or. n1 <= zero .or. n4 <= zero .or. e4 <= zero .or. p4 <= zero) &
+        error stop 'secondary_reverse_contact_rh requires positive hot upstream state'
+    lo=one+1d-10; hi=gamma4*(one-1d-10)
+    call pressure_difference(lo,f_lo)
+    call pressure_difference(hi,f_hi)
+    if (f_lo*f_hi > zero) error stop 'secondary_reverse_contact_rh has no physical bracket'
+    do I=1,80
+        mid=0.5d0*(lo+hi)
+        call pressure_difference(mid,f_mid)
+        if (f_lo*f_mid <= zero) then
+            hi=mid; f_hi=f_mid
+        else
+            lo=mid; f_lo=f_mid
+        end if
+    end do
+    gamma_c=0.5d0*(lo+hi)
+    beta_c=dsqrt(one-gamma_c**(-2)); beta4=dsqrt(one-gamma4**(-2))
+    gamma43=gamma_c*gamma4*(one-beta_c*beta4)
+    p3=p4+(4d0/3d0)*(gamma43*gamma43-one)*(e4+p4)
+
+contains
+
+    subroutine pressure_difference(gamma_trial, diff)
+    implicit none
+    real(8), intent(in) :: gamma_trial
+    real(8), intent(out) :: diff
+    real(8) :: beta_trial,beta_up,gamma_rel,p2_trial,p3_trial
+
+        beta_trial=dsqrt(one-gamma_trial**(-2)); beta_up=dsqrt(one-gamma4**(-2))
+        gamma_rel=gamma_trial*gamma4*(one-beta_trial*beta_up)
+        p2_trial=(4d0/3d0)*(gamma_trial*gamma_trial-one)*n1*Para_m_p*Para_c**2
+        p3_trial=p4+(4d0/3d0)*(gamma_rel*gamma_rel-one)*(e4+p4)
+        diff=p2_trial-p3_trial
+    end subroutine pressure_difference
+end subroutine secondary_reverse_contact_rh
 
 subroutine reverse_dynamics_rhs(dB3,T_cross,R_cross,e3_cross,gam20,U3_cross,V3_cross,M3_cross,gam_m_cross,B3_ordered_cross, &
              T,Y,D,para_m_ej,V3_scale,Delta_0,eta_0,A_star,dNe_ISM,R_tr,f_jump,f_wide,R0, &

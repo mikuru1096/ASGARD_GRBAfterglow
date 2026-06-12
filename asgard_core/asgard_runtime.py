@@ -53,6 +53,7 @@ from asgard_core.asgard_types import (
     SolverAdapterReport,
 )
 from asgard_core.asgard_physics_utils import ambient_density, doppler_denominator, compute_magnetic_field
+from asgard_core.asgard_physics_utils import density_jump_arrays
 from src import Dynamics, Electron, constants
 
 
@@ -94,6 +95,24 @@ def _electron_module(solver: str):
 @lru_cache(maxsize=1)
 def _electron_reverse_module():
     return import_module("src.Electron.electron_reverse_kernel")
+
+
+@lru_cache(maxsize=1)
+def _dynamics_reverse_module():
+    return import_module("src.Dynamics.Dynamics_reverse")
+
+
+@dataclass
+class SecondaryReverseShockState:
+    luminosity_syn: np.ndarray
+    gamma_contact: np.ndarray
+    pressure_3: np.ndarray
+    gamma_43: np.ndarray
+    dissipated_energy_density: np.ndarray
+    magnetic_field_g: np.ndarray
+    nu_m: np.ndarray
+    nu_c: np.ndarray
+    nu_a: np.ndarray
 
 _PGAMMA_SCHEME_DISABLED = "disabled"
 _PGAMMA_SCHEME_HUMMER2010_RESPONSE = "hummer_2010_response"
@@ -2015,6 +2034,9 @@ def solve_reverse_shock_emission(
         dynamics,
     )
     l_syn_spec, seed_syn = _compute_reverse_shock_synchrotron_emission(dynamics, v_seed, config)
+    secondary_rs = _compute_secondary_reverse_shock_synchrotron(dynamics, v_seed, config, reverse_params)
+    if secondary_rs is not None:
+        l_syn_spec = l_syn_spec + secondary_rs.luminosity_syn
 
     rs_hadronic = None
     if bool(config.hadronic.reverse_enabled) and float(config.hadronic.reverse_epsilon_p) > 0.0:
@@ -2056,6 +2078,7 @@ def solve_reverse_shock_emission(
         nu_a=nu_a,
         nu_M=nu_M,
         rs_hadronic=rs_hadronic,
+        secondary_rs=secondary_rs,
     )
 
 
@@ -2183,6 +2206,156 @@ def _compute_reverse_shock_synchrotron_emission(
         l_syn_spec[:, i] = np.asarray(p_syn_i, dtype=float)
         seed_syn[:, i] = np.asarray(seed_syn_i, dtype=float)
     return l_syn_spec, seed_syn
+
+
+def _compute_secondary_reverse_shock_synchrotron(
+    dynamics: DynamicsSolution,
+    v_seed: np.ndarray,
+    config: FitConfig,
+    reverse_params: ReverseShockParameters,
+) -> SecondaryReverseShockState | None:
+    jump_r, jump_factor, jump_width = density_jump_arrays(config)
+    if jump_r.size <= 1 or dynamics.reverse_shock is None:
+        return None
+    gam_e = dynamics.reverse_shock.gam_e
+    if gam_e is None:
+        raise ValueError("reverse electron grid is required for secondary reverse shock emission.")
+    radius = np.asarray(dynamics.radius, dtype=float)
+    gamma4_arr = np.asarray(dynamics.r_gamma, dtype=float)
+    swept_mass = np.asarray(dynamics.swept_mass_g, dtype=float)
+    num_r = radius.shape[0]
+    num_nu = v_seed.shape[0]
+    luminosity = np.zeros((num_nu, num_r), dtype=float)
+    gamma_contact = np.zeros(num_r, dtype=float)
+    pressure_3 = np.zeros(num_r, dtype=float)
+    gamma_43 = np.ones(num_r, dtype=float)
+    u_diss = np.zeros(num_r, dtype=float)
+    b_field = np.zeros(num_r, dtype=float)
+    nu_m = np.zeros(num_r, dtype=float)
+    nu_c = np.zeros(num_r, dtype=float)
+    nu_a = np.zeros(num_r, dtype=float)
+    log_radius = np.log10(radius)
+    active_weight = _secondary_reverse_active_weight(log_radius, jump_r, jump_factor, jump_width)
+    if not np.any(active_weight > 0.0):
+        return None
+    if reverse_params.p <= 2.0:
+        raise ValueError("secondary reverse shock v1 requires p > 2.")
+
+    dist = np.zeros((gam_e.shape[0], num_r), dtype=float)
+    for i in range(1, num_r):
+        if active_weight[i] <= 0.0:
+            continue
+        gamma4 = float(gamma4_arr[i])
+        if gamma4 <= 1.0:
+            continue
+        n1 = float(ambient_density(radius[i], config))
+        n4 = 4.0 * gamma4 * float(config.d_ne)
+        e4 = 4.0 * gamma4 * (gamma4 - 1.0) * float(config.d_ne) * constants.para_m_p * constants.para_c**2
+        p4 = e4 / 3.0
+        gamma_c, p3, gamma_rel = _solve_secondary_reverse_contact(gamma4, n1, n4, e4, p4)
+        comp = 1.0 + 3.0 * (gamma_rel - 1.0)
+        n3 = comp * n4
+        e3 = 3.0 * p3
+        e_ad = e4 * comp ** (4.0 / 3.0)
+        if e3 <= e_ad:
+            continue
+        u_diss_i = e3 - e_ad
+        shell_mass = float(swept_mass[i] - swept_mass[i - 1]) * active_weight[i]
+        if shell_mass <= 0.0:
+            continue
+        shell_volume = shell_mass / (n4 * constants.para_m_p)
+        b_i = np.sqrt(8.0 * np.pi * reverse_params.epsilon_b * e3)
+        gam_e_max = 3.0 * constants.para_m_energy / np.sqrt(8.0 * b_i * constants.para_e**3)
+        gamma_m = 1.0 + (
+            reverse_params.epsilon_e
+            / reverse_params.f_e
+            * (reverse_params.p - 2.0)
+            / (reverse_params.p - 1.0)
+            * u_diss_i
+            / (n3 * constants.para_m_e * constants.para_c**2)
+        )
+        dist[:, i] = _secondary_reverse_electron_distribution(
+            gam_e,
+            gamma_m,
+            gam_e_max,
+            reverse_params.p,
+            reverse_params.epsilon_e * u_diss_i * shell_volume,
+        )
+        p_syn_i, _ = electron_radiation_module.get_syn_selected(
+            config.index_syn_integr,
+            float(radius[i]),
+            b_i,
+            config.num_threads,
+            gam_e,
+            dist[:, i],
+            v_seed,
+        )
+        luminosity[:, i] = np.asarray(p_syn_i, dtype=float)
+        doppler_den = doppler_denominator(gamma_c, config.z)
+        nu_m[i] = _synchrotron_frequency(b_i, gamma_m, doppler_den)
+        gamma_cool = 7.7e8 * (1.0 + config.z) / gamma_c / b_i**2 / dynamics.r_tobs[i]
+        nu_c[i] = _synchrotron_frequency(b_i, gamma_cool, doppler_den)
+        nu_a[i] = electron_radiation_module.get_nu_a(float(radius[i]), b_i, gam_e, dist[:, i]) / doppler_den
+        gamma_contact[i] = gamma_c
+        pressure_3[i] = p3
+        gamma_43[i] = gamma_rel
+        u_diss[i] = u_diss_i
+        b_field[i] = b_i
+
+    if not np.any(luminosity > 0.0):
+        return None
+    return SecondaryReverseShockState(
+        luminosity_syn=luminosity,
+        gamma_contact=gamma_contact,
+        pressure_3=pressure_3,
+        gamma_43=gamma_43,
+        dissipated_energy_density=u_diss,
+        magnetic_field_g=b_field,
+        nu_m=nu_m,
+        nu_c=nu_c,
+        nu_a=nu_a,
+    )
+
+
+def _secondary_reverse_active_weight(
+    log_radius: np.ndarray,
+    jump_r: np.ndarray,
+    jump_factor: np.ndarray,
+    jump_width: np.ndarray,
+) -> np.ndarray:
+    weight = np.zeros_like(log_radius, dtype=float)
+    for radius_j, factor_j, width_j in zip(jump_r, jump_factor, jump_width):
+        center = np.log10(radius_j)
+        x = log_radius - center
+        rising = x < 0.0
+        local = (factor_j - 1.0) * np.exp(-(x * x) / (2.0 * width_j * width_j))
+        weight = weight + np.where(rising, local, 0.0)
+    return weight
+
+
+def _solve_secondary_reverse_contact(
+    gamma4: float,
+    n1: float,
+    n4: float,
+    e4: float,
+    p4: float,
+) -> tuple[float, float, float]:
+    gamma_c, p3, gamma43 = _dynamics_reverse_module().secondary_reverse_contact_rh(gamma4, n1, n4, e4, p4)
+    return float(gamma_c), float(p3), float(gamma43)
+
+
+def _secondary_reverse_electron_distribution(
+    gam_e: np.ndarray,
+    gamma_m: float,
+    gamma_max: float,
+    p_index: float,
+    electron_energy_erg: float,
+) -> np.ndarray:
+    shape = np.where((gam_e >= gamma_m) & (gam_e <= gamma_max), gam_e ** (-p_index), 0.0)
+    energy_integral = constants.para_m_e * constants.para_c**2 * trapezoid((gam_e - 1.0) * shape, gam_e)
+    if energy_integral <= 0.0:
+        raise RuntimeError("secondary reverse shock electron grid does not cover the injected distribution.")
+    return shape * (electron_energy_erg / energy_integral)
 
 
 def _resolve_reverse_shock_parameters(config: FitConfig) -> ReverseShockParameters | None:

@@ -1,6 +1,7 @@
 !f2py: skip
 module electron_common
     use constants
+    use dynamics_common, only: dynamics_boundary_r0, dynamics_set_density_jump_profile
     use adaptive_resampling_mod, only: adaptive_resampling_log
     use electron_injection_profiles, only: electron_profile_log_cell_edges, &
                                      electron_initial_powerlaw_exp_cutoff, electron_initial_powerlaw_exp_cutoff_edges, &
@@ -36,12 +37,8 @@ subroutine electron_unpack_boundary(Boundary,n,Eta_0,R_ini,Epsilon_e,Epsilon_b,p
     R_tr=Boundary(21)
     f_jump=Boundary(22)
     f_wide=Boundary(23)
-    ! Modern Boundary arrays reserve slot 27 for the external-density radius scale R0.
-    if (n >= 27) then
-        R0=Boundary(27)
-    else
-        R0=Boundary(n)
-    end if
+    call dynamics_boundary_r0(Boundary,n,R0)
+    call dynamics_set_density_jump_profile(Boundary,n)
 end subroutine electron_unpack_boundary
 
 ! 初始化电子能谱，并按需生成 gamma 或 log-gamma 边界网格。

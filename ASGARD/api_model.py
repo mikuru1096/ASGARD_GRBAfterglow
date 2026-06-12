@@ -449,6 +449,9 @@ class Setups:
     r_tr: float = 1.0e18
     f_jump: float = 1.0
     f_wide: float = 0.1
+    jump_r_cm: tuple[float, ...] = field(default_factory=tuple)
+    jump_factor: tuple[float, ...] = field(default_factory=tuple)
+    jump_width_log10: tuple[float, ...] = field(default_factory=tuple)
     reverse_delta_t_s: float = 10.0
     reverse_sigma: float = 0.0
     include_cross_zone_ic: bool = False
@@ -538,6 +541,14 @@ class CharTrack:
     tau_pg: Optional[np.ndarray] = None
     tau_bh: Optional[np.ndarray] = None
     pg_photon_survival: Optional[np.ndarray] = None
+    secondary_rs_gamma_contact: Optional[np.ndarray] = None
+    secondary_rs_pressure_3: Optional[np.ndarray] = None
+    secondary_rs_gamma_43: Optional[np.ndarray] = None
+    secondary_rs_u_diss: Optional[np.ndarray] = None
+    secondary_rs_B: Optional[np.ndarray] = None
+    secondary_rs_nu_m: Optional[np.ndarray] = None
+    secondary_rs_nu_c: Optional[np.ndarray] = None
+    secondary_rs_nu_a: Optional[np.ndarray] = None
     timings: Optional[dict] = None
 
 

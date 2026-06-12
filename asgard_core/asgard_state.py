@@ -25,6 +25,7 @@ from asgard_core.asgard_types import (
     ReverseShockEmission,
 )
 from asgard_core.asgard_physics_utils import ambient_density, compute_doppler, compute_magnetic_field, compute_maximum_synchrotron_frequency
+from asgard_core.asgard_physics_utils import density_jump_arrays
 from asgard_core.asgard_postprocess import interpolate_observed_flux
 from asgard_core.asgard_runtime import (
     _hadronic_advance_energy_loggamma,
@@ -190,6 +191,26 @@ def _validate_joint_electron_photon_config(config: FitConfig) -> None:
         raise ValueError("electron_photon_coupling='joint' requires numeric SSC/IC cooling with index_y=1.")
     if bool(config.electron_adaptive_substeps):
         raise NotImplementedError("electron_photon_coupling='joint' currently requires fixed electron substeps.")
+
+
+def _validate_multi_density_reverse_config(config: FitConfig) -> None:
+    jump_r, _, _ = density_jump_arrays(config)
+    if jump_r.size <= 1:
+        return
+    if config.a_star > 0.0:
+        raise NotImplementedError("multi-density reverse shock v1 supports only ISM.")
+    if str(config.electron_solver).lower() != "fullhide_1d":
+        raise NotImplementedError("multi-density reverse shock v1 requires electron_solver='fullhide_1d'.")
+    if str(config.geometry_kernel).lower() != "sed_legacy" or str(config.structured_backend).lower() != "fortran_1d":
+        raise NotImplementedError("multi-density reverse shock v1 supports only the direct 1D observer path.")
+    if config.hadronic.enabled or config.hadronic.reverse_enabled or float(config.hadronic.reverse_epsilon_p) > 0.0:
+        raise NotImplementedError("multi-density reverse shock v1 does not include hadronic processes.")
+    if bool(config.reverse_shock.include_ssc):
+        raise NotImplementedError("multi-density reverse shock v1 does not include RS SSC.")
+    if bool(config.reverse_shock.include_cross_zone_ic):
+        raise NotImplementedError("multi-density reverse shock v1 does not include cross-zone IC.")
+    if _electron_photon_coupling(config) != _COUPLING_SEPARATED:
+        raise NotImplementedError("multi-density reverse shock v1 requires separated electron-photon coupling.")
 
 
 def _solve_dynamics_stage(
@@ -466,6 +487,7 @@ def solve_state_from_setup(
     policy: Optional[ExecutionPolicy] = None,
     requested_frequencies_hz: np.ndarray | None = None,
 ) -> SolveState:
+    _validate_multi_density_reverse_config(config)
     execution_policy = make_policy(config) if policy is None else policy
     dynamics, dynamics_report = _solve_dynamics_stage(config, setup, timings)
     if _electron_photon_coupling(config) == _COUPLING_JOINT:

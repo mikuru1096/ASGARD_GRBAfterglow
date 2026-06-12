@@ -6,7 +6,8 @@ import numpy as np
 from astropy import units
 from astropy.cosmology import FlatLambdaCDM
 
-from asgard_core.asgard_config import FitConfig, SimulationSetup
+from asgard_core.asgard_config import FitConfig, MAX_DENSITY_JUMPS, SimulationSetup
+from asgard_core.asgard_physics_utils import density_jump_arrays
 from src import constants
 
 
@@ -78,6 +79,17 @@ def build_boundary(config: FitConfig, luminosity_distance_cm: float) -> np.ndarr
         raise ValueError("fullhide2d_transport_model must be 'legacy' or 'pwn_cr_v1'.")
     if escape_mode not in {"closed", "free_outer"}:
         raise ValueError("fullhide2d_escape_mode must be 'closed' or 'free_outer'.")
+    jump_r, jump_factor, jump_width = density_jump_arrays(config)
+    if jump_r.size > MAX_DENSITY_JUMPS:
+        raise ValueError(f"At most {MAX_DENSITY_JUMPS} density jumps are supported.")
+    jump_r_pad = np.zeros(MAX_DENSITY_JUMPS, dtype=float)
+    jump_factor_pad = np.ones(MAX_DENSITY_JUMPS, dtype=float)
+    jump_width_pad = np.ones(MAX_DENSITY_JUMPS, dtype=float)
+    if jump_r.size > 0:
+        jump_r_pad[: jump_r.size] = jump_r
+        jump_factor_pad[: jump_factor.size] = jump_factor
+        jump_width_pad[: jump_width.size] = jump_width
+
     boundary = [
         config.eta_0,
         m_0,
@@ -106,6 +118,10 @@ def build_boundary(config: FitConfig, luminosity_distance_cm: float) -> np.ndarr
         config.magnetic_decay_alpha_t,
         config.magnetic_decay_t0_s,
         config.r0,
+        float(jump_r.size),
+        *jump_r_pad,
+        *jump_factor_pad,
+        *jump_width_pad,
     ]
     transport_selector = 1.0 if transport_model == "pwn_cr_v1" else 0.0
     escape_selector = 1.0 if escape_mode == "free_outer" else 0.0
