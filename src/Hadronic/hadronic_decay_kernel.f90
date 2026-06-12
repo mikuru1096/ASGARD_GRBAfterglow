@@ -57,8 +57,8 @@ subroutine hadronic_pion_decay_operator(Num_pion,pion_energy_gev,pion_plus_sourc
     real(8), intent(out) :: muon_plus_right_source_rate_per_gev(Num_mu), muon_plus_left_source_rate_per_gev(Num_mu), &
         muon_minus_left_source_rate_per_gev(Num_mu), muon_minus_right_source_rate_per_gev(Num_mu)
     real(8), intent(out) :: prompt_numu_rate_per_gev(Num_nu), prompt_numubar_rate_per_gev(Num_nu)
-    integer :: i_mu, i_nu, i_pion
-    real(8) :: dln_pi, rpi, emu, enu, epi, r, fmu1, fmu2, fpi2nu
+    integer :: i_mu, i_nu
+    real(8) :: dln_pi, rpi, emu, enu
     real(8) :: rate_pip_log(Num_pion), rate_pim_log(Num_pion), tdec_pi(Num_pion)
     real(8) :: sum_mu_pr, sum_mu_pl, sum_mu_ml, sum_mu_mr, sum_nu_p, sum_nu_m
 
@@ -73,14 +73,42 @@ subroutine hadronic_pion_decay_operator(Num_pion,pion_energy_gev,pion_plus_sourc
     if (dln_pi <= zero) return
     rpi = (muon_mass_gev/pi_plus_mass_gev)**2
 
-    do i_pion=1,Num_pion
-        tdec_pi(i_pion) = (pion_energy_gev(i_pion)/pi_plus_mass_gev)*charged_pion_decay_s
-        rate_pip_log(i_pion) = pion_energy_gev(i_pion)*pion_plus_source_rate_per_gev(i_pion)/tdec_pi(i_pion)
-        rate_pim_log(i_pion) = pion_energy_gev(i_pion)*pion_minus_source_rate_per_gev(i_pion)/tdec_pi(i_pion)
-    end do
+    call build_pion_decay_log_rates
 
     do i_mu=1,Num_mu
         emu = muon_energy_gev(i_mu)
+        call accumulate_pion_muon_channel(emu,sum_mu_pr,sum_mu_pl,sum_mu_ml,sum_mu_mr)
+        muon_plus_right_source_rate_per_gev(i_mu) = dln_pi*sum_mu_pr/emu
+        muon_plus_left_source_rate_per_gev(i_mu) = dln_pi*sum_mu_pl/emu
+        muon_minus_left_source_rate_per_gev(i_mu) = dln_pi*sum_mu_ml/emu
+        muon_minus_right_source_rate_per_gev(i_mu) = dln_pi*sum_mu_mr/emu
+    end do
+
+    do i_nu=1,Num_nu
+        enu = neutrino_energy_gev(i_nu)
+        call accumulate_prompt_pion_neutrino_channel(enu,sum_nu_p,sum_nu_m)
+        prompt_numu_rate_per_gev(i_nu) = dln_pi*sum_nu_p/enu
+        prompt_numubar_rate_per_gev(i_nu) = dln_pi*sum_nu_m/enu
+    end do
+
+contains
+
+    subroutine build_pion_decay_log_rates
+        integer :: i_pion
+
+        do i_pion=1,Num_pion
+            tdec_pi(i_pion) = (pion_energy_gev(i_pion)/pi_plus_mass_gev)*charged_pion_decay_s
+            rate_pip_log(i_pion) = pion_energy_gev(i_pion)*pion_plus_source_rate_per_gev(i_pion)/tdec_pi(i_pion)
+            rate_pim_log(i_pion) = pion_energy_gev(i_pion)*pion_minus_source_rate_per_gev(i_pion)/tdec_pi(i_pion)
+        end do
+    end subroutine build_pion_decay_log_rates
+
+    subroutine accumulate_pion_muon_channel(emu,sum_mu_pr,sum_mu_pl,sum_mu_ml,sum_mu_mr)
+        real(8), intent(in) :: emu
+        real(8), intent(out) :: sum_mu_pr, sum_mu_pl, sum_mu_ml, sum_mu_mr
+        integer :: i_pion
+        real(8) :: epi, r, fmu1, fmu2
+
         sum_mu_pr = zero
         sum_mu_pl = zero
         sum_mu_ml = zero
@@ -97,14 +125,14 @@ subroutine hadronic_pion_decay_operator(Num_pion,pion_energy_gev,pion_plus_sourc
                 sum_mu_mr = sum_mu_mr + r*fmu2*rate_pim_log(i_pion)
             end if
         end do
-        muon_plus_right_source_rate_per_gev(i_mu) = dln_pi*sum_mu_pr/emu
-        muon_plus_left_source_rate_per_gev(i_mu) = dln_pi*sum_mu_pl/emu
-        muon_minus_left_source_rate_per_gev(i_mu) = dln_pi*sum_mu_ml/emu
-        muon_minus_right_source_rate_per_gev(i_mu) = dln_pi*sum_mu_mr/emu
-    end do
+    end subroutine accumulate_pion_muon_channel
 
-    do i_nu=1,Num_nu
-        enu = neutrino_energy_gev(i_nu)
+    subroutine accumulate_prompt_pion_neutrino_channel(enu,sum_nu_p,sum_nu_m)
+        real(8), intent(in) :: enu
+        real(8), intent(out) :: sum_nu_p, sum_nu_m
+        integer :: i_pion
+        real(8) :: epi, r, fpi2nu
+
         sum_nu_p = zero
         sum_nu_m = zero
         do i_pion=1,Num_pion
@@ -116,9 +144,7 @@ subroutine hadronic_pion_decay_operator(Num_pion,pion_energy_gev,pion_plus_sourc
                 sum_nu_m = sum_nu_m + r*fpi2nu*rate_pim_log(i_pion)
             end if
         end do
-        prompt_numu_rate_per_gev(i_nu) = dln_pi*sum_nu_p/enu
-        prompt_numubar_rate_per_gev(i_nu) = dln_pi*sum_nu_m/enu
-    end do
+    end subroutine accumulate_prompt_pion_neutrino_channel
 end subroutine hadronic_pion_decay_operator
 
 ! μ子衰变算子：计算电子、正电子和各类中微子的产生率。
@@ -135,8 +161,8 @@ subroutine hadronic_muon_decay_operator(Num_mu,muon_energy_gev,muon_plus_right_s
     real(8), intent(out) :: nu_e_rate_per_gev(Num_nu), nu_ebar_rate_per_gev(Num_nu), &
         nu_mu_rate_per_gev(Num_nu), nu_mubar_rate_per_gev(Num_nu), &
         electron_minus_rate_per_gev(Num_e), electron_plus_rate_per_gev(Num_e)
-    integer :: i_mu,i_nu,i_e
-    real(8) :: dln_mu, enu, ee, emu, x, fnu1_p, fnu1_m, fnu2_p, fnu2_m
+    integer :: i_nu,i_e
+    real(8) :: dln_mu, enu, ee
     real(8) :: mu_pl_log(Num_mu), mu_pr_log(Num_mu), mu_ml_log(Num_mu), mu_mr_log(Num_mu), tdec_mu(Num_mu)
     real(8) :: sum_nue, sum_nueb, sum_numu, sum_numub, sum_em, sum_ep
 
@@ -150,16 +176,44 @@ subroutine hadronic_muon_decay_operator(Num_mu,muon_energy_gev,muon_plus_right_s
     dln_mu = hadronic_log_spacing(Num_mu,muon_energy_gev)
     if (dln_mu <= zero) return
 
-    do i_mu=1,Num_mu
-        tdec_mu(i_mu) = (muon_energy_gev(i_mu)/muon_mass_gev)*muon_decay_s
-        mu_pl_log(i_mu) = muon_energy_gev(i_mu)*muon_plus_left_source_rate_per_gev(i_mu)/tdec_mu(i_mu)
-        mu_pr_log(i_mu) = muon_energy_gev(i_mu)*muon_plus_right_source_rate_per_gev(i_mu)/tdec_mu(i_mu)
-        mu_ml_log(i_mu) = muon_energy_gev(i_mu)*muon_minus_left_source_rate_per_gev(i_mu)/tdec_mu(i_mu)
-        mu_mr_log(i_mu) = muon_energy_gev(i_mu)*muon_minus_right_source_rate_per_gev(i_mu)/tdec_mu(i_mu)
-    end do
+    call build_muon_decay_log_rates
 
     do i_nu=1,Num_nu
         enu = neutrino_energy_gev(i_nu)
+        call accumulate_muon_neutrino_channel(enu,sum_nue,sum_nueb,sum_numu,sum_numub)
+        nu_e_rate_per_gev(i_nu) = dln_mu*sum_nue/enu
+        nu_ebar_rate_per_gev(i_nu) = dln_mu*sum_nueb/enu
+        nu_mu_rate_per_gev(i_nu) = dln_mu*sum_numu/enu
+        nu_mubar_rate_per_gev(i_nu) = dln_mu*sum_numub/enu
+    end do
+
+    do i_e=1,Num_e
+        ee = electron_energy_gev(i_e)
+        call accumulate_muon_electron_channel(ee,sum_em,sum_ep)
+        electron_plus_rate_per_gev(i_e) = dln_mu*sum_ep/ee
+        electron_minus_rate_per_gev(i_e) = dln_mu*sum_em/ee
+    end do
+
+contains
+
+    subroutine build_muon_decay_log_rates
+        integer :: i_mu
+
+        do i_mu=1,Num_mu
+            tdec_mu(i_mu) = (muon_energy_gev(i_mu)/muon_mass_gev)*muon_decay_s
+            mu_pl_log(i_mu) = muon_energy_gev(i_mu)*muon_plus_left_source_rate_per_gev(i_mu)/tdec_mu(i_mu)
+            mu_pr_log(i_mu) = muon_energy_gev(i_mu)*muon_plus_right_source_rate_per_gev(i_mu)/tdec_mu(i_mu)
+            mu_ml_log(i_mu) = muon_energy_gev(i_mu)*muon_minus_left_source_rate_per_gev(i_mu)/tdec_mu(i_mu)
+            mu_mr_log(i_mu) = muon_energy_gev(i_mu)*muon_minus_right_source_rate_per_gev(i_mu)/tdec_mu(i_mu)
+        end do
+    end subroutine build_muon_decay_log_rates
+
+    subroutine accumulate_muon_neutrino_channel(enu,sum_nue,sum_nueb,sum_numu,sum_numub)
+        real(8), intent(in) :: enu
+        real(8), intent(out) :: sum_nue, sum_nueb, sum_numu, sum_numub
+        integer :: i_mu
+        real(8) :: emu, x, fnu1_p, fnu1_m, fnu2_p, fnu2_m
+
         sum_nue = zero
         sum_nueb = zero
         sum_numu = zero
@@ -176,14 +230,14 @@ subroutine hadronic_muon_decay_operator(Num_mu,muon_energy_gev,muon_plus_right_s
             sum_numub = sum_numub + x*(fnu1_m*mu_pl_log(i_mu) + fnu1_p*mu_pr_log(i_mu))
             sum_numu = sum_numu + x*(fnu1_p*mu_ml_log(i_mu) + fnu1_m*mu_mr_log(i_mu))
         end do
-        nu_e_rate_per_gev(i_nu) = dln_mu*sum_nue/enu
-        nu_ebar_rate_per_gev(i_nu) = dln_mu*sum_nueb/enu
-        nu_mu_rate_per_gev(i_nu) = dln_mu*sum_numu/enu
-        nu_mubar_rate_per_gev(i_nu) = dln_mu*sum_numub/enu
-    end do
+    end subroutine accumulate_muon_neutrino_channel
 
-    do i_e=1,Num_e
-        ee = electron_energy_gev(i_e)
+    subroutine accumulate_muon_electron_channel(ee,sum_em,sum_ep)
+        real(8), intent(in) :: ee
+        real(8), intent(out) :: sum_em, sum_ep
+        integer :: i_mu
+        real(8) :: emu, x
+
         sum_em = zero
         sum_ep = zero
         do i_mu=1,Num_mu
@@ -194,9 +248,7 @@ subroutine hadronic_muon_decay_operator(Num_mu,muon_energy_gev,muon_plus_right_s
                 sum_em = sum_em + x*(4d0/3d0)*(one-x*x*x)*(mu_ml_log(i_mu) + mu_mr_log(i_mu))
             end if
         end do
-        electron_plus_rate_per_gev(i_e) = dln_mu*sum_ep/ee
-        electron_minus_rate_per_gev(i_e) = dln_mu*sum_em/ee
-    end do
+    end subroutine accumulate_muon_electron_channel
 end subroutine hadronic_muon_decay_operator
 
 ! Hummer2010统一衰变算子：整合π0、π±和μ子衰变，输出光子、中微子和带电轻子谱。

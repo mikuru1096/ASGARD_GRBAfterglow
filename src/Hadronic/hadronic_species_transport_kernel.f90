@@ -113,51 +113,74 @@ subroutine hadronic_species_advance_operator(num_gamma,gamma,dt_s,b_field_g,dive
         error stop "hadronic species transport: dt_s must be positive."
     end if
 
-    call hadronic_species_validate_gamma_grid(num_gamma,gamma)
-    call hadronic_species_validate_non_negative(num_gamma,neutron_prev,"neutron_prev")
-    call hadronic_species_validate_non_negative(num_gamma,pion_plus_prev,"pion_plus_prev")
-    call hadronic_species_validate_non_negative(num_gamma,pion_minus_prev,"pion_minus_prev")
-    call hadronic_species_validate_non_negative(num_gamma,muon_minus_left_prev,"muon_minus_left_prev")
-    call hadronic_species_validate_non_negative(num_gamma,muon_minus_right_prev,"muon_minus_right_prev")
-    call hadronic_species_validate_non_negative(num_gamma,muon_plus_left_prev,"muon_plus_left_prev")
-    call hadronic_species_validate_non_negative(num_gamma,muon_plus_right_prev,"muon_plus_right_prev")
-    call hadronic_species_validate_non_negative(num_gamma,neutron_source_per_gamma_s,"neutron_source_per_gamma_s")
-    call hadronic_species_validate_non_negative(num_gamma,pion_plus_source_per_gamma_s,"pion_plus_source_per_gamma_s")
-    call hadronic_species_validate_non_negative(num_gamma,pion_minus_source_per_gamma_s,"pion_minus_source_per_gamma_s")
-    call hadronic_species_validate_non_negative(num_gamma,muon_minus_left_source_per_gamma_s, &
-                                                "muon_minus_left_source_per_gamma_s")
-    call hadronic_species_validate_non_negative(num_gamma,muon_minus_right_source_per_gamma_s, &
-                                                "muon_minus_right_source_per_gamma_s")
-    call hadronic_species_validate_non_negative(num_gamma,muon_plus_left_source_per_gamma_s, &
-                                                "muon_plus_left_source_per_gamma_s")
-    call hadronic_species_validate_non_negative(num_gamma,muon_plus_right_source_per_gamma_s, &
-                                                "muon_plus_right_source_per_gamma_s")
-
-    call hadronic_species_synchrotron_dgamma_dt(num_gamma,gamma,b_field_g,neutron_mass_gev,0,dgamma_total)
-    call hadronic_species_synchrotron_dgamma_dt(num_gamma,gamma,b_field_g,pion_mass_gev,1,dgamma_syn_pion)
-    call hadronic_species_synchrotron_dgamma_dt(num_gamma,gamma,b_field_g,muon_mass_gev,1,dgamma_syn_muon)
-    call hadronic_species_adiabatic_dgamma_dt(num_gamma,gamma,divergence_rate_s_inv,dgamma_ad)
+    call validate_species_transport_inputs
+    call build_species_cooling_rates
 
     dgamma_total = dgamma_ad
     call hadronic_species_advance_one(num_gamma,gamma,neutron_prev,neutron_source_per_gamma_s,dt_s, &
                                       neutron_beta_decay_s,dgamma_total,neutron_next)
 
     dgamma_total = dgamma_syn_pion + dgamma_ad
-    call hadronic_species_advance_one(num_gamma,gamma,pion_plus_prev,pion_plus_source_per_gamma_s,dt_s, &
-                                      charged_pion_decay_s,dgamma_total,pion_plus_next)
-    call hadronic_species_advance_one(num_gamma,gamma,pion_minus_prev,pion_minus_source_per_gamma_s,dt_s, &
-                                      charged_pion_decay_s,dgamma_total,pion_minus_next)
+    call advance_charged_pion_pair
 
     dgamma_total = dgamma_syn_muon + dgamma_ad
-    call hadronic_species_advance_one(num_gamma,gamma,muon_minus_left_prev,muon_minus_left_source_per_gamma_s,dt_s, &
-                                      muon_decay_s,dgamma_total,muon_minus_left_next)
-    call hadronic_species_advance_one(num_gamma,gamma,muon_minus_right_prev, &
-                                      muon_minus_right_source_per_gamma_s,dt_s, &
-                                      muon_decay_s,dgamma_total,muon_minus_right_next)
-    call hadronic_species_advance_one(num_gamma,gamma,muon_plus_left_prev,muon_plus_left_source_per_gamma_s,dt_s, &
-                                      muon_decay_s,dgamma_total,muon_plus_left_next)
-    call hadronic_species_advance_one(num_gamma,gamma,muon_plus_right_prev,muon_plus_right_source_per_gamma_s,dt_s, &
-                                      muon_decay_s,dgamma_total,muon_plus_right_next)
+    call advance_muon_helicity_species
+
+contains
+
+    subroutine validate_species_transport_inputs
+        call hadronic_species_validate_gamma_grid(num_gamma,gamma)
+        call hadronic_species_validate_non_negative(num_gamma,neutron_prev,"neutron_prev")
+        call hadronic_species_validate_non_negative(num_gamma,pion_plus_prev,"pion_plus_prev")
+        call hadronic_species_validate_non_negative(num_gamma,pion_minus_prev,"pion_minus_prev")
+        call hadronic_species_validate_non_negative(num_gamma,muon_minus_left_prev,"muon_minus_left_prev")
+        call hadronic_species_validate_non_negative(num_gamma,muon_minus_right_prev,"muon_minus_right_prev")
+        call hadronic_species_validate_non_negative(num_gamma,muon_plus_left_prev,"muon_plus_left_prev")
+        call hadronic_species_validate_non_negative(num_gamma,muon_plus_right_prev,"muon_plus_right_prev")
+        call hadronic_species_validate_non_negative(num_gamma,neutron_source_per_gamma_s, &
+                                                    "neutron_source_per_gamma_s")
+        call hadronic_species_validate_non_negative(num_gamma,pion_plus_source_per_gamma_s, &
+                                                    "pion_plus_source_per_gamma_s")
+        call hadronic_species_validate_non_negative(num_gamma,pion_minus_source_per_gamma_s, &
+                                                    "pion_minus_source_per_gamma_s")
+        call hadronic_species_validate_non_negative(num_gamma,muon_minus_left_source_per_gamma_s, &
+                                                    "muon_minus_left_source_per_gamma_s")
+        call hadronic_species_validate_non_negative(num_gamma,muon_minus_right_source_per_gamma_s, &
+                                                    "muon_minus_right_source_per_gamma_s")
+        call hadronic_species_validate_non_negative(num_gamma,muon_plus_left_source_per_gamma_s, &
+                                                    "muon_plus_left_source_per_gamma_s")
+        call hadronic_species_validate_non_negative(num_gamma,muon_plus_right_source_per_gamma_s, &
+                                                    "muon_plus_right_source_per_gamma_s")
+    end subroutine validate_species_transport_inputs
+
+    subroutine build_species_cooling_rates
+        call hadronic_species_synchrotron_dgamma_dt(num_gamma,gamma,b_field_g,neutron_mass_gev,0,dgamma_total)
+        call hadronic_species_synchrotron_dgamma_dt(num_gamma,gamma,b_field_g,pion_mass_gev,1,dgamma_syn_pion)
+        call hadronic_species_synchrotron_dgamma_dt(num_gamma,gamma,b_field_g,muon_mass_gev,1,dgamma_syn_muon)
+        call hadronic_species_adiabatic_dgamma_dt(num_gamma,gamma,divergence_rate_s_inv,dgamma_ad)
+    end subroutine build_species_cooling_rates
+
+    subroutine advance_charged_pion_pair
+        call hadronic_species_advance_one(num_gamma,gamma,pion_plus_prev,pion_plus_source_per_gamma_s,dt_s, &
+                                          charged_pion_decay_s,dgamma_total,pion_plus_next)
+        call hadronic_species_advance_one(num_gamma,gamma,pion_minus_prev,pion_minus_source_per_gamma_s,dt_s, &
+                                          charged_pion_decay_s,dgamma_total,pion_minus_next)
+    end subroutine advance_charged_pion_pair
+
+    subroutine advance_muon_helicity_species
+        call hadronic_species_advance_one(num_gamma,gamma,muon_minus_left_prev, &
+                                          muon_minus_left_source_per_gamma_s,dt_s, &
+                                          muon_decay_s,dgamma_total,muon_minus_left_next)
+        call hadronic_species_advance_one(num_gamma,gamma,muon_minus_right_prev, &
+                                          muon_minus_right_source_per_gamma_s,dt_s, &
+                                          muon_decay_s,dgamma_total,muon_minus_right_next)
+        call hadronic_species_advance_one(num_gamma,gamma,muon_plus_left_prev, &
+                                          muon_plus_left_source_per_gamma_s,dt_s, &
+                                          muon_decay_s,dgamma_total,muon_plus_left_next)
+        call hadronic_species_advance_one(num_gamma,gamma,muon_plus_right_prev, &
+                                          muon_plus_right_source_per_gamma_s,dt_s, &
+                                          muon_decay_s,dgamma_total,muon_plus_right_next)
+    end subroutine advance_muon_helicity_species
 end subroutine hadronic_species_advance_operator
 
 ! 单一种类输运推进：迎风格式+Strang分裂（半衰变步-输运-半衰变步），Courant自适应子步。

@@ -90,11 +90,24 @@ subroutine hadronic_get_proton_syn_state(R_loc,B_field_g,Num_gam_p,Num_nu,gam_p,
     P_had_syn=zero
     Seed_had_syn=zero
 
+    call build_proton_syn_quadrature()
+    call accumulate_proton_syn_power()
+    call normalize_proton_syn_seed_density()
+
+contains
+
+    subroutine build_proton_syn_quadrature()
+    implicit none
+
     do I_gam=1,Num_gam_p-1
         gam_mid(I_gam)=dsqrt(gam_p(I_gam)*gam_p(I_gam+1))
         dN_mid(I_gam)=(dN_gam_p(I_gam)+dN_gam_p(I_gam+1))/two
         dln_gam(I_gam)=dlog(gam_p(I_gam+1)/gam_p(I_gam))
     end do
+    end subroutine build_proton_syn_quadrature
+
+    subroutine accumulate_proton_syn_power()
+    implicit none
 
     do I_nu=1,Num_nu
         V_cal=V_seed(I_nu)
@@ -107,9 +120,14 @@ subroutine hadronic_get_proton_syn_state(R_loc,B_field_g,Num_gam_p,Num_nu,gam_p,
         P_had_syn(I_nu)=temp_syn*B_field_g*dInteg
         Seed_had_syn(I_nu)=P_had_syn(I_nu)/(Rariv2*V_cal)
     end do
+    end subroutine accumulate_proton_syn_power
+
+    subroutine normalize_proton_syn_seed_density()
+    implicit none
 
     temp_para=4d0*pi*Para_c*Para_h
     Seed_had_syn=Seed_had_syn/temp_para
+    end subroutine normalize_proton_syn_seed_density
 end subroutine hadronic_get_proton_syn_state
 
 ! 输出专用强子同步频率依赖偏振率核：直接卷积(F+G)/2和(F-G)/2两个偏振发射核。
@@ -130,6 +148,21 @@ subroutine hadronic_syn_polarization_fraction(num_had,hadron_energy_gev,density_
 
     do i_ph=1,num_ph
         if (photon_frequency_hz(i_ph) <= zero) error stop "hadronic_syn_polarization_fraction requires positive frequency."
+        call accumulate_polarized_synch_integral(i_ph)
+        total_pol=dPerp+dParallel
+        if (total_pol > zero) then
+            Pi_nu(i_ph)=(dPerp-dParallel)/total_pol
+        else
+            Pi_nu(i_ph)=zero
+        end if
+    end do
+
+contains
+
+    subroutine accumulate_polarized_synch_integral(i_ph)
+    implicit none
+    integer, intent(in) :: i_ph
+
         dPerp=zero
         dParallel=zero
         do i_had=1,num_had-1
@@ -141,13 +174,7 @@ subroutine hadronic_syn_polarization_fraction(num_had,hadron_energy_gev,density_
             dPerp=dPerp+density_mid*perp_kernel*e_mid*dln_e
             dParallel=dParallel+density_mid*parallel_kernel*e_mid*dln_e
         end do
-        total_pol=dPerp+dParallel
-        if (total_pol > zero) then
-            Pi_nu(i_ph)=(dPerp-dParallel)/total_pol
-        else
-            Pi_nu(i_ph)=zero
-        end if
-    end do
+    end subroutine accumulate_polarized_synch_integral
 end subroutine hadronic_syn_polarization_fraction
 
 end module hadronic_radiation_kernel

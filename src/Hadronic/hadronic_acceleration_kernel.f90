@@ -173,8 +173,8 @@ subroutine hadronic_estimate_max_gamma(species,b_field_g,radius_cm,gamma_bulk,et
     logical, intent(in) :: has_external_cooling
     real(8), intent(out) :: gamma_max,gamma_dyn,gamma_syn,gamma_ext
     logical, intent(out) :: has_gamma_ext
-    integer :: i_gam,charge_number,i_cross
-    real(8) :: mass_gev,mass_g,abs_charge_esu,t_dyn
+    integer :: charge_number,i_cross
+    real(8) :: mass_gev,mass_g,abs_charge_esu
     real(8) :: t_acc(num_gamma_scan),t_ext(num_gamma_scan),ratio_lo,ratio_hi
     real(8) :: x0,x1,y0,y1,x_star
 
@@ -186,46 +186,69 @@ subroutine hadronic_estimate_max_gamma(species,b_field_g,radius_cm,gamma_bulk,et
         error stop "hadronic_estimate_max_gamma: physical inputs must be > 0."
     end if
 
-    t_dyn = radius_cm/(gamma_bulk*Para_c)
-    gamma_dyn = abs_charge_esu*b_field_g*t_dyn/(eta_acc*mass_g*Para_c)
-    gamma_syn = dsqrt(6d0*pi*abs_charge_esu*(mass_g**2) / &
-                (eta_acc*Para_SigmaT*(Para_m_e**2)*b_field_g))
-
-    has_gamma_ext = .false.
-    gamma_ext = zero
-    gamma_max = dmin1(gamma_dyn,gamma_syn)
+    call initialize_acceleration_limits
 
     if (.not. has_external_cooling) return
 
-    call hadronic_acceleration_timescale_s(num_gamma_scan,species,gamma_scan,b_field_g,eta_acc,t_acc)
-    call hadronic_external_photon_cooling_timescale_s(num_gamma_scan,gamma_scan,external_cooling_rate,t_ext)
-
-    i_cross = 0
-    do i_gam=1,num_gamma_scan-1
-        ratio_lo = t_acc(i_gam)-t_ext(i_gam)
-        ratio_hi = t_acc(i_gam+1)-t_ext(i_gam+1)
-        if (ratio_lo == zero .or. ratio_lo*ratio_hi <= zero .or. ratio_hi == zero) then
-            i_cross = i_gam
-            exit
-        end if
-    end do
+    call build_external_cooling_timescales
+    i_cross = find_external_cooling_crossing()
     if (i_cross == 0) return
 
-    if (t_acc(i_cross) == t_ext(i_cross)) then
-        gamma_ext = gamma_scan(i_cross)
-    else if (t_acc(i_cross+1) == t_ext(i_cross+1)) then
-        gamma_ext = gamma_scan(i_cross+1)
-    else
-        x0 = dlog(gamma_scan(i_cross))
-        x1 = dlog(gamma_scan(i_cross+1))
-        y0 = dlog(t_acc(i_cross)/t_ext(i_cross))
-        y1 = dlog(t_acc(i_cross+1)/t_ext(i_cross+1))
-        x_star = x0-y0*(x1-x0)/(y1-y0)
-        gamma_ext = dexp(x_star)
-    end if
+    call apply_external_cooling_limit(i_cross)
 
-    has_gamma_ext = .true.
-    gamma_max = dmin1(gamma_max,gamma_ext)
+contains
+
+    subroutine initialize_acceleration_limits
+        real(8) :: t_dyn
+
+        t_dyn = radius_cm/(gamma_bulk*Para_c)
+        gamma_dyn = abs_charge_esu*b_field_g*t_dyn/(eta_acc*mass_g*Para_c)
+        gamma_syn = dsqrt(6d0*pi*abs_charge_esu*(mass_g**2) / &
+                    (eta_acc*Para_SigmaT*(Para_m_e**2)*b_field_g))
+
+        has_gamma_ext = .false.
+        gamma_ext = zero
+        gamma_max = dmin1(gamma_dyn,gamma_syn)
+    end subroutine initialize_acceleration_limits
+
+    subroutine build_external_cooling_timescales
+        call hadronic_acceleration_timescale_s(num_gamma_scan,species,gamma_scan,b_field_g,eta_acc,t_acc)
+        call hadronic_external_photon_cooling_timescale_s(num_gamma_scan,gamma_scan,external_cooling_rate,t_ext)
+    end subroutine build_external_cooling_timescales
+
+    integer function find_external_cooling_crossing()
+        integer :: i_gam
+
+        find_external_cooling_crossing = 0
+        do i_gam=1,num_gamma_scan-1
+            ratio_lo = t_acc(i_gam)-t_ext(i_gam)
+            ratio_hi = t_acc(i_gam+1)-t_ext(i_gam+1)
+            if (ratio_lo == zero .or. ratio_lo*ratio_hi <= zero .or. ratio_hi == zero) then
+                find_external_cooling_crossing = i_gam
+                exit
+            end if
+        end do
+    end function find_external_cooling_crossing
+
+    subroutine apply_external_cooling_limit(i_cross)
+        integer, intent(in) :: i_cross
+
+        if (t_acc(i_cross) == t_ext(i_cross)) then
+            gamma_ext = gamma_scan(i_cross)
+        else if (t_acc(i_cross+1) == t_ext(i_cross+1)) then
+            gamma_ext = gamma_scan(i_cross+1)
+        else
+            x0 = dlog(gamma_scan(i_cross))
+            x1 = dlog(gamma_scan(i_cross+1))
+            y0 = dlog(t_acc(i_cross)/t_ext(i_cross))
+            y1 = dlog(t_acc(i_cross+1)/t_ext(i_cross+1))
+            x_star = x0-y0*(x1-x0)/(y1-y0)
+            gamma_ext = dexp(x_star)
+        end if
+
+        has_gamma_ext = .true.
+        gamma_max = dmin1(gamma_max,gamma_ext)
+    end subroutine apply_external_cooling_limit
 end subroutine hadronic_estimate_max_gamma
 
 ! 统一调用加速时标、同步冷却、注入源项和最大能量估计，完成粒子加速算子的完整计算。

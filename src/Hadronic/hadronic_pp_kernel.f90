@@ -36,51 +36,65 @@ subroutine hadronic_pp_delta_operator(num_p,proton_energy_gev,proton_density_per
     real(8) :: kappa_loc,pion_frac_loc,neutral_frac_loc,charged_frac_loc
     real(8) :: x_gamma,x_nu,x_pair
 
-    call hadronic_pp_validate_grid(num_p,proton_energy_gev,"proton_energy_gev")
-    call hadronic_pp_validate_density_grid(num_p,proton_energy_gev,proton_density_per_gev)
-    call hadronic_pp_validate_grid(num_gamma,gamma_energy_gev,"gamma_energy_gev")
-    call hadronic_pp_validate_grid(num_nu,neutrino_energy_gev,"neutrino_energy_gev")
-    call hadronic_pp_validate_grid(num_pair,pair_energy_gev,"pair_energy_gev")
-
-    if (target_proton_density_cm3 < zero) then
-        error stop "hadronic_pp_delta_operator: target_proton_density_cm3 must be non-negative."
-    end if
-
-    kappa_loc = 0.5d0
-    if (present(kappa_inelastic)) kappa_loc = kappa_inelastic
-    if (kappa_loc <= zero .or. kappa_loc > one) then
-        error stop "hadronic_pp_delta_operator: kappa_inelastic must be in (0, 1]."
-    end if
-
-    pion_frac_loc = 0.17d0
-    if (present(pion_energy_fraction)) pion_frac_loc = pion_energy_fraction
-    if (pion_frac_loc <= zero .or. pion_frac_loc >= one) then
-        error stop "hadronic_pp_delta_operator: pion_energy_fraction must be in (0, 1)."
-    end if
-
-    neutral_frac_loc = one/3d0
-    if (present(neutral_pion_fraction)) neutral_frac_loc = neutral_pion_fraction
-    if (neutral_frac_loc < zero .or. neutral_frac_loc > one) then
-        error stop "hadronic_pp_delta_operator: neutral_pion_fraction must be in [0, 1]."
-    end if
-
-    charged_frac_loc = one - neutral_frac_loc
-    x_gamma = 0.5d0*pion_frac_loc
-    x_nu = 0.25d0*pion_frac_loc
-    x_pair = x_nu
-
-    call hadronic_pp_sigma_inelastic_kelner2006(num_p,proton_energy_gev,sigma_inel)
-    collision_rate = target_proton_density_cm3*Para_c*sigma_inel
-    parent_rate = collision_rate*proton_density_per_gev
-
+    call validate_pp_delta_inputs
+    call set_pp_delta_options
+    call build_pp_parent_collision_rate
     proton_loss_rate = -kappa_loc*parent_rate
 
-    call hadronic_pp_delta_secondary_source(num_gamma,gamma_energy_gev,num_p,proton_energy_gev,parent_rate, &
-                                            x_gamma,two*neutral_frac_loc,gamma_rate_per_gev)
-    call hadronic_pp_delta_secondary_source(num_nu,neutrino_energy_gev,num_p,proton_energy_gev,parent_rate, &
-                                            x_nu,3d0*charged_frac_loc,neutrino_rate_per_gev)
-    call hadronic_pp_delta_secondary_source(num_pair,pair_energy_gev,num_p,proton_energy_gev,parent_rate, &
-                                            x_pair,charged_frac_loc,pair_rate_per_gev)
+    call emit_pp_delta_secondaries
+
+contains
+
+    subroutine validate_pp_delta_inputs
+        call hadronic_pp_validate_grid(num_p,proton_energy_gev,"proton_energy_gev")
+        call hadronic_pp_validate_grid(num_gamma,gamma_energy_gev,"gamma_energy_gev")
+        call hadronic_pp_validate_grid(num_nu,neutrino_energy_gev,"neutrino_energy_gev")
+        call hadronic_pp_validate_grid(num_pair,pair_energy_gev,"pair_energy_gev")
+
+        if (target_proton_density_cm3 < zero) then
+            error stop "hadronic_pp_delta_operator: target_proton_density_cm3 must be non-negative."
+        end if
+    end subroutine validate_pp_delta_inputs
+
+    subroutine set_pp_delta_options
+        kappa_loc = 0.5d0
+        if (present(kappa_inelastic)) kappa_loc = kappa_inelastic
+        if (kappa_loc <= zero .or. kappa_loc > one) then
+            error stop "hadronic_pp_delta_operator: kappa_inelastic must be in (0, 1]."
+        end if
+
+        pion_frac_loc = 0.17d0
+        if (present(pion_energy_fraction)) pion_frac_loc = pion_energy_fraction
+        if (pion_frac_loc <= zero .or. pion_frac_loc >= one) then
+            error stop "hadronic_pp_delta_operator: pion_energy_fraction must be in (0, 1)."
+        end if
+
+        neutral_frac_loc = one/3d0
+        if (present(neutral_pion_fraction)) neutral_frac_loc = neutral_pion_fraction
+        if (neutral_frac_loc < zero .or. neutral_frac_loc > one) then
+            error stop "hadronic_pp_delta_operator: neutral_pion_fraction must be in [0, 1]."
+        end if
+
+        charged_frac_loc = one - neutral_frac_loc
+        x_gamma = 0.5d0*pion_frac_loc
+        x_nu = 0.25d0*pion_frac_loc
+        x_pair = x_nu
+    end subroutine set_pp_delta_options
+
+    subroutine build_pp_parent_collision_rate
+        call hadronic_pp_sigma_inelastic_kelner2006(num_p,proton_energy_gev,sigma_inel)
+        collision_rate = target_proton_density_cm3*Para_c*sigma_inel
+        parent_rate = collision_rate*proton_density_per_gev
+    end subroutine build_pp_parent_collision_rate
+
+    subroutine emit_pp_delta_secondaries
+        call hadronic_pp_delta_secondary_source(num_gamma,gamma_energy_gev,num_p,proton_energy_gev,parent_rate, &
+                                                x_gamma,two*neutral_frac_loc,gamma_rate_per_gev)
+        call hadronic_pp_delta_secondary_source(num_nu,neutrino_energy_gev,num_p,proton_energy_gev,parent_rate, &
+                                                x_nu,3d0*charged_frac_loc,neutrino_rate_per_gev)
+        call hadronic_pp_delta_secondary_source(num_pair,pair_energy_gev,num_p,proton_energy_gev,parent_rate, &
+                                                x_pair,charged_frac_loc,pair_rate_per_gev)
+    end subroutine emit_pp_delta_secondaries
 end subroutine hadronic_pp_delta_operator
 
 ! Kelner+2006 pp非弹性截面参数化：σ_inel(E_p) = (34.3 + 1.88L + 0.25L²)·(1-(E_th/E_k)⁴)² mb。
@@ -125,13 +139,6 @@ subroutine hadronic_pp_delta_secondary_source(num_secondary,secondary_energy_gev
     real(8), intent(out) :: secondary_rate_per_gev(num_secondary)
     real(8) :: parent_eval_gev(num_secondary),sampled_parent(num_secondary)
 
-    if (energy_fraction <= zero) then
-        error stop "hadronic_pp_delta_secondary_source: energy_fraction must be positive."
-    end if
-    if (multiplicity < zero) then
-        error stop "hadronic_pp_delta_secondary_source: multiplicity must be non-negative."
-    end if
-
     parent_eval_gev = secondary_energy_gev/energy_fraction
     call hadronic_pp_loglog_interp_positive(num_parent,parent_energy_gev,parent_rate_per_gev, &
                                             num_secondary,parent_eval_gev,sampled_parent)
@@ -148,11 +155,6 @@ subroutine hadronic_pp_loglog_interp_positive(num_x,x,y,num_x_new,x_new,y_new)
     integer :: i,ipos
 
     call hadronic_pp_validate_grid(num_x,x,"interpolation x")
-    do i=1,num_x_new
-        if (x_new(i) <= zero) then
-            error stop "hadronic_pp_loglog_interp_positive: x_new must be strictly positive."
-        end if
-    end do
 
     num_positive = 0
     do i=1,num_x
@@ -219,24 +221,12 @@ real(8) function hadronic_pp_loglog_linear_eval(x0,x1,y0,y1,x_eval)
     hadronic_pp_loglog_linear_eval = ly0 + frac*(ly1 - ly0)
 end function hadronic_pp_loglog_linear_eval
 
-! 验证密度网格与能量网格大小一致。
-subroutine hadronic_pp_validate_density_grid(num_p,proton_energy_gev,proton_density_per_gev)
-    integer, intent(in) :: num_p
-    real(8), intent(in) :: proton_energy_gev(num_p),proton_density_per_gev(num_p)
-
-    call hadronic_pp_validate_grid(num_p,proton_energy_gev,"proton_energy_gev")
-    if (size(proton_density_per_gev) /= num_p) then
-        error stop "hadronic_pp_validate_density_grid: proton_density_per_gev shape mismatch."
-    end if
-end subroutine hadronic_pp_validate_density_grid
-
 ! 验证网格为非空且对数均匀（包装hadronic_validate_log_grid）。
 subroutine hadronic_pp_validate_grid(num_x,x,name)
     integer, intent(in) :: num_x
     real(8), intent(in) :: x(num_x)
     character(*), intent(in) :: name
 
-    if (len_trim(name) <= 0) error stop "hadronic_pp_validate_grid: internal name must be non-empty."
     call hadronic_validate_log_grid(num_x,x,name)
 end subroutine hadronic_pp_validate_grid
 

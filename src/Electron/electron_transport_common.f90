@@ -507,8 +507,6 @@ subroutine electron_characteristic_update(Num_gam_e,dDR,x_edge,cooling_mode,a_u,
     case (electron_cooling_piecewise)
         call electron_build_piecewise_affine_u(Num_gam_e,x_edge,gam_e,dEl,R_loc,u_edge,a_cell,b_cell)
         call electron_trace_piecewise_affine_u_edges_batch(Num_gam_e,Num_lag,u_edge,u_edge,a_cell,b_cell,lag_arr,x_back_batch)
-    case default
-        error stop 'unknown electron_characteristic_update cooling_mode'
     end select
     call electron_characteristic_core(Num_gam_e,dDR,x_edge,x_back_batch,source_scale,dF1, &
                                            dN_x_in,dN_x_out)
@@ -684,6 +682,136 @@ subroutine electron_fullhide_spacetime_sequence(Num_gam_e,Num_step,face_coupling
     dN_x_out=rhs(:,Num_step)
 end subroutine electron_fullhide_spacetime_sequence
 
+! 由离散谱峰附近三个点估计 log-parabola 峰值频率。
+real(8) function electron_logparabola_peak_frequency(Num_nu,nu_grid,power_nu)
+    implicit none
+    integer, intent(in) :: Num_nu
+    integer :: I_nu
+    real(8), intent(in) :: nu_grid(Num_nu),power_nu(Num_nu)
+    real(8) :: x_l,x_c,x_r,y_l,y_c,y_r,x_peak,denom_peak
+
+    I_nu=maxloc(power_nu, dim=1)
+    electron_logparabola_peak_frequency=max(nu_grid(I_nu),tiny(one))
+    if (I_nu > 1 .and. I_nu < Num_nu) then
+        if (power_nu(I_nu-1) > zero .and. power_nu(I_nu) > zero .and. power_nu(I_nu+1) > zero) then
+            x_l=dlog(nu_grid(I_nu-1))
+            x_c=dlog(nu_grid(I_nu))
+            x_r=dlog(nu_grid(I_nu+1))
+            y_l=dlog(power_nu(I_nu-1))
+            y_c=dlog(power_nu(I_nu))
+            y_r=dlog(power_nu(I_nu+1))
+            denom_peak=y_l-two*y_c+y_r
+            if (dabs(denom_peak) > tiny(one)) then
+                x_peak=x_c+0.5d0*(y_l-y_r)*(x_c-x_l)/denom_peak
+                x_peak=min(max(x_peak,x_l),x_r)
+                electron_logparabola_peak_frequency=dexp(x_peak)
+            end if
+        end if
+    end if
+end function electron_logparabola_peak_frequency
+
+! 合并注入源项与已有人口支撑区，确定能量网格活跃上界。
+integer function electron_active_gamma_hi(Num_gam_e,dF1,shell_population,src_lo,src_hi,population_peak)
+    implicit none
+    integer, intent(in) :: Num_gam_e,src_lo,src_hi
+    integer :: I_gam_e,source_hi
+    real(8), intent(in) :: dF1(Num_gam_e),shell_population(Num_gam_e),population_peak
+    real(8) :: source_peak,shell_peak,support_floor
+
+    source_hi=src_hi
+    source_peak=maxval(dF1)
+    if (source_peak > zero) then
+        source_hi=max(2,src_lo)
+        do I_gam_e=Num_gam_e,1,-1
+            if (dF1(I_gam_e) > 1d-12*source_peak) then
+                source_hi=max(source_hi,min(Num_gam_e,I_gam_e+1))
+                exit
+            end if
+        end do
+    end if
+
+    electron_active_gamma_hi=max(2,source_hi)
+    shell_peak=max(population_peak,source_peak)
+    support_floor=1d-12*shell_peak
+    if (shell_peak > zero) then
+        do I_gam_e=Num_gam_e,1,-1
+            if (shell_population(I_gam_e) > support_floor) then
+                electron_active_gamma_hi=max(electron_active_gamma_hi,min(Num_gam_e,I_gam_e+1))
+                exit
+            end if
+        end do
+    end if
+end function electron_active_gamma_hi
+
+! 由 χ 方向人口支撑区确定 χ 网格活跃上界。
+integer function electron_active_chi_hi(Num_chi,chi_population,chi_peak)
+    implicit none
+    integer, intent(in) :: Num_chi
+    integer :: I_chi
+    real(8), intent(in) :: chi_population(Num_chi),chi_peak
+
+    electron_active_chi_hi=Num_chi
+    if (chi_peak > zero) then
+        electron_active_chi_hi=1
+        do I_chi=Num_chi,1,-1
+            if (chi_population(I_chi) > 1d-10*chi_peak) then
+                electron_active_chi_hi=min(Num_chi,I_chi+1)
+                exit
+            end if
+        end do
+    end if
+end function electron_active_chi_hi
+
+! 扫描 χ-resolved 能量输运系数，给子步长估计提供最大速度。
+real(8) function electron_max_xi_coeff_chi(Num_gam_e,Num_chi,dEL_mean_chi, &
+                                           adiabatic_log_coeff_chi,chi_population,chi_peak,active_hi)
+    implicit none
+    integer, intent(in) :: Num_gam_e,Num_chi,active_hi
+    integer :: I_chi
+    real(8), intent(in) :: dEL_mean_chi(Num_gam_e-1,Num_chi),adiabatic_log_coeff_chi(Num_chi)
+    real(8), intent(in) :: chi_population(Num_chi),chi_peak
+
+    electron_max_xi_coeff_chi=zero
+    if (active_hi > 1) then
+        do I_chi=1,Num_chi
+            if (chi_peak > zero) then
+                if (chi_population(I_chi) <= 1d-10*chi_peak) cycle
+            end if
+            electron_max_xi_coeff_chi=max(electron_max_xi_coeff_chi, &
+                maxval(dabs(dEL_mean_chi(1:active_hi-1,I_chi)+adiabatic_log_coeff_chi(I_chi))))
+        end do
+        if (electron_max_xi_coeff_chi <= zero) then
+            do I_chi=1,Num_chi
+                electron_max_xi_coeff_chi=max(electron_max_xi_coeff_chi, &
+                    maxval(dabs(dEL_mean_chi(1:active_hi-1,I_chi)+adiabatic_log_coeff_chi(I_chi))))
+            end do
+        end if
+    end if
+end function electron_max_xi_coeff_chi
+
+! 扫描统一绝热项下的 χ-resolved 能量输运系数。
+real(8) function electron_max_xi_coeff_uniform(Num_gam_e,Num_chi,dEL_mean_chi, &
+                                               adiabatic_log_coeff,chi_population,chi_peak,active_hi)
+    implicit none
+    integer, intent(in) :: Num_gam_e,Num_chi,active_hi
+    integer :: I_chi
+    real(8), intent(in) :: dEL_mean_chi(Num_gam_e-1,Num_chi),adiabatic_log_coeff
+    real(8), intent(in) :: chi_population(Num_chi),chi_peak
+
+    electron_max_xi_coeff_uniform=zero
+    if (active_hi > 1) then
+        do I_chi=1,Num_chi
+            if (chi_peak > zero) then
+                if (chi_population(I_chi) <= 1d-10*chi_peak) cycle
+            end if
+            electron_max_xi_coeff_uniform=max(electron_max_xi_coeff_uniform, &
+                maxval(dabs(dEL_mean_chi(1:active_hi-1,I_chi)+adiabatic_log_coeff)))
+        end do
+        if (electron_max_xi_coeff_uniform <= zero) then
+            electron_max_xi_coeff_uniform=maxval(dabs(dEL_mean_chi(1:active_hi-1,:)+adiabatic_log_coeff))
+        end if
+    end if
+end function electron_max_xi_coeff_uniform
 
 
 end module electron_transport_common

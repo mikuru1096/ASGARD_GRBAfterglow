@@ -16,15 +16,19 @@ subroutine fs_electron_t2g1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,N
     use electron_cooling_kernel, only: get_forward_cooling
     use electron_transport_common, only: electron_prepare_implicit_coeffs_common, electron_backward_sweep_common
     IMPLICIT REAL(8)(A-H,O-Z)
-    integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger
+    integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads
+    integer :: I_tobs,L,L1,Num_gam_rad
     real(8), intent(in) :: Boundary(n),R_Tobs(Num_R),R_Gamma(Num_R),R(Num_R),V_seed(Num_nu)
     real(8), intent(out) :: dN_gam_e(Num_gam_e,Num_R),gam_e(Num_gam_e),P_syn(Num_nu,Num_R), &
                             Seed_syn(Num_nu,Num_R), V_m(Num_R), V_c(Num_R), V_a(Num_R)
+    real(8) :: Eta_0,R_ini,Epsilon_e,Epsilon_b,p,z,dNe_ISM,A_star,E_iso,T_log10_duration,f_e
+    real(8) :: R_tr,f_jump,f_wide,R0,dNe,Para_N_e_ini,DB,Gam_e_max,DB_min,Gam_e_max_max
+    real(8) :: temp_gam,Gam_e_m,Gam_e_c,d_x,R_loc,R_Gamma_loc,Gam_e_m_p,dNe_shell
+    real(8) :: beta_Gam,f_r,dDR,dDD,CFL,temp,DB_step,Gam_e_max_step,Gam_e_m_step,Gam_e_m_p_step,Q
     
     real(8),allocatable,dimension (:) :: dEl,dEL_mean,dEL_mean_base,principal,x,dF1,up,dot_gam_e_SSA, &
                                          dN_x,dN_x_prev,temp1,temp2,temp3,temp4,para_maxwell,Compton,Compton1,dot_gam_e, &
                                          gam_e_rad,dN_gam_e_rad
-    integer :: Num_gam_rad
     allocate (dEl(Num_gam_e),dEL_mean(Num_gam_e-1),dEL_mean_base(Num_gam_e-1),principal(Num_gam_e),x(Num_gam_e),dF1(Num_gam_e), &
               up(Num_gam_e-1),dN_x(Num_gam_e),dN_x_prev(Num_gam_e),temp1(Num_gam_e-1), &
               temp2(Num_gam_e),para_maxwell(Num_gam_e),temp3(Num_gam_e-1),temp4(Num_gam_e-1), &
@@ -62,6 +66,33 @@ subroutine fs_electron_t2g1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,N
     ! For the first few steps, we need to use single-step methods
     ! We'll use a startup procedure
     do I_tobs=2,Num_R
+        call prepare_t2g1_shell(I_tobs)
+        ! For the first step of each I_tobs, we use the solution from previous step
+        if (I_tobs == 2) then
+            dN_x=dN_gam_e(:,1)*gam_e*dlog(ten)
+            dN_x_prev = dN_x
+        else
+            dN_x=dN_x  ! Keep the solution from previous I_tobs
+        end if
+        call write_t2g1_radiation_and_cooling(I_tobs)
+
+        ! Main loop for sub-steps
+        do L=1,L1
+            call advance_t2g1_substep(I_tobs,L)
+        end do
+    end do
+
+    deallocate (dEl,dEL_mean,dEL_mean_base,principal,x,dF1,up,dN_x,dN_x_prev,temp1,temp2, &
+                para_maxwell,temp3,temp4,Compton,Compton1,gam_e_rad,dN_gam_e_rad)
+
+    return
+
+contains
+
+    subroutine prepare_t2g1_shell(I_tobs)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: I_tobs
+
         R_loc=R(I_tobs-1)
         R_Gamma_loc=(R_Gamma(I_tobs)+R_Gamma(I_tobs-1))/two
         call dynamics_external_density_profile(A_star,dNe_ISM,R_loc,R0,0,R_tr,f_jump,f_wide,dNe)
@@ -77,21 +108,19 @@ subroutine fs_electron_t2g1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,N
         beta_Gam=sqrt(one-one/R_Gamma_loc**2)
         f_r=(1.35d-19)/beta_Gam/R_Gamma_loc*DB**2/pi
         dDR=0.1/(f_r*Gam_e_max+1.333/(R(I_tobs)+R(I_tobs-1)))
-        !***********************[Here we have presented the choice on Delta_r]******************************************
         dDD=R(I_tobs)-R(I_tobs-1)
         L1=max(100,min(1000,Int(dDD/dDR)))
         dDR=dDD/L1
         CFL=dDR/d_x
-        ! For the first step of each I_tobs, we use the solution from previous step
-        if (I_tobs == 2) then
-            dN_x=dN_gam_e(:,1)*gam_e*dlog(ten)
-            dN_x_prev = dN_x
-        else
-            dN_x=dN_x  ! Keep the solution from previous I_tobs
-        end if
+    end subroutine prepare_t2g1_shell
+
+    subroutine write_t2g1_radiation_and_cooling(I_tobs)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: I_tobs
+
         call electron_prepare_radiation_spectrum(Num_gam_e,gam_e,dN_gam_e(:,I_tobs-1), &
                                                  Num_gam_rad,gam_e_rad,dN_gam_e_rad)
-        
+
         V_m(I_tobs-1)=4.2d6*DB*Gam_e_m*Gam_e_m/(R_Gamma_loc*(1d0-beta_Gam)*(one+z))
         V_c(I_tobs-1)=4.2d6*DB*Gam_e_c*Gam_e_c/(R_Gamma_loc*(1d0-beta_Gam)*(one+z))
         call get_nu_a(R_loc,DB,Num_gam_rad,gam_e_rad(1:Num_gam_rad),dN_gam_e_rad(1:Num_gam_rad),temp)
@@ -100,57 +129,54 @@ subroutine fs_electron_t2g1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,N
         call get_syn_selected(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads, &
                               gam_e,dN_gam_e(:,I_tobs-1),V_seed, &
                               P_syn(:,I_tobs),Seed_syn(:,I_tobs))
-        
+
         call get_forward_cooling(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc, &
                                  R_Gamma_loc,beta_Gam,dNe,Num_gam_e,Num_nu,n_threads,gam_e,V_seed, &
                                  P_syn(:,I_tobs),Seed_syn(:,I_tobs),dEl)
-         
+
         dEL_mean=(dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/two/dlog(ten)
         dEL_mean_base=dEL_mean
+    end subroutine write_t2g1_radiation_and_cooling
 
-        ! Main loop for sub-steps
-        do L=1,L1
-            R_loc=R_loc+dDR
-            
-            call dynamics_external_density_profile(A_star,dNe_ISM,R_loc,R0,1,R_tr,f_jump,f_wide,dNe)
-            DB_step=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma_loc*(R_Gamma_loc-one)))
-            Gam_e_max_step=3d0*Para_m_energy/dsqrt(8d0*DB_step*Para_e**3)
-            temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma_loc-one)
-            call electron_gamma_m_exact(p,temp_gam,Gam_e_max_step,Gam_e_m_step)
-            Gam_e_m_p_step=(one-p)/(Gam_e_max_step**(one-p)-Gam_e_m_step**(one-p))
+    subroutine advance_t2g1_substep(I_tobs,L)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: I_tobs,L
 
-            call electron_injection_prefactor(R_loc,dDR,dNe,f_e,Gam_e_m_p_step,Q)
-            call electron_build_source_term_exp_cutoff(Num_gam_e,gam_e,Gam_e_m_step,Gam_e_max_step,Q,p,dF1)
-            if (dNe_shell > zero) then
-                dEL_mean=dEL_mean_base*(dNe/dNe_shell)
-            else
-                dEL_mean=dEL_mean_base
-            end if
+        R_loc=R_loc+dDR
 
-            temp3=dEL_mean+one/R_loc/dlog(ten)
-            up=-CFL*temp3
-            
-            if (I_tobs == 2 .and. L <= 2) then
-                call electron_prepare_implicit_coeffs_common(Num_gam_e,one,up,principal,temp1)
-                temp2 = (dN_x + dDR * dF1) / principal
-            else
-                call electron_prepare_implicit_coeffs_common(Num_gam_e,1.5d0,up,principal,temp1)
-                temp2 = ( (2d0)*dN_x - 0.5d0*dN_x_prev + dF1 * dDR ) / principal
-            end if
+        call dynamics_external_density_profile(A_star,dNe_ISM,R_loc,R0,1,R_tr,f_jump,f_wide,dNe)
+        DB_step=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma_loc*(R_Gamma_loc-one)))
+        Gam_e_max_step=3d0*Para_m_energy/dsqrt(8d0*DB_step*Para_e**3)
+        temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma_loc-one)
+        call electron_gamma_m_exact(p,temp_gam,Gam_e_max_step,Gam_e_m_step)
+        Gam_e_m_p_step=(one-p)/(Gam_e_max_step**(one-p)-Gam_e_m_step**(one-p))
 
-            call electron_backward_sweep_common(Num_gam_e,temp1,temp2,x)
-            
-            dN_x_prev = dN_x
-            dN_x = x
+        call electron_injection_prefactor(R_loc,dDR,dNe,f_e,Gam_e_m_p_step,Q)
+        call electron_build_source_term_exp_cutoff(Num_gam_e,gam_e,Gam_e_m_step,Gam_e_max_step,Q,p,dF1)
+        if (dNe_shell > zero) then
+            dEL_mean=dEL_mean_base*(dNe/dNe_shell)
+        else
+            dEL_mean=dEL_mean_base
+        end if
 
-            if (L1 == L) then
-                dN_gam_e(:,I_tobs)=dN_x/gam_e/dlog(ten)
-            end if
-        end do
-    end do
+        temp3=dEL_mean+one/R_loc/dlog(ten)
+        up=-CFL*temp3
 
-    deallocate (dEl,dEL_mean,dEL_mean_base,principal,x,dF1,up,dN_x,dN_x_prev,temp1,temp2, &
-                para_maxwell,temp3,temp4,Compton,Compton1,gam_e_rad,dN_gam_e_rad)
+        if (I_tobs == 2 .and. L <= 2) then
+            call electron_prepare_implicit_coeffs_common(Num_gam_e,one,up,principal,temp1)
+            temp2 = (dN_x + dDR * dF1) / principal
+        else
+            call electron_prepare_implicit_coeffs_common(Num_gam_e,1.5d0,up,principal,temp1)
+            temp2 = ( (2d0)*dN_x - 0.5d0*dN_x_prev + dF1 * dDR ) / principal
+        end if
 
-    return
+        call electron_backward_sweep_common(Num_gam_e,temp1,temp2,x)
+
+        dN_x_prev = dN_x
+        dN_x = x
+
+        if (L1 == L) then
+            dN_gam_e(:,I_tobs)=dN_x/gam_e/dlog(ten)
+        end if
+    end subroutine advance_t2g1_substep
 end subroutine fs_electron_t2g1_1d

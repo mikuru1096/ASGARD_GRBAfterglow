@@ -63,17 +63,11 @@ subroutine electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,G
     case (electron_initial_grid_gamma)
         call electron_initial_powerlaw_exp_cutoff(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,gam_e,dN_init)
     case (electron_initial_grid_log_edges)
-        if (.not. present(x_edge)) error stop 'electron_initialize_spectrum requires x_edge'
         call electron_profile_log_cell_edges(Num_gam_e,gam_e,x_edge)
         call electron_initial_powerlaw_exp_cutoff_edges(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,x_edge,dN_init)
-    case default
-        error stop 'unknown electron_initialize_spectrum grid_mode'
     end select
     if (present(thermal_electrons)) then
         if (thermal_electrons /= 0) then
-            if (.not. present(f_e) .or. .not. present(four_v)) then
-                error stop 'electron_initialize_spectrum thermal branch requires f_e and four_v'
-            end if
             call electron_add_thermal_population(Num_gam_e,gam_e,four_v,Para_N_e_ini*(one-f_e),dN_init)
         end if
     end if

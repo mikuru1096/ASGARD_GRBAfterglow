@@ -100,8 +100,8 @@ subroutine hadronic_pg_hummer2010_operator(Num_gam_p,Num_nu,hadron_energy_gev,ha
         pion_minus_source_rate_per_gev(Num_gam_p), proton_reinjection_rate_per_gev(Num_gam_p), &
         neutron_reinjection_rate_per_gev(Num_gam_p), proton_loss_rate(Num_gam_p), &
         neutron_loss_rate(Num_gam_p), photon_loss_rate(Num_nu)
-    integer :: i_gam, i_nu, it
-    real(8) :: dln_ep, dln_eg, gamma_p, src_p, src_n, ep, y, rate_it
+    integer :: i_gam
+    real(8) :: dln_ep, dln_eg, gamma_p, src_p, src_n, ep
     real(8) :: proton_log_density(Num_gam_p), neutron_log_density(Num_gam_p), photon_log_density(Num_nu)
     real(8) :: ph_conv_res(28), ph_conv_dir(9), ph_conv_mul(14)
 
@@ -151,27 +151,7 @@ subroutine hadronic_pg_hummer2010_operator(Num_gam_p,Num_nu,hadron_energy_gev,ha
                                   hadronic_pg_loss_coeff_mul(ph_conv_mul)
         neutron_loss_rate(i_gam) = proton_loss_rate(i_gam)
 
-        do i_nu=1,Num_nu
-            y = gamma_p * photon_energy_gev(i_nu)
-            do it=1,28
-                if (it1_mp_pro(it) > 1d-4 .or. it1_mp_ntr(it) > 1d-4) then
-                    photon_loss_rate(i_nu) = photon_loss_rate(i_nu) + &
-                                             (src_p + src_n) * hadronic_pg_family_photon_loss_res(it,y,dln_ep)
-                end if
-            end do
-            do it=1,9
-                if (it2_mp_pro(it) > 1d-4 .or. it2_mp_ntr(it) > 1d-4) then
-                    photon_loss_rate(i_nu) = photon_loss_rate(i_nu) + &
-                                             (src_p + src_n) * hadronic_pg_family_photon_loss_dir(it,y,dln_ep)
-                end if
-            end do
-            do it=1,14
-                if (it3_mp_pro(it) > 1d-4 .or. it3_mp_ntr(it) > 1d-4) then
-                    photon_loss_rate(i_nu) = photon_loss_rate(i_nu) + &
-                                             (src_p + src_n) * hadronic_pg_family_photon_loss_mul(it,y,dln_ep)
-                end if
-            end do
-        end do
+        call accumulate_pg_photon_loss(gamma_p,src_p+src_n)
     end do
 
     pion0_source_rate_per_gev = pion0_source_rate_per_gev / hadron_energy_gev
@@ -179,6 +159,36 @@ subroutine hadronic_pg_hummer2010_operator(Num_gam_p,Num_nu,hadron_energy_gev,ha
     pion_minus_source_rate_per_gev = pion_minus_source_rate_per_gev / hadron_energy_gev
     proton_reinjection_rate_per_gev = proton_reinjection_rate_per_gev / hadron_energy_gev
     neutron_reinjection_rate_per_gev = neutron_reinjection_rate_per_gev / hadron_energy_gev
+
+contains
+
+    subroutine accumulate_pg_photon_loss(gamma_p,source_log_density)
+        real(8), intent(in) :: gamma_p,source_log_density
+        integer :: i_nu,it
+        real(8) :: y
+
+        do i_nu=1,Num_nu
+            y = gamma_p * photon_energy_gev(i_nu)
+            do it=1,28
+                if (it1_mp_pro(it) > 1d-4 .or. it1_mp_ntr(it) > 1d-4) then
+                    photon_loss_rate(i_nu) = photon_loss_rate(i_nu) + &
+                                             source_log_density * hadronic_pg_family_photon_loss_res(it,y,dln_ep)
+                end if
+            end do
+            do it=1,9
+                if (it2_mp_pro(it) > 1d-4 .or. it2_mp_ntr(it) > 1d-4) then
+                    photon_loss_rate(i_nu) = photon_loss_rate(i_nu) + &
+                                             source_log_density * hadronic_pg_family_photon_loss_dir(it,y,dln_ep)
+                end if
+            end do
+            do it=1,14
+                if (it3_mp_pro(it) > 1d-4 .or. it3_mp_ntr(it) > 1d-4) then
+                    photon_loss_rate(i_nu) = photon_loss_rate(i_nu) + &
+                                             source_log_density * hadronic_pg_family_photon_loss_mul(it,y,dln_ep)
+                end if
+            end do
+        end do
+    end subroutine accumulate_pg_photon_loss
 end subroutine hadronic_pg_hummer2010_operator
 
 ! 将pγ相互作用产生的π介子多重数按能量偏移χ分配到网格上。

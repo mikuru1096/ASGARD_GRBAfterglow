@@ -97,40 +97,13 @@ subroutine reverse_dynamics_rhs(dB3,T_cross,R_cross,e3_cross,gam20,U3_cross,V3_c
     real(8) :: comp_ratio,rho4,B4_ordered,B3_ordered
     logical :: pre_crossing
 
-    gam2=Y(1); RR=Y(2); para_m2=Y(3); para_m3=Y(4)*para_m_ej
-    U3=Y(5)*para_m_ej*para_c**2; V3=Y(6)*V3_scale
-    call dynamics_external_density_base(A_star,dNe_ISM,RR,dNe)
-    u2=dsqrt(gam2*gam2-one); u4=dsqrt(eta_0*eta_0-one); Delta=max(Delta_0,RR/eta_0**2)
-    para1=4d0*pi*Para_m_p*RR*RR; para_n4=para_m_ej/(para1*eta_0*Delta)
-    beta4=u4/eta_0; beta2=u2/gam2
-    gam34=(gam2*gam2+eta_0*eta_0-one)/(eta_0*gam2+u2*u4)
-    comp_ratio=rs_mag_comp(gam34,sigma_r)
-    para_n3=comp_ratio*para_n4; betars=(u2*para_n3-u4*para_n4)/(gam2*para_n3-eta_0*para_n4)
+    call decode_reverse_state()
     pre_crossing=(reverse_rhs_phase == 1 .or. (reverse_rhs_phase == 0 .and. para_m_ej > para_m3))
 
-    dB2=reverse_synch_b_coeff*dsqrt((Epsilon_b*dNe)*(gam2*gam2-one))
-    gam_c2=reverse_gamma_c_precise_coeff/(dB2*dB2*gam2*T)
-    gam_m2=Epsilon_e/f_e*Para_m_p_div_m_e*(p_f-two)*(gam2-one)/(p_f-one)+one
-    eps2=Epsilon_e*min(one,(gam_m2/gam_c2)**(p_f-two))
+    call compute_region2_radiative_efficiency()
     e3=U3/V3
-    B3_ordered=zero
-    if (pre_crossing) then
-        rho4=para_n4*Para_m_p
-        B4_ordered=rs_b4_up(rho4,sigma_r)
-        B3_ordered=B4_ordered*comp_ratio
-    else
-        if (T_cross < zero .and. gam2 > one) then
-            rho4=para_n4*Para_m_p
-            B4_ordered=rs_b4_up(rho4,sigma_r)
-            B3_ordered=B4_ordered*comp_ratio
-        else
-            B3_ordered=B3_ordered_cross*V3_cross/V3*RR/R_cross
-        end if
-    end if
-    dB3=dsqrt(8d0*pi*b_r*e3+B3_ordered*B3_ordered)
-    gam_c3=reverse_gamma_c_precise_coeff/(dB3*dB3*gam2*T)
-    gam_m3=e_r/f_e_r*Para_m_p_div_m_e*(p_r-two)*(gam34-one)/(p_r-one)+one
-    eps3=e_r*min(one,(gam_m3/gam_c3)**(p_r-two))
+    call compute_region3_field()
+    call compute_region3_radiative_efficiency()
 
     dgam2_1=-para1*((gam2*gam2-one)*dNe+(gam2*gam34-eta_0)*(beta4-betars)*eta_0*para_n4)
     dgam2_2=(para_m2+para_m3+(one-eps2)*(two*gam2-one)*para_m2+(one-eps3)*(gam34-one)*para_m3+ &
@@ -163,4 +136,57 @@ subroutine reverse_dynamics_rhs(dB3,T_cross,R_cross,e3_cross,gam20,U3_cross,V3_c
     dU3_ad=-(ad3-one)*U3*dV3_exp/V3
     dU3=dU3_shock+dU3_ad; dV3=dV3_shock+dV3_exp
     D=[dgam2,dR,dm2,dm3/para_m_ej,dU3/(para_m_ej*para_c**2),dV3/V3_scale]
+
+contains
+
+    subroutine decode_reverse_state()
+    implicit none
+
+        gam2=Y(1); RR=Y(2); para_m2=Y(3); para_m3=Y(4)*para_m_ej
+        U3=Y(5)*para_m_ej*para_c**2; V3=Y(6)*V3_scale
+        call dynamics_external_density_base(A_star,dNe_ISM,RR,dNe)
+        u2=dsqrt(gam2*gam2-one); u4=dsqrt(eta_0*eta_0-one); Delta=max(Delta_0,RR/eta_0**2)
+        para1=4d0*pi*Para_m_p*RR*RR; para_n4=para_m_ej/(para1*eta_0*Delta)
+        beta4=u4/eta_0; beta2=u2/gam2
+        gam34=(gam2*gam2+eta_0*eta_0-one)/(eta_0*gam2+u2*u4)
+        comp_ratio=rs_mag_comp(gam34,sigma_r)
+        para_n3=comp_ratio*para_n4; betars=(u2*para_n3-u4*para_n4)/(gam2*para_n3-eta_0*para_n4)
+    end subroutine decode_reverse_state
+
+    subroutine compute_region2_radiative_efficiency()
+    implicit none
+
+        dB2=reverse_synch_b_coeff*dsqrt((Epsilon_b*dNe)*(gam2*gam2-one))
+        gam_c2=reverse_gamma_c_precise_coeff/(dB2*dB2*gam2*T)
+        gam_m2=Epsilon_e/f_e*Para_m_p_div_m_e*(p_f-two)*(gam2-one)/(p_f-one)+one
+        eps2=Epsilon_e*min(one,(gam_m2/gam_c2)**(p_f-two))
+    end subroutine compute_region2_radiative_efficiency
+
+    subroutine compute_region3_field()
+    implicit none
+
+        B3_ordered=zero
+        if (pre_crossing) then
+            rho4=para_n4*Para_m_p
+            B4_ordered=rs_b4_up(rho4,sigma_r)
+            B3_ordered=B4_ordered*comp_ratio
+        else
+            if (T_cross < zero .and. gam2 > one) then
+                rho4=para_n4*Para_m_p
+                B4_ordered=rs_b4_up(rho4,sigma_r)
+                B3_ordered=B4_ordered*comp_ratio
+            else
+                B3_ordered=B3_ordered_cross*V3_cross/V3*RR/R_cross
+            end if
+        end if
+        dB3=dsqrt(8d0*pi*b_r*e3+B3_ordered*B3_ordered)
+    end subroutine compute_region3_field
+
+    subroutine compute_region3_radiative_efficiency()
+    implicit none
+
+        gam_c3=reverse_gamma_c_precise_coeff/(dB3*dB3*gam2*T)
+        gam_m3=e_r/f_e_r*Para_m_p_div_m_e*(p_r-two)*(gam34-one)/(p_r-one)+one
+        eps3=e_r*min(one,(gam_m3/gam_c3)**(p_r-two))
+    end subroutine compute_region3_radiative_efficiency
 end subroutine reverse_dynamics_rhs

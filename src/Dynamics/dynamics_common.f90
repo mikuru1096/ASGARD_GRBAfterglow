@@ -416,19 +416,7 @@ subroutine dynamics_rk4_reverse_event_step(rhs, dB3, T_cross, R_cross, &
         return
     end if
 
-    Y_trial = Y
-    S_trial = S
-    dB3_trial=dB3; T_cross_trial=T_cross; R_cross_trial=R_cross
-    e3_cross_trial=e3_cross; gam20_trial=gam20
-    U3_cross_trial=U3_cross; V3_cross_trial=V3_cross
-    M3_cross_trial=M3_cross; gam_m_cross_trial=gam_m_cross
-    B3_ordered_cross_trial=B3_ordered_cross
-    call dynamics_rk4_reverse_plain_step(rhs, dB3_trial, T_cross_trial, R_cross_trial, &
-                                         e3_cross_trial, gam20_trial, U3_cross_trial, V3_cross_trial, &
-                                         M3_cross_trial, gam_m_cross_trial, B3_ordered_cross_trial, &
-                                         T_base, S_trial, H, Y_trial, para_m_ej, V3_scale, Delta_0, &
-                                         eta_0, A_star, dNe_ISM, Epsilon_b, Epsilon_e, p_f, f_e, &
-                                         e_r, b_r, p_r, f_e_r, sigma_r, 1)
+    call advance_phase1_trial(H)
     if (Y_trial(4) < one) then
         dB3=dB3_trial
         S = S_trial
@@ -440,19 +428,7 @@ subroutine dynamics_rk4_reverse_event_step(rhs, dB3, T_cross, R_cross, &
     H_hi = H
     do I = 1, 60
         H_mid = 0.5d0*(H_lo+H_hi)
-        Y_trial = Y
-        S_trial = S
-        dB3_trial=dB3; T_cross_trial=T_cross; R_cross_trial=R_cross
-        e3_cross_trial=e3_cross; gam20_trial=gam20
-        U3_cross_trial=U3_cross; V3_cross_trial=V3_cross
-        M3_cross_trial=M3_cross; gam_m_cross_trial=gam_m_cross
-        B3_ordered_cross_trial=B3_ordered_cross
-        call dynamics_rk4_reverse_plain_step(rhs, dB3_trial, T_cross_trial, R_cross_trial, &
-                                             e3_cross_trial, gam20_trial, U3_cross_trial, V3_cross_trial, &
-                                             M3_cross_trial, gam_m_cross_trial, B3_ordered_cross_trial, &
-                                             T_base, S_trial, H_mid, Y_trial, para_m_ej, V3_scale, Delta_0, &
-                                             eta_0, A_star, dNe_ISM, Epsilon_b, Epsilon_e, p_f, f_e, &
-                                             e_r, b_r, p_r, f_e_r, sigma_r, 1)
+        call advance_phase1_trial(H_mid)
         if (Y_trial(4) >= one) then
             H_hi = H_mid
         else
@@ -485,6 +461,38 @@ subroutine dynamics_rk4_reverse_event_step(rhs, dB3, T_cross, R_cross, &
                                              eta_0, A_star, dNe_ISM, Epsilon_b, Epsilon_e, p_f, f_e, &
                                              e_r, b_r, p_r, f_e_r, sigma_r, 2)
     end if
+
+contains
+
+subroutine reset_trial_state()
+    implicit none
+
+    Y_trial = Y
+    S_trial = S
+    dB3_trial = dB3
+    T_cross_trial = T_cross
+    R_cross_trial = R_cross
+    e3_cross_trial = e3_cross
+    gam20_trial = gam20
+    U3_cross_trial = U3_cross
+    V3_cross_trial = V3_cross
+    M3_cross_trial = M3_cross
+    gam_m_cross_trial = gam_m_cross
+    B3_ordered_cross_trial = B3_ordered_cross
+end subroutine reset_trial_state
+
+subroutine advance_phase1_trial(H_try)
+    implicit none
+    real(8), intent(in) :: H_try
+
+    call reset_trial_state()
+    call dynamics_rk4_reverse_plain_step(rhs, dB3_trial, T_cross_trial, R_cross_trial, &
+                                         e3_cross_trial, gam20_trial, U3_cross_trial, V3_cross_trial, &
+                                         M3_cross_trial, gam_m_cross_trial, B3_ordered_cross_trial, &
+                                         T_base, S_trial, H_try, Y_trial, para_m_ej, V3_scale, Delta_0, &
+                                         eta_0, A_star, dNe_ISM, Epsilon_b, Epsilon_e, p_f, f_e, &
+                                         e_r, b_r, p_r, f_e_r, sigma_r, 1)
+end subroutine advance_phase1_trial
 end subroutine dynamics_rk4_reverse_event_step
 
 subroutine dynamics_rk4_reverse_pre_step(rhs, dB3, T, Y, H, para_m_ej, V3_scale, Delta_0, &

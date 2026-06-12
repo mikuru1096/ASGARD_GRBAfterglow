@@ -303,6 +303,22 @@ def _read_text_if_exists(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def _write_f2py_signature_source(source_path: Path, target_path: Path) -> None:
+    lines = source_path.read_text(encoding="utf-8").splitlines()
+    stripped_lines = [
+        line for line in lines
+        if not (
+            line.split("!", 1)[0].strip().lower() in {"block", "end block", "end associate"}
+            or line.split("!", 1)[0].strip().lower().startswith("associate(")
+            or line.split("!", 1)[0].strip().lower().startswith("associate (")
+        )
+    ]
+    if len(stripped_lines) == len(lines):
+        shutil.copy2(source_path, target_path)
+        return
+    target_path.write_text("\n".join(stripped_lines) + "\n", encoding="utf-8")
+
+
 def _object_current(object_path: Path, source_path: Path, manifest_path: Path, manifest_text: str) -> bool:
     if not object_path.is_file():
         return False
@@ -421,7 +437,7 @@ def _build_ordered_object_module(
     main_source_path = (cwd / main_source_name).resolve()
     signature_source_path = build_dir / main_source_name
     if not signature_source_path.is_file() or signature_source_path.stat().st_mtime < main_source_path.stat().st_mtime:
-        shutil.copy2(main_source_path, signature_source_path)
+        _write_f2py_signature_source(main_source_path, signature_source_path)
     entry_names = list(F2PY_ENTRYPOINTS.get(module_name, (module_name.lower(),)))
     wrapper_manifest_path = build_dir / "wrapper.manifest"
     wrapper_manifest_text = "\n".join(
