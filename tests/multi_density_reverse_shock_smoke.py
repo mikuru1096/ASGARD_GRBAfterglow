@@ -98,6 +98,13 @@ def _run_multi_bump_reverse() -> None:
         rtol=1.0e-13,
         atol=0.0,
     )
+    _assert_log_smooth(secondary.gamma_contact[injection], 0.5)
+    _assert_log_smooth(secondary.pressure_3[injection], 3.0)
+    _assert_log_smooth(secondary.gamma_43[injection], 0.5)
+    _assert_log_smooth(secondary.magnetic_field_g[reservoir], 3.0)
+    assert state.components.rev_sync is not None
+    _assert_log_smooth(state.components.fwd_sync[0], 2.0)
+    _assert_log_smooth(state.components.rev_sync[0], 5.0)
 
 
 def _run_single_bump_secondary() -> None:
@@ -114,16 +121,37 @@ def _run_single_bump_secondary() -> None:
 
 
 def _run_disabled_branch_rejections() -> None:
-    config = _base_config()
-    config.jump_r_cm = (3.0e16,)
-    config.jump_factor = (6.0,)
-    config.jump_width_log10 = (0.10,)
-    config.index_y = 1
-    try:
-        solve_state_from_setup(config, make_query_setup(config, np.logspace(2.0, 3.0, 3), np.array([1.0e10])))
-    except NotImplementedError:
+    cases = [
+        ("non-synch electron cooling", lambda cfg: setattr(cfg, "index_y", 1)),
+        ("forward SSC", lambda cfg: setattr(cfg, "include_forward_ssc", True)),
+        ("wind medium", lambda cfg: setattr(cfg, "a_star", 0.1)),
+        ("2D electron solver", lambda cfg: setattr(cfg, "electron_solver", "fullhide_2d")),
+        ("structured observer path", lambda cfg: setattr(cfg, "geometry_kernel", "chi_eats_2d")),
+        ("forward hadronic", lambda cfg: setattr(cfg.hadronic, "enabled", True)),
+        ("reverse hadronic", lambda cfg: setattr(cfg.hadronic, "reverse_enabled", True)),
+        ("RS SSC", lambda cfg: setattr(cfg.reverse_shock, "include_ssc", True)),
+        ("cross-zone IC", lambda cfg: setattr(cfg.reverse_shock, "include_cross_zone_ic", True)),
+    ]
+    for label, mutate in cases:
+        config = _base_config()
+        config.jump_r_cm = (3.0e16,)
+        config.jump_factor = (6.0,)
+        config.jump_width_log10 = (0.10,)
+        mutate(config)
+        try:
+            solve_state_from_setup(config, make_query_setup(config, np.logspace(2.0, 3.0, 3), np.array([1.0e10])))
+        except (NotImplementedError, ValueError):
+            continue
+        raise AssertionError(f"multi-density reverse shock accepted {label}")
+
+
+def _assert_log_smooth(values: np.ndarray, max_jump: float) -> None:
+    positive = np.asarray(values, dtype=float)
+    positive = positive[np.isfinite(positive) & (positive > 0.0)]
+    if positive.size < 3:
         return
-    raise AssertionError("multi-density reverse shock accepted non-synch electron cooling")
+    jumps = np.abs(np.diff(np.log10(positive)))
+    assert np.max(jumps) < max_jump
 
 
 def main() -> None:
