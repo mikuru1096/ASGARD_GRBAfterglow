@@ -48,41 +48,7 @@ subroutine fs_electron_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_
     is_uniform_density=(A_star <= zero .and. f_jump == one)
 
     do I_tobs=2,Num_R
-        R_loc=R(I_tobs-1)
-        R_Gamma_loc=(R_Gamma(I_tobs)+R_Gamma(I_tobs-1))/two
-        call dynamics_external_density_profile(A_star,dNe_ISM,R_loc,R0,1,R_tr,f_jump,f_wide,dNe)
-
-        DB=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma_loc*(R_Gamma_loc-one)))
-        Gam_e_max=3d0*Para_m_energy/dsqrt(8d0*DB*Para_e**3)
-        temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma_loc-one)
-        call electron_gamma_m_exact(p,temp_gam,Gam_e_max,Gam_e_m)
-        Gam_e_m_p=(one-p)/(Gam_e_max**(one-p)-Gam_e_m**(one-p))
-        Gam_e_c=7.7d8*(one+z)/R_Gamma_loc/DB**2/R_Tobs(I_tobs)
-        dNe_shell=dNe
-
-        beta_Gam=sqrt(one-one/R_Gamma_loc**2)
-        f_r=(1.35d-19)/beta_Gam/R_Gamma_loc*DB**2/pi
-        dDR=charint_cfl_relax*0.1d0/(f_r*Gam_e_max+1.333d0/(R(I_tobs)+R(I_tobs-1)))
-        dDD=R(I_tobs)-R(I_tobs-1)
-        L1=max(4,min(2048,ceiling(dDD/max(dDR,1d-30))))
-        dDR=dDD/L1
-
-        call electron_prepare_radiation_spectrum(Num_gam_e,gam_e,dN_gam_e(:,I_tobs-1), &
-                                                 Num_gam_rad,gam_e_rad,dN_gam_e_rad)
-        V_m(I_tobs-1)=4.2d6*DB*Gam_e_m*Gam_e_m/(R_Gamma_loc*(1d0-beta_Gam)*(one+z))
-        V_c(I_tobs-1)=4.2d6*DB*Gam_e_c*Gam_e_c/(R_Gamma_loc*(1d0-beta_Gam)*(one+z))
-        call get_nu_a(R_loc,DB,Num_gam_rad,gam_e_rad(1:Num_gam_rad),dN_gam_e_rad(1:Num_gam_rad),temp)
-        V_a(I_tobs-1)=temp/(R_Gamma_loc*(1d0-beta_Gam)*(one+z))
-
-        call get_syn_selected(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads, &
-                              gam_e,dN_gam_e(:,I_tobs-1),V_seed,P_syn(:,I_tobs),Seed_syn(:,I_tobs))
-        if (index_Y == 0) then
-            dEl_base=zero
-        else
-            call get_forward_cooling(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc, &
-                                     R_Gamma_loc,beta_Gam,dNe,Num_gam_e,Num_nu,n_threads,gam_e,V_seed, &
-                                     P_syn(:,I_tobs),Seed_syn(:,I_tobs),dEl_base)
-        end if
+        call prepare_characteristic_shell(I_tobs)
 
         if (adaptive_substeps == 0) then
             if (is_uniform_density) then
@@ -257,21 +223,70 @@ subroutine fs_electron_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_
         dN_gam_e(:,I_tobs)=dN_x/gam_e/dlog(ten)
     end do
 
-    R_loc=R(Num_R)
-    R_Gamma_loc=R_Gamma(Num_R)
-    call dynamics_external_density_profile(A_star,dNe_ISM,R_loc,R0,1,R_tr,f_jump,f_wide,dNe)
-    DB=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma_loc*(R_Gamma_loc-one)))
-    beta_Gam=sqrt(one-one/R_Gamma_loc**2)
-    Gam_e_max=3d0*Para_m_energy/dsqrt(8d0*DB*Para_e**3)
-    temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma_loc-one)
-    call electron_gamma_m_exact(p,temp_gam,Gam_e_max,Gam_e_m)
-    Gam_e_c=7.7d8*(one+z)/R_Gamma_loc/DB**2/R_Tobs(Num_R)
-    V_m(Num_R)=4.2d6*DB*Gam_e_m*Gam_e_m/(R_Gamma_loc*(1d0-beta_Gam)*(one+z))
-    V_c(Num_R)=4.2d6*DB*Gam_e_c*Gam_e_c/(R_Gamma_loc*(1d0-beta_Gam)*(one+z))
-    call electron_prepare_radiation_spectrum(Num_gam_e,gam_e,dN_gam_e(:,Num_R), &
-                                             Num_gam_rad,gam_e_rad,dN_gam_e_rad)
-    call get_nu_a(R_loc,DB,Num_gam_rad,gam_e_rad(1:Num_gam_rad),dN_gam_e_rad(1:Num_gam_rad),temp)
-    V_a(Num_R)=temp/(R_Gamma_loc*(1d0-beta_Gam)*(one+z))
+    call write_final_characteristic_diagnostics()
 
     deallocate(dEl_base,dEl_step,dN_x,dN_step,dF1,dF1_shape,x_edge,gam_e_rad,dN_gam_e_rad)
+
+contains
+
+    subroutine prepare_characteristic_shell(I_tobs)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: I_tobs
+
+        R_loc=R(I_tobs-1)
+        R_Gamma_loc=(R_Gamma(I_tobs)+R_Gamma(I_tobs-1))/two
+        call dynamics_external_density_profile(A_star,dNe_ISM,R_loc,R0,1,R_tr,f_jump,f_wide,dNe)
+
+        DB=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma_loc*(R_Gamma_loc-one)))
+        Gam_e_max=3d0*Para_m_energy/dsqrt(8d0*DB*Para_e**3)
+        temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma_loc-one)
+        call electron_gamma_m_exact(p,temp_gam,Gam_e_max,Gam_e_m)
+        Gam_e_m_p=(one-p)/(Gam_e_max**(one-p)-Gam_e_m**(one-p))
+        Gam_e_c=7.7d8*(one+z)/R_Gamma_loc/DB**2/R_Tobs(I_tobs)
+        dNe_shell=dNe
+
+        beta_Gam=sqrt(one-one/R_Gamma_loc**2)
+        f_r=(1.35d-19)/beta_Gam/R_Gamma_loc*DB**2/pi
+        dDR=charint_cfl_relax*0.1d0/(f_r*Gam_e_max+1.333d0/(R(I_tobs)+R(I_tobs-1)))
+        dDD=R(I_tobs)-R(I_tobs-1)
+        L1=max(4,min(2048,ceiling(dDD/max(dDR,1d-30))))
+        dDR=dDD/L1
+
+        call electron_prepare_radiation_spectrum(Num_gam_e,gam_e,dN_gam_e(:,I_tobs-1), &
+                                                 Num_gam_rad,gam_e_rad,dN_gam_e_rad)
+        V_m(I_tobs-1)=4.2d6*DB*Gam_e_m*Gam_e_m/(R_Gamma_loc*(1d0-beta_Gam)*(one+z))
+        V_c(I_tobs-1)=4.2d6*DB*Gam_e_c*Gam_e_c/(R_Gamma_loc*(1d0-beta_Gam)*(one+z))
+        call get_nu_a(R_loc,DB,Num_gam_rad,gam_e_rad(1:Num_gam_rad),dN_gam_e_rad(1:Num_gam_rad),temp)
+        V_a(I_tobs-1)=temp/(R_Gamma_loc*(1d0-beta_Gam)*(one+z))
+
+        call get_syn_selected(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads, &
+                              gam_e,dN_gam_e(:,I_tobs-1),V_seed,P_syn(:,I_tobs),Seed_syn(:,I_tobs))
+        if (index_Y == 0) then
+            dEl_base=zero
+        else
+            call get_forward_cooling(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc, &
+                                     R_Gamma_loc,beta_Gam,dNe,Num_gam_e,Num_nu,n_threads,gam_e,V_seed, &
+                                     P_syn(:,I_tobs),Seed_syn(:,I_tobs),dEl_base)
+        end if
+    end subroutine prepare_characteristic_shell
+
+    subroutine write_final_characteristic_diagnostics()
+    implicit real(8)(A-H,O-Z)
+
+        R_loc=R(Num_R)
+        R_Gamma_loc=R_Gamma(Num_R)
+        call dynamics_external_density_profile(A_star,dNe_ISM,R_loc,R0,1,R_tr,f_jump,f_wide,dNe)
+        DB=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma_loc*(R_Gamma_loc-one)))
+        beta_Gam=sqrt(one-one/R_Gamma_loc**2)
+        Gam_e_max=3d0*Para_m_energy/dsqrt(8d0*DB*Para_e**3)
+        temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma_loc-one)
+        call electron_gamma_m_exact(p,temp_gam,Gam_e_max,Gam_e_m)
+        Gam_e_c=7.7d8*(one+z)/R_Gamma_loc/DB**2/R_Tobs(Num_R)
+        V_m(Num_R)=4.2d6*DB*Gam_e_m*Gam_e_m/(R_Gamma_loc*(1d0-beta_Gam)*(one+z))
+        V_c(Num_R)=4.2d6*DB*Gam_e_c*Gam_e_c/(R_Gamma_loc*(1d0-beta_Gam)*(one+z))
+        call electron_prepare_radiation_spectrum(Num_gam_e,gam_e,dN_gam_e(:,Num_R), &
+                                                 Num_gam_rad,gam_e_rad,dN_gam_e_rad)
+        call get_nu_a(R_loc,DB,Num_gam_rad,gam_e_rad(1:Num_gam_rad),dN_gam_e_rad(1:Num_gam_rad),temp)
+        V_a(Num_R)=temp/(R_Gamma_loc*(1d0-beta_Gam)*(one+z))
+    end subroutine write_final_characteristic_diagnostics
 end subroutine fs_electron_charint_1d

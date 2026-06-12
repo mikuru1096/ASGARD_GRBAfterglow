@@ -11,6 +11,30 @@
 - 物理学内核代码不因清理任务改动；如后续触及 Fortran，必须做受影响编译和 `-Wline-truncation` 检查。
 - `build_extensions.py` 的 `convert_utf8_to_ascii` 源码回写按当前项目决策保留，清理任务不得修改。
 
+## 当前活动重构计划
+
+### Fortran kernel readability refactor
+
+目标：按 Fortran 技能的顶层路线收窄声明块和主流程复杂度，只做行为保持的作用域、命名 helper、contained stage 或 workspace 重构。不得改 public/f2py 入口、数组形状、物理公式、数值策略或 wrapper 调用契约。
+
+当前未提交批次已覆盖：
+
+- f2py 临时签名源处理：`build_extensions.py` 仅在签名扫描副本中剥离 `block/associate` 结构行，真实 gfortran 构建仍使用原始 Fortran。
+- 2D electron / PIC / transport common：谱峰、active support、substep 系数扫描、η 推进矩阵阶段已命名化。
+- 1D electron drivers：`fullhide_1d`、`fullhide_1d_hybrid`、`charint_1d` 的壳层准备、hybrid/source 构造和末端诊断已收成 contained helper；输运主体仍留在父过程。
+- electron radiation/cooling/hybrid：同步辐射单频点、SSA/IC/Y 积分和 hybrid spectrum point 已收成局部阶段 helper。
+- structured / interpolation / radiation：structured patch solve、χ-resolved 和 structured EATS segment projection、SSC、γγ absorption、reverse seed、radiation common seed core 已完成局部阶段命名。
+- dynamics：reverse RK event trial-state、reverse RHS 的状态解码/区域 2/区域 3 场与辐射效率阶段已命名化。
+- hadronic：pγ Hummer、interaction、forward driver、pp delta、pp models、acceleration、Bethe-Heitler、decay、pair cascade/production、secondary radiation、species transport、hadronic IC、radiation、transport/remap 已完成 contained helper 或小型共享 helper 重构。
+
+剩余不动边界：
+
+- `electron_forward_weno5_1d.f90` 含 NaN/非负裁剪等数值策略，需单独物理/数值审计，不在本轮“只读性重构”中用 helper 包起来。
+- `electron_forward_slc1_1d.f90`、`electron_forward_t2g1_1d.f90`、`Dynamics_forward.f90`、`hadronic_common.f90`、`interpolation_common.f90`、`quantum_synchrotron_kernel.f90`、`synchrotron_polarization_kernel.f90` 等文件短且职责单一，继续拆分的边际信息增益低。
+- `adaptive_resampling_mod.f90` 已有内部 helper；若未来要改采样策略或模块私有过程边界，需另开数值审计，不能夹在行为保持重构中。
+
+验收口径：每个批次必须通过受影响 `build_extensions.py --force`、干净 `/tmp` module 目录的 `gfortran -Wall -Werror=line-truncation -Wline-truncation -cpp -fopenmp -fsyntax-only` source closure 检查、最小相关 smoke test；每累计约 5 个代码文件或高风险批次后运行 CCreview。最终完成标记只记录提交哈希。
+
 ## 当前未完成边界
 
 这些条目不是可随手实现的 backlog。只有在目标观测或物理问题明确需要，并且先写清契约与验收口径后，才允许进入实现。

@@ -9,9 +9,14 @@ subroutine fs_electron_weno5_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,
     use electron_radiation_kernel, only: get_syn
     use electron_cooling_kernel, only: get_forward_cooling
     IMPLICIT REAL(8)(A-H,O-Z)
-    integer, intent(in) :: n,Num_R,Num_gam_e
+    integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,index_Y,n_threads
+    integer :: I_tobs,L,L1
     real(8), intent(in) :: Boundary(n),R_Tobs(Num_R),R_Gamma(Num_R),R(Num_R),V_seed(Num_nu)
     real(8), intent(out) :: dN_gam_e(Num_gam_e,Num_R),gam_e(Num_gam_e),P_syn(Num_nu,Num_R),Seed_syn(Num_nu,Num_R)
+    real(8) :: Eta_0,R_ini,Epsilon_e,Epsilon_b,p,z,dNe_ISM,A_star,E_iso,T_log10_duration,f_e
+    real(8) :: R_tr,f_jump,f_wide,R0,dNe,Para_N_e_ini,DB,Gam_e_max,DB_min,Gam_e_max_max
+    real(8) :: temp_gam,Gam_e_m,Gam_e_c,d_x,factor_adv,CFL_target,R_loc,R_Gamma_loc,Gam_e_m_p
+    real(8) :: beta_Gam,f_r,dDR,dDD,WENO_speed_max,CFL,Q
 
     real(8),allocatable,dimension (:) :: f_r_times_gam_e,dEl,para_minus_gam_e_p,dEl1,x, &
             dN_x,dF1,fp,flux,Compton,Compton1,dot_gam_e,dot_gam_e_SSA
@@ -53,6 +58,25 @@ subroutine fs_electron_weno5_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,
     CFL_target=0.8d0
 
     do I_tobs=2,Num_R
+        call prepare_weno_shell(I_tobs)
+        call write_weno_radiation_and_cooling(I_tobs)
+
+        do L=1,L1
+            call advance_weno_substep(I_tobs,L)
+        end do
+    end do
+
+    deallocate (f_r_times_gam_e,dEl,para_minus_gam_e_p,dEl1,x,dN_x,dF1,fp,flux,temp_store,Compton,Compton1,dot_gam_e, &
+                dN_x_extended, temp_store_extended, fp_extended, flux_extended)
+
+    return
+
+contains
+
+    subroutine prepare_weno_shell(I_tobs)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: I_tobs
+
         R_loc=R(I_tobs-1)
         R_Gamma_loc=(R_Gamma(I_tobs)+R_Gamma(I_tobs-1))/two
         call dynamics_external_density_profile(A_star,dNe_ISM,R_loc,R0,0,R_tr,f_jump,f_wide,dNe)
@@ -67,17 +91,21 @@ subroutine fs_electron_weno5_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,
         beta_Gam=dsqrt(one-one/R_Gamma_loc**2)
         f_r=(1.35d-19)/beta_Gam/R_Gamma_loc*DB**2/pi
         dDR=0.1/(f_r*Gam_e_max+1.333/(R(I_tobs)+R(I_tobs-1)))
-        !***********************[Here we have presented the choice on Delta_r]******************************************
         dDD=R(I_tobs)-R(I_tobs-1)
         dN_x=dN_gam_e(:,I_tobs-1)*gam_e*dlog(ten)
-        
+    end subroutine prepare_weno_shell
+
+    subroutine write_weno_radiation_and_cooling(I_tobs)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: I_tobs
+
         call get_syn(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e(:,I_tobs-1),V_seed, &
                      P_syn(:,I_tobs),Seed_syn(:,I_tobs))
-        
+
         call get_forward_cooling(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc, &
                                  R_Gamma_loc,beta_Gam,dNe,Num_gam_e,Num_nu,n_threads,gam_e,V_seed, &
                                  P_syn(:,I_tobs),Seed_syn(:,I_tobs),dEl)
-        
+
         dEl(1:Num_gam_e-1)=(dEl(1:Num_gam_e-1)+dEl(2:Num_gam_e))*0.5d0
         dEl(Num_gam_e)=dEl(Num_gam_e-1)*0.5d0
         dEl1=(dEl+one/R_loc)/dlog(ten)
@@ -87,74 +115,88 @@ subroutine fs_electron_weno5_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,
         L1=max(L1,ceiling(dDD*WENO_speed_max/(CFL_target*d_x)))
         dDR=dDD/L1
         CFL=dDR/d_x
-        
-        do L=1,L1
-            R_loc=R_loc+dDR
-            
-            call dynamics_external_density_profile(A_star,dNe_ISM,R_loc,R0,1,R_tr,f_jump,f_wide,dNe)
-            
-            dEl1=(dEl+one/R_loc)/dlog(ten)
-            call electron_injection_prefactor(R_loc,dDR,dNe,f_e,Gam_e_m_p,Q)
-            call electron_build_source_term_exp_cutoff(Num_gam_e,gam_e,Gam_e_m,Gam_e_max,Q,p,dF1)
-!            dF1=dF1+Q*para_maxwell/Gam_e_m_p*(one-f_e)
-            
-            
-            dN_x_extended(1-3:0) = dN_x(1)
-            dN_x_extended(1:Num_gam_e) = dN_x
-            dN_x_extended(Num_gam_e+1:Num_gam_e+3) = dN_x(Num_gam_e)
-            temp_store_extended(1,:) = dN_x_extended
-            
-            dEl1_extended(1-3:0) = dEl1(1)
-            dEl1_extended(1:Num_gam_e) = dEl1
-            dEl1_extended(Num_gam_e+1:Num_gam_e+3) = dEl1(Num_gam_e)
+    end subroutine write_weno_radiation_and_cooling
 
-            do j=1,3
+    subroutine advance_weno_substep(I_tobs,L)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: I_tobs,L
 
-              call weno5_update_ghost_cells(dN_x_extended, Num_gam_e)
+        R_loc=R_loc+dDR
         
-              fp_extended = dEl1_extended * dN_x_extended
+        call dynamics_external_density_profile(A_star,dNe_ISM,R_loc,R0,1,R_tr,f_jump,f_wide,dNe)
         
-              do i_gam_e = 0, Num_gam_e
-                 if (dEl1_extended(i_gam_e) <= 0.0d0) then
-                    flux_extended(i_gam_e) = weno5_positive_flux(fp_extended(i_gam_e-2:i_gam_e+2))
-                 else
-                    flux_extended(i_gam_e) = weno5_negative_flux(fp_extended(i_gam_e-1:i_gam_e+3))
-                 end if
-              end do
-        
-              if(j==1) then
-                do i = 1, Num_gam_e
-                   dN_x_extended(i) = temp_store_extended(1,i) + CFL*(flux_extended(i)-flux_extended(i-1)) + dF1(i)*dDR
-                end do
-                temp_store_extended(2,:) = dN_x_extended
-              else if(j==2) then
-                do i = 1, Num_gam_e
-                   dN_x_extended(i) = 0.75d0*temp_store_extended(1,i) + 0.25d0*(temp_store_extended(2,i) + &
-                                  CFL*(flux_extended(i)-flux_extended(i-1))) + 0.25d0*dF1(i)*dDR
-                end do
-                temp_store_extended(3,:) = dN_x_extended
-              else if(j==3) then
-                do i = 1, Num_gam_e
-                   dN_x_extended(i) = (temp_store_extended(1,i) + 2.0d0*(temp_store_extended(3,i) + &
-                                  CFL*(flux_extended(i)-flux_extended(i-1))))/3.0d0 + 2.0d0/3.0d0*dF1(i)*dDR
-                end do
-              end if
-           end do
-           
-           dN_x = dN_x_extended(1:Num_gam_e)
-            
-           where(dN_x < 0.0d0) dN_x = 0.0d0
-        
-           if (L1 == L) then
-              dN_gam_e(:,I_tobs)=dN_x/gam_e/dlog(ten)
-           end if
+        dEl1=(dEl+one/R_loc)/dlog(ten)
+        call electron_injection_prefactor(R_loc,dDR,dNe,f_e,Gam_e_m_p,Q)
+        call electron_build_source_term_exp_cutoff(Num_gam_e,gam_e,Gam_e_m,Gam_e_max,Q,p,dF1)
+!        dF1=dF1+Q*para_maxwell/Gam_e_m_p*(one-f_e)
+
+        call load_weno_extended_state()
+
+        do j=1,3
+            call compute_weno_fluxes()
+            call advance_weno_rk_stage(j)
         end do
-    end do
- 
-    deallocate (f_r_times_gam_e,dEl,para_minus_gam_e_p,dEl1,x,dN_x,dF1,fp,flux,temp_store,Compton,Compton1,dot_gam_e, &
-                dN_x_extended, temp_store_extended, fp_extended, flux_extended)
-    
-    return
+
+        dN_x = dN_x_extended(1:Num_gam_e)
+
+        where(dN_x < 0.0d0) dN_x = 0.0d0
+
+        if (L1 == L) then
+            dN_gam_e(:,I_tobs)=dN_x/gam_e/dlog(ten)
+        end if
+    end subroutine advance_weno_substep
+
+    subroutine load_weno_extended_state()
+    implicit real(8)(A-H,O-Z)
+
+        dN_x_extended(1-3:0) = dN_x(1)
+        dN_x_extended(1:Num_gam_e) = dN_x
+        dN_x_extended(Num_gam_e+1:Num_gam_e+3) = dN_x(Num_gam_e)
+        temp_store_extended(1,:) = dN_x_extended
+
+        dEl1_extended(1-3:0) = dEl1(1)
+        dEl1_extended(1:Num_gam_e) = dEl1
+        dEl1_extended(Num_gam_e+1:Num_gam_e+3) = dEl1(Num_gam_e)
+    end subroutine load_weno_extended_state
+
+    subroutine compute_weno_fluxes()
+    implicit real(8)(A-H,O-Z)
+
+        call weno5_update_ghost_cells(dN_x_extended, Num_gam_e)
+
+        fp_extended = dEl1_extended * dN_x_extended
+
+        do i_gam_e = 0, Num_gam_e
+            if (dEl1_extended(i_gam_e) <= 0.0d0) then
+                flux_extended(i_gam_e) = weno5_positive_flux(fp_extended(i_gam_e-2:i_gam_e+2))
+            else
+                flux_extended(i_gam_e) = weno5_negative_flux(fp_extended(i_gam_e-1:i_gam_e+3))
+            end if
+        end do
+    end subroutine compute_weno_fluxes
+
+    subroutine advance_weno_rk_stage(j)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: j
+
+        if(j==1) then
+            do i = 1, Num_gam_e
+                dN_x_extended(i) = temp_store_extended(1,i) + CFL*(flux_extended(i)-flux_extended(i-1)) + dF1(i)*dDR
+            end do
+            temp_store_extended(2,:) = dN_x_extended
+        else if(j==2) then
+            do i = 1, Num_gam_e
+                dN_x_extended(i) = 0.75d0*temp_store_extended(1,i) + 0.25d0*(temp_store_extended(2,i) + &
+                               CFL*(flux_extended(i)-flux_extended(i-1))) + 0.25d0*dF1(i)*dDR
+            end do
+            temp_store_extended(3,:) = dN_x_extended
+        else if(j==3) then
+            do i = 1, Num_gam_e
+                dN_x_extended(i) = (temp_store_extended(1,i) + 2.0d0*(temp_store_extended(3,i) + &
+                               CFL*(flux_extended(i)-flux_extended(i-1))))/3.0d0 + 2.0d0/3.0d0*dF1(i)*dDR
+            end do
+        end if
+    end subroutine advance_weno_rk_stage
 end subroutine
 
 ! 更新WENO5鬼点：零阶外推（复制边界值）。

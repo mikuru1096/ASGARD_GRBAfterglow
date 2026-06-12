@@ -158,6 +158,7 @@ integer, intent(in) :: Num_gam_e,Num_nu,n_threads
 real(8), intent(in) :: R_loc,DB,gam_e(Num_gam_e),dN_gam_e(Num_gam_e),V_seed(Num_nu)
 real(8), intent(out) :: P_syn(Num_nu),Seed_syn(Num_nu)
 real(8) :: dN1(Num_gam_e),ddN(Num_gam_e-1)
+integer :: I_nu
 
     factor=(3.62d0/pi)**2
     Temp_syn=dsqrt(3d0)*para_e*para_e*para_e/Para_m_energy
@@ -166,45 +167,74 @@ real(8) :: dN1(Num_gam_e),ddN(Num_gam_e-1)
     ddN=dN1(1:Num_gam_e-1)-dN1(2:Num_gam_e)
     h=dlog(gam_e(2))-dlog(gam_e(1))
 
-    !$OMP PARALLEL num_threads(n_threads), private(I_nu,I_gam_e,V_cal,dInteg,Tau,simpson_sum,Vc,x,Fx,val,gam_e_mean2,P_v)
+    !$OMP PARALLEL num_threads(n_threads), private(I_nu)
     !$OMP DO SCHEDULE(STATIC)
     do I_nu=1,Num_nu
-        V_cal=V_seed(I_nu)
-        dInteg=zero
-        Tau=zero
-        simpson_sum=zero
-        do I_gam_e=1,Num_gam_e
-            Vc=4.2d6*gam_e(I_gam_e)*gam_e(I_gam_e)*DB
-            x=V_cal/Vc
-            Fx=1.81d0*dexp(-x)/dsqrt(x**(-2d0/3d0)+factor)
-            val=dN_gam_e(I_gam_e)*Fx*gam_e(I_gam_e)
-            if (I_gam_e == 1 .or. I_gam_e == Num_gam_e) then
-                simpson_sum=simpson_sum+val
-            else if (mod(I_gam_e,2) == 0) then
-                simpson_sum=simpson_sum+4d0*val
-            else
-                simpson_sum=simpson_sum+2d0*val
-            end if
-        end do
-        dInteg=h*simpson_sum/3d0
-        do I_gam_e=1,Num_gam_e-1
-            gam_e_mean2=(gam_e(I_gam_e)+gam_e(I_gam_e+1))**2/4d0
-            Vc=4.2d6*gam_e_mean2*DB
-            x=V_cal/Vc
-            Fx=1.81d0*dexp(-x)/dsqrt(x**(-2d0/3d0)+factor)
-            Tau=Tau+gam_e_mean2*ddN(I_gam_e)*Fx
-        end do
-        P_v=Temp_syn*DB*dInteg
-        Tau=1.046d4*Tau*DB/(4d0*pi*Rariv2*V_cal*V_cal)
-        if ((Tau-1d-4) < 1d-5) Tau=1d-4
-        P_syn(I_nu)=P_v*(one-dexp(-Tau))/Tau
-        Seed_syn(I_nu)=P_syn(I_nu)/(Rariv2*V_cal)
+        call accumulate_simpson_syn_point(I_nu)
     end do
     !$OMP END DO
     !$OMP END PARALLEL
 
     temp_para=4d0*pi*Para_c*Para_h
     Seed_syn=Seed_syn/temp_para
+
+    return
+
+contains
+
+real(8) function simpson_emission_integral(V_cal)
+implicit REAL(8)(A-H,O-Z)
+real(8), intent(in) :: V_cal
+real(8) :: simpson_sum,Vc,x,Fx,val
+integer :: I_gam_e
+
+    simpson_sum=zero
+    do I_gam_e=1,Num_gam_e
+        Vc=4.2d6*gam_e(I_gam_e)*gam_e(I_gam_e)*DB
+        x=V_cal/Vc
+        Fx=1.81d0*dexp(-x)/dsqrt(x**(-2d0/3d0)+factor)
+        val=dN_gam_e(I_gam_e)*Fx*gam_e(I_gam_e)
+        if (I_gam_e == 1 .or. I_gam_e == Num_gam_e) then
+            simpson_sum=simpson_sum+val
+        else if (mod(I_gam_e,2) == 0) then
+            simpson_sum=simpson_sum+4d0*val
+        else
+            simpson_sum=simpson_sum+2d0*val
+        end if
+    end do
+    simpson_emission_integral=h*simpson_sum/3d0
+end function simpson_emission_integral
+
+real(8) function simpson_ssa_tau_integral(V_cal)
+implicit REAL(8)(A-H,O-Z)
+real(8), intent(in) :: V_cal
+real(8) :: Vc,x,Fx,gam_e_mean2
+integer :: I_gam_e
+
+    simpson_ssa_tau_integral=zero
+    do I_gam_e=1,Num_gam_e-1
+        gam_e_mean2=(gam_e(I_gam_e)+gam_e(I_gam_e+1))**2/4d0
+        Vc=4.2d6*gam_e_mean2*DB
+        x=V_cal/Vc
+        Fx=1.81d0*dexp(-x)/dsqrt(x**(-2d0/3d0)+factor)
+        simpson_ssa_tau_integral=simpson_ssa_tau_integral+gam_e_mean2*ddN(I_gam_e)*Fx
+    end do
+end function simpson_ssa_tau_integral
+
+subroutine accumulate_simpson_syn_point(I_nu)
+implicit REAL(8)(A-H,O-Z)
+integer, intent(in) :: I_nu
+real(8) :: V_cal,dInteg,Tau,P_v
+
+    V_cal=V_seed(I_nu)
+    dInteg=simpson_emission_integral(V_cal)
+    Tau=simpson_ssa_tau_integral(V_cal)
+    P_v=Temp_syn*DB*dInteg
+    Tau=1.046d4*Tau*DB/(4d0*pi*Rariv2*V_cal*V_cal)
+    if ((Tau-1d-4) < 1d-5) Tau=1d-4
+    P_syn(I_nu)=P_v*(one-dexp(-Tau))/Tau
+    Seed_syn(I_nu)=P_syn(I_nu)/(Rariv2*V_cal)
+end subroutine accumulate_simpson_syn_point
 end subroutine get_syn_simpson
 
 ! 构建约化对数频率网格：在85%高频处加密采样，用于冷却计算的轻量级频率表。
@@ -516,6 +546,7 @@ real(8), intent(out) :: P_emit(Num_nu),P_syn(Num_nu),Seed_syn(Num_nu),Tau_syn(Nu
 real(8), parameter :: rel_tol=5d-4
 real(8), allocatable :: dN1(:),x_gam(:)
 real(8) :: factor,Temp_syn,Rariv2,temp_para
+integer :: I_nu
 
     allocate(dN1(Num_gam_e),x_gam(Num_gam_e))
 
@@ -525,28 +556,10 @@ real(8) :: factor,Temp_syn,Rariv2,temp_para
     dN1=dN_gam_e/(gam_e*gam_e)
     x_gam=dlog(gam_e)
 
-    !$OMP PARALLEL num_threads(n_threads), private(I_nu,I_gam_e,V_cal,dInteg,Tau,P_v, &
-    !$OMP& cell_int,tau_cell)
+    !$OMP PARALLEL num_threads(n_threads), private(I_nu)
     !$OMP DO SCHEDULE(STATIC)
     do I_nu=1,Num_nu
-       V_cal=V_seed(I_nu)
-       dInteg=zero
-       Tau=zero
-       do I_gam_e=1,Num_gam_e-1
-          call electron_syn_cell_adaptive(x_gam(I_gam_e),x_gam(I_gam_e+1), &
-                                          dN_gam_e(I_gam_e),dN_gam_e(I_gam_e+1), &
-                                          dN1(I_gam_e),dN1(I_gam_e+1), &
-                                          V_cal,DB,factor,rel_tol,cell_int,tau_cell)
-          dInteg=dInteg+cell_int
-          Tau=Tau+tau_cell
-       end do
-       P_v=Temp_syn*DB*dInteg
-       Tau=1.046d4*Tau*DB/(4d0*pi*Rariv2*V_cal*V_cal)
-       if ((Tau-1d-4) < 1d-5) Tau=1d-4
-       P_emit(I_nu)=P_v
-       Tau_syn(I_nu)=Tau
-       P_syn(I_nu)=P_v*(one-dexp(-Tau))/Tau
-       Seed_syn(I_nu)=P_syn(I_nu)/(Rariv2*V_cal)
+       call accumulate_adaptive_syn_point(I_nu)
     end do
     !$OMP END DO
     !$OMP END PARALLEL
@@ -555,6 +568,45 @@ real(8) :: factor,Temp_syn,Rariv2,temp_para
     Seed_syn=Seed_syn/temp_para
 
     deallocate(dN1,x_gam)
+
+    return
+
+contains
+
+subroutine adaptive_syn_integrals(V_cal,dInteg,Tau)
+implicit REAL(8)(A-H,O-Z)
+real(8), intent(in) :: V_cal
+real(8), intent(out) :: dInteg,Tau
+real(8) :: cell_int,tau_cell
+integer :: I_gam_e
+
+    dInteg=zero
+    Tau=zero
+    do I_gam_e=1,Num_gam_e-1
+       call electron_syn_cell_adaptive(x_gam(I_gam_e),x_gam(I_gam_e+1), &
+                                       dN_gam_e(I_gam_e),dN_gam_e(I_gam_e+1), &
+                                       dN1(I_gam_e),dN1(I_gam_e+1), &
+                                       V_cal,DB,factor,rel_tol,cell_int,tau_cell)
+       dInteg=dInteg+cell_int
+       Tau=Tau+tau_cell
+    end do
+end subroutine adaptive_syn_integrals
+
+subroutine accumulate_adaptive_syn_point(I_nu)
+implicit REAL(8)(A-H,O-Z)
+integer, intent(in) :: I_nu
+real(8) :: V_cal,dInteg,Tau,P_v
+
+    V_cal=V_seed(I_nu)
+    call adaptive_syn_integrals(V_cal,dInteg,Tau)
+    P_v=Temp_syn*DB*dInteg
+    Tau=1.046d4*Tau*DB/(4d0*pi*Rariv2*V_cal*V_cal)
+    if ((Tau-1d-4) < 1d-5) Tau=1d-4
+    P_emit(I_nu)=P_v
+    Tau_syn(I_nu)=Tau
+    P_syn(I_nu)=P_v*(one-dexp(-Tau))/Tau
+    Seed_syn(I_nu)=P_syn(I_nu)/(Rariv2*V_cal)
+end subroutine accumulate_adaptive_syn_point
 end subroutine get_syn_adaptive_state
 
 subroutine get_syn_adaptive(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &

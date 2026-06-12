@@ -28,7 +28,7 @@ subroutine hadronic_bethe_heitler_operator(num_p,proton_energy_gev,proton_densit
     real(8) :: pair_log_source(num_e)
     real(8) :: gp_arr(num_p),eph_dimless(num_ph),ee_dimless(num_e)
     real(8) :: k_inj_rate,k_loss_rate
-    integer :: i_e,j_p,k_ph
+    integer :: j_p,k_ph
 
     call hadronic_validate_log_grid(num_p,proton_energy_gev,"proton_energy_gev")
     call hadronic_validate_log_grid(num_ph,photon_energy_gev,"photon_energy_gev")
@@ -52,18 +52,34 @@ subroutine hadronic_bethe_heitler_operator(num_p,proton_energy_gev,proton_densit
 
     do j_p=1,num_p
         do k_ph=1,num_ph
-            proton_loss_rate(j_p) = proton_loss_rate(j_p) - k_loss_rate*dln_eph* &
-                                    hadronic_bh_kernel_proton_loss(gp_arr(j_p),eph_dimless(k_ph))*photon_log_density(k_ph)
+            proton_loss_rate(j_p) = proton_loss_rate(j_p) + &
+                                    bh_proton_loss_point(gp_arr(j_p),eph_dimless(k_ph),photon_log_density(k_ph))
             if (2.0d0*gp_arr(j_p)*eph_dimless(k_ph) <= 2.0d0) cycle
-            do i_e=1,num_e
-                pair_log_source(i_e) = pair_log_source(i_e) + hadronic_bh_kernel_electron_generation(ee_dimless(i_e), &
-                                       gp_arr(j_p),eph_dimless(k_ph))*proton_log_density(j_p)*photon_log_density(k_ph)
-            end do
+            call accumulate_bh_pair_source(gp_arr(j_p),proton_log_density(j_p), &
+                                           eph_dimless(k_ph),photon_log_density(k_ph))
         end do
     end do
 
     pair_log_source = k_inj_rate*dln_ep*dln_eph*pair_log_source
     pair_rate_per_gev = pair_log_source/electron_energy_gev
+
+contains
+
+    real(8) function bh_proton_loss_point(gp,eph,photon_log_value)
+        real(8), intent(in) :: gp,eph,photon_log_value
+
+        bh_proton_loss_point = -k_loss_rate*dln_eph*hadronic_bh_kernel_proton_loss(gp,eph)*photon_log_value
+    end function bh_proton_loss_point
+
+    subroutine accumulate_bh_pair_source(gp,proton_log_value,eph,photon_log_value)
+        real(8), intent(in) :: gp,proton_log_value,eph,photon_log_value
+        integer :: i_e
+
+        do i_e=1,num_e
+            pair_log_source(i_e) = pair_log_source(i_e) + hadronic_bh_kernel_electron_generation(ee_dimless(i_e), &
+                                   gp,eph)*proton_log_value*photon_log_value
+        end do
+    end subroutine accumulate_bh_pair_source
 end subroutine hadronic_bethe_heitler_operator
 
 ! 检查网格为对数均匀并返回对数间距。

@@ -204,10 +204,8 @@ subroutine sed_interpolation_chi(Boundary,R_Tobs1,R_front,F_chi,Tau_chi,R_chi,Ga
     real(8), intent(out) :: F_tot_obs(Num_nu_obs,Num_Tobs)
     real(8), allocatable :: F_temp(:,:),V_obs_log(:),V_seed_log(:),Tau_prefix(:,:,:)
     real(8), allocatable :: Angle_dmu(:),Angle_log_domega(:)
-    real(8) :: R_Tobs_chi(Num_R),F_theta(Num_nu)
-    real(8) :: log_domega_4pi,log_doppler_redshift,log_gamma_lo,log_gamma_hi
-    real(8) :: source_lo,source_hi,tau_front_lo,tau_front_hi,tau_cell_lo,tau_cell_hi
-    real(8) :: segment_lo,segment_hi,cos_tv,sin_tv,log_flux_weight
+    real(8) :: R_Tobs_chi(Num_R),log_domega_4pi
+    real(8) :: log_gamma_lo,log_gamma_hi,segment_lo,segment_hi,cos_tv,sin_tv
     integer :: last_k2,k_start,lower_bound_real8,I_ang
     logical :: monotonic_chi
 
@@ -246,10 +244,8 @@ subroutine sed_interpolation_chi(Boundary,R_Tobs1,R_front,F_chi,Tau_chi,R_chi,Ga
     end do
 
     !$OMP PARALLEL num_threads(n_threads), reduction(+:F_temp), private(I_ang,log_domega_4pi,DMu, &
-    !$OMP& I_chi,R_Tobs_chi,monotonic_chi,II,last_k2,K1,K2, &
-    !$OMP& log_gamma_lo,log_gamma_hi,Ratio,DG,Beta,doppler,log_doppler_redshift,F_theta,log_flux_weight, &
-    !$OMP& I_nu,tau_front_lo,tau_front_hi,tau_cell_lo,tau_cell_hi, &
-    !$OMP& source_lo,source_hi,temp,segment_lo,segment_hi,k_start)
+    !$OMP& I_chi,R_Tobs_chi,monotonic_chi,II,last_k2,K1,K2,Ratio, &
+    !$OMP& log_gamma_lo,log_gamma_hi,segment_lo,segment_hi,k_start)
     !$OMP DO SCHEDULE(STATIC)
     do I_ang = 1, Num_Theta*Num_Phi
         log_domega_4pi = Angle_log_domega(I_ang)
@@ -273,26 +269,8 @@ subroutine sed_interpolation_chi(Boundary,R_Tobs1,R_front,F_chi,Tau_chi,R_chi,Ga
                                 last_k2 = K2
                             end if
                             Ratio = (Tobs(K1)-R_Tobs_chi(K2))/(R_Tobs_chi(K2+1)-R_Tobs_chi(K2))
-                            DG = dexp(log_gamma_lo+Ratio*(log_gamma_hi-log_gamma_lo))
-                            Beta = dsqrt(one-DG**(-2))
-                            doppler = DG*(one-Beta*DMu)
-                            log_doppler_redshift = dlog(doppler)+dlog(one+z)
-                            F_theta = zero
-                            do I_nu = 1, Num_nu
-                                tau_front_lo = Tau_prefix(I_nu,I_chi-1,K2)
-                                tau_front_hi = Tau_prefix(I_nu,I_chi-1,K2+1)
-                                tau_cell_lo = Tau_chi(I_nu,I_chi,K2)
-                                tau_cell_hi = Tau_chi(I_nu,I_chi,K2+1)
-                                source_lo = F_chi(I_nu,I_chi,K2)*Chi_weight(I_chi,K2)* &
-                                            chi_ssa_cell_escape(tau_front_lo,tau_cell_lo)
-                                source_hi = F_chi(I_nu,I_chi,K2+1)*Chi_weight(I_chi,K2+1)* &
-                                            chi_ssa_cell_escape(tau_front_hi,tau_cell_hi)
-                                F_theta(I_nu) = (one-Ratio)*source_lo + Ratio*source_hi
-                            end do
-                            log_flux_weight = log_domega_4pi - 3d0*dlog(doppler)
-                            call interpolation_accumulate_shifted_linear_sed(V_seed_log,F_theta,Num_nu, &
-                                                                             V_obs_log,Num_nu_obs, &
-                                                                             log_doppler_redshift,log_flux_weight,F_temp(:,K1))
+                            call project_chi_segment_flux(I_chi,K2,K1,Ratio,DMu,log_domega_4pi, &
+                                                          log_gamma_lo,log_gamma_hi)
                         end if
                     end do
                 else
@@ -300,31 +278,13 @@ subroutine sed_interpolation_chi(Boundary,R_Tobs1,R_front,F_chi,Tau_chi,R_chi,Ga
                         segment_lo = min(R_Tobs_chi(K2),R_Tobs_chi(K2+1))
                         segment_hi = max(R_Tobs_chi(K2),R_Tobs_chi(K2+1))
                         k_start = lower_bound_real8(Tobs,Num_Tobs,segment_lo)
+                        log_gamma_lo = dlog(Gamma_chi(I_chi,K2))
+                        log_gamma_hi = dlog(Gamma_chi(I_chi,K2+1))
                         do K1 = k_start, Num_Tobs
                             if (Tobs(K1) >= segment_hi) exit
                             Ratio = (Tobs(K1)-R_Tobs_chi(K2))/(R_Tobs_chi(K2+1)-R_Tobs_chi(K2))
-                            log_gamma_lo = dlog(Gamma_chi(I_chi,K2))
-                            log_gamma_hi = dlog(Gamma_chi(I_chi,K2+1))
-                            DG = dexp(log_gamma_lo+Ratio*(log_gamma_hi-log_gamma_lo))
-                            Beta = dsqrt(one-DG**(-2))
-                            doppler = DG*(one-Beta*DMu)
-                            log_doppler_redshift = dlog(doppler)+dlog(one+z)
-                            F_theta = zero
-                            do I_nu = 1, Num_nu
-                                tau_front_lo = Tau_prefix(I_nu,I_chi-1,K2)
-                                tau_front_hi = Tau_prefix(I_nu,I_chi-1,K2+1)
-                                tau_cell_lo = Tau_chi(I_nu,I_chi,K2)
-                                tau_cell_hi = Tau_chi(I_nu,I_chi,K2+1)
-                                source_lo = F_chi(I_nu,I_chi,K2)*Chi_weight(I_chi,K2)* &
-                                            chi_ssa_cell_escape(tau_front_lo,tau_cell_lo)
-                                source_hi = F_chi(I_nu,I_chi,K2+1)*Chi_weight(I_chi,K2+1)* &
-                                            chi_ssa_cell_escape(tau_front_hi,tau_cell_hi)
-                                F_theta(I_nu) = (one-Ratio)*source_lo + Ratio*source_hi
-                            end do
-                            log_flux_weight = log_domega_4pi - 3d0*dlog(doppler)
-                            call interpolation_accumulate_shifted_linear_sed(V_seed_log,F_theta,Num_nu, &
-                                                                             V_obs_log,Num_nu_obs, &
-                                                                             log_doppler_redshift,log_flux_weight,F_temp(:,K1))
+                            call project_chi_segment_flux(I_chi,K2,K1,Ratio,DMu,log_domega_4pi, &
+                                                          log_gamma_lo,log_gamma_hi)
                         end do
                     end do
                 end if
@@ -335,6 +295,57 @@ subroutine sed_interpolation_chi(Boundary,R_Tobs1,R_front,F_chi,Tau_chi,R_chi,Ga
     F_tot_obs = F_temp*phi_scale
     deallocate(F_temp,V_obs_log,V_seed_log,Tau_prefix,Angle_dmu,Angle_log_domega)
     return
+
+contains
+
+subroutine project_chi_segment_flux(I_chi,K2,K1,Ratio,DMu,log_domega_4pi,log_gamma_lo,log_gamma_hi)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: I_chi,K2,K1
+    real(8), intent(in) :: Ratio,DMu,log_domega_4pi,log_gamma_lo,log_gamma_hi
+    real(8) :: F_theta(Num_nu)
+    real(8) :: log_doppler_redshift,log_flux_weight,doppler
+
+    call compute_chi_segment_state(I_chi,K2,Ratio,DMu,log_gamma_lo,log_gamma_hi, &
+                                   log_doppler_redshift,doppler,F_theta)
+    log_flux_weight = log_domega_4pi - 3d0*dlog(doppler)
+    call interpolation_accumulate_shifted_linear_sed(V_seed_log,F_theta,Num_nu,V_obs_log,Num_nu_obs, &
+                                                     log_doppler_redshift,log_flux_weight,F_temp(:,K1))
+end subroutine project_chi_segment_flux
+
+subroutine compute_chi_segment_state(I_chi,K2,Ratio,DMu,log_gamma_lo,log_gamma_hi, &
+                                     log_doppler_redshift,doppler,F_theta)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: I_chi,K2
+    real(8), intent(in) :: Ratio,DMu,log_gamma_lo,log_gamma_hi
+    real(8), intent(out) :: log_doppler_redshift,doppler,F_theta(Num_nu)
+    real(8) :: DG,Beta
+
+    DG = dexp(log_gamma_lo+Ratio*(log_gamma_hi-log_gamma_lo))
+    Beta = dsqrt(one-DG**(-2))
+    doppler = DG*(one-Beta*DMu)
+    log_doppler_redshift = dlog(doppler)+dlog(one+z)
+    call accumulate_chi_cell_source(I_chi,K2,Ratio,F_theta)
+end subroutine compute_chi_segment_state
+
+subroutine accumulate_chi_cell_source(I_chi,K2,Ratio,F_theta)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: I_chi,K2
+    real(8), intent(in) :: Ratio
+    real(8), intent(out) :: F_theta(Num_nu)
+    real(8) :: source_lo,source_hi,tau_front_lo,tau_front_hi,tau_cell_lo,tau_cell_hi
+    integer :: I_nu
+
+    F_theta = zero
+    do I_nu = 1, Num_nu
+        tau_front_lo = Tau_prefix(I_nu,I_chi-1,K2)
+        tau_front_hi = Tau_prefix(I_nu,I_chi-1,K2+1)
+        tau_cell_lo = Tau_chi(I_nu,I_chi,K2)
+        tau_cell_hi = Tau_chi(I_nu,I_chi,K2+1)
+        source_lo = F_chi(I_nu,I_chi,K2)*Chi_weight(I_chi,K2)*chi_ssa_cell_escape(tau_front_lo,tau_cell_lo)
+        source_hi = F_chi(I_nu,I_chi,K2+1)*Chi_weight(I_chi,K2+1)*chi_ssa_cell_escape(tau_front_hi,tau_cell_hi)
+        F_theta(I_nu) = (one-Ratio)*source_lo + Ratio*source_hi
+    end do
+end subroutine accumulate_chi_cell_source
 end subroutine sed_interpolation_chi
 
 ! 将χ分辨有限厚壳层面元投影到观测系：每个χ体元使用局域半径、局域Γ和向外SSA存活率。
@@ -350,10 +361,8 @@ subroutine sed_interpolation_chi_surface_element(Boundary,R_Tobs1,R_front,F_chi,
     real(8), intent(in) :: Tobs(Num_Tobs),V_seed(Num_nu),V_obs(Num_nu_obs)
     real(8), intent(out) :: F_tot_obs(Num_nu_obs,Num_Tobs)
     real(8), allocatable :: V_obs_log(:),V_seed_log(:)
-    real(8) :: R_Tobs_chi(Num_R),F_log_theta(Num_nu),V_seed_log_theta(Num_nu)
-    real(8) :: log_domega_4pi,log_doppler_redshift,log_gamma_lo,log_gamma_hi
-    real(8) :: source_lo,source_hi,tau_front_lo,tau_front_hi,tau_cell_lo,tau_cell_hi
-    real(8) :: segment_lo,segment_hi
+    real(8) :: R_Tobs_chi(Num_R),log_domega_4pi
+    real(8) :: log_gamma_lo,log_gamma_hi,segment_lo,segment_hi
     integer :: last_k2,k_start,lower_bound_real8
     logical :: monotonic_chi
 
@@ -385,30 +394,8 @@ subroutine sed_interpolation_chi_surface_element(Boundary,R_Tobs1,R_front,F_chi,
                         last_k2 = K2
                     end if
                     Ratio = (Tobs(K1)-R_Tobs_chi(K2))/(R_Tobs_chi(K2+1)-R_Tobs_chi(K2))
-                    DG = dexp(log_gamma_lo+Ratio*(log_gamma_hi-log_gamma_lo))
-                    Beta = dsqrt(one-DG**(-2))
-                    doppler = DG*(one-Beta*DMu)
-                    log_doppler_redshift = dlog(doppler)+dlog(one+z)
-                    F_log_theta = -huge(one)
-                    do I_nu = 1, Num_nu
-                        tau_front_lo = zero
-                        tau_front_hi = zero
-                        do J_chi = 1, I_chi-1
-                            tau_front_lo = tau_front_lo + Tau_chi(I_nu,J_chi,K2)
-                            tau_front_hi = tau_front_hi + Tau_chi(I_nu,J_chi,K2+1)
-                        end do
-                        tau_cell_lo = Tau_chi(I_nu,I_chi,K2)
-                        tau_cell_hi = Tau_chi(I_nu,I_chi,K2+1)
-                        source_lo = F_chi(I_nu,I_chi,K2)*Chi_weight(I_chi,K2)* &
-                                    chi_ssa_cell_escape(tau_front_lo,tau_cell_lo)
-                        source_hi = F_chi(I_nu,I_chi,K2+1)*Chi_weight(I_chi,K2+1)* &
-                                    chi_ssa_cell_escape(tau_front_hi,tau_cell_hi)
-                        temp = (one-Ratio)*source_lo + Ratio*source_hi
-                        if (temp > zero) F_log_theta(I_nu) = dlog(temp)
-                    end do
-                    F_log_theta = F_log_theta + log_domega_4pi - 3d0*dlog(doppler)
-                    V_seed_log_theta = V_seed_log - log_doppler_redshift
-                    call interpolation_accumulate_log_sed(V_seed_log_theta,F_log_theta,Num_nu,V_obs_log,Num_nu_obs,F_tot_obs(:,K1))
+                    call project_surface_chi_segment_flux(I_chi,K2,K1,Ratio,DMu,log_domega_4pi, &
+                                                          log_gamma_lo,log_gamma_hi)
                 end if
             end do
         else
@@ -416,39 +403,73 @@ subroutine sed_interpolation_chi_surface_element(Boundary,R_Tobs1,R_front,F_chi,
                 segment_lo = min(R_Tobs_chi(K2),R_Tobs_chi(K2+1))
                 segment_hi = max(R_Tobs_chi(K2),R_Tobs_chi(K2+1))
                 k_start = lower_bound_real8(Tobs,Num_Tobs,segment_lo)
+                log_gamma_lo = dlog(Gamma_chi(I_chi,K2))
+                log_gamma_hi = dlog(Gamma_chi(I_chi,K2+1))
                 do K1 = k_start, Num_Tobs
                     if (Tobs(K1) >= segment_hi) exit
                     Ratio = (Tobs(K1)-R_Tobs_chi(K2))/(R_Tobs_chi(K2+1)-R_Tobs_chi(K2))
-                    log_gamma_lo = dlog(Gamma_chi(I_chi,K2))
-                    log_gamma_hi = dlog(Gamma_chi(I_chi,K2+1))
-                    DG = dexp(log_gamma_lo+Ratio*(log_gamma_hi-log_gamma_lo))
-                    Beta = dsqrt(one-DG**(-2))
-                    doppler = DG*(one-Beta*DMu)
-                    log_doppler_redshift = dlog(doppler)+dlog(one+z)
-                    F_log_theta = -huge(one)
-                    do I_nu = 1, Num_nu
-                        tau_front_lo = zero
-                        tau_front_hi = zero
-                        do J_chi = 1, I_chi-1
-                            tau_front_lo = tau_front_lo + Tau_chi(I_nu,J_chi,K2)
-                            tau_front_hi = tau_front_hi + Tau_chi(I_nu,J_chi,K2+1)
-                        end do
-                        tau_cell_lo = Tau_chi(I_nu,I_chi,K2)
-                        tau_cell_hi = Tau_chi(I_nu,I_chi,K2+1)
-                        source_lo = F_chi(I_nu,I_chi,K2)*Chi_weight(I_chi,K2)* &
-                                    chi_ssa_cell_escape(tau_front_lo,tau_cell_lo)
-                        source_hi = F_chi(I_nu,I_chi,K2+1)*Chi_weight(I_chi,K2+1)* &
-                                    chi_ssa_cell_escape(tau_front_hi,tau_cell_hi)
-                        temp = (one-Ratio)*source_lo + Ratio*source_hi
-                        if (temp > zero) F_log_theta(I_nu) = dlog(temp)
-                    end do
-                    F_log_theta = F_log_theta + log_domega_4pi - 3d0*dlog(doppler)
-                    V_seed_log_theta = V_seed_log - log_doppler_redshift
-                    call interpolation_accumulate_log_sed(V_seed_log_theta,F_log_theta,Num_nu,V_obs_log,Num_nu_obs,F_tot_obs(:,K1))
+                    call project_surface_chi_segment_flux(I_chi,K2,K1,Ratio,DMu,log_domega_4pi, &
+                                                          log_gamma_lo,log_gamma_hi)
                 end do
             end do
         end if
     end do
     deallocate(V_obs_log,V_seed_log)
     return
+
+contains
+
+subroutine project_surface_chi_segment_flux(I_chi,K2,K1,Ratio,DMu,log_domega_4pi,log_gamma_lo,log_gamma_hi)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: I_chi,K2,K1
+    real(8), intent(in) :: Ratio,DMu,log_domega_4pi,log_gamma_lo,log_gamma_hi
+    real(8) :: F_log_theta(Num_nu),V_seed_log_theta(Num_nu)
+    real(8) :: log_doppler_redshift,doppler
+
+    call compute_surface_chi_state(I_chi,K2,Ratio,DMu,log_gamma_lo,log_gamma_hi, &
+                                   log_doppler_redshift,doppler,F_log_theta)
+    F_log_theta = F_log_theta + log_domega_4pi - 3d0*dlog(doppler)
+    V_seed_log_theta = V_seed_log - log_doppler_redshift
+    call interpolation_accumulate_log_sed(V_seed_log_theta,F_log_theta,Num_nu,V_obs_log,Num_nu_obs,F_tot_obs(:,K1))
+end subroutine project_surface_chi_segment_flux
+
+subroutine compute_surface_chi_state(I_chi,K2,Ratio,DMu,log_gamma_lo,log_gamma_hi, &
+                                     log_doppler_redshift,doppler,F_log_theta)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: I_chi,K2
+    real(8), intent(in) :: Ratio,DMu,log_gamma_lo,log_gamma_hi
+    real(8), intent(out) :: log_doppler_redshift,doppler,F_log_theta(Num_nu)
+    real(8) :: DG,Beta
+
+    DG = dexp(log_gamma_lo+Ratio*(log_gamma_hi-log_gamma_lo))
+    Beta = dsqrt(one-DG**(-2))
+    doppler = DG*(one-Beta*DMu)
+    log_doppler_redshift = dlog(doppler)+dlog(one+z)
+    call accumulate_surface_chi_cell_source(I_chi,K2,Ratio,F_log_theta)
+end subroutine compute_surface_chi_state
+
+subroutine accumulate_surface_chi_cell_source(I_chi,K2,Ratio,F_log_theta)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: I_chi,K2
+    real(8), intent(in) :: Ratio
+    real(8), intent(out) :: F_log_theta(Num_nu)
+    real(8) :: source_lo,source_hi,tau_front_lo,tau_front_hi,tau_cell_lo,tau_cell_hi,temp
+    integer :: I_nu,J_chi
+
+    F_log_theta = -huge(one)
+    do I_nu = 1, Num_nu
+        tau_front_lo = zero
+        tau_front_hi = zero
+        do J_chi = 1, I_chi-1
+            tau_front_lo = tau_front_lo + Tau_chi(I_nu,J_chi,K2)
+            tau_front_hi = tau_front_hi + Tau_chi(I_nu,J_chi,K2+1)
+        end do
+        tau_cell_lo = Tau_chi(I_nu,I_chi,K2)
+        tau_cell_hi = Tau_chi(I_nu,I_chi,K2+1)
+        source_lo = F_chi(I_nu,I_chi,K2)*Chi_weight(I_chi,K2)*chi_ssa_cell_escape(tau_front_lo,tau_cell_lo)
+        source_hi = F_chi(I_nu,I_chi,K2+1)*Chi_weight(I_chi,K2+1)*chi_ssa_cell_escape(tau_front_hi,tau_cell_hi)
+        temp = (one-Ratio)*source_lo + Ratio*source_hi
+        if (temp > zero) F_log_theta(I_nu) = dlog(temp)
+    end do
+end subroutine accumulate_surface_chi_cell_source
 end subroutine sed_interpolation_chi_surface_element

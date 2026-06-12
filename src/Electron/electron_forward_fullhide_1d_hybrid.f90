@@ -125,35 +125,15 @@ subroutine fs_electron_fullhide_1d_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,
                     R_loc=R_loc+dDR
 
                     if (is_uniform_density .and. thermal_electrons == 0) then
-                        Q=4d0/3d0*pi*(3d0*R_loc**2+dDR*(3d0*R_loc+dDR))*dNe*f_e*Gam_e_m_p
-                        dF1=zero
-                        where(gam_e < Gam_e_max .and. gam_e > Gam_e_m) dF1=Q*gam_e**(-p)*gam_e*ln10
+                        call build_hybrid_or_powerlaw_source(R_loc,dDR,dNe,Gam_e_m,Gam_e_max,Gam_e_m_p)
                     else
                         call dynamics_external_density_profile(A_star,dNe_ISM,R_loc,R0,1,R_tr,f_jump,f_wide,dNe)
                         DB_step=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma_loc*(R_Gamma_loc-one)))
                         Gam_e_max_step=3d0*Para_m_energy/dsqrt(8d0*DB_step*Para_e**3)
                         temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma_loc-one)
                         call electron_gamma_m_exact(p,temp_gam,Gam_e_max_step,Gam_e_m_step)
-                        ! Gam_e_m_p_step=(one-p)/(Gam_e_max_step**(one-p)-Gam_e_m_step**(one-p))
-                        ! Q=4d0/3d0*pi*(3d0*R_loc**2+dDR*(3d0*R_loc+dDR))*dNe*f_e*Gam_e_m_p_step
-                        ! dF1=zero
-                        ! where(gam_e < Gam_e_max_step .and. gam_e > Gam_e_m_step) dF1=Q*gam_e**(-p)*gam_e*ln10
-                        ! if (thermal_electrons /= 0) then
-                        !     call electron_add_thermal_source_term(Num_gam_e,gam_e,R_Gamma_loc*beta_Gam, &
-                        !                                           Q*(one-f_e)/(f_e*Gam_e_m_p_step),dF1)
-                        ! end if
-                        if (thermal_electrons /= 0) then
-                            Q = 4d0/3d0*pi*(3d0*R_loc**2+dDR*(3d0*R_loc+dDR))*dNe
-                            call normalized_hybrid_spec_lg(Num_gam_e, gam_e, p, Gam_e_m_step, Gam_e_max_step, f_e, &
-                                dF1)
-                            dF1 = dF1 * Q
-                        else
-                            Gam_e_m_p_step=(one-p)/(Gam_e_max_step**(one-p)-Gam_e_m_step**(one-p))
-                            Q=4d0/3d0*pi*(3d0*R_loc**2+dDR*(3d0*R_loc+dDR))*dNe*f_e*Gam_e_m_p_step
-                            dF1=zero
-                            where(gam_e < Gam_e_max_step .and. gam_e > Gam_e_m_step) dF1=Q*gam_e**(-p)*gam_e*ln10
-                        end if
-                        !!!!!!
+                        Gam_e_m_p_step=(one-p)/(Gam_e_max_step**(one-p)-Gam_e_m_step**(one-p))
+                        call build_hybrid_or_powerlaw_source(R_loc,dDR,dNe,Gam_e_m_step,Gam_e_max_step,Gam_e_m_p_step)
 
                         if (dNe_shell > zero) then
                             dEL_mean_step=dEL_mean_base*(dNe/dNe_shell)
@@ -205,22 +185,7 @@ subroutine fs_electron_fullhide_1d_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,
                 call electron_gamma_m_exact(p,temp_gam,Gam_e_max_full,Gam_e_m_full)
                 Gam_e_m_p_full=(one-p)/(Gam_e_max_full**(one-p)-Gam_e_m_full**(one-p))
                 call electron_injection_prefactor(R_full,dR_try,dNe_full,f_e,Gam_e_m_p_full,Q)
-                ! call electron_build_source_term_exp_cutoff(Num_gam_e,gam_e,Gam_e_m_full,Gam_e_max_full,Q,p,dF1)
-                ! if (thermal_electrons /= 0) then
-                !     thermal_count=Q*(one-f_e)/(f_e*Gam_e_m_p_full)
-                !     call electron_add_thermal_source_term(Num_gam_e,gam_e,R_Gamma_loc*beta_Gam,thermal_count,dF1)
-                ! end if
-                if (thermal_electrons /= 0) then
-                    Q = Q / (f_e*Gam_e_m_p_full)
-                    call normalized_hybrid_spec_lg(Num_gam_e, gam_e, p, Gam_e_m_full, Gam_e_max_full, f_e, &
-                        dF1)
-                    dF1 = dF1 * Q
-                else
-                    call electron_build_source_term_exp_cutoff(Num_gam_e,gam_e,Gam_e_m_full,Gam_e_max_full,Q,p,dF1)
-                end if
-                !!!!!!
-
-                
+                call build_hybrid_or_powerlaw_source_from_count(Q,Gam_e_m_full,Gam_e_max_full,Gam_e_m_p_full)
 
                 if (dNe_shell > zero) then
                     dEL_mean_step=dEL_mean_base*(dNe_full/dNe_shell)
@@ -242,21 +207,7 @@ subroutine fs_electron_fullhide_1d_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,
                 call electron_gamma_m_exact(p,temp_gam,Gam_e_max_half,Gam_e_m_half)
                 Gam_e_m_p_half=(one-p)/(Gam_e_max_half**(one-p)-Gam_e_m_half**(one-p))
                 call electron_injection_prefactor(R_half,dR_half,dNe_half,f_e,Gam_e_m_p_half,Q)
-                ! call electron_build_source_term_exp_cutoff(Num_gam_e,gam_e,Gam_e_m_half,Gam_e_max_half,Q,p,dF1)
-                ! if (thermal_electrons /= 0) then
-                !     thermal_count=Q*(one-f_e)/(f_e*Gam_e_m_p_half)
-                !     call electron_add_thermal_source_term(Num_gam_e,gam_e,R_Gamma_loc*beta_Gam,thermal_count,dF1)
-                ! end if
-                if (thermal_electrons /= 0) then
-                    Q = Q / (f_e*Gam_e_m_p_half)
-                    call normalized_hybrid_spec_lg(Num_gam_e, gam_e, p, Gam_e_m_half, Gam_e_max_half, f_e, &
-                        dF1)
-                    dF1 = dF1 * Q
-                else
-                    call electron_build_source_term_exp_cutoff(Num_gam_e,gam_e,Gam_e_m_half,Gam_e_max_half,Q,p,dF1)
-                end if
-                !!!!!!
-
+                call build_hybrid_or_powerlaw_source_from_count(Q,Gam_e_m_half,Gam_e_max_half,Gam_e_m_p_half)
 
                 if (dNe_shell > zero) then
                     dEL_mean_step=dEL_mean_base*(dNe_half/dNe_shell)
@@ -266,20 +217,7 @@ subroutine fs_electron_fullhide_1d_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,
                 call electron_fullhide_step(Num_gam_e,R_half,dR_half,d_x,dEL_mean_step,dF1,dN_x,dN_half)
 
                 call electron_injection_prefactor(R_full,dR_half,dNe_full,f_e,Gam_e_m_p_full,Q)
-                ! call electron_build_source_term_exp_cutoff(Num_gam_e,gam_e,Gam_e_m_full,Gam_e_max_full,Q,p,dF1)
-                ! if (thermal_electrons /= 0) then
-                !     thermal_count=Q*(one-f_e)/(f_e*Gam_e_m_p_full)
-                !     call electron_add_thermal_source_term(Num_gam_e,gam_e,R_Gamma_loc*beta_Gam,thermal_count,dF1)
-                ! end if
-                if (thermal_electrons /= 0) then
-                    Q = Q / (f_e*Gam_e_m_p_full)
-                    call normalized_hybrid_spec_lg(Num_gam_e, gam_e, p, Gam_e_m_full, Gam_e_max_full, f_e, &
-                        dF1)
-                    dF1 = dF1 * Q
-                else
-                    call electron_build_source_term_exp_cutoff(Num_gam_e,gam_e,Gam_e_m_full,Gam_e_max_full,Q,p,dF1)
-                end if
-                !!!!!!
+                call build_hybrid_or_powerlaw_source_from_count(Q,Gam_e_m_full,Gam_e_max_full,Gam_e_m_p_full)
 
                 if (dNe_shell > zero) then
                     dEL_mean_step=dEL_mean_base*(dNe_full/dNe_shell)
@@ -314,4 +252,35 @@ subroutine fs_electron_fullhide_1d_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,
     end if
 
     return
+
+contains
+
+    subroutine build_hybrid_or_powerlaw_source(R_source,dR_source,dNe_source,Gam_e_m_source,Gam_e_max_source, &
+                                               Gam_e_m_p_source)
+    implicit none
+    real(8), intent(in) :: R_source,dR_source,dNe_source,Gam_e_m_source,Gam_e_max_source,Gam_e_m_p_source
+
+        if (thermal_electrons /= 0) then
+            Q = 4d0/3d0*pi*(3d0*R_source**2+dR_source*(3d0*R_source+dR_source))*dNe_source
+            call normalized_hybrid_spec_lg(Num_gam_e,gam_e,p,Gam_e_m_source,Gam_e_max_source,f_e,dF1)
+            dF1 = dF1*Q
+        else
+            Q = 4d0/3d0*pi*(3d0*R_source**2+dR_source*(3d0*R_source+dR_source))*dNe_source*f_e*Gam_e_m_p_source
+            dF1=zero
+            where(gam_e < Gam_e_max_source .and. gam_e > Gam_e_m_source) dF1=Q*gam_e**(-p)*gam_e*ln10
+        end if
+    end subroutine build_hybrid_or_powerlaw_source
+
+    subroutine build_hybrid_or_powerlaw_source_from_count(source_count,Gam_e_m_source,Gam_e_max_source,Gam_e_m_p_source)
+    implicit none
+    real(8), intent(in) :: source_count,Gam_e_m_source,Gam_e_max_source,Gam_e_m_p_source
+
+        if (thermal_electrons /= 0) then
+            Q = source_count/(f_e*Gam_e_m_p_source)
+            call normalized_hybrid_spec_lg(Num_gam_e,gam_e,p,Gam_e_m_source,Gam_e_max_source,f_e,dF1)
+            dF1 = dF1*Q
+        else
+            call electron_build_source_term_exp_cutoff(Num_gam_e,gam_e,Gam_e_m_source,Gam_e_max_source,source_count,p,dF1)
+        end if
+    end subroutine build_hybrid_or_powerlaw_source_from_count
 end subroutine fs_electron_fullhide_1d_hz

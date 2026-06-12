@@ -67,35 +67,57 @@ subroutine hadronic_calc_pair_injection_full(num_e,gm_e,num_ph,x_ph,pp_ng,dln,in
     integer, intent(in) :: num_e,num_ph,ind_min_energy_pho,max_com_energy_factor
     real(8), intent(in) :: gm_e(num_e),x_ph(num_ph),pp_ng(num_ph),dln,afpair_ssc(num_ph),photons_log_ssc(num_ph)
     real(8), intent(out) :: epspair_ssc(num_e)
-    integer :: i,j,k,outer,inner,kmax
-    real(8) :: accum,r_alpha_phot,r_eps_raw
+    integer :: i
 
     epspair_ssc = zero
-    !$OMP PARALLEL DO if((num_e-2)*(num_ph-ind_min_energy_pho) >= 8192) schedule(dynamic,1) &
-    !$OMP& private(i,j,k,outer,inner,kmax,accum)
+    !$OMP PARALLEL DO if((num_e-2)*(num_ph-ind_min_energy_pho) >= 8192) schedule(dynamic,1) private(i)
     do i=2,num_e-1
-        outer = hadronic_outer_pp(gm_e(i),dln,ind_min_energy_pho,num_ph)
-        accum = zero
-        do j=outer+1,num_ph
-            inner = min(hadronic_inner_pp(x_ph(j),gm_e(i),dln,ind_min_energy_pho,num_ph),num_ph-1)
-            kmax = min(-j + 1 + 2*(ind_min_energy_pho+1) + max_com_energy_factor,num_ph)
-            do k=inner+1,kmax
-                accum = accum + hadronic_rgg_d1(gm_e(i),x_ph(j),x_ph(k))*pp_ng(k)*pp_ng(j)
-            end do
-        end do
-        epspair_ssc(i) = accum*dln*dln*0.75d0*gm_e(i)
+        epspair_ssc(i) = accumulate_pair_injection_bin(gm_e(i))
     end do
     !$OMP END PARALLEL DO
 
-    r_alpha_phot = sum( &
-        x_ph(ind_min_energy_pho+1:num_ph) * afpair_ssc(ind_min_energy_pho+1:num_ph) * &
-        photons_log_ssc(ind_min_energy_pho+1:num_ph) &
-    )
-    r_eps_raw = sum(gm_e*epspair_ssc)
-    if (r_eps_raw > 1.0d-100) then
-        epspair_ssc = epspair_ssc*(0.5d0*r_alpha_phot/r_eps_raw)
-    end if
+    call renormalize_pair_energy_closure
     epspair_ssc(1) = zero
+
+contains
+
+    real(8) function accumulate_pair_injection_bin(gm)
+        real(8), intent(in) :: gm
+        integer :: j,k,outer,inner,kmax
+        real(8) :: accum
+
+        outer = hadronic_outer_pp(gm,dln,ind_min_energy_pho,num_ph)
+        accum = zero
+        do j=outer+1,num_ph
+            call pair_injection_energy_window(gm,j,inner,kmax)
+            do k=inner+1,kmax
+                accum = accum + hadronic_rgg_d1(gm,x_ph(j),x_ph(k))*pp_ng(k)*pp_ng(j)
+            end do
+        end do
+        accumulate_pair_injection_bin = accum*dln*dln*0.75d0*gm
+    end function accumulate_pair_injection_bin
+
+    subroutine pair_injection_energy_window(gm,j,inner,kmax)
+        real(8), intent(in) :: gm
+        integer, intent(in) :: j
+        integer, intent(out) :: inner,kmax
+
+        inner = min(hadronic_inner_pp(x_ph(j),gm,dln,ind_min_energy_pho,num_ph),num_ph-1)
+        kmax = min(-j + 1 + 2*(ind_min_energy_pho+1) + max_com_energy_factor,num_ph)
+    end subroutine pair_injection_energy_window
+
+    subroutine renormalize_pair_energy_closure
+        real(8) :: r_alpha_phot,r_eps_raw
+
+        r_alpha_phot = sum( &
+            x_ph(ind_min_energy_pho+1:num_ph) * afpair_ssc(ind_min_energy_pho+1:num_ph) * &
+            photons_log_ssc(ind_min_energy_pho+1:num_ph) &
+        )
+        r_eps_raw = sum(gm_e*epspair_ssc)
+        if (r_eps_raw > 1.0d-100) then
+            epspair_ssc = epspair_ssc*(0.5d0*r_alpha_phot/r_eps_raw)
+        end if
+    end subroutine renormalize_pair_energy_closure
 end subroutine hadronic_calc_pair_injection_full
 
 ! 构建光子损失核：对光子场卷积phibar函数得到各能量光子的吸收率。

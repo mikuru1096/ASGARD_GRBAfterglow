@@ -69,7 +69,27 @@ subroutine electron_reverse_evolve(Delta_0,e_r,b_r,p_r,f_e_r,eta_0,Epsilon_e,Eps
     call electron_profile_log_cell_edges(Num_gam_e,gam_e,x_edge)
 
     do I_tobs=2,Num_R
-        R_loc=R(I_tobs-1); R_Gamma_loc=(R_Gamma(I_tobs)+R_Gamma(I_tobs-1))/two
+        call prepare_reverse_shell_state(I_tobs)
+        call compute_reverse_thermal_loss(I_tobs)
+        call compute_reverse_injection_rate(I_tobs)
+        L1=max(100,min(1000,int(dDD/dDR)))
+        dDR=dDD/L1
+        dN_x=dN_gam_e(:,I_tobs-1)*gam_e*dlog(ten)
+
+        call compute_reverse_cooling_loss(I_tobs)
+        call advance_reverse_transport_shell(I_tobs)
+    end do
+
+    deallocate(dEl,x,dF1,temp3,dN_x,x_edge,dB3_serial,P_syn,Seed_syn,cooling_aux,Compton)
+
+contains
+
+    subroutine prepare_reverse_shell_state(I_tobs)
+    implicit none
+    integer, intent(in) :: I_tobs
+
+        R_loc=R(I_tobs-1)
+        R_Gamma_loc=(R_Gamma(I_tobs)+R_Gamma(I_tobs-1))/two
         Delta=max(Delta_0,R_loc/Eta_0**2)
         R_n4=para_m_ej/(4d0*pi*Para_m_p*R_loc*R_loc*Eta_0*Delta)
         beta2=dsqrt(one-one/R_Gamma_loc**2)
@@ -81,8 +101,13 @@ subroutine electron_reverse_evolve(Delta_0,e_r,b_r,p_r,f_e_r,eta_0,Epsilon_e,Eps
         f_r=reverse_adv_coeff/beta2/R_Gamma_loc*dB**2/pi
         dDR=0.7d0/(f_r*Gam_e_max+1.333d0/(R(I_tobs)+R(I_tobs-1)))
         dDD=R(I_tobs)-R(I_tobs-1)
-        if (dDR <= zero) error stop "electron_reverse_evolve: characteristic reverse-electron step must be positive."
-        if (dDD <= zero) error stop "electron_reverse_evolve: radius grid must be strictly increasing."
+
+    end subroutine prepare_reverse_shell_state
+
+    subroutine compute_reverse_thermal_loss(I_tobs)
+    implicit none
+    integer, intent(in) :: I_tobs
+
         thermal_loss_rate=zero
         if (R(I_tobs) > R_cross) then
             if (R(I_tobs-1) < R_cross) then
@@ -102,6 +127,12 @@ subroutine electron_reverse_evolve(Delta_0,e_r,b_r,p_r,f_e_r,eta_0,Epsilon_e,Eps
             if (thermal_loss_rate <= zero) &
                 error stop "electron_reverse_evolve: post-crossing thermal scale must decrease."
         end if
+    end subroutine compute_reverse_thermal_loss
+
+    subroutine compute_reverse_injection_rate(I_tobs)
+    implicit none
+    integer, intent(in) :: I_tobs
+
         injection_rate=zero
         if (R(I_tobs-1) < R_cross) then
             inj_hi=min(R(I_tobs),R_cross)
@@ -115,9 +146,11 @@ subroutine electron_reverse_evolve(Delta_0,e_r,b_r,p_r,f_e_r,eta_0,Epsilon_e,Eps
                 injection_rate=f_e_r*(mass_hi-mass_lo)/(Para_m_p*inj_width)
             end if
         end if
-        L1=max(100,min(1000,int(dDD/dDR)))
-        dDR=dDD/L1
-        dN_x=dN_gam_e(:,I_tobs-1)*gam_e*dlog(ten)
+    end subroutine compute_reverse_injection_rate
+
+    subroutine compute_reverse_cooling_loss(I_tobs)
+    implicit none
+    integer, intent(in) :: I_tobs
 
         call get_syn_selected(index_syn_intger,R(I_tobs-1),dB,Num_gam_e,Num_nu,n_threads, &
                               gam_e,dN_gam_e(:,I_tobs-1),V_seed,P_syn,Seed_syn)
@@ -142,9 +175,14 @@ subroutine electron_reverse_evolve(Delta_0,e_r,b_r,p_r,f_e_r,eta_0,Epsilon_e,Eps
             Gam_e_max=Gam_e_max/dsqrt(Compton(Num_gam_e))
             dEl=f_r*Compton*gam_e
         case default
-            print*, 'invalid Compton case, check your chosen model!'
-            stop
+            error stop 'invalid Compton case, check your chosen model!'
         end select
+    end subroutine compute_reverse_cooling_loss
+
+    subroutine advance_reverse_transport_shell(I_tobs)
+    implicit none
+    integer, intent(in) :: I_tobs
+
         do L=1,L1
             R_loc=R_loc+dDR
             if (R_cross >= R_loc) then
@@ -162,9 +200,7 @@ subroutine electron_reverse_evolve(Delta_0,e_r,b_r,p_r,f_e_r,eta_0,Epsilon_e,Eps
             dN_x=x
             if (L == L1) dN_gam_e(:,I_tobs)=dN_x/gam_e/dlog(ten)
         end do
-    end do
-
-    deallocate(dEl,x,dF1,temp3,dN_x,x_edge,dB3_serial,P_syn,Seed_syn,cooling_aux,Compton)
+    end subroutine advance_reverse_transport_shell
 end subroutine electron_reverse_evolve
 
 subroutine reverse_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m,Gam_e_max,injection_rate,p,dF1)
@@ -201,7 +237,6 @@ subroutine reverse_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m,G
         dF1(I_gam_e)=cell_sum/dx_cell
         shape_norm=shape_norm+cell_sum
     end do
-    if (shape_norm <= zero) error stop "reverse_build_source_term_exp_cutoff_edges: source shape vanished."
     dF1=injection_rate*dF1/shape_norm
 end subroutine reverse_build_source_term_exp_cutoff_edges
 

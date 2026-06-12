@@ -17,16 +17,7 @@ subroutine fs_hadronic_reverse_1d(R_Tobs,R_Gamma,R,shell_energy_inj_erg,B_field_
     real(8) :: dN_prev(num_gam_p),dN_next(num_gam_p),Q_inj(num_gam_p)
     real(8) :: loss_ad(num_gam_p),loss_syn(num_gam_p),loss_total(num_gam_p)
 
-    ! 估算质子最高 Lorentz 因子（取所有壳层的最大值）
-    t_dyn_s=hadronic_dynamical_time(R(1),R_Gamma(1))
-    gam_p_max_global=hadronic_gamma_p_max(B_field_g(1),t_dyn_s,ten)
-    do I_R=2,Num_R
-        t_dyn_s=hadronic_dynamical_time(R(I_R),R_Gamma(I_R))
-        gam_p_max_global=max(gam_p_max_global,hadronic_gamma_p_max( &
-            B_field_g(I_R),t_dyn_s,ten))
-    end do
-    if (gam_p_max_global <= one+1d-3) error stop "reverse hadronic gamma_p_max must exceed the injection grid minimum."
-    call hadronic_build_gamma_p_grid(num_gam_p,one+1d-3,gam_p_max_global,gam_p)
+    call initialize_reverse_proton_grid()
     dN_prev=zero
 
     dN_gam_p=zero
@@ -34,6 +25,31 @@ subroutine fs_hadronic_reverse_1d(R_Tobs,R_Gamma,R,shell_energy_inj_erg,B_field_
     Seed_had_syn=zero
 
     do I_R=1,Num_R
+        call advance_reverse_hadronic_shell(I_R)
+        call emit_reverse_proton_synchrotron(I_R)
+        dN_prev=dN_next
+    end do
+
+contains
+
+    subroutine initialize_reverse_proton_grid()
+    implicit none
+
+        t_dyn_s=hadronic_dynamical_time(R(1),R_Gamma(1))
+        gam_p_max_global=hadronic_gamma_p_max(B_field_g(1),t_dyn_s,ten)
+        do I_R=2,Num_R
+            t_dyn_s=hadronic_dynamical_time(R(I_R),R_Gamma(I_R))
+            gam_p_max_global=max(gam_p_max_global,hadronic_gamma_p_max( &
+                B_field_g(I_R),t_dyn_s,ten))
+        end do
+        if (gam_p_max_global <= one+1d-3) error stop "reverse hadronic gamma_p_max must exceed the injection grid minimum."
+        call hadronic_build_gamma_p_grid(num_gam_p,one+1d-3,gam_p_max_global,gam_p)
+    end subroutine initialize_reverse_proton_grid
+
+    subroutine advance_reverse_hadronic_shell(I_R)
+    implicit none
+    integer, intent(in) :: I_R
+
         dt_s=hadronic_shell_dt(R_Tobs,I_R)
         t_dyn_s=hadronic_dynamical_time(R(I_R),R_Gamma(I_R))
         if (shell_energy_inj_erg(I_R) < zero) error stop "reverse hadronic shell injection energy must be non-negative."
@@ -45,13 +61,16 @@ subroutine fs_hadronic_reverse_1d(R_Tobs,R_Gamma,R,shell_energy_inj_erg,B_field_
                                         t_dyn_s,loss_ad,loss_syn,loss_total)
         call hadronic_advance_energy_loggamma(num_gam_p,gam_p,dN_prev,Q_inj,loss_total,dt_s,dN_next)
         dN_gam_p(:,I_R)=dN_next
+    end subroutine advance_reverse_hadronic_shell
+
+    subroutine emit_reverse_proton_synchrotron(I_R)
+    implicit none
+    integer, intent(in) :: I_R
 
         if (include_proton_synch /= 0) then
             call hadronic_get_proton_syn_state(R(I_R),B_field_g(I_R), &
                                                num_gam_p,Num_nu,gam_p,dN_next, &
                                                V_seed,P_had_syn(:,I_R),Seed_had_syn(:,I_R))
         end if
-
-        dN_prev=dN_next
-    end do
+    end subroutine emit_reverse_proton_synchrotron
 end subroutine fs_hadronic_reverse_1d

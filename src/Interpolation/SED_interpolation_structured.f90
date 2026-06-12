@@ -22,10 +22,8 @@ subroutine sed_interpolation_structured(Boundary, angle_narrow_jet, R_Tobs1,R_ga
     
     
     real(8), allocatable :: P_tot_obs_temp(:,:),V_obs_log(:),V_seed_log(:)
-    real(8) :: R_Tobs_theta(Num_R),DP_theta(Num_nu),P_tot_log_theta(Num_nu), &
-               V_seed_log_theta(Num_nu), &
-               P_tot_log_lo(Num_nu),P_tot_log_hi(Num_nu),log_gamma_lo,log_gamma_hi,log_domega_4pi, &
-               log_doppler_redshift
+    real(8) :: R_Tobs_theta(Num_R),P_tot_log_lo(Num_nu),P_tot_log_hi(Num_nu)
+    real(8) :: log_gamma_lo,log_gamma_hi,log_domega_4pi
     integer :: last_k2
     allocate (P_tot_obs_temp(Num_nu_obs,Num_Tobs),V_obs_log(Num_nu_obs),V_seed_log(Num_nu))
     
@@ -50,9 +48,8 @@ subroutine sed_interpolation_structured(Boundary, angle_narrow_jet, R_Tobs1,R_ga
     V_seed_log = log(V_seed)
     
     !$OMP PARALLEL num_threads(n_threads), reduction(+:P_tot_obs_temp), private(I_Theta, Taa_center, domega, &
-    !$OMP& i_Phi, Phi_center, DMu, K1, II, K2, Ratio, DG, DR, Beta, doppler, &
-    !$OMP& R_Tobs_theta, DP_theta, P_tot_log_theta, V_seed_log_theta, P_tot_log_lo, P_tot_log_hi, &
-    !$OMP& last_k2, log_gamma_lo, log_gamma_hi, log_domega_4pi, log_doppler_redshift)
+    !$OMP& i_Phi, Phi_center, DMu, K1, II, K2, Ratio, R_Tobs_theta, &
+    !$OMP& P_tot_log_lo, P_tot_log_hi, last_k2, log_gamma_lo, log_gamma_hi, log_domega_4pi)
     !$OMP DO SCHEDULE(GUIDED,4)
     do I_Theta=1,Num_Theta
        Taa_center=dtheta*(I_Theta-0.5d0)
@@ -82,17 +79,8 @@ subroutine sed_interpolation_structured(Boundary, angle_narrow_jet, R_Tobs1,R_ga
                      last_k2=K2
                  end if
                  Ratio=(Tobs(K1)-R_Tobs_theta(K2))/(R_Tobs_theta(K2+1)-R_Tobs_theta(K2))
-                 DG=exp(log_gamma_lo+Ratio*(log_gamma_hi-log_gamma_lo))
-                 DP_theta=P_tot_log_lo+Ratio*(P_tot_log_hi-P_tot_log_lo)
-                 !linear interpolation to get the intrinsic SED at EATS.
-                 Beta=dsqrt(one-DG**(-2))
-
-                 doppler=DG*(one-Beta*DMu) !Doppler factor, changed with R
-                 log_doppler_redshift=log(doppler)+log(one+z)
-                 P_tot_log_theta=max(-199d0,DP_theta+log_domega_4pi-3d0*log(doppler))
-                 V_seed_log_theta=V_seed_log-log_doppler_redshift
-                 call interpolation_accumulate_log_sed(V_seed_log_theta,P_tot_log_theta, &
-                                                       Num_nu,V_obs_log,Num_nu_obs,P_tot_obs_temp(:,K1))
+                 call project_structured_segment(K1,Ratio,DMu,log_domega_4pi, &
+                                                 log_gamma_lo,log_gamma_hi,P_tot_log_lo,P_tot_log_hi)
              end if
          end do
        end do
@@ -106,6 +94,28 @@ subroutine sed_interpolation_structured(Boundary, angle_narrow_jet, R_Tobs1,R_ga
     
     
     return
+
+contains
+
+subroutine project_structured_segment(K1,Ratio,DMu,log_domega_4pi,log_gamma_lo,log_gamma_hi, &
+                                      P_tot_log_lo,P_tot_log_hi)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: K1
+    real(8), intent(in) :: Ratio,DMu,log_domega_4pi,log_gamma_lo,log_gamma_hi
+    real(8), intent(in) :: P_tot_log_lo(Num_nu),P_tot_log_hi(Num_nu)
+    real(8) :: DP_theta(Num_nu),P_tot_log_theta(Num_nu),V_seed_log_theta(Num_nu)
+    real(8) :: DG,Beta,doppler,log_doppler_redshift
+
+    DG=exp(log_gamma_lo+Ratio*(log_gamma_hi-log_gamma_lo))
+    DP_theta=P_tot_log_lo+Ratio*(P_tot_log_hi-P_tot_log_lo)
+    Beta=dsqrt(one-DG**(-2))
+    doppler=DG*(one-Beta*DMu)
+    log_doppler_redshift=log(doppler)+log(one+z)
+    P_tot_log_theta=max(-199d0,DP_theta+log_domega_4pi-3d0*log(doppler))
+    V_seed_log_theta=V_seed_log-log_doppler_redshift
+    call interpolation_accumulate_log_sed(V_seed_log_theta,P_tot_log_theta, &
+                                          Num_nu,V_obs_log,Num_nu_obs,P_tot_obs_temp(:,K1))
+end subroutine project_structured_segment
 end subroutine sed_interpolation_structured
 
 !  theta-phi 
@@ -122,9 +132,8 @@ subroutine sed_interpolation_structured_phi(Boundary,R_Tobs1,R_gamma,R,P_tot,V_s
     real(8), intent(out) :: P_tot_obs(Num_nu_obs,Num_Tobs)
 
     real(8), allocatable :: P_tot_obs_temp(:,:),V_obs_log(:),V_seed_log(:)
-    real(8) :: R_Tobs_theta(Num_R),DP_theta(Num_nu),P_tot_log_theta(Num_nu), &
-               V_seed_log_theta(Num_nu),P_tot_log_lo(Num_nu),P_tot_log_hi(Num_nu), &
-               log_gamma_lo,log_gamma_hi,log_domega_4pi,log_doppler_redshift
+    real(8) :: R_Tobs_theta(Num_R),P_tot_log_lo(Num_nu),P_tot_log_hi(Num_nu)
+    real(8) :: log_gamma_lo,log_gamma_hi,log_domega_4pi
     integer :: last_k2
     allocate (P_tot_obs_temp(Num_nu_obs,Num_Tobs),V_obs_log(Num_nu_obs),V_seed_log(Num_nu))
 
@@ -139,9 +148,8 @@ subroutine sed_interpolation_structured_phi(Boundary,R_Tobs1,R_gamma,R,P_tot,V_s
     V_seed_log = log(V_seed)
 
     !$OMP PARALLEL num_threads(n_threads), reduction(+:P_tot_obs_temp), private(I_Theta,Taa_center,domega, &
-    !$OMP& i_Phi,Phi_center,DMu,K1,II,K2,Ratio,DG,Beta,doppler,R_Tobs_theta,DP_theta, &
-    !$OMP& P_tot_log_theta,V_seed_log_theta,P_tot_log_lo,P_tot_log_hi,last_k2,log_gamma_lo, &
-    !$OMP& log_gamma_hi,log_domega_4pi,log_doppler_redshift)
+    !$OMP& i_Phi,Phi_center,DMu,K1,II,K2,Ratio,R_Tobs_theta,P_tot_log_lo,P_tot_log_hi, &
+    !$OMP& last_k2,log_gamma_lo,log_gamma_hi,log_domega_4pi)
     !$OMP DO COLLAPSE(2) SCHEDULE(GUIDED,4)
     do I_Theta=1,Num_Theta
        do i_Phi=1,Num_Phi
@@ -170,15 +178,8 @@ subroutine sed_interpolation_structured_phi(Boundary,R_Tobs1,R_gamma,R,P_tot,V_s
                      last_k2=K2
                  end if
                  Ratio=(Tobs(K1)-R_Tobs_theta(K2))/(R_Tobs_theta(K2+1)-R_Tobs_theta(K2))
-                 DG=exp(log_gamma_lo+Ratio*(log_gamma_hi-log_gamma_lo))
-                 DP_theta=P_tot_log_lo+Ratio*(P_tot_log_hi-P_tot_log_lo)
-                 Beta=dsqrt(one-DG**(-2))
-                 doppler=DG*(one-Beta*DMu)
-                 log_doppler_redshift=log(doppler)+log(one+z)
-                 P_tot_log_theta=max(-199d0,DP_theta+log_domega_4pi-3d0*log(doppler))
-                 V_seed_log_theta=V_seed_log-log_doppler_redshift
-                 call interpolation_accumulate_log_sed(V_seed_log_theta,P_tot_log_theta, &
-                                                       Num_nu,V_obs_log,Num_nu_obs,P_tot_obs_temp(:,K1))
+                 call project_structured_phi_segment(K1,Ratio,DMu,log_domega_4pi, &
+                                                     log_gamma_lo,log_gamma_hi,P_tot_log_lo,P_tot_log_hi)
              end if
           end do
        end do
@@ -189,4 +190,26 @@ subroutine sed_interpolation_structured_phi(Boundary,R_Tobs1,R_gamma,R,P_tot,V_s
     P_tot_obs=P_tot_obs_temp
     deallocate (P_tot_obs_temp,V_obs_log,V_seed_log)
     return
+
+contains
+
+subroutine project_structured_phi_segment(K1,Ratio,DMu,log_domega_4pi,log_gamma_lo,log_gamma_hi, &
+                                          P_tot_log_lo,P_tot_log_hi)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: K1
+    real(8), intent(in) :: Ratio,DMu,log_domega_4pi,log_gamma_lo,log_gamma_hi
+    real(8), intent(in) :: P_tot_log_lo(Num_nu),P_tot_log_hi(Num_nu)
+    real(8) :: DP_theta(Num_nu),P_tot_log_theta(Num_nu),V_seed_log_theta(Num_nu)
+    real(8) :: DG,Beta,doppler,log_doppler_redshift
+
+    DG=exp(log_gamma_lo+Ratio*(log_gamma_hi-log_gamma_lo))
+    DP_theta=P_tot_log_lo+Ratio*(P_tot_log_hi-P_tot_log_lo)
+    Beta=dsqrt(one-DG**(-2))
+    doppler=DG*(one-Beta*DMu)
+    log_doppler_redshift=log(doppler)+log(one+z)
+    P_tot_log_theta=max(-199d0,DP_theta+log_domega_4pi-3d0*log(doppler))
+    V_seed_log_theta=V_seed_log-log_doppler_redshift
+    call interpolation_accumulate_log_sed(V_seed_log_theta,P_tot_log_theta, &
+                                          Num_nu,V_obs_log,Num_nu_obs,P_tot_obs_temp(:,K1))
+end subroutine project_structured_phi_segment
 end subroutine sed_interpolation_structured_phi

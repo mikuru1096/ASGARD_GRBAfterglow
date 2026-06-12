@@ -87,14 +87,13 @@ subroutine accumulate_comoving_history_fields(target_t,Num_shell,Num_chi,Num_nu,
                                               P_eff,Seed_eff)
 implicit none
 integer, intent(in) :: target_t,Num_shell,Num_chi,Num_nu
-integer :: I_src_t,I_src_chi,I_tgt_chi,I_seg,I_nu,I_lo
+integer :: I_src_t,I_src_chi
 real(8), intent(in) :: proper_time_s(Num_shell),V_seed(Num_nu)
 real(8), intent(in) :: x_face_hist(0:Num_chi,Num_shell),x_center_hist(Num_chi,Num_shell),dx_hist(Num_chi,Num_shell)
 real(8), intent(in) :: beta_hist(Num_chi,Num_shell)
 real(8), intent(in) :: tau_hist(Num_nu,Num_chi,Num_shell),P_hist(Num_nu,Num_chi,Num_shell),Seed_hist(Num_nu,Num_chi,Num_shell)
 real(8), intent(out) :: P_eff(Num_nu,Num_chi),Seed_eff(Num_nu,Num_chi)
-real(8) :: attenuation(Num_nu),delta_tau_total,x_src,x_tgt,x_prev,x_curr,dt_seg,dtau_src,source_weight,doppler_rel
-real(8) :: amp_p,amp_seed
+real(8) :: delta_tau_total,dtau_src
 
     P_eff = P_hist(:,:,target_t)
     Seed_eff = Seed_hist(:,:,target_t)
@@ -109,42 +108,64 @@ real(8) :: amp_p,amp_seed
             dtau_src = proper_time_s(I_src_t)-proper_time_s(I_src_t-1)
         end if
         do I_src_chi = 1, Num_chi
-            x_src = x_center_hist(I_src_chi,I_src_t)
-            source_weight = min(one, Para_c*dtau_src/max(dx_hist(I_src_chi,I_src_t), tiny(one)))
-            do I_tgt_chi = 1, Num_chi
-                x_tgt = x_center_hist(I_tgt_chi,target_t)
-                if (x_src < x_tgt) cycle
-                if (Para_c*delta_tau_total < x_src-x_tgt) cycle
-                doppler_rel = relative_doppler_backward(beta_hist(I_src_chi,I_src_t),beta_hist(I_tgt_chi,target_t))
-                call build_doppler_map(Num_nu,V_seed,doppler_rel,hist_valid_map_ws,hist_idx_lo_map_ws,hist_log_frac_map_ws)
-
-                attenuation = one
-                x_prev = x_src
-                do I_seg = I_src_t+1, target_t
-                    dt_seg = proper_time_s(I_seg)-proper_time_s(I_seg-1)
-                    if (dt_seg <= zero) cycle
-                    x_curr = max(x_tgt, x_prev-Para_c*dt_seg)
-                    call apply_shell_path_attenuation(Num_chi,Num_nu,x_prev,x_curr,x_face_hist(:,I_seg), &
-                                                      hist_inv_dx_ws(:,I_seg),tau_hist(:,:,I_seg),attenuation)
-                    x_prev = x_curr
-                    if (x_prev <= x_tgt) exit
-                end do
-                if (doppler_rel <= zero .or. source_weight <= zero) cycle
-                amp_p = source_weight*doppler_rel**3
-                amp_seed = source_weight*doppler_rel**2
-                do I_nu = 1, Num_nu
-                    if (.not. hist_valid_map_ws(I_nu)) cycle
-                    I_lo = hist_idx_lo_map_ws(I_nu)
-                    P_eff(I_nu,I_tgt_chi) = P_eff(I_nu,I_tgt_chi) + amp_p*attenuation(I_nu) * &
-                        loglog_interp_mapped(P_hist(I_lo,I_src_chi,I_src_t), &
-                                             P_hist(I_lo+1,I_src_chi,I_src_t),hist_log_frac_map_ws(I_nu))
-                    Seed_eff(I_nu,I_tgt_chi) = Seed_eff(I_nu,I_tgt_chi) + amp_seed*attenuation(I_nu) * &
-                        loglog_interp_mapped(Seed_hist(I_lo,I_src_chi,I_src_t), &
-                                             Seed_hist(I_lo+1,I_src_chi,I_src_t),hist_log_frac_map_ws(I_nu))
-                end do
-            end do
+            call accumulate_history_source_cell(I_src_t,I_src_chi,delta_tau_total,dtau_src)
         end do
     end do
+
+contains
+
+    subroutine accumulate_history_source_cell(src_t,src_chi,delta_tau_total_src,dtau_src)
+    implicit none
+    integer, intent(in) :: src_t,src_chi
+    integer :: tgt_chi
+    real(8), intent(in) :: delta_tau_total_src,dtau_src
+    real(8) :: source_weight,x_src
+
+        x_src = x_center_hist(src_chi,src_t)
+        source_weight = min(one, Para_c*dtau_src/max(dx_hist(src_chi,src_t), tiny(one)))
+        do tgt_chi = 1, Num_chi
+            call accumulate_history_target_cell(src_t,src_chi,tgt_chi,delta_tau_total_src,source_weight,x_src)
+        end do
+    end subroutine accumulate_history_source_cell
+
+    subroutine accumulate_history_target_cell(src_t,src_chi,tgt_chi,delta_tau_total_src,source_weight,x_src)
+    implicit none
+    integer, intent(in) :: src_t,src_chi,tgt_chi
+    integer :: I_seg,I_nu,I_lo
+    real(8), intent(in) :: delta_tau_total_src,source_weight,x_src
+    real(8) :: attenuation(Num_nu),amp_p,amp_seed,doppler_rel,dt_seg,x_curr,x_prev,x_tgt
+
+        x_tgt = x_center_hist(tgt_chi,target_t)
+        if (x_src < x_tgt) return
+        if (Para_c*delta_tau_total_src < x_src-x_tgt) return
+        doppler_rel = relative_doppler_backward(beta_hist(src_chi,src_t),beta_hist(tgt_chi,target_t))
+        call build_doppler_map(Num_nu,V_seed,doppler_rel,hist_valid_map_ws,hist_idx_lo_map_ws,hist_log_frac_map_ws)
+
+        attenuation = one
+        x_prev = x_src
+        do I_seg = src_t+1, target_t
+            dt_seg = proper_time_s(I_seg)-proper_time_s(I_seg-1)
+            if (dt_seg <= zero) cycle
+            x_curr = max(x_tgt, x_prev-Para_c*dt_seg)
+            call apply_shell_path_attenuation(Num_chi,Num_nu,x_prev,x_curr,x_face_hist(:,I_seg), &
+                                              hist_inv_dx_ws(:,I_seg),tau_hist(:,:,I_seg),attenuation)
+            x_prev = x_curr
+            if (x_prev <= x_tgt) exit
+        end do
+        if (doppler_rel <= zero .or. source_weight <= zero) return
+        amp_p = source_weight*doppler_rel**3
+        amp_seed = source_weight*doppler_rel**2
+        do I_nu = 1, Num_nu
+            if (.not. hist_valid_map_ws(I_nu)) cycle
+            I_lo = hist_idx_lo_map_ws(I_nu)
+            P_eff(I_nu,tgt_chi) = P_eff(I_nu,tgt_chi) + amp_p*attenuation(I_nu) * &
+                loglog_interp_mapped(P_hist(I_lo,src_chi,src_t), &
+                                     P_hist(I_lo+1,src_chi,src_t),hist_log_frac_map_ws(I_nu))
+            Seed_eff(I_nu,tgt_chi) = Seed_eff(I_nu,tgt_chi) + amp_seed*attenuation(I_nu) * &
+                loglog_interp_mapped(Seed_hist(I_lo,src_chi,src_t), &
+                                     Seed_hist(I_lo+1,src_chi,src_t),hist_log_frac_map_ws(I_nu))
+        end do
+    end subroutine accumulate_history_target_cell
 end subroutine accumulate_comoving_history_fields
 
 ! 构造当前相对多普勒因子下目标频率到源频率网格的映射。

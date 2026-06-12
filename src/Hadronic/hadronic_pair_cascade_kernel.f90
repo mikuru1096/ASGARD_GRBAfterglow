@@ -19,7 +19,7 @@ subroutine hadronic_cascade_step(num_ph,photon_energy_gev,photon_density, &
     real(8), intent(in) :: electron_energy_gev(num_e),b_field_g,path_time_s
     real(8), intent(out) :: cascade_syn_spec(num_ph),photon_loss_rate(num_ph),absorbed_power
 
-    integer :: max_com_factor,n_lep,np,i_e,i_ph
+    integer :: max_com_factor,n_lep,np
     real(8) :: gm_e(num_e),dln_e,coeff_syn,gm_inj,gm_c
     real(8) :: pair_inj_per_species(num_e),pair_inj_total(num_e)
     real(8) :: photon_loss(num_ph),pair_steady(num_e)
@@ -28,58 +28,79 @@ subroutine hadronic_cascade_step(num_ph,photon_energy_gev,photon_density, &
     n_lep = num_e
     np = num_ph
     max_com_factor = 138  ! 与 AM3 一致
-    if (b_field_g < zero) error stop "pair cascade requires b_field_g >= 0."
-    if (path_time_s < zero) error stop "pair cascade requires path_time_s >= 0."
-    if (any(photon_density(1:np) < zero)) error stop "pair cascade requires non-negative photon density."
-    call hadronic_validate_log_grid(np,photon_energy_gev,"pair cascade photon_energy_gev")
-    call hadronic_validate_log_grid(n_lep,electron_energy_gev,"pair cascade electron_energy_gev",dln_e)
+    call validate_pair_cascade_inputs
 
-    ! (1) 调用已有 γγ 对产生核
-    call hadronic_pair_production_operator(np,photon_energy_gev,photon_density, &
-                                            n_lep,electron_energy_gev, &
-                                            max_com_factor,photon_loss, &
-                                            pair_inj_per_species, &
-                                            pair_inj_total,absorbed_power, &
-                                            injected_power_local)
-    photon_loss_rate(1:np) = photon_loss(1:np)
+    call run_pair_production_stage
 
-    ! 构建电子 Lorentz 因子网格
-    gm_e(1:n_lep) = electron_energy_gev(1:n_lep) / hadronic_electron_mass_gev
-    if (gm_e(1) < one) error stop "pair cascade electron grid must start at gamma >= 1."
+    call build_pair_electron_gamma_grid
     if (b_field_g == zero) then
         cascade_syn_spec(1:np) = zero
         return
     end if
 
-    ! (2) 同步冷却演化到稳态谱
-    pair_steady(1:n_lep) = zero
-    coeff_syn = Para_SigmaT * b_field_g**2 / (6d0*pi*Para_m_e*Para_c)
+    call evolve_pair_cooling_stage
 
-    do i_e=2,n_lep-1
-        if (pair_inj_total(i_e) <= zero) cycle
-        gm_inj = gm_e(i_e)
-        ! 冷却后 Lorentz 因子: 1/γ_c = 1/γ_inj + coeff_syn * path_time_s
-        gm_c = gm_inj / (one + coeff_syn * gm_inj * path_time_s)
-        call distribute_cooled_power(n_lep,gm_e,dln_e,gm_inj,gm_c, &
-                                      pair_inj_total(i_e),coeff_syn,pair_steady)
-    end do
+    call emit_pair_synchrotron_stage
 
-    ! (3) 对同步辐射发射
-    cascade_syn_spec(1:np) = zero
-    temp = dsqrt(3d0)*Para_e**3 / Para_m_p_e
+contains
 
-    do i_ph=1,np
+    subroutine validate_pair_cascade_inputs
+        if (b_field_g < zero) error stop "pair cascade requires b_field_g >= 0."
+        if (path_time_s < zero) error stop "pair cascade requires path_time_s >= 0."
+        if (any(photon_density(1:np) < zero)) error stop "pair cascade requires non-negative photon density."
+        call hadronic_validate_log_grid(np,photon_energy_gev,"pair cascade photon_energy_gev")
+        call hadronic_validate_log_grid(n_lep,electron_energy_gev,"pair cascade electron_energy_gev",dln_e)
+    end subroutine validate_pair_cascade_inputs
+
+    subroutine run_pair_production_stage
+        call hadronic_pair_production_operator(np,photon_energy_gev,photon_density, &
+                                                n_lep,electron_energy_gev, &
+                                                max_com_factor,photon_loss, &
+                                                pair_inj_per_species, &
+                                                pair_inj_total,absorbed_power, &
+                                                injected_power_local)
+        photon_loss_rate(1:np) = photon_loss(1:np)
+    end subroutine run_pair_production_stage
+
+    subroutine build_pair_electron_gamma_grid
+        gm_e(1:n_lep) = electron_energy_gev(1:n_lep) / hadronic_electron_mass_gev
+        if (gm_e(1) < one) error stop "pair cascade electron grid must start at gamma >= 1."
+    end subroutine build_pair_electron_gamma_grid
+
+    subroutine evolve_pair_cooling_stage
+        integer :: i_e
+
+        pair_steady(1:n_lep) = zero
+        coeff_syn = Para_SigmaT * b_field_g**2 / (6d0*pi*Para_m_e*Para_c)
+
         do i_e=2,n_lep-1
-            if (pair_steady(i_e) <= zero) cycle
-            nu_crit = 4.2d6 * b_field_g * gm_e(i_e)*gm_e(i_e)
-            x_arg = photon_energy_gev(i_ph)*Para_GeV2Hz / nu_crit
-            if (x_arg > 1d2) cycle
-            fx = 1.80842d0 * x_arg**(one/3d0) * dexp(-x_arg)
-            cascade_syn_spec(i_ph) = cascade_syn_spec(i_ph) + &
-                temp*b_field_g*pair_steady(i_e)*fx*gm_e(i_e)*dln_e
+            if (pair_inj_total(i_e) <= zero) cycle
+            gm_inj = gm_e(i_e)
+            ! 冷却后 Lorentz 因子: 1/γ_c = 1/γ_inj + coeff_syn * path_time_s
+            gm_c = gm_inj / (one + coeff_syn * gm_inj * path_time_s)
+            call distribute_cooled_power(n_lep,gm_e,dln_e,gm_inj,gm_c, &
+                                          pair_inj_total(i_e),coeff_syn,pair_steady)
         end do
-    end do
+    end subroutine evolve_pair_cooling_stage
 
+    subroutine emit_pair_synchrotron_stage
+        integer :: i_e,i_ph
+
+        cascade_syn_spec(1:np) = zero
+        temp = dsqrt(3d0)*Para_e**3 / Para_m_p_e
+
+        do i_ph=1,np
+            do i_e=2,n_lep-1
+                if (pair_steady(i_e) <= zero) cycle
+                nu_crit = 4.2d6 * b_field_g * gm_e(i_e)*gm_e(i_e)
+                x_arg = photon_energy_gev(i_ph)*Para_GeV2Hz / nu_crit
+                if (x_arg > 1d2) cycle
+                fx = 1.80842d0 * x_arg**(one/3d0) * dexp(-x_arg)
+                cascade_syn_spec(i_ph) = cascade_syn_spec(i_ph) + &
+                    temp*b_field_g*pair_steady(i_e)*fx*gm_e(i_e)*dln_e
+            end do
+        end do
+    end subroutine emit_pair_synchrotron_stage
 end subroutine hadronic_cascade_step
 
 ! ------------------------------------------------------------

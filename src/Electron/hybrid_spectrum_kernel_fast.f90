@@ -619,7 +619,7 @@ module hybrid_spectrum_kernel_fast
       real(8), intent(in) :: p, gamma_min, gamma_max, xi_e
       real(8), intent(out) :: spec(n_gamma)
 
-      real(8) :: theta, it1, int, thermal_constant, cpl_constant, g, ln_val, inv_gmax, inv_theta
+      real(8) :: theta, it1, int, thermal_constant, cpl_constant, inv_gmax, inv_theta
       integer :: flag, i
       
       call solve_theta(p, gamma_min, gamma_max, xi_e, &
@@ -640,25 +640,32 @@ module hybrid_spectrum_kernel_fast
       inv_theta = 1.0d0/theta
       inv_gmax = 1.0d0/gamma_max
       do i = 1, n_gamma
-         g = gamma(i)
-
-         if (g > 1.0d0 .and. g < gamma_min) then
-            ln_val = log(g * sqrt(g*g - 1.0d0)) - g*inv_theta + thermal_constant
-         else if (g >= gamma_min) then
-            ln_val = -p * log(g) - g*inv_gmax + cpl_constant
-         else
-            spec(i) = 0.0d0
-            cycle
-         end if
-
-         if (ln_val > m700) then
-            spec(i) = exp(ln_val)
-         else
-            spec(i) = 0.0d0
-         end if
-
+         spec(i) = hybrid_spec_point(gamma(i), gamma_min, p, inv_theta, inv_gmax, &
+                                     thermal_constant, cpl_constant)
       end do
 
+   contains
+
+   real(8) function hybrid_spec_point(g, gamma_min, p, inv_theta, inv_gmax, thermal_constant, cpl_constant)
+      implicit none
+      real(8), intent(in) :: g, gamma_min, p, inv_theta, inv_gmax, thermal_constant, cpl_constant
+      real(8) :: ln_val
+
+      if (g > 1.0d0 .and. g < gamma_min) then
+         ln_val = log(g * sqrt(g*g - 1.0d0)) - g*inv_theta + thermal_constant
+      else if (g >= gamma_min) then
+         ln_val = -p * log(g) - g*inv_gmax + cpl_constant
+      else
+         hybrid_spec_point = 0.0d0
+         return
+      end if
+
+      if (ln_val > m700) then
+         hybrid_spec_point = exp(ln_val)
+      else
+         hybrid_spec_point = 0.0d0
+      end if
+   end function hybrid_spec_point
    end subroutine normalized_hybrid_spec
 
    subroutine benchmark_normalized_hybrid_spec(n_gamma, gamma, p, gamma_min, gamma_max, xi_e, &

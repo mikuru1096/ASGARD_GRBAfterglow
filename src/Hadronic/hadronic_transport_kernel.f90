@@ -20,6 +20,15 @@ subroutine hadronic_proton_injection_powerlaw(Num_gam_p,gam_p,p_p,energy_budget_
     Q_inj=zero
     if (energy_budget_erg <= zero .or. i_hi < i_lo) return
 
+    call accumulate_powerlaw_energy_moment()
+    if (norm <= zero) return
+    call write_powerlaw_injection()
+
+contains
+
+    subroutine accumulate_powerlaw_energy_moment()
+    implicit none
+
     norm=zero
     do I_gam=i_lo,i_hi
         gam_mid=gam_p(I_gam)
@@ -28,12 +37,16 @@ subroutine hadronic_proton_injection_powerlaw(Num_gam_p,gam_p,p_p,energy_budget_
         moment=(gam_mid-one)*Para_m_p_E
         norm=norm+weight*moment*dgam
     end do
-    if (norm <= zero) return
+    end subroutine accumulate_powerlaw_energy_moment
+
+    subroutine write_powerlaw_injection()
+    implicit none
 
     do I_gam=i_lo,i_hi
         gam_mid=gam_p(I_gam)
         Q_inj(I_gam)=energy_budget_erg*gam_mid**(-p_p)/norm
     end do
+    end subroutine write_powerlaw_injection
 end subroutine hadronic_proton_injection_powerlaw
 
 ! 计算质子能量损失率：绝热冷却 dγ/dt = γ/t_dyn 和同步冷却 dγ/dt ∝ γ²。
@@ -67,6 +80,14 @@ subroutine hadronic_advance_energy_loggamma(Num_gam_p,gam_p,dN_prev,Q_inj,loss_t
 
     call hadronic_build_gamma_edges(Num_gam_p,gam_p,gam_edge)
     if (dt_s <= zero) error stop "hadronic energy advance requires dt_s > 0."
+    call build_loss_flux_edges()
+    call apply_flux_divergence_with_injection()
+
+contains
+
+    subroutine build_loss_flux_edges()
+    implicit none
+
     flux_edge=zero
     do I_gam=2,Num_gam_p
         loss_edge=0.5d0*(loss_total(I_gam-1)+loss_total(I_gam))
@@ -74,6 +95,10 @@ subroutine hadronic_advance_energy_loggamma(Num_gam_p,gam_p,dN_prev,Q_inj,loss_t
     end do
     flux_edge(1)=loss_total(1)*dN_prev(1)
     flux_edge(Num_gam_p+1)=zero
+    end subroutine build_loss_flux_edges
+
+    subroutine apply_flux_divergence_with_injection()
+    implicit none
 
     do I_gam=1,Num_gam_p
         dgam_cell=gam_edge(I_gam+1)-gam_edge(I_gam)
@@ -84,6 +109,7 @@ subroutine hadronic_advance_energy_loggamma(Num_gam_p,gam_p,dN_prev,Q_inj,loss_t
         dN_next(I_gam)=dN_prev(I_gam)+dt_s*(flux_edge(I_gam+1)-flux_edge(I_gam))/dgam_cell+source_loc
         if (dN_next(I_gam) < zero) error stop "hadronic energy advance produced negative particle density."
     end do
+    end subroutine apply_flux_divergence_with_injection
 end subroutine hadronic_advance_energy_loggamma
 
 end module hadronic_transport_kernel

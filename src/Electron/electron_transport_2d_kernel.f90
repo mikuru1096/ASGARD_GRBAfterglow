@@ -12,6 +12,7 @@ module electron_transport_2d_kernel
   public :: compute_downstream_comoving_grid
   public :: bm_beta2_lab, bm_beta2_shock
   public :: compute_bm_divergence_chi
+  public :: compute_logchi_eta_step_limit
   public :: advance_eta_logchi_implicit, advance_energy_loggamma_chi
   public :: advance_eta_logchi_pwncr_implicit, advance_energy_loggamma_chi_pwncr
   public :: advance_energy_stochastic_loggamma_chi
@@ -157,6 +158,70 @@ subroutine eta_face_transport_coeffs(Gamma_sh, Num_chi, chi_face, a_loc, dln_a_d
     end do
 end subroutine eta_face_transport_coeffs
 
+! 估计χ方向对流子步长限制。
+real(8) function compute_logchi_eta_step_limit(Num_chi,active_chi_hi,R_loc,R_Gamma_loc,beta_sh, &
+                                               dln_a_dR_loc,deta,chi_face,cfl_factor)
+    implicit none
+    integer, intent(in) :: Num_chi,active_chi_hi
+    integer :: I_chi
+    real(8), intent(in) :: R_loc,R_Gamma_loc,beta_sh,dln_a_dR_loc,deta,cfl_factor
+    real(8), intent(in) :: chi_face(0:Num_chi)
+    real(8) :: beta_2_sh_loc,max_eta_coeff
+
+    max_eta_coeff=zero
+    do I_chi=1,max(1,active_chi_hi)
+        beta_2_sh_loc=bm_beta2_shock(R_Gamma_loc,chi_face(I_chi))
+        max_eta_coeff=max(max_eta_coeff,dabs((8d0*R_Gamma_loc*R_Gamma_loc/R_loc)* &
+                                             beta_2_sh_loc/(chi_face(I_chi)*beta_sh)+ &
+                                             ((chi_face(I_chi)-one)/chi_face(I_chi))*dln_a_dR_loc)/dlog(ten))
+    end do
+    compute_logchi_eta_step_limit=huge(one)
+    if (max_eta_coeff > zero) compute_logchi_eta_step_limit=cfl_factor*deta/max_eta_coeff
+end function compute_logchi_eta_step_limit
+
+subroutine eta_split_advection_faces(Num_chi,A_eta_face,adv_face_left,adv_face_right)
+    implicit none
+    integer, intent(in) :: Num_chi
+    integer :: I_face
+    real(8), intent(in) :: A_eta_face(1:Num_chi)
+    real(8), intent(out) :: adv_face_left(1:Num_chi),adv_face_right(1:Num_chi)
+
+    adv_face_left=zero
+    adv_face_right=zero
+    do I_face=1,Num_chi-1
+        if (A_eta_face(I_face) >= zero) then
+            adv_face_left(I_face)=A_eta_face(I_face)
+        else
+            adv_face_right(I_face)=A_eta_face(I_face)
+        end if
+    end do
+    if (A_eta_face(Num_chi) > zero) adv_face_left(Num_chi)=A_eta_face(Num_chi)
+end subroutine eta_split_advection_faces
+
+subroutine eta_diffusion_face_coeffs(Num_chi,deta,chi_face,a_loc,beta_sh,include_outer_face, &
+                                     diff_face_left_base,diff_face_right_base)
+    implicit none
+    integer, intent(in) :: Num_chi
+    integer :: I_face
+    logical, intent(in) :: include_outer_face
+    real(8), intent(in) :: deta,chi_face(0:Num_chi),a_loc,beta_sh
+    real(8), intent(out) :: diff_face_left_base(1:Num_chi),diff_face_right_base(1:Num_chi)
+    real(8) :: diff_prefactor,ln10
+
+    ln10=dlog(ten)
+    diff_face_left_base=zero
+    diff_face_right_base=zero
+    do I_face=1,Num_chi-1
+        diff_prefactor=a_loc*a_loc/(chi_face(I_face)*chi_face(I_face)*beta_sh*para_c*ln10*ln10)
+        diff_face_left_base(I_face)=diff_prefactor/deta+0.5d0*ln10*diff_prefactor
+        diff_face_right_base(I_face)=-diff_prefactor/deta+0.5d0*ln10*diff_prefactor
+    end do
+    if (include_outer_face) then
+        diff_prefactor=a_loc*a_loc/(chi_face(Num_chi)*chi_face(Num_chi)*beta_sh*para_c*ln10*ln10)
+        diff_face_left_base(Num_chi)=diff_prefactor/deta+0.5d0*ln10*diff_prefactor
+    end if
+end subroutine eta_diffusion_face_coeffs
+
 ! Thomas算法求解三对角线性方程组。
 subroutine solve_tridiagonal(Num_cell, lower, diag, upper, rhs, sol)
     integer, intent(in) :: Num_cell
@@ -226,21 +291,12 @@ subroutine advance_eta_logchi_diffusion_implicit(U_log, Num_gam_e, Num_chi, acti
 
     real(8) :: diff_face_left_base(1:Num_chi), diff_face_right_base(1:Num_chi)
     real(8) :: lower(Num_chi), diag(Num_chi), upper(Num_chi), rhs(Num_chi), sol(Num_chi)
-    real(8) :: lambda_eta, diff_prefactor, coeff_left, coeff_right, ln10, kappa_face
-    integer :: I_gam_e, I_face, I_chi
+    real(8) :: lambda_eta, kappa_face
+    integer :: I_gam_e, I_chi
 
-    ln10 = dlog(ten)
     lambda_eta = dR_step/deta
-
-    diff_face_left_base = zero
-    diff_face_right_base = zero
-    do I_face = 1, Num_chi-1
-        diff_prefactor = a_loc*a_loc/(chi_face(I_face)*chi_face(I_face)*beta_sh*para_c*ln10*ln10)
-        coeff_left = diff_prefactor/deta + 0.5d0*ln10*diff_prefactor
-        coeff_right = -diff_prefactor/deta + 0.5d0*ln10*diff_prefactor
-        diff_face_left_base(I_face) = coeff_left
-        diff_face_right_base(I_face) = coeff_right
-    end do
+    call eta_diffusion_face_coeffs(Num_chi,deta,chi_face,a_loc,beta_sh,.false., &
+                                   diff_face_left_base,diff_face_right_base)
 
     do I_gam_e = 1, active_hi
         lower = zero
@@ -277,32 +333,15 @@ subroutine advance_eta_logchi_implicit(U_log, Num_gam_e, Num_chi, active_hi, det
     real(8) :: diff_face_left_base(1:Num_chi), diff_face_right_base(1:Num_chi)
       real(8) :: lower_base(Num_chi), diag_base(Num_chi), upper_base(Num_chi)
       real(8) :: lower(Num_chi), diag(Num_chi), upper(Num_chi), rhs(Num_chi), sol(Num_chi)
-      real(8) :: lambda_eta, diff_prefactor, coeff_left, coeff_right, ln10, kappa_face
-    integer :: I_gam_e, I_face, I_chi
+      real(8) :: lambda_eta, kappa_face
+    integer :: I_gam_e, I_chi
 
-    ln10 = dlog(ten)
     lambda_eta = dR_step/deta
     call eta_face_transport_coeffs(Gamma_sh, Num_chi, chi_face, a_loc, dln_a_dR_loc, beta_sh, A_eta_face)
 
-    adv_face_left = zero
-    adv_face_right = zero
-    diff_face_left_base = zero
-    diff_face_right_base = zero
-
-    do I_face = 1, Num_chi-1
-        if (A_eta_face(I_face) >= zero) then
-            adv_face_left(I_face) = A_eta_face(I_face)
-        else
-            adv_face_right(I_face) = A_eta_face(I_face)
-        end if
-        diff_prefactor = a_loc*a_loc/(chi_face(I_face)*chi_face(I_face)*beta_sh*para_c*ln10*ln10)
-        coeff_left = diff_prefactor/deta + 0.5d0*ln10*diff_prefactor
-        coeff_right = -diff_prefactor/deta + 0.5d0*ln10*diff_prefactor
-        diff_face_left_base(I_face) = coeff_left
-        diff_face_right_base(I_face) = coeff_right
-    end do
-
-    if (A_eta_face(Num_chi) > zero) adv_face_left(Num_chi) = A_eta_face(Num_chi)
+    call eta_split_advection_faces(Num_chi,A_eta_face,adv_face_left,adv_face_right)
+    call eta_diffusion_face_coeffs(Num_chi,deta,chi_face,a_loc,beta_sh,.false., &
+                                   diff_face_left_base,diff_face_right_base)
 
     lower_base = zero
     diag_base = one
@@ -356,35 +395,15 @@ subroutine advance_eta_logchi_pwncr_implicit(U_log, Num_gam_e, Num_chi, active_h
     real(8) :: diff_face_left_base(1:Num_chi), diff_face_right_base(1:Num_chi)
     real(8) :: lower_base(Num_chi), diag_base(Num_chi), upper_base(Num_chi)
     real(8) :: lower(Num_chi), diag(Num_chi), upper(Num_chi), rhs(Num_chi), sol(Num_chi)
-    real(8) :: lambda_eta, diff_prefactor, coeff_left, coeff_right, ln10, kappa_face
-    integer :: I_gam_e, I_face, I_chi
+    real(8) :: lambda_eta, kappa_face
+    integer :: I_gam_e, I_chi
 
-    ln10 = dlog(ten)
     lambda_eta = dR_step/deta
     call eta_face_transport_coeffs(Gamma_sh, Num_chi, chi_face, a_loc, dln_a_dR_loc, beta_sh, A_eta_face)
 
-    adv_face_left = zero
-    adv_face_right = zero
-    diff_face_left_base = zero
-    diff_face_right_base = zero
-    do I_face = 1, Num_chi-1
-        if (A_eta_face(I_face) >= zero) then
-            adv_face_left(I_face) = A_eta_face(I_face)
-        else
-            adv_face_right(I_face) = A_eta_face(I_face)
-        end if
-        diff_prefactor = a_loc*a_loc/(chi_face(I_face)*chi_face(I_face)*beta_sh*para_c*ln10*ln10)
-        coeff_left = diff_prefactor/deta + 0.5d0*ln10*diff_prefactor
-        coeff_right = -diff_prefactor/deta + 0.5d0*ln10*diff_prefactor
-        diff_face_left_base(I_face) = coeff_left
-        diff_face_right_base(I_face) = coeff_right
-    end do
-    if (free_outer_escape) then
-        diff_prefactor = a_loc*a_loc/(chi_face(Num_chi)*chi_face(Num_chi)*beta_sh*para_c*ln10*ln10)
-        diff_face_left_base(Num_chi) = diff_prefactor/deta + 0.5d0*ln10*diff_prefactor
-        diff_face_right_base(Num_chi) = zero
-    end if
-    if (A_eta_face(Num_chi) > zero) adv_face_left(Num_chi) = A_eta_face(Num_chi)
+    call eta_split_advection_faces(Num_chi,A_eta_face,adv_face_left,adv_face_right)
+    call eta_diffusion_face_coeffs(Num_chi,deta,chi_face,a_loc,beta_sh,free_outer_escape, &
+                                   diff_face_left_base,diff_face_right_base)
 
     lower_base = zero
     diag_base = one

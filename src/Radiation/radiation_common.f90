@@ -135,7 +135,6 @@ subroutine radiation_syn_seed_core(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_
     integer, parameter :: parallel_work_threshold=512
     integer :: I_nu,I_gam_e,work_items
     real(8) :: factor,Temp_syn,Rariv2,temp_para
-    real(8) :: V_cal,dInteg,Tau,x,ratio_v_pow,Fx,P_v,temp_abs
     real(8) :: gam_e_mean2_arr(Num_gam_e-1),dN_dgam_arr(Num_gam_e-1),ddN_arr(Num_gam_e-1)
     real(8) :: Vc_inv_arr(Num_gam_e-1),Vc_pow23_arr(Num_gam_e-1),V_seed_powm23(Num_nu)
 
@@ -156,45 +155,13 @@ subroutine radiation_syn_seed_core(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_
     work_items=Num_nu*(Num_gam_e-1)
     if (n_threads <= 1 .or. work_items < parallel_work_threshold) then
         do I_nu=1,Num_nu
-            V_cal=V_seed(I_nu)
-            dInteg=zero
-            Tau=zero
-            do I_gam_e=1,Num_gam_e-1
-                x=V_cal*Vc_inv_arr(I_gam_e)
-                ratio_v_pow=Vc_pow23_arr(I_gam_e)*V_seed_powm23(I_nu)
-                Fx=1.81d0*dexp(-x)/dsqrt(ratio_v_pow+factor)
-                dInteg=dInteg+dN_dgam_arr(I_gam_e)*Fx
-                Tau=Tau+gam_e_mean2_arr(I_gam_e)*ddN_arr(I_gam_e)*Fx
-            end do
-            P_v=Temp_syn*DB*dInteg
-            Tau=ssa_prefactor*Tau*DB/(4d0*pi*Rariv2*V_cal*V_cal)
-            P_emit(I_nu)=P_v
-            Tau_syn(I_nu)=Tau
-            call radiation_transfer_factor(Tau,temp_abs)
-            P_syn(I_nu)=P_v*temp_abs
-            Seed_syn(I_nu)=P_syn(I_nu)/(Rariv2*V_cal)
+            call radiation_syn_seed_point(I_nu)
         end do
     else
-        !$OMP PARALLEL num_threads(n_threads), private(I_nu,I_gam_e,V_cal,dInteg,Tau,x,ratio_v_pow,Fx,P_v,temp_abs)
+        !$OMP PARALLEL num_threads(n_threads), private(I_nu)
         !$OMP DO SCHEDULE(STATIC)
         do I_nu=1,Num_nu
-            V_cal=V_seed(I_nu)
-            dInteg=zero
-            Tau=zero
-            do I_gam_e=1,Num_gam_e-1
-                x=V_cal*Vc_inv_arr(I_gam_e)
-                ratio_v_pow=Vc_pow23_arr(I_gam_e)*V_seed_powm23(I_nu)
-                Fx=1.81d0*dexp(-x)/dsqrt(ratio_v_pow+factor)
-                dInteg=dInteg+dN_dgam_arr(I_gam_e)*Fx
-                Tau=Tau+gam_e_mean2_arr(I_gam_e)*ddN_arr(I_gam_e)*Fx
-            end do
-            P_v=Temp_syn*DB*dInteg
-            Tau=ssa_prefactor*Tau*DB/(4d0*pi*Rariv2*V_cal*V_cal)
-            P_emit(I_nu)=P_v
-            Tau_syn(I_nu)=Tau
-            call radiation_transfer_factor(Tau,temp_abs)
-            P_syn(I_nu)=P_v*temp_abs
-            Seed_syn(I_nu)=P_syn(I_nu)/(Rariv2*V_cal)
+            call radiation_syn_seed_point(I_nu)
         end do
         !$OMP END DO
         !$OMP END PARALLEL
@@ -202,6 +169,33 @@ subroutine radiation_syn_seed_core(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_
 
     temp_para=4d0*pi*Para_c*Para_h
     Seed_syn=Seed_syn/temp_para
+
+contains
+
+subroutine radiation_syn_seed_point(I_nu)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: I_nu
+    integer :: I_gam_e
+    real(8) :: V_cal,dInteg,Tau,x,ratio_v_pow,Fx,P_v,temp_abs
+
+    V_cal=V_seed(I_nu)
+    dInteg=zero
+    Tau=zero
+    do I_gam_e=1,Num_gam_e-1
+        x=V_cal*Vc_inv_arr(I_gam_e)
+        ratio_v_pow=Vc_pow23_arr(I_gam_e)*V_seed_powm23(I_nu)
+        Fx=1.81d0*dexp(-x)/dsqrt(ratio_v_pow+factor)
+        dInteg=dInteg+dN_dgam_arr(I_gam_e)*Fx
+        Tau=Tau+gam_e_mean2_arr(I_gam_e)*ddN_arr(I_gam_e)*Fx
+    end do
+    P_v=Temp_syn*DB*dInteg
+    Tau=ssa_prefactor*Tau*DB/(4d0*pi*Rariv2*V_cal*V_cal)
+    P_emit(I_nu)=P_v
+    Tau_syn(I_nu)=Tau
+    call radiation_transfer_factor(Tau,temp_abs)
+    P_syn(I_nu)=P_v*temp_abs
+    Seed_syn(I_nu)=P_syn(I_nu)/(Rariv2*V_cal)
+end subroutine radiation_syn_seed_point
 end subroutine radiation_syn_seed_core
 
 end module radiation_common

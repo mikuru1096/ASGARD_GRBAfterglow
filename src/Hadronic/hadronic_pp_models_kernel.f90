@@ -28,7 +28,7 @@ end function
 real(8) function hadronic_pp_spectral_shape(Tp,Egam,model)
     real(8), intent(in) :: Tp,Egam
     integer, intent(in) :: model
-    real(8) :: Y,Y0,X,C,theta,q,kappa,mu,beta,gamma_p
+    real(8) :: Y,Y0,X,C
     real(8) :: Egam_max_val
 
     Egam_max_val = Egam_max(Tp)
@@ -43,32 +43,32 @@ real(8) function hadronic_pp_spectral_shape(Tp,Egam,model)
 
     select case (model)
     case (MODEL_SIBYLL)
-        if (Tp > 50d0 .and. X >= 0d0 .and. X < 1d0) then
-            hadronic_pp_spectral_shape = (1d0 - dsqrt(X))**3.6d0 / (1d0 + X/C)
-        else
-            hadronic_pp_spectral_shape = F_geant4_local(Tp,Egam)
-        end if
+        hadronic_pp_spectral_shape = high_energy_or_geant4_shape(3.6d0)
 
     case (MODEL_QGSJET)
-        if (Tp > 50d0 .and. X >= 0d0 .and. X < 1d0) then
-            hadronic_pp_spectral_shape = (1d0 - dsqrt(X))**4.5d0 / (1d0 + X/C)
-        else
-            hadronic_pp_spectral_shape = F_geant4_local(Tp,Egam)
-        end if
+        hadronic_pp_spectral_shape = high_energy_or_geant4_shape(4.5d0)
 
     case (MODEL_GEANT4)
         hadronic_pp_spectral_shape = F_geant4_local(Tp,Egam)
 
     case (MODEL_PYTHIA8)
-        if (Tp > 50d0 .and. X >= 0d0 .and. X < 1d0) then
-            hadronic_pp_spectral_shape = (1d0 - dsqrt(X))**4.2d0 / (1d0 + X/C)
-        else
-            hadronic_pp_spectral_shape = F_geant4_local(Tp,Egam)
-        end if
+        hadronic_pp_spectral_shape = high_energy_or_geant4_shape(4.2d0)
 
     case default
         hadronic_pp_spectral_shape = F_geant4_local(Tp,Egam)
     end select
+
+contains
+
+    real(8) function high_energy_or_geant4_shape(exponent)
+        real(8), intent(in) :: exponent
+
+        if (Tp > 50d0 .and. X >= 0d0 .and. X < 1d0) then
+            high_energy_or_geant4_shape = (1d0 - dsqrt(X))**exponent / (1d0 + X/C)
+        else
+            high_energy_or_geant4_shape = F_geant4_local(Tp,Egam)
+        end if
+    end function high_energy_or_geant4_shape
 end function
 
 ! ------------------------------------------------------------

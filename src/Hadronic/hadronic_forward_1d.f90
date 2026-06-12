@@ -302,44 +302,10 @@ subroutine fs_hadronic_1d(R_Tobs,R_Gamma,R,shell_energy_inj_erg,B_field_g,V_seed
         n_prev=zero; pip_prev=zero; pim_prev=zero; muml_prev=zero; mumr_prev=zero; mupl_prev=zero; mupr_prev=zero
     end if
 
-    gamma_scan=(/one,two/)
-    external_rate=(/one,two/)
-    t_dyn_s=hadronic_dynamical_time(R(1),R_Gamma(1))
-    if (use_hummer) then
-        call hadronic_estimate_max_gamma("proton",B_field_g(1),R(1),R_Gamma(1),eta_acc,2,gamma_scan,external_rate, &
-                                         .false.,gam_p_max_global,gamma_dyn,gamma_syn,gamma_ext,has_gamma_ext)
-    else
-        gam_p_max_global=hadronic_gamma_p_max(B_field_g(1),t_dyn_s,eta_acc)
-    end if
-    do I_R=2,Num_R
-        t_dyn_s=hadronic_dynamical_time(R(I_R),R_Gamma(I_R))
-        if (use_hummer) then
-            call hadronic_estimate_max_gamma("proton",B_field_g(I_R),R(I_R),R_Gamma(I_R),eta_acc,2,gamma_scan,external_rate, &
-                                             .false.,gamma_max_loc,gamma_dyn,gamma_syn,gamma_ext,has_gamma_ext)
-        else
-            gamma_max_loc=hadronic_gamma_p_max(B_field_g(I_R),t_dyn_s,eta_acc)
-        end if
-        gam_p_max_global=max(gam_p_max_global,gamma_max_loc)
-    end do
-    if (gam_p_max_global <= one+1d-3) error stop "forward hadronic gamma_p_max must exceed the injection grid minimum."
-    call hadronic_build_gamma_p_grid(num_gam_p,one+1d-3,gam_p_max_global,gam_p)
+    call initialize_proton_gamma_grid
     dN_prev=zero
 
-    V_nu=zero
-    if (num_nu_nu > 1) then
-        do I_R=1,num_nu_nu
-            V_nu(I_R)=ten**(dlog10(1d-3*Para_GeV2Hz)+dble(I_R-1)* &
-                            (dlog10(1d8*Para_GeV2Hz)-dlog10(1d-3*Para_GeV2Hz))/dble(num_nu_nu-1))
-        end do
-    else
-        V_nu(1)=Para_GeV2Hz
-    end if
-
-    dN_gam_p=zero
-    P_had_syn=zero
-    Seed_had_syn=zero
-    P_had_pg_gamma=zero
-    P_nu_all=zero
+    call initialize_output_grids
 
     do I_R=1,Num_R
         dt_s=hadronic_shell_dt(R_Tobs,I_R)
@@ -347,46 +313,18 @@ subroutine fs_hadronic_1d(R_Tobs,R_Gamma,R,shell_energy_inj_erg,B_field_g,V_seed
         if (shell_energy_inj_erg(I_R) < zero) error stop "hadronic shell injection energy must be non-negative."
         energy_budget_erg=shell_energy_inj_erg(I_R)
         gam_p_min=max(gam_p(1),R_Gamma(I_R))
-        if (use_hummer .and. energy_budget_erg > zero) then
-            call hadronic_species_injection_operator(num_gam_p,gam_p,"proton",energy_budget_erg/dt_s,p_p, &
-                                                     gam_p_min,gam_p(num_gam_p),one,.false.,Q_inj)
-            Q_inj=dt_s*Q_inj
-        else
-            call hadronic_proton_injection_powerlaw(num_gam_p,gam_p,p_p,energy_budget_erg,gam_p_min,gam_p(num_gam_p),Q_inj)
-        end if
-        call hadronic_proton_loss_rates(num_gam_p,gam_p,B_field_g(I_R),t_dyn_s,loss_ad,loss_syn,loss_total)
-        if (use_hummer) then
-            call hadronic_advance_energy_loggamma_remap(num_gam_p,gam_p,dN_prev,Q_inj,loss_total,dt_s,dN_trial)
-        else
-            call hadronic_advance_energy_loggamma(num_gam_p,gam_p,dN_prev,Q_inj,loss_total,dt_s,dN_trial)
-        end if
+        call inject_protons_for_shell
+        call advance_proton_transport_for_shell
         dN_next=dN_trial
 
         surv_pg=one
         if (use_hummer) then
-            if (I_R == 1) then
-                shell_volume=(4d0/3d0)*pi*R(I_R)**3
-            else
-                shell_volume=(4d0/3d0)*pi*(R(I_R)**3-R(I_R-1)**3)
-            end if
-            call hadronic_pgamma_hummer_shell(num_gam_p,Num_nu,num_nu_nu,dt_s,R(I_R),R_Gamma(I_R),B_field_g(I_R), &
-                                              shell_volume,gam_p,dN_trial,V_seed,Seed_target(:,I_R),V_nu, &
-                                              include_pg,include_neutrino, &
-                                              n_prev,pip_prev,pim_prev,muml_prev,mumr_prev,mupl_prev,mupr_prev, &
-                                              dN_next,n_next,pip_next,pim_next,muml_next,mumr_next,mupl_next,mupr_next, &
-                                              surv_pg,P_had_pg_gamma(:,I_R),P_nu_all(:,I_R))
-            n_prev=n_next; pip_prev=pip_next; pim_prev=pim_next
-            muml_prev=muml_next; mumr_prev=mumr_next; mupl_prev=mupl_next; mupr_prev=mupr_next
+            call advance_hummer_secondary_chain
         end if
         dN_gam_p(:,I_R)=dN_next
 
         if (include_proton_synch /= 0) then
-            call hadronic_get_proton_syn_state(R(I_R),B_field_g(I_R),num_gam_p,Num_nu,gam_p,dN_next, &
-                                               V_seed,P_had_syn(:,I_R),Seed_had_syn(:,I_R))
-            if (use_hummer) then
-                P_had_syn(:,I_R)=P_had_syn(:,I_R)*surv_pg
-                Seed_had_syn(:,I_R)=Seed_had_syn(:,I_R)*surv_pg
-            end if
+            call emit_proton_synchrotron_for_shell
         end if
 
         dN_prev=dN_next
@@ -395,6 +333,109 @@ subroutine fs_hadronic_1d(R_Tobs,R_Gamma,R,shell_energy_inj_erg,B_field_g,V_seed
     if (use_hummer) deallocate(n_prev,n_next,pip_prev,pip_next,pim_prev,pim_next,muml_prev,muml_next, &
                                mumr_prev,mumr_next,mupl_prev,mupl_next,mupr_prev,mupr_next)
     deallocate(dN_prev,dN_next,dN_trial,Q_inj,loss_ad,loss_syn,loss_total,surv_pg)
+
+contains
+
+    subroutine initialize_proton_gamma_grid
+        implicit real(8)(A-H,O-Z)
+        integer :: I_scan
+
+        gamma_scan=(/one,two/)
+        external_rate=(/one,two/)
+        t_dyn_s=hadronic_dynamical_time(R(1),R_Gamma(1))
+        if (use_hummer) then
+            call hadronic_estimate_max_gamma("proton",B_field_g(1),R(1),R_Gamma(1),eta_acc,2,gamma_scan,external_rate, &
+                                             .false.,gam_p_max_global,gamma_dyn,gamma_syn,gamma_ext,has_gamma_ext)
+        else
+            gam_p_max_global=hadronic_gamma_p_max(B_field_g(1),t_dyn_s,eta_acc)
+        end if
+        do I_scan=2,Num_R
+            t_dyn_s=hadronic_dynamical_time(R(I_scan),R_Gamma(I_scan))
+            if (use_hummer) then
+                call hadronic_estimate_max_gamma("proton",B_field_g(I_scan),R(I_scan),R_Gamma(I_scan),eta_acc,2,gamma_scan, &
+                                                 external_rate,.false.,gamma_max_loc,gamma_dyn,gamma_syn,gamma_ext, &
+                                                 has_gamma_ext)
+            else
+                gamma_max_loc=hadronic_gamma_p_max(B_field_g(I_scan),t_dyn_s,eta_acc)
+            end if
+            gam_p_max_global=max(gam_p_max_global,gamma_max_loc)
+        end do
+        if (gam_p_max_global <= one+1d-3) error stop "forward hadronic gamma_p_max must exceed the injection grid minimum."
+        call hadronic_build_gamma_p_grid(num_gam_p,one+1d-3,gam_p_max_global,gam_p)
+    end subroutine initialize_proton_gamma_grid
+
+    subroutine initialize_output_grids
+        implicit real(8)(A-H,O-Z)
+        integer :: I_nu_out
+
+        V_nu=zero
+        if (num_nu_nu > 1) then
+            do I_nu_out=1,num_nu_nu
+                V_nu(I_nu_out)=ten**(dlog10(1d-3*Para_GeV2Hz)+dble(I_nu_out-1)* &
+                                (dlog10(1d8*Para_GeV2Hz)-dlog10(1d-3*Para_GeV2Hz))/dble(num_nu_nu-1))
+            end do
+        else
+            V_nu(1)=Para_GeV2Hz
+        end if
+
+        dN_gam_p=zero
+        P_had_syn=zero
+        Seed_had_syn=zero
+        P_had_pg_gamma=zero
+        P_nu_all=zero
+    end subroutine initialize_output_grids
+
+    subroutine inject_protons_for_shell
+        implicit real(8)(A-H,O-Z)
+
+        if (use_hummer .and. energy_budget_erg > zero) then
+            call hadronic_species_injection_operator(num_gam_p,gam_p,"proton",energy_budget_erg/dt_s,p_p, &
+                                                     gam_p_min,gam_p(num_gam_p),one,.false.,Q_inj)
+            Q_inj=dt_s*Q_inj
+        else
+            call hadronic_proton_injection_powerlaw(num_gam_p,gam_p,p_p,energy_budget_erg,gam_p_min,gam_p(num_gam_p),Q_inj)
+        end if
+    end subroutine inject_protons_for_shell
+
+    subroutine advance_proton_transport_for_shell
+        implicit real(8)(A-H,O-Z)
+
+        call hadronic_proton_loss_rates(num_gam_p,gam_p,B_field_g(I_R),t_dyn_s,loss_ad,loss_syn,loss_total)
+        if (use_hummer) then
+            call hadronic_advance_energy_loggamma_remap(num_gam_p,gam_p,dN_prev,Q_inj,loss_total,dt_s,dN_trial)
+        else
+            call hadronic_advance_energy_loggamma(num_gam_p,gam_p,dN_prev,Q_inj,loss_total,dt_s,dN_trial)
+        end if
+    end subroutine advance_proton_transport_for_shell
+
+    subroutine advance_hummer_secondary_chain
+        implicit real(8)(A-H,O-Z)
+
+        if (I_R == 1) then
+            shell_volume=(4d0/3d0)*pi*R(I_R)**3
+        else
+            shell_volume=(4d0/3d0)*pi*(R(I_R)**3-R(I_R-1)**3)
+        end if
+        call hadronic_pgamma_hummer_shell(num_gam_p,Num_nu,num_nu_nu,dt_s,R(I_R),R_Gamma(I_R),B_field_g(I_R), &
+                                          shell_volume,gam_p,dN_trial,V_seed,Seed_target(:,I_R),V_nu, &
+                                          include_pg,include_neutrino, &
+                                          n_prev,pip_prev,pim_prev,muml_prev,mumr_prev,mupl_prev,mupr_prev, &
+                                          dN_next,n_next,pip_next,pim_next,muml_next,mumr_next,mupl_next,mupr_next, &
+                                          surv_pg,P_had_pg_gamma(:,I_R),P_nu_all(:,I_R))
+        n_prev=n_next; pip_prev=pip_next; pim_prev=pim_next
+        muml_prev=muml_next; mumr_prev=mumr_next; mupl_prev=mupl_next; mupr_prev=mupr_next
+    end subroutine advance_hummer_secondary_chain
+
+    subroutine emit_proton_synchrotron_for_shell
+        implicit real(8)(A-H,O-Z)
+
+        call hadronic_get_proton_syn_state(R(I_R),B_field_g(I_R),num_gam_p,Num_nu,gam_p,dN_next, &
+                                           V_seed,P_had_syn(:,I_R),Seed_had_syn(:,I_R))
+        if (use_hummer) then
+            P_had_syn(:,I_R)=P_had_syn(:,I_R)*surv_pg
+            Seed_had_syn(:,I_R)=Seed_had_syn(:,I_R)*surv_pg
+        end if
+    end subroutine emit_proton_synchrotron_for_shell
 end subroutine fs_hadronic_1d
 
 ! Single-step electromagnetic pair-cascade wrapper.
