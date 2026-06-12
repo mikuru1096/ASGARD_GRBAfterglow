@@ -195,7 +195,7 @@ def _validate_joint_electron_photon_config(config: FitConfig) -> None:
 
 def _validate_multi_density_reverse_config(config: FitConfig) -> None:
     jump_r, _, _ = density_jump_arrays(config)
-    if jump_r.size <= 1:
+    if jump_r.size < 1:
         return
     if config.a_star > 0.0:
         raise NotImplementedError("multi-density reverse shock v1 supports only ISM.")
@@ -205,6 +205,8 @@ def _validate_multi_density_reverse_config(config: FitConfig) -> None:
         raise NotImplementedError("multi-density reverse shock v1 supports only the direct 1D observer path.")
     if config.hadronic.enabled or config.hadronic.reverse_enabled or float(config.hadronic.reverse_epsilon_p) > 0.0:
         raise NotImplementedError("multi-density reverse shock v1 does not include hadronic processes.")
+    if bool(config.include_forward_ssc) or int(config.index_y) != 0:
+        raise NotImplementedError("multi-density reverse shock v1 supports electron synchrotron only.")
     if bool(config.reverse_shock.include_ssc):
         raise NotImplementedError("multi-density reverse shock v1 does not include RS SSC.")
     if bool(config.reverse_shock.include_cross_zone_ic):

@@ -49,7 +49,7 @@ F2PY_ENTRYPOINTS = {
     "electron_forward_transport_2d": ("fs_electron_transport_2d_core",),
     "electron_forward_t2g1_1d": ("fs_electron_t2g1_1d",),
     "electron_radiation": ("get_nu_a", "get_syn_selected", "get_syn_transfer", "get_syn_polarization_selected"),
-    "electron_reverse_kernel": ("electron_reverse_evolve",),
+    "electron_reverse_kernel": ("electron_reverse_evolve", "electron_secondary_reverse_evolve"),
     "radiation_gamma_gamma_absorption": ("annihilation",),
     "radiation_reverse_seed": ("seed_reverse",),
     "radiation_ssc_spectrum": ("ssc_spec", "ssc_spec_nonuniform"),

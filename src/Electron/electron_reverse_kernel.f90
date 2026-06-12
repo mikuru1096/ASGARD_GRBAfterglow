@@ -205,6 +205,128 @@ contains
     end subroutine advance_reverse_transport_shell
 end subroutine electron_reverse_evolve
 
+subroutine electron_secondary_reverse_evolve(e_r,b_r,p_r,f_e_r,z,R_Tobs,R_Gamma,R,B3,M3_shell,U3_shell,V3_shell,Gam_m_shell, &
+                                             V_seed,Num_nu,Num_R,Num_gam_e,index_syn_intger,n_threads,gam_e,dN_gam_e)
+    implicit none
+    integer, intent(in) :: Num_nu,Num_R,Num_gam_e,index_syn_intger,n_threads
+    integer :: I_tobs,I_gam_e,L1,L
+    real(8), intent(in) :: e_r,b_r,p_r,f_e_r,z
+    real(8), intent(in) :: R_Tobs(Num_R),R_Gamma(Num_R),R(Num_R),B3(Num_R),M3_shell(Num_R),U3_shell(Num_R)
+    real(8), intent(in) :: V3_shell(Num_R),Gam_m_shell(Num_R),V_seed(Num_nu)
+    real(8), intent(out) :: gam_e(Num_gam_e),dN_gam_e(Num_gam_e,Num_R)
+    real(8), parameter :: secondary_adv_coeff=1.35d-19
+    real(8) :: dB,Gam_e_max,Gam_e_m,Gam_e_max_max,Gam_e_min_global,d_x,R_loc,R_Gamma_loc,beta2
+    real(8) :: f_r,dDR,dDD,injection_rate,mass_lo,mass_hi,inj_width,adiabatic_rate
+    real(8), allocatable :: dEl(:),x(:),dF1(:),temp3(:),dN_x(:),x_edge(:)
+
+    allocate(dEl(Num_gam_e),x(Num_gam_e),dF1(Num_gam_e),temp3(Num_gam_e-1),dN_x(Num_gam_e),x_edge(Num_gam_e+1))
+
+    Gam_e_min_global=one
+    Gam_e_max_max=zero
+    do I_tobs=2,Num_R
+        dB=(B3(I_tobs)+B3(I_tobs-1))/two
+        if (dB > zero .and. Gam_m_shell(I_tobs) > one) then
+            Gam_e_max=3d0*Para_m_energy/dsqrt(8d0*dB*Para_e**3)
+            Gam_e_max_max=max(Gam_e_max_max,Gam_e_max)
+        end if
+    end do
+    if (Gam_e_max_max <= Gam_e_min_global) error stop "electron_secondary_reverse_evolve: empty secondary electron grid."
+
+    do I_gam_e=1,Num_gam_e
+        if (Num_gam_e == 1) then
+            gam_e(I_gam_e)=Gam_e_min_global
+        else
+            gam_e(I_gam_e)=Gam_e_min_global*ten**(dlog10(Gam_e_max_max/Gam_e_min_global)*(I_gam_e-1)/(Num_gam_e-1))
+        end if
+        dN_gam_e(I_gam_e,1)=zero
+    end do
+
+    dN_x=dN_gam_e(:,1)*gam_e*dlog(ten)
+    d_x=dlog10(gam_e(2)/gam_e(1))
+    call electron_profile_log_cell_edges(Num_gam_e,gam_e,x_edge)
+
+    do I_tobs=2,Num_R
+        if (M3_shell(I_tobs) <= zero .and. M3_shell(I_tobs-1) <= zero) then
+            dN_gam_e(:,I_tobs)=dN_gam_e(:,I_tobs-1)
+            cycle
+        end if
+        call prepare_secondary_shell_state(I_tobs)
+        call compute_secondary_injection_rate(I_tobs)
+        call compute_secondary_adiabatic_rate(I_tobs)
+        call advance_secondary_transport_shell(I_tobs)
+    end do
+
+    deallocate(dEl,x,dF1,temp3,dN_x,x_edge)
+
+contains
+
+    subroutine prepare_secondary_shell_state(I_tobs)
+    implicit none
+    integer, intent(in) :: I_tobs
+
+        R_loc=R(I_tobs-1)
+        R_Gamma_loc=(R_Gamma(I_tobs)+R_Gamma(I_tobs-1))/two
+        beta2=dsqrt(one-one/R_Gamma_loc**2)
+        dB=(B3(I_tobs)+B3(I_tobs-1))/two
+        if (dB <= zero) error stop "electron_secondary_reverse_evolve: secondary reservoir requires B3 > 0."
+        if (Gam_m_shell(I_tobs-1) > one) then
+            Gam_e_m=(Gam_m_shell(I_tobs)+Gam_m_shell(I_tobs-1))/two
+        else
+            Gam_e_m=Gam_m_shell(I_tobs)
+        end if
+        Gam_e_max=3d0*Para_m_energy/dsqrt(8d0*dB*Para_e**3)
+        f_r=secondary_adv_coeff/beta2/R_Gamma_loc*dB**2/pi
+        dDD=R(I_tobs)-R(I_tobs-1)
+        dDR=0.7d0/(f_r*Gam_e_max+one/R(I_tobs-1))
+        L1=max(100,min(1000,int(dDD/dDR)))
+        dDR=dDD/L1
+        dEl=f_r*gam_e
+    end subroutine prepare_secondary_shell_state
+
+    subroutine compute_secondary_injection_rate(I_tobs)
+    implicit none
+    integer, intent(in) :: I_tobs
+
+        mass_lo=M3_shell(I_tobs-1)
+        mass_hi=M3_shell(I_tobs)
+        if (mass_hi < mass_lo) error stop "electron_secondary_reverse_evolve: secondary swept mass must not decrease."
+        inj_width=R(I_tobs)-R(I_tobs-1)
+        injection_rate=f_e_r*(mass_hi-mass_lo)/(Para_m_p*inj_width)
+    end subroutine compute_secondary_injection_rate
+
+    subroutine compute_secondary_adiabatic_rate(I_tobs)
+    implicit none
+    integer, intent(in) :: I_tobs
+
+        if (V3_shell(I_tobs) <= zero .or. V3_shell(I_tobs-1) <= zero) then
+            adiabatic_rate=zero
+        else
+            if (V3_shell(I_tobs) < V3_shell(I_tobs-1)) &
+                error stop "electron_secondary_reverse_evolve: secondary volume must not decrease."
+            adiabatic_rate=dlog(V3_shell(I_tobs)/V3_shell(I_tobs-1))/(3d0*(R(I_tobs)-R(I_tobs-1)))
+        end if
+    end subroutine compute_secondary_adiabatic_rate
+
+    subroutine advance_secondary_transport_shell(I_tobs)
+    implicit none
+    integer, intent(in) :: I_tobs
+
+        dN_x=dN_gam_e(:,I_tobs-1)*gam_e*dlog(ten)
+        do L=1,L1
+            R_loc=R_loc+dDR
+            if (injection_rate > zero) then
+                call reverse_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m,Gam_e_max,injection_rate,p_r,dF1)
+            else
+                dF1=zero
+            end if
+            temp3=((dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/two+adiabatic_rate)/dlog(ten)
+            call electron_fullhide_flux_split_step(Num_gam_e,dDR,d_x,temp3,dF1,dN_x,x,.true.)
+            dN_x=x
+            if (L == L1) dN_gam_e(:,I_tobs)=dN_x/gam_e/dlog(ten)
+        end do
+    end subroutine advance_secondary_transport_shell
+end subroutine electron_secondary_reverse_evolve
+
 subroutine reverse_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m,Gam_e_max,injection_rate,p,dF1)
     implicit none
     integer, intent(in) :: Num_gam_e

@@ -85,15 +85,51 @@ def _run_multi_bump_reverse() -> None:
         secondary.nu_a,
     ):
         assert np.all(np.isfinite(values))
-    active = secondary.magnetic_field_g > 0.0
-    assert np.all(secondary.gamma_contact[active] > 1.0)
-    assert np.all(secondary.gamma_43[active] >= 1.0)
-    assert np.all(secondary.pressure_3[active] > 0.0)
-    assert np.all(secondary.dissipated_energy_density[active] > 0.0)
+    reservoir = secondary.magnetic_field_g > 0.0
+    injection = secondary.dissipated_energy_density > 0.0
+    assert np.any(reservoir)
+    assert np.all(secondary.gamma_contact[injection] > 1.0)
+    assert np.all(secondary.gamma_43[injection] >= 1.0)
+    assert np.all(secondary.pressure_3[injection] > 0.0)
+    assert np.all(secondary.dissipated_energy_density[injection] > 0.0)
+    assert np.isclose(
+        np.sum(secondary.electron_injected_energy_erg),
+        config.reverse_shock.epsilon_e * np.sum(secondary.dissipated_energy_erg),
+        rtol=1.0e-13,
+        atol=0.0,
+    )
+
+
+def _run_single_bump_secondary() -> None:
+    config = _base_config()
+    config.jump_r_cm = (3.0e16,)
+    config.jump_factor = (6.0,)
+    config.jump_width_log10 = (0.10,)
+    times = np.logspace(2.0, 6.0, 14)
+    freqs = np.array([1.0e10], dtype=float)
+    state = solve_state_from_setup(config, make_query_setup(config, times, freqs))
+    assert state.reverse_emission is not None
+    assert state.reverse_emission.secondary_rs is not None
+    assert np.any(state.reverse_emission.secondary_rs.luminosity_syn > 0.0)
+
+
+def _run_disabled_branch_rejections() -> None:
+    config = _base_config()
+    config.jump_r_cm = (3.0e16,)
+    config.jump_factor = (6.0,)
+    config.jump_width_log10 = (0.10,)
+    config.index_y = 1
+    try:
+        solve_state_from_setup(config, make_query_setup(config, np.logspace(2.0, 3.0, 3), np.array([1.0e10])))
+    except NotImplementedError:
+        return
+    raise AssertionError("multi-density reverse shock accepted non-synch electron cooling")
 
 
 def main() -> None:
     _run_single_bump_equivalence()
+    _run_disabled_branch_rejections()
+    _run_single_bump_secondary()
     _run_multi_bump_reverse()
     print("multi-density-reverse-shock-smoke-ok")
 
