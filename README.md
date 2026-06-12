@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="doc/assets/logo.png" alt="ASGARD logo" width="280">
+  <img src="doc/assets/logo.png" alt="ASGARD logo" width="75%">
 </p>
 
 # ASGARD：伽马射线暴余辉分析工具
