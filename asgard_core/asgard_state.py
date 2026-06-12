@@ -30,9 +30,13 @@ from asgard_core.asgard_runtime import (
     _hadronic_advance_energy_loggamma,
     _hadronic_build_gamma_edges,
     _hadronic_electron_loss_rates,
-    _hadronic_shell_dt,
+    _hadronic_pg_survival_factor,
+    _hadronic_shell_comoving_dt_from_radius,
+    _interp_positive_loglog,
+    _solver_report,
     solve_dynamics,
     solve_electron,
+    solve_electron_with_cooling_seed,
     solve_hadronic,
     solve_reverse_shock_emission,
 )
@@ -43,6 +47,9 @@ from src import Interpolation, Radiation, constants
 
 _ELECTRON_MASS_GEV = constants.para_m_e_gev
 _PROJECTION_KINDS = {"lightcurve", "sed"}
+_COUPLING_SEPARATED = "separated"
+_COUPLING_JOINT = "joint"
+_JOINT_ELECTRON_PHOTON_ITERATIONS = 2
 
 
 def make_policy(config: FitConfig) -> ExecutionPolicy:
@@ -156,6 +163,35 @@ def _solver_label(config: FitConfig, stage: str) -> str:
     raise ValueError(f"Unsupported solver stage: {stage}")
 
 
+def _electron_photon_coupling(config: FitConfig) -> str:
+    coupling = str(getattr(config, "electron_photon_coupling", _COUPLING_SEPARATED)).lower()
+    if coupling not in {_COUPLING_SEPARATED, _COUPLING_JOINT}:
+        raise ValueError("electron_photon_coupling must be 'separated' or 'joint'.")
+    return coupling
+
+
+def _validate_joint_electron_photon_config(config: FitConfig) -> None:
+    electron_solver = str(config.electron_solver).lower()
+    if electron_solver != "fullhide_1d":
+        raise NotImplementedError("electron_photon_coupling='joint' currently supports only electron_solver='fullhide_1d'.")
+    if config.reverse or config.reverse_shock.enabled:
+        raise NotImplementedError("electron_photon_coupling='joint' does not support reverse shock in this version.")
+    if str(config.geometry_kernel).lower() == "chi_eats_2d" or config.num_chi is not None:
+        raise NotImplementedError("electron_photon_coupling='joint' does not support chi-resolved transport.")
+    if str(config.structured_backend).lower() != "fortran_1d":
+        raise NotImplementedError("electron_photon_coupling='joint' does not support structured backends.")
+    if not (config.hadronic.enabled and config.hadronic.epsilon_p > 0.0 and config.hadronic.include_bethe_heitler):
+        raise ValueError("electron_photon_coupling='joint' requires enabled forward Bethe-Heitler hadronic physics.")
+    if str(config.hadronic.solver).lower() != "am3_1d":
+        raise ValueError("electron_photon_coupling='joint' requires hadronic_solver='am3_1d'.")
+    if str(config.hadronic.pgamma_scheme).lower() != "hummer_2010_response":
+        raise ValueError("electron_photon_coupling='joint' requires pgamma_scheme='hummer_2010_response'.")
+    if int(config.index_y) != 1:
+        raise ValueError("electron_photon_coupling='joint' requires numeric SSC/IC cooling with index_y=1.")
+    if bool(config.electron_adaptive_substeps):
+        raise NotImplementedError("electron_photon_coupling='joint' currently requires fixed electron substeps.")
+
+
 def _solve_dynamics_stage(
     config: FitConfig,
     setup,
@@ -185,6 +221,28 @@ def _solve_electron_stage(
         dynamics,
         setup.seed_frequency_hz,
         config,
+        return_report=True,
+    )
+
+
+def _solve_electron_stage_with_cooling_seed(
+    config: FitConfig,
+    setup,
+    dynamics: DynamicsSolution,
+    cooling_seed: np.ndarray,
+    timings: Optional[dict[str, float]],
+    secondary_source_r: np.ndarray | None = None,
+) -> tuple[ElectronSolution, SolverAdapterReport]:
+    return _timed_call(
+        timings,
+        f"{_solver_label(config, 'electron')} [joint cooling]",
+        solve_electron_with_cooling_seed,
+        setup.boundary,
+        dynamics,
+        setup.seed_frequency_hz,
+        cooling_seed,
+        config,
+        secondary_source_r=secondary_source_r,
         return_report=True,
     )
 
@@ -228,6 +286,9 @@ def _solve_hadronic_stage(
     electron: ElectronSolution,
     photon_field: PhotonFieldState,
     timings: Optional[dict[str, float]],
+    *,
+    apply_bh_photon_sink: bool = False,
+    merge_secondary_pairs: bool = True,
 ) -> tuple[ElectronSolution, Optional[object], SolverAdapterReport]:
     hadronic, report = _timed_call(
         timings,
@@ -241,7 +302,7 @@ def _solve_hadronic_stage(
         config,
         return_report=True,
     )
-    if hadronic is not None and hadronic.d_n_gam_e_bh is not None:
+    if merge_secondary_pairs and hadronic is not None and hadronic.d_n_gam_e_bh is not None:
         electron = _merge_bh_into_forward_electrons(
             electron,
             hadronic,
@@ -253,15 +314,126 @@ def _solve_hadronic_stage(
         hadronic.l_had_bethe_heitler = None
         hadronic.seed_had_bethe_heitler = None
     if hadronic is not None and hadronic.pg_photon_survival is not None:
-        _apply_hadronic_pg_local_closure(photon_field, hadronic.pg_photon_survival)
+        _apply_hadronic_photon_survival(photon_field, hadronic.pg_photon_survival)
+    if apply_bh_photon_sink and hadronic is not None and hadronic.tau_bh is not None:
+        _apply_hadronic_photon_survival(photon_field, _hadronic_pg_survival_factor(hadronic.tau_bh))
     return electron, hadronic, report
 
 
-def _apply_hadronic_pg_local_closure(
+def _solve_joint_forward_stage(
+    config: FitConfig,
+    setup,
+    dynamics: DynamicsSolution,
+    timings: Optional[dict[str, float]],
+) -> tuple[ElectronSolution, PhotonFieldState, Optional[object], SolverAdapterReport, SolverAdapterReport]:
+    _validate_joint_electron_photon_config(config)
+    primary_electron, electron_report = _solve_electron_stage(config, setup, dynamics, timings)
+    electron = primary_electron
+    photon_field = _build_photon_field_stage(config, setup, dynamics, electron, timings)
+    hadronic = None
+    hadronic_report = _solver_report("hadronic_disabled", "log-gamma-1d", "disabled", backend="none")
+
+    for i_iter in range(_JOINT_ELECTRON_PHOTON_ITERATIONS):
+        electron, hadronic, hadronic_report = _solve_hadronic_stage(
+            config,
+            setup,
+            dynamics,
+            primary_electron,
+            photon_field,
+            timings,
+            apply_bh_photon_sink=True,
+            merge_secondary_pairs=False,
+        )
+        photon_field = _build_joint_photon_field_after_hadronic(
+            config,
+            setup,
+            dynamics,
+            electron,
+            hadronic,
+            timings,
+        )
+        secondary_source_r = _apply_joint_secondary_feedback(
+            config,
+            setup,
+            dynamics,
+            electron,
+            photon_field,
+            hadronic,
+        )
+        primary_electron, electron_report = _solve_electron_stage_with_cooling_seed(
+            config,
+            setup,
+            dynamics,
+            photon_field.hadronic_target_seed,
+            timings,
+            secondary_source_r=secondary_source_r,
+        )
+        electron = primary_electron
+        photon_field = _build_joint_photon_field_after_hadronic(
+            config,
+            setup,
+            dynamics,
+            electron,
+            hadronic,
+            timings,
+        )
+        _apply_joint_secondary_feedback(config, setup, dynamics, electron, photon_field, hadronic)
+
+    return electron, photon_field, hadronic, electron_report, hadronic_report
+
+
+def _build_joint_photon_field_after_hadronic(
+    config: FitConfig,
+    setup,
+    dynamics: DynamicsSolution,
+    electron: ElectronSolution,
+    hadronic,
+    timings: Optional[dict[str, float]],
+) -> PhotonFieldState:
+    photon_field = _build_photon_field_stage(config, setup, dynamics, electron, timings)
+    if hadronic is not None and hadronic.pg_photon_survival is not None:
+        _apply_hadronic_photon_survival(photon_field, hadronic.pg_photon_survival)
+    if hadronic is not None and hadronic.tau_bh is not None:
+        _apply_hadronic_photon_survival(photon_field, _hadronic_pg_survival_factor(hadronic.tau_bh))
+    return photon_field
+
+
+def _apply_joint_secondary_feedback(
+    config: FitConfig,
+    setup,
+    dynamics: DynamicsSolution,
+    electron: ElectronSolution,
     photon_field: PhotonFieldState,
-    pg_photon_survival: np.ndarray,
+    hadronic,
+) -> np.ndarray:
+    source = np.zeros_like(np.asarray(electron.d_n_gam_e, dtype=float))
+    hadronic_source = None if hadronic is None else getattr(hadronic, "secondary_electron_source_r", None)
+    if hadronic_source is not None:
+        source = source + np.asarray(hadronic_source, dtype=float)
+    if bool(config.hadronic.include_pair_production):
+        magnetic_field = compute_magnetic_field(dynamics.r_gamma, dynamics.radius, config)
+        pair_lum, pair_seed, tau_pair, pair_density = _compute_pair_production_branch(
+            dynamics=dynamics,
+            electron=electron,
+            combined_seed_field_hz=photon_field.hadronic_target_seed,
+            seed_frequency_hz=setup.seed_frequency_hz,
+            magnetic_field_g=magnetic_field,
+            config=config,
+        )
+        if hadronic is not None:
+            hadronic.l_had_pair_production = pair_lum
+        photon_field.hadronic_target_seed = np.asarray(photon_field.hadronic_target_seed, dtype=float) + pair_seed
+        photon_field.absorption_syn_seed = np.asarray(photon_field.absorption_syn_seed, dtype=float) + pair_seed
+        _apply_hadronic_photon_survival(photon_field, _hadronic_pg_survival_factor(tau_pair))
+        source = source + _electron_density_to_source_r(np.asarray(electron.gam_e, dtype=float), pair_density, dynamics.radius)
+    return source
+
+
+def _apply_hadronic_photon_survival(
+    photon_field: PhotonFieldState,
+    photon_survival: np.ndarray,
 ) -> None:
-    survival = np.asarray(pg_photon_survival, dtype=float)
+    survival = np.asarray(photon_survival, dtype=float)
     photon_field.hadronic_target_seed = np.asarray(photon_field.hadronic_target_seed, dtype=float) * survival
     photon_field.absorption_syn_seed = np.asarray(photon_field.absorption_syn_seed, dtype=float) * survival
     photon_field.absorption_ssc_seed = np.asarray(photon_field.absorption_ssc_seed, dtype=float) * survival
@@ -296,16 +468,24 @@ def solve_state_from_setup(
 ) -> SolveState:
     execution_policy = make_policy(config) if policy is None else policy
     dynamics, dynamics_report = _solve_dynamics_stage(config, setup, timings)
-    electron, electron_report = _solve_electron_stage(config, setup, dynamics, timings)
-    photon_field = _build_photon_field_stage(config, setup, dynamics, electron, timings)
-    electron, hadronic, hadronic_report = _solve_hadronic_stage(
-        config,
-        setup,
-        dynamics,
-        electron,
-        photon_field,
-        timings,
-    )
+    if _electron_photon_coupling(config) == _COUPLING_JOINT:
+        electron, photon_field, hadronic, electron_report, hadronic_report = _solve_joint_forward_stage(
+            config,
+            setup,
+            dynamics,
+            timings,
+        )
+    else:
+        electron, electron_report = _solve_electron_stage(config, setup, dynamics, timings)
+        photon_field = _build_photon_field_stage(config, setup, dynamics, electron, timings)
+        electron, hadronic, hadronic_report = _solve_hadronic_stage(
+            config,
+            setup,
+            dynamics,
+            electron,
+            photon_field,
+            timings,
+        )
     reverse_emission = _solve_reverse_stage(config, setup, dynamics, timings)
     observer = _assemble_observer_stage(
         setup,
@@ -651,12 +831,16 @@ def _assemble_observer_stage(
         tau_pair=np.zeros_like(fwd_sync),
         pair_lum_total=np.zeros_like(fwd_sync),
         pair_seed_total=np.zeros_like(photon_field.absorption_syn_seed, dtype=float),
+        joint_ic_seed=None,
         hadronic_ssa_transfer=np.ones_like(fwd_sync),
         absorbed_fwd_hadronic_gamma=None,
         absorbed_fwd_hadronic_bethe_heitler=None,
         absorbed_fwd_hadronic_inverse_compton=None,
         absorbed_fwd_hadronic_pair_production=None,
     )
+    if _electron_photon_coupling(config) == _COUPLING_JOINT and hadronic is not None and hadronic.tau_bh is not None:
+        s["tau_extra"] = s["tau_extra"] + np.asarray(hadronic.tau_bh, dtype=float)
+        s["joint_ic_seed"] = np.asarray(photon_field.hadronic_target_seed, dtype=float)
     s = _stage_forward_ssc(s, setup, config, dynamics, electron, timings)
     s = _stage_reverse_emission(s, setup, config, dynamics, electron, reverse_emission, timings)
     s = _stage_hadronic_absorption(s, setup, config, dynamics, electron, hadronic)
@@ -674,17 +858,18 @@ def _stage_forward_ssc(
     timings: Optional[dict[str, float]],
 ) -> dict:
     if config.include_forward_ssc:
+        seed_for_ssc = s["seed_syn_absorption"] if s["joint_ic_seed"] is None else s["joint_ic_seed"]
         s["fwd_ssc"], s["seed_ssc_total"] = _ssc_spectrum(
             dynamics.radius,
             electron,
             setup.seed_frequency_hz,
-            s["seed_syn_absorption"],
+            seed_for_ssc,
             config,
             config.num_threads,
             timings,
             "Radiation.ssc_spec [FS]",
         )
-        if s["pg_photon_survival"] is not None:
+        if s["pg_photon_survival"] is not None and s["joint_ic_seed"] is None:
             survival = np.asarray(s["pg_photon_survival"], dtype=float)
             s["fwd_ssc"] = np.asarray(s["fwd_ssc"], dtype=float) * survival
             s["seed_ssc_total"] = np.asarray(s["seed_ssc_total"], dtype=float) * survival
@@ -802,7 +987,7 @@ def _stage_pair_production(
     electron: ElectronSolution,
 ) -> dict:
     if bool(config.hadronic.include_pair_production):
-        s["pair_lum_total"], s["pair_seed_total"], s["tau_pair"] = _compute_pair_production_branch(
+        s["pair_lum_total"], s["pair_seed_total"], s["tau_pair"], _pair_density = _compute_pair_production_branch(
             dynamics=dynamics,
             electron=electron,
             combined_seed_field_hz=s["seed_syn_absorption"] + s["seed_ssc_total"],
@@ -928,7 +1113,7 @@ def _compute_pair_production_branch(
     seed_frequency_hz: np.ndarray,
     magnetic_field_g: np.ndarray,
     config: FitConfig,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     v_seed = np.asarray(seed_frequency_hz, dtype=float)
     seed_field = np.asarray(combined_seed_field_hz, dtype=float)
     gam_e = np.asarray(electron.gam_e, dtype=float)
@@ -936,15 +1121,17 @@ def _compute_pair_production_branch(
     gamma_bulk = np.asarray(dynamics.r_gamma, dtype=float)
     magnetic_field = np.asarray(magnetic_field_g, dtype=float)
     _validate_pair_production_branch_inputs(v_seed, seed_field, gam_e, radius, gamma_bulk, magnetic_field)
-    e_e_gev = gam_e * _ELECTRON_MASS_GEV
-    gam_edge = _hadronic_build_gamma_edges(gam_e)
+    photon_energy_gev, _ = photon_density_hz_to_gev(v_seed, np.ones_like(v_seed))
+    e_pair_gev = _aligned_pair_electron_grid(photon_energy_gev)
+    gam_pair = e_pair_gev / _ELECTRON_MASS_GEV
+    gam_edge = _hadronic_build_gamma_edges(gam_pair)
     num_nu = int(v_seed.size)
     num_r = int(radius.size)
     pair_lum = np.zeros((num_nu, num_r), dtype=float)
     pair_seed = np.zeros((num_nu, num_r), dtype=float)
     tau_pair = np.zeros((num_nu, num_r), dtype=float)
-    d_n_pair_prev = np.zeros(gam_e.size, dtype=float)
-    photon_energy_gev, _ = photon_density_hz_to_gev(v_seed, np.ones_like(v_seed))
+    pair_density = np.zeros((gam_e.size, num_r), dtype=float)
+    d_n_pair_prev_aligned = np.zeros(gam_pair.size, dtype=float)
     from asgard_core.hadronic_cascade import shell_path_time_seconds
 
     use_iterative_cascade = (
@@ -955,7 +1142,7 @@ def _compute_pair_production_branch(
         cascade = compute_time_dependent_pair_cascade_sequence(
             photon_energy_gev=photon_energy_gev,
             primary_photon_density_per_gev=seed_field / constants.para_h_gev,
-            electron_energy_gev=e_e_gev,
+            electron_energy_gev=e_pair_gev,
             frequency_hz=v_seed,
             radius_cm=radius,
             gamma_bulk=gamma_bulk,
@@ -969,6 +1156,7 @@ def _compute_pair_production_branch(
             np.asarray(cascade.pair_syn_luminosity_hz, dtype=float),
             np.asarray(cascade.pair_syn_seed_per_hz, dtype=float),
             np.asarray(cascade.tau_pair_path, dtype=float),
+            _interp_pair_density_to_electron_grid(gam_pair, np.asarray(cascade.pair_density_per_gamma, dtype=float), gam_e),
         )
 
     for i_r in range(num_r):
@@ -977,7 +1165,7 @@ def _compute_pair_production_branch(
         ppair = solve_pair_production(
             photon_energy_gev=photon_energy_gev,
             photon_density_per_gev=photon_density_per_gev,
-            electron_energy_gev=e_e_gev,
+            electron_energy_gev=e_pair_gev,
         )
         photon_loss_rate = np.asarray(ppair.photon_loss_rate, dtype=float)
         if np.any(photon_loss_rate < 0.0):
@@ -990,12 +1178,12 @@ def _compute_pair_production_branch(
             )
         ) * _ELECTRON_MASS_GEV
         d_n_pair = _hadronic_advance_energy_loggamma(
-            gam_e, gam_edge, d_n_pair_prev, q_pair,
+            gam_pair, gam_edge, d_n_pair_prev_aligned, q_pair,
             _hadronic_electron_loss_rates(
-                gam_e, float(magnetic_field[i_r]),
+                gam_pair, float(magnetic_field[i_r]),
                 float(radius[i_r]) / (float(gamma_bulk[i_r]) * constants.para_c),
             ),
-            _hadronic_shell_dt(np.asarray(dynamics.r_tobs, dtype=float), i_r),
+            _hadronic_shell_comoving_dt_from_radius(radius, gamma_bulk, i_r),
         )
         if magnetic_field[i_r] > 0.0:
             p_syn_i, seed_syn_i = electron_radiation_module.get_syn_selected(
@@ -1003,12 +1191,47 @@ def _compute_pair_production_branch(
                 float(radius[i_r]),
                 float(magnetic_field[i_r]),
                 int(config.num_threads),
-                gam_e, d_n_pair, v_seed,
+                gam_pair, d_n_pair, v_seed,
             )
             pair_lum[:, i_r] = np.asarray(p_syn_i, dtype=float)
             pair_seed[:, i_r] = np.asarray(seed_syn_i, dtype=float)
-        d_n_pair_prev = d_n_pair
-    return pair_lum, pair_seed, tau_pair
+        pair_density[:, i_r] = _interp_positive_loglog(gam_pair, d_n_pair, gam_e)
+        d_n_pair_prev_aligned = d_n_pair
+    return pair_lum, pair_seed, tau_pair, pair_density
+
+
+def _aligned_pair_electron_grid(photon_energy_gev: np.ndarray) -> np.ndarray:
+    photon_energy = np.asarray(photon_energy_gev, dtype=float)
+    dln = float(np.log(photon_energy[1] / photon_energy[0]))
+    offset = int(np.ceil(np.log(_ELECTRON_MASS_GEV / photon_energy[0]) / dln))
+    offset = max(0, offset)
+    return photon_energy[0] * np.exp((offset + np.arange(photon_energy.size, dtype=float)) * dln)
+
+
+def _interp_pair_density_to_electron_grid(
+    gamma_pair: np.ndarray,
+    pair_density: np.ndarray,
+    gam_e: np.ndarray,
+) -> np.ndarray:
+    density = np.asarray(pair_density, dtype=float)
+    out = np.zeros((np.asarray(gam_e, dtype=float).size, density.shape[1]), dtype=float)
+    for i_shell in range(density.shape[1]):
+        out[:, i_shell] = _interp_positive_loglog(gamma_pair, density[:, i_shell], gam_e)
+    return out
+
+
+def _electron_density_to_source_r(gam_e: np.ndarray, density_per_gamma: np.ndarray, radius_cm: np.ndarray) -> np.ndarray:
+    gamma = np.asarray(gam_e, dtype=float)
+    density = np.asarray(density_per_gamma, dtype=float)
+    radius = np.asarray(radius_cm, dtype=float)
+    source = np.zeros_like(density, dtype=float)
+    for i_shell in range(radius.size):
+        if i_shell == 0:
+            dr = radius[1] - radius[0]
+        else:
+            dr = radius[i_shell] - radius[i_shell - 1]
+        source[:, i_shell] = density[:, i_shell] * gamma * np.log(10.0) / dr
+    return source
 
 
 def _validate_pair_production_branch_inputs(

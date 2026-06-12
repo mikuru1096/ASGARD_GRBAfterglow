@@ -17,15 +17,15 @@ contains
 ! Bethe-Heitler过程主算子：计算质子-光子碰撞产生的正负电子对注入率和质子能量损失率。
 subroutine hadronic_bethe_heitler_operator(num_p,proton_energy_gev,proton_density_per_gev,num_ph,photon_energy_gev, &
                                            photon_density_per_gev,num_e,electron_energy_gev,pair_rate_per_gev, &
-                                           proton_loss_rate)
+                                           proton_loss_rate,photon_loss_rate)
     integer, intent(in) :: num_p,num_ph,num_e
     real(8), intent(in) :: proton_energy_gev(num_p),proton_density_per_gev(num_p)
     real(8), intent(in) :: photon_energy_gev(num_ph),photon_density_per_gev(num_ph)
     real(8), intent(in) :: electron_energy_gev(num_e)
-    real(8), intent(out) :: pair_rate_per_gev(num_e),proton_loss_rate(num_p)
-    real(8) :: dln_ep,dln_eph
+    real(8), intent(out) :: pair_rate_per_gev(num_e),proton_loss_rate(num_p),photon_loss_rate(num_ph)
+    real(8) :: dln_ep,dln_eph,dln_ee
     real(8) :: proton_log_density(num_p),photon_log_density(num_ph)
-    real(8) :: pair_log_source(num_e)
+    real(8) :: pair_log_source(num_e),photon_log_loss(num_ph)
     real(8) :: gp_arr(num_p),eph_dimless(num_ph),ee_dimless(num_e)
     real(8) :: k_inj_rate,k_loss_rate
     integer :: j_p,k_ph
@@ -36,6 +36,7 @@ subroutine hadronic_bethe_heitler_operator(num_p,proton_energy_gev,proton_densit
 
     dln_ep = hadronic_uniform_log_spacing(num_p,proton_energy_gev,"proton_energy_gev")
     dln_eph = hadronic_uniform_log_spacing(num_ph,photon_energy_gev,"photon_energy_gev")
+    dln_ee = hadronic_uniform_log_spacing(num_e,electron_energy_gev,"electron_energy_gev")
 
     proton_log_density = proton_energy_gev*proton_density_per_gev
     photon_log_density = photon_energy_gev*photon_density_per_gev
@@ -49,19 +50,27 @@ subroutine hadronic_bethe_heitler_operator(num_p,proton_energy_gev,proton_densit
 
     pair_log_source = zero
     proton_loss_rate = zero
+    photon_loss_rate = zero
+    photon_log_loss = zero
 
     do j_p=1,num_p
         do k_ph=1,num_ph
             proton_loss_rate(j_p) = proton_loss_rate(j_p) + &
                                     bh_proton_loss_point(gp_arr(j_p),eph_dimless(k_ph),photon_log_density(k_ph))
             if (2.0d0*gp_arr(j_p)*eph_dimless(k_ph) <= 2.0d0) cycle
-            call accumulate_bh_pair_source(gp_arr(j_p),proton_log_density(j_p), &
+            call accumulate_bh_pair_source(k_ph,gp_arr(j_p),proton_log_density(j_p), &
                                            eph_dimless(k_ph),photon_log_density(k_ph))
         end do
     end do
 
     pair_log_source = k_inj_rate*dln_ep*dln_eph*pair_log_source
     pair_rate_per_gev = pair_log_source/electron_energy_gev
+    photon_log_loss = k_inj_rate*dln_ep*dln_ee*photon_log_loss
+    where (photon_log_density > zero)
+        photon_loss_rate = photon_log_loss/photon_log_density
+    elsewhere
+        photon_loss_rate = zero
+    end where
 
 contains
 
@@ -71,13 +80,16 @@ contains
         bh_proton_loss_point = -k_loss_rate*dln_eph*hadronic_bh_kernel_proton_loss(gp,eph)*photon_log_value
     end function bh_proton_loss_point
 
-    subroutine accumulate_bh_pair_source(gp,proton_log_value,eph,photon_log_value)
+    subroutine accumulate_bh_pair_source(i_ph,gp,proton_log_value,eph,photon_log_value)
+        integer, intent(in) :: i_ph
         real(8), intent(in) :: gp,proton_log_value,eph,photon_log_value
         integer :: i_e
+        real(8) :: kernel_value
 
         do i_e=1,num_e
-            pair_log_source(i_e) = pair_log_source(i_e) + hadronic_bh_kernel_electron_generation(ee_dimless(i_e), &
-                                   gp,eph)*proton_log_value*photon_log_value
+            kernel_value = hadronic_bh_kernel_electron_generation(ee_dimless(i_e),gp,eph)
+            pair_log_source(i_e) = pair_log_source(i_e) + kernel_value*proton_log_value*photon_log_value
+            photon_log_loss(i_ph) = photon_log_loss(i_ph) + kernel_value*proton_log_value*photon_log_value
         end do
     end subroutine accumulate_bh_pair_source
 end subroutine hadronic_bethe_heitler_operator

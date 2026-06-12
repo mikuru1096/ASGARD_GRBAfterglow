@@ -226,6 +226,9 @@ class HadronicSolution:
     l_had_bethe_heitler: np.ndarray | None = None
     seed_had_bethe_heitler: np.ndarray | None = None
     d_n_gam_e_bh: np.ndarray | None = None
+    secondary_electron_source_r: np.ndarray | None = None
+    tau_bh: np.ndarray | None = None
+    bh_photon_loss_rate: np.ndarray | None = None
     l_had_hadronic_inverse_compton: np.ndarray | None = None
     l_had_pair_production: np.ndarray | None = None
     gam_secondary: np.ndarray | None = None

@@ -939,6 +939,7 @@ def _build_fit_config_for_patch(
         radiation_kernel=model.setups.radiation_kernel,
         dynamics_kernel=model.setups.dynamics_kernel,
         geometry_kernel=model.setups.geometry_kernel,
+        electron_photon_coupling=model.setups.electron_photon_coupling,
         structured_backend=model.setups.structured_backend,
         structured_parallel_mode=model.setups.structured_parallel_mode,
         structured_outer_threads=model.setups.structured_outer_threads,
@@ -1028,6 +1029,8 @@ def _make_details(
     fwd_gamma_e = None if state is None else np.asarray(state.electron.gam_e, dtype=float)
     fwd_dnde = None if state is None else np.asarray(state.electron.d_n_gam_e, dtype=float)
     fwd_dnde_bh = None if state is None or state.electron.d_n_gam_e_bh is None else np.asarray(state.electron.d_n_gam_e_bh, dtype=float)
+    if state is not None and state.hadronic is not None and state.hadronic.d_n_gam_e_bh is not None:
+        fwd_dnde_bh = np.asarray(state.hadronic.d_n_gam_e_bh, dtype=float)
     fwd_dnde_chi = None if state is None or state.electron.d_n_gam_e_chi is None else np.asarray(state.electron.d_n_gam_e_chi, dtype=float)
     fwd_chi_grid = None if state is None or state.electron.chi_grid is None else np.asarray(state.electron.chi_grid, dtype=float)
     fwd_lsyn_chi = None if state is None or state.electron.l_syn_spec_chi is None else np.asarray(state.electron.l_syn_spec_chi, dtype=float)
@@ -1072,6 +1075,7 @@ def _make_details(
     fwd_had_hic = None
     fwd_am3_power = None
     fwd_tau_pg = None
+    fwd_tau_bh = None
     fwd_pg_survival = None
     fwd_timings = None
     fwd_seed_freq = None
@@ -1087,6 +1091,8 @@ def _make_details(
             fwd_am3_power = np.asarray(state.hadronic.am3_process_power, dtype=float)
         if state.hadronic.tau_pg is not None:
             fwd_tau_pg = np.asarray(state.hadronic.tau_pg, dtype=float)
+        if state.hadronic.tau_bh is not None:
+            fwd_tau_bh = np.asarray(state.hadronic.tau_bh, dtype=float)
         if state.hadronic.pg_photon_survival is not None:
             fwd_pg_survival = np.asarray(state.hadronic.pg_photon_survival, dtype=float)
         fwd_timings = dict(state.hadronic.timings) if state.hadronic.timings else {}
@@ -1144,6 +1150,7 @@ def _make_details(
             l_had_hadronic_ic_spec=fwd_had_hic,
             am3_process_power=fwd_am3_power,
             tau_pg=fwd_tau_pg,
+            tau_bh=fwd_tau_bh,
             pg_photon_survival=fwd_pg_survival,
             timings=fwd_timings,
         ),
@@ -1813,6 +1820,7 @@ def _build_model_from_fit_config(config: FitConfig) -> Model:
             radiation_kernel=config.radiation_kernel,
             dynamics_kernel=config.dynamics_kernel,
             geometry_kernel=config.geometry_kernel,
+            electron_photon_coupling=config.electron_photon_coupling,
             structured_backend=config.structured_backend,
             structured_parallel_mode=config.structured_parallel_mode,
             structured_outer_threads=config.structured_outer_threads,

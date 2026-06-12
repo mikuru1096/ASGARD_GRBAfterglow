@@ -15,11 +15,11 @@ from src import Radiation as RadiationKernel
 
 
 def test_direct_bh_kernel() -> None:
-    proton_energy_gev = np.logspace(-1, 2, 9)
+    proton_energy_gev = np.logspace(-1, 3, 33)
     proton_density_per_gev = 1.0e-10 * proton_energy_gev ** (-2.0)
-    photon_energy_gev = np.logspace(-9, -3, 11)
+    photon_energy_gev = np.logspace(-10, -2, 33)
     photon_density_per_gev = 1.0e8 * photon_energy_gev ** (-1.5)
-    electron_energy_gev = np.logspace(-6, 0, 13)
+    electron_energy_gev = np.logspace(-8, 1, 33)
 
     output = solve_bethe_heitler(
         proton_energy_gev,
@@ -30,8 +30,14 @@ def test_direct_bh_kernel() -> None:
     )
     assert np.all(np.isfinite(output.pair_rate_per_gev))
     assert np.all(np.isfinite(output.proton_loss_rate))
+    assert np.all(np.isfinite(output.photon_loss_rate))
     assert float(output.pair_rate_per_gev.max()) > 0.0
     assert float((-output.proton_loss_rate).max()) > 0.0
+    assert float(output.photon_loss_rate.max()) > 0.0
+    pair_number_rate = float(np.trapezoid(output.pair_rate_per_gev, electron_energy_gev))
+    photon_number_loss_rate = float(np.trapezoid(output.photon_loss_rate * photon_density_per_gev, photon_energy_gev))
+    ratio = photon_number_loss_rate / pair_number_rate
+    assert 0.75 < ratio < 1.25
 
 
 def test_annihilation_tau_extra() -> None:

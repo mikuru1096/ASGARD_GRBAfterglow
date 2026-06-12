@@ -28,6 +28,7 @@ class BetheHeitlerOutput:
     electron_energy_gev: np.ndarray
     pair_rate_per_gev: np.ndarray
     proton_loss_rate: np.ndarray
+    photon_loss_rate: np.ndarray
 
 
 def solve_bethe_heitler(
@@ -46,7 +47,7 @@ def solve_bethe_heitler(
     if not _HAS_FORTRAN_BH:
         raise RuntimeError("Bethe-Heitler core must be provided by the Fortran backend.")
 
-    pair_rate_per_gev, proton_loss_rate = hadronic_fortran_module.fs_hadronic_bethe_heitler_shell(
+    pair_rate_per_gev, proton_loss_rate, photon_loss_rate = hadronic_fortran_module.fs_hadronic_bethe_heitler_shell(
         e_p,
         n_p,
         e_ph,
@@ -55,11 +56,13 @@ def solve_bethe_heitler(
     )
     pair_rate_per_gev = np.asarray(pair_rate_per_gev, dtype=float)
     proton_loss_rate = np.asarray(proton_loss_rate, dtype=float)
+    photon_loss_rate = np.asarray(photon_loss_rate, dtype=float)
 
     return BetheHeitlerOutput(
         electron_energy_gev=e_e,
         pair_rate_per_gev=pair_rate_per_gev,
         proton_loss_rate=proton_loss_rate,
+        photon_loss_rate=photon_loss_rate,
     )
 
 

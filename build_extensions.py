@@ -40,7 +40,11 @@ F2PY_ENTRYPOINTS = {
     "electron_forward_charint_1d": ("fs_electron_charint_1d",),
     "electron_forward_charint_2d": ("fs_electron_transport_2d_core",),
     "electron_forward_transport_2d_pic": ("fs_electron_transport_2d_pic_core",),
-    "electron_forward_fullhide_1d": ("fs_electron_fullhide_1d",),
+    "electron_forward_fullhide_1d": (
+        "fs_electron_fullhide_1d",
+        "fs_electron_fullhide_1d_coupled",
+        "fs_electron_ic_cooling_loss_shell",
+    ),
     "electron_forward_fullhide_1d_hybrid": ("fs_electron_fullhide_1d_hz",),
     "electron_forward_transport_2d": ("fs_electron_transport_2d_core",),
     "electron_forward_t2g1_1d": ("fs_electron_t2g1_1d",),

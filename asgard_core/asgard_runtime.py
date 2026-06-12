@@ -21,7 +21,6 @@ from asgard_core.hadronic_bethe_heitler import (
     ELECTRON_MASS_GEV,
     solve_bethe_heitler,
 )
-from asgard_core.hadronic_cascade import shell_path_time_seconds
 from asgard_core.hadronic_hadronic_ic import HADRONIC_IC_BACKEND, solve_hadronic_inverse_compton
 from asgard_core.hadronic_secondary_radiation import (
     SECONDARY_RADIATION_BACKEND,
@@ -618,6 +617,76 @@ def solve_electron(
     return solution
 
 
+def solve_electron_with_cooling_seed(
+    boundary: np.ndarray,
+    dynamics: DynamicsSolution,
+    v_seed: np.ndarray,
+    cooling_seed: np.ndarray,
+    config: FitConfig,
+    *,
+    secondary_source_r: np.ndarray | None = None,
+    return_report: bool = False,
+) -> ElectronSolution | tuple[ElectronSolution, SolverAdapterReport]:
+    solver_name = _resolve_electron_solver(config)
+    if solver_name != "fullhide_1d":
+        raise NotImplementedError("joint electron-photon coupling requires electron_solver='fullhide_1d'.")
+    if int(config.index_y) != 1:
+        raise NotImplementedError("joint electron-photon coupling requires numeric IC cooling with index_y=1.")
+    if bool(config.electron_adaptive_substeps):
+        raise NotImplementedError("joint electron-photon coupling currently requires fixed electron substeps.")
+    cooling_seed_arr = np.asfortranarray(np.asarray(cooling_seed, dtype=float))
+    v_seed_arr = np.asarray(v_seed, dtype=float)
+    radius_arr = np.asarray(dynamics.radius, dtype=float)
+    if cooling_seed_arr.shape != (v_seed_arr.size, radius_arr.size):
+        raise ValueError("joint cooling seed must have shape (num_frequency, num_radius).")
+    if secondary_source_r is None:
+        secondary_source_arr = np.zeros((int(config.num_gam_e), radius_arr.size), dtype=float, order="F")
+    else:
+        secondary_source_arr = np.asfortranarray(np.asarray(secondary_source_r, dtype=float))
+        if secondary_source_arr.shape != (int(config.num_gam_e), radius_arr.size):
+            raise ValueError("joint secondary electron source must have shape (num_gam_e, num_radius).")
+    electron_fullhide_1d_module = _electron_module("fullhide_1d")
+    gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = (
+        electron_fullhide_1d_module.fs_electron_fullhide_1d_coupled(
+            boundary,
+            dynamics.r_tobs,
+            dynamics.r_gamma,
+            dynamics.radius,
+            v_seed,
+            cooling_seed_arr,
+            secondary_source_arr,
+            config.index_y,
+            config.index_syn_integr,
+            config.num_threads,
+            0,
+            config.electron_substep_rtol,
+            config.electron_substep_min,
+            config.electron_substep_max,
+            1 if config.thermal_electrons else 0,
+        )
+    )
+    solution = _build_electron_solution(
+        config,
+        dynamics,
+        gam_e,
+        d_n_gam_e,
+        l_syn_spec,
+        seed_syn,
+        nu_m,
+        nu_c,
+        nu_a,
+    )
+    if return_report:
+        return solution, _solver_report(
+            solver_name,
+            "log-gamma-1d-joint-cooling",
+            "ok",
+            num_gam_e=int(config.num_gam_e),
+            num_chi=1,
+        )
+    return solution
+
+
 def _resolve_electron_solver(config: FitConfig) -> str:
     if config.weno5:
         return "weno5_1d"
@@ -858,6 +927,10 @@ def solve_hadronic(
         neutrino_luminosity=np.asarray(neutrino_luminosity, dtype=float).reshape(num_nu_nu, num_r),
         l_had_bethe_heitler=None,
         seed_had_bethe_heitler=None,
+        d_n_gam_e_bh=None,
+        secondary_electron_source_r=None,
+        tau_bh=None,
+        bh_photon_loss_rate=None,
         l_had_hadronic_inverse_compton=None,
         l_had_pair_production=None,
         tau_pg=None,
@@ -932,8 +1005,11 @@ def _solve_hadronic_hummer_transport_coupled(
     l_had_bh = np.zeros((num_nu, num_r), dtype=float)
     seed_had_bh = np.zeros((num_nu, num_r), dtype=float)
     d_n_gam_e_bh = np.zeros((gam_e.size, num_r), dtype=float)
+    secondary_electron_source_r = np.zeros((gam_e.size, num_r), dtype=float)
     l_had_hic = np.zeros((num_nu, num_r), dtype=float)
     tau_pg = np.zeros((num_nu, num_r), dtype=float)
+    tau_bh = np.zeros((num_nu, num_r), dtype=float)
+    bh_photon_loss_rate = np.zeros((num_nu, num_r), dtype=float)
     pg_photon_survival = np.ones((num_nu, num_r), dtype=float)
     neutrino_luminosity = np.zeros((num_nu_nu, num_r), dtype=float)
     am3_process_power = np.zeros((len(HUMMER_PROCESS_GROUP_LABELS), num_gam_p, num_r), dtype=float)
@@ -983,7 +1059,7 @@ def _solve_hadronic_hummer_transport_coupled(
     t_total_start = time.perf_counter()
 
     for i_r in range(num_r):
-        dt_s = _hadronic_shell_dt(tobs, i_r)
+        dt_s = _hadronic_shell_comoving_dt_from_radius(radius, gamma_bulk, i_r)
         t_dyn_s = _hadronic_dynamical_time(radius[i_r], gamma_bulk[i_r])
         gam_p_min = max(float(gam_p[0]), float(gamma_bulk[i_r]))
         q_inj = np.zeros_like(gam_p, dtype=float)
@@ -1024,8 +1100,9 @@ def _solve_hadronic_hummer_transport_coupled(
             neutron_density_per_gev=neutron_density_trial_per_gev,
         )
         tau_pg[:, i_r], pg_photon_survival[:, i_r] = _hadronic_pg_local_closure(
-            radius[i_r],
-            gamma_bulk[i_r],
+            radius,
+            gamma_bulk,
+            i_r,
             np.asarray(backend_tau.photon_loss_rate, dtype=float),
         )
         local_seed_target_hz = seed_target_arr[:, i_r] * pg_photon_survival[:, i_r]
@@ -1059,6 +1136,8 @@ def _solve_hadronic_hummer_transport_coupled(
             if np.any(bh_proton_loss_rate > 0.0):
                 raise RuntimeError("Bethe-Heitler proton loss rate must be non-positive.")
             bh_loss = -bh_proton_loss_rate
+            bh_photon_loss_rate[:, i_r] = np.asarray(bh_output.photon_loss_rate, dtype=float)
+            tau_bh[:, i_r] = _hadronic_transport_tau_shell(radius, gamma_bulk, i_r, bh_photon_loss_rate[:, i_r])
             timings["bethe_heitler"] += time.perf_counter() - t_bh_start
         pp_loss = np.zeros_like(gam_p)
         if bool(config.hadronic.include_pp):
@@ -1181,13 +1260,14 @@ def _solve_hadronic_hummer_transport_coupled(
             divergence_rate_s_inv=divergence_rate_s_inv,
         )
         timings["species_transport"] += time.perf_counter() - t_species_start
-        neutron_sink = 1.0 - dt_s * _interp_positive_loglog(
+        neutron_loss_rate = _interp_positive_loglog(
             backend.hadron_energy_gev,
             backend.neutron_loss_rate,
             neutron_energy_gev,
         )
-        if np.any(neutron_sink < 0.0):
-            raise RuntimeError("hadronic neutron transport produced negative survival factors.")
+        if np.any(neutron_loss_rate < 0.0):
+            raise RuntimeError("hadronic neutron loss rate must be non-negative.")
+        neutron_sink = np.exp(-dt_s * neutron_loss_rate)
         species_state_next = HadronicSpeciesState(
             neutron=NeutronDistribution(
                 gamma=gam_secondary,
@@ -1343,6 +1423,13 @@ def _solve_hadronic_hummer_transport_coupled(
             q_bh = np.array(pp_pair_q, copy=True)
             if bh_output is not None:
                 q_bh += shell_volume_loc * np.asarray(bh_output.pair_rate_per_gev, dtype=float) * ELECTRON_MASS_GEV
+            secondary_electron_source_r[:, i_r] = (
+                q_bh
+                * _hadronic_shell_comoving_dt_from_radius(radius, gamma_bulk, i_r)
+                / _hadronic_shell_dr(radius, i_r)
+                * gam_e
+                * np.log(10.0)
+            )
             loss_bh_e = _hadronic_electron_loss_rates(
                 gam_e, float(b_field[i_r]), t_dyn_s,
                 quantum_syn=bool(config.hadronic.quantum_syn),
@@ -1412,6 +1499,9 @@ def _solve_hadronic_hummer_transport_coupled(
         l_had_bethe_heitler=l_had_bh if bool(config.hadronic.include_bethe_heitler) else None,
         seed_had_bethe_heitler=seed_had_bh if bool(config.hadronic.include_bethe_heitler) else None,
         d_n_gam_e_bh=d_n_gam_e_bh if (bool(config.hadronic.include_bethe_heitler) or bool(config.hadronic.include_pp)) else None,
+        secondary_electron_source_r=secondary_electron_source_r if (bool(config.hadronic.include_bethe_heitler) or bool(config.hadronic.include_pp)) else None,
+        tau_bh=tau_bh if bool(config.hadronic.include_bethe_heitler) else None,
+        bh_photon_loss_rate=bh_photon_loss_rate if bool(config.hadronic.include_bethe_heitler) else None,
         l_had_hadronic_inverse_compton=l_had_hic if bool(config.hadronic.include_hadronic_inverse_compton) else None,
         gam_secondary=gam_secondary,
         d_n_gam_n=d_n_gam_n,
@@ -1527,6 +1617,27 @@ def _hadronic_shell_dt(r_tobs: np.ndarray, i_shell: int) -> float:
     return dt
 
 
+def _hadronic_shell_dr(radius_cm: np.ndarray, i_shell: int) -> float:
+    radius = np.asarray(radius_cm, dtype=float)
+    if i_shell <= 0:
+        if radius.size < 2:
+            raise ValueError("R-coordinate hadronic transport requires at least two shell radii.")
+        dr = float(radius[1] - radius[0])
+    else:
+        dr = float(radius[i_shell] - radius[i_shell - 1])
+    if dr <= 0.0:
+        raise ValueError("Hadronic shell radii must be positive and strictly increasing.")
+    return dr
+
+
+def _hadronic_shell_comoving_dt_from_radius(radius_cm: np.ndarray, gamma_bulk: np.ndarray, i_shell: int) -> float:
+    gamma = float(np.asarray(gamma_bulk, dtype=float)[i_shell])
+    if gamma <= 1.0:
+        raise ValueError("R-coordinate hadronic transport requires gamma_bulk > 1.")
+    beta = float(np.sqrt(1.0 - 1.0 / (gamma * gamma)))
+    return _hadronic_shell_dr(radius_cm, i_shell) / (beta * gamma * constants.para_c)
+
+
 def _hadronic_dynamical_time(radius_cm: float, gamma_bulk: float) -> float:
     if radius_cm <= 0.0:
         raise ValueError("hadronic dynamical time requires positive radius.")
@@ -1535,12 +1646,24 @@ def _hadronic_dynamical_time(radius_cm: float, gamma_bulk: float) -> float:
     return float(radius_cm) / (float(gamma_bulk) * constants.para_c)
 
 
-def _hadronic_tau_pg_shell(radius_cm: float, gamma_bulk: float, alpha_gamma_s_inv: np.ndarray) -> np.ndarray:
+def _hadronic_transport_tau_shell(
+    radius_cm: np.ndarray,
+    gamma_bulk: np.ndarray,
+    i_shell: int,
+    alpha_gamma_s_inv: np.ndarray,
+) -> np.ndarray:
     alpha = np.asarray(alpha_gamma_s_inv, dtype=float)
     if np.any(alpha < 0.0):
-        raise RuntimeError("p-gamma photon loss rate must be non-negative.")
-    path_time_s = shell_path_time_seconds(float(radius_cm), float(gamma_bulk))
-    return alpha * path_time_s
+        raise RuntimeError("Hadronic photon loss rate must be non-negative.")
+    return alpha * _hadronic_shell_comoving_dt_from_radius(radius_cm, gamma_bulk, i_shell)
+
+
+def rate_s_inv_to_radius_inv(rate_s_inv: np.ndarray, gamma_bulk: float) -> np.ndarray:
+    gamma = float(gamma_bulk)
+    if gamma <= 1.0:
+        raise ValueError("R-coordinate rate conversion requires gamma_bulk > 1.")
+    beta = float(np.sqrt(1.0 - 1.0 / (gamma * gamma)))
+    return np.asarray(rate_s_inv, dtype=float) / (beta * gamma * constants.para_c)
 
 
 def _hadronic_pg_survival_factor(tau_pg: np.ndarray) -> np.ndarray:
@@ -1558,11 +1681,12 @@ def _hadronic_pg_survival_factor(tau_pg: np.ndarray) -> np.ndarray:
 
 
 def _hadronic_pg_local_closure(
-    radius_cm: float,
-    gamma_bulk: float,
+    radius_cm: np.ndarray,
+    gamma_bulk: np.ndarray,
+    i_shell: int,
     alpha_gamma_s_inv: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray]:
-    tau_pg = _hadronic_tau_pg_shell(radius_cm, gamma_bulk, alpha_gamma_s_inv)
+    tau_pg = _hadronic_transport_tau_shell(radius_cm, gamma_bulk, i_shell, alpha_gamma_s_inv)
     return tau_pg, _hadronic_pg_survival_factor(tau_pg)
 
 

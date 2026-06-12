@@ -185,6 +185,7 @@ class NumericalConfig:
     radiation_kernel: str = "legacy"
     dynamics_kernel: str = "forward_legacy"
     geometry_kernel: str = "sed_legacy"
+    electron_photon_coupling: str = "separated"
     structured_backend: str = "fortran_1d"
     structured_parallel_mode: str = "outer"
     structured_outer_threads: Optional[int] = None
@@ -249,6 +250,7 @@ class FitConfig:
     radiation_kernel: str = "legacy"
     dynamics_kernel: str = "forward_legacy"
     geometry_kernel: str = "sed_legacy"
+    electron_photon_coupling: str = "separated"
     structured_backend: str = "fortran_1d"
     structured_parallel_mode: str = "outer"
     structured_outer_threads: Optional[int] = None
@@ -368,6 +370,7 @@ class FitConfig:
             radiation_kernel=self.radiation_kernel,
             dynamics_kernel=self.dynamics_kernel,
             geometry_kernel=self.geometry_kernel,
+            electron_photon_coupling=self.electron_photon_coupling,
             structured_backend=self.structured_backend,
             structured_parallel_mode=self.structured_parallel_mode,
             structured_outer_threads=self.structured_outer_threads,

@@ -95,18 +95,18 @@ end subroutine fs_hadronic_pp_delta_shell
 ! Single-shell Bethe-Heitler wrapper.
 subroutine fs_hadronic_bethe_heitler_shell(Num_p,proton_energy_gev,proton_density_per_gev,Num_ph,photon_energy_gev, &
                                            photon_density_per_gev,Num_e,electron_energy_gev,pair_rate_per_gev, &
-                                           proton_loss_rate)
+                                           proton_loss_rate,photon_loss_rate)
     use hadronic_bethe_heitler_kernel, only: hadronic_bethe_heitler_operator
     implicit none
     integer, intent(in) :: Num_p,Num_ph,Num_e
     real(8), intent(in) :: proton_energy_gev(Num_p),proton_density_per_gev(Num_p)
     real(8), intent(in) :: photon_energy_gev(Num_ph),photon_density_per_gev(Num_ph)
     real(8), intent(in) :: electron_energy_gev(Num_e)
-    real(8), intent(out) :: pair_rate_per_gev(Num_e),proton_loss_rate(Num_p)
+    real(8), intent(out) :: pair_rate_per_gev(Num_e),proton_loss_rate(Num_p),photon_loss_rate(Num_ph)
 
     call hadronic_bethe_heitler_operator(Num_p,proton_energy_gev,proton_density_per_gev,Num_ph,photon_energy_gev, &
                                          photon_density_per_gev,Num_e,electron_energy_gev,pair_rate_per_gev, &
-                                         proton_loss_rate)
+                                         proton_loss_rate,photon_loss_rate)
 end subroutine fs_hadronic_bethe_heitler_shell
 
 ! Single-shell hadronic inverse-Compton wrapper.

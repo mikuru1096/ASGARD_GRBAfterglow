@@ -455,6 +455,7 @@ class Setups:
     radiation_kernel: str = "legacy"
     dynamics_kernel: str = "forward_legacy"
     geometry_kernel: str = "sed_legacy"
+    electron_photon_coupling: str = "separated"
     structured_backend: str = "fortran_1d"
     structured_parallel_mode: str = "outer"
     structured_outer_threads: Optional[int] = None
@@ -532,6 +533,7 @@ class CharTrack:
     l_had_hadronic_ic_spec: Optional[np.ndarray] = None
     am3_process_power: Optional[np.ndarray] = None
     tau_pg: Optional[np.ndarray] = None
+    tau_bh: Optional[np.ndarray] = None
     pg_photon_survival: Optional[np.ndarray] = None
     timings: Optional[dict] = None
 

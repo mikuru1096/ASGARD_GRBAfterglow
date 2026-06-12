@@ -45,9 +45,13 @@
 
 ### 2. IC-mediated electromagnetic cascade
 
-当前 pair branch 停在 shell-sequence time-dependent gamma-gamma pair/synch cascade。超出当前 gamma-gamma pair/synch contract 的 inverse-Compton-mediated electromagnetic cascade 暂不实现，直到 photon/e± source-sink 方程、IC kernel 契约和 energy-budget benchmark 完成。边界见 `doc/pair_cascade_extension_boundary.md`。
+当前 joint pair branch 已接入 shell-sequence time-dependent gamma-gamma pair/synch cascade。超出当前 gamma-gamma pair/synch contract 的 inverse-Compton-mediated electromagnetic cascade 暂不实现，直到 photon/e± source-sink 方程、IC kernel 契约和 energy-budget benchmark 完成。边界见 `doc/pair_cascade_extension_boundary.md`。
 
-### 3. Public/backend unsupported boundaries
+### 3. Formal pγ / π / μ 二级电子谱输出
+
+joint 电子方程只接入 formal kernel 已直接输出且归一化明确的二级 e± 源项。若 pγ/π/μ 链需要反馈到电子方程，必须先在 formal hadronic kernel 中提供 e± 注入谱及其能量预算 benchmark；禁止用总能量守恒外推临时构造谱形。
+
+### 4. Public/backend unsupported boundaries
 
 以下 public API 或配置入口已暴露但 backend 明确不支持或只部分支持，不能静默 fallback：
 
@@ -59,13 +63,13 @@
 
 完整边界和实现准入条件见 `doc/public_backend_limits.md`。
 
-### 4. Polarization timing diagnostic
+### 5. Polarization timing diagnostic
 
 Lan 2023 overlay 的峰值幅度已匹配，峰时仍偏早。当前证据指向 dynamics/jet-evolution benchmark，而不是 surface-element EATS 或 patch solid-angle 权重。禁止在 polarization projection 层使用经验 time shift、smoothing 或投影层补丁修正。诊断记录见 `doc/polarization_timing_diagnostic.md`。
 
-### 5. FS formal hadronic benchmark refresh
+### 6. FS formal hadronic benchmark refresh
 
-baseline Vegas comparison 已按 `doc/benchmark_refresh_protocol.md` 全量刷新；含 AM3 对照或 hadronic-dominated scenario 的 FS formal hadronic benchmark figures 仍需在目标明确时单独刷新。刷新前后必须记录 HEAD、tracked diff、完整命令、受影响 Fortran build 状态、输出路径和物理验收口径。
+baseline Vegas comparison 已按 `doc/benchmark_refresh_protocol.md` 全量刷新；含 AM3 对照或 hadronic-dominated scenario 的 FS formal hadronic benchmark figures 仍需在目标明确时单独刷新。含时 BH / joint photon benchmark 由 `scripts/benchmarks/time_dependent_bh_photon_benchmark.py` 生成，当前覆盖 weak-feedback、BH-active 和 strong-wind-BH 三组 separated/joint 对比。刷新前后必须记录 HEAD、tracked diff、完整命令、受影响 Fortran build 状态、输出路径和物理验收口径。
 
 ## 不做
 

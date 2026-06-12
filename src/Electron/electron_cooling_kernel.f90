@@ -1,12 +1,14 @@
 !f2py: skip
 module electron_cooling_kernel
   use constants
+  use radiation_common, only: compute_simpson_weights
   use electron_radiation_kernel, only: first_greater_monotonic, first_greater_monotonic_window, &
                                        electron_powerlaw_interp, electron_integrate_powerlaw_segment, &
                                        electron_log_gauss2_interval, electron_ssa_segment
   private
 
   public :: electron_cooling_ssa_loss, electron_cooling_ssa_loss_batch, electron_cooling_ic_loss
+  public :: electron_cooling_ic_loss_emissivity_budget
   public :: electron_cooling_y_nakar, electron_cooling_y_fan
   public :: get_forward_cooling, prepare_forward_cooling_aux, prepare_forward_cooling_aux_batch
   public :: assemble_forward_cooling_split, assemble_forward_cooling_split_batch
@@ -489,6 +491,99 @@ real(8) :: game,game_pow,var,dInteg2,V_t,E_t2eV,Vloc,E_Vloc2eV,uplim,temp,q,fssc
     end do
 end subroutine accumulate_ic_gamma_loss
 end subroutine electron_cooling_ic_loss
+
+! IC cooling from the same Jones/KN emissivity kernel used by radiation_ssc_spectrum.
+subroutine electron_cooling_ic_loss_emissivity_budget(Num_gam_e,Num_nu,n_threads,gam_e,V_seed,Seed_syn,dot_gam_over_gam)
+!$ use omp_lib
+implicit REAL(8)(A-H,O-Z)
+integer, intent(in) :: Num_gam_e,Num_nu,n_threads
+real(8), intent(in) :: gam_e(Num_gam_e),V_seed(Num_nu),Seed_syn(Num_nu)
+real(8), intent(out) :: dot_gam_over_gam(Num_gam_e)
+real(8), allocatable :: seed_weights(:),obs_weights(:),e_seed(:),inv_v_seed(:)
+integer :: i_gam,work_items
+
+    allocate(seed_weights(Num_nu),obs_weights(Num_nu),e_seed(Num_nu),inv_v_seed(Num_nu))
+    call compute_simpson_weights(seed_weights,Num_nu)
+    call compute_simpson_weights(obs_weights,Num_nu)
+    h_nu=dlog(V_seed(2))-dlog(V_seed(1))
+    h_nu_third=h_nu/3.0d0
+    para_hEme=Para_h/para_m_energy
+    e_seed=V_seed*para_hEme
+    inv_v_seed=one/V_seed
+    temp_norm_ic=0.75d0*Para_c*Para_h*Para_SigmaT/Para_m_energy
+    dot_gam_over_gam=zero
+
+    work_items=Num_gam_e*Num_nu*Num_nu
+    if (n_threads <= 1 .or. work_items < 8192) then
+        do i_gam=1,Num_gam_e
+            call accumulate_budget_gamma(i_gam,dot_gam_over_gam(i_gam))
+        end do
+    else
+        !$OMP PARALLEL num_threads(n_threads), private(i_gam)
+        !$OMP DO SCHEDULE(STATIC)
+        do i_gam=1,Num_gam_e
+            call accumulate_budget_gamma(i_gam,dot_gam_over_gam(i_gam))
+        end do
+        !$OMP END DO
+        !$OMP END PARALLEL
+    end if
+
+    deallocate(seed_weights,obs_weights,e_seed,inv_v_seed)
+
+contains
+
+subroutine accumulate_budget_gamma(i_gam,loss_val)
+implicit REAL(8)(A-H,O-Z)
+integer, intent(in) :: i_gam
+real(8), intent(out) :: loss_val
+integer :: i_obs,i_seed
+real(8) :: gam,gam2,seed_sum,power_log
+
+    gam=gam_e(i_gam)
+    gam2=gam*gam
+    loss_val=zero
+    do i_obs=1,Num_nu
+        if (gam_e(Num_gam_e) <= e_seed(i_obs)) cycle
+        seed_sum=zero
+        do i_seed=1,Num_nu
+            if (Seed_syn(i_seed) <= zero) cycle
+            if (i_seed < i_obs) then
+                seed_sum=seed_sum+seed_weights(i_seed)*Seed_syn(i_seed)*low_seed_kernel(gam,i_obs,i_seed)/gam2
+            else
+                seed_sum=seed_sum+seed_weights(i_seed)*Seed_syn(i_seed)*high_seed_kernel(gam,i_obs,i_seed)/gam2
+            end if
+        end do
+        power_log=temp_norm_ic*V_seed(i_obs)*h_nu_third*seed_sum
+        loss_val=loss_val+obs_weights(i_obs)*power_log
+    end do
+    loss_val=h_nu_third*loss_val/gam
+end subroutine accumulate_budget_gamma
+
+real(8) function low_seed_kernel(gam,i_obs,i_seed)
+implicit REAL(8)(A-H,O-Z)
+real(8), intent(in) :: gam
+integer, intent(in) :: i_obs,i_seed
+real(8) :: temp,q,log_q,q_gamma,kn_coeff
+
+    low_seed_kernel=zero
+    temp=gam-e_seed(i_obs)
+    if (temp <= zero) return
+    q=V_seed(i_obs)/(4.0d0*gam*temp*V_seed(i_seed))
+    if (q <= zero .or. q >= one) return
+    log_q=dlog(q)
+    q_gamma=e_seed(i_obs)/temp
+    kn_coeff=q_gamma*q_gamma/(two*(one+q_gamma))
+    low_seed_kernel=two*q*(log_q-q)+one+q+kn_coeff*(one-q)
+end function low_seed_kernel
+
+real(8) function high_seed_kernel(gam,i_obs,i_seed)
+implicit REAL(8)(A-H,O-Z)
+real(8), intent(in) :: gam
+integer, intent(in) :: i_obs,i_seed
+
+    high_seed_kernel=max(zero,V_seed(i_obs)*inv_v_seed(i_seed)-0.25d0/(gam*gam))
+end function high_seed_kernel
+end subroutine electron_cooling_ic_loss_emissivity_budget
 
 ! 确保Nakar Y参数工作数组已分配（缓存hat_nu、频率段Gauss节点和查找区间）。
 subroutine ensure_y_nakar_workspace(Num_gam_e,Num_nu,gam_e,V_seed)
