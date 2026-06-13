@@ -753,7 +753,7 @@ integer :: i_gam_e
     end do
 end subroutine electron_cooling_y_fan
 
-! 根据index_Y准备正激波冷却辅助量：IC数值积分或Nakar Y参数。
+! 根据index_Y准备正向激波冷却辅助量：IC数值积分或Nakar Y参数。
 subroutine prepare_forward_cooling_aux(index_Y,Num_gam_e,Num_nu,n_threads,gam_e,V_seed,P_syn,Seed_syn,cooling_aux)
 implicit REAL(8)(A-H,O-Z)
 integer, intent(in) :: index_Y,Num_gam_e,Num_nu,n_threads
@@ -792,7 +792,7 @@ integer :: I_chi
     end select
 end subroutine prepare_forward_cooling_aux_batch
 
-! 组装正激波冷却率 dγ/dR：SSA + 同步 + IC/Compton Y，分离SSA和IC计算。
+! 组装正向激波冷却率 dγ/dR：SSA + 同步 + IC/Compton Y，分离SSA和IC计算。
 subroutine assemble_forward_cooling_split(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc,R_Gamma_loc, &
                                           beta_Gam,dNe,Num_gam_e,Num_nu,n_threads,gam_e,V_seed, &
                                           Seed_syn_ssa,cooling_aux,dEl)
@@ -831,7 +831,7 @@ integer :: I_chi
     end do
 end subroutine assemble_forward_cooling_split_batch
 
-! 由各项组装正激波冷却率：dγ/dt = (f_r*Y - SSA)*γ，支持4种Compton Y方案。
+! 由各项组装正向激波冷却率：dγ/dt = (f_r*Y - SSA)*γ，支持4种Compton Y方案。
 subroutine assemble_forward_cooling_from_terms(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc,R_Gamma_loc, &
                                                beta_Gam,dNe,Num_gam_e,gam_e,Compton,dot_gam_e_SSA,cooling_aux,dEl)
 implicit REAL(8)(A-H,O-Z)
@@ -868,7 +868,7 @@ real(8), intent(out) :: dEl(Num_gam_e)
     end select
 end subroutine assemble_forward_cooling_from_terms
 
-! 正激波冷却主入口：准备IC辅助量→计算SSA→组装冷却率 dγ/dt。
+! 正向激波冷却主入口：准备IC辅助量→计算SSA→组装冷却率 dγ/dt。
 subroutine get_forward_cooling(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc,R_Gamma_loc, &
                                beta_Gam,dNe,Num_gam_e,Num_nu,n_threads,gam_e,V_seed,P_syn,Seed_syn,dEl)
 implicit REAL(8)(A-H,O-Z)

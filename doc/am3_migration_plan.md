@@ -5,20 +5,28 @@
 ## 已完成迁移
 
 - AM3-derived hadronic core kernels 已迁移到 `src/Hadronic/*.f90`，覆盖 photopion、decay、Bethe-Heitler、pair production、pp、hadronic IC、secondary species transport、secondary radiation 和 acceleration/injection。
-- Local photopion photon-loss closure 已实现：`α_γ^{pγ}` → `τ_{pγ} = α_γ · R/(12 Γ c)` → shell survival factor `(1-e^{-τ})/τ`。
+- Local photopion photon-loss closure 已实现：
+
+\[
+\tau_{p\gamma}
+=\frac{\alpha_\gamma^{p\gamma}R}{12\Gamma c},
+\qquad
+f_{\rm surv}
+=\frac{1-\exp(-\tau_{p\gamma})}{\tau_{p\gamma}}.
+\]
 - Explicit secondary species transport 已覆盖 n、π±、μ± 的左右向输运。
 - Secondary radiation 已覆盖 pion/muon synchrotron + IC。
 - Hadronic acceleration/injection operators 已接入。
-- Shell-sequence time-dependent γγ pair/synch cascade path 已接入。
+- Shell-sequence time-dependent \(\gamma\gamma\) pair/synch cascade path 已接入。
 - Reverse-shock full-chain hadronic dispatch 已通过 formal 1D kernels 接入。
 
 ## 保留边界
 
 仍未进入实现的 hadronic transport、cascade 和 benchmark refresh 条目集中维护在根目录 `TODO.md`。本文档只保留 AM3 共存与迁移历史。
 
-RS hadronic proton injection/transport + proton synchrotron 已由 `hadronic_reverse_1d` 覆盖。Full-chain RS pγ/BH/pp/secondary/cascade dispatch 通过 runtime wrapper 复用 `hadronic_forward_1d` formal kernels。Legacy iterative pair-production synch branch 只保留作诊断；主 cascade path 是 shell-sequence time-dependent γγ pair/synch cascade。
+RS hadronic proton injection/transport + proton synchrotron 已由 `hadronic_reverse_1d` 覆盖。Full-chain RS \(p\gamma\)/BH/pp/secondary/cascade dispatch 通过 runtime wrapper 复用 `hadronic_forward_1d` formal kernels。Legacy iterative pair-production synch branch 只保留作诊断；主 cascade path 是 shell-sequence time-dependent \(\gamma\gamma\) pair/synch cascade。
 
-反激波动力学基线使用局部 `gamma34` 注入和显式 region-3 `U3/V3` thermal-state evolution。VegasAfterglow 是 comparison backend，不是物理目标。
+反向激波动力学基线使用局部 `gamma34` 注入和显式 region-3 `U3/V3` thermal-state evolution。VegasAfterglow 是 comparison backend，不是物理目标。
 
 ## 架构边界
 

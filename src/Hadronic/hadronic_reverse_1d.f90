@@ -1,4 +1,4 @@
-! 反激波强子核心：质子注入-冷却-输运-同步辐射，复用 hadronic 核。
+! 反向激波强子核心：质子注入-冷却-输运-同步辐射，复用 hadronic 核。
 subroutine fs_hadronic_reverse_1d(R_Tobs,R_Gamma,R,shell_energy_inj_erg,B_field_g,V_seed, &
                                   include_proton_synch,Num_nu,Num_R,num_gam_p, &
                                   gam_p,dN_gam_p,P_had_syn,Seed_had_syn)

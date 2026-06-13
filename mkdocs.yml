@@ -1,0 +1,75 @@
+site_name: ASGARD Documentation
+site_description: Private collaborator documentation for ASGARD GRB afterglow modeling.
+repo_url: https://github.com/mikuru1096/ASGARD_private
+docs_dir: doc
+site_dir: site
+strict: true
+
+theme:
+  name: material
+  language: zh
+  logo: assets/logo.png
+  favicon: assets/logo.png
+  features:
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - toc.follow
+    - search.suggest
+    - search.highlight
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.arithmatex:
+      generic: true
+
+extra_javascript:
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+
+extra_css:
+  - stylesheets/extra.css
+
+nav:
+  - 总入口: index.md
+  - 术语表: terminology.md
+  - 安装与构建: installation.md
+  - 新手快速开始: quickstart.md
+  - 命令行与脚本: command_line.md
+  - 教程示例: examples.md
+  - 使用指南: user_guide.md
+  - 拟合工作流: fitting_workflow.md
+  - MCMC 拟合专题: mcmc_fitting.md
+  - 外部采样接口: external_inference.md
+  - 参数参考: parameter_reference.md
+  - 公开 API: public_api.md
+  - 故障排查: troubleshooting.md
+  - 私有网页文档: web_docs.md
+  - 物理与算法:
+      - 物理设计总纲: project_physics_design.md
+      - 物理过程详解: physical_processes.md
+      - 算法设计总纲: project_algorithm_design.md
+      - 算法流程详解: algorithm_workflow.md
+      - 物理模型: physics_model.md
+      - 数值方法: numerical_methods.md
+      - 电子求解器: electron_solver_algorithms.md
+      - PWN/CR 2D 输运: fullhide2d_pwn_cr_transport.md
+      - 联合反馈物理: joint_secondary_feedback_physics.md
+      - 联合反馈算法: joint_secondary_feedback_algorithm.md
+      - Pair cascade 边界: pair_cascade_extension_boundary.md
+      - Hadronic chi 决策: hadronic_chi_transport_decision.md
+      - p-gamma 说明: hadronic_pgamma_notes.md
+      - Polarization timing: polarization_timing_diagnostic.md
+  - 开发与验证:
+      - 开发指南: developer_guide.md
+      - 验证与基准: validation_and_benchmarks.md
+      - Benchmark refresh 协议: benchmark_refresh_protocol.md
+      - Public/backend limits: public_backend_limits.md
+      - 代码概览: code_overview.md
+      - 源码树: source_tree.md
+      - 调用链: call_chain.md
+      - 代码指标: code_metrics.md
+      - AM3 迁移计划: am3_migration_plan.md

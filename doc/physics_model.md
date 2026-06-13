@@ -1,6 +1,6 @@
 # 物理模型
 
-本文档描述当前 ASGARD 已实现的物理模型和边界。这里记录的是代码契约，不是完整教材式推导。
+本文档描述当前 ASGARD 已实现的物理模型和边界。这里记录的是代码契约，不是完整教材式推导。全项目物理设计总纲见 `doc/project_physics_design.md`。
 
 ## 总体图像
 
@@ -16,9 +16,9 @@ relativistic blast wave
 
 Python 层组织状态机、配置和观测投影；Fortran 层求解电子、辐射、动力学和强相互作用微物理核。
 
-## 正激波
+## 正向激波
 
-正激波分支包含：
+正向激波分支包含：
 
 - blast-wave dynamics
 - electron injection and transport
@@ -27,6 +27,7 @@ Python 层组织状态机、配置和观测投影；Fortran 层求解电子、�
 - SSC and Compton cooling
 - gamma-gamma absorption
 - optional hadronic emission and feedback
+- 可选壳层级 electron-photon-hadronic 联合反馈
 - observer-frame projection
 
 重要微物理参数：
@@ -73,7 +74,14 @@ Python 层组织状态机、配置和观测投影；Fortran 层求解电子、�
 - `chi_gamma_bulk`
 - `chi_dvolume_weight`
 
-`geometry_kernel="chi_eats_2d"` 是 `fullhide_2d` / `charint_2d` 的 opt-in observer projection。该路径仅对 forward-shock synchrotron + SSA 使用 `chi` 分辨有限厚壳层 EATS：每个 `(R, chi)` 体元使用局域半径、BM downstream `Gamma_2`、`chi` 体积权重和向外 SSA optical-depth survival 投影到观测系。默认 `geometry_kernel="sed_legacy"` 保持 shell-integrated EATS。Projection 层对每个 shell 按当前 shock Lorentz factor 重铺 `chi` 网格，目标几何域覆盖 `1 <= chi <= 1 + 8 Gamma_sh^2` 的正半径 BM 壳层；全局 transport χ 源项按 log-χ 单调映射压缩到该 shell-local projection 网格。`chi_radius_cm`、`chi_gamma_bulk` 和 `chi_dvolume_weight` 均来自这组 projection 网格。Transport χ 网格到 projection χ 网格的映射使用 cell-overlap 保守重映射：`P_syn_chi` 和 `seed_syn_chi` 保守 `sum(P*Delta chi)`，`tau_syn_chi` 保守 cell-integrated optical depth。EATS SSA survival 对 emitting cell 使用 optical-depth coordinate 的 cell average `exp(-tau_front) * (1 - exp(-tau_cell)) / tau_cell`，而不是只取 cell inner edge 的 `exp(-tau_front)`。薄壳极限下，若 χ 源项退化到单个 δ 层且 `R_chi -> R`、`Gamma_chi -> Gamma_shell`、`tau -> 0`，`sed_interpolation_chi` 回归 legacy shell-level `sed_interpolation`。
+`geometry_kernel="chi_eats_2d"` 是 `fullhide_2d` / `charint_2d` 的 opt-in observer projection。该路径仅对正向激波 synchrotron + SSA 使用 \(\chi\) 分辨有限厚壳层 EATS：每个 \((R,\chi)\) 体元使用局域半径、BM downstream \(\Gamma_2\)、\(\chi\) 体积权重和向外 SSA optical-depth survival 投影到观测系。默认 `geometry_kernel="sed_legacy"` 保持 shell-integrated EATS。Projection 层对每个 shell 按当前 shock Lorentz factor 重铺 \(\chi\) 网格，目标几何域覆盖 \(1\le\chi\le1+8\Gamma_{\rm sh}^2\) 的正半径 BM 壳层；全局 transport \(\chi\) 源项按 log-\(\chi\) 单调映射压缩到该 shell-local projection 网格。`chi_radius_cm`、`chi_gamma_bulk` 和 `chi_dvolume_weight` 均来自这组 projection 网格。Transport \(\chi\) 网格到 projection \(\chi\) 网格的映射使用 cell-overlap 保守重映射：`P_syn_chi` 和 `seed_syn_chi` 保守 \(\sum P\,\Delta\chi\)，`tau_syn_chi` 保守 cell-integrated optical depth。EATS SSA survival 对 emitting cell 使用 optical-depth coordinate 的 cell average
+
+\[
+\exp(-\tau_{\rm front})
+\frac{1-\exp(-\tau_{\rm cell})}{\tau_{\rm cell}},
+\]
+
+而不是只取 cell inner edge 的 \(\exp(-\tau_{\rm front})\)。薄壳极限下，若 \(\chi\) 源项退化到单个 \(\delta\) 层且 \(R_\chi\to R\)、\(\Gamma_\chi\to\Gamma_{\rm shell}\)、\(\tau\to0\)，`sed_interpolation_chi` 回归 legacy shell-level `sed_interpolation`。
 
 ## 同步辐射、SSA 与 SSC
 
@@ -96,15 +104,15 @@ SSC、hadronic、pair cascade 当前仍是 shell-level contract。启用 `chi_ea
 
 当前同步辐射积分选择中，`index_syn_integr=1/2` 是固定网格快速路径；adaptive path 只作为显式诊断路径使用，不作为 public 默认。
 
-## 反激波
+## 反向激波
 
-反激波当前基线：
+反向激波当前基线：
 
 - electron synchrotron
 - RS SSC
 - FS/RS cross-zone IC
 - optional RS hadronic light path
-- optional full-chain RS hadronic dispatch through formal 1D hadronic kernels
+- 可选 full-chain RS hadronic dispatch，复用 formal 1D 强子核
 
 关键物理约束：
 
@@ -146,6 +154,36 @@ RS hadronic：
 - Hadronic transport 保持 1D shell-level。
 - 2D / chi-resolved hadronic transport 有意不实现。
 - 未来若扩展，必须先定义 chi-local photon field、hadron density、secondary feedback 和 observer projection。
+
+## 含时二级反馈与光子场闭合
+
+`Setups(electron_photon_coupling="separated" | "joint")` 控制 forward electron、photon field 和 formal hadronic path 的阶段耦合方式。
+
+`separated` 是默认模式：
+
+```text
+electron solver -> photon field -> hadronic -> separated BH merge/recompute seed
+```
+
+`joint` 是 opt-in 模式，只在 forward-shock、`fullhide_1d`、`am3_1d`、BH enabled、SSC cooling enabled 的 shell-level 1D 契约下启用：
+
+```text
+electron state -> photon field -> hadronic transport
+-> secondary electron source + photon source/sink
+-> electron solve with external Qe and IC seed
+-> photon field rebuild
+```
+
+物理坐标固定为半径 \(R\)。任一自然单位为 \({\rm s}^{-1}\) 的冷却、反应或吸收率进入输运前都必须乘以
+
+\[
+\frac{\mathrm{d}t'}{\mathrm{d}R}
+=\frac{1}{\beta\Gamma c}.
+\]
+
+当前 joint 电子方程接入 BH pairs、pp pairs 和 gamma-gamma pairs。pγ/π/μ 链的 e± 注入只有在 formal kernel 明确输出谱形和能量预算后才能反馈；当前不能用总能量守恒外推构造临时谱。光子场 sink 使用 formal pγ survival、BH photon loss 和 gamma-gamma absorption；不允许用经验 sink 或 smoothing 补齐。
+
+完整物理契约见 `doc/joint_secondary_feedback_physics.md`，算法契约见 `doc/joint_secondary_feedback_algorithm.md`。
 
 ## 对产生与级联
 

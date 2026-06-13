@@ -4,15 +4,18 @@
 
 ```mermaid
 flowchart TD
-    A["ASGARD/api_model.py\nModel / observe / run_fit"] --> B["FitConfig / SimulationSetup"]
-    B --> C["asgard_fit.py\ncompile_problem / eval_loglike"]
-    B --> D["asgard_state.py\nsolve_state_from_setup"]
+    A["ASGARD/api_model.py\nModel query methods"] --> B["Model -> FitConfig\n_build_fit_config_for_patch"]
+    X["ASGARD/api_observe.py\nobserve / run_fit"] --> B
+    Y["ASGARD/api_fit.py\nFitter.loglike"] --> C["asgard_fit.py\ncompile_problem / eval_loglike"]
+    B --> S["asgard_setup.py\nSimulationSetup"]
+    C --> S
+    S --> D["asgard_state.py\nsolve_state_from_setup"]
     D --> E["求解动力学"]
     D --> F["求解电子谱"]
-    D --> G["求解反激波辐射\nRS 电子 + 可选 RS 质子同步"]
+    D --> G["求解反向激波辐射\nRS 电子 + 可选 RS 质子同步"]
     D --> H["构建光子场阶段"]
     D --> I["求解强子过程"]
-    I --> J["BH 次级电子并入正激波电子谱\n并重算 seed_syn"]
+    I --> J["BH 次级电子并入正向激波电子谱\n并重算 seed_syn"]
     I --> K["pγ 光子生存因子\n写回光子场"]
     I --> Q["pair production / shell-sequence cascade"]
     H --> L["Radiation.annihilation\ngamma-gamma 吸收"]
@@ -49,6 +52,8 @@ flowchart TD
 
 ```text
 Model.flux_density_grid
+  -> _build_fit_config_for_patch / _solve_patch_state
+  -> SimulationSetup
   -> solve_state_from_setup
   -> solve_dynamics -> solve_electron -> photon_field_stage
   -> solve_hadronic -> solve_reverse_shock_emission

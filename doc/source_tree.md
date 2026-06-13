@@ -4,7 +4,7 @@
 
 ## Python 运行层
 
-- `ASGARD/`：外部用户 API，包括 `api_model.py`, `api_observe.py`, `api_fit.py`, `api_adaptive.py`；`api_adaptive.py` 当前保留 shared observe packing、数组签名缓存和曝光时间平均工具。
+- `ASGARD/`：外部用户 API，包括 `api_model.py`, `api_observe.py`, `api_fit.py`, `api_adaptive.py`。`api_model.py` 承担 `Model` 查询调度、`Model -> FitConfig` 适配、direct/patch solve 入口和 details 打包；`api_observe.py` 保留 `observe` / `run_fit` 兼容入口、sky image、polarization 和观测数据集 helpers；`api_adaptive.py` 保留 shared observe packing、数组签名缓存和曝光时间平均工具。
 - `asgard_core/`：内部编排与物理耦合，包括 `asgard_config.py`, `asgard_runtime.py`, `asgard_state.py`, `asgard_setup.py`, `asgard_ssc.py`, `asgard_types.py`。
 - `asgard_core/structured_jet_kernel.py`：结构化喷流 Fortran backend 薄中间层。
 - `asgard_core/hadronic_*.py`：hadronic Python wrappers 和 reference backend，只做 orchestration；最终微物理写入 `src/Hadronic/`。
@@ -18,8 +18,12 @@
 - `doc/installation.md`：环境、安装和 native extension 构建。
 - `doc/user_guide.md`：常用 public API 工作流。
 - `doc/public_api.md`：public API 当前契约。
+- `doc/project_physics_design.md`：全项目物理设计总纲。
+- `doc/project_algorithm_design.md`：全项目算法设计总纲。
 - `doc/physics_model.md`：已实现物理模块和边界。
 - `doc/numerical_methods.md`：数值核、求解器和 line-truncation 检查。
+- `doc/joint_secondary_feedback_physics.md`：含时 BH / 二级 e± / 光子场 joint feedback 的物理方程、源汇预算和支持边界。
+- `doc/joint_secondary_feedback_algorithm.md`：joint feedback 的 public switch、状态机、数组契约、函数入口、测试和 benchmark。
 - `doc/validation_and_benchmarks.md`：build gate、smoke tests、benchmark refresh 和 artifact policy。
 - `doc/developer_guide.md`：开发工作流、提交前检查和 review checklist。
 - `doc/call_chain.md`：public call chain 到 runtime/Fortran kernel 的路径。
@@ -33,6 +37,7 @@
 - `doc/fullhide2d_pwn_cr_transport.md`：`fullhide2d_transport_model="pwn_cr_v1"` 的物理契约。
 - `doc/benchmark_refresh_protocol.md`：benchmark 重新生成的命令、build、artifact 和物理验收协议。
 - `doc/public_backend_limits.md`：public API/backend 未支持和部分支持边界。
+- `doc/web_docs.md` 与 `mkdocs.yml`：网页文档发布配置和导航入口；新增或改名文档必须同步 `nav` 并跑 strict build。
 
 ## Fortran 运行层
 
@@ -60,8 +65,10 @@
 - Hadronic：`tests/hadronic_1d_smoke.py`, `tests/hadronic_species_transport_smoke.py`, `tests/hadronic_secondary_radiation_smoke.py`, `tests/hadronic_acceleration_smoke.py`, `tests/hadronic_bethe_heitler_smoke.py`, `tests/hadronic_hadronic_ic_smoke.py`, `tests/hadronic_pair_production_smoke.py`, `tests/hadronic_pp_smoke.py`
 - Pair / polarization / RS：`tests/hadronic_pair_cascade_smoke.py`, `tests/hadronic_pair_branch_smoke.py`, `tests/hadronic_reverse_shock_smoke.py`, `tests/polarization_smoke.py`, `tests/polarization_baseline_bench.py`
 - AM3/reference comparisons：`tests/hadronic_am3_solver_smoke.py`, `tests/hadronic_am3_reference_compare_smoke.py`, `tests/hadronic_am3_acceleration_compare_smoke.py`, `tests/hadronic_am3_bethe_heitler_compare_smoke.py`
+- Electron-photon joint feedback：`tests/electron_photon_coupling_config_smoke.py`, `tests/electron_photon_joint_smoke.py`, `tests/electron_photon_joint_secondary_feedback_smoke.py`, `tests/electron_photon_separated_regression_smoke.py`, `tests/electron_photon_ic_consistency_smoke.py`, `tests/hadronic_r_coordinate_smoke.py`
 
 ## 生成产物
 
 - `output/asgard_doc/vegas_afterglow_compare/`：由 `tests/vegas_afterglow_comparison.py --scenario baseline` 生成的 Vegas/ASGARD baseline comparison figures。
 - RS-specific artifacts：`compare_reverse_shock_lc.png`, `compare_reverse_shock_thermal_benchmark.png`。
+- `output/asgard_doc/time_dependent_bh_photon_benchmark/`：由 `scripts/benchmarks/time_dependent_bh_photon_benchmark.py` 生成的 separated/joint weak-feedback、BH-active、strong-wind-BH 对比产物；默认视为可复现 artifact，不随清理提交进入版本库。

@@ -15,7 +15,7 @@ from asgard_core.asgard_state import _compute_pair_production_branch
 from asgard_core.asgard_types import DynamicsSolution, ElectronSolution
 from asgard_core.hadronic_pair_production import ELECTRON_MASS_GEV
 from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet
-from ASGARD.api_observe import _build_fit_config_for_patch
+from ASGARD.api_model import _build_fit_config_for_patch
 from src import constants
 
 
@@ -59,7 +59,7 @@ def _config(iterations: int) -> FitConfig:
 def test_pair_branch_single_step_tau() -> None:
     dynamics, electron, seed_field_hz, frequency_hz, magnetic_field_g = _state_inputs()
 
-    pair_lum, pair_seed, tau_pair = _compute_pair_production_branch(
+    pair_lum, pair_seed, tau_pair, _pair_density = _compute_pair_production_branch(
         dynamics, electron, seed_field_hz, frequency_hz, magnetic_field_g, _config(1),
     )
 
@@ -72,7 +72,7 @@ def test_pair_branch_single_step_tau() -> None:
 def test_pair_branch_iterative_tau_is_not_placeholder() -> None:
     dynamics, electron, seed_field_hz, frequency_hz, magnetic_field_g = _state_inputs()
 
-    pair_lum, pair_seed, tau_pair = _compute_pair_production_branch(
+    pair_lum, pair_seed, tau_pair, _pair_density = _compute_pair_production_branch(
         dynamics, electron, seed_field_hz, frequency_hz, magnetic_field_g, _config(2),
     )
 

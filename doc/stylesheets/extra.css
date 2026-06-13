@@ -1,0 +1,53 @@
+.md-header__button.md-logo {
+  margin: 0.15rem 0.35rem;
+  padding: 0.05rem;
+}
+
+.md-header__button.md-logo img,
+.md-header__button.md-logo svg {
+  height: 3.25rem;
+  width: auto;
+}
+
+.asgard-home-logo {
+  margin: 0.25rem auto 1.5rem;
+  text-align: center;
+}
+
+.asgard-home-logo img {
+  display: inline-block;
+  max-width: min(1120px, 96vw);
+  width: 96%;
+  height: auto;
+}
+
+.asgard-home-tagline,
+.asgard-home-tagline-cn {
+  margin: 0.1rem auto;
+  max-width: 48rem;
+  text-align: center;
+}
+
+.asgard-home-tagline {
+  color: var(--md-default-fg-color);
+  font-size: 1.05rem;
+  line-height: 1.55;
+}
+
+.asgard-home-tagline-cn {
+  color: var(--md-default-fg-color--light);
+  font-size: 0.92rem;
+  line-height: 1.55;
+  margin-bottom: 1.35rem;
+}
+
+@media screen and (max-width: 600px) {
+  .md-header__button.md-logo img,
+  .md-header__button.md-logo svg {
+    height: 2.45rem;
+  }
+
+  .asgard-home-logo img {
+    width: 100%;
+  }
+}

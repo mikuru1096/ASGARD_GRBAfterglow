@@ -14,13 +14,23 @@
 
 已接入:
 - proton injection、adiabatic cooling、synchrotron cooling、proton synchrotron emission。
-- `hummer_2010_response` photopion：`α_p(E)` + `Q_p^reinj(E)` 反馈到 proton transport。
-- `α_γ^{pγ}` 转为 local shell photon survival factor：`τ_{pγ}(ν,r) = α_γ^{pγ}(ν,r) · R/(12 Γ c)`, `f_surv = (1-e^{-τ})/τ`，并在 observer projection 前作用。
+- `hummer_2010_response` photopion：\(\alpha_p(E)\) 与 \(Q_p^{\rm reinj}(E)\) 反馈到 proton transport。
+- \(\alpha_\gamma^{p\gamma}\) 转为 local shell photon survival factor：
+
+\[
+\tau_{p\gamma}(\nu,r)
+=\frac{\alpha_\gamma^{p\gamma}(\nu,r)R}{12\Gamma c},
+\qquad
+f_{\rm surv}
+=\frac{1-\exp(-\tau_{p\gamma})}{\tau_{p\gamma}},
+\]
+
+并在 observer projection 前作用。
 - neutrino output。
 - Bethe-Heitler：proton continuous cooling + secondary e±，随后并入 forward electron 并重算 `seed_syn`。
 - hadronic IC：proton channel；pion/muon IC 通过 explicit secondary species 处理。
 - pp：gamma、neutrino、pair source、proton loss。
-- pair production：observer-side `tau_pair` attenuation + pair synchrotron branch；`pair_cascade_iterations > 1` 选择 shell-sequence time-dependent γγ pair/synch cascade。
+- pair production：observer-side `tau_pair` attenuation + pair synchrotron branch；`pair_cascade_iterations > 1` 选择 shell-sequence time-dependent \(\gamma\gamma\) pair/synch cascade。
 - explicit secondary species transport：n、π±、μ± 的左右向输运。
 - secondary radiation：pion/muon synchrotron + IC。
 - hadronic acceleration/injection operators。

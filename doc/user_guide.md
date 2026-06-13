@@ -2,7 +2,7 @@
 
 本文档给出 ASGARD public API 的常用运行方式。所有示例都以当前 `ASGARD` 包入口为准；类名、函数名、物理缩写和命令参数保持英文标识。
 
-## 最小正激波光变
+## 最小正向激波光变
 
 ```python
 import numpy as np
@@ -35,8 +35,8 @@ print(result.total.shape)
 `flux_density_grid(times_s, nu_hz)` 返回 `FluxResult`。其中：
 
 - `total`：总 flux density。
-- `fwd.sync`, `fwd.ssc`：正激波同步辐射和 SSC。
-- `rev.sync`, `rev.ssc`：反激波同步辐射和 SSC。
+- `fwd.sync`, `fwd.ssc`：正向激波同步辐射和 SSC。
+- `rev.sync`, `rev.ssc`：反向激波同步辐射和 SSC。
 - `cross_ic`：FS/RS cross-zone IC；未启用时为 `None`。
 
 默认 `projection_kind="lightcurve"`，适合光变、拟合和多频段时间序列。若启用 `geometry_kernel="chi_eats_2d"`，该路径对 FS synchrotron+SSA 使用 χ 分辨专用 EATS 投影；SSC、hadronic 和 pair cascade 仍保持 shell-level contract。
@@ -103,7 +103,7 @@ avg = model.flux_density_exposures(times, freqs, exposures, num_subsamples=4)
 
 该接口对子曝光采样取平均，适合曝光时间不可忽略的光变点。
 
-## 反激波
+## 反向激波
 
 ```python
 model = Model(
@@ -131,7 +131,7 @@ model = Model(
 
 ## 强子过程
 
-正激波强子 formal path 示例：
+正向激波强子 formal path 示例：
 
 ```python
 model = Model(

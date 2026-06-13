@@ -183,7 +183,6 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
     call electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
                                       electron_initial_grid_gamma,gam_e,dN_init)
     d_x_E = dlog10(gam_e(2)/gam_e(1))
-
     dN_init_log = dN_init * gam_e * ln10
 
     U_log(:,1) = dN_init_log / deta
@@ -350,7 +349,7 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
             active_chi_hi = electron_active_chi_hi(Num_chi,chi_population,chi_peak)
             dDR_eta = huge(one)
             if (use_charint_transport) then
-                dDR_eta = compute_logchi_eta_step_limit(Num_chi,active_chi_hi,R_loc,R_Gamma_loc,beta_sh, &
+                dDR_eta = compute_logchi_eta_step_limit(Num_chi,R_loc,R_Gamma_loc,beta_sh, &
                                                         dln_a_dR_arr(I_tobs-1),deta,chi_face,4d0)
             end if
 

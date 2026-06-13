@@ -65,7 +65,7 @@ Electron 2D：
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && TMPDIR=/tmp uv run python build_extensions.py --module electron_forward_charint_2d --force'
 ```
 
-反激波电子：
+反向激波电子：
 
 ```bash
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && TMPDIR=/tmp uv run python build_extensions.py --module electron_reverse_kernel --force'
@@ -128,6 +128,14 @@ Runtime breakdown：
 ```bash
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python scripts/benchmarks/runtime_breakdown_benchmark.py'
 ```
+
+Time-dependent BH / joint secondary feedback：
+
+```bash
+rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python scripts/benchmarks/time_dependent_bh_photon_benchmark.py --mode formal'
+```
+
+该 benchmark 比较 `electron_photon_coupling="separated"` 与 `"joint"`，覆盖 weak-feedback、BH-active 和 strong-wind-BH。验收重点不是单个表格数值，而是 `tau_BH`、二级 pair source、photon survival/source、light curve 和 SED 随 `R` / observer time 的连续性；孤立尖峰优先视为坐标换算、源项归一化、网格映射或 photon survival bug。
 
 2D chi-resolved EATS：
 

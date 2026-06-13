@@ -144,40 +144,142 @@ subroutine compute_bm_divergence_chi(Num_chi, R_loc, Gamma_sh, beta_sh, chi_grid
 end subroutine compute_bm_divergence_chi
 
 ! 计算η网格面上的输运系数A(η) = [a·β₂_sh/(χ·β_sh) + (χ-1)/χ·dln a/dR] / ln(10)。
+real(8) function eta_face_transport_coeff(Gamma_sh, chi_loc, a_loc, dln_a_dR_loc, beta_sh)
+    real(8), intent(in) :: Gamma_sh, chi_loc, a_loc, dln_a_dR_loc, beta_sh
+    real(8) :: beta_2_sh
+
+    beta_2_sh = bm_beta2_shock(Gamma_sh, chi_loc)
+    eta_face_transport_coeff = (a_loc*beta_2_sh/(chi_loc*beta_sh) + &
+                               ((chi_loc-one)/chi_loc)*dln_a_dR_loc) / dlog(ten)
+end function eta_face_transport_coeff
+
 subroutine eta_face_transport_coeffs(Gamma_sh, Num_chi, chi_face, a_loc, dln_a_dR_loc, beta_sh, A_eta_face)
     integer, intent(in) :: Num_chi
     real(8), intent(in) :: Gamma_sh, chi_face(0:Num_chi), a_loc, dln_a_dR_loc, beta_sh
     real(8), intent(out) :: A_eta_face(1:Num_chi)
-    real(8) :: beta_2_sh
     integer :: I_face
 
     do I_face = 1, Num_chi
-        beta_2_sh = bm_beta2_shock(Gamma_sh, chi_face(I_face))
-        A_eta_face(I_face) = (a_loc*beta_2_sh/(chi_face(I_face)*beta_sh) + &
-                             ((chi_face(I_face)-one)/chi_face(I_face))*dln_a_dR_loc) / dlog(ten)
+        A_eta_face(I_face) = eta_face_transport_coeff(Gamma_sh, chi_face(I_face), a_loc, dln_a_dR_loc, beta_sh)
     end do
 end subroutine eta_face_transport_coeffs
 
+subroutine eta_face_transport_coeffs_all(Gamma_sh, Num_chi, chi_face, a_loc, dln_a_dR_loc, beta_sh, A_eta_face)
+    integer, intent(in) :: Num_chi
+    real(8), intent(in) :: Gamma_sh, chi_face(0:Num_chi), a_loc, dln_a_dR_loc, beta_sh
+    real(8), intent(out) :: A_eta_face(0:Num_chi)
+    integer :: I_face
+
+    do I_face = 0, Num_chi
+        A_eta_face(I_face) = eta_face_transport_coeff(Gamma_sh, chi_face(I_face), a_loc, dln_a_dR_loc, beta_sh)
+    end do
+end subroutine eta_face_transport_coeffs_all
+
 ! 估计χ方向对流子步长限制。
-real(8) function compute_logchi_eta_step_limit(Num_chi,active_chi_hi,R_loc,R_Gamma_loc,beta_sh, &
+real(8) function compute_logchi_eta_step_limit(Num_chi,R_loc,R_Gamma_loc,beta_sh, &
                                                dln_a_dR_loc,deta,chi_face,cfl_factor)
     implicit none
-    integer, intent(in) :: Num_chi,active_chi_hi
+    integer, intent(in) :: Num_chi
     integer :: I_chi
     real(8), intent(in) :: R_loc,R_Gamma_loc,beta_sh,dln_a_dR_loc,deta,cfl_factor
     real(8), intent(in) :: chi_face(0:Num_chi)
-    real(8) :: beta_2_sh_loc,max_eta_coeff
+    real(8) :: A_eta_face,max_eta_coeff
 
     max_eta_coeff=zero
-    do I_chi=1,max(1,active_chi_hi)
-        beta_2_sh_loc=bm_beta2_shock(R_Gamma_loc,chi_face(I_chi))
-        max_eta_coeff=max(max_eta_coeff,dabs((8d0*R_Gamma_loc*R_Gamma_loc/R_loc)* &
-                                             beta_2_sh_loc/(chi_face(I_chi)*beta_sh)+ &
-                                             ((chi_face(I_chi)-one)/chi_face(I_chi))*dln_a_dR_loc)/dlog(ten))
+    do I_chi=1,Num_chi
+        A_eta_face=eta_face_transport_coeff(R_Gamma_loc,chi_face(I_chi),8d0*R_Gamma_loc*R_Gamma_loc/R_loc, &
+                                            dln_a_dR_loc,beta_sh)
+        max_eta_coeff=max(max_eta_coeff,dabs(A_eta_face))
     end do
     compute_logchi_eta_step_limit=huge(one)
     if (max_eta_coeff > zero) compute_logchi_eta_step_limit=cfl_factor*deta/max_eta_coeff
 end function compute_logchi_eta_step_limit
+
+real(8) function eta_linear_back_position(eta_start, a_cell, b_cell, lag)
+    real(8), intent(in) :: eta_start, a_cell, b_cell, lag
+    real(8) :: shift
+
+    if (dabs(b_cell) <= 1d-30) then
+        eta_linear_back_position = eta_start - a_cell*lag
+    else
+        shift = a_cell/b_cell
+        eta_linear_back_position = (eta_start+shift)*dexp(-b_cell*lag) - shift
+    end if
+end function eta_linear_back_position
+
+real(8) function eta_linear_hit_time(eta_start, eta_bound, a_cell, b_cell)
+    real(8), intent(in) :: eta_start, eta_bound, a_cell, b_cell
+    real(8) :: shift, num, den
+
+    if (dabs(b_cell) <= 1d-30) then
+        eta_linear_hit_time = (eta_bound-eta_start)/(-a_cell)
+    else
+        shift = a_cell/b_cell
+        num = eta_start+shift
+        den = eta_bound+shift
+        eta_linear_hit_time = dlog(num/den)/b_cell
+    end if
+end function eta_linear_hit_time
+
+subroutine eta_trace_back_faces_piecewise(Num_chi, dR_step, eta_face, A_eta_face, eta_back)
+    integer, intent(in) :: Num_chi
+    real(8), intent(in) :: dR_step, eta_face(0:Num_chi), A_eta_face(0:Num_chi)
+    real(8), intent(out) :: eta_back(0:Num_chi)
+    integer :: I_face, I_cell
+    real(8) :: eta_cur, eta_trial, eta_bound, s_rem, s_hit, a_cell, b_cell, A_cur, d_eta
+
+    eta_back(0) = eta_face(0)
+    do I_face = 1, Num_chi
+        eta_cur = eta_face(I_face)
+        A_cur = A_eta_face(I_face)
+        if (A_cur == zero) then
+            eta_back(I_face) = eta_cur
+            cycle
+        end if
+        if (A_cur < zero .and. I_face == Num_chi) then
+            eta_back(I_face) = eta_face(Num_chi)
+            cycle
+        end if
+        if (A_cur > zero) then
+            I_cell = I_face
+        else
+            I_cell = I_face + 1
+        end if
+        s_rem = dR_step
+        do while (s_rem > zero)
+            d_eta = eta_face(I_cell)-eta_face(I_cell-1)
+            b_cell = (A_eta_face(I_cell)-A_eta_face(I_cell-1))/d_eta
+            a_cell = A_eta_face(I_cell-1)-b_cell*eta_face(I_cell-1)
+            A_cur = a_cell+b_cell*eta_cur
+            if (A_cur == zero) exit
+            eta_trial = eta_linear_back_position(eta_cur, a_cell, b_cell, s_rem)
+            if (A_cur > zero) then
+                eta_bound = eta_face(I_cell-1)
+                if (eta_trial > eta_bound) then
+                    eta_cur = eta_trial
+                    exit
+                end if
+                s_hit = eta_linear_hit_time(eta_cur, eta_bound, a_cell, b_cell)
+                eta_cur = eta_bound
+                s_rem = s_rem-s_hit
+                I_cell = I_cell-1
+                if (I_cell < 1) exit
+            else
+                eta_bound = eta_face(I_cell)
+                if (eta_trial < eta_bound) then
+                    eta_cur = eta_trial
+                    exit
+                end if
+                s_hit = eta_linear_hit_time(eta_cur, eta_bound, a_cell, b_cell)
+                eta_cur = eta_bound
+                s_rem = s_rem-s_hit
+                I_cell = I_cell+1
+                if (I_cell > Num_chi) exit
+            end if
+        end do
+        eta_back(I_face) = eta_cur
+    end do
+end subroutine eta_trace_back_faces_piecewise
 
 subroutine eta_split_advection_faces(Num_chi,A_eta_face,adv_face_left,adv_face_right)
     implicit none
@@ -254,17 +356,13 @@ subroutine advance_eta_logchi_advection_charint(U_log, Num_gam_e, Num_chi, activ
     real(8), intent(in) :: deta, eta_face(0:Num_chi), chi_face(0:Num_chi)
     real(8), intent(in) :: Gamma_sh, a_loc, dln_a_dR_loc, beta_sh, source_eta1(Num_gam_e), dR_step
 
-    real(8) :: A_eta_face(1:Num_chi), eta_back(0:Num_chi)
+    real(8) :: A_eta_face(0:Num_chi), eta_back(0:Num_chi)
     real(8) :: U_eta_in(Num_chi), U_eta_out(Num_chi)
     real(8) :: q_left(Num_chi), q_right(Num_chi), prefix(0:Num_chi)
-    integer :: I_gam_e, I_face
+    integer :: I_gam_e
 
-    call eta_face_transport_coeffs(Gamma_sh, Num_chi, chi_face, a_loc, dln_a_dR_loc, beta_sh, A_eta_face)
-
-    eta_back(0) = eta_face(0)
-    do I_face = 1, Num_chi
-        eta_back(I_face) = eta_face(I_face) - dR_step*A_eta_face(I_face)
-    end do
+    call eta_face_transport_coeffs_all(Gamma_sh, Num_chi, chi_face, a_loc, dln_a_dR_loc, beta_sh, A_eta_face)
+    call eta_trace_back_faces_piecewise(Num_chi, dR_step, eta_face, A_eta_face, eta_back)
 
     do I_gam_e = 1, active_hi
         U_eta_in = U_log(I_gam_e, :)

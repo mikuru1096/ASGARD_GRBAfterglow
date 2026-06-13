@@ -26,7 +26,7 @@ from asgard_core.asgard_state import project_flux_grid
 from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet, Wind, units
 from ASGARD import PowerLawJet as ASGARD_PowerLawJet
 from ASGARD import TwoComponentJet
-from ASGARD.api_observe import _build_fit_config_for_patch, _solve_patch_state
+from ASGARD.api_model import _build_fit_config_for_patch, _solve_patch_state
 from src import constants
 from VegasAfterglow import ISM as VegasISM
 from VegasAfterglow import Model as VegasModel

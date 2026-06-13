@@ -21,7 +21,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet, Wind
-from ASGARD.api_observe import _solve_patch_state
+from ASGARD.api_model import _solve_patch_state
 from asgard_core.asgard_config import FitConfig
 from asgard_core.asgard_paths import ASGARD_DOC_DIR
 from asgard_core.asgard_state import make_query_setup, project_flux_grid, solve_state

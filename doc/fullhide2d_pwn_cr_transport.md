@@ -1,96 +1,125 @@
-# fullhide_2d PWN/CR Transport Extension Notes
+# `fullhide_2d` 的 PWN/CR 输运扩展
 
-## Scope
+本文记录可选路径 `fullhide2d_transport_model="pwn_cr_v1"` 的物理契约。默认路径仍是 `"legacy"`，沿用现有 27 元素 `Boundary` 布局和 `fullhide_2d` 数值算子；PIC 后端不属于本实现。
 
-This note fixes the physics contract for the optional `fullhide2d_transport_model="pwn_cr_v1"` path. The default
-`"legacy"` path keeps the existing 27-element `Boundary` array and the existing fullhide_2d numerical operators.
-The PIC backend is outside this implementation.
+## 1. 边界数组
 
-## Boundary Layout
+现有公共解包器固定 `Boundary(27)=R_0`。因此扩展字段只能追加在 `R_0` 之后，不能占用第 27 位：
 
-The existing common unpacker uses the modern 27-element boundary layout with `Boundary(27)=R0`. The transport
-extension therefore appends new fields after `R0`:
+- `Boundary(28)`：`transport_model_selector`，`0=legacy`，`1=pwn_cr_v1`。
+- `Boundary(29)`：`stochastic_accel_norm`，无量纲动量扩散强度，默认 `0`。
+- `Boundary(30)`：`escape_mode_selector`，`0=closed`，`1=free_outer`。
 
-- `Boundary(28)`: `transport_model_selector`, `0=legacy`, `1=pwn_cr_v1`.
-- `Boundary(29)`: `stochastic_accel_norm`, dimensionless momentum-diffusion strength, default `0`.
-- `Boundary(30)`: `escape_mode_selector`, `0=closed`, `1=free_outer`.
+这个编号故意不同于早期草稿，因为覆盖 `Boundary(27)` 会破坏外部密度半径尺度。
 
-This deliberately differs from the original draft numbering because occupying `Boundary(27)` would overwrite the
-external-density radius scale.
+## 2. 输运方程基础
 
-## Transport Equation Basis
+PWN 多区模型和宇宙线输运模型通常求解包含空间输运、辐射损失、绝热损失、注入和可选再加速的 Fokker-Planck 型方程。`pwn_cr_v1` 不把 ASGARD 改造成完整 PWN/CR 代码，而是在现有正向激波 2D 电子求解器上加入当前有明确物理意义的项：
 
-PWN multizone models solve a Fokker-Planck transport equation with spatial transport, radiative and adiabatic
-losses, and injection. Van Rensburg et al. describe a time-dependent multizone leptonic PWN model with spatially
-dependent magnetic field, convection, diffusion, radiative losses, and adiabatic losses. The newer 3D PWN/CR work
-uses the same transport-equation structure in a fully spatial setting. GALPROP uses the same cosmic-ray transport
-taxonomy, including spatial diffusion, energy losses, source terms, optional momentum diffusion/reacceleration, and
-free-escape halo boundaries.
+- \(\chi\) 空间扩散边界控制。
+- \(\chi\) 局域绝热损失。
+- \(\chi\) 局域磁场冷却和 Bohm 型扩散系数。
+- 可选的 \(\log_{10}\gamma_e\) 空间扩散。
 
-Implementation decision: `pwn_cr_v1` keeps the existing fullhide_2d source and χ advection structure, then adds the
-PWN/CR pieces that are meaningful for the current electron-only forward-shock solver: χ-space diffusion boundary
-control, χ-local adiabatic losses, χ-local magnetic cooling/diffusion, and optional log-gamma diffusion.
+没有加入 PIC 命中概率、双磁场 patch 发射或 PIC scattering 算子。
 
-## BM Local Adiabatic Loss
+## 3. BM 局域绝热损失
 
-The legacy energy operator used a uniform-expansion coefficient `d log10(gamma) / dR = 1 / (R ln 10)`. The PWN/CR
-path computes the local radial divergence from the BM downstream velocity profile instead of differencing adjacent
-cell volumes.
+旧能量算子使用均匀膨胀近似：
 
-For a shock radius `R`, shock Lorentz factor `Gamma_sh`, and BM coordinate `chi`,
-`Gamma_2(chi)=Gamma_sh/sqrt(2 chi)` and `beta_2(chi)=sqrt(1-1/Gamma_2^2)` in the BM-valid ultrarelativistic
-downstream region. With `r/R = 1 - (chi-1)/(8 Gamma_sh^2)`, the radial velocity divergence is evaluated as
-`div(v)/c = 2 beta_2/r_ratio/R + d beta_2/dr`, using `d beta_2/dr = 8/(beta_2 R)` from the BM coordinate
-definition. The energy-loss coefficient advanced per shock radius is then `div(v)/(3 beta_sh c ln 10)`.
+\[
+\frac{\mathrm{d}\log_{10}\gamma_e}{\mathrm{d}R}
+= \frac{1}{R\ln 10}.
+\]
 
-The BM expression is used only where the local downstream flow remains ultrarelativistic, implemented as
-`Gamma_2 >= 2`. Farther downstream the BM ultrarelativistic velocity-gradient expression is outside its domain and
-would diverge near `Gamma_2 -> 1`; those cells use the uniform isotropic expansion closure `1/(R ln 10)`. This also
-keeps the required `div(v)/3 = 1/R` limit explicit.
+`pwn_cr_v1` 改为从 BM 下游速度剖面计算局域径向散度。设激波半径为 \(R\)，激波 Lorentz 因子为 \(\Gamma_{\rm sh}\)，BM 坐标为 \(\chi\)。在超相对论有效区域，
 
-## Eta-Space Diffusion
+\[
+\Gamma_2(\chi)=\frac{\Gamma_{\rm sh}}{\sqrt{2\chi}},
+\qquad
+\beta_2(\chi)=\sqrt{1-\Gamma_2^{-2}}.
+\]
 
-The physical diffusion flux is `F_x = -kappa dN/dx`. The existing fullhide_2d geometry maps physical downstream
-distance to `eta=log10(chi)` through the same BM shock metric used by the χ advection operator. `pwn_cr_v1` keeps
-the tridiagonal solve in eta space, with coefficients derived from the metric factor already used in
-`advance_eta_logchi_implicit`, avoiding physical-grid remapping between steps.
+局域半径比写为
 
-Boundary decisions:
+\[
+\frac{r}{R}
+=1-\frac{\chi-1}{8\Gamma_{\rm sh}^2}.
+\]
 
-- `closed`: zero diffusive flux at the outer eta face.
-- `free_outer`: zero outside density at the outer eta face, producing an outward sink term in the outermost cell.
+径向速度散度按
 
-## Microturbulence Closure
+\[
+\frac{\nabla\cdot v}{c}
+=\frac{2\beta_2}{(r/R)R}
+ + \frac{\mathrm{d}\beta_2}{\mathrm{d}r},
+\qquad
+\frac{\mathrm{d}\beta_2}{\mathrm{d}r}
+=\frac{8}{\beta_2 R}.
+\]
 
-`pwn_cr_v1` reuses the existing `epsilon_b_floor`, `magnetic_decay_alpha_t`, and `magnetic_decay_t0_s` closure.
-The same local `B_chi` is used for synchrotron/SSA diagnostics, radiative cooling, and Bohm-like diffusion
-coefficient evaluation. No PIC hit probability, patchy dual-field emission, or PIC scattering operator is added.
+因此每单位激波半径推进的绝热能量损失系数为
 
-This follows the GRB-afterglow motivation that post-shock microturbulence can decay behind the shock, as in
-Lemoine's microturbulence-decay treatment, while keeping the implementation tied to existing fullhide_2d fields.
+\[
+A_{\rm ad}
+=\frac{\nabla\cdot v}{3\beta_{\rm sh}c\ln 10}.
+\]
 
-## Stochastic Acceleration
+BM 表达式只在 \(\Gamma_2\ge 2\) 的区域使用。更远下游不满足超相对论速度梯度假设，且 \(\Gamma_2\to 1\) 时公式会发散；这些单元回到均匀各向同性膨胀闭合：
 
-`stochastic_accel_norm=0` disables this operator. For positive values, the code applies Strang splitting:
+\[
+A_{\rm ad}=\frac{1}{R\ln 10}.
+\]
 
-1. half-step conservative diffusion in log gamma,
-2. full-step radiative plus adiabatic cooling,
-3. half-step conservative diffusion in log gamma.
+这里的回退不是数值兜底，而是 BM 近似适用域之外的显式物理边界。
 
-The log-gamma diffusion substep has zero flux at the energy-grid boundaries. Its implicit coefficient is
-`dR * stochastic_accel_norm / (R * dlog10(gamma)^2)`, so `stochastic_accel_norm` is a dimensionless research-mode
-normalization of diffusion per dynamical radius, not a standalone physical `D_pp`. With `stochastic_accel_norm=0`,
-this path is not called and the result is identical to the no-stochastic `pwn_cr_v1` path.
+## 4. \(\eta\) 空间扩散
 
-## References
+物理扩散通量为
 
-- Van Rensburg, Krüger & Venter, 2018, MNRAS 477, 3853, spatially dependent PWN transport:
-  https://academic.oup.com/mnras/article/477/3/3853/4956543
-- 3D PWN/CR transport equation context:
-  https://academic.oup.com/mnras/article-abstract/528/2/2749/7529207
-- Lemoine, 2013, GRB afterglow microturbulence decay:
-  https://academic.oup.com/mnras/article/428/1/845/1062346
-- GALPROP theory page, CR diffusion/reacceleration/escape taxonomy:
-  https://galprop.stanford.edu/code.php?option=theory
-- BM/chi afterglow profile context:
-  https://academic.oup.com/mnras/article/442/4/3495/1339065
+\[
+F_x=-\kappa\frac{\partial N}{\partial x}.
+\]
+
+现有 `fullhide_2d` 几何把下游物理距离映射到
+
+\[
+\eta=\log_{10}\chi.
+\]
+
+`pwn_cr_v1` 继续在 \(\eta\) 空间使用三对角隐式求解，系数来自 `advance_eta_logchi_implicit` 已使用的几何因子，避免在每个子步中切换物理网格。
+
+边界条件：
+
+- `closed`：外侧 \(\eta\) 面扩散通量为零。
+- `free_outer`：外侧 ghost density 为零，最外层单元出现向外逃逸 sink。
+
+## 5. 微湍动磁场闭合
+
+`pwn_cr_v1` 复用现有 `epsilon_b_floor`、`magnetic_decay_alpha_t` 和 `magnetic_decay_t0_s`。同一个局域 \(B_\chi\) 用于同步辐射/SSA 诊断、辐射冷却和 Bohm 型扩散系数估计。这个选择对应 GRB 余辉中激波后微湍动可衰减的物理动机，同时保持实现绑定到现有 `fullhide_2d` 字段。
+
+## 6. 随机加速
+
+`stochastic_accel_norm=0` 时关闭该算子。若其为正数，代码使用 Strang splitting：
+
+1. \(\log_{10}\gamma_e\) 空间半步守恒扩散。
+2. 辐射冷却和绝热冷却全步推进。
+3. \(\log_{10}\gamma_e\) 空间半步守恒扩散。
+
+能量网格两端使用零通量边界。隐式扩散系数为
+
+\[
+C_{\rm stoch}
+= \frac{\Delta R\;a_{\rm stoch}}
+        {R\left(\Delta\log_{10}\gamma_e\right)^2},
+\]
+
+其中 \(a_{\rm stoch}\) 是 `stochastic_accel_norm`。它只是每个动力学半径上的研究型无量纲归一化，不是独立物理量 \(D_{pp}\)。当 \(a_{\rm stoch}=0\) 时，该分支不被调用，结果应与无随机加速的 `pwn_cr_v1` 路径完全一致。
+
+## 7. 参考依据
+
+- Van Rensburg, Krüger & Venter 2018, MNRAS 477, 3853：空间依赖 PWN 输运模型。
+- 3D PWN/CR 输运模型：MNRAS 528, 2749。
+- Lemoine 2013, MNRAS 428, 845：GRB 余辉微湍动衰减。
+- GALPROP theory page：宇宙线扩散、再加速和逃逸边界分类。
+- BM/\(\chi\) 余辉剖面：MNRAS 442, 3495。
