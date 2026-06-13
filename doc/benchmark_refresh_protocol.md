@@ -57,7 +57,7 @@ Triple density-jump RS+FS top-hat light curves：
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python scripts/benchmarks/triple_density_jump_rs_fs_tophat.py --mode formal'
 ```
 
-该命令复用 ASGARD/Vegas baseline 的典型 top-hat 余辉参数和网格，固定 `E_iso=1e52 erg`、`Gamma0=100`、RS upstream `sigma=0.1`、`theta_c=0.1`、`n_ism=1 cm^-3`、`z=0.1`、`d_L=1e26 cm`；开启 RS+FS synchrotron，关闭 SSC/IC cooling。密度跳变半径为 `1e14, 1e15, 1e16 cm`，半径空间 normal Gaussian 相对标准差 `sigma_R/R_jump=0.1`，增强因子 `100`；初始半径前移到 `1e13 cm`，保证第一个宽跳变在计算域内完整展开。输出为 `output/asgard_doc/reverse_density_jump_tests/triple_density_jump_rs_fs_tophat.png/.svg/.pdf/.tiff`，图中包含密度剖面以及 1 GHz、`1e14 Hz`、`1e18 Hz` 光变，对比 no-jump total 与 triple-jump total/FS/RS。
+该命令复用 ASGARD/Vegas baseline 的典型 top-hat 余辉参数和网格，固定 `E_iso=1e52 erg`、`Gamma0=100`、RS upstream `sigma=0.1`、`theta_c=0.1`、`n_ism=1 cm^-3`、`z=0.1`、`d_L=1e26 cm`；开启 RS+FS synchrotron，关闭 SSC/IC cooling。密度跳变半径为 `1e15, 1e16, 1e17 cm`，半径空间 normal Gaussian 相对标准差 `sigma_R/R_jump=0.1`，增强因子 `100`；初始半径前移到 `1e13 cm`，保证第一个宽跳变在计算域内完整展开。输出为 `output/asgard_doc/reverse_density_jump_tests/triple_density_jump_rs_fs_tophat.png/.svg/.pdf/.tiff`，图中包含密度剖面以及 1 GHz、`1e14 Hz`、`1e18 Hz` 光变，对比 no-jump total 与 triple-jump total/FS/RS。
 
 VegasAfterglow 2.0.5 的 stock sdist 在纯 ISM、`sigma >= 1e-5` 时会给出全 0 reverse-shock synchrotron。刷新 overlay 前先对 2.0.5 sdist 应用本仓库记录的 patch，并把 patched wheel 安装进当前 uv 环境：
 

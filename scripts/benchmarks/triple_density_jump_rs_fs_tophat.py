@@ -21,7 +21,7 @@ from asgard_core.asgard_paths import ASGARD_DOC_DIR
 
 OUTPUT_DIR = ASGARD_DOC_DIR / "reverse_density_jump_tests"
 OUTPUT_PATH = OUTPUT_DIR / "triple_density_jump_rs_fs_tophat.png"
-JUMP_RADII_CM = (1.0e14, 1.0e15, 1.0e16)
+JUMP_RADII_CM = (1.0e15, 1.0e16, 1.0e17)
 JUMP_FACTOR = 1.0e2
 JUMP_WIDTH_REL = 1.0e-1
 REVERSE_SIGMA = 1.0e-1
@@ -185,7 +185,7 @@ def build_plot(*, mode: str, output: Path, times_count: int | None = None) -> Pa
     fig = plt.figure(figsize=(7.2, 7.8), dpi=300)
     grid_spec = fig.add_gridspec(4, 1, height_ratios=(0.9, 1.25, 1.25, 1.25), hspace=0.50)
     density_ax = fig.add_subplot(grid_spec[0, 0])
-    radius = np.logspace(13.5, 16.5, 800)
+    radius = np.logspace(14.5, 17.5, 800)
     enhancement = _density_enhancement(radius)
     density_ax.fill_between(radius, 1.0, enhancement, color="#D8E6F3", alpha=0.85, linewidth=0.0)
     density_ax.semilogx(radius, enhancement, color=PALETTE["density"], lw=1.1)
