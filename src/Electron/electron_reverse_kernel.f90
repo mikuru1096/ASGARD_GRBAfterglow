@@ -301,8 +301,6 @@ contains
         if (V3_shell(I_tobs) <= zero .or. V3_shell(I_tobs-1) <= zero) then
             adiabatic_rate=zero
         else
-            if (V3_shell(I_tobs) < V3_shell(I_tobs-1)) &
-                error stop "electron_secondary_reverse_evolve: secondary volume must not decrease."
             adiabatic_rate=dlog(V3_shell(I_tobs)/V3_shell(I_tobs-1))/(3d0*(R(I_tobs)-R(I_tobs-1)))
         end if
     end subroutine compute_secondary_adiabatic_rate
