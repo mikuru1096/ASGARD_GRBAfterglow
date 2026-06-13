@@ -144,7 +144,10 @@ contains
         beta_s_hi=beta_comp_one-eps_beta
         call shock_momentum_difference(beta_s_lo,g_lo,comp)
         call shock_momentum_difference(beta_s_hi,g_hi,comp)
-        if (g_lo*g_hi > zero) error stop 'secondary_reverse_contact_rh compression has no physical bracket'
+        if (g_lo*g_hi > zero) then
+            comp=-one
+            return
+        end if
         do K=1,80
             beta_s_mid=0.5d0*(beta_s_lo+beta_s_hi)
             call shock_momentum_difference(beta_s_mid,g_mid,comp)

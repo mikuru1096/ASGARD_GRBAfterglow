@@ -93,7 +93,8 @@ subroutine dynamics_external_density_profile(A_star, dNe_ISM, RR, R0, apply_jump
         if (active_density_jump_count > 0) then
             call dynamics_density_multi_jump(dNe_ISM,RR,dNe)
         else
-            dNe = dNe_ISM*(one+(f_jump-one)*exp(-(log10(RR)-log10(R_tr))**2/(two*f_wide*f_wide)))
+            dNe = dNe_ISM*(one+(f_jump-one)* &
+                  exp(-((RR-R_tr)*(RR-R_tr))/(two*(f_wide*R_tr)*(f_wide*R_tr))))
         end if
     end if
 
@@ -153,14 +154,14 @@ subroutine dynamics_density_multi_jump(dNe_ISM, RR, dNe)
     integer :: i
     real(8), intent(in) :: dNe_ISM, RR
     real(8), intent(out) :: dNe
-    real(8) :: enhancement, log_radius
+    real(8) :: enhancement, width_cm
 
-    log_radius = log10(RR)
     enhancement = one
     do i = 1, active_density_jump_count
+        width_cm = active_density_jump_width(i)*active_density_jump_r(i)
         enhancement = enhancement+(active_density_jump_factor(i)-one)* &
-                      exp(-(log_radius-log10(active_density_jump_r(i)))**2/ &
-                      (two*active_density_jump_width(i)*active_density_jump_width(i)))
+                      exp(-((RR-active_density_jump_r(i))*(RR-active_density_jump_r(i)))/ &
+                      (two*width_cm*width_cm))
     end do
     dNe = dNe_ISM*enhancement
 end subroutine dynamics_density_multi_jump

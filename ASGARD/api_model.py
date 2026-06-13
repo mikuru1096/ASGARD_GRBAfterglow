@@ -1606,13 +1606,12 @@ def _fit_jump_medium(radius: np.ndarray, density: np.ndarray) -> dict[str, float
     floor = float(np.min(density))
     peak_idx = int(np.argmax(density))
     peak = float(density[peak_idx])
-    logr = np.log10(radius)
     excess = np.maximum(density - floor, 0.0)
     if peak <= floor or np.sum(excess) <= 0.0:
         return _fit_ism_medium(radius, density)
-    center = logr[peak_idx]
-    variance = np.sum(excess * (logr - center) ** 2) / np.sum(excess)
-    width = float(np.sqrt(max(variance, 0.03**2)))
+    center = float(radius[peak_idx])
+    variance = np.sum(excess * (radius - center) ** 2) / np.sum(excess)
+    width = float(np.sqrt(max(variance, (0.03 * center) ** 2)) / center)
     return {
         "d_ne": floor,
         "a_star": -1.0,
@@ -1637,7 +1636,7 @@ def _evaluate_kernel_density(radius: np.ndarray, params: dict[str, float]) -> np
         density = params["d_ne"] * (
             1.0
             + (params["f_jump"] - 1.0)
-            * np.exp(-(np.log10(radius) - np.log10(params["r_tr"])) ** 2 / (2.0 * params["f_wide"] ** 2))
+            * np.exp(-((radius - params["r_tr"]) ** 2) / (2.0 * (params["f_wide"] * params["r_tr"]) ** 2))
         )
     if np.any(radius < params["r0"]) and params["a_star"] > 0.0:
         density = density.copy()

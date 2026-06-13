@@ -60,11 +60,11 @@ def ambient_density(radius_cm: np.ndarray | float, config: FitConfig) -> np.ndar
         jump_r, jump_factor, jump_width = density_jump_arrays(config)
         density = np.full_like(radius, float(config.d_ne), dtype=float)
         if jump_r.size > 0:
-            log_radius = np.log10(radius)
             enhancement = np.ones_like(radius, dtype=float)
             for radius_j, factor_j, width_j in zip(jump_r, jump_factor, jump_width):
+                width_cm = width_j * radius_j
                 enhancement = enhancement + (factor_j - 1.0) * np.exp(
-                    -(log_radius - np.log10(radius_j)) ** 2 / (2.0 * width_j**2)
+                    -((radius - radius_j) ** 2) / (2.0 * width_cm**2)
                 )
             density = config.d_ne * enhancement
 

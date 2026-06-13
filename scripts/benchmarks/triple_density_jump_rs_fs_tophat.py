@@ -22,14 +22,37 @@ from asgard_core.asgard_paths import ASGARD_DOC_DIR
 OUTPUT_DIR = ASGARD_DOC_DIR / "reverse_density_jump_tests"
 OUTPUT_PATH = OUTPUT_DIR / "triple_density_jump_rs_fs_tophat.png"
 JUMP_RADII_CM = (1.0e14, 1.0e15, 1.0e16)
-JUMP_FACTOR = 1.0e3
-JUMP_WIDTH_LOG10 = 1.0e-2
+JUMP_FACTOR = 1.0e2
+JUMP_WIDTH_REL = 1.0e-1
+REVERSE_SIGMA = 1.0e-1
 BANDS_HZ = np.array([1.0e9, 1.0e14, 1.0e18], dtype=float)
 BAND_LABELS = ("1 GHz radio", "1e14 Hz optical", "1e18 Hz X-ray")
 MODE_GRIDS = {
     "quick": {"num_r": 60, "num_theta": 32, "num_tobs": 32, "num_gam_e": 41, "num_nu": 31, "times": 80},
     "formal": {"num_r": 120, "num_theta": 80, "num_tobs": 48, "num_gam_e": 81, "num_nu": 49, "times": 160},
 }
+PALETTE = {
+    "total": "#0F4D92",
+    "forward": "#42949E",
+    "reverse": "#B64342",
+    "baseline": "#767676",
+    "density": "#272727",
+    "jump": "#B64342",
+}
+
+plt.rcParams.update(
+    {
+        "font.family": "sans-serif",
+        "font.sans-serif": ["Arial", "DejaVu Sans", "Liberation Sans"],
+        "svg.fonttype": "none",
+        "pdf.fonttype": 42,
+        "font.size": 7,
+        "axes.spines.right": True,
+        "axes.spines.top": True,
+        "axes.linewidth": 0.7,
+        "legend.frameon": False,
+    }
+)
 
 
 def _model(*, with_jumps: bool, grid: dict[str, int]) -> Model:
@@ -38,10 +61,10 @@ def _model(*, with_jumps: bool, grid: dict[str, int]) -> Model:
         jump_kwargs = {
             "jump_r_cm": JUMP_RADII_CM,
             "jump_factor": (JUMP_FACTOR,) * len(JUMP_RADII_CM),
-            "jump_width_log10": (JUMP_WIDTH_LOG10,) * len(JUMP_RADII_CM),
+            "jump_width_log10": (JUMP_WIDTH_REL,) * len(JUMP_RADII_CM),
         }
     return Model(
-        jet=TophatJet(theta_c=0.1, E_iso=1.0e52, Gamma0=300.0, duration=10.0),
+        jet=TophatJet(theta_c=0.1, E_iso=1.0e52, Gamma0=100.0, duration=10.0),
         medium=ISM(n_ism=1.0),
         observer=Observer(lumi_dist=1.0e26, z=0.1, theta_obs=0.0),
         fwd_rad=Radiation(eps_e=3.0e-1, eps_B=1.0e-5, p=2.3, xi_N=1.0e-1, ssc=False),
@@ -49,6 +72,7 @@ def _model(*, with_jumps: bool, grid: dict[str, int]) -> Model:
         setups=Setups(
             rvs_shock=True,
             reverse_delta_t_s=10.0,
+            reverse_sigma=REVERSE_SIGMA,
             fwd_ssc=False,
             rvs_ssc=False,
             ssc_cooling=False,
@@ -58,6 +82,7 @@ def _model(*, with_jumps: bool, grid: dict[str, int]) -> Model:
             num_r=grid["num_r"],
             num_theta=grid["num_theta"],
             num_tobs=grid["num_tobs"],
+            initial_radius_cm=1.0e13,
             observer_time_min_s=1.0e0,
             observer_time_max_s=1.0e8,
             electron_solver="fullhide_1d",
@@ -67,11 +92,11 @@ def _model(*, with_jumps: bool, grid: dict[str, int]) -> Model:
 
 
 def _density_enhancement(radius_cm: np.ndarray) -> np.ndarray:
-    log_radius = np.log10(radius_cm)
     enhancement = np.ones_like(radius_cm, dtype=float)
     for radius_j in JUMP_RADII_CM:
+        width_cm = JUMP_WIDTH_REL * radius_j
         enhancement = enhancement + (JUMP_FACTOR - 1.0) * np.exp(
-            -(log_radius - np.log10(radius_j)) ** 2 / (2.0 * JUMP_WIDTH_LOG10**2)
+            -((radius_cm - radius_j) ** 2) / (2.0 * width_cm**2)
         )
     return enhancement
 
@@ -105,14 +130,43 @@ def _plot_light_curve_panel(
     jump_rev: np.ndarray,
 ) -> None:
     curves = [no_jump_total, jump_total, jump_fwd, jump_rev]
-    ax.loglog(times_s, _positive_for_log(no_jump_total), color="#666666", lw=1.5, ls="--", label="no-jump total")
-    ax.loglog(times_s, _positive_for_log(jump_total), color="#0072B2", lw=2.0, label="triple-jump total")
-    ax.loglog(times_s, _positive_for_log(jump_fwd), color="#009E73", lw=1.7, ls="-.", label="triple-jump FS")
-    ax.loglog(times_s, _positive_for_log(jump_rev), color="#D55E00", lw=1.7, ls=":", label="triple-jump RS")
+    ax.loglog(times_s, _positive_for_log(no_jump_total), color=PALETTE["baseline"], lw=1.0, ls="--", label="no-jump total")
+    ax.loglog(times_s, _positive_for_log(jump_total), color=PALETTE["total"], lw=1.55, label="triple-jump total")
+    ax.loglog(times_s, _positive_for_log(jump_fwd), color=PALETTE["forward"], lw=1.1, ls="-.", label="triple-jump FS")
+    ax.loglog(times_s, _positive_for_log(jump_rev), color=PALETTE["reverse"], lw=1.1, ls=":", label="triple-jump RS")
     ax.set_ylim(*_ylim(curves))
     ax.set_title(BAND_LABELS[band_index])
-    ax.set_xlabel("Observer time [s]")
-    ax.grid(True, which="both", alpha=0.25, linestyle=":")
+    ax.grid(True, which="major", axis="y", alpha=0.16, linestyle="-", linewidth=0.5)
+    ax.tick_params(axis="both", which="major", length=3.0, width=0.7)
+    for spine in ax.spines.values():
+        spine.set_visible(True)
+        spine.set_linewidth(0.7)
+
+
+def _add_panel_label(ax, label: str, *, x: float = -0.055, y: float = 1.05) -> None:
+    ax.text(x, y, label, transform=ax.transAxes, fontsize=8, fontweight="bold", ha="left", va="bottom")
+
+
+def _save_figure(fig: plt.Figure, output: Path) -> list[Path]:
+    output.parent.mkdir(parents=True, exist_ok=True)
+    stem = output.with_suffix("")
+    paths = [
+        output,
+        stem.with_suffix(".svg"),
+        stem.with_suffix(".pdf"),
+        stem.with_suffix(".tiff"),
+    ]
+    fig.savefig(paths[0], dpi=600, bbox_inches="tight")
+    fig.savefig(paths[1], bbox_inches="tight")
+    _strip_svg_trailing_whitespace(paths[1])
+    fig.savefig(paths[2], bbox_inches="tight")
+    fig.savefig(paths[3], dpi=600, bbox_inches="tight", pil_kwargs={"compression": "tiff_lzw"})
+    return paths
+
+
+def _strip_svg_trailing_whitespace(path: Path) -> None:
+    lines = path.read_text(encoding="utf-8").splitlines()
+    path.write_text("\n".join(line.rstrip() for line in lines) + "\n", encoding="utf-8")
 
 
 def build_plot(*, mode: str, output: Path, times_count: int | None = None) -> Path:
@@ -128,19 +182,41 @@ def build_plot(*, mode: str, output: Path, times_count: int | None = None) -> Pa
     jump_fwd = np.asarray(triple_jump.fwd.sync, dtype=float)
     jump_rev = np.asarray(triple_jump.rev.sync, dtype=float)
 
-    fig = plt.figure(figsize=(12.0, 8.0), dpi=220)
-    grid_spec = fig.add_gridspec(2, 3, height_ratios=(0.8, 2.2), hspace=0.35, wspace=0.28)
-    density_ax = fig.add_subplot(grid_spec[0, :])
+    fig = plt.figure(figsize=(7.2, 7.8), dpi=300)
+    grid_spec = fig.add_gridspec(4, 1, height_ratios=(0.9, 1.25, 1.25, 1.25), hspace=0.50)
+    density_ax = fig.add_subplot(grid_spec[0, 0])
     radius = np.logspace(13.5, 16.5, 800)
-    density_ax.semilogx(radius, _density_enhancement(radius), color="#000000", lw=1.8)
+    enhancement = _density_enhancement(radius)
+    density_ax.fill_between(radius, 1.0, enhancement, color="#D8E6F3", alpha=0.85, linewidth=0.0)
+    density_ax.semilogx(radius, enhancement, color=PALETTE["density"], lw=1.1)
     for radius_j in JUMP_RADII_CM:
-        density_ax.axvline(radius_j, color="#D55E00", lw=1.0, ls=":")
+        density_ax.axvline(radius_j, color=PALETTE["jump"], lw=0.7, ls=":")
+    density_ax.set_yscale("log")
+    density_ax.set_ylim(0.8, 160.0)
+    density_ax.set_yticks([1.0, 10.0, 100.0])
     density_ax.set_ylabel(r"$n/n_0$")
-    density_ax.set_xlabel("Radius [cm]")
-    density_ax.set_title("Triple ISM density jumps: factor 1000, width 0.01 dex")
-    density_ax.grid(True, which="both", alpha=0.25, linestyle=":")
+    density_ax.set_xlabel("Radius [cm]", labelpad=4.0)
+    density_ax.set_title("Ambient density structure")
+    density_ax.grid(True, which="major", axis="y", alpha=0.16, linestyle="-", linewidth=0.5)
+    density_ax.tick_params(axis="both", which="major", length=3.0, width=0.7)
+    for spine in density_ax.spines.values():
+        spine.set_visible(True)
+        spine.set_linewidth(0.7)
+    _add_panel_label(density_ax, "a", x=-0.06, y=1.08)
 
-    axes = [fig.add_subplot(grid_spec[1, i]) for i in range(BANDS_HZ.size)]
+    density_ax.text(
+        0.985,
+        0.92,
+        r"$\Gamma_0=100,\ \sigma=0.1$" "\n"
+        r"$f_{\rm jump}=100,\ \sigma_R/R_{\rm jump}=0.1$",
+        transform=density_ax.transAxes,
+        fontsize=6.6,
+        ha="right",
+        va="top",
+        linespacing=1.35,
+    )
+
+    axes = [fig.add_subplot(grid_spec[i + 1, 0]) for i in range(BANDS_HZ.size)]
     for i_band, ax in enumerate(axes):
         _plot_light_curve_panel(
             ax,
@@ -151,11 +227,18 @@ def build_plot(*, mode: str, output: Path, times_count: int | None = None) -> Pa
             jump_fwd=jump_fwd[i_band],
             jump_rev=jump_rev[i_band],
         )
+        _add_panel_label(ax, chr(ord("b") + i_band))
+        if i_band < BANDS_HZ.size - 1:
+            ax.tick_params(axis="x", labelbottom=False)
+        else:
+            ax.set_xlabel("Observer time [s]")
     axes[0].set_ylabel(r"Flux density [erg cm$^{-2}$ s$^{-1}$ Hz$^{-1}$]")
-    axes[-1].legend(fontsize=7.0, loc="best", frameon=False)
-    fig.suptitle("ASGARD RS+FS top-hat light curves with three density jumps", y=0.98)
-    output.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(output, bbox_inches="tight")
+    handles, labels = axes[-1].get_legend_handles_labels()
+    legend = fig.legend(handles, labels, fontsize=6.4, loc="upper center", ncol=4, frameon=False, handlelength=2.5, bbox_to_anchor=(0.5, 0.998))
+    for line in legend.get_lines():
+        line.set_linewidth(1.6)
+    fig.subplots_adjust(top=0.93, bottom=0.075, left=0.12, right=0.985)
+    paths = _save_figure(fig, output)
     plt.close(fig)
 
     for i_band, nu_hz in enumerate(BANDS_HZ):
@@ -164,7 +247,8 @@ def build_plot(*, mode: str, output: Path, times_count: int | None = None) -> Pa
             f"band={nu_hz:.3e}Hz peak_time={times[peak_index]:.3e}s "
             f"peak_total={jump_total[i_band, peak_index]:.3e}"
         )
-    print(f"wrote {output}")
+    for path in paths:
+        print(f"wrote {path}")
     return output
 
 

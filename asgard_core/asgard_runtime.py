@@ -2236,8 +2236,7 @@ def _compute_secondary_reverse_shock_synchrotron(
     gamma_m_shell = np.zeros(num_r, dtype=float)
     dissipated_energy = np.zeros(num_r, dtype=float)
     electron_injected_energy = np.zeros(num_r, dtype=float)
-    log_radius = np.log10(radius)
-    active_weight = _secondary_reverse_active_weight(log_radius, jump_r, jump_factor, jump_width)
+    active_weight = _secondary_reverse_active_weight(radius, jump_r, jump_factor, jump_width)
     if not np.any(active_weight > 0.0):
         return None
     if reverse_params.p <= 2.0:
@@ -2259,6 +2258,8 @@ def _compute_secondary_reverse_shock_synchrotron(
         e4 = 4.0 * gamma4 * (gamma4 - 1.0) * n_pre * constants.para_m_p * constants.para_c**2
         p4 = e4 / 3.0
         gamma_c, p3, gamma_rel, comp = _solve_secondary_reverse_contact(gamma4, n1, n4, e4, p4)
+        if comp <= 0.0:
+            continue
         n3 = comp * n4
         e3 = 3.0 * p3
         e_ad = e4 * comp ** (4.0 / 3.0)
@@ -2353,17 +2354,17 @@ def _compute_secondary_reverse_shock_synchrotron(
 
 
 def _secondary_reverse_active_weight(
-    log_radius: np.ndarray,
+    radius: np.ndarray,
     jump_r: np.ndarray,
     jump_factor: np.ndarray,
     jump_width: np.ndarray,
 ) -> np.ndarray:
-    weight = np.zeros_like(log_radius, dtype=float)
+    weight = np.zeros_like(radius, dtype=float)
     for radius_j, factor_j, width_j in zip(jump_r, jump_factor, jump_width):
-        center = np.log10(radius_j)
-        x = log_radius - center
+        x = radius - radius_j
         rising = x < 0.0
-        local = (factor_j - 1.0) * np.exp(-(x * x) / (2.0 * width_j * width_j))
+        width_cm = width_j * radius_j
+        local = (factor_j - 1.0) * np.exp(-(x * x) / (2.0 * width_cm * width_cm))
         weight = weight + np.where(rising, local, 0.0)
     return weight
 
