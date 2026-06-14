@@ -381,6 +381,240 @@ subroutine electron_secondary_reverse_branch_synchrotron(e_r,b_r,p_r,f_e_r,z,R_T
     deallocate(gam_e_branch,dN_branch,seed_dummy,nu_a_dummy)
 end subroutine electron_secondary_reverse_branch_synchrotron
 
+subroutine electron_secondary_reverse_branch_reaccelerated(e_r,b_r,p_r,f_e_r,z,R_Tobs,R_Gamma,R,B3_branch, &
+                                                           M3_branch,U3_branch,V3_branch,Gam_m_branch,Gamma43_branch, &
+                                                           Comp_branch,Parent_branch,V_seed,Num_jump,Num_nu,Num_R,Num_gam_e, &
+                                                           index_syn_intger,n_threads,gam_e,dN_total,Branch_L_syn_spec, &
+                                                           L_syn_spec,Branch_seed_energy,Branch_reaccel_energy)
+    implicit none
+    integer, intent(in) :: Num_jump,Num_nu,Num_R,Num_gam_e,index_syn_intger,n_threads
+    integer, intent(in) :: Parent_branch(Num_jump)
+    integer :: I_tobs,I_jump,I_gam_e,L1,L,parent
+    real(8), intent(in) :: e_r,b_r,p_r,f_e_r,z
+    real(8), intent(in) :: R_Tobs(Num_R),R_Gamma(Num_R),R(Num_R),V_seed(Num_nu)
+    real(8), intent(in) :: B3_branch(Num_jump,Num_R),M3_branch(Num_jump,Num_R),U3_branch(Num_jump,Num_R)
+    real(8), intent(in) :: V3_branch(Num_jump,Num_R),Gam_m_branch(Num_jump,Num_R),Gamma43_branch(Num_jump,Num_R)
+    real(8), intent(in) :: Comp_branch(Num_jump,Num_R)
+    real(8), intent(out) :: gam_e(Num_gam_e),dN_total(Num_gam_e,Num_R)
+    real(8), intent(out) :: Branch_L_syn_spec(Num_jump,Num_nu,Num_R),L_syn_spec(Num_nu,Num_R)
+    real(8), intent(out) :: Branch_seed_energy(Num_jump,Num_R),Branch_reaccel_energy(Num_jump,Num_R)
+    real(8), parameter :: secondary_adv_coeff=1.35d-19
+    real(8) :: dB,Gam_e_max,Gam_e_m,Gam_e_max_max,Gam_e_min_global,d_x,R_loc,R_Gamma_loc,beta2
+    real(8) :: f_r,dDR,dDD,injection_rate,mass_lo,mass_hi,mass_delta,fresh_mass,adiabatic_rate
+    real(8) :: parent_mass,transfer_mass,transfer_fraction,boost_factor,seed_energy,out_energy
+    logical :: dissipative_shell
+    real(8), allocatable :: dEl(:),x(:),dF1(:),temp3(:),x_edge(:),dN_x(:,:),dN_work(:,:)
+    real(8), allocatable :: dN_seed(:),dN_boost(:),dN_reaccel(:),dN_gamma_branch(:,:,:),seed_dummy(:,:),nu_a_dummy(:)
+    real(8), allocatable :: branch_mass_available(:),fresh_mass_branch(:)
+
+    allocate(dEl(Num_gam_e),x(Num_gam_e),dF1(Num_gam_e),temp3(Num_gam_e-1),x_edge(Num_gam_e+1), &
+             dN_x(Num_jump,Num_gam_e),dN_work(Num_jump,Num_gam_e),dN_seed(Num_gam_e),dN_boost(Num_gam_e), &
+             dN_reaccel(Num_gam_e),dN_gamma_branch(Num_jump,Num_gam_e,Num_R),seed_dummy(Num_nu,Num_R), &
+             nu_a_dummy(Num_R),branch_mass_available(Num_jump),fresh_mass_branch(Num_jump))
+
+    call build_secondary_reaccel_gamma_grid()
+    call electron_profile_log_cell_edges(Num_gam_e,gam_e,x_edge)
+    d_x=dlog10(gam_e(2)/gam_e(1))
+    dN_gamma_branch=zero; dN_total=zero; dN_x=zero; branch_mass_available=zero
+    fresh_mass_branch=zero
+    Branch_L_syn_spec=zero; L_syn_spec=zero; Branch_seed_energy=zero; Branch_reaccel_energy=zero
+
+    do I_tobs=2,Num_R
+        dN_work=dN_gamma_branch(:,:,I_tobs-1)*spread(gam_e*dlog(ten),1,Num_jump)
+        call transfer_reaccelerated_parent_electrons(I_tobs)
+        do I_jump=1,Num_jump
+            call advance_reaccelerated_branch_shell(I_tobs,I_jump)
+        end do
+    end do
+    do I_jump=1,Num_jump
+        dN_total=dN_total+dN_gamma_branch(I_jump,:,:)
+        if (.not. any(dN_gamma_branch(I_jump,:,:) > zero)) cycle
+        call electron_secondary_reverse_synchrotron(index_syn_intger,Num_nu,Num_R,Num_gam_e,n_threads,R,R_Gamma, &
+                                                    B3_branch(I_jump,:),gam_e,dN_gamma_branch(I_jump,:,:),V_seed,z, &
+                                                    Branch_L_syn_spec(I_jump,:,:),seed_dummy,nu_a_dummy)
+        L_syn_spec=L_syn_spec+Branch_L_syn_spec(I_jump,:,:)
+    end do
+    deallocate(dEl,x,dF1,temp3,x_edge,dN_x,dN_work,dN_seed,dN_boost,dN_reaccel,dN_gamma_branch, &
+               seed_dummy,nu_a_dummy,branch_mass_available,fresh_mass_branch)
+
+contains
+
+    subroutine build_secondary_reaccel_gamma_grid()
+    implicit none
+
+        Gam_e_min_global=one
+        Gam_e_max_max=zero
+        do I_tobs=2,Num_R
+            do I_jump=1,Num_jump
+                dB=(B3_branch(I_jump,I_tobs)+B3_branch(I_jump,I_tobs-1))/two
+                if (dB > zero .and. Gam_m_branch(I_jump,I_tobs) > one) then
+                    Gam_e_max=3d0*Para_m_energy/dsqrt(8d0*dB*Para_e**3)
+                    Gam_e_max_max=max(Gam_e_max_max,Gam_e_max)
+                end if
+            end do
+        end do
+        if (Gam_e_max_max <= Gam_e_min_global) &
+            error stop "electron_secondary_reverse_branch_reaccelerated: empty electron grid."
+        do I_gam_e=1,Num_gam_e
+            if (Num_gam_e == 1) then
+                gam_e(I_gam_e)=Gam_e_min_global
+            else
+                gam_e(I_gam_e)=Gam_e_min_global*ten**(dlog10(Gam_e_max_max/Gam_e_min_global)*(I_gam_e-1)/(Num_gam_e-1))
+            end if
+        end do
+    end subroutine build_secondary_reaccel_gamma_grid
+
+    subroutine transfer_reaccelerated_parent_electrons(i_shell)
+    implicit none
+    integer, intent(in) :: i_shell
+
+        fresh_mass_branch=zero
+        do I_jump=1,Num_jump
+            mass_delta=M3_branch(I_jump,i_shell)-M3_branch(I_jump,i_shell-1)
+            if (mass_delta < zero) error stop "electron_secondary_reverse_branch_reaccelerated: branch mass decreased."
+            dissipative_shell=Gam_m_branch(I_jump,i_shell) > one .and. Gamma43_branch(I_jump,i_shell) > one
+            fresh_mass=zero
+            if (dissipative_shell) fresh_mass=mass_delta
+            if (Parent_branch(I_jump) > 0 .and. dissipative_shell .and. mass_delta > zero) then
+                parent=Parent_branch(I_jump)
+                parent_mass=branch_mass_available(parent)
+                if (parent_mass > zero) then
+                    transfer_mass=min(mass_delta,parent_mass)
+                    transfer_fraction=transfer_mass/parent_mass
+                    dN_seed=dN_work(parent,:)*transfer_fraction
+                    dN_work(parent,:)=dN_work(parent,:)-dN_seed
+                    boost_factor=Gamma43_branch(I_jump,i_shell)
+                    if (Comp_branch(I_jump,i_shell) > one) boost_factor=boost_factor*Comp_branch(I_jump,i_shell)**(one/3d0)
+                    call boost_log_distribution(boost_factor,dN_seed,dN_boost)
+                    call dsa_reaccelerate_distribution(p_r,dN_boost,dN_reaccel)
+                    seed_energy=distribution_energy_from_log(dN_seed)
+                    out_energy=distribution_energy_from_log(dN_reaccel)
+                    Branch_seed_energy(I_jump,i_shell)=Branch_seed_energy(I_jump,i_shell)+seed_energy
+                    Branch_reaccel_energy(I_jump,i_shell)=Branch_reaccel_energy(I_jump,i_shell)+out_energy
+                    dN_work(I_jump,:)=dN_work(I_jump,:)+dN_reaccel
+                    branch_mass_available(parent)=branch_mass_available(parent)-transfer_mass
+                    branch_mass_available(I_jump)=branch_mass_available(I_jump)+transfer_mass
+                    fresh_mass=mass_delta-transfer_mass
+                end if
+            end if
+            fresh_mass_branch(I_jump)=fresh_mass
+            branch_mass_available(I_jump)=branch_mass_available(I_jump)+fresh_mass
+            dN_x(I_jump,:)=dN_work(I_jump,:)
+        end do
+    end subroutine transfer_reaccelerated_parent_electrons
+
+    subroutine advance_reaccelerated_branch_shell(i_shell,jump_index)
+    implicit none
+    integer, intent(in) :: i_shell,jump_index
+
+        if (M3_branch(jump_index,i_shell) <= zero .and. M3_branch(jump_index,i_shell-1) <= zero) then
+            dN_gamma_branch(jump_index,:,i_shell)=dN_x(jump_index,:)/gam_e/dlog(ten)
+            return
+        end if
+        call prepare_branch_shell(i_shell,jump_index)
+        call compute_branch_injection(i_shell,jump_index)
+        do L=1,L1
+            R_loc=R_loc+dDR
+            if (injection_rate > zero) then
+                call reverse_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m,Gam_e_max,injection_rate,p_r,dF1)
+            else
+                dF1=zero
+            end if
+            temp3=((dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/two+adiabatic_rate)/dlog(ten)
+            call electron_fullhide_flux_split_step(Num_gam_e,dDR,d_x,temp3,dF1,dN_x(jump_index,:),x,.true.)
+            dN_x(jump_index,:)=x
+        end do
+        dN_gamma_branch(jump_index,:,i_shell)=dN_x(jump_index,:)/gam_e/dlog(ten)
+    end subroutine advance_reaccelerated_branch_shell
+
+    subroutine prepare_branch_shell(i_shell,jump_index)
+    implicit none
+    integer, intent(in) :: i_shell,jump_index
+
+        R_loc=R(i_shell-1)
+        R_Gamma_loc=(R_Gamma(i_shell)+R_Gamma(i_shell-1))/two
+        beta2=dsqrt(one-one/R_Gamma_loc**2)
+        dB=(B3_branch(jump_index,i_shell)+B3_branch(jump_index,i_shell-1))/two
+        if (dB <= zero) error stop "electron_secondary_reverse_branch_reaccelerated: active branch requires B3 > 0."
+        if (Gam_m_branch(jump_index,i_shell-1) > one) then
+            Gam_e_m=(Gam_m_branch(jump_index,i_shell)+Gam_m_branch(jump_index,i_shell-1))/two
+        else
+            Gam_e_m=Gam_m_branch(jump_index,i_shell)
+        end if
+        Gam_e_max=3d0*Para_m_energy/dsqrt(8d0*dB*Para_e**3)
+        f_r=secondary_adv_coeff/beta2/R_Gamma_loc*dB**2/pi
+        dDD=R(i_shell)-R(i_shell-1)
+        dDR=0.7d0/(f_r*Gam_e_max+one/R(i_shell-1))
+        L1=max(100,min(1000,int(dDD/dDR)))
+        dDR=dDD/L1
+        dEl=f_r*gam_e
+        if (V3_branch(jump_index,i_shell) <= zero .or. V3_branch(jump_index,i_shell-1) <= zero) then
+            adiabatic_rate=zero
+        else
+            adiabatic_rate=dlog(V3_branch(jump_index,i_shell)/V3_branch(jump_index,i_shell-1))/(3d0*dDD)
+        end if
+    end subroutine prepare_branch_shell
+
+    subroutine compute_branch_injection(i_shell,jump_index)
+    implicit none
+    integer, intent(in) :: i_shell,jump_index
+
+        mass_lo=M3_branch(jump_index,i_shell-1)
+        mass_hi=M3_branch(jump_index,i_shell)
+        if (mass_hi < mass_lo) error stop "electron_secondary_reverse_branch_reaccelerated: swept mass must not decrease."
+        injection_rate=f_e_r*fresh_mass_branch(jump_index)/(Para_m_p*dDD)
+    end subroutine compute_branch_injection
+
+    subroutine boost_log_distribution(boost,dN_in,dN_out)
+    implicit none
+    real(8), intent(in) :: boost,dN_in(Num_gam_e)
+    real(8), intent(out) :: dN_out(Num_gam_e)
+    integer :: i_src,i_hi
+    real(8) :: x_src,pos,frac
+
+        if (boost <= one) error stop "electron_secondary_reverse_branch_reaccelerated: boost must exceed unity."
+        dN_out=zero
+        do I_gam_e=1,Num_gam_e
+            x_src=dlog10(gam_e(I_gam_e)/boost)
+            if (x_src < dlog10(gam_e(1)) .or. x_src > dlog10(gam_e(Num_gam_e))) cycle
+            pos=(x_src-dlog10(gam_e(1)))/d_x+one
+            i_src=int(pos)
+            if (i_src < 1) cycle
+            if (i_src >= Num_gam_e) then
+                dN_out(I_gam_e)=dN_in(Num_gam_e)
+            else
+                i_hi=i_src+1
+                frac=pos-dble(i_src)
+                dN_out(I_gam_e)=(one-frac)*dN_in(i_src)+frac*dN_in(i_hi)
+            end if
+        end do
+    end subroutine boost_log_distribution
+
+    subroutine dsa_reaccelerate_distribution(p,dN_seed_log,dN_out_log)
+    implicit none
+    real(8), intent(in) :: p,dN_seed_log(Num_gam_e)
+    real(8), intent(out) :: dN_out_log(Num_gam_e)
+    integer :: i
+    real(8) :: integral,dN_dgamma
+
+        if (p <= two) error stop "electron_secondary_reverse_branch_reaccelerated: DSA requires p > 2."
+        integral=zero
+        dN_out_log=zero
+        do i=1,Num_gam_e
+            dN_dgamma=dN_seed_log(i)/(gam_e(i)*dlog(ten))
+            integral=integral+dN_dgamma*gam_e(i)**(p-one)*(gam_e(i)*dlog(ten)*d_x)
+            dN_out_log(i)=(p-one)*gam_e(i)**(-p)*integral*gam_e(i)*dlog(ten)
+        end do
+    end subroutine dsa_reaccelerate_distribution
+
+    real(8) function distribution_energy_from_log(dN_log)
+    implicit none
+    real(8), intent(in) :: dN_log(Num_gam_e)
+
+        distribution_energy_from_log=sum((gam_e-one)*Para_m_e*Para_c**2*dN_log)*d_x
+    end function distribution_energy_from_log
+end subroutine electron_secondary_reverse_branch_reaccelerated
+
 subroutine reverse_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m,Gam_e_max,injection_rate,p,dF1)
     implicit none
     integer, intent(in) :: Num_gam_e

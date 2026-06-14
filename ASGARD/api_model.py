@@ -574,6 +574,13 @@ class CharTrack:
     secondary_rs_gamma_e: Optional[np.ndarray] = None
     secondary_rs_dN_dgamma_e: Optional[np.ndarray] = None
     secondary_rs_branch_gamma_m: Optional[np.ndarray] = None
+    secondary_rs_branch_gamma_contact: Optional[np.ndarray] = None
+    secondary_rs_branch_gamma_43: Optional[np.ndarray] = None
+    secondary_rs_branch_compression: Optional[np.ndarray] = None
+    secondary_rs_branch_beta_rs: Optional[np.ndarray] = None
+    secondary_rs_branch_u_diss: Optional[np.ndarray] = None
+    secondary_rs_branch_reacceleration_seed_energy_erg: Optional[np.ndarray] = None
+    secondary_rs_branch_reaccelerated_energy_erg: Optional[np.ndarray] = None
     secondary_rs_branch_luminosity_syn: Optional[np.ndarray] = None
     secondary_rs_nu_m: Optional[np.ndarray] = None
     secondary_rs_nu_c: Optional[np.ndarray] = None
@@ -1583,6 +1590,19 @@ def _make_details(
             secondary_rs_gamma_e=None if secondary_rs is None else secondary_rs.gam_e,
             secondary_rs_dN_dgamma_e=None if secondary_rs is None else secondary_rs.d_n_gam_e,
             secondary_rs_branch_gamma_m=None if secondary_rs is None else secondary_rs.branch_gamma_m,
+            secondary_rs_branch_gamma_contact=None if secondary_rs is None else secondary_rs.branch_gamma_contact,
+            secondary_rs_branch_gamma_43=None if secondary_rs is None else secondary_rs.branch_gamma_43,
+            secondary_rs_branch_compression=None if secondary_rs is None else secondary_rs.branch_compression,
+            secondary_rs_branch_beta_rs=None if secondary_rs is None else secondary_rs.branch_beta_rs,
+            secondary_rs_branch_u_diss=(
+                None if secondary_rs is None else secondary_rs.branch_dissipated_energy_density
+            ),
+            secondary_rs_branch_reacceleration_seed_energy_erg=(
+                None if secondary_rs is None else secondary_rs.branch_reacceleration_seed_energy_erg
+            ),
+            secondary_rs_branch_reaccelerated_energy_erg=(
+                None if secondary_rs is None else secondary_rs.branch_reaccelerated_energy_erg
+            ),
             secondary_rs_branch_luminosity_syn=None if secondary_rs is None else secondary_rs.branch_luminosity_syn,
             secondary_rs_nu_m=None if secondary_rs is None else secondary_rs.nu_m,
             secondary_rs_nu_c=None if secondary_rs is None else secondary_rs.nu_c,

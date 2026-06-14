@@ -6,7 +6,9 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
                             Secondary_pressure_total,Secondary_enthalpy_density_total, &
                             Secondary_gamma_contact,Secondary_pressure_3,Secondary_gamma_43,Secondary_beta_rs, &
                             Secondary_u_diss,Secondary_dissipated_energy,Secondary_electron_injected_energy, &
-                            Secondary_branch_gamma_m,Secondary_nu_m,Secondary_nu_c, &
+                            Secondary_branch_gamma_m,Secondary_branch_gamma_contact,Secondary_branch_gamma_43, &
+                            Secondary_branch_compression,Secondary_branch_beta_rs,Secondary_branch_u_diss, &
+                            Secondary_nu_m,Secondary_nu_c, &
                             Secondary_event_active,Secondary_start_radius,Secondary_end_radius, &
                             Secondary_start_tobs_axis,Secondary_end_tobs_axis)
     !$ use omp_lib
@@ -34,6 +36,10 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
     real(8), intent(out) :: Secondary_gamma_contact(Num_R),Secondary_pressure_3(Num_R),Secondary_gamma_43(Num_R)
     real(8), intent(out) :: Secondary_beta_rs(Num_R),Secondary_u_diss(Num_R),Secondary_dissipated_energy(Num_R)
     real(8), intent(out) :: Secondary_electron_injected_energy(Num_R),Secondary_branch_gamma_m(density_jump_max,Num_R)
+    real(8), intent(out) :: Secondary_branch_gamma_contact(density_jump_max,Num_R)
+    real(8), intent(out) :: Secondary_branch_gamma_43(density_jump_max,Num_R)
+    real(8), intent(out) :: Secondary_branch_compression(density_jump_max,Num_R),Secondary_branch_beta_rs(density_jump_max,Num_R)
+    real(8), intent(out) :: Secondary_branch_u_diss(density_jump_max,Num_R)
     real(8), intent(out) :: Secondary_nu_m(Num_R),Secondary_nu_c(Num_R)
     logical, intent(out) :: Secondary_event_active(density_jump_max)
     real(8), intent(out) :: Secondary_start_radius(density_jump_max),Secondary_end_radius(density_jump_max)
@@ -46,7 +52,7 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
     real(8) :: event_prev_radius,event_prev_gamma,event_prev_tobs,event_curr_radius,event_curr_gamma,event_curr_tobs
     real(8) :: event_prev_source(density_jump_max),event_curr_source(density_jump_max)
     real(8) :: secondary_dissipated_prev(density_jump_max),secondary_gammam_prev(density_jump_max)
-    real(8),allocatable :: Y(:)
+    real(8),allocatable :: Y(:),event_prev_state(:),event_curr_state(:)
     logical :: Secondary_event_closed(density_jump_max)
 
     Eta_0=Boundary(1); R(1)=Boundary(4); Epsilon_e=Boundary(5); Epsilon_b=Boundary(6); p_f=Boundary(7); z=Boundary(8)
@@ -55,7 +61,7 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
     call dynamics_boundary_r0(Boundary,n,R0)
     call dynamics_set_density_jump_profile(Boundary,n)
     Num_state=6+5*active_density_jump_count
-    allocate(Y(Num_state))
+    allocate(Y(Num_state),event_prev_state(Num_state),event_curr_state(Num_state))
     Y=zero
     Delta_0=Delta_t*para_c; para_m_ej=E_iso/eta_0/para_c**2
 
@@ -83,7 +89,9 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
     Secondary_pressure_total=zero; Secondary_enthalpy_density_total=zero
     Secondary_gamma_contact=zero; Secondary_pressure_3=zero; Secondary_gamma_43=one; Secondary_beta_rs=zero
     Secondary_u_diss=zero; Secondary_dissipated_energy=zero; Secondary_electron_injected_energy=zero
-    Secondary_branch_gamma_m=zero; Secondary_nu_m=zero; Secondary_nu_c=zero
+    Secondary_branch_gamma_m=zero; Secondary_branch_gamma_contact=zero; Secondary_branch_gamma_43=one
+    Secondary_branch_compression=one
+    Secondary_branch_beta_rs=zero; Secondary_branch_u_diss=zero; Secondary_nu_m=zero; Secondary_nu_c=zero
     secondary_dissipated_prev=zero; secondary_gammam_prev=zero
     Secondary_event_active=.false.; Secondary_event_closed=.false.
     Secondary_start_radius=zero; Secondary_end_radius=zero
@@ -96,7 +104,8 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
     T_log10=T_log10_duration-Grid_Tobs_bin; Num_R1=Num_R-1
     T_state=T00
     event_prev_radius=Y(2); event_prev_gamma=Y(1); event_prev_tobs=T00*(one+z)
-    call secondary_reverse_event_sources(event_prev_radius,event_prev_gamma,event_prev_source)
+    event_prev_state=Y
+    call secondary_reverse_event_sources(event_prev_radius,event_prev_gamma,event_prev_state,event_prev_source)
 
     do I_tobs=1,Num_R
         call dynamics_log_time_step(T00,Grid_Tobs_bin,T_log10,Num_R1,I_tobs,T_target,H)
@@ -119,10 +128,12 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
         end do
         R_Tobs(I_tobs)=T_target*(one+z); R_Gamma(I_tobs)=Y(1); R(I_tobs)=Y(2); M2(I_tobs)=Y(3)
         event_curr_radius=Y(2); event_curr_gamma=Y(1); event_curr_tobs=R_Tobs(I_tobs)
-        call secondary_reverse_event_sources(event_curr_radius,event_curr_gamma,event_curr_source)
+        event_curr_state=Y
+        call secondary_reverse_event_sources(event_curr_radius,event_curr_gamma,event_curr_state,event_curr_source)
         call update_secondary_reverse_events()
         event_prev_radius=event_curr_radius; event_prev_gamma=event_curr_gamma
         event_prev_tobs=event_curr_tobs; event_prev_source=event_curr_source
+        event_prev_state=event_curr_state
         M3(I_tobs)=Y(4)*para_m_ej; U3_th(I_tobs)=Y(5)*para_m_ej*para_c**2
         V3_comoving(I_tobs)=Y(6)*V3_scale; B3(I_tobs)=dB3
         call store_secondary_branch_state(I_tobs)
@@ -130,7 +141,7 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
     end do
 
     call close_open_secondary_reverse_events()
-    deallocate(Y)
+    deallocate(Y,event_prev_state,event_curr_state)
 
 contains
 
@@ -140,6 +151,7 @@ contains
     integer :: j,k,n_scan
     real(8) :: radius_lo,radius_hi,gamma_lo,gamma_hi,tobs_lo,tobs_hi,source_lo,source_hi
     real(8) :: width,overlap_lo,overlap_hi,scan_length
+    real(8) :: state_lo(Num_state),state_hi(Num_state),frac_scan
 
         do j=1,active_density_jump_count
             width=active_density_jump_width(j)*active_density_jump_r(j)
@@ -149,22 +161,27 @@ contains
             n_scan=max(1,ceiling(scan_length/(width/16d0)))
             radius_lo=event_prev_radius; gamma_lo=event_prev_gamma
             tobs_lo=event_prev_tobs; source_lo=event_prev_source(j)
+            state_lo=event_prev_state
             do k=1,n_scan
-                radius_hi=event_prev_radius+(event_curr_radius-event_prev_radius)*dble(k)/dble(n_scan)
-                gamma_hi=event_prev_gamma+(event_curr_gamma-event_prev_gamma)*dble(k)/dble(n_scan)
-                tobs_hi=event_prev_tobs+(event_curr_tobs-event_prev_tobs)*dble(k)/dble(n_scan)
-                call secondary_reverse_event_source(j,radius_hi,gamma_hi,source_hi)
+                frac_scan=dble(k)/dble(n_scan)
+                radius_hi=event_prev_radius+(event_curr_radius-event_prev_radius)*frac_scan
+                gamma_hi=event_prev_gamma+(event_curr_gamma-event_prev_gamma)*frac_scan
+                tobs_hi=event_prev_tobs+(event_curr_tobs-event_prev_tobs)*frac_scan
+                state_hi=event_prev_state+frac_scan*(event_curr_state-event_prev_state)
+                call secondary_reverse_event_source(j,radius_hi,gamma_hi,state_hi,source_hi)
                 call record_secondary_reverse_event_segment(j,radius_lo,radius_hi,gamma_lo,gamma_hi,tobs_lo,tobs_hi, &
-                                                            source_lo,source_hi)
-                radius_lo=radius_hi; gamma_lo=gamma_hi; tobs_lo=tobs_hi; source_lo=source_hi
+                                                            state_lo,state_hi,source_lo,source_hi)
+                radius_lo=radius_hi; gamma_lo=gamma_hi; tobs_lo=tobs_hi; source_lo=source_hi; state_lo=state_hi
             end do
         end do
     end subroutine update_secondary_reverse_events
 
-    subroutine record_secondary_reverse_event_segment(j,radius_lo,radius_hi,gamma_lo,gamma_hi,tobs_lo,tobs_hi,source_lo,source_hi)
+    subroutine record_secondary_reverse_event_segment(j,radius_lo,radius_hi,gamma_lo,gamma_hi,tobs_lo,tobs_hi, &
+                                                      state_lo,state_hi,source_lo,source_hi)
     implicit none
     integer, intent(in) :: j
     real(8), intent(in) :: radius_lo,radius_hi,gamma_lo,gamma_hi,tobs_lo,tobs_hi,source_lo,source_hi
+    real(8), intent(in) :: state_lo(Num_state),state_hi(Num_state)
     real(8) :: root_radius,root_tobs
 
         if (.not. Secondary_event_active(j)) then
@@ -174,7 +191,7 @@ contains
                 Secondary_start_tobs_axis(j)=tobs_lo
             else if (source_lo <= zero .and. source_hi > zero) then
                 call secondary_reverse_event_root_between(j,radius_lo,radius_hi,gamma_lo,gamma_hi, &
-                                                          tobs_lo,tobs_hi,root_radius,root_tobs)
+                                                          tobs_lo,tobs_hi,state_lo,state_hi,root_radius,root_tobs)
                 Secondary_event_active(j)=.true.
                 Secondary_start_radius(j)=root_radius
                 Secondary_start_tobs_axis(j)=root_tobs
@@ -183,7 +200,7 @@ contains
         if (Secondary_event_active(j) .and. .not. Secondary_event_closed(j)) then
             if (source_lo > zero .and. source_hi <= zero) then
                 call secondary_reverse_event_root_between(j,radius_lo,radius_hi,gamma_lo,gamma_hi, &
-                                                          tobs_lo,tobs_hi,root_radius,root_tobs)
+                                                          tobs_lo,tobs_hi,state_lo,state_hi,root_radius,root_tobs)
                 Secondary_event_closed(j)=.true.
                 if (root_radius >= active_density_jump_r(j)) root_radius=nearest(active_density_jump_r(j),-one)
                 Secondary_end_radius(j)=root_radius
@@ -192,24 +209,28 @@ contains
         end if
     end subroutine record_secondary_reverse_event_segment
 
-    subroutine secondary_reverse_event_root_between(jump_index,r_lo_in,r_hi_in,g_lo_in,g_hi_in,t_lo_in,t_hi_in,root_r,root_t)
+    subroutine secondary_reverse_event_root_between(jump_index,r_lo_in,r_hi_in,g_lo_in,g_hi_in,t_lo_in,t_hi_in, &
+                                                    state_lo_in,state_hi_in,root_r,root_t)
     implicit none
     integer, intent(in) :: jump_index
     integer :: iter
     real(8), intent(in) :: r_lo_in,r_hi_in,g_lo_in,g_hi_in,t_lo_in,t_hi_in
+    real(8), intent(in) :: state_lo_in(Num_state),state_hi_in(Num_state)
     real(8), intent(out) :: root_r,root_t
     real(8) :: r_lo,r_hi,r_mid,gamma_lo,gamma_hi,gamma_mid,t_lo,t_hi,t_mid,source_lo,source_mid,frac
+    real(8) :: state_mid(Num_state)
 
         r_lo=r_lo_in; r_hi=r_hi_in
         gamma_lo=g_lo_in; gamma_hi=g_hi_in
         t_lo=t_lo_in; t_hi=t_hi_in
-        call secondary_reverse_event_source(jump_index,r_lo,gamma_lo,source_lo)
+        call secondary_reverse_event_source(jump_index,r_lo,gamma_lo,state_lo_in,source_lo)
         do iter=1,80
             r_mid=0.5d0*(r_lo+r_hi)
             frac=(r_mid-r_lo_in)/(r_hi_in-r_lo_in)
             gamma_mid=g_lo_in+frac*(g_hi_in-g_lo_in)
             t_mid=t_lo_in+frac*(t_hi_in-t_lo_in)
-            call secondary_reverse_event_source(jump_index,r_mid,gamma_mid,source_mid)
+            state_mid=state_lo_in+frac*(state_hi_in-state_lo_in)
+            call secondary_reverse_event_source(jump_index,r_mid,gamma_mid,state_mid,source_mid)
             if (source_lo*source_mid <= zero) then
                 r_hi=r_mid; gamma_hi=gamma_mid; t_hi=t_mid
             else
@@ -233,23 +254,25 @@ contains
         end do
     end subroutine close_open_secondary_reverse_events
 
-    subroutine secondary_reverse_event_sources(radius,gamma_bulk,sources)
+    subroutine secondary_reverse_event_sources(radius,gamma_bulk,state,sources)
     implicit none
     integer :: j
     real(8), intent(in) :: radius,gamma_bulk
+    real(8), intent(in) :: state(Num_state)
     real(8), intent(out) :: sources(density_jump_max)
 
         sources=-one
         do j=1,active_density_jump_count
-            call secondary_reverse_event_source(j,radius,gamma_bulk,sources(j))
+            call secondary_reverse_event_source(j,radius,gamma_bulk,state,sources(j))
         end do
     end subroutine secondary_reverse_event_sources
 
-    subroutine secondary_reverse_event_source(jump_index,radius,gamma_bulk,source)
+    subroutine secondary_reverse_event_source(jump_index,radius,gamma_bulk,state,source)
     implicit none
     integer, intent(in) :: jump_index
-    integer :: k
+    integer :: k,parent_m_idx,parent_u_idx,parent_v_idx
     real(8), intent(in) :: radius,gamma_bulk
+    real(8), intent(in) :: state(Num_state)
     real(8), intent(out) :: source
     real(8) :: density_factor,branch_weight,x,width,profile,n1,n_excess,n_pre,n4,e4,p4,p3,e3_sec,e_ad
     real(8) :: gamma_c_j,gamma43_j,comp,beta_s
@@ -273,6 +296,16 @@ contains
         n4=4d0*gamma_bulk*n_pre
         e4=4d0*gamma_bulk*(gamma_bulk-one)*n_pre*Para_m_p*Para_c**2
         p4=e4/3d0
+        if (jump_index > 1) then
+            parent_m_idx=6+jump_index-1
+            parent_u_idx=6+active_density_jump_count+jump_index-1
+            parent_v_idx=6+2*active_density_jump_count+jump_index-1
+            if (secondary_parent_upstream_available(jump_index,state(parent_m_idx),state(parent_u_idx),state(parent_v_idx))) then
+                n4=state(parent_m_idx)*para_m_ej/(Para_m_p*state(parent_v_idx)*V3_scale)
+                e4=state(parent_u_idx)*para_m_ej*para_c**2/(state(parent_v_idx)*V3_scale)
+                p4=e4/3d0
+            end if
+        end if
         call secondary_reverse_contact_rh(gamma_bulk,n1,n4,e4,p4,gamma_c_j,p3,gamma43_j,comp,beta_s)
         if (comp <= zero) then
             source=-one
@@ -321,6 +354,15 @@ contains
                     n4=4d0*R_Gamma(i_out)*n_pre
                     e4=4d0*R_Gamma(i_out)*(R_Gamma(i_out)-one)*n_pre*Para_m_p*Para_c**2
                     p4=e4/3d0
+                    if (j > 1) then
+                        if (secondary_parent_upstream_available(j,Secondary_M3(j-1,i_out)/para_m_ej, &
+                                                                Secondary_U3(j-1,i_out)/(para_m_ej*para_c**2), &
+                                                                Secondary_V3(j-1,i_out)/V3_scale)) then
+                            n4=Secondary_M3(j-1,i_out)/(Para_m_p*Secondary_V3(j-1,i_out))
+                            e4=Secondary_U3(j-1,i_out)/Secondary_V3(j-1,i_out)
+                            p4=e4/3d0
+                        end if
+                    end if
                     call secondary_reverse_contact_rh(R_Gamma(i_out),n1,n4,e4,p4,gamma_c_j,p3,gamma43_j,comp,beta_s)
                     if (comp > zero) then
                         e3_sec=3d0*p3
@@ -337,6 +379,11 @@ contains
                         Secondary_gamma_43(i_out)=Secondary_gamma_43(i_out)+e_delta*(gamma43_j-one)
                         Secondary_beta_rs(i_out)=Secondary_beta_rs(i_out)+e_delta*beta_s
                         Secondary_u_diss(i_out)=Secondary_u_diss(i_out)+(e3_sec-e_ad)
+                        Secondary_branch_gamma_contact(j,i_out)=gamma_c_j
+                        Secondary_branch_gamma_43(j,i_out)=gamma43_j
+                        Secondary_branch_compression(j,i_out)=comp
+                        Secondary_branch_beta_rs(j,i_out)=beta_s
+                        Secondary_branch_u_diss(j,i_out)=e3_sec-e_ad
                     end if
                 end if
             end if
@@ -371,6 +418,16 @@ contains
             end if
         end if
     end subroutine store_secondary_branch_state
+
+    logical function secondary_parent_upstream_available(jump_index,parent_mass,parent_energy,parent_volume)
+    implicit none
+    integer, intent(in) :: jump_index
+    real(8), intent(in) :: parent_mass,parent_energy,parent_volume
+        secondary_parent_upstream_available=.false.
+        if (jump_index <= 1) return
+        if (parent_mass <= zero .or. parent_energy <= zero .or. parent_volume <= zero) return
+        secondary_parent_upstream_available=.true.
+    end function secondary_parent_upstream_available
 
     subroutine secondary_reverse_density_branch_state(radius,jump_index,density_factor,branch_weight)
     implicit none
@@ -957,9 +1014,19 @@ contains
         end if
     end subroutine compute_secondary_inertia_mass
 
+    logical function secondary_parent_upstream_available(jump_index,parent_mass,parent_energy,parent_volume)
+    implicit none
+    integer, intent(in) :: jump_index
+    real(8), intent(in) :: parent_mass,parent_energy,parent_volume
+        secondary_parent_upstream_available=.false.
+        if (jump_index <= 1) return
+        if (parent_mass <= zero .or. parent_energy <= zero .or. parent_volume <= zero) return
+        secondary_parent_upstream_available=.true.
+    end function secondary_parent_upstream_available
+
     subroutine compute_secondary_branch_derivatives()
     implicit none
-    integer :: j, m_idx, u_idx, v_idx, e_idx, g_idx
+    integer :: j, m_idx, u_idx, v_idx, e_idx, g_idx, parent_m_idx, parent_u_idx, parent_v_idx
     real(8) :: density_factor,branch_weight,n1,n_excess,n_pre,n4,e4,p4,p3,e3_sec,e_ad,comp,beta_s
     real(8) :: gamma_c_j,gamma43_j,beta_c_j,n3,dm_dR,dM_shock,dV_shock,dU_shock
     real(8) :: u_sec,v_sec,dV_exp_sec,dU_ad_sec,gamma_m_sec,b_i,gam_e_max
@@ -993,6 +1060,16 @@ contains
             n4=4d0*gam2*n_pre
             e4=4d0*gam2*(gam2-one)*n_pre*Para_m_p*Para_c**2
             p4=e4/3d0
+            if (j > 1) then
+                parent_m_idx=6+j-1
+                parent_u_idx=6+active_density_jump_count+j-1
+                parent_v_idx=6+2*active_density_jump_count+j-1
+                if (secondary_parent_upstream_available(j,Y(parent_m_idx),Y(parent_u_idx),Y(parent_v_idx))) then
+                    n4=Y(parent_m_idx)*para_m_ej/(Para_m_p*Y(parent_v_idx)*V3_scale)
+                    e4=Y(parent_u_idx)*para_m_ej*para_c**2/(Y(parent_v_idx)*V3_scale)
+                    p4=e4/3d0
+                end if
+            end if
             call secondary_reverse_contact_rh(gam2,n1,n4,e4,p4,gamma_c_j,p3,gamma43_j,comp,beta_s)
             if (comp <= zero) then
                 D(m_idx)=zero

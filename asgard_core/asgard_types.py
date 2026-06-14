@@ -166,6 +166,11 @@ class ReverseShockDynamics:
     secondary_dissipated_energy_erg: np.ndarray | None = None
     secondary_electron_injected_energy_erg: np.ndarray | None = None
     secondary_branch_gamma_m: np.ndarray | None = None
+    secondary_branch_gamma_contact: np.ndarray | None = None
+    secondary_branch_gamma_43: np.ndarray | None = None
+    secondary_branch_compression: np.ndarray | None = None
+    secondary_branch_beta_rs: np.ndarray | None = None
+    secondary_branch_dissipated_energy_density: np.ndarray | None = None
     secondary_nu_m: np.ndarray | None = None
     secondary_nu_c: np.ndarray | None = None
     secondary_event_active: np.ndarray | None = None
