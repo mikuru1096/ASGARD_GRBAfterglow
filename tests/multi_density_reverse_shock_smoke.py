@@ -120,8 +120,16 @@ def _run_multi_bump_reverse() -> None:
     assert details.rev.secondary_rs_dN_dgamma_e is secondary.d_n_gam_e
     assert details.rev.secondary_rs_branch_swept_mass_g is secondary.branch_swept_mass_g
     assert details.rev.secondary_rs_branch_internal_energy_erg is secondary.branch_internal_energy_erg
+    assert details.rev.secondary_rs_branch_gamma_m is secondary.branch_gamma_m
+    assert details.rev.secondary_rs_branch_luminosity_syn is secondary.branch_luminosity_syn
     assert np.all(np.isfinite(state.reverse_emission.l_syn_spec))
     assert np.any(secondary.luminosity_syn > 0.0)
+    assert secondary.branch_luminosity_syn.shape == (
+        len(config.jump_r_cm),
+        secondary.luminosity_syn.shape[0],
+        secondary.luminosity_syn.shape[1],
+    )
+    assert np.allclose(np.sum(secondary.branch_luminosity_syn, axis=0), secondary.luminosity_syn, rtol=1.0e-13, atol=0.0)
     _assert_secondary_injection_inside_candidate_windows(state.dynamics.radius, secondary.dissipated_energy_density, config)
     _assert_secondary_event_diagnostics(secondary, config)
     for values in (
@@ -139,6 +147,8 @@ def _run_multi_bump_reverse() -> None:
         secondary.branch_internal_energy_erg,
         secondary.branch_comoving_volume_cm3,
         secondary.branch_magnetic_field_g,
+        secondary.branch_gamma_m,
+        secondary.branch_luminosity_syn,
         secondary.magnetic_field_g,
         secondary.gam_e,
         secondary.d_n_gam_e,

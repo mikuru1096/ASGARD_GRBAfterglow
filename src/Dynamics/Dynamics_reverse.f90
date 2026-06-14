@@ -255,7 +255,7 @@ subroutine secondary_reverse_profile(Num_R,Num_jump,R,Tobs_axis,Gamma4,dNe_ISM,J
                                      gamma_contact,pressure_3,gamma_43,comp_ratio,beta_rs,u_diss,active_weight, &
                                      m3_reservoir,u3_reservoir,v3_reservoir,b3_reservoir,gamma_m_shell, &
                                      dissipated_energy,electron_injected_energy,pressure_total,enthalpy_density_total, &
-                                     m3_branch,u3_branch,v3_branch,b3_branch, &
+                                     m3_branch,u3_branch,v3_branch,b3_branch,gamma_m_branch, &
                                      nu_m,nu_c,event_active, &
                                      start_radius,shock_end_radius,start_tobs_axis,shock_end_tobs_axis)
     use constants
@@ -271,7 +271,7 @@ subroutine secondary_reverse_profile(Num_R,Num_jump,R,Tobs_axis,Gamma4,dNe_ISM,J
     real(8), intent(out) :: gamma_m_shell(Num_R),dissipated_energy(Num_R),electron_injected_energy(Num_R)
     real(8), intent(out) :: pressure_total(Num_R),enthalpy_density_total(Num_R)
     real(8), intent(out) :: m3_branch(Num_jump,Num_R),u3_branch(Num_jump,Num_R),v3_branch(Num_jump,Num_R)
-    real(8), intent(out) :: b3_branch(Num_jump,Num_R)
+    real(8), intent(out) :: b3_branch(Num_jump,Num_R),gamma_m_branch(Num_jump,Num_R)
     real(8), intent(out) :: nu_m(Num_R),nu_c(Num_R)
     logical, intent(out) :: event_active(Num_jump)
     real(8), intent(out) :: start_radius(Num_jump),shock_end_radius(Num_jump)
@@ -287,7 +287,7 @@ subroutine secondary_reverse_profile(Num_R,Num_jump,R,Tobs_axis,Gamma4,dNe_ISM,J
     u_diss=zero; active_weight=zero; m3_reservoir=zero; u3_reservoir=zero; v3_reservoir=zero
     b3_reservoir=zero; gamma_m_shell=zero; dissipated_energy=zero; electron_injected_energy=zero
     pressure_total=zero; enthalpy_density_total=zero
-    m3_branch=zero; u3_branch=zero; v3_branch=zero; b3_branch=zero
+    m3_branch=zero; u3_branch=zero; v3_branch=zero; b3_branch=zero; gamma_m_branch=zero
     nu_m=zero; nu_c=zero
     event_active=.false.; start_radius=zero; shock_end_radius=zero
     start_tobs_axis=zero; shock_end_tobs_axis=zero
@@ -322,6 +322,7 @@ subroutine secondary_reverse_profile(Num_R,Num_jump,R,Tobs_axis,Gamma4,dNe_ISM,J
             gam_e_max=3d0*Para_m_energy/dsqrt(8d0*b_i*Para_e**3)
             if (gamma_m >= gam_e_max) error stop 'secondary_reverse_profile electron injection exceeds synchrotron maximum'
             u_inj=(e3-e_ad)*shell_volume
+            gamma_m_branch(J,I)=gamma_m
             diag_weight=u_inj
             diag_total=diag_total+diag_weight
             gamma_contact(I)=gamma_contact(I)+diag_weight*gamma_c_j

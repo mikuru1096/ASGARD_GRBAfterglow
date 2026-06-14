@@ -105,6 +105,7 @@ def _dynamics_reverse_module():
 @dataclass
 class SecondaryReverseShockState:
     luminosity_syn: np.ndarray
+    branch_luminosity_syn: np.ndarray
     gam_e: np.ndarray
     d_n_gam_e: np.ndarray
     event_active: np.ndarray
@@ -128,6 +129,7 @@ class SecondaryReverseShockState:
     branch_internal_energy_erg: np.ndarray
     branch_comoving_volume_cm3: np.ndarray
     branch_magnetic_field_g: np.ndarray
+    branch_gamma_m: np.ndarray
     magnetic_field_g: np.ndarray
     nu_m: np.ndarray
     nu_c: np.ndarray
@@ -2292,6 +2294,7 @@ def _compute_secondary_reverse_shock_synchrotron(
         u3_branch,
         v3_branch,
         b3_branch,
+        gamma_m_branch,
         nu_m,
         nu_c,
         event_active,
@@ -2333,6 +2336,7 @@ def _compute_secondary_reverse_shock_synchrotron(
     u3_branch = np.asarray(u3_branch, dtype=float)
     v3_branch = np.asarray(v3_branch, dtype=float)
     b3_branch = np.asarray(b3_branch, dtype=float)
+    gamma_m_branch = np.asarray(gamma_m_branch, dtype=float)
     nu_m = np.asarray(nu_m, dtype=float)
     nu_c = np.asarray(nu_c, dtype=float)
     event_active = np.asarray(event_active, dtype=bool)
@@ -2375,7 +2379,45 @@ def _compute_secondary_reverse_shock_synchrotron(
     )
     gam_e_sec = np.asarray(gam_e_sec, dtype=float)
     dist = np.asarray(dist, dtype=float)
-    luminosity, _, nu_a = _electron_reverse_module().electron_reverse_kernel.electron_secondary_reverse_synchrotron(
+    branch_luminosity = np.zeros((jump_r.size, v_seed.size, radius.size), dtype=float)
+    for i_jump in range(jump_r.size):
+        if not event_active[i_jump]:
+            continue
+        if not np.any(dyn_m3_branch[i_jump] > 0.0):
+            continue
+        gam_e_branch, dist_branch = _electron_reverse_module().electron_reverse_kernel.electron_secondary_reverse_evolve(
+            reverse_params.epsilon_e,
+            reverse_params.epsilon_b,
+            reverse_params.p,
+            reverse_params.f_e,
+            config.z,
+            dynamics.r_tobs,
+            dynamics.r_gamma,
+            radius,
+            dyn_b3_branch[i_jump],
+            dyn_m3_branch[i_jump],
+            dyn_u3_branch[i_jump],
+            dyn_v3_branch[i_jump],
+            gamma_m_branch[i_jump],
+            v_seed,
+            config.num_gam_e,
+            config.index_syn_integr,
+            config.num_threads,
+        )
+        lum_branch, _, _ = _electron_reverse_module().electron_reverse_kernel.electron_secondary_reverse_synchrotron(
+            config.index_syn_integr,
+            config.num_threads,
+            radius,
+            gamma4_arr,
+            dyn_b3_branch[i_jump],
+            np.asarray(gam_e_branch, dtype=float),
+            np.asarray(dist_branch, dtype=float),
+            v_seed,
+            config.z,
+        )
+        branch_luminosity[i_jump] = np.asarray(lum_branch, dtype=float)
+    luminosity = np.sum(branch_luminosity, axis=0)
+    _, _, nu_a = _electron_reverse_module().electron_reverse_kernel.electron_secondary_reverse_synchrotron(
         config.index_syn_integr,
         config.num_threads,
         radius,
@@ -2386,10 +2428,10 @@ def _compute_secondary_reverse_shock_synchrotron(
         v_seed,
         config.z,
     )
-    luminosity = np.asarray(luminosity, dtype=float)
     nu_a = np.asarray(nu_a, dtype=float)
     return SecondaryReverseShockState(
         luminosity_syn=luminosity,
+        branch_luminosity_syn=branch_luminosity,
         gam_e=gam_e_sec,
         d_n_gam_e=dist,
         event_active=event_active,
@@ -2413,6 +2455,7 @@ def _compute_secondary_reverse_shock_synchrotron(
         branch_internal_energy_erg=dyn_u3_branch,
         branch_comoving_volume_cm3=dyn_v3_branch,
         branch_magnetic_field_g=dyn_b3_branch,
+        branch_gamma_m=gamma_m_branch,
         magnetic_field_g=dyn_b_field,
         nu_m=nu_m,
         nu_c=nu_c,
