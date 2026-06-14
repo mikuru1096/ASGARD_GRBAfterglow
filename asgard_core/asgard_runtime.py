@@ -1390,12 +1390,48 @@ def _solve_hadronic_hummer_transport_coupled(
             photon_energy_aligned_gev,
         )
         secondary_species = SecondarySpeciesDistribution(
-            pion_plus_per_gev=_interp_distribution_per_gev(pion_energy_gev, species_state_next.charged_pion.plus_density_per_gamma / (shell_volume_loc * constants.para_m_pi_charged_gev), gam_p * PROTON_MASS_GEV),
-            pion_minus_per_gev=_interp_distribution_per_gev(pion_energy_gev, species_state_next.charged_pion.minus_density_per_gamma / (shell_volume_loc * constants.para_m_pi_charged_gev), gam_p * PROTON_MASS_GEV),
-            muon_minus_left_per_gev=_interp_distribution_per_gev(muon_energy_gev, species_state_next.charged_muon.minus_left_density_per_gamma / (shell_volume_loc * constants.para_m_mu_gev), gam_p * PROTON_MASS_GEV),
-            muon_minus_right_per_gev=_interp_distribution_per_gev(muon_energy_gev, species_state_next.charged_muon.minus_right_density_per_gamma / (shell_volume_loc * constants.para_m_mu_gev), gam_p * PROTON_MASS_GEV),
-            muon_plus_left_per_gev=_interp_distribution_per_gev(muon_energy_gev, species_state_next.charged_muon.plus_left_density_per_gamma / (shell_volume_loc * constants.para_m_mu_gev), gam_p * PROTON_MASS_GEV),
-            muon_plus_right_per_gev=_interp_distribution_per_gev(muon_energy_gev, species_state_next.charged_muon.plus_right_density_per_gamma / (shell_volume_loc * constants.para_m_mu_gev), gam_p * PROTON_MASS_GEV),
+            pion_plus_per_gev=_interp_distribution_per_gev(
+                pion_energy_gev,
+                species_state_next.charged_pion.plus_density_per_gamma,
+                gam_p * PROTON_MASS_GEV,
+                constants.para_m_pi_charged_gev,
+                shell_volume_loc,
+            ),
+            pion_minus_per_gev=_interp_distribution_per_gev(
+                pion_energy_gev,
+                species_state_next.charged_pion.minus_density_per_gamma,
+                gam_p * PROTON_MASS_GEV,
+                constants.para_m_pi_charged_gev,
+                shell_volume_loc,
+            ),
+            muon_minus_left_per_gev=_interp_distribution_per_gev(
+                muon_energy_gev,
+                species_state_next.charged_muon.minus_left_density_per_gamma,
+                gam_p * PROTON_MASS_GEV,
+                constants.para_m_mu_gev,
+                shell_volume_loc,
+            ),
+            muon_minus_right_per_gev=_interp_distribution_per_gev(
+                muon_energy_gev,
+                species_state_next.charged_muon.minus_right_density_per_gamma,
+                gam_p * PROTON_MASS_GEV,
+                constants.para_m_mu_gev,
+                shell_volume_loc,
+            ),
+            muon_plus_left_per_gev=_interp_distribution_per_gev(
+                muon_energy_gev,
+                species_state_next.charged_muon.plus_left_density_per_gamma,
+                gam_p * PROTON_MASS_GEV,
+                constants.para_m_mu_gev,
+                shell_volume_loc,
+            ),
+            muon_plus_right_per_gev=_interp_distribution_per_gev(
+                muon_energy_gev,
+                species_state_next.charged_muon.plus_right_density_per_gamma,
+                gam_p * PROTON_MASS_GEV,
+                constants.para_m_mu_gev,
+                shell_volume_loc,
+            ),
         )
         secondary_target = SecondaryTargetPhotonField(
             photon_energy_gev=photon_energy_aligned_gev,
@@ -1863,10 +1899,21 @@ def _interp_positive_loglog(
 
 def _interp_distribution_per_gev(
     energy_src_gev: np.ndarray,
-    density_src_per_gev: np.ndarray,
+    density_src_per_gamma: np.ndarray,
     energy_dst_gev: np.ndarray,
+    mass_gev: float,
+    shell_volume_cm3: float,
 ) -> np.ndarray:
-    return _interp_positive_loglog(energy_src_gev, density_src_per_gev, energy_dst_gev)
+    return np.asarray(
+        hadronic_legacy_module.fs_hadronic_distribution_per_gev(
+            np.asarray(energy_src_gev, dtype=float),
+            np.asarray(density_src_per_gamma, dtype=float),
+            np.asarray(energy_dst_gev, dtype=float),
+            float(mass_gev),
+            float(shell_volume_cm3),
+        ),
+        dtype=float,
+    )
 
 
 def _interp_source_per_gamma(

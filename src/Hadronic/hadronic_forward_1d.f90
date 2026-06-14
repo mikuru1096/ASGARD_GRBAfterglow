@@ -689,6 +689,22 @@ subroutine fs_hadronic_source_per_gamma(num_src,num_dst,energy_src_gev,source_sr
     source_dst_per_gamma_s(1:num_dst)=shell_volume_cm3*mass_gev*source_dst_per_gamma_s(1:num_dst)
 end subroutine fs_hadronic_source_per_gamma
 
+! 二级粒子分布映射：从壳层内每 gamma 数量变换为局部每 GeV 数密度谱。
+subroutine fs_hadronic_distribution_per_gev(num_src,num_dst,energy_src_gev,density_src_per_gamma,energy_dst_gev, &
+                                            mass_gev,shell_volume_cm3,density_dst_per_gev)
+    implicit none
+    integer, intent(in) :: num_src,num_dst
+    real(8), intent(in) :: energy_src_gev(num_src),density_src_per_gamma(num_src),energy_dst_gev(num_dst)
+    real(8), intent(in) :: mass_gev,shell_volume_cm3
+    real(8), intent(out) :: density_dst_per_gev(num_dst)
+
+    if (mass_gev <= 0d0) error stop "hadronic distribution per GeV requires positive particle mass."
+    if (shell_volume_cm3 <= 0d0) error stop "hadronic distribution per GeV requires positive shell volume."
+    call fs_hadronic_positive_loglog_interp(num_src,num_dst,energy_src_gev,density_src_per_gamma, &
+                                            energy_dst_gev,density_dst_per_gev)
+    density_dst_per_gev(1:num_dst)=density_dst_per_gev(1:num_dst)/(shell_volume_cm3*mass_gev)
+end subroutine fs_hadronic_distribution_per_gev
+
 ! 按 hadron log spacing 构造对齐 photon energy grid。
 subroutine fs_hadronic_aligned_photon_grid(num_had,num_ph,num_out,hadron_energy_gev,photon_energy_gev, &
                                            aligned_photon_gev)
