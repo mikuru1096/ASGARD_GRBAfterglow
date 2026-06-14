@@ -678,6 +678,22 @@ subroutine fs_hadronic_project_hic_luminosity(num_src,num_dst,energy_src_gev,eps
                                             energy_dst_gev,luminosity_dst)
 end subroutine fs_hadronic_project_hic_luminosity
 
+! BH/pp 二级电子源项：把每 GeV 产生率合并为壳层内每 gamma 注入 content。
+subroutine fs_hadronic_pair_source_content(num_e,pp_pair_rate_per_gev,bh_pair_rate_per_gev,include_pp, &
+                                           include_bh,shell_volume_cm3,source_content)
+    use constants
+    implicit none
+    integer, intent(in) :: num_e,include_pp,include_bh
+    real(8), intent(in) :: pp_pair_rate_per_gev(num_e),bh_pair_rate_per_gev(num_e),shell_volume_cm3
+    real(8), intent(out) :: source_content(num_e)
+
+    if (shell_volume_cm3 <= 0d0) error stop "hadronic pair source content requires positive shell volume."
+    source_content=0d0
+    if (include_pp /= 0) source_content(1:num_e)=source_content(1:num_e)+pp_pair_rate_per_gev(1:num_e)
+    if (include_bh /= 0) source_content(1:num_e)=source_content(1:num_e)+bh_pair_rate_per_gev(1:num_e)
+    source_content(1:num_e)=shell_volume_cm3*Para_m_e_GeV*source_content(1:num_e)
+end subroutine fs_hadronic_pair_source_content
+
 ! AM3 分过程功率归并：积分每个过程 luminosity，并按质子能量分布投到 hadron grid。
 subroutine fs_hadronic_process_power(num_had,num_proc_energy,num_process,hadron_energy_gev,dn_had, &
                                      process_energy_gev,process_rate_per_gev,shell_volume_cm3,process_power)

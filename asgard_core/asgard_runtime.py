@@ -1205,7 +1205,8 @@ def _solve_hadronic_hummer_transport_coupled(
         timings["pg_interaction"] += time.perf_counter() - t_pg_start
         bh_output = None
         bh_loss = np.zeros_like(gam_p)
-        pp_pair_q = np.zeros_like(gam_e)
+        bh_pair_rate_per_gev = np.zeros_like(gam_e)
+        pp_pair_rate_per_gev = np.zeros_like(gam_e)
         pp_gamma_lum = np.zeros_like(v_seed_arr)
         pp_nu_lum = np.zeros_like(neutrino_frequency_hz)
         if bool(config.hadronic.include_bethe_heitler):
@@ -1221,6 +1222,7 @@ def _solve_hadronic_hummer_transport_coupled(
             if np.any(bh_proton_loss_rate > 0.0):
                 raise RuntimeError("Bethe-Heitler proton loss rate must be non-positive.")
             bh_loss = -bh_proton_loss_rate
+            bh_pair_rate_per_gev = np.asarray(bh_output.pair_rate_per_gev, dtype=float)
             bh_photon_loss_rate[:, i_r] = np.asarray(bh_output.photon_loss_rate, dtype=float)
             tau_bh[:, i_r] = _hadronic_transport_tau_shell(radius, gamma_bulk, i_r, bh_photon_loss_rate[:, i_r])
             timings["bethe_heitler"] += time.perf_counter() - t_bh_start
@@ -1253,7 +1255,7 @@ def _solve_hadronic_hummer_transport_coupled(
                 pp_output.neutrino_rate_per_gev,
                 shell_volume_loc,
             )
-            pp_pair_q = shell_volume_loc * np.asarray(pp_output.pair_rate_per_gev, dtype=float) * ELECTRON_MASS_GEV
+            pp_pair_rate_per_gev = np.asarray(pp_output.pair_rate_per_gev, dtype=float)
             timings["pp_delta"] += time.perf_counter() - t_pp_start
 
         loss_total = _hadronic_continuous_loss_rates(
@@ -1529,10 +1531,13 @@ def _solve_hadronic_hummer_transport_coupled(
             timings["hadronic_ic"] += time.perf_counter() - t_hic_start
 
         if bh_output is not None or bool(config.hadronic.include_pp):
-            q_bh = np.array(pp_pair_q, copy=True)
-            if bh_output is not None:
-                q_bh += shell_volume_loc * np.asarray(bh_output.pair_rate_per_gev, dtype=float) * ELECTRON_MASS_GEV
-            q_secondary_electron[:, i_r] = q_bh
+            q_secondary_electron[:, i_r] = _pair_source_content(
+                pp_pair_rate_per_gev,
+                bh_pair_rate_per_gev,
+                bool(config.hadronic.include_pp),
+                bh_output is not None,
+                shell_volume_loc,
+            )
 
         d_n_prev = d_n_next
         species_state_prev = species_state_next
@@ -2012,6 +2017,25 @@ def _project_hic_luminosity(
             np.asarray(epsilon_mu_ic, dtype=float),
             float(shell_volume_cm3),
             np.asarray(energy_dst_gev, dtype=float),
+        ),
+        dtype=float,
+    )
+
+
+def _pair_source_content(
+    pp_pair_rate_per_gev: np.ndarray,
+    bh_pair_rate_per_gev: np.ndarray,
+    include_pp: bool,
+    include_bh: bool,
+    shell_volume_cm3: float,
+) -> np.ndarray:
+    return np.asarray(
+        hadronic_legacy_module.fs_hadronic_pair_source_content(
+            np.asarray(pp_pair_rate_per_gev, dtype=float),
+            np.asarray(bh_pair_rate_per_gev, dtype=float),
+            1 if include_pp else 0,
+            1 if include_bh else 0,
+            float(shell_volume_cm3),
         ),
         dtype=float,
     )

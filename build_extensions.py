@@ -84,6 +84,7 @@ F2PY_ENTRYPOINTS = {
         "fs_hadronic_energy_luminosity_from_rate",
         "fs_hadronic_project_luminosity_from_rate",
         "fs_hadronic_project_hic_luminosity",
+        "fs_hadronic_pair_source_content",
         "fs_hadronic_process_power",
         "fs_hadronic_positive_loglog_interp",
         "fs_hadronic_source_per_gamma",
