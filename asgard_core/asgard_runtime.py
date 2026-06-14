@@ -1263,10 +1263,16 @@ def _solve_hadronic_hummer_transport_coupled(
         ) + bh_loss + pp_loss
         d_n_next = _hadronic_advance_energy_loggamma(gam_p, gam_edge, d_n_prev, q_inj, loss_total, dt_s)
         pg_loss_rate = np.asarray(backend.proton_loss_rate, dtype=float)
-        proton_sink = np.exp(-dt_s * pg_loss_rate)
-        pg_reinj_dt = _hadronic_interaction_effective_time(pg_loss_rate, dt_s)
-        proton_reinj = pg_reinj_dt * shell_volume_loc * np.asarray(backend.proton_reinjection_rate_per_gev, dtype=float) * PROTON_MASS_GEV
-        d_n_next = d_n_next * proton_sink + proton_reinj
+        d_n_next = np.asarray(
+            hadronic_legacy_module.fs_hadronic_pgamma_proton_update(
+                d_n_next,
+                pg_loss_rate,
+                np.asarray(backend.proton_reinjection_rate_per_gev, dtype=float),
+                shell_volume_loc,
+                dt_s,
+            ),
+            dtype=float,
+        )
         if np.any(d_n_next < 0.0):
             raise RuntimeError("hadronic proton transport produced negative density.")
         d_n_gam_p[:, i_r] = d_n_next

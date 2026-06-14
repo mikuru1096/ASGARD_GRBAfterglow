@@ -593,6 +593,26 @@ subroutine fs_hadronic_interaction_effective_time(num_rate,rate_s_inv,dt_s,effec
     end do
 end subroutine fs_hadronic_interaction_effective_time
 
+! pγ 后质子更新：指数 sink 与同一步 reinjection 在同一壳层内闭合。
+subroutine fs_hadronic_pgamma_proton_update(num_gamma,dn_transport,loss_rate_s_inv,reinj_rate_per_gev, &
+                                            shell_volume_cm3,dt_s,dn_next)
+    use constants
+    implicit none
+    integer, intent(in) :: num_gamma
+    real(8), intent(in) :: dn_transport(num_gamma),loss_rate_s_inv(num_gamma),reinj_rate_per_gev(num_gamma)
+    real(8), intent(in) :: shell_volume_cm3,dt_s
+    real(8), intent(out) :: dn_next(num_gamma)
+    integer :: i
+    real(8) :: effective_time(num_gamma)
+
+    if (shell_volume_cm3 <= zero) error stop "hadronic p-gamma proton update requires positive shell volume."
+    call fs_hadronic_interaction_effective_time(num_gamma,loss_rate_s_inv,dt_s,effective_time)
+    do i=1,num_gamma
+        dn_next(i)=dn_transport(i)*dexp(-loss_rate_s_inv(i)*dt_s)+ &
+                   effective_time(i)*shell_volume_cm3*reinj_rate_per_gev(i)*Para_m_p_GeV
+    end do
+end subroutine fs_hadronic_pgamma_proton_update
+
 subroutine hadronic_sequence_shell_geometry(num_r,radius_cm,gamma_bulk,i_r,dr,dt_s)
     use constants
     implicit none

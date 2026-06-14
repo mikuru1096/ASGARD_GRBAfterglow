@@ -79,6 +79,7 @@ F2PY_ENTRYPOINTS = {
         "fs_hadronic_secondary_electron_sequence",
         "fs_hadronic_photon_loss_closure",
         "fs_hadronic_interaction_effective_time",
+        "fs_hadronic_pgamma_proton_update",
         "fs_hadronic_pp_spectral_source",
         "fs_hadronic_quantum_syn_cooling_factor",
     ),
