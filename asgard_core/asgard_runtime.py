@@ -1070,7 +1070,6 @@ def _solve_hadronic_hummer_transport_coupled(
         np.log10(_hadronic_global_gamma_p_max(radius, gamma_bulk, b_field, config)),
         num_gam_p,
     )
-    gam_edge = _hadronic_build_gamma_edges(gam_p)
     neutrino_frequency_hz = np.logspace(
         np.log10(1.0e-3 * constants.para_gev2hz),
         np.log10(1.0e8 * constants.para_gev2hz),
@@ -1112,6 +1111,7 @@ def _solve_hadronic_hummer_transport_coupled(
     l_had_muon_ic = np.zeros((num_nu, num_r), dtype=float)
 
     d_n_prev = np.zeros(num_gam_p, dtype=float)
+    zero_proton_rate = np.zeros_like(gam_p, dtype=float)
     species_state_prev = HadronicSpeciesState(
         neutron=NeutronDistribution(gamma=gam_secondary, density_per_gamma=np.zeros_like(gam_secondary)),
         charged_pion=ChargedPionDistribution(
@@ -1156,14 +1156,19 @@ def _solve_hadronic_hummer_transport_coupled(
             float(gam_p[-1]),
         )
         shell_volume_loc = float(shell_volume_cm3[i_r])
-        d_n_trial = _hadronic_advance_energy_loggamma(
+        d_n_trial = _hadronic_proton_transport_step(
             gam_p,
-            gam_edge,
             d_n_prev,
             q_inj,
-            _hadronic_continuous_loss_rates(gam_p, float(b_field[i_r]), t_dyn_s,
-                quantum_syn=bool(config.hadronic.quantum_syn),
-                mass_gev=constants.para_m_p_gev),
+            float(b_field[i_r]),
+            t_dyn_s,
+            constants.para_m_p_gev,
+            bool(config.hadronic.quantum_syn),
+            zero_proton_rate,
+            zero_proton_rate,
+            zero_proton_rate,
+            zero_proton_rate,
+            shell_volume_loc,
             dt_s,
         )
         proton_density_trial_per_gev = _shell_density_per_gev(d_n_trial, PROTON_MASS_GEV, shell_volume_loc)
