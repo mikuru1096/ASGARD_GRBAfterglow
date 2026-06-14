@@ -1758,8 +1758,13 @@ def _hadronic_pg_local_closure(
     i_shell: int,
     alpha_gamma_s_inv: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray]:
-    tau_pg = _hadronic_transport_tau_shell(radius_cm, gamma_bulk, i_shell, alpha_gamma_s_inv)
-    return tau_pg, _hadronic_pg_survival_factor(tau_pg)
+    tau_pg, survival = hadronic_legacy_module.fs_hadronic_photon_loss_closure(
+        np.asarray(radius_cm, dtype=float),
+        np.asarray(gamma_bulk, dtype=float),
+        int(i_shell) + 1,
+        np.asarray(alpha_gamma_s_inv, dtype=float),
+    )
+    return np.asarray(tau_pg, dtype=float), np.asarray(survival, dtype=float)
 
 
 def _hadronic_interaction_effective_time(rate_s_inv: np.ndarray, dt_s: float) -> np.ndarray:

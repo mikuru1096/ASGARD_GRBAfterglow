@@ -542,6 +542,31 @@ subroutine fs_hadronic_secondary_electron_sequence(num_e,num_nu,num_r,gamma_e,ra
     end do
 end subroutine fs_hadronic_secondary_electron_sequence
 
+! 光子损失闭合：由壳层 comoving path time 得到 tau，并返回局部 survival 平均因子。
+subroutine fs_hadronic_photon_loss_closure(num_ph,num_r,radius_cm,gamma_bulk,shell_index,loss_rate,tau, &
+                                           survival)
+    use constants
+    implicit none
+    integer, intent(in) :: num_ph,num_r,shell_index
+    real(8), intent(in) :: radius_cm(num_r),gamma_bulk(num_r),loss_rate(num_ph)
+    real(8), intent(out) :: tau(num_ph),survival(num_ph)
+    integer :: i_ph
+    real(8) :: dr,dt_s
+
+    if (any(loss_rate < zero)) error stop "hadronic photon loss closure requires non-negative loss rate."
+    call hadronic_sequence_shell_geometry(num_r,radius_cm,gamma_bulk,shell_index,dr,dt_s)
+    do i_ph=1,num_ph
+        tau(i_ph)=loss_rate(i_ph)*dt_s
+        if (tau(i_ph) > 1d-6) then
+            survival(i_ph)=(one-dexp(-tau(i_ph)))/tau(i_ph)
+        else if (tau(i_ph) > zero) then
+            survival(i_ph)=one-tau(i_ph)/two+tau(i_ph)*tau(i_ph)/6d0
+        else
+            survival(i_ph)=one
+        end if
+    end do
+end subroutine fs_hadronic_photon_loss_closure
+
 subroutine hadronic_sequence_shell_geometry(num_r,radius_cm,gamma_bulk,i_r,dr,dt_s)
     use constants
     implicit none
