@@ -221,6 +221,30 @@ subroutine fs_hadronic_injection_content(num_gamma,species,gamma,shell_energy_er
     q_content(1:num_gamma)=dt_s*q_content(1:num_gamma)
 end subroutine fs_hadronic_injection_content
 
+! 全局质子最大 Lorentz 因子：逐半径壳层估计并取最大值作为输运网格上界。
+subroutine fs_hadronic_global_gamma_p_max(num_r,radius_cm,gamma_bulk,b_field_g,eta_acc,gamma_max_global)
+    use hadronic_acceleration_kernel, only: hadronic_estimate_max_gamma
+    implicit none
+    integer, intent(in) :: num_r
+    real(8), intent(in) :: radius_cm(num_r),gamma_bulk(num_r),b_field_g(num_r),eta_acc
+    real(8), intent(out) :: gamma_max_global
+    integer :: i
+    real(8) :: gamma_scan(2),external_rate(2),gamma_max,gamma_dyn,gamma_syn,gamma_ext
+    logical :: has_gamma_ext
+
+    if (eta_acc <= 0d0) error stop "hadronic eta_acc must be positive."
+    gamma_scan=(/1d0,2d0/)
+    external_rate=(/1d0,2d0/)
+    gamma_max_global=0d0
+    do i=1,num_r
+        call hadronic_estimate_max_gamma("proton",b_field_g(i),radius_cm(i),gamma_bulk(i),eta_acc, &
+                                         2,gamma_scan,external_rate,.false.,gamma_max,gamma_dyn, &
+                                         gamma_syn,gamma_ext,has_gamma_ext)
+        gamma_max_global=max(gamma_max_global,gamma_max)
+    end do
+    if (gamma_max_global <= 1d0) error stop "hadronic maximum proton Lorentz factor must exceed unity."
+end subroutine fs_hadronic_global_gamma_p_max
+
 ! Single-shell secondary-radiation wrapper.
 subroutine fs_hadronic_secondary_radiation_shell(Num_had,hadron_energy_gev,Num_ph,photon_energy_gev,pion_plus_per_gev, &
                                                  pion_minus_per_gev,muon_minus_left_per_gev,muon_minus_right_per_gev, &

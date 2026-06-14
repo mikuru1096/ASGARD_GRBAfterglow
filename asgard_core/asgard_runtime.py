@@ -15,7 +15,7 @@ from asgard_core.hadronic_am3_solver import (
     solve_hummer_2010_response_processes,
     solve_ka2008_reference_processes,
 )
-from asgard_core.hadronic_acceleration import ACCELERATION_BACKEND, estimate_max_gamma
+from asgard_core.hadronic_acceleration import ACCELERATION_BACKEND
 from asgard_core.hadronic_bethe_heitler import (
     BETHE_HEITLER_BACKEND,
     ELECTRON_MASS_GEV,
@@ -1631,22 +1631,12 @@ def _hadronic_global_gamma_p_max(
     b_field_g: np.ndarray,
     config: FitConfig,
 ) -> float:
-    if config.hadronic.eta_acc <= 0.0:
-        raise ValueError("hadronic eta_acc must be positive.")
-    estimates = [
-        estimate_max_gamma(
-            species="proton",
-            b_field_g=float(bi),
-            radius_cm=float(ri),
-            gamma_bulk=float(gi),
-            eta_acc=float(config.hadronic.eta_acc),
-        ).gamma_max
-        for ri, gi, bi in zip(np.asarray(radius_cm, dtype=float), np.asarray(gamma_bulk, dtype=float), np.asarray(b_field_g, dtype=float), strict=True)
-    ]
-    gamma_max = float(np.max(np.asarray(estimates, dtype=float)))
-    if gamma_max <= 1.0:
-        raise ValueError("hadronic maximum proton Lorentz factor must exceed unity.")
-    return gamma_max
+    return float(hadronic_legacy_module.fs_hadronic_global_gamma_p_max(
+        np.asarray(radius_cm, dtype=float),
+        np.asarray(gamma_bulk, dtype=float),
+        np.asarray(b_field_g, dtype=float),
+        float(config.hadronic.eta_acc),
+    ))
 
 
 def _hadronic_shell_volumes_from_radius(radius_cm: np.ndarray) -> np.ndarray:
