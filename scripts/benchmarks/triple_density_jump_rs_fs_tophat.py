@@ -170,8 +170,7 @@ def _strip_svg_trailing_whitespace(path: Path) -> None:
     path.write_text("\n".join(line.rstrip() for line in lines) + "\n", encoding="utf-8")
 
 
-def _write_secondary_event_csv(model: Model, output: Path, times: np.ndarray) -> Path:
-    details = model.details(float(times[0]), float(times[-1]))
+def _write_secondary_event_csv(details, output: Path) -> Path:
     if details.rev is None or details.rev.secondary_rs_event_active is None:
         raise RuntimeError("triple density-jump benchmark requires secondary RS event diagnostics")
     csv_path = output.with_suffix("").with_name(output.with_suffix("").name + "_secondary_rs_events.csv")
@@ -207,6 +206,86 @@ def _write_secondary_event_csv(model: Model, output: Path, times: np.ndarray) ->
                 tail["max_B_g"],
                 tail["max_luminosity"],
                 tail["max_log10_B_jump"],
+            ])
+    return csv_path
+
+
+def _write_secondary_energy_csv(details, model: Model, output: Path) -> Path:
+    if (
+        details.rev is None
+        or details.rev.secondary_rs_dissipated_energy_erg is None
+        or details.rev.secondary_rs_electron_injected_energy_erg is None
+    ):
+        raise RuntimeError("triple density-jump benchmark requires secondary RS energy diagnostics")
+    dissipated = np.asarray(details.rev.secondary_rs_dissipated_energy_erg, dtype=float)
+    electron = np.asarray(details.rev.secondary_rs_electron_injected_energy_erg, dtype=float)
+    total_dissipated = float(np.sum(dissipated))
+    total_electron = float(np.sum(electron))
+    if total_dissipated <= 0.0:
+        raise RuntimeError("secondary RS dissipated energy must be positive in the triple-jump benchmark")
+    expected_electron = float(model.rvs_rad.eps_e) * total_dissipated
+    csv_path = output.with_suffix("").with_name(output.with_suffix("").name + "_secondary_rs_energy.csv")
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    with csv_path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow([
+            "secondary_rs_dissipated_energy_erg",
+            "secondary_rs_electron_injected_energy_erg",
+            "expected_electron_energy_erg",
+            "electron_energy_fractional_error",
+        ])
+        writer.writerow([
+            total_dissipated,
+            total_electron,
+            expected_electron,
+            (total_electron - expected_electron) / expected_electron,
+        ])
+    return csv_path
+
+
+def _write_adaptive_convergence_csv(model: Model, output: Path, times: np.ndarray, direct_total: np.ndarray) -> Path:
+    adaptive = model.flux_density_grid_adaptive(times, BANDS_HZ)
+    adaptive_total = np.asarray(adaptive.total, dtype=float)
+    adaptive_times = np.asarray(adaptive.time_s, dtype=float)
+    csv_path = output.with_suffix("").with_name(output.with_suffix("").name + "_adaptive_convergence.csv")
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    with csv_path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow([
+            "band_hz",
+            "user_time_count",
+            "adaptive_time_count",
+            "direct_peak_time_s",
+            "adaptive_peak_time_s",
+            "direct_peak_flux",
+            "adaptive_peak_flux",
+            "peak_time_ratio",
+            "peak_flux_fractional_difference",
+            "direct_integral_flux_dt",
+            "adaptive_integral_flux_dt",
+            "integral_fractional_difference",
+        ])
+        for i_band, nu_hz in enumerate(BANDS_HZ):
+            direct_peak = int(np.nanargmax(direct_total[i_band]))
+            adaptive_peak = int(np.nanargmax(adaptive_total[i_band]))
+            direct_integral = float(np.trapezoid(direct_total[i_band], times))
+            adaptive_integral = float(np.trapezoid(adaptive_total[i_band], adaptive_times))
+            writer.writerow([
+                float(nu_hz),
+                int(times.size),
+                int(adaptive_times.size),
+                float(times[direct_peak]),
+                float(adaptive_times[adaptive_peak]),
+                float(direct_total[i_band, direct_peak]),
+                float(adaptive_total[i_band, adaptive_peak]),
+                float(adaptive_times[adaptive_peak] / times[direct_peak]),
+                float(
+                    (adaptive_total[i_band, adaptive_peak] - direct_total[i_band, direct_peak])
+                    / adaptive_total[i_band, adaptive_peak]
+                ),
+                direct_integral,
+                adaptive_integral,
+                float((adaptive_integral - direct_integral) / adaptive_integral),
             ])
     return csv_path
 
@@ -306,7 +385,10 @@ def build_plot(*, mode: str, output: Path, times_count: int | None = None) -> Pa
     fig.subplots_adjust(top=0.93, bottom=0.075, left=0.12, right=0.985)
     paths = _save_figure(fig, output)
     plt.close(fig)
-    event_csv = _write_secondary_event_csv(triple_jump_model, output, times)
+    details = triple_jump_model.details(float(times[0]), float(times[-1]))
+    event_csv = _write_secondary_event_csv(details, output)
+    energy_csv = _write_secondary_energy_csv(details, triple_jump_model, output)
+    adaptive_csv = _write_adaptive_convergence_csv(triple_jump_model, output, times, jump_total)
 
     for i_band, nu_hz in enumerate(BANDS_HZ):
         peak_index = int(np.nanargmax(jump_total[i_band]))
@@ -317,6 +399,8 @@ def build_plot(*, mode: str, output: Path, times_count: int | None = None) -> Pa
     for path in paths:
         print(f"wrote {path}")
     print(f"wrote {event_csv}")
+    print(f"wrote {energy_csv}")
+    print(f"wrote {adaptive_csv}")
     return output
 
 

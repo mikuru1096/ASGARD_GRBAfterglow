@@ -559,6 +559,8 @@ class CharTrack:
     secondary_rs_gamma_43: Optional[np.ndarray] = None
     secondary_rs_beta_rs: Optional[np.ndarray] = None
     secondary_rs_u_diss: Optional[np.ndarray] = None
+    secondary_rs_dissipated_energy_erg: Optional[np.ndarray] = None
+    secondary_rs_electron_injected_energy_erg: Optional[np.ndarray] = None
     secondary_rs_swept_mass_g: Optional[np.ndarray] = None
     secondary_rs_internal_energy_erg: Optional[np.ndarray] = None
     secondary_rs_comoving_volume_cm3: Optional[np.ndarray] = None
@@ -1564,6 +1566,10 @@ def _make_details(
             secondary_rs_gamma_43=None if secondary_rs is None else secondary_rs.gamma_43,
             secondary_rs_beta_rs=None if secondary_rs is None else secondary_rs.beta_rs,
             secondary_rs_u_diss=None if secondary_rs is None else secondary_rs.dissipated_energy_density,
+            secondary_rs_dissipated_energy_erg=None if secondary_rs is None else secondary_rs.dissipated_energy_erg,
+            secondary_rs_electron_injected_energy_erg=(
+                None if secondary_rs is None else secondary_rs.electron_injected_energy_erg
+            ),
             secondary_rs_swept_mass_g=None if secondary_rs is None else secondary_rs.swept_mass_g,
             secondary_rs_internal_energy_erg=None if secondary_rs is None else secondary_rs.internal_energy_erg,
             secondary_rs_comoving_volume_cm3=None if secondary_rs is None else secondary_rs.comoving_volume_cm3,

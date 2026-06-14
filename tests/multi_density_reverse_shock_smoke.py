@@ -122,6 +122,8 @@ def _run_multi_bump_reverse() -> None:
     assert details.rev.secondary_rs_branch_internal_energy_erg is secondary.branch_internal_energy_erg
     assert details.rev.secondary_rs_branch_gamma_m is secondary.branch_gamma_m
     assert details.rev.secondary_rs_branch_luminosity_syn is secondary.branch_luminosity_syn
+    assert details.rev.secondary_rs_dissipated_energy_erg is secondary.dissipated_energy_erg
+    assert details.rev.secondary_rs_electron_injected_energy_erg is secondary.electron_injected_energy_erg
     assert np.all(np.isfinite(state.reverse_emission.l_syn_spec))
     assert np.any(secondary.luminosity_syn > 0.0)
     assert secondary.branch_luminosity_syn.shape == (
