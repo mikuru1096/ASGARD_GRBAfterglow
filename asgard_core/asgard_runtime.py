@@ -2231,8 +2231,6 @@ def _compute_secondary_reverse_shock_synchrotron(
     radius = np.asarray(dynamics.radius, dtype=float)
     gamma4_arr = np.asarray(dynamics.r_gamma, dtype=float)
     num_r = radius.shape[0]
-    nu_m = np.zeros(num_r, dtype=float)
-    nu_c = np.zeros(num_r, dtype=float)
     nu_a = np.zeros(num_r, dtype=float)
     if reverse_params.p <= 2.0:
         raise ValueError("secondary reverse shock v1 requires p > 2.")
@@ -2251,6 +2249,8 @@ def _compute_secondary_reverse_shock_synchrotron(
         gamma_m_shell,
         dissipated_energy,
         electron_injected_energy,
+        nu_m,
+        nu_c,
         event_active,
         start_radius,
         end_radius,
@@ -2268,6 +2268,7 @@ def _compute_secondary_reverse_shock_synchrotron(
         float(reverse_params.epsilon_b),
         float(reverse_params.p),
         float(reverse_params.f_e),
+        float(config.z),
     )
     gamma_contact = np.asarray(gamma_contact, dtype=float)
     pressure_3 = np.asarray(pressure_3, dtype=float)
@@ -2283,6 +2284,8 @@ def _compute_secondary_reverse_shock_synchrotron(
     gamma_m_shell = np.asarray(gamma_m_shell, dtype=float)
     dissipated_energy = np.asarray(dissipated_energy, dtype=float)
     electron_injected_energy = np.asarray(electron_injected_energy, dtype=float)
+    nu_m = np.asarray(nu_m, dtype=float)
+    nu_c = np.asarray(nu_c, dtype=float)
     event_active = np.asarray(event_active, dtype=bool)
     start_radius = np.asarray(start_radius, dtype=float)
     end_radius = np.asarray(end_radius, dtype=float)
@@ -2317,12 +2320,7 @@ def _compute_secondary_reverse_shock_synchrotron(
     for i in range(num_r):
         if b_field[i] <= 0.0:
             continue
-        if gamma_m_shell[i] > 1.0:
-            doppler_den_m = doppler_denominator(float(gamma_contact[i]), config.z)
-            nu_m[i] = _synchrotron_frequency(b_field[i], float(gamma_m_shell[i]), doppler_den_m)
         doppler_den = doppler_denominator(float(gamma4_arr[i]), config.z)
-        gamma_cool = 7.7e8 * (1.0 + config.z) / float(gamma4_arr[i]) / b_field[i] ** 2 / dynamics.r_tobs[i]
-        nu_c[i] = _synchrotron_frequency(b_field[i], gamma_cool, doppler_den)
         nu_a[i] = electron_radiation_module.get_nu_a(float(radius[i]), b_field[i], gam_e_sec, dist[:, i]) / doppler_den
     return SecondaryReverseShockState(
         luminosity_syn=luminosity,

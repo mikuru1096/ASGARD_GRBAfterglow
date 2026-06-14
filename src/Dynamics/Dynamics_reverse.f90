@@ -206,32 +206,35 @@ contains
 end subroutine secondary_reverse_contact_rh
 
 subroutine secondary_reverse_profile(Num_R,Num_jump,R,Tobs_axis,Gamma4,dNe_ISM,Jump_R,Jump_factor,Jump_width, &
-                                     Epsilon_e,Epsilon_b,p_e,f_e, &
+                                     Epsilon_e,Epsilon_b,p_e,f_e,z, &
                                      gamma_contact,pressure_3,gamma_43,comp_ratio,beta_rs,u_diss,active_weight, &
                                      m3_reservoir,u3_reservoir,v3_reservoir,b3_reservoir,gamma_m_shell, &
-                                     dissipated_energy,electron_injected_energy,event_active,start_radius, &
-                                     shock_end_radius,start_tobs_axis,shock_end_tobs_axis)
+                                     dissipated_energy,electron_injected_energy,nu_m,nu_c,event_active, &
+                                     start_radius,shock_end_radius,start_tobs_axis,shock_end_tobs_axis)
     use constants
     implicit none
     integer, intent(in) :: Num_R,Num_jump
     integer :: I,J,K,I_start,I_end
     real(8), intent(in) :: R(Num_R),Tobs_axis(Num_R),Gamma4(Num_R),dNe_ISM
     real(8), intent(in) :: Jump_R(Num_jump),Jump_factor(Num_jump),Jump_width(Num_jump)
-    real(8), intent(in) :: Epsilon_e,Epsilon_b,p_e,f_e
+    real(8), intent(in) :: Epsilon_e,Epsilon_b,p_e,f_e,z
     real(8), intent(out) :: gamma_contact(Num_R),pressure_3(Num_R),gamma_43(Num_R),comp_ratio(Num_R)
     real(8), intent(out) :: beta_rs(Num_R),u_diss(Num_R),active_weight(Num_R)
     real(8), intent(out) :: m3_reservoir(Num_R),u3_reservoir(Num_R),v3_reservoir(Num_R),b3_reservoir(Num_R)
     real(8), intent(out) :: gamma_m_shell(Num_R),dissipated_energy(Num_R),electron_injected_energy(Num_R)
+    real(8), intent(out) :: nu_m(Num_R),nu_c(Num_R)
     logical, intent(out) :: event_active(Num_jump)
     real(8), intent(out) :: start_radius(Num_jump),shock_end_radius(Num_jump)
     real(8), intent(out) :: start_tobs_axis(Num_jump),shock_end_tobs_axis(Num_jump)
     real(8) :: density_factor,local_weight,n1,n_excess,n_pre,n4,e4,p4,p3,e3,e_ad,comp,beta_s
     real(8) :: beta4,beta_c,n3,d_radius,shell_mass,shell_volume,u_inj,gamma_m,gam_e_max,b_i,volume_k,energy_k
+    real(8) :: doppler_den,gamma_cool
     real(8) :: width_cm,lower_bound,upper_bound,start_root,end_root
 
     gamma_contact=zero; pressure_3=zero; gamma_43=one; comp_ratio=zero; beta_rs=zero
     u_diss=zero; active_weight=zero; m3_reservoir=zero; u3_reservoir=zero; v3_reservoir=zero
     b3_reservoir=zero; gamma_m_shell=zero; dissipated_energy=zero; electron_injected_energy=zero
+    nu_m=zero; nu_c=zero
     event_active=.false.; start_radius=zero; shock_end_radius=zero
     start_tobs_axis=zero; shock_end_tobs_axis=zero
 
@@ -280,7 +283,16 @@ subroutine secondary_reverse_profile(Num_R,Num_jump,R,Tobs_axis,Gamma4,dNe_ISM,J
     end do
 
     do I=1,Num_R
-        if (v3_reservoir(I) > zero) b3_reservoir(I)=dsqrt(8d0*pi*Epsilon_b*u3_reservoir(I)/v3_reservoir(I))
+        if (v3_reservoir(I) > zero) then
+            b3_reservoir(I)=dsqrt(8d0*pi*Epsilon_b*u3_reservoir(I)/v3_reservoir(I))
+            if (gamma_m_shell(I) > one) then
+                doppler_den=gamma_contact(I)*(one-dsqrt(one-gamma_contact(I)**(-2)))*(one+z)
+                nu_m(I)=4.2d6*b3_reservoir(I)*gamma_m_shell(I)*gamma_m_shell(I)/doppler_den
+            end if
+            doppler_den=Gamma4(I)*(one-dsqrt(one-Gamma4(I)**(-2)))*(one+z)
+            gamma_cool=7.7d8*(one+z)/Gamma4(I)/(b3_reservoir(I)*b3_reservoir(I))/Tobs_axis(I)
+            nu_c(I)=4.2d6*b3_reservoir(I)*gamma_cool*gamma_cool/doppler_den
+        end if
     end do
 
     do J=1,Num_jump
