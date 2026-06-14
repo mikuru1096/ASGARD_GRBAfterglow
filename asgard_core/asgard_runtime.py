@@ -2241,15 +2241,46 @@ def _compute_secondary_reverse_shock_synchrotron(
     gamma_m_shell = np.zeros(num_r, dtype=float)
     dissipated_energy = np.zeros(num_r, dtype=float)
     electron_injected_energy = np.zeros(num_r, dtype=float)
-    active_weight = _secondary_reverse_active_weight(radius, jump_r, jump_factor, jump_width)
-    if not np.any(active_weight > 0.0):
+    (
+        gamma_contact,
+        pressure_3,
+        gamma_43,
+        comp_ratio,
+        u_diss,
+        active_weight,
+        event_active,
+        start_radius,
+        end_radius,
+        start_tobs,
+        end_tobs,
+    ) = _dynamics_reverse_module().secondary_reverse_profile(
+        radius,
+        dynamics.r_tobs,
+        gamma4_arr,
+        float(config.d_ne),
+        jump_r,
+        jump_factor,
+        jump_width,
+    )
+    gamma_contact = np.asarray(gamma_contact, dtype=float)
+    pressure_3 = np.asarray(pressure_3, dtype=float)
+    gamma_43 = np.asarray(gamma_43, dtype=float)
+    comp_ratio = np.asarray(comp_ratio, dtype=float)
+    u_diss = np.asarray(u_diss, dtype=float)
+    active_weight = np.asarray(active_weight, dtype=float)
+    event_active = np.asarray(event_active, dtype=bool)
+    start_radius = np.asarray(start_radius, dtype=float)
+    end_radius = np.asarray(end_radius, dtype=float)
+    start_tobs = np.asarray(start_tobs, dtype=float)
+    end_tobs = np.asarray(end_tobs, dtype=float)
+    if not np.any(event_active):
         return None
     if reverse_params.p <= 2.0:
         raise ValueError("secondary reverse shock v1 requires p > 2.")
 
     injections: list[tuple[int, float, float, float, float, float]] = []
     for i in range(1, num_r):
-        if active_weight[i] <= 0.0:
+        if u_diss[i] <= 0.0:
             continue
         gamma4 = float(gamma4_arr[i])
         if gamma4 <= 1.0:
@@ -2260,23 +2291,19 @@ def _compute_secondary_reverse_shock_synchrotron(
         if n_pre <= 0.0:
             raise RuntimeError("secondary reverse shock found non-positive pre-bump upstream density.")
         n4 = 4.0 * gamma4 * n_pre
-        e4 = 4.0 * gamma4 * (gamma4 - 1.0) * n_pre * constants.para_m_p * constants.para_c**2
-        p4 = e4 / 3.0
-        gamma_c, p3, gamma_rel, comp = _solve_secondary_reverse_contact(gamma4, n1, n4, e4, p4)
+        gamma_c = float(gamma_contact[i])
+        p3 = float(pressure_3[i])
+        comp = float(comp_ratio[i])
         if comp <= 0.0:
             continue
         n3 = comp * n4
-        e3 = 3.0 * p3
-        e_ad = e4 * comp ** (4.0 / 3.0)
-        if e3 <= e_ad:
-            continue
-        u_diss_i = e3 - e_ad
+        u_diss_i = float(u_diss[i])
         d_radius = float(radius[i] - radius[i - 1])
         shell_mass = 4.0 * np.pi * float(radius[i]) ** 2 * d_radius * n_excess * constants.para_m_p
         if shell_mass <= 0.0:
             continue
         shell_volume = shell_mass / (n3 * constants.para_m_p)
-        b_i = np.sqrt(8.0 * np.pi * reverse_params.epsilon_b * e3)
+        b_i = np.sqrt(8.0 * np.pi * reverse_params.epsilon_b * 3.0 * p3)
         gam_e_max = 3.0 * constants.para_m_energy / np.sqrt(8.0 * b_i * constants.para_e**3)
         gamma_m = 1.0 + (
             reverse_params.epsilon_e
@@ -2294,10 +2321,6 @@ def _compute_secondary_reverse_shock_synchrotron(
         nu_m[i] = _synchrotron_frequency(b_i, gamma_m, doppler_den)
         gamma_cool = 7.7e8 * (1.0 + config.z) / gamma_c / b_i**2 / dynamics.r_tobs[i]
         nu_c[i] = _synchrotron_frequency(b_i, gamma_cool, doppler_den)
-        gamma_contact[i] = gamma_c
-        pressure_3[i] = p3
-        gamma_43[i] = gamma_rel
-        u_diss[i] = u_diss_i
         dissipated_energy[i] = u_inj
         electron_injected_energy[i] = reverse_params.epsilon_e * u_inj
         gamma_m_shell[i] = gamma_m
@@ -2343,13 +2366,6 @@ def _compute_secondary_reverse_shock_synchrotron(
         gamma_cool = 7.7e8 * (1.0 + config.z) / float(gamma4_arr[i]) / b_field[i] ** 2 / dynamics.r_tobs[i]
         nu_c[i] = _synchrotron_frequency(b_field[i], gamma_cool, doppler_den)
         nu_a[i] = electron_radiation_module.get_nu_a(float(radius[i]), b_field[i], gam_e_sec, dist[:, i]) / doppler_den
-    event_active, start_radius, end_radius, start_tobs, end_tobs = _secondary_reverse_event_diagnostics(
-        radius,
-        dynamics.r_tobs,
-        u_diss,
-        jump_r,
-        jump_width,
-    )
     return SecondaryReverseShockState(
         luminosity_syn=luminosity,
         event_active=event_active,
@@ -2368,79 +2384,6 @@ def _compute_secondary_reverse_shock_synchrotron(
         nu_c=nu_c,
         nu_a=nu_a,
     )
-
-
-def _secondary_reverse_active_weight(
-    radius: np.ndarray,
-    jump_r: np.ndarray,
-    jump_factor: np.ndarray,
-    jump_width: np.ndarray,
-) -> np.ndarray:
-    # secondary RS 候选源项只属于每个密度 bump 的有限上升段。
-    weight = np.zeros_like(radius, dtype=float)
-    for radius_j, factor_j, width_j in zip(jump_r, jump_factor, jump_width):
-        x = radius - radius_j
-        width_cm = width_j * radius_j
-        rising = (x >= -4.0 * width_cm) & (x < 0.0)
-        local = (factor_j - 1.0) * np.exp(-(x * x) / (2.0 * width_cm * width_cm))
-        weight = weight + np.where(rising, local, 0.0)
-    return weight
-
-
-def _secondary_reverse_event_diagnostics(
-    radius: np.ndarray,
-    tobs_axis: np.ndarray,
-    dissipated_energy_density: np.ndarray,
-    jump_r: np.ndarray,
-    jump_width: np.ndarray,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    # 事件诊断按每个 bump 的正耗散源项历史定义，后续 Fortran 事件根可直接替换这些来源。
-    num_jump = jump_r.shape[0]
-    active = np.zeros(num_jump, dtype=bool)
-    start_radius = np.zeros(num_jump, dtype=float)
-    end_radius = np.zeros(num_jump, dtype=float)
-    start_tobs = np.zeros(num_jump, dtype=float)
-    end_tobs = np.zeros(num_jump, dtype=float)
-    positive = np.asarray(dissipated_energy_density, dtype=float) > 0.0
-    for i_jump, (radius_j, width_j) in enumerate(zip(jump_r, jump_width)):
-        width_cm = width_j * radius_j
-        candidate = (radius >= radius_j - 4.0 * width_cm) & (radius < radius_j)
-        indices = np.flatnonzero(candidate & positive)
-        if indices.size == 0:
-            continue
-        i_start = int(indices[0])
-        i_end = int(indices[-1])
-        lower_bound = radius_j - 4.0 * width_cm
-        upper_bound = np.nextafter(radius_j, lower_bound)
-        if i_start > 0 and candidate[i_start - 1]:
-            start_root = _secondary_reverse_event_edge(radius, dissipated_energy_density, i_start - 1, i_start)
-        else:
-            start_root = radius[i_start]
-        if i_end + 1 < radius.shape[0] and candidate[i_end + 1]:
-            end_root = _secondary_reverse_event_edge(radius, dissipated_energy_density, i_end, i_end + 1)
-        else:
-            end_root = radius[i_end]
-        start_root = min(max(start_root, lower_bound), upper_bound)
-        end_root = min(max(end_root, start_root), upper_bound)
-        active[i_jump] = True
-        start_radius[i_jump] = start_root
-        end_radius[i_jump] = end_root
-        start_tobs[i_jump] = np.interp(start_root, radius, tobs_axis)
-        end_tobs[i_jump] = np.interp(end_root, radius, tobs_axis)
-    return active, start_radius, end_radius, start_tobs, end_tobs
-
-
-def _secondary_reverse_event_edge(radius: np.ndarray, source: np.ndarray, i_lo: int, i_hi: int) -> float:
-    if i_lo < 0:
-        return float(radius[i_hi])
-    if i_hi >= radius.shape[0]:
-        return float(radius[i_lo])
-    s_lo = float(source[i_lo])
-    s_hi = float(source[i_hi])
-    if s_lo == s_hi:
-        return float(radius[i_hi])
-    ratio = -s_lo / (s_hi - s_lo)
-    return float(radius[i_lo] + ratio * (radius[i_hi] - radius[i_lo]))
 
 
 def _secondary_reverse_build_reservoirs(

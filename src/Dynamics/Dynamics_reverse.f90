@@ -203,6 +203,142 @@ contains
     end subroutine shock_momentum_difference
 end subroutine secondary_reverse_contact_rh
 
+subroutine secondary_reverse_profile(Num_R,Num_jump,R,Tobs_axis,Gamma4,dNe_ISM,Jump_R,Jump_factor,Jump_width, &
+                                     gamma_contact,pressure_3,gamma_43,comp_ratio,u_diss,active_weight, &
+                                     event_active,start_radius,shock_end_radius,start_tobs_axis,shock_end_tobs_axis)
+    use constants
+    implicit none
+    integer, intent(in) :: Num_R,Num_jump
+    integer :: I,J,I_start,I_end
+    real(8), intent(in) :: R(Num_R),Tobs_axis(Num_R),Gamma4(Num_R),dNe_ISM
+    real(8), intent(in) :: Jump_R(Num_jump),Jump_factor(Num_jump),Jump_width(Num_jump)
+    real(8), intent(out) :: gamma_contact(Num_R),pressure_3(Num_R),gamma_43(Num_R),comp_ratio(Num_R)
+    real(8), intent(out) :: u_diss(Num_R),active_weight(Num_R)
+    logical, intent(out) :: event_active(Num_jump)
+    real(8), intent(out) :: start_radius(Num_jump),shock_end_radius(Num_jump)
+    real(8), intent(out) :: start_tobs_axis(Num_jump),shock_end_tobs_axis(Num_jump)
+    real(8) :: density_factor,local_weight,n1,n_excess,n_pre,n4,e4,p4,p3,e3,e_ad,comp
+    real(8) :: width_cm,lower_bound,upper_bound,start_root,end_root
+
+    gamma_contact=zero; pressure_3=zero; gamma_43=one; comp_ratio=zero
+    u_diss=zero; active_weight=zero
+    event_active=.false.; start_radius=zero; shock_end_radius=zero
+    start_tobs_axis=zero; shock_end_tobs_axis=zero
+
+    do I=1,Num_R
+        call secondary_reverse_density_weights(R(I),Num_jump,Jump_R,Jump_factor,Jump_width,density_factor,local_weight)
+        active_weight(I)=local_weight
+        if (local_weight <= zero .or. Gamma4(I) <= one) cycle
+        n1=dNe_ISM*density_factor
+        n_excess=dNe_ISM*local_weight
+        n_pre=n1-n_excess
+        if (n_pre <= zero) error stop 'secondary_reverse_profile found non-positive pre-bump density'
+        n4=4d0*Gamma4(I)*n_pre
+        e4=4d0*Gamma4(I)*(Gamma4(I)-one)*n_pre*Para_m_p*Para_c**2
+        p4=e4/3d0
+        call secondary_reverse_contact_rh(Gamma4(I),n1,n4,e4,p4,gamma_contact(I),p3,gamma_43(I),comp)
+        if (comp <= zero) cycle
+        e3=3d0*p3
+        e_ad=e4*comp**(4d0/3d0)
+        if (e3 <= e_ad) cycle
+        pressure_3(I)=p3
+        comp_ratio(I)=comp
+        u_diss(I)=e3-e_ad
+    end do
+
+    do J=1,Num_jump
+        width_cm=Jump_width(J)*Jump_R(J)
+        lower_bound=Jump_R(J)-4d0*width_cm
+        upper_bound=nearest(Jump_R(J),lower_bound-Jump_R(J))
+        I_start=0; I_end=0
+        do I=1,Num_R
+            if (R(I) >= lower_bound .and. R(I) < Jump_R(J) .and. u_diss(I) > zero) then
+                if (I_start == 0) I_start=I
+                I_end=I
+            end if
+        end do
+        if (I_start == 0) cycle
+        if (I_start > 1 .and. R(I_start-1) >= lower_bound .and. R(I_start-1) < Jump_R(J)) then
+            start_root=secondary_reverse_event_edge_fortran(Num_R,R,u_diss,I_start-1,I_start,lower_bound,upper_bound)
+        else
+            start_root=R(I_start)
+        end if
+        if (I_end < Num_R .and. R(I_end+1) >= lower_bound .and. R(I_end+1) < Jump_R(J)) then
+            end_root=secondary_reverse_event_edge_fortran(Num_R,R,u_diss,I_end,I_end+1,start_root,upper_bound)
+        else
+            end_root=R(I_end)
+        end if
+        start_root=min(max(start_root,lower_bound),upper_bound)
+        end_root=min(max(end_root,start_root),upper_bound)
+        event_active(J)=.true.
+        start_radius(J)=start_root
+        shock_end_radius(J)=end_root
+        call secondary_reverse_interp_tobs(Num_R,R,Tobs_axis,start_root,start_tobs_axis(J))
+        call secondary_reverse_interp_tobs(Num_R,R,Tobs_axis,end_root,shock_end_tobs_axis(J))
+    end do
+
+contains
+
+    subroutine secondary_reverse_density_weights(radius,Num_jump,Jump_R,Jump_factor,Jump_width,density_factor,local_weight)
+    implicit none
+    integer, intent(in) :: Num_jump
+    integer :: K
+    real(8), intent(in) :: radius,Jump_R(Num_jump),Jump_factor(Num_jump),Jump_width(Num_jump)
+    real(8), intent(out) :: density_factor,local_weight
+    real(8) :: x,width,profile
+
+        density_factor=one; local_weight=zero
+        do K=1,Num_jump
+            x=radius-Jump_R(K)
+            width=Jump_width(K)*Jump_R(K)
+            profile=(Jump_factor(K)-one)*dexp(-(x*x)/(2d0*width*width))
+            density_factor=density_factor+profile
+            if (x >= -4d0*width .and. x < zero) local_weight=local_weight+profile
+        end do
+    end subroutine secondary_reverse_density_weights
+
+    real(8) function secondary_reverse_event_edge_fortran(Num_R,R,source,I_lo,I_hi,lower_bound,upper_bound)
+    implicit none
+    integer, intent(in) :: Num_R,I_lo,I_hi
+    real(8), intent(in) :: R(Num_R),source(Num_R),lower_bound,upper_bound
+    real(8) :: ratio,root
+
+        if (I_lo < 1) then
+            root=R(I_hi)
+        else if (I_hi > Num_R) then
+            root=R(I_lo)
+        else if (source(I_lo) == source(I_hi)) then
+            root=R(I_hi)
+        else
+            ratio=-source(I_lo)/(source(I_hi)-source(I_lo))
+            root=R(I_lo)+ratio*(R(I_hi)-R(I_lo))
+        end if
+        secondary_reverse_event_edge_fortran=min(max(root,lower_bound),upper_bound)
+    end function secondary_reverse_event_edge_fortran
+
+    subroutine secondary_reverse_interp_tobs(Num_R,R,Tobs_axis,root,tobs_root)
+    implicit none
+    integer, intent(in) :: Num_R
+    integer :: K
+    real(8), intent(in) :: R(Num_R),Tobs_axis(Num_R),root
+    real(8), intent(out) :: tobs_root
+    real(8) :: ratio
+
+        if (root <= R(1)) then
+            tobs_root=Tobs_axis(1)
+            return
+        end if
+        do K=1,Num_R-1
+            if (root <= R(K+1)) then
+                ratio=(root-R(K))/(R(K+1)-R(K))
+                tobs_root=Tobs_axis(K)+ratio*(Tobs_axis(K+1)-Tobs_axis(K))
+                return
+            end if
+        end do
+        tobs_root=Tobs_axis(Num_R)
+    end subroutine secondary_reverse_interp_tobs
+end subroutine secondary_reverse_profile
+
 subroutine reverse_dynamics_rhs(dB3,T_cross,R_cross,e3_cross,gam20,U3_cross,V3_cross,M3_cross,gam_m_cross,B3_ordered_cross, &
              T,Y,D,para_m_ej,V3_scale,Delta_0,eta_0,A_star,dNe_ISM,R_tr,f_jump,f_wide,R0, &
              Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,f_e_r,sigma_r)
