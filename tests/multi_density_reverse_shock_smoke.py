@@ -60,6 +60,23 @@ def _run_single_bump_equivalence() -> None:
     assert np.allclose(ambient_density(radius, scalar), ambient_density(radius, arrays), rtol=0.0, atol=0.0)
 
 
+def _run_zero_amplitude_bump_baseline() -> None:
+    base = _base_config()
+    explicit_zero = _base_config()
+    explicit_zero.jump_r_cm = (3.0e16,)
+    explicit_zero.jump_factor = (1.0,)
+    explicit_zero.jump_width_log10 = (0.10,)
+    times = np.logspace(2.0, 5.0, 10)
+    freqs = np.array([1.0e10, 1.0e14], dtype=float)
+    base_state = solve_state_from_setup(base, make_query_setup(base, times, freqs))
+    zero_state = solve_state_from_setup(explicit_zero, make_query_setup(explicit_zero, times, freqs))
+    assert zero_state.reverse_emission is not None
+    assert zero_state.reverse_emission.secondary_rs is None
+    assert np.allclose(zero_state.dynamics.radius, base_state.dynamics.radius, rtol=0.0, atol=0.0)
+    assert np.allclose(zero_state.dynamics.r_gamma, base_state.dynamics.r_gamma, rtol=0.0, atol=0.0)
+    assert np.allclose(zero_state.components.total, base_state.components.total, rtol=0.0, atol=0.0)
+
+
 def _run_multi_bump_reverse() -> None:
     config = _base_config()
     config.jump_r_cm = (2.5e16, 7.0e16)
@@ -219,6 +236,7 @@ def _assert_secondary_event_diagnostics(secondary, config: FitConfig) -> None:
 
 def main() -> None:
     _run_single_bump_equivalence()
+    _run_zero_amplitude_bump_baseline()
     _run_disabled_branch_rejections()
     _run_single_bump_secondary()
     _run_multi_bump_reverse()
