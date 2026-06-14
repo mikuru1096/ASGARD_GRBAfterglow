@@ -659,6 +659,26 @@ subroutine fs_hadronic_pgamma_proton_update(num_gamma,dn_transport,loss_rate_s_i
     end do
 end subroutine fs_hadronic_pgamma_proton_update
 
+! 单壳层质子输运：连续冷却 + BH/pp 损失 + pγ sink/reinjection 在 Fortran 内闭合。
+subroutine fs_hadronic_proton_transport_step(num_gamma,gamma,dn_prev,q_inj,b_field_g,t_dyn_s,mass_gev, &
+                                             quantum_syn,bh_loss,pp_loss,pg_loss_rate,pg_reinj_rate_per_gev, &
+                                             shell_volume_cm3,dt_s,dn_next)
+    implicit none
+    integer, intent(in) :: num_gamma,quantum_syn
+    real(8), intent(in) :: gamma(num_gamma),dn_prev(num_gamma),q_inj(num_gamma)
+    real(8), intent(in) :: b_field_g,t_dyn_s,mass_gev,shell_volume_cm3,dt_s
+    real(8), intent(in) :: bh_loss(num_gamma),pp_loss(num_gamma),pg_loss_rate(num_gamma)
+    real(8), intent(in) :: pg_reinj_rate_per_gev(num_gamma)
+    real(8), intent(out) :: dn_next(num_gamma)
+    real(8) :: loss_total(num_gamma),dn_transport(num_gamma)
+
+    call fs_hadronic_continuous_loss_rates(num_gamma,gamma,b_field_g,t_dyn_s,mass_gev,quantum_syn,loss_total)
+    loss_total(1:num_gamma)=loss_total(1:num_gamma)+bh_loss(1:num_gamma)+pp_loss(1:num_gamma)
+    call fs_hadronic_advance_energy_loggamma(num_gamma,gamma,dn_prev,q_inj,loss_total,dt_s,dn_transport)
+    call fs_hadronic_pgamma_proton_update(num_gamma,dn_transport,pg_loss_rate,pg_reinj_rate_per_gev, &
+                                          shell_volume_cm3,dt_s,dn_next)
+end subroutine fs_hadronic_proton_transport_step
+
 ! 指数 sink：用于单步粒子损失项 N -> N exp(-rate dt)。
 subroutine fs_hadronic_exponential_sink(num_value,values,loss_rate_s_inv,dt_s,values_next)
     use constants

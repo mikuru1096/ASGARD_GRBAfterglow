@@ -1258,22 +1258,21 @@ def _solve_hadronic_hummer_transport_coupled(
             pp_pair_rate_per_gev = np.asarray(pp_output.pair_rate_per_gev, dtype=float)
             timings["pp_delta"] += time.perf_counter() - t_pp_start
 
-        loss_total = _hadronic_continuous_loss_rates(
-            gam_p, float(b_field[i_r]), t_dyn_s,
-            quantum_syn=bool(config.hadronic.quantum_syn),
-            mass_gev=constants.para_m_p_gev,
-        ) + bh_loss + pp_loss
-        d_n_next = _hadronic_advance_energy_loggamma(gam_p, gam_edge, d_n_prev, q_inj, loss_total, dt_s)
         pg_loss_rate = np.asarray(backend.proton_loss_rate, dtype=float)
-        d_n_next = np.asarray(
-            hadronic_legacy_module.fs_hadronic_pgamma_proton_update(
-                d_n_next,
-                pg_loss_rate,
-                np.asarray(backend.proton_reinjection_rate_per_gev, dtype=float),
-                shell_volume_loc,
-                dt_s,
-            ),
-            dtype=float,
+        d_n_next = _hadronic_proton_transport_step(
+            gam_p,
+            d_n_prev,
+            q_inj,
+            float(b_field[i_r]),
+            t_dyn_s,
+            constants.para_m_p_gev,
+            bool(config.hadronic.quantum_syn),
+            bh_loss,
+            pp_loss,
+            pg_loss_rate,
+            np.asarray(backend.proton_reinjection_rate_per_gev, dtype=float),
+            shell_volume_loc,
+            dt_s,
         )
         if np.any(d_n_next < 0.0):
             raise RuntimeError("hadronic proton transport produced negative density.")
@@ -1951,6 +1950,41 @@ def _hadronic_injection_content(
             float(gamma_max),
             1.0,
             False,
+        ),
+        dtype=float,
+    )
+
+
+def _hadronic_proton_transport_step(
+    gamma: np.ndarray,
+    dn_prev: np.ndarray,
+    q_inj: np.ndarray,
+    b_field_g: float,
+    t_dyn_s: float,
+    mass_gev: float,
+    quantum_syn: bool,
+    bh_loss: np.ndarray,
+    pp_loss: np.ndarray,
+    pg_loss_rate: np.ndarray,
+    pg_reinj_rate_per_gev: np.ndarray,
+    shell_volume_cm3: float,
+    dt_s: float,
+) -> np.ndarray:
+    return np.asarray(
+        hadronic_legacy_module.fs_hadronic_proton_transport_step(
+            np.asarray(gamma, dtype=float),
+            np.asarray(dn_prev, dtype=float),
+            np.asarray(q_inj, dtype=float),
+            float(b_field_g),
+            float(t_dyn_s),
+            float(mass_gev),
+            1 if quantum_syn else 0,
+            np.asarray(bh_loss, dtype=float),
+            np.asarray(pp_loss, dtype=float),
+            np.asarray(pg_loss_rate, dtype=float),
+            np.asarray(pg_reinj_rate_per_gev, dtype=float),
+            float(shell_volume_cm3),
+            float(dt_s),
         ),
         dtype=float,
     )
