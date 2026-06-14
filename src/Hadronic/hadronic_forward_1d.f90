@@ -629,6 +629,19 @@ subroutine fs_hadronic_exponential_sink(num_value,values,loss_rate_s_inv,dt_s,va
     end do
 end subroutine fs_hadronic_exponential_sink
 
+! 将每能量反应率谱转换为 shell luminosity 谱。
+subroutine fs_hadronic_energy_luminosity_from_rate(num_energy,energy_gev,rate_per_gev,shell_volume_cm3, &
+                                                   luminosity)
+    use constants
+    implicit none
+    integer, intent(in) :: num_energy
+    real(8), intent(in) :: energy_gev(num_energy),rate_per_gev(num_energy),shell_volume_cm3
+    real(8), intent(out) :: luminosity(num_energy)
+
+    if (shell_volume_cm3 <= zero) error stop "hadronic luminosity conversion requires positive shell volume."
+    luminosity(1:num_energy)=shell_volume_cm3*rate_per_gev(1:num_energy)*energy_gev(1:num_energy)*Para_h_GeV*Para_GeV2erg
+end subroutine fs_hadronic_energy_luminosity_from_rate
+
 subroutine hadronic_sequence_shell_geometry(num_r,radius_cm,gamma_bulk,i_r,dr,dt_s)
     use constants
     implicit none

@@ -1936,9 +1936,14 @@ def _energy_luminosity_from_rate_spectrum(
     spectrum: np.ndarray,
     shell_volume_cm3: float,
 ) -> np.ndarray:
-    energy = np.asarray(energy_gev, dtype=float)
-    spec = np.asarray(spectrum, dtype=float)
-    return shell_volume_cm3 * spec * energy * constants.para_h_gev * GEV_TO_ERG
+    return np.asarray(
+        hadronic_legacy_module.fs_hadronic_energy_luminosity_from_rate(
+            np.asarray(energy_gev, dtype=float),
+            np.asarray(spectrum, dtype=float),
+            float(shell_volume_cm3),
+        ),
+        dtype=float,
+    )
 
 
 def _hadronic_proton_syn_state(
