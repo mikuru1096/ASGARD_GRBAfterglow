@@ -172,6 +172,31 @@ def _run_single_bump_secondary() -> None:
     )
 
 
+def _run_single_bump_event_grid_convergence() -> None:
+    starts = []
+    ends = []
+    for num_r in (72, 96, 128):
+        config = _base_config()
+        config.num_r = num_r
+        config.num_gam_e = 61
+        config.num_nu = 32
+        config.num_theta = 12
+        config.num_tobs = 48
+        config.jump_r_cm = (3.0e16,)
+        config.jump_factor = (6.0,)
+        config.jump_width_log10 = (0.10,)
+        state = solve_state_from_setup(
+            config,
+            make_query_setup(config, np.logspace(2.0, 6.0, 10), np.array([1.0e10])),
+        )
+        assert state.reverse_emission is not None
+        assert state.reverse_emission.secondary_rs is not None
+        starts.append(float(state.reverse_emission.secondary_rs.start_radius_cm[0]))
+        ends.append(float(state.reverse_emission.secondary_rs.shock_end_radius_cm[0]))
+    assert np.allclose(starts, starts[-1], rtol=2.0e-3, atol=0.0)
+    assert np.allclose(ends, ends[-1], rtol=2.0e-3, atol=0.0)
+
+
 def _run_disabled_branch_rejections() -> None:
     cases = [
         ("non-synch electron cooling", lambda cfg: setattr(cfg, "index_y", 1)),
@@ -239,6 +264,7 @@ def main() -> None:
     _run_zero_amplitude_bump_baseline()
     _run_disabled_branch_rejections()
     _run_single_bump_secondary()
+    _run_single_bump_event_grid_convergence()
     _run_multi_bump_reverse()
     print("multi-density-reverse-shock-smoke-ok")
 

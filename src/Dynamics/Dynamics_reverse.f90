@@ -215,7 +215,7 @@ subroutine secondary_reverse_profile(Num_R,Num_jump,R,Tobs_axis,Gamma4,dNe_ISM,J
     use constants
     implicit none
     integer, intent(in) :: Num_R,Num_jump
-    integer :: I,J,K,I_start,I_end
+    integer :: I,J,K
     real(8), intent(in) :: R(Num_R),Tobs_axis(Num_R),Gamma4(Num_R),dNe_ISM
     real(8), intent(in) :: Jump_R(Num_jump),Jump_factor(Num_jump),Jump_width(Num_jump)
     real(8), intent(in) :: Epsilon_e,Epsilon_b,p_e,f_e,z
@@ -304,34 +304,48 @@ subroutine secondary_reverse_profile(Num_R,Num_jump,R,Tobs_axis,Gamma4,dNe_ISM,J
         width_cm=Jump_width(J)*Jump_R(J)
         lower_bound=Jump_R(J)-4d0*width_cm
         upper_bound=nearest(Jump_R(J),lower_bound-Jump_R(J))
-        I_start=0; I_end=0
-        do I=1,Num_R
-            if (R(I) >= lower_bound .and. R(I) < Jump_R(J) .and. u_diss(I) > zero) then
-                if (I_start == 0) I_start=I
-                I_end=I
-            end if
-        end do
-        if (I_start == 0) cycle
-        if (I_start > 1 .and. R(I_start-1) >= lower_bound .and. R(I_start-1) < Jump_R(J)) then
-            start_root=secondary_reverse_event_root_fortran(I_start-1,I_start,lower_bound,upper_bound)
-        else
-            start_root=R(I_start)
+        call secondary_reverse_scan_event_window(lower_bound,upper_bound,start_root,end_root,event_active(J))
+        if (event_active(J)) then
+            start_radius(J)=start_root
+            shock_end_radius(J)=end_root
+            call secondary_reverse_interp_tobs(Num_R,R,Tobs_axis,start_root,start_tobs_axis(J))
+            call secondary_reverse_interp_tobs(Num_R,R,Tobs_axis,end_root,shock_end_tobs_axis(J))
         end if
-        if (I_end < Num_R .and. R(I_end+1) >= lower_bound .and. R(I_end+1) < Jump_R(J)) then
-            end_root=secondary_reverse_event_root_fortran(I_end,I_end+1,start_root,upper_bound)
-        else
-            end_root=R(I_end)
-        end if
-        start_root=min(max(start_root,lower_bound),upper_bound)
-        end_root=min(max(end_root,start_root),upper_bound)
-        event_active(J)=.true.
-        start_radius(J)=start_root
-        shock_end_radius(J)=end_root
-        call secondary_reverse_interp_tobs(Num_R,R,Tobs_axis,start_root,start_tobs_axis(J))
-        call secondary_reverse_interp_tobs(Num_R,R,Tobs_axis,end_root,shock_end_tobs_axis(J))
     end do
 
 contains
+
+    subroutine secondary_reverse_scan_event_window(lower_bound,upper_bound,start_root,end_root,active)
+    implicit none
+    integer :: K
+    logical, intent(out) :: active
+    real(8), intent(in) :: lower_bound,upper_bound
+    real(8), intent(out) :: start_root,end_root
+    real(8), parameter :: scan_intervals=64d0
+    real(8) :: r_lo,r_hi,g_lo,g_hi
+
+        active=.false.; start_root=zero; end_root=zero
+        r_lo=lower_bound
+        call secondary_reverse_signed_source(r_lo,g_lo)
+        if (g_lo > zero) then
+            active=.true.
+            start_root=r_lo
+        end if
+        do K=1,64
+            r_hi=lower_bound+(upper_bound-lower_bound)*dble(K)/scan_intervals
+            call secondary_reverse_signed_source(r_hi,g_hi)
+            if (.not. active .and. g_lo <= zero .and. g_hi > zero) then
+                active=.true.
+                start_root=secondary_reverse_event_root_bracket(r_lo,r_hi)
+            end if
+            if (active .and. g_lo > zero .and. g_hi <= zero) then
+                end_root=secondary_reverse_event_root_bracket(r_lo,r_hi)
+                return
+            end if
+            r_lo=r_hi; g_lo=g_hi
+        end do
+        if (active) end_root=upper_bound
+    end subroutine secondary_reverse_scan_event_window
 
     subroutine secondary_reverse_density_weights(radius,Num_jump,Jump_R,Jump_factor,Jump_width,density_factor,local_weight)
     implicit none
@@ -351,27 +365,25 @@ contains
         end do
     end subroutine secondary_reverse_density_weights
 
-    real(8) function secondary_reverse_event_root_fortran(I_lo,I_hi,lower_bound,upper_bound)
+    real(8) function secondary_reverse_event_root_bracket(lo_r_in,hi_r_in)
     implicit none
-    integer, intent(in) :: I_lo,I_hi
     integer :: K
-    real(8), intent(in) :: lower_bound,upper_bound
+    real(8), intent(in) :: lo_r_in,hi_r_in
     real(8) :: lo_r,hi_r,mid_r,g_lo,g_hi,g_mid
 
-        lo_r=min(max(R(I_lo),lower_bound),upper_bound)
-        hi_r=min(max(R(I_hi),lower_bound),upper_bound)
+        lo_r=lo_r_in; hi_r=hi_r_in
         call secondary_reverse_signed_source(lo_r,g_lo)
         call secondary_reverse_signed_source(hi_r,g_hi)
         if (g_lo == zero) then
-            secondary_reverse_event_root_fortran=lo_r
+            secondary_reverse_event_root_bracket=lo_r
             return
         end if
         if (g_hi == zero) then
-            secondary_reverse_event_root_fortran=hi_r
+            secondary_reverse_event_root_bracket=hi_r
             return
         end if
         if (g_lo*g_hi > zero) then
-            error stop 'secondary_reverse_event_root_fortran requires a signed source bracket'
+            error stop 'secondary_reverse_event_root_bracket requires a signed source bracket'
         end if
         do K=1,80
             mid_r=0.5d0*(lo_r+hi_r)
@@ -382,7 +394,18 @@ contains
                 lo_r=mid_r; g_lo=g_mid
             end if
         end do
-        secondary_reverse_event_root_fortran=0.5d0*(lo_r+hi_r)
+        secondary_reverse_event_root_bracket=0.5d0*(lo_r+hi_r)
+    end function secondary_reverse_event_root_bracket
+
+    real(8) function secondary_reverse_event_root_fortran(I_lo,I_hi,lower_bound,upper_bound)
+    implicit none
+    integer, intent(in) :: I_lo,I_hi
+    real(8), intent(in) :: lower_bound,upper_bound
+    real(8) :: lo_r,hi_r
+
+        lo_r=min(max(R(I_lo),lower_bound),upper_bound)
+        hi_r=min(max(R(I_hi),lower_bound),upper_bound)
+        secondary_reverse_event_root_fortran=secondary_reverse_event_root_bracket(lo_r,hi_r)
     end function secondary_reverse_event_root_fortran
 
     subroutine secondary_reverse_signed_source(radius,source)
