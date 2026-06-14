@@ -31,11 +31,9 @@ from asgard_core.hadronic_secondary_radiation import (
 from asgard_core.hadronic_species_transport import (
     ChargedMuonDistribution,
     ChargedPionDistribution,
-    HadronicSpeciesSources,
     HadronicSpeciesState,
     NeutronDistribution,
     SPECIES_TRANSPORT_BACKEND,
-    advance_species_transport_explicit,
 )
 from asgard_core.hadronic_hummer import GEV_TO_ERG, HUMMER2010_DECAY_BACKEND, HUMMER2010_OPERATOR_BACKEND, PROTON_MASS_GEV, solve_hummer2010_pgamma
 from src import constants
@@ -1298,88 +1296,47 @@ def _solve_hadronic_hummer_transport_coupled(
 
         divergence_rate_s_inv = 3.0 / t_dyn_s
         t_species_start = time.perf_counter()
-        species_sources = HadronicSpeciesSources(
-            neutron_per_gamma_s=_interp_source_per_gamma(
-                backend.hadron_energy_gev,
-                backend.neutron_reinjection_rate_per_gev,
-                neutron_energy_gev,
-                constants.para_m_n_gev,
-                shell_volume_loc,
-            ),
-            charged_pion_plus_per_gamma_s=_interp_source_per_gamma(
-                backend.hadron_energy_gev,
-                backend.pion_plus_source_rate_per_gev,
-                pion_energy_gev,
-                constants.para_m_pi_charged_gev,
-                shell_volume_loc,
-            ),
-            charged_pion_minus_per_gamma_s=_interp_source_per_gamma(
-                backend.hadron_energy_gev,
-                backend.pion_minus_source_rate_per_gev,
-                pion_energy_gev,
-                constants.para_m_pi_charged_gev,
-                shell_volume_loc,
-            ),
-            charged_muon_minus_left_per_gamma_s=_interp_source_per_gamma(
-                backend.hadron_energy_gev,
-                backend.muon_minus_left_source_rate_per_gev,
-                muon_energy_gev,
-                constants.para_m_mu_gev,
-                shell_volume_loc,
-            ),
-            charged_muon_minus_right_per_gamma_s=_interp_source_per_gamma(
-                backend.hadron_energy_gev,
-                backend.muon_minus_right_source_rate_per_gev,
-                muon_energy_gev,
-                constants.para_m_mu_gev,
-                shell_volume_loc,
-            ),
-            charged_muon_plus_left_per_gamma_s=_interp_source_per_gamma(
-                backend.hadron_energy_gev,
-                backend.muon_plus_left_source_rate_per_gev,
-                muon_energy_gev,
-                constants.para_m_mu_gev,
-                shell_volume_loc,
-            ),
-            charged_muon_plus_right_per_gamma_s=_interp_source_per_gamma(
-                backend.hadron_energy_gev,
-                backend.muon_plus_right_source_rate_per_gev,
-                muon_energy_gev,
-                constants.para_m_mu_gev,
-                shell_volume_loc,
-            ),
-        )
-        species_state_next = advance_species_transport_explicit(
-            state=species_state_prev,
-            sources=species_sources,
-            dt_s=dt_s,
-            b_field_g=float(b_field[i_r]),
-            divergence_rate_s_inv=divergence_rate_s_inv,
-        )
-        timings["species_transport"] += time.perf_counter() - t_species_start
-        neutron_loss_rate = _interp_positive_loglog(
+        (
+            neutron_next,
+            pion_plus_next,
+            pion_minus_next,
+            muon_minus_left_next,
+            muon_minus_right_next,
+            muon_plus_left_next,
+            muon_plus_right_next,
+        ) = _hadronic_species_transport_step(
+            gam_secondary,
             backend.hadron_energy_gev,
+            backend.neutron_reinjection_rate_per_gev,
+            backend.pion_plus_source_rate_per_gev,
+            backend.pion_minus_source_rate_per_gev,
+            backend.muon_minus_left_source_rate_per_gev,
+            backend.muon_minus_right_source_rate_per_gev,
+            backend.muon_plus_left_source_rate_per_gev,
+            backend.muon_plus_right_source_rate_per_gev,
             backend.neutron_loss_rate,
-            neutron_energy_gev,
-        )
-        if np.any(neutron_loss_rate < 0.0):
-            raise RuntimeError("hadronic neutron loss rate must be non-negative.")
-        neutron_next = np.asarray(
-            hadronic_legacy_module.fs_hadronic_exponential_sink(
-                species_state_next.neutron.density_per_gamma,
-                neutron_loss_rate,
-                dt_s,
-            ),
-            dtype=float,
+            dt_s,
+            float(b_field[i_r]),
+            divergence_rate_s_inv,
+            shell_volume_loc,
+            species_state_prev,
         )
         species_state_next = HadronicSpeciesState(
-            neutron=NeutronDistribution(
+            neutron=NeutronDistribution(gamma=gam_secondary, density_per_gamma=neutron_next),
+            charged_pion=ChargedPionDistribution(
                 gamma=gam_secondary,
-                density_per_gamma=neutron_next,
+                plus_density_per_gamma=pion_plus_next,
+                minus_density_per_gamma=pion_minus_next,
             ),
-            charged_pion=species_state_next.charged_pion,
-            charged_muon=species_state_next.charged_muon,
+            charged_muon=ChargedMuonDistribution(
+                gamma=gam_secondary,
+                minus_left_density_per_gamma=muon_minus_left_next,
+                minus_right_density_per_gamma=muon_minus_right_next,
+                plus_left_density_per_gamma=muon_plus_left_next,
+                plus_right_density_per_gamma=muon_plus_right_next,
+            ),
         )
+        timings["species_transport"] += time.perf_counter() - t_species_start
         d_n_gam_n[:, i_r] = species_state_next.neutron.density_per_gamma
         d_n_gam_pi_plus[:, i_r] = species_state_next.charged_pion.plus_density_per_gamma
         d_n_gam_pi_minus[:, i_r] = species_state_next.charged_pion.minus_density_per_gamma
@@ -1993,6 +1950,49 @@ def _hadronic_proton_transport_step(
         ),
         dtype=float,
     )
+
+
+def _hadronic_species_transport_step(
+    gamma: np.ndarray,
+    source_energy_gev: np.ndarray,
+    neutron_source_per_gev_s: np.ndarray,
+    pion_plus_source_per_gev_s: np.ndarray,
+    pion_minus_source_per_gev_s: np.ndarray,
+    muon_minus_left_source_per_gev_s: np.ndarray,
+    muon_minus_right_source_per_gev_s: np.ndarray,
+    muon_plus_left_source_per_gev_s: np.ndarray,
+    muon_plus_right_source_per_gev_s: np.ndarray,
+    neutron_loss_src_s_inv: np.ndarray,
+    dt_s: float,
+    b_field_g: float,
+    divergence_rate_s_inv: float,
+    shell_volume_cm3: float,
+    state_prev: HadronicSpeciesState,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    result = hadronic_legacy_module.fs_hadronic_species_transport_step(
+        np.asarray(gamma, dtype=float),
+        np.asarray(source_energy_gev, dtype=float),
+        np.asarray(neutron_source_per_gev_s, dtype=float),
+        np.asarray(pion_plus_source_per_gev_s, dtype=float),
+        np.asarray(pion_minus_source_per_gev_s, dtype=float),
+        np.asarray(muon_minus_left_source_per_gev_s, dtype=float),
+        np.asarray(muon_minus_right_source_per_gev_s, dtype=float),
+        np.asarray(muon_plus_left_source_per_gev_s, dtype=float),
+        np.asarray(muon_plus_right_source_per_gev_s, dtype=float),
+        np.asarray(neutron_loss_src_s_inv, dtype=float),
+        float(dt_s),
+        float(b_field_g),
+        float(divergence_rate_s_inv),
+        float(shell_volume_cm3),
+        np.asarray(state_prev.neutron.density_per_gamma, dtype=float),
+        np.asarray(state_prev.charged_pion.plus_density_per_gamma, dtype=float),
+        np.asarray(state_prev.charged_pion.minus_density_per_gamma, dtype=float),
+        np.asarray(state_prev.charged_muon.minus_left_density_per_gamma, dtype=float),
+        np.asarray(state_prev.charged_muon.minus_right_density_per_gamma, dtype=float),
+        np.asarray(state_prev.charged_muon.plus_left_density_per_gamma, dtype=float),
+        np.asarray(state_prev.charged_muon.plus_right_density_per_gamma, dtype=float),
+    )
+    return tuple(np.asarray(item, dtype=float) for item in result)
 
 
 def _energy_luminosity_from_rate_spectrum(

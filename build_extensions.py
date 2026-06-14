@@ -69,6 +69,7 @@ F2PY_ENTRYPOINTS = {
         "fs_hadronic_bethe_heitler_shell",
         "fs_hadronic_hadronic_ic_shell",
         "fs_hadronic_species_transport_shell",
+        "fs_hadronic_species_transport_step",
         "fs_hadronic_acceleration_shell",
         "fs_hadronic_injection_content",
         "fs_hadronic_global_gamma_p_max",

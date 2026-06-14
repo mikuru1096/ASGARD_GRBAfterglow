@@ -176,6 +176,68 @@ subroutine fs_hadronic_species_transport_shell(Num_gamma,gamma,dt_s,b_field_g,di
                                            muon_minus_left_next,muon_minus_right_next,muon_plus_left_next,muon_plus_right_next)
 end subroutine fs_hadronic_species_transport_shell
 
+! 单壳层二级强子输运：源项映射、π/μ 推进和 neutron sink 在 Fortran 内闭合。
+subroutine fs_hadronic_species_transport_step(num_gamma,num_src,gamma,source_energy_gev,neutron_source_per_gev_s, &
+                                              pion_plus_source_per_gev_s,pion_minus_source_per_gev_s, &
+                                              muon_minus_left_source_per_gev_s,muon_minus_right_source_per_gev_s, &
+                                              muon_plus_left_source_per_gev_s,muon_plus_right_source_per_gev_s, &
+                                              neutron_loss_src_s_inv,dt_s,b_field_g,divergence_rate_s_inv, &
+                                              shell_volume_cm3,neutron_prev,pion_plus_prev,pion_minus_prev, &
+                                              muon_minus_left_prev,muon_minus_right_prev,muon_plus_left_prev, &
+                                              muon_plus_right_prev,neutron_next,pion_plus_next,pion_minus_next, &
+                                              muon_minus_left_next,muon_minus_right_next,muon_plus_left_next, &
+                                              muon_plus_right_next)
+    use constants
+    implicit none
+    integer, intent(in) :: num_gamma,num_src
+    real(8), intent(in) :: gamma(num_gamma),source_energy_gev(num_src),dt_s,b_field_g,divergence_rate_s_inv
+    real(8), intent(in) :: shell_volume_cm3,neutron_source_per_gev_s(num_src),pion_plus_source_per_gev_s(num_src)
+    real(8), intent(in) :: pion_minus_source_per_gev_s(num_src),muon_minus_left_source_per_gev_s(num_src)
+    real(8), intent(in) :: muon_minus_right_source_per_gev_s(num_src),muon_plus_left_source_per_gev_s(num_src)
+    real(8), intent(in) :: muon_plus_right_source_per_gev_s(num_src),neutron_loss_src_s_inv(num_src)
+    real(8), intent(in) :: neutron_prev(num_gamma),pion_plus_prev(num_gamma),pion_minus_prev(num_gamma)
+    real(8), intent(in) :: muon_minus_left_prev(num_gamma),muon_minus_right_prev(num_gamma)
+    real(8), intent(in) :: muon_plus_left_prev(num_gamma),muon_plus_right_prev(num_gamma)
+    real(8), intent(out) :: neutron_next(num_gamma),pion_plus_next(num_gamma),pion_minus_next(num_gamma)
+    real(8), intent(out) :: muon_minus_left_next(num_gamma),muon_minus_right_next(num_gamma)
+    real(8), intent(out) :: muon_plus_left_next(num_gamma),muon_plus_right_next(num_gamma)
+    integer :: i
+    real(8) :: neutron_energy(num_gamma),pion_energy(num_gamma),muon_energy(num_gamma)
+    real(8) :: neutron_source(num_gamma),pion_plus_source(num_gamma),pion_minus_source(num_gamma)
+    real(8) :: muon_ml_source(num_gamma),muon_mr_source(num_gamma),muon_pl_source(num_gamma),muon_pr_source(num_gamma)
+    real(8) :: neutron_loss(num_gamma),neutron_transport(num_gamma)
+
+    do i=1,num_gamma
+        neutron_energy(i)=gamma(i)*Para_m_n_GeV
+        pion_energy(i)=gamma(i)*Para_m_pi_charged_GeV
+        muon_energy(i)=gamma(i)*Para_m_mu_GeV
+    end do
+    call fs_hadronic_source_per_gamma(num_src,num_gamma,source_energy_gev,neutron_source_per_gev_s, &
+                                      neutron_energy,Para_m_n_GeV,shell_volume_cm3,neutron_source)
+    call fs_hadronic_source_per_gamma(num_src,num_gamma,source_energy_gev,pion_plus_source_per_gev_s, &
+                                      pion_energy,Para_m_pi_charged_GeV,shell_volume_cm3,pion_plus_source)
+    call fs_hadronic_source_per_gamma(num_src,num_gamma,source_energy_gev,pion_minus_source_per_gev_s, &
+                                      pion_energy,Para_m_pi_charged_GeV,shell_volume_cm3,pion_minus_source)
+    call fs_hadronic_source_per_gamma(num_src,num_gamma,source_energy_gev,muon_minus_left_source_per_gev_s, &
+                                      muon_energy,Para_m_mu_GeV,shell_volume_cm3,muon_ml_source)
+    call fs_hadronic_source_per_gamma(num_src,num_gamma,source_energy_gev,muon_minus_right_source_per_gev_s, &
+                                      muon_energy,Para_m_mu_GeV,shell_volume_cm3,muon_mr_source)
+    call fs_hadronic_source_per_gamma(num_src,num_gamma,source_energy_gev,muon_plus_left_source_per_gev_s, &
+                                      muon_energy,Para_m_mu_GeV,shell_volume_cm3,muon_pl_source)
+    call fs_hadronic_source_per_gamma(num_src,num_gamma,source_energy_gev,muon_plus_right_source_per_gev_s, &
+                                      muon_energy,Para_m_mu_GeV,shell_volume_cm3,muon_pr_source)
+    call fs_hadronic_species_transport_shell(num_gamma,gamma,dt_s,b_field_g,divergence_rate_s_inv,neutron_prev, &
+                                             pion_plus_prev,pion_minus_prev,muon_minus_left_prev, &
+                                             muon_minus_right_prev,muon_plus_left_prev,muon_plus_right_prev, &
+                                             neutron_source,pion_plus_source,pion_minus_source,muon_ml_source, &
+                                             muon_mr_source,muon_pl_source,muon_pr_source,neutron_transport, &
+                                             pion_plus_next,pion_minus_next,muon_minus_left_next, &
+                                             muon_minus_right_next,muon_plus_left_next,muon_plus_right_next)
+    call fs_hadronic_positive_loglog_interp(num_src,num_gamma,source_energy_gev,neutron_loss_src_s_inv, &
+                                            neutron_energy,neutron_loss)
+    call fs_hadronic_exponential_sink(num_gamma,neutron_transport,neutron_loss,dt_s,neutron_next)
+end subroutine fs_hadronic_species_transport_step
+
 ! Single-shell hadronic acceleration wrapper.
 subroutine fs_hadronic_acceleration_shell(Num_gamma,species,gamma,b_field_g,eta_acc,luminosity_erg_s,spectral_index, &
                                           gamma_min,gamma_max_inj,gamma_cut,has_gamma_cut,radius_cm,gamma_bulk, &
