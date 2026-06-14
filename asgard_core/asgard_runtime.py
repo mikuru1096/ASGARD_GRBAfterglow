@@ -1358,11 +1358,18 @@ def _solve_hadronic_hummer_transport_coupled(
         )
         if np.any(neutron_loss_rate < 0.0):
             raise RuntimeError("hadronic neutron loss rate must be non-negative.")
-        neutron_sink = np.exp(-dt_s * neutron_loss_rate)
+        neutron_next = np.asarray(
+            hadronic_legacy_module.fs_hadronic_exponential_sink(
+                species_state_next.neutron.density_per_gamma,
+                neutron_loss_rate,
+                dt_s,
+            ),
+            dtype=float,
+        )
         species_state_next = HadronicSpeciesState(
             neutron=NeutronDistribution(
                 gamma=gam_secondary,
-                density_per_gamma=species_state_next.neutron.density_per_gamma * neutron_sink,
+                density_per_gamma=neutron_next,
             ),
             charged_pion=species_state_next.charged_pion,
             charged_muon=species_state_next.charged_muon,

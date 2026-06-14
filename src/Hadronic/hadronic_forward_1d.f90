@@ -613,6 +613,22 @@ subroutine fs_hadronic_pgamma_proton_update(num_gamma,dn_transport,loss_rate_s_i
     end do
 end subroutine fs_hadronic_pgamma_proton_update
 
+! 指数 sink：用于单步粒子损失项 N -> N exp(-rate dt)。
+subroutine fs_hadronic_exponential_sink(num_value,values,loss_rate_s_inv,dt_s,values_next)
+    use constants
+    implicit none
+    integer, intent(in) :: num_value
+    real(8), intent(in) :: values(num_value),loss_rate_s_inv(num_value),dt_s
+    real(8), intent(out) :: values_next(num_value)
+    integer :: i
+
+    if (dt_s <= zero) error stop "hadronic exponential sink requires dt_s > 0."
+    if (any(loss_rate_s_inv < zero)) error stop "hadronic exponential sink requires non-negative rates."
+    do i=1,num_value
+        values_next(i)=values(i)*dexp(-loss_rate_s_inv(i)*dt_s)
+    end do
+end subroutine fs_hadronic_exponential_sink
+
 subroutine hadronic_sequence_shell_geometry(num_r,radius_cm,gamma_bulk,i_r,dr,dt_s)
     use constants
     implicit none
