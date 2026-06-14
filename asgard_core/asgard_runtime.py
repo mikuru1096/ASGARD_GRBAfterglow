@@ -15,7 +15,7 @@ from asgard_core.hadronic_am3_solver import (
     solve_hummer_2010_response_processes,
     solve_ka2008_reference_processes,
 )
-from asgard_core.hadronic_acceleration import ACCELERATION_BACKEND, InjectionConfig, estimate_max_gamma, species_injection_operator
+from asgard_core.hadronic_acceleration import ACCELERATION_BACKEND, estimate_max_gamma
 from asgard_core.hadronic_bethe_heitler import (
     BETHE_HEITLER_BACKEND,
     ELECTRON_MASS_GEV,
@@ -1147,18 +1147,14 @@ def _solve_hadronic_hummer_transport_coupled(
         dt_s = _hadronic_shell_comoving_dt_from_radius(radius, gamma_bulk, i_r)
         t_dyn_s = _hadronic_dynamical_time(radius[i_r], gamma_bulk[i_r])
         gam_p_min = max(float(gam_p[0]), float(gamma_bulk[i_r]))
-        q_inj = np.zeros_like(gam_p, dtype=float)
-        if float(shell_energy_inj[i_r]) > 0.0:
-            q_inj = dt_s * species_injection_operator(
-                gam_p,
-                InjectionConfig(
-                    species="proton",
-                    luminosity_erg_s=float(shell_energy_inj[i_r]) / dt_s,
-                    spectral_index=float(config.hadronic.p_p),
-                    gamma_min=gam_p_min,
-                    gamma_max=float(gam_p[-1]),
-                ),
-            )
+        q_inj = _hadronic_injection_content(
+            gam_p,
+            float(shell_energy_inj[i_r]),
+            dt_s,
+            float(config.hadronic.p_p),
+            gam_p_min,
+            float(gam_p[-1]),
+        )
         shell_volume_loc = float(shell_volume_cm3[i_r])
         d_n_trial = _hadronic_advance_energy_loggamma(
             gam_p,
@@ -1952,6 +1948,30 @@ def _hadronic_advance_energy_loggamma(
             np.asarray(q_inj, dtype=float),
             loss,
             float(dt_s),
+        ),
+        dtype=float,
+    )
+
+
+def _hadronic_injection_content(
+    gamma: np.ndarray,
+    shell_energy_erg: float,
+    dt_s: float,
+    spectral_index: float,
+    gamma_min: float,
+    gamma_max: float,
+) -> np.ndarray:
+    return np.asarray(
+        hadronic_legacy_module.fs_hadronic_injection_content(
+            "proton",
+            np.asarray(gamma, dtype=float),
+            float(shell_energy_erg),
+            float(dt_s),
+            float(spectral_index),
+            float(gamma_min),
+            float(gamma_max),
+            1.0,
+            False,
         ),
         dtype=float,
     )

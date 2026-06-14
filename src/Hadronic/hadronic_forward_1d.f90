@@ -199,6 +199,28 @@ subroutine fs_hadronic_acceleration_shell(Num_gamma,species,gamma,b_field_g,eta_
                                         t_acc,t_syn,q_inj,gamma_max,gamma_dyn,gamma_syn,gamma_ext,has_gamma_ext)
 end subroutine fs_hadronic_acceleration_shell
 
+! 单壳层注入 content：按 shell energy/dt 得到源项，再乘回本步 dt。
+subroutine fs_hadronic_injection_content(num_gamma,species,gamma,shell_energy_erg,dt_s,spectral_index, &
+                                         gamma_min,gamma_max_inj,gamma_cut,has_gamma_cut,q_content)
+    use hadronic_acceleration_kernel, only: hadronic_species_injection_operator
+    implicit none
+    integer, intent(in) :: num_gamma
+    character(len=*), intent(in) :: species
+    real(8), intent(in) :: gamma(num_gamma),shell_energy_erg,dt_s,spectral_index
+    real(8), intent(in) :: gamma_min,gamma_max_inj,gamma_cut
+    logical, intent(in) :: has_gamma_cut
+    real(8), intent(out) :: q_content(num_gamma)
+
+    if (dt_s <= 0d0) error stop "hadronic injection content requires dt_s > 0."
+    if (shell_energy_erg <= 0d0) then
+        q_content=0d0
+        return
+    end if
+    call hadronic_species_injection_operator(num_gamma,gamma,species,shell_energy_erg/dt_s,spectral_index, &
+                                             gamma_min,gamma_max_inj,gamma_cut,has_gamma_cut,q_content)
+    q_content(1:num_gamma)=dt_s*q_content(1:num_gamma)
+end subroutine fs_hadronic_injection_content
+
 ! Single-shell secondary-radiation wrapper.
 subroutine fs_hadronic_secondary_radiation_shell(Num_had,hadron_energy_gev,Num_ph,photon_energy_gev,pion_plus_per_gev, &
                                                  pion_minus_per_gev,muon_minus_left_per_gev,muon_minus_right_per_gev, &

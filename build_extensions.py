@@ -70,6 +70,7 @@ F2PY_ENTRYPOINTS = {
         "fs_hadronic_hadronic_ic_shell",
         "fs_hadronic_species_transport_shell",
         "fs_hadronic_acceleration_shell",
+        "fs_hadronic_injection_content",
         "fs_hadronic_secondary_radiation_shell",
         "fs_hadronic_decay_operator_shell",
         "fs_hadronic_pair_cascade_step",
