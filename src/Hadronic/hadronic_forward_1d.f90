@@ -512,7 +512,7 @@ end subroutine fs_hadronic_continuous_loss_rates
 ! BH/pp 二级电子序列：按半径壳层推进冷却谱，并输出同步辐射源项。
 subroutine fs_hadronic_secondary_electron_sequence(num_e,num_nu,num_r,gamma_e,radius_cm,gamma_bulk,b_field_g, &
                                                    frequency_hz,source_content,index_syn_integr,n_threads,quantum_syn, &
-                                                   electron_density,luminosity_syn,seed_syn)
+                                                   electron_density,luminosity_syn,seed_syn,source_radius)
     use constants
     use electron_radiation_kernel, only: get_syn_selected
     use hadronic_transport_remap_kernel, only: hadronic_advance_energy_loggamma_remap
@@ -521,14 +521,14 @@ subroutine fs_hadronic_secondary_electron_sequence(num_e,num_nu,num_r,gamma_e,ra
     real(8), intent(in) :: gamma_e(num_e),radius_cm(num_r),gamma_bulk(num_r),b_field_g(num_r)
     real(8), intent(in) :: frequency_hz(num_nu),source_content(num_e,num_r)
     real(8), intent(out) :: electron_density(num_e,num_r),luminosity_syn(num_nu,num_r),seed_syn(num_nu,num_r)
+    real(8), intent(out) :: source_radius(num_e,num_r)
     integer :: i_r
-    real(8) :: dt_s,t_dyn_s,loss_total(num_e),prev_density(num_e),next_density(num_e)
-    real(8) :: hadronic_sequence_shell_dt
+    real(8) :: dr,dt_s,t_dyn_s,loss_total(num_e),prev_density(num_e),next_density(num_e)
 
-    electron_density=zero; luminosity_syn=zero; seed_syn=zero
+    electron_density=zero; luminosity_syn=zero; seed_syn=zero; source_radius=zero
     prev_density=zero
     do i_r=1,num_r
-        dt_s=hadronic_sequence_shell_dt(num_r,radius_cm,gamma_bulk,i_r)
+        call hadronic_sequence_shell_geometry(num_r,radius_cm,gamma_bulk,i_r,dr,dt_s)
         t_dyn_s=radius_cm(i_r)/(gamma_bulk(i_r)*Para_c)
         call fs_hadronic_continuous_loss_rates(num_e,gamma_e,b_field_g(i_r),t_dyn_s, &
                                                Para_m_e_GeV,quantum_syn,loss_total)
@@ -536,17 +536,19 @@ subroutine fs_hadronic_secondary_electron_sequence(num_e,num_nu,num_r,gamma_e,ra
                                                     source_content(:,i_r),loss_total,dt_s,next_density)
         call get_syn_selected(index_syn_integr,radius_cm(i_r),b_field_g(i_r),num_e,num_nu,n_threads, &
                               gamma_e,next_density,frequency_hz,luminosity_syn(:,i_r),seed_syn(:,i_r))
+        source_radius(:,i_r)=source_content(:,i_r)*dt_s/dr*gamma_e(:)*dlog(ten)
         electron_density(:,i_r)=next_density
         prev_density=next_density
     end do
 end subroutine fs_hadronic_secondary_electron_sequence
 
-real(8) function hadronic_sequence_shell_dt(num_r,radius_cm,gamma_bulk,i_r)
+subroutine hadronic_sequence_shell_geometry(num_r,radius_cm,gamma_bulk,i_r,dr,dt_s)
     use constants
     implicit none
     integer, intent(in) :: num_r,i_r
     real(8), intent(in) :: radius_cm(num_r),gamma_bulk(num_r)
-    real(8) :: dr,beta
+    real(8), intent(out) :: dr,dt_s
+    real(8) :: beta
 
     if (gamma_bulk(i_r) <= one) error stop "hadronic sequence shell dt requires gamma_bulk > 1."
     if (i_r == 1) then
@@ -557,8 +559,8 @@ real(8) function hadronic_sequence_shell_dt(num_r,radius_cm,gamma_bulk,i_r)
     end if
     if (dr <= zero) error stop "hadronic sequence shell radii must be strictly increasing."
     beta=dsqrt(one-one/(gamma_bulk(i_r)*gamma_bulk(i_r)))
-    hadronic_sequence_shell_dt=dr/(beta*gamma_bulk(i_r)*Para_c)
-end function hadronic_sequence_shell_dt
+    dt_s=dr/(beta*gamma_bulk(i_r)*Para_c)
+end subroutine hadronic_sequence_shell_geometry
 
 ! pp spectral source model: SIBYLL=0, QGSJET=1, Geant4=2, Pythia8=3.
 subroutine fs_hadronic_pp_spectral_source(num_p,proton_kinetic_energy_gev, &

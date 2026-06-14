@@ -1508,33 +1508,29 @@ def _solve_hadronic_hummer_transport_coupled(
             if bh_output is not None:
                 q_bh += shell_volume_loc * np.asarray(bh_output.pair_rate_per_gev, dtype=float) * ELECTRON_MASS_GEV
             q_secondary_electron[:, i_r] = q_bh
-            secondary_electron_source_r[:, i_r] = (
-                q_bh
-                * _hadronic_shell_comoving_dt_from_radius(radius, gamma_bulk, i_r)
-                / _hadronic_shell_dr(radius, i_r)
-                * gam_e
-                * np.log(10.0)
-            )
 
         d_n_prev = d_n_next
         species_state_prev = species_state_next
 
     if bool(config.hadronic.include_bethe_heitler) or bool(config.hadronic.include_pp):
         t_bhe_start = time.perf_counter()
-        d_n_gam_e_bh, l_had_bh, seed_had_bh = hadronic_legacy_module.fs_hadronic_secondary_electron_sequence(
-            gam_e,
-            radius,
-            gamma_bulk,
-            b_field,
-            v_seed_arr,
-            q_secondary_electron,
-            int(config.index_syn_integr),
-            int(config.num_threads),
-            1 if bool(config.hadronic.quantum_syn) else 0,
+        d_n_gam_e_bh, l_had_bh, seed_had_bh, secondary_electron_source_r = (
+            hadronic_legacy_module.fs_hadronic_secondary_electron_sequence(
+                gam_e,
+                radius,
+                gamma_bulk,
+                b_field,
+                v_seed_arr,
+                q_secondary_electron,
+                int(config.index_syn_integr),
+                int(config.num_threads),
+                1 if bool(config.hadronic.quantum_syn) else 0,
+            )
         )
         d_n_gam_e_bh = np.asarray(d_n_gam_e_bh, dtype=float)
         l_had_bh = np.asarray(l_had_bh, dtype=float)
         seed_had_bh = np.asarray(seed_had_bh, dtype=float)
+        secondary_electron_source_r = np.asarray(secondary_electron_source_r, dtype=float)
         timings["bh_electron_radiation"] += time.perf_counter() - t_bhe_start
     timings["total"] = time.perf_counter() - t_total_start
     l_had_syn_spec *= pg_photon_survival
