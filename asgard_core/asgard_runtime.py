@@ -1170,8 +1170,12 @@ def _solve_hadronic_hummer_transport_coupled(
                 mass_gev=constants.para_m_p_gev),
             dt_s,
         )
-        proton_density_trial_per_gev = d_n_trial / (shell_volume_loc * PROTON_MASS_GEV)
-        neutron_density_trial_per_gev = species_state_prev.neutron.density_per_gamma / (shell_volume_loc * constants.para_m_n_gev)
+        proton_density_trial_per_gev = _shell_density_per_gev(d_n_trial, PROTON_MASS_GEV, shell_volume_loc)
+        neutron_density_trial_per_gev = _shell_density_per_gev(
+            species_state_prev.neutron.density_per_gamma,
+            constants.para_m_n_gev,
+            shell_volume_loc,
+        )
         t_pg_start = time.perf_counter()
         _, photon_density_per_gev_trial = photon_density_hz_to_gev(v_seed_arr, seed_target_arr[:, i_r])
         backend_tau = solve_hummer2010_pgamma(
@@ -2035,6 +2039,21 @@ def _pair_source_content(
             np.asarray(bh_pair_rate_per_gev, dtype=float),
             1 if include_pp else 0,
             1 if include_bh else 0,
+            float(shell_volume_cm3),
+        ),
+        dtype=float,
+    )
+
+
+def _shell_density_per_gev(
+    density_per_gamma: np.ndarray,
+    mass_gev: float,
+    shell_volume_cm3: float,
+) -> np.ndarray:
+    return np.asarray(
+        hadronic_legacy_module.fs_hadronic_shell_density_per_gev(
+            np.asarray(density_per_gamma, dtype=float),
+            float(mass_gev),
             float(shell_volume_cm3),
         ),
         dtype=float,

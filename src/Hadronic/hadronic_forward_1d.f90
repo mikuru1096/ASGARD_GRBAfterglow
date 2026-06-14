@@ -694,6 +694,19 @@ subroutine fs_hadronic_pair_source_content(num_e,pp_pair_rate_per_gev,bh_pair_ra
     source_content(1:num_e)=shell_volume_cm3*Para_m_e_GeV*source_content(1:num_e)
 end subroutine fs_hadronic_pair_source_content
 
+! 壳层粒子密度归一化：从每 gamma 数量转换为每 GeV 体密度。
+subroutine fs_hadronic_shell_density_per_gev(num_gamma,density_per_gamma,mass_gev,shell_volume_cm3, &
+                                             density_per_gev)
+    implicit none
+    integer, intent(in) :: num_gamma
+    real(8), intent(in) :: density_per_gamma(num_gamma),mass_gev,shell_volume_cm3
+    real(8), intent(out) :: density_per_gev(num_gamma)
+
+    if (mass_gev <= 0d0) error stop "hadronic shell density per GeV requires positive particle mass."
+    if (shell_volume_cm3 <= 0d0) error stop "hadronic shell density per GeV requires positive shell volume."
+    density_per_gev(1:num_gamma)=density_per_gamma(1:num_gamma)/(shell_volume_cm3*mass_gev)
+end subroutine fs_hadronic_shell_density_per_gev
+
 ! AM3 分过程功率归并：积分每个过程 luminosity，并按质子能量分布投到 hadron grid。
 subroutine fs_hadronic_process_power(num_had,num_proc_energy,num_process,hadron_energy_gev,dn_had, &
                                      process_energy_gev,process_rate_per_gev,shell_volume_cm3,process_power)
