@@ -11,6 +11,8 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from ASGARD import Ejecta, ISM, Medium, Model, Observer, Radiation, Setups, TophatJet, Wind
+from asgard_core.asgard_config import FitConfig
+from asgard_core.asgard_runtime import solve_hadronic
 
 
 def _small_setups(**updates) -> Setups:
@@ -92,12 +94,26 @@ def _test_nonaxisymmetric_toroidal_rejected() -> None:
     )
 
 
+def _test_chi_hadronic_rejected() -> None:
+    config = FitConfig(electron_solver="fullhide_2d")
+    config.hadronic.enabled = True
+    config.hadronic.epsilon_p = 0.3
+    config.hadronic.include_proton_synch = True
+    config.hadronic.num_gam_p = 16
+    config.hadronic.num_nu_nu = 8
+    _expect_not_implemented(
+        "2D/chi-resolved hadronic transport",
+        lambda: solve_hadronic(None, None, None, np.array([1.0e10]), np.zeros((1, 1)), config),
+    )
+
+
 def main() -> None:
     _test_custom_medium_rejected()
     _test_jet_spreading_rejected()
     _test_wind_k_rejected()
     _test_thermal_solver_rejected()
     _test_nonaxisymmetric_toroidal_rejected()
+    _test_chi_hadronic_rejected()
     print("public-backend-limits-smoke-ok")
 
 

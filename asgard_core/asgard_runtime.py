@@ -892,7 +892,7 @@ def solve_hadronic(
     pgamma_scheme = _resolve_pgamma_scheme(config)
     electron_solver = _resolve_electron_solver(config)
     if not electron_solver.endswith("_1d"):
-        raise ValueError("The current hadronic kernel only supports 1d forward-shock electron solvers.")
+        raise NotImplementedError("The current hadronic kernel only supports 1d forward-shock electron solvers.")
 
     v_seed_arr = np.asarray(v_seed, dtype=float)
     seed_target_arr = np.asarray(seed_target, dtype=float)
