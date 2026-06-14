@@ -1805,15 +1805,16 @@ def _hadronic_electron_loss_rates(
         raise ValueError("hadronic electron loss rates require b_field_g >= 0.")
     if t_dyn_s <= 0.0:
         raise ValueError("hadronic electron loss rates require t_dyn_s > 0.")
-    b2 = float(b_field_g) ** 2
-    coeff_syn = constants.para_sigmat * b2 / (6.0 * np.pi * constants.para_m_e * constants.para_c)
-    loss_syn = coeff_syn * gamma_e * gamma_e
-    if quantum_syn:
-        loss_syn = loss_syn * _quantum_syn_cooling_factor_fortran(
-            gamma_e, b_field_g, constants.para_m_e_gev,
-        )
-    loss_ad = gamma_e / float(t_dyn_s)
-    return loss_syn + loss_ad
+    return np.asarray(
+        hadronic_legacy_module.fs_hadronic_continuous_loss_rates(
+            gamma_e,
+            float(b_field_g),
+            float(t_dyn_s),
+            constants.para_m_e_gev,
+            1 if quantum_syn else 0,
+        ),
+        dtype=float,
+    )
 
 
 def _quantum_syn_cooling_factor_fortran(
@@ -1879,12 +1880,16 @@ def _hadronic_continuous_loss_rates(
         raise ValueError("hadronic continuous loss rates require b_field_g >= 0.")
     if t_dyn_s <= 0.0:
         raise ValueError("hadronic continuous loss rates require t_dyn_s > 0.")
-    coeff_syn = constants.para_sigmat * b_field_g * b_field_g / (6.0 * np.pi * constants.para_m_e * constants.para_c) / (constants.para_m_p_div_m_e ** 3)
-    loss_ad = gam_p / float(t_dyn_s)
-    loss_syn = coeff_syn * gam_p * gam_p
-    if quantum_syn:
-        loss_syn = loss_syn * _quantum_syn_cooling_factor_fortran(gam_p, b_field_g, mass_gev or constants.para_m_p_gev)
-    return loss_ad + loss_syn
+    return np.asarray(
+        hadronic_legacy_module.fs_hadronic_continuous_loss_rates(
+            np.asarray(gam_p, dtype=float),
+            float(b_field_g),
+            float(t_dyn_s),
+            float(mass_gev or constants.para_m_p_gev),
+            1 if quantum_syn else 0,
+        ),
+        dtype=float,
+    )
 
 
 def _hadronic_advance_energy_loggamma(

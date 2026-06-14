@@ -487,6 +487,28 @@ subroutine fs_hadronic_advance_energy_loggamma(num_gamma,gamma,dn_prev,q_inj,los
     call hadronic_advance_energy_loggamma_remap(num_gamma,gamma,dn_prev,q_inj,loss_total,dt_s,dn_next)
 end subroutine fs_hadronic_advance_energy_loggamma
 
+! 连续冷却率 wrapper：绝热项加同步项，可选 quantum synch 修正。
+subroutine fs_hadronic_continuous_loss_rates(num_gamma,gamma,b_field_g,t_dyn_s,mass_gev,quantum_syn,loss_total)
+    use constants
+    use hadronic_common, only: hadronic_quantum_syn_cooling_factor
+    implicit none
+    integer, intent(in) :: num_gamma,quantum_syn
+    real(8), intent(in) :: gamma(num_gamma),b_field_g,t_dyn_s,mass_gev
+    real(8), intent(out) :: loss_total(num_gamma)
+    integer :: i
+    real(8) :: coeff_syn,mass_ratio,syn_loss
+
+    if (b_field_g < zero) error stop "hadronic continuous loss rates require b_field_g >= 0."
+    if (t_dyn_s <= zero) error stop "hadronic continuous loss rates require t_dyn_s > 0."
+    mass_ratio=mass_gev/Para_m_e_GeV
+    coeff_syn=Para_sigmaT*b_field_g*b_field_g/(6d0*pi*Para_m_e*Para_c)/(mass_ratio**3)
+    do i=1,num_gamma
+        syn_loss=coeff_syn*gamma(i)*gamma(i)
+        if (quantum_syn /= 0) syn_loss=syn_loss*hadronic_quantum_syn_cooling_factor(gamma(i),b_field_g,mass_gev)
+        loss_total(i)=gamma(i)/t_dyn_s+syn_loss
+    end do
+end subroutine fs_hadronic_continuous_loss_rates
+
 ! pp spectral source model: SIBYLL=0, QGSJET=1, Geant4=2, Pythia8=3.
 subroutine fs_hadronic_pp_spectral_source(num_p,proton_kinetic_energy_gev, &
     proton_density_per_gev,num_g,gamma_energy_gev,target_density_cm3,model, &

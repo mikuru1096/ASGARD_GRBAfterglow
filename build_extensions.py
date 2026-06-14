@@ -75,6 +75,7 @@ F2PY_ENTRYPOINTS = {
         "fs_hadronic_pair_cascade_step",
         "fs_hadronic_pair_cascade_sequence",
         "fs_hadronic_advance_energy_loggamma",
+        "fs_hadronic_continuous_loss_rates",
         "fs_hadronic_pp_spectral_source",
         "fs_hadronic_quantum_syn_cooling_factor",
     ),
