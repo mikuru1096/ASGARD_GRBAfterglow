@@ -7,10 +7,11 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
                                dynamics_rk4_reverse_pre_m3, &
                                dynamics_reverse_rhs_iface, dynamics_log_time_step, &
                                dynamics_external_density_profile, rs_mag_comp, &
-                               dynamics_boundary_r0, dynamics_set_density_jump_profile
+                               dynamics_boundary_r0, dynamics_set_density_jump_profile, &
+                               active_density_jump_count
     implicit none
     integer, intent(in) :: n,Num_R
-    integer :: I_tobs, Num_R1
+    integer :: I_tobs, Num_R1, Num_state
     procedure(dynamics_reverse_rhs_iface) :: reverse_dynamics_rhs
     real(8), intent(in) :: Boundary(n),Delta_t,e_r,b_r,p_r,f_e_r,sigma_r
     real(8), intent(out) :: T_cross,R_cross,e3_cross,gam20,U3_cross,V3_cross,M3_cross,gam_m_cross,B3_ordered_cross
@@ -23,12 +24,15 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
     real(8) :: u2_init,u4_init,Delta_init,para_n4_init,gam34_init,para_n3_init,comp_init
     real(8),allocatable :: Y(:)
 
-    allocate(Y(6))
     Eta_0=Boundary(1); R(1)=Boundary(4); Epsilon_e=Boundary(5); Epsilon_b=Boundary(6); p_f=Boundary(7); z=Boundary(8)
     dNe_ISM=Boundary(11); A_star=Boundary(12); E_iso=Boundary(14); T_log10_duration=Boundary(15); f_e=Boundary(16)
     R_tr=Boundary(21); f_jump=Boundary(22); f_wide=Boundary(23)
     call dynamics_boundary_r0(Boundary,n,R0)
     call dynamics_set_density_jump_profile(Boundary,n)
+    ! Y(7:) 预留给 secondary RS branch reservoir；本阶段保持零导数，旧动力学不受影响。
+    Num_state=6+3*active_density_jump_count
+    allocate(Y(Num_state))
+    Y=zero
     Delta_0=Delta_t*para_c; para_m_ej=E_iso/eta_0/para_c**2
 
     if (A_star > zero) then
@@ -44,8 +48,8 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
     comp_init=rs_mag_comp(gam34_init,sigma_r)
     para_n3_init=comp_init*para_n4_init
     V3_scale=para_m_ej/(para_n3_init*Para_m_p)
-    Y=[R_Gamma(1),R(1),para_m2,para_m3/para_m_ej,(gam34_init-one)*para_m3/para_m_ej, &
-       para_m3/(para_n3_init*Para_m_p)/V3_scale]
+    Y(1:6)=[R_Gamma(1),R(1),para_m2,para_m3/para_m_ej,(gam34_init-one)*para_m3/para_m_ej, &
+            para_m3/(para_n3_init*Para_m_p)/V3_scale]
 
     DM_0=E_iso/((Eta_0-one)*4d0*pi*Para_m_p_E)
     call dynamics_deceleration_radius(A_star,dNe_ISM,Eta_0,DM_0,R_dec)
@@ -64,14 +68,14 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
             if (T_cross < zero .and. Y(4) < one) then
                 call dynamics_rk4_reverse_pre_m3(reverse_dynamics_rhs,dB3,T_cross,R_cross,e3_cross,gam20, &
                                                  U3_cross,V3_cross,M3_cross,gam_m_cross,B3_ordered_cross, &
-                                                 T_state,T_target,Y,para_m_ej,V3_scale,Delta_0,eta_0,A_star,dNe_ISM, &
+                                                 T_state,T_target,Y,Num_state,para_m_ej,V3_scale,Delta_0,eta_0,A_star,dNe_ISM, &
                                                  R_tr,f_jump,f_wide,R0,Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,f_e_r,sigma_r)
             else
                 H=T_target-T_state
                 T=T_state
                 call dynamics_rk4_reverse(reverse_dynamics_rhs,dB3,T_cross,R_cross,e3_cross,gam20, &
                                           U3_cross,V3_cross,M3_cross, &
-                                          gam_m_cross,B3_ordered_cross,T,H,Y,para_m_ej,V3_scale,Delta_0, &
+                                          gam_m_cross,B3_ordered_cross,T,H,Y,Num_state,para_m_ej,V3_scale,Delta_0, &
                                           eta_0,A_star,dNe_ISM,R_tr,f_jump,f_wide,R0, &
                                           Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,f_e_r,sigma_r)
                 T_state=T_target
@@ -507,16 +511,17 @@ contains
 end subroutine secondary_reverse_profile
 
 subroutine reverse_dynamics_rhs(dB3,T_cross,R_cross,e3_cross,gam20,U3_cross,V3_cross,M3_cross,gam_m_cross,B3_ordered_cross, &
-             T,Y,D,para_m_ej,V3_scale,Delta_0,eta_0,A_star,dNe_ISM,R_tr,f_jump,f_wide,R0, &
+             T,Y,D,M,para_m_ej,V3_scale,Delta_0,eta_0,A_star,dNe_ISM,R_tr,f_jump,f_wide,R0, &
              Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,f_e_r,sigma_r)
     use constants
     use dynamics_common, only: dynamics_external_density_profile, rs_mag_comp, rs_b4_up, reverse_rhs_phase
     implicit none
+    integer, intent(in) :: M
     real(8), intent(inout) :: dB3,T_cross,R_cross,e3_cross,gam20,U3_cross,V3_cross,M3_cross,gam_m_cross,B3_ordered_cross
     real(8), intent(in) :: T,para_m_ej,V3_scale,Delta_0,eta_0,A_star,dNe_ISM,R_tr,f_jump,f_wide,R0
     real(8), intent(in) :: Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,f_e_r,sigma_r
-    real(8), intent(in) :: Y(6)
-    real(8), intent(out) :: D(6)
+    real(8), intent(in) :: Y(M)
+    real(8), intent(out) :: D(M)
     real(8), parameter :: reverse_synch_b_coeff=0.39d0, reverse_gamma_c_precise_coeff=7.739d8
     real(8) :: gam2,RR,para_m2,para_m3,U3,V3,dNe,u2,u4,Delta,para1,para_n4,beta4,beta2,gam34,para_n3,betars
     real(8) :: dB2,gam_c2,gam_m2,eps2,e3,gam_c3,gam_m3,eps3,dgam2_1,dgam2_2,dgam2,dR,dm2,dm3
@@ -525,6 +530,7 @@ subroutine reverse_dynamics_rhs(dB3,T_cross,R_cross,e3_cross,gam20,U3_cross,V3_c
     logical :: pre_crossing
 
     call decode_reverse_state()
+    D=zero
     pre_crossing=(reverse_rhs_phase == 1 .or. (reverse_rhs_phase == 0 .and. para_m_ej > para_m3))
 
     call compute_region2_radiative_efficiency()
@@ -562,7 +568,7 @@ subroutine reverse_dynamics_rhs(dB3,T_cross,R_cross,e3_cross,gam20,U3_cross,V3_c
     end if
     dU3_ad=-(ad3-one)*U3*dV3_exp/V3
     dU3=dU3_shock+dU3_ad; dV3=dV3_shock+dV3_exp
-    D=[dgam2,dR,dm2,dm3/para_m_ej,dU3/(para_m_ej*para_c**2),dV3/V3_scale]
+    D(1:6)=[dgam2,dR,dm2,dm3/para_m_ej,dU3/(para_m_ej*para_c**2),dV3/V3_scale]
 
 contains
 
