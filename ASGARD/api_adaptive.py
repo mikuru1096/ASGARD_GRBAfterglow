@@ -7,8 +7,9 @@ from typing import Optional
 import numpy as np
 
 from asgard_core.asgard_state import SolveState, project_flux_grid
+from src import constants
 
-from .api_model import FluxPair, Model, FluxResult
+from .api_model import CharTrack, FluxPair, Model, FluxResult
 
 def _array_signature(values: np.ndarray) -> str:
     array = np.ascontiguousarray(np.asarray(values, dtype=float))
@@ -67,6 +68,80 @@ def _observe_total(
         projection_kind=projection_kind,
     )
     return np.asarray(observed_state.components["total"], dtype=float)
+
+
+def _adaptive_observer_time_grid(model: Model, times_s: np.ndarray) -> np.ndarray:
+    # 用完整半径发射历史生成 EATS 解析时间网格；默认 API 的返回时间轴不变。
+    user_times = _positive_unique_times(times_s)
+    details = model.details(float(user_times[0]), float(user_times[-1]))
+    base_log = np.logspace(np.log10(user_times[0]), np.log10(user_times[-1]), int(model.setups.num_tobs))
+    knots = [user_times, base_log]
+    for track in (details.fwd, details.rev):
+        if track is not None:
+            knots.append(_arrival_time_knots(model, track))
+    merged = _positive_unique_times(np.concatenate([item for item in knots if item.size > 0]))
+    merged = merged[(merged >= user_times[0]) & (merged <= user_times[-1])]
+    midpoints = _log_midpoints(merged)
+    return _positive_unique_times(np.concatenate((merged, midpoints)))
+
+
+def _positive_unique_times(times_s: np.ndarray) -> np.ndarray:
+    values = np.asarray(times_s, dtype=float).reshape(-1)
+    if values.size == 0:
+        raise ValueError("times_s must be non-empty.")
+    if np.any(~np.isfinite(values)) or np.any(values <= 0.0):
+        raise ValueError("times_s must contain finite positive values.")
+    return np.unique(values)
+
+
+def _arrival_time_knots(model: Model, track: CharTrack) -> np.ndarray:
+    radius = np.asarray(track.radius, dtype=float)
+    t_axis = np.asarray(track.t_obs, dtype=float)
+    mask = _emitting_radius_mask(track)
+    if not np.any(mask):
+        return np.empty(0, dtype=float)
+    mu_values = _eats_mu_values(model)
+    shell_times = [t_axis[mask]]
+    for mu in mu_values:
+        shell_times.append(t_axis[mask] + radius[mask] * (1.0 - mu) * (1.0 + model.observer.z) / constants.para_c)
+    return np.concatenate(shell_times)
+
+
+def _emitting_radius_mask(track: CharTrack) -> np.ndarray:
+    radius = np.asarray(track.radius, dtype=float)
+    mask = np.isfinite(radius) & (radius > 0.0)
+    fields = [track.B_comv, track.secondary_rs_B, track.secondary_rs_u_diss]
+    active = np.zeros(radius.shape, dtype=bool)
+    for field in fields:
+        if field is None:
+            continue
+        values = np.asarray(field, dtype=float)
+        if values.shape == radius.shape:
+            active |= np.isfinite(values) & (values > 0.0)
+    if np.any(active):
+        return mask & active
+    return mask
+
+
+def _eats_mu_values(model: Model) -> np.ndarray:
+    theta_edges = np.linspace(0.0, model.jet.theta_j, int(model.setups.num_theta) + 1)
+    theta_centers = 0.5 * (theta_edges[:-1] + theta_edges[1:])
+    if float(model.observer.theta_obs) == 0.0 or int(model.setups.num_phi) == 1:
+        return np.cos(theta_centers)
+    phi_edges = np.linspace(0.0, np.pi, int(model.setups.num_phi) + 1)
+    phi_centers = 0.5 * (phi_edges[:-1] + phi_edges[1:])
+    theta = theta_centers[:, None]
+    phi = phi_centers[None, :]
+    theta_obs = float(model.observer.theta_obs)
+    mu = np.cos(theta_obs) * np.cos(theta) + np.sin(theta_obs) * np.sin(theta) * np.cos(phi)
+    return np.unique(mu.reshape(-1))
+
+
+def _log_midpoints(times_s: np.ndarray) -> np.ndarray:
+    values = np.asarray(times_s, dtype=float)
+    if values.size < 2:
+        return np.empty(0, dtype=float)
+    return np.sqrt(values[:-1] * values[1:])
 
 
 def _batch_fetch_pair_result(

@@ -585,6 +585,28 @@ class FluxResult:
 
 
 @dataclass
+class AdaptiveFluxResult:
+    time_s: np.ndarray
+    flux: FluxResult
+
+    @property
+    def total(self) -> np.ndarray:
+        return self.flux.total
+
+    @property
+    def fwd(self) -> FluxPair:
+        return self.flux.fwd
+
+    @property
+    def rev(self) -> FluxPair:
+        return self.flux.rev
+
+    @property
+    def cross_ic(self) -> Optional[np.ndarray]:
+        return self.flux.cross_ic
+
+
+@dataclass
 class SkyImage:
     image: np.ndarray
     extent: np.ndarray
@@ -716,6 +738,29 @@ class Model:
         times_s = np.asarray(times_s, dtype=float)
         nu_hz = np.asarray(nu_hz, dtype=float)
         return self._compute_raw(times_s, nu_hz, projection_kind=projection_kind)
+
+    def flux_density_grid_adaptive(
+        self,
+        times_s: np.ndarray,
+        nu_hz: np.ndarray,
+        *,
+        projection_kind: str = "lightcurve",
+    ) -> AdaptiveFluxResult:
+        times_s = np.asarray(times_s, dtype=float)
+        nu_hz = np.asarray(nu_hz, dtype=float)
+        if self.jet.kind != "tophat" or not self._supports_direct_kernel():
+            raise NotImplementedError("adaptive observer-time grid currently supports direct top-hat ISM/wind models.")
+        from .api_adaptive import _adaptive_observer_time_grid
+
+        self._compute_raw(times_s, nu_hz, projection_kind=projection_kind)
+        adaptive_times = _adaptive_observer_time_grid(self, times_s)
+        flux = self._compute_raw(
+            adaptive_times,
+            nu_hz,
+            solve_reference_times_s=adaptive_times,
+            projection_kind=projection_kind,
+        )
+        return AdaptiveFluxResult(time_s=adaptive_times, flux=flux)
 
     def flux_density(
         self,

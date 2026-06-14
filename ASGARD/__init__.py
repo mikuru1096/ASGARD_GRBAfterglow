@@ -1,5 +1,6 @@
 from .api_model import (
     CharTrack,
+    AdaptiveFluxResult,
     Ejecta,
     FluxPair,
     FluxResult,
@@ -50,6 +51,7 @@ __all__ = [
     "CharTrack",
     "TrackBundle",
     "FluxResult",
+    "AdaptiveFluxResult",
     "SkyImage",
     "make_empty_obs",
     "make_flux_density_entry",
