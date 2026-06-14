@@ -673,6 +673,22 @@ subroutine fs_hadronic_positive_loglog_interp(num_src,num_dst,x_src,y_src,x_dst,
     end do
 end subroutine fs_hadronic_positive_loglog_interp
 
+! pγ 源项映射：从每 GeV 反应率谱变换到二级粒子的每 gamma 注入率。
+subroutine fs_hadronic_source_per_gamma(num_src,num_dst,energy_src_gev,source_src_per_gev_s,energy_dst_gev, &
+                                        mass_gev,shell_volume_cm3,source_dst_per_gamma_s)
+    implicit none
+    integer, intent(in) :: num_src,num_dst
+    real(8), intent(in) :: energy_src_gev(num_src),source_src_per_gev_s(num_src),energy_dst_gev(num_dst)
+    real(8), intent(in) :: mass_gev,shell_volume_cm3
+    real(8), intent(out) :: source_dst_per_gamma_s(num_dst)
+
+    if (mass_gev <= 0d0) error stop "hadronic source per gamma requires positive particle mass."
+    if (shell_volume_cm3 <= 0d0) error stop "hadronic source per gamma requires positive shell volume."
+    call fs_hadronic_positive_loglog_interp(num_src,num_dst,energy_src_gev,source_src_per_gev_s, &
+                                            energy_dst_gev,source_dst_per_gamma_s)
+    source_dst_per_gamma_s(1:num_dst)=shell_volume_cm3*mass_gev*source_dst_per_gamma_s(1:num_dst)
+end subroutine fs_hadronic_source_per_gamma
+
 ! 按 hadron log spacing 构造对齐 photon energy grid。
 subroutine fs_hadronic_aligned_photon_grid(num_had,num_ph,num_out,hadron_energy_gev,photon_energy_gev, &
                                            aligned_photon_gev)

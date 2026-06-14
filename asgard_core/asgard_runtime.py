@@ -1876,8 +1876,16 @@ def _interp_source_per_gamma(
     mass_gev: float,
     shell_volume_cm3: float,
 ) -> np.ndarray:
-    source_per_gev_s = _interp_positive_loglog(energy_src_gev, source_src_per_gev_s, energy_dst_gev)
-    return shell_volume_cm3 * source_per_gev_s * mass_gev
+    return np.asarray(
+        hadronic_legacy_module.fs_hadronic_source_per_gamma(
+            np.asarray(energy_src_gev, dtype=float),
+            np.asarray(source_src_per_gev_s, dtype=float),
+            np.asarray(energy_dst_gev, dtype=float),
+            float(mass_gev),
+            float(shell_volume_cm3),
+        ),
+        dtype=float,
+    )
 
 
 def _hadronic_continuous_loss_rates(
