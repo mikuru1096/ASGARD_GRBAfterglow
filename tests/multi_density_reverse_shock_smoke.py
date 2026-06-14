@@ -74,6 +74,7 @@ def _run_multi_bump_reverse() -> None:
     secondary = state.reverse_emission.secondary_rs
     assert np.all(np.isfinite(state.reverse_emission.l_syn_spec))
     assert np.any(secondary.luminosity_syn > 0.0)
+    _assert_secondary_injection_inside_candidate_windows(state.dynamics.radius, secondary.dissipated_energy_density, config)
     for values in (
         secondary.gamma_contact,
         secondary.pressure_3,
@@ -118,6 +119,11 @@ def _run_single_bump_secondary() -> None:
     assert state.reverse_emission is not None
     assert state.reverse_emission.secondary_rs is not None
     assert np.any(state.reverse_emission.secondary_rs.luminosity_syn > 0.0)
+    _assert_secondary_injection_inside_candidate_windows(
+        state.dynamics.radius,
+        state.reverse_emission.secondary_rs.dissipated_energy_density,
+        config,
+    )
 
 
 def _run_disabled_branch_rejections() -> None:
@@ -152,6 +158,17 @@ def _assert_log_smooth(values: np.ndarray, max_jump: float) -> None:
         return
     jumps = np.abs(np.diff(np.log10(positive)))
     assert np.max(jumps) < max_jump
+
+
+def _assert_secondary_injection_inside_candidate_windows(radius: np.ndarray, injection: np.ndarray, config: FitConfig) -> None:
+    active = np.asarray(injection, dtype=float) > 0.0
+    if not np.any(active):
+        return
+    allowed = np.zeros_like(active, dtype=bool)
+    for radius_j, width_j in zip(config.jump_r_cm, config.jump_width_log10):
+        width_cm = float(width_j) * float(radius_j)
+        allowed |= (radius >= float(radius_j) - 4.0 * width_cm) & (radius < float(radius_j))
+    assert not np.any(active & ~allowed)
 
 
 def main() -> None:

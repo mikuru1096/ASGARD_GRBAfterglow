@@ -2359,11 +2359,12 @@ def _secondary_reverse_active_weight(
     jump_factor: np.ndarray,
     jump_width: np.ndarray,
 ) -> np.ndarray:
+    # secondary RS 候选源项只属于每个密度 bump 的有限上升段。
     weight = np.zeros_like(radius, dtype=float)
     for radius_j, factor_j, width_j in zip(jump_r, jump_factor, jump_width):
         x = radius - radius_j
-        rising = x < 0.0
         width_cm = width_j * radius_j
+        rising = (x >= -4.0 * width_cm) & (x < 0.0)
         local = (factor_j - 1.0) * np.exp(-(x * x) / (2.0 * width_cm * width_cm))
         weight = weight + np.where(rising, local, 0.0)
     return weight
