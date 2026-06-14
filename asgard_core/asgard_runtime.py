@@ -1490,21 +1490,16 @@ def _solve_hadronic_hummer_transport_coupled(
             )
             if bool(config.hadronic.include_pp):
                 l_had_pg_gamma[:, i_r] += pp_gamma_lum
-            proc_lum = np.vstack([
-                _energy_luminosity_from_rate_spectrum(
+            am3_process_power[:, :, i_r] = np.asarray(
+                hadronic_legacy_module.fs_hadronic_process_power(
+                    gam_p * PROTON_MASS_GEV,
+                    d_n_next,
                     backend.process_energy_gev,
-                    backend.process_rate_per_gev[i_proc],
+                    backend.process_rate_per_gev,
                     shell_volume_loc,
-                )
-                for i_proc in range(len(HUMMER_PROCESS_GROUP_LABELS))
-            ])
-            proton_energy_weight = d_n_next * (gam_p * PROTON_MASS_GEV)
-            total_weight = float(trapezoid(proton_energy_weight, gam_p * PROTON_MASS_GEV))
-            if total_weight > 0.0 and np.isfinite(total_weight):
-                normalized_weight = proton_energy_weight / total_weight
-                am3_process_power[0, :, i_r] = normalized_weight * float(trapezoid(proc_lum[0], backend.process_energy_gev))
-                am3_process_power[1, :, i_r] = normalized_weight * float(trapezoid(proc_lum[1], backend.process_energy_gev))
-                am3_process_power[2, :, i_r] = normalized_weight * float(trapezoid(proc_lum[2], backend.process_energy_gev))
+                ),
+                dtype=float,
+            )
 
         if bool(config.hadronic.include_neutrino):
             neutrino_luminosity[:, i_r] = _energy_luminosity_from_rate_spectrum(

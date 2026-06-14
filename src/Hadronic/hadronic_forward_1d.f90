@@ -642,6 +642,45 @@ subroutine fs_hadronic_energy_luminosity_from_rate(num_energy,energy_gev,rate_pe
     luminosity(1:num_energy)=shell_volume_cm3*rate_per_gev(1:num_energy)*energy_gev(1:num_energy)*Para_h_GeV*Para_GeV2erg
 end subroutine fs_hadronic_energy_luminosity_from_rate
 
+! AM3 分过程功率归并：积分每个过程 luminosity，并按质子能量分布投到 hadron grid。
+subroutine fs_hadronic_process_power(num_had,num_proc_energy,num_process,hadron_energy_gev,dn_had, &
+                                     process_energy_gev,process_rate_per_gev,shell_volume_cm3,process_power)
+    use constants
+    implicit none
+    integer, intent(in) :: num_had,num_proc_energy,num_process
+    real(8), intent(in) :: hadron_energy_gev(num_had),dn_had(num_had),process_energy_gev(num_proc_energy)
+    real(8), intent(in) :: process_rate_per_gev(num_process,num_proc_energy),shell_volume_cm3
+    real(8), intent(out) :: process_power(num_process,num_had)
+    integer :: i,j
+    real(8) :: proton_weight(num_had),total_weight,luminosity(num_proc_energy),proc_total
+
+    if (shell_volume_cm3 <= 0d0) error stop "hadronic process power requires positive shell volume."
+    do i=1,num_had
+        proton_weight(i)=dn_had(i)*hadron_energy_gev(i)
+    end do
+    total_weight=hadronic_trapezoid(num_had,hadron_energy_gev,proton_weight)
+    process_power=0d0
+    if (total_weight <= 0d0) return
+    do j=1,num_process
+        luminosity(1:num_proc_energy)=shell_volume_cm3*process_rate_per_gev(j,1:num_proc_energy)* &
+                                      process_energy_gev(1:num_proc_energy)*Para_h_GeV*Para_GeV2erg
+        proc_total=hadronic_trapezoid(num_proc_energy,process_energy_gev,luminosity)
+        process_power(j,1:num_had)=proton_weight(1:num_had)/total_weight*proc_total
+    end do
+contains
+    real(8) function hadronic_trapezoid(num_x,x,y)
+        implicit none
+        integer, intent(in) :: num_x
+        real(8), intent(in) :: x(num_x),y(num_x)
+        integer :: k
+
+        hadronic_trapezoid=0d0
+        do k=1,num_x-1
+            hadronic_trapezoid=hadronic_trapezoid+0.5d0*(y(k)+y(k+1))*(x(k+1)-x(k))
+        end do
+    end function hadronic_trapezoid
+end subroutine fs_hadronic_process_power
+
 ! 正值 log-log 插值：只使用 finite 且正的源点，范围外输出零。
 subroutine fs_hadronic_positive_loglog_interp(num_src,num_dst,x_src,y_src,x_dst,y_dst)
     use ieee_arithmetic, only: ieee_is_finite
