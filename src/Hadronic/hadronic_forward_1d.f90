@@ -729,6 +729,28 @@ subroutine fs_hadronic_shell_density_per_gev(num_gamma,density_per_gamma,mass_ge
     density_per_gev(1:num_gamma)=density_per_gamma(1:num_gamma)/(shell_volume_cm3*mass_gev)
 end subroutine fs_hadronic_shell_density_per_gev
 
+! gamma 网格边界：对数中心网格的几何中点边界。
+subroutine fs_hadronic_gamma_edges(num_gamma,gamma,gamma_edge)
+    implicit none
+    integer, intent(in) :: num_gamma
+    real(8), intent(in) :: gamma(num_gamma)
+    real(8), intent(out) :: gamma_edge(num_gamma+1)
+    integer :: i
+
+    if (num_gamma < 1) error stop "hadronic gamma edges require at least one grid point."
+    if (num_gamma == 1) then
+        if (gamma(1) <= 1d0) error stop "single-point hadronic gamma grid must exceed unity."
+        gamma_edge(1)=0.5d0*gamma(1)
+        gamma_edge(2)=2d0*gamma(1)
+        return
+    end if
+    gamma_edge(1)=gamma(1)*dsqrt(gamma(1)/gamma(2))
+    do i=2,num_gamma
+        gamma_edge(i)=dsqrt(gamma(i-1)*gamma(i))
+    end do
+    gamma_edge(num_gamma+1)=gamma(num_gamma)*dsqrt(gamma(num_gamma)/gamma(num_gamma-1))
+end subroutine fs_hadronic_gamma_edges
+
 ! photon density 单位变换：E=h nu，n_E=n_nu/h。
 subroutine fs_hadronic_photon_density_hz_to_gev(num_ph,photon_nu_hz,photon_density_per_hz, &
                                                 photon_energy_gev,photon_density_per_gev)
@@ -881,6 +903,28 @@ subroutine hadronic_sequence_shell_geometry(num_r,radius_cm,gamma_bulk,i_r,dr,dt
     beta=dsqrt(one-one/(gamma_bulk(i_r)*gamma_bulk(i_r)))
     dt_s=dr/(beta*gamma_bulk(i_r)*Para_c)
 end subroutine hadronic_sequence_shell_geometry
+
+! 半径壳层体积：第一个壳层以内边界 R=0，之后使用相邻半径。
+subroutine fs_hadronic_shell_volumes(num_r,radius_cm,shell_volume_cm3)
+    use constants
+    implicit none
+    integer, intent(in) :: num_r
+    real(8), intent(in) :: radius_cm(num_r)
+    real(8), intent(out) :: shell_volume_cm3(num_r)
+    integer :: i
+    real(8) :: r_prev
+
+    if (num_r < 1) error stop "hadronic shell volumes require at least one radius."
+    r_prev=zero
+    do i=1,num_r
+        if (radius_cm(i) <= zero) error stop "hadronic shell radii must be positive."
+        if (i > 1 .and. radius_cm(i) <= radius_cm(i-1)) then
+            error stop "hadronic shell radii must be strictly increasing."
+        end if
+        shell_volume_cm3(i)=(4d0/3d0)*pi*(radius_cm(i)**3-r_prev**3)
+        r_prev=radius_cm(i)
+    end do
+end subroutine fs_hadronic_shell_volumes
 
 ! 壳层 comoving 时间步长 wrapper：复用统一的半径壳层几何定义。
 subroutine fs_hadronic_shell_comoving_dt(num_r,radius_cm,gamma_bulk,shell_index,dt_s)

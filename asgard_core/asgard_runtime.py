@@ -1650,28 +1650,17 @@ def _hadronic_global_gamma_p_max(
 
 
 def _hadronic_shell_volumes_from_radius(radius_cm: np.ndarray) -> np.ndarray:
-    radius = np.asarray(radius_cm, dtype=float)
-    if radius.ndim != 1:
-        raise ValueError("hadronic shell radii must be a 1D array.")
-    if np.any(radius <= 0.0) or np.any(np.diff(radius) <= 0.0):
-        raise ValueError("hadronic shell radii must be positive and strictly increasing.")
-    prev_radius = np.empty_like(radius)
-    prev_radius[0] = 0.0
-    prev_radius[1:] = radius[:-1]
-    return (4.0 / 3.0) * np.pi * (radius**3 - prev_radius**3)
+    return np.asarray(
+        hadronic_legacy_module.fs_hadronic_shell_volumes(np.asarray(radius_cm, dtype=float)),
+        dtype=float,
+    )
 
 
 def _hadronic_build_gamma_edges(gam_p: np.ndarray) -> np.ndarray:
-    gam = np.asarray(gam_p, dtype=float)
-    if gam.size == 1:
-        if gam[0] <= 1.0:
-            raise ValueError("single-point hadronic gamma grid must exceed unity.")
-        return np.array([0.5 * gam[0], 2.0 * gam[0]], dtype=float)
-    edge = np.empty(gam.size + 1, dtype=float)
-    edge[0] = gam[0] * np.sqrt(gam[0] / gam[1])
-    edge[1:-1] = np.sqrt(gam[:-1] * gam[1:])
-    edge[-1] = gam[-1] * np.sqrt(gam[-1] / gam[-2])
-    return edge
+    return np.asarray(
+        hadronic_legacy_module.fs_hadronic_gamma_edges(np.asarray(gam_p, dtype=float)),
+        dtype=float,
+    )
 
 
 def _validate_hadronic_transport_inputs(
