@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import argparse
+import csv
 import sys
 
 import matplotlib
@@ -169,13 +170,47 @@ def _strip_svg_trailing_whitespace(path: Path) -> None:
     path.write_text("\n".join(line.rstrip() for line in lines) + "\n", encoding="utf-8")
 
 
+def _write_secondary_event_csv(model: Model, output: Path, times: np.ndarray) -> Path:
+    details = model.details(float(times[0]), float(times[-1]))
+    if details.rev is None or details.rev.secondary_rs_event_active is None:
+        raise RuntimeError("triple density-jump benchmark requires secondary RS event diagnostics")
+    csv_path = output.with_suffix("").with_name(output.with_suffix("").name + "_secondary_rs_events.csv")
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    with csv_path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow([
+            "jump_index",
+            "jump_radius_cm",
+            "jump_width_rel",
+            "event_active",
+            "start_radius_cm",
+            "shock_end_radius_cm",
+            "start_tobs_axis_s",
+            "shock_end_tobs_axis_s",
+        ])
+        for i_jump, radius_j in enumerate(JUMP_RADII_CM):
+            writer.writerow([
+                i_jump,
+                radius_j,
+                JUMP_WIDTH_REL,
+                bool(details.rev.secondary_rs_event_active[i_jump]),
+                float(details.rev.secondary_rs_start_radius[i_jump]),
+                float(details.rev.secondary_rs_shock_end_radius[i_jump]),
+                float(details.rev.secondary_rs_start_tobs_axis[i_jump]),
+                float(details.rev.secondary_rs_shock_end_tobs_axis[i_jump]),
+            ])
+    return csv_path
+
+
 def build_plot(*, mode: str, output: Path, times_count: int | None = None) -> Path:
     grid = dict(MODE_GRIDS[mode])
     if times_count is not None:
         grid["times"] = int(times_count)
     times = np.logspace(0.0, 8.0, grid["times"])
-    no_jump = _model(with_jumps=False, grid=grid).flux_density_grid(times, BANDS_HZ)
-    triple_jump = _model(with_jumps=True, grid=grid).flux_density_grid(times, BANDS_HZ)
+    no_jump_model = _model(with_jumps=False, grid=grid)
+    triple_jump_model = _model(with_jumps=True, grid=grid)
+    no_jump = no_jump_model.flux_density_grid(times, BANDS_HZ)
+    triple_jump = triple_jump_model.flux_density_grid(times, BANDS_HZ)
 
     no_jump_total = np.asarray(no_jump.total, dtype=float)
     jump_total = np.asarray(triple_jump.total, dtype=float)
@@ -240,6 +275,7 @@ def build_plot(*, mode: str, output: Path, times_count: int | None = None) -> Pa
     fig.subplots_adjust(top=0.93, bottom=0.075, left=0.12, right=0.985)
     paths = _save_figure(fig, output)
     plt.close(fig)
+    event_csv = _write_secondary_event_csv(triple_jump_model, output, times)
 
     for i_band, nu_hz in enumerate(BANDS_HZ):
         peak_index = int(np.nanargmax(jump_total[i_band]))
@@ -249,6 +285,7 @@ def build_plot(*, mode: str, output: Path, times_count: int | None = None) -> Pa
         )
     for path in paths:
         print(f"wrote {path}")
+    print(f"wrote {event_csv}")
     return output
 
 
