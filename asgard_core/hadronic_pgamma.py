@@ -3,6 +3,7 @@ from __future__ import annotations
 import numpy as np
 
 from asgard_core.asgard_numpy import trapezoid
+import src.Hadronic.hadronic_forward_1d as hadronic_legacy_module
 from src import constants
 
 
@@ -82,7 +83,11 @@ def photon_density_hz_to_gev(photon_nu_hz: np.ndarray, photon_density_per_hz: np
         raise ValueError("photon_nu_hz and photon_density_per_hz must be 1d arrays with the same shape.")
     if np.any(nu <= 0.0):
         raise ValueError("photon_nu_hz must be positive.")
-    return constants.para_h_gev * nu, density / constants.para_h_gev
+    photon_energy_gev, photon_density_per_gev = hadronic_legacy_module.fs_hadronic_photon_density_hz_to_gev(
+        nu,
+        density,
+    )
+    return np.asarray(photon_energy_gev, dtype=float), np.asarray(photon_density_per_gev, dtype=float)
 
 
 def kelner_aharonian_2008_gamma_phi(eta: np.ndarray, x: np.ndarray) -> np.ndarray:

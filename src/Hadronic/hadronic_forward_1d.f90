@@ -707,6 +707,19 @@ subroutine fs_hadronic_shell_density_per_gev(num_gamma,density_per_gamma,mass_ge
     density_per_gev(1:num_gamma)=density_per_gamma(1:num_gamma)/(shell_volume_cm3*mass_gev)
 end subroutine fs_hadronic_shell_density_per_gev
 
+! photon density 单位变换：E=h nu，n_E=n_nu/h。
+subroutine fs_hadronic_photon_density_hz_to_gev(num_ph,photon_nu_hz,photon_density_per_hz, &
+                                                photon_energy_gev,photon_density_per_gev)
+    use constants
+    implicit none
+    integer, intent(in) :: num_ph
+    real(8), intent(in) :: photon_nu_hz(num_ph),photon_density_per_hz(num_ph)
+    real(8), intent(out) :: photon_energy_gev(num_ph),photon_density_per_gev(num_ph)
+
+    photon_energy_gev(1:num_ph)=Para_h_GeV*photon_nu_hz(1:num_ph)
+    photon_density_per_gev(1:num_ph)=photon_density_per_hz(1:num_ph)/Para_h_GeV
+end subroutine fs_hadronic_photon_density_hz_to_gev
+
 ! AM3 分过程功率归并：积分每个过程 luminosity，并按质子能量分布投到 hadron grid。
 subroutine fs_hadronic_process_power(num_had,num_proc_energy,num_process,hadron_energy_gev,dn_had, &
                                      process_energy_gev,process_rate_per_gev,shell_volume_cm3,process_power)
