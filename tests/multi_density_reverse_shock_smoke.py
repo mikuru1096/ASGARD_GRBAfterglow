@@ -80,7 +80,11 @@ def _run_multi_bump_reverse() -> None:
         secondary.gamma_contact,
         secondary.pressure_3,
         secondary.gamma_43,
+        secondary.beta_rs,
         secondary.dissipated_energy_density,
+        secondary.swept_mass_g,
+        secondary.internal_energy_erg,
+        secondary.comoving_volume_cm3,
         secondary.magnetic_field_g,
         secondary.nu_m,
         secondary.nu_c,
@@ -93,7 +97,18 @@ def _run_multi_bump_reverse() -> None:
     assert np.all(secondary.gamma_contact[injection] > 1.0)
     assert np.all(secondary.gamma_43[injection] >= 1.0)
     assert np.all(secondary.pressure_3[injection] > 0.0)
+    beta_contact = np.sqrt(1.0 - secondary.gamma_contact[injection] ** -2)
+    beta_upstream = np.sqrt(1.0 - state.dynamics.r_gamma[injection] ** -2)
+    assert np.all(secondary.beta_rs[injection] > beta_contact)
+    assert np.all(secondary.beta_rs[injection] < beta_upstream)
     assert np.all(secondary.dissipated_energy_density[injection] > 0.0)
+    assert np.all(np.diff(secondary.swept_mass_g) >= 0.0)
+    last_injection = int(np.flatnonzero(injection)[-1])
+    if last_injection + 1 < secondary.magnetic_field_g.shape[0]:
+        assert secondary.swept_mass_g[last_injection + 1] > 0.0
+        assert secondary.internal_energy_erg[last_injection + 1] > 0.0
+        assert secondary.comoving_volume_cm3[last_injection + 1] > 0.0
+        assert secondary.magnetic_field_g[last_injection + 1] > 0.0
     assert np.isclose(
         np.sum(secondary.electron_injected_energy_erg),
         config.reverse_shock.epsilon_e * np.sum(secondary.dissipated_energy_erg),

@@ -54,6 +54,7 @@
 
 实现拆分：
 
+- 重要物理/数值计算必须落在 Fortran kernel 内：事件根、RH/jump 解、shock-front flux、reservoir 的 `m3/U3/V3/B3/gamma_m` 历史、电子输运和辐射源项都不得在 Python 中重算。Python 只保留 API、配置展开、Fortran 调用编排和轻量数组装配。
 - Fortran dynamics：扩展 `Dynamics_reverse.f90` / `dynamics_common.f90` 的 density-jump RS 状态，复用并收紧现有 `secondary_reverse_contact_rh`，在积分步内定位 RS start/shock end 事件，输出每个 reservoir 的质量、内能、体积、磁场、事件诊断和冷却期历史。
 - Electron/radiation：让 secondary RS reservoir 以半径壳层 source history 进入反向激波电子输运与同步辐射输出；禁止只根据最终 observer light curve 插入附加分量。
 - Observer/API：默认 `flux_density_grid(times, nu)` 保持返回用户输入 `times`；新增可选 adaptive mode 返回加密后的 `adaptive_time_s` 和 flux。自适应观测时间来自完整 emission history 的 `T_arr(R_i, mu_a)` knots 和 log-midpoints，不按 shock end 截断。

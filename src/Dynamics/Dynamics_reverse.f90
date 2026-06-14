@@ -86,12 +86,12 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
     deallocate(Y)
 end subroutine dynamics_reverse
 
-subroutine secondary_reverse_contact_rh(gamma4,n1,n4,e4,p4,gamma_c,p3,gamma43,n3_over_n4)
+subroutine secondary_reverse_contact_rh(gamma4,n1,n4,e4,p4,gamma_c,p3,gamma43,n3_over_n4,beta_rs)
     use constants
     implicit none
     integer :: I
     real(8), intent(in) :: gamma4,n1,n4,e4,p4
-    real(8), intent(out) :: gamma_c,p3,gamma43,n3_over_n4
+    real(8), intent(out) :: gamma_c,p3,gamma43,n3_over_n4,beta_rs
     real(8) :: lo,hi,mid,f_lo,f_hi,f_mid,beta_c,beta4
 
     if (gamma4 <= one .or. n1 <= zero .or. n4 <= zero .or. e4 <= zero .or. p4 <= zero) &
@@ -113,7 +113,7 @@ subroutine secondary_reverse_contact_rh(gamma4,n1,n4,e4,p4,gamma_c,p3,gamma43,n3
     beta_c=dsqrt(one-gamma_c**(-2)); beta4=dsqrt(one-gamma4**(-2))
     gamma43=gamma_c*gamma4*(one-beta_c*beta4)
     p3=p4+(4d0/3d0)*(gamma43*gamma43-one)*(e4+p4)
-    call solve_reverse_shock_compression(n3_over_n4)
+    call solve_reverse_shock_compression(n3_over_n4,beta_rs)
 
 contains
 
@@ -130,13 +130,14 @@ contains
         diff=p2_trial-p3_trial
     end subroutine pressure_difference
 
-    subroutine solve_reverse_shock_compression(comp)
+    subroutine solve_reverse_shock_compression(comp,beta_rs_out)
     implicit none
-    real(8), intent(out) :: comp
+    real(8), intent(out) :: comp,beta_rs_out
     integer :: K
     real(8) :: beta_s_lo,beta_s_hi,beta_s_mid,g_lo,g_hi,g_mid,eps_beta,beta_comp_one
 
         if (beta4 <= beta_c) error stop 'secondary_reverse_contact_rh reverse shock speed bracket is empty'
+        beta_rs_out=zero
         eps_beta=1d-14*(beta4-beta_c)
         beta_s_lo=beta_c+eps_beta
         beta_s_hi=beta4-eps_beta
@@ -157,7 +158,8 @@ contains
                 beta_s_lo=beta_s_mid; g_lo=g_mid
             end if
         end do
-        call shock_momentum_difference(0.5d0*(beta_s_lo+beta_s_hi),g_mid,comp)
+        beta_rs_out=0.5d0*(beta_s_lo+beta_s_hi)
+        call shock_momentum_difference(beta_rs_out,g_mid,comp)
     end subroutine solve_reverse_shock_compression
 
     subroutine solve_compression_unity_speed(beta_lo,beta_hi,beta_one)
@@ -204,28 +206,36 @@ contains
 end subroutine secondary_reverse_contact_rh
 
 subroutine secondary_reverse_profile(Num_R,Num_jump,R,Tobs_axis,Gamma4,dNe_ISM,Jump_R,Jump_factor,Jump_width, &
-                                     gamma_contact,pressure_3,gamma_43,comp_ratio,u_diss,active_weight, &
-                                     event_active,start_radius,shock_end_radius,start_tobs_axis,shock_end_tobs_axis)
+                                     Epsilon_e,Epsilon_b,p_e,f_e, &
+                                     gamma_contact,pressure_3,gamma_43,comp_ratio,beta_rs,u_diss,active_weight, &
+                                     m3_reservoir,u3_reservoir,v3_reservoir,b3_reservoir,gamma_m_shell, &
+                                     dissipated_energy,electron_injected_energy,event_active,start_radius, &
+                                     shock_end_radius,start_tobs_axis,shock_end_tobs_axis)
     use constants
     implicit none
     integer, intent(in) :: Num_R,Num_jump
-    integer :: I,J,I_start,I_end
+    integer :: I,J,K,I_start,I_end
     real(8), intent(in) :: R(Num_R),Tobs_axis(Num_R),Gamma4(Num_R),dNe_ISM
     real(8), intent(in) :: Jump_R(Num_jump),Jump_factor(Num_jump),Jump_width(Num_jump)
+    real(8), intent(in) :: Epsilon_e,Epsilon_b,p_e,f_e
     real(8), intent(out) :: gamma_contact(Num_R),pressure_3(Num_R),gamma_43(Num_R),comp_ratio(Num_R)
-    real(8), intent(out) :: u_diss(Num_R),active_weight(Num_R)
+    real(8), intent(out) :: beta_rs(Num_R),u_diss(Num_R),active_weight(Num_R)
+    real(8), intent(out) :: m3_reservoir(Num_R),u3_reservoir(Num_R),v3_reservoir(Num_R),b3_reservoir(Num_R)
+    real(8), intent(out) :: gamma_m_shell(Num_R),dissipated_energy(Num_R),electron_injected_energy(Num_R)
     logical, intent(out) :: event_active(Num_jump)
     real(8), intent(out) :: start_radius(Num_jump),shock_end_radius(Num_jump)
     real(8), intent(out) :: start_tobs_axis(Num_jump),shock_end_tobs_axis(Num_jump)
-    real(8) :: density_factor,local_weight,n1,n_excess,n_pre,n4,e4,p4,p3,e3,e_ad,comp
+    real(8) :: density_factor,local_weight,n1,n_excess,n_pre,n4,e4,p4,p3,e3,e_ad,comp,beta_s
+    real(8) :: beta4,beta_c,n3,d_radius,shell_mass,shell_volume,u_inj,gamma_m,gam_e_max,b_i,volume_k,energy_k
     real(8) :: width_cm,lower_bound,upper_bound,start_root,end_root
 
-    gamma_contact=zero; pressure_3=zero; gamma_43=one; comp_ratio=zero
-    u_diss=zero; active_weight=zero
+    gamma_contact=zero; pressure_3=zero; gamma_43=one; comp_ratio=zero; beta_rs=zero
+    u_diss=zero; active_weight=zero; m3_reservoir=zero; u3_reservoir=zero; v3_reservoir=zero
+    b3_reservoir=zero; gamma_m_shell=zero; dissipated_energy=zero; electron_injected_energy=zero
     event_active=.false.; start_radius=zero; shock_end_radius=zero
     start_tobs_axis=zero; shock_end_tobs_axis=zero
 
-    do I=1,Num_R
+    do I=2,Num_R
         call secondary_reverse_density_weights(R(I),Num_jump,Jump_R,Jump_factor,Jump_width,density_factor,local_weight)
         active_weight(I)=local_weight
         if (local_weight <= zero .or. Gamma4(I) <= one) cycle
@@ -236,14 +246,41 @@ subroutine secondary_reverse_profile(Num_R,Num_jump,R,Tobs_axis,Gamma4,dNe_ISM,J
         n4=4d0*Gamma4(I)*n_pre
         e4=4d0*Gamma4(I)*(Gamma4(I)-one)*n_pre*Para_m_p*Para_c**2
         p4=e4/3d0
-        call secondary_reverse_contact_rh(Gamma4(I),n1,n4,e4,p4,gamma_contact(I),p3,gamma_43(I),comp)
+        call secondary_reverse_contact_rh(Gamma4(I),n1,n4,e4,p4,gamma_contact(I),p3,gamma_43(I),comp,beta_s)
         if (comp <= zero) cycle
         e3=3d0*p3
         e_ad=e4*comp**(4d0/3d0)
         if (e3 <= e_ad) cycle
         pressure_3(I)=p3
         comp_ratio(I)=comp
+        beta_rs(I)=beta_s
         u_diss(I)=e3-e_ad
+        beta4=dsqrt(one-Gamma4(I)**(-2))
+        beta_c=dsqrt(one-gamma_contact(I)**(-2))
+        n3=comp*n4
+        d_radius=R(I)-R(I-1)
+        shell_mass=4d0*pi*R(I)*R(I)*d_radius*n4*Para_m_p*Gamma4(I)*(beta4-beta_s)/beta_c
+        shell_volume=shell_mass/(n3*Para_m_p)
+        if (p_e <= two) error stop 'secondary_reverse_profile requires p_e > 2 for secondary RS injection'
+        b_i=dsqrt(8d0*pi*Epsilon_b*3d0*p3)
+        gamma_m=one+Epsilon_e/f_e*(p_e-two)/(p_e-one)*u_diss(I)/(n3*Para_m_e*Para_c**2)
+        gam_e_max=3d0*Para_m_energy/dsqrt(8d0*b_i*Para_e**3)
+        if (gamma_m >= gam_e_max) error stop 'secondary_reverse_profile electron injection exceeds synchrotron maximum'
+        u_inj=u_diss(I)*shell_volume
+        gamma_m_shell(I)=gamma_m
+        dissipated_energy(I)=u_inj
+        electron_injected_energy(I)=Epsilon_e*u_inj
+        do K=I,Num_R
+            volume_k=shell_volume*(R(K)/R(I))**3*(gamma_contact(I)/Gamma4(K))
+            energy_k=u_inj*(shell_volume/volume_k)**(one/3d0)
+            m3_reservoir(K)=m3_reservoir(K)+shell_mass
+            u3_reservoir(K)=u3_reservoir(K)+energy_k
+            v3_reservoir(K)=v3_reservoir(K)+volume_k
+        end do
+    end do
+
+    do I=1,Num_R
+        if (v3_reservoir(I) > zero) b3_reservoir(I)=dsqrt(8d0*pi*Epsilon_b*u3_reservoir(I)/v3_reservoir(I))
     end do
 
     do J=1,Num_jump
