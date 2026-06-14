@@ -16,7 +16,7 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
     use dynamics_common, only: dynamics_deceleration_radius, dynamics_rk4_reverse, &
                                dynamics_rk4_reverse_pre_m3, &
                                dynamics_reverse_rhs_iface, dynamics_log_time_step, &
-                               dynamics_external_density_profile, rs_mag_comp, &
+                               dynamics_external_density_base, dynamics_external_density_profile, rs_mag_comp, &
                                dynamics_boundary_r0, dynamics_set_density_jump_profile, &
                                active_density_jump_count, density_jump_max, active_density_jump_r, &
                                active_density_jump_factor, active_density_jump_width
@@ -270,27 +270,20 @@ contains
     subroutine secondary_reverse_event_source(jump_index,radius,gamma_bulk,state,source)
     implicit none
     integer, intent(in) :: jump_index
-    integer :: k,parent_m_idx,parent_u_idx,parent_v_idx
+    integer :: parent_m_idx,parent_u_idx,parent_v_idx
     real(8), intent(in) :: radius,gamma_bulk
     real(8), intent(in) :: state(Num_state)
     real(8), intent(out) :: source
-    real(8) :: density_factor,branch_weight,x,width,profile,n1,n_excess,n_pre,n4,e4,p4,p3,e3_sec,e_ad
+    real(8) :: density_factor,branch_weight,n1,n_excess,n_pre,n4,e4,p4,p3,e3_sec,e_ad
     real(8) :: gamma_c_j,gamma43_j,comp,beta_s
 
-        density_factor=one; branch_weight=zero
-        do k=1,active_density_jump_count
-            x=radius-active_density_jump_r(k)
-            width=active_density_jump_width(k)*active_density_jump_r(k)
-            profile=(active_density_jump_factor(k)-one)*dexp(-(x*x)/(2d0*width*width))
-            density_factor=density_factor+profile
-            if (k == jump_index .and. x >= -4d0*width .and. x < zero) branch_weight=profile
-        end do
+        call secondary_reverse_density_branch_state(radius,jump_index,density_factor,branch_weight)
         if (branch_weight <= zero .or. gamma_bulk <= one) then
             source=-one
             return
         end if
-        n1=dNe_ISM*density_factor
-        n_excess=dNe_ISM*branch_weight
+        n1=density_factor
+        n_excess=branch_weight
         n_pre=n1-n_excess
         if (n_pre <= zero) error stop 'secondary reverse event source found non-positive pre-bump density'
         n4=4d0*gamma_bulk*n_pre
@@ -347,8 +340,8 @@ contains
                 Secondary_branch_gamma_m(j,i_out)=g_delta/e_delta
                 call secondary_reverse_density_branch_state(R(I_tobs),j,density_factor,branch_weight)
                 if (branch_weight > zero .and. R_Gamma(i_out) > one) then
-                    n1=dNe_ISM*density_factor
-                    n_excess=dNe_ISM*branch_weight
+                    n1=density_factor
+                    n_excess=branch_weight
                     n_pre=n1-n_excess
                     if (n_pre <= zero) error stop 'secondary branch output found non-positive pre-bump density'
                     n4=4d0*R_Gamma(i_out)*n_pre
@@ -435,16 +428,18 @@ contains
     integer :: k
     real(8), intent(in) :: radius
     real(8), intent(out) :: density_factor,branch_weight
-    real(8) :: x,width,profile
+    real(8) :: x,width,profile,base_density,enhancement
 
-        density_factor=one; branch_weight=zero
+        call dynamics_external_density_base(A_star,dNe_ISM,radius,base_density)
+        enhancement=one; branch_weight=zero
         do k=1,active_density_jump_count
             x=radius-active_density_jump_r(k)
             width=active_density_jump_width(k)*active_density_jump_r(k)
             profile=(active_density_jump_factor(k)-one)*dexp(-(x*x)/(2d0*width*width))
-            density_factor=density_factor+profile
-            if (k == jump_index .and. x >= -4d0*width .and. x < zero) branch_weight=profile
+            enhancement=enhancement+profile
+            if (k == jump_index .and. x >= -4d0*width .and. x < zero) branch_weight=base_density*profile
         end do
+        density_factor=base_density*enhancement
     end subroutine secondary_reverse_density_branch_state
 end subroutine dynamics_reverse
 
@@ -615,8 +610,8 @@ subroutine secondary_reverse_profile(Num_R,Num_jump,R,Tobs_axis,Gamma4,dNe_ISM,J
             call secondary_reverse_density_branch(R(I),J,density_factor,branch_weight)
             active_weight(I)=active_weight(I)+branch_weight
             if (branch_weight <= zero .or. Gamma4(I) <= one) cycle
-            n1=dNe_ISM*density_factor
-            n_excess=dNe_ISM*branch_weight
+            n1=density_factor
+            n_excess=branch_weight
             n_pre=n1-n_excess
             if (n_pre <= zero) error stop 'secondary_reverse_profile found non-positive pre-bump density'
             n4=4d0*Gamma4(I)*n_pre
@@ -873,7 +868,8 @@ subroutine reverse_dynamics_rhs(dB3,T_cross,R_cross,e3_cross,gam20,U3_cross,V3_c
              T,Y,D,M,para_m_ej,V3_scale,Delta_0,eta_0,A_star,dNe_ISM,R_tr,f_jump,f_wide,R0, &
              Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,f_e_r,sigma_r)
     use constants
-    use dynamics_common, only: dynamics_external_density_profile, rs_mag_comp, rs_b4_up, reverse_rhs_phase, &
+    use dynamics_common, only: dynamics_external_density_base, dynamics_external_density_profile, &
+                               rs_mag_comp, rs_b4_up, reverse_rhs_phase, &
                                active_density_jump_count, active_density_jump_r, active_density_jump_factor, &
                                active_density_jump_width
     implicit none
@@ -1110,15 +1106,17 @@ contains
     integer :: k
     real(8), intent(in) :: radius
     real(8), intent(out) :: density_factor,branch_weight
-    real(8) :: x,width,profile
+    real(8) :: x,width,profile,base_density,enhancement
 
-        density_factor=one; branch_weight=zero
+        call dynamics_external_density_base(A_star,dNe_ISM,radius,base_density)
+        enhancement=one; branch_weight=zero
         do k=1,active_density_jump_count
             x=radius-active_density_jump_r(k)
             width=active_density_jump_width(k)*active_density_jump_r(k)
             profile=(active_density_jump_factor(k)-one)*dexp(-(x*x)/(2d0*width*width))
-            density_factor=density_factor+profile
-            if (k == jump_index .and. x >= -4d0*width .and. x < zero) branch_weight=profile
+            enhancement=enhancement+profile
+            if (k == jump_index .and. x >= -4d0*width .and. x < zero) branch_weight=base_density*profile
         end do
+        density_factor=base_density*enhancement
     end subroutine secondary_reverse_density_branch_rhs
 end subroutine reverse_dynamics_rhs

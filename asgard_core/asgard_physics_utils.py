@@ -52,21 +52,20 @@ def ambient_density(radius_cm: np.ndarray | float, config: FitConfig) -> np.ndar
     scalar_input = radius.ndim == 0
 
     if config.a_star > 0.0:
-        # Wind profile
         d_ne_wind = config.a_star * 3.0e35 / radius**2
         density = np.where(d_ne_wind <= config.d_ne / 4.0, config.d_ne, d_ne_wind)
     else:
-        # ISM with optional density jump
-        jump_r, jump_factor, jump_width = density_jump_arrays(config)
         density = np.full_like(radius, float(config.d_ne), dtype=float)
-        if jump_r.size > 0:
-            enhancement = np.ones_like(radius, dtype=float)
-            for radius_j, factor_j, width_j in zip(jump_r, jump_factor, jump_width):
-                width_cm = width_j * radius_j
-                enhancement = enhancement + (factor_j - 1.0) * np.exp(
-                    -((radius - radius_j) ** 2) / (2.0 * width_cm**2)
-                )
-            density = config.d_ne * enhancement
+
+    jump_r, jump_factor, jump_width = density_jump_arrays(config)
+    if jump_r.size > 0:
+        enhancement = np.ones_like(radius, dtype=float)
+        for radius_j, factor_j, width_j in zip(jump_r, jump_factor, jump_width):
+            width_cm = width_j * radius_j
+            enhancement = enhancement + (factor_j - 1.0) * np.exp(
+                -((radius - radius_j) ** 2) / (2.0 * width_cm**2)
+            )
+        density = density * enhancement
 
     # Apply inner boundary cutoff for wind
     if config.a_star > 0.0 and config.r0 > 0.0:

@@ -87,14 +87,16 @@ subroutine dynamics_external_density_profile(A_star, dNe_ISM, RR, R0, apply_jump
     integer, intent(in) :: apply_jump
     real(8), intent(in) :: A_star, dNe_ISM, RR, R0, R_tr, f_jump, f_wide
     real(8), intent(out) :: dNe
+    real(8) :: dNe_base
 
     call dynamics_external_density_base(A_star, dNe_ISM, RR, dNe)
 
-    if (A_star <= zero .and. apply_jump /= 0) then
+    if (apply_jump /= 0) then
         if (active_density_jump_count > 0) then
-            call dynamics_density_multi_jump(dNe_ISM,RR,dNe)
+            dNe_base = dNe
+            call dynamics_density_multi_jump(dNe_base,RR,dNe)
         else
-            dNe = dNe_ISM*(one+(f_jump-one)* &
+            dNe = dNe*(one+(f_jump-one)* &
                   exp(-((RR-R_tr)*(RR-R_tr))/(two*(f_wide*R_tr)*(f_wide*R_tr))))
         end if
     end if
@@ -150,10 +152,10 @@ subroutine dynamics_boundary_r0(Boundary, n, R0)
     end if
 end subroutine dynamics_boundary_r0
 
-subroutine dynamics_density_multi_jump(dNe_ISM, RR, dNe)
+subroutine dynamics_density_multi_jump(dNe_base, RR, dNe)
     implicit none
     integer :: i
-    real(8), intent(in) :: dNe_ISM, RR
+    real(8), intent(in) :: dNe_base, RR
     real(8), intent(out) :: dNe
     real(8) :: enhancement, width_cm
 
@@ -164,7 +166,7 @@ subroutine dynamics_density_multi_jump(dNe_ISM, RR, dNe)
                       exp(-((RR-active_density_jump_r(i))*(RR-active_density_jump_r(i)))/ &
                       (two*width_cm*width_cm))
     end do
-    dNe = dNe_ISM*enhancement
+    dNe = dNe_base*enhancement
 end subroutine dynamics_density_multi_jump
 
 subroutine dynamics_log_time_step(T_base, Grid_Tobs_bin, T_log10, Num_R1, I_tobs, T, H)

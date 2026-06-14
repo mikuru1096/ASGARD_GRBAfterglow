@@ -221,6 +221,47 @@ def _run_multi_bump_reverse() -> None:
     _assert_log_smooth(state.components.rev_sync[0], 5.0)
 
 
+def _run_wind_to_ism_multi_bump_reverse() -> None:
+    config = _base_config()
+    config.a_star = 0.03
+    config.d_ne = 1.0
+    config.num_r = 112
+    config.num_tobs = 72
+    config.num_gam_e = 61
+    config.num_nu = 40
+    transition_radius = np.sqrt(config.a_star * 3.0e35 / (config.d_ne / 4.0))
+    config.jump_r_cm = (0.45 * transition_radius, 1.7 * transition_radius)
+    config.jump_factor = (4.0, 5.0)
+    config.jump_width_log10 = (0.10, 0.12)
+    times = np.logspace(2.0, 6.0, 16)
+    freqs = np.array([1.0e10, 1.0e14], dtype=float)
+    state = solve_state_from_setup(config, make_query_setup(config, times, freqs))
+    assert state.reverse_emission is not None
+    assert state.reverse_emission.secondary_rs is not None
+    secondary = state.reverse_emission.secondary_rs
+    assert secondary.event_active.shape == (2,)
+    assert np.all(secondary.event_active)
+    assert np.any(secondary.branch_swept_mass_g[0] > 0.0)
+    assert np.any(secondary.branch_swept_mass_g[1] > 0.0)
+    assert np.allclose(np.sum(secondary.branch_swept_mass_g, axis=0), secondary.swept_mass_g, rtol=1.0e-13, atol=0.0)
+    assert np.allclose(
+        np.sum(secondary.branch_internal_energy_erg, axis=0),
+        secondary.internal_energy_erg,
+        rtol=1.0e-13,
+        atol=0.0,
+    )
+    assert np.any(secondary.luminosity_syn > 0.0)
+    _assert_secondary_event_diagnostics(secondary, config)
+    _assert_secondary_injection_inside_candidate_windows(
+        state.dynamics.radius,
+        secondary.dissipated_energy_density,
+        config,
+    )
+    _assert_log_smooth(secondary.gamma_contact[secondary.dissipated_energy_density > 0.0], 0.5)
+    _assert_log_smooth(state.components.fwd_sync[0], 2.5)
+    assert np.all(np.isfinite(state.components.total))
+
+
 def _run_single_bump_secondary() -> None:
     config = _base_config()
     config.jump_r_cm = (3.0e16,)
@@ -269,7 +310,6 @@ def _run_disabled_branch_rejections() -> None:
     cases = [
         ("non-synch electron cooling", lambda cfg: setattr(cfg, "index_y", 1)),
         ("forward SSC", lambda cfg: setattr(cfg, "include_forward_ssc", True)),
-        ("wind medium", lambda cfg: setattr(cfg, "a_star", 0.1)),
         ("2D electron solver", lambda cfg: setattr(cfg, "electron_solver", "fullhide_2d")),
         ("structured observer path", lambda cfg: setattr(cfg, "geometry_kernel", "chi_eats_2d")),
         ("forward hadronic", lambda cfg: setattr(cfg.hadronic, "enabled", True)),
@@ -334,6 +374,7 @@ def main() -> None:
     _run_single_bump_secondary()
     _run_single_bump_event_grid_convergence()
     _run_multi_bump_reverse()
+    _run_wind_to_ism_multi_bump_reverse()
     print("multi-density-reverse-shock-smoke-ok")
 
 

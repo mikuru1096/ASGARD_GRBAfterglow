@@ -197,8 +197,6 @@ def _validate_multi_density_reverse_config(config: FitConfig) -> None:
     jump_r, _, _ = density_jump_arrays(config)
     if jump_r.size < 1:
         return
-    if config.a_star > 0.0:
-        raise NotImplementedError("multi-density reverse shock v1 supports only ISM.")
     if str(config.electron_solver).lower() != "fullhide_1d":
         raise NotImplementedError("multi-density reverse shock v1 requires electron_solver='fullhide_1d'.")
     if str(config.geometry_kernel).lower() != "sed_legacy" or str(config.structured_backend).lower() != "fortran_1d":
