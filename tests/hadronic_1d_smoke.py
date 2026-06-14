@@ -11,6 +11,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet
+from ASGARD.api_model import _build_fit_config_for_patch, _solve_patch_state
 
 
 def _build_model(enabled: bool, epsilon_p: float, include_pg: bool = False, include_neutrino: bool = False) -> Model:
@@ -75,6 +76,20 @@ def main() -> None:
     pg_details = _build_model(True, 0.3, include_pg=True, include_neutrino=True).details(1.0e3, 1.0e6)
     assert pg_details.fwd.neutrino_luminosity is not None
     assert np.all(np.isfinite(pg_details.fwd.neutrino_luminosity))
+
+    pg_model = _build_model(True, 0.3, include_pg=True, include_neutrino=False)
+    pg_config = _build_fit_config_for_patch(
+        pg_model,
+        phi_center=0.0,
+        theta_v=pg_model.observer.theta_obs,
+        opening_angle_jet=pg_model.jet.theta_j,
+        e_iso=pg_model.jet.E_iso,
+        gamma0=pg_model.jet.lf,
+        theta_center=0.0,
+    )
+    pg_state = _solve_patch_state(pg_model, pg_config, times, freqs)
+    assert pg_state.hadronic is not None
+    assert pg_state.hadronic.secondary_electron_source_r is None
 
 
 if __name__ == "__main__":
