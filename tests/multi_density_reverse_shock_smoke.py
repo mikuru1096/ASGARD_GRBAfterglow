@@ -85,6 +85,8 @@ def _run_multi_bump_reverse() -> None:
         secondary.swept_mass_g,
         secondary.internal_energy_erg,
         secondary.comoving_volume_cm3,
+        secondary.pressure_total,
+        secondary.enthalpy_density_total,
         secondary.magnetic_field_g,
         secondary.nu_m,
         secondary.nu_c,
@@ -108,7 +110,17 @@ def _run_multi_bump_reverse() -> None:
         assert secondary.swept_mass_g[last_injection + 1] > 0.0
         assert secondary.internal_energy_erg[last_injection + 1] > 0.0
         assert secondary.comoving_volume_cm3[last_injection + 1] > 0.0
+        assert secondary.pressure_total[last_injection + 1] > 0.0
+        assert secondary.enthalpy_density_total[last_injection + 1] > 0.0
         assert secondary.magnetic_field_g[last_injection + 1] > 0.0
+    assert np.all(secondary.pressure_total[reservoir] > 0.0)
+    assert np.all(secondary.enthalpy_density_total[reservoir] > secondary.pressure_total[reservoir])
+    assert np.allclose(
+        secondary.pressure_total[reservoir],
+        secondary.internal_energy_erg[reservoir] / (3.0 * secondary.comoving_volume_cm3[reservoir]),
+        rtol=1.0e-13,
+        atol=0.0,
+    )
     assert np.isclose(
         np.sum(secondary.electron_injected_energy_erg),
         config.reverse_shock.epsilon_e * np.sum(secondary.dissipated_energy_erg),

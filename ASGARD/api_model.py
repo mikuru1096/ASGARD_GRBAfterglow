@@ -562,6 +562,8 @@ class CharTrack:
     secondary_rs_swept_mass_g: Optional[np.ndarray] = None
     secondary_rs_internal_energy_erg: Optional[np.ndarray] = None
     secondary_rs_comoving_volume_cm3: Optional[np.ndarray] = None
+    secondary_rs_pressure_total: Optional[np.ndarray] = None
+    secondary_rs_enthalpy_density_total: Optional[np.ndarray] = None
     secondary_rs_B: Optional[np.ndarray] = None
     secondary_rs_nu_m: Optional[np.ndarray] = None
     secondary_rs_nu_c: Optional[np.ndarray] = None
@@ -1557,6 +1559,8 @@ def _make_details(
             secondary_rs_swept_mass_g=None if secondary_rs is None else secondary_rs.swept_mass_g,
             secondary_rs_internal_energy_erg=None if secondary_rs is None else secondary_rs.internal_energy_erg,
             secondary_rs_comoving_volume_cm3=None if secondary_rs is None else secondary_rs.comoving_volume_cm3,
+            secondary_rs_pressure_total=None if secondary_rs is None else secondary_rs.pressure_total,
+            secondary_rs_enthalpy_density_total=None if secondary_rs is None else secondary_rs.enthalpy_density_total,
             secondary_rs_B=None if secondary_rs is None else secondary_rs.magnetic_field_g,
             secondary_rs_nu_m=None if secondary_rs is None else secondary_rs.nu_m,
             secondary_rs_nu_c=None if secondary_rs is None else secondary_rs.nu_c,

@@ -209,7 +209,8 @@ subroutine secondary_reverse_profile(Num_R,Num_jump,R,Tobs_axis,Gamma4,dNe_ISM,J
                                      Epsilon_e,Epsilon_b,p_e,f_e,z, &
                                      gamma_contact,pressure_3,gamma_43,comp_ratio,beta_rs,u_diss,active_weight, &
                                      m3_reservoir,u3_reservoir,v3_reservoir,b3_reservoir,gamma_m_shell, &
-                                     dissipated_energy,electron_injected_energy,nu_m,nu_c,event_active, &
+                                     dissipated_energy,electron_injected_energy,pressure_total,enthalpy_density_total, &
+                                     nu_m,nu_c,event_active, &
                                      start_radius,shock_end_radius,start_tobs_axis,shock_end_tobs_axis)
     use constants
     implicit none
@@ -222,6 +223,7 @@ subroutine secondary_reverse_profile(Num_R,Num_jump,R,Tobs_axis,Gamma4,dNe_ISM,J
     real(8), intent(out) :: beta_rs(Num_R),u_diss(Num_R),active_weight(Num_R)
     real(8), intent(out) :: m3_reservoir(Num_R),u3_reservoir(Num_R),v3_reservoir(Num_R),b3_reservoir(Num_R)
     real(8), intent(out) :: gamma_m_shell(Num_R),dissipated_energy(Num_R),electron_injected_energy(Num_R)
+    real(8), intent(out) :: pressure_total(Num_R),enthalpy_density_total(Num_R)
     real(8), intent(out) :: nu_m(Num_R),nu_c(Num_R)
     logical, intent(out) :: event_active(Num_jump)
     real(8), intent(out) :: start_radius(Num_jump),shock_end_radius(Num_jump)
@@ -234,6 +236,7 @@ subroutine secondary_reverse_profile(Num_R,Num_jump,R,Tobs_axis,Gamma4,dNe_ISM,J
     gamma_contact=zero; pressure_3=zero; gamma_43=one; comp_ratio=zero; beta_rs=zero
     u_diss=zero; active_weight=zero; m3_reservoir=zero; u3_reservoir=zero; v3_reservoir=zero
     b3_reservoir=zero; gamma_m_shell=zero; dissipated_energy=zero; electron_injected_energy=zero
+    pressure_total=zero; enthalpy_density_total=zero
     nu_m=zero; nu_c=zero
     event_active=.false.; start_radius=zero; shock_end_radius=zero
     start_tobs_axis=zero; shock_end_tobs_axis=zero
@@ -284,6 +287,8 @@ subroutine secondary_reverse_profile(Num_R,Num_jump,R,Tobs_axis,Gamma4,dNe_ISM,J
 
     do I=1,Num_R
         if (v3_reservoir(I) > zero) then
+            pressure_total(I)=u3_reservoir(I)/(3d0*v3_reservoir(I))
+            enthalpy_density_total(I)=m3_reservoir(I)*Para_c**2/v3_reservoir(I)+u3_reservoir(I)/v3_reservoir(I)+pressure_total(I)
             b3_reservoir(I)=dsqrt(8d0*pi*Epsilon_b*u3_reservoir(I)/v3_reservoir(I))
             if (gamma_m_shell(I) > one) then
                 doppler_den=gamma_contact(I)*(one-dsqrt(one-gamma_contact(I)**(-2)))*(one+z)

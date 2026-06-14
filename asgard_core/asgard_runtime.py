@@ -120,6 +120,8 @@ class SecondaryReverseShockState:
     swept_mass_g: np.ndarray
     internal_energy_erg: np.ndarray
     comoving_volume_cm3: np.ndarray
+    pressure_total: np.ndarray
+    enthalpy_density_total: np.ndarray
     magnetic_field_g: np.ndarray
     nu_m: np.ndarray
     nu_c: np.ndarray
@@ -2247,6 +2249,8 @@ def _compute_secondary_reverse_shock_synchrotron(
         gamma_m_shell,
         dissipated_energy,
         electron_injected_energy,
+        pressure_total,
+        enthalpy_density_total,
         nu_m,
         nu_c,
         event_active,
@@ -2282,6 +2286,8 @@ def _compute_secondary_reverse_shock_synchrotron(
     gamma_m_shell = np.asarray(gamma_m_shell, dtype=float)
     dissipated_energy = np.asarray(dissipated_energy, dtype=float)
     electron_injected_energy = np.asarray(electron_injected_energy, dtype=float)
+    pressure_total = np.asarray(pressure_total, dtype=float)
+    enthalpy_density_total = np.asarray(enthalpy_density_total, dtype=float)
     nu_m = np.asarray(nu_m, dtype=float)
     nu_c = np.asarray(nu_c, dtype=float)
     event_active = np.asarray(event_active, dtype=bool)
@@ -2344,6 +2350,8 @@ def _compute_secondary_reverse_shock_synchrotron(
         swept_mass_g=m3_shell,
         internal_energy_erg=u3_shell,
         comoving_volume_cm3=v3_shell,
+        pressure_total=pressure_total,
+        enthalpy_density_total=enthalpy_density_total,
         magnetic_field_g=b_field,
         nu_m=nu_m,
         nu_c=nu_c,
