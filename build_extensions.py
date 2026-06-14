@@ -88,6 +88,8 @@ F2PY_ENTRYPOINTS = {
         "fs_hadronic_shell_density_per_gev",
         "fs_hadronic_photon_density_hz_to_gev",
         "fs_hadronic_process_power",
+        "fs_hadronic_shell_comoving_dt",
+        "fs_hadronic_dynamical_time",
         "fs_hadronic_positive_loglog_interp",
         "fs_hadronic_source_per_gamma",
         "fs_hadronic_distribution_per_gev",

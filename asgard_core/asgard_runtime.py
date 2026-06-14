@@ -1723,33 +1723,19 @@ def _hadronic_shell_dt(r_tobs: np.ndarray, i_shell: int) -> float:
     return dt
 
 
-def _hadronic_shell_dr(radius_cm: np.ndarray, i_shell: int) -> float:
-    radius = np.asarray(radius_cm, dtype=float)
-    if i_shell <= 0:
-        if radius.size < 2:
-            raise ValueError("R-coordinate hadronic transport requires at least two shell radii.")
-        dr = float(radius[1] - radius[0])
-    else:
-        dr = float(radius[i_shell] - radius[i_shell - 1])
-    if dr <= 0.0:
-        raise ValueError("Hadronic shell radii must be positive and strictly increasing.")
-    return dr
-
-
 def _hadronic_shell_comoving_dt_from_radius(radius_cm: np.ndarray, gamma_bulk: np.ndarray, i_shell: int) -> float:
-    gamma = float(np.asarray(gamma_bulk, dtype=float)[i_shell])
-    if gamma <= 1.0:
-        raise ValueError("R-coordinate hadronic transport requires gamma_bulk > 1.")
-    beta = float(np.sqrt(1.0 - 1.0 / (gamma * gamma)))
-    return _hadronic_shell_dr(radius_cm, i_shell) / (beta * gamma * constants.para_c)
+    return float(hadronic_legacy_module.fs_hadronic_shell_comoving_dt(
+        np.asarray(radius_cm, dtype=float),
+        np.asarray(gamma_bulk, dtype=float),
+        int(i_shell) + 1,
+    ))
 
 
 def _hadronic_dynamical_time(radius_cm: float, gamma_bulk: float) -> float:
-    if radius_cm <= 0.0:
-        raise ValueError("hadronic dynamical time requires positive radius.")
-    if gamma_bulk < 1.0:
-        raise ValueError("hadronic dynamical time requires gamma_bulk >= 1.")
-    return float(radius_cm) / (float(gamma_bulk) * constants.para_c)
+    return float(hadronic_legacy_module.fs_hadronic_dynamical_time(
+        float(radius_cm),
+        float(gamma_bulk),
+    ))
 
 
 def _hadronic_transport_tau_shell(
