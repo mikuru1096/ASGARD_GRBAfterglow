@@ -1797,7 +1797,14 @@ def _hadronic_aligned_photon_grid(hadron_energy_gev: np.ndarray, photon_energy_g
     log_min = float(np.log(photon_energy[0]))
     log_max = float(np.log(photon_energy[-1]))
     nbin = int(np.ceil((log_max - log_min) / dln_had)) + 1
-    return np.exp(log_min + dln_had * np.arange(nbin, dtype=float))
+    return np.asarray(
+        hadronic_legacy_module.fs_hadronic_aligned_photon_grid(
+            nbin,
+            hadron_energy,
+            photon_energy,
+        ),
+        dtype=float,
+    )
 
 
 def _hadronic_electron_loss_rates(

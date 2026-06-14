@@ -673,6 +673,24 @@ subroutine fs_hadronic_positive_loglog_interp(num_src,num_dst,x_src,y_src,x_dst,
     end do
 end subroutine fs_hadronic_positive_loglog_interp
 
+! 按 hadron log spacing 构造对齐 photon energy grid。
+subroutine fs_hadronic_aligned_photon_grid(num_had,num_ph,num_out,hadron_energy_gev,photon_energy_gev, &
+                                           aligned_photon_gev)
+    implicit none
+    integer, intent(in) :: num_had,num_ph,num_out
+    real(8), intent(in) :: hadron_energy_gev(num_had),photon_energy_gev(num_ph)
+    real(8), intent(out) :: aligned_photon_gev(num_out)
+    integer :: i
+    real(8) :: dln_had,log_min
+
+    if (num_had < 2 .or. num_ph < 2 .or. num_out < 1) error stop "hadronic aligned photon grid needs valid grids."
+    dln_had=dlog(hadron_energy_gev(2)/hadron_energy_gev(1))
+    log_min=dlog(photon_energy_gev(1))
+    do i=1,num_out
+        aligned_photon_gev(i)=dexp(log_min+dln_had*dble(i-1))
+    end do
+end subroutine fs_hadronic_aligned_photon_grid
+
 subroutine hadronic_sequence_shell_geometry(num_r,radius_cm,gamma_bulk,i_r,dr,dt_s)
     use constants
     implicit none
