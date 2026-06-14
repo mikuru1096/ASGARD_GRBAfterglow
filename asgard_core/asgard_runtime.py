@@ -1758,10 +1758,8 @@ def _hadronic_transport_tau_shell(
     i_shell: int,
     alpha_gamma_s_inv: np.ndarray,
 ) -> np.ndarray:
-    alpha = np.asarray(alpha_gamma_s_inv, dtype=float)
-    if np.any(alpha < 0.0):
-        raise RuntimeError("Hadronic photon loss rate must be non-negative.")
-    return alpha * _hadronic_shell_comoving_dt_from_radius(radius_cm, gamma_bulk, i_shell)
+    tau, _ = _hadronic_pg_local_closure(radius_cm, gamma_bulk, i_shell, alpha_gamma_s_inv)
+    return tau
 
 
 def rate_s_inv_to_radius_inv(rate_s_inv: np.ndarray, gamma_bulk: float) -> np.ndarray:
