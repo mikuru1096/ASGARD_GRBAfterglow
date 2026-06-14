@@ -1908,13 +1908,16 @@ def _hadronic_advance_energy_loggamma(
     ):
         raise ValueError("Hadronic energy advance received non-finite inputs.")
 
-    content = np.asarray(d_n_prev, dtype=float) * dgam
-    cooled_gamma = gam - loss * float(dt_s)
-    target = np.searchsorted(gam_edge, cooled_gamma, side="right") - 1
-    next_content = np.zeros_like(content)
-    valid = (target >= 0) & (target < gam.size)
-    np.add.at(next_content, target[valid], content[valid])
-    return next_content / dgam + np.asarray(q_inj, dtype=float)
+    return np.asarray(
+        hadronic_legacy_module.fs_hadronic_advance_energy_loggamma(
+            gam,
+            np.asarray(d_n_prev, dtype=float),
+            np.asarray(q_inj, dtype=float),
+            loss,
+            float(dt_s),
+        ),
+        dtype=float,
+    )
 
 
 def _energy_luminosity_from_rate_spectrum(

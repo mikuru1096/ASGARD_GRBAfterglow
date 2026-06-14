@@ -477,6 +477,16 @@ subroutine fs_hadronic_pair_cascade_sequence(num_ph,num_e,num_shell,photon_energ
                                    pair_seed,cascade_photon_density,absorbed_power,injected_power)
 end subroutine fs_hadronic_pair_cascade_sequence
 
+subroutine fs_hadronic_advance_energy_loggamma(num_gamma,gamma,dn_prev,q_inj,loss_total,dt_s,dn_next)
+    use hadronic_transport_remap_kernel, only: hadronic_advance_energy_loggamma_remap
+    implicit none
+    integer, intent(in) :: num_gamma
+    real(8), intent(in) :: gamma(num_gamma),dn_prev(num_gamma),q_inj(num_gamma),loss_total(num_gamma),dt_s
+    real(8), intent(out) :: dn_next(num_gamma)
+
+    call hadronic_advance_energy_loggamma_remap(num_gamma,gamma,dn_prev,q_inj,loss_total,dt_s,dn_next)
+end subroutine fs_hadronic_advance_energy_loggamma
+
 ! pp spectral source model: SIBYLL=0, QGSJET=1, Geant4=2, Pythia8=3.
 subroutine fs_hadronic_pp_spectral_source(num_p,proton_kinetic_energy_gev, &
     proton_density_per_gev,num_g,gamma_energy_gev,target_density_cm3,model, &
