@@ -60,6 +60,14 @@ def main() -> None:
     for time_s in times:
         assert np.any(np.isclose(adaptive.time_s, time_s, rtol=1.0e-13, atol=0.0))
     assert np.any(adaptive.rev.sync > 0.0)
+    details = model.details(times[0], times[-1])
+    assert details.rev is not None
+    assert details.rev.secondary_rs_event_active is not None
+    assert np.any(details.rev.secondary_rs_event_active)
+    assert details.rev.secondary_rs_start_radius is not None
+    assert details.rev.secondary_rs_shock_end_radius is not None
+    active = details.rev.secondary_rs_event_active
+    assert np.all(details.rev.secondary_rs_shock_end_radius[active] >= details.rev.secondary_rs_start_radius[active])
     print("adaptive-observer-time-grid-smoke-ok")
 
 

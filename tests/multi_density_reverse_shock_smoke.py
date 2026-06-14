@@ -75,6 +75,7 @@ def _run_multi_bump_reverse() -> None:
     assert np.all(np.isfinite(state.reverse_emission.l_syn_spec))
     assert np.any(secondary.luminosity_syn > 0.0)
     _assert_secondary_injection_inside_candidate_windows(state.dynamics.radius, secondary.dissipated_energy_density, config)
+    _assert_secondary_event_diagnostics(secondary, config)
     for values in (
         secondary.gamma_contact,
         secondary.pressure_3,
@@ -119,6 +120,7 @@ def _run_single_bump_secondary() -> None:
     assert state.reverse_emission is not None
     assert state.reverse_emission.secondary_rs is not None
     assert np.any(state.reverse_emission.secondary_rs.luminosity_syn > 0.0)
+    _assert_secondary_event_diagnostics(state.reverse_emission.secondary_rs, config)
     _assert_secondary_injection_inside_candidate_windows(
         state.dynamics.radius,
         state.reverse_emission.secondary_rs.dissipated_energy_density,
@@ -169,6 +171,23 @@ def _assert_secondary_injection_inside_candidate_windows(radius: np.ndarray, inj
         width_cm = float(width_j) * float(radius_j)
         allowed |= (radius >= float(radius_j) - 4.0 * width_cm) & (radius < float(radius_j))
     assert not np.any(active & ~allowed)
+
+
+def _assert_secondary_event_diagnostics(secondary, config: FitConfig) -> None:
+    assert secondary.event_active.shape == (len(config.jump_r_cm),)
+    assert secondary.start_radius_cm.shape == secondary.event_active.shape
+    assert secondary.shock_end_radius_cm.shape == secondary.event_active.shape
+    assert np.any(secondary.event_active)
+    active = secondary.event_active
+    assert np.all(secondary.shock_end_radius_cm[active] >= secondary.start_radius_cm[active])
+    assert np.all(secondary.shock_end_tobs_axis_s[active] >= secondary.start_tobs_axis_s[active])
+    for i_jump, is_active in enumerate(active):
+        if not is_active:
+            continue
+        radius_j = float(config.jump_r_cm[i_jump])
+        width_cm = float(config.jump_width_log10[i_jump]) * radius_j
+        assert radius_j - 4.0 * width_cm <= secondary.start_radius_cm[i_jump] < radius_j
+        assert radius_j - 4.0 * width_cm <= secondary.shock_end_radius_cm[i_jump] < radius_j
 
 
 def main() -> None:

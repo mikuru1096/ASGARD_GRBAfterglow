@@ -105,6 +105,11 @@ def _dynamics_reverse_module():
 @dataclass
 class SecondaryReverseShockState:
     luminosity_syn: np.ndarray
+    event_active: np.ndarray
+    start_radius_cm: np.ndarray
+    shock_end_radius_cm: np.ndarray
+    start_tobs_axis_s: np.ndarray
+    shock_end_tobs_axis_s: np.ndarray
     gamma_contact: np.ndarray
     pressure_3: np.ndarray
     gamma_43: np.ndarray
@@ -2338,8 +2343,20 @@ def _compute_secondary_reverse_shock_synchrotron(
         gamma_cool = 7.7e8 * (1.0 + config.z) / float(gamma4_arr[i]) / b_field[i] ** 2 / dynamics.r_tobs[i]
         nu_c[i] = _synchrotron_frequency(b_field[i], gamma_cool, doppler_den)
         nu_a[i] = electron_radiation_module.get_nu_a(float(radius[i]), b_field[i], gam_e_sec, dist[:, i]) / doppler_den
+    event_active, start_radius, end_radius, start_tobs, end_tobs = _secondary_reverse_event_diagnostics(
+        radius,
+        dynamics.r_tobs,
+        u_diss,
+        jump_r,
+        jump_width,
+    )
     return SecondaryReverseShockState(
         luminosity_syn=luminosity,
+        event_active=event_active,
+        start_radius_cm=start_radius,
+        shock_end_radius_cm=end_radius,
+        start_tobs_axis_s=start_tobs,
+        shock_end_tobs_axis_s=end_tobs,
         gamma_contact=gamma_contact,
         pressure_3=pressure_3,
         gamma_43=gamma_43,
@@ -2368,6 +2385,37 @@ def _secondary_reverse_active_weight(
         local = (factor_j - 1.0) * np.exp(-(x * x) / (2.0 * width_cm * width_cm))
         weight = weight + np.where(rising, local, 0.0)
     return weight
+
+
+def _secondary_reverse_event_diagnostics(
+    radius: np.ndarray,
+    tobs_axis: np.ndarray,
+    dissipated_energy_density: np.ndarray,
+    jump_r: np.ndarray,
+    jump_width: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    # 事件诊断按每个 bump 的正耗散源项历史定义，后续 Fortran 事件根可直接替换这些来源。
+    num_jump = jump_r.shape[0]
+    active = np.zeros(num_jump, dtype=bool)
+    start_radius = np.zeros(num_jump, dtype=float)
+    end_radius = np.zeros(num_jump, dtype=float)
+    start_tobs = np.zeros(num_jump, dtype=float)
+    end_tobs = np.zeros(num_jump, dtype=float)
+    positive = np.asarray(dissipated_energy_density, dtype=float) > 0.0
+    for i_jump, (radius_j, width_j) in enumerate(zip(jump_r, jump_width)):
+        width_cm = width_j * radius_j
+        candidate = (radius >= radius_j - 4.0 * width_cm) & (radius < radius_j)
+        indices = np.flatnonzero(candidate & positive)
+        if indices.size == 0:
+            continue
+        i_start = int(indices[0])
+        i_end = int(indices[-1])
+        active[i_jump] = True
+        start_radius[i_jump] = radius[i_start]
+        end_radius[i_jump] = radius[i_end]
+        start_tobs[i_jump] = tobs_axis[i_start]
+        end_tobs[i_jump] = tobs_axis[i_end]
+    return active, start_radius, end_radius, start_tobs, end_tobs
 
 
 def _secondary_reverse_build_reservoirs(

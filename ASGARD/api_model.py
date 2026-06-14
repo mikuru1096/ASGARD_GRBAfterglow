@@ -549,6 +549,11 @@ class CharTrack:
     tau_pg: Optional[np.ndarray] = None
     tau_bh: Optional[np.ndarray] = None
     pg_photon_survival: Optional[np.ndarray] = None
+    secondary_rs_event_active: Optional[np.ndarray] = None
+    secondary_rs_start_radius: Optional[np.ndarray] = None
+    secondary_rs_shock_end_radius: Optional[np.ndarray] = None
+    secondary_rs_start_tobs_axis: Optional[np.ndarray] = None
+    secondary_rs_shock_end_tobs_axis: Optional[np.ndarray] = None
     secondary_rs_gamma_contact: Optional[np.ndarray] = None
     secondary_rs_pressure_3: Optional[np.ndarray] = None
     secondary_rs_gamma_43: Optional[np.ndarray] = None
@@ -1535,6 +1540,11 @@ def _make_details(
             dynamical_timescale_s=components.rev.dynamical_timescale_s,
             gamma_e=rev_gamma_e,
             dN_dgamma_e=rev_dnde,
+            secondary_rs_event_active=None if secondary_rs is None else secondary_rs.event_active,
+            secondary_rs_start_radius=None if secondary_rs is None else secondary_rs.start_radius_cm,
+            secondary_rs_shock_end_radius=None if secondary_rs is None else secondary_rs.shock_end_radius_cm,
+            secondary_rs_start_tobs_axis=None if secondary_rs is None else secondary_rs.start_tobs_axis_s,
+            secondary_rs_shock_end_tobs_axis=None if secondary_rs is None else secondary_rs.shock_end_tobs_axis_s,
             secondary_rs_gamma_contact=None if secondary_rs is None else secondary_rs.gamma_contact,
             secondary_rs_pressure_3=None if secondary_rs is None else secondary_rs.pressure_3,
             secondary_rs_gamma_43=None if secondary_rs is None else secondary_rs.gamma_43,
