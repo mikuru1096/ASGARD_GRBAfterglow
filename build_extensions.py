@@ -74,6 +74,7 @@ F2PY_ENTRYPOINTS = {
         "fs_hadronic_injection_content",
         "fs_hadronic_global_gamma_p_max",
         "fs_hadronic_secondary_radiation_shell",
+        "fs_hadronic_secondary_radiation_projected",
         "fs_hadronic_decay_operator_shell",
         "fs_hadronic_pair_cascade_step",
         "fs_hadronic_pair_cascade_sequence",

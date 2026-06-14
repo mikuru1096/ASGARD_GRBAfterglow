@@ -22,12 +22,7 @@ from asgard_core.hadronic_bethe_heitler import (
     solve_bethe_heitler,
 )
 from asgard_core.hadronic_hadronic_ic import HADRONIC_IC_BACKEND, solve_hadronic_inverse_compton
-from asgard_core.hadronic_secondary_radiation import (
-    SECONDARY_RADIATION_BACKEND,
-    SecondarySpeciesDistribution,
-    SecondaryTargetPhotonField,
-    solve_secondary_radiation_spectrum,
-)
+from asgard_core.hadronic_secondary_radiation import SECONDARY_RADIATION_BACKEND
 from asgard_core.hadronic_species_transport import (
     ChargedMuonDistribution,
     ChargedPionDistribution,
@@ -1076,9 +1071,6 @@ def _solve_hadronic_hummer_transport_coupled(
     neutrino_energy_gev = constants.para_h_gev * neutrino_frequency_hz
     photon_energy_gev, _ = photon_density_hz_to_gev(v_seed_arr, np.ones_like(v_seed_arr))
     gam_secondary = np.array(gam_p, copy=True)
-    neutron_energy_gev = gam_secondary * constants.para_m_n_gev
-    pion_energy_gev = gam_secondary * constants.para_m_pi_charged_gev
-    muon_energy_gev = gam_secondary * constants.para_m_mu_gev
 
     d_n_gam_p = np.zeros((num_gam_p, num_r), dtype=float)
     l_had_syn_spec = np.zeros((num_nu, num_r), dtype=float)
@@ -1346,92 +1338,20 @@ def _solve_hadronic_hummer_transport_coupled(
         d_n_gam_mu_plus_right[:, i_r] = species_state_next.charged_muon.plus_right_density_per_gamma
 
         t_sec_start = time.perf_counter()
-        photon_energy_aligned_gev = _hadronic_aligned_photon_grid(gam_p * PROTON_MASS_GEV, photon_energy_gev)
-        photon_density_aligned_per_gev = _interp_positive_loglog(
+        (
+            l_had_pion_synch[:, i_r],
+            l_had_muon_synch[:, i_r],
+            l_had_pion_ic[:, i_r],
+            l_had_muon_ic[:, i_r],
+        ) = _hadronic_secondary_radiation_projected(
+            gam_p * PROTON_MASS_GEV,
             photon_energy_gev,
             photon_density_per_gev,
-            photon_energy_aligned_gev,
-        )
-        secondary_species = SecondarySpeciesDistribution(
-            pion_plus_per_gev=_interp_distribution_per_gev(
-                pion_energy_gev,
-                species_state_next.charged_pion.plus_density_per_gamma,
-                gam_p * PROTON_MASS_GEV,
-                constants.para_m_pi_charged_gev,
-                shell_volume_loc,
-            ),
-            pion_minus_per_gev=_interp_distribution_per_gev(
-                pion_energy_gev,
-                species_state_next.charged_pion.minus_density_per_gamma,
-                gam_p * PROTON_MASS_GEV,
-                constants.para_m_pi_charged_gev,
-                shell_volume_loc,
-            ),
-            muon_minus_left_per_gev=_interp_distribution_per_gev(
-                muon_energy_gev,
-                species_state_next.charged_muon.minus_left_density_per_gamma,
-                gam_p * PROTON_MASS_GEV,
-                constants.para_m_mu_gev,
-                shell_volume_loc,
-            ),
-            muon_minus_right_per_gev=_interp_distribution_per_gev(
-                muon_energy_gev,
-                species_state_next.charged_muon.minus_right_density_per_gamma,
-                gam_p * PROTON_MASS_GEV,
-                constants.para_m_mu_gev,
-                shell_volume_loc,
-            ),
-            muon_plus_left_per_gev=_interp_distribution_per_gev(
-                muon_energy_gev,
-                species_state_next.charged_muon.plus_left_density_per_gamma,
-                gam_p * PROTON_MASS_GEV,
-                constants.para_m_mu_gev,
-                shell_volume_loc,
-            ),
-            muon_plus_right_per_gev=_interp_distribution_per_gev(
-                muon_energy_gev,
-                species_state_next.charged_muon.plus_right_density_per_gamma,
-                gam_p * PROTON_MASS_GEV,
-                constants.para_m_mu_gev,
-                shell_volume_loc,
-            ),
-        )
-        secondary_target = SecondaryTargetPhotonField(
-            photon_energy_gev=photon_energy_aligned_gev,
-            photons_on_had_grid_per_gev=photon_density_aligned_per_gev,
-            ind_min_energy_pho_hadgrid=0,
-        )
-        secondary_radiation = solve_secondary_radiation_spectrum(
-            hadron_energy_gev=gam_p * PROTON_MASS_GEV,
-            species=secondary_species,
-            target=secondary_target,
-            magnetic_field_g=float(b_field[i_r]),
+            species_state_next,
+            shell_volume_loc,
+            float(b_field[i_r]),
         )
         timings["secondary_radiation"] += time.perf_counter() - t_sec_start
-        l_had_pion_synch[:, i_r] = _project_luminosity_from_rate_spectrum(
-            secondary_radiation.photon_energy_gev,
-            secondary_radiation.pion_synch_rate_per_gev,
-            shell_volume_loc,
-            photon_energy_gev,
-        )
-        l_had_muon_synch[:, i_r] = _project_luminosity_from_rate_spectrum(
-            secondary_radiation.photon_energy_gev,
-            secondary_radiation.muon_synch_rate_per_gev,
-            shell_volume_loc,
-            photon_energy_gev,
-        )
-        l_had_pion_ic[:, i_r] = _project_luminosity_from_rate_spectrum(
-            secondary_radiation.photon_energy_gev,
-            secondary_radiation.pion_ic_rate_per_gev,
-            shell_volume_loc,
-            photon_energy_gev,
-        )
-        l_had_muon_ic[:, i_r] = _project_luminosity_from_rate_spectrum(
-            secondary_radiation.photon_energy_gev,
-            secondary_radiation.muon_ic_rate_per_gev,
-            shell_volume_loc,
-            photon_energy_gev,
-        )
 
         if bool(config.hadronic.include_pg):
             l_had_pg_gamma[:, i_r] = _energy_luminosity_from_rate_spectrum(
@@ -1734,10 +1654,7 @@ def _hadronic_interaction_effective_time(rate_s_inv: np.ndarray, dt_s: float) ->
 def _hadronic_aligned_photon_grid(hadron_energy_gev: np.ndarray, photon_energy_gev: np.ndarray) -> np.ndarray:
     hadron_energy = np.asarray(hadron_energy_gev, dtype=float)
     photon_energy = np.asarray(photon_energy_gev, dtype=float)
-    dln_had = float(np.diff(np.log(hadron_energy))[0])
-    log_min = float(np.log(photon_energy[0]))
-    log_max = float(np.log(photon_energy[-1]))
-    nbin = int(np.ceil((log_max - log_min) / dln_had)) + 1
+    nbin = _hadronic_aligned_photon_grid_size(hadron_energy, photon_energy)
     return np.asarray(
         hadronic_legacy_module.fs_hadronic_aligned_photon_grid(
             nbin,
@@ -1746,6 +1663,15 @@ def _hadronic_aligned_photon_grid(hadron_energy_gev: np.ndarray, photon_energy_g
         ),
         dtype=float,
     )
+
+
+def _hadronic_aligned_photon_grid_size(hadron_energy_gev: np.ndarray, photon_energy_gev: np.ndarray) -> int:
+    hadron_energy = np.asarray(hadron_energy_gev, dtype=float)
+    photon_energy = np.asarray(photon_energy_gev, dtype=float)
+    dln_had = float(np.diff(np.log(hadron_energy))[0])
+    log_min = float(np.log(photon_energy[0]))
+    log_max = float(np.log(photon_energy[-1]))
+    return int(np.ceil((log_max - log_min) / dln_had)) + 1
 
 
 def _hadronic_electron_loss_rates(
@@ -1991,6 +1917,34 @@ def _hadronic_species_transport_step(
         np.asarray(state_prev.charged_muon.minus_right_density_per_gamma, dtype=float),
         np.asarray(state_prev.charged_muon.plus_left_density_per_gamma, dtype=float),
         np.asarray(state_prev.charged_muon.plus_right_density_per_gamma, dtype=float),
+    )
+    return tuple(np.asarray(item, dtype=float) for item in result)
+
+
+def _hadronic_secondary_radiation_projected(
+    hadron_energy_gev: np.ndarray,
+    photon_energy_gev: np.ndarray,
+    photon_density_per_gev: np.ndarray,
+    species_state: HadronicSpeciesState,
+    shell_volume_cm3: float,
+    magnetic_field_g: float,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    hadron_energy = np.asarray(hadron_energy_gev, dtype=float)
+    photon_energy = np.asarray(photon_energy_gev, dtype=float)
+    num_align = _hadronic_aligned_photon_grid_size(hadron_energy, photon_energy)
+    result = hadronic_legacy_module.fs_hadronic_secondary_radiation_projected(
+        num_align,
+        hadron_energy,
+        photon_energy,
+        np.asarray(photon_density_per_gev, dtype=float),
+        np.asarray(species_state.charged_pion.plus_density_per_gamma, dtype=float),
+        np.asarray(species_state.charged_pion.minus_density_per_gamma, dtype=float),
+        np.asarray(species_state.charged_muon.minus_left_density_per_gamma, dtype=float),
+        np.asarray(species_state.charged_muon.minus_right_density_per_gamma, dtype=float),
+        np.asarray(species_state.charged_muon.plus_left_density_per_gamma, dtype=float),
+        np.asarray(species_state.charged_muon.plus_right_density_per_gamma, dtype=float),
+        float(shell_volume_cm3),
+        float(magnetic_field_g),
     )
     return tuple(np.asarray(item, dtype=float) for item in result)
 

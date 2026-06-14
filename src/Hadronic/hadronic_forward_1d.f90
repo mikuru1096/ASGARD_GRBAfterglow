@@ -336,6 +336,66 @@ subroutine fs_hadronic_secondary_radiation_shell(Num_had,hadron_energy_gev,Num_p
                                                ic_dln_energy,delta_e_pi,jmax_pi,delta_e_mu,jmax_mu)
 end subroutine fs_hadronic_secondary_radiation_shell
 
+! 投影后的二级 π/μ 辐射：分布映射、目标光子插值、辐射和 luminosity 投影在 Fortran 内闭合。
+subroutine fs_hadronic_secondary_radiation_projected(num_had,num_ph,num_align,hadron_energy_gev, &
+                                                     photon_energy_gev,photon_density_per_gev, &
+                                                     pion_plus_density_per_gamma,pion_minus_density_per_gamma, &
+                                                     muon_minus_left_density_per_gamma, &
+                                                     muon_minus_right_density_per_gamma, &
+                                                     muon_plus_left_density_per_gamma, &
+                                                     muon_plus_right_density_per_gamma, &
+                                                     shell_volume_cm3,magnetic_field_g,pion_synch_luminosity, &
+                                                     muon_synch_luminosity,pion_ic_luminosity,muon_ic_luminosity)
+    use constants
+    implicit none
+    integer, intent(in) :: num_had,num_ph,num_align
+    real(8), intent(in) :: hadron_energy_gev(num_had),photon_energy_gev(num_ph),photon_density_per_gev(num_ph)
+    real(8), intent(in) :: pion_plus_density_per_gamma(num_had),pion_minus_density_per_gamma(num_had)
+    real(8), intent(in) :: muon_minus_left_density_per_gamma(num_had),muon_minus_right_density_per_gamma(num_had)
+    real(8), intent(in) :: muon_plus_left_density_per_gamma(num_had),muon_plus_right_density_per_gamma(num_had)
+    real(8), intent(in) :: shell_volume_cm3,magnetic_field_g
+    real(8), intent(out) :: pion_synch_luminosity(num_ph),muon_synch_luminosity(num_ph)
+    real(8), intent(out) :: pion_ic_luminosity(num_ph),muon_ic_luminosity(num_ph)
+    integer :: i
+    real(8) :: gamma_species(num_had),pion_energy(num_had),muon_energy(num_had),aligned_photon(num_align)
+    real(8) :: photon_density_aligned(num_align),pion_plus_per_gev(num_had),pion_minus_per_gev(num_had)
+    real(8) :: muon_ml_per_gev(num_had),muon_mr_per_gev(num_had),muon_pl_per_gev(num_had),muon_pr_per_gev(num_had)
+    real(8) :: pion_synch_rate(num_align),muon_synch_rate(num_align),pion_ic_rate(num_align),muon_ic_rate(num_align)
+
+    do i=1,num_had
+        gamma_species(i)=hadron_energy_gev(i)/Para_m_p_GeV
+        pion_energy(i)=gamma_species(i)*Para_m_pi_charged_GeV
+        muon_energy(i)=gamma_species(i)*Para_m_mu_GeV
+    end do
+    call fs_hadronic_distribution_per_gev(num_had,num_had,pion_energy,pion_plus_density_per_gamma, &
+                                          hadron_energy_gev,Para_m_pi_charged_GeV,shell_volume_cm3,pion_plus_per_gev)
+    call fs_hadronic_distribution_per_gev(num_had,num_had,pion_energy,pion_minus_density_per_gamma, &
+                                          hadron_energy_gev,Para_m_pi_charged_GeV,shell_volume_cm3,pion_minus_per_gev)
+    call fs_hadronic_distribution_per_gev(num_had,num_had,muon_energy,muon_minus_left_density_per_gamma, &
+                                          hadron_energy_gev,Para_m_mu_GeV,shell_volume_cm3,muon_ml_per_gev)
+    call fs_hadronic_distribution_per_gev(num_had,num_had,muon_energy,muon_minus_right_density_per_gamma, &
+                                          hadron_energy_gev,Para_m_mu_GeV,shell_volume_cm3,muon_mr_per_gev)
+    call fs_hadronic_distribution_per_gev(num_had,num_had,muon_energy,muon_plus_left_density_per_gamma, &
+                                          hadron_energy_gev,Para_m_mu_GeV,shell_volume_cm3,muon_pl_per_gev)
+    call fs_hadronic_distribution_per_gev(num_had,num_had,muon_energy,muon_plus_right_density_per_gamma, &
+                                          hadron_energy_gev,Para_m_mu_GeV,shell_volume_cm3,muon_pr_per_gev)
+    call fs_hadronic_aligned_photon_grid(num_had,num_ph,num_align,hadron_energy_gev,photon_energy_gev,aligned_photon)
+    call fs_hadronic_positive_loglog_interp(num_ph,num_align,photon_energy_gev,photon_density_per_gev, &
+                                            aligned_photon,photon_density_aligned)
+    call fs_hadronic_secondary_radiation_shell(num_had,hadron_energy_gev,num_align,aligned_photon,pion_plus_per_gev, &
+                                               pion_minus_per_gev,muon_ml_per_gev,muon_mr_per_gev,muon_pl_per_gev, &
+                                               muon_pr_per_gev,photon_density_aligned,0,magnetic_field_g, &
+                                               pion_synch_rate,muon_synch_rate,pion_ic_rate,muon_ic_rate)
+    call fs_hadronic_project_luminosity_from_rate(num_align,num_ph,aligned_photon,pion_synch_rate, &
+                                                  shell_volume_cm3,photon_energy_gev,pion_synch_luminosity)
+    call fs_hadronic_project_luminosity_from_rate(num_align,num_ph,aligned_photon,muon_synch_rate, &
+                                                  shell_volume_cm3,photon_energy_gev,muon_synch_luminosity)
+    call fs_hadronic_project_luminosity_from_rate(num_align,num_ph,aligned_photon,pion_ic_rate, &
+                                                  shell_volume_cm3,photon_energy_gev,pion_ic_luminosity)
+    call fs_hadronic_project_luminosity_from_rate(num_align,num_ph,aligned_photon,muon_ic_rate, &
+                                                  shell_volume_cm3,photon_energy_gev,muon_ic_luminosity)
+end subroutine fs_hadronic_secondary_radiation_projected
+
 ! Single-shell Hummer 2010 decay wrapper.
 subroutine fs_hadronic_decay_operator_shell(Num_gam_p,hadron_energy_gev,pion0_source_rate_per_gev,pion_plus_source_rate_per_gev, &
                                             pion_minus_source_rate_per_gev,Num_gamma,gamma_energy_gev,Num_nu,neutrino_energy_gev, &
