@@ -66,8 +66,17 @@ def main() -> None:
     assert np.any(details.rev.secondary_rs_event_active)
     assert details.rev.secondary_rs_start_radius is not None
     assert details.rev.secondary_rs_shock_end_radius is not None
+    assert details.rev.secondary_rs_B is not None
     active = details.rev.secondary_rs_event_active
     assert np.all(details.rev.secondary_rs_shock_end_radius[active] >= details.rev.secondary_rs_start_radius[active])
+    latest_end = float(np.max(details.rev.secondary_rs_shock_end_radius[active]))
+    cooling_tail = (details.rev.radius > latest_end) & (details.rev.secondary_rs_B > 0.0)
+    assert np.any(cooling_tail)
+    tail_axis_times = details.rev.t_obs[cooling_tail]
+    covered_tail = tail_axis_times[(tail_axis_times >= adaptive.time_s[0]) & (tail_axis_times <= adaptive.time_s[-1])]
+    assert covered_tail.size > 0
+    for time_s in covered_tail[: min(3, covered_tail.size)]:
+        assert np.any(np.isclose(adaptive.time_s, time_s, rtol=1.0e-13, atol=0.0))
     print("adaptive-observer-time-grid-smoke-ok")
 
 
