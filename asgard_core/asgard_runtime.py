@@ -1445,40 +1445,28 @@ def _solve_hadronic_hummer_transport_coupled(
             magnetic_field_g=float(b_field[i_r]),
         )
         timings["secondary_radiation"] += time.perf_counter() - t_sec_start
-        l_had_pion_synch[:, i_r] = _interp_positive_loglog(
+        l_had_pion_synch[:, i_r] = _project_luminosity_from_rate_spectrum(
             secondary_radiation.photon_energy_gev,
-            _energy_luminosity_from_rate_spectrum(
-                secondary_radiation.photon_energy_gev,
-                secondary_radiation.pion_synch_rate_per_gev,
-                shell_volume_loc,
-            ),
+            secondary_radiation.pion_synch_rate_per_gev,
+            shell_volume_loc,
             photon_energy_gev,
         )
-        l_had_muon_synch[:, i_r] = _interp_positive_loglog(
+        l_had_muon_synch[:, i_r] = _project_luminosity_from_rate_spectrum(
             secondary_radiation.photon_energy_gev,
-            _energy_luminosity_from_rate_spectrum(
-                secondary_radiation.photon_energy_gev,
-                secondary_radiation.muon_synch_rate_per_gev,
-                shell_volume_loc,
-            ),
+            secondary_radiation.muon_synch_rate_per_gev,
+            shell_volume_loc,
             photon_energy_gev,
         )
-        l_had_pion_ic[:, i_r] = _interp_positive_loglog(
+        l_had_pion_ic[:, i_r] = _project_luminosity_from_rate_spectrum(
             secondary_radiation.photon_energy_gev,
-            _energy_luminosity_from_rate_spectrum(
-                secondary_radiation.photon_energy_gev,
-                secondary_radiation.pion_ic_rate_per_gev,
-                shell_volume_loc,
-            ),
+            secondary_radiation.pion_ic_rate_per_gev,
+            shell_volume_loc,
             photon_energy_gev,
         )
-        l_had_muon_ic[:, i_r] = _interp_positive_loglog(
+        l_had_muon_ic[:, i_r] = _project_luminosity_from_rate_spectrum(
             secondary_radiation.photon_energy_gev,
-            _energy_luminosity_from_rate_spectrum(
-                secondary_radiation.photon_energy_gev,
-                secondary_radiation.muon_ic_rate_per_gev,
-                shell_volume_loc,
-            ),
+            secondary_radiation.muon_ic_rate_per_gev,
+            shell_volume_loc,
             photon_energy_gev,
         )
 
@@ -1530,19 +1518,12 @@ def _solve_hadronic_hummer_transport_coupled(
                 muon_plus_left_per_gev=np.zeros_like(gam_p, dtype=float),
                 muon_plus_right_per_gev=np.zeros_like(gam_p, dtype=float),
             )
-            hic_rate = (
-                np.asarray(hic_output.epsilon_p_ic, dtype=float)
-                + np.asarray(hic_output.epsilon_pi_ic, dtype=float)
-                + np.asarray(hic_output.epsilon_mu_ic, dtype=float)
-            ) / hic_output.photon_energy_gev
-            hic_lum_aligned = _energy_luminosity_from_rate_spectrum(
+            l_had_hic[:, i_r] = _project_hic_luminosity(
                 hic_output.photon_energy_gev,
-                hic_rate,
+                hic_output.epsilon_p_ic,
+                hic_output.epsilon_pi_ic,
+                hic_output.epsilon_mu_ic,
                 shell_volume_loc,
-            )
-            l_had_hic[:, i_r] = _interp_positive_loglog(
-                hic_output.photon_energy_gev,
-                hic_lum_aligned,
                 photon_energy_gev,
             )
             timings["hadronic_ic"] += time.perf_counter() - t_hic_start
@@ -1993,6 +1974,44 @@ def _energy_luminosity_from_rate_spectrum(
             np.asarray(energy_gev, dtype=float),
             np.asarray(spectrum, dtype=float),
             float(shell_volume_cm3),
+        ),
+        dtype=float,
+    )
+
+
+def _project_luminosity_from_rate_spectrum(
+    energy_src_gev: np.ndarray,
+    rate_src_per_gev: np.ndarray,
+    shell_volume_cm3: float,
+    energy_dst_gev: np.ndarray,
+) -> np.ndarray:
+    return np.asarray(
+        hadronic_legacy_module.fs_hadronic_project_luminosity_from_rate(
+            np.asarray(energy_src_gev, dtype=float),
+            np.asarray(rate_src_per_gev, dtype=float),
+            float(shell_volume_cm3),
+            np.asarray(energy_dst_gev, dtype=float),
+        ),
+        dtype=float,
+    )
+
+
+def _project_hic_luminosity(
+    energy_src_gev: np.ndarray,
+    epsilon_p_ic: np.ndarray,
+    epsilon_pi_ic: np.ndarray,
+    epsilon_mu_ic: np.ndarray,
+    shell_volume_cm3: float,
+    energy_dst_gev: np.ndarray,
+) -> np.ndarray:
+    return np.asarray(
+        hadronic_legacy_module.fs_hadronic_project_hic_luminosity(
+            np.asarray(energy_src_gev, dtype=float),
+            np.asarray(epsilon_p_ic, dtype=float),
+            np.asarray(epsilon_pi_ic, dtype=float),
+            np.asarray(epsilon_mu_ic, dtype=float),
+            float(shell_volume_cm3),
+            np.asarray(energy_dst_gev, dtype=float),
         ),
         dtype=float,
     )

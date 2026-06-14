@@ -642,6 +642,42 @@ subroutine fs_hadronic_energy_luminosity_from_rate(num_energy,energy_gev,rate_pe
     luminosity(1:num_energy)=shell_volume_cm3*rate_per_gev(1:num_energy)*energy_gev(1:num_energy)*Para_h_GeV*Para_GeV2erg
 end subroutine fs_hadronic_energy_luminosity_from_rate
 
+! rate 谱投影：先转壳层 luminosity，再映射到目标 photon energy grid。
+subroutine fs_hadronic_project_luminosity_from_rate(num_src,num_dst,energy_src_gev,rate_src_per_gev, &
+                                                    shell_volume_cm3,energy_dst_gev,luminosity_dst)
+    use constants
+    implicit none
+    integer, intent(in) :: num_src,num_dst
+    real(8), intent(in) :: energy_src_gev(num_src),rate_src_per_gev(num_src),energy_dst_gev(num_dst)
+    real(8), intent(in) :: shell_volume_cm3
+    real(8), intent(out) :: luminosity_dst(num_dst)
+    real(8) :: luminosity_src(num_src)
+
+    if (shell_volume_cm3 <= 0d0) error stop "hadronic luminosity projection requires positive shell volume."
+    luminosity_src(1:num_src)=shell_volume_cm3*rate_src_per_gev(1:num_src)*energy_src_gev(1:num_src)* &
+                              Para_h_GeV*Para_GeV2erg
+    call fs_hadronic_positive_loglog_interp(num_src,num_dst,energy_src_gev,luminosity_src, &
+                                            energy_dst_gev,luminosity_dst)
+end subroutine fs_hadronic_project_luminosity_from_rate
+
+! hadronic IC luminosity 投影：合并 p/pi/mu IC 能量源项并映射到目标 photon grid。
+subroutine fs_hadronic_project_hic_luminosity(num_src,num_dst,energy_src_gev,epsilon_p_ic,epsilon_pi_ic, &
+                                              epsilon_mu_ic,shell_volume_cm3,energy_dst_gev,luminosity_dst)
+    use constants
+    implicit none
+    integer, intent(in) :: num_src,num_dst
+    real(8), intent(in) :: energy_src_gev(num_src),epsilon_p_ic(num_src),epsilon_pi_ic(num_src),epsilon_mu_ic(num_src)
+    real(8), intent(in) :: shell_volume_cm3,energy_dst_gev(num_dst)
+    real(8), intent(out) :: luminosity_dst(num_dst)
+    real(8) :: luminosity_src(num_src)
+
+    if (shell_volume_cm3 <= 0d0) error stop "hadronic IC luminosity projection requires positive shell volume."
+    luminosity_src(1:num_src)=shell_volume_cm3*(epsilon_p_ic(1:num_src)+epsilon_pi_ic(1:num_src)+ &
+                              epsilon_mu_ic(1:num_src))*Para_h_GeV*Para_GeV2erg
+    call fs_hadronic_positive_loglog_interp(num_src,num_dst,energy_src_gev,luminosity_src, &
+                                            energy_dst_gev,luminosity_dst)
+end subroutine fs_hadronic_project_hic_luminosity
+
 ! AM3 分过程功率归并：积分每个过程 luminosity，并按质子能量分布投到 hadron grid。
 subroutine fs_hadronic_process_power(num_had,num_proc_energy,num_process,hadron_energy_gev,dn_had, &
                                      process_energy_gev,process_rate_per_gev,shell_volume_cm3,process_power)
