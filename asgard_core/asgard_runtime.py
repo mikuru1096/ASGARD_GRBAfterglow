@@ -206,6 +206,9 @@ def solve_dynamics(
         internal_energy_erg,
         comoving_volume_cm3,
         gamma34,
+        secondary_branch_swept_mass_g,
+        secondary_branch_internal_energy_erg,
+        secondary_branch_comoving_volume_cm3,
     ) = Dynamics.dynamics_reverse(
         reverse_params.delta_t_s,
         reverse_params.epsilon_e,
@@ -216,6 +219,10 @@ def solve_dynamics(
         boundary,
         config.num_r,
     )
+    jump_r, _, _ = density_jump_arrays(config)
+    secondary_branch_swept_mass_g = np.asarray(secondary_branch_swept_mass_g, dtype=float)[: jump_r.size, :]
+    secondary_branch_internal_energy_erg = np.asarray(secondary_branch_internal_energy_erg, dtype=float)[: jump_r.size, :]
+    secondary_branch_comoving_volume_cm3 = np.asarray(secondary_branch_comoving_volume_cm3, dtype=float)[: jump_r.size, :]
     reverse_shock = ReverseShockDynamics(
         t_cross,
         r_cross,
@@ -231,6 +238,9 @@ def solve_dynamics(
         internal_energy_erg,
         comoving_volume_cm3,
         gamma34,
+        secondary_branch_swept_mass_g,
+        secondary_branch_internal_energy_erg,
+        secondary_branch_comoving_volume_cm3,
     )
     solution = DynamicsSolution(r_tobs, r_gamma, radius, swept_mass_g, reverse_shock=reverse_shock)
     if return_report:

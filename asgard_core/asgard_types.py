@@ -148,6 +148,9 @@ class ReverseShockDynamics:
     internal_energy_erg: np.ndarray
     comoving_volume_cm3: np.ndarray
     gamma34: np.ndarray
+    secondary_branch_swept_mass_g: np.ndarray | None = None
+    secondary_branch_internal_energy_erg: np.ndarray | None = None
+    secondary_branch_comoving_volume_cm3: np.ndarray | None = None
     gam_e: np.ndarray | None = None
     d_n_gam_e: np.ndarray | None = None
 

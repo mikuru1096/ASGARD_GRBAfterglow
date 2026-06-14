@@ -74,6 +74,11 @@ def _run_zero_amplitude_bump_baseline() -> None:
     zero_state = solve_state_from_setup(explicit_zero, make_query_setup(explicit_zero, times, freqs))
     assert zero_state.reverse_emission is not None
     assert zero_state.reverse_emission.secondary_rs is None
+    assert zero_state.dynamics.reverse_shock is not None
+    assert zero_state.dynamics.reverse_shock.secondary_branch_swept_mass_g is not None
+    assert np.all(zero_state.dynamics.reverse_shock.secondary_branch_swept_mass_g == 0.0)
+    assert np.all(zero_state.dynamics.reverse_shock.secondary_branch_internal_energy_erg == 0.0)
+    assert np.all(zero_state.dynamics.reverse_shock.secondary_branch_comoving_volume_cm3 == 0.0)
     assert np.allclose(zero_state.dynamics.radius, base_state.dynamics.radius, rtol=0.0, atol=0.0)
     assert np.allclose(zero_state.dynamics.r_gamma, base_state.dynamics.r_gamma, rtol=0.0, atol=0.0)
     assert np.allclose(zero_state.components.total, base_state.components.total, rtol=0.0, atol=0.0)
@@ -91,6 +96,19 @@ def _run_multi_bump_reverse() -> None:
     assert state.reverse_emission is not None
     assert state.reverse_emission.secondary_rs is not None
     secondary = state.reverse_emission.secondary_rs
+    assert state.dynamics.reverse_shock is not None
+    dyn_branch_m = state.dynamics.reverse_shock.secondary_branch_swept_mass_g
+    dyn_branch_u = state.dynamics.reverse_shock.secondary_branch_internal_energy_erg
+    dyn_branch_v = state.dynamics.reverse_shock.secondary_branch_comoving_volume_cm3
+    assert dyn_branch_m is not None and dyn_branch_u is not None and dyn_branch_v is not None
+    assert dyn_branch_m.shape == (len(config.jump_r_cm), state.dynamics.radius.size)
+    assert np.all(np.isfinite(dyn_branch_m))
+    assert np.all(np.isfinite(dyn_branch_u))
+    assert np.all(np.isfinite(dyn_branch_v))
+    assert np.any(dyn_branch_m > 0.0)
+    assert np.any(dyn_branch_u > 0.0)
+    assert np.any(dyn_branch_v > 0.0)
+    assert np.all(np.diff(dyn_branch_m, axis=1) >= -1.0e-20 * np.maximum(1.0, dyn_branch_m[:, 1:]))
     details = _make_details(state.components, patches=[{"phi": 0.0, "theta": 0.0, "weight": 1.0}], state=state)
     assert details.rev is not None
     assert details.rev.secondary_rs_gamma_e is secondary.gam_e

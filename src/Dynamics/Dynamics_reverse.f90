@@ -1,6 +1,7 @@
 subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, &
                             T_cross,R_cross,e3_cross,gam20,U3_cross,V3_cross,M3_cross,gam_m_cross,B3_ordered_cross, &
-                            R_Tobs,R_Gamma,R,M2,M3,B3,U3_th,V3_comoving,Gamma34_inst)
+                            R_Tobs,R_Gamma,R,M2,M3,B3,U3_th,V3_comoving,Gamma34_inst, &
+                            Secondary_M3,Secondary_U3,Secondary_V3)
     !$ use omp_lib
     use constants
     use dynamics_common, only: dynamics_deceleration_radius, dynamics_rk4_reverse, &
@@ -8,7 +9,7 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
                                dynamics_reverse_rhs_iface, dynamics_log_time_step, &
                                dynamics_external_density_profile, rs_mag_comp, &
                                dynamics_boundary_r0, dynamics_set_density_jump_profile, &
-                               active_density_jump_count
+                               active_density_jump_count, density_jump_max
     implicit none
     integer, intent(in) :: n,Num_R
     integer :: I_tobs, Num_R1, Num_state
@@ -17,6 +18,8 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
     real(8), intent(out) :: T_cross,R_cross,e3_cross,gam20,U3_cross,V3_cross,M3_cross,gam_m_cross,B3_ordered_cross
     real(8), intent(out) :: R_Tobs(Num_R),R(Num_R),M2(Num_R),M3(Num_R),B3(Num_R),R_Gamma(Num_R)
     real(8), intent(out) :: U3_th(Num_R),V3_comoving(Num_R),Gamma34_inst(Num_R)
+    real(8), intent(out) :: Secondary_M3(density_jump_max,Num_R),Secondary_U3(density_jump_max,Num_R)
+    real(8), intent(out) :: Secondary_V3(density_jump_max,Num_R)
     real(8) :: Eta_0,Epsilon_e,Epsilon_b,p_f,z,dNe_ISM,A_star,E_iso,T_log10_duration,f_e
     real(8) :: R_tr,f_jump,f_wide,R0
     real(8) :: Delta_0,para_m_ej,V3_scale,para_m2,para_m3,DM_0,R_dec,T00,t_dec,Grid_Tobs_bin,T_log10,T,H,dB3
@@ -54,6 +57,7 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
     DM_0=E_iso/((Eta_0-one)*4d0*pi*Para_m_p_E)
     call dynamics_deceleration_radius(A_star,dNe_ISM,Eta_0,DM_0,R_dec)
     T_cross=-1d0; U3_cross=zero; V3_cross=zero; M3_cross=zero; gam_m_cross=zero
+    Secondary_M3=zero; Secondary_U3=zero; Secondary_V3=zero
     B3_ordered_cross=zero
     ! RS 状态向量中 Y(2) 是 shock 半径；初始到达时刻必须由半径而不是 swept mass 定义。
     T00=Y(2)*(one/dsqrt(one-one/Eta_0**2)-one)/Para_c
@@ -84,10 +88,28 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
         R_Tobs(I_tobs)=T_target*(one+z); R_Gamma(I_tobs)=Y(1); R(I_tobs)=Y(2); M2(I_tobs)=Y(3)
         M3(I_tobs)=Y(4)*para_m_ej; U3_th(I_tobs)=Y(5)*para_m_ej*para_c**2
         V3_comoving(I_tobs)=Y(6)*V3_scale; B3(I_tobs)=dB3
+        call store_secondary_branch_state(I_tobs)
         Gamma34_inst(I_tobs)=(Y(1)*Y(1)+Eta_0*Eta_0-one)/(Eta_0*Y(1)+dsqrt(Y(1)*Y(1)-one)*u4_init)
     end do
 
     deallocate(Y)
+
+contains
+
+    subroutine store_secondary_branch_state(i_out)
+    implicit none
+    integer, intent(in) :: i_out
+    integer :: j, m_idx, u_idx, v_idx
+
+        do j=1,active_density_jump_count
+            m_idx=6+j
+            u_idx=6+active_density_jump_count+j
+            v_idx=6+2*active_density_jump_count+j
+            Secondary_M3(j,i_out)=Y(m_idx)*para_m_ej
+            Secondary_U3(j,i_out)=Y(u_idx)*para_m_ej*para_c**2
+            Secondary_V3(j,i_out)=Y(v_idx)*V3_scale
+        end do
+    end subroutine store_secondary_branch_state
 end subroutine dynamics_reverse
 
 subroutine secondary_reverse_contact_rh(gamma4,n1,n4,e4,p4,gamma_c,p3,gamma43,n3_over_n4,beta_rs)
@@ -514,7 +536,9 @@ subroutine reverse_dynamics_rhs(dB3,T_cross,R_cross,e3_cross,gam20,U3_cross,V3_c
              T,Y,D,M,para_m_ej,V3_scale,Delta_0,eta_0,A_star,dNe_ISM,R_tr,f_jump,f_wide,R0, &
              Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,f_e_r,sigma_r)
     use constants
-    use dynamics_common, only: dynamics_external_density_profile, rs_mag_comp, rs_b4_up, reverse_rhs_phase
+    use dynamics_common, only: dynamics_external_density_profile, rs_mag_comp, rs_b4_up, reverse_rhs_phase, &
+                               active_density_jump_count, active_density_jump_r, active_density_jump_factor, &
+                               active_density_jump_width
     implicit none
     integer, intent(in) :: M
     real(8), intent(inout) :: dB3,T_cross,R_cross,e3_cross,gam20,U3_cross,V3_cross,M3_cross,gam_m_cross,B3_ordered_cross
@@ -569,6 +593,7 @@ subroutine reverse_dynamics_rhs(dB3,T_cross,R_cross,e3_cross,gam20,U3_cross,V3_c
     dU3_ad=-(ad3-one)*U3*dV3_exp/V3
     dU3=dU3_shock+dU3_ad; dV3=dV3_shock+dV3_exp
     D(1:6)=[dgam2,dR,dm2,dm3/para_m_ej,dU3/(para_m_ej*para_c**2),dV3/V3_scale]
+    call compute_secondary_branch_derivatives()
 
 contains
 
@@ -622,4 +647,82 @@ contains
         gam_m3=e_r/f_e_r*Para_m_p_div_m_e*(p_r-two)*(gam34-one)/(p_r-one)+one
         eps3=e_r*min(one,(gam_m3/gam_c3)**(p_r-two))
     end subroutine compute_region3_radiative_efficiency
+
+    subroutine compute_secondary_branch_derivatives()
+    implicit none
+    integer :: j, m_idx, u_idx, v_idx
+    real(8) :: density_factor,branch_weight,n1,n_excess,n_pre,n4,e4,p4,p3,e3_sec,e_ad,comp,beta_s
+    real(8) :: gamma_c_j,gamma43_j,beta_c_j,n3,dm_dR,dM_shock,dV_shock,dU_shock
+    real(8) :: u_sec,v_sec,dV_exp_sec,dU_ad_sec
+
+        do j=1,active_density_jump_count
+            m_idx=6+j
+            u_idx=6+active_density_jump_count+j
+            v_idx=6+2*active_density_jump_count+j
+            if (v_idx > M) error stop 'secondary RS branch state exceeds reverse dynamics vector'
+            u_sec=Y(u_idx)*para_m_ej*para_c**2
+            v_sec=Y(v_idx)*V3_scale
+            dV_exp_sec=zero; dU_ad_sec=zero
+            if (v_sec > zero) then
+                dV_exp_sec=v_sec*(3d0*dR/RR-dgam2/gam2)
+                dU_ad_sec=-(one/3d0)*u_sec*dV_exp_sec/v_sec
+            end if
+            call secondary_reverse_density_branch_rhs(RR,j,density_factor,branch_weight)
+            if (branch_weight <= zero .or. gam2 <= one) then
+                D(m_idx)=zero
+                D(u_idx)=dU_ad_sec/(para_m_ej*para_c**2)
+                D(v_idx)=dV_exp_sec/V3_scale
+                cycle
+            end if
+            n1=dNe_ISM*density_factor
+            n_excess=dNe_ISM*branch_weight
+            n_pre=n1-n_excess
+            if (n_pre <= zero) error stop 'secondary branch RHS found non-positive pre-bump density'
+            n4=4d0*gam2*n_pre
+            e4=4d0*gam2*(gam2-one)*n_pre*Para_m_p*Para_c**2
+            p4=e4/3d0
+            call secondary_reverse_contact_rh(gam2,n1,n4,e4,p4,gamma_c_j,p3,gamma43_j,comp,beta_s)
+            if (comp <= zero) then
+                D(m_idx)=zero
+                D(u_idx)=dU_ad_sec/(para_m_ej*para_c**2)
+                D(v_idx)=dV_exp_sec/V3_scale
+                cycle
+            end if
+            e3_sec=3d0*p3
+            e_ad=e4*comp**(4d0/3d0)
+            if (e3_sec <= e_ad) then
+                D(m_idx)=zero
+                D(u_idx)=dU_ad_sec/(para_m_ej*para_c**2)
+                D(v_idx)=dV_exp_sec/V3_scale
+                cycle
+            end if
+            beta_c_j=dsqrt(one-gamma_c_j**(-2))
+            n3=comp*n4
+            dm_dR=4d0*pi*RR*RR*n4*Para_m_p*gam2*(beta2-beta_s)/beta_c_j
+            dM_shock=dm_dR*dR
+            dV_shock=dM_shock/(n3*Para_m_p)
+            dU_shock=(e3_sec-e_ad)*dV_shock
+            D(m_idx)=dM_shock/para_m_ej
+            D(u_idx)=(dU_shock+dU_ad_sec)/(para_m_ej*para_c**2)
+            D(v_idx)=(dV_shock+dV_exp_sec)/V3_scale
+        end do
+    end subroutine compute_secondary_branch_derivatives
+
+    subroutine secondary_reverse_density_branch_rhs(radius,jump_index,density_factor,branch_weight)
+    implicit none
+    integer, intent(in) :: jump_index
+    integer :: k
+    real(8), intent(in) :: radius
+    real(8), intent(out) :: density_factor,branch_weight
+    real(8) :: x,width,profile
+
+        density_factor=one; branch_weight=zero
+        do k=1,active_density_jump_count
+            x=radius-active_density_jump_r(k)
+            width=active_density_jump_width(k)*active_density_jump_r(k)
+            profile=(active_density_jump_factor(k)-one)*dexp(-(x*x)/(2d0*width*width))
+            density_factor=density_factor+profile
+            if (k == jump_index .and. x >= -4d0*width .and. x < zero) branch_weight=profile
+        end do
+    end subroutine secondary_reverse_density_branch_rhs
 end subroutine reverse_dynamics_rhs
