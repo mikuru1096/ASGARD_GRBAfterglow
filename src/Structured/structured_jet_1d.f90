@@ -271,6 +271,10 @@ subroutine structured_solve_element(Boundary,E_iso,Gamma0,V_seed,n,Num_nu,Num_R,
     real(8) :: Secondary_V3(density_jump_max,Num_R),Secondary_B3(density_jump_max,Num_R)
     real(8) :: Secondary_M3_total(Num_R),Secondary_U3_total(Num_R),Secondary_V3_total(Num_R),Secondary_B3_total(Num_R)
     real(8) :: Secondary_pressure_total(Num_R),Secondary_enthalpy_density_total(Num_R)
+    real(8) :: Secondary_gamma_contact(Num_R),Secondary_pressure_3(Num_R),Secondary_gamma_43(Num_R)
+    real(8) :: Secondary_beta_rs(Num_R),Secondary_u_diss(Num_R),Secondary_dissipated_energy(Num_R)
+    real(8) :: Secondary_electron_injected_energy(Num_R),Secondary_branch_gamma_m(density_jump_max,Num_R)
+    real(8) :: Secondary_nu_m(Num_R),Secondary_nu_c(Num_R)
     real(8) :: Secondary_start_radius(density_jump_max),Secondary_end_radius(density_jump_max)
     real(8) :: Secondary_start_tobs_axis(density_jump_max),Secondary_end_tobs_axis(density_jump_max)
     real(8) :: T_cross,R_cross,e3_cross,gam20,U3_cross,V3_cross,M3_cross,gam_m_cross,B3_ordered_cross
@@ -289,6 +293,9 @@ subroutine structured_solve_element(Boundary,E_iso,Gamma0,V_seed,n,Num_nu,Num_R,
                               Secondary_M3,Secondary_U3,Secondary_V3,Secondary_B3, &
                               Secondary_M3_total,Secondary_U3_total,Secondary_V3_total,Secondary_B3_total, &
                               Secondary_pressure_total,Secondary_enthalpy_density_total, &
+                              Secondary_gamma_contact,Secondary_pressure_3,Secondary_gamma_43,Secondary_beta_rs, &
+                              Secondary_u_diss,Secondary_dissipated_energy,Secondary_electron_injected_energy, &
+                              Secondary_branch_gamma_m,Secondary_nu_m,Secondary_nu_c, &
                               Secondary_event_active,Secondary_start_radius,Secondary_end_radius, &
                               Secondary_start_tobs_axis,Secondary_end_tobs_axis)
     else

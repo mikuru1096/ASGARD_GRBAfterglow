@@ -211,6 +211,16 @@ def solve_dynamics(
         secondary_magnetic_field_g,
         secondary_pressure_total,
         secondary_enthalpy_density_total,
+        secondary_gamma_contact,
+        secondary_pressure_3,
+        secondary_gamma_43,
+        secondary_beta_rs,
+        secondary_dissipated_energy_density,
+        secondary_dissipated_energy_erg,
+        secondary_electron_injected_energy_erg,
+        secondary_branch_gamma_m,
+        secondary_nu_m,
+        secondary_nu_c,
         secondary_event_active,
         secondary_start_radius_cm,
         secondary_shock_end_radius_cm,
@@ -237,6 +247,16 @@ def solve_dynamics(
     secondary_magnetic_field_g = np.asarray(secondary_magnetic_field_g, dtype=float)
     secondary_pressure_total = np.asarray(secondary_pressure_total, dtype=float)
     secondary_enthalpy_density_total = np.asarray(secondary_enthalpy_density_total, dtype=float)
+    secondary_gamma_contact = np.asarray(secondary_gamma_contact, dtype=float)
+    secondary_pressure_3 = np.asarray(secondary_pressure_3, dtype=float)
+    secondary_gamma_43 = np.asarray(secondary_gamma_43, dtype=float)
+    secondary_beta_rs = np.asarray(secondary_beta_rs, dtype=float)
+    secondary_dissipated_energy_density = np.asarray(secondary_dissipated_energy_density, dtype=float)
+    secondary_dissipated_energy_erg = np.asarray(secondary_dissipated_energy_erg, dtype=float)
+    secondary_electron_injected_energy_erg = np.asarray(secondary_electron_injected_energy_erg, dtype=float)
+    secondary_branch_gamma_m = np.asarray(secondary_branch_gamma_m, dtype=float)[: jump_r.size, :]
+    secondary_nu_m = np.asarray(secondary_nu_m, dtype=float)
+    secondary_nu_c = np.asarray(secondary_nu_c, dtype=float)
     secondary_event_active = np.asarray(secondary_event_active, dtype=bool)[: jump_r.size]
     secondary_start_radius_cm = np.asarray(secondary_start_radius_cm, dtype=float)[: jump_r.size]
     secondary_shock_end_radius_cm = np.asarray(secondary_shock_end_radius_cm, dtype=float)[: jump_r.size]
@@ -267,6 +287,16 @@ def solve_dynamics(
         secondary_magnetic_field_g,
         secondary_pressure_total,
         secondary_enthalpy_density_total,
+        secondary_gamma_contact,
+        secondary_pressure_3,
+        secondary_gamma_43,
+        secondary_beta_rs,
+        secondary_dissipated_energy_density,
+        secondary_dissipated_energy_erg,
+        secondary_electron_injected_energy_erg,
+        secondary_branch_gamma_m,
+        secondary_nu_m,
+        secondary_nu_c,
         secondary_event_active,
         secondary_start_radius_cm,
         secondary_shock_end_radius_cm,
@@ -2394,94 +2424,18 @@ def _compute_secondary_reverse_shock_synchrotron(
     config: FitConfig,
     reverse_params: ReverseShockParameters,
 ) -> SecondaryReverseShockState | None:
-    jump_r, jump_factor, jump_width = density_jump_arrays(config)
+    jump_r, _, _ = density_jump_arrays(config)
     if jump_r.size == 0 or dynamics.reverse_shock is None:
         return None
     radius = np.asarray(dynamics.radius, dtype=float)
     gamma4_arr = np.asarray(dynamics.r_gamma, dtype=float)
     if reverse_params.p <= 2.0:
         raise ValueError("secondary reverse shock v1 requires p > 2.")
-    (
-        gamma_contact,
-        pressure_3,
-        gamma_43,
-        comp_ratio,
-        beta_rs,
-        u_diss,
-        active_weight,
-        m3_shell,
-        u3_shell,
-        v3_shell,
-        b_field,
-        gamma_m_shell,
-        dissipated_energy,
-        electron_injected_energy,
-        pressure_total,
-        enthalpy_density_total,
-        m3_branch,
-        u3_branch,
-        v3_branch,
-        b3_branch,
-        gamma_m_branch,
-        nu_m,
-        nu_c,
-        event_active,
-        start_radius,
-        end_radius,
-        start_tobs,
-        end_tobs,
-    ) = _dynamics_reverse_module().secondary_reverse_profile(
-        radius,
-        dynamics.r_tobs,
-        gamma4_arr,
-        float(config.d_ne),
-        jump_r,
-        jump_factor,
-        jump_width,
-        float(reverse_params.epsilon_e),
-        float(reverse_params.epsilon_b),
-        float(reverse_params.p),
-        float(reverse_params.f_e),
-        float(config.z),
-    )
-    gamma_contact = np.asarray(gamma_contact, dtype=float)
-    pressure_3 = np.asarray(pressure_3, dtype=float)
-    gamma_43 = np.asarray(gamma_43, dtype=float)
-    comp_ratio = np.asarray(comp_ratio, dtype=float)
-    beta_rs = np.asarray(beta_rs, dtype=float)
-    u_diss = np.asarray(u_diss, dtype=float)
-    active_weight = np.asarray(active_weight, dtype=float)
-    m3_shell = np.asarray(m3_shell, dtype=float)
-    u3_shell = np.asarray(u3_shell, dtype=float)
-    v3_shell = np.asarray(v3_shell, dtype=float)
-    b_field = np.asarray(b_field, dtype=float)
-    gamma_m_shell = np.asarray(gamma_m_shell, dtype=float)
-    dissipated_energy = np.asarray(dissipated_energy, dtype=float)
-    electron_injected_energy = np.asarray(electron_injected_energy, dtype=float)
-    pressure_total = np.asarray(pressure_total, dtype=float)
-    enthalpy_density_total = np.asarray(enthalpy_density_total, dtype=float)
-    m3_branch = np.asarray(m3_branch, dtype=float)
-    u3_branch = np.asarray(u3_branch, dtype=float)
-    v3_branch = np.asarray(v3_branch, dtype=float)
-    b3_branch = np.asarray(b3_branch, dtype=float)
-    gamma_m_branch = np.asarray(gamma_m_branch, dtype=float)
-    nu_m = np.asarray(nu_m, dtype=float)
-    nu_c = np.asarray(nu_c, dtype=float)
-    event_active = np.asarray(event_active, dtype=bool)
-    start_radius = np.asarray(start_radius, dtype=float)
-    end_radius = np.asarray(end_radius, dtype=float)
-    start_tobs = np.asarray(start_tobs, dtype=float)
-    end_tobs = np.asarray(end_tobs, dtype=float)
-    dyn_event_active = np.asarray(dynamics.reverse_shock.secondary_event_active, dtype=bool)
-    dyn_start_radius = np.asarray(dynamics.reverse_shock.secondary_start_radius_cm, dtype=float)
-    dyn_end_radius = np.asarray(dynamics.reverse_shock.secondary_shock_end_radius_cm, dtype=float)
-    dyn_start_tobs = np.asarray(dynamics.reverse_shock.secondary_start_tobs_axis_s, dtype=float)
-    dyn_end_tobs = np.asarray(dynamics.reverse_shock.secondary_shock_end_tobs_axis_s, dtype=float)
-    event_active = dyn_event_active
-    start_radius = dyn_start_radius
-    end_radius = dyn_end_radius
-    start_tobs = dyn_start_tobs
-    end_tobs = dyn_end_tobs
+    event_active = np.asarray(dynamics.reverse_shock.secondary_event_active, dtype=bool)
+    start_radius = np.asarray(dynamics.reverse_shock.secondary_start_radius_cm, dtype=float)
+    end_radius = np.asarray(dynamics.reverse_shock.secondary_shock_end_radius_cm, dtype=float)
+    start_tobs = np.asarray(dynamics.reverse_shock.secondary_start_tobs_axis_s, dtype=float)
+    end_tobs = np.asarray(dynamics.reverse_shock.secondary_shock_end_tobs_axis_s, dtype=float)
     if not np.any(event_active):
         return None
     dyn_m3_shell = np.asarray(dynamics.reverse_shock.secondary_swept_mass_g, dtype=float)
@@ -2494,6 +2448,25 @@ def _compute_secondary_reverse_shock_synchrotron(
     dyn_u3_branch = np.asarray(dynamics.reverse_shock.secondary_branch_internal_energy_erg, dtype=float)
     dyn_v3_branch = np.asarray(dynamics.reverse_shock.secondary_branch_comoving_volume_cm3, dtype=float)
     dyn_b3_branch = np.asarray(dynamics.reverse_shock.secondary_branch_magnetic_field_g, dtype=float)
+    gamma_contact = np.asarray(dynamics.reverse_shock.secondary_gamma_contact, dtype=float)
+    pressure_3 = np.asarray(dynamics.reverse_shock.secondary_pressure_3, dtype=float)
+    gamma_43 = np.asarray(dynamics.reverse_shock.secondary_gamma_43, dtype=float)
+    beta_rs = np.asarray(dynamics.reverse_shock.secondary_beta_rs, dtype=float)
+    u_diss = np.asarray(dynamics.reverse_shock.secondary_dissipated_energy_density, dtype=float)
+    dissipated_energy = np.asarray(dynamics.reverse_shock.secondary_dissipated_energy_erg, dtype=float)
+    electron_injected_energy = np.asarray(dynamics.reverse_shock.secondary_electron_injected_energy_erg, dtype=float)
+    gamma_m_branch = np.asarray(dynamics.reverse_shock.secondary_branch_gamma_m, dtype=float)
+    nu_m = np.asarray(dynamics.reverse_shock.secondary_nu_m, dtype=float)
+    nu_c = np.asarray(dynamics.reverse_shock.secondary_nu_c, dtype=float)
+    gamma_m_shell = np.zeros_like(radius)
+    previous_branch_mass = np.zeros(gamma_m_branch.shape[0], dtype=float)
+    for i_shell in range(radius.size):
+        branch_mass = dyn_m3_branch[:, i_shell]
+        branch_delta = branch_mass - previous_branch_mass
+        injected_mass = float(np.sum(branch_delta))
+        if injected_mass > 0.0:
+            gamma_m_shell[i_shell] = float(np.sum(gamma_m_branch[:, i_shell] * branch_delta) / injected_mass)
+        previous_branch_mass = branch_mass
     if not np.any(dyn_m3_shell > 0.0):
         return None
     gam_e_sec, dist = _electron_reverse_module().electron_reverse_kernel.electron_secondary_reverse_evolve(

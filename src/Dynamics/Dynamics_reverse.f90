@@ -4,6 +4,9 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
                             Secondary_M3,Secondary_U3,Secondary_V3,Secondary_B3, &
                             Secondary_M3_total,Secondary_U3_total,Secondary_V3_total,Secondary_B3_total, &
                             Secondary_pressure_total,Secondary_enthalpy_density_total, &
+                            Secondary_gamma_contact,Secondary_pressure_3,Secondary_gamma_43,Secondary_beta_rs, &
+                            Secondary_u_diss,Secondary_dissipated_energy,Secondary_electron_injected_energy, &
+                            Secondary_branch_gamma_m,Secondary_nu_m,Secondary_nu_c, &
                             Secondary_event_active,Secondary_start_radius,Secondary_end_radius, &
                             Secondary_start_tobs_axis,Secondary_end_tobs_axis)
     !$ use omp_lib
@@ -28,6 +31,10 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
     real(8), intent(out) :: Secondary_M3_total(Num_R),Secondary_U3_total(Num_R)
     real(8), intent(out) :: Secondary_V3_total(Num_R),Secondary_B3_total(Num_R)
     real(8), intent(out) :: Secondary_pressure_total(Num_R),Secondary_enthalpy_density_total(Num_R)
+    real(8), intent(out) :: Secondary_gamma_contact(Num_R),Secondary_pressure_3(Num_R),Secondary_gamma_43(Num_R)
+    real(8), intent(out) :: Secondary_beta_rs(Num_R),Secondary_u_diss(Num_R),Secondary_dissipated_energy(Num_R)
+    real(8), intent(out) :: Secondary_electron_injected_energy(Num_R),Secondary_branch_gamma_m(density_jump_max,Num_R)
+    real(8), intent(out) :: Secondary_nu_m(Num_R),Secondary_nu_c(Num_R)
     logical, intent(out) :: Secondary_event_active(density_jump_max)
     real(8), intent(out) :: Secondary_start_radius(density_jump_max),Secondary_end_radius(density_jump_max)
     real(8), intent(out) :: Secondary_start_tobs_axis(density_jump_max),Secondary_end_tobs_axis(density_jump_max)
@@ -38,6 +45,7 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
     real(8) :: u2_init,u4_init,Delta_init,para_n4_init,gam34_init,para_n3_init,comp_init
     real(8) :: event_prev_radius,event_prev_gamma,event_prev_tobs,event_curr_radius,event_curr_gamma,event_curr_tobs
     real(8) :: event_prev_source(density_jump_max),event_curr_source(density_jump_max)
+    real(8) :: secondary_dissipated_prev(density_jump_max),secondary_gammam_prev(density_jump_max)
     real(8),allocatable :: Y(:)
     logical :: Secondary_event_closed(density_jump_max)
 
@@ -46,8 +54,7 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
     R_tr=Boundary(21); f_jump=Boundary(22); f_wide=Boundary(23)
     call dynamics_boundary_r0(Boundary,n,R0)
     call dynamics_set_density_jump_profile(Boundary,n)
-    ! Y(7:) 预留给 secondary RS branch reservoir；本阶段保持零导数，旧动力学不受影响。
-    Num_state=6+3*active_density_jump_count
+    Num_state=6+5*active_density_jump_count
     allocate(Y(Num_state))
     Y=zero
     Delta_0=Delta_t*para_c; para_m_ej=E_iso/eta_0/para_c**2
@@ -74,6 +81,10 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
     Secondary_M3=zero; Secondary_U3=zero; Secondary_V3=zero; Secondary_B3=zero
     Secondary_M3_total=zero; Secondary_U3_total=zero; Secondary_V3_total=zero; Secondary_B3_total=zero
     Secondary_pressure_total=zero; Secondary_enthalpy_density_total=zero
+    Secondary_gamma_contact=zero; Secondary_pressure_3=zero; Secondary_gamma_43=one; Secondary_beta_rs=zero
+    Secondary_u_diss=zero; Secondary_dissipated_energy=zero; Secondary_electron_injected_energy=zero
+    Secondary_branch_gamma_m=zero; Secondary_nu_m=zero; Secondary_nu_c=zero
+    secondary_dissipated_prev=zero; secondary_gammam_prev=zero
     Secondary_event_active=.false.; Secondary_event_closed=.false.
     Secondary_start_radius=zero; Secondary_end_radius=zero
     Secondary_start_tobs_axis=zero; Secondary_end_tobs_axis=zero
@@ -275,29 +286,109 @@ contains
     subroutine store_secondary_branch_state(i_out)
     implicit none
     integer, intent(in) :: i_out
-    integer :: j, m_idx, u_idx, v_idx
+    integer :: j, m_idx, u_idx, v_idx, e_idx, g_idx
+    real(8) :: e_cum,g_cum,e_delta,g_delta,diag_total,gamma_m_total
+    real(8) :: density_factor,branch_weight,n1,n_excess,n_pre,n4,e4,p4,p3,e3_sec,e_ad,comp,beta_s
+    real(8) :: gamma_c_j,gamma43_j,n3,gamma_m_j,b_i,gam_e_max
 
+        diag_total=zero; gamma_m_total=zero
         do j=1,active_density_jump_count
             m_idx=6+j
             u_idx=6+active_density_jump_count+j
             v_idx=6+2*active_density_jump_count+j
+            e_idx=6+3*active_density_jump_count+j
+            g_idx=6+4*active_density_jump_count+j
             Secondary_M3(j,i_out)=Y(m_idx)*para_m_ej
             Secondary_U3(j,i_out)=Y(u_idx)*para_m_ej*para_c**2
             Secondary_V3(j,i_out)=Y(v_idx)*V3_scale
             if (Secondary_V3(j,i_out) > zero) &
                 Secondary_B3(j,i_out)=dsqrt(8d0*pi*b_r*Secondary_U3(j,i_out)/Secondary_V3(j,i_out))
+            e_cum=Y(e_idx)*para_m_ej*para_c**2
+            g_cum=Y(g_idx)*para_m_ej*para_c**2
+            e_delta=e_cum-secondary_dissipated_prev(j)
+            g_delta=g_cum-secondary_gammam_prev(j)
+            if (e_delta < zero) error stop 'secondary RS dissipated energy must not decrease'
+            Secondary_dissipated_energy(i_out)=Secondary_dissipated_energy(i_out)+e_delta
+            Secondary_electron_injected_energy(i_out)=Secondary_electron_injected_energy(i_out)+e_r*e_delta
+            if (e_delta > zero) then
+                Secondary_branch_gamma_m(j,i_out)=g_delta/e_delta
+                call secondary_reverse_density_branch_state(R(I_tobs),j,density_factor,branch_weight)
+                if (branch_weight > zero .and. R_Gamma(i_out) > one) then
+                    n1=dNe_ISM*density_factor
+                    n_excess=dNe_ISM*branch_weight
+                    n_pre=n1-n_excess
+                    if (n_pre <= zero) error stop 'secondary branch output found non-positive pre-bump density'
+                    n4=4d0*R_Gamma(i_out)*n_pre
+                    e4=4d0*R_Gamma(i_out)*(R_Gamma(i_out)-one)*n_pre*Para_m_p*Para_c**2
+                    p4=e4/3d0
+                    call secondary_reverse_contact_rh(R_Gamma(i_out),n1,n4,e4,p4,gamma_c_j,p3,gamma43_j,comp,beta_s)
+                    if (comp > zero) then
+                        e3_sec=3d0*p3
+                        e_ad=e4*comp**(4d0/3d0)
+                        n3=comp*n4
+                        if (p_r <= two) error stop 'secondary RS injection requires p_r > 2'
+                        b_i=dsqrt(8d0*pi*b_r*e3_sec)
+                        gamma_m_j=one+e_r/f_e_r*(p_r-two)/(p_r-one)*(e3_sec-e_ad)/(n3*Para_m_e*Para_c**2)
+                        gam_e_max=3d0*Para_m_energy/dsqrt(8d0*b_i*Para_e**3)
+                        if (gamma_m_j >= gam_e_max) error stop 'secondary RS electron injection exceeds maximum'
+                        diag_total=diag_total+e_delta; gamma_m_total=gamma_m_total+g_delta
+                        Secondary_gamma_contact(i_out)=Secondary_gamma_contact(i_out)+e_delta*gamma_c_j
+                        Secondary_pressure_3(i_out)=Secondary_pressure_3(i_out)+e_delta*p3
+                        Secondary_gamma_43(i_out)=Secondary_gamma_43(i_out)+e_delta*(gamma43_j-one)
+                        Secondary_beta_rs(i_out)=Secondary_beta_rs(i_out)+e_delta*beta_s
+                        Secondary_u_diss(i_out)=Secondary_u_diss(i_out)+(e3_sec-e_ad)
+                    end if
+                end if
+            end if
+            secondary_dissipated_prev(j)=e_cum
+            secondary_gammam_prev(j)=g_cum
             Secondary_M3_total(i_out)=Secondary_M3_total(i_out)+Secondary_M3(j,i_out)
             Secondary_U3_total(i_out)=Secondary_U3_total(i_out)+Secondary_U3(j,i_out)
             Secondary_V3_total(i_out)=Secondary_V3_total(i_out)+Secondary_V3(j,i_out)
         end do
+        if (diag_total > zero) then
+            Secondary_gamma_contact(i_out)=Secondary_gamma_contact(i_out)/diag_total
+            Secondary_pressure_3(i_out)=Secondary_pressure_3(i_out)/diag_total
+            Secondary_gamma_43(i_out)=one+Secondary_gamma_43(i_out)/diag_total
+            Secondary_beta_rs(i_out)=Secondary_beta_rs(i_out)/diag_total
+        end if
         if (Secondary_V3_total(i_out) > zero) &
             Secondary_B3_total(i_out)=dsqrt(8d0*pi*b_r*Secondary_U3_total(i_out)/Secondary_V3_total(i_out))
         if (Secondary_V3_total(i_out) > zero) then
             Secondary_pressure_total(i_out)=Secondary_U3_total(i_out)/(3d0*Secondary_V3_total(i_out))
             Secondary_enthalpy_density_total(i_out)=Secondary_M3_total(i_out)*para_c**2/Secondary_V3_total(i_out)+ &
                 Secondary_U3_total(i_out)/Secondary_V3_total(i_out)+Secondary_pressure_total(i_out)
+            if (diag_total > zero .and. Secondary_gamma_contact(i_out) > one) then
+                Secondary_nu_m(i_out)=4.2d6*Secondary_B3_total(i_out)* &
+                    (Secondary_gamma_contact(i_out)*(one-dsqrt(one-Secondary_gamma_contact(i_out)**(-2)))*(one+z))**(-1) * &
+                    (gamma_m_total/diag_total)**2
+            end if
+            if (Secondary_B3_total(i_out) > zero .and. R_Gamma(i_out) > one .and. R_Tobs(i_out) > zero) then
+                associate(gamma_cool => 7.7d8*(one+z)/(R_Gamma(i_out)*Secondary_B3_total(i_out)**2*R_Tobs(i_out)))
+                    Secondary_nu_c(i_out)=4.2d6*Secondary_B3_total(i_out)*gamma_cool*gamma_cool/ &
+                        (R_Gamma(i_out)*(one-dsqrt(one-R_Gamma(i_out)**(-2)))*(one+z))
+                end associate
+            end if
         end if
     end subroutine store_secondary_branch_state
+
+    subroutine secondary_reverse_density_branch_state(radius,jump_index,density_factor,branch_weight)
+    implicit none
+    integer, intent(in) :: jump_index
+    integer :: k
+    real(8), intent(in) :: radius
+    real(8), intent(out) :: density_factor,branch_weight
+    real(8) :: x,width,profile
+
+        density_factor=one; branch_weight=zero
+        do k=1,active_density_jump_count
+            x=radius-active_density_jump_r(k)
+            width=active_density_jump_width(k)*active_density_jump_r(k)
+            profile=(active_density_jump_factor(k)-one)*dexp(-(x*x)/(2d0*width*width))
+            density_factor=density_factor+profile
+            if (k == jump_index .and. x >= -4d0*width .and. x < zero) branch_weight=profile
+        end do
+    end subroutine secondary_reverse_density_branch_state
 end subroutine dynamics_reverse
 
 subroutine secondary_reverse_contact_rh(gamma4,n1,n4,e4,p4,gamma_c,p3,gamma43,n3_over_n4,beta_rs)
@@ -868,18 +959,21 @@ contains
 
     subroutine compute_secondary_branch_derivatives()
     implicit none
-    integer :: j, m_idx, u_idx, v_idx
+    integer :: j, m_idx, u_idx, v_idx, e_idx, g_idx
     real(8) :: density_factor,branch_weight,n1,n_excess,n_pre,n4,e4,p4,p3,e3_sec,e_ad,comp,beta_s
     real(8) :: gamma_c_j,gamma43_j,beta_c_j,n3,dm_dR,dM_shock,dV_shock,dU_shock
-    real(8) :: u_sec,v_sec,dV_exp_sec,dU_ad_sec
+    real(8) :: u_sec,v_sec,dV_exp_sec,dU_ad_sec,gamma_m_sec,b_i,gam_e_max
 
         do j=1,active_density_jump_count
             m_idx=6+j
             u_idx=6+active_density_jump_count+j
             v_idx=6+2*active_density_jump_count+j
-            if (v_idx > M) error stop 'secondary RS branch state exceeds reverse dynamics vector'
+            e_idx=6+3*active_density_jump_count+j
+            g_idx=6+4*active_density_jump_count+j
+            if (g_idx > M) error stop 'secondary RS branch state exceeds reverse dynamics vector'
             u_sec=Y(u_idx)*para_m_ej*para_c**2
             v_sec=Y(v_idx)*V3_scale
+            D(e_idx)=zero; D(g_idx)=zero
             dV_exp_sec=zero; dU_ad_sec=zero
             if (v_sec > zero) then
                 dV_exp_sec=v_sec*(3d0*dR/RR-dgam2/gam2)
@@ -916,6 +1010,11 @@ contains
             end if
             beta_c_j=dsqrt(one-gamma_c_j**(-2))
             n3=comp*n4
+            if (p_r <= two) error stop 'secondary branch RHS requires p_r > 2'
+            b_i=dsqrt(8d0*pi*b_r*e3_sec)
+            gamma_m_sec=one+e_r/f_e_r*(p_r-two)/(p_r-one)*(e3_sec-e_ad)/(n3*Para_m_e*Para_c**2)
+            gam_e_max=3d0*Para_m_energy/dsqrt(8d0*b_i*Para_e**3)
+            if (gamma_m_sec >= gam_e_max) error stop 'secondary branch RHS electron injection exceeds maximum'
             dm_dR=4d0*pi*RR*RR*n4*Para_m_p*gam2*(beta2-beta_s)/beta_c_j
             dM_shock=dm_dR*dR
             dV_shock=dM_shock/(n3*Para_m_p)
@@ -923,6 +1022,8 @@ contains
             D(m_idx)=dM_shock/para_m_ej
             D(u_idx)=(dU_shock+dU_ad_sec)/(para_m_ej*para_c**2)
             D(v_idx)=(dV_shock+dV_exp_sec)/V3_scale
+            D(e_idx)=dU_shock/(para_m_ej*para_c**2)
+            D(g_idx)=gamma_m_sec*dU_shock/(para_m_ej*para_c**2)
         end do
     end subroutine compute_secondary_branch_derivatives
 

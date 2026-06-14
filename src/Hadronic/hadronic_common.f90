@@ -77,7 +77,7 @@ subroutine hadronic_build_gamma_edges(Num_gam_p,gam_p,gam_edge)
         return
     end if
 
-    if (gam_p(1) <= one) error stop "hadronic gamma grid minimum must exceed 1."
+    if (gam_p(1) < one) error stop "hadronic gamma grid minimum must be at least 1."
     gam_edge(1)=gam_p(1)*dsqrt(gam_p(1)/gam_p(2))
     do I_gam=2,Num_gam_p
         gam_edge(I_gam)=dsqrt(gam_p(I_gam-1)*gam_p(I_gam))
