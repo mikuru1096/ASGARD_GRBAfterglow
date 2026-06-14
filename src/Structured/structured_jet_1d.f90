@@ -11,7 +11,7 @@ subroutine structured_jet_flux_1d(Boundary,E_iso_grid,Gamma0_grid,active_grid,V_
                                   track_tobs,track_gamma,track_radius,track_mass,track_bfield,track_nu_m,track_nu_c,track_nu_a)
     !$ use omp_lib
     use constants
-    use dynamics_common, only: dynamics_external_density_profile
+    use dynamics_common, only: dynamics_external_density_profile, density_jump_max
     implicit none
     integer, intent(in) :: n,Num_theta_patch,Num_phi_patch,Num_nu,Num_nu_obs,Num_Tobs,Num_R,Num_gam_e
     integer, intent(in) :: Num_theta_sed,Num_phi_sed,index_dyn,index_Y,index_syn_intger
@@ -248,7 +248,7 @@ subroutine structured_solve_element(Boundary,E_iso,Gamma0,V_seed,n,Num_nu,Num_R,
                                     track_nu_m,track_nu_c,track_nu_a,track_set)
     !$ use omp_lib
     use constants
-    use dynamics_common, only: dynamics_external_density_profile
+    use dynamics_common, only: dynamics_external_density_profile, density_jump_max
     use electron_radiation_kernel, only: get_syn_selected
     use electron_reverse_kernel, only: electron_reverse_evolve
     implicit none
@@ -267,9 +267,16 @@ subroutine structured_solve_element(Boundary,E_iso,Gamma0,V_seed,n,Num_nu,Num_R,
     real(8) :: B_local(n)
     real(8) :: R_mass(Num_R),nu_m_local(Num_R),nu_c_local(Num_R),nu_a_local(Num_R)
     real(8) :: M3(Num_R),B3(Num_R),U3(Num_R),V3(Num_R),Gamma34(Num_R)
+    real(8) :: Secondary_M3(density_jump_max,Num_R),Secondary_U3(density_jump_max,Num_R)
+    real(8) :: Secondary_V3(density_jump_max,Num_R),Secondary_B3(density_jump_max,Num_R)
+    real(8) :: Secondary_M3_total(Num_R),Secondary_U3_total(Num_R),Secondary_V3_total(Num_R),Secondary_B3_total(Num_R)
+    real(8) :: Secondary_pressure_total(Num_R),Secondary_enthalpy_density_total(Num_R)
+    real(8) :: Secondary_start_radius(density_jump_max),Secondary_end_radius(density_jump_max)
+    real(8) :: Secondary_start_tobs_axis(density_jump_max),Secondary_end_tobs_axis(density_jump_max)
     real(8) :: T_cross,R_cross,e3_cross,gam20,U3_cross,V3_cross,M3_cross,gam_m_cross,B3_ordered_cross
     real(8), allocatable :: gam_e(:),dN_gam_e(:,:),P_syn(:,:),Seed_syn(:,:),P_ssc(:,:),Seed_ssc(:,:),B_field(:),shell_energy(:)
     real(8) :: dNe,prev_radius,shell_volume
+    logical :: Secondary_event_active(density_jump_max)
     integer :: ir
 
     B_local=Boundary; B_local(1)=Gamma0; B_local(14)=E_iso
@@ -278,7 +285,12 @@ subroutine structured_solve_element(Boundary,E_iso,Gamma0,V_seed,n,Num_nu,Num_R,
     if (include_reverse_sync /= 0) then
         call dynamics_reverse(reverse_delta_t_s,reverse_epsilon_e,reverse_epsilon_b,reverse_p,reverse_f_e, &
                               reverse_sigma,B_local,n,Num_R,T_cross,R_cross,e3_cross,gam20,U3_cross,V3_cross, &
-                              M3_cross,gam_m_cross,B3_ordered_cross,R_Tobs,R_Gamma,R,R_mass,M3,B3,U3,V3,Gamma34)
+                              M3_cross,gam_m_cross,B3_ordered_cross,R_Tobs,R_Gamma,R,R_mass,M3,B3,U3,V3,Gamma34, &
+                              Secondary_M3,Secondary_U3,Secondary_V3,Secondary_B3, &
+                              Secondary_M3_total,Secondary_U3_total,Secondary_V3_total,Secondary_B3_total, &
+                              Secondary_pressure_total,Secondary_enthalpy_density_total, &
+                              Secondary_event_active,Secondary_start_radius,Secondary_end_radius, &
+                              Secondary_start_tobs_axis,Secondary_end_tobs_axis)
     else
         call dynamics_forward(B_local,n,Num_R,index_dyn,R_Tobs,R_Gamma,R,R_mass)
         M3=zero; B3=zero; U3=zero; V3=zero; Gamma34=zero

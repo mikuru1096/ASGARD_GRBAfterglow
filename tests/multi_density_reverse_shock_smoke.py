@@ -114,6 +114,9 @@ def _run_multi_bump_reverse() -> None:
     assert secondary.comoving_volume_cm3 is state.dynamics.reverse_shock.secondary_comoving_volume_cm3
     assert secondary.magnetic_field_g is state.dynamics.reverse_shock.secondary_magnetic_field_g
     assert secondary.pressure_total is state.dynamics.reverse_shock.secondary_pressure_total
+    assert secondary.event_active is state.dynamics.reverse_shock.secondary_event_active
+    assert secondary.start_radius_cm is state.dynamics.reverse_shock.secondary_start_radius_cm
+    assert secondary.shock_end_radius_cm is state.dynamics.reverse_shock.secondary_shock_end_radius_cm
     details = _make_details(state.components, patches=[{"phi": 0.0, "theta": 0.0, "weight": 1.0}], state=state)
     assert details.rev is not None
     assert details.rev.secondary_rs_gamma_e is secondary.gam_e

@@ -3,7 +3,9 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
                             R_Tobs,R_Gamma,R,M2,M3,B3,U3_th,V3_comoving,Gamma34_inst, &
                             Secondary_M3,Secondary_U3,Secondary_V3,Secondary_B3, &
                             Secondary_M3_total,Secondary_U3_total,Secondary_V3_total,Secondary_B3_total, &
-                            Secondary_pressure_total,Secondary_enthalpy_density_total)
+                            Secondary_pressure_total,Secondary_enthalpy_density_total, &
+                            Secondary_event_active,Secondary_start_radius,Secondary_end_radius, &
+                            Secondary_start_tobs_axis,Secondary_end_tobs_axis)
     !$ use omp_lib
     use constants
     use dynamics_common, only: dynamics_deceleration_radius, dynamics_rk4_reverse, &
@@ -11,7 +13,8 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
                                dynamics_reverse_rhs_iface, dynamics_log_time_step, &
                                dynamics_external_density_profile, rs_mag_comp, &
                                dynamics_boundary_r0, dynamics_set_density_jump_profile, &
-                               active_density_jump_count, density_jump_max
+                               active_density_jump_count, density_jump_max, active_density_jump_r, &
+                               active_density_jump_factor, active_density_jump_width
     implicit none
     integer, intent(in) :: n,Num_R
     integer :: I_tobs, Num_R1, Num_state
@@ -25,12 +28,18 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
     real(8), intent(out) :: Secondary_M3_total(Num_R),Secondary_U3_total(Num_R)
     real(8), intent(out) :: Secondary_V3_total(Num_R),Secondary_B3_total(Num_R)
     real(8), intent(out) :: Secondary_pressure_total(Num_R),Secondary_enthalpy_density_total(Num_R)
+    logical, intent(out) :: Secondary_event_active(density_jump_max)
+    real(8), intent(out) :: Secondary_start_radius(density_jump_max),Secondary_end_radius(density_jump_max)
+    real(8), intent(out) :: Secondary_start_tobs_axis(density_jump_max),Secondary_end_tobs_axis(density_jump_max)
     real(8) :: Eta_0,Epsilon_e,Epsilon_b,p_f,z,dNe_ISM,A_star,E_iso,T_log10_duration,f_e
     real(8) :: R_tr,f_jump,f_wide,R0
     real(8) :: Delta_0,para_m_ej,V3_scale,para_m2,para_m3,DM_0,R_dec,T00,t_dec,Grid_Tobs_bin,T_log10,T,H,dB3
     real(8) :: T_state,T_target
     real(8) :: u2_init,u4_init,Delta_init,para_n4_init,gam34_init,para_n3_init,comp_init
+    real(8) :: event_prev_radius,event_prev_gamma,event_prev_tobs,event_curr_radius,event_curr_gamma,event_curr_tobs
+    real(8) :: event_prev_source(density_jump_max),event_curr_source(density_jump_max)
     real(8),allocatable :: Y(:)
+    logical :: Secondary_event_closed(density_jump_max)
 
     Eta_0=Boundary(1); R(1)=Boundary(4); Epsilon_e=Boundary(5); Epsilon_b=Boundary(6); p_f=Boundary(7); z=Boundary(8)
     dNe_ISM=Boundary(11); A_star=Boundary(12); E_iso=Boundary(14); T_log10_duration=Boundary(15); f_e=Boundary(16)
@@ -65,6 +74,9 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
     Secondary_M3=zero; Secondary_U3=zero; Secondary_V3=zero; Secondary_B3=zero
     Secondary_M3_total=zero; Secondary_U3_total=zero; Secondary_V3_total=zero; Secondary_B3_total=zero
     Secondary_pressure_total=zero; Secondary_enthalpy_density_total=zero
+    Secondary_event_active=.false.; Secondary_event_closed=.false.
+    Secondary_start_radius=zero; Secondary_end_radius=zero
+    Secondary_start_tobs_axis=zero; Secondary_end_tobs_axis=zero
     B3_ordered_cross=zero
     ! RS 状态向量中 Y(2) 是 shock 半径；初始到达时刻必须由半径而不是 swept mass 定义。
     T00=Y(2)*(one/dsqrt(one-one/Eta_0**2)-one)/Para_c
@@ -72,6 +84,8 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
     Grid_Tobs_bin=min(log10(T00)-2d0,dlog10(t_dec*0.1d0))
     T_log10=T_log10_duration-Grid_Tobs_bin; Num_R1=Num_R-1
     T_state=T00
+    event_prev_radius=Y(2); event_prev_gamma=Y(1); event_prev_tobs=T00*(one+z)
+    call secondary_reverse_event_sources(event_prev_radius,event_prev_gamma,event_prev_source)
 
     do I_tobs=1,Num_R
         call dynamics_log_time_step(T00,Grid_Tobs_bin,T_log10,Num_R1,I_tobs,T_target,H)
@@ -93,15 +107,170 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
             end if
         end do
         R_Tobs(I_tobs)=T_target*(one+z); R_Gamma(I_tobs)=Y(1); R(I_tobs)=Y(2); M2(I_tobs)=Y(3)
+        event_curr_radius=Y(2); event_curr_gamma=Y(1); event_curr_tobs=R_Tobs(I_tobs)
+        call secondary_reverse_event_sources(event_curr_radius,event_curr_gamma,event_curr_source)
+        call update_secondary_reverse_events()
+        event_prev_radius=event_curr_radius; event_prev_gamma=event_curr_gamma
+        event_prev_tobs=event_curr_tobs; event_prev_source=event_curr_source
         M3(I_tobs)=Y(4)*para_m_ej; U3_th(I_tobs)=Y(5)*para_m_ej*para_c**2
         V3_comoving(I_tobs)=Y(6)*V3_scale; B3(I_tobs)=dB3
         call store_secondary_branch_state(I_tobs)
         Gamma34_inst(I_tobs)=(Y(1)*Y(1)+Eta_0*Eta_0-one)/(Eta_0*Y(1)+dsqrt(Y(1)*Y(1)-one)*u4_init)
     end do
 
+    call close_open_secondary_reverse_events()
     deallocate(Y)
 
 contains
+
+    ! Secondary RS 事件诊断：用动力学积分接受态的 mechanical source 符号定位 start/end。
+    subroutine update_secondary_reverse_events()
+    implicit none
+    integer :: j,k,n_scan
+    real(8) :: radius_lo,radius_hi,gamma_lo,gamma_hi,tobs_lo,tobs_hi,source_lo,source_hi
+    real(8) :: width,overlap_lo,overlap_hi,scan_length
+
+        do j=1,active_density_jump_count
+            width=active_density_jump_width(j)*active_density_jump_r(j)
+            overlap_lo=max(event_prev_radius,active_density_jump_r(j)-4d0*width)
+            overlap_hi=min(event_curr_radius,active_density_jump_r(j))
+            scan_length=max(zero,overlap_hi-overlap_lo)
+            n_scan=max(1,ceiling(scan_length/(width/16d0)))
+            radius_lo=event_prev_radius; gamma_lo=event_prev_gamma
+            tobs_lo=event_prev_tobs; source_lo=event_prev_source(j)
+            do k=1,n_scan
+                radius_hi=event_prev_radius+(event_curr_radius-event_prev_radius)*dble(k)/dble(n_scan)
+                gamma_hi=event_prev_gamma+(event_curr_gamma-event_prev_gamma)*dble(k)/dble(n_scan)
+                tobs_hi=event_prev_tobs+(event_curr_tobs-event_prev_tobs)*dble(k)/dble(n_scan)
+                call secondary_reverse_event_source(j,radius_hi,gamma_hi,source_hi)
+                call record_secondary_reverse_event_segment(j,radius_lo,radius_hi,gamma_lo,gamma_hi,tobs_lo,tobs_hi, &
+                                                            source_lo,source_hi)
+                radius_lo=radius_hi; gamma_lo=gamma_hi; tobs_lo=tobs_hi; source_lo=source_hi
+            end do
+        end do
+    end subroutine update_secondary_reverse_events
+
+    subroutine record_secondary_reverse_event_segment(j,radius_lo,radius_hi,gamma_lo,gamma_hi,tobs_lo,tobs_hi,source_lo,source_hi)
+    implicit none
+    integer, intent(in) :: j
+    real(8), intent(in) :: radius_lo,radius_hi,gamma_lo,gamma_hi,tobs_lo,tobs_hi,source_lo,source_hi
+    real(8) :: root_radius,root_tobs
+
+        if (.not. Secondary_event_active(j)) then
+            if (source_lo > zero) then
+                Secondary_event_active(j)=.true.
+                Secondary_start_radius(j)=radius_lo
+                Secondary_start_tobs_axis(j)=tobs_lo
+            else if (source_lo <= zero .and. source_hi > zero) then
+                call secondary_reverse_event_root_between(j,radius_lo,radius_hi,gamma_lo,gamma_hi, &
+                                                          tobs_lo,tobs_hi,root_radius,root_tobs)
+                Secondary_event_active(j)=.true.
+                Secondary_start_radius(j)=root_radius
+                Secondary_start_tobs_axis(j)=root_tobs
+            end if
+        end if
+        if (Secondary_event_active(j) .and. .not. Secondary_event_closed(j)) then
+            if (source_lo > zero .and. source_hi <= zero) then
+                call secondary_reverse_event_root_between(j,radius_lo,radius_hi,gamma_lo,gamma_hi, &
+                                                          tobs_lo,tobs_hi,root_radius,root_tobs)
+                Secondary_event_closed(j)=.true.
+                if (root_radius >= active_density_jump_r(j)) root_radius=nearest(active_density_jump_r(j),-one)
+                Secondary_end_radius(j)=root_radius
+                Secondary_end_tobs_axis(j)=root_tobs
+            end if
+        end if
+    end subroutine record_secondary_reverse_event_segment
+
+    subroutine secondary_reverse_event_root_between(jump_index,r_lo_in,r_hi_in,g_lo_in,g_hi_in,t_lo_in,t_hi_in,root_r,root_t)
+    implicit none
+    integer, intent(in) :: jump_index
+    integer :: iter
+    real(8), intent(in) :: r_lo_in,r_hi_in,g_lo_in,g_hi_in,t_lo_in,t_hi_in
+    real(8), intent(out) :: root_r,root_t
+    real(8) :: r_lo,r_hi,r_mid,gamma_lo,gamma_hi,gamma_mid,t_lo,t_hi,t_mid,source_lo,source_mid,frac
+
+        r_lo=r_lo_in; r_hi=r_hi_in
+        gamma_lo=g_lo_in; gamma_hi=g_hi_in
+        t_lo=t_lo_in; t_hi=t_hi_in
+        call secondary_reverse_event_source(jump_index,r_lo,gamma_lo,source_lo)
+        do iter=1,80
+            r_mid=0.5d0*(r_lo+r_hi)
+            frac=(r_mid-r_lo_in)/(r_hi_in-r_lo_in)
+            gamma_mid=g_lo_in+frac*(g_hi_in-g_lo_in)
+            t_mid=t_lo_in+frac*(t_hi_in-t_lo_in)
+            call secondary_reverse_event_source(jump_index,r_mid,gamma_mid,source_mid)
+            if (source_lo*source_mid <= zero) then
+                r_hi=r_mid; gamma_hi=gamma_mid; t_hi=t_mid
+            else
+                r_lo=r_mid; gamma_lo=gamma_mid; t_lo=t_mid; source_lo=source_mid
+            end if
+        end do
+        root_r=0.5d0*(r_lo+r_hi)
+        root_t=0.5d0*(t_lo+t_hi)
+    end subroutine secondary_reverse_event_root_between
+
+    subroutine close_open_secondary_reverse_events()
+    implicit none
+    integer :: j
+
+        do j=1,active_density_jump_count
+            if (Secondary_event_active(j) .and. .not. Secondary_event_closed(j)) then
+                Secondary_event_closed(j)=.true.
+                Secondary_end_radius(j)=event_prev_radius
+                Secondary_end_tobs_axis(j)=event_prev_tobs
+            end if
+        end do
+    end subroutine close_open_secondary_reverse_events
+
+    subroutine secondary_reverse_event_sources(radius,gamma_bulk,sources)
+    implicit none
+    integer :: j
+    real(8), intent(in) :: radius,gamma_bulk
+    real(8), intent(out) :: sources(density_jump_max)
+
+        sources=-one
+        do j=1,active_density_jump_count
+            call secondary_reverse_event_source(j,radius,gamma_bulk,sources(j))
+        end do
+    end subroutine secondary_reverse_event_sources
+
+    subroutine secondary_reverse_event_source(jump_index,radius,gamma_bulk,source)
+    implicit none
+    integer, intent(in) :: jump_index
+    integer :: k
+    real(8), intent(in) :: radius,gamma_bulk
+    real(8), intent(out) :: source
+    real(8) :: density_factor,branch_weight,x,width,profile,n1,n_excess,n_pre,n4,e4,p4,p3,e3_sec,e_ad
+    real(8) :: gamma_c_j,gamma43_j,comp,beta_s
+
+        density_factor=one; branch_weight=zero
+        do k=1,active_density_jump_count
+            x=radius-active_density_jump_r(k)
+            width=active_density_jump_width(k)*active_density_jump_r(k)
+            profile=(active_density_jump_factor(k)-one)*dexp(-(x*x)/(2d0*width*width))
+            density_factor=density_factor+profile
+            if (k == jump_index .and. x >= -4d0*width .and. x < zero) branch_weight=profile
+        end do
+        if (branch_weight <= zero .or. gamma_bulk <= one) then
+            source=-one
+            return
+        end if
+        n1=dNe_ISM*density_factor
+        n_excess=dNe_ISM*branch_weight
+        n_pre=n1-n_excess
+        if (n_pre <= zero) error stop 'secondary reverse event source found non-positive pre-bump density'
+        n4=4d0*gamma_bulk*n_pre
+        e4=4d0*gamma_bulk*(gamma_bulk-one)*n_pre*Para_m_p*Para_c**2
+        p4=e4/3d0
+        call secondary_reverse_contact_rh(gamma_bulk,n1,n4,e4,p4,gamma_c_j,p3,gamma43_j,comp,beta_s)
+        if (comp <= zero) then
+            source=-one
+            return
+        end if
+        e3_sec=3d0*p3
+        e_ad=e4*comp**(4d0/3d0)
+        source=e3_sec-e_ad
+    end subroutine secondary_reverse_event_source
 
     subroutine store_secondary_branch_state(i_out)
     implicit none

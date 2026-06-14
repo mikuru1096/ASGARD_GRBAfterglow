@@ -158,6 +158,11 @@ class ReverseShockDynamics:
     secondary_magnetic_field_g: np.ndarray | None = None
     secondary_pressure_total: np.ndarray | None = None
     secondary_enthalpy_density_total: np.ndarray | None = None
+    secondary_event_active: np.ndarray | None = None
+    secondary_start_radius_cm: np.ndarray | None = None
+    secondary_shock_end_radius_cm: np.ndarray | None = None
+    secondary_start_tobs_axis_s: np.ndarray | None = None
+    secondary_shock_end_tobs_axis_s: np.ndarray | None = None
     gam_e: np.ndarray | None = None
     d_n_gam_e: np.ndarray | None = None
 

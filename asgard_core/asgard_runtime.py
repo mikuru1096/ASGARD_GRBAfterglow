@@ -218,6 +218,11 @@ def solve_dynamics(
         secondary_magnetic_field_g,
         secondary_pressure_total,
         secondary_enthalpy_density_total,
+        secondary_event_active,
+        secondary_start_radius_cm,
+        secondary_shock_end_radius_cm,
+        secondary_start_tobs_axis_s,
+        secondary_shock_end_tobs_axis_s,
     ) = Dynamics.dynamics_reverse(
         reverse_params.delta_t_s,
         reverse_params.epsilon_e,
@@ -239,6 +244,11 @@ def solve_dynamics(
     secondary_magnetic_field_g = np.asarray(secondary_magnetic_field_g, dtype=float)
     secondary_pressure_total = np.asarray(secondary_pressure_total, dtype=float)
     secondary_enthalpy_density_total = np.asarray(secondary_enthalpy_density_total, dtype=float)
+    secondary_event_active = np.asarray(secondary_event_active, dtype=bool)[: jump_r.size]
+    secondary_start_radius_cm = np.asarray(secondary_start_radius_cm, dtype=float)[: jump_r.size]
+    secondary_shock_end_radius_cm = np.asarray(secondary_shock_end_radius_cm, dtype=float)[: jump_r.size]
+    secondary_start_tobs_axis_s = np.asarray(secondary_start_tobs_axis_s, dtype=float)[: jump_r.size]
+    secondary_shock_end_tobs_axis_s = np.asarray(secondary_shock_end_tobs_axis_s, dtype=float)[: jump_r.size]
     reverse_shock = ReverseShockDynamics(
         t_cross,
         r_cross,
@@ -264,6 +274,11 @@ def solve_dynamics(
         secondary_magnetic_field_g,
         secondary_pressure_total,
         secondary_enthalpy_density_total,
+        secondary_event_active,
+        secondary_start_radius_cm,
+        secondary_shock_end_radius_cm,
+        secondary_start_tobs_axis_s,
+        secondary_shock_end_tobs_axis_s,
     )
     solution = DynamicsSolution(r_tobs, r_gamma, radius, swept_mass_g, reverse_shock=reverse_shock)
     if return_report:
@@ -2344,6 +2359,16 @@ def _compute_secondary_reverse_shock_synchrotron(
     end_radius = np.asarray(end_radius, dtype=float)
     start_tobs = np.asarray(start_tobs, dtype=float)
     end_tobs = np.asarray(end_tobs, dtype=float)
+    dyn_event_active = np.asarray(dynamics.reverse_shock.secondary_event_active, dtype=bool)
+    dyn_start_radius = np.asarray(dynamics.reverse_shock.secondary_start_radius_cm, dtype=float)
+    dyn_end_radius = np.asarray(dynamics.reverse_shock.secondary_shock_end_radius_cm, dtype=float)
+    dyn_start_tobs = np.asarray(dynamics.reverse_shock.secondary_start_tobs_axis_s, dtype=float)
+    dyn_end_tobs = np.asarray(dynamics.reverse_shock.secondary_shock_end_tobs_axis_s, dtype=float)
+    event_active = dyn_event_active
+    start_radius = dyn_start_radius
+    end_radius = dyn_end_radius
+    start_tobs = dyn_start_tobs
+    end_tobs = dyn_end_tobs
     if not np.any(event_active):
         return None
     dyn_m3_shell = np.asarray(dynamics.reverse_shock.secondary_swept_mass_g, dtype=float)
