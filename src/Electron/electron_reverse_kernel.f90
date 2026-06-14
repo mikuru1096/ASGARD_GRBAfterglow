@@ -3,7 +3,7 @@ module electron_reverse_kernel
     use dynamics_common, only: dynamics_external_density_profile, dynamics_reverse_gamma_extrema
     use electron_injection_profiles, only: electron_exp_cutoff_factor, electron_profile_log_cell_edges
     use electron_transport_common, only: electron_fullhide_flux_split_step
-    use electron_radiation_kernel, only: get_syn_selected
+    use electron_radiation_kernel, only: get_syn_selected, get_nu_a
     use electron_cooling_kernel, only: electron_cooling_ic_loss, electron_cooling_y_nakar, electron_cooling_y_fan
     implicit none
 contains
@@ -324,6 +324,30 @@ contains
         end do
     end subroutine advance_secondary_transport_shell
 end subroutine electron_secondary_reverse_evolve
+
+! Secondary RS 源项历史：逐半径壳层调用同步辐射和SSA核，返回给统一EATS投影使用。
+subroutine electron_secondary_reverse_synchrotron(index_syn_intger,Num_nu,Num_R,Num_gam_e,n_threads,R,R_Gamma,B3,gam_e, &
+                                                  dN_gam_e,V_seed,z,L_syn_spec,Seed_syn,Nu_a)
+    implicit none
+    integer, intent(in) :: index_syn_intger,Num_nu,Num_R,Num_gam_e,n_threads
+    integer :: I_tobs
+    real(8), intent(in) :: R(Num_R),R_Gamma(Num_R),B3(Num_R),gam_e(Num_gam_e),dN_gam_e(Num_gam_e,Num_R)
+    real(8), intent(in) :: V_seed(Num_nu),z
+    real(8), intent(out) :: L_syn_spec(Num_nu,Num_R),Seed_syn(Num_nu,Num_R),Nu_a(Num_R)
+    real(8) :: doppler_den
+
+    L_syn_spec=zero
+    Seed_syn=zero
+    Nu_a=zero
+    do I_tobs=1,Num_R
+        if (B3(I_tobs) <= zero) cycle
+        call get_syn_selected(index_syn_intger,R(I_tobs),B3(I_tobs),Num_gam_e,Num_nu,n_threads, &
+                              gam_e,dN_gam_e(:,I_tobs),V_seed,L_syn_spec(:,I_tobs),Seed_syn(:,I_tobs))
+        doppler_den=R_Gamma(I_tobs)*(one-dsqrt(one-R_Gamma(I_tobs)**(-2)))*(one+z)
+        call get_nu_a(R(I_tobs),B3(I_tobs),Num_gam_e,gam_e,dN_gam_e(:,I_tobs),Nu_a(I_tobs))
+        Nu_a(I_tobs)=Nu_a(I_tobs)/doppler_den
+    end do
+end subroutine electron_secondary_reverse_synchrotron
 
 subroutine reverse_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m,Gam_e_max,injection_rate,p,dF1)
     implicit none

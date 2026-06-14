@@ -2230,8 +2230,6 @@ def _compute_secondary_reverse_shock_synchrotron(
         return None
     radius = np.asarray(dynamics.radius, dtype=float)
     gamma4_arr = np.asarray(dynamics.r_gamma, dtype=float)
-    num_r = radius.shape[0]
-    nu_a = np.zeros(num_r, dtype=float)
     if reverse_params.p <= 2.0:
         raise ValueError("secondary reverse shock v1 requires p > 2.")
     (
@@ -2316,12 +2314,19 @@ def _compute_secondary_reverse_shock_synchrotron(
     )
     gam_e_sec = np.asarray(gam_e_sec, dtype=float)
     dist = np.asarray(dist, dtype=float)
-    luminosity, _ = _compute_synchrotron_emission_from_distribution(radius, b_field, gam_e_sec, dist, v_seed, config)
-    for i in range(num_r):
-        if b_field[i] <= 0.0:
-            continue
-        doppler_den = doppler_denominator(float(gamma4_arr[i]), config.z)
-        nu_a[i] = electron_radiation_module.get_nu_a(float(radius[i]), b_field[i], gam_e_sec, dist[:, i]) / doppler_den
+    luminosity, _, nu_a = _electron_reverse_module().electron_reverse_kernel.electron_secondary_reverse_synchrotron(
+        config.index_syn_integr,
+        config.num_threads,
+        radius,
+        gamma4_arr,
+        b_field,
+        gam_e_sec,
+        dist,
+        v_seed,
+        config.z,
+    )
+    luminosity = np.asarray(luminosity, dtype=float)
+    nu_a = np.asarray(nu_a, dtype=float)
     return SecondaryReverseShockState(
         luminosity_syn=luminosity,
         event_active=event_active,
