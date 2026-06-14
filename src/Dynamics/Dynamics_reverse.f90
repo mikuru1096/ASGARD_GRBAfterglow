@@ -569,6 +569,7 @@ subroutine reverse_dynamics_rhs(dB3,T_cross,R_cross,e3_cross,gam20,U3_cross,V3_c
     real(8) :: gam2,RR,para_m2,para_m3,U3,V3,dNe,u2,u4,Delta,para1,para_n4,beta4,beta2,gam34,para_n3,betars
     real(8) :: dB2,gam_c2,gam_m2,eps2,e3,gam_c3,gam_m3,eps3,dgam2_1,dgam2_2,dgam2,dR,dm2,dm3
     real(8) :: thermal_gamma3,ad3,dV3_exp,dV3_shock,dU3_shock,dU3_ad,dU3,dV3
+    real(8) :: secondary_m_total,secondary_u_total,secondary_v_total,secondary_p_total,secondary_inertia_mass
     real(8) :: comp_ratio,rho4,B4_ordered,B3_ordered
     logical :: pre_crossing
 
@@ -580,10 +581,12 @@ subroutine reverse_dynamics_rhs(dB3,T_cross,R_cross,e3_cross,gam20,U3_cross,V3_c
     e3=U3/V3
     call compute_region3_field()
     call compute_region3_radiative_efficiency()
+    call compute_secondary_inertia_mass()
 
     dgam2_1=-para1*((gam2*gam2-one)*dNe+(gam2*gam34-eta_0)*(beta4-betars)*eta_0*para_n4)
     dgam2_2=(para_m2+para_m3+(one-eps2)*(two*gam2-one)*para_m2+(one-eps3)*(gam34-one)*para_m3+ &
-             (one-eps3)*gam2*para_m3*(eta_0*(one-beta4*beta2)-eta_0*beta4/(gam2**2*beta2)))
+             (one-eps3)*gam2*para_m3*(eta_0*(one-beta4*beta2)-eta_0*beta4/(gam2**2*beta2)) + &
+             secondary_inertia_mass)
     dgam2=dgam2_1/dgam2_2
     dR=beta2/(one-beta2)*para_c; dm2=para1*dNe*dR
 
@@ -598,7 +601,9 @@ subroutine reverse_dynamics_rhs(dB3,T_cross,R_cross,e3_cross,gam20,U3_cross,V3_c
             U3_cross=U3; V3_cross=V3; M3_cross=para_m3; gam_m_cross=gam_m3
             B3_ordered_cross=B3_ordered
         end if
-        dgam2_1=-u2**2*dm2/dR; dgam2_2=para_m_ej+(eps2+two*(one-eps2)*gam2)*para_m2; dgam2=dgam2_1/dgam2_2
+        dgam2_1=-u2**2*dm2/dR
+        dgam2_2=para_m_ej+secondary_inertia_mass+(eps2+two*(one-eps2)*gam2)*para_m2
+        dgam2=dgam2_1/dgam2_2
     end if
     dgam2=dgam2*dR
     ad3=(4d0*thermal_gamma3+one)/(3d0*thermal_gamma3)
@@ -666,6 +671,30 @@ contains
         gam_m3=e_r/f_e_r*Para_m_p_div_m_e*(p_r-two)*(gam34-one)/(p_r-one)+one
         eps3=e_r*min(one,(gam_m3/gam_c3)**(p_r-two))
     end subroutine compute_region3_radiative_efficiency
+
+    ! Secondary reservoirs 随 contact 共动；其 comoving enthalpy 给 Gamma 方程增加有效惯性。
+    subroutine compute_secondary_inertia_mass()
+    implicit none
+    integer :: j, m_idx, u_idx, v_idx
+
+        secondary_m_total=zero; secondary_u_total=zero; secondary_v_total=zero
+        secondary_p_total=zero; secondary_inertia_mass=zero
+        do j=1,active_density_jump_count
+            m_idx=6+j
+            u_idx=6+active_density_jump_count+j
+            v_idx=6+2*active_density_jump_count+j
+            if (v_idx > M) error stop 'secondary RS branch state exceeds reverse dynamics vector'
+            secondary_m_total=secondary_m_total+Y(m_idx)*para_m_ej
+            secondary_u_total=secondary_u_total+Y(u_idx)*para_m_ej*para_c**2
+            secondary_v_total=secondary_v_total+Y(v_idx)*V3_scale
+        end do
+        if (secondary_v_total > zero) then
+            secondary_p_total=secondary_u_total/(3d0*secondary_v_total)
+            secondary_inertia_mass=(secondary_m_total*para_c**2+secondary_u_total+ &
+                                    secondary_p_total*secondary_v_total)/para_c**2
+            secondary_inertia_mass=secondary_inertia_mass+secondary_p_total*secondary_v_total/(gam2*gam2*para_c**2)
+        end if
+    end subroutine compute_secondary_inertia_mass
 
     subroutine compute_secondary_branch_derivatives()
     implicit none
