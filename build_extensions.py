@@ -73,6 +73,7 @@ F2PY_ENTRYPOINTS = {
         "fs_hadronic_secondary_radiation_shell",
         "fs_hadronic_decay_operator_shell",
         "fs_hadronic_pair_cascade_step",
+        "fs_hadronic_pair_cascade_sequence",
         "fs_hadronic_pp_spectral_source",
         "fs_hadronic_quantum_syn_cooling_factor",
     ),
@@ -183,6 +184,7 @@ HADRONIC_1D_SOURCES = (
     "hadronic_secondary_radiation_kernel.f90",
     "hadronic_decay_kernel.f90",
     "hadronic_pgamma_hummer_1d.f90",
+    "../Electron/electron_radiation_kernel.f90",
     "hadronic_pair_cascade_kernel.f90",
     "hadronic_pp_models_kernel.f90",
 )

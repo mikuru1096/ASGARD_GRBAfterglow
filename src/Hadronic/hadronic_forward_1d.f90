@@ -454,6 +454,29 @@ subroutine fs_hadronic_pair_cascade_step(num_ph,photon_energy_gev,photon_density
                                 cascade_syn_spec,photon_loss_rate,absorbed_power)
 end subroutine fs_hadronic_pair_cascade_step
 
+subroutine fs_hadronic_pair_cascade_sequence(num_ph,num_e,num_shell,photon_energy_gev,primary_photon_density, &
+                                             electron_energy_gev,frequency_hz,radius_cm,gamma_bulk,observer_time_s, &
+                                             b_field_g,num_threads,index_syn_integr,substeps_per_shell, &
+                                             photon_loss_rate,tau_pair,pair_density,pair_luminosity, &
+                                             pair_seed,cascade_photon_density,absorbed_power,injected_power)
+    use hadronic_pair_cascade_kernel, only: hadronic_cascade_sequence
+    implicit none
+    integer, intent(in) :: num_ph,num_e,num_shell,num_threads,index_syn_integr,substeps_per_shell
+    real(8), intent(in) :: photon_energy_gev(num_ph),primary_photon_density(num_ph,num_shell)
+    real(8), intent(in) :: electron_energy_gev(num_e),frequency_hz(num_ph)
+    real(8), intent(in) :: radius_cm(num_shell),gamma_bulk(num_shell),observer_time_s(num_shell),b_field_g(num_shell)
+    real(8), intent(out) :: photon_loss_rate(num_ph,num_shell),tau_pair(num_ph,num_shell)
+    real(8), intent(out) :: pair_density(num_e,num_shell),pair_luminosity(num_ph,num_shell)
+    real(8), intent(out) :: pair_seed(num_ph,num_shell),cascade_photon_density(num_ph,num_shell)
+    real(8), intent(out) :: absorbed_power(num_shell),injected_power(num_shell)
+
+    call hadronic_cascade_sequence(num_ph,num_e,num_shell,photon_energy_gev,primary_photon_density, &
+                                   electron_energy_gev,frequency_hz,radius_cm,gamma_bulk,observer_time_s, &
+                                   b_field_g,num_threads,index_syn_integr,substeps_per_shell, &
+                                   photon_loss_rate,tau_pair,pair_density,pair_luminosity, &
+                                   pair_seed,cascade_photon_density,absorbed_power,injected_power)
+end subroutine fs_hadronic_pair_cascade_sequence
+
 ! pp spectral source model: SIBYLL=0, QGSJET=1, Geant4=2, Pythia8=3.
 subroutine fs_hadronic_pp_spectral_source(num_p,proton_kinetic_energy_gev, &
     proton_density_per_gev,num_g,gamma_energy_gev,target_density_cm3,model, &
