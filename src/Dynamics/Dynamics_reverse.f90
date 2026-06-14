@@ -313,12 +313,12 @@ subroutine secondary_reverse_profile(Num_R,Num_jump,R,Tobs_axis,Gamma4,dNe_ISM,J
         end do
         if (I_start == 0) cycle
         if (I_start > 1 .and. R(I_start-1) >= lower_bound .and. R(I_start-1) < Jump_R(J)) then
-            start_root=secondary_reverse_event_edge_fortran(Num_R,R,u_diss,I_start-1,I_start,lower_bound,upper_bound)
+            start_root=secondary_reverse_event_root_fortran(I_start-1,I_start,lower_bound,upper_bound)
         else
             start_root=R(I_start)
         end if
         if (I_end < Num_R .and. R(I_end+1) >= lower_bound .and. R(I_end+1) < Jump_R(J)) then
-            end_root=secondary_reverse_event_edge_fortran(Num_R,R,u_diss,I_end,I_end+1,start_root,upper_bound)
+            end_root=secondary_reverse_event_root_fortran(I_end,I_end+1,start_root,upper_bound)
         else
             end_root=R(I_end)
         end if
@@ -351,24 +351,93 @@ contains
         end do
     end subroutine secondary_reverse_density_weights
 
-    real(8) function secondary_reverse_event_edge_fortran(Num_R,R,source,I_lo,I_hi,lower_bound,upper_bound)
+    real(8) function secondary_reverse_event_root_fortran(I_lo,I_hi,lower_bound,upper_bound)
     implicit none
-    integer, intent(in) :: Num_R,I_lo,I_hi
-    real(8), intent(in) :: R(Num_R),source(Num_R),lower_bound,upper_bound
-    real(8) :: ratio,root
+    integer, intent(in) :: I_lo,I_hi
+    integer :: K
+    real(8), intent(in) :: lower_bound,upper_bound
+    real(8) :: lo_r,hi_r,mid_r,g_lo,g_hi,g_mid
 
-        if (I_lo < 1) then
-            root=R(I_hi)
-        else if (I_hi > Num_R) then
-            root=R(I_lo)
-        else if (source(I_lo) == source(I_hi)) then
-            root=R(I_hi)
-        else
-            ratio=-source(I_lo)/(source(I_hi)-source(I_lo))
-            root=R(I_lo)+ratio*(R(I_hi)-R(I_lo))
+        lo_r=min(max(R(I_lo),lower_bound),upper_bound)
+        hi_r=min(max(R(I_hi),lower_bound),upper_bound)
+        call secondary_reverse_signed_source(lo_r,g_lo)
+        call secondary_reverse_signed_source(hi_r,g_hi)
+        if (g_lo == zero) then
+            secondary_reverse_event_root_fortran=lo_r
+            return
         end if
-        secondary_reverse_event_edge_fortran=min(max(root,lower_bound),upper_bound)
-    end function secondary_reverse_event_edge_fortran
+        if (g_hi == zero) then
+            secondary_reverse_event_root_fortran=hi_r
+            return
+        end if
+        if (g_lo*g_hi > zero) then
+            error stop 'secondary_reverse_event_root_fortran requires a signed source bracket'
+        end if
+        do K=1,80
+            mid_r=0.5d0*(lo_r+hi_r)
+            call secondary_reverse_signed_source(mid_r,g_mid)
+            if (g_lo*g_mid <= zero) then
+                hi_r=mid_r; g_hi=g_mid
+            else
+                lo_r=mid_r; g_lo=g_mid
+            end if
+        end do
+        secondary_reverse_event_root_fortran=0.5d0*(lo_r+hi_r)
+    end function secondary_reverse_event_root_fortran
+
+    subroutine secondary_reverse_signed_source(radius,source)
+    implicit none
+    real(8), intent(in) :: radius
+    real(8), intent(out) :: source
+    real(8) :: gamma_loc,density_factor_loc,local_weight_loc
+    real(8) :: n1_loc,n_excess_loc,n_pre_loc,n4_loc,e4_loc,p4_loc,p3_loc
+    real(8) :: gamma_contact_loc,gamma43_loc,comp_loc,beta_s_loc,e3_loc,e_ad_loc
+
+        call secondary_reverse_interp_gamma(radius,gamma_loc)
+        call secondary_reverse_density_weights(radius,Num_jump,Jump_R,Jump_factor,Jump_width, &
+                                               density_factor_loc,local_weight_loc)
+        if (local_weight_loc <= zero .or. gamma_loc <= one) then
+            source=-one
+            return
+        end if
+        n1_loc=dNe_ISM*density_factor_loc
+        n_excess_loc=dNe_ISM*local_weight_loc
+        n_pre_loc=n1_loc-n_excess_loc
+        if (n_pre_loc <= zero) error stop 'secondary_reverse_event root found non-positive pre-bump density'
+        n4_loc=4d0*gamma_loc*n_pre_loc
+        e4_loc=4d0*gamma_loc*(gamma_loc-one)*n_pre_loc*Para_m_p*Para_c**2
+        p4_loc=e4_loc/3d0
+        call secondary_reverse_contact_rh(gamma_loc,n1_loc,n4_loc,e4_loc,p4_loc, &
+                                          gamma_contact_loc,p3_loc,gamma43_loc,comp_loc,beta_s_loc)
+        if (comp_loc <= zero) then
+            source=-one
+            return
+        end if
+        e3_loc=3d0*p3_loc
+        e_ad_loc=e4_loc*comp_loc**(4d0/3d0)
+        source=e3_loc-e_ad_loc
+    end subroutine secondary_reverse_signed_source
+
+    subroutine secondary_reverse_interp_gamma(radius,gamma_root)
+    implicit none
+    integer :: K
+    real(8), intent(in) :: radius
+    real(8), intent(out) :: gamma_root
+    real(8) :: ratio
+
+        if (radius <= R(1)) then
+            gamma_root=Gamma4(1)
+            return
+        end if
+        do K=1,Num_R-1
+            if (radius <= R(K+1)) then
+                ratio=(radius-R(K))/(R(K+1)-R(K))
+                gamma_root=Gamma4(K)+ratio*(Gamma4(K+1)-Gamma4(K))
+                return
+            end if
+        end do
+        gamma_root=Gamma4(Num_R)
+    end subroutine secondary_reverse_interp_gamma
 
     subroutine secondary_reverse_interp_tobs(Num_R,R,Tobs_axis,root,tobs_root)
     implicit none
