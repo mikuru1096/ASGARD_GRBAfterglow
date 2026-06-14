@@ -95,6 +95,8 @@ def _run_multi_bump_reverse() -> None:
     assert details.rev is not None
     assert details.rev.secondary_rs_gamma_e is secondary.gam_e
     assert details.rev.secondary_rs_dN_dgamma_e is secondary.d_n_gam_e
+    assert details.rev.secondary_rs_branch_swept_mass_g is secondary.branch_swept_mass_g
+    assert details.rev.secondary_rs_branch_internal_energy_erg is secondary.branch_internal_energy_erg
     assert np.all(np.isfinite(state.reverse_emission.l_syn_spec))
     assert np.any(secondary.luminosity_syn > 0.0)
     _assert_secondary_injection_inside_candidate_windows(state.dynamics.radius, secondary.dissipated_energy_density, config)
@@ -110,6 +112,10 @@ def _run_multi_bump_reverse() -> None:
         secondary.comoving_volume_cm3,
         secondary.pressure_total,
         secondary.enthalpy_density_total,
+        secondary.branch_swept_mass_g,
+        secondary.branch_internal_energy_erg,
+        secondary.branch_comoving_volume_cm3,
+        secondary.branch_magnetic_field_g,
         secondary.magnetic_field_g,
         secondary.gam_e,
         secondary.d_n_gam_e,
@@ -130,6 +136,20 @@ def _run_multi_bump_reverse() -> None:
     assert np.all(secondary.beta_rs[injection] < beta_upstream)
     assert np.all(secondary.dissipated_energy_density[injection] > 0.0)
     assert np.all(np.diff(secondary.swept_mass_g) >= 0.0)
+    assert secondary.branch_swept_mass_g.shape == (len(config.jump_r_cm), secondary.swept_mass_g.size)
+    assert np.allclose(np.sum(secondary.branch_swept_mass_g, axis=0), secondary.swept_mass_g, rtol=1.0e-13, atol=0.0)
+    assert np.allclose(
+        np.sum(secondary.branch_internal_energy_erg, axis=0),
+        secondary.internal_energy_erg,
+        rtol=1.0e-13,
+        atol=0.0,
+    )
+    assert np.allclose(
+        np.sum(secondary.branch_comoving_volume_cm3, axis=0),
+        secondary.comoving_volume_cm3,
+        rtol=1.0e-13,
+        atol=0.0,
+    )
     last_injection = int(np.flatnonzero(injection)[-1])
     if last_injection + 1 < secondary.magnetic_field_g.shape[0]:
         assert secondary.swept_mass_g[last_injection + 1] > 0.0

@@ -564,6 +564,10 @@ class CharTrack:
     secondary_rs_comoving_volume_cm3: Optional[np.ndarray] = None
     secondary_rs_pressure_total: Optional[np.ndarray] = None
     secondary_rs_enthalpy_density_total: Optional[np.ndarray] = None
+    secondary_rs_branch_swept_mass_g: Optional[np.ndarray] = None
+    secondary_rs_branch_internal_energy_erg: Optional[np.ndarray] = None
+    secondary_rs_branch_comoving_volume_cm3: Optional[np.ndarray] = None
+    secondary_rs_branch_B: Optional[np.ndarray] = None
     secondary_rs_B: Optional[np.ndarray] = None
     secondary_rs_gamma_e: Optional[np.ndarray] = None
     secondary_rs_dN_dgamma_e: Optional[np.ndarray] = None
@@ -1563,6 +1567,10 @@ def _make_details(
             secondary_rs_comoving_volume_cm3=None if secondary_rs is None else secondary_rs.comoving_volume_cm3,
             secondary_rs_pressure_total=None if secondary_rs is None else secondary_rs.pressure_total,
             secondary_rs_enthalpy_density_total=None if secondary_rs is None else secondary_rs.enthalpy_density_total,
+            secondary_rs_branch_swept_mass_g=None if secondary_rs is None else secondary_rs.branch_swept_mass_g,
+            secondary_rs_branch_internal_energy_erg=None if secondary_rs is None else secondary_rs.branch_internal_energy_erg,
+            secondary_rs_branch_comoving_volume_cm3=None if secondary_rs is None else secondary_rs.branch_comoving_volume_cm3,
+            secondary_rs_branch_B=None if secondary_rs is None else secondary_rs.branch_magnetic_field_g,
             secondary_rs_B=None if secondary_rs is None else secondary_rs.magnetic_field_g,
             secondary_rs_gamma_e=None if secondary_rs is None else secondary_rs.gam_e,
             secondary_rs_dN_dgamma_e=None if secondary_rs is None else secondary_rs.d_n_gam_e,
