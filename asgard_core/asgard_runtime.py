@@ -21,7 +21,7 @@ from asgard_core.hadronic_bethe_heitler import (
     ELECTRON_MASS_GEV,
     solve_bethe_heitler,
 )
-from asgard_core.hadronic_hadronic_ic import HADRONIC_IC_BACKEND, solve_hadronic_inverse_compton
+from asgard_core.hadronic_hadronic_ic import HADRONIC_IC_BACKEND
 from asgard_core.hadronic_secondary_radiation import SECONDARY_RADIATION_BACKEND
 from asgard_core.hadronic_species_transport import (
     ChargedMuonDistribution,
@@ -1383,31 +1383,12 @@ def _solve_hadronic_hummer_transport_coupled(
 
         if bool(config.hadronic.include_hadronic_inverse_compton):
             t_hic_start = time.perf_counter()
-            hic_photon_energy_gev = _hadronic_aligned_photon_grid(gam_p * PROTON_MASS_GEV, photon_energy_gev)
-            hic_photon_density_per_gev = _interp_positive_loglog(
+            l_had_hic[:, i_r] = _hadronic_hic_projected(
+                gam_p * PROTON_MASS_GEV,
                 photon_energy_gev,
                 photon_density_per_gev,
-                hic_photon_energy_gev,
-            )
-            hic_output = solve_hadronic_inverse_compton(
-                hadron_energy_gev=gam_p * PROTON_MASS_GEV,
-                photon_energy_gev=hic_photon_energy_gev,
-                photons_on_had_grid_per_gev=hic_photon_density_per_gev,
-                protons_per_gev=proton_density_trial_per_gev,
-                pion_plus_per_gev=np.zeros_like(gam_p, dtype=float),
-                pion_minus_per_gev=np.zeros_like(gam_p, dtype=float),
-                muon_minus_left_per_gev=np.zeros_like(gam_p, dtype=float),
-                muon_minus_right_per_gev=np.zeros_like(gam_p, dtype=float),
-                muon_plus_left_per_gev=np.zeros_like(gam_p, dtype=float),
-                muon_plus_right_per_gev=np.zeros_like(gam_p, dtype=float),
-            )
-            l_had_hic[:, i_r] = _project_hic_luminosity(
-                hic_output.photon_energy_gev,
-                hic_output.epsilon_p_ic,
-                hic_output.epsilon_pi_ic,
-                hic_output.epsilon_mu_ic,
+                proton_density_trial_per_gev,
                 shell_volume_loc,
-                photon_energy_gev,
             )
             timings["hadronic_ic"] += time.perf_counter() - t_hic_start
 
@@ -1947,6 +1928,29 @@ def _hadronic_secondary_radiation_projected(
         float(magnetic_field_g),
     )
     return tuple(np.asarray(item, dtype=float) for item in result)
+
+
+def _hadronic_hic_projected(
+    hadron_energy_gev: np.ndarray,
+    photon_energy_gev: np.ndarray,
+    photon_density_per_gev: np.ndarray,
+    protons_per_gev: np.ndarray,
+    shell_volume_cm3: float,
+) -> np.ndarray:
+    hadron_energy = np.asarray(hadron_energy_gev, dtype=float)
+    photon_energy = np.asarray(photon_energy_gev, dtype=float)
+    num_align = _hadronic_aligned_photon_grid_size(hadron_energy, photon_energy)
+    return np.asarray(
+        hadronic_legacy_module.fs_hadronic_hic_projected(
+            num_align,
+            hadron_energy,
+            photon_energy,
+            np.asarray(photon_density_per_gev, dtype=float),
+            np.asarray(protons_per_gev, dtype=float),
+            float(shell_volume_cm3),
+        ),
+        dtype=float,
+    )
 
 
 def _energy_luminosity_from_rate_spectrum(

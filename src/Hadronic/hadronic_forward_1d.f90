@@ -141,6 +141,32 @@ subroutine fs_hadronic_hadronic_ic_shell(Num_had,hadron_energy_gev,Num_ph,photon
                                                    coeff_mu_cgs)
 end subroutine fs_hadronic_hadronic_ic_shell
 
+! proton-only hadronic IC：目标光子插值、IC operator 和 luminosity 投影在 Fortran 内闭合。
+subroutine fs_hadronic_hic_projected(num_had,num_ph,num_align,hadron_energy_gev,photon_energy_gev, &
+                                     photon_density_per_gev,protons_per_gev,shell_volume_cm3,luminosity)
+    implicit none
+    integer, intent(in) :: num_had,num_ph,num_align
+    real(8), intent(in) :: hadron_energy_gev(num_had),photon_energy_gev(num_ph),photon_density_per_gev(num_ph)
+    real(8), intent(in) :: protons_per_gev(num_had),shell_volume_cm3
+    real(8), intent(out) :: luminosity(num_ph)
+    real(8) :: aligned_photon(num_align),photon_density_aligned(num_align),zero_had(num_had)
+    real(8) :: epsilon_p(num_align),epsilon_pi(num_align),epsilon_mu(num_align)
+    real(8) :: coeff_p,coeff_pi,coeff_mu,dln_energy
+    integer :: delta_p(num_had),jmax_p(num_had),delta_pi(num_had),jmax_pi(num_had)
+    integer :: delta_mu(num_had),jmax_mu(num_had)
+
+    zero_had=0d0
+    call fs_hadronic_aligned_photon_grid(num_had,num_ph,num_align,hadron_energy_gev,photon_energy_gev,aligned_photon)
+    call fs_hadronic_positive_loglog_interp(num_ph,num_align,photon_energy_gev,photon_density_per_gev, &
+                                            aligned_photon,photon_density_aligned)
+    call fs_hadronic_hadronic_ic_shell(num_had,hadron_energy_gev,num_align,aligned_photon, &
+                                       photon_density_aligned,protons_per_gev,zero_had,zero_had,zero_had,zero_had, &
+                                       zero_had,zero_had,0,epsilon_p,epsilon_pi,epsilon_mu,coeff_p,coeff_pi, &
+                                       coeff_mu,dln_energy,delta_p,jmax_p,delta_pi,jmax_pi,delta_mu,jmax_mu)
+    call fs_hadronic_project_hic_luminosity(num_align,num_ph,aligned_photon,epsilon_p,epsilon_pi,epsilon_mu, &
+                                            shell_volume_cm3,photon_energy_gev,luminosity)
+end subroutine fs_hadronic_hic_projected
+
 ! Single-shell secondary-species transport wrapper.
 subroutine fs_hadronic_species_transport_shell(Num_gamma,gamma,dt_s,b_field_g,divergence_rate_s_inv, &
                                                neutron_prev,pion_plus_prev,pion_minus_prev,muon_minus_left_prev, &
