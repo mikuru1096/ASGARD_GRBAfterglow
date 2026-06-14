@@ -209,6 +209,13 @@ def solve_dynamics(
         secondary_branch_swept_mass_g,
         secondary_branch_internal_energy_erg,
         secondary_branch_comoving_volume_cm3,
+        secondary_branch_magnetic_field_g,
+        secondary_swept_mass_g,
+        secondary_internal_energy_erg,
+        secondary_comoving_volume_cm3,
+        secondary_magnetic_field_g,
+        secondary_pressure_total,
+        secondary_enthalpy_density_total,
     ) = Dynamics.dynamics_reverse(
         reverse_params.delta_t_s,
         reverse_params.epsilon_e,
@@ -223,6 +230,13 @@ def solve_dynamics(
     secondary_branch_swept_mass_g = np.asarray(secondary_branch_swept_mass_g, dtype=float)[: jump_r.size, :]
     secondary_branch_internal_energy_erg = np.asarray(secondary_branch_internal_energy_erg, dtype=float)[: jump_r.size, :]
     secondary_branch_comoving_volume_cm3 = np.asarray(secondary_branch_comoving_volume_cm3, dtype=float)[: jump_r.size, :]
+    secondary_branch_magnetic_field_g = np.asarray(secondary_branch_magnetic_field_g, dtype=float)[: jump_r.size, :]
+    secondary_swept_mass_g = np.asarray(secondary_swept_mass_g, dtype=float)
+    secondary_internal_energy_erg = np.asarray(secondary_internal_energy_erg, dtype=float)
+    secondary_comoving_volume_cm3 = np.asarray(secondary_comoving_volume_cm3, dtype=float)
+    secondary_magnetic_field_g = np.asarray(secondary_magnetic_field_g, dtype=float)
+    secondary_pressure_total = np.asarray(secondary_pressure_total, dtype=float)
+    secondary_enthalpy_density_total = np.asarray(secondary_enthalpy_density_total, dtype=float)
     reverse_shock = ReverseShockDynamics(
         t_cross,
         r_cross,
@@ -241,6 +255,13 @@ def solve_dynamics(
         secondary_branch_swept_mass_g,
         secondary_branch_internal_energy_erg,
         secondary_branch_comoving_volume_cm3,
+        secondary_branch_magnetic_field_g,
+        secondary_swept_mass_g,
+        secondary_internal_energy_erg,
+        secondary_comoving_volume_cm3,
+        secondary_magnetic_field_g,
+        secondary_pressure_total,
+        secondary_enthalpy_density_total,
     )
     solution = DynamicsSolution(r_tobs, r_gamma, radius, swept_mass_g, reverse_shock=reverse_shock)
     if return_report:
@@ -2321,7 +2342,17 @@ def _compute_secondary_reverse_shock_synchrotron(
     end_tobs = np.asarray(end_tobs, dtype=float)
     if not np.any(event_active):
         return None
-    if not np.any(m3_shell > 0.0):
+    dyn_m3_shell = np.asarray(dynamics.reverse_shock.secondary_swept_mass_g, dtype=float)
+    dyn_u3_shell = np.asarray(dynamics.reverse_shock.secondary_internal_energy_erg, dtype=float)
+    dyn_v3_shell = np.asarray(dynamics.reverse_shock.secondary_comoving_volume_cm3, dtype=float)
+    dyn_b_field = np.asarray(dynamics.reverse_shock.secondary_magnetic_field_g, dtype=float)
+    dyn_pressure_total = np.asarray(dynamics.reverse_shock.secondary_pressure_total, dtype=float)
+    dyn_enthalpy_density_total = np.asarray(dynamics.reverse_shock.secondary_enthalpy_density_total, dtype=float)
+    dyn_m3_branch = np.asarray(dynamics.reverse_shock.secondary_branch_swept_mass_g, dtype=float)
+    dyn_u3_branch = np.asarray(dynamics.reverse_shock.secondary_branch_internal_energy_erg, dtype=float)
+    dyn_v3_branch = np.asarray(dynamics.reverse_shock.secondary_branch_comoving_volume_cm3, dtype=float)
+    dyn_b3_branch = np.asarray(dynamics.reverse_shock.secondary_branch_magnetic_field_g, dtype=float)
+    if not np.any(dyn_m3_shell > 0.0):
         return None
     gam_e_sec, dist = _electron_reverse_module().electron_reverse_kernel.electron_secondary_reverse_evolve(
         reverse_params.epsilon_e,
@@ -2332,10 +2363,10 @@ def _compute_secondary_reverse_shock_synchrotron(
         dynamics.r_tobs,
         dynamics.r_gamma,
         radius,
-        b_field,
-        m3_shell,
-        u3_shell,
-        v3_shell,
+        dyn_b_field,
+        dyn_m3_shell,
+        dyn_u3_shell,
+        dyn_v3_shell,
         gamma_m_shell,
         v_seed,
         config.num_gam_e,
@@ -2349,7 +2380,7 @@ def _compute_secondary_reverse_shock_synchrotron(
         config.num_threads,
         radius,
         gamma4_arr,
-        b_field,
+        dyn_b_field,
         gam_e_sec,
         dist,
         v_seed,
@@ -2373,16 +2404,16 @@ def _compute_secondary_reverse_shock_synchrotron(
         dissipated_energy_density=u_diss,
         dissipated_energy_erg=dissipated_energy,
         electron_injected_energy_erg=electron_injected_energy,
-        swept_mass_g=m3_shell,
-        internal_energy_erg=u3_shell,
-        comoving_volume_cm3=v3_shell,
-        pressure_total=pressure_total,
-        enthalpy_density_total=enthalpy_density_total,
-        branch_swept_mass_g=m3_branch,
-        branch_internal_energy_erg=u3_branch,
-        branch_comoving_volume_cm3=v3_branch,
-        branch_magnetic_field_g=b3_branch,
-        magnetic_field_g=b_field,
+        swept_mass_g=dyn_m3_shell,
+        internal_energy_erg=dyn_u3_shell,
+        comoving_volume_cm3=dyn_v3_shell,
+        pressure_total=dyn_pressure_total,
+        enthalpy_density_total=dyn_enthalpy_density_total,
+        branch_swept_mass_g=dyn_m3_branch,
+        branch_internal_energy_erg=dyn_u3_branch,
+        branch_comoving_volume_cm3=dyn_v3_branch,
+        branch_magnetic_field_g=dyn_b3_branch,
+        magnetic_field_g=dyn_b_field,
         nu_m=nu_m,
         nu_c=nu_c,
         nu_a=nu_a,

@@ -151,6 +151,13 @@ class ReverseShockDynamics:
     secondary_branch_swept_mass_g: np.ndarray | None = None
     secondary_branch_internal_energy_erg: np.ndarray | None = None
     secondary_branch_comoving_volume_cm3: np.ndarray | None = None
+    secondary_branch_magnetic_field_g: np.ndarray | None = None
+    secondary_swept_mass_g: np.ndarray | None = None
+    secondary_internal_energy_erg: np.ndarray | None = None
+    secondary_comoving_volume_cm3: np.ndarray | None = None
+    secondary_magnetic_field_g: np.ndarray | None = None
+    secondary_pressure_total: np.ndarray | None = None
+    secondary_enthalpy_density_total: np.ndarray | None = None
     gam_e: np.ndarray | None = None
     d_n_gam_e: np.ndarray | None = None
 

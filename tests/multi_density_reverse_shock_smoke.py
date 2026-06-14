@@ -109,6 +109,11 @@ def _run_multi_bump_reverse() -> None:
     assert np.any(dyn_branch_u > 0.0)
     assert np.any(dyn_branch_v > 0.0)
     assert np.all(np.diff(dyn_branch_m, axis=1) >= -1.0e-20 * np.maximum(1.0, dyn_branch_m[:, 1:]))
+    assert secondary.swept_mass_g is state.dynamics.reverse_shock.secondary_swept_mass_g
+    assert secondary.internal_energy_erg is state.dynamics.reverse_shock.secondary_internal_energy_erg
+    assert secondary.comoving_volume_cm3 is state.dynamics.reverse_shock.secondary_comoving_volume_cm3
+    assert secondary.magnetic_field_g is state.dynamics.reverse_shock.secondary_magnetic_field_g
+    assert secondary.pressure_total is state.dynamics.reverse_shock.secondary_pressure_total
     details = _make_details(state.components, patches=[{"phi": 0.0, "theta": 0.0, "weight": 1.0}], state=state)
     assert details.rev is not None
     assert details.rev.secondary_rs_gamma_e is secondary.gam_e

@@ -1,7 +1,9 @@
 subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, &
                             T_cross,R_cross,e3_cross,gam20,U3_cross,V3_cross,M3_cross,gam_m_cross,B3_ordered_cross, &
                             R_Tobs,R_Gamma,R,M2,M3,B3,U3_th,V3_comoving,Gamma34_inst, &
-                            Secondary_M3,Secondary_U3,Secondary_V3)
+                            Secondary_M3,Secondary_U3,Secondary_V3,Secondary_B3, &
+                            Secondary_M3_total,Secondary_U3_total,Secondary_V3_total,Secondary_B3_total, &
+                            Secondary_pressure_total,Secondary_enthalpy_density_total)
     !$ use omp_lib
     use constants
     use dynamics_common, only: dynamics_deceleration_radius, dynamics_rk4_reverse, &
@@ -19,7 +21,10 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
     real(8), intent(out) :: R_Tobs(Num_R),R(Num_R),M2(Num_R),M3(Num_R),B3(Num_R),R_Gamma(Num_R)
     real(8), intent(out) :: U3_th(Num_R),V3_comoving(Num_R),Gamma34_inst(Num_R)
     real(8), intent(out) :: Secondary_M3(density_jump_max,Num_R),Secondary_U3(density_jump_max,Num_R)
-    real(8), intent(out) :: Secondary_V3(density_jump_max,Num_R)
+    real(8), intent(out) :: Secondary_V3(density_jump_max,Num_R),Secondary_B3(density_jump_max,Num_R)
+    real(8), intent(out) :: Secondary_M3_total(Num_R),Secondary_U3_total(Num_R)
+    real(8), intent(out) :: Secondary_V3_total(Num_R),Secondary_B3_total(Num_R)
+    real(8), intent(out) :: Secondary_pressure_total(Num_R),Secondary_enthalpy_density_total(Num_R)
     real(8) :: Eta_0,Epsilon_e,Epsilon_b,p_f,z,dNe_ISM,A_star,E_iso,T_log10_duration,f_e
     real(8) :: R_tr,f_jump,f_wide,R0
     real(8) :: Delta_0,para_m_ej,V3_scale,para_m2,para_m3,DM_0,R_dec,T00,t_dec,Grid_Tobs_bin,T_log10,T,H,dB3
@@ -57,7 +62,9 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
     DM_0=E_iso/((Eta_0-one)*4d0*pi*Para_m_p_E)
     call dynamics_deceleration_radius(A_star,dNe_ISM,Eta_0,DM_0,R_dec)
     T_cross=-1d0; U3_cross=zero; V3_cross=zero; M3_cross=zero; gam_m_cross=zero
-    Secondary_M3=zero; Secondary_U3=zero; Secondary_V3=zero
+    Secondary_M3=zero; Secondary_U3=zero; Secondary_V3=zero; Secondary_B3=zero
+    Secondary_M3_total=zero; Secondary_U3_total=zero; Secondary_V3_total=zero; Secondary_B3_total=zero
+    Secondary_pressure_total=zero; Secondary_enthalpy_density_total=zero
     B3_ordered_cross=zero
     ! RS 状态向量中 Y(2) 是 shock 半径；初始到达时刻必须由半径而不是 swept mass 定义。
     T00=Y(2)*(one/dsqrt(one-one/Eta_0**2)-one)/Para_c
@@ -108,7 +115,19 @@ contains
             Secondary_M3(j,i_out)=Y(m_idx)*para_m_ej
             Secondary_U3(j,i_out)=Y(u_idx)*para_m_ej*para_c**2
             Secondary_V3(j,i_out)=Y(v_idx)*V3_scale
+            if (Secondary_V3(j,i_out) > zero) &
+                Secondary_B3(j,i_out)=dsqrt(8d0*pi*b_r*Secondary_U3(j,i_out)/Secondary_V3(j,i_out))
+            Secondary_M3_total(i_out)=Secondary_M3_total(i_out)+Secondary_M3(j,i_out)
+            Secondary_U3_total(i_out)=Secondary_U3_total(i_out)+Secondary_U3(j,i_out)
+            Secondary_V3_total(i_out)=Secondary_V3_total(i_out)+Secondary_V3(j,i_out)
         end do
+        if (Secondary_V3_total(i_out) > zero) &
+            Secondary_B3_total(i_out)=dsqrt(8d0*pi*b_r*Secondary_U3_total(i_out)/Secondary_V3_total(i_out))
+        if (Secondary_V3_total(i_out) > zero) then
+            Secondary_pressure_total(i_out)=Secondary_U3_total(i_out)/(3d0*Secondary_V3_total(i_out))
+            Secondary_enthalpy_density_total(i_out)=Secondary_M3_total(i_out)*para_c**2/Secondary_V3_total(i_out)+ &
+                Secondary_U3_total(i_out)/Secondary_V3_total(i_out)+Secondary_pressure_total(i_out)
+        end if
     end subroutine store_secondary_branch_state
 end subroutine dynamics_reverse
 
