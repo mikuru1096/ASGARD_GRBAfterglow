@@ -2410,12 +2410,37 @@ def _secondary_reverse_event_diagnostics(
             continue
         i_start = int(indices[0])
         i_end = int(indices[-1])
+        lower_bound = radius_j - 4.0 * width_cm
+        upper_bound = np.nextafter(radius_j, lower_bound)
+        if i_start > 0 and candidate[i_start - 1]:
+            start_root = _secondary_reverse_event_edge(radius, dissipated_energy_density, i_start - 1, i_start)
+        else:
+            start_root = radius[i_start]
+        if i_end + 1 < radius.shape[0] and candidate[i_end + 1]:
+            end_root = _secondary_reverse_event_edge(radius, dissipated_energy_density, i_end, i_end + 1)
+        else:
+            end_root = radius[i_end]
+        start_root = min(max(start_root, lower_bound), upper_bound)
+        end_root = min(max(end_root, start_root), upper_bound)
         active[i_jump] = True
-        start_radius[i_jump] = radius[i_start]
-        end_radius[i_jump] = radius[i_end]
-        start_tobs[i_jump] = tobs_axis[i_start]
-        end_tobs[i_jump] = tobs_axis[i_end]
+        start_radius[i_jump] = start_root
+        end_radius[i_jump] = end_root
+        start_tobs[i_jump] = np.interp(start_root, radius, tobs_axis)
+        end_tobs[i_jump] = np.interp(end_root, radius, tobs_axis)
     return active, start_radius, end_radius, start_tobs, end_tobs
+
+
+def _secondary_reverse_event_edge(radius: np.ndarray, source: np.ndarray, i_lo: int, i_hi: int) -> float:
+    if i_lo < 0:
+        return float(radius[i_hi])
+    if i_hi >= radius.shape[0]:
+        return float(radius[i_lo])
+    s_lo = float(source[i_lo])
+    s_hi = float(source[i_hi])
+    if s_lo == s_hi:
+        return float(radius[i_hi])
+    ratio = -s_lo / (s_hi - s_lo)
+    return float(radius[i_lo] + ratio * (radius[i_hi] - radius[i_lo]))
 
 
 def _secondary_reverse_build_reservoirs(
