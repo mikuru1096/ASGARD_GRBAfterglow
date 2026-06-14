@@ -10,7 +10,9 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from ASGARD.api_model import _make_details
 from asgard_core.asgard_config import FitConfig, ReverseShockConfig
+from asgard_core.asgard_numpy import trapezoid
 from asgard_core.asgard_physics_utils import ambient_density
 from asgard_core.asgard_state import make_query_setup, solve_state_from_setup
 
@@ -89,6 +91,10 @@ def _run_multi_bump_reverse() -> None:
     assert state.reverse_emission is not None
     assert state.reverse_emission.secondary_rs is not None
     secondary = state.reverse_emission.secondary_rs
+    details = _make_details(state.components, patches=[{"phi": 0.0, "theta": 0.0, "weight": 1.0}], state=state)
+    assert details.rev is not None
+    assert details.rev.secondary_rs_gamma_e is secondary.gam_e
+    assert details.rev.secondary_rs_dN_dgamma_e is secondary.d_n_gam_e
     assert np.all(np.isfinite(state.reverse_emission.l_syn_spec))
     assert np.any(secondary.luminosity_syn > 0.0)
     _assert_secondary_injection_inside_candidate_windows(state.dynamics.radius, secondary.dissipated_energy_density, config)
@@ -105,6 +111,8 @@ def _run_multi_bump_reverse() -> None:
         secondary.pressure_total,
         secondary.enthalpy_density_total,
         secondary.magnetic_field_g,
+        secondary.gam_e,
+        secondary.d_n_gam_e,
         secondary.nu_m,
         secondary.nu_c,
         secondary.nu_a,
@@ -130,6 +138,8 @@ def _run_multi_bump_reverse() -> None:
         assert secondary.pressure_total[last_injection + 1] > 0.0
         assert secondary.enthalpy_density_total[last_injection + 1] > 0.0
         assert secondary.magnetic_field_g[last_injection + 1] > 0.0
+        assert float(trapezoid(secondary.d_n_gam_e[:, last_injection + 1], secondary.gam_e)) > 0.0
+        assert np.any(secondary.luminosity_syn[:, last_injection + 1] > 0.0)
     assert np.all(secondary.pressure_total[reservoir] > 0.0)
     assert np.all(secondary.enthalpy_density_total[reservoir] > secondary.pressure_total[reservoir])
     assert np.allclose(

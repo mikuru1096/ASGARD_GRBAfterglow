@@ -565,6 +565,8 @@ class CharTrack:
     secondary_rs_pressure_total: Optional[np.ndarray] = None
     secondary_rs_enthalpy_density_total: Optional[np.ndarray] = None
     secondary_rs_B: Optional[np.ndarray] = None
+    secondary_rs_gamma_e: Optional[np.ndarray] = None
+    secondary_rs_dN_dgamma_e: Optional[np.ndarray] = None
     secondary_rs_nu_m: Optional[np.ndarray] = None
     secondary_rs_nu_c: Optional[np.ndarray] = None
     secondary_rs_nu_a: Optional[np.ndarray] = None
@@ -1562,6 +1564,8 @@ def _make_details(
             secondary_rs_pressure_total=None if secondary_rs is None else secondary_rs.pressure_total,
             secondary_rs_enthalpy_density_total=None if secondary_rs is None else secondary_rs.enthalpy_density_total,
             secondary_rs_B=None if secondary_rs is None else secondary_rs.magnetic_field_g,
+            secondary_rs_gamma_e=None if secondary_rs is None else secondary_rs.gam_e,
+            secondary_rs_dN_dgamma_e=None if secondary_rs is None else secondary_rs.d_n_gam_e,
             secondary_rs_nu_m=None if secondary_rs is None else secondary_rs.nu_m,
             secondary_rs_nu_c=None if secondary_rs is None else secondary_rs.nu_c,
             secondary_rs_nu_a=None if secondary_rs is None else secondary_rs.nu_a,

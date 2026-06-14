@@ -105,6 +105,8 @@ def _dynamics_reverse_module():
 @dataclass
 class SecondaryReverseShockState:
     luminosity_syn: np.ndarray
+    gam_e: np.ndarray
+    d_n_gam_e: np.ndarray
     event_active: np.ndarray
     start_radius_cm: np.ndarray
     shock_end_radius_cm: np.ndarray
@@ -2335,6 +2337,8 @@ def _compute_secondary_reverse_shock_synchrotron(
     nu_a = np.asarray(nu_a, dtype=float)
     return SecondaryReverseShockState(
         luminosity_syn=luminosity,
+        gam_e=gam_e_sec,
+        d_n_gam_e=dist,
         event_active=event_active,
         start_radius_cm=start_radius,
         shock_end_radius_cm=end_radius,
