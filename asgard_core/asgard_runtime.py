@@ -2379,13 +2379,8 @@ def _compute_secondary_reverse_shock_synchrotron(
     )
     gam_e_sec = np.asarray(gam_e_sec, dtype=float)
     dist = np.asarray(dist, dtype=float)
-    branch_luminosity = np.zeros((jump_r.size, v_seed.size, radius.size), dtype=float)
-    for i_jump in range(jump_r.size):
-        if not event_active[i_jump]:
-            continue
-        if not np.any(dyn_m3_branch[i_jump] > 0.0):
-            continue
-        gam_e_branch, dist_branch = _electron_reverse_module().electron_reverse_kernel.electron_secondary_reverse_evolve(
+    branch_luminosity, luminosity = (
+        _electron_reverse_module().electron_reverse_kernel.electron_secondary_reverse_branch_synchrotron(
             reverse_params.epsilon_e,
             reverse_params.epsilon_b,
             reverse_params.p,
@@ -2394,29 +2389,19 @@ def _compute_secondary_reverse_shock_synchrotron(
             dynamics.r_tobs,
             dynamics.r_gamma,
             radius,
-            dyn_b3_branch[i_jump],
-            dyn_m3_branch[i_jump],
-            dyn_u3_branch[i_jump],
-            dyn_v3_branch[i_jump],
-            gamma_m_branch[i_jump],
+            dyn_b3_branch,
+            dyn_m3_branch,
+            dyn_u3_branch,
+            dyn_v3_branch,
+            gamma_m_branch,
             v_seed,
             config.num_gam_e,
             config.index_syn_integr,
             config.num_threads,
         )
-        lum_branch, _, _ = _electron_reverse_module().electron_reverse_kernel.electron_secondary_reverse_synchrotron(
-            config.index_syn_integr,
-            config.num_threads,
-            radius,
-            gamma4_arr,
-            dyn_b3_branch[i_jump],
-            np.asarray(gam_e_branch, dtype=float),
-            np.asarray(dist_branch, dtype=float),
-            v_seed,
-            config.z,
-        )
-        branch_luminosity[i_jump] = np.asarray(lum_branch, dtype=float)
-    luminosity = np.sum(branch_luminosity, axis=0)
+    )
+    branch_luminosity = np.asarray(branch_luminosity, dtype=float)
+    luminosity = np.asarray(luminosity, dtype=float)
     _, _, nu_a = _electron_reverse_module().electron_reverse_kernel.electron_secondary_reverse_synchrotron(
         config.index_syn_integr,
         config.num_threads,

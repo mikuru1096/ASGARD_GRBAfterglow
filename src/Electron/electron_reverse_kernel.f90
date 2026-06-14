@@ -349,6 +349,38 @@ subroutine electron_secondary_reverse_synchrotron(index_syn_intger,Num_nu,Num_R,
     end do
 end subroutine electron_secondary_reverse_synchrotron
 
+! Secondary RS 分支辐射归并：每个 reservoir 独立输运电子谱，再在源项半径网格上求和。
+subroutine electron_secondary_reverse_branch_synchrotron(e_r,b_r,p_r,f_e_r,z,R_Tobs,R_Gamma,R,B3_branch, &
+                                                         M3_branch,U3_branch,V3_branch,Gam_m_branch,V_seed, &
+                                                         Num_jump,Num_nu,Num_R,Num_gam_e,index_syn_intger,n_threads, &
+                                                         Branch_L_syn_spec,L_syn_spec)
+    implicit none
+    integer, intent(in) :: Num_jump,Num_nu,Num_R,Num_gam_e,index_syn_intger,n_threads
+    integer :: I_jump
+    real(8), intent(in) :: e_r,b_r,p_r,f_e_r,z
+    real(8), intent(in) :: R_Tobs(Num_R),R_Gamma(Num_R),R(Num_R),V_seed(Num_nu)
+    real(8), intent(in) :: B3_branch(Num_jump,Num_R),M3_branch(Num_jump,Num_R),U3_branch(Num_jump,Num_R)
+    real(8), intent(in) :: V3_branch(Num_jump,Num_R),Gam_m_branch(Num_jump,Num_R)
+    real(8), intent(out) :: Branch_L_syn_spec(Num_jump,Num_nu,Num_R),L_syn_spec(Num_nu,Num_R)
+    real(8), allocatable :: gam_e_branch(:),dN_branch(:,:),seed_dummy(:,:),nu_a_dummy(:)
+
+    allocate(gam_e_branch(Num_gam_e),dN_branch(Num_gam_e,Num_R),seed_dummy(Num_nu,Num_R),nu_a_dummy(Num_R))
+    Branch_L_syn_spec=zero
+    L_syn_spec=zero
+    do I_jump=1,Num_jump
+        if (.not. any(M3_branch(I_jump,:) > zero)) cycle
+        call electron_secondary_reverse_evolve(e_r,b_r,p_r,f_e_r,z,R_Tobs,R_Gamma,R,B3_branch(I_jump,:), &
+                                               M3_branch(I_jump,:),U3_branch(I_jump,:),V3_branch(I_jump,:), &
+                                               Gam_m_branch(I_jump,:),V_seed,Num_nu,Num_R,Num_gam_e, &
+                                               index_syn_intger,n_threads,gam_e_branch,dN_branch)
+        call electron_secondary_reverse_synchrotron(index_syn_intger,Num_nu,Num_R,Num_gam_e,n_threads,R,R_Gamma, &
+                                                    B3_branch(I_jump,:),gam_e_branch,dN_branch,V_seed,z, &
+                                                    Branch_L_syn_spec(I_jump,:,:),seed_dummy,nu_a_dummy)
+        L_syn_spec=L_syn_spec+Branch_L_syn_spec(I_jump,:,:)
+    end do
+    deallocate(gam_e_branch,dN_branch,seed_dummy,nu_a_dummy)
+end subroutine electron_secondary_reverse_branch_synchrotron
+
 subroutine reverse_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m,Gam_e_max,injection_rate,p,dF1)
     implicit none
     integer, intent(in) :: Num_gam_e

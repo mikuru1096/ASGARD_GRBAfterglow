@@ -53,6 +53,7 @@ F2PY_ENTRYPOINTS = {
         "electron_reverse_evolve",
         "electron_secondary_reverse_evolve",
         "electron_secondary_reverse_synchrotron",
+        "electron_secondary_reverse_branch_synchrotron",
     ),
     "radiation_gamma_gamma_absorption": ("annihilation",),
     "radiation_reverse_seed": ("seed_reverse",),
