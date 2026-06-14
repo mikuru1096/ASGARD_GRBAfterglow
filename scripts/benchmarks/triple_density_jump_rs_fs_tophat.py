@@ -187,8 +187,13 @@ def _write_secondary_event_csv(model: Model, output: Path, times: np.ndarray) ->
             "shock_end_radius_cm",
             "start_tobs_axis_s",
             "shock_end_tobs_axis_s",
+            "cooling_tail_shells",
+            "cooling_tail_max_B_g",
+            "cooling_tail_max_luminosity",
+            "cooling_tail_max_log10_B_jump",
         ])
         for i_jump, radius_j in enumerate(JUMP_RADII_CM):
+            tail = _secondary_cooling_tail_metrics(details.rev, i_jump)
             writer.writerow([
                 i_jump,
                 radius_j,
@@ -198,8 +203,34 @@ def _write_secondary_event_csv(model: Model, output: Path, times: np.ndarray) ->
                 float(details.rev.secondary_rs_shock_end_radius[i_jump]),
                 float(details.rev.secondary_rs_start_tobs_axis[i_jump]),
                 float(details.rev.secondary_rs_shock_end_tobs_axis[i_jump]),
+                tail["shells"],
+                tail["max_B_g"],
+                tail["max_luminosity"],
+                tail["max_log10_B_jump"],
             ])
     return csv_path
+
+
+def _secondary_cooling_tail_metrics(track, i_jump: int) -> dict[str, float | int]:
+    radius = np.asarray(track.radius, dtype=float)
+    branch_b = np.asarray(track.secondary_rs_branch_B, dtype=float)
+    branch_lum = np.asarray(track.secondary_rs_branch_luminosity_syn, dtype=float)
+    end_radius = float(track.secondary_rs_shock_end_radius[i_jump])
+    mask = (radius > end_radius) & (branch_b[i_jump] > 0.0)
+    if not np.any(mask):
+        return {"shells": 0, "max_B_g": 0.0, "max_luminosity": 0.0, "max_log10_B_jump": 0.0}
+    tail_b = branch_b[i_jump, mask]
+    positive_b = tail_b[np.isfinite(tail_b) & (tail_b > 0.0)]
+    if positive_b.size > 1:
+        max_jump = float(np.max(np.abs(np.diff(np.log10(positive_b)))))
+    else:
+        max_jump = 0.0
+    return {
+        "shells": int(np.count_nonzero(mask)),
+        "max_B_g": float(np.max(positive_b)),
+        "max_luminosity": float(np.max(branch_lum[i_jump, :, mask])),
+        "max_log10_B_jump": max_jump,
+    }
 
 
 def build_plot(*, mode: str, output: Path, times_count: int | None = None) -> Path:
