@@ -107,6 +107,23 @@ Lan 2023 overlay 的峰值幅度已匹配，峰时仍偏早。当前证据指向
 
 baseline Vegas comparison 已按 `doc/benchmark_refresh_protocol.md` 全量刷新；含 AM3 对照或 hadronic-dominated scenario 的 FS formal hadronic benchmark figures 仍需在目标明确时单独刷新。含时 BH / joint photon benchmark 由 `scripts/benchmarks/time_dependent_bh_photon_benchmark.py` 生成，当前覆盖 weak-feedback、BH-active 和 strong-wind-BH 三组 separated/joint 对比。刷新前后必须记录 HEAD、tracked diff、完整命令、受影响 Fortran build 状态、输出路径和物理验收口径。
 
+### 8. Formal hadronic transport Fortran migration
+
+目标：满足“重要计算全部使用 Fortran 实现，Python 只保留接口和执行简单计算任务”。当前 `asgard_core/asgard_runtime.py::_solve_hadronic_hummer_transport_coupled` 仍在 Python 层推进 shell transport、pγ/BH/pp/secondary/hadronic-IC source-sink、电子冷却 remap 和能量预算累积；虽然底层 operator 多数已有 Fortran kernel，但 shell 序列推进本身仍是重要数值计算，不能作为 formal hadronic benchmark 的最终实现。
+
+实现契约：
+
+- 新增 Fortran 1D formal hadronic sequence driver，输入保持当前 shell-level contract：`radius`、`Gamma`、`Tobs`、`B`、seed photon field、shell injection energy、pp target density 和 hadronic config。
+- Python 只负责配置展开、数组传入、返回 `HadronicSolution` dataclass；不得在 Python 中循环 shell 更新 proton/neutron/π/μ/BH/pp secondary 状态、能量 remap 或 photon/electron source-sink。
+- `pair_cascade_iterations > 1` 已由 `f99d038` 迁入 Fortran；后续 formal driver 必须直接复用 Fortran pair cascade sequence，不恢复 Python substep 推进。
+- pγ/π/μ 二级电子反馈仍保持关闭，直到 formal kernel 输出归一化明确的 e± 注入谱和预算 benchmark。
+
+验收口径：
+
+- `hadronic_1d_smoke.py`、`electron_photon_joint_secondary_feedback_smoke.py`、pair cascade / pair branch smoke 均通过。
+- 与迁移前同一输入的 proton synch、pγ gamma、neutrino、BH/pp secondary luminosity 和 energy budget 在数值误差内一致，且随半径连续平滑。
+- 受影响 `hadronic_forward_1d` / `structured_jet_1d` build、干净 `/tmp` source closure `-Wline-truncation` 检查通过。
+
 ## 不做
 
 - 不删除 `tests/*.npz` baseline、`output/asgard_doc/**` benchmark artifacts 或文献/物理验收图，除非先按 benchmark refresh protocol 证明可复现且无记录价值。
