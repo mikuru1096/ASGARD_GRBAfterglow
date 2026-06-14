@@ -642,6 +642,37 @@ subroutine fs_hadronic_energy_luminosity_from_rate(num_energy,energy_gev,rate_pe
     luminosity(1:num_energy)=shell_volume_cm3*rate_per_gev(1:num_energy)*energy_gev(1:num_energy)*Para_h_GeV*Para_GeV2erg
 end subroutine fs_hadronic_energy_luminosity_from_rate
 
+! 正值 log-log 插值：只使用 finite 且正的源点，范围外输出零。
+subroutine fs_hadronic_positive_loglog_interp(num_src,num_dst,x_src,y_src,x_dst,y_dst)
+    use ieee_arithmetic, only: ieee_is_finite
+    implicit none
+    integer, intent(in) :: num_src,num_dst
+    real(8), intent(in) :: x_src(num_src),y_src(num_src),x_dst(num_dst)
+    real(8), intent(out) :: y_dst(num_dst)
+    integer :: i,j,n_valid
+    real(8) :: xv(num_src),yv(num_src),frac
+
+    y_dst=0d0; n_valid=0
+    do i=1,num_src
+        if (ieee_is_finite(x_src(i)) .and. ieee_is_finite(y_src(i)) .and. x_src(i) > 0d0 .and. y_src(i) > 0d0) then
+            n_valid=n_valid+1
+            xv(n_valid)=x_src(i)
+            yv(n_valid)=y_src(i)
+        end if
+    end do
+    if (n_valid < 2) return
+    do i=1,num_dst
+        if (x_dst(i) < xv(1) .or. x_dst(i) > xv(n_valid) .or. .not. ieee_is_finite(x_dst(i))) cycle
+        do j=1,n_valid-1
+            if (x_dst(i) >= xv(j) .and. x_dst(i) <= xv(j+1)) then
+                frac=dlog(x_dst(i)/xv(j))/dlog(xv(j+1)/xv(j))
+                y_dst(i)=dexp(dlog(yv(j))+frac*dlog(yv(j+1)/yv(j)))
+                exit
+            end if
+        end do
+    end do
+end subroutine fs_hadronic_positive_loglog_interp
+
 subroutine hadronic_sequence_shell_geometry(num_r,radius_cm,gamma_bulk,i_r,dr,dt_s)
     use constants
     implicit none

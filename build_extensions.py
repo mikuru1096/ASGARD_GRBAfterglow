@@ -82,6 +82,7 @@ F2PY_ENTRYPOINTS = {
         "fs_hadronic_pgamma_proton_update",
         "fs_hadronic_exponential_sink",
         "fs_hadronic_energy_luminosity_from_rate",
+        "fs_hadronic_positive_loglog_interp",
         "fs_hadronic_pp_spectral_source",
         "fs_hadronic_quantum_syn_cooling_factor",
     ),

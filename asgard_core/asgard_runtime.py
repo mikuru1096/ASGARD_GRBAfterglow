@@ -1844,19 +1844,14 @@ def _interp_positive_loglog(
     y_old: np.ndarray,
     x_new: np.ndarray,
 ) -> np.ndarray:
-    xsrc = np.asarray(x_old, dtype=float)
-    ysrc = np.asarray(y_old, dtype=float)
-    xdst = np.asarray(x_new, dtype=float)
-    out = np.zeros_like(xdst, dtype=float)
-    mask = np.isfinite(xsrc) & np.isfinite(ysrc) & (xsrc > 0.0) & (ysrc > 0.0)
-    if np.count_nonzero(mask) < 2:
-        return out
-    lx = np.log(xsrc[mask])
-    ly = np.log(ysrc[mask])
-    inside = (xdst >= xsrc[mask][0]) & (xdst <= xsrc[mask][-1])
-    if np.any(inside):
-        out[inside] = np.exp(np.interp(np.log(xdst[inside]), lx, ly))
-    return out
+    return np.asarray(
+        hadronic_legacy_module.fs_hadronic_positive_loglog_interp(
+            np.asarray(x_old, dtype=float),
+            np.asarray(y_old, dtype=float),
+            np.asarray(x_new, dtype=float),
+        ),
+        dtype=float,
+    )
 
 
 def _interp_distribution_per_gev(
