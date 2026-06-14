@@ -567,6 +567,32 @@ subroutine fs_hadronic_photon_loss_closure(num_ph,num_r,radius_cm,gamma_bulk,she
     end do
 end subroutine fs_hadronic_photon_loss_closure
 
+! 相互作用有效时间：对指数 sink 的同一步 reinjection 积分。
+subroutine fs_hadronic_interaction_effective_time(num_rate,rate_s_inv,dt_s,effective_time_s)
+    use constants
+    implicit none
+    integer, intent(in) :: num_rate
+    real(8), intent(in) :: rate_s_inv(num_rate),dt_s
+    real(8), intent(out) :: effective_time_s(num_rate)
+    integer :: i
+    real(8) :: tau
+
+    if (dt_s <= zero) error stop "hadronic interaction effective time requires dt_s > 0."
+    if (any(rate_s_inv < zero)) error stop "hadronic interaction effective time requires non-negative rates."
+    do i=1,num_rate
+        if (rate_s_inv(i) > zero) then
+            tau=rate_s_inv(i)*dt_s
+            if (tau < 1d-4) then
+                effective_time_s(i)=dt_s*(one-tau/two+tau*tau/6d0)
+            else
+                effective_time_s(i)=(one-dexp(-tau))/rate_s_inv(i)
+            end if
+        else
+            effective_time_s(i)=dt_s
+        end if
+    end do
+end subroutine fs_hadronic_interaction_effective_time
+
 subroutine hadronic_sequence_shell_geometry(num_r,radius_cm,gamma_bulk,i_r,dr,dt_s)
     use constants
     implicit none

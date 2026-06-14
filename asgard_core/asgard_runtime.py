@@ -1768,11 +1768,13 @@ def _hadronic_pg_local_closure(
 
 
 def _hadronic_interaction_effective_time(rate_s_inv: np.ndarray, dt_s: float) -> np.ndarray:
-    rate = np.asarray(rate_s_inv, dtype=float)
-    out = np.full_like(rate, float(dt_s), dtype=float)
-    active = rate > 0.0
-    out[active] = -np.expm1(-rate[active] * float(dt_s)) / rate[active]
-    return out
+    return np.asarray(
+        hadronic_legacy_module.fs_hadronic_interaction_effective_time(
+            np.asarray(rate_s_inv, dtype=float),
+            float(dt_s),
+        ),
+        dtype=float,
+    )
 
 
 def _hadronic_aligned_photon_grid(hadron_energy_gev: np.ndarray, photon_energy_gev: np.ndarray) -> np.ndarray:
