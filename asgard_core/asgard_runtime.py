@@ -1063,7 +1063,6 @@ def _solve_hadronic_hummer_transport_coupled(
     num_gam_p = int(config.hadronic.num_gam_p)
     num_nu_nu = int(config.hadronic.num_nu_nu)
     gam_e = np.asarray(electron_gamma, dtype=float)
-    gam_e_edge = _hadronic_build_gamma_edges(gam_e)
     electron_energy_gev = gam_e * ELECTRON_MASS_GEV
 
     gam_p = np.logspace(
@@ -1091,6 +1090,7 @@ def _solve_hadronic_hummer_transport_coupled(
     l_had_bh = np.zeros((num_nu, num_r), dtype=float)
     seed_had_bh = np.zeros((num_nu, num_r), dtype=float)
     d_n_gam_e_bh = np.zeros((gam_e.size, num_r), dtype=float)
+    q_secondary_electron = np.zeros((gam_e.size, num_r), dtype=float)
     secondary_electron_source_r = np.zeros((gam_e.size, num_r), dtype=float)
     l_had_hic = np.zeros((num_nu, num_r), dtype=float)
     tau_pg = np.zeros((num_nu, num_r), dtype=float)
@@ -1112,7 +1112,6 @@ def _solve_hadronic_hummer_transport_coupled(
     l_had_muon_ic = np.zeros((num_nu, num_r), dtype=float)
 
     d_n_prev = np.zeros(num_gam_p, dtype=float)
-    d_n_bh_prev = np.zeros(gam_e.size, dtype=float)
     species_state_prev = HadronicSpeciesState(
         neutron=NeutronDistribution(gamma=gam_secondary, density_per_gamma=np.zeros_like(gam_secondary)),
         charged_pion=ChargedPionDistribution(
@@ -1505,10 +1504,10 @@ def _solve_hadronic_hummer_transport_coupled(
             timings["hadronic_ic"] += time.perf_counter() - t_hic_start
 
         if bh_output is not None or bool(config.hadronic.include_pp):
-            t_bhe_start = time.perf_counter()
             q_bh = np.array(pp_pair_q, copy=True)
             if bh_output is not None:
                 q_bh += shell_volume_loc * np.asarray(bh_output.pair_rate_per_gev, dtype=float) * ELECTRON_MASS_GEV
+            q_secondary_electron[:, i_r] = q_bh
             secondary_electron_source_r[:, i_r] = (
                 q_bh
                 * _hadronic_shell_comoving_dt_from_radius(radius, gamma_bulk, i_r)
@@ -1516,36 +1515,27 @@ def _solve_hadronic_hummer_transport_coupled(
                 * gam_e
                 * np.log(10.0)
             )
-            loss_bh_e = _hadronic_electron_loss_rates(
-                gam_e, float(b_field[i_r]), t_dyn_s,
-                quantum_syn=bool(config.hadronic.quantum_syn),
-            )
-            d_n_bh_next = _hadronic_advance_energy_loggamma(
-                gam_e,
-                gam_e_edge,
-                d_n_bh_prev,
-                q_bh,
-                loss_bh_e,
-                dt_s,
-            )
-            p_bh_i, seed_bh_i = electron_radiation_module.get_syn_selected(
-                int(config.index_syn_integr),
-                float(radius[i_r]),
-                float(b_field[i_r]),
-                int(config.num_threads),
-                gam_e,
-                d_n_bh_next,
-                v_seed_arr,
-            )
-            l_had_bh[:, i_r] = np.asarray(p_bh_i, dtype=float)
-            seed_had_bh[:, i_r] = np.asarray(seed_bh_i, dtype=float)
-            d_n_gam_e_bh[:, i_r] = d_n_bh_next
-            d_n_bh_prev = d_n_bh_next
-            timings["bh_electron_radiation"] += time.perf_counter() - t_bhe_start
 
         d_n_prev = d_n_next
         species_state_prev = species_state_next
 
+    if bool(config.hadronic.include_bethe_heitler) or bool(config.hadronic.include_pp):
+        t_bhe_start = time.perf_counter()
+        d_n_gam_e_bh, l_had_bh, seed_had_bh = hadronic_legacy_module.fs_hadronic_secondary_electron_sequence(
+            gam_e,
+            radius,
+            gamma_bulk,
+            b_field,
+            v_seed_arr,
+            q_secondary_electron,
+            int(config.index_syn_integr),
+            int(config.num_threads),
+            1 if bool(config.hadronic.quantum_syn) else 0,
+        )
+        d_n_gam_e_bh = np.asarray(d_n_gam_e_bh, dtype=float)
+        l_had_bh = np.asarray(l_had_bh, dtype=float)
+        seed_had_bh = np.asarray(seed_had_bh, dtype=float)
+        timings["bh_electron_radiation"] += time.perf_counter() - t_bhe_start
     timings["total"] = time.perf_counter() - t_total_start
     l_had_syn_spec *= pg_photon_survival
     seed_had_syn *= pg_photon_survival
