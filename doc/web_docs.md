@@ -58,6 +58,41 @@ HEtools 的 afterglow 页面从 `base_func/afterglow_base_func.py` 调用 ASGARD
 - `127.0.0.1:8501`、`127.0.0.1:8502` 正常监听。
 - live `afterglow_base_func.py` 可导入，`ASGARD_fs_fluxdensity` 最小 smoke test 通过。
 
+### HEtools Afterglow_modeling 页面
+
+`https://hetools.cn/Afterglow_modeling` 由 `pages/Afterglow_modeling.py` 提供 UI，由 `base_func/afterglow_base_func.py` 提供 ASGARD / VegasAfterglow / jetsimpy 计算入口。当前页面功能基线：
+
+- ASGARD 和 VegasAfterglow 支持可配置时间网格、额外单频 Hz、ASGARD `Formal` / `Quick` 精度预设、lightcurve 和 SED 输出。
+- SSC 作为显式开关提供给 ASGARD 和 VegasAfterglow，默认关闭；开启后 ASGARD 返回 forward synchrotron + SSC，总 flux 形状不变，VegasAfterglow 通过 `Radiation(..., ssc=True)` 计算总辐射。jetsimpy 保持 legacy comparison，不接 SSC。
+- 模型按 ASGARD -> VegasAfterglow -> jetsimpy 串行运行；不并行抢占 CPU。
+- `st.cache_data(max_entries=64)` 缓存 raw arrays，不缓存 Matplotlib figure；cache key 包含模型名、物理参数、时间网格、频率、ASGARD 精度预设、`include_ssc` 和 `HETOOLS_DEPLOYED_ASGARD_HEAD.txt`。
+- 页面输出 `Lightcurve`、`SED`、`Downloads`、`Diagnostics` tabs；CSV/PNG 下载由页面即时从 raw arrays 和 figure 生成。
+- jetsimpy 保持 legacy lightcurve comparison，不扩展 SED。
+
+ASGARD SSC 线上依赖 `src/Radiation/radiation_ssc_spectrum*.so`。若重新部署 ASGARD 代码且该扩展缺失，需要在远端 ASGARD root 运行 `-Wline-truncation` 源闭包检查后执行：
+
+```bash
+rtk bash -lc 'source ~/.wsl_env && ssh wangyun@100.108.14.93 "cd /home/wangyun/Desktop/HEtools_web_beta_v03/base_func/ASGARD_GRBAfterglow-main && PATH=/home/wangyun/anaconda3/envs/mylab/bin:\$PATH /home/wangyun/anaconda3/envs/mylab/bin/python build_extensions.py --force --module radiation_ssc_spectrum"'
+```
+
+最近一次页面升级备份：
+
+- Main upgrade backup: `/home/wangyun/Desktop/HEtools_web_beta_v03_backups/afterglow_upgrade_20260615_195413`
+- Compatibility fix backup: `/home/wangyun/Desktop/HEtools_web_beta_v03_backups/afterglow_upgrade_fix_20260615_195625`
+- Page state fix backup: `/home/wangyun/Desktop/HEtools_web_beta_v03_backups/afterglow_page_state_fix_20260615_195830`
+- Width API fix backup: `/home/wangyun/Desktop/HEtools_web_beta_v03_backups/afterglow_width_fix_20260615_195940`
+- SSC switch backup: `/home/wangyun/Desktop/HEtools_web_beta_v03_backups/afterglow_ssc_20260615_200922`
+
+页面改动后必须验收：
+
+- `py_compile menu.py pages/Afterglow_modeling.py base_func/afterglow_base_func.py` 通过。
+- `ASGARD_fs_fluxdensity` 标量和数组频率输入都保持 `(180,)`、`(Nfreq, 180)` 形状且 finite。
+- ASGARD / VegasAfterglow lightcurve smoke 通过；ASGARD / VegasAfterglow SED smoke 通过。
+- `include_ssc=True` 时，ASGARD / VegasAfterglow lightcurve 和 SED smoke 均通过，输出 finite 且形状不变。
+- 重复调用同一 `cached_lightcurve_payload` 的第二次请求明显命中缓存。
+- `streamlit.testing.v1.AppTest` 初始加载和默认 `Run` 均无 exception，并出现 `Lightcurve`、`SED`、`Downloads`、`Diagnostics` tabs。
+- 公网 `https://hetools.cn/`、`https://hetools.cn/Afterglow_modeling`、`https://hetools.cn/asgard-doc/` 均返回 200。
+
 ## GitHub 设置
 
 在 `mikuru1096/ASGARD_private` 中执行一次性设置：
