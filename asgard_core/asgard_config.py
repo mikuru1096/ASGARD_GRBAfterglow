@@ -19,6 +19,7 @@ import numpy as np
 from src import constants
 
 MAX_DENSITY_JUMPS = 8
+MAX_DENSITY_PROFILE_POINTS = 96
 
 
 def default_num_threads() -> int:
@@ -162,6 +163,8 @@ class PhysicsConfig:
     jump_r_cm: tuple[float, ...] = field(default_factory=tuple)
     jump_factor: tuple[float, ...] = field(default_factory=tuple)
     jump_width_log10: tuple[float, ...] = field(default_factory=tuple)
+    density_profile_radius_cm: tuple[float, ...] = field(default_factory=tuple)
+    density_profile_n_cm3: tuple[float, ...] = field(default_factory=tuple)
 
     # Reverse shock
     reverse_shock: ReverseShockConfig = field(default_factory=ReverseShockConfig)
@@ -192,6 +195,12 @@ class NumericalConfig:
     geometry_kernel: str = "sed_legacy"
     electron_photon_coupling: str = "separated"
     structured_backend: str = "fortran_1d"
+    patch_sampling: str = "uniform"
+    patch_projection: str = "auto"
+    patch_sampling_pilot_theta: int = 0
+    patch_sampling_num_times: int = 12
+    patch_sampling_beaming_factor: float = 3.0
+    patch_sampling_beaming_resolution: float = 8.0
     structured_parallel_mode: str = "outer"
     structured_outer_threads: Optional[int] = None
     structured_inner_threads: Optional[int] = None
@@ -257,6 +266,12 @@ class FitConfig:
     geometry_kernel: str = "sed_legacy"
     electron_photon_coupling: str = "separated"
     structured_backend: str = "fortran_1d"
+    patch_sampling: str = "uniform"
+    patch_projection: str = "auto"
+    patch_sampling_pilot_theta: int = 0
+    patch_sampling_num_times: int = 12
+    patch_sampling_beaming_factor: float = 3.0
+    patch_sampling_beaming_resolution: float = 8.0
     structured_parallel_mode: str = "outer"
     structured_outer_threads: Optional[int] = None
     structured_inner_threads: Optional[int] = None
@@ -309,6 +324,8 @@ class FitConfig:
     jump_r_cm: tuple[float, ...] = field(default_factory=tuple)
     jump_factor: tuple[float, ...] = field(default_factory=tuple)
     jump_width_log10: tuple[float, ...] = field(default_factory=tuple)
+    density_profile_radius_cm: tuple[float, ...] = field(default_factory=tuple)
+    density_profile_n_cm3: tuple[float, ...] = field(default_factory=tuple)
 
     num_tobs: int = 200
     t_obs_min_log10: float = 2.0
@@ -358,6 +375,8 @@ class FitConfig:
             jump_r_cm=self.jump_r_cm,
             jump_factor=self.jump_factor,
             jump_width_log10=self.jump_width_log10,
+            density_profile_radius_cm=self.density_profile_radius_cm,
+            density_profile_n_cm3=self.density_profile_n_cm3,
             reverse_shock=self.reverse_shock,
             hadronic=self.hadronic,
         )
@@ -383,6 +402,12 @@ class FitConfig:
             geometry_kernel=self.geometry_kernel,
             electron_photon_coupling=self.electron_photon_coupling,
             structured_backend=self.structured_backend,
+            patch_sampling=self.patch_sampling,
+            patch_projection=self.patch_projection,
+            patch_sampling_pilot_theta=self.patch_sampling_pilot_theta,
+            patch_sampling_num_times=self.patch_sampling_num_times,
+            patch_sampling_beaming_factor=self.patch_sampling_beaming_factor,
+            patch_sampling_beaming_resolution=self.patch_sampling_beaming_resolution,
             structured_parallel_mode=self.structured_parallel_mode,
             structured_outer_threads=self.structured_outer_threads,
             structured_inner_threads=self.structured_inner_threads,

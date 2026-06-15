@@ -41,6 +41,7 @@ from .api_model import (
     StepPowerLawJet,
     TophatJet,
     TwoComponentJet,
+    DensityProfile,
     Wind,
     _angular_separation,
     _build_fit_config_for_patch,
@@ -1107,7 +1108,9 @@ def _build_model_from_fit_config(config: FitConfig) -> Model:
     reverse = getattr(config, "reverse_shock", None)
     reverse_enabled = bool(reverse and reverse.enabled)
 
-    if config.a_star > 0.0:
+    if len(config.density_profile_radius_cm) > 0 or len(config.density_profile_n_cm3) > 0:
+        medium = DensityProfile(config.density_profile_radius_cm, config.density_profile_n_cm3)
+    elif config.a_star > 0.0:
         medium = Wind(A_star=config.a_star, n0=config.d_ne)
     else:
         medium = ISM(n_ism=config.d_ne)
@@ -1173,6 +1176,12 @@ def _build_model_from_fit_config(config: FitConfig) -> Model:
             geometry_kernel=config.geometry_kernel,
             electron_photon_coupling=config.electron_photon_coupling,
             structured_backend=config.structured_backend,
+            patch_sampling=config.patch_sampling,
+            patch_projection=config.patch_projection,
+            patch_sampling_pilot_theta=config.patch_sampling_pilot_theta,
+            patch_sampling_num_times=config.patch_sampling_num_times,
+            patch_sampling_beaming_factor=config.patch_sampling_beaming_factor,
+            patch_sampling_beaming_resolution=config.patch_sampling_beaming_resolution,
             structured_parallel_mode=config.structured_parallel_mode,
             structured_outer_threads=config.structured_outer_threads,
             structured_inner_threads=config.structured_inner_threads,

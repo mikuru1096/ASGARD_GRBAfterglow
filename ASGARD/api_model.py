@@ -10,14 +10,22 @@ import numpy as np
 from asgard_core.asgard_config import (
     FitConfig,
     HadronicConfig,
+    MAX_DENSITY_PROFILE_POINTS,
     ReverseShockConfig,
     SpectrumOutputConfig,
     default_num_threads,
 )
 from asgard_core.asgard_numpy import trapezoid
 from asgard_core.asgard_observables import build_multiband_observer_frequencies, combine_multiband_flux
-from asgard_core.asgard_state import FluxComponents, SolveState, make_query_setup, make_tgrid, solve_state_from_setup
-from src import constants
+from asgard_core.asgard_state import (
+    FluxComponents,
+    SolveState,
+    make_query_cfg,
+    make_query_setup,
+    make_tgrid,
+    solve_state_from_setup,
+)
+from src import Interpolation, constants
 
 class Scale(str, Enum):
     LINEAR = "linear"
@@ -36,6 +44,8 @@ class Medium:
     A_star: float = 0.0
     n0: float | None = None
     k: float = 2.0
+    density_profile_radius_cm: tuple[float, ...] = field(default_factory=tuple)
+    density_profile_n_cm3: tuple[float, ...] = field(default_factory=tuple)
     kernel_params: dict | None = None
 
     def density(self, phi: float, theta: float, radius_cm: float) -> float:
@@ -111,9 +121,74 @@ def _wind_kernel_params(A_star: float, n_ism: float, n0: float | None, k: float)
     return {"d_ne": n_ism, "a_star": A_star, "r0": r0}
 
 
+def make_density_profile_medium(radius_cm, n_cm3, label: str = "density_profile") -> Medium:
+    radius = tuple(float(value) for value in radius_cm)
+    density = tuple(float(value) for value in n_cm3)
+    _validate_density_profile(radius, density)
+    radius_arr = np.asarray(radius, dtype=float)
+    density_arr = np.asarray(density, dtype=float)
+
+    def _rho(_phi, _theta, rc):
+        values = np.exp(np.interp(np.log(np.asarray(rc, dtype=float)), np.log(radius_arr), np.log(density_arr)))
+        return float(values) if values.ndim == 0 else values
+
+    return Medium(
+        rho=_rho,
+        kind="density_profile",
+        label=label,
+        n_ism=float(density[-1]),
+        density_profile_radius_cm=radius,
+        density_profile_n_cm3=density,
+        kernel_params={"d_ne": float(density[-1]), "a_star": -1.0},
+    )
+
+
+def make_late_wr_activity_density_profile() -> Medium:
+    pc = 3.0856775814913673e18
+    radius_pc = (
+        0.010, 0.030, 0.080, 0.200, 0.450,
+        0.620, 0.700, 0.820,
+        1.050, 1.180, 1.320, 1.520,
+        1.850, 2.100, 2.320, 2.650,
+        3.150, 3.500, 3.820, 4.300,
+        4.850, 5.300, 6.000,
+    )
+    density_cm3 = (
+        5.0e2, 5.6e1, 7.8e0, 1.25e0, 2.47e-1,
+        1.30e-1, 8.2e-1, 1.05e-1,
+        4.5e-2, 5.0e-1, 4.2e-2, 2.2e-2,
+        1.46e-2, 2.3e-1, 1.0e-2, 7.1e-3,
+        5.0e-3, 7.0e-2, 3.4e-3, 2.7e-3,
+        2.1e-2, 1.8e-3, 1.4e-3,
+    )
+    radius_cm = tuple(value * pc for value in radius_pc)
+    return make_density_profile_medium(radius_cm, density_cm3, label="fryer_2006_late_wr_free_wind_episodes")
+
+
+def _validate_density_profile(radius: tuple[float, ...], density: tuple[float, ...]) -> None:
+    radius_arr = np.asarray(radius, dtype=float)
+    density_arr = np.asarray(density, dtype=float)
+    if radius_arr.shape != density_arr.shape:
+        raise ValueError("density profile radius and density arrays must have the same length.")
+    if radius_arr.size < 2:
+        raise ValueError("density profile requires at least two points.")
+    if radius_arr.size > MAX_DENSITY_PROFILE_POINTS:
+        raise ValueError(f"At most {MAX_DENSITY_PROFILE_POINTS} density profile points are supported.")
+    if not np.all(np.isfinite(radius_arr)) or not np.all(np.isfinite(density_arr)):
+        raise ValueError("density profile arrays must contain finite values.")
+    if np.any(radius_arr <= 0.0) or np.any(density_arr <= 0.0):
+        raise ValueError("density profile radii and densities must be positive.")
+    if np.any(np.diff(radius_arr) <= 0.0):
+        raise ValueError("density profile radii must be strictly increasing.")
+
+
 # Backward-compatible aliases
 ISM = make_ism_medium
 Wind = make_wind_medium
+DensityProfile = make_density_profile_medium
+LateWRActivityDensityProfile = make_late_wr_activity_density_profile
+PostLBVWRWindShellDensityProfile = make_late_wr_activity_density_profile
+WRWindBubbleDensityProfile = make_late_wr_activity_density_profile
 
 
 class Magnetar(NamedTuple):
@@ -460,6 +535,8 @@ class Setups:
     jump_r_cm: tuple[float, ...] = field(default_factory=tuple)
     jump_factor: tuple[float, ...] = field(default_factory=tuple)
     jump_width_log10: tuple[float, ...] = field(default_factory=tuple)
+    density_profile_radius_cm: tuple[float, ...] = field(default_factory=tuple)
+    density_profile_n_cm3: tuple[float, ...] = field(default_factory=tuple)
     reverse_delta_t_s: float = 10.0
     reverse_sigma: float = 0.0
     include_cross_zone_ic: bool = False
@@ -471,6 +548,12 @@ class Setups:
     geometry_kernel: str = "sed_legacy"
     electron_photon_coupling: str = "separated"
     structured_backend: str = "fortran_1d"
+    patch_sampling: str = "uniform"
+    patch_projection: str = "auto"
+    patch_sampling_pilot_theta: int = 0
+    patch_sampling_num_times: int = 12
+    patch_sampling_beaming_factor: float = 3.0
+    patch_sampling_beaming_resolution: float = 8.0
     structured_parallel_mode: str = "outer"
     structured_outer_threads: Optional[int] = None
     structured_inner_threads: Optional[int] = None
@@ -1027,7 +1110,7 @@ class Model:
         return details
 
     def _supports_direct_kernel(self) -> bool:
-        return self.medium.kind in ("ism", "wind")
+        return self.medium.kind in ("ism", "wind", "density_profile")
 
     def _apply_resolutions(self, resolutions: tuple[float, float, int]) -> None:
         theta_ppd, phi_ppd, t_ppd = resolutions
@@ -1046,7 +1129,20 @@ class Model:
         if t_min <= 0.0 or t_max <= 0.0 or t_max <= t_min:
             return int(self.setups.num_tobs)
         decades = np.log10(float(t_max) / float(t_min))
-        return max(int(self.setups.num_tobs), int(np.ceil(8.0 * decades)))
+        samples_per_decade = 96.0 if self._needs_secondary_rs_time_resolution() else 8.0
+        return max(int(self.setups.num_tobs), int(np.ceil(samples_per_decade * decades)))
+
+    def _needs_secondary_rs_time_resolution(self) -> bool:
+        return bool(
+            self.setups.rvs_shock
+            and len(self.setups.jump_r_cm) > 0
+            and len(self.setups.jump_factor) > 0
+            and len(self.setups.jump_width_log10) > 0
+        ) or bool(
+            self.setups.rvs_shock
+            and len(self.setups.density_profile_radius_cm) > 0
+            and len(self.setups.density_profile_n_cm3) > 0
+        )
 
 
 def _solve_patch_state(
@@ -1076,9 +1172,11 @@ def _solve_patch_state(
                 log_t_max = log_t_max_requested + log_step
             solve_t_max = 10.0**log_t_max
         solve_times_s = np.logspace(np.log10(solve_t_min), np.log10(solve_t_max), solve_count)
-    setup = make_query_setup(config, solve_times_s, requested_frequencies_hz)
+    query_config = make_query_cfg(config, solve_times_s)
+    query_config.num_r = max(int(query_config.num_r), int(solve_times_s.size))
+    setup = make_query_setup(query_config, solve_times_s, requested_frequencies_hz)
     return solve_state_from_setup(
-        config,
+        query_config,
         setup,
         timings=timings,
         requested_frequencies_hz=requested_frequencies_hz,
@@ -1136,7 +1234,20 @@ def _solve_patch_model(
     solve_reference_times_s: np.ndarray | None = None,
     projection_kind: str = "lightcurve",
 ) -> tuple[FluxResult, TrackBundle]:
-    if str(getattr(model.setups, "structured_backend", "fortran_1d")).lower() != "python_patch":
+    structured_backend = str(getattr(model.setups, "structured_backend", "fortran_1d")).lower()
+    patch_sampling = str(getattr(model.setups, "patch_sampling", "uniform")).lower()
+    from asgard_core.angular_sampling import SUPPORTED_PATCH_SAMPLING
+
+    if patch_sampling not in SUPPORTED_PATCH_SAMPLING:
+        raise ValueError(
+            f"Unknown patch_sampling={patch_sampling!r}; expected one of {SUPPORTED_PATCH_SAMPLING}."
+        )
+    if structured_backend != "python_patch":
+        if patch_sampling != "uniform":
+            raise NotImplementedError(
+                "patch_sampling='dominant_region_ioka_v1' is only supported by "
+                "structured_backend='python_patch'."
+            )
         if solve_reference_times_s is not None:
             raise NotImplementedError("structured_backend='fortran_1d' does not yet support external solve_reference_times_s.")
         from asgard_core.structured_jet_kernel import solve_structured_jet_fortran
@@ -1171,7 +1282,16 @@ def _solve_patch_model_python(
     details_fwd: Optional[CharTrack] = None
     details_rev: Optional[CharTrack] = None
 
-    for phi_center, theta_center, patch_half_angle in _iter_patches(model):
+    patch_sampling = str(getattr(model.setups, "patch_sampling", "uniform")).lower()
+    patch_projection = _resolve_patch_projection(model, patch_sampling)
+    if patch_projection == "surface_element" and _patch_grid_is_axisymmetric(model):
+        return _solve_axisymmetric_surface_patch_model_python(
+            model,
+            times_s,
+            nu_hz,
+            solve_reference_times_s=solve_reference_times_s,
+        )
+    for phi_center, theta_center, patch_half_angle, domega in _iter_patch_elements(model, times_s):
         e_iso = model.jet.energy_iso(phi_center, theta_center)
         gamma0 = model.jet.gamma0(phi_center, theta_center)
         if e_iso <= 0.0 or gamma0 <= 1.0:
@@ -1193,7 +1313,10 @@ def _solve_patch_model_python(
             nu_hz,
             solve_reference_times_s=solve_reference_times_s,
         )
-        observed = _observe_parts(state, times_s, nu_hz, projection_kind=projection_kind)
+        if patch_projection == "tophat_cell":
+            observed = _observe_parts(state, times_s, nu_hz, projection_kind=projection_kind)
+        else:
+            observed = _observe_surface_element_parts(state, times_s, nu_hz, domega)
         total += observed.total
         fwd_sync_total += observed.fwd.sync
         fwd_ssc_total += observed.fwd.ssc
@@ -1207,10 +1330,100 @@ def _solve_patch_model_python(
                 "theta": float(theta_center),
                 "theta_v": float(theta_v),
                 "half_angle": float(patch_half_angle),
+                "domega": float(domega),
+                "patch_sampling": patch_sampling,
+                "patch_projection": patch_projection,
                 "E_iso": float(e_iso),
                 "Gamma0": float(gamma0),
             }
         )
+        if details_fwd is None:
+            details = _make_details(state.components, patches_meta, state=state)
+            details_fwd = details.fwd
+            details_rev = details.rev
+
+    if details_fwd is None:
+        raise ValueError("No active jet patches were found for the requested structured jet.")
+    return (
+        FluxResult(
+            total=total,
+            fwd=FluxPair(sync=fwd_sync_total, ssc=fwd_ssc_total),
+            rev=FluxPair(sync=rev_sync_total, ssc=rev_ssc_total),
+            cross_ic=cross_ic_total,
+        ),
+        TrackBundle(fwd=details_fwd, rev=details_rev, patches=patches_meta),
+    )
+
+
+def _solve_axisymmetric_surface_patch_model_python(
+    model: Model,
+    times_s: np.ndarray,
+    nu_hz: np.ndarray,
+    solve_reference_times_s: np.ndarray | None = None,
+) -> tuple[FluxResult, TrackBundle]:
+    from asgard_core.angular_sampling import build_patch_grid
+
+    grid = build_patch_grid(model, times_s)
+    total = np.zeros((nu_hz.shape[0], times_s.shape[0]), dtype=float)
+    fwd_sync_total = np.zeros_like(total)
+    fwd_ssc_total = np.zeros_like(total)
+    rev_sync_total = np.zeros_like(total)
+    rev_ssc_total = np.zeros_like(total)
+    cross_ic_total = np.zeros_like(total)
+    patches_meta: list[dict[str, float]] = []
+    details_fwd: Optional[CharTrack] = None
+    details_rev: Optional[CharTrack] = None
+    patch_sampling = str(getattr(model.setups, "patch_sampling", "uniform")).lower()
+
+    for i_theta, theta_center_value in enumerate(grid.theta_centers):
+        theta_center = float(theta_center_value)
+        e_iso = model.jet.energy_iso(0.0, theta_center)
+        gamma0 = model.jet.gamma0(0.0, theta_center)
+        if e_iso <= 0.0 or gamma0 <= 1.0:
+            continue
+        config = _build_fit_config_for_patch(
+            model,
+            phi_center=0.0,
+            theta_v=0.0,
+            opening_angle_jet=float(grid.patch_half_angle[i_theta, 0]),
+            e_iso=e_iso,
+            gamma0=gamma0,
+            theta_center=theta_center,
+        )
+        state = _solve_patch_state(
+            model,
+            config,
+            times_s,
+            nu_hz,
+            solve_reference_times_s=solve_reference_times_s,
+        )
+        boundary = state.setup.boundary
+        for i_phi, phi_center_value in enumerate(grid.phi_centers):
+            phi_center = float(phi_center_value)
+            domega = float(grid.domega[i_theta, i_phi])
+            theta_v = _angular_separation(theta_center, phi_center, model.observer.theta_obs, model.observer.phi_obs)
+            boundary[9] = theta_v
+            observed = _observe_surface_element_parts(state, times_s, nu_hz, domega)
+            total += observed.total
+            fwd_sync_total += observed.fwd.sync
+            fwd_ssc_total += observed.fwd.ssc
+            rev_sync_total += observed.rev.sync
+            rev_ssc_total += observed.rev.ssc
+            if observed.cross_ic is not None:
+                cross_ic_total += observed.cross_ic
+            patches_meta.append(
+                {
+                    "phi": phi_center,
+                    "theta": theta_center,
+                    "theta_v": float(theta_v),
+                    "half_angle": float(grid.patch_half_angle[i_theta, i_phi]),
+                    "domega": domega,
+                    "patch_sampling": patch_sampling,
+                    "patch_projection": "surface_element",
+                    "E_iso": float(e_iso),
+                    "Gamma0": float(gamma0),
+                }
+            )
         if details_fwd is None:
             details = _make_details(state.components, patches_meta, state=state)
             details_fwd = details.fwd
@@ -1234,7 +1447,9 @@ def _patch_details(model: Model, times_s: np.ndarray) -> TrackBundle:
     first_component: Optional[FluxComponents] = None
     first_details: Optional[TrackBundle] = None
 
-    for phi_center, theta_center, patch_half_angle in _iter_patches(model):
+    patch_sampling = str(getattr(model.setups, "patch_sampling", "uniform")).lower()
+    patch_projection = _resolve_patch_projection(model, patch_sampling)
+    for phi_center, theta_center, patch_half_angle, domega in _iter_patch_elements(model, times_s):
         e_iso = model.jet.energy_iso(phi_center, theta_center)
         gamma0 = model.jet.gamma0(phi_center, theta_center)
         if e_iso <= 0.0 or gamma0 <= 1.0:
@@ -1246,6 +1461,9 @@ def _patch_details(model: Model, times_s: np.ndarray) -> TrackBundle:
                 "theta": float(theta_center),
                 "theta_v": float(theta_v),
                 "half_angle": float(patch_half_angle),
+                "domega": float(domega),
+                "patch_sampling": patch_sampling,
+                "patch_projection": patch_projection,
                 "E_iso": float(e_iso),
                 "Gamma0": float(gamma0),
             }
@@ -1267,6 +1485,112 @@ def _patch_details(model: Model, times_s: np.ndarray) -> TrackBundle:
     if first_component is None or first_details is None:
         raise ValueError("No active jet patches were found for the requested structured jet.")
     return first_details
+
+
+def _resolve_patch_projection(model: Model, patch_sampling: str) -> str:
+    projection = str(getattr(model.setups, "patch_projection", "auto")).lower()
+    if projection == "auto":
+        return "tophat_cell" if patch_sampling == "uniform" else "surface_element"
+    if projection in {"tophat_cell", "surface_element"}:
+        return projection
+    raise ValueError("patch_projection must be 'auto', 'tophat_cell', or 'surface_element'.")
+
+
+def _patch_grid_is_axisymmetric(model: Model) -> bool:
+    return str(getattr(model.jet, "kind", "")).lower() in {
+        "tophat",
+        "gaussian",
+        "powerlaw",
+        "twocomponent",
+        "steppowerlaw",
+    }
+
+
+def _observe_surface_element_parts(
+    state: SolveState,
+    times_s: np.ndarray,
+    nu_hz: np.ndarray,
+    domega: float,
+) -> FluxResult:
+    from asgard_core.asgard_state import _build_observer_setup_from_state
+
+    setup = _build_observer_setup_from_state(state, times_s)
+    components = state.components
+    fwd_sync = _project_surface_element(
+        setup,
+        components.fwd.characteristic_time_s,
+        components.fwd.gamma,
+        components.fwd.radius_cm,
+        setup.seed_frequency_hz,
+        components.fwd_sync,
+        nu_hz,
+        domega,
+    )
+    fwd_ssc = _project_optional_surface_element(setup, components, components.fwd_ssc, nu_hz, domega)
+    rev_sync = _project_optional_surface_element(setup, components, components.rev_sync, nu_hz, domega)
+    rev_ssc = _project_optional_surface_element(setup, components, components.rev_ssc, nu_hz, domega)
+    cross_ic = _project_optional_surface_element(setup, components, components.cross_ic, nu_hz, domega)
+    total = fwd_sync + fwd_ssc + rev_sync + rev_ssc + cross_ic
+    return FluxResult(
+        total=total,
+        fwd=FluxPair(sync=fwd_sync, ssc=fwd_ssc),
+        rev=FluxPair(sync=rev_sync, ssc=rev_ssc),
+        cross_ic=cross_ic,
+    )
+
+
+def _project_optional_surface_element(
+    setup,
+    components: FluxComponents,
+    source: np.ndarray | None,
+    nu_hz: np.ndarray,
+    domega: float,
+) -> np.ndarray:
+    if source is None:
+        return np.zeros((nu_hz.shape[0], setup.observer_time_s.shape[0]), dtype=float)
+    return _project_surface_element(
+        setup,
+        components.fwd.characteristic_time_s,
+        components.fwd.gamma,
+        components.fwd.radius_cm,
+        setup.seed_frequency_hz,
+        source,
+        nu_hz,
+        domega,
+    )
+
+
+def _project_surface_element(
+    setup,
+    characteristic_time_s: np.ndarray,
+    gamma: np.ndarray,
+    radius_cm: np.ndarray,
+    seed_frequency_hz: np.ndarray,
+    absorbed_spectral_flux: np.ndarray,
+    frequencies_hz: np.ndarray,
+    domega: float,
+) -> np.ndarray:
+    if not np.any(absorbed_spectral_flux):
+        return np.zeros((frequencies_hz.shape[0], setup.observer_time_s.shape[0]), dtype=float)
+    frequencies_hz = np.asarray(frequencies_hz, dtype=float)
+    order = np.argsort(frequencies_hz)
+    sorted_frequencies = frequencies_hz[order]
+    flux_sorted = Interpolation.sed_interpolation_surface_element(
+        setup.boundary,
+        characteristic_time_s,
+        gamma,
+        radius_cm,
+        absorbed_spectral_flux,
+        seed_frequency_hz,
+        sorted_frequencies,
+        setup.observer_time_s,
+        float(domega),
+    )
+    if np.array_equal(order, np.arange(order.shape[0])):
+        return flux_sorted
+    flux_matrix = np.empty_like(flux_sorted)
+    flux_matrix[order] = flux_sorted
+    return flux_matrix
 
 
 def _extract_pair_flux(grid: np.ndarray, times_s: np.ndarray, frequencies_hz: np.ndarray) -> np.ndarray:
@@ -1318,6 +1642,12 @@ def _build_fit_config_for_patch(
         geometry_kernel=model.setups.geometry_kernel,
         electron_photon_coupling=model.setups.electron_photon_coupling,
         structured_backend=model.setups.structured_backend,
+        patch_sampling=model.setups.patch_sampling,
+        patch_projection=model.setups.patch_projection,
+        patch_sampling_pilot_theta=model.setups.patch_sampling_pilot_theta,
+        patch_sampling_num_times=model.setups.patch_sampling_num_times,
+        patch_sampling_beaming_factor=model.setups.patch_sampling_beaming_factor,
+        patch_sampling_beaming_resolution=model.setups.patch_sampling_beaming_resolution,
         structured_parallel_mode=model.setups.structured_parallel_mode,
         structured_outer_threads=model.setups.structured_outer_threads,
         structured_inner_threads=model.setups.structured_inner_threads,
@@ -1395,11 +1725,17 @@ def _build_fit_config_for_patch(
     )
     for key, value in kernel_medium.items():
         setattr(config, key, value)
+    if len(model.medium.density_profile_radius_cm) > 0 or len(model.medium.density_profile_n_cm3) > 0:
+        config.density_profile_radius_cm = tuple(float(value) for value in model.medium.density_profile_radius_cm)
+        config.density_profile_n_cm3 = tuple(float(value) for value in model.medium.density_profile_n_cm3)
+    if len(model.setups.density_profile_radius_cm) > 0 or len(model.setups.density_profile_n_cm3) > 0:
+        config.density_profile_radius_cm = tuple(float(value) for value in model.setups.density_profile_radius_cm)
+        config.density_profile_n_cm3 = tuple(float(value) for value in model.setups.density_profile_n_cm3)
     if model.medium.kind == "ism" and float(model.setups.f_jump) != 1.0:
         config.r_tr = float(model.setups.r_tr)
         config.f_jump = float(model.setups.f_jump)
         config.f_wide = float(model.setups.f_wide)
-    if model.medium.kind == "ism" and (
+    if (
         len(model.setups.jump_r_cm) > 0
         or len(model.setups.jump_factor) > 0
         or len(model.setups.jump_width_log10) > 0
@@ -1617,20 +1953,18 @@ def _iter_patches(model: Model):
         yield phi_center, theta_center, patch_half_angle
 
 
-def _iter_patch_elements(model: Model):
-    theta_edges = np.linspace(0.0, model.jet.theta_max, model.setups.patch_theta + 1)
-    phi_edges = np.linspace(0.0, 2.0 * np.pi, model.setups.patch_phi + 1)
-    for i_theta in range(model.setups.patch_theta):
-        theta1 = theta_edges[i_theta]
-        theta2 = theta_edges[i_theta + 1]
-        theta_center = 0.5 * (theta1 + theta2)
-        for i_phi in range(model.setups.patch_phi):
-            phi1 = phi_edges[i_phi]
-            phi2 = phi_edges[i_phi + 1]
-            phi_center = 0.5 * (phi1 + phi2)
-            domega = (np.cos(theta1) - np.cos(theta2)) * (phi2 - phi1)
-            patch_half_angle = np.sqrt(max(domega, 1.0e-12) / np.pi)
-            yield phi_center, theta_center, patch_half_angle, domega
+def _iter_patch_elements(model: Model, observer_time_s: np.ndarray | None = None):
+    from asgard_core.angular_sampling import build_patch_grid
+
+    grid = build_patch_grid(model, observer_time_s)
+    for i_theta, theta_center in enumerate(grid.theta_centers):
+        for i_phi, phi_center in enumerate(grid.phi_centers):
+            yield (
+                float(phi_center),
+                float(theta_center),
+                float(grid.patch_half_angle[i_theta, i_phi]),
+                float(grid.domega[i_theta, i_phi]),
+            )
 
 
 def _angular_separation(theta1: float, phi1: float, theta2: float, phi2: float) -> float:
@@ -1650,6 +1984,6 @@ def _jet_magnetar_active(jet: JetProfile, theta_center: float) -> bool:
 
 
 def _project_medium_to_kernel(medium: Medium, *, phi_center: float, theta_center: float) -> dict[str, float]:
-    if medium.kind in ("ism", "wind"):
+    if medium.kind in ("ism", "wind", "density_profile"):
         return medium.to_kernel_params()
     raise NotImplementedError("User-defined Medium is not supported by the current ASGARD kernel.")
