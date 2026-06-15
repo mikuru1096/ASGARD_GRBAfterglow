@@ -30,8 +30,8 @@ ASGARD 是面向伽马射线暴余辉的数值建模、辐射计算和参数拟�
 推荐环境是 Linux 或 WSL Ubuntu，Python 依赖通过 `uv` 管理，Fortran 扩展通过 `build_extensions.py` 构建。
 
 ```bash
-git clone https://github.com/mikuru1096/ASGARD_GRBAfterglow
-cd ASGARD_GRBAfterglow
+git clone https://github.com/mikuru1096/ASGARD_private
+cd ASGARD_private
 uv sync
 TMPDIR=/tmp uv run python build_extensions.py --module electron_forward_fullhide_1d --force
 ```
@@ -135,6 +135,8 @@ Copyright (c) 2025 Jia Ren
 }
 ```
 
-项目地址：<https://github.com/mikuru1096/ASGARD_GRBAfterglow>
+项目地址：<https://github.com/mikuru1096/ASGARD_private>
+
+网页文档：<https://hetools.cn/asgard-doc/>
 
 在线界面：<https://hetools.cn>

@@ -4,6 +4,11 @@ ASGARD 的网页文档由 `mkdocs.yml` 从 `doc/` 目录构建，并通过 GitHu
 
 当前另有一条 HEtools 托管路径：`https://hetools.cn/asgard-doc/`。该路径由 HEtools 的 frp 隧道路由到 `100.108.14.93` 上的本地静态文档服务，不覆盖 HEtools 首页的 Streamlit 应用。
 
+公开 README 与网页文档需要互相指向：
+
+- README URL: `https://github.com/mikuru1096/ASGARD_private#readme`
+- Web docs URL: `https://hetools.cn/asgard-doc/`
+
 ## 发布目标
 
 ### GitHub Pages
@@ -92,5 +97,6 @@ rtk bash -lc 'source ~/.wsl_env && curl -L --max-time 30 -sS https://hetools.cn/
 - 新文档需要加入 `mkdocs.yml` 的 `nav`，否则严格构建会失败或网页入口不完整。
 - 修改代码结构、调用链或 public API 时，同步更新 `doc/code_overview.md`、`doc/source_tree.md`、`doc/call_chain.md`、`doc/public_api.md` 中受影响页面；这些页面已经在 `mkdocs.yml` 的网页导航中注册。
 - 删除文档或运行时中转层时，同时搜索 `doc/`、`README.md` 和 `mkdocs.yml`，确保网页文档没有旧入口、旧模块名或旧调用链。
+- 修改 README 或网页文档发布路径时，同步更新 `README.md`、`doc/index.md` 和本页的互链 URL。
 - Private visibility 只控制网页访问，不替代仓库权限审计；敏感内容仍应只放在私有仓库。
 - `https://hetools.cn/asgard-doc/` 跟随 HEtools 公开访问面；若文档必须只对合作者可见，应继续使用 GitHub Pages private visibility，或在 HEtools/frp/nginx 层加入明确认证。

@@ -19,6 +19,11 @@
 - 研究者：理解物理模块、开关、边界和验收口径。
 - 开发者：修改 Fortran/Python 主链、重建扩展、刷新 benchmark、提交可追溯结果。
 
+公开入口：
+
+- 项目 README：<https://github.com/mikuru1096/ASGARD_private#readme>
+- 网页文档：<https://hetools.cn/asgard-doc/>
+
 ## 推荐阅读路径
 
 首次使用：
