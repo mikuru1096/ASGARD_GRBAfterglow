@@ -5,7 +5,7 @@ from functools import lru_cache
 import numpy as np
 
 from src import constants
-from asgard_core.asgard_numpy import trapezoid
+import numpy as np
 
 
 FITTING_BANDS = ("xrt", "optr", "optz", "opti", "optg", "9GHz", "5.5GHz", "3GHz")
@@ -45,7 +45,7 @@ def build_multiband_observer_frequencies() -> tuple[int, np.ndarray]:
 
 def combine_multiband_flux(flux_matrix: np.ndarray, frequencies_hz: np.ndarray, num_xrt: int) -> np.ndarray:
     num_point_source_bands = len(POINT_SOURCE_BANDS)
-    xrt_energy_flux = trapezoid(flux_matrix[:num_xrt].T, frequencies_hz[:num_xrt], axis=1).reshape(1, -1)
+    xrt_energy_flux = np.trapezoid(flux_matrix[:num_xrt].T, frequencies_hz[:num_xrt], axis=1).reshape(1, -1)
     optical_and_radio = flux_matrix[num_xrt : num_xrt + num_point_source_bands] * 1e29
     gev_index = num_xrt + num_point_source_bands
     tev_index = gev_index + 1

@@ -1,30 +1,14 @@
 # 教程示例
 
-本文按“先得到光变，再拆分物理分量，再检查内部量，再进入拟合”的顺序组织。所有图像由 `scripts/docs/generate_tutorial_figures.py` 生成，图中的模型与本页代码一致。
+本文按“先得到光变，再拆分物理分量，再检查内部量，再进入拟合”的顺序组织。图像是文档 artifact；示例代码是当前可执行的 public API 入口。
 
 ## 1. 建立一个最小 ASGARD 模型
 
-```python
-from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet
+本页示例沿用 `doc/quickstart.md` 第 2 节的完整 `model = Model(...)` 构造。先运行 quickstart 中的模型构造代码，再执行本页后续代码块。
 
-model = Model(
-    jet=TophatJet(E_iso=1.0e52, Gamma0=300.0, theta_j=0.1),
-    medium=ISM(n_ism=1.0),
-    observer=Observer(z=0.1, theta_obs=0.0),
-    fwd_rad=Radiation(eps_e=0.1, eps_B=1.0e-3, p=2.3, xi_N=0.1, ssc=True),
-    setups=Setups(
-        electron_solver="fullhide_1d",
-        num_r=72,
-        num_tobs=72,
-        num_gam_e=81,
-        num_nu=81,
-        observer_time_min_s=1.0e2,
-        observer_time_max_s=1.0e7,
-    ),
-)
-```
+这样做是为了避免在多个教程中复制同一套 90 行构造器。所有 API 字段的含义、可选值和注意事项统一维护在 `doc/public_api.md`；本页只展示如何查询光变、谱、分量和内部状态。
 
-这个模型包含正向激波同步辐射与 SSC。没有启用反向激波时，`result.rev.sync` 和 `result.rev.ssc` 不应被解释为物理反向激波信号。
+quickstart 的模型包含正向激波同步辐射与 SSC。没有启用反向激波时，`result.rev.sync` 和 `result.rev.ssc` 不应被解释为物理反向激波信号。
 
 ## 2. 多频光变
 
@@ -67,7 +51,7 @@ fwd_ssc = result.fwd.ssc[0]
 
 ![ASGARD 辐射分量](assets/tutorials/component_breakdown.png)
 
-拆分分量时要先确认对应开关已经启用。例如 `Radiation(..., ssc=True)` 控制正向激波 SSC 辐射参数；`Setups(ssc_cooling=True)` 控制电子冷却中是否包含 SSC 冷却。
+拆分分量时要先确认对应开关已经启用。例如 `Radiation(..., include_ssc=True)` 控制正向激波 SSC 光子输出；`SolverOptions(ssc_cooling_mode="nakar_y_thomson")` 表示电子冷却方程用 Nakar \(Y\) 参数近似加入 SSC/IC 冷却。
 
 ## 5. 内部量演化
 
@@ -124,11 +108,11 @@ F_{\rm band}(t)
 print(model.jet.kind)
 print(model.medium.kind)
 print(model.observer.z)
-print(model.fwd_rad.eps_e, model.fwd_rad.eps_B, model.fwd_rad.p)
+print(model.fwd_rad.epsilon_e, model.fwd_rad.epsilon_B, model.fwd_rad.p)
 ```
 
 拟合或 benchmark 前应记录模型配置。若修改了喷流、介质或辐射开关，必须同时更新图像脚本和文档说明。
 
 ## 9. 天图入口
 
-ASGARD 提供 `model.sky_image(t_obs, nu_obs, fov, npixel)`。天图依赖观测投影设置，适合放在专题 benchmark 中验证。新手教程先使用光变、谱和内部量完成最小闭环，天图刷新应遵守 `doc/benchmark_refresh_protocol.md`。
+ASGARD 提供 `model.sky_image(t_obs, nu_obs, fov, npixel)`。天图依赖观测投影设置，适合放在专题 benchmark 中验证。新手教程先使用光变、谱和内部量完成最小闭环。

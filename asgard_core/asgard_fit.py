@@ -6,12 +6,12 @@ from typing import Any, Optional
 
 import numpy as np
 
-from ASGARD.api_fit import ParamDef
+from ASGARD.api_fit import Param
 from ASGARD.api_model import Model
 from ASGARD.api_observe import _as_model, _param_path, _total_matrix
-from asgard_core.asgard_numpy import trapezoid
+import numpy as np
 from asgard_core.asgard_state import project_flux_grid, solve_state_from_setup
-from asgard_core.asgard_config import FitConfig
+from asgard_core.asgard_config import RuntimeConfig
 from asgard_core.asgard_observables import build_multiband_observer_frequencies, combine_multiband_flux
 from asgard_core.asgard_postprocess import compute_light_curve_redchi
 from asgard_core.asgard_setup import build_simulation_setup
@@ -85,9 +85,9 @@ def compile_problem(
     data_or_config,
     model_or_config: Any | None = None,
     *,
-    params: Optional[list[ParamDef]] = None,
+    params: Optional[list[Param]] = None,
 ):
-    if isinstance(data_or_config, FitConfig) and model_or_config is None:
+    if isinstance(data_or_config, RuntimeConfig) and model_or_config is None:
         return _compile_cfg(data_or_config)
 
     data = data_or_config if isinstance(data_or_config, dict) else None
@@ -104,8 +104,8 @@ def eval_loglike(
     timings: Optional[dict[str, float]] = None,
 ) -> float:
     if isinstance(problem, FitProblem):
-        if not isinstance(params_or_config, FitConfig):
-            raise TypeError("FitProblem expects a FitConfig input.")
+        if not isinstance(params_or_config, RuntimeConfig):
+            raise TypeError("FitProblem expects a RuntimeConfig input.")
         return _eval_cfg(problem, params_or_config, timings=timings)
     if isinstance(problem, InferenceProblem):
         if not isinstance(params_or_config, dict):
@@ -114,7 +114,7 @@ def eval_loglike(
     raise TypeError(f"Unsupported compiled inference problem: {type(problem)!r}")
 
 
-def _compile_cfg(config: FitConfig) -> FitProblem:
+def _compile_cfg(config: RuntimeConfig) -> FitProblem:
     num_xrt, requested_frequencies_hz = build_multiband_observer_frequencies()
     setup = build_simulation_setup(config)
     return FitProblem(
@@ -128,7 +128,7 @@ def _compile_model(
     data: dict,
     model: Model,
     *,
-    params: Optional[list[ParamDef]] = None,
+    params: Optional[list[Param]] = None,
 ) -> InferenceProblem:
     observations = _compile_obs(data)
     bindings = _compile_params(model, [] if params is None else params)
@@ -271,7 +271,7 @@ def _make_default_block() -> ObsBlock:
     )
 
 
-def _compile_params(model: Model, params: list[ParamDef]) -> tuple[ParamBinding, ...]:
+def _compile_params(model: Model, params: list[Param]) -> tuple[ParamBinding, ...]:
     bindings: list[ParamBinding] = []
     for param in params:
         path = _param_path(model, param)
@@ -308,7 +308,7 @@ def _idx(reference: np.ndarray, values: np.ndarray) -> np.ndarray:
 
 def _eval_cfg(
     problem: FitProblem,
-    config: FitConfig,
+    config: RuntimeConfig,
     *,
     timings: Optional[dict[str, float]] = None,
 ) -> float:
@@ -377,7 +377,7 @@ def _eval_model(
             resid = (pred - dataset.flux) / dataset.flux_err
             loglike -= 0.5 * float(np.sum(resid * resid))
         for dataset in block.band_fluxes:
-            pred = float(trapezoid(total_matrix[dataset.freq_indices, dataset.time_index], dataset.sample_frequencies_hz))
+            pred = float(np.trapezoid(total_matrix[dataset.freq_indices, dataset.time_index], dataset.sample_frequencies_hz))
             resid = (pred - dataset.flux) / dataset.flux_err
             loglike -= 0.5 * float(resid * resid)
     if timings is not None:

@@ -1,12 +1,4 @@
-"""
-Configuration module for ASGARD simulations.
-
-This module defines the configuration hierarchy:
-- PhysicsConfig: Physical parameters (epsilon_e, epsilon_b, p, etc.)
-- NumericalConfig: Grid resolution and solver settings
-- OutputConfig: Output control (spectrum, reverse shock, etc.)
-- SimulationConfig: Top-level config composing the above three
-"""
+"""Internal runtime configuration for ASGARD simulations."""
 
 from __future__ import annotations
 
@@ -117,143 +109,9 @@ class ExecutionPolicy:
 
 
 @dataclass
-class PhysicsConfig:
-    """Physical parameters for GRB afterglow simulation."""
-    # Microphysics
-    epsilon_e: float = 1.0e-1
-    epsilon_b: float = 1.0e-3
-    epsilon_b_floor: Optional[float] = None
-    magnetic_decay_alpha_t: float = 0.0
-    magnetic_decay_t0_s: float = 1.0
-    p: float = 2.5
-    f_e: float = 1.0e-1
-
-    # Jet properties
-    eta_0: float = 1.0e2
-    e_iso: float = 1.0e53
-    opening_angle_jet: float = 1.0e-1
-    initial_radius_cm: float = 1.0e14
-
-    # Medium properties
-    d_ne: float = 1.0e-1
-    a_star: float = -1.0
-    r0: float = 1.0e9
-
-    # Observer properties
-    z: float = 0.4
-    theta_v: float = 0.0
-    luminosity_distance_cm_override: Optional[float] = None
-
-    # Extinction
-    ebv: float = 0.0
-    rv: float = 2.93
-    lyman_ar: float = 0.0
-    f_sys: float = -1.0
-
-    # Energy injection
-    e_inj_t1: float = 1.0
-    e_inj_t2: float = 100.0
-    l_inj_0: float = 0.0
-    q_inj: float = -1.0
-
-    # Density jump
-    r_tr: float = 1.0e18
-    f_jump: float = 1.0
-    f_wide: float = 0.1
-    jump_r_cm: tuple[float, ...] = field(default_factory=tuple)
-    jump_factor: tuple[float, ...] = field(default_factory=tuple)
-    jump_width_log10: tuple[float, ...] = field(default_factory=tuple)
-    density_profile_radius_cm: tuple[float, ...] = field(default_factory=tuple)
-    density_profile_n_cm3: tuple[float, ...] = field(default_factory=tuple)
-
-    # Reverse shock
-    reverse_shock: ReverseShockConfig = field(default_factory=ReverseShockConfig)
-    hadronic: HadronicConfig = field(default_factory=HadronicConfig)
-
-
-@dataclass
-class NumericalConfig:
-    """Numerical parameters for grid resolution and solvers."""
-    # Grid resolution
-    num_r: int = 300
-    num_theta: int = 300
-    num_phi: int = 1
-    num_gam_e: int = 201
-    num_nu: int = 201
-    num_tobs: int = 200
-    num_chi: Optional[int] = None
-
-    # Time grid
-    t_obs_min_log10: float = 2.0
-    t_obs_max_log10: float = 8.0
-
-    # Solver selection
-    electron_solver: str = "fullhide_1d"
-    cooling_kernel: str = "legacy"
-    radiation_kernel: str = "legacy"
-    dynamics_kernel: str = "forward_legacy"
-    geometry_kernel: str = "sed_legacy"
-    electron_photon_coupling: str = "separated"
-    structured_backend: str = "fortran_1d"
-    patch_sampling: str = "uniform"
-    patch_projection: str = "auto"
-    patch_sampling_pilot_theta: int = 0
-    patch_sampling_num_times: int = 12
-    patch_sampling_beaming_factor: float = 3.0
-    patch_sampling_beaming_resolution: float = 8.0
-    structured_parallel_mode: str = "outer"
-    structured_outer_threads: Optional[int] = None
-    structured_inner_threads: Optional[int] = None
-    fullhide2d_transport_model: str = "legacy"
-    fullhide2d_stochastic_accel_norm: float = 0.0
-    fullhide2d_escape_mode: str = "closed"
-    index_dyn: int = 3
-    index_y: int = 2
-    index_syn_integr: int = 2
-
-    # Adaptive stepping
-    electron_adaptive_substeps: bool = False
-    electron_substep_rtol: float = 2.0e-2
-    electron_substep_min: int = 100
-    electron_substep_max: int = 1000
-
-    # Physics toggles
-    include_forward_ssc: bool = True
-    thermal_electrons: bool = False
-
-    # Execution policy
-    execution: ExecutionPolicy = field(default_factory=ExecutionPolicy)
-
-    @property
-    def num_threads(self) -> int:
-        """Convenience property for num_threads."""
-        return self.execution.num_threads
-
-
-@dataclass
-class OutputConfig:
-    """Configuration for output control."""
-    spectrum: SpectrumOutputConfig = field(default_factory=SpectrumOutputConfig)
-    plot_lc: bool = False
-    show_plots: bool = False
-
-
-@dataclass
-class SimulationConfig:
-    """Top-level simulation configuration."""
-    physics: PhysicsConfig = field(default_factory=PhysicsConfig)
-    numerical: NumericalConfig = field(default_factory=NumericalConfig)
-    output: OutputConfig = field(default_factory=OutputConfig)
-
-
-# Legacy support - FitConfig for backward compatibility during migration
-@dataclass
-class FitConfig:
+class _RuntimeConfig:
     """
-    DEPRECATED: Use SimulationConfig instead.
-
-    This class is kept for backward compatibility during migration.
-    It will be removed in a future version.
+    Internal normalized runtime configuration consumed by the Fortran/kernel chain.
     """
     num_threads: int = field(default_factory=default_num_threads)
     index_dyn: int = 3
@@ -341,103 +199,6 @@ class FitConfig:
     reverse_shock: ReverseShockConfig = field(default_factory=ReverseShockConfig)
     hadronic: HadronicConfig = field(default_factory=HadronicConfig)
 
-    def to_simulation_config(self) -> SimulationConfig:
-        """Convert FitConfig to new SimulationConfig format."""
-        physics = PhysicsConfig(
-            epsilon_e=self.epsilon_e,
-            epsilon_b=self.epsilon_b,
-            epsilon_b_floor=self.epsilon_b_floor,
-            magnetic_decay_alpha_t=self.magnetic_decay_alpha_t,
-            magnetic_decay_t0_s=self.magnetic_decay_t0_s,
-            p=self.p,
-            f_e=self.f_e,
-            eta_0=self.eta_0,
-            e_iso=self.e_iso,
-            opening_angle_jet=self.opening_angle_jet,
-            initial_radius_cm=self.initial_radius_cm,
-            d_ne=self.d_ne,
-            a_star=self.a_star,
-            r0=self.r0,
-            z=self.z,
-            theta_v=self.theta_v,
-            luminosity_distance_cm_override=self.luminosity_distance_cm_override,
-            ebv=self.ebv,
-            rv=self.rv,
-            lyman_ar=self.lyman_ar,
-            f_sys=self.f_sys,
-            e_inj_t1=self.e_inj_t1,
-            e_inj_t2=self.e_inj_t2,
-            l_inj_0=self.l_inj_0,
-            q_inj=self.q_inj,
-            r_tr=self.r_tr,
-            f_jump=self.f_jump,
-            f_wide=self.f_wide,
-            jump_r_cm=self.jump_r_cm,
-            jump_factor=self.jump_factor,
-            jump_width_log10=self.jump_width_log10,
-            density_profile_radius_cm=self.density_profile_radius_cm,
-            density_profile_n_cm3=self.density_profile_n_cm3,
-            reverse_shock=self.reverse_shock,
-            hadronic=self.hadronic,
-        )
-
-        execution = ExecutionPolicy(
-            num_threads=self.num_threads,
-        )
-
-        numerical = NumericalConfig(
-            num_r=self.num_r,
-            num_theta=self.num_theta,
-            num_phi=self.num_phi,
-            num_gam_e=self.num_gam_e,
-            num_nu=self.num_nu,
-            num_tobs=self.num_tobs,
-            num_chi=self.num_chi,
-            t_obs_min_log10=self.t_obs_min_log10,
-            t_obs_max_log10=self.t_obs_max_log10,
-            electron_solver=self.electron_solver,
-            cooling_kernel=self.cooling_kernel,
-            radiation_kernel=self.radiation_kernel,
-            dynamics_kernel=self.dynamics_kernel,
-            geometry_kernel=self.geometry_kernel,
-            electron_photon_coupling=self.electron_photon_coupling,
-            structured_backend=self.structured_backend,
-            patch_sampling=self.patch_sampling,
-            patch_projection=self.patch_projection,
-            patch_sampling_pilot_theta=self.patch_sampling_pilot_theta,
-            patch_sampling_num_times=self.patch_sampling_num_times,
-            patch_sampling_beaming_factor=self.patch_sampling_beaming_factor,
-            patch_sampling_beaming_resolution=self.patch_sampling_beaming_resolution,
-            structured_parallel_mode=self.structured_parallel_mode,
-            structured_outer_threads=self.structured_outer_threads,
-            structured_inner_threads=self.structured_inner_threads,
-            fullhide2d_transport_model=self.fullhide2d_transport_model,
-            fullhide2d_stochastic_accel_norm=self.fullhide2d_stochastic_accel_norm,
-            fullhide2d_escape_mode=self.fullhide2d_escape_mode,
-            index_dyn=self.index_dyn,
-            index_y=self.index_y,
-            index_syn_integr=self.index_syn_integr,
-            electron_adaptive_substeps=self.electron_adaptive_substeps,
-            electron_substep_rtol=self.electron_substep_rtol,
-            electron_substep_min=self.electron_substep_min,
-            electron_substep_max=self.electron_substep_max,
-            include_forward_ssc=self.include_forward_ssc,
-            thermal_electrons=self.thermal_electrons,
-            execution=execution,
-        )
-
-        output = OutputConfig(
-            spectrum=self.spectrum_output,
-            plot_lc=self.plot_lc,
-            show_plots=self.show_plots,
-        )
-
-        return SimulationConfig(
-            physics=physics,
-            numerical=numerical,
-            output=output,
-        )
-
 
 def _make_hadronic_delegate(field_name: str) -> property:
     def getter(self):
@@ -451,9 +212,12 @@ def _make_hadronic_delegate(field_name: str) -> property:
 
 
 for _public_name, _field_name in _HADRONIC_DELEGATES:
-    setattr(FitConfig, _public_name, _make_hadronic_delegate(_field_name))
+    setattr(_RuntimeConfig, _public_name, _make_hadronic_delegate(_field_name))
 
 del _public_name, _field_name
+
+
+RuntimeConfig = _RuntimeConfig
 
 
 # Result dataclasses

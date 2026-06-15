@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from copy import deepcopy
 from typing import Any, Optional
 
 import numpy as np
@@ -13,7 +12,7 @@ from asgard_core.asgard_state import (
     project_flux_grid,
 )
 from src.Electron.electron_radiation import electron_radiation_kernel as electron_radiation_module
-from asgard_core.asgard_config import FitConfig, SpectrumOutputConfig
+from asgard_core.asgard_config import RuntimeConfig, SpectrumOutputConfig
 from asgard_core.asgard_observables import OUTPUT_BANDS, build_multiband_observer_frequencies, combine_multiband_flux
 from asgard_core.asgard_postprocess import (
     build_spectrum_dataset_names,
@@ -25,24 +24,26 @@ from asgard_core.asgard_postprocess import (
 from src import Interpolation, constants
 
 from .api_adaptive import _observe_parts, _observe_total
-from .api_fit import FitResult
+from .api_fit import FitResult, Param
 from .api_model import (
-    GaussianJet,
-    ISM,
     Jet,
     Magnetar,
     Model,
+    Numerics,
     Observer,
+    ObserverGrid,
     PolarizationResult,
-    PowerLawJet,
     Radiation,
-    Setups,
+    ReverseShock,
+    SolverOptions,
+    TabulatedMedium,
+    Hadronic,
     SkyImage,
-    StepPowerLawJet,
-    TophatJet,
-    TwoComponentJet,
-    DensityProfile,
-    Wind,
+    UniformMedium,
+    WindMedium,
+    gaussian_jet,
+    power_law_jet,
+    top_hat_jet,
     _angular_separation,
     _build_fit_config_for_patch,
     _extract_pair_flux,
@@ -739,7 +740,7 @@ def _direction_vector(theta: float, phi: float) -> np.ndarray:
 
 def _angular_diameter_distance_cm(observer: Observer) -> float:
     if observer.lumi_dist_cm is None or observer.lumi_dist_cm <= 0.0:
-        raise ValueError("Observer.lumi_dist_cm must be set for sky_image().")
+        raise ValueError("Observer.luminosity_distance_cm must be set for sky_image().")
     return observer.lumi_dist_cm / (1.0 + observer.z) ** 2
 
 
@@ -830,64 +831,49 @@ def _evaluate_flux_observations(model: Model, times_s: np.ndarray, frequencies_h
     return model.flux_density_grid(times_s, frequencies_hz).total
 
 
-def _param_path(model: Model, param: ParamDef) -> str:
+def _param_path(model: Model, param: Param) -> str:
     if param.path is not None:
         return param.path
-    name = param.name.lower()
-    alias_map = {
-        "e_iso": "jet.E_iso",
-        "log10_eiso": "jet.E_iso",
-        "log10_e_iso": "jet.E_iso",
-        "gamma0": "jet.lf",
-        "log10_gamma0": "jet.lf",
-        "theta_c": "jet.theta_j" if model.jet.kind == "tophat" else "jet.theta_c",
-        "theta_j": "jet.theta_j",
-        "theta_obs": "observer.theta_obs",
+    name = param.name
+    path_map = {
+        "energy_iso_erg": "jet.energy_iso_erg",
+        "log10_energy_iso_erg": "jet.energy_iso_erg",
+        "initial_lorentz_factor": "jet.initial_lorentz_factor",
+        "log10_initial_lorentz_factor": "jet.initial_lorentz_factor",
+        "core_angle_rad": "jet.opening_angle_rad" if model.jet.kind == "tophat" else "jet.core_angle_rad",
+        "opening_angle_rad": "jet.opening_angle_rad",
+        "outer_angle_rad": "jet.outer_angle_rad",
+        "energy_index": "jet.energy_index",
+        "lorentz_index": "jet.lorentz_index",
+        "shell_duration_s": "jet.shell_duration_s",
+        "viewing_angle_rad": "observer.viewing_angle_rad",
+        "viewing_azimuth_rad": "observer.viewing_azimuth_rad",
         "z": "observer.z",
-        "lumi_dist": "observer.lumi_dist_cm",
-        "lumi_dist_cm": "observer.lumi_dist_cm",
-        "eps_e": "fwd_rad.eps_e",
-        "epsilon_e": "fwd_rad.eps_e",
-        "eps_b": "fwd_rad.eps_B",
-        "epsilon_b": "fwd_rad.eps_B",
+        "luminosity_distance_cm": "observer.luminosity_distance_cm",
+        "epsilon_e": "fwd_rad.epsilon_e",
+        "epsilon_B": "fwd_rad.epsilon_B",
         "p": "fwd_rad.p",
-        "xi_n": "fwd_rad.xi_N",
-        "f_e": "fwd_rad.xi_N",
-        "n0": "medium.n_ism",
-        "n_ism": "medium.n_ism",
-        "d_ne": "medium.n_ism",
+        "proton_energy_fraction": "fwd_rad.proton_energy_fraction",
+        "epsilon_b_floor": "fwd_rad.epsilon_b_floor",
+        "magnetic_decay_alpha_t": "fwd_rad.magnetic_decay_alpha_t",
+        "magnetic_decay_t0_s": "fwd_rad.magnetic_decay_t0_s",
+        "accelerated_electron_fraction": "fwd_rad.accelerated_electron_fraction",
+        "acceleration_efficiency": "fwd_rad.acceleration_efficiency",
+        "reverse_proton_energy_fraction": "fwd_rad.reverse_proton_energy_fraction",
+        "number_density_cm3": "medium.number_density_cm3",
         "a_star": "medium.A_star",
-        "astar": "medium.A_star",
-        "e_iso_c": "jet.E_iso_c",
-        "e_iso_n": "jet.E_iso_n",
-        "e_iso_outer": "jet.E_iso_w",
-        "e_iso_w": "jet.E_iso_w",
-        "gamma0_c": "jet.lf_c",
-        "gamma0_n": "jet.lf_n",
-        "gamma0_outer": "jet.lf_w",
-        "gamma0_w": "jet.lf_w",
-        "theta_n": "jet.theta_n",
-        "theta_o": "jet.theta_w",
-        "theta_w": "jet.theta_w",
-        "k": "jet.k_e",
-        "k_e": "jet.k_e",
-        "k_g": "jet.k_g",
-        "duration": "jet.duration",
-        "l0": "jet.magnetar.L0",
-        "t0": "jet.magnetar.t0",
-        "q": "jet.magnetar.q",
-        "eps_e_r": "rvs_rad.eps_e",
-        "epsilon_e_r": "rvs_rad.eps_e",
-        "eps_b_r": "rvs_rad.eps_B",
-        "epsilon_b_r": "rvs_rad.eps_B",
-        "p_r": "rvs_rad.p",
-        "xi_n_r": "rvs_rad.xi_N",
-        "f_e_r": "rvs_rad.xi_N",
-        "reverse_sigma": "setups.reverse_sigma",
+        "density_floor_cm3": "medium.density_floor_cm3",
+        "density_cap_cm3": "medium.density_cap_cm3",
+        "reverse_shock_enabled": "reverse_shock.enabled",
+        "reverse_shock_shell_duration_s": "reverse_shock.shell_duration_s",
+        "reverse_shock_upstream_sigma": "reverse_shock.upstream_sigma",
+        "hadronic_num_proton_gamma": "hadronic.num_proton_gamma",
+        "hadronic_num_neutrino_frequency": "hadronic.num_neutrino_frequency",
+        "hadronic_pair_cascade_iterations": "hadronic.pair_cascade_iterations",
     }
-    if name not in alias_map:
-        raise KeyError(f"Cannot infer parameter path for {param.name}.")
-    return alias_map[name]
+    if name not in path_map:
+        raise KeyError(f"Cannot infer canonical parameter path for {param.name}; pass Param(name, path, lower, upper, scale).")
+    return path_map[name]
 
 
 def _as_model(cfg: Any) -> Model:
@@ -895,144 +881,30 @@ def _as_model(cfg: Any) -> Model:
         return cfg
     if cfg is None:
         raise ValueError("Either a Model or cfg must be provided.")
-    if isinstance(cfg, Setups):
-        cfg = cfg.__dict__.copy()
     if not isinstance(cfg, dict):
-        raise TypeError("cfg must be a Model or a dictionary of model options.")
-    setups_source = cfg.get("setups", Setups())
-    setups = deepcopy(setups_source if isinstance(setups_source, Setups) else Setups(**setups_source))
-    if "reverse_sigma" in cfg:
-        setups.reverse_sigma = float(cfg["reverse_sigma"])
-    observer = cfg.get(
-        "observer",
-        Observer(
-            z=cfg.get("z", setups.z),
-            theta_obs=cfg.get("theta_obs", setups.theta_obs),
-            phi_obs=cfg.get("phi_obs", setups.phi_obs),
-            lumi_dist=cfg.get("lumi_dist", setups.lumi_dist),
-            lumi_dist_cm=cfg.get("lumi_dist_cm"),
-        ),
+        raise TypeError("cfg must be a Model or a dictionary containing explicit public objects.")
+
+    def build(key: str, cls):
+        value = cfg[key]
+        return value if isinstance(value, cls) else cls(**value)
+
+    return Model(
+        medium=cfg["medium"],
+        jet=cfg["jet"],
+        observer=build("observer", Observer),
+        fwd_rad=build("fwd_rad", Radiation),
+        rvs_rad=None if cfg.get("rvs_rad") is None else build("rvs_rad", Radiation),
+        numerics=build("numerics", Numerics),
+        observer_grid=build("observer_grid", ObserverGrid),
+        solver_options=build("solver_options", SolverOptions),
+        reverse_shock=build("reverse_shock", ReverseShock),
+        hadronic=build("hadronic", Hadronic),
     )
-    medium = cfg.get("medium")
-    medium_kind = str(cfg.get("medium_type", cfg.get("medium_name", setups.medium or "ism"))).lower()
-    if isinstance(medium, str):
-        medium_kind = medium.lower()
-        medium = None
-    if medium is None:
-        if medium_kind == "wind":
-            medium = Wind(A_star=cfg.get("A_star", cfg.get("Astar", 1.0)), n0=cfg.get("n0", cfg.get("n_ism", 0.1)))
-        else:
-            medium = ISM(n0=cfg.get("n0", cfg.get("n_ism", 0.1)))
-
-    jet = cfg.get("jet")
-    jet_kind = str(cfg.get("jet_type", cfg.get("jet_name", setups.jet or "tophat"))).lower()
-    if isinstance(jet, str):
-        jet_kind = jet.lower()
-        jet = None
-    if jet is None:
-        magnetar = None
-        if "magnetar" in cfg and cfg["magnetar"] is not None:
-            source = cfg["magnetar"]
-            if isinstance(source, Magnetar):
-                magnetar = source
-            else:
-                magnetar = Magnetar(L0=source["L0"], t0=source["t0"], q=source["q"])
-        elif {"L0", "t0", "q"} <= set(cfg.keys()):
-            magnetar = Magnetar(L0=cfg["L0"], t0=cfg["t0"], q=cfg["q"])
-        if jet_kind == "gaussian":
-            jet = GaussianJet(
-                E_iso=cfg["E_iso"],
-                Gamma0=cfg["Gamma0"],
-                theta_c=cfg["theta_c"],
-                theta_max=cfg.get("theta_max", 0.6),
-                duration=cfg.get("duration"),
-                magnetar=magnetar,
-                spreading=cfg.get("spreading", False),
-            )
-        elif jet_kind == "powerlaw":
-            jet = PowerLawJet(
-                E_iso=cfg["E_iso"],
-                Gamma0=cfg["Gamma0"],
-                theta_c=cfg["theta_c"],
-                k=cfg.get("k"),
-                k_e=cfg.get("k_e"),
-                k_g=cfg.get("k_g"),
-                theta_max=cfg.get("theta_max", np.pi / 2.0),
-                duration=cfg.get("duration"),
-                magnetar=magnetar,
-                spreading=cfg.get("spreading", False),
-            )
-        elif jet_kind == "twocomponent":
-            jet = TwoComponentJet(
-                E_iso_c=cfg["E_iso_c"],
-                Gamma0_c=cfg["Gamma0_c"],
-                theta_c=cfg["theta_c"],
-                E_iso_outer=cfg["E_iso_outer"],
-                Gamma0_outer=cfg["Gamma0_outer"],
-                theta_o=cfg["theta_o"],
-                duration=cfg.get("duration"),
-                magnetar=magnetar,
-                spreading=cfg.get("spreading", False),
-            )
-        elif jet_kind == "steppowerlaw":
-            jet = StepPowerLawJet(
-                E_iso_c=cfg["E_iso_c"],
-                Gamma0_c=cfg["Gamma0_c"],
-                theta_c=cfg["theta_c"],
-                E_iso_w=cfg["E_iso_w"],
-                Gamma0_w=cfg["Gamma0_w"],
-                theta_w=cfg["theta_w"],
-                k=cfg.get("k", 2.0),
-                k_e=cfg.get("k_e"),
-                k_g=cfg.get("k_g"),
-                duration=cfg.get("duration"),
-                magnetar=magnetar,
-                spreading=cfg.get("spreading", False),
-            )
-        else:
-            jet = TophatJet(
-                E_iso=cfg["E_iso"],
-                Gamma0=cfg["Gamma0"],
-                theta_c=cfg["theta_c"],
-                duration=cfg.get("duration"),
-                magnetar=magnetar,
-                spreading=cfg.get("spreading", False),
-            )
-
-    fwd_rad = cfg.get(
-        "fwd_rad",
-        Radiation(
-            eps_e=cfg.get("eps_e", cfg.get("epsilon_e", 1.0e-1)),
-            eps_B=cfg.get("eps_B", cfg.get("epsilon_B", 1.0e-3)),
-            epsilon_b_floor=cfg.get("eps_B_floor", cfg.get("epsilon_B_floor")),
-            magnetic_decay_alpha_t=cfg.get("magnetic_decay_alpha_t", 0.0),
-            magnetic_decay_t0_s=cfg.get("magnetic_decay_t0_s", 1.0),
-            p=cfg.get("p", 2.5),
-            xi_N=cfg.get("xi_N", cfg.get("f_e", 1.0e-1)),
-            thermal_electrons=cfg.get("thermal_electrons", False),
-            ssc=cfg.get("ssc", setups.fwd_ssc),
-            kn=cfg.get("kn", setups.kn),
-        ),
-    )
-    rvs_rad = cfg.get("rvs_rad")
-    if rvs_rad is None and cfg.get("reverse", setups.rvs_shock):
-        rvs_rad = Radiation(
-            eps_e=cfg.get("eps_e_r", cfg.get("eps_e", 1.0e-1)),
-            eps_B=cfg.get("eps_B_r", cfg.get("eps_B", 1.0e-2)),
-            p=cfg.get("p_r", cfg.get("p", 2.4)),
-            xi_N=cfg.get("xi_N_r", cfg.get("f_e_r", 1.0)),
-            thermal_electrons=cfg.get("thermal_electrons_r", False),
-            ssc=cfg.get("rvs_ssc", setups.rvs_ssc),
-            kn=cfg.get("kn", setups.kn),
-        )
-
-    resolutions = cfg.get("resolutions")
-    return Model(medium=medium, jet=jet, observer=observer, fwd_rad=fwd_rad, rvs_rad=rvs_rad, setups=setups, resolutions=resolutions)
 
 
 def observe(
     model: Model,
-    config: Optional[FitConfig] = None,
+    config: Optional[RuntimeConfig] = None,
     spectrum_output: Optional[SpectrumOutputConfig] = None,
 ):
     from asgard_core.asgard_config import FitResult as _PhysicalFitResult
@@ -1102,18 +974,18 @@ def observe(
     )
 
 
-def _build_model_from_fit_config(config: FitConfig) -> Model:
+def _build_model_from_fit_config(config: RuntimeConfig) -> Model:
     ssc_enabled = config.index_y != 0
     kn_enabled = config.index_y == 1
     reverse = getattr(config, "reverse_shock", None)
     reverse_enabled = bool(reverse and reverse.enabled)
 
     if len(config.density_profile_radius_cm) > 0 or len(config.density_profile_n_cm3) > 0:
-        medium = DensityProfile(config.density_profile_radius_cm, config.density_profile_n_cm3)
+        medium = TabulatedMedium(config.density_profile_radius_cm, config.density_profile_n_cm3, label="runtime_density_profile")
     elif config.a_star > 0.0:
-        medium = Wind(A_star=config.a_star, n0=config.d_ne)
+        medium = WindMedium(a_star=config.a_star, density_floor_cm3=config.d_ne, density_cap_cm3=None)
     else:
-        medium = ISM(n_ism=config.d_ne)
+        medium = UniformMedium(number_density_cm3=config.d_ne)
 
     reverse_delta_t_s = 10.0
     if reverse and reverse.delta_t_s is not None:
@@ -1122,59 +994,97 @@ def _build_model_from_fit_config(config: FitConfig) -> Model:
     rvs_rad = None
     if reverse_enabled:
         rvs_rad = Radiation(
-            eps_e=reverse.epsilon_e if reverse.epsilon_e is not None else config.epsilon_e,
-            eps_B=reverse.epsilon_b if reverse.epsilon_b is not None else config.epsilon_b,
+            epsilon_e=reverse.epsilon_e if reverse.epsilon_e is not None else config.epsilon_e,
+            epsilon_B=reverse.epsilon_b if reverse.epsilon_b is not None else config.epsilon_b,
             p=reverse.p if reverse.p is not None else config.p,
-            xi_N=reverse.f_e if reverse.f_e is not None else config.f_e,
-            ssc=bool(reverse.include_ssc),
-            kn=kn_enabled,
+            proton_energy_fraction=0.0,
+            epsilon_b_floor=None,
+            magnetic_decay_alpha_t=config.magnetic_decay_alpha_t,
+            magnetic_decay_t0_s=config.magnetic_decay_t0_s,
+            accelerated_electron_fraction=reverse.f_e if reverse.f_e is not None else config.f_e,
+            thermal_electrons=False,
+            include_ssc=bool(reverse.include_ssc),
+            include_kn_correction=kn_enabled,
+            proton_synch=True,
+            include_pgamma=False,
+            bethe_heitler=False,
+            hadronic_inverse_compton=False,
+            pp=False,
+            neutrino=False,
+            acceleration_efficiency=config.hadronic.eta_acc,
+            reverse_proton_energy_fraction=config.hadronic.reverse_epsilon_p,
+            pgamma_scheme=config.hadronic.pgamma_scheme,
+            pair_production=False,
         )
 
     return Model(
-        jet=TophatJet(E_iso=config.e_iso, Gamma0=config.eta_0, theta_j=config.opening_angle_jet, duration=reverse_delta_t_s if reverse_enabled else None),
+        jet=top_hat_jet(
+            energy_iso_erg=config.e_iso,
+            initial_lorentz_factor=config.eta_0,
+            opening_angle_rad=config.opening_angle_jet,
+            shell_duration_s=reverse_delta_t_s if reverse_enabled else None,
+            magnetar=None,
+            spreading=False,
+        ),
         medium=medium,
-        observer=Observer(z=config.z, theta_obs=config.theta_v, lumi_dist_cm=config.luminosity_distance_cm_override),
+        observer=Observer(
+            z=config.z,
+            viewing_angle_rad=config.theta_v,
+            viewing_azimuth_rad=0.0,
+            luminosity_distance_cm=config.luminosity_distance_cm_override,
+        ),
         fwd_rad=Radiation(
-            eps_e=config.epsilon_e,
-            eps_B=config.epsilon_b,
+            epsilon_e=config.epsilon_e,
+            epsilon_B=config.epsilon_b,
             epsilon_b_floor=config.epsilon_b_floor,
             magnetic_decay_alpha_t=config.magnetic_decay_alpha_t,
             magnetic_decay_t0_s=config.magnetic_decay_t0_s,
             p=config.p,
-            xi_N=config.f_e,
+            proton_energy_fraction=config.hadronic.epsilon_p,
+            accelerated_electron_fraction=config.f_e,
             thermal_electrons=config.thermal_electrons,
-            ssc=ssc_enabled,
-            kn=kn_enabled,
+            include_ssc=ssc_enabled,
+            include_kn_correction=kn_enabled,
+            proton_synch=config.hadronic.include_proton_synch,
+            include_pgamma=config.hadronic.include_pg,
+            bethe_heitler=config.hadronic.include_bethe_heitler,
+            hadronic_inverse_compton=config.hadronic.include_hadronic_inverse_compton,
+            pp=config.hadronic.include_pp,
+            neutrino=config.hadronic.include_neutrino,
+            acceleration_efficiency=config.hadronic.eta_acc,
+            reverse_proton_energy_fraction=config.hadronic.reverse_epsilon_p,
+            pgamma_scheme=config.hadronic.pgamma_scheme,
+            pair_production=config.hadronic.include_pair_production,
         ),
         rvs_rad=rvs_rad,
-        setups=Setups(
-            z=config.z,
-            theta_obs=config.theta_v,
-            rvs_shock=reverse_enabled,
-            fwd_ssc=ssc_enabled,
-            rvs_ssc=bool(reverse.include_ssc) if reverse_enabled else False,
-            ssc_cooling=ssc_enabled,
-            kn=kn_enabled,
-            num_threads=config.num_threads,
-            num_gam_e=config.num_gam_e,
-            num_nu=config.num_nu,
-            num_r=config.num_r,
+        numerics=Numerics(
+            num_radius=config.num_r,
             num_theta=config.num_theta,
             num_phi=config.num_phi,
-            num_tobs=config.num_tobs,
-            observer_time_min_s=10 ** config.t_obs_min_log10,
-            observer_time_max_s=10 ** config.t_obs_max_log10,
+            num_observer_time=config.num_tobs,
+            num_electron_gamma=config.num_gam_e,
+            num_photon_frequency=config.num_nu,
+            num_chi=config.num_chi,
+            num_threads=config.num_threads,
+            electron_adaptive_substeps=config.electron_adaptive_substeps,
+            electron_substep_rtol=config.electron_substep_rtol,
+            electron_substep_min=config.electron_substep_min,
+            electron_substep_max=config.electron_substep_max,
             initial_radius_cm=config.initial_radius_cm,
-            reverse_delta_t_s=reverse_delta_t_s,
-            reverse_sigma=float(reverse.sigma) if reverse_enabled else 0.0,
-            include_cross_zone_ic=bool(reverse.include_cross_zone_ic) if reverse_enabled else False,
-            weno5=config.weno5,
+        ),
+        observer_grid=ObserverGrid(
+            time_min_s=10 ** config.t_obs_min_log10,
+            time_max_s=10 ** config.t_obs_max_log10,
+        ),
+        solver_options=SolverOptions(
             electron_solver=config.electron_solver,
+            dynamics_solver=config.dynamics_kernel,
+            geometry_projection=config.geometry_kernel,
+            electron_photon_coupling=config.electron_photon_coupling,
+            ssc_cooling_mode="none" if config.index_y == 0 else "numeric_ic_kn" if config.index_y == 1 else "nakar_y_thomson",
+            synchrotron_integration="fixed_grid",
             cooling_kernel=config.cooling_kernel,
             radiation_kernel=config.radiation_kernel,
-            dynamics_kernel=config.dynamics_kernel,
-            geometry_kernel=config.geometry_kernel,
-            electron_photon_coupling=config.electron_photon_coupling,
             structured_backend=config.structured_backend,
             patch_sampling=config.patch_sampling,
             patch_projection=config.patch_projection,
@@ -1185,21 +1095,28 @@ def _build_model_from_fit_config(config: FitConfig) -> Model:
             structured_parallel_mode=config.structured_parallel_mode,
             structured_outer_threads=config.structured_outer_threads,
             structured_inner_threads=config.structured_inner_threads,
-            num_chi=config.num_chi,
             fullhide2d_transport_model=config.fullhide2d_transport_model,
             fullhide2d_stochastic_accel_norm=config.fullhide2d_stochastic_accel_norm,
             fullhide2d_escape_mode=config.fullhide2d_escape_mode,
-            electron_adaptive_substeps=config.electron_adaptive_substeps,
-            electron_substep_rtol=config.electron_substep_rtol,
-            electron_substep_min=config.electron_substep_min,
-            electron_substep_max=config.electron_substep_max,
-            index_dyn=config.index_dyn,
-            index_syn_integr=config.index_syn_integr,
+        ),
+        reverse_shock=ReverseShock(
+            enabled=reverse_enabled,
+            shell_duration_s=reverse_delta_t_s,
+            upstream_sigma=float(reverse.sigma) if reverse_enabled else 0.0,
+            include_cross_zone_ic=bool(reverse.include_cross_zone_ic) if reverse_enabled else False,
+            include_ssc=bool(reverse.include_ssc) if reverse_enabled else False,
+        ),
+        hadronic=Hadronic(
+            enabled=config.hadronic_enabled,
+            solver=config.hadronic_solver,
+            num_proton_gamma=config.num_gam_p,
+            num_neutrino_frequency=config.num_nu_nu,
+            pgamma_scheme=config.hadronic.pgamma_scheme,
+            pair_cascade_iterations=config.pair_cascade_iterations,
         ),
     )
 
 
-def run_fit(config: Optional[FitConfig] = None) -> FitResult:
-    cfg = FitConfig() if config is None else config
-    model = _build_model_from_fit_config(cfg)
-    return observe(model, config=cfg, spectrum_output=cfg.spectrum_output)
+def run_fit(config: RuntimeConfig) -> FitResult:
+    model = _build_model_from_fit_config(config)
+    return observe(model, config=config, spectrum_output=config.spectrum_output)

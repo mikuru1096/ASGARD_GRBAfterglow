@@ -42,7 +42,6 @@ subroutine annihilation(R_gamma,R,V_seed,seed_syn,seed_ssc,tau_extra,Num_nu,Num_
     call prepare_pair_angle_weights()
     call build_pair_sigma_kernel()
     
-    !$ call omp_set_dynamic(.true.)
     !$OMP PARALLEL num_threads(n_threads), private(I_R, Nu_s1, Tau, i_cos, Tau1, temp_abs)
     !$OMP DO
     do i_R=1,Num_R

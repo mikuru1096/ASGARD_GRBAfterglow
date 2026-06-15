@@ -45,12 +45,6 @@ rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/AS
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/hadronic_pair_cascade_smoke.py'
 ```
 
-Polarization：
-
-```bash
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/polarization_smoke.py'
-```
-
 ## 按区域划分的构建门槛
 
 Electron 1D：
@@ -86,8 +80,6 @@ rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/AS
 
 ## 基准刷新
 
-Benchmark refresh 协议固定在 `doc/benchmark_refresh_protocol.md`。
-
 最少元数据：
 
 - 刷新前后 Git HEAD。
@@ -98,60 +90,7 @@ Benchmark refresh 协议固定在 `doc/benchmark_refresh_protocol.md`。
 - 输出路径。
 - 物理验收口径。
 
-Vegas baseline full comparison：
-
-```bash
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run --extra compare python tests/vegas_afterglow_comparison.py --scenario baseline'
-```
-
-RS-only Vegas comparison：
-
-```bash
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run --extra compare python tests/vegas_afterglow_comparison.py --scenario baseline --only reverse_shock_lc reverse_shock_thermal'
-```
-
-Speed profile：
-
-```bash
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run --extra compare python tests/vegas_afterglow_comparison.py --scenario baseline --only speed_compare'
-```
-
-Magnetized RS sigma scan：
-
-```bash
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python scripts/benchmarks/magnetized_rs_sigma_benchmark.py --medium ism --mode quick'
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python scripts/benchmarks/magnetized_rs_sigma_benchmark.py --medium wind --mode quick'
-```
-
-Runtime breakdown：
-
-```bash
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python scripts/benchmarks/runtime_breakdown_benchmark.py'
-```
-
-Time-dependent BH / joint secondary feedback：
-
-```bash
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python scripts/benchmarks/time_dependent_bh_photon_benchmark.py --mode formal'
-```
-
-该 benchmark 比较 `electron_photon_coupling="separated"` 与 `"joint"`，覆盖 weak-feedback、BH-active 和 strong-wind-BH。验收重点不是单个表格数值，而是 `tau_BH`、二级 pair source、photon survival/source、light curve 和 SED 随 `R` / observer time 的连续性；孤立尖峰优先视为坐标换算、源项归一化、网格映射或 photon survival bug。
-
-2D chi-resolved EATS：
-
-```bash
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python scripts/benchmarks/chi_eats_2d_benchmark.py --mode quick --solver fullhide_2d --medium both --only all'
-```
-
-该 benchmark 使用 `num_chi=24`、`num_r=300`、`num_theta=300`、偏轴 `num_phi=50`，对轴 `num_phi=1`；观测时间覆盖 `1e2-1e9 s`，SED 频段覆盖 `1e6-1e28 Hz`。典型余辉参数为 `E_iso=1e53 erg`、`Gamma0=300`、`epsilon_e=0.1`、`epsilon_B=1e-3`、`epsilon_B_floor=epsilon_B`、`magnetic_decay_alpha_t=0`、`p=2.3`、`theta_j=0.1`、`z=0.1`；2D 壳层内部磁场在每个 shell 内为常数，不使用 χ 方向的特殊磁场剖面。输出 `output/asgard_doc/chi_eats_2d_benchmark/` 下 ISM (`n=1 cm^-3`) 和纯 wind (`A*=0.1`, `n_ism=1e-15 cm^-3`) 两组条件的 `fullhide_2d` 总通量 `chi_eats_2d` vs `sed_legacy` light curve/SED、χ 几何诊断图、2D/1D SED 对比图，以及 top-hat `theta_v/theta_j = 0, 0.5, 1, 1.5, 3, 5` 光变对比图。总通量包含现有 shell-level forward SSC；`chi_eats_2d` 一期只替换 FS synchrotron+SSA observer projection。偏轴 EATS 禁止使用 `num_phi=1`，因为 `num_phi=1` 是仅适用于 `theta_v=0` 的轴对称 φ 折叠。
-
-ISM χ grid convergence scan：
-
-```bash
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python scripts/benchmarks/chi_eats_2d_benchmark.py --mode quick --solver fullhide_2d --medium ism --only chi-grid-scan'
-```
-
-该扫描固定 ISM、`theta_v/theta_j=0.5` 和 `fullhide_2d + chi_eats_2d`，使用半网格 `num_gam_e=16`、`num_nu=21`、`num_r=150`、`num_theta=150`、`num_phi=25`、`num_tobs=64`，比较 `num_chi=32,64,128,256,512`；runtime 计时前先执行一次不入图的 `num_chi=32` warm-up。输出 `fullhide_2d_ism_chi_grid_scan.png/pdf`，并写出 `chi_grid_scan_ism_summary.csv`、`chi_grid_scan_ism_lightcurves.csv` 和 `chi_grid_scan_ism_metadata.json`。
+旧 `scripts/benchmarks/` 入口已删除。新增 formal benchmark 必须先进入 `tests/`，并在脚本内固定物理参数、网格、输出路径和验收口径。
 
 ## 产物策略
 
@@ -178,7 +117,7 @@ Forward-shock：
 - Light curves 应平滑，除非物理 density jump 或 injection event 产生已记录特征。
 - Characteristic frequencies 应连续演化。
 - SSA breaks 不应出现 grid-cell discontinuity。
-- `geometry_kernel="chi_eats_2d"` 只验收 FS synchrotron+SSA；图中 forward SSC 仍是 shell-level 总通量贡献。Projection χ 网格必须跟随当前 shell 的正半径 BM 壳层域自适应，transport-to-projection χ remap 必须保守 `sum(P*Delta chi)` 和 `sum(tau)`，SSA survival 必须按 emitting cell 的 optical-depth coordinate 平均。图中不得出现由负半径、负通量、孤立尖峰、全部 `chi_dvolume_weight` 同时归零或源项截断造成的光变断崖。2D/1D SED 与 top-hat 角度扫描允许离轴情况下出现 order-unity 以上差异，但光变和频谱方向应保持连续。
+- `solver_options.geometry_projection="chi_eats_2d"` 只验收 FS synchrotron+SSA；图中 forward SSC 仍是 shell-level 总通量贡献。Projection χ 网格必须跟随当前 shell 的正半径 BM 壳层域自适应，transport-to-projection χ remap 必须保守 `sum(P*Delta chi)` 和 `sum(tau)`，SSA survival 必须按 emitting cell 的 optical-depth coordinate 平均。图中不得出现由负半径、负通量、孤立尖峰、全部 `chi_dvolume_weight` 同时归零或源项截断造成的光变断崖。2D/1D SED 与 top-hat 角度扫描允许离轴情况下出现 order-unity 以上差异，但光变和频谱方向应保持连续。
 - ISM χ grid convergence scan 中 `num_chi=512` 是参考曲线；`F_chi/F_512` 的时间演化应连续，不允许用 smoothing 或显示裁剪掩盖孤立尖峰。
 
 Reverse-shock：
@@ -191,7 +130,7 @@ Reverse-shock：
 Hadronic：
 
 - 启用过程必须明确列出。
-- Formal path 在定义 chi-local contract 前保持 shell-level 1D。
+- Formal path 在定义 \(\chi\)-local contract 前保持壳层级 1D。
 - Pair cascade 必须保持 gamma-gamma pair/synch branch 的解释，不扩展成 IC-mediated cascade。
 
 Polarization：

@@ -29,12 +29,20 @@ subroutine structured_jet_flux_1d(Boundary,E_iso_grid,Gamma0_grid,active_grid,V_
     real(8), intent(out) :: track_nu_m(Num_R),track_nu_c(Num_R),track_nu_a(Num_R)
 
     real(8) :: Boundary_sed(n)
-    integer :: track_set
+    integer :: track_set,n_threads_projection
 
     fwd_sync_obs=zero; fwd_ssc_obs=zero; fwd_hadronic_obs=zero; rev_sync_obs=zero; total_obs=zero
     track_tobs=zero; track_gamma=zero; track_radius=zero; track_mass=zero; track_bfield=zero
     track_nu_m=zero; track_nu_c=zero; track_nu_a=zero; track_set=0
+    n_threads_projection=max(n_threads_outer,n_threads_inner)
     Boundary_sed=Boundary
+
+    !$ call omp_set_dynamic(.false.)
+    if (n_threads_outer > 1 .and. n_threads_inner > 1) then
+        !$ call omp_set_max_active_levels(2)
+    else
+        !$ call omp_set_max_active_levels(1)
+    end if
 
     if (axisymmetric /= 0) then
         call run_axisymmetric()
@@ -69,17 +77,17 @@ contains
                                            track_nu_a,track_set)
         call sed_interpolation_structured(Boundary_sed,zero,rt_axis,rg_axis,rr_axis,sync_axis,V_seed,V_obs,Tobs, &
                                           n,Num_nu,Num_nu_obs,Num_Tobs,Num_theta_patch,Num_R,Num_phi_sed, &
-                                          n_threads_outer,fwd_sync_obs)
+                                          n_threads_projection,fwd_sync_obs)
         if (include_forward_ssc /= 0) call sed_interpolation_structured(Boundary_sed,zero,rt_axis,rg_axis,rr_axis, &
                                           ssc_axis,V_seed,V_obs,Tobs,n,Num_nu,Num_nu_obs,Num_Tobs, &
-                                          Num_theta_patch,Num_R,Num_phi_sed,n_threads_outer,fwd_ssc_obs)
+                                          Num_theta_patch,Num_R,Num_phi_sed,n_threads_projection,fwd_ssc_obs)
         if (include_hadronic /= 0 .and. (include_proton_synch /= 0 .or. include_pg /= 0)) &
             call sed_interpolation_structured(Boundary_sed,zero, &
                                           rt_axis,rg_axis,rr_axis,had_axis,V_seed,V_obs,Tobs,n,Num_nu,Num_nu_obs, &
-                                          Num_Tobs,Num_theta_patch,Num_R,Num_phi_sed,n_threads_outer,fwd_hadronic_obs)
+                                          Num_Tobs,Num_theta_patch,Num_R,Num_phi_sed,n_threads_projection,fwd_hadronic_obs)
         if (include_reverse_sync /= 0) call sed_interpolation_structured(Boundary_sed,zero,rt_axis,rg_axis,rr_axis, &
                                           rev_axis,V_seed,V_obs,Tobs,n,Num_nu,Num_nu_obs,Num_Tobs, &
-                                          Num_theta_patch,Num_R,Num_phi_sed,n_threads_outer,rev_sync_obs)
+                                          Num_theta_patch,Num_R,Num_phi_sed,n_threads_projection,rev_sync_obs)
     end subroutine run_axisymmetric
 
     subroutine run_nonaxisymmetric()
@@ -106,17 +114,17 @@ contains
                                               track_nu_c,track_nu_a,track_set)
         call sed_interpolation_structured_phi(Boundary_sed,rt_phi,rg_phi,rr_phi,sync_phi,V_seed,V_obs,Tobs, &
                                               n,Num_nu,Num_nu_obs,Num_Tobs,Num_theta_patch,Num_phi_patch,Num_R, &
-                                              n_threads_outer,fwd_sync_obs)
+                                              n_threads_projection,fwd_sync_obs)
         if (include_forward_ssc /= 0) call sed_interpolation_structured_phi(Boundary_sed,rt_phi,rg_phi,rr_phi, &
                                               ssc_phi,V_seed,V_obs,Tobs,n,Num_nu,Num_nu_obs,Num_Tobs, &
-                                              Num_theta_patch,Num_phi_patch,Num_R,n_threads_outer,fwd_ssc_obs)
+                                              Num_theta_patch,Num_phi_patch,Num_R,n_threads_projection,fwd_ssc_obs)
         if (include_hadronic /= 0 .and. (include_proton_synch /= 0 .or. include_pg /= 0)) &
             call sed_interpolation_structured_phi(Boundary_sed, &
                                               rt_phi,rg_phi,rr_phi,had_phi,V_seed,V_obs,Tobs,n,Num_nu,Num_nu_obs, &
-                                              Num_Tobs,Num_theta_patch,Num_phi_patch,Num_R,n_threads_outer,fwd_hadronic_obs)
+                                              Num_Tobs,Num_theta_patch,Num_phi_patch,Num_R,n_threads_projection,fwd_hadronic_obs)
         if (include_reverse_sync /= 0) call sed_interpolation_structured_phi(Boundary_sed,rt_phi,rg_phi,rr_phi, &
                                               rev_phi,V_seed,V_obs,Tobs,n,Num_nu,Num_nu_obs,Num_Tobs, &
-                                              Num_theta_patch,Num_phi_patch,Num_R,n_threads_outer,rev_sync_obs)
+                                              Num_theta_patch,Num_phi_patch,Num_R,n_threads_projection,rev_sync_obs)
     end subroutine run_nonaxisymmetric
 end subroutine structured_jet_flux_1d
 
@@ -149,15 +157,48 @@ subroutine structured_solve_axisymmetric(Boundary,E_iso_grid,Gamma0_grid,active_
     real(8), intent(out) :: had_axis(Num_nu,Num_R,Num_theta_patch),rev_axis(Num_nu,Num_R,Num_theta_patch)
     real(8), intent(out) :: track_tobs(Num_R),track_gamma(Num_R),track_radius(Num_R),track_mass(Num_R),track_bfield(Num_R)
     real(8), intent(out) :: track_nu_m(Num_R),track_nu_c(Num_R),track_nu_a(Num_R)
-    integer :: it
+    integer, allocatable :: solve_index(:), solve_reps(:)
+    integer :: it,iu,rep_idx,unique_count
+
+    allocate(solve_index(Num_theta_patch),solve_reps(Num_theta_patch))
+    solve_index=0; solve_reps=0; unique_count=0
+    do it=1,Num_theta_patch
+        if (active_grid(it,1) /= 0) call register_axis_patch(it)
+    end do
 
     !$OMP PARALLEL DO num_threads(n_threads_outer) schedule(dynamic,1)
-    do it=1,Num_theta_patch
-        if (active_grid(it,1) /= 0) call solve_axis_patch(it)
+    do iu=1,unique_count
+        call solve_axis_patch(solve_reps(iu))
     end do
     !$OMP END PARALLEL DO
 
+    !$OMP PARALLEL DO num_threads(n_threads_outer) schedule(static) private(rep_idx)
+    do it=1,Num_theta_patch
+        rep_idx=solve_index(it)
+        if (rep_idx /= 0 .and. rep_idx /= it) call copy_axis_patch(rep_idx,it)
+    end do
+    !$OMP END PARALLEL DO
+
+    deallocate(solve_index,solve_reps)
+
 contains
+
+    subroutine register_axis_patch(it)
+        implicit none
+        integer, intent(in) :: it
+        integer :: jr,rep
+
+        do jr=1,unique_count
+            rep=solve_reps(jr)
+            if (E_iso_grid(it,1) == E_iso_grid(rep,1) .and. Gamma0_grid(it,1) == Gamma0_grid(rep,1)) then
+                solve_index(it)=rep
+                return
+            end if
+        end do
+        unique_count=unique_count+1
+        solve_reps(unique_count)=it
+        solve_index(it)=it
+    end subroutine register_axis_patch
 
     subroutine solve_axis_patch(it)
         implicit none
@@ -175,6 +216,15 @@ contains
                                       track_tobs,track_gamma,track_radius,track_mass,track_bfield,track_nu_m,track_nu_c, &
                                       track_nu_a,track_set)
     end subroutine solve_axis_patch
+
+    subroutine copy_axis_patch(src,dst)
+        implicit none
+        integer, intent(in) :: src,dst
+
+        rt_axis(:,dst)=rt_axis(:,src); rg_axis(:,dst)=rg_axis(:,src); rr_axis(:,dst)=rr_axis(:,src)
+        sync_axis(:,:,dst)=sync_axis(:,:,src); ssc_axis(:,:,dst)=ssc_axis(:,:,src)
+        had_axis(:,:,dst)=had_axis(:,:,src); rev_axis(:,:,dst)=rev_axis(:,:,src)
+    end subroutine copy_axis_patch
 end subroutine structured_solve_axisymmetric
 
 subroutine structured_solve_nonaxisymmetric(Boundary,E_iso_grid,Gamma0_grid,active_grid,V_seed,n,Num_theta_patch, &
@@ -207,17 +257,77 @@ subroutine structured_solve_nonaxisymmetric(Boundary,E_iso_grid,Gamma0_grid,acti
     real(8), intent(out) :: rev_phi(Num_nu,Num_R,Num_theta_patch,Num_phi_patch)
     real(8), intent(out) :: track_tobs(Num_R),track_gamma(Num_R),track_radius(Num_R),track_mass(Num_R),track_bfield(Num_R)
     real(8), intent(out) :: track_nu_m(Num_R),track_nu_c(Num_R),track_nu_a(Num_R)
-    integer :: it,ip
+    integer, allocatable :: solve_index(:), solve_reps(:)
+    integer :: it,ip,flat,iu,rep_flat,rep_it,rep_ip,unique_count
 
-    !$OMP PARALLEL DO num_threads(n_threads_outer) collapse(2) schedule(dynamic,1)
+    allocate(solve_index(Num_theta_patch*Num_phi_patch),solve_reps(Num_theta_patch*Num_phi_patch))
+    solve_index=0; solve_reps=0; unique_count=0
     do ip=1,Num_phi_patch
         do it=1,Num_theta_patch
-            if (active_grid(it,ip) /= 0) call solve_phi_patch(it,ip)
+            flat=flatten_patch(it,ip)
+            if (active_grid(it,ip) /= 0) call register_phi_patch(it,ip,flat)
+        end do
+    end do
+
+    !$OMP PARALLEL DO num_threads(n_threads_outer) schedule(dynamic,1) private(rep_flat,rep_it,rep_ip)
+    do iu=1,unique_count
+        rep_flat=solve_reps(iu)
+        call unflatten_patch(rep_flat,rep_it,rep_ip)
+        call solve_phi_patch(rep_it,rep_ip)
+    end do
+    !$OMP END PARALLEL DO
+
+    !$OMP PARALLEL DO num_threads(n_threads_outer) collapse(2) schedule(static) private(flat,rep_flat,rep_it,rep_ip)
+    do ip=1,Num_phi_patch
+        do it=1,Num_theta_patch
+            flat=flatten_patch(it,ip)
+            rep_flat=solve_index(flat)
+            if (rep_flat /= 0 .and. rep_flat /= flat) then
+                call unflatten_patch(rep_flat,rep_it,rep_ip)
+                call copy_phi_patch(rep_it,rep_ip,it,ip)
+            end if
         end do
     end do
     !$OMP END PARALLEL DO
 
+    deallocate(solve_index,solve_reps)
+
 contains
+
+    integer function flatten_patch(it,ip)
+        implicit none
+        integer, intent(in) :: it,ip
+
+        flatten_patch=(ip-1)*Num_theta_patch+it
+    end function flatten_patch
+
+    subroutine unflatten_patch(flat,it,ip)
+        implicit none
+        integer, intent(in) :: flat
+        integer, intent(out) :: it,ip
+
+        it=mod(flat-1,Num_theta_patch)+1
+        ip=(flat-1)/Num_theta_patch+1
+    end subroutine unflatten_patch
+
+    subroutine register_phi_patch(it,ip,flat)
+        implicit none
+        integer, intent(in) :: it,ip,flat
+        integer :: jr,rep,rep_it,rep_ip
+
+        do jr=1,unique_count
+            rep=solve_reps(jr)
+            call unflatten_patch(rep,rep_it,rep_ip)
+            if (E_iso_grid(it,ip) == E_iso_grid(rep_it,rep_ip) .and. &
+                Gamma0_grid(it,ip) == Gamma0_grid(rep_it,rep_ip)) then
+                solve_index(flat)=rep
+                return
+            end if
+        end do
+        unique_count=unique_count+1
+        solve_reps(unique_count)=flat
+        solve_index(flat)=flat
+    end subroutine register_phi_patch
 
     subroutine solve_phi_patch(it,ip)
         implicit none
@@ -235,6 +345,19 @@ contains
                                       had_phi(:,:,it,ip),rev_phi(:,:,it,ip),track_tobs,track_gamma,track_radius, &
                                       track_mass,track_bfield,track_nu_m,track_nu_c,track_nu_a,track_set)
     end subroutine solve_phi_patch
+
+    subroutine copy_phi_patch(src_it,src_ip,dst_it,dst_ip)
+        implicit none
+        integer, intent(in) :: src_it,src_ip,dst_it,dst_ip
+
+        rt_phi(:,dst_it,dst_ip)=rt_phi(:,src_it,src_ip)
+        rg_phi(:,dst_it,dst_ip)=rg_phi(:,src_it,src_ip)
+        rr_phi(:,dst_it,dst_ip)=rr_phi(:,src_it,src_ip)
+        sync_phi(:,:,dst_it,dst_ip)=sync_phi(:,:,src_it,src_ip)
+        ssc_phi(:,:,dst_it,dst_ip)=ssc_phi(:,:,src_it,src_ip)
+        had_phi(:,:,dst_it,dst_ip)=had_phi(:,:,src_it,src_ip)
+        rev_phi(:,:,dst_it,dst_ip)=rev_phi(:,:,src_it,src_ip)
+    end subroutine copy_phi_patch
 end subroutine structured_solve_nonaxisymmetric
 
 subroutine structured_solve_element(Boundary,E_iso,Gamma0,V_seed,n,Num_nu,Num_R,Num_gam_e,index_dyn,index_Y,index_syn_intger, &

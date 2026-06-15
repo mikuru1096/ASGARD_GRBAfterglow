@@ -5,7 +5,7 @@ import math
 
 import numpy as np
 
-from asgard_core.asgard_numpy import trapezoid
+import numpy as np
 from asgard_core.hadronic_hummer import PROTON_MASS_GEV, solve_hummer2010_pgamma
 from asgard_core.hadronic_pgamma import (
     kelner_aharonian_2008_secondary_spectrum,
@@ -348,22 +348,22 @@ def solve_ka2008_reference_processes(
         process_luminosity[2, :, i_r] = _energy_luminosity_from_spectrum(process_energy_arr, muon_process_spec, shell_volume_cm3)
 
         proton_energy_weight = d_n_gam_p_arr[:, i_r] * proton_energy_gev
-        total_weight = float(trapezoid(proton_energy_weight, proton_energy_gev))
+        total_weight = float(np.trapezoid(proton_energy_weight, proton_energy_gev))
         if total_weight > 0.0 and np.isfinite(total_weight):
             normalized_weight = proton_energy_weight / total_weight
         else:
             normalized_weight = np.zeros_like(proton_energy_weight)
 
         if include_pg:
-            photopion_total = float(trapezoid(l_had_pg_gamma[:, i_r], v_seed_arr))
+            photopion_total = float(np.trapezoid(l_had_pg_gamma[:, i_r], v_seed_arr))
             pion_decay_total = float(
-                trapezoid(
+                np.trapezoid(
                     _energy_luminosity_from_spectrum(photon_energy_gev, pion_lepton_spec, shell_volume_cm3),
                     photon_energy_gev,
                 )
             )
             muon_decay_total = float(
-                trapezoid(
+                np.trapezoid(
                     _energy_luminosity_from_spectrum(photon_energy_gev, muon_lepton_spec, shell_volume_cm3),
                     photon_energy_gev,
                 )
@@ -504,11 +504,11 @@ def _solve_hummer_backend(
             )
 
         proton_energy_weight = d_n_gam_p_arr[:, i_r] * proton_energy_gev
-        total_weight = float(trapezoid(proton_energy_weight, proton_energy_gev))
+        total_weight = float(np.trapezoid(proton_energy_weight, proton_energy_gev))
         normalized_weight = proton_energy_weight / total_weight if total_weight > 0.0 and np.isfinite(total_weight) else np.zeros_like(proton_energy_weight)
 
-        photopion_total = float(trapezoid(process_luminosity[0, :, i_r], process_energy_arr))
-        pion_decay_total = float(trapezoid(
+        photopion_total = float(np.trapezoid(process_luminosity[0, :, i_r], process_energy_arr))
+        pion_decay_total = float(np.trapezoid(
             _energy_luminosity_from_rate_spectrum(
                 backend.neutrino_energy_gev,
                 backend.prompt_pion_neutrino_rate_per_gev,
@@ -516,7 +516,7 @@ def _solve_hummer_backend(
             ),
             backend.neutrino_energy_gev,
         ))
-        muon_decay_total = float(trapezoid(
+        muon_decay_total = float(np.trapezoid(
             _energy_luminosity_from_rate_spectrum(
                 backend.neutrino_energy_gev,
                 backend.muon_neutrino_rate_per_gev,
@@ -524,7 +524,7 @@ def _solve_hummer_backend(
             ),
             backend.neutrino_energy_gev,
         ))
-        muon_decay_total += float(trapezoid(
+        muon_decay_total += float(np.trapezoid(
             _energy_luminosity_from_rate_spectrum(
                 backend.process_energy_gev,
                 backend.muon_electron_rate_per_gev,

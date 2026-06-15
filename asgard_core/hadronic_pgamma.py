@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from asgard_core.asgard_numpy import trapezoid
+import numpy as np
 import src.Hadronic.hadronic_forward_1d as hadronic_legacy_module
 from src import constants
 
@@ -154,9 +154,9 @@ def kelner_aharonian_2008_gamma_spectrum(
                 continue
             eta = 4.0 * eps * ep / (PROTON_MASS_GEV * PROTON_MASS_GEV)
             phi = kelner_aharonian_2008_gamma_phi(eta, x)
-            inner = trapezoid(f_ph * phi, eps)
+            inner = np.trapezoid(f_ph * phi, eps)
             outer[j] = f_p[j] * inner / ep
-        spectrum[i] = trapezoid(outer, e_p)
+        spectrum[i] = np.trapezoid(outer, e_p)
     return spectrum
 
 
@@ -204,9 +204,9 @@ def kelner_aharonian_2008_secondary_spectrum(
                 continue
             eta = 4.0 * eps * ep / (PROTON_MASS_GEV * PROTON_MASS_GEV)
             phi = kelner_aharonian_2008_secondary_phi(channel, eta, x)
-            inner = trapezoid(f_ph * phi, eps)
+            inner = np.trapezoid(f_ph * phi, eps)
             outer[j] = f_p[j] * inner / ep
-        spectrum[i] = trapezoid(outer, e_p)
+        spectrum[i] = np.trapezoid(outer, e_p)
     return spectrum
 
 

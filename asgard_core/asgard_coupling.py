@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from asgard_core.asgard_config import FitConfig
+from asgard_core.asgard_config import RuntimeConfig
 from asgard_core.asgard_physics_utils import ambient_density
 from src import constants
 
@@ -17,7 +17,7 @@ class CoupledShockGeometry:
     center_delay_s: np.ndarray
 
 
-def build_coupled_shock_geometry(dynamics, config: FitConfig) -> CoupledShockGeometry:
+def build_coupled_shock_geometry(dynamics, config: RuntimeConfig) -> CoupledShockGeometry:
     if dynamics.reverse_shock is None:
         raise ValueError("Reverse-shock dynamics are required to build coupled-shock geometry.")
     if config.reverse_shock.delta_t_s is None:

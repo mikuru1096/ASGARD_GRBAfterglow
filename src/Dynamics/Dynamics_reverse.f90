@@ -428,18 +428,24 @@ contains
     integer :: k
     real(8), intent(in) :: radius
     real(8), intent(out) :: density_factor,branch_weight
-    real(8) :: x,width,profile,base_density,enhancement
+    real(8) :: x,width,profile,total_density,base_density,enhancement
 
-        call dynamics_external_density_base(A_star,dNe_ISM,radius,base_density)
+        call dynamics_external_density_profile(A_star,dNe_ISM,radius,R0,1,R_tr,f_jump,f_wide,total_density)
         enhancement=one; branch_weight=zero
         do k=1,active_density_jump_count
             x=radius-active_density_jump_r(k)
             width=active_density_jump_width(k)*active_density_jump_r(k)
             profile=(active_density_jump_factor(k)-one)*dexp(-(x*x)/(2d0*width*width))
             enhancement=enhancement+profile
+        end do
+        base_density=total_density/enhancement
+        do k=1,active_density_jump_count
+            x=radius-active_density_jump_r(k)
+            width=active_density_jump_width(k)*active_density_jump_r(k)
+            profile=(active_density_jump_factor(k)-one)*dexp(-(x*x)/(2d0*width*width))
             if (k == jump_index .and. x >= -4d0*width .and. x < zero) branch_weight=base_density*profile
         end do
-        density_factor=base_density*enhancement
+        density_factor=total_density
     end subroutine secondary_reverse_density_branch_state
 end subroutine dynamics_reverse
 
@@ -1106,17 +1112,23 @@ contains
     integer :: k
     real(8), intent(in) :: radius
     real(8), intent(out) :: density_factor,branch_weight
-    real(8) :: x,width,profile,base_density,enhancement
+    real(8) :: x,width,profile,total_density,base_density,enhancement
 
-        call dynamics_external_density_base(A_star,dNe_ISM,radius,base_density)
+        call dynamics_external_density_profile(A_star,dNe_ISM,radius,R0,1,R_tr,f_jump,f_wide,total_density)
         enhancement=one; branch_weight=zero
         do k=1,active_density_jump_count
             x=radius-active_density_jump_r(k)
             width=active_density_jump_width(k)*active_density_jump_r(k)
             profile=(active_density_jump_factor(k)-one)*dexp(-(x*x)/(2d0*width*width))
             enhancement=enhancement+profile
+        end do
+        base_density=total_density/enhancement
+        do k=1,active_density_jump_count
+            x=radius-active_density_jump_r(k)
+            width=active_density_jump_width(k)*active_density_jump_r(k)
+            profile=(active_density_jump_factor(k)-one)*dexp(-(x*x)/(2d0*width*width))
             if (k == jump_index .and. x >= -4d0*width .and. x < zero) branch_weight=base_density*profile
         end do
-        density_factor=base_density*enhancement
+        density_factor=total_density
     end subroutine secondary_reverse_density_branch_rhs
 end subroutine reverse_dynamics_rhs

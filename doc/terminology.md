@@ -8,10 +8,17 @@
 | --- | --- | --- |
 | forward shock, FS | 正向激波 | 不再使用“正激波”或“前向激波”。 |
 | reverse shock, RS | 反向激波 | 不再使用“反激波”“后向激波”或“逆向激波”。 |
+| ejecta reverse shock | 抛射物反向激波 | 指原始 ejecta 被反向激波加热形成区域 3 的分支；避免写成“原始反向激波”。 |
+| secondary reverse shock | 次级反向激波 | 首次出现可写“密度增强触发的次级反向激波”；不写“secondary reverse shock”混排。 |
 | equal-arrival-time surface, EATS | 等到达时间面 | 用于观测者投影。 |
-| structured jet | 结构化喷流 | 保留 `TophatJet`、`GaussianJet` 等 API 名。 |
+| Doppler factor | Doppler 因子 | 物理量写 \(\delta=[\Gamma(1-\beta\mu)]^{-1}\)；插值代码变量 `doppler` 表示 \(D=\delta^{-1}\)。 |
+| structured jet | 结构化喷流 | 使用 `top_hat_jet`、`gaussian_jet`、`power_law_jet` 等函数式构造器。 |
 | shell | 壳层 | 指半径网格上的动力学/输运单元。 |
+| shell-level | 壳层级 | 指每个半径壳层只有一个局域物理状态；不要写成 shell level 或 shell contract。 |
 | patch | 角向面元 | 结构化喷流或偏振投影中的角向单元。 |
+| \(\chi\)-resolved | \(\chi\) 分辨 | 正文/公式用 \(\chi\)，代码名保留 `chi` 和 `chi_eats_2d`。 |
+| finite-thickness shell | 有限厚壳层 | 指 `chi_eats_2d` 的正向激波同步辐射+SSA 投影几何。 |
+| density bump | 密度增强 | 首次可注明 smooth density bump；避免中英文混用。 |
 
 ## 辐射与粒子过程
 

@@ -10,41 +10,50 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet
+from ASGARD import Model, Observer, UniformMedium, top_hat_jet
 from ASGARD.api_model import _build_fit_config_for_patch
 from asgard_core.asgard_physics_utils import compute_magnetic_field
 from asgard_core.asgard_state import _forward_synchrotron_absorption_transfer, solve_state
+from tests.public_api_builders import hadronic, numerics, radiation, observer_grid, solver_options, top_hat_model
 
 
 def _build_model() -> Model:
-    return Model(
-        TophatJet(0.12, 3.0e53, 400.0),
-        ISM(30.0),
-        Observer(1.0e27, 0.2, 0.0),
-        Radiation(
-            0.15,
-            0.03,
-            2.2,
-            epsilon_p=0.6,
-            ssc=True,
+    return top_hat_model(
+        jet=top_hat_jet(
+            energy_iso_erg=3.0e53,
+            initial_lorentz_factor=400.0,
+            opening_angle_rad=0.12,
+            shell_duration_s=None,
+            magnetar=None,
+            spreading=False,
+        ),
+        medium=UniformMedium(number_density_cm3=30.0),
+        observer=Observer(z=0.2, viewing_angle_rad=0.0, viewing_azimuth_rad=0.0, luminosity_distance_cm=1.0e27),
+        fwd_rad=radiation(
+            epsilon_e=0.15,
+            epsilon_B=0.03,
+            p=2.2,
+            proton_energy_fraction=0.6,
+            include_ssc=True,
             proton_synch=True,
-            pg=True,
+            include_pgamma=True,
             neutrino=True,
             pgamma_scheme="hummer_2010_response",
         ),
-        setups=Setups(
-            electron_solver="fullhide_1d",
-            num_gam_e=28,
-            num_gam_p=36,
-            num_nu=40,
-            num_nu_nu=24,
-            num_r=26,
+        numerics=numerics(
+            num_electron_gamma=28,
+            num_photon_frequency=40,
+            num_radius=26,
             num_theta=16,
-            num_tobs=26,
-            observer_time_min_s=1.0e2,
-            observer_time_max_s=1.0e5,
-            hadronic_enabled=True,
-            hadronic_solver="am3_1d",
+            num_observer_time=26,
+        ),
+        observer_grid=observer_grid(time_min_s=1.0e2, time_max_s=1.0e5),
+        solver_options=solver_options(electron_solver="fullhide_1d"),
+        hadronic=hadronic(
+            enabled=True,
+            solver="am3_1d",
+            num_proton_gamma=36,
+            num_neutrino_frequency=24,
             pgamma_scheme="hummer_2010_response",
         ),
     )

@@ -28,13 +28,12 @@
 3. `doc/quickstart.md`
 4. `doc/command_line.md`
 5. `doc/examples.md`
-6. `doc/user_guide.md`
+6. `doc/public_api.md`
 7. `doc/fitting_workflow.md`
 8. `doc/mcmc_fitting.md`
-9. `doc/external_inference.md`
-10. `doc/parameter_reference.md`
-11. `doc/public_api.md`
-12. `doc/troubleshooting.md`
+9. `doc/parameter_reference.md`
+10. `doc/external_inference.md`
+11. `doc/troubleshooting.md`
 
 理解物理和数值主链：
 
@@ -57,7 +56,6 @@
 3. `TODO.md`
 4. `doc/developer_guide.md`
 5. `doc/validation_and_benchmarks.md`
-6. `doc/benchmark_refresh_protocol.md`
 
 网页文档发布：
 
@@ -70,7 +68,9 @@
 - `doc/terminology.md`：中文术语表和公式书写规则。
 - `doc/command_line.md`：构建、作图、文档和 benchmark 的命令行入口。
 - `doc/examples.md`：多频光变、宽频谱、辐射分量、内部量和观测预测教程。
-- `doc/mcmc_fitting.md`：从合成数据到 posterior 验收的拟合专题。
+- `doc/public_api.md`：公开 API 选择手册，按“可以选什么、含义、效果、注意事项”解释 `Model`、求解器、物理开关和查询接口。
+- `doc/fitting_workflow.md`：从零开始的拟合教程，覆盖数据单位、参数绑定、likelihood、emcee、PyMultiNest 和物理验收。
+- `doc/mcmc_fitting.md`：emcee 与 PyMultiNest 专题，说明采样变量、先验、运行参数、限制和结果解读。
 - `doc/external_inference.md`：Redback、bilby、BlackJAX 等外部采样器的当前边界和包装方式。
 - `doc/public_backend_limits.md`：public API 与 backend 的不支持/部分支持边界。
 - `TODO.md`：唯一 TODO / 未完成项入口。
@@ -78,16 +78,18 @@
 - `doc/physical_processes.md`：物理过程详解，从坐标、动力学、电子、辐射、强子、级联到 EATS 投影逐步推导。
 - `doc/project_algorithm_design.md`：全项目算法设计总纲，覆盖状态机、网格、求解器、Python/Fortran 边界、投影、拟合、构建和验证。
 - `doc/algorithm_workflow.md`：算法流程详解，解释数组维度、离散方程、`fullhide_1d`、强子 transport、EATS、缓存和验证矩阵。
+- `doc/shock_shell_adaptive_algorithms.md`：集中说明 \(\chi\) 分辨有限厚壳层、抛射物反向激波、密度增强触发的次级反向激波和自适应网格算法。
 - `doc/joint_secondary_feedback_physics.md`：含时 BH、二级 e±、光子 sink/source 和 `R` 坐标能量预算的物理契约。
 - `doc/joint_secondary_feedback_algorithm.md`：`electron_photon_coupling="joint"` 的状态机、数组契约、函数入口、测试和 benchmark。
-- `doc/hadronic_chi_transport_decision.md`：当前不实现 2D / chi-resolved hadronic transport 的理由和前置物理契约。
+- `doc/hadronic_chi_transport_decision.md`：当前不实现 2D / \(\chi\) 分辨 hadronic transport 的理由和前置物理契约。
 - `doc/pair_cascade_extension_boundary.md`：当前 gamma-gamma pair/synch cascade 与 IC-mediated electromagnetic cascade 的边界。
-- `doc/polarization_timing_diagnostic.md`：Lan 2023 偏振峰时诊断。
 - `doc/hadronic_pgamma_notes.md`：p-gamma 微物理和基准说明。
 - `doc/am3_migration_plan.md`：AM3 共存、迁移和引用边界。
 - `doc/electron_solver_algorithms.md`：电子输运算法说明。
 - `doc/fullhide2d_pwn_cr_transport.md`：`fullhide2d_transport_model="pwn_cr_v1"` 的物理契约和边界布局。
 - `doc/web_docs.md`：通过 `asgard-private` 发布仅合作者可见 GitHub Pages 文档站的设置和维护流程。
+
+除 `README.md`、`AGENTS.md`、`PLAN.md` 和 `TODO.md` 这类根目录入口/开发状态文件外，用户说明、物理说明、算法设计、API 参考、教程、拟合说明和验证说明都应维护在本 `doc/` 网页文档树中。专题计划若已经沉淀为当前能力或明确边界，应合并到对应网页章节，不再保留根目录副本文档。
 
 ## 当前能力摘要
 
@@ -114,8 +116,8 @@ ASGARD 当前主线是 GRB 余辉的壳层演化爆波和观测者投影模型�
 
 Public Python API：
 
-- `ASGARD/api_model.py`：`Model`, `ISM`, `Wind`, jet classes, `Observer`, `Radiation`, `Setups`，以及 `Model` 查询调度和 direct/patch solve 入口。
-- `ASGARD/api_observe.py`：`observe`, `run_fit` 兼容入口，以及 sky image / polarization / observation dataset helpers。
+- `ASGARD/api_model.py`：`Model`, `UniformMedium`, `WindMedium`, `TabulatedMedium`, `top_hat_jet`, `gaussian_jet`, `power_law_jet`, `Observer`, `Radiation`, `Numerics`, `ObserverGrid`, `SolverOptions`, `ReverseShock`, `Hadronic`，以及 `Model` 查询调度和 direct/patch solve 入口。
+- `ASGARD/api_observe.py`：内部/旧配置观测工具，以及 sky image / polarization / observation dataset helpers；`observe` 和 `run_fit` 不从 `ASGARD` 顶层导出，不作为新教程入口。
 - `ASGARD/api_fit.py`：`Fitter`, `Param`, `FitResult`。
 
 Fortran 构建入口：

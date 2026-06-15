@@ -10,36 +10,51 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet
+from ASGARD import Model, Observer, top_hat_jet
+from tests.public_api_builders import numerics, observer_grid, radiation, reverse_shock, solver_options, top_hat_model
 
 
-def _model() -> Model:
-    return Model(
-        jet=TophatJet(theta_c=0.1, E_iso=1.0e52, Gamma0=80.0, duration=20.0),
-        medium=ISM(n_ism=1.0),
-        observer=Observer(lumi_dist=1.0e26, z=0.1, theta_obs=0.0),
-        fwd_rad=Radiation(eps_e=0.1, eps_B=1.0e-4, p=2.3, xi_N=0.2, ssc=False),
-        rvs_rad=Radiation(eps_e=0.15, eps_B=3.0e-3, p=2.35, xi_N=1.0, ssc=False),
-        setups=Setups(
-            rvs_shock=True,
-            reverse_delta_t_s=20.0,
-            fwd_ssc=False,
-            rvs_ssc=False,
-            ssc_cooling=False,
-            num_threads=1,
-            num_r=48,
-            num_theta=8,
-            num_tobs=24,
-            num_gam_e=41,
-            num_nu=31,
-            observer_time_min_s=1.0e2,
-            observer_time_max_s=1.0e5,
-            jump_r_cm=(3.0e16,),
-            jump_factor=(6.0,),
-            jump_width_log10=(0.10,),
-            electron_solver="fullhide_1d",
+def _model(theta_obs: float = 0.0, gamma0: float = 80.0) -> Model:
+    model = top_hat_model(
+        jet=top_hat_jet(
+            energy_iso_erg=1.0e52,
+            initial_lorentz_factor=gamma0,
+            opening_angle_rad=0.1,
+            shell_duration_s=20.0,
+            magnetar=None,
+            spreading=False,
         ),
+        observer=Observer(z=0.1, viewing_angle_rad=theta_obs, viewing_azimuth_rad=0.0, luminosity_distance_cm=1.0e26),
+        fwd_rad=radiation(epsilon_e=0.1, epsilon_B=1.0e-4, p=2.3, accelerated_electron_fraction=0.2),
+        rvs_rad=radiation(epsilon_e=0.15, epsilon_B=3.0e-3, p=2.35, accelerated_electron_fraction=1.0),
+        numerics=numerics(
+            num_radius=48,
+            num_theta=8,
+            num_observer_time=24,
+            num_electron_gamma=41,
+            num_photon_frequency=31,
+        ),
+        observer_grid=observer_grid(time_min_s=1.0e2, time_max_s=1.0e5),
+        solver_options=solver_options(electron_solver="fullhide_1d", ssc_cooling_mode="none"),
+        reverse_shock=reverse_shock(enabled=True, shell_duration_s=20.0),
     )
+    model.setups.jump_r_cm = (3.0e16,)
+    model.setups.jump_factor = (6.0,)
+    model.setups.jump_width_log10 = (0.10,)
+    return model
+
+
+def _assert_offaxis_adaptive_eats_resolution() -> None:
+    model = _model(theta_obs=0.05, gamma0=20.0)
+    model.setups.num_theta = 4
+    model.setups.num_phi = 1
+    model._ensure_direct_adaptive_eats_resolution()
+    gamma = model.jet.initial_lorentz_factor
+    theta_j = model.jet.opening_angle_rad
+    expected_theta = int(np.ceil(theta_j * model.setups.patch_sampling_beaming_resolution * gamma / model.setups.patch_sampling_beaming_factor)) + 1
+    expected_phi = int(np.ceil(np.pi * model.setups.patch_sampling_beaming_resolution * gamma * np.sin(theta_j) / model.setups.patch_sampling_beaming_factor)) + 1
+    assert model.setups.num_theta >= expected_theta
+    assert model.setups.num_phi >= max(expected_phi, 2)
 
 
 def main() -> None:
@@ -77,6 +92,7 @@ def main() -> None:
     assert covered_tail.size > 0
     for time_s in covered_tail[: min(3, covered_tail.size)]:
         assert np.any(np.isclose(adaptive.time_s, time_s, rtol=1.0e-13, atol=0.0))
+    _assert_offaxis_adaptive_eats_resolution()
     print("adaptive-observer-time-grid-smoke-ok")
 
 

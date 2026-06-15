@@ -10,13 +10,13 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from asgard_core.asgard_config import FitConfig
+from asgard_core.asgard_config import RuntimeConfig
 from asgard_core.asgard_setup import build_boundary
 from asgard_core.asgard_state import solve_state
 from tests._bench_common import run_case
 
 
-def _config(**overrides) -> FitConfig:
+def _config(**overrides) -> RuntimeConfig:
     base = dict(
         electron_solver="fullhide_2d",
         num_gam_e=10,
@@ -29,7 +29,7 @@ def _config(**overrides) -> FitConfig:
         electron_adaptive_substeps=False,
     )
     base.update(overrides)
-    return FitConfig(**base)
+    return RuntimeConfig(**base)
 
 
 def case_boundary_layout() -> dict[str, object]:
@@ -49,7 +49,7 @@ def case_boundary_layout() -> dict[str, object]:
     return {"legacy_len": int(legacy.size), "pwn_len": int(pwn.size), "r0": float(pwn[26])}
 
 
-def _electron_count(config: FitConfig) -> tuple[float, bool]:
+def _electron_count(config: RuntimeConfig) -> tuple[float, bool]:
     state = solve_state(config, np.array([1.0e2, 1.2e2]))
     dnde = np.asarray(state.electron.d_n_gam_e, dtype=float)
     gamma = np.asarray(state.electron.gam_e, dtype=float)

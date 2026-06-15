@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from asgard_core.asgard_config import FitConfig
+from asgard_core.asgard_config import RuntimeConfig
 from asgard_core.asgard_physics_utils import compute_magnetic_field, compute_doppler
 from src import Radiation, constants
 
@@ -10,7 +10,7 @@ from src import Radiation, constants
 DEFAULT_AUXILIARY_GAMMA_COUNT = 64
 
 
-def _compute_forward_nu_M(gamma: np.ndarray, radius_cm: np.ndarray, config: FitConfig) -> np.ndarray:
+def _compute_forward_nu_M(gamma: np.ndarray, radius_cm: np.ndarray, config: RuntimeConfig) -> np.ndarray:
     magnetic_field = compute_magnetic_field(gamma, radius_cm, config)
     doppler = compute_doppler(gamma, config.z)
     gam_e_max = 3.0 * constants.para_m_energy / np.sqrt(8.0 * magnetic_field * constants.para_e**3)
@@ -382,7 +382,7 @@ def _build_forward_ssc_grid(
     nu_a: np.ndarray,
     nu_m: np.ndarray,
     nu_c: np.ndarray,
-    config: FitConfig,
+    config: RuntimeConfig,
 ) -> np.ndarray:
     nu_M = _compute_forward_nu_M(gamma_bulk, radius_cm, config)
     break_arrays = [nu_a, nu_m, nu_c, nu_M]
@@ -446,7 +446,7 @@ def compute_forward_ssc_seed_adaptive(
     nu_a: np.ndarray,
     nu_m: np.ndarray,
     nu_c: np.ndarray,
-    config: FitConfig,
+    config: RuntimeConfig,
 ) -> tuple[np.ndarray, np.ndarray]:
     reduced_grid_hz = _build_forward_ssc_grid(full_grid_hz, seed_syn, gamma_bulk, radius_cm, nu_a, nu_m, nu_c, config)
     target_points = max(full_grid_hz.shape[0], int(np.ceil(1.5 * full_grid_hz.shape[0])))

@@ -11,6 +11,9 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from ASGARD import Model, Observer, UniformMedium, gaussian_jet
+from tests.public_api_builders import numerics, radiation, reverse_shock, hadronic, observer_grid, solver_options
+
 
 def _make_model(
     *,
@@ -21,32 +24,43 @@ def _make_model(
     theta_c: float = 0.08,
     theta_max: float = 0.24,
 ):
-    from ASGARD import GaussianJet, ISM, Model, Observer, Radiation, Setups
-
-    return Model(
-        GaussianJet(E_iso=1.0e52, Gamma0=gamma0, theta_c=theta_c, theta_max=theta_max),
-        ISM(1.0),
-        Observer(1.0e26, 0.1, theta_obs),
-        Radiation(0.1, 1.0e-3, 2.3, ssc=False),
-        setups=Setups(
-            structured_backend=backend,
-            patch_sampling=sampling,
-            patch_theta=20,
-            patch_phi=15,
-            num_gam_e=21,
-            num_nu=17,
-            num_r=12,
+    model = Model(
+        jet=gaussian_jet(
+            energy_iso_erg=1.0e52,
+            initial_lorentz_factor=gamma0,
+            core_angle_rad=theta_c,
+            outer_angle_rad=theta_max,
+            shell_duration_s=None,
+            magnetar=None,
+            spreading=False,
+        ),
+        medium=UniformMedium(number_density_cm3=1.0),
+        observer=Observer(z=0.1, viewing_angle_rad=theta_obs, viewing_azimuth_rad=0.0, luminosity_distance_cm=1.0e26),
+        fwd_rad=radiation(),
+        numerics=numerics(
+            num_radius=12,
             num_theta=8,
             num_phi=8,
-            num_tobs=8,
-            num_threads=1,
+            num_observer_time=8,
+            num_electron_gamma=21,
+            num_photon_frequency=17,
+        ),
+        observer_grid=observer_grid(time_min_s=1.0e2, time_max_s=1.0e6),
+        solver_options=solver_options(
+            structured_backend=backend,
+            patch_sampling=sampling,
             electron_solver="fullhide_1d",
             patch_sampling_pilot_theta=8,
             patch_sampling_num_times=3,
             patch_sampling_beaming_factor=3.0,
             patch_sampling_beaming_resolution=8.0,
         ),
+        reverse_shock=reverse_shock(),
+        hadronic=hadronic(),
     )
+    model.setups.patch_theta = 20
+    model.setups.patch_phi = 15
+    return model
 
 
 def _assert_uniform_grid_matches_legacy() -> None:

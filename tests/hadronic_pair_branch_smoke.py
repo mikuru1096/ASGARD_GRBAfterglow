@@ -10,12 +10,12 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from asgard_core.asgard_config import FitConfig
+from asgard_core.asgard_config import RuntimeConfig
 from asgard_core.asgard_state import _compute_pair_production_branch
 from asgard_core.asgard_types import DynamicsSolution, ElectronSolution
 from asgard_core.hadronic_pair_production import ELECTRON_MASS_GEV
-from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet
 from ASGARD.api_model import _build_fit_config_for_patch
+from tests.public_api_builders import hadronic, radiation, top_hat_model
 from src import constants
 
 
@@ -49,8 +49,8 @@ def _state_inputs() -> tuple[DynamicsSolution, ElectronSolution, np.ndarray, np.
     return dynamics, electron, seed_field_hz, frequency_hz, magnetic_field_g
 
 
-def _config(iterations: int) -> FitConfig:
-    config = FitConfig()
+def _config(iterations: int) -> RuntimeConfig:
+    config = RuntimeConfig()
     config.hadronic.include_pair_production = True
     config.hadronic.pair_cascade_iterations = iterations
     return config
@@ -84,12 +84,9 @@ def test_pair_branch_iterative_tau_is_not_placeholder() -> None:
 
 
 def test_public_pair_cascade_config_mapping() -> None:
-    model = Model(
-        TophatJet(0.1, 1.0e52, 300.0),
-        ISM(1.0),
-        Observer(1.0e26, 0.1, 0.0),
-        Radiation(0.1, 1.0e-3, 2.3, epsilon_p=0.1, pair_production=True),
-        setups=Setups(hadronic_enabled=True, pair_cascade_iterations=3),
+    model = top_hat_model(
+        fwd_rad=radiation(proton_energy_fraction=0.1, pair_production=True),
+        hadronic=hadronic(enabled=True, pair_cascade_iterations=3),
     )
     config = _build_fit_config_for_patch(
         model,

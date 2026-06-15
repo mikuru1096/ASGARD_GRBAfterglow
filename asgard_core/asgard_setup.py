@@ -6,8 +6,8 @@ import numpy as np
 from astropy import units
 from astropy.cosmology import FlatLambdaCDM
 
-from asgard_core.asgard_config import FitConfig, MAX_DENSITY_JUMPS, SimulationSetup
-from asgard_core.asgard_physics_utils import density_jump_arrays
+from asgard_core.asgard_config import RuntimeConfig, MAX_DENSITY_JUMPS, MAX_DENSITY_PROFILE_POINTS, SimulationSetup
+from asgard_core.asgard_physics_utils import density_jump_arrays, density_profile_arrays
 from src import constants
 
 
@@ -18,7 +18,7 @@ def _luminosity_distance_cm(redshift: float) -> float:
 
 
 def build_simulation_setup(
-    config: FitConfig,
+    config: RuntimeConfig,
     requested_frequencies_hz: np.ndarray | None = None,
 ) -> SimulationSetup:
     geometry_kernel = str(config.geometry_kernel).lower()
@@ -38,11 +38,11 @@ def build_simulation_setup(
     )
 
 
-def build_observer_time_grid(config: FitConfig) -> np.ndarray:
+def build_observer_time_grid(config: RuntimeConfig) -> np.ndarray:
     return np.logspace(config.t_obs_min_log10, config.t_obs_max_log10, config.num_tobs)
 
 
-def build_seed_frequency_grid(config: FitConfig, requested_frequencies_hz: np.ndarray | None = None) -> np.ndarray:
+def build_seed_frequency_grid(config: RuntimeConfig, requested_frequencies_hz: np.ndarray | None = None) -> np.ndarray:
     seed_min_hz = 1.0e-8 * constants.para_ev2hz
     seed_max_hz = 1.0e4 * constants.para_tev2hz
     if requested_frequencies_hz is not None:
@@ -67,7 +67,7 @@ def build_seed_frequency_grid(config: FitConfig, requested_frequencies_hz: np.nd
     return np.logspace(v_seed_min, v_seed_max, config.num_nu)
 
 
-def build_boundary(config: FitConfig, luminosity_distance_cm: float) -> np.ndarray:
+def build_boundary(config: RuntimeConfig, luminosity_distance_cm: float) -> np.ndarray:
     t_end = config.t_obs_max_log10
     m_0 = 1.0e12
     u_0 = 1.0e13
@@ -82,13 +82,19 @@ def build_boundary(config: FitConfig, luminosity_distance_cm: float) -> np.ndarr
     jump_r, jump_factor, jump_width = density_jump_arrays(config)
     if jump_r.size > MAX_DENSITY_JUMPS:
         raise ValueError(f"At most {MAX_DENSITY_JUMPS} density jumps are supported.")
+    profile_r, profile_n = density_profile_arrays(config)
     jump_r_pad = np.zeros(MAX_DENSITY_JUMPS, dtype=float)
     jump_factor_pad = np.ones(MAX_DENSITY_JUMPS, dtype=float)
     jump_width_pad = np.ones(MAX_DENSITY_JUMPS, dtype=float)
+    profile_r_pad = np.zeros(MAX_DENSITY_PROFILE_POINTS, dtype=float)
+    profile_n_pad = np.ones(MAX_DENSITY_PROFILE_POINTS, dtype=float)
     if jump_r.size > 0:
         jump_r_pad[: jump_r.size] = jump_r
         jump_factor_pad[: jump_factor.size] = jump_factor
         jump_width_pad[: jump_width.size] = jump_width
+    if profile_r.size > 0:
+        profile_r_pad[: profile_r.size] = profile_r
+        profile_n_pad[: profile_n.size] = profile_n
 
     boundary = [
         config.eta_0,
@@ -122,6 +128,9 @@ def build_boundary(config: FitConfig, luminosity_distance_cm: float) -> np.ndarr
         *jump_r_pad,
         *jump_factor_pad,
         *jump_width_pad,
+        float(profile_r.size),
+        *profile_r_pad,
+        *profile_n_pad,
     ]
     transport_selector = 1.0 if transport_model == "pwn_cr_v1" else 0.0
     escape_selector = 1.0 if escape_mode == "free_outer" else 0.0

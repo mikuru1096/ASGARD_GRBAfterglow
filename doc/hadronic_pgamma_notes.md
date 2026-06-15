@@ -6,7 +6,7 @@
 - `ka2008_reference`：参考后端，仅 emission benchmark，不参与 proton transport feedback。
 - `disabled`
 
-兼容别名: `hummer_2010`/`hummer2010`/`am3_reference`/`am3` → `hummer_2010_response`; `ka2008`/`aharonian_2008`/`kelner_aharonian_2008` → `ka2008_reference`
+public API 只接受上述三个标准命名。
 
 ## 当前正式耦合
 

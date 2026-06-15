@@ -11,14 +11,14 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from ASGARD.api_model import _make_details
-from asgard_core.asgard_config import FitConfig, ReverseShockConfig
-from asgard_core.asgard_numpy import trapezoid
+from asgard_core.asgard_config import RuntimeConfig, ReverseShockConfig
+import numpy as np
 from asgard_core.asgard_physics_utils import ambient_density
 from asgard_core.asgard_state import make_query_setup, solve_state_from_setup
 
 
-def _base_config() -> FitConfig:
-    return FitConfig(
+def _base_config() -> RuntimeConfig:
+    return RuntimeConfig(
         index_y=0,
         index_syn_integr=2,
         num_threads=1,
@@ -196,7 +196,7 @@ def _run_multi_bump_reverse() -> None:
         assert secondary.pressure_total[last_injection + 1] > 0.0
         assert secondary.enthalpy_density_total[last_injection + 1] > 0.0
         assert secondary.magnetic_field_g[last_injection + 1] > 0.0
-        assert float(trapezoid(secondary.d_n_gam_e[:, last_injection + 1], secondary.gam_e)) > 0.0
+        assert float(np.trapezoid(secondary.d_n_gam_e[:, last_injection + 1], secondary.gam_e)) > 0.0
         assert np.any(secondary.luminosity_syn[:, last_injection + 1] > 0.0)
     assert np.all(secondary.pressure_total[reservoir] > 0.0)
     assert np.all(secondary.enthalpy_density_total[reservoir] > secondary.pressure_total[reservoir])
@@ -339,7 +339,7 @@ def _assert_log_smooth(values: np.ndarray, max_jump: float) -> None:
     assert np.max(jumps) < max_jump
 
 
-def _assert_secondary_injection_inside_candidate_windows(radius: np.ndarray, injection: np.ndarray, config: FitConfig) -> None:
+def _assert_secondary_injection_inside_candidate_windows(radius: np.ndarray, injection: np.ndarray, config: RuntimeConfig) -> None:
     active = np.asarray(injection, dtype=float) > 0.0
     if not np.any(active):
         return
@@ -350,7 +350,7 @@ def _assert_secondary_injection_inside_candidate_windows(radius: np.ndarray, inj
     assert not np.any(active & ~allowed)
 
 
-def _assert_secondary_event_diagnostics(secondary, config: FitConfig) -> None:
+def _assert_secondary_event_diagnostics(secondary, config: RuntimeConfig) -> None:
     assert secondary.event_active.shape == (len(config.jump_r_cm),)
     assert secondary.start_radius_cm.shape == secondary.event_active.shape
     assert secondary.shock_end_radius_cm.shape == secondary.event_active.shape

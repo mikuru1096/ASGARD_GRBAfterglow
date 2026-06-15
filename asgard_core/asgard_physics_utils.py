@@ -12,13 +12,14 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from asgard_core.asgard_config import MAX_DENSITY_PROFILE_POINTS
 from src import constants
 
 if TYPE_CHECKING:
-    from asgard_core.asgard_config import FitConfig
+    from asgard_core.asgard_config import RuntimeConfig
 
 
-def density_jump_arrays(config: FitConfig) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def density_jump_arrays(config: RuntimeConfig) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     jump_r = np.asarray(config.jump_r_cm, dtype=float)
     jump_factor = np.asarray(config.jump_factor, dtype=float)
     jump_width = np.asarray(config.jump_width_log10, dtype=float)
@@ -41,7 +42,27 @@ def density_jump_arrays(config: FitConfig) -> tuple[np.ndarray, np.ndarray, np.n
     return jump_r, jump_factor, jump_width
 
 
-def ambient_density(radius_cm: np.ndarray | float, config: FitConfig) -> np.ndarray | float:
+def density_profile_arrays(config: RuntimeConfig) -> tuple[np.ndarray, np.ndarray]:
+    profile_r = np.asarray(config.density_profile_radius_cm, dtype=float)
+    profile_n = np.asarray(config.density_profile_n_cm3, dtype=float)
+    if profile_r.size == 0 and profile_n.size == 0:
+        return profile_r, profile_n
+    if profile_r.shape != profile_n.shape:
+        raise ValueError("density_profile_radius_cm and density_profile_n_cm3 must have the same length.")
+    if profile_r.size < 2:
+        raise ValueError("density_profile requires at least two radius-density points.")
+    if profile_r.size > MAX_DENSITY_PROFILE_POINTS:
+        raise ValueError(f"At most {MAX_DENSITY_PROFILE_POINTS} density profile points are supported.")
+    if not np.all(np.isfinite(profile_r)) or not np.all(np.isfinite(profile_n)):
+        raise ValueError("density profile arrays must contain finite values.")
+    if np.any(profile_r <= 0.0) or np.any(profile_n <= 0.0):
+        raise ValueError("density profile radii and densities must be positive.")
+    if np.any(np.diff(profile_r) <= 0.0):
+        raise ValueError("density profile radii must be strictly increasing.")
+    return profile_r, profile_n
+
+
+def ambient_density(radius_cm: np.ndarray | float, config: RuntimeConfig) -> np.ndarray | float:
     """
     Calculate ambient medium density at given radius.
 
@@ -50,6 +71,11 @@ def ambient_density(radius_cm: np.ndarray | float, config: FitConfig) -> np.ndar
     """
     radius = np.asarray(radius_cm, dtype=float)
     scalar_input = radius.ndim == 0
+
+    profile_r, profile_n = density_profile_arrays(config)
+    if profile_r.size > 0:
+        density = np.exp(np.interp(np.log(radius), np.log(profile_r), np.log(profile_n)))
+        return float(density) if scalar_input else density
 
     if config.a_star > 0.0:
         d_ne_wind = config.a_star * 3.0e35 / radius**2
@@ -116,7 +142,7 @@ def doppler_denominator(gamma_bulk: float, redshift: float) -> float:
 def compute_magnetic_field(
     gamma: np.ndarray | float,
     radius_cm: np.ndarray | float,
-    config: FitConfig,
+    config: RuntimeConfig,
     swept_mass_g: np.ndarray | float | None = None,
 ) -> np.ndarray | float:
     """
@@ -146,7 +172,7 @@ def compute_magnetic_field(
 def compute_maximum_synchrotron_frequency(
     gamma: np.ndarray,
     radius_cm: np.ndarray,
-    config: FitConfig,
+    config: RuntimeConfig,
 ) -> np.ndarray:
     """
     Calculate maximum synchrotron frequency nu_M.

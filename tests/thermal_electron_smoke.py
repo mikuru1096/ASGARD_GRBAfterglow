@@ -10,12 +10,12 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from ASGARD import run_fit
-from asgard_core.asgard_config import FitConfig
+from ASGARD.api_observe import run_fit
+from asgard_core.asgard_config import RuntimeConfig
 
 
-def _config(*, thermal_electrons: bool, electron_solver: str = "fullhide_1d") -> FitConfig:
-    return FitConfig(
+def _config(*, thermal_electrons: bool, electron_solver: str = "fullhide_1d") -> RuntimeConfig:
+    return RuntimeConfig(
         num_threads=1,
         electron_solver=electron_solver,
         thermal_electrons=thermal_electrons,

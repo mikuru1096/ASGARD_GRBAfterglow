@@ -8,27 +8,26 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet
+from tests.public_api_builders import hadronic, numerics, radiation, solver_options, top_hat_model
 
 
 def main() -> None:
-    model = Model(
-        TophatJet(0.1, 1.0e52, 300.0),
-        ISM(1.0),
-        Observer(1.0e26, 0.1, 0.0),
-        Radiation(0.1, 1.0e-3, 2.3, epsilon_p=0.2, proton_synch=True, pg=True, neutrino=True),
-        setups=Setups(
-            electron_solver="fullhide_1d",
-            hadronic_enabled=True,
-            hadronic_solver="am3_1d",
-            pgamma_scheme="ka2008_reference",
-            num_gam_e=24,
-            num_gam_p=40,
-            num_nu=40,
-            num_nu_nu=24,
-            num_r=24,
+    model = top_hat_model(
+        fwd_rad=radiation(proton_energy_fraction=0.2, proton_synch=True, include_pgamma=True, neutrino=True),
+        numerics=numerics(
+            num_electron_gamma=24,
+            num_photon_frequency=40,
+            num_radius=24,
             num_theta=16,
-            num_tobs=24,
+            num_observer_time=24,
+        ),
+        solver_options=solver_options(electron_solver="fullhide_1d"),
+        hadronic=hadronic(
+            enabled=True,
+            solver="am3_1d",
+            pgamma_scheme="ka2008_reference",
+            num_proton_gamma=40,
+            num_neutrino_frequency=24,
         ),
     )
     try:

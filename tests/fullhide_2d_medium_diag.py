@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from asgard_core.asgard_config import FitConfig
+from asgard_core.asgard_config import RuntimeConfig
 from ASGARD.api_observe import _build_model_from_fit_config, _make_details
 from asgard_core.asgard_state import solve_state
 
@@ -74,7 +74,7 @@ def _jump_info(values: np.ndarray) -> dict[str, object] | None:
 
 
 def main() -> None:
-    config = FitConfig(
+    config = RuntimeConfig(
         electron_solver="fullhide_2d",
         num_gam_e=16,
         num_chi=8,

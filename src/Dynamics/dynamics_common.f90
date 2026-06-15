@@ -6,11 +6,15 @@ module dynamics_common
                dynamics_rk4_reverse_plain_step, dynamics_rk4_reverse_event_step, &
                dynamics_rk4_reverse_pre_step, dynamics_rk4_reverse_pre_integrate
     integer :: reverse_rhs_phase = 0
-    integer, parameter :: density_jump_max = 8, density_boundary_r0_index = 27, density_boundary_count_index = 28
-    integer :: active_density_jump_count = 0
+    integer, parameter :: density_jump_max = 8, density_profile_max = 96
+    integer, parameter :: density_boundary_r0_index = 27, density_boundary_count_index = 28
+    integer, parameter :: density_profile_count_index = density_boundary_count_index+1+3*density_jump_max
+    integer :: active_density_jump_count = 0, active_density_profile_count = 0
     real(8) :: active_density_jump_r(density_jump_max) = zero
     real(8) :: active_density_jump_factor(density_jump_max) = one
     real(8) :: active_density_jump_width(density_jump_max) = one
+    real(8) :: active_density_profile_r(density_profile_max) = zero
+    real(8) :: active_density_profile_n(density_profile_max) = zero
 
     abstract interface
         subroutine dynamics_forward_rhs_iface(T, Y, M, D, &
@@ -89,9 +93,13 @@ subroutine dynamics_external_density_profile(A_star, dNe_ISM, RR, R0, apply_jump
     real(8), intent(out) :: dNe
     real(8) :: dNe_base
 
-    call dynamics_external_density_base(A_star, dNe_ISM, RR, dNe)
+    if (active_density_profile_count > 0) then
+        call dynamics_density_tabulated_profile(RR, dNe)
+    else
+        call dynamics_external_density_base(A_star, dNe_ISM, RR, dNe)
+    end if
 
-    if (apply_jump /= 0) then
+    if (apply_jump /= 0 .and. active_density_profile_count == 0) then
         if (active_density_jump_count > 0) then
             dNe_base = dNe
             call dynamics_density_multi_jump(dNe_base,RR,dNe)
@@ -102,7 +110,9 @@ subroutine dynamics_external_density_profile(A_star, dNe_ISM, RR, R0, apply_jump
     end if
 
     if (RR < R0) then
-        if (A_star > zero) then
+        if (active_density_profile_count > 0) then
+            call dynamics_density_tabulated_profile(R0, dNe)
+        else if (A_star > zero) then
             dNe = A_star*3.0d35/R0**2
         else
             dNe = dNe_ISM
@@ -117,9 +127,12 @@ subroutine dynamics_set_density_jump_profile(Boundary, n)
     real(8), intent(in) :: Boundary(n)
 
     active_density_jump_count = 0
+    active_density_profile_count = 0
     active_density_jump_r = zero
     active_density_jump_factor = one
     active_density_jump_width = one
+    active_density_profile_r = zero
+    active_density_profile_n = zero
     if (n < density_boundary_count_index) return
     active_density_jump_count = nint(Boundary(density_boundary_count_index))
     if (active_density_jump_count < 0 .or. active_density_jump_count > density_jump_max) &
@@ -136,6 +149,24 @@ subroutine dynamics_set_density_jump_profile(Boundary, n)
         if (active_density_jump_r(i) <= zero .or. active_density_jump_factor(i) <= zero .or. &
             active_density_jump_width(i) <= zero) &
             error stop 'density jump radii, factors, and widths must be positive'
+    end do
+    if (n < density_profile_count_index) return
+    active_density_profile_count = nint(Boundary(density_profile_count_index))
+    if (active_density_profile_count < 0 .or. active_density_profile_count > density_profile_max) &
+        error stop 'density profile point count outside supported range'
+    if (active_density_profile_count == 1) &
+        error stop 'density profile requires at least two points'
+    radius_index = density_profile_count_index+1
+    factor_index = radius_index+density_profile_max
+    if (active_density_profile_count > 0 .and. n < factor_index+density_profile_max-1) &
+        error stop 'boundary is missing density profile arrays'
+    do i = 1, active_density_profile_count
+        active_density_profile_r(i) = Boundary(radius_index+i-1)
+        active_density_profile_n(i) = Boundary(factor_index+i-1)
+        if (active_density_profile_r(i) <= zero .or. active_density_profile_n(i) <= zero) &
+            error stop 'density profile radii and densities must be positive'
+        if (i > 1 .and. active_density_profile_r(i) <= active_density_profile_r(i-1)) &
+            error stop 'density profile radii must be strictly increasing'
     end do
 end subroutine dynamics_set_density_jump_profile
 
@@ -168,6 +199,39 @@ subroutine dynamics_density_multi_jump(dNe_base, RR, dNe)
     end do
     dNe = dNe_base*enhancement
 end subroutine dynamics_density_multi_jump
+
+subroutine dynamics_density_tabulated_profile(RR, dNe)
+    implicit none
+    integer :: lo, hi, mid
+    real(8), intent(in) :: RR
+    real(8), intent(out) :: dNe
+    real(8) :: x, x0, x1, y0, y1, weight
+
+    if (RR <= active_density_profile_r(1)) then
+        x0 = log(active_density_profile_r(1)); x1 = log(active_density_profile_r(2))
+        y0 = log(active_density_profile_n(1)); y1 = log(active_density_profile_n(2))
+    else if (RR >= active_density_profile_r(active_density_profile_count)) then
+        x0 = log(active_density_profile_r(active_density_profile_count-1))
+        x1 = log(active_density_profile_r(active_density_profile_count))
+        y0 = log(active_density_profile_n(active_density_profile_count-1))
+        y1 = log(active_density_profile_n(active_density_profile_count))
+    else
+        lo = 1; hi = active_density_profile_count
+        do while (hi-lo > 1)
+            mid = (lo+hi)/2
+            if (active_density_profile_r(mid) <= RR) then
+                lo = mid
+            else
+                hi = mid
+            end if
+        end do
+        x0 = log(active_density_profile_r(lo)); x1 = log(active_density_profile_r(hi))
+        y0 = log(active_density_profile_n(lo)); y1 = log(active_density_profile_n(hi))
+    end if
+    x = log(RR)
+    weight = (x-x0)/(x1-x0)
+    dNe = exp(y0+weight*(y1-y0))
+end subroutine dynamics_density_tabulated_profile
 
 subroutine dynamics_log_time_step(T_base, Grid_Tobs_bin, T_log10, Num_R1, I_tobs, T, H)
     implicit none

@@ -7,16 +7,16 @@
 joint 模式只新增一个 public switch：
 
 ```python
-Setups(electron_photon_coupling="separated" | "joint")
+SolverOptions(electron_photon_coupling="separated" | "joint")
 ```
 
 默认值是 `separated`。`hadronic_solver="am3_1d"` 仍只表示 formal hadronic 微物理核；`electron_photon_coupling` 只控制 electron / photon / hadronic 阶段的耦合方式。
 
-不新增 `joint_solver`、`bh_time_solver` 或类似 public 名称。后续扩展仍应复用现有 `Radiation` / `Setups` flags：
+不新增 `joint_solver`、`bh_time_solver` 或类似 public 名称。后续扩展仍应复用现有 `Radiation` / `Hadronic` flags：
 
 ```text
 proton_synch
-pg
+include_pgamma
 pp
 bethe_heitler
 hadronic_inverse_compton
@@ -231,27 +231,9 @@ _assemble_observer_stage
 
 hadronic luminosity components、absorption factors、reverse shock 和 final projection 的 public 输出语义不变。joint 改变的是进入 observer stage 前的 electron/photon/hadronic state，而不是 observer projection API。
 
-## 12. benchmark 脚本
+## 12. benchmark 入口
 
-含时 BH / joint benchmark：
-
-```bash
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python scripts/benchmarks/time_dependent_bh_photon_benchmark.py --mode formal'
-```
-
-脚本覆盖：
-
-- weak-feedback。
-- BH-active ISM。
-- strong-wind-BH。
-
-输出：
-
-```text
-output/asgard_doc/time_dependent_bh_photon_benchmark/
-```
-
-输出包含 PNG/PDF/CSV/metadata。它们是可复现 benchmark artifact；清理提交时默认不纳入版本控制，除非按 `doc/benchmark_refresh_protocol.md` 明确刷新并记录验收。
+旧含时 BH / joint Python benchmark 脚本已删除。重新建立 formal benchmark 前必须先说明要回答的物理假设，并把可复用入口放入 `tests/`。
 
 ## 13. 最小验证集合
 
@@ -290,4 +272,4 @@ rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/AS
 - 不用 smoothing 修复 light curve 或 shell diagnostics。
 - 不用经验 photon sink/source 补齐 formal kernel 没有输出的项。
 - 不把 observer luminosity 直接当作 local photon density；必须先定义逃逸、体积和吸收归一化。
-- 不在没有 chi-local photon/hadron contract 前实现 chi-resolved hadronic transport。
+- 不在没有 \(\chi\)-local photon/hadron contract 前实现 \(\chi\) 分辨 hadronic transport。

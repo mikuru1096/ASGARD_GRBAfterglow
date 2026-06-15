@@ -12,27 +12,97 @@ rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/AS
 
 只做文档或纯 Python 示例时不需要重复构建。若修改了 Fortran，按 `doc/validation_and_benchmarks.md` 跑受影响模块。
 
+构建后先确认扩展能加载：
+
+```python
+from src.Electron.electron_radiation import electron_radiation_kernel
+print("Fortran 扩展加载成功")
+```
+
+如果这里报 `ModuleNotFoundError` 或动态库加载错误，先回到构建命令，不要继续拟合。
+
 ## 2. 运行最小光变
 
 ```python
 import numpy as np
 
-from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet
+from ASGARD import Hadronic, Model, Numerics, Observer, ObserverGrid, Radiation, ReverseShock, SolverOptions, UniformMedium, top_hat_jet
 
 model = Model(
-    jet=TophatJet(E_iso=1.0e52, Gamma0=300.0, theta_j=0.1),
-    medium=ISM(n_ism=1.0),
-    observer=Observer(z=0.1, theta_obs=0.0),
-    fwd_rad=Radiation(eps_e=0.1, eps_B=1.0e-3, p=2.3, xi_N=0.1, ssc=True),
-    setups=Setups(
-        electron_solver="fullhide_1d",
-        num_r=120,
-        num_tobs=120,
-        num_gam_e=121,
-        num_nu=121,
-        observer_time_min_s=1.0e2,
-        observer_time_max_s=1.0e7,
+    jet=top_hat_jet(
+        energy_iso_erg=1.0e52,
+        initial_lorentz_factor=300.0,
+        opening_angle_rad=0.1,
+        shell_duration_s=None,
+        magnetar=None,
+        spreading=False,
     ),
+    medium=UniformMedium(number_density_cm3=1.0),
+    observer=Observer(z=0.1, viewing_angle_rad=0.0, viewing_azimuth_rad=0.0, luminosity_distance_cm=None),
+    fwd_rad=Radiation(
+        epsilon_e=0.1,
+        epsilon_B=1.0e-3,
+        p=2.3,
+        proton_energy_fraction=0.0,
+        epsilon_b_floor=None,
+        magnetic_decay_alpha_t=0.0,
+        magnetic_decay_t0_s=1.0,
+        accelerated_electron_fraction=0.1,
+        thermal_electrons=False,
+        include_ssc=True,
+        include_kn_correction=False,
+        proton_synch=True,
+        include_pgamma=False,
+        bethe_heitler=False,
+        hadronic_inverse_compton=False,
+        pp=False,
+        neutrino=False,
+        acceleration_efficiency=1.0,
+        reverse_proton_energy_fraction=0.0,
+        pgamma_scheme="disabled",
+        pair_production=False,
+    ),
+    numerics=Numerics(
+        num_radius=120,
+        num_theta=120,
+        num_phi=1,
+        num_observer_time=120,
+        num_electron_gamma=121,
+        num_photon_frequency=121,
+        num_chi=None,
+        num_threads=8,
+        electron_adaptive_substeps=False,
+        electron_substep_rtol=0.02,
+        electron_substep_min=100,
+        electron_substep_max=1000,
+        initial_radius_cm=1.0e14,
+    ),
+    observer_grid=ObserverGrid(time_min_s=1.0e2, time_max_s=1.0e7),
+    solver_options=SolverOptions(
+        electron_solver="fullhide_1d",
+        dynamics_solver="forward_legacy",
+        geometry_projection="sed_legacy",
+        electron_photon_coupling="separated",
+        ssc_cooling_mode="nakar_y_thomson",
+        synchrotron_integration="fixed_grid",
+        cooling_kernel="legacy",
+        radiation_kernel="legacy",
+        structured_backend="fortran_1d",
+        patch_sampling="uniform",
+        patch_projection="auto",
+        patch_sampling_pilot_theta=0,
+        patch_sampling_num_times=12,
+        patch_sampling_beaming_factor=3.0,
+        patch_sampling_beaming_resolution=8.0,
+        structured_parallel_mode="outer",
+        structured_outer_threads=None,
+        structured_inner_threads=None,
+        fullhide2d_transport_model="legacy",
+        fullhide2d_stochastic_accel_norm=0.0,
+        fullhide2d_escape_mode="closed",
+    ),
+    reverse_shock=ReverseShock(enabled=False, shell_duration_s=10.0, upstream_sigma=0.0, include_cross_zone_ic=False, include_ssc=False),
+    hadronic=Hadronic(enabled=False, solver="legacy_1d", num_proton_gamma=161, num_neutrino_frequency=121, pgamma_scheme="disabled", pair_cascade_iterations=1),
 )
 
 times = np.logspace(2, 7, 80)
@@ -40,6 +110,8 @@ freqs = np.array([1.0e9, 1.0e14, 1.0e18])
 result = model.flux_density_grid(times, freqs)
 print(result.total.shape)
 ```
+
+上面 `SolverOptions` 的前 9 个字段控制普通 top-hat/ISM quickstart 路径；`patch_*`、`structured_*` 和 `fullhide2d_*` 字段服务结构化喷流或 2D 输运。quickstart 保留这些显式默认值，是为了让用户看到完整 API 关键字；每个字段的可选项和效果见 `doc/public_api.md`。
 
 `result.total` 的形状是 `(num_frequency, num_time)`。常用分量：
 
@@ -108,3 +180,9 @@ band_flux = model.flux(
 - 反向激波的 `reverse_sigma -> 0` 必须回到非磁化基线。
 
 若这些检查失败，应回到动力学、电子输运、辐射源项和观测投影查 bug，不做 smoothing 或经验修补。
+
+## 6. 下一步
+
+- 想知道每个 API 字段能选什么、选择后有什么效果，看 `doc/public_api.md`。
+- 想从观测数据开始拟合，看 `doc/fitting_workflow.md`。
+- 想比较 `emcee` 和 `pymultinest`，看 `doc/mcmc_fitting.md`。

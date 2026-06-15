@@ -16,6 +16,10 @@ module electron_seed_history_kernel
   integer, save :: hist_seed_num_nu_cache=0
   logical, save :: hist_seed_cache_ready=.false.
   real(8), allocatable, save :: hist_v_seed_cache(:), hist_log_v_seed_cache(:), hist_inv_dlog_v_cell_cache(:)
+  !$omp threadprivate(hist_cache_num_shell,hist_cache_num_chi,hist_cache_num_nu,hist_cache_built_shells)
+  !$omp threadprivate(hist_inv_dx_ws,hist_valid_map_ws,hist_idx_lo_map_ws,hist_log_frac_map_ws)
+  !$omp threadprivate(hist_seed_num_nu_cache,hist_seed_cache_ready,hist_v_seed_cache,hist_log_v_seed_cache)
+  !$omp threadprivate(hist_inv_dlog_v_cell_cache)
 
 contains
 

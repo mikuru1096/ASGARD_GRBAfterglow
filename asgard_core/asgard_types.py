@@ -91,7 +91,7 @@ class ObserverState:
 @dataclass
 class SolveState:
     """Complete state from a simulation solve."""
-    config: Any  # FitConfig - avoid circular import
+    config: Any  # RuntimeConfig - avoid circular import
     setup: Any  # SimulationSetup
     policy: Any  # ExecutionPolicy
     dynamics: Any  # DynamicsSolution

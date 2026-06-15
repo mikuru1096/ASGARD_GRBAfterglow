@@ -15,7 +15,7 @@
 \]
 
 它不演化 IC photons，也不把 IC photons 再反馈进 \(\gamma\gamma\) target field。
-- 当前 public contract 中，`Radiation.pair_production=True` 加 `Setups.pair_cascade_iterations>1` 的含义是 \(\gamma\gamma\) pair/synch cascade substeps，不是完整 electromagnetic cascade。
+- 当前 public contract 中，`Radiation.pair_production=True` 加 `Hadronic.pair_cascade_iterations>1` 的含义是 \(\gamma\gamma\) pair/synch cascade substeps，不是完整 electromagnetic cascade。
 
 ## 物理问题
 

@@ -735,33 +735,60 @@ EATS 的角向延迟为
 
 ## 19. \(\chi\) 分辨有限厚壳层
 
-`chi_eats_2d` 只用于正向激波同步辐射+SSA 的有限厚度观测者投影。BM 自相似变量可抽象为
+`chi_eats_2d` 只用于正向激波同步辐射+SSA 的有限厚度等到达时间面投影。它的物理对象是 \((R,\chi,\theta,\phi)\) 体元，其中 \(\chi=1\) 接近激波前沿，较大的 \(\chi\) 对应更深的下游。
+
+当前强子、SSC 和对级联仍是壳层级契约。不能因为电子同步辐射的观测者投影有 \(\chi\) 维，就把强子输运解释成 \(\chi\) 局域。完整 \(\chi\) 几何、输运方程、SSA survival、投影权重和薄壳极限见 `doc/shock_shell_adaptive_algorithms.md`。
+
+## 20. 多密度增强下的次级反向激波
+
+多密度增强反向激波用于描述均匀 ISM 中多个平滑密度增强触发的次级反向激波电子同步辐射。它不是 wind bump、结构化喷流、强子、RS SSC 或 \(\chi\) 分辨输运的通用替代模型。
+
+密度剖面使用数组合同：
+
+```text
+jump_r_cm
+jump_factor
+jump_width_log10
+```
+
+对应的光滑密度增强可写为
 
 \[
-\chi
+n(R)
 =
-1+2(4-k)\Gamma_{\rm sh}^2
-\left(
-1-\frac{r}{R}
-\right).
+n_0
+\left[
+1+
+\sum_j
+(f_j-1)
+\exp\left(
+-
+\frac{
+(\log_{10}R-\log_{10}R_j)^2
+}{
+2w_j^2
+}
+\right)
+\right].
 \]
 
-当 \(\chi=1\) 时接近激波前沿；更大的 \(\chi\) 对应更深的下游。有限厚度投影需要网格单元权重：
+旧 `r_tr/f_jump/f_wide` 是单 bump 兼容入口；当多数组非空时，以数组合同为准。
 
-\[
-F_{\nu,{\rm obs}}
-=
-\sum_{i,j,k}
-W_{\Omega,j}
-W_{\chi,k}
-\delta_{ijk}^3
-L'_{\nu',ijk}
-S_{\nu,ijk}.
-\]
+次级反向激波采用四区图像。区域 1 是密度增强前的冷外介质，只提供 \(n_1(R)\)。区域 2 是透射正向激波下游。区域 4 是密度增强前已经被正向激波加热的旧 shocked shell。区域 3 是被次级反向激波再激波的旧 shocked shell，新增辐射只来自这部分额外耗散能，不能把旧 FS 电子辐射重复计入。
 
-当前强子、SSC 和对级联仍是壳层级契约。不能因为电子同步辐射的观测者投影有 \(\chi\) 维，就把强子输运解释成 \(\chi\) 局域。
+区域 4 是热上游，应使用其已有 \(p_4,e_4,n_4,\Gamma_4\)，不能套用抛射物反向激波的冷上游公式。局部 Riemann 问题、压缩比、\(u_{{\rm diss},3}=e_3-e_4C^{4/3}\)、\(\gamma_{m,3}\)、branch reservoir 和 `rev.sync` 合成公式见 `doc/shock_shell_adaptive_algorithms.md`。
 
-## 20. 物理验收清单
+物理验收应检查：
+
+- 单 bump 数组与旧 `r_tr/f_jump/f_wide` 密度剖面等价。
+- 无多 bump 时原有 RS benchmark 不变。
+- 每个 bump 的 \(\Gamma_c,p_2,p_3,\gamma_{43},u_{{\rm diss},3},B_3\) 随 \(R\) 平滑。
+- 区域 3 注入能量积分等于 RH 给出的次级 RS 额外耗散能乘 \(\epsilon_e\)。
+- FS 不出现没有物理来源的尖锐重亮；RS 对 bump 更敏感，但必须随 bump 宽度和幅度连续变化。
+
+该图像对应 Nakar & Granot 2007 的 density-jump 四区结构和平滑观测响应约束，也与 Uhm & Zhang 2014 中密度增强/空洞触发 long-lived reverse shock 的动力学机制相容。代码验收仍以当前实现的状态量连续性和能量预算为准。
+
+## 21. 物理验收清单
 
 每个正式结果至少检查：
 

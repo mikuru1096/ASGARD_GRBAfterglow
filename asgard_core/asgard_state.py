@@ -9,7 +9,7 @@ import numpy as np
 
 from src.Electron.electron_radiation import electron_radiation_kernel as electron_radiation_module
 from asgard_core.asgard_coupling import build_coupled_shock_geometry, build_cross_zone_seed_fields
-from asgard_core.asgard_config import ExecutionPolicy, FitConfig, SimulationSetup
+from asgard_core.asgard_config import ExecutionPolicy, RuntimeConfig, SimulationSetup
 from asgard_core.hadronic_pair_production import solve_pair_production
 from asgard_core.hadronic_pgamma import photon_density_hz_to_gev
 from asgard_core.asgard_types import (
@@ -53,7 +53,7 @@ _COUPLING_JOINT = "joint"
 _JOINT_ELECTRON_PHOTON_ITERATIONS = 2
 
 
-def make_policy(config: FitConfig) -> ExecutionPolicy:
+def make_policy(config: RuntimeConfig) -> ExecutionPolicy:
     return ExecutionPolicy(num_threads=config.num_threads)
 
 
@@ -91,9 +91,9 @@ def make_tgrid(observer_time_s: np.ndarray, default_num_tobs: int) -> np.ndarray
 
 
 def make_query_cfg(
-    config: FitConfig,
+    config: RuntimeConfig,
     observer_time_s: np.ndarray,
-) -> FitConfig:
+) -> RuntimeConfig:
     query = deepcopy(config)
     observer_time_s = np.asarray(observer_time_s, dtype=float)
     query.num_tobs = observer_time_s.shape[0]
@@ -103,7 +103,7 @@ def make_query_cfg(
 
 
 def make_query_setup(
-    config: FitConfig,
+    config: RuntimeConfig,
     observer_time_s: np.ndarray,
     requested_frequencies_hz: np.ndarray | None = None,
 ):
@@ -113,7 +113,7 @@ def make_query_setup(
 
 
 def solve_state(
-    config: FitConfig,
+    config: RuntimeConfig,
     observer_time_s: np.ndarray,
     requested_frequencies_hz: np.ndarray | None = None,
     timings: Optional[dict[str, float]] = None,
@@ -130,14 +130,14 @@ def solve_state(
 
 
 def solve_spectra(
-    config: FitConfig,
+    config: RuntimeConfig,
     observer_time_s: np.ndarray,
     requested_frequencies_hz: np.ndarray | None = None,
 ) -> FluxComponents:
     return solve_state(config, observer_time_s, requested_frequencies_hz).components
 
 
-def _solver_label(config: FitConfig, stage: str) -> str:
+def _solver_label(config: RuntimeConfig, stage: str) -> str:
     if stage == "dynamics":
         if config.reverse or config.reverse_shock.enabled:
             return "Dynamics.dynamics_reverse"
@@ -145,17 +145,12 @@ def _solver_label(config: FitConfig, stage: str) -> str:
     if stage == "electron":
         solver_name = config.electron_solver.lower()
         electron_label_map = {
-            "fullhide": "Electron.fs_electron_fullhide_1d",
             "fullhide_1d": "Electron.fs_electron_fullhide_1d",
             "fullhide_2d": "Electron.fs_electron_fullhide_2d",
-            "t2g1": "Electron.fs_electron_t2g1_1d",
             "t2g1_1d": "Electron.fs_electron_t2g1_1d",
-            "slc1": "Electron.fs_electron_slc1_1d",
             "slc1_1d": "Electron.fs_electron_slc1_1d",
-            "charint": "Electron.fs_electron_charint_1d",
             "charint_1d": "Electron.fs_electron_charint_1d",
             "charint_2d": "Electron.fs_electron_charint_2d",
-            "weno5": "Electron.fs_electron_weno5_1d",
             "weno5_1d": "Electron.fs_electron_weno5_1d",
         }
         return electron_label_map.get(solver_name, f"Electron.{solver_name}")
@@ -164,14 +159,14 @@ def _solver_label(config: FitConfig, stage: str) -> str:
     raise ValueError(f"Unsupported solver stage: {stage}")
 
 
-def _electron_photon_coupling(config: FitConfig) -> str:
+def _electron_photon_coupling(config: RuntimeConfig) -> str:
     coupling = str(getattr(config, "electron_photon_coupling", _COUPLING_SEPARATED)).lower()
     if coupling not in {_COUPLING_SEPARATED, _COUPLING_JOINT}:
         raise ValueError("electron_photon_coupling must be 'separated' or 'joint'.")
     return coupling
 
 
-def _validate_joint_electron_photon_config(config: FitConfig) -> None:
+def _validate_joint_electron_photon_config(config: RuntimeConfig) -> None:
     electron_solver = str(config.electron_solver).lower()
     if electron_solver != "fullhide_1d":
         raise NotImplementedError("electron_photon_coupling='joint' currently supports only electron_solver='fullhide_1d'.")
@@ -188,12 +183,12 @@ def _validate_joint_electron_photon_config(config: FitConfig) -> None:
     if str(config.hadronic.pgamma_scheme).lower() != "hummer_2010_response":
         raise ValueError("electron_photon_coupling='joint' requires pgamma_scheme='hummer_2010_response'.")
     if int(config.index_y) != 1:
-        raise ValueError("electron_photon_coupling='joint' requires numeric SSC/IC cooling with index_y=1.")
+        raise ValueError("electron_photon_coupling='joint' requires ssc_cooling_mode='numeric_ic_kn' (index_y=1).")
     if bool(config.electron_adaptive_substeps):
         raise NotImplementedError("electron_photon_coupling='joint' currently requires fixed electron substeps.")
 
 
-def _validate_multi_density_reverse_config(config: FitConfig) -> None:
+def _validate_multi_density_reverse_config(config: RuntimeConfig) -> None:
     jump_r, _, _ = density_jump_arrays(config)
     if jump_r.size < 1:
         return
@@ -214,7 +209,7 @@ def _validate_multi_density_reverse_config(config: FitConfig) -> None:
 
 
 def _solve_dynamics_stage(
-    config: FitConfig,
+    config: RuntimeConfig,
     setup,
     timings: Optional[dict[str, float]],
 ) -> tuple[DynamicsSolution, SolverAdapterReport]:
@@ -229,7 +224,7 @@ def _solve_dynamics_stage(
 
 
 def _solve_electron_stage(
-    config: FitConfig,
+    config: RuntimeConfig,
     setup,
     dynamics: DynamicsSolution,
     timings: Optional[dict[str, float]],
@@ -247,7 +242,7 @@ def _solve_electron_stage(
 
 
 def _solve_electron_stage_with_cooling_seed(
-    config: FitConfig,
+    config: RuntimeConfig,
     setup,
     dynamics: DynamicsSolution,
     cooling_seed: np.ndarray,
@@ -269,7 +264,7 @@ def _solve_electron_stage_with_cooling_seed(
 
 
 def _build_photon_field_stage(
-    config: FitConfig,
+    config: RuntimeConfig,
     setup,
     dynamics: DynamicsSolution,
     electron: ElectronSolution,
@@ -301,7 +296,7 @@ def _build_photon_field_stage(
 
 
 def _solve_hadronic_stage(
-    config: FitConfig,
+    config: RuntimeConfig,
     setup,
     dynamics: DynamicsSolution,
     electron: ElectronSolution,
@@ -342,7 +337,7 @@ def _solve_hadronic_stage(
 
 
 def _solve_joint_forward_stage(
-    config: FitConfig,
+    config: RuntimeConfig,
     setup,
     dynamics: DynamicsSolution,
     timings: Optional[dict[str, float]],
@@ -404,7 +399,7 @@ def _solve_joint_forward_stage(
 
 
 def _build_joint_photon_field_after_hadronic(
-    config: FitConfig,
+    config: RuntimeConfig,
     setup,
     dynamics: DynamicsSolution,
     electron: ElectronSolution,
@@ -420,7 +415,7 @@ def _build_joint_photon_field_after_hadronic(
 
 
 def _apply_joint_secondary_feedback(
-    config: FitConfig,
+    config: RuntimeConfig,
     setup,
     dynamics: DynamicsSolution,
     electron: ElectronSolution,
@@ -462,7 +457,7 @@ def _apply_hadronic_photon_survival(
 
 
 def _solve_reverse_stage(
-    config: FitConfig,
+    config: RuntimeConfig,
     setup,
     dynamics: DynamicsSolution,
     timings: Optional[dict[str, float]],
@@ -481,7 +476,7 @@ def _solve_reverse_stage(
 
 
 def solve_state_from_setup(
-    config: FitConfig,
+    config: RuntimeConfig,
     setup,
     timings: Optional[dict[str, float]] = None,
     policy: Optional[ExecutionPolicy] = None,
@@ -543,7 +538,7 @@ def solve_state_from_setup(
 
 
 def solve_spectra_from_setup(
-    config: FitConfig,
+    config: RuntimeConfig,
     setup,
     timings: Optional[dict[str, float]] = None,
 ) -> FluxComponents:
@@ -624,7 +619,7 @@ def _normalize_projection_kind(projection_kind: str) -> str:
     return kind
 
 
-def _uses_chi_eats_2d(config: FitConfig) -> bool:
+def _uses_chi_eats_2d(config: RuntimeConfig) -> bool:
     return str(config.geometry_kernel).lower() == "chi_eats_2d"
 
 
@@ -646,7 +641,7 @@ def _require_chi_eats_electron_state(state: SolveState) -> None:
         raise RuntimeError("chi_eats_2d electron state is missing: " + ", ".join(missing))
 
 
-def _require_top_hat_phi_grid(config: FitConfig) -> None:
+def _require_top_hat_phi_grid(config: RuntimeConfig) -> None:
     if float(config.theta_v) != 0.0 and int(config.num_phi) == 1:
         raise ValueError("off-axis EATS projection requires num_phi >= 2; num_phi=1 is only valid for on-axis axial collapse.")
 
@@ -743,7 +738,7 @@ def _observe_components_chi_eats_2d(
 
 
 def observe_components(
-    config: FitConfig,
+    config: RuntimeConfig,
     components: FluxComponents,
     observer_time_s: np.ndarray,
     frequencies_hz: np.ndarray,
@@ -753,7 +748,7 @@ def observe_components(
 
 
 def observe_components_from_setup(
-    config: FitConfig,
+    config: RuntimeConfig,
     components: FluxComponents,
     setup,
     frequencies_hz: np.ndarray,
@@ -827,7 +822,7 @@ def observe_components_from_setup(
 
 def _assemble_observer_stage(
     setup,
-    config: FitConfig,
+    config: RuntimeConfig,
     dynamics: DynamicsSolution,
     electron: ElectronSolution,
     photon_field: PhotonFieldState,
@@ -874,7 +869,7 @@ def _assemble_observer_stage(
 def _stage_forward_ssc(
     s: dict,
     setup,
-    config: FitConfig,
+    config: RuntimeConfig,
     dynamics: DynamicsSolution,
     electron: ElectronSolution,
     timings: Optional[dict[str, float]],
@@ -901,7 +896,7 @@ def _stage_forward_ssc(
 def _stage_reverse_emission(
     s: dict,
     setup,
-    config: FitConfig,
+    config: RuntimeConfig,
     dynamics: DynamicsSolution,
     electron: ElectronSolution,
     reverse_emission: Optional[ReverseShockEmission],
@@ -978,7 +973,7 @@ def _stage_reverse_emission(
 def _stage_hadronic_absorption(
     s: dict,
     setup,
-    config: FitConfig,
+    config: RuntimeConfig,
     dynamics: DynamicsSolution,
     electron: ElectronSolution,
     hadronic,
@@ -1004,7 +999,7 @@ def _stage_hadronic_absorption(
 def _stage_pair_production(
     s: dict,
     setup,
-    config: FitConfig,
+    config: RuntimeConfig,
     dynamics: DynamicsSolution,
     electron: ElectronSolution,
 ) -> dict:
@@ -1025,7 +1020,7 @@ def _stage_pair_production(
 def _stage_annihilation(
     s: dict,
     setup,
-    config: FitConfig,
+    config: RuntimeConfig,
     dynamics: DynamicsSolution,
     timings: Optional[dict[str, float]],
 ) -> dict:
@@ -1053,7 +1048,7 @@ def _stage_annihilation(
 def _stage_assemble_result(
     s: dict,
     setup,
-    config: FitConfig,
+    config: RuntimeConfig,
     dynamics: DynamicsSolution,
     electron: ElectronSolution,
     hadronic,
@@ -1134,7 +1129,7 @@ def _compute_pair_production_branch(
     combined_seed_field_hz: np.ndarray,
     seed_frequency_hz: np.ndarray,
     magnetic_field_g: np.ndarray,
-    config: FitConfig,
+    config: RuntimeConfig,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     v_seed = np.asarray(seed_frequency_hz, dtype=float)
     seed_field = np.asarray(combined_seed_field_hz, dtype=float)
@@ -1293,7 +1288,7 @@ def _forward_synchrotron_absorption_transfer(
     radius_cm: np.ndarray,
     magnetic_field_g: np.ndarray,
     seed_frequency_hz: np.ndarray,
-    config: FitConfig,
+    config: RuntimeConfig,
 ) -> np.ndarray:
     radius = np.asarray(radius_cm, dtype=float)
     magnetic_field = np.asarray(magnetic_field_g, dtype=float)
@@ -1437,7 +1432,7 @@ def _merge_bh_into_forward_electrons(
     radius_cm: np.ndarray,
     magnetic_field_g: np.ndarray,
     seed_frequency_hz: np.ndarray,
-    config: FitConfig,
+    config: RuntimeConfig,
 ) -> ElectronSolution:
     bh_distribution = np.asarray(hadronic.d_n_gam_e_bh, dtype=float)
     total_distribution = np.asarray(electron.d_n_gam_e, dtype=float) + bh_distribution
@@ -1492,7 +1487,7 @@ def _ssc_spectrum(
     electron: ElectronSolution,
     seed_frequency_hz: np.ndarray,
     seed_field: np.ndarray,
-    config: FitConfig,
+    config: RuntimeConfig,
     num_threads: int,
     timings: Optional[dict[str, float]],
     label: str,
@@ -1546,7 +1541,7 @@ def _project_component(
     seed_frequency_hz: np.ndarray,
     absorbed_spectral_flux: np.ndarray,
     frequencies_hz: np.ndarray,
-    config: FitConfig,
+    config: RuntimeConfig,
     timings: Optional[dict[str, float]] = None,
     label: Optional[str] = None,
 ) -> np.ndarray:

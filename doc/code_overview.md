@@ -4,22 +4,21 @@
 
 ## 1. 公开 API
 
-- `ASGARD/api_model.py`：`Model`, `Medium`, `JetProfile`, `ISM`, `Wind`, `TophatJet`, `GaussianJet`, `PowerLawJet`, `TwoComponentJet`, `StepPowerLawJet`, `Ejecta`, `Observer`, `Radiation`, `Setups`。`ISM/Wind` 与 named jet constructors 是 factory-style public constructors，返回带 `kind` 标记的 `Medium` / `JetProfile`。`Model` 查询路径在本文件内完成 direct tophat、structured Fortran backend 和 Python patch backend 调度，并直接构造内部 `FitConfig`。
+- `ASGARD/api_model.py`：`Model`, `Medium`, `JetProfile`, `UniformMedium`, `WindMedium`, `TabulatedMedium`, `top_hat_jet`, `gaussian_jet`, `power_law_jet`, `Observer`, `Radiation`, `Numerics`, `ObserverGrid`, `SolverOptions`, `ReverseShock`, `Hadronic`。介质和喷流 public constructors 返回带 `kind` 标记的 `Medium` / `JetProfile`。`Model` 查询路径在本文件内完成 direct top-hat、structured Fortran backend 和 Python patch backend 调度，并直接构造内部 `RuntimeConfig`。
 - `Model.flux_density_grid(times_s, nu_hz, projection_kind="lightcurve")`, `flux_density(times_s, nu_hz, projection_kind="lightcurve")`, `spectrum(time_s, nu_hz, projection_kind="sed")`, `flux(time_s, nu_min, nu_max, projection_kind="sed")`, `sky_image(t_obs, nu_obs, fov)`, `details()`。
 - `Model.polarization(times_s, nu_hz, magnetic_geometry=..., local_emissivity=...)`。
-- Hadronic public switches：`Radiation.pair_production`, `Radiation.pg`, `Radiation.bethe_heitler`, `Radiation.pp`, `Radiation.neutrino`, `Radiation.reverse_epsilon_p`；cascade substeps 使用 `Setups.pair_cascade_iterations`。
-- Electron-photon coupling switch：`Setups.electron_photon_coupling="separated" | "joint"`；`joint` 是正向激波 1D formal 强子壳层级反馈路径，物理契约见 `doc/joint_secondary_feedback_physics.md`。
-- Reverse-shock magnetization switch：`ReverseShockConfig.sigma` / `Setups.reverse_sigma`，控制反向激波 upstream magnetization。
-- `ASGARD/api_observe.py`：`observe(model, config)`, `run_fit(config)`，以及 `Model.sky_image(...)` / `Model.polarization(...)` 复用的观测工具。它不再作为 `Model.flux_density*` 的查询中转层。
+- Hadronic public switches：`Radiation.pair_production`, `Radiation.include_pgamma`, `Radiation.bethe_heitler`, `Radiation.pp`, `Radiation.neutrino`, `Radiation.reverse_proton_energy_fraction`；cascade substeps 使用 `Hadronic.pair_cascade_iterations`。
+- Electron-photon coupling switch：`SolverOptions.electron_photon_coupling="separated" | "joint"`；`joint` 是正向激波 1D formal 强子壳层级反馈路径，物理契约见 `doc/joint_secondary_feedback_physics.md`。
+- Reverse-shock magnetization switch：`ReverseShock.upstream_sigma`，控制反向激波 upstream magnetization。
+- `ASGARD/api_observe.py`：内部/旧配置观测工具，以及 `Model.sky_image(...)` / `Model.polarization(...)` 复用的实现函数；`observe(model, config)` 和 `run_fit(config)` 不从 `ASGARD` 顶层导出，不作为新教程的公开入口。
 - `ASGARD/api_fit.py`：`Fitter`, `Param`, `FitResult`。
-- Electron solver names：`fullhide_1d`, `slc1_1d`, `charint_1d`, `charint_2d`, `t2g1_1d`, `weno5_1d`, `fullhide_2d`。
-- Aliases：`fullhide`, `slc1`, `charint`, `t2g1`, `weno5` 映射到对应 `*_1d`。
+- Electron solver names：`fullhide_1d`, `fullhide_1d_hz`, `slc1_1d`, `charint_1d`, `charint_2d`, `t2g1_1d`, `weno5_1d`, `fullhide_2d`, `fullhide_2d_pic`。public API 只使用这些完整名称。
 
 ## 2. 运行时主链
 
 ```text
 Model.flux_density_grid / flux_density / spectrum / flux
-  -> FitConfig -> SimulationSetup
+  -> RuntimeConfig -> SimulationSetup
   -> solve_state_from_setup
   -> solve_dynamics -> solve_electron / joint electron-photon-hadronic stage
   -> solve_reverse_shock_emission
@@ -27,7 +26,7 @@ Model.flux_density_grid / flux_density / spectrum / flux
   -> project_flux_grid -> Interpolation.sed_interpolation[_chi] -> API result
 ```
 
-`observe(...)`, `run_fit(...)` 和 `Fitter` 仍是兼容式观测/拟合入口；它们最终进入同一 `FitConfig -> SimulationSetup -> solve_state_from_setup -> project_flux_grid` 主链。
+`Fitter` 是当前公开拟合入口；低层 `api_observe.run_fit(config)` 仅服务旧 `RuntimeConfig` 测试和内部工具。二者最终进入同一 `RuntimeConfig -> SimulationSetup -> solve_state_from_setup -> project_flux_grid` 主链。
 
 核心状态对象位于 `asgard_core/asgard_types.py`：
 
@@ -46,7 +45,7 @@ Model.flux_density_grid / flux_density / spectrum / flux
 - `_solve_hadronic_stage`：调用 `solve_hadronic`；BH 次级 e± 并入 forward electron 后重算 `l_syn_spec/seed_syn`；pγ photon survival 写回 photon field。
 - `_solve_joint_forward_stage`：在同一 `R` 网格上迭代 electron、photon field、formal hadronic transport、BH/pp/gamma-gamma 二级 e± 源项和 photon survival；不使用 separated BH post-merge。
 - `_assemble_observer_stage`：组装 FS synch/SSC、RS synch/SSC、cross-zone IC 和 hadronic components；hadronic photons 使用 electron Fortran kernel 的 SSA transfer。
-- `project_flux_grid`：按 `projection_kind` 选择观测投影。`lightcurve` 是光变/拟合默认路径；在 `geometry_kernel="chi_eats_2d"` 下对 FS synchrotron+SSA 使用 χ 分辨 `sed_interpolation_chi`，并将非 χ 分量保持 shell-level projection。`sed` 是 `spectrum()` / `flux()` 默认路径，使用通用 shell SED 插值器。
+- `project_flux_grid`：按 `projection_kind` 选择观测投影。`lightcurve` 是光变/拟合默认路径；当 public API 设置 `solver_options.geometry_projection="chi_eats_2d"` 时，底层 `geometry_kernel` 对 FS synchrotron+SSA 使用 χ 分辨 `sed_interpolation_chi`，并将非 χ 分量保持 shell-level projection。`sed` 是 `spectrum()` / `flux()` 默认路径，使用通用 shell SED 插值器。
 
 拟合最短路径：
 
@@ -57,10 +56,10 @@ Fitter.loglike -> compile_problem -> eval_loglike -> solve_state_from_setup
 
 ## 3. Python 编排层
 
-- `ASGARD/api_model.py`：public model objects、`Model` 查询缓存、direct/patch solve 调度、`Model -> FitConfig` 适配和 details 打包。
+- `ASGARD/api_model.py`：public model objects、`Model` 查询缓存、direct/patch solve 调度、`Model -> RuntimeConfig` 适配和 details 打包。
 - `ASGARD/api_observe.py`：`observe`, `run_fit` 兼容入口，以及 sky image / polarization / observation dataset helpers。
-- `asgard_setup.py`：`FitConfig -> SimulationSetup`。
-- `asgard_config.py`：`FitConfig`, `SimulationSetup`, `PhysicalSolution`, `FitResult` 和 runtime config dataclasses；旧 compatibility shim 和配置 preset 中转层均已移除。
+- `asgard_setup.py`：`RuntimeConfig -> SimulationSetup`。
+- `asgard_config.py`：`RuntimeConfig`, `SimulationSetup`, `PhysicalSolution`, `FitResult` 和 runtime config dataclasses；旧 compatibility shim 和配置 preset 中转层均已移除。
 - `asgard_runtime.py`：backend selection、Fortran extension dispatch、array wrapping。
 - `asgard_state.py`：主状态机和跨阶段耦合。
 - `asgard_ssc.py`：forward SSC auxiliary grid 与 seed。
@@ -125,11 +124,11 @@ Fitter.loglike -> compile_problem -> eval_loglike -> solve_state_from_setup
 
 反向激波强子 light entry 是 `src/Hadronic/hadronic_reverse_1d.f90`。Full-chain RS hadronic dispatch 通过 Python runtime wrapper 复用 `hadronic_forward_1d` formal 1D kernels，使用 RS magnetic field、RS seed photons、RS shell energy 和 RS baryon target density。
 
-2D / chi-resolved hadronic transport 有意不实现。当前 `chi_grid` 属于 2D electron transport contract，而 `PhotonFieldState` 与 `HadronicSolution` 是 shell-level contracts。边界见 `doc/hadronic_chi_transport_decision.md`。
+2D / \(\chi\) 分辨 hadronic transport 有意不实现。当前 `chi_grid` 属于 2D electron transport contract，而 `PhotonFieldState` 与 `HadronicSolution` 是壳层级 contracts。边界见 `doc/hadronic_chi_transport_decision.md`。
 
 ## 5. 强子当前状态
 
-- 配置：`Radiation.epsilon_p`, `.proton_synch`, `.pg`, `.bethe_heitler`, `.hadronic_inverse_compton`, `.pp`, `.neutrino`, `.eta_acc`, `.pgamma_scheme`；`Setups.hadronic_enabled`, `.hadronic_solver`, `.num_gam_p`, `.num_nu_nu`。
+- 配置：`Radiation.proton_energy_fraction`, `.proton_synch`, `.include_pgamma`, `.bethe_heitler`, `.hadronic_inverse_compton`, `.pp`, `.neutrino`, `.acceleration_efficiency`, `.pgamma_scheme`；`Hadronic.enabled`, `.solver`, `.num_proton_gamma`, `.num_neutrino_frequency`。
 - Solver names：`legacy_1d` 只覆盖 proton transport + proton synchrotron；`am3_1d` 是当前 formal hadronic main path。
 - `pgamma_scheme`：`hummer_2010_response` 含 transport feedback；`ka2008_reference` 仅 emission benchmark；`disabled` 禁用。
 - Pair cascade：`pair_cascade_iterations > 1` 选择 shell-sequence time-dependent \(\gamma\gamma\) pair/synch cascade path；IC-mediated electromagnetic cascade 不属于当前契约。
@@ -144,11 +143,11 @@ rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/AS
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && TMPDIR=/tmp uv run python build_extensions.py --module hadronic_forward_1d --force'
 ```
 
-Smoke tests：`tests/readme_smoke_bench.py`, `tests/fullhide_2d_smoke_bench.py`, `tests/polarization_smoke.py`。
+Smoke tests：`tests/readme_smoke_bench.py`, `tests/fullhide_2d_smoke_bench.py`。
 
 Hadronic regressions：`tests/hadronic_1d_smoke.py`, `tests/hadronic_species_transport_smoke.py`, `tests/hadronic_secondary_radiation_smoke.py`, `tests/hadronic_acceleration_smoke.py`, `tests/hadronic_bethe_heitler_smoke.py`, `tests/hadronic_hadronic_ic_smoke.py`, `tests/hadronic_pair_production_smoke.py`, `tests/hadronic_pp_smoke.py`。
 
-Benchmark：`tests/vegas_afterglow_comparison.py`, `tests/sed_electron_compare.py`。Benchmark refresh protocol 见 `doc/benchmark_refresh_protocol.md`。
+新增正式 benchmark 入口前必须先明确假设、决策价值和物理验收口径。
 
 ## 7. 已知边界
 

@@ -10,11 +10,12 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet
-from asgard_core.asgard_config import FitConfig
+from ASGARD import Model
+from asgard_core.asgard_config import RuntimeConfig
 from asgard_core.asgard_state import solve_state
 from src import Interpolation
 from tests._bench_common import run_case
+from tests.public_api_builders import numerics, solver_options, top_hat_model
 
 
 NUM_GAM_E = 8
@@ -26,28 +27,31 @@ NUM_TOBS = 4
 
 
 def _build_model(solver: str) -> Model:
-    return Model(
-        TophatJet(0.1, 1.0e52, 300.0),
-        ISM(1.0),
-        Observer(1.0e26, 0.1, 0.0),
-        Radiation(0.1, 1.0e-3, 2.3),
-        setups=Setups(
-            electron_solver=solver,
-            num_gam_e=NUM_GAM_E,
+    return top_hat_model(
+        numerics=numerics(
+            num_electron_gamma=NUM_GAM_E,
             num_chi=NUM_CHI,
-            num_nu=NUM_NU,
-            num_r=NUM_R,
+            num_photon_frequency=NUM_NU,
+            num_radius=NUM_R,
             num_theta=NUM_THETA,
-            num_tobs=NUM_TOBS,
-            electron_adaptive_substeps=False,
+            num_observer_time=NUM_TOBS,
         ),
+        solver_options=solver_options(electron_solver=solver),
     )
 
 
 def _build_model_with_geometry(solver: str, geometry_kernel: str) -> Model:
-    model = _build_model(solver)
-    model.setups.geometry_kernel = geometry_kernel
-    return model
+    return top_hat_model(
+        numerics=numerics(
+            num_electron_gamma=NUM_GAM_E,
+            num_chi=NUM_CHI,
+            num_photon_frequency=NUM_NU,
+            num_radius=NUM_R,
+            num_theta=NUM_THETA,
+            num_observer_time=NUM_TOBS,
+        ),
+        solver_options=solver_options(electron_solver=solver, geometry_projection=geometry_kernel),
+    )
 
 
 def case_basic_smoke():
@@ -60,7 +64,7 @@ def case_basic_smoke():
 
 def case_electron_grid():
     state = solve_state(
-        FitConfig(
+        RuntimeConfig(
             electron_solver="fullhide_2d",
             num_gam_e=NUM_GAM_E,
             num_chi=NUM_CHI,

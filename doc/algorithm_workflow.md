@@ -2,6 +2,28 @@
 
 本文把 ASGARD 的 public API 到 Fortran 数值核的路径拆开说明。目标是让新手知道每个数组代表什么、在哪个坐标上离散、为什么某些步骤不能交换顺序，以及如何判断算法结果可信。
 
+![Algorithmic data flow](assets/figures/decorative/algorithm_flow_header.png)
+
+## 算法图示索引
+
+下列示意图由 `tools/generate_doc_schematics.py` 使用 Python/matplotlib 生成，网页使用 PNG，`doc/assets/figures/algorithm/` 中同时保留可编辑 SVG、PDF 和 TIFF。图像强调算法数据流、离散变量和不可交换的步骤；具体实现细节仍以正文和源码为准。
+
+| 算法环节 | 示意图 |
+| --- | --- |
+| Public API 到 solve state | ![API to solve state](assets/figures/algorithm/api_to_solve_state.png){ width="320" } |
+| log-grid 和 Jacobian | ![log grid Jacobian](assets/figures/algorithm/log_grid_jacobian.png){ width="320" } |
+| 动力学 RK 更新和事件分段 | ![RK event splitting](assets/figures/algorithm/rk_event_splitting.png){ width="320" } |
+| `fullhide_1d` 有限体积电子更新 | ![fullhide finite volume](assets/figures/algorithm/fullhide_finite_volume.png){ width="320" } |
+| 子步和自适应误差控制 | ![substep error control](assets/figures/algorithm/substep_error_control.png){ width="320" } |
+| `PhotonFieldState` 构建 | ![photon field state](assets/figures/algorithm/photon_field_state.png){ width="320" } |
+| SSC 谱和 IC cooling 顺序 | ![SSC and IC order](assets/figures/algorithm/ssc_ic_order.png){ width="320" } |
+| 强子 transport 算法 | ![hadronic algorithm](assets/figures/algorithm/hadronic_algorithm.png){ width="320" } |
+| joint feedback 固定点迭代 | ![joint feedback iteration](assets/figures/algorithm/joint_feedback_iteration.png){ width="320" } |
+| pair-cascade shell sequence | ![pair cascade iteration](assets/figures/algorithm/pair_cascade_iteration.png){ width="320" } |
+| EATS 插值 | ![EATS interpolation](assets/figures/algorithm/eats_interpolation.png){ width="320" } |
+| \(\chi\)-resolved 投影重映射 | ![chi projection algorithm](assets/figures/algorithm/chi_projection_algorithm.png){ width="320" } |
+| 结构化 patch、cache 和验证 | ![patch cache validation](assets/figures/algorithm/patch_cache_validation.png){ width="320" } |
+
 ## 1. 从用户输入到求解状态
 
 典型入口是
@@ -14,7 +36,7 @@ result = model.flux_density_grid(times_s, nu_hz)
 
 ```text
 Model
--> FitConfig
+-> RuntimeConfig
 -> SimulationSetup
 -> solve_state_from_setup
 -> SolveState
@@ -22,7 +44,7 @@ Model
 -> FluxResult
 ```
 
-`Model` 保存用户语义，`FitConfig` 保存已归一化参数，`SimulationSetup` 保存边界向量和网格，`SolveState` 保存动力学、粒子、光子、强子和观测投影前的完整状态。
+`Model` 保存用户语义，`RuntimeConfig` 保存已归一化参数，`SimulationSetup` 保存边界向量和网格，`SolveState` 保存动力学、粒子、光子、强子和观测投影前的完整状态。
 
 算法上最重要的规则是：transport state 只由上游物理阶段写入；observer projection 只读 transport state，不回写粒子谱或 photon field。
 
@@ -197,33 +219,7 @@ v_{i+1/2}N_{x,i+1}.
 
 ## 5. 子步和误差控制
 
-固定子步模式把一个壳层间隔 \(\Delta R_i=R_i-R_{i-1}\) 分成 \(L_i\) 个小步：
-
-\[
-\delta R
-=
-\frac{\Delta R_i}{L_i}.
-\]
-
-自适应模式用一次 full step 和两次 half step 比较误差：
-
-\[
-\epsilon
-=
-\frac{
-\left\|
-\mathbf{N}_{\rm half,half}
--
-\mathbf{N}_{\rm full}
-\right\|
-}{
-\left\|
-\mathbf{N}_{\rm half,half}
-\right\|
-}.
-\]
-
-若 \(\epsilon\) 大于 `electron_substep_rtol`，减小步长；若远小于阈值，可增大后续步长。验收不是看每一步误差打印，而是看最终 \(N_e(\gamma,R)\)、特征频率和光变是否平滑且守恒预算合理。
+固定子步模式把一个壳层间隔 \(\Delta R_i=R_i-R_{i-1}\) 分成 \(L_i\) 个小步。自适应模式用一次 full step 和两次 half step 比较误差，决定后续 \(\Delta R\) 是否缩小或放大。详细误差公式见 `doc/shock_shell_adaptive_algorithms.md`；验收不是看每一步误差打印，而是看最终 \(N_e(\gamma,R)\)、特征频率和光变是否平滑且守恒预算合理。
 
 ## 6. 注入源项离散
 
@@ -585,7 +581,7 @@ L'_{\nu'}
 
 ## 16. \(\chi\)-resolved 投影算法
 
-`sed_interpolation_chi` 在普通角向 EATS 外再加一个厚度维：
+`sed_interpolation_chi` 在普通角向等到达时间面外再加一个厚度维：
 
 ```text
 theta / phi angle cell
@@ -594,48 +590,7 @@ theta / phi angle cell
 -> observer time-frequency grid
 ```
 
-对每个 \((R_i,\chi_k)\)，算法使用局域
-
-\[
-R_{\chi,k,i},
-\qquad
-\Gamma_{\chi,k,i},
-\qquad
-W_{\chi,k,i},
-\qquad
-\tau_{\nu,k,i}.
-\]
-
-cell optical-depth prefix 为
-
-\[
-\tau_{\rm front,k}
-=
-\sum_{l<k}\tau_l .
-\]
-
-cell-averaged SSA escape 为
-
-\[
-S_k
-=
-\exp(-\tau_{\rm front,k})
-\frac{1-\exp(-\tau_k)}{\tau_k}.
-\]
-
-薄壳极限验收是
-
-\[
-W_{\chi,k}\rightarrow\delta_{k,k_0},
-\qquad
-R_{\chi,k}\rightarrow R,
-\qquad
-\Gamma_{\chi,k}\rightarrow\Gamma,
-\qquad
-\tau_{\chi,k}\rightarrow0,
-\]
-
-此时 `sed_interpolation_chi` 应回到 shell-level EATS。
+对每个 \((R_i,\chi_k)\)，算法使用局域 \(R_{\chi,k,i}\)、\(\Gamma_{\chi,k,i}\)、\(W_{\chi,k,i}\) 和 \(\tau_{\nu,k,i}\)。cell optical-depth prefix、cell-averaged SSA escape、\(D^{-3}\) 权重和薄壳极限公式见 `doc/shock_shell_adaptive_algorithms.md`。薄壳极限下 `sed_interpolation_chi` 应回到壳层级等到达时间面。
 
 ## 17. 结构化喷流 patch 聚合
 
@@ -663,7 +618,28 @@ F_{\nu,j}
 
 如果只改变 observer angle 而底层 solve state 不变，benchmark 可以复用 solve state，只重跑 projection。但这只适用于已证明物理配置、网格、频率和时间数组相同的情况。
 
-## 18. Fitter 的算法含义
+## 18. CPU fullhide 波前并行路线
+
+CPU 版本的 `fullhide` 优化目标是保持同一物理离散和代数依赖，而不是照搬 GPU 的执行形状。GPU 适合 cell-level anti-diagonal wavefront；CPU 若直接对单个 `(gamma, substep)` cell 做每条反对角 OpenMP 同步，在 `num_electron_gamma` 约为 96 到 201 的典型网格上并行宽度太小，同步成本会吞掉收益。
+
+当前可接受的 CPU 路线有三类，均必须保持 fullhide spacetime stencil 的因果依赖：
+
+| 路线 | 并行粒度 | 适用目标 | 验收 |
+| --- | --- | --- | --- |
+| 多 shell / 多 patch 合并波前 | 同一 wave 上并行多个 `(sample, patch, shell, gamma)` work item。 | 生产网格、结构化喷流、批量拟合。 | work item 的冷却、注入和边界状态必须预先完成；不得跨物理依赖乱序。 |
+| tile-wavefront | 把 `(gamma, substep)` 平面切成 tile，tile 内串行，tile 间反对角并行。 | 单 shell 或中等 batch 的 CPU cache 友好求解。 | tile 结果必须与 step-major 标量基线在 roundoff 内一致。 |
+| OpenMP task depend | 用 task dependency 表达 tile 依赖，避免每条 wave 全局 barrier。 | 不规则 substep、wind/jump 介质和流水调度。 | 先做独立 Fortran probe，再接入 transport common；依赖 token 必须对应真实边界数据。 |
+
+不应接受的路线包括：
+
+- 直接照搬 GPU cell-level anti-diagonal OpenMP `parallel do`。
+- 只在 smoke 网格上证明加速。
+- 用 smoothing、截断或经验因子修正不平滑输出。
+- 为避免退化添加隐藏 fallback。
+
+生产验收应报告 `num_radius`、`num_theta`、`num_phi`、`num_electron_gamma`、`num_photon_frequency`、`num_observer_time`、线程数、electron stage wall time、total wall time 和抽样光变平滑性。若某介质或线程数不快，应报告结果并重新设计并行粒度，而不是在 runtime 中静默切换算法。
+
+## 19. Fitter 的算法含义
 
 `Fitter` 不改变物理求解。它做三件事：
 
@@ -697,7 +673,7 @@ x, & {\rm Scale.LINEAR},\\
 
 因此 MCMC 的异常 posterior 通常来自模型、数据选择、单位或参数边界，而不是一个独立的“拟合物理”。
 
-## 19. 缓存、cold solve 和 warm query
+## 20. 缓存、cold solve 和 warm query
 
 `Model` 会缓存相同时间/频率/projection query 的 raw solve。算法报告必须区分：
 
@@ -718,7 +694,462 @@ t_{\rm cached\ projection/query}.
 
 把 warm query 当成 full model evaluation 会高估拟合速度。benchmark 文档必须说明是否已有 cache。
 
-## 20. 验证矩阵
+## 21. 公式级算法设计细节
+
+本节把主链中最容易被误改的算法写成离散公式。公式中的 \(n\) 表示半径 shell index，\(i\) 表示能量或频率 cell index，\(j\) 表示角向 patch index。
+
+### Public API 归一化
+
+用户输入首先被归一化为 `RuntimeConfig`。概念上这是一个纯映射
+
+\[
+\mathcal{C}
+=
+\mathcal{N}
+\left(
+\mathcal{J},
+\mathcal{M},
+\mathcal{O},
+\mathcal{R},
+\mathcal{S}
+\right),
+\]
+
+其中 \(\mathcal{J}\) 是 jet，\(\mathcal{M}\) 是 medium，\(\mathcal{O}\) 是 observer，\(\mathcal{R}\) 是 radiation，\(\mathcal{S}\) 是 solver/numerics。归一化只做单位和字段语义转换，例如
+
+\[
+t_{\min,\log}= \log_{10}(t_{\min}/{\rm s}),
+\qquad
+t_{\max,\log}= \log_{10}(t_{\max}/{\rm s}),
+\]
+
+\[
+{\tt index\_y}
+=
+\begin{cases}
+0,&{\tt ssc\_cooling\_mode="none"},\\
+1,&{\tt ssc\_cooling\_mode="numeric\_ic\_kn"},\\
+2,&{\tt ssc\_cooling\_mode="nakar\_y\_thomson"}.
+\end{cases}
+\]
+
+三个取值对应的是电子冷却方程的不同写法，而不是 SSC 光子输出开关。`none` 只保留同步冷却和 SSA 项。`numeric_ic_kn` 用当前 seed photon field 对 IC/SSC 冷却损失做数值积分，积分核包含 Jones/Klein-Nishina 截面约束；在冷却率中表现为
+
+\[
+\frac{\mathrm{d}\gamma}{\mathrm{d}R}
+\supset
+\dot{\gamma}_{\rm syn}
++
+\dot{\gamma}_{\rm IC}^{\rm KN}[n_\gamma(\nu)].
+\]
+
+`nakar_y_thomson` 不逐频率积分 KN 损失，而是按 Nakar 型 Compton \(Y\) 参数近似，把同步冷却放大为
+
+\[
+\dot{\gamma}_{\rm syn+IC}
+=
+(1+Y_{\rm Nakar})\dot{\gamma}_{\rm syn}.
+\]
+
+因此 `numeric_ic_kn` 适合 joint feedback 和需要能量预算闭合的情形；`nakar_y_thomson` 适合普通 forward-shock SSC cooling 的快速近似。
+
+这个阶段不运行物理求解，也不根据失败结果重写用户参数。
+
+### Log grid 和 cell Jacobian
+
+电子、质子和 photon grid 常用 log 坐标：
+
+\[
+x=\log_{10}\gamma,
+\qquad
+y=\log_{10}\nu.
+\]
+
+若物理谱为 \(N_\gamma=\mathrm{d}N/\mathrm{d}\gamma\)，保守变量是
+
+\[
+N_x
+=
+\frac{\mathrm{d}N}{\mathrm{d}x}
+=
+\gamma\ln 10\,N_\gamma.
+\]
+
+若 photon luminosity 使用 log-frequency cell 存储，
+
+\[
+L_y
+=
+\frac{\mathrm{d}L}{\mathrm{d}y}
+=
+\nu\ln10\,L_\nu.
+\]
+
+任意从 per-frequency 到 per-log-frequency 的转换都必须显式乘以 \(\nu\ln10\)，反向转换必须除以同一 Jacobian。省略这个因子会让能量预算随网格分辨率漂移。
+
+### 动力学 RK 更新和事件边界
+
+动力学 ODE 写作
+
+\[
+\frac{\mathrm{d}\mathbf{y}}{\mathrm{d}q}
+=
+\mathbf{F}(q,\mathbf{y}),
+\qquad
+q=\ln T \ \text{or}\ R .
+\]
+
+四阶 Runge-Kutta 更新为
+
+\[
+\mathbf{y}_{n+1}
+=
+\mathbf{y}_n
++
+\frac{\Delta q}{6}
+\left(
+\mathbf{k}_1+2\mathbf{k}_2+2\mathbf{k}_3+\mathbf{k}_4
+\right),
+\]
+
+\[
+\mathbf{k}_1=\mathbf{F}(q_n,\mathbf{y}_n),
+\quad
+\mathbf{k}_2=\mathbf{F}\left(q_n+\frac{\Delta q}{2},\mathbf{y}_n+\frac{\Delta q}{2}\mathbf{k}_1\right),
+\]
+
+\[
+\mathbf{k}_3=\mathbf{F}\left(q_n+\frac{\Delta q}{2},\mathbf{y}_n+\frac{\Delta q}{2}\mathbf{k}_2\right),
+\quad
+\mathbf{k}_4=\mathbf{F}(q_n+\Delta q,\mathbf{y}_n+\Delta q\,\mathbf{k}_3).
+\]
+
+若存在 shock crossing、density jump 或 injection break，step 不能跨越物理分支后再用插值修补。算法上应先分段：
+
+\[
+[q_n,q_{n+1}]
+=
+[q_n,q_\ast]\cup[q_\ast,q_{n+1}],
+\]
+
+分别在每个物理右端项上推进。这样保证不连续只来自真实边界条件，而不是 RK step 混合两个方程。
+
+### 电子有限体积更新
+
+在 log-gamma 坐标 \(x\) 上，电子输运为
+
+\[
+\frac{\partial N_x}{\partial R}
++
+\frac{\partial}{\partial x}
+\left(v_xN_x\right)
+=
+Q_x,
+\qquad
+v_x
+=
+\frac{1}{\gamma\ln10}
+\frac{\mathrm{d}\gamma}{\mathrm{d}R}.
+\]
+
+cell average 记为
+
+\[
+\bar{N}_{i}^{n}
+=
+\frac{1}{\Delta x_i}
+\int_{x_{i-1/2}}^{x_{i+1/2}}
+N_x(x,R_n)\,\mathrm{d}x.
+\]
+
+有限体积更新为
+
+\[
+\bar{N}_{i}^{n+1}
+=
+\bar{N}_{i}^{n}
+-
+\frac{\Delta R_n}{\Delta x_i}
+\left(
+F_{i+1/2}^{n+\theta}
+-
+F_{i-1/2}^{n+\theta}
+\right)
++
+\Delta R_n\,Q_i^{n+\theta}.
+\]
+
+其中 \(\theta=1\) 对应隐式更新。冷却主导时 \(v_{i+1/2}<0\)，迎风通量取高能侧：
+
+\[
+F_{i+1/2}
+=
+v_{i+1/2}\bar{N}_{i+1}.
+\]
+
+对所有 cell 写成矩阵形式：
+
+\[
+a_i\bar{N}_{i-1}^{n+1}
++
+b_i\bar{N}_{i}^{n+1}
++
+c_i\bar{N}_{i+1}^{n+1}
+=
+d_i .
+\]
+
+`fullhide_1d` 的稳定性来自求解这个输运线性系统，而不是对输出谱做平滑。若 \(Q_i\)、\(v_i\) 或边界 flux 不连续，隐式求解只会忠实传播错误。
+
+### 子步合并和自适应误差
+
+固定子步把 shell interval 分成
+
+\[
+\delta R=\frac{R_{n+1}-R_n}{N_{\rm sub}}.
+\]
+
+若某些系数在子步内可由同一物理状态一致积分，可把源项积分写成
+
+\[
+\mathcal{Q}_i
+=
+\int_{R_n}^{R_{n+1}}
+Q_i(R)\,\mathrm{d}R
+\simeq
+\sum_{\ell=1}^{N_{\rm sub}}
+Q_{i,\ell}\delta R_\ell .
+\]
+
+合并子步只在保持同一 flux-split 和边界位移的情况下成立。不能把多个子步简单平均成一个冷却率后忽略电子沿 \(\gamma\) 方向的位移。
+
+自适应误差使用 full step 和 two half steps：
+
+\[
+\epsilon
+=
+\frac{
+\left\|
+\mathbf{N}_{1/2,1/2}
+-
+\mathbf{N}_{1}
+\right\|_w
+}{
+\left\|
+\mathbf{N}_{1/2,1/2}
+\right\|_w
+}.
+\]
+
+只有当该误差度量对应 transport state 本身，而不是 observer flux 的后验光滑性，才是有效子步控制。
+
+### Photon field 构建
+
+壳层同步 luminosity 到 photon number density 的抽象转换为
+
+\[
+n'_\nu
+\simeq
+\frac{L'_\nu t'_{\rm esc}}
+{h\nu'V'},
+\qquad
+t'_{\rm esc}\sim\frac{\ell'}{c}.
+\]
+
+算法上需要显式定义 \(V'\)、escape time 和频率 Jacobian。`PhotonFieldState` 中的 target seed、absorption seed 和 SSC seed 可以来自同一同步谱，但用途不同：
+
+\[
+\{L'_\nu\}
+\xrightarrow{\rm geometry}
+\{n'_\nu\}_{\rm target},
+\qquad
+\{L'_\nu\}
+\xrightarrow{\rm transfer}
+\{\tau_\nu,S_\nu\}_{\rm absorption}.
+\]
+
+observer luminosity \(F_\nu\) 不能反向当作本地 \(n'_\nu\)，因为前者已经包含 Doppler、redshift、EATS 和距离稀释。
+
+### Joint feedback 固定点迭代
+
+joint shell stage 可以写作固定点问题：
+
+\[
+\mathbf{N}_e
+=
+\mathcal{E}
+\left[
+\mathbf{Q}_{e,\rm prim}
++
+\mathbf{Q}_{e,\rm sec}(\mathbf{N}_p,\mathbf{n}_\gamma),
+\mathbf{n}_\gamma
+\right],
+\]
+
+\[
+\mathbf{N}_p
+=
+\mathcal{H}
+\left[
+\mathbf{Q}_{p},
+\mathbf{n}_\gamma
+\right],
+\]
+
+\[
+\mathbf{n}_\gamma
+=
+\mathcal{P}
+\left[
+\mathbf{N}_e,\mathbf{N}_p
+\right].
+\]
+
+其中 \(\mathcal{E}\) 是电子输运算子，\(\mathcal{H}\) 是 formal hadronic transport，\(\mathcal{P}\) 是 photon field rebuild。一次迭代为
+
+\[
+\mathbf{n}_\gamma^{(m)}
+\rightarrow
+\mathbf{N}_p^{(m+1)}
+\rightarrow
+\mathbf{Q}_{e,\rm sec}^{(m+1)}
+\rightarrow
+\mathbf{N}_e^{(m+1)}
+\rightarrow
+\mathbf{n}_\gamma^{(m+1)}.
+\]
+
+所有 secondary source 都必须来自同一个强子/吸收算子：
+
+\[
+Q_{e,\rm sec}
+=
+Q_{e,\rm BH}
++
+Q_{e,pp}
++
+Q_{e,\gamma\gamma}
++\cdots ,
+\]
+
+photon survival 同时写成
+
+\[
+n_{\gamma}^{\rm surv}
+=
+n_{\gamma}^{\rm src}
+\exp\left[
+-
+(\tau_{p\gamma}+\tau_{\rm BH}+\tau_{\gamma\gamma})
+\right].
+\]
+
+不能只添加 \(Q_{e,\rm sec}\) 而不添加对应 photon sink，也不能只吸收 photon 而不把 pair source 送入电子方程。
+
+### 强子 rate 到 shell source
+
+强子微物理通常返回共动时间 rate，例如
+
+\[
+\dot{N}'_{e,\rm BH}(\gamma_e)
+=
+\frac{\mathrm{d}N_e}{\mathrm{d}t'\mathrm{d}\gamma_e}.
+\]
+
+进入 \(R\) 坐标源项时为
+
+\[
+Q_{e,R}(\gamma_e)
+=
+\dot{N}'_{e}(\gamma_e)
+\frac{\mathrm{d}t'}{\mathrm{d}R}.
+\]
+
+如果 source 存在于 log-gamma grid，还需要
+
+\[
+Q_{x,R}
+=
+\gamma_e\ln10\,Q_{\gamma,R}.
+\]
+
+这个两步转换是强子二级反馈最容易出错的地方：时间坐标转换和能量坐标 Jacobian 缺一不可。
+
+### EATS 插值和角向求和
+
+每个 shell/patch 的观测时间为
+
+\[
+t_{{\rm obs},n,j}
+=
+(1+z)
+\left[
+t_{{\rm lab},n}
+-
+\frac{R_n\mu_j}{c}
+\right].
+\]
+
+目标时间网格 \(T_a\) 上的贡献由插值核 \(I_a(t_{{\rm obs},n,j})\) 给出：
+
+\[
+F_{\nu}(T_a)
+=
+\sum_{n,j}
+W_{n,j}
+I_a(t_{{\rm obs},n,j})
+\frac{1+z}{4\pi d_L^2}
+\delta_{n,j}^3
+L'_{\nu'}(R_n,\theta_j,\phi_j).
+\]
+
+其中
+
+\[
+\nu'
+=
+\nu_{\rm obs}(1+z)\delta_{n,j}^{-1}.
+\]
+
+结构化喷流再对角向权重求和：
+
+\[
+W_{n,j}
+=
+\Delta\Omega_j\,W_{R,n}.
+\]
+
+`patch_sampling="dominant_region_ioka_*"` 改变的是角向采样点和权重，不改变每个 patch 内的物理求解方程。
+
+### Cache 与 benchmark 计时
+
+冷启动求解时间分解为
+
+\[
+t_{\rm cold}
+=
+t_{\rm dyn}
++
+t_e
++
+t_\gamma
++
+t_p
++
+t_{\rm proj}.
+\]
+
+缓存查询只复用已存在的 solve state：
+
+\[
+t_{\rm warm}
+\simeq
+t_{\rm proj/query}.
+\]
+
+benchmark 必须报告使用的是 cold solve 还是 warm query。把 warm query 当作完整 likelihood evaluation 会错误估计拟合成本。
+
+## 22. 验证矩阵
 
 文档和代码改动按风险选择验证：
 

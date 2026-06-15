@@ -4,7 +4,7 @@
 
 # ASGARD：伽马射线暴余辉分析工具
 
-ASGARD 是面向伽马射线暴余辉的数值模拟、辐射计算和拟合工具。代码以 Fortran 数值核为核心，用 Python 提供公开 API、轻量编排、观测工具、拟合接口和基准脚本。当前 public API 的默认工作流围绕 `Model`、`Fitter` 和可复现 benchmark 脚本组织；`Model` 查询路径直接进入内部 `FitConfig -> SimulationSetup -> solve_state_from_setup -> projection` 主链。
+ASGARD 是面向伽马射线暴余辉的数值模拟、辐射计算和拟合工具。代码以 Fortran 数值核为核心，用 Python 提供公开 API、轻量编排、观测工具、拟合接口和基准脚本。当前 public API 的默认工作流围绕 `Model`、`Fitter` 和可复现 benchmark 脚本组织；`Model` 查询路径直接进入内部 `RuntimeConfig -> SimulationSetup -> solve_state_from_setup -> projection` 主链。
 
 ASGARD 的目标是从爆波动力学、粒子谱演化和辐射转移出发，直接计算多波段余辉光变、谱、天图、偏振以及强子辐射相关诊断。当前主线覆盖正向激波电子同步辐射、SSC、SSA、gamma-gamma 吸收、观测者等到达时间投影；反向激波电子辐射、反向激波 SSC、FS/RS cross-zone IC；以及正式 1D shell 契约下的强子过程。
 
@@ -15,7 +15,7 @@ ASGARD 的目标是从爆波动力学、粒子谱演化和辐射转移出发，�
 3. 反向激波电子同步辐射、RS SSC、FS/RS cross-zone IC，以及反向激波强子路径。
 4. 正向激波强子 `legacy_1d` 与 formal `am3_1d` research path。
 5. 同步辐射偏振 Stokes 投影，覆盖 FS/RS electron synch 与 FS/RS hadronic synch。
-6. `geometry_kernel="chi_eats_2d"` 的 FS synchrotron+SSA 有限厚壳层观测投影；光变路径使用 χ 分辨专用投影，SED-only 路径可通过 `projection_kind="sed"` 使用通用 SED 插值器。
+6. `solver_options.geometry_projection="chi_eats_2d"` 的 FS synchrotron+SSA 有限厚壳层观测投影；光变路径使用 χ 分辨专用投影，SED-only 路径可通过 `projection_kind="sed"` 使用通用 SED 插值器。
 7. `Model` public API、`Fitter` 拟合 API、benchmark/report 脚本和可复现 artifact 协议。
 
 ## 文档入口
@@ -28,13 +28,12 @@ ASGARD 的目标是从爆波动力学、粒子谱演化和辐射转移出发，�
 - `doc/quickstart.md`：第一次运行 ASGARD 的最短路径。
 - `doc/command_line.md`：构建、作图、网页文档和 benchmark 的命令行入口。
 - `doc/examples.md`：多频光变、宽频谱、辐射分量、内部量和逐点预测教程，含输出图。
-- `doc/user_guide.md`：常用 `Model` 工作流，包括光变、谱、RS、hadronic、偏振、天图和拟合。
-- `doc/fitting_workflow.md`：从数据到 posterior 的拟合流程。
-- `doc/mcmc_fitting.md`：MCMC 拟合专题，覆盖 likelihood、采样和物理验收。
+- `doc/public_api.md`：公开 API 选择手册，说明每个选项能选什么、含义、效果和注意事项。
+- `doc/fitting_workflow.md`：从零开始的拟合教程。
+- `doc/mcmc_fitting.md`：emcee 与 PyMultiNest 专题，覆盖采样变量、先验、运行参数和物理验收。
 - `doc/external_inference.md`：外部采样器和 Redback 当前边界。
 - `doc/parameter_reference.md`：常用参数、单位和拟合路径。
 - `doc/terminology.md`：中文术语表和公式书写规则。
-- `doc/public_api.md`：当前 public API 契约。
 - `doc/project_physics_design.md`：全项目物理设计总纲。
 - `doc/physical_processes.md`：物理过程详解和公式化说明。
 - `doc/project_algorithm_design.md`：全项目算法设计总纲。
@@ -55,7 +54,7 @@ ASGARD 的目标是从爆波动力学、粒子谱演化和辐射转移出发，�
 - `doc/code_overview.md`
 - `doc/public_backend_limits.md`
 
-Benchmark 和 comparison 脚本位于 `tests/` 与 `scripts/benchmarks/`。`output/` 下的图像和 CSV 是 artifact；只有在能由已提交脚本复现且符合 `doc/benchmark_refresh_protocol.md` 时才应提交。
+Benchmark 和 comparison 入口保留在 `tests/` 下。`output/` 下的图像和 CSV 是 artifact；只有在能由已提交测试或明确记录的重算流程复现时才应提交。
 
 ## 快速开始
 
@@ -115,7 +114,7 @@ Public runtime 可用于正向激波余辉计算和 benchmark 工作流。反向
 
 正向激波强子分支当前是正式 1D research path。反向激波强子包含 light proton-synch path，并在开启 full-chain 过程时复用正式 1D hadronic kernels 处理 p-gamma、BH、pp、secondary 和 cascade coupling。当前 pair cascade 是 shell-sequence time-dependent gamma-gamma pair/synch cascade。
 
-2D χ-EATS 当前只替换 FS synchrotron+SSA 的 observer projection；SSC、hadronic 和 pair cascade 仍是 shell-level contract。`projection_kind="lightcurve"` 是光变/拟合默认路径，复用 χ 分辨专用投影；`projection_kind="sed"` 是 `spectrum()` 和频段积分默认路径，使用通用 shell SED 插值器，适合固定时刻扫频率。最近 quick grid 基准中，`fullhide_2d + chi_eats_2d` 的 solve 约 `1.8-1.9 s`，off-axis warm projection median 约 `0.43 s`，on-axis projection 约 `0.02 s`。未完成项和 public/backend 边界见 `TODO.md` 与 `doc/public_backend_limits.md`。
+2D \(\chi\) 等到达时间面当前只替换 FS synchrotron+SSA 的 observer projection；SSC、hadronic 和 pair cascade 仍是壳层级契约。`projection_kind="lightcurve"` 是光变/拟合默认路径，复用 \(\chi\) 分辨专用投影；`projection_kind="sed"` 是 `spectrum()` 和频段积分默认路径，使用通用 shell SED 插值器，适合固定时刻扫频率。最近 quick grid 基准中，`fullhide_2d + chi_eats_2d` 的 solve 约 `1.8-1.9 s`，off-axis warm projection median 约 `0.43 s`，on-axis projection 约 `0.02 s`。未完成项和 public/backend 边界见 `TODO.md` 与 `doc/public_backend_limits.md`。
 
 ## 许可
 

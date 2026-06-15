@@ -51,7 +51,6 @@ subroutine ssc_spec(R,gam_e,dN_gam_e,V_seed,seed,Num_nu,Num_R,Num_gam_e,n_thread
     P_SSC_spec=zero
     seed_SSC=zero
     
-    !$ call omp_set_dynamic(.true.)
     h_nu_third = h_nu/3.0d0
     h_gam_third = h_gam/3.0d0
 

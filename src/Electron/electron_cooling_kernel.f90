@@ -29,6 +29,15 @@ module electron_cooling_kernel
   integer, allocatable, save :: y_nakar_idx_cache(:)
   real(8), allocatable, save :: y_nakar_hat_nu_cache(:), y_nakar_prefix_cache(:), y_nakar_v_cache(:), y_nakar_vloc_cache(:), &
                                 y_nakar_vg1(:), y_nakar_vg2(:), y_nakar_wg1(:), y_nakar_wg2(:)
+  !$omp threadprivate(ssa_seed_num_nu_cache,ssa_seed_cache_ready,ssa_seed_v_cache,ssa_seed_v_low,ssa_seed_v_high)
+  !$omp threadprivate(ssa_seed_vg1,ssa_seed_vg2,ssa_seed_wg1,ssa_seed_wg2)
+  !$omp threadprivate(ssa_geom_num_gam_cache,ssa_geom_num_chi_cache,ssa_low_idx_cache,ssa_low_first_cache)
+  !$omp threadprivate(ssa_low_last_cache,ssa_high_first_cache,ssa_prefactor_low_cache,ssa_prefactor_high_cache)
+  !$omp threadprivate(ssa_dot_batch_cache,ic_num_gam_cache,ic_num_nu_cache,ic_grid_cache_ready,ic_d_nu_cache)
+  !$omp threadprivate(ic_gam_e_mean_cache,ic_e_seed_cache,ic_x_seed_cache,ic_v_seed_mid_cache)
+  !$omp threadprivate(y_nakar_num_gam_cache,y_nakar_num_nu_cache,y_nakar_idx_cache,y_nakar_hat_nu_cache)
+  !$omp threadprivate(y_nakar_prefix_cache,y_nakar_v_cache,y_nakar_vloc_cache,y_nakar_vg1,y_nakar_vg2)
+  !$omp threadprivate(y_nakar_wg1,y_nakar_wg2)
 
 contains
 
@@ -309,7 +318,7 @@ real(8) :: Cyclotron_nu
     call build_ssa_geometry(DB,Num_gam_e,Num_nu,gam_e,ssa_low_idx_cache,ssa_low_first_cache,ssa_low_last_cache, &
                             ssa_high_first_cache, &
                             ssa_prefactor_low_cache,ssa_prefactor_high_cache,Cyclotron_nu)
-    call accumulate_ssa_for_seed(Num_gam_e,Num_nu,n_threads,gam_e,Seed_syn,ssa_low_idx_cache,ssa_low_first_cache, &
+    call accumulate_ssa_for_seed(Num_gam_e,Num_nu,1,gam_e,Seed_syn,ssa_low_idx_cache,ssa_low_first_cache, &
                                  ssa_low_last_cache,ssa_high_first_cache, &
                                  ssa_prefactor_low_cache,ssa_prefactor_high_cache,Cyclotron_nu,dot_gam_e)
 
@@ -376,9 +385,8 @@ implicit REAL(8)(A-H,O-Z)
 integer, intent(in) :: Num_gam_e,Num_nu,Num_chi,n_threads
 real(8), intent(in) :: gam_e(Num_gam_e),V_seed(Num_nu),Seed_syn_batch(Num_nu,Num_chi)
 real(8), intent(out) :: dot_gam_e_batch(Num_gam_e,Num_chi)
-integer :: I_chi,I_gam_e
-real(8) :: Cyclotron_nu,ssa_sum_cell
-integer :: batch_work
+    integer :: I_chi,I_gam_e
+    real(8) :: Cyclotron_nu,ssa_sum_cell
 
     call ensure_ssa_seed_cache(Num_nu,V_seed)
     call ensure_ssa_geometry_workspace(Num_gam_e,Num_chi)
@@ -387,25 +395,12 @@ integer :: batch_work
                             ssa_prefactor_low_cache,ssa_prefactor_high_cache,Cyclotron_nu)
 
     dot_gam_e_batch=zero
-    batch_work = Num_gam_e*Num_chi
-    if (n_threads <= 1 .or. batch_work < 512) then
-       do I_chi=1,Num_chi
-          do I_gam_e=1,Num_gam_e
-             call accumulate_ssa_batch_cell(Num_gam_e,Num_nu,Num_chi,I_gam_e,I_chi,gam_e,Seed_syn_batch,Cyclotron_nu,ssa_sum_cell)
-             dot_gam_e_batch(I_gam_e,I_chi)=ssa_sum_cell
-          end do
+    do I_chi=1,Num_chi
+       do I_gam_e=1,Num_gam_e
+          call accumulate_ssa_batch_cell(Num_gam_e,Num_nu,Num_chi,I_gam_e,I_chi,gam_e,Seed_syn_batch,Cyclotron_nu,ssa_sum_cell)
+          dot_gam_e_batch(I_gam_e,I_chi)=ssa_sum_cell
        end do
-    else
-       !$OMP PARALLEL DO num_threads(n_threads) collapse(2) schedule(static) &
-       !$OMP& private(I_chi,I_gam_e,ssa_sum_cell)
-       do I_chi=1,Num_chi
-          do I_gam_e=1,Num_gam_e
-             call accumulate_ssa_batch_cell(Num_gam_e,Num_nu,Num_chi,I_gam_e,I_chi,gam_e,Seed_syn_batch,Cyclotron_nu,ssa_sum_cell)
-             dot_gam_e_batch(I_gam_e,I_chi)=ssa_sum_cell
-          end do
-       end do
-       !$OMP END PARALLEL DO
-    end if
+    end do
 end subroutine electron_cooling_ssa_loss_batch
 
 ! 数值计算逆康普顿（IC）冷却率：双重积分（种子光子×散射截面），含Jones/Blumenthal核。
@@ -417,7 +412,6 @@ real(8), intent(in) :: gam_e(Num_gam_e),V_seed(Num_nu),Seed_syn(Num_nu)
 real(8), intent(out) :: dot_gam_e(Num_gam_e)
 
 real(8),allocatable,dimension (:) :: photon_number
-integer :: work_items
 
     call ensure_ic_grid_cache(Num_gam_e,Num_nu,gam_e,V_seed)
     allocate (photon_number(Num_nu-1))
@@ -429,21 +423,9 @@ integer :: work_items
                                                     Seed_syn(I_nu),Seed_syn(I_nu+1),ic_v_seed_mid_cache(I_nu))
     end do
 
-    work_items=(Num_gam_e-1)*(Num_nu-1)*(Num_nu-1)
-    if (n_threads <= 1 .or. work_items < 8192) then
-       do i_gam_e=1,Num_gam_e-1
-          call accumulate_ic_gamma_loss(i_gam_e,dot_gam_e(i_gam_e))
-       end do
-    else
-       !$OMP PARALLEL num_threads(n_threads), &
-       !$OMP& private(i_gam_e)
-       !$OMP DO SCHEDULE(STATIC)
-       do i_gam_e=1,Num_gam_e-1
-          call accumulate_ic_gamma_loss(i_gam_e,dot_gam_e(i_gam_e))
-       end do
-       !$OMP END DO
-       !$OMP END PARALLEL
-    end if
+    do i_gam_e=1,Num_gam_e-1
+       call accumulate_ic_gamma_loss(i_gam_e,dot_gam_e(i_gam_e))
+    end do
 
     dot_gam_e=dot_gam_e/gam_e/gam_e*para_h*Para_h*Para_SigmaT/para_m_energy
     dot_gam_e(Num_gam_e)=0.99*dot_gam_e(Num_gam_e-1)
@@ -633,8 +615,7 @@ implicit REAL(8)(A-H,O-Z)
 integer, intent(in) :: Num_gam_e,Num_nu,n_threads
 real(8), intent(in) :: gam_e(Num_gam_e),V_seed(Num_nu),P_syn(Num_nu)
 real(8), intent(out) :: Compton(Num_gam_e)
-    integer, parameter :: parallel_work_threshold=512
-    integer :: I_Compton,I_nu,work_items
+    integer :: I_Compton,I_nu
 
     call ensure_y_nakar_workspace(Num_gam_e,Num_nu,gam_e,V_seed)
 
@@ -649,20 +630,9 @@ real(8), intent(out) :: Compton(Num_gam_e)
                                                           P_syn(I_nu-1),P_syn(I_nu),y_nakar_vg2(I_nu-1))
     end do
 
-    work_items=Num_gam_e*Num_nu
-    if (n_threads <= 1 .or. work_items < parallel_work_threshold) then
-       do I_Compton=1,Num_gam_e
-          call accumulate_y_nakar_point(I_Compton,Compton(I_Compton))
-       end do
-    else
-       !$OMP PARALLEL num_threads(n_threads), private(I_Compton)
-       !$OMP DO SCHEDULE(STATIC)
-       do I_Compton=1,Num_gam_e
-          call accumulate_y_nakar_point(I_Compton,Compton(I_Compton))
-       end do
-       !$OMP END DO
-       !$OMP END PARALLEL
-    end if
+    do I_Compton=1,Num_gam_e
+       call accumulate_y_nakar_point(I_Compton,Compton(I_Compton))
+    end do
 
 contains
 

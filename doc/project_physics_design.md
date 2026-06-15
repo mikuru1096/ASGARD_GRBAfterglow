@@ -49,14 +49,17 @@ R_i, Gamma_i, t_obs,i, swept mass, external density
 - turbulent magnetic field。
 - optional upstream magnetization `sigma`，并加入 ordered magnetic component。
 - crossing 前后分段动力学，避免 RK step 跨越物理分支。
+- 多密度增强触发的次级反向激波电子同步分支；该分支使用热上游区域 4 和区域 3 新耗散能，不重复计算旧 FS 电子辐射。
 
 `sigma -> 0` 必须回到 unmagnetized baseline。VegasAfterglow 是 comparison backend，不是目标真值。
+
+多密度增强反向激波的四区物理图像、数组密度合同和验收条件见 `doc/physical_processes.md` 的“多密度增强下的次级反向激波”。
 
 ### 喷流几何
 
 Public jet profiles 包括 tophat、Gaussian、power-law、two-component、step power-law 和 ejecta-style profiles。结构化喷流通过 patch/structured backend 聚合每个角向单元的局域动力学与辐射，再做 observer projection。
 
-当前 hadronic 和 pair feedback 的 formal transport contract 是 shell-level 1D。结构化喷流可以复用 shell-level radiation/hadronic outputs，但不等于已经有 chi-local 或 patch-local hadronic feedback。
+当前 hadronic 和 pair feedback 的 formal transport contract 是壳层级 1D。结构化喷流可以复用壳层级 radiation/hadronic outputs，但不等于已经有 \(\chi\)-local 或 patch-local hadronic feedback。
 
 ## 3. 电子物理
 
@@ -69,7 +72,7 @@ Q_{e,{\rm shock}}(\gamma_e)
 \exp\!\left(-\frac{\gamma_e}{\gamma_{\max}}\right).
 \]
 
-归一化由 swept-up electron number、`eps_e`、`xi_N/f_e` 和局域 shock energy 决定。可选 thermal electron 分支使用同一物理 shell 的 electron count 和 shock-front thermal scale。
+归一化由 swept-up electron number、`epsilon_e`、`accelerated_electron_fraction` 和局域 shock energy 决定。可选 thermal electron 分支使用同一物理 shell 的 electron count 和 shock-front thermal scale。
 
 电子连续方程的物理形式是
 
@@ -95,7 +98,7 @@ Q_{e,{\rm shock}}(\gamma_e)
 
 ## 4. 磁场与同步辐射
 
-局域磁场主要由 shock internal energy 和 `eps_B` 确定。对正向激波，磁场是 shell-level state；对 2D/chi observer projection，当前磁场在一个 shell 的投影网格内保持当前实现约定，不引入未定义的 chi-local 磁场演化。
+局域磁场主要由 shock internal energy 和 `epsilon_B` 确定。对正向激波，磁场是壳层级 state；对 2D/\(\chi\) observer projection，当前磁场在一个 shell 的投影网格内保持当前实现约定，不引入未定义的 \(\chi\)-local 磁场演化。
 
 同步辐射输出包括：
 
@@ -144,7 +147,7 @@ absorption and survival
 frequency or energy variable conversion
 ```
 
-当前 `PhotonFieldState` 是 shell-level photon-field contract。joint 模式只更新其 target seed、absorption seed 和 diagnostics，不改变字段语义。
+当前 `PhotonFieldState` 是壳层级 photon-field contract。joint 模式只更新其 target seed、absorption seed 和 diagnostics，不改变字段语义。
 
 ## 7. Gamma-gamma absorption 与 pair cascade
 
@@ -168,7 +171,7 @@ frequency or energy variable conversion
 
 ### 质子注入与输运
 
-质子由 `epsilon_p` 控制注入能量预算。formal hadronic path 在 log-gamma grid 上推进
+质子由公开 API 字段 `proton_energy_fraction` 控制注入能量预算；下式中的物理符号记为 \(\epsilon_p\)。formal hadronic path 在 log-gamma grid 上推进
 
 \[
 \frac{\partial N_p}{\partial R}
@@ -224,7 +227,7 @@ pp 过程由 baryon target density、proton spectrum 和 pp kernel 决定。当�
 
 ## 9. 含时二级反馈
 
-`Setups(electron_photon_coupling="joint")` 是 opt-in shell-level feedback 模式。其物理目标是把以下对象放在同一 \(R\) 坐标中闭合：
+`SolverOptions(electron_photon_coupling="joint")` 是 opt-in 壳层级 feedback 模式。其物理目标是把以下对象放在同一 \(R\) 坐标中闭合：
 
 ```text
 primary electrons
@@ -279,11 +282,11 @@ local luminosity / seed / absorption
 
 `projection_kind="lightcurve"` 是光变和拟合默认路径。`projection_kind="sed"` 是固定时刻扫频率和频段积分默认路径。
 
-`geometry_kernel="chi_eats_2d"` 只让 FS synchrotron+SSA 的 lightcurve projection 使用 chi-resolved finite-thickness shell。SSC、hadronic、pair cascade 仍是 shell-level contract。
+`solver_options.geometry_projection="chi_eats_2d"` 只让 FS synchrotron+SSA 的 lightcurve projection 使用 \(\chi\) 分辨有限厚壳层；该 public API 字段在 runtime 配置中对应 `geometry_kernel`。SSC、hadronic、pair cascade 仍是壳层级契约。
 
 ## 13. 拟合中的物理含义
 
-Fitting 不改变物理模型。`Fitter` 只是把参数路径映射到 `Model` / `FitConfig`，执行同一个 solve-state 和 projection chain，再用观测数据计算 likelihood 或 redchi。
+Fitting 不改变物理模型。`Fitter` 只是把参数路径映射到 `Model` / `RuntimeConfig`，执行同一个 solve-state 和 projection chain，再用观测数据计算 likelihood 或 redchi。
 
 因此 fit 中发现的非平滑 light curve、非连续 break frequency 或异常 hadronic diagnostics，应回到动力学、输运、源项归一化或投影网格检查，而不是在 likelihood 层修补。
 
@@ -296,7 +299,7 @@ Fitting 不改变物理模型。`Fitter` 只是把参数路径映射到 `Model` 
 - Wind `k != 2`。
 - `fullhide_1d` 之外的 thermal electron branch。
 - 非轴对称喷流上的 toroidal polarization。
-- chi-resolved hadronic transport。
+- \(\chi\) 分辨 hadronic transport。
 - IC-mediated electromagnetic cascade。
 - formal pγ/π/μ e± feedback。
 

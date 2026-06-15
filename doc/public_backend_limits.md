@@ -33,7 +33,7 @@
   - IC-mediated electromagnetic cascade 不属于当前合同，见 `doc/pair_cascade_extension_boundary.md`。
 - Polarization：
   - 同步辐射 Stokes 路径覆盖 FS/RS electron synch 和 FS/RS hadronic synch。
-  - 非同步分支不混入 polarization Stokes；Lan 2023 峰时偏移当前归入 dynamics/jet-evolution benchmark，见 `doc/polarization_timing_diagnostic.md`。
+  - 非同步分支不混入 polarization Stokes；Lan 2023 峰时偏移当前归入 dynamics/jet-evolution benchmark。
 
 ## 实现准入条件
 

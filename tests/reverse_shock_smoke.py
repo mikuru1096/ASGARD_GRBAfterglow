@@ -10,18 +10,18 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from ASGARD import run_fit
-from asgard_core.asgard_config import FitConfig, ReverseShockConfig
+from ASGARD.api_observe import run_fit
+from asgard_core.asgard_config import RuntimeConfig, ReverseShockConfig
 from asgard_core.asgard_setup import build_simulation_setup
 from asgard_core.asgard_runtime import solve_dynamics
 from asgard_core.asgard_state import make_query_setup, solve_state_from_setup
 
 
-def _config(index_y: int, *, sigma: float | None = None) -> FitConfig:
+def _config(index_y: int, *, sigma: float | None = None) -> RuntimeConfig:
     reverse_kwargs = {}
     if sigma is not None:
         reverse_kwargs["sigma"] = sigma
-    return FitConfig(
+    return RuntimeConfig(
         index_y=index_y,
         index_syn_integr=2,
         num_threads=1,

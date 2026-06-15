@@ -586,41 +586,17 @@ F_\nu(t),\quad
 
 ## 11. 2D \(\chi\) 电子输运
 
-2D 路径在能量坐标 \(x\) 外增加下游厚度坐标
+2D 路径在能量坐标 \(x=\log_{10}\gamma_e\) 外增加下游厚度坐标 \(\eta=\log_{10}\chi\)，推进 \(U=\mathrm{d}N_e/(\mathrm{d}x\,\mathrm{d}\eta)\)。它把有限厚壳层内不同下游深度的电子冷却历史保留下来，然后给 `chi_eats_2d` 投影使用。
+
+完整连续方程
 
 \[
-\eta
+\partial_R U+\partial_x(A_xU)+\partial_\eta(A_\eta U)
 =
-\log_{10}\chi.
+\partial_\eta(D_\eta\partial_\eta U)+S
 \]
 
-推进变量是
-
-\[
-U(x,\eta,R)
-=
-\frac{\mathrm{d}N}
-{\mathrm{d}x\,\mathrm{d}\eta}.
-\]
-
-方程形式为
-
-\[
-\frac{\partial U}{\partial R}
-+
-\frac{\partial(A_xU)}{\partial x}
-+
-\frac{\partial(A_\eta U)}{\partial\eta}
-=
-\frac{\partial}{\partial\eta}
-\left(
-D_\eta
-\frac{\partial U}{\partial\eta}
-\right)
-+S.
-\]
-
-这个路径把有限厚壳层内不同下游深度的电子冷却历史保留下来，然后给 `chi_eats_2d` 投影使用。它不表示强子、SSC 或对级联也变成 \(\chi\) 分辨；这些过程当前仍是壳层级契约。
+以及 \(A_\eta\)、BM 下游速度、隐式三对角系统、characteristic remap 和 CFL 子步公式见 `doc/shock_shell_adaptive_algorithms.md`。该路径不表示强子、SSC 或对级联也变成 \(\chi\) 分辨；这些过程当前仍是壳层级契约。
 
 ## 12. 辐射积分与种子光子场复用
 
@@ -850,39 +826,12 @@ D^{-3}L'_{\nu'}.
 `sed_interpolation_chi` 在普通角向等到达时间面外加入下游厚度维度：
 
 \[
-F_{\nu_{\rm obs}}
-=
-\sum_{i,j,k}
-W_{\Omega,j}
-W_{\chi,k,i}
-D_{ijk}^{-3}
-L'_{\nu',k,i}
-S_{\nu,k,i}.
+(R_i,\theta_j,\phi_j)
+\rightarrow
+(R_i,\theta_j,\phi_j,\chi_k).
 \]
 
-这里 \(i\) 是壳层，\(j\) 是角向网格单元，\(k\) 是 \(\chi\) 网格单元。每个 \(\chi\) 网格单元使用自己的
-
-\[
-R_{\chi,k,i},
-\qquad
-\Gamma_{\chi,k,i},
-\qquad
-\tau_{\nu,k,i}.
-\]
-
-薄壳极限为
-
-\[
-W_{\chi,k}\rightarrow\delta_{k,k_0},
-\quad
-R_{\chi,k}\rightarrow R,
-\quad
-\Gamma_{\chi,k}\rightarrow\Gamma,
-\quad
-\tau_{\chi,k}\rightarrow0.
-\]
-
-此时 `chi_eats_2d` 应回到旧壳层级等到达时间面。这个极限是有限厚壳层投影最重要的回归测试。
+每个 \(\chi\) cell 使用自己的 \(R_{\chi,k,i}\)、\(\Gamma_{\chi,k,i}\)、\(W_{\chi,k,i}\) 和 optical-depth survival。到达时间、\(D^{-3}\) Doppler 权重、SSA cell-average survival、transport-to-projection remap 和薄壳极限公式集中维护在 `doc/shock_shell_adaptive_algorithms.md`。这个薄壳极限仍是有限厚壳层投影最重要的回归测试。
 
 ## 19. 结构化喷流与面元重用
 
@@ -983,7 +932,7 @@ ASGARD 的数值方法刻意不包含以下处理：
 2. `doc/algorithm_workflow.md`：再看公开 API 到 `SolveState` 的路径。
 3. `doc/electron_solver_algorithms.md`：深入电子输运器。
 4. `doc/joint_secondary_feedback_algorithm.md`：理解联合反馈。
-5. `doc/benchmark_refresh_protocol.md`：学习如何刷新图像和记录验收。
+5. `doc/validation_and_benchmarks.md`：学习如何运行保留的 benchmark 入口和记录验收。
 
 读代码时优先看这些入口：
 

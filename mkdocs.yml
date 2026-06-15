@@ -40,7 +40,6 @@ nav:
   - 新手快速开始: quickstart.md
   - 命令行与脚本: command_line.md
   - 教程示例: examples.md
-  - 使用指南: user_guide.md
   - 拟合工作流: fitting_workflow.md
   - MCMC 拟合专题: mcmc_fitting.md
   - 外部采样接口: external_inference.md
@@ -54,6 +53,7 @@ nav:
       - 算法设计总纲: project_algorithm_design.md
       - 算法流程详解: algorithm_workflow.md
       - 物理模型: physics_model.md
+      - 2D壳层、反向激波与自适应网格: shock_shell_adaptive_algorithms.md
       - 数值方法: numerical_methods.md
       - 电子求解器: electron_solver_algorithms.md
       - PWN/CR 2D 输运: fullhide2d_pwn_cr_transport.md
@@ -62,11 +62,9 @@ nav:
       - Pair cascade 边界: pair_cascade_extension_boundary.md
       - Hadronic chi 决策: hadronic_chi_transport_decision.md
       - p-gamma 说明: hadronic_pgamma_notes.md
-      - Polarization timing: polarization_timing_diagnostic.md
   - 开发与验证:
       - 开发指南: developer_guide.md
       - 验证与基准: validation_and_benchmarks.md
-      - Benchmark refresh 协议: benchmark_refresh_protocol.md
       - Public/backend limits: public_backend_limits.md
       - 代码概览: code_overview.md
       - 源码树: source_tree.md

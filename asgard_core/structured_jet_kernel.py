@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from typing import Callable
 
 import numpy as np
@@ -10,7 +11,7 @@ from src import Structured, constants
 
 
 AXISYMMETRIC_JET_KINDS = {"gaussian", "powerlaw", "twocomponent", "steppowerlaw"}
-HUMMER_SCHEMES = {"hummer_2010_response", "hummer2010_response", "hummer_2010", "hummer2010"}
+HUMMER_SCHEMES = {"hummer_2010_response"}
 
 
 def solve_structured_jet_fortran(model, times_s: np.ndarray, nu_hz: np.ndarray, build_patch_config: Callable):
@@ -130,7 +131,7 @@ def _details_from_kernel_outputs(model, base_config, sampled, outputs):
 
 
 def _assert_supported_structured_fortran(model) -> None:
-    if str(model.setups.electron_solver).lower() not in {"fullhide", "fullhide_1d"}:
+    if str(model.setups.electron_solver).lower() != "fullhide_1d":
         raise NotImplementedError("structured_backend='fortran_1d' requires electron_solver='fullhide_1d'.")
     if bool(model.setups.rvs_shock) and model.rvs_rad is None:
         raise NotImplementedError("structured_backend='fortran_1d' requires rvs_rad when reverse shock is enabled.")
@@ -152,12 +153,12 @@ def _assert_supported_structured_fortran(model) -> None:
 def _assert_supported_hadronic_branch(model) -> None:
     solver = str(model.setups.hadronic_solver).lower()
     if bool(model.fwd_rad.pg or model.fwd_rad.neutrino):
-        if solver not in {"am3", "am3_1d"}:
+        if solver != "am3_1d":
             raise NotImplementedError("structured p-gamma/neutrino output requires hadronic_solver='am3_1d'.")
         scheme = str(model.setups.pgamma_scheme if model.setups.pgamma_scheme != "disabled" else model.fwd_rad.pgamma_scheme)
         if scheme.lower() not in HUMMER_SCHEMES:
             raise NotImplementedError("structured p-gamma/neutrino output supports only the Hummer2010 response kernel.")
-    elif solver not in {"legacy", "legacy_1d", "am3", "am3_1d"}:
+    elif solver not in {"legacy_1d", "am3_1d"}:
         raise NotImplementedError("structured_backend='fortran_1d' supports hadronic_solver='legacy_1d' or 'am3_1d'.")
 
 
@@ -187,15 +188,37 @@ def _structured_threads(model) -> tuple[int, int]:
     total = int(model.setups.num_threads)
     outer = model.setups.structured_outer_threads
     inner = model.setups.structured_inner_threads
+    cpu_count = os.cpu_count()
+    if total < 1:
+        raise ValueError("num_threads must be positive for structured jet execution.")
+    if cpu_count is not None and total > int(cpu_count):
+        raise ValueError("num_threads exceeds the available CPU thread count for structured jet execution.")
     if mode == "outer":
-        return int(total if outer is None else outer), 1
+        resolved_outer = int(total if outer is None else outer)
+        _validate_structured_thread_budget(resolved_outer, 1, total, cpu_count)
+        return resolved_outer, 1
     if mode == "inner":
-        return 1, int(total if inner is None else inner)
+        resolved_inner = int(total if inner is None else inner)
+        _validate_structured_thread_budget(1, resolved_inner, total, cpu_count)
+        return 1, resolved_inner
     if mode == "nested":
         if outer is None or inner is None:
             raise ValueError("structured_parallel_mode='nested' requires structured_outer_threads and structured_inner_threads.")
-        return int(outer), int(inner)
+        resolved_outer = int(outer)
+        resolved_inner = int(inner)
+        _validate_structured_thread_budget(resolved_outer, resolved_inner, total, cpu_count)
+        return resolved_outer, resolved_inner
     raise ValueError("structured_parallel_mode must be 'outer', 'inner', or 'nested'.")
+
+
+def _validate_structured_thread_budget(outer: int, inner: int, total: int, cpu_count: int | None) -> None:
+    if outer < 1 or inner < 1:
+        raise ValueError("structured outer and inner thread counts must be positive.")
+    requested = outer * inner
+    if requested > total:
+        raise ValueError("structured outer_threads * inner_threads exceeds num_threads.")
+    if cpu_count is not None and requested > int(cpu_count):
+        raise ValueError("structured outer_threads * inner_threads exceeds available CPU threads.")
 
 
 def _solve_time_grid(model, requested_times: np.ndarray) -> np.ndarray:

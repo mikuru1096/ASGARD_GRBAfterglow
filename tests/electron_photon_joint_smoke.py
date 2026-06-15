@@ -10,38 +10,48 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet
+from ASGARD import Model, Observer, top_hat_jet, UniformMedium
 from ASGARD.api_model import _build_fit_config_for_patch, _solve_patch_state
+from tests.public_api_builders import hadronic, numerics, radiation, solver_options, top_hat_model
 
 
 def _joint_bh_model() -> Model:
-    return Model(
-        TophatJet(0.1, 1.0e52, 120.0),
-        ISM(1.0),
-        Observer(1.0e26, 0.05, 0.0),
-        Radiation(
-            0.1,
-            1.0e-3,
-            2.3,
-            epsilon_p=0.1,
-            ssc=True,
-            kn=True,
+    return top_hat_model(
+        jet=top_hat_jet(
+            energy_iso_erg=1.0e52,
+            initial_lorentz_factor=120.0,
+            opening_angle_rad=0.1,
+            shell_duration_s=None,
+            magnetar=None,
+            spreading=False,
+        ),
+        medium=UniformMedium(number_density_cm3=1.0),
+        observer=Observer(z=0.05, viewing_angle_rad=0.0, viewing_azimuth_rad=0.0, luminosity_distance_cm=1.0e26),
+        fwd_rad=radiation(
+            proton_energy_fraction=0.1,
+            include_ssc=True,
+            include_kn_correction=True,
             proton_synch=True,
             bethe_heitler=True,
             pgamma_scheme="hummer_2010_response",
         ),
-        setups=Setups(
+        numerics=numerics(
+            num_electron_gamma=20,
+            num_photon_frequency=24,
+            num_radius=18,
+            num_theta=10,
+            num_observer_time=18,
+        ),
+        solver_options=solver_options(
             electron_solver="fullhide_1d",
             electron_photon_coupling="joint",
-            num_gam_e=20,
-            num_gam_p=24,
-            num_nu=24,
-            num_nu_nu=16,
-            num_r=18,
-            num_theta=10,
-            num_tobs=18,
-            hadronic_enabled=True,
-            hadronic_solver="am3_1d",
+            ssc_cooling_mode="numeric_ic_kn",
+        ),
+        hadronic=hadronic(
+            enabled=True,
+            solver="am3_1d",
+            num_proton_gamma=24,
+            num_neutrino_frequency=16,
             pgamma_scheme="hummer_2010_response",
         ),
     )

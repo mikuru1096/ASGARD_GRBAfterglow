@@ -10,39 +10,36 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet
+from ASGARD import Model
 from ASGARD.api_model import _build_fit_config_for_patch, _solve_patch_state
+from tests.public_api_builders import hadronic, numerics, radiation, solver_options, top_hat_model
 
 
 def _build_model(enabled: bool, epsilon_p: float, include_pg: bool = False, include_neutrino: bool = False) -> Model:
     hadronic_solver = "am3_1d" if (include_pg or include_neutrino) else "legacy_1d"
     pgamma_scheme = "hummer_2010_response" if (include_pg or include_neutrino) else "disabled"
-    return Model(
-        TophatJet(0.1, 1.0e52, 300.0),
-        ISM(1.0),
-        Observer(1.0e26, 0.1, 0.0),
-        Radiation(
-            0.1,
-            1.0e-3,
-            2.3,
-            epsilon_p=epsilon_p,
-            ssc=True,
+    return top_hat_model(
+        fwd_rad=radiation(
+            proton_energy_fraction=epsilon_p,
+            include_ssc=True,
             proton_synch=True,
-            pg=include_pg,
+            include_pgamma=include_pg,
             neutrino=include_neutrino,
             pgamma_scheme=pgamma_scheme,
         ),
-        setups=Setups(
-            electron_solver="fullhide_1d",
-            num_gam_e=24,
-            num_gam_p=32,
-            num_nu=32,
-            num_nu_nu=24,
-            num_r=24,
+        numerics=numerics(
+            num_electron_gamma=24,
+            num_photon_frequency=32,
+            num_radius=24,
             num_theta=16,
-            num_tobs=24,
-            hadronic_enabled=enabled,
-            hadronic_solver=hadronic_solver,
+            num_observer_time=24,
+        ),
+        solver_options=solver_options(electron_solver="fullhide_1d"),
+        hadronic=hadronic(
+            enabled=enabled,
+            solver=hadronic_solver,
+            num_proton_gamma=32,
+            num_neutrino_frequency=24,
             pgamma_scheme=pgamma_scheme,
         ),
     )

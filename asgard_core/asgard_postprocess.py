@@ -4,7 +4,7 @@ from typing import Optional
 
 import numpy as np
 
-from asgard_core.asgard_config import FitConfig, PhysicalSolution, SimulationSetup
+from asgard_core.asgard_config import RuntimeConfig, PhysicalSolution, SimulationSetup
 from asgard_core.asgard_observables import (
     FITTING_BANDS,
     FITTING_FREQUENCIES_HZ,
@@ -24,7 +24,7 @@ def interpolate_observed_flux(
     radius_cm: np.ndarray,
     absorbed_spectral_flux: np.ndarray,
     frequencies_hz: np.ndarray,
-    config: FitConfig,
+    config: RuntimeConfig,
 ) -> np.ndarray:
     frequencies_hz = np.asarray(frequencies_hz, dtype=float)
     order = np.argsort(frequencies_hz)
@@ -54,7 +54,7 @@ def compute_observed_flux_matrix(
     setup: SimulationSetup,
     physical: PhysicalSolution,
     frequencies_hz: np.ndarray,
-    config: FitConfig,
+    config: RuntimeConfig,
 ) -> np.ndarray:
     return interpolate_observed_flux(
         setup,
@@ -70,7 +70,7 @@ def compute_observed_flux_matrix(
 def compute_band_fluxes(
     setup: SimulationSetup,
     physical: PhysicalSolution,
-    config: FitConfig,
+    config: RuntimeConfig,
 ) -> np.ndarray:
     num_xrt, band_frequencies = build_multiband_observer_frequencies()
     band_flux_matrix = compute_observed_flux_matrix(
@@ -85,7 +85,7 @@ def compute_band_fluxes(
 def compute_light_curve_redchi(
     bands_flux: np.ndarray,
     t_obs_s: np.ndarray,
-    config: FitConfig,
+    config: RuntimeConfig,
 ) -> float:
     redchi = cal_chi2_lc(
         list(FITTING_BANDS),
@@ -144,7 +144,7 @@ def select_spectrum_time_index(t_obs_s: np.ndarray, time_s: Optional[float]) -> 
     return int(np.abs(t_obs_s - float(time_s)).argmin())
 
 
-def build_spectrum_frequency_grid(config: FitConfig) -> np.ndarray:
+def build_spectrum_frequency_grid(config: RuntimeConfig) -> np.ndarray:
     spec = config.spectrum_output
     return np.logspace(np.log10(spec.nu_min_hz), np.log10(spec.nu_max_hz), spec.num_nu_obs)
 
@@ -152,7 +152,7 @@ def build_spectrum_frequency_grid(config: FitConfig) -> np.ndarray:
 def compute_spectrum_flux(
     setup: SimulationSetup,
     physical: PhysicalSolution,
-    config: FitConfig,
+    config: RuntimeConfig,
 ) -> tuple[Optional[np.ndarray], Optional[np.ndarray]]:
     if not config.spectrum_output.enabled:
         return None, None

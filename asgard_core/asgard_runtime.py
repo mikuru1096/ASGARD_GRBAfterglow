@@ -34,8 +34,8 @@ from asgard_core.hadronic_hummer import GEV_TO_ERG, HUMMER2010_DECAY_BACKEND, HU
 from src import constants
 from asgard_core.hadronic_pp import PP_DELTA_BACKEND, solve_pp_delta
 from asgard_core.hadronic_pgamma import photon_density_hz_to_gev
-from asgard_core.asgard_config import FitConfig
-from asgard_core.asgard_numpy import trapezoid
+from asgard_core.asgard_config import RuntimeConfig
+import numpy as np
 from asgard_core.asgard_types import (
     ReverseShockParameters,
     ReverseShockDynamics,
@@ -51,19 +51,14 @@ from src import Dynamics, Electron, constants
 
 
 _ELECTRON_SOLVER_ALIASES = {
-    "fullhide": "fullhide_1d",
     "fullhide_1d": "fullhide_1d",
     "fullhide_1d_hz": "fullhide_1d_hz",
     "fullhide_2d": "fullhide_2d",
     "fullhide_2d_pic": "fullhide_2d_pic",
-    "slc1": "slc1_1d",
     "slc1_1d": "slc1_1d",
-    "charint": "charint_1d",
     "charint_1d": "charint_1d",
     "charint_2d": "charint_2d",
-    "t2g1": "t2g1_1d",
     "t2g1_1d": "t2g1_1d",
-    "weno5": "weno5_1d",
     "weno5_1d": "weno5_1d",
 }
 
@@ -143,15 +138,6 @@ _PGAMMA_SCHEME_ALIASES = {
     "disabled": _PGAMMA_SCHEME_DISABLED,
     "hummer_2010_response": _PGAMMA_SCHEME_HUMMER2010_RESPONSE,
     "ka2008_reference": _PGAMMA_SCHEME_KA2008_REFERENCE,
-    "hummer_2010": _PGAMMA_SCHEME_HUMMER2010_RESPONSE,
-    "hummer2010": _PGAMMA_SCHEME_HUMMER2010_RESPONSE,
-    "ka2008": _PGAMMA_SCHEME_KA2008_REFERENCE,
-    "kelner_aharonian_2008": _PGAMMA_SCHEME_KA2008_REFERENCE,
-    "aharonian_2008": _PGAMMA_SCHEME_KA2008_REFERENCE,
-    "am3_reference": _PGAMMA_SCHEME_HUMMER2010_RESPONSE,
-    "am3_numeric": _PGAMMA_SCHEME_HUMMER2010_RESPONSE,
-    "am3_numerical": _PGAMMA_SCHEME_HUMMER2010_RESPONSE,
-    "am3": _PGAMMA_SCHEME_HUMMER2010_RESPONSE,
 }
 
 
@@ -171,7 +157,7 @@ def _solver_report(
 
 def solve_dynamics(
     boundary: np.ndarray,
-    config: FitConfig,
+    config: RuntimeConfig,
     *,
     return_report: bool = False,
 ) -> DynamicsSolution | tuple[DynamicsSolution, SolverAdapterReport]:
@@ -344,7 +330,7 @@ def solve_electron(
     boundary: np.ndarray,
     dynamics: DynamicsSolution,
     v_seed: np.ndarray,
-    config: FitConfig,
+    config: RuntimeConfig,
     *,
     return_report: bool = False,
 ) -> ElectronSolution | tuple[ElectronSolution, SolverAdapterReport]:
@@ -756,7 +742,7 @@ def solve_electron_with_cooling_seed(
     dynamics: DynamicsSolution,
     v_seed: np.ndarray,
     cooling_seed: np.ndarray,
-    config: FitConfig,
+    config: RuntimeConfig,
     *,
     secondary_source_r: np.ndarray | None = None,
     return_report: bool = False,
@@ -765,7 +751,7 @@ def solve_electron_with_cooling_seed(
     if solver_name != "fullhide_1d":
         raise NotImplementedError("joint electron-photon coupling requires electron_solver='fullhide_1d'.")
     if int(config.index_y) != 1:
-        raise NotImplementedError("joint electron-photon coupling requires numeric IC cooling with index_y=1.")
+        raise NotImplementedError("joint electron-photon coupling requires ssc_cooling_mode='numeric_ic_kn' (index_y=1).")
     if bool(config.electron_adaptive_substeps):
         raise NotImplementedError("joint electron-photon coupling currently requires fixed electron substeps.")
     cooling_seed_arr = np.asfortranarray(np.asarray(cooling_seed, dtype=float))
@@ -821,7 +807,7 @@ def solve_electron_with_cooling_seed(
     return solution
 
 
-def _resolve_electron_solver(config: FitConfig) -> str:
+def _resolve_electron_solver(config: RuntimeConfig) -> str:
     if config.weno5:
         return "weno5_1d"
     solver_name = _ELECTRON_SOLVER_ALIASES.get(config.electron_solver.lower())
@@ -830,7 +816,7 @@ def _resolve_electron_solver(config: FitConfig) -> str:
     return solver_name
 
 
-def _resolve_pgamma_scheme(config: FitConfig) -> str:
+def _resolve_pgamma_scheme(config: RuntimeConfig) -> str:
     key = str(config.hadronic.pgamma_scheme).lower()
     scheme_name = _PGAMMA_SCHEME_ALIASES.get(key)
     if scheme_name is None:
@@ -838,7 +824,7 @@ def _resolve_pgamma_scheme(config: FitConfig) -> str:
     return scheme_name
 
 
-def _resolve_num_chi(config: FitConfig, solver_name: str | None = None) -> int:
+def _resolve_num_chi(config: RuntimeConfig, solver_name: str | None = None) -> int:
     resolved_solver = _resolve_electron_solver(config) if solver_name is None else solver_name
     user_value = config.num_chi
     if resolved_solver.endswith("_1d"):
@@ -850,7 +836,7 @@ def _resolve_num_chi(config: FitConfig, solver_name: str | None = None) -> int:
     return int(user_value)
 
 
-def _effective_2d_num_threads(config: FitConfig, num_chi: int) -> int:
+def _effective_2d_num_threads(config: RuntimeConfig, num_chi: int) -> int:
     return max(1, min(int(config.num_threads), int(num_chi), 4))
 
 
@@ -863,7 +849,7 @@ def _build_log_chi_grid(r_gamma: np.ndarray, num_chi: int) -> np.ndarray:
 
 
 def _build_electron_solution(
-    config: FitConfig,
+    config: RuntimeConfig,
     dynamics: DynamicsSolution,
     gam_e: np.ndarray,
     d_n_gam_e: np.ndarray,
@@ -916,7 +902,7 @@ def solve_hadronic(
     electron: ElectronSolution,
     v_seed: np.ndarray,
     seed_target: np.ndarray,
-    config: FitConfig,
+    config: RuntimeConfig,
     *,
     return_report: bool = False,
 ) -> HadronicSolution | None | tuple[HadronicSolution | None, SolverAdapterReport]:
@@ -929,11 +915,7 @@ def solve_hadronic(
         report = _solver_report("hadronic_disabled", "log-gamma-1d", "disabled", backend="none")
         return (None, report) if return_report else None
     hadronic_solver_key = str(config.hadronic.solver).lower()
-    if hadronic_solver_key == "legacy":
-        hadronic_solver = "legacy_1d"
-    elif hadronic_solver_key == "am3":
-        hadronic_solver = "am3_1d"
-    elif hadronic_solver_key in {"legacy_1d", "am3_1d"}:
+    if hadronic_solver_key in {"legacy_1d", "am3_1d"}:
         hadronic_solver = hadronic_solver_key
     else:
         raise ValueError(f"Unsupported hadronic solver: {config.hadronic.solver}")
@@ -958,8 +940,7 @@ def solve_hadronic(
     if (bool(config.hadronic.include_pg) or bool(config.hadronic.include_neutrino)) and pgamma_scheme == _PGAMMA_SCHEME_DISABLED:
         raise ValueError(
             "p-gamma and neutrino channels require an explicit pgamma_scheme. "
-            "Choose 'hummer_2010_response' or 'ka2008_reference' "
-            "(legacy aliases: 'hummer_2010', 'am3_reference', 'aharonian_2008', etc.)."
+            "Choose 'hummer_2010_response' or 'ka2008_reference'."
         )
     shell_energy_inj_erg = _hadronic_shell_injection_energy(
         dynamics.radius,
@@ -1092,7 +1073,7 @@ def _solve_hadronic_hummer_transport_coupled(
     v_seed_hz: np.ndarray,
     seed_target_hz: np.ndarray,
     shell_energy_inj_erg: np.ndarray,
-    config: FitConfig,
+    config: RuntimeConfig,
     pp_target_density_cm3: np.ndarray | None = None,
 ) -> HadronicSolution:
     radius = np.asarray(dynamics.radius, dtype=float)
@@ -1546,7 +1527,7 @@ def _hadronic_global_gamma_p_max(
     radius_cm: np.ndarray,
     gamma_bulk: np.ndarray,
     b_field_g: np.ndarray,
-    config: FitConfig,
+    config: RuntimeConfig,
 ) -> float:
     return float(hadronic_legacy_module.fs_hadronic_global_gamma_p_max(
         np.asarray(radius_cm, dtype=float),
@@ -2113,7 +2094,7 @@ def _hadronic_proton_syn_state(
     log_gam_p = np.log(gam_p)
     for i_nu, nu in enumerate(v_seed_hz):
         fx = _hadronic_syn_kernel_ultrarel(float(nu), gam_p, b_field_g)
-        p_had_syn[i_nu] = temp_syn * b_field_g * float(trapezoid(d_n_gam_p * fx * gam_p, log_gam_p))
+        p_had_syn[i_nu] = temp_syn * b_field_g * float(np.trapezoid(d_n_gam_p * fx * gam_p, log_gam_p))
     seed_had_syn = p_had_syn / (float(radius_cm) * float(radius_cm) * v_seed_hz)
     seed_had_syn /= 4.0 * np.pi * constants.para_c * constants.para_h
     return p_had_syn, seed_had_syn
@@ -2175,7 +2156,7 @@ def _hadronic_syn_kernel_ultrarel(
 def _hadronic_shell_injection_energy(
     radius_cm: np.ndarray,
     gamma_bulk: np.ndarray,
-    config: FitConfig,
+    config: RuntimeConfig,
 ) -> np.ndarray:
     radius = np.asarray(radius_cm, dtype=float)
     gamma = np.asarray(gamma_bulk, dtype=float)
@@ -2209,7 +2190,7 @@ def _compute_forward_timescales(
     r_gamma: np.ndarray,
     radius_cm: np.ndarray,
     nu_c: np.ndarray,
-    config: FitConfig,
+    config: RuntimeConfig,
 ) -> tuple[np.ndarray, np.ndarray]:
     gamma = np.asarray(r_gamma, dtype=float)
     radius = np.asarray(radius_cm, dtype=float)
@@ -2242,7 +2223,7 @@ def solve_reverse_shock_emission(
     boundary: np.ndarray,
     dynamics: DynamicsSolution,
     v_seed: np.ndarray,
-    config: FitConfig,
+    config: RuntimeConfig,
 ) -> ReverseShockEmission | None:
     reverse_params = _resolve_reverse_shock_parameters(config)
     if reverse_params is None or dynamics.reverse_shock is None:
@@ -2317,7 +2298,7 @@ def solve_reverse_shock_emission(
     )
 
 
-def _reverse_hadronic_requires_full_chain(config: FitConfig) -> bool:
+def _reverse_hadronic_requires_full_chain(config: RuntimeConfig) -> bool:
     return any((
         bool(config.hadronic.include_pg),
         bool(config.hadronic.include_neutrino),
@@ -2337,7 +2318,7 @@ def _reverse_hadronic_shell_mass(dynamics: DynamicsSolution) -> np.ndarray:
     return shell_mass
 
 
-def _reverse_hadronic_shell_energy(dynamics: DynamicsSolution, config: FitConfig) -> np.ndarray:
+def _reverse_hadronic_shell_energy(dynamics: DynamicsSolution, config: RuntimeConfig) -> np.ndarray:
     shell_mass = _reverse_hadronic_shell_mass(dynamics)
     gamma = np.asarray(dynamics.r_gamma, dtype=float)
     return (
@@ -2363,7 +2344,7 @@ def _solve_reverse_shock_electrons(
     boundary: np.ndarray,
     dynamics: DynamicsSolution,
     v_seed: np.ndarray,
-    config: FitConfig,
+    config: RuntimeConfig,
     reverse_params: ReverseShockParameters,
 ) -> tuple[np.ndarray, np.ndarray]:
     if dynamics.reverse_shock is None:
@@ -2410,7 +2391,7 @@ def _solve_reverse_shock_electrons(
 def _compute_reverse_shock_synchrotron_emission(
     dynamics: DynamicsSolution,
     v_seed: np.ndarray,
-    config: FitConfig,
+    config: RuntimeConfig,
 ) -> tuple[np.ndarray, np.ndarray]:
     if dynamics.reverse_shock is None:
         raise ValueError("Reverse shock dynamics are required to compute reverse emission.")
@@ -2446,7 +2427,7 @@ def _compute_reverse_shock_synchrotron_emission(
 def _compute_secondary_reverse_shock_synchrotron(
     dynamics: DynamicsSolution,
     v_seed: np.ndarray,
-    config: FitConfig,
+    config: RuntimeConfig,
     reverse_params: ReverseShockParameters,
 ) -> SecondaryReverseShockState | None:
     jump_r, _, _ = density_jump_arrays(config)
@@ -2593,7 +2574,7 @@ def _compute_secondary_reverse_shock_synchrotron(
     )
 
 
-def _resolve_reverse_shock_parameters(config: FitConfig) -> ReverseShockParameters | None:
+def _resolve_reverse_shock_parameters(config: RuntimeConfig) -> ReverseShockParameters | None:
     reverse_enabled = config.reverse or config.reverse_shock.enabled
     if not reverse_enabled:
         return None
@@ -2614,7 +2595,7 @@ def _resolve_reverse_shock_parameters(config: FitConfig) -> ReverseShockParamete
 
 
 def _compute_characteristic_frequencies_weno5(
-    config: FitConfig,
+    config: RuntimeConfig,
     r_tobs: np.ndarray,
     r_gamma: np.ndarray,
     radius: np.ndarray,
@@ -2646,7 +2627,7 @@ def _compute_characteristic_frequencies_weno5(
 
 
 def _compute_reverse_shock_characteristic_frequencies(
-    config: FitConfig,
+    config: RuntimeConfig,
     reverse_params: ReverseShockParameters,
     dynamics: DynamicsSolution,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -2705,7 +2686,7 @@ def _compute_synchrotron_emission_from_distribution(
     gam_e: np.ndarray,
     d_n_gam_e: np.ndarray,
     v_seed: np.ndarray,
-    config: FitConfig,
+    config: RuntimeConfig,
 ) -> tuple[np.ndarray, np.ndarray]:
     num_nu = v_seed.shape[0]
     num_r = radius_cm.shape[0]
@@ -2744,7 +2725,7 @@ def _renormalize_reverse_shock_distribution(
     dist = np.asarray(d_n_gam_e, dtype=float).copy()
     targets = np.asarray(swept_mass_g, dtype=float) / constants.para_m_p * float(f_e)
     for i in range(dist.shape[1]):
-        total = float(trapezoid(dist[:, i], gam))
+        total = float(np.trapezoid(dist[:, i], gam))
         target = float(targets[i])
         if not np.isfinite(total) or total <= 0.0:
             continue
@@ -2758,7 +2739,7 @@ def _synchrotron_frequency(magnetic_field_g: float, electron_lorentz_factor: flo
     return 4.2e6 * magnetic_field_g * electron_lorentz_factor * electron_lorentz_factor / doppler_den
 
 
-def _reverse_ambient_density(radius_cm: float, config: FitConfig) -> float:
+def _reverse_ambient_density(radius_cm: float, config: RuntimeConfig) -> float:
     if config.a_star >= 0.0:
         d_ne_wind = config.a_star * 3.0e35 / radius_cm**2
         if d_ne_wind <= config.d_ne / 4.0:
@@ -2767,7 +2748,7 @@ def _reverse_ambient_density(radius_cm: float, config: FitConfig) -> float:
     return config.d_ne
 
 
-def _minimum_electron_lorentz_factor(config: FitConfig, gamma_bulk: float, gam_e_max: float) -> float:
+def _minimum_electron_lorentz_factor(config: RuntimeConfig, gamma_bulk: float, gam_e_max: float) -> float:
     temp_gam = config.epsilon_e / config.f_e * constants.para_m_p_div_m_e * (gamma_bulk - 1.0)
 
     if config.p > 2.0:
