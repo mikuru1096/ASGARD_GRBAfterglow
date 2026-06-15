@@ -33,6 +33,31 @@ ASGARD 的网页文档由 `mkdocs.yml` 从 `doc/` 目录构建，并通过 GitHu
 
 `frpc.ini` contains two HTTP proxies on the same domains. The Streamlit proxy keeps `locations = /`; the ASGARD documentation proxy uses `locations = /asgard-doc`. frp uses the longer URL prefix for `/asgard-doc/...`, while the HEtools app continues to serve `/`.
 
+### HEtools 托管的 ASGARD 代码
+
+HEtools 的 afterglow 页面从 `base_func/afterglow_base_func.py` 调用 ASGARD。线上运行代码目录是：
+
+- ASGARD code root: `/home/wangyun/Desktop/HEtools_web_beta_v03/base_func/ASGARD_GRBAfterglow-main`
+- HEtools glue file: `/home/wangyun/Desktop/HEtools_web_beta_v03/base_func/afterglow_base_func.py`
+- Current deployed ASGARD HEAD: `4b6678a`
+- Latest deployment backup: `/home/wangyun/Desktop/HEtools_web_beta_v03_backups/asgard_code_update_20260615_190356`
+
+更新线上 ASGARD 代码时，只替换 `ASGARD_GRBAfterglow-main` 和 `afterglow_base_func.py` 中 ASGARD 胶水入口。不要改 HEtools 页面主体、`menu.py`、`pages/Afterglow_modeling.py` 的 UI 逻辑，也不要改 `/asgard-doc/` 文档路由。新的胶水入口必须继续提供 `constants` 和 `ASGARD_fs_fluxdensity(frequency, **kwargs)`，返回 `(Tobs, Fluxes)`，其中 `Fluxes` 形状保持为 `(Num_frequency, Num_Tobs)`。
+
+线上替换前必须在远端 staging 目录完成：
+
+- `-Wline-truncation` 检查覆盖 `Constants`、`Dynamics_forward`、`electron_forward_fullhide_1d`、`electron_radiation`、`SED_interpolation`、`radiation_gamma_gamma_absorption`、`hadronic_forward_1d` 的源闭包。
+- 用 `/home/wangyun/anaconda3/envs/mylab/bin/python build_extensions.py --force` 编译上述模块。
+- 调用 `ASGARD_fs_fluxdensity` 做最小 live-shape smoke test，要求 `Tobs.shape == (180,)`、`Fluxes.shape == (1, 180)` 且全部 finite。
+- 通过 staging 检查后再停止服务、备份旧目录和旧胶水、替换正式目录、重启 `/home/wangyun/Desktop/run_HEtools.py`。
+
+替换后必须同时验收：
+
+- `https://hetools.cn/` 返回 Streamlit 首页。
+- `https://hetools.cn/asgard-doc/` 返回 ASGARD Documentation。
+- `127.0.0.1:8501`、`127.0.0.1:8502` 正常监听。
+- live `afterglow_base_func.py` 可导入，`ASGARD_fs_fluxdensity` 最小 smoke test 通过。
+
 ## GitHub 设置
 
 在 `mikuru1096/ASGARD_private` 中执行一次性设置：
