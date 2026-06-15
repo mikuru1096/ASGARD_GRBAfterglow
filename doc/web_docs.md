@@ -65,7 +65,7 @@ HEtools 的 afterglow 页面从 `base_func/afterglow_base_func.py` 调用 ASGARD
 - ASGARD 和 VegasAfterglow 支持可配置时间网格、额外单频 Hz、ASGARD `Formal` / `Quick` 精度预设、lightcurve 和 SED 输出。
 - 外部介质支持 `ISM` 和 `Wind`。默认保持 `ISM`；`Wind` 使用 ASGARD `WindMedium(a_star, density_floor_cm3, density_cap_cm3)` 和 VegasAfterglow `Wind(A_star, floor, cap)`，只开放当前 backend 明确支持的 \(k=2\) 星风。页面参数为 `log A_star`、`log wind floor`、可选 `log wind cap`。
 - SSC 作为显式开关提供给 ASGARD 和 VegasAfterglow，默认关闭；开启后 ASGARD 返回 forward synchrotron + SSC，总 flux 形状不变，VegasAfterglow 通过 `Radiation(..., ssc=True)` 计算总辐射。jetsimpy 保持 legacy comparison，不接 SSC。
-- SED 图默认用 `nuFnu` 显示能量输出，可切换回 `Fnu`；开启 SSC 时 ASGARD SED 同时画 total、sync、SSC 三条曲线，CSV 同时导出 `Fnu` 和 `nuFnu` 分量。SED y 轴按当前已绘制曲线的正有限峰值自适应，避免高频数值尾部把坐标范围拉得过宽。
+- SED 图默认用 `nuFnu` 显示能量输出，可切换回 `Fnu`；开启 SSC 时 ASGARD 和 VegasAfterglow SED 同时画 total、sync、SSC 三类曲线，CSV 同时导出 `Fnu` 和 `nuFnu` 分量。SED y 轴以当前已绘制曲线的最大正有限峰值为上界，固定显示 6 dex 动态范围。
 - 模型按 ASGARD -> VegasAfterglow -> jetsimpy 串行运行；不并行抢占 CPU。
 - `st.cache_data(max_entries=64)` 缓存 raw arrays，不缓存 Matplotlib figure；cache key 包含模型名、物理参数、介质参数、时间网格、频率、ASGARD 精度预设、`include_ssc` 和 `HETOOLS_DEPLOYED_ASGARD_HEAD.txt`。
 - 页面输出 `Lightcurve`、`SED`、`Downloads`、`Diagnostics` tabs；CSV/PNG 下载由页面即时从 raw arrays 和 figure 生成。
@@ -88,6 +88,7 @@ rtk bash -lc 'source ~/.wsl_env && ssh wangyun@100.108.14.93 "cd /home/wangyun/D
 - SED nuFnu mode backup: `/home/wangyun/Desktop/HEtools_web_beta_v03_backups/afterglow_sed_nufnu_20260615_202242`
 - Wind medium backup: `/home/wangyun/Desktop/HEtools_web_beta_v03_backups/afterglow_wind_medium_20260615_202424`
 - SED adaptive y-axis backup: `/home/wangyun/Desktop/HEtools_web_beta_v03_backups/afterglow_sed_adaptive_y_20260615_203017`
+- Vegas SED components and 6 dex y-axis backup: `/home/wangyun/Desktop/HEtools_web_beta_v03_backups/afterglow_vegas_sed_y6_20260615_203850`
 
 页面改动后必须验收：
 
@@ -98,6 +99,7 @@ rtk bash -lc 'source ~/.wsl_env && ssh wangyun@100.108.14.93 "cd /home/wangyun/D
 - `medium_type="Wind"` 时，ASGARD / VegasAfterglow lightcurve 和 SED smoke 均通过；legacy 9 参数 tuple 继续默认 `ISM`。
 - SED `nuFnu` 模式下，ASGARD SSC 分量在 payload/CSV/图像中可见，且 total 等于 sync + SSC。
 - SED 自适应 y 轴改动后，`streamlit.testing.v1.AppTest` 勾选 `Wind + SSC + nuFnu` 运行无 exception。
+- VegasAfterglow SED 诊断显示单点 `sed_time_s` 调用与完整时间网格截面差异约 `10^-3`；页面保留原 Vegas total 求解路径，但在 `include_ssc=True` 时导出并绘制 `sync` / `SSC` 分量，且验证 total 等于 sync + SSC。
 - 重复调用同一 `cached_lightcurve_payload` 的第二次请求明显命中缓存。
 - `streamlit.testing.v1.AppTest` 初始加载和默认 `Run` 均无 exception，并出现 `Lightcurve`、`SED`、`Downloads`、`Diagnostics` tabs。
 - 公网 `https://hetools.cn/`、`https://hetools.cn/Afterglow_modeling`、`https://hetools.cn/asgard-doc/` 均返回 200。
