@@ -9,7 +9,6 @@ import numpy as np
 from ASGARD.api_fit import Param
 from ASGARD.api_model import Model
 from ASGARD.api_observe import _as_model, _param_path, _total_matrix
-import numpy as np
 from asgard_core.asgard_state import project_flux_grid, solve_state_from_setup
 from asgard_core.asgard_config import RuntimeConfig
 from asgard_core.asgard_observables import build_multiband_observer_frequencies, combine_multiband_flux

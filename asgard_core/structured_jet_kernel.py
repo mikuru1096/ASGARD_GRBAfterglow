@@ -5,12 +5,12 @@ from typing import Callable
 
 import numpy as np
 
+from asgard_core.angular_sampling import angular_separation, is_axisymmetric_jet
 from asgard_core.asgard_physics_utils import compute_doppler, compute_maximum_synchrotron_frequency
 from asgard_core.asgard_state import make_query_setup
 from src import Structured, constants
 
 
-AXISYMMETRIC_JET_KINDS = {"gaussian", "powerlaw", "twocomponent", "steppowerlaw"}
 HUMMER_SCHEMES = {"hummer_2010_response"}
 
 
@@ -163,7 +163,7 @@ def _assert_supported_hadronic_branch(model) -> None:
 
 
 def _sample_structured_grid(model):
-    axisymmetric = str(model.jet.kind).lower() in AXISYMMETRIC_JET_KINDS
+    axisymmetric = is_axisymmetric_jet(model.jet)
     theta_centers = _cell_centers(0.0, float(model.jet.theta_max), int(model.setups.patch_theta))
     phi_centers = np.array([0.0], dtype=float) if axisymmetric else _cell_centers(0.0, 2.0 * np.pi, int(model.setups.patch_phi))
     e_iso, gamma0 = _sample_energy_gamma(model, theta_centers, phi_centers)
@@ -255,7 +255,14 @@ def _patch_entry(model, theta: float, phi: float, e_iso: float, gamma0: float) -
     return {
         "phi": float(phi),
         "theta": float(theta),
-        "theta_v": _angular_separation(float(theta), float(phi), float(model.observer.theta_obs), float(model.observer.phi_obs)),
+        "theta_v": float(
+            angular_separation(
+                float(theta),
+                float(phi),
+                float(model.observer.theta_obs),
+                float(model.observer.phi_obs),
+            )
+        ),
         "E_iso": float(e_iso),
         "Gamma0": float(gamma0),
     }
@@ -264,11 +271,6 @@ def _patch_entry(model, theta: float, phi: float, e_iso: float, gamma0: float) -
 def _cell_centers(start: float, stop: float, count: int) -> np.ndarray:
     edges = np.linspace(start, stop, count + 1)
     return 0.5 * (edges[:-1] + edges[1:])
-
-
-def _angular_separation(theta1: float, phi1: float, theta2: float, phi2: float) -> float:
-    cos_alpha = np.cos(theta1) * np.cos(theta2) + np.sin(theta1) * np.sin(theta2) * np.cos(phi1 - phi2)
-    return float(np.arccos(np.clip(cos_alpha, -1.0, 1.0)))
 
 
 def _first_active_value(model, name: str) -> float:

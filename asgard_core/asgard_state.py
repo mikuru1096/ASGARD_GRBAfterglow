@@ -1137,7 +1137,6 @@ def _compute_pair_production_branch(
     radius = np.asarray(dynamics.radius, dtype=float)
     gamma_bulk = np.asarray(dynamics.r_gamma, dtype=float)
     magnetic_field = np.asarray(magnetic_field_g, dtype=float)
-    _validate_pair_production_branch_inputs(v_seed, seed_field, gam_e, radius, gamma_bulk, magnetic_field)
     photon_energy_gev, _ = photon_density_hz_to_gev(v_seed, np.ones_like(v_seed))
     e_pair_gev = _aligned_pair_electron_grid(photon_energy_gev)
     gam_pair = e_pair_gev / _ELECTRON_MASS_GEV
@@ -1249,37 +1248,6 @@ def _electron_density_to_source_r(gam_e: np.ndarray, density_per_gamma: np.ndarr
             dr = radius[i_shell] - radius[i_shell - 1]
         source[:, i_shell] = density[:, i_shell] * gamma * np.log(10.0) / dr
     return source
-
-
-def _validate_pair_production_branch_inputs(
-    frequency_hz: np.ndarray,
-    seed_field_hz: np.ndarray,
-    gam_e: np.ndarray,
-    radius_cm: np.ndarray,
-    gamma_bulk: np.ndarray,
-    magnetic_field_g: np.ndarray,
-) -> None:
-    if frequency_hz.ndim != 1 or gam_e.ndim != 1:
-        raise ValueError("pair-production branch requires 1D frequency and electron grids.")
-    if radius_cm.ndim != 1 or gamma_bulk.shape != radius_cm.shape or magnetic_field_g.shape != radius_cm.shape:
-        raise ValueError("pair-production branch requires matching radius, gamma, and magnetic-field arrays.")
-    if seed_field_hz.shape != (frequency_hz.size, radius_cm.size):
-        raise ValueError("pair-production seed field shape must be (num_frequency, num_radius).")
-    arrays = (frequency_hz, seed_field_hz, gam_e, radius_cm, gamma_bulk, magnetic_field_g)
-    if not all(np.all(np.isfinite(arr)) for arr in arrays):
-        raise ValueError("pair-production branch inputs must be finite.")
-    if np.any(frequency_hz <= 0.0) or np.any(np.diff(frequency_hz) <= 0.0):
-        raise ValueError("pair-production frequency grid must be positive and strictly increasing.")
-    if np.any(gam_e < 1.0) or np.any(np.diff(gam_e) <= 0.0):
-        raise ValueError("pair-production electron gamma grid must start at gamma >= 1 and be strictly increasing.")
-    if np.any(seed_field_hz < 0.0):
-        raise ValueError("pair-production seed field must be non-negative.")
-    if np.any(radius_cm <= 0.0) or np.any(np.diff(radius_cm) <= 0.0):
-        raise ValueError("pair-production shell radii must be positive and strictly increasing.")
-    if np.any(gamma_bulk < 1.0):
-        raise ValueError("pair-production bulk Lorentz factors must be >= 1.")
-    if np.any(magnetic_field_g < 0.0):
-        raise ValueError("pair-production magnetic fields must be non-negative.")
 
 
 def _forward_synchrotron_absorption_transfer(

@@ -6,6 +6,11 @@ import numpy as np
 
 
 SUPPORTED_PATCH_SAMPLING = ("uniform", "dominant_region_ioka_v1", "dominant_region_ioka_time_v1")
+AXISYMMETRIC_JET_KINDS = frozenset(("tophat", "gaussian", "powerlaw", "twocomponent", "steppowerlaw"))
+
+
+def is_axisymmetric_jet(jet) -> bool:
+    return str(getattr(jet, "kind", "")).lower() in AXISYMMETRIC_JET_KINDS
 
 
 @dataclass(frozen=True)
@@ -93,7 +98,7 @@ def _build_dominant_region_ioka_grid(
         theta_count = _beaming_resolved_theta_count(model, theta_scan, gamma_envelope, n_theta)
     theta_centers, theta_edges = _weighted_centers_edges(theta_scan, theta_weight, theta_count)
 
-    if _axisymmetric_jet(model):
+    if is_axisymmetric_jet(model.jet):
         if theta_obs == 0.0:
             phi_count = n_phi
         elif gamma_time is not None:
@@ -127,19 +132,9 @@ def _dominant_weight(
     phi_mesh = phi[None, :]
     energy = _evaluate_jet_function(model.jet.energy_iso, phi_mesh, theta_mesh)
     gamma = _evaluate_jet_function(model.jet.gamma0, phi_mesh, theta_mesh)
-    separation = _angular_separation(theta_mesh, phi_mesh, theta_obs, phi_obs)
+    separation = angular_separation(theta_mesh, phi_mesh, theta_obs, phi_obs)
     weight = energy * _doppler_factor(gamma, separation) ** 3
     return _with_structure_floor(weight)
-
-
-def _axisymmetric_jet(model) -> bool:
-    return str(getattr(model.jet, "kind", "")).lower() in {
-        "gaussian",
-        "powerlaw",
-        "twocomponent",
-        "steppowerlaw",
-        "tophat",
-    }
 
 
 def _axisymmetric_phi_quadrature(n_phi: int, phi_obs: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -166,7 +161,7 @@ def _time_dependent_dominant_weight(
     theta_mesh = theta[:, None]
     phi_mesh = phi[None, :]
     energy = _evaluate_jet_function(model.jet.energy_iso, phi_mesh, theta_mesh)
-    separation = _angular_separation(theta_mesh, phi_mesh, theta_obs, phi_obs)
+    separation = angular_separation(theta_mesh, phi_mesh, theta_obs, phi_obs)
     weighted = np.zeros_like(energy, dtype=float)
     for i_time in range(gamma_time.shape[1]):
         weighted += _doppler_factor(gamma_time[:, i_time][:, None], separation) ** 3
@@ -290,7 +285,12 @@ def _doppler_factor(gamma: np.ndarray, angle: np.ndarray) -> np.ndarray:
     return 1.0 / (gamma * (1.0 - beta * np.cos(angle)))
 
 
-def _angular_separation(theta: float, phi: np.ndarray, theta_obs: float, phi_obs: float) -> np.ndarray:
+def angular_separation(
+    theta: float | np.ndarray,
+    phi: float | np.ndarray,
+    theta_obs: float,
+    phi_obs: float,
+) -> np.ndarray:
     cos_sep = (
         np.cos(theta) * np.cos(theta_obs)
         + np.sin(theta) * np.sin(theta_obs) * np.cos(phi - phi_obs)

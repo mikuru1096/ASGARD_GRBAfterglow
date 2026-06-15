@@ -7,6 +7,7 @@ from typing import Callable, NamedTuple, Optional
 
 import numpy as np
 
+from asgard_core.angular_sampling import angular_separation, is_axisymmetric_jet
 from asgard_core.asgard_config import (
     RuntimeConfig,
     HadronicConfig,
@@ -885,6 +886,16 @@ class Hadronic:
     pair_cascade_iterations: int
 
 
+class _ActivePatch(NamedTuple):
+    phi_center: float
+    theta_center: float
+    half_angle: float
+    domega: float
+    theta_v: float
+    e_iso: float
+    gamma0: float
+
+
 @dataclass
 class _RuntimeSetups:
     medium: Optional[str] = None
@@ -1755,39 +1766,24 @@ def _solve_patch_model_python(
 
     patch_sampling = str(getattr(model.setups, "patch_sampling", "uniform")).lower()
     patch_projection = _resolve_patch_projection(model, patch_sampling)
-    if patch_projection == "surface_element" and _patch_grid_is_axisymmetric(model):
+    if patch_projection == "surface_element" and is_axisymmetric_jet(model.jet):
         return _solve_axisymmetric_surface_patch_model_python(
             model,
             times_s,
             nu_hz,
             solve_reference_times_s=solve_reference_times_s,
         )
-    for phi_center, theta_center, patch_half_angle, domega in _iter_patch_elements(model, times_s):
-        e_iso = model.jet.energy_iso(phi_center, theta_center)
-        gamma0 = model.jet.gamma0(phi_center, theta_center)
-        if e_iso <= 0.0 or gamma0 <= 1.0:
-            continue
-        theta_v = _angular_separation(theta_center, phi_center, model.observer.theta_obs, model.observer.phi_obs)
-        config = _build_fit_config_for_patch(
-            model,
-            phi_center=phi_center,
-            theta_v=theta_v,
-            opening_angle_jet=patch_half_angle,
-            e_iso=e_iso,
-            gamma0=gamma0,
-            theta_center=theta_center,
-        )
-        state = _solve_patch_state(
-            model,
-            config,
-            times_s,
-            nu_hz,
-            solve_reference_times_s=solve_reference_times_s,
-        )
+    for patch, state in _iter_solved_patch_elements(
+        model,
+        times_s,
+        nu_hz,
+        _iter_patch_elements(model, times_s),
+        solve_reference_times_s=solve_reference_times_s,
+    ):
         if patch_projection == "tophat_cell":
             observed = _observe_parts(state, times_s, nu_hz, projection_kind=projection_kind)
         else:
-            observed = _observe_surface_element_parts(state, times_s, nu_hz, domega)
+            observed = _observe_surface_element_parts(state, times_s, nu_hz, patch.domega)
         total += observed.total
         fwd_sync_total += observed.fwd.sync
         fwd_ssc_total += observed.fwd.ssc
@@ -1795,19 +1791,7 @@ def _solve_patch_model_python(
         rev_ssc_total += observed.rev.ssc
         if observed.cross_ic is not None:
             cross_ic_total += observed.cross_ic
-        patches_meta.append(
-            {
-                "phi": float(phi_center),
-                "theta": float(theta_center),
-                "theta_v": float(theta_v),
-                "half_angle": float(patch_half_angle),
-                "domega": float(domega),
-                "patch_sampling": patch_sampling,
-                "patch_projection": patch_projection,
-                "E_iso": float(e_iso),
-                "Gamma0": float(gamma0),
-            }
-        )
+        patches_meta.append(_patch_metadata(patch, patch_sampling, patch_projection))
         if details_fwd is None:
             details = _make_details(state.components, patches_meta, state=state)
             details_fwd = details.fwd
@@ -1872,7 +1856,7 @@ def _solve_axisymmetric_surface_patch_model_python(
         for i_phi, phi_center_value in enumerate(grid.phi_centers):
             phi_center = float(phi_center_value)
             domega = float(grid.domega[i_theta, i_phi])
-            theta_v = _angular_separation(theta_center, phi_center, model.observer.theta_obs, model.observer.phi_obs)
+            theta_v = float(angular_separation(theta_center, phi_center, model.observer.theta_obs, model.observer.phi_obs))
             boundary[9] = theta_v
             observed = _observe_surface_element_parts(state, times_s, nu_hz, domega)
             total += observed.total
@@ -1920,35 +1904,10 @@ def _patch_details(model: Model, times_s: np.ndarray) -> TrackBundle:
 
     patch_sampling = str(getattr(model.setups, "patch_sampling", "uniform")).lower()
     patch_projection = _resolve_patch_projection(model, patch_sampling)
-    for phi_center, theta_center, patch_half_angle, domega in _iter_patch_elements(model, times_s):
-        e_iso = model.jet.energy_iso(phi_center, theta_center)
-        gamma0 = model.jet.gamma0(phi_center, theta_center)
-        if e_iso <= 0.0 or gamma0 <= 1.0:
-            continue
-        theta_v = _angular_separation(theta_center, phi_center, model.observer.theta_obs, model.observer.phi_obs)
-        patches_meta.append(
-            {
-                "phi": float(phi_center),
-                "theta": float(theta_center),
-                "theta_v": float(theta_v),
-                "half_angle": float(patch_half_angle),
-                "domega": float(domega),
-                "patch_sampling": patch_sampling,
-                "patch_projection": patch_projection,
-                "E_iso": float(e_iso),
-                "Gamma0": float(gamma0),
-            }
-        )
+    for patch in _active_patch_elements(model, _iter_patch_elements(model, times_s)):
+        patches_meta.append(_patch_metadata(patch, patch_sampling, patch_projection))
         if first_component is None:
-            config = _build_fit_config_for_patch(
-                model,
-                phi_center=phi_center,
-                theta_v=theta_v,
-                opening_angle_jet=patch_half_angle,
-                e_iso=e_iso,
-                gamma0=gamma0,
-                theta_center=theta_center,
-            )
+            config = _patch_runtime_config(model, patch)
             first_state = _solve_patch_state(model, config, times_s, None)
             first_component = first_state.components
             first_details = _make_details(first_component, patches_meta, state=first_state)
@@ -1965,16 +1924,6 @@ def _resolve_patch_projection(model: Model, patch_sampling: str) -> str:
     if projection in {"tophat_cell", "surface_element"}:
         return projection
     raise ValueError("patch_projection must be 'auto', 'tophat_cell', or 'surface_element'.")
-
-
-def _patch_grid_is_axisymmetric(model: Model) -> bool:
-    return str(getattr(model.jet, "kind", "")).lower() in {
-        "tophat",
-        "gaussian",
-        "powerlaw",
-        "twocomponent",
-        "steppowerlaw",
-    }
 
 
 def _observe_surface_element_parts(
@@ -2421,11 +2370,6 @@ def _make_details(
     )
 
 
-def _iter_patches(model: Model):
-    for phi_center, theta_center, patch_half_angle, _domega in _iter_patch_elements(model):
-        yield phi_center, theta_center, patch_half_angle
-
-
 def _iter_patch_elements(model: Model, observer_time_s: np.ndarray | None = None):
     from asgard_core.angular_sampling import build_patch_grid
 
@@ -2440,12 +2384,74 @@ def _iter_patch_elements(model: Model, observer_time_s: np.ndarray | None = None
             )
 
 
-def _angular_separation(theta1: float, phi1: float, theta2: float, phi2: float) -> float:
-    cos_alpha = (
-        np.cos(theta1) * np.cos(theta2)
-        + np.sin(theta1) * np.sin(theta2) * np.cos(phi1 - phi2)
+def _active_patch_elements(model: Model, patch_elements):
+    for phi_center, theta_center, patch_half_angle, domega in patch_elements:
+        e_iso = model.jet.energy_iso(phi_center, theta_center)
+        gamma0 = model.jet.gamma0(phi_center, theta_center)
+        if e_iso <= 0.0 or gamma0 <= 1.0:
+            continue
+        theta_v = angular_separation(theta_center, phi_center, model.observer.theta_obs, model.observer.phi_obs)
+        yield _ActivePatch(
+            float(phi_center),
+            float(theta_center),
+            float(patch_half_angle),
+            float(domega),
+            float(theta_v),
+            float(e_iso),
+            float(gamma0),
+        )
+
+
+def _patch_runtime_config(
+    model: Model,
+    patch: _ActivePatch,
+    opening_angle_jet: float | None = None,
+) -> RuntimeConfig:
+    return _build_fit_config_for_patch(
+        model,
+        phi_center=patch.phi_center,
+        theta_v=patch.theta_v,
+        opening_angle_jet=patch.half_angle if opening_angle_jet is None else float(opening_angle_jet),
+        e_iso=patch.e_iso,
+        gamma0=patch.gamma0,
+        theta_center=patch.theta_center,
     )
-    return float(np.arccos(np.clip(cos_alpha, -1.0, 1.0)))
+
+
+def _iter_solved_patch_elements(
+    model: Model,
+    times_s: np.ndarray,
+    nu_hz: np.ndarray | None,
+    patch_elements,
+    *,
+    opening_angle_jet: float | None = None,
+    timings: Optional[dict[str, float]] = None,
+    solve_reference_times_s: np.ndarray | None = None,
+):
+    for patch in _active_patch_elements(model, patch_elements):
+        state = _solve_patch_state(
+            model,
+            _patch_runtime_config(model, patch, opening_angle_jet=opening_angle_jet),
+            times_s,
+            nu_hz,
+            timings=timings,
+            solve_reference_times_s=solve_reference_times_s,
+        )
+        yield patch, state
+
+
+def _patch_metadata(patch: _ActivePatch, patch_sampling: str, patch_projection: str) -> dict[str, float | str]:
+    return {
+        "phi": patch.phi_center,
+        "theta": patch.theta_center,
+        "theta_v": patch.theta_v,
+        "half_angle": patch.half_angle,
+        "domega": patch.domega,
+        "patch_sampling": patch_sampling,
+        "patch_projection": patch_projection,
+        "E_iso": patch.e_iso,
+        "Gamma0": patch.gamma0,
+    }
 
 
 def _jet_magnetar_active(jet: JetProfile, theta_center: float) -> bool:

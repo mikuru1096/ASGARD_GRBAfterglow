@@ -4,6 +4,7 @@ from typing import Any, Optional
 
 import numpy as np
 
+from asgard_core.angular_sampling import is_axisymmetric_jet
 from asgard_core.asgard_state import (
     SolveState,
     _build_observer_setup_from_state,
@@ -21,12 +22,9 @@ from asgard_core.asgard_postprocess import (
     compute_spectrum_redchi,
     select_spectrum_time_index,
 )
-from src import Interpolation, constants
-
 from .api_adaptive import _observe_parts, _observe_total
 from .api_fit import FitResult, Param
 from .api_model import (
-    Jet,
     Magnetar,
     Model,
     Numerics,
@@ -44,11 +42,11 @@ from .api_model import (
     gaussian_jet,
     power_law_jet,
     top_hat_jet,
-    _angular_separation,
     _build_fit_config_for_patch,
     _extract_pair_flux,
     _iter_patch_elements,
-    _iter_patches,
+    _iter_solved_patch_elements,
+    _project_surface_element,
     _solve_patch_state,
 )
 
@@ -81,22 +79,13 @@ def _patch_total(
     projection_kind: str = "lightcurve",
 ) -> np.ndarray:
     total = np.zeros((nu_hz.shape[0], times_s.shape[0]), dtype=float)
-    for phi_center, theta_center, patch_half_angle in _iter_patches(model):
-        e_iso = model.jet.energy_iso(phi_center, theta_center)
-        gamma0 = model.jet.gamma0(phi_center, theta_center)
-        if e_iso <= 0.0 or gamma0 <= 1.0:
-            continue
-        theta_v = _angular_separation(theta_center, phi_center, model.observer.theta_obs, model.observer.phi_obs)
-        config = _build_fit_config_for_patch(
-            model,
-            phi_center=phi_center,
-            theta_v=theta_v,
-            opening_angle_jet=patch_half_angle,
-            e_iso=e_iso,
-            gamma0=gamma0,
-            theta_center=theta_center,
-        )
-        state = _solve_patch_state(model, config, times_s, nu_hz, timings=timings)
+    for _patch, state in _iter_solved_patch_elements(
+        model,
+        times_s,
+        nu_hz,
+        _iter_patch_elements(model),
+        timings=timings,
+    ):
         total += _observe_total(state, times_s, nu_hz, timings=timings, projection_kind=projection_kind)
     return total
 
@@ -135,7 +124,7 @@ def _compute_polarization(
         raise ValueError("magnetic_geometry must be 'shock_random' or 'toroidal'.")
     if local_emissivity not in {"analytic", "analytic_then_kernel"}:
         raise ValueError("local_emissivity must be 'analytic' or 'analytic_then_kernel'.")
-    if magnetic_geometry == "toroidal" and not _jet_is_axisymmetric(model.jet):
+    if magnetic_geometry == "toroidal" and not is_axisymmetric_jet(model.jet):
         raise NotImplementedError("toroidal polarization currently requires an axisymmetric jet.")
 
     total_i = np.zeros((nu_hz.shape[0], times_s.shape[0]), dtype=float)
@@ -150,24 +139,9 @@ def _compute_polarization(
     sightline, sky_x_axis, sky_y_axis = _sky_basis(model.observer)
     active_patch_found = False
 
-    for phi_center, theta_center, patch_half_angle, patch_solid_angle in _iter_patch_elements(model):
-        e_iso = model.jet.energy_iso(phi_center, theta_center)
-        gamma0 = model.jet.gamma0(phi_center, theta_center)
-        if e_iso <= 0.0 or gamma0 <= 1.0:
-            continue
+    for patch, state in _iter_solved_patch_elements(model, times_s, nu_hz, _iter_patch_elements(model)):
         active_patch_found = True
-        patch_direction = _direction_vector(theta_center, phi_center)
-        theta_v = _angular_separation(theta_center, phi_center, model.observer.theta_obs, model.observer.phi_obs)
-        config = _build_fit_config_for_patch(
-            model,
-            phi_center=phi_center,
-            theta_v=theta_v,
-            opening_angle_jet=patch_half_angle,
-            e_iso=e_iso,
-            gamma0=gamma0,
-            theta_center=theta_center,
-        )
-        state = _solve_patch_state(model, config, times_s, nu_hz)
+        patch_direction = _direction_vector(patch.theta_center, patch.phi_center)
         cos2pa, sin2pa = _patch_polarization_angle_factors(
             magnetic_geometry,
             patch_direction,
@@ -189,8 +163,8 @@ def _compute_polarization(
             ),
             cos2pa,
             sin2pa,
-            _shock_random_anisotropy(magnetic_geometry, theta_v, state.components.fwd.gamma),
-            patch_solid_angle,
+            _shock_random_anisotropy(magnetic_geometry, patch.theta_v, state.components.fwd.gamma),
+            patch.domega,
         )
         if state.reverse_emission is not None and model.rvs_rad is not None:
             rev_sync = np.asarray(state.reverse_emission.l_syn_spec, dtype=float) * np.asarray(state.observer.prefactor, dtype=float)
@@ -208,8 +182,8 @@ def _compute_polarization(
                 ),
                 cos2pa,
                 sin2pa,
-                _shock_random_anisotropy(magnetic_geometry, theta_v, _reverse_shock_gamma_array(state)),
-                patch_solid_angle,
+                _shock_random_anisotropy(magnetic_geometry, patch.theta_v, _reverse_shock_gamma_array(state)),
+                patch.domega,
             )
             rev_hadronic_sync = _patch_reverse_hadronic_synchrotron_component(state)
             if rev_hadronic_sync is not None:
@@ -223,8 +197,8 @@ def _compute_polarization(
                     rev_hadronic_pi,
                     cos2pa,
                     sin2pa,
-                    _shock_random_anisotropy(magnetic_geometry, theta_v, _reverse_shock_gamma_array(state)),
-                    patch_solid_angle,
+                    _shock_random_anisotropy(magnetic_geometry, patch.theta_v, _reverse_shock_gamma_array(state)),
+                    patch.domega,
                 )
         hadronic_sync = _patch_hadronic_synchrotron_component(state)
         if hadronic_sync is not None:
@@ -238,8 +212,8 @@ def _compute_polarization(
                 hadronic_pi,
                 cos2pa,
                 sin2pa,
-                _shock_random_anisotropy(magnetic_geometry, theta_v, state.components.fwd.gamma),
-                patch_solid_angle,
+                _shock_random_anisotropy(magnetic_geometry, patch.theta_v, state.components.fwd.gamma),
+                patch.domega,
             )
 
     if not active_patch_found:
@@ -401,40 +375,6 @@ def _accumulate_patch_polarization(
     accumulator["U"] += p_obs * sin2pa
 
 
-def _project_surface_element(
-    setup,
-    characteristic_time_s: np.ndarray,
-    gamma: np.ndarray,
-    radius_cm: np.ndarray,
-    seed_frequency_hz: np.ndarray,
-    absorbed_spectral_flux: np.ndarray,
-    frequencies_hz: np.ndarray,
-    patch_solid_angle: float,
-) -> np.ndarray:
-    """按真实球面面元dOmega投影一个patch中心代表的同步辐射。"""
-    if not np.any(absorbed_spectral_flux):
-        return np.zeros((frequencies_hz.shape[0], setup.observer_time_s.shape[0]), dtype=float)
-    frequencies_hz = np.asarray(frequencies_hz, dtype=float)
-    order = np.argsort(frequencies_hz)
-    sorted_frequencies = frequencies_hz[order]
-    flux_sorted = Interpolation.sed_interpolation_surface_element(
-        setup.boundary,
-        characteristic_time_s,
-        gamma,
-        radius_cm,
-        absorbed_spectral_flux,
-        seed_frequency_hz,
-        sorted_frequencies,
-        setup.observer_time_s,
-        float(patch_solid_angle),
-    )
-    if np.array_equal(order, np.arange(order.shape[0])):
-        return flux_sorted
-    flux_matrix = np.empty_like(flux_sorted)
-    flux_matrix[order] = flux_sorted
-    return flux_matrix
-
-
 def _patch_hadronic_synchrotron_component(state: SolveState) -> tuple[np.ndarray, np.ndarray] | None:
     if state.hadronic is None:
         return None
@@ -588,26 +528,14 @@ def _render_sky_image(model: Model, times_s: np.ndarray, nu_obs: float, fov: flo
     required_half_fov = 0.5 * float(fov)
     total_solid_angle = 2.0 * np.pi * (1.0 - np.cos(float(model.jet.theta_max)))
     collapse_phi = _can_collapse_sky_image_phi(model)
-    for phi_center, theta_center, patch_half_angle, domega in _iter_img_patches(
+    img_patches = _iter_img_patches(model, npixel, collapse_phi=collapse_phi)
+    for patch, state in _iter_solved_patch_elements(
         model,
-        npixel,
-        collapse_phi=collapse_phi,
+        times_s,
+        frequencies_hz,
+        img_patches,
+        opening_angle_jet=model.jet.theta_max,
     ):
-        e_iso = model.jet.energy_iso(phi_center, theta_center)
-        gamma0 = model.jet.gamma0(phi_center, theta_center)
-        if e_iso <= 0.0 or gamma0 <= 1.0:
-            continue
-        theta_v = _angular_separation(theta_center, phi_center, model.observer.theta_obs, model.observer.phi_obs)
-        config = _build_fit_config_for_patch(
-            model,
-            phi_center=phi_center,
-            theta_v=theta_v,
-            opening_angle_jet=model.jet.theta_max,
-            e_iso=e_iso,
-            gamma0=gamma0,
-            theta_center=theta_center,
-        )
-        state = _solve_patch_state(model, config, times_s, frequencies_hz)
         observed = _observe_parts(state, times_s, frequencies_hz)
         patch_flux = np.asarray(observed.total[0, :], dtype=float)
         radius_cm = _interpolate_positive_series(
@@ -620,18 +548,18 @@ def _render_sky_image(model: Model, times_s: np.ndarray, nu_obs: float, fov: flo
 
         x_center, y_center = _project_patch_to_sky(
             radius_cm,
-            theta_center,
-            phi_center,
+            patch.theta_center,
+            patch.phi_center,
             sightline,
             sky_x_axis,
             sky_y_axis,
             angular_diameter_distance_cm,
         )
         sigma = np.maximum(
-            radius_cm * np.sin(max(patch_half_angle, 1.0e-12)) / angular_diameter_distance_cm / 2.0,
+            radius_cm * np.sin(max(patch.half_angle, 1.0e-12)) / angular_diameter_distance_cm / 2.0,
             0.5 * base_pixel_size,
         )
-        patch_weight = domega / total_solid_angle if total_solid_angle > 0.0 else 0.0
+        patch_weight = patch.domega / total_solid_angle if total_solid_angle > 0.0 else 0.0
         patch_cache.append((patch_flux, x_center, y_center, sigma, patch_weight))
         span = np.max(np.maximum(np.abs(x_center), np.abs(y_center)) + 8.0 * sigma)
         required_half_fov = max(required_half_fov, float(span))
@@ -708,10 +636,6 @@ def _iter_img_patches(model: Model, npixel: int, *, collapse_phi: bool = False):
             domega = (np.cos(theta1) - np.cos(theta2)) * (phi2 - phi1)
             patch_half_angle = np.sqrt(max(domega, 1.0e-12) / np.pi)
             yield phi_center, theta_center, patch_half_angle, domega
-
-
-def _jet_is_axisymmetric(jet: Jet) -> bool:
-    return jet.kind in ("tophat", "gaussian", "powerlaw", "twocomponent", "steppowerlaw")
 
 
 def _sky_basis(observer: Observer) -> tuple[np.ndarray, np.ndarray, np.ndarray]:

@@ -3,8 +3,7 @@ from pathlib import Path
 import numpy as np
 from scipy.interpolate import interp1d
 
-
-PARA_TEV2HZ = 2.418e26
+from src import constants
 
 
 def cal_ebl(z, v_obs, model="Dominguez11.txt"):
@@ -12,7 +11,7 @@ def cal_ebl(z, v_obs, model="Dominguez11.txt"):
     table = np.loadtxt(file_path)
 
     redshifts = table[0, 1:]
-    energies_hz = table[1:, 0] * PARA_TEV2HZ
+    energies_hz = table[1:, 0] * constants.para_tev2hz
     tau_values = table[1:, 1:]
 
     if z <= redshifts[0]:
