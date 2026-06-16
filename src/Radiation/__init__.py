@@ -7,7 +7,6 @@ from typing import Any
 _BINDINGS = {
     "annihilation": "radiation_gamma_gamma_absorption",
     "cal_ebl": "Cal_ebl",
-    "seed_reverse": "radiation_reverse_seed",
     "ssc_spec": "radiation_ssc_spectrum",
     "ssc_spec_nonuniform": "radiation_ssc_spectrum",
 }

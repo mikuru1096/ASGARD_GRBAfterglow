@@ -90,7 +90,6 @@ setup(
         "src.Radiation": [
             *_native_patterns(
                 "radiation_gamma_gamma_absorption",
-                "radiation_reverse_seed",
                 "radiation_ssc_spectrum",
             ),
             "*.f90",

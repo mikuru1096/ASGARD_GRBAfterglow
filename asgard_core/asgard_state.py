@@ -435,7 +435,7 @@ def _solve_reverse_stage(
         return None
     return _timed_call(
         timings,
-        "Radiation.seed_reverse",
+        "ReverseShock.emission",
         solve_reverse_shock_emission,
         setup.boundary,
         dynamics,

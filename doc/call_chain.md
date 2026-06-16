@@ -41,7 +41,7 @@ flowchart TD
     C --> E["electron_forward_transport_2d / charint_2d"]
     D --> F["electron_common + electron_cooling_kernel + electron_radiation_kernel"]
     E --> G["electron_transport_2d_kernel + electron_seed_history_kernel"]
-    F --> H["radiation_common -> radiation_ssc_spectrum / radiation_gamma_gamma_absorption / radiation_reverse_seed"]
+    F --> H["radiation_common -> radiation_ssc_spectrum / radiation_gamma_gamma_absorption"]
     G --> H
     H --> I["SED_interpolation / SED_interpolation_structured"]
     C --> J["solve_hadronic -> hadronic_forward_1d"]

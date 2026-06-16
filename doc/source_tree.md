@@ -43,7 +43,7 @@
 - `src/Electron/`：
   - 1D/2D entries：`electron_forward_fullhide_1d.f90`, `electron_forward_transport_2d.f90`, `electron_forward_charint_1d.f90`, `electron_forward_slc1_1d.f90`, `electron_forward_t2g1_1d.f90`, `electron_forward_weno5_1d.f90`；`electron_forward_charint_2d` extension 由 `electron_forward_transport_2d.f90` 的 `fs_electron_transport_2d_core` 构建
   - Kernels：`electron_common.f90`, `electron_radiation_kernel.f90`, `electron_cooling_kernel.f90`, `electron_seed_history_kernel.f90`, `electron_transport_2d_kernel.f90`, `electron_injection_profiles.f90`, `electron_transport_common.f90`, `electron_reverse_kernel.f90`, `adaptive_resampling_mod.f90`
-- `src/Radiation/`：`radiation_common.f90`, `radiation_ssc_spectrum.f90`, `radiation_gamma_gamma_absorption.f90`, `radiation_reverse_seed.f90`, `synchrotron_polarization_kernel.f90`, `quantum_synchrotron_kernel.f90`
+- `src/Radiation/`：`radiation_common.f90`, `radiation_ssc_spectrum.f90`, `radiation_gamma_gamma_absorption.f90`, `synchrotron_polarization_kernel.f90`, `quantum_synchrotron_kernel.f90`
 - `src/Hadronic/`：
   - Entries：`hadronic_forward_1d.f90`, `hadronic_reverse_1d.f90`
   - Kernels：`hadronic_common.f90`, `hadronic_transport_kernel.f90`, `hadronic_transport_remap_kernel.f90`, `hadronic_radiation_kernel.f90`, `hadronic_interaction_kernel.f90`, `hadronic_pgamma_hummer_1d.f90`, `hadronic_decay_kernel.f90`, `hadronic_pair_production_kernel.f90`, `hadronic_pair_cascade_kernel.f90`, `hadronic_pp_kernel.f90`, `hadronic_pp_models_kernel.f90`, `hadronic_bethe_heitler_kernel.f90`, `hadronic_hadronic_ic_kernel.f90`, `hadronic_species_transport_kernel.f90`, `hadronic_acceleration_kernel.f90`, `hadronic_secondary_radiation_kernel.f90`

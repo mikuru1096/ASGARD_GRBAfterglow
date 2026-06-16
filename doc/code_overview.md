@@ -92,7 +92,6 @@ Fitter.loglike -> compile_problem -> eval_loglike -> solve_state_from_setup
 ### 辐射与插值
 
 - `src/Radiation/radiation_ssc_spectrum.f90`：SSC spectrum 和 seed。
-- `src/Radiation/radiation_reverse_seed.f90`：反向激波同步辐射和 seed。
 - `src/Radiation/radiation_gamma_gamma_absorption.f90`：gamma-gamma absorption。
 - `src/Radiation/radiation_common.f90`：Simpson weights、power-law interpolation、pair cross-section、synchrotron seed core、transfer factor。
 - `src/Radiation/synchrotron_polarization_kernel.f90`：频率相关同步辐射偏振 emissivity。

@@ -572,7 +572,6 @@ def main() -> None:
         ModuleSpec("SED_interpolation", itp, ["../Constants.f90", "interpolation_common.f90", "SED_interpolation.f90"], omp_flags, OPENMP_LIBS),
         ModuleSpec("SED_interpolation_structured", itp, ["../Constants.f90", "interpolation_common.f90", "SED_interpolation_structured.f90"], omp_flags, OPENMP_LIBS),
         ModuleSpec("radiation_gamma_gamma_absorption", rad, _with_main(RADIATION_COMMON_SOURCES, "radiation_gamma_gamma_absorption.f90"), omp_flags, OPENMP_LIBS, False, ("annihilation",)),
-        ModuleSpec("radiation_reverse_seed", rad, _with_main(RADIATION_COMMON_SOURCES, "radiation_reverse_seed.f90"), omp_flags, OPENMP_LIBS, True, ("seed_reverse",)),
         ModuleSpec("radiation_ssc_spectrum", rad, _with_main(RADIATION_COMMON_SOURCES, "radiation_ssc_spectrum.f90"), omp_flags, OPENMP_LIBS, True, ("ssc_spec", "ssc_spec_nonuniform")),
         ModuleSpec(
             "hadronic_forward_1d",
