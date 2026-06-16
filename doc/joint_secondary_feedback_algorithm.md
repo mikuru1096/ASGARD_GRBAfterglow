@@ -124,11 +124,9 @@ Delta R_i =
 
 对应实现：
 
-- `asgard_core/asgard_runtime.py::_hadronic_shell_dr`
 - `asgard_core/asgard_runtime.py::_hadronic_shell_comoving_dt_from_radius`
-- `asgard_core/asgard_runtime.py::rate_s_inv_to_radius_inv`
 
-所有 shell-local `s^-1` loss/source 在进入 `R` 推进时必须显式经过这组换算或等价公式。
+shell-local 推进使用 shell 间隔对应的 comoving time。
 
 ## 7. hadronic 输出契约
 

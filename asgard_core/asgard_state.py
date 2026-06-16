@@ -7,6 +7,7 @@ from time import perf_counter
 import numpy as np
 
 from src.Electron.electron_radiation import electron_radiation_kernel as electron_radiation_module
+import src.Hadronic.hadronic_forward_1d as hadronic_legacy_module
 from asgard_core.asgard_config import ExecutionPolicy, RuntimeConfig, SimulationSetup
 from asgard_core.hadronic_processes import solve_pair_production
 from asgard_core.hadronic_processes import photon_density_hz_to_gev
@@ -31,12 +32,8 @@ from asgard_core.asgard_physics_utils import (
 from asgard_core.asgard_physics_utils import density_jump_arrays
 from asgard_core.asgard_postprocess import interpolate_observed_flux
 from asgard_core.asgard_runtime import (
-    _hadronic_advance_energy_loggamma,
-    _hadronic_build_gamma_edges,
-    _hadronic_electron_loss_rates,
     _hadronic_pg_survival_factor,
     _hadronic_shell_comoving_dt_from_radius,
-    _interp_positive_loglog,
     _solver_report,
     solve_dynamics,
     solve_electron,
@@ -1145,7 +1142,6 @@ def _compute_pair_production_branch(
     photon_energy_gev, _ = photon_density_hz_to_gev(v_seed, np.ones_like(v_seed))
     e_pair_gev = _aligned_pair_electron_grid(photon_energy_gev)
     gam_pair = e_pair_gev / _ELECTRON_MASS_GEV
-    gam_edge = _hadronic_build_gamma_edges(gam_pair)
     num_nu = int(v_seed.size)
     num_r = int(radius.size)
     pair_lum = np.zeros((num_nu, num_r), dtype=float)
@@ -1196,13 +1192,25 @@ def _compute_pair_production_branch(
                 - (0.0 if i_r == 0 else float(radius[i_r - 1]) ** 3)
             )
         ) * _ELECTRON_MASS_GEV
-        d_n_pair = _hadronic_advance_energy_loggamma(
-            gam_pair, gam_edge, d_n_pair_prev_aligned, q_pair,
-            _hadronic_electron_loss_rates(
-                gam_pair, float(magnetic_field[i_r]),
+        loss_total = np.asarray(
+            hadronic_legacy_module.fs_hadronic_continuous_loss_rates(
+                gam_pair,
+                float(magnetic_field[i_r]),
                 float(radius[i_r]) / (float(gamma_bulk[i_r]) * constants.para_c),
+                constants.para_m_e_gev,
+                0,
             ),
-            _hadronic_shell_comoving_dt_from_radius(radius, gamma_bulk, i_r),
+            dtype=float,
+        )
+        d_n_pair = np.asarray(
+            hadronic_legacy_module.fs_hadronic_advance_energy_loggamma(
+                gam_pair,
+                d_n_pair_prev_aligned,
+                q_pair,
+                loss_total,
+                _hadronic_shell_comoving_dt_from_radius(radius, gamma_bulk, i_r),
+            ),
+            dtype=float,
         )
         if magnetic_field[i_r] > 0.0:
             p_syn_i, seed_syn_i = electron_radiation_module.get_syn_selected(
@@ -1214,7 +1222,10 @@ def _compute_pair_production_branch(
             )
             pair_lum[:, i_r] = np.asarray(p_syn_i, dtype=float)
             pair_seed[:, i_r] = np.asarray(seed_syn_i, dtype=float)
-        pair_density[:, i_r] = _interp_positive_loglog(gam_pair, d_n_pair, gam_e)
+        pair_density[:, i_r] = np.asarray(
+            hadronic_legacy_module.fs_hadronic_positive_loglog_interp(gam_pair, d_n_pair, gam_e),
+            dtype=float,
+        )
         d_n_pair_prev_aligned = d_n_pair
     return pair_lum, pair_seed, tau_pair, pair_density
 
@@ -1235,7 +1246,10 @@ def _interp_pair_density_to_electron_grid(
     density = np.asarray(pair_density, dtype=float)
     out = np.zeros((np.asarray(gam_e, dtype=float).size, density.shape[1]), dtype=float)
     for i_shell in range(density.shape[1]):
-        out[:, i_shell] = _interp_positive_loglog(gamma_pair, density[:, i_shell], gam_e)
+        out[:, i_shell] = np.asarray(
+            hadronic_legacy_module.fs_hadronic_positive_loglog_interp(gamma_pair, density[:, i_shell], gam_e),
+            dtype=float,
+        )
     return out
 
 

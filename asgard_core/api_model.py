@@ -643,7 +643,6 @@ class _RuntimeSetups:
     reverse_delta_t_s: float = 10.0
     reverse_sigma: float = 0.0
     include_cross_zone_ic: bool = False
-    weno5: bool = False
     electron_solver: str = "fullhide_1d"
     cooling_kernel: str = "legacy"
     radiation_kernel: str = "legacy"
@@ -966,7 +965,6 @@ def _compose_runtime_setups(
     result.fullhide2d_transport_model = str(solver_options.fullhide2d_transport_model)
     result.fullhide2d_stochastic_accel_norm = float(solver_options.fullhide2d_stochastic_accel_norm)
     result.fullhide2d_escape_mode = str(solver_options.fullhide2d_escape_mode)
-    result.weno5 = False
     result._index_y_override = index_y
     result.rvs_shock = bool(reverse_shock.enabled)
     result.reverse_delta_t_s = float(reverse_shock.shell_duration_s)
@@ -1710,7 +1708,6 @@ def _build_fit_config_for_patch(
         electron_substep_rtol=model.setups.electron_substep_rtol,
         electron_substep_min=model.setups.electron_substep_min,
         electron_substep_max=model.setups.electron_substep_max,
-        weno5=model.setups.weno5,
         z=model.observer.z,
         theta_v=theta_v,
         opening_angle_jet=opening_angle_jet,

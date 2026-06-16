@@ -181,7 +181,6 @@ class _RuntimeConfig:
     t_obs_max_log10: float = 8.0
     luminosity_distance_cm_override: float | None = None
 
-    weno5: bool = False
     reverse: bool = False
 
     spectrum_output: SpectrumOutputConfig = field(default_factory=SpectrumOutputConfig)

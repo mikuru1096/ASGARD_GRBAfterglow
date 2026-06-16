@@ -51,18 +51,6 @@ from asgard_core.asgard_physics_utils import ambient_density, compute_magnetic_f
 from src import Dynamics, constants
 
 
-_ELECTRON_SOLVER_ALIASES = {
-    "fullhide_1d": "fullhide_1d",
-    "fullhide_1d_hz": "fullhide_1d_hz",
-    "fullhide_2d": "fullhide_2d",
-    "fullhide_2d_pic": "fullhide_2d_pic",
-    "slc1_1d": "slc1_1d",
-    "charint_1d": "charint_1d",
-    "charint_2d": "charint_2d",
-    "t2g1_1d": "t2g1_1d",
-    "weno5_1d": "weno5_1d",
-}
-
 _ELECTRON_MODULES = {
     "charint_1d": "src.Electron.electron_forward_charint_1d",
     "charint_2d": "src.Electron.electron_forward_charint_2d",
@@ -137,11 +125,6 @@ class ReverseShockHadronicSolution:
 
 _PGAMMA_SCHEME_DISABLED = "disabled"
 _PGAMMA_SCHEME_HUMMER2010_RESPONSE = "hummer_2010_response"
-
-_PGAMMA_SCHEME_ALIASES = {
-    "disabled": _PGAMMA_SCHEME_DISABLED,
-    "hummer_2010_response": _PGAMMA_SCHEME_HUMMER2010_RESPONSE,
-}
 
 
 def _solver_report(
@@ -780,20 +763,17 @@ def solve_electron_with_cooling_seed(
 
 
 def _resolve_electron_solver(config: RuntimeConfig) -> str:
-    if config.weno5:
-        return "weno5_1d"
-    solver_name = _ELECTRON_SOLVER_ALIASES.get(config.electron_solver.lower())
-    if solver_name is None:
+    solver_name = config.electron_solver.lower()
+    if solver_name not in _ELECTRON_MODULES:
         raise ValueError(f"Unsupported electron solver: {config.electron_solver}")
     return solver_name
 
 
 def _resolve_pgamma_scheme(config: RuntimeConfig) -> str:
     key = str(config.hadronic.pgamma_scheme).lower()
-    scheme_name = _PGAMMA_SCHEME_ALIASES.get(key)
-    if scheme_name is None:
+    if key not in (_PGAMMA_SCHEME_DISABLED, _PGAMMA_SCHEME_HUMMER2010_RESPONSE):
         raise ValueError(f"Unsupported p-gamma scheme: {config.hadronic.pgamma_scheme}")
-    return scheme_name
+    return key
 
 
 def _resolve_num_chi(config: RuntimeConfig, solver_name: str | None = None) -> int:
@@ -875,18 +855,13 @@ def solve_hadronic(
     return_report: bool = False,
 ) -> HadronicSolution | None | tuple[HadronicSolution | None, SolverAdapterReport]:
     del boundary
-    report_status = "ok"
-    if not bool(config.hadronic.enabled):
-        report = _solver_report("hadronic_disabled", "log-gamma-1d", "disabled", backend="none")
-        return (None, report) if return_report else None
-    if float(config.hadronic.epsilon_p) <= 0.0:
+    if not bool(config.hadronic.enabled) or float(config.hadronic.epsilon_p) <= 0.0:
         report = _solver_report("hadronic_disabled", "log-gamma-1d", "disabled", backend="none")
         return (None, report) if return_report else None
     hadronic_solver_key = str(config.hadronic.solver).lower()
-    if hadronic_solver_key in {"legacy_1d", "am3_1d"}:
-        hadronic_solver = hadronic_solver_key
-    else:
+    if hadronic_solver_key not in {"legacy_1d", "am3_1d"}:
         raise ValueError(f"Unsupported hadronic solver: {config.hadronic.solver}")
+    hadronic_solver = hadronic_solver_key
     pgamma_scheme = _resolve_pgamma_scheme(config)
     electron_solver = _resolve_electron_solver(config)
     if not electron_solver.endswith("_1d"):
@@ -910,10 +885,17 @@ def solve_hadronic(
             "p-gamma and neutrino channels require an explicit pgamma_scheme. "
             "Choose 'hummer_2010_response'."
         )
-    shell_energy_inj_erg = _hadronic_shell_injection_energy(
-        dynamics.radius,
-        dynamics.r_gamma,
-        config,
+    prev_radius = np.empty_like(dynamics.radius)
+    prev_radius[0] = 0.0
+    prev_radius[1:] = dynamics.radius[:-1]
+    shell_volume_cm3 = (4.0 / 3.0) * np.pi * (dynamics.radius**3 - prev_radius**3)
+    shell_energy_inj_erg = (
+        float(config.hadronic.epsilon_p)
+        * (dynamics.r_gamma - 1.0)
+        * shell_volume_cm3
+        * np.asarray(ambient_density(dynamics.radius, config), dtype=float)
+        * constants.para_m_p
+        * constants.para_c**2
     )
 
     if hadronic_solver == "am3_1d" and pgamma_scheme == _PGAMMA_SCHEME_HUMMER2010_RESPONSE:
@@ -930,7 +912,7 @@ def solve_hadronic(
             return solution, _solver_report(
                 hadronic_solver,
                 "log-gamma-1d",
-                report_status,
+                "ok",
                 backend=HUMMER2010_RESPONSE_BACKEND,
                 pgamma_scheme=pgamma_scheme,
                 pgamma_operator_backend=HUMMER2010_OPERATOR_BACKEND,
@@ -1013,7 +995,7 @@ def solve_hadronic(
         return solution, _solver_report(
             hadronic_solver,
             "log-gamma-1d",
-            report_status,
+            "ok",
             backend=backend,
             pgamma_scheme=pgamma_scheme,
             num_gam_p=num_gam_p,
@@ -1034,12 +1016,10 @@ def _solve_hadronic_hummer_transport_coupled(
 ) -> HadronicSolution:
     radius = np.asarray(dynamics.radius, dtype=float)
     gamma_bulk = np.asarray(dynamics.r_gamma, dtype=float)
-    tobs = np.asarray(dynamics.r_tobs, dtype=float)
     b_field = np.asarray(magnetic_field_g, dtype=float)
     v_seed_arr = np.asarray(v_seed_hz, dtype=float)
     seed_target_arr = np.asarray(seed_target_hz, dtype=float)
     shell_energy_inj = np.asarray(shell_energy_inj_erg, dtype=float)
-    _validate_hadronic_transport_inputs(radius, gamma_bulk, tobs, b_field, v_seed_arr, seed_target_arr, shell_energy_inj)
     pp_target_density_arr = None if pp_target_density_cm3 is None else np.asarray(pp_target_density_cm3, dtype=float)
     if pp_target_density_arr is not None and pp_target_density_arr.shape != radius.shape:
         raise ValueError("pp_target_density_cm3 must match the shell radius grid.")
@@ -1052,7 +1032,12 @@ def _solve_hadronic_hummer_transport_coupled(
 
     gam_p = np.logspace(
         np.log10(1.0 + 1.0e-3),
-        np.log10(_hadronic_global_gamma_p_max(radius, gamma_bulk, b_field, config)),
+        np.log10(float(hadronic_legacy_module.fs_hadronic_global_gamma_p_max(
+            radius,
+            gamma_bulk,
+            b_field,
+            float(config.hadronic.eta_acc),
+        ))),
         num_gam_p,
     )
     neutrino_frequency_hz = np.logspace(
@@ -1135,13 +1120,19 @@ def _solve_hadronic_hummer_transport_coupled(
             float(gamma_bulk[i_r]),
         ))
         gam_p_min = max(float(gam_p[0]), float(gamma_bulk[i_r]))
-        q_inj = _hadronic_injection_content(
-            gam_p,
-            float(shell_energy_inj[i_r]),
-            dt_s,
-            float(config.hadronic.p_p),
-            gam_p_min,
-            float(gam_p[-1]),
+        q_inj = np.asarray(
+            hadronic_legacy_module.fs_hadronic_injection_content(
+                "proton",
+                gam_p,
+                float(shell_energy_inj[i_r]),
+                dt_s,
+                float(config.hadronic.p_p),
+                gam_p_min,
+                float(gam_p[-1]),
+                1.0,
+                False,
+            ),
+            dtype=float,
         )
         shell_volume_loc = float(shell_volume_cm3[i_r])
         d_n_trial = _hadronic_proton_transport_step(
@@ -1159,11 +1150,21 @@ def _solve_hadronic_hummer_transport_coupled(
             shell_volume_loc,
             dt_s,
         )
-        proton_density_trial_per_gev = _shell_density_per_gev(d_n_trial, PROTON_MASS_GEV, shell_volume_loc)
-        neutron_density_trial_per_gev = _shell_density_per_gev(
-            species_state_prev.neutron.density_per_gamma,
-            constants.para_m_n_gev,
-            shell_volume_loc,
+        proton_density_trial_per_gev = np.asarray(
+            hadronic_legacy_module.fs_hadronic_shell_density_per_gev(
+                d_n_trial,
+                PROTON_MASS_GEV,
+                shell_volume_loc,
+            ),
+            dtype=float,
+        )
+        neutron_density_trial_per_gev = np.asarray(
+            hadronic_legacy_module.fs_hadronic_shell_density_per_gev(
+                species_state_prev.neutron.density_per_gamma,
+                constants.para_m_n_gev,
+                shell_volume_loc,
+            ),
+            dtype=float,
         )
         t_pg_start = time.perf_counter()
         _, photon_density_per_gev_trial = photon_density_hz_to_gev(v_seed_arr, seed_target_arr[:, i_r])
@@ -1273,28 +1274,20 @@ def _solve_hadronic_hummer_transport_coupled(
 
         if bool(config.hadronic.include_proton_synch):
             t_syn_start = time.perf_counter()
-            p_syn_i, seed_syn_i = _hadronic_proton_syn_state(
+            p_syn_i, seed_syn_i = hadronic_legacy_module.fs_hadronic_proton_syn_shell(
                 float(radius[i_r]),
                 float(b_field[i_r]),
                 gam_p,
                 d_n_next,
                 v_seed_arr,
             )
-            l_had_syn_spec[:, i_r] = p_syn_i
-            seed_had_syn[:, i_r] = seed_syn_i
+            l_had_syn_spec[:, i_r] = np.asarray(p_syn_i, dtype=float)
+            seed_had_syn[:, i_r] = np.asarray(seed_syn_i, dtype=float)
             timings["proton_synch"] += time.perf_counter() - t_syn_start
 
         divergence_rate_s_inv = 3.0 / t_dyn_s
         t_species_start = time.perf_counter()
-        (
-            neutron_next,
-            pion_plus_next,
-            pion_minus_next,
-            muon_minus_left_next,
-            muon_minus_right_next,
-            muon_plus_left_next,
-            muon_plus_right_next,
-        ) = _hadronic_species_transport_step(
+        species_transport = hadronic_legacy_module.fs_hadronic_species_transport_step(
             gam_secondary,
             backend.hadron_energy_gev,
             backend.neutron_reinjection_rate_per_gev,
@@ -1309,7 +1302,25 @@ def _solve_hadronic_hummer_transport_coupled(
             float(b_field[i_r]),
             divergence_rate_s_inv,
             shell_volume_loc,
-            species_state_prev,
+            np.asarray(species_state_prev.neutron.density_per_gamma, dtype=float),
+            np.asarray(species_state_prev.charged_pion.plus_density_per_gamma, dtype=float),
+            np.asarray(species_state_prev.charged_pion.minus_density_per_gamma, dtype=float),
+            np.asarray(species_state_prev.charged_muon.minus_left_density_per_gamma, dtype=float),
+            np.asarray(species_state_prev.charged_muon.minus_right_density_per_gamma, dtype=float),
+            np.asarray(species_state_prev.charged_muon.plus_left_density_per_gamma, dtype=float),
+            np.asarray(species_state_prev.charged_muon.plus_right_density_per_gamma, dtype=float),
+        )
+        (
+            neutron_next,
+            pion_plus_next,
+            pion_minus_next,
+            muon_minus_left_next,
+            muon_minus_right_next,
+            muon_plus_left_next,
+            muon_plus_right_next,
+        ) = tuple(
+            np.asarray(item, dtype=float)
+            for item in species_transport
         )
         species_state_next = HadronicSpeciesState(
             neutron=NeutronDistribution(gamma=gam_secondary, density_per_gamma=neutron_next),
@@ -1336,19 +1347,28 @@ def _solve_hadronic_hummer_transport_coupled(
         d_n_gam_mu_plus_right[:, i_r] = species_state_next.charged_muon.plus_right_density_per_gamma
 
         t_sec_start = time.perf_counter()
+        hadron_energy_gev = gam_p * PROTON_MASS_GEV
+        num_align = _hadronic_aligned_photon_grid_size(hadron_energy_gev, photon_energy_gev)
+        secondary_radiation = hadronic_legacy_module.fs_hadronic_secondary_radiation_projected(
+            num_align,
+            hadron_energy_gev,
+            photon_energy_gev,
+            photon_density_per_gev,
+            np.asarray(species_state_next.charged_pion.plus_density_per_gamma, dtype=float),
+            np.asarray(species_state_next.charged_pion.minus_density_per_gamma, dtype=float),
+            np.asarray(species_state_next.charged_muon.minus_left_density_per_gamma, dtype=float),
+            np.asarray(species_state_next.charged_muon.minus_right_density_per_gamma, dtype=float),
+            np.asarray(species_state_next.charged_muon.plus_left_density_per_gamma, dtype=float),
+            np.asarray(species_state_next.charged_muon.plus_right_density_per_gamma, dtype=float),
+            shell_volume_loc,
+            float(b_field[i_r]),
+        )
         (
             l_had_pion_synch[:, i_r],
             l_had_muon_synch[:, i_r],
             l_had_pion_ic[:, i_r],
             l_had_muon_ic[:, i_r],
-        ) = _hadronic_secondary_radiation_projected(
-            gam_p * PROTON_MASS_GEV,
-            photon_energy_gev,
-            photon_density_per_gev,
-            species_state_next,
-            shell_volume_loc,
-            float(b_field[i_r]),
-        )
+        ) = tuple(np.asarray(item, dtype=float) for item in secondary_radiation)
         timings["secondary_radiation"] += time.perf_counter() - t_sec_start
 
         if bool(config.hadronic.include_pg):
@@ -1381,22 +1401,29 @@ def _solve_hadronic_hummer_transport_coupled(
 
         if bool(config.hadronic.include_hadronic_inverse_compton):
             t_hic_start = time.perf_counter()
-            l_had_hic[:, i_r] = _hadronic_hic_projected(
-                gam_p * PROTON_MASS_GEV,
-                photon_energy_gev,
-                photon_density_per_gev,
-                proton_density_trial_per_gev,
-                shell_volume_loc,
+            l_had_hic[:, i_r] = np.asarray(
+                hadronic_legacy_module.fs_hadronic_hic_projected(
+                    num_align,
+                    hadron_energy_gev,
+                    photon_energy_gev,
+                    photon_density_per_gev,
+                    proton_density_trial_per_gev,
+                    shell_volume_loc,
+                ),
+                dtype=float,
             )
             timings["hadronic_ic"] += time.perf_counter() - t_hic_start
 
         if bh_output is not None or bool(config.hadronic.include_pp):
-            q_secondary_electron[:, i_r] = _pair_source_content(
-                pp_pair_rate_per_gev,
-                bh_pair_rate_per_gev,
-                bool(config.hadronic.include_pp),
-                bh_output is not None,
-                shell_volume_loc,
+            q_secondary_electron[:, i_r] = np.asarray(
+                hadronic_legacy_module.fs_hadronic_pair_source_content(
+                    pp_pair_rate_per_gev,
+                    bh_pair_rate_per_gev,
+                    1 if bool(config.hadronic.include_pp) else 0,
+                    1 if bh_output is not None else 0,
+                    shell_volume_loc,
+                ),
+                dtype=float,
             )
 
         d_n_prev = d_n_next
@@ -1485,75 +1512,12 @@ def _solve_hadronic_hummer_transport_coupled(
     )
 
 
-def _hadronic_global_gamma_p_max(
-    radius_cm: np.ndarray,
-    gamma_bulk: np.ndarray,
-    b_field_g: np.ndarray,
-    config: RuntimeConfig,
-) -> float:
-    return float(hadronic_legacy_module.fs_hadronic_global_gamma_p_max(
-        np.asarray(radius_cm, dtype=float),
-        np.asarray(gamma_bulk, dtype=float),
-        np.asarray(b_field_g, dtype=float),
-        float(config.hadronic.eta_acc),
-    ))
-
-
-def _hadronic_build_gamma_edges(gam_p: np.ndarray) -> np.ndarray:
-    return np.asarray(
-        hadronic_legacy_module.fs_hadronic_gamma_edges(np.asarray(gam_p, dtype=float)),
-        dtype=float,
-    )
-
-
-def _validate_hadronic_transport_inputs(
-    radius_cm: np.ndarray,
-    gamma_bulk: np.ndarray,
-    observer_time_s: np.ndarray,
-    b_field_g: np.ndarray,
-    seed_frequency_hz: np.ndarray,
-    seed_target_hz: np.ndarray,
-    shell_energy_inj_erg: np.ndarray,
-) -> None:
-    arrays = (radius_cm, gamma_bulk, observer_time_s, b_field_g, seed_frequency_hz, seed_target_hz, shell_energy_inj_erg)
-    if not all(np.all(np.isfinite(arr)) for arr in arrays):
-        raise ValueError("hadronic transport inputs must be finite.")
-    if radius_cm.ndim != 1 or gamma_bulk.shape != radius_cm.shape or observer_time_s.shape != radius_cm.shape:
-        raise ValueError("hadronic transport radius, gamma, and time arrays must be matching 1D arrays.")
-    if b_field_g.shape != radius_cm.shape or shell_energy_inj_erg.shape != radius_cm.shape:
-        raise ValueError("hadronic transport magnetic field and shell energy arrays must match radius.")
-    if seed_frequency_hz.ndim != 1 or seed_target_hz.shape != (seed_frequency_hz.size, radius_cm.size):
-        raise ValueError("hadronic transport seed field must have shape (num_frequency, num_radius).")
-    if np.any(radius_cm <= 0.0) or np.any(np.diff(radius_cm) <= 0.0):
-        raise ValueError("hadronic transport shell radii must be positive and strictly increasing.")
-    if np.any(gamma_bulk < 1.0):
-        raise ValueError("hadronic transport gamma_bulk must be >= 1.")
-    if np.any(observer_time_s <= 0.0) or np.any(np.diff(observer_time_s) <= 0.0):
-        raise ValueError("hadronic transport observer times must be positive and strictly increasing.")
-    if np.any(b_field_g <= 0.0):
-        raise ValueError("hadronic transport requires positive magnetic fields for proton acceleration.")
-    if np.any(seed_frequency_hz <= 0.0) or np.any(np.diff(seed_frequency_hz) <= 0.0):
-        raise ValueError("hadronic transport seed frequencies must be positive and strictly increasing.")
-    if np.any(seed_target_hz < 0.0):
-        raise ValueError("hadronic transport seed photon field must be non-negative.")
-    if np.any(shell_energy_inj_erg < 0.0):
-        raise ValueError("hadronic transport shell injection energy must be non-negative.")
-
-
 def _hadronic_shell_comoving_dt_from_radius(radius_cm: np.ndarray, gamma_bulk: np.ndarray, i_shell: int) -> float:
     return float(hadronic_legacy_module.fs_hadronic_shell_comoving_dt(
         np.asarray(radius_cm, dtype=float),
         np.asarray(gamma_bulk, dtype=float),
         int(i_shell) + 1,
     ))
-
-
-def rate_s_inv_to_radius_inv(rate_s_inv: np.ndarray, gamma_bulk: float) -> np.ndarray:
-    gamma = float(gamma_bulk)
-    if gamma <= 1.0:
-        raise ValueError("R-coordinate rate conversion requires gamma_bulk > 1.")
-    beta = float(np.sqrt(1.0 - 1.0 / (gamma * gamma)))
-    return np.asarray(rate_s_inv, dtype=float) / (beta * gamma * constants.para_c)
 
 
 def _hadronic_pg_survival_factor(tau_pg: np.ndarray) -> np.ndarray:
@@ -1594,101 +1558,6 @@ def _hadronic_aligned_photon_grid_size(hadron_energy_gev: np.ndarray, photon_ene
     return int(np.ceil((log_max - log_min) / dln_had)) + 1
 
 
-def _hadronic_electron_loss_rates(
-    gam_e: np.ndarray,
-    b_field_g: float,
-    t_dyn_s: float,
-    quantum_syn: bool = False,
-) -> np.ndarray:
-    gamma_e = np.asarray(gam_e, dtype=float)
-    if b_field_g < 0.0:
-        raise ValueError("hadronic electron loss rates require b_field_g >= 0.")
-    if t_dyn_s <= 0.0:
-        raise ValueError("hadronic electron loss rates require t_dyn_s > 0.")
-    return np.asarray(
-        hadronic_legacy_module.fs_hadronic_continuous_loss_rates(
-            gamma_e,
-            float(b_field_g),
-            float(t_dyn_s),
-            constants.para_m_e_gev,
-            1 if quantum_syn else 0,
-        ),
-        dtype=float,
-    )
-
-
-def _interp_positive_loglog(
-    x_old: np.ndarray,
-    y_old: np.ndarray,
-    x_new: np.ndarray,
-) -> np.ndarray:
-    return np.asarray(
-        hadronic_legacy_module.fs_hadronic_positive_loglog_interp(
-            np.asarray(x_old, dtype=float),
-            np.asarray(y_old, dtype=float),
-            np.asarray(x_new, dtype=float),
-        ),
-        dtype=float,
-    )
-
-
-def _hadronic_advance_energy_loggamma(
-    gam_p: np.ndarray,
-    gam_edge: np.ndarray,
-    d_n_prev: np.ndarray,
-    q_inj: np.ndarray,
-    loss_total: np.ndarray,
-    dt_s: float,
-) -> np.ndarray:
-    gam = np.asarray(gam_p, dtype=float)
-    dgam = gam_edge[1:] - gam_edge[:-1]
-    if np.any(dgam <= 0.0):
-        raise ValueError("gam_edge must be strictly increasing.")
-    loss = np.asarray(loss_total, dtype=float)
-    if not (
-        np.all(np.isfinite(gam))
-        and np.all(np.isfinite(d_n_prev))
-        and np.all(np.isfinite(q_inj))
-        and np.all(np.isfinite(loss))
-    ):
-        raise ValueError("Hadronic energy advance received non-finite inputs.")
-
-    return np.asarray(
-        hadronic_legacy_module.fs_hadronic_advance_energy_loggamma(
-            gam,
-            np.asarray(d_n_prev, dtype=float),
-            np.asarray(q_inj, dtype=float),
-            loss,
-            float(dt_s),
-        ),
-        dtype=float,
-    )
-
-
-def _hadronic_injection_content(
-    gamma: np.ndarray,
-    shell_energy_erg: float,
-    dt_s: float,
-    spectral_index: float,
-    gamma_min: float,
-    gamma_max: float,
-) -> np.ndarray:
-    return np.asarray(
-        hadronic_legacy_module.fs_hadronic_injection_content(
-            "proton",
-            np.asarray(gamma, dtype=float),
-            float(shell_energy_erg),
-            float(dt_s),
-            float(spectral_index),
-            float(gamma_min),
-            float(gamma_max),
-            1.0,
-            False,
-        ),
-        dtype=float,
-    )
-
-
 def _hadronic_proton_transport_step(
     gamma: np.ndarray,
     dn_prev: np.ndarray,
@@ -1724,100 +1593,6 @@ def _hadronic_proton_transport_step(
     )
 
 
-def _hadronic_species_transport_step(
-    gamma: np.ndarray,
-    source_energy_gev: np.ndarray,
-    neutron_source_per_gev_s: np.ndarray,
-    pion_plus_source_per_gev_s: np.ndarray,
-    pion_minus_source_per_gev_s: np.ndarray,
-    muon_minus_left_source_per_gev_s: np.ndarray,
-    muon_minus_right_source_per_gev_s: np.ndarray,
-    muon_plus_left_source_per_gev_s: np.ndarray,
-    muon_plus_right_source_per_gev_s: np.ndarray,
-    neutron_loss_src_s_inv: np.ndarray,
-    dt_s: float,
-    b_field_g: float,
-    divergence_rate_s_inv: float,
-    shell_volume_cm3: float,
-    state_prev: HadronicSpeciesState,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    result = hadronic_legacy_module.fs_hadronic_species_transport_step(
-        np.asarray(gamma, dtype=float),
-        np.asarray(source_energy_gev, dtype=float),
-        np.asarray(neutron_source_per_gev_s, dtype=float),
-        np.asarray(pion_plus_source_per_gev_s, dtype=float),
-        np.asarray(pion_minus_source_per_gev_s, dtype=float),
-        np.asarray(muon_minus_left_source_per_gev_s, dtype=float),
-        np.asarray(muon_minus_right_source_per_gev_s, dtype=float),
-        np.asarray(muon_plus_left_source_per_gev_s, dtype=float),
-        np.asarray(muon_plus_right_source_per_gev_s, dtype=float),
-        np.asarray(neutron_loss_src_s_inv, dtype=float),
-        float(dt_s),
-        float(b_field_g),
-        float(divergence_rate_s_inv),
-        float(shell_volume_cm3),
-        np.asarray(state_prev.neutron.density_per_gamma, dtype=float),
-        np.asarray(state_prev.charged_pion.plus_density_per_gamma, dtype=float),
-        np.asarray(state_prev.charged_pion.minus_density_per_gamma, dtype=float),
-        np.asarray(state_prev.charged_muon.minus_left_density_per_gamma, dtype=float),
-        np.asarray(state_prev.charged_muon.minus_right_density_per_gamma, dtype=float),
-        np.asarray(state_prev.charged_muon.plus_left_density_per_gamma, dtype=float),
-        np.asarray(state_prev.charged_muon.plus_right_density_per_gamma, dtype=float),
-    )
-    return tuple(np.asarray(item, dtype=float) for item in result)
-
-
-def _hadronic_secondary_radiation_projected(
-    hadron_energy_gev: np.ndarray,
-    photon_energy_gev: np.ndarray,
-    photon_density_per_gev: np.ndarray,
-    species_state: HadronicSpeciesState,
-    shell_volume_cm3: float,
-    magnetic_field_g: float,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    hadron_energy = np.asarray(hadron_energy_gev, dtype=float)
-    photon_energy = np.asarray(photon_energy_gev, dtype=float)
-    num_align = _hadronic_aligned_photon_grid_size(hadron_energy, photon_energy)
-    result = hadronic_legacy_module.fs_hadronic_secondary_radiation_projected(
-        num_align,
-        hadron_energy,
-        photon_energy,
-        np.asarray(photon_density_per_gev, dtype=float),
-        np.asarray(species_state.charged_pion.plus_density_per_gamma, dtype=float),
-        np.asarray(species_state.charged_pion.minus_density_per_gamma, dtype=float),
-        np.asarray(species_state.charged_muon.minus_left_density_per_gamma, dtype=float),
-        np.asarray(species_state.charged_muon.minus_right_density_per_gamma, dtype=float),
-        np.asarray(species_state.charged_muon.plus_left_density_per_gamma, dtype=float),
-        np.asarray(species_state.charged_muon.plus_right_density_per_gamma, dtype=float),
-        float(shell_volume_cm3),
-        float(magnetic_field_g),
-    )
-    return tuple(np.asarray(item, dtype=float) for item in result)
-
-
-def _hadronic_hic_projected(
-    hadron_energy_gev: np.ndarray,
-    photon_energy_gev: np.ndarray,
-    photon_density_per_gev: np.ndarray,
-    protons_per_gev: np.ndarray,
-    shell_volume_cm3: float,
-) -> np.ndarray:
-    hadron_energy = np.asarray(hadron_energy_gev, dtype=float)
-    photon_energy = np.asarray(photon_energy_gev, dtype=float)
-    num_align = _hadronic_aligned_photon_grid_size(hadron_energy, photon_energy)
-    return np.asarray(
-        hadronic_legacy_module.fs_hadronic_hic_projected(
-            num_align,
-            hadron_energy,
-            photon_energy,
-            np.asarray(photon_density_per_gev, dtype=float),
-            np.asarray(protons_per_gev, dtype=float),
-            float(shell_volume_cm3),
-        ),
-        dtype=float,
-    )
-
-
 def _energy_luminosity_from_rate_spectrum(
     energy_gev: np.ndarray,
     spectrum: np.ndarray,
@@ -1830,150 +1605,6 @@ def _energy_luminosity_from_rate_spectrum(
             float(shell_volume_cm3),
         ),
         dtype=float,
-    )
-
-
-def _pair_source_content(
-    pp_pair_rate_per_gev: np.ndarray,
-    bh_pair_rate_per_gev: np.ndarray,
-    include_pp: bool,
-    include_bh: bool,
-    shell_volume_cm3: float,
-) -> np.ndarray:
-    return np.asarray(
-        hadronic_legacy_module.fs_hadronic_pair_source_content(
-            np.asarray(pp_pair_rate_per_gev, dtype=float),
-            np.asarray(bh_pair_rate_per_gev, dtype=float),
-            1 if include_pp else 0,
-            1 if include_bh else 0,
-            float(shell_volume_cm3),
-        ),
-        dtype=float,
-    )
-
-
-def _shell_density_per_gev(
-    density_per_gamma: np.ndarray,
-    mass_gev: float,
-    shell_volume_cm3: float,
-) -> np.ndarray:
-    return np.asarray(
-        hadronic_legacy_module.fs_hadronic_shell_density_per_gev(
-            np.asarray(density_per_gamma, dtype=float),
-            float(mass_gev),
-            float(shell_volume_cm3),
-        ),
-        dtype=float,
-    )
-
-
-def _hadronic_proton_syn_state(
-    radius_cm: float,
-    b_field_g: float,
-    gam_p: np.ndarray,
-    d_n_gam_p: np.ndarray,
-    v_seed_hz: np.ndarray,
-) -> tuple[np.ndarray, np.ndarray]:
-    if radius_cm <= 0.0:
-        raise ValueError("hadronic proton synchrotron requires positive radius.")
-    if b_field_g <= 0.0:
-        raise ValueError("hadronic proton synchrotron requires positive magnetic field.")
-    if np.any(np.asarray(v_seed_hz, dtype=float) <= 0.0):
-        raise ValueError("hadronic proton synchrotron requires positive seed frequencies.")
-    temp_syn = np.sqrt(3.0) * constants.para_e**3 / constants.para_m_p_e
-    p_had_syn = np.zeros_like(v_seed_hz, dtype=float)
-    log_gam_p = np.log(gam_p)
-    for i_nu, nu in enumerate(v_seed_hz):
-        fx = _hadronic_syn_kernel_ultrarel(float(nu), gam_p, b_field_g)
-        p_had_syn[i_nu] = temp_syn * b_field_g * float(np.trapezoid(d_n_gam_p * fx * gam_p, log_gam_p))
-    seed_had_syn = p_had_syn / (float(radius_cm) * float(radius_cm) * v_seed_hz)
-    seed_had_syn /= 4.0 * np.pi * constants.para_c * constants.para_h
-    return p_had_syn, seed_had_syn
-
-
-def _hadronic_syn_kernel_ultrarel(
-    nu_hz: float,
-    gam_p: np.ndarray,
-    b_field_g: float,
-) -> np.ndarray:
-    b_crit = 4.41e13
-    mass_p_gev = constants.para_m_p_e * constants.para_erg2ev * 1.0e-9
-    mass_e_gev = constants.para_m_energy * constants.para_erg2ev * 1.0e-9
-    energy_photon_gev = constants.para_h_gev * nu_hz
-    energy_proton_gev = gam_p * mass_p_gev
-    b_dimless = b_field_g / b_crit
-    mass_ratio = mass_e_gev / mass_p_gev
-    xbar = energy_photon_gev * mass_p_gev / (
-        3.0 * energy_proton_gev * energy_proton_gev * b_dimless * mass_ratio * mass_ratio
-    )
-    x_arg = 2.0 * xbar
-    out = np.zeros_like(gam_p, dtype=float)
-
-    m1 = x_arg < 1.0e-2
-    out[m1] = 1.80842 * xbar[m1] ** (1.0 / 3.0) * 2.0 ** (-2.0 / 3.0)
-
-    m2 = (x_arg >= 1.0e-2) & (x_arg < 1.0)
-    if np.any(m2):
-        y = np.log10(x_arg[m2])
-        poly = (
-            -0.35775237
-            - 0.83695385 * y
-            - 1.1449608 * y * y
-            - 0.68137283 * y**3
-            - 0.22754737 * y**4
-            - 0.031967334 * y**5
-        )
-        out[m2] = 10.0**poly / 2.0
-
-    m3 = (x_arg >= 1.0) & (x_arg < 10.0)
-    if np.any(m3):
-        y = np.log10(x_arg[m3])
-        poly = (
-            -0.35842494
-            - 0.79652041 * y
-            - 1.6113032 * y * y
-            + 0.26055213 * y**3
-            - 1.6979017 * y**4
-            + 0.032955035 * y**5
-        )
-        out[m3] = 10.0**poly / 2.0
-
-    m4 = (x_arg >= 10.0) & (x_arg < 1.0e2)
-    if np.any(m4):
-        out[m4] = (np.pi / 4.0) * np.exp(-x_arg[m4]) * (1.0 - 99.0 / (162.0 * x_arg[m4]))
-    return out
-
-
-def _hadronic_shell_injection_energy(
-    radius_cm: np.ndarray,
-    gamma_bulk: np.ndarray,
-    config: RuntimeConfig,
-) -> np.ndarray:
-    radius = np.asarray(radius_cm, dtype=float)
-    gamma = np.asarray(gamma_bulk, dtype=float)
-    if radius.ndim != 1 or gamma.ndim != 1 or radius.shape != gamma.shape:
-        raise ValueError("radius_cm and gamma_bulk must be 1d arrays with matching shapes.")
-    if not (np.all(np.isfinite(radius)) and np.all(np.isfinite(gamma))):
-        raise ValueError("hadronic shell injection inputs must be finite.")
-    if np.any(radius <= 0.0) or np.any(np.diff(radius) <= 0.0):
-        raise ValueError("hadronic shell injection radii must be positive and strictly increasing.")
-    if np.any(gamma < 1.0):
-        raise ValueError("hadronic shell injection gamma_bulk must be >= 1.")
-
-    prev_radius = np.empty_like(radius)
-    prev_radius[0] = 0.0
-    prev_radius[1:] = radius[:-1]
-    shell_volume_cm3 = (4.0 / 3.0) * np.pi * (radius**3 - prev_radius**3)
-    density_cm3 = np.asarray(ambient_density(radius, config), dtype=float)
-    if np.any(density_cm3 < 0.0):
-        raise ValueError("hadronic shell injection ambient density must be non-negative.")
-    return (
-        float(config.hadronic.epsilon_p)
-        * (gamma - 1.0)
-        * shell_volume_cm3
-        * density_cm3
-        * constants.para_m_p
-        * constants.para_c**2
     )
 
 
@@ -2059,27 +1690,57 @@ def solve_reverse_shock_emission(
                 _resolve_pgamma_scheme(config) != _PGAMMA_SCHEME_HUMMER2010_RESPONSE
             ):
                 raise ValueError("Reverse-shock p-gamma currently requires pgamma_scheme='hummer_2010_response'.")
+            rs_swept = np.asarray(dynamics.reverse_shock.swept_mass_g, dtype=float)
+            rs_shell_mass = np.empty_like(rs_swept)
+            rs_shell_mass[0] = rs_swept[0]
+            rs_shell_mass[1:] = rs_swept[1:] - rs_swept[:-1]
+            prev_radius = np.empty_like(dynamics.radius)
+            prev_radius[0] = 0.0
+            prev_radius[1:] = dynamics.radius[:-1]
+            rs_shell_volume = (4.0 / 3.0) * np.pi * (dynamics.radius**3 - prev_radius**3)
+            rs_shell_energy = (
+                float(config.hadronic.reverse_epsilon_p)
+                * rs_shell_mass
+                * (np.asarray(dynamics.r_gamma, dtype=float) - 1.0)
+                * constants.para_c
+                * constants.para_c
+            )
             rs_hadronic = _solve_hadronic_hummer_transport_coupled(
                 dynamics,
                 np.asarray(dynamics.reverse_shock.magnetic_field_g, dtype=float),
                 gam_e,
                 v_seed,
                 seed_syn,
-                _reverse_hadronic_shell_energy(dynamics, config),
+                rs_shell_energy,
                 config,
-                pp_target_density_cm3=_reverse_hadronic_target_density(dynamics),
+                pp_target_density_cm3=rs_shell_mass / (constants.para_m_p * rs_shell_volume),
             )
         else:
-            rs_hadronic = solve_rs_hadronic_core(
-                r_tobs_s=dynamics.r_tobs,
-                r_gamma=dynamics.r_gamma,
-                radius_cm=dynamics.radius,
-                rs_swept_mass_g=dynamics.reverse_shock.swept_mass_g,
-                rs_b_field_g=dynamics.reverse_shock.magnetic_field_g,
-                v_seed_hz=v_seed,
-                num_gam_p=config.hadronic.num_gam_p,
-                epsilon_p=float(config.hadronic.reverse_epsilon_p),
-                include_proton_synch=bool(config.hadronic.include_proton_synch),
+            num_gam_p = int(config.hadronic.num_gam_p)
+            num_nu = int(np.asarray(v_seed, dtype=float).size)
+            num_r = int(np.asarray(dynamics.radius, dtype=float).size)
+            shell_energy = (
+                float(config.hadronic.reverse_epsilon_p)
+                * np.asarray(dynamics.reverse_shock.swept_mass_g, dtype=float)
+                * np.maximum(np.asarray(dynamics.r_gamma, dtype=float) - 1.0, 0.0)
+                * constants.para_c
+                * constants.para_c
+            )
+            gam_p, d_n_gam_p, l_had_syn_spec, seed_had_syn = _hadronic_reverse_module.fs_hadronic_reverse_1d(
+                np.asarray(dynamics.r_tobs, dtype=float),
+                np.asarray(dynamics.r_gamma, dtype=float),
+                np.asarray(dynamics.radius, dtype=float),
+                shell_energy,
+                np.asarray(dynamics.reverse_shock.magnetic_field_g, dtype=float),
+                np.asarray(v_seed, dtype=float),
+                1 if bool(config.hadronic.include_proton_synch) else 0,
+                num_gam_p,
+            )
+            rs_hadronic = ReverseShockHadronicSolution(
+                gam_p=np.asarray(gam_p, dtype=float),
+                d_n_gam_p=np.asarray(d_n_gam_p, dtype=float).reshape(num_gam_p, num_r),
+                l_had_syn_spec=np.asarray(l_had_syn_spec, dtype=float).reshape(num_nu, num_r),
+                seed_had_syn=np.asarray(seed_had_syn, dtype=float).reshape(num_nu, num_r),
             )
 
     return ReverseShockEmission(
@@ -2093,74 +1754,6 @@ def solve_reverse_shock_emission(
         rs_hadronic=rs_hadronic,
         secondary_rs=secondary_rs,
     )
-
-
-def solve_rs_hadronic_core(
-    r_tobs_s: np.ndarray,
-    r_gamma: np.ndarray,
-    radius_cm: np.ndarray,
-    rs_swept_mass_g: np.ndarray,
-    rs_b_field_g: np.ndarray,
-    v_seed_hz: np.ndarray,
-    num_gam_p: int,
-    epsilon_p: float,
-    include_proton_synch: bool = True,
-) -> ReverseShockHadronicSolution:
-    tobs = np.asarray(r_tobs_s, dtype=float)
-    gamma = np.asarray(r_gamma, dtype=float)
-    radius = np.asarray(radius_cm, dtype=float)
-    swept = np.asarray(rs_swept_mass_g, dtype=float)
-    b_field = np.asarray(rs_b_field_g, dtype=float)
-    v_seed = np.asarray(v_seed_hz, dtype=float)
-    num_nu = int(v_seed.size)
-    num_r = int(radius.size)
-    np_gam_p = int(num_gam_p)
-
-    shell_energy = float(epsilon_p) * swept * np.maximum(gamma - 1.0, 0.0) * constants.para_c * constants.para_c
-
-    gam_p, dN_gam_p, P_had_syn, Seed_had_syn = _hadronic_reverse_module.fs_hadronic_reverse_1d(
-        tobs, gamma, radius, shell_energy, b_field, v_seed,
-        1 if include_proton_synch else 0,
-        np_gam_p,
-    )
-    return ReverseShockHadronicSolution(
-        gam_p=np.asarray(gam_p, dtype=float),
-        d_n_gam_p=np.asarray(dN_gam_p, dtype=float).reshape(np_gam_p, num_r),
-        l_had_syn_spec=np.asarray(P_had_syn, dtype=float).reshape(num_nu, num_r),
-        seed_had_syn=np.asarray(Seed_had_syn, dtype=float).reshape(num_nu, num_r),
-    )
-
-
-def _reverse_hadronic_shell_mass(dynamics: DynamicsSolution) -> np.ndarray:
-    if dynamics.reverse_shock is None:
-        raise ValueError("reverse-shock dynamics are required for RS hadronic shell mass.")
-    swept = np.asarray(dynamics.reverse_shock.swept_mass_g, dtype=float)
-    shell_mass = np.empty_like(swept)
-    shell_mass[0] = swept[0]
-    shell_mass[1:] = swept[1:] - swept[:-1]
-    return shell_mass
-
-
-def _reverse_hadronic_shell_energy(dynamics: DynamicsSolution, config: RuntimeConfig) -> np.ndarray:
-    shell_mass = _reverse_hadronic_shell_mass(dynamics)
-    gamma = np.asarray(dynamics.r_gamma, dtype=float)
-    return (
-        float(config.hadronic.reverse_epsilon_p)
-        * shell_mass
-        * (gamma - 1.0)
-        * constants.para_c
-        * constants.para_c
-    )
-
-
-def _reverse_hadronic_target_density(dynamics: DynamicsSolution) -> np.ndarray:
-    radius = np.asarray(dynamics.radius, dtype=float)
-    shell_mass = _reverse_hadronic_shell_mass(dynamics)
-    prev_radius = np.empty_like(radius)
-    prev_radius[0] = 0.0
-    prev_radius[1:] = radius[:-1]
-    shell_volume = (4.0 / 3.0) * np.pi * (radius**3 - prev_radius**3)
-    return shell_mass / (constants.para_m_p * shell_volume)
 
 
 def _solve_reverse_shock_electrons(
