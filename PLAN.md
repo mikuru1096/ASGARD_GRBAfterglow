@@ -14,7 +14,7 @@
 ## Completed RS Work
 
 - Magnetized RS baseline 已完成：`ReverseShock.upstream_sigma` 控制 upstream magnetization；`Dynamics_reverse` 接收 `sigma_r`，Python 暴露 total `B3` 与 `ReverseShockDynamics.ordered_magnetic_cross_g`；`sigma -> 0` 固定回到当前非磁化 jump baseline。
-- RS thermal-state baseline 已完成：动力学显式输出 `U3_th/V3_comoving/Gamma34_inst`；`B3` 由 turbulent `sqrt(8 pi epsilon_B,r U3/V3)` 加 ordered upstream component 给出；`details().rvs.nu_m` 是 diagnostic break，不替代输运后的电子谱峰。
+- RS thermal-state baseline 已完成：动力学显式输出 `U3_th/V3_comoving/Gamma34_inst`；`B3` 由 turbulent `sqrt(8 pi epsilon_B,r U3/V3)` 加 ordered upstream component 给出；断频只通过 `nu_callback` 临时收集，不写入常规 `details()`。
 - RS hadronic baseline 已完成：light path 覆盖 RS proton injection/transport + proton synchrotron；full-chain path 复用正式 1D hadronic kernels，使用 RS seed photons、RS `B3`、shell energy 和 baryon target density。
 - 旧 Python benchmark/comparison 脚本已移除。新的正式刷新入口必须先进入 `tests/` 并给出明确物理验收口径。VegasAfterglow 是 comparison backend，不是光变目标或物理基准。
 

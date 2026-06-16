@@ -57,6 +57,7 @@
 ## 测试与基准
 
 - 基础 smoke：`tests/readme_smoke_bench.py`, `tests/reverse_shock_smoke.py`
+- Public API smoke：`tests/fitter_public_api_smoke.py`
 - 2D electron：`tests/fullhide_2d_smoke_bench.py`
 - Hadronic：`tests/hadronic_1d_smoke.py`, `tests/hadronic_reverse_shock_smoke.py`
 - Electron-photon joint feedback：`tests/electron_photon_joint_secondary_feedback_smoke.py`

@@ -38,7 +38,7 @@ rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/AS
 
 ## 4. Benchmark 与正式产物
 
-Benchmark 图像和 CSV 应由保留的 `tests/` 入口或任务明确的临时脚本生成。刷新前后记录：
+当前不保留一次性 compare-plot CLI。Benchmark 图像和 CSV 只有在先明确假设、决策价值和物理验收口径后，才新建正式 `tests/` 入口或任务明确的 `/tmp` 临时脚本生成。刷新前后记录：
 
 - git HEAD 和 `git status --short --branch`。
 - 完整命令。

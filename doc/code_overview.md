@@ -140,9 +140,11 @@ rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/AS
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && TMPDIR=/tmp uv run python build_extensions.py --module hadronic_forward_1d --force'
 ```
 
-Smoke tests：`tests/readme_smoke_bench.py`, `tests/fullhide_2d_smoke_bench.py`。
+Smoke tests：`tests/readme_smoke_bench.py`, `tests/fitter_public_api_smoke.py`, `tests/fullhide_2d_smoke_bench.py`。
 
 Hadronic regressions：`tests/hadronic_1d_smoke.py`, `tests/hadronic_reverse_shock_smoke.py`。
+
+Joint feedback：`tests/electron_photon_joint_secondary_feedback_smoke.py`。
 
 新增正式 benchmark 入口前必须先明确假设、决策价值和物理验收口径。
 

@@ -175,7 +175,7 @@ band_flux = model.flux(
 最基本的物理检查：
 
 - 光变随时间应连续，除非存在明确的密度跳变、注入事件或 shock crossing。
-- \(\nu_m\)、\(\nu_c\)、\(\nu_a\) 应平滑演化。
+- 若启用 `SolverOptions.nu_callback` 临时检查断频，\(\nu_m\)、\(\nu_c\)、\(\nu_a\) 应平滑演化；默认 `details()` 不保存这些数组。
 - 平滑改变参数时，光变峰时和峰值不应出现孤立跳变。
 - 反向激波的 `reverse_sigma -> 0` 必须回到非磁化基线。
 

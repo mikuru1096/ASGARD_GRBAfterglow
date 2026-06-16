@@ -48,7 +48,7 @@ d &= e+f.
 排查顺序：
 
 1. 检查动力学轨道 \(\Gamma(R)\)、\(R(t_{\rm obs})\)。
-2. 检查 \(B(R)\)、\(\nu_m\)、\(\nu_c\)、\(\nu_a\)。
+2. 检查 \(B(R)\)；若启用 `nu_callback`，同时检查 \(\nu_m\)、\(\nu_c\)、\(\nu_a\)。
 3. 检查电子或质子谱是否相邻壳层突变。
 4. 检查 observer projection 的时间/频率网格是否覆盖观测点。
 5. 检查是否误把 unsupported backend 当成已支持能力。

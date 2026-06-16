@@ -75,15 +75,14 @@ Python 层组织状态机、配置和观测投影；Fortran 层求解电子、�
 - `charint_2d`：2D characteristic path。
 - `fullhide_2d_pic`：2D PIC/实验路径，不作为普通拟合默认。
 
-电子输运输出：
+runtime 默认保留的电子输运状态：
 
 - `gam_e`
 - `d_n_gam_e`
 - `l_syn_spec`
 - `seed_syn`
-- `nu_m`
-- `nu_c`
-- `nu_a`
+
+底层电子核返回的 `nu_m/nu_c/nu_a` 只通过 `SolverOptions.nu_callback` 临时传给调用方，不写入 `details()`、`FitResult` 或常规 runtime state。
 
 2D path 额外输出：
 

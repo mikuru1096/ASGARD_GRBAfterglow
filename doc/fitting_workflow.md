@@ -562,7 +562,7 @@ fig.savefig("posterior_corner.png", dpi=220)
 不要只看 `best_loglike`。最小检查包括：
 
 - best-fit 光变和 SED 随时间/频率连续平滑。
-- \(\Gamma(R)\)、\(B'(R)\)、\(\nu_m(R)\)、\(\nu_c(R)\)、\(\nu_a(R)\) 无孤立尖峰。
+- \(\Gamma(R)\)、\(B'(R)\)、电子谱和光变无孤立尖峰；需要断频诊断时通过 `nu_callback` 临时收集 \(\nu_m/\nu_c/\nu_a\)。
 - posterior 不贴着无物理意义的边界取胜。
 - 改变一个参数时，峰时和峰值连续变化。
 - 如果启用反向激波，`upstream_sigma -> 0` 回到非磁化基线。

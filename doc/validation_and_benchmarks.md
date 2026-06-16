@@ -114,7 +114,7 @@ rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/AS
 Forward-shock：
 
 - Light curves 应平滑，除非物理 density jump 或 injection event 产生已记录特征。
-- Characteristic frequencies 应连续演化。
+- 电子谱、磁场和最终光变应连续演化；需要断频诊断时通过 `nu_callback` 临时收集。
 - SSA breaks 不应出现 grid-cell discontinuity。
 - `solver_options.geometry_projection="chi_eats_2d"` 只验收 FS synchrotron+SSA；图中 forward SSC 仍是 shell-level 总通量贡献。Projection χ 网格必须跟随当前 shell 的正半径 BM 壳层域自适应，transport-to-projection χ remap 必须保守 `sum(P*Delta chi)` 和 `sum(tau)`，SSA survival 必须按 emitting cell 的 optical-depth coordinate 平均。图中不得出现由负半径、负通量、孤立尖峰、全部 `chi_dvolume_weight` 同时归零或源项截断造成的光变断崖。2D/1D SED 与 top-hat 角度扫描允许离轴情况下出现 order-unity 以上差异，但光变和频谱方向应保持连续。
 - ISM χ grid convergence scan 中 `num_chi=512` 是参考曲线；`F_chi/F_512` 的时间演化应连续，不允许用 smoothing 或显示裁剪掩盖孤立尖峰。
@@ -123,7 +123,7 @@ Reverse-shock：
 
 - Pre-crossing 的 `M3` crossing 端点应由 `m3_frac=1` 给出，不允许 RK step 跨越 pre/post 方程分支。
 - `sigma -> 0` 必须恢复 unmagnetized baseline。
-- `B3`, `gamma34`, `U3/V3`, `nu_m`, `nu_c`, `nu_a` 应平滑。
+- `B3`, `gamma34`, `U3/V3` 应平滑；断频只作为可选 `nu_callback` 诊断。
 - VegasAfterglow 是 comparison backend，不是目标真值。
 
 Hadronic：
