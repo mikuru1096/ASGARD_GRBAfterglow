@@ -300,6 +300,8 @@ solver_options = SolverOptions(
 )
 ```
 
+需要临时检查断频时，可传 `nu_callback(label, nu_m, nu_c, nu_a)`；它只接收底层核已经返回的数组，不写入 `details()`、`FitResult` 或常规 runtime state。
+
 ### 9.1 电子求解器
 
 | `electron_solver` | 意思 | 选择后效果 | 注意事项 |
@@ -445,9 +447,7 @@ hadronic = Hadronic(
 | `radius` | shock 半径 \([{\rm cm}]\)。 | 检查动力学和密度结构。 |
 | `Gamma` | bulk Lorentz factor。 | 检查减速是否平滑。 |
 | `B_comv` | 共动磁场 \([{\rm G}]\)。 | 检查 \(\epsilon_B\)、冷却和 RS 磁化效应。 |
-| `nu_m`, `nu_c`, `nu_a`, `nu_M` | 特征频率 \([{\rm Hz}]\)。 | 判断谱段、冷却断点和 SSA。 |
 | `gamma_e`, `dN_dgamma_e` | 电子 Lorentz 因子网格和电子谱。 | 诊断电子输运、冷却和数值振荡。 |
-| `cooling_timescale_s`, `dynamical_timescale_s` | 冷却和动力学时间尺度。 | 判断 fast/slow cooling 和异常尖峰。 |
 | `N_p`, `Doppler` | 壳层粒子数和 Doppler 因子。 | 诊断归一化和 off-axis 投影。 |
 
 上表列出新手和拟合诊断最常用字段。其余 `CharTrack` 字段服务 hadronic、2D \(\chi\) 分辨、次级反向激波和详细能量预算，只有对应物理模块启用时才非空；完整字段定义见 `asgard_core/api_model.py` 中的 `CharTrack` 类。

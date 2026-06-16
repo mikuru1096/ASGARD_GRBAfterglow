@@ -349,7 +349,7 @@ t'_{\rm dyn}.
 1.
 \]
 
-`details().fwd.nu_m`、`nu_c`、`nu_a` 是最重要的物理诊断。它们不平滑时，应优先检查电子谱、磁场、SSA root/search 和壳层投影。
+runtime 不再把 \(\nu_m\)、\(\nu_c\)、\(\nu_a\) 作为默认 details 字段输出；稳定性检查应回到电子谱、磁场、SSA kernel 和最终光变。
 
 ## 8. 同步辐射与 SSA
 

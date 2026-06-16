@@ -91,11 +91,9 @@ def _max_adjacent_dex(values: np.ndarray) -> float:
 def case_pwn_spectral_smoothness() -> dict[str, object]:
     config = _config(fullhide2d_transport_model="pwn_cr_v1", num_r=16, num_tobs=8)
     state = solve_state(config, np.array([1.0e2, 1.2e2, 1.5e2]))
-    jumps = {
-        "nu_m": _max_adjacent_dex(np.asarray(state.electron.nu_m, dtype=float)),
-        "nu_c": _max_adjacent_dex(np.asarray(state.electron.nu_c, dtype=float)),
-        "nu_a": _max_adjacent_dex(np.asarray(state.electron.nu_a, dtype=float)),
-    }
+    gam_e = np.asarray(state.electron.gam_e, dtype=float)
+    shell_counts = np.trapezoid(np.asarray(state.electron.d_n_gam_e, dtype=float), gam_e, axis=0)
+    jumps = {"electron_count": _max_adjacent_dex(shell_counts)}
     assert np.isfinite(np.asarray(list(jumps.values()), dtype=float)).all()
     assert max(jumps.values()) < 4.0
     return jumps

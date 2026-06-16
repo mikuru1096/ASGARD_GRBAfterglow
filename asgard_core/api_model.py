@@ -576,6 +576,7 @@ class SolverOptions:
     fullhide2d_transport_model: str
     fullhide2d_stochastic_accel_norm: float
     fullhide2d_escape_mode: str
+    nu_callback: Optional[Callable[[str, np.ndarray, np.ndarray, np.ndarray], None]] = None
 
 
 @dataclass
@@ -663,6 +664,7 @@ class _RuntimeSetups:
     fullhide2d_transport_model: str = "legacy"
     fullhide2d_stochastic_accel_norm: float = 0.0
     fullhide2d_escape_mode: str = "closed"
+    nu_callback: Optional[Callable[[str, np.ndarray, np.ndarray, np.ndarray], None]] = None
     electron_adaptive_substeps: bool = False
     electron_substep_rtol: float = 2.0e-2
     electron_substep_min: int = 100
@@ -691,12 +693,6 @@ class CharTrack:
     N_p: np.ndarray
     Doppler: np.ndarray
     B_comv: np.ndarray
-    nu_m: np.ndarray
-    nu_c: np.ndarray
-    nu_a: np.ndarray
-    nu_M: np.ndarray
-    cooling_timescale_s: Optional[np.ndarray] = None
-    dynamical_timescale_s: Optional[np.ndarray] = None
     gamma_e: Optional[np.ndarray] = None
     dN_dgamma_e: Optional[np.ndarray] = None
     dN_dgamma_e_bh: Optional[np.ndarray] = None
@@ -767,9 +763,6 @@ class CharTrack:
     secondary_rs_branch_reacceleration_seed_energy_erg: Optional[np.ndarray] = None
     secondary_rs_branch_reaccelerated_energy_erg: Optional[np.ndarray] = None
     secondary_rs_branch_luminosity_syn: Optional[np.ndarray] = None
-    secondary_rs_nu_m: Optional[np.ndarray] = None
-    secondary_rs_nu_c: Optional[np.ndarray] = None
-    secondary_rs_nu_a: Optional[np.ndarray] = None
     timings: Optional[dict] = None
 
 
@@ -965,6 +958,7 @@ def _compose_runtime_setups(
     result.fullhide2d_transport_model = str(solver_options.fullhide2d_transport_model)
     result.fullhide2d_stochastic_accel_norm = float(solver_options.fullhide2d_stochastic_accel_norm)
     result.fullhide2d_escape_mode = str(solver_options.fullhide2d_escape_mode)
+    result.nu_callback = solver_options.nu_callback
     result._index_y_override = index_y
     result.rvs_shock = bool(reverse_shock.enabled)
     result.reverse_delta_t_s = float(reverse_shock.shell_duration_s)
@@ -1705,6 +1699,7 @@ def _build_fit_config_for_patch(
         fullhide2d_transport_model=model.setups.fullhide2d_transport_model,
         fullhide2d_stochastic_accel_norm=model.setups.fullhide2d_stochastic_accel_norm,
         fullhide2d_escape_mode=model.setups.fullhide2d_escape_mode,
+        nu_callback=model.setups.nu_callback,
         electron_adaptive_substeps=model.setups.electron_adaptive_substeps,
         electron_substep_rtol=model.setups.electron_substep_rtol,
         electron_substep_min=model.setups.electron_substep_min,
@@ -1833,9 +1828,6 @@ def _secondary_rs_detail_kwargs(secondary_rs) -> dict:
         secondary_rs_branch_reacceleration_seed_energy_erg=secondary_rs.branch_reacceleration_seed_energy_erg,
         secondary_rs_branch_reaccelerated_energy_erg=secondary_rs.branch_reaccelerated_energy_erg,
         secondary_rs_branch_luminosity_syn=secondary_rs.branch_luminosity_syn,
-        secondary_rs_nu_m=secondary_rs.nu_m,
-        secondary_rs_nu_c=secondary_rs.nu_c,
-        secondary_rs_nu_a=secondary_rs.nu_a,
     )
 
 
@@ -1927,12 +1919,6 @@ def _make_details(
             N_p=np.asarray(components.fwd.swept_mass_g, dtype=float) / constants.para_m_p,
             Doppler=components.fwd.doppler,
             B_comv=components.fwd.magnetic_field_g,
-            nu_m=components.fwd.nu_m,
-            nu_c=components.fwd.nu_c,
-            nu_a=components.fwd.nu_a,
-            nu_M=components.fwd.nu_M,
-            cooling_timescale_s=components.fwd.cooling_timescale_s,
-            dynamical_timescale_s=components.fwd.dynamical_timescale_s,
             gamma_e=fwd_gamma_e,
             dN_dgamma_e=fwd_dnde,
             dN_dgamma_e_bh=fwd_dnde_bh,
@@ -1981,12 +1967,6 @@ def _make_details(
             N_p=np.asarray(components.rev.swept_mass_g, dtype=float) / constants.para_m_p,
             Doppler=components.rev.doppler,
             B_comv=components.rev.magnetic_field_g,
-            nu_m=components.rev.nu_m,
-            nu_c=components.rev.nu_c,
-            nu_a=components.rev.nu_a,
-            nu_M=components.rev.nu_M,
-            cooling_timescale_s=components.rev.cooling_timescale_s,
-            dynamical_timescale_s=components.rev.dynamical_timescale_s,
             gamma_e=rev_gamma_e,
             dN_dgamma_e=rev_dnde,
             **_secondary_rs_detail_kwargs(secondary_rs),

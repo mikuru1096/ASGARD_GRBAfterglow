@@ -15,7 +15,6 @@ from pathlib import Path
 
 COMMON_FLAGS = "-Ofast -march=native -funroll-loops -ffast-math -fno-signed-zeros -fno-trapping-math -ffree-line-length-none"
 OMP_FLAGS = f"-fopenmp {COMMON_FLAGS}"
-OMP_LTO_FLAGS = f"{OMP_FLAGS} -flto"
 OPENMP_LIBS = ["-lgomp"]
 
 
@@ -270,11 +269,8 @@ def _run_command(
     cwd: Path,
     env: dict[str, str],
     log_path: Path,
-    verbose: bool,
     failure_label: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    if verbose:
-        return subprocess.run(command, cwd=cwd, check=True, env=env, text=True, encoding="utf-8")
     result = subprocess.run(
         command,
         cwd=cwd,
@@ -308,7 +304,6 @@ def _build_ordered_object_module(
     sources: list[str],
     entry_names: tuple[str, ...],
     log_dir: Path,
-    verbose: bool,
     fflags: str | None,
     extra_args: list[str] | None,
     force: bool,
@@ -350,7 +345,7 @@ def _build_ordered_object_module(
         manifest_text = f"source={source_path}\nfc={fc}\nflags={shlex.join(compile_flags)}"
         if dirty_seen or not _object_current(object_path, source_path, manifest_path, manifest_text):
             command = [fc, "-c", *compile_flags, str(source_path), "-o", str(object_path)]
-            _run_command(command, cwd, env, log_dir / f"{module_name}_fallback_compile_{source_path.stem}.log", verbose)
+            _run_command(command, cwd, env, log_dir / f"{module_name}_fallback_compile_{source_path.stem}.log")
             manifest_path.write_text(manifest_text, encoding="utf-8")
             dirty_seen = True
         object_paths.append(object_path)
@@ -387,7 +382,7 @@ def _build_ordered_object_module(
             *entry_names,
             ":",
         ]
-        _run_command(signature_command, build_dir, env, log_dir / f"{module_name}_fallback_signature.log", verbose)
+        _run_command(signature_command, build_dir, env, log_dir / f"{module_name}_fallback_signature.log")
 
         wrapper_command = [
             sys.executable,
@@ -395,7 +390,7 @@ def _build_ordered_object_module(
             "numpy.f2py",
             pyf_path.name,
         ]
-        _run_command(wrapper_command, build_dir, env, log_dir / f"{module_name}_fallback_wrapper.log", verbose)
+        _run_command(wrapper_command, build_dir, env, log_dir / f"{module_name}_fallback_wrapper.log")
         wrapper_manifest_path.write_text(wrapper_manifest_text, encoding="utf-8")
 
     import numpy as np
@@ -429,7 +424,7 @@ def _build_ordered_object_module(
                 "-o",
                 str(object_path),
             ]
-            _run_command(compile_c, build_dir, env, log_dir / f"{module_name}_fallback_compile_{source.stem}.log", verbose)
+            _run_command(compile_c, build_dir, env, log_dir / f"{module_name}_fallback_compile_{source.stem}.log")
             manifest_path.write_text(manifest_text, encoding="utf-8")
         c_objects.append(object_path)
 
@@ -451,7 +446,6 @@ def _build_ordered_object_module(
                 build_dir,
                 env,
                 log_dir / f"{module_name}_fallback_compile_{wrapper_source.stem}.log",
-                verbose,
             )
             manifest_path.write_text(manifest_text, encoding="utf-8")
         object_paths.append(wrapper_object)
@@ -467,7 +461,7 @@ def _build_ordered_object_module(
     ]
     if extra_args:
         link_command.extend(extra_args)
-    _run_command(link_command, build_dir, env, log_dir / f"{module_name}_fallback_link.log", verbose)
+    _run_command(link_command, build_dir, env, log_dir / f"{module_name}_fallback_link.log")
     built_outputs = _module_output_paths(build_dir, module_name)
     if not built_outputs:
         raise RuntimeError(f"{module_name} fallback build did not produce an extension in {build_dir}.")
@@ -487,7 +481,6 @@ def _build_module(
     cwd: Path,
     sources: list[str],
     log_dir: Path,
-    verbose: bool,
     fflags: str | None = None,
     extra_args: list[str] | None = None,
     force: bool = False,
@@ -508,17 +501,14 @@ def _build_module(
     if extra_args:
         command.extend(extra_args)
     start = time.perf_counter()
-    _run_command(command, cwd, env, log_dir / f"{module_name}.log", verbose, failure_label=module_name)
+    _run_command(command, cwd, env, log_dir / f"{module_name}.log", failure_label=module_name)
     return time.perf_counter() - start
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--force", action="store_true", help="rebuild all selected modules")
-    parser.add_argument("--clean", action="store_true", help="remove built artifacts before building")
     parser.add_argument("--module", action="append", dest="modules", help="only build the named module; can be repeated")
-    parser.add_argument("--verbose", action="store_true", help="stream raw f2py/meson output")
-    parser.add_argument("--lto", action="store_true", help="enable link-time optimization for release/performance builds")
     args = parser.parse_args()
 
     root = Path(__file__).resolve().parent
@@ -530,7 +520,7 @@ def main() -> None:
     rad = src / "Radiation"
     had = src / "Hadronic"
     structured = src / "Structured"
-    omp_flags = OMP_LTO_FLAGS if args.lto else OMP_FLAGS
+    omp_flags = OMP_FLAGS
     module_specs = [
         ModuleSpec("Constants", src, ["Constants.f90"]),
         ModuleSpec("Dynamics_reverse", dyn, _with_main(DYNAMICS_COMMON_SOURCES, "Dynamics_reverse.f90"), COMMON_FLAGS),
@@ -638,12 +628,6 @@ def main() -> None:
         missing = selected.difference({spec.name for spec in module_specs})
         if missing:
             raise SystemExit(f"Unknown module(s): {', '.join(sorted(missing))}")
-    if args.clean:
-        for directory in (src, dyn, ele, had, itp, rad, structured):
-            for pattern in ("*.so", "*.pyd", "*.o", "*.mod"):
-                for path in directory.glob(pattern):
-                    path.unlink()
-
     platform = {"nt": "windows-mingw", "posix": "linux-gfortran"}.get(os.name, f"unsupported:{os.name}")
     print(f"Compile start ({platform})")
     for spec in module_specs:
@@ -657,7 +641,6 @@ def main() -> None:
                 spec.sources,
                 spec.entrypoints,
                 log_dir,
-                args.verbose,
                 spec.fflags,
                 module_extra_args,
                 args.force,
@@ -671,7 +654,6 @@ def main() -> None:
             spec.cwd,
             spec.sources,
             log_dir,
-            args.verbose,
             spec.fflags,
             module_extra_args,
             args.force,

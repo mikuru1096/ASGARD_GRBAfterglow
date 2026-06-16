@@ -62,14 +62,11 @@ track = details.fwd
 radius = track.radius
 gamma_bulk = track.Gamma
 B_comv = track.B_comv
-nu_m = track.nu_m
-nu_c = track.nu_c
-nu_a = track.nu_a
 ```
 
 ![ASGARD 内部量演化](assets/tutorials/internal_quantities.png)
 
-内部量检查是光变验收的必要步骤。若 \(\Gamma(R)\)、\(B'(R)\)、\(\nu_m(R)\)、\(\nu_c(R)\) 或 \(\nu_a(R)\) 不连续，应回到产生该量的数值核，而不是只看最终光变。
+内部量检查是光变验收的必要步骤。若 \(\Gamma(R)\)、\(B'(R)\)、电子谱或最终光变不连续，应回到产生该量的数值核，而不是只看最终光变。
 
 ## 6. 逐点观测预测
 

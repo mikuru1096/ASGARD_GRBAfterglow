@@ -6,7 +6,7 @@ from typing import Callable
 import numpy as np
 
 from asgard_core.angular_sampling import angular_separation, is_axisymmetric_jet
-from asgard_core.asgard_physics_utils import compute_doppler, compute_maximum_synchrotron_frequency
+from asgard_core.asgard_physics_utils import compute_doppler
 from asgard_core.asgard_state import make_query_setup
 from src import Structured, constants
 
@@ -37,6 +37,13 @@ def solve_structured_jet_fortran(model, times_s: np.ndarray, nu_hz: np.ndarray, 
         *_structured_kernel_args(model, base_config, setup, sampled, times, frequencies)
     )
     fwd_sync, fwd_ssc, _fwd_hadronic, rev_sync, total = (np.asarray(value, dtype=float) for value in outputs[:5])
+    if base_config.nu_callback is not None:
+        base_config.nu_callback(
+            "structured_jet_1d",
+            np.asarray(outputs[10], dtype=float),
+            np.asarray(outputs[11], dtype=float),
+            np.asarray(outputs[12], dtype=float),
+        )
     zero = np.zeros_like(total)
     flux = FluxResult(
         total=total,
@@ -44,7 +51,7 @@ def solve_structured_jet_fortran(model, times_s: np.ndarray, nu_hz: np.ndarray, 
         rev=FluxPair(sync=rev_sync, ssc=zero),
         cross_ic=None,
     )
-    details = _details_from_kernel_outputs(model, base_config, sampled, outputs)
+    details = _details_from_kernel_outputs(model, sampled, outputs)
     return flux, details
 
 
@@ -97,12 +104,12 @@ def _structured_kernel_args(model, base_config, setup, sampled, times: np.ndarra
     )
 
 
-def _details_from_kernel_outputs(model, base_config, sampled, outputs):
+def _details_from_kernel_outputs(model, sampled, outputs):
     from asgard_core.api_model import CharTrack, TrackBundle
 
     theta_centers, phi_centers, e_iso, gamma0, active, axisymmetric = sampled
     track_tobs, track_gamma, track_radius, track_mass = (np.asarray(value, dtype=float) for value in outputs[5:9])
-    track_bfield, track_nu_m, track_nu_c, track_nu_a = (np.asarray(value, dtype=float) for value in outputs[9:13])
+    track_bfield = np.asarray(outputs[9], dtype=float)
     return TrackBundle(
         fwd=CharTrack(
             t_obs=track_tobs,
@@ -111,10 +118,6 @@ def _details_from_kernel_outputs(model, base_config, sampled, outputs):
             N_p=track_mass / constants.para_m_p,
             Doppler=np.asarray(compute_doppler(track_gamma, model.observer.z), dtype=float),
             B_comv=track_bfield,
-            nu_m=track_nu_m,
-            nu_c=track_nu_c,
-            nu_a=track_nu_a,
-            nu_M=np.asarray(compute_maximum_synchrotron_frequency(track_gamma, track_radius, base_config), dtype=float),
         ),
         rev=None,
         patches=_patch_metadata(theta_centers, phi_centers, e_iso, gamma0, active, axisymmetric, model),

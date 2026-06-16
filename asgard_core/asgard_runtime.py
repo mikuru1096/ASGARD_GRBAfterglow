@@ -47,7 +47,7 @@ from asgard_core.asgard_types import (
     ReverseShockEmission,
     SolverAdapterReport,
 )
-from asgard_core.asgard_physics_utils import ambient_density, compute_magnetic_field, density_jump_arrays, doppler_denominator
+from asgard_core.asgard_physics_utils import ambient_density, compute_magnetic_field, density_jump_arrays
 from src import Dynamics, constants
 
 
@@ -110,9 +110,6 @@ class SecondaryReverseShockState:
     branch_reacceleration_seed_energy_erg: np.ndarray
     branch_reaccelerated_energy_erg: np.ndarray
     magnetic_field_g: np.ndarray
-    nu_m: np.ndarray
-    nu_c: np.ndarray
-    nu_a: np.ndarray
 
 
 @dataclass(frozen=True)
@@ -203,8 +200,8 @@ def solve_dynamics(
         secondary_branch_compression,
         secondary_branch_beta_rs,
         secondary_branch_dissipated_energy_density,
-        secondary_nu_m,
-        secondary_nu_c,
+        _secondary_nu_m,
+        _secondary_nu_c,
         secondary_event_active,
         secondary_start_radius_cm,
         secondary_shock_end_radius_cm,
@@ -247,8 +244,6 @@ def solve_dynamics(
         secondary_branch_dissipated_energy_density,
         dtype=float,
     )[: jump_r.size, :]
-    secondary_nu_m = np.asarray(secondary_nu_m, dtype=float)
-    secondary_nu_c = np.asarray(secondary_nu_c, dtype=float)
     secondary_event_active = np.asarray(secondary_event_active, dtype=bool)[: jump_r.size]
     secondary_start_radius_cm = np.asarray(secondary_start_radius_cm, dtype=float)[: jump_r.size]
     secondary_shock_end_radius_cm = np.asarray(secondary_shock_end_radius_cm, dtype=float)[: jump_r.size]
@@ -292,8 +287,6 @@ def solve_dynamics(
         secondary_branch_compression,
         secondary_branch_beta_rs,
         secondary_branch_dissipated_energy_density,
-        secondary_nu_m,
-        secondary_nu_c,
         secondary_event_active,
         secondary_start_radius_cm,
         secondary_shock_end_radius_cm,
@@ -337,26 +330,14 @@ def solve_electron(
             config.index_y,
             config.num_threads,
         )
-        nu_m, nu_c, nu_a = _compute_characteristic_frequencies_weno5(
-            config,
-            dynamics.r_tobs,
-            dynamics.r_gamma,
-            dynamics.radius,
-            gam_e,
-            d_n_gam_e,
-        )
         return _finish_electron_solution(
             config,
-            dynamics,
             solver_name,
             "log-gamma-1d",
             gam_e,
             d_n_gam_e,
             l_syn_spec,
             seed_syn,
-            nu_m,
-            nu_c,
-            nu_a,
             return_report=return_report,
         )
 
@@ -375,16 +356,13 @@ def solve_electron(
         )
         return _finish_electron_solution(
             config,
-            dynamics,
             solver_name,
             "log-gamma-1d",
             gam_e,
             d_n_gam_e,
             l_syn_spec,
             seed_syn,
-            nu_m,
-            nu_c,
-            nu_a,
+            nu=(nu_m, nu_c, nu_a),
             return_report=return_report,
         )
 
@@ -403,16 +381,13 @@ def solve_electron(
         )
         return _finish_electron_solution(
             config,
-            dynamics,
             solver_name,
             "log-gamma-1d",
             gam_e,
             d_n_gam_e,
             l_syn_spec,
             seed_syn,
-            nu_m,
-            nu_c,
-            nu_a,
+            nu=(nu_m, nu_c, nu_a),
             return_report=return_report,
         )
 
@@ -435,16 +410,13 @@ def solve_electron(
         )
         return _finish_electron_solution(
             config,
-            dynamics,
             solver_name,
             "log-gamma-1d",
             gam_e,
             d_n_gam_e,
             l_syn_spec,
             seed_syn,
-            nu_m,
-            nu_c,
-            nu_a,
+            nu=(nu_m, nu_c, nu_a),
             return_report=return_report,
         )
 
@@ -496,16 +468,13 @@ def solve_electron(
         chi_grid = _build_log_chi_grid(dynamics.r_gamma, num_chi)
         return _finish_electron_solution(
             config,
-            dynamics,
             solver_name,
             "log-gamma-log-chi-2d-pic",
             gam_e,
             d_n_gam_e,
             l_syn_spec,
             seed_syn,
-            nu_m,
-            nu_c,
-            nu_a,
+            nu=(nu_m, nu_c, nu_a),
             return_report=return_report,
             num_chi=num_chi,
             d_n_gam_e_chi=d_n_gam_e_chi,
@@ -523,16 +492,13 @@ def solve_electron(
         )
         return _finish_electron_solution(
             config,
-            dynamics,
             solver_name,
             "log-gamma-1d",
             gam_e,
             d_n_gam_e,
             l_syn_spec,
             seed_syn,
-            nu_m,
-            nu_c,
-            nu_a,
+            nu=(nu_m, nu_c, nu_a),
             return_report=return_report,
         )
 
@@ -546,47 +512,38 @@ def solve_electron(
     )
     return _finish_electron_solution(
         config,
-        dynamics,
         solver_name,
         "log-gamma-1d",
         gam_e,
         d_n_gam_e,
         l_syn_spec,
         seed_syn,
-        nu_m,
-        nu_c,
-        nu_a,
+        nu=(nu_m, nu_c, nu_a),
         return_report=return_report,
     )
 
 
 def _finish_electron_solution(
     config: RuntimeConfig,
-    dynamics: DynamicsSolution,
     solver_name: str,
     grid_semantics: str,
     gam_e: np.ndarray,
     d_n_gam_e: np.ndarray,
     l_syn_spec: np.ndarray,
     seed_syn: np.ndarray,
-    nu_m: np.ndarray,
-    nu_c: np.ndarray,
-    nu_a: np.ndarray,
     *,
     return_report: bool,
+    nu: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None,
     num_chi: int = 1,
     **solution_kwargs,
 ) -> ElectronSolution | tuple[ElectronSolution, SolverAdapterReport]:
+    if nu is not None:
+        _emit_nu_callback(config, solver_name, *nu)
     solution = _build_electron_solution(
-        config,
-        dynamics,
         gam_e,
         d_n_gam_e,
         l_syn_spec,
         seed_syn,
-        nu_m,
-        nu_c,
-        nu_a,
         **solution_kwargs,
     )
     if return_report:
@@ -644,16 +601,13 @@ def _solve_electron_transport_2d(
     )
     return _finish_electron_solution(
         config,
-        dynamics,
         solver_name,
         "log-gamma-log-chi-2d",
         gam_e,
         d_n_gam_e,
         l_syn_spec,
         seed_syn,
-        nu_m,
-        nu_c,
-        nu_a,
+        nu=(nu_m, nu_c, nu_a),
         return_report=return_report,
         num_chi=num_chi,
         d_n_gam_e_chi=d_n_gam_e_chi,
@@ -741,16 +695,12 @@ def solve_electron_with_cooling_seed(
         )
     )
     solution = _build_electron_solution(
-        config,
-        dynamics,
         gam_e,
         d_n_gam_e,
         l_syn_spec,
         seed_syn,
-        nu_m,
-        nu_c,
-        nu_a,
     )
+    _emit_nu_callback(config, solver_name, nu_m, nu_c, nu_a)
     if return_report:
         return solution, _solver_report(
             solver_name,
@@ -760,6 +710,16 @@ def solve_electron_with_cooling_seed(
             num_chi=1,
         )
     return solution
+
+
+def _emit_nu_callback(config: RuntimeConfig, label: str, nu_m, nu_c, nu_a) -> None:
+    if config.nu_callback is not None:
+        config.nu_callback(
+            label,
+            np.asarray(nu_m, dtype=float),
+            np.asarray(nu_c, dtype=float),
+            np.asarray(nu_a, dtype=float),
+        )
 
 
 def _resolve_electron_solver(config: RuntimeConfig) -> str:
@@ -797,15 +757,10 @@ def _build_log_chi_grid(r_gamma: np.ndarray, num_chi: int) -> np.ndarray:
 
 
 def _build_electron_solution(
-    config: RuntimeConfig,
-    dynamics: DynamicsSolution,
     gam_e: np.ndarray,
     d_n_gam_e: np.ndarray,
     l_syn_spec: np.ndarray,
     seed_syn: np.ndarray,
-    nu_m: np.ndarray,
-    nu_c: np.ndarray,
-    nu_a: np.ndarray,
     *,
     d_n_gam_e_chi: np.ndarray | None = None,
     chi_grid: np.ndarray | None = None,
@@ -816,20 +771,11 @@ def _build_electron_solution(
     chi_gamma_bulk: np.ndarray | None = None,
     chi_dvolume_weight: np.ndarray | None = None,
 ) -> ElectronSolution:
-    cooling_timescale_s, dynamical_timescale_s = _compute_forward_timescales(
-        dynamics.r_gamma,
-        dynamics.radius,
-        nu_c,
-        config,
-    )
     return ElectronSolution(
         gam_e=np.asarray(gam_e, dtype=float),
         d_n_gam_e=np.asarray(d_n_gam_e, dtype=float),
         l_syn_spec=np.asarray(l_syn_spec, dtype=float),
         seed_syn=np.asarray(seed_syn, dtype=float),
-        nu_m=np.asarray(nu_m, dtype=float),
-        nu_c=np.asarray(nu_c, dtype=float),
-        nu_a=np.asarray(nu_a, dtype=float),
         d_n_gam_e_bh=None,
         d_n_gam_e_chi=None if d_n_gam_e_chi is None else np.asarray(d_n_gam_e_chi, dtype=float),
         chi_grid=None if chi_grid is None else np.asarray(chi_grid, dtype=float),
@@ -839,8 +785,6 @@ def _build_electron_solution(
         chi_radius_cm=None if chi_radius_cm is None else np.asarray(chi_radius_cm, dtype=float),
         chi_gamma_bulk=None if chi_gamma_bulk is None else np.asarray(chi_gamma_bulk, dtype=float),
         chi_dvolume_weight=None if chi_dvolume_weight is None else np.asarray(chi_dvolume_weight, dtype=float),
-        cooling_timescale_s=cooling_timescale_s,
-        dynamical_timescale_s=dynamical_timescale_s,
     )
 
 
@@ -1597,39 +1541,6 @@ def _energy_luminosity_from_rate_spectrum(
     )
 
 
-def _compute_forward_timescales(
-    r_gamma: np.ndarray,
-    radius_cm: np.ndarray,
-    nu_c: np.ndarray,
-    config: RuntimeConfig,
-) -> tuple[np.ndarray, np.ndarray]:
-    gamma = np.asarray(r_gamma, dtype=float)
-    radius = np.asarray(radius_cm, dtype=float)
-    nu_c_arr = np.asarray(nu_c, dtype=float)
-    magnetic_field_g = np.asarray(compute_magnetic_field(gamma, radius, config), dtype=float)
-    doppler_den = np.asarray(doppler_denominator(gamma, config.z), dtype=float)
-    beta = np.zeros_like(gamma)
-    valid_gamma = gamma > 1.0
-    beta[valid_gamma] = np.sqrt(1.0 - gamma[valid_gamma] ** (-2.0))
-
-    gamma_c = np.zeros_like(nu_c_arr)
-    valid = (magnetic_field_g > 0.0) & (doppler_den > 0.0) & (nu_c_arr > 0.0)
-    gamma_c[valid] = np.sqrt(nu_c_arr[valid] * doppler_den[valid] / (4.2e6 * magnetic_field_g[valid]))
-
-    cooling_timescale_s = np.zeros_like(nu_c_arr)
-    valid_cooling = valid & (gamma > 0.0)
-    cooling_timescale_s[valid_cooling] = (
-        7.7e8
-        * (1.0 + float(config.z))
-        / (gamma[valid_cooling] * magnetic_field_g[valid_cooling] ** 2 * gamma_c[valid_cooling])
-    )
-
-    dynamical_timescale_s = np.zeros_like(radius)
-    valid_dyn = beta > 0.0
-    dynamical_timescale_s[valid_dyn] = radius[valid_dyn] / (gamma[valid_dyn] * beta[valid_dyn] * constants.para_c)
-    return cooling_timescale_s, dynamical_timescale_s
-
-
 def solve_reverse_shock_emission(
     boundary: np.ndarray,
     dynamics: DynamicsSolution,
@@ -1649,17 +1560,6 @@ def solve_reverse_shock_emission(
         reverse_params.f_e,
     )
 
-    (
-        nu_m,
-        nu_c,
-        nu_a,
-        magnetic_field_g,
-        nu_M,
-    ) = _compute_reverse_shock_characteristic_frequencies(
-        config,
-        reverse_params,
-        dynamics,
-    )
     l_syn_spec, seed_syn = _compute_reverse_shock_synchrotron_emission(dynamics, v_seed, config)
     secondary_rs = _compute_secondary_reverse_shock_synchrotron(dynamics, v_seed, config, reverse_params)
     if secondary_rs is not None:
@@ -1735,11 +1635,6 @@ def solve_reverse_shock_emission(
     return ReverseShockEmission(
         l_syn_spec=l_syn_spec,
         seed_syn=seed_syn,
-        magnetic_field_g=magnetic_field_g,
-        nu_m=nu_m,
-        nu_c=nu_c,
-        nu_a=nu_a,
-        nu_M=nu_M,
         rs_hadronic=rs_hadronic,
         secondary_rs=secondary_rs,
     )
@@ -1838,7 +1733,6 @@ def _compute_secondary_reverse_shock_synchrotron(
     if jump_r.size == 0 or dynamics.reverse_shock is None:
         return None
     radius = np.asarray(dynamics.radius, dtype=float)
-    gamma4_arr = np.asarray(dynamics.r_gamma, dtype=float)
     if reverse_params.p <= 2.0:
         raise ValueError("secondary reverse shock v1 requires p > 2.")
     event_active = np.asarray(dynamics.reverse_shock.secondary_event_active, dtype=bool)
@@ -1871,8 +1765,6 @@ def _compute_secondary_reverse_shock_synchrotron(
     compression_branch = np.asarray(dynamics.reverse_shock.secondary_branch_compression, dtype=float)
     beta_rs_branch = np.asarray(dynamics.reverse_shock.secondary_branch_beta_rs, dtype=float)
     u_diss_branch = np.asarray(dynamics.reverse_shock.secondary_branch_dissipated_energy_density, dtype=float)
-    nu_m = np.asarray(dynamics.reverse_shock.secondary_nu_m, dtype=float)
-    nu_c = np.asarray(dynamics.reverse_shock.secondary_nu_c, dtype=float)
     gamma_m_shell = np.zeros_like(radius)
     previous_branch_mass = np.zeros(gamma_m_branch.shape[0], dtype=float)
     for i_shell in range(radius.size):
@@ -1925,18 +1817,6 @@ def _compute_secondary_reverse_shock_synchrotron(
     luminosity = np.asarray(luminosity, dtype=float)
     reacceleration_seed_energy = np.asarray(reacceleration_seed_energy, dtype=float)
     reaccelerated_energy = np.asarray(reaccelerated_energy, dtype=float)
-    _, _, nu_a = _electron_reverse_module().electron_reverse_kernel.electron_secondary_reverse_synchrotron(
-        config.index_syn_integr,
-        config.num_threads,
-        radius,
-        gamma4_arr,
-        dyn_b_field,
-        gam_e_sec,
-        dist,
-        v_seed,
-        config.z,
-    )
-    nu_a = np.asarray(nu_a, dtype=float)
     return SecondaryReverseShockState(
         luminosity_syn=luminosity,
         branch_luminosity_syn=branch_luminosity,
@@ -1972,9 +1852,6 @@ def _compute_secondary_reverse_shock_synchrotron(
         branch_reacceleration_seed_energy_erg=reacceleration_seed_energy,
         branch_reaccelerated_energy_erg=reaccelerated_energy,
         magnetic_field_g=dyn_b_field,
-        nu_m=nu_m,
-        nu_c=nu_c,
-        nu_a=nu_a,
     )
 
 
@@ -1998,86 +1875,6 @@ def _resolve_reverse_shock_parameters(config: RuntimeConfig) -> ReverseShockPara
     )
 
 
-def _compute_characteristic_frequencies_weno5(
-    config: RuntimeConfig,
-    r_tobs: np.ndarray,
-    r_gamma: np.ndarray,
-    radius: np.ndarray,
-    gam_e: np.ndarray,
-    d_n_gam_e: np.ndarray,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    num_r = radius.shape[0]
-    nu_m, nu_c, nu_a = np.zeros((3, num_r), dtype=float)
-
-    for i in range(1, num_r):
-        radius_loc = radius[i - 1]
-        gamma_loc = 0.5 * (r_gamma[i - 1] + r_gamma[i])
-        d_ne = ambient_density(radius_loc, config)
-        db = 0.39 * np.sqrt(config.epsilon_b * d_ne * (gamma_loc * (gamma_loc - 1.0)))
-        gam_e_max = 3.0 * constants.para_m_energy / np.sqrt(8.0 * db * constants.para_e**3)
-        gam_e_m = _minimum_electron_lorentz_factor(config, gamma_loc, gam_e_max)
-        gam_e_c = 7.7e8 * (1.0 + config.z) / gamma_loc / db**2 / r_tobs[i]
-        doppler_den = doppler_denominator(gamma_loc, config.z)
-
-        nu_m[i - 1] = _synchrotron_frequency(db, gam_e_m, doppler_den)
-        nu_c[i - 1] = _synchrotron_frequency(db, gam_e_c, doppler_den)
-
-        nu_a_comoving = electron_radiation_module.get_nu_a(radius_loc, db, gam_e, d_n_gam_e[:, i - 1])
-        nu_a[i - 1] = nu_a_comoving / doppler_den
-
-    return nu_m, nu_c, nu_a
-
-
-def _compute_reverse_shock_characteristic_frequencies(
-    config: RuntimeConfig,
-    reverse_params: ReverseShockParameters,
-    dynamics: DynamicsSolution,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    num_r = dynamics.radius.shape[0]
-    nu_m, nu_c, nu_a, magnetic_field_g, nu_M = np.zeros((5, num_r), dtype=float)
-    gam_e = dynamics.reverse_shock.gam_e
-    d_n_gam_e = dynamics.reverse_shock.d_n_gam_e
-    if gam_e is None or d_n_gam_e is None:
-        raise ValueError("Reverse shock electrons are required to compute reverse characteristic frequencies.")
-
-    eta_0 = config.eta_0
-    u4 = np.sqrt(eta_0 * eta_0 - 1.0)
-    for i in range(1, num_r):
-        radius_loc = dynamics.radius[i - 1]
-        gamma2 = 0.5 * (dynamics.r_gamma[i - 1] + dynamics.r_gamma[i])
-        u2 = np.sqrt(gamma2 * gamma2 - 1.0)
-        gamma34 = (gamma2 * gamma2 + eta_0 * eta_0 - 1.0) / (eta_0 * gamma2 + u2 * u4)
-
-        db = float(dynamics.reverse_shock.magnetic_field_g[i - 1])
-        magnetic_field_g[i - 1] = db
-        gam_e_max = 3.0 * constants.para_m_energy / np.sqrt(8.0 * db * constants.para_e**3)
-        if float(dynamics.radius[i - 1]) < float(dynamics.reverse_shock.r_cross):
-            gam_e_m = _minimum_reverse_shock_electron_lorentz_factor(reverse_params, gamma34, gam_e_max)
-        else:
-            energy_ratio = (
-                dynamics.reverse_shock.internal_energy_erg[i - 1]
-                / dynamics.reverse_shock.swept_mass_g[i - 1]
-                / (dynamics.reverse_shock.u3_cross_erg / dynamics.reverse_shock.m3_cross_g)
-            )
-            gam_e_m = 1.0 + (float(dynamics.reverse_shock.gamma_m_cross) - 1.0) * energy_ratio
-        gam_e_c = 7.7e8 * (1.0 + config.z) / gamma2 / db**2 / dynamics.r_tobs[i]
-        doppler_den = doppler_denominator(gamma2, config.z)
-
-        nu_m[i - 1] = _synchrotron_frequency(db, gam_e_m, doppler_den)
-        nu_c[i - 1] = _synchrotron_frequency(db, gam_e_c, doppler_den)
-        nu_M[i - 1] = _synchrotron_frequency(db, gam_e_max, doppler_den)
-
-        nu_a_comoving = electron_radiation_module.get_nu_a(
-            radius_loc,
-            db,
-            gam_e,
-            d_n_gam_e[:, i - 1],
-        )
-        nu_a[i - 1] = nu_a_comoving / doppler_den
-
-    return nu_m, nu_c, nu_a, magnetic_field_g, nu_M
-
-
 def _renormalize_reverse_shock_distribution(
     gam_e: np.ndarray,
     d_n_gam_e: np.ndarray,
@@ -2096,10 +1893,6 @@ def _renormalize_reverse_shock_distribution(
             continue
         dist[:, i] *= target / total
     return dist
-
-
-def _synchrotron_frequency(magnetic_field_g: float, electron_lorentz_factor: float, doppler_den: float) -> float:
-    return 4.2e6 * magnetic_field_g * electron_lorentz_factor * electron_lorentz_factor / doppler_den
 
 
 def _minimum_electron_lorentz_factor(config: RuntimeConfig, gamma_bulk: float, gam_e_max: float) -> float:

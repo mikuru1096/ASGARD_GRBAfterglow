@@ -272,7 +272,7 @@ def _shock_random_anisotropy(magnetic_geometry: str, theta_v: float, gamma: np.n
 
 def _reverse_shock_gamma_array(state: SolveState) -> np.ndarray:
     return np.full_like(
-        np.asarray(state.reverse_emission.magnetic_field_g, dtype=float),
+        np.asarray(state.dynamics.radius, dtype=float),
         float(state.dynamics.reverse_shock.gam20),
     )
 
@@ -768,14 +768,6 @@ def observe(
     details = model.details()
     char_time = details.fwd.t_obs
 
-    rs_nu_m = None
-    rs_nu_c = None
-    rs_nu_a = None
-    if details.rev is not None:
-        rs_nu_m = details.rev.nu_m
-        rs_nu_c = details.rev.nu_c
-        rs_nu_a = details.rev.nu_a
-
     redchi = 0.0
     if config is not None:
         redchi = compute_light_curve_redchi(bands_flux, t_obs_s, config)
@@ -807,12 +799,6 @@ def observe(
         bands_flux=bands_flux,
         redchi=redchi,
         spectrum_redchi=spectrum_redchi,
-        nu_m=details.fwd.nu_m,
-        nu_c=details.fwd.nu_c,
-        nu_a=details.fwd.nu_a,
-        rs_nu_m=rs_nu_m,
-        rs_nu_c=rs_nu_c,
-        rs_nu_a=rs_nu_a,
         spectrum_time_s=spectrum_time_s,
         spectrum_freq_hz=spectrum_freq_hz,
         spectrum_fnu=spectrum_fnu,
@@ -942,6 +928,7 @@ def _build_model_from_fit_config(config: RuntimeConfig) -> Model:
             fullhide2d_transport_model=config.fullhide2d_transport_model,
             fullhide2d_stochastic_accel_norm=config.fullhide2d_stochastic_accel_norm,
             fullhide2d_escape_mode=config.fullhide2d_escape_mode,
+            nu_callback=config.nu_callback,
         ),
         reverse_shock=ReverseShock(
             enabled=reverse_enabled,

@@ -192,11 +192,7 @@ electron cooling
 IC photon production
 ```
 
-对应 smoke：
-
-```text
-tests/electron_photon_ic_consistency_smoke.py
-```
+该局部一致性不再保留独立 smoke，joint feedback 的可执行验收收敛到端到端入口。
 
 ## 10. gamma-gamma pair branch
 
@@ -246,13 +242,7 @@ rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/AS
 joint 相关 smoke：
 
 ```text
-tests/electron_photon_coupling_config_smoke.py
-tests/electron_photon_joint_smoke.py
 tests/electron_photon_joint_secondary_feedback_smoke.py
-tests/electron_photon_ic_consistency_smoke.py
-tests/hadronic_r_coordinate_smoke.py
-tests/hadronic_bethe_heitler_smoke.py
-tests/hadronic_pair_cascade_smoke.py
 ```
 
 文档/格式：

@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import argparse
 import ast
 import re
 import subprocess
@@ -150,15 +149,10 @@ def check_python_text_io(path: Path, text: str) -> list[str]:
     return [f"{path.as_posix()}:{line}: {reason}" for line, reason in visitor.problems]
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--staged", action="store_true", help="check staged paths only")
-    args = parser.parse_args(argv)
-
+def main() -> int:
     root = Path(subprocess.check_output(["git", "rev-parse", "--show-toplevel"], encoding="utf-8").strip())
-    git_args = ["diff", "--cached", "--name-only", "-z", "--diff-filter=ACMR"] if args.staged else ["ls-files", "-z"]
     problems: list[str] = []
-    for name in run_git(root, git_args):
+    for name in run_git(root, ["ls-files", "-z"]):
         problems.extend(check_file(root / name))
 
     if problems:

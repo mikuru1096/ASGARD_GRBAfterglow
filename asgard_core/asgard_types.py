@@ -26,12 +26,6 @@ class BranchState:
     swept_mass_g: np.ndarray
     doppler: np.ndarray
     magnetic_field_g: np.ndarray
-    nu_m: np.ndarray
-    nu_c: np.ndarray
-    nu_a: np.ndarray
-    nu_M: np.ndarray
-    cooling_timescale_s: np.ndarray | None = None
-    dynamical_timescale_s: np.ndarray | None = None
 
 
 @dataclass
@@ -163,8 +157,6 @@ class ReverseShockDynamics:
     secondary_branch_compression: np.ndarray | None = None
     secondary_branch_beta_rs: np.ndarray | None = None
     secondary_branch_dissipated_energy_density: np.ndarray | None = None
-    secondary_nu_m: np.ndarray | None = None
-    secondary_nu_c: np.ndarray | None = None
     secondary_event_active: np.ndarray | None = None
     secondary_start_radius_cm: np.ndarray | None = None
     secondary_shock_end_radius_cm: np.ndarray | None = None
@@ -191,9 +183,6 @@ class ElectronSolution:
     d_n_gam_e: np.ndarray
     l_syn_spec: np.ndarray
     seed_syn: np.ndarray
-    nu_m: np.ndarray
-    nu_c: np.ndarray
-    nu_a: np.ndarray
     d_n_gam_e_bh: np.ndarray | None = None
     d_n_gam_e_chi: np.ndarray | None = None
     chi_grid: np.ndarray | None = None
@@ -203,8 +192,6 @@ class ElectronSolution:
     chi_radius_cm: np.ndarray | None = None
     chi_gamma_bulk: np.ndarray | None = None
     chi_dvolume_weight: np.ndarray | None = None
-    cooling_timescale_s: np.ndarray | None = None
-    dynamical_timescale_s: np.ndarray | None = None
 
 
 @dataclass
@@ -212,11 +199,6 @@ class ReverseShockEmission:
     """Emission from reverse shock."""
     l_syn_spec: np.ndarray
     seed_syn: np.ndarray
-    magnetic_field_g: np.ndarray
-    nu_m: np.ndarray
-    nu_c: np.ndarray
-    nu_a: np.ndarray
-    nu_M: np.ndarray
     rs_hadronic: Any | None = None
     secondary_rs: Any | None = None
 

@@ -27,7 +27,6 @@ from asgard_core.asgard_physics_utils import (
     ambient_density,
     compute_doppler,
     compute_magnetic_field,
-    compute_maximum_synchrotron_frequency,
 )
 from asgard_core.asgard_physics_utils import density_jump_arrays
 from asgard_core.asgard_postprocess import interpolate_observed_flux
@@ -921,11 +920,7 @@ def _stage_reverse_emission(
             radius_cm=dynamics.radius,
             swept_mass_g=dynamics.reverse_shock.swept_mass_g,
             doppler=compute_doppler(dynamics.r_gamma, config.z),
-            magnetic_field_g=reverse_emission.magnetic_field_g,
-            nu_m=reverse_emission.nu_m,
-            nu_c=reverse_emission.nu_c,
-            nu_a=reverse_emission.nu_a,
-            nu_M=reverse_emission.nu_M,
+            magnetic_field_g=dynamics.reverse_shock.magnetic_field_g,
         )
         if config.reverse_shock.include_ssc:
             s["rev_ssc"], seed_ssc_rs = _timed_call(
@@ -1112,12 +1107,6 @@ def _stage_assemble_result(
                 swept_mass_g=dynamics.swept_mass_g,
                 doppler=compute_doppler(dynamics.r_gamma, config.z),
                 magnetic_field_g=compute_magnetic_field(dynamics.r_gamma, dynamics.radius, config),
-                nu_m=electron.nu_m,
-                nu_c=electron.nu_c,
-                nu_a=electron.nu_a,
-                nu_M=compute_maximum_synchrotron_frequency(dynamics.r_gamma, dynamics.radius, config),
-                cooling_timescale_s=electron.cooling_timescale_s,
-                dynamical_timescale_s=electron.dynamical_timescale_s,
             ),
             rev=s["rev_details"],
         ),
@@ -1444,9 +1433,6 @@ def _merge_bh_into_forward_electrons(
         d_n_gam_e=np.asarray(total_distribution, dtype=float),
         l_syn_spec=l_syn_total,
         seed_syn=seed_syn_total,
-        nu_m=np.asarray(electron.nu_m, dtype=float),
-        nu_c=np.asarray(electron.nu_c, dtype=float),
-        nu_a=np.asarray(electron.nu_a, dtype=float),
         d_n_gam_e_bh=bh_distribution,
         d_n_gam_e_chi=None if electron.d_n_gam_e_chi is None else np.asarray(electron.d_n_gam_e_chi, dtype=float),
         chi_grid=None if electron.chi_grid is None else np.asarray(electron.chi_grid, dtype=float),
@@ -1456,8 +1442,6 @@ def _merge_bh_into_forward_electrons(
         chi_radius_cm=None if electron.chi_radius_cm is None else np.asarray(electron.chi_radius_cm, dtype=float),
         chi_gamma_bulk=None if electron.chi_gamma_bulk is None else np.asarray(electron.chi_gamma_bulk, dtype=float),
         chi_dvolume_weight=None if electron.chi_dvolume_weight is None else np.asarray(electron.chi_dvolume_weight, dtype=float),
-        cooling_timescale_s=None if electron.cooling_timescale_s is None else np.asarray(electron.cooling_timescale_s, dtype=float),
-        dynamical_timescale_s=None if electron.dynamical_timescale_s is None else np.asarray(electron.dynamical_timescale_s, dtype=float),
     )
 
 

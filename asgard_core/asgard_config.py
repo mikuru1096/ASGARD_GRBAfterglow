@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
+from typing import Callable
 
 import numpy as np
 
@@ -186,6 +187,7 @@ class _RuntimeConfig:
     spectrum_output: SpectrumOutputConfig = field(default_factory=SpectrumOutputConfig)
     reverse_shock: ReverseShockConfig = field(default_factory=ReverseShockConfig)
     hadronic: HadronicConfig = field(default_factory=HadronicConfig)
+    nu_callback: Callable[[str, np.ndarray, np.ndarray, np.ndarray], None] | None = None
 
 
 def _make_hadronic_delegate(field_name: str) -> property:
@@ -225,12 +227,6 @@ class FitResult:
     bands: tuple[str, ...]
     bands_flux: np.ndarray
     redchi: float
-    nu_m: np.ndarray
-    nu_c: np.ndarray
-    nu_a: np.ndarray
-    rs_nu_m: np.ndarray | None = None
-    rs_nu_c: np.ndarray | None = None
-    rs_nu_a: np.ndarray | None = None
     spectrum_time_s: float | None = None
     spectrum_freq_hz: np.ndarray | None = None
     spectrum_fnu: np.ndarray | None = None

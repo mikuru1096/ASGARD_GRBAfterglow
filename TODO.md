@@ -88,7 +88,7 @@ Lan 2023 overlay 的峰值幅度已匹配，峰时仍偏早。当前证据指向
 
 验收口径：
 
-- `hadronic_1d_smoke.py`、`electron_photon_joint_secondary_feedback_smoke.py`、pair cascade smoke 均通过。
+- `hadronic_1d_smoke.py`、`hadronic_reverse_shock_smoke.py`、`electron_photon_joint_secondary_feedback_smoke.py` 均通过。
 - 与迁移前同一输入的 proton synch、pγ gamma、neutrino、BH/pp secondary luminosity 和 energy budget 在数值误差内一致，且随半径连续平滑。
 - 受影响 `hadronic_forward_1d` / `structured_jet_1d` build、干净 `/tmp` source closure `-Wline-truncation` 检查通过。
 

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import argparse
 import os
 import shutil
 import subprocess
@@ -63,13 +62,6 @@ def _require_uv() -> str:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--editable", action="store_true", help="install in editable mode")
-    parser.add_argument("--with-fit", action="store_true", help="install fitting extras")
-    parser.add_argument("--with-compare", action="store_true", help="install comparison/benchmark dependencies")
-    parser.add_argument("--skip-build", action="store_true", help="install Python package without rebuilding Fortran extensions")
-    args = parser.parse_args()
-
     platform_name = _detect_platform()
     if platform_name not in {"windows", "linux", "ubuntu"}:
         raise SystemExit(f"Unsupported platform: {platform_name}")
@@ -77,27 +69,16 @@ def main() -> None:
     _require_fortran_compiler(platform_name)
     uv = _require_uv()
 
-    extras_requested = []
-    if args.with_fit:
-        extras_requested.append("fit")
-    if args.with_compare:
-        extras_requested.append("compare")
-    extras = f"[{','.join(extras_requested)}]" if extras_requested else ""
-    target = f".{extras}"
     py = ROOT / ".venv" / ("Scripts/python.exe" if platform_name == "windows" else "bin/python")
 
     if not py.exists():
         _run([uv, "venv", "--python", sys.executable, ".venv"])
     _run([uv, "pip", "install", "--python", str(py), "--upgrade", "pip", "setuptools", "wheel", "numpy", "meson", "ninja"])
     install_command = [uv, "pip", "install", "--python", str(py), "--upgrade", "--no-build-isolation"]
-    if args.editable:
-        install_command.extend(["-e", target])
-    else:
-        install_command.append(target)
+    install_command.append(".")
     os.environ["ASGARD_SKIP_NATIVE_BUILD"] = "1"
     _run(install_command)
-    if not args.skip_build:
-        _run([str(py), "build_extensions.py", "--force"])
+    _run([str(py), "build_extensions.py", "--force"])
 
 
 if __name__ == "__main__":

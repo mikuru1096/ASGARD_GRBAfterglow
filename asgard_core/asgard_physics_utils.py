@@ -129,16 +129,6 @@ def compute_doppler(gamma: np.ndarray | float, redshift: float, theta_obs: float
     return float(doppler) if scalar_input else doppler
 
 
-def doppler_denominator(gamma_bulk: float, redshift: float) -> float:
-    """
-    Calculate Doppler denominator: gamma*(1-beta)*(1+z).
-
-    This is the inverse of the Doppler factor for on-axis viewing.
-    """
-    beta_bulk = np.sqrt(1.0 - gamma_bulk**-2)
-    return gamma_bulk * (1.0 - beta_bulk) * (1.0 + redshift)
-
-
 def compute_magnetic_field(
     gamma: np.ndarray | float,
     radius_cm: np.ndarray | float,
@@ -167,19 +157,3 @@ def compute_magnetic_field(
 
     scalar_input = np.asarray(gamma).ndim == 0
     return float(b_field) if scalar_input else b_field
-
-
-def compute_maximum_synchrotron_frequency(
-    gamma: np.ndarray,
-    radius_cm: np.ndarray,
-    config: RuntimeConfig,
-) -> np.ndarray:
-    """
-    Calculate maximum synchrotron frequency nu_M.
-
-    This is the frequency corresponding to the maximum electron Lorentz factor.
-    """
-    magnetic_field = compute_magnetic_field(gamma, radius_cm, config)
-    doppler = compute_doppler(gamma, config.z, config.theta_v)
-    gam_e_max = 3.0 * constants.para_m_energy / np.sqrt(8.0 * magnetic_field * constants.para_e**3)
-    return 4.2e6 * magnetic_field * gam_e_max**2 * doppler

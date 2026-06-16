@@ -32,7 +32,7 @@ Model.flux_density_grid / flux_density / spectrum / flux
 
 - `DynamicsSolution`：`r_tobs`, `r_gamma`, `radius`, `swept_mass_g`。
 - `ReverseShockDynamics`：`M3`, total `B3`, ordered crossing field `B3_ordered_cross`, `U3/V3`, `gamma34` 和 crossing thermal records；`B3` 是 turbulent `sqrt(8 pi epsilon_B,r U3/V3)` 与可选 ordered upstream field 的总和。
-- `ElectronSolution`：`gam_e`, `d_n_gam_e`, `l_syn_spec`, `seed_syn`, `nu_m`, `nu_c`, `nu_a`；2D 额外包含 `d_n_gam_e_chi`, `chi_grid`, `l_syn_spec_chi`, `seed_syn_chi`, `tau_syn_chi`, `chi_radius_cm`, `chi_gamma_bulk`, `chi_dvolume_weight`；BH 额外包含 `d_n_gam_e_bh`。
+- `ElectronSolution`：`gam_e`, `d_n_gam_e`, `l_syn_spec`, `seed_syn`；2D 额外包含 `d_n_gam_e_chi`, `chi_grid`, `l_syn_spec_chi`, `seed_syn_chi`, `tau_syn_chi`, `chi_radius_cm`, `chi_gamma_bulk`, `chi_dvolume_weight`；BH 额外包含 `d_n_gam_e_bh`。
 - `PhotonFieldState`：forward synch seed、hadronic target field、absorption seed field。
 - `HadronicSolution`：1D hadronic proton/secondary/radiation results；joint path 额外使用 `secondary_electron_source_r`、`tau_bh` 和 `bh_photon_loss_rate` 做 shell-level feedback。
 - `ObserverState`：absorption factors、`tau_pair`、flux components。
@@ -142,7 +142,7 @@ rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/AS
 
 Smoke tests：`tests/readme_smoke_bench.py`, `tests/fullhide_2d_smoke_bench.py`。
 
-Hadronic regressions：`tests/hadronic_1d_smoke.py`, `tests/hadronic_species_transport_smoke.py`, `tests/hadronic_secondary_radiation_smoke.py`, `tests/hadronic_acceleration_smoke.py`, `tests/hadronic_bethe_heitler_smoke.py`, `tests/hadronic_hadronic_ic_smoke.py`, `tests/hadronic_pair_production_smoke.py`, `tests/hadronic_pp_smoke.py`。
+Hadronic regressions：`tests/hadronic_1d_smoke.py`, `tests/hadronic_reverse_shock_smoke.py`。
 
 新增正式 benchmark 入口前必须先明确假设、决策价值和物理验收口径。
 

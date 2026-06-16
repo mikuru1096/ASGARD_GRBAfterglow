@@ -43,13 +43,7 @@ def _config(index_y: int, *, sigma: float | None = None) -> RuntimeConfig:
 def _run(index_y: int) -> None:
     config = _config(index_y)
     result = run_fit(config)
-    assert result.rs_nu_m is not None
-    assert result.rs_nu_c is not None
-    assert result.rs_nu_a is not None
     assert np.all(np.isfinite(result.bands_flux))
-    assert np.all(np.isfinite(result.rs_nu_m))
-    assert np.all(np.isfinite(result.rs_nu_c))
-    assert np.all(np.isfinite(result.rs_nu_a))
 
     setup = make_query_setup(config, np.logspace(2.0, 5.0, 6), np.array([1.0e9, 1.0e14]))
     state = solve_state_from_setup(config, setup)
@@ -74,9 +68,6 @@ def _run_sigma_zero_baseline() -> None:
     baseline = run_fit(_config(0))
     sigma_zero = run_fit(_config(0, sigma=0.0))
     assert np.allclose(sigma_zero.bands_flux, baseline.bands_flux, rtol=0.0, atol=0.0)
-    assert np.allclose(sigma_zero.rs_nu_m, baseline.rs_nu_m, rtol=0.0, atol=0.0)
-    assert np.allclose(sigma_zero.rs_nu_c, baseline.rs_nu_c, rtol=0.0, atol=0.0)
-    assert np.allclose(sigma_zero.rs_nu_a, baseline.rs_nu_a, rtol=0.0, atol=0.0)
 
 
 def _run_magnetized_interface() -> None:
