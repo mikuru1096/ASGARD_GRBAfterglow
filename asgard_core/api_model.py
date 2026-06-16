@@ -35,7 +35,7 @@ class Scale(str, Enum):
 
 @dataclass
 class Medium:
-    """Callable density profile. Use factory functions (make_ism_medium, make_wind_medium)."""
+    """Callable density profile. Use UniformMedium, WindMedium, or TabulatedMedium."""
     rho: Callable[[float, float, float], float]
     kind: str = "custom"
     label: str = "custom"
@@ -92,8 +92,8 @@ class Medium:
             self.kernel_params = _wind_kernel_params(self.A_star, self.n_ism, self.n0, self.k)
 
 
-def make_ism_medium(n_ism: Optional[float] = None, n0: Optional[float] = None) -> Medium:
-    _n_ism = 1.0 if n_ism is None and n0 is None else float(n_ism if n_ism is not None else n0)
+def UniformMedium(number_density_cm3: float) -> Medium:
+    _n_ism = float(number_density_cm3)
     medium = Medium(
         rho=lambda phi, theta, rc: float(np.full(np.asarray(rc).shape, medium.n_ism)),
         kind="ism",
@@ -104,21 +104,14 @@ def make_ism_medium(n_ism: Optional[float] = None, n0: Optional[float] = None) -
     return medium
 
 
-def UniformMedium(number_density_cm3: float) -> Medium:
-    return make_ism_medium(n_ism=number_density_cm3)
-
-
-def make_wind_medium(
-    A_star: Optional[float] = None,
-    n_ism: Optional[float] = None,
-    n0: Optional[float] = None,
-    k: float = 2.0,
-    Astar: Optional[float] = None,
+def WindMedium(
+    a_star: float,
+    density_floor_cm3: float,
+    density_cap_cm3: float | None,
 ) -> Medium:
-    _A_star = float(1.0 if A_star is None and Astar is None else A_star if A_star is not None else Astar)
-    _n_ism = 0.1 if n_ism is None else float(n_ism)
-    _n0 = None if n0 is None else float(n0)
-    _k = float(k)
+    _A_star = float(a_star)
+    _n_ism = float(density_floor_cm3)
+    _n0 = None if density_cap_cm3 is None else float(density_cap_cm3)
     medium = Medium(
         rho=lambda phi, theta, rc: _wind_rho(medium, rc),
         kind="wind",
@@ -126,18 +119,10 @@ def make_wind_medium(
         n_ism=_n_ism,
         A_star=_A_star,
         n0=_n0,
-        k=_k,
-        kernel_params=_wind_kernel_params(_A_star, _n_ism, _n0, _k),
+        k=2.0,
+        kernel_params=_wind_kernel_params(_A_star, _n_ism, _n0, 2.0),
     )
     return medium
-
-
-def WindMedium(
-    a_star: float,
-    density_floor_cm3: float,
-    density_cap_cm3: float | None,
-) -> Medium:
-    return make_wind_medium(A_star=a_star, n_ism=density_floor_cm3, n0=density_cap_cm3)
 
 
 def _wind_rho(medium: Medium, radius_cm) -> float:
@@ -162,9 +147,9 @@ def _wind_kernel_params(A_star: float, n_ism: float, n0: float | None, k: float)
     return {"d_ne": n_ism, "a_star": A_star, "r0": r0}
 
 
-def make_density_profile_medium(radius_cm, n_cm3, label: str = "density_profile") -> Medium:
+def TabulatedMedium(radius_cm, density_cm3, label: str) -> Medium:
     radius = tuple(float(value) for value in radius_cm)
-    density = tuple(float(value) for value in n_cm3)
+    density = tuple(float(value) for value in density_cm3)
     _validate_density_profile(radius, density)
     radius_arr = np.asarray(radius, dtype=float)
     density_arr = np.asarray(density, dtype=float)
@@ -182,10 +167,6 @@ def make_density_profile_medium(radius_cm, n_cm3, label: str = "density_profile"
         density_profile_n_cm3=density,
         kernel_params={"d_ne": float(density[-1]), "a_star": -1.0},
     )
-
-
-def TabulatedMedium(radius_cm, density_cm3, label: str) -> Medium:
-    return make_density_profile_medium(radius_cm, density_cm3, label=label)
 
 
 def _validate_density_profile(radius: tuple[float, ...], density: tuple[float, ...]) -> None:
@@ -213,7 +194,7 @@ class Magnetar(NamedTuple):
 
 @dataclass
 class JetProfile:
-    """Unified jet profile. Use factory functions (make_tophat_jet, etc.) to construct."""
+    """Unified jet profile. Use top_hat_jet, gaussian_jet, or power_law_jet."""
     kind: str
     theta_max: float
     # Tophat / Gaussian / PowerLaw params
@@ -311,42 +292,6 @@ class JetProfile:
         self.k_g = float(value)
 
 
-def make_tophat_jet(
-    *args,
-    E_iso: Optional[float] = None,
-    lf: Optional[float] = None,
-    theta_j: Optional[float] = None,
-    Gamma0: Optional[float] = None,
-    theta_c: Optional[float] = None,
-    duration: Optional[float] = None,
-    magnetar: Optional[Magnetar] = None,
-    spreading: bool = False,
-) -> JetProfile:
-    if len(args) == 3 and E_iso is None and lf is None and theta_j is None and Gamma0 is None and theta_c is None:
-        if float(args[0]) < 10.0 and float(args[1]) > 1.0e20:
-            theta_c, E_iso, Gamma0 = args
-        else:
-            E_iso, lf, theta_j = args
-    elif args:
-        raise TypeError("make_tophat_jet accepts either keyword arguments or three positional arguments.")
-    _E_iso = float(E_iso)
-    _lf = float(lf if lf is not None else Gamma0)
-    _theta_j = float(theta_j if theta_j is not None else theta_c)
-    jet = JetProfile(
-        kind="tophat",
-        theta_max=_theta_j,
-        E_iso=_E_iso,
-        lf=_lf,
-        theta_j=_theta_j,
-        duration=None if duration is None else float(duration),
-        magnetar=magnetar,
-        spreading=bool(spreading),
-    )
-    jet.energy_iso = lambda phi, theta: jet.E_iso if theta < jet.theta_j else 0.0
-    jet.gamma0 = lambda phi, theta: jet.lf if theta < jet.theta_j else 1.0
-    return jet
-
-
 def top_hat_jet(
     energy_iso_erg: float,
     initial_lorentz_factor: float,
@@ -355,38 +300,19 @@ def top_hat_jet(
     magnetar: Optional[Magnetar],
     spreading: bool,
 ) -> JetProfile:
-    return make_tophat_jet(
-        E_iso=energy_iso_erg,
-        Gamma0=initial_lorentz_factor,
-        theta_j=opening_angle_rad,
-        duration=shell_duration_s,
-        magnetar=magnetar,
-        spreading=spreading,
-    )
-
-
-def make_gaussian_jet(
-    E_iso: float,
-    lf: Optional[float] = None,
-    theta_c: float = 0.1,
-    theta_max: float = 0.6,
-    Gamma0: Optional[float] = None,
-    duration: Optional[float] = None,
-    magnetar: Optional[Magnetar] = None,
-    spreading: bool = False,
-) -> JetProfile:
+    _theta_j = float(opening_angle_rad)
     jet = JetProfile(
-        kind="gaussian",
-        theta_max=theta_max,
-        E_iso=float(E_iso),
-        lf=float(lf if lf is not None else Gamma0),
-        theta_c=float(theta_c),
-        duration=None if duration is None else float(duration),
+        kind="tophat",
+        theta_max=_theta_j,
+        E_iso=float(energy_iso_erg),
+        lf=float(initial_lorentz_factor),
+        theta_j=_theta_j,
+        duration=None if shell_duration_s is None else float(shell_duration_s),
         magnetar=magnetar,
         spreading=bool(spreading),
     )
-    jet.energy_iso = lambda phi, theta: jet.E_iso * np.exp(-0.5 * (theta / jet.theta_c) ** 2)
-    jet.gamma0 = lambda phi, theta: 1.0 + (jet.lf - 1.0) * np.exp(-0.5 * (theta / jet.theta_c) ** 2)
+    jet.energy_iso = lambda phi, theta: jet.E_iso if theta < jet.theta_j else 0.0
+    jet.gamma0 = lambda phi, theta: jet.lf if theta < jet.theta_j else 1.0
     return jet
 
 
@@ -399,52 +325,18 @@ def gaussian_jet(
     magnetar: Optional[Magnetar],
     spreading: bool,
 ) -> JetProfile:
-    return make_gaussian_jet(
-        E_iso=energy_iso_erg,
-        Gamma0=initial_lorentz_factor,
-        theta_c=core_angle_rad,
-        theta_max=outer_angle_rad,
-        duration=shell_duration_s,
-        magnetar=magnetar,
-        spreading=spreading,
-    )
-
-
-def make_powerlaw_jet(
-    E_iso: float,
-    lf: Optional[float] = None,
-    theta_c: float = 0.1,
-    k: Optional[float] = None,
-    theta_max: float = np.pi / 2.0,
-    Gamma0: Optional[float] = None,
-    k_e: Optional[float] = None,
-    k_g: Optional[float] = None,
-    duration: Optional[float] = None,
-    magnetar: Optional[Magnetar] = None,
-    spreading: bool = False,
-) -> JetProfile:
-    _k_e = float(2.0 if k is None and k_e is None else k if k_e is None else k_e)
-    _k_g = float(_k_e if k_g is None else k_g)
     jet = JetProfile(
-        kind="powerlaw",
-        theta_max=theta_max,
-        E_iso=float(E_iso),
-        lf=float(lf if lf is not None else Gamma0),
-        theta_c=float(theta_c),
-        k_e=_k_e,
-        k_g=_k_g,
-        duration=None if duration is None else float(duration),
+        kind="gaussian",
+        theta_max=float(outer_angle_rad),
+        E_iso=float(energy_iso_erg),
+        lf=float(initial_lorentz_factor),
+        theta_c=float(core_angle_rad),
+        duration=None if shell_duration_s is None else float(shell_duration_s),
         magnetar=magnetar,
         spreading=bool(spreading),
     )
-    jet.energy_iso = lambda phi, theta: (
-        jet.E_iso if theta <= jet.theta_c
-        else jet.E_iso * (theta / jet.theta_c) ** (-jet.k_e)
-    )
-    jet.gamma0 = lambda phi, theta: (
-        jet.lf if theta <= jet.theta_c
-        else 1.0 + (jet.lf - 1.0) * (theta / jet.theta_c) ** (-jet.k_g)
-    )
+    jet.energy_iso = lambda phi, theta: jet.E_iso * np.exp(-0.5 * (theta / jet.theta_c) ** 2)
+    jet.gamma0 = lambda phi, theta: 1.0 + (jet.lf - 1.0) * np.exp(-0.5 * (theta / jet.theta_c) ** 2)
     return jet
 
 
@@ -459,131 +351,28 @@ def power_law_jet(
     magnetar: Optional[Magnetar],
     spreading: bool,
 ) -> JetProfile:
-    return make_powerlaw_jet(
-        E_iso=energy_iso_erg,
-        Gamma0=initial_lorentz_factor,
-        theta_c=core_angle_rad,
-        k_e=energy_index,
-        k_g=energy_index if lorentz_index is None else lorentz_index,
-        theta_max=outer_angle_rad,
-        duration=shell_duration_s,
-        magnetar=magnetar,
-        spreading=spreading,
-    )
-
-
-def make_twocomponent_jet(
-    E_iso_n: Optional[float] = None,
-    lf_n: Optional[float] = None,
-    theta_n: Optional[float] = None,
-    E_iso_w: Optional[float] = None,
-    lf_w: Optional[float] = None,
-    theta_w: Optional[float] = None,
-    E_iso_c: Optional[float] = None,
-    Gamma0_c: Optional[float] = None,
-    E_iso_outer: Optional[float] = None,
-    Gamma0_outer: Optional[float] = None,
-    theta_c: Optional[float] = None,
-    theta_o: Optional[float] = None,
-    duration: Optional[float] = None,
-    magnetar: Optional[Magnetar] = None,
-    spreading: bool = False,
-) -> JetProfile:
+    _k_e = float(energy_index)
+    _k_g = float(_k_e if lorentz_index is None else lorentz_index)
     jet = JetProfile(
-        kind="twocomponent",
-        theta_max=float(theta_w if theta_w is not None else theta_o),
-        E_iso_n=float(E_iso_n if E_iso_n is not None else E_iso_c),
-        lf_n=float(lf_n if lf_n is not None else Gamma0_c),
-        theta_n=float(theta_n if theta_n is not None else theta_c),
-        E_iso_w=float(E_iso_w if E_iso_w is not None else E_iso_outer),
-        lf_w=float(lf_w if lf_w is not None else Gamma0_outer),
-        theta_w=float(theta_w if theta_w is not None else theta_o),
-        duration=None if duration is None else float(duration),
-        magnetar=magnetar,
-        spreading=bool(spreading),
-    )
-    jet.energy_iso = lambda phi, theta: (
-        jet.E_iso_n if theta <= jet.theta_n
-        else jet.E_iso_w if theta <= jet.theta_w
-        else 0.0
-    )
-    jet.gamma0 = lambda phi, theta: (
-        jet.lf_n if theta <= jet.theta_n
-        else jet.lf_w if theta <= jet.theta_w
-        else 1.0
-    )
-    return jet
-
-
-def make_steppowerlaw_jet(
-    E_iso_c: float,
-    lf_c: Optional[float] = None,
-    theta_c: float = 0.1,
-    E_iso_w: float = 1.0e51,
-    lf_w: Optional[float] = None,
-    theta_w: float = 0.3,
-    k: float = 2.0,
-    Gamma0_c: Optional[float] = None,
-    Gamma0_w: Optional[float] = None,
-    k_e: Optional[float] = None,
-    k_g: Optional[float] = None,
-    duration: Optional[float] = None,
-    magnetar: Optional[Magnetar] = None,
-    spreading: bool = False,
-) -> JetProfile:
-    _k_e = float(k if k_e is None else k_e)
-    _k_g = float(_k_e if k_g is None else k_g)
-    jet = JetProfile(
-        kind="steppowerlaw",
-        theta_max=float(theta_w),
-        E_iso_c=float(E_iso_c),
-        lf_c=float(lf_c if lf_c is not None else Gamma0_c),
-        theta_c=float(theta_c),
-        E_iso_w=float(E_iso_w),
-        lf_w=float(lf_w if lf_w is not None else Gamma0_w),
-        theta_w=float(theta_w),
+        kind="powerlaw",
+        theta_max=float(outer_angle_rad),
+        E_iso=float(energy_iso_erg),
+        lf=float(initial_lorentz_factor),
+        theta_c=float(core_angle_rad),
         k_e=_k_e,
         k_g=_k_g,
-        duration=None if duration is None else float(duration),
+        duration=None if shell_duration_s is None else float(shell_duration_s),
         magnetar=magnetar,
         spreading=bool(spreading),
     )
     jet.energy_iso = lambda phi, theta: (
-        jet.E_iso_c if theta <= jet.theta_c
-        else jet.E_iso_w * (theta / jet.theta_c) ** (-jet.k_e) if theta <= jet.theta_w
-        else 0.0
+        jet.E_iso if theta <= jet.theta_c
+        else jet.E_iso * (theta / jet.theta_c) ** (-jet.k_e)
     )
     jet.gamma0 = lambda phi, theta: (
-        jet.lf_c if theta <= jet.theta_c
-        else 1.0 + (jet.lf_w - 1.0) * (theta / jet.theta_c) ** (-jet.k_g) if theta <= jet.theta_w
-        else 1.0
+        jet.lf if theta <= jet.theta_c
+        else 1.0 + (jet.lf - 1.0) * (theta / jet.theta_c) ** (-jet.k_g)
     )
-    return jet
-
-
-def make_ejecta_jet(
-    e_iso_fn: Optional[Callable[[float, float], float]] = None,
-    gamma0_fn: Optional[Callable[[float, float], float]] = None,
-    theta_max: float = np.pi / 2.0,
-    E_iso: Optional[Callable[[float, float], float]] = None,
-    Gamma0: Optional[Callable[[float, float], float]] = None,
-    duration: Optional[float] = None,
-    magnetar: Optional[Magnetar] = None,
-    spreading: bool = False,
-) -> JetProfile:
-    _e_iso_fn = e_iso_fn if e_iso_fn is not None else E_iso
-    _gamma0_fn = gamma0_fn if gamma0_fn is not None else Gamma0
-    jet = JetProfile(
-        kind="ejecta",
-        theta_max=theta_max,
-        e_iso_fn=_e_iso_fn,
-        gamma0_fn=_gamma0_fn,
-        duration=None if duration is None else float(duration),
-        magnetar=magnetar,
-        spreading=bool(spreading),
-    )
-    jet.energy_iso = lambda phi, theta: float(jet.e_iso_fn(phi, theta))
-    jet.gamma0 = lambda phi, theta: float(jet.gamma0_fn(phi, theta))
     return jet
 
 

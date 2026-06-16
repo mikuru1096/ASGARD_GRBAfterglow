@@ -30,10 +30,3 @@ def as_matching_nonnegative(values: np.ndarray, reference: np.ndarray, name: str
     if np.any(arr < 0.0):
         raise ValueError(f"{name} must be non-negative.")
     return arr
-
-
-def log_spacing(grid: np.ndarray, name: str) -> float:
-    dln = np.diff(np.log(grid))
-    if not np.allclose(dln, dln[0], rtol=1.0e-6, atol=1.0e-12):
-        raise ValueError(f"{name} must be logarithmically uniform.")
-    return float(dln[0])

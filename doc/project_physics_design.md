@@ -57,7 +57,7 @@ R_i, Gamma_i, t_obs,i, swept mass, external density
 
 ### 喷流几何
 
-Public jet profiles 包括 tophat、Gaussian、power-law、two-component、step power-law 和 ejecta-style profiles。结构化喷流通过 patch/structured backend 聚合每个角向单元的局域动力学与辐射，再做 observer projection。
+Public jet constructors cover tophat、Gaussian 和 power-law profiles。结构化喷流通过 patch/structured backend 聚合每个角向单元的局域动力学与辐射，再做 observer projection。
 
 当前 hadronic 和 pair feedback 的 formal transport contract 是壳层级 1D。结构化喷流可以复用壳层级 radiation/hadronic outputs，但不等于已经有 \(\chi\)-local 或 patch-local hadronic feedback。
 

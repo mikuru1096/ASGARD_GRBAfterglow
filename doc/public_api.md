@@ -27,8 +27,6 @@ from asgard_core import (
 )
 ```
 
-当前公开导出的 jet 构造器是 `top_hat_jet`、`gaussian_jet` 和 `power_law_jet`。源码里还有 `make_twocomponent_jet`、`make_steppowerlaw_jet`、`make_ejecta_jet`，但它们没有从 `asgard_core.__all__` 作为正式公开入口导出，新文档和教程不要依赖它们。
-
 `from asgard_core import units` 导入的是轻量单位常量模块，便于写可读的时间、角度和频率：
 
 | 常量 | 数值含义 | 例子 |
@@ -536,7 +534,6 @@ fitter.params = [
 - 已验证 jet spreading。
 - 2D/\(\chi\) 分辨 hadronic transport。
 - 结构化 Fortran 后端覆盖所有 RS SSC、cross-zone IC、BH、pp、pair cascade 组合。
-- 把 `make_twocomponent_jet`、`make_steppowerlaw_jet`、`make_ejecta_jet` 当作稳定导出的公开喷流构造器。
 - 未构建 Fortran 扩展时依赖 Python fallback 继续拟合。
 
 遇到不支持组合，应直接暴露错误并回到物理/算法契约，不写兜底代码或后处理修正。
