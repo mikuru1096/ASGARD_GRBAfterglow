@@ -25,6 +25,7 @@ rtk bash -lc "source ~/.wsl_env && cd \"/mnt/c/Users/jia/Documents/New project/A
 - **2D/chi-resolved hadronic decision**: 当前不实现 2D/χ hadronic transport；正式 hadronic path 保持 1D shell 契约，直到 χ-local photon field、hadron density、secondary feedback 和 observer projection 的物理契约完成。
 - **Polarization timing diagnostic**: Lan 2023 overlay 的峰值幅度已匹配，峰时偏早主要指向 dynamics/jet-evolution benchmark；禁止在 polarization projection 层用经验时间因子或 smoothing 修正。
 - **Public/backend limits**: Jet spreading、自定义 `Medium` kernel dispatch、wind `k != 2`、thermal electrons outside `fullhide_1d` 是明确未支持边界；详见 `doc/public_backend_limits.md`。
+- **Dynamics event splitting**: 正向/反向动力学 RK 在 `dynamics_common.f90` 内按 density profile/jump、wind-to-ISM、energy injection break 和 RS crossing 分段；新增 helper 必须同步 `build_extensions.py` 的 `F2PY_SKIP_DYNAMICS_COMMON_INTERNALS`，避免 f2py 包装带 `procedure` dummy 的内部接口。最窄 smoke: `uv run python tests/dynamics_event_split_smoke.py` 与 `uv run python tests/reverse_shock_smoke.py`。
 - **TODO index**: 当前未完成项集中维护在根目录 `TODO.md`；不要在其他文档新增分散待办列表。
 
 ## AM3 / ASGARD Coexistence

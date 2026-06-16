@@ -33,7 +33,12 @@ class ModuleSpec:
 DYNAMICS_COMMON_SOURCES = ("../Constants.f90", "dynamics_common.f90")
 F2PY_SKIP_DYNAMICS_COMMON_INTERNALS = (
     "skip:",
+    "dynamics_limit_injection_event",
+    "dynamics_next_radius_event",
+    "dynamics_rk4_forward",
+    "dynamics_rk4_forward_adaptive",
     "dynamics_rk4_forward_ln_step",
+    "dynamics_rk4_reverse_adaptive",
     "dynamics_rk4_reverse",
     "dynamics_rk4_reverse_pre_m3",
     ":",
