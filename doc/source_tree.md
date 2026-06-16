@@ -7,7 +7,7 @@
 - `asgard_core/`：公开 Python API 和运行时 glue，包括 `api_model.py`, `api_observe.py`, `api_fit.py`, `api_adaptive.py`。`api_model.py` 承担 `Model` 查询调度、`Model -> RuntimeConfig` 适配、direct/patch solve 入口和 details 打包；`api_observe.py` 保留 `observe` / `run_fit` 兼容入口、sky image、polarization 和观测数据集 helpers；`api_adaptive.py` 保留 shared observe packing、数组签名缓存和曝光时间平均工具。
 - `asgard_core/`：内部编排与物理耦合，包括 `asgard_config.py`, `asgard_runtime.py`, `asgard_state.py`, `asgard_setup.py`, `asgard_ssc.py`, `asgard_types.py`。
 - `asgard_core/structured_jet_kernel.py`：结构化喷流 Fortran backend 薄中间层。
-- `asgard_core/hadronic_*.py`：hadronic Python wrappers 和 reference backend，只做 orchestration；最终微物理写入 `src/Hadronic/`。
+- `asgard_core/hadronic_*.py`：hadronic Python wrappers 和 glue，只做 orchestration；最终微物理写入 `src/Hadronic/`。
 - `asgard_core/hadronic_reverse.py`：RS hadronic light proton transport + synchrotron wrapper。
 - `asgard_core/hadronic_cascade.py`：shell-sequence time-dependent γγ pair/synch cascade。
 

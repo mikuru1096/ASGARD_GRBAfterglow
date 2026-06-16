@@ -69,11 +69,11 @@ Fitter.loglike -> compile_problem -> eval_loglike -> solve_state_from_setup
 - `asgard_types.py`：runtime dataclass contracts。
 - `structured_jet_kernel.py`：结构化喷流 Fortran backend 的薄中间层，负责采样结构化参数、选择轴对称/非轴对称分支、调用 `structured_jet_1d` 并组装 API 结果。
 
-强子 Python 模块只做编排、包装和正式参考后端：
+强子 Python 模块只做编排、包装和轻量 helper：
 
 - Fortran wrappers：`hadronic_hummer.py`, `hadronic_bethe_heitler.py`, `hadronic_hadronic_ic.py`, `hadronic_pp.py`, `hadronic_pair_production.py`, `hadronic_species_transport.py`, `hadronic_secondary_radiation.py`, `hadronic_acceleration.py`。
 - Reverse shock wrapper：`hadronic_reverse.py`；开启 RS full-chain flags 时，runtime 通过 formal 1D 强子核处理 RS seed photons、RS `B3`、shell energy 和 baryon target density。
-- Reference/backend：`hadronic_pgamma.py`, `hadronic_am3_solver.py`, `hadronic_cascade.py`。
+- Process/backend glue：`hadronic_am3_solver.py`, `hadronic_cascade.py`；单位转换 helper：`hadronic_pgamma.py`。
 
 最终 AM3-derived microphysics 位于 `src/Hadronic/*.f90`。
 
@@ -130,7 +130,7 @@ Fitter.loglike -> compile_problem -> eval_loglike -> solve_state_from_setup
 
 - 配置：`Radiation.proton_energy_fraction`, `.proton_synch`, `.include_pgamma`, `.bethe_heitler`, `.hadronic_inverse_compton`, `.pp`, `.neutrino`, `.acceleration_efficiency`, `.pgamma_scheme`；`Hadronic.enabled`, `.solver`, `.num_proton_gamma`, `.num_neutrino_frequency`。
 - Solver names：`legacy_1d` 只覆盖 proton transport + proton synchrotron；`am3_1d` 是当前 formal hadronic main path。
-- `pgamma_scheme`：`hummer_2010_response` 含 transport feedback；`ka2008_reference` 仅 emission benchmark；`disabled` 禁用。
+- `pgamma_scheme`：`hummer_2010_response` 含 transport feedback；`disabled` 禁用。
 - Pair cascade：`pair_cascade_iterations > 1` 选择 shell-sequence time-dependent \(\gamma\gamma\) pair/synch cascade path；IC-mediated electromagnetic cascade 不属于当前契约。
 - Joint secondary feedback：`electron_photon_coupling="joint"` 在正向激波 1D 上把 BH/pp/\(\gamma\gamma\) 二级 \(e^\pm\) 作为外部 `Q_e,secondary,R` 输入电子方程，并把 \(p\gamma\)/BH/\(\gamma\gamma\) photon survival 作用到 joint photon field。详细算法见 `doc/joint_secondary_feedback_algorithm.md`。
 

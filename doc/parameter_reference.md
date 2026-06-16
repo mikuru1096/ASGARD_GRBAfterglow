@@ -40,7 +40,7 @@
 | `bethe_heitler` | `True/False` | 是否计算 BH pair production。 |
 | `pp` | `True/False` | 是否计算 pp 二级产物。 |
 | `neutrino` | `True/False` | 是否输出中微子谱；中微子不反馈电磁输运。 |
-| `pgamma_scheme` | `disabled`, `hummer_2010_response`, `ka2008_reference` | formal p-gamma feedback 使用 `hummer_2010_response`；`ka2008_reference` 只作为 emission benchmark。 |
+| `pgamma_scheme` | `disabled`, `hummer_2010_response` | formal p-gamma feedback 使用 `hummer_2010_response`。 |
 | `pair_production` | `True/False` | 是否启用 gamma-gamma pair branch。 |
 
 同步辐射特征频率通常满足近似标度：

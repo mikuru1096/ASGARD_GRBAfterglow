@@ -3,10 +3,9 @@
 ## 标准命名
 
 - `hummer_2010_response`：正式 pγ 方案，含 transport feedback。
-- `ka2008_reference`：参考后端，仅 emission benchmark，不参与 proton transport feedback。
 - `disabled`
 
-public API 只接受上述三个标准命名。
+public API 只接受上述两个标准命名。
 
 ## 当前正式耦合
 
@@ -46,4 +45,4 @@ Reverse-shock baseline：ASGARD 使用局部 `gamma34` 注入和显式 region-3 
 
 本地: `/mnt/c/Users/jia/Documents/New project/_external/am3_reference` (HEAD: `7aba970b`)
 
-用途: 微观核、过程拆分、benchmark 参考。不替换 ASGARD 的 dynamics/electron/observer 主链。Python 侧参考实现仅作过渡层。
+用途: 微观核、过程拆分、benchmark 参考。不替换 ASGARD 的 dynamics/electron/observer 主链。

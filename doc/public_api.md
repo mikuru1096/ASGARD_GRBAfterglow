@@ -228,7 +228,7 @@ fwd_rad = Radiation(
 | `bethe_heitler` | BH pair production。 | 产生 secondary \(e^\pm\) 和 photon sink。 | joint feedback 要求 `electron_photon_coupling="joint"`、`Hadronic.solver="am3_1d"`、`pgamma_scheme="hummer_2010_response"`、`ssc_cooling_mode="numeric_ic_kn"` 且固定子步。 |
 | `pp` | pp 相互作用。 | 产生 secondary 和 neutrino 相关输出。 | 需要 baryon target density 解释；不要在缺少靶密度物理时打开。 |
 | `neutrino` | neutrino 输出。 | 输出逃逸 neutrino luminosity。 | 需要 formal 强子路径；neutrino 不反馈到电子或光子方程。 |
-| `pgamma_scheme` | p-gamma 核。 | 选择 `disabled`、`hummer_2010_response`、`ka2008_reference`。 | `ka2008_reference` 是 emission benchmark；joint feedback 要求 `hummer_2010_response`。 |
+| `pgamma_scheme` | p-gamma 核。 | 选择 `disabled`、`hummer_2010_response`。 | joint feedback 要求 `hummer_2010_response`。 |
 | `pair_production` | pair production branch。 | 可进入 \(\gamma\gamma\) pair/synch cascade。 | `pair_cascade_iterations>1` 使用 shell-sequence time-dependent pair/synch cascade；IC-mediated electromagnetic cascade 未实现。 |
 
 ## 7. Numerics：网格怎么选
@@ -396,7 +396,7 @@ hadronic = Hadronic(
 | `solver` | `legacy_1d`, `am3_1d` | 强子求解器。 | `legacy_1d` 只适合 proton transport + proton synch；p-gamma/neutrino 用 `am3_1d`。 |
 | `num_proton_gamma` | int | 质子能量网格。 | formal 强子结果需做网格收敛。 |
 | `num_neutrino_frequency` | int | neutrino 频率网格。 | 只影响 neutrino 输出。 |
-| `pgamma_scheme` | `disabled`, `hummer_2010_response`, `ka2008_reference` | p-gamma 过程核。 | joint feedback 要求 `hummer_2010_response`。 |
+| `pgamma_scheme` | `disabled`, `hummer_2010_response` | p-gamma 过程核。 | joint feedback 要求 `hummer_2010_response`。 |
 | `pair_cascade_iterations` | 正整数 | \(\gamma\gamma\) pair/synch cascade 迭代。 | `>1` 使用 shell-sequence time-dependent pair/synch cascade；IC-mediated cascade 未实现。 |
 
 强子路径不支持 2D/\(\chi\) 局域 hadronic transport。若 `electron_solver` 是 2D，不要把 hadronic 输出解释成 \(\chi\)-local 反馈。

@@ -11,9 +11,7 @@ import src.Hadronic.hadronic_forward_1d as hadronic_legacy_module
 from asgard_core.hadronic_am3_solver import (
     HUMMER_PROCESS_GROUP_LABELS,
     HUMMER2010_RESPONSE_BACKEND,
-    KA2008_REFERENCE_BACKEND,
     solve_hummer_2010_response_processes,
-    solve_ka2008_reference_processes,
 )
 from asgard_core.hadronic_acceleration import ACCELERATION_BACKEND
 from asgard_core.hadronic_bethe_heitler import (
@@ -124,12 +122,10 @@ class SecondaryReverseShockState:
 
 _PGAMMA_SCHEME_DISABLED = "disabled"
 _PGAMMA_SCHEME_HUMMER2010_RESPONSE = "hummer_2010_response"
-_PGAMMA_SCHEME_KA2008_REFERENCE = "ka2008_reference"
 
 _PGAMMA_SCHEME_ALIASES = {
     "disabled": _PGAMMA_SCHEME_DISABLED,
     "hummer_2010_response": _PGAMMA_SCHEME_HUMMER2010_RESPONSE,
-    "ka2008_reference": _PGAMMA_SCHEME_KA2008_REFERENCE,
 }
 
 
@@ -897,7 +893,7 @@ def solve_hadronic(
     if (bool(config.hadronic.include_pg) or bool(config.hadronic.include_neutrino)) and pgamma_scheme == _PGAMMA_SCHEME_DISABLED:
         raise ValueError(
             "p-gamma and neutrino channels require an explicit pgamma_scheme. "
-            "Choose 'hummer_2010_response' or 'ka2008_reference'."
+            "Choose 'hummer_2010_response'."
         )
     shell_energy_inj_erg = _hadronic_shell_injection_energy(
         dynamics.radius,
@@ -957,28 +953,16 @@ def solve_hadronic(
     gam_p, d_n_gam_p, l_had_syn_spec, seed_had_syn, l_had_pg_gamma, neutrino_frequency_hz, neutrino_luminosity = outputs
 
     if hadronic_solver == "am3_1d":
-        if pgamma_scheme == _PGAMMA_SCHEME_KA2008_REFERENCE:
-            am3_output = solve_ka2008_reference_processes(
-                dynamics.radius,
-                gam_p,
-                d_n_gam_p,
-                v_seed_arr,
-                seed_target_arr,
-                num_nu_nu,
-                include_pg=bool(config.hadronic.include_pg),
-                include_neutrino=bool(config.hadronic.include_neutrino),
-            )
-        else:
-            am3_output = solve_hummer_2010_response_processes(
-                dynamics.radius,
-                gam_p,
-                d_n_gam_p,
-                v_seed_arr,
-                seed_target_arr,
-                num_nu_nu,
-                include_pg=bool(config.hadronic.include_pg),
-                include_neutrino=bool(config.hadronic.include_neutrino),
-            )
+        am3_output = solve_hummer_2010_response_processes(
+            dynamics.radius,
+            gam_p,
+            d_n_gam_p,
+            v_seed_arr,
+            seed_target_arr,
+            num_nu_nu,
+            include_pg=bool(config.hadronic.include_pg),
+            include_neutrino=bool(config.hadronic.include_neutrino),
+        )
         if bool(config.hadronic.include_pg):
             l_had_pg_gamma = am3_output.l_had_pg_gamma
         if bool(config.hadronic.include_neutrino):
@@ -1010,7 +994,7 @@ def solve_hadronic(
         am3_process_power=np.asarray(am3_process_power, dtype=float).reshape(len(HUMMER_PROCESS_GROUP_LABELS), num_gam_p, num_r),
     )
     if return_report:
-        backend = "fortran_core" if hadronic_solver == "legacy_1d" else KA2008_REFERENCE_BACKEND
+        backend = "fortran_core" if hadronic_solver == "legacy_1d" else HUMMER2010_RESPONSE_BACKEND
         return solution, _solver_report(
             hadronic_solver,
             "log-gamma-1d",
