@@ -8,10 +8,13 @@ module electron_transport_common
     integer, parameter :: electron_cooling_piecewise = 1
     real(8), parameter :: inv_log_ten = 4.3429448190325182765d-1
     real(8), parameter :: tiny_u_char = 1d-300
-    real(8), parameter :: charint_quad_nodes(charint_quad_order) = &
+    real(8), parameter :: charint_quad_base_nodes(charint_quad_order) = &
         (/6.9431844202973714d-2, 3.3000947820757187d-1, 6.6999052179242813d-1, 9.3056815579702629d-1/)
-    real(8), parameter :: charint_quad_weights(charint_quad_order) = &
+    real(8), parameter :: charint_quad_base_weights(charint_quad_order) = &
         (/1.7392742256872693d-1, 3.2607257743127307d-1, 3.2607257743127307d-1, 1.7392742256872693d-1/)
+    real(8), parameter :: charint_quad_nodes(charint_quad_order) = charint_quad_base_nodes**4
+    real(8), parameter :: charint_quad_weights(charint_quad_order) = &
+        4d0*charint_quad_base_weights*charint_quad_base_nodes**3
 contains
 
 ! 准备隐式迎风输运系数：计算主对角元principal和上三角系数temp1。
@@ -500,7 +503,7 @@ subroutine electron_characteristic_core(Num_gam_e,dDR,x_edge,x_back_batch,source
     integer, intent(in) :: Num_gam_e
     integer :: I_quad,I_gam_e
     real(8), intent(in) :: dDR,x_edge(Num_gam_e+1),source_scale,dF1(Num_gam_e),dN_x_in(Num_gam_e)
-    real(8), intent(in) :: x_back_batch(Num_gam_e+1,5)
+    real(8), intent(in) :: x_back_batch(Num_gam_e+1,charint_quad_order+1)
     real(8), intent(out) :: dN_x_out(Num_gam_e)
     real(8) :: ql(Num_gam_e),qr(Num_gam_e),prefix(0:Num_gam_e),x_back(Num_gam_e+1),dx_cur
     real(8) :: dN_source(Num_gam_e),dN_quad(Num_gam_e),qls(Num_gam_e),qrs(Num_gam_e),prefixs(0:Num_gam_e)
@@ -536,7 +539,7 @@ subroutine electron_characteristic_update(Num_gam_e,dDR,x_edge,cooling_mode,a_u,
     real(8), intent(in) :: dDR,x_edge(Num_gam_e+1),a_u,b_u,gam_e(Num_gam_e),dEl(Num_gam_e)
     real(8), intent(in) :: R_loc,source_scale,dF1(Num_gam_e),dN_x_in(Num_gam_e)
     real(8), intent(out) :: dN_x_out(Num_gam_e)
-    real(8) :: lag_arr(5),x_back_batch(Num_gam_e+1,5),u_edge(Num_gam_e+1)
+    real(8) :: lag_arr(charint_quad_order+1),x_back_batch(Num_gam_e+1,charint_quad_order+1),u_edge(Num_gam_e+1)
     real(8) :: a_cell(Num_gam_e),b_cell(Num_gam_e)
     integer :: Num_lag,I_quad
     lag_arr(1)=dDR

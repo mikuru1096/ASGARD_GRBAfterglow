@@ -12,6 +12,7 @@ module electron_common
     integer, parameter :: radiation_resample_smoothness = 4
     integer, parameter :: electron_initial_grid_gamma = 0
     integer, parameter :: electron_initial_grid_log_edges = 1
+    real(8), parameter :: electron_exp_tail_grid_factor = 30d0
 contains
 
 ! 解包公共 Boundary 数组字段。
@@ -54,7 +55,8 @@ subroutine electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,G
     real(8), intent(in), optional :: f_e,four_v
 
     do I_gam_e=1,Num_gam_e
-        gam_e(I_gam_e)=3d0*ten**(dlog10(Gam_e_max_max)*(I_gam_e-1)/(Num_gam_e-1))
+        gam_e(I_gam_e)=3d0*ten**(dlog10(electron_exp_tail_grid_factor*Gam_e_max_max/3d0)* &
+                                 (I_gam_e-1)/(Num_gam_e-1))
     end do
     select case (grid_mode)
     case (electron_initial_grid_gamma)
@@ -163,7 +165,7 @@ subroutine electron_source_bounds(Num_gam_e,gam_e,Gam_e_m,Gam_e_max,src_lo,src_h
 
     call electron_profile_log_cell_edges(Num_gam_e,gam_e,x_edge)
     x_lo=dlog10(Gam_e_m)
-    x_hi=dlog10(Gam_e_max)
+    x_hi=dlog10(electron_exp_tail_grid_factor*Gam_e_max)
     src_lo=Num_gam_e+1
     do I_gam_e=1,Num_gam_e
         if (x_edge(I_gam_e+1) > x_lo) then

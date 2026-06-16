@@ -8,10 +8,10 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
     use constants
     use dynamics_common, only: dynamics_external_density_profile
     use electron_common, only: electron_initial_density, electron_initialize_spectrum, electron_unpack_boundary, &
-                               electron_initial_grid_gamma, &
+                               electron_initial_grid_log_edges, &
                                electron_gamma_m_exact, electron_injection_prefactor, &
                                electron_gamma_c_from_loss_mean, electron_source_bounds
-    use electron_injection_profiles, only: electron_build_source_term_exp_cutoff
+    use electron_injection_profiles, only: electron_build_source_term_exp_cutoff_edges, electron_profile_log_cell_edges
     use electron_cooling_kernel, only: prepare_forward_cooling_aux_batch, assemble_forward_cooling_split, &
                                        assemble_forward_cooling_split_batch
     use electron_radiation_kernel, only: get_syn_state, get_nu_a_2d_cell_path, reduce_syn_shell_from_chi, &
@@ -60,7 +60,7 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
     real(8), allocatable :: P_eff_cool_chi(:,:), Seed_eff_cool_chi(:,:)
     real(8), allocatable :: cooling_aux_chi(:,:), dEl_chi(:,:), dEL_mean_chi(:,:), adiabatic_log_coeff_chi(:)
 
-    real(8) :: temp, chi_max_global, deta, d_x_E, ln10
+    real(8) :: temp, chi_max_global, deta, d_x_E, ln10, x_edge_E(Num_gam_e+1)
     real(8) :: R_loc, R_Gamma_loc, dNe, Para_N_e_ini, DB, DB_min
     real(8) :: Epsilon_b_floor, magnetic_decay_alpha_t, magnetic_decay_t0_s
     real(8) :: stochastic_accel_norm
@@ -181,9 +181,9 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
     Gam_e_c       = 7.7d8/(one+dsqrt(Epsilon_e/Epsilon_b))/R_Gamma(1)/DB**2/(R_Tobs(1)/two)
 
     call electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
-                                      electron_initial_grid_gamma,gam_e,dN_init)
+                                      electron_initial_grid_log_edges,gam_e,dN_init,x_edge_E)
     d_x_E = dlog10(gam_e(2)/gam_e(1))
-    dN_init_log = dN_init * gam_e * ln10
+    dN_init_log = dN_init
 
     U_log(:,1) = dN_init_log / deta
 
@@ -331,7 +331,7 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
             integer :: L, L1, src_lo, src_hi, active_hi, active_chi_hi
 
             call electron_source_bounds(Num_gam_e,gam_e,Gam_e_m,Gam_e_max,src_lo,src_hi)
-            call electron_build_source_term_exp_cutoff(Num_gam_e,gam_e,Gam_e_m,Gam_e_max,one,p,dF1)
+            call electron_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge_E,Gam_e_m,Gam_e_max,one,p,dF1)
             shell_population = sum(U_log, dim=2)
             chi_population = sum(U_log, dim=1)
             chi_peak = maxval(chi_population)
@@ -386,13 +386,14 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
 
                     Gam_e_m_p = (one-p)/(Gam_e_max**(one-p)-Gam_e_m**(one-p))
                     call electron_injection_prefactor(R_sub,dDR,dNe,f_e,Gam_e_m_p,Q)
-                    call electron_build_source_term_exp_cutoff(Num_gam_e,gam_e,Gam_e_m,Gam_e_max,Q,p,dF1)
+                    call electron_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge_E,Gam_e_m,Gam_e_max,Q,p,dF1)
                     source_eta1 = dF1/deta
 
                     if (use_charint_transport) then
                         if (profile_enabled) call cpu_time(t_start)
                         call advance_eta_logchi_advection_charint(U_log, Num_gam_e, Num_chi, active_hi, deta, eta_face, chi_face, &
-                                                                  Gamma_sh_sub, a_sub, dln_a_dR_sub, beta_sh, source_eta1, dDR)
+                                                                  Gamma_sh_sub, a_sub, dln_a_dR_sub, beta_sh, &
+                                                                  source_eta1, dDR)
                         call advance_eta_logchi_diffusion_implicit(U_log, Num_gam_e, Num_chi, active_hi, deta, &
                                                                    chi_face, Gamma_sh_sub, a_sub, dln_a_dR_sub, &
                                                                    beta_sh, kappa2_chi, dDR, n_threads)

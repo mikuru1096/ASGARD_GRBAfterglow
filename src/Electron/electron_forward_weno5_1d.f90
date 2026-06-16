@@ -5,7 +5,7 @@ subroutine fs_electron_weno5_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,
     use constants
     use dynamics_common, only: dynamics_external_density_profile
     use electron_common
-    use electron_injection_profiles, only: electron_build_source_term_exp_cutoff
+    use electron_injection_profiles, only: electron_build_source_term_exp_cutoff_edges, electron_profile_log_cell_edges
     use electron_radiation_kernel, only: get_syn
     use electron_cooling_kernel, only: get_forward_cooling
     IMPLICIT REAL(8)(A-H,O-Z)
@@ -19,11 +19,11 @@ subroutine fs_electron_weno5_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,
     real(8) :: beta_Gam,f_r,dDR,dDD,WENO_speed_max,CFL,Q
 
     real(8),allocatable,dimension (:) :: f_r_times_gam_e,dEl,para_minus_gam_e_p,dEl1,x, &
-            dN_x,dF1,fp,flux,Compton,Compton1,dot_gam_e,dot_gam_e_SSA
+            dN_x,x_edge,dF1,fp,flux,Compton,Compton1,dot_gam_e,dot_gam_e_SSA
     real(8),allocatable,dimension (:,:) :: temp_store,temp_store_extended
     real(8),allocatable,dimension (:) :: dN_x_extended,fp_extended,flux_extended,dEl1_extended
     allocate (f_r_times_gam_e(Num_gam_e),dEl(Num_gam_e),para_minus_gam_e_p(Num_gam_e), &
-            dEl1(Num_gam_e),x(Num_gam_e),dN_x(Num_gam_e),dF1(Num_gam_e),fp(Num_gam_e), &
+            dEl1(Num_gam_e),x(Num_gam_e),dN_x(Num_gam_e),x_edge(Num_gam_e+1),dF1(Num_gam_e),fp(Num_gam_e), &
             flux(0:Num_gam_e), temp_store(3,Num_gam_e),Compton(Num_gam_e), &
               dot_gam_e(Num_gam_e),dot_gam_e_SSA(Num_gam_e),Compton1(Num_gam_e))
     allocate(dN_x_extended(1-3:Num_gam_e+3),temp_store_extended(3, 1-3:Num_gam_e+3),&
@@ -47,10 +47,10 @@ subroutine fs_electron_weno5_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,
     call electron_gamma_m_exact(p,temp_gam,Gam_e_max,Gam_e_m)
     Gam_e_c=7.7d8/(one+dsqrt(Epsilon_e/Epsilon_b))/R_Gamma(1)/DB**2/(R_Tobs(1)/two)
     call electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
-                                      electron_initial_grid_gamma,gam_e,dN_gam_e(:,1))
+                                      electron_initial_grid_log_edges,gam_e,dN_x,x_edge)
+    dN_gam_e(:,1)=dN_x/gam_e/dlog(ten)
     !*******************Part 1 is completed [has been checked and there is no bug]**********************************
     !*******************Part 2: To calculate the electron distribution**********************************************
-    dN_x=dN_gam_e(:,1)*gam_e*dlog(ten)
     d_x=dlog10(gam_e(2)/gam_e(1))
     factor_adv=Para_sigmaT/(6.0d0*pi*Para_m_energy)
     para_minus_gam_e_p=gam_e**(-p)*gam_e*dlog(ten)
@@ -66,7 +66,7 @@ subroutine fs_electron_weno5_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,
         end do
     end do
 
-    deallocate (f_r_times_gam_e,dEl,para_minus_gam_e_p,dEl1,x,dN_x,dF1,fp,flux,temp_store,Compton,Compton1,dot_gam_e, &
+    deallocate (f_r_times_gam_e,dEl,para_minus_gam_e_p,dEl1,x,dN_x,x_edge,dF1,fp,flux,temp_store,Compton,Compton1,dot_gam_e, &
                 dN_x_extended, temp_store_extended, fp_extended, flux_extended)
 
     return
@@ -127,7 +127,7 @@ contains
         
         dEl1=(dEl+one/R_loc)/dlog(ten)
         call electron_injection_prefactor(R_loc,dDR,dNe,f_e,Gam_e_m_p,Q)
-        call electron_build_source_term_exp_cutoff(Num_gam_e,gam_e,Gam_e_m,Gam_e_max,Q,p,dF1)
+        call electron_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m,Gam_e_max,Q,p,dF1)
 !        dF1=dF1+Q*para_maxwell/Gam_e_m_p*(one-f_e)
 
         call load_weno_extended_state()

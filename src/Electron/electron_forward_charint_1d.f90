@@ -7,7 +7,7 @@ subroutine fs_electron_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_
     use electron_common
     use electron_transport_common, only: charint_cfl_relax, charint_substep_rtol_relax, &
         electron_cooling_affine, electron_cooling_piecewise, electron_characteristic_update
-    use electron_injection_profiles, only: electron_build_source_term_exp_cutoff
+    use electron_injection_profiles, only: electron_build_source_term_exp_cutoff_edges
     use electron_radiation_kernel, only: get_nu_a, get_syn_selected
     use electron_cooling_kernel, only: get_forward_cooling
     implicit real(8)(A-H,O-Z)
@@ -58,7 +58,7 @@ subroutine fs_electron_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_
                 temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma_loc-one)
                 call electron_gamma_m_exact(p,temp_gam,Gam_e_max_step,Gam_e_m_step)
                 Gam_e_m_p_step=(one-p)/(Gam_e_max_step**(one-p)-Gam_e_m_step**(one-p))
-                call electron_build_source_term_exp_cutoff(Num_gam_e,gam_e,Gam_e_m_step,Gam_e_max_step,one,p,dF1_shape)
+                call electron_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m_step,Gam_e_max_step,one,p,dF1_shape)
                         if (index_Y == 0) then
                     cooling_scale=one/(beta_Gam*R_Gamma_loc)
                     a_rad=1.35d-19*DB_step**2*cooling_scale/pi
@@ -70,12 +70,12 @@ subroutine fs_electron_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_
 
                     if (index_Y == 0) then
                         b_ad=one/R_mid
-                        call electron_characteristic_update(Num_gam_e,dDR,x_edge,electron_cooling_affine, &
-                            a_rad,b_ad,gam_e,dEl_step,R_mid,Q,dF1_shape,dN_x,dN_step)
+                        call advance_characteristic_with_split_source(dDR,electron_cooling_affine, &
+                            a_rad,b_ad,dEl_step,R_mid,Q,dF1_shape,dN_x,dN_step)
                     else
                         dEl_step=dEl_base
-                        call electron_characteristic_update(Num_gam_e,dDR,x_edge,electron_cooling_piecewise, &
-                            zero,zero,gam_e,dEl_step,R_mid,Q,dF1_shape,dN_x,dN_step)
+                        call advance_characteristic_with_split_source(dDR,electron_cooling_piecewise, &
+                            zero,zero,dEl_step,R_mid,Q,dF1_shape,dN_x,dN_step)
                     end if
 
                     dN_x=dN_step
@@ -97,22 +97,22 @@ subroutine fs_electron_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_
                     call electron_gamma_m_exact(p,temp_gam,Gam_e_max_step,Gam_e_m_step)
                     Gam_e_m_p_step=(one-p)/(Gam_e_max_step**(one-p)-Gam_e_m_step**(one-p))
                     call electron_injection_prefactor(R_mid,dDR,dNe_mid,f_e,Gam_e_m_p_step,Q)
-                    call electron_build_source_term_exp_cutoff(Num_gam_e,gam_e,Gam_e_m_step,Gam_e_max_step,Q,p,dF1)
+                    call electron_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m_step,Gam_e_max_step,Q,p,dF1)
 
                     if (index_Y == 0) then
                         cooling_scale=one/(beta_Gam*R_Gamma_loc)
                         a_rad=1.35d-19*DB_step**2*cooling_scale/pi
                         b_ad=one/R_mid
-                        call electron_characteristic_update(Num_gam_e,dDR,x_edge,electron_cooling_affine, &
-                            a_rad,b_ad,gam_e,dEl_step,R_mid,one,dF1,dN_x,dN_step)
+                        call advance_characteristic_with_split_source(dDR,electron_cooling_affine, &
+                            a_rad,b_ad,dEl_step,R_mid,one,dF1,dN_x,dN_step)
                     else
                         if (dNe_shell > zero) then
                             dEl_step=dEl_base*(dNe_mid/dNe_shell)
                         else
                             dEl_step=dEl_base
                         end if
-                        call electron_characteristic_update(Num_gam_e,dDR,x_edge,electron_cooling_piecewise, &
-                            zero,zero,gam_e,dEl_step,R_mid,one,dF1,dN_x,dN_step)
+                        call advance_characteristic_with_split_source(dDR,electron_cooling_piecewise, &
+                            zero,zero,dEl_step,R_mid,one,dF1,dN_x,dN_step)
                     end if
 
                     dN_x=dN_step
@@ -133,7 +133,7 @@ subroutine fs_electron_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_
                 temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma_loc-one)
                 call electron_gamma_m_exact(p,temp_gam,Gam_e_max_step,Gam_e_m_step)
                 Gam_e_m_p_step=(one-p)/(Gam_e_max_step**(one-p)-Gam_e_m_step**(one-p))
-                call electron_build_source_term_exp_cutoff(Num_gam_e,gam_e,Gam_e_m_step,Gam_e_max_step,one,p,dF1_shape)
+                call electron_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m_step,Gam_e_max_step,one,p,dF1_shape)
                 if (index_Y == 0) then
                     cooling_scale=one/(beta_Gam*R_Gamma_loc)
                     a_rad=1.35d-19*DB_step**2*cooling_scale/pi
@@ -159,12 +159,12 @@ subroutine fs_electron_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_
                     call electron_injection_prefactor(R_mid,dR_try,dNe_shell,f_e,Gam_e_m_p_step,Q)
                     if (index_Y == 0) then
                         b_ad=one/R_mid
-                        call electron_characteristic_update(Num_gam_e,dR_try,x_edge,electron_cooling_affine, &
-                            a_rad,b_ad,gam_e,dEl_step,R_mid,Q,dF1_shape,dN_x,dN_step)
+                        call advance_characteristic_with_split_source(dR_try,electron_cooling_affine, &
+                            a_rad,b_ad,dEl_step,R_mid,Q,dF1_shape,dN_x,dN_step)
                     else
                         dEl_step=dEl_base
-                        call electron_characteristic_update(Num_gam_e,dR_try,x_edge,electron_cooling_piecewise, &
-                            zero,zero,gam_e,dEl_step,R_mid,Q,dF1_shape,dN_x,dN_step)
+                        call advance_characteristic_with_split_source(dR_try,electron_cooling_piecewise, &
+                            zero,zero,dEl_step,R_mid,Q,dF1_shape,dN_x,dN_step)
                     end if
                 else
                     R_right=R_loc+dR_try
@@ -183,21 +183,21 @@ subroutine fs_electron_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_
                     call electron_gamma_m_exact(p,temp_gam,Gam_e_max_step,Gam_e_m_step)
                     Gam_e_m_p_step=(one-p)/(Gam_e_max_step**(one-p)-Gam_e_m_step**(one-p))
                     call electron_injection_prefactor(R_mid,dR_try,dNe_mid,f_e,Gam_e_m_p_step,Q)
-                    call electron_build_source_term_exp_cutoff(Num_gam_e,gam_e,Gam_e_m_step,Gam_e_max_step,Q,p,dF1)
+                    call electron_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m_step,Gam_e_max_step,Q,p,dF1)
                     if (index_Y == 0) then
                         cooling_scale=one/(beta_Gam*R_Gamma_loc)
                         a_rad=1.35d-19*DB_step**2*cooling_scale/pi
                         b_ad=one/R_mid
-                        call electron_characteristic_update(Num_gam_e,dR_try,x_edge,electron_cooling_affine, &
-                            a_rad,b_ad,gam_e,dEl_step,R_mid,one,dF1,dN_x,dN_step)
+                        call advance_characteristic_with_split_source(dR_try,electron_cooling_affine, &
+                            a_rad,b_ad,dEl_step,R_mid,one,dF1,dN_x,dN_step)
                     else
                         if (dNe_shell > zero) then
                             dEl_step=dEl_base*(dNe_mid/dNe_shell)
                         else
                             dEl_step=dEl_base
                         end if
-                        call electron_characteristic_update(Num_gam_e,dR_try,x_edge,electron_cooling_piecewise, &
-                            zero,zero,gam_e,dEl_step,R_mid,one,dF1,dN_x,dN_step)
+                        call advance_characteristic_with_split_source(dR_try,electron_cooling_piecewise, &
+                            zero,zero,dEl_step,R_mid,one,dF1,dN_x,dN_step)
                     end if
                 end if
 
@@ -228,6 +228,18 @@ subroutine fs_electron_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_
     deallocate(dEl_base,dEl_step,dN_x,dN_step,dF1,dF1_shape,x_edge,gam_e_rad,dN_gam_e_rad)
 
 contains
+
+    subroutine advance_characteristic_with_split_source(dR_step,cooling_mode,a_u,b_u,dEl_in,R_step, &
+                                                        source_scale,dF_in,dN_in,dN_out)
+    implicit none
+    integer, intent(in) :: cooling_mode
+    real(8), intent(in) :: dR_step,a_u,b_u,R_step,source_scale
+    real(8), intent(in) :: dEl_in(Num_gam_e),dF_in(Num_gam_e),dN_in(Num_gam_e)
+    real(8), intent(out) :: dN_out(Num_gam_e)
+
+        call electron_characteristic_update(Num_gam_e,dR_step,x_edge,cooling_mode,a_u,b_u, &
+                                            gam_e,dEl_in,R_step,source_scale,dF_in,dN_in,dN_out)
+    end subroutine advance_characteristic_with_split_source
 
     subroutine prepare_characteristic_shell(I_tobs)
     implicit real(8)(A-H,O-Z)

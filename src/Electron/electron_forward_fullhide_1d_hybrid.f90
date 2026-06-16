@@ -12,7 +12,8 @@ subroutine fs_electron_fullhide_1d_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,
     use constants
     use dynamics_common, only: dynamics_external_density_profile
     use electron_common
-    use electron_injection_profiles, only: electron_build_source_term_exp_cutoff, electron_add_thermal_source_term
+    use electron_injection_profiles, only: electron_build_source_term_exp_cutoff_edges, electron_add_thermal_source_term, &
+                                           electron_profile_log_cell_edges
     use electron_radiation_kernel, only: get_nu_a, get_syn_selected
     use electron_cooling_kernel, only: get_forward_cooling
     use electron_transport_common, only: electron_fullhide_step
@@ -25,7 +26,7 @@ subroutine fs_electron_fullhide_1d_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,
     real(8), intent(out) :: dN_gam_e(Num_gam_e,Num_R),gam_e(Num_gam_e),P_syn(Num_nu,Num_R), &
                             Seed_syn(Num_nu,Num_R), V_m(Num_R), V_c(Num_R), V_a(Num_R)
     
-    real(8),allocatable,dimension (:) :: dEl,dEL_mean,x,dN_x, &
+    real(8),allocatable,dimension (:) :: dEl,dEL_mean,x,dN_x,x_edge, &
                                          dN_full,dN_half,dN_half2,dF1,dEL_mean_base,dEL_mean_step, &
                                          gam_e_rad,dN_gam_e_rad
     logical :: is_uniform_density,budget_diag_enabled
@@ -35,7 +36,7 @@ subroutine fs_electron_fullhide_1d_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,
     real(8) :: n_before_step,n_after_step,inj_step,rel_loss_xi_max
     allocate (dEl(Num_gam_e),dEL_mean(Num_gam_e-1),x(Num_gam_e),dN_x(Num_gam_e), &
               dN_full(Num_gam_e), &
-              dN_half(Num_gam_e),dN_half2(Num_gam_e),dF1(Num_gam_e),dEL_mean_base(Num_gam_e-1), &
+              x_edge(Num_gam_e+1),dN_half(Num_gam_e),dN_half2(Num_gam_e),dF1(Num_gam_e),dEL_mean_base(Num_gam_e-1), &
               dEL_mean_step(Num_gam_e-1),gam_e_rad(Num_gam_e),dN_gam_e_rad(Num_gam_e))
     
     !***********************[Parameter Initial]**********************
@@ -63,12 +64,19 @@ subroutine fs_electron_fullhide_1d_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,
     Gam_e_c=7.7d8/(one+dsqrt(Epsilon_e/Epsilon_b))/R_Gamma(1)/DB**2/(R_Tobs(1)/two)
     if (R_Gamma(1) < one) error stop 'fs_electron_fullhide_1d requires initial Gamma >= 1'
     beta_Gam=dsqrt(one-one/R_Gamma(1)**2)
-    call electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
-                                      electron_initial_grid_gamma,gam_e,dN_gam_e(:,1),thermal_electrons=thermal_electrons, &
-                                      f_e=f_e,four_v=R_Gamma(1)*beta_Gam)
+    if (thermal_electrons == 0) then
+        call electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
+                                          electron_initial_grid_log_edges,gam_e,dN_x,x_edge)
+        dN_gam_e(:,1)=dN_x/gam_e/dlog(ten)
+    else
+        call electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
+                                          electron_initial_grid_gamma,gam_e,dN_gam_e(:,1),thermal_electrons=thermal_electrons, &
+                                          f_e=f_e,four_v=R_Gamma(1)*beta_Gam)
+        dN_x=dN_gam_e(:,1)*gam_e*dlog(ten)
+        call electron_profile_log_cell_edges(Num_gam_e,gam_e,x_edge)
+    end if
     !*******************Part 1 is completed [has been checked and there is no bug]**********************************
     !*******************Part 2: To calculate the electron distribution**********************************************
-    dN_x=dN_gam_e(:,1)*gam_e*dlog(ten)
     d_x=dlog10(gam_e(2)/gam_e(1))
     ln10=dlog(ten)
     is_uniform_density=(A_star <= zero .and. f_jump == one)
@@ -245,7 +253,7 @@ subroutine fs_electron_fullhide_1d_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,
         end if
     end do
 
-    deallocate (dEl,dEL_mean,x,dN_x,dN_full,dN_half,dN_half2,dF1, &
+    deallocate (dEl,dEL_mean,x,dN_x,x_edge,dN_full,dN_half,dN_half2,dF1, &
                 dEL_mean_base,dEL_mean_step,gam_e_rad,dN_gam_e_rad)
     if (budget_diag_enabled) then
         print '(A,1X,ES12.4)', 'BUDGET1D max_rel_loss', rel_loss_xi_max
@@ -266,8 +274,7 @@ contains
             dF1 = dF1*Q
         else
             Q = 4d0/3d0*pi*(3d0*R_source**2+dR_source*(3d0*R_source+dR_source))*dNe_source*f_e*Gam_e_m_p_source
-            dF1=zero
-            where(gam_e < Gam_e_max_source .and. gam_e > Gam_e_m_source) dF1=Q*gam_e**(-p)*gam_e*ln10
+            call electron_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m_source,Gam_e_max_source,Q,p,dF1)
         end if
     end subroutine build_hybrid_or_powerlaw_source
 
@@ -280,7 +287,7 @@ contains
             call normalized_hybrid_spec_lg(Num_gam_e,gam_e,p,Gam_e_m_source,Gam_e_max_source,f_e,dF1)
             dF1 = dF1*Q
         else
-            call electron_build_source_term_exp_cutoff(Num_gam_e,gam_e,Gam_e_m_source,Gam_e_max_source,source_count,p,dF1)
+            call electron_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m_source,Gam_e_max_source,source_count,p,dF1)
         end if
     end subroutine build_hybrid_or_powerlaw_source_from_count
 end subroutine fs_electron_fullhide_1d_hz

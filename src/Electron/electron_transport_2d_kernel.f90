@@ -632,15 +632,17 @@ end subroutine advance_energy_stochastic_loggamma_chi
 
 ! 能量维冷却推进（特征线积分版）：对每个χ柱独立做电子冷却特征线更新。
 subroutine advance_energy_loggamma_chi_charint(U_log, Num_gam_e, Num_chi, gam_e, DB_chi, dEl_chi, R_loc, &
-                                               Gamma_sh, beta_sh, index_Y, dR_step, active_chi_hi, n_threads)
+                                               Gamma_sh, beta_sh, index_Y, dR_step, active_chi_hi, n_threads, &
+                                               source_eta1)
     integer, intent(in) :: Num_gam_e, Num_chi, index_Y, n_threads
     integer, intent(in), optional :: active_chi_hi
     real(8), intent(inout) :: U_log(Num_gam_e, Num_chi)
     real(8), intent(in) :: gam_e(Num_gam_e), DB_chi(Num_chi), dEl_chi(Num_gam_e, Num_chi)
     real(8), intent(in) :: R_loc, Gamma_sh, beta_sh, dR_step
+    real(8), intent(in), optional :: source_eta1(Num_gam_e)
 
-    real(8) :: x_edge(Num_gam_e+1), U_in(Num_gam_e), U_out(Num_gam_e)
-    real(8) :: a_rad, b_ad
+    real(8) :: x_edge(Num_gam_e+1), U_in(Num_gam_e), U_out(Num_gam_e), source_in(Num_gam_e)
+    real(8) :: a_rad, b_ad, source_scale
     integer :: I_chi, chi_hi
 
     call electron_profile_log_cell_edges(Num_gam_e, gam_e, x_edge)
@@ -649,14 +651,22 @@ subroutine advance_energy_loggamma_chi_charint(U_log, Num_gam_e, Num_chi, gam_e,
     if (present(active_chi_hi)) chi_hi = max(1, min(Num_chi, active_chi_hi))
     do I_chi = 1, chi_hi
         U_in = U_log(:, I_chi)
+        source_scale = zero
+        source_in = U_in
+        if (present(source_eta1) .and. I_chi == 1) then
+            source_scale = one
+            source_in = source_eta1
+        end if
         if (index_Y == 0) then
             a_rad = 1.35d-19*DB_chi(I_chi)**2/(max(beta_sh*Gamma_sh, tiny(one))*pi)
             b_ad = one/R_loc
             call electron_characteristic_update(Num_gam_e, dR_step, x_edge, electron_cooling_affine, &
-                                                 a_rad, b_ad, gam_e, dEl_chi(:,I_chi), R_loc, zero, U_in, U_in, U_out)
+                                                 a_rad, b_ad, gam_e, dEl_chi(:,I_chi), R_loc, &
+                                                 source_scale, source_in, U_in, U_out)
         else
             call electron_characteristic_update(Num_gam_e, dR_step, x_edge, electron_cooling_piecewise, &
-                                                 zero, zero, gam_e, dEl_chi(:,I_chi), R_loc, zero, U_in, U_in, U_out)
+                                                 zero, zero, gam_e, dEl_chi(:,I_chi), R_loc, &
+                                                 source_scale, source_in, U_in, U_out)
         end if
         U_log(:, I_chi) = U_out
     end do
