@@ -2,9 +2,7 @@ module dynamics_common
     use constants
     use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
     implicit none
-    private :: dynamics_limit_injection_event, dynamics_next_radius_event, &
-               dynamics_rk4_forward_adaptive, dynamics_rk4_forward_ln_step, &
-               dynamics_rk4_reverse_adaptive, &
+    private :: dynamics_rk4_forward_ln_step, &
                dynamics_rk4_reverse_plain_step, dynamics_rk4_reverse_event_step, &
                dynamics_rk4_reverse_pre_step, dynamics_rk4_reverse_pre_integrate
     integer :: reverse_rhs_phase = 0
@@ -251,68 +249,6 @@ subroutine dynamics_log_time_step(T_base, Grid_Tobs_bin, T_log10, Num_R1, I_tobs
     end if
 end subroutine dynamics_log_time_step
 
-subroutine dynamics_limit_injection_event(T_start, T_stop, z0, E_inj_t1, E_inj_t2, E_inj, H_step)
-    implicit none
-    real(8), intent(in) :: T_start, T_stop, z0, E_inj_t1, E_inj_t2, E_inj
-    real(8), intent(inout) :: H_step
-
-    if (abs(E_inj) <= zero) return
-    call limit_event(E_inj_t1/(one+z0))
-    call limit_event(E_inj_t2/(one+z0))
-
-contains
-
-subroutine limit_event(T_event)
-    implicit none
-    real(8), intent(in) :: T_event
-
-    if (T_event > T_start .and. T_event <= T_stop) H_step = min(H_step, T_event-T_start)
-end subroutine limit_event
-end subroutine dynamics_limit_injection_event
-
-subroutine dynamics_next_radius_event(R_start, R_stop, A_star, dNe_ISM, R_tr, f_jump, R0, &
-                                      R_event, has_event)
-    implicit none
-    integer :: I
-    logical, intent(out) :: has_event
-    real(8), intent(in) :: R_start, R_stop, A_star, dNe_ISM, R_tr, f_jump, R0
-    real(8), intent(out) :: R_event
-
-    R_event = R_stop
-    has_event = .false.
-    call take_candidate(R0)
-    if (active_density_profile_count > 0) then
-        do I = 1, active_density_profile_count
-            call take_candidate(active_density_profile_r(I))
-        end do
-    else
-        if (active_density_jump_count > 0) then
-            do I = 1, active_density_jump_count
-                call take_candidate(active_density_jump_r(I))
-            end do
-        else if (abs(f_jump-one) > zero) then
-            call take_candidate(R_tr)
-        end if
-        if (A_star > zero) then
-            call take_candidate(sqrt(12d35*A_star/dNe_ISM))
-        end if
-    end if
-
-contains
-
-subroutine take_candidate(R_candidate)
-    implicit none
-    real(8), intent(in) :: R_candidate
-
-    if (R_candidate > R_start .and. R_candidate <= R_stop) then
-        if (.not. has_event .or. R_candidate < R_event) then
-            R_event = R_candidate
-            has_event = .true.
-        end if
-    end if
-end subroutine take_candidate
-end subroutine dynamics_next_radius_event
-
 subroutine dynamics_reverse_gamma_extrema(dB, gamma34, factor2, f_e_r, Gam_e_max, Gam_e_m)
     implicit none
     real(8), intent(in) :: dB, gamma34, factor2, f_e_r
@@ -477,11 +413,11 @@ subroutine dynamics_rk4_forward_ln_step(rhs, T_base, S, H, Y, M, D, B, E, &
     S = S+H
 end subroutine dynamics_rk4_forward_ln_step
 
-subroutine dynamics_rk4_forward_adaptive(rhs, T, H, Y, M, EPS, D, B, C, G, E, &
-                                         Epsilon_e, E_iso, Eta_0, dNe_ISM, A_star, Eb, pp, z0, f_e, &
-                                         E_inj_t1, E_inj_t2, E_inj, E_inj_q, &
-                                         R_tr, f_jump, f_wide, R0, &
-                                         index_dyn)
+subroutine dynamics_rk4_forward(rhs, T, H, Y, M, EPS, D, B, C, G, E, &
+                                Epsilon_e, E_iso, Eta_0, dNe_ISM, A_star, Eb, pp, z0, f_e, &
+                                E_inj_t1, E_inj_t2, E_inj, E_inj_q, &
+                                R_tr, f_jump, f_wide, R0, &
+                                index_dyn)
     implicit none
     procedure(dynamics_forward_rhs_iface) :: rhs
     integer, intent(in) :: M, index_dyn
@@ -546,79 +482,6 @@ subroutine dynamics_rk4_forward_adaptive(rhs, T, H, Y, M, EPS, D, B, C, G, E, &
         N = N+N
     end do
     T = X
-end subroutine dynamics_rk4_forward_adaptive
-
-subroutine dynamics_rk4_forward(rhs, T, H, Y, M, EPS, D, B, C, G, E, &
-                                Epsilon_e, E_iso, Eta_0, dNe_ISM, A_star, Eb, pp, z0, f_e, &
-                                E_inj_t1, E_inj_t2, E_inj, E_inj_q, &
-                                R_tr, f_jump, f_wide, R0, &
-                                index_dyn)
-    implicit none
-    procedure(dynamics_forward_rhs_iface) :: rhs
-    integer, intent(in) :: M, index_dyn
-    real(8), intent(inout) :: T, Y(M), D(M), B(M), C(M), G(M), E(M)
-    real(8), intent(in) :: H, EPS, Epsilon_e, E_iso, Eta_0, dNe_ISM, A_star, Eb, pp, z0, f_e
-    real(8), intent(in) :: E_inj_t1, E_inj_t2, E_inj, E_inj_q, R_tr, f_jump, f_wide, R0
-    logical :: has_event
-    real(8) :: H_event, H_step, R_event, T0, T_now, T_stop, Y_trial(M)
-
-    T0 = T
-    T_now = T0
-    T_stop = T0+H
-    do while (T_now < T_stop)
-        H_step = T_stop-T_now
-        call dynamics_limit_injection_event(T_now, T_stop, z0, E_inj_t1, E_inj_t2, E_inj, H_step)
-        Y_trial = Y
-        call advance_forward(T_now, H_step, Y_trial)
-        call dynamics_next_radius_event(Y(4), Y_trial(4), A_star, dNe_ISM, R_tr, f_jump, R0, &
-                                        R_event, has_event)
-        if (has_event) then
-            call locate_forward_radius_event(T_now, H_step, R_event, H_event)
-            call advance_forward(T_now, H_event, Y)
-            T_now = T_now+H_event
-        else
-            Y = Y_trial
-            T_now = T_now+H_step
-        end if
-    end do
-    T = T0
-
-contains
-
-subroutine advance_forward(T_step, H_try, Y_state)
-    implicit none
-    real(8), intent(in) :: T_step, H_try
-    real(8), intent(inout) :: Y_state(M)
-    real(8) :: T_arg
-
-    T_arg = T_step
-    call dynamics_rk4_forward_adaptive(rhs, T_arg, H_try, Y_state, M, EPS, D, B, C, G, E, &
-                                       Epsilon_e, E_iso, Eta_0, dNe_ISM, A_star, Eb, pp, z0, f_e, &
-                                       E_inj_t1, E_inj_t2, E_inj, E_inj_q, &
-                                       R_tr, f_jump, f_wide, R0, index_dyn)
-end subroutine advance_forward
-
-subroutine locate_forward_radius_event(T_step, H_try, R_target, H_out)
-    implicit none
-    integer :: I
-    real(8), intent(in) :: T_step, H_try, R_target
-    real(8), intent(out) :: H_out
-    real(8) :: H_lo, H_hi, H_mid, Y_mid(M)
-
-    H_lo = zero
-    H_hi = H_try
-    do I = 1, 64
-        H_mid = 0.5d0*(H_lo+H_hi)
-        Y_mid = Y
-        call advance_forward(T_step, H_mid, Y_mid)
-        if (Y_mid(4) >= R_target) then
-            H_hi = H_mid
-        else
-            H_lo = H_mid
-        end if
-    end do
-    H_out = H_hi
-end subroutine locate_forward_radius_event
 end subroutine dynamics_rk4_forward
 
 subroutine dynamics_rk4_reverse_plain_step(rhs, dB3, T_cross, R_cross, &
@@ -981,13 +844,13 @@ subroutine dynamics_rk4_reverse_pre_m3(rhs, dB3, T_cross, R_cross, e3_cross, gam
     end if
 end subroutine dynamics_rk4_reverse_pre_m3
 
-subroutine dynamics_rk4_reverse_adaptive(rhs, dB3, T_cross, R_cross, &
-                                         e3_cross, gam20, U3_cross, V3_cross, M3_cross, &
-                                         gam_m_cross, B3_ordered_cross, &
-                                         T, H, Y, M, para_m_ej, V3_scale, Delta_0, &
-                                         eta_0, A_star, dNe_ISM, R_tr, f_jump, f_wide, R0, &
-                                         Epsilon_b, Epsilon_e, p_f, f_e, &
-                                         e_r, b_r, p_r, f_e_r, sigma_r)
+subroutine dynamics_rk4_reverse(rhs, dB3, T_cross, R_cross, &
+                                e3_cross, gam20, U3_cross, V3_cross, M3_cross, &
+                                gam_m_cross, B3_ordered_cross, &
+                                T, H, Y, M, para_m_ej, V3_scale, Delta_0, &
+                                eta_0, A_star, dNe_ISM, R_tr, f_jump, f_wide, R0, &
+                                Epsilon_b, Epsilon_e, p_f, f_e, &
+                                e_r, b_r, p_r, f_e_r, sigma_r)
     implicit none
     procedure(dynamics_reverse_rhs_iface) :: rhs
     integer, intent(in) :: M
@@ -1046,129 +909,6 @@ subroutine dynamics_rk4_reverse_adaptive(rhs, dB3, T_cross, R_cross, &
         end if
     end do
     T = X
-end subroutine dynamics_rk4_reverse_adaptive
-
-subroutine dynamics_rk4_reverse(rhs, dB3, T_cross, R_cross, &
-                                e3_cross, gam20, U3_cross, V3_cross, M3_cross, &
-                                gam_m_cross, B3_ordered_cross, &
-                                T, H, Y, M, para_m_ej, V3_scale, Delta_0, &
-                                eta_0, A_star, dNe_ISM, R_tr, f_jump, f_wide, R0, &
-                                Epsilon_b, Epsilon_e, p_f, f_e, &
-                                e_r, b_r, p_r, f_e_r, sigma_r)
-    implicit none
-    procedure(dynamics_reverse_rhs_iface) :: rhs
-    integer, intent(in) :: M
-    real(8), intent(inout) :: dB3, T_cross, R_cross, e3_cross, gam20, U3_cross, V3_cross, M3_cross
-    real(8), intent(inout) :: gam_m_cross, B3_ordered_cross, T, Y(M)
-    real(8), intent(in) :: H, para_m_ej, V3_scale, Delta_0, eta_0, A_star, dNe_ISM
-    real(8), intent(in) :: R_tr, f_jump, f_wide, R0, Epsilon_b, Epsilon_e
-    real(8), intent(in) :: p_f, f_e, e_r, b_r, p_r, f_e_r, sigma_r
-    logical :: has_event
-    real(8) :: H_event, H_step, R_event, T0, T_now, T_stop, Y_trial(M)
-    real(8) :: dB3_trial, T_cross_trial, R_cross_trial, e3_cross_trial, gam20_trial
-    real(8) :: U3_cross_trial, V3_cross_trial, M3_cross_trial, gam_m_cross_trial, B3_ordered_cross_trial
-
-    T0 = T
-    T_now = T0
-    T_stop = T0+H
-    do while (T_now < T_stop)
-        H_step = T_stop-T_now
-        call advance_reverse_trial(T_now, H_step)
-        call dynamics_next_radius_event(Y(2), Y_trial(2), A_star, dNe_ISM, R_tr, f_jump, R0, &
-                                        R_event, has_event)
-        if (has_event) then
-            call locate_reverse_radius_event(T_now, H_step, R_event, H_event)
-            call advance_reverse_actual(T_now, H_event)
-            T_now = T_now+H_event
-        else
-            call accept_reverse_trial()
-            T_now = T_now+H_step
-        end if
-    end do
-    T = T0
-
-contains
-
-subroutine reset_reverse_trial()
-    implicit none
-
-    Y_trial = Y
-    dB3_trial = dB3
-    T_cross_trial = T_cross
-    R_cross_trial = R_cross
-    e3_cross_trial = e3_cross
-    gam20_trial = gam20
-    U3_cross_trial = U3_cross
-    V3_cross_trial = V3_cross
-    M3_cross_trial = M3_cross
-    gam_m_cross_trial = gam_m_cross
-    B3_ordered_cross_trial = B3_ordered_cross
-end subroutine reset_reverse_trial
-
-subroutine accept_reverse_trial()
-    implicit none
-
-    Y = Y_trial
-    dB3 = dB3_trial
-    T_cross = T_cross_trial
-    R_cross = R_cross_trial
-    e3_cross = e3_cross_trial
-    gam20 = gam20_trial
-    U3_cross = U3_cross_trial
-    V3_cross = V3_cross_trial
-    M3_cross = M3_cross_trial
-    gam_m_cross = gam_m_cross_trial
-    B3_ordered_cross = B3_ordered_cross_trial
-end subroutine accept_reverse_trial
-
-subroutine advance_reverse_trial(T_step, H_try)
-    implicit none
-    real(8), intent(in) :: T_step, H_try
-    real(8) :: T_arg
-
-    call reset_reverse_trial()
-    T_arg = T_step
-    call dynamics_rk4_reverse_adaptive(rhs, dB3_trial, T_cross_trial, R_cross_trial, &
-                                       e3_cross_trial, gam20_trial, U3_cross_trial, V3_cross_trial, &
-                                       M3_cross_trial, gam_m_cross_trial, B3_ordered_cross_trial, &
-                                       T_arg, H_try, Y_trial, M, para_m_ej, V3_scale, Delta_0, &
-                                       eta_0, A_star, dNe_ISM, R_tr, f_jump, f_wide, R0, &
-                                       Epsilon_b, Epsilon_e, p_f, f_e, e_r, b_r, p_r, f_e_r, sigma_r)
-end subroutine advance_reverse_trial
-
-subroutine advance_reverse_actual(T_step, H_try)
-    implicit none
-    real(8), intent(in) :: T_step, H_try
-    real(8) :: T_arg
-
-    T_arg = T_step
-    call dynamics_rk4_reverse_adaptive(rhs, dB3, T_cross, R_cross, e3_cross, gam20, &
-                                       U3_cross, V3_cross, M3_cross, gam_m_cross, B3_ordered_cross, &
-                                       T_arg, H_try, Y, M, para_m_ej, V3_scale, Delta_0, &
-                                       eta_0, A_star, dNe_ISM, R_tr, f_jump, f_wide, R0, &
-                                       Epsilon_b, Epsilon_e, p_f, f_e, e_r, b_r, p_r, f_e_r, sigma_r)
-end subroutine advance_reverse_actual
-
-subroutine locate_reverse_radius_event(T_step, H_try, R_target, H_out)
-    implicit none
-    integer :: I
-    real(8), intent(in) :: T_step, H_try, R_target
-    real(8), intent(out) :: H_out
-    real(8) :: H_lo, H_hi, H_mid
-
-    H_lo = zero
-    H_hi = H_try
-    do I = 1, 64
-        H_mid = 0.5d0*(H_lo+H_hi)
-        call advance_reverse_trial(T_step, H_mid)
-        if (Y_trial(2) >= R_target) then
-            H_hi = H_mid
-        else
-            H_lo = H_mid
-        end if
-    end do
-    H_out = H_hi
-end subroutine locate_reverse_radius_event
 end subroutine dynamics_rk4_reverse
 
 end module dynamics_common
