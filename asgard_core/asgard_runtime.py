@@ -15,28 +15,15 @@ from asgard_core.hadronic_am3_solver import (
     solve_hummer_2010_response_processes,
 )
 from asgard_core.hadronic_processes import ACCELERATION_BACKEND
-from asgard_core.hadronic_processes import (
-    BETHE_HEITLER_BACKEND,
-    ELECTRON_MASS_GEV,
-    solve_bethe_heitler,
-)
+from asgard_core.hadronic_processes import BETHE_HEITLER_BACKEND
 from asgard_core.hadronic_processes import HADRONIC_IC_BACKEND
 from asgard_core.hadronic_processes import SECONDARY_RADIATION_BACKEND
-from asgard_core.hadronic_processes import (
-    ChargedMuonDistribution,
-    ChargedPionDistribution,
-    HadronicSpeciesState,
-    NeutronDistribution,
-    SPECIES_TRANSPORT_BACKEND,
-)
+from asgard_core.hadronic_processes import SPECIES_TRANSPORT_BACKEND
 from asgard_core.hadronic_processes import (
     HUMMER2010_DECAY_BACKEND,
     HUMMER2010_OPERATOR_BACKEND,
-    PROTON_MASS_GEV,
-    photon_density_hz_to_gev,
-    solve_hummer2010_pgamma,
 )
-from asgard_core.hadronic_processes import PP_DELTA_BACKEND, solve_pp_delta
+from asgard_core.hadronic_processes import PP_DELTA_BACKEND
 from asgard_core.asgard_config import RuntimeConfig
 from asgard_core.asgard_types import (
     ReverseShockParameters,
@@ -972,430 +959,43 @@ def _solve_hadronic_hummer_transport_coupled(
     num_gam_p = int(config.hadronic.num_gam_p)
     num_nu_nu = int(config.hadronic.num_nu_nu)
     gam_e = np.asarray(electron_gamma, dtype=float)
-    electron_energy_gev = gam_e * ELECTRON_MASS_GEV
-
-    gam_p = np.logspace(
-        np.log10(1.0 + 1.0e-3),
-        np.log10(float(hadronic_legacy_module.fs_hadronic_global_gamma_p_max(
-            radius,
-            gamma_bulk,
-            b_field,
-            float(config.hadronic.eta_acc),
-        ))),
+    if pp_target_density_arr is None:
+        pp_target_density_arr = np.asarray(ambient_density(radius, config), dtype=float)
+    t_total_start = time.perf_counter()
+    (
+        gam_p, gam_secondary, d_n_gam_p, l_had_syn_spec, seed_had_syn,
+        l_had_pg_gamma, neutrino_frequency_hz, neutrino_luminosity, l_had_bh,
+        seed_had_bh, d_n_gam_e_bh, secondary_electron_source_r, tau_bh,
+        bh_photon_loss_rate, l_had_hic, d_n_gam_n, d_n_gam_pi_plus,
+        d_n_gam_pi_minus, d_n_gam_mu_minus_left, d_n_gam_mu_minus_right,
+        d_n_gam_mu_plus_left, d_n_gam_mu_plus_right, l_had_pion_synch,
+        l_had_muon_synch, l_had_pion_ic, l_had_muon_ic, tau_pg,
+        pg_photon_survival, am3_process_power,
+    ) = hadronic_legacy_module.fs_hadronic_formal_transport_1d(
+        np.asarray(dynamics.r_tobs, dtype=float),
+        gamma_bulk,
+        radius,
+        b_field,
+        v_seed_arr,
+        seed_target_arr,
+        gam_e,
+        shell_energy_inj,
+        pp_target_density_arr,
+        float(config.hadronic.p_p),
+        float(config.hadronic.eta_acc),
+        int(config.index_syn_integr),
+        1 if bool(config.hadronic.include_proton_synch) else 0,
+        1 if bool(config.hadronic.include_pg) else 0,
+        1 if bool(config.hadronic.include_neutrino) else 0,
+        1 if bool(config.hadronic.include_bethe_heitler) else 0,
+        1 if bool(config.hadronic.include_hadronic_inverse_compton) else 0,
+        1 if bool(config.hadronic.include_pp) else 0,
+        1 if bool(config.hadronic.quantum_syn) else 0,
+        int(config.num_threads),
         num_gam_p,
-    )
-    neutrino_frequency_hz = np.logspace(
-        np.log10(1.0e-3 * constants.para_gev2hz),
-        np.log10(1.0e8 * constants.para_gev2hz),
         num_nu_nu,
     )
-    neutrino_energy_gev = constants.para_h_gev * neutrino_frequency_hz
-    photon_energy_gev, _ = photon_density_hz_to_gev(v_seed_arr, np.ones_like(v_seed_arr))
-    gam_secondary = np.array(gam_p, copy=True)
-
-    d_n_gam_p = np.zeros((num_gam_p, num_r), dtype=float)
-    (
-        l_had_syn_spec, seed_had_syn, l_had_pg_gamma, l_had_bh, seed_had_bh,
-        l_had_hic, tau_pg, tau_bh, bh_photon_loss_rate,
-        l_had_pion_synch, l_had_muon_synch, l_had_pion_ic, l_had_muon_ic,
-    ) = np.zeros((13, num_nu, num_r), dtype=float)
-    (d_n_gam_e_bh, q_secondary_electron, secondary_electron_source_r) = np.zeros(
-        (3, gam_e.size, num_r), dtype=float
-    )
-    pg_photon_survival = np.ones((num_nu, num_r), dtype=float)
-    neutrino_luminosity = np.zeros((num_nu_nu, num_r), dtype=float)
-    am3_process_power = np.zeros((len(HUMMER_PROCESS_GROUP_LABELS), num_gam_p, num_r), dtype=float)
-    (
-        d_n_gam_n, d_n_gam_pi_plus, d_n_gam_pi_minus,
-        d_n_gam_mu_minus_left, d_n_gam_mu_minus_right,
-        d_n_gam_mu_plus_left, d_n_gam_mu_plus_right,
-    ) = np.zeros((7, gam_secondary.size, num_r), dtype=float)
-
-    d_n_prev = np.zeros(num_gam_p, dtype=float)
-    zero_proton_rate = np.zeros_like(gam_p, dtype=float)
-    species_state_prev = HadronicSpeciesState(
-        neutron=NeutronDistribution(gamma=gam_secondary, density_per_gamma=np.zeros_like(gam_secondary)),
-        charged_pion=ChargedPionDistribution(
-            gamma=gam_secondary,
-            plus_density_per_gamma=np.zeros_like(gam_secondary),
-            minus_density_per_gamma=np.zeros_like(gam_secondary),
-        ),
-        charged_muon=ChargedMuonDistribution(
-            gamma=gam_secondary,
-            minus_left_density_per_gamma=np.zeros_like(gam_secondary),
-            minus_right_density_per_gamma=np.zeros_like(gam_secondary),
-            plus_left_density_per_gamma=np.zeros_like(gam_secondary),
-            plus_right_density_per_gamma=np.zeros_like(gam_secondary),
-        ),
-    )
-    process_energy_gev = photon_energy_gev
-    shell_volume_cm3 = np.asarray(
-        hadronic_legacy_module.fs_hadronic_shell_volumes(np.asarray(radius, dtype=float)),
-        dtype=float,
-    )
-
-    timings = {
-        "pg_interaction": 0.0,
-        "bethe_heitler": 0.0,
-        "pp_delta": 0.0,
-        "species_transport": 0.0,
-        "secondary_radiation": 0.0,
-        "hadronic_ic": 0.0,
-        "proton_synch": 0.0,
-        "bh_electron_radiation": 0.0,
-        "total": 0.0,
-    }
-    t_total_start = time.perf_counter()
-
-    for i_r in range(num_r):
-        dt_s = _hadronic_shell_comoving_dt_from_radius(radius, gamma_bulk, i_r)
-        t_dyn_s = float(hadronic_legacy_module.fs_hadronic_dynamical_time(
-            float(radius[i_r]),
-            float(gamma_bulk[i_r]),
-        ))
-        gam_p_min = max(float(gam_p[0]), float(gamma_bulk[i_r]))
-        q_inj = np.asarray(
-            hadronic_legacy_module.fs_hadronic_injection_content(
-                "proton",
-                gam_p,
-                float(shell_energy_inj[i_r]),
-                dt_s,
-                float(config.hadronic.p_p),
-                gam_p_min,
-                float(gam_p[-1]),
-                1.0,
-                False,
-            ),
-            dtype=float,
-        )
-        shell_volume_loc = float(shell_volume_cm3[i_r])
-        d_n_trial = _hadronic_proton_transport_step(
-            gam_p,
-            d_n_prev,
-            q_inj,
-            float(b_field[i_r]),
-            t_dyn_s,
-            constants.para_m_p_gev,
-            bool(config.hadronic.quantum_syn),
-            zero_proton_rate,
-            zero_proton_rate,
-            zero_proton_rate,
-            zero_proton_rate,
-            shell_volume_loc,
-            dt_s,
-        )
-        proton_density_trial_per_gev = np.asarray(
-            hadronic_legacy_module.fs_hadronic_shell_density_per_gev(
-                d_n_trial,
-                PROTON_MASS_GEV,
-                shell_volume_loc,
-            ),
-            dtype=float,
-        )
-        neutron_density_trial_per_gev = np.asarray(
-            hadronic_legacy_module.fs_hadronic_shell_density_per_gev(
-                species_state_prev.neutron.density_per_gamma,
-                constants.para_m_n_gev,
-                shell_volume_loc,
-            ),
-            dtype=float,
-        )
-        t_pg_start = time.perf_counter()
-        _, photon_density_per_gev_trial = photon_density_hz_to_gev(v_seed_arr, seed_target_arr[:, i_r])
-        backend_tau = solve_hummer2010_pgamma(
-            proton_energy_gev=gam_p * PROTON_MASS_GEV,
-            proton_density_per_gev=proton_density_trial_per_gev,
-            photon_energy_gev=photon_energy_gev,
-            photon_density_per_gev=photon_density_per_gev_trial,
-            gamma_energy_gev=photon_energy_gev,
-            neutrino_energy_gev=neutrino_energy_gev,
-            process_energy_gev=process_energy_gev,
-            neutron_density_per_gev=neutron_density_trial_per_gev,
-        )
-        tau_pg[:, i_r], pg_photon_survival[:, i_r] = _hadronic_pg_local_closure(
-            radius,
-            gamma_bulk,
-            i_r,
-            np.asarray(backend_tau.photon_loss_rate, dtype=float),
-        )
-        local_seed_target_hz = seed_target_arr[:, i_r] * pg_photon_survival[:, i_r]
-        _, photon_density_per_gev = photon_density_hz_to_gev(v_seed_arr, local_seed_target_hz)
-        backend = solve_hummer2010_pgamma(
-            proton_energy_gev=gam_p * PROTON_MASS_GEV,
-            proton_density_per_gev=proton_density_trial_per_gev,
-            photon_energy_gev=photon_energy_gev,
-            photon_density_per_gev=photon_density_per_gev,
-            gamma_energy_gev=photon_energy_gev,
-            neutrino_energy_gev=neutrino_energy_gev,
-            process_energy_gev=process_energy_gev,
-            neutron_density_per_gev=neutron_density_trial_per_gev,
-        )
-        timings["pg_interaction"] += time.perf_counter() - t_pg_start
-        bh_output = None
-        bh_loss = np.zeros_like(gam_p)
-        bh_pair_rate_per_gev, pp_pair_rate_per_gev = np.zeros((2, gam_e.size), dtype=float)
-        pp_gamma_lum = np.zeros_like(v_seed_arr)
-        pp_nu_lum = np.zeros_like(neutrino_frequency_hz)
-        if bool(config.hadronic.include_bethe_heitler):
-            t_bh_start = time.perf_counter()
-            bh_output = solve_bethe_heitler(
-                proton_energy_gev=gam_p * PROTON_MASS_GEV,
-                proton_density_per_gev=proton_density_trial_per_gev,
-                photon_energy_gev=photon_energy_gev,
-                photon_density_per_gev=photon_density_per_gev,
-                electron_energy_gev=electron_energy_gev,
-            )
-            bh_proton_loss_rate = np.asarray(bh_output.proton_loss_rate, dtype=float)
-            if np.any(bh_proton_loss_rate > 0.0):
-                raise RuntimeError("Bethe-Heitler proton loss rate must be non-positive.")
-            bh_loss = -bh_proton_loss_rate
-            bh_pair_rate_per_gev = np.asarray(bh_output.pair_rate_per_gev, dtype=float)
-            bh_photon_loss_rate[:, i_r] = np.asarray(bh_output.photon_loss_rate, dtype=float)
-            tau_bh[:, i_r], _ = _hadronic_pg_local_closure(radius, gamma_bulk, i_r, bh_photon_loss_rate[:, i_r])
-            timings["bethe_heitler"] += time.perf_counter() - t_bh_start
-        pp_loss = np.zeros_like(gam_p)
-        if bool(config.hadronic.include_pp):
-            t_pp_start = time.perf_counter()
-            if pp_target_density_arr is None:
-                target_density_cm3 = float(ambient_density(np.array([radius[i_r]], dtype=float), config)[0])
-            else:
-                target_density_cm3 = float(pp_target_density_arr[i_r])
-            pp_output = solve_pp_delta(
-                proton_energy_gev=gam_p * PROTON_MASS_GEV,
-                proton_density_per_gev=proton_density_trial_per_gev,
-                target_proton_density_cm3=target_density_cm3,
-                gamma_energy_gev=photon_energy_gev,
-                neutrino_energy_gev=neutrino_energy_gev,
-                pair_energy_gev=electron_energy_gev,
-            )
-            pp_proton_loss_rate = np.asarray(pp_output.proton_loss_rate, dtype=float)
-            if np.any(pp_proton_loss_rate > 0.0):
-                raise RuntimeError("pp proton loss rate must be non-positive.")
-            pp_loss = -pp_proton_loss_rate
-            pp_gamma_lum = _energy_luminosity_from_rate_spectrum(
-                pp_output.gamma_energy_gev,
-                pp_output.gamma_rate_per_gev,
-                shell_volume_loc,
-            )
-            pp_nu_lum = _energy_luminosity_from_rate_spectrum(
-                pp_output.neutrino_energy_gev,
-                pp_output.neutrino_rate_per_gev,
-                shell_volume_loc,
-            )
-            pp_pair_rate_per_gev = np.asarray(pp_output.pair_rate_per_gev, dtype=float)
-            timings["pp_delta"] += time.perf_counter() - t_pp_start
-
-        pg_loss_rate = np.asarray(backend.proton_loss_rate, dtype=float)
-        d_n_next = _hadronic_proton_transport_step(
-            gam_p,
-            d_n_prev,
-            q_inj,
-            float(b_field[i_r]),
-            t_dyn_s,
-            constants.para_m_p_gev,
-            bool(config.hadronic.quantum_syn),
-            bh_loss,
-            pp_loss,
-            pg_loss_rate,
-            np.asarray(backend.proton_reinjection_rate_per_gev, dtype=float),
-            shell_volume_loc,
-            dt_s,
-        )
-        if np.any(d_n_next < 0.0):
-            raise RuntimeError("hadronic proton transport produced negative density.")
-        d_n_gam_p[:, i_r] = d_n_next
-
-        if bool(config.hadronic.include_proton_synch):
-            t_syn_start = time.perf_counter()
-            p_syn_i, seed_syn_i = hadronic_legacy_module.fs_hadronic_proton_syn_shell(
-                float(radius[i_r]),
-                float(b_field[i_r]),
-                gam_p,
-                d_n_next,
-                v_seed_arr,
-            )
-            l_had_syn_spec[:, i_r] = np.asarray(p_syn_i, dtype=float)
-            seed_had_syn[:, i_r] = np.asarray(seed_syn_i, dtype=float)
-            timings["proton_synch"] += time.perf_counter() - t_syn_start
-
-        divergence_rate_s_inv = 3.0 / t_dyn_s
-        t_species_start = time.perf_counter()
-        species_transport = hadronic_legacy_module.fs_hadronic_species_transport_step(
-            gam_secondary,
-            backend.hadron_energy_gev,
-            backend.neutron_reinjection_rate_per_gev,
-            backend.pion_plus_source_rate_per_gev,
-            backend.pion_minus_source_rate_per_gev,
-            backend.muon_minus_left_source_rate_per_gev,
-            backend.muon_minus_right_source_rate_per_gev,
-            backend.muon_plus_left_source_rate_per_gev,
-            backend.muon_plus_right_source_rate_per_gev,
-            backend.neutron_loss_rate,
-            dt_s,
-            float(b_field[i_r]),
-            divergence_rate_s_inv,
-            shell_volume_loc,
-            np.asarray(species_state_prev.neutron.density_per_gamma, dtype=float),
-            np.asarray(species_state_prev.charged_pion.plus_density_per_gamma, dtype=float),
-            np.asarray(species_state_prev.charged_pion.minus_density_per_gamma, dtype=float),
-            np.asarray(species_state_prev.charged_muon.minus_left_density_per_gamma, dtype=float),
-            np.asarray(species_state_prev.charged_muon.minus_right_density_per_gamma, dtype=float),
-            np.asarray(species_state_prev.charged_muon.plus_left_density_per_gamma, dtype=float),
-            np.asarray(species_state_prev.charged_muon.plus_right_density_per_gamma, dtype=float),
-        )
-        (
-            neutron_next,
-            pion_plus_next,
-            pion_minus_next,
-            muon_minus_left_next,
-            muon_minus_right_next,
-            muon_plus_left_next,
-            muon_plus_right_next,
-        ) = tuple(
-            np.asarray(item, dtype=float)
-            for item in species_transport
-        )
-        species_state_next = HadronicSpeciesState(
-            neutron=NeutronDistribution(gamma=gam_secondary, density_per_gamma=neutron_next),
-            charged_pion=ChargedPionDistribution(
-                gamma=gam_secondary,
-                plus_density_per_gamma=pion_plus_next,
-                minus_density_per_gamma=pion_minus_next,
-            ),
-            charged_muon=ChargedMuonDistribution(
-                gamma=gam_secondary,
-                minus_left_density_per_gamma=muon_minus_left_next,
-                minus_right_density_per_gamma=muon_minus_right_next,
-                plus_left_density_per_gamma=muon_plus_left_next,
-                plus_right_density_per_gamma=muon_plus_right_next,
-            ),
-        )
-        timings["species_transport"] += time.perf_counter() - t_species_start
-        d_n_gam_n[:, i_r] = species_state_next.neutron.density_per_gamma
-        d_n_gam_pi_plus[:, i_r] = species_state_next.charged_pion.plus_density_per_gamma
-        d_n_gam_pi_minus[:, i_r] = species_state_next.charged_pion.minus_density_per_gamma
-        d_n_gam_mu_minus_left[:, i_r] = species_state_next.charged_muon.minus_left_density_per_gamma
-        d_n_gam_mu_minus_right[:, i_r] = species_state_next.charged_muon.minus_right_density_per_gamma
-        d_n_gam_mu_plus_left[:, i_r] = species_state_next.charged_muon.plus_left_density_per_gamma
-        d_n_gam_mu_plus_right[:, i_r] = species_state_next.charged_muon.plus_right_density_per_gamma
-
-        t_sec_start = time.perf_counter()
-        hadron_energy_gev = gam_p * PROTON_MASS_GEV
-        num_align = _hadronic_aligned_photon_grid_size(hadron_energy_gev, photon_energy_gev)
-        secondary_radiation = hadronic_legacy_module.fs_hadronic_secondary_radiation_projected(
-            num_align,
-            hadron_energy_gev,
-            photon_energy_gev,
-            photon_density_per_gev,
-            np.asarray(species_state_next.charged_pion.plus_density_per_gamma, dtype=float),
-            np.asarray(species_state_next.charged_pion.minus_density_per_gamma, dtype=float),
-            np.asarray(species_state_next.charged_muon.minus_left_density_per_gamma, dtype=float),
-            np.asarray(species_state_next.charged_muon.minus_right_density_per_gamma, dtype=float),
-            np.asarray(species_state_next.charged_muon.plus_left_density_per_gamma, dtype=float),
-            np.asarray(species_state_next.charged_muon.plus_right_density_per_gamma, dtype=float),
-            shell_volume_loc,
-            float(b_field[i_r]),
-        )
-        (
-            l_had_pion_synch[:, i_r],
-            l_had_muon_synch[:, i_r],
-            l_had_pion_ic[:, i_r],
-            l_had_muon_ic[:, i_r],
-        ) = tuple(np.asarray(item, dtype=float) for item in secondary_radiation)
-        timings["secondary_radiation"] += time.perf_counter() - t_sec_start
-
-        if bool(config.hadronic.include_pg):
-            l_had_pg_gamma[:, i_r] = _energy_luminosity_from_rate_spectrum(
-                backend.gamma_energy_gev,
-                backend.gamma_rate_per_gev,
-                shell_volume_loc,
-            )
-            if bool(config.hadronic.include_pp):
-                l_had_pg_gamma[:, i_r] += pp_gamma_lum
-            am3_process_power[:, :, i_r] = np.asarray(
-                hadronic_legacy_module.fs_hadronic_process_power(
-                    gam_p * PROTON_MASS_GEV,
-                    d_n_next,
-                    backend.process_energy_gev,
-                    backend.process_rate_per_gev,
-                    shell_volume_loc,
-                ),
-                dtype=float,
-            )
-
-        if bool(config.hadronic.include_neutrino):
-            neutrino_luminosity[:, i_r] = _energy_luminosity_from_rate_spectrum(
-                backend.neutrino_energy_gev,
-                backend.neutrino_rate_per_gev,
-                shell_volume_loc,
-            )
-            if bool(config.hadronic.include_pp):
-                neutrino_luminosity[:, i_r] += pp_nu_lum
-
-        if bool(config.hadronic.include_hadronic_inverse_compton):
-            t_hic_start = time.perf_counter()
-            l_had_hic[:, i_r] = np.asarray(
-                hadronic_legacy_module.fs_hadronic_hic_projected(
-                    num_align,
-                    hadron_energy_gev,
-                    photon_energy_gev,
-                    photon_density_per_gev,
-                    proton_density_trial_per_gev,
-                    shell_volume_loc,
-                ),
-                dtype=float,
-            )
-            timings["hadronic_ic"] += time.perf_counter() - t_hic_start
-
-        if bh_output is not None or bool(config.hadronic.include_pp):
-            q_secondary_electron[:, i_r] = np.asarray(
-                hadronic_legacy_module.fs_hadronic_pair_source_content(
-                    pp_pair_rate_per_gev,
-                    bh_pair_rate_per_gev,
-                    1 if bool(config.hadronic.include_pp) else 0,
-                    1 if bh_output is not None else 0,
-                    shell_volume_loc,
-                ),
-                dtype=float,
-            )
-
-        d_n_prev = d_n_next
-        species_state_prev = species_state_next
-
-    if bool(config.hadronic.include_bethe_heitler) or bool(config.hadronic.include_pp):
-        t_bhe_start = time.perf_counter()
-        d_n_gam_e_bh, l_had_bh, seed_had_bh, secondary_electron_source_r = (
-            hadronic_legacy_module.fs_hadronic_secondary_electron_sequence(
-                gam_e,
-                radius,
-                gamma_bulk,
-                b_field,
-                v_seed_arr,
-                q_secondary_electron,
-                int(config.index_syn_integr),
-                int(config.num_threads),
-                1 if bool(config.hadronic.quantum_syn) else 0,
-            )
-        )
-        d_n_gam_e_bh = np.asarray(d_n_gam_e_bh, dtype=float)
-        l_had_bh = np.asarray(l_had_bh, dtype=float)
-        seed_had_bh = np.asarray(seed_had_bh, dtype=float)
-        secondary_electron_source_r = np.asarray(secondary_electron_source_r, dtype=float)
-        timings["bh_electron_radiation"] += time.perf_counter() - t_bhe_start
-    timings["total"] = time.perf_counter() - t_total_start
-    l_had_syn_spec *= pg_photon_survival
-    seed_had_syn *= pg_photon_survival
-    l_had_pg_gamma *= pg_photon_survival
-    if bool(config.hadronic.include_bethe_heitler):
-        l_had_bh *= pg_photon_survival
-        seed_had_bh *= pg_photon_survival
-    if bool(config.hadronic.include_hadronic_inverse_compton):
-        l_had_hic *= pg_photon_survival
-    l_had_pion_synch *= pg_photon_survival
-    l_had_muon_synch *= pg_photon_survival
-    l_had_pion_ic *= pg_photon_survival
-    l_had_muon_ic *= pg_photon_survival
-
+    timings = {"formal_transport_fortran": time.perf_counter() - t_total_start}
     sed_components = {
         "proton_synchrotron": l_had_syn_spec,
         "pgamma_pi0_decay": l_had_pg_gamma,
@@ -1408,16 +1008,15 @@ def _solve_hadronic_hummer_transport_coupled(
         sed_components["bethe_heitler"] = l_had_bh
     if bool(config.hadronic.include_hadronic_inverse_compton):
         sed_components["hadronic_inverse_compton"] = l_had_hic
-
     return HadronicSolution(
         solver="am3_1d",
-        gam_p=gam_p,
-        d_n_gam_p=d_n_gam_p,
-        l_had_syn_spec=l_had_syn_spec,
-        seed_had_syn=seed_had_syn,
-        l_had_pg_gamma=l_had_pg_gamma,
-        neutrino_frequency_hz=neutrino_frequency_hz,
-        neutrino_luminosity=neutrino_luminosity,
+        gam_p=np.asarray(gam_p, dtype=float),
+        d_n_gam_p=np.asarray(d_n_gam_p, dtype=float).reshape(num_gam_p, num_r),
+        l_had_syn_spec=np.asarray(l_had_syn_spec, dtype=float).reshape(num_nu, num_r),
+        seed_had_syn=np.asarray(seed_had_syn, dtype=float).reshape(num_nu, num_r),
+        l_had_pg_gamma=np.asarray(l_had_pg_gamma, dtype=float).reshape(num_nu, num_r),
+        neutrino_frequency_hz=np.asarray(neutrino_frequency_hz, dtype=float),
+        neutrino_luminosity=np.asarray(neutrino_luminosity, dtype=float).reshape(num_nu_nu, num_r),
         l_had_bethe_heitler=l_had_bh if bool(config.hadronic.include_bethe_heitler) else None,
         seed_had_bethe_heitler=seed_had_bh if bool(config.hadronic.include_bethe_heitler) else None,
         d_n_gam_e_bh=d_n_gam_e_bh if (bool(config.hadronic.include_bethe_heitler) or bool(config.hadronic.include_pp)) else None,

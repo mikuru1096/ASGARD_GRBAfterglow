@@ -7,7 +7,7 @@
 - `asgard_core/`：公开 Python API 和运行时 glue，包括 `api_model.py`, `api_observe.py`, `api_fit.py`, `api_adaptive.py`。`api_model.py` 承担 `Model` 查询调度、`Model -> RuntimeConfig` 适配、direct/patch solve 入口和 details 打包；`api_observe.py` 保留 `observe` / `run_fit` 兼容入口、sky image、polarization 和观测数据集 helpers；`api_adaptive.py` 保留 shared observe packing、数组签名缓存和曝光时间平均工具。
 - `asgard_core/`：内部编排与物理耦合，包括 `asgard_config.py`, `asgard_runtime.py`, `asgard_state.py`, `asgard_setup.py`, `asgard_types.py`。
 - `asgard_core/structured_jet_kernel.py`：结构化喷流 Fortran backend 薄中间层。
-- `asgard_core/hadronic_*.py`：hadronic Python wrappers 和 glue，只做 orchestration；最终微物理写入 `src/Hadronic/`。
+- `asgard_core/hadronic_*.py`：hadronic Python wrappers 和 glue，只做 orchestration；formal shell sequence 由 `src/Hadronic/hadronic_forward_1d.f90` 推进。
 - RS hadronic light proton transport + synchrotron wrapper 位于 `asgard_core/asgard_runtime.py`。
 - `asgard_core/hadronic_cascade.py`：shell-sequence time-dependent γγ pair/synch cascade。
 
@@ -45,7 +45,7 @@
   - Kernels：`electron_common.f90`, `electron_radiation_kernel.f90`, `electron_cooling_kernel.f90`, `electron_seed_history_kernel.f90`, `electron_transport_2d_kernel.f90`, `electron_injection_profiles.f90`, `electron_transport_common.f90`, `electron_reverse_kernel.f90`, `adaptive_resampling_mod.f90`
 - `src/Radiation/`：`radiation_common.f90`, `radiation_ssc_spectrum.f90`, `radiation_gamma_gamma_absorption.f90`, `synchrotron_polarization_kernel.f90`, `quantum_synchrotron_kernel.f90`
 - `src/Hadronic/`：
-  - Entries：`hadronic_forward_1d.f90`, `hadronic_reverse_1d.f90`
+  - Entries：`hadronic_forward_1d.f90`（含 `fs_hadronic_formal_transport_1d`）, `hadronic_reverse_1d.f90`
   - Kernels：`hadronic_common.f90`, `hadronic_transport_kernel.f90`, `hadronic_transport_remap_kernel.f90`, `hadronic_radiation_kernel.f90`, `hadronic_interaction_kernel.f90`, `hadronic_pgamma_hummer_1d.f90`, `hadronic_decay_kernel.f90`, `hadronic_pair_production_kernel.f90`, `hadronic_pair_cascade_kernel.f90`, `hadronic_pp_kernel.f90`, `hadronic_pp_models_kernel.f90`, `hadronic_bethe_heitler_kernel.f90`, `hadronic_hadronic_ic_kernel.f90`, `hadronic_species_transport_kernel.f90`, `hadronic_acceleration_kernel.f90`, `hadronic_secondary_radiation_kernel.f90`
 - `src/Structured/`：`structured_jet_1d.f90` 聚合结构化喷流 theta/theta-phi 网格调度，复用现有 Fortran 动力学、电子、辐射、强子和 SED 插值核。
 - `src/Interpolation/`：`SED_interpolation.f90`, `SED_interpolation_structured.f90`, `interpolation_common.f90`

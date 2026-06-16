@@ -576,6 +576,8 @@ class SolverOptions:
     fullhide2d_transport_model: str
     fullhide2d_stochastic_accel_norm: float
     fullhide2d_escape_mode: str
+    projection_adaptive_rtol: float = 2.0e-2
+    projection_adaptive_max_depth: int = 4
     nu_callback: Optional[Callable[[str, np.ndarray, np.ndarray, np.ndarray], None]] = None
 
 
@@ -660,6 +662,8 @@ class _RuntimeSetups:
     structured_parallel_mode: str = "outer"
     structured_outer_threads: Optional[int] = None
     structured_inner_threads: Optional[int] = None
+    projection_adaptive_rtol: float = 2.0e-2
+    projection_adaptive_max_depth: int = 4
     num_chi: Optional[int] = None
     fullhide2d_transport_model: str = "legacy"
     fullhide2d_stochastic_accel_norm: float = 0.0
@@ -955,6 +959,8 @@ def _compose_runtime_setups(
     result.structured_parallel_mode = str(solver_options.structured_parallel_mode)
     result.structured_outer_threads = solver_options.structured_outer_threads
     result.structured_inner_threads = solver_options.structured_inner_threads
+    result.projection_adaptive_rtol = float(solver_options.projection_adaptive_rtol)
+    result.projection_adaptive_max_depth = int(solver_options.projection_adaptive_max_depth)
     result.fullhide2d_transport_model = str(solver_options.fullhide2d_transport_model)
     result.fullhide2d_stochastic_accel_norm = float(solver_options.fullhide2d_stochastic_accel_norm)
     result.fullhide2d_escape_mode = str(solver_options.fullhide2d_escape_mode)
@@ -1695,6 +1701,8 @@ def _build_fit_config_for_patch(
         structured_parallel_mode=model.setups.structured_parallel_mode,
         structured_outer_threads=model.setups.structured_outer_threads,
         structured_inner_threads=model.setups.structured_inner_threads,
+        projection_adaptive_rtol=model.setups.projection_adaptive_rtol,
+        projection_adaptive_max_depth=model.setups.projection_adaptive_max_depth,
         num_chi=model.setups.num_chi,
         fullhide2d_transport_model=model.setups.fullhide2d_transport_model,
         fullhide2d_stochastic_accel_norm=model.setups.fullhide2d_stochastic_accel_norm,

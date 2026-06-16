@@ -56,7 +56,17 @@ def interpolate_observed_flux(
     frequencies_hz = np.asarray(frequencies_hz, dtype=float)
     order = np.argsort(frequencies_hz)
     sorted_frequencies = frequencies_hz[order]
-    flux_sorted = Interpolation.sed_interpolation(
+    geometry_kernel = str(config.geometry_kernel).lower()
+    if geometry_kernel == "sed_adaptive_theta":
+        interpolate = Interpolation.sed_interpolation_adaptive_theta
+        interpolate_args = (
+            float(config.projection_adaptive_rtol),
+            int(config.projection_adaptive_max_depth),
+        )
+    else:
+        interpolate = Interpolation.sed_interpolation
+        interpolate_args = ()
+    flux_sorted = interpolate(
         setup.boundary,
         characteristic_time_s,
         gamma,
@@ -65,6 +75,7 @@ def interpolate_observed_flux(
         setup.seed_frequency_hz,
         sorted_frequencies,
         setup.observer_time_s,
+        *interpolate_args,
         config.num_theta,
         config.num_phi,
         config.num_threads,

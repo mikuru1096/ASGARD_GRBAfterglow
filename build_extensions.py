@@ -572,6 +572,7 @@ def main() -> None:
             True,
             (
                 "fs_hadronic_1d",
+                "fs_hadronic_formal_transport_1d",
                 "fs_hadronic_proton_syn_shell",
                 "fs_hadronic_syn_polarization_shell",
                 "fs_hadronic_pgamma_operator_shell",

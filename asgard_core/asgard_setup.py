@@ -22,10 +22,15 @@ def build_simulation_setup(
     requested_frequencies_hz: np.ndarray | None = None,
 ) -> SimulationSetup:
     geometry_kernel = str(config.geometry_kernel).lower()
-    if geometry_kernel not in {"sed_legacy", "chi_eats_2d"}:
-        raise ValueError("geometry_kernel must be 'sed_legacy' or 'chi_eats_2d'.")
+    if geometry_kernel not in {"sed_legacy", "sed_adaptive_theta", "chi_eats_2d"}:
+        raise ValueError("geometry_kernel must be 'sed_legacy', 'sed_adaptive_theta', or 'chi_eats_2d'.")
     if geometry_kernel == "chi_eats_2d" and not str(config.electron_solver).lower().endswith("_2d"):
         raise ValueError("geometry_kernel='chi_eats_2d' requires a 2d electron solver.")
+    if geometry_kernel == "sed_adaptive_theta":
+        if float(config.projection_adaptive_rtol) <= 0.0:
+            raise ValueError("projection_adaptive_rtol must be positive for sed_adaptive_theta.")
+        if int(config.projection_adaptive_max_depth) < 0:
+            raise ValueError("projection_adaptive_max_depth must be non-negative for sed_adaptive_theta.")
     if config.luminosity_distance_cm_override is None:
         luminosity_distance_cm = _luminosity_distance_cm(float(config.z))
     else:

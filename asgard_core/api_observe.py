@@ -925,6 +925,8 @@ def _build_model_from_fit_config(config: RuntimeConfig) -> Model:
             structured_parallel_mode=config.structured_parallel_mode,
             structured_outer_threads=config.structured_outer_threads,
             structured_inner_threads=config.structured_inner_threads,
+            projection_adaptive_rtol=config.projection_adaptive_rtol,
+            projection_adaptive_max_depth=config.projection_adaptive_max_depth,
             fullhide2d_transport_model=config.fullhide2d_transport_model,
             fullhide2d_stochastic_accel_norm=config.fullhide2d_stochastic_accel_norm,
             fullhide2d_escape_mode=config.fullhide2d_escape_mode,

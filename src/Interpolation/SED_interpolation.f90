@@ -104,6 +104,151 @@ subroutine sed_interpolation(Boundary,R_Tobs1,R_gamma,R,F_tot,V_seed,V_obs,Tobs,
     return
 end subroutine sed_interpolation
 
+! 壳层级EATS自适应角向积分：每个基础theta cell用一阶/二阶中点规则估计角向积分误差并递归细分。
+subroutine sed_interpolation_adaptive_theta(Boundary,R_Tobs1,R_gamma,R,F_tot,V_seed,V_obs,Tobs, &
+                             adaptive_rtol,adaptive_max_depth, &
+                             n,Num_nu,Num_nu_obs,Num_Tobs,Num_Theta,Num_R,Num_Phi,n_threads,F_tot_obs)
+    !$ use omp_lib
+    use constants
+    use interpolation_common
+    IMPLICIT REAL(8)(A-H,O-Z)
+    integer, intent(in) :: n,Num_nu,Num_nu_obs,Num_Tobs,Num_Theta,Num_R,Num_Phi,n_threads
+    integer, intent(in) :: adaptive_max_depth
+    real(8), intent(in) :: Boundary(n),Tobs(Num_Tobs),V_seed(Num_nu),V_obs(Num_nu_obs)
+    real(8), intent(in) :: R_Tobs1(Num_R),R_gamma(Num_R),R(Num_R),F_tot(Num_nu,Num_R)
+    real(8), intent(in) :: adaptive_rtol
+    real(8), intent(out) :: F_tot_obs(Num_nu_obs,Num_Tobs)
+    real(8), allocatable :: F_tot_obs_temp(:,:),V_obs_log(:),V_seed_log(:)
+    real(8) :: cell_obs(Num_nu_obs,Num_Tobs)
+
+    if (adaptive_max_depth == 0) then
+        call sed_interpolation(Boundary,R_Tobs1,R_gamma,R,F_tot,V_seed,V_obs,Tobs, &
+                               n,Num_nu,Num_nu_obs,Num_Tobs,Num_Theta,Num_R,Num_Phi,n_threads,F_tot_obs)
+        return
+    end if
+
+    allocate(F_tot_obs_temp(Num_nu_obs,Num_Tobs),V_obs_log(Num_nu_obs),V_seed_log(Num_nu))
+
+    F_tot_obs = zero
+    F_tot_obs_temp = zero
+    z = Boundary(8)
+    OpeningAngle_jet = Boundary(9)
+    Tv = Boundary(10)
+    dPhi = pi/Num_Phi
+    phi_scale = two
+    if (Num_Phi == 1) then
+        dPhi = pi/1440d0
+        phi_scale = two*1440d0
+    end if
+    dtheta = OpeningAngle_jet/Num_Theta
+    V_obs_log = dlog(V_obs)
+    V_seed_log = dlog(V_seed)
+
+    !$OMP PARALLEL num_threads(n_threads), reduction(+:F_tot_obs_temp), private(I_Theta, &
+    !$OMP& i_Phi,Phi_center,Taa_lower,Taa_boundary,cell_obs)
+    !$OMP DO SCHEDULE(GUIDED,4)
+    do I_Theta = 1, Num_Theta
+        Taa_lower = dtheta*(I_Theta-1)
+        Taa_boundary = dtheta*I_Theta
+        do i_Phi = 1, Num_Phi
+            Phi_center = (i_Phi-0.5d0)*dPhi
+            cell_obs = zero
+            call integrate_theta_cell(Taa_lower,Taa_boundary,Phi_center,0,cell_obs)
+            F_tot_obs_temp = F_tot_obs_temp + cell_obs
+        end do
+    end do
+    !$OMP END DO
+    !$OMP END PARALLEL
+    F_tot_obs = F_tot_obs_temp*phi_scale
+    deallocate(F_tot_obs_temp,V_obs_log,V_seed_log)
+    return
+
+contains
+
+recursive subroutine integrate_theta_cell(theta_lo,theta_hi,phi_center,depth,accum_obs)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: depth
+    real(8), intent(in) :: theta_lo,theta_hi,phi_center
+    real(8), intent(inout) :: accum_obs(Num_nu_obs,Num_Tobs)
+    real(8) :: theta_mid,theta_lmid,theta_rmid,err_norm,flux_norm
+    real(8) :: coarse_obs(Num_nu_obs,Num_Tobs),fine_obs(Num_nu_obs,Num_Tobs)
+
+    theta_mid = 0.5d0*(theta_lo+theta_hi)
+    coarse_obs = zero
+    call project_theta_sample(theta_lo,theta_hi,theta_mid,phi_center,coarse_obs)
+    if (depth >= adaptive_max_depth) then
+        accum_obs = accum_obs + coarse_obs
+        return
+    end if
+    theta_lmid = 0.5d0*(theta_lo+theta_mid)
+    theta_rmid = 0.5d0*(theta_mid+theta_hi)
+    fine_obs = zero
+    call project_theta_sample(theta_lo,theta_mid,theta_lmid,phi_center,fine_obs)
+    call project_theta_sample(theta_mid,theta_hi,theta_rmid,phi_center,fine_obs)
+    flux_norm = sum(abs(fine_obs))
+    err_norm = sum(abs(fine_obs-coarse_obs))
+    if (flux_norm == zero .or. err_norm <= adaptive_rtol*flux_norm) then
+        accum_obs = accum_obs + fine_obs
+    else
+        call integrate_theta_cell(theta_lo,theta_mid,phi_center,depth+1,accum_obs)
+        call integrate_theta_cell(theta_mid,theta_hi,phi_center,depth+1,accum_obs)
+    end if
+end subroutine integrate_theta_cell
+
+subroutine project_theta_sample(theta_lo,theta_hi,theta_center,phi_center,local_obs)
+    implicit real(8)(A-H,O-Z)
+    real(8), intent(in) :: theta_lo,theta_hi,theta_center,phi_center
+    real(8), intent(inout) :: local_obs(Num_nu_obs,Num_Tobs)
+    real(8) :: R_Tobs_theta(Num_R),log_gamma_lo,log_gamma_hi,log_domega_4pi
+    integer :: last_k2
+
+    domega = (dcos(theta_lo)-dcos(theta_hi))*dPhi
+    log_domega_4pi = dlog(domega)-dlog(4.0d0*pi)
+    DMu = dcos(Tv)*dcos(theta_center)+dsin(Tv)*dsin(theta_center)*dcos(phi_center)
+    R_Tobs_theta = R_Tobs1+R*(one-DMu)*(one+z)/Para_c
+    II = 1
+    last_k2 = 0
+    do K1 = 1, Num_Tobs
+        if (Tobs(K1) < R_Tobs_theta(1) .or. Tobs(K1) > R_Tobs_theta(Num_R)) cycle
+        do while (II < Num_R-1 .and. Tobs(K1) >= R_Tobs_theta(II+1))
+            II = II + 1
+        end do
+        K2 = II
+        if (Tobs(K1) >= R_Tobs_theta(K2) .and. Tobs(K1) < R_Tobs_theta(K2+1)) then
+            if (K2 /= last_k2) then
+                log_gamma_lo = dlog(R_gamma(K2))
+                log_gamma_hi = dlog(R_gamma(K2+1))
+                last_k2 = K2
+            end if
+            Ratio = (Tobs(K1)-R_Tobs_theta(K2))/(R_Tobs_theta(K2+1)-R_Tobs_theta(K2))
+            call project_shell_segment(K1,K2,Ratio,DMu,log_domega_4pi, &
+                                       log_gamma_lo,log_gamma_hi,local_obs)
+        end if
+    end do
+end subroutine project_theta_sample
+
+subroutine project_shell_segment(K1,K2,Ratio,DMu,log_domega_4pi,log_gamma_lo,log_gamma_hi,local_obs)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: K1,K2
+    real(8), intent(in) :: Ratio,DMu,log_domega_4pi,log_gamma_lo,log_gamma_hi
+    real(8), intent(inout) :: local_obs(Num_nu_obs,Num_Tobs)
+    real(8) :: F_tot_theta(Num_nu),F_tot_log_theta(Num_nu),V_seed_log_theta(Num_nu)
+    real(8) :: log_doppler_redshift
+
+    DG = dexp(log_gamma_lo+Ratio*(log_gamma_hi-log_gamma_lo))
+    F_tot_theta = (one-Ratio)*F_tot(:,K2)+Ratio*F_tot(:,K2+1)
+    F_tot_log_theta = -huge(one)
+    where(F_tot_theta > zero) F_tot_log_theta = dlog(F_tot_theta)
+    Beta = dsqrt(one-DG**(-2))
+    doppler = DG*(one-Beta*DMu)
+    log_doppler_redshift = dlog(doppler)+dlog(one+z)
+    F_tot_log_theta = F_tot_log_theta+log_domega_4pi-3d0*dlog(doppler)
+    V_seed_log_theta = V_seed_log-log_doppler_redshift
+    call interpolation_accumulate_log_sed(V_seed_log_theta,F_tot_log_theta, &
+                                          Num_nu,V_obs_log,Num_nu_obs,local_obs(:,K1))
+end subroutine project_shell_segment
+end subroutine sed_interpolation_adaptive_theta
+
 ! 将单个真实球面面元的共动系SED投影到观测系：固定视角DMu，用显式dOmega权重累加EATS+Doppler。
 subroutine sed_interpolation_surface_element(Boundary,R_Tobs1,R_gamma,R,F_tot,V_seed,V_obs,Tobs,Domega, &
                              n,Num_nu,Num_nu_obs,Num_Tobs,Num_R, F_tot_obs)

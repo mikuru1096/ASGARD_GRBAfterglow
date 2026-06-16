@@ -1478,6 +1478,8 @@ def _project_component(
     timings: dict[str, float] | None = None,
     label: str | None = None,
 ) -> np.ndarray:
+    if label is not None and str(config.geometry_kernel).lower() == "sed_adaptive_theta":
+        label = label.replace("Interpolation.sed_interpolation", "Interpolation.sed_interpolation_adaptive_theta")
     if not np.any(absorbed_spectral_flux):
         if timings is not None and label is not None:
             timings.setdefault(label, 0.0)

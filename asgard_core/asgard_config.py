@@ -125,6 +125,8 @@ class _RuntimeConfig:
     structured_parallel_mode: str = "outer"
     structured_outer_threads: int | None = None
     structured_inner_threads: int | None = None
+    projection_adaptive_rtol: float = 2.0e-2
+    projection_adaptive_max_depth: int = 4
     fullhide2d_transport_model: str = "legacy"
     fullhide2d_stochastic_accel_norm: float = 0.0
     fullhide2d_escape_mode: str = "closed"

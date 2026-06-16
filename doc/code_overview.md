@@ -45,7 +45,7 @@ Model.flux_density_grid / flux_density / spectrum / flux
 - `_solve_hadronic_stage`：调用 `solve_hadronic`；BH 次级 e± 并入 forward electron 后重算 `l_syn_spec/seed_syn`；pγ photon survival 写回 photon field。
 - `_solve_joint_forward_stage`：在同一 `R` 网格上迭代 electron、photon field、formal hadronic transport、BH/pp/gamma-gamma 二级 e± 源项和 photon survival；不使用 separated BH post-merge。
 - `_assemble_observer_stage`：组装 FS synch/SSC、RS synch/SSC、cross-zone IC 和 hadronic components；hadronic photons 使用 electron Fortran kernel 的 SSA transfer。
-- `project_flux_grid`：按 `projection_kind` 选择观测投影。`lightcurve` 是光变/拟合默认路径；当 public API 设置 `solver_options.geometry_projection="chi_eats_2d"` 时，底层 `geometry_kernel` 对 FS synchrotron+SSA 使用 χ 分辨 `sed_interpolation_chi`，并将非 χ 分量保持 shell-level projection。`sed` 是 `spectrum()` / `flux()` 默认路径，使用通用 shell SED 插值器。
+- `project_flux_grid`：按 `projection_kind` 选择观测投影。`lightcurve` 是光变/拟合默认路径；`solver_options.geometry_projection="sed_adaptive_theta"` 对壳层级 EATS 使用 θ 自适应积分；`geometry_projection="chi_eats_2d"` 对 FS synchrotron+SSA 使用 χ 分辨 `sed_interpolation_chi`，并将非 χ 分量保持 shell-level projection。`sed` 是 `spectrum()` / `flux()` 默认路径，使用通用 shell SED 插值器或显式选择的 shell-level adaptive kernel。
 
 拟合最短路径：
 
@@ -70,6 +70,7 @@ Fitter.loglike -> compile_problem -> eval_loglike -> solve_state_from_setup
 强子 Python 模块只做编排、包装和轻量 helper：
 
 - Fortran wrappers：`hadronic_processes.py`。
+- Formal FS/RS shell-sequence transport 由 `src/Hadronic/hadronic_forward_1d.f90::fs_hadronic_formal_transport_1d` 推进；Python 只展开配置、传入数组并组装 `HadronicSolution`。
 - Reverse shock light wrapper 已并入 `asgard_runtime.py`；开启 RS full-chain flags 时，runtime 通过 formal 1D 强子核处理 RS seed photons、RS `B3`、shell energy 和 baryon target density。
 - Process/backend glue：`hadronic_am3_solver.py`, `hadronic_cascade.py`；pγ 单位转换和共享 wrapper 校验位于 `hadronic_processes.py`。
 
@@ -103,11 +104,12 @@ Fitter.loglike -> compile_problem -> eval_loglike -> solve_state_from_setup
 
 `src/Hadronic/hadronic_forward_1d.f90` 是正向激波强子 f2py 入口，调度：
 
+- `fs_hadronic_formal_transport_1d`：formal 1D shell sequence driver，闭合 proton transport、pγ photon survival、BH、pp、secondary species、hadronic IC 和 BH/pp 二级电子序列。
 - `hadronic_transport_kernel.f90`：proton injection、adiabatic/synchrotron loss、log-gamma energy advance。
 - `hadronic_transport_remap_kernel.f90`：强子 transport 网格 remap helper。
 - `hadronic_radiation_kernel.f90`：proton synchrotron。
 - `hadronic_interaction_kernel.f90`：Hummer 2010 photopion operator。
-- `hadronic_pgamma_hummer_1d.f90`：Hummer pγ 1D aggregate helper，供 formal hadronic 和 structured jet path 复用。
+- `hadronic_pgamma_hummer_1d.f90`：旧 Hummer pγ 1D aggregate helper；formal path 不使用其 photon escape 时间尺度。
 - `hadronic_decay_kernel.f90`：pi0 -> gamma、pi/mu decay、neutrino emissivity。
 - `hadronic_pair_production_kernel.f90`：gamma-gamma pair production。
 - `hadronic_pair_cascade_kernel.f90`：pair-cascade synchrotron kernel。
