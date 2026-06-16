@@ -62,7 +62,6 @@ Fitter.loglike -> compile_problem -> eval_loglike -> solve_state_from_setup
 - `asgard_config.py`：`RuntimeConfig`, `SimulationSetup`, `FitResult` 和 runtime config dataclasses；旧 compatibility shim 和配置 preset 中转层均已移除。
 - `asgard_runtime.py`：backend selection、Fortran extension dispatch、array wrapping。
 - `asgard_state.py`：主状态机和跨阶段耦合。
-- `asgard_ssc.py`：forward SSC auxiliary grid 与 seed。
 - `asgard_coupling.py`：FS/RS cross-zone IC geometry 与 seed field coupling。
 - `asgard_postprocess.py`：observer projection、band aggregation、fit postprocessing。
 - `asgard_fit.py`：fit problem compilation 和 likelihood path。

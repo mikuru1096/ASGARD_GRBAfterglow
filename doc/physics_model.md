@@ -113,7 +113,6 @@ SSA cooling 和 transfer：
 SSC：
 
 - `src/Radiation/radiation_ssc_spectrum.f90`
-- `asgard_core/asgard_ssc.py`
 
 SSC、强子、pair cascade 当前仍是壳层级契约。启用 `chi_eats_2d` 不表示这些通道已经 \(\chi\) 局域自洽。
 

@@ -39,7 +39,6 @@ from asgard_core.asgard_runtime import (
     solve_hadronic,
     solve_reverse_shock_emission,
 )
-from asgard_core.asgard_ssc import compute_forward_ssc_seed_adaptive, compute_ssc_auxiliary_grid
 from asgard_core.asgard_setup import build_simulation_setup
 from src import Interpolation, Radiation, constants
 
@@ -250,7 +249,6 @@ def _build_photon_field_stage(
             electron,
             setup.seed_frequency_hz,
             forward_syn_seed,
-            config,
             config.num_threads,
             timings,
             "Radiation.ssc_spec [FS-Hadronic]",
@@ -795,7 +793,6 @@ def _stage_forward_ssc(
             electron,
             setup.seed_frequency_hz,
             seed_for_ssc,
-            config,
             config.num_threads,
             timings,
             "Radiation.ssc_spec [FS]",
@@ -863,7 +860,6 @@ def _stage_reverse_emission(
                 electron,
                 setup.seed_frequency_hz,
                 seed_rs_to_fs,
-                config,
                 config.num_threads,
                 timings,
                 "Radiation.ssc_spec [CIC-FS]",
@@ -1356,8 +1352,6 @@ def _merge_bh_into_forward_electrons(
         chi_dvolume_weight=None if electron.chi_dvolume_weight is None else np.asarray(electron.chi_dvolume_weight, dtype=float),
         cooling_timescale_s=None if electron.cooling_timescale_s is None else np.asarray(electron.cooling_timescale_s, dtype=float),
         dynamical_timescale_s=None if electron.dynamical_timescale_s is None else np.asarray(electron.dynamical_timescale_s, dtype=float),
-        work_x_edge_log10=None if electron.work_x_edge_log10 is None else np.asarray(electron.work_x_edge_log10, dtype=float),
-        work_d_n_x=None if electron.work_d_n_x is None else np.asarray(electron.work_d_n_x, dtype=float),
     )
 
 
@@ -1366,39 +1360,10 @@ def _ssc_spectrum(
     electron: ElectronSolution,
     seed_frequency_hz: np.ndarray,
     seed_field: np.ndarray,
-    config: RuntimeConfig,
     num_threads: int,
     timings: dict[str, float] | None,
     label: str,
 ) -> tuple[np.ndarray, np.ndarray]:
-    if electron.work_x_edge_log10 is not None and electron.work_d_n_x is not None:
-        if config.include_forward_ssc:
-            return _timed_call(
-                timings,
-                label,
-                compute_forward_ssc_seed_adaptive,
-                radius_cm,
-                electron.work_x_edge_log10,
-                electron.work_d_n_x,
-                seed_frequency_hz,
-                seed_field,
-                electron.gamma,
-                electron.nu_a,
-                electron.nu_m,
-                electron.nu_c,
-                config,
-            )
-        return _timed_call(
-            timings,
-            label,
-            compute_ssc_auxiliary_grid,
-            radius_cm,
-            electron.work_x_edge_log10,
-            electron.work_d_n_x,
-            seed_frequency_hz,
-            seed_field,
-            num_threads,
-        )
     return _timed_call(
         timings,
         label,

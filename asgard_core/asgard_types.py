@@ -205,8 +205,6 @@ class ElectronSolution:
     chi_dvolume_weight: np.ndarray | None = None
     cooling_timescale_s: np.ndarray | None = None
     dynamical_timescale_s: np.ndarray | None = None
-    work_x_edge_log10: np.ndarray | None = None
-    work_d_n_x: np.ndarray | None = None
 
 
 @dataclass
