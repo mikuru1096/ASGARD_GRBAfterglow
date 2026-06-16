@@ -393,7 +393,7 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
                         if (profile_enabled) call cpu_time(t_start)
                         call advance_eta_logchi_advection_charint(U_log, Num_gam_e, Num_chi, active_hi, deta, eta_face, chi_face, &
                                                                   Gamma_sh_sub, a_sub, dln_a_dR_sub, beta_sh, &
-                                                                  source_eta1, dDR)
+                                                                  zero*source_eta1, dDR)
                         call advance_eta_logchi_diffusion_implicit(U_log, Num_gam_e, Num_chi, active_hi, deta, &
                                                                    chi_face, Gamma_sh_sub, a_sub, dln_a_dR_sub, &
                                                                    beta_sh, kappa2_chi, dDR, n_threads)
@@ -405,7 +405,8 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
 
                         if (profile_enabled) call cpu_time(t_start)
                         call advance_energy_loggamma_chi_charint(U_log, Num_gam_e, Num_chi, gam_e, DB_chi, dEl_chi, R_sub, &
-                                                                 Gamma_sh_sub, beta_sh, index_Y, dDR, active_chi_hi, n_threads)
+                                                                 Gamma_sh_sub, beta_sh, index_Y, dDR, active_chi_hi, n_threads, &
+                                                                 source_eta1)
                         xi_calls = xi_calls + 1
                         if (profile_enabled) then
                             call cpu_time(t_stop)
