@@ -5,11 +5,9 @@ from dataclasses import dataclass
 import numpy as np
 
 from src import constants
+from asgard_core.hadronic_validation import as_matching, as_strictly_increasing_grid, log_spacing
 
-try:
-    import src.Hadronic.hadronic_forward_1d as hadronic_fortran_module
-except ImportError:
-    hadronic_fortran_module = None
+import src.Hadronic.hadronic_forward_1d as hadronic_fortran_module
 
 AM3_C_CGS = constants.para_c
 AM3_SIGMA_T_CGS = constants.para_sigmat
@@ -19,10 +17,7 @@ AM3_MASS_MUON_GEV = constants.para_m_mu_gev
 AM3_B_CRIT_GAUSS = 4.41e13
 AM3_ERG_TO_GEV = 624.0
 AM3_PI = constants.pi
-_HAS_FORTRAN_SECONDARY_RADIATION = hadronic_fortran_module is not None and hasattr(
-    hadronic_fortran_module, "fs_hadronic_secondary_radiation_shell"
-)
-SECONDARY_RADIATION_BACKEND = "fortran_secondary_radiation" if _HAS_FORTRAN_SECONDARY_RADIATION else "unavailable"
+SECONDARY_RADIATION_BACKEND = "fortran_secondary_radiation"
 
 
 @dataclass(frozen=True)
@@ -76,9 +71,9 @@ def initialize_secondary_synchrotron_kernel(
     photon_energy_gev: np.ndarray,
     magnetic_field_g: float,
 ) -> SecondarySynchrotronKernel:
-    e_had = _as_strictly_increasing_1d(hadron_energy_gev, "hadron_energy_gev")
-    e_ph = _as_strictly_increasing_1d(photon_energy_gev, "photon_energy_gev")
-    dln_had = _log_spacing(e_had, "hadron_energy_gev")
+    e_had = as_strictly_increasing_grid(hadron_energy_gev, "hadron_energy_gev", require_finite=True)
+    e_ph = as_strictly_increasing_grid(photon_energy_gev, "photon_energy_gev", require_finite=True)
+    dln_had = log_spacing(e_had, "hadron_energy_gev")
     b = float(magnetic_field_g)
     if b <= 0.0:
         raise ValueError("magnetic_field_g must be > 0.")
@@ -103,10 +98,10 @@ def initialize_secondary_inverse_compton_kernel(
     photon_energy_gev: np.ndarray,
     ind_min_energy_pho_hadgrid: int = 0,
 ) -> SecondaryInverseComptonKernel:
-    e_had = _as_strictly_increasing_1d(hadron_energy_gev, "hadron_energy_gev")
-    e_ph = _as_strictly_increasing_1d(photon_energy_gev, "photon_energy_gev")
-    dln_had = _log_spacing(e_had, "hadron_energy_gev")
-    dln_ph = _log_spacing(e_ph, "photon_energy_gev")
+    e_had = as_strictly_increasing_grid(hadron_energy_gev, "hadron_energy_gev", require_finite=True)
+    e_ph = as_strictly_increasing_grid(photon_energy_gev, "photon_energy_gev", require_finite=True)
+    dln_had = log_spacing(e_had, "hadron_energy_gev")
+    dln_ph = log_spacing(e_ph, "photon_energy_gev")
     if not np.isclose(dln_had, dln_ph, rtol=1.0e-10, atol=0.0):
         raise ValueError("hadron_energy_gev and photon_energy_gev must share one logarithmic spacing dlnE.")
 
@@ -141,10 +136,10 @@ def pion_synchrotron_rate(
     magnetic_field_g: float,
     kernel: SecondarySynchrotronKernel | None = None,
 ) -> np.ndarray:
-    e_had = _as_strictly_increasing_1d(hadron_energy_gev, "hadron_energy_gev")
-    e_ph = _as_strictly_increasing_1d(photon_energy_gev, "photon_energy_gev")
-    pion_plus = _as_matching_1d(species.pion_plus_per_gev, e_had, "pion_plus_per_gev")
-    pion_minus = _as_matching_1d(species.pion_minus_per_gev, e_had, "pion_minus_per_gev")
+    e_had = as_strictly_increasing_grid(hadron_energy_gev, "hadron_energy_gev", require_finite=True)
+    e_ph = as_strictly_increasing_grid(photon_energy_gev, "photon_energy_gev", require_finite=True)
+    pion_plus = as_matching(species.pion_plus_per_gev, e_had, "pion_plus_per_gev", require_finite=True)
+    pion_minus = as_matching(species.pion_minus_per_gev, e_had, "pion_minus_per_gev", require_finite=True)
     if kernel is None:
         kernel = initialize_secondary_synchrotron_kernel(e_had, e_ph, magnetic_field_g)
     return kernel.dln_energy * (kernel.kernel_pion @ (pion_plus + pion_minus))
@@ -157,12 +152,12 @@ def muon_synchrotron_rate(
     magnetic_field_g: float,
     kernel: SecondarySynchrotronKernel | None = None,
 ) -> np.ndarray:
-    e_had = _as_strictly_increasing_1d(hadron_energy_gev, "hadron_energy_gev")
-    e_ph = _as_strictly_increasing_1d(photon_energy_gev, "photon_energy_gev")
-    mu_ml = _as_matching_1d(species.muon_minus_left_per_gev, e_had, "muon_minus_left_per_gev")
-    mu_mr = _as_matching_1d(species.muon_minus_right_per_gev, e_had, "muon_minus_right_per_gev")
-    mu_pl = _as_matching_1d(species.muon_plus_left_per_gev, e_had, "muon_plus_left_per_gev")
-    mu_pr = _as_matching_1d(species.muon_plus_right_per_gev, e_had, "muon_plus_right_per_gev")
+    e_had = as_strictly_increasing_grid(hadron_energy_gev, "hadron_energy_gev", require_finite=True)
+    e_ph = as_strictly_increasing_grid(photon_energy_gev, "photon_energy_gev", require_finite=True)
+    mu_ml = as_matching(species.muon_minus_left_per_gev, e_had, "muon_minus_left_per_gev", require_finite=True)
+    mu_mr = as_matching(species.muon_minus_right_per_gev, e_had, "muon_minus_right_per_gev", require_finite=True)
+    mu_pl = as_matching(species.muon_plus_left_per_gev, e_had, "muon_plus_left_per_gev", require_finite=True)
+    mu_pr = as_matching(species.muon_plus_right_per_gev, e_had, "muon_plus_right_per_gev", require_finite=True)
     if kernel is None:
         kernel = initialize_secondary_synchrotron_kernel(e_had, e_ph, magnetic_field_g)
     return kernel.dln_energy * (kernel.kernel_muon @ (mu_ml + mu_mr + mu_pl + mu_pr))
@@ -174,11 +169,11 @@ def pion_inverse_compton_rate(
     target: SecondaryTargetPhotonField,
     kernel: SecondaryInverseComptonKernel | None = None,
 ) -> np.ndarray:
-    e_had = _as_strictly_increasing_1d(hadron_energy_gev, "hadron_energy_gev")
-    e_ph = _as_strictly_increasing_1d(target.photon_energy_gev, "photon_energy_gev")
-    photons = _as_matching_1d(target.photons_on_had_grid_per_gev, e_ph, "photons_on_had_grid_per_gev")
-    pion_plus = _as_matching_1d(species.pion_plus_per_gev, e_had, "pion_plus_per_gev")
-    pion_minus = _as_matching_1d(species.pion_minus_per_gev, e_had, "pion_minus_per_gev")
+    e_had = as_strictly_increasing_grid(hadron_energy_gev, "hadron_energy_gev", require_finite=True)
+    e_ph = as_strictly_increasing_grid(target.photon_energy_gev, "photon_energy_gev", require_finite=True)
+    photons = as_matching(target.photons_on_had_grid_per_gev, e_ph, "photons_on_had_grid_per_gev", require_finite=True)
+    pion_plus = as_matching(species.pion_plus_per_gev, e_had, "pion_plus_per_gev", require_finite=True)
+    pion_minus = as_matching(species.pion_minus_per_gev, e_had, "pion_minus_per_gev", require_finite=True)
     if kernel is None:
         kernel = initialize_secondary_inverse_compton_kernel(
             e_had,
@@ -195,13 +190,13 @@ def muon_inverse_compton_rate(
     target: SecondaryTargetPhotonField,
     kernel: SecondaryInverseComptonKernel | None = None,
 ) -> np.ndarray:
-    e_had = _as_strictly_increasing_1d(hadron_energy_gev, "hadron_energy_gev")
-    e_ph = _as_strictly_increasing_1d(target.photon_energy_gev, "photon_energy_gev")
-    photons = _as_matching_1d(target.photons_on_had_grid_per_gev, e_ph, "photons_on_had_grid_per_gev")
-    mu_ml = _as_matching_1d(species.muon_minus_left_per_gev, e_had, "muon_minus_left_per_gev")
-    mu_mr = _as_matching_1d(species.muon_minus_right_per_gev, e_had, "muon_minus_right_per_gev")
-    mu_pl = _as_matching_1d(species.muon_plus_left_per_gev, e_had, "muon_plus_left_per_gev")
-    mu_pr = _as_matching_1d(species.muon_plus_right_per_gev, e_had, "muon_plus_right_per_gev")
+    e_had = as_strictly_increasing_grid(hadron_energy_gev, "hadron_energy_gev", require_finite=True)
+    e_ph = as_strictly_increasing_grid(target.photon_energy_gev, "photon_energy_gev", require_finite=True)
+    photons = as_matching(target.photons_on_had_grid_per_gev, e_ph, "photons_on_had_grid_per_gev", require_finite=True)
+    mu_ml = as_matching(species.muon_minus_left_per_gev, e_had, "muon_minus_left_per_gev", require_finite=True)
+    mu_mr = as_matching(species.muon_minus_right_per_gev, e_had, "muon_minus_right_per_gev", require_finite=True)
+    mu_pl = as_matching(species.muon_plus_left_per_gev, e_had, "muon_plus_left_per_gev", require_finite=True)
+    mu_pr = as_matching(species.muon_plus_right_per_gev, e_had, "muon_plus_right_per_gev", require_finite=True)
     if kernel is None:
         kernel = initialize_secondary_inverse_compton_kernel(
             e_had,
@@ -220,10 +215,8 @@ def solve_secondary_radiation_spectrum(
     synch_kernel: SecondarySynchrotronKernel | None = None,
     ic_kernel: SecondaryInverseComptonKernel | None = None,
 ) -> SecondaryRadiationSpectrum:
-    e_had = _as_strictly_increasing_1d(hadron_energy_gev, "hadron_energy_gev")
-    e_ph = _as_strictly_increasing_1d(target.photon_energy_gev, "photon_energy_gev")
-    if not _HAS_FORTRAN_SECONDARY_RADIATION:
-        raise RuntimeError("Secondary radiation core must be provided by the Fortran backend.")
+    e_had = as_strictly_increasing_grid(hadron_energy_gev, "hadron_energy_gev", require_finite=True)
+    e_ph = as_strictly_increasing_grid(target.photon_energy_gev, "photon_energy_gev", require_finite=True)
     (
         pion_syn,
         muon_syn,
@@ -346,34 +339,3 @@ def _compute_ic_channel(
 def _am3_ic_coeff(mass_gev: float) -> float:
     mass_ratio = mass_gev / AM3_MASS_ELECTRON_GEV
     return AM3_C_CGS * AM3_SIGMA_T_CGS / mass_ratio / mass_ratio
-
-
-def _as_strictly_increasing_1d(values: np.ndarray, name: str) -> np.ndarray:
-    arr = np.asarray(values, dtype=float)
-    if arr.ndim != 1:
-        raise ValueError(f"{name} must be a 1d array.")
-    if arr.size < 2:
-        raise ValueError(f"{name} must contain at least two points.")
-    if np.any(arr <= 0.0):
-        raise ValueError(f"{name} must be strictly positive.")
-    if np.any(np.diff(arr) <= 0.0):
-        raise ValueError(f"{name} must be strictly increasing.")
-    if not np.all(np.isfinite(arr)):
-        raise ValueError(f"{name} must contain finite values.")
-    return arr
-
-
-def _as_matching_1d(values: np.ndarray, grid: np.ndarray, name: str) -> np.ndarray:
-    arr = np.asarray(values, dtype=float)
-    if arr.shape != grid.shape:
-        raise ValueError(f"{name} must match grid shape.")
-    if not np.all(np.isfinite(arr)):
-        raise ValueError(f"{name} must contain finite values.")
-    return arr
-
-
-def _log_spacing(grid: np.ndarray, name: str) -> float:
-    dln = np.diff(np.log(grid))
-    if not np.allclose(dln, dln[0], rtol=1.0e-6, atol=1.0e-12):
-        raise ValueError(f"{name} must be logarithmically uniform.")
-    return float(dln[0])

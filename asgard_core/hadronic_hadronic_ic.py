@@ -5,11 +5,9 @@ from dataclasses import dataclass
 import numpy as np
 
 from src import constants
+from asgard_core.hadronic_validation import as_matching, as_strictly_increasing_grid
 
-try:
-    import src.Hadronic.hadronic_forward_1d as hadronic_fortran_module
-except ImportError:
-    hadronic_fortran_module = None
+import src.Hadronic.hadronic_forward_1d as hadronic_fortran_module
 
 
 AM3_C_CGS = constants.para_c
@@ -18,10 +16,7 @@ AM3_MASS_ELECTRON_GEV = constants.para_m_e_gev
 AM3_MASS_PROTON_GEV = constants.para_m_p_gev
 AM3_MASS_PION_CHARGED_GEV = constants.para_m_pi_charged_gev
 AM3_MASS_MUON_GEV = constants.para_m_mu_gev
-_HAS_FORTRAN_HADRONIC_IC = hadronic_fortran_module is not None and hasattr(
-    hadronic_fortran_module, "fs_hadronic_hadronic_ic_shell"
-)
-HADRONIC_IC_BACKEND = "fortran_hadronic_ic" if _HAS_FORTRAN_HADRONIC_IC else "unavailable"
+HADRONIC_IC_BACKEND = "fortran_hadronic_ic"
 
 
 @dataclass(frozen=True)
@@ -66,10 +61,8 @@ def initialize_hadronic_inverse_compton_kernel(
     jmax = min(nbins_pho, jmax1 + deltaE).
     """
 
-    if not _HAS_FORTRAN_HADRONIC_IC:
-        raise RuntimeError("Hadronic IC core must be provided by the Fortran backend.")
-    e_had = _as_strictly_increasing(hadron_energy_gev, "hadron_energy_gev")
-    e_ph = _as_strictly_increasing(photon_energy_gev, "photon_energy_gev")
+    e_had = as_strictly_increasing_grid(hadron_energy_gev, "hadron_energy_gev", require_finite=True)
+    e_ph = as_strictly_increasing_grid(photon_energy_gev, "photon_energy_gev", require_finite=True)
     zeros_ph = np.zeros_like(e_ph)
     zeros_had = np.zeros_like(e_had)
     (
@@ -135,19 +128,16 @@ def solve_hadronic_inverse_compton(
       coeff = c * sigma_T * (m_e / m)^2 and one dlnE integration factor.
     """
 
-    e_had = _as_strictly_increasing(hadron_energy_gev, "hadron_energy_gev")
-    e_ph = _as_strictly_increasing(photon_energy_gev, "photon_energy_gev")
-    photons = _as_matching_1d(photons_on_had_grid_per_gev, e_ph, "photons_on_had_grid_per_gev")
-    protons = _as_matching_1d(protons_per_gev, e_had, "protons_per_gev")
-    pion_plus = _as_matching_1d(pion_plus_per_gev, e_had, "pion_plus_per_gev")
-    pion_minus = _as_matching_1d(pion_minus_per_gev, e_had, "pion_minus_per_gev")
-    muon_minus_left = _as_matching_1d(muon_minus_left_per_gev, e_had, "muon_minus_left_per_gev")
-    muon_minus_right = _as_matching_1d(muon_minus_right_per_gev, e_had, "muon_minus_right_per_gev")
-    muon_plus_left = _as_matching_1d(muon_plus_left_per_gev, e_had, "muon_plus_left_per_gev")
-    muon_plus_right = _as_matching_1d(muon_plus_right_per_gev, e_had, "muon_plus_right_per_gev")
-
-    if not _HAS_FORTRAN_HADRONIC_IC:
-        raise RuntimeError("Hadronic IC core must be provided by the Fortran backend.")
+    e_had = as_strictly_increasing_grid(hadron_energy_gev, "hadron_energy_gev", require_finite=True)
+    e_ph = as_strictly_increasing_grid(photon_energy_gev, "photon_energy_gev", require_finite=True)
+    photons = as_matching(photons_on_had_grid_per_gev, e_ph, "photons_on_had_grid_per_gev", require_finite=True)
+    protons = as_matching(protons_per_gev, e_had, "protons_per_gev", require_finite=True)
+    pion_plus = as_matching(pion_plus_per_gev, e_had, "pion_plus_per_gev", require_finite=True)
+    pion_minus = as_matching(pion_minus_per_gev, e_had, "pion_minus_per_gev", require_finite=True)
+    muon_minus_left = as_matching(muon_minus_left_per_gev, e_had, "muon_minus_left_per_gev", require_finite=True)
+    muon_minus_right = as_matching(muon_minus_right_per_gev, e_had, "muon_minus_right_per_gev", require_finite=True)
+    muon_plus_left = as_matching(muon_plus_left_per_gev, e_had, "muon_plus_left_per_gev", require_finite=True)
+    muon_plus_right = as_matching(muon_plus_right_per_gev, e_had, "muon_plus_right_per_gev", require_finite=True)
 
     (
         epsilon_p,
@@ -207,82 +197,6 @@ def solve_hadronic_inverse_compton(
     )
 
 
-def _build_species_kernel(
-    hadron_energy_gev: np.ndarray,
-    dln_energy: float,
-    nbins_had: int,
-    nbins_pho: int,
-    ind_min_energy_pho_hadgrid: int,
-    mass_gev: float,
-) -> tuple[np.ndarray, np.ndarray]:
-    delta_e = np.zeros(nbins_had, dtype=np.int64)
-    jmax = np.ones(nbins_had, dtype=np.int64) * int(nbins_pho)
-    for i in range(nbins_had):
-        gamma = float(hadron_energy_gev[i] / mass_gev)
-        d_e = int(np.log(gamma * gamma) / dln_energy)
-        delta_e[i] = d_e
-        jmax1 = int(np.log(0.5 * mass_gev / gamma) / dln_energy) + int(ind_min_energy_pho_hadgrid)
-        candidate = jmax1 + d_e
-        jmax[i] = int(nbins_pho) if candidate > nbins_pho else int(candidate)
-    return delta_e, jmax
-
-
-def _compute_emissivity_channel(
-    photons_on_had_grid_per_gev: np.ndarray,
-    hadron_density_per_gev: np.ndarray,
-    delta_e: np.ndarray,
-    jmax: np.ndarray,
-    dln_energy: float,
-    coeff_cgs: float,
-) -> np.ndarray:
-    nbins_pho = int(photons_on_had_grid_per_gev.size)
-    nbins_had = int(hadron_density_per_gev.size)
-    out = np.zeros(nbins_pho, dtype=float)
-    for j in range(nbins_pho):
-        z = 0.0
-        for i in range(nbins_had):
-            d_e = int(delta_e[i])
-            if j < d_e or j > int(jmax[i]):
-                continue
-            src_idx = j - d_e
-            if src_idx < 0 or src_idx >= nbins_pho:
-                raise ValueError("Kernel maps to an out-of-grid photon source index.")
-            z += float(photons_on_had_grid_per_gev[src_idx]) * float(hadron_density_per_gev[i])
-        out[j] = z * dln_energy * coeff_cgs
-    return out
-
-
 def _am3_ic_coeff(mass_gev: float) -> float:
     mass_ratio = mass_gev / AM3_MASS_ELECTRON_GEV
     return AM3_C_CGS * AM3_SIGMA_T_CGS / mass_ratio / mass_ratio
-
-
-def _as_strictly_increasing(values: np.ndarray, name: str) -> np.ndarray:
-    arr = np.asarray(values, dtype=float)
-    if arr.ndim != 1:
-        raise ValueError(f"{name} must be a 1d array.")
-    if arr.size < 2:
-        raise ValueError(f"{name} must contain at least two points.")
-    if np.any(arr <= 0.0):
-        raise ValueError(f"{name} must be strictly positive.")
-    if np.any(np.diff(arr) <= 0.0):
-        raise ValueError(f"{name} must be strictly increasing.")
-    if not np.all(np.isfinite(arr)):
-        raise ValueError(f"{name} must contain finite values.")
-    return arr
-
-
-def _as_matching_1d(values: np.ndarray, grid: np.ndarray, name: str) -> np.ndarray:
-    arr = np.asarray(values, dtype=float)
-    if arr.shape != grid.shape:
-        raise ValueError(f"{name} must match grid shape.")
-    if not np.all(np.isfinite(arr)):
-        raise ValueError(f"{name} must contain finite values.")
-    return arr
-
-
-def _log_spacing(grid: np.ndarray, name: str) -> float:
-    dln = np.diff(np.log(grid))
-    if not np.allclose(dln, dln[0], rtol=1.0e-6, atol=1.0e-12):
-        raise ValueError(f"{name} must be logarithmically uniform.")
-    return float(dln[0])

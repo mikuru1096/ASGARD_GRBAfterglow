@@ -1,17 +1,15 @@
 from __future__ import annotations
 
-from pathlib import Path
-import sys
+from _repo_path import ensure_repo_root_on_path
 
 import numpy as np
 
 
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+ensure_repo_root_on_path()
 
 from asgard_core.asgard_config import RuntimeConfig
-from ASGARD.api_observe import _build_model_from_fit_config, _make_details
+from asgard_core.api_model import _make_details
+from asgard_core.api_observe import _build_model_from_fit_config
 from asgard_core.asgard_state import solve_state
 
 
@@ -82,8 +80,6 @@ def main() -> None:
         num_r=32,
         num_theta=24,
         num_tobs=12,
-        plot_lc=False,
-        show_plots=False,
     )
     model = _build_model_from_fit_config(config)
     times_s = model.default_times()

@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from dataclasses import dataclass, field
 from time import perf_counter
-from typing import Optional
 
 import numpy as np
 
@@ -24,7 +22,7 @@ from asgard_core.asgard_types import (
     SolverAdapterReport,
     ReverseShockEmission,
 )
-from asgard_core.asgard_physics_utils import ambient_density, compute_doppler, compute_magnetic_field, compute_maximum_synchrotron_frequency
+from asgard_core.asgard_physics_utils import compute_doppler, compute_magnetic_field, compute_maximum_synchrotron_frequency
 from asgard_core.asgard_physics_utils import density_jump_arrays
 from asgard_core.asgard_postprocess import interpolate_observed_flux
 from asgard_core.asgard_runtime import (
@@ -57,25 +55,6 @@ def make_policy(config: RuntimeConfig) -> ExecutionPolicy:
     return ExecutionPolicy(num_threads=config.num_threads)
 
 
-def _requested_frequency_bounds(
-    requested_frequencies_hz: np.ndarray | None,
-) -> tuple[Optional[float], Optional[float]]:
-    if requested_frequencies_hz is None:
-        return None, None
-    requested = np.asarray(requested_frequencies_hz, dtype=float)
-    requested = requested[np.isfinite(requested) & (requested > 0.0)]
-    if requested.size == 0:
-        return None, None
-    return float(np.min(requested)), float(np.max(requested))
-
-
-def _required_solve_time_count(observer_time_s: np.ndarray, default_num_tobs: int) -> int:
-    observer_time_s = np.asarray(observer_time_s, dtype=float)
-    if observer_time_s.size == 0:
-        return int(default_num_tobs)
-    return max(int(default_num_tobs), int(np.unique(observer_time_s).size))
-
-
 def make_tgrid(observer_time_s: np.ndarray, default_num_tobs: int) -> np.ndarray:
     observer_time_s = np.asarray(observer_time_s, dtype=float)
     if observer_time_s.size == 0:
@@ -84,7 +63,7 @@ def make_tgrid(observer_time_s: np.ndarray, default_num_tobs: int) -> np.ndarray
         raise ValueError("observer_time_s must be positive.")
     if observer_time_s.size == 1:
         return observer_time_s.copy()
-    num_tobs = _required_solve_time_count(observer_time_s, default_num_tobs)
+    num_tobs = max(int(default_num_tobs), int(np.unique(observer_time_s).size))
     t_min = float(np.min(observer_time_s))
     t_max = float(np.max(observer_time_s))
     return np.logspace(np.log10(t_min), np.log10(t_max), num_tobs)
@@ -116,8 +95,8 @@ def solve_state(
     config: RuntimeConfig,
     observer_time_s: np.ndarray,
     requested_frequencies_hz: np.ndarray | None = None,
-    timings: Optional[dict[str, float]] = None,
-    policy: Optional[ExecutionPolicy] = None,
+    timings: dict[str, float] | None = None,
+    policy: ExecutionPolicy | None = None,
 ) -> SolveState:
     setup = make_query_setup(config, observer_time_s, requested_frequencies_hz)
     return solve_state_from_setup(
@@ -127,14 +106,6 @@ def solve_state(
         policy=policy,
         requested_frequencies_hz=requested_frequencies_hz,
     )
-
-
-def solve_spectra(
-    config: RuntimeConfig,
-    observer_time_s: np.ndarray,
-    requested_frequencies_hz: np.ndarray | None = None,
-) -> FluxComponents:
-    return solve_state(config, observer_time_s, requested_frequencies_hz).components
 
 
 def _solver_label(config: RuntimeConfig, stage: str) -> str:
@@ -160,7 +131,7 @@ def _solver_label(config: RuntimeConfig, stage: str) -> str:
 
 
 def _electron_photon_coupling(config: RuntimeConfig) -> str:
-    coupling = str(getattr(config, "electron_photon_coupling", _COUPLING_SEPARATED)).lower()
+    coupling = str(config.electron_photon_coupling).lower()
     if coupling not in {_COUPLING_SEPARATED, _COUPLING_JOINT}:
         raise ValueError("electron_photon_coupling must be 'separated' or 'joint'.")
     return coupling
@@ -211,7 +182,7 @@ def _validate_multi_density_reverse_config(config: RuntimeConfig) -> None:
 def _solve_dynamics_stage(
     config: RuntimeConfig,
     setup,
-    timings: Optional[dict[str, float]],
+    timings: dict[str, float] | None,
 ) -> tuple[DynamicsSolution, SolverAdapterReport]:
     return _timed_call(
         timings,
@@ -227,7 +198,7 @@ def _solve_electron_stage(
     config: RuntimeConfig,
     setup,
     dynamics: DynamicsSolution,
-    timings: Optional[dict[str, float]],
+    timings: dict[str, float] | None,
 ) -> tuple[ElectronSolution, SolverAdapterReport]:
     return _timed_call(
         timings,
@@ -246,7 +217,7 @@ def _solve_electron_stage_with_cooling_seed(
     setup,
     dynamics: DynamicsSolution,
     cooling_seed: np.ndarray,
-    timings: Optional[dict[str, float]],
+    timings: dict[str, float] | None,
     secondary_source_r: np.ndarray | None = None,
 ) -> tuple[ElectronSolution, SolverAdapterReport]:
     return _timed_call(
@@ -268,7 +239,7 @@ def _build_photon_field_stage(
     setup,
     dynamics: DynamicsSolution,
     electron: ElectronSolution,
-    timings: Optional[dict[str, float]],
+    timings: dict[str, float] | None,
 ) -> PhotonFieldState:
     forward_syn_seed = np.array(electron.seed_syn, dtype=float, copy=True)
     hadronic_forward_ssc_seed = np.zeros_like(forward_syn_seed)
@@ -301,11 +272,11 @@ def _solve_hadronic_stage(
     dynamics: DynamicsSolution,
     electron: ElectronSolution,
     photon_field: PhotonFieldState,
-    timings: Optional[dict[str, float]],
+    timings: dict[str, float] | None,
     *,
     apply_bh_photon_sink: bool = False,
     merge_secondary_pairs: bool = True,
-) -> tuple[ElectronSolution, Optional[object], SolverAdapterReport]:
+) -> tuple[ElectronSolution, object | None, SolverAdapterReport]:
     hadronic, report = _timed_call(
         timings,
         _solver_label(config, "hadronic"),
@@ -340,8 +311,8 @@ def _solve_joint_forward_stage(
     config: RuntimeConfig,
     setup,
     dynamics: DynamicsSolution,
-    timings: Optional[dict[str, float]],
-) -> tuple[ElectronSolution, PhotonFieldState, Optional[object], SolverAdapterReport, SolverAdapterReport]:
+    timings: dict[str, float] | None,
+) -> tuple[ElectronSolution, PhotonFieldState, object | None, SolverAdapterReport, SolverAdapterReport]:
     _validate_joint_electron_photon_config(config)
     primary_electron, electron_report = _solve_electron_stage(config, setup, dynamics, timings)
     electron = primary_electron
@@ -349,7 +320,7 @@ def _solve_joint_forward_stage(
     hadronic = None
     hadronic_report = _solver_report("hadronic_disabled", "log-gamma-1d", "disabled", backend="none")
 
-    for i_iter in range(_JOINT_ELECTRON_PHOTON_ITERATIONS):
+    for _ in range(_JOINT_ELECTRON_PHOTON_ITERATIONS):
         electron, hadronic, hadronic_report = _solve_hadronic_stage(
             config,
             setup,
@@ -404,7 +375,7 @@ def _build_joint_photon_field_after_hadronic(
     dynamics: DynamicsSolution,
     electron: ElectronSolution,
     hadronic,
-    timings: Optional[dict[str, float]],
+    timings: dict[str, float] | None,
 ) -> PhotonFieldState:
     photon_field = _build_photon_field_stage(config, setup, dynamics, electron, timings)
     if hadronic is not None and hadronic.pg_photon_survival is not None:
@@ -460,8 +431,8 @@ def _solve_reverse_stage(
     config: RuntimeConfig,
     setup,
     dynamics: DynamicsSolution,
-    timings: Optional[dict[str, float]],
-) -> Optional[ReverseShockEmission]:
+    timings: dict[str, float] | None,
+) -> ReverseShockEmission | None:
     if not (config.reverse or config.reverse_shock.enabled):
         return None
     return _timed_call(
@@ -478,8 +449,8 @@ def _solve_reverse_stage(
 def solve_state_from_setup(
     config: RuntimeConfig,
     setup,
-    timings: Optional[dict[str, float]] = None,
-    policy: Optional[ExecutionPolicy] = None,
+    timings: dict[str, float] | None = None,
+    policy: ExecutionPolicy | None = None,
     requested_frequencies_hz: np.ndarray | None = None,
 ) -> SolveState:
     _validate_multi_density_reverse_config(config)
@@ -514,7 +485,14 @@ def solve_state_from_setup(
         reverse_emission,
         timings=timings,
     )
-    freq_min, freq_max = _requested_frequency_bounds(requested_frequencies_hz)
+    freq_min: float | None = None
+    freq_max: float | None = None
+    if requested_frequencies_hz is not None:
+        requested = np.asarray(requested_frequencies_hz, dtype=float)
+        requested = requested[np.isfinite(requested) & (requested > 0.0)]
+        if requested.size > 0:
+            freq_min = float(np.min(requested))
+            freq_max = float(np.max(requested))
     return SolveState(
         config=config,
         setup=setup,
@@ -537,14 +515,6 @@ def solve_state_from_setup(
     )
 
 
-def solve_spectra_from_setup(
-    config: RuntimeConfig,
-    setup,
-    timings: Optional[dict[str, float]] = None,
-) -> FluxComponents:
-    return solve_state_from_setup(config, setup, timings=timings).components
-
-
 def _build_observer_setup_from_state(
     state: SolveState,
     observer_time_s: np.ndarray,
@@ -557,43 +527,17 @@ def _build_observer_setup_from_state(
     )
 
 
-def covers(
-    state: SolveState,
-    observer_time_s: np.ndarray,
-    frequencies_hz: np.ndarray | None = None,
-) -> bool:
-    observer_time_s = np.asarray(observer_time_s, dtype=float)
-    if observer_time_s.size > 0 and float(np.min(observer_time_s)) < float(np.min(state.setup.observer_time_s)):
-        return False
-    if observer_time_s.size > 0 and float(np.max(observer_time_s)) > float(np.max(state.setup.observer_time_s)):
-        return False
-    if observer_time_s.size > 1:
-        required_count = _required_solve_time_count(observer_time_s, state.config.num_tobs)
-        if int(state.setup.observer_time_s.size) < required_count:
-            return False
-    else:
-        if observer_time_s.size == 1 and int(state.setup.observer_time_s.size) == 1:
-            if not np.isclose(float(state.setup.observer_time_s[0]), float(observer_time_s[0]), rtol=0.0, atol=0.0):
-                return False
-    freq_min, freq_max = _requested_frequency_bounds(frequencies_hz)
-    if freq_min is None or freq_max is None:
-        return True
-    if state.requested_frequency_min_hz is None or state.requested_frequency_max_hz is None:
-        return False
-    return freq_min >= state.requested_frequency_min_hz and freq_max <= state.requested_frequency_max_hz
-
-
 def project_flux_grid(
     state: SolveState,
     observer_time_s: np.ndarray,
     frequencies_hz: np.ndarray,
-    timings: Optional[dict[str, float]] = None,
+    timings: dict[str, float] | None = None,
     mode: str = "full_components",
     projection_kind: str = "lightcurve",
 ) -> ObsState:
     projection_kind = _normalize_projection_kind(projection_kind)
     setup = _build_observer_setup_from_state(state, observer_time_s)
-    if _uses_chi_eats_2d(state.config) and projection_kind == "lightcurve":
+    if str(state.config.geometry_kernel).lower() == "chi_eats_2d" and projection_kind == "lightcurve":
         observed = _observe_components_chi_eats_2d(state, setup, frequencies_hz, timings=timings, mode=mode)
     else:
         observed = observe_components_from_setup(
@@ -619,10 +563,6 @@ def _normalize_projection_kind(projection_kind: str) -> str:
     return kind
 
 
-def _uses_chi_eats_2d(config: RuntimeConfig) -> bool:
-    return str(config.geometry_kernel).lower() == "chi_eats_2d"
-
-
 def _require_chi_eats_electron_state(state: SolveState) -> None:
     if not str(state.config.electron_solver).lower().endswith("_2d"):
         raise ValueError("geometry_kernel='chi_eats_2d' requires a 2d electron solver.")
@@ -646,11 +586,37 @@ def _require_top_hat_phi_grid(config: RuntimeConfig) -> None:
         raise ValueError("off-axis EATS projection requires num_phi >= 2; num_phi=1 is only valid for on-axis axial collapse.")
 
 
+_OBSERVED_COMPONENT_ATTRS = (
+    ("fwd_sync", "fwd_sync"),
+    ("fwd_ssc", "fwd_ssc"),
+    ("fwd_hadronic", "fwd_hadronic_gamma"),
+    ("fwd_hadronic_bethe_heitler", "fwd_hadronic_bethe_heitler"),
+    ("fwd_hadronic_inverse_compton", "fwd_hadronic_inverse_compton"),
+    ("fwd_hadronic_pair_production", "fwd_hadronic_pair_production"),
+    ("rev_sync", "rev_sync"),
+    ("rev_ssc", "rev_ssc"),
+    ("cross_ic", "cross_ic"),
+)
+
+
+def _empty_observed_components(total: np.ndarray | None = None) -> dict[str, np.ndarray | None]:
+    return {"total": total, **{key: None for key, _attr in _OBSERVED_COMPONENT_ATTRS}}
+
+
+def _sum_observed_components(observed: dict[str, np.ndarray | None], template: np.ndarray) -> np.ndarray:
+    total = np.zeros_like(template)
+    for key, _attr in _OBSERVED_COMPONENT_ATTRS:
+        value = observed[key]
+        if value is not None:
+            total = total + value
+    return total
+
+
 def _project_chi_fwd_sync(
     state: SolveState,
     setup,
     frequencies_hz: np.ndarray,
-    timings: Optional[dict[str, float]],
+    timings: dict[str, float] | None,
 ) -> np.ndarray:
     _require_chi_eats_electron_state(state)
     _require_top_hat_phi_grid(state.config)
@@ -689,7 +655,7 @@ def _observe_components_chi_eats_2d(
     state: SolveState,
     setup,
     frequencies_hz: np.ndarray,
-    timings: Optional[dict[str, float]],
+    timings: dict[str, float] | None,
     mode: str,
 ) -> dict[str, np.ndarray | None]:
     chi_fwd_sync = _project_chi_fwd_sync(state, setup, frequencies_hz, timings)
@@ -700,25 +666,13 @@ def _observe_components_chi_eats_2d(
             state.components.fwd.characteristic_time_s,
             state.components.fwd.gamma,
             state.components.fwd.radius_cm,
-            setup.seed_frequency_hz,
             non_chi_total,
             frequencies_hz,
             state.config,
             timings=timings,
             label="Interpolation.sed_interpolation [total_without_fwd_sync]",
         )
-        return {
-            "total": shell_total_without_fwd_sync + chi_fwd_sync,
-            "fwd_sync": None,
-            "fwd_ssc": None,
-            "fwd_hadronic": None,
-            "fwd_hadronic_bethe_heitler": None,
-            "fwd_hadronic_inverse_compton": None,
-            "fwd_hadronic_pair_production": None,
-            "rev_sync": None,
-            "rev_ssc": None,
-            "cross_ic": None,
-        }
+        return _empty_observed_components(shell_total_without_fwd_sync + chi_fwd_sync)
     observed = observe_components_from_setup(
         state.config,
         state.components,
@@ -728,23 +682,10 @@ def _observe_components_chi_eats_2d(
         mode="full_components",
     )
     observed["fwd_sync"] = chi_fwd_sync
-    observed["total"] = sum(
-        (value for key, value in observed.items() if key != "total" and value is not None),
-        start=np.zeros_like(observed["fwd_sync"]),
-    )
+    observed["total"] = _sum_observed_components(observed, observed["fwd_sync"])
     if mode != "full_components":
         raise ValueError(f"Unsupported observe mode: {mode}")
     return observed
-
-
-def observe_components(
-    config: RuntimeConfig,
-    components: FluxComponents,
-    observer_time_s: np.ndarray,
-    frequencies_hz: np.ndarray,
-) -> dict[str, np.ndarray]:
-    setup = make_query_setup(config, observer_time_s, frequencies_hz)
-    return observe_components_from_setup(config, components, setup, frequencies_hz)
 
 
 def observe_components_from_setup(
@@ -752,7 +693,7 @@ def observe_components_from_setup(
     components: FluxComponents,
     setup,
     frequencies_hz: np.ndarray,
-    timings: Optional[dict[str, float]] = None,
+    timings: dict[str, float] | None = None,
     mode: str = "full_components",
 ) -> dict[str, np.ndarray | None]:
     frequencies_hz = np.asarray(frequencies_hz, dtype=float)
@@ -764,57 +705,30 @@ def observe_components_from_setup(
             components.fwd.characteristic_time_s,
             components.fwd.gamma,
             components.fwd.radius_cm,
-            setup.seed_frequency_hz,
             components.total,
             frequencies_hz,
             config,
             timings=timings,
             label="Interpolation.sed_interpolation [total]",
         )
-        return {
-            "total": total,
-            "fwd_sync": None,
-            "fwd_ssc": None,
-            "fwd_hadronic": None,
-            "fwd_hadronic_bethe_heitler": None,
-            "fwd_hadronic_inverse_compton": None,
-            "fwd_hadronic_pair_production": None,
-            "rev_sync": None,
-            "rev_ssc": None,
-            "cross_ic": None,
-        }
+        return _empty_observed_components(total)
 
-    observed = {}
-    for key, attr in [
-        ("fwd_sync", "fwd_sync"),
-        ("fwd_ssc", "fwd_ssc"),
-        ("fwd_hadronic", "fwd_hadronic_gamma"),
-        ("fwd_hadronic_bethe_heitler", "fwd_hadronic_bethe_heitler"),
-        ("fwd_hadronic_inverse_compton", "fwd_hadronic_inverse_compton"),
-        ("fwd_hadronic_pair_production", "fwd_hadronic_pair_production"),
-        ("rev_sync", "rev_sync"),
-        ("rev_ssc", "rev_ssc"),
-        ("cross_ic", "cross_ic"),
-    ]:
+    observed = _empty_observed_components()
+    for key, attr in _OBSERVED_COMPONENT_ATTRS:
         source = getattr(components, attr)
-        observed[key] = None
         if source is not None:
             observed[key] = _project_component(
                 setup,
                 components.fwd.characteristic_time_s,
                 components.fwd.gamma,
                 components.fwd.radius_cm,
-                setup.seed_frequency_hz,
                 source,
                 frequencies_hz,
                 config,
                 timings=timings,
                 label=f"Interpolation.sed_interpolation [{key}]",
             )
-    observed["total"] = sum(
-        (value for value in observed.values() if value is not None),
-        start=np.zeros_like(observed["fwd_sync"]),
-    )
+    observed["total"] = _sum_observed_components(observed, observed["fwd_sync"])
     if timings is not None:
         timings.setdefault("Interpolation.sed_interpolation [total]", 0.0)
     return observed
@@ -827,8 +741,8 @@ def _assemble_observer_stage(
     electron: ElectronSolution,
     photon_field: PhotonFieldState,
     hadronic,
-    reverse_emission: Optional[ReverseShockEmission],
-    timings: Optional[dict[str, float]] = None,
+    reverse_emission: ReverseShockEmission | None,
+    timings: dict[str, float] | None = None,
 ) -> ObserverState:
     pg_photon_survival = None if hadronic is None else hadronic.pg_photon_survival
     fwd_sync = np.asarray(electron.l_syn_spec, dtype=float)
@@ -863,7 +777,7 @@ def _assemble_observer_stage(
     s = _stage_hadronic_absorption(s, setup, config, dynamics, electron, hadronic)
     s = _stage_pair_production(s, setup, config, dynamics, electron)
     s = _stage_annihilation(s, setup, config, dynamics, timings)
-    return _stage_assemble_result(s, setup, config, dynamics, electron, hadronic)
+    return _stage_assemble_result(s, config, dynamics, electron, hadronic)
 
 
 def _stage_forward_ssc(
@@ -872,7 +786,7 @@ def _stage_forward_ssc(
     config: RuntimeConfig,
     dynamics: DynamicsSolution,
     electron: ElectronSolution,
-    timings: Optional[dict[str, float]],
+    timings: dict[str, float] | None,
 ) -> dict:
     if config.include_forward_ssc:
         seed_for_ssc = s["seed_syn_absorption"] if s["joint_ic_seed"] is None else s["joint_ic_seed"]
@@ -899,8 +813,8 @@ def _stage_reverse_emission(
     config: RuntimeConfig,
     dynamics: DynamicsSolution,
     electron: ElectronSolution,
-    reverse_emission: Optional[ReverseShockEmission],
-    timings: Optional[dict[str, float]],
+    reverse_emission: ReverseShockEmission | None,
+    timings: dict[str, float] | None,
 ) -> dict:
     if reverse_emission is not None:
         s["rev_sync"] = reverse_emission.l_syn_spec
@@ -1022,7 +936,7 @@ def _stage_annihilation(
     setup,
     config: RuntimeConfig,
     dynamics: DynamicsSolution,
-    timings: Optional[dict[str, float]],
+    timings: dict[str, float] | None,
 ) -> dict:
     annihilation_seed_syn = s["seed_syn_absorption"]
     annihilation_seed_ssc = s["seed_ssc_total"]
@@ -1047,7 +961,6 @@ def _stage_annihilation(
 
 def _stage_assemble_result(
     s: dict,
-    setup,
     config: RuntimeConfig,
     dynamics: DynamicsSolution,
     electron: ElectronSolution,
@@ -1150,9 +1063,7 @@ def _compute_pair_production_branch(
     d_n_pair_prev_aligned = np.zeros(gam_pair.size, dtype=float)
     from asgard_core.hadronic_cascade import shell_path_time_seconds
 
-    use_iterative_cascade = (
-        int(getattr(config.hadronic, 'pair_cascade_iterations', 1)) > 1
-    )
+    use_iterative_cascade = int(config.hadronic.pair_cascade_iterations) > 1
     if use_iterative_cascade:
         from asgard_core.hadronic_cascade import compute_time_dependent_pair_cascade_sequence
         cascade = compute_time_dependent_pair_cascade_sequence(
@@ -1457,7 +1368,7 @@ def _ssc_spectrum(
     seed_field: np.ndarray,
     config: RuntimeConfig,
     num_threads: int,
-    timings: Optional[dict[str, float]],
+    timings: dict[str, float] | None,
     label: str,
 ) -> tuple[np.ndarray, np.ndarray]:
     if electron.work_x_edge_log10 is not None and electron.work_d_n_x is not None:
@@ -1506,12 +1417,11 @@ def _project_component(
     characteristic_time_s: np.ndarray,
     gamma: np.ndarray,
     radius_cm: np.ndarray,
-    seed_frequency_hz: np.ndarray,
     absorbed_spectral_flux: np.ndarray,
     frequencies_hz: np.ndarray,
     config: RuntimeConfig,
-    timings: Optional[dict[str, float]] = None,
-    label: Optional[str] = None,
+    timings: dict[str, float] | None = None,
+    label: str | None = None,
 ) -> np.ndarray:
     if not np.any(absorbed_spectral_flux):
         if timings is not None and label is not None:
@@ -1532,7 +1442,7 @@ def _project_component(
     )
 
 
-def _timed_call(timings: Optional[dict[str, float]], label: Optional[str], func, *args, **kwargs):
+def _timed_call(timings: dict[str, float] | None, label: str | None, func, *args, **kwargs):
     start = perf_counter()
     result = func(*args, **kwargs)
     elapsed = perf_counter() - start

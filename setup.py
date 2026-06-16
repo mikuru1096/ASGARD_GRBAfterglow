@@ -8,23 +8,17 @@ from pathlib import Path
 from setuptools import Command, setup
 from setuptools.command.build_py import build_py as _build_py
 from setuptools.command.develop import develop as _develop
-from setuptools.command.sdist import sdist as _sdist
 
 
 ROOT = Path(__file__).resolve().parent
 
 
-def _utf8_env() -> dict[str, str]:
-    env = os.environ.copy()
-    env["PYTHONUTF8"] = "1"
-    env["PYTHONIOENCODING"] = "utf-8"
-    env["LANG"] = "C.UTF-8"
-    env["LC_ALL"] = "C.UTF-8"
-    return env
-
-
 def _skip_native_build() -> bool:
     return os.environ.get("ASGARD_SKIP_NATIVE_BUILD") == "1"
+
+
+def _native_patterns(*stems: str) -> list[str]:
+    return [pattern for stem in stems for pattern in (f"{stem}*.so", f"{stem}*.pyd")]
 
 
 class build_native(Command):
@@ -40,8 +34,14 @@ class build_native(Command):
     def run(self) -> None:
         if _skip_native_build():
             return
-        command = [sys.executable, "build_extensions.py"]
-        subprocess.run(command, cwd=ROOT, check=True, env=_utf8_env(), text=True, encoding="utf-8")
+        subprocess.run(
+            [sys.executable, "build_extensions.py"],
+            cwd=ROOT,
+            check=True,
+            env=dict(os.environ, PYTHONUTF8="1", PYTHONIOENCODING="utf-8", LANG="C.UTF-8", LC_ALL="C.UTF-8"),
+            text=True,
+            encoding="utf-8",
+        )
 
 
 class build_py(_build_py):
@@ -58,46 +58,44 @@ class develop(_develop):
         super().run()
 
 
-class sdist(_sdist):
-    def run(self) -> None:
-        super().run()
-
-
 setup(
     py_modules=["lc_spec_demo", "build_extensions"],
     cmdclass={
         "build_native": build_native,
         "build_py": build_py,
         "develop": develop,
-        "sdist": sdist,
     },
     package_data={
         "asgard_core": ["data_light_curve/*", "data_spectrum/*"],
-        "src": ["Constants*.so", "Constants*.pyd", "*.f90"],
-        "src.Dynamics": ["Dynamics_forward*.so", "Dynamics_forward*.pyd", "Dynamics_reverse*.so", "Dynamics_reverse*.pyd", "*.f90"],
+        "src": [*_native_patterns("Constants"), "*.f90"],
+        "src.Dynamics": [*_native_patterns("Dynamics_forward", "Dynamics_reverse"), "*.f90"],
         "src.Electron": [
-            "electron_forward_weno5_1d*.so",
-            "electron_forward_weno5_1d*.pyd",
-            "electron_forward_slc1_1d*.so",
-            "electron_forward_slc1_1d*.pyd",
-            "electron_forward_charint_1d*.so",
-            "electron_forward_charint_1d*.pyd",
-            "electron_forward_charint_2d*.so",
-            "electron_forward_charint_2d*.pyd",
-            "electron_forward_fullhide_1d*.so",
-            "electron_forward_fullhide_1d*.pyd",
-            "electron_forward_transport_2d*.so",
-            "electron_forward_transport_2d*.pyd",
-            "electron_forward_t2g1_1d*.so",
-            "electron_forward_t2g1_1d*.pyd",
-            "electron_radiation*.so",
-            "electron_radiation*.pyd",
-            "electron_reverse_kernel*.so",
-            "electron_reverse_kernel*.pyd",
+            *_native_patterns(
+                "electron_forward_weno5_1d",
+                "electron_forward_slc1_1d",
+                "electron_forward_charint_1d",
+                "electron_forward_charint_2d",
+                "electron_forward_fullhide_1d",
+                "electron_forward_transport_2d",
+                "electron_forward_t2g1_1d",
+                "electron_radiation",
+                "electron_reverse_kernel",
+            ),
             "*.f90",
         ],
-        "src.Interpolation": ["SED_interpolation*.so", "SED_interpolation*.pyd", "SED_interpolation_structured*.so", "SED_interpolation_structured*.pyd", "*.f90"],
-        "src.Radiation": ["radiation_gamma_gamma_absorption*.so", "radiation_gamma_gamma_absorption*.pyd", "radiation_reverse_seed*.so", "radiation_reverse_seed*.pyd", "radiation_ssc_spectrum*.so", "radiation_ssc_spectrum*.pyd", "*.f90", "*.py"],
-        "src.Structured": ["structured_jet_1d*.so", "structured_jet_1d*.pyd", "*.f90", "*.py"],
+        "src.Interpolation": [
+            *_native_patterns("SED_interpolation", "SED_interpolation_structured"),
+            "*.f90",
+        ],
+        "src.Radiation": [
+            *_native_patterns(
+                "radiation_gamma_gamma_absorption",
+                "radiation_reverse_seed",
+                "radiation_ssc_spectrum",
+            ),
+            "*.f90",
+            "*.py",
+        ],
+        "src.Structured": [*_native_patterns("structured_jet_1d"), "*.f90", "*.py"],
     },
 )

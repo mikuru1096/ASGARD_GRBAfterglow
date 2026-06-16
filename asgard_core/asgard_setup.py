@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from functools import lru_cache
+from functools import cache
 
 import numpy as np
 from astropy import units
@@ -11,7 +11,7 @@ from asgard_core.asgard_physics_utils import density_jump_arrays, density_profil
 from src import constants
 
 
-@lru_cache(maxsize=None)
+@cache
 def _luminosity_distance_cm(redshift: float) -> float:
     cosmo = FlatLambdaCDM(H0=67.8, Om0=0.308)
     return float(cosmo.luminosity_distance(redshift).to(units.cm).value)

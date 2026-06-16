@@ -11,15 +11,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 
 
-def _utf8_env() -> dict[str, str]:
-    env = os.environ.copy()
-    env["PYTHONUTF8"] = "1"
-    env["PYTHONIOENCODING"] = "utf-8"
-    env["LANG"] = "C.UTF-8"
-    env["LC_ALL"] = "C.UTF-8"
-    return env
-
-
 def _detect_platform() -> str:
     if os.name == "nt":
         return "windows"
@@ -44,35 +35,31 @@ def _require_fortran_compiler(platform_name: str) -> None:
 
 
 def _run(command: list[str]) -> None:
-    subprocess.run(command, cwd=ROOT, check=True, env=_utf8_env(), text=True, encoding="utf-8")
-
-
-def _venv_python(platform_name: str) -> Path:
-    if platform_name == "windows":
-        return ROOT / ".venv" / "Scripts" / "python.exe"
-    return ROOT / ".venv" / "bin" / "python"
-
-
-def _find_uv() -> str | None:
-    candidates = [
-        shutil.which("uv"),
-        str(Path.home() / ".local" / "bin" / "uv"),
-    ]
-    for candidate in candidates:
-        if candidate and Path(candidate).exists():
-            return candidate
-    return None
+    subprocess.run(
+        command,
+        cwd=ROOT,
+        check=True,
+        env=dict(
+            os.environ,
+            PYTHONUTF8="1",
+            PYTHONIOENCODING="utf-8",
+            LANG="C.UTF-8",
+            LC_ALL="C.UTF-8",
+        ),
+        text=True,
+        encoding="utf-8",
+    )
 
 
 def _require_uv() -> str:
-    uv = _find_uv()
-    if uv is not None:
-        return uv
+    for candidate in (shutil.which("uv"), str(Path.home() / ".local" / "bin" / "uv")):
+        if candidate and Path(candidate).exists():
+            return candidate
     _run([sys.executable, "-m", "pip", "install", "--user", "uv"])
-    uv = _find_uv()
-    if uv is None:
-        raise SystemExit("uv installation failed. Install uv and rerun install.py.")
-    return uv
+    for candidate in (shutil.which("uv"), str(Path.home() / ".local" / "bin" / "uv")):
+        if candidate and Path(candidate).exists():
+            return candidate
+    raise SystemExit("uv installation failed. Install uv and rerun install.py.")
 
 
 def main() -> None:
@@ -97,7 +84,7 @@ def main() -> None:
         extras_requested.append("compare")
     extras = f"[{','.join(extras_requested)}]" if extras_requested else ""
     target = f".{extras}"
-    py = _venv_python(platform_name)
+    py = ROOT / ".venv" / ("Scripts/python.exe" if platform_name == "windows" else "bin/python")
 
     if not py.exists():
         _run([uv, "venv", "--python", sys.executable, ".venv"])

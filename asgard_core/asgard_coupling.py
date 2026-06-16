@@ -31,7 +31,6 @@ def build_coupled_shock_geometry(dynamics, config: RuntimeConfig) -> CoupledShoc
     rs_width_cm = np.zeros_like(radius_cm)
 
     eta_0 = config.eta_0
-    beta4 = np.sqrt(1.0 - eta_0**-2)
     shell_mass_g = config.e_iso / eta_0 / constants.para_c**2
     delta_0_cm = config.reverse_shock.delta_t_s * constants.para_c
 

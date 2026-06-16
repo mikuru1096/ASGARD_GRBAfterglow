@@ -15,33 +15,37 @@ HUMMER_SCHEMES = {"hummer_2010_response"}
 
 
 def solve_structured_jet_fortran(model, times_s: np.ndarray, nu_hz: np.ndarray, build_patch_config: Callable):
-    from ASGARD.api_model import FluxResult
+    from asgard_core.api_model import FluxPair, FluxResult
 
     _assert_supported_structured_fortran(model)
     times = np.asarray(times_s, dtype=float)
     frequencies = np.asarray(nu_hz, dtype=float)
-    base_config = _base_patch_config(model, build_patch_config)
-    setup = make_query_setup(base_config, _solve_time_grid(model, times), frequencies)
     sampled = _sample_structured_grid(model)
+    _theta_centers, _phi_centers, e_iso, gamma0, active, _axisymmetric = sampled
+    i_theta, i_phi = np.argwhere(active > 0)[0]
+    base_config = build_patch_config(
+        model,
+        theta_v=model.observer.theta_obs,
+        opening_angle_jet=model.jet.theta_max,
+        e_iso=float(e_iso[i_theta, i_phi]),
+        gamma0=float(gamma0[i_theta, i_phi]),
+        theta_center=0.0,
+    )
+    setup = make_query_setup(base_config, _solve_time_grid(model, times), frequencies)
 
     outputs = Structured.structured_jet_flux_1d(
         *_structured_kernel_args(model, base_config, setup, sampled, times, frequencies)
     )
-    flux = _flux_from_kernel_outputs(FluxResult, outputs)
+    fwd_sync, fwd_ssc, _fwd_hadronic, rev_sync, total = (np.asarray(value, dtype=float) for value in outputs[:5])
+    zero = np.zeros_like(total)
+    flux = FluxResult(
+        total=total,
+        fwd=FluxPair(sync=fwd_sync, ssc=fwd_ssc),
+        rev=FluxPair(sync=rev_sync, ssc=zero),
+        cross_ic=None,
+    )
     details = _details_from_kernel_outputs(model, base_config, sampled, outputs)
     return flux, details
-
-
-def _base_patch_config(model, build_patch_config: Callable):
-    return build_patch_config(
-        model,
-        phi_center=0.0,
-        theta_v=model.observer.theta_obs,
-        opening_angle_jet=model.jet.theta_max,
-        e_iso=float(_first_active_value(model, "energy_iso")),
-        gamma0=float(_first_active_value(model, "gamma0")),
-        theta_center=0.0,
-    )
 
 
 def _structured_kernel_args(model, base_config, setup, sampled, times: np.ndarray, frequencies: np.ndarray) -> tuple:
@@ -67,7 +71,7 @@ def _structured_kernel_args(model, base_config, setup, sampled, times: np.ndarra
         int(base_config.index_syn_integr),
         int(include_reverse),
         int(bool(model.fwd_rad.ssc)),
-        int(_include_forward_hadronic(model)),
+        int(bool(model.setups.hadronic_enabled and model.fwd_rad.epsilon_p > 0.0)),
         int(bool(model.fwd_rad.proton_synch)),
         int(bool(model.fwd_rad.pg)),
         int(bool(model.fwd_rad.neutrino)),
@@ -93,21 +97,8 @@ def _structured_kernel_args(model, base_config, setup, sampled, times: np.ndarra
     )
 
 
-def _flux_from_kernel_outputs(FluxResult, outputs):
-    from ASGARD.api_model import FluxPair
-
-    fwd_sync, fwd_ssc, _fwd_hadronic, rev_sync, total = (np.asarray(value, dtype=float) for value in outputs[:5])
-    zero = np.zeros_like(total)
-    return FluxResult(
-        total=total,
-        fwd=FluxPair(sync=fwd_sync, ssc=fwd_ssc),
-        rev=FluxPair(sync=rev_sync, ssc=zero),
-        cross_ic=None,
-    )
-
-
 def _details_from_kernel_outputs(model, base_config, sampled, outputs):
-    from ASGARD.api_model import CharTrack, TrackBundle
+    from asgard_core.api_model import CharTrack, TrackBundle
 
     theta_centers, phi_centers, e_iso, gamma0, active, axisymmetric = sampled
     track_tobs, track_gamma, track_radius, track_mass = (np.asarray(value, dtype=float) for value in outputs[5:9])
@@ -146,7 +137,7 @@ def _assert_supported_structured_fortran(model) -> None:
     if bool(model.fwd_rad.pair_production) or int(model.setups.pair_cascade_iterations) > 1:
         raise NotImplementedError("structured_backend='fortran_1d' does not migrate pair-cascade branches.")
     _assert_supported_hadronic_branch(model)
-    if getattr(model.jet, "spreading", False):
+    if model.jet.spreading:
         raise NotImplementedError("Jet spreading is not implemented in the structured Fortran backend.")
 
 
@@ -166,25 +157,20 @@ def _sample_structured_grid(model):
     axisymmetric = is_axisymmetric_jet(model.jet)
     theta_centers = _cell_centers(0.0, float(model.jet.theta_max), int(model.setups.patch_theta))
     phi_centers = np.array([0.0], dtype=float) if axisymmetric else _cell_centers(0.0, 2.0 * np.pi, int(model.setups.patch_phi))
-    e_iso, gamma0 = _sample_energy_gamma(model, theta_centers, phi_centers)
-    active = np.asarray((e_iso > 0.0) & (gamma0 > 1.0), dtype=np.int32)
-    if not np.any(active):
-        raise ValueError("No active jet elements were found for the requested structured jet.")
-    return theta_centers, phi_centers, e_iso, gamma0, active, axisymmetric
-
-
-def _sample_energy_gamma(model, theta_centers: np.ndarray, phi_centers: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     e_iso = np.zeros((theta_centers.size, phi_centers.size), dtype=float)
     gamma0 = np.ones_like(e_iso)
     for i_theta, theta in enumerate(theta_centers):
         for i_phi, phi in enumerate(phi_centers):
             e_iso[i_theta, i_phi] = float(model.jet.energy_iso(float(phi), float(theta)))
             gamma0[i_theta, i_phi] = float(model.jet.gamma0(float(phi), float(theta)))
-    return e_iso, gamma0
+    active = np.asarray((e_iso > 0.0) & (gamma0 > 1.0), dtype=np.int32)
+    if not np.any(active):
+        raise ValueError("No active jet elements were found for the requested structured jet.")
+    return theta_centers, phi_centers, e_iso, gamma0, active, axisymmetric
 
 
 def _structured_threads(model) -> tuple[int, int]:
-    mode = str(getattr(model.setups, "structured_parallel_mode", "outer")).lower()
+    mode = str(model.setups.structured_parallel_mode).lower()
     total = int(model.setups.num_threads)
     outer = model.setups.structured_outer_threads
     inner = model.setups.structured_inner_threads
@@ -241,47 +227,28 @@ def _solve_time_grid(model, requested_times: np.ndarray) -> np.ndarray:
 
 def _patch_metadata(theta_centers, phi_centers, e_iso, gamma0, active, axisymmetric: bool, model):
     phi_values = np.linspace(0.0, 2.0 * np.pi, int(model.setups.patch_phi), endpoint=False) if axisymmetric else phi_centers
+    theta_obs = float(model.observer.theta_obs)
+    phi_obs = float(model.observer.phi_obs)
     patches = []
     for i_theta, theta in enumerate(theta_centers):
+        theta_value = float(theta)
         for i_phi, phi in enumerate(phi_values):
+            phi_value = float(phi)
             source_phi_index = 0 if axisymmetric else i_phi
             if int(active[i_theta, source_phi_index]) == 0:
                 continue
-            patches.append(_patch_entry(model, theta, phi, e_iso[i_theta, source_phi_index], gamma0[i_theta, source_phi_index]))
-    return patches
-
-
-def _patch_entry(model, theta: float, phi: float, e_iso: float, gamma0: float) -> dict[str, float]:
-    return {
-        "phi": float(phi),
-        "theta": float(theta),
-        "theta_v": float(
-            angular_separation(
-                float(theta),
-                float(phi),
-                float(model.observer.theta_obs),
-                float(model.observer.phi_obs),
+            patches.append(
+                {
+                    "phi": phi_value,
+                    "theta": theta_value,
+                    "theta_v": float(angular_separation(theta_value, phi_value, theta_obs, phi_obs)),
+                    "E_iso": float(e_iso[i_theta, source_phi_index]),
+                    "Gamma0": float(gamma0[i_theta, source_phi_index]),
+                }
             )
-        ),
-        "E_iso": float(e_iso),
-        "Gamma0": float(gamma0),
-    }
+    return patches
 
 
 def _cell_centers(start: float, stop: float, count: int) -> np.ndarray:
     edges = np.linspace(start, stop, count + 1)
     return 0.5 * (edges[:-1] + edges[1:])
-
-
-def _first_active_value(model, name: str) -> float:
-    for theta in _cell_centers(0.0, float(model.jet.theta_max), int(model.setups.patch_theta)):
-        value = getattr(model.jet, name)(0.0, float(theta))
-        if name == "energy_iso" and value > 0.0:
-            return float(value)
-        if name == "gamma0" and value > 1.0:
-            return float(value)
-    return float(getattr(model.jet, name)(0.0, 0.0))
-
-
-def _include_forward_hadronic(model) -> bool:
-    return bool(model.setups.hadronic_enabled and model.fwd_rad.epsilon_p > 0.0)

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from functools import lru_cache
+from functools import cache
 from importlib import import_module
 import time
 import numpy as np
@@ -30,12 +30,10 @@ from asgard_core.hadronic_species_transport import (
     NeutronDistribution,
     SPECIES_TRANSPORT_BACKEND,
 )
-from asgard_core.hadronic_hummer import GEV_TO_ERG, HUMMER2010_DECAY_BACKEND, HUMMER2010_OPERATOR_BACKEND, PROTON_MASS_GEV, solve_hummer2010_pgamma
-from src import constants
+from asgard_core.hadronic_hummer import HUMMER2010_DECAY_BACKEND, HUMMER2010_OPERATOR_BACKEND, PROTON_MASS_GEV, solve_hummer2010_pgamma
 from asgard_core.hadronic_pp import PP_DELTA_BACKEND, solve_pp_delta
 from asgard_core.hadronic_pgamma import photon_density_hz_to_gev
 from asgard_core.asgard_config import RuntimeConfig
-import numpy as np
 from asgard_core.asgard_types import (
     ReverseShockParameters,
     ReverseShockDynamics,
@@ -45,9 +43,8 @@ from asgard_core.asgard_types import (
     ReverseShockEmission,
     SolverAdapterReport,
 )
-from asgard_core.asgard_physics_utils import ambient_density, doppler_denominator, compute_magnetic_field
-from asgard_core.asgard_physics_utils import density_jump_arrays
-from src import Dynamics, Electron, constants
+from asgard_core.asgard_physics_utils import ambient_density, compute_magnetic_field, density_jump_arrays, doppler_denominator
+from src import Dynamics, constants
 
 
 _ELECTRON_SOLVER_ALIASES = {
@@ -75,19 +72,14 @@ _ELECTRON_MODULES = {
 }
 
 
-@lru_cache(maxsize=None)
+@cache
 def _electron_module(solver: str):
     return import_module(_ELECTRON_MODULES[solver])
 
 
-@lru_cache(maxsize=1)
+@cache
 def _electron_reverse_module():
     return import_module("src.Electron.electron_reverse_kernel")
-
-
-@lru_cache(maxsize=1)
-def _dynamics_reverse_module():
-    return import_module("src.Dynamics.Dynamics_reverse")
 
 
 @dataclass
@@ -359,9 +351,11 @@ def solve_electron(
             gam_e,
             d_n_gam_e,
         )
-        solution = _build_electron_solution(
+        return _finish_electron_solution(
             config,
             dynamics,
+            solver_name,
+            "log-gamma-1d",
             gam_e,
             d_n_gam_e,
             l_syn_spec,
@@ -369,16 +363,8 @@ def solve_electron(
             nu_m,
             nu_c,
             nu_a,
+            return_report=return_report,
         )
-        if return_report:
-            return solution, _solver_report(
-                solver_name,
-                "log-gamma-1d",
-                "ok",
-                num_gam_e=int(config.num_gam_e),
-                num_chi=1,
-            )
-        return solution
 
     if solver_name == "t2g1_1d":
         electron_t2g1_module = _electron_module(solver_name)
@@ -393,9 +379,11 @@ def solve_electron(
             config.index_syn_integr,
             config.num_threads,
         )
-        solution = _build_electron_solution(
+        return _finish_electron_solution(
             config,
             dynamics,
+            solver_name,
+            "log-gamma-1d",
             gam_e,
             d_n_gam_e,
             l_syn_spec,
@@ -403,16 +391,8 @@ def solve_electron(
             nu_m,
             nu_c,
             nu_a,
+            return_report=return_report,
         )
-        if return_report:
-            return solution, _solver_report(
-                solver_name,
-                "log-gamma-1d",
-                "ok",
-                num_gam_e=int(config.num_gam_e),
-                num_chi=1,
-            )
-        return solution
 
     if solver_name == "slc1_1d":
         electron_slc1_module = _electron_module(solver_name)
@@ -427,9 +407,11 @@ def solve_electron(
             config.index_syn_integr,
             config.num_threads,
         )
-        solution = _build_electron_solution(
+        return _finish_electron_solution(
             config,
             dynamics,
+            solver_name,
+            "log-gamma-1d",
             gam_e,
             d_n_gam_e,
             l_syn_spec,
@@ -437,16 +419,8 @@ def solve_electron(
             nu_m,
             nu_c,
             nu_a,
+            return_report=return_report,
         )
-        if return_report:
-            return solution, _solver_report(
-                solver_name,
-                "log-gamma-1d",
-                "ok",
-                num_gam_e=int(config.num_gam_e),
-                num_chi=1,
-            )
-        return solution
 
     if solver_name == "charint_1d":
         electron_charint_module = _electron_module(solver_name)
@@ -465,9 +439,11 @@ def solve_electron(
             config.electron_substep_min,
             config.electron_substep_max,
         )
-        solution = _build_electron_solution(
+        return _finish_electron_solution(
             config,
             dynamics,
+            solver_name,
+            "log-gamma-1d",
             gam_e,
             d_n_gam_e,
             l_syn_spec,
@@ -475,142 +451,30 @@ def solve_electron(
             nu_m,
             nu_c,
             nu_a,
+            return_report=return_report,
         )
-        if return_report:
-            return solution, _solver_report(
-                solver_name,
-                "log-gamma-1d",
-                "ok",
-                num_gam_e=int(config.num_gam_e),
-                num_chi=1,
-            )
-        return solution
 
     if solver_name == "charint_2d":
-        electron_charint_2d_module = _electron_module(solver_name)
-        num_chi = _resolve_num_chi(config, solver_name)
-        num_threads_2d = _effective_2d_num_threads(config, num_chi)
-        (
-            gam_e,
-            d_n_gam_e_chi,
-            d_n_gam_e,
-            l_syn_spec,
-            seed_syn,
-            nu_m,
-            nu_c,
-            nu_a,
-            l_syn_spec_chi,
-            seed_syn_chi,
-            tau_syn_chi,
-            chi_radius_cm,
-            chi_gamma_bulk,
-            chi_dvolume_weight,
-        ) = electron_charint_2d_module.fs_electron_transport_2d_core(
+        return _solve_electron_transport_2d(
             boundary,
-            dynamics.r_tobs,
-            dynamics.r_gamma,
-            dynamics.radius,
-            v_seed,
-            config.num_gam_e,
-            num_chi,
-            config.index_y,
-            config.index_syn_integr,
-            num_threads_2d,
-            True,
-            "charint_2d",
-        )
-        chi_grid = _build_log_chi_grid(dynamics.r_gamma, num_chi)
-        solution = _build_electron_solution(
-            config,
             dynamics,
-            gam_e,
-            d_n_gam_e,
-            l_syn_spec,
-            seed_syn,
-            nu_m,
-            nu_c,
-            nu_a,
-            d_n_gam_e_chi=d_n_gam_e_chi,
-            chi_grid=chi_grid,
-            l_syn_spec_chi=l_syn_spec_chi,
-            seed_syn_chi=seed_syn_chi,
-            tau_syn_chi=tau_syn_chi,
-            chi_radius_cm=chi_radius_cm,
-            chi_gamma_bulk=chi_gamma_bulk,
-            chi_dvolume_weight=chi_dvolume_weight,
+            v_seed,
+            config,
+            solver_name,
+            use_characteristic_integrator=True,
+            return_report=return_report,
         )
-        if return_report:
-            return solution, _solver_report(
-                solver_name,
-                "log-gamma-log-chi-2d",
-                "ok",
-                num_gam_e=int(config.num_gam_e),
-                num_chi=int(num_chi),
-            )
-        return solution
 
     if solver_name == "fullhide_2d":
-        electron_fullhide_2d_module = _electron_module(solver_name)
-        num_chi = _resolve_num_chi(config, solver_name)
-        num_threads_2d = _effective_2d_num_threads(config, num_chi)
-        (
-            gam_e,
-            d_n_gam_e_chi,
-            d_n_gam_e,
-            l_syn_spec,
-            seed_syn,
-            nu_m,
-            nu_c,
-            nu_a,
-            l_syn_spec_chi,
-            seed_syn_chi,
-            tau_syn_chi,
-            chi_radius_cm,
-            chi_gamma_bulk,
-            chi_dvolume_weight,
-        ) = electron_fullhide_2d_module.fs_electron_transport_2d_core(
+        return _solve_electron_transport_2d(
             boundary,
-            dynamics.r_tobs,
-            dynamics.r_gamma,
-            dynamics.radius,
-            v_seed,
-            config.num_gam_e,
-            num_chi,
-            config.index_y,
-            config.index_syn_integr,
-            num_threads_2d,
-            False,
-            "fullhide_2d",
-        )
-        chi_grid = _build_log_chi_grid(dynamics.r_gamma, num_chi)
-        solution = _build_electron_solution(
-            config,
             dynamics,
-            gam_e,
-            d_n_gam_e,
-            l_syn_spec,
-            seed_syn,
-            nu_m,
-            nu_c,
-            nu_a,
-            d_n_gam_e_chi=d_n_gam_e_chi,
-            chi_grid=chi_grid,
-            l_syn_spec_chi=l_syn_spec_chi,
-            seed_syn_chi=seed_syn_chi,
-            tau_syn_chi=tau_syn_chi,
-            chi_radius_cm=chi_radius_cm,
-            chi_gamma_bulk=chi_gamma_bulk,
-            chi_dvolume_weight=chi_dvolume_weight,
+            v_seed,
+            config,
+            solver_name,
+            use_characteristic_integrator=False,
+            return_report=return_report,
         )
-        if return_report:
-            return solution, _solver_report(
-                solver_name,
-                "log-gamma-log-chi-2d",
-                "ok",
-                num_gam_e=int(config.num_gam_e),
-                num_chi=int(num_chi),
-            )
-        return solution
 
     if solver_name == "fullhide_2d_pic":
         electron_fullhide_2d_pic_module = _electron_module(solver_name)
@@ -636,9 +500,11 @@ def solve_electron(
             )
         )
         chi_grid = _build_log_chi_grid(dynamics.r_gamma, num_chi)
-        solution = _build_electron_solution(
+        return _finish_electron_solution(
             config,
             dynamics,
+            solver_name,
+            "log-gamma-log-chi-2d-pic",
             gam_e,
             d_n_gam_e,
             l_syn_spec,
@@ -646,40 +512,26 @@ def solve_electron(
             nu_m,
             nu_c,
             nu_a,
+            return_report=return_report,
+            num_chi=num_chi,
             d_n_gam_e_chi=d_n_gam_e_chi,
             chi_grid=chi_grid,
         )
-        if return_report:
-            return solution, _solver_report(
-                solver_name,
-                "log-gamma-log-chi-2d-pic",
-                "ok",
-                num_gam_e=int(config.num_gam_e),
-                num_chi=int(num_chi),
-            )
-        return solution
 
     if solver_name == "fullhide_1d_hz":
         electron_fullhide_1d_module = _electron_module("fullhide_1d_hz")
-        gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = electron_fullhide_1d_module.fs_electron_fullhide_1d_hz(
+        gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = _solve_fullhide_1d(
+            electron_fullhide_1d_module.fs_electron_fullhide_1d_hz,
             boundary,
-            dynamics.r_tobs,
-            dynamics.r_gamma,
-            dynamics.radius,
+            dynamics,
             v_seed,
-            config.num_gam_e,
-            config.index_y,
-            config.index_syn_integr,
-            config.num_threads,
-            1 if config.electron_adaptive_substeps else 0,
-            config.electron_substep_rtol,
-            config.electron_substep_min,
-            config.electron_substep_max,
-            1 if config.thermal_electrons else 0,
+            config,
         )
-        solution = _build_electron_solution(
+        return _finish_electron_solution(
             config,
             dynamics,
+            solver_name,
+            "log-gamma-1d",
             gam_e,
             d_n_gam_e,
             l_syn_spec,
@@ -687,19 +539,148 @@ def solve_electron(
             nu_m,
             nu_c,
             nu_a,
+            return_report=return_report,
         )
-        if return_report:
-            return solution, _solver_report(
-                solver_name,
-                "log-gamma-1d",
-                "ok",
-                num_gam_e=int(config.num_gam_e),
-                num_chi=1,
-            )
-        return solution
 
     electron_fullhide_1d_module = _electron_module("fullhide_1d")
-    gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = electron_fullhide_1d_module.fs_electron_fullhide_1d(
+    gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = _solve_fullhide_1d(
+        electron_fullhide_1d_module.fs_electron_fullhide_1d,
+        boundary,
+        dynamics,
+        v_seed,
+        config,
+    )
+    return _finish_electron_solution(
+        config,
+        dynamics,
+        solver_name,
+        "log-gamma-1d",
+        gam_e,
+        d_n_gam_e,
+        l_syn_spec,
+        seed_syn,
+        nu_m,
+        nu_c,
+        nu_a,
+        return_report=return_report,
+    )
+
+
+def _finish_electron_solution(
+    config: RuntimeConfig,
+    dynamics: DynamicsSolution,
+    solver_name: str,
+    grid_semantics: str,
+    gam_e: np.ndarray,
+    d_n_gam_e: np.ndarray,
+    l_syn_spec: np.ndarray,
+    seed_syn: np.ndarray,
+    nu_m: np.ndarray,
+    nu_c: np.ndarray,
+    nu_a: np.ndarray,
+    *,
+    return_report: bool,
+    num_chi: int = 1,
+    **solution_kwargs,
+) -> ElectronSolution | tuple[ElectronSolution, SolverAdapterReport]:
+    solution = _build_electron_solution(
+        config,
+        dynamics,
+        gam_e,
+        d_n_gam_e,
+        l_syn_spec,
+        seed_syn,
+        nu_m,
+        nu_c,
+        nu_a,
+        **solution_kwargs,
+    )
+    if return_report:
+        return solution, _solver_report(
+            solver_name,
+            grid_semantics,
+            "ok",
+            num_gam_e=int(config.num_gam_e),
+            num_chi=int(num_chi),
+        )
+    return solution
+
+
+def _solve_electron_transport_2d(
+    boundary: np.ndarray,
+    dynamics: DynamicsSolution,
+    v_seed: np.ndarray,
+    config: RuntimeConfig,
+    solver_name: str,
+    *,
+    use_characteristic_integrator: bool,
+    return_report: bool,
+) -> ElectronSolution | tuple[ElectronSolution, SolverAdapterReport]:
+    electron_2d_module = _electron_module(solver_name)
+    num_chi = _resolve_num_chi(config, solver_name)
+    num_threads_2d = max(1, min(int(config.num_threads), int(num_chi), 4))
+    (
+        gam_e,
+        d_n_gam_e_chi,
+        d_n_gam_e,
+        l_syn_spec,
+        seed_syn,
+        nu_m,
+        nu_c,
+        nu_a,
+        l_syn_spec_chi,
+        seed_syn_chi,
+        tau_syn_chi,
+        chi_radius_cm,
+        chi_gamma_bulk,
+        chi_dvolume_weight,
+    ) = electron_2d_module.fs_electron_transport_2d_core(
+        boundary,
+        dynamics.r_tobs,
+        dynamics.r_gamma,
+        dynamics.radius,
+        v_seed,
+        config.num_gam_e,
+        num_chi,
+        config.index_y,
+        config.index_syn_integr,
+        num_threads_2d,
+        use_characteristic_integrator,
+        solver_name,
+    )
+    return _finish_electron_solution(
+        config,
+        dynamics,
+        solver_name,
+        "log-gamma-log-chi-2d",
+        gam_e,
+        d_n_gam_e,
+        l_syn_spec,
+        seed_syn,
+        nu_m,
+        nu_c,
+        nu_a,
+        return_report=return_report,
+        num_chi=num_chi,
+        d_n_gam_e_chi=d_n_gam_e_chi,
+        chi_grid=_build_log_chi_grid(dynamics.r_gamma, num_chi),
+        l_syn_spec_chi=l_syn_spec_chi,
+        seed_syn_chi=seed_syn_chi,
+        tau_syn_chi=tau_syn_chi,
+        chi_radius_cm=chi_radius_cm,
+        chi_gamma_bulk=chi_gamma_bulk,
+        chi_dvolume_weight=chi_dvolume_weight,
+    )
+
+
+def _solve_fullhide_1d(
+    kernel,
+    boundary: np.ndarray,
+    dynamics: DynamicsSolution,
+    v_seed: np.ndarray,
+    config: RuntimeConfig,
+) -> tuple[np.ndarray, ...]:
+    return kernel(
         boundary,
         dynamics.r_tobs,
         dynamics.r_gamma,
@@ -715,26 +696,6 @@ def solve_electron(
         config.electron_substep_max,
         1 if config.thermal_electrons else 0,
     )
-    solution = _build_electron_solution(
-        config,
-        dynamics,
-        gam_e,
-        d_n_gam_e,
-        l_syn_spec,
-        seed_syn,
-        nu_m,
-        nu_c,
-        nu_a,
-    )
-    if return_report:
-        return solution, _solver_report(
-            solver_name,
-            "log-gamma-1d",
-            "ok",
-            num_gam_e=int(config.num_gam_e),
-            num_chi=1,
-        )
-    return solution
 
 
 def solve_electron_with_cooling_seed(
@@ -828,16 +789,12 @@ def _resolve_num_chi(config: RuntimeConfig, solver_name: str | None = None) -> i
     resolved_solver = _resolve_electron_solver(config) if solver_name is None else solver_name
     user_value = config.num_chi
     if resolved_solver.endswith("_1d"):
-        return 1 if user_value is None else 1
+        return 1
     if user_value is None:
         return 64
     if int(user_value) < 2:
         raise ValueError("num_chi must be >= 2 for 2d electron solvers.")
     return int(user_value)
-
-
-def _effective_2d_num_threads(config: RuntimeConfig, num_chi: int) -> int:
-    return max(1, min(int(config.num_threads), int(num_chi), 4))
 
 
 def _build_log_chi_grid(r_gamma: np.ndarray, num_chi: int) -> np.ndarray:
@@ -1154,7 +1111,10 @@ def _solve_hadronic_hummer_transport_coupled(
         ),
     )
     process_energy_gev = photon_energy_gev
-    shell_volume_cm3 = _hadronic_shell_volumes_from_radius(radius)
+    shell_volume_cm3 = np.asarray(
+        hadronic_legacy_module.fs_hadronic_shell_volumes(np.asarray(radius, dtype=float)),
+        dtype=float,
+    )
 
     timings = {
         "pg_interaction": 0.0,
@@ -1171,7 +1131,10 @@ def _solve_hadronic_hummer_transport_coupled(
 
     for i_r in range(num_r):
         dt_s = _hadronic_shell_comoving_dt_from_radius(radius, gamma_bulk, i_r)
-        t_dyn_s = _hadronic_dynamical_time(radius[i_r], gamma_bulk[i_r])
+        t_dyn_s = float(hadronic_legacy_module.fs_hadronic_dynamical_time(
+            float(radius[i_r]),
+            float(gamma_bulk[i_r]),
+        ))
         gam_p_min = max(float(gam_p[0]), float(gamma_bulk[i_r]))
         q_inj = _hadronic_injection_content(
             gam_p,
@@ -1255,7 +1218,7 @@ def _solve_hadronic_hummer_transport_coupled(
             bh_loss = -bh_proton_loss_rate
             bh_pair_rate_per_gev = np.asarray(bh_output.pair_rate_per_gev, dtype=float)
             bh_photon_loss_rate[:, i_r] = np.asarray(bh_output.photon_loss_rate, dtype=float)
-            tau_bh[:, i_r] = _hadronic_transport_tau_shell(radius, gamma_bulk, i_r, bh_photon_loss_rate[:, i_r])
+            tau_bh[:, i_r], _ = _hadronic_pg_local_closure(radius, gamma_bulk, i_r, bh_photon_loss_rate[:, i_r])
             timings["bethe_heitler"] += time.perf_counter() - t_bh_start
         pp_loss = np.zeros_like(gam_p)
         if bool(config.hadronic.include_pp):
@@ -1537,13 +1500,6 @@ def _hadronic_global_gamma_p_max(
     ))
 
 
-def _hadronic_shell_volumes_from_radius(radius_cm: np.ndarray) -> np.ndarray:
-    return np.asarray(
-        hadronic_legacy_module.fs_hadronic_shell_volumes(np.asarray(radius_cm, dtype=float)),
-        dtype=float,
-    )
-
-
 def _hadronic_build_gamma_edges(gam_p: np.ndarray) -> np.ndarray:
     return np.asarray(
         hadronic_legacy_module.fs_hadronic_gamma_edges(np.asarray(gam_p, dtype=float)),
@@ -1585,40 +1541,12 @@ def _validate_hadronic_transport_inputs(
         raise ValueError("hadronic transport shell injection energy must be non-negative.")
 
 
-def _hadronic_shell_dt(r_tobs: np.ndarray, i_shell: int) -> float:
-    t_obs = np.asarray(r_tobs, dtype=float)
-    if i_shell <= 0:
-        dt = float(t_obs[0])
-    else:
-        dt = float(t_obs[i_shell] - t_obs[i_shell - 1])
-    if dt <= 0.0:
-        raise ValueError("hadronic shell observer times must be strictly increasing and positive.")
-    return dt
-
-
 def _hadronic_shell_comoving_dt_from_radius(radius_cm: np.ndarray, gamma_bulk: np.ndarray, i_shell: int) -> float:
     return float(hadronic_legacy_module.fs_hadronic_shell_comoving_dt(
         np.asarray(radius_cm, dtype=float),
         np.asarray(gamma_bulk, dtype=float),
         int(i_shell) + 1,
     ))
-
-
-def _hadronic_dynamical_time(radius_cm: float, gamma_bulk: float) -> float:
-    return float(hadronic_legacy_module.fs_hadronic_dynamical_time(
-        float(radius_cm),
-        float(gamma_bulk),
-    ))
-
-
-def _hadronic_transport_tau_shell(
-    radius_cm: np.ndarray,
-    gamma_bulk: np.ndarray,
-    i_shell: int,
-    alpha_gamma_s_inv: np.ndarray,
-) -> np.ndarray:
-    tau, _ = _hadronic_pg_local_closure(radius_cm, gamma_bulk, i_shell, alpha_gamma_s_inv)
-    return tau
 
 
 def rate_s_inv_to_radius_inv(rate_s_inv: np.ndarray, gamma_bulk: float) -> np.ndarray:
@@ -1658,30 +1586,6 @@ def _hadronic_pg_local_closure(
     return np.asarray(tau_pg, dtype=float), np.asarray(survival, dtype=float)
 
 
-def _hadronic_interaction_effective_time(rate_s_inv: np.ndarray, dt_s: float) -> np.ndarray:
-    return np.asarray(
-        hadronic_legacy_module.fs_hadronic_interaction_effective_time(
-            np.asarray(rate_s_inv, dtype=float),
-            float(dt_s),
-        ),
-        dtype=float,
-    )
-
-
-def _hadronic_aligned_photon_grid(hadron_energy_gev: np.ndarray, photon_energy_gev: np.ndarray) -> np.ndarray:
-    hadron_energy = np.asarray(hadron_energy_gev, dtype=float)
-    photon_energy = np.asarray(photon_energy_gev, dtype=float)
-    nbin = _hadronic_aligned_photon_grid_size(hadron_energy, photon_energy)
-    return np.asarray(
-        hadronic_legacy_module.fs_hadronic_aligned_photon_grid(
-            nbin,
-            hadron_energy,
-            photon_energy,
-        ),
-        dtype=float,
-    )
-
-
 def _hadronic_aligned_photon_grid_size(hadron_energy_gev: np.ndarray, photon_energy_gev: np.ndarray) -> int:
     hadron_energy = np.asarray(hadron_energy_gev, dtype=float)
     photon_energy = np.asarray(photon_energy_gev, dtype=float)
@@ -1714,22 +1618,6 @@ def _hadronic_electron_loss_rates(
     )
 
 
-def _quantum_syn_cooling_factor_fortran(
-    gamma: np.ndarray, b_field_g: float, mass_gev: float,
-) -> np.ndarray:
-    gamma_arr = np.asarray(gamma, dtype=float)
-    if not hasattr(hadronic_legacy_module, "fs_hadronic_quantum_syn_cooling_factor"):
-        raise RuntimeError("Quantum synchrotron cooling factor must be provided by the Fortran backend.")
-    return np.asarray(
-        hadronic_legacy_module.fs_hadronic_quantum_syn_cooling_factor(
-            gamma_arr,
-            float(b_field_g),
-            float(mass_gev),
-        ),
-        dtype=float,
-    )
-
-
 def _interp_positive_loglog(
     x_old: np.ndarray,
     y_old: np.ndarray,
@@ -1740,64 +1628,6 @@ def _interp_positive_loglog(
             np.asarray(x_old, dtype=float),
             np.asarray(y_old, dtype=float),
             np.asarray(x_new, dtype=float),
-        ),
-        dtype=float,
-    )
-
-
-def _interp_distribution_per_gev(
-    energy_src_gev: np.ndarray,
-    density_src_per_gamma: np.ndarray,
-    energy_dst_gev: np.ndarray,
-    mass_gev: float,
-    shell_volume_cm3: float,
-) -> np.ndarray:
-    return np.asarray(
-        hadronic_legacy_module.fs_hadronic_distribution_per_gev(
-            np.asarray(energy_src_gev, dtype=float),
-            np.asarray(density_src_per_gamma, dtype=float),
-            np.asarray(energy_dst_gev, dtype=float),
-            float(mass_gev),
-            float(shell_volume_cm3),
-        ),
-        dtype=float,
-    )
-
-
-def _interp_source_per_gamma(
-    energy_src_gev: np.ndarray,
-    source_src_per_gev_s: np.ndarray,
-    energy_dst_gev: np.ndarray,
-    mass_gev: float,
-    shell_volume_cm3: float,
-) -> np.ndarray:
-    return np.asarray(
-        hadronic_legacy_module.fs_hadronic_source_per_gamma(
-            np.asarray(energy_src_gev, dtype=float),
-            np.asarray(source_src_per_gev_s, dtype=float),
-            np.asarray(energy_dst_gev, dtype=float),
-            float(mass_gev),
-            float(shell_volume_cm3),
-        ),
-        dtype=float,
-    )
-
-
-def _hadronic_continuous_loss_rates(
-    gam_p: np.ndarray, b_field_g: float, t_dyn_s: float,
-    quantum_syn: bool = False, mass_gev: float | None = None,
-) -> np.ndarray:
-    if b_field_g < 0.0:
-        raise ValueError("hadronic continuous loss rates require b_field_g >= 0.")
-    if t_dyn_s <= 0.0:
-        raise ValueError("hadronic continuous loss rates require t_dyn_s > 0.")
-    return np.asarray(
-        hadronic_legacy_module.fs_hadronic_continuous_loss_rates(
-            np.asarray(gam_p, dtype=float),
-            float(b_field_g),
-            float(t_dyn_s),
-            float(mass_gev or constants.para_m_p_gev),
-            1 if quantum_syn else 0,
         ),
         dtype=float,
     )
@@ -1999,44 +1829,6 @@ def _energy_luminosity_from_rate_spectrum(
             np.asarray(energy_gev, dtype=float),
             np.asarray(spectrum, dtype=float),
             float(shell_volume_cm3),
-        ),
-        dtype=float,
-    )
-
-
-def _project_luminosity_from_rate_spectrum(
-    energy_src_gev: np.ndarray,
-    rate_src_per_gev: np.ndarray,
-    shell_volume_cm3: float,
-    energy_dst_gev: np.ndarray,
-) -> np.ndarray:
-    return np.asarray(
-        hadronic_legacy_module.fs_hadronic_project_luminosity_from_rate(
-            np.asarray(energy_src_gev, dtype=float),
-            np.asarray(rate_src_per_gev, dtype=float),
-            float(shell_volume_cm3),
-            np.asarray(energy_dst_gev, dtype=float),
-        ),
-        dtype=float,
-    )
-
-
-def _project_hic_luminosity(
-    energy_src_gev: np.ndarray,
-    epsilon_p_ic: np.ndarray,
-    epsilon_pi_ic: np.ndarray,
-    epsilon_mu_ic: np.ndarray,
-    shell_volume_cm3: float,
-    energy_dst_gev: np.ndarray,
-) -> np.ndarray:
-    return np.asarray(
-        hadronic_legacy_module.fs_hadronic_project_hic_luminosity(
-            np.asarray(energy_src_gev, dtype=float),
-            np.asarray(epsilon_p_ic, dtype=float),
-            np.asarray(epsilon_pi_ic, dtype=float),
-            np.asarray(epsilon_mu_ic, dtype=float),
-            float(shell_volume_cm3),
-            np.asarray(energy_dst_gev, dtype=float),
         ),
         dtype=float,
     )
@@ -2256,7 +2048,14 @@ def solve_reverse_shock_emission(
 
     rs_hadronic = None
     if bool(config.hadronic.reverse_enabled) and float(config.hadronic.reverse_epsilon_p) > 0.0:
-        if _reverse_hadronic_requires_full_chain(config):
+        requires_full_chain = any((
+            bool(config.hadronic.include_pg),
+            bool(config.hadronic.include_neutrino),
+            bool(config.hadronic.include_bethe_heitler),
+            bool(config.hadronic.include_hadronic_inverse_compton),
+            bool(config.hadronic.include_pp),
+        ))
+        if requires_full_chain:
             if (bool(config.hadronic.include_pg) or bool(config.hadronic.include_neutrino)) and (
                 _resolve_pgamma_scheme(config) != _PGAMMA_SCHEME_HUMMER2010_RESPONSE
             ):
@@ -2296,16 +2095,6 @@ def solve_reverse_shock_emission(
         rs_hadronic=rs_hadronic,
         secondary_rs=secondary_rs,
     )
-
-
-def _reverse_hadronic_requires_full_chain(config: RuntimeConfig) -> bool:
-    return any((
-        bool(config.hadronic.include_pg),
-        bool(config.hadronic.include_neutrino),
-        bool(config.hadronic.include_bethe_heitler),
-        bool(config.hadronic.include_hadronic_inverse_compton),
-        bool(config.hadronic.include_pp),
-    ))
 
 
 def _reverse_hadronic_shell_mass(dynamics: DynamicsSolution) -> np.ndarray:
@@ -2680,41 +2469,6 @@ def _compute_reverse_shock_characteristic_frequencies(
     return nu_m, nu_c, nu_a, magnetic_field_g, nu_M
 
 
-def _compute_synchrotron_emission_from_distribution(
-    radius_cm: np.ndarray,
-    magnetic_field_g: np.ndarray,
-    gam_e: np.ndarray,
-    d_n_gam_e: np.ndarray,
-    v_seed: np.ndarray,
-    config: RuntimeConfig,
-) -> tuple[np.ndarray, np.ndarray]:
-    num_nu = v_seed.shape[0]
-    num_r = radius_cm.shape[0]
-    l_syn_spec = np.zeros((num_nu, num_r), dtype=float)
-    seed_syn = np.zeros((num_nu, num_r), dtype=float)
-
-    for i in range(num_r):
-        db = float(magnetic_field_g[i])
-        radius_loc = float(radius_cm[i])
-        if not np.isfinite(db) or not np.isfinite(radius_loc) or db <= 0.0 or radius_loc <= 0.0:
-            continue
-        p_syn_i, seed_syn_i = electron_radiation_module.get_syn_selected(
-            config.index_syn_integr,
-            radius_loc,
-            db,
-            config.num_threads,
-            gam_e,
-            d_n_gam_e[:, i],
-            v_seed,
-        )
-        l_syn_spec[:, i] = np.asarray(p_syn_i, dtype=float)
-        seed_syn[:, i] = np.asarray(seed_syn_i, dtype=float)
-
-    return l_syn_spec, seed_syn
-
-
-
-
 def _renormalize_reverse_shock_distribution(
     gam_e: np.ndarray,
     d_n_gam_e: np.ndarray,
@@ -2737,15 +2491,6 @@ def _renormalize_reverse_shock_distribution(
 
 def _synchrotron_frequency(magnetic_field_g: float, electron_lorentz_factor: float, doppler_den: float) -> float:
     return 4.2e6 * magnetic_field_g * electron_lorentz_factor * electron_lorentz_factor / doppler_den
-
-
-def _reverse_ambient_density(radius_cm: float, config: RuntimeConfig) -> float:
-    if config.a_star >= 0.0:
-        d_ne_wind = config.a_star * 3.0e35 / radius_cm**2
-        if d_ne_wind <= config.d_ne / 4.0:
-            return config.d_ne
-        return d_ne_wind
-    return config.d_ne
 
 
 def _minimum_electron_lorentz_factor(config: RuntimeConfig, gamma_bulk: float, gam_e_max: float) -> float:

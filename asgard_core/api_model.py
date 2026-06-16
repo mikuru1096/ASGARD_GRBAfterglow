@@ -7,7 +7,7 @@ from typing import Callable, NamedTuple, Optional
 
 import numpy as np
 
-from asgard_core.angular_sampling import angular_separation, is_axisymmetric_jet
+from asgard_core.angular_sampling import angular_separation, build_patch_grid, is_axisymmetric_jet
 from asgard_core.asgard_config import (
     RuntimeConfig,
     HadronicConfig,
@@ -188,60 +188,6 @@ def TabulatedMedium(radius_cm, density_cm3, label: str) -> Medium:
     return make_density_profile_medium(radius_cm, density_cm3, label=label)
 
 
-def make_late_wr_activity_density_profile() -> Medium:
-    pc = 3.0856775814913673e18
-    radius_pc = (
-        0.010, 0.030, 0.080, 0.200, 0.450,
-        0.620, 0.700, 0.820,
-        1.050, 1.180, 1.320, 1.520,
-        1.850, 2.100, 2.320, 2.650,
-        3.150, 3.500, 3.820, 4.300,
-        4.850, 5.300, 6.000,
-    )
-    density_cm3 = (
-        5.0e2, 5.6e1, 7.8e0, 1.25e0, 2.47e-1,
-        1.30e-1, 8.2e-1, 1.05e-1,
-        4.5e-2, 5.0e-1, 4.2e-2, 2.2e-2,
-        1.46e-2, 2.3e-1, 1.0e-2, 7.1e-3,
-        5.0e-3, 7.0e-2, 3.4e-3, 2.7e-3,
-        2.1e-2, 1.8e-3, 1.4e-3,
-    )
-    radius_cm = tuple(value * pc for value in radius_pc)
-    return make_density_profile_medium(radius_cm, density_cm3, label="fryer_2006_late_wr_free_wind_episodes")
-
-
-def make_mesler_2012_fig4_100yr_density_profile() -> Medium:
-    pc = 3.0856775814913673e18
-    msun_g = 1.98847e33
-    year_s = 365.25 * 86400.0
-    mp_g = 1.67262192369e-24
-    mdot_w = 1.0e-6 * msun_g / year_s
-    wind_velocity = 2.0e8
-    wind_norm = mdot_w / (4.0 * np.pi * wind_velocity * mp_g)
-
-    def wind_density(radius_pc: float) -> float:
-        return wind_norm / (radius_pc * pc) ** 2
-
-    radius_pc = (
-        3.24e-6, 1.0e-5, 3.0e-5, 1.0e-4, 3.0e-4, 1.0e-3,
-        3.0e-3, 7.0e-3, 1.00e-2, 1.10e-2, 1.35e-2, 1.60e-2,
-        1.78e-2, 1.84e-2, 1.95e-2, 2.10e-2, 2.35e-2, 2.80e-2,
-        3.15e-2, 3.45e-2, 3.70e-2, 6.00e-2, 1.00e-1, 1.60e-1,
-        1.82e-1, 2.00e-1, 3.00e-1, 6.00e-1, 1.00e0,
-    )
-    density_cm3 = tuple(
-        wind_density(value) for value in radius_pc[:9]
-    ) + (
-        5.0e1, 7.0e1, 8.5e1,
-        1.2e2, 3.0e4, 1.2e6, 8.0e5, 2.5e5, 1.2e5,
-        1.0e2, 1.0e-4, 1.0e-5, 1.0e-5, 1.2e-5, 1.0e-5,
-        1.5e-2, wind_density(2.00e-1), wind_density(3.00e-1),
-        wind_density(6.00e-1), wind_density(1.00e0),
-    )
-    radius_cm = tuple(value * pc for value in radius_pc)
-    return make_density_profile_medium(radius_cm, density_cm3, label="mesler_2012_fig4_100yr_shell")
-
-
 def _validate_density_profile(radius: tuple[float, ...], density: tuple[float, ...]) -> None:
     radius_arr = np.asarray(radius, dtype=float)
     density_arr = np.asarray(density, dtype=float)
@@ -257,12 +203,6 @@ def _validate_density_profile(radius: tuple[float, ...], density: tuple[float, .
         raise ValueError("density profile radii and densities must be positive.")
     if np.any(np.diff(radius_arr) <= 0.0):
         raise ValueError("density profile radii must be strictly increasing.")
-
-
-LateWRActivityDensityProfile = make_late_wr_activity_density_profile
-PostLBVWRWindShellDensityProfile = make_late_wr_activity_density_profile
-WRWindBubbleDensityProfile = make_late_wr_activity_density_profile
-Mesler2012Fig4_100yrDensityProfile = make_mesler_2012_fig4_100yr_density_profile
 
 
 class Magnetar(NamedTuple):
@@ -387,7 +327,7 @@ def make_tophat_jet(
             theta_c, E_iso, Gamma0 = args
         else:
             E_iso, lf, theta_j = args
-    elif len(args) != 0:
+    elif args:
         raise TypeError("make_tophat_jet accepts either keyword arguments or three positional arguments.")
     _E_iso = float(E_iso)
     _lf = float(lf if lf is not None else Gamma0)
@@ -824,24 +764,6 @@ class ObserverGrid:
     time_max_s: float
 
 
-def _ssc_cooling_index(mode: str) -> tuple[int, bool, bool]:
-    normalized = str(mode).lower()
-    if normalized == "none":
-        return 0, False, False
-    if normalized == "numeric_ic_kn":
-        return 1, True, True
-    if normalized == "nakar_y_thomson":
-        return 2, True, False
-    raise ValueError("ssc_cooling_mode must be 'none', 'numeric_ic_kn', or 'nakar_y_thomson'.")
-
-
-def _synchrotron_integration_index(mode: str) -> int:
-    normalized = str(mode).lower()
-    if normalized == "fixed_grid":
-        return 2
-    raise ValueError("synchrotron_integration currently supports only 'fixed_grid'.")
-
-
 @dataclass
 class SolverOptions:
     electron_solver: str
@@ -1209,62 +1131,65 @@ def _compose_runtime_setups(
     if any(value is None for value in (numerics, observer_grid, solver_options, reverse_shock, hadronic)):
         raise TypeError("Model requires explicit numerics, observer_grid, solver_options, reverse_shock, and hadronic.")
     result = deepcopy(_RuntimeSetups())
-    if numerics is not None:
-        result.num_r = int(numerics.num_radius)
-        result.num_theta = int(numerics.num_theta)
-        result.num_phi = int(numerics.num_phi)
-        result.num_tobs = int(numerics.num_observer_time)
-        result.num_gam_e = int(numerics.num_electron_gamma)
-        result.num_nu = int(numerics.num_photon_frequency)
-        result.num_chi = numerics.num_chi
-        result.num_threads = int(numerics.num_threads)
-        result.electron_adaptive_substeps = bool(numerics.electron_adaptive_substeps)
-        result.electron_substep_rtol = float(numerics.electron_substep_rtol)
-        result.electron_substep_min = int(numerics.electron_substep_min)
-        result.electron_substep_max = int(numerics.electron_substep_max)
-        result.initial_radius_cm = float(numerics.initial_radius_cm)
-    if observer_grid is not None:
-        result.observer_time_min_s = float(observer_grid.time_min_s)
-        result.observer_time_max_s = float(observer_grid.time_max_s)
-    if solver_options is not None:
-        index_y, ssc_cooling, kn = _ssc_cooling_index(solver_options.ssc_cooling_mode)
-        result.electron_solver = str(solver_options.electron_solver)
-        result.dynamics_kernel = str(solver_options.dynamics_solver)
-        result.geometry_kernel = str(solver_options.geometry_projection)
-        result.electron_photon_coupling = str(solver_options.electron_photon_coupling)
-        result.ssc_cooling = ssc_cooling
-        result.kn = kn
-        result.index_syn_integr = _synchrotron_integration_index(solver_options.synchrotron_integration)
-        result.cooling_kernel = str(solver_options.cooling_kernel)
-        result.radiation_kernel = str(solver_options.radiation_kernel)
-        result.structured_backend = str(solver_options.structured_backend)
-        result.patch_sampling = str(solver_options.patch_sampling)
-        result.patch_projection = str(solver_options.patch_projection)
-        result.patch_sampling_pilot_theta = int(solver_options.patch_sampling_pilot_theta)
-        result.patch_sampling_num_times = int(solver_options.patch_sampling_num_times)
-        result.patch_sampling_beaming_factor = float(solver_options.patch_sampling_beaming_factor)
-        result.patch_sampling_beaming_resolution = float(solver_options.patch_sampling_beaming_resolution)
-        result.structured_parallel_mode = str(solver_options.structured_parallel_mode)
-        result.structured_outer_threads = solver_options.structured_outer_threads
-        result.structured_inner_threads = solver_options.structured_inner_threads
-        result.fullhide2d_transport_model = str(solver_options.fullhide2d_transport_model)
-        result.fullhide2d_stochastic_accel_norm = float(solver_options.fullhide2d_stochastic_accel_norm)
-        result.fullhide2d_escape_mode = str(solver_options.fullhide2d_escape_mode)
-        result.weno5 = False
-        result._index_y_override = index_y
-    if reverse_shock is not None:
-        result.rvs_shock = bool(reverse_shock.enabled)
-        result.reverse_delta_t_s = float(reverse_shock.shell_duration_s)
-        result.reverse_sigma = float(reverse_shock.upstream_sigma)
-        result.include_cross_zone_ic = bool(reverse_shock.include_cross_zone_ic)
-        result.rvs_ssc = bool(reverse_shock.include_ssc)
-    if hadronic is not None:
-        result.hadronic_enabled = bool(hadronic.enabled)
-        result.hadronic_solver = str(hadronic.solver)
-        result.num_gam_p = int(hadronic.num_proton_gamma)
-        result.num_nu_nu = int(hadronic.num_neutrino_frequency)
-        result.pgamma_scheme = str(hadronic.pgamma_scheme)
-        result.pair_cascade_iterations = int(hadronic.pair_cascade_iterations)
+    result.num_r = int(numerics.num_radius)
+    result.num_theta = int(numerics.num_theta)
+    result.num_phi = int(numerics.num_phi)
+    result.num_tobs = int(numerics.num_observer_time)
+    result.num_gam_e = int(numerics.num_electron_gamma)
+    result.num_nu = int(numerics.num_photon_frequency)
+    result.num_chi = numerics.num_chi
+    result.num_threads = int(numerics.num_threads)
+    result.electron_adaptive_substeps = bool(numerics.electron_adaptive_substeps)
+    result.electron_substep_rtol = float(numerics.electron_substep_rtol)
+    result.electron_substep_min = int(numerics.electron_substep_min)
+    result.electron_substep_max = int(numerics.electron_substep_max)
+    result.initial_radius_cm = float(numerics.initial_radius_cm)
+    result.observer_time_min_s = float(observer_grid.time_min_s)
+    result.observer_time_max_s = float(observer_grid.time_max_s)
+    ssc_mode = str(solver_options.ssc_cooling_mode).lower()
+    if ssc_mode == "none":
+        index_y, result.ssc_cooling, result.kn = 0, False, False
+    elif ssc_mode == "numeric_ic_kn":
+        index_y, result.ssc_cooling, result.kn = 1, True, True
+    elif ssc_mode == "nakar_y_thomson":
+        index_y, result.ssc_cooling, result.kn = 2, True, False
+    else:
+        raise ValueError("ssc_cooling_mode must be 'none', 'numeric_ic_kn', or 'nakar_y_thomson'.")
+    result.electron_solver = str(solver_options.electron_solver)
+    result.dynamics_kernel = str(solver_options.dynamics_solver)
+    result.geometry_kernel = str(solver_options.geometry_projection)
+    result.electron_photon_coupling = str(solver_options.electron_photon_coupling)
+    if str(solver_options.synchrotron_integration).lower() != "fixed_grid":
+        raise ValueError("synchrotron_integration currently supports only 'fixed_grid'.")
+    result.index_syn_integr = 2
+    result.cooling_kernel = str(solver_options.cooling_kernel)
+    result.radiation_kernel = str(solver_options.radiation_kernel)
+    result.structured_backend = str(solver_options.structured_backend)
+    result.patch_sampling = str(solver_options.patch_sampling)
+    result.patch_projection = str(solver_options.patch_projection)
+    result.patch_sampling_pilot_theta = int(solver_options.patch_sampling_pilot_theta)
+    result.patch_sampling_num_times = int(solver_options.patch_sampling_num_times)
+    result.patch_sampling_beaming_factor = float(solver_options.patch_sampling_beaming_factor)
+    result.patch_sampling_beaming_resolution = float(solver_options.patch_sampling_beaming_resolution)
+    result.structured_parallel_mode = str(solver_options.structured_parallel_mode)
+    result.structured_outer_threads = solver_options.structured_outer_threads
+    result.structured_inner_threads = solver_options.structured_inner_threads
+    result.fullhide2d_transport_model = str(solver_options.fullhide2d_transport_model)
+    result.fullhide2d_stochastic_accel_norm = float(solver_options.fullhide2d_stochastic_accel_norm)
+    result.fullhide2d_escape_mode = str(solver_options.fullhide2d_escape_mode)
+    result.weno5 = False
+    result._index_y_override = index_y
+    result.rvs_shock = bool(reverse_shock.enabled)
+    result.reverse_delta_t_s = float(reverse_shock.shell_duration_s)
+    result.reverse_sigma = float(reverse_shock.upstream_sigma)
+    result.include_cross_zone_ic = bool(reverse_shock.include_cross_zone_ic)
+    result.rvs_ssc = bool(reverse_shock.include_ssc)
+    result.hadronic_enabled = bool(hadronic.enabled)
+    result.hadronic_solver = str(hadronic.solver)
+    result.num_gam_p = int(hadronic.num_proton_gamma)
+    result.num_nu_nu = int(hadronic.num_neutrino_frequency)
+    result.pgamma_scheme = str(hadronic.pgamma_scheme)
+    result.pair_cascade_iterations = int(hadronic.pair_cascade_iterations)
     return result
 
 
@@ -1364,7 +1289,7 @@ class Model:
             pair_index = np.arange(times_s.shape[0], dtype=int)
             return pack(result, lambda values: values[inverse, pair_index])
 
-        result = self._compute(times_s, nu_hz, projection_kind=projection_kind)
+        result = self._compute_raw(times_s, nu_hz, projection_kind=projection_kind)
         return pack(result, lambda values: _extract_pair_flux(values, times_s, nu_hz))
 
     def flux_density_exposures(
@@ -1479,7 +1404,7 @@ class Model:
         *,
         projection_kind: str = "lightcurve",
     ) -> FluxResult:
-        return self._compute(times_s, nu_hz, projection_kind=projection_kind)
+        return self._compute_raw(times_s, nu_hz, projection_kind=projection_kind)
 
     def flux_density_bands(self, times_s: np.ndarray, *, projection_kind: str = "lightcurve") -> np.ndarray:
         frequencies_hz = build_multiband_observer_frequencies()[1]
@@ -1503,15 +1428,6 @@ class Model:
     def default_frequencies(self) -> np.ndarray:
         return np.logspace(np.log10(1.0e9), np.log10(1.0e24), 64)
 
-    def _compute(
-        self,
-        times_s: np.ndarray,
-        nu_hz: np.ndarray,
-        *,
-        projection_kind: str = "lightcurve",
-    ) -> FluxResult:
-        return self._compute_raw(times_s, nu_hz, projection_kind=projection_kind)
-
     def _compute_raw(
         self,
         times_s: np.ndarray,
@@ -1523,7 +1439,7 @@ class Model:
         times_s = np.asarray(times_s, dtype=float)
         nu_hz = np.asarray(nu_hz, dtype=float)
         from asgard_core.asgard_state import _normalize_projection_kind
-        from .api_adaptive import _array_signature, _remember_cache_entry
+        from .api_adaptive import _array_signature, _observe_parts, _remember_cache_entry
 
         projection_kind = _normalize_projection_kind(projection_kind)
         reference_signature = None
@@ -1535,13 +1451,17 @@ class Model:
             self._last_details = cached[1]
             return cached[0]
         if self.jet.kind == "tophat" and self._supports_direct_kernel():
-            model_result = _solve_direct_model(
+            config = _direct_tophat_patch_config(self)
+            state = _solve_patch_state(
                 self,
+                config,
                 times_s,
                 nu_hz,
                 solve_reference_times_s=solve_reference_times_s,
-                projection_kind=projection_kind,
             )
+            observed = _observe_parts(state, times_s, nu_hz, projection_kind=projection_kind)
+            details = _make_details(state.components, patches=[{"phi": 0.0, "theta": 0.0, "weight": 1.0}], state=state)
+            model_result = (observed, details)
         else:
             model_result = _solve_patch_model(
                 self,
@@ -1564,7 +1484,9 @@ class Model:
             self._last_details = cached
             return cached
         if self.jet.kind == "tophat" and self._supports_direct_kernel():
-            details = _evaluate_direct_details(self, times_s)
+            config = _direct_tophat_patch_config(self)
+            state = _solve_patch_state(self, config, times_s, None)
+            details = _make_details(state.components, patches=[{"phi": 0.0, "theta": 0.0, "weight": 1.0}], state=state)
         else:
             details = _patch_details(self, times_s)
         self._last_details = details
@@ -1594,37 +1516,14 @@ class Model:
         self._raw_cache.clear()
         self._details_cache.clear()
 
-    def _apply_resolutions(self, resolutions: tuple[float, float, int]) -> None:
-        theta_ppd, phi_ppd, t_ppd = resolutions
-        theta_max_deg = np.degrees(self.jet.theta_max)
-        self.setups.patch_theta = max(1, int(np.ceil(theta_max_deg * float(theta_ppd))))
-        self.setups.patch_phi = max(1, int(np.ceil(360.0 * float(phi_ppd))))
-        self.setups.num_theta = self.setups.patch_theta
-        self.setups.num_phi = self.setups.patch_phi
-        decades = np.log10(self.setups.observer_time_max_s / self.setups.observer_time_min_s)
-        self.setups.num_tobs = max(8, int(np.ceil(decades * float(t_ppd))))
-        self._last_details = None
-        self._raw_cache.clear()
-        self._details_cache.clear()
-
     def _detail_time_count(self, t_min: float, t_max: float) -> int:
         if t_min <= 0.0 or t_max <= 0.0 or t_max <= t_min:
             return int(self.setups.num_tobs)
         decades = np.log10(float(t_max) / float(t_min))
-        samples_per_decade = 96.0 if self._needs_secondary_rs_time_resolution() else 8.0
+        density_jumps = self.setups.jump_r_cm and self.setups.jump_factor and self.setups.jump_width_log10
+        density_profile = self.setups.density_profile_radius_cm and self.setups.density_profile_n_cm3
+        samples_per_decade = 96.0 if self.setups.rvs_shock and (density_jumps or density_profile) else 8.0
         return max(int(self.setups.num_tobs), int(np.ceil(samples_per_decade * decades)))
-
-    def _needs_secondary_rs_time_resolution(self) -> bool:
-        return bool(
-            self.setups.rvs_shock
-            and len(self.setups.jump_r_cm) > 0
-            and len(self.setups.jump_factor) > 0
-            and len(self.setups.jump_width_log10) > 0
-        ) or bool(
-            self.setups.rvs_shock
-            and len(self.setups.density_profile_radius_cm) > 0
-            and len(self.setups.density_profile_n_cm3) > 0
-        )
 
 
 def _solve_patch_state(
@@ -1665,48 +1564,15 @@ def _solve_patch_state(
     )
 
 
-def _solve_direct_model(
-    model: Model,
-    times_s: np.ndarray,
-    nu_hz: np.ndarray,
-    solve_reference_times_s: np.ndarray | None = None,
-    projection_kind: str = "lightcurve",
-) -> tuple[FluxResult, TrackBundle]:
-    from .api_adaptive import _observe_parts
-
-    config = _build_fit_config_for_patch(
+def _direct_tophat_patch_config(model: Model) -> RuntimeConfig:
+    return _build_fit_config_for_patch(
         model,
-        phi_center=0.0,
         theta_v=model.observer.theta_obs,
         opening_angle_jet=model.jet.theta_j,
         e_iso=model.jet.E_iso,
         gamma0=model.jet.lf,
         theta_center=0.0,
     )
-    state = _solve_patch_state(
-        model,
-        config,
-        times_s,
-        nu_hz,
-        solve_reference_times_s=solve_reference_times_s,
-    )
-    observed = _observe_parts(state, times_s, nu_hz, projection_kind=projection_kind)
-    details = _make_details(state.components, patches=[{"phi": 0.0, "theta": 0.0, "weight": 1.0}], state=state)
-    return observed, details
-
-
-def _evaluate_direct_details(model: Model, times_s: np.ndarray) -> TrackBundle:
-    config = _build_fit_config_for_patch(
-        model,
-        phi_center=0.0,
-        theta_v=model.observer.theta_obs,
-        opening_angle_jet=model.jet.theta_j,
-        e_iso=model.jet.E_iso,
-        gamma0=model.jet.lf,
-        theta_center=0.0,
-    )
-    state = _solve_patch_state(model, config, times_s, None)
-    return _make_details(state.components, patches=[{"phi": 0.0, "theta": 0.0, "weight": 1.0}], state=state)
 
 
 def _solve_patch_model(
@@ -1716,8 +1582,8 @@ def _solve_patch_model(
     solve_reference_times_s: np.ndarray | None = None,
     projection_kind: str = "lightcurve",
 ) -> tuple[FluxResult, TrackBundle]:
-    structured_backend = str(getattr(model.setups, "structured_backend", "fortran_1d")).lower()
-    patch_sampling = str(getattr(model.setups, "patch_sampling", "uniform")).lower()
+    structured_backend = str(model.setups.structured_backend).lower()
+    patch_sampling = str(model.setups.patch_sampling).lower()
     from asgard_core.angular_sampling import SUPPORTED_PATCH_SAMPLING
 
     if patch_sampling not in SUPPORTED_PATCH_SAMPLING:
@@ -1745,6 +1611,26 @@ def _solve_patch_model(
     )
 
 
+def _empty_patch_flux_accumulator(nu_hz: np.ndarray, times_s: np.ndarray) -> FluxResult:
+    shape = (nu_hz.shape[0], times_s.shape[0])
+    return FluxResult(
+        total=np.zeros(shape, dtype=float),
+        fwd=FluxPair(sync=np.zeros(shape, dtype=float), ssc=np.zeros(shape, dtype=float)),
+        rev=FluxPair(sync=np.zeros(shape, dtype=float), ssc=np.zeros(shape, dtype=float)),
+        cross_ic=np.zeros(shape, dtype=float),
+    )
+
+
+def _accumulate_patch_flux(accumulator: FluxResult, observed: FluxResult) -> None:
+    accumulator.total += observed.total
+    accumulator.fwd.sync += observed.fwd.sync
+    accumulator.fwd.ssc += observed.fwd.ssc
+    accumulator.rev.sync += observed.rev.sync
+    accumulator.rev.ssc += observed.rev.ssc
+    if observed.cross_ic is not None:
+        accumulator.cross_ic += observed.cross_ic
+
+
 def _solve_patch_model_python(
     model: Model,
     times_s: np.ndarray,
@@ -1754,17 +1640,12 @@ def _solve_patch_model_python(
 ) -> tuple[FluxResult, TrackBundle]:
     from .api_adaptive import _observe_parts
 
-    total = np.zeros((nu_hz.shape[0], times_s.shape[0]), dtype=float)
-    fwd_sync_total = np.zeros_like(total)
-    fwd_ssc_total = np.zeros_like(total)
-    rev_sync_total = np.zeros_like(total)
-    rev_ssc_total = np.zeros_like(total)
-    cross_ic_total = np.zeros_like(total)
+    flux_accumulator = _empty_patch_flux_accumulator(nu_hz, times_s)
     patches_meta: list[dict[str, float]] = []
     details_fwd: Optional[CharTrack] = None
     details_rev: Optional[CharTrack] = None
 
-    patch_sampling = str(getattr(model.setups, "patch_sampling", "uniform")).lower()
+    patch_sampling = str(model.setups.patch_sampling).lower()
     patch_projection = _resolve_patch_projection(model, patch_sampling)
     if patch_projection == "surface_element" and is_axisymmetric_jet(model.jet):
         return _solve_axisymmetric_surface_patch_model_python(
@@ -1784,13 +1665,7 @@ def _solve_patch_model_python(
             observed = _observe_parts(state, times_s, nu_hz, projection_kind=projection_kind)
         else:
             observed = _observe_surface_element_parts(state, times_s, nu_hz, patch.domega)
-        total += observed.total
-        fwd_sync_total += observed.fwd.sync
-        fwd_ssc_total += observed.fwd.ssc
-        rev_sync_total += observed.rev.sync
-        rev_ssc_total += observed.rev.ssc
-        if observed.cross_ic is not None:
-            cross_ic_total += observed.cross_ic
+        _accumulate_patch_flux(flux_accumulator, observed)
         patches_meta.append(_patch_metadata(patch, patch_sampling, patch_projection))
         if details_fwd is None:
             details = _make_details(state.components, patches_meta, state=state)
@@ -1800,12 +1675,7 @@ def _solve_patch_model_python(
     if details_fwd is None:
         raise ValueError("No active jet patches were found for the requested structured jet.")
     return (
-        FluxResult(
-            total=total,
-            fwd=FluxPair(sync=fwd_sync_total, ssc=fwd_ssc_total),
-            rev=FluxPair(sync=rev_sync_total, ssc=rev_ssc_total),
-            cross_ic=cross_ic_total,
-        ),
+        flux_accumulator,
         TrackBundle(fwd=details_fwd, rev=details_rev, patches=patches_meta),
     )
 
@@ -1816,19 +1686,12 @@ def _solve_axisymmetric_surface_patch_model_python(
     nu_hz: np.ndarray,
     solve_reference_times_s: np.ndarray | None = None,
 ) -> tuple[FluxResult, TrackBundle]:
-    from asgard_core.angular_sampling import build_patch_grid
-
     grid = build_patch_grid(model, times_s)
-    total = np.zeros((nu_hz.shape[0], times_s.shape[0]), dtype=float)
-    fwd_sync_total = np.zeros_like(total)
-    fwd_ssc_total = np.zeros_like(total)
-    rev_sync_total = np.zeros_like(total)
-    rev_ssc_total = np.zeros_like(total)
-    cross_ic_total = np.zeros_like(total)
+    flux_accumulator = _empty_patch_flux_accumulator(nu_hz, times_s)
     patches_meta: list[dict[str, float]] = []
     details_fwd: Optional[CharTrack] = None
     details_rev: Optional[CharTrack] = None
-    patch_sampling = str(getattr(model.setups, "patch_sampling", "uniform")).lower()
+    patch_sampling = str(model.setups.patch_sampling).lower()
 
     for i_theta, theta_center_value in enumerate(grid.theta_centers):
         theta_center = float(theta_center_value)
@@ -1838,7 +1701,6 @@ def _solve_axisymmetric_surface_patch_model_python(
             continue
         config = _build_fit_config_for_patch(
             model,
-            phi_center=0.0,
             theta_v=0.0,
             opening_angle_jet=float(grid.patch_half_angle[i_theta, 0]),
             e_iso=e_iso,
@@ -1855,30 +1717,20 @@ def _solve_axisymmetric_surface_patch_model_python(
         boundary = state.setup.boundary
         for i_phi, phi_center_value in enumerate(grid.phi_centers):
             phi_center = float(phi_center_value)
-            domega = float(grid.domega[i_theta, i_phi])
             theta_v = float(angular_separation(theta_center, phi_center, model.observer.theta_obs, model.observer.phi_obs))
-            boundary[9] = theta_v
-            observed = _observe_surface_element_parts(state, times_s, nu_hz, domega)
-            total += observed.total
-            fwd_sync_total += observed.fwd.sync
-            fwd_ssc_total += observed.fwd.ssc
-            rev_sync_total += observed.rev.sync
-            rev_ssc_total += observed.rev.ssc
-            if observed.cross_ic is not None:
-                cross_ic_total += observed.cross_ic
-            patches_meta.append(
-                {
-                    "phi": phi_center,
-                    "theta": theta_center,
-                    "theta_v": float(theta_v),
-                    "half_angle": float(grid.patch_half_angle[i_theta, i_phi]),
-                    "domega": domega,
-                    "patch_sampling": patch_sampling,
-                    "patch_projection": "surface_element",
-                    "E_iso": float(e_iso),
-                    "Gamma0": float(gamma0),
-                }
+            patch = _ActivePatch(
+                phi_center,
+                theta_center,
+                float(grid.patch_half_angle[i_theta, i_phi]),
+                float(grid.domega[i_theta, i_phi]),
+                theta_v,
+                float(e_iso),
+                float(gamma0),
             )
+            boundary[9] = patch.theta_v
+            observed = _observe_surface_element_parts(state, times_s, nu_hz, patch.domega)
+            _accumulate_patch_flux(flux_accumulator, observed)
+            patches_meta.append(_patch_metadata(patch, patch_sampling, "surface_element"))
         if details_fwd is None:
             details = _make_details(state.components, patches_meta, state=state)
             details_fwd = details.fwd
@@ -1887,12 +1739,7 @@ def _solve_axisymmetric_surface_patch_model_python(
     if details_fwd is None:
         raise ValueError("No active jet patches were found for the requested structured jet.")
     return (
-        FluxResult(
-            total=total,
-            fwd=FluxPair(sync=fwd_sync_total, ssc=fwd_ssc_total),
-            rev=FluxPair(sync=rev_sync_total, ssc=rev_ssc_total),
-            cross_ic=cross_ic_total,
-        ),
+        flux_accumulator,
         TrackBundle(fwd=details_fwd, rev=details_rev, patches=patches_meta),
     )
 
@@ -1902,7 +1749,7 @@ def _patch_details(model: Model, times_s: np.ndarray) -> TrackBundle:
     first_component: Optional[FluxComponents] = None
     first_details: Optional[TrackBundle] = None
 
-    patch_sampling = str(getattr(model.setups, "patch_sampling", "uniform")).lower()
+    patch_sampling = str(model.setups.patch_sampling).lower()
     patch_projection = _resolve_patch_projection(model, patch_sampling)
     for patch in _active_patch_elements(model, _iter_patch_elements(model, times_s)):
         patches_meta.append(_patch_metadata(patch, patch_sampling, patch_projection))
@@ -1918,7 +1765,7 @@ def _patch_details(model: Model, times_s: np.ndarray) -> TrackBundle:
 
 
 def _resolve_patch_projection(model: Model, patch_sampling: str) -> str:
-    projection = str(getattr(model.setups, "patch_projection", "auto")).lower()
+    projection = str(model.setups.patch_projection).lower()
     if projection == "auto":
         return "tophat_cell" if patch_sampling == "uniform" else "surface_element"
     if projection in {"tophat_cell", "surface_element"}:
@@ -2028,23 +1875,16 @@ def _extract_pair_flux(grid: np.ndarray, times_s: np.ndarray, frequencies_hz: np
 def _build_fit_config_for_patch(
     model: Model,
     *,
-    phi_center: float,
     theta_v: float,
     opening_angle_jet: float,
     e_iso: float,
     gamma0: float,
     theta_center: Optional[float] = None,
 ) -> RuntimeConfig:
-    if getattr(model.jet, "spreading", False):
+    if model.jet.spreading:
         raise NotImplementedError("Jet spreading is not implemented in the current ASGARD backend.")
-    reverse_delta_t = model.setups.reverse_delta_t_s
-    if getattr(model.jet, "duration", None) is not None:
-        reverse_delta_t = float(model.jet.duration)
-    index_y = getattr(model.setups, "_index_y_override", None)
-    if index_y is None:
-        index_y = 0
-        if model.setups.ssc_cooling:
-            index_y = 1 if model.fwd_rad.kn else 2
+    reverse_delta_t = model.setups.reverse_delta_t_s if model.jet.duration is None else float(model.jet.duration)
+    index_y = model.setups._index_y_override
     config = RuntimeConfig(
         num_threads=model.setups.num_threads,
         num_gam_e=model.setups.num_gam_e,
@@ -2122,7 +1962,7 @@ def _build_fit_config_for_patch(
         pair_cascade_iterations=int(model.setups.pair_cascade_iterations),
         pp_model=int(getattr(model.fwd_rad, "pp_model", -1)),
     )
-    magnetar = getattr(model.jet, "magnetar", None)
+    magnetar = model.jet.magnetar
     if magnetar is not None and _jet_magnetar_active(model.jet, 0.0 if theta_center is None else theta_center):
         config.l_inj_0 = float(magnetar.L0)
         config.e_inj_t2 = float(magnetar.t0)
@@ -2140,17 +1980,14 @@ def _build_fit_config_for_patch(
             include_ssc=model.rvs_rad.ssc,
             include_cross_zone_ic=model.setups.include_cross_zone_ic,
         )
-    kernel_medium = _project_medium_to_kernel(
-        model.medium,
-        phi_center=phi_center,
-        theta_center=0.0 if theta_center is None else theta_center,
-    )
-    for key, value in kernel_medium.items():
+    if model.medium.kind not in ("ism", "wind", "density_profile"):
+        raise NotImplementedError("User-defined Medium is not supported by the current ASGARD kernel.")
+    for key, value in model.medium.to_kernel_params().items():
         setattr(config, key, value)
-    if len(model.medium.density_profile_radius_cm) > 0 or len(model.medium.density_profile_n_cm3) > 0:
+    if model.medium.density_profile_radius_cm or model.medium.density_profile_n_cm3:
         config.density_profile_radius_cm = tuple(float(value) for value in model.medium.density_profile_radius_cm)
         config.density_profile_n_cm3 = tuple(float(value) for value in model.medium.density_profile_n_cm3)
-    if len(model.setups.density_profile_radius_cm) > 0 or len(model.setups.density_profile_n_cm3) > 0:
+    if model.setups.density_profile_radius_cm or model.setups.density_profile_n_cm3:
         config.density_profile_radius_cm = tuple(float(value) for value in model.setups.density_profile_radius_cm)
         config.density_profile_n_cm3 = tuple(float(value) for value in model.setups.density_profile_n_cm3)
     if model.medium.kind == "ism" and float(model.setups.f_jump) != 1.0:
@@ -2158,9 +1995,9 @@ def _build_fit_config_for_patch(
         config.f_jump = float(model.setups.f_jump)
         config.f_wide = float(model.setups.f_wide)
     if (
-        len(model.setups.jump_r_cm) > 0
-        or len(model.setups.jump_factor) > 0
-        or len(model.setups.jump_width_log10) > 0
+        model.setups.jump_r_cm
+        or model.setups.jump_factor
+        or model.setups.jump_width_log10
     ):
         config.jump_r_cm = tuple(float(value) for value in model.setups.jump_r_cm)
         config.jump_factor = tuple(float(value) for value in model.setups.jump_factor)
@@ -2168,54 +2005,106 @@ def _build_fit_config_for_patch(
     return config
 
 
+def _as_float_array_or_none(value):
+    return None if value is None else np.asarray(value, dtype=float)
+
+
+def _secondary_rs_detail_kwargs(secondary_rs) -> dict:
+    if secondary_rs is None:
+        return {}
+    return dict(
+        secondary_rs_event_active=secondary_rs.event_active,
+        secondary_rs_start_radius=secondary_rs.start_radius_cm,
+        secondary_rs_shock_end_radius=secondary_rs.shock_end_radius_cm,
+        secondary_rs_start_tobs_axis=secondary_rs.start_tobs_axis_s,
+        secondary_rs_shock_end_tobs_axis=secondary_rs.shock_end_tobs_axis_s,
+        secondary_rs_gamma_contact=secondary_rs.gamma_contact,
+        secondary_rs_pressure_3=secondary_rs.pressure_3,
+        secondary_rs_gamma_43=secondary_rs.gamma_43,
+        secondary_rs_beta_rs=secondary_rs.beta_rs,
+        secondary_rs_u_diss=secondary_rs.dissipated_energy_density,
+        secondary_rs_dissipated_energy_erg=secondary_rs.dissipated_energy_erg,
+        secondary_rs_electron_injected_energy_erg=secondary_rs.electron_injected_energy_erg,
+        secondary_rs_swept_mass_g=secondary_rs.swept_mass_g,
+        secondary_rs_internal_energy_erg=secondary_rs.internal_energy_erg,
+        secondary_rs_comoving_volume_cm3=secondary_rs.comoving_volume_cm3,
+        secondary_rs_pressure_total=secondary_rs.pressure_total,
+        secondary_rs_enthalpy_density_total=secondary_rs.enthalpy_density_total,
+        secondary_rs_branch_swept_mass_g=secondary_rs.branch_swept_mass_g,
+        secondary_rs_branch_internal_energy_erg=secondary_rs.branch_internal_energy_erg,
+        secondary_rs_branch_comoving_volume_cm3=secondary_rs.branch_comoving_volume_cm3,
+        secondary_rs_branch_B=secondary_rs.branch_magnetic_field_g,
+        secondary_rs_B=secondary_rs.magnetic_field_g,
+        secondary_rs_gamma_e=secondary_rs.gam_e,
+        secondary_rs_dN_dgamma_e=secondary_rs.d_n_gam_e,
+        secondary_rs_branch_gamma_m=secondary_rs.branch_gamma_m,
+        secondary_rs_branch_gamma_contact=secondary_rs.branch_gamma_contact,
+        secondary_rs_branch_gamma_43=secondary_rs.branch_gamma_43,
+        secondary_rs_branch_compression=secondary_rs.branch_compression,
+        secondary_rs_branch_beta_rs=secondary_rs.branch_beta_rs,
+        secondary_rs_branch_u_diss=secondary_rs.branch_dissipated_energy_density,
+        secondary_rs_branch_reacceleration_seed_energy_erg=secondary_rs.branch_reacceleration_seed_energy_erg,
+        secondary_rs_branch_reaccelerated_energy_erg=secondary_rs.branch_reaccelerated_energy_erg,
+        secondary_rs_branch_luminosity_syn=secondary_rs.branch_luminosity_syn,
+        secondary_rs_nu_m=secondary_rs.nu_m,
+        secondary_rs_nu_c=secondary_rs.nu_c,
+        secondary_rs_nu_a=secondary_rs.nu_a,
+    )
+
+
 def _make_details(
     components: FluxComponents,
     patches: list[dict[str, float]],
     state: Optional[SolveState] = None,
 ) -> TrackBundle:
-    fwd_gamma_e = None if state is None else np.asarray(state.electron.gam_e, dtype=float)
-    fwd_dnde = None if state is None else np.asarray(state.electron.d_n_gam_e, dtype=float)
-    fwd_dnde_bh = None if state is None or state.electron.d_n_gam_e_bh is None else np.asarray(state.electron.d_n_gam_e_bh, dtype=float)
-    if state is not None and state.hadronic is not None and state.hadronic.d_n_gam_e_bh is not None:
-        fwd_dnde_bh = np.asarray(state.hadronic.d_n_gam_e_bh, dtype=float)
-    fwd_dnde_chi = None if state is None or state.electron.d_n_gam_e_chi is None else np.asarray(state.electron.d_n_gam_e_chi, dtype=float)
-    fwd_chi_grid = None if state is None or state.electron.chi_grid is None else np.asarray(state.electron.chi_grid, dtype=float)
-    fwd_lsyn_chi = None if state is None or state.electron.l_syn_spec_chi is None else np.asarray(state.electron.l_syn_spec_chi, dtype=float)
-    fwd_seed_chi = None if state is None or state.electron.seed_syn_chi is None else np.asarray(state.electron.seed_syn_chi, dtype=float)
-    fwd_tau_chi = None if state is None or state.electron.tau_syn_chi is None else np.asarray(state.electron.tau_syn_chi, dtype=float)
-    fwd_chi_radius = None if state is None or state.electron.chi_radius_cm is None else np.asarray(state.electron.chi_radius_cm, dtype=float)
-    fwd_chi_gamma = None if state is None or state.electron.chi_gamma_bulk is None else np.asarray(state.electron.chi_gamma_bulk, dtype=float)
-    fwd_chi_weight = None if state is None or state.electron.chi_dvolume_weight is None else np.asarray(state.electron.chi_dvolume_weight, dtype=float)
-    fwd_gamma_p = None if state is None or state.hadronic is None else np.asarray(state.hadronic.gam_p, dtype=float)
-    fwd_dndp = None if state is None or state.hadronic is None else np.asarray(state.hadronic.d_n_gam_p, dtype=float)
-    fwd_gamma_secondary = None if state is None or state.hadronic is None or state.hadronic.gam_secondary is None else np.asarray(state.hadronic.gam_secondary, dtype=float)
-    fwd_dndn = None if state is None or state.hadronic is None or state.hadronic.d_n_gam_n is None else np.asarray(state.hadronic.d_n_gam_n, dtype=float)
-    fwd_dndpi_plus = None if state is None or state.hadronic is None or state.hadronic.d_n_gam_pi_plus is None else np.asarray(state.hadronic.d_n_gam_pi_plus, dtype=float)
-    fwd_dndpi_minus = None if state is None or state.hadronic is None or state.hadronic.d_n_gam_pi_minus is None else np.asarray(state.hadronic.d_n_gam_pi_minus, dtype=float)
-    fwd_dndmu_ml = None if state is None or state.hadronic is None or state.hadronic.d_n_gam_mu_minus_left is None else np.asarray(state.hadronic.d_n_gam_mu_minus_left, dtype=float)
-    fwd_dndmu_mr = None if state is None or state.hadronic is None or state.hadronic.d_n_gam_mu_minus_right is None else np.asarray(state.hadronic.d_n_gam_mu_minus_right, dtype=float)
-    fwd_dndmu_pl = None if state is None or state.hadronic is None or state.hadronic.d_n_gam_mu_plus_left is None else np.asarray(state.hadronic.d_n_gam_mu_plus_left, dtype=float)
-    fwd_dndmu_pr = None if state is None or state.hadronic is None or state.hadronic.d_n_gam_mu_plus_right is None else np.asarray(state.hadronic.d_n_gam_mu_plus_right, dtype=float)
+    electron = None if state is None else state.electron
+    hadronic = None if state is None else state.hadronic
+    reverse_shock = None if state is None else state.dynamics.reverse_shock
+    reverse_emission = None if state is None else state.reverse_emission
+
+    fwd_gamma_e = None if electron is None else np.asarray(electron.gam_e, dtype=float)
+    fwd_dnde = None if electron is None else np.asarray(electron.d_n_gam_e, dtype=float)
+    fwd_dnde_bh = None if electron is None else _as_float_array_or_none(electron.d_n_gam_e_bh)
+    if hadronic is not None and hadronic.d_n_gam_e_bh is not None:
+        fwd_dnde_bh = np.asarray(hadronic.d_n_gam_e_bh, dtype=float)
+    fwd_dnde_chi = None if electron is None else _as_float_array_or_none(electron.d_n_gam_e_chi)
+    fwd_chi_grid = None if electron is None else _as_float_array_or_none(electron.chi_grid)
+    fwd_lsyn_chi = None if electron is None else _as_float_array_or_none(electron.l_syn_spec_chi)
+    fwd_seed_chi = None if electron is None else _as_float_array_or_none(electron.seed_syn_chi)
+    fwd_tau_chi = None if electron is None else _as_float_array_or_none(electron.tau_syn_chi)
+    fwd_chi_radius = None if electron is None else _as_float_array_or_none(electron.chi_radius_cm)
+    fwd_chi_gamma = None if electron is None else _as_float_array_or_none(electron.chi_gamma_bulk)
+    fwd_chi_weight = None if electron is None else _as_float_array_or_none(electron.chi_dvolume_weight)
+    fwd_gamma_p = None if hadronic is None else np.asarray(hadronic.gam_p, dtype=float)
+    fwd_dndp = None if hadronic is None else np.asarray(hadronic.d_n_gam_p, dtype=float)
+    fwd_gamma_secondary = None if hadronic is None else _as_float_array_or_none(hadronic.gam_secondary)
+    fwd_dndn = None if hadronic is None else _as_float_array_or_none(hadronic.d_n_gam_n)
+    fwd_dndpi_plus = None if hadronic is None else _as_float_array_or_none(hadronic.d_n_gam_pi_plus)
+    fwd_dndpi_minus = None if hadronic is None else _as_float_array_or_none(hadronic.d_n_gam_pi_minus)
+    fwd_dndmu_ml = None if hadronic is None else _as_float_array_or_none(hadronic.d_n_gam_mu_minus_left)
+    fwd_dndmu_mr = None if hadronic is None else _as_float_array_or_none(hadronic.d_n_gam_mu_minus_right)
+    fwd_dndmu_pl = None if hadronic is None else _as_float_array_or_none(hadronic.d_n_gam_mu_plus_left)
+    fwd_dndmu_pr = None if hadronic is None else _as_float_array_or_none(hadronic.d_n_gam_mu_plus_right)
     fwd_had_gamma = None
-    if state is not None and state.hadronic is not None:
-        fwd_had_gamma = np.asarray(state.hadronic.l_had_syn_spec + state.hadronic.l_had_pg_gamma, dtype=float)
-        if state.hadronic.l_had_pion_synch is not None:
-            fwd_had_gamma = fwd_had_gamma + np.asarray(state.hadronic.l_had_pion_synch, dtype=float)
-        if state.hadronic.l_had_muon_synch is not None:
-            fwd_had_gamma = fwd_had_gamma + np.asarray(state.hadronic.l_had_muon_synch, dtype=float)
-        if state.hadronic.l_had_pion_inverse_compton is not None:
-            fwd_had_gamma = fwd_had_gamma + np.asarray(state.hadronic.l_had_pion_inverse_compton, dtype=float)
-        if state.hadronic.l_had_muon_inverse_compton is not None:
-            fwd_had_gamma = fwd_had_gamma + np.asarray(state.hadronic.l_had_muon_inverse_compton, dtype=float)
-    fwd_had_pi_syn = None if state is None or state.hadronic is None or state.hadronic.l_had_pion_synch is None else np.asarray(state.hadronic.l_had_pion_synch, dtype=float)
-    fwd_had_mu_syn = None if state is None or state.hadronic is None or state.hadronic.l_had_muon_synch is None else np.asarray(state.hadronic.l_had_muon_synch, dtype=float)
-    fwd_had_pi_ic = None if state is None or state.hadronic is None or state.hadronic.l_had_pion_inverse_compton is None else np.asarray(state.hadronic.l_had_pion_inverse_compton, dtype=float)
-    fwd_had_mu_ic = None if state is None or state.hadronic is None or state.hadronic.l_had_muon_inverse_compton is None else np.asarray(state.hadronic.l_had_muon_inverse_compton, dtype=float)
+    if hadronic is not None:
+        fwd_had_gamma = np.asarray(hadronic.l_had_syn_spec + hadronic.l_had_pg_gamma, dtype=float)
+        if hadronic.l_had_pion_synch is not None:
+            fwd_had_gamma = fwd_had_gamma + np.asarray(hadronic.l_had_pion_synch, dtype=float)
+        if hadronic.l_had_muon_synch is not None:
+            fwd_had_gamma = fwd_had_gamma + np.asarray(hadronic.l_had_muon_synch, dtype=float)
+        if hadronic.l_had_pion_inverse_compton is not None:
+            fwd_had_gamma = fwd_had_gamma + np.asarray(hadronic.l_had_pion_inverse_compton, dtype=float)
+        if hadronic.l_had_muon_inverse_compton is not None:
+            fwd_had_gamma = fwd_had_gamma + np.asarray(hadronic.l_had_muon_inverse_compton, dtype=float)
+    fwd_had_pi_syn = None if hadronic is None else _as_float_array_or_none(hadronic.l_had_pion_synch)
+    fwd_had_mu_syn = None if hadronic is None else _as_float_array_or_none(hadronic.l_had_muon_synch)
+    fwd_had_pi_ic = None if hadronic is None else _as_float_array_or_none(hadronic.l_had_pion_inverse_compton)
+    fwd_had_mu_ic = None if hadronic is None else _as_float_array_or_none(hadronic.l_had_muon_inverse_compton)
     fwd_nu_freq = None
     fwd_nu_lum = None
-    if state is not None and state.hadronic is not None and state.config.hadronic.include_neutrino:
-        fwd_nu_freq = np.asarray(state.hadronic.neutrino_frequency_hz, dtype=float)
-        fwd_nu_lum = np.asarray(state.hadronic.neutrino_luminosity, dtype=float)
+    if hadronic is not None and state.config.hadronic.include_neutrino:
+        fwd_nu_freq = np.asarray(hadronic.neutrino_frequency_hz, dtype=float)
+        fwd_nu_lum = np.asarray(hadronic.neutrino_luminosity, dtype=float)
     fwd_had_syn = None
     fwd_had_pg_gamma = None
     fwd_had_bh = None
@@ -2226,31 +2115,23 @@ def _make_details(
     fwd_pg_survival = None
     fwd_timings = None
     fwd_seed_freq = None
-    if state is not None and state.hadronic is not None:
+    if hadronic is not None:
         fwd_seed_freq = np.asarray(state.photon_field.seed_frequency_hz, dtype=float)
-        fwd_had_syn = np.asarray(state.hadronic.l_had_syn_spec, dtype=float)
-        fwd_had_pg_gamma = np.asarray(state.hadronic.l_had_pg_gamma, dtype=float)
-        if state.hadronic.l_had_bethe_heitler is not None:
-            fwd_had_bh = np.asarray(state.hadronic.l_had_bethe_heitler, dtype=float)
-        if state.hadronic.l_had_hadronic_inverse_compton is not None:
-            fwd_had_hic = np.asarray(state.hadronic.l_had_hadronic_inverse_compton, dtype=float)
-        if state.hadronic.am3_process_power is not None:
-            fwd_am3_power = np.asarray(state.hadronic.am3_process_power, dtype=float)
-        if state.hadronic.tau_pg is not None:
-            fwd_tau_pg = np.asarray(state.hadronic.tau_pg, dtype=float)
-        if state.hadronic.tau_bh is not None:
-            fwd_tau_bh = np.asarray(state.hadronic.tau_bh, dtype=float)
-        if state.hadronic.pg_photon_survival is not None:
-            fwd_pg_survival = np.asarray(state.hadronic.pg_photon_survival, dtype=float)
-        fwd_timings = dict(state.hadronic.timings) if state.hadronic.timings else {}
+        fwd_had_syn = np.asarray(hadronic.l_had_syn_spec, dtype=float)
+        fwd_had_pg_gamma = np.asarray(hadronic.l_had_pg_gamma, dtype=float)
+        fwd_had_bh = _as_float_array_or_none(hadronic.l_had_bethe_heitler)
+        fwd_had_hic = _as_float_array_or_none(hadronic.l_had_hadronic_inverse_compton)
+        fwd_am3_power = _as_float_array_or_none(hadronic.am3_process_power)
+        fwd_tau_pg = _as_float_array_or_none(hadronic.tau_pg)
+        fwd_tau_bh = _as_float_array_or_none(hadronic.tau_bh)
+        fwd_pg_survival = _as_float_array_or_none(hadronic.pg_photon_survival)
+        fwd_timings = dict(hadronic.timings) if hadronic.timings else {}
     rev_gamma_e = None
     rev_dnde = None
-    secondary_rs = None
-    if state is not None and state.dynamics.reverse_shock is not None:
-        rev_gamma_e = np.asarray(state.dynamics.reverse_shock.gam_e, dtype=float)
-        rev_dnde = np.asarray(state.dynamics.reverse_shock.d_n_gam_e, dtype=float)
-    if state is not None and state.reverse_emission is not None:
-        secondary_rs = state.reverse_emission.secondary_rs
+    if reverse_shock is not None:
+        rev_gamma_e = np.asarray(reverse_shock.gam_e, dtype=float)
+        rev_dnde = np.asarray(reverse_shock.d_n_gam_e, dtype=float)
+    secondary_rs = None if reverse_emission is None else reverse_emission.secondary_rs
     return TrackBundle(
         fwd=CharTrack(
             t_obs=components.fwd.characteristic_time_s,
@@ -2321,58 +2202,13 @@ def _make_details(
             dynamical_timescale_s=components.rev.dynamical_timescale_s,
             gamma_e=rev_gamma_e,
             dN_dgamma_e=rev_dnde,
-            secondary_rs_event_active=None if secondary_rs is None else secondary_rs.event_active,
-            secondary_rs_start_radius=None if secondary_rs is None else secondary_rs.start_radius_cm,
-            secondary_rs_shock_end_radius=None if secondary_rs is None else secondary_rs.shock_end_radius_cm,
-            secondary_rs_start_tobs_axis=None if secondary_rs is None else secondary_rs.start_tobs_axis_s,
-            secondary_rs_shock_end_tobs_axis=None if secondary_rs is None else secondary_rs.shock_end_tobs_axis_s,
-            secondary_rs_gamma_contact=None if secondary_rs is None else secondary_rs.gamma_contact,
-            secondary_rs_pressure_3=None if secondary_rs is None else secondary_rs.pressure_3,
-            secondary_rs_gamma_43=None if secondary_rs is None else secondary_rs.gamma_43,
-            secondary_rs_beta_rs=None if secondary_rs is None else secondary_rs.beta_rs,
-            secondary_rs_u_diss=None if secondary_rs is None else secondary_rs.dissipated_energy_density,
-            secondary_rs_dissipated_energy_erg=None if secondary_rs is None else secondary_rs.dissipated_energy_erg,
-            secondary_rs_electron_injected_energy_erg=(
-                None if secondary_rs is None else secondary_rs.electron_injected_energy_erg
-            ),
-            secondary_rs_swept_mass_g=None if secondary_rs is None else secondary_rs.swept_mass_g,
-            secondary_rs_internal_energy_erg=None if secondary_rs is None else secondary_rs.internal_energy_erg,
-            secondary_rs_comoving_volume_cm3=None if secondary_rs is None else secondary_rs.comoving_volume_cm3,
-            secondary_rs_pressure_total=None if secondary_rs is None else secondary_rs.pressure_total,
-            secondary_rs_enthalpy_density_total=None if secondary_rs is None else secondary_rs.enthalpy_density_total,
-            secondary_rs_branch_swept_mass_g=None if secondary_rs is None else secondary_rs.branch_swept_mass_g,
-            secondary_rs_branch_internal_energy_erg=None if secondary_rs is None else secondary_rs.branch_internal_energy_erg,
-            secondary_rs_branch_comoving_volume_cm3=None if secondary_rs is None else secondary_rs.branch_comoving_volume_cm3,
-            secondary_rs_branch_B=None if secondary_rs is None else secondary_rs.branch_magnetic_field_g,
-            secondary_rs_B=None if secondary_rs is None else secondary_rs.magnetic_field_g,
-            secondary_rs_gamma_e=None if secondary_rs is None else secondary_rs.gam_e,
-            secondary_rs_dN_dgamma_e=None if secondary_rs is None else secondary_rs.d_n_gam_e,
-            secondary_rs_branch_gamma_m=None if secondary_rs is None else secondary_rs.branch_gamma_m,
-            secondary_rs_branch_gamma_contact=None if secondary_rs is None else secondary_rs.branch_gamma_contact,
-            secondary_rs_branch_gamma_43=None if secondary_rs is None else secondary_rs.branch_gamma_43,
-            secondary_rs_branch_compression=None if secondary_rs is None else secondary_rs.branch_compression,
-            secondary_rs_branch_beta_rs=None if secondary_rs is None else secondary_rs.branch_beta_rs,
-            secondary_rs_branch_u_diss=(
-                None if secondary_rs is None else secondary_rs.branch_dissipated_energy_density
-            ),
-            secondary_rs_branch_reacceleration_seed_energy_erg=(
-                None if secondary_rs is None else secondary_rs.branch_reacceleration_seed_energy_erg
-            ),
-            secondary_rs_branch_reaccelerated_energy_erg=(
-                None if secondary_rs is None else secondary_rs.branch_reaccelerated_energy_erg
-            ),
-            secondary_rs_branch_luminosity_syn=None if secondary_rs is None else secondary_rs.branch_luminosity_syn,
-            secondary_rs_nu_m=None if secondary_rs is None else secondary_rs.nu_m,
-            secondary_rs_nu_c=None if secondary_rs is None else secondary_rs.nu_c,
-            secondary_rs_nu_a=None if secondary_rs is None else secondary_rs.nu_a,
+            **_secondary_rs_detail_kwargs(secondary_rs),
         ),
         patches=patches,
     )
 
 
 def _iter_patch_elements(model: Model, observer_time_s: np.ndarray | None = None):
-    from asgard_core.angular_sampling import build_patch_grid
-
     grid = build_patch_grid(model, observer_time_s)
     for i_theta, theta_center in enumerate(grid.theta_centers):
         for i_phi, phi_center in enumerate(grid.phi_centers):
@@ -2409,7 +2245,6 @@ def _patch_runtime_config(
 ) -> RuntimeConfig:
     return _build_fit_config_for_patch(
         model,
-        phi_center=patch.phi_center,
         theta_v=patch.theta_v,
         opening_angle_jet=patch.half_angle if opening_angle_jet is None else float(opening_angle_jet),
         e_iso=patch.e_iso,
@@ -2456,13 +2291,7 @@ def _patch_metadata(patch: _ActivePatch, patch_sampling: str, patch_projection: 
 
 def _jet_magnetar_active(jet: JetProfile, theta_center: float) -> bool:
     if jet.kind in ("tophat", "gaussian", "powerlaw", "steppowerlaw"):
-        return theta_center <= getattr(jet, "theta_c", getattr(jet, "theta_j", jet.theta_max))
+        return theta_center <= jet.theta_c
     if jet.kind == "twocomponent":
         return theta_center <= jet.theta_n
     return True
-
-
-def _project_medium_to_kernel(medium: Medium, *, phi_center: float, theta_center: float) -> dict[str, float]:
-    if medium.kind in ("ism", "wind", "density_profile"):
-        return medium.to_kernel_params()
-    raise NotImplementedError("User-defined Medium is not supported by the current ASGARD kernel.")

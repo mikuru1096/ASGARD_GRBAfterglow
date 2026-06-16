@@ -1,11 +1,11 @@
 # 公开 API 选择手册
 
-本文回答四个问题：可以选什么、选项是什么意思、选择后模型会发生什么、需要注意什么。所有示例都按当前公开入口写；不要在新脚本里使用旧 alias 或未从 `ASGARD` 导出的内部 helper。
+本文回答四个问题：可以选什么、选项是什么意思、选择后模型会发生什么、需要注意什么。所有示例都按当前公开入口写；不要在新脚本里使用旧 alias 或未从 `asgard_core` 导出的内部 helper。
 
 ## 1. 导入入口
 
 ```python
-from ASGARD import (
+from asgard_core import (
     Fitter,
     Hadronic,
     Model,
@@ -27,9 +27,9 @@ from ASGARD import (
 )
 ```
 
-当前公开导出的 jet 构造器是 `top_hat_jet`、`gaussian_jet` 和 `power_law_jet`。源码里还有 `make_twocomponent_jet`、`make_steppowerlaw_jet`、`make_ejecta_jet`，但它们没有从 `ASGARD.__all__` 作为正式公开入口导出，新文档和教程不要依赖它们。
+当前公开导出的 jet 构造器是 `top_hat_jet`、`gaussian_jet` 和 `power_law_jet`。源码里还有 `make_twocomponent_jet`、`make_steppowerlaw_jet`、`make_ejecta_jet`，但它们没有从 `asgard_core.__all__` 作为正式公开入口导出，新文档和教程不要依赖它们。
 
-`from ASGARD import units` 导入的是轻量单位常量模块，便于写可读的时间、角度和频率：
+`from asgard_core import units` 导入的是轻量单位常量模块，便于写可读的时间、角度和频率：
 
 | 常量 | 数值含义 | 例子 |
 | --- | --- | --- |
@@ -452,7 +452,7 @@ hadronic = Hadronic(
 | `cooling_timescale_s`, `dynamical_timescale_s` | 冷却和动力学时间尺度。 | 判断 fast/slow cooling 和异常尖峰。 |
 | `N_p`, `Doppler` | 壳层粒子数和 Doppler 因子。 | 诊断归一化和 off-axis 投影。 |
 
-上表列出新手和拟合诊断最常用字段。其余 `CharTrack` 字段服务 hadronic、2D \(\chi\) 分辨、次级反向激波和详细能量预算，只有对应物理模块启用时才非空；完整字段定义见 `ASGARD/api_model.py` 中的 `CharTrack` 类。
+上表列出新手和拟合诊断最常用字段。其余 `CharTrack` 字段服务 hadronic、2D \(\chi\) 分辨、次级反向激波和详细能量预算，只有对应物理模块启用时才非空；完整字段定义见 `asgard_core/api_model.py` 中的 `CharTrack` 类。
 
 ### 13.3 其他返回类型
 

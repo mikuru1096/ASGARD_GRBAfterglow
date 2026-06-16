@@ -5,7 +5,6 @@ import math
 
 import numpy as np
 
-import numpy as np
 from asgard_core.hadronic_hummer import PROTON_MASS_GEV, solve_hummer2010_pgamma
 from asgard_core.hadronic_pgamma import (
     kelner_aharonian_2008_secondary_spectrum,
@@ -39,16 +38,6 @@ class HadronicProcessOutput:
     photon_loss_rate: np.ndarray | None = None
 
 
-@dataclass(frozen=True)
-class HadronicTransport1DOutput:
-    """1D proton/neutron transport output driven by Hummer2010 p-gamma rates."""
-
-    gam_p: np.ndarray
-    proton_distribution: np.ndarray
-    neutron_distribution: np.ndarray
-    process_output: HadronicProcessOutput
-
-
 def solve_hummer_2010_response_processes(
     radius_cm: np.ndarray,
     gam_p: np.ndarray,
@@ -72,29 +61,6 @@ def solve_hummer_2010_response_processes(
         process_energy_gev=process_energy_gev,
         include_pg=include_pg,
         include_neutrino=include_neutrino,
-    )
-
-
-def evolve_hummer2010_transport_1d(
-    r_tobs_s: np.ndarray,
-    r_gamma: np.ndarray,
-    radius_cm: np.ndarray,
-    shell_energy_inj_erg: np.ndarray,
-    b_field_g: np.ndarray,
-    v_seed_hz: np.ndarray,
-    seed_target_hz: np.ndarray,
-    p_p: float,
-    eta_acc: float,
-    num_gam_p: int,
-    num_nu_nu: int,
-    *,
-    include_pg: bool,
-    include_neutrino: bool,
-) -> HadronicTransport1DOutput:
-    """Retired Python transport path; production hadronic transport lives in the runtime/Fortran solver."""
-    raise NotImplementedError(
-        "evolve_hummer2010_transport_1d has been retired. "
-        "Use the runtime hadronic transport solver backed by the Fortran kernels."
     )
 
 

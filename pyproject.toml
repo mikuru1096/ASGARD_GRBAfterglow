@@ -61,4 +61,4 @@ asgard-build = "build_extensions:main"
 include-package-data = true
 
 [tool.setuptools.packages.find]
-include = ["ASGARD*", "asgard_core*", "src*"]
+include = ["asgard_core*", "src*"]

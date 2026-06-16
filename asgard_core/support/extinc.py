@@ -2,10 +2,6 @@ from extinction import fitzpatrick99 as f99
 import numpy as np
 from .extinction_cur import get_abs
 
-def _frequency_to_wavelength_angstrom(frequency):
-    return np.array([2.997e10 / frequency * 1e8], dtype=float)
-
-
 def _frequency_to_wavelength_micron(frequency):
     return np.array([2.997e10 / frequency * 1e4], dtype=float)
 
@@ -14,13 +10,6 @@ def _flux_from_mag(mag_data, mag_err, zeropointflux):
     flux_data_deredden = 10 ** (0.4 * (zeropointflux - mag_data))
     flux_data_err = 0.4 * np.log(10.0) * flux_data_deredden * mag_err
     return flux_data_deredden, flux_data_err
-
-
-def _apply_r_band_lyman_absorption(mag_data, frequency, lyman_ar):
-    wave_in_mu_m = _frequency_to_wavelength_micron(frequency)
-    if np.any((wave_in_mu_m > 0.6) & (wave_in_mu_m < 0.68)):
-        return mag_data - lyman_ar
-    return mag_data
 
 
 def opt_extinction(
@@ -37,10 +26,12 @@ def opt_extinction(
     Av = Rv * Ebv
 
     if law == "fitzpatrick99":
-        wave = _frequency_to_wavelength_angstrom(frequency)
+        wave = np.array([2.997e10 / frequency * 1e8], dtype=float)
         mag_data_deredden = mag_data - f99(wave, Av, Rv)
         if redshift is not None and lyman_ar != 0.0:
-            mag_data_deredden = _apply_r_band_lyman_absorption(mag_data_deredden, frequency, lyman_ar)
+            wave_in_mu_m = _frequency_to_wavelength_micron(frequency)
+            if np.any((wave_in_mu_m > 0.6) & (wave_in_mu_m < 0.68)):
+                mag_data_deredden = mag_data_deredden - lyman_ar
         return _flux_from_mag(mag_data_deredden, mag_err, zeropointflux)
 
     if law == "zhou_smc":
@@ -68,7 +59,6 @@ def opt_extinction_pei92(mag_data,mag_err,frequency,model,Rv,Ebv,zeropointflux,r
     mag_data_deredden = mag_data - pei92(wave_in_mu_m_redshift, Rv, Ebv, model) - pei92(wave_in_mu_m, 3.08, 0.29, 'MW')
     return _flux_from_mag(mag_data_deredden, mag_err, zeropointflux)
     
-import math
 def pei92(wave_in_mu_m, Rv, Ebv, model='SMC') -> float:
     """
     ported from XSPEC originally by
@@ -109,8 +99,5 @@ def pei92(wave_in_mu_m, Rv, Ebv, model='SMC') -> float:
 
     xi = np.sum(a / bottom)
 
-    # remove a_b normalization on the extinction curve
-    a_lambda = a_b * xi
-    
-    return a_lambda
+    return a_b * xi
     

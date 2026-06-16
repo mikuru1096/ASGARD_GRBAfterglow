@@ -4,14 +4,14 @@
 
 ## 1. 公开 API
 
-- `ASGARD/api_model.py`：`Model`, `Medium`, `JetProfile`, `UniformMedium`, `WindMedium`, `TabulatedMedium`, `top_hat_jet`, `gaussian_jet`, `power_law_jet`, `Observer`, `Radiation`, `Numerics`, `ObserverGrid`, `SolverOptions`, `ReverseShock`, `Hadronic`。介质和喷流 public constructors 返回带 `kind` 标记的 `Medium` / `JetProfile`。`Model` 查询路径在本文件内完成 direct top-hat、structured Fortran backend 和 Python patch backend 调度，并直接构造内部 `RuntimeConfig`。
+- `asgard_core/api_model.py`：`Model`, `Medium`, `JetProfile`, `UniformMedium`, `WindMedium`, `TabulatedMedium`, `top_hat_jet`, `gaussian_jet`, `power_law_jet`, `Observer`, `Radiation`, `Numerics`, `ObserverGrid`, `SolverOptions`, `ReverseShock`, `Hadronic`。介质和喷流 public constructors 返回带 `kind` 标记的 `Medium` / `JetProfile`。`Model` 查询路径在本文件内完成 direct top-hat、structured Fortran backend 和 Python patch backend 调度，并直接构造内部 `RuntimeConfig`。
 - `Model.flux_density_grid(times_s, nu_hz, projection_kind="lightcurve")`, `flux_density(times_s, nu_hz, projection_kind="lightcurve")`, `spectrum(time_s, nu_hz, projection_kind="sed")`, `flux(time_s, nu_min, nu_max, projection_kind="sed")`, `sky_image(t_obs, nu_obs, fov)`, `details()`。
 - `Model.polarization(times_s, nu_hz, magnetic_geometry=..., local_emissivity=...)`。
 - Hadronic public switches：`Radiation.pair_production`, `Radiation.include_pgamma`, `Radiation.bethe_heitler`, `Radiation.pp`, `Radiation.neutrino`, `Radiation.reverse_proton_energy_fraction`；cascade substeps 使用 `Hadronic.pair_cascade_iterations`。
 - Electron-photon coupling switch：`SolverOptions.electron_photon_coupling="separated" | "joint"`；`joint` 是正向激波 1D formal 强子壳层级反馈路径，物理契约见 `doc/joint_secondary_feedback_physics.md`。
 - Reverse-shock magnetization switch：`ReverseShock.upstream_sigma`，控制反向激波 upstream magnetization。
-- `ASGARD/api_observe.py`：内部/旧配置观测工具，以及 `Model.sky_image(...)` / `Model.polarization(...)` 复用的实现函数；`observe(model, config)` 和 `run_fit(config)` 不从 `ASGARD` 顶层导出，不作为新教程的公开入口。
-- `ASGARD/api_fit.py`：`Fitter`, `Param`, `FitResult`。
+- `asgard_core/api_observe.py`：内部/旧配置观测工具，以及 `Model.sky_image(...)` / `Model.polarization(...)` 复用的实现函数；`observe(model, config)` 和 `run_fit(config)` 不从 `asgard_core` 顶层导出，不作为新教程的公开入口。
+- `asgard_core/api_fit.py`：`Fitter`, `Param`, `FitResult`。
 - Electron solver names：`fullhide_1d`, `fullhide_1d_hz`, `slc1_1d`, `charint_1d`, `charint_2d`, `t2g1_1d`, `weno5_1d`, `fullhide_2d`, `fullhide_2d_pic`。public API 只使用这些完整名称。
 
 ## 2. 运行时主链
@@ -56,10 +56,10 @@ Fitter.loglike -> compile_problem -> eval_loglike -> solve_state_from_setup
 
 ## 3. Python 编排层
 
-- `ASGARD/api_model.py`：public model objects、`Model` 查询缓存、direct/patch solve 调度、`Model -> RuntimeConfig` 适配和 details 打包。
-- `ASGARD/api_observe.py`：`observe`, `run_fit` 兼容入口，以及 sky image / polarization / observation dataset helpers。
+- `asgard_core/api_model.py`：public model objects、`Model` 查询缓存、direct/patch solve 调度、`Model -> RuntimeConfig` 适配和 details 打包。
+- `asgard_core/api_observe.py`：`observe`, `run_fit` 兼容入口，以及 sky image / polarization / observation dataset helpers。
 - `asgard_setup.py`：`RuntimeConfig -> SimulationSetup`。
-- `asgard_config.py`：`RuntimeConfig`, `SimulationSetup`, `PhysicalSolution`, `FitResult` 和 runtime config dataclasses；旧 compatibility shim 和配置 preset 中转层均已移除。
+- `asgard_config.py`：`RuntimeConfig`, `SimulationSetup`, `FitResult` 和 runtime config dataclasses；旧 compatibility shim 和配置 preset 中转层均已移除。
 - `asgard_runtime.py`：backend selection、Fortran extension dispatch、array wrapping。
 - `asgard_state.py`：主状态机和跨阶段耦合。
 - `asgard_ssc.py`：forward SSC auxiliary grid 与 seed。

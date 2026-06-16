@@ -79,13 +79,16 @@ class Fitter:
 
     def build_model(self, values: dict[str, float]) -> Model:
         model = deepcopy(self.model)
-        from .api_observe import _param_path, _set_dotted_attr
+        from .api_observe import _param_path
 
         for param in self.params:
             if param.name in values or param.is_fixed():
                 raw_value = param.lower if param.is_fixed() else values[param.name]
-                path = _param_path(model, param)
-                _set_dotted_attr(model, path, param.transform(raw_value))
+                parts = _param_path(model, param).split(".")
+                target = model
+                for name in parts[:-1]:
+                    target = getattr(target, name)
+                setattr(target, parts[-1], param.transform(raw_value))
         return model
 
     def loglike(self, values: dict[str, float]) -> float:
@@ -130,8 +133,7 @@ class Fitter:
             return params
 
         def _loglike(theta):
-            trial = {param.name: theta[i] for i, param in enumerate(self.params)}
-            return self.loglike(trial)
+            return self.loglike({param.name: theta[i] for i, param in enumerate(self.params)})
 
         result = solve(
             LogLikelihood=_loglike,

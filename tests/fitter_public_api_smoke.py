@@ -1,15 +1,12 @@
 from __future__ import annotations
 
-from pathlib import Path
+from _repo_path import ensure_repo_root_on_path
 import importlib.util
-import sys
 
 
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+ensure_repo_root_on_path()
 
-from ASGARD import Fitter, Param, Scale
+from asgard_core import Fitter, Param, Scale
 from tests.public_api_builders import top_hat_model
 
 

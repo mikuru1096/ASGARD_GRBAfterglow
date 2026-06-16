@@ -1,16 +1,13 @@
 from __future__ import annotations
 
-from pathlib import Path
-import sys
+from _repo_path import ensure_repo_root_on_path
 
 import numpy as np
 
 
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+ensure_repo_root_on_path()
 
-from ASGARD.api_observe import run_fit
+from asgard_core.api_observe import run_fit
 from asgard_core.asgard_config import RuntimeConfig, ReverseShockConfig
 from asgard_core.asgard_setup import build_simulation_setup
 from asgard_core.asgard_runtime import solve_dynamics
@@ -31,8 +28,6 @@ def _config(index_y: int, *, sigma: float | None = None) -> RuntimeConfig:
         num_theta=24,
         num_tobs=24,
         reverse=True,
-        plot_lc=False,
-        show_plots=False,
         reverse_shock=ReverseShockConfig(
             enabled=True,
             delta_t_s=10.0,

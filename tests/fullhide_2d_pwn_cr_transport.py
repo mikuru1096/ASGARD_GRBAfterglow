@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-from pathlib import Path
-import sys
+from _repo_path import ensure_repo_root_on_path
 
 import numpy as np
 
 
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+ensure_repo_root_on_path()
 
 from asgard_core.asgard_config import RuntimeConfig
 from asgard_core.asgard_setup import build_boundary
@@ -17,7 +14,7 @@ from tests._bench_common import run_case
 
 
 def _config(**overrides) -> RuntimeConfig:
-    base = dict(
+    return RuntimeConfig(**(dict(
         electron_solver="fullhide_2d",
         num_gam_e=10,
         num_chi=5,
@@ -27,9 +24,7 @@ def _config(**overrides) -> RuntimeConfig:
         num_tobs=5,
         include_forward_ssc=False,
         electron_adaptive_substeps=False,
-    )
-    base.update(overrides)
-    return RuntimeConfig(**base)
+    ) | overrides))
 
 
 def case_boundary_layout() -> dict[str, object]:
@@ -39,13 +34,12 @@ def case_boundary_layout() -> dict[str, object]:
         _config(fullhide2d_transport_model="pwn_cr_v1", fullhide2d_escape_mode="free_outer"),
         1.0e28,
     )
-    assert legacy.shape == (27,)
-    assert pwn.shape == (30,)
-    assert pwn[26] == legacy[26]
-    assert pwn[27] == 1.0
-    assert pwn[28] == 0.0
-    assert pwn[29] == 0.0
-    assert free[29] == 1.0
+    assert pwn.shape == (legacy.size + 3,)
+    assert np.array_equal(pwn[:-3], legacy)
+    assert pwn[-3] == 1.0
+    assert pwn[-2] == 0.0
+    assert pwn[-1] == 0.0
+    assert free[-1] == 1.0
     return {"legacy_len": int(legacy.size), "pwn_len": int(pwn.size), "r0": float(pwn[26])}
 
 

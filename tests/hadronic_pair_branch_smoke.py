@@ -1,20 +1,17 @@
 from __future__ import annotations
 
-from pathlib import Path
-import sys
+from _repo_path import ensure_repo_root_on_path
 
 import numpy as np
 
 
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+ensure_repo_root_on_path()
 
 from asgard_core.asgard_config import RuntimeConfig
 from asgard_core.asgard_state import _compute_pair_production_branch
 from asgard_core.asgard_types import DynamicsSolution, ElectronSolution
 from asgard_core.hadronic_pair_production import ELECTRON_MASS_GEV
-from ASGARD.api_model import _build_fit_config_for_patch
+from asgard_core.api_model import _build_fit_config_for_patch
 from tests.public_api_builders import hadronic, radiation, top_hat_model
 from src import constants
 
@@ -90,7 +87,6 @@ def test_public_pair_cascade_config_mapping() -> None:
     )
     config = _build_fit_config_for_patch(
         model,
-        phi_center=0.0,
         theta_v=0.0,
         opening_angle_jet=0.1,
         e_iso=1.0e52,

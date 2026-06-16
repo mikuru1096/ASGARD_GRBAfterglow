@@ -1,16 +1,15 @@
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
+from scipy.special import erf
 
 from asgard_core.angular_sampling import is_axisymmetric_jet
 from asgard_core.asgard_state import (
     SolveState,
     _build_observer_setup_from_state,
     _forward_synchrotron_absorption_transfer,
-    _project_component,
-    project_flux_grid,
 )
 from src.Electron.electron_radiation import electron_radiation_kernel as electron_radiation_module
 from asgard_core.asgard_config import RuntimeConfig, SpectrumOutputConfig
@@ -22,10 +21,11 @@ from asgard_core.asgard_postprocess import (
     compute_spectrum_redchi,
     select_spectrum_time_index,
 )
+from src import constants
 from .api_adaptive import _observe_parts, _observe_total
 from .api_fit import FitResult, Param
 from .api_model import (
-    Magnetar,
+    Magnetar as Magnetar,
     Model,
     Numerics,
     Observer,
@@ -39,11 +39,10 @@ from .api_model import (
     SkyImage,
     UniformMedium,
     WindMedium,
-    gaussian_jet,
-    power_law_jet,
+    gaussian_jet as gaussian_jet,
+    power_law_jet as power_law_jet,
     top_hat_jet,
-    _build_fit_config_for_patch,
-    _extract_pair_flux,
+    _direct_tophat_patch_config,
     _iter_patch_elements,
     _iter_solved_patch_elements,
     _project_surface_element,
@@ -51,33 +50,19 @@ from .api_model import (
 )
 
 
-def _direct_total(
+def _total_matrix(
     model: Model,
     times_s: np.ndarray,
     nu_hz: np.ndarray,
-    timings: Optional[dict[str, float]] = None,
+    timings: dict[str, float] | None = None,
     projection_kind: str = "lightcurve",
 ) -> np.ndarray:
-    config = _build_fit_config_for_patch(
-        model,
-        phi_center=0.0,
-        theta_v=model.observer.theta_obs,
-        opening_angle_jet=model.jet.theta_j,
-        e_iso=model.jet.E_iso,
-        gamma0=model.jet.lf,
-        theta_center=0.0,
-    )
-    state = _solve_patch_state(model, config, times_s, nu_hz, timings=timings)
-    return _observe_total(state, times_s, nu_hz, timings=timings, projection_kind=projection_kind)
-
-
-def _patch_total(
-    model: Model,
-    times_s: np.ndarray,
-    nu_hz: np.ndarray,
-    timings: Optional[dict[str, float]] = None,
-    projection_kind: str = "lightcurve",
-) -> np.ndarray:
+    times_s = np.asarray(times_s, dtype=float)
+    nu_hz = np.asarray(nu_hz, dtype=float)
+    if model.jet.kind == "tophat" and model._supports_direct_kernel():
+        config = _direct_tophat_patch_config(model)
+        state = _solve_patch_state(model, config, times_s, nu_hz, timings=timings)
+        return _observe_total(state, times_s, nu_hz, timings=timings, projection_kind=projection_kind)
     total = np.zeros((nu_hz.shape[0], times_s.shape[0]), dtype=float)
     for _patch, state in _iter_solved_patch_elements(
         model,
@@ -88,20 +73,6 @@ def _patch_total(
     ):
         total += _observe_total(state, times_s, nu_hz, timings=timings, projection_kind=projection_kind)
     return total
-
-
-def _total_matrix(
-    model: Model,
-    times_s: np.ndarray,
-    nu_hz: np.ndarray,
-    timings: Optional[dict[str, float]] = None,
-    projection_kind: str = "lightcurve",
-) -> np.ndarray:
-    times_s = np.asarray(times_s, dtype=float)
-    nu_hz = np.asarray(nu_hz, dtype=float)
-    if model.jet.kind == "tophat" and model._supports_direct_kernel():
-        return _direct_total(model, times_s, nu_hz, timings=timings, projection_kind=projection_kind)
-    return _patch_total(model, times_s, nu_hz, timings=timings, projection_kind=projection_kind)
 
 
 def _compute_polarization(
@@ -378,7 +349,6 @@ def _accumulate_patch_polarization(
 def _patch_hadronic_synchrotron_component(state: SolveState) -> tuple[np.ndarray, np.ndarray] | None:
     if state.hadronic is None:
         return None
-    from src import constants
     import src.Hadronic.hadronic_forward_1d as hadronic_fortran_module
 
     luminosity = np.asarray(state.hadronic.l_had_syn_spec, dtype=float)
@@ -439,7 +409,6 @@ def _patch_hadronic_synchrotron_component(state: SolveState) -> tuple[np.ndarray
 def _patch_reverse_hadronic_synchrotron_component(state: SolveState) -> tuple[np.ndarray, np.ndarray] | None:
     if state.reverse_emission is None or state.reverse_emission.rs_hadronic is None:
         return None
-    from src import constants
     import src.Hadronic.hadronic_forward_1d as hadronic_fortran_module
 
     rs_hadronic = state.reverse_emission.rs_hadronic
@@ -522,12 +491,14 @@ def _generic_hadronic_synchrotron_pi_grid(
 def _render_sky_image(model: Model, times_s: np.ndarray, nu_obs: float, fov: float, npixel: int) -> SkyImage:
     base_pixel_size = float(fov) / float(npixel)
     patch_cache: list[tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, float]] = []
-    angular_diameter_distance_cm = _angular_diameter_distance_cm(model.observer)
+    if model.observer.lumi_dist_cm is None or model.observer.lumi_dist_cm <= 0.0:
+        raise ValueError("Observer.luminosity_distance_cm must be set for sky_image().")
+    angular_diameter_distance_cm = model.observer.lumi_dist_cm / (1.0 + model.observer.z) ** 2
     sightline, sky_x_axis, sky_y_axis = _sky_basis(model.observer)
     frequencies_hz = np.array([nu_obs], dtype=float)
     required_half_fov = 0.5 * float(fov)
     total_solid_angle = 2.0 * np.pi * (1.0 - np.cos(float(model.jet.theta_max)))
-    collapse_phi = _can_collapse_sky_image_phi(model)
+    collapse_phi = model.jet.kind == "tophat" and abs(float(model.observer.theta_obs)) <= 1.0e-12
     img_patches = _iter_img_patches(model, npixel, collapse_phi=collapse_phi)
     for patch, state in _iter_solved_patch_elements(
         model,
@@ -538,10 +509,14 @@ def _render_sky_image(model: Model, times_s: np.ndarray, nu_obs: float, fov: flo
     ):
         observed = _observe_parts(state, times_s, frequencies_hz)
         patch_flux = np.asarray(observed.total[0, :], dtype=float)
-        radius_cm = _interpolate_positive_series(
-            state.components.fwd.characteristic_time_s,
-            state.components.fwd.radius_cm,
-            times_s,
+        radius_cm = np.exp(
+            np.interp(
+                np.log(times_s),
+                np.log(np.asarray(state.components.fwd.characteristic_time_s, dtype=float)),
+                np.log(np.asarray(state.components.fwd.radius_cm, dtype=float)),
+                left=np.log(float(state.components.fwd.radius_cm[0])),
+                right=np.log(float(state.components.fwd.radius_cm[-1])),
+            )
         )
         if not np.any(np.isfinite(patch_flux) & (patch_flux > 0.0)):
             continue
@@ -611,10 +586,6 @@ def _render_sky_image(model: Model, times_s: np.ndarray, nu_obs: float, fov: flo
     )
 
 
-def _can_collapse_sky_image_phi(model: Model) -> bool:
-    return model.jet.kind == "tophat" and abs(float(model.observer.theta_obs)) <= 1.0e-12
-
-
 def _iter_img_patches(model: Model, npixel: int, *, collapse_phi: bool = False):
     theta_bins = min(model.setups.patch_theta, max(2, int(np.ceil(np.sqrt(npixel) / 6.0))))
     phi_bins = min(model.setups.patch_phi, max(12, 6 * theta_bins))
@@ -662,12 +633,6 @@ def _direction_vector(theta: float, phi: float) -> np.ndarray:
     )
 
 
-def _angular_diameter_distance_cm(observer: Observer) -> float:
-    if observer.lumi_dist_cm is None or observer.lumi_dist_cm <= 0.0:
-        raise ValueError("Observer.luminosity_distance_cm must be set for sky_image().")
-    return observer.lumi_dist_cm / (1.0 + observer.z) ** 2
-
-
 def _project_patch_to_sky(
     radius_cm: np.ndarray,
     theta_center: float,
@@ -694,13 +659,6 @@ def _gaussian_splat_stack(
     y_center: np.ndarray,
     sigma: np.ndarray,
 ) -> np.ndarray:
-    try:
-        from scipy.special import erf as _erf  # type: ignore
-    except Exception:
-        from math import erf as _scalar_erf
-
-        _erf = np.vectorize(_scalar_erf)
-
     sigma = np.maximum(np.asarray(sigma, dtype=float), 1.0e-30)
     x_axis = np.asarray(x_axis, dtype=float)
     y_axis = np.asarray(y_axis, dtype=float)
@@ -708,51 +666,14 @@ def _gaussian_splat_stack(
     y_edges = np.concatenate((y_axis - 0.5 * pixel_size, np.array([y_axis[-1] + 0.5 * pixel_size], dtype=float)))
     sigma_view = np.sqrt(2.0) * sigma[:, None]
     x_frac = 0.5 * (
-        _erf((x_edges[1:][None, :] - np.asarray(x_center, dtype=float)[:, None]) / sigma_view)
-        - _erf((x_edges[:-1][None, :] - np.asarray(x_center, dtype=float)[:, None]) / sigma_view)
+        erf((x_edges[1:][None, :] - np.asarray(x_center, dtype=float)[:, None]) / sigma_view)
+        - erf((x_edges[:-1][None, :] - np.asarray(x_center, dtype=float)[:, None]) / sigma_view)
     )
     y_frac = 0.5 * (
-        _erf((y_edges[1:][None, :] - np.asarray(y_center, dtype=float)[:, None]) / sigma_view)
-        - _erf((y_edges[:-1][None, :] - np.asarray(y_center, dtype=float)[:, None]) / sigma_view)
+        erf((y_edges[1:][None, :] - np.asarray(y_center, dtype=float)[:, None]) / sigma_view)
+        - erf((y_edges[:-1][None, :] - np.asarray(y_center, dtype=float)[:, None]) / sigma_view)
     )
     return x_frac[:, :, None] * y_frac[:, None, :] / (pixel_size * pixel_size)
-
-
-def _interpolate_positive_series(source_t: np.ndarray, source_y: np.ndarray, target_t: np.ndarray) -> np.ndarray:
-    source_t = np.asarray(source_t, dtype=float)
-    source_y = np.asarray(source_y, dtype=float)
-    target_t = np.asarray(target_t, dtype=float)
-    if np.all(source_t > 0.0) and np.all(source_y > 0.0) and np.all(target_t > 0.0):
-        return np.exp(
-            np.interp(
-                np.log(target_t),
-                np.log(source_t),
-                np.log(source_y),
-                left=np.log(source_y[0]),
-                right=np.log(source_y[-1]),
-            )
-        )
-    return np.interp(target_t, source_t, source_y, left=source_y[0], right=source_y[-1])
-
-
-def _set_dotted_attr(obj: Any, path: str, value: Any) -> None:
-    target = obj
-    parts = path.split(".")
-    for name in parts[:-1]:
-        target = getattr(target, name)
-    setattr(target, parts[-1], value)
-
-
-def _evaluate_flux_observations(model: Model, times_s: np.ndarray, frequencies_hz: np.ndarray) -> np.ndarray:
-    times_s = np.asarray(times_s, dtype=float)
-    frequencies_hz = np.asarray(frequencies_hz, dtype=float)
-    if frequencies_hz.ndim != 1 or times_s.ndim != 1:
-        raise ValueError("Flux-density observations must be one-dimensional arrays.")
-    if frequencies_hz.shape == times_s.shape:
-        unique_freqs, inverse = np.unique(frequencies_hz, return_inverse=True)
-        grid = model.flux_density_grid(times_s, unique_freqs).total
-        return grid[inverse, np.arange(times_s.shape[0])]
-    return model.flux_density_grid(times_s, frequencies_hz).total
 
 
 def _param_path(model: Model, param: Param) -> str:
@@ -828,8 +749,8 @@ def _as_model(cfg: Any) -> Model:
 
 def observe(
     model: Model,
-    config: Optional[RuntimeConfig] = None,
-    spectrum_output: Optional[SpectrumOutputConfig] = None,
+    config: RuntimeConfig | None = None,
+    spectrum_output: SpectrumOutputConfig | None = None,
 ):
     from asgard_core.asgard_config import FitResult as _PhysicalFitResult
 
@@ -870,7 +791,7 @@ def observe(
         spec_grid = model.flux_density_grid(t_obs_s, spec_freqs, projection_kind="sed")
         spectrum_freq_hz = spec_freqs
         spectrum_fnu = spec_grid.total
-        if spectrum_output.time_s is not None or len(spectrum_output.dataset_names) > 0:
+        if spectrum_output.time_s is not None or spectrum_output.dataset_names:
             spec_idx = select_spectrum_time_index(t_obs_s, spectrum_output.time_s)
             spectrum_time_s = float(t_obs_s[spec_idx])
             spectrum_redchi = compute_spectrum_redchi(
@@ -901,19 +822,18 @@ def observe(
 def _build_model_from_fit_config(config: RuntimeConfig) -> Model:
     ssc_enabled = config.index_y != 0
     kn_enabled = config.index_y == 1
-    reverse = getattr(config, "reverse_shock", None)
-    reverse_enabled = bool(reverse and reverse.enabled)
+    reverse = config.reverse_shock
+    hadronic = config.hadronic
+    reverse_enabled = bool(reverse.enabled)
 
-    if len(config.density_profile_radius_cm) > 0 or len(config.density_profile_n_cm3) > 0:
+    if config.density_profile_radius_cm or config.density_profile_n_cm3:
         medium = TabulatedMedium(config.density_profile_radius_cm, config.density_profile_n_cm3, label="runtime_density_profile")
     elif config.a_star > 0.0:
         medium = WindMedium(a_star=config.a_star, density_floor_cm3=config.d_ne, density_cap_cm3=None)
     else:
         medium = UniformMedium(number_density_cm3=config.d_ne)
 
-    reverse_delta_t_s = 10.0
-    if reverse and reverse.delta_t_s is not None:
-        reverse_delta_t_s = float(reverse.delta_t_s)
+    reverse_delta_t_s = 10.0 if reverse.delta_t_s is None else float(reverse.delta_t_s)
 
     rvs_rad = None
     if reverse_enabled:
@@ -935,9 +855,9 @@ def _build_model_from_fit_config(config: RuntimeConfig) -> Model:
             hadronic_inverse_compton=False,
             pp=False,
             neutrino=False,
-            acceleration_efficiency=config.hadronic.eta_acc,
-            reverse_proton_energy_fraction=config.hadronic.reverse_epsilon_p,
-            pgamma_scheme=config.hadronic.pgamma_scheme,
+            acceleration_efficiency=hadronic.eta_acc,
+            reverse_proton_energy_fraction=hadronic.reverse_epsilon_p,
+            pgamma_scheme=hadronic.pgamma_scheme,
             pair_production=False,
         )
 
@@ -964,21 +884,21 @@ def _build_model_from_fit_config(config: RuntimeConfig) -> Model:
             magnetic_decay_alpha_t=config.magnetic_decay_alpha_t,
             magnetic_decay_t0_s=config.magnetic_decay_t0_s,
             p=config.p,
-            proton_energy_fraction=config.hadronic.epsilon_p,
+            proton_energy_fraction=hadronic.epsilon_p,
             accelerated_electron_fraction=config.f_e,
             thermal_electrons=config.thermal_electrons,
             include_ssc=ssc_enabled,
             include_kn_correction=kn_enabled,
-            proton_synch=config.hadronic.include_proton_synch,
-            include_pgamma=config.hadronic.include_pg,
-            bethe_heitler=config.hadronic.include_bethe_heitler,
-            hadronic_inverse_compton=config.hadronic.include_hadronic_inverse_compton,
-            pp=config.hadronic.include_pp,
-            neutrino=config.hadronic.include_neutrino,
-            acceleration_efficiency=config.hadronic.eta_acc,
-            reverse_proton_energy_fraction=config.hadronic.reverse_epsilon_p,
-            pgamma_scheme=config.hadronic.pgamma_scheme,
-            pair_production=config.hadronic.include_pair_production,
+            proton_synch=hadronic.include_proton_synch,
+            include_pgamma=hadronic.include_pg,
+            bethe_heitler=hadronic.include_bethe_heitler,
+            hadronic_inverse_compton=hadronic.include_hadronic_inverse_compton,
+            pp=hadronic.include_pp,
+            neutrino=hadronic.include_neutrino,
+            acceleration_efficiency=hadronic.eta_acc,
+            reverse_proton_energy_fraction=hadronic.reverse_epsilon_p,
+            pgamma_scheme=hadronic.pgamma_scheme,
+            pair_production=hadronic.include_pair_production,
         ),
         rvs_rad=rvs_rad,
         numerics=Numerics(
@@ -1031,16 +951,15 @@ def _build_model_from_fit_config(config: RuntimeConfig) -> Model:
             include_ssc=bool(reverse.include_ssc) if reverse_enabled else False,
         ),
         hadronic=Hadronic(
-            enabled=config.hadronic_enabled,
-            solver=config.hadronic_solver,
-            num_proton_gamma=config.num_gam_p,
-            num_neutrino_frequency=config.num_nu_nu,
-            pgamma_scheme=config.hadronic.pgamma_scheme,
-            pair_cascade_iterations=config.pair_cascade_iterations,
+            enabled=hadronic.enabled,
+            solver=hadronic.solver,
+            num_proton_gamma=hadronic.num_gam_p,
+            num_neutrino_frequency=hadronic.num_nu_nu,
+            pgamma_scheme=hadronic.pgamma_scheme,
+            pair_cascade_iterations=hadronic.pair_cascade_iterations,
         ),
     )
 
 
 def run_fit(config: RuntimeConfig) -> FitResult:
-    model = _build_model_from_fit_config(config)
-    return observe(model, config=config, spectrum_output=config.spectrum_output)
+    return observe(_build_model_from_fit_config(config), config=config, spectrum_output=config.spectrum_output)

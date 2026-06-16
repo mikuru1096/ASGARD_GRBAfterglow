@@ -12,54 +12,14 @@ from pathlib import Path
 
 
 BINARY_EXTENSIONS = {
-    ".a",
-    ".dll",
-    ".egg",
-    ".gcda",
-    ".gcno",
-    ".h5",
-    ".hdf5",
-    ".jpg",
-    ".jpeg",
-    ".lib",
-    ".mod",
-    ".npy",
-    ".npz",
-    ".o",
-    ".pdf",
-    ".png",
-    ".pyd",
-    ".pyc",
-    ".pyo",
-    ".smod",
-    ".so",
-    ".tar",
-    ".whl",
-    ".zip",
+    ".a", ".dll", ".egg", ".gcda", ".gcno", ".h5", ".hdf5", ".jpg",
+    ".jpeg", ".lib", ".mod", ".npy", ".npz", ".o", ".pdf", ".png",
+    ".pyd", ".pyc", ".pyo", ".smod", ".so", ".tar", ".whl", ".zip",
 }
-
 TEXT_EXTENSIONS = {
-    "",
-    ".c",
-    ".cfg",
-    ".csv",
-    ".f",
-    ".f90",
-    ".h",
-    ".in",
-    ".ini",
-    ".json",
-    ".md",
-    ".patch",
-    ".ps1",
-    ".py",
-    ".pyi",
-    ".rst",
-    ".sh",
-    ".toml",
-    ".txt",
-    ".yaml",
-    ".yml",
+    "", ".c", ".cfg", ".csv", ".f", ".f90", ".h", ".in", ".ini", ".json",
+    ".md", ".patch", ".ps1", ".py", ".pyi", ".rst", ".sh", ".toml", ".txt",
+    ".yaml", ".yml",
 }
 
 MOJIBAKE_MARKERS = ("".join(chr(code) for code in (0x951F, 0x65A4, 0x62F7)), chr(0xFFFD))
@@ -83,9 +43,12 @@ class PythonTextIoVisitor(ast.NodeVisitor):
         elif call_name in {"Path.read_text", "Path.write_text"}:
             if not self._has_keyword(node, "encoding"):
                 self.problems.append((node.lineno, f"{call_name} without explicit encoding"))
-        elif call_name in {"subprocess.run", "subprocess.check_output", "subprocess.Popen"}:
-            if self._uses_subprocess_text_mode(node) and not self._has_keyword(node, "encoding"):
-                self.problems.append((node.lineno, f"{call_name} text decoding without explicit encoding"))
+        elif (
+            call_name in {"subprocess.run", "subprocess.check_output", "subprocess.Popen"}
+            and self._uses_subprocess_text_mode(node)
+            and not self._has_keyword(node, "encoding")
+        ):
+            self.problems.append((node.lineno, f"{call_name} text decoding without explicit encoding"))
         self.generic_visit(node)
 
     @staticmethod
@@ -109,9 +72,7 @@ class PythonTextIoVisitor(ast.NodeVisitor):
 
     @staticmethod
     def _is_binary_open(node: ast.Call) -> bool:
-        mode: ast.AST | None = None
-        if len(node.args) >= 2:
-            mode = node.args[1]
+        mode: ast.AST | None = node.args[1] if len(node.args) >= 2 else None
         for keyword in node.keywords:
             if keyword.arg == "mode":
                 mode = keyword.value
@@ -119,43 +80,16 @@ class PythonTextIoVisitor(ast.NodeVisitor):
 
     @staticmethod
     def _uses_subprocess_text_mode(node: ast.Call) -> bool:
-        for keyword in node.keywords:
-            if keyword.arg in {"text", "universal_newlines"}:
-                return isinstance(keyword.value, ast.Constant) and keyword.value.value is True
-        return False
+        return any(
+            keyword.arg in {"text", "universal_newlines"} and isinstance(keyword.value, ast.Constant)
+            and keyword.value.value is True
+            for keyword in node.keywords
+        )
 
 
 def run_git(root: Path, args: list[str]) -> list[str]:
-    result = subprocess.run(
-        ["git", *args],
-        cwd=root,
-        check=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    names = result.stdout.decode("utf-8").split("\0")
+    names = subprocess.check_output(["git", *args], cwd=root, encoding="utf-8").split("\0")
     return [name for name in names if name]
-
-
-def repo_root() -> Path:
-    result = subprocess.run(
-        ["git", "rev-parse", "--show-toplevel"],
-        check=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    return Path(result.stdout.decode("utf-8").strip())
-
-
-def candidate_files(root: Path, staged: bool) -> list[Path]:
-    if staged:
-        names = run_git(
-            root,
-            ["diff", "--cached", "--name-only", "-z", "--diff-filter=ACMR"],
-        )
-    else:
-        names = run_git(root, ["ls-files", "-z"])
-    return [root / name for name in names]
 
 
 def is_probably_text(path: Path, data: bytes) -> bool:
@@ -221,10 +155,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--staged", action="store_true", help="check staged paths only")
     args = parser.parse_args(argv)
 
-    root = repo_root()
+    root = Path(subprocess.check_output(["git", "rev-parse", "--show-toplevel"], encoding="utf-8").strip())
+    git_args = ["diff", "--cached", "--name-only", "-z", "--diff-filter=ACMR"] if args.staged else ["ls-files", "-z"]
     problems: list[str] = []
-    for path in candidate_files(root, args.staged):
-        problems.extend(check_file(path))
+    for name in run_git(root, git_args):
+        problems.extend(check_file(root / name))
 
     if problems:
         print("Text encoding check failed:", file=sys.stderr)

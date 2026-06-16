@@ -5,18 +5,12 @@ from dataclasses import dataclass
 import numpy as np
 
 from src import constants
+from asgard_core.hadronic_validation import as_matching_nonnegative, as_strictly_increasing_grid
 
-try:
-    import src.Hadronic.hadronic_forward_1d as hadronic_fortran_module
-except ImportError:
-    hadronic_fortran_module = None
+import src.Hadronic.hadronic_forward_1d as hadronic_fortran_module
 
 
 ELECTRON_MASS_GEV = constants.para_m_e_gev
-_HAS_FORTRAN_PAIR_PRODUCTION = hadronic_fortran_module is not None and hasattr(
-    hadronic_fortran_module, "fs_hadronic_pair_production_shell"
-)
-PAIR_PRODUCTION_BACKEND = "fortran_pair_production" if _HAS_FORTRAN_PAIR_PRODUCTION else "unavailable"
 
 
 @dataclass(frozen=True)
@@ -36,14 +30,11 @@ def solve_pair_production(
     electron_energy_gev: np.ndarray,
     max_com_energy_factor: int = 138,
 ) -> PairProductionOutput:
-    e_ph = _as_strictly_increasing(photon_energy_gev, "photon_energy_gev")
-    n_ph = _as_matching_and_nonnegative(photon_density_per_gev, e_ph, "photon_density_per_gev")
-    e_e = _as_strictly_increasing(electron_energy_gev, "electron_energy_gev")
+    e_ph = as_strictly_increasing_grid(photon_energy_gev, "photon_energy_gev")
+    n_ph = as_matching_nonnegative(photon_density_per_gev, e_ph, "photon_density_per_gev")
+    e_e = as_strictly_increasing_grid(electron_energy_gev, "electron_energy_gev")
     if int(max_com_energy_factor) < 1:
         raise ValueError("max_com_energy_factor must be >= 1.")
-
-    if not _HAS_FORTRAN_PAIR_PRODUCTION:
-        raise RuntimeError("Pair production core must be provided by the Fortran backend.")
 
     (
         photon_loss_rate,
@@ -66,25 +57,3 @@ def solve_pair_production(
         absorbed_power_gev_per_cm3_s=float(absorbed_power),
         injected_power_gev_per_cm3_s=float(injected_power),
     )
-
-
-def _as_strictly_increasing(values: np.ndarray, name: str) -> np.ndarray:
-    arr = np.asarray(values, dtype=float)
-    if arr.ndim != 1:
-        raise ValueError(f"{name} must be a 1d array.")
-    if arr.size < 2:
-        raise ValueError(f"{name} must contain at least two points.")
-    if np.any(arr <= 0.0):
-        raise ValueError(f"{name} must be strictly positive.")
-    if np.any(np.diff(arr) <= 0.0):
-        raise ValueError(f"{name} must be strictly increasing.")
-    return arr
-
-
-def _as_matching_and_nonnegative(values: np.ndarray, grid: np.ndarray, name: str) -> np.ndarray:
-    arr = np.asarray(values, dtype=float)
-    if arr.shape != grid.shape:
-        raise ValueError(f"{name} must match grid shape.")
-    if np.any(arr < 0.0):
-        raise ValueError(f"{name} must be non-negative.")
-    return arr

@@ -1,17 +1,15 @@
 from __future__ import annotations
 
-from pathlib import Path
-import sys
+from _repo_path import ensure_repo_root_on_path
 import time
 
 import numpy as np
 
 
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+ensure_repo_root_on_path()
 
-from ASGARD import Model, Observer, UniformMedium, gaussian_jet
+from asgard_core import Model, Observer, UniformMedium, gaussian_jet
+from asgard_core.angular_sampling import build_patch_grid
 from tests.public_api_builders import numerics, radiation, reverse_shock, hadronic, observer_grid, solver_options
 
 
@@ -64,8 +62,6 @@ def _make_model(
 
 
 def _assert_uniform_grid_matches_legacy() -> None:
-    from asgard_core.angular_sampling import build_patch_grid
-
     model = _make_model(sampling="uniform")
     grid = build_patch_grid(model)
     theta_edges = np.linspace(0.0, model.jet.theta_max, model.setups.patch_theta + 1)
@@ -82,8 +78,6 @@ def _assert_uniform_grid_matches_legacy() -> None:
 
 
 def _assert_adaptive_grid() -> None:
-    from asgard_core.angular_sampling import build_patch_grid
-
     model = _make_model(sampling="dominant_region_ioka_v1")
     grid = build_patch_grid(model)
     if grid.domega.shape != (20, 15):
@@ -105,8 +99,6 @@ def _assert_adaptive_grid() -> None:
 
 
 def _assert_error_contracts() -> None:
-    from asgard_core.angular_sampling import build_patch_grid
-
     try:
         build_patch_grid(_make_model(sampling="not_a_sampler"))
     except ValueError:
@@ -126,8 +118,6 @@ def _assert_error_contracts() -> None:
 
 
 def _assert_generation_speed() -> None:
-    from asgard_core.angular_sampling import build_patch_grid
-
     model = _make_model(sampling="dominant_region_ioka_v1")
     samples = []
     for _ in range(20):
@@ -141,7 +131,7 @@ def _assert_generation_speed() -> None:
 
 
 def _assert_time_sampler_beaming_phi_resolution() -> None:
-    from asgard_core.angular_sampling import _pilot_gamma_theta_time, _sampling_times, build_patch_grid
+    from asgard_core.angular_sampling import _pilot_gamma_theta_time, _sampling_times
 
     model = _make_model(
         sampling="dominant_region_ioka_time_v1",

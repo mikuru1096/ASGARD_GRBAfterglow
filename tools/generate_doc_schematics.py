@@ -5,13 +5,12 @@ from pathlib import Path
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.patches import Circle, FancyArrowPatch, FancyBboxPatch, Polygon, Rectangle, Wedge
+from matplotlib.patches import Circle, FancyArrowPatch, FancyBboxPatch, Rectangle, Wedge
 
 
 ROOT = Path(__file__).resolve().parents[1]
 PHYS = ROOT / "doc" / "assets" / "figures" / "physics"
 ALG = ROOT / "doc" / "assets" / "figures" / "algorithm"
-DECOR = ROOT / "doc" / "assets" / "figures" / "decorative"
 
 mpl.rcParams.update(
     {
@@ -104,28 +103,6 @@ def _label(ax, x, y, text, fs=7, color="ink", ha="center", va="center", weight=N
     ax.text(x, y, text, fontsize=fs, color=COL.get(color, color), ha=ha, va=va, fontweight=weight)
 
 
-def _particles(ax, center=(0.5, 0.5), radius=0.35, n=80, color="blue", seed=0):
-    rng = np.random.default_rng(seed)
-    theta = rng.uniform(0, 2 * np.pi, n)
-    rr = radius * np.sqrt(rng.uniform(0, 1, n))
-    x = center[0] + rr * np.cos(theta)
-    y = center[1] + rr * np.sin(theta)
-    ax.scatter(x, y, s=rng.uniform(4, 14, n), c=COL[color], alpha=0.12, lw=0)
-
-
-def _stars(ax, n=180, seed=0):
-    rng = np.random.default_rng(seed)
-    ax.scatter(
-        rng.uniform(0, 1, n),
-        rng.uniform(0, 1, n),
-        s=rng.uniform(2, 14, n),
-        c="white",
-        alpha=rng.uniform(0.08, 0.35, n),
-        lw=0,
-        zorder=-2,
-    )
-
-
 def _save(fig, stem: Path):
     stem.parent.mkdir(parents=True, exist_ok=True)
     for ext in ("svg", "pdf"):
@@ -153,7 +130,17 @@ def _save(fig, stem: Path):
 def physical_chain():
     fig, ax = _fig("ASGARD physical chain", "Local shock physics is radius-ordered; observer quantities are projected last.")
     _bg(ax, "blue")
-    _particles(ax, (0.52, 0.50), 0.44, 120, "blue", 1)
+    rng = np.random.default_rng(1)
+    theta = rng.uniform(0, 2 * np.pi, 120)
+    rr = 0.44 * np.sqrt(rng.uniform(0, 1, 120))
+    ax.scatter(
+        0.52 + rr * np.cos(theta),
+        0.50 + rr * np.sin(theta),
+        s=rng.uniform(4, 14, 120),
+        c=COL["blue"],
+        alpha=0.12,
+        lw=0,
+    )
     xs = [0.05, 0.23, 0.41, 0.59, 0.77]
     texts = ["relativistic\nejecta", "FS / RS\nshocks", "e$^-$ / p\ntransport", "photons +\nsecondaries", "EATS\nprojection"]
     cols = ["purple", "orange", "green", "blue", "cyan"]
@@ -163,97 +150,6 @@ def physical_chain():
         _arrow(ax, (a + 0.13, 0.565), (b, 0.565), "ink")
     _label(ax, 0.51, 0.29, r"$R_i\rightarrow\{\Gamma_i,N_e,N_p,n_\gamma\}\rightarrow F_\nu(t_{\rm obs})$", 9)
     _save(fig, PHYS / "physical_chain")
-
-
-def decorative_physics_header():
-    fig, ax = _fig(
-        "Afterglow physical geometry",
-        "Central engine, jet, reverse shock and forward shock all propagate left-to-right.",
-        size=(9.0, 3.6),
-    )
-    # Dark editorial background.
-    x = np.linspace(0, 1, 420)
-    y = np.linspace(0, 1, 240)
-    xx, yy = np.meshgrid(x, y)
-    img = np.zeros((240, 420, 3))
-    img[..., 0] = 0.025 + 0.07 * xx + 0.05 * np.exp(-((xx - 0.75) ** 2 + (yy - 0.50) ** 2) / 0.05)
-    img[..., 1] = 0.050 + 0.10 * xx + 0.10 * np.exp(-((xx - 0.72) ** 2 + (yy - 0.50) ** 2) / 0.06)
-    img[..., 2] = 0.100 + 0.18 * xx + 0.18 * np.exp(-((xx - 0.70) ** 2 + (yy - 0.50) ** 2) / 0.08)
-    ax.imshow(img, extent=(0, 1, 0, 1), origin="lower", aspect="auto", zorder=-10)
-    _stars(ax, 160, 42)
-
-    # Engine and right-going jet cone.
-    engine = (0.12, 0.50)
-    ax.add_patch(Circle(engine, 0.045, fc="#fff2c6", ec="#fff9e5", lw=1.0, alpha=0.95, zorder=4))
-    ax.add_patch(Circle(engine, 0.085, fc="#edc948", ec="none", alpha=0.10, zorder=2))
-    upper = np.array([[0.15, 0.52], [0.73, 0.68], [0.82, 0.58], [0.20, 0.53]])
-    lower = np.array([[0.15, 0.48], [0.73, 0.32], [0.82, 0.42], [0.20, 0.47]])
-    ax.add_patch(Polygon(upper, closed=True, fc="#72b7b2", ec="none", alpha=0.18, zorder=1))
-    ax.add_patch(Polygon(lower, closed=True, fc="#72b7b2", ec="none", alpha=0.18, zorder=1))
-    ax.plot([0.13, 0.86], [0.50, 0.50], color="#b8fff4", lw=1.0, alpha=0.55, zorder=2)
-
-    # Reverse shock shell behind the leading shock, both convex and moving right.
-    ax.add_patch(Wedge((0.70, 0.50), 0.31, -38, 38, width=0.040, fc="#f28e2b", ec="#ffd19b", lw=1.0, alpha=0.78, zorder=3))
-    ax.add_patch(Wedge((0.80, 0.50), 0.36, -34, 34, width=0.050, fc="#72d6ff", ec="#d9f6ff", lw=1.2, alpha=0.78, zorder=4))
-    ax.add_patch(Wedge((0.84, 0.50), 0.43, -30, 30, width=0.020, fc="#dff8ff", ec="none", alpha=0.25, zorder=2))
-
-    # Particle/photon trails strictly left-to-right.
-    rng = np.random.default_rng(7)
-    for _ in range(42):
-        y0 = 0.50 + rng.normal(0, 0.10)
-        x0 = rng.uniform(0.19, 0.70)
-        x1 = x0 + rng.uniform(0.08, 0.18)
-        y1 = y0 + rng.normal(0, 0.015)
-        ax.plot([x0, x1], [y0, y1], color="#e7f7ff", lw=rng.uniform(0.3, 0.8), alpha=rng.uniform(0.12, 0.45), zorder=2)
-    for x0 in [0.26, 0.44, 0.62]:
-        _arrow(ax, (x0, 0.20), (x0 + 0.15, 0.20), color="#e7f7ff", ms=9, alpha=0.75)
-    _label(ax, 0.12, 0.22, "engine", 7, "#f7f1d2")
-    _label(ax, 0.50, 0.22, "jet flow", 7, "#d8f7ff")
-    _label(ax, 0.72, 0.78, "reverse shock", 7, "#ffd19b")
-    _label(ax, 0.84, 0.82, "forward shock", 7, "#d9f6ff")
-    _save(fig, DECOR / "physics_afterglow_header")
-
-
-def decorative_algorithm_header():
-    fig, ax = _fig(
-        "Algorithmic data flow",
-        "Concrete state objects, transport grids and observer projection are separated left-to-right.",
-        size=(9.0, 3.6),
-    )
-    _bg(ax, "blue")
-    # Configuration cards.
-    for i, (x, y, c) in enumerate([(0.06, 0.66, "blue"), (0.08, 0.55, "green"), (0.10, 0.44, "purple")]):
-        ax.add_patch(Rectangle((x, y), 0.12, 0.075, fc=COL[c], ec="white", lw=0.8, alpha=0.86, zorder=2))
-    # Radius shells.
-    for r in [0.08, 0.12, 0.16]:
-        ax.add_patch(Wedge((0.30, 0.53), r, -55, 55, width=0.012, fc="none", ec=COL["cyan"], lw=1.4, alpha=0.85))
-    # Electron finite volume mesh.
-    for i in range(6):
-        for j in range(4):
-            color = "#e5f1ec" if (i + j) % 2 == 0 else "#d2e8df"
-            ax.add_patch(Rectangle((0.43 + i * 0.035, 0.39 + j * 0.045), 0.032, 0.040, fc=color, ec="white", lw=0.6))
-    for offset in [0.00, 0.05, 0.10]:
-        _arrow(ax, (0.45 + offset, 0.60), (0.55 + offset, 0.43), color="green", ms=7, alpha=0.85)
-    # Solver and photon/hadronic panels.
-    _box(ax, 0.68, 0.55, 0.10, 0.10, "", "orange", "orange")
-    for k in range(3):
-        ax.plot([0.695, 0.765], [0.575 + 0.018 * k, 0.575 + 0.018 * k], color="white", lw=1.0)
-    spectrum_x = np.linspace(0.67, 0.80, 80)
-    ax.plot(spectrum_x, 0.38 + 0.10 * np.exp(-((spectrum_x - 0.73) / 0.025) ** 2), color=COL["blue"], lw=1.6)
-    ax.add_patch(Rectangle((0.65, 0.32), 0.18, 0.18, fc="none", ec=COL["blue"], lw=1.0, alpha=0.65))
-    # Observer grid.
-    for i in range(5):
-        ax.plot([0.88, 0.96], [0.34 + i * 0.045, 0.34 + i * 0.045], color=COL["purple"], lw=0.8)
-        ax.plot([0.88 + i * 0.02, 0.88 + i * 0.02], [0.34, 0.52], color=COL["purple"], lw=0.8)
-    for a, b in [((0.20, 0.58), (0.27, 0.55)), ((0.36, 0.53), (0.43, 0.50)), ((0.64, 0.51), (0.68, 0.60)), ((0.78, 0.43), (0.88, 0.43))]:
-        _arrow(ax, a, b, color="ink", ms=9)
-    _label(ax, 0.12, 0.31, "configuration", 7)
-    _label(ax, 0.30, 0.31, "radius shells", 7)
-    _label(ax, 0.52, 0.31, "transport grid", 7)
-    _label(ax, 0.73, 0.27, "local kernels", 7)
-    _label(ax, 0.92, 0.27, "observer grid", 7)
-    _save(fig, DECOR / "algorithm_flow_header")
-
 
 def spacetime():
     fig, ax = _fig("Coordinates and observer mapping", "Transport uses R; Doppler and equal-arrival-time geometry set the observed light curve.")

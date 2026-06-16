@@ -71,8 +71,7 @@ def adaptive_log_grid_with_breaks(
         lo = max(lg_min, valid[i][0] - refine_radius_decades)
         hi = min(lg_max, valid[i][0] + refine_radius_decades)
         n_local = max(1, int((hi - lo) / fine_step))
-        for k in range(n_local + 1):
-            points.append((lo + (hi - lo) * k / n_local, False))
+        points.extend((lo + (hi - lo) * k / n_local, False) for k in range(n_local + 1))
 
     points.sort(key=lambda item: item[0])
     merged: list[tuple[float, bool]] = []

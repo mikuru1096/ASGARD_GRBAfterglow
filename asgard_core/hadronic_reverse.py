@@ -6,12 +6,7 @@ import numpy as np
 
 from src import constants
 
-try:
-    import src.Hadronic.hadronic_reverse_1d as _hadronic_reverse_module
-except ImportError:
-    _hadronic_reverse_module = None
-
-_HAS_REVERSE_HADRONIC = _hadronic_reverse_module is not None
+import src.Hadronic.hadronic_reverse_1d as _hadronic_reverse_module
 
 
 @dataclass(frozen=True)
@@ -33,8 +28,6 @@ def solve_rs_hadronic_core(
     epsilon_p: float,
     include_proton_synch: bool = True,
 ) -> ReverseShockHadronicSolution:
-    if not _HAS_REVERSE_HADRONIC:
-        raise RuntimeError("Reverse hadronic core not built.")
     tobs = np.asarray(r_tobs_s, dtype=float)
     gamma = np.asarray(r_gamma, dtype=float)
     radius = np.asarray(radius_cm, dtype=float)
@@ -45,7 +38,6 @@ def solve_rs_hadronic_core(
     num_r = int(radius.size)
     np_gam_p = int(num_gam_p)
 
-    # 反向激波壳层能量: epsilon_p * swept_mass * (Gamma-1) * c^2
     shell_energy = float(epsilon_p) * swept * np.maximum(gamma - 1.0, 0.0) * constants.para_c * constants.para_c
 
     gam_p, dN_gam_p, P_had_syn, Seed_had_syn = _hadronic_reverse_module.fs_hadronic_reverse_1d(

@@ -1,16 +1,13 @@
 from __future__ import annotations
 
-from pathlib import Path
-import sys
+from _repo_path import ensure_repo_root_on_path
 
 import numpy as np
 
 
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+ensure_repo_root_on_path()
 
-from ASGARD.api_model import (
+from asgard_core.api_model import (
     Hadronic,
     Model,
     Numerics,
@@ -23,7 +20,7 @@ from ASGARD.api_model import (
     UniformMedium,
     top_hat_jet,
 )
-from ASGARD.api_model import _build_fit_config_for_patch
+from asgard_core.api_model import _build_fit_config_for_patch
 from asgard_core.asgard_config import RuntimeConfig
 from asgard_core.asgard_physics_utils import ambient_density
 from asgard_core.asgard_state import make_query_setup, solve_state_from_setup
@@ -175,8 +172,8 @@ def _run_public_medium_profile() -> None:
     override_flux = setup_override.flux_density_grid(np.logspace(1.0, 5.0, 10), np.array([1.0e10, 1.0e14]))
     assert np.all(np.isfinite(override_flux.total))
     assert np.any(override_flux.total > 0.0)
-    cfg_medium = _build_fit_config_for_patch(model, phi_center=0.0, theta_v=0.0, opening_angle_jet=0.1, e_iso=1.0e52, gamma0=80.0)
-    cfg_uniform = _build_fit_config_for_patch(setup_override, phi_center=0.0, theta_v=0.0, opening_angle_jet=0.1, e_iso=1.0e52, gamma0=80.0)
+    cfg_medium = _build_fit_config_for_patch(model, theta_v=0.0, opening_angle_jet=0.1, e_iso=1.0e52, gamma0=80.0)
+    cfg_uniform = _build_fit_config_for_patch(setup_override, theta_v=0.0, opening_angle_jet=0.1, e_iso=1.0e52, gamma0=80.0)
     assert cfg_medium.density_profile_radius_cm == radius
     assert cfg_medium.density_profile_n_cm3 == density
     assert cfg_uniform.density_profile_radius_cm == ()

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ASGARD import (
+from asgard_core import (
     Hadronic,
     Model,
     Numerics,
@@ -10,13 +10,12 @@ from ASGARD import (
     ReverseShock,
     SolverOptions,
     UniformMedium,
-    WindMedium,
     top_hat_jet,
 )
 
 
 def radiation(**updates) -> Radiation:
-    values = dict(
+    return Radiation(**(dict(
         epsilon_e=0.1,
         epsilon_B=1.0e-3,
         p=2.3,
@@ -38,13 +37,11 @@ def radiation(**updates) -> Radiation:
         reverse_proton_energy_fraction=0.0,
         pgamma_scheme="disabled",
         pair_production=False,
-    )
-    values.update(updates)
-    return Radiation(**values)
+    ) | updates))
 
 
 def numerics(**updates) -> Numerics:
-    values = dict(
+    return Numerics(**(dict(
         num_radius=48,
         num_theta=12,
         num_phi=1,
@@ -58,19 +55,15 @@ def numerics(**updates) -> Numerics:
         electron_substep_min=100,
         electron_substep_max=1000,
         initial_radius_cm=1.0e14,
-    )
-    values.update(updates)
-    return Numerics(**values)
+    ) | updates))
 
 
 def observer_grid(**updates) -> ObserverGrid:
-    values = dict(time_min_s=1.0e2, time_max_s=1.0e6)
-    values.update(updates)
-    return ObserverGrid(**values)
+    return ObserverGrid(**(dict(time_min_s=1.0e2, time_max_s=1.0e6) | updates))
 
 
 def solver_options(**updates) -> SolverOptions:
-    values = dict(
+    return SolverOptions(**(dict(
         electron_solver="fullhide_1d",
         dynamics_solver="forward_legacy",
         geometry_projection="sed_legacy",
@@ -92,38 +85,32 @@ def solver_options(**updates) -> SolverOptions:
         fullhide2d_transport_model="legacy",
         fullhide2d_stochastic_accel_norm=0.0,
         fullhide2d_escape_mode="closed",
-    )
-    values.update(updates)
-    return SolverOptions(**values)
+    ) | updates))
 
 
 def reverse_shock(**updates) -> ReverseShock:
-    values = dict(
+    return ReverseShock(**(dict(
         enabled=False,
         shell_duration_s=10.0,
         upstream_sigma=0.0,
         include_cross_zone_ic=False,
         include_ssc=False,
-    )
-    values.update(updates)
-    return ReverseShock(**values)
+    ) | updates))
 
 
 def hadronic(**updates) -> Hadronic:
-    values = dict(
+    return Hadronic(**(dict(
         enabled=False,
         solver="legacy_1d",
         num_proton_gamma=161,
         num_neutrino_frequency=121,
         pgamma_scheme="disabled",
         pair_cascade_iterations=1,
-    )
-    values.update(updates)
-    return Hadronic(**values)
+    ) | updates))
 
 
 def top_hat_model(**updates) -> Model:
-    values = dict(
+    return Model(**(dict(
         jet=top_hat_jet(
             energy_iso_erg=1.0e52,
             initial_lorentz_factor=300.0,
@@ -141,10 +128,4 @@ def top_hat_model(**updates) -> Model:
         solver_options=solver_options(),
         reverse_shock=reverse_shock(),
         hadronic=hadronic(),
-    )
-    values.update(updates)
-    return Model(**values)
-
-
-def wind_medium(a_star: float = 0.1, density_floor_cm3: float = 1.0e-15):
-    return WindMedium(a_star=a_star, density_floor_cm3=density_floor_cm3, density_cap_cm3=None)
+    ) | updates))

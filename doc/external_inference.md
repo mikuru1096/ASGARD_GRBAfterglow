@@ -7,7 +7,7 @@ ASGARD 当前没有内置 Redback 适配层。若需要与 Redback、bilby、Bla
 ```python
 import numpy as np
 
-from ASGARD import Fitter
+from asgard_core import Fitter
 
 fitter = Fitter(model=model)
 fitter.add_flux_density(times_s, nu_hz, flux, flux_err)

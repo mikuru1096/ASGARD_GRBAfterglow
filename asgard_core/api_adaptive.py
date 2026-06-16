@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import hashlib
-from functools import lru_cache
-from typing import Optional
+from functools import cache
 
 import numpy as np
 
@@ -26,21 +25,6 @@ def _remember_cache_entry(cache: dict, key, value, max_items: int = 8) -> None:
         cache.pop(next(iter(cache)))
 
 
-def _pack_flux(observed: dict[str, np.ndarray | None]) -> FluxResult:
-    total = np.asarray(observed["total"], dtype=float)
-    fwd_sync = np.zeros_like(total) if observed["fwd_sync"] is None else np.asarray(observed["fwd_sync"], dtype=float)
-    fwd_ssc = np.zeros_like(total) if observed["fwd_ssc"] is None else np.asarray(observed["fwd_ssc"], dtype=float)
-    rev_sync = np.zeros_like(total) if observed["rev_sync"] is None else np.asarray(observed["rev_sync"], dtype=float)
-    rev_ssc = np.zeros_like(total) if observed["rev_ssc"] is None else np.asarray(observed["rev_ssc"], dtype=float)
-    cross_ic = None if observed["cross_ic"] is None else np.asarray(observed["cross_ic"], dtype=float)
-    return FluxResult(
-        total=total,
-        fwd=FluxPair(sync=fwd_sync, ssc=fwd_ssc),
-        rev=FluxPair(sync=rev_sync, ssc=rev_ssc),
-        cross_ic=cross_ic,
-    )
-
-
 def _observe_parts(
     state: SolveState,
     times_s: np.ndarray,
@@ -49,14 +33,27 @@ def _observe_parts(
     projection_kind: str = "lightcurve",
 ) -> FluxResult:
     observed_state = project_flux_grid(state, times_s, nu_hz, mode=mode, projection_kind=projection_kind)
-    return _pack_flux(observed_state.components)
+    observed = observed_state.components
+    total = np.asarray(observed["total"], dtype=float)
+    return FluxResult(
+        total=total,
+        fwd=FluxPair(
+            sync=np.zeros_like(total) if observed["fwd_sync"] is None else np.asarray(observed["fwd_sync"], dtype=float),
+            ssc=np.zeros_like(total) if observed["fwd_ssc"] is None else np.asarray(observed["fwd_ssc"], dtype=float),
+        ),
+        rev=FluxPair(
+            sync=np.zeros_like(total) if observed["rev_sync"] is None else np.asarray(observed["rev_sync"], dtype=float),
+            ssc=np.zeros_like(total) if observed["rev_ssc"] is None else np.asarray(observed["rev_ssc"], dtype=float),
+        ),
+        cross_ic=None if observed["cross_ic"] is None else np.asarray(observed["cross_ic"], dtype=float),
+    )
 
 
 def _observe_total(
     state: SolveState,
     times_s: np.ndarray,
     nu_hz: np.ndarray,
-    timings: Optional[dict[str, float]] = None,
+    timings: dict[str, float] | None = None,
     projection_kind: str = "lightcurve",
 ) -> np.ndarray:
     observed_state = project_flux_grid(
@@ -76,12 +73,10 @@ def _adaptive_observer_time_grid(model: Model, times_s: np.ndarray) -> np.ndarra
     details = model.details(float(user_times[0]), float(user_times[-1]))
     base_log = np.logspace(np.log10(user_times[0]), np.log10(user_times[-1]), int(model.setups.num_tobs))
     knots = [user_times, base_log]
-    for track in (details.fwd, details.rev):
-        if track is not None:
-            knots.append(_arrival_time_knots(model, track))
+    knots.extend(_arrival_time_knots(model, track) for track in (details.fwd, details.rev) if track is not None)
     merged = _positive_unique_times(np.concatenate([item for item in knots if item.size > 0]))
     merged = merged[(merged >= user_times[0]) & (merged <= user_times[-1])]
-    midpoints = _log_midpoints(merged)
+    midpoints = np.sqrt(merged[:-1] * merged[1:]) if merged.size >= 2 else np.empty(0, dtype=float)
     return _positive_unique_times(np.concatenate((merged, midpoints)))
 
 
@@ -102,8 +97,7 @@ def _arrival_time_knots(model: Model, track: CharTrack) -> np.ndarray:
         return np.empty(0, dtype=float)
     mu_values = _eats_mu_values(model)
     shell_times = [t_axis[mask]]
-    for mu in mu_values:
-        shell_times.append(t_axis[mask] + radius[mask] * (1.0 - mu) * (1.0 + model.observer.z) / constants.para_c)
+    shell_times.extend(t_axis[mask] + radius[mask] * (1.0 - mu) * (1.0 + model.observer.z) / constants.para_c for mu in mu_values)
     return np.concatenate(shell_times)
 
 
@@ -137,16 +131,9 @@ def _eats_mu_values(model: Model) -> np.ndarray:
     return np.unique(mu.reshape(-1))
 
 
-def _log_midpoints(times_s: np.ndarray) -> np.ndarray:
-    values = np.asarray(times_s, dtype=float)
-    if values.size < 2:
-        return np.empty(0, dtype=float)
-    return np.sqrt(values[:-1] * values[1:])
-
-
 def _batch_fetch_pair_result(
     model: Model,
-    cache: dict[tuple[float, float], tuple[float, float, float, float, float, Optional[float]]],
+    cache: dict[tuple[float, float], tuple[float, float, float, float, float, float | None]],
     query_pairs: list[tuple[float, float]],
 ) -> None:
     missing: list[tuple[float, float]] = []
@@ -172,7 +159,7 @@ def _batch_fetch_pair_result(
         )
 
 
-@lru_cache(maxsize=None)
+@cache
 def _cached_leggauss(num_subsamples: int) -> tuple[np.ndarray, np.ndarray]:
     nodes_1d, weights_1d = np.polynomial.legendre.leggauss(max(int(num_subsamples), 1))
     return np.asarray(nodes_1d, dtype=float), np.asarray(weights_1d, dtype=float)
@@ -185,7 +172,7 @@ def _adaptive_exposure_average(
     exposures_s: np.ndarray,
     num_subsamples: int,
 ) -> FluxResult:
-    pair_cache: dict[tuple[float, float], tuple[float, float, float, float, float, Optional[float]]] = {}
+    pair_cache: dict[tuple[float, float], tuple[float, float, float, float, float, float | None]] = {}
     exposure_nodes: list[np.ndarray] = []
     exposure_weights: list[np.ndarray] = []
     initial_pairs: list[tuple[float, float]] = []

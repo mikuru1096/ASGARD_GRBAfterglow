@@ -26,7 +26,7 @@ print("Fortran 扩展加载成功")
 ```python
 import numpy as np
 
-from ASGARD import Hadronic, Model, Numerics, Observer, ObserverGrid, Radiation, ReverseShock, SolverOptions, UniformMedium, top_hat_jet
+from asgard_core import Hadronic, Model, Numerics, Observer, ObserverGrid, Radiation, ReverseShock, SolverOptions, UniformMedium, top_hat_jet
 
 model = Model(
     jet=top_hat_jet(

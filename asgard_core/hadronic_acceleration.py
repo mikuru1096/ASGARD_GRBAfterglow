@@ -1,19 +1,14 @@
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Callable, Mapping
 
 import numpy as np
 
 from src import constants
 
-try:
-    import src.Hadronic.hadronic_forward_1d as hadronic_fortran_module
-except ImportError:
-    hadronic_fortran_module = None
+import src.Hadronic.hadronic_forward_1d as hadronic_fortran_module
 
-
-ELEMENTARY_CHARGE_ESU = constants.para_e
 
 ERG_PER_GEV = constants.para_gev2erg
 ELECTRON_MASS_GEV = constants.para_m_e_gev
@@ -22,35 +17,22 @@ NEUTRON_MASS_GEV = constants.para_m_n_gev
 PION_CHARGED_MASS_GEV = constants.para_m_pi_charged_gev
 MUON_MASS_GEV = constants.para_m_mu_gev
 
-GEV_TO_GRAM = constants.para_gev2erg / (constants.para_c * constants.para_c)
-_HAS_FORTRAN_ACCELERATION = hadronic_fortran_module is not None and hasattr(
-    hadronic_fortran_module, "fs_hadronic_acceleration_shell"
-)
-ACCELERATION_BACKEND = "fortran_acceleration" if _HAS_FORTRAN_ACCELERATION else "unavailable"
+ACCELERATION_BACKEND = "fortran_acceleration"
 
 
 @dataclass(frozen=True)
 class SpeciesProperties:
     name: str
     mass_gev: float
-    charge_number: int
-
-    @property
-    def mass_g(self) -> float:
-        return self.mass_gev * GEV_TO_GRAM
-
-    @property
-    def abs_charge_esu(self) -> float:
-        return abs(float(self.charge_number)) * ELEMENTARY_CHARGE_ESU
 
 
 SPECIES_DB: dict[str, SpeciesProperties] = {
-    "proton": SpeciesProperties("proton", PROTON_MASS_GEV, +1),
-    "neutron": SpeciesProperties("neutron", NEUTRON_MASS_GEV, 0),
-    "pion_plus": SpeciesProperties("pion_plus", PION_CHARGED_MASS_GEV, +1),
-    "pion_minus": SpeciesProperties("pion_minus", PION_CHARGED_MASS_GEV, -1),
-    "muon_plus": SpeciesProperties("muon_plus", MUON_MASS_GEV, +1),
-    "muon_minus": SpeciesProperties("muon_minus", MUON_MASS_GEV, -1),
+    "proton": SpeciesProperties("proton", PROTON_MASS_GEV),
+    "neutron": SpeciesProperties("neutron", NEUTRON_MASS_GEV),
+    "pion_plus": SpeciesProperties("pion_plus", PION_CHARGED_MASS_GEV),
+    "pion_minus": SpeciesProperties("pion_minus", PION_CHARGED_MASS_GEV),
+    "muon_plus": SpeciesProperties("muon_plus", MUON_MASS_GEV),
+    "muon_minus": SpeciesProperties("muon_minus", MUON_MASS_GEV),
 }
 
 
@@ -102,8 +84,6 @@ def acceleration_timescale_s(
                  = eta_acc * gamma * m * c / (|q| * B)
     """
     gamma_arr = _as_positive_1d(gamma, "gamma")
-    if not _HAS_FORTRAN_ACCELERATION:
-        raise RuntimeError("Acceleration core must be provided by the Fortran backend.")
     t_acc, _t_syn, _q_inj, _gmax, _gdyn, _gsyn, _gext, _has_gext = hadronic_fortran_module.fs_hadronic_acceleration_shell(
         species,
         gamma_arr,
@@ -158,8 +138,6 @@ def species_injection_operator(
     Q0 = L_inj / (m*c^2 * ∫ shape(gamma)*gamma dgamma)
     """
     gamma_arr = _as_positive_1d(gamma, "gamma")
-    if not _HAS_FORTRAN_ACCELERATION:
-        raise RuntimeError("Acceleration core must be provided by the Fortran backend.")
     _t_acc, _t_syn, q_inj, _gmax, _gdyn, _gsyn, _gext, _has_gext = hadronic_fortran_module.fs_hadronic_acceleration_shell(
         config.species,
         gamma_arr,
@@ -209,8 +187,6 @@ def estimate_max_gamma(
     If external cooling is provided, gamma_ext from t_acc = t_ext
     by solving f(gamma) = t_acc(gamma) - t_ext(gamma) on a log grid.
     """
-    if not _HAS_FORTRAN_ACCELERATION:
-        raise RuntimeError("Acceleration core must be provided by the Fortran backend.")
     if cooling_rate is None:
         gamma_scan = np.array([1.0, 2.0], dtype=float)
         ext_rate = np.array([1.0, 2.0], dtype=float)

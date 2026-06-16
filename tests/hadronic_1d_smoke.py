@@ -1,17 +1,14 @@
 from __future__ import annotations
 
-from pathlib import Path
-import sys
+from _repo_path import ensure_repo_root_on_path
 
 import numpy as np
 
 
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+ensure_repo_root_on_path()
 
-from ASGARD import Model
-from ASGARD.api_model import _build_fit_config_for_patch, _solve_patch_state
+from asgard_core import Model
+from asgard_core.api_model import _build_fit_config_for_patch, _solve_patch_state
 from tests.public_api_builders import hadronic, numerics, radiation, solver_options, top_hat_model
 
 
@@ -77,7 +74,6 @@ def main() -> None:
     pg_model = _build_model(True, 0.3, include_pg=True, include_neutrino=False)
     pg_config = _build_fit_config_for_patch(
         pg_model,
-        phi_center=0.0,
         theta_v=pg_model.observer.theta_obs,
         opening_angle_jet=pg_model.jet.theta_j,
         e_iso=pg_model.jet.E_iso,

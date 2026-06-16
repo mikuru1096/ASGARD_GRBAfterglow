@@ -8,7 +8,7 @@ providing a single source of truth for data structures.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, ClassVar, Optional
+from typing import Any
 
 import numpy as np
 
@@ -40,15 +40,15 @@ class FluxComponents:
     total: np.ndarray
     fwd_sync: np.ndarray
     fwd_ssc: np.ndarray
-    fwd_hadronic_gamma: Optional[np.ndarray]
-    fwd_hadronic_bethe_heitler: Optional[np.ndarray]
-    fwd_hadronic_inverse_compton: Optional[np.ndarray]
-    fwd_hadronic_pair_production: Optional[np.ndarray]
-    rev_sync: Optional[np.ndarray]
-    rev_ssc: Optional[np.ndarray]
-    cross_ic: Optional[np.ndarray]
+    fwd_hadronic_gamma: np.ndarray | None
+    fwd_hadronic_bethe_heitler: np.ndarray | None
+    fwd_hadronic_inverse_compton: np.ndarray | None
+    fwd_hadronic_pair_production: np.ndarray | None
+    rev_sync: np.ndarray | None
+    rev_ssc: np.ndarray | None
+    cross_ic: np.ndarray | None
     fwd: BranchState
-    rev: Optional[BranchState]
+    rev: BranchState | None
 
 
 @dataclass(frozen=True)
@@ -63,10 +63,6 @@ class SolverAdapterReport:
 @dataclass
 class PhotonFieldState:
     """Photon-field contract passed between electron, hadronic, and observer stages."""
-    producer: ClassVar[str] = "photon_field_stage"
-    consumers: ClassVar[tuple[str, ...]] = ("hadronic_stage", "observer_stage")
-    mutable_fields: ClassVar[tuple[str, ...]] = ()
-
     seed_frequency_hz: np.ndarray
     forward_syn_seed: np.ndarray
     hadronic_forward_ssc_seed: np.ndarray
@@ -78,10 +74,6 @@ class PhotonFieldState:
 @dataclass
 class ObserverState:
     """Observer-side assembly state prior to interpolation onto query grids."""
-    producer: ClassVar[str] = "observer_stage"
-    consumers: ClassVar[tuple[str, ...]] = ("projection_stage", "api")
-    mutable_fields: ClassVar[tuple[str, ...]] = ()
-
     prefactor: np.ndarray
     tau_extra: np.ndarray
     tau_pair: np.ndarray
@@ -97,12 +89,12 @@ class SolveState:
     dynamics: Any  # DynamicsSolution
     electron: Any  # ElectronSolution
     photon_field: PhotonFieldState
-    hadronic: Optional[Any]  # HadronicSolution
+    hadronic: Any | None  # HadronicSolution
     observer: ObserverState
-    reverse_emission: Optional[Any]  # ReverseShockEmission
+    reverse_emission: Any | None  # ReverseShockEmission
     components: FluxComponents
-    requested_frequency_min_hz: Optional[float]
-    requested_frequency_max_hz: Optional[float]
+    requested_frequency_min_hz: float | None
+    requested_frequency_max_hz: float | None
     timings: dict[str, float] = field(default_factory=dict)
     adapter_reports: dict[str, SolverAdapterReport] = field(default_factory=dict)
 
@@ -185,10 +177,6 @@ class ReverseShockDynamics:
 @dataclass
 class DynamicsSolution:
     """Solution from dynamics solver."""
-    producer: ClassVar[str] = "dynamics_stage"
-    consumers: ClassVar[tuple[str, ...]] = ("electron_stage", "observer_stage")
-    mutable_fields: ClassVar[tuple[str, ...]] = ()
-
     r_tobs: np.ndarray
     r_gamma: np.ndarray
     radius: np.ndarray
@@ -199,10 +187,6 @@ class DynamicsSolution:
 @dataclass
 class ElectronSolution:
     """Solution from electron solver."""
-    producer: ClassVar[str] = "electron_stage"
-    consumers: ClassVar[tuple[str, ...]] = ("photon_field_stage", "hadronic_stage", "observer_stage")
-    mutable_fields: ClassVar[tuple[str, ...]] = ("d_n_gam_e_bh", "l_syn_spec", "seed_syn")
-
     gam_e: np.ndarray
     d_n_gam_e: np.ndarray
     l_syn_spec: np.ndarray
@@ -235,17 +219,13 @@ class ReverseShockEmission:
     nu_c: np.ndarray
     nu_a: np.ndarray
     nu_M: np.ndarray
-    rs_hadronic: Optional[Any] = None
-    secondary_rs: Optional[Any] = None
+    rs_hadronic: Any | None = None
+    secondary_rs: Any | None = None
 
 
 @dataclass
 class HadronicSolution:
     """Solution from the 1d hadronic solver."""
-    producer: ClassVar[str] = "hadronic_stage"
-    consumers: ClassVar[tuple[str, ...]] = ("observer_stage", "api")
-    mutable_fields: ClassVar[tuple[str, ...]] = ()
-
     solver: str
     gam_p: np.ndarray
     d_n_gam_p: np.ndarray

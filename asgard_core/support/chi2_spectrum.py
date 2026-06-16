@@ -28,11 +28,13 @@ def cal_chi2_spectrum(name_fit, model_curves, model_serial):
             fit_flux = model_interpolators[band_idx](range_data)
             if np.any(np.isnan(fit_flux)):
                 raise ValueError("Some data points are beyond the scope of the model.")
-            sigma = _get_spectrum_uncertainties(flux_data, flux_err, fit_flux, table.shape[1])
+            if table.shape[1] == 6:
+                sigma = np.where(fit_flux > flux_data, flux_err[0], flux_err[1])
+            else:
+                sigma = flux_err
             chi2_total += np.sum(((fit_flux - flux_data) / sigma) ** 2) / len(range_data)
         except Exception as exc:
             warnings.warn(f"An error occurred while processing the file {data_file.name}: {exc}")
-            continue
     return chi2_total
 
 
@@ -57,11 +59,3 @@ def _parse_spectrum_data(table):
     else:
         raise ValueError(f"The observation data should be 2 to 6 columns. Currently, there are {n_cols} columns.")
     return range_data, flux_data, flux_err
-
-
-def _get_spectrum_uncertainties(flux_data, flux_err, fit_flux, n_cols):
-    if n_cols == 6:
-        flux_err_up = flux_err[0]
-        flux_err_down = flux_err[1]
-        return np.where(fit_flux > flux_data, flux_err_up, flux_err_down)
-    return flux_err

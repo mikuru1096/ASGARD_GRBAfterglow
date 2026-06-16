@@ -24,7 +24,7 @@ class PatchGrid:
 
 
 def build_patch_grid(model, observer_time_s: np.ndarray | None = None) -> PatchGrid:
-    sampling = str(getattr(model.setups, "patch_sampling", "uniform")).lower()
+    sampling = str(model.setups.patch_sampling).lower()
     if sampling == "uniform":
         return _build_uniform_grid(model)
     if sampling == "dominant_region_ioka_v1":
@@ -95,18 +95,17 @@ def _build_dominant_region_ioka_grid(
             _normalized_density(theta_scan, theta_weight),
             _normalized_density(theta_scan, gamma_envelope),
         )
-        theta_count = _beaming_resolved_theta_count(model, theta_scan, gamma_envelope, n_theta)
+        theta_count = _beaming_resolved_theta_count(model, gamma_envelope, n_theta)
     theta_centers, theta_edges = _weighted_centers_edges(theta_scan, theta_weight, theta_count)
 
     if is_axisymmetric_jet(model.jet):
-        if theta_obs == 0.0:
-            phi_count = n_phi
-        elif gamma_time is not None:
-            phi_count = _beaming_resolved_phi_count(model, theta_scan, gamma_time, n_phi)
-        else:
-            phi_count = n_phi
+        phi_count = (
+            _beaming_resolved_phi_count(model, theta_scan, gamma_time, n_phi)
+            if theta_obs != 0.0 and gamma_time is not None else n_phi
+        )
         phi_centers, phi_edges, phi_weights = _axisymmetric_phi_quadrature(phi_count, phi_obs)
-        domega = _solid_angle_cells_from_phi_weights(theta_edges, phi_weights)
+        theta_weights = np.cos(theta_edges[:-1]) - np.cos(theta_edges[1:])
+        domega = theta_weights[:, None] * phi_weights[None, :]
     else:
         phi_edges = np.linspace(0.0, 2.0 * np.pi, n_phi + 1)
         phi_centers = 0.5 * (phi_edges[:-1] + phi_edges[1:])
@@ -133,8 +132,7 @@ def _dominant_weight(
     energy = _evaluate_jet_function(model.jet.energy_iso, phi_mesh, theta_mesh)
     gamma = _evaluate_jet_function(model.jet.gamma0, phi_mesh, theta_mesh)
     separation = angular_separation(theta_mesh, phi_mesh, theta_obs, phi_obs)
-    weight = energy * _doppler_factor(gamma, separation) ** 3
-    return _with_structure_floor(weight)
+    return _with_structure_floor(energy * _doppler_factor(gamma, separation) ** 3)
 
 
 def _axisymmetric_phi_quadrature(n_phi: int, phi_obs: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -175,8 +173,8 @@ def _beaming_resolved_phi_count(
     gamma_time: np.ndarray,
     minimum_count: int,
 ) -> int:
-    factor = float(getattr(model.setups, "patch_sampling_beaming_factor", 3.0))
-    resolution = float(getattr(model.setups, "patch_sampling_beaming_resolution", 8.0))
+    factor = float(model.setups.patch_sampling_beaming_factor)
+    resolution = float(model.setups.patch_sampling_beaming_resolution)
     if factor <= 0.0 or resolution <= 0.0:
         raise ValueError("patch_sampling_beaming_factor and patch_sampling_beaming_resolution must be positive.")
     angular_frequency = float(np.max(np.asarray(gamma_time, dtype=float) * np.sin(theta)[:, None]))
@@ -186,12 +184,11 @@ def _beaming_resolved_phi_count(
 
 def _beaming_resolved_theta_count(
     model,
-    theta: np.ndarray,
     gamma_envelope: np.ndarray,
     minimum_count: int,
 ) -> int:
-    factor = float(getattr(model.setups, "patch_sampling_beaming_factor", 3.0))
-    resolution = float(getattr(model.setups, "patch_sampling_beaming_resolution", 8.0))
+    factor = float(model.setups.patch_sampling_beaming_factor)
+    resolution = float(model.setups.patch_sampling_beaming_resolution)
     if factor <= 0.0 or resolution <= 0.0:
         raise ValueError("patch_sampling_beaming_factor and patch_sampling_beaming_resolution must be positive.")
     angular_frequency = float(np.max(np.asarray(gamma_envelope, dtype=float)))
@@ -209,23 +206,22 @@ def _normalized_density(x: np.ndarray, density: np.ndarray) -> np.ndarray:
 
 def _sampling_times(model, observer_time_s: np.ndarray) -> np.ndarray:
     observer_time_s = np.unique(np.asarray(observer_time_s, dtype=float))
-    count = int(getattr(model.setups, "patch_sampling_num_times", 12))
+    count = int(model.setups.patch_sampling_num_times)
     if observer_time_s.size <= count:
         return observer_time_s
-    log_times = np.linspace(np.log(observer_time_s[0]), np.log(observer_time_s[-1]), count)
-    return np.exp(log_times)
+    return np.exp(np.linspace(np.log(observer_time_s[0]), np.log(observer_time_s[-1]), count))
 
 
 def _pilot_gamma_theta_time(model, theta: np.ndarray, observer_time_s: np.ndarray) -> np.ndarray:
     from concurrent.futures import ThreadPoolExecutor
 
-    from ASGARD.api_model import _build_fit_config_for_patch
+    from asgard_core.api_model import _build_fit_config_for_patch
     from asgard_core.asgard_setup import build_simulation_setup
     from asgard_core.asgard_runtime import solve_dynamics
     from asgard_core.asgard_state import make_query_cfg
 
     observer_time_s = np.asarray(observer_time_s, dtype=float)
-    sample_count = int(getattr(model.setups, "patch_sampling_pilot_theta", 0))
+    sample_count = int(model.setups.patch_sampling_pilot_theta)
     if sample_count <= 0:
         sample_count = max(2 * int(model.setups.patch_theta), 48)
     pilot_theta = np.linspace(0.0, float(model.jet.theta_max), sample_count)
@@ -236,7 +232,6 @@ def _pilot_gamma_theta_time(model, theta: np.ndarray, observer_time_s: np.ndarra
             return np.ones(observer_time_s.shape, dtype=float)
         config = _build_fit_config_for_patch(
             model,
-            phi_center=0.0,
             theta_v=0.0,
             opening_angle_jet=float(model.jet.theta_max / sample_count),
             e_iso=float(e_iso),
@@ -252,7 +247,7 @@ def _pilot_gamma_theta_time(model, theta: np.ndarray, observer_time_s: np.ndarra
             np.asarray(dynamics.r_gamma, dtype=float),
         )
 
-    worker_count = int(getattr(model.setups, "structured_outer_threads", 0) or getattr(model.setups, "num_threads", 1))
+    worker_count = int(model.setups.structured_outer_threads or model.setups.num_threads)
     if worker_count > 1:
         with ThreadPoolExecutor(max_workers=min(worker_count, pilot_theta.size)) as executor:
             pilot_rows = list(executor.map(solve_pilot_theta, (float(value) for value in pilot_theta)))
@@ -319,25 +314,7 @@ def _with_structure_floor(weight: np.ndarray) -> np.ndarray:
     return weight + 0.01 * peak
 
 
-def _weighted_periodic_centers_edges(
-    phi: np.ndarray, weight: np.ndarray, count: int
-) -> tuple[np.ndarray, np.ndarray]:
-    phi_periodic = np.concatenate((phi, [2.0 * np.pi]))
-    weight_periodic = np.concatenate((weight, [weight[0]]))
-    centers, _ = _weighted_centers_edges(phi_periodic, weight_periodic, count)
-    edges = np.empty(count + 1, dtype=float)
-    edges[0] = 0.0
-    edges[-1] = 2.0 * np.pi
-    edges[1:-1] = 0.5 * (centers[:-1] + centers[1:])
-    return centers, edges
-
-
 def _solid_angle_cells(theta_edges: np.ndarray, phi_edges: np.ndarray) -> np.ndarray:
     dcos = np.cos(theta_edges[:-1]) - np.cos(theta_edges[1:])
     dphi = np.diff(phi_edges)
     return dcos[:, None] * dphi[None, :]
-
-
-def _solid_angle_cells_from_phi_weights(theta_edges: np.ndarray, phi_weights: np.ndarray) -> np.ndarray:
-    dcos = np.cos(theta_edges[:-1]) - np.cos(theta_edges[1:])
-    return dcos[:, None] * np.asarray(phi_weights, dtype=float)[None, :]

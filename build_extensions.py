@@ -9,6 +9,7 @@ import subprocess
 import sys
 import sysconfig
 import time
+from dataclasses import dataclass
 from pathlib import Path
 
 
@@ -16,98 +17,20 @@ COMMON_FLAGS = "-Ofast -march=native -funroll-loops -ffast-math -fno-signed-zero
 OMP_FLAGS = f"-fopenmp {COMMON_FLAGS}"
 OMP_LTO_FLAGS = f"{OMP_FLAGS} -flto"
 OPENMP_LIBS = ["-lgomp"]
-DIRECT_ORDERED_BUILD_MODULES = {
-    "electron_forward_weno5_1d",
-    "electron_forward_slc1_1d",
-    "electron_forward_charint_1d",
-    "electron_forward_charint_2d",
-    "electron_forward_transport_2d_pic",
-    "electron_forward_fullhide_1d",
-    "electron_forward_fullhide_1d_hybrid",
-    "electron_forward_transport_2d",
-    "electron_forward_t2g1_1d",
-    "hadronic_forward_1d",
-    "hadronic_reverse_1d",
-    "electron_radiation",
-    "electron_reverse_kernel",
-    "radiation_reverse_seed",
-    "radiation_ssc_spectrum",
-    "structured_jet_1d",
-}
-F2PY_ENTRYPOINTS = {
-    "electron_forward_weno5_1d": ("fs_electron_weno5_1d",),
-    "electron_forward_slc1_1d": ("fs_electron_slc1_1d",),
-    "electron_forward_charint_1d": ("fs_electron_charint_1d",),
-    "electron_forward_charint_2d": ("fs_electron_transport_2d_core",),
-    "electron_forward_transport_2d_pic": ("fs_electron_transport_2d_pic_core",),
-    "electron_forward_fullhide_1d": (
-        "fs_electron_fullhide_1d",
-        "fs_electron_fullhide_1d_coupled",
-        "fs_electron_ic_cooling_loss_shell",
-    ),
-    "electron_forward_fullhide_1d_hybrid": ("fs_electron_fullhide_1d_hz",),
-    "electron_forward_transport_2d": ("fs_electron_transport_2d_core",),
-    "electron_forward_t2g1_1d": ("fs_electron_t2g1_1d",),
-    "electron_radiation": ("get_nu_a", "get_syn_selected", "get_syn_transfer", "get_syn_polarization_selected"),
-    "electron_reverse_kernel": (
-        "electron_reverse_evolve",
-        "electron_secondary_reverse_evolve",
-        "electron_secondary_reverse_synchrotron",
-        "electron_secondary_reverse_branch_synchrotron",
-        "electron_secondary_reverse_branch_reaccelerated",
-    ),
-    "radiation_gamma_gamma_absorption": ("annihilation",),
-    "radiation_reverse_seed": ("seed_reverse",),
-    "radiation_ssc_spectrum": ("ssc_spec", "ssc_spec_nonuniform"),
-    "hadronic_reverse_1d": ("fs_hadronic_reverse_1d",),
-    "hadronic_forward_1d": (
-        "fs_hadronic_1d",
-        "fs_hadronic_proton_syn_shell",
-        "fs_hadronic_syn_polarization_shell",
-        "fs_hadronic_pgamma_operator_shell",
-        "fs_hadronic_pair_production_shell",
-        "fs_hadronic_pp_delta_shell",
-        "fs_hadronic_bethe_heitler_shell",
-        "fs_hadronic_hadronic_ic_shell",
-        "fs_hadronic_hic_projected",
-        "fs_hadronic_species_transport_shell",
-        "fs_hadronic_species_transport_step",
-        "fs_hadronic_acceleration_shell",
-        "fs_hadronic_injection_content",
-        "fs_hadronic_global_gamma_p_max",
-        "fs_hadronic_secondary_radiation_shell",
-        "fs_hadronic_secondary_radiation_projected",
-        "fs_hadronic_decay_operator_shell",
-        "fs_hadronic_pair_cascade_step",
-        "fs_hadronic_pair_cascade_sequence",
-        "fs_hadronic_advance_energy_loggamma",
-        "fs_hadronic_continuous_loss_rates",
-        "fs_hadronic_secondary_electron_sequence",
-        "fs_hadronic_photon_loss_closure",
-        "fs_hadronic_interaction_effective_time",
-        "fs_hadronic_pgamma_proton_update",
-        "fs_hadronic_proton_transport_step",
-        "fs_hadronic_exponential_sink",
-        "fs_hadronic_energy_luminosity_from_rate",
-        "fs_hadronic_project_luminosity_from_rate",
-        "fs_hadronic_project_hic_luminosity",
-        "fs_hadronic_pair_source_content",
-        "fs_hadronic_shell_density_per_gev",
-        "fs_hadronic_gamma_edges",
-        "fs_hadronic_photon_density_hz_to_gev",
-        "fs_hadronic_process_power",
-        "fs_hadronic_shell_volumes",
-        "fs_hadronic_shell_comoving_dt",
-        "fs_hadronic_dynamical_time",
-        "fs_hadronic_positive_loglog_interp",
-        "fs_hadronic_source_per_gamma",
-        "fs_hadronic_distribution_per_gev",
-        "fs_hadronic_aligned_photon_grid",
-        "fs_hadronic_pp_spectral_source",
-        "fs_hadronic_quantum_syn_cooling_factor",
-    ),
-    "structured_jet_1d": ("structured_jet_flux_1d",),
-}
+
+
+@dataclass(frozen=True)
+class ModuleSpec:
+    name: str
+    cwd: Path
+    sources: list[str]
+    fflags: str | None = None
+    extra_args: list[str] | None = None
+    ordered: bool = False
+    entrypoints: tuple[str, ...] = ()
+    aliases: tuple[str, ...] = ()
+
+
 DYNAMICS_COMMON_SOURCES = ("../Constants.f90", "dynamics_common.f90")
 F2PY_SKIP_DYNAMICS_COMMON_INTERNALS = (
     "skip:",
@@ -263,14 +186,6 @@ def _with_main(common_sources: tuple[str, ...], main_source: str) -> list[str]:
     return [*common_sources, main_source]
 
 
-def _detect_build_platform() -> str:
-    if os.name == "nt":
-        return "windows-mingw"
-    if os.name == "posix":
-        return "linux-gfortran"
-    return f"unsupported:{os.name}"
-
-
 def _prepare_build_env() -> dict[str, str]:
     env = os.environ.copy()
     env["PYTHONUTF8"] = "1"
@@ -309,25 +224,8 @@ def _effective_fflags(env: dict[str, str], fflags: str | None) -> str:
     return fflags or ""
 
 
-def _clean_build_outputs(directory: Path) -> None:
-    for pattern in ("*.so", "*.pyd", "*.o", "*.mod"):
-        for path in directory.glob(pattern):
-            path.unlink()
-
-
-def _build_cache_root(root: Path) -> Path:
-    override = os.environ.get("ASGARD_BUILD_CACHE_DIR")
-    if override:
-        return Path(override).expanduser().resolve()
-    digest = hashlib.sha1(str(root).encode("utf-8")).hexdigest()[:16]
-    return Path(os.environ.get("TMPDIR", "/tmp")) / "asgard_buildcache" / digest
-
-
 def _module_output_paths(directory: Path, module_name: str) -> list[Path]:
-    outputs: list[Path] = []
-    for pattern in (f"{module_name}*.pyd", f"{module_name}*.so"):
-        outputs.extend(directory.glob(pattern))
-    return outputs
+    return [path for pattern in (f"{module_name}*.pyd", f"{module_name}*.so") for path in directory.glob(pattern)]
 
 
 def _sources_newer_than(outputs: list[Path], cwd: Path, sources: list[str]) -> bool:
@@ -367,35 +265,13 @@ def _object_current(object_path: Path, source_path: Path, manifest_path: Path, m
     return object_path.stat().st_mtime >= source_path.stat().st_mtime
 
 
-def _write_build_log(log_path: Path, command: list[str], cwd: Path, result: subprocess.CompletedProcess[str]) -> None:
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-    lines = [
-        f"cwd: {cwd}",
-        f"command: {' '.join(command)}",
-        f"returncode: {result.returncode}",
-        "",
-        "--- stdout ---",
-        result.stdout or "",
-        "",
-        "--- stderr ---",
-        result.stderr or "",
-    ]
-    log_path.write_text("\n".join(lines), encoding="utf-8")
-
-
-def _tail_output(text: str, max_lines: int = 120) -> str:
-    lines = text.strip().splitlines()
-    if len(lines) <= max_lines:
-        return "\n".join(lines)
-    return "\n".join(lines[-max_lines:])
-
-
 def _run_command(
     command: list[str],
     cwd: Path,
     env: dict[str, str],
     log_path: Path,
     verbose: bool,
+    failure_label: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
     if verbose:
         return subprocess.run(command, cwd=cwd, check=True, env=env, text=True, encoding="utf-8")
@@ -409,11 +285,16 @@ def _run_command(
         encoding="utf-8",
         errors="replace",
     )
-    _write_build_log(log_path, command, cwd, result)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    log_path.write_text(
+        f"cwd: {cwd}\ncommand: {' '.join(command)}\nreturncode: {result.returncode}\n\n"
+        f"--- stdout ---\n{result.stdout or ''}\n\n--- stderr ---\n{result.stderr or ''}",
+        encoding="utf-8",
+    )
     if result.returncode != 0:
         output = "\n".join(part for part in (result.stdout, result.stderr) if part)
-        tail = _tail_output(output)
-        print(f"Build failed for {' '.join(command[:3])}. Full log: {log_path}")
+        tail = "\n".join(output.strip().splitlines()[-120:])
+        print(f"Build failed for {failure_label or ' '.join(command[:3])}. Full log: {log_path}")
         if tail:
             print(tail)
         raise subprocess.CalledProcessError(result.returncode, command)
@@ -425,6 +306,7 @@ def _build_ordered_object_module(
     module_name: str,
     cwd: Path,
     sources: list[str],
+    entry_names: tuple[str, ...],
     log_dir: Path,
     verbose: bool,
     fflags: str | None,
@@ -445,7 +327,14 @@ def _build_ordered_object_module(
     if not force and not _sources_newer_than(outputs, cwd, sources):
         return 0.0
 
-    build_dir = _build_cache_root(root) / "ordered_fallback" / module_name
+    cache_override = os.environ.get("ASGARD_BUILD_CACHE_DIR")
+    cache_digest = hashlib.sha1(str(root).encode("utf-8")).hexdigest()[:16]
+    cache_root = (
+        Path(cache_override).expanduser().resolve()
+        if cache_override
+        else Path(os.environ.get("TMPDIR", "/tmp")) / "asgard_buildcache" / cache_digest
+    )
+    build_dir = cache_root / "ordered_fallback" / module_name
     build_dir.mkdir(parents=True, exist_ok=True)
 
     compile_flags = shlex.split(fflags or "")
@@ -458,13 +347,7 @@ def _build_ordered_object_module(
         source_path = (cwd / source).resolve()
         object_path = build_dir / f"{source_path.stem}.o"
         manifest_path = build_dir / f"{source_path.stem}.manifest"
-        manifest_text = "\n".join(
-            [
-                f"source={source_path}",
-                f"fc={fc}",
-                f"flags={shlex.join(compile_flags)}",
-            ]
-        )
+        manifest_text = f"source={source_path}\nfc={fc}\nflags={shlex.join(compile_flags)}"
         if dirty_seen or not _object_current(object_path, source_path, manifest_path, manifest_text):
             command = [fc, "-c", *compile_flags, str(source_path), "-o", str(object_path)]
             _run_command(command, cwd, env, log_dir / f"{module_name}_fallback_compile_{source_path.stem}.log", verbose)
@@ -478,15 +361,10 @@ def _build_ordered_object_module(
     signature_source_path = build_dir / main_source_name
     if not signature_source_path.is_file() or signature_source_path.stat().st_mtime < main_source_path.stat().st_mtime:
         _write_f2py_signature_source(main_source_path, signature_source_path)
-    entry_names = list(F2PY_ENTRYPOINTS.get(module_name, (module_name.lower(),)))
     wrapper_manifest_path = build_dir / "wrapper.manifest"
-    wrapper_manifest_text = "\n".join(
-        [
-            f"main={main_source_path}",
-            f"entries={','.join(entry_names)}",
-            f"sources={'|'.join(str((cwd / source).resolve()) for source in sources)}",
-            f"python={sys.executable}",
-        ]
+    wrapper_manifest_text = (
+        f"main={main_source_path}\nentries={','.join(entry_names)}\n"
+        f"sources={'|'.join(str((cwd / source).resolve()) for source in sources)}\npython={sys.executable}"
     )
     wrapper_outputs = [build_dir / f"{module_name}module.c"]
     wrapper_current = (
@@ -630,31 +508,8 @@ def _build_module(
     if extra_args:
         command.extend(extra_args)
     start = time.perf_counter()
-    if verbose:
-        subprocess.run(command, cwd=cwd, check=True, env=env, text=True, encoding="utf-8")
-        return time.perf_counter() - start
-
-    result = subprocess.run(
-        command,
-        cwd=cwd,
-        env=env,
-        check=False,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-    )
-    elapsed = time.perf_counter() - start
-    log_path = log_dir / f"{module_name}.log"
-    _write_build_log(log_path, command, cwd, result)
-    if result.returncode != 0:
-        output = "\n".join(part for part in (result.stdout, result.stderr) if part)
-        tail = _tail_output(output)
-        print(f"Build failed for {module_name}. Full log: {log_path}")
-        if tail:
-            print(tail)
-        raise subprocess.CalledProcessError(result.returncode, command)
-    return elapsed
+    _run_command(command, cwd, env, log_dir / f"{module_name}.log", verbose, failure_label=module_name)
+    return time.perf_counter() - start
 
 
 def main() -> None:
@@ -676,81 +531,153 @@ def main() -> None:
     had = src / "Hadronic"
     structured = src / "Structured"
     omp_flags = OMP_LTO_FLAGS if args.lto else OMP_FLAGS
-    modules = [
-        ("Constants", src, ["Constants.f90"], None, None),
-        ("Dynamics_reverse", dyn, _with_main(DYNAMICS_COMMON_SOURCES, "Dynamics_reverse.f90"), COMMON_FLAGS, None),
-        ("Dynamics_forward", dyn, _with_main(DYNAMICS_COMMON_SOURCES, "Dynamics_forward.f90"), COMMON_FLAGS, None),
-        ("electron_forward_weno5_1d", ele, _with_main(ELECTRON_COMMON_SOURCES, "electron_forward_weno5_1d.f90"), omp_flags, OPENMP_LIBS),
-        ("electron_forward_slc1_1d", ele, _with_main(ELECTRON_COMMON_SOURCES, "electron_forward_slc1_1d.f90"), omp_flags, OPENMP_LIBS),
-        ("electron_forward_charint_1d", ele, _with_main(ELECTRON_COMMON_SOURCES, "electron_forward_charint_1d.f90"), omp_flags, OPENMP_LIBS),
-        ("electron_forward_fullhide_1d", ele, _with_main(ELECTRON_HISTORY_SOURCES, "electron_forward_fullhide_1d.f90"), omp_flags, OPENMP_LIBS),
-        #
-        ("electron_forward_fullhide_1d_hybrid", ele, _with_main(ELECTRON_HISTORY_SOURCES_HZ, "electron_forward_fullhide_1d_hybrid.f90"), omp_flags, OPENMP_LIBS),
-        ("electron_forward_transport_2d", ele, _with_main(ELECTRON_2D_SOURCES, "electron_forward_transport_2d.f90"), omp_flags, OPENMP_LIBS),
-        ("electron_forward_charint_2d", ele, _with_main(ELECTRON_2D_SOURCES, "electron_forward_transport_2d.f90"), omp_flags, OPENMP_LIBS),
-        ("electron_forward_transport_2d_pic", ele, _with_main(ELECTRON_2D_SOURCES, "electron_forward_transport_2d_pic.f90"), omp_flags, OPENMP_LIBS),
-        ("electron_forward_t2g1_1d", ele, _with_main(ELECTRON_COMMON_SOURCES, "electron_forward_t2g1_1d.f90"), omp_flags, OPENMP_LIBS),
-        ("electron_radiation", ele, ELECTRON_RADIATION_SOURCES, omp_flags, OPENMP_LIBS),
-        ("electron_reverse_kernel", ele, _with_main(ELECTRON_COMMON_SOURCES, "electron_reverse_kernel.f90"), omp_flags, OPENMP_LIBS),
-        ("SED_interpolation", itp, ["../Constants.f90", "interpolation_common.f90", "SED_interpolation.f90"], omp_flags, OPENMP_LIBS),
-        ("SED_interpolation_structured", itp, ["../Constants.f90", "interpolation_common.f90", "SED_interpolation_structured.f90"], omp_flags, OPENMP_LIBS),
-        ("radiation_gamma_gamma_absorption", rad, _with_main(RADIATION_COMMON_SOURCES, "radiation_gamma_gamma_absorption.f90"), omp_flags, OPENMP_LIBS),
-        ("radiation_reverse_seed", rad, _with_main(RADIATION_COMMON_SOURCES, "radiation_reverse_seed.f90"), omp_flags, OPENMP_LIBS),
-        ("radiation_ssc_spectrum", rad, _with_main(RADIATION_COMMON_SOURCES, "radiation_ssc_spectrum.f90"), omp_flags, OPENMP_LIBS),
-        ("hadronic_forward_1d", had, _with_main(HADRONIC_1D_SOURCES, "hadronic_forward_1d.f90"), omp_flags, OPENMP_LIBS),
-        ("hadronic_reverse_1d", had, _with_main(HADRONIC_1D_SOURCES, "hadronic_reverse_1d.f90"), omp_flags, OPENMP_LIBS),
-        ("structured_jet_1d", structured, _with_main(STRUCTURED_JET_1D_SOURCES, "structured_jet_1d.f90"), omp_flags, OPENMP_LIBS),
+    module_specs = [
+        ModuleSpec("Constants", src, ["Constants.f90"]),
+        ModuleSpec("Dynamics_reverse", dyn, _with_main(DYNAMICS_COMMON_SOURCES, "Dynamics_reverse.f90"), COMMON_FLAGS),
+        ModuleSpec("Dynamics_forward", dyn, _with_main(DYNAMICS_COMMON_SOURCES, "Dynamics_forward.f90"), COMMON_FLAGS),
+        ModuleSpec("electron_forward_weno5_1d", ele, _with_main(ELECTRON_COMMON_SOURCES, "electron_forward_weno5_1d.f90"), omp_flags, OPENMP_LIBS, True, ("fs_electron_weno5_1d",), ("electron_forward_weno5",)),
+        ModuleSpec("electron_forward_slc1_1d", ele, _with_main(ELECTRON_COMMON_SOURCES, "electron_forward_slc1_1d.f90"), omp_flags, OPENMP_LIBS, True, ("fs_electron_slc1_1d",), ("electron_forward_slc1",)),
+        ModuleSpec("electron_forward_charint_1d", ele, _with_main(ELECTRON_COMMON_SOURCES, "electron_forward_charint_1d.f90"), omp_flags, OPENMP_LIBS, True, ("fs_electron_charint_1d",), ("electron_forward_charint",)),
+        ModuleSpec(
+            "electron_forward_fullhide_1d",
+            ele,
+            _with_main(ELECTRON_HISTORY_SOURCES, "electron_forward_fullhide_1d.f90"),
+            omp_flags,
+            OPENMP_LIBS,
+            True,
+            ("fs_electron_fullhide_1d", "fs_electron_fullhide_1d_coupled", "fs_electron_ic_cooling_loss_shell"),
+            ("electron_forward_fullhide",),
+        ),
+        ModuleSpec("electron_forward_fullhide_1d_hybrid", ele, _with_main(ELECTRON_HISTORY_SOURCES_HZ, "electron_forward_fullhide_1d_hybrid.f90"), omp_flags, OPENMP_LIBS, True, ("fs_electron_fullhide_1d_hz",)),
+        ModuleSpec("electron_forward_transport_2d", ele, _with_main(ELECTRON_2D_SOURCES, "electron_forward_transport_2d.f90"), omp_flags, OPENMP_LIBS, True, ("fs_electron_transport_2d_core",)),
+        ModuleSpec("electron_forward_charint_2d", ele, _with_main(ELECTRON_2D_SOURCES, "electron_forward_transport_2d.f90"), omp_flags, OPENMP_LIBS, True, ("fs_electron_transport_2d_core",)),
+        ModuleSpec("electron_forward_transport_2d_pic", ele, _with_main(ELECTRON_2D_SOURCES, "electron_forward_transport_2d_pic.f90"), omp_flags, OPENMP_LIBS, True, ("fs_electron_transport_2d_pic_core",)),
+        ModuleSpec("electron_forward_t2g1_1d", ele, _with_main(ELECTRON_COMMON_SOURCES, "electron_forward_t2g1_1d.f90"), omp_flags, OPENMP_LIBS, True, ("fs_electron_t2g1_1d",), ("electron_forward_t2g1",)),
+        ModuleSpec("electron_radiation", ele, list(ELECTRON_RADIATION_SOURCES), omp_flags, OPENMP_LIBS, True, ("get_nu_a", "get_syn_selected", "get_syn_transfer", "get_syn_polarization_selected")),
+        ModuleSpec(
+            "electron_reverse_kernel",
+            ele,
+            _with_main(ELECTRON_COMMON_SOURCES, "electron_reverse_kernel.f90"),
+            omp_flags,
+            OPENMP_LIBS,
+            True,
+            (
+                "electron_reverse_evolve",
+                "electron_secondary_reverse_evolve",
+                "electron_secondary_reverse_synchrotron",
+                "electron_secondary_reverse_branch_synchrotron",
+                "electron_secondary_reverse_branch_reaccelerated",
+            ),
+        ),
+        ModuleSpec("SED_interpolation", itp, ["../Constants.f90", "interpolation_common.f90", "SED_interpolation.f90"], omp_flags, OPENMP_LIBS),
+        ModuleSpec("SED_interpolation_structured", itp, ["../Constants.f90", "interpolation_common.f90", "SED_interpolation_structured.f90"], omp_flags, OPENMP_LIBS),
+        ModuleSpec("radiation_gamma_gamma_absorption", rad, _with_main(RADIATION_COMMON_SOURCES, "radiation_gamma_gamma_absorption.f90"), omp_flags, OPENMP_LIBS, False, ("annihilation",)),
+        ModuleSpec("radiation_reverse_seed", rad, _with_main(RADIATION_COMMON_SOURCES, "radiation_reverse_seed.f90"), omp_flags, OPENMP_LIBS, True, ("seed_reverse",)),
+        ModuleSpec("radiation_ssc_spectrum", rad, _with_main(RADIATION_COMMON_SOURCES, "radiation_ssc_spectrum.f90"), omp_flags, OPENMP_LIBS, True, ("ssc_spec", "ssc_spec_nonuniform")),
+        ModuleSpec(
+            "hadronic_forward_1d",
+            had,
+            _with_main(HADRONIC_1D_SOURCES, "hadronic_forward_1d.f90"),
+            omp_flags,
+            OPENMP_LIBS,
+            True,
+            (
+                "fs_hadronic_1d",
+                "fs_hadronic_proton_syn_shell",
+                "fs_hadronic_syn_polarization_shell",
+                "fs_hadronic_pgamma_operator_shell",
+                "fs_hadronic_pair_production_shell",
+                "fs_hadronic_pp_delta_shell",
+                "fs_hadronic_bethe_heitler_shell",
+                "fs_hadronic_hadronic_ic_shell",
+                "fs_hadronic_hic_projected",
+                "fs_hadronic_species_transport_shell",
+                "fs_hadronic_species_transport_step",
+                "fs_hadronic_acceleration_shell",
+                "fs_hadronic_injection_content",
+                "fs_hadronic_global_gamma_p_max",
+                "fs_hadronic_secondary_radiation_shell",
+                "fs_hadronic_secondary_radiation_projected",
+                "fs_hadronic_decay_operator_shell",
+                "fs_hadronic_pair_cascade_step",
+                "fs_hadronic_pair_cascade_sequence",
+                "fs_hadronic_advance_energy_loggamma",
+                "fs_hadronic_continuous_loss_rates",
+                "fs_hadronic_secondary_electron_sequence",
+                "fs_hadronic_photon_loss_closure",
+                "fs_hadronic_interaction_effective_time",
+                "fs_hadronic_pgamma_proton_update",
+                "fs_hadronic_proton_transport_step",
+                "fs_hadronic_exponential_sink",
+                "fs_hadronic_energy_luminosity_from_rate",
+                "fs_hadronic_project_luminosity_from_rate",
+                "fs_hadronic_project_hic_luminosity",
+                "fs_hadronic_pair_source_content",
+                "fs_hadronic_shell_density_per_gev",
+                "fs_hadronic_gamma_edges",
+                "fs_hadronic_photon_density_hz_to_gev",
+                "fs_hadronic_process_power",
+                "fs_hadronic_shell_volumes",
+                "fs_hadronic_shell_comoving_dt",
+                "fs_hadronic_dynamical_time",
+                "fs_hadronic_positive_loglog_interp",
+                "fs_hadronic_source_per_gamma",
+                "fs_hadronic_distribution_per_gev",
+                "fs_hadronic_aligned_photon_grid",
+                "fs_hadronic_pp_spectral_source",
+                "fs_hadronic_quantum_syn_cooling_factor",
+            ),
+        ),
+        ModuleSpec("hadronic_reverse_1d", had, _with_main(HADRONIC_1D_SOURCES, "hadronic_reverse_1d.f90"), omp_flags, OPENMP_LIBS, True, ("fs_hadronic_reverse_1d",)),
+        ModuleSpec("structured_jet_1d", structured, _with_main(STRUCTURED_JET_1D_SOURCES, "structured_jet_1d.f90"), omp_flags, OPENMP_LIBS, True, ("structured_jet_flux_1d",)),
     ]
-    module_aliases = {
-        "electron_forward_weno5": "electron_forward_weno5_1d",
-        "electron_forward_slc1": "electron_forward_slc1_1d",
-        "electron_forward_charint": "electron_forward_charint_1d",
-        "electron_forward_fullhide": "electron_forward_fullhide_1d",
-        "electron_forward_t2g1": "electron_forward_t2g1_1d",
-    }
+    module_aliases = {alias: spec.name for spec in module_specs for alias in spec.aliases}
     selected = set(args.modules or [])
     if selected:
         selected = {module_aliases.get(name, name) for name in selected}
-    if selected:
-        modules = [spec for spec in modules if spec[0] in selected]
-        missing = selected.difference({spec[0] for spec in modules})
+        module_specs = [spec for spec in module_specs if spec.name in selected]
+        missing = selected.difference({spec.name for spec in module_specs})
         if missing:
             raise SystemExit(f"Unknown module(s): {', '.join(sorted(missing))}")
     if args.clean:
         for directory in (src, dyn, ele, had, itp, rad, structured):
-            _clean_build_outputs(directory)
+            for pattern in ("*.so", "*.pyd", "*.o", "*.mod"):
+                for path in directory.glob(pattern):
+                    path.unlink()
 
-    print(f"Compile start ({_detect_build_platform()})")
-    for module_name, cwd, sources, fflags, extra_args in modules:
-        print(f"Build {module_name}")
-        module_extra_args = list(extra_args or [])
-        if module_name in DIRECT_ORDERED_BUILD_MODULES:
+    platform = {"nt": "windows-mingw", "posix": "linux-gfortran"}.get(os.name, f"unsupported:{os.name}")
+    print(f"Compile start ({platform})")
+    for spec in module_specs:
+        print(f"Build {spec.name}")
+        module_extra_args = list(spec.extra_args or [])
+        if spec.ordered:
             elapsed = _build_ordered_object_module(
                 root,
-                module_name,
-                cwd,
-                sources,
+                spec.name,
+                spec.cwd,
+                spec.sources,
+                spec.entrypoints,
                 log_dir,
                 args.verbose,
-                fflags,
+                spec.fflags,
                 module_extra_args,
                 args.force,
             )
-            print(f"Done {module_name}: {elapsed:.2f}s")
+            print(f"Done {spec.name}: {elapsed:.2f}s")
             continue
-        if any(Path(source).name == "dynamics_common.f90" for source in sources):
+        if any(Path(source).name == "dynamics_common.f90" for source in spec.sources):
             module_extra_args = [*F2PY_SKIP_DYNAMICS_COMMON_INTERNALS, *module_extra_args]
         elapsed = _build_module(
-            module_name,
-            cwd,
-            sources,
+            spec.name,
+            spec.cwd,
+            spec.sources,
             log_dir,
             args.verbose,
-            fflags,
+            spec.fflags,
             module_extra_args,
             args.force,
         )
-        print(f"Done {module_name}: {elapsed:.2f}s")
+        print(f"Done {spec.name}: {elapsed:.2f}s")
     print("Compile complete!")
 
 

@@ -1,20 +1,13 @@
 from __future__ import annotations
 
-from pathlib import Path
-import sys
+from _repo_path import ensure_repo_root_on_path
 
 import numpy as np
 
 
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+ensure_repo_root_on_path()
 
 from asgard_core.hadronic_pp import PI0_MASS_GEV, PROTON_MASS_GEV, solve_pp_delta
-
-
-def _pp_threshold_kinetic_energy_gev() -> float:
-    return 2.0 * PI0_MASS_GEV + PI0_MASS_GEV * PI0_MASS_GEV / (2.0 * PROTON_MASS_GEV)
 
 
 def test_pp_minimal_backend_smoke() -> None:
@@ -47,7 +40,9 @@ def test_pp_minimal_backend_smoke() -> None:
     assert np.all(output.proton_loss_rate <= 0.0)
     assert float((-output.proton_loss_rate).max()) > 0.0
 
-    threshold_parent = PROTON_MASS_GEV + _pp_threshold_kinetic_energy_gev()
+    threshold_parent = (
+        PROTON_MASS_GEV + 2.0 * PI0_MASS_GEV + PI0_MASS_GEV * PI0_MASS_GEV / (2.0 * PROTON_MASS_GEV)
+    )
     gamma_threshold = 0.5 * 0.17 * threshold_parent
     neutrino_threshold = 0.25 * 0.17 * threshold_parent
     pair_threshold = neutrino_threshold

@@ -5,22 +5,13 @@ from dataclasses import dataclass
 import numpy as np
 
 from src import constants
+from asgard_core.hadronic_validation import as_matching_nonnegative, as_strictly_increasing_grid
 
-try:
-    import src.Hadronic.hadronic_forward_1d as hadronic_fortran_module
-except ImportError:
-    hadronic_fortran_module = None
+import src.Hadronic.hadronic_forward_1d as hadronic_fortran_module
 
 
-_HAS_FORTRAN_PG_OPERATOR = hadronic_fortran_module is not None and hasattr(
-    hadronic_fortran_module, "fs_hadronic_pgamma_operator_shell"
-)
-_HAS_FORTRAN_DECAY_OPERATOR = hadronic_fortran_module is not None and hasattr(
-    hadronic_fortran_module, "fs_hadronic_decay_operator_shell"
-)
-
-HUMMER2010_OPERATOR_BACKEND = "fortran_operator" if _HAS_FORTRAN_PG_OPERATOR else "unavailable"
-HUMMER2010_DECAY_BACKEND = "fortran_decay" if _HAS_FORTRAN_DECAY_OPERATOR else "unavailable"
+HUMMER2010_OPERATOR_BACKEND = "fortran_operator"
+HUMMER2010_DECAY_BACKEND = "fortran_decay"
 
 
 PROTON_MASS_GEV = constants.para_m_p_gev
@@ -67,21 +58,16 @@ def solve_hummer2010_pgamma(
     process_energy_gev: np.ndarray,
     neutron_density_per_gev: np.ndarray | None = None,
 ) -> Hummer2010Output:
-    if not _HAS_FORTRAN_PG_OPERATOR:
-        raise RuntimeError("Hummer 2010 photopion core must be provided by the Fortran backend.")
-    if not _HAS_FORTRAN_DECAY_OPERATOR:
-        raise RuntimeError("Hummer 2010 decay core must be provided by the Fortran backend.")
-
-    e_p = _as_strictly_increasing_1d(proton_energy_gev, "proton_energy_gev")
-    n_p = _as_matching_nonnegative_1d(proton_density_per_gev, e_p, "proton_density_per_gev")
-    n_n = np.zeros_like(n_p) if neutron_density_per_gev is None else _as_matching_nonnegative_1d(
+    e_p = as_strictly_increasing_grid(proton_energy_gev, "proton_energy_gev")
+    n_p = as_matching_nonnegative(proton_density_per_gev, e_p, "proton_density_per_gev")
+    n_n = np.zeros_like(n_p) if neutron_density_per_gev is None else as_matching_nonnegative(
         neutron_density_per_gev, e_p, "neutron_density_per_gev"
     )
-    e_gam_t = _as_strictly_increasing_1d(photon_energy_gev, "photon_energy_gev")
-    n_gam_t = _as_matching_nonnegative_1d(photon_density_per_gev, e_gam_t, "photon_density_per_gev")
-    e_gamma = _as_strictly_increasing_1d(gamma_energy_gev, "gamma_energy_gev")
-    e_nu = _as_strictly_increasing_1d(neutrino_energy_gev, "neutrino_energy_gev")
-    e_proc = _as_strictly_increasing_1d(process_energy_gev, "process_energy_gev")
+    e_gam_t = as_strictly_increasing_grid(photon_energy_gev, "photon_energy_gev")
+    n_gam_t = as_matching_nonnegative(photon_density_per_gev, e_gam_t, "photon_density_per_gev")
+    e_gamma = as_strictly_increasing_grid(gamma_energy_gev, "gamma_energy_gev")
+    e_nu = as_strictly_increasing_grid(neutrino_energy_gev, "neutrino_energy_gev")
+    e_proc = as_strictly_increasing_grid(process_energy_gev, "process_energy_gev")
 
     (
         qpi0_rate,
@@ -148,25 +134,3 @@ def solve_hummer2010_pgamma(
         photon_loss_energy_gev=e_gam_t,
         photon_loss_rate=np.asarray(afpg_rad, dtype=float),
     )
-
-
-def _as_strictly_increasing_1d(values: np.ndarray, name: str) -> np.ndarray:
-    arr = np.asarray(values, dtype=float)
-    if arr.ndim != 1:
-        raise ValueError(f"{name} must be a 1d array.")
-    if arr.size < 2:
-        raise ValueError(f"{name} must contain at least two points.")
-    if np.any(arr <= 0.0):
-        raise ValueError(f"{name} must be positive.")
-    if np.any(np.diff(arr) <= 0.0):
-        raise ValueError(f"{name} must be strictly increasing.")
-    return arr
-
-
-def _as_matching_nonnegative_1d(values: np.ndarray, reference: np.ndarray, name: str) -> np.ndarray:
-    arr = np.asarray(values, dtype=float)
-    if arr.ndim != 1 or arr.shape != reference.shape:
-        raise ValueError(f"{name} must be a 1d array with the same shape as its energy grid.")
-    if np.any(arr < 0.0):
-        raise ValueError(f"{name} must be non-negative.")
-    return arr

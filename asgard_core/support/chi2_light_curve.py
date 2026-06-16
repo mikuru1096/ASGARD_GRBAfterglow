@@ -24,7 +24,7 @@ def cal_chi2_light_curve(bands_fit, model_curves, model_serial, frequency, Rv, E
             continue
         try:
             table = load_observation_table(data_file)
-            range_data, flux_data, flux_err = _parse_observation_data(table, name)
+            range_data, flux_data, flux_err = _parse_observation_data(table)
             band_idx = bands_fit.index(name)
             if name.startswith("opt"):
                 flux_data, flux_err = opt_extinction(
@@ -37,21 +37,20 @@ def cal_chi2_light_curve(bands_fit, model_curves, model_serial, frequency, Rv, E
                     redshift=z,
                     lyman_ar=lyman_ar,
                 )
-            range_data = _convert_time_units(range_data, name)
+            range_data = range_data * 86400
             validate_model_range(range_data, model_serial)
             fit_flux = model_interpolators[band_idx](range_data)
             if np.any(np.isnan(fit_flux)):
                 raise ValueError("Some data points are beyond the scope of the model.")
-            sigma = _get_uncertainties(flux_data, flux_err, fit_flux, table.shape[1])
-            variance = _calculate_variance(flux_data, sigma, f_sys)
+            sigma = np.where(fit_flux > flux_data, flux_err, -flux_err) if table.shape[1] == 6 else flux_err
+            variance = (flux_data * 0.1) ** 2 if f_sys <= 0 else (flux_data * f_sys) ** 2 + sigma**2
             chi2_total += np.sum((fit_flux - flux_data) ** 2 / variance)
         except Exception as exc:
             warnings.warn(f"An error occurred while processing the file {data_file.name}: {str(exc)}")
-            continue
     return chi2_total
 
 
-def _parse_observation_data(table, name):
+def _parse_observation_data(table):
     n_cols = table.shape[1] if table.ndim > 1 else table.size
     if n_cols == 6:
         range_data, flux_data = table[:, 0], table[:, 3]
@@ -68,15 +67,3 @@ def _parse_observation_data(table, name):
     else:
         raise ValueError(f"The observation data should be 2 to 6 columns. Currently, there are {n_cols} columns.")
     return range_data, flux_data, flux_err
-
-
-def _convert_time_units(range_data, name):
-    return range_data * 86400
-
-
-def _get_uncertainties(flux_data, flux_err, fit_flux, n_cols):
-    return np.where(fit_flux > flux_data, flux_err, -flux_err) if n_cols == 6 else flux_err
-
-
-def _calculate_variance(flux_data, sigma, f_sys):
-    return (flux_data * 0.1) ** 2 if f_sys <= 0 else (flux_data * f_sys) ** 2 + sigma**2

@@ -4,7 +4,6 @@ include Requirements.txt
 include install.py
 include install.sh
 include install.ps1
-recursive-include ASGARD *.py
 recursive-include asgard_core *.py
 recursive-include asgard_core/data_light_curve *
 recursive-include asgard_core/data_spectrum *

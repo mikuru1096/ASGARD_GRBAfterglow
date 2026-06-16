@@ -1,16 +1,13 @@
 from __future__ import annotations
 
-from pathlib import Path
-import sys
+from _repo_path import ensure_repo_root_on_path
 
 import numpy as np
 
 
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+ensure_repo_root_on_path()
 
-from ASGARD import Model
+from asgard_core import Model
 from asgard_core.asgard_config import RuntimeConfig
 from asgard_core.asgard_state import solve_state
 from src import Interpolation

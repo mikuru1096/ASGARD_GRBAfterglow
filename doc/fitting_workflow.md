@@ -76,7 +76,7 @@ flux_err = np.array([...], dtype=float)
 ```python
 import numpy as np
 
-from ASGARD import (
+from asgard_core import (
     Fitter,
     Hadronic,
     Model,
@@ -269,7 +269,7 @@ rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/AS
 import numpy as np
 import matplotlib.pyplot as plt
 
-from ASGARD import (
+from asgard_core import (
     Fitter,
     Hadronic,
     Model,

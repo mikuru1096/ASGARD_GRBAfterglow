@@ -1,16 +1,13 @@
 from __future__ import annotations
 
-from pathlib import Path
-import sys
+from _repo_path import ensure_repo_root_on_path
 
 import numpy as np
 
 
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+ensure_repo_root_on_path()
 
-from ASGARD.api_observe import run_fit
+from asgard_core.api_observe import run_fit
 from asgard_core.asgard_config import RuntimeConfig
 
 
@@ -25,8 +22,6 @@ def _config(*, thermal_electrons: bool, electron_solver: str = "fullhide_1d") ->
         num_r=48,
         num_theta=16,
         num_tobs=20,
-        plot_lc=False,
-        show_plots=False,
     )
 
 

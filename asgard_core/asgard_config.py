@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from typing import Optional
 
 import numpy as np
 
@@ -32,7 +31,7 @@ class SpectrumOutputConfig:
     num_nu_obs: int = 180
     nu_min_hz: float = 1.0e-6 * constants.para_ev2hz
     nu_max_hz: float = 1.0e-3 * constants.para_tev2hz
-    time_s: Optional[float] = None
+    time_s: float | None = None
     dataset_names: tuple[str, ...] = field(default_factory=tuple)
 
 
@@ -40,12 +39,12 @@ class SpectrumOutputConfig:
 class ReverseShockConfig:
     """Configuration for reverse shock physics."""
     enabled: bool = False
-    delta_t_s: Optional[float] = None
+    delta_t_s: float | None = None
     sigma: float = 0.0
-    epsilon_e: Optional[float] = None
-    epsilon_b: Optional[float] = None
-    p: Optional[float] = None
-    f_e: Optional[float] = None
+    epsilon_e: float | None = None
+    epsilon_b: float | None = None
+    p: float | None = None
+    f_e: float | None = None
     include_ssc: bool = False
     include_cross_zone_ic: bool = False
 
@@ -98,14 +97,6 @@ _HADRONIC_DELEGATES = (
 class ExecutionPolicy:
     """Execution policy for parallel computation."""
     num_threads: int = field(default_factory=default_num_threads)
-    serial_thresholds: dict[str, int] = field(
-        default_factory=lambda: {
-            "ssa_work_items": 16384,
-            "y_nakar_work_items": 1024,
-        }
-    )
-    patch_batch_size: int = 1
-    omp_nested: bool = False
 
 
 @dataclass
@@ -131,8 +122,8 @@ class _RuntimeConfig:
     patch_sampling_beaming_factor: float = 3.0
     patch_sampling_beaming_resolution: float = 8.0
     structured_parallel_mode: str = "outer"
-    structured_outer_threads: Optional[int] = None
-    structured_inner_threads: Optional[int] = None
+    structured_outer_threads: int | None = None
+    structured_inner_threads: int | None = None
     fullhide2d_transport_model: str = "legacy"
     fullhide2d_stochastic_accel_norm: float = 0.0
     fullhide2d_escape_mode: str = "closed"
@@ -147,13 +138,13 @@ class _RuntimeConfig:
     num_r: int = 300
     num_theta: int = 300
     num_phi: int = 1
-    num_chi: Optional[int] = None
+    num_chi: int | None = None
 
     z: float = 0.4
     eta_0: float = 1.0e2
     epsilon_e: float = 1.0e-1
     epsilon_b: float = 1.0e-3
-    epsilon_b_floor: Optional[float] = None
+    epsilon_b_floor: float | None = None
     magnetic_decay_alpha_t: float = 0.0
     magnetic_decay_t0_s: float = 1.0
     p: float = 2.5
@@ -188,12 +179,10 @@ class _RuntimeConfig:
     num_tobs: int = 200
     t_obs_min_log10: float = 2.0
     t_obs_max_log10: float = 8.0
-    luminosity_distance_cm_override: Optional[float] = None
+    luminosity_distance_cm_override: float | None = None
 
     weno5: bool = False
     reverse: bool = False
-    plot_lc: bool = False
-    show_plots: bool = False
 
     spectrum_output: SpectrumOutputConfig = field(default_factory=SpectrumOutputConfig)
     reverse_shock: ReverseShockConfig = field(default_factory=ReverseShockConfig)
@@ -220,22 +209,6 @@ del _public_name, _field_name
 RuntimeConfig = _RuntimeConfig
 
 
-# Result dataclasses
-@dataclass
-class PhysicalSolution:
-    """Physical solution data."""
-    characteristic_time_s: np.ndarray
-    gamma: np.ndarray
-    radius_cm: np.ndarray
-    absorbed_spectral_flux: np.ndarray
-    nu_m: np.ndarray
-    nu_c: np.ndarray
-    nu_a: np.ndarray
-    rs_nu_m: Optional[np.ndarray] = None
-    rs_nu_c: Optional[np.ndarray] = None
-    rs_nu_a: Optional[np.ndarray] = None
-
-
 @dataclass
 class SimulationSetup:
     """Simulation setup data."""
@@ -256,10 +229,10 @@ class FitResult:
     nu_m: np.ndarray
     nu_c: np.ndarray
     nu_a: np.ndarray
-    rs_nu_m: Optional[np.ndarray] = None
-    rs_nu_c: Optional[np.ndarray] = None
-    rs_nu_a: Optional[np.ndarray] = None
-    spectrum_time_s: Optional[float] = None
-    spectrum_freq_hz: Optional[np.ndarray] = None
-    spectrum_fnu: Optional[np.ndarray] = None
-    spectrum_redchi: Optional[float] = None
+    rs_nu_m: np.ndarray | None = None
+    rs_nu_c: np.ndarray | None = None
+    rs_nu_a: np.ndarray | None = None
+    spectrum_time_s: float | None = None
+    spectrum_freq_hz: np.ndarray | None = None
+    spectrum_fnu: np.ndarray | None = None
+    spectrum_redchi: float | None = None

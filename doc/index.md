@@ -121,9 +121,9 @@ ASGARD 当前主线是 GRB 余辉的壳层演化爆波和观测者投影模型�
 
 Public Python API：
 
-- `ASGARD/api_model.py`：`Model`, `UniformMedium`, `WindMedium`, `TabulatedMedium`, `top_hat_jet`, `gaussian_jet`, `power_law_jet`, `Observer`, `Radiation`, `Numerics`, `ObserverGrid`, `SolverOptions`, `ReverseShock`, `Hadronic`，以及 `Model` 查询调度和 direct/patch solve 入口。
-- `ASGARD/api_observe.py`：内部/旧配置观测工具，以及 sky image / polarization / observation dataset helpers；`observe` 和 `run_fit` 不从 `ASGARD` 顶层导出，不作为新教程入口。
-- `ASGARD/api_fit.py`：`Fitter`, `Param`, `FitResult`。
+- `asgard_core/api_model.py`：`Model`, `UniformMedium`, `WindMedium`, `TabulatedMedium`, `top_hat_jet`, `gaussian_jet`, `power_law_jet`, `Observer`, `Radiation`, `Numerics`, `ObserverGrid`, `SolverOptions`, `ReverseShock`, `Hadronic`，以及 `Model` 查询调度和 direct/patch solve 入口。
+- `asgard_core/api_observe.py`：内部/旧配置观测工具，以及 sky image / polarization / observation dataset helpers；`observe` 和 `run_fit` 不从 `asgard_core` 顶层导出，不作为新教程入口。
+- `asgard_core/api_fit.py`：`Fitter`, `Param`, `FitResult`。
 
 Fortran 构建入口：
 

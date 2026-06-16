@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import numpy as np
 
-import numpy as np
 import src.Hadronic.hadronic_forward_1d as hadronic_legacy_module
 from src import constants
 
@@ -123,41 +122,6 @@ def kelner_aharonian_2008_gamma_phi(eta: np.ndarray, x: np.ndarray) -> np.ndarra
         loc[mid] = b_gamma[mid] * np.exp(expo) * np.power(shape, psi[mid])
     out[valid_eta] = loc
     return out
-
-
-def kelner_aharonian_2008_gamma_spectrum(
-    gamma_energy_gev: np.ndarray,
-    proton_energy_gev: np.ndarray,
-    proton_density_per_gev: np.ndarray,
-    photon_energy_gev: np.ndarray,
-    photon_density_per_gev: np.ndarray,
-) -> np.ndarray:
-    """Eq. (10) gamma production spectrum for arbitrary proton and photon distributions."""
-    e_gamma = np.asarray(gamma_energy_gev, dtype=float)
-    e_p = np.asarray(proton_energy_gev, dtype=float)
-    f_p = np.asarray(proton_density_per_gev, dtype=float)
-    eps = np.asarray(photon_energy_gev, dtype=float)
-    f_ph = np.asarray(photon_density_per_gev, dtype=float)
-    if e_p.ndim != 1 or f_p.ndim != 1 or e_p.shape != f_p.shape:
-        raise ValueError("proton_energy_gev and proton_density_per_gev must be 1d with matching shapes.")
-    if eps.ndim != 1 or f_ph.ndim != 1 or eps.shape != f_ph.shape:
-        raise ValueError("photon_energy_gev and photon_density_per_gev must be 1d with matching shapes.")
-    if np.any(e_gamma <= 0.0) or np.any(e_p <= PROTON_MASS_GEV) or np.any(eps <= 0.0):
-        raise ValueError("All energies must be positive and proton energy must exceed rest mass.")
-
-    spectrum = np.zeros_like(e_gamma)
-    for i, eg in enumerate(e_gamma):
-        outer = np.zeros_like(e_p)
-        for j, ep in enumerate(e_p):
-            x = eg / ep
-            if x <= 0.0:
-                continue
-            eta = 4.0 * eps * ep / (PROTON_MASS_GEV * PROTON_MASS_GEV)
-            phi = kelner_aharonian_2008_gamma_phi(eta, x)
-            inner = np.trapezoid(f_ph * phi, eps)
-            outer[j] = f_p[j] * inner / ep
-        spectrum[i] = np.trapezoid(outer, e_p)
-    return spectrum
 
 
 def kelner_aharonian_2008_secondary_phi(channel: str, eta: np.ndarray, x: np.ndarray) -> np.ndarray:

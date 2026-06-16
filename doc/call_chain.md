@@ -4,9 +4,9 @@
 
 ```mermaid
 flowchart TD
-    A["ASGARD/api_model.py\nModel query methods"] --> B["Model -> RuntimeConfig\n_build_fit_config_for_patch"]
-    X["ASGARD/api_observe.py\nobserve / run_fit"] --> B
-    Y["ASGARD/api_fit.py\nFitter.loglike"] --> C["asgard_fit.py\ncompile_problem / eval_loglike"]
+    A["asgard_core/api_model.py\nModel query methods"] --> B["Model -> RuntimeConfig\n_build_fit_config_for_patch"]
+    X["asgard_core/api_observe.py\nobserve / run_fit"] --> B
+    Y["asgard_core/api_fit.py\nFitter.loglike"] --> C["asgard_fit.py\ncompile_problem / eval_loglike"]
     B --> S["asgard_setup.py\nSimulationSetup"]
     C --> S
     S --> D["asgard_state.py\nsolve_state_from_setup"]
