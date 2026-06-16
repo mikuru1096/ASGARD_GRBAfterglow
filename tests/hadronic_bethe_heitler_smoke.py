@@ -7,7 +7,7 @@ import numpy as np
 
 ensure_repo_root_on_path()
 
-from asgard_core.hadronic_bethe_heitler import solve_bethe_heitler
+from asgard_core.hadronic_processes import solve_bethe_heitler
 from src import Radiation as RadiationKernel
 
 

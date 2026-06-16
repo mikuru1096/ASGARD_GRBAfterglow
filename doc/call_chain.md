@@ -6,9 +6,8 @@
 flowchart TD
     A["asgard_core/api_model.py\nModel query methods"] --> B["Model -> RuntimeConfig\n_build_fit_config_for_patch"]
     X["asgard_core/api_observe.py\nobserve / run_fit"] --> B
-    Y["asgard_core/api_fit.py\nFitter.loglike"] --> C["asgard_fit.py\ncompile_problem / eval_loglike"]
+    Y["asgard_core/api_fit.py\nFitter.loglike / eval_loglike"] --> S
     B --> S["asgard_setup.py\nSimulationSetup"]
-    C --> S
     S --> D["asgard_state.py\nsolve_state_from_setup"]
     D --> E["求解动力学"]
     D --> F["求解电子谱"]

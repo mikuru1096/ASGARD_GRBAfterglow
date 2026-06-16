@@ -7,7 +7,7 @@ import numpy as np
 
 ensure_repo_root_on_path()
 
-from asgard_core.hadronic_hadronic_ic import (  # noqa: E402
+from asgard_core.hadronic_processes import (  # noqa: E402
     AM3_C_CGS,
     AM3_MASS_ELECTRON_GEV,
     AM3_MASS_MUON_GEV,

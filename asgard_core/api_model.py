@@ -16,7 +16,7 @@ from asgard_core.asgard_config import (
     SpectrumOutputConfig,
     default_num_threads,
 )
-from asgard_core.asgard_observables import build_multiband_observer_frequencies, combine_multiband_flux
+from asgard_core.asgard_postprocess import build_multiband_observer_frequencies, combine_multiband_flux
 from asgard_core.asgard_state import (
     FluxComponents,
     SolveState,

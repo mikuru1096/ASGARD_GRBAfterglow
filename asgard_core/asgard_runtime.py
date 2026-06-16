@@ -8,29 +8,35 @@ import numpy as np
 
 from src.Electron.electron_radiation import electron_radiation_kernel as electron_radiation_module
 import src.Hadronic.hadronic_forward_1d as hadronic_legacy_module
+import src.Hadronic.hadronic_reverse_1d as _hadronic_reverse_module
 from asgard_core.hadronic_am3_solver import (
     HUMMER_PROCESS_GROUP_LABELS,
     HUMMER2010_RESPONSE_BACKEND,
     solve_hummer_2010_response_processes,
 )
-from asgard_core.hadronic_acceleration import ACCELERATION_BACKEND
-from asgard_core.hadronic_bethe_heitler import (
+from asgard_core.hadronic_processes import ACCELERATION_BACKEND
+from asgard_core.hadronic_processes import (
     BETHE_HEITLER_BACKEND,
     ELECTRON_MASS_GEV,
     solve_bethe_heitler,
 )
-from asgard_core.hadronic_hadronic_ic import HADRONIC_IC_BACKEND
-from asgard_core.hadronic_secondary_radiation import SECONDARY_RADIATION_BACKEND
-from asgard_core.hadronic_species_transport import (
+from asgard_core.hadronic_processes import HADRONIC_IC_BACKEND
+from asgard_core.hadronic_processes import SECONDARY_RADIATION_BACKEND
+from asgard_core.hadronic_processes import (
     ChargedMuonDistribution,
     ChargedPionDistribution,
     HadronicSpeciesState,
     NeutronDistribution,
     SPECIES_TRANSPORT_BACKEND,
 )
-from asgard_core.hadronic_hummer import HUMMER2010_DECAY_BACKEND, HUMMER2010_OPERATOR_BACKEND, PROTON_MASS_GEV, solve_hummer2010_pgamma
-from asgard_core.hadronic_pp import PP_DELTA_BACKEND, solve_pp_delta
-from asgard_core.hadronic_pgamma import photon_density_hz_to_gev
+from asgard_core.hadronic_processes import (
+    HUMMER2010_DECAY_BACKEND,
+    HUMMER2010_OPERATOR_BACKEND,
+    PROTON_MASS_GEV,
+    photon_density_hz_to_gev,
+    solve_hummer2010_pgamma,
+)
+from asgard_core.hadronic_processes import PP_DELTA_BACKEND, solve_pp_delta
 from asgard_core.asgard_config import RuntimeConfig
 from asgard_core.asgard_types import (
     ReverseShockParameters,
@@ -119,6 +125,15 @@ class SecondaryReverseShockState:
     nu_m: np.ndarray
     nu_c: np.ndarray
     nu_a: np.ndarray
+
+
+@dataclass(frozen=True)
+class ReverseShockHadronicSolution:
+    gam_p: np.ndarray
+    d_n_gam_p: np.ndarray
+    l_had_syn_spec: np.ndarray
+    seed_had_syn: np.ndarray
+
 
 _PGAMMA_SCHEME_DISABLED = "disabled"
 _PGAMMA_SCHEME_HUMMER2010_RESPONSE = "hummer_2010_response"
@@ -2055,7 +2070,6 @@ def solve_reverse_shock_emission(
                 pp_target_density_cm3=_reverse_hadronic_target_density(dynamics),
             )
         else:
-            from asgard_core.hadronic_reverse import solve_rs_hadronic_core
             rs_hadronic = solve_rs_hadronic_core(
                 r_tobs_s=dynamics.r_tobs,
                 r_gamma=dynamics.r_gamma,
@@ -2078,6 +2092,42 @@ def solve_reverse_shock_emission(
         nu_M=nu_M,
         rs_hadronic=rs_hadronic,
         secondary_rs=secondary_rs,
+    )
+
+
+def solve_rs_hadronic_core(
+    r_tobs_s: np.ndarray,
+    r_gamma: np.ndarray,
+    radius_cm: np.ndarray,
+    rs_swept_mass_g: np.ndarray,
+    rs_b_field_g: np.ndarray,
+    v_seed_hz: np.ndarray,
+    num_gam_p: int,
+    epsilon_p: float,
+    include_proton_synch: bool = True,
+) -> ReverseShockHadronicSolution:
+    tobs = np.asarray(r_tobs_s, dtype=float)
+    gamma = np.asarray(r_gamma, dtype=float)
+    radius = np.asarray(radius_cm, dtype=float)
+    swept = np.asarray(rs_swept_mass_g, dtype=float)
+    b_field = np.asarray(rs_b_field_g, dtype=float)
+    v_seed = np.asarray(v_seed_hz, dtype=float)
+    num_nu = int(v_seed.size)
+    num_r = int(radius.size)
+    np_gam_p = int(num_gam_p)
+
+    shell_energy = float(epsilon_p) * swept * np.maximum(gamma - 1.0, 0.0) * constants.para_c * constants.para_c
+
+    gam_p, dN_gam_p, P_had_syn, Seed_had_syn = _hadronic_reverse_module.fs_hadronic_reverse_1d(
+        tobs, gamma, radius, shell_energy, b_field, v_seed,
+        1 if include_proton_synch else 0,
+        np_gam_p,
+    )
+    return ReverseShockHadronicSolution(
+        gam_p=np.asarray(gam_p, dtype=float),
+        d_n_gam_p=np.asarray(dN_gam_p, dtype=float).reshape(np_gam_p, num_r),
+        l_had_syn_spec=np.asarray(P_had_syn, dtype=float).reshape(num_nu, num_r),
+        seed_had_syn=np.asarray(Seed_had_syn, dtype=float).reshape(num_nu, num_r),
     )
 
 

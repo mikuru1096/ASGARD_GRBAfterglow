@@ -7,7 +7,7 @@ import numpy as np
 
 ensure_repo_root_on_path()
 
-from asgard_core.hadronic_pair_production import ELECTRON_MASS_GEV, solve_pair_production
+from asgard_core.hadronic_processes import ELECTRON_MASS_GEV, solve_pair_production
 
 
 def _aligned_grids() -> tuple[np.ndarray, np.ndarray]:

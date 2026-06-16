@@ -8,7 +8,7 @@ import numpy as np
 ensure_repo_root_on_path()
 
 from asgard_core.hadronic_cascade import compute_time_dependent_pair_cascade_sequence
-from asgard_core.hadronic_pair_production import ELECTRON_MASS_GEV
+from asgard_core.hadronic_processes import ELECTRON_MASS_GEV
 from src import constants
 
 

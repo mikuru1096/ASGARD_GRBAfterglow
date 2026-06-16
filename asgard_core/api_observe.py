@@ -13,10 +13,12 @@ from asgard_core.asgard_state import (
 )
 from src.Electron.electron_radiation import electron_radiation_kernel as electron_radiation_module
 from asgard_core.asgard_config import RuntimeConfig, SpectrumOutputConfig
-from asgard_core.asgard_observables import OUTPUT_BANDS, build_multiband_observer_frequencies, combine_multiband_flux
 from asgard_core.asgard_postprocess import (
+    OUTPUT_BANDS,
     build_spectrum_dataset_names,
     build_spectrum_frequency_grid,
+    build_multiband_observer_frequencies,
+    combine_multiband_flux,
     compute_light_curve_redchi,
     compute_spectrum_redchi,
     select_spectrum_time_index,

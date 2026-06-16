@@ -7,7 +7,7 @@ import numpy as np
 
 ensure_repo_root_on_path()
 
-from asgard_core.hadronic_pp import PI0_MASS_GEV, PROTON_MASS_GEV, solve_pp_delta
+from asgard_core.hadronic_processes import PI0_MASS_GEV, PROTON_MASS_GEV, solve_pp_delta
 
 
 def test_pp_minimal_backend_smoke() -> None:

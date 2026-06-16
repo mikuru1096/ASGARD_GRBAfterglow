@@ -5,8 +5,7 @@ import math
 
 import numpy as np
 
-from asgard_core.hadronic_hummer import PROTON_MASS_GEV, solve_hummer2010_pgamma
-from asgard_core.hadronic_pgamma import photon_density_hz_to_gev
+from asgard_core.hadronic_processes import PROTON_MASS_GEV, photon_density_hz_to_gev, solve_hummer2010_pgamma
 from src import constants
 
 

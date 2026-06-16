@@ -61,18 +61,17 @@ Fitter.loglike -> compile_problem -> eval_loglike -> solve_state_from_setup
 - `asgard_setup.py`：`RuntimeConfig -> SimulationSetup`。
 - `asgard_config.py`：`RuntimeConfig`, `SimulationSetup`, `FitResult` 和 runtime config dataclasses；旧 compatibility shim 和配置 preset 中转层均已移除。
 - `asgard_runtime.py`：backend selection、Fortran extension dispatch、array wrapping。
-- `asgard_state.py`：主状态机和跨阶段耦合。
-- `asgard_coupling.py`：FS/RS cross-zone IC geometry 与 seed field coupling。
-- `asgard_postprocess.py`：observer projection、band aggregation、fit postprocessing。
-- `asgard_fit.py`：fit problem compilation 和 likelihood path。
+- `asgard_state.py`：主状态机、跨阶段耦合和 FS/RS cross-zone IC geometry。
+- `asgard_postprocess.py`：observer projection、band aggregation、fit postprocessing 和观测数据 χ² helpers。
+- `api_fit.py`：public `Fitter`、fit problem compilation 和 likelihood path。
 - `asgard_types.py`：runtime dataclass contracts。
 - `structured_jet_kernel.py`：结构化喷流 Fortran backend 的薄中间层，负责采样结构化参数、选择轴对称/非轴对称分支、调用 `structured_jet_1d` 并组装 API 结果。
 
 强子 Python 模块只做编排、包装和轻量 helper：
 
-- Fortran wrappers：`hadronic_hummer.py`, `hadronic_bethe_heitler.py`, `hadronic_hadronic_ic.py`, `hadronic_pp.py`, `hadronic_pair_production.py`, `hadronic_species_transport.py`, `hadronic_secondary_radiation.py`, `hadronic_acceleration.py`。
-- Reverse shock wrapper：`hadronic_reverse.py`；开启 RS full-chain flags 时，runtime 通过 formal 1D 强子核处理 RS seed photons、RS `B3`、shell energy 和 baryon target density。
-- Process/backend glue：`hadronic_am3_solver.py`, `hadronic_cascade.py`；单位转换 helper：`hadronic_pgamma.py`。
+- Fortran wrappers：`hadronic_processes.py`。
+- Reverse shock light wrapper 已并入 `asgard_runtime.py`；开启 RS full-chain flags 时，runtime 通过 formal 1D 强子核处理 RS seed photons、RS `B3`、shell energy 和 baryon target density。
+- Process/backend glue：`hadronic_am3_solver.py`, `hadronic_cascade.py`；pγ 单位转换和共享 wrapper 校验位于 `hadronic_processes.py`。
 
 最终 AM3-derived microphysics 位于 `src/Hadronic/*.f90`。
 

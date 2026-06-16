@@ -8,7 +8,7 @@
 - `asgard_core/`：内部编排与物理耦合，包括 `asgard_config.py`, `asgard_runtime.py`, `asgard_state.py`, `asgard_setup.py`, `asgard_types.py`。
 - `asgard_core/structured_jet_kernel.py`：结构化喷流 Fortran backend 薄中间层。
 - `asgard_core/hadronic_*.py`：hadronic Python wrappers 和 glue，只做 orchestration；最终微物理写入 `src/Hadronic/`。
-- `asgard_core/hadronic_reverse.py`：RS hadronic light proton transport + synchrotron wrapper。
+- RS hadronic light proton transport + synchrotron wrapper 位于 `asgard_core/asgard_runtime.py`。
 - `asgard_core/hadronic_cascade.py`：shell-sequence time-dependent γγ pair/synch cascade。
 
 ## 文档
@@ -57,10 +57,10 @@
 ## 测试与基准
 
 - 基础 smoke：`tests/readme_smoke_bench.py`, `tests/reverse_shock_smoke.py`
-- 2D electron：`tests/fullhide_2d_smoke_bench.py`, `tests/fullhide_2d_medium_diag.py`
+- 2D electron：`tests/fullhide_2d_smoke_bench.py`
 - Hadronic：`tests/hadronic_1d_smoke.py`, `tests/hadronic_species_transport_smoke.py`, `tests/hadronic_secondary_radiation_smoke.py`, `tests/hadronic_acceleration_smoke.py`, `tests/hadronic_bethe_heitler_smoke.py`, `tests/hadronic_hadronic_ic_smoke.py`, `tests/hadronic_pair_production_smoke.py`, `tests/hadronic_pp_smoke.py`
 - Pair / RS：`tests/hadronic_pair_cascade_smoke.py`, `tests/hadronic_pair_branch_smoke.py`, `tests/hadronic_reverse_shock_smoke.py`
-- AM3/reference comparisons：`tests/hadronic_am3_solver_smoke.py`, `tests/hadronic_am3_reference_compare_smoke.py`, `tests/hadronic_am3_acceleration_compare_smoke.py`, `tests/hadronic_am3_bethe_heitler_compare_smoke.py`
+- AM3-derived process smoke：`tests/hadronic_am3_solver_smoke.py`
 - Electron-photon joint feedback：`tests/electron_photon_coupling_config_smoke.py`, `tests/electron_photon_joint_smoke.py`, `tests/electron_photon_joint_secondary_feedback_smoke.py`, `tests/electron_photon_separated_regression_smoke.py`, `tests/electron_photon_ic_consistency_smoke.py`, `tests/hadronic_r_coordinate_smoke.py`
 
 ## 生成产物

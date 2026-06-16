@@ -10,7 +10,7 @@ ensure_repo_root_on_path()
 from asgard_core.asgard_config import RuntimeConfig
 from asgard_core.asgard_state import _compute_pair_production_branch
 from asgard_core.asgard_types import DynamicsSolution, ElectronSolution
-from asgard_core.hadronic_pair_production import ELECTRON_MASS_GEV
+from asgard_core.hadronic_processes import ELECTRON_MASS_GEV
 from asgard_core.api_model import _build_fit_config_for_patch
 from tests.public_api_builders import hadronic, radiation, top_hat_model
 from src import constants

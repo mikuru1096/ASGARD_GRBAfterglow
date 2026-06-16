@@ -7,7 +7,7 @@ import numpy as np
 
 ensure_repo_root_on_path()
 
-from asgard_core.hadronic_secondary_radiation import (  # noqa: E402
+from asgard_core.hadronic_processes import (  # noqa: E402
     SecondarySpeciesDistribution,
     SecondaryTargetPhotonField,
     solve_secondary_radiation_spectrum,

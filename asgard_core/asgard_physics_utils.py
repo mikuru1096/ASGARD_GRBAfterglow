@@ -3,7 +3,7 @@ Shared physics utility functions for ASGARD.
 
 This module consolidates physics calculations that were previously
 duplicated across multiple modules (asgard_state, asgard_runtime,
-asgard_coupling).
+structured_jet_kernel).
 """
 
 from __future__ import annotations

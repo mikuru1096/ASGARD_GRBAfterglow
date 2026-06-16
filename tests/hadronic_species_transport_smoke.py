@@ -7,7 +7,7 @@ import numpy as np
 
 ensure_repo_root_on_path()
 
-from asgard_core.hadronic_species_transport import (
+from asgard_core.hadronic_processes import (
     ChargedMuonDistribution,
     ChargedPionDistribution,
     HadronicSpeciesSources,

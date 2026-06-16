@@ -7,7 +7,7 @@ import numpy as np
 
 ensure_repo_root_on_path()
 
-from asgard_core.hadronic_acceleration import (
+from asgard_core.hadronic_processes import (
     ERG_PER_GEV,
     InjectionConfig,
     build_species_injection_operators,
