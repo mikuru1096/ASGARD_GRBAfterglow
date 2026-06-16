@@ -47,14 +47,17 @@ subroutine sed_interpolation_structured(Boundary, angle_narrow_jet, R_Tobs1,R_ga
     V_obs_log = log(V_obs)
     V_seed_log = log(V_seed)
     
-    !$OMP PARALLEL num_threads(n_threads), reduction(+:P_tot_obs_temp), private(I_Theta, Taa_center, domega, &
-    !$OMP& i_Phi, Phi_center, DMu, K1, II, K2, Ratio, R_Tobs_theta, &
+    !$OMP PARALLEL num_threads(n_threads), reduction(+:P_tot_obs_temp), private(I_Theta, &
+    !$OMP& Taa_lower, Taa_boundary, Taa_center, domega, i_Phi, Phi_center, DMu, &
+    !$OMP& K1, II, K2, Ratio, R_Tobs_theta, &
     !$OMP& P_tot_log_lo, P_tot_log_hi, last_k2, log_gamma_lo, log_gamma_hi, log_domega_4pi)
     !$OMP DO SCHEDULE(GUIDED,4)
     do I_Theta=1,Num_Theta
+       Taa_lower=dtheta*(I_Theta-1)
+       Taa_boundary=dtheta*I_Theta
        Taa_center=dtheta*(I_Theta-0.5d0)
        if (angle_narrow_jet>Taa_center) cycle
-       domega=dsin(Taa_center)*dtheta*dPhi
+       domega=(dcos(Taa_lower)-dcos(Taa_boundary))*dPhi
        log_domega_4pi=log(domega)-log(4.0d0*pi)
        do i_Phi=1,Num_Phi
           Phi_center=(i_Phi-0.5)*dPhi
@@ -147,15 +150,18 @@ subroutine sed_interpolation_structured_phi(Boundary,R_Tobs1,R_gamma,R,P_tot,V_s
     V_obs_log = log(V_obs)
     V_seed_log = log(V_seed)
 
-    !$OMP PARALLEL num_threads(n_threads), reduction(+:P_tot_obs_temp), private(I_Theta,Taa_center,domega, &
-    !$OMP& i_Phi,Phi_center,DMu,K1,II,K2,Ratio,R_Tobs_theta,P_tot_log_lo,P_tot_log_hi, &
+    !$OMP PARALLEL num_threads(n_threads), reduction(+:P_tot_obs_temp), private(I_Theta, &
+    !$OMP& Taa_lower,Taa_boundary,Taa_center,domega,i_Phi,Phi_center,DMu, &
+    !$OMP& K1,II,K2,Ratio,R_Tobs_theta,P_tot_log_lo,P_tot_log_hi, &
     !$OMP& last_k2,log_gamma_lo,log_gamma_hi,log_domega_4pi)
     !$OMP DO COLLAPSE(2) SCHEDULE(GUIDED,4)
     do I_Theta=1,Num_Theta
        do i_Phi=1,Num_Phi
+          Taa_lower=dtheta*(I_Theta-1)
+          Taa_boundary=dtheta*I_Theta
           Taa_center=dtheta*(I_Theta-0.5d0)
           Phi_center=(i_Phi-0.5d0)*dPhi
-          domega=dsin(Taa_center)*dtheta*dPhi
+          domega=(dcos(Taa_lower)-dcos(Taa_boundary))*dPhi
           log_domega_4pi=log(domega)-log(4.0d0*pi)
           DMu=dcos(Tv)*dcos(Taa_center)+dsin(Tv)*dsin(Taa_center)*dcos(Phi_center)
           R_Tobs_theta=R_Tobs1(:,I_Theta,i_Phi)+R(:,I_Theta,i_Phi)*(one-DMu)*(one+z)/Para_c

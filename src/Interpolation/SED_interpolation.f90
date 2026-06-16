@@ -46,15 +46,16 @@ subroutine sed_interpolation(Boundary,R_Tobs1,R_gamma,R,F_tot,V_seed,V_obs,Tobs,
 
     V_obs_log = log(V_obs)
     V_seed_log = log(V_seed)
-    !$OMP PARALLEL num_threads(n_threads), reduction(+:F_tot_obs_temp), private(I_Theta, Taa_boundary, &
+    !$OMP PARALLEL num_threads(n_threads), reduction(+:F_tot_obs_temp), private(I_Theta, Taa_lower, Taa_boundary, &
     !$OMP& Taa_center, domega, i_Phi, Phi_center, DMu, K1, II, K2, Ratio, DG, Beta, doppler, &
     !$OMP& R_Tobs_theta, F_tot_theta, F_tot_log_theta, V_seed_log_theta, &
     !$OMP& last_k2, log_gamma_lo, log_gamma_hi, log_domega_4pi, log_doppler_redshift)
     !$OMP DO SCHEDULE(GUIDED,4)
     do I_Theta=1,Num_Theta
+       Taa_lower=dtheta*(I_Theta-1)
        Taa_boundary=dtheta*I_Theta
        Taa_center=dtheta*(I_Theta-0.5)
-       domega=dsin(Taa_boundary)*dtheta*dPhi
+       domega=(dcos(Taa_lower)-dcos(Taa_boundary))*dPhi
        log_domega_4pi=log(domega)-log(4.0d0*pi)
        do i_Phi=1,Num_Phi
           Phi_center=(i_Phi-0.5)*dPhi
@@ -235,10 +236,11 @@ subroutine sed_interpolation_chi(Boundary,R_Tobs1,R_front,F_chi,Tau_chi,R_chi,Ga
     do I_ang = 1, Num_Theta*Num_Phi
         I_Theta = (I_ang-1)/Num_Phi + 1
         i_Phi = I_ang - (I_Theta-1)*Num_Phi
+        Taa_lower = dtheta*(I_Theta-1)
         Taa_boundary = dtheta*I_Theta
         Taa_center = dtheta*(I_Theta-0.5d0)
         Phi_center = (i_Phi-0.5d0)*dPhi
-        domega = dsin(Taa_boundary)*dtheta*dPhi
+        domega = (dcos(Taa_lower)-dcos(Taa_boundary))*dPhi
         Angle_log_domega(I_ang) = dlog(domega)-dlog(4d0*pi)
         Angle_dmu(I_ang) = cos_tv*dcos(Taa_center)+sin_tv*dsin(Taa_center)*dcos(Phi_center)
     end do
