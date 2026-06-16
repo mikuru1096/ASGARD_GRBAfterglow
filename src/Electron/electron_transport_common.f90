@@ -112,6 +112,51 @@ end subroutine electron_ppm_interfaces_nonuniform
 
 
 
+! 对 PPM 单元多项式做守恒正性缩放；单元平均值不变，光滑正区间保持原三阶重构。
+subroutine electron_ppm_positive_cell(qc,q_left,q_right)
+    implicit none
+    real(8), intent(in) :: qc
+    real(8), intent(inout) :: q_left,q_right
+    real(8) :: q6,bcoef,xi_vertex,p_min,theta
+
+    p_min=min(q_left,q_right)
+    q6=6d0*qc-3d0*(q_left+q_right)
+    bcoef=q_right-q_left+q6
+    if (q6 < zero) then
+        xi_vertex=bcoef/(2d0*q6)
+        if (xi_vertex > zero .and. xi_vertex < one) then
+            p_min=min(p_min,q_left+bcoef*xi_vertex-q6*xi_vertex*xi_vertex)
+        end if
+    end if
+    if (p_min < zero) then
+        if (qc == zero) then
+            q_left=zero
+            q_right=zero
+        else
+            theta=qc/(qc-p_min)
+            q_left=qc+theta*(q_left-qc)
+            q_right=qc+theta*(q_right-qc)
+        end if
+    end if
+end subroutine electron_ppm_positive_cell
+
+
+
+! 将正性限制应用到所有 PPM 单元，形成正的通量守恒重构。
+subroutine electron_ppm_positive_interfaces(Num_gam_e,q,q_left,q_right)
+    implicit none
+    integer, intent(in) :: Num_gam_e
+    integer :: I_gam_e
+    real(8), intent(in) :: q(Num_gam_e)
+    real(8), intent(inout) :: q_left(Num_gam_e),q_right(Num_gam_e)
+
+    do I_gam_e=1,Num_gam_e
+        call electron_ppm_positive_cell(q(I_gam_e),q_left(I_gam_e),q_right(I_gam_e))
+    end do
+end subroutine electron_ppm_positive_interfaces
+
+
+
 ! 计算非均匀网格 PPM 分段抛物线的前缀积分。
 subroutine electron_ppm_prefix_nonuniform(Num_gam_e,x_edge,q,q_left,q_right,prefix)
     implicit none
@@ -173,6 +218,7 @@ subroutine electron_prepare_conservative_remap_nonuniform(Num_gam_e,x_edge,q,q_l
     real(8), intent(in) :: x_edge(Num_gam_e+1),q(Num_gam_e)
     real(8), intent(out) :: q_left(Num_gam_e),q_right(Num_gam_e),prefix(0:Num_gam_e)
     call electron_ppm_interfaces_nonuniform(Num_gam_e,x_edge,q,q_left,q_right)
+    call electron_ppm_positive_interfaces(Num_gam_e,q,q_left,q_right)
     call electron_ppm_prefix_nonuniform(Num_gam_e,x_edge,q,q_left,q_right,prefix)
 end subroutine electron_prepare_conservative_remap_nonuniform
 
@@ -465,7 +511,6 @@ subroutine electron_characteristic_core(Num_gam_e,dDR,x_edge,x_back_batch,source
         dN_x_out(I_gam_e)=(electron_ppm_prefix_eval_nonuniform(Num_gam_e,x_edge,dN_x_in,ql,qr,prefix,x_back(I_gam_e+1))- &
                            electron_ppm_prefix_eval_nonuniform(Num_gam_e,x_edge,dN_x_in,ql,qr,prefix,x_back(I_gam_e)))/dx_cur
     end do
-    dN_x_out=max(zero,dN_x_out)
     if (source_scale == zero) return
     call electron_prepare_conservative_remap_nonuniform(Num_gam_e,x_edge,dF1,qls,qrs,prefixs)
     dN_source=zero
@@ -476,9 +521,9 @@ subroutine electron_characteristic_core(Num_gam_e,dDR,x_edge,x_back_batch,source
             dN_quad(I_gam_e)=(electron_ppm_prefix_eval_nonuniform(Num_gam_e,x_edge,dF1,qls,qrs,prefixs,x_back(I_gam_e+1))- &
                               electron_ppm_prefix_eval_nonuniform(Num_gam_e,x_edge,dF1,qls,qrs,prefixs,x_back(I_gam_e)))/dx_cur
         end do
-        dN_source=dN_source+charint_quad_weights(I_quad)*max(zero,dN_quad)
+        dN_source=dN_source+charint_quad_weights(I_quad)*dN_quad
     end do
-    dN_x_out=max(zero,dN_x_out+dDR*source_scale*dN_source)
+    dN_x_out=dN_x_out+dDR*source_scale*dN_source
 end subroutine electron_characteristic_core
 
 

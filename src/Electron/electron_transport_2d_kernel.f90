@@ -375,7 +375,7 @@ subroutine advance_eta_logchi_advection_charint(U_log, Num_gam_e, Num_chi, activ
                  electron_ppm_prefix_eval_nonuniform(Num_chi, eta_face, U_eta_in, &
                                                      q_left, q_right, prefix, eta_back(I_face-1))) / deta
         end do
-        U_log(I_gam_e, :) = max(zero, U_eta_out)
+        U_log(I_gam_e, :) = U_eta_out
     end do
 end subroutine advance_eta_logchi_advection_charint
 
