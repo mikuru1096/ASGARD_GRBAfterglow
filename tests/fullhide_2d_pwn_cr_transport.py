@@ -10,7 +10,6 @@ ensure_repo_root_on_path()
 from asgard_core.asgard_config import RuntimeConfig
 from asgard_core.asgard_setup import build_boundary
 from asgard_core.asgard_state import solve_state
-from tests._bench_common import run_case
 
 
 def _config(**overrides) -> RuntimeConfig:
@@ -111,16 +110,17 @@ def case_stochastic_nonzero_smoke() -> dict[str, object]:
 
 
 def main() -> None:
-    results = [
-        run_case("[1/6] pwn_cr:boundary_layout", case_boundary_layout),
-        run_case("[2/6] pwn_cr:closed_smoke", case_pwn_closed_smoke),
-        run_case("[3/6] pwn_cr:free_outer_not_larger", case_free_outer_not_larger),
-        run_case("[4/6] pwn_cr:stochastic_zero_equivalence", case_stochastic_zero_equivalence),
-        run_case("[5/6] pwn_cr:spectral_smoothness", case_pwn_spectral_smoothness),
-        run_case("[6/6] pwn_cr:stochastic_nonzero_smoke", case_stochastic_nonzero_smoke),
+    cases = [
+        ("[1/6] pwn_cr:boundary_layout", case_boundary_layout),
+        ("[2/6] pwn_cr:closed_smoke", case_pwn_closed_smoke),
+        ("[3/6] pwn_cr:free_outer_not_larger", case_free_outer_not_larger),
+        ("[4/6] pwn_cr:stochastic_zero_equivalence", case_stochastic_zero_equivalence),
+        ("[5/6] pwn_cr:spectral_smoothness", case_pwn_spectral_smoothness),
+        ("[6/6] pwn_cr:stochastic_nonzero_smoke", case_stochastic_nonzero_smoke),
     ]
-    if any(item["status"] == "FAIL" for item in results):
-        raise SystemExit(1)
+    for label, fn in cases:
+        print(f"  {label} ...", flush=True)
+        fn()
 
 
 if __name__ == "__main__":

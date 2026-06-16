@@ -249,7 +249,6 @@ joint 相关 smoke：
 tests/electron_photon_coupling_config_smoke.py
 tests/electron_photon_joint_smoke.py
 tests/electron_photon_joint_secondary_feedback_smoke.py
-tests/electron_photon_separated_regression_smoke.py
 tests/electron_photon_ic_consistency_smoke.py
 tests/hadronic_r_coordinate_smoke.py
 tests/hadronic_bethe_heitler_smoke.py

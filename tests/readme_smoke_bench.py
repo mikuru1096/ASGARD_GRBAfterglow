@@ -15,7 +15,6 @@ from asgard_core import (
     WindMedium,
     top_hat_jet,
 )
-from tests._bench_common import run_case
 from tests.public_api_builders import (
     hadronic as _base_hadronic,
     radiation as _radiation,
@@ -148,19 +147,16 @@ def main() -> None:
         ("pair_points", case_pairs),
         ("exposures", case_exposures),
     ]
-    results = []
     total = len(SOLVERS) * len(cases)
     done = 0
     for solver in SOLVERS:
         for name, fn in cases:
             done += 1
             label = f"[{done}/{total}] {solver}:{name}"
-            results.append(run_case(label, lambda fn=fn, solver=solver: fn(solver)))
-    results.append(run_case("[extra] new_public_configs", case_new_public_configs))
-
-    failed = [item for item in results if item["status"] == "FAIL"]
-    if failed:
-        raise SystemExit(1)
+            print(f"  {label} ...", flush=True)
+            fn(solver)
+    print("  [extra] new_public_configs ...", flush=True)
+    case_new_public_configs()
 
 
 if __name__ == "__main__":

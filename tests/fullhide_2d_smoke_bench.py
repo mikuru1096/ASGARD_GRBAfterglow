@@ -11,7 +11,6 @@ from asgard_core import Model
 from asgard_core.asgard_config import RuntimeConfig
 from asgard_core.asgard_state import solve_state
 from src import Interpolation
-from tests._bench_common import run_case
 from tests.public_api_builders import numerics, solver_options, top_hat_model
 
 
@@ -360,23 +359,22 @@ def case_chi_ssa_nonuniform_tau_matches_manual():
 
 
 def main() -> None:
-    results = [
-        run_case("[1/11] fullhide_2d:basic_smoke", case_basic_smoke),
-        run_case("[2/11] fullhide_2d:electron_grid", case_electron_grid),
-        run_case("[3/11] fullhide_2d:chi_eats_geometry", case_chi_eats_geometry_smoke),
-        run_case("[4/11] chi_eats_2d:projection_kind_routes", case_chi_eats_projection_kind_routes),
-        run_case("[5/11] chi_eats_2d:rejects_1d_solver", case_chi_eats_rejects_1d_solver),
-        run_case("[6/11] eats:rejects_off_axis_phi_collapse", case_off_axis_phi_collapse_rejected),
-        run_case("[7/11] eats:on_axis_phi_collapse", case_on_axis_phi_collapse_matches_explicit_phi),
-        run_case("[8/11] chi_eats_2d:delta_layer_thin_shell", case_chi_projection_delta_layer_matches_thin_shell),
-        run_case("[9/11] chi_eats_2d:finite_width_converges", case_chi_projection_finite_width_converges_to_thin_shell),
-        run_case("[10/11] chi_eats_2d:ssa_cell_split_invariance", case_chi_ssa_cell_split_invariance),
-        run_case("[11/11] chi_eats_2d:ssa_nonuniform_tau", case_chi_ssa_nonuniform_tau_matches_manual),
+    cases = [
+        ("[1/11] fullhide_2d:basic_smoke", case_basic_smoke),
+        ("[2/11] fullhide_2d:electron_grid", case_electron_grid),
+        ("[3/11] fullhide_2d:chi_eats_geometry", case_chi_eats_geometry_smoke),
+        ("[4/11] chi_eats_2d:projection_kind_routes", case_chi_eats_projection_kind_routes),
+        ("[5/11] chi_eats_2d:rejects_1d_solver", case_chi_eats_rejects_1d_solver),
+        ("[6/11] eats:rejects_off_axis_phi_collapse", case_off_axis_phi_collapse_rejected),
+        ("[7/11] eats:on_axis_phi_collapse", case_on_axis_phi_collapse_matches_explicit_phi),
+        ("[8/11] chi_eats_2d:delta_layer_thin_shell", case_chi_projection_delta_layer_matches_thin_shell),
+        ("[9/11] chi_eats_2d:finite_width_converges", case_chi_projection_finite_width_converges_to_thin_shell),
+        ("[10/11] chi_eats_2d:ssa_cell_split_invariance", case_chi_ssa_cell_split_invariance),
+        ("[11/11] chi_eats_2d:ssa_nonuniform_tau", case_chi_ssa_nonuniform_tau_matches_manual),
     ]
-
-    failed = [item for item in results if item["status"] == "FAIL"]
-    if failed:
-        raise SystemExit(1)
+    for label, fn in cases:
+        print(f"  {label} ...", flush=True)
+        fn()
 
 
 if __name__ == "__main__":

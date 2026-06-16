@@ -59,9 +59,8 @@
 - 基础 smoke：`tests/readme_smoke_bench.py`, `tests/reverse_shock_smoke.py`
 - 2D electron：`tests/fullhide_2d_smoke_bench.py`
 - Hadronic：`tests/hadronic_1d_smoke.py`, `tests/hadronic_species_transport_smoke.py`, `tests/hadronic_secondary_radiation_smoke.py`, `tests/hadronic_acceleration_smoke.py`, `tests/hadronic_bethe_heitler_smoke.py`, `tests/hadronic_hadronic_ic_smoke.py`, `tests/hadronic_pair_production_smoke.py`, `tests/hadronic_pp_smoke.py`
-- Pair / RS：`tests/hadronic_pair_cascade_smoke.py`, `tests/hadronic_pair_branch_smoke.py`, `tests/hadronic_reverse_shock_smoke.py`
-- AM3-derived process smoke：`tests/hadronic_am3_solver_smoke.py`
-- Electron-photon joint feedback：`tests/electron_photon_coupling_config_smoke.py`, `tests/electron_photon_joint_smoke.py`, `tests/electron_photon_joint_secondary_feedback_smoke.py`, `tests/electron_photon_separated_regression_smoke.py`, `tests/electron_photon_ic_consistency_smoke.py`, `tests/hadronic_r_coordinate_smoke.py`
+- Pair / RS：`tests/hadronic_pair_cascade_smoke.py`, `tests/hadronic_reverse_shock_smoke.py`
+- Electron-photon joint feedback：`tests/electron_photon_coupling_config_smoke.py`, `tests/electron_photon_joint_smoke.py`, `tests/electron_photon_joint_secondary_feedback_smoke.py`, `tests/electron_photon_ic_consistency_smoke.py`, `tests/hadronic_r_coordinate_smoke.py`
 
 ## 生成产物
 
