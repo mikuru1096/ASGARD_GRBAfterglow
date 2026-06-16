@@ -14,7 +14,8 @@ subroutine fs_electron_t2g1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,N
     use electron_injection_profiles, only: electron_build_source_term_exp_cutoff_edges, electron_profile_log_cell_edges
     use electron_radiation_kernel, only: get_nu_a, get_syn_selected
     use electron_cooling_kernel, only: get_forward_cooling
-    use electron_transport_common, only: electron_prepare_implicit_coeffs_common, electron_backward_sweep_common
+    use electron_transport_common, only: electron_prepare_implicit_coeffs_common, electron_backward_sweep_common, &
+                                         electron_dnx_to_dndgamma_exp_centers
     IMPLICIT REAL(8)(A-H,O-Z)
     integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads
     integer :: I_tobs,L,L1,Num_gam_rad
@@ -57,7 +58,7 @@ subroutine fs_electron_t2g1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,N
     Gam_e_c=7.7d8/(one+dsqrt(Epsilon_e/Epsilon_b))/R_Gamma(1)/DB**2/(R_Tobs(1)/two)
     call electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
                                       electron_initial_grid_log_edges,gam_e,dN_x,x_edge)
-    dN_gam_e(:,1)=dN_x/gam_e/dlog(ten)
+    call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,1))
     !*******************Part 1 is completed [has been checked and there is no bug]**********************************
     !*******************Part 2: To calculate the electron distribution**********************************************
     dN_x_prev = dN_x
@@ -176,7 +177,7 @@ contains
         dN_x = x
 
         if (L1 == L) then
-            dN_gam_e(:,I_tobs)=dN_x/gam_e/dlog(ten)
+            call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,I_tobs))
         end if
     end subroutine advance_t2g1_substep
 end subroutine fs_electron_t2g1_1d

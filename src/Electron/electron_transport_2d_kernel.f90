@@ -565,7 +565,6 @@ subroutine advance_energy_loggamma_chi(U_log, Num_gam_e, Num_chi, dEL_mean_chi, 
         rhs = U_log(:, I_chi) / principal
         call electron_backward_sweep_common(Num_gam_e, temp1, rhs, sol)
         U_log(:, I_chi) = max(zero, sol)
-        U_log(Num_gam_e, I_chi) = zero
     end do
     !$OMP END PARALLEL DO
 end subroutine advance_energy_loggamma_chi
@@ -591,7 +590,6 @@ subroutine advance_energy_loggamma_chi_pwncr(U_log, Num_gam_e, Num_chi, dEL_mean
         rhs = U_log(:, I_chi) / principal
         call electron_backward_sweep_common(Num_gam_e, temp1, rhs, sol)
         U_log(:, I_chi) = max(zero, sol)
-        U_log(Num_gam_e, I_chi) = zero
     end do
     !$OMP END PARALLEL DO
 end subroutine advance_energy_loggamma_chi_pwncr

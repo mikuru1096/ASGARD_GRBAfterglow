@@ -6,7 +6,8 @@ subroutine fs_electron_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_
     use dynamics_common, only: dynamics_external_density_profile
     use electron_common
     use electron_transport_common, only: charint_cfl_relax, charint_substep_rtol_relax, &
-        electron_cooling_affine, electron_cooling_piecewise, electron_characteristic_update
+        electron_cooling_affine, electron_cooling_piecewise, electron_characteristic_update, &
+        electron_dnx_to_dndgamma_exp_centers
     use electron_injection_profiles, only: electron_build_source_term_exp_cutoff_edges
     use electron_radiation_kernel, only: get_nu_a, get_syn_selected
     use electron_cooling_kernel, only: get_forward_cooling
@@ -44,7 +45,7 @@ subroutine fs_electron_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_
     Gam_e_c=7.7d8/(one+dsqrt(Epsilon_e/Epsilon_b))/R_Gamma(1)/DB**2/(R_Tobs(1)/two)
     call electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
                                       electron_initial_grid_log_edges,gam_e,dN_x,x_edge)
-    dN_gam_e(:,1)=dN_x/gam_e/dlog(ten)
+    call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,1))
     is_uniform_density=(A_star <= zero .and. f_jump == one)
 
     do I_tobs=2,Num_R
@@ -220,7 +221,7 @@ subroutine fs_electron_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_
                 end if
             end do
         end if
-        dN_gam_e(:,I_tobs)=dN_x/gam_e/dlog(ten)
+        call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,I_tobs))
     end do
 
     call write_final_characteristic_diagnostics()

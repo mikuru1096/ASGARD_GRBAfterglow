@@ -16,7 +16,7 @@ subroutine fs_electron_fullhide_1d_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,
                                            electron_profile_log_cell_edges
     use electron_radiation_kernel, only: get_nu_a, get_syn_selected
     use electron_cooling_kernel, only: get_forward_cooling
-    use electron_transport_common, only: electron_fullhide_step
+    use electron_transport_common, only: electron_fullhide_step, electron_dnx_to_dndgamma_exp_centers
     use hybrid_spectrum_kernel_fast, only: normalized_hybrid_spec_lg
     IMPLICIT REAL(8)(A-H,O-Z)
     integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads
@@ -67,7 +67,7 @@ subroutine fs_electron_fullhide_1d_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,
     if (thermal_electrons == 0) then
         call electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
                                           electron_initial_grid_log_edges,gam_e,dN_x,x_edge)
-        dN_gam_e(:,1)=dN_x/gam_e/dlog(ten)
+        call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,1))
     else
         call electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
                                           electron_initial_grid_gamma,gam_e,dN_gam_e(:,1),thermal_electrons=thermal_electrons, &
@@ -168,7 +168,7 @@ subroutine fs_electron_fullhide_1d_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,
                     dN_x=x
 
                     if (L1 == L) then
-                        dN_gam_e(:,I_tobs)=dN_x/gam_e/dlog(ten)
+                        call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,I_tobs))
                     end if
             end do
         else
@@ -249,7 +249,7 @@ subroutine fs_electron_fullhide_1d_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,
                     dR_try=max(0.5d0*dR_try,dR_min)
                 end if
             end do
-            dN_gam_e(:,I_tobs)=dN_x/gam_e/dlog(ten)
+            call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,I_tobs))
         end if
     end do
 

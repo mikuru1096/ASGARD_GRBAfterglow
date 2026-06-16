@@ -5,7 +5,7 @@ subroutine fs_electron_slc1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,N
     use constants
     use dynamics_common, only: dynamics_external_density_profile
     use electron_common
-    use electron_transport_common, only: electron_semi_lagrangian_step
+    use electron_transport_common, only: electron_semi_lagrangian_step, electron_dnx_to_dndgamma_exp_centers
     use electron_injection_profiles, only: electron_build_source_term_exp_cutoff_edges
     use electron_radiation_kernel, only: get_nu_a, get_syn_selected
     use electron_cooling_kernel, only: get_forward_cooling
@@ -42,7 +42,7 @@ subroutine fs_electron_slc1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,N
     Gam_e_c=7.7d8/(one+dsqrt(Epsilon_e/Epsilon_b))/R_Gamma(1)/DB**2/(R_Tobs(1)/two)
     call electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
                                       electron_initial_grid_log_edges,gam_e,dN_x,x_edge)
-    dN_gam_e(:,1)=dN_x/gam_e/dlog(ten)
+    call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,1))
     d_x=dlog10(gam_e(2)/gam_e(1))
     is_uniform_density=(A_star <= zero .and. f_jump == one)
 
@@ -110,7 +110,7 @@ subroutine fs_electron_slc1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,N
             R_loc=R_right
             dNe=dNe_right
         end do
-        dN_gam_e(:,I_tobs)=dN_x/gam_e/dlog(ten)
+        call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,I_tobs))
     end do
 
     deallocate(dEl,dEL_mean,dEL_mean_base,dN_x,dN_step,dF1,x_edge,gam_e_rad,dN_gam_e_rad)

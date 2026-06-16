@@ -27,7 +27,8 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
                                              advance_energy_loggamma_chi_pwncr, advance_energy_stochastic_loggamma_chi
     use electron_transport_common, only: electron_logparabola_peak_frequency, &
                                          electron_active_gamma_hi, electron_active_chi_hi, &
-                                         electron_max_xi_coeff_chi
+                                         electron_max_xi_coeff_chi, &
+                                         electron_dnx_to_dndgamma_exp_centers
     implicit real(8)(a-h,o-z)
 
     integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,Num_chi,index_Y,index_syn_intger,n_threads
@@ -188,11 +189,13 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
     U_log(:,1) = dN_init_log / deta
 
     do I_chi = 1, Num_chi
-        dN_gam_e(:, I_chi, 1) = U_log(:, I_chi) / (ln10*ln10*gam_e*chi_grid(I_chi))
+        call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge_E,gam_e,U_log(:,I_chi),dN_gam_e(:,I_chi,1))
+        dN_gam_e(:, I_chi, 1) = dN_gam_e(:, I_chi, 1)/(ln10*chi_grid(I_chi))
     end do
     dN_gam_e_total(:,1) = zero
     do I_chi = 1, Num_chi
-        dN_gam_e_total(:,1) = dN_gam_e_total(:,1) + U_log(:, I_chi) * deta / (gam_e*ln10)
+        call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge_E,gam_e,U_log(:,I_chi),dN_cell)
+        dN_gam_e_total(:,1) = dN_gam_e_total(:,1) + dN_cell*deta
     end do
     call compute_downstream_comoving_grid(Num_chi,R(1),R_Gamma(1),chi_face,chi_grid, &
                                           x_face_hist(:,1),x_comov_face_hist(:,1),x_comov_hist(:,1),dx_comov_hist(:,1))
@@ -461,7 +464,8 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
         !$OMP PARALLEL DO num_threads(n_threads) if(n_threads > 1 .and. Num_chi*Num_nu >= 128) schedule(static) &
         !$OMP& private(I_chi,beta_2_sh_loc)
         do I_chi = 1, Num_chi
-            dN_gam_e(:, I_chi, I_tobs) = U_log(:, I_chi) / (ln10*ln10*gam_e*chi_grid(I_chi))
+            call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge_E,gam_e,U_log(:,I_chi),dN_gam_e(:,I_chi,I_tobs))
+            dN_gam_e(:, I_chi, I_tobs) = dN_gam_e(:, I_chi, I_tobs)/(ln10*chi_grid(I_chi))
             beta_hist(I_chi,I_tobs) = bm_beta2_lab(R_Gamma(I_tobs),chi_grid(I_chi))
             beta_2_sh_loc = bm_beta2_shock(R_Gamma(I_tobs),chi_grid(I_chi))
             t_decay_chi(I_chi) = x_comov_hist(I_chi,I_tobs)/max(beta_2_sh_loc*para_c,tiny(one))
@@ -492,7 +496,8 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
 
         dN_gam_e_total(:, I_tobs) = zero
         do I_chi = 1, Num_chi
-            dN_gam_e_total(:, I_tobs) = dN_gam_e_total(:, I_tobs) + U_log(:, I_chi)*deta/(gam_e*ln10)
+            call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge_E,gam_e,U_log(:,I_chi),dN_cell)
+            dN_gam_e_total(:, I_tobs) = dN_gam_e_total(:, I_tobs) + dN_cell*deta
         end do
     end do
 

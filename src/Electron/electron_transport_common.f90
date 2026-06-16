@@ -227,6 +227,110 @@ end subroutine electron_prepare_conservative_remap_nonuniform
 
 
 
+! 对正的解析源项做守恒指数重建：q(x)=A exp[s(x-xc)]，A由单元平均值确定。
+subroutine electron_prepare_exponential_source_remap(Num_gam_e,x_edge,q,source_slope,source_amp,source_prefix)
+    implicit none
+    integer, intent(in) :: Num_gam_e
+    integer :: I_gam_e
+    real(8), intent(in) :: x_edge(Num_gam_e+1),q(Num_gam_e)
+    real(8), intent(out) :: source_slope(Num_gam_e),source_amp(Num_gam_e),source_prefix(0:Num_gam_e)
+    real(8) :: x_center(Num_gam_e),dx_cell,slope_l,slope_r,z
+
+    do I_gam_e=1,Num_gam_e
+        x_center(I_gam_e)=0.5d0*(x_edge(I_gam_e)+x_edge(I_gam_e+1))
+    end do
+    source_slope=zero
+    do I_gam_e=2,Num_gam_e-1
+        if (q(I_gam_e-1) > zero .and. q(I_gam_e) > zero .and. q(I_gam_e+1) > zero) then
+            slope_l=(dlog(q(I_gam_e))-dlog(q(I_gam_e-1)))/(x_center(I_gam_e)-x_center(I_gam_e-1))
+            slope_r=(dlog(q(I_gam_e+1))-dlog(q(I_gam_e)))/(x_center(I_gam_e+1)-x_center(I_gam_e))
+            if (slope_l*slope_r > zero) source_slope(I_gam_e)=sign(min(abs(slope_l),abs(slope_r)),slope_l)
+        end if
+    end do
+    source_prefix(0)=zero
+    do I_gam_e=1,Num_gam_e
+        dx_cell=x_edge(I_gam_e+1)-x_edge(I_gam_e)
+        z=0.5d0*source_slope(I_gam_e)*dx_cell
+        if (abs(z) <= 1d-8) then
+            source_amp(I_gam_e)=q(I_gam_e)
+        else
+            source_amp(I_gam_e)=q(I_gam_e)*z/dsinh(z)
+        end if
+        source_prefix(I_gam_e)=source_prefix(I_gam_e-1)+q(I_gam_e)*dx_cell
+    end do
+end subroutine electron_prepare_exponential_source_remap
+
+
+
+real(8) function electron_exp_source_cell_int(cell_lo,cell_hi,amp,slope,xl,xr)
+    implicit none
+    real(8), intent(in) :: cell_lo,cell_hi,amp,slope,xl,xr
+    real(8) :: x_center,x_left,x_right
+
+    x_center=0.5d0*(cell_lo+cell_hi)
+    x_left=max(cell_lo,min(xl,cell_hi))
+    x_right=max(cell_lo,min(xr,cell_hi))
+    if (x_right <= x_left) then
+        electron_exp_source_cell_int=zero
+    else if (abs(slope*(cell_hi-cell_lo)) <= 1d-8) then
+        electron_exp_source_cell_int=amp*(x_right-x_left)
+    else
+        electron_exp_source_cell_int=amp*(dexp(slope*(x_right-x_center))- &
+                                          dexp(slope*(x_left-x_center)))/slope
+    end if
+end function electron_exp_source_cell_int
+
+
+
+real(8) function electron_exp_source_prefix_eval(Num_gam_e,x_edge,source_slope,source_amp,source_prefix,x_eval)
+    implicit none
+    integer, intent(in) :: Num_gam_e
+    integer :: I_gam_e,left,right,mid
+    real(8), intent(in) :: x_edge(Num_gam_e+1),source_slope(Num_gam_e),source_amp(Num_gam_e)
+    real(8), intent(in) :: source_prefix(0:Num_gam_e),x_eval
+    real(8) :: xa
+
+    xa=max(x_edge(1),min(x_eval,x_edge(Num_gam_e+1)))
+    if (xa <= x_edge(1)) then
+        electron_exp_source_prefix_eval=zero
+        return
+    end if
+    if (xa >= x_edge(Num_gam_e+1)) then
+        electron_exp_source_prefix_eval=source_prefix(Num_gam_e)
+        return
+    end if
+    left=1
+    right=Num_gam_e
+    do while (left < right)
+        mid=(left+right)/2
+        if (x_edge(mid+1) >= xa) then
+            right=mid
+        else
+            left=mid+1
+        end if
+    end do
+    I_gam_e=left
+    electron_exp_source_prefix_eval=source_prefix(I_gam_e-1)+ &
+        electron_exp_source_cell_int(x_edge(I_gam_e),x_edge(I_gam_e+1),source_amp(I_gam_e), &
+                                     source_slope(I_gam_e),x_edge(I_gam_e),xa)
+end function electron_exp_source_prefix_eval
+
+
+
+! 将 dN/dx 的单元平均值转换为中心 dN/dgamma，用局部指数形状匹配幂律和指数尾巴。
+subroutine electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e)
+    implicit none
+    integer, intent(in) :: Num_gam_e
+    real(8), intent(in) :: x_edge(Num_gam_e+1),gam_e(Num_gam_e),dN_x(Num_gam_e)
+    real(8), intent(out) :: dN_gam_e(Num_gam_e)
+    real(8) :: exp_slope(Num_gam_e),dN_x_center(Num_gam_e),exp_prefix(0:Num_gam_e)
+
+    call electron_prepare_exponential_source_remap(Num_gam_e,x_edge,dN_x,exp_slope,dN_x_center,exp_prefix)
+    dN_gam_e=dN_x_center/(gam_e*dlog(ten))
+end subroutine electron_dnx_to_dndgamma_exp_centers
+
+
+
 ! 将 x=log10(gamma) 边界转换为 u=1/gamma 边界。
 subroutine electron_u_edges_from_x(Num_gam_e,x_edge,u_edge)
     implicit none
@@ -497,7 +601,7 @@ end subroutine electron_trace_piecewise_affine_u_edges_batch
 
 
 
-! 用已回溯边界和源项 PPM 积分完成特征线输运核心更新。
+! 用已回溯边界和源项守恒指数积分完成特征线输运核心更新。
 subroutine electron_characteristic_core(Num_gam_e,dDR,x_edge,x_back_batch,source_scale,dF1,dN_x_in,dN_x_out)
     implicit none
     integer, intent(in) :: Num_gam_e
@@ -506,7 +610,8 @@ subroutine electron_characteristic_core(Num_gam_e,dDR,x_edge,x_back_batch,source
     real(8), intent(in) :: x_back_batch(Num_gam_e+1,charint_quad_order+1)
     real(8), intent(out) :: dN_x_out(Num_gam_e)
     real(8) :: ql(Num_gam_e),qr(Num_gam_e),prefix(0:Num_gam_e),x_back(Num_gam_e+1),dx_cur
-    real(8) :: dN_source(Num_gam_e),dN_quad(Num_gam_e),qls(Num_gam_e),qrs(Num_gam_e),prefixs(0:Num_gam_e)
+    real(8) :: dN_source(Num_gam_e),dN_quad(Num_gam_e)
+    real(8) :: source_slope(Num_gam_e),source_amp(Num_gam_e),source_prefix(0:Num_gam_e)
     call electron_prepare_conservative_remap_nonuniform(Num_gam_e,x_edge,dN_x_in,ql,qr,prefix)
     x_back=x_back_batch(:,1)
     do I_gam_e=1,Num_gam_e
@@ -515,14 +620,16 @@ subroutine electron_characteristic_core(Num_gam_e,dDR,x_edge,x_back_batch,source
                            electron_ppm_prefix_eval_nonuniform(Num_gam_e,x_edge,dN_x_in,ql,qr,prefix,x_back(I_gam_e)))/dx_cur
     end do
     if (source_scale == zero) return
-    call electron_prepare_conservative_remap_nonuniform(Num_gam_e,x_edge,dF1,qls,qrs,prefixs)
+    call electron_prepare_exponential_source_remap(Num_gam_e,x_edge,dF1,source_slope,source_amp,source_prefix)
     dN_source=zero
     do I_quad=1,charint_quad_order
         x_back=x_back_batch(:,I_quad+1)
         do I_gam_e=1,Num_gam_e
             dx_cur=max(x_edge(I_gam_e+1)-x_edge(I_gam_e),1d-30)
-            dN_quad(I_gam_e)=(electron_ppm_prefix_eval_nonuniform(Num_gam_e,x_edge,dF1,qls,qrs,prefixs,x_back(I_gam_e+1))- &
-                              electron_ppm_prefix_eval_nonuniform(Num_gam_e,x_edge,dF1,qls,qrs,prefixs,x_back(I_gam_e)))/dx_cur
+            dN_quad(I_gam_e)=(electron_exp_source_prefix_eval(Num_gam_e,x_edge,source_slope,source_amp, &
+                                  source_prefix,x_back(I_gam_e+1))- &
+                              electron_exp_source_prefix_eval(Num_gam_e,x_edge,source_slope,source_amp, &
+                                  source_prefix,x_back(I_gam_e)))/dx_cur
         end do
         dN_source=dN_source+charint_quad_weights(I_quad)*dN_quad
     end do

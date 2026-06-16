@@ -2,7 +2,7 @@ module electron_reverse_kernel
     use constants
     use dynamics_common, only: dynamics_external_density_profile, dynamics_reverse_gamma_extrema
     use electron_injection_profiles, only: electron_exp_cutoff_factor, electron_profile_log_cell_edges
-    use electron_transport_common, only: electron_fullhide_flux_split_step
+    use electron_transport_common, only: electron_fullhide_flux_split_step, electron_dnx_to_dndgamma_exp_centers
     use electron_radiation_kernel, only: get_syn_selected, get_nu_a
     use electron_cooling_kernel, only: electron_cooling_ic_loss, electron_cooling_y_nakar, electron_cooling_y_fan
     implicit none
@@ -200,7 +200,7 @@ contains
             temp3=((dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/two+adiabatic_rate)/dlog(ten)
             call electron_fullhide_flux_split_step(Num_gam_e,dDR,d_x,temp3,dF1,dN_x,x,.true.)
             dN_x=x
-            if (L == L1) dN_gam_e(:,I_tobs)=dN_x/gam_e/dlog(ten)
+            if (L == L1) call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,I_tobs))
         end do
     end subroutine advance_reverse_transport_shell
 end subroutine electron_reverse_evolve
@@ -320,7 +320,7 @@ contains
             temp3=((dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/two+adiabatic_rate)/dlog(ten)
             call electron_fullhide_flux_split_step(Num_gam_e,dDR,d_x,temp3,dF1,dN_x,x,.true.)
             dN_x=x
-            if (L == L1) dN_gam_e(:,I_tobs)=dN_x/gam_e/dlog(ten)
+            if (L == L1) call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,I_tobs))
         end do
     end subroutine advance_secondary_transport_shell
 end subroutine electron_secondary_reverse_evolve

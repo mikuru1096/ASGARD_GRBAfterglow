@@ -15,7 +15,8 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
                                            electron_profile_log_cell_edges
     use electron_radiation_kernel, only: get_nu_a, get_syn_selected
     use electron_cooling_kernel, only: get_forward_cooling
-    use electron_transport_common, only: electron_fullhide_step, electron_fullhide_spacetime_sequence
+    use electron_transport_common, only: electron_fullhide_step, electron_fullhide_spacetime_sequence, &
+                                         electron_dnx_to_dndgamma_exp_centers
     IMPLICIT REAL(8)(A-H,O-Z)
     integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads
     integer, intent(in) :: adaptive_substeps,substep_min,substep_max,thermal_electrons
@@ -68,7 +69,7 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
     if (thermal_electrons == 0) then
         call electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
                                           electron_initial_grid_log_edges,gam_e,dN_x,x_edge)
-        dN_gam_e(:,1)=dN_x/gam_e/dlog(ten)
+        call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,1))
     else
         call electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
                                           electron_initial_grid_gamma,gam_e,dN_gam_e(:,1),thermal_electrons=thermal_electrons, &
@@ -167,7 +168,7 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
                     dN_x=x
                 end do
             end if
-            dN_gam_e(:,I_tobs)=dN_x/gam_e/dlog(ten)
+            call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,I_tobs))
         else
             dR_min=dDD/max(substep_max,1)
             dR_max=dDD/max(substep_min,1)
@@ -255,7 +256,7 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
                     dR_try=max(0.5d0*dR_try,dR_min)
                 end if
             end do
-            dN_gam_e(:,I_tobs)=dN_x/gam_e/dlog(ten)
+            call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,I_tobs))
         end if
     end do
 
@@ -320,7 +321,7 @@ subroutine fs_electron_fullhide_1d_coupled(Boundary,R_Tobs,R_Gamma,R,V_seed,Seed
                                            electron_profile_log_cell_edges
     use electron_radiation_kernel, only: get_nu_a, get_syn_selected
     use electron_cooling_kernel, only: electron_cooling_ic_loss_emissivity_budget, assemble_forward_cooling_split
-    use electron_transport_common, only: electron_fullhide_step
+    use electron_transport_common, only: electron_fullhide_step, electron_dnx_to_dndgamma_exp_centers
     IMPLICIT REAL(8)(A-H,O-Z)
     integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads
     integer, intent(in) :: adaptive_substeps,substep_min,substep_max,thermal_electrons
@@ -368,7 +369,7 @@ subroutine fs_electron_fullhide_1d_coupled(Boundary,R_Tobs,R_Gamma,R,V_seed,Seed
     if (thermal_electrons == 0) then
         call electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
                                           electron_initial_grid_log_edges,gam_e,dN_x,x_edge)
-        dN_gam_e(:,1)=dN_x/gam_e/dlog(ten)
+        call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,1))
     else
         call electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
                                           electron_initial_grid_gamma,gam_e,dN_gam_e(:,1),thermal_electrons=thermal_electrons, &
@@ -424,7 +425,7 @@ subroutine fs_electron_fullhide_1d_coupled(Boundary,R_Tobs,R_Gamma,R,V_seed,Seed
             end if
             dN_x=x
         end do
-        dN_gam_e(:,I_tobs)=dN_x/gam_e/dlog(ten)
+        call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,I_tobs))
     end do
 
     deallocate(dEl,dEL_mean,dEL_mean_step,cooling_aux,x,dN_x,x_edge,dF1,gam_e_rad,dN_gam_e_rad)
