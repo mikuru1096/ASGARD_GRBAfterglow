@@ -1050,32 +1050,22 @@ def _solve_hadronic_hummer_transport_coupled(
     gam_secondary = np.array(gam_p, copy=True)
 
     d_n_gam_p = np.zeros((num_gam_p, num_r), dtype=float)
-    l_had_syn_spec = np.zeros((num_nu, num_r), dtype=float)
-    seed_had_syn = np.zeros((num_nu, num_r), dtype=float)
-    l_had_pg_gamma = np.zeros((num_nu, num_r), dtype=float)
-    l_had_bh = np.zeros((num_nu, num_r), dtype=float)
-    seed_had_bh = np.zeros((num_nu, num_r), dtype=float)
-    d_n_gam_e_bh = np.zeros((gam_e.size, num_r), dtype=float)
-    q_secondary_electron = np.zeros((gam_e.size, num_r), dtype=float)
-    secondary_electron_source_r = np.zeros((gam_e.size, num_r), dtype=float)
-    l_had_hic = np.zeros((num_nu, num_r), dtype=float)
-    tau_pg = np.zeros((num_nu, num_r), dtype=float)
-    tau_bh = np.zeros((num_nu, num_r), dtype=float)
-    bh_photon_loss_rate = np.zeros((num_nu, num_r), dtype=float)
+    (
+        l_had_syn_spec, seed_had_syn, l_had_pg_gamma, l_had_bh, seed_had_bh,
+        l_had_hic, tau_pg, tau_bh, bh_photon_loss_rate,
+        l_had_pion_synch, l_had_muon_synch, l_had_pion_ic, l_had_muon_ic,
+    ) = np.zeros((13, num_nu, num_r), dtype=float)
+    (d_n_gam_e_bh, q_secondary_electron, secondary_electron_source_r) = np.zeros(
+        (3, gam_e.size, num_r), dtype=float
+    )
     pg_photon_survival = np.ones((num_nu, num_r), dtype=float)
     neutrino_luminosity = np.zeros((num_nu_nu, num_r), dtype=float)
     am3_process_power = np.zeros((len(HUMMER_PROCESS_GROUP_LABELS), num_gam_p, num_r), dtype=float)
-    d_n_gam_n = np.zeros((gam_secondary.size, num_r), dtype=float)
-    d_n_gam_pi_plus = np.zeros((gam_secondary.size, num_r), dtype=float)
-    d_n_gam_pi_minus = np.zeros((gam_secondary.size, num_r), dtype=float)
-    d_n_gam_mu_minus_left = np.zeros((gam_secondary.size, num_r), dtype=float)
-    d_n_gam_mu_minus_right = np.zeros((gam_secondary.size, num_r), dtype=float)
-    d_n_gam_mu_plus_left = np.zeros((gam_secondary.size, num_r), dtype=float)
-    d_n_gam_mu_plus_right = np.zeros((gam_secondary.size, num_r), dtype=float)
-    l_had_pion_synch = np.zeros((num_nu, num_r), dtype=float)
-    l_had_muon_synch = np.zeros((num_nu, num_r), dtype=float)
-    l_had_pion_ic = np.zeros((num_nu, num_r), dtype=float)
-    l_had_muon_ic = np.zeros((num_nu, num_r), dtype=float)
+    (
+        d_n_gam_n, d_n_gam_pi_plus, d_n_gam_pi_minus,
+        d_n_gam_mu_minus_left, d_n_gam_mu_minus_right,
+        d_n_gam_mu_plus_left, d_n_gam_mu_plus_right,
+    ) = np.zeros((7, gam_secondary.size, num_r), dtype=float)
 
     d_n_prev = np.zeros(num_gam_p, dtype=float)
     zero_proton_rate = np.zeros_like(gam_p, dtype=float)
@@ -1199,8 +1189,7 @@ def _solve_hadronic_hummer_transport_coupled(
         timings["pg_interaction"] += time.perf_counter() - t_pg_start
         bh_output = None
         bh_loss = np.zeros_like(gam_p)
-        bh_pair_rate_per_gev = np.zeros_like(gam_e)
-        pp_pair_rate_per_gev = np.zeros_like(gam_e)
+        bh_pair_rate_per_gev, pp_pair_rate_per_gev = np.zeros((2, gam_e.size), dtype=float)
         pp_gamma_lum = np.zeros_like(v_seed_arr)
         pp_nu_lum = np.zeros_like(neutrino_frequency_hz)
         if bool(config.hadronic.include_bethe_heitler):
@@ -1817,8 +1806,7 @@ def _compute_reverse_shock_synchrotron_emission(
         raise ValueError("Reverse shock electrons are required to compute reverse emission.")
     num_nu = v_seed.shape[0]
     num_r = dynamics.radius.shape[0]
-    l_syn_spec = np.zeros((num_nu, num_r), dtype=float)
-    seed_syn = np.zeros((num_nu, num_r), dtype=float)
+    l_syn_spec, seed_syn = np.zeros((2, num_nu, num_r), dtype=float)
     magnetic_field_g = np.asarray(dynamics.reverse_shock.magnetic_field_g, dtype=float)
 
     for i in range(num_r):
@@ -2019,9 +2007,7 @@ def _compute_characteristic_frequencies_weno5(
     d_n_gam_e: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     num_r = radius.shape[0]
-    nu_m = np.zeros(num_r, dtype=float)
-    nu_c = np.zeros(num_r, dtype=float)
-    nu_a = np.zeros(num_r, dtype=float)
+    nu_m, nu_c, nu_a = np.zeros((3, num_r), dtype=float)
 
     for i in range(1, num_r):
         radius_loc = radius[i - 1]
@@ -2048,11 +2034,7 @@ def _compute_reverse_shock_characteristic_frequencies(
     dynamics: DynamicsSolution,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     num_r = dynamics.radius.shape[0]
-    nu_m = np.zeros(num_r, dtype=float)
-    nu_c = np.zeros(num_r, dtype=float)
-    nu_a = np.zeros(num_r, dtype=float)
-    magnetic_field_g = np.zeros(num_r, dtype=float)
-    nu_M = np.zeros(num_r, dtype=float)
+    nu_m, nu_c, nu_a, magnetic_field_g, nu_M = np.zeros((5, num_r), dtype=float)
     gam_e = dynamics.reverse_shock.gam_e
     d_n_gam_e = dynamics.reverse_shock.d_n_gam_e
     if gam_e is None or d_n_gam_e is None:

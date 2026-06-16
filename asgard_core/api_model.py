@@ -1400,11 +1400,12 @@ def _solve_patch_model(
 
 def _empty_patch_flux_accumulator(nu_hz: np.ndarray, times_s: np.ndarray) -> FluxResult:
     shape = (nu_hz.shape[0], times_s.shape[0])
+    total, fwd_sync, fwd_ssc, rev_sync, rev_ssc, cross_ic = np.zeros((6, *shape), dtype=float)
     return FluxResult(
-        total=np.zeros(shape, dtype=float),
-        fwd=FluxPair(sync=np.zeros(shape, dtype=float), ssc=np.zeros(shape, dtype=float)),
-        rev=FluxPair(sync=np.zeros(shape, dtype=float), ssc=np.zeros(shape, dtype=float)),
-        cross_ic=np.zeros(shape, dtype=float),
+        total=total,
+        fwd=FluxPair(sync=fwd_sync, ssc=fwd_ssc),
+        rev=FluxPair(sync=rev_sync, ssc=rev_ssc),
+        cross_ic=cross_ic,
     )
 
 

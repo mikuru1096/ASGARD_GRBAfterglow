@@ -84,8 +84,7 @@ def build_boundary(config: RuntimeConfig, luminosity_distance_cm: float) -> np.n
         raise ValueError(f"At most {MAX_DENSITY_JUMPS} density jumps are supported.")
     profile_r, profile_n = density_profile_arrays(config)
     jump_r_pad = np.zeros(MAX_DENSITY_JUMPS, dtype=float)
-    jump_factor_pad = np.ones(MAX_DENSITY_JUMPS, dtype=float)
-    jump_width_pad = np.ones(MAX_DENSITY_JUMPS, dtype=float)
+    jump_factor_pad, jump_width_pad = np.ones((2, MAX_DENSITY_JUMPS), dtype=float)
     profile_r_pad = np.zeros(MAX_DENSITY_PROFILE_POINTS, dtype=float)
     profile_n_pad = np.ones(MAX_DENSITY_PROFILE_POINTS, dtype=float)
     if jump_r.size > 0:

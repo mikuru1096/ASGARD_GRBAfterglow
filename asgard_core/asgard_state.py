@@ -70,8 +70,7 @@ def build_coupled_shock_geometry(dynamics, config: RuntimeConfig) -> _CoupledSho
     gamma = dynamics.r_gamma
     proper_time_s = _integrate_proper_time(radius_cm, gamma)
 
-    fs_width_cm = np.zeros_like(radius_cm)
-    rs_width_cm = np.zeros_like(radius_cm)
+    fs_width_cm, rs_width_cm = np.zeros((2, radius_cm.size), dtype=float)
 
     eta_0 = config.eta_0
     shell_mass_g = config.e_iso / eta_0 / constants.para_c**2
@@ -1144,9 +1143,7 @@ def _compute_pair_production_branch(
     gam_pair = e_pair_gev / _ELECTRON_MASS_GEV
     num_nu = int(v_seed.size)
     num_r = int(radius.size)
-    pair_lum = np.zeros((num_nu, num_r), dtype=float)
-    pair_seed = np.zeros((num_nu, num_r), dtype=float)
-    tau_pair = np.zeros((num_nu, num_r), dtype=float)
+    pair_lum, pair_seed, tau_pair = np.zeros((3, num_nu, num_r), dtype=float)
     pair_density = np.zeros((gam_e.size, num_r), dtype=float)
     d_n_pair_prev_aligned = np.zeros(gam_pair.size, dtype=float)
     from asgard_core.hadronic_cascade import shell_path_time_seconds
@@ -1423,8 +1420,7 @@ def _merge_bh_into_forward_electrons(
     total_distribution = np.asarray(electron.d_n_gam_e, dtype=float) + bh_distribution
     num_shell = total_distribution.shape[1]
     num_nu = int(np.asarray(seed_frequency_hz, dtype=float).size)
-    l_syn_total = np.zeros((num_nu, num_shell), dtype=float)
-    seed_syn_total = np.zeros((num_nu, num_shell), dtype=float)
+    l_syn_total, seed_syn_total = np.zeros((2, num_nu, num_shell), dtype=float)
     for i_shell in range(num_shell):
         if radius_cm[i_shell] <= 0.0:
             raise ValueError("BH electron merge requires positive shell radii.")

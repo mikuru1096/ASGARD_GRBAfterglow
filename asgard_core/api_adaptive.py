@@ -196,11 +196,7 @@ def _adaptive_exposure_average(
     _batch_fetch_pair_result(model, pair_cache, initial_pairs)
 
     total = np.zeros(times_s.shape[0], dtype=float)
-    fwd_sync = np.zeros_like(total)
-    fwd_ssc = np.zeros_like(total)
-    rev_sync = np.zeros_like(total)
-    rev_ssc = np.zeros_like(total)
-    cross_ic = np.zeros_like(total)
+    fwd_sync, fwd_ssc, rev_sync, rev_ssc, cross_ic = np.zeros((5, times_s.shape[0]), dtype=float)
     has_cross_ic = False
 
     for idx, nodes in enumerate(exposure_nodes):

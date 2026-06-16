@@ -101,8 +101,7 @@ def _compute_polarization(
         raise NotImplementedError("toroidal polarization currently requires an axisymmetric jet.")
 
     total_i = np.zeros((nu_hz.shape[0], times_s.shape[0]), dtype=float)
-    total_q = np.zeros_like(total_i)
-    total_u = np.zeros_like(total_i)
+    total_q, total_u = np.zeros((2, *total_i.shape), dtype=float)
     components = {
         "fwd_sync": _empty_stokes(total_i),
         "rev_sync": _empty_stokes(total_i),
@@ -561,8 +560,7 @@ def _render_sky_image(model: Model, times_s: np.ndarray, nu_obs: float, fov: flo
     scale = np.where(raw_total > 0.0, direct_total / raw_total, 0.0)
     image *= scale[:, None, None]
     rendered_total = image.sum(axis=(1, 2)) * pixel_size * pixel_size
-    x_centroid = np.zeros(times_s.shape[0], dtype=float)
-    y_centroid = np.zeros(times_s.shape[0], dtype=float)
+    x_centroid, y_centroid = np.zeros((2, times_s.shape[0]), dtype=float)
     x_weights = image.sum(axis=2)
     y_weights = image.sum(axis=1)
     total_brightness = image.sum(axis=(1, 2))

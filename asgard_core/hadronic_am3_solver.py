@@ -115,10 +115,10 @@ def _solve_hummer_backend(
     neutrino_luminosity = np.zeros((num_nu_nu, num_r), dtype=float)
     am3_process_power = np.zeros((len(HUMMER_PROCESS_GROUP_LABELS), num_gam_p, num_r), dtype=float)
     process_luminosity = np.zeros((len(HUMMER_PROCESS_GROUP_LABELS), process_energy_arr.size, num_r), dtype=float)
-    proton_reinj_rate = np.zeros((num_gam_p, num_r), dtype=float)
-    neutron_reinj_rate = np.zeros((num_gam_p, num_r), dtype=float)
-    proton_loss_rate = np.zeros((num_gam_p, num_r), dtype=float)
-    neutron_loss_rate = np.zeros((num_gam_p, num_r), dtype=float)
+    (
+        proton_reinj_rate, neutron_reinj_rate,
+        proton_loss_rate, neutron_loss_rate,
+    ) = np.zeros((4, num_gam_p, num_r), dtype=float)
     photon_loss_rate = np.zeros((v_seed_arr.size, num_r), dtype=float)
 
     proton_energy_gev = gam_p_arr * PROTON_MASS_GEV
