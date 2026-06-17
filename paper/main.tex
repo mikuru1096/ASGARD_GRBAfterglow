@@ -41,7 +41,7 @@ Open-source astrophysical software has become central to reproducible inference.
 
 This paper makes four contributions.  First, it records the public API and internal state graph so that users can trace a public model call into the physical state evolved by the kernels.  Second, it gives the coordinate, grid, and source-sink contracts that define the electron, photon, hadronic, reverse-shock, and observer-projection stages.  Third, it states the operator ordering and diagnostic invariants that determine whether a calculation should be trusted, including where smoothness, budgets, and branch continuity must be checked.  Fourth, it states unsupported backend boundaries explicitly, so future extensions must begin from a physical contract rather than from a silent approximation.
 
-This paper documents the current code and methods baseline.  Section~\ref{sec:comparison} positions \asgard\ relative to \afterglowpy, \jetsimpy, \vegas, and \pyblast.  Section~\ref{sec:design} gives the software architecture and public interface.  Section~\ref{sec:physics} describes the implemented physical modules.  Section~\ref{sec:numerics} records the numerical contracts that define the kernels and state objects.  Section~\ref{sec:workflow} summarizes fitting, caching, parallelism, and reproducibility.  Section~\ref{sec:verification} describes the validation logic.  Section~\ref{sec:limits} states the boundaries that are intentionally not implemented in this release.
+This paper documents the current code and methods baseline.  Section~\ref{sec:comparison} positions \asgard\ relative to \afterglowpy, \jetsimpy, \vegas, and \pyblast.  Section~\ref{sec:design} gives the software architecture and public interface.  Section~\ref{sec:physics} describes the implemented physical modules.  Section~\ref{sec:numerics} records the numerical contracts that define the kernels and state objects.  Section~\ref{sec:asgardcore} describes the \asgard-specific algorithmic core, including the source-sink ledger, chi-resolved transport, and reverse-shock branch logic.  Section~\ref{sec:workflow} summarizes implementation ownership, fitting, state reuse, parallel execution, and reproducibility.  Section~\ref{sec:verification} describes the validation logic.  Section~\ref{sec:limits} states the boundaries that are intentionally not implemented in this release.
 
 \section{Relation to Existing Afterglow Codes} \label{sec:comparison}
 
@@ -64,6 +64,7 @@ F_{\nu_{\rm obs}}(t_{\rm obs})
 \qquad
 \nu'=\frac{1+z}{\delta}\nu_{\rm obs}.
 \]
+Here \(d\Omega_{\rm eff}\) denotes the discrete angular patch weight combined with the equal-arrival-time interpolation element used by the projection backend.
 \afterglowpy\ is strongest near this observer-integral contract.  \jetsimpy\ is strongest where the primary state is the laterally evolving shell proper velocity \(u=\Gamma\beta\) and angular energy transport.  \vegas\ is most useful to this project where the state is \(\gamma_{34}\), \(U_3/V_3\), \(B_3\), shell crossing, and coupled forward/reverse-shock emission.  \pyblast\ is closest as a modular blast-wave framework.  \asgard\ uses these codes to define comparison boundaries, but its original contract is the larger radius-local state
 \[
 {\cal S}_{\asgard}(R)
@@ -88,13 +89,9 @@ The design begins with a \texttt{Model} constructed from public dataclasses for 
   \label{fig:radius-state}
 \end{figure}
 
-
-
 \subsection{State objects and runtime chain}
 
 The public query methods are \texttt{flux\_density\_grid}, \texttt{flux\_density}, \texttt{spectrum}, \texttt{flux}, \texttt{sky\_image}, \texttt{polarization}, and \texttt{details}.  The fitting interface uses the same state construction and projection path, so likelihood evaluation and standalone model queries are not separate physical implementations.  \asgard\ also records component-level fluxes, including forward-shock synchrotron and synchrotron self-Compton (SSC), reverse-shock synchrotron and SSC, cross-zone inverse-Compton terms when enabled, and hadronic components.
-
-
 
 The main call chain can be written schematically as
 \[
@@ -108,8 +105,6 @@ The main call chain can be written schematically as
 \end{split}
 \]
 For fitting, \texttt{Fitter.loglike} compiles a parameter vector into the same model path, evaluates the requested data points, and computes the likelihood.  The code therefore has one physical forward model for plotting, diagnostics, and inference.
-
-
 
 This stage contract is the practical reproducibility unit of the code.  A documented run or fit should identify which stages are active, which state objects are reused, and which acceptance check guards the scientific interpretation.  It also defines where an error should be investigated: a non-smooth light curve is not automatically an observer-projection problem if the electron spectrum or photon survival already contains a discontinuity.
 
@@ -149,9 +144,62 @@ Density jumps and injection events are represented as explicit model inputs.  Fo
 \[
 \frac{dM_{\rm sw}}{dR}=4\pi R^2 n(R)m_p .
 \]
-The internal Fortran dynamics may use its own integration variable, but downstream modules depend only on the emitted radius-ordered arrays.  In the adiabatic uniform-medium and wind limits, the expected trends \(\Gamma\propto R^{-3/2}\) and \(\Gamma\propto R^{-1/2}\) provide physical acceptance checks, not replacement equations for the numerical kernel.
+The forward dynamics backend advances a radius-time state rather than fitting a broken power law.  In the radiative-efficiency reference branch used for the standard blast-wave checks, the Lorentz-factor update can be written as
+\[
+\begin{split}
+\frac{d\Gamma}{dM_{\rm sw}}
+&=
+-\frac{\Gamma^2-1}{\mathcal{D}_\Gamma}
++
+\frac{1}{\mathcal{D}_\Gamma c^2}
+\frac{dE_{\rm inj}}{dM_{\rm sw}},\\
+\mathcal{D}_\Gamma
+&=
+M_{\rm ej}+\epsilon_{\rm rad}M_{\rm sw}
++2(1-\epsilon_{\rm rad})\Gamma M_{\rm sw},
+\end{split}
+\]
+where \(dE_{\rm inj}/dM_{\rm sw}\) is nonzero only for a declared energy-injection episode and \(\epsilon_{\rm rad}\) is the local radiative efficiency used by the selected dynamics option.  The observer-time integration variable used internally obeys
+\[
+\frac{dR}{dT}=\frac{\beta c}{1-\beta},
+\qquad
+\frac{dM_{\rm sw}}{dT}
+=4\pi R^2n(R)m_p\frac{dR}{dT}.
+\]
+Here \(T=t_{\rm lab}-R/c\) is the source-frame on-axis arrival-time coordinate before multiplying by \(1+z\).  When injection is enabled, the user-supplied injection history is converted to the swept-mass derivative through
+\[
+\frac{dE_{\rm inj}}{dM_{\rm sw}}
+=
+\frac{dE_{\rm inj}/dT}{dM_{\rm sw}/dT}.
+\]
+In the adiabatic uniform-medium and wind limits, these equations give the expected trends \(\Gamma\propto R^{-3/2}\) and \(\Gamma\propto R^{-1/2}\), which are physical acceptance checks rather than replacement equations for the numerical kernel.  The deceleration scale used to place the early grid is correspondingly
+\[
+R_{\rm dec,ISM}\simeq
+\left(\frac{3E_{\rm iso}}
+{4\pi n_0m_pc^2\Gamma_0^2}\right)^{1/3},
+\qquad
+R_{\rm dec,wind}\simeq
+\frac{E_{\rm iso}}{4\pi A_wm_pc^2\Gamma_0^2},
+\qquad
+t_{\rm dec}\simeq\frac{R_{\rm dec}}{2c\Gamma_0^2},
+\]
+where \(A_w=3.0\times10^{35}A_\ast\) for the wind density written above.
 
-Top-hat, Gaussian, and power-law jet profiles enter as initial angular distributions of isotropic-equivalent energy and initial Lorentz factor.  Structured-jet calculations aggregate angular patches through the observer projection.  This is not the same as a lateral-spreading dynamics backend; the current public boundary for spreading is stated in Section~\ref{sec:limits}.
+Top-hat, Gaussian, and power-law jet profiles enter as initial angular distributions of isotropic-equivalent energy and initial Lorentz factor,
+\[
+E_{\rm iso}^{\rm TH}(\theta)=E_0H(\theta_j-\theta),
+\qquad
+E_{\rm iso}^{\rm G}(\theta)=E_c\exp[-\theta^2/(2\theta_c^2)],
+\]
+\[
+E_{\rm iso}^{\rm PL}(\theta)=
+E_c
+\begin{cases}
+1, & \theta\leq\theta_c,\\
+(\theta/\theta_c)^{-k_E}, & \theta_c<\theta\leq\theta_{\rm out},
+\end{cases}
+\]
+where \(H\) is a Heaviside truncation and the active angular support supplies the outer cutoff.  The same piecewise logic is applied to \(\Gamma_0(\theta)-1\) for Gaussian and power-law constructors.  Structured-jet calculations aggregate angular patches through the observer projection.  This is not the same as a lateral-spreading dynamics backend; the current public boundary for spreading is stated in Section~\ref{sec:limits}.
 
 \subsection{Structured observer products}
 
@@ -160,6 +208,14 @@ For a structured or off-axis model, the observer output is the weighted sum over
 F_\nu^{\rm tot}(t_{\rm obs})
 =
 \sum_j F_{\nu,j}(t_{\rm obs})\Delta\Omega_j .
+\]
+The angular weight is part of the physical sum,
+\[
+\Delta\Omega_j=
+\begin{cases}
+2\pi(\cos\theta_a-\cos\theta_b), & {\rm axisymmetric},\\
+(\phi_b-\phi_a)(\cos\theta_a-\cos\theta_b), & {\rm two\ dimensional}.
+\end{cases}
 \]
 Each patch carries its own initial \(E_{\rm iso}(\theta,\phi)\), initial Lorentz factor, viewing geometry, Doppler factor, and arrival-time delay.  When the physical solve state is unchanged and only the observer angle or image sampling changes, \asgard\ can reuse the local solve state and rerun projection.  This reuse is valid only under the same medium, solver, radius grid, time grid, frequency grid, and shell state; otherwise it would mix incompatible physical states.
 
@@ -203,6 +259,21 @@ where
 +\dot{\gamma}'_{\rm SSA}
 \right).
 \]
+The dominant local cooling terms are stored as radius velocities after multiplying by \(dt'/dR\).  In comoving time,
+\[
+\dot{\gamma}'_{\rm syn}
+=-\frac{\sigma_TB'^2}{6\pi m_ec}\gamma_e^2,
+\qquad
+\dot{\gamma}'_{\rm ad}
+=-\frac{\gamma_e}{3}\frac{d\ln V'}{dt'}.
+\]
+The synchrotron expression assumes an isotropic pitch-angle distribution.  The simplified IC branch writes \(\dot{\gamma}'_{\rm IC}=Y_{\rm IC}\dot{\gamma}'_{\rm syn}\), whereas the numerical IC branch evaluates the Klein-Nishina loss from the local seed spectrum \(n'_{\epsilon'}\).  These rates define the cooling Lorentz factor through the condition that the integrated loss time equals the local dynamical time; in the synchrotron-only diagnostic limit,
+\[
+\gamma_{c,{\rm syn}}
+=
+\frac{6\pi m_ec}{\sigma_TB'^2t'}.
+\]
+
 The one-dimensional solvers include \texttt{fullhide\_1d}, \texttt{slc1\_1d}, \texttt{charint\_1d}, \texttt{t2g1\_1d}, and \texttt{weno5\_1d}.  The two-dimensional solvers \texttt{fullhide\_2d} and \texttt{charint\_2d} add a downstream finite-thickness coordinate \(\chi\).  The default stable public path is \texttt{fullhide\_1d}; two-dimensional transport and chi-resolved projection are opt-in paths used when the finite shell width is part of the hypothesis being tested.
 
 \subsection{Synchrotron, self-absorption, and SSC}
@@ -215,9 +286,37 @@ The synchrotron luminosity is computed from the electron spectrum and the single
 \[
 L'_{\nu'}=\int N_e(\gamma_e)P'_{\nu'}(\gamma_e,B')\,d\gamma_e .
 \]
+The kernel is
+\[
+P'_{\nu'}(\gamma_e,B')
+=
+\frac{\sqrt{3}e^3B'}{m_ec^2}
+{\cal F}\left(\frac{\nu'}{\nu'_{\rm cr}}\right),
+\qquad
+\nu'_{\rm cr}
+=\frac{3eB'}{4\pi m_ec}\gamma_e^2,
+\]
+with \({\cal F}(x)=x\int_x^\infty K_{5/3}(\xi)\,d\xi\).  The characteristic diagnostic frequencies are
+\[
+\nu'_m\simeq
+\frac{3eB'}{4\pi m_ec}\gamma_m^2,
+\qquad
+\nu'_c\simeq
+\frac{3eB'}{4\pi m_ec}\gamma_c^2.
+\]
 Synchrotron self-absorption is handled as an optical-depth and survival-factor problem before observer projection.  In chi-resolved projection, finite-thickness cells use a cell-averaged survival factor rather than assigning all emission to a single face of the cell.
 
 SSC has two separate roles: it is an observer photon component and an electron cooling term.  In numerical IC cooling mode the same seed photon field must be used for the electron loss and photon-emissivity budget.  A run that enables SSC photons but chooses a simplified cooling mode is therefore a different physical approximation from a run that closes the IC loss with the local photon field.
+
+The corresponding local emissivity is an electron-photon convolution,
+\[
+L'_{\nu',{\rm SSC}}
+=
+\int d\gamma_e\,N_e(\gamma_e)
+\int d\epsilon'\,n'_{\epsilon'}\,
+P'_{\nu',{\rm IC}}(\gamma_e,\epsilon'),
+\]
+where \(P'_{\nu',{\rm IC}}\) is the same Klein-Nishina scattering kernel used by the numerical IC cooling option.
 
 \begin{figure}[!tp]
   \centering
@@ -237,6 +336,24 @@ n'_{\epsilon'}=\frac{u'_{\epsilon'}}{\epsilon'} .
 This distinction is required because an observer-side luminosity is not automatically a local target photon density.  SSC cooling and emission, gamma-gamma absorption, photopion targets, Bethe-Heitler photon losses, and pair-synchrotron feedback require explicit shell geometry, escape-time, absorption, and variable-conversion factors before they can be coupled.
 
 Gamma-gamma absorption is treated as a photon survival and secondary-pair source problem.  When \texttt{pair\_cascade\_iterations>1}, the current implementation follows a shell-sequence gamma-gamma pair/synchrotron cascade: absorbed high-energy photons produce pairs, pairs radiate synchrotron photons, and that radiation contributes to subsequent shell-level photon fields.  The present code does not close an IC-mediated electromagnetic cascade.
+
+The survival operator is determined by a shell-local optical depth,
+\[
+\tau_{\gamma\gamma}(\epsilon'_1,R)
+=
+\Delta \ell'
+\int d\epsilon'_2\,n'_{\epsilon'}(\epsilon'_2,R)
+\int_{-1}^{1}\frac{1-\mu}{2}
+\sigma_{\gamma\gamma}[s(\epsilon'_1,\epsilon'_2,\mu)]\,d\mu,
+\]
+where
+\[
+s=\frac{\epsilon'_1\epsilon'_2(1-\mu)}
+{2(m_ec^2)^2},
+\qquad
+s\geq1
+\]
+is the pair-production threshold condition.  The same absorbed power is the source reservoir for the gamma-gamma pair branch; it is not a free normalization of the emitted cascade component.
 
 \subsection{Hadronic transport and joint secondary feedback}
 
@@ -389,17 +506,19 @@ The current public boundary requires \texttt{fullhide\_1d}, the formal \texttt{a
 
 The observer stage maps local comoving luminosities to \(\fnu(t_{\rm obs})\) using Doppler factors, redshift, luminosity distance, and \eats\ interpolation.  With
 \[
-\delta=\frac{1}{\Gamma(1-\beta\mu)},
+D\equiv\Gamma(1-\beta\mu),
+\qquad
+\delta\equiv D^{-1},
 \]
 the frequency transformation is
 \[
 \nu_{\rm obs}=\frac{\delta}{1+z}\nu'.
 \]
-The implementation variable named \texttt{doppler} corresponds to \(D=\delta^{-1}\), so the code naturally contains \(D^{-3}\) and \(\nu'=(1+z)D\nu_{\rm obs}\).  The chi-resolved kernel applies only to forward-shock synchrotron plus synchrotron self-absorption in the current release.  SSC, hadronic components, and pair cascades remain shell-level contributions unless a future physical contract defines their chi-local photon fields, particle densities, feedback, and projection.
+The implementation variable named \texttt{doppler} corresponds to \(D\), so the code naturally contains \(D^{-3}=\delta^3\) and \(\nu'=(1+z)D\nu_{\rm obs}\).  The chi-resolved kernel applies only to forward-shock synchrotron plus synchrotron self-absorption in the current release.  SSC, hadronic components, and pair cascades remain shell-level contributions unless a future physical contract defines their chi-local photon fields, particle densities, feedback, and projection.
 
 \begin{figure}[!tp]
   \centering
-  \includegraphics[width=\textwidth]{figures/fig6_runtime_reuse.pdf}
+  \includegraphics[width=\textwidth]{figures/fig6_eats_projection.pdf}
   \caption{Equal-arrival-time and Doppler factors that control observer projection.  (a) The Doppler cone narrows rapidly with \(\Gamma\).  (b) Arrival-time delay across angle can dominate the projection grid even when the local radius step is smooth.  (c) Solid-angle weight and Doppler-boosted weight peak in different angular regions, motivating explicit angular sampling rather than an observer-time correction applied after the solve.  Source data are in \texttt{source\_data/fig6\_eats\_projection.csv}.}
   \label{fig:eats}
 \end{figure}
@@ -615,7 +734,7 @@ Observer-time stiffness follows
 \frac{1+z}{c}
 \left(\frac{1}{\beta}-\cos\alpha\right)
 \]
-for a fixed angular patch.  Near the line of sight, the lab-time increase and light-travel delay nearly cancel; off axis, the derivative is larger.  This is why ASGARD advances local microphysics in \(R\) and applies observer-time remapping after local source-sink arrays are built.
+for a fixed angular patch.  Near the line of sight, the lab-time increase and light-travel delay nearly cancel; off axis, the derivative is larger.  This is why \asgard\ advances local microphysics in \(R\) and applies observer-time remapping after local source-sink arrays are built.
 
 \section{Implementation Architecture, Fitting, and Parallel Execution} \label{sec:workflow}
 
@@ -669,6 +788,17 @@ S({\cal M}_1)=S({\cal M}_2)
 \quad{\rm only\ if}\quad
 {\cal I}_{\rm local,1}={\cal I}_{\rm local,2}.
 \]
+The local-input set is
+\[
+\begin{split}
+{\cal I}_{\rm local}=\{&
+{\cal J},{\cal N},
+\epsilon_e,\epsilon_B,p,\xi_N,\Gamma_0,\\
+&N_R,N_{\gamma_e},N_\nu,N_{\theta},N_{\phi},
+{\rm solver},{\rm RS\ flags},{\rm hadronic\ flags}\}.
+\end{split}
+\]
+Here \({\cal J}\) means the jet energy and angular-structure fields, excluding observer-only parameters such as viewing angle.  Observer interpolation points, image sampling, or viewing angle are not members of this set unless they alter the intrinsic structured-jet solve.  They can change the projection but not the already computed local particle and photon state.
 Observer requests that merely change interpolation points can reuse the cached state.  Requests that change energy, density, angular structure, microphysics, solver family, internal grids, reverse-shock flags, hadronic flags, or target photon fields must recompute the solve.  A warm observer query is therefore a reuse of physical work already done, not a lower-fidelity model.
 
 This distinction matters for fitting.  A sampler can request many nearby time-frequency points without changing the local state, but it cannot reuse a state after changing a sampled physical parameter.  Runtime reports therefore distinguish cold solves from warm projections.  A cold solve measures the dynamics, transport, radiation, and projection path.  A warm query measures observer interpolation and component assembly on an existing state.
@@ -713,17 +843,11 @@ Without these values, a timing number cannot be compared across machines or mode
 \]
 There is no hidden outlier rejection, error inflation, or separate fit-only forward model.  Data-unit conversion, upper-limit treatment, and sample selection are system-boundary responsibilities.  If a fit produces non-smooth light curves, discontinuous spectra, or parameter trajectories pinned to unphysical boundaries, the expected workflow is to inspect the dynamics, electron spectra, photon fields, and projection state rather than to modify the likelihood.
 
-
-
 This workflow makes inference a user of the forward model rather than a second implementation of it.  The first accepted fit product is therefore not the highest-likelihood parameter vector, but a parameter vector whose light curves, spectra, internal states, and enabled module boundaries are physically interpretable.  Quick grids are useful for unit and parameter-path debugging, whereas formal grids are required for publication-level model comparison.
-
-\subsection{Caching and parallel execution}
-
-The \texttt{Model} object can reuse an unchanged solve state for repeated observer queries.  This is a runtime optimization, not a physical approximation.  Benchmark reports therefore distinguish cold solve time from warm query time.  Structured-jet calculations may distribute work over angular patches, single-patch kernels, or nested outer/inner OpenMP modes depending on the backend.  The code documentation records the thread count and grid configuration because small grids can be dominated by parallel overhead while high-dimensional transport can be electron-kernel dominated.
 
 \subsection{Reproducible diagnostic contract}
 
-The manuscript no longer relies on graphical summaries.  Reproducibility is instead tied to a diagnostic contract: each run must record its public model object, normalized runtime configuration, git revision, build state, grid choices, solver names, active process switches, and the internal state arrays needed to audit the physical claim.  Existing output-directory products are exploratory unless the command, grid, source arrays, and physical acceptance criterion are recorded.  This keeps diagnostic evidence tied to equations and state variables rather than to visual layout.
+Reproducibility is tied to a diagnostic contract: each run must record its public model object, normalized runtime configuration, git revision, build state, grid choices, solver names, active process switches, and the internal state arrays needed to audit the physical claim.  Existing output-directory products are exploratory unless the command, grid, source arrays, and physical acceptance criterion are recorded.  This keeps diagnostic evidence tied to equations and state variables rather than to visual layout.
 
 \section{Verification and Demonstrations} \label{sec:verification}
 
@@ -743,7 +867,7 @@ The hadronic feedback invariant is source-sink identity.  A process may appear a
 
 \subsection{Reverse-shock diagnostic invariant}
 
-Reverse-shock brightness is interpreted through \(\gamma_{34}\), \(M_3/M_{\rm ej}\), \(U_3/V_3\), \(B_{3,{\rm turb}}\), \(B_{3,{\rm ord}}\), and the crossing state.  Magnetized reverse-shock checks use VegasAfterglow only as a comparison backend for jump-condition behavior, not as the target truth for \asgard\ light curves.  Density-jump-triggered secondary reverse shocks record dissipated energy and injected electron energy directly.  This prevents density-jump features from being introduced as phenomenological light-curve patches.
+Reverse-shock brightness is interpreted through \(\gamma_{34}\), \(M_3/M_{\rm ej}\), \(U_3/V_3\), \(B_{3,{\rm turb}}\), \(B_{3,{\rm ord}}\), and the crossing state.  Magnetized reverse-shock checks use \vegas\ only as a comparison backend for jump-condition behavior, not as the target truth for \asgard\ light curves.  Density-jump-triggered secondary reverse shocks record dissipated energy and injected electron energy directly.  This prevents density-jump features from being introduced as phenomenological light-curve patches.
 
 \subsection{Runtime and fitting invariant}
 
@@ -764,35 +888,17 @@ The manuscript also does not claim that the validation examples exhaust the phys
 \clearpage
 \appendix
 
-\section{Claim-evidence map} \label{app:claims}
+\section{Claim scope and evidence} \label{app:claims}
 
-\noindent\textbf{Radius-first state chain.}  Evidence: Figure~\ref{fig:radius-state}, public code structure in \texttt{asgard\_core}, and documented \texttt{SolveState} objects.  Status: supported.
+The main claim of this manuscript is that \asgard\ provides a radius-first afterglow state chain in which dynamics, electron transport, local photon fields, formal one-dimensional hadronic transport, reverse-shock diagnostics, component accounting, and observer projection can be inspected as named state objects.  The evidence for this claim is distributed across the paper rather than concentrated in a single checklist: Figure~\ref{fig:radius-state} demonstrates the radius-local dynamics and projection stiffness; Section~\ref{sec:design} defines the public-to-runtime state ownership; Appendix~\ref{app:trace} gives the stage-level trace from public query to projected flux.
 
-\noindent\textbf{Runtime layer ownership.}  Evidence: \texttt{RuntimeConfig}, \texttt{SimulationSetup}, \texttt{SolveState}, and public API documentation.  Status: supported.
+The second claim is that public observer products are tied to the same underlying solve state used by fitting and diagnostics.  Figure~\ref{fig:forwardapi} links public light curves, spectra, and component accounting to one model path, while Section~\ref{sec:workflow} records the fitting, state-reuse, and parallel-execution contracts.  This supports reproducibility of public queries but does not imply that every possible parameter combination has been validated.
 
-\noindent\textbf{Stage-level solve contract.}  Evidence: documented stage functions in \texttt{asgard\_core/asgard\_state.py}, the stage trace in Appendix~\ref{app:trace}, and local-state diagnostics in Figure~\ref{fig:radius-state}.  Status: supported as the method-level execution contract.
+The third claim concerns local source-sink closure.  Sections~\ref{sec:numerics} and \ref{sec:asgardcore} define the log-grid electron transport, photon-field conversion, hadronic source-sink ledger, and chi-resolved projection boundary.  Figure~\ref{fig:transport} exposes electron phase-space diagnostics, and Figure~\ref{fig:hadronic} shows why local target photon fields and transfer operators must be specified before a luminosity can become feedback.
 
-\noindent\textbf{Component-resolved public queries.}  Evidence: Figure~\ref{fig:forwardapi}, \texttt{FluxResult.total}, \texttt{fwd.sync}, and \texttt{fwd.ssc} source data.  Status: supported.
+The fourth claim concerns reverse-shock state ownership.  Figure~\ref{fig:rs} and Section~\ref{sec:asgardcore} tie reverse-shock emission to \(\gamma_{34}\), \(M_3/M_{\rm ej}\), \(U_3/V_3\), \(B_3\), crossing records, and density-jump branch energy ledgers.  These diagnostics support the implemented reverse-shock branches for the benchmark configurations.  They do not establish a universal reverse-shock light-curve template.
 
-\noindent\textbf{Log-grid conservative electron transport.}  Evidence: Section~\ref{sec:numerics}, electron solver documentation, and the electron phase-space diagnostics in Figure~\ref{fig:transport}.  Status: supported at the method-contract level.
-
-\noindent\textbf{Photon-field source-sink semantics.}  Evidence: Section~\ref{sec:numerics}, \texttt{PhotonFieldState} documentation, and Figure~\ref{fig:hadronic}.  Status: supported for shell-level target and absorption fields.
-
-\noindent\textbf{Chi-resolved electron transport.}  Evidence: Section~\ref{sec:numerics}, Appendix~\ref{app:numericaldetails}, and tracked runtime benchmark CSV files.  Status: supported for the benchmark configuration, and opt-in relative to the shell-level path.
-
-\noindent\textbf{Hadronic feedback contract.}  Evidence: Figure~\ref{fig:hadronic} and the joint-feedback physics and algorithm documents.  Status: supported only through explicit source-sink outputs.
-
-\noindent\textbf{Reverse-shock diagnostics.}  Evidence: Figure~\ref{fig:rs} and tracked sigma and secondary-RS source data.  Status: supported for the benchmark configuration.
-
-\noindent\textbf{Fitting and caching semantics.}  Evidence: Section~\ref{sec:workflow}, fitting documentation, and runtime metadata from formal benchmarks.  Status: supported for public \texttt{Fitter} likelihood and runtime-report interpretation.
-
-\noindent\textbf{Implementation ownership and parallel execution.}  Evidence: Section~\ref{sec:workflow}, the Python/Fortran state chain, and the declared grid-dependent work scalings.  Status: supported as the execution contract for interpreting runtime and reproducibility claims.
-
-\noindent\textbf{Fitting model-escalation workflow.}  Evidence: public fitting documentation and validation expectations in Section~\ref{sec:verification}.  Status: supported as recommended workflow, not as a claim that all possible model comparisons have been run.
-
-\noindent\textbf{Validation interpretation.}  Evidence: repository validation documentation, build checks, and the physical diagnostic figures in this paper.  Status: supported as a validation logic, not as an exhaustive proof over all parameter space.
-
-\noindent\textbf{Unsupported future branches.}  Evidence: Section~\ref{sec:limits}, public backend limits, and TODO boundary documents.  Status: chi-resolved hadronic transport and IC-mediated electromagnetic cascades are unsupported boundaries.
+The final claim is a boundary claim.  Section~\ref{sec:limits} states unsupported public backends and future branches.  In particular, chi-resolved hadronic feedback, IC-mediated electromagnetic cascades, jet spreading, custom medium kernel dispatch, wind \(k\ne2\), thermal electrons outside the supported branch, and non-axisymmetric toroidal polarization remain outside the present implementation contract.
 
 \section{Extended public-interface contract} \label{app:api}
 
@@ -811,8 +917,6 @@ A complete public model contains the following objects:
 where \({\cal J}\) is the jet, \({\cal N}\) the medium, \({\cal O}\) the observer, \({\cal R}_{\rm FS}\) and \({\cal R}_{\rm RS}\) the forward- and reverse-shock radiation objects, \({\cal G}\) the numerical grid, \({\cal T}\) the observer grid, \({\cal S}\) the solver options, \({\cal X}_{\rm RS}\) the reverse-shock control object, and \({\cal H}\) the hadronic control object.  The reverse-radiation object may be \texttt{None}, but the field itself remains explicit.  This avoids tutorials and fitting scripts that accidentally use hidden defaults for reverse-shock microphysics, grid resolution, or hadronic process flags.
 
 The runtime normalization step performs four operations.  First, it converts user units and aliases into the compact scalar and array fields consumed by Fortran kernels.  Second, it derives the observer-time, frequency, electron-energy, proton-energy, photon-frequency, angular, and optional chi grids.  Third, it constructs geometry-independent quantities such as luminosity distance and redshift factors.  Fourth, it checks physical backend boundaries before high-cost kernels are launched.  These checks protect public semantics; they are not numerical fallbacks.
-
-
 
 The runtime field map also defines the minimum metadata for a reproducible figure.  A plot that reports \(\epsilon_B\), for example, is incomplete unless it also records the grid and solver used to convert that field into \(B'(R)\), \(N_e\), local emissivity, and observer flux.  This is why every figure source-data file in the paper directory is paired with a script-level model construction path rather than only with the plotted arrays.
 
@@ -851,7 +955,6 @@ where \(D=\Gamma(1-\beta\mu)\) in the implementation convention and \(D^{-1}\) i
 The radiation object combines microphysical parameters and process switches.  The electron and magnetic-field parameters define the forward-shock injection and cooling baseline.  SSC output and SSC cooling are separate choices: a user may request the SSC luminosity component but still choose a simplified IC cooling prescription, or may request numerical IC/KN cooling when the local photon field must close the electron energy budget.  These are different models and must not be merged in a figure caption.
 
 The hadronic-related fields are also split deliberately.  The proton energy fraction only assigns an energy reservoir.  It does not imply that proton synchrotron, photopion interactions, Bethe-Heitler losses, \(pp\) collisions, neutrino output, or pair feedback are all enabled.  Those processes require formal switches and, for joint feedback, a compatible solver path.  This prevents a plot from presenting a hadronic component that has no corresponding proton transport or target photon field.
-
 
 \section{Comparison-code physics contracts} \label{app:comparisoncontracts}
 
@@ -968,7 +1071,6 @@ The practical rule used in this manuscript is therefore:
 {\rm compare\ state\ variables}.
 \]
 For forward shocks the state variables are \(\Gamma(R)\), \(B'(R)\), \(\gamma_m(R)\), \(\gamma_c(R)\), \(N_e(\gamma,R)\), and projection weights.  For reverse shocks they are \(\gamma_{34}\), \(M_3/M_{\rm ej}\), \(U_3/V_3\), \(B_3\), and crossing state.  For hadronic branches they are \(N_p(E,R)\), \(n_\gamma(\epsilon,R)\), process thresholds, secondary sources, and photon survival.  For structured off-axis emission they are patch solid angles, Doppler factors, arrival-time derivatives, and angular convergence.  Flux agreement without these checks is suggestive; flux disagreement with these checks can identify a real physical or numerical difference.
-
 
 \section{Extended physical derivations and acceptance scales} \label{app:physics}
 
@@ -1213,8 +1315,6 @@ where \(v^+=\max(v,0)\) and \(v^-=\min(v,0)\).  Synchrotron and IC cooling usual
 
 The conservative form matters for three observable reasons.  First, a cooling break moves through the grid by fluxing particle number between cells rather than by reducing each cell independently.  Second, secondary sources can be added at their injection energy without changing the cooling operator.  Third, the same stored spectrum can be integrated for number, energy, and emissivity after applying the correct Jacobian.
 
-
-
 \subsection{Substep and thread contract}
 
 When adaptive electron substeps are used, the step size is chosen from physical and numerical constraints rather than from a desired plot appearance.  A schematic form is
@@ -1391,13 +1491,9 @@ The unit conversion is a boundary operation.  For example,
 \]
 Observer times measured in days are multiplied by \(86400\).  Magnitudes require a declared zero-point system.  Band fluxes require a frequency interval and the \texttt{add\_flux} path.  They should not be silently stored as single-frequency flux-density points because that changes the likelihood.
 
-
-
 \subsection{Parameter binding}
 
 Each sampled parameter is a name, a model path, bounds, and a scale.  If the scale is logarithmic, the sampler value \(x\) is written to the model as \(10^x\).  If the scale is linear, the sampler value is written directly.  This is a small implementation detail with large scientific consequences: a posterior in \(\log E\) is not a posterior in \(E\) with uniform prior.
-
-
 
 A first-pass fit should use the fewest parameters that answer the immediate modeling question.  Releasing many weakly constrained parameters at once can hide unit errors, unsupported physics, and grid artifacts.  The correct escalation path is residual-driven.  A radio deficit may motivate SSA, SSC, or density-structure inspection.  An early optical flash may motivate the reverse shock.  A high-energy excess with a physical target photon field may motivate hadronic or pair-feedback tests.  A structured off-axis rise may motivate angular patch convergence.  Each escalation has a separate internal-state check.
 
@@ -1434,8 +1530,6 @@ This set is as important as the median parameter table.  A posterior generated w
 \subsection{Benchmark categories}
 
 The repository uses several benchmark categories.  Build tests confirm that compiled extensions are available.  Smoke tests confirm that a small configuration runs and returns finite public products.  Runtime benchmarks measure cost and caching behavior.  Physical diagnostics inspect dynamics, electron spectra, photon fields, reverse-shock variables, and observer projection.  Literature comparisons are used only when the compared code or formula has the same physical contract.
-
-
 
 \subsection{Physical-figure reproducibility}
 
@@ -1544,8 +1638,6 @@ The component ledger supports physical interpretation.  In Figure~\ref{fig:forwa
 
 The failure signal for projection is a discrepancy between local smoothness and observer jaggedness.  If \(N_e\), \(L'_{\nu'}\), \(B'\), and absorption are smooth but \(F_\nu(t)\) is not, then interpolation, arrival-time binning, angular sampling, or chi remapping should be inspected.  If local arrays are already non-smooth, projection is not the root cause.
 
-
-
 \section{Repository implementation map} \label{app:implmap}
 
 The manuscript intentionally avoids reproducing a directory listing, but a code paper must state where the physical contracts live.  The following map is organized by responsibility rather than by path depth.
@@ -1604,8 +1696,6 @@ The paper figure script writes CSV files because source data are the interface b
 \}.
 \]
 Not every file contains every group.  A runtime summary needs stage timings and grid metadata.  A light-curve source file needs observer time, frequency, component name, and flux.  A reverse-shock diagnostic needs \(\sigma\), \(B_3\), \(\gamma_{34}\), peak flux, and branch energy where applicable.
-
-
 
 A figure that cannot be regenerated from the script and its source CSV is not part of the evidence chain.  This rule is stricter than storing final PDFs.  It requires the plotted arrays and the model context to remain auditable after the figure has been edited or resized for publication.
 
@@ -1752,33 +1842,17 @@ A reviewer of a code paper will usually ask whether the package is reproducible,
 
 \subsection{Data and software availability wording}
 
-The intended data-availability statement for a submission version is:
-\[
-\begin{array}{l}
-\text{All source data required to reproduce the manuscript figures are included}\\
-\text{in the repository under \texttt{paper/source\_data/}.  The scripts that}\\
-\text{generate the figures are included in the test or tooling directory.}
-\end{array}
-\]
-The intended software-availability statement is:
-\[
-\begin{array}{l}
-\text{\asgard\ is version-controlled in the public or author-supplied repository.}\\
-\text{The manuscript version should cite the exact git commit, license,}\\
-\text{installation instructions, and archival DOI when available.}
-\end{array}
-\]
+The intended data-availability statement for a submission version is: all source data required to reproduce the manuscript figures are included in the repository under \texttt{paper/source\_data/}.  The scripts that generate the figures are included in the test or tooling directory.
+
+The intended software-availability statement is: \asgard\ is version-controlled in the public or author-supplied repository.  The manuscript version should cite the exact git commit, license, installation instructions, and archival DOI when available.
+
 The current draft uses a placeholder software reference until the final archive metadata are supplied.
 
 \section{Build and verification record} \label{app:build}
 
-The numerical-code validation baseline preceding this manuscript rewrite was git commit \texttt{2cf7eaecda0b}.  The final manuscript, generated figures, and source-data files are identified by the repository commit that contains this file.  Before drafting the paper, the following checks were run in WSL Ubuntu through \texttt{rtk}: text encoding check, \texttt{git diff --check}, forced builds of \texttt{electron\_forward\_\allowbreak fullhide\_1d}, \texttt{electron\_forward\_\allowbreak charint\_2d}, and \texttt{electron\_reverse\_\allowbreak kernel}, public README smoke test, fullhide-2D smoke benchmark, reverse-shock smoke test, and a \texttt{gfortran -Werror=line-truncation} source-closure syntax check over the affected electron extensions.  The manuscript itself is compiled with Windows-side TeX Live.
+The numerical-code validation baseline preceding this manuscript rewrite was git commit \texttt{2cf7eaecda0b}.  The final manuscript, generated figures, and source-data files are identified by the repository commit that contains this file.  Before drafting the paper, the following checks were run in WSL Ubuntu through \texttt{rtk}: text encoding check, \texttt{git diff --check}, forced builds of \texttt{electron\_forward\_\allowbreak fullhide\_1d}, \texttt{electron\_forward\_\allowbreak charint\_2d}, and \texttt{electron\_reverse\_\allowbreak kernel}, public README smoke test, fullhide-2D smoke benchmark, reverse-shock smoke test, and a \texttt{gfortran -Werror=line-truncation} source-closure syntax check over the affected electron extensions.  The manuscript itself is compiled with Windows-side TeX Live.  The software baseline employs \asgard\ \citep{ASGARDSoftware} built on Python, NumPy \citep{Harris2020}, SciPy \citep{Virtanen2020}, Matplotlib \citep{Hunter2007}, Astropy \citep{Astropy2022}, and emcee \citep{ForemanMackey2013}.
 
-\software{\asgard\ \citep{ASGARDSoftware}, Python, NumPy \citep{Harris2020}, SciPy \citep{Virtanen2020}, Matplotlib \citep{Hunter2007}, Astropy \citep{Astropy2022}, emcee \citep{ForemanMackey2013}, gfortran, f2py}
-
-\begin{acknowledgments}
-Acknowledgments, funding information, and final author metadata are to be supplied by the author before submission.  Use of language-model assistance in drafting and code generation should be disclosed according to the current AAS policy if this manuscript is submitted.
-\end{acknowledgments}
+\software{\asgard, Python, NumPy, SciPy, Matplotlib, Astropy, emcee, gfortran, f2py}
 
 \clearpage
 \bibliographystyle{aasjournalv7.1}

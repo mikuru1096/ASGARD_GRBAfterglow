@@ -533,7 +533,7 @@ def fig6_eats_projection() -> None:
     axes[2].set_title("Angular sampling")
     axes[2].legend(fontsize=6)
     axes[2].grid(color=LIGHT, lw=0.5)
-    save_pub(fig, "fig6_runtime_reuse")
+    save_pub(fig, "fig6_eats_projection")
 
 
 def main() -> None:
