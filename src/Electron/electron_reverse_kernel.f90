@@ -4,11 +4,11 @@ module electron_reverse_kernel
     use electron_injection_profiles, only: electron_exp_cutoff_factor, electron_profile_log_cell_edges
     use electron_transport_common, only: electron_fullhide_flux_split_step, electron_dnx_to_dndgamma_exp_centers
     use electron_radiation_kernel, only: get_syn_selected, get_nu_a
-    use electron_cooling_kernel, only: electron_cooling_ic_loss, electron_cooling_y_nakar, electron_cooling_y_fan
+    use electron_cooling_kernel, only: prepare_forward_cooling_aux
     implicit none
 contains
 
-! 反向激波电子演化主驱动：注入→同步+IC冷却→隐式输运推进，支持4种Compton Y参数化。
+! 反向激波电子演化主驱动：注入→同步+IC冷却→隐式输运推进，IC模式遵循公开标准选择。
 subroutine electron_reverse_evolve(Delta_0,e_r,b_r,p_r,f_e_r,eta_0,Epsilon_e,Epsilon_b,z,A_star,dNe_ISM,para_m_ej, &
                                    R_tr,f_jump,f_wide,R0, &
                                    T_cross,R_cross,U3_cross,M3_cross,R_Tobs,R_Gamma,R,B3,M3_shell,U3_shell,V_seed, &
@@ -156,28 +156,20 @@ contains
 
         call get_syn_selected(index_syn_intger,R(I_tobs-1),dB,Num_gam_e,Num_nu,n_threads, &
                               gam_e,dN_gam_e(:,I_tobs-1),V_seed,P_syn,Seed_syn)
-        cooling_aux=zero
-        Compton=zero
+        call prepare_forward_cooling_aux(index_Y,Num_gam_e,Num_nu,n_threads,gam_e,V_seed,P_syn,Seed_syn,cooling_aux)
         select case(index_Y)
         case(0)
             dEl=f_r*gam_e
         case(1)
             cooling_scale=one/(beta2*R_Gamma_loc*Para_c)
-            call electron_cooling_ic_loss(Num_gam_e,Num_nu,n_threads,gam_e,V_seed,Seed_syn,cooling_aux)
             dEl=(f_r+cooling_aux*cooling_scale)*gam_e
         case(2)
             Qshell=4d0*pi*R(I_tobs-1)*R(I_tobs-1)*Para_c
-            call electron_cooling_y_nakar(Num_gam_e,Num_nu,n_threads,gam_e,V_seed,P_syn,cooling_aux)
             Compton=one+cooling_aux/Qshell/(4d0*R_Gamma_loc*R_Gamma_loc*R_n4*Para_m_p_E)
             Gam_e_max=Gam_e_max/dsqrt(Compton(Num_gam_e))
             dEl=f_r*Compton*gam_e
-        case(3)
-            call electron_cooling_y_fan(e_r,b_r,p_r,dB,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,gam_e,Compton)
-            Compton=one+Compton
-            Gam_e_max=Gam_e_max/dsqrt(Compton(Num_gam_e))
-            dEl=f_r*Compton*gam_e
         case default
-            error stop 'invalid Compton case, check your chosen model!'
+            error stop 'electron_reverse_evolve: index_Y must be 0, 1, or 2.'
         end select
     end subroutine compute_reverse_cooling_loss
 

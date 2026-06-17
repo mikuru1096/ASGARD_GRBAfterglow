@@ -98,7 +98,7 @@ def _run_dense_radius_grid() -> None:
 
 
 def _run_requested_frequency_seed_bounds() -> None:
-    config = _config(3)
+    config = _config(2)
     config.eta_0 = 300.0
     config.z = 0.1
     requested = np.array([1.0e8, 1.0e30])
@@ -118,7 +118,7 @@ def _run_requested_frequency_seed_bounds() -> None:
 
 
 def main() -> None:
-    for index_y in (0, 3):
+    for index_y in (0, 2):
         _run(index_y)
     _run_sigma_zero_baseline()
     _run_magnetized_interface()
