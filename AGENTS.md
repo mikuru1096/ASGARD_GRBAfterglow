@@ -11,6 +11,12 @@
 
 ## Build Commands
 
+### ApJ/AASTeX 论文工作流
+- 论文主目录为 `paper/`；正式正文从 `paper/main.tex` 编译，引用库为 `paper/references.bib`，本地固定 AASTeX 文件为 `paper/aastex702.cls`、`paper/aastex7.cls` 和 `paper/aasjournalv7.1.bst`。
+- 正式主图只由 `tests/generate_paper_figures.py` 生成；输出进入 `paper/figures/` 和 `paper/source_data/`。未被该入口复制到 `paper/source_data/` 的 `output/` 图件不作为论文主证据。
+- 图件生成命令：`rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/generate_paper_figures.py'`。
+- Windows TeX Live 编译命令：`rtk latexmk -cd -pdf -interaction=nonstopmode -halt-on-error -outdir=build paper/main.tex`。`paper/build/` 是编译产物，不提交。
+
 ### 完整 f2py 编译
 ```bash
 rtk bash -lc "source ~/.wsl_env && cd \"/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow\" && TMPDIR=/tmp uv run python build_extensions.py --module electron_forward_fullhide_1d --force"

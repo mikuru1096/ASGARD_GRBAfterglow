@@ -1,0 +1,11 @@
+source,target
+Public API,RuntimeConfig
+RuntimeConfig,SolveState
+SolveState,Observer products
+Dynamics,Electron transport
+Electron transport,Photon fields
+Photon fields,Hadronic transport
+Reverse shock,Polarization
+Polarization,EATS projection
+EATS projection,Observer products
+Hadronic transport,Observer products
