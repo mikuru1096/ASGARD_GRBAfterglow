@@ -480,60 +480,144 @@ def fig5_reverse_shock() -> None:
     save_pub(fig, "fig5_reverse_shock")
 
 
-def fig6_eats_projection() -> None:
-    theta = np.linspace(0.0, 0.35, 240)
-    gammas = [10.0, 50.0, 200.0]
+def fig6_validation_benchmark() -> None:
+    dynamics = read_csv(ROOT / "output/asgard_doc/dynamics_event_split_tests/multi_jump_tabulated_before_after_delta_metrics.csv")
+    angular = read_csv(ROOT / "output/asgard_doc/angular_sampling_compare/fullref300x48_vs_dominant-region-ioka-time-v1_20x15_metrics.csv")
+    rs = read_csv(ROOT / "output/asgard_doc/reverse_density_jump_tests/triple_density_jump_rs_fs_tophat_adaptive_convergence.csv")
+    before = np.load(ROOT / "output/asgard_doc/charint_structure_preserving/before_charint_ppm_clip.npz")
+    after = np.load(ROOT / "output/asgard_doc/charint_structure_preserving/after_pfc_ppm_charint.npz")
+
     rows: list[dict[str, object]] = []
-    for gamma in gammas:
-        beta = np.sqrt(1.0 - gamma ** -2)
-        delta = 1.0 / (gamma * (1.0 - beta * np.cos(theta)))
-        delay = 1.0 / beta - np.cos(theta)
-        for th, d, tau in zip(theta, delta, delay):
-            rows.append(
-                {
-                    "Gamma": f"{gamma:.8e}",
-                    "theta_rad": f"{th:.8e}",
-                    "doppler_delta": f"{d:.8e}",
-                    "delay_over_R_over_c": f"{tau:.8e}",
-                    "solid_angle_weight": f"{np.sin(th):.8e}",
-                }
-            )
-    write_rows(DATA_DIR / "fig6_eats_projection.csv", rows)
+    for row in dynamics:
+        rows.append(
+            {
+                "kind": "dynamics_event_split",
+                "case": row["case"],
+                "coordinate": row["num_r"],
+                "metric_a": row["max_gamma_direct_rel"],
+                "metric_b": row["max_swept_mass_direct_rel"],
+                "metric_c": row["rms_gamma_direct_rel"],
+                "metric_d": row["rms_swept_mass_direct_rel"],
+            }
+        )
+    for row in angular:
+        rows.append(
+            {
+                "kind": "angular_projection",
+                "case": "dominant_region_20x15_vs_fullref_300x48",
+                "coordinate": row["theta_obs_over_theta_c"],
+                "metric_a": row["max_abs"],
+                "metric_b": row["p95_abs"],
+                "metric_c": row["median_abs"],
+                "metric_d": "",
+            }
+        )
+    for row in rs:
+        rows.append(
+            {
+                "kind": "reverse_shock_adaptive",
+                "case": row["band_hz"],
+                "coordinate": row["adaptive_time_count"],
+                "metric_a": row["peak_time_ratio"],
+                "metric_b": row["peak_flux_fractional_difference"],
+                "metric_c": row["integral_fractional_difference"],
+                "metric_d": row["user_time_count"],
+            }
+        )
+    for dim in ("1d", "2d"):
+        rel = np.abs((after[f"charint_{dim}_flux"] - before[f"charint_{dim}_flux"]) / before[f"charint_{dim}_flux"])
+        number_rel = (
+            after[f"charint_{dim}_electron_number"][0] - before[f"charint_{dim}_electron_number"][0]
+        ) / before[f"charint_{dim}_electron_number"][0]
+        rows.append(
+            {
+                "kind": "transport_remap",
+                "case": dim,
+                "coordinate": "all_frequencies",
+                "metric_a": f"{np.nanmax(rel):.8e}",
+                "metric_b": f"{np.nanpercentile(rel, 95.0):.8e}",
+                "metric_c": f"{np.nanmedian(rel):.8e}",
+                "metric_d": f"{number_rel:.8e}",
+            }
+        )
+    write_rows(DATA_DIR / "fig6_validation_benchmark.csv", rows)
 
-    fig, axes = plt.subplots(1, 3, figsize=(7.1, 2.35))
-    fig.subplots_adjust(left=0.08, right=0.985, bottom=0.24, top=0.84, wspace=0.55)
-    for gamma, color in zip(gammas, [BLUE, TEAL, RED]):
-        beta = np.sqrt(1.0 - gamma ** -2)
-        delta = 1.0 / (gamma * (1.0 - beta * np.cos(theta)))
-        delay = 1.0 / beta - np.cos(theta)
-        axes[0].semilogy(theta, delta, color=color, lw=1.5, label=rf"$\Gamma={gamma:.0f}$")
-        axes[1].semilogy(theta, delay, color=color, lw=1.5)
-    add_panel(axes[0], "a")
-    axes[0].set_xlabel(r"$\theta$ (rad)")
-    axes[0].set_ylabel(r"$\delta$")
-    axes[0].set_title("Doppler beaming")
-    axes[0].legend(fontsize=6)
-    axes[0].grid(color=LIGHT, lw=0.5, which="both")
+    dyn_tab = [row for row in dynamics if row["case"] == "tabulated_csm"]
+    dyn_jump = [row for row in dynamics if row["case"] == "multi_jump"]
+    nr_tab = np.array([float(row["num_r"]) for row in dyn_tab])
+    nr_jump = np.array([float(row["num_r"]) for row in dyn_jump])
+    gamma_tab = np.array([float(row["max_gamma_direct_rel"]) for row in dyn_tab])
+    mass_tab = np.array([float(row["max_swept_mass_direct_rel"]) for row in dyn_tab])
+    gamma_jump = np.array([float(row["max_gamma_direct_rel"]) for row in dyn_jump])
+    mass_jump = np.array([float(row["max_swept_mass_direct_rel"]) for row in dyn_jump])
 
-    add_panel(axes[1], "b")
-    axes[1].set_xlabel(r"$\theta$ (rad)")
-    axes[1].set_ylabel(r"$ct_{\rm delay}/R$")
-    axes[1].set_title("Arrival-time spread")
-    axes[1].grid(color=LIGHT, lw=0.5, which="both")
+    theta_values = np.array([float(row["theta_obs_over_theta_c"]) for row in angular])
+    angular_p95 = np.array([float(row["p95_abs"]) for row in angular])
+    angular_median = np.array([float(row["median_abs"]) for row in angular])
 
-    weight = np.sin(theta)
-    weight = weight / np.trapezoid(weight, theta)
-    beamed = weight * (1.0 / (50.0 * (1.0 - np.sqrt(1.0 - 50.0 ** -2) * np.cos(theta)))) ** 3
-    beamed = beamed / np.trapezoid(beamed, theta)
-    axes[2].plot(theta, weight, color=NEUTRAL, lw=1.5, label=r"$d\Omega$")
-    axes[2].plot(theta, beamed, color=VIOLET, lw=1.5, label=r"$d\Omega\,\delta^3$")
-    add_panel(axes[2], "c")
-    axes[2].set_xlabel(r"$\theta$ (rad)")
-    axes[2].set_ylabel("normalized weight")
-    axes[2].set_title("Angular sampling")
-    axes[2].legend(fontsize=6)
-    axes[2].grid(color=LIGHT, lw=0.5)
-    save_pub(fig, "fig6_eats_projection")
+    rs_freq = np.array([float(row["band_hz"]) for row in rs])
+    peak_flux = np.array([float(row["peak_flux_fractional_difference"]) for row in rs])
+    integral = np.array([float(row["integral_fractional_difference"]) for row in rs])
+    freq_labels = ["1 GHz" if nu == 1.0e9 else "opt." if nu == 1.0e14 else "X-ray" for nu in rs_freq]
+
+    transport_dims = ["1d", "2d"]
+    transport_max = []
+    transport_p95 = []
+    for dim in transport_dims:
+        rel = np.abs((after[f"charint_{dim}_flux"] - before[f"charint_{dim}_flux"]) / before[f"charint_{dim}_flux"])
+        transport_max.append(np.nanmax(rel))
+        transport_p95.append(np.nanpercentile(rel, 95.0))
+
+    fig, axes = plt.subplots(2, 2, figsize=(7.1, 4.75))
+    fig.subplots_adjust(left=0.08, right=0.985, bottom=0.12, top=0.92, wspace=0.42, hspace=0.48)
+    ax = axes[0, 0]
+
+    ax.loglog(nr_tab, gamma_tab, color=BLUE, marker="o", lw=1.4, label=r"$\Gamma$, tabulated")
+    ax.loglog(nr_tab, mass_tab, color=TEAL, marker="s", lw=1.4, label=r"$M_{\rm sw}$, tabulated")
+    ax.loglog(nr_jump, gamma_jump, color=RED, marker="o", lw=1.1, ls=":", label=r"$\Gamma$, jumps")
+    ax.loglog(nr_jump, mass_jump, color=VIOLET, marker="s", lw=1.1, ls=":", label=r"$M_{\rm sw}$, jumps")
+    add_panel(ax, "a")
+    ax.set_xlabel(r"$N_R$")
+    ax.set_ylabel("relative error")
+    ax.set_title("Dynamics event split")
+    ax.legend(fontsize=5.2)
+    ax.grid(color=LIGHT, lw=0.5, which="both")
+
+    ax = axes[0, 1]
+    ax.plot(theta_values, 100.0 * angular_p95, color=BLUE, marker="o", lw=1.4, label="p95")
+    ax.plot(theta_values, 100.0 * angular_median, color=TEAL, marker="s", lw=1.4, label="median")
+    add_panel(ax, "b")
+    ax.set_xlabel(r"$\theta_{\rm obs}/\theta_{\rm c}$")
+    ax.set_ylabel("|relative error| (%)")
+    ax.set_title("Projection vs 300x48")
+    ax.legend(fontsize=5.8)
+    ax.grid(color=LIGHT, lw=0.5)
+
+    ax = axes[1, 0]
+    y = np.arange(len(freq_labels))
+    ax.barh(y - 0.18, 100.0 * peak_flux, height=0.32, color=RED, label="peak flux")
+    ax.barh(y + 0.18, 100.0 * integral, height=0.32, color=VIOLET, label="integral")
+    ax.axvline(0.0, color=NEUTRAL, lw=0.7)
+    add_panel(ax, "c")
+    ax.set_yticks(y)
+    ax.set_yticklabels(freq_labels)
+    ax.set_xlabel("fractional difference (%)")
+    ax.set_title("RS adaptive vs direct")
+    ax.legend(fontsize=5.8)
+    ax.grid(axis="x", color=LIGHT, lw=0.5)
+
+    ax = axes[1, 1]
+    x = np.arange(len(transport_dims))
+    ax.bar(x - 0.18, 100.0 * np.array(transport_max), width=0.32, color=GOLD, label="max flux")
+    ax.bar(x + 0.18, 100.0 * np.array(transport_p95), width=0.32, color=GREEN, label="p95 flux")
+    add_panel(ax, "d")
+    ax.set_xticks(x)
+    ax.set_xticklabels(["1D", "2D"])
+    ax.set_ylabel("|before-after| (%)")
+    ax.set_title("Transport remap")
+    ax.legend(fontsize=5.8)
+    ax.grid(axis="y", color=LIGHT, lw=0.5)
+    save_pub(fig, "fig6_validation_benchmark")
 
 
 def main() -> None:
@@ -543,7 +627,7 @@ def main() -> None:
     fig3_electron_transport()
     fig4_hadronic_thresholds()
     fig5_reverse_shock()
-    fig6_eats_projection()
+    fig6_validation_benchmark()
 
 
 if __name__ == "__main__":
