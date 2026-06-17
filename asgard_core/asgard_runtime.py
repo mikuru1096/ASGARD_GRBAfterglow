@@ -34,7 +34,12 @@ from asgard_core.asgard_types import (
     ReverseShockEmission,
     SolverAdapterReport,
 )
-from asgard_core.asgard_physics_utils import ambient_density, compute_magnetic_field, density_jump_arrays
+from asgard_core.asgard_physics_utils import (
+    ambient_density,
+    compute_magnetic_field,
+    density_jump_arrays,
+    reverse_shell_baryonic_mass,
+)
 from src import Dynamics, constants
 
 
@@ -1250,7 +1255,7 @@ def _solve_reverse_shock_electrons(
         raise ValueError("Reverse shock dynamics are required to compute reverse electrons.")
     module = _electron_reverse_module().electron_reverse_kernel
     delta_0 = reverse_params.delta_t_s * constants.para_c
-    para_m_ej = config.e_iso / config.eta_0 / constants.para_c**2
+    para_m_ej = reverse_shell_baryonic_mass(config)
     gam_e, d_n_gam_e = module.electron_reverse_evolve(
         delta_0,
         reverse_params.epsilon_e,

@@ -371,7 +371,7 @@ subroutine structured_solve_element(Boundary,E_iso,Gamma0,V_seed,n,Num_nu,Num_R,
                                     track_nu_m,track_nu_c,track_nu_a,track_set)
     !$ use omp_lib
     use constants
-    use dynamics_common, only: dynamics_external_density_profile, density_jump_max
+    use dynamics_common, only: dynamics_external_density_profile, density_jump_max, rs_shell_matter_fraction
     use electron_radiation_kernel, only: get_syn_selected
     use electron_reverse_kernel, only: electron_reverse_evolve
     implicit none
@@ -469,7 +469,7 @@ subroutine structured_solve_element(Boundary,E_iso,Gamma0,V_seed,n,Num_nu,Num_R,
             integer :: ig
 
         allocate(gam_e_rev(Num_gam_e),dN_gam_e_rev(Num_gam_e,Num_R),P_rev_syn(Num_nu,Num_R),Seed_rev_syn(Num_nu,Num_R))
-        para_m_ej=E_iso/Gamma0/Para_c**2
+        para_m_ej=E_iso*rs_shell_matter_fraction(reverse_sigma)/Gamma0/Para_c**2
         call electron_reverse_evolve(reverse_delta_t_s*Para_c,reverse_epsilon_e,reverse_epsilon_b,reverse_p,reverse_f_e, &
                                      Gamma0,B_local(5),B_local(6),B_local(8),B_local(12),B_local(11),para_m_ej, &
                                      B_local(21),B_local(22),B_local(23),B_local(n), &

@@ -27,6 +27,7 @@ from asgard_core.asgard_physics_utils import (
     ambient_density,
     compute_doppler,
     compute_magnetic_field,
+    reverse_shell_baryonic_mass,
 )
 from asgard_core.asgard_physics_utils import density_jump_arrays
 from asgard_core.asgard_postprocess import interpolate_observed_flux
@@ -72,7 +73,7 @@ def build_coupled_shock_geometry(dynamics, config: RuntimeConfig) -> _CoupledSho
     fs_width_cm, rs_width_cm = np.zeros((2, radius_cm.size), dtype=float)
 
     eta_0 = config.eta_0
-    shell_mass_g = config.e_iso / eta_0 / constants.para_c**2
+    shell_mass_g = reverse_shell_baryonic_mass(config)
     delta_0_cm = config.reverse_shock.delta_t_s * constants.para_c
 
     for i, radius_loc in enumerate(radius_cm):

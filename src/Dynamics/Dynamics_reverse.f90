@@ -17,6 +17,7 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
                                dynamics_rk4_reverse_pre_m3, &
                                dynamics_reverse_rhs_iface, dynamics_log_time_step, &
                                dynamics_external_density_base, dynamics_external_density_profile, rs_mag_comp, &
+                               rs_mag_specific_internal, rs_shell_matter_fraction, &
                                dynamics_boundary_r0, dynamics_set_density_jump_profile, &
                                active_density_jump_count, density_jump_max, active_density_jump_r, &
                                active_density_jump_factor, active_density_jump_width
@@ -63,7 +64,7 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
     Num_state=6+5*active_density_jump_count
     allocate(Y(Num_state),event_prev_state(Num_state),event_curr_state(Num_state))
     Y=zero
-    Delta_0=Delta_t*para_c; para_m_ej=E_iso/eta_0/para_c**2
+    Delta_0=Delta_t*para_c; para_m_ej=E_iso*rs_shell_matter_fraction(sigma_r)/eta_0/para_c**2
 
     if (A_star > zero) then
         para_m2=4d0*pi*R(1)*A_star*3d35*para_m_p
@@ -78,7 +79,7 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
     comp_init=rs_mag_comp(gam34_init,sigma_r)
     para_n3_init=comp_init*para_n4_init
     V3_scale=para_m_ej/(para_n3_init*Para_m_p)
-    Y(1:6)=[R_Gamma(1),R(1),para_m2,para_m3/para_m_ej,(gam34_init-one)*para_m3/para_m_ej, &
+    Y(1:6)=[R_Gamma(1),R(1),para_m2,para_m3/para_m_ej,rs_mag_specific_internal(gam34_init,sigma_r)*para_m3/para_m_ej, &
             para_m3/(para_n3_init*Para_m_p)/V3_scale]
 
     DM_0=E_iso/((Eta_0-one)*4d0*pi*Para_m_p_E)
@@ -875,7 +876,8 @@ subroutine reverse_dynamics_rhs(dB3,T_cross,R_cross,e3_cross,gam20,U3_cross,V3_c
              Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,f_e_r,sigma_r)
     use constants
     use dynamics_common, only: dynamics_external_density_base, dynamics_external_density_profile, &
-                               rs_mag_comp, rs_b4_up, reverse_rhs_phase, &
+                               rs_mag_comp, rs_b4_up, rs_mag_specific_internal, &
+                               rs_shell_matter_fraction, reverse_rhs_phase, &
                                active_density_jump_count, active_density_jump_r, active_density_jump_factor, &
                                active_density_jump_width
     implicit none
@@ -888,9 +890,9 @@ subroutine reverse_dynamics_rhs(dB3,T_cross,R_cross,e3_cross,gam20,U3_cross,V3_c
     real(8), parameter :: reverse_synch_b_coeff=0.39d0, reverse_gamma_c_precise_coeff=7.739d8
     real(8) :: gam2,RR,para_m2,para_m3,U3,V3,dNe,u2,u4,Delta,para1,para_n4,beta4,beta2,gam34,para_n3,betars
     real(8) :: dB2,gam_c2,gam_m2,eps2,e3,gam_c3,gam_m3,eps3,dgam2_1,dgam2_2,dgam2,dR,dm2,dm3
-    real(8) :: thermal_gamma3,ad3,dV3_exp,dV3_shock,dU3_shock,dU3_ad,dU3,dV3
+    real(8) :: thermal_specific3,thermal_response3,thermal_gamma3,ad3,dV3_exp,dV3_shock,dU3_shock,dU3_ad,dU3,dV3
     real(8) :: secondary_m_total,secondary_u_total,secondary_v_total,secondary_p_total,secondary_inertia_mass
-    real(8) :: comp_ratio,rho4,B4_ordered,B3_ordered
+    real(8) :: comp_ratio,rho4,B4_ordered,B3_ordered,sigma_inertia,para_n4_inertia,magnetic_inertia_mass
     logical :: pre_crossing
 
     call decode_reverse_state()
@@ -900,29 +902,30 @@ subroutine reverse_dynamics_rhs(dB3,T_cross,R_cross,e3_cross,gam20,U3_cross,V3_c
     call compute_region2_radiative_efficiency()
     e3=U3/V3
     call compute_region3_field()
+    call compute_region3_thermal_state()
     call compute_region3_radiative_efficiency()
     call compute_secondary_inertia_mass()
+    call compute_ordered_magnetic_inertia()
 
-    dgam2_1=-para1*((gam2*gam2-one)*dNe+(gam2*gam34-eta_0)*(beta4-betars)*eta_0*para_n4)
-    dgam2_2=(para_m2+para_m3+(one-eps2)*(two*gam2-one)*para_m2+(one-eps3)*(gam34-one)*para_m3+ &
-             (one-eps3)*gam2*para_m3*(eta_0*(one-beta4*beta2)-eta_0*beta4/(gam2**2*beta2)) + &
-             secondary_inertia_mass)
+    dgam2_1=-para1*((gam2*gam2-one)*dNe+(gam2*gam34-eta_0)*(beta4-betars)*eta_0*para_n4_inertia)
+    dgam2_2=(para_m2+para_m3+magnetic_inertia_mass+(one-eps2)*(two*gam2-one)*para_m2+ &
+             (one-eps3)*thermal_specific3*para_m3 + &
+             (one-eps3)*gam2*thermal_response3*para_m3* &
+             (eta_0*(one-beta4*beta2)-eta_0*beta4/(gam2**2*beta2)) + secondary_inertia_mass)
     dgam2=dgam2_1/dgam2_2
     dR=beta2/(one-beta2)*para_c; dm2=para1*dNe*dR
 
     if (pre_crossing) then
         dm3=para1*(beta4-betars)*eta_0*para_n4*dR
-        thermal_gamma3=gam34
     else
         dm3=zero
-        thermal_gamma3=one+U3/(para_m3*para_c**2)
         if (T_cross < zero .and. gam2 > one) then
             T_cross=T; R_cross=RR; gam20=gam2; e3_cross=e3
             U3_cross=U3; V3_cross=V3; M3_cross=para_m3; gam_m_cross=gam_m3
             B3_ordered_cross=B3_ordered
         end if
         dgam2_1=-u2**2*dm2/dR
-        dgam2_2=para_m_ej+secondary_inertia_mass+(eps2+two*(one-eps2)*gam2)*para_m2
+        dgam2_2=para_m3+magnetic_inertia_mass+secondary_inertia_mass+(eps2+two*(one-eps2)*gam2)*para_m2
         dgam2=dgam2_1/dgam2_2
     end if
     dgam2=dgam2*dR
@@ -930,7 +933,7 @@ subroutine reverse_dynamics_rhs(dB3,T_cross,R_cross,e3_cross,gam20,U3_cross,V3_c
     dV3_exp=V3*(3d0*dR/RR-dgam2/gam2)
     if (pre_crossing) then
         dV3_shock=dm3/(para_n3*Para_m_p)
-        dU3_shock=(gam34-one)*dm3*para_c**2
+        dU3_shock=thermal_specific3*dm3*para_c**2
     else
         dV3_shock=zero; dU3_shock=zero
     end if
@@ -949,6 +952,12 @@ contains
         call dynamics_external_density_profile(A_star,dNe_ISM,RR,R0,1,R_tr,f_jump,f_wide,dNe)
         u2=dsqrt(gam2*gam2-one); u4=dsqrt(eta_0*eta_0-one); Delta=max(Delta_0,RR/eta_0**2)
         para1=4d0*pi*Para_m_p*RR*RR; para_n4=para_m_ej/(para1*eta_0*Delta)
+        if (sigma_r <= zero) then
+            sigma_inertia=one
+        else
+            sigma_inertia=one/rs_shell_matter_fraction(sigma_r)
+        end if
+        para_n4_inertia=para_n4*sigma_inertia
         beta4=u4/eta_0; beta2=u2/gam2
         gam34=(gam2*gam2+eta_0*eta_0-one)/(eta_0*gam2+u2*u4)
         comp_ratio=rs_mag_comp(gam34,sigma_r)
@@ -984,13 +993,40 @@ contains
         dB3=dsqrt(8d0*pi*b_r*e3+B3_ordered*B3_ordered)
     end subroutine compute_region3_field
 
+    subroutine compute_region3_thermal_state()
+    implicit none
+
+        if (pre_crossing) then
+            thermal_specific3=rs_mag_specific_internal(gam34,sigma_r)
+            if (sigma_r <= zero) then
+                thermal_response3=one
+            else
+                thermal_response3=thermal_specific3/(gam34-one)
+            end if
+        else
+            thermal_specific3=U3/(para_m3*para_c**2)
+            thermal_response3=zero
+        end if
+        thermal_gamma3=one+thermal_specific3
+    end subroutine compute_region3_thermal_state
+
     subroutine compute_region3_radiative_efficiency()
     implicit none
 
         gam_c3=reverse_gamma_c_precise_coeff/(dB3*dB3*gam2*T)
-        gam_m3=e_r/f_e_r*Para_m_p_div_m_e*(p_r-two)*(gam34-one)/(p_r-one)+one
+        gam_m3=e_r/f_e_r*Para_m_p_div_m_e*(p_r-two)*thermal_specific3/(p_r-one)+one
         eps3=e_r*min(one,(gam_m3/gam_c3)**(p_r-two))
     end subroutine compute_region3_radiative_efficiency
+
+    subroutine compute_ordered_magnetic_inertia()
+    implicit none
+    real(8) :: magnetic_pressure,magnetic_energy
+
+        magnetic_pressure=B3_ordered*B3_ordered/(8d0*pi)
+        magnetic_energy=magnetic_pressure*V3
+        magnetic_inertia_mass=(magnetic_energy+magnetic_pressure*V3)/(para_c**2)
+        magnetic_inertia_mass=magnetic_inertia_mass+magnetic_pressure*V3/(gam2*gam2*para_c**2)
+    end subroutine compute_ordered_magnetic_inertia
 
     ! Secondary reservoirs 随 contact 共动；其 comoving enthalpy 给 Gamma 方程增加有效惯性。
     subroutine compute_secondary_inertia_mass()

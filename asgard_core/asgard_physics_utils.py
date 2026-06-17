@@ -62,6 +62,10 @@ def density_profile_arrays(config: RuntimeConfig) -> tuple[np.ndarray, np.ndarra
     return profile_r, profile_n
 
 
+def reverse_shell_baryonic_mass(config: RuntimeConfig) -> float:
+    return config.e_iso / ((1.0 + config.reverse_shock.sigma) * config.eta_0 * constants.para_c**2)
+
+
 def ambient_density(radius_cm: np.ndarray | float, config: RuntimeConfig) -> np.ndarray | float:
     """
     Calculate ambient medium density at given radius.

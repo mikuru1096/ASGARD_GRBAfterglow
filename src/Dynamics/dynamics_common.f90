@@ -258,6 +258,18 @@ subroutine dynamics_reverse_gamma_extrema(dB, gamma34, factor2, f_e_r, Gam_e_max
     Gam_e_m = factor2*(gamma34-one)/f_e_r+one
 end subroutine dynamics_reverse_gamma_extrema
 
+! 固定 E_iso 为总 ejecta 能量；有限 sigma 时只有 1/(1+sigma) 是 baryonic rest-mass 分量。
+real(8) function rs_shell_matter_fraction(sigma)
+    implicit none
+    real(8), intent(in) :: sigma
+
+    if (sigma <= zero) then
+        rs_shell_matter_fraction = one
+    else
+        rs_shell_matter_fraction = one/(one+sigma)
+    end if
+end function rs_shell_matter_fraction
+
 ! Vegas 磁化跳跃条件的解析根：给定相对 Lorentz 因子和上游 sigma，返回下游四速度。
 real(8) function rs_vegas_ud(gamma_rel, sigma)
     implicit none
@@ -333,6 +345,26 @@ real(8) function rs_b4_up(rho_up, sigma)
         rs_b4_up = dsqrt(4d0*pi*para_c*para_c*sigma*rho_up)
     end if
 end function rs_b4_up
+
+! MHD jump 给出的下游热比内能；sigma=0 精确回到 hydrodynamic (gamma_rel-1)。
+real(8) function rs_mag_specific_internal(gamma_rel, sigma)
+    implicit none
+    real(8), intent(in) :: gamma_rel, sigma
+    real(8) :: ad, u_down, u_up, gamma_down, gamma_up, comp_ratio, h_down
+
+    if (sigma <= zero) then
+        rs_mag_specific_internal = gamma_rel-one
+    else
+        ad = 4d0/3d0+one/(3d0*gamma_rel)
+        u_down = rs_vegas_ud(gamma_rel, sigma)
+        u_up = dsqrt((one+u_down*u_down)*(gamma_rel*gamma_rel-one))+u_down*gamma_rel
+        gamma_down = dsqrt(one+u_down*u_down)
+        gamma_up = dsqrt(one+u_up*u_up)
+        comp_ratio = u_up/u_down
+        h_down = (one+sigma)*gamma_up/gamma_down-comp_ratio*sigma
+        rs_mag_specific_internal = (h_down-one)/ad
+    end if
+end function rs_mag_specific_internal
 
 subroutine dynamics_rk4_error_n(Y, G, M, P)
     implicit none
