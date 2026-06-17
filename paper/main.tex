@@ -26,7 +26,7 @@
 \email{email to be supplied}
 
 \begin{abstract}
-Interpreting multiwavelength \grb\ afterglows requires a calculation that keeps blast-wave dynamics, particle transport, local photon fields, absorption, and observer projection in the same physical bookkeeping system.  Many public workflows provide efficient synchrotron light curves for structured jets, but fewer expose the intermediate electron, hadron, photon-field, and reverse-shock states needed to test feedback-dominated scenarios or to diagnose numerical failures.  We present \asgard, a Python and Fortran toolkit for \grb\ afterglow modeling and fitting.  The public interface constructs a physical model from jet, external-medium, radiation, numerical, observer, reverse-shock, and hadronic options, while the compiled kernels advance the radius-ordered dynamics, electron transport, synchrotron and synchrotron self-Compton emission, gamma-gamma absorption, one-dimensional hadronic transport, reverse-shock emission, polarization, and observer-frame projection.  The code stores the local state on the shock-radius grid and applies observer time only at the final projection stage, which prevents post-processing fixes from replacing local conservation or source-sink accounting.  We describe the API, governing equations, operator ordering, source-sink ledgers, validation invariants, and explicitly unsupported backend boundaries.  The manuscript emphasizes the physics and algorithms behind public light-curve and spectrum queries, one- and two-dimensional electron transport, shell-level hadronic feedback, magnetized reverse shocks, density-jump secondary reverse shocks, fitting, and runtime reuse.  The present release is a code and methods baseline rather than a single-event fit; its formal hadronic path is one-dimensional, and chi-resolved hadronic feedback and inverse-Compton-mediated electromagnetic cascades remain outside the implemented contract.
+Interpreting multiwavelength \grb\ afterglows requires a calculation that keeps blast-wave dynamics, particle transport, local photon fields, absorption, and observer projection in the same physical bookkeeping system.  Many public workflows provide efficient synchrotron light curves for structured jets, but fewer expose the intermediate electron, hadron, photon-field, and reverse-shock states needed to test feedback-dominated scenarios or to diagnose numerical failures.  We present \asgard, a Python and Fortran toolkit for \grb\ afterglow modeling and fitting.  The public interface constructs a physical model from jet, external-medium, radiation, numerical, observer, reverse-shock, and hadronic options, while the compiled kernels advance the radius-ordered dynamics, electron transport, synchrotron and synchrotron self-Compton emission, gamma-gamma absorption, one-dimensional hadronic transport, reverse-shock emission, polarization, and observer-frame projection.  The code stores the local state on the shock-radius grid and applies observer time only at the final projection stage, which prevents post-processing fixes from replacing local conservation or source-sink accounting.  We describe the API, governing equations, operator ordering, source-sink ledgers, validation invariants, Python/Fortran ownership, parallel execution model, and explicitly unsupported backend boundaries.  The manuscript emphasizes the physics and algorithms behind public light-curve and spectrum queries, one- and two-dimensional electron transport, shell-level hadronic feedback, magnetized reverse shocks, density-jump secondary reverse shocks, fitting, state reuse, and parallel execution.  The present release is a code and methods baseline rather than a single-event fit; its formal hadronic path is one-dimensional, and chi-resolved hadronic feedback and inverse-Compton-mediated electromagnetic cascades remain outside the implemented contract.
 \end{abstract}
 
 \keywords{Gamma-ray bursts (629) --- Computational methods (1965) --- Astronomy software (1855) --- Radiative processes (2055) --- Non-thermal radiation sources (1119)}
@@ -51,7 +51,7 @@ This paper documents the current code and methods baseline.  Section~\ref{sec:co
 
 \vegas\ is the main comparison backend in this repository for reverse-shock jump-condition behavior and for the coupled forward/reverse-shock picture \citep{Wang2025VegasAfterglow}.  Its role in this paper is deliberately narrow.  It is useful when checking whether the reverse-shock branch, magnetized upstream compression, and region-3 thermal state behave plausibly, but it is not treated as the light-curve truth that \asgard\ should reproduce point by point.  A reverse-shock comparison is meaningful only after specifying shell duration, \(\gamma_{34}\), \(U_3/V_3\), turbulent and ordered magnetic fields, crossing state, and emission component definitions.
 
-\pyblast\ is closest in spirit to a modular blast-wave engine: it evolves GRB ejecta and afterglow emission with a broad code architecture for transients \citep{Nedora2025PyBlastAfterglow}.  The comparison is therefore not whether \asgard\ has more switches.  The scientific distinction is where the state contract is closed.  \pyblast\ emphasizes a general blast-wave simulation framework; \asgard\ emphasizes radius-local source-sink accounting for electrons, photons, hadrons, reverse shocks, and observer projection.  This distinction matters when secondary pairs, gamma-gamma absorption, Bethe-Heitler losses, or density-jump reverse shocks are invoked, because those claims require local target fields and source arrays rather than only an observer light curve.
+\pyblast\ is closest in spirit to a modular blast-wave engine inside a broader multiphysics transient framework for electromagnetic counterparts \citep{Nedora2025PyBlastAfterglow}.  The comparison is therefore not whether \asgard\ has more switches.  The scientific distinction is where the state contract is closed.  \pyblast\ emphasizes a general blast-wave and counterpart-modeling framework; \asgard\ emphasizes radius-local source-sink accounting for electrons, photons, hadrons, reverse shocks, and observer projection.  This distinction matters when secondary pairs, gamma-gamma absorption, Bethe-Heitler losses, or density-jump reverse shocks are invoked, because those claims require local target fields and source arrays rather than only an observer light curve.
 
 The comparison codes define the scope of this manuscript.  \asgard\ should not be presented as a faster replacement for \afterglowpy, a lateral-hydrodynamics replacement for \jetsimpy, a reverse-shock replacement for \vegas, or a general-transient replacement for \pyblast.  It is a complementary methods baseline for afterglow calculations in which the physically relevant evidence is the continuity and closure of the radius-local state chain.
 
@@ -617,7 +617,88 @@ Observer-time stiffness follows
 \]
 for a fixed angular patch.  Near the line of sight, the lab-time increase and light-travel delay nearly cancel; off axis, the derivative is larger.  This is why ASGARD advances local microphysics in \(R\) and applies observer-time remapping after local source-sink arrays are built.
 
-\section{Fitting, Parallelism, and Reproducibility} \label{sec:workflow}
+\section{Implementation Architecture, Fitting, and Parallel Execution} \label{sec:workflow}
+
+\subsection{Python and Fortran ownership}
+
+\asgard\ separates model ownership from high-cost numerical kernels.  Python owns public dataclasses, input normalization, fitting, source-data writing, plotting, and user-facing diagnostics.  Fortran owns the compiled dynamics, electron transport, radiation kernels, hadronic kernels, reverse-shock kernels, and projection-heavy loops.  This division is not only an acceleration strategy.  It states which layer is responsible for each scientific contract.
+
+The functional architecture is
+\[
+{\rm public\ dataclasses}
+\rightarrow
+{\rm normalized\ config}
+\rightarrow
+{\rm setup}
+\rightarrow
+{\rm compiled\ solve}
+\rightarrow
+{\rm state\ assembly}
+\rightarrow
+{\rm public\ product}.
+\]
+The public dataclasses record the physical hypothesis.  The normalized configuration records units, flags, backend choices, and unsupported-boundary checks.  The setup object owns grids and derived constants.  The compiled solve writes local arrays.  State assembly attaches names, units, and component roles to those arrays.  Public products then read from the state without changing the upstream particle or photon ledgers.
+
+This architecture is intentionally close to a functional pipeline.  Each stage receives explicit inputs and returns explicit outputs where practical.  Mutable state is limited to objects that represent a real model state, such as a cached solve state or a compiled-kernel output array.  This makes model comparison auditable: a change in \(\epsilon_B\), density, grid, solver family, reverse-shock switch, or hadronic switch can be traced to a specific setup field and a specific downstream state change.
+
+\subsection{Component accounting}
+
+The component object records forward synchrotron, forward SSC, reverse synchrotron, reverse SSC, cross-zone IC terms, hadronic components, pair-synchrotron outputs, and total flux where enabled.  The observer total is
+\[
+F_{\nu,{\rm total}}
+=
+\sum_c F_{\nu,c}.
+\]
+This equation is simple, but the role of each component is not.  A component can be only an observer luminosity, only a local feedback source, or both if a formal operator supplies the required source and sink arrays.  Component accounting therefore has two ledgers:
+\[
+{\cal L}_{\rm obs}
+=
+\{F_{\nu,c}\},
+\qquad
+{\cal L}_{\rm fb}
+=
+\{Q_e,Q_p,n_\gamma,\Lambda_\gamma\}.
+\]
+The observer ledger is used for plotted flux.  The feedback ledger is allowed to modify \(N_e\), \(N_p\), or \(n_\gamma\).  The code does not infer missing feedback from a plotted luminosity because that would discard the spectrum, shell location, and process identity needed for a source term.
+
+\subsection{State reuse and cache validity}
+
+Let \(S({\cal M})\) be the radius-ordered solve state for a public model \({\cal M}\).  Reusing \(S\) is valid only if the local physical inputs and grids are unchanged:
+\[
+S({\cal M}_1)=S({\cal M}_2)
+\quad{\rm only\ if}\quad
+{\cal I}_{\rm local,1}={\cal I}_{\rm local,2}.
+\]
+Observer requests that merely change interpolation points can reuse the cached state.  Requests that change energy, density, angular structure, microphysics, solver family, internal grids, reverse-shock flags, hadronic flags, or target photon fields must recompute the solve.  A warm observer query is therefore a reuse of physical work already done, not a lower-fidelity model.
+
+This distinction matters for fitting.  A sampler can request many nearby time-frequency points without changing the local state, but it cannot reuse a state after changing a sampled physical parameter.  Runtime reports therefore distinguish cold solves from warm projections.  A cold solve measures the dynamics, transport, radiation, and projection path.  A warm query measures observer interpolation and component assembly on an existing state.
+
+\subsection{Parallel execution model}
+
+Parallel work in \asgard\ follows the same ownership as the physical state.  Angular patch loops can be parallelized for structured jets.  Electron and photon loops can be parallelized inside a single patch.  Chi-resolved transport adds a downstream-coordinate decomposition.  Hadronic kernels add proton-energy and photon-target loops.  Projection kernels add angular and observer-grid loops.  The relevant work scales are therefore configuration dependent:
+\[
+W_{\rm dyn}\sim N_RN_\theta N_\phi,
+\qquad
+W_e\sim N_RN_{\gamma_e}(1+N_\chi),
+\]
+\[
+W_\gamma\sim N_RN_\nu,
+\qquad
+W_p\sim N_RN_{\gamma_p}N_{\nu,{\rm target}},
+\qquad
+W_{\rm obs}\sim N_tN_\nu N_\theta N_\phi(1+N_\chi).
+\]
+These expressions are order-of-work diagnostics, not timing formulae.  They explain why the same thread count can help one run and hurt another.  A small on-axis top-hat model can be dominated by thread overhead.  A large structured-jet calculation can be dominated by angular patch work.  A chi-resolved electron run can be dominated by transport over \((R,\gamma_e,\chi)\).  A formal hadronic run can be dominated by the proton-energy and target-photon loops.
+
+\asgard\ therefore supports several execution modes: single-threaded diagnostic runs, angular outer-loop parallelism for structured jets, kernel-level loops for single-patch transport, and nested outer/inner OpenMP modes when the backend and grid size justify them.  A performance claim is meaningful only with
+\[
+\{
+N_R,N_\theta,N_\phi,N_{\gamma_e},N_\nu,N_\chi,
+N_{\gamma_p},N_{\rm thread},
+{\rm backend},{\rm cold/warm}
+\}.
+\]
+Without these values, a timing number cannot be compared across machines or model classes.  This is why the manuscript treats parallelism as part of reproducibility rather than as a headline speed claim.
 
 \subsection{Fitting path}
 
@@ -704,6 +785,8 @@ The manuscript also does not claim that the validation examples exhaust the phys
 \noindent\textbf{Reverse-shock diagnostics.}  Evidence: Figure~\ref{fig:rs} and tracked sigma and secondary-RS source data.  Status: supported for the benchmark configuration.
 
 \noindent\textbf{Fitting and caching semantics.}  Evidence: Section~\ref{sec:workflow}, fitting documentation, and runtime metadata from formal benchmarks.  Status: supported for public \texttt{Fitter} likelihood and runtime-report interpretation.
+
+\noindent\textbf{Implementation ownership and parallel execution.}  Evidence: Section~\ref{sec:workflow}, the Python/Fortran state chain, and the declared grid-dependent work scalings.  Status: supported as the execution contract for interpreting runtime and reproducibility claims.
 
 \noindent\textbf{Fitting model-escalation workflow.}  Evidence: public fitting documentation and validation expectations in Section~\ref{sec:verification}.  Status: supported as recommended workflow, not as a claim that all possible model comparisons have been run.
 
@@ -1369,61 +1452,6 @@ Each figure in this paper has a physical decision value.  Figure~\ref{fig:radius
 \}.
 \]
 A plot found in an output directory but not regenerated by the paper figure script is not used as manuscript evidence.  This rule keeps exploratory artifacts separate from claims.
-
-\section{Code organization and parallel execution} \label{app:codeorg}
-
-\subsection{Python and Fortran responsibilities}
-
-The repository separates high-level orchestration from high-cost kernels.  Python owns public objects, input normalization, fitting, source-data writing, plotting, and user-facing diagnostics.  Fortran owns the compiled dynamics, electron transport, radiation kernels, hadronic kernels, reverse-shock kernels, and projection-heavy loops.  This division is not merely an acceleration strategy.  It identifies which layer is responsible for which scientific contract.
-
-The functional structure is visible in the state chain:
-\[
-{\rm public\ dataclasses}
-\rightarrow
-{\rm normalized\ config}
-\rightarrow
-{\rm setup}
-\rightarrow
-{\rm compiled\ solve}
-\rightarrow
-{\rm state\ assembly}
-\rightarrow
-{\rm public\ product}.
-\]
-Each arrow is a pure or nearly pure transformation of explicit inputs where practical.  Mutable state is kept at the level where it represents a real model state, such as a cached solve state or a compiled-kernel output array.  This style makes it easier to compare two configurations because differences can be traced to a small set of input objects rather than to a sequence of hidden object mutations.
-
-\subsection{Component accounting}
-
-The component object records forward synchrotron, forward SSC, reverse synchrotron, reverse SSC, cross-zone IC terms, hadronic components, pair-synchrotron outputs, and total flux where enabled.  The total flux is a sum over components on the observer grid:
-\[
-F_{\nu,{\rm total}}
-=
-\sum_c F_{\nu,c}.
-\]
-This equation is simple, but the source of each component is not.  A component can be an observer-only luminosity, a local feedback source, or both if a formal operator supplies the correct source and sink arrays.  Component accounting therefore has two ledgers: an observer ledger for plotted flux and a feedback ledger for quantities that modify \(N_e\), \(N_p\), or \(n_\gamma\).
-
-\subsection{Caching semantics}
-
-Let \(S({\cal M})\) be the radius-ordered solve state for a model \({\cal M}\).  Reusing \(S\) is valid only if the local physical inputs and grids are unchanged:
-\[
-S({\cal M}_1)=S({\cal M}_2)
-\quad{\rm only\ if}\quad
-{\cal I}_{\rm local,1}={\cal I}_{\rm local,2}.
-\]
-Observer requests that merely change interpolation points may use the cached state.  Requests that change density, energy, microphysics, solver family, grid, reverse-shock flags, hadronic flags, or target photon fields must recompute the solve state.  This is why benchmark reports distinguish cold solves from warm queries.
-
-\subsection{Parallelism}
-
-Parallel work appears in angular patches, electron or photon loops, hadronic loops, and structured-jet outer/inner modes.  The best parallel mode depends on grid size.  For a small top-hat on-axis query, thread overhead can dominate.  For a large structured-jet or chi-resolved electron run, kernel-level parallel loops may dominate the cost.  A runtime claim must therefore report
-\[
-\{
-N_R,N_\theta,N_\phi,N_\gamma,N_\nu,N_\chi,
-N_{\rm thread},
-{\rm backend},
-{\rm cold/warm}
-\}.
-\]
-Without these values, a timing number cannot be compared across machines or model classes.
 
 \section{Stage-by-stage algorithmic trace} \label{app:trace}
 
