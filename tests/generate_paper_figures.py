@@ -14,7 +14,7 @@ from _repo_path import ensure_repo_root_on_path
 
 ensure_repo_root_on_path()
 
-from tests.public_api_builders import numerics, radiation, top_hat_model
+from tests.public_api_builders import numerics, radiation, solver_options, top_hat_model
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -270,9 +270,29 @@ def fig3_electron_transport() -> None:
         ),
     )
     details = model.details(1.0e4, 2.0e4).fwd
+    chi_model = top_hat_model(
+        fwd_rad=radiation(include_ssc=False),
+        numerics=numerics(
+            num_radius=8,
+            num_theta=6,
+            num_observer_time=8,
+            num_electron_gamma=12,
+            num_photon_frequency=12,
+            num_chi=6,
+            num_threads=1,
+        ),
+        solver_options=solver_options(
+            electron_solver="fullhide_2d",
+            geometry_projection="chi_eats_2d",
+        ),
+    )
+    chi_details = chi_model.details(1.0e4, 2.0e4).fwd
     radius = np.asarray(details.radius, dtype=float)
     gamma_e = np.asarray(details.gamma_e, dtype=float)
     electron = np.asarray(details.dN_dgamma_e, dtype=float)
+    chi_radius = np.asarray(chi_details.chi_radius_cm, dtype=float)
+    chi_grid = np.asarray(chi_details.chi_grid, dtype=float)
+    chi_weight = np.asarray(chi_details.chi_dvolume_weight, dtype=float)
     xgrid = np.log10(gamma_e)
     dx = np.gradient(xgrid)
     number_per_x = electron * gamma_e[:, None] * np.log(10.0)
@@ -280,13 +300,6 @@ def fig3_electron_transport() -> None:
     energy_per_shell = np.sum((gamma_e[:, None] - 1.0) * cell_number, axis=0) * MEC2_ERG
     total_number = np.sum(cell_number, axis=0)
 
-    rnorm = np.linspace(0.0, 1.0, 200)
-    cool_a = 1.4e-4
-    char_rows: list[dict[str, object]] = []
-    for g0 in (1.0e3, 1.0e4, 1.0e5, 1.0e6):
-        g = g0 / (1.0 + cool_a * g0 * rnorm)
-        for x, y in zip(rnorm, g):
-            char_rows.append({"gamma0": f"{g0:.8e}", "normalized_radius_step": f"{x:.8e}", "gamma": f"{y:.8e}"})
     rows: list[dict[str, object]] = []
     for j, r in enumerate(radius):
         rows.append(
@@ -297,6 +310,9 @@ def fig3_electron_transport() -> None:
                 "dN_dgamma_e": "",
                 "electron_number": f"{total_number[j]:.8e}",
                 "electron_energy_erg": f"{energy_per_shell[j]:.8e}",
+                "chi": "",
+                "chi_radius_cm": "",
+                "chi_dvolume_weight": "",
             }
         )
     for i, g in enumerate(gamma_e):
@@ -309,10 +325,27 @@ def fig3_electron_transport() -> None:
                     "dN_dgamma_e": f"{electron[i, j]:.8e}",
                     "electron_number": "",
                     "electron_energy_erg": "",
+                    "chi": "",
+                    "chi_radius_cm": "",
+                    "chi_dvolume_weight": "",
+                }
+            )
+    for k, chi in enumerate(chi_grid):
+        for j in range(chi_radius.shape[1]):
+            rows.append(
+                {
+                    "kind": "chi_volume_weight",
+                    "radius_cm": "",
+                    "gamma_e": "",
+                    "dN_dgamma_e": "",
+                    "electron_number": "",
+                    "electron_energy_erg": "",
+                    "chi": f"{chi:.8e}",
+                    "chi_radius_cm": f"{chi_radius[k, j]:.8e}",
+                    "chi_dvolume_weight": f"{chi_weight[k, j]:.8e}",
                 }
             )
     write_rows(DATA_DIR / "fig3_electron_transport.csv", rows)
-    write_rows(DATA_DIR / "fig3_electron_characteristics.csv", char_rows)
 
     fig, axes = plt.subplots(1, 3, figsize=(7.1, 2.45))
     fig.subplots_adjust(left=0.08, right=0.985, bottom=0.24, top=0.84, wspace=0.58)
@@ -342,15 +375,19 @@ def fig3_electron_transport() -> None:
     axes[1].legend(fontsize=5.4)
     axes[1].grid(color=LIGHT, lw=0.5, which="both")
 
-    for g0, color in zip((1.0e3, 1.0e4, 1.0e5, 1.0e6), [BLUE, TEAL, RED, VIOLET]):
-        g = g0 / (1.0 + cool_a * g0 * rnorm)
-        axes[2].semilogy(rnorm, g, color=color, lw=1.4)
-        axes[2].text(rnorm[-1], g[-1], rf"$10^{{{int(np.log10(g0))}}}$", color=color, fontsize=6)
+    chi_plot = np.log10(np.maximum(chi_weight, np.nanmax(chi_weight) * 1.0e-12))
+    pcm = axes[2].pcolormesh(
+        np.log10(np.maximum(chi_radius, np.nanmin(chi_radius[chi_radius > 0]))),
+        np.log10(chi_grid)[:, None] * np.ones_like(chi_radius),
+        chi_plot,
+        shading="auto",
+        cmap="magma",
+    )
     add_panel(axes[2], "c")
-    axes[2].set_xlabel(r"normalized $\Delta R$")
-    axes[2].set_ylabel(r"cooling characteristic $\gamma_e$")
-    axes[2].set_title(r"$d\gamma/dR\propto-\gamma^2$")
-    axes[2].grid(color=LIGHT, lw=0.5, which="both")
+    axes[2].set_xlabel(r"$\log_{10} R_\chi$ (cm)")
+    axes[2].set_ylabel(r"$\log_{10}\chi$")
+    axes[2].set_title(r"2D shell volume weight")
+    fig.colorbar(pcm, ax=axes[2], fraction=0.045, pad=0.02, label=r"$\log w_\chi$")
     save_pub(fig, "fig3_transport_projection")
 
 
