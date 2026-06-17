@@ -22,22 +22,25 @@ PAPER = ROOT / "paper"
 FIG_DIR = PAPER / "figures"
 DATA_DIR = PAPER / "source_data"
 
-BLUE = "#0F4D92"
-BLUE2 = "#3775BA"
-TEAL = "#42949E"
-RED = "#B64342"
-GREEN = "#2E9E44"
-VIOLET = "#9A4D8E"
-GOLD = "#C7921A"
-NEUTRAL = "#4D4D4D"
-LIGHT = "#E8E8E8"
+BLUE = "#24588D"
+TEAL = "#2E8B8B"
+RED = "#B34A48"
+GREEN = "#3E8F4D"
+VIOLET = "#7750A6"
+GOLD = "#B8860B"
+NEUTRAL = "#4A4A4A"
+LIGHT = "#E6E6E6"
+
+C_CGS = 2.99792458e10
+MEC2_ERG = 8.18710565e-7
+EV_TO_ERG = 1.602176634e-12
 
 
-plt.rcParams["font.family"] = "sans-serif"
-plt.rcParams["font.sans-serif"] = ["Arial", "DejaVu Sans", "Liberation Sans"]
-plt.rcParams["svg.fonttype"] = "none"
 plt.rcParams.update(
     {
+        "font.family": "sans-serif",
+        "font.sans-serif": ["Arial", "DejaVu Sans", "Liberation Sans", "sans-serif"],
+        "svg.fonttype": "none",
         "pdf.fonttype": 42,
         "font.size": 7,
         "axes.spines.right": False,
@@ -54,20 +57,25 @@ def ensure_dirs() -> None:
 
 
 def save_pub(fig: plt.Figure, stem: str) -> None:
-    for suffix, kwargs in (
-        ("svg", {}),
-        ("pdf", {}),
-        ("tiff", {"dpi": 600}),
-    ):
-        fig.savefig(FIG_DIR / f"{stem}.{suffix}", bbox_inches="tight", **kwargs)
+    for suffix, kwargs in (("svg", {}), ("pdf", {}), ("tiff", {"dpi": 600})):
+        path = FIG_DIR / f"{stem}.{suffix}"
+        fig.savefig(path, bbox_inches="tight", **kwargs)
+        if suffix == "svg":
+            strip_trailing_whitespace(path)
     plt.close(fig)
+
+
+def strip_trailing_whitespace(path: Path) -> None:
+    text = path.read_text(encoding="utf-8")
+    cleaned = "\n".join(line.rstrip() for line in text.splitlines()) + "\n"
+    path.write_text(cleaned, encoding="utf-8", newline="\n")
 
 
 def write_rows(path: Path, rows: list[dict[str, object]]) -> None:
     if not rows:
         raise ValueError(f"no rows for {path}")
     with path.open("w", encoding="utf-8", newline="") as fh:
-        writer = csv.DictWriter(fh, fieldnames=list(rows[0].keys()))
+        writer = csv.DictWriter(fh, fieldnames=list(rows[0].keys()), lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
 
@@ -78,128 +86,107 @@ def read_csv(path: Path) -> list[dict[str, str]]:
 
 
 def add_panel(ax: plt.Axes, label: str) -> None:
-    ax.text(-0.08, 1.04, label, transform=ax.transAxes, fontweight="bold", fontsize=9)
+    ax.text(-0.10, 1.04, label, transform=ax.transAxes, fontweight="bold", fontsize=9)
 
 
-def draw_box(
-    ax: plt.Axes,
-    xy: tuple[float, float],
-    text: str,
-    color: str,
-    width: float = 0.32,
-    height: float = 0.11,
-    fontsize: float = 7.0,
-) -> None:
-    x, y = xy
-    ax.add_patch(
-        plt.Rectangle(
-            (x - width / 2.0, y - height / 2.0),
-            width,
-            height,
-            facecolor=color,
-            edgecolor="black",
-            linewidth=0.8,
-            alpha=0.16,
-        )
-    )
-    ax.text(x, y, text, ha="center", va="center", fontsize=fontsize, linespacing=0.95)
-
-
-def draw_arrow(ax: plt.Axes, start: tuple[float, float], end: tuple[float, float], color: str = NEUTRAL) -> None:
-    ax.annotate("", xy=end, xytext=start, arrowprops=dict(arrowstyle="-|>", color=color, lw=1.0))
-
-
-def fig1_architecture() -> None:
-    nodes = [
-        ("Public API", 0.18, 0.80, BLUE),
-        ("RuntimeConfig", 0.40, 0.80, BLUE),
-        ("SolveState", 0.62, 0.80, BLUE),
-        ("Observer products", 0.84, 0.80, BLUE),
-        ("Dynamics", 0.25, 0.55, TEAL),
-        ("Electron transport", 0.45, 0.55, TEAL),
-        ("Photon fields", 0.65, 0.55, TEAL),
-        ("Hadronic transport", 0.85, 0.55, TEAL),
-        ("Reverse shock", 0.35, 0.30, VIOLET),
-        ("Polarization", 0.58, 0.30, VIOLET),
-        ("EATS projection", 0.78, 0.30, VIOLET),
-    ]
-    edges = [
-        ("Public API", "RuntimeConfig"),
-        ("RuntimeConfig", "SolveState"),
-        ("SolveState", "Observer products"),
-        ("Dynamics", "Electron transport"),
-        ("Electron transport", "Photon fields"),
-        ("Photon fields", "Hadronic transport"),
-        ("Reverse shock", "Polarization"),
-        ("Polarization", "EATS projection"),
-        ("EATS projection", "Observer products"),
-        ("Hadronic transport", "Observer products"),
-    ]
-    node_pos = {name: (x, y) for name, x, y, _ in nodes}
-    node_labels = {
-        "Public API": "Public\nAPI",
-        "RuntimeConfig": "Runtime\nconfig",
-        "SolveState": "Solve\nstate",
-        "Observer products": "Observer\nproducts",
-        "Electron transport": "Electron\ntransport",
-        "Photon fields": "Photon\nfields",
-        "Hadronic transport": "Hadronic\ntransport",
-        "Reverse shock": "Reverse\nshock",
-        "EATS projection": "EATS\nprojection",
-    }
-    write_rows(DATA_DIR / "fig1_architecture_nodes.csv", [
-        {"node": name, "x": x, "y": y, "family": color} for name, x, y, color in nodes
-    ])
-    write_rows(DATA_DIR / "fig1_architecture_edges.csv", [
-        {"source": src, "target": dst} for src, dst in edges
-    ])
-
-    fig, axes = plt.subplots(1, 2, figsize=(7.1, 3.0), gridspec_kw={"width_ratios": [1.35, 1.0]})
-    ax = axes[0]
-    ax.set_axis_off()
-    ax.set_xlim(0.02, 1.0)
-    ax.set_ylim(0.16, 0.93)
-    for name, x, y, color in nodes:
-        draw_box(ax, (x, y), node_labels.get(name, name), color, width=0.16, height=0.105, fontsize=6.1)
-    for src, dst in edges:
-        sx, sy = node_pos[src]
-        tx, ty = node_pos[dst]
-        direction = np.sign(tx - sx)
-        draw_arrow(ax, (sx + 0.085 * direction, sy), (tx - 0.085 * direction, ty))
-    ax.text(0.03, 0.94, "a", fontweight="bold", fontsize=9)
-    ax.text(0.08, 0.18, "Fortran kernels", color=TEAL, fontsize=7)
-    ax.text(0.49, 0.18, "Python orchestration", color=BLUE, fontsize=7)
-
-    ax = axes[1]
-    add_panel(ax, "b")
-    stages = ["R", "Gamma", "Ne", "Np", "ngamma", "Fnu"]
-    values = np.array([1.0, 0.92, 0.78, 0.56, 0.63, 0.72])
-    ax.plot(stages, values, color=BLUE, lw=1.8, marker="o")
-    ax.set_ylim(0.45, 1.05)
-    ax.set_ylabel("state passed downstream")
-    ax.set_title("Radius-first state chain")
-    ax.grid(axis="y", color=LIGHT, lw=0.6)
-    ax.text(0.02, 0.08, "Observer time is a projection coordinate.", transform=ax.transAxes, fontsize=7)
-    save_pub(fig, "fig1_architecture")
-
-
-def fig2_forward_api() -> None:
-    times = np.logspace(2.0, 7.0, 42)
-    freqs = np.array([1.0e9, 1.0e14, 1.0e18])
-    spec_freq = np.logspace(7.0, 21.0, 80)
-    model = top_hat_model(
+def diagnostic_model():
+    return top_hat_model(
         fwd_rad=radiation(include_ssc=True, include_kn_correction=False),
         numerics=numerics(
-            num_radius=72,
-            num_theta=36,
-            num_observer_time=72,
-            num_electron_gamma=81,
-            num_photon_frequency=64,
+            num_radius=24,
+            num_theta=12,
+            num_observer_time=24,
+            num_electron_gamma=32,
+            num_photon_frequency=32,
             num_threads=1,
         ),
     )
+
+
+def fig1_radius_state() -> None:
+    model = diagnostic_model()
+    details = model.details(1.0e4, 2.0e4).fwd
+    radius = np.asarray(details.radius, dtype=float)
+    gamma = np.asarray(details.Gamma, dtype=float)
+    b_comv = np.asarray(details.B_comv, dtype=float)
+    beta = np.sqrt(1.0 - gamma ** -2)
+    theta = np.linspace(0.0, 0.35, 160)
+    theta_j = 0.10
+    solid_weight = np.sin(theta)
+    solid_weight = solid_weight / np.trapezoid(solid_weight, theta)
+    selected = np.linspace(0, radius.size - 1, min(6, radius.size), dtype=int)
+    t_axis = radius / (2.0 * C_CGS * gamma**2)
+    dt_on = (1.0 / beta - 1.0) / C_CGS
+    dt_edge = (1.0 / beta - np.cos(theta_j)) / C_CGS
+
+    rows: list[dict[str, object]] = []
+    for r, g, b, ta, do, de in zip(radius, gamma, b_comv, t_axis, dt_on, dt_edge):
+        rows.append(
+            {
+                "kind": "asgard_state",
+                "radius_cm": f"{r:.8e}",
+                "Gamma": f"{g:.8e}",
+                "B_comoving_G": f"{b:.8e}",
+                "thin_axis_tobs_s": f"{ta:.8e}",
+                "dtobs_dR_on_axis_s_per_cm": f"{do:.8e}",
+                "dtobs_dR_edge_s_per_cm": f"{de:.8e}",
+            }
+        )
+    for th, weight in zip(theta, solid_weight):
+        rows.append(
+            {
+                "kind": "angular_weight",
+                "radius_cm": "",
+                "Gamma": "",
+                "B_comoving_G": "",
+                "thin_axis_tobs_s": f"{th:.8e}",
+                "dtobs_dR_on_axis_s_per_cm": f"{weight:.8e}",
+                "dtobs_dR_edge_s_per_cm": "",
+            }
+        )
+    write_rows(DATA_DIR / "fig1_radius_state.csv", rows)
+
+    fig, axes = plt.subplots(1, 3, figsize=(7.1, 2.35))
+    fig.subplots_adjust(left=0.075, right=0.985, bottom=0.24, top=0.84, wspace=0.78)
+
+    axes[0].loglog(radius, gamma, color=BLUE, lw=1.7)
+    ax0b = axes[0].twinx()
+    ax0b.loglog(radius, b_comv, color=TEAL, lw=1.5)
+    add_panel(axes[0], "a")
+    axes[0].set_xlabel(r"$R$ (cm)")
+    axes[0].set_ylabel(r"$\Gamma$", color=BLUE)
+    ax0b.set_ylabel(r"$B'$ (G)", color=TEAL, labelpad=8)
+    axes[0].set_title("Local blast-wave state")
+    axes[0].grid(color=LIGHT, lw=0.5, which="both")
+
+    axes[1].loglog(radius, t_axis, color=NEUTRAL, lw=1.5, label=r"$R/2c\Gamma^2$")
+    axes[1].scatter(radius[selected], t_axis[selected], color=RED, s=14, zorder=3)
+    add_panel(axes[1], "b")
+    axes[1].set_xlabel(r"$R$ (cm)")
+    axes[1].set_ylabel(r"$t_{\rm obs}$ scale (s)")
+    axes[1].set_title("Observer time is derived")
+    axes[1].grid(color=LIGHT, lw=0.5, which="both")
+
+    axes[2].semilogy(radius, dt_on * C_CGS, color=BLUE, lw=1.6, label="on axis")
+    axes[2].semilogy(radius, dt_edge * C_CGS, color=VIOLET, lw=1.6, label=r"$\theta=0.1$")
+    axes[2].text(-0.16, 1.06, "c", transform=axes[2].transAxes, fontweight="bold", fontsize=9)
+    axes[2].set_xlabel(r"$R$ (cm)")
+    axes[2].set_ylabel(r"$c\,dt_{\rm obs}/dR$")
+    axes[2].set_title("EATS stiffness")
+    axes[2].legend(fontsize=6)
+    axes[2].grid(color=LIGHT, lw=0.5, which="both")
+    save_pub(fig, "fig1_radius_state")
+
+
+def fig2_forward_spectrum() -> None:
+    model = diagnostic_model()
+    times = np.logspace(2.0, 7.0, 42)
+    freqs = np.array([1.0e9, 1.0e14, 1.0e18])
+    spec_freq = np.logspace(7.0, 21.0, 80)
+    spec_times = np.array([1.0e3, 1.0e5, 1.0e7])
     flux = model.flux_density_grid(times, freqs)
-    spec_flux = model.flux_density_grid(np.array([1.0e5]), spec_freq)
+    spec_flux = model.flux_density_grid(spec_times, spec_freq)
+
     rows: list[dict[str, object]] = []
     for i, nu in enumerate(freqs):
         for t, total, sync, ssc in zip(times, flux.total[i], flux.fwd.sync[i], flux.fwd.ssc[i]):
@@ -213,168 +200,229 @@ def fig2_forward_api() -> None:
                     "fs_ssc_fnu_cgs": f"{ssc:.8e}",
                 }
             )
-    for nu, total, sync, ssc in zip(
-        spec_freq,
-        spec_flux.total[:, 0],
-        spec_flux.fwd.sync[:, 0],
-        spec_flux.fwd.ssc[:, 0],
-    ):
-        rows.append(
-            {
-                "kind": "spectrum_t1e5s",
-                "time_s": "1.00000000e+05",
-                "frequency_hz": f"{nu:.8e}",
-                "total_fnu_cgs": f"{total:.8e}",
-                "fs_synch_fnu_cgs": f"{sync:.8e}",
-                "fs_ssc_fnu_cgs": f"{ssc:.8e}",
-            }
-        )
+    for j, t in enumerate(spec_times):
+        for nu, total, sync, ssc in zip(
+            spec_freq,
+            spec_flux.total[:, j],
+            spec_flux.fwd.sync[:, j],
+            spec_flux.fwd.ssc[:, j],
+        ):
+            rows.append(
+                {
+                    "kind": f"spectrum_t{t:.0e}s",
+                    "time_s": f"{t:.8e}",
+                    "frequency_hz": f"{nu:.8e}",
+                    "total_fnu_cgs": f"{total:.8e}",
+                    "fs_synch_fnu_cgs": f"{sync:.8e}",
+                    "fs_ssc_fnu_cgs": f"{ssc:.8e}",
+                }
+            )
     write_rows(DATA_DIR / "fig2_forward_api.csv", rows)
 
-    fig, axes = plt.subplots(1, 3, figsize=(7.1, 2.45), gridspec_kw={"width_ratios": [1.1, 1.18, 0.95]})
+    fig, axes = plt.subplots(1, 3, figsize=(7.1, 2.45))
     fig.subplots_adjust(left=0.08, right=0.99, bottom=0.24, top=0.84, wspace=0.58)
     colors = [BLUE, TEAL, RED]
-    labels = ["1 GHz", "Optical", "X-ray"]
-    for i, (nu, color, label) in enumerate(zip(freqs, colors, labels)):
-        axes[0].loglog(times, flux.total[i], color=color, lw=1.7, label=label)
+    labels = ["1 GHz", "optical", "X-ray"]
+    for i, (color, label) in enumerate(zip(colors, labels)):
+        axes[0].loglog(times, flux.total[i], color=color, lw=1.6, label=label)
     add_panel(axes[0], "a")
     axes[0].set_xlabel(r"$t_{\rm obs}$ (s)")
     axes[0].set_ylabel(r"$F_\nu$ (cgs)")
-    axes[0].set_title("Public light-curve query")
+    axes[0].set_title("Multi-frequency output")
     axes[0].legend(fontsize=6)
-    axes[0].grid(color=LIGHT, which="both", lw=0.5)
+    axes[0].grid(color=LIGHT, lw=0.5, which="both")
 
-    axes[1].loglog(spec_freq, spec_flux.total[:, 0], color=NEUTRAL, lw=1.8, label="total")
-    axes[1].loglog(spec_freq, spec_flux.fwd.sync[:, 0], color=BLUE, lw=1.5, label="synch")
-    axes[1].loglog(spec_freq, spec_flux.fwd.ssc[:, 0], color=TEAL, lw=1.5, label="SSC")
+    for j, (t, color) in enumerate(zip(spec_times, [BLUE, TEAL, RED])):
+        axes[1].loglog(spec_freq, spec_flux.total[:, j], color=color, lw=1.5, label=rf"$10^{{{int(np.log10(t))}}}$ s")
     add_panel(axes[1], "b")
     axes[1].set_xlabel(r"$\nu$ (Hz)")
     axes[1].set_ylabel(r"$F_\nu$ (cgs)")
-    axes[1].set_title(r"Spectrum at $10^5$ s")
+    axes[1].set_title("Spectral evolution")
     axes[1].legend(fontsize=6)
-    axes[1].grid(color=LIGHT, which="both", lw=0.5)
+    axes[1].grid(color=LIGHT, lw=0.5, which="both")
 
-    ratios = np.max(flux.fwd.ssc / flux.total, axis=1)
-    axes[2].bar(labels, ratios, color=[BLUE2, TEAL, RED], edgecolor="black", linewidth=0.7)
+    ssc_fraction = np.divide(
+        spec_flux.fwd.ssc[:, 1],
+        spec_flux.total[:, 1],
+        out=np.zeros_like(spec_flux.fwd.ssc[:, 1]),
+        where=spec_flux.total[:, 1] > 0.0,
+    )
+    axes[2].semilogx(spec_freq, ssc_fraction, color=VIOLET, lw=1.7)
     add_panel(axes[2], "c")
-    axes[2].set_yscale("log")
-    axes[2].set_ylim(float(np.min(ratios)) / 2.0, float(np.max(ratios)) * 2.0)
-    axes[2].set_ylabel("peak SSC / total", labelpad=2)
-    axes[2].set_title("Component accounting")
-    axes[2].grid(axis="y", color=LIGHT, lw=0.5)
+    axes[2].set_xlabel(r"$\nu$ (Hz)")
+    axes[2].set_ylabel("SSC / total")
+    axes[2].set_ylim(0.0, min(1.0, float(np.nanmax(ssc_fraction)) * 1.2 + 0.02))
+    axes[2].set_title(r"Component role at $10^5$ s")
+    axes[2].grid(color=LIGHT, lw=0.5, which="both")
     save_pub(fig, "fig2_forward_api")
 
 
-def fig3_transport_projection() -> None:
-    runtime_path = ROOT / "output/asgard_doc/runtime_benchmark/runtime_breakdown_summary.csv"
-    rows = read_csv(runtime_path)
-    data = [
-        r
-        for r in rows
-        if r["solver"] == "fullhide_1d" and r["threads"] in {"1", "8"}
-        or r["solver"] == "fullhide_2d" and r["threads"] in {"1", "8"}
-    ]
-    write_rows(DATA_DIR / "fig3_transport_projection_runtime.csv", data)
+def fig3_electron_transport() -> None:
+    model = top_hat_model(
+        fwd_rad=radiation(include_ssc=False),
+        numerics=numerics(
+            num_radius=12,
+            num_theta=8,
+            num_observer_time=12,
+            num_electron_gamma=16,
+            num_photon_frequency=16,
+            num_threads=1,
+        ),
+    )
+    details = model.details(1.0e4, 2.0e4).fwd
+    radius = np.asarray(details.radius, dtype=float)
+    gamma_e = np.asarray(details.gamma_e, dtype=float)
+    electron = np.asarray(details.dN_dgamma_e, dtype=float)
+    xgrid = np.log10(gamma_e)
+    dx = np.gradient(xgrid)
+    number_per_x = electron * gamma_e[:, None] * np.log(10.0)
+    cell_number = number_per_x * dx[:, None]
+    energy_per_shell = np.sum((gamma_e[:, None] - 1.0) * cell_number, axis=0) * MEC2_ERG
+    total_number = np.sum(cell_number, axis=0)
 
-    fig, axes = plt.subplots(1, 3, figsize=(7.1, 2.45), gridspec_kw={"width_ratios": [1.15, 1.05, 1.0]})
-    fig.subplots_adjust(left=0.06, right=0.985, bottom=0.30, top=0.82, wspace=0.65)
-    ax = axes[0]
-    ax.set_axis_off()
-    ax.set_xlim(0, 1)
-    ax.set_ylim(0, 1)
-    draw_box(ax, (0.20, 0.75), "1D\nshells", BLUE, width=0.19, height=0.12, fontsize=6.8)
-    draw_box(ax, (0.56, 0.75), r"$N_e$" "\n" r"$(\gamma,R)$", TEAL, width=0.20, height=0.12, fontsize=6.8)
-    draw_box(ax, (0.86, 0.75), "thin\nEATS", VIOLET, width=0.19, height=0.12, fontsize=6.8)
-    draw_box(ax, (0.20, 0.35), "2D\nshell", BLUE, width=0.19, height=0.12, fontsize=6.8)
-    draw_box(ax, (0.56, 0.35), r"$N_e$" "\n" r"$(\gamma,\chi,R)$", TEAL, width=0.20, height=0.12, fontsize=6.8)
-    draw_box(ax, (0.86, 0.35), r"$\chi$" "\nEATS", VIOLET, width=0.19, height=0.12, fontsize=6.8)
-    for y in (0.75, 0.35):
-        draw_arrow(ax, (0.31, y), (0.45, y))
-        draw_arrow(ax, (0.67, y), (0.76, y))
-    ax.text(0.01, 0.95, "a", fontweight="bold", fontsize=9)
-    ax.set_title("Transport-projection contract")
+    rnorm = np.linspace(0.0, 1.0, 200)
+    cool_a = 1.4e-4
+    char_rows: list[dict[str, object]] = []
+    for g0 in (1.0e3, 1.0e4, 1.0e5, 1.0e6):
+        g = g0 / (1.0 + cool_a * g0 * rnorm)
+        for x, y in zip(rnorm, g):
+            char_rows.append({"gamma0": f"{g0:.8e}", "normalized_radius_step": f"{x:.8e}", "gamma": f"{y:.8e}"})
+    rows: list[dict[str, object]] = []
+    for j, r in enumerate(radius):
+        rows.append(
+            {
+                "kind": "shell_budget",
+                "radius_cm": f"{r:.8e}",
+                "gamma_e": "",
+                "dN_dgamma_e": "",
+                "electron_number": f"{total_number[j]:.8e}",
+                "electron_energy_erg": f"{energy_per_shell[j]:.8e}",
+            }
+        )
+    for i, g in enumerate(gamma_e):
+        for j, r in enumerate(radius):
+            rows.append(
+                {
+                    "kind": "electron_spectrum",
+                    "radius_cm": f"{r:.8e}",
+                    "gamma_e": f"{g:.8e}",
+                    "dN_dgamma_e": f"{electron[i, j]:.8e}",
+                    "electron_number": "",
+                    "electron_energy_erg": "",
+                }
+            )
+    write_rows(DATA_DIR / "fig3_electron_transport.csv", rows)
+    write_rows(DATA_DIR / "fig3_electron_characteristics.csv", char_rows)
 
-    labels = []
-    vals = []
-    colors = []
-    for r in data:
-        labels.append(f"{r['medium']} {r['dimension']} {r['threads']}t")
-        vals.append(float(r["high_level_total_median_s"]))
-        colors.append(BLUE if r["dimension"] == "1d" else TEAL)
-    x = np.arange(len(vals))
-    axes[1].bar(x, vals, color=colors, edgecolor="black", linewidth=0.6)
+    fig, axes = plt.subplots(1, 3, figsize=(7.1, 2.45))
+    fig.subplots_adjust(left=0.08, right=0.985, bottom=0.24, top=0.84, wspace=0.58)
+    pcm = axes[0].pcolormesh(
+        np.log10(radius),
+        np.log10(gamma_e),
+        np.log10(np.maximum(electron, np.max(electron) * 1.0e-18)),
+        shading="auto",
+        cmap="viridis",
+    )
+    add_panel(axes[0], "a")
+    axes[0].set_xlabel(r"$\log_{10} R$ (cm)")
+    axes[0].set_ylabel(r"$\log_{10}\gamma_e$")
+    axes[0].set_title(r"$N_e(\gamma,R)$")
+    fig.colorbar(pcm, ax=axes[0], fraction=0.045, pad=0.02, label=r"$\log N_e$")
+
+    for idx, color in zip(np.linspace(0, radius.size - 1, 4, dtype=int), [BLUE, TEAL, RED, VIOLET]):
+        spec = gamma_e**2 * np.maximum(electron[:, idx], 0.0)
+        norm = np.max(spec)
+        spec = spec / norm if norm > 0.0 else spec
+        axes[1].loglog(gamma_e, np.maximum(spec, 1.0e-10), color=color, lw=1.4, label=rf"$R={radius[idx]:.1e}$")
     add_panel(axes[1], "b")
-    axes[1].set_xticks(x)
-    axes[1].set_xticklabels(labels, rotation=70, ha="right", fontsize=5.5)
-    axes[1].set_ylabel("median wall time (s)")
-    axes[1].set_title("Runtime benchmark")
-    axes[1].grid(axis="y", color=LIGHT, lw=0.5)
+    axes[1].set_xlabel(r"$\gamma_e$")
+    axes[1].set_ylabel(r"normalized $\gamma_e^2 dN/d\gamma_e$")
+    axes[1].set_ylim(1.0e-6, 2.0)
+    axes[1].set_title("Spectral aging")
+    axes[1].legend(fontsize=5.4)
+    axes[1].grid(color=LIGHT, lw=0.5, which="both")
 
-    stages = ["dynamics", "electron", "SSC", r"$\gamma\gamma$", "EATS"]
-    row = next(r for r in data if r["medium"] == "ism" and r["dimension"] == "2d" and r["threads"] == "1")
-    stage_vals = [
-        float(row["dynamics_median_s"]),
-        float(row["electron_synch_median_s"]),
-        float(row["ssc_median_s"]),
-        float(row["annihilation_median_s"]),
-        float(row["sed_eats_interpolation_median_s"]),
-    ]
-    axes[2].bar(stages, stage_vals, color=[NEUTRAL, TEAL, BLUE2, RED, VIOLET], edgecolor="black", linewidth=0.6)
+    for g0, color in zip((1.0e3, 1.0e4, 1.0e5, 1.0e6), [BLUE, TEAL, RED, VIOLET]):
+        g = g0 / (1.0 + cool_a * g0 * rnorm)
+        axes[2].semilogy(rnorm, g, color=color, lw=1.4)
+        axes[2].text(rnorm[-1], g[-1], rf"$10^{{{int(np.log10(g0))}}}$", color=color, fontsize=6)
     add_panel(axes[2], "c")
-    axes[2].set_yscale("log")
-    axes[2].set_ylabel("median stage time (s)")
-    axes[2].set_title("2D solve profile")
-    axes[2].tick_params(axis="x", rotation=45)
-    axes[2].grid(axis="y", color=LIGHT, lw=0.5, which="both")
+    axes[2].set_xlabel(r"normalized $\Delta R$")
+    axes[2].set_ylabel(r"cooling characteristic $\gamma_e$")
+    axes[2].set_title(r"$d\gamma/dR\propto-\gamma^2$")
+    axes[2].grid(color=LIGHT, lw=0.5, which="both")
     save_pub(fig, "fig3_transport_projection")
 
 
-def fig4_hadronic_feedback() -> None:
-    process_rows = [
-        {"process": "proton synchrotron", "feeds_observer": 1, "feeds_electrons": 0, "feeds_photons": 0},
-        {"process": "p-gamma", "feeds_observer": 1, "feeds_electrons": 0, "feeds_photons": 1},
-        {"process": "Bethe-Heitler", "feeds_observer": 1, "feeds_electrons": 1, "feeds_photons": 1},
-        {"process": "pp", "feeds_observer": 1, "feeds_electrons": 1, "feeds_photons": 0},
-        {"process": "gamma-gamma pair/synch", "feeds_observer": 1, "feeds_electrons": 1, "feeds_photons": 1},
-        {"process": "neutrino", "feeds_observer": 1, "feeds_electrons": 0, "feeds_photons": 0},
-    ]
-    write_rows(DATA_DIR / "fig4_hadronic_feedback_contract.csv", process_rows)
-    matrix = np.array([[int(r[k]) for k in ("feeds_observer", "feeds_electrons", "feeds_photons")] for r in process_rows])
+def fig4_hadronic_thresholds() -> None:
+    eps_ev = np.logspace(-6.0, 9.0, 240)
+    eps_erg = eps_ev * EV_TO_ERG
+    # Approximate threshold products in the comoving frame.
+    pgamma_threshold_ev2 = 0.15e18
+    bh_threshold_ev2 = 2.0 * 0.511e6 * 0.938e9
+    gamma_p_pg = pgamma_threshold_ev2 / eps_ev / 0.938e9
+    gamma_p_bh = bh_threshold_ev2 / eps_ev / 0.938e9
+    e_gamma_gg_ev = (0.511e6) ** 2 / eps_ev
+    tau = np.logspace(-3.0, 2.0, 220)
+    survival = np.exp(-tau)
+    cell_transfer = (1.0 - np.exp(-tau)) / tau
+    broken = np.where(eps_ev < 1.0, eps_ev ** 0.4, eps_ev ** -0.8)
+    photon_density = broken / eps_erg
+    photon_density = photon_density / np.nanmax(photon_density)
 
-    fig, axes = plt.subplots(1, 2, figsize=(7.1, 2.55), gridspec_kw={"width_ratios": [1.08, 1.0]})
-    fig.subplots_adjust(left=0.06, right=0.98, bottom=0.28, top=0.82, wspace=0.40)
-    ax = axes[0]
-    ax.set_axis_off()
-    ax.set_xlim(0, 1)
-    ax.set_ylim(0, 1)
-    draw_box(ax, (0.15, 0.70), "shock\nenergy", BLUE, width=0.20, height=0.14, fontsize=6.8)
-    draw_box(ax, (0.43, 0.70), "protons", TEAL, width=0.19, height=0.12, fontsize=6.8)
-    draw_box(ax, (0.70, 0.70), "photons", GOLD, width=0.19, height=0.12, fontsize=6.8)
-    draw_box(ax, (0.58, 0.32), r"secondary" "\n" r"$e^\pm$", RED, width=0.22, height=0.14, fontsize=6.8)
-    draw_box(ax, (0.86, 0.50), "observer", VIOLET, width=0.20, height=0.12, fontsize=6.8)
-    for start, end in [
-        ((0.25, 0.70), (0.34, 0.70)),
-        ((0.525, 0.70), (0.605, 0.70)),
-        ((0.43, 0.64), (0.53, 0.39)),
-        ((0.70, 0.64), (0.63, 0.39)),
-        ((0.74, 0.64), (0.82, 0.54)),
-        ((0.68, 0.36), (0.78, 0.47)),
-    ]:
-        draw_arrow(ax, start, end)
-    ax.text(0.01, 0.95, "a", fontweight="bold", fontsize=9)
-    ax.set_title("Joint shell-level feedback")
+    rows: list[dict[str, object]] = []
+    for e, gp, gbh, egg, nd in zip(eps_ev, gamma_p_pg, gamma_p_bh, e_gamma_gg_ev, photon_density):
+        rows.append(
+            {
+                "kind": "threshold",
+                "target_photon_ev": f"{e:.8e}",
+                "pgamma_gamma_p_threshold": f"{gp:.8e}",
+                "bh_gamma_p_threshold": f"{gbh:.8e}",
+                "gamma_gamma_partner_ev": f"{egg:.8e}",
+                "normalized_n_epsilon": f"{nd:.8e}",
+            }
+        )
+    for t, s, tr in zip(tau, survival, cell_transfer):
+        rows.append(
+            {
+                "kind": "survival",
+                "target_photon_ev": f"{t:.8e}",
+                "pgamma_gamma_p_threshold": f"{s:.8e}",
+                "bh_gamma_p_threshold": f"{tr:.8e}",
+                "gamma_gamma_partner_ev": "",
+                "normalized_n_epsilon": "",
+            }
+        )
+    write_rows(DATA_DIR / "fig4_hadronic_thresholds.csv", rows)
 
-    ax = axes[1]
-    im = ax.imshow(matrix, cmap="Blues", vmin=0, vmax=1, aspect="auto")
-    add_panel(ax, "b")
-    ax.set_yticks(np.arange(len(process_rows)))
-    ax.set_yticklabels([r["process"] for r in process_rows], fontsize=6)
-    ax.set_xticks(np.arange(3))
-    ax.set_xticklabels(["observer", r"$Q_{e^\pm}$", "photon sink"], rotation=35, ha="right")
-    for i in range(matrix.shape[0]):
-        for j in range(matrix.shape[1]):
-            ax.text(j, i, "yes" if matrix[i, j] else "-", ha="center", va="center", fontsize=6)
-    ax.set_title("Implemented feedback roles")
+    fig, axes = plt.subplots(1, 3, figsize=(7.1, 2.45))
+    fig.subplots_adjust(left=0.08, right=0.985, bottom=0.24, top=0.84, wspace=0.58)
+
+    axes[0].loglog(eps_ev, photon_density, color=BLUE, lw=1.7)
+    add_panel(axes[0], "a")
+    axes[0].set_xlabel(r"target photon energy $\epsilon'$ (eV)")
+    axes[0].set_ylabel(r"normalized $n'_{\epsilon'}$")
+    axes[0].set_title(r"$L_{\nu}\rightarrow u_\nu\rightarrow n_\epsilon$")
+    axes[0].grid(color=LIGHT, lw=0.5, which="both")
+
+    axes[1].loglog(eps_ev, gamma_p_pg, color=RED, lw=1.6, label=r"$p\gamma$")
+    axes[1].loglog(eps_ev, gamma_p_bh, color=TEAL, lw=1.6, label="BH")
+    axes[1].loglog(eps_ev, e_gamma_gg_ev / 1.0e9, color=VIOLET, lw=1.4, label=r"$\gamma\gamma$ partner (GeV)")
+    add_panel(axes[1], "b")
+    axes[1].set_xlabel(r"$\epsilon'$ (eV)")
+    axes[1].set_ylabel("threshold scale")
+    axes[1].set_title("Interaction thresholds")
+    axes[1].legend(fontsize=5.8)
+    axes[1].grid(color=LIGHT, lw=0.5, which="both")
+
+    axes[2].loglog(tau, survival, color=RED, lw=1.7, label=r"$e^{-\tau}$")
+    axes[2].loglog(tau, cell_transfer, color=BLUE, lw=1.7, label=r"$(1-e^{-\tau})/\tau$")
+    add_panel(axes[2], "c")
+    axes[2].set_xlabel(r"optical depth $\tau$")
+    axes[2].set_ylabel("survival / transfer")
+    axes[2].set_title("Photon sink semantics")
+    axes[2].legend(fontsize=6)
+    axes[2].grid(color=LIGHT, lw=0.5, which="both")
     save_pub(fig, "fig4_hadronic_feedback")
 
 
@@ -399,7 +447,7 @@ def fig5_reverse_shock() -> None:
     inj = float(energy[0]["secondary_rs_electron_injected_energy_erg"])
     diss = float(energy[0]["secondary_rs_dissipated_energy_erg"])
 
-    fig, axes = plt.subplots(1, 3, figsize=(7.1, 2.35), gridspec_kw={"width_ratios": [1.02, 1.0, 1.05]})
+    fig, axes = plt.subplots(1, 3, figsize=(7.1, 2.35))
     fig.subplots_adjust(left=0.08, right=0.98, bottom=0.23, top=0.84, wspace=0.70)
     axes[0].loglog(sig + 1.0e-6, max_b, color=BLUE, marker="o", label=r"$B_3$")
     ax2 = axes[0].twinx()
@@ -426,75 +474,76 @@ def fig5_reverse_shock() -> None:
     axes[2].set_yticklabels([f"jump {r['jump_index']}" for r in events])
     axes[2].set_xlabel(r"$t_{\rm obs}$ (s)")
     axes[2].set_title("Secondary RS windows")
-    axes[2].text(0.55, 0.07, rf"$E_e/E_{{\rm diss}}={inj/diss:.2f}$", transform=axes[2].transAxes, ha="center")
+    axes[2].text(0.52, 0.08, rf"$E_e/E_{{\rm diss}}={inj/diss:.2f}$", transform=axes[2].transAxes, ha="center")
     add_panel(axes[2], "c")
     axes[2].grid(axis="x", color=LIGHT, lw=0.5, which="both")
     save_pub(fig, "fig5_reverse_shock")
 
 
-def fig6_runtime_reuse() -> None:
-    rows = read_csv(ROOT / "output/asgard_doc/runtime_benchmark/runtime_breakdown_summary.csv")
-    selected = [r for r in rows if r["threads"] == "1"]
-    write_rows(DATA_DIR / "fig6_runtime_summary.csv", selected)
-    metrics = [
-        {"metric": "tracked source files", "value": 179},
-        {"metric": "tracked source lines", "value": 44260},
-        {"metric": "Fortran kernel files", "value": 87},
-        {"metric": "Fortran kernel lines", "value": 21386},
-    ]
-    write_rows(DATA_DIR / "fig6_code_metrics.csv", metrics)
+def fig6_eats_projection() -> None:
+    theta = np.linspace(0.0, 0.35, 240)
+    gammas = [10.0, 50.0, 200.0]
+    rows: list[dict[str, object]] = []
+    for gamma in gammas:
+        beta = np.sqrt(1.0 - gamma ** -2)
+        delta = 1.0 / (gamma * (1.0 - beta * np.cos(theta)))
+        delay = 1.0 / beta - np.cos(theta)
+        for th, d, tau in zip(theta, delta, delay):
+            rows.append(
+                {
+                    "Gamma": f"{gamma:.8e}",
+                    "theta_rad": f"{th:.8e}",
+                    "doppler_delta": f"{d:.8e}",
+                    "delay_over_R_over_c": f"{tau:.8e}",
+                    "solid_angle_weight": f"{np.sin(th):.8e}",
+                }
+            )
+    write_rows(DATA_DIR / "fig6_eats_projection.csv", rows)
 
-    fig, axes = plt.subplots(1, 3, figsize=(7.1, 2.45), gridspec_kw={"width_ratios": [0.9, 1.0, 1.1]})
-    fig.subplots_adjust(left=0.08, right=0.985, bottom=0.29, top=0.83, wspace=0.55)
-    labels = [f"{r['medium']} {r['dimension']}" for r in selected]
-    total = np.array([float(r["high_level_total_median_s"]) for r in selected])
-    x = np.arange(len(total))
-    axes[0].bar(x, total, color=[BLUE if "1d" in label else TEAL for label in labels], edgecolor="black", linewidth=0.6)
+    fig, axes = plt.subplots(1, 3, figsize=(7.1, 2.35))
+    fig.subplots_adjust(left=0.08, right=0.985, bottom=0.24, top=0.84, wspace=0.55)
+    for gamma, color in zip(gammas, [BLUE, TEAL, RED]):
+        beta = np.sqrt(1.0 - gamma ** -2)
+        delta = 1.0 / (gamma * (1.0 - beta * np.cos(theta)))
+        delay = 1.0 / beta - np.cos(theta)
+        axes[0].semilogy(theta, delta, color=color, lw=1.5, label=rf"$\Gamma={gamma:.0f}$")
+        axes[1].semilogy(theta, delay, color=color, lw=1.5)
     add_panel(axes[0], "a")
-    axes[0].set_xticks(x)
-    axes[0].set_xticklabels(labels, rotation=45, ha="right")
-    axes[0].set_ylabel("median wall time (s)")
-    axes[0].set_title("End-to-end query cost")
-    axes[0].grid(axis="y", color=LIGHT, lw=0.5)
+    axes[0].set_xlabel(r"$\theta$ (rad)")
+    axes[0].set_ylabel(r"$\delta$")
+    axes[0].set_title("Doppler beaming")
+    axes[0].legend(fontsize=6)
+    axes[0].grid(color=LIGHT, lw=0.5, which="both")
 
-    stage_names = ["dynamics", "electron", "SSC", r"$\gamma\gamma$", "EATS", "Python"]
-    r = next(row for row in selected if row["medium"] == "ism" and row["dimension"] == "1d")
-    vals = np.array([
-        float(r["dynamics_median_s"]),
-        float(r["electron_synch_median_s"]),
-        float(r["ssc_median_s"]),
-        float(r["annihilation_median_s"]),
-        float(r["sed_eats_interpolation_median_s"]),
-        float(r["python_middle_layer_median_s"]),
-    ])
-    y_stage = np.arange(len(vals))
-    axes[1].barh(y_stage, vals, color=[NEUTRAL, TEAL, BLUE2, RED, VIOLET, GOLD], edgecolor="black", linewidth=0.6)
-    axes[1].set_yticks(y_stage)
-    axes[1].set_yticklabels(stage_names, fontsize=6.2)
-    axes[1].set_xscale("log")
-    axes[1].set_xlabel("median stage time (s)")
-    axes[1].grid(axis="x", color=LIGHT, lw=0.5, which="both")
     add_panel(axes[1], "b")
-    axes[1].set_title("1D ISM stage share")
+    axes[1].set_xlabel(r"$\theta$ (rad)")
+    axes[1].set_ylabel(r"$ct_{\rm delay}/R$")
+    axes[1].set_title("Arrival-time spread")
+    axes[1].grid(color=LIGHT, lw=0.5, which="both")
 
-    metric_labels = ["source files", "source lines", "Fortran files", "Fortran lines"]
-    axes[2].barh(metric_labels, [m["value"] for m in metrics], color=[NEUTRAL, NEUTRAL, VIOLET, VIOLET])
+    weight = np.sin(theta)
+    weight = weight / np.trapezoid(weight, theta)
+    beamed = weight * (1.0 / (50.0 * (1.0 - np.sqrt(1.0 - 50.0 ** -2) * np.cos(theta)))) ** 3
+    beamed = beamed / np.trapezoid(beamed, theta)
+    axes[2].plot(theta, weight, color=NEUTRAL, lw=1.5, label=r"$d\Omega$")
+    axes[2].plot(theta, beamed, color=VIOLET, lw=1.5, label=r"$d\Omega\,\delta^3$")
     add_panel(axes[2], "c")
-    axes[2].set_xscale("log")
-    axes[2].set_xlabel("count")
-    axes[2].set_title("Codebase scale")
-    axes[2].grid(axis="x", color=LIGHT, lw=0.5, which="both")
+    axes[2].set_xlabel(r"$\theta$ (rad)")
+    axes[2].set_ylabel("normalized weight")
+    axes[2].set_title("Angular sampling")
+    axes[2].legend(fontsize=6)
+    axes[2].grid(color=LIGHT, lw=0.5)
     save_pub(fig, "fig6_runtime_reuse")
 
 
 def main() -> None:
     ensure_dirs()
-    fig1_architecture()
-    fig2_forward_api()
-    fig3_transport_projection()
-    fig4_hadronic_feedback()
+    fig1_radius_state()
+    fig2_forward_spectrum()
+    fig3_electron_transport()
+    fig4_hadronic_thresholds()
     fig5_reverse_shock()
-    fig6_runtime_reuse()
+    fig6_eats_projection()
 
 
 if __name__ == "__main__":

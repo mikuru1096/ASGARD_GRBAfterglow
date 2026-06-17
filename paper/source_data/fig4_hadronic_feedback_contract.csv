@@ -1,7 +1,0 @@
-process,feeds_observer,feeds_electrons,feeds_photons
-proton synchrotron,1,0,0
-p-gamma,1,0,1
-Bethe-Heitler,1,1,1
-pp,1,1,0
-gamma-gamma pair/synch,1,1,1
-neutrino,1,0,0
