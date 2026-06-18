@@ -26,7 +26,7 @@
 \email{email to be supplied}
 
 \begin{abstract}
-Interpreting multiwavelength \grb\ afterglows requires more than a final light curve when density structure, reverse shocks, inverse-Compton cooling, hadronic channels, or secondary pairs are active.  We present \asgard, a Python/Fortran afterglow model that evolves a radius-ordered local physical state and only then projects that state to observer time.  The implemented model supports top-hat, Gaussian, and power-law jet initial profiles; uniform, \(k=2\) wind, and tabulated external media; one-dimensional and selected \(\chi\)-resolved electron solvers; forward-shock synchrotron and SSC emission; optional one-dimensional hadronic transport with secondary feedback; optional magnetized and density-jump reverse-shock diagnostics; and component-resolved observer projection.  The central contribution is the explicit state contract: dynamics, electrons, photon fields, hadronic species, reverse-shock variables, absorption factors, and observer components are carried as inspectable objects rather than being collapsed directly into \(F_\nu(t_{\rm obs})\).  The present release is a methods baseline with explicit boundaries.  Formal hadronic feedback is one-dimensional, \(\chi\)-resolved hadronic transport and IC-mediated electromagnetic cascades are not implemented, user-defined media do not enter the Fortran transport kernels, wind profiles with \(k\ne2\) are rejected, and jet spreading is outside the current backend.
+Interpreting multiwavelength \grb\ afterglows requires more than a final light curve when density structure, reverse shocks, inverse-Compton cooling, hadronic channels, or secondary pairs are active.  We present \asgard, a Python/Fortran afterglow model that evolves a radius-ordered local physical state and only then projects that state to observer time.  The implemented model supports top-hat, Gaussian, and power-law jet initial profiles; uniform, \(k=2\) wind, and tabulated external media; implicit, characteristic, discontinuous-Galerkin, and selected \(\chi\)-resolved electron solvers; forward-shock synchrotron and SSC emission; optional one-dimensional hadronic transport with secondary feedback; optional magnetized and density-jump reverse-shock diagnostics; and component-resolved observer projection.  The central contribution is the explicit state contract: dynamics, electrons, photon fields, hadronic species, reverse-shock variables, absorption factors, and observer components are carried as inspectable objects rather than being collapsed directly into \(F_\nu(t_{\rm obs})\).  The present release is a methods baseline with explicit boundaries.  Formal hadronic feedback is one-dimensional, \(\chi\)-resolved hadronic transport and IC-mediated electromagnetic cascades are not implemented, user-defined media do not enter the Fortran transport kernels, wind profiles with \(k\ne2\) are rejected, and jet spreading is outside the current backend.
 \end{abstract}
 
 \keywords{Gamma-ray bursts (629) --- Computational methods (1965) --- Astronomy software (1855) --- Radiative processes (2055) --- Non-thermal radiation sources (1119)}
@@ -359,7 +359,7 @@ These equations define the branch-3 dynamics used for the default forward-shock 
 
 \section{Electron Transport and Synchrotron Stage} \label{sec:electron}
 
-The electron stage solves a radius-evolution problem for the shock-accelerated electron distribution before any observer-time projection is applied.  The implemented solver families are the implicit \texttt{fullhide} branch (\texttt{fullhide\_1d}, \texttt{fullhide\_1d\_hz}, \texttt{fullhide\_2d}, and \texttt{fullhide\_2d\_pic}), the characteristic-integration branch (\texttt{charint\_1d} and \texttt{charint\_2d}), and one-dimensional transport alternatives (\texttt{slc1\_1d}, \texttt{t2g1\_1d}, and \texttt{weno5\_1d}).  The default solver is \texttt{fullhide\_1d}.  One-dimensional solvers return \(N_e(\gamma_e,R)\), synchrotron luminosity, seed synchrotron photon density, and spectral-break diagnostics.  Two-dimensional solvers additionally return \(\chi\)-resolved electron, synchrotron, seed, optical-depth, radius, bulk-Lorentz-factor, and volume-weight arrays.  The \(\chi\)-resolved \eats\ projection is restricted to the supported two-dimensional projection path.  The WENO option is a numerical transport option rather than a different physical electron model \citep{LeVeque2002,JiangShu1996}.
+The electron stage solves a radius-evolution problem for the shock-accelerated electron distribution before any observer-time projection is applied.  The implemented solver families are the implicit \texttt{fullhide} branch (\texttt{fullhide\_1d}, \texttt{fullhide\_1d\_hz}, \texttt{fullhide\_2d}, and \texttt{fullhide\_2d\_pic}), the characteristic-integration branch (\texttt{charint\_1d} and \texttt{charint\_2d}), the one-dimensional nodal discontinuous-Galerkin branch (\texttt{dg\_1d}), and one-dimensional transport alternatives (\texttt{slc1\_1d}, \texttt{t2g1\_1d}, and \texttt{weno5\_1d}).  The default solver is \texttt{fullhide\_1d}.  One-dimensional solvers return \(N_e(\gamma_e,R)\), synchrotron luminosity, seed synchrotron photon density, and spectral-break diagnostics.  Two-dimensional solvers additionally return \(\chi\)-resolved electron, synchrotron, seed, optical-depth, radius, bulk-Lorentz-factor, and volume-weight arrays.  The \(\chi\)-resolved \eats\ projection is restricted to the supported two-dimensional projection path.  The DG, finite-volume, and WENO options are numerical transport options for the same electron equation rather than different physical electron models \citep{LeVeque2002,JiangShu1996,HesthavenWarburton2008}.
 
 The common equation is written in radius form as
 \[
@@ -408,6 +408,56 @@ whereas for \(1<p<2\),
 \right]^{1/(p-1)}+1.
 \]
 For \(p=2\), \(\gamma_m\) is obtained from the logarithmic normalization.  A single \(p>2\) formula therefore does not represent the implemented injection model.
+
+The \texttt{dg\_1d} solver uses the same transported variable \(N_x\) but replaces the cell-average upwind update by a moving multi-domain nodal DG discretization.  On element \(K_k=[x_{k,L},x_{k,R}]\), with \(x=x_k+\Delta x_kr/2\) and \(r\in[-1,1]\),
+\[
+N_x^h(x,R)\big|_{K_k}=
+\sum_{\ell=0}^{p_{\rm DG}}N_{k\ell}(R)\ell_\ell(r),
+\qquad p_{\rm DG}=12,
+\]
+where \(\ell_\ell\) are Lagrange polynomials on the Legendre--Gauss--Lobatto nodes.  The mesh is rebuilt at each shell from active break positions \(\log_{10}\gamma_m\), \(\log_{10}\gamma_c\), and \(\log_{10}\gamma_{\max}\); active intervals are split into six DG elements, and breaks outside the electron grid or indistinguishable at the current log-grid width are removed from the element-boundary list.  The old DG state is projected to the new mesh and rescaled to preserve the previous total electron content before the next shell advance.
+
+In log-energy form the DG operator advances
+\[
+\frac{\partial N_x}{\partial R}
++\frac{\partial}{\partial x}\left(v_xN_x\right)=Q_x,
+\qquad
+v_x=-\frac{1}{\ln 10}
+\left[\left.\frac{d\ln\gamma_e}{dR}\right|_{\rm rad}
++\left.\frac{d\ln\gamma_e}{dR}\right|_{\rm ad}\right].
+\]
+For the production \texttt{dg\_1d} path the local advection problem is advanced with a fully implicit nodal DG step.  In each element the code forms the dense \(13\times13\) block
+\[
+\left[
+\delta_{ij}
+-\theta\Delta R
+\frac{2}{\Delta x_k}
+\frac{w_j}{w_i}D_{ji}v_{x,j}
+\right]N_{k,j}^{n+1}
+=N_{k,i}^{n}+\Delta R\,Q_{k,i}
++\mathcal{F}_{k,i}^{\rm up},
+\qquad \theta=1,
+\]
+where \(D_{ji}=d\ell_i/dr|_{r_j}\), \(w_i\) are the LGL quadrature weights, and \(\mathcal{F}_{k,i}^{\rm up}\) is the upwind boundary contribution.  Radiative and adiabatic losses move electrons from high to low \(\gamma_e\), so the element blocks are solved from the high-energy element to the low-energy element with the already-computed downstream interface state entering the next block.  The source normalization is computed from cell-edge power-law integrals and a four-node positive quadrature over injection bins; the DG source values are then evaluated at collocation nodes and scaled so the nodal source carries the same shell-integrated injected electron number as the edge-integrated source.  Density jumps activate additional shell substeps: candidate substep boundaries are placed around each Gaussian jump, and a local logarithmic density-slope limit prevents the DG mesh from advancing across a sharp density change in one radial solve.
+
+The DG kernel also contains a conservative characteristic projector for the same loss equation.  For an affine loss law
+\[
+\frac{d\gamma}{dR}=-a_{\rm rad}\gamma^2-b_{\rm ad}\gamma,
+\]
+the forward map over lag \(\Delta R\) is
+\[
+\gamma(R+\Delta R)=
+\begin{cases}
+\displaystyle \frac{\gamma(R)}
+{1+a_{\rm rad}\gamma(R)\Delta R}, &
+|b_{\rm ad}\Delta R|\ll1,\\[1.1ex]
+\displaystyle
+\frac{\gamma(R)e^{-b_{\rm ad}\Delta R}}
+{1+(a_{\rm rad}/b_{\rm ad})\gamma(R)
+\left[1-e^{-b_{\rm ad}\Delta R}\right]}, & {\rm otherwise}.
+\end{cases}
+\]
+The inverse map is used to project upstream DG polynomials onto the arrival element with Gauss--Legendre quadrature and Legendre modal moments.  This characteristic projector is part of the DG transport kernel and is used for conservative remapping and diagnostic characteristic advances; the public \texttt{dg\_1d} forward light-curve path currently advances the shell-local transport operator with the fully implicit block solve described above.
 
 Cooling is assembled from synchrotron, inverse-Compton, self-absorption, and adiabatic terms.  The synchrotron part corresponds to
 \[
@@ -591,23 +641,56 @@ The secondary source enters \(Q_{e,{\rm sec},R}\), the updated electron solution
 The reverse-shock stage is enabled only when a shell duration is supplied.  It uses
 \[
 \Delta_0=c\Delta t,\qquad
-M_{\rm ej}=\frac{E_{\rm iso}}{\eta_0c^2},
+M_{{\rm ej},b}=\frac{E_{\rm iso}}{(1+\sigma)\eta_0c^2},
 \qquad
 \Delta(R)=\max\left(\Delta_0,\frac{R}{\eta_0^2}\right),
 \]
 and an upstream ejecta density
 \[
-n_4(R)=\frac{M_{\rm ej}}{4\pi m_pR^2\eta_0\Delta(R)}.
+n_4(R)=\frac{M_{{\rm ej},b}}{4\pi m_pR^2\eta_0\Delta(R)}.
 \]
+Here \(E_{\rm iso}\) is the total ejecta energy.  A finite upstream magnetization therefore reduces the transported baryonic mass by the matter fraction \((1+\sigma)^{-1}\), while the dynamical inertia of the unshocked ejecta uses the corresponding matter-plus-magnetic factor \((1+\sigma)\).  The code keeps these two roles separate: \(n_4\) is the baryon target density for shock heating and particle injection, whereas \(n_{4,{\rm in}}=(1+\sigma)n_4\) enters the inertia carried by the waiting shell.
 The relative Lorentz factor used for reverse-shock electron injection is the shock-front value
 \[
 \gamma_{34}=
 \frac{\Gamma_2^2+\eta_0^2-1}
 {\eta_0\Gamma_2+\sqrt{\Gamma_2^2-1}\sqrt{\eta_0^2-1}},
 \]
-not a postprocessed observer-time estimate.  The reverse-shock framework follows the standard early-afterglow treatment, including wind reverse-shock diagnostics, with magnetized jump-condition scaling taken from the VegasAfterglow comparison baseline \citep{SariPiran1999,Kobayashi2000,ZhangKobayashi2005,PeerWijers2006,Giannios2008,Wang2025VegasAfterglow}.
+not a postprocessed observer-time estimate.  A magnetized reverse shock is allowed to form only when
+\[
+\gamma_{34}>\sqrt{1+\sigma}.
+\]
+Before this condition is met, the reverse branch is in a waiting phase: \(dM_3=0\), no reverse-shock heating is applied, \(B_{3,{\rm ord}}=0\), and the forward-shell deceleration still carries the waiting ejecta inertia.  The crossing from waiting to active reverse shock is bracketed within the current radial step rather than being assigned to the next stored output radius.  The reverse-shock framework follows the standard early-afterglow treatment, including wind reverse-shock diagnostics, and uses the same magnetized jump-condition variables as the \vegas\ comparison calculation without treating \vegas\ as a light-curve target \citep{SariPiran1999,Kobayashi2000,ZhangKobayashi2005,PeerWijers2006,Giannios2008,Wang2025VegasAfterglow}.
 
-The compression ratio is \(r_\sigma=4\gamma_{34}+3\) for \(\sigma=0\).  For \(\sigma>0\), the code rescales this ASGARD zero-magnetization limit by the ratio of the magnetized and unmagnetized Vegas compression factors.  The ordered upstream field is
+The active magnetized jump is solved as a finite-strength local MHD shock.  Let \(g=\gamma_{34}\), \(\hat{\gamma}=4/3+1/(3g)\), \(h_1=\hat{\gamma}-1\), and \(h_2=\hat{\gamma}-2\).  For \(\sigma>10^{-6}\) the code solves a cubic for the downstream four-speed squared \(y=u_d^2\),
+\[
+A y^3+B y^2+C y+D=0,
+\]
+with
+\[
+A=-\hat{\gamma}h_2(g-1)+2,
+\]
+\[
+B=-(g+1)\left[-h_2(\hat{\gamma}g^2+1)
++\hat{\gamma}h_1g\right]\sigma
+-(g-1)\left[-\hat{\gamma}h_2(g^2-2)+2g+3\right],
+\]
+\[
+C=(g+1)\left[\hat{\gamma}\left(1-\frac{\hat{\gamma}}{4}\right)
+(g^2-1)+1\right]\sigma^2
++(g^2-1)\left[2g+h_2(\hat{\gamma}g-1)\right]\sigma
++(g+1)(g-1)^2h_1^2,
+\]
+\[
+D=-\frac{1}{4}(g-1)(g+1)^2h_2^2\sigma^2 .
+\]
+The physically selected root gives \(u_d=\sqrt{y}\).  The upstream four-speed in the downstream frame is
+\[
+u_u=\sqrt{(1+u_d^2)(g^2-1)}+u_dg,
+\]
+and the compression ratio is \(r_\sigma=u_u/u_d\).  In the \(\sigma\le10^{-6}\) branch the same finite-strength hydrodynamic routine is used; the compression returned by the current implementation is \(r_\sigma=4g\), and the thermal specific internal energy is \(g-1\).  The manuscript therefore does not use the ultra-relativistic \(4g+3\) approximation as the baseline jump condition.
+
+The ordered upstream field is
 \[
 B_4=\left(4\pi c^2\sigma\rho_4\right)^{1/2},
 \qquad \rho_4=m_pn_4,
@@ -622,6 +705,34 @@ B_{\rm ord}(R)=B_{{\rm ord},\times}
 \frac{V_{3,\times}}{V_3(R)}
 \frac{R}{R_\times}.
 \]
+The ordered component also enters the dynamics.  The reverse solver adds the magnetic enthalpy inertia of region~3,
+\[
+M_{B,3}=
+\frac{E_{B,{\rm ord}}+p_{B,{\rm ord}}V_3}{c^2}
++\frac{p_{B,{\rm ord}}V_3}{\Gamma_2^2c^2},
+\qquad
+E_{B,{\rm ord}}=p_{B,{\rm ord}}V_3,\quad
+p_{B,{\rm ord}}=\frac{B_{\rm ord}^2}{8\pi},
+\]
+to the denominator of the \(\Gamma_2\) update.  The stored reverse field is therefore not only an emissivity input: the ordered component feeds back into the shell inertia, while the turbulent component sets the local synchrotron cooling and emissivity.
+The same jump solution supplies the thermal specific internal energy.  For finite \(\sigma\),
+\[
+\frac{e_{{\rm th},3}}{c^2}
+=\frac{h_d-1}{\hat{\gamma}},
+\qquad
+h_d=(1+\sigma)\frac{\gamma_u}{\gamma_d}
+-r_\sigma\sigma,
+\]
+where \(\gamma_u=(1+u_u^2)^{1/2}\) and \(\gamma_d=(1+u_d^2)^{1/2}\).  This quantity, not \(\gamma_{34}-1\), is the heat deposited per shocked baryon when the magnetized branch is active.
+During the active pre-crossing stage the \(\Gamma_2\) denominator also carries the region-3 thermal-response factor used by the code,
+\[
+\mathcal{R}_{\rm th,3}=
+\begin{cases}
+1, & \sigma=0,\\
+(e_{{\rm th},3}/c^2)/(\gamma_{34}-1), & \sigma>0,
+\end{cases}
+\]
+so the magnetized jump changes both the explicit ordered-field inertia and the heat-inertia coupling of the shocked ejecta.
 
 The reverse dynamics evolve \((\Gamma_2,R,M_2,M_3,U_3,V_3)\).  Before shell crossing,
 \[
@@ -629,25 +740,51 @@ The reverse dynamics evolve \((\Gamma_2,R,M_2,M_3,U_3,V_3)\).  Before shell cros
 4\pi R^2m_p(\beta_4-\beta_{\rm rs})\eta_0 n_4
 \frac{dR}{dT},
 \]
-where \(dR/dT=\beta_2c/(1-\beta_2)\).  The region-3 thermal state is advanced as
+where \(dR/dT=\beta_2c/(1-\beta_2)\).  The reverse-shock velocity is computed from
 \[
-dU_3=(\gamma_{34}-1)c^2\,dM_3
--(\hat{\gamma}_3-1)U_3\frac{dV_{3,{\rm exp}}}{V_3},
+\beta_{\rm rs}=\beta_4-\Delta\beta_{\rm rs},
+\]
+\[
+\Delta\beta_{\rm rs}
+=
+\frac{r_\sigma(\eta_0^2-\Gamma_2^2)}
+{\eta_0(\Gamma_2u_4+\eta_0u_2)
+(\Gamma_2r_\sigma-\eta_0)},
+\qquad
+u_2=\sqrt{\Gamma_2^2-1},\quad
+u_4=\sqrt{\eta_0^2-1}.
+\]
+The region-3 thermal state is advanced as
+\[
+dU_3=\frac{e_{{\rm th},3}}{c^2}c^2\,dM_3
+-(\hat{\gamma}_{{\rm ad},3}-1)U_3\frac{dV_{3,{\rm exp}}}{V_3},
+\qquad
+\hat{\gamma}_{{\rm ad},3}=
+\frac{4\gamma_{{\rm th},3}+1}{3\gamma_{{\rm th},3}},
+\quad
+\gamma_{{\rm th},3}=1+\frac{e_{{\rm th},3}}{c^2},
 \]
 \[
 dV_3=\frac{dM_3}{r_\sigma n_4m_p}
 +V_3\left(\frac{3\,dR}{R}-\frac{d\Gamma_2}{\Gamma_2}\right).
 \]
-After crossing, \(dM_3=0\), the shock-heating term is removed, and the stored \(U_3/V_3\) thermal state controls the post-crossing electron cooling.  Reverse-shock electrons are then transported with the same log-\(\gamma_e\) implicit upwind machinery used by the forward solver, but their injection rate is tied to the newly shocked ejecta mass,
+After crossing, \(dM_3=0\), the shock-heating term is removed, and the stored \(U_3/V_3\) thermal state controls the post-crossing electron cooling.  Reverse-shock electrons are then transported through the same one-dimensional log-\(\gamma_e\) transport interface used by the forward solver, but their injection rate is tied to the newly shocked ejecta mass,
 \[
 \frac{dN_{e,r}}{dR}=f_{e,r}\frac{1}{m_p}\frac{dM_3}{dR},
 \qquad
 \gamma_{m,r}=1+
 \frac{\epsilon_{e,r}}{f_{e,r}}
 \frac{p_r-2}{p_r-1}
-\frac{m_p}{m_e}(\gamma_{34}-1).
+\frac{m_p}{m_e}
+\frac{e_{{\rm th},3}}{c^2}.
 \]
-The reverse synchrotron luminosity is computed with the same selected synchrotron kernel as the forward shock.  Optional reverse SSC and cross-zone IC are added only in the observer assembly; reverse hadronic full-chain flags reuse the formal one-dimensional hadronic kernels with the reverse magnetic field, reverse seed photons, reverse shell energy, and reverse baryon target density.
+The actual reverse source inserted into the selected one-dimensional electron solver is kinetic rather than an ultra-relativistic \(\gamma^{-p}\) approximation:
+\[
+Q_{x,r}\propto
+\gamma_e\ln10\,(\gamma_e-1)^{-p_r}
+\exp\left(-\frac{\gamma_e}{\gamma_{\max,r}}\right),
+\]
+with the normalization fixed by \(dN_{e,r}/dR\).  Reverse electron transport may use either \texttt{fullhide\_1d} or \texttt{dg\_1d}; both paths share the same shell source and the same post-crossing adiabatic rate from the stored \(V_3(R)\).  The reverse synchrotron luminosity is computed with the same selected synchrotron kernel as the forward shock.  Optional reverse SSC and cross-zone IC are added only in the observer assembly; reverse hadronic full-chain flags reuse the formal one-dimensional hadronic kernels with the reverse magnetic field, reverse seed photons, reverse shell energy, and reverse baryon target density.
 
 Secondary reverse shocks are tied to density-jump events rather than to an independent free component.  For a Gaussian jump \(j\), the branch weight is nonzero only on the rising side,
 \[
@@ -678,7 +815,7 @@ dU_{\rm sec}=u_{\rm diss}\,dV_{\rm sec}
 dV_{\rm sec}=\frac{dM_{\rm sec}}{n_3m_p}
 +V_{\rm sec}\left(\frac{3\,dR}{R}-\frac{d\Gamma_2}{\Gamma_2}\right).
 \]
-The current multi-density reverse-shock path is deliberately narrow: it requires the one-dimensional implicit electron solver, the direct 1D observer path, no hadronic processes, no forward SSC cooling, no reverse SSC, no cross-zone IC, and separated electron-photon coupling.  The manuscript therefore treats the secondary reverse-shock outputs as a diagnostic branch, not as a general reverse-shock model \citep{DaiLu2002,NakarGranot2007,UhmZhang2014,Laskar2016GRB160509A,Alexander2017GRB160625B,Laskar2019GRB181201A,PangDai2024OffaxisRS}.
+The current multi-density reverse-shock path is deliberately narrow: it requires \(p_r>2\), a supported one-dimensional electron solver, \texttt{fullhide\_1d} or \texttt{dg\_1d}, the direct 1D observer path, no hadronic processes, no forward SSC cooling, no reverse SSC, no cross-zone IC, and separated electron-photon coupling.  The manuscript therefore treats the secondary reverse-shock outputs as a diagnostic branch, not as a general reverse-shock model \citep{DaiLu2002,NakarGranot2007,UhmZhang2014,Laskar2016GRB160509A,Alexander2017GRB160625B,Laskar2019GRB181201A,PangDai2024OffaxisRS}.
 
 \begin{figure}[!tp]
   \centering
@@ -689,7 +826,7 @@ The current multi-density reverse-shock path is deliberately narrow: it requires
 
 \section{Observer Projection and Component Assembly} \label{sec:projection}
 
-Observer projection is performed after local luminosities have been assembled.  For a direct top-hat model with a supported medium, \asgard\ uses the direct kernel-backed path.  Other active jet profiles are solved as angular patches through either the Fortran structured backend or the Python patch backend.  The Fortran structured backend currently requires uniform patch sampling and \texttt{fullhide\_1d}; it does not migrate reverse-shock SSC, cross-zone IC, reverse-shock hadronic branches, Bethe-Heitler, \(pp\), hadronic IC, or pair-cascade branches.  The \texttt{dominant\_region\_ioka\_v1} and \texttt{dominant\_region\_ioka\_time\_v1} samplers are restricted to \texttt{python\_patch}.
+Observer projection is performed after local luminosities have been assembled.  For a direct top-hat model with a supported medium, \asgard\ uses the direct kernel-backed path.  Other active jet profiles are solved as angular patches through either the Fortran structured backend or the Python patch backend.  The Fortran structured backend currently requires uniform patch sampling and a supported one-dimensional electron solver, \texttt{fullhide\_1d} or \texttt{dg\_1d}; it does not migrate reverse-shock SSC, cross-zone IC, reverse-shock hadronic branches, Bethe-Heitler, \(pp\), hadronic IC, or pair-cascade branches.  The \texttt{dominant\_region\_ioka\_v1} and \texttt{dominant\_region\_ioka\_time\_v1} samplers are restricted to \texttt{python\_patch}.
 
 For a shell element with direction cosine \(\mu\) relative to the line of sight, observer time is computed from
 \[
@@ -763,12 +900,12 @@ The current release rejects or excludes the following combinations.
 \item Density jumps are limited to eight Gaussian jumps.
 \item Jet spreading is not implemented in the current backend.
 \item Adaptive observer-time grids are limited to direct top-hat kernel-backed models.
-\item The structured Fortran backend requires uniform patch sampling and the one-dimensional implicit electron solver; the non-uniform dominant-region samplers require the Python patch backend.
+\item The structured Fortran backend requires uniform patch sampling and either \texttt{fullhide\_1d} or \texttt{dg\_1d}; the non-uniform dominant-region samplers require the Python patch backend.
 \item Thermal electrons are limited to the one-dimensional implicit electron solvers.
 \item Formal hadronic transport requires a one-dimensional forward electron solver.
 \item The legacy hadronic transport branch does not support \(p\gamma\) or neutrino channels.
 \item Joint electron-photon coupling requires the one-dimensional implicit electron solver, the AM3-based one-dimensional hadronic solver, Hummer--2010 photohadronic response, enabled Bethe-Heitler physics, numeric IC/KN cooling, no reverse shock, no \(\chi\)-resolved transport, and fixed electron substeps.
-\item Multi-density reverse-shock v1 excludes hadronic processes, forward SSC, reverse SSC, cross-zone IC, and joint electron-photon coupling.
+\item Multi-density reverse-shock v1 requires \(p_r>2\) and excludes hadronic processes, forward SSC, reverse SSC, cross-zone IC, and joint electron-photon coupling.
 \item The current formal hadronic path is not chi-resolved.
 \item Pair-cascade iterations cover shell-sequence \(\gamma\gamma\) pair/synch feedback, not IC-mediated electromagnetic cascades.
 \item \texttt{toroidal} polarization currently requires an axisymmetric jet; non-axisymmetric toroidal Stokes projection is not implemented.
