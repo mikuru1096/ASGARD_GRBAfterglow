@@ -252,7 +252,7 @@ def _validate_joint_electron_photon_config(config: RuntimeConfig) -> None:
 
 def _validate_multi_density_reverse_config(config: RuntimeConfig) -> None:
     jump_r, _, _ = density_jump_arrays(config)
-    if jump_r.size < 1:
+    if jump_r.size < 1 or not config.reverse_shock.enabled:
         return
     if str(config.electron_solver).lower() != "fullhide_1d":
         raise NotImplementedError("multi-density reverse shock v1 requires electron_solver='fullhide_1d'.")

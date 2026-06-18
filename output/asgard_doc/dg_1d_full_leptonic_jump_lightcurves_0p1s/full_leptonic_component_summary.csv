@@ -1,0 +1,17 @@
+scenario,solver,band,ssc_frac_p50,ssc_frac_max,ssc_frac_at_total_peak
+ism_continuous_jumps,fullhide_1d,10 GHz,4.02386827e-16,1.86401867e-10,4.24050533e-14
+ism_continuous_jumps,fullhide_1d,R band,4.48571066e-13,4.90075600e-05,2.83811821e-12
+ism_continuous_jumps,fullhide_1d,1 keV,1.61633876e-10,1.13843609e-03,3.19603096e-12
+ism_continuous_jumps,fullhide_1d,100 MeV,1.41189945e-03,4.26938135e-01,1.42277949e-08
+ism_continuous_jumps,dg_1d,10 GHz,2.32300237e-16,1.65581722e-10,6.05353137e-14
+ism_continuous_jumps,dg_1d,R band,3.21370976e-13,5.80258940e-05,2.37623973e-12
+ism_continuous_jumps,dg_1d,1 keV,1.73721123e-10,1.31799902e-03,2.14579889e-12
+ism_continuous_jumps,dg_1d,100 MeV,1.77860680e-03,4.62519147e-01,1.21994180e-08
+wind_ism_jump,fullhide_1d,10 GHz,1.72379174e-12,2.06809040e-10,1.98676118e-12
+wind_ism_jump,fullhide_1d,R band,4.61423963e-10,4.66454718e-05,5.77342505e-11
+wind_ism_jump,fullhide_1d,1 keV,9.72522135e-08,1.04707337e-03,2.05756296e-09
+wind_ism_jump,fullhide_1d,100 MeV,1.93065350e-01,6.34933683e-01,4.47697678e-03
+wind_ism_jump,dg_1d,10 GHz,9.46177968e-13,2.12151253e-10,9.47025693e-13
+wind_ism_jump,dg_1d,R band,6.54202459e-10,5.34156574e-05,4.02659341e-11
+wind_ism_jump,dg_1d,1 keV,1.75024896e-07,1.18122462e-03,1.69335554e-09
+wind_ism_jump,dg_1d,100 MeV,2.40391734e-01,6.65748761e-01,8.78221401e-03

@@ -115,6 +115,10 @@ ELECTRON_2D_SOURCES = (
     "electron_seed_history_kernel.f90",
     "electron_transport_2d_kernel.f90",
 )
+ELECTRON_DG_1D_SOURCES = (
+    *ELECTRON_COMMON_SOURCES,
+    "electron_transport_dg_1d_kernel.f90",
+)
 HADRONIC_1D_SOURCES = (
     "../Constants.f90",
     "../Dynamics/dynamics_common.f90",
@@ -528,6 +532,16 @@ def main() -> None:
         ModuleSpec("electron_forward_weno5_1d", ele, _with_main(ELECTRON_COMMON_SOURCES, "electron_forward_weno5_1d.f90"), omp_flags, OPENMP_LIBS, True, ("fs_electron_weno5_1d",), ("electron_forward_weno5",)),
         ModuleSpec("electron_forward_slc1_1d", ele, _with_main(ELECTRON_COMMON_SOURCES, "electron_forward_slc1_1d.f90"), omp_flags, OPENMP_LIBS, True, ("fs_electron_slc1_1d",), ("electron_forward_slc1",)),
         ModuleSpec("electron_forward_charint_1d", ele, _with_main(ELECTRON_COMMON_SOURCES, "electron_forward_charint_1d.f90"), omp_flags, OPENMP_LIBS, True, ("fs_electron_charint_1d",), ("electron_forward_charint",)),
+        ModuleSpec(
+            "electron_forward_dg_1d",
+            ele,
+            _with_main(ELECTRON_DG_1D_SOURCES, "electron_forward_dg_1d.f90"),
+            omp_flags,
+            OPENMP_LIBS,
+            True,
+            ("fs_electron_dg_1d",),
+            ("electron_forward_dg",),
+        ),
         ModuleSpec(
             "electron_forward_fullhide_1d",
             ele,

@@ -1,0 +1,5 @@
+scenario,solver,seconds,n_times,n_bands,epsilon_e,epsilon_B
+ism_continuous_jumps,fullhide_1d,2.48122661,96,4,0.3,0.001
+ism_continuous_jumps,dg_1d,5.49264021,96,4,0.3,0.001
+wind_ism_jump,fullhide_1d,3.27274518,96,4,0.3,0.001
+wind_ism_jump,dg_1d,5.40661127,96,4,0.3,0.001

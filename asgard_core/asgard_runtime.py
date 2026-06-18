@@ -46,6 +46,7 @@ from src import Dynamics, constants
 _ELECTRON_MODULES = {
     "charint_1d": "src.Electron.electron_forward_charint_1d",
     "charint_2d": "src.Electron.electron_forward_charint_2d",
+    "dg_1d": "src.Electron.electron_forward_dg_1d",
     "fullhide_1d": "src.Electron.electron_forward_fullhide_1d",
     "fullhide_1d_hz": "src.Electron.electron_forward_fullhide_1d_hybrid",
     "fullhide_2d": "src.Electron.electron_forward_transport_2d",
@@ -404,6 +405,31 @@ def solve_electron(
             config,
             solver_name,
             "log-gamma-1d",
+            gam_e,
+            d_n_gam_e,
+            l_syn_spec,
+            seed_syn,
+            nu=(nu_m, nu_c, nu_a),
+            return_report=return_report,
+        )
+
+    if solver_name == "dg_1d":
+        electron_dg_module = _electron_module(solver_name)
+        gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = electron_dg_module.fs_electron_dg_1d(
+            boundary,
+            dynamics.r_tobs,
+            dynamics.r_gamma,
+            dynamics.radius,
+            v_seed,
+            config.num_gam_e,
+            config.index_y,
+            config.index_syn_integr,
+            config.num_threads,
+        )
+        return _finish_electron_solution(
+            config,
+            solver_name,
+            "log-gamma-1d-dg",
             gam_e,
             d_n_gam_e,
             l_syn_spec,
