@@ -1,0 +1,1537 @@
+scenario,solver,band,nu_hz,t_obs_s,flux_density
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,1.00000000e-01,6.64363245e-32
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,1.21397719e-01,1.05430215e-31
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,1.47374062e-01,1.71349446e-31
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,1.78908749e-01,2.85147404e-31
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,2.17191140e-01,4.82425440e-31
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,2.63665090e-01,8.26386802e-31
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,3.20083405e-01,1.43064677e-30
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,3.88573952e-01,2.51396708e-30
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,4.71719914e-01,4.46727975e-30
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,5.72657215e-01,8.02423062e-30
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,6.95192796e-01,1.45169342e-29
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,8.43948197e-01,2.63479559e-29
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,1.02453386e+00,4.78147357e-29
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,1.24376073e+00,8.63928708e-29
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,1.50989716e+00,1.54561099e-28
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,1.83298071e+00,2.72206519e-28
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,2.22519677e+00,4.68356480e-28
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,2.70133812e+00,7.71448050e-28
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,3.27936286e+00,1.21053020e-27
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,3.98107171e+00,1.79109037e-27
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,4.83293024e+00,2.50120598e-27
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,5.86706707e+00,3.32570426e-27
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,7.12248558e+00,4.23964514e-27
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,8.64653503e+00,4.98965156e-27
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,1.04966963e+01,5.51316725e-27
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,1.27427499e+01,6.58703200e-27
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,1.54694077e+01,7.99611532e-27
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,1.87795080e+01,9.40162824e-27
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,2.27978944e+01,1.10917689e-26
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,2.76761237e+01,1.29935218e-26
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,3.35981829e+01,1.50964976e-26
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,4.07874276e+01,1.74305728e-26
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,4.95150067e+01,1.98223095e-26
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,6.01100886e+01,2.19233779e-26
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,7.29722764e+01,2.40898357e-26
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,8.85866790e+01,2.63388354e-26
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,1.07542208e+02,2.84094432e-26
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,1.30553787e+02,3.05529254e-26
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,1.58489319e+02,3.27406233e-26
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,1.92402418e+02,3.50583713e-26
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,2.33572147e+02,3.75576619e-26
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,2.83551258e+02,3.96767895e-26
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,3.44224760e+02,4.22300948e-26
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,4.17881006e+02,4.50463071e-26
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,5.07298009e+02,4.78143701e-26
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,6.15848211e+02,5.07355879e-26
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,7.47625680e+02,5.40052640e-26
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,9.07600522e+02,5.76921293e-26
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,1.10180633e+03,6.17160911e-26
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,1.33756775e+03,6.62789809e-26
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,1.62377674e+03,7.13611946e-26
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,1.97122792e+03,7.71054631e-26
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,2.39302573e+03,8.35916888e-26
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,2.90507865e+03,9.07287974e-26
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,3.52669921e+03,9.85608632e-26
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,4.28133240e+03,1.07173756e-25
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,5.19743987e+03,1.16356701e-25
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,6.30957344e+03,1.25636496e-25
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,7.65967823e+03,1.35429707e-25
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,9.29867465e+03,1.47358356e-25
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,1.12883789e+04,1.62532639e-25
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,1.37038345e+04,1.80441132e-25
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,1.66361425e+04,2.00452883e-25
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,2.01958975e+04,2.22979170e-25
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,2.45173589e+04,2.48787835e-25
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,2.97635144e+04,2.76989002e-25
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,3.61322276e+04,3.05241248e-25
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,4.38637001e+04,3.28149521e-25
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,5.32495313e+04,3.34901808e-25
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,6.46437163e+04,3.39931270e-25
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,7.84759970e+04,3.43186267e-25
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,9.52680703e+04,3.42705721e-25
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,1.15653264e+05,3.39108087e-25
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,1.40400425e+05,3.32103101e-25
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,1.70442913e+05,3.22930293e-25
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,2.06913808e+05,3.14206550e-25
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,2.51188643e+05,3.05225767e-25
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,3.04937283e+05,2.94391555e-25
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,3.70186906e+05,2.84382272e-25
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,4.49398459e+05,2.75806234e-25
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,5.45559478e+05,2.65757607e-25
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,6.62296762e+05,2.54669893e-25
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,8.04013161e+05,2.44818397e-25
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,9.76053637e+05,2.33990278e-25
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,1.18490685e+06,2.20640338e-25
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,1.43844989e+06,2.06716149e-25
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,1.74624535e+06,1.91365403e-25
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,2.11990202e+06,1.72608075e-25
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,2.57351270e+06,1.51556861e-25
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,3.12418571e+06,1.29907607e-25
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,3.79269019e+06,1.08002405e-25
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,4.60423938e+06,8.75541300e-26
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,5.58944158e+06,6.95041426e-26
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,6.78545457e+06,5.42851844e-26
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,8.23738707e+06,4.19116001e-26
+ISM continuous jumps,fullhide_1d,10GHz,1.00000000e+10,1.00000000e+07,3.21007955e-26
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,1.00000000e-01,2.37895154e-30
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,1.21397719e-01,3.77494580e-30
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,1.47374062e-01,6.13469129e-30
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,1.78908749e-01,1.02080345e-29
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,2.17191140e-01,1.72689488e-29
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,2.63665090e-01,2.95790040e-29
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,3.20083405e-01,5.12032794e-29
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,3.88573952e-01,8.99686268e-29
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,4.71719914e-01,1.59861284e-28
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,5.72657215e-01,2.87127398e-28
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,6.95192796e-01,5.19419344e-28
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,8.43948197e-01,9.42675409e-28
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,1.02453386e+00,1.71059773e-27
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,1.24376073e+00,3.09052505e-27
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,1.50989716e+00,5.52862583e-27
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,1.83298071e+00,9.73568385e-27
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,2.22519677e+00,1.67484100e-26
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,2.70133812e+00,2.75800524e-26
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,3.27936286e+00,4.32607965e-26
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,3.98107171e+00,6.39757445e-26
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,4.83293024e+00,8.92844230e-26
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,5.86706707e+00,1.18623331e-25
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,7.12248558e+00,1.51081963e-25
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,8.64653503e+00,1.77584537e-25
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,1.04966963e+01,1.96036833e-25
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,1.27427499e+01,2.34157164e-25
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,1.54694077e+01,2.84027934e-25
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,1.87795080e+01,3.33502236e-25
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,2.27978944e+01,3.92905043e-25
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,2.76761237e+01,4.59555085e-25
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,3.35981829e+01,5.32995865e-25
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,4.07874276e+01,6.14246998e-25
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,4.95150067e+01,6.96980397e-25
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,6.01100886e+01,7.68697287e-25
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,7.29722764e+01,8.41932782e-25
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,8.85866790e+01,9.17111440e-25
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,1.07542208e+02,9.84941037e-25
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,1.30553787e+02,1.05425261e-24
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,1.58489319e+02,1.12384684e-24
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,1.92402418e+02,1.19638524e-24
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,2.33572147e+02,1.27237011e-24
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,2.83551258e+02,1.33103421e-24
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,3.44224760e+02,1.40351025e-24
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,4.17881006e+02,1.48310695e-24
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,5.07298009e+02,1.55767224e-24
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,6.15848211e+02,1.63327615e-24
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,7.47625680e+02,1.71487976e-24
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,9.07600522e+02,1.80169912e-24
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,1.10180633e+03,1.88993444e-24
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,1.33756775e+03,1.98422815e-24
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,1.62377674e+03,2.07952793e-24
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,1.97122792e+03,2.17558350e-24
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,2.39302573e+03,2.26812296e-24
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,2.90507865e+03,2.34332398e-24
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,3.52669921e+03,2.40000662e-24
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,4.28133240e+03,2.43296409e-24
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,5.19743987e+03,2.43406548e-24
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,6.30957344e+03,2.40163782e-24
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,7.65967823e+03,2.33920428e-24
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,9.29867465e+03,2.24065103e-24
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,1.12883789e+04,2.10572212e-24
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,1.37038345e+04,1.93519732e-24
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,1.66361425e+04,1.74056322e-24
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,2.01958975e+04,1.53613612e-24
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,2.45173589e+04,1.32508390e-24
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,2.97635144e+04,1.10157169e-24
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,3.61322276e+04,8.72403255e-25
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,4.38637001e+04,6.24926930e-25
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,5.32495313e+04,3.81813471e-25
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,6.46437163e+04,2.71076951e-25
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,7.84759970e+04,1.96016941e-25
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,9.52680703e+04,1.37798466e-25
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,1.15653264e+05,9.48429934e-26
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,1.40400425e+05,6.44498941e-26
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,1.70442913e+05,4.35338397e-26
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,2.06913808e+05,2.93549233e-26
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,2.51188643e+05,1.98099996e-26
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,3.04937283e+05,1.34035672e-26
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,3.70186906e+05,9.10213974e-27
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,4.49398459e+05,6.19636965e-27
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,5.45559478e+05,4.23853796e-27
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,6.62296762e+05,2.91512717e-27
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,8.04013161e+05,2.01183688e-27
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,9.76053637e+05,1.39424295e-27
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,1.18490685e+06,9.71242858e-28
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,1.43844989e+06,6.79984929e-28
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,1.74624535e+06,4.77374153e-28
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,2.11990202e+06,3.35973438e-28
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,2.57351270e+06,2.37056561e-28
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,3.12418571e+06,1.67963028e-28
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,3.79269019e+06,1.19782475e-28
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,4.60423938e+06,8.60077781e-29
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,5.58944158e+06,6.19515533e-29
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,6.78545457e+06,4.47206048e-29
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,8.23738707e+06,3.23632799e-29
+ISM continuous jumps,fullhide_1d,Rband,4.60000000e+14,1.00000000e+07,2.34833498e-29
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,1.00000000e-01,1.83460489e-29
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,1.21397719e-01,2.90270270e-29
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,1.47374062e-01,4.70682630e-29
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,1.78908749e-01,7.81890935e-29
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,2.17191140e-01,1.32096728e-28
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,2.63665090e-01,2.25984109e-28
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,3.20083405e-01,3.90665378e-28
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,3.88573952e-01,6.85247477e-28
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,4.71719914e-01,1.21480572e-27
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,5.72657215e-01,2.17529227e-27
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,6.95192796e-01,3.91959302e-27
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,8.43948197e-01,7.07782662e-27
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,1.02453386e+00,1.27628113e-26
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,1.24376073e+00,2.28783677e-26
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,1.50989716e+00,4.05311878e-26
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,1.83298071e+00,7.05133766e-26
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,2.22519677e+00,1.19452583e-25
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,2.70133812e+00,1.93109918e-25
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,3.27936286e+00,2.96271480e-25
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,3.98107171e+00,4.27304880e-25
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,4.83293024e+00,5.79795142e-25
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,5.86706707e+00,7.47261452e-25
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,7.12248558e+00,9.21874516e-25
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,8.64653503e+00,1.04672098e-24
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,1.04966963e+01,1.12694753e-24
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,1.27427499e+01,1.31919921e-24
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,1.54694077e+01,1.53278304e-24
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,1.87795080e+01,1.69416731e-24
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,2.27978944e+01,1.87356203e-24
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,2.76761237e+01,2.04343470e-24
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,3.35981829e+01,2.19664472e-24
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,4.07874276e+01,2.34761692e-24
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,4.95150067e+01,2.45556180e-24
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,6.01100886e+01,2.46184894e-24
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,7.29722764e+01,2.44891646e-24
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,8.85866790e+01,2.39800927e-24
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,1.07542208e+02,2.28689225e-24
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,1.30553787e+02,2.13997854e-24
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,1.58489319e+02,1.96841158e-24
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,1.92402418e+02,1.78285136e-24
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,2.33572147e+02,1.57750101e-24
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,2.83551258e+02,1.34833148e-24
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,3.44224760e+02,1.15379072e-24
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,4.17881006e+02,9.84549893e-25
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,5.07298009e+02,8.26125594e-25
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,6.15848211e+02,6.84186397e-25
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,7.47625680e+02,5.63701669e-25
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,9.07600522e+02,4.62282642e-25
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,1.10180633e+03,3.75796951e-25
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,1.33756775e+03,3.06207514e-25
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,1.62377674e+03,2.48525538e-25
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,1.97122792e+03,2.01371409e-25
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,2.39302573e+03,1.63481113e-25
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,2.90507865e+03,1.32415516e-25
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,3.52669921e+03,1.07114144e-25
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,4.28133240e+03,8.65393779e-26
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,5.19743987e+03,6.97242956e-26
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,6.30957344e+03,5.61421375e-26
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,7.65967823e+03,4.53714917e-26
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,9.29867465e+03,3.66650191e-26
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,1.12883789e+04,2.94736761e-26
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,1.37038345e+04,2.34561916e-26
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,1.66361425e+04,1.85039425e-26
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,2.01958975e+04,1.43832697e-26
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,2.45173589e+04,1.09686958e-26
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,2.97635144e+04,8.13918275e-27
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,3.61322276e+04,5.83306304e-27
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,4.38637001e+04,3.72838691e-27
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,5.32495313e+04,1.96210416e-27
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,6.46437163e+04,1.35051454e-27
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,7.84759970e+04,9.77649326e-28
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,9.52680703e+04,6.93050615e-28
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,1.15653264e+05,4.80788518e-28
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,1.40400425e+05,3.27470050e-28
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,1.70442913e+05,2.20074047e-28
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,2.06913808e+05,1.46555744e-28
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,2.51188643e+05,9.72040383e-29
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,3.04937283e+05,6.44101727e-29
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,3.70186906e+05,4.27466114e-29
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,4.49398459e+05,2.83976959e-29
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,5.45559478e+05,1.89299772e-29
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,6.62296762e+05,1.26600069e-29
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,8.04013161e+05,8.48842793e-30
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,9.76053637e+05,5.71203681e-30
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,1.18490685e+06,3.86234373e-30
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,1.43844989e+06,2.62605231e-30
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,1.74624535e+06,1.79000639e-30
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,2.11990202e+06,1.22264594e-30
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,2.57351270e+06,8.36181305e-31
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,3.12418571e+06,5.73993165e-31
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,3.79269019e+06,3.96571871e-31
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,4.60423938e+06,2.75879457e-31
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,5.58944158e+06,1.92449990e-31
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,6.78545457e+06,1.34568479e-31
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,8.23738707e+06,9.43120909e-32
+ISM continuous jumps,fullhide_1d,1keV,2.41798900e+17,1.00000000e+07,6.62457099e-32
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,1.00000000e-01,9.03449497e-31
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,1.21397719e-01,1.36631219e-30
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,1.47374062e-01,2.08130440e-30
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,1.78908749e-01,3.18694950e-30
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,2.17191140e-01,4.88255970e-30
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,2.63665090e-01,7.46701638e-30
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,3.20083405e-01,1.13883086e-29
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,3.88573952e-01,1.73510366e-29
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,4.71719914e-01,2.63556724e-29
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,5.72657215e-01,3.98834822e-29
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,6.95192796e-01,5.99960732e-29
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,8.43948197e-01,8.94749741e-29
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,1.02453386e+00,1.31833251e-28
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,1.24376073e+00,1.90890619e-28
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,1.50989716e+00,2.69481454e-28
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,1.83298071e+00,3.66874154e-28
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,2.22519677e+00,4.74427943e-28
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,2.70133812e+00,5.74549418e-28
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,3.27936286e+00,6.46130942e-28
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,3.98107171e+00,6.76254197e-28
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,4.83293024e+00,6.64382414e-28
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,5.86706707e+00,6.19044671e-28
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,7.12248558e+00,5.53458327e-28
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,8.64653503e+00,4.59817852e-28
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,1.04966963e+01,3.87549150e-28
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,1.27427499e+01,3.39471631e-28
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,1.54694077e+01,2.77019048e-28
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,1.87795080e+01,2.27785541e-28
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,2.27978944e+01,1.87001900e-28
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,2.76761237e+01,1.50964657e-28
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,3.35981829e+01,1.18008974e-28
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,4.07874276e+01,8.96836000e-29
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,4.95150067e+01,6.30649425e-29
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,6.01100886e+01,5.25440723e-29
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,7.29722764e+01,5.30474262e-29
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,8.85866790e+01,3.34908280e-29
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,1.07542208e+02,3.17171041e-29
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,1.30553787e+02,2.46544273e-29
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,1.58489319e+02,1.89902551e-29
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,1.92402418e+02,1.53148397e-29
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,2.33572147e+02,1.18414324e-29
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,2.83551258e+02,9.01573355e-30
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,3.44224760e+02,7.10512451e-30
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,4.17881006e+02,5.68693913e-30
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,5.07298009e+02,4.51583151e-30
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,6.15848211e+02,3.53945573e-30
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,7.47625680e+02,2.77965487e-30
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,9.07600522e+02,2.18201994e-30
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,1.10180633e+03,1.70034754e-30
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,1.33756775e+03,1.33177293e-30
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,1.62377674e+03,1.04015632e-30
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,1.97122792e+03,8.11531918e-31
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,2.39302573e+03,6.35103584e-31
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,2.90507865e+03,4.95869771e-31
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,3.52669921e+03,3.86992783e-31
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,4.28133240e+03,3.02093494e-31
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,5.19743987e+03,2.35449199e-31
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,6.30957344e+03,1.83667146e-31
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,7.65967823e+03,1.43738623e-31
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,9.29867465e+03,1.12082909e-31
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,1.12883789e+04,8.66647979e-32
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,1.37038345e+04,6.63173595e-32
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,1.66361425e+04,5.03513464e-32
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,2.01958975e+04,3.77417338e-32
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,2.45173589e+04,2.78635157e-32
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,2.97635144e+04,2.00488452e-32
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,3.61322276e+04,1.39203448e-32
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,4.38637001e+04,8.48753715e-33
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,5.32495313e+04,4.51989725e-33
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,6.46437163e+04,3.26332582e-33
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,7.84759970e+04,2.38877081e-33
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,9.52680703e+04,1.67298684e-33
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,1.15653264e+05,1.13242671e-33
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,1.40400425e+05,7.48906703e-34
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,1.70442913e+05,4.88099993e-34
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,2.06913808e+05,3.15189063e-34
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,2.51188643e+05,2.02981880e-34
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,3.04937283e+05,1.30769596e-34
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,3.70186906e+05,8.44807719e-35
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,4.49398459e+05,5.46797164e-35
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,5.45559478e+05,3.55426396e-35
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,6.62296762e+05,2.31459446e-35
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,8.04013161e+05,1.51166262e-35
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,9.76053637e+05,9.91334241e-36
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,1.18490685e+06,6.53607438e-36
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,1.43844989e+06,4.33569593e-36
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,1.74624535e+06,2.88437364e-36
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,2.11990202e+06,1.92340892e-36
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,2.57351270e+06,1.28124462e-36
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,3.12418571e+06,8.56618761e-37
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,3.79269019e+06,5.76947493e-37
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,4.60423938e+06,3.91554353e-37
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,5.58944158e+06,2.66604476e-37
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,6.78545457e+06,1.82062806e-37
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,8.23738707e+06,1.24701037e-37
+ISM continuous jumps,fullhide_1d,100MeV,2.41798900e+22,1.00000000e+07,8.56615861e-38
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,1.00000000e-01,6.79763000e-32
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,1.21397719e-01,1.05376451e-31
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,1.47374062e-01,1.68218615e-31
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,1.78908749e-01,2.76183029e-31
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,2.17191140e-01,4.61490870e-31
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,2.63665090e-01,7.82091983e-31
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,3.20083405e-01,1.34540956e-30
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,3.88573952e-01,2.34681405e-30
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,4.71719914e-01,4.14322410e-30
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,5.72657215e-01,7.40206411e-30
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,6.95192796e-01,1.33063791e-29
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,8.43948197e-01,2.40165885e-29
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,1.02453386e+00,4.33128162e-29
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,1.24376073e+00,7.79124783e-29
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,1.50989716e+00,1.38749991e-28
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,1.83298071e+00,2.43264777e-28
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,2.22519677e+00,4.17124320e-28
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,2.70133812e+00,6.84919905e-28
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,3.27936286e+00,1.07300539e-27
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,3.98107171e+00,1.58958664e-27
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,4.83293024e+00,2.22754268e-27
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,5.86706707e+00,2.97578233e-27
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,7.12248558e+00,3.81373719e-27
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,8.64653503e+00,4.50827101e-27
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,1.04966963e+01,5.30835909e-27
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,1.27427499e+01,6.79524079e-27
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,1.54694077e+01,8.33464028e-27
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,1.87795080e+01,9.75599468e-27
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,2.27978944e+01,1.14138335e-26
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,2.76761237e+01,1.32211375e-26
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,3.35981829e+01,1.51731286e-26
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,4.07874276e+01,1.73286984e-26
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,4.95150067e+01,1.94701335e-26
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,6.01100886e+01,2.14696714e-26
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,7.29722764e+01,2.37412267e-26
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,8.85866790e+01,2.57705528e-26
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,1.07542208e+02,2.79791030e-26
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,1.30553787e+02,3.00324304e-26
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,1.58489319e+02,3.20998626e-26
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,1.92402418e+02,3.42858155e-26
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,2.33572147e+02,3.66747371e-26
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,2.83551258e+02,3.88643289e-26
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,3.44224760e+02,4.14518544e-26
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,4.17881006e+02,4.42525812e-26
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,5.07298009e+02,4.69305804e-26
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,6.15848211e+02,4.96859738e-26
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,7.47625680e+02,5.33048267e-26
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,9.07600522e+02,5.73997610e-26
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,1.10180633e+03,6.16423046e-26
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,1.33756775e+03,6.60498860e-26
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,1.62377674e+03,7.08032497e-26
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,1.97122792e+03,7.67870787e-26
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,2.39302573e+03,8.35595211e-26
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,2.90507865e+03,9.10175714e-26
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,3.52669921e+03,9.87757811e-26
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,4.28133240e+03,1.07284100e-25
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,5.19743987e+03,1.17026015e-25
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,6.30957344e+03,1.27066258e-25
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,7.65967823e+03,1.38840497e-25
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,9.29867465e+03,1.54002835e-25
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,1.12883789e+04,1.70798780e-25
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,1.37038345e+04,1.88804001e-25
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,1.66361425e+04,2.08348749e-25
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,2.01958975e+04,2.31377099e-25
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,2.45173589e+04,2.57481752e-25
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,2.97635144e+04,2.84790332e-25
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,3.61322276e+04,3.12082538e-25
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,4.38637001e+04,3.34856189e-25
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,5.32495313e+04,3.36422745e-25
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,6.46437163e+04,3.37846887e-25
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,7.84759970e+04,3.44688115e-25
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,9.52680703e+04,3.48285422e-25
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,1.15653264e+05,3.49026723e-25
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,1.40400425e+05,3.39134542e-25
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,1.70442913e+05,3.24383051e-25
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,2.06913808e+05,3.16604786e-25
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,2.51188643e+05,3.10470721e-25
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,3.04937283e+05,2.99102532e-25
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,3.70186906e+05,2.86619067e-25
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,4.49398459e+05,2.83831077e-25
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,5.45559478e+05,2.73306179e-25
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,6.62296762e+05,2.57656089e-25
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,8.04013161e+05,2.52037912e-25
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,9.76053637e+05,2.41425872e-25
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,1.18490685e+06,2.28692962e-25
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,1.43844989e+06,2.14570452e-25
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,1.74624535e+06,2.02136910e-25
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,2.11990202e+06,1.82739843e-25
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,2.57351270e+06,1.61452212e-25
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,3.12418571e+06,1.38867248e-25
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,3.79269019e+06,1.15557869e-25
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,4.60423938e+06,9.32684553e-26
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,5.58944158e+06,7.35650803e-26
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,6.78545457e+06,5.69170726e-26
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,8.23738707e+06,4.35122929e-26
+ISM continuous jumps,dg_1d,10GHz,1.00000000e+10,1.00000000e+07,3.29488105e-26
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,1.00000000e-01,2.43468565e-30
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,1.21397719e-01,3.77426434e-30
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,1.47374062e-01,6.02510537e-30
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,1.78908749e-01,9.89213369e-30
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,2.17191140e-01,1.65294584e-29
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,2.63665090e-01,2.80126876e-29
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,3.20083405e-01,4.81894552e-29
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,3.88573952e-01,8.40574304e-29
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,4.71719914e-01,1.48400519e-28
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,5.72657215e-01,2.65123643e-28
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,6.95192796e-01,4.76598902e-28
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,8.43948197e-01,8.60207315e-28
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,1.02453386e+00,1.55134057e-27
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,1.24376073e+00,2.79059606e-27
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,1.50989716e+00,4.96959688e-27
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,1.83298071e+00,8.71291557e-27
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,2.22519677e+00,1.49396639e-26
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,2.70133812e+00,2.45298281e-26
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,3.27936286e+00,3.84251689e-26
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,3.98107171e+00,5.69165974e-26
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,4.83293024e+00,7.97447049e-26
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,5.86706707e+00,1.06504715e-25
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,7.12248558e+00,1.36452048e-25
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,8.64653503e+00,1.61226466e-25
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,1.04966963e+01,1.89795949e-25
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,1.27427499e+01,2.42920422e-25
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,1.54694077e+01,2.97778827e-25
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,1.87795080e+01,3.48272760e-25
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,2.27978944e+01,4.07107533e-25
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,2.76761237e+01,4.71126707e-25
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,3.35981829e+01,5.40115719e-25
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,4.07874276e+01,6.16155293e-25
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,4.95150067e+01,6.91381878e-25
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,6.01100886e+01,7.61184927e-25
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,7.29722764e+01,8.40244283e-25
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,8.85866790e+01,9.10001224e-25
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,1.07542208e+02,9.85555094e-25
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,1.30553787e+02,1.05485151e-24
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,1.58489319e+02,1.12374154e-24
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,1.92402418e+02,1.19573364e-24
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,2.33572147e+02,1.27277428e-24
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,2.83551258e+02,1.33953695e-24
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,3.44224760e+02,1.41951214e-24
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,4.17881006e+02,1.50538199e-24
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,5.07298009e+02,1.58398005e-24
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,6.15848211e+02,1.66146092e-24
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,7.47625680e+02,1.76177914e-24
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,9.07600522e+02,1.86984714e-24
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,1.10180633e+03,1.97394610e-24
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,1.33756775e+03,2.07465149e-24
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,1.62377674e+03,2.17218626e-24
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,1.97122792e+03,2.28451666e-24
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,2.39302573e+03,2.39534766e-24
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,2.90507865e+03,2.48912642e-24
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,3.52669921e+03,2.55851202e-24
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,4.28133240e+03,2.59969567e-24
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,5.19743987e+03,2.61049648e-24
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,6.30957344e+03,2.58668781e-24
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,7.65967823e+03,2.53528091e-24
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,9.29867465e+03,2.44164518e-24
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,1.12883789e+04,2.29768033e-24
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,1.37038345e+04,2.10661595e-24
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,1.66361425e+04,1.88599181e-24
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,2.01958975e+04,1.65409141e-24
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,2.45173589e+04,1.41421495e-24
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,2.97635144e+04,1.16306632e-24
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,3.61322276e+04,9.08817779e-25
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,4.38637001e+04,6.38211835e-25
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,5.32495313e+04,3.74469580e-25
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,6.46437163e+04,2.62485825e-25
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,7.84759970e+04,1.88516257e-25
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,9.52680703e+04,1.31797484e-25
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,1.15653264e+05,9.03093780e-26
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,1.40400425e+05,6.11729292e-26
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,1.70442913e+05,4.12226865e-26
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,2.06913808e+05,2.77386101e-26
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,2.51188643e+05,1.86833700e-26
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,3.04937283e+05,1.26236303e-26
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,3.70186906e+05,8.56944065e-27
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,4.49398459e+05,5.83206785e-27
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,5.45559478e+05,3.98997775e-27
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,6.62296762e+05,2.74504776e-27
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,8.04013161e+05,1.89443197e-27
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,9.76053637e+05,1.31309130e-27
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,1.18490685e+06,9.14120143e-28
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,1.43844989e+06,6.39586539e-28
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,1.74624535e+06,4.48723425e-28
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,2.11990202e+06,3.15493760e-28
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,2.57351270e+06,2.22382192e-28
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,3.12418571e+06,1.57542653e-28
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,3.79269019e+06,1.12151530e-28
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,4.60423938e+06,8.03881005e-29
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,5.58944158e+06,5.78289204e-29
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,6.78545457e+06,4.16320862e-29
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,8.23738707e+06,3.00631474e-29
+ISM continuous jumps,dg_1d,Rband,4.60000000e+14,1.00000000e+07,2.17521830e-29
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,1.00000000e-01,1.90909421e-29
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,1.21397719e-01,2.95963441e-29
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,1.47374062e-01,4.72479617e-29
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,1.78908749e-01,7.75853897e-29
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,2.17191140e-01,1.29669369e-28
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,2.63665090e-01,2.19793139e-28
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,3.20083405e-01,3.78158428e-28
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,3.88573952e-01,6.59596052e-28
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,4.71719914e-01,1.16419594e-27
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,5.72657215e-01,2.07872037e-27
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,6.95192796e-01,3.73303453e-27
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,8.43948197e-01,6.72742941e-27
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,1.02453386e+00,1.21060103e-26
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,1.24376073e+00,2.17117021e-26
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,1.50989716e+00,3.85093645e-26
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,1.83298071e+00,6.71509488e-26
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,2.22519677e+00,1.14285005e-25
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,2.70133812e+00,1.85818448e-25
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,3.27936286e+00,2.87343357e-25
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,3.98107171e+00,4.18897525e-25
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,4.83293024e+00,5.75534339e-25
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,5.86706707e+00,7.51332765e-25
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,7.12248558e+00,9.38155918e-25
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,8.64653503e+00,1.07603184e-24
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,1.04966963e+01,1.24230713e-24
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,1.27427499e+01,1.55764752e-24
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,1.54694077e+01,1.82947631e-24
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,1.87795080e+01,2.02494762e-24
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,2.27978944e+01,2.23063982e-24
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,2.76761237e+01,2.41197472e-24
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,3.35981829e+01,2.55862189e-24
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,4.07874276e+01,2.69078051e-24
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,4.95150067e+01,2.75320239e-24
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,6.01100886e+01,2.73497806e-24
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,7.29722764e+01,2.73352035e-24
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,8.85866790e+01,2.59615457e-24
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,1.07542208e+02,2.47439015e-24
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,1.30553787e+02,2.27756818e-24
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,1.58489319e+02,2.05654170e-24
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,1.92402418e+02,1.83443899e-24
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,2.33572147e+02,1.59148970e-24
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,2.83551258e+02,1.33610074e-24
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,3.44224760e+02,1.12404963e-24
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,4.17881006e+02,9.48247367e-25
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,5.07298009e+02,7.89215623e-25
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,6.15848211e+02,6.48388609e-25
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,7.47625680e+02,5.31280052e-25
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,9.07600522e+02,4.34084193e-25
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,1.10180633e+03,3.51971101e-25
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,1.33756775e+03,2.86211010e-25
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,1.62377674e+03,2.31957853e-25
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,1.97122792e+03,1.87633547e-25
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,2.39302573e+03,1.52061298e-25
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,2.90507865e+03,1.22868373e-25
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,3.52669921e+03,9.91088382e-26
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,4.28133240e+03,7.98274237e-26
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,5.19743987e+03,6.41154015e-26
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,6.30957344e+03,5.15076418e-26
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,7.65967823e+03,4.16281903e-26
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,9.29867465e+03,3.36742863e-26
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,1.12883789e+04,2.70739054e-26
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,1.37038345e+04,2.15174756e-26
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,1.66361425e+04,1.69347471e-26
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,2.01958975e+04,1.31146374e-26
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,2.45173589e+04,9.95780655e-27
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,2.97635144e+04,7.35780614e-27
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,3.61322276e+04,5.24952876e-27
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,4.38637001e+04,3.30968685e-27
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,5.32495313e+04,1.67971376e-27
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,6.46437163e+04,1.16290981e-27
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,7.84759970e+04,8.53492620e-28
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,9.52680703e+04,6.11800068e-28
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,1.15653264e+05,4.26487094e-28
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,1.40400425e+05,2.90745997e-28
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,1.70442913e+05,1.95174140e-28
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,2.06913808e+05,1.29638513e-28
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,2.51188643e+05,8.56360526e-29
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,3.04937283e+05,5.65648470e-29
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,3.70186906e+05,3.75218704e-29
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,4.49398459e+05,2.48980820e-29
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,5.45559478e+05,1.65855080e-29
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,6.62296762e+05,1.10770950e-29
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,8.04013161e+05,7.40397084e-30
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,9.76053637e+05,4.97124810e-30
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,1.18490685e+06,3.34436467e-30
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,1.43844989e+06,2.26692143e-30
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,1.74624535e+06,1.54268946e-30
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,2.11990202e+06,1.05182585e-30
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,2.57351270e+06,7.18992690e-31
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,3.12418571e+06,4.95623742e-31
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,3.79269019e+06,3.41029374e-31
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,4.60423938e+06,2.36498880e-31
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,5.58944158e+06,1.65184500e-31
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,6.78545457e+06,1.14836995e-31
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,8.23738707e+06,8.04496260e-32
+ISM continuous jumps,dg_1d,1keV,2.41798900e+17,1.00000000e+07,5.62906155e-32
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,1.00000000e-01,9.03818716e-31
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,1.21397719e-01,1.36898837e-30
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,1.47374062e-01,2.08106492e-30
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,1.78908749e-01,3.17384693e-30
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,2.17191140e-01,4.85962762e-30
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,2.63665090e-01,7.43581499e-30
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,3.20083405e-01,1.12437820e-29
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,3.88573952e-01,1.70996849e-29
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,4.71719914e-01,2.58533166e-29
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,5.72657215e-01,3.88806770e-29
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,6.95192796e-01,5.84221254e-29
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,8.43948197e-01,8.66512679e-29
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,1.02453386e+00,1.27649915e-28
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,1.24376073e+00,1.83187650e-28
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,1.50989716e+00,2.57805051e-28
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,1.83298071e+00,3.50806538e-28
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,2.22519677e+00,4.49472866e-28
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,2.70133812e+00,5.39831141e-28
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,3.27936286e+00,6.02906681e-28
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,3.98107171e+00,6.26473135e-28
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,4.83293024e+00,6.12331465e-28
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,5.86706707e+00,5.65969608e-28
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,7.12248558e+00,5.02213234e-28
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,8.64653503e+00,4.14221708e-28
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,1.04966963e+01,3.47530764e-28
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,1.27427499e+01,3.02399024e-28
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,1.54694077e+01,2.44906422e-28
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,1.87795080e+01,2.00190551e-28
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,2.27978944e+01,1.63591856e-28
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,2.76761237e+01,1.31502793e-28
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,3.35981829e+01,1.02358773e-28
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,4.07874276e+01,7.74215889e-29
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,4.95150067e+01,5.40752563e-29
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,6.01100886e+01,4.49370498e-29
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,7.29722764e+01,4.54230735e-29
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,8.85866790e+01,2.85118491e-29
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,1.07542208e+02,2.70332244e-29
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,1.30553787e+02,2.09581244e-29
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,1.58489319e+02,1.61124567e-29
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,1.92402418e+02,1.29755958e-29
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,2.33572147e+02,1.00297602e-29
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,2.83551258e+02,7.63143293e-30
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,3.44224760e+02,6.01224912e-30
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,4.17881006e+02,4.81343894e-30
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,5.07298009e+02,3.82174335e-30
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,6.15848211e+02,2.99290709e-30
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,7.47625680e+02,2.34937314e-30
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,9.07600522e+02,1.84389003e-30
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,1.10180633e+03,1.43610930e-30
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,1.33756775e+03,1.12416508e-30
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,1.62377674e+03,8.76687431e-31
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,1.97122792e+03,6.83008404e-31
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,2.39302573e+03,5.33846078e-31
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,2.90507865e+03,4.16233292e-31
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,3.52669921e+03,3.24373162e-31
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,4.28133240e+03,2.52873140e-31
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,5.19743987e+03,1.96754217e-31
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,6.30957344e+03,1.53151979e-31
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,7.65967823e+03,1.19578571e-31
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,9.29867465e+03,9.29917137e-32
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,1.12883789e+04,7.17467644e-32
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,1.37038345e+04,5.47849597e-32
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,1.66361425e+04,4.15138702e-32
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,2.01958975e+04,3.10643867e-32
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,2.45173589e+04,2.28870985e-32
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,2.97635144e+04,1.64496609e-32
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,3.61322276e+04,1.14031262e-32
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,4.38637001e+04,6.96878378e-33
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,5.32495313e+04,3.74020706e-33
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,6.46437163e+04,2.69801216e-33
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,7.84759970e+04,1.97322986e-33
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,9.52680703e+04,1.38244104e-33
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,1.15653264e+05,9.33894459e-34
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,1.40400425e+05,6.18150120e-34
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,1.70442913e+05,4.02863741e-34
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,2.06913808e+05,2.59424061e-34
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,2.51188643e+05,1.66498353e-34
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,3.04937283e+05,1.07207817e-34
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,3.70186906e+05,6.95211409e-35
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,4.49398459e+05,4.48723271e-35
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,5.45559478e+05,2.92274411e-35
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,6.62296762e+05,1.89539681e-35
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,8.04013161e+05,1.23496965e-35
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,9.76053637e+05,8.09035302e-36
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,1.18490685e+06,5.29325202e-36
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,1.43844989e+06,3.51435903e-36
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,1.74624535e+06,2.33747342e-36
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,2.11990202e+06,1.55786593e-36
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,2.57351270e+06,1.03843427e-36
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,3.12418571e+06,7.00849985e-37
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,3.79269019e+06,4.65891051e-37
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,4.60423938e+06,3.16438113e-37
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,5.58944158e+06,2.16657985e-37
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,6.78545457e+06,1.46435774e-37
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,8.23738707e+06,1.00914689e-37
+ISM continuous jumps,dg_1d,100MeV,2.41798900e+22,1.00000000e+07,6.88241497e-38
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,1.00000000e-01,1.53672004e-27
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,1.21397719e-01,1.73802774e-27
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,1.47374062e-01,1.94741041e-27
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,1.78908749e-01,2.16950396e-27
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,2.17191140e-01,2.40863097e-27
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,2.63665090e-01,2.67035769e-27
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,3.20083405e-01,3.05231732e-27
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,3.88573952e-01,3.36788829e-27
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,4.71719914e-01,3.79772536e-27
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,5.72657215e-01,4.25125576e-27
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,6.95192796e-01,4.73929970e-27
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,8.43948197e-01,5.30222186e-27
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,1.02453386e+00,5.86613983e-27
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,1.24376073e+00,6.50133358e-27
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,1.50989716e+00,7.17904105e-27
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,1.83298071e+00,7.91817220e-27
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,2.22519677e+00,8.71125729e-27
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,2.70133812e+00,9.56925240e-27
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,3.27936286e+00,1.05072310e-26
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,3.98107171e+00,1.15312741e-26
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,4.83293024e+00,1.26585230e-26
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,5.86706707e+00,1.38995806e-26
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,7.12248558e+00,1.52730041e-26
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,8.64653503e+00,1.67972321e-26
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,1.04966963e+01,1.84941776e-26
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,1.27427499e+01,2.03861186e-26
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,1.54694077e+01,2.25039871e-26
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,1.87795080e+01,2.48777952e-26
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,2.27978944e+01,2.75456523e-26
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,2.76761237e+01,3.05506324e-26
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,3.35981829e+01,3.39453323e-26
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,4.07874276e+01,3.77868840e-26
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,4.95150067e+01,4.21477062e-26
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,6.01100886e+01,4.71115913e-26
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,7.29722764e+01,5.27797243e-26
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,8.85866790e+01,5.92711293e-26
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,1.07542208e+02,6.67370615e-26
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,1.30553787e+02,7.53460164e-26
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,1.58489319e+02,8.53158559e-26
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,1.92402418e+02,9.69120400e-26
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,2.33572147e+02,1.10471975e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,2.83551258e+02,1.26396641e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,3.44224760e+02,1.45015105e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,4.17881006e+02,1.66797670e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,5.07298009e+02,1.92558847e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,6.15848211e+02,2.23047920e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,7.47625680e+02,2.58972772e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,9.07600522e+02,3.00829443e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,1.10180633e+03,3.48596041e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,1.33756775e+03,3.97799965e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,1.62377674e+03,4.47279480e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,1.97122792e+03,4.99617132e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,2.39302573e+03,5.53634550e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,2.90507865e+03,6.07621165e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,3.52669921e+03,6.59271424e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,4.28133240e+03,7.06243857e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,5.19743987e+03,7.46323424e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,6.30957344e+03,7.77287187e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,7.65967823e+03,7.96713746e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,9.29867465e+03,8.03947642e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,1.12883789e+04,8.02460830e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,1.37038345e+04,7.93958923e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,1.66361425e+04,7.79276045e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,2.01958975e+04,7.59780446e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,2.45173589e+04,7.36653192e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,2.97635144e+04,7.10629879e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,3.61322276e+04,6.82341901e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,4.38637001e+04,6.52558128e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,5.32495313e+04,6.21542792e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,6.46437163e+04,5.89058812e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,7.84759970e+04,5.55015055e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,9.52680703e+04,5.20311674e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,1.15653264e+05,4.86222122e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,1.40400425e+05,4.53263079e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,1.70442913e+05,4.12364907e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,2.06913808e+05,3.21673777e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,2.51188643e+05,2.77423599e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,3.04937283e+05,2.75779602e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,3.70186906e+05,2.47654704e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,4.49398459e+05,2.28765689e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,5.45559478e+05,2.14212692e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,6.62296762e+05,2.03997190e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,8.04013161e+05,1.93402151e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,9.76053637e+05,1.83045502e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,1.18490685e+06,1.73490086e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,1.43844989e+06,1.61864647e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,1.74624535e+06,1.48562580e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,2.11990202e+06,1.33629519e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,2.57351270e+06,1.16899777e-25
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,3.12418571e+06,9.93562543e-26
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,3.79269019e+06,8.23490565e-26
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,4.60423938e+06,6.66643365e-26
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,5.58944158e+06,5.29406080e-26
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,6.78545457e+06,4.14393021e-26
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,8.23738707e+06,3.20962680e-26
+Wind-ISM jump,fullhide_1d,10GHz,1.00000000e+10,1.00000000e+07,2.46679364e-26
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,1.00000000e-01,3.01253105e-23
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,1.21397719e-01,3.53337129e-23
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,1.47374062e-01,4.14368051e-23
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,1.78908749e-01,4.85631712e-23
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,2.17191140e-01,5.68546791e-23
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,2.63665090e-01,6.64233571e-23
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,3.20083405e-01,7.73328642e-23
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,3.88573952e-01,8.94385593e-23
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,4.71719914e-01,1.02426325e-22
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,5.72657215e-01,1.15544215e-22
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,6.95192796e-01,1.27585087e-22
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,8.43948197e-01,1.37088848e-22
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,1.02453386e+00,1.42634706e-22
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,1.24376073e+00,1.43428827e-22
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,1.50989716e+00,1.39321316e-22
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,1.83298071e+00,1.31207861e-22
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,2.22519677e+00,1.20303416e-22
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,2.70133812e+00,1.07532233e-22
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,3.27936286e+00,9.41916615e-23
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,3.98107171e+00,8.09915365e-23
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,4.83293024e+00,6.87166033e-23
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,5.86706707e+00,5.75407868e-23
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,7.12248558e+00,4.75184164e-23
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,8.64653503e+00,3.88487933e-23
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,1.04966963e+01,3.16079903e-23
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,1.27427499e+01,2.55971071e-23
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,1.54694077e+01,2.07789417e-23
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,1.87795080e+01,1.69417337e-23
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,2.27978944e+01,1.39874933e-23
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,2.76761237e+01,1.17721586e-23
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,3.35981829e+01,1.01636195e-23
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,4.07874276e+01,9.02472872e-24
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,4.95150067e+01,8.25720071e-24
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,6.01100886e+01,7.78584388e-24
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,7.29722764e+01,7.54058751e-24
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,8.85866790e+01,7.46165626e-24
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,1.07542208e+02,7.49898083e-24
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,1.30553787e+02,7.62319949e-24
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,1.58489319e+02,7.80833216e-24
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,1.92402418e+02,8.03885805e-24
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,2.33572147e+02,8.30311552e-24
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,2.83551258e+02,8.58855867e-24
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,3.44224760e+02,8.89378209e-24
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,4.17881006e+02,9.21626471e-24
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,5.07298009e+02,9.54785841e-24
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,6.15848211e+02,9.88097529e-24
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,7.47625680e+02,1.02132310e-23
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,9.07600522e+02,1.05150940e-23
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,1.10180633e+03,1.07853765e-23
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,1.33756775e+03,1.10079758e-23
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,1.62377674e+03,1.11665260e-23
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,1.97122792e+03,1.12439557e-23
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,2.39302573e+03,1.12189792e-23
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,2.90507865e+03,1.10684040e-23
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,3.52669921e+03,1.07690193e-23
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,4.28133240e+03,1.03026742e-23
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,5.19743987e+03,9.66037184e-24
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,6.30957344e+03,8.84898828e-24
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,7.65967823e+03,7.85256046e-24
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,9.29867465e+03,6.67942796e-24
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,1.12883789e+04,5.44013325e-24
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,1.37038345e+04,4.24595731e-24
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,1.66361425e+04,3.18160051e-24
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,2.01958975e+04,2.30324097e-24
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,2.45173589e+04,1.62504764e-24
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,2.97635144e+04,1.12730229e-24
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,3.61322276e+04,7.74457616e-25
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,4.38637001e+04,5.29300117e-25
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,5.32495313e+04,3.60535388e-25
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,6.46437163e+04,2.45075653e-25
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,7.84759970e+04,1.66183312e-25
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,9.52680703e+04,1.12505138e-25
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,1.15653264e+05,7.60298130e-26
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,1.40400425e+05,5.13371833e-26
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,1.70442913e+05,3.38040991e-26
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,2.06913808e+05,1.89201210e-26
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,2.51188643e+05,1.39153142e-26
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,3.04937283e+05,1.19073470e-26
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,3.70186906e+05,7.14403535e-27
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,4.49398459e+05,4.53293570e-27
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,5.45559478e+05,2.99271447e-27
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,6.62296762e+05,2.02980234e-27
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,8.04013161e+05,1.39877703e-27
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,9.76053637e+05,9.75318119e-28
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,1.18490685e+06,6.86337833e-28
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,1.43844989e+06,4.86592957e-28
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,1.74624535e+06,3.46220930e-28
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,2.11990202e+06,2.46902804e-28
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,2.57351270e+06,1.76377305e-28
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,3.12418571e+06,1.26370425e-28
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,3.79269019e+06,9.10024953e-29
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,4.60423938e+06,6.58763668e-29
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,5.58944158e+06,4.77580061e-29
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,6.78545457e+06,3.46474067e-29
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,8.23738707e+06,2.51767668e-29
+Wind-ISM jump,fullhide_1d,Rband,4.60000000e+14,1.00000000e+07,1.83262075e-29
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,1.00000000e-01,2.18762038e-22
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,1.21397719e-01,2.45396360e-22
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,1.47374062e-01,2.70478686e-22
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,1.78908749e-01,2.90918699e-22
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,2.17191140e-01,3.03680543e-22
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,2.63665090e-01,3.05542938e-22
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,3.20083405e-01,2.94049349e-22
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,3.88573952e-01,2.68325312e-22
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,4.71719914e-01,2.30940296e-22
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,5.72657215e-01,1.86686513e-22
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,6.95192796e-01,1.41636318e-22
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,8.43948197e-01,1.01230113e-22
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,1.02453386e+00,6.89012354e-23
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,1.24376073e+00,4.54333147e-23
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,1.50989716e+00,2.99965742e-23
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,1.83298071e+00,2.03349615e-23
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,2.22519677e+00,1.45739342e-23
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,2.70133812e+00,1.14066252e-23
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,3.27936286e+00,9.76091200e-24
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,3.98107171e+00,8.99397538e-24
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,4.83293024e+00,8.69825065e-24
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,5.86706707e+00,8.65444479e-24
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,7.12248558e+00,8.72253296e-24
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,8.64653503e+00,8.82162132e-24
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,1.04966963e+01,8.91378371e-24
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,1.27427499e+01,8.94503097e-24
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,1.54694077e+01,8.94661219e-24
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,1.87795080e+01,8.90337126e-24
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,2.27978944e+01,8.81457793e-24
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,2.76761237e+01,8.67200200e-24
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,3.35981829e+01,8.47361830e-24
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,4.07874276e+01,8.19385717e-24
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,4.95150067e+01,7.85883491e-24
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,6.01100886e+01,7.46493972e-24
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,7.29722764e+01,7.01402935e-24
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,8.85866790e+01,6.51290064e-24
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,1.07542208e+02,5.95990005e-24
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,1.30553787e+02,5.34617926e-24
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,1.58489319e+02,4.72178421e-24
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,1.92402418e+02,4.10934605e-24
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,2.33572147e+02,3.52401213e-24
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,2.83551258e+02,2.97800923e-24
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,3.44224760e+02,2.48182897e-24
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,4.17881006e+02,2.03920126e-24
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,5.07298009e+02,1.65690524e-24
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,6.15848211e+02,1.33243400e-24
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,7.47625680e+02,1.06293323e-24
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,9.07600522e+02,8.42525157e-25
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,1.10180633e+03,6.64950338e-25
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,1.33756775e+03,5.23020561e-25
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,1.62377674e+03,4.10425795e-25
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,1.97122792e+03,3.21662653e-25
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,2.39302573e+03,2.51818502e-25
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,2.90507865e+03,1.96921066e-25
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,3.52669921e+03,1.53802900e-25
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,4.28133240e+03,1.19835776e-25
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,5.19743987e+03,9.28771249e-26
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,6.30957344e+03,7.11360434e-26
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,7.65967823e+03,5.32457576e-26
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,9.29867465e+03,3.90233570e-26
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,1.12883789e+04,2.85129439e-26
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,1.37038345e+04,2.07697913e-26
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,1.66361425e+04,1.50734192e-26
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,2.01958975e+04,1.08919289e-26
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,2.45173589e+04,7.83353281e-27
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,2.97635144e+04,5.60671021e-27
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,3.61322276e+04,3.99367027e-27
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,4.38637001e+04,2.83135835e-27
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,5.32495313e+04,1.99802401e-27
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,6.46437163e+04,1.40432057e-27
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,7.84759970e+04,9.82920485e-28
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,9.52680703e+04,6.85820657e-28
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,1.15653264e+05,4.77103802e-28
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,1.40400425e+05,3.31210782e-28
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,1.70442913e+05,2.23486616e-28
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,2.06913808e+05,1.28061448e-28
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,2.51188643e+05,1.02476168e-28
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,3.04937283e+05,8.68578787e-29
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,3.70186906e+05,4.66888205e-29
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,4.49398459e+05,2.65314016e-29
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,5.45559478e+05,1.58944283e-29
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,6.62296762e+05,9.92792120e-30
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,8.04013161e+05,6.37720714e-30
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,9.76053637e+05,4.18549494e-30
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,1.18490685e+06,2.79523214e-30
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,1.43844989e+06,1.89307101e-30
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,1.74624535e+06,1.29202497e-30
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,2.11990202e+06,8.86228721e-31
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,2.57351270e+06,6.10103926e-31
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,3.12418571e+06,4.22144539e-31
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,3.79269019e+06,2.94137598e-31
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,4.60423938e+06,2.06324556e-31
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,5.58944158e+06,1.45068877e-31
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,6.78545457e+06,1.02191567e-31
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,8.23738707e+06,7.21121493e-32
+Wind-ISM jump,fullhide_1d,1keV,2.41798900e+17,1.00000000e+07,5.09691640e-32
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,1.00000000e-01,6.71179950e-26
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,1.21397719e-01,3.92936434e-26
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,1.47374062e-01,2.04843981e-26
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,1.78908749e-01,9.28661088e-27
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,2.17191140e-01,3.30439916e-27
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,2.63665090e-01,1.08934013e-27
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,3.20083405e-01,1.68174047e-27
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,3.88573952e-01,1.04623577e-27
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,4.71719914e-01,1.38104439e-27
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,5.72657215e-01,1.76092122e-27
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,6.95192796e-01,2.18624384e-27
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,8.43948197e-01,2.61475052e-27
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,1.02453386e+00,2.87412130e-27
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,1.24376073e+00,2.97812155e-27
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,1.50989716e+00,2.89601070e-27
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,1.83298071e+00,2.67380671e-27
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,2.22519677e+00,2.37084581e-27
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,2.70133812e+00,2.03912019e-27
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,3.27936286e+00,1.71506250e-27
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,3.98107171e+00,1.41679550e-27
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,4.83293024e+00,1.15843381e-27
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,5.86706707e+00,9.37934991e-28
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,7.12248558e+00,7.53207365e-28
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,8.64653503e+00,6.01748429e-28
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,1.04966963e+01,4.79281107e-28
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,1.27427499e+01,3.79543014e-28
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,1.54694077e+01,3.00345247e-28
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,1.87795080e+01,2.36865826e-28
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,2.27978944e+01,1.86535054e-28
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,2.76761237e+01,1.46520826e-28
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,3.35981829e+01,1.15105892e-28
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,4.07874276e+01,9.02281590e-29
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,4.95150067e+01,7.06165289e-29
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,6.01100886e+01,5.52400070e-29
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,7.29722764e+01,4.31994716e-29
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,8.85866790e+01,3.37647643e-29
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,1.07542208e+02,2.63800436e-29
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,1.30553787e+02,2.05862187e-29
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,1.58489319e+02,1.60592305e-29
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,1.92402418e+02,1.25200220e-29
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,2.33572147e+02,9.76281621e-30
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,2.83551258e+02,7.60834486e-30
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,3.44224760e+02,5.92837144e-30
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,4.17881006e+02,4.61681206e-30
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,5.07298009e+02,3.59109115e-30
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,6.15848211e+02,2.78910026e-30
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,7.47625680e+02,2.16603348e-30
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,9.07600522e+02,1.68258149e-30
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,1.10180633e+03,1.30841484e-30
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,1.33756775e+03,1.01837746e-30
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,1.62377674e+03,7.93540367e-31
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,1.97122792e+03,6.19283025e-31
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,2.39302573e+03,4.83905311e-31
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,2.90507865e+03,3.78503241e-31
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,3.52669921e+03,2.96277529e-31
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,4.28133240e+03,2.31825862e-31
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,5.19743987e+03,1.80893175e-31
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,6.30957344e+03,1.40023082e-31
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,7.65967823e+03,1.06580768e-31
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,9.29867465e+03,7.98655105e-32
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,1.12883789e+04,5.96609810e-32
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,1.37038345e+04,4.44353888e-32
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,1.66361425e+04,3.29848434e-32
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,2.01958975e+04,2.43917158e-32
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,2.45173589e+04,1.79624806e-32
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,2.97635144e+04,1.31709767e-32
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,3.61322276e+04,9.61606991e-33
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,4.38637001e+04,6.99078591e-33
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,5.32495313e+04,5.06072380e-33
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,6.46437163e+04,3.64972602e-33
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,7.84759970e+04,2.62186215e-33
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,9.52680703e+04,1.87795772e-33
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,1.15653264e+05,1.34150839e-33
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,1.40400425e+05,9.56428899e-34
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,1.70442913e+05,6.60234340e-34
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,2.06913808e+05,3.66788367e-34
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,2.51188643e+05,2.38909758e-34
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,3.04937283e+05,1.72671869e-34
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,3.70186906e+05,8.39308667e-35
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,4.49398459e+05,4.59155119e-35
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,5.45559478e+05,2.69687326e-35
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,6.62296762e+05,1.65672775e-35
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,8.04013161e+05,1.04664065e-35
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,9.76053637e+05,6.75008605e-36
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,1.18490685e+06,4.42554589e-36
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,1.43844989e+06,2.94024572e-36
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,1.74624535e+06,1.96745339e-36
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,2.11990202e+06,1.32071769e-36
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,2.57351270e+06,8.88058565e-37
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,3.12418571e+06,6.00222437e-37
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,3.79269019e+06,4.08696715e-37
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,4.60423938e+06,2.80337061e-37
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,5.58944158e+06,1.92837927e-37
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,6.78545457e+06,1.32947754e-37
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,8.23738707e+06,9.18567902e-38
+Wind-ISM jump,fullhide_1d,100MeV,2.41798900e+22,1.00000000e+07,6.36053696e-38
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,1.00000000e-01,1.56325807e-27
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,1.21397719e-01,1.82000055e-27
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,1.47374062e-01,2.07631609e-27
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,1.78908749e-01,2.36575228e-27
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,2.17191140e-01,2.69231213e-27
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,2.63665090e-01,3.05143400e-27
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,3.20083405e-01,3.53787264e-27
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,3.88573952e-01,4.01167496e-27
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,4.71719914e-01,4.62021322e-27
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,5.72657215e-01,5.28638108e-27
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,6.95192796e-01,6.03147124e-27
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,8.43948197e-01,6.89383866e-27
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,1.02453386e+00,7.80610438e-27
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,1.24376073e+00,8.83656462e-27
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,1.50989716e+00,9.96010055e-27
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,1.83298071e+00,1.11998464e-26
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,2.22519677e+00,1.25511299e-26
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,2.70133812e+00,1.40279860e-26
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,3.27936286e+00,1.56570309e-26
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,3.98107171e+00,1.74535891e-26
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,4.83293024e+00,1.94470448e-26
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,5.86706707e+00,2.16605537e-26
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,7.12248558e+00,2.41264288e-26
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,8.64653503e+00,2.68801542e-26
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,1.04966963e+01,2.99650016e-26
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,1.27427499e+01,3.34282109e-26
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,1.54694077e+01,3.73282956e-26
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,1.87795080e+01,4.17246228e-26
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,2.27978944e+01,4.66893092e-26
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,2.76761237e+01,5.23049312e-26
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,3.35981829e+01,5.86712171e-26
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,4.07874276e+01,6.59034149e-26
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,4.95150067e+01,7.41421357e-26
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,6.01100886e+01,8.35484195e-26
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,7.29722764e+01,9.43110790e-26
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,8.85866790e+01,1.06643970e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,1.07542208e+02,1.20796372e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,1.30553787e+02,1.37053144e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,1.58489319e+02,1.55790758e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,1.92402418e+02,1.77424132e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,2.33572147e+02,2.02424080e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,2.83551258e+02,2.31183301e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,3.44224760e+02,2.63292606e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,4.17881006e+02,2.98653664e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,5.07298009e+02,3.38522000e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,6.15848211e+02,3.82822798e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,7.47625680e+02,4.31192853e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,9.07600522e+02,4.83377311e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,1.10180633e+03,5.38126551e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,1.33756775e+03,5.89029363e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,1.62377674e+03,6.37170529e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,1.97122792e+03,6.85551978e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,2.39302573e+03,7.32022849e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,2.90507865e+03,7.75417308e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,3.52669921e+03,8.14933234e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,4.28133240e+03,8.48762236e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,5.19743987e+03,8.74968529e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,6.30957344e+03,8.92161374e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,7.65967823e+03,8.97224776e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,9.29867465e+03,8.87666238e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,1.12883789e+04,8.68038859e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,1.37038345e+04,8.42139604e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,1.66361425e+04,8.13966813e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,2.01958975e+04,7.84768998e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,2.45173589e+04,7.56284991e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,2.97635144e+04,7.28787283e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,3.61322276e+04,7.01440833e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,4.38637001e+04,6.71307475e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,5.32495313e+04,6.39322056e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,6.46437163e+04,6.04505738e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,7.84759970e+04,5.69604466e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,9.52680703e+04,5.37437514e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,1.15653264e+05,5.06233213e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,1.40400425e+05,4.72947819e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,1.70442913e+05,4.27996090e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,2.06913808e+05,3.32851883e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,2.51188643e+05,2.86801144e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,3.04937283e+05,2.89613251e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,3.70186906e+05,2.62162757e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,4.49398459e+05,2.36790005e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,5.45559478e+05,2.21019304e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,6.62296762e+05,2.10397089e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,8.04013161e+05,2.00136792e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,9.76053637e+05,1.86618119e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,1.18490685e+06,1.80644537e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,1.43844989e+06,1.68675439e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,1.74624535e+06,1.54684971e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,2.11990202e+06,1.39419240e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,2.57351270e+06,1.22237013e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,3.12418571e+06,1.03443478e-25
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,3.79269019e+06,8.56565436e-26
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,4.60423938e+06,6.89617393e-26
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,5.58944158e+06,5.43559005e-26
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,6.78545457e+06,4.22127828e-26
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,8.23738707e+06,3.24276748e-26
+Wind-ISM jump,dg_1d,10GHz,1.00000000e+10,1.00000000e+07,2.47172219e-26
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,1.00000000e-01,4.01118258e-23
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,1.21397719e-01,4.69013563e-23
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,1.47374062e-01,5.50584949e-23
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,1.78908749e-01,6.42808717e-23
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,2.17191140e-01,7.52790012e-23
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,2.63665090e-01,8.79337419e-23
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,3.20083405e-01,1.02331991e-22
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,3.88573952e-01,1.18516918e-22
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,4.71719914e-01,1.36020303e-22
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,5.72657215e-01,1.54040090e-22
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,6.95192796e-01,1.71147438e-22
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,8.43948197e-01,1.85540180e-22
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,1.02453386e+00,1.95477022e-22
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,1.24376073e+00,1.99700577e-22
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,1.50989716e+00,1.97778879e-22
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,1.83298071e+00,1.90435845e-22
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,2.22519677e+00,1.78764785e-22
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,2.70133812e+00,1.63559781e-22
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,3.27936286e+00,1.46284091e-22
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,3.98107171e+00,1.27940480e-22
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,4.83293024e+00,1.09760185e-22
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,5.86706707e+00,9.22148438e-23
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,7.12248558e+00,7.55535309e-23
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,8.64653503e+00,6.04603981e-23
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,1.04966963e+01,4.75981170e-23
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,1.27427499e+01,3.68424502e-23
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,1.54694077e+01,2.82564535e-23
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,1.87795080e+01,2.15115189e-23
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,2.27978944e+01,1.64991584e-23
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,2.76761237e+01,1.29481802e-23
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,3.35981829e+01,1.05238880e-23
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,4.07874276e+01,8.94880998e-24
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,4.95150067e+01,8.00910353e-24
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,6.01100886e+01,7.53852295e-24
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,7.29722764e+01,7.37199874e-24
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,8.85866790e+01,7.40235276e-24
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,1.07542208e+02,7.54648784e-24
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,1.30553787e+02,7.76495294e-24
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,1.58489319e+02,8.02809585e-24
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,1.92402418e+02,8.32564171e-24
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,2.33572147e+02,8.64317550e-24
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,2.83551258e+02,8.95669508e-24
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,3.44224760e+02,9.28311718e-24
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,4.17881006e+02,9.63193191e-24
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,5.07298009e+02,1.00129320e-23
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,6.15848211e+02,1.03882054e-23
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,7.47625680e+02,1.07346196e-23
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,9.07600522e+02,1.10463301e-23
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,1.10180633e+03,1.13324752e-23
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,1.33756775e+03,1.15816499e-23
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,1.62377674e+03,1.17903740e-23
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,1.97122792e+03,1.19169829e-23
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,2.39302573e+03,1.19001715e-23
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,2.90507865e+03,1.17202116e-23
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,3.52669921e+03,1.13721016e-23
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,4.28133240e+03,1.08330806e-23
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,5.19743987e+03,1.00928087e-23
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,6.30957344e+03,9.17273959e-24
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,7.65967823e+03,8.06129868e-24
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,9.29867465e+03,6.76519753e-24
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,1.12883789e+04,5.41899347e-24
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,1.37038345e+04,4.13662039e-24
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,1.66361425e+04,3.03363314e-24
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,2.01958975e+04,2.15720040e-24
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,2.45173589e+04,1.50339002e-24
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,2.97635144e+04,1.03559189e-24
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,3.61322276e+04,7.09714229e-25
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,4.38637001e+04,4.84980416e-25
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,5.32495313e+04,3.30460875e-25
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,6.46437163e+04,2.24823204e-25
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,7.84759970e+04,1.52596805e-25
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,9.52680703e+04,1.03405131e-25
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,1.15653264e+05,6.98807128e-26
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,1.40400425e+05,4.71810866e-26
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,1.70442913e+05,3.10678209e-26
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,2.06913808e+05,1.74069487e-26
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,2.51188643e+05,1.28772204e-26
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,3.04937283e+05,1.11040737e-26
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,3.70186906e+05,6.70912213e-27
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,4.49398459e+05,4.26714046e-27
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,5.45559478e+05,2.82292033e-27
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,6.62296762e+05,1.91679154e-27
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,8.04013161e+05,1.32052902e-27
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,9.76053637e+05,9.21509730e-28
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,1.18490685e+06,6.47660417e-28
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,1.43844989e+06,4.58480744e-28
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,1.74624535e+06,3.25930545e-28
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,2.11990202e+06,2.32063771e-28
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,2.57351270e+06,1.65370272e-28
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,3.12418571e+06,1.18114572e-28
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,3.79269019e+06,8.49105366e-29
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,4.60423938e+06,6.12282208e-29
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,5.58944158e+06,4.42121034e-29
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,6.78545457e+06,3.19447468e-29
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,8.23738707e+06,2.31420262e-29
+Wind-ISM jump,dg_1d,Rband,4.60000000e+14,1.00000000e+07,1.68065404e-29
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,1.00000000e-01,2.99047759e-22
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,1.21397719e-01,3.38972590e-22
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,1.47374062e-01,3.80439369e-22
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,1.78908749e-01,4.16477134e-22
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,2.17191140e-01,4.44946134e-22
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,2.63665090e-01,4.56548974e-22
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,3.20083405e-01,4.43045695e-22
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,3.88573952e-01,3.99603447e-22
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,4.71719914e-01,3.28882715e-22
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,5.72657215e-01,2.45368536e-22
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,6.95192796e-01,1.66896875e-22
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,8.43948197e-01,1.05998335e-22
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,1.02453386e+00,6.48393060e-23
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,1.24376073e+00,3.93086263e-23
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,1.50989716e+00,2.45619450e-23
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,1.83298071e+00,1.63535065e-23
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,2.22519677e+00,1.20178861e-23
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,2.70133812e+00,9.93216677e-24
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,3.27936286e+00,9.03785181e-24
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,3.98107171e+00,8.71132426e-24
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,4.83293024e+00,8.67378552e-24
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,5.86706707e+00,8.76485910e-24
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,7.12248558e+00,8.88800664e-24
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,8.64653503e+00,8.99743082e-24
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,1.04966963e+01,9.07793925e-24
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,1.27427499e+01,9.08363579e-24
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,1.54694077e+01,9.05597426e-24
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,1.87795080e+01,8.97620816e-24
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,2.27978944e+01,8.85008152e-24
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,2.76761237e+01,8.67177543e-24
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,3.35981829e+01,8.43590914e-24
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,4.07874276e+01,8.11014545e-24
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,4.95150067e+01,7.72077347e-24
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,6.01100886e+01,7.27578405e-24
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,7.29722764e+01,6.78054109e-24
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,8.85866790e+01,6.23952643e-24
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,1.07542208e+02,5.64923041e-24
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,1.30553787e+02,5.00636430e-24
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,1.58489319e+02,4.36859850e-24
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,1.92402418e+02,3.75616181e-24
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,2.33572147e+02,3.18344486e-24
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,2.83551258e+02,2.65997407e-24
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,3.44224760e+02,2.19327660e-24
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,4.17881006e+02,1.78588973e-24
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,5.07298009e+02,1.43961940e-24
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,6.15848211e+02,1.14970690e-24
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,7.47625680e+02,9.12024937e-25
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,9.07600522e+02,7.19875008e-25
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,1.10180633e+03,5.66421750e-25
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,1.33756775e+03,4.44546177e-25
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,1.62377674e+03,3.48330007e-25
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,1.97122792e+03,2.72768620e-25
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,2.39302573e+03,2.13532832e-25
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,2.90507865e+03,1.67067464e-25
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,3.52669921e+03,1.30579828e-25
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,4.28133240e+03,1.01815023e-25
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,5.19743987e+03,7.89746716e-26
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,6.30957344e+03,6.05738395e-26
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,7.65967823e+03,4.54325585e-26
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,9.29867465e+03,3.34003970e-26
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,1.12883789e+04,2.44740869e-26
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,1.37038345e+04,1.78735050e-26
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,1.66361425e+04,1.29844963e-26
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,2.01958975e+04,9.40195055e-27
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,2.45173589e+04,6.77411887e-27
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,2.97635144e+04,4.85379512e-27
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,3.61322276e+04,3.45990468e-27
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,4.38637001e+04,2.45709376e-27
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,5.32495313e+04,1.73626164e-27
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,6.46437163e+04,1.22379111e-27
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,7.84759970e+04,8.59179131e-28
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,9.52680703e+04,6.01084093e-28
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,1.15653264e+05,4.18123767e-28
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,1.40400425e+05,2.90341234e-28
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,1.70442913e+05,1.96095665e-28
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,2.06913808e+05,1.12650032e-28
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,2.51188643e+05,9.05617734e-29
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,3.04937283e+05,7.65643139e-29
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,3.70186906e+05,4.05934132e-29
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,4.49398459e+05,2.27160830e-29
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,5.45559478e+05,1.35406566e-29
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,6.62296762e+05,8.45723051e-30
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,8.04013161e+05,5.41971941e-30
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,9.76053637e+05,3.57203904e-30
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,1.18490685e+06,2.37887426e-30
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,1.43844989e+06,1.60773764e-30
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,1.74624535e+06,1.10053040e-30
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,2.11990202e+06,7.54864576e-31
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,2.57351270e+06,5.18351255e-31
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,3.12418571e+06,3.57358690e-31
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,3.79269019e+06,2.50300953e-31
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,4.60423938e+06,1.74629924e-31
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,5.58944158e+06,1.22274427e-31
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,6.78545457e+06,8.60058778e-32
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,8.23738707e+06,6.09794834e-32
+Wind-ISM jump,dg_1d,1keV,2.41798900e+17,1.00000000e+07,4.33692032e-32
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,1.00000000e-01,6.07975168e-26
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,1.21397719e-01,3.61329049e-26
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,1.47374062e-01,1.86949729e-26
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,1.78908749e-01,8.12836387e-27
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,2.17191140e-01,2.38896787e-27
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,2.63665090e-01,6.16717318e-28
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,3.20083405e-01,1.41434161e-27
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,3.88573952e-01,8.34797614e-28
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,4.71719914e-01,1.15690435e-27
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,5.72657215e-01,1.50771525e-27
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,6.95192796e-01,1.89367003e-27
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,8.43948197e-01,2.28253580e-27
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,1.02453386e+00,2.51865275e-27
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,1.24376073e+00,2.62437485e-27
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,1.50989716e+00,2.56782521e-27
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,1.83298071e+00,2.37767872e-27
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,2.22519677e+00,2.11074561e-27
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,2.70133812e+00,1.81821958e-27
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,3.27936286e+00,1.53223966e-27
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,3.98107171e+00,1.26737684e-27
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,4.83293024e+00,1.03677547e-27
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,5.86706707e+00,8.39335509e-28
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,7.12248558e+00,6.73921877e-28
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,8.64653503e+00,5.38469930e-28
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,1.04966963e+01,4.28966370e-28
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,1.27427499e+01,3.39947562e-28
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,1.54694077e+01,2.69262186e-28
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,1.87795080e+01,2.12394899e-28
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,2.27978944e+01,1.67154330e-28
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,2.76761237e+01,1.31251203e-28
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,3.35981829e+01,1.02997993e-28
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,4.07874276e+01,8.06931104e-29
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,4.95150067e+01,6.31139398e-29
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,6.01100886e+01,4.93709395e-29
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,7.29722764e+01,3.85922818e-29
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,8.85866790e+01,3.01673662e-29
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,1.07542208e+02,2.35781001e-29
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,1.30553787e+02,1.84050718e-29
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,1.58489319e+02,1.43723429e-29
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,1.92402418e+02,1.12094546e-29
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,2.33572147e+02,8.74584077e-30
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,2.83551258e+02,6.82320205e-30
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,3.44224760e+02,5.31771148e-30
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,4.17881006e+02,4.14377108e-30
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,5.07298009e+02,3.22389672e-30
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,6.15848211e+02,2.50324265e-30
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,7.47625680e+02,1.94387867e-30
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,9.07600522e+02,1.50999203e-30
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,1.10180633e+03,1.17369451e-30
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,1.33756775e+03,9.12742452e-31
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,1.62377674e+03,7.10500243e-31
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,1.97122792e+03,5.54045249e-31
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,2.39302573e+03,4.32840546e-31
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,2.90507865e+03,3.38427289e-31
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,3.52669921e+03,2.64655838e-31
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,4.28133240e+03,2.06788966e-31
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,5.19743987e+03,1.61123153e-31
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,6.30957344e+03,1.24629385e-31
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,7.65967823e+03,9.47000324e-32
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,9.29867465e+03,7.08846905e-32
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,1.12883789e+04,5.28626661e-32
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,1.37038345e+04,3.92660540e-32
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,1.66361425e+04,2.90296177e-32
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,2.01958975e+04,2.14215338e-32
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,2.45173589e+04,1.57158131e-32
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,2.97635144e+04,1.14736675e-32
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,3.61322276e+04,8.34084098e-33
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,4.38637001e+04,6.04298262e-33
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,5.32495313e+04,4.35736939e-33
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,6.46437163e+04,3.14060988e-33
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,7.84759970e+04,2.24855020e-33
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,9.52680703e+04,1.60436621e-33
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,1.15653264e+05,1.13739060e-33
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,1.40400425e+05,8.08051618e-34
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,1.70442913e+05,5.56132717e-34
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,2.06913808e+05,3.10019890e-34
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,2.51188643e+05,2.05961471e-34
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,3.04937283e+05,1.49313996e-34
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,3.70186906e+05,7.12667297e-35
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,4.49398459e+05,3.85932939e-35
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,5.45559478e+05,2.27703770e-35
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,6.62296762e+05,1.39259963e-35
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,8.04013161e+05,8.72857345e-36
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,9.76053637e+05,5.69902379e-36
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,1.18490685e+06,3.67603837e-36
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,1.43844989e+06,2.44501718e-36
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,1.74624535e+06,1.65169531e-36
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,2.11990202e+06,1.10125959e-36
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,2.57351270e+06,7.38180365e-37
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,3.12418571e+06,4.96325503e-37
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,3.79269019e+06,3.43189861e-37
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,4.60423938e+06,2.31119214e-37
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,5.58944158e+06,1.58800411e-37
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,6.78545457e+06,1.09626617e-37
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,8.23738707e+06,7.64965376e-38
+Wind-ISM jump,dg_1d,100MeV,2.41798900e+22,1.00000000e+07,5.32765781e-38

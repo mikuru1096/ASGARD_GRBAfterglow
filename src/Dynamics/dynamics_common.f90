@@ -275,12 +275,13 @@ real(8) function rs_vegas_ud(gamma_rel, sigma)
     implicit none
     real(8), intent(in) :: gamma_rel, sigma
     real(8), parameter :: sigma_cut = 1d-6
-    real(8) :: ad, gamma_sq, gm1, gp1, hm1, hm2, term1, term2, u2_down
+    real(8) :: gamma_eff, ad, gamma_sq, gm1, gp1, hm1, hm2, term1, term2, u2_down
     real(8) :: a_cub, b_cub, c_cub, d_cub, b_red, c_red, d_red, p_cub, q_cub, amp, arg
 
-    ad = 4d0/3d0+one/(3d0*gamma_rel)
-    gamma_sq = gamma_rel*gamma_rel
-    gm1 = gamma_rel-one; gp1 = gamma_rel+one; hm1 = ad-one; hm2 = ad-two
+    gamma_eff = max(one, gamma_rel)
+    ad = 4d0/3d0+one/(3d0*gamma_eff)
+    gamma_sq = gamma_eff*gamma_eff
+    gm1 = gamma_eff-one; gp1 = gamma_eff+one; hm1 = ad-one; hm2 = ad-two
     term1 = -ad*hm2; term2 = gamma_sq-one
     if (sigma <= sigma_cut) then
         u2_down = gm1*hm1*hm1/(term1*gm1+two)
@@ -303,36 +304,89 @@ real(8) function rs_vegas_ud(gamma_rel, sigma)
     rs_vegas_ud = dsqrt(u2_down)
 end function rs_vegas_ud
 
+real(8) function rs_shock_upstream_u(gamma_rel, sigma)
+    implicit none
+    real(8), intent(in) :: gamma_rel, sigma
+    real(8) :: u_down, gamma_sq_minus_one
+
+    u_down = rs_vegas_ud(gamma_rel, sigma)
+    gamma_sq_minus_one = (gamma_rel-one)*(gamma_rel+one)
+    rs_shock_upstream_u = dsqrt((one+u_down*u_down)*gamma_sq_minus_one)+u_down*gamma_rel
+end function rs_shock_upstream_u
+
 ! Vegas 压缩比 u_up/u_down；上游四速度由相对速度合成关系给出。
 real(8) function rs_vegas_comp(gamma_rel, sigma)
     implicit none
     real(8), intent(in) :: gamma_rel, sigma
-    real(8) :: u_down, u_up
+    real(8), parameter :: sigma_cut = 1d-6
+    real(8) :: gamma_eff, u_down, u_up
 
-    u_down = rs_vegas_ud(gamma_rel, sigma)
+    gamma_eff = max(one, gamma_rel)
+    if (sigma <= sigma_cut) then
+        rs_vegas_comp = 4d0*gamma_eff
+        return
+    end if
+    u_down = rs_vegas_ud(gamma_eff, sigma)
     if (u_down == zero) then
-        rs_vegas_comp = 4d0*gamma_rel
+        rs_vegas_comp = 4d0*gamma_eff
     else
-        u_up = dsqrt((one+u_down*u_down)*(gamma_rel*gamma_rel-one))+u_down*gamma_rel
+        u_up = rs_shock_upstream_u(gamma_eff, sigma)
         rs_vegas_comp = u_up/u_down
     end if
 end function rs_vegas_comp
 
-! 磁化 RS 压缩比：Vegas 给出 sigma 依赖，ASGARD 非磁化 jump condition 固定零磁化极限。
+! 磁化 RS 压缩比：使用有限强度 shock 的 jump condition；sigma=0 时压缩比为 4*gamma_rel。
 real(8) function rs_mag_comp(gamma_rel, sigma)
     implicit none
     real(8), intent(in) :: gamma_rel, sigma
-    real(8) :: comp_asgard0, comp_vegas0, comp_vegas_sigma
 
-    comp_asgard0 = 4d0*gamma_rel+3d0
-    if (sigma <= zero) then
-        rs_mag_comp = comp_asgard0
-    else
-        comp_vegas0 = rs_vegas_comp(gamma_rel, zero)
-        comp_vegas_sigma = rs_vegas_comp(gamma_rel, sigma)
-        rs_mag_comp = comp_asgard0*comp_vegas_sigma/comp_vegas0
-    end if
+    rs_mag_comp = rs_vegas_comp(gamma_rel, sigma)
 end function rs_mag_comp
+
+logical function rs_fast_shock_allowed(gamma_rel, sigma)
+    implicit none
+    real(8), intent(in) :: gamma_rel, sigma
+    real(8) :: u_up
+
+    if (sigma <= zero) then
+        rs_fast_shock_allowed = .true.
+        return
+    end if
+    u_up = rs_shock_upstream_u(gamma_rel, sigma)
+    rs_fast_shock_allowed = (u_up*u_up > sigma)
+end function rs_fast_shock_allowed
+
+real(8) function rs_fast_wave_shell_relative_beta(gamma4, sigma)
+    implicit none
+    real(8), intent(in) :: gamma4, sigma
+    real(8) :: beta4, beta_fast
+
+    if (sigma <= zero) then
+        rs_fast_wave_shell_relative_beta = huge(one)
+        return
+    end if
+    beta4 = dsqrt(one-one/(gamma4*gamma4))
+    beta_fast = dsqrt(sigma/(one+sigma))
+    rs_fast_wave_shell_relative_beta = beta_fast/(gamma4*gamma4*(one-beta4*beta_fast))
+end function rs_fast_wave_shell_relative_beta
+
+real(8) function rs_pressure_balance_sigma_cr(gamma4, n1, n4)
+    implicit none
+    real(8), intent(in) :: gamma4, n1, n4
+
+    rs_pressure_balance_sigma_cr = (8d0/3d0)*gamma4*gamma4*n1/n4
+end function rs_pressure_balance_sigma_cr
+
+logical function rs_pressure_balance_allowed(gamma4, n1, n4, sigma)
+    implicit none
+    real(8), intent(in) :: gamma4, n1, n4, sigma
+
+    if (sigma <= zero) then
+        rs_pressure_balance_allowed = .true.
+    else
+        rs_pressure_balance_allowed = (sigma < rs_pressure_balance_sigma_cr(gamma4,n1,n4))
+    end if
+end function rs_pressure_balance_allowed
 
 ! 上游喷流有序磁场强度，采用 Vegas 的 B4=sqrt(4*pi*c^2*sigma*rho4) 定义。
 real(8) function rs_b4_up(rho_up, sigma)
@@ -350,14 +404,15 @@ end function rs_b4_up
 real(8) function rs_mag_specific_internal(gamma_rel, sigma)
     implicit none
     real(8), intent(in) :: gamma_rel, sigma
-    real(8) :: ad, u_down, u_up, gamma_down, gamma_up, comp_ratio, h_down
+    real(8) :: gamma_eff, ad, u_down, u_up, gamma_down, gamma_up, comp_ratio, h_down
 
+    gamma_eff = max(one, gamma_rel)
     if (sigma <= zero) then
-        rs_mag_specific_internal = gamma_rel-one
+        rs_mag_specific_internal = gamma_eff-one
     else
-        ad = 4d0/3d0+one/(3d0*gamma_rel)
-        u_down = rs_vegas_ud(gamma_rel, sigma)
-        u_up = dsqrt((one+u_down*u_down)*(gamma_rel*gamma_rel-one))+u_down*gamma_rel
+        ad = 4d0/3d0+one/(3d0*gamma_eff)
+        u_down = rs_vegas_ud(gamma_eff, sigma)
+        u_up = rs_shock_upstream_u(gamma_eff, sigma)
         gamma_down = dsqrt(one+u_down*u_down)
         gamma_up = dsqrt(one+u_up*u_up)
         comp_ratio = u_up/u_down
@@ -696,46 +751,46 @@ subroutine dynamics_rk4_reverse_pre_step(rhs, dB3, T, Y, M, H, para_m_ej, V3_sca
     call rhs(dB3, dummy(1), dummy(2), dummy(3), dummy(4), dummy(5), dummy(6), dummy(7), dummy(8), &
              dummy(8), T0, Y0, D, M, para_m_ej, V3_scale, Delta_0, eta_0, A_star, dNe_ISM, &
              R_tr, f_jump, f_wide, R0, Epsilon_b, Epsilon_e, p_f, f_e, e_r, b_r, p_r, f_e_r, sigma_r)
-    scale = Y0(4)/D(4)
+    scale = one/D(4)
     K1 = D*scale
     K1(4) = zero
     L1 = scale
 
     Y = Y0+0.5d0*H*K1
-    Y(4) = Y0(4)*exp(0.5d0*H)
+    Y(4) = Y0(4)+0.5d0*H
     T = T0+0.5d0*H*L1
     call rhs(dB3, dummy(1), dummy(2), dummy(3), dummy(4), dummy(5), dummy(6), dummy(7), dummy(8), &
              dummy(8), T, Y, D, M, para_m_ej, V3_scale, Delta_0, eta_0, A_star, dNe_ISM, &
              R_tr, f_jump, f_wide, R0, Epsilon_b, Epsilon_e, p_f, f_e, e_r, b_r, p_r, f_e_r, sigma_r)
-    scale = Y(4)/D(4)
+    scale = one/D(4)
     K2 = D*scale
     K2(4) = zero
     L2 = scale
 
     Y = Y0+0.5d0*H*K2
-    Y(4) = Y0(4)*exp(0.5d0*H)
+    Y(4) = Y0(4)+0.5d0*H
     T = T0+0.5d0*H*L2
     call rhs(dB3, dummy(1), dummy(2), dummy(3), dummy(4), dummy(5), dummy(6), dummy(7), dummy(8), &
              dummy(8), T, Y, D, M, para_m_ej, V3_scale, Delta_0, eta_0, A_star, dNe_ISM, &
              R_tr, f_jump, f_wide, R0, Epsilon_b, Epsilon_e, p_f, f_e, e_r, b_r, p_r, f_e_r, sigma_r)
-    scale = Y(4)/D(4)
+    scale = one/D(4)
     K3 = D*scale
     K3(4) = zero
     L3 = scale
 
     Y = Y0+H*K3
-    Y(4) = Y0(4)*exp(H)
+    Y(4) = Y0(4)+H
     T = T0+H*L3
     call rhs(dB3, dummy(1), dummy(2), dummy(3), dummy(4), dummy(5), dummy(6), dummy(7), dummy(8), &
              dummy(8), T, Y, D, M, para_m_ej, V3_scale, Delta_0, eta_0, A_star, dNe_ISM, &
              R_tr, f_jump, f_wide, R0, Epsilon_b, Epsilon_e, p_f, f_e, e_r, b_r, p_r, f_e_r, sigma_r)
-    scale = Y(4)/D(4)
+    scale = one/D(4)
     K4 = D*scale
     K4(4) = zero
     L4 = scale
 
     Y = Y0+H*(K1+two*K2+two*K3+K4)/6.0d0
-    Y(4) = Y0(4)*exp(H)
+    Y(4) = Y0(4)+H
     T = T0+H*(L1+two*L2+two*L3+L4)/6.0d0
     reverse_rhs_phase = 0
 end subroutine dynamics_rk4_reverse_pre_step
@@ -778,7 +833,7 @@ subroutine dynamics_rk4_reverse_pre_m3(rhs, dB3, T_cross, R_cross, e3_cross, gam
     real(8), intent(in) :: T_target, para_m_ej, V3_scale, Delta_0, eta_0, A_star, dNe_ISM
     real(8), intent(in) :: R_tr, f_jump, f_wide, R0, Epsilon_b, Epsilon_e
     real(8), intent(in) :: p_f, f_e, e_r, b_r, p_r, f_e_r, sigma_r
-    real(8), parameter :: pre_m3_log_step_max = 5d-2
+    real(8), parameter :: pre_m3_fraction_step_max = 5d-2
     logical :: crossing_first, has_reference
     real(8) :: H_bound, H_event, H_lo, H_hi, H_mid, P, Q, dB3_try, T_try, T_ref, Y_try(M), G(M), D(M), dummy(8)
 
@@ -788,12 +843,12 @@ subroutine dynamics_rk4_reverse_pre_m3(rhs, dB3, T_cross, R_cross, e3_cross, gam
              dummy(8), T_state, Y, D, M, para_m_ej, V3_scale, Delta_0, eta_0, A_star, dNe_ISM, &
              R_tr, f_jump, f_wide, R0, Epsilon_b, Epsilon_e, p_f, f_e, e_r, b_r, p_r, f_e_r, sigma_r)
     reverse_rhs_phase = 0
-    H_bound = log(one/Y(4))
-    H_hi = min(pre_m3_log_step_max, H_bound)
+    H_bound = one-Y(4)
+    H_hi = min(pre_m3_fraction_step_max, H_bound)
     T_try = T_state
     Y_try = Y
     dB3_try = dB3
-    N_bracket = max(2, ceiling(H_hi/pre_m3_log_step_max))
+    N_bracket = max(2, ceiling(H_hi/pre_m3_fraction_step_max))
     call dynamics_rk4_reverse_pre_integrate(rhs, dB3_try, T_try, Y_try, M, H_hi, N_bracket, para_m_ej, V3_scale, &
                                             Delta_0, eta_0, A_star, dNe_ISM, R_tr, f_jump, f_wide, R0, &
                                             Epsilon_b, Epsilon_e, &
@@ -803,7 +858,7 @@ subroutine dynamics_rk4_reverse_pre_m3(rhs, dB3, T_cross, R_cross, e3_cross, gam
         T_try = T_state
         Y_try = Y
         dB3_try = dB3
-        N_bracket = max(2, ceiling(H_hi/pre_m3_log_step_max))
+        N_bracket = max(2, ceiling(H_hi/pre_m3_fraction_step_max))
         call dynamics_rk4_reverse_pre_integrate(rhs, dB3_try, T_try, Y_try, M, H_hi, N_bracket, para_m_ej, V3_scale, &
                                                 Delta_0, eta_0, A_star, dNe_ISM, R_tr, f_jump, f_wide, R0, &
                                                 Epsilon_b, Epsilon_e, &
@@ -814,12 +869,12 @@ subroutine dynamics_rk4_reverse_pre_m3(rhs, dB3, T_cross, R_cross, e3_cross, gam
         H_event = H_bound
     else
         H_lo = zero
-        do I = 1, 40
+        do I = 1, 30
             H_mid = 0.5d0*(H_lo+H_hi)
             T_try = T_state
             Y_try = Y
             dB3_try = dB3
-            N_bracket = max(2, ceiling(H_mid/pre_m3_log_step_max))
+            N_bracket = max(2, ceiling(H_mid/pre_m3_fraction_step_max))
             call dynamics_rk4_reverse_pre_integrate(rhs, dB3_try, T_try, Y_try, M, H_mid, N_bracket, para_m_ej, V3_scale, &
                                                     Delta_0, eta_0, A_star, dNe_ISM, R_tr, f_jump, f_wide, R0, &
                                                     Epsilon_b, Epsilon_e, &
@@ -833,7 +888,7 @@ subroutine dynamics_rk4_reverse_pre_m3(rhs, dB3, T_cross, R_cross, e3_cross, gam
         H_event = H_hi
     end if
 
-    N = 1
+    N = max(1, ceiling(H_event/pre_m3_fraction_step_max))
     P = one+1d-5
     has_reference = .false.
     do while (P >= 1d-5)
@@ -875,6 +930,69 @@ subroutine dynamics_rk4_reverse_pre_m3(rhs, dB3, T_cross, R_cross, e3_cross, gam
         T_state = T_target
     end if
 end subroutine dynamics_rk4_reverse_pre_m3
+
+subroutine dynamics_rk4_reverse_waiting(rhs, dB3, T_cross, R_cross, &
+                                        e3_cross, gam20, U3_cross, V3_cross, M3_cross, &
+                                        gam_m_cross, B3_ordered_cross, &
+                                        T, H, Y, M, para_m_ej, V3_scale, Delta_0, &
+                                        eta_0, A_star, dNe_ISM, R_tr, f_jump, f_wide, R0, &
+                                        Epsilon_b, Epsilon_e, p_f, f_e, &
+                                        e_r, b_r, p_r, f_e_r, sigma_r)
+    implicit none
+    procedure(dynamics_reverse_rhs_iface) :: rhs
+    integer, intent(in) :: M
+    integer :: N, J
+    real(8), intent(inout) :: dB3, T_cross, R_cross, e3_cross, gam20, U3_cross, V3_cross, M3_cross
+    real(8), intent(inout) :: gam_m_cross, B3_ordered_cross, T, Y(M)
+    real(8), intent(in) :: H, para_m_ej, V3_scale, Delta_0, eta_0, A_star, dNe_ISM
+    real(8), intent(in) :: R_tr, f_jump, f_wide, R0, Epsilon_b, Epsilon_e
+    real(8), intent(in) :: p_f, f_e, e_r, b_r, p_r, f_e_r, sigma_r
+    logical :: has_reference
+    real(8) :: C(M), G(M), EPS, HH, P, X, S, HS
+    real(8) :: dB3_try, T_cross_try, R_cross_try, e3_cross_try, gam20_try
+    real(8) :: U3_cross_try, V3_cross_try, M3_cross_try, gam_m_cross_try, B3_ordered_cross_try
+
+    EPS = 1d-5
+    N = 1
+    HS = log((T+H)/T)
+    HH = HS
+    P = one+EPS
+    X = T
+    C = Y
+    has_reference = .false.
+    do while (P >= EPS)
+        Y = C
+        S = zero
+        dB3_try=dB3; T_cross_try=T_cross; R_cross_try=R_cross
+        e3_cross_try=e3_cross; gam20_try=gam20
+        U3_cross_try=U3_cross; V3_cross_try=V3_cross
+        M3_cross_try=M3_cross; gam_m_cross_try=gam_m_cross
+        B3_ordered_cross_try=B3_ordered_cross
+        do J = 1, N
+            call dynamics_rk4_reverse_plain_step(rhs, dB3_try, T_cross_try, R_cross_try, &
+                                                 e3_cross_try, gam20_try, U3_cross_try, V3_cross_try, &
+                                                 M3_cross_try, gam_m_cross_try, B3_ordered_cross_try, &
+                                                 X, S, HH, Y, M, para_m_ej, V3_scale, Delta_0, &
+                                                 eta_0, A_star, dNe_ISM, R_tr, f_jump, f_wide, R0, &
+                                                 Epsilon_b, Epsilon_e, p_f, f_e, &
+                                                 e_r, b_r, p_r, f_e_r, sigma_r, -1)
+        end do
+        if (has_reference) then
+            call dynamics_rk4_reverse_error(Y, G, M, P)
+        else
+            P = one+EPS
+            has_reference = .true.
+        end if
+        if (P < EPS) then
+            dB3=dB3_try
+        else
+            G = Y
+            HH = 0.5d0*HH
+            N = N+N
+        end if
+    end do
+    T = X
+end subroutine dynamics_rk4_reverse_waiting
 
 subroutine dynamics_rk4_reverse(rhs, dB3, T_cross, R_cross, &
                                 e3_cross, gam20, U3_cross, V3_cross, M3_cross, &

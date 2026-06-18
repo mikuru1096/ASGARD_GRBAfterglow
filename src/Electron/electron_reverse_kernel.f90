@@ -1,45 +1,71 @@
 module electron_reverse_kernel
     use constants
     use dynamics_common, only: dynamics_external_density_profile, dynamics_reverse_gamma_extrema
-    use electron_injection_profiles, only: electron_exp_cutoff_factor, electron_profile_log_cell_edges
-    use electron_transport_common, only: electron_fullhide_flux_split_step, electron_dnx_to_dndgamma_exp_centers
+    use electron_injection_profiles, only: electron_build_kinetic_source_term_exp_cutoff_edges, electron_profile_log_cell_edges
+    use electron_shell_transport_common, only: electron_resolve_1d_solver_id, electron_shell_flux_split_step, &
+                                               electron_solver_dg_1d, electron_solver_fullhide_1d
+    use electron_transport_common, only: electron_dnx_to_dndgamma_exp_centers
+    use electron_transport_dg_1d_kernel, only: electron_dg1d_mesh, electron_dg1d_advance_step, &
+                                               electron_dg1d_build_four_velocity_mesh, electron_dg1d_integral, &
+                                               electron_dg1d_limit_positive_cell_preserving, &
+                                               electron_dg1d_project_state, electron_dg1d_project_to_grid, &
+                                               electron_dg1d_project_to_log_cells, &
+                                               electron_dg1d_scale_to_content
     use electron_radiation_kernel, only: get_syn_selected, get_nu_a
     use electron_cooling_kernel, only: prepare_forward_cooling_aux
     implicit none
+    integer, parameter :: reverse_dg_base_substeps = 10
 contains
 
 ! 反向激波电子演化主驱动：注入→同步+IC冷却→隐式输运推进，IC模式遵循公开标准选择。
-subroutine electron_reverse_evolve(Delta_0,e_r,b_r,p_r,f_e_r,eta_0,Epsilon_e,Epsilon_b,z,A_star,dNe_ISM,para_m_ej, &
-                                   R_tr,f_jump,f_wide,R0, &
-                                   T_cross,R_cross,U3_cross,M3_cross,R_Tobs,R_Gamma,R,B3,M3_shell,U3_shell,V_seed, &
-                                   Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads,gam_e,dN_gam_e)
+    subroutine electron_reverse_evolve(Delta_0,e_r,b_r,p_r,f_e_r,eta_0,Epsilon_e,Epsilon_b,z,A_star,dNe_ISM,para_m_ej, &
+                                       R_tr,f_jump,f_wide,R0, &
+                                       T_cross,R_cross,U3_cross,V3_cross,M3_cross,R_Tobs,R_Gamma,R,B3,M3_shell, &
+                                       U3_shell,V3_shell,V_seed, &
+                                       Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads,gam_e,dN_gam_e, &
+                                       solver_id)
     implicit none
     integer, intent(in) :: Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads
-    integer :: I_tobs,I_gam_e,L1,L
+    integer, intent(in), optional :: solver_id
+        integer :: I_tobs,I_gam_e,L1,L,active_solver
     real(8), intent(in) :: Delta_0,e_r,b_r,p_r,f_e_r,eta_0,Epsilon_e,Epsilon_b,z,A_star,dNe_ISM,para_m_ej
     real(8), intent(in) :: R_tr,f_jump,f_wide,R0
-    real(8), intent(in) :: T_cross,R_cross,U3_cross,M3_cross
-    real(8), intent(in) :: R_Tobs(Num_R),R_Gamma(Num_R),R(Num_R),B3(Num_R),M3_shell(Num_R),U3_shell(Num_R),V_seed(Num_nu)
+        real(8), intent(in) :: T_cross,R_cross,U3_cross,V3_cross,M3_cross
+        real(8), intent(in) :: R_Tobs(Num_R),R_Gamma(Num_R),R(Num_R),B3(Num_R),M3_shell(Num_R)
+        real(8), intent(in) :: U3_shell(Num_R),V3_shell(Num_R),V_seed(Num_nu)
     real(8), intent(out) :: gam_e(Num_gam_e),dN_gam_e(Num_gam_e,Num_R)
     real(8), parameter :: reverse_gamma_c_coeff=7.7d8, reverse_synch_b_coeff=0.39d0, reverse_adv_coeff=1.35d-19
     real(8) :: factor2,dB,gamma34,Gam_e_max,Gam_e_m,Gam_e_c,dNe,DB_min,Gam_e_max_max,Gam_e_min_global,d_x,R_loc,R_Gamma_loc,Delta
     real(8) :: R_n4,beta4,beta2,u2,u4,f_r,dDR,dDD,Qshell,cooling_scale
-    real(8) :: thermal_scale_lo,thermal_scale_hi,thermal_loss_rate,adiabatic_rate
-    real(8) :: injection_rate,inj_hi,inj_width,mass_lo,mass_hi
-    real(8), allocatable :: dEl(:),x(:),dF1(:),temp3(:),dN_x(:),x_edge(:)
-    real(8), allocatable :: dB3_serial(:),P_syn(:),Seed_syn(:),cooling_aux(:),Compton(:)
+    real(8) :: thermal_scale_lo,thermal_scale_hi,thermal_loss_rate,adiabatic_rate,dg_gamma_scale,dg_gamma_high
+        real(8) :: injection_rate,inj_hi,inj_width,mass_lo,mass_hi
+        real(8), allocatable :: dEl(:),x(:),dF1(:),temp3(:),dN_x(:),x_edge(:)
+        real(8), allocatable :: dB3_serial(:),P_syn(:),Seed_syn(:),cooling_aux(:),Compton(:)
+        type(electron_dg1d_mesh) :: dg_mesh,dg_new_mesh
+        real(8), allocatable :: dg_state(:),dg_work(:),dg_dEl(:),dg_source(:)
+        logical :: crossed_reverse
 
     allocate(dEl(Num_gam_e),x(Num_gam_e),dF1(Num_gam_e),temp3(Num_gam_e-1),dN_x(Num_gam_e),x_edge(Num_gam_e+1), &
              dB3_serial(Num_R),P_syn(Num_nu),Seed_syn(Num_nu), &
              cooling_aux(Num_gam_e),Compton(Num_gam_e))
     dB3_serial=B3
 
-    factor2=(p_r-two)/(p_r-one)*e_r*Para_m_p_div_m_e
+        active_solver=electron_resolve_1d_solver_id(solver_id)
+        crossed_reverse=(T_cross > zero .and. R_cross > zero .and. M3_cross > zero .and. V3_cross > zero)
+        if (maxval(B3) <= zero .or. maxval(M3_shell) <= M3_shell(1)) then
+            call set_empty_reverse_electrons()
+            deallocate(dEl,x,dF1,temp3,dN_x,x_edge,dB3_serial,P_syn,Seed_syn,cooling_aux,Compton)
+            return
+        end if
+
+        factor2=(p_r-two)/(p_r-one)*e_r*Para_m_p_div_m_e
     if (p_r < 2.05d0) factor2=0.05d0/1.05d0*e_r*Para_m_p_div_m_e
     beta4=dsqrt(one-one/eta_0**2); u4=dsqrt(eta_0*eta_0-one)
     dB3_serial(1)=dB3_serial(min(2,Num_R))
     dB=dB3_serial(1); gamma34=1.001d0
     call dynamics_reverse_gamma_extrema(dB,gamma34,factor2,f_e_r,Gam_e_max,Gam_e_m)
+    dg_gamma_scale=Gam_e_m
+    dg_gamma_high=Gam_e_max
     Gam_e_c=reverse_gamma_c_coeff/(one+dsqrt(e_r/b_r))/R_Gamma(1)/dB**2/(R_Tobs(1)/two)
 
     call dynamics_external_density_profile(A_star,dNe_ISM,R(1),R0,1,R_tr,f_jump,f_wide,dNe)
@@ -54,6 +80,7 @@ subroutine electron_reverse_evolve(Delta_0,e_r,b_r,p_r,f_e_r,eta_0,Epsilon_e,Eps
         gamma34=(R_Gamma_loc*R_Gamma_loc+eta_0*eta_0-one)/(eta_0*R_Gamma_loc+u2*u4)
         dB=(dB3_serial(I_tobs)+dB3_serial(I_tobs-1))/two
         call dynamics_reverse_gamma_extrema(dB,gamma34,factor2,f_e_r,Gam_e_max,Gam_e_m)
+        if (Gam_e_m > one .and. Gam_e_m < dg_gamma_scale) dg_gamma_scale=Gam_e_m
     end do
     if (Gam_e_max_max <= Gam_e_min_global) error stop "electron_reverse_evolve: reverse electron grid maximum must exceed minimum."
 
@@ -69,12 +96,17 @@ subroutine electron_reverse_evolve(Delta_0,e_r,b_r,p_r,f_e_r,eta_0,Epsilon_e,Eps
     dN_x=dN_gam_e(:,1)*gam_e*dlog(ten)
     d_x=dlog10(gam_e(2)/gam_e(1))
     call electron_profile_log_cell_edges(Num_gam_e,gam_e,x_edge)
+    if (active_solver == electron_solver_dg_1d) call initialize_reverse_dg_state()
 
-    do I_tobs=2,Num_R
-        call prepare_reverse_shell_state(I_tobs)
-        call compute_reverse_thermal_loss(I_tobs)
-        call compute_reverse_injection_rate(I_tobs)
-        L1=max(100,min(1000,int(dDD/dDR)))
+        do I_tobs=2,Num_R
+            call prepare_reverse_shell_state(I_tobs)
+            if (dB <= zero) then
+                dN_gam_e(:,I_tobs)=dN_gam_e(:,I_tobs-1)
+                cycle
+            end if
+            call compute_reverse_thermal_loss(I_tobs)
+            call compute_reverse_injection_rate(I_tobs)
+        L1=reverse_transport_substeps(dDR,dDD,active_solver)
         dDR=dDD/L1
         dN_x=dN_gam_e(:,I_tobs-1)*gam_e*dlog(ten)
 
@@ -83,6 +115,8 @@ subroutine electron_reverse_evolve(Delta_0,e_r,b_r,p_r,f_e_r,eta_0,Epsilon_e,Eps
     end do
 
     deallocate(dEl,x,dF1,temp3,dN_x,x_edge,dB3_serial,P_syn,Seed_syn,cooling_aux,Compton)
+    if (allocated(dg_state)) deallocate(dg_state)
+    if (allocated(dg_work)) deallocate(dg_work,dg_dEl,dg_source)
 
 contains
 
@@ -111,38 +145,55 @@ contains
     integer, intent(in) :: I_tobs
 
         thermal_loss_rate=zero
-        if (R(I_tobs) > R_cross) then
+        if (crossed_reverse .and. R(I_tobs) > R_cross) then
             if (R(I_tobs-1) < R_cross) then
-                thermal_scale_lo=U3_cross/M3_cross
-                thermal_scale_hi=U3_shell(I_tobs)/M3_shell(I_tobs)
+                thermal_scale_lo=V3_cross
+                thermal_scale_hi=V3_shell(I_tobs)
             else
-                thermal_scale_lo=U3_shell(I_tobs-1)/M3_shell(I_tobs-1)
-                thermal_scale_hi=U3_shell(I_tobs)/M3_shell(I_tobs)
+                thermal_scale_lo=V3_shell(I_tobs-1)
+                thermal_scale_hi=V3_shell(I_tobs)
             end if
             if (thermal_scale_lo <= zero .or. thermal_scale_hi <= zero) &
-                error stop "electron_reverse_evolve: post-crossing thermal scale must be positive."
+                error stop "electron_reverse_evolve: post-crossing comoving volume must be positive."
             if (R(I_tobs-1) < R_cross) then
-                thermal_loss_rate=-dlog(thermal_scale_hi/thermal_scale_lo)/(R(I_tobs)-R_cross)
+                thermal_loss_rate=dlog(thermal_scale_hi/thermal_scale_lo)/(3d0*(R(I_tobs)-R_cross))
             else
-                thermal_loss_rate=-dlog(thermal_scale_hi/thermal_scale_lo)/dDD
+                thermal_loss_rate=dlog(thermal_scale_hi/thermal_scale_lo)/(3d0*dDD)
             end if
-            if (thermal_loss_rate <= zero) &
-                error stop "electron_reverse_evolve: post-crossing thermal scale must decrease."
+            if (thermal_loss_rate < zero) &
+                error stop "electron_reverse_evolve: post-crossing comoving volume must not decrease."
         end if
     end subroutine compute_reverse_thermal_loss
+
+    subroutine set_empty_reverse_electrons()
+    implicit none
+    integer :: i_empty
+
+        do i_empty=1,Num_gam_e
+            if (Num_gam_e == 1) then
+                gam_e(i_empty)=one
+            else
+                gam_e(i_empty)=ten**(dble(i_empty-1)/dble(Num_gam_e-1))
+            end if
+        end do
+        dN_gam_e=zero
+    end subroutine set_empty_reverse_electrons
 
     subroutine compute_reverse_injection_rate(I_tobs)
     implicit none
     integer, intent(in) :: I_tobs
 
         injection_rate=zero
-        if (R(I_tobs-1) < R_cross) then
-            inj_hi=min(R(I_tobs),R_cross)
+        if ((.not. crossed_reverse) .or. R(I_tobs-1) < R_cross) then
+            if (crossed_reverse) then
+                inj_hi=min(R(I_tobs),R_cross)
+            else
+                inj_hi=R(I_tobs)
+            end if
             if (inj_hi > R(I_tobs-1)) then
                 mass_lo=M3_shell(I_tobs-1)
-                if (I_tobs == 2) mass_lo=zero
                 mass_hi=M3_shell(I_tobs)
-                if (R(I_tobs) > R_cross) mass_hi=M3_cross
+                if (crossed_reverse .and. R(I_tobs) > R_cross) mass_hi=M3_cross
                 if (mass_hi < mass_lo) error stop "electron_reverse_evolve: reverse swept mass must not decrease."
                 inj_width=inj_hi-R(I_tobs-1)
                 injection_rate=f_e_r*(mass_hi-mass_lo)/(Para_m_p*inj_width)
@@ -176,32 +227,154 @@ contains
     subroutine advance_reverse_transport_shell(I_tobs)
     implicit none
     integer, intent(in) :: I_tobs
+    real(8) :: dg_source_norm
+
+        if (active_solver == electron_solver_dg_1d) then
+            call remesh_reverse_dg_state()
+            call prepare_reverse_dg_cooling()
+            do L=1,L1
+                R_loc=R_loc+dDR
+                if ((.not. crossed_reverse) .or. R_cross >= R_loc) then
+                    dg_source_norm=injection_rate
+                else
+                    dg_source_norm=zero
+                end if
+                if ((.not. crossed_reverse) .or. R_loc <= R_cross) then
+                    adiabatic_rate=one/R_loc
+                else
+                    adiabatic_rate=thermal_loss_rate
+                end if
+                call prepare_reverse_dg_source(dg_source_norm)
+                call electron_dg1d_scale_to_content(dg_mesh,dg_source_norm,dg_source)
+                call electron_dg1d_advance_step(dg_mesh,adiabatic_rate,dDR,dg_dEl,dg_source,dg_state,dg_work)
+                call electron_dg1d_limit_positive_cell_preserving(dg_mesh,dg_work)
+                dg_state=dg_work
+                call advance_reverse_dg_high_front(dg_source_norm)
+            end do
+            call electron_dg1d_project_to_log_cells(dg_mesh,dg_state,Num_gam_e,x_edge,gam_e,dN_gam_e(:,I_tobs))
+            dN_x=dN_gam_e(:,I_tobs)*gam_e*dlog(ten)
+            return
+        end if
 
         do L=1,L1
             R_loc=R_loc+dDR
-            if (R_cross >= R_loc) then
-                call reverse_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m,Gam_e_max,injection_rate,p_r,dF1)
+            if ((.not. crossed_reverse) .or. R_cross >= R_loc) then
+                call electron_build_kinetic_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m,Gam_e_max, &
+                                                                          injection_rate,p_r,dF1)
             else
                 dF1=zero
             end if
-            if (R_loc <= R_cross) then
+            if ((.not. crossed_reverse) .or. R_loc <= R_cross) then
                 adiabatic_rate=one/R_loc
             else
                 adiabatic_rate=thermal_loss_rate
             end if
-            temp3=((dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/two+adiabatic_rate)/dlog(ten)
-            call electron_fullhide_flux_split_step(Num_gam_e,dDR,d_x,temp3,dF1,dN_x,x,.true.)
+            call electron_shell_flux_split_step(Num_gam_e,dDR,d_x,dEl,adiabatic_rate,dF1,dN_x,x)
             dN_x=x
             if (L == L1) call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,I_tobs))
         end do
     end subroutine advance_reverse_transport_shell
+
+    subroutine initialize_reverse_dg_state()
+    implicit none
+
+        call electron_dg1d_build_four_velocity_mesh(x_edge(1),x_edge(Num_gam_e+1),dlog10(Gam_e_m), &
+                                                    dlog10(reverse_dg_kinetic_break(Gam_e_m,Gam_e_max)), &
+                                                    dlog10(reverse_dg_upper_break()),dg_gamma_scale,dg_mesh)
+        allocate(dg_state(dg_mesh%ntot))
+        dg_state=zero
+    end subroutine initialize_reverse_dg_state
+
+    subroutine remesh_reverse_dg_state()
+    implicit none
+
+        call electron_dg1d_build_four_velocity_mesh(x_edge(1),x_edge(Num_gam_e+1),dlog10(Gam_e_m), &
+                                                    dlog10(reverse_dg_kinetic_break(Gam_e_m,Gam_e_max)), &
+                                                    dlog10(reverse_dg_upper_break()),dg_gamma_scale,dg_new_mesh)
+        call ensure_reverse_dg_work(dg_new_mesh%ntot)
+        call electron_dg1d_project_state(dg_mesh,dg_state,dg_new_mesh,dg_work)
+        deallocate(dg_state)
+        allocate(dg_state(dg_new_mesh%ntot))
+        dg_state=dg_work
+        dg_mesh=dg_new_mesh
+        call electron_dg1d_limit_positive_cell_preserving(dg_mesh,dg_state)
+    end subroutine remesh_reverse_dg_state
+
+    subroutine ensure_reverse_dg_work(ntot)
+    implicit none
+    integer, intent(in) :: ntot
+
+        if (allocated(dg_work)) then
+            if (size(dg_work) /= ntot) deallocate(dg_work,dg_dEl,dg_source)
+        end if
+        if (.not. allocated(dg_work)) allocate(dg_work(ntot),dg_dEl(ntot),dg_source(ntot))
+    end subroutine ensure_reverse_dg_work
+
+    subroutine prepare_reverse_dg_cooling()
+    implicit none
+    integer :: i_node
+
+        do i_node=1,dg_mesh%ntot
+            dg_dEl(i_node)=reverse_interp_log_grid(Num_gam_e,x_edge,dEl,dg_mesh%x_gamma(i_node))
+        end do
+    end subroutine prepare_reverse_dg_cooling
+
+    subroutine prepare_reverse_dg_source(source_norm)
+    implicit none
+    real(8), intent(in) :: source_norm
+    integer :: i_node
+
+        if (source_norm > zero) then
+            call electron_build_kinetic_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m,Gam_e_max, &
+                                                                      source_norm,p_r,dF1)
+        else
+            dF1=zero
+        end if
+        do i_node=1,dg_mesh%ntot
+            dg_source(i_node)=reverse_interp_log_grid(Num_gam_e,x_edge,dF1,dg_mesh%x_gamma(i_node))* &
+                              dg_mesh%dxgamma_dcoord(i_node)
+        end do
+    end subroutine prepare_reverse_dg_source
+
+    real(8) function reverse_dg_upper_break() result(gamma_break)
+    implicit none
+
+        if ((.not. crossed_reverse) .or. R_loc < R_cross) then
+            gamma_break=Gam_e_max
+        else
+            gamma_break=dg_gamma_high
+        end if
+    end function reverse_dg_upper_break
+
+    subroutine advance_reverse_dg_high_front(source_norm)
+    implicit none
+    real(8), intent(in) :: source_norm
+    real(8) :: exp_b,loss_front
+
+        if (dg_gamma_high > one) then
+            if (index_Y == 0) then
+                if (abs(adiabatic_rate*dDR) <= 1d-10) then
+                    dg_gamma_high=dg_gamma_high/(one+f_r*dg_gamma_high*dDR)
+                else
+                    exp_b=dexp(-adiabatic_rate*dDR)
+                    dg_gamma_high=dg_gamma_high*exp_b/(one+(f_r/adiabatic_rate)*dg_gamma_high*(one-exp_b))
+                end if
+            else
+                loss_front=reverse_interp_log_grid(Num_gam_e,x_edge,dEl,dlog10(dg_gamma_high))
+                dg_gamma_high=dg_gamma_high*dexp(-(loss_front+adiabatic_rate)*dDR)
+            end if
+        end if
+        if (source_norm > zero) dg_gamma_high=max(dg_gamma_high,Gam_e_max)
+    end subroutine advance_reverse_dg_high_front
 end subroutine electron_reverse_evolve
 
 subroutine electron_secondary_reverse_evolve(e_r,b_r,p_r,f_e_r,z,R_Tobs,R_Gamma,R,B3,M3_shell,U3_shell,V3_shell,Gam_m_shell, &
-                                             V_seed,Num_nu,Num_R,Num_gam_e,index_syn_intger,n_threads,gam_e,dN_gam_e)
+                                             V_seed,Num_nu,Num_R,Num_gam_e,index_syn_intger,n_threads,gam_e,dN_gam_e, &
+                                             solver_id)
     implicit none
     integer, intent(in) :: Num_nu,Num_R,Num_gam_e,index_syn_intger,n_threads
-    integer :: I_tobs,I_gam_e,L1,L
+    integer, intent(in), optional :: solver_id
+    integer :: I_tobs,I_gam_e,L1,L,active_solver
     real(8), intent(in) :: e_r,b_r,p_r,f_e_r,z
     real(8), intent(in) :: R_Tobs(Num_R),R_Gamma(Num_R),R(Num_R),B3(Num_R),M3_shell(Num_R),U3_shell(Num_R)
     real(8), intent(in) :: V3_shell(Num_R),Gam_m_shell(Num_R),V_seed(Num_nu)
@@ -211,6 +384,7 @@ subroutine electron_secondary_reverse_evolve(e_r,b_r,p_r,f_e_r,z,R_Tobs,R_Gamma,
     real(8) :: f_r,dDR,dDD,injection_rate,mass_lo,mass_hi,inj_width,adiabatic_rate
     real(8), allocatable :: dEl(:),x(:),dF1(:),temp3(:),dN_x(:),x_edge(:)
 
+    active_solver=electron_resolve_1d_solver_id(solver_id)
     allocate(dEl(Num_gam_e),x(Num_gam_e),dF1(Num_gam_e),temp3(Num_gam_e-1),dN_x(Num_gam_e),x_edge(Num_gam_e+1))
 
     Gam_e_min_global=one
@@ -270,7 +444,7 @@ contains
         f_r=secondary_adv_coeff/beta2/R_Gamma_loc*dB**2/pi
         dDD=R(I_tobs)-R(I_tobs-1)
         dDR=0.7d0/(f_r*Gam_e_max+one/R(I_tobs-1))
-        L1=max(100,min(1000,int(dDD/dDR)))
+        L1=reverse_transport_substeps(dDR,dDD,active_solver)
         dDR=dDD/L1
         dEl=f_r*gam_e
     end subroutine prepare_secondary_shell_state
@@ -300,17 +474,35 @@ contains
     subroutine advance_secondary_transport_shell(I_tobs)
     implicit none
     integer, intent(in) :: I_tobs
+    real(8) :: dg_adiabatic(L1), dg_source_norm(L1)
 
         dN_x=dN_gam_e(:,I_tobs-1)*gam_e*dlog(ten)
+        if (active_solver == electron_solver_dg_1d) then
+            do L=1,L1
+                R_loc=R_loc+dDR
+                dg_adiabatic(L)=adiabatic_rate
+                if (injection_rate > zero) then
+                    dg_source_norm(L)=injection_rate
+                else
+                    dg_source_norm(L)=zero
+                end if
+            end do
+            call reverse_dg_grid_sequence(Num_gam_e,x_edge,gam_e,L1,dDR,dEl,dg_adiabatic,dg_source_norm, &
+                                          p_r,Gam_e_m,Gam_e_max,dN_x,x)
+            dN_x=x
+            call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,I_tobs))
+            return
+        end if
+
         do L=1,L1
             R_loc=R_loc+dDR
             if (injection_rate > zero) then
-                call reverse_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m,Gam_e_max,injection_rate,p_r,dF1)
+                call electron_build_kinetic_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m,Gam_e_max, &
+                                                                          injection_rate,p_r,dF1)
             else
                 dF1=zero
             end if
-            temp3=((dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/two+adiabatic_rate)/dlog(ten)
-            call electron_fullhide_flux_split_step(Num_gam_e,dDR,d_x,temp3,dF1,dN_x,x,.true.)
+            call electron_shell_flux_split_step(Num_gam_e,dDR,d_x,dEl,adiabatic_rate,dF1,dN_x,x)
             dN_x=x
             if (L == L1) call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,I_tobs))
         end do
@@ -345,9 +537,10 @@ end subroutine electron_secondary_reverse_synchrotron
 subroutine electron_secondary_reverse_branch_synchrotron(e_r,b_r,p_r,f_e_r,z,R_Tobs,R_Gamma,R,B3_branch, &
                                                          M3_branch,U3_branch,V3_branch,Gam_m_branch,V_seed, &
                                                          Num_jump,Num_nu,Num_R,Num_gam_e,index_syn_intger,n_threads, &
-                                                         Branch_L_syn_spec,L_syn_spec)
+                                                         Branch_L_syn_spec,L_syn_spec,solver_id)
     implicit none
     integer, intent(in) :: Num_jump,Num_nu,Num_R,Num_gam_e,index_syn_intger,n_threads
+    integer, intent(in), optional :: solver_id
     integer :: I_jump
     real(8), intent(in) :: e_r,b_r,p_r,f_e_r,z
     real(8), intent(in) :: R_Tobs(Num_R),R_Gamma(Num_R),R(Num_R),V_seed(Num_nu)
@@ -364,7 +557,7 @@ subroutine electron_secondary_reverse_branch_synchrotron(e_r,b_r,p_r,f_e_r,z,R_T
         call electron_secondary_reverse_evolve(e_r,b_r,p_r,f_e_r,z,R_Tobs,R_Gamma,R,B3_branch(I_jump,:), &
                                                M3_branch(I_jump,:),U3_branch(I_jump,:),V3_branch(I_jump,:), &
                                                Gam_m_branch(I_jump,:),V_seed,Num_nu,Num_R,Num_gam_e, &
-                                               index_syn_intger,n_threads,gam_e_branch,dN_branch)
+                                               index_syn_intger,n_threads,gam_e_branch,dN_branch,solver_id)
         call electron_secondary_reverse_synchrotron(index_syn_intger,Num_nu,Num_R,Num_gam_e,n_threads,R,R_Gamma, &
                                                     B3_branch(I_jump,:),gam_e_branch,dN_branch,V_seed,z, &
                                                     Branch_L_syn_spec(I_jump,:,:),seed_dummy,nu_a_dummy)
@@ -377,11 +570,12 @@ subroutine electron_secondary_reverse_branch_reaccelerated(e_r,b_r,p_r,f_e_r,z,R
                                                            M3_branch,U3_branch,V3_branch,Gam_m_branch,Gamma43_branch, &
                                                            Comp_branch,Parent_branch,V_seed,Num_jump,Num_nu,Num_R,Num_gam_e, &
                                                            index_syn_intger,n_threads,gam_e,dN_total,Branch_L_syn_spec, &
-                                                           L_syn_spec,Branch_seed_energy,Branch_reaccel_energy)
+                                                           L_syn_spec,Branch_seed_energy,Branch_reaccel_energy,solver_id)
     implicit none
     integer, intent(in) :: Num_jump,Num_nu,Num_R,Num_gam_e,index_syn_intger,n_threads
     integer, intent(in) :: Parent_branch(Num_jump)
-    integer :: I_tobs,I_jump,I_gam_e,L1,L,parent
+    integer, intent(in), optional :: solver_id
+    integer :: I_tobs,I_jump,I_gam_e,L1,L,parent,active_solver
     real(8), intent(in) :: e_r,b_r,p_r,f_e_r,z
     real(8), intent(in) :: R_Tobs(Num_R),R_Gamma(Num_R),R(Num_R),V_seed(Num_nu)
     real(8), intent(in) :: B3_branch(Num_jump,Num_R),M3_branch(Num_jump,Num_R),U3_branch(Num_jump,Num_R)
@@ -399,6 +593,7 @@ subroutine electron_secondary_reverse_branch_reaccelerated(e_r,b_r,p_r,f_e_r,z,R
     real(8), allocatable :: dN_seed(:),dN_boost(:),dN_reaccel(:),dN_gamma_branch(:,:,:),seed_dummy(:,:),nu_a_dummy(:)
     real(8), allocatable :: branch_mass_available(:),fresh_mass_branch(:)
 
+    active_solver=electron_resolve_1d_solver_id(solver_id)
     allocate(dEl(Num_gam_e),x(Num_gam_e),dF1(Num_gam_e),temp3(Num_gam_e-1),x_edge(Num_gam_e+1), &
              dN_x(Num_jump,Num_gam_e),dN_work(Num_jump,Num_gam_e),dN_seed(Num_gam_e),dN_boost(Num_gam_e), &
              dN_reaccel(Num_gam_e),dN_gamma_branch(Num_jump,Num_gam_e,Num_R),seed_dummy(Num_nu,Num_R), &
@@ -498,6 +693,7 @@ contains
     subroutine advance_reaccelerated_branch_shell(i_shell,jump_index)
     implicit none
     integer, intent(in) :: i_shell,jump_index
+    real(8) :: dg_adiabatic(L1), dg_source_norm(L1)
 
         if (M3_branch(jump_index,i_shell) <= zero .and. M3_branch(jump_index,i_shell-1) <= zero) then
             dN_gamma_branch(jump_index,:,i_shell)=dN_x(jump_index,:)/gam_e/dlog(ten)
@@ -505,15 +701,32 @@ contains
         end if
         call prepare_branch_shell(i_shell,jump_index)
         call compute_branch_injection(i_shell,jump_index)
+        if (active_solver == electron_solver_dg_1d) then
+            do L=1,L1
+                R_loc=R_loc+dDR
+                dg_adiabatic(L)=adiabatic_rate
+                if (injection_rate > zero) then
+                    dg_source_norm(L)=injection_rate
+                else
+                    dg_source_norm(L)=zero
+                end if
+            end do
+            call reverse_dg_grid_sequence(Num_gam_e,x_edge,gam_e,L1,dDR,dEl,dg_adiabatic,dg_source_norm, &
+                                          p_r,Gam_e_m,Gam_e_max,dN_x(jump_index,:),x)
+            dN_x(jump_index,:)=x
+            dN_gamma_branch(jump_index,:,i_shell)=dN_x(jump_index,:)/gam_e/dlog(ten)
+            return
+        end if
+
         do L=1,L1
             R_loc=R_loc+dDR
             if (injection_rate > zero) then
-                call reverse_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m,Gam_e_max,injection_rate,p_r,dF1)
+                call electron_build_kinetic_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m,Gam_e_max, &
+                                                                          injection_rate,p_r,dF1)
             else
                 dF1=zero
             end if
-            temp3=((dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/two+adiabatic_rate)/dlog(ten)
-            call electron_fullhide_flux_split_step(Num_gam_e,dDR,d_x,temp3,dF1,dN_x(jump_index,:),x,.true.)
+            call electron_shell_flux_split_step(Num_gam_e,dDR,d_x,dEl,adiabatic_rate,dF1,dN_x(jump_index,:),x)
             dN_x(jump_index,:)=x
         end do
         dN_gamma_branch(jump_index,:,i_shell)=dN_x(jump_index,:)/gam_e/dlog(ten)
@@ -537,7 +750,7 @@ contains
         f_r=secondary_adv_coeff/beta2/R_Gamma_loc*dB**2/pi
         dDD=R(i_shell)-R(i_shell-1)
         dDR=0.7d0/(f_r*Gam_e_max+one/R(i_shell-1))
-        L1=max(100,min(1000,int(dDD/dDR)))
+        L1=reverse_transport_substeps(dDR,dDD,active_solver)
         dDR=dDD/L1
         dEl=f_r*gam_e
         if (V3_branch(jump_index,i_shell) <= zero .or. V3_branch(jump_index,i_shell-1) <= zero) then
@@ -607,41 +820,97 @@ contains
     end function distribution_energy_from_log
 end subroutine electron_secondary_reverse_branch_reaccelerated
 
-subroutine reverse_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m,Gam_e_max,injection_rate,p,dF1)
+integer function reverse_transport_substeps(candidate_dr,shell_dr,solver) result(nstep)
+    implicit none
+    integer, intent(in) :: solver
+    real(8), intent(in) :: candidate_dr,shell_dr
+
+    if (solver == electron_solver_dg_1d) then
+        nstep=reverse_dg_base_substeps
+    else
+        nstep=max(100,min(1000,int(shell_dr/candidate_dr)))
+    end if
+end function reverse_transport_substeps
+
+real(8) function reverse_dg_kinetic_break(gamma_m,gamma_max) result(gamma_break)
+    implicit none
+    real(8), intent(in) :: gamma_m,gamma_max
+
+    gamma_break=gamma_m
+    if (gamma_max > gamma_m) gamma_break=min(gamma_max,20d0*max(gamma_m,one))
+end function reverse_dg_kinetic_break
+
+subroutine reverse_dg_grid_sequence(Num_gam_e,x_edge,gam_e,num_step,dR,dEl,adiabatic_rate_step,source_norm_step, &
+                                    p,gamma_m,gamma_max,dN_x_in,dN_x_out)
+    implicit none
+    integer, intent(in) :: Num_gam_e,num_step
+    integer :: i,step
+    real(8), intent(in) :: x_edge(Num_gam_e+1),gam_e(Num_gam_e),dR,dEl(Num_gam_e)
+    real(8), intent(in) :: adiabatic_rate_step(num_step),source_norm_step(num_step),p,gamma_m,gamma_max,dN_x_in(Num_gam_e)
+    real(8), intent(out) :: dN_x_out(Num_gam_e)
+    type(electron_dg1d_mesh) :: mesh
+    real(8), allocatable :: state(:),advanced(:),dEl_nodes(:),source_nodes(:),source_grid(:),dN_dgamma(:)
+    real(8) :: input_content,dg_content,projected_content
+
+    call electron_dg1d_build_four_velocity_mesh(x_edge(1),x_edge(Num_gam_e+1),dlog10(gamma_m), &
+                                                dlog10(reverse_dg_kinetic_break(gamma_m,gamma_max)), &
+                                                dlog10(gamma_max),gamma_m,mesh)
+    allocate(state(mesh%ntot),advanced(mesh%ntot),dEl_nodes(mesh%ntot),source_nodes(mesh%ntot), &
+             source_grid(Num_gam_e),dN_dgamma(Num_gam_e))
+    do i=1,mesh%ntot
+        state(i)=reverse_interp_log_grid(Num_gam_e,x_edge,dN_x_in,mesh%x_gamma(i))*mesh%dxgamma_dcoord(i)
+        dEl_nodes(i)=reverse_interp_log_grid(Num_gam_e,x_edge,dEl,mesh%x_gamma(i))
+    end do
+    input_content=sum(dN_x_in*(x_edge(2:Num_gam_e+1)-x_edge(1:Num_gam_e)))
+    call electron_dg1d_scale_to_content(mesh,input_content,state)
+    do step=1,num_step
+        if (source_norm_step(step) > zero) then
+            call electron_build_kinetic_source_term_exp_cutoff_edges(Num_gam_e,x_edge,gamma_m,gamma_max, &
+                                                                      source_norm_step(step),p,source_grid)
+        else
+            source_grid=zero
+        end if
+        do i=1,mesh%ntot
+            source_nodes(i)=reverse_interp_log_grid(Num_gam_e,x_edge,source_grid,mesh%x_gamma(i))* &
+                            mesh%dxgamma_dcoord(i)
+        end do
+        call electron_dg1d_scale_to_content(mesh,source_norm_step(step),source_nodes)
+        call electron_dg1d_advance_step(mesh,adiabatic_rate_step(step),dR,dEl_nodes,source_nodes,state,advanced)
+        call electron_dg1d_limit_positive_cell_preserving(mesh,advanced)
+        state=advanced
+    end do
+    call electron_dg1d_integral(mesh,state,dg_content)
+    call electron_dg1d_project_to_log_cells(mesh,state,Num_gam_e,x_edge,gam_e,dN_dgamma)
+    dN_x_out=dN_dgamma*gam_e*dlog(ten)
+    projected_content=sum(dN_x_out*(x_edge(2:Num_gam_e+1)-x_edge(1:Num_gam_e)))
+    if (dg_content > zero) then
+        if (projected_content <= zero) error stop "reverse_dg_grid_sequence: projection lost positive content."
+        dN_x_out=dN_x_out*(dg_content/projected_content)
+    end if
+    deallocate(state,advanced,dEl_nodes,source_nodes,source_grid,dN_dgamma)
+end subroutine reverse_dg_grid_sequence
+
+real(8) function reverse_interp_log_grid(Num_gam_e,x_edge,values,x_eval) result(value)
     implicit none
     integer, intent(in) :: Num_gam_e
-    integer :: I_gam_e,I_q
-    real(8), intent(in) :: x_edge(Num_gam_e+1),Gam_e_m,Gam_e_max,injection_rate,p
-    real(8), intent(out) :: dF1(Num_gam_e)
-    real(8), parameter :: xi(3)=(/-dsqrt(3d0/5d0),zero,dsqrt(3d0/5d0)/)
-    real(8), parameter :: wi(3)=(/5d0/9d0,8d0/9d0,5d0/9d0/)
-    real(8) :: cell_lo,cell_hi,dx_cell,half_dx,x_mid,x_eval,gam,cutoff_factor,cell_sum,shape_norm
+    integer :: i
+    real(8), intent(in) :: x_edge(Num_gam_e+1),values(Num_gam_e),x_eval
+    real(8) :: x_left,x_right
 
-    dF1=zero
-    shape_norm=zero
-    if (Gam_e_max <= zero .or. injection_rate <= zero) return
-
-    do I_gam_e=1,Num_gam_e
-        cell_lo=x_edge(I_gam_e)
-        cell_hi=x_edge(I_gam_e+1)
-        dx_cell=cell_hi-cell_lo
-        if (dx_cell <= zero) cycle
-        half_dx=0.5d0*dx_cell
-        x_mid=0.5d0*(cell_lo+cell_hi)
-        cell_sum=zero
-        do I_q=1,3
-            x_eval=x_mid+half_dx*xi(I_q)
-            gam=ten**x_eval
-            if (gam > Gam_e_m) then
-                cutoff_factor=electron_exp_cutoff_factor(gam,Gam_e_max)
-                cell_sum=cell_sum+wi(I_q)*gam*dlog(ten)*(gam-one)**(-p)*cutoff_factor
-            end if
-        end do
-        cell_sum=half_dx*cell_sum
-        dF1(I_gam_e)=cell_sum/dx_cell
-        shape_norm=shape_norm+cell_sum
+    x_left=0.5d0*(x_edge(1)+x_edge(2))
+    if (x_eval <= x_left) then
+        value=values(1)
+        return
+    end if
+    do i=1,Num_gam_e-1
+        x_left=0.5d0*(x_edge(i)+x_edge(i+1))
+        x_right=0.5d0*(x_edge(i+1)+x_edge(i+2))
+        if (x_eval <= x_right) then
+            value=values(i)+(values(i+1)-values(i))*(x_eval-x_left)/(x_right-x_left)
+            return
+        end if
     end do
-    dF1=injection_rate*dF1/shape_norm
-end subroutine reverse_build_source_term_exp_cutoff_edges
+    value=values(Num_gam_e)
+end function reverse_interp_log_grid
 
 end module electron_reverse_kernel

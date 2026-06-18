@@ -12,7 +12,7 @@
 - Reverse-shock magnetization switch：`ReverseShock.upstream_sigma`，控制反向激波 upstream magnetization。
 - `asgard_core/api_observe.py`：内部/旧配置观测工具，以及 `Model.sky_image(...)` / `Model.polarization(...)` 复用的实现函数；`observe(model, config)` 和 `run_fit(config)` 不从 `asgard_core` 顶层导出，不作为新教程的公开入口。
 - `asgard_core/api_fit.py`：`Fitter`, `Param`, `FitResult`。
-- Electron solver names：`fullhide_1d`, `fullhide_1d_hz`, `slc1_1d`, `charint_1d`, `charint_2d`, `t2g1_1d`, `weno5_1d`, `fullhide_2d`, `fullhide_2d_pic`。public API 只使用这些完整名称。
+- Electron solver names：`fullhide_1d`, `fullhide_1d_hz`, `slc1_1d`, `charint_1d`, `dg_1d`, `charint_2d`, `t2g1_1d`, `weno5_1d`, `fullhide_2d`, `fullhide_2d_pic`。public API 只使用这些完整名称。
 
 ## 2. 运行时主链
 
@@ -86,8 +86,8 @@ Fitter.loglike -> compile_problem -> eval_loglike -> solve_state_from_setup
 
 ### 电子
 
-- Main entries：`electron_forward_fullhide_1d.f90`, `electron_forward_transport_2d.f90`, `electron_forward_charint_1d.f90`, `electron_forward_slc1_1d.f90`, `electron_forward_t2g1_1d.f90`, `electron_forward_weno5_1d.f90`。`electron_forward_charint_2d` extension 复用 `electron_forward_transport_2d.f90` 中的 `fs_electron_transport_2d_core`，通过 `use_charint_transport` 选择 charint 2D path。
-- Shared kernels：`electron_common.f90`, `electron_cooling_kernel.f90`, `electron_radiation_kernel.f90`, `electron_seed_history_kernel.f90`, `electron_transport_2d_kernel.f90`, `electron_injection_profiles.f90`, `electron_transport_common.f90`, `electron_reverse_kernel.f90`, `adaptive_resampling_mod.f90`。
+- Main entries：`electron_forward_fullhide_1d.f90`, `electron_forward_dg_1d.f90`, `electron_forward_transport_2d.f90`, `electron_forward_charint_1d.f90`, `electron_forward_slc1_1d.f90`, `electron_forward_t2g1_1d.f90`, `electron_forward_weno5_1d.f90`。`electron_forward_charint_2d` extension 复用 `electron_forward_transport_2d.f90` 中的 `fs_electron_transport_2d_core`，通过 `use_charint_transport` 选择 charint 2D path。
+- Shared kernels：`electron_common.f90`, `electron_cooling_kernel.f90`, `electron_radiation_kernel.f90`, `electron_seed_history_kernel.f90`, `electron_transport_2d_kernel.f90`, `electron_injection_profiles.f90`, `electron_shell_transport_common.f90`, `electron_transport_common.f90`, `electron_transport_dg_1d_kernel.f90`, `electron_reverse_kernel.f90`, `adaptive_resampling_mod.f90`。
 
 ### 辐射与插值
 
@@ -143,6 +143,10 @@ rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/AS
 ```
 
 Smoke tests：`tests/readme_smoke_bench.py`, `tests/fitter_public_api_smoke.py`, `tests/fullhide_2d_smoke_bench.py`。
+
+Reverse/structured electron regressions：`tests/reverse_shared_solver_smoke.py`, `tests/reverse_shock_smoke.py`, `tests/structured_shared_solver_smoke.py`。
+
+DG strict diagnostic：`tests/dg_1d_smoke.py`。当前 FS density-jump case 仍触发 3 个 sawtooth turns，修复前不列入通过门槛。
 
 Hadronic regressions：`tests/hadronic_1d_smoke.py`, `tests/hadronic_reverse_shock_smoke.py`。
 

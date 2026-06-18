@@ -27,6 +27,7 @@ from asgard_core.hadronic_processes import PP_DELTA_BACKEND
 from asgard_core.asgard_config import RuntimeConfig
 from asgard_core.asgard_types import (
     ReverseShockParameters,
+    ReverseShockCausalityDiagnostics,
     ReverseShockDynamics,
     DynamicsSolution,
     ElectronSolution,
@@ -54,6 +55,12 @@ _ELECTRON_MODULES = {
     "slc1_1d": "src.Electron.electron_forward_slc1_1d",
     "t2g1_1d": "src.Electron.electron_forward_t2g1_1d",
     "weno5_1d": "src.Electron.electron_forward_weno5_1d",
+}
+
+_ELECTRON_1D_TRANSPORT_IDS = {
+    "fullhide_1d": 1,
+    "fullhide_1d_hz": 1,
+    "dg_1d": 2,
 }
 
 
@@ -115,6 +122,183 @@ class ReverseShockHadronicSolution:
 
 _PGAMMA_SCHEME_DISABLED = "disabled"
 _PGAMMA_SCHEME_HUMMER2010_RESPONSE = "hummer_2010_response"
+
+
+def _rs_vegas_downstream_u(gamma_rel: float, sigma: float) -> float:
+    sigma_cut = 1.0e-6
+    gamma_eff = max(1.0, float(gamma_rel))
+    ad = 4.0 / 3.0 + 1.0 / (3.0 * gamma_eff)
+    gamma_sq = gamma_eff * gamma_eff
+    gm1 = gamma_eff - 1.0
+    gp1 = gamma_eff + 1.0
+    hm1 = ad - 1.0
+    hm2 = ad - 2.0
+    term1 = -ad * hm2
+    term2 = gamma_sq - 1.0
+    if sigma <= sigma_cut:
+        u2_down = gm1 * hm1 * hm1 / (term1 * gm1 + 2.0)
+    else:
+        a_cub = term1 * gm1 + 2.0
+        b_cub = -gp1 * (-hm2 * (ad * gamma_sq + 1.0) + ad * hm1 * gamma_eff) * sigma
+        b_cub = b_cub - gm1 * (term1 * (gamma_sq - 2.0) + 2.0 * gamma_eff + 3.0)
+        c_cub = gp1 * (ad * (1.0 - ad / 4.0) * term2 + 1.0) * sigma * sigma
+        c_cub = c_cub + term2 * (2.0 * gamma_eff + hm2 * (ad * gamma_eff - 1.0)) * sigma
+        c_cub = c_cub + gp1 * gm1 * gm1 * hm1 * hm1
+        d_cub = -gm1 * gp1 * gp1 * hm2 * hm2 * sigma * sigma / 4.0
+        b_red = b_cub / a_cub
+        c_red = c_cub / a_cub
+        d_red = d_cub / a_cub
+        p_cub = c_red - b_red * b_red / 3.0
+        q_cub = 2.0 * b_red * b_red * b_red / 27.0 - b_red * c_red / 3.0 + d_red
+        amp = np.sqrt(-p_cub / 3.0)
+        arg = 3.0 * q_cub / (2.0 * p_cub * amp)
+        arg = max(-1.0, min(1.0, float(arg)))
+        u2_down = 2.0 * amp * np.cos((np.arccos(arg) - 2.0 * np.pi) / 3.0) - b_red / 3.0
+    return float(np.sqrt(u2_down))
+
+
+def _rs_shock_upstream_u(gamma_rel: float, sigma: float) -> float:
+    u_down = _rs_vegas_downstream_u(gamma_rel, sigma)
+    gamma_eff = max(1.0, float(gamma_rel))
+    gamma_sq_minus_one = (gamma_eff - 1.0) * (gamma_eff + 1.0)
+    return float(np.sqrt((1.0 + u_down * u_down) * gamma_sq_minus_one) + u_down * gamma_eff)
+
+
+def _rs_fast_shock_allowed(gamma_rel: float, sigma: float) -> bool:
+    if sigma <= 0.0:
+        return True
+    u_up = _rs_shock_upstream_u(gamma_rel, sigma)
+    return bool(u_up * u_up > sigma)
+
+
+def _rs_fast_wave_relative_beta(gamma4: float, sigma: float) -> float:
+    if sigma <= 0.0:
+        return np.inf
+    beta4 = np.sqrt(1.0 - gamma4**-2)
+    beta_fast = np.sqrt(sigma / (1.0 + sigma))
+    return float(beta_fast / (gamma4 * gamma4 * (1.0 - beta4 * beta_fast)))
+
+
+def _rs_pressure_balance_sigma_cr(gamma4: float, n1: np.ndarray, n4: np.ndarray) -> np.ndarray:
+    return (8.0 / 3.0) * gamma4 * gamma4 * n1 / n4
+
+
+def _reverse_shock_causality_diagnostics(
+    config: RuntimeConfig,
+    reverse_params: ReverseShockParameters,
+    dynamics: DynamicsSolution,
+    reverse_shock: ReverseShockDynamics,
+) -> ReverseShockCausalityDiagnostics:
+    sigma = float(reverse_params.sigma)
+    gamma0 = float(config.eta_0)
+    delta0_cm = float(reverse_params.delta_t_s) * constants.para_c
+    spreading_radius_cm = gamma0 * gamma0 * delta0_cm
+
+    if sigma <= 0.0:
+        contact_radius_cm = np.inf
+        initial_super_fast = True
+    else:
+        contact_radius_cm = delta0_cm * gamma0 * gamma0 * (np.sqrt((1.0 + sigma) / sigma) - 1.0)
+        initial_super_fast = bool(gamma0 > np.sqrt(1.0 + sigma))
+
+    if float(config.a_star) > 0.0:
+        medium = "wind"
+        wind_mass_per_radius = float(config.a_star) * 3.0e35 * constants.para_m_p
+        deceleration_radius_cm = float(config.e_iso) / (
+            4.0 * np.pi * wind_mass_per_radius * constants.para_c**2 * gamma0 * gamma0
+        )
+        reference_crossing_radius_cm = np.sqrt(spreading_radius_cm * deceleration_radius_cm) / (1.0 + sigma)
+    else:
+        medium = "ism"
+        sedov_length_cm = (3.0 * float(config.e_iso) / (4.0 * np.pi * float(config.d_ne) * constants.para_m_p * constants.para_c**2)) ** (1.0 / 3.0)
+        deceleration_radius_cm = sedov_length_cm / gamma0 ** (2.0 / 3.0)
+        reference_crossing_radius_cm = (spreading_radius_cm * deceleration_radius_cm**3) ** 0.25 / np.sqrt(1.0 + sigma)
+
+    radius = np.asarray(dynamics.radius, dtype=float)
+    tobs = np.asarray(dynamics.r_tobs, dtype=float)
+    shell_width_cm = np.maximum(delta0_cm, radius / (gamma0 * gamma0))
+    n1 = np.asarray(ambient_density(radius, config), dtype=float)
+    baryonic_mass_g = reverse_shell_baryonic_mass(config)
+    n4 = baryonic_mass_g / (4.0 * np.pi * constants.para_m_p * radius * radius * gamma0 * shell_width_cm)
+    sigma_cr = _rs_pressure_balance_sigma_cr(gamma0, n1, n4)
+    pressure_allowed = np.ones_like(radius, dtype=bool) if sigma <= 0.0 else sigma < sigma_cr
+    if np.any(pressure_allowed):
+        pressure_index = int(np.flatnonzero(pressure_allowed)[0])
+        pressure_radius_cm = float(radius[pressure_index])
+        pressure_tobs_s = float(tobs[pressure_index])
+        pressure_seen = True
+    else:
+        pressure_index = -1
+        pressure_radius_cm = np.inf
+        pressure_tobs_s = np.inf
+        pressure_seen = False
+
+    if sigma <= 0.0:
+        fast_wave_depth_cm = np.zeros_like(radius, dtype=float)
+    else:
+        relative_beta = _rs_fast_wave_relative_beta(gamma0, sigma)
+        beta4 = np.sqrt(1.0 - gamma0**-2)
+        fast_wave_depth_cm = radius * relative_beta / beta4
+    fast_crossed = fast_wave_depth_cm >= shell_width_cm
+    if np.any(fast_crossed):
+        fast_index = int(np.flatnonzero(fast_crossed)[0])
+        fast_radius_cm = float(radius[fast_index])
+        fast_tobs_s = float(tobs[fast_index])
+    else:
+        fast_index = -1
+        fast_radius_cm = np.inf
+        fast_tobs_s = np.inf
+
+    global_allowed = bool(pressure_seen)
+    gamma34 = np.asarray(reverse_shock.gamma34, dtype=float)
+    local_allowed = np.array([_rs_fast_shock_allowed(float(gamma_rel), sigma) for gamma_rel in gamma34], dtype=bool)
+    if np.any(local_allowed):
+        local_start_index = int(np.flatnonzero(local_allowed)[0])
+        local_start_radius_cm = float(radius[local_start_index])
+        local_start_tobs_s = float(tobs[local_start_index])
+        local_seen = True
+    else:
+        local_start_index = -1
+        local_start_radius_cm = np.inf
+        local_start_tobs_s = np.inf
+        local_seen = False
+
+    swept = np.asarray(reverse_shock.swept_mass_g, dtype=float)
+    growth = swept > float(swept[0]) * (1.0 + 1.0e-6)
+    if np.any(growth):
+        actual_start_index = int(np.flatnonzero(growth)[0])
+        actual_start_radius_cm = float(radius[actual_start_index])
+        actual_start_tobs_s = float(tobs[actual_start_index])
+        actual_started = True
+    else:
+        actual_start_index = -1
+        actual_start_radius_cm = np.inf
+        actual_start_tobs_s = np.inf
+        actual_started = False
+
+    return ReverseShockCausalityDiagnostics(
+        medium=medium,
+        initial_super_fast=initial_super_fast,
+        global_reverse_shock_allowed=global_allowed,
+        pressure_balance_condition_seen=pressure_seen,
+        local_fast_condition_seen=local_seen,
+        reverse_shock_started=actual_started,
+        criteria_agree=bool(global_allowed == actual_started),
+        contact_radius_cm=float(contact_radius_cm),
+        reference_crossing_radius_cm=float(reference_crossing_radius_cm),
+        pressure_balance_start_radius_cm=pressure_radius_cm,
+        pressure_balance_start_tobs_s=pressure_tobs_s,
+        pressure_balance_start_index=pressure_index,
+        fast_wave_crossing_radius_cm=fast_radius_cm,
+        fast_wave_crossing_tobs_s=fast_tobs_s,
+        fast_wave_crossing_index=fast_index,
+        local_start_radius_cm=local_start_radius_cm,
+        local_start_tobs_s=local_start_tobs_s,
+        local_start_index=local_start_index,
+        actual_start_radius_cm=actual_start_radius_cm,
+        actual_start_tobs_s=actual_start_tobs_s,
+        actual_start_index=actual_start_index,
+    )
 
 
 def _solver_report(
@@ -287,6 +471,7 @@ def solve_dynamics(
         secondary_shock_end_tobs_axis_s,
     )
     solution = DynamicsSolution(r_tobs, r_gamma, radius, swept_mass_g, reverse_shock=reverse_shock)
+    reverse_shock.causality = _reverse_shock_causality_diagnostics(config, reverse_params, solution, reverse_shock)
     if return_report:
         return solution, _solver_report(
             "dynamics_reverse",
@@ -294,6 +479,21 @@ def solve_dynamics(
             "ok",
             kernel=str(config.dynamics_kernel),
             num_r=int(config.num_r),
+            reverse_shock_global_allowed=bool(reverse_shock.causality.global_reverse_shock_allowed),
+            reverse_shock_pressure_balance_condition_seen=bool(
+                reverse_shock.causality.pressure_balance_condition_seen
+            ),
+            reverse_shock_local_fast_condition_seen=bool(reverse_shock.causality.local_fast_condition_seen),
+            reverse_shock_started=bool(reverse_shock.causality.reverse_shock_started),
+            reverse_shock_criteria_agree=bool(reverse_shock.causality.criteria_agree),
+            reverse_shock_contact_radius_cm=float(reverse_shock.causality.contact_radius_cm),
+            reverse_shock_reference_crossing_radius_cm=float(reverse_shock.causality.reference_crossing_radius_cm),
+            reverse_shock_pressure_balance_start_radius_cm=float(
+                reverse_shock.causality.pressure_balance_start_radius_cm
+            ),
+            reverse_shock_fast_wave_crossing_radius_cm=float(reverse_shock.causality.fast_wave_crossing_radius_cm),
+            reverse_shock_local_start_radius_cm=float(reverse_shock.causality.local_start_radius_cm),
+            reverse_shock_actual_start_radius_cm=float(reverse_shock.causality.actual_start_radius_cm),
         )
     return solution
 
@@ -745,6 +945,13 @@ def _resolve_electron_solver(config: RuntimeConfig) -> str:
     if solver_name not in _ELECTRON_MODULES:
         raise ValueError(f"Unsupported electron solver: {config.electron_solver}")
     return solver_name
+
+
+def _electron_1d_transport_solver_id(config: RuntimeConfig) -> int:
+    solver_name = _resolve_electron_solver(config)
+    if solver_name not in _ELECTRON_1D_TRANSPORT_IDS:
+        raise NotImplementedError("reverse-shock electron transport supports electron_solver='fullhide_1d' or 'dg_1d'.")
+    return _ELECTRON_1D_TRANSPORT_IDS[solver_name]
 
 
 def _resolve_pgamma_scheme(config: RuntimeConfig) -> str:
@@ -1282,6 +1489,7 @@ def _solve_reverse_shock_electrons(
     module = _electron_reverse_module().electron_reverse_kernel
     delta_0 = reverse_params.delta_t_s * constants.para_c
     para_m_ej = reverse_shell_baryonic_mass(config)
+    solver_id = _electron_1d_transport_solver_id(config)
     gam_e, d_n_gam_e = module.electron_reverse_evolve(
         delta_0,
         reverse_params.epsilon_e,
@@ -1302,6 +1510,7 @@ def _solve_reverse_shock_electrons(
         dynamics.reverse_shock.t_cross,
         dynamics.reverse_shock.r_cross,
         dynamics.reverse_shock.u3_cross_erg,
+        dynamics.reverse_shock.v3_cross_cm3,
         dynamics.reverse_shock.m3_cross_g,
         dynamics.r_tobs,
         dynamics.r_gamma,
@@ -1309,11 +1518,13 @@ def _solve_reverse_shock_electrons(
         dynamics.reverse_shock.magnetic_field_g,
         dynamics.reverse_shock.swept_mass_g,
         dynamics.reverse_shock.internal_energy_erg,
+        dynamics.reverse_shock.comoving_volume_cm3,
         v_seed,
         config.num_gam_e,
         config.index_y,
         config.index_syn_integr,
         config.num_threads,
+        solver_id=solver_id,
     )
     return np.asarray(gam_e, dtype=float), np.asarray(d_n_gam_e, dtype=float)
 
@@ -1439,6 +1650,7 @@ def _compute_secondary_reverse_shock_synchrotron(
             config.num_gam_e,
             config.index_syn_integr,
             config.num_threads,
+            solver_id=_electron_1d_transport_solver_id(config),
         )
     )
     gam_e_sec = np.asarray(gam_e_sec, dtype=float)
@@ -1513,6 +1725,7 @@ def _renormalize_reverse_shock_distribution(
 ) -> np.ndarray:
     gam = np.asarray(gam_e, dtype=float)
     dist = np.asarray(d_n_gam_e, dtype=float).copy()
+    dist = np.where(np.isfinite(dist) & (dist > 0.0), dist, 0.0)
     targets = np.asarray(swept_mass_g, dtype=float) / constants.para_m_p * float(f_e)
     for i in range(dist.shape[1]):
         total = float(np.trapezoid(dist[:, i], gam))

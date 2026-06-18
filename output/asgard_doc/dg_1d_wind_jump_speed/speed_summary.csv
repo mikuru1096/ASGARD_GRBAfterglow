@@ -1,0 +1,5 @@
+scenario,solver,warmup_elapsed_s,flux_elapsed_s,details_elapsed_s,total_elapsed_s,num_track_times,num_gamma
+wind,fullhide_1d,6.28277322e+00,6.42253381e+00,3.60701233e-06,6.42253742e+00,120,121
+wind,dg_1d,4.00266922e+00,4.11596083e+00,2.11400038e-06,4.11596294e+00,120,121
+multi_density_jump,fullhide_1d,3.02395588e+00,2.97676065e+00,1.64299854e-06,2.97676229e+00,120,121
+multi_density_jump,dg_1d,3.93262701e+00,3.88369195e+00,1.73300214e-06,3.88369368e+00,120,121

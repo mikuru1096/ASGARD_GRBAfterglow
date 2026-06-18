@@ -41,8 +41,8 @@
 - `src/Constants.f90`
 - `src/Dynamics/`：`dynamics_common.f90`, `Dynamics_forward.f90`, `Dynamics_reverse.f90`
 - `src/Electron/`：
-  - 1D/2D entries：`electron_forward_fullhide_1d.f90`, `electron_forward_transport_2d.f90`, `electron_forward_charint_1d.f90`, `electron_forward_slc1_1d.f90`, `electron_forward_t2g1_1d.f90`, `electron_forward_weno5_1d.f90`；`electron_forward_charint_2d` extension 由 `electron_forward_transport_2d.f90` 的 `fs_electron_transport_2d_core` 构建
-  - Kernels：`electron_common.f90`, `electron_radiation_kernel.f90`, `electron_cooling_kernel.f90`, `electron_seed_history_kernel.f90`, `electron_transport_2d_kernel.f90`, `electron_injection_profiles.f90`, `electron_transport_common.f90`, `electron_reverse_kernel.f90`, `adaptive_resampling_mod.f90`
+  - 1D/2D entries：`electron_forward_fullhide_1d.f90`, `electron_forward_dg_1d.f90`, `electron_forward_transport_2d.f90`, `electron_forward_charint_1d.f90`, `electron_forward_slc1_1d.f90`, `electron_forward_t2g1_1d.f90`, `electron_forward_weno5_1d.f90`；`electron_forward_charint_2d` extension 由 `electron_forward_transport_2d.f90` 的 `fs_electron_transport_2d_core` 构建
+  - Kernels：`electron_common.f90`, `electron_radiation_kernel.f90`, `electron_cooling_kernel.f90`, `electron_seed_history_kernel.f90`, `electron_transport_2d_kernel.f90`, `electron_injection_profiles.f90`, `electron_shell_transport_common.f90`, `electron_transport_common.f90`, `electron_transport_dg_1d_kernel.f90`, `electron_reverse_kernel.f90`, `adaptive_resampling_mod.f90`
 - `src/Radiation/`：`radiation_common.f90`, `radiation_ssc_spectrum.f90`, `radiation_gamma_gamma_absorption.f90`, `synchrotron_polarization_kernel.f90`, `quantum_synchrotron_kernel.f90`
 - `src/Hadronic/`：
   - Entries：`hadronic_forward_1d.f90`（含 `fs_hadronic_formal_transport_1d`）, `hadronic_reverse_1d.f90`
@@ -52,11 +52,13 @@
 
 ## 构建入口
 
-- `build_extensions.py`：f2py 编译入口。已登记 active hadronic extensions：`hadronic_forward_1d`, `hadronic_reverse_1d`。
+- `build_extensions.py`：f2py 编译入口。已登记 active electron extensions 包括 `electron_forward_fullhide_1d`, `electron_forward_dg_1d`, `electron_reverse_kernel`, `structured_jet_1d`；active hadronic extensions 包括 `hadronic_forward_1d`, `hadronic_reverse_1d`。
 
 ## 测试与基准
 
 - 基础 smoke：`tests/readme_smoke_bench.py`, `tests/reverse_shock_smoke.py`
+- DG/shared electron smoke：`tests/reverse_shared_solver_smoke.py`, `tests/structured_shared_solver_smoke.py`
+- DG strict diagnostic：`tests/dg_1d_smoke.py`；当前 FS density-jump sawtooth 仍是未完成边界。
 - Public API smoke：`tests/fitter_public_api_smoke.py`
 - 2D electron：`tests/fullhide_2d_smoke_bench.py`
 - Hadronic：`tests/hadronic_1d_smoke.py`, `tests/hadronic_reverse_shock_smoke.py`

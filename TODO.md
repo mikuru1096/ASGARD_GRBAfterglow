@@ -92,6 +92,19 @@ Lan 2023 overlay 的峰值幅度已匹配，峰时仍偏早。当前证据指向
 - 与迁移前同一输入的 proton synch、pγ gamma、neutrino、BH/pp secondary luminosity 和 energy budget 在数值误差内一致，且随半径连续平滑。
 - 受影响 `hadronic_forward_1d` / `structured_jet_1d` build、干净 `/tmp` source closure `-Wline-truncation` 检查通过。
 
+### 8. FS DG density-jump sawtooth
+
+`tests/dg_1d_smoke.py` 当前在 FS density-jump case 报 `DG electron spectrum has grid-scale sawtooth turns: 3`。这不是输出端显示问题，也不能通过 smoothing、截断或放宽阈值解决；需要回到 DG density-jump 子步、moving break、正性限制器和固定网格守恒投影检查。
+
+准入动机：只有当目标问题需要 `dg_1d` 在连续或多次 density jump 下作为正式 FS 电子解算器时才进入实现；否则 `dg_1d` 继续作为 opt-in 高阶诊断路径，默认 public baseline 仍为 `fullhide_1d`。
+
+验收口径：
+
+- `tests/dg_1d_smoke.py` 全部通过。
+- ISM、wind、连续 density jump 和多次 density jump 的 FS/RS 多波段光变连续平滑。
+- 电子总数守恒误差与源项注入量同阶；高能截断不以 121 格 fullhide 数值扩散宽尾为目标。
+- 受影响 `electron_forward_dg_1d`、`electron_reverse_kernel`、`structured_jet_1d` build 和 `-Wline-truncation` source closure 检查通过。
+
 ## 不做
 
 - 不删除 `tests/*.npz` baseline、`output/asgard_doc/**` benchmark artifacts 或文献/物理验收图，除非先按 benchmark refresh protocol 证明可复现且无记录价值。

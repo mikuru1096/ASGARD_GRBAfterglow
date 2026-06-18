@@ -117,6 +117,32 @@ class ReverseShockParameters:
     f_e: float
 
 
+@dataclass(frozen=True)
+class ReverseShockCausalityDiagnostics:
+    """Global and local reverse-shock causality diagnostics."""
+    medium: str
+    initial_super_fast: bool
+    global_reverse_shock_allowed: bool
+    pressure_balance_condition_seen: bool
+    local_fast_condition_seen: bool
+    reverse_shock_started: bool
+    criteria_agree: bool
+    contact_radius_cm: float
+    reference_crossing_radius_cm: float
+    pressure_balance_start_radius_cm: float
+    pressure_balance_start_tobs_s: float
+    pressure_balance_start_index: int
+    fast_wave_crossing_radius_cm: float
+    fast_wave_crossing_tobs_s: float
+    fast_wave_crossing_index: int
+    local_start_radius_cm: float
+    local_start_tobs_s: float
+    local_start_index: int
+    actual_start_radius_cm: float
+    actual_start_tobs_s: float
+    actual_start_index: int
+
+
 @dataclass
 class ReverseShockDynamics:
     """Dynamics solution for reverse shock."""
@@ -162,6 +188,7 @@ class ReverseShockDynamics:
     secondary_shock_end_radius_cm: np.ndarray | None = None
     secondary_start_tobs_axis_s: np.ndarray | None = None
     secondary_shock_end_tobs_axis_s: np.ndarray | None = None
+    causality: ReverseShockCausalityDiagnostics | None = None
     gam_e: np.ndarray | None = None
     d_n_gam_e: np.ndarray | None = None
 

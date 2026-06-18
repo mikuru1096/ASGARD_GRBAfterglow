@@ -216,6 +216,44 @@ subroutine electron_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m,
     end do
 end subroutine electron_build_source_term_exp_cutoff_edges
 
+! 构建以动能幂律归一的反向激波源项：dN/dx ∝ γ (γ-1)^(-p) exp cutoff。
+subroutine electron_build_kinetic_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m,Gam_e_max,Q,p,dF1)
+    implicit none
+    integer, intent(in) :: Num_gam_e
+    integer :: I_gam_e,I_q
+    real(8), intent(in) :: x_edge(Num_gam_e+1),Gam_e_m,Gam_e_max,Q,p
+    real(8), intent(out) :: dF1(Num_gam_e)
+    real(8), parameter :: xi(3)=(/-dsqrt(3d0/5d0),zero,dsqrt(3d0/5d0)/)
+    real(8), parameter :: wi(3)=(/5d0/9d0,8d0/9d0,5d0/9d0/)
+    real(8) :: cell_lo,cell_hi,dx_cell,half_dx,x_mid,x_eval,gam,cutoff_factor,cell_sum,shape_norm
+
+    dF1=zero
+    shape_norm=zero
+    if (Gam_e_max <= zero .or. Q <= zero) return
+
+    do I_gam_e=1,Num_gam_e
+        cell_lo=x_edge(I_gam_e)
+        cell_hi=x_edge(I_gam_e+1)
+        dx_cell=cell_hi-cell_lo
+        if (dx_cell <= zero) cycle
+        half_dx=0.5d0*dx_cell
+        x_mid=0.5d0*(cell_lo+cell_hi)
+        cell_sum=zero
+        do I_q=1,3
+            x_eval=x_mid+half_dx*xi(I_q)
+            gam=ten**x_eval
+            if (gam > Gam_e_m) then
+                cutoff_factor=electron_exp_cutoff_factor(gam,Gam_e_max)
+                cell_sum=cell_sum+wi(I_q)*gam*dlog(ten)*(gam-one)**(-p)*cutoff_factor
+            end if
+        end do
+        cell_sum=half_dx*cell_sum
+        dF1(I_gam_e)=cell_sum/dx_cell
+        shape_norm=shape_norm+cell_sum
+    end do
+    dF1=Q*dF1/shape_norm
+end subroutine electron_build_kinetic_source_term_exp_cutoff_edges
+
 pure real(8) function electron_thermal_theta(four_v)
     implicit none
     real(8), intent(in) :: four_v

@@ -103,7 +103,7 @@ ASGARD 当前主线是 GRB 余辉的壳层演化爆波和观测者投影模型�
 已登记并可用的主功能：
 
 - 正向激波动力学、电子输运、同步辐射、同步自康普顿、同步自吸收、\(\gamma\gamma\) 吸收和观测者投影。
-- 1D 电子求解器：`fullhide_1d`, `slc1_1d`, `charint_1d`, `t2g1_1d`, `weno5_1d`。
+- 1D 电子求解器：`fullhide_1d`, `slc1_1d`, `charint_1d`, `dg_1d`, `t2g1_1d`, `weno5_1d`。
 - 2D 电子求解器：`fullhide_2d`, `charint_2d`。
 - `chi_eats_2d` 观测者投影：FS synchrotron+SSA 使用 \(\chi\) 分辨有限厚壳层；`projection_kind="lightcurve"` 走专用光变投影，`projection_kind="sed"` 走通用 SED 插值器。
 - 反向激波电子同步辐射、RS SSC、FS/RS 跨区逆康普顿。

@@ -49,6 +49,15 @@ def _run(index_y: int) -> None:
     state = solve_state_from_setup(config, setup)
     rs = state.dynamics.reverse_shock
     assert rs is not None
+    assert rs.causality is not None
+    assert rs.causality.global_reverse_shock_allowed
+    assert rs.causality.pressure_balance_condition_seen
+    assert rs.causality.local_fast_condition_seen
+    assert rs.causality.reverse_shock_started
+    assert rs.causality.criteria_agree
+    assert rs.causality.reference_crossing_radius_cm > 0.0
+    assert rs.causality.pressure_balance_start_radius_cm > 0.0
+    assert rs.causality.local_start_radius_cm > 0.0
     assert np.all(np.isfinite(rs.magnetic_field_g))
     assert np.all(np.isfinite(rs.internal_energy_erg))
     assert np.all(np.isfinite(rs.comoving_volume_cm3))
@@ -71,20 +80,50 @@ def _run_sigma_zero_baseline() -> None:
 
 
 def _run_magnetized_interface() -> None:
-    config = _config(0, sigma=1.0e-2)
+    config = _config(0, sigma=1.0e-3)
     setup = make_query_setup(config, np.logspace(2.0, 5.0, 6), np.array([1.0e9, 1.0e14]))
     state = solve_state_from_setup(config, setup)
     rs = state.dynamics.reverse_shock
     assert rs is not None
+    assert rs.causality is not None
+    assert rs.causality.global_reverse_shock_allowed
+    assert isinstance(rs.causality.global_reverse_shock_allowed, bool)
+    assert isinstance(rs.causality.pressure_balance_condition_seen, bool)
+    assert isinstance(rs.causality.local_fast_condition_seen, bool)
+    assert isinstance(rs.causality.reverse_shock_started, bool)
+    assert np.isfinite(rs.causality.contact_radius_cm)
+    assert rs.causality.reference_crossing_radius_cm > 0.0
+    assert rs.causality.pressure_balance_condition_seen
+    assert rs.causality.pressure_balance_start_radius_cm > 0.0
     assert np.isfinite(rs.ordered_magnetic_cross_g)
     assert rs.ordered_magnetic_cross_g > 0.0
     assert np.all(np.isfinite(rs.magnetic_field_g))
     assert np.all(np.isfinite(rs.internal_energy_erg))
     assert np.all(np.isfinite(rs.comoving_volume_cm3))
     assert np.all(np.isfinite(rs.gamma34))
-    assert np.all(rs.magnetic_field_g > 0.0)
+    injected = np.asarray(rs.swept_mass_g, dtype=float) > float(rs.swept_mass_g[0]) * (1.0 + 1.0e-6)
+    assert np.any(injected)
+    assert np.all(rs.magnetic_field_g[injected] > 0.0)
     assert np.all(rs.internal_energy_erg > 0.0)
     assert np.all(rs.comoving_volume_cm3 > 0.0)
+
+
+def _run_post_contact_reverse_shock() -> None:
+    config = _config(0, sigma=1.0)
+    setup = make_query_setup(config, np.logspace(2.0, 5.0, 6), np.array([1.0e9, 1.0e14]))
+    state = solve_state_from_setup(config, setup)
+    rs = state.dynamics.reverse_shock
+    assert rs is not None
+    assert rs.causality is not None
+    assert rs.causality.global_reverse_shock_allowed
+    assert rs.causality.pressure_balance_condition_seen
+    assert rs.causality.fast_wave_crossing_radius_cm < rs.causality.pressure_balance_start_radius_cm
+    assert rs.causality.local_fast_condition_seen
+    assert rs.causality.reverse_shock_started
+    assert rs.causality.criteria_agree
+    assert rs.t_cross > 0.0
+    assert rs.ordered_magnetic_cross_g > 0.0
+    assert np.max(rs.magnetic_field_g) > 0.0
 
 
 def _run_dense_radius_grid() -> None:
@@ -122,6 +161,7 @@ def main() -> None:
         _run(index_y)
     _run_sigma_zero_baseline()
     _run_magnetized_interface()
+    _run_post_contact_reverse_shock()
     _run_dense_radius_grid()
     _run_requested_frequency_seed_bounds()
     print("reverse-shock-smoke-ok")

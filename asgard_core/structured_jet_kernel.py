@@ -12,6 +12,7 @@ from src import Structured, constants
 
 
 HUMMER_SCHEMES = {"hummer_2010_response"}
+ELECTRON_1D_TRANSPORT_IDS = {"fullhide_1d": 1, "dg_1d": 2}
 
 
 def solve_structured_jet_fortran(model, times_s: np.ndarray, nu_hz: np.ndarray, build_patch_config: Callable):
@@ -101,6 +102,7 @@ def _structured_kernel_args(model, base_config, setup, sampled, times: np.ndarra
         int(model.setups.electron_substep_min),
         int(model.setups.electron_substep_max),
         int(bool(model.fwd_rad.thermal_electrons)),
+        ELECTRON_1D_TRANSPORT_IDS[str(model.setups.electron_solver).lower()],
     )
 
 
@@ -125,8 +127,8 @@ def _details_from_kernel_outputs(model, sampled, outputs):
 
 
 def _assert_supported_structured_fortran(model) -> None:
-    if str(model.setups.electron_solver).lower() != "fullhide_1d":
-        raise NotImplementedError("structured_backend='fortran_1d' requires electron_solver='fullhide_1d'.")
+    if str(model.setups.electron_solver).lower() not in ELECTRON_1D_TRANSPORT_IDS:
+        raise NotImplementedError("structured_backend='fortran_1d' requires electron_solver='fullhide_1d' or 'dg_1d'.")
     if bool(model.setups.rvs_shock) and model.rvs_rad is None:
         raise NotImplementedError("structured_backend='fortran_1d' requires rvs_rad when reverse shock is enabled.")
     if model.rvs_rad is not None and (bool(model.rvs_rad.ssc) or bool(model.setups.rvs_ssc)):

@@ -11,8 +11,9 @@ subroutine fs_electron_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Nu
     use electron_cooling_kernel, only: get_forward_cooling
     use electron_transport_dg_1d_kernel, only: electron_dg1d_mesh, electron_dg1d_build_mesh, &
                                               electron_dg1d_initial_state, electron_dg1d_project_state, &
-                                              electron_dg1d_gamma_nodes, electron_dg1d_source_nodes, &
-                                              electron_dg1d_advance_step, electron_dg1d_project_to_grid, electron_dg1d_integral
+                                              electron_dg1d_gamma_nodes, electron_dg1d_project_source, &
+                                              electron_dg1d_advance_step, electron_dg1d_project_to_log_cells, &
+                                              electron_dg1d_limit_positive_cell_preserving, electron_dg1d_integral
     use electron_injection_profiles, only: electron_profile_log_cell_edges, electron_build_source_term_exp_cutoff_edges
     use electron_radiation_kernel, only: get_nu_a, get_syn_selected
     use electron_transport_common, only: electron_dnx_to_dndgamma_exp_centers
@@ -158,7 +159,7 @@ contains
         Gam_e_m_p_step = (one - p)/(Gam_e_max_step**(one - p) - Gam_e_m_step**(one - p))
         call electron_injection_prefactor(R_step, dR_local, dNe_step, f_e, Gam_e_m_p_step, source_norm)
 
-        call electron_dg1d_source_nodes(mesh, source_norm, p, Gam_e_m_step, Gam_e_max_step, source_dg)
+        call electron_dg1d_project_source(mesh, source_norm, p, Gam_e_m_step, Gam_e_max_step, source_dg)
         call electron_build_source_term_exp_cutoff_edges(Num_gam_e, x_edge, Gam_e_m_step, Gam_e_max_step, &
                                                          source_norm, p, source_grid)
         call scale_dg_state_to_grid_content(source_dg, source_grid)
@@ -167,7 +168,8 @@ contains
         else
             dEl_dg = dEl_dg_base
         endif
-        call electron_dg1d_advance_step(mesh, R_step, dR_local, dEl_dg, source_dg, state, projected)
+        call electron_dg1d_advance_step(mesh, one/R_step, dR_local, dEl_dg, source_dg, state, projected)
+        call electron_dg1d_limit_positive_cell_preserving(mesh, projected)
         state = projected
     end subroutine advance_substep
 
@@ -266,7 +268,7 @@ contains
         integer, intent(in) :: I_tobs_local
         real(8) :: projected_content, dg_content_local
 
-        call electron_dg1d_project_to_grid(mesh, state, Num_gam_e, gam_e, dN_gam_e(:,I_tobs_local))
+        call electron_dg1d_project_to_log_cells(mesh, state, Num_gam_e, x_edge, gam_e, dN_gam_e(:,I_tobs_local))
         ! Radiation-boundary positivity only: do not renormalize or feed this projection back into DG transport.
         where (dN_gam_e(:,I_tobs_local) > zero .and. ieee_is_finite(dN_gam_e(:,I_tobs_local)))
             dN_gam_e(:,I_tobs_local) = dN_gam_e(:,I_tobs_local)

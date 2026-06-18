@@ -254,8 +254,8 @@ def _validate_multi_density_reverse_config(config: RuntimeConfig) -> None:
     jump_r, _, _ = density_jump_arrays(config)
     if jump_r.size < 1 or not config.reverse_shock.enabled:
         return
-    if str(config.electron_solver).lower() != "fullhide_1d":
-        raise NotImplementedError("multi-density reverse shock v1 requires electron_solver='fullhide_1d'.")
+    if str(config.electron_solver).lower() not in {"fullhide_1d", "dg_1d"}:
+        raise NotImplementedError("multi-density reverse shock v1 requires electron_solver='fullhide_1d' or 'dg_1d'.")
     if str(config.geometry_kernel).lower() != "sed_legacy" or str(config.structured_backend).lower() != "fortran_1d":
         raise NotImplementedError("multi-density reverse shock v1 supports only the direct 1D observer path.")
     if config.hadronic.enabled or config.hadronic.reverse_enabled or float(config.hadronic.reverse_epsilon_p) > 0.0:
@@ -807,11 +807,12 @@ def observe_components_from_setup(
     for key, attr in _OBSERVED_COMPONENT_ATTRS:
         source = getattr(components, attr)
         if source is not None:
+            branch = components.rev if key.startswith("rev_") and components.rev is not None else components.fwd
             observed[key] = _project_component(
                 setup,
-                components.fwd.characteristic_time_s,
-                components.fwd.gamma,
-                components.fwd.radius_cm,
+                branch.characteristic_time_s,
+                branch.gamma,
+                branch.radius_cm,
                 source,
                 frequencies_hz,
                 config,

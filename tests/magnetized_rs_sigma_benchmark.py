@@ -26,13 +26,13 @@ OUTPUT_DIRS = {
     "ism": ROOT / "output" / "asgard_doc" / "magnetized_rs_sigma_benchmark",
     "wind": ROOT / "output" / "asgard_doc" / "magnetized_rs_sigma_benchmark_wind",
 }
-SIGMAS = (0.0, 1.0e-4, 1.0e-3, 1.0e-2, 1.0e-1, 1.0)
+SIGMAS = (0.0, 1.0e-4, 1.0e-3, 1.0e-2, 1.0e-1, 1.0, 5.0, 10.0, 50.0, 100.0, 500.0, 1000.0)
 COLORS = ("#0072B2", "#D55E00", "#009E73", "#CC79A7", "#E69F00", "#000000")
 LINESTYLES = ("-", "--", "-.", ":", (0, (5, 1, 1, 1)), (0, (3, 1, 1, 1, 1, 1)))
 MARKERS = ("o", "s", "^", "D", "P", "X")
 SCENARIO = {
     "e_iso": 1.0e54,
-    "gamma0": 50.0,
+    "gamma0": 150.0,
     "duration": 500.0,
     "theta_j": 1.0e-1,
     "z": 0.4,
@@ -54,7 +54,7 @@ MODE_GRIDS = {
         "model_r": 80,
         "model_theta": 20,
         "model_tobs": 32,
-        "lc_times": 48,
+        "lc_times": 160,
         "sed_freqs": 96,
     },
     "full": {
@@ -65,7 +65,7 @@ MODE_GRIDS = {
         "model_r": 140,
         "model_theta": 32,
         "model_tobs": 48,
-        "lc_times": 96,
+        "lc_times": 160,
         "sed_freqs": 180,
     },
     "dense": {
@@ -94,17 +94,17 @@ def _cooling_index(cooling_mode: str) -> int:
 
 def _medium_config(medium: str) -> dict[str, float]:
     if medium == "ism":
-        return {"d_ne": 1.0e-1, "a_star": -1.0, "r0": 0.0}
+        return {"d_ne": 10.0, "a_star": -1.0, "r0": 0.0}
     if medium == "wind":
-        return {"d_ne": 1.0e-15, "a_star": 5.0e-2, "r0": 0.0}
+        return {"d_ne": 1.0e-15, "a_star": 1.0e-1, "r0": 0.0}
     raise ValueError(f"unknown medium {medium!r}")
 
 
 def _medium_model(medium: str):
     if medium == "ism":
-        return UniformMedium(number_density_cm3=1.0e-1)
+        return UniformMedium(number_density_cm3=10.0)
     if medium == "wind":
-        return WindMedium(a_star=5.0e-2, density_floor_cm3=1.0e-15, density_cap_cm3=None)
+        return WindMedium(a_star=1.0e-1, density_floor_cm3=1.0e-15, density_cap_cm3=None)
     raise ValueError(f"unknown medium {medium!r}")
 
 
@@ -113,13 +113,14 @@ def _runtime_config(sigma: float, medium: str, grid: dict[str, int], cooling_mod
     return RuntimeConfig(
         index_y=_cooling_index(cooling_mode),
         index_syn_integr=2,
+        electron_solver="fullhide_1d",
         num_threads=1,
         num_gam_e=grid["model_gam"],
         num_nu=61,
         num_r=grid["dyn_r"],
         num_theta=grid["dyn_theta"],
         num_tobs=40,
-        t_obs_min_log10=0.0,
+        t_obs_min_log10=-2.0,
         t_obs_max_log10=7.0,
         reverse=True,
         include_forward_ssc=False,
@@ -187,7 +188,7 @@ def _model(sigma: float, medium: str, grid: dict[str, int], cooling_mode: str) -
             num_threads=1,
             initial_radius_cm=1.0e14,
         ),
-        observer_grid=observer_grid(time_min_s=1.0, time_max_s=1.0e7),
+        observer_grid=observer_grid(time_min_s=1.0e-2, time_max_s=1.0e7),
         solver_options=solver_options(
             electron_solver="fullhide_1d",
             ssc_cooling_mode=cooling_mode,
@@ -268,11 +269,14 @@ def _solve_dynamics_scan(
     series = []
     for sigma in sigmas:
         config = _runtime_config(sigma, medium, grid, cooling_mode)
-        setup = make_query_setup(config, np.logspace(2.0, 6.0, 10), np.array([1.0e9, 1.0e14]))
+        setup = make_query_setup(config, np.logspace(-2.0, 7.0, 12), np.array([1.0e9, 1.0e14]))
         state = solve_state_from_setup(config, setup)
         rs = state.dynamics.reverse_shock
         if rs is None:
             raise RuntimeError("reverse shock state missing")
+        causality = rs.causality
+        if causality is None:
+            raise RuntimeError("reverse shock causality diagnostics missing")
         t_obs = np.asarray(state.dynamics.r_tobs, dtype=float)
         internal_energy = np.asarray(rs.internal_energy_erg, dtype=float)
         swept_mass = np.asarray(rs.swept_mass_g, dtype=float)
@@ -288,6 +292,21 @@ def _solve_dynamics_scan(
                 "sigma": sigma,
                 "t_cross_s": float(rs.t_cross),
                 "r_cross_cm": float(rs.r_cross),
+                "global_rs_allowed": bool(causality.global_reverse_shock_allowed),
+                "pressure_balance_condition_seen": bool(causality.pressure_balance_condition_seen),
+                "local_fast_condition_seen": bool(causality.local_fast_condition_seen),
+                "actual_rs_started": bool(causality.reverse_shock_started),
+                "criteria_agree": bool(causality.criteria_agree),
+                "contact_radius_cm": float(causality.contact_radius_cm),
+                "reference_crossing_radius_cm": float(causality.reference_crossing_radius_cm),
+                "pressure_balance_start_radius_cm": float(causality.pressure_balance_start_radius_cm),
+                "pressure_balance_start_tobs_s": float(causality.pressure_balance_start_tobs_s),
+                "fast_wave_crossing_radius_cm": float(causality.fast_wave_crossing_radius_cm),
+                "fast_wave_crossing_tobs_s": float(causality.fast_wave_crossing_tobs_s),
+                "local_start_radius_cm": float(causality.local_start_radius_cm),
+                "local_start_tobs_s": float(causality.local_start_tobs_s),
+                "actual_start_radius_cm": float(causality.actual_start_radius_cm),
+                "actual_start_tobs_s": float(causality.actual_start_tobs_s),
                 "ordered_B_cross_G": float(rs.ordered_magnetic_cross_g),
                 "max_B3_G": float(np.nanmax(rs.magnetic_field_g)),
                 "max_gamma34": float(np.nanmax(rs.gamma34)),
@@ -304,7 +323,7 @@ def _solve_dynamics_scan(
 
 
 def _solve_observable_scan(sigmas: tuple[float, ...], medium: str, grid: dict[str, int], cooling_mode: str):
-    lc_times = np.logspace(0.0, 7.0, grid["lc_times"])
+    lc_times = np.logspace(-2.0, 7.0, grid["lc_times"])
     lc_bands = np.array([1.0e9, 1.0e14, 1.0e18], dtype=float)
     sed_times = np.array([1.0e2, 1.0e3, 1.0e4, 1.0e5], dtype=float)
     sed_freqs = np.logspace(7.0, 22.0, grid["sed_freqs"])
@@ -364,7 +383,7 @@ def _solve_observable_scan(sigmas: tuple[float, ...], medium: str, grid: dict[st
 
 def _plot_dynamics(path: Path, series, medium: str, cooling_mode: str) -> None:
     fig, axes = plt.subplots(2, 2, figsize=(13, 9), sharex=True)
-    x_min = 1.0
+    x_min = 1.0e-2
     x_max = max(float(item[1][-1]) for item in series)
     panels = [
         ("B3 total [G]", lambda item: item[2].magnetic_field_g, 1.0e-12),

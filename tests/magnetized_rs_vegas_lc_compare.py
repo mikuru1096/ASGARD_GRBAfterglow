@@ -30,16 +30,17 @@ OUTPUT_DIRS = {
     "ism": ROOT / "output" / "asgard_doc" / "magnetized_rs_sigma_benchmark",
     "wind": ROOT / "output" / "asgard_doc" / "magnetized_rs_sigma_benchmark_wind",
 }
-SIGMAS = (0.0, 1.0e-4, 1.0e-3, 1.0e-2, 1.0e-1, 1.0)
+SIGMAS = (0.0, 1.0e-4, 1.0e-3, 1.0e-2, 1.0e-1, 1.0, 5.0, 10.0, 50.0, 100.0, 500.0, 1000.0)
+SIGMA_PANEL_COLS = 4
 BANDS_HZ = np.array([1.0e9, 1.0e14], dtype=float)
 BAND_LABELS = ("1 GHz", "1e14 Hz")
 E_ISO = 1.0e54
-GAMMA0 = 50.0
+GAMMA0 = 150.0
 THETA_J = 1.0e-1
 DURATION_S = 500.0
-A_STAR = 5.0e-2
+A_STAR = 1.0e-1
 WIND_N_ISM = 1.0e-15
-ISM_N = 1.0e-1
+ISM_N = 10.0
 Z = 0.4
 LUMI_DIST_CM = 1.0e26
 FWD_EPS_E = 1.0e-1
@@ -131,7 +132,7 @@ def _asgard_model(
             num_threads=1,
             initial_radius_cm=1.0e14,
         ),
-        observer_grid=observer_grid(time_min_s=1.0, time_max_s=1.0e7),
+        observer_grid=observer_grid(time_min_s=1.0e-2, time_max_s=1.0e7),
         solver_options=solver_options(
             electron_solver="fullhide_1d",
             ssc_cooling_mode=cooling_mode,
@@ -203,6 +204,7 @@ def build_plot(
     output: Path,
 ) -> None:
     data: dict[tuple[str, float], tuple[np.ndarray, np.ndarray]] = {}
+    vegas_zero_rs: set[float] = set()
     for sigma in SIGMAS:
         as_flux = _asgard_model(
             sigma,
@@ -216,19 +218,23 @@ def build_plot(
         data[("ASGARD", sigma)] = (np.asarray(as_flux.total, dtype=float), np.asarray(as_flux.rev.sync, dtype=float))
         vg_total = np.asarray(vg_flux.total, dtype=float)
         vg_rs = np.asarray(vg_flux.rvs.sync, dtype=float)
-        if medium == "ism" and sigma >= 1.0e-5 and not np.any(np.isfinite(vg_rs) & (vg_rs > 0.0)):
-            raise RuntimeError(
-                "VegasAfterglow returned zero ISM magnetized RS synchrotron; "
-                "install the patched 2.0.5 source recorded in doc/patches/"
-                "vegasafterglow-2.0.5-rvs-ism-compression.patch."
-            )
+        if not np.any(np.isfinite(vg_rs) & (vg_rs > 0.0)):
+            vegas_zero_rs.add(float(sigma))
         data[("Vegas", sigma)] = (vg_total, vg_rs)
 
-    fig, axes = plt.subplots(len(BANDS_HZ), len(SIGMAS), figsize=(24.0, 7.4), dpi=220, sharex=True, squeeze=False)
+    sigma_rows = int(np.ceil(len(SIGMAS) / SIGMA_PANEL_COLS))
+    fig, axes = plt.subplots(
+        len(BANDS_HZ) * sigma_rows,
+        SIGMA_PANEL_COLS,
+        figsize=(16.0, 3.1 * len(BANDS_HZ) * sigma_rows),
+        dpi=220,
+        sharex=True,
+        squeeze=False,
+    )
     colors = {"ASGARD": "#0072B2", "Vegas": "#D55E00"}
     for i_band, band_label in enumerate(BAND_LABELS):
         for i_sigma, sigma in enumerate(SIGMAS):
-            ax = axes[i_band, i_sigma]
+            ax = axes[i_band * sigma_rows + i_sigma // SIGMA_PANEL_COLS, i_sigma % SIGMA_PANEL_COLS]
             as_total, as_rs = data[("ASGARD", sigma)]
             vg_total, vg_rs = data[("Vegas", sigma)]
             _plot_curve(
@@ -268,11 +274,22 @@ def build_plot(
                 label="Vegas RS" if i_band == 0 and i_sigma == 0 else None,
             )
             ax.set_ylim(*_ylim([as_total[i_band], as_rs[i_band], vg_total[i_band], vg_rs[i_band]]))
+            if float(sigma) in vegas_zero_rs:
+                ax.text(
+                    0.04,
+                    0.08,
+                    "Vegas RS = 0",
+                    transform=ax.transAxes,
+                    fontsize=8,
+                    color=colors["Vegas"],
+                )
             ax.grid(True, which="both", alpha=0.25, linestyle=":")
-            if i_band == 0:
-                ax.set_title(f"sigma={sigma:g}")
-            if i_sigma == 0:
+            ax.set_title(f"{band_label}, sigma={sigma:g}")
+            if i_sigma % SIGMA_PANEL_COLS == 0:
                 ax.set_ylabel(f"Fnu {band_label}")
+    for i_band in range(len(BANDS_HZ)):
+        for i_empty in range(len(SIGMAS), sigma_rows * SIGMA_PANEL_COLS):
+            axes[i_band * sigma_rows + i_empty // SIGMA_PANEL_COLS, i_empty % SIGMA_PANEL_COLS].set_visible(False)
     for ax in axes[-1, :]:
         ax.set_xlabel("observer time [s]")
     axes[0, 0].set_xlim(times[0], times[-1])
@@ -291,7 +308,8 @@ def build_plot(
                 idx = int(np.nanargmax(rs[i_band]))
                 ratio = float(rs[i_band, idx] / total[i_band, idx]) if total[i_band, idx] > 0.0 else float("nan")
                 msg.append(f"{band_label} RS_peak={rs[i_band, idx]:.3e} ratio_at_rs_peak={ratio:.3g}")
-            print(f"{medium} sigma={sigma:g} {backend}: " + "; ".join(msg))
+            marker = " zero-rs" if backend == "Vegas" and float(sigma) in vegas_zero_rs else ""
+            print(f"{medium} sigma={sigma:g} {backend}{marker}: " + "; ".join(msg))
     print(f"wrote {output}")
 
 
@@ -312,7 +330,7 @@ def main() -> None:
     if args.output is not None and args.medium == "both":
         raise ValueError("--output is only valid when --medium is ism or wind")
     media = ("ism", "wind") if args.medium == "both" else (args.medium,)
-    times = np.logspace(0.0, 7.0, args.times)
+    times = np.logspace(-2.0, 7.0, args.times)
     for medium in media:
         output = _output_path(medium) if args.output is None else args.output
         build_plot(

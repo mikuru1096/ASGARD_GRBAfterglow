@@ -35,6 +35,8 @@ Reverse shock：
 
 ```bash
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/reverse_shock_smoke.py'
+rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/reverse_shared_solver_smoke.py'
+rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/structured_shared_solver_smoke.py'
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/hadronic_reverse_shock_smoke.py'
 ```
 
@@ -44,12 +46,15 @@ Hadronic：
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/hadronic_1d_smoke.py'
 ```
 
+`tests/dg_1d_smoke.py` 是严格 DG 诊断，不是当前通过门槛。最新基线中它仍在 FS density-jump 场景报 `grid-scale sawtooth turns: 3`；该问题记录在 `TODO.md`，修复前不得用 smoothing、阈值放宽或输出端截断掩盖。
+
 ## 按区域划分的构建门槛
 
 Electron 1D：
 
 ```bash
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && TMPDIR=/tmp uv run python build_extensions.py --module electron_forward_fullhide_1d --force'
+rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && TMPDIR=/tmp uv run python build_extensions.py --module electron_forward_dg_1d --force'
 ```
 
 Electron 2D：
@@ -124,6 +129,7 @@ Reverse-shock：
 - Pre-crossing 的 `M3` crossing 端点应由 `m3_frac=1` 给出，不允许 RK step 跨越 pre/post 方程分支。
 - `sigma -> 0` 必须恢复 unmagnetized baseline。
 - `B3`, `gamma34`, `U3/V3` 应平滑；断频只作为可选 `nu_callback` 诊断。
+- `dg_1d` 的 RS primary electron 路径必须通过 `reverse_shared_solver_smoke.py` 和 `structured_shared_solver_smoke.py`。RS 高能尾验收使用分辨率对照：121 格 fullhide 的 post-crossing 宽尾不作为 DG 真值，需用 241 格 fullhide、解析特征线或守恒谱形诊断判断。
 - VegasAfterglow 是 comparison backend，不是目标真值。
 
 Hadronic：

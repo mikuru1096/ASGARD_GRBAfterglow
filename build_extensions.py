@@ -35,6 +35,7 @@ F2PY_SKIP_DYNAMICS_COMMON_INTERNALS = (
     "skip:",
     "dynamics_rk4_forward_ln_step",
     "dynamics_rk4_reverse",
+    "dynamics_rk4_reverse_waiting",
     "dynamics_rk4_reverse_pre_m3",
     ":",
 )
@@ -53,6 +54,7 @@ ELECTRON_COMMON_SOURCES = (
     "adaptive_resampling_mod.f90",
     "electron_radiation_kernel.f90",
     "electron_injection_profiles.f90",
+    "electron_shell_transport_common.f90",
     "electron_common.f90",
     "electron_cooling_kernel.f90",
 )
@@ -119,6 +121,10 @@ ELECTRON_DG_1D_SOURCES = (
     *ELECTRON_COMMON_SOURCES,
     "electron_transport_dg_1d_kernel.f90",
 )
+ELECTRON_REVERSE_SOURCES = (
+    *ELECTRON_COMMON_SOURCES,
+    "electron_transport_dg_1d_kernel.f90",
+)
 HADRONIC_1D_SOURCES = (
     "../Constants.f90",
     "../Dynamics/dynamics_common.f90",
@@ -155,8 +161,10 @@ STRUCTURED_JET_1D_SOURCES = (
     "../Electron/adaptive_resampling_mod.f90",
     "../Electron/electron_radiation_kernel.f90",
     "../Electron/electron_injection_profiles.f90",
+    "../Electron/electron_shell_transport_common.f90",
     "../Electron/electron_common.f90",
     "../Electron/electron_cooling_kernel.f90",
+    "../Electron/electron_transport_dg_1d_kernel.f90",
     "../Electron/electron_seed_history_kernel.f90",
     "../Hadronic/hadronic_common.f90",
     "../Hadronic/hadronic_transport_kernel.f90",
@@ -176,6 +184,7 @@ STRUCTURED_JET_1D_SOURCES = (
     "../Hadronic/hadronic_pp_models_kernel.f90",
     "../Dynamics/Dynamics_forward.f90",
     "../Dynamics/Dynamics_reverse.f90",
+    "../Electron/electron_forward_dg_1d.f90",
     "../Electron/electron_forward_fullhide_1d.f90",
     "../Electron/electron_reverse_kernel.f90",
     "../Radiation/radiation_ssc_spectrum.f90",
@@ -561,7 +570,7 @@ def main() -> None:
         ModuleSpec(
             "electron_reverse_kernel",
             ele,
-            _with_main(ELECTRON_COMMON_SOURCES, "electron_reverse_kernel.f90"),
+            _with_main(ELECTRON_REVERSE_SOURCES, "electron_reverse_kernel.f90"),
             omp_flags,
             OPENMP_LIBS,
             True,

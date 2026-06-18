@@ -6,7 +6,7 @@ subroutine structured_jet_flux_1d(Boundary,E_iso_grid,Gamma0_grid,active_grid,V_
                                   reverse_delta_t_s,reverse_epsilon_e,reverse_epsilon_b,reverse_p,reverse_f_e,reverse_sigma, &
                                   hadronic_p_p,hadronic_epsilon_p,hadronic_eta_acc,axisymmetric, &
                                   n_threads_outer,n_threads_inner,adaptive_substeps,substep_rtol, &
-                                  substep_min,substep_max,thermal_electrons, &
+                                  substep_min,substep_max,thermal_electrons,electron_solver_id, &
                                   fwd_sync_obs,fwd_ssc_obs,fwd_hadronic_obs,rev_sync_obs,total_obs, &
                                   track_tobs,track_gamma,track_radius,track_mass,track_bfield,track_nu_m,track_nu_c,track_nu_a)
     !$ use omp_lib
@@ -18,7 +18,7 @@ subroutine structured_jet_flux_1d(Boundary,E_iso_grid,Gamma0_grid,active_grid,V_
     integer, intent(in) :: include_reverse_sync,include_forward_ssc,include_hadronic,include_proton_synch
     integer, intent(in) :: include_pg,include_neutrino,num_gam_p,num_nu_nu
     integer, intent(in) :: axisymmetric,n_threads_outer,n_threads_inner,adaptive_substeps,substep_min,substep_max
-    integer, intent(in) :: thermal_electrons,active_grid(Num_theta_patch,Num_phi_patch)
+    integer, intent(in) :: thermal_electrons,electron_solver_id,active_grid(Num_theta_patch,Num_phi_patch)
     real(8), intent(in) :: Boundary(n),E_iso_grid(Num_theta_patch,Num_phi_patch),Gamma0_grid(Num_theta_patch,Num_phi_patch)
     real(8), intent(in) :: V_seed(Num_nu),V_obs(Num_nu_obs),Tobs(Num_Tobs),substep_rtol
     real(8), intent(in) :: reverse_delta_t_s,reverse_epsilon_e,reverse_epsilon_b,reverse_p,reverse_f_e,reverse_sigma
@@ -71,8 +71,8 @@ contains
                                            reverse_sigma, &
                                            hadronic_p_p,hadronic_epsilon_p,hadronic_eta_acc, &
                                            n_threads_outer,n_threads_inner,adaptive_substeps,substep_rtol,substep_min, &
-                                           substep_max,thermal_electrons,rt_axis,rg_axis,rr_axis,sync_axis,ssc_axis,had_axis, &
-                                           rev_axis, &
+                                           substep_max,thermal_electrons,electron_solver_id,rt_axis,rg_axis,rr_axis, &
+                                           sync_axis,ssc_axis,had_axis,rev_axis, &
                                            track_tobs,track_gamma,track_radius,track_mass,track_bfield,track_nu_m,track_nu_c, &
                                            track_nu_a,track_set)
         call sed_interpolation_structured(Boundary_sed,zero,rt_axis,rg_axis,rr_axis,sync_axis,V_seed,V_obs,Tobs, &
@@ -108,8 +108,8 @@ contains
                                               reverse_sigma, &
                                               hadronic_p_p,hadronic_epsilon_p,hadronic_eta_acc, &
                                               n_threads_outer,n_threads_inner,adaptive_substeps,substep_rtol,substep_min, &
-                                              substep_max,thermal_electrons,rt_phi,rg_phi,rr_phi,sync_phi,ssc_phi,had_phi, &
-                                              rev_phi, &
+                                              substep_max,thermal_electrons,electron_solver_id,rt_phi,rg_phi,rr_phi, &
+                                              sync_phi,ssc_phi,had_phi,rev_phi, &
                                               track_tobs,track_gamma,track_radius,track_mass,track_bfield,track_nu_m, &
                                               track_nu_c,track_nu_a,track_set)
         call sed_interpolation_structured_phi(Boundary_sed,rt_phi,rg_phi,rr_phi,sync_phi,V_seed,V_obs,Tobs, &
@@ -136,8 +136,8 @@ subroutine structured_solve_axisymmetric(Boundary,E_iso_grid,Gamma0_grid,active_
                                          reverse_sigma, &
                                          hadronic_p_p,hadronic_epsilon_p,hadronic_eta_acc,n_threads_outer, &
                                          n_threads_inner,adaptive_substeps,substep_rtol,substep_min, &
-                                         substep_max,thermal_electrons,rt_axis,rg_axis,rr_axis,sync_axis,ssc_axis,had_axis, &
-                                         rev_axis, &
+                                         substep_max,thermal_electrons,electron_solver_id,rt_axis,rg_axis,rr_axis, &
+                                         sync_axis,ssc_axis,had_axis,rev_axis, &
                                          track_tobs,track_gamma,track_radius,track_mass,track_bfield,track_nu_m,track_nu_c, &
                                          track_nu_a,track_set)
     !$ use omp_lib
@@ -147,6 +147,7 @@ subroutine structured_solve_axisymmetric(Boundary,E_iso_grid,Gamma0_grid,active_
     integer, intent(in) :: include_reverse_sync,include_forward_ssc,include_hadronic,include_proton_synch
     integer, intent(in) :: include_pg,include_neutrino,num_gam_p,num_nu_nu
     integer, intent(in) :: n_threads_outer,n_threads_inner,adaptive_substeps,substep_min,substep_max,thermal_electrons
+    integer, intent(in) :: electron_solver_id
     integer, intent(in) :: active_grid(Num_theta_patch,Num_phi_patch)
     integer, intent(inout) :: track_set
     real(8), intent(in) :: Boundary(n),E_iso_grid(Num_theta_patch,Num_phi_patch),Gamma0_grid(Num_theta_patch,Num_phi_patch)
@@ -211,8 +212,9 @@ contains
                                       reverse_delta_t_s,reverse_epsilon_e,reverse_epsilon_b,reverse_p,reverse_f_e, &
                                       reverse_sigma,hadronic_p_p, &
                                       hadronic_epsilon_p,hadronic_eta_acc,adaptive_substeps, &
-                                      substep_rtol,substep_min,substep_max,thermal_electrons,rt_axis(:,it),rg_axis(:,it), &
-                                      rr_axis(:,it),sync_axis(:,:,it),ssc_axis(:,:,it),had_axis(:,:,it),rev_axis(:,:,it), &
+                                      substep_rtol,substep_min,substep_max,thermal_electrons,electron_solver_id, &
+                                      rt_axis(:,it),rg_axis(:,it),rr_axis(:,it),sync_axis(:,:,it),ssc_axis(:,:,it), &
+                                      had_axis(:,:,it),rev_axis(:,:,it), &
                                       track_tobs,track_gamma,track_radius,track_mass,track_bfield,track_nu_m,track_nu_c, &
                                       track_nu_a,track_set)
     end subroutine solve_axis_patch
@@ -235,8 +237,8 @@ subroutine structured_solve_nonaxisymmetric(Boundary,E_iso_grid,Gamma0_grid,acti
                                             reverse_sigma, &
                                             hadronic_p_p,hadronic_epsilon_p,hadronic_eta_acc,n_threads_outer, &
                                             n_threads_inner,adaptive_substeps,substep_rtol,substep_min, &
-                                            substep_max,thermal_electrons,rt_phi,rg_phi,rr_phi,sync_phi,ssc_phi,had_phi, &
-                                            rev_phi, &
+                                            substep_max,thermal_electrons,electron_solver_id,rt_phi,rg_phi,rr_phi, &
+                                            sync_phi,ssc_phi,had_phi,rev_phi, &
                                             track_tobs,track_gamma,track_radius,track_mass,track_bfield,track_nu_m,track_nu_c, &
                                             track_nu_a,track_set)
     !$ use omp_lib
@@ -246,6 +248,7 @@ subroutine structured_solve_nonaxisymmetric(Boundary,E_iso_grid,Gamma0_grid,acti
     integer, intent(in) :: include_reverse_sync,include_forward_ssc,include_hadronic,include_proton_synch
     integer, intent(in) :: include_pg,include_neutrino,num_gam_p,num_nu_nu
     integer, intent(in) :: n_threads_outer,n_threads_inner,adaptive_substeps,substep_min,substep_max,thermal_electrons
+    integer, intent(in) :: electron_solver_id
     integer, intent(in) :: active_grid(Num_theta_patch,Num_phi_patch)
     integer, intent(inout) :: track_set
     real(8), intent(in) :: Boundary(n),E_iso_grid(Num_theta_patch,Num_phi_patch),Gamma0_grid(Num_theta_patch,Num_phi_patch)
@@ -340,9 +343,9 @@ contains
                                       reverse_delta_t_s,reverse_epsilon_e,reverse_epsilon_b,reverse_p,reverse_f_e, &
                                       reverse_sigma,hadronic_p_p, &
                                       hadronic_epsilon_p,hadronic_eta_acc,adaptive_substeps, &
-                                      substep_rtol,substep_min,substep_max,thermal_electrons,rt_phi(:,it,ip), &
-                                      rg_phi(:,it,ip),rr_phi(:,it,ip),sync_phi(:,:,it,ip),ssc_phi(:,:,it,ip), &
-                                      had_phi(:,:,it,ip),rev_phi(:,:,it,ip),track_tobs,track_gamma,track_radius, &
+                                      substep_rtol,substep_min,substep_max,thermal_electrons,electron_solver_id, &
+                                      rt_phi(:,it,ip),rg_phi(:,it,ip),rr_phi(:,it,ip),sync_phi(:,:,it,ip), &
+                                      ssc_phi(:,:,it,ip),had_phi(:,:,it,ip),rev_phi(:,:,it,ip),track_tobs,track_gamma,track_radius, &
                                       track_mass,track_bfield,track_nu_m,track_nu_c,track_nu_a,track_set)
     end subroutine solve_phi_patch
 
@@ -366,19 +369,20 @@ subroutine structured_solve_element(Boundary,E_iso,Gamma0,V_seed,n,Num_nu,Num_R,
                                     reverse_delta_t_s,reverse_epsilon_e,reverse_epsilon_b,reverse_p,reverse_f_e, &
                                     reverse_sigma,hadronic_p_p,hadronic_epsilon_p,hadronic_eta_acc,adaptive_substeps, &
                                     substep_rtol, &
-                                    substep_min,substep_max,thermal_electrons,R_Tobs,R_Gamma,R, &
+                                    substep_min,substep_max,thermal_electrons,electron_solver_id,R_Tobs,R_Gamma,R, &
                                     sync_abs,ssc_abs,had_abs,rev_abs,track_tobs,track_gamma,track_radius,track_mass,track_bfield, &
                                     track_nu_m,track_nu_c,track_nu_a,track_set)
     !$ use omp_lib
     use constants
     use dynamics_common, only: dynamics_external_density_profile, density_jump_max, rs_shell_matter_fraction
+    use electron_shell_transport_common, only: electron_solver_dg_1d, electron_solver_fullhide_1d
     use electron_radiation_kernel, only: get_syn_selected
     use electron_reverse_kernel, only: electron_reverse_evolve
     implicit none
     integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,index_dyn,index_Y,index_syn_intger,include_forward_ssc
     integer, intent(in) :: include_hadronic,include_proton_synch,include_pg,include_neutrino
     integer, intent(in) :: num_gam_p,num_nu_nu,n_threads,adaptive_substeps
-    integer, intent(in) :: include_reverse_sync,substep_min,substep_max,thermal_electrons
+    integer, intent(in) :: include_reverse_sync,substep_min,substep_max,thermal_electrons,electron_solver_id
     integer, intent(inout) :: track_set
     real(8), intent(in) :: Boundary(n),E_iso,Gamma0,V_seed(Num_nu),substep_rtol
     real(8), intent(in) :: reverse_delta_t_s,reverse_epsilon_e,reverse_epsilon_b,reverse_p,reverse_f_e,reverse_sigma
@@ -431,9 +435,19 @@ subroutine structured_solve_element(Boundary,E_iso,Gamma0,V_seed,n,Num_nu,Num_R,
         M3=zero; B3=zero; U3=zero; V3=zero; Gamma34=zero
         T_cross=zero; R_cross=zero; U3_cross=zero; M3_cross=zero
     end if
-    call fs_electron_fullhide_1d(B_local,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads, &
-                                 adaptive_substeps,substep_rtol,substep_min,substep_max,thermal_electrons, &
-                                 gam_e,dN_gam_e,P_syn,Seed_syn,nu_m_local,nu_c_local,nu_a_local)
+    select case(electron_solver_id)
+    case(electron_solver_fullhide_1d)
+        call fs_electron_fullhide_1d(B_local,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e, &
+                                     index_Y,index_syn_intger,n_threads,adaptive_substeps,substep_rtol, &
+                                     substep_min,substep_max,thermal_electrons,gam_e,dN_gam_e,P_syn,Seed_syn, &
+                                     nu_m_local,nu_c_local,nu_a_local)
+    case(electron_solver_dg_1d)
+        if (thermal_electrons /= 0) error stop 'structured_solve_element: dg_1d does not support thermal electrons.'
+        call fs_electron_dg_1d(B_local,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e,index_Y, &
+                               index_syn_intger,n_threads,gam_e,dN_gam_e,P_syn,Seed_syn,nu_m_local,nu_c_local,nu_a_local)
+    case default
+        error stop 'structured_solve_element: unsupported electron solver id.'
+    end select
     P_ssc=zero; Seed_ssc=zero; had_abs=zero; rev_abs=zero
     if (include_forward_ssc /= 0) call ssc_spec(R,gam_e,dN_gam_e,V_seed,Seed_syn,Num_nu,Num_R,Num_gam_e,n_threads,P_ssc,Seed_ssc)
 
@@ -473,8 +487,9 @@ subroutine structured_solve_element(Boundary,E_iso,Gamma0,V_seed,n,Num_nu,Num_R,
         call electron_reverse_evolve(reverse_delta_t_s*Para_c,reverse_epsilon_e,reverse_epsilon_b,reverse_p,reverse_f_e, &
                                      Gamma0,B_local(5),B_local(6),B_local(8),B_local(12),B_local(11),para_m_ej, &
                                      B_local(21),B_local(22),B_local(23),B_local(n), &
-                                     T_cross,R_cross,U3_cross,M3_cross,R_Tobs,R_Gamma,R,B3,M3,U3,V_seed, &
-                                     Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads,gam_e_rev,dN_gam_e_rev)
+                                     T_cross,R_cross,U3_cross,V3_cross,M3_cross,R_Tobs,R_Gamma,R,B3,M3,U3,V3,V_seed, &
+                                     Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads,gam_e_rev,dN_gam_e_rev, &
+                                     electron_solver_id)
         do ir=1,Num_R
             reverse_total=zero
             do ig=2,Num_gam_e

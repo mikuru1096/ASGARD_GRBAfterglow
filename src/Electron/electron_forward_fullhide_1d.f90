@@ -15,8 +15,8 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
                                            electron_profile_log_cell_edges
     use electron_radiation_kernel, only: get_nu_a, get_syn_selected
     use electron_cooling_kernel, only: get_forward_cooling
-    use electron_transport_common, only: electron_fullhide_step, electron_fullhide_spacetime_sequence, &
-                                         electron_dnx_to_dndgamma_exp_centers
+    use electron_shell_transport_common, only: electron_shell_fullhide_step, electron_shell_fullhide_spacetime_sequence
+    use electron_transport_common, only: electron_dnx_to_dndgamma_exp_centers
     IMPLICIT REAL(8)(A-H,O-Z)
     integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads
     integer, intent(in) :: adaptive_substeps,substep_min,substep_max,thermal_electrons
@@ -119,7 +119,7 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
                     n_before_step=sum(dN_x)*d_x
                     inj_step=sum(dF_steps)*d_x
                 end if
-                call electron_fullhide_spacetime_sequence(Num_gam_e,1,face_coupling,dF_steps,dN_x,x)
+                call electron_shell_fullhide_spacetime_sequence(Num_gam_e,1,face_coupling,dF_steps,dN_x,x)
                 if (budget_diag_enabled) then
                     n_after_step=sum(x)*d_x
                     rel_loss_xi_max=max(rel_loss_xi_max, &
@@ -155,7 +155,7 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
                         n_before_step=sum(dN_x)*d_x
                         inj_step=dDR*sum(dF1)*d_x
                     end if
-                    call electron_fullhide_step(Num_gam_e,R_loc,dDR,d_x,dEL_mean_step,dF1,dN_x,x)
+                    call electron_shell_fullhide_step(Num_gam_e,R_loc,dDR,d_x,dEL_mean_step,dF1,dN_x,x)
                     if (budget_diag_enabled) then
                         n_after_step=sum(x)*d_x
                         rel_loss_xi_max=max(rel_loss_xi_max, &
@@ -201,7 +201,7 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
                 else
                     dEL_mean_step=dEL_mean_base
                 end if
-                call electron_fullhide_step(Num_gam_e,R_full,dR_try,d_x,dEL_mean_step,dF1,dN_x,dN_full)
+                call electron_shell_fullhide_step(Num_gam_e,R_full,dR_try,d_x,dEL_mean_step,dF1,dN_x,dN_full)
 
                 dR_half=0.5d0*dR_try
                 R_half=R_loc+dR_half
@@ -226,7 +226,7 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
                 else
                     dEL_mean_step=dEL_mean_base
                 end if
-                call electron_fullhide_step(Num_gam_e,R_half,dR_half,d_x,dEL_mean_step,dF1,dN_x,dN_half)
+                call electron_shell_fullhide_step(Num_gam_e,R_half,dR_half,d_x,dEL_mean_step,dF1,dN_x,dN_half)
 
                 call electron_injection_prefactor(R_full,dR_half,dNe_full,f_e,Gam_e_m_p_full,Q)
                 call electron_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m_full,Gam_e_max_full,Q,p,dF1)
@@ -239,7 +239,7 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
                 else
                     dEL_mean_step=dEL_mean_base
                 end if
-                call electron_fullhide_step(Num_gam_e,R_full,dR_half,d_x,dEL_mean_step,dF1,dN_half,dN_half2)
+                call electron_shell_fullhide_step(Num_gam_e,R_full,dR_half,d_x,dEL_mean_step,dF1,dN_half,dN_half2)
 
                 call electron_max_relative_error(Num_gam_e,dN_half2,dN_full,step_error)
                 if (step_error <= substep_rtol .or. dR_try <= dR_min) then
@@ -321,7 +321,8 @@ subroutine fs_electron_fullhide_1d_coupled(Boundary,R_Tobs,R_Gamma,R,V_seed,Seed
                                            electron_profile_log_cell_edges
     use electron_radiation_kernel, only: get_nu_a, get_syn_selected
     use electron_cooling_kernel, only: electron_cooling_ic_loss_emissivity_budget, assemble_forward_cooling_split
-    use electron_transport_common, only: electron_fullhide_step, electron_dnx_to_dndgamma_exp_centers
+    use electron_shell_transport_common, only: electron_shell_fullhide_step
+    use electron_transport_common, only: electron_dnx_to_dndgamma_exp_centers
     IMPLICIT REAL(8)(A-H,O-Z)
     integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads
     integer, intent(in) :: adaptive_substeps,substep_min,substep_max,thermal_electrons
@@ -417,7 +418,7 @@ subroutine fs_electron_fullhide_1d_coupled(Boundary,R_Tobs,R_Gamma,R,V_seed,Seed
                 n_before_step=sum(dN_x)*d_x
                 inj_step=dDR*sum(dF1)*d_x
             end if
-            call electron_fullhide_step(Num_gam_e,R_loc,dDR,d_x,dEL_mean_step,dF1,dN_x,x)
+            call electron_shell_fullhide_step(Num_gam_e,R_loc,dDR,d_x,dEL_mean_step,dF1,dN_x,x)
             if (budget_diag_enabled) then
                 n_after_step=sum(x)*d_x
                 rel_loss_xi_max=max(rel_loss_xi_max, &
