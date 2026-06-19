@@ -1,0 +1,113 @@
+{
+  "fs": {
+    "default": {
+      "max_curvature_dex": 0.6736825788508511,
+      "peak_gamma": 3252.5460307785593,
+      "peak_value": 4.244599698028995e+49,
+      "positive_points": 121,
+      "turns": 4
+    },
+    "fejer": {
+      "max_curvature_dex": 1.8986754998157203,
+      "peak_gamma": 3252.5460307785593,
+      "peak_value": 3.556195984540103e+49,
+      "positive_points": 121,
+      "turns": 8
+    },
+    "fullhide": {
+      "max_curvature_dex": 0.32347251283229994,
+      "peak_gamma": 3936.4161545577863,
+      "peak_value": 3.501710983021377e+49,
+      "positive_points": 121,
+      "turns": 2
+    },
+    "jackson": {
+      "max_curvature_dex": 1.322574836359891,
+      "peak_gamma": 3252.5460307785593,
+      "peak_value": 3.913633097256079e+49,
+      "positive_points": 121,
+      "turns": 3
+    },
+    "troubled": {
+      "max_curvature_dex": 1.322574836359891,
+      "peak_gamma": 3252.5460307785593,
+      "peak_value": 3.91722963226377e+49,
+      "positive_points": 121,
+      "turns": 4
+    }
+  },
+  "jump": {
+    "default": {
+      "max_curvature_dex": 0.9367972795080419,
+      "peak_gamma": 3867.9099790661926,
+      "peak_value": 3.285328826814573e+49,
+      "positive_points": 121,
+      "turns": 4
+    },
+    "fejer": {
+      "max_curvature_dex": 1.9190027360415023,
+      "peak_gamma": 3867.9099790661926,
+      "peak_value": 2.769299187207164e+49,
+      "positive_points": 121,
+      "turns": 10
+    },
+    "fullhide": {
+      "max_curvature_dex": 0.3123422666166711,
+      "peak_gamma": 3867.9099790661926,
+      "peak_value": 2.884925977881585e+49,
+      "positive_points": 121,
+      "turns": 2
+    },
+    "jackson": {
+      "max_curvature_dex": 1.2994272985819606,
+      "peak_gamma": 3867.9099790661926,
+      "peak_value": 2.9799595658746084e+49,
+      "positive_points": 121,
+      "turns": 3
+    },
+    "troubled": {
+      "max_curvature_dex": 1.3068832663899315,
+      "peak_gamma": 3867.9099790661926,
+      "peak_value": 2.9799344334511835e+49,
+      "positive_points": 121,
+      "turns": 3
+    }
+  },
+  "rs": {
+    "default": {
+      "max_curvature_dex": 4.346187488993046,
+      "peak_gamma": 1.2289296780872148,
+      "peak_value": 1.1737933236404207e+54,
+      "positive_points": 74,
+      "turns": 0
+    },
+    "fejer": {
+      "max_curvature_dex": 3.8047441955448065,
+      "peak_gamma": 1.2289296780872148,
+      "peak_value": 6.274798115038224e+53,
+      "positive_points": 74,
+      "turns": 0
+    },
+    "fullhide": {
+      "max_curvature_dex": 1.159224963831491,
+      "peak_gamma": 1.2289296780872148,
+      "peak_value": 1.1996206726665474e+54,
+      "positive_points": 72,
+      "turns": 0
+    },
+    "jackson": {
+      "max_curvature_dex": 4.478091822036205,
+      "peak_gamma": 1.2289296780872148,
+      "peak_value": 9.320378780598524e+53,
+      "positive_points": 74,
+      "turns": 0
+    },
+    "troubled": {
+      "max_curvature_dex": 4.408596218634209,
+      "peak_gamma": 1.2289296780872148,
+      "peak_value": 9.597757949582081e+53,
+      "positive_points": 74,
+      "turns": 0
+    }
+  }
+}

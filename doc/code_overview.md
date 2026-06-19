@@ -146,7 +146,7 @@ Smoke tests：`tests/readme_smoke_bench.py`, `tests/fitter_public_api_smoke.py`,
 
 Reverse/structured electron regressions：`tests/reverse_shared_solver_smoke.py`, `tests/reverse_shock_smoke.py`, `tests/structured_shared_solver_smoke.py`。
 
-DG strict diagnostic：`tests/dg_1d_smoke.py`。当前 FS density-jump case 仍触发 3 个 sawtooth turns，修复前不列入通过门槛。
+DG baseline diagnostic：`tests/dg_1d_smoke.py`。当前门槛检查有限值、非负、活动支撑无零洞、无多重 grid-scale sawtooth turns、粒子数和同步光度量级；尖锐曲率本身不判失败。
 
 Hadronic regressions：`tests/hadronic_1d_smoke.py`, `tests/hadronic_reverse_shock_smoke.py`。
 

@@ -23,7 +23,8 @@ module electron_reverse_kernel
                                                 electron_dg1d_project_kinetic_source, &
                                                 electron_dg1d_project_state, electron_dg1d_project_to_grid, &
                                                 electron_dg1d_project_to_coord_cells, &
-                                                electron_dg1d_scale_to_content, electron_dg1d_tail_moment_fraction
+                                                electron_dg1d_scale_to_content, electron_dg1d_tail_moment_fraction, &
+                                                electron_dg1d_apply_positive_kernel_filter
     use electron_radiation_kernel, only: get_syn_selected, get_nu_a
     use electron_cooling_kernel, only: prepare_forward_cooling_aux
     implicit none
@@ -300,6 +301,8 @@ contains
                     call electron_dg1d_advance_step(dg_mesh,adiabatic_rate,dDR,dg_dEl,dg_source,dg_state,dg_work)
                     call electron_dg1d_limit_positive_cell_preserving(dg_mesh,dg_work)
                 end if
+                call electron_dg1d_apply_positive_kernel_filter(dg_mesh,dg_work)
+                call electron_dg1d_limit_positive_cell_preserving(dg_mesh,dg_work)
                 dg_state=dg_work
                 call advance_reverse_dg_low_front(source_norm_step)
                 call advance_reverse_dg_injection_front(source_norm_step)
@@ -462,6 +465,8 @@ contains
                                                     dlog10(reverse_dg_upper_break()),dg_gamma_scale,dg_new_mesh)
         call ensure_reverse_dg_work(dg_new_mesh%ntot)
         call electron_dg1d_project_state(dg_mesh,dg_state,dg_new_mesh,dg_work)
+        call electron_dg1d_apply_positive_kernel_filter(dg_new_mesh,dg_work)
+        call electron_dg1d_limit_positive_cell_preserving(dg_new_mesh,dg_work)
         deallocate(dg_state)
         allocate(dg_state(dg_new_mesh%ntot))
         dg_state=dg_work
@@ -1127,6 +1132,7 @@ subroutine reverse_dg_grid_sequence(Num_gam_e,x_edge,gam_e,num_step,dR,rad_coeff
         call electron_dg1d_scale_to_content(mesh,source_norm_step(step),source_nodes)
         call electron_dg1d_advance_characteristic_step(mesh,dR,rad_coeff,adiabatic_rate_step(step), &
                                                        source_nodes,state,advanced)
+        call electron_dg1d_apply_positive_kernel_filter(mesh,advanced)
         call electron_dg1d_limit_positive_cell_preserving(mesh,advanced)
         state=advanced
     end do

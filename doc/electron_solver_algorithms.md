@@ -149,7 +149,7 @@ A_{\rm face}\simeq dE_{\ell,{\rm mean}}+\frac{1}{R\ln 10},
 | `fullhide_2d` | 一阶隐式迎风 | 隐式平流-扩散 | 2D 物理基线 |
 | `charint_2d` | 特征线重映射 | 隐式平流-扩散 | 2D 加速混合版 |
 
-`fullhide_1d` 最稳健，但数值扩散较强。`dg_1d` 使用 moving multi-domain LGL 谱元，在固定 1D 电子网格数下保留更尖锐的冷却断点和高能截断；它是 opt-in 路径，不替代默认 `fullhide_1d`。`charint_1d` 对高能截止和冷却断点也更锋利，但子步选择更敏感。`fullhide_2d` 是当前最完整的厚壳电子路径。`charint_2d` 只把能量方向换成特征线重映射，\(\eta\) 方向仍使用隐式平流-扩散，因为扩散项不能写成单纯特征线更新。
+`fullhide_1d` 最稳健，但数值扩散较强。`dg_1d` 使用 moving multi-domain LGL 谱元，在固定 1D 电子网格数下保留更尖锐的冷却断点和高能截断；它是 opt-in 路径，不替代默认 `fullhide_1d`。`dg_1d` 默认启用 troubled-cell positive-kernel 滤波，局部衰减高阶 Legendre 模态并保留 cell average，用于控制 Gibbs 振荡；尖锐曲率本身不作为失败条件。`charint_1d` 对高能截止和冷却断点也更锋利，但子步选择更敏感。`fullhide_2d` 是当前最完整的厚壳电子路径。`charint_2d` 只把能量方向换成特征线重映射，\(\eta\) 方向仍使用隐式平流-扩散，因为扩散项不能写成单纯特征线更新。
 
 ## 6. `dg_1d` 谱元路径
 
@@ -160,6 +160,8 @@ A_{\rm face}\simeq dE_{\ell,{\rm mean}}+\frac{1}{R\ln 10},
 - SSA/IC/同步冷却仍由 cooling kernel 给出；DG transport 层只接收最终损失率、绝热率和源项。
 
 FS DG 在壳层之间持续保存 DG state，并在 \(\gamma_m,\gamma_c,\gamma_{\max}\) 移动时重投影到新谱元。RS DG 同样跨 shell 持久保存 DG state；只在输出给固定 \(\log\gamma\) 网格和辐射核时使用守恒 cell 投影。RS DG 对断点附近的正谱多项式使用 cell-average preserving positivity limiter，保持元素平均粒子数，不作为后处理 smoothing。
+
+默认 troubled positive-kernel 在每次 DG advance 和 remesh projection 后执行。它先用 Legendre modal 投影识别高阶模态能量占比超过阈值或出现负值的谱元，再对该谱元及相邻谱元施加 Jackson positive-kernel 因子，0 阶模态不变。因此滤波只作用在局部 troubled region，不改变全局粒子数平均，也不是输出端平滑。可用 `ASGARD_DG1D_POSITIVE_KERNEL=0` 关闭该滤波做诊断，或用 `jackson`/`fejer` 对比全域核。
 
 当前时间推进基线不改变：DG 每个 shell 使用 10 个基础子步，密度跳变时 FS DG 仍由 jump-aware limiter 自适应缩步。RS fullhide 保持原 100--1000 冷却子步，RS DG 与 FS DG 对齐为 10 个基础子步。
 
@@ -223,8 +225,8 @@ N_{\rm thread,eff}=\min(N_{\rm thread},N_\chi,4),
 - 相邻观测时刻的总谱是否出现锯齿。
 - 电子总数是否在无物理注入或逃逸事件时突变。
 - 平滑参数扫描中高频端是否出现台阶式截断。
-- `dg_1d` 输出给辐射核前的固定网格谱是否出现元素边界零洞或断点 Gibbs 过冲。
-- FS density-jump 场景当前仍会触发严格 `dg_1d_smoke.py` 的 3 个 sawtooth turns；这是未完成数值边界，不通过后处理 smoothing 处理。
+- `dg_1d` 输出给辐射核前的固定网格谱是否出现元素边界零洞或多重 grid-scale sawtooth turns。
+- FS density-jump 场景使用默认 troubled positive-kernel 后纳入 `tests/dg_1d_smoke.py` 门槛；验收重点是支撑连续、非负和辐射结果平滑，不把真实尖断点的高曲率当作失败。
 - `charint_2d` 的 \(\xi\) 子步是否过粗导致高能端提前消失。
 - 2D reduced cooling bands 在窄频带问题中是否引入系统偏差。
 

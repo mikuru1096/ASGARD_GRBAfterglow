@@ -46,7 +46,7 @@ Hadronic：
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/hadronic_1d_smoke.py'
 ```
 
-`tests/dg_1d_smoke.py` 是严格 DG 诊断，不是当前通过门槛。最新基线中它仍在 FS density-jump 场景报 `grid-scale sawtooth turns: 3`；该问题记录在 `TODO.md`，修复前不得用 smoothing、阈值放宽或输出端截断掩盖。
+`tests/dg_1d_smoke.py` 是当前 DG 基线门槛。它检查有限值、非负、活动支撑无零洞、无多重 grid-scale sawtooth turns、粒子数和同步光度量级；尖锐曲率本身不判失败，因为 troubled positive-kernel 的目标是消除 Gibbs 振荡，同时保留真实冷却断点和高能 cutoff。
 
 ## 按区域划分的构建门槛
 

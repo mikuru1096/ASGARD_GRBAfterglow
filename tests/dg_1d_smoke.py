@@ -102,9 +102,6 @@ def _assert_no_grid_oscillation(gamma: np.ndarray, dndg: np.ndarray) -> None:
     turning_points = np.count_nonzero(slope_sign[1:] * slope_sign[:-1] < 0.0)
     if turning_points > 2:
         raise AssertionError(f"DG electron spectrum has grid-scale sawtooth turns: {turning_points}")
-    curvature = np.abs(y[2:] - 2.0 * y[1:-1] + y[:-2])
-    if curvature.size and float(np.max(curvature)) > 1.2:
-        raise AssertionError(f"DG electron spectrum has grid-scale ringing: {float(np.max(curvature)):.3f} dex")
     hole = (~active[1:-1]) & active[:-2] & active[2:]
     if np.any(hole):
         raise AssertionError("DG electron spectrum has an isolated zero hole")

@@ -41,6 +41,7 @@ module electron_transport_dg_1d_kernel
     public :: electron_dg1d_project_source, electron_dg1d_project_kinetic_source
     public :: electron_dg1d_advance_step, electron_dg1d_scale_to_content
     public :: electron_dg1d_limit_positive_cell_preserving
+    public :: electron_dg1d_apply_positive_kernel_filter
     public :: electron_dg1d_advance_characteristic_step
     public :: electron_dg1d_project_to_grid, electron_dg1d_project_to_log_cells
     public :: electron_dg1d_project_to_coord_cells, electron_dg1d_integral
@@ -305,6 +306,60 @@ subroutine electron_dg1d_limit_positive_cell_preserving(mesh, state)
         end if
     enddo
 end subroutine electron_dg1d_limit_positive_cell_preserving
+
+subroutine electron_dg1d_apply_positive_kernel_filter(mesh, state)
+    type(electron_dg1d_mesh), intent(in) :: mesh
+    real(8), intent(inout) :: state(mesh%ntot)
+    logical :: troubled(mesh%ndom), filter_cell(mesh%ndom)
+    real(8) :: modal_all(mesh%nnode,mesh%ndom), modal(mesh%nnode), pvals(mesh%nnode), filtered(mesh%nnode)
+    real(8) :: dx, mid, half_width, x_eval, value
+    integer :: degree, k, q, m, i, offset, filter_mode
+
+    filter_mode = electron_dg1d_positive_kernel_mode()
+    if (filter_mode == 0) return
+    degree = mesh%nnode - 1
+    call ensure_projection_quadrature(mesh%nnode)
+    troubled = .false.
+    filter_cell = .false.
+    do k = 1, mesh%ndom
+        offset = domain_offset(mesh, k)
+        dx = mesh%x_right(k) - mesh%x_left(k)
+        mid = 0.5d0*(mesh%x_left(k) + mesh%x_right(k))
+        half_width = 0.5d0*dx
+        modal = zero
+        do q = 1, mesh%nnode
+            x_eval = mid + half_width*projection_r(q)
+            value = interpolate_domain(mesh, state, k, x_eval)
+            call legendre_basis_values(degree, projection_r(q), pvals)
+            modal = modal + half_width*projection_w(q)*value*pvals
+        enddo
+        do m = 0, degree
+            modal(m + 1) = dble(2*m + 1)*modal(m + 1)/dx
+        enddo
+        modal_all(:,k) = modal
+        troubled(k) = electron_dg1d_element_is_troubled(mesh%nnode,state(offset + 1:offset + mesh%nnode),modal)
+    enddo
+    if (filter_mode == 2) then
+        do k = 1, mesh%ndom
+            if (troubled(k)) filter_cell(max(1,k - 1):min(mesh%ndom,k + 1)) = .true.
+        enddo
+    else
+        filter_cell = .true.
+    endif
+    do k = 1, mesh%ndom
+        if (.not. filter_cell(k)) cycle
+        offset = domain_offset(mesh, k)
+        modal = modal_all(:,k)
+        do m = 1, degree
+            modal(m + 1) = modal(m + 1)*electron_dg1d_kernel_factor(filter_mode, m, degree)
+        enddo
+        do i = 1, mesh%nnode
+            call legendre_basis_values(degree, mesh%r(i), pvals)
+            filtered(i) = sum(modal*pvals)
+        enddo
+        state(offset + 1:offset + mesh%nnode) = filtered
+    enddo
+end subroutine electron_dg1d_apply_positive_kernel_filter
 
 subroutine electron_dg1d_advance_step(mesh, adiabatic_rate, dr, dloggamma_loss, source, state_in, state_out)
     type(electron_dg1d_mesh), intent(in) :: mesh
@@ -802,6 +857,77 @@ subroutine electron_dg1d_tail_moment_fraction(mesh, state, gamma_cut, moment_pow
         fraction = zero
     endif
 end subroutine electron_dg1d_tail_moment_fraction
+
+integer function electron_dg1d_positive_kernel_mode() result(mode)
+    character(len=32) :: env_value
+    integer :: env_status
+    integer, save :: cached_mode = -1
+
+    if (cached_mode < 0) then
+        call get_environment_variable('ASGARD_DG1D_POSITIVE_KERNEL', env_value, status=env_status)
+        if (env_status /= 0 .or. len_trim(env_value) == 0) then
+            cached_mode = 2
+        else
+            select case (adjustl(env_value))
+            case ('0', 'off', 'OFF', 'false', 'FALSE', 'none', 'NONE')
+                cached_mode = 0
+            case ('1', 'on', 'ON', 'true', 'TRUE', 'jackson', 'JACKSON')
+                cached_mode = 1
+            case ('troubled', 'TROUBLED')
+                cached_mode = 2
+            case ('fejer', 'FEJER')
+                cached_mode = 3
+            case default
+                error stop 'ASGARD_DG1D_POSITIVE_KERNEL must be 0, 1, jackson, troubled, or fejer'
+            end select
+        endif
+    endif
+    mode = cached_mode
+end function electron_dg1d_positive_kernel_mode
+
+logical function electron_dg1d_element_is_troubled(nnode, values, modal) result(troubled)
+    integer, intent(in) :: nnode
+    real(8), intent(in) :: values(nnode), modal(nnode)
+    real(8) :: modal_sum, high_sum
+    integer :: high_start
+
+    if (minval(values) < zero) then
+        troubled = .true.
+        return
+    endif
+    modal_sum = sum(abs(modal))
+    if (modal_sum <= zero) then
+        troubled = .false.
+        return
+    endif
+    high_start = max(2, nnode - 5)
+    high_sum = sum(abs(modal(high_start:nnode)))
+    troubled = (high_sum/modal_sum > 2d-2)
+end function electron_dg1d_element_is_troubled
+
+pure real(8) function electron_dg1d_kernel_factor(filter_mode, mode, degree) result(factor)
+    integer, intent(in) :: filter_mode, mode, degree
+
+    if (filter_mode == 3) then
+        factor = one - dble(mode)/dble(degree + 1)
+    else
+        factor = electron_dg1d_jackson_factor(mode, degree)
+    endif
+end function electron_dg1d_kernel_factor
+
+pure real(8) function electron_dg1d_jackson_factor(mode, degree) result(factor)
+    integer, intent(in) :: mode, degree
+    real(8) :: theta, denom
+
+    if (mode == 0) then
+        factor = one
+        return
+    endif
+    denom = dble(degree + 2)
+    theta = pi*dble(mode)/denom
+    factor = (dble(degree - mode + 2)*dcos(theta) + dsin(theta)/dtan(pi/denom))/denom
+    factor = max(zero, min(one, factor))
+end function electron_dg1d_jackson_factor
 
 subroutine add_active_break(x_break, x_min, x_max, min_width, active, n_active)
     real(8), intent(in) :: x_break, x_min, x_max, min_width

@@ -14,7 +14,8 @@ subroutine fs_electron_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Nu
                                                electron_dg1d_gamma_nodes, electron_dg1d_project_source, &
                                                electron_dg1d_advance_step, electron_dg1d_project_to_coord_cells, &
                                                electron_dg1d_limit_positive_cell_preserving, electron_dg1d_integral, &
-                                               electron_dg1d_tail_moment_fraction
+                                               electron_dg1d_tail_moment_fraction, &
+                                               electron_dg1d_apply_positive_kernel_filter
     use electron_shell_transport_common, only: electron_shell_dcoord_to_dndgamma_exp_centers
     use electron_injection_profiles, only: electron_initial_powerlaw_exp_cutoff_coord_edges, &
                                            electron_build_source_term_exp_cutoff_coord_edges
@@ -141,6 +142,8 @@ subroutine fs_electron_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Nu
                                                     dlog10(gamma_max_break), dg_gamma_scale, new_mesh)
         call ensure_dg_work(new_mesh%ntot)
         call electron_dg1d_project_state(mesh, state, new_mesh, projected)
+        call electron_dg1d_apply_positive_kernel_filter(new_mesh, projected)
+        call electron_dg1d_limit_positive_cell_preserving(new_mesh, projected)
         deallocate(state)
         allocate(state(new_mesh%ntot))
         state = projected
@@ -187,6 +190,7 @@ subroutine fs_electron_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Nu
             dEl_dg = dEl_dg_base
         endif
         call electron_dg1d_advance_step(mesh, one/R_step, dR_local, dEl_dg, source_dg, state, projected)
+        call electron_dg1d_apply_positive_kernel_filter(mesh, projected)
         call electron_dg1d_limit_positive_cell_preserving(mesh, projected)
         state = projected
     end subroutine advance_substep
