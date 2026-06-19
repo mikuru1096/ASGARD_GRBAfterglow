@@ -857,6 +857,55 @@ subroutine electron_fullhide_flux_split_step_nonuniform(Num_gam_e,dDR,coord_edge
     dN_out=max(zero,dN_out)
 end subroutine electron_fullhide_flux_split_step_nonuniform
 
+! 非均匀能量坐标上的 integrated 隐式守恒输运；face_displacement 是单个合并步内的坐标位移积分。
+subroutine electron_fullhide_flux_split_sequence_nonuniform(Num_gam_e,coord_edge,face_displacement,source_step, &
+                                                            dN_in,dN_out,close_low_boundary)
+    implicit none
+    integer, intent(in) :: Num_gam_e
+    integer :: I_gam_e
+    real(8), intent(in) :: coord_edge(Num_gam_e+1),face_displacement(Num_gam_e-1),source_step(Num_gam_e),dN_in(Num_gam_e)
+    real(8), intent(out) :: dN_out(Num_gam_e)
+    logical, intent(in), optional :: close_low_boundary
+    logical :: low_boundary_closed
+    real(8) :: denom,a_plus(Num_gam_e-1),a_minus(Num_gam_e-1),dx_cell
+    real(8) :: lower(Num_gam_e),diag(Num_gam_e),upper(Num_gam_e),rhs(Num_gam_e),cprime(Num_gam_e),dprime(Num_gam_e)
+
+    a_plus=max(face_displacement,zero)
+    a_minus=min(face_displacement,zero)
+    lower=zero; diag=one; upper=zero
+    rhs=dN_in+source_step
+    low_boundary_closed=.false.
+    if (present(close_low_boundary)) low_boundary_closed=close_low_boundary
+
+    do I_gam_e=1,Num_gam_e-1
+        dx_cell=coord_edge(I_gam_e+1)-coord_edge(I_gam_e)
+        diag(I_gam_e)=diag(I_gam_e)+(-a_minus(I_gam_e))/dx_cell
+        upper(I_gam_e)=-a_plus(I_gam_e)/dx_cell
+    end do
+    do I_gam_e=2,Num_gam_e
+        dx_cell=coord_edge(I_gam_e+1)-coord_edge(I_gam_e)
+        diag(I_gam_e)=diag(I_gam_e)+a_plus(I_gam_e-1)/dx_cell
+        lower(I_gam_e)=-(-a_minus(I_gam_e-1))/dx_cell
+    end do
+    dx_cell=coord_edge(2)-coord_edge(1)
+    if (.not. low_boundary_closed) diag(1)=diag(1)+a_plus(1)/dx_cell
+    dx_cell=coord_edge(Num_gam_e+1)-coord_edge(Num_gam_e)
+    diag(Num_gam_e)=diag(Num_gam_e)+(-a_minus(Num_gam_e-1))/dx_cell
+
+    cprime(1)=upper(1)/diag(1)
+    dprime(1)=rhs(1)/diag(1)
+    do I_gam_e=2,Num_gam_e
+        denom=diag(I_gam_e)-lower(I_gam_e)*cprime(I_gam_e-1)
+        if (I_gam_e < Num_gam_e) cprime(I_gam_e)=upper(I_gam_e)/denom
+        dprime(I_gam_e)=(rhs(I_gam_e)-lower(I_gam_e)*dprime(I_gam_e-1))/denom
+    end do
+    dN_out(Num_gam_e)=dprime(Num_gam_e)
+    do I_gam_e=Num_gam_e-1,1,-1
+        dN_out(I_gam_e)=dprime(I_gam_e)-cprime(I_gam_e)*dN_out(I_gam_e+1)
+    end do
+    dN_out=max(zero,dN_out)
+end subroutine electron_fullhide_flux_split_sequence_nonuniform
+
 ! 执行 GitHub 基线 fullhide 电子输运的上三角隐式冷却和注入更新。
 subroutine electron_fullhide_step(Num_gam_e,R_loc,dDR,d_x,dEL_mean,dF1,dN_x_in,dN_x_out)
     implicit none

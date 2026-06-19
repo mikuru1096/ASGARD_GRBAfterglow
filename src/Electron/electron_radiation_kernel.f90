@@ -5,7 +5,7 @@ module electron_radiation_kernel
   private
 
     public :: first_greater_monotonic, first_greater_monotonic_window
-    public :: besselk, get_syn, get_syn_state, get_syn_cyclotron_state, get_syn_selected
+    public :: besselk, get_syn, get_syn_state, get_syn_cyclotron_state, get_syn_selected, get_syn_selected_state
     public :: get_syn_transfer, get_syn_polarization_selected, get_nu_a
     public :: get_nu_a_2d_path, get_nu_a_2d_cell_path, reduce_syn_shell_from_chi
     public :: build_reduced_log_grid, project_syn_state_logbands
@@ -153,12 +153,26 @@ end subroutine get_syn
 ! GitHub基线的复合Simpson电子能量积分；case(2)不能退化成区间中点核，否则高频尾会断崖式归零。
 subroutine get_syn_simpson(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
                            P_syn,Seed_syn)
-!$ use omp_lib
 implicit REAL(8)(A-H,O-Z)
 integer, intent(in) :: Num_gam_e,Num_nu,n_threads
 real(8), intent(in) :: R_loc,DB,gam_e(Num_gam_e),dN_gam_e(Num_gam_e),V_seed(Num_nu)
 real(8), intent(out) :: P_syn(Num_nu),Seed_syn(Num_nu)
-real(8) :: dN1(Num_gam_e),ddN(Num_gam_e-1)
+real(8) :: P_emit(Num_nu),Tau_syn(Num_nu)
+
+    call get_syn_simpson_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
+                               P_emit,P_syn,Seed_syn,Tau_syn)
+end subroutine get_syn_simpson
+
+subroutine get_syn_simpson_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
+                                 P_emit,P_syn,Seed_syn,Tau_syn)
+!$ use omp_lib
+implicit REAL(8)(A-H,O-Z)
+integer, intent(in) :: Num_gam_e,Num_nu,n_threads
+real(8), intent(in) :: R_loc,DB,gam_e(Num_gam_e),dN_gam_e(Num_gam_e),V_seed(Num_nu)
+real(8), intent(out) :: P_emit(Num_nu),P_syn(Num_nu),Seed_syn(Num_nu),Tau_syn(Num_nu)
+real(8) :: dN1(Num_gam_e),ddN(Num_gam_e-1),simpson_weight(Num_gam_e),emit_weight(Num_gam_e)
+real(8) :: gam_e_mean2_arr(Num_gam_e-1),tau_weight(Num_gam_e-1),V_seed_powm23(Num_nu)
+real(8) :: Vc_emit_inv(Num_gam_e),Vc_emit_pow23(Num_gam_e),Vc_tau_inv(Num_gam_e-1),Vc_tau_pow23(Num_gam_e-1)
 integer :: I_nu
 
     factor=(3.62d0/pi)**2
@@ -167,6 +181,29 @@ integer :: I_nu
     dN1=dN_gam_e/(gam_e*gam_e)
     ddN=dN1(1:Num_gam_e-1)-dN1(2:Num_gam_e)
     h=dlog(gam_e(2))-dlog(gam_e(1))
+    do I_gam_e=1,Num_gam_e
+        if (I_gam_e == 1 .or. I_gam_e == Num_gam_e) then
+            simpson_weight(I_gam_e)=one
+        else if (mod(I_gam_e,2) == 0) then
+            simpson_weight(I_gam_e)=4d0
+        else
+            simpson_weight(I_gam_e)=2d0
+        end if
+        Vc=4.2d6*gam_e(I_gam_e)*gam_e(I_gam_e)*DB
+        Vc_emit_inv(I_gam_e)=one/Vc
+        Vc_emit_pow23(I_gam_e)=Vc**(2d0/3d0)
+        emit_weight(I_gam_e)=simpson_weight(I_gam_e)*dN_gam_e(I_gam_e)*gam_e(I_gam_e)
+    end do
+    do I_gam_e=1,Num_gam_e-1
+        gam_e_mean2_arr(I_gam_e)=(gam_e(I_gam_e)+gam_e(I_gam_e+1))**2/4d0
+        Vc=4.2d6*gam_e_mean2_arr(I_gam_e)*DB
+        Vc_tau_inv(I_gam_e)=one/Vc
+        Vc_tau_pow23(I_gam_e)=Vc**(2d0/3d0)
+        tau_weight(I_gam_e)=gam_e_mean2_arr(I_gam_e)*ddN(I_gam_e)
+    end do
+    do I_nu=1,Num_nu
+        V_seed_powm23(I_nu)=V_seed(I_nu)**(-2d0/3d0)
+    end do
 
     !$OMP PARALLEL num_threads(n_threads), private(I_nu)
     !$OMP DO SCHEDULE(STATIC)
@@ -183,42 +220,32 @@ integer :: I_nu
 
 contains
 
-real(8) function simpson_emission_integral(V_cal)
+real(8) function simpson_emission_integral(V_cal,V_powm23)
 implicit REAL(8)(A-H,O-Z)
-real(8), intent(in) :: V_cal
-real(8) :: simpson_sum,Vc,x,Fx,val
+real(8), intent(in) :: V_cal,V_powm23
+real(8) :: simpson_sum,x,Fx
 integer :: I_gam_e
 
     simpson_sum=zero
     do I_gam_e=1,Num_gam_e
-        Vc=4.2d6*gam_e(I_gam_e)*gam_e(I_gam_e)*DB
-        x=V_cal/Vc
-        Fx=1.81d0*dexp(-x)/dsqrt(x**(-2d0/3d0)+factor)
-        val=dN_gam_e(I_gam_e)*Fx*gam_e(I_gam_e)
-        if (I_gam_e == 1 .or. I_gam_e == Num_gam_e) then
-            simpson_sum=simpson_sum+val
-        else if (mod(I_gam_e,2) == 0) then
-            simpson_sum=simpson_sum+4d0*val
-        else
-            simpson_sum=simpson_sum+2d0*val
-        end if
+        x=V_cal*Vc_emit_inv(I_gam_e)
+        Fx=1.81d0*dexp(-x)/dsqrt(Vc_emit_pow23(I_gam_e)*V_powm23+factor)
+        simpson_sum=simpson_sum+emit_weight(I_gam_e)*Fx
     end do
     simpson_emission_integral=h*simpson_sum/3d0
 end function simpson_emission_integral
 
-real(8) function simpson_ssa_tau_integral(V_cal)
+real(8) function simpson_ssa_tau_integral(V_cal,V_powm23)
 implicit REAL(8)(A-H,O-Z)
-real(8), intent(in) :: V_cal
-real(8) :: Vc,x,Fx,gam_e_mean2
+real(8), intent(in) :: V_cal,V_powm23
+real(8) :: x,Fx
 integer :: I_gam_e
 
     simpson_ssa_tau_integral=zero
     do I_gam_e=1,Num_gam_e-1
-        gam_e_mean2=(gam_e(I_gam_e)+gam_e(I_gam_e+1))**2/4d0
-        Vc=4.2d6*gam_e_mean2*DB
-        x=V_cal/Vc
-        Fx=1.81d0*dexp(-x)/dsqrt(x**(-2d0/3d0)+factor)
-        simpson_ssa_tau_integral=simpson_ssa_tau_integral+gam_e_mean2*ddN(I_gam_e)*Fx
+        x=V_cal*Vc_tau_inv(I_gam_e)
+        Fx=1.81d0*dexp(-x)/dsqrt(Vc_tau_pow23(I_gam_e)*V_powm23+factor)
+        simpson_ssa_tau_integral=simpson_ssa_tau_integral+tau_weight(I_gam_e)*Fx
     end do
 end function simpson_ssa_tau_integral
 
@@ -228,15 +255,17 @@ integer, intent(in) :: I_nu
 real(8) :: V_cal,dInteg,Tau,P_v
 
     V_cal=V_seed(I_nu)
-    dInteg=simpson_emission_integral(V_cal)
-    Tau=simpson_ssa_tau_integral(V_cal)
+    dInteg=simpson_emission_integral(V_cal,V_seed_powm23(I_nu))
+    Tau=simpson_ssa_tau_integral(V_cal,V_seed_powm23(I_nu))
     P_v=Temp_syn*DB*dInteg
     Tau=1.046d4*Tau*DB/(4d0*pi*Rariv2*V_cal*V_cal)
     if ((Tau-1d-4) < 1d-5) Tau=1d-4
+    P_emit(I_nu)=P_v
+    Tau_syn(I_nu)=Tau
     P_syn(I_nu)=P_v*(one-dexp(-Tau))/Tau
     Seed_syn(I_nu)=P_syn(I_nu)/(Rariv2*V_cal)
 end subroutine accumulate_simpson_syn_point
-end subroutine get_syn_simpson
+end subroutine get_syn_simpson_state
 
 ! 构建约化对数频率网格：在85%高频处加密采样，用于冷却计算的轻量级频率表。
 subroutine build_reduced_log_grid(Num_nu_in,V_in,Num_nu_out,V_out)
@@ -705,6 +734,18 @@ implicit REAL(8)(A-H,O-Z)
 integer, intent(in) :: index_syn_intger,Num_gam_e,Num_nu,n_threads
 real(8), intent(in) :: R_loc,DB,gam_e(Num_gam_e),dN_gam_e(Num_gam_e),V_seed(Num_nu)
 real(8), intent(out) :: P_syn(Num_nu),Seed_syn(Num_nu)
+real(8) :: P_emit(Num_nu),Tau_syn(Num_nu)
+
+    call get_syn_selected_state(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
+                                P_emit,P_syn,Seed_syn,Tau_syn)
+end subroutine get_syn_selected
+
+subroutine get_syn_selected_state(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
+                                  P_emit,P_syn,Seed_syn,Tau_syn)
+implicit REAL(8)(A-H,O-Z)
+integer, intent(in) :: index_syn_intger,Num_gam_e,Num_nu,n_threads
+real(8), intent(in) :: R_loc,DB,gam_e(Num_gam_e),dN_gam_e(Num_gam_e),V_seed(Num_nu)
+real(8), intent(out) :: P_emit(Num_nu),P_syn(Num_nu),Seed_syn(Num_nu),Tau_syn(Num_nu)
 real(8) :: h_ref,h_loc
 
     select case(index_syn_intger)
@@ -714,23 +755,27 @@ real(8) :: h_ref,h_loc
             do I_gam_e=3,Num_gam_e
                 h_loc=dlog(gam_e(I_gam_e))-dlog(gam_e(I_gam_e-1))
                 if (abs(h_loc-h_ref) > 1d-6*max(abs(h_ref),1d-30)) then
-                    call get_syn_adaptive(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed,P_syn,Seed_syn)
+                    call get_syn_adaptive_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
+                                                P_emit,P_syn,Seed_syn,Tau_syn)
                     return
                 end if
             end do
         end if
-        call get_syn(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed,P_syn,Seed_syn)
+        call get_syn_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed,P_emit,P_syn,Seed_syn,Tau_syn)
     case(2)
-        call get_syn_simpson(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed,P_syn,Seed_syn)
+        call get_syn_simpson_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
+                                   P_emit,P_syn,Seed_syn,Tau_syn)
     case(3)
-        call get_syn_adaptive(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed,P_syn,Seed_syn)
+        call get_syn_adaptive_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
+                                    P_emit,P_syn,Seed_syn,Tau_syn)
     case(4)
-        call get_syn_cyclotron(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed,P_syn,Seed_syn)
+        call get_syn_cyclotron_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
+                                     P_emit,P_syn,Seed_syn,Tau_syn)
     case default
         print*, 'invalid synchrotron integral case, check your chosen model!'
         stop
     end select
-end subroutine get_syn_selected
+end subroutine get_syn_selected_state
 
 ! 同步辐射偏振核：现有总谱给强度，F/G偏振核直接积分给频率依赖Pi。
 subroutine get_syn_polarization_selected(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads, &

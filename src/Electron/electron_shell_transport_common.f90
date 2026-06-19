@@ -4,6 +4,7 @@ module electron_shell_transport_common
     use electron_energy_coordinate_common, only: electron_coord_log_four_velocity_sq, electron_dxgamma_dcoord
     use electron_transport_common, only: electron_fullhide_flux_split_step, &
                                          electron_fullhide_flux_split_step_nonuniform, &
+                                         electron_fullhide_flux_split_sequence_nonuniform, &
                                          electron_prepare_exponential_source_remap, &
                                          transport_fullhide_spacetime_sequence => electron_fullhide_spacetime_sequence, &
                                          transport_fullhide_step => electron_fullhide_step
@@ -15,7 +16,7 @@ module electron_shell_transport_common
 
     public :: electron_resolve_1d_solver_id, electron_shell_fullhide_step, electron_shell_flux_split_step
     public :: electron_shell_flux_split_coord_step, electron_shell_dcoord_to_dndgamma_exp_centers
-    public :: electron_shell_fullhide_spacetime_sequence
+    public :: electron_shell_fullhide_spacetime_sequence, electron_shell_flux_split_coord_sequence
 
 contains
 
@@ -71,6 +72,17 @@ subroutine electron_shell_flux_split_coord_step(Num_gam_e,dDR,coord_edge,coord_s
     call electron_fullhide_flux_split_step_nonuniform(Num_gam_e,dDR,coord_edge,face_speed,dF1, &
                                                       dN_coord_in,dN_coord_out,.true.)
 end subroutine electron_shell_flux_split_coord_step
+
+subroutine electron_shell_flux_split_coord_sequence(Num_gam_e,coord_edge,face_displacement,source_step, &
+                                                    dN_coord_in,dN_coord_out)
+    integer, intent(in) :: Num_gam_e
+    real(8), intent(in) :: coord_edge(Num_gam_e+1),face_displacement(Num_gam_e-1),source_step(Num_gam_e)
+    real(8), intent(in) :: dN_coord_in(Num_gam_e)
+    real(8), intent(out) :: dN_coord_out(Num_gam_e)
+
+    call electron_fullhide_flux_split_sequence_nonuniform(Num_gam_e,coord_edge,face_displacement,source_step, &
+                                                          dN_coord_in,dN_coord_out,.true.)
+end subroutine electron_shell_flux_split_coord_sequence
 
 subroutine electron_shell_dcoord_to_dndgamma_exp_centers(Num_gam_e,coord_edge,coord_scale,gam_e,dN_coord,dN_gam_e)
     integer, intent(in) :: Num_gam_e
