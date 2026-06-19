@@ -12,10 +12,17 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
     use dynamics_common, only: dynamics_external_density_profile
     use electron_common
     use electron_injection_profiles, only: electron_build_source_term_exp_cutoff_edges, electron_add_thermal_source_term, &
+                                           electron_initial_powerlaw_exp_cutoff, electron_initial_powerlaw_exp_cutoff_coord_edges, &
+                                           electron_build_source_term_exp_cutoff_coord_edges, electron_add_thermal_population, &
                                            electron_profile_log_cell_edges
+    use electron_energy_coordinate_common, only: electron_build_four_velocity_grid, electron_dxgamma_dcoord, &
+                                                 electron_coord_log_four_velocity_sq, &
+                                                 electron_four_velocity_grid_gamma_scale
     use electron_radiation_kernel, only: get_nu_a, get_syn_selected
     use electron_cooling_kernel, only: get_forward_cooling
-    use electron_shell_transport_common, only: electron_shell_fullhide_step, electron_shell_fullhide_spacetime_sequence
+    use electron_shell_transport_common, only: electron_shell_fullhide_step, electron_shell_fullhide_spacetime_sequence, &
+                                               electron_shell_flux_split_coord_step, &
+                                               electron_shell_dcoord_to_dndgamma_exp_centers
     use electron_transport_common, only: electron_dnx_to_dndgamma_exp_centers
     IMPLICIT REAL(8)(A-H,O-Z)
     integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads
@@ -25,7 +32,7 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
     real(8), intent(out) :: dN_gam_e(Num_gam_e,Num_R),gam_e(Num_gam_e),P_syn(Num_nu,Num_R), &
                             Seed_syn(Num_nu,Num_R), V_m(Num_R), V_c(Num_R), V_a(Num_R)
     
-    real(8),allocatable,dimension (:) :: dEl,dEL_mean,x,dN_x,x_edge, &
+    real(8),allocatable,dimension (:) :: dEl,dEl_step,dEL_mean,x,dN_x,x_edge,coord_edge,dxdy_grid, &
                                          dN_full,dN_half,dN_half2,dF1,dEL_mean_base,dEL_mean_step, &
                                          gam_e_rad,dN_gam_e_rad
     real(8),allocatable,dimension (:,:) :: dF_steps,face_coupling
@@ -35,10 +42,11 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
     real(8) :: dDR_xi
     real(8) :: n_before_step,n_after_step,inj_step,rel_loss_xi_max
     real(8) :: source_integral,adiabatic_integral,l_count_real,step_sum,step_sq_sum
-    real(8) :: radius_sum,radius_sq_sum,source_prefactor
-    allocate (dEl(Num_gam_e),dEL_mean(Num_gam_e-1),x(Num_gam_e),dN_x(Num_gam_e), &
+    real(8) :: radius_sum,radius_sq_sum,source_prefactor,coord_scale,dg_gamma_scale
+    allocate (dEl(Num_gam_e),dEl_step(Num_gam_e),dEL_mean(Num_gam_e-1),x(Num_gam_e),dN_x(Num_gam_e), &
               dN_full(Num_gam_e), &
-              x_edge(Num_gam_e+1),dN_half(Num_gam_e),dN_half2(Num_gam_e),dF1(Num_gam_e),dEL_mean_base(Num_gam_e-1), &
+              x_edge(Num_gam_e+1),coord_edge(Num_gam_e+1),dxdy_grid(Num_gam_e), &
+              dN_half(Num_gam_e),dN_half2(Num_gam_e),dF1(Num_gam_e),dEL_mean_base(Num_gam_e-1), &
               dEL_mean_step(Num_gam_e-1),gam_e_rad(Num_gam_e),dN_gam_e_rad(Num_gam_e))
     
     !***********************[Parameter Initial]**********************
@@ -66,16 +74,16 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
     Gam_e_c=7.7d8/(one+dsqrt(Epsilon_e/Epsilon_b))/R_Gamma(1)/DB**2/(R_Tobs(1)/two)
     if (R_Gamma(1) < one) error stop 'fs_electron_fullhide_1d requires initial Gamma >= 1'
     beta_Gam=dsqrt(one-one/R_Gamma(1)**2)
+    call initialize_forward_four_velocity_grid()
     if (thermal_electrons == 0) then
-        call electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
-                                          electron_initial_grid_log_edges,gam_e,dN_x,x_edge)
-        call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,1))
+        call electron_initial_powerlaw_exp_cutoff_coord_edges(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
+                                                              Num_gam_e,coord_edge,coord_scale,dN_x)
+        call electron_shell_dcoord_to_dndgamma_exp_centers(Num_gam_e,coord_edge,coord_scale,gam_e,dN_x,dN_gam_e(:,1))
     else
-        call electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
-                                          electron_initial_grid_gamma,gam_e,dN_gam_e(:,1),thermal_electrons=thermal_electrons, &
-                                          f_e=f_e,four_v=R_Gamma(1)*beta_Gam)
-        dN_x=dN_gam_e(:,1)*gam_e*dlog(ten)
-        call electron_profile_log_cell_edges(Num_gam_e,gam_e,x_edge)
+        call electron_initial_powerlaw_exp_cutoff(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
+                                                  Num_gam_e,gam_e,dN_gam_e(:,1))
+        call electron_add_thermal_population(Num_gam_e,gam_e,R_Gamma(1)*beta_Gam,Para_N_e_ini*(one-f_e),dN_gam_e(:,1))
+        dN_x=dN_gam_e(:,1)*gam_e*dlog(ten)*dxdy_grid
     end if
     !*******************Part 1 is completed [has been checked and there is no bug]**********************************
     !*******************Part 2: To calculate the electron distribution**********************************************
@@ -100,37 +108,23 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
             L1=max(100,min(1000,int(dDD/max(dDR,tiny(one)))))
             dDR=dDD/dble(L1)
             if (is_uniform_density .and. thermal_electrons == 0) then
-                allocate(dF_steps(Num_gam_e,1),face_coupling(Num_gam_e-1,1))
-                l_count_real=dble(L1)
-                step_sum=l_count_real*(l_count_real+one)/two
-                step_sq_sum=l_count_real*(l_count_real+one)*(two*l_count_real+one)/6d0
-                radius_sum=l_count_real*R_loc+dDR*step_sum
-                radius_sq_sum=l_count_real*R_loc*R_loc+two*R_loc*dDR*step_sum+dDR*dDR*step_sq_sum
-                source_prefactor=4d0/3d0*pi*dNe*f_e*Gam_e_m_p
-                source_integral=dDR*source_prefactor*(3d0*radius_sq_sum+dDR*(3d0*radius_sum+l_count_real*dDR))
-                adiabatic_integral=zero
                 do L=1,L1
-                    adiabatic_integral=adiabatic_integral+dDR/((R_loc+dDR*dble(L))*dlog(ten))
-                end do
-                call electron_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m,Gam_e_max,source_integral,p, &
-                                                                 dF_steps(:,1))
-                face_coupling(:,1)=(dDD*dEL_mean_base+adiabatic_integral)/d_x
-                if (budget_diag_enabled) then
-                    n_before_step=sum(dN_x)*d_x
-                    inj_step=sum(dF_steps)*d_x
-                end if
-                call electron_shell_fullhide_spacetime_sequence(Num_gam_e,1,face_coupling,dF_steps,dN_x,x)
-                if (budget_diag_enabled) then
-                    n_after_step=sum(x)*d_x
-                    rel_loss_xi_max=max(rel_loss_xi_max, &
-                        max(zero,(n_before_step+inj_step-n_after_step)/max(n_before_step+inj_step,tiny(one))))
-                    if (I_tobs <= 6) then
-                        print '(A,1X,I4,1X,ES12.4,1X,ES12.4,1X,ES12.4)', &
-                              'BUDGET1D shell', I_tobs, n_before_step, inj_step, n_after_step
+                    R_loc=R_loc+dDR
+                    Q=4d0/3d0*pi*(3d0*R_loc**2+dDR*(3d0*R_loc+dDR))*dNe*f_e*Gam_e_m_p
+                    call electron_build_source_term_exp_cutoff_coord_edges(Num_gam_e,coord_edge,coord_scale, &
+                                                                           Gam_e_m,Gam_e_max,Q,p,dF1)
+                    if (budget_diag_enabled) then
+                        n_before_step=sum(dN_x*(coord_edge(2:Num_gam_e+1)-coord_edge(1:Num_gam_e)))
+                        inj_step=dDR*sum(dF1*(coord_edge(2:Num_gam_e+1)-coord_edge(1:Num_gam_e)))
                     end if
-                end if
-                dN_x=x
-                deallocate(dF_steps,face_coupling)
+                    call electron_shell_flux_split_coord_step(Num_gam_e,dDR,coord_edge,coord_scale,dEl,one/R_loc,dF1,dN_x,x)
+                    if (budget_diag_enabled) then
+                        n_after_step=sum(x*(coord_edge(2:Num_gam_e+1)-coord_edge(1:Num_gam_e)))
+                        rel_loss_xi_max=max(rel_loss_xi_max, &
+                            max(zero,(n_before_step+inj_step-n_after_step)/max(n_before_step+inj_step,tiny(one))))
+                    end if
+                    dN_x=x
+                end do
             else
                 do L=1,L1
                     R_loc=R_loc+dDR
@@ -141,23 +135,25 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
                     call electron_gamma_m_exact(p,temp_gam,Gam_e_max_step,Gam_e_m_step)
                     Gam_e_m_p_step=(one-p)/(Gam_e_max_step**(one-p)-Gam_e_m_step**(one-p))
                     Q=4d0/3d0*pi*(3d0*R_loc**2+dDR*(3d0*R_loc+dDR))*dNe*f_e*Gam_e_m_p_step
-                    call electron_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m_step,Gam_e_max_step,Q,p,dF1)
+                    call electron_build_source_term_exp_cutoff_coord_edges(Num_gam_e,coord_edge,coord_scale, &
+                                                                           Gam_e_m_step,Gam_e_max_step,Q,p,dF1)
                     if (thermal_electrons /= 0) then
                         call electron_add_thermal_source_term(Num_gam_e,gam_e,R_Gamma_loc*beta_Gam, &
                                                               Q*(one-f_e)/(f_e*Gam_e_m_p_step),dF1)
                     end if
                     if (dNe_shell > zero) then
-                        dEL_mean_step=dEL_mean_base*(dNe/dNe_shell)
+                        dEl_step=dEl*(dNe/dNe_shell)
                     else
-                        dEL_mean_step=dEL_mean_base
+                        dEl_step=dEl
                     end if
                     if (budget_diag_enabled) then
-                        n_before_step=sum(dN_x)*d_x
-                        inj_step=dDR*sum(dF1)*d_x
+                        n_before_step=sum(dN_x*(coord_edge(2:Num_gam_e+1)-coord_edge(1:Num_gam_e)))
+                        inj_step=dDR*sum(dF1*(coord_edge(2:Num_gam_e+1)-coord_edge(1:Num_gam_e)))
                     end if
-                    call electron_shell_fullhide_step(Num_gam_e,R_loc,dDR,d_x,dEL_mean_step,dF1,dN_x,x)
+                    call electron_shell_flux_split_coord_step(Num_gam_e,dDR,coord_edge,coord_scale, &
+                                                              dEl_step,one/R_loc,dF1,dN_x,x)
                     if (budget_diag_enabled) then
-                        n_after_step=sum(x)*d_x
+                        n_after_step=sum(x*(coord_edge(2:Num_gam_e+1)-coord_edge(1:Num_gam_e)))
                         rel_loss_xi_max=max(rel_loss_xi_max, &
                             max(zero,(n_before_step+inj_step-n_after_step)/max(n_before_step+inj_step,tiny(one))))
                         if (I_tobs <= 6 .and. L == L1) then
@@ -168,7 +164,7 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
                     dN_x=x
                 end do
             end if
-            call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,I_tobs))
+            call electron_shell_dcoord_to_dndgamma_exp_centers(Num_gam_e,coord_edge,coord_scale,gam_e,dN_x,dN_gam_e(:,I_tobs))
         else
             dR_min=dDD/max(substep_max,1)
             dR_max=dDD/max(substep_min,1)
@@ -191,17 +187,19 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
                 call electron_gamma_m_exact(p,temp_gam,Gam_e_max_full,Gam_e_m_full)
                 Gam_e_m_p_full=(one-p)/(Gam_e_max_full**(one-p)-Gam_e_m_full**(one-p))
                 call electron_injection_prefactor(R_full,dR_try,dNe_full,f_e,Gam_e_m_p_full,Q)
-                call electron_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m_full,Gam_e_max_full,Q,p,dF1)
+                call electron_build_source_term_exp_cutoff_coord_edges(Num_gam_e,coord_edge,coord_scale, &
+                                                                       Gam_e_m_full,Gam_e_max_full,Q,p,dF1)
                 if (thermal_electrons /= 0) then
                     thermal_count=Q*(one-f_e)/(f_e*Gam_e_m_p_full)
                     call electron_add_thermal_source_term(Num_gam_e,gam_e,R_Gamma_loc*beta_Gam,thermal_count,dF1)
                 end if
                 if (dNe_shell > zero) then
-                    dEL_mean_step=dEL_mean_base*(dNe_full/dNe_shell)
+                    dEl_step=dEl*(dNe_full/dNe_shell)
                 else
-                    dEL_mean_step=dEL_mean_base
+                    dEl_step=dEl
                 end if
-                call electron_shell_fullhide_step(Num_gam_e,R_full,dR_try,d_x,dEL_mean_step,dF1,dN_x,dN_full)
+                call electron_shell_flux_split_coord_step(Num_gam_e,dR_try,coord_edge,coord_scale, &
+                                                          dEl_step,one/R_full,dF1,dN_x,dN_full)
 
                 dR_half=0.5d0*dR_try
                 R_half=R_loc+dR_half
@@ -216,30 +214,34 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
                 call electron_gamma_m_exact(p,temp_gam,Gam_e_max_half,Gam_e_m_half)
                 Gam_e_m_p_half=(one-p)/(Gam_e_max_half**(one-p)-Gam_e_m_half**(one-p))
                 call electron_injection_prefactor(R_half,dR_half,dNe_half,f_e,Gam_e_m_p_half,Q)
-                call electron_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m_half,Gam_e_max_half,Q,p,dF1)
+                call electron_build_source_term_exp_cutoff_coord_edges(Num_gam_e,coord_edge,coord_scale, &
+                                                                       Gam_e_m_half,Gam_e_max_half,Q,p,dF1)
                 if (thermal_electrons /= 0) then
                     thermal_count=Q*(one-f_e)/(f_e*Gam_e_m_p_half)
                     call electron_add_thermal_source_term(Num_gam_e,gam_e,R_Gamma_loc*beta_Gam,thermal_count,dF1)
                 end if
                 if (dNe_shell > zero) then
-                    dEL_mean_step=dEL_mean_base*(dNe_half/dNe_shell)
+                    dEl_step=dEl*(dNe_half/dNe_shell)
                 else
-                    dEL_mean_step=dEL_mean_base
+                    dEl_step=dEl
                 end if
-                call electron_shell_fullhide_step(Num_gam_e,R_half,dR_half,d_x,dEL_mean_step,dF1,dN_x,dN_half)
+                call electron_shell_flux_split_coord_step(Num_gam_e,dR_half,coord_edge,coord_scale, &
+                                                          dEl_step,one/R_half,dF1,dN_x,dN_half)
 
                 call electron_injection_prefactor(R_full,dR_half,dNe_full,f_e,Gam_e_m_p_full,Q)
-                call electron_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m_full,Gam_e_max_full,Q,p,dF1)
+                call electron_build_source_term_exp_cutoff_coord_edges(Num_gam_e,coord_edge,coord_scale, &
+                                                                       Gam_e_m_full,Gam_e_max_full,Q,p,dF1)
                 if (thermal_electrons /= 0) then
                     thermal_count=Q*(one-f_e)/(f_e*Gam_e_m_p_full)
                     call electron_add_thermal_source_term(Num_gam_e,gam_e,R_Gamma_loc*beta_Gam,thermal_count,dF1)
                 end if
                 if (dNe_shell > zero) then
-                    dEL_mean_step=dEL_mean_base*(dNe_full/dNe_shell)
+                    dEl_step=dEl*(dNe_full/dNe_shell)
                 else
-                    dEL_mean_step=dEL_mean_base
+                    dEl_step=dEl
                 end if
-                call electron_shell_fullhide_step(Num_gam_e,R_full,dR_half,d_x,dEL_mean_step,dF1,dN_half,dN_half2)
+                call electron_shell_flux_split_coord_step(Num_gam_e,dR_half,coord_edge,coord_scale, &
+                                                          dEl_step,one/R_full,dF1,dN_half,dN_half2)
 
                 call electron_max_relative_error(Num_gam_e,dN_half2,dN_full,step_error)
                 if (step_error <= substep_rtol .or. dR_try <= dR_min) then
@@ -256,11 +258,11 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
                     dR_try=max(0.5d0*dR_try,dR_min)
                 end if
             end do
-            call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,I_tobs))
+            call electron_shell_dcoord_to_dndgamma_exp_centers(Num_gam_e,coord_edge,coord_scale,gam_e,dN_x,dN_gam_e(:,I_tobs))
         end if
     end do
 
-    deallocate (dEl,dEL_mean,x,dN_x,x_edge,dN_full,dN_half,dN_half2,dF1, &
+    deallocate (dEl,dEl_step,dEL_mean,x,dN_x,x_edge,coord_edge,dxdy_grid,dN_full,dN_half,dN_half2,dF1, &
                 dEL_mean_base,dEL_mean_step,gam_e_rad,dN_gam_e_rad)
     if (budget_diag_enabled) then
         print '(A,1X,ES12.4)', 'BUDGET1D max_rel_loss', rel_loss_xi_max
@@ -269,6 +271,20 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
     return
 
 contains
+
+    subroutine initialize_forward_four_velocity_grid()
+    implicit real(8)(A-H,O-Z)
+    integer :: I_grid
+
+        dg_gamma_scale=electron_four_velocity_grid_gamma_scale
+        coord_scale=dg_gamma_scale*dg_gamma_scale-one
+        call electron_build_four_velocity_grid(Num_gam_e,one,electron_exp_tail_grid_factor*Gam_e_max_max, &
+                                               dg_gamma_scale,gam_e,coord_edge,x_edge)
+        do I_grid=1,Num_gam_e
+            dxdy_grid(I_grid)=electron_dxgamma_dcoord(electron_coord_log_four_velocity_sq,coord_scale, &
+                                                      0.5d0*(coord_edge(I_grid)+coord_edge(I_grid+1)))
+        end do
+    end subroutine initialize_forward_four_velocity_grid
 
     subroutine prepare_fullhide_shell(I_tobs)
     implicit real(8)(A-H,O-Z)
@@ -291,7 +307,7 @@ contains
         f_r=(1.35d-19)/beta_Gam/R_Gamma_loc*DB**2/pi
         dDR=0.1d0/(f_r*Gam_e_max+1.333d0/(R(I_tobs)+R(I_tobs-1)))
         dDD=R(I_tobs)-R(I_tobs-1)
-        dN_x=dN_gam_e(:,I_tobs-1)*gam_e*dlog(ten)
+        dN_x=dN_gam_e(:,I_tobs-1)*gam_e*dlog(ten)*dxdy_grid
         call electron_prepare_radiation_spectrum(Num_gam_e,gam_e,dN_gam_e(:,I_tobs-1), &
                                                  Num_gam_rad,gam_e_rad,dN_gam_e_rad)
         V_m(I_tobs-1)=4.2d6*DB*Gam_e_m*Gam_e_m/(R_Gamma_loc*(1d0-beta_Gam)*(one+z))

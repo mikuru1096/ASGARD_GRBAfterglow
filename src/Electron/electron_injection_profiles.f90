@@ -1,6 +1,9 @@
 !f2py: skip
 module electron_injection_profiles
     use constants
+    use electron_energy_coordinate_common, only: electron_coord_log_four_velocity_sq, electron_coord_from_xgamma, &
+                                                 electron_xgamma_from_coord, electron_gamma_from_coord, &
+                                                 electron_dxgamma_dcoord
     use electron_radiation_kernel, only: besselk
     implicit none
 
@@ -81,6 +84,32 @@ real(8) function electron_dnx_gauss3_integral(coeff,slope,Gam_e_max,x_lo,x_hi)
     electron_dnx_gauss3_integral=half_dx*quad
 end function electron_dnx_gauss3_integral
 
+! 3点Gauss-Legendre积分：在四速度坐标y上对dN/dy=(dN/dx)(dx/dy)积分。
+real(8) function electron_dny_gauss3_integral(coord_scale,coeff,slope,Gam_e_max,y_lo,y_hi)
+    implicit none
+    integer :: I_q
+    real(8), intent(in) :: coord_scale,coeff,slope,Gam_e_max,y_lo,y_hi
+    real(8), parameter :: xi(3)=(/-dsqrt(3d0/5d0),zero,dsqrt(3d0/5d0)/)
+    real(8), parameter :: wi(3)=(/5d0/9d0,8d0/9d0,5d0/9d0/)
+    real(8) :: half_dy,y_mid,y_eval,x_eval,quad
+
+    if (y_hi <= y_lo) then
+        electron_dny_gauss3_integral=zero
+        return
+    end if
+
+    half_dy=0.5d0*(y_hi-y_lo)
+    y_mid=0.5d0*(y_hi+y_lo)
+    quad=zero
+    do I_q=1,3
+        y_eval=y_mid+half_dy*xi(I_q)
+        x_eval=electron_xgamma_from_coord(electron_coord_log_four_velocity_sq,coord_scale,y_eval)
+        quad=quad+wi(I_q)*electron_dnx_powerlaw_cutoff_value(x_eval,coeff,slope,Gam_e_max) &
+             *electron_dxgamma_dcoord(electron_coord_log_four_velocity_sq,coord_scale,y_eval)
+    end do
+    electron_dny_gauss3_integral=half_dy*quad
+end function electron_dny_gauss3_integral
+
 ! 将激活区间上的dN/dx积分累加到acc，在Gam_e_max处自动分段处理截断。
 subroutine electron_add_dnx_segment(cell_lo,cell_hi,active_lo,active_hi,coeff,slope,Gam_e_max,acc)
     implicit real(8)(A-H,O-Z)
@@ -101,6 +130,27 @@ subroutine electron_add_dnx_segment(cell_lo,cell_hi,active_lo,active_hi,coeff,sl
         acc=acc+electron_dnx_gauss3_integral(coeff,slope,Gam_e_max,x_lo,x_hi)
     end if
 end subroutine electron_add_dnx_segment
+
+! 将激活区间上的dN/dy积分累加到acc，在Gam_e_max处自动分段处理截断。
+subroutine electron_add_dny_segment(cell_lo,cell_hi,active_lo,active_hi,coord_scale,coeff,slope,Gam_e_max,acc)
+    implicit none
+    real(8), intent(in) :: cell_lo,cell_hi,active_lo,active_hi,coord_scale,coeff,slope,Gam_e_max
+    real(8), intent(inout) :: acc
+    real(8) :: y_lo,y_hi,y_cut
+
+    if (coeff <= zero .or. cell_hi <= cell_lo .or. active_hi <= active_lo) return
+    y_lo=max(cell_lo,active_lo)
+    y_hi=min(cell_hi,active_hi)
+    if (y_hi <= y_lo) return
+
+    y_cut=electron_coord_from_xgamma(electron_coord_log_four_velocity_sq,coord_scale,dlog10(Gam_e_max))
+    if (y_lo < y_cut .and. y_hi > y_cut) then
+        acc=acc+electron_dny_gauss3_integral(coord_scale,coeff,slope,Gam_e_max,y_lo,y_cut)
+        acc=acc+electron_dny_gauss3_integral(coord_scale,coeff,slope,Gam_e_max,y_cut,y_hi)
+    else
+        acc=acc+electron_dny_gauss3_integral(coord_scale,coeff,slope,Gam_e_max,y_lo,y_hi)
+    end if
+end subroutine electron_add_dny_segment
 
 ! 由网格中心值推导log10(gamma)的单元边界。
 subroutine electron_profile_log_cell_edges(Num_gam_e,gam_e,x_edge)
@@ -174,6 +224,45 @@ subroutine electron_initial_powerlaw_exp_cutoff_edges(Para_N_e_ini,p,Gam_e_m,Gam
     end do
 end subroutine electron_initial_powerlaw_exp_cutoff_edges
 
+! 生成快/慢冷却幂律+指数截断的初始电子谱 dN/dy，y为四速度坐标。
+subroutine electron_initial_powerlaw_exp_cutoff_coord_edges(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
+                                                            Num_gam_e,coord_edge,coord_scale,dN_y_1)
+    implicit none
+    integer, intent(in) :: Num_gam_e
+    integer :: I_gam_e
+    real(8), intent(in) :: Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,coord_edge(Num_gam_e+1),coord_scale
+    real(8), intent(out) :: dN_y_1(Num_gam_e)
+    real(8) :: cell_lo,cell_hi,dy_cell,seg_sum,y_m,y_c,coeff_lo,coeff_hi,huge_y
+
+    dN_y_1=zero
+    if (Gam_e_max <= zero) return
+
+    y_m=electron_coord_from_xgamma(electron_coord_log_four_velocity_sq,coord_scale,dlog10(Gam_e_m))
+    y_c=electron_coord_from_xgamma(electron_coord_log_four_velocity_sq,coord_scale,dlog10(Gam_e_c))
+    huge_y=1d300
+
+    do I_gam_e=1,Num_gam_e
+        cell_lo=coord_edge(I_gam_e)
+        cell_hi=coord_edge(I_gam_e+1)
+        dy_cell=cell_hi-cell_lo
+        if (dy_cell <= zero) cycle
+
+        seg_sum=zero
+        if (Gam_e_m > Gam_e_c) then
+            coeff_lo=Para_N_e_ini*Gam_e_c
+            coeff_hi=Para_N_e_ini*Gam_e_c*Gam_e_m**(p-one)
+            call electron_add_dny_segment(cell_lo,cell_hi,y_c,y_m,coord_scale,coeff_lo,2d0,Gam_e_max,seg_sum)
+            call electron_add_dny_segment(cell_lo,cell_hi,y_m,huge_y,coord_scale,coeff_hi,p+one,Gam_e_max,seg_sum)
+        else
+            coeff_lo=Para_N_e_ini*(p-one)*Gam_e_m**(p-one)
+            coeff_hi=coeff_lo*Gam_e_c
+            call electron_add_dny_segment(cell_lo,cell_hi,y_m,y_c,coord_scale,coeff_lo,p,Gam_e_max,seg_sum)
+            call electron_add_dny_segment(cell_lo,cell_hi,y_c,huge_y,coord_scale,coeff_hi,p+one,Gam_e_max,seg_sum)
+        end if
+        dN_y_1(I_gam_e)=seg_sum/dy_cell
+    end do
+end subroutine electron_initial_powerlaw_exp_cutoff_coord_edges
+
 ! 构建幂律+指数截断源项 dF/dx（网格中心值）。
 subroutine electron_build_source_term_exp_cutoff(Num_gam_e,gam_e,Gam_e_m,Gam_e_max,Q,p,dF1)
     implicit real(8)(A-H,O-Z)
@@ -216,6 +305,31 @@ subroutine electron_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m,
     end do
 end subroutine electron_build_source_term_exp_cutoff_edges
 
+! 构建FS幂律+指数截断源项 dF/dy，y为四速度坐标，物理谱仍为γ^{-p}。
+subroutine electron_build_source_term_exp_cutoff_coord_edges(Num_gam_e,coord_edge,coord_scale,Gam_e_m,Gam_e_max,Q,p,dF1)
+    implicit none
+    integer, intent(in) :: Num_gam_e
+    integer :: I_gam_e
+    real(8), intent(in) :: coord_edge(Num_gam_e+1),coord_scale,Gam_e_m,Gam_e_max,Q,p
+    real(8), intent(out) :: dF1(Num_gam_e)
+    real(8) :: cell_lo,cell_hi,dy_cell,seg_sum,y_m,huge_y
+
+    dF1=zero
+    if (Gam_e_max <= zero .or. Q <= zero) return
+
+    y_m=electron_coord_from_xgamma(electron_coord_log_four_velocity_sq,coord_scale,dlog10(Gam_e_m))
+    huge_y=1d300
+    do I_gam_e=1,Num_gam_e
+        cell_lo=coord_edge(I_gam_e)
+        cell_hi=coord_edge(I_gam_e+1)
+        dy_cell=cell_hi-cell_lo
+        if (dy_cell <= zero) cycle
+        seg_sum=zero
+        call electron_add_dny_segment(cell_lo,cell_hi,y_m,huge_y,coord_scale,Q,p,Gam_e_max,seg_sum)
+        dF1(I_gam_e)=seg_sum/dy_cell
+    end do
+end subroutine electron_build_source_term_exp_cutoff_coord_edges
+
 ! 构建以动能幂律归一的反向激波源项：dN/dx ∝ γ (γ-1)^(-p) exp cutoff。
 subroutine electron_build_kinetic_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m,Gam_e_max,Q,p,dF1)
     implicit none
@@ -253,6 +367,43 @@ subroutine electron_build_kinetic_source_term_exp_cutoff_edges(Num_gam_e,x_edge,
     end do
     dF1=Q*dF1/shape_norm
 end subroutine electron_build_kinetic_source_term_exp_cutoff_edges
+
+! 构建以动能幂律归一的源项 dN/dy；y 为 log four-velocity-squared 坐标。
+subroutine electron_build_kinetic_source_term_exp_cutoff_coord_edges(Num_gam_e,coord_edge,coord_scale,Gam_e_m,Gam_e_max,Q,p,dF1)
+    implicit none
+    integer, intent(in) :: Num_gam_e
+    integer :: I_gam_e,I_q
+    real(8), intent(in) :: coord_edge(Num_gam_e+1),coord_scale,Gam_e_m,Gam_e_max,Q,p
+    real(8), intent(out) :: dF1(Num_gam_e)
+    real(8), parameter :: xi(3)=(/-dsqrt(3d0/5d0),zero,dsqrt(3d0/5d0)/)
+    real(8), parameter :: wi(3)=(/5d0/9d0,8d0/9d0,5d0/9d0/)
+    real(8) :: cell_lo,cell_hi,dy_cell,half_dy,y_mid,y_eval,gam,dxdy,cell_sum,shape_norm
+
+    dF1=zero
+    shape_norm=zero
+    if (Gam_e_max <= zero .or. Q <= zero) return
+
+    do I_gam_e=1,Num_gam_e
+        cell_lo=coord_edge(I_gam_e)
+        cell_hi=coord_edge(I_gam_e+1)
+        dy_cell=cell_hi-cell_lo
+        half_dy=0.5d0*dy_cell
+        y_mid=0.5d0*(cell_lo+cell_hi)
+        cell_sum=zero
+        do I_q=1,3
+            y_eval=y_mid+half_dy*xi(I_q)
+            gam=electron_gamma_from_coord(electron_coord_log_four_velocity_sq,coord_scale,y_eval)
+            if (gam > Gam_e_m) then
+                dxdy=electron_dxgamma_dcoord(electron_coord_log_four_velocity_sq,coord_scale,y_eval)
+                cell_sum=cell_sum+wi(I_q)*gam*dlog(ten)*dxdy*(gam-one)**(-p)*electron_exp_cutoff_factor(gam,Gam_e_max)
+            end if
+        end do
+        cell_sum=half_dy*cell_sum
+        dF1(I_gam_e)=cell_sum/dy_cell
+        shape_norm=shape_norm+cell_sum
+    end do
+    dF1=Q*dF1/shape_norm
+end subroutine electron_build_kinetic_source_term_exp_cutoff_coord_edges
 
 pure real(8) function electron_thermal_theta(four_v)
     implicit none

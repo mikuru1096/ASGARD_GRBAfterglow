@@ -944,9 +944,13 @@ def _compose_runtime_setups(
     result.dynamics_kernel = str(solver_options.dynamics_solver)
     result.geometry_kernel = str(solver_options.geometry_projection)
     result.electron_photon_coupling = str(solver_options.electron_photon_coupling)
-    if str(solver_options.synchrotron_integration).lower() != "fixed_grid":
-        raise ValueError("synchrotron_integration currently supports only 'fixed_grid'.")
-    result.index_syn_integr = 2
+    synch_mode = str(solver_options.synchrotron_integration).lower()
+    if synch_mode == "fixed_grid":
+        result.index_syn_integr = 2
+    elif synch_mode == "cyclotron":
+        result.index_syn_integr = 4
+    else:
+        raise ValueError("synchrotron_integration must be 'fixed_grid' or 'cyclotron'.")
     result.cooling_kernel = str(solver_options.cooling_kernel)
     result.radiation_kernel = str(solver_options.radiation_kernel)
     result.structured_backend = str(solver_options.structured_backend)

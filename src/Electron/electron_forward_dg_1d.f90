@@ -6,17 +6,19 @@ subroutine fs_electron_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Nu
     use dynamics_common, only: dynamics_external_density_profile, active_density_jump_count, &
                                active_density_jump_factor, active_density_jump_r, active_density_jump_width
     use electron_common, only: electron_initial_density, electron_unpack_boundary, electron_gamma_m_exact, &
-                               electron_initialize_spectrum, electron_initial_grid_log_edges, &
-                               electron_injection_prefactor, electron_prepare_radiation_spectrum
+                               electron_exp_tail_grid_factor, electron_injection_prefactor, electron_prepare_radiation_spectrum
     use electron_cooling_kernel, only: get_forward_cooling
-    use electron_transport_dg_1d_kernel, only: electron_dg1d_mesh, electron_dg1d_build_mesh, &
-                                              electron_dg1d_initial_state, electron_dg1d_project_state, &
-                                              electron_dg1d_gamma_nodes, electron_dg1d_project_source, &
-                                              electron_dg1d_advance_step, electron_dg1d_project_to_log_cells, &
-                                              electron_dg1d_limit_positive_cell_preserving, electron_dg1d_integral
-    use electron_injection_profiles, only: electron_profile_log_cell_edges, electron_build_source_term_exp_cutoff_edges
+    use electron_energy_coordinate_common, only: electron_build_four_velocity_grid, electron_four_velocity_grid_gamma_scale
+    use electron_transport_dg_1d_kernel, only: electron_dg1d_mesh, electron_dg1d_build_four_velocity_mesh, &
+                                               electron_dg1d_initial_state, electron_dg1d_project_state, &
+                                               electron_dg1d_gamma_nodes, electron_dg1d_project_source, &
+                                               electron_dg1d_advance_step, electron_dg1d_project_to_coord_cells, &
+                                               electron_dg1d_limit_positive_cell_preserving, electron_dg1d_integral, &
+                                               electron_dg1d_tail_moment_fraction
+    use electron_shell_transport_common, only: electron_shell_dcoord_to_dndgamma_exp_centers
+    use electron_injection_profiles, only: electron_initial_powerlaw_exp_cutoff_coord_edges, &
+                                           electron_build_source_term_exp_cutoff_coord_edges
     use electron_radiation_kernel, only: get_nu_a, get_syn_selected
-    use electron_transport_common, only: electron_dnx_to_dndgamma_exp_centers
     implicit none
 
     integer, intent(in) :: n, Num_nu, Num_R, Num_gam_e, index_Y, index_syn_intger, n_threads
@@ -26,19 +28,20 @@ subroutine fs_electron_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Nu
 
     type(electron_dg1d_mesh) :: mesh, new_mesh
     real(8), allocatable :: state(:), projected(:), gamma_dg(:), dEl_dg(:), dEl_dg_base(:), source_dg(:)
-    real(8), allocatable :: dN_x_init(:), x_edge(:), gam_e_rad(:), dN_gam_e_rad(:), source_grid(:)
+    real(8), allocatable :: dN_x_init(:), x_edge(:), coord_edge(:), gam_e_rad(:), dN_gam_e_rad(:), source_grid(:)
     real(8) :: Eta_0, R_ini, Epsilon_e, Epsilon_b, p, z, dNe_ISM, A_star, E_iso, T_log10_duration
     real(8) :: f_e, R_tr, f_jump, f_wide, R0, dNe, Para_N_e_ini, DB, DB_min, Gam_e_max_max
     real(8) :: Gam_e_max, Gam_e_m, Gam_e_c, temp_gam, beta_Gam, dDD, R_loc, R_Gamma_loc
     real(8) :: dNe_shell, dNe_step, DB_step, Gam_e_max_step, Gam_e_m_step, Gam_e_m_p_step, source_norm, temp
-    real(8) :: dR_base, dR_step, R_end, R_mid
+    real(8) :: dR_base, dR_step, R_end, R_mid, dg_gamma_scale, coord_scale
     real(8) :: grid_content, dg_content
     real(8), parameter :: dg_base_substeps = 10d0, dg_jump_window_sigma = 4d0
     real(8), parameter :: dg_jump_substeps_per_sigma = 8d0, dg_jump_log_density_step = 5d-2
+    real(8), parameter :: dg_tail_moment_threshold = 1d-10, dg_tail_moment_power = 2d0
     integer :: I_tobs, Num_gam_rad
 
-    allocate(dN_x_init(Num_gam_e), x_edge(Num_gam_e+1), gam_e_rad(Num_gam_e), dN_gam_e_rad(Num_gam_e), &
-             source_grid(Num_gam_e))
+    allocate(dN_x_init(Num_gam_e), x_edge(Num_gam_e+1), coord_edge(Num_gam_e+1), gam_e_rad(Num_gam_e), &
+             dN_gam_e_rad(Num_gam_e), source_grid(Num_gam_e))
 
     call electron_unpack_boundary(Boundary, n, Eta_0, R_ini, Epsilon_e, Epsilon_b, p, z, dNe_ISM, A_star, &
                                   E_iso, T_log10_duration, f_e, R_tr, f_jump, f_wide, R0)
@@ -56,20 +59,12 @@ subroutine fs_electron_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Nu
     temp_gam = Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma(1) - one)
     call electron_gamma_m_exact(p, temp_gam, Gam_e_max, Gam_e_m)
     Gam_e_c = 7.7d8/(one + dsqrt(Epsilon_e/Epsilon_b))/R_Gamma(1)/DB**2/(R_Tobs(1)/two)
-    call electron_initialize_spectrum(Num_gam_e, Gam_e_max_max, Para_N_e_ini, p, Gam_e_m, Gam_e_c, Gam_e_max, &
-                                      electron_initial_grid_log_edges, gam_e, dN_x_init, x_edge)
-    call electron_profile_log_cell_edges(Num_gam_e, gam_e, x_edge)
-    call electron_dnx_to_dndgamma_exp_centers(Num_gam_e, x_edge, gam_e, dN_x_init, dN_gam_e(:,1))
-
-    call electron_dg1d_build_mesh(x_edge(1), x_edge(Num_gam_e+1), dlog10(Gam_e_m), dlog10(Gam_e_c), dlog10(Gam_e_max), mesh)
-    allocate(state(mesh%ntot))
-    call electron_dg1d_initial_state(mesh, Para_N_e_ini, p, Gam_e_m, Gam_e_c, Gam_e_max, state)
-    call scale_dg_state_to_grid_content(state, dN_x_init)
+    call initialize_forward_four_velocity_grid()
 
     do I_tobs = 2, Num_R
         call prepare_shell(I_tobs)
         call write_radiation_and_breaks(I_tobs)
-        call remesh_shell()
+        call remesh_shell(Gam_e_max, Gam_e_m, Gam_e_c, Gam_e_max)
 
         R_end = R(I_tobs)
         dR_base = dDD/dg_base_substeps
@@ -83,11 +78,29 @@ subroutine fs_electron_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Nu
         call write_positive_output(I_tobs)
     enddo
 
-    deallocate(state, dN_x_init, x_edge, gam_e_rad, dN_gam_e_rad, source_grid)
+    deallocate(state, dN_x_init, x_edge, coord_edge, gam_e_rad, dN_gam_e_rad, source_grid)
     if (allocated(projected)) deallocate(projected)
     if (allocated(gamma_dg)) deallocate(gamma_dg, dEl_dg, dEl_dg_base, source_dg)
 
-contains
+    contains
+
+    subroutine initialize_forward_four_velocity_grid()
+        dg_gamma_scale = electron_four_velocity_grid_gamma_scale
+        coord_scale = dg_gamma_scale*dg_gamma_scale - one
+        call electron_build_four_velocity_grid(Num_gam_e, one, electron_exp_tail_grid_factor*Gam_e_max_max, &
+                                               dg_gamma_scale, gam_e, coord_edge, x_edge)
+        call electron_dg1d_build_four_velocity_mesh(x_edge(1), forward_dg_active_xmax(Gam_e_max), dlog10(Gam_e_m), &
+                                                    dlog10(Gam_e_c), dlog10(Gam_e_max), dg_gamma_scale, mesh)
+        allocate(state(mesh%ntot))
+        call electron_dg1d_initial_state(mesh, Para_N_e_ini, p, Gam_e_m, Gam_e_c, Gam_e_max, state)
+        call electron_initial_powerlaw_exp_cutoff_coord_edges(Para_N_e_ini, p, Gam_e_m, Gam_e_c, Gam_e_max, &
+                                                              Num_gam_e, coord_edge, coord_scale, dN_x_init)
+        call scale_dg_state_to_grid_content(state, dN_x_init)
+        call electron_dg1d_project_to_coord_cells(mesh, state, Num_gam_e, coord_edge, source_grid)
+        call electron_shell_dcoord_to_dndgamma_exp_centers(Num_gam_e, coord_edge, coord_scale, gam_e, &
+                                                           source_grid, dN_gam_e(:,1))
+        call enforce_output_positivity(1)
+    end subroutine initialize_forward_four_velocity_grid
 
     subroutine prepare_shell(I_tobs_local)
         integer, intent(in) :: I_tobs_local
@@ -120,9 +133,12 @@ contains
                               Seed_syn(:,I_tobs_local))
     end subroutine write_radiation_and_breaks
 
-    subroutine remesh_shell()
-        call electron_dg1d_build_mesh(x_edge(1), x_edge(Num_gam_e+1), dlog10(Gam_e_m), dlog10(Gam_e_c), &
-                                      dlog10(Gam_e_max), new_mesh)
+    subroutine remesh_shell(gamma_upper, gamma_m_break, gamma_c_break, gamma_max_break)
+        real(8), intent(in) :: gamma_upper, gamma_m_break, gamma_c_break, gamma_max_break
+
+        call electron_dg1d_build_four_velocity_mesh(x_edge(1), forward_dg_active_xmax(gamma_upper), &
+                                                    dlog10(gamma_m_break), dlog10(gamma_c_break), &
+                                                    dlog10(gamma_max_break), dg_gamma_scale, new_mesh)
         call ensure_dg_work(new_mesh%ntot)
         call electron_dg1d_project_state(mesh, state, new_mesh, projected)
         deallocate(state)
@@ -158,10 +174,12 @@ contains
         call electron_gamma_m_exact(p, temp_gam, Gam_e_max_step, Gam_e_m_step)
         Gam_e_m_p_step = (one - p)/(Gam_e_max_step**(one - p) - Gam_e_m_step**(one - p))
         call electron_injection_prefactor(R_step, dR_local, dNe_step, f_e, Gam_e_m_p_step, source_norm)
+        if (forward_dg_source_upper_xmax(Gam_e_max_step) > mesh%x_gamma(mesh%ntot)) &
+            call remesh_shell(Gam_e_max_step, Gam_e_m_step, Gam_e_c, Gam_e_max_step)
 
         call electron_dg1d_project_source(mesh, source_norm, p, Gam_e_m_step, Gam_e_max_step, source_dg)
-        call electron_build_source_term_exp_cutoff_edges(Num_gam_e, x_edge, Gam_e_m_step, Gam_e_max_step, &
-                                                         source_norm, p, source_grid)
+        call electron_build_source_term_exp_cutoff_coord_edges(Num_gam_e, coord_edge, coord_scale, &
+                                                               Gam_e_m_step, Gam_e_max_step, source_norm, p, source_grid)
         call scale_dg_state_to_grid_content(source_dg, source_grid)
         if (dNe_shell > zero) then
             dEl_dg = dEl_dg_base*(dNe_step/dNe_shell)
@@ -252,11 +270,33 @@ contains
         derivative = derivative - profile*(radius - R_jump)/(sigma_r*sigma_r)
     end subroutine add_density_jump_derivative
 
+    real(8) function forward_dg_source_upper_xmax(gamma_upper) result(x_max)
+        real(8), intent(in) :: gamma_upper
+        real(8) :: gamma_grid_max
+
+        gamma_grid_max = ten**x_edge(Num_gam_e+1)
+        x_max = dlog10(min(gamma_grid_max, electron_exp_tail_grid_factor*gamma_upper))
+    end function forward_dg_source_upper_xmax
+
+    real(8) function forward_dg_active_xmax(gamma_upper) result(x_max)
+        real(8), intent(in) :: gamma_upper
+        real(8) :: tail_fraction
+
+        x_max = forward_dg_source_upper_xmax(gamma_upper)
+        if (allocated(state)) then
+            if (x_max < mesh%x_gamma(mesh%ntot)) then
+                call electron_dg1d_tail_moment_fraction(mesh, state, ten**x_max, &
+                                                        dg_tail_moment_power, tail_fraction)
+                if (tail_fraction > dg_tail_moment_threshold) x_max = mesh%x_gamma(mesh%ntot)
+            endif
+        endif
+    end function forward_dg_active_xmax
+
     subroutine scale_dg_state_to_grid_content(dg_state, grid_state)
         real(8), intent(inout) :: dg_state(:)
         real(8), intent(in) :: grid_state(Num_gam_e)
 
-        grid_content = sum(grid_state*(x_edge(2:Num_gam_e+1) - x_edge(1:Num_gam_e)))
+        grid_content = sum(grid_state*(coord_edge(2:Num_gam_e+1) - coord_edge(1:Num_gam_e)))
         call electron_dg1d_integral(mesh, dg_state, dg_content)
         if (grid_content > zero) then
             if (dg_content <= zero) error stop 'fs_electron_dg_1d source projection has non-positive DG content'
@@ -268,13 +308,10 @@ contains
         integer, intent(in) :: I_tobs_local
         real(8) :: projected_content, dg_content_local
 
-        call electron_dg1d_project_to_log_cells(mesh, state, Num_gam_e, x_edge, gam_e, dN_gam_e(:,I_tobs_local))
-        ! Radiation-boundary positivity only: do not renormalize or feed this projection back into DG transport.
-        where (dN_gam_e(:,I_tobs_local) > zero .and. ieee_is_finite(dN_gam_e(:,I_tobs_local)))
-            dN_gam_e(:,I_tobs_local) = dN_gam_e(:,I_tobs_local)
-        elsewhere
-            dN_gam_e(:,I_tobs_local) = zero
-        end where
+        call electron_dg1d_project_to_coord_cells(mesh, state, Num_gam_e, coord_edge, source_grid)
+        call electron_shell_dcoord_to_dndgamma_exp_centers(Num_gam_e, coord_edge, coord_scale, gam_e, &
+                                                           source_grid, dN_gam_e(:,I_tobs_local))
+        call enforce_output_positivity(I_tobs_local)
         call electron_dg1d_integral(mesh, state, dg_content_local)
         projected_content = sum(dN_gam_e(:,I_tobs_local)*gam_e*dlog(ten)*(x_edge(2:Num_gam_e+1) - x_edge(1:Num_gam_e)))
         if (.not. (dg_content_local > zero .and. ieee_is_finite(dg_content_local))) &
@@ -282,5 +319,15 @@ contains
         if (.not. (projected_content > zero .and. ieee_is_finite(projected_content))) &
             error stop 'fs_electron_dg_1d output projection lost positive content'
     end subroutine write_positive_output
+
+    subroutine enforce_output_positivity(I_tobs_local)
+        integer, intent(in) :: I_tobs_local
+
+        where (dN_gam_e(:,I_tobs_local) > zero .and. ieee_is_finite(dN_gam_e(:,I_tobs_local)))
+            dN_gam_e(:,I_tobs_local) = dN_gam_e(:,I_tobs_local)
+        elsewhere
+            dN_gam_e(:,I_tobs_local) = zero
+        end where
+    end subroutine enforce_output_positivity
 
 end subroutine fs_electron_dg_1d

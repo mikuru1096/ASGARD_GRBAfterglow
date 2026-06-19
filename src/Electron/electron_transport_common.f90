@@ -386,11 +386,11 @@ end subroutine electron_trace_affine_u_edges_batch
 
 
 ! 由冷却率在 u 空间构造分段仿射特征线系数。
-subroutine electron_build_piecewise_affine_u(Num_gam_e,x_edge,gam_e,dEl,R_loc,u_edge,a_cell,b_cell)
+subroutine electron_build_piecewise_affine_u(Num_gam_e,x_edge,gam_e,dEl,adiabatic_rate,u_edge,a_cell,b_cell)
     implicit none
     integer, intent(in) :: Num_gam_e
     integer :: I_gam_e
-    real(8), intent(in) :: x_edge(Num_gam_e+1),gam_e(Num_gam_e),dEl(Num_gam_e),R_loc
+    real(8), intent(in) :: x_edge(Num_gam_e+1),gam_e(Num_gam_e),dEl(Num_gam_e),adiabatic_rate
     real(8), intent(out) :: u_edge(Num_gam_e+1),a_cell(Num_gam_e),b_cell(Num_gam_e)
     real(8) :: u_center(Num_gam_e),w_center(Num_gam_e),w_edge(Num_gam_e+1)
     real(8) :: frac,du,slope
@@ -417,7 +417,7 @@ subroutine electron_build_piecewise_affine_u(Num_gam_e,x_edge,gam_e,dEl,R_loc,u_
             slope=(w_edge(I_gam_e+1)-w_edge(I_gam_e))/du
         end if
         a_cell(I_gam_e)=w_edge(I_gam_e)-slope*u_edge(I_gam_e)
-        b_cell(I_gam_e)=slope+one/R_loc
+        b_cell(I_gam_e)=slope+adiabatic_rate
     end do
 end subroutine electron_build_piecewise_affine_u
 
@@ -638,15 +638,40 @@ end subroutine electron_characteristic_core
 
 
 
+! 用指定回溯边界直接做无源保守重映射。
+subroutine electron_characteristic_remap_edges(Num_gam_e,x_edge,x_back,dN_x_in,dN_x_out,close_low_boundary)
+    implicit none
+    integer, intent(in) :: Num_gam_e
+    integer :: I_quad
+    real(8), intent(in) :: x_edge(Num_gam_e+1),x_back(Num_gam_e+1),dN_x_in(Num_gam_e)
+    real(8), intent(out) :: dN_x_out(Num_gam_e)
+    logical, intent(in), optional :: close_low_boundary
+    real(8) :: x_back_work(Num_gam_e+1),x_back_batch(Num_gam_e+1,charint_quad_order+1),dF_zero(Num_gam_e)
+
+    x_back_work=x_back
+    if (present(close_low_boundary)) then
+        if (close_low_boundary) x_back_work(1)=x_edge(1)
+    end if
+    x_back_batch(:,1)=x_back_work
+    do I_quad=2,charint_quad_order+1
+        x_back_batch(:,I_quad)=x_back_work
+    end do
+    dF_zero=zero
+    call electron_characteristic_core(Num_gam_e,zero,x_edge,x_back_batch,zero,dF_zero,dN_x_in,dN_x_out)
+end subroutine electron_characteristic_remap_edges
+
+
+
 ! 统一执行仿射或分段仿射 u 冷却下的特征线输运更新。
 subroutine electron_characteristic_update(Num_gam_e,dDR,x_edge,cooling_mode,a_u,b_u,gam_e,dEl,R_loc, &
-                                            source_scale,dF1,dN_x_in,dN_x_out)
+                                            source_scale,dF1,dN_x_in,dN_x_out,adiabatic_rate)
     implicit none
     integer, intent(in) :: Num_gam_e,cooling_mode
     real(8), intent(in) :: dDR,x_edge(Num_gam_e+1),a_u,b_u,gam_e(Num_gam_e),dEl(Num_gam_e)
     real(8), intent(in) :: R_loc,source_scale,dF1(Num_gam_e),dN_x_in(Num_gam_e)
+    real(8), intent(in), optional :: adiabatic_rate
     real(8), intent(out) :: dN_x_out(Num_gam_e)
-    real(8) :: lag_arr(charint_quad_order+1),x_back_batch(Num_gam_e+1,charint_quad_order+1),u_edge(Num_gam_e+1)
+    real(8) :: lag_arr(charint_quad_order+1),x_back_batch(Num_gam_e+1,charint_quad_order+1),u_edge(Num_gam_e+1),b_piece
     real(8) :: a_cell(Num_gam_e),b_cell(Num_gam_e)
     integer :: Num_lag,I_quad
     lag_arr(1)=dDR
@@ -660,12 +685,31 @@ subroutine electron_characteristic_update(Num_gam_e,dDR,x_edge,cooling_mode,a_u,
         call electron_u_edges_from_x(Num_gam_e,x_edge,u_edge)
         call electron_trace_affine_u_edges_batch(Num_gam_e,Num_lag,u_edge,lag_arr,a_u,b_u,x_back_batch)
     case (electron_cooling_piecewise)
-        call electron_build_piecewise_affine_u(Num_gam_e,x_edge,gam_e,dEl,R_loc,u_edge,a_cell,b_cell)
+        b_piece=one/R_loc
+        if (present(adiabatic_rate)) b_piece=adiabatic_rate
+        call electron_build_piecewise_affine_u(Num_gam_e,x_edge,gam_e,dEl,b_piece,u_edge,a_cell,b_cell)
         call electron_trace_piecewise_affine_u_edges_batch(Num_gam_e,Num_lag,u_edge,u_edge,a_cell,b_cell,lag_arr,x_back_batch)
     end select
     call electron_characteristic_core(Num_gam_e,dDR,x_edge,x_back_batch,source_scale,dF1, &
                                            dN_x_in,dN_x_out)
 end subroutine electron_characteristic_update
+
+
+
+! 无源特征线冷却更新；用于已经离开注入面的纯冷却电子。
+subroutine electron_characteristic_cooling_update(Num_gam_e,dDR,x_edge,cooling_mode,a_u,b_u,gam_e,dEl,R_loc, &
+                                                  dN_x_in,dN_x_out,adiabatic_rate)
+    implicit none
+    integer, intent(in) :: Num_gam_e,cooling_mode
+    real(8), intent(in) :: dDR,x_edge(Num_gam_e+1),a_u,b_u,gam_e(Num_gam_e),dEl(Num_gam_e),R_loc,dN_x_in(Num_gam_e)
+    real(8), intent(in), optional :: adiabatic_rate
+    real(8), intent(out) :: dN_x_out(Num_gam_e)
+    real(8) :: dF_zero(Num_gam_e)
+
+    dF_zero=zero
+    call electron_characteristic_update(Num_gam_e,dDR,x_edge,cooling_mode,a_u,b_u,gam_e,dEl,R_loc, &
+                                        zero,dF_zero,dN_x_in,dN_x_out,adiabatic_rate)
+end subroutine electron_characteristic_cooling_update
 
 
 
@@ -762,6 +806,56 @@ subroutine electron_fullhide_flux_split_step(Num_gam_e,dDR,d_x,face_speed,dF1,dN
     end do
     dN_x_out=max(zero,dN_x_out)
 end subroutine electron_fullhide_flux_split_step
+
+! 非均匀能量坐标上的隐式守恒输运；face_speed>0 表示向低能端移动。
+subroutine electron_fullhide_flux_split_step_nonuniform(Num_gam_e,dDR,coord_edge,face_speed,dF1,dN_in,dN_out,close_low_boundary)
+    implicit none
+    integer, intent(in) :: Num_gam_e
+    integer :: I_gam_e
+    real(8), intent(in) :: dDR,coord_edge(Num_gam_e+1),face_speed(Num_gam_e-1),dF1(Num_gam_e),dN_in(Num_gam_e)
+    real(8), intent(out) :: dN_out(Num_gam_e)
+    logical, intent(in), optional :: close_low_boundary
+    logical :: low_boundary_closed
+    real(8) :: lambda,denom,a_plus(Num_gam_e-1),a_minus(Num_gam_e-1),dx_cell
+    real(8) :: lower(Num_gam_e),diag(Num_gam_e),upper(Num_gam_e),rhs(Num_gam_e),cprime(Num_gam_e),dprime(Num_gam_e)
+
+    a_plus=max(face_speed,zero)
+    a_minus=min(face_speed,zero)
+    lower=zero; diag=one; upper=zero
+    rhs=dN_in+dDR*dF1
+    low_boundary_closed=.false.
+    if (present(close_low_boundary)) low_boundary_closed=close_low_boundary
+
+    do I_gam_e=1,Num_gam_e
+        dx_cell=coord_edge(I_gam_e+1)-coord_edge(I_gam_e)
+        lambda=dDR/dx_cell
+        if (I_gam_e == 1) then
+            if (.not. low_boundary_closed) diag(I_gam_e)=diag(I_gam_e)+lambda*a_plus(1)
+        else
+            diag(I_gam_e)=diag(I_gam_e)+lambda*a_plus(I_gam_e-1)
+            lower(I_gam_e)=-lambda*(-a_minus(I_gam_e-1))
+        end if
+        if (I_gam_e == Num_gam_e) then
+            diag(I_gam_e)=diag(I_gam_e)+lambda*(-a_minus(Num_gam_e-1))
+        else
+            diag(I_gam_e)=diag(I_gam_e)+lambda*(-a_minus(I_gam_e))
+            upper(I_gam_e)=-lambda*a_plus(I_gam_e)
+        end if
+    end do
+
+    cprime(1)=upper(1)/diag(1)
+    dprime(1)=rhs(1)/diag(1)
+    do I_gam_e=2,Num_gam_e
+        denom=diag(I_gam_e)-lower(I_gam_e)*cprime(I_gam_e-1)
+        if (I_gam_e < Num_gam_e) cprime(I_gam_e)=upper(I_gam_e)/denom
+        dprime(I_gam_e)=(rhs(I_gam_e)-lower(I_gam_e)*dprime(I_gam_e-1))/denom
+    end do
+    dN_out(Num_gam_e)=dprime(Num_gam_e)
+    do I_gam_e=Num_gam_e-1,1,-1
+        dN_out(I_gam_e)=dprime(I_gam_e)-cprime(I_gam_e)*dN_out(I_gam_e+1)
+    end do
+    dN_out=max(zero,dN_out)
+end subroutine electron_fullhide_flux_split_step_nonuniform
 
 ! 执行 GitHub 基线 fullhide 电子输运的上三角隐式冷却和注入更新。
 subroutine electron_fullhide_step(Num_gam_e,R_loc,dDR,d_x,dEL_mean,dF1,dN_x_in,dN_x_out)

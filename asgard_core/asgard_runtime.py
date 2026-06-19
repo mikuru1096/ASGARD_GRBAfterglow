@@ -179,8 +179,43 @@ def _rs_fast_wave_relative_beta(gamma4: float, sigma: float) -> float:
     return float(beta_fast / (gamma4 * gamma4 * (1.0 - beta4 * beta_fast)))
 
 
-def _rs_pressure_balance_sigma_cr(gamma4: float, n1: np.ndarray, n4: np.ndarray) -> np.ndarray:
-    return (8.0 / 3.0) * gamma4 * gamma4 * n1 / n4
+def _rs_shell_width(radius_cm: np.ndarray, gamma4: float, delta0_cm: float) -> np.ndarray:
+    return np.maximum(delta0_cm, radius_cm / (gamma4 * gamma4))
+
+
+def _rs_fast_wave_depth(radius_cm: np.ndarray, gamma4: float, sigma: float) -> np.ndarray:
+    if sigma <= 0.0:
+        return np.zeros_like(radius_cm, dtype=float)
+    beta4 = np.sqrt(1.0 - gamma4**-2)
+    return radius_cm * _rs_fast_wave_relative_beta(gamma4, sigma) / beta4
+
+
+def _rs_shell_contact_fraction(radius_cm: np.ndarray, gamma4: float, sigma: float, shell_width_cm: np.ndarray) -> np.ndarray:
+    if sigma <= 0.0:
+        return np.ones_like(radius_cm, dtype=float)
+    depth_cm = _rs_fast_wave_depth(radius_cm, gamma4, sigma)
+    return np.where(depth_cm >= shell_width_cm, 1.0, depth_cm / shell_width_cm)
+
+
+def _rs_relative_gamma_same_direction(gamma_contact: np.ndarray, gamma4: float) -> np.ndarray:
+    u_contact = np.sqrt((gamma_contact - 1.0) * (gamma_contact + 1.0))
+    u4 = np.sqrt((gamma4 - 1.0) * (gamma4 + 1.0))
+    return (gamma_contact * gamma_contact + gamma4 * gamma4 - 1.0) / (gamma4 * gamma_contact + u_contact * u4)
+
+
+def _rs_pressure_balance_sigma_cr(gamma_contact: np.ndarray, n1: np.ndarray, n4: np.ndarray) -> np.ndarray:
+    return 2.0 * (4.0 * gamma_contact + 3.0) * (gamma_contact - 1.0) * n1 / (3.0 * n4)
+
+
+def _rs_pressure_balance_ratio(
+    gamma_contact: np.ndarray,
+    n1: np.ndarray,
+    n4: np.ndarray,
+    sigma: float,
+) -> np.ndarray:
+    if sigma <= 0.0:
+        return np.full_like(gamma_contact, np.inf, dtype=float)
+    return _rs_pressure_balance_sigma_cr(gamma_contact, n1, n4) / sigma
 
 
 def _reverse_shock_causality_diagnostics(
@@ -216,29 +251,30 @@ def _reverse_shock_causality_diagnostics(
 
     radius = np.asarray(dynamics.radius, dtype=float)
     tobs = np.asarray(dynamics.r_tobs, dtype=float)
-    shell_width_cm = np.maximum(delta0_cm, radius / (gamma0 * gamma0))
+    gamma_contact = np.asarray(dynamics.r_gamma, dtype=float)
+    shell_width_cm = _rs_shell_width(radius, gamma0, delta0_cm)
     n1 = np.asarray(ambient_density(radius, config), dtype=float)
     baryonic_mass_g = reverse_shell_baryonic_mass(config)
     n4 = baryonic_mass_g / (4.0 * np.pi * constants.para_m_p * radius * radius * gamma0 * shell_width_cm)
-    sigma_cr = _rs_pressure_balance_sigma_cr(gamma0, n1, n4)
-    pressure_allowed = np.ones_like(radius, dtype=bool) if sigma <= 0.0 else sigma < sigma_cr
+    pressure_ratio = _rs_pressure_balance_ratio(gamma_contact, n1, n4, sigma)
+    pressure_allowed = pressure_ratio >= 1.0
+    contact_fraction = _rs_shell_contact_fraction(radius, gamma0, sigma, shell_width_cm)
     if np.any(pressure_allowed):
         pressure_index = int(np.flatnonzero(pressure_allowed)[0])
         pressure_radius_cm = float(radius[pressure_index])
         pressure_tobs_s = float(tobs[pressure_index])
+        pressure_start_ratio = float(pressure_ratio[pressure_index])
+        pressure_start_contact_fraction = float(contact_fraction[pressure_index])
         pressure_seen = True
     else:
         pressure_index = -1
         pressure_radius_cm = np.inf
         pressure_tobs_s = np.inf
+        pressure_start_ratio = 0.0
+        pressure_start_contact_fraction = 0.0
         pressure_seen = False
 
-    if sigma <= 0.0:
-        fast_wave_depth_cm = np.zeros_like(radius, dtype=float)
-    else:
-        relative_beta = _rs_fast_wave_relative_beta(gamma0, sigma)
-        beta4 = np.sqrt(1.0 - gamma0**-2)
-        fast_wave_depth_cm = radius * relative_beta / beta4
+    fast_wave_depth_cm = _rs_fast_wave_depth(radius, gamma0, sigma)
     fast_crossed = fast_wave_depth_cm >= shell_width_cm
     if np.any(fast_crossed):
         fast_index = int(np.flatnonzero(fast_crossed)[0])
@@ -249,8 +285,7 @@ def _reverse_shock_causality_diagnostics(
         fast_radius_cm = np.inf
         fast_tobs_s = np.inf
 
-    global_allowed = bool(pressure_seen)
-    gamma34 = np.asarray(reverse_shock.gamma34, dtype=float)
+    gamma34 = _rs_relative_gamma_same_direction(gamma_contact, gamma0)
     local_allowed = np.array([_rs_fast_shock_allowed(float(gamma_rel), sigma) for gamma_rel in gamma34], dtype=bool)
     if np.any(local_allowed):
         local_start_index = int(np.flatnonzero(local_allowed)[0])
@@ -262,6 +297,8 @@ def _reverse_shock_causality_diagnostics(
         local_start_radius_cm = np.inf
         local_start_tobs_s = np.inf
         local_seen = False
+    ignition_allowed = pressure_allowed & local_allowed
+    global_allowed = bool(np.any(ignition_allowed))
 
     swept = np.asarray(reverse_shock.swept_mass_g, dtype=float)
     growth = swept > float(swept[0]) * (1.0 + 1.0e-6)
@@ -269,11 +306,15 @@ def _reverse_shock_causality_diagnostics(
         actual_start_index = int(np.flatnonzero(growth)[0])
         actual_start_radius_cm = float(radius[actual_start_index])
         actual_start_tobs_s = float(tobs[actual_start_index])
+        actual_start_pressure_ratio = float(pressure_ratio[actual_start_index])
+        actual_start_contact_fraction = float(contact_fraction[actual_start_index])
         actual_started = True
     else:
         actual_start_index = -1
         actual_start_radius_cm = np.inf
         actual_start_tobs_s = np.inf
+        actual_start_pressure_ratio = 0.0
+        actual_start_contact_fraction = 0.0
         actual_started = False
 
     return ReverseShockCausalityDiagnostics(
@@ -289,6 +330,8 @@ def _reverse_shock_causality_diagnostics(
         pressure_balance_start_radius_cm=pressure_radius_cm,
         pressure_balance_start_tobs_s=pressure_tobs_s,
         pressure_balance_start_index=pressure_index,
+        pressure_balance_start_ratio=pressure_start_ratio,
+        pressure_balance_start_contact_fraction=pressure_start_contact_fraction,
         fast_wave_crossing_radius_cm=fast_radius_cm,
         fast_wave_crossing_tobs_s=fast_tobs_s,
         fast_wave_crossing_index=fast_index,
@@ -298,6 +341,8 @@ def _reverse_shock_causality_diagnostics(
         actual_start_radius_cm=actual_start_radius_cm,
         actual_start_tobs_s=actual_start_tobs_s,
         actual_start_index=actual_start_index,
+        actual_start_pressure_ratio=actual_start_pressure_ratio,
+        actual_start_contact_fraction=actual_start_contact_fraction,
     )
 
 
@@ -491,9 +536,12 @@ def solve_dynamics(
             reverse_shock_pressure_balance_start_radius_cm=float(
                 reverse_shock.causality.pressure_balance_start_radius_cm
             ),
+            reverse_shock_pressure_balance_start_ratio=float(reverse_shock.causality.pressure_balance_start_ratio),
             reverse_shock_fast_wave_crossing_radius_cm=float(reverse_shock.causality.fast_wave_crossing_radius_cm),
             reverse_shock_local_start_radius_cm=float(reverse_shock.causality.local_start_radius_cm),
             reverse_shock_actual_start_radius_cm=float(reverse_shock.causality.actual_start_radius_cm),
+            reverse_shock_actual_start_pressure_ratio=float(reverse_shock.causality.actual_start_pressure_ratio),
+            reverse_shock_actual_start_contact_fraction=float(reverse_shock.causality.actual_start_contact_fraction),
         )
     return solution
 
@@ -629,7 +677,7 @@ def solve_electron(
         return _finish_electron_solution(
             config,
             solver_name,
-            "log-gamma-1d-dg",
+            "log-four-velocity-1d-dg",
             gam_e,
             d_n_gam_e,
             l_syn_spec,
@@ -731,7 +779,7 @@ def solve_electron(
     return _finish_electron_solution(
         config,
         solver_name,
-        "log-gamma-1d",
+        "log-four-velocity-1d",
         gam_e,
         d_n_gam_e,
         l_syn_spec,

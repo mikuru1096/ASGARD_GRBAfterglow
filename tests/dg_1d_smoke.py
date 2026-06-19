@@ -117,7 +117,7 @@ def main() -> None:
 
     report = dg_state.adapter_reports["electron"]
     assert report.solver == "dg_1d"
-    assert report.grid_semantics == "log-gamma-1d-dg"
+    assert report.grid_semantics == "log-four-velocity-1d-dg"
     assert report.status == "ok"
 
     electron = dg_state.electron

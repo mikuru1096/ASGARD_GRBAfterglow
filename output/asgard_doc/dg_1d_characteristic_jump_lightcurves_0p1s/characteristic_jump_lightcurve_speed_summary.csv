@@ -1,5 +1,0 @@
-scenario,solver,warmup_elapsed_s,elapsed_s,num_times,time_min_s,time_max_s,num_bands
-ISM continuous jumps,fullhide_1d,8.08329105e-01,7.32572329e-01,96,1.00000000e-01,1.00000000e+07,4
-ISM continuous jumps,dg_1d,1.33035991e+00,1.32579913e+00,96,1.00000000e-01,1.00000000e+07,4
-Wind-ISM jump,fullhide_1d,1.66228380e+00,1.60862233e+00,96,1.00000000e-01,1.00000000e+07,4
-Wind-ISM jump,dg_1d,1.34504980e+00,1.35093481e+00,96,1.00000000e-01,1.00000000e+07,4

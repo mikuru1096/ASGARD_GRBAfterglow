@@ -3,7 +3,8 @@ module electron_transport_2d_kernel
   use constants
   use electron_transport_common, only: electron_prepare_implicit_coeffs_common, electron_backward_sweep_common, &
                              electron_prepare_conservative_remap_nonuniform, electron_ppm_prefix_eval_nonuniform, &
-                             electron_characteristic_update, electron_cooling_affine, electron_cooling_piecewise
+                             electron_characteristic_update, electron_characteristic_cooling_update, &
+                             electron_cooling_affine, electron_cooling_piecewise
   use electron_injection_profiles, only: electron_profile_log_cell_edges
   implicit real(8)(a-h,o-z)
   private
@@ -639,9 +640,10 @@ subroutine advance_energy_loggamma_chi_charint(U_log, Num_gam_e, Num_chi, gam_e,
     real(8), intent(in) :: R_loc, Gamma_sh, beta_sh, dR_step
     real(8), intent(in), optional :: source_eta1(Num_gam_e)
 
-    real(8) :: x_edge(Num_gam_e+1), U_in(Num_gam_e), U_out(Num_gam_e), source_in(Num_gam_e)
-    real(8) :: a_rad, b_ad, source_scale
-    integer :: I_chi, chi_hi
+    real(8) :: x_edge(Num_gam_e+1), U_in(Num_gam_e), U_out(Num_gam_e)
+    real(8) :: a_rad, b_ad
+    integer :: I_chi, chi_hi, cooling_mode
+    logical :: source_column
 
     call electron_profile_log_cell_edges(Num_gam_e, gam_e, x_edge)
 
@@ -649,22 +651,23 @@ subroutine advance_energy_loggamma_chi_charint(U_log, Num_gam_e, Num_chi, gam_e,
     if (present(active_chi_hi)) chi_hi = max(1, min(Num_chi, active_chi_hi))
     do I_chi = 1, chi_hi
         U_in = U_log(:, I_chi)
-        source_scale = zero
-        source_in = U_in
-        if (present(source_eta1) .and. I_chi == 1) then
-            source_scale = one
-            source_in = source_eta1
-        end if
+        source_column = present(source_eta1) .and. I_chi == 1
+        cooling_mode = electron_cooling_piecewise
+        a_rad = zero
+        b_ad = zero
         if (index_Y == 0) then
             a_rad = 1.35d-19*DB_chi(I_chi)**2/(max(beta_sh*Gamma_sh, tiny(one))*pi)
             b_ad = one/R_loc
-            call electron_characteristic_update(Num_gam_e, dR_step, x_edge, electron_cooling_affine, &
+            cooling_mode = electron_cooling_affine
+        end if
+        if (source_column) then
+            call electron_characteristic_update(Num_gam_e, dR_step, x_edge, cooling_mode, &
                                                  a_rad, b_ad, gam_e, dEl_chi(:,I_chi), R_loc, &
-                                                 source_scale, source_in, U_in, U_out)
+                                                 one, source_eta1, U_in, U_out)
         else
-            call electron_characteristic_update(Num_gam_e, dR_step, x_edge, electron_cooling_piecewise, &
-                                                 zero, zero, gam_e, dEl_chi(:,I_chi), R_loc, &
-                                                 source_scale, source_in, U_in, U_out)
+            call electron_characteristic_cooling_update(Num_gam_e, dR_step, x_edge, cooling_mode, &
+                                                        a_rad, b_ad, gam_e, dEl_chi(:,I_chi), R_loc, &
+                                                        U_in, U_out)
         end if
         U_log(:, I_chi) = U_out
     end do

@@ -1,5 +1,0 @@
-scenario,solver,seconds,n_times,n_bands
-ism_continuous_jumps,fullhide_1d,2.3117700070000637,96,4
-ism_continuous_jumps,dg_1d,5.509180215000015,96,4
-wind_ism_jump,fullhide_1d,3.183338612000057,96,4
-wind_ism_jump,dg_1d,5.564825967000047,96,4

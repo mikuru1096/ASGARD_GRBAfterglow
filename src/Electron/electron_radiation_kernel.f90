@@ -1,11 +1,12 @@
 module electron_radiation_kernel
   use constants
-  use radiation_common, only: radiation_syn_seed_core
+  use radiation_common, only: radiation_syn_seed_core, radiation_transfer_factor
   use synchrotron_polarization_kernel, only: synchrotron_polarized_components
   private
 
     public :: first_greater_monotonic, first_greater_monotonic_window
-    public :: besselk, get_syn, get_syn_state, get_syn_selected, get_syn_transfer, get_syn_polarization_selected, get_nu_a
+    public :: besselk, get_syn, get_syn_state, get_syn_cyclotron_state, get_syn_selected
+    public :: get_syn_transfer, get_syn_polarization_selected, get_nu_a
     public :: get_nu_a_2d_path, get_nu_a_2d_cell_path, reduce_syn_shell_from_chi
     public :: build_reduced_log_grid, project_syn_state_logbands
     public :: get_syn_adaptive, get_syn_adaptive_state, get_nu_a_from_tau_grid
@@ -309,6 +310,82 @@ real(8), intent(out) ::P_emit(Num_nu),P_syn(Num_nu),Seed_syn(Num_nu),Tau_syn(Num
     call radiation_syn_seed_core(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed,1.046d4, &
                                  P_emit,P_syn,Seed_syn,Tau_syn)
 end subroutine get_syn_state
+
+! 同步+非相对论回旋发射核：γ<2 的电子使用基频回旋发射，γ>=2 仍走标准同步核。
+subroutine get_syn_cyclotron_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
+                                   P_emit,P_syn,Seed_syn,Tau_syn)
+implicit none
+integer, intent(in) :: Num_gam_e,Num_nu,n_threads
+real(8), intent(in) :: R_loc,DB,gam_e(Num_gam_e),dN_gam_e(Num_gam_e),V_seed(Num_nu)
+real(8), intent(out) :: P_emit(Num_nu),P_syn(Num_nu),Seed_syn(Num_nu),Tau_syn(Num_nu)
+real(8) :: dN_syn(Num_gam_e)
+integer :: i
+
+    dN_syn=zero
+    do i=1,Num_gam_e
+        if (gam_e(i) >= two) dN_syn(i)=dN_gam_e(i)
+    end do
+    call get_syn_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_syn,V_seed,P_emit,P_syn,Seed_syn,Tau_syn)
+    call add_cyclotron_fundamental(R_loc,DB,Num_gam_e,Num_nu,gam_e,dN_gam_e,V_seed,P_emit,P_syn,Seed_syn,Tau_syn)
+end subroutine get_syn_cyclotron_state
+
+subroutine get_syn_cyclotron(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed,P_syn,Seed_syn)
+implicit none
+integer, intent(in) :: Num_gam_e,Num_nu,n_threads
+real(8), intent(in) :: R_loc,DB,gam_e(Num_gam_e),dN_gam_e(Num_gam_e),V_seed(Num_nu)
+real(8), intent(out) :: P_syn(Num_nu),Seed_syn(Num_nu)
+real(8) :: P_emit(Num_nu),Tau_syn(Num_nu)
+
+    call get_syn_cyclotron_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
+                                 P_emit,P_syn,Seed_syn,Tau_syn)
+end subroutine get_syn_cyclotron
+
+subroutine add_cyclotron_fundamental(R_loc,DB,Num_gam_e,Num_nu,gam_e,dN_gam_e,V_seed,P_emit,P_syn,Seed_syn,Tau_syn)
+implicit none
+integer, intent(in) :: Num_gam_e,Num_nu
+integer :: i,j
+real(8), intent(in) :: R_loc,DB,gam_e(Num_gam_e),dN_gam_e(Num_gam_e),V_seed(Num_nu),Tau_syn(Num_nu)
+real(8), intent(inout) :: P_emit(Num_nu),P_syn(Num_nu),Seed_syn(Num_nu)
+real(8) :: nu_edge(Num_nu+1),nu_b,nu0,gamma_mid,beta2,n_e_seg,p_total,p_nu,transfer
+real(8) :: r2,temp_para
+
+    if (DB <= zero) return
+    call build_log_frequency_edges(Num_nu,V_seed,nu_edge)
+    nu_b=Para_e*DB/(two*pi*Para_m_e*Para_c)
+    r2=R_loc*R_loc
+    temp_para=4d0*pi*Para_c*Para_h
+    do i=1,Num_gam_e-1
+        gamma_mid=0.5d0*(gam_e(i)+gam_e(i+1))
+        if (gamma_mid >= two) cycle
+        n_e_seg=0.5d0*(dN_gam_e(i)+dN_gam_e(i+1))*(gam_e(i+1)-gam_e(i))
+        if (n_e_seg <= zero) cycle
+        beta2=one-one/(gamma_mid*gamma_mid)
+        nu0=nu_b/gamma_mid
+        if (nu0 < nu_edge(1) .or. nu0 >= nu_edge(Num_nu+1)) cycle
+        call first_greater_monotonic(nu_edge,Num_nu+1,nu0,j)
+        j=max(1,min(Num_nu,j-1))
+        p_total=n_e_seg*(4d0/3d0)*Para_SigmaT*Para_c*(DB*DB/(8d0*pi))*gamma_mid*gamma_mid*beta2
+        p_nu=p_total/(nu_edge(j+1)-nu_edge(j))
+        call radiation_transfer_factor(Tau_syn(j),transfer)
+        P_emit(j)=P_emit(j)+p_nu
+        P_syn(j)=P_syn(j)+p_nu*transfer
+        Seed_syn(j)=Seed_syn(j)+p_nu*transfer/(r2*V_seed(j)*temp_para)
+    end do
+end subroutine add_cyclotron_fundamental
+
+subroutine build_log_frequency_edges(Num_nu,V_seed,nu_edge)
+implicit none
+integer, intent(in) :: Num_nu
+integer :: i
+real(8), intent(in) :: V_seed(Num_nu)
+real(8), intent(out) :: nu_edge(Num_nu+1)
+
+    nu_edge(1)=V_seed(1)*dsqrt(V_seed(1)/V_seed(2))
+    do i=2,Num_nu
+        nu_edge(i)=dsqrt(V_seed(i-1)*V_seed(i))
+    end do
+    nu_edge(Num_nu+1)=V_seed(Num_nu)*dsqrt(V_seed(Num_nu)/V_seed(Num_nu-1))
+end subroutine build_log_frequency_edges
 
 ! 同步辐射F(x)核：F(x) = 1.81 e^(-x)/√(x^(-2/3)+factor)，x=ν/ν_c。
 real(8) function electron_syn_fx(gam,V_cal,DB,factor)
@@ -621,7 +698,7 @@ real(8) :: P_emit(Num_nu),Tau_syn(Num_nu)
                                 P_emit,P_syn,Seed_syn,Tau_syn)
 end subroutine get_syn_adaptive
 
-! 同步辐射计算选择器：index=1/2 保持固定网格快速路径；adaptive 仅作显式诊断路径。
+    ! 同步辐射计算选择器：index=4 在标准同步核之外加入非相对论回旋基频发射。
 subroutine get_syn_selected(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
                             P_syn,Seed_syn)
 implicit REAL(8)(A-H,O-Z)
@@ -647,6 +724,8 @@ real(8) :: h_ref,h_loc
         call get_syn_simpson(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed,P_syn,Seed_syn)
     case(3)
         call get_syn_adaptive(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed,P_syn,Seed_syn)
+    case(4)
+        call get_syn_cyclotron(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed,P_syn,Seed_syn)
     case default
         print*, 'invalid synchrotron integral case, check your chosen model!'
         stop

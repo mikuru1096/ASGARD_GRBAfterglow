@@ -2,6 +2,9 @@
 module electron_transport_dg_1d_kernel
     use constants
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+    use electron_energy_coordinate_common, only: electron_coord_log_gamma, electron_coord_log_four_velocity_sq, &
+                                                 electron_coord_from_xgamma, electron_xgamma_from_coord, &
+                                                 electron_gamma_from_coord, electron_dxgamma_dcoord
     use electron_injection_profiles, only: electron_dnx_powerlaw_cutoff_value, electron_exp_cutoff_factor, &
                                            electron_initial_powerlaw_params
     implicit none
@@ -12,8 +15,8 @@ module electron_transport_dg_1d_kernel
     integer, parameter :: electron_dg1d_elements_per_segment = 6
     integer, parameter :: electron_dg1d_max_breaks = 3
     integer, parameter :: electron_dg1d_source_quad_order = 4
-    integer, parameter :: electron_dg1d_coord_log_gamma = 1
-    integer, parameter :: electron_dg1d_coord_log_four_velocity_sq = 2
+    integer, parameter :: electron_dg1d_coord_log_gamma = electron_coord_log_gamma
+    integer, parameter :: electron_dg1d_coord_log_four_velocity_sq = electron_coord_log_four_velocity_sq
     real(8), parameter :: electron_dg1d_time_theta = 1.0d0
     real(8), parameter :: electron_dg1d_source_quad_nodes(electron_dg1d_source_quad_order) = &
         (/2.3260475760753783d-5, 1.1852538299698612d-2, 2.0155705894317942d-1, 7.4986401224114997d-1/)
@@ -39,7 +42,9 @@ module electron_transport_dg_1d_kernel
     public :: electron_dg1d_advance_step, electron_dg1d_scale_to_content
     public :: electron_dg1d_limit_positive_cell_preserving
     public :: electron_dg1d_advance_characteristic_step
-    public :: electron_dg1d_project_to_grid, electron_dg1d_project_to_log_cells, electron_dg1d_integral
+    public :: electron_dg1d_project_to_grid, electron_dg1d_project_to_log_cells
+    public :: electron_dg1d_project_to_coord_cells, electron_dg1d_integral
+    public :: electron_dg1d_tail_moment_fraction
 
 contains
 
@@ -135,6 +140,7 @@ subroutine electron_dg1d_project_state(old_mesh, old_state, new_mesh, new_state)
         if (new_total <= zero) error stop 'electron_dg1d_project_state lost positive content'
         new_state = new_state*(old_total/new_total)
     endif
+    call electron_dg1d_limit_positive_cell_preserving(new_mesh, new_state)
 end subroutine electron_dg1d_project_state
 
 subroutine electron_dg1d_gamma_nodes(mesh, gamma_nodes)
@@ -218,6 +224,7 @@ subroutine electron_dg1d_project_source(mesh, source_norm, p, gamma_m, gamma_max
             source(offset + i) = sum(modal*pvals)
         enddo
     enddo
+    call electron_dg1d_limit_positive_cell_preserving(mesh, source)
 end subroutine electron_dg1d_project_source
 
 subroutine electron_dg1d_project_kinetic_source(mesh, source_norm, p, gamma_m, gamma_max, source)
@@ -256,6 +263,7 @@ subroutine electron_dg1d_project_kinetic_source(mesh, source_norm, p, gamma_m, g
             source(offset + i) = sum(modal*pvals)
         enddo
     enddo
+    call electron_dg1d_limit_positive_cell_preserving(mesh, source)
 end subroutine electron_dg1d_project_kinetic_source
 
 subroutine electron_dg1d_scale_to_content(mesh, target_content, state)
@@ -274,13 +282,18 @@ end subroutine electron_dg1d_scale_to_content
 subroutine electron_dg1d_limit_positive_cell_preserving(mesh, state)
     type(electron_dg1d_mesh), intent(in) :: mesh
     real(8), intent(inout) :: state(mesh%ntot)
-    real(8) :: cell_average, cell_min, theta
-    integer :: k, offset
+    real(8) :: cell_average, cell_min, theta, x_eval
+    integer :: k, offset, q
 
+    call ensure_projection_quadrature(mesh%nnode)
     do k = 1, mesh%ndom
         offset = domain_offset(mesh, k)
         cell_average = 0.5d0*sum(mesh%w*state(offset + 1:offset + mesh%nnode))
         cell_min = minval(state(offset + 1:offset + mesh%nnode))
+        do q = 1, mesh%nnode
+            x_eval = 0.5d0*((one - projection_r(q))*mesh%x_left(k) + (one + projection_r(q))*mesh%x_right(k))
+            cell_min = min(cell_min, interpolate_domain(mesh, state, k, x_eval))
+        enddo
         if (cell_min < zero) then
             if (cell_average > zero) then
                 theta = min(one, cell_average/(cell_average - cell_min))
@@ -304,6 +317,10 @@ subroutine electron_dg1d_advance_step(mesh, adiabatic_rate, dr, dloggamma_loss, 
     theta = electron_dg1d_time_theta
     rhs_scale = one - theta
     speed = -(dloggamma_loss + adiabatic_rate)/mesh%dln_gamma_dcoord
+    if (maxval(speed) > zero) then
+        call electron_dg1d_advance_step_dense(mesh, dr, speed, source, state_in, state_out)
+        return
+    endif
     state_out = zero
     do k = mesh%ndom, 1, -1
         offset = domain_offset(mesh, k)
@@ -334,6 +351,82 @@ subroutine electron_dg1d_advance_step(mesh, adiabatic_rate, dr, dloggamma_loss, 
     enddo
 end subroutine electron_dg1d_advance_step
 
+subroutine electron_dg1d_advance_step_dense(mesh, dr, speed, source, state_in, state_out)
+    type(electron_dg1d_mesh), intent(in) :: mesh
+    real(8), intent(in) :: dr, speed(mesh%ntot), source(mesh%ntot), state_in(mesh%ntot)
+    real(8), intent(out) :: state_out(mesh%ntot)
+    real(8), allocatable :: kmat(:,:), amat(:,:), rhs(:)
+    integer :: ntot, row
+
+    ntot = mesh%ntot
+    allocate(kmat(ntot,ntot), amat(ntot,ntot), rhs(ntot))
+    kmat = zero
+    call electron_dg1d_assemble_transport_matrix(mesh, speed, kmat)
+    amat = -dr*kmat
+    do row = 1, ntot
+        amat(row,row) = amat(row,row) + one
+    enddo
+    rhs = state_in + dr*source
+    call electron_dg1d_solve_dense(ntot, amat, rhs)
+    state_out = rhs
+    call electron_dg1d_limit_positive_cell_preserving(mesh, state_out)
+    deallocate(kmat, amat, rhs)
+end subroutine electron_dg1d_advance_step_dense
+
+subroutine electron_dg1d_assemble_transport_matrix(mesh, speed, kmat)
+    type(electron_dg1d_mesh), intent(in) :: mesh
+    real(8), intent(in) :: speed(mesh%ntot)
+    real(8), intent(inout) :: kmat(mesh%ntot,mesh%ntot)
+    real(8) :: dx, face_speed, coeff
+    integer :: i, j, k, offset, row, col, neighbor_offset
+
+    do k = 1, mesh%ndom
+        offset = domain_offset(mesh, k)
+        dx = mesh%x_right(k) - mesh%x_left(k)
+        do i = 1, mesh%nnode
+            row = offset + i
+            do j = 1, mesh%nnode
+                col = offset + j
+                kmat(row,col) = kmat(row,col) + &
+                    (two/dx)*(mesh%w(j)/mesh%w(i))*mesh%dmat(j,i)*speed(offset + j)
+            enddo
+        enddo
+
+        if (k > 1) then
+            row = offset + 1
+            face_speed = speed(row)
+            coeff = (two/dx)*face_speed/mesh%w(1)
+            if (face_speed > zero) then
+                neighbor_offset = domain_offset(mesh, k - 1)
+                col = neighbor_offset + mesh%nnode
+            else
+                col = row
+            endif
+            kmat(row,col) = kmat(row,col) + coeff
+        endif
+
+        if (k < mesh%ndom) then
+            row = offset + mesh%nnode
+            face_speed = speed(row)
+            coeff = -(two/dx)*face_speed/mesh%w(mesh%nnode)
+            if (face_speed > zero) then
+                col = row
+            else
+                neighbor_offset = domain_offset(mesh, k + 1)
+                col = neighbor_offset + 1
+            endif
+            kmat(row,col) = kmat(row,col) + coeff
+        else
+            row = offset + mesh%nnode
+            face_speed = speed(row)
+            if (face_speed > zero) then
+                coeff = -(two/dx)*face_speed/mesh%w(mesh%nnode)
+                kmat(row,row) = kmat(row,row) + coeff
+            endif
+        endif
+    enddo
+end subroutine electron_dg1d_assemble_transport_matrix
+
 subroutine electron_dg1d_advance_characteristic_step(mesh, dr, a_rad, b_ad, source, state_in, state_out)
     type(electron_dg1d_mesh), intent(in) :: mesh
     real(8), intent(in) :: dr, a_rad, b_ad, source(mesh%ntot), state_in(mesh%ntot)
@@ -348,6 +441,7 @@ subroutine electron_dg1d_advance_characteristic_step(mesh, dr, a_rad, b_ad, sour
                                                   electron_dg1d_source_quad_weights(q)*dr, state_out)
     enddo
     call electron_dg1d_zero_negative_cell_means(mesh, state_out)
+    call electron_dg1d_limit_positive_cell_preserving(mesh, state_out)
 end subroutine electron_dg1d_advance_characteristic_step
 
 subroutine electron_dg1d_zero_negative_cell_means(mesh, state)
@@ -371,13 +465,16 @@ subroutine electron_dg1d_project_characteristic(mesh, field, a_rad, b_ad, lag, s
     real(8), intent(inout) :: projected(mesh%ntot)
     real(8) :: modal(mesh%nnode), pvals(mesh%nnode)
     real(8) :: dx, lo, hi, mid, half_width, x_old, x_new, r_new, old_value
-    real(8) :: x_back_left, x_back_right, old_min, old_max
+    real(8) :: x_back_left, x_back_right, old_min, old_max, low_boundary_content
     integer :: degree, k, k_old, q, m, i, offset
 
     degree = mesh%nnode - 1
     call ensure_projection_quadrature(mesh%nnode)
     old_min = mesh%x_left(1)
     old_max = mesh%x_right(mesh%ndom)
+    low_boundary_content = zero
+    call electron_dg1d_closed_low_boundary_content(mesh, field, a_rad, b_ad, lag, scale, &
+                                                   old_min, old_max, low_boundary_content)
     do k = 1, mesh%ndom
         offset = domain_offset(mesh, k)
         dx = mesh%x_right(k) - mesh%x_left(k)
@@ -399,7 +496,7 @@ subroutine electron_dg1d_project_characteristic(mesh, field, a_rad, b_ad, lag, s
                 half_width = 0.5d0*(hi - lo)
                 do q = 1, mesh%nnode
                     x_old = mid + half_width*projection_r(q)
-                    x_new = electron_dg1d_characteristic_forward_x(a_rad, b_ad, lag, x_old)
+                    x_new = electron_dg1d_characteristic_forward_x(mesh, a_rad, b_ad, lag, x_old)
                     r_new = two*(x_new - mesh%x_left(k))/dx - one
                     old_value = interpolate_domain(mesh, field, k_old, x_old)
                     call legendre_basis_values(degree, r_new, pvals)
@@ -415,7 +512,51 @@ subroutine electron_dg1d_project_characteristic(mesh, field, a_rad, b_ad, lag, s
             projected(offset + i) = projected(offset + i) + sum(modal*pvals)
         enddo
     enddo
+    if (low_boundary_content /= zero) then
+        dx = mesh%x_right(1) - mesh%x_left(1)
+        projected(1:mesh%nnode) = projected(1:mesh%nnode) + low_boundary_content/dx
+    endif
 end subroutine electron_dg1d_project_characteristic
+
+subroutine electron_dg1d_closed_low_boundary_content(mesh, field, a_rad, b_ad, lag, scale, &
+                                                     old_min, old_max, content)
+    type(electron_dg1d_mesh), intent(in) :: mesh
+    real(8), intent(in) :: field(mesh%ntot), a_rad, b_ad, lag, scale, old_min, old_max
+    real(8), intent(out) :: content
+    real(8) :: x_cut, lo, hi, interval_content
+    integer :: k_old
+
+    content = zero
+    if (mesh%coord_kind /= electron_dg1d_coord_log_four_velocity_sq .or. lag <= zero) return
+    x_cut = electron_dg1d_characteristic_back_x(mesh, a_rad, b_ad, lag, old_min)
+    if (x_cut <= old_min) return
+    x_cut = min(x_cut, old_max)
+    do k_old = 1, mesh%ndom
+        if (mesh%x_left(k_old) >= x_cut) exit
+        lo = max(old_min, mesh%x_left(k_old))
+        hi = min(x_cut, mesh%x_right(k_old))
+        if (hi <= lo) cycle
+        call electron_dg1d_integrate_domain_interval(mesh, field, k_old, lo, hi, interval_content)
+        content = content + scale*interval_content
+    enddo
+end subroutine electron_dg1d_closed_low_boundary_content
+
+subroutine electron_dg1d_integrate_domain_interval(mesh, field, k, lo, hi, content)
+    type(electron_dg1d_mesh), intent(in) :: mesh
+    real(8), intent(in) :: field(mesh%ntot), lo, hi
+    integer, intent(in) :: k
+    real(8), intent(out) :: content
+    real(8) :: mid, half_width, x_eval
+    integer :: q
+
+    mid = 0.5d0*(lo + hi)
+    half_width = 0.5d0*(hi - lo)
+    content = zero
+    do q = 1, mesh%nnode
+        x_eval = mid + half_width*projection_r(q)
+        content = content + half_width*projection_w(q)*interpolate_domain(mesh, field, k, x_eval)
+    enddo
+end subroutine electron_dg1d_integrate_domain_interval
 
 real(8) function electron_dg1d_characteristic_back_x(mesh, a_rad, b_ad, lag, x_new) result(x_back)
     type(electron_dg1d_mesh), intent(in) :: mesh
@@ -426,7 +567,7 @@ real(8) function electron_dg1d_characteristic_back_x(mesh, a_rad, b_ad, lag, x_n
         x_back = x_new
         return
     endif
-    gamma_now = ten**x_new
+    gamma_now = electron_dg1d_gamma_from_coord(mesh%coord_kind, mesh%coord_scale, x_new)
     if (abs(b_ad*lag) <= 1d-10) then
         denom = one - a_rad*gamma_now*lag
     else
@@ -441,11 +582,12 @@ real(8) function electron_dg1d_characteristic_back_x(mesh, a_rad, b_ad, lag, x_n
     if (.not. ieee_is_finite(gamma_back)) then
         x_back = mesh%x_right(mesh%ndom) + one
     else
-        x_back = dlog10(gamma_back)
+        x_back = electron_dg1d_coord_from_xgamma(mesh%coord_kind, mesh%coord_scale, dlog10(gamma_back))
     endif
 end function electron_dg1d_characteristic_back_x
 
-real(8) function electron_dg1d_characteristic_forward_x(a_rad, b_ad, lag, x_old) result(x_new)
+real(8) function electron_dg1d_characteristic_forward_x(mesh, a_rad, b_ad, lag, x_old) result(x_new)
+    type(electron_dg1d_mesh), intent(in) :: mesh
     real(8), intent(in) :: a_rad, b_ad, lag, x_old
     real(8) :: gamma_old, gamma_new, exp_b
 
@@ -453,14 +595,14 @@ real(8) function electron_dg1d_characteristic_forward_x(a_rad, b_ad, lag, x_old)
         x_new = x_old
         return
     endif
-    gamma_old = ten**x_old
+    gamma_old = electron_dg1d_gamma_from_coord(mesh%coord_kind, mesh%coord_scale, x_old)
     if (abs(b_ad*lag) <= 1d-10) then
         gamma_new = gamma_old/(one + a_rad*gamma_old*lag)
     else
         exp_b = dexp(-b_ad*lag)
         gamma_new = gamma_old*exp_b/(one + (a_rad/b_ad)*gamma_old*(one - exp_b))
     endif
-    x_new = dlog10(gamma_new)
+    x_new = electron_dg1d_coord_from_xgamma(mesh%coord_kind, mesh%coord_scale, dlog10(gamma_new))
 end function electron_dg1d_characteristic_forward_x
 
 subroutine electron_dg1d_project_element(old_mesh, old_state, new_mesh, k_new, values)
@@ -470,11 +612,14 @@ subroutine electron_dg1d_project_element(old_mesh, old_state, new_mesh, k_new, v
     real(8), intent(out) :: values(new_mesh%nnode)
     real(8) :: modal(new_mesh%nnode), pvals(new_mesh%nnode)
     real(8) :: dx_new, mid, half_width, x_eval, x_gamma, old_coord, old_value
+    real(8) :: old_min, old_max
     real(8) :: old_jac, new_jac
     integer :: degree, k_old, q, m, i
 
     degree = new_mesh%nnode - 1
     dx_new = new_mesh%x_right(k_new) - new_mesh%x_left(k_new)
+    old_min = old_mesh%x_left(1)
+    old_max = old_mesh%x_right(old_mesh%ndom)
     modal = zero
     call ensure_projection_quadrature(new_mesh%nnode)
     mid = 0.5d0*(new_mesh%x_left(k_new) + new_mesh%x_right(k_new))
@@ -483,6 +628,7 @@ subroutine electron_dg1d_project_element(old_mesh, old_state, new_mesh, k_new, v
         x_eval = mid + half_width*projection_r(q)
         x_gamma = electron_dg1d_xgamma_from_coord(new_mesh%coord_kind, new_mesh%coord_scale, x_eval)
         old_coord = electron_dg1d_coord_from_xgamma(old_mesh%coord_kind, old_mesh%coord_scale, x_gamma)
+        if (old_coord < old_min .or. old_coord > old_max) cycle
         k_old = locate_domain(old_mesh, old_coord)
         old_value = interpolate_domain(old_mesh, old_state, k_old, old_coord)
         old_jac = electron_dg1d_dxgamma_dcoord(old_mesh%coord_kind, old_mesh%coord_scale, old_coord)
@@ -560,7 +706,7 @@ subroutine electron_dg1d_project_to_log_cells(mesh, state, num_gamma, x_edge, ga
     integer, intent(in) :: num_gamma
     real(8), intent(in) :: state(mesh%ntot), x_edge(num_gamma+1), gamma_grid(num_gamma)
     real(8), intent(out) :: dndgamma(num_gamma)
-    real(8) :: lo, hi, mid, half_width, x_eval, cell_content, y_edge(num_gamma+1)
+    real(8) :: lo, hi, mid, half_width, x_eval, cell_content, x_width, y_edge(num_gamma+1)
     integer :: i, k, q
 
     call ensure_projection_quadrature(mesh%nnode)
@@ -582,9 +728,39 @@ subroutine electron_dg1d_project_to_log_cells(mesh, state, num_gamma, x_edge, ga
                 cell_content = cell_content + half_width*projection_w(q)*interpolate_domain(mesh, state, k, x_eval)
             enddo
         enddo
-        dndgamma(i) = cell_content/((x_edge(i+1) - x_edge(i))*gamma_grid(i)*dlog(ten))
+        x_width = electron_dg1d_xgamma_from_coord(mesh%coord_kind, mesh%coord_scale, y_edge(i+1)) - &
+                  electron_dg1d_xgamma_from_coord(mesh%coord_kind, mesh%coord_scale, y_edge(i))
+        dndgamma(i) = cell_content/(x_width*gamma_grid(i)*dlog(ten))
     enddo
 end subroutine electron_dg1d_project_to_log_cells
+
+subroutine electron_dg1d_project_to_coord_cells(mesh, state, num_gamma, coord_edge, dN_coord)
+    type(electron_dg1d_mesh), intent(in) :: mesh
+    integer, intent(in) :: num_gamma
+    real(8), intent(in) :: state(mesh%ntot), coord_edge(num_gamma+1)
+    real(8), intent(out) :: dN_coord(num_gamma)
+    real(8) :: lo, hi, mid, half_width, x_eval, cell_content
+    integer :: i, k, q
+
+    call ensure_projection_quadrature(mesh%nnode)
+    do i = 1, num_gamma
+        cell_content = zero
+        do k = 1, mesh%ndom
+            if (mesh%x_right(k) <= coord_edge(i)) cycle
+            if (mesh%x_left(k) >= coord_edge(i+1)) exit
+            lo = max(coord_edge(i), mesh%x_left(k))
+            hi = min(coord_edge(i+1), mesh%x_right(k))
+            if (hi <= lo) cycle
+            mid = 0.5d0*(lo + hi)
+            half_width = 0.5d0*(hi - lo)
+            do q = 1, mesh%nnode
+                x_eval = mid + half_width*projection_r(q)
+                cell_content = cell_content + half_width*projection_w(q)*interpolate_domain(mesh, state, k, x_eval)
+            enddo
+        enddo
+        dN_coord(i) = cell_content/(coord_edge(i+1) - coord_edge(i))
+    enddo
+end subroutine electron_dg1d_project_to_coord_cells
 
 subroutine electron_dg1d_integral(mesh, state, total)
     type(electron_dg1d_mesh), intent(in) :: mesh
@@ -600,6 +776,32 @@ subroutine electron_dg1d_integral(mesh, state, total)
         total = total + jac*sum(mesh%w*state(offset + 1:offset + mesh%nnode))
     enddo
 end subroutine electron_dg1d_integral
+
+subroutine electron_dg1d_tail_moment_fraction(mesh, state, gamma_cut, moment_power, fraction)
+    type(electron_dg1d_mesh), intent(in) :: mesh
+    real(8), intent(in) :: state(mesh%ntot), gamma_cut, moment_power
+    real(8), intent(out) :: fraction
+    real(8) :: total, tail, jac, contribution
+    integer :: k, i, idx, offset
+
+    total = zero
+    tail = zero
+    do k = 1, mesh%ndom
+        offset = domain_offset(mesh, k)
+        jac = 0.5d0*(mesh%x_right(k) - mesh%x_left(k))
+        do i = 1, mesh%nnode
+            idx = offset + i
+            contribution = jac*mesh%w(i)*state(idx)*mesh%gamma(idx)**moment_power
+            total = total + contribution
+            if (mesh%gamma(idx) >= gamma_cut) tail = tail + contribution
+        enddo
+    enddo
+    if (total > zero) then
+        fraction = tail/total
+    else
+        fraction = zero
+    endif
+end subroutine electron_dg1d_tail_moment_fraction
 
 subroutine add_active_break(x_break, x_min, x_max, min_width, active, n_active)
     real(8), intent(in) :: x_break, x_min, x_max, min_width
@@ -711,64 +913,29 @@ end subroutine fill_physical_nodes
 pure real(8) function electron_dg1d_coord_from_xgamma(coord_kind, coord_scale, x_gamma) result(coord)
     integer, intent(in) :: coord_kind
     real(8), intent(in) :: coord_scale, x_gamma
-    real(8) :: gamma, four_velocity_sq
 
-    select case (coord_kind)
-    case (electron_dg1d_coord_log_gamma)
-        coord = x_gamma
-    case (electron_dg1d_coord_log_four_velocity_sq)
-        gamma = max(one, ten**x_gamma)
-        four_velocity_sq = gamma*gamma - one
-        coord = dlog10(one + four_velocity_sq/coord_scale)
-    case default
-        coord = x_gamma
-    end select
+    coord = electron_coord_from_xgamma(coord_kind, coord_scale, x_gamma)
 end function electron_dg1d_coord_from_xgamma
 
 pure real(8) function electron_dg1d_xgamma_from_coord(coord_kind, coord_scale, coord) result(x_gamma)
     integer, intent(in) :: coord_kind
     real(8), intent(in) :: coord_scale, coord
-    real(8) :: gamma
 
-    select case (coord_kind)
-    case (electron_dg1d_coord_log_gamma)
-        x_gamma = coord
-    case (electron_dg1d_coord_log_four_velocity_sq)
-        gamma = dsqrt(one + coord_scale*(ten**coord - one))
-        x_gamma = dlog10(gamma)
-    case default
-        x_gamma = coord
-    end select
+    x_gamma = electron_xgamma_from_coord(coord_kind, coord_scale, coord)
 end function electron_dg1d_xgamma_from_coord
 
 pure real(8) function electron_dg1d_gamma_from_coord(coord_kind, coord_scale, coord) result(gamma)
     integer, intent(in) :: coord_kind
     real(8), intent(in) :: coord_scale, coord
 
-    select case (coord_kind)
-    case (electron_dg1d_coord_log_gamma)
-        gamma = ten**coord
-    case (electron_dg1d_coord_log_four_velocity_sq)
-        gamma = dsqrt(one + coord_scale*(ten**coord - one))
-    case default
-        gamma = ten**coord
-    end select
+    gamma = electron_gamma_from_coord(coord_kind, coord_scale, coord)
 end function electron_dg1d_gamma_from_coord
 
 pure real(8) function electron_dg1d_dxgamma_dcoord(coord_kind, coord_scale, coord) result(dxdy)
     integer, intent(in) :: coord_kind
     real(8), intent(in) :: coord_scale, coord
-    real(8) :: gamma
 
-    select case (coord_kind)
-    case (electron_dg1d_coord_log_gamma)
-        dxdy = one
-    case (electron_dg1d_coord_log_four_velocity_sq)
-        gamma = electron_dg1d_gamma_from_coord(coord_kind, coord_scale, coord)
-        dxdy = coord_scale*ten**coord/(two*gamma*gamma)
-    case default
-        dxdy = one
-    end select
+    dxdy = electron_dxgamma_dcoord(coord_kind, coord_scale, coord)
 end function electron_dg1d_dxgamma_dcoord
 
 subroutine lgl_nodes_weights(nnode, r, w)

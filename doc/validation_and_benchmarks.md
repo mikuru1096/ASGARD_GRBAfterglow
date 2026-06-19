@@ -129,7 +129,7 @@ Reverse-shock：
 - Pre-crossing 的 `M3` crossing 端点应由 `m3_frac=1` 给出，不允许 RK step 跨越 pre/post 方程分支。
 - `sigma -> 0` 必须恢复 unmagnetized baseline。
 - `B3`, `gamma34`, `U3/V3` 应平滑；断频只作为可选 `nu_callback` 诊断。
-- `dg_1d` 的 RS primary electron 路径必须通过 `reverse_shared_solver_smoke.py` 和 `structured_shared_solver_smoke.py`。RS 高能尾验收使用分辨率对照：121 格 fullhide 的 post-crossing 宽尾不作为 DG 真值，需用 241 格 fullhide、解析特征线或守恒谱形诊断判断。
+- `dg_1d` 的 RS primary electron 路径必须通过 `reverse_shared_solver_smoke.py` 和 `structured_shared_solver_smoke.py`。RS crossing 后的纯冷却段在 `fullhide_1d` 和 `dg_1d` 下都使用 post-crossing direct characteristic map，并采用闭合低能边界保持冷却到网格下界以下的电子数；121 格 fullhide 的旧 post-crossing 宽尾不作为 DG 真值，需用 direct-map 有效支撑图、高分辨率对照或守恒谱形诊断判断。
 - VegasAfterglow 是 comparison backend，不是目标真值。
 
 Hadronic：

@@ -134,7 +134,7 @@ A_{\rm face}\simeq dE_{\ell,{\rm mean}}+\frac{1}{R\ln 10},
 +S.
 \]
 
-\(x\) 方向是能量冷却平流，\(\eta\) 方向包含下游流体平流、扩散和局域源项。
+\(x\) 方向是能量冷却平流，\(\eta\) 方向包含下游流体平流、扩散和局域源项。`charint_2d` 中只有 \(\eta=1\) 的 shock-front 列接收新注入源；已经 advect/diffuse 到下游的其它 \(\chi\) 列在能量方向调用公共无源特征线冷却 primitive。
 
 ## 5. 求解器角色
 
@@ -164,6 +164,8 @@ FS DG 在壳层之间持续保存 DG state，并在 \(\gamma_m,\gamma_c,\gamma_{
 当前时间推进基线不改变：DG 每个 shell 使用 10 个基础子步，密度跳变时 FS DG 仍由 jump-aware limiter 自适应缩步。RS fullhide 保持原 100--1000 冷却子步，RS DG 与 FS DG 对齐为 10 个基础子步。
 
 RS 高能尾的当前验收口径是分辨率收敛而不是强贴合 121 格 fullhide。121 格 fullhide 在 post-crossing 高能截断处有明显一阶隐式上风数值扩散；`num_gam_e=241` 时 fullhide 截断向 DG 收缩。因此 `dg_1d` 的较窄高能尾不视为单独错误，除非高分辨率 fullhide、解析特征线或守恒谱形诊断也显示同向偏差。
+
+Primary RS 在完全 crossing 之后没有新的反向激波注入。`fullhide_1d` 和 `dg_1d` 都不再继续用各自的 shell-to-shell 数值输运推进这段纯冷却演化，而是在 crossing 后缓存固定网格上的 \(dN_x\)，随后只累计当前网格边界回溯到 crossing 网格的 characteristic edge map；输出给辐射核时从 crossing 谱一次做保守重映射。低能端使用闭合边界，冷却到电子网格下界以下的数目保留在最低能单元。这样避免 repeated projection 或一阶隐式上风扩散生成的硬截断、平台、过宽高能尾和 late-time 清零。当前有效支撑图保留在 `output/asgard_doc/dg_radiation_stability_scan/postcross_direct_map_effective_support/`。
 
 ## 7. 子步与近似
 

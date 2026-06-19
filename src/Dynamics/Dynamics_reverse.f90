@@ -19,7 +19,7 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
                                dynamics_reverse_rhs_iface, dynamics_log_time_step, &
                                dynamics_external_density_base, dynamics_external_density_profile, rs_mag_comp, &
                                rs_mag_specific_internal, rs_shell_matter_fraction, &
-                               rs_pressure_balance_allowed, &
+                               rs_pressure_balance_allowed, rs_reverse_wave_shock_branch, rs_shell_width, &
                                dynamics_boundary_r0, dynamics_set_density_jump_profile, &
                                active_density_jump_count, density_jump_max, active_density_jump_r, &
                                active_density_jump_factor, active_density_jump_width
@@ -175,17 +175,22 @@ contains
     logical function reverse_shock_pressure_ready_state(state)
     implicit none
     real(8), intent(in) :: state(Num_state)
-    real(8) :: radius,delta_shell,n1,n4
+    real(8) :: radius,gamma_cd,u_cd,u4,gamma43,delta_shell,n1,n4
 
         if (sigma_r <= zero) then
             reverse_shock_pressure_ready_state=.true.
             return
         end if
         radius=state(2)
-        delta_shell=max(Delta_0,radius/(Eta_0*Eta_0))
+        gamma_cd=state(1)
+        u_cd=dsqrt(gamma_cd*gamma_cd-one)
+        u4=dsqrt(Eta_0*Eta_0-one)
+        gamma43=(gamma_cd*gamma_cd+Eta_0*Eta_0-one)/(Eta_0*gamma_cd+u_cd*u4)
+        delta_shell=rs_shell_width(radius,Eta_0,Delta_0)
         call dynamics_external_density_profile(A_star,dNe_ISM,radius,R0,1,R_tr,f_jump,f_wide,n1)
         n4=para_m_ej/(4d0*pi*Para_m_p*radius*radius*Eta_0*delta_shell)
-        reverse_shock_pressure_ready_state=rs_pressure_balance_allowed(Eta_0,n1,n4,sigma_r)
+        reverse_shock_pressure_ready_state=rs_pressure_balance_allowed(gamma_cd,n1,n4,sigma_r) .and. &
+                                           rs_reverse_wave_shock_branch(gamma43,sigma_r)
     end function reverse_shock_pressure_ready_state
 
     subroutine waiting_trial(T_end,state_out,dB3_out)
@@ -965,7 +970,7 @@ subroutine reverse_dynamics_rhs(dB3,T_cross,R_cross,e3_cross,gam20,U3_cross,V3_c
     use constants
     use dynamics_common, only: dynamics_external_density_base, dynamics_external_density_profile, &
                                rs_mag_comp, rs_b4_up, rs_mag_specific_internal, rs_vegas_ud, rs_shock_upstream_u, &
-                               rs_shell_matter_fraction, rs_fast_wave_shell_relative_beta, reverse_rhs_phase, &
+                               rs_shell_matter_fraction, rs_shell_width, rs_shell_contact_fraction, reverse_rhs_phase, &
                                active_density_jump_count, active_density_jump_r, active_density_jump_factor, &
                                active_density_jump_width
     implicit none
@@ -1054,7 +1059,7 @@ contains
         gam2=Y(1); RR=Y(2); para_m2=Y(3); para_m3=Y(4)*para_m_ej
         U3=Y(5)*para_m_ej*para_c**2; V3=Y(6)*V3_scale
         call dynamics_external_density_profile(A_star,dNe_ISM,RR,R0,1,R_tr,f_jump,f_wide,dNe)
-        u2=dsqrt(gam2*gam2-one); u4=dsqrt(eta_0*eta_0-one); Delta=max(Delta_0,RR/eta_0**2)
+        u2=dsqrt(gam2*gam2-one); u4=dsqrt(eta_0*eta_0-one); Delta=rs_shell_width(RR,eta_0,Delta_0)
         para1=4d0*pi*Para_m_p*RR*RR; para_n4=para_m_ej/(para1*eta_0*Delta)
         if (sigma_r <= zero) then
             sigma_inertia=one
@@ -1062,13 +1067,7 @@ contains
             sigma_inertia=one/rs_shell_matter_fraction(sigma_r)
         end if
         para_n4_inertia=para_n4*sigma_inertia
-        if (sigma_r <= zero) then
-            smooth_shell_fraction=one
-        else if (fast_wave_depth_at_radius(RR) >= Delta) then
-            smooth_shell_fraction=one
-        else
-            smooth_shell_fraction=fast_wave_depth_at_radius(RR)/Delta
-        end if
+        smooth_shell_fraction=rs_shell_contact_fraction(RR,eta_0,sigma_r,Delta)
         waiting_shell_inertia_mass=para_m_ej*sigma_inertia*eta_0/(eta_0-one)*smooth_shell_fraction
         beta4=u4/eta_0; beta2=u2/gam2
         gam34=(gam2*gam2+eta_0*eta_0-one)/(eta_0*gam2+u2*u4)
@@ -1279,20 +1278,6 @@ contains
             D(g_idx)=gamma_m_sec*dU_shock/(para_m_ej*para_c**2)
         end do
     end subroutine compute_secondary_branch_derivatives
-
-    real(8) function fast_wave_depth_at_radius(radius)
-    implicit none
-    real(8), intent(in) :: radius
-    real(8) :: beta_shell, relative_beta
-
-        if (sigma_r <= zero) then
-            fast_wave_depth_at_radius=zero
-            return
-        end if
-        beta_shell=dsqrt(one-one/(eta_0*eta_0))
-        relative_beta=rs_fast_wave_shell_relative_beta(eta_0,sigma_r)
-        fast_wave_depth_at_radius=radius*relative_beta/beta_shell
-    end function fast_wave_depth_at_radius
 
     subroutine secondary_reverse_density_branch_rhs(radius,jump_index,density_factor,branch_weight)
     implicit none

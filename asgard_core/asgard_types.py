@@ -132,6 +132,8 @@ class ReverseShockCausalityDiagnostics:
     pressure_balance_start_radius_cm: float
     pressure_balance_start_tobs_s: float
     pressure_balance_start_index: int
+    pressure_balance_start_ratio: float
+    pressure_balance_start_contact_fraction: float
     fast_wave_crossing_radius_cm: float
     fast_wave_crossing_tobs_s: float
     fast_wave_crossing_index: int
@@ -141,6 +143,8 @@ class ReverseShockCausalityDiagnostics:
     actual_start_radius_cm: float
     actual_start_tobs_s: float
     actual_start_index: int
+    actual_start_pressure_ratio: float
+    actual_start_contact_fraction: float
 
 
 @dataclass

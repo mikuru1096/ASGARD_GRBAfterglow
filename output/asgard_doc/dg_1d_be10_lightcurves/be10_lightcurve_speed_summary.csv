@@ -1,5 +1,0 @@
-scenario,solver,warmup_elapsed_s,elapsed_s,num_times,num_bands
-ism,fullhide_1d,2.15727559e+00,2.06008172e+00,80,4
-ism,dg_1d,1.12059278e+00,1.09607733e+00,80,4
-wind,fullhide_1d,6.52127095e+00,6.26992785e+00,80,4
-wind,dg_1d,1.10850133e+00,1.14378456e+00,80,4

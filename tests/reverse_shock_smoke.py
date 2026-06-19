@@ -57,7 +57,10 @@ def _run(index_y: int) -> None:
     assert rs.causality.criteria_agree
     assert rs.causality.reference_crossing_radius_cm > 0.0
     assert rs.causality.pressure_balance_start_radius_cm > 0.0
+    assert rs.causality.pressure_balance_start_ratio >= 1.0
     assert rs.causality.local_start_radius_cm > 0.0
+    assert rs.causality.actual_start_pressure_ratio >= 1.0
+    assert 0.0 < rs.causality.actual_start_contact_fraction <= 1.0
     assert np.all(np.isfinite(rs.magnetic_field_g))
     assert np.all(np.isfinite(rs.internal_energy_erg))
     assert np.all(np.isfinite(rs.comoving_volume_cm3))
@@ -95,6 +98,7 @@ def _run_magnetized_interface() -> None:
     assert rs.causality.reference_crossing_radius_cm > 0.0
     assert rs.causality.pressure_balance_condition_seen
     assert rs.causality.pressure_balance_start_radius_cm > 0.0
+    assert rs.causality.pressure_balance_start_ratio >= 1.0
     assert np.isfinite(rs.ordered_magnetic_cross_g)
     assert rs.ordered_magnetic_cross_g > 0.0
     assert np.all(np.isfinite(rs.magnetic_field_g))
@@ -108,7 +112,7 @@ def _run_magnetized_interface() -> None:
     assert np.all(rs.comoving_volume_cm3 > 0.0)
 
 
-def _run_post_contact_reverse_shock() -> None:
+def _run_magnetized_delayed_reverse_shock() -> None:
     config = _config(0, sigma=1.0)
     setup = make_query_setup(config, np.logspace(2.0, 5.0, 6), np.array([1.0e9, 1.0e14]))
     state = solve_state_from_setup(config, setup)
@@ -117,10 +121,13 @@ def _run_post_contact_reverse_shock() -> None:
     assert rs.causality is not None
     assert rs.causality.global_reverse_shock_allowed
     assert rs.causality.pressure_balance_condition_seen
-    assert rs.causality.fast_wave_crossing_radius_cm < rs.causality.pressure_balance_start_radius_cm
+    assert rs.causality.pressure_balance_start_ratio >= 1.0
     assert rs.causality.local_fast_condition_seen
     assert rs.causality.reverse_shock_started
     assert rs.causality.criteria_agree
+    assert rs.causality.actual_start_pressure_ratio >= 1.0
+    assert 0.0 < rs.causality.actual_start_contact_fraction <= 1.0
+    assert rs.causality.fast_wave_crossing_radius_cm > 0.0
     assert rs.t_cross > 0.0
     assert rs.ordered_magnetic_cross_g > 0.0
     assert np.max(rs.magnetic_field_g) > 0.0
@@ -161,7 +168,7 @@ def main() -> None:
         _run(index_y)
     _run_sigma_zero_baseline()
     _run_magnetized_interface()
-    _run_post_contact_reverse_shock()
+    _run_magnetized_delayed_reverse_shock()
     _run_dense_radius_grid()
     _run_requested_frequency_seed_bounds()
     print("reverse-shock-smoke-ok")

@@ -1,7 +1,0 @@
-case,solver,seconds,n_times,n_bands
-nojump,fullhide_1d,2.45673870,96,4
-nojump,dg_1d,5.67523829,96,4
-moderate,fullhide_1d,2.41423700,96,4
-moderate,dg_1d,5.16916532,96,4
-strong,fullhide_1d,2.32785946,96,4
-strong,dg_1d,5.22832274,96,4

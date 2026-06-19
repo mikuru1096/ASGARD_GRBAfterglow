@@ -346,15 +346,22 @@ end function rs_mag_comp
 logical function rs_fast_shock_allowed(gamma_rel, sigma)
     implicit none
     real(8), intent(in) :: gamma_rel, sigma
+
+    rs_fast_shock_allowed = rs_reverse_wave_shock_branch(gamma_rel, sigma)
+end function rs_fast_shock_allowed
+
+logical function rs_reverse_wave_shock_branch(gamma_rel, sigma)
+    implicit none
+    real(8), intent(in) :: gamma_rel, sigma
     real(8) :: u_up
 
     if (sigma <= zero) then
-        rs_fast_shock_allowed = .true.
+        rs_reverse_wave_shock_branch = .true.
         return
     end if
     u_up = rs_shock_upstream_u(gamma_rel, sigma)
-    rs_fast_shock_allowed = (u_up*u_up > sigma)
-end function rs_fast_shock_allowed
+    rs_reverse_wave_shock_branch = (u_up*u_up > sigma)
+end function rs_reverse_wave_shock_branch
 
 real(8) function rs_fast_wave_shell_relative_beta(gamma4, sigma)
     implicit none
@@ -370,11 +377,74 @@ real(8) function rs_fast_wave_shell_relative_beta(gamma4, sigma)
     rs_fast_wave_shell_relative_beta = beta_fast/(gamma4*gamma4*(one-beta4*beta_fast))
 end function rs_fast_wave_shell_relative_beta
 
+real(8) function rs_shell_width(radius, gamma4, delta0)
+    implicit none
+    real(8), intent(in) :: radius, gamma4, delta0
+
+    rs_shell_width = max(delta0, radius/(gamma4*gamma4))
+end function rs_shell_width
+
+real(8) function rs_fast_wave_depth(radius, gamma4, sigma)
+    implicit none
+    real(8), intent(in) :: radius, gamma4, sigma
+    real(8) :: beta_shell
+
+    if (sigma <= zero) then
+        rs_fast_wave_depth = zero
+        return
+    end if
+    beta_shell = dsqrt(one-one/(gamma4*gamma4))
+    rs_fast_wave_depth = radius*rs_fast_wave_shell_relative_beta(gamma4,sigma)/beta_shell
+end function rs_fast_wave_depth
+
+real(8) function rs_shell_contact_fraction(radius, gamma4, sigma, delta_shell)
+    implicit none
+    real(8), intent(in) :: radius, gamma4, sigma, delta_shell
+    real(8) :: depth
+
+    if (sigma <= zero) then
+        rs_shell_contact_fraction = one
+        return
+    end if
+    depth = rs_fast_wave_depth(radius,gamma4,sigma)
+    if (depth >= delta_shell) then
+        rs_shell_contact_fraction = one
+    else
+        rs_shell_contact_fraction = depth/delta_shell
+    end if
+end function rs_shell_contact_fraction
+
+real(8) function rs_shocked_external_pressure_norm(gamma_cd, n1)
+    implicit none
+    real(8), intent(in) :: gamma_cd, n1
+
+    rs_shocked_external_pressure_norm = (4d0*gamma_cd+3d0)*(gamma_cd-one)*n1/3d0
+end function rs_shocked_external_pressure_norm
+
+real(8) function rs_ejecta_magnetic_pressure_norm(sigma, n4)
+    implicit none
+    real(8), intent(in) :: sigma, n4
+
+    rs_ejecta_magnetic_pressure_norm = 0.5d0*sigma*n4
+end function rs_ejecta_magnetic_pressure_norm
+
+real(8) function rs_pressure_balance_ratio(gamma_cd, n1, n4, sigma)
+    implicit none
+    real(8), intent(in) :: gamma_cd, n1, n4, sigma
+
+    if (sigma <= zero) then
+        rs_pressure_balance_ratio = huge(one)
+    else
+        rs_pressure_balance_ratio = rs_shocked_external_pressure_norm(gamma_cd,n1)/ &
+                                    rs_ejecta_magnetic_pressure_norm(sigma,n4)
+    end if
+end function rs_pressure_balance_ratio
+
 real(8) function rs_pressure_balance_sigma_cr(gamma4, n1, n4)
     implicit none
     real(8), intent(in) :: gamma4, n1, n4
 
-    rs_pressure_balance_sigma_cr = (8d0/3d0)*gamma4*gamma4*n1/n4
+    rs_pressure_balance_sigma_cr = two*(4d0*gamma4+3d0)*(gamma4-one)*n1/(3d0*n4)
 end function rs_pressure_balance_sigma_cr
 
 logical function rs_pressure_balance_allowed(gamma4, n1, n4, sigma)
@@ -384,7 +454,7 @@ logical function rs_pressure_balance_allowed(gamma4, n1, n4, sigma)
     if (sigma <= zero) then
         rs_pressure_balance_allowed = .true.
     else
-        rs_pressure_balance_allowed = (sigma < rs_pressure_balance_sigma_cr(gamma4,n1,n4))
+        rs_pressure_balance_allowed = (rs_pressure_balance_ratio(gamma4,n1,n4,sigma) >= one)
     end if
 end function rs_pressure_balance_allowed
 
