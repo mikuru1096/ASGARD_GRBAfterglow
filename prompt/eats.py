@@ -35,6 +35,11 @@ def project_branch_flux(
     geometry: EATSGeometry,
     numerics: EATSNumerics,
 ) -> np.ndarray:
+    if geometry.viewing_angle_rad != 0.0 and numerics.num_phi == 1:
+        raise ValueError(
+            "off-axis EATS projection requires num_phi >= 2; "
+            "num_phi=1 is only valid for on-axis axial collapse."
+        )
     boundary = np.zeros(10, dtype=float)
     boundary[0] = float(gamma[0])
     boundary[3] = float(radius_cm[0])

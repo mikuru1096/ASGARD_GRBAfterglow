@@ -34,28 +34,18 @@ module electron_transport_dg_1d_kernel
         real(8), allocatable :: x_gamma(:), gamma(:), dxgamma_dcoord(:), dln_gamma_dcoord(:)
     end type electron_dg1d_mesh
 
-    public :: electron_dg1d_build_mesh, electron_dg1d_initial_state, electron_dg1d_project_state
+    public :: electron_dg1d_initial_state, electron_dg1d_project_state
     public :: electron_dg1d_build_four_velocity_mesh
-    public :: electron_dg1d_gamma_nodes, electron_dg1d_source_nodes, electron_dg1d_kinetic_source_nodes
+    public :: electron_dg1d_gamma_nodes
     public :: electron_dg1d_project_source, electron_dg1d_project_kinetic_source
     public :: electron_dg1d_advance_step, electron_dg1d_scale_to_content
     public :: electron_dg1d_limit_positive_cell_preserving
     public :: electron_dg1d_apply_positive_kernel_filter
     public :: electron_dg1d_advance_characteristic_step
-    public :: electron_dg1d_project_to_grid, electron_dg1d_project_to_log_cells
     public :: electron_dg1d_project_to_coord_cells, electron_dg1d_integral
     public :: electron_dg1d_tail_moment_fraction
 
 contains
-
-subroutine electron_dg1d_build_mesh(x_min, x_max, x_break_a, x_break_b, x_break_c, mesh)
-    real(8), intent(in) :: x_min, x_max, x_break_a, x_break_b, x_break_c
-    type(electron_dg1d_mesh), intent(out) :: mesh
-    real(8) :: breaks(electron_dg1d_max_breaks)
-
-    breaks = (/x_break_a, x_break_b, x_break_c/)
-    call electron_dg1d_build_coord_mesh(electron_dg1d_coord_log_gamma, one, x_min, x_max, breaks, mesh)
-end subroutine electron_dg1d_build_mesh
 
 subroutine electron_dg1d_build_four_velocity_mesh(x_min, x_max, x_break_a, x_break_b, x_break_c, gamma_scale, mesh)
     real(8), intent(in) :: x_min, x_max, x_break_a, x_break_b, x_break_c, gamma_scale
@@ -77,10 +67,10 @@ subroutine electron_dg1d_build_coord_mesh(coord_kind, coord_scale, x_min, x_max,
     real(8) :: coord_min, coord_max
     integer :: n_active
 
-    if (x_max <= x_min) error stop 'electron_dg1d_build_mesh requires x_max > x_min'
+    if (x_max <= x_min) error stop 'electron_dg1d_build_coord_mesh requires x_max > x_min'
     coord_min = electron_dg1d_coord_from_xgamma(coord_kind, coord_scale, x_min)
     coord_max = electron_dg1d_coord_from_xgamma(coord_kind, coord_scale, x_max)
-    if (coord_max <= coord_min) error stop 'electron_dg1d_build_mesh requires a non-empty coordinate domain'
+    if (coord_max <= coord_min) error stop 'electron_dg1d_build_coord_mesh requires a non-empty coordinate domain'
     min_width = 1d-6*(coord_max - coord_min)
     breaks = x_breaks
     do n_active = 1, electron_dg1d_max_breaks
@@ -149,41 +139,6 @@ subroutine electron_dg1d_gamma_nodes(mesh, gamma_nodes)
 
     gamma_nodes = mesh%gamma
 end subroutine electron_dg1d_gamma_nodes
-
-subroutine electron_dg1d_source_nodes(mesh, source_norm, p, gamma_m, gamma_max, source)
-    type(electron_dg1d_mesh), intent(in) :: mesh
-    real(8), intent(in) :: source_norm, p, gamma_m, gamma_max
-    real(8), intent(out) :: source(mesh%ntot)
-    real(8) :: gamma
-    integer :: i
-
-    do i = 1, mesh%ntot
-        gamma = mesh%gamma(i)
-        if (gamma > gamma_m) then
-            source(i) = electron_dnx_powerlaw_cutoff_value(mesh%x_gamma(i), source_norm, p, gamma_max)* &
-                        mesh%dxgamma_dcoord(i)
-        else
-            source(i) = zero
-        endif
-    enddo
-end subroutine electron_dg1d_source_nodes
-
-subroutine electron_dg1d_kinetic_source_nodes(mesh, source_norm, p, gamma_m, gamma_max, source)
-    type(electron_dg1d_mesh), intent(in) :: mesh
-    real(8), intent(in) :: source_norm, p, gamma_m, gamma_max
-    real(8), intent(out) :: source(mesh%ntot)
-    real(8) :: gamma
-    integer :: i
-
-    source = zero
-    do i = 1, mesh%ntot
-        gamma = mesh%gamma(i)
-        if (gamma > gamma_m .and. source_norm > zero) then
-            source(i) = source_norm*gamma*dlog(ten)*(gamma - one)**(-p)*electron_exp_cutoff_factor(gamma, gamma_max)
-            source(i) = source(i)*mesh%dxgamma_dcoord(i)
-        endif
-    enddo
-end subroutine electron_dg1d_kinetic_source_nodes
 
 subroutine electron_dg1d_project_source(mesh, source_norm, p, gamma_m, gamma_max, source)
     type(electron_dg1d_mesh), intent(in) :: mesh
@@ -787,64 +742,6 @@ subroutine electron_dg1d_solve_dense(n, a, b)
         b(i) = tmp/a(i,i)
     enddo
 end subroutine electron_dg1d_solve_dense
-
-subroutine electron_dg1d_project_to_grid(mesh, state, num_gamma, gamma_grid, dndgamma)
-    type(electron_dg1d_mesh), intent(in) :: mesh
-    integer, intent(in) :: num_gamma
-    real(8), intent(in) :: state(mesh%ntot), gamma_grid(num_gamma)
-    real(8), intent(out) :: dndgamma(num_gamma)
-    real(8) :: x_eval, dnx_eval
-    integer :: i, k
-
-    do i = 1, num_gamma
-        x_eval = electron_dg1d_coord_from_xgamma(mesh%coord_kind, mesh%coord_scale, dlog10(gamma_grid(i)))
-        k = locate_domain(mesh, x_eval)
-        dnx_eval = interpolate_domain(mesh, state, k, x_eval)/ &
-                   electron_dg1d_dxgamma_dcoord(mesh%coord_kind, mesh%coord_scale, x_eval)
-        dndgamma(i) = dnx_eval/(gamma_grid(i)*dlog(ten))
-    enddo
-end subroutine electron_dg1d_project_to_grid
-
-subroutine electron_dg1d_project_to_log_cells(mesh, state, num_gamma, x_edge, gamma_grid, dndgamma)
-    type(electron_dg1d_mesh), intent(in) :: mesh
-    integer, intent(in) :: num_gamma
-    real(8), intent(in) :: state(mesh%ntot), x_edge(num_gamma+1), gamma_grid(num_gamma)
-    real(8), intent(out) :: dndgamma(num_gamma)
-    real(8) :: lo, hi, mid, half_width, x_eval, cell_content, x_width, y_edge(num_gamma+1)
-    integer :: i, k, k_start, q
-
-    call ensure_projection_quadrature(mesh%nnode)
-    do i = 1, num_gamma + 1
-        y_edge(i) = electron_dg1d_coord_from_xgamma(mesh%coord_kind, mesh%coord_scale, x_edge(i))
-    enddo
-    k_start = 1
-    do i = 1, num_gamma
-        cell_content = zero
-        do while (k_start < mesh%ndom .and. mesh%x_right(k_start) <= y_edge(i))
-            k_start = k_start + 1
-        enddo
-        k = k_start
-        do while (k <= mesh%ndom)
-            if (mesh%x_left(k) >= y_edge(i+1)) exit
-            lo = max(y_edge(i), mesh%x_left(k))
-            hi = min(y_edge(i+1), mesh%x_right(k))
-            if (hi <= lo) then
-                k = k + 1
-                cycle
-            endif
-            mid = 0.5d0*(lo + hi)
-            half_width = 0.5d0*(hi - lo)
-            do q = 1, mesh%nnode
-                x_eval = mid + half_width*projection_r(q)
-                cell_content = cell_content + half_width*projection_w(q)*interpolate_domain(mesh, state, k, x_eval)
-            enddo
-            k = k + 1
-        enddo
-        x_width = electron_dg1d_xgamma_from_coord(mesh%coord_kind, mesh%coord_scale, y_edge(i+1)) - &
-                  electron_dg1d_xgamma_from_coord(mesh%coord_kind, mesh%coord_scale, y_edge(i))
-        dndgamma(i) = cell_content/(x_width*gamma_grid(i)*dlog(ten))
-    enddo
-end subroutine electron_dg1d_project_to_log_cells
 
 subroutine electron_dg1d_project_to_coord_cells(mesh, state, num_gamma, coord_edge, dN_coord)
     type(electron_dg1d_mesh), intent(in) :: mesh

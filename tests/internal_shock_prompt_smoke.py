@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from prompt.eats import EATSNumerics
+from prompt.eats import EATSGeometry, EATSNumerics, project_branch_flux
 from prompt.internal_shock import InternalShockNumerics, InternalShockShell, fast_shock_allowed, simulate_internal_shock
 from prompt.radiation import InternalShockMicrophysics, RadiationNumerics, compute_prompt_observed_flux
 
@@ -58,7 +58,27 @@ def _assert_piecewise_smooth_positive_curve(curve: np.ndarray) -> None:
             assert np.count_nonzero(signs[1:] * signs[:-1] < 0.0) <= 1
 
 
+def _assert_prompt_eats_rejects_off_axis_phi_collapse() -> None:
+    try:
+        project_branch_flux(
+            characteristic_time_s=np.array([0.0, 1.0, 2.0], dtype=float),
+            gamma=np.full(3, 100.0, dtype=float),
+            radius_cm=np.array([1.0e15, 2.0e15, 3.0e15], dtype=float),
+            source_flux=np.ones((4, 3), dtype=float),
+            seed_frequency_hz=np.logspace(10.0, 13.0, 4),
+            observer_frequency_hz=np.array([1.0e11], dtype=float),
+            observer_time_s=np.array([0.5], dtype=float),
+            geometry=EATSGeometry(redshift=0.5, opening_angle_rad=0.1, viewing_angle_rad=0.02),
+            numerics=EATSNumerics(num_theta=4, num_phi=1, num_threads=1),
+        )
+    except ValueError as exc:
+        assert "off-axis EATS projection requires num_phi >= 2" in str(exc)
+    else:
+        raise AssertionError("prompt EATS accepted off-axis projection with num_phi=1")
+
+
 def main() -> None:
+    _assert_prompt_eats_rejects_off_axis_phi_collapse()
     hydro, hydro_flux = _run_case(0.0, 0.0)
     weak, weak_flux = _run_case(1.0e-4, 1.0e-4)
     magnetized, magnetized_flux = _run_case(0.1, 0.3)

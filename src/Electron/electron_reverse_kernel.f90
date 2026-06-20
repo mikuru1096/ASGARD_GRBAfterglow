@@ -19,12 +19,11 @@ module electron_reverse_kernel
     use electron_transport_dg_1d_kernel, only: electron_dg1d_mesh, electron_dg1d_advance_characteristic_step, &
                                                electron_dg1d_advance_step, &
                                                electron_dg1d_build_four_velocity_mesh, electron_dg1d_integral, &
-                                                electron_dg1d_limit_positive_cell_preserving, &
-                                                electron_dg1d_project_kinetic_source, &
-                                                electron_dg1d_project_state, electron_dg1d_project_to_grid, &
-                                                electron_dg1d_project_to_coord_cells, &
-                                                electron_dg1d_scale_to_content, electron_dg1d_tail_moment_fraction, &
-                                                electron_dg1d_apply_positive_kernel_filter
+                                               electron_dg1d_limit_positive_cell_preserving, &
+                                               electron_dg1d_project_kinetic_source, &
+                                               electron_dg1d_project_state, electron_dg1d_project_to_coord_cells, &
+                                               electron_dg1d_scale_to_content, electron_dg1d_tail_moment_fraction, &
+                                               electron_dg1d_apply_positive_kernel_filter
     use electron_radiation_kernel, only: get_syn_selected, get_nu_a
     use electron_cooling_kernel, only: prepare_forward_cooling_aux
     implicit none
