@@ -18,10 +18,14 @@ if str(ROOT) not in sys.path:
 from prompt.eats import EATSNumerics
 from prompt.internal_shock import InternalShockNumerics, InternalShockShell, simulate_internal_shock
 from prompt.radiation import InternalShockMicrophysics, RadiationNumerics, compute_prompt_observed_flux
+from src import Constants
 
 
 OUTPUT_DIR = Path(__file__).resolve().parent / "results"
 OKABE_ITO = ("#0072B2", "#D55E00", "#009E73", "#CC79A7", "#E69F00", "#56B4E9")
+BAND_ALPHA = -1.0
+BAND_BETA = -2.3
+BAND_E_PEAK_KEV = 300.0
 
 
 def main() -> None:
@@ -63,8 +67,11 @@ def main() -> None:
     _write_flux_npz(observer_time, observer_frequency, flux)
     _write_diagnostics(solution, flux)
     _write_summary_table(observer_time, observer_frequency, flux.total)
+    _write_band_reference_table(observer_time, observer_frequency, flux.total)
     _plot_lightcurves(observer_time, observer_frequency, flux.total)
+    _plot_lightcurves_linear(observer_time, observer_frequency, flux.total)
     _plot_spectra(observer_time, observer_frequency, flux.total)
+    _plot_band_spectrum(observer_time, observer_frequency, flux.total)
     _plot_components(observer_time, observer_frequency, flux)
 
 
@@ -134,6 +141,32 @@ def _write_summary_table(observer_time: np.ndarray, observer_frequency: np.ndarr
         writer.writerows(rows)
 
 
+def _write_band_reference_table(observer_time: np.ndarray, observer_frequency: np.ndarray, total: np.ndarray) -> None:
+    time_index = _bolometric_peak_index(observer_frequency, total)
+    energy_kev = observer_frequency / Constants.constants.para_kev2hz
+    model_nu_fnu = observer_frequency * total[:, time_index]
+    band_shape = _band_nu_fnu_shape(energy_kev, BAND_ALPHA, BAND_BETA, BAND_E_PEAK_KEV)
+    scale = float(np.max(model_nu_fnu) / np.max(band_shape))
+    band_nu_fnu = scale * band_shape
+    model_peak_index = int(np.argmax(model_nu_fnu))
+    compare = (energy_kev >= 10.0) & (energy_kev <= 1.0e4) & (model_nu_fnu > 0.0) & (band_nu_fnu > 0.0)
+    log_residual = np.log10(model_nu_fnu[compare] / band_nu_fnu[compare])
+    rows = (
+        ("alpha", BAND_ALPHA),
+        ("beta", BAND_BETA),
+        ("band_e_peak_keV", BAND_E_PEAK_KEV),
+        ("model_peak_time_s", float(observer_time[time_index])),
+        ("model_peak_energy_keV", float(energy_kev[model_peak_index])),
+        ("model_peak_nuFnu_erg_cm2_s", float(model_nu_fnu[model_peak_index])),
+        ("band_scale_nuFnu_erg_cm2_s", scale),
+        ("median_log10_model_over_band_10keV_10MeV", float(np.median(log_residual))),
+    )
+    with (OUTPUT_DIR / "formal_band_reference.csv").open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(("quantity", "value"))
+        writer.writerows(rows)
+
+
 def _plot_lightcurves(observer_time: np.ndarray, observer_frequency: np.ndarray, total: np.ndarray) -> None:
     _set_plot_style()
     bands = (("10 keV", 2.418e18), ("100 keV", 2.418e19), ("1 MeV", 2.418e20), ("100 MeV", 2.418e22), ("1 GeV", 2.418e23))
@@ -149,6 +182,38 @@ def _plot_lightcurves(observer_time: np.ndarray, observer_frequency: np.ndarray,
     ax.grid(alpha=0.25, lw=0.6)
     _set_positive_ylim(ax, [line.get_ydata() for line in ax.lines])
     fig.savefig(OUTPUT_DIR / "formal_lightcurves.png", dpi=300)
+    plt.close(fig)
+
+
+def _plot_lightcurves_linear(observer_time: np.ndarray, observer_frequency: np.ndarray, total: np.ndarray) -> None:
+    _set_plot_style()
+    bands = (("10 keV", 2.418e18), ("100 keV", 2.418e19), ("1 MeV", 2.418e20), ("100 MeV", 2.418e22), ("1 GeV", 2.418e23))
+    styles = (("-", "o"), ("--", "s"), ("-.", "^"), (":", "D"), ("-", "x"))
+    fig, ax = plt.subplots(figsize=(7.2, 4.8), constrained_layout=True)
+    curves = []
+    for idx, (label, frequency) in enumerate(bands):
+        curve = frequency * _interp_log_flux(observer_frequency, total, frequency)
+        curves.append(curve)
+        linestyle, marker = styles[idx]
+        ax.plot(
+            observer_time,
+            curve,
+            lw=2.0,
+            ls=linestyle,
+            marker=marker,
+            markevery=32,
+            ms=4.0,
+            color=OKABE_ITO[idx],
+            label=label,
+        )
+    ymax = float(np.max(np.concatenate(curves)))
+    ax.set_ylim(0.0, ymax * 1.08)
+    ax.set_xlabel("Observer time (s)")
+    ax.set_ylabel(r"$\nu F_\nu$ (erg cm$^{-2}$ s$^{-1}$)")
+    ax.set_title("Formal prompt internal-shock light curves, linear scale")
+    ax.legend(frameon=False, ncol=2)
+    ax.grid(alpha=0.25, lw=0.6)
+    fig.savefig(OUTPUT_DIR / "formal_lightcurves_linear.png", dpi=300)
     plt.close(fig)
 
 
@@ -189,6 +254,53 @@ def _plot_spectra(observer_time: np.ndarray, observer_frequency: np.ndarray, tot
     plt.close(fig)
 
 
+def _plot_band_spectrum(observer_time: np.ndarray, observer_frequency: np.ndarray, total: np.ndarray) -> None:
+    _set_plot_style()
+    time_index = _bolometric_peak_index(observer_frequency, total)
+    energy_kev = observer_frequency / Constants.constants.para_kev2hz
+    model_nu_fnu = observer_frequency * total[:, time_index]
+    band_shape = _band_nu_fnu_shape(energy_kev, BAND_ALPHA, BAND_BETA, BAND_E_PEAK_KEV)
+    band_nu_fnu = band_shape * float(np.max(model_nu_fnu) / np.max(band_shape))
+    ratio = model_nu_fnu / band_nu_fnu
+    fig, (ax, ratio_ax) = plt.subplots(
+        2,
+        1,
+        figsize=(7.2, 6.2),
+        sharex=True,
+        constrained_layout=True,
+        gridspec_kw={"height_ratios": (3.0, 1.0)},
+    )
+    ax.plot(energy_kev, model_nu_fnu, lw=2.1, color=OKABE_ITO[0], label=f"ASGARD peak t={observer_time[time_index]:.3g} s")
+    ax.plot(
+        energy_kev,
+        band_nu_fnu,
+        lw=2.0,
+        ls="--",
+        color=OKABE_ITO[1],
+        label=rf"Band $\alpha={BAND_ALPHA:g}$, $\beta={BAND_BETA:g}$, $E_{{pk}}={BAND_E_PEAK_KEV:g}$ keV",
+    )
+    ax.axvline(BAND_E_PEAK_KEV, color="0.35", lw=1.0, ls=":")
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.set_xlim(1.0, 1.0e5)
+    ax.set_ylabel(r"$\nu F_\nu$ (erg cm$^{-2}$ s$^{-1}$)")
+    ax.set_title("Peak-time spectrum against a normalized Band reference")
+    ax.legend(frameon=False)
+    ax.grid(alpha=0.25, lw=0.6, which="both")
+    _set_positive_ylim(ax, [model_nu_fnu, band_nu_fnu])
+    ratio_ax.plot(energy_kev, ratio, lw=1.8, color=OKABE_ITO[2])
+    ratio_ax.axhline(1.0, color="0.35", lw=1.0, ls=":")
+    ratio_ax.set_xscale("log")
+    ratio_ax.set_yscale("log")
+    ratio_ax.set_xlim(1.0, 1.0e5)
+    ratio_ax.set_ylim(1.0e-2, 1.0e2)
+    ratio_ax.set_xlabel("Observed energy (keV)")
+    ratio_ax.set_ylabel("Model/Band")
+    ratio_ax.grid(alpha=0.25, lw=0.6, which="both")
+    fig.savefig(OUTPUT_DIR / "formal_band_spectrum.png", dpi=300)
+    plt.close(fig)
+
+
 def _plot_components(observer_time: np.ndarray, observer_frequency: np.ndarray, flux) -> None:
     _set_plot_style()
     panels = (("100 keV", 2.418e19), ("1 MeV", 2.418e20))
@@ -224,6 +336,22 @@ def _interp_log_flux(frequency_grid: np.ndarray, matrix: np.ndarray, target_freq
         if np.count_nonzero(positive) >= 2:
             values[time_index] = np.exp(np.interp(np.log(target_frequency), log_frequency[positive], np.log(column[positive])))
     return values
+
+
+def _bolometric_peak_index(observer_frequency: np.ndarray, total: np.ndarray) -> int:
+    bolometric = np.trapezoid(total * observer_frequency[:, None], np.log(observer_frequency), axis=0)
+    return int(np.argmax(bolometric))
+
+
+def _band_nu_fnu_shape(energy_kev: np.ndarray, alpha: float, beta: float, e_peak_kev: float) -> np.ndarray:
+    e0_kev = e_peak_kev / (2.0 + alpha)
+    break_kev = (alpha - beta) * e0_kev
+    low = energy_kev <= break_kev
+    photon_shape = np.empty_like(energy_kev, dtype=float)
+    photon_shape[low] = (energy_kev[low] / 100.0) ** alpha * np.exp(-energy_kev[low] / e0_kev)
+    continuity = (break_kev / 100.0) ** (alpha - beta) * np.exp(beta - alpha)
+    photon_shape[~low] = continuity * (energy_kev[~low] / 100.0) ** beta
+    return energy_kev * energy_kev * photon_shape
 
 
 def _set_plot_style() -> None:
