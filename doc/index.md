@@ -4,20 +4,15 @@
   <img src="assets/logo.png" alt="ASGARD logo">
 </p>
 
-<p class="asgard-home-tagline">
-  The Rainbow Bridge of Asgard in Norse mythology has inspired R.J. to name the ASGARD package.
-  It traverses the Universe while shining, just like the GRB afterglow.
-</p>
-
 <p class="asgard-home-tagline-cn">
-  北欧神话中阿斯加德的彩虹桥启发 R.J. 将这一软件包命名为 ASGARD。其辉光横贯宇宙，恰似伽马暴余辉。
+  ASGARD 得名于北欧神话中的阿斯加德彩虹桥。它的目标是沿着爆波动力学、粒子输运和观测者投影这条主链，给出可追溯的伽马射线暴余辉计算。
 </p>
 
-本文档是当前工作树的统一入口。它服务三类读者：
+本文档是当前工作树的网页入口。它服务三类读者：
 
 - 使用者：安装项目、运行光变/谱/偏振/天图、读取输出。
 - 研究者：理解物理模块、开关、边界和验收口径。
-- 开发者：修改 Fortran/Python 主链、重建扩展、刷新 benchmark、提交可追溯结果。
+- 开发者：修改 Fortran/Python 主链、重建扩展、刷新基准测试、提交可追溯结果。
 
 公开入口：
 
@@ -26,73 +21,55 @@
 
 ## 推荐阅读路径
 
-首次使用：
+网页导航按用途分为五组。
 
-1. `README.md`
-2. `doc/installation.md`
-3. `doc/quickstart.md`
-4. `doc/command_line.md`
-5. `doc/examples.md`
-6. `doc/public_api.md`
-7. `doc/fitting_workflow.md`
-8. `doc/mcmc_fitting.md`
-9. `doc/parameter_reference.md`
-10. `doc/external_inference.md`
-11. `doc/troubleshooting.md`
+入门：
 
-理解物理和数值主链：
+1. `doc/terminology.md`：术语与中英混排规则。
+2. `doc/installation.md`：安装和构建。
+3. `doc/quickstart.md`：最小光变、谱和频段积分。
+4. `doc/command_line.md`：构建、作图、文档和基准测试命令。
+5. `doc/troubleshooting.md`：常见失败模式。
 
-1. `doc/project_physics_design.md`
-2. `doc/physical_processes.md`
-3. `doc/project_algorithm_design.md`
-4. `doc/algorithm_workflow.md`
-5. `doc/physics_model.md`
-6. `doc/numerical_methods.md`
-7. `doc/joint_secondary_feedback_physics.md`
-8. `doc/joint_secondary_feedback_algorithm.md`
-9. `doc/code_overview.md`
-10. `doc/call_chain.md`
-11. `doc/code_metrics.md`
+建模与接口：
 
-开发或刷新基准图：
+1. `doc/examples.md`：多频光变、宽频谱、辐射分量、内部量和观测预测教程。
+2. `doc/parameter_reference.md`：参数含义和选择建议。
+3. `doc/public_api.md`：公开 API 选择手册。
+4. `doc/fitting_workflow.md`：从数据到似然函数和拟合结果的完整路径。
+5. `doc/mcmc_fitting.md`：emcee 与 PyMultiNest 专题。
+6. `doc/external_inference.md`：外部采样器边界和包装方式。
+7. `doc/magnetized_rs_dg1d_tutorial.md`：磁化反向激波、`dg_1d` 高阶电子输运和当前收敛阶。
 
-1. `AGENTS.md`
-2. `PLAN.md`
-3. `TODO.md`
-4. `doc/developer_guide.md`
-5. `doc/validation_and_benchmarks.md`
+物理模型：
 
-网页文档发布：
+1. `doc/project_physics_design.md`：全项目物理设计总纲。
+2. `doc/physical_processes.md`：动力学、电子、辐射、强子、级联和投影的过程说明。
+3. `doc/physics_model.md`：公开模型能力和边界。
+4. `doc/joint_secondary_feedback_physics.md`：二级粒子联合反馈物理。
+5. `doc/pair_cascade_extension_boundary.md`：对级联边界。
+6. `doc/hadronic_chi_transport_decision.md`：强子 \(\chi\) 分辨输运暂不实现的决策。
+7. `doc/hadronic_pgamma_notes.md`：\(p\gamma\) 微物理和基准说明。
 
-1. `doc/web_docs.md`
-2. `mkdocs.yml`
-3. `.github/workflows/docs-pages.yml`
+算法与数值：
 
-专题决策记录：
+1. `doc/project_algorithm_design.md`：全项目算法设计总纲。
+2. `doc/algorithm_workflow.md`：数组维度、离散方程、缓存和验证矩阵。
+3. `doc/shock_shell_adaptive_algorithms.md`：有限厚壳层、反向激波和自适应网格。
+4. `doc/numerical_methods.md`：数值方法和构建检查。
+5. `doc/electron_solver_algorithms.md`：电子输运算法。
+6. `doc/fullhide2d_pwn_cr_transport.md`：`fullhide2d_transport_model="pwn_cr_v1"` 的物理契约。
+7. `doc/joint_secondary_feedback_algorithm.md`：`electron_photon_coupling="joint"` 的状态机和数组契约。
 
-- `doc/terminology.md`：中文术语表和公式书写规则。
-- `doc/command_line.md`：构建、作图、文档和 benchmark 的命令行入口。
-- `doc/examples.md`：多频光变、宽频谱、辐射分量、内部量和观测预测教程。
-- `doc/public_api.md`：公开 API 选择手册，按“可以选什么、含义、效果、注意事项”解释 `Model`、求解器、物理开关和查询接口。
-- `doc/fitting_workflow.md`：从零开始的拟合教程，覆盖数据单位、参数绑定、likelihood、emcee、PyMultiNest 和物理验收。
-- `doc/mcmc_fitting.md`：emcee 与 PyMultiNest 专题，说明采样变量、先验、运行参数、限制和结果解读。
-- `doc/external_inference.md`：Redback、bilby、BlackJAX 等外部采样器的当前边界和包装方式。
-- `doc/public_backend_limits.md`：public API 与 backend 的不支持/部分支持边界。
-- `TODO.md`：唯一 TODO / 未完成项入口。
-- `doc/project_physics_design.md`：全项目物理设计总纲，覆盖动力学、电子、辐射、强子、级联、偏振、投影和物理验收。
-- `doc/physical_processes.md`：物理过程详解，从坐标、动力学、电子、辐射、强子、级联到 EATS 投影逐步推导。
-- `doc/project_algorithm_design.md`：全项目算法设计总纲，覆盖状态机、网格、求解器、Python/Fortran 边界、投影、拟合、构建和验证。
-- `doc/algorithm_workflow.md`：算法流程详解，解释数组维度、离散方程、`fullhide_1d`、强子 transport、EATS、缓存和验证矩阵。
-- `doc/shock_shell_adaptive_algorithms.md`：集中说明 \(\chi\) 分辨有限厚壳层、抛射物反向激波、密度增强触发的次级反向激波和自适应网格算法。
-- `doc/joint_secondary_feedback_physics.md`：含时 BH、二级 e±、光子 sink/source 和 `R` 坐标能量预算的物理契约。
-- `doc/joint_secondary_feedback_algorithm.md`：`electron_photon_coupling="joint"` 的状态机、数组契约、函数入口、测试和 benchmark。
-- `doc/hadronic_chi_transport_decision.md`：当前不实现 2D / \(\chi\) 分辨 hadronic transport 的理由和前置物理契约。
-- `doc/pair_cascade_extension_boundary.md`：当前 gamma-gamma pair/synch cascade 与 IC-mediated electromagnetic cascade 的边界。
-- `doc/hadronic_pgamma_notes.md`：p-gamma 微物理和基准说明。
-- `doc/am3_migration_plan.md`：AM3 共存、迁移和引用边界。
-- `doc/electron_solver_algorithms.md`：电子输运算法说明。
-- `doc/fullhide2d_pwn_cr_transport.md`：`fullhide2d_transport_model="pwn_cr_v1"` 的物理契约和边界布局。
-- `doc/web_docs.md`：通过 `asgard-private` 发布仅合作者可见 GitHub Pages 文档站的设置和维护流程。
+开发、验证与发布：
+
+1. `AGENTS.md`、`PLAN.md`、`TODO.md`：工作规则、当前计划和唯一未完成项入口。
+2. `doc/developer_guide.md`：开发流程。
+3. `doc/validation_and_benchmarks.md`：构建门禁、冒烟测试和基准刷新。
+4. `doc/public_backend_limits.md`：公开 API 与后端能力边界。
+5. `doc/code_overview.md`、`doc/source_tree.md`、`doc/call_chain.md`、`doc/code_metrics.md`：代码结构和调用链。
+6. `doc/am3_migration_plan.md`：AM3 共存、迁移和引用边界。
+7. `doc/web_docs.md`：网页文档发布和 HEtools 托管流程。
 
 除 `README.md`、`AGENTS.md`、`PLAN.md` 和 `TODO.md` 这类根目录入口/开发状态文件外，用户说明、物理说明、算法设计、API 参考、教程、拟合说明和验证说明都应维护在本 `doc/` 网页文档树中。专题计划若已经沉淀为当前能力或明确边界，应合并到对应网页章节，不再保留根目录副本文档。
 
@@ -103,19 +80,19 @@ ASGARD 当前主线是 GRB 余辉的壳层演化爆波和观测者投影模型�
 已登记并可用的主功能：
 
 - 正向激波动力学、电子输运、同步辐射、同步自康普顿、同步自吸收、\(\gamma\gamma\) 吸收和观测者投影。
-- 1D 电子求解器：`fullhide_1d`, `slc1_1d`, `charint_1d`, `dg_1d`, `t2g1_1d`, `weno5_1d`。
+- 1D 电子求解器：`fullhide_1d`, `slc1_1d`, `charint_1d`, `dg_1d`, `t2g1_1d`, `weno5_1d`；`dg_1d` 是正向/反向激波共享、需要显式启用的 P12 LGL-DG 路径，默认使用问题单元正性核。
 - 2D 电子求解器：`fullhide_2d`, `charint_2d`。
-- `chi_eats_2d` 观测者投影：FS synchrotron+SSA 使用 \(\chi\) 分辨有限厚壳层；`projection_kind="lightcurve"` 走专用光变投影，`projection_kind="sed"` 走通用 SED 插值器。
+- `chi_eats_2d` 观测者投影：FS 同步辐射 + SSA 使用 \(\chi\) 分辨有限厚壳层；`projection_kind="lightcurve"` 走专用光变投影，`projection_kind="sed"` 走通用 SED 插值器。
 - 反向激波电子同步辐射、RS SSC、FS/RS 跨区逆康普顿。
-- 反向激波热/磁化基线：使用 shock-front `gamma34` 注入能标、显式 `U3/V3` thermal state、可选 upstream `sigma` 和 ordered magnetic component。
-- 正向激波强子 `legacy_1d` 与 formal `am3_1d` research path。
-- `electron_photon_coupling="joint"` opt-in 壳层级联合闭合：正向激波电子、光子场、formal 强子输运、BH/pp/\(\gamma\gamma\) 二级 \(e^\pm\) 和 photon survival 在同一 \(R\) 网格上迭代。
-- 反向激波强子 light proton-synch path，以及复用 formal 1D 强子核的 full-chain dispatch。
-- \(\gamma\gamma\) 对产生与 shell-sequence time-dependent pair/synch cascade。
-- 同步辐射偏振 Stokes 投影，覆盖 FS/RS electron synch 与 FS/RS hadronic synch。
-- `Model` public API、`Fitter` 拟合 API、benchmark/report 脚本。
+- 反向激波热/磁化基线：使用激波前沿 `gamma34` 注入能标、显式 `U3/V3` 热状态、可选 `ReverseShock.upstream_sigma`、有限强度 MHD 跳跃条件和有序磁场分量。
+- 正向激波强子 `legacy_1d` 与正式研究路径 `am3_1d`。
+- `electron_photon_coupling="joint"` 是需要显式启用的壳层级联合闭合：正向激波电子、光子场、正式强子输运、BH/pp/\(\gamma\gamma\) 二级 \(e^\pm\) 和光子存活率在同一 \(R\) 网格上迭代。
+- 反向激波强子轻量质子同步辐射路径，以及复用正式 1D 强子核的完整链路调度。
+- \(\gamma\gamma\) 对产生与壳层序列含时对产生/同步辐射级联。
+- 同步辐射偏振 Stokes 投影，覆盖 FS/RS 电子同步辐射与 FS/RS 强子同步辐射。
+- `Model` 公开 API、`Fitter` 拟合 API、基准测试和报告脚本。
 
-未完成项、不支持 backend 边界和实现准入条件集中维护在根目录 `TODO.md` 与 `doc/public_backend_limits.md`，避免文档间分散待办列表。
+未完成项、不支持的后端边界和实现准入条件集中维护在根目录 `TODO.md` 与 `doc/public_backend_limits.md`，避免文档间分散待办列表。
 
 ## 核心入口
 
@@ -145,6 +122,6 @@ rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/AS
 
 - 文档必须描述当前工作树，而不是理想设计。
 - 物理边界必须写明原因、开关、验收口径和不可用范围。
-- Benchmark 图像和 CSV 只有在能由脚本复现且命令已记录时才进入版本库。
-- Fortran 或物理路径改动后的验证必须记录编译命令、line-truncation 检查和最小 smoke test。
-- 不使用经验 smoothing、fallback、后处理补丁掩盖非连续或非光滑结果；物理量随时间/空间不光滑时优先查 bug。
+- 基准测试图像和 CSV 只有在能由脚本复现且命令已记录时才进入版本库。
+- Fortran 或物理路径改动后的验证必须记录编译命令、行截断检查和最小冒烟测试。
+- 不使用经验平滑、兜底路径或后处理补丁掩盖非连续或非光滑结果；物理量随时间/空间不光滑时优先查 bug。

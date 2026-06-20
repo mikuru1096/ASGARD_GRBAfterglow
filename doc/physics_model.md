@@ -131,11 +131,13 @@ SSC、强子、pair cascade 当前仍是壳层级契约。启用 `chi_eats_2d` �
 
 - 注入能标使用 shock-front `gamma34`。
 - 区域 3 湍动磁场和 crossing 后热演化使用显式 `U3/V3` thermal state。
-- `reverse_sigma` 引入上游磁化；磁化 jump 使用 VegasAfterglow 的 jump-condition 形式作为来源和 comparison backend。
+- 用户字段 `ReverseShock.upstream_sigma` 引入上游磁化；内部 `reverse_sigma`/`sigma_r` 只是同一量的配置名。
+- 有限 \(\sigma\) 下 `E_iso` 仍是总 ejecta 能量，baryonic ejecta mass 使用 \(E_{\rm iso}/[(1+\sigma)\Gamma_0c^2]\)。
+- 磁化 RS 不是单纯增加 ordered field；它同时改变 pressure-balance 触发、MHD jump compression、下游热比内能、有序磁场惯性和 crossing 后 ordered-field evolution。
 - `B3` 是 turbulent + ordered total field。
 - `sigma -> 0` 必须回到当前非磁化 baseline。
 
-VegasAfterglow 在当前项目中是 comparison backend，不是光变目标或 RS 物理基准。
+VegasAfterglow 在当前项目中只作为 jump-condition comparison backend，不是光变目标或 RS 全局动力学基准。
 
 抛射物反向激波与密度增强触发的次级反向激波的完整四区图像、\(\gamma_{34}\)、区域 3 reservoir、磁化压缩比、热上游 Riemann 问题和新增耗散能公式见 `doc/shock_shell_adaptive_algorithms.md`。
 

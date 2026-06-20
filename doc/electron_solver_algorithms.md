@@ -4,19 +4,63 @@
 
 ## 1. 统一变量
 
-1D 求解器在能量对数坐标
+电子求解器对外输出仍使用电子 Lorentz 因子的对数网格
 
 \[
-x=\log_{10}\gamma_e
+x_\gamma=\log_{10}\gamma_e .
 \]
 
-上推进电子谱。主守恒变量是
+辐射核需要的固定网格变量是
 
 \[
-dN_x
+dN_{x_\gamma}
 =\frac{\mathrm{d}N}{\mathrm{d}\log_{10}\gamma_e}
 =\gamma_e\ln 10\frac{\mathrm{d}N}{\mathrm{d}\gamma_e}.
 \]
+
+当前 1D transport 公共层允许内部能量坐标 \(y\) 不等于 \(x_\gamma\)。`fullhide_1d` 和 `dg_1d` 的正式 1D 路径使用均匀 log-four-velocity 坐标
+
+\[
+y
+=
+\log_{10}
+\left[
+1+\frac{\gamma_e^2-1}{\gamma_*^2-1}
+\right],
+\qquad
+\gamma_*=2 .
+\]
+
+低能区接近四速度/动量空间，高能区渐近于 \(2x_\gamma-\log_{10}(\gamma_*^2-1)\)。任意内部坐标 \(y\) 上的守恒变量写为
+
+\[
+dN_y
+=
+\frac{\mathrm{d}N}{\mathrm{d}y}
+=
+dN_{x_\gamma}
+\frac{\mathrm{d}x_\gamma}{\mathrm{d}y}.
+\]
+
+对 log-four-velocity 坐标，
+
+\[
+\gamma_e(y)
+=
+\left[
+1+(\gamma_*^2-1)(10^y-1)
+\right]^{1/2},
+\]
+
+\[
+J_y
+\equiv
+\frac{\mathrm{d}x_\gamma}{\mathrm{d}y}
+=
+\frac{(\gamma_*^2-1)10^y}{2\gamma_e^2}.
+\]
+
+因此输出给辐射核时先做守恒投影，再除以 \(J_y\) 回到 \(dN_{x_\gamma}\) 或 \(\mathrm{d}N/\mathrm{d}\gamma_e\)。
 
 2D 求解器额外展开下游厚壳坐标
 
@@ -95,30 +139,47 @@ N(\gamma_e,R)=\frac{\mathrm{d}N}{\mathrm{d}\gamma_e},
 =Q.
 \]
 
-变换到 \(x=\log_{10}\gamma_e\) 后，
+变换到 \(x_\gamma=\log_{10}\gamma_e\) 后，
 
 \[
-\frac{\partial dN_x}{\partial R}
-+\frac{\partial}{\partial x}
-\left(A_xdN_x\right)
+\frac{\partial dN_{x_\gamma}}{\partial R}
++\frac{\partial}{\partial x_\gamma}
+\left(A_{x_\gamma}dN_{x_\gamma}\right)
 =S_x,
 \]
 
 其中
 
 \[
-A_x=\frac{\gamma'_e}{\gamma_e\ln 10},
+A_{x_\gamma}=\frac{\gamma'_e}{\gamma_e\ln 10},
 \qquad
 S_x=\gamma_e\ln 10\,Q.
 \]
 
-实际离散中的面速度近似为
+若内部使用 \(y\) 坐标，方程乘以雅可比 \(J_y=\mathrm{d}x_\gamma/\mathrm{d}y\) 后仍保持守恒形式：
 
 \[
-A_{\rm face}\simeq dE_{\ell,{\rm mean}}+\frac{1}{R\ln 10},
+\frac{\partial dN_y}{\partial R}
++\frac{\partial}{\partial y}
+\left(A_y dN_y\right)
+=S_y,
 \]
 
-第二项是球对称膨胀给出的绝热项。
+\[
+A_y=\frac{A_{x_\gamma}}{J_y},
+\qquad
+S_y=J_yS_x.
+\]
+
+实际离散中的 log-gamma 面速度近似为
+
+\[
+A_{x_\gamma,{\rm face}}
+\simeq
+\frac{dE_{\ell,{\rm mean}}+\alpha_{\rm ad}}{\ln 10},
+\]
+
+其中 \(dE_\ell\) 是 cooling kernel 汇总后的辐射、SSA 和 IC 损失系数，\(\alpha_{\rm ad}\) 是 wrapper 显式传入的绝热率。FS 使用 \(\alpha_{\rm ad}=1/R\)，RS 使用区域 3 体积演化给出的对应 branch rate；DG 核本身不重新推导 shock 物理。
 
 ## 4. 2D 连续方程
 
@@ -153,21 +214,199 @@ A_{\rm face}\simeq dE_{\ell,{\rm mean}}+\frac{1}{R\ln 10},
 
 ## 6. `dg_1d` 谱元路径
 
-`dg_1d` 的核心空间变量仍是 \(dN_x\)，内部在多个 LGL 谱元上表示多项式状态。FS 与 primary RS 共用同一个 DG transport kernel，但物理源项保持各自定义：
+`dg_1d` 的核心守恒变量是 \(dN_y\)，当前 FS/RS 正式路径使用上节的 log-four-velocity 坐标。固定输出网格仍由 `Numerics.num_electron_gamma` 控制，当前基准使用 121 个电子网格；DG 内部使用 P12 LGL 谱元和移动分段网格，不要求输出格点与谱元节点一一对应。
+
+设某个谱元 \(I_k=[y_L^k,y_R^k]\)，线性映射为
+
+\[
+y(r)
+=
+y_L^k+\frac{r+1}{2}\Delta y^k,
+\qquad
+\Delta y^k=y_R^k-y_L^k,
+\qquad
+r\in[-1,1].
+\]
+
+P12 表示每个谱元有 \(N+1=13\) 个 LGL 节点 \(r_i\) 和权重 \(w_i\)。节点插值写为
+
+\[
+U_h^k(r,R)
+=
+\sum_{i=0}^{N}U_i^k(R)\ell_i(r),
+\qquad
+U_i^k=dN_y(y(r_i)).
+\]
+
+当前网格把每个物理段再切成 6 个谱元。物理段边界来自当前活动的 \(\gamma_m\)、\(\gamma_c\)、高能活动边界和低能断点；落在计算域外或彼此太近的断点不会生成独立段。这个设计的目的不是减少到最小自由度，而是在 121 个正式输出格点下让冷却断点、高能指数尾和 RS 低能 kinetic bump 不被单个宽 cell 控制。
+
+对守恒方程
+
+\[
+\frac{\partial U}{\partial R}
++\frac{\partial (aU)}{\partial y}
+=S
+\]
+
+乘以 \(\ell_i\) 并在 LGL 节点上做质量矩阵求逆，得到半离散式
+
+\[
+\frac{\mathrm{d}U_i^k}{\mathrm{d}R}
+=
+\frac{2}{\Delta y^k w_i}
+\sum_{j=0}^{N}
+w_jD_{ji}\,a_jU_j^k
++{\cal F}_i^k
++S_i^k .
+\]
+
+这里 \(D_{ji}=\ell_i'(r_j)\)。边界项只作用在端点：
+
+\[
+{\cal F}_0^k
+=
+\frac{2}{\Delta y^k w_0}\hat f_{L}^{\,k},
+\qquad
+{\cal F}_N^k
+=
+-\frac{2}{\Delta y^k w_N}\hat f_{R}^{\,k}.
+\]
+
+冷却主导时 \(a<0\)，信息从高能流向低能，右端面取本谱元右端状态，左端面取右侧相邻谱元的状态。若局部 SSA 回热或其它项让 \(a>0\)，代码切到全局 dense assemble，按每个端面速度符号自动选择迎风状态。时间推进当前固定为后向 Euler：
+
+\[
+\left(I-\Delta R K\right)U^{n+1}
+=
+U^n+\Delta R S^{n+1}.
+\]
+
+FS 与 primary RS 共用同一个 DG transport kernel，但物理源项保持各自定义：
 
 - FS 源项仍使用 \(\gamma^{-p}\)。
-- RS kinetic 源项使用 \((\gamma-1)^{-p}\)。当前 primary RS DG 为避免 \(\gamma_m\simeq1\) 附近的 kinetic singular 被节点采样放大，先在正式 \(\log\gamma\) 网格上构造与 fullhide 相同的 cell-averaged kinetic 源项，再插值到 DG 节点并按注入粒子数守恒归一化；不使用节点解析源项作为默认路径。
+- RS kinetic 源项使用 \((\gamma-1)^{-p}\)。当前 primary RS DG 为避免 \(\gamma_m\simeq1\) 附近的 kinetic singular 被节点采样放大，先在正式 log-four-velocity cell 上构造与 fullhide 相同的 cell-averaged kinetic 源项，再投影到 DG 节点并按注入粒子数守恒归一化；不使用节点解析源项作为默认路径。
 - SSA/IC/同步冷却仍由 cooling kernel 给出；DG transport 层只接收最终损失率、绝热率和源项。
 
-FS DG 在壳层之间持续保存 DG state，并在 \(\gamma_m,\gamma_c,\gamma_{\max}\) 移动时重投影到新谱元。RS DG 同样跨 shell 持久保存 DG state；只在输出给固定 \(\log\gamma\) 网格和辐射核时使用守恒 cell 投影。RS DG 对断点附近的正谱多项式使用 cell-average preserving positivity limiter，保持元素平均粒子数，不作为后处理 smoothing。
+FS DG 在壳层之间持续保存 DG state，并在 \(\gamma_m,\gamma_c,\gamma_{\max}\) 移动时重投影到新谱元。RS DG 同样跨 shell 持久保存 DG state；只在输出给固定电子网格和辐射核时使用守恒 cell 投影。RS DG 对断点附近的正谱多项式使用 cell-average preserving positivity limiter，保持元素平均粒子数，不作为后处理 smoothing。
 
-默认 troubled positive-kernel 在每次 DG advance 和 remesh projection 后执行。它先用 Legendre modal 投影识别高阶模态能量占比超过阈值或出现负值的谱元，再对该谱元及相邻谱元施加 Jackson positive-kernel 因子，0 阶模态不变。因此滤波只作用在局部 troubled region，不改变全局粒子数平均，也不是输出端平滑。可用 `ASGARD_DG1D_POSITIVE_KERNEL=0` 关闭该滤波做诊断，或用 `jackson`/`fejer` 对比全域核。
+默认 troubled positive-kernel 在每次 DG advance 和 remesh projection 后执行。每个谱元先投影到 Legendre 模态：
+
+\[
+U_h^k(r)
+=
+\sum_{m=0}^{N}\hat U_m^kP_m(r),
+\qquad
+\hat U_m^k
+=
+\frac{2m+1}{\Delta y^k}
+\int_{y_L^k}^{y_R^k}
+U_h^k(y)P_m(r(y))\,\mathrm{d}y .
+\]
+
+若节点值出现负值，或最高 6 个模态满足
+
+\[
+\frac{\sum_{m=m_{\rm hi}}^{N}|\hat U_m^k|}
+{\sum_{m=0}^{N}|\hat U_m^k|}
+>2\times10^{-2},
+\qquad
+m_{\rm hi}=\max(1,N-5),
+\]
+
+该谱元被标记为 troubled。默认模式只滤波 troubled 谱元及左右相邻谱元。滤波不改变 0 阶模态：
+
+\[
+\hat U_0^{k,{\rm new}}=\hat U_0^k,
+\qquad
+\hat U_m^{k,{\rm new}}
+=
+\sigma_m\hat U_m^k,\quad m\ge1 .
+\]
+
+默认 Jackson 因子为
+
+\[
+\sigma_m^J
+=
+\frac{
+(N-m+2)\cos\theta_m
++\sin\theta_m/\tan\theta_1
+}{N+2},
+\qquad
+\theta_m=\frac{\pi m}{N+2}.
+\]
+
+诊断模式 `ASGARD_DG1D_POSITIVE_KERNEL=fejer` 使用
+
+\[
+\sigma_m^F=1-\frac{m}{N+1}.
+\]
+
+环境变量未设置时使用 `troubled`。`0/off/false/none` 关闭滤波，`1/on/true/jackson` 使用全域 Jackson，`fejer` 使用全域 Fejer。默认 `troubled` 是局部高阶模态衰减，不是输出端 smoothing；它保留 cell average，因此不改变谱元平均粒子数。
 
 当前时间推进基线不改变：DG 每个 shell 使用 10 个基础子步，密度跳变时 FS DG 仍由 jump-aware limiter 自适应缩步。RS fullhide 保持原 100--1000 冷却子步，RS DG 与 FS DG 对齐为 10 个基础子步。
 
+### 6.1 当前收敛阶
+
+`dg_1d` 的收敛阶必须按“能量空间离散”和“半径/时间推进”分开读。当前谱元阶数为 \(N=12\)。在光滑、未触发 positive-kernel 的谱元内，LGL-DG 对线性守恒平流的空间离散具有
+
+\[
+\|U-U_h\|_{L^2(I_k)}
+=
+{\cal O}\!\left((\Delta y_k)^{N+1}\right)
+=
+{\cal O}\!\left((\Delta y_k)^{13}\right),
+\]
+
+前提是速度、源项和映射在该谱元内足够光滑，且断点没有落在谱元内部。LGL 节点插值本身是 12 次多项式，单元平均由 \(m=0\) 模态给出；源项和投影在当前实现中按谱元守恒积分归一化，因此 smooth-cell 的主误差来自高阶截断而不是输出网格采样。
+
+端到端电子推进的当前有效阶数不是 13 阶。原因是半径方向仍使用后向 Euler：
+
+\[
+(I-\Delta R K)U^{n+1}=U^n+\Delta R S^{n+1},
+\]
+
+所以在 cooling/source 系数随 \(R\) 平滑变化的普通 shell-to-shell 推进中，全局时间/半径阶数为
+
+\[
+U(R)-U_{\Delta R}(R)
+=
+{\cal O}(\Delta R).
+\]
+
+10 个 DG 基础子步只是降低 \(\Delta R\) 的误差系数，不改变这一阶数。密度跳变附近的 jump-aware 缩步同样服务于解析物理变化率，而不是把 BE 改成高阶时间格式。
+
+在 troubled 谱元或真实断点附近，Jackson/Fejer kernel 会衰减高阶模态。此时不声明点值的 13 阶收敛；验收口径改为守恒平均不变、支撑连续、无负值和辐射结果平滑。断点被移动谱元边界捕捉时，断点两侧的 smooth-cell 仍按高阶空间收敛，断点本身按分段光滑问题处理。
+
+Primary RS crossing 后的纯冷却段不是 BE 时间推进。若冷却系数在累计步内固定，解析特征线映射对冷却方程本身是精确的；剩余误差来自 crossing 谱的守恒重映射和冷却系数随壳层变化的取样，而不是 repeated upwind diffusion。
+
 RS 高能尾的当前验收口径是分辨率收敛而不是强贴合 121 格 fullhide。121 格 fullhide 在 post-crossing 高能截断处有明显一阶隐式上风数值扩散；`num_gam_e=241` 时 fullhide 截断向 DG 收缩。因此 `dg_1d` 的较窄高能尾不视为单独错误，除非高分辨率 fullhide、解析特征线或守恒谱形诊断也显示同向偏差。
 
-Primary RS 在完全 crossing 之后没有新的反向激波注入。`fullhide_1d` 和 `dg_1d` 都不再继续用各自的 shell-to-shell 数值输运推进这段纯冷却演化，而是在 crossing 后缓存固定网格上的 \(dN_x\)，随后只累计当前网格边界回溯到 crossing 网格的 characteristic edge map；输出给辐射核时从 crossing 谱一次做保守重映射。低能端使用闭合边界，冷却到电子网格下界以下的数目保留在最低能单元。这样避免 repeated projection 或一阶隐式上风扩散生成的硬截断、平台、过宽高能尾和 late-time 清零。当前有效支撑图保留在 `output/asgard_doc/dg_radiation_stability_scan/postcross_direct_map_effective_support/`。
+Primary RS 在完全 crossing 之后没有新的反向激波注入。`fullhide_1d` 和 `dg_1d` 都不再继续用各自的 shell-to-shell 数值输运推进这段纯冷却演化，而是在 crossing 后缓存固定网格上的 \(dN_y\)，随后只累计当前网格边界回溯到 crossing 网格的 characteristic edge map；输出给辐射核时从 crossing 谱一次做保守重映射。若冷却律写成
+
+\[
+\frac{\mathrm{d}\gamma}{\mathrm{d}\tau}
+=
+-a\gamma^2-b\gamma,
+\]
+
+则从 crossing 到当前时刻的解析映射为
+
+\[
+\gamma(\tau)
+=
+\frac{\gamma_0e^{-b\tau}}
+{1+(a/b)\gamma_0(1-e^{-b\tau})},
+\qquad b\ne0,
+\]
+
+\[
+\gamma(\tau)
+=
+\frac{\gamma_0}{1+a\gamma_0\tau},
+\qquad b=0.
+\]
+
+代码用这个映射把当前 cell edge 回溯到 crossing edge，再做守恒积分。低能端使用闭合边界，冷却到电子网格下界以下的数目保留在最低能单元。这样避免 repeated projection 或一阶隐式上风扩散生成的硬截断、平台、过宽高能尾和 late-time 清零。当前有效支撑图保留在 `output/asgard_doc/dg_radiation_stability_scan/postcross_direct_map_effective_support/`。
 
 ## 7. 子步与近似
 

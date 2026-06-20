@@ -81,7 +81,7 @@
 | wind afterglow | `WindMedium`, `forward_legacy` | 外介质 \(n\propto R^{-2}\)，减速标度比 ISM 更浅。 | \(\Gamma(t)\) 是否接近 wind 标度，早期 SSA 是否合理。 |
 | 结构化喷流 off-axis | `gaussian_jet` 或 `power_law_jet`, `structured_backend="fortran_1d"` | 每个角向 patch 有不同能量和 \(\Gamma_0\)，观测峰由 Doppler cone 进入视线决定。 | 角向采样收敛、峰时随 `viewing_angle_rad` 连续变化。 |
 | 壳层级自适应 EATS | `geometry_projection="sed_adaptive_theta"` | 普通 shell-level SED 投影在 θ 方向用嵌套中点规则估计积分误差并细分。 | 适合检查 off-axis / 窄 beaming 的角向积分收敛；φ 方向仍由 `num_phi` 控制。 |
-| 反向激波 | `ReverseShock(enabled=True, ...)` | ejecta 被反向激波加热后形成 region 3，同步辐射叠加到 `rev.sync`。 | `upstream_sigma -> 0` 回到非磁化基线，crossing 前后状态连续。 |
+| 反向激波 | `ReverseShock(enabled=True, upstream_sigma=...)` | ejecta 被反向激波加热后形成 region 3，同步辐射叠加到 `rev.sync`；有限 `upstream_sigma` 同时改变 baryonic mass、MHD jump、ordered field 和磁压焓惯性。 | `upstream_sigma -> 0` 回到非磁化基线，crossing 前后状态连续。 |
 | formal 强子 | `Hadronic(enabled=True, solver="am3_1d", pgamma_scheme="hummer_2010_response")` | 质子输运与 p-gamma/BH/pp 二级产物在 shell-level 计算。 | proton loss、secondary pair、photon survival 能量预算一致。 |
 | 联合二级反馈 | `electron_photon_coupling="joint"` 加 BH、`am3_1d`、`ssc_cooling_mode="numeric_ic_kn"` | 主电子、强子二级 \(e^\pm\)、光子 target/sink 在同一 \(R\) 网格闭合。 | 弱反馈回到 separated baseline；强反馈时谱和光变仍连续。 |
 | 有限厚度投影 | `electron_solver="fullhide_2d"`, `geometry_projection="chi_eats_2d"` | FS synchrotron+SSA 在 \(\chi\) 分辨壳层上做 EATS 投影。 | chi 网格收敛；不要把强子解释成 chi-local。 |

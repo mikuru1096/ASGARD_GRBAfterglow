@@ -422,13 +422,15 @@ crossing 前，新扫入抛射物质量为
 \eta_0 n_4\,\mathrm{d}R ,
 \]
 
-新增热能为
+非磁化极限下，新增热能为
 
 \[
 \mathrm{d}U_{3,{\rm sh}}
 =
 (\gamma_{34}-1)\,\mathrm{d}M_3c^2 .
 \]
+
+有限 upstream magnetization 时，\((\gamma_{34}-1)\) 被 MHD jump 给出的下游热比内能 \(\epsilon_{\rm th,3}(\gamma_{34},\sigma)\) 替代，具体闭合见下一节。
 
 区域 3 体积变化由新扫入体积和膨胀组成：
 
@@ -471,21 +473,95 @@ crossing 后不再有新抛射物注入：
 
 ### 2.3 磁化反向激波
 
-非磁化压缩比固定为 ASGARD 基线：
+用户 API 字段是 `ReverseShock.upstream_sigma`；内部配置和 Fortran 参数中也会看到历史名 `reverse_sigma` 或 `sigma_r`。三者描述同一个未激波抛射物上游磁化：
 
 \[
-C_0=4\gamma_{34}+3.
+\sigma
+=
+\frac{B_4^2}{4\pi\Gamma_4^2\rho_4c^2}.
 \]
 
-若 `reverse_sigma=\sigma>0`，代码用 VegasAfterglow 的 \(\sigma\) 依赖相对修正，但保持 \(\sigma\to0\) 极限：
+`E_iso` 在 ASGARD 中是总 ejecta 能量；有限 \(\sigma\) 时只有 \(1/(1+\sigma)\) 是 baryonic rest-mass 分量。因此
+
+\[
+M_{\rm ej,b}
+=
+\frac{E_{\rm iso}}
+{(1+\sigma)\eta_0c^2}.
+\]
+
+这一步很重要：增加 \(\sigma\) 不只是增强磁场，也降低同一总能量下的 baryonic ejecta mass，并改变 region 4 数密度 \(n_4\)。
+
+反向激波是否能形成由两条条件共同决定。第一条是上游相对于 shock 的四速度必须超过 fast magnetosonic 条件：
+
+\[
+u_{4s}^2>\sigma .
+\]
+
+第二条是 region 2 的 shocked external pressure 必须压过 ejecta 有序磁压。代码使用的归一化压力为
+
+\[
+p_2^{\rm norm}
+=
+\frac{(4\Gamma_{\rm cd}+3)(\Gamma_{\rm cd}-1)n_1}{3},
+\qquad
+p_{B,4}^{\rm norm}
+=
+\frac12\sigma n_4 ,
+\]
+
+所以触发条件是
+
+\[
+\frac{p_2^{\rm norm}}{p_{B,4}^{\rm norm}}\ge1.
+\]
+
+等价的临界磁化可写为
+
+\[
+\sigma_{\rm cr}
+=
+\frac{2(4\Gamma_{\rm cd}+3)(\Gamma_{\rm cd}-1)n_1}{3n_4}.
+\]
+
+通过条件后，压缩比不再使用 ultra-relativistic \(4\gamma_{34}+3\) 近似。当前实现使用有限强度 MHD jump 的下游四速度 \(u_{3s}\) 和上游 shock-frame 四速度 \(u_{4s}\)：
 
 \[
 C(\gamma_{34},\sigma)
 =
-C_0(\gamma_{34})
-\frac{C_{\rm Vegas}(\gamma_{34},\sigma)}
-{C_{\rm Vegas}(\gamma_{34},0)}.
+\frac{u_{4s}}{u_{3s}} .
 \]
+
+\(\sigma\to0\) 时该 jump 回到当前有限强度 hydrodynamic baseline；这比把 \(4\gamma_{34}+3\) 当成所有强度下的基线更严格。下游热比内能由同一个 MHD jump 给出。设
+
+\[
+\hat\gamma
+=
+\frac{4}{3}+\frac{1}{3\gamma_{34}},
+\qquad
+\gamma_{is}=\sqrt{1+u_{is}^2},
+\]
+
+\[
+h_3
+=
+\frac{(1+\sigma)\gamma_{4s}}{\gamma_{3s}}
+-C\sigma ,
+\]
+
+则代码推进的 shock-heating 源项使用
+
+\[
+\epsilon_{\rm th,3}
+=
+\frac{h_3-1}{\hat\gamma},
+\qquad
+\mathrm{d}U_{3,{\rm sh}}
+=
+\epsilon_{\rm th,3}\,\mathrm{d}M_3c^2 .
+\]
+
+\(\sigma=0\) 时 \(\epsilon_{\rm th,3}=\gamma_{34}-1\)。
 
 上游有序磁场定义为
 
@@ -499,7 +575,7 @@ B_{3,{\rm ord}}
 C(\gamma_{34},\sigma)B_{4,{\rm ord}}.
 \]
 
-总区域 3 磁场为
+总区域 3 磁场为 turbulent 分量和 ordered 分量的平方和：
 
 \[
 B_3
@@ -519,6 +595,54 @@ B_{3,{\rm ord}}^2
 \sqrt{8\pi\epsilon_{B,3}U_3/V_3}.
 \]
 
+穿越后不再有新的 region 4 物质进入。代码在 crossing 处保存 \(B_{3,{\rm ord,cross}}\)、\(R_{\rm cross}\) 和 \(V_{3,{\rm cross}}\)，随后按
+
+\[
+B_{3,{\rm ord}}(R)
+=
+B_{3,{\rm ord,cross}}
+\frac{V_{3,{\rm cross}}}{V_3(R)}
+\frac{R}{R_{\rm cross}}
+\]
+
+推进有序场。这个项还进入动力学惯性。若
+
+\[
+p_{B,3}=\frac{B_{3,{\rm ord}}^2}{8\pi},
+\qquad
+E_{B,3}=p_{B,3}V_3,
+\]
+
+则有序场给 bulk 方程的有效惯性质量为
+
+\[
+M_{B,{\rm eff}}
+=
+\frac{E_{B,3}+p_{B,3}V_3}{c^2}
++
+\frac{p_{B,3}V_3}{\Gamma_3^2c^2}.
+\]
+
+因此当前磁化 RS 的完整链条是：
+
+1. `upstream_sigma` 改变 \(M_{\rm ej,b}\) 和 \(n_4\)。
+2. fast-wave 与 pressure-balance 条件决定 RS 何时真正形成。
+3. MHD jump 同时给出 \(C\) 和 \(\epsilon_{\rm th,3}\)。
+4. \(C\) 压缩上游 ordered field，\(\epsilon_{\rm th,3}\) 决定 \(\gamma_{m,3}\) 和区域 3 thermal state。
+5. crossing 后 \(U_3/V_3\)、\(V_3\) 和 \(B_{3,{\rm ord}}\) 继续演化，并通过磁压焓进入 inertia。
+
+VegasAfterglow 在这里只作为 jump-condition comparison backend，不是光变目标或全局动力学基准。
+
+磁化反向激波动力学在每个平滑分支内由 `dynamics_rk4_reverse` 系列 RK4 步推进，右端项平滑且没有事件端点时全局为四阶：
+
+\[
+Y(R)-Y_{\Delta R}(R)
+=
+{\cal O}(\Delta R^4).
+\]
+
+waiting-to-shock、pressure-balance 触发和 crossing 是物理分支切换，代码用端点捕获而不是跨步后修补。事件附近不对单个跨事件步声明四阶；验收口径是 \(M_3,U_3,V_3,\gamma_{34},B_{3,{\rm ord}}\) 和光变分量在物理事件两侧连续。耦合到 `dg_1d` 电子输运后，端到端电子谱普通注入/冷却段仍受后向 Euler 限制为一阶半径收敛。
+
 ### 2.4 反向激波电子和辐射
 
 电子注入谱为
@@ -526,9 +650,9 @@ B_{3,{\rm ord}}^2
 \[
 Q_{e,3}(\gamma)
 =
-Q_{0,3}\gamma^{-p_3}
+Q_{0,3}(\gamma-1)^{-p_3}
 H(\gamma-\gamma_{m,3})
-H(\gamma_{M,3}-\gamma),
+\exp\!\left(-\frac{\gamma}{\gamma_{M,3}}\right),
 \]
 
 数和能量归一化满足
@@ -555,8 +679,10 @@ m_ec^2
 \frac{\epsilon_{e,3}}{\xi_{N,3}}
 \frac{p_3-2}{p_3-1}
 \frac{m_p}{m_e}
-(\gamma_{34}-1).
+\epsilon_{\rm th,3}.
 \]
+
+非磁化极限下 \(\epsilon_{\rm th,3}=\gamma_{34}-1\)。
 
 反向激波同步辐射、RS SSC 和 FS/RS 跨区逆康普顿都使用同一套区域 3 电子谱、\(B_3\) 和 seed photon field。RS 强子 light path 只表示壳层级质子注入/输运和质子同步辐射；full-chain RS path 复用 formal 1D 强子核，不是 \(\chi\) 分辨 RS 强子输运。
 

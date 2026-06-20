@@ -467,8 +467,10 @@ contains
         call electron_dg1d_project_state(dg_mesh,dg_state,dg_new_mesh,dg_work)
         call electron_dg1d_apply_positive_kernel_filter(dg_new_mesh,dg_work)
         call electron_dg1d_limit_positive_cell_preserving(dg_new_mesh,dg_work)
-        deallocate(dg_state)
-        allocate(dg_state(dg_new_mesh%ntot))
+        if (size(dg_state) /= dg_new_mesh%ntot) then
+            deallocate(dg_state)
+            allocate(dg_state(dg_new_mesh%ntot))
+        end if
         dg_state=dg_work
         dg_mesh=dg_new_mesh
     end subroutine remesh_reverse_dg_state
@@ -1107,13 +1109,14 @@ subroutine reverse_dg_grid_sequence(Num_gam_e,x_edge,gam_e,num_step,dR,rad_coeff
     real(8), intent(in) :: adiabatic_rate_step(num_step),source_norm_step(num_step),p,gamma_m,gamma_max,dN_x_in(Num_gam_e)
     real(8), intent(out) :: dN_x_out(Num_gam_e)
     type(electron_dg1d_mesh) :: mesh
-    real(8), allocatable :: state(:),advanced(:),source_nodes(:),dN_coord(:),dN_dgamma(:),coord_edge(:)
+    real(8), allocatable :: state(:),advanced(:),source_nodes(:),source_template(:),dN_coord(:),dN_dgamma(:),coord_edge(:)
     real(8) :: input_content,dg_content,projected_content
+    logical :: has_source
 
     call electron_dg1d_build_four_velocity_mesh(x_edge(1),x_edge(Num_gam_e+1),dlog10(gamma_m), &
                                                 dlog10(reverse_dg_kinetic_break(gamma_m,gamma_max)), &
                                                 dlog10(gamma_max),electron_four_velocity_grid_gamma_scale,mesh)
-    allocate(state(mesh%ntot),advanced(mesh%ntot),source_nodes(mesh%ntot),dN_coord(Num_gam_e), &
+    allocate(state(mesh%ntot),advanced(mesh%ntot),source_nodes(mesh%ntot),source_template(mesh%ntot),dN_coord(Num_gam_e), &
              dN_dgamma(Num_gam_e),coord_edge(Num_gam_e+1))
     do i=1,Num_gam_e+1
         coord_edge(i)=electron_coord_from_xgamma(mesh%coord_kind,mesh%coord_scale,x_edge(i))
@@ -1123,13 +1126,17 @@ subroutine reverse_dg_grid_sequence(Num_gam_e,x_edge,gam_e,num_step,dR,rad_coeff
     end do
     input_content=sum(dN_x_in*(x_edge(2:Num_gam_e+1)-x_edge(1:Num_gam_e)))
     call electron_dg1d_scale_to_content(mesh,input_content,state)
+    has_source = maxval(source_norm_step) > zero
+    if (has_source) then
+        call electron_dg1d_project_kinetic_source(mesh,one,p,gamma_m,gamma_max,source_template)
+        call electron_dg1d_scale_to_content(mesh,one,source_template)
+    endif
     do step=1,num_step
         if (source_norm_step(step) > zero) then
-            call electron_dg1d_project_kinetic_source(mesh,source_norm_step(step),p,gamma_m,gamma_max,source_nodes)
+            source_nodes=source_norm_step(step)*source_template
         else
             source_nodes=zero
         end if
-        call electron_dg1d_scale_to_content(mesh,source_norm_step(step),source_nodes)
         call electron_dg1d_advance_characteristic_step(mesh,dR,rad_coeff,adiabatic_rate_step(step), &
                                                        source_nodes,state,advanced)
         call electron_dg1d_apply_positive_kernel_filter(mesh,advanced)
@@ -1145,13 +1152,13 @@ subroutine reverse_dg_grid_sequence(Num_gam_e,x_edge,gam_e,num_step,dR,rad_coeff
         if (projected_content <= zero) error stop "reverse_dg_grid_sequence: projection lost positive content."
         dN_x_out=dN_x_out*(dg_content/projected_content)
     end if
-    deallocate(state,advanced,source_nodes,dN_coord,dN_dgamma,coord_edge)
+    deallocate(state,advanced,source_nodes,source_template,dN_coord,dN_dgamma,coord_edge)
 end subroutine reverse_dg_grid_sequence
 
 real(8) function reverse_interp_log_grid(Num_gam_e,x_edge,values,x_eval) result(value)
     implicit none
     integer, intent(in) :: Num_gam_e
-    integer :: i
+    integer :: i_cell,lo,hi,mid
     real(8), intent(in) :: x_edge(Num_gam_e+1),values(Num_gam_e),x_eval
     real(8) :: x_left,x_right
 
@@ -1160,15 +1167,26 @@ real(8) function reverse_interp_log_grid(Num_gam_e,x_edge,values,x_eval) result(
         value=values(1)
         return
     end if
-    do i=1,Num_gam_e-1
-        x_left=0.5d0*(x_edge(i)+x_edge(i+1))
-        x_right=0.5d0*(x_edge(i+1)+x_edge(i+2))
+    x_right=0.5d0*(x_edge(Num_gam_e)+x_edge(Num_gam_e+1))
+    if (x_eval >= x_right) then
+        value=values(Num_gam_e)
+        return
+    end if
+    lo=1
+    hi=Num_gam_e-1
+    do while (lo < hi)
+        mid=(lo+hi)/2
+        x_right=0.5d0*(x_edge(mid+1)+x_edge(mid+2))
         if (x_eval <= x_right) then
-            value=values(i)+(values(i+1)-values(i))*(x_eval-x_left)/(x_right-x_left)
-            return
+            hi=mid
+        else
+            lo=mid+1
         end if
     end do
-    value=values(Num_gam_e)
+    i_cell=lo
+    x_left=0.5d0*(x_edge(i_cell)+x_edge(i_cell+1))
+    x_right=0.5d0*(x_edge(i_cell+1)+x_edge(i_cell+2))
+    value=values(i_cell)+(values(i_cell+1)-values(i_cell))*(x_eval-x_left)/(x_right-x_left)
 end function reverse_interp_log_grid
 
 end module electron_reverse_kernel

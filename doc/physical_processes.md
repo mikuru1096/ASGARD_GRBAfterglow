@@ -147,6 +147,34 @@ B_3
 \sqrt{B_{\rm turb}^2+B_{\rm ord}^2}.
 \]
 
+这里的 \(\sigma\) 不是单独的辐射后处理因子。`ReverseShock.upstream_sigma` 先把总 ejecta 能量拆成 baryonic rest-mass 与 Poynting 分量：
+
+\[
+M_{\rm ej,b}
+=
+\frac{E_{\rm iso}}{(1+\sigma)\Gamma_0c^2}.
+\]
+
+随后 region 4 的 \(n_4\)、pressure-balance 条件、MHD jump compression、下游热比内能、有序场压缩和磁压焓惯性都随 \(\sigma\) 改变。当前代码使用有限强度 MHD jump：
+
+\[
+C=\frac{u_{4s}}{u_{3s}},
+\qquad
+\epsilon_{\rm th,3}
+=
+\frac{h_3-1}{\hat\gamma},
+\]
+
+并用
+
+\[
+\mathrm{d}U_{3,{\rm sh}}
+=
+\epsilon_{\rm th,3}\mathrm{d}M_3c^2
+\]
+
+代替非磁化极限的 \((\gamma_{34}-1)\mathrm{d}M_3c^2\)。因此 \(\sigma\to0\) 的验收同时约束 baryonic mass、shock triggering、压缩比、热能源项、ordered field 和动力学 inertia。完整公式和代码映射见 `doc/shock_shell_adaptive_algorithms.md`。
+
 验收极限是
 
 \[
@@ -797,7 +825,7 @@ n_0
 - \(F_\nu(t)\) 和 SED 是否在物理事件之外无孤立尖峰。
 - SSC 冷却与 SSC 光子输出是否来自同一种子光子场。
 - BH、pp、\(\gamma\gamma\) 的二级粒子源与光子/质子汇是否来自同一算子。
-- `reverse_sigma -> 0` 是否回到非磁化反向激波基线。
+- `upstream_sigma -> 0` 是否回到非磁化反向激波基线；内部旧名 `reverse_sigma` 指同一量。
 - 弱反馈联合算例是否回到分离基线。
 
 这些检查失败时，不在投影层或后处理中加 smoothing、time shift 或经验 floor。应回到产生异常的物理状态量。

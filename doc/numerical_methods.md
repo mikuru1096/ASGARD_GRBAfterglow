@@ -98,6 +98,16 @@ RK4 更新为
 (\mathbf{k}_1+2\mathbf{k}_2+2\mathbf{k}_3+\mathbf{k}_4).
 \]
 
+因此在右端项平滑且没有事件分裂的动力学区间，动力学 ODE 的全局阶数为四阶：
+
+\[
+\mathbf{y}(T)-\mathbf{y}_{\Delta T}(T)
+=
+{\cal O}(\Delta T^4).
+\]
+
+反向激波 crossing、waiting-to-shock 和 pressure-balance 触发是物理分支切换；代码用事件端点捕获保持状态连续。事件附近的验收不是对单一 RK4 步做形式阶数外推，而是检查分支变量、热状态和辐射输出在物理事件两侧连续。
+
 ASGARD 的动力学实现不追求单一解析标度，而是在同一右端项框架中处理均匀星际介质、\(k=2\) 恒星风介质、密度跳变和能量注入。解析 BM 标度只作为验收直觉：
 
 \[
@@ -156,7 +166,17 @@ B_3
 {\rm unmagnetized\ reverse\ shock}.
 \]
 
-这比只看某条光变是否相近更严格，因为它同时约束跳跃条件、热状态和磁场归一化。
+这比只看某条光变是否相近更严格，因为它同时约束 ejecta baryonic mass、pressure-balance 触发、MHD jump、区域 3 热状态、有序磁场和磁压焓惯性。
+
+当前磁化链条的代码映射为：
+
+| 物理量 | 公式角色 | 实现入口 |
+| --- | --- | --- |
+| \(M_{\rm ej,b}=E_{\rm iso}/[(1+\sigma)\eta_0c^2]\) | 有限磁化下的 baryonic ejecta mass | `rs_shell_matter_fraction` |
+| \(C=u_{4s}/u_{3s}\) | 有限强度 MHD jump 压缩比 | `rs_mag_comp`, `rs_vegas_ud`, `rs_shock_upstream_u` |
+| \(\epsilon_{\rm th,3}\) | 下游热比内能和 \(\mathrm{d}U_{3,{\rm sh}}\) | `rs_mag_specific_internal` |
+| \(B_{4,{\rm ord}}=\sqrt{4\pi c^2\sigma\rho_4}\) | 上游有序磁场 | `rs_b4_up` |
+| \(M_{B,{\rm eff}}\) | 有序场磁压焓对 bulk 方程的惯性贡献 | `compute_ordered_magnetic_inertia` |
 
 ### 4.1 穿越捕获而不是跨步修补
 
@@ -298,6 +318,10 @@ V_{3,{\rm cross}},
 
 \[
 B_{3,{\rm ord}}(R)
+=
+B_{3,{\rm ord,cross}}
+\frac{V_{3,{\rm cross}}}{V_3(R)}
+\frac{R}{R_{\rm cross}},
 \]
 
 在穿越附近连续，且
@@ -903,6 +927,7 @@ rtk bash -lc 'source ~/.wsl_env && rm -rf /tmp/asgard_linecheck && mkdir -p /tmp
 | --- | --- |
 | \(R\)-坐标输运 | 率是否用 \(\mathrm{d}t'/\mathrm{d}R\) 转换 |
 | `fullhide_1d` 隐式输运 | 刚性冷却下 \(N_e\)、\(\nu_c\)、高能截断是否平滑 |
+| `dg_1d` troubled positive-kernel | smooth-cell 空间阶数为 P12 的 \(O(\Delta y^{13})\)，端到端电子推进受 BE 限制为 \(O(\Delta R)\)；同时检查非负、活动支撑连续、无元素边界零洞、无多重 grid-scale sawtooth turns、辐射结果平滑；对应 `tests/dg_1d_smoke.py` |
 | 子步压缩 | 与未压缩小步结果的粒子数和谱形一致 |
 | 多求解器互证 | `fullhide_1d`、`charint_1d`、`weno5_1d` 的 break frequency 趋势一致 |
 | `PhotonFieldState` | 每赫兹/每能量雅可比因子与壳层体积、逃逸时间一致 |

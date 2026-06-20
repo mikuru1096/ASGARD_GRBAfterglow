@@ -152,16 +152,16 @@ Hadronic regressions：`tests/hadronic_1d_smoke.py`, `tests/hadronic_reverse_sho
 
 Joint feedback：`tests/electron_photon_joint_secondary_feedback_smoke.py`。
 
-新增正式 benchmark 入口前必须先明确假设、决策价值和物理验收口径。
+新增正式基准测试入口前必须先明确假设、决策价值和物理验收口径。
 
 ## 7. 已知边界
 
-当前未完成项和 public/backend unsupported boundaries 集中维护在根目录 `TODO.md` 与 `doc/public_backend_limits.md`。本节只保留架构边界。
+当前未完成项和公开 API/后端不支持边界集中维护在根目录 `TODO.md` 与 `doc/public_backend_limits.md`。本节只保留架构边界。
 
 架构边界：
 
 - ASGARD = 壳层演化爆波 + 观测者投影。
-- AM3 = 微物理/数值核参考，不替代 ASGARD dynamics/electron/observer chain。
-- 最终 AM3-derived microphysics 写入 `src/Hadronic/*.f90`；Python 只做编排。
+- AM3 = 微物理/数值核参考，不替代 ASGARD 动力学/电子/观测者主链。
+- 最终来自 AM3 的微物理写入 `src/Hadronic/*.f90`；Python 只做编排。
 - 非光滑物理时间演化优先视为 bug。
-- Public/backend unsupported boundaries 固定在 `doc/public_backend_limits.md`。
+- 公开 API/后端不支持边界固定在 `doc/public_backend_limits.md`。

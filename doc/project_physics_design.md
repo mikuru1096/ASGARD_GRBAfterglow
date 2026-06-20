@@ -47,7 +47,7 @@ R_i, Gamma_i, t_obs,i, swept mass, external density
 - shock-front `gamma34` 作为电子注入能标来源。
 - region-3 thermal state `U3/V3`。
 - turbulent magnetic field。
-- optional upstream magnetization `sigma`，并加入 ordered magnetic component。
+- optional upstream magnetization `sigma`，并加入 baryonic mass correction、pressure-balance/fast-wave triggering、finite-strength MHD jump、ordered magnetic component 和 magnetic enthalpy inertia。
 - crossing 前后分段动力学，避免 RK step 跨越物理分支。
 - 多密度增强触发的次级反向激波电子同步分支；该分支使用热上游区域 4 和区域 3 新耗散能，不重复计算旧 FS 电子辐射。
 

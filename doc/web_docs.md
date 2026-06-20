@@ -9,6 +9,8 @@ ASGARD 的网页文档由 `mkdocs.yml` 从 `doc/` 目录构建，并通过 GitHu
 - README URL: `https://github.com/mikuru1096/ASGARD_private#readme`
 - Web docs URL: `https://hetools.cn/asgard-doc/`
 
+当前网页导航已包含 `magnetized_rs_dg1d_tutorial.md`，作为磁化反向激波、`upstream_sigma` 物理闭合、DG1D 高阶输运、当前收敛阶和接口默认设置的专题教程。新增或改名该类专题页时，必须同步 `mkdocs.yml` 并跑 strict build。
+
 ## 发布目标
 
 ### GitHub Pages
@@ -30,6 +32,7 @@ ASGARD 的网页文档由 `mkdocs.yml` 从 `doc/` 目录构建，并通过 GitHu
 - runner: `/home/wangyun/Desktop/run_HEtools.py`
 - Streamlit port: `127.0.0.1:8501`
 - static docs port: `127.0.0.1:8502`
+- Latest docs backup: `/home/wangyun/Desktop/asgard_doc_webroot_backups/asgard-doc_20260619_152936_docs_publish`
 
 `frpc.ini` contains two HTTP proxies on the same domains. The Streamlit proxy keeps `locations = /`; the ASGARD documentation proxy uses `locations = /asgard-doc`. frp uses the longer URL prefix for `/asgard-doc/...`, while the HEtools app continues to serve `/`.
 
@@ -54,7 +57,7 @@ HEtools 的 afterglow 页面从 `base_func/afterglow_base_func.py` 调用 ASGARD
 替换后必须同时验收：
 
 - `https://hetools.cn/` 返回 Streamlit 首页。
-- `https://hetools.cn/asgard-doc/` 返回 ASGARD Documentation。
+- `https://hetools.cn/asgard-doc/` 返回 ASGARD 文档。
 - `127.0.0.1:8501`、`127.0.0.1:8502` 正常监听。
 - live `afterglow_base_func.py` 可导入，`ASGARD_fs_fluxdensity` 最小 smoke test 通过。
 
@@ -153,7 +156,7 @@ rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/AS
 公网验收：
 
 ```bash
-rtk bash -lc 'source ~/.wsl_env && curl -L --max-time 30 -sS https://hetools.cn/asgard-doc/ | grep -m1 "ASGARD Documentation" && curl -I --max-time 30 https://hetools.cn/asgard-doc/assets/stylesheets/main.484c7ddc.min.css'
+rtk bash -lc 'source ~/.wsl_env && curl -L --max-time 30 -sS https://hetools.cn/asgard-doc/ | grep -m1 "ASGARD 文档" && curl -I --max-time 30 https://hetools.cn/asgard-doc/assets/stylesheets/main.484c7ddc.min.css'
 ```
 
 HEtools 根路径也要同步检查，确保 Streamlit 首页没有被文档路由接管：

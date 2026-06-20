@@ -177,7 +177,7 @@ band_flux = model.flux(
 - 光变随时间应连续，除非存在明确的密度跳变、注入事件或 shock crossing。
 - 若启用 `SolverOptions.nu_callback` 临时检查断频，\(\nu_m\)、\(\nu_c\)、\(\nu_a\) 应平滑演化；默认 `details()` 不保存这些数组。
 - 平滑改变参数时，光变峰时和峰值不应出现孤立跳变。
-- 反向激波的 `reverse_sigma -> 0` 必须回到非磁化基线。
+- 反向激波的 `upstream_sigma -> 0` 必须回到非磁化基线；内部旧名 `reverse_sigma` 指同一物理量。
 
 若这些检查失败，应回到动力学、电子输运、辐射源项和观测投影查 bug，不做 smoothing 或经验修补。
 

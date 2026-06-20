@@ -380,7 +380,15 @@ B_{3,{\rm turb}}'=\sqrt{8\pi\epsilon_{B,3}e_3'}.
 \sigma=\frac{B_4^2}{4\pi\Gamma_4^2\rho_4c^2},
 \]
 
-总磁场按湍流和有序分量合成：
+它同时改变 baryonic ejecta mass、pressure-balance 触发、MHD jump compression 和下游热比内能。当前有限强度 jump 给出
+
+\[
+C=\frac{u_{4s}}{u_{3s}},
+\qquad
+\epsilon_{\rm th,3}=\frac{h_3-1}{\hat\gamma},
+\]
+
+并用 \(\mathrm{d}U_{3,{\rm sh}}=\epsilon_{\rm th,3}\mathrm{d}M_3c^2\) 推进 region-3 shock heating。总磁场按湍流和有序分量合成：
 
 \[
 B_3'=\sqrt{B_{3,{\rm turb}}'^2+B_{3,{\rm ord}}'^2}.
@@ -401,7 +409,7 @@ B_3'=\sqrt{B_{3,{\rm turb}}'^2+B_{3,{\rm ord}}'^2}.
 \frac{\epsilon_{e,3}}{\xi_{N,3}}
 \frac{p_3-2}{p_3-1}
 \frac{m_p}{m_e}
-(\gamma_{34}-1).
+\epsilon_{\rm th,3}.
 \]
 
 穿越前质量变量满足
@@ -600,6 +608,7 @@ joint 预算路径要求冷却和 photon production 使用同一个 \(N_e\)、\(
 | `fullhide_1d` | 1D \(\gamma\)-space 保守输运，固定或受控子步，默认生产路径。 | 光变、拟合、joint feedback 的基线。 |
 | `slc1_1d` | 半拉格朗日特征移动，减少强冷却 CFL 压力。 | 用于交叉检查冷却轨迹。 |
 | `charint_1d` | 沿特征线积分 \( {\rm d}\gamma/{\rm d}R=\dot{\gamma}_R \)。 | 用于检查谱峰移动和冷却 break。 |
+| `dg_1d` | P12 LGL-DG，高阶谱元输运，默认 troubled positive-kernel。 | FS/RS opt-in 高阶路径；光滑谱元空间 \(O(\Delta y^{13})\)，端到端电子推进当前 \(O(\Delta R)\)。 |
 | `t2g1_1d` | legacy 隐式输运。 | 回归比较路径。 |
 | `weno5_1d` | 高阶重构的谱输运。 | 用于检查数值耗散和振荡。 |
 | `fullhide_2d` / `charint_2d` | \((\gamma,\chi)\) 分辨电子输运。 | 服务有限厚度/chi 投影研究，不自动扩展强子反馈。 |

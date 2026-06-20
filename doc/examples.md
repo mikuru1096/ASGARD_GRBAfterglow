@@ -113,3 +113,66 @@ print(model.fwd_rad.epsilon_e, model.fwd_rad.epsilon_B, model.fwd_rad.p)
 ## 9. 天图入口
 
 ASGARD 提供 `model.sky_image(t_obs, nu_obs, fov, npixel)`。天图依赖观测投影设置，适合放在专题 benchmark 中验证。新手教程先使用光变、谱和内部量完成最小闭环。
+
+## 10. 磁化反向激波
+
+磁化反向激波不是光变后处理凸起。它会改变 ejecta baryonic mass、反向激波触发、MHD jump compression、区域 3 热状态、ordered field 和磁压焓惯性。完整公式见 `magnetized_rs_dg1d_tutorial.md`。
+
+在 quickstart 的完整构造器中替换反向激波对象：
+
+```python
+reverse_shock = ReverseShock(
+    enabled=True,
+    shell_duration_s=30.0,
+    upstream_sigma=0.1,
+    include_cross_zone_ic=False,
+    include_ssc=True,
+)
+```
+
+运行后检查：
+
+```python
+times = np.logspace(-1, 6, 120)
+freqs = np.array([1.0e9, 1.0e14, 1.0e18])
+result = model.flux_density_grid(times, freqs)
+
+rs_sync = result.rev.sync
+rs_ssc = result.rev.ssc
+```
+
+验收时先看 `upstream_sigma -> 0` 是否回到非磁化基线，再看穿越附近的光变和内部量是否连续。
+
+## 11. DG1D 与 fullhide 对照
+
+`dg_1d` 是 FS/RS 共享、需要显式启用的高阶 1D 电子路径。它默认使用 P12 LGL-DG、对数四速度坐标和问题单元正性核；默认 `fullhide_1d` 不变。
+
+在 quickstart 的 `SolverOptions` 中只改：
+
+```python
+solver_options = SolverOptions(
+    electron_solver="dg_1d",
+    dynamics_solver="forward_legacy",
+    geometry_projection="sed_legacy",
+    electron_photon_coupling="separated",
+    ssc_cooling_mode="nakar_y_thomson",
+    synchrotron_integration="fixed_grid",
+    cooling_kernel="legacy",
+    radiation_kernel="legacy",
+    structured_backend="fortran_1d",
+    patch_sampling="uniform",
+    patch_projection="auto",
+    patch_sampling_pilot_theta=0,
+    patch_sampling_num_times=12,
+    patch_sampling_beaming_factor=3.0,
+    patch_sampling_beaming_resolution=8.0,
+    structured_parallel_mode="outer",
+    structured_outer_threads=None,
+    structured_inner_threads=None,
+    fullhide2d_transport_model="legacy",
+    fullhide2d_stochastic_accel_norm=0.0,
+    fullhide2d_escape_mode="closed",
+)
+```
+
+对照测试只改变 `electron_solver`，其它物理参数保持不变。DG 谱峰低能侧若有小幅局部振荡，但活动支撑连续、无零洞、辐射光变平滑，可以接受；若光变或断频出现孤立尖跳，应回到电子输运、冷却项或动力学检查。

@@ -59,6 +59,8 @@ model = Model(
 
 `rvs_rad=None` 是反向激波辐射的独立 `Radiation` 对象入口。新手和普通公开路径通常保持 `None`，表示反向激波不单独给另一套辐射参数；只有明确需要 FS/RS 不同微物理参数的研究路径才传入第二个 `Radiation`。
 
+本文代码块中的数值来自公开基线或快速开始基线。多数 dataclass 构造器要求用户显式传参；`SolverOptions` 里只有 `projection_adaptive_rtol=2.0e-2`、`projection_adaptive_max_depth=4` 和 `nu_callback=None` 有 Python dataclass 默认值。
+
 ## 3. Medium：外部介质怎么选
 
 ### 3.1 可选入口
@@ -306,10 +308,11 @@ solver_options = SolverOptions(
 
 | `electron_solver` | 意思 | 选择后效果 | 注意事项 |
 | --- | --- | --- | --- |
-| `fullhide_1d` | 默认 1D 隐式电子输运。 | 最稳健 public baseline。 | 拟合第一选择。 |
+| `fullhide_1d` | 默认 1D 隐式电子输运。 | 最稳健公开基线。 | 拟合第一选择。 |
 | `fullhide_1d_hz` | hybrid/hz 变体。 | 特定实验路径。 | 不作为教学默认。 |
-| `slc1_1d` | semi-Lagrangian family。 | 用于方法比较。 | 结果应与 baseline 物理诊断一致。 |
-| `charint_1d` | characteristic integration。 | 检查冷却断点/重映射。 | 非默认拟合路径。 |
+| `slc1_1d` | 半拉格朗日族。 | 用于方法比较。 | 结果应与基线物理诊断一致。 |
+| `charint_1d` | 特征线积分。 | 检查冷却断点/重映射。 | 非默认拟合路径。 |
+| `dg_1d` | 多域 P12 LGL-DG 1D 输运。 | FS/RS 共享、需要显式启用的高阶路径，默认问题单元正性核控制 Gibbs 振荡；光滑谱元空间阶数为 \(O(\Delta y^{13})\)。 | 端到端电子推进当前受后向 Euler 限制为 \(O(\Delta R)\)；不作为新手拟合默认；正性核是输运层局部模态滤波，不是输出平滑。 |
 | `t2g1_1d` | legacy implicit path。 | 回归比较。 | 不作为新工作默认。 |
 | `weno5_1d` | 高阶 WENO5。 | 诊断谱形和数值耗散。 | 需要额外平滑性检查。 |
 | `fullhide_2d` | \((\gamma,\chi)\) 电子输运。 | 给厚壳层电子历史和 `chi_eats_2d`。 | 不代表强子/SSC 也 \(\chi\) 局域。 |
@@ -335,7 +338,7 @@ solver_options = SolverOptions(
 
 | 字段 | 可选项 | 效果 | 注意事项 |
 | --- | --- | --- | --- |
-| `structured_backend` | `fortran_1d`, `python_patch` | 选择结构化喷流 patch 求解后端。 | `fortran_1d` 要求 `electron_solver="fullhide_1d"`。 |
+| `structured_backend` | `fortran_1d`, `python_patch` | 选择结构化喷流 patch 求解后端。 | `fortran_1d` 支持 `electron_solver="fullhide_1d"` 或 `"dg_1d"` 的同步路径；`dg_1d` 不支持 thermal electron branch。 |
 | `patch_sampling` | `uniform`, `dominant_region_ioka_v1`, `dominant_region_ioka_time_v1` | 角向采样策略。 | dominant-region 当前只支持 `structured_backend="python_patch"`。 |
 | `patch_projection` | `auto`, `tophat_cell`, `surface_element` | patch 面元投影方式。 | `auto` 会按采样策略选择。 |
 | `patch_sampling_pilot_theta` | int | dominant-region pilot 中的 theta 采样控制。 | `uniform` 下不改变物理求解。 |
@@ -372,7 +375,7 @@ reverse_shock = ReverseShock(
 | --- | --- | --- | --- |
 | `enabled` | 是否计算反向激波。 | `result.rev.sync` 可有物理贡献。 | 只在早期 excess 或科学问题要求时打开。 |
 | `shell_duration_s` | ejecta shell duration。 | 影响 RS crossing 和 shell 宽度。 | 与 jet `shell_duration_s` 语义相关，需保持物理一致。 |
-| `upstream_sigma` | 上游磁化 \(\sigma\)。 | 增加 ordered field 和磁化 jump。 | \(\sigma\to0\) 必须回到非磁化基线。 |
+| `upstream_sigma` | 上游磁化 \(\sigma\)。 | 改变 baryonic ejecta mass、pressure-balance 触发、MHD jump compression、ordered field、下游热比内能和磁压焓惯性。 | \(\sigma\to0\) 必须回到非磁化基线；内部旧名 `reverse_sigma`/`sigma_r` 指同一量。 |
 | `include_cross_zone_ic` | FS/RS 跨区 IC。 | 增加 `cross_ic`。 | 只在 seed field 和数据需要时打开。 |
 | `include_ssc` | RS SSC。 | `result.rev.ssc` 可非零。 | 不等于 RS 强子 full-chain。 |
 
