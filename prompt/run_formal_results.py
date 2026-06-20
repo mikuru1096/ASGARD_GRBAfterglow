@@ -51,7 +51,13 @@ def main() -> None:
             num_photon_frequency=241,
             num_threads=8,
         ),
-        eats_numerics=EATSNumerics(num_theta=96, num_phi=1, num_threads=8),
+        eats_numerics=EATSNumerics(
+            num_theta=48,
+            num_phi=1,
+            num_threads=8,
+            adaptive_rtol=3.0e-3,
+            adaptive_max_depth=8,
+        ),
     )
     OUTPUT_DIR.mkdir(exist_ok=True)
     _write_flux_npz(observer_time, observer_frequency, flux)
@@ -237,7 +243,7 @@ def _set_plot_style() -> None:
 def _set_positive_ylim(ax, curves: list[np.ndarray]) -> None:
     positive = np.concatenate([np.asarray(curve, dtype=float)[np.asarray(curve, dtype=float) > 0.0] for curve in curves])
     ymax = float(np.max(positive))
-    informative = positive[positive > ymax * 1.0e-10]
+    informative = positive[positive > ymax * 1.0e-6]
     ymin = float(np.min(informative))
     ax.set_ylim(ymin / 2.0, ymax * 2.0)
 

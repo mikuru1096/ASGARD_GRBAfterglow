@@ -19,6 +19,8 @@ class EATSNumerics:
     num_theta: int = 64
     num_phi: int = 1
     num_threads: int = 1
+    adaptive_rtol: float = 0.0
+    adaptive_max_depth: int = 0
 
 
 def project_branch_flux(
@@ -41,19 +43,36 @@ def project_branch_flux(
     boundary[9] = geometry.viewing_angle_rad
     order = np.argsort(observer_frequency_hz)
     sorted_observer_frequency = np.asarray(observer_frequency_hz, dtype=float)[order]
-    projected = Interpolation.sed_interpolation(
-        boundary,
-        np.asarray(characteristic_time_s, dtype=float),
-        np.asarray(gamma, dtype=float),
-        np.asarray(radius_cm, dtype=float),
-        np.asarray(source_flux, dtype=float),
-        np.asarray(seed_frequency_hz, dtype=float),
-        sorted_observer_frequency,
-        np.asarray(observer_time_s, dtype=float),
-        numerics.num_theta,
-        numerics.num_phi,
-        numerics.num_threads,
-    )
+    if numerics.adaptive_max_depth > 0:
+        projected = Interpolation.sed_interpolation_adaptive_theta(
+            boundary,
+            np.asarray(characteristic_time_s, dtype=float),
+            np.asarray(gamma, dtype=float),
+            np.asarray(radius_cm, dtype=float),
+            np.asarray(source_flux, dtype=float),
+            np.asarray(seed_frequency_hz, dtype=float),
+            sorted_observer_frequency,
+            np.asarray(observer_time_s, dtype=float),
+            numerics.adaptive_rtol,
+            numerics.adaptive_max_depth,
+            numerics.num_theta,
+            numerics.num_phi,
+            numerics.num_threads,
+        )
+    else:
+        projected = Interpolation.sed_interpolation(
+            boundary,
+            np.asarray(characteristic_time_s, dtype=float),
+            np.asarray(gamma, dtype=float),
+            np.asarray(radius_cm, dtype=float),
+            np.asarray(source_flux, dtype=float),
+            np.asarray(seed_frequency_hz, dtype=float),
+            sorted_observer_frequency,
+            np.asarray(observer_time_s, dtype=float),
+            numerics.num_theta,
+            numerics.num_phi,
+            numerics.num_threads,
+        )
     if np.array_equal(order, np.arange(order.shape[0])):
         return projected
     restored = np.empty_like(projected)
