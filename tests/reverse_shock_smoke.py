@@ -131,6 +131,16 @@ def _run_magnetized_delayed_reverse_shock() -> None:
     assert rs.t_cross > 0.0
     assert rs.ordered_magnetic_cross_g > 0.0
     assert np.max(rs.magnetic_field_g) > 0.0
+    radius = np.asarray(state.dynamics.radius, dtype=float)
+    gamma = np.asarray(state.dynamics.r_gamma, dtype=float)
+    swept_reverse = np.asarray(rs.swept_mass_g, dtype=float)
+    assert np.all(np.isfinite(radius))
+    assert np.all(np.isfinite(gamma))
+    assert np.all(np.isfinite(swept_reverse))
+    assert np.all(np.diff(radius) > 0.0)
+    assert np.all(gamma > 1.0)
+    assert np.all(np.diff(swept_reverse) >= 0.0)
+    assert np.max(swept_reverse) <= rs.m3_cross_g * (1.0 + 1.0e-8)
 
 
 def _run_dense_radius_grid() -> None:

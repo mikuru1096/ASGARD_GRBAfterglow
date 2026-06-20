@@ -905,7 +905,8 @@ subroutine dynamics_rk4_reverse_pre_m3(rhs, dB3, T_cross, R_cross, e3_cross, gam
     real(8), intent(in) :: p_f, f_e, e_r, b_r, p_r, f_e_r, sigma_r
     real(8), parameter :: pre_m3_fraction_step_max = 5d-2
     logical :: crossing_first, has_reference
-    real(8) :: H_bound, H_event, H_lo, H_hi, H_mid, P, Q, dB3_try, T_try, T_ref, Y_try(M), G(M), D(M), dummy(8)
+    real(8) :: H_bound, H_event, H_lo, H_hi, H_mid, H_target_est, P, Q
+    real(8) :: dB3_try, T_try, T_ref, Y_try(M), G(M), D(M), dummy(8)
 
     dummy = zero
     reverse_rhs_phase = 1
@@ -914,7 +915,8 @@ subroutine dynamics_rk4_reverse_pre_m3(rhs, dB3, T_cross, R_cross, e3_cross, gam
              R_tr, f_jump, f_wide, R0, Epsilon_b, Epsilon_e, p_f, f_e, e_r, b_r, p_r, f_e_r, sigma_r)
     reverse_rhs_phase = 0
     H_bound = one-Y(4)
-    H_hi = min(pre_m3_fraction_step_max, H_bound)
+    H_target_est = D(4)*(T_target-T_state)
+    H_hi = min(pre_m3_fraction_step_max, H_bound, H_target_est)
     T_try = T_state
     Y_try = Y
     dB3_try = dB3
@@ -996,8 +998,6 @@ subroutine dynamics_rk4_reverse_pre_m3(rhs, dB3, T_cross, R_cross, e3_cross, gam
                  B3_ordered_cross, T_state, Y, D, M, para_m_ej, V3_scale, Delta_0, eta_0, A_star, dNe_ISM, &
                  R_tr, f_jump, f_wide, R0, Epsilon_b, Epsilon_e, p_f, f_e, e_r, b_r, p_r, f_e_r, sigma_r)
         reverse_rhs_phase = 0
-    else
-        T_state = T_target
     end if
 end subroutine dynamics_rk4_reverse_pre_m3
 
