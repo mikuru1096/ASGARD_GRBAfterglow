@@ -8,7 +8,7 @@ import numpy as np
 from prompt.eats import EATSGeometry, EATSNumerics, project_branch_flux
 from prompt.internal_shock import BranchHistory, InternalShockSolution
 from src import Radiation, constants
-from src.Electron.electron_radiation import electron_radiation_kernel as electron_radiation_module
+from src.Electron import electron_reverse_kernel as electron_reverse_module
 
 
 @dataclass(frozen=True)
@@ -29,6 +29,8 @@ class RadiationNumerics:
     photon_frequency_max_hz: float = 1.0e28
     num_photon_frequency: int = 181
     index_syn_integr: int = 2
+    electron_cooling_index_y: int = 0
+    electron_solver_id: int = 2
     num_threads: int = 1
 
 
@@ -81,8 +83,8 @@ def compute_prompt_observed_flux(
     if np.any(observer_frequency_hz <= 0.0) or np.any(observer_time_s < 0.0):
         raise ValueError("observer frequencies must be positive and observer times non-negative.")
 
-    fs_radiation = compute_branch_radiation(solution.fs, microphysics, radiation_numerics)
-    rs_radiation = compute_branch_radiation(solution.rs, microphysics, radiation_numerics)
+    fs_radiation = compute_branch_radiation(solution.fs, microphysics, radiation_numerics, solution.redshift)
+    rs_radiation = compute_branch_radiation(solution.rs, microphysics, radiation_numerics, solution.redshift)
     geometry = EATSGeometry(solution.redshift, solution.opening_angle_rad, solution.viewing_angle_rad)
     distance_prefactor = (1.0 + solution.redshift) / (4.0 * pi * solution.luminosity_distance_cm**2)
     fs_sync_source = fs_radiation.sync_luminosity * fs_radiation.gamma_gamma_absorption * distance_prefactor
@@ -111,8 +113,8 @@ def compute_branch_radiation(
     branch: BranchHistory,
     microphysics: InternalShockMicrophysics,
     numerics: RadiationNumerics,
+    redshift: float,
 ) -> BranchRadiation:
-    gamma_e = np.logspace(np.log10(numerics.electron_gamma_min), np.log10(numerics.electron_gamma_max), numerics.num_electron_gamma)
     seed_frequency = np.logspace(
         np.log10(numerics.photon_frequency_min_hz),
         np.log10(numerics.photon_frequency_max_hz),
@@ -120,36 +122,37 @@ def compute_branch_radiation(
     )
     num_nu = seed_frequency.size
     num_r = branch.radius_cm.size
-    d_n_dgamma = np.zeros((gamma_e.size, num_r), dtype=float)
     gamma_m = np.zeros(num_r, dtype=float)
     gamma_c = np.zeros(num_r, dtype=float)
     gamma_max = np.zeros(num_r, dtype=float)
     compactness = np.zeros(num_r, dtype=float)
     efficiency = np.zeros(num_r, dtype=float)
-    sync_luminosity = np.zeros((num_nu, num_r), dtype=float)
-    sync_seed = np.zeros((num_nu, num_r), dtype=float)
     if branch.valid_shock:
+        gamma_e, d_n_dgamma = _solve_branch_electrons_fortran(branch, microphysics, numerics, seed_frequency, redshift)
+        sync_luminosity, sync_seed, _nu_a = electron_reverse_module.electron_secondary_reverse_synchrotron(
+            numerics.index_syn_integr,
+            numerics.num_threads,
+            branch.radius_cm,
+            branch.gamma,
+            branch.total_b_g,
+            gamma_e,
+            d_n_dgamma,
+            seed_frequency,
+            redshift,
+        )
         for i in range(num_r):
             if branch.electron_luminosity_comoving_erg_s[i] <= 0.0 or branch.total_b_g[i] <= 0.0:
                 continue
-            electron_distribution = _electron_distribution(branch, i, gamma_e, microphysics)
-            d_n_dgamma[:, i] = electron_distribution
             gamma_m[i] = _gamma_m(branch, i, microphysics)
             gamma_c[i] = _gamma_c(branch, i)
             gamma_max[i] = _gamma_max(branch, i, microphysics)
             compactness[i] = _compactness(branch, i)
             efficiency[i] = _efficiency(branch, i, microphysics)
-            p_syn, seed_syn = electron_radiation_module.get_syn_selected(
-                numerics.index_syn_integr,
-                float(branch.radius_cm[i]),
-                float(branch.total_b_g[i]),
-                numerics.num_threads,
-                gamma_e,
-                electron_distribution,
-                seed_frequency,
-            )
-            sync_luminosity[:, i] = np.asarray(p_syn, dtype=float)
-            sync_seed[:, i] = np.asarray(seed_syn, dtype=float)
+    else:
+        gamma_e = np.logspace(np.log10(numerics.electron_gamma_min), np.log10(numerics.electron_gamma_max), numerics.num_electron_gamma)
+        d_n_dgamma = np.zeros((gamma_e.size, num_r), dtype=float)
+        sync_luminosity = np.zeros((num_nu, num_r), dtype=float)
+        sync_seed = np.zeros((num_nu, num_r), dtype=float)
     ssc_luminosity, ssc_seed = Radiation.ssc_spec(
         branch.radius_cm,
         gamma_e,
@@ -171,7 +174,7 @@ def compute_branch_radiation(
     if not branch.valid_shock:
         absorption = np.ones_like(absorption)
     return BranchRadiation(
-        gamma_e=gamma_e,
+        gamma_e=np.asarray(gamma_e, dtype=float),
         seed_frequency_hz=seed_frequency,
         d_n_dgamma=d_n_dgamma,
         sync_luminosity=np.asarray(sync_luminosity, dtype=float),
@@ -209,34 +212,54 @@ def _project(
     )
 
 
-def _electron_distribution(
+def _solve_branch_electrons_fortran(
     branch: BranchHistory,
-    index: int,
-    gamma_e: np.ndarray,
     microphysics: InternalShockMicrophysics,
-) -> np.ndarray:
-    gamma_m = _gamma_m(branch, index, microphysics)
-    gamma_c = _gamma_c(branch, index)
-    gamma_max = _gamma_max(branch, index, microphysics)
-    spectrum = np.zeros_like(gamma_e)
-    active = (gamma_e >= min(gamma_m, gamma_c)) & (gamma_e <= gamma_max)
-    if np.any(active):
-        if gamma_c < gamma_m:
-            cooled = active & (gamma_e < gamma_m)
-            high = active & (gamma_e >= gamma_m)
-            spectrum[cooled] = gamma_e[cooled] ** -2.0
-            spectrum[high] = gamma_m ** (microphysics.electron_index_p - 1.0) * gamma_e[high] ** (-(microphysics.electron_index_p + 1.0))
-        else:
-            low = active & (gamma_e < gamma_c)
-            high = active & (gamma_e >= gamma_c)
-            spectrum[low] = gamma_e[low] ** (-microphysics.electron_index_p)
-            spectrum[high] = gamma_c * gamma_e[high] ** (-(microphysics.electron_index_p + 1.0))
-        t_age_comoving = _branch_age_comoving(branch, index)
-        target_energy = branch.electron_luminosity_comoving_erg_s[index] * t_age_comoving
-        energy_integral = np.trapezoid(spectrum * (gamma_e - 1.0) * constants.para_m_energy, gamma_e)
-        if energy_integral > 0.0 and target_energy > 0.0:
-            spectrum = spectrum * (target_energy / energy_integral)
-    return spectrum
+    numerics: RadiationNumerics,
+    seed_frequency: np.ndarray,
+    redshift: float,
+) -> tuple[np.ndarray, np.ndarray]:
+    r_tobs = np.asarray(branch.characteristic_time_s, dtype=float).copy()
+    if r_tobs[0] <= 0.0:
+        r_tobs[0] = 0.5 * r_tobs[1]
+    density_for_grid = float(branch.shell_density_cm3[1])
+    gamma_e, d_n_dgamma = electron_reverse_module.electron_reverse_evolve(
+        branch.upstream_lab_width_cm,
+        microphysics.epsilon_e,
+        microphysics.epsilon_b,
+        microphysics.electron_index_p,
+        microphysics.accelerated_electron_fraction,
+        branch.upstream_gamma,
+        microphysics.epsilon_e,
+        microphysics.epsilon_b,
+        redshift,
+        0.0,
+        density_for_grid,
+        branch.upstream_baryonic_mass_g,
+        branch.radius_cm[-1],
+        1.0,
+        1.0,
+        0.0,
+        r_tobs[-1],
+        branch.radius_cm[-1],
+        branch.internal_energy_erg[-1],
+        branch.comoving_volume_cm3[-1],
+        branch.swept_mass_g[-1],
+        r_tobs,
+        branch.gamma,
+        branch.radius_cm,
+        branch.total_b_g,
+        branch.swept_mass_g,
+        branch.internal_energy_erg,
+        branch.comoving_volume_cm3,
+        seed_frequency,
+        numerics.num_electron_gamma,
+        numerics.electron_cooling_index_y,
+        numerics.index_syn_integr,
+        numerics.num_threads,
+        solver_id=numerics.electron_solver_id,
+    )
+    return np.asarray(gamma_e, dtype=float), np.asarray(d_n_dgamma, dtype=float)
 
 
 def _gamma_m(branch: BranchHistory, index: int, microphysics: InternalShockMicrophysics) -> float:
