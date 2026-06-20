@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 from _repo_path import ensure_repo_root_on_path
 
 import numpy as np
@@ -9,7 +11,7 @@ ensure_repo_root_on_path()
 
 from asgard_core import Model
 from asgard_core.asgard_config import RuntimeConfig
-from asgard_core.asgard_state import solve_state
+from asgard_core.asgard_state import _build_observer_setup_from_state, solve_state
 from src import Interpolation
 from tests.public_api_builders import numerics, solver_options, top_hat_model
 
@@ -176,6 +178,57 @@ def case_off_axis_phi_collapse_rejected():
         assert "off-axis EATS projection requires num_phi >= 2" in str(exc)
         return {"error": str(exc)}
     raise AssertionError("off-axis EATS projection accepted num_phi=1")
+
+
+def case_project_flux_grid_syncs_observer_theta_boundary():
+    boundary = np.zeros(30, dtype=float)
+    boundary[8] = 0.1
+    boundary[9] = 0.2
+    state = SimpleNamespace(
+        config=SimpleNamespace(opening_angle_jet=0.12, theta_v=0.5),
+        setup=SimpleNamespace(
+            luminosity_distance_cm=1.0e26,
+            boundary=boundary,
+            seed_frequency_hz=np.array([1.0e10, 1.0e14], dtype=float),
+        ),
+    )
+    setup = _build_observer_setup_from_state(state, np.array([1.0e4], dtype=float))
+    assert setup.boundary[8] == 0.12
+    assert setup.boundary[9] == 0.5
+    assert boundary[8] == 0.1
+    assert boundary[9] == 0.2
+    return {
+        "observer_opening": float(setup.boundary[8]),
+        "observer_theta": float(setup.boundary[9]),
+        "state_opening": float(boundary[8]),
+        "state_theta": float(boundary[9]),
+    }
+
+
+def case_model_cache_includes_observer_angle():
+    model = top_hat_model(
+        numerics=numerics(
+            num_electron_gamma=NUM_GAM_E,
+            num_chi=NUM_CHI,
+            num_photon_frequency=NUM_NU,
+            num_radius=NUM_R,
+            num_theta=NUM_THETA,
+            num_phi=12,
+            num_observer_time=NUM_TOBS,
+        ),
+        solver_options=solver_options(electron_solver="fullhide_2d", geometry_projection="chi_eats_2d"),
+    )
+    times = np.geomspace(1.0e4, 1.0e7, 8)
+    freq = np.array([1.0e14], dtype=float)
+    model.observer.theta_obs = 0.2
+    near = model.flux_density_grid(times, freq, projection_kind="lightcurve").total[0]
+    model.observer.theta_obs = 0.5
+    far = model.flux_density_grid(times, freq, projection_kind="lightcurve").total[0]
+    mask = np.isfinite(near) & np.isfinite(far) & (near > 0.0) & (far > 0.0)
+    assert np.any(mask)
+    log_delta = np.max(np.abs(np.log10(far[mask] / near[mask])))
+    assert log_delta > 0.5
+    return {"max_abs_log10_delta": float(log_delta)}
 
 
 def case_on_axis_phi_collapse_matches_explicit_phi():
@@ -373,17 +426,19 @@ def case_chi_ssa_nonuniform_tau_matches_manual():
 
 def main() -> None:
     cases = [
-        ("[1/11] fullhide_2d:basic_smoke", case_basic_smoke),
-        ("[2/11] fullhide_2d:electron_grid", case_electron_grid),
-        ("[3/11] fullhide_2d:chi_eats_geometry", case_chi_eats_geometry_smoke),
-        ("[4/11] chi_eats_2d:projection_kind_routes", case_chi_eats_projection_kind_routes),
-        ("[5/11] chi_eats_2d:rejects_1d_solver", case_chi_eats_rejects_1d_solver),
-        ("[6/11] eats:rejects_off_axis_phi_collapse", case_off_axis_phi_collapse_rejected),
-        ("[7/11] eats:on_axis_phi_collapse", case_on_axis_phi_collapse_matches_explicit_phi),
-        ("[8/11] chi_eats_2d:delta_layer_thin_shell", case_chi_projection_delta_layer_matches_thin_shell),
-        ("[9/11] chi_eats_2d:finite_width_converges", case_chi_projection_finite_width_converges_to_thin_shell),
-        ("[10/11] chi_eats_2d:ssa_cell_split_invariance", case_chi_ssa_cell_split_invariance),
-        ("[11/11] chi_eats_2d:ssa_nonuniform_tau", case_chi_ssa_nonuniform_tau_matches_manual),
+        ("[1/13] fullhide_2d:basic_smoke", case_basic_smoke),
+        ("[2/13] fullhide_2d:electron_grid", case_electron_grid),
+        ("[3/13] fullhide_2d:chi_eats_geometry", case_chi_eats_geometry_smoke),
+        ("[4/13] chi_eats_2d:projection_kind_routes", case_chi_eats_projection_kind_routes),
+        ("[5/13] chi_eats_2d:rejects_1d_solver", case_chi_eats_rejects_1d_solver),
+        ("[6/13] eats:rejects_off_axis_phi_collapse", case_off_axis_phi_collapse_rejected),
+        ("[7/13] eats:syncs_observer_theta_boundary", case_project_flux_grid_syncs_observer_theta_boundary),
+        ("[8/13] model_cache:observer_angle", case_model_cache_includes_observer_angle),
+        ("[9/13] eats:on_axis_phi_collapse", case_on_axis_phi_collapse_matches_explicit_phi),
+        ("[10/13] chi_eats_2d:delta_layer_thin_shell", case_chi_projection_delta_layer_matches_thin_shell),
+        ("[11/13] chi_eats_2d:finite_width_converges", case_chi_projection_finite_width_converges_to_thin_shell),
+        ("[12/13] chi_eats_2d:ssa_cell_split_invariance", case_chi_ssa_cell_split_invariance),
+        ("[13/13] chi_eats_2d:ssa_nonuniform_tau", case_chi_ssa_nonuniform_tau_matches_manual),
     ]
     for label, fn in cases:
         print(f"  {label} ...", flush=True)

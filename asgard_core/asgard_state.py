@@ -609,9 +609,12 @@ def _build_observer_setup_from_state(
     state: SolveState,
     observer_time_s: np.ndarray,
 ) -> SimulationSetup:
+    boundary = np.array(state.setup.boundary, dtype=float, copy=True)
+    boundary[8] = float(state.config.opening_angle_jet)
+    boundary[9] = float(state.config.theta_v)
     return SimulationSetup(
         luminosity_distance_cm=state.setup.luminosity_distance_cm,
-        boundary=state.setup.boundary,
+        boundary=boundary,
         seed_frequency_hz=state.setup.seed_frequency_hz,
         observer_time_s=np.asarray(observer_time_s, dtype=float),
     )

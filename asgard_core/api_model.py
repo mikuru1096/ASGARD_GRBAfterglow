@@ -1013,8 +1013,17 @@ class Model:
             hadronic=hadronic,
         )
         self._last_details: Optional[TrackBundle] = None
-        self._raw_cache: dict[tuple[str, str], tuple[FluxResult, TrackBundle]] = {}
-        self._details_cache: dict[str, TrackBundle] = {}
+        self._raw_cache: dict[tuple[object, ...], tuple[FluxResult, TrackBundle]] = {}
+        self._details_cache: dict[tuple[object, ...], TrackBundle] = {}
+
+    def _observer_cache_signature(self) -> tuple[float, float, float, float | None]:
+        distance = self.observer.lumi_dist_cm
+        return (
+            float(self.observer.z),
+            float(self.observer.theta_obs),
+            float(self.observer.phi_obs),
+            None if distance is None else float(distance),
+        )
 
     def flux_density_grid(
         self,
@@ -1236,7 +1245,13 @@ class Model:
         reference_signature = None
         if solve_reference_times_s is not None:
             reference_signature = _array_signature(np.asarray(solve_reference_times_s, dtype=float))
-        cache_key = (_array_signature(times_s), _array_signature(nu_hz), reference_signature, projection_kind)
+        cache_key = (
+            _array_signature(times_s),
+            _array_signature(nu_hz),
+            reference_signature,
+            projection_kind,
+            self._observer_cache_signature(),
+        )
         cached = self._raw_cache.get(cache_key)
         if cached is not None:
             self._last_details = cached[1]
@@ -1269,7 +1284,7 @@ class Model:
         times_s = np.asarray(times_s, dtype=float)
         from .api_adaptive import _array_signature, _remember_cache_entry
 
-        cache_key = _array_signature(times_s)
+        cache_key = (_array_signature(times_s), self._observer_cache_signature())
         cached = self._details_cache.get(cache_key)
         if cached is not None:
             self._last_details = cached
