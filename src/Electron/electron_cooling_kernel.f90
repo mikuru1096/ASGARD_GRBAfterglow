@@ -197,38 +197,11 @@ integer :: low_idx,upper_idx
     end do
 end subroutine build_ssa_geometry
 
-! 用缓存的完整频率单元log-Gauss节点计算SSA段积分；裁剪段仍使用通用electron_ssa_segment。
-real(8) function ssa_cached_cell_segment(I_nu,seed0,seed1,sigma_prefactor,mode,Cyclotron_nu,V_uplim)
-implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: I_nu,mode
-real(8), intent(in) :: seed0,seed1,sigma_prefactor,Cyclotron_nu,V_uplim
-real(8) :: seed_loc,sigma_loc,vg,wg
-
-    vg=ssa_seed_vg1(I_nu)
-    wg=ssa_seed_wg1(I_nu)
-    seed_loc=electron_powerlaw_interp(ssa_seed_v_low(I_nu),ssa_seed_v_high(I_nu),seed0,seed1,vg)
-    if (mode == 1) then
-        sigma_loc=sigma_prefactor*vg**(-5d0/3d0)
-    else
-        sigma_loc=sigma_prefactor*(Cyclotron_nu/vg)*dexp(-vg/V_uplim)
-    end if
-    ssa_cached_cell_segment=wg*sigma_loc*seed_loc*para_h*vg*para_c
-
-    vg=ssa_seed_vg2(I_nu)
-    wg=ssa_seed_wg2(I_nu)
-    seed_loc=electron_powerlaw_interp(ssa_seed_v_low(I_nu),ssa_seed_v_high(I_nu),seed0,seed1,vg)
-    if (mode == 1) then
-        sigma_loc=sigma_prefactor*vg**(-5d0/3d0)
-    else
-        sigma_loc=sigma_prefactor*(Cyclotron_nu/vg)*dexp(-vg/V_uplim)
-    end if
-    ssa_cached_cell_segment=ssa_cached_cell_segment+wg*sigma_loc*seed_loc*para_h*vg*para_c
-end function ssa_cached_cell_segment
-
 ! 对给定种子光子场累加SSA冷却率：低频Σ ∝ ν^(5/3)，高频Σ ∝ 1/γ³。
 subroutine accumulate_ssa_for_seed(Num_gam_e,Num_nu,n_threads,gam_e,Seed_syn,V_low_idx,V_low_first,V_low_last, &
                                    V_high_first,V_seed_low,V_seed_high,V_seed_g1,V_seed_g2,V_seed_w1,V_seed_w2, &
-                                   Seed_g1,Seed_g2,sigma_prefactor_low,sigma_prefactor_high,Cyclotron_nu,dot_gam_e)
+                                   Seed_g1,Seed_g2,Low_prefix,High_amp1,High_amp2, &
+                                   sigma_prefactor_low,sigma_prefactor_high,Cyclotron_nu,dot_gam_e)
 !$ use omp_lib
 implicit REAL(8)(A-H,O-Z)
 integer, intent(in) :: Num_gam_e,Num_nu,n_threads
@@ -236,6 +209,7 @@ real(8), intent(in) :: gam_e(Num_gam_e),Seed_syn(Num_nu)
 integer, intent(in) :: V_low_idx(Num_gam_e),V_low_first(Num_gam_e),V_low_last(Num_gam_e),V_high_first(Num_gam_e)
 real(8), intent(in) :: V_seed_low(Num_nu-1),V_seed_high(Num_nu-1),V_seed_g1(Num_nu-1),V_seed_g2(Num_nu-1)
 real(8), intent(in) :: V_seed_w1(Num_nu-1),V_seed_w2(Num_nu-1),Seed_g1(Num_nu-1),Seed_g2(Num_nu-1)
+real(8), intent(in) :: Low_prefix(0:Num_nu-1),High_amp1(Num_nu-1),High_amp2(Num_nu-1)
 real(8), intent(in) :: sigma_prefactor_low(Num_gam_e),sigma_prefactor_high(Num_gam_e),Cyclotron_nu
 real(8), intent(out) :: dot_gam_e(Num_gam_e)
 integer, parameter :: parallel_work_threshold=512
@@ -263,8 +237,8 @@ subroutine accumulate_ssa_single_gamma(I_gam_e,dot_val)
 implicit REAL(8)(A-H,O-Z)
 integer, intent(in) :: I_gam_e
 real(8), intent(out) :: dot_val
-integer :: I_nu
-real(8) :: gam,gam2,V_lowlim,V_uplim,ssa_sum,cell_low,cell_high
+integer :: I_nu,low_full_first,low_full_last,high_full_first
+real(8) :: gam,gam2,V_lowlim,V_uplim,inv_uplim,high_prefactor,ssa_sum,cell_low,cell_high
 
     dot_val=zero
     if (V_low_idx(I_gam_e) > Num_nu) return
@@ -273,61 +247,61 @@ real(8) :: gam,gam2,V_lowlim,V_uplim,ssa_sum,cell_low,cell_high
     gam2=gam*gam
     V_lowlim=Cyclotron_nu/gam
     V_uplim=1.5d0*gam2*Cyclotron_nu
+    inv_uplim=one/V_uplim
+    high_prefactor=sigma_prefactor_high(I_gam_e)*Cyclotron_nu*para_h*para_c
     ssa_sum=zero
 
-    do I_nu=V_low_first(I_gam_e),V_low_last(I_gam_e)
-       cell_low=max(V_seed_low(I_nu),V_lowlim)
-       cell_high=min(V_seed_high(I_nu),V_uplim)
-       if (cell_high > cell_low) then
-          if (cell_low == V_seed_low(I_nu) .and. cell_high == V_seed_high(I_nu)) then
-              ssa_sum=ssa_sum+cached_ssa_cell_segment(I_nu,sigma_prefactor_low(I_gam_e),1,Cyclotron_nu,V_uplim)
-          else
-              ssa_sum=ssa_sum+clipped_ssa_cell_segment(cell_low,cell_high,I_nu, &
-                                                       sigma_prefactor_low(I_gam_e),1,Cyclotron_nu,V_uplim)
-          end if
-       end if
-    end do
+    low_full_first=V_low_first(I_gam_e)
+    low_full_last=V_low_last(I_gam_e)
+    if (low_full_first <= low_full_last) then
+        cell_low=max(V_seed_low(low_full_first),V_lowlim)
+        cell_high=min(V_seed_high(low_full_first),V_uplim)
+        if (cell_high > cell_low) then
+            if (cell_low /= V_seed_low(low_full_first) .or. cell_high /= V_seed_high(low_full_first)) then
+                ssa_sum=ssa_sum+clipped_ssa_cell_segment(cell_low,cell_high,low_full_first, &
+                                                        sigma_prefactor_low(I_gam_e),1,Cyclotron_nu,V_uplim)
+                low_full_first=low_full_first+1
+            end if
+        else
+            low_full_first=low_full_first+1
+        end if
+    end if
+    if (low_full_last >= low_full_first) then
+        cell_low=max(V_seed_low(low_full_last),V_lowlim)
+        cell_high=min(V_seed_high(low_full_last),V_uplim)
+        if (cell_high > cell_low) then
+            if (cell_low /= V_seed_low(low_full_last) .or. cell_high /= V_seed_high(low_full_last)) then
+                ssa_sum=ssa_sum+clipped_ssa_cell_segment(cell_low,cell_high,low_full_last, &
+                                                        sigma_prefactor_low(I_gam_e),1,Cyclotron_nu,V_uplim)
+                low_full_last=low_full_last-1
+            end if
+        else
+            low_full_last=low_full_last-1
+        end if
+    end if
+    if (low_full_last >= low_full_first) then
+        ssa_sum=ssa_sum+sigma_prefactor_low(I_gam_e)*(Low_prefix(low_full_last)-Low_prefix(low_full_first-1))
+    end if
 
-    do I_nu=V_high_first(I_gam_e),Num_nu-1
-       cell_low=max(V_seed_low(I_nu),V_uplim)
-       cell_high=V_seed_high(I_nu)
-       if (cell_high > cell_low) then
-          if (cell_low == V_seed_low(I_nu)) then
-              ssa_sum=ssa_sum+cached_ssa_cell_segment(I_nu,sigma_prefactor_high(I_gam_e),2,Cyclotron_nu,V_uplim)
-          else
-              ssa_sum=ssa_sum+clipped_ssa_cell_segment(cell_low,cell_high,I_nu, &
-                                                       sigma_prefactor_high(I_gam_e),2,Cyclotron_nu,V_uplim)
-          end if
-       end if
+    high_full_first=V_high_first(I_gam_e)
+    if (high_full_first <= Num_nu-1) then
+        cell_low=max(V_seed_low(high_full_first),V_uplim)
+        cell_high=V_seed_high(high_full_first)
+        if (cell_high > cell_low) then
+            if (cell_low /= V_seed_low(high_full_first)) then
+                ssa_sum=ssa_sum+clipped_ssa_cell_segment(cell_low,cell_high,high_full_first, &
+                                                        sigma_prefactor_high(I_gam_e),2,Cyclotron_nu,V_uplim)
+                high_full_first=high_full_first+1
+            end if
+        end if
+    end if
+    do I_nu=high_full_first,Num_nu-1
+       ssa_sum=ssa_sum+high_prefactor*(High_amp1(I_nu)*dexp(-V_seed_g1(I_nu)*inv_uplim)+ &
+                                       High_amp2(I_nu)*dexp(-V_seed_g2(I_nu)*inv_uplim))
     end do
 
     dot_val=ssa_sum
 end subroutine accumulate_ssa_single_gamma
-
-real(8) function cached_ssa_cell_segment(I_nu,sigma_prefactor,mode,Cyclotron_nu,V_uplim)
-implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: I_nu,mode
-real(8), intent(in) :: sigma_prefactor,Cyclotron_nu,V_uplim
-real(8) :: sigma_loc,vg,wg
-
-    vg=V_seed_g1(I_nu)
-    wg=V_seed_w1(I_nu)
-    if (mode == 1) then
-        sigma_loc=sigma_prefactor*vg**(-5d0/3d0)
-    else
-        sigma_loc=sigma_prefactor*(Cyclotron_nu/vg)*dexp(-vg/V_uplim)
-    end if
-    cached_ssa_cell_segment=wg*sigma_loc*Seed_g1(I_nu)*para_h*vg*para_c
-
-    vg=V_seed_g2(I_nu)
-    wg=V_seed_w2(I_nu)
-    if (mode == 1) then
-        sigma_loc=sigma_prefactor*vg**(-5d0/3d0)
-    else
-        sigma_loc=sigma_prefactor*(Cyclotron_nu/vg)*dexp(-vg/V_uplim)
-    end if
-    cached_ssa_cell_segment=cached_ssa_cell_segment+wg*sigma_loc*Seed_g2(I_nu)*para_h*vg*para_c
-end function cached_ssa_cell_segment
 
 real(8) function clipped_ssa_cell_segment(cell_low,cell_high,I_nu,sigma_prefactor,mode,Cyclotron_nu,V_uplim)
 implicit REAL(8)(A-H,O-Z)
@@ -367,16 +341,23 @@ implicit REAL(8)(A-H,O-Z)
 integer, intent(in) :: Num_gam_e,Num_nu,n_threads
 real(8), intent(in) :: gam_e(Num_gam_e),V_seed(Num_nu),Seed_syn(Num_nu)
 real(8), intent(out) :: dot_gam_e(Num_gam_e)
-real(8) :: Cyclotron_nu,Seed_g1(Num_nu-1),Seed_g2(Num_nu-1)
+real(8) :: Cyclotron_nu,Seed_g1(Num_nu-1),Seed_g2(Num_nu-1),Low_prefix(0:Num_nu-1)
+real(8) :: High_amp1(Num_nu-1),High_amp2(Num_nu-1)
 integer :: I_nu
 
     call ensure_ssa_seed_cache(Num_nu,V_seed)
     call ensure_ssa_geometry_workspace(Num_gam_e,0)
+    Low_prefix(0)=zero
     do I_nu=1,Num_nu-1
         Seed_g1(I_nu)=electron_powerlaw_interp(ssa_seed_v_low(I_nu),ssa_seed_v_high(I_nu), &
                                                Seed_syn(I_nu),Seed_syn(I_nu+1),ssa_seed_vg1(I_nu))
         Seed_g2(I_nu)=electron_powerlaw_interp(ssa_seed_v_low(I_nu),ssa_seed_v_high(I_nu), &
                                                Seed_syn(I_nu),Seed_syn(I_nu+1),ssa_seed_vg2(I_nu))
+        Low_prefix(I_nu)=Low_prefix(I_nu-1)+para_h*para_c*(ssa_seed_wg1(I_nu)*Seed_g1(I_nu)* &
+                         ssa_seed_vg1(I_nu)**(-2d0/3d0)+ssa_seed_wg2(I_nu)*Seed_g2(I_nu)* &
+                         ssa_seed_vg2(I_nu)**(-2d0/3d0))
+        High_amp1(I_nu)=ssa_seed_wg1(I_nu)*Seed_g1(I_nu)
+        High_amp2(I_nu)=ssa_seed_wg2(I_nu)*Seed_g2(I_nu)
     end do
     call build_ssa_geometry(DB,Num_gam_e,Num_nu,gam_e,ssa_low_idx_cache,ssa_low_first_cache,ssa_low_last_cache, &
                             ssa_high_first_cache, &
@@ -384,63 +365,10 @@ integer :: I_nu
     call accumulate_ssa_for_seed(Num_gam_e,Num_nu,n_threads,gam_e,Seed_syn,ssa_low_idx_cache,ssa_low_first_cache, &
                                  ssa_low_last_cache,ssa_high_first_cache,ssa_seed_v_low,ssa_seed_v_high, &
                                  ssa_seed_vg1,ssa_seed_vg2,ssa_seed_wg1,ssa_seed_wg2,Seed_g1,Seed_g2, &
+                                 Low_prefix,High_amp1,High_amp2, &
                                  ssa_prefactor_low_cache,ssa_prefactor_high_cache,Cyclotron_nu,dot_gam_e)
 
 end subroutine electron_cooling_ssa_loss
-
-! 批量模式下计算单个(γ, χ)单元的SSA冷却率。
-subroutine accumulate_ssa_batch_cell(Num_gam_e,Num_nu,Num_chi,I_gam_e,I_chi,gam_e,Seed_syn_batch,Cyclotron_nu,dot_gam_e_val)
-implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: Num_gam_e,Num_nu,Num_chi,I_gam_e,I_chi
-real(8), intent(in) :: gam_e(Num_gam_e),Seed_syn_batch(Num_nu,Num_chi)
-real(8), intent(in) :: Cyclotron_nu
-real(8), intent(out) :: dot_gam_e_val
-integer :: I_nu
-real(8) :: gam,gam2,V_lowlim,V_uplim,ssa_sum,cell_low,cell_high
-
-    dot_gam_e_val=zero
-    if (ssa_low_idx_cache(I_gam_e) > Num_nu) return
-
-    gam=gam_e(I_gam_e)
-    gam2=gam*gam
-    V_lowlim=Cyclotron_nu/gam
-    V_uplim=1.5d0*gam2*Cyclotron_nu
-    ssa_sum=zero
-
-    do I_nu=ssa_low_first_cache(I_gam_e),ssa_low_last_cache(I_gam_e)
-        cell_low=max(ssa_seed_v_low(I_nu),V_lowlim)
-        cell_high=min(ssa_seed_v_high(I_nu),V_uplim)
-        if (cell_high > cell_low) then
-            if (cell_low == ssa_seed_v_low(I_nu) .and. cell_high == ssa_seed_v_high(I_nu)) then
-                ssa_sum=ssa_sum+ssa_cached_cell_segment(I_nu,Seed_syn_batch(I_nu,I_chi), &
-                                                        Seed_syn_batch(I_nu+1,I_chi), &
-                                                        ssa_prefactor_low_cache(I_gam_e),1,Cyclotron_nu,V_uplim)
-            else
-                ssa_sum=ssa_sum+electron_ssa_segment(cell_low,cell_high,Seed_syn_batch(I_nu,I_chi), &
-                                                     Seed_syn_batch(I_nu+1,I_chi), &
-                                                     ssa_prefactor_low_cache(I_gam_e),1,Cyclotron_nu,V_uplim)
-            end if
-        end if
-    end do
-
-    do I_nu=ssa_high_first_cache(I_gam_e),Num_nu-1
-        cell_low=max(ssa_seed_v_low(I_nu),V_uplim)
-        cell_high=ssa_seed_v_high(I_nu)
-        if (cell_high > cell_low) then
-            if (cell_low == ssa_seed_v_low(I_nu)) then
-                ssa_sum=ssa_sum+ssa_cached_cell_segment(I_nu,Seed_syn_batch(I_nu,I_chi), &
-                                                        Seed_syn_batch(I_nu+1,I_chi), &
-                                                        ssa_prefactor_high_cache(I_gam_e),2,Cyclotron_nu,V_uplim)
-            else
-                ssa_sum=ssa_sum+electron_ssa_segment(cell_low,cell_high,Seed_syn_batch(I_nu,I_chi), &
-                                                     Seed_syn_batch(I_nu+1,I_chi), &
-                                                     ssa_prefactor_high_cache(I_gam_e),2,Cyclotron_nu,V_uplim)
-            end if
-        end if
-    end do
-
-    dot_gam_e_val=ssa_sum
-end subroutine accumulate_ssa_batch_cell
 
 ! 批量SSA冷却率：对多个χ列的种子光子场同时计算SSA，可OpenMP并行。
 subroutine electron_cooling_ssa_loss_batch(DB,Num_gam_e,Num_nu,Num_chi,n_threads,gam_e,V_seed,Seed_syn_batch,dot_gam_e_batch)
@@ -449,22 +377,163 @@ implicit REAL(8)(A-H,O-Z)
 integer, intent(in) :: Num_gam_e,Num_nu,Num_chi,n_threads
 real(8), intent(in) :: gam_e(Num_gam_e),V_seed(Num_nu),Seed_syn_batch(Num_nu,Num_chi)
 real(8), intent(out) :: dot_gam_e_batch(Num_gam_e,Num_chi)
-    integer :: I_chi,I_gam_e
-    real(8) :: Cyclotron_nu,ssa_sum_cell
+integer, parameter :: parallel_work_threshold=512
+integer :: V_low_idx(Num_gam_e),V_low_first(Num_gam_e),V_low_last(Num_gam_e),V_high_first(Num_gam_e)
+integer :: I_nu,I_chi,I_gam_e,work_items
+real(8) :: V_seed_low(Num_nu-1),V_seed_high(Num_nu-1),V_seed_g1(Num_nu-1),V_seed_g2(Num_nu-1)
+real(8) :: V_seed_w1(Num_nu-1),V_seed_w2(Num_nu-1),sigma_low(Num_gam_e),sigma_high(Num_gam_e)
+real(8) :: Cyclotron_nu,Seed_g1(Num_nu-1,Num_chi),Seed_g2(Num_nu-1,Num_chi)
+real(8) :: Low_prefix(0:Num_nu-1,Num_chi),High_amp1(Num_nu-1,Num_chi),High_amp2(Num_nu-1,Num_chi)
 
     call ensure_ssa_seed_cache(Num_nu,V_seed)
     call ensure_ssa_geometry_workspace(Num_gam_e,Num_chi)
-    call build_ssa_geometry(DB,Num_gam_e,Num_nu,gam_e,ssa_low_idx_cache,ssa_low_first_cache,ssa_low_last_cache, &
-                            ssa_high_first_cache, &
-                            ssa_prefactor_low_cache,ssa_prefactor_high_cache,Cyclotron_nu)
+    V_seed_low=ssa_seed_v_low
+    V_seed_high=ssa_seed_v_high
+    V_seed_g1=ssa_seed_vg1
+    V_seed_g2=ssa_seed_vg2
+    V_seed_w1=ssa_seed_wg1
+    V_seed_w2=ssa_seed_wg2
+    Low_prefix(0,:)=zero
+    do I_chi=1,Num_chi
+        do I_nu=1,Num_nu-1
+            Seed_g1(I_nu,I_chi)=electron_powerlaw_interp(V_seed_low(I_nu),V_seed_high(I_nu), &
+                                                         Seed_syn_batch(I_nu,I_chi),Seed_syn_batch(I_nu+1,I_chi), &
+                                                         V_seed_g1(I_nu))
+            Seed_g2(I_nu,I_chi)=electron_powerlaw_interp(V_seed_low(I_nu),V_seed_high(I_nu), &
+                                                         Seed_syn_batch(I_nu,I_chi),Seed_syn_batch(I_nu+1,I_chi), &
+                                                         V_seed_g2(I_nu))
+            Low_prefix(I_nu,I_chi)=Low_prefix(I_nu-1,I_chi)+para_h*para_c*(V_seed_w1(I_nu)* &
+                                    Seed_g1(I_nu,I_chi)*V_seed_g1(I_nu)**(-2d0/3d0)+ &
+                                    V_seed_w2(I_nu)*Seed_g2(I_nu,I_chi)*V_seed_g2(I_nu)**(-2d0/3d0))
+            High_amp1(I_nu,I_chi)=V_seed_w1(I_nu)*Seed_g1(I_nu,I_chi)
+            High_amp2(I_nu,I_chi)=V_seed_w2(I_nu)*Seed_g2(I_nu,I_chi)
+        end do
+    end do
+    call build_ssa_geometry(DB,Num_gam_e,Num_nu,gam_e,V_low_idx,V_low_first,V_low_last,V_high_first, &
+                            sigma_low,sigma_high,Cyclotron_nu)
 
     dot_gam_e_batch=zero
-    do I_chi=1,Num_chi
-       do I_gam_e=1,Num_gam_e
-          call accumulate_ssa_batch_cell(Num_gam_e,Num_nu,Num_chi,I_gam_e,I_chi,gam_e,Seed_syn_batch,Cyclotron_nu,ssa_sum_cell)
-          dot_gam_e_batch(I_gam_e,I_chi)=ssa_sum_cell
-       end do
+    work_items=Num_gam_e*Num_chi*Num_nu
+    if (n_threads <= 1 .or. work_items < parallel_work_threshold) then
+        do I_chi=1,Num_chi
+            do I_gam_e=1,Num_gam_e
+                call accumulate_ssa_batch_gamma(I_gam_e,I_chi,dot_gam_e_batch(I_gam_e,I_chi))
+            end do
+        end do
+    else
+        !$OMP PARALLEL DO collapse(2) num_threads(n_threads) schedule(static) &
+        !$OMP& private(I_chi,I_gam_e)
+        do I_chi=1,Num_chi
+            do I_gam_e=1,Num_gam_e
+                call accumulate_ssa_batch_gamma(I_gam_e,I_chi,dot_gam_e_batch(I_gam_e,I_chi))
+            end do
+        end do
+        !$OMP END PARALLEL DO
+    end if
+
+contains
+
+subroutine accumulate_ssa_batch_gamma(I_gam_e,I_chi,dot_val)
+implicit REAL(8)(A-H,O-Z)
+integer, intent(in) :: I_gam_e,I_chi
+real(8), intent(out) :: dot_val
+integer :: I_nu,low_full_first,low_full_last,high_full_first
+real(8) :: gam,gam2,V_lowlim,V_uplim,inv_uplim,high_prefactor,ssa_sum,cell_low,cell_high
+
+    dot_val=zero
+    if (V_low_idx(I_gam_e) > Num_nu) return
+
+    gam=gam_e(I_gam_e)
+    gam2=gam*gam
+    V_lowlim=Cyclotron_nu/gam
+    V_uplim=1.5d0*gam2*Cyclotron_nu
+    inv_uplim=one/V_uplim
+    high_prefactor=sigma_high(I_gam_e)*Cyclotron_nu*para_h*para_c
+    ssa_sum=zero
+
+    low_full_first=V_low_first(I_gam_e)
+    low_full_last=V_low_last(I_gam_e)
+    if (low_full_first <= low_full_last) then
+        cell_low=max(V_seed_low(low_full_first),V_lowlim)
+        cell_high=min(V_seed_high(low_full_first),V_uplim)
+        if (cell_high > cell_low) then
+            if (cell_low /= V_seed_low(low_full_first) .or. cell_high /= V_seed_high(low_full_first)) then
+                ssa_sum=ssa_sum+clipped_ssa_batch_segment(cell_low,cell_high,low_full_first,I_chi, &
+                                                          sigma_low(I_gam_e),1,Cyclotron_nu,V_uplim)
+                low_full_first=low_full_first+1
+            end if
+        else
+            low_full_first=low_full_first+1
+        end if
+    end if
+    if (low_full_last >= low_full_first) then
+        cell_low=max(V_seed_low(low_full_last),V_lowlim)
+        cell_high=min(V_seed_high(low_full_last),V_uplim)
+        if (cell_high > cell_low) then
+            if (cell_low /= V_seed_low(low_full_last) .or. cell_high /= V_seed_high(low_full_last)) then
+                ssa_sum=ssa_sum+clipped_ssa_batch_segment(cell_low,cell_high,low_full_last,I_chi, &
+                                                          sigma_low(I_gam_e),1,Cyclotron_nu,V_uplim)
+                low_full_last=low_full_last-1
+            end if
+        else
+            low_full_last=low_full_last-1
+        end if
+    end if
+    if (low_full_last >= low_full_first) then
+        ssa_sum=ssa_sum+sigma_low(I_gam_e)*(Low_prefix(low_full_last,I_chi)-Low_prefix(low_full_first-1,I_chi))
+    end if
+
+    high_full_first=V_high_first(I_gam_e)
+    if (high_full_first <= Num_nu-1) then
+        cell_low=max(V_seed_low(high_full_first),V_uplim)
+        cell_high=V_seed_high(high_full_first)
+        if (cell_high > cell_low) then
+            if (cell_low /= V_seed_low(high_full_first)) then
+                ssa_sum=ssa_sum+clipped_ssa_batch_segment(cell_low,cell_high,high_full_first,I_chi, &
+                                                          sigma_high(I_gam_e),2,Cyclotron_nu,V_uplim)
+                high_full_first=high_full_first+1
+            end if
+        end if
+    end if
+    do I_nu=high_full_first,Num_nu-1
+        ssa_sum=ssa_sum+high_prefactor*(High_amp1(I_nu,I_chi)*dexp(-V_seed_g1(I_nu)*inv_uplim)+ &
+                                        High_amp2(I_nu,I_chi)*dexp(-V_seed_g2(I_nu)*inv_uplim))
     end do
+
+    dot_val=ssa_sum
+end subroutine accumulate_ssa_batch_gamma
+
+real(8) function clipped_ssa_batch_segment(cell_low,cell_high,I_nu,I_chi,sigma_prefactor,mode,Cyclotron_nu,V_uplim)
+implicit REAL(8)(A-H,O-Z)
+integer, intent(in) :: I_nu,I_chi,mode
+real(8), intent(in) :: cell_low,cell_high,sigma_prefactor,Cyclotron_nu,V_uplim
+real(8) :: seed_loc,sigma_loc,vg,wg,vg1,vg2,wg1,wg2
+
+    call electron_log_gauss2_interval(cell_low,cell_high,vg1,vg2,wg1,wg2)
+    clipped_ssa_batch_segment=zero
+
+    vg=vg1
+    wg=wg1
+    seed_loc=electron_powerlaw_interp(V_seed_low(I_nu),V_seed_high(I_nu), &
+                                      Seed_syn_batch(I_nu,I_chi),Seed_syn_batch(I_nu+1,I_chi),vg)
+    if (mode == 1) then
+        sigma_loc=sigma_prefactor*vg**(-5d0/3d0)
+    else
+        sigma_loc=sigma_prefactor*(Cyclotron_nu/vg)*dexp(-vg/V_uplim)
+    end if
+    clipped_ssa_batch_segment=wg*sigma_loc*seed_loc*para_h*vg*para_c
+
+    vg=vg2
+    wg=wg2
+    seed_loc=electron_powerlaw_interp(V_seed_low(I_nu),V_seed_high(I_nu), &
+                                      Seed_syn_batch(I_nu,I_chi),Seed_syn_batch(I_nu+1,I_chi),vg)
+    if (mode == 1) then
+        sigma_loc=sigma_prefactor*vg**(-5d0/3d0)
+    else
+        sigma_loc=sigma_prefactor*(Cyclotron_nu/vg)*dexp(-vg/V_uplim)
+    end if
+    clipped_ssa_batch_segment=clipped_ssa_batch_segment+wg*sigma_loc*seed_loc*para_h*vg*para_c
+end function clipped_ssa_batch_segment
 end subroutine electron_cooling_ssa_loss_batch
 
 ! 数值计算逆康普顿（IC）冷却率：双重积分（种子光子×散射截面），含Jones/Blumenthal核。
