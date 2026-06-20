@@ -62,7 +62,7 @@ Model
 | `V_seed` | `(Num_nu,)` | photon frequency grid |
 | `P_syn` | `(Num_nu, Num_R)` | shell synchrotron power |
 | `gam_p` | `(Num_gam_p,)` | proton Lorentz-factor grid |
-| `chi_grid` | `(Num_chi,)` | downstream thickness coordinate |
+| `chi_grid` | `(Num_chi,)` | 2D q-mass downstream coordinate reported as its BM-equivalent chi value |
 
 电子和质子通常在 log grid 上离散：
 

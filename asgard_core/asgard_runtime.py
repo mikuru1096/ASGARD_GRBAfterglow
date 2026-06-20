@@ -868,7 +868,7 @@ def _solve_electron_transport_2d(
     return _finish_electron_solution(
         config,
         solver_name,
-        "log-gamma-log-chi-2d",
+        "log-gamma-q-mass-2d",
         gam_e,
         d_n_gam_e,
         l_syn_spec,
@@ -877,7 +877,7 @@ def _solve_electron_transport_2d(
         return_report=return_report,
         num_chi=num_chi,
         d_n_gam_e_chi=d_n_gam_e_chi,
-        chi_grid=_build_log_chi_grid(dynamics.r_gamma, num_chi),
+        chi_grid=_build_q_mass_chi_grid(config, num_chi),
         l_syn_spec_chi=l_syn_spec_chi,
         seed_syn_chi=seed_syn_chi,
         tau_syn_chi=tau_syn_chi,
@@ -1027,6 +1027,15 @@ def _build_log_chi_grid(r_gamma: np.ndarray, num_chi: int) -> np.ndarray:
     deta = np.log10(chi_max) / float(num_chi)
     eta_grid = (np.arange(num_chi, dtype=float) + 0.5) * deta
     return np.power(10.0, eta_grid)
+
+
+def _build_q_mass_chi_grid(config: RuntimeConfig, num_chi: int) -> np.ndarray:
+    sigma = 4.0
+    q_active = 1.0 - (1.0 - 1.0 / sigma) ** sigma
+    q_grid = (np.arange(num_chi, dtype=float) + 0.5) * q_active / float(num_chi)
+    k_medium = 2 if float(config.a_star) > 0.0 else 0
+    alpha = float(4 - k_medium) / float(3 - k_medium)
+    return np.power(1.0 - q_grid, -alpha)
 
 
 def _build_electron_solution(

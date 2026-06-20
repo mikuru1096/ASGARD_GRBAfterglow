@@ -95,6 +95,12 @@ runtime 默认保留的电子输运状态：
 - `chi_gamma_bulk`
 - `chi_dvolume_weight`
 
+In `fullhide_2d` and `charint_2d`, the transport grid is a finite active-shell
+q-mass coordinate; the public `chi_grid` field reports the BM-equivalent chi
+value of each q cell for diagnostics. The observer-side radius, local bulk
+Lorentz factor, and volume weight are the authoritative geometry carried by
+`chi_radius_cm`, `chi_gamma_bulk`, and `chi_dvolume_weight`.
+
 `solver_options.geometry_projection="chi_eats_2d"` 是 `fullhide_2d` / `charint_2d` 的 opt-in observer projection。该 public API 字段会写入底层 `geometry_kernel`。该路径仅对正向激波同步辐射+SSA 使用 \(\chi\) 分辨有限厚壳层等到达时间面；SSC、强子和 pair cascade 仍是壳层级契约。完整几何、输运、SSA survival、transport-to-projection 重映射和薄壳极限见 `doc/shock_shell_adaptive_algorithms.md`。
 
 ## 同步辐射、SSA 与 SSC

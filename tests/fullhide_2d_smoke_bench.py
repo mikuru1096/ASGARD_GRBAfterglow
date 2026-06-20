@@ -104,6 +104,19 @@ def case_electron_grid():
     assert np.all(np.isfinite(chi_gamma_bulk))
     assert np.all(np.isfinite(chi_dvolume_weight))
     assert np.all(chi_radius_cm > 0.0)
+    q_active = 1.0 - (3.0 / 4.0) ** 4
+    q_centers = (np.arange(NUM_CHI, dtype=float) + 0.5) * q_active / NUM_CHI
+    expected_chi = (1.0 - q_centers) ** (-4.0 / 3.0)
+    np.testing.assert_allclose(chi_grid, expected_chi, rtol=1.0e-14, atol=1.0e-14)
+    np.testing.assert_allclose(chi_dvolume_weight, q_active / NUM_CHI, rtol=1.0e-14, atol=1.0e-14)
+    np.testing.assert_allclose(np.sum(chi_dvolume_weight, axis=0), q_active, rtol=1.0e-14, atol=1.0e-14)
+    radius = np.asarray(state.dynamics.radius, dtype=float)
+    gamma_front = np.asarray(state.dynamics.r_gamma, dtype=float)
+    assert np.all(chi_radius_cm <= radius[None, :])
+    assert np.all(np.diff(chi_radius_cm, axis=0) < 0.0)
+    assert np.all(chi_radius_cm[-1, :] > 0.5 * radius)
+    assert np.all(chi_gamma_bulk <= gamma_front[None, :])
+    assert np.all(chi_gamma_bulk >= 1.0)
 
     return {
         "chi_shape": list(chi_grid.shape),
