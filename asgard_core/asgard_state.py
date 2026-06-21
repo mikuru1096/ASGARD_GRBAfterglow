@@ -142,10 +142,6 @@ def _retarded_seed_interpolation(
     return shifted_seed
 
 
-def make_policy(config: RuntimeConfig) -> ExecutionPolicy:
-    return ExecutionPolicy(num_threads=config.num_threads)
-
-
 def make_tgrid(observer_time_s: np.ndarray, default_num_tobs: int) -> np.ndarray:
     observer_time_s = np.asarray(observer_time_s, dtype=float)
     if observer_time_s.size == 0:
@@ -270,61 +266,6 @@ def _validate_multi_density_reverse_config(config: RuntimeConfig) -> None:
         raise NotImplementedError("multi-density reverse shock v1 requires separated electron-photon coupling.")
 
 
-def _solve_dynamics_stage(
-    config: RuntimeConfig,
-    setup,
-    timings: dict[str, float] | None,
-) -> tuple[DynamicsSolution, SolverAdapterReport]:
-    return _timed_call(
-        timings,
-        _solver_label(config, "dynamics"),
-        solve_dynamics,
-        setup.boundary,
-        config,
-        return_report=True,
-    )
-
-
-def _solve_electron_stage(
-    config: RuntimeConfig,
-    setup,
-    dynamics: DynamicsSolution,
-    timings: dict[str, float] | None,
-) -> tuple[ElectronSolution, SolverAdapterReport]:
-    return _timed_call(
-        timings,
-        _solver_label(config, "electron"),
-        solve_electron,
-        setup.boundary,
-        dynamics,
-        setup.seed_frequency_hz,
-        config,
-        return_report=True,
-    )
-
-
-def _solve_electron_stage_with_cooling_seed(
-    config: RuntimeConfig,
-    setup,
-    dynamics: DynamicsSolution,
-    cooling_seed: np.ndarray,
-    timings: dict[str, float] | None,
-    secondary_source_r: np.ndarray | None = None,
-) -> tuple[ElectronSolution, SolverAdapterReport]:
-    return _timed_call(
-        timings,
-        f"{_solver_label(config, 'electron')} [joint cooling]",
-        solve_electron_with_cooling_seed,
-        setup.boundary,
-        dynamics,
-        setup.seed_frequency_hz,
-        cooling_seed,
-        config,
-        secondary_source_r=secondary_source_r,
-        return_report=True,
-    )
-
-
 def _build_photon_field_stage(
     config: RuntimeConfig,
     setup,
@@ -404,7 +345,16 @@ def _solve_joint_forward_stage(
     timings: dict[str, float] | None,
 ) -> tuple[ElectronSolution, PhotonFieldState, object | None, SolverAdapterReport, SolverAdapterReport]:
     _validate_joint_electron_photon_config(config)
-    primary_electron, electron_report = _solve_electron_stage(config, setup, dynamics, timings)
+    primary_electron, electron_report = _timed_call(
+        timings,
+        _solver_label(config, "electron"),
+        solve_electron,
+        setup.boundary,
+        dynamics,
+        setup.seed_frequency_hz,
+        config,
+        return_report=True,
+    )
     electron = primary_electron
     photon_field = _build_photon_field_stage(config, setup, dynamics, electron, timings)
     hadronic = None
@@ -437,13 +387,17 @@ def _solve_joint_forward_stage(
             photon_field,
             hadronic,
         )
-        primary_electron, electron_report = _solve_electron_stage_with_cooling_seed(
-            config,
-            setup,
-            dynamics,
-            photon_field.hadronic_target_seed,
+        primary_electron, electron_report = _timed_call(
             timings,
+            f"{_solver_label(config, 'electron')} [joint cooling]",
+            solve_electron_with_cooling_seed,
+            setup.boundary,
+            dynamics,
+            setup.seed_frequency_hz,
+            photon_field.hadronic_target_seed,
+            config,
             secondary_source_r=secondary_source_r,
+            return_report=True,
         )
         electron = primary_electron
         photon_field = _build_joint_photon_field_after_hadronic(
@@ -544,8 +498,15 @@ def solve_state_from_setup(
     requested_frequencies_hz: np.ndarray | None = None,
 ) -> SolveState:
     _validate_multi_density_reverse_config(config)
-    execution_policy = make_policy(config) if policy is None else policy
-    dynamics, dynamics_report = _solve_dynamics_stage(config, setup, timings)
+    execution_policy = ExecutionPolicy(num_threads=config.num_threads) if policy is None else policy
+    dynamics, dynamics_report = _timed_call(
+        timings,
+        _solver_label(config, "dynamics"),
+        solve_dynamics,
+        setup.boundary,
+        config,
+        return_report=True,
+    )
     if _electron_photon_coupling(config) == _COUPLING_JOINT:
         electron, photon_field, hadronic, electron_report, hadronic_report = _solve_joint_forward_stage(
             config,
@@ -554,7 +515,16 @@ def solve_state_from_setup(
             timings,
         )
     else:
-        electron, electron_report = _solve_electron_stage(config, setup, dynamics, timings)
+        electron, electron_report = _timed_call(
+            timings,
+            _solver_label(config, "electron"),
+            solve_electron,
+            setup.boundary,
+            dynamics,
+            setup.seed_frequency_hz,
+            config,
+            return_report=True,
+        )
         photon_field = _build_photon_field_stage(config, setup, dynamics, electron, timings)
         electron, hadronic, hadronic_report = _solve_hadronic_stage(
             config,
