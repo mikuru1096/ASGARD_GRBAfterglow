@@ -74,7 +74,6 @@ setup(
                 "electron_forward_weno5_1d",
                 "electron_forward_slc1_1d",
                 "electron_forward_charint_1d",
-                "electron_forward_charint_2d",
                 "electron_forward_fullhide_1d",
                 "electron_forward_transport_2d",
                 "electron_forward_t2g1_1d",

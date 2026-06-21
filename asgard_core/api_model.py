@@ -834,7 +834,7 @@ class SkyImage:
 
     @property
     def flux_ratio(self) -> np.ndarray:
-        return self.rendered_flux / np.maximum(self.direct_flux, np.finfo(float).tiny)
+        return self.rendered_flux / self.direct_flux
 
     @property
     def centroid(self) -> np.ndarray:

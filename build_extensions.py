@@ -331,7 +331,7 @@ def _build_ordered_object_module(
 
     fc = env.get("FC") or shutil.which("gfortran", path=env["PATH"])
     if not fc:
-        raise RuntimeError(f"{module_name} fallback build requires gfortran in PATH or FC.")
+        raise RuntimeError(f"{module_name} ordered-object build requires gfortran in PATH or FC.")
 
     outputs = _module_output_paths(cwd, module_name)
     if not force and not _sources_newer_than(outputs, cwd, sources):
@@ -344,7 +344,7 @@ def _build_ordered_object_module(
         if cache_override
         else Path(os.environ.get("TMPDIR", "/tmp")) / "asgard_buildcache" / cache_digest
     )
-    build_dir = cache_root / "ordered_fallback" / module_name
+    build_dir = cache_root / "ordered_object" / module_name
     build_dir.mkdir(parents=True, exist_ok=True)
 
     compile_flags = shlex.split(fflags or "")
@@ -360,7 +360,7 @@ def _build_ordered_object_module(
         manifest_text = f"source={source_path}\nfc={fc}\nflags={shlex.join(compile_flags)}"
         if dirty_seen or not _object_current(object_path, source_path, manifest_path, manifest_text):
             command = [fc, "-c", *compile_flags, str(source_path), "-o", str(object_path)]
-            _run_command(command, cwd, env, log_dir / f"{module_name}_fallback_compile_{source_path.stem}.log")
+            _run_command(command, cwd, env, log_dir / f"{module_name}_ordered_compile_{source_path.stem}.log")
             manifest_path.write_text(manifest_text, encoding="utf-8")
             dirty_seen = True
         object_paths.append(object_path)
@@ -397,7 +397,7 @@ def _build_ordered_object_module(
             *entry_names,
             ":",
         ]
-        _run_command(signature_command, build_dir, env, log_dir / f"{module_name}_fallback_signature.log")
+        _run_command(signature_command, build_dir, env, log_dir / f"{module_name}_ordered_signature.log")
 
         wrapper_command = [
             sys.executable,
@@ -405,14 +405,14 @@ def _build_ordered_object_module(
             "numpy.f2py",
             pyf_path.name,
         ]
-        _run_command(wrapper_command, build_dir, env, log_dir / f"{module_name}_fallback_wrapper.log")
+        _run_command(wrapper_command, build_dir, env, log_dir / f"{module_name}_ordered_wrapper.log")
         wrapper_manifest_path.write_text(wrapper_manifest_text, encoding="utf-8")
 
     import numpy as np
 
     cc = env.get("CC") or shutil.which("cc", path=env["PATH"])
     if not cc:
-        raise RuntimeError(f"{module_name} fallback build requires a C compiler in PATH or CC.")
+        raise RuntimeError(f"{module_name} ordered-object build requires a C compiler in PATH or CC.")
     py_include = sysconfig.get_paths()["include"]
     py_platinclude = sysconfig.get_paths().get("platinclude", py_include)
     f2py_src = Path(np.__file__).resolve().parent / "f2py" / "src"
@@ -439,7 +439,7 @@ def _build_ordered_object_module(
                 "-o",
                 str(object_path),
             ]
-            _run_command(compile_c, build_dir, env, log_dir / f"{module_name}_fallback_compile_{source.stem}.log")
+            _run_command(compile_c, build_dir, env, log_dir / f"{module_name}_ordered_compile_{source.stem}.log")
             manifest_path.write_text(manifest_text, encoding="utf-8")
         c_objects.append(object_path)
 
@@ -460,7 +460,7 @@ def _build_ordered_object_module(
                 compile_wrapper,
                 build_dir,
                 env,
-                log_dir / f"{module_name}_fallback_compile_{wrapper_source.stem}.log",
+                log_dir / f"{module_name}_ordered_compile_{wrapper_source.stem}.log",
             )
             manifest_path.write_text(manifest_text, encoding="utf-8")
         object_paths.append(wrapper_object)
@@ -476,17 +476,17 @@ def _build_ordered_object_module(
     ]
     if extra_args:
         link_command.extend(extra_args)
-    _run_command(link_command, build_dir, env, log_dir / f"{module_name}_fallback_link.log")
+    _run_command(link_command, build_dir, env, log_dir / f"{module_name}_ordered_link.log")
     built_outputs = _module_output_paths(build_dir, module_name)
     if not built_outputs:
-        raise RuntimeError(f"{module_name} fallback build did not produce an extension in {build_dir}.")
+        raise RuntimeError(f"{module_name} ordered-object build did not produce an extension in {build_dir}.")
     for built_path in built_outputs:
         target_path = cwd / built_path.name
         if target_path.exists():
             target_path.unlink()
         shutil.copy2(built_path, target_path)
         if not target_path.is_file():
-            raise RuntimeError(f"{module_name} fallback build failed to copy {target_path}.")
+            raise RuntimeError(f"{module_name} ordered-object build failed to copy {target_path}.")
         built_path.unlink()
     return time.perf_counter() - start
 
@@ -564,8 +564,7 @@ def main() -> None:
             ("electron_forward_fullhide",),
         ),
         ModuleSpec("electron_forward_fullhide_1d_hybrid", ele, _with_main(ELECTRON_HISTORY_SOURCES_HZ, "electron_forward_fullhide_1d_hybrid.f90"), omp_flags, OPENMP_LIBS, True, ("fs_electron_fullhide_1d_hz",)),
-        ModuleSpec("electron_forward_transport_2d", ele, _with_main(ELECTRON_2D_SOURCES, "electron_forward_transport_2d.f90"), omp_flags, OPENMP_LIBS, True, ("fs_electron_transport_2d_core",)),
-        ModuleSpec("electron_forward_charint_2d", ele, _with_main(ELECTRON_2D_SOURCES, "electron_forward_transport_2d.f90"), omp_flags, OPENMP_LIBS, True, ("fs_electron_transport_2d_core",)),
+        ModuleSpec("electron_forward_transport_2d", ele, _with_main(ELECTRON_2D_SOURCES, "electron_forward_transport_2d.f90"), omp_flags, OPENMP_LIBS, True, ("fs_electron_transport_2d_core",), ("electron_forward_charint_2d",)),
         ModuleSpec("electron_forward_t2g1_1d", ele, _with_main(ELECTRON_COMMON_SOURCES, "electron_forward_t2g1_1d.f90"), omp_flags, OPENMP_LIBS, True, ("fs_electron_t2g1_1d",), ("electron_forward_t2g1",)),
         ModuleSpec("electron_radiation", ele, list(ELECTRON_RADIATION_SOURCES), omp_flags, OPENMP_LIBS, True, ("get_nu_a", "get_syn_selected", "get_syn_transfer", "get_syn_polarization_selected")),
         ModuleSpec(

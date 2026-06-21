@@ -46,7 +46,7 @@ from src import Dynamics, constants
 
 _ELECTRON_MODULES = {
     "charint_1d": "src.Electron.electron_forward_charint_1d",
-    "charint_2d": "src.Electron.electron_forward_charint_2d",
+    "charint_2d": "src.Electron.electron_forward_transport_2d",
     "dg_1d": "src.Electron.electron_forward_dg_1d",
     "fullhide_1d": "src.Electron.electron_forward_fullhide_1d",
     "fullhide_1d_hz": "src.Electron.electron_forward_fullhide_1d_hybrid",

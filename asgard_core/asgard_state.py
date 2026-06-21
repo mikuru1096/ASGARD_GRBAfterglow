@@ -208,11 +208,11 @@ def _solver_label(config: RuntimeConfig, stage: str) -> str:
         solver_name = config.electron_solver.lower()
         electron_label_map = {
             "fullhide_1d": "Electron.fs_electron_fullhide_1d",
-            "fullhide_2d": "Electron.fs_electron_fullhide_2d",
+            "fullhide_2d": "Electron.fs_electron_transport_2d_core",
             "t2g1_1d": "Electron.fs_electron_t2g1_1d",
             "slc1_1d": "Electron.fs_electron_slc1_1d",
             "charint_1d": "Electron.fs_electron_charint_1d",
-            "charint_2d": "Electron.fs_electron_charint_2d",
+            "charint_2d": "Electron.fs_electron_transport_2d_core",
             "weno5_1d": "Electron.fs_electron_weno5_1d",
         }
         return electron_label_map.get(solver_name, f"Electron.{solver_name}")

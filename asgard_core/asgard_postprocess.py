@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-import warnings
 
 import numpy as np
 from extinction import fitzpatrick99 as f99
@@ -180,31 +179,28 @@ def _cal_chi2_light_curve(
         name = data_file.stem
         if name not in bands_fit:
             continue
-        try:
-            table = _load_observation_table(data_file)
-            range_data, flux_data, flux_err = _parse_observation_data(table)
-            band_idx = bands_fit.index(name)
-            if name.startswith("opt"):
-                flux_data, flux_err = _opt_extinction(
-                    flux_data,
-                    flux_err,
-                    frequency[band_idx],
-                    Rv,
-                    Ebv,
-                    zeropointflux[band_idx],
-                    redshift=z,
-                    lyman_ar=lyman_ar,
-                )
-            range_data = range_data * 86400
-            _validate_model_range(range_data, model_serial)
-            fit_flux = model_interpolators[band_idx](range_data)
-            if np.any(np.isnan(fit_flux)):
-                raise ValueError("Some data points are beyond the scope of the model.")
-            sigma = np.where(fit_flux > flux_data, flux_err, -flux_err) if table.shape[1] == 6 else flux_err
-            variance = (flux_data * 0.1) ** 2 if f_sys <= 0 else (flux_data * f_sys) ** 2 + sigma**2
-            chi2_total += np.sum((fit_flux - flux_data) ** 2 / variance)
-        except Exception as exc:
-            warnings.warn(f"An error occurred while processing the file {data_file.name}: {str(exc)}")
+        table = _load_observation_table(data_file)
+        range_data, flux_data, flux_err = _parse_observation_data(table)
+        band_idx = bands_fit.index(name)
+        if name.startswith("opt"):
+            flux_data, flux_err = _opt_extinction(
+                flux_data,
+                flux_err,
+                frequency[band_idx],
+                Rv,
+                Ebv,
+                zeropointflux[band_idx],
+                redshift=z,
+                lyman_ar=lyman_ar,
+            )
+        range_data = range_data * 86400
+        _validate_model_range(range_data, model_serial)
+        fit_flux = model_interpolators[band_idx](range_data)
+        if np.any(np.isnan(fit_flux)):
+            raise ValueError("Some data points are beyond the scope of the model.")
+        sigma = np.where(fit_flux > flux_data, flux_err, -flux_err) if table.shape[1] == 6 else flux_err
+        variance = (flux_data * 0.1) ** 2 if f_sys <= 0 else (flux_data * f_sys) ** 2 + sigma**2
+        chi2_total += np.sum((fit_flux - flux_data) ** 2 / variance)
     return chi2_total
 
 
@@ -221,18 +217,15 @@ def _cal_chi2_spectrum(name_fit, model_curves, model_serial):
         name = data_file.stem
         if name not in name_fit:
             continue
-        try:
-            table = _load_observation_table(data_file)
-            range_data, flux_data, flux_err = _parse_spectrum_data(table)
-            _validate_model_range(range_data, model_serial)
-            band_idx = name_fit.index(name)
-            fit_flux = model_interpolators[band_idx](range_data)
-            if np.any(np.isnan(fit_flux)):
-                raise ValueError("Some data points are beyond the scope of the model.")
-            sigma = np.where(fit_flux > flux_data, flux_err[0], flux_err[1]) if table.shape[1] == 6 else flux_err
-            chi2_total += np.sum(((fit_flux - flux_data) / sigma) ** 2) / len(range_data)
-        except Exception as exc:
-            warnings.warn(f"An error occurred while processing the file {data_file.name}: {exc}")
+        table = _load_observation_table(data_file)
+        range_data, flux_data, flux_err = _parse_spectrum_data(table)
+        _validate_model_range(range_data, model_serial)
+        band_idx = name_fit.index(name)
+        fit_flux = model_interpolators[band_idx](range_data)
+        if np.any(np.isnan(fit_flux)):
+            raise ValueError("Some data points are beyond the scope of the model.")
+        sigma = np.where(fit_flux > flux_data, flux_err[0], flux_err[1]) if table.shape[1] == 6 else flux_err
+        chi2_total += np.sum(((fit_flux - flux_data) / sigma) ** 2) / len(range_data)
     return chi2_total
 
 

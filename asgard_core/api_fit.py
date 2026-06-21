@@ -478,8 +478,6 @@ def _eval_cfg(
     band_flux_matrix = np.asarray(observed.components["total"], dtype=float)
     bands_flux = combine_multiband_flux(band_flux_matrix, problem.requested_frequencies_hz, problem.num_xrt)
     redchi = compute_light_curve_redchi(bands_flux, problem.observer_time_s, config)
-    if np.isnan(redchi):
-        redchi = np.inf
     return -0.5 * redchi
 
 

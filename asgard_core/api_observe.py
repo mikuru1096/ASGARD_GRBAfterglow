@@ -516,7 +516,7 @@ def _render_sky_image(model: Model, times_s: np.ndarray, nu_obs: float, fov: flo
                 right=np.log(float(state.components.fwd.radius_cm[-1])),
             )
         )
-        if not np.any(np.isfinite(patch_flux) & (patch_flux > 0.0)):
+        if np.all(patch_flux <= 0.0):
             continue
 
         x_center, y_center = _project_patch_to_sky(
@@ -554,7 +554,7 @@ def _render_sky_image(model: Model, times_s: np.ndarray, nu_obs: float, fov: flo
 
     direct_total = np.asarray(model.flux_density_grid(times_s, frequencies_hz).total[0, :], dtype=float)
     raw_total = image.sum(axis=(1, 2)) * pixel_size * pixel_size
-    scale = np.where(raw_total > 0.0, direct_total / raw_total, 0.0)
+    scale = direct_total / raw_total
     image *= scale[:, None, None]
     rendered_total = image.sum(axis=(1, 2)) * pixel_size * pixel_size
     x_centroid, y_centroid = np.zeros((2, times_s.shape[0]), dtype=float)
