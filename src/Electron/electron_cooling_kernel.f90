@@ -865,11 +865,13 @@ real(8), intent(out) :: cooling_aux(Num_gam_e)
 
     cooling_aux=zero
     select case(index_Y)
+    case(0)
     case(1)
         call electron_cooling_ic_loss(Num_gam_e,Num_nu,n_threads,gam_e,V_seed,Seed_syn,cooling_aux)
     case(2)
         call electron_cooling_y_nakar(Num_gam_e,Num_nu,n_threads,gam_e,V_seed,P_syn,cooling_aux)
     case default
+        error stop 'prepare_forward_cooling_aux: index_Y must be 0, 1, or 2.'
     end select
 end subroutine prepare_forward_cooling_aux
 
@@ -883,6 +885,7 @@ integer :: I_chi
 
     cooling_aux=zero
     select case(index_Y)
+    case(0)
     case(1)
         do I_chi=1,Num_chi
             call electron_cooling_ic_loss(Num_gam_e,Num_nu,n_threads,gam_e,V_seed,Seed_syn(:,I_chi),cooling_aux(:,I_chi))
@@ -892,6 +895,7 @@ integer :: I_chi
             call electron_cooling_y_nakar(Num_gam_e,Num_nu,n_threads,gam_e,V_seed,P_syn(:,I_chi),cooling_aux(:,I_chi))
         end do
     case default
+        error stop 'prepare_forward_cooling_aux_batch: index_Y must be 0, 1, or 2.'
     end select
 end subroutine prepare_forward_cooling_aux_batch
 
@@ -974,8 +978,7 @@ real(8), intent(out) :: dEl(Num_gam_e)
         Gam_e_max=Gam_e_max/sqrt(Compton(Num_gam_e))
         dEl=(f_r*Compton-dot_gam_e_SSA*ssa_scale)*gam_e
     case default
-        print*, 'invalid Compton case, check your chosen model!'
-        stop
+        error stop 'assemble_forward_cooling_from_terms: index_Y must be 0, 1, 2, or 3.'
     end select
 end subroutine assemble_forward_cooling_from_terms
 

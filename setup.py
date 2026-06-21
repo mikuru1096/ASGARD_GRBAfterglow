@@ -59,7 +59,7 @@ class develop(_develop):
 
 
 setup(
-    py_modules=["lc_spec_demo", "build_extensions"],
+    py_modules=["build_extensions"],
     cmdclass={
         "build_native": build_native,
         "build_py": build_py,

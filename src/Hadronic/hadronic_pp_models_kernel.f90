@@ -55,7 +55,7 @@ real(8) function hadronic_pp_spectral_shape(Tp,Egam,model)
         hadronic_pp_spectral_shape = high_energy_or_geant4_shape(4.2d0)
 
     case default
-        hadronic_pp_spectral_shape = F_geant4_local(Tp,Egam)
+        error stop "hadronic_pp_spectral_shape: unsupported pp model."
     end select
 
 contains
@@ -72,7 +72,7 @@ contains
 end function
 
 ! ------------------------------------------------------------
-! Geant4 谱形 (所有模型的低能/中能 fallback)
+! Geant4 谱形；高能模型在低/中能区按 Kafexhiu+2014 使用该分支。
 real(8) function F_geant4_local(Tp,Egam)
     real(8), intent(in) :: Tp,Egam
     real(8) :: Y,Y0,X,C,theta,kappa,q,mu,beta_f,gamma_f
@@ -161,7 +161,8 @@ real(8) function sigma_pi0_model(Tp,model)
     case (MODEL_QGSJET);  mult = multip_pi0_QGSJET(Tp)
     case (MODEL_GEANT4);  mult = multip_pi0_Geant4(Tp)
     case (MODEL_PYTHIA8); mult = multip_pi0_Pythia8(Tp)
-    case default;         mult = multip_pi0_SIBYLL(Tp)
+    case default
+        error stop "sigma_pi0_model: unsupported pp model."
     end select
     sigma_pi0_model = sigma_1pi + sigma_2pi + s_inel * mult
 end function
@@ -185,7 +186,7 @@ real(8) function Amax_model(Tp,model)
     case (MODEL_PYTHIA8)
         b1=6.2d0; b2=0.85d0; b3=0.14d0
     case default
-        b1=5.9d0; b2=0.9d0; b3=0.15d0
+        error stop "Amax_model: unsupported pp model."
     end select
     Amax_model = b1 * theta_p**b2 * dexp(b3 * Ltheta*Ltheta) * &
                  sigma_pi0_model(Tp,model) / mp

@@ -13,7 +13,6 @@ module hadronic_hadronic_ic_kernel
     real(8), parameter :: am3_mass_muon_gev = 1.0566d-1
 
     public :: hadronic_hadronic_ic_initialize_kernel
-    public :: hadronic_hadronic_ic_operator
     public :: hadronic_hadronic_ic_operator_from_kernel
 
 contains
@@ -43,36 +42,6 @@ subroutine hadronic_hadronic_ic_initialize_kernel(num_had,hadron_energy_gev,num_
     call hadronic_hadronic_ic_build_species_kernel(num_had,hadron_energy_gev,dln_energy,num_ph, &
                                                    ind_min_energy_pho_hadgrid,am3_mass_muon_gev,delta_e_mu,jmax_mu)
 end subroutine hadronic_hadronic_ic_initialize_kernel
-
-! 强子IC主算子：初始化kernel并计算质子/π介子/μ子的逆康普顿冷却率。
-subroutine hadronic_hadronic_ic_operator(num_had,hadron_energy_gev,num_ph,photon_energy_gev, &
-                                         photons_on_had_grid_per_gev,protons_per_gev,pion_plus_per_gev, &
-                                         pion_minus_per_gev,muon_minus_left_per_gev,muon_minus_right_per_gev, &
-                                         muon_plus_left_per_gev,muon_plus_right_per_gev, &
-                                         ind_min_energy_pho_hadgrid,epsilon_p_ic,epsilon_pi_ic,epsilon_mu_ic, &
-                                         coeff_p_cgs,coeff_pi_cgs,coeff_mu_cgs)
-    integer, intent(in) :: num_had,num_ph,ind_min_energy_pho_hadgrid
-    real(8), intent(in) :: hadron_energy_gev(num_had),photon_energy_gev(num_ph),photons_on_had_grid_per_gev(num_ph)
-    real(8), intent(in) :: protons_per_gev(num_had),pion_plus_per_gev(num_had),pion_minus_per_gev(num_had)
-    real(8), intent(in) :: muon_minus_left_per_gev(num_had),muon_minus_right_per_gev(num_had)
-    real(8), intent(in) :: muon_plus_left_per_gev(num_had),muon_plus_right_per_gev(num_had)
-    real(8), intent(out) :: epsilon_p_ic(num_ph),epsilon_pi_ic(num_ph),epsilon_mu_ic(num_ph)
-    real(8), intent(out) :: coeff_p_cgs,coeff_pi_cgs,coeff_mu_cgs
-    integer :: delta_e_p(num_had),jmax_p(num_had),delta_e_pi(num_had),jmax_pi(num_had)
-    integer :: delta_e_mu(num_had),jmax_mu(num_had)
-    real(8) :: dln_energy
-
-    call hadronic_hadronic_ic_initialize_kernel(num_had,hadron_energy_gev,num_ph,photon_energy_gev, &
-                                                ind_min_energy_pho_hadgrid,dln_energy, &
-                                                delta_e_p,jmax_p,delta_e_pi,jmax_pi,delta_e_mu,jmax_mu)
-
-    call hadronic_hadronic_ic_apply_kernel(num_had,num_ph,photons_on_had_grid_per_gev,protons_per_gev, &
-                                           pion_plus_per_gev,pion_minus_per_gev,muon_minus_left_per_gev, &
-                                           muon_minus_right_per_gev,muon_plus_left_per_gev,muon_plus_right_per_gev, &
-                                           dln_energy,delta_e_p,jmax_p,delta_e_pi,jmax_pi,delta_e_mu,jmax_mu, &
-                                           epsilon_p_ic,epsilon_pi_ic,epsilon_mu_ic,coeff_p_cgs, &
-                                           coeff_pi_cgs,coeff_mu_cgs)
-end subroutine hadronic_hadronic_ic_operator
 
 ! 使用预计算的kernel索引直接计算强子IC（跳过初始化步骤）。
 subroutine hadronic_hadronic_ic_operator_from_kernel(num_had,num_ph,photons_on_had_grid_per_gev, &

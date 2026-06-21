@@ -566,7 +566,6 @@ def main() -> None:
         ModuleSpec("electron_forward_fullhide_1d_hybrid", ele, _with_main(ELECTRON_HISTORY_SOURCES_HZ, "electron_forward_fullhide_1d_hybrid.f90"), omp_flags, OPENMP_LIBS, True, ("fs_electron_fullhide_1d_hz",)),
         ModuleSpec("electron_forward_transport_2d", ele, _with_main(ELECTRON_2D_SOURCES, "electron_forward_transport_2d.f90"), omp_flags, OPENMP_LIBS, True, ("fs_electron_transport_2d_core",)),
         ModuleSpec("electron_forward_charint_2d", ele, _with_main(ELECTRON_2D_SOURCES, "electron_forward_transport_2d.f90"), omp_flags, OPENMP_LIBS, True, ("fs_electron_transport_2d_core",)),
-        ModuleSpec("electron_forward_transport_2d_pic", ele, _with_main(ELECTRON_2D_SOURCES, "electron_forward_transport_2d_pic.f90"), omp_flags, OPENMP_LIBS, True, ("fs_electron_transport_2d_pic_core",)),
         ModuleSpec("electron_forward_t2g1_1d", ele, _with_main(ELECTRON_COMMON_SOURCES, "electron_forward_t2g1_1d.f90"), omp_flags, OPENMP_LIBS, True, ("fs_electron_t2g1_1d",), ("electron_forward_t2g1",)),
         ModuleSpec("electron_radiation", ele, list(ELECTRON_RADIATION_SOURCES), omp_flags, OPENMP_LIBS, True, ("get_nu_a", "get_syn_selected", "get_syn_transfer", "get_syn_polarization_selected")),
         ModuleSpec(

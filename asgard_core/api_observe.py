@@ -27,7 +27,6 @@ from src import constants
 from .api_adaptive import _observe_parts, _observe_total
 from .api_fit import FitResult, Param
 from .api_model import (
-    Magnetar as Magnetar,
     Model,
     Numerics,
     Observer,
@@ -41,8 +40,6 @@ from .api_model import (
     SkyImage,
     UniformMedium,
     WindMedium,
-    gaussian_jet as gaussian_jet,
-    power_law_jet as power_law_jet,
     top_hat_jet,
     _direct_tophat_patch_config,
     _iter_patch_elements,

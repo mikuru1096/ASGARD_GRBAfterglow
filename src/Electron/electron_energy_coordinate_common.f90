@@ -27,7 +27,7 @@ pure real(8) function electron_coord_from_xgamma(coord_kind, coord_scale, x_gamm
         four_velocity_sq = gamma*gamma - one
         coord = dlog10(one + four_velocity_sq/coord_scale)
     case default
-        coord = x_gamma
+        error stop "electron_coord_from_xgamma: unsupported coordinate kind."
     end select
 end function electron_coord_from_xgamma
 
@@ -43,7 +43,7 @@ pure real(8) function electron_xgamma_from_coord(coord_kind, coord_scale, coord)
         gamma = dsqrt(one + coord_scale*(ten**coord - one))
         x_gamma = dlog10(gamma)
     case default
-        x_gamma = coord
+        error stop "electron_xgamma_from_coord: unsupported coordinate kind."
     end select
 end function electron_xgamma_from_coord
 
@@ -57,7 +57,7 @@ pure real(8) function electron_gamma_from_coord(coord_kind, coord_scale, coord) 
     case (electron_coord_log_four_velocity_sq)
         gamma = dsqrt(one + coord_scale*(ten**coord - one))
     case default
-        gamma = ten**coord
+        error stop "electron_gamma_from_coord: unsupported coordinate kind."
     end select
 end function electron_gamma_from_coord
 
@@ -73,7 +73,7 @@ pure real(8) function electron_dxgamma_dcoord(coord_kind, coord_scale, coord) re
         gamma = electron_gamma_from_coord(coord_kind, coord_scale, coord)
         dxdy = coord_scale*ten**coord/(two*gamma*gamma)
     case default
-        dxdy = one
+        error stop "electron_dxgamma_dcoord: unsupported coordinate kind."
     end select
 end function electron_dxgamma_dcoord
 

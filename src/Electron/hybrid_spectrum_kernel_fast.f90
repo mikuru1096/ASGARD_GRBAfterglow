@@ -1,13 +1,11 @@
 ! f2py: skip
-! public: integral_thermal1, integral_thermal12, integral_cp, solve_theta, normalized_hybrid_spec, normalized_hybrid_spec_lg
+! public: integral_thermal1, integral_thermal12, integral_cp, normalized_hybrid_spec, normalized_hybrid_spec_lg
 
 module hybrid_spectrum_kernel_fast
    use specfun, only: gammauic, besselk0, besselk1
    implicit none
    private
-   public :: integral_thermal1, integral_thermal12, &
-      integral_cpl, solve_theta, &
-      normalized_hybrid_spec, normalized_hybrid_spec_lg
+   public :: integral_thermal1, integral_thermal12, integral_cpl, normalized_hybrid_spec, normalized_hybrid_spec_lg
    
    real(8), private, parameter :: m700 = -7.0d2
    real(8), private :: global_gmin, global_lnc
@@ -98,7 +96,8 @@ module hybrid_spectrum_kernel_fast
       ! 3 order correction
       theta_term = theta_term*inv_theta2 ! = theta^{-4}
       gdt_term = inv_gdt*inv_gdt2 ! = gdt^{-3}
-      uig_term = d2x3*uig_term + (1.0d0 - d2*gdt) * d3*gdt_term * exp_mgdt ! Gamma(-3;gdt,\infty) = 1/6*Gamma(-1;gdt,\infty) + (1-1/2*gdt) 1/3*gdt^{-3} exp(-gdt)
+      ! Gamma(-3;gdt,\infty) = 1/6*Gamma(-1;gdt,\infty) + (1-1/2*gdt) 1/3*gdt^{-3} exp(-gdt)
+      uig_term = d2x3*uig_term + (1.0d0 - d2*gdt) * d3*gdt_term * exp_mgdt
       cor_term = coeff3*theta_term*uig_term ! (n=1, k=0) +1/16 * theta^{-4} * Gamma(-3;gdt,\infty)
       if (cor_term < tol * max(it1, floor_eps)) goto 810
       it1 = it1 + cor_term
@@ -106,7 +105,8 @@ module hybrid_spectrum_kernel_fast
       ! 4 order correction
       theta_term = theta_term*inv_theta2 ! = theta^{-6}
       gdt_term = gdt_term*inv_gdt2 ! = gdt^{-5}
-      uig_term = d4x5*uig_term + (1.0d0 - d4*gdt) * d5*gdt_term * exp_mgdt ! Gamma(-5;gdt,\infty) = 1/20*Gamma(-3;gdt,\infty) + (1-1/4*gdt) 1/5*gdt^{-5} exp(-gdt)
+      ! Gamma(-5;gdt,\infty) = 1/20*Gamma(-3;gdt,\infty) + (1-1/4*gdt) 1/5*gdt^{-5} exp(-gdt)
+      uig_term = d4x5*uig_term + (1.0d0 - d4*gdt) * d5*gdt_term * exp_mgdt
       cor_term = coeff4*theta_term*uig_term ! (n=1, k=0) +5/128 * theta^{-6} * Gamma(-5;gdt,\infty)
       if (cor_term < tol * max(it1, floor_eps)) goto 810
       it1 = it1 + cor_term
@@ -114,7 +114,8 @@ module hybrid_spectrum_kernel_fast
       ! 5 order correction
       theta_term = theta_term*inv_theta2 ! = theta^{-8}
       gdt_term = gdt_term*inv_gdt2 ! = gdt^{-7}
-      uig_term = d6x7*uig_term + (1.0d0 - d6*gdt) * d7*gdt_term * exp_mgdt ! Gamma(-7;gdt,\infty) = 1/42*Gamma(-5;gdt,\infty) + (1-1/6*gdt) 1/7*gdt^{-7} exp(-gdt)
+      ! Gamma(-7;gdt,\infty) = 1/42*Gamma(-5;gdt,\infty) + (1-1/6*gdt) 1/7*gdt^{-7} exp(-gdt)
+      uig_term = d6x7*uig_term + (1.0d0 - d6*gdt) * d7*gdt_term * exp_mgdt
       cor_term = coeff5*theta_term*uig_term ! (n=1, k=0) +7/256 * theta^{-8} * Gamma(-7;gdt,\infty)
       if (cor_term < tol * max(it1, floor_eps)) goto 810
       it1 = it1 + cor_term
@@ -122,7 +123,8 @@ module hybrid_spectrum_kernel_fast
       ! 6 order correction
       theta_term = theta_term*inv_theta2 ! = theta^{-10}
       gdt_term = gdt_term*inv_gdt2 ! = gdt^{-9}
-      uig_term = d8x9*uig_term + (1.0d0 - d8*gdt) * d9*gdt_term * exp_mgdt ! Gamma(-9;gdt,\infty) = 1/72*Gamma(-7;gdt,\infty) + (1-1/8*gdt) 1/9*gdt^{-9} exp(-gdt)
+      ! Gamma(-9;gdt,\infty) = 1/72*Gamma(-7;gdt,\infty) + (1-1/8*gdt) 1/9*gdt^{-9} exp(-gdt)
+      uig_term = d8x9*uig_term + (1.0d0 - d8*gdt) * d9*gdt_term * exp_mgdt
       cor_term = coeff6*theta_term*uig_term ! (n=1, k=0) +21/1024 * theta^{-10} * Gamma(-9;gdt,\infty)
       if (cor_term < tol * max(it1, floor_eps)) goto 810
       it1 = it1 + cor_term
@@ -130,7 +132,8 @@ module hybrid_spectrum_kernel_fast
       ! 7 order correction
       theta_term = theta_term*inv_theta2 ! = theta^{-12}
       gdt_term = gdt_term*inv_gdt2 ! = gdt^{-11}
-      uig_term = d10x11*uig_term + (1.0d0 - d10*gdt) * d11*gdt_term * exp_mgdt ! Gamma(-11;gdt,\infty) = 1/110*Gamma(-9;gdt,\infty) + (1-1/10*gdt) 1/11*gdt^{-11} exp(-gdt)
+      ! Gamma(-11;gdt,\infty) = 1/110*Gamma(-9;gdt,\infty) + (1-1/10*gdt) 1/11*gdt^{-11} exp(-gdt)
+      uig_term = d10x11*uig_term + (1.0d0 - d10*gdt) * d11*gdt_term * exp_mgdt
       cor_term = coeff7*theta_term*uig_term ! (n=1, k=0) +33/2048 * theta^{-12} * Gamma(-11;gdt,\infty)
       if (cor_term < tol * max(it1, floor_eps)) goto 810
       it1 = it1 + cor_term
@@ -283,10 +286,12 @@ module hybrid_spectrum_kernel_fast
       theta_term = theta_term*inv_theta2 ! = theta^{-12}
       gdt_term = gdt_term*inv_gdt ! = gdt^{-10}
       cxt_term = coeff7*theta_term ! = +33/2048 * theta^{-12}
-      uig_term = -d10*uig_term + d10*gdt_term*exp_mgdt ! Gamma(-10;gdt,\infty) = -1/10 * Gamma(-9;gdt,\infty) + 1/10*gdt^{-10} exp(-gdt)
+      ! Gamma(-10;gdt,\infty) = -1/10 * Gamma(-9;gdt,\infty) + 1/10*gdt^{-10} exp(-gdt)
+      uig_term = -d10*uig_term + d10*gdt_term*exp_mgdt
       cor2_term = cxt_term*uig_term ! (n=2, k=0) +33/2048 * theta^{-12} * Gamma(-10;gdt,\infty)
       gdt_term = gdt_term*inv_gdt ! = gdt^{-11}
-      uig_term = -d11*uig_term + d11*gdt_term*exp_mgdt ! Gamma(-11;gdt,\infty) = -1/11 * Gamma(-10;gdt,\infty) + 1/11*gdt^{-11} exp(-gdt)
+      ! Gamma(-11;gdt,\infty) = -1/11 * Gamma(-10;gdt,\infty) + 1/11*gdt^{-11} exp(-gdt)
+      uig_term = -d11*uig_term + d11*gdt_term*exp_mgdt
       cor1_term = cxt_term*uig_term ! (n=1, k=0) +33/2048 * theta^{-12} * Gamma(-11;gdt,\infty)
       it1 = it1 + cor1_term
       it2 = it2 + cor2_term
@@ -315,19 +320,14 @@ module hybrid_spectrum_kernel_fast
    end subroutine
 
    subroutine solve_theta(p, gamma_min, gamma_max, xi_e, &
-      theta, flag)
+      theta)
       implicit none
       real(8), intent(in) :: p, gamma_min, gamma_max, xi_e
       real(8), intent(out) :: theta
-      integer, intent(out) :: flag
-      real(8) :: ln_c, int, init_theta, gamma_peak
+      real(8) :: ln_c, int, init_theta
 
-      flag = 0
-      theta = -1.0d0
       if (gamma_max <= gamma_min) then
-         flag = flag + 8
-         print *, "hybrid_spectrum_kernel.solve_theta: gamma_max <= gamma_min, please check input parameters"
-         return
+         error stop "hybrid_spectrum_kernel.solve_theta: gamma_max must exceed gamma_min."
       end if
 
       call integral_cpl(p, gamma_min, gamma_max, &
@@ -342,241 +342,21 @@ module hybrid_spectrum_kernel_fast
 
       init_theta = get_initial_theta()
       if (init_theta < 0.0d0) then
-         flag = flag + 2
-         return
+         error stop "hybrid_spectrum_kernel.solve_theta: initial theta must be non-negative."
       end if
 
       theta = newton_method(init_theta, 1.0d-6, 50)
-      if (theta < 0.0d0) then
-         flag = flag + 4
-         return
-      end if
-
-      gamma_peak = get_thermal_peak(theta)
-      if (gamma_min < gamma_peak) then
-         flag = flag + 1
-      end if
 
    end subroutine solve_theta
 
-   function sfunc(theta) result(val)
-      ! the optimizing function
-      ! we want to find a theta, which meets
-      ! sfunc(theta) == 0.0
-      implicit none
-      real(8), intent(in) :: theta
-      real(8) :: it1, val
-
-      call integral_thermal1(global_gmin, theta, it1)
-      val = log(it1) - global_lnc + global_gmin / theta
-
-   end function sfunc
-
    function get_initial_theta() result(init_theta)
-      ! only can be called from solve_theta
-      ! return the initial theta for the Newton method
-      ! if failed to find an initial value,
-      ! the returned the value is -1.0
+      ! Initial theta used by solve_theta's Newton iteration.
       implicit none
-      real(8) :: init_theta, guess_theta
-      integer, parameter :: max_iter = 6
-      real(8), parameter :: ctol = 1.0d-6
-      integer :: iter, i
-      logical :: valid
-      real(8) :: k(6), sval
+      real(8) :: init_theta
 
       init_theta = 0.144d0 * global_gmin
-      return 
-      k = [ &
-         4.0d-2, 5.166199d-2, &
-         ! 6.672402d-2, 8.617739d-2, &
-         1.1130238d-1, 1.4375255d-1, &
-         ! 1.8566355d-1, 2.397937d-1, &
-         3.0970547d-1, 4.0d-1 &
-      ]
-
-      valid = .false.
-      
-      ! since the sfunc decrease as theta grows
-      ! it is convinient to exclude the general interval
-      ! by calculating the value of sfunc
-      ! at the lower and the upper boundaries of the general interval
-      iter_loop: do iter = 1, max_iter
-         ! theta is less than the general lower boundary
-         guess_theta = k(1) * global_gmin
-         sval = sfunc(guess_theta)
-         ! extremely lucky
-         if (abs(sval) < ctol) then
-            init_theta = guess_theta
-            valid = .true.
-            exit iter_loop
-         end if
-         if (sval < 0.0d0) then
-            k = k * 1.0d-1
-            cycle iter_loop
-         end if
-         
-         ! theta is greater than the general upper boundary
-         guess_theta = k(6) * global_gmin
-         sval = sfunc(guess_theta)
-         ! extremely lucky
-         if (abs(sval) < ctol) then
-            init_theta = guess_theta
-            valid = .true.
-            exit iter_loop
-         end if
-         if (sval > 0.0d0) then
-            k = k * 1.0d1
-            cycle
-         end if
-         
-         ! found the general interval where the theta locates at
-         ! scan the grid to find the delicate interval
-         grid_loop: do i = 2, 5
-            guess_theta = k(i) * global_gmin
-            sval = sfunc(guess_theta)
-            ! extremely lucky
-            if (abs(sval) < ctol) then
-               init_theta = guess_theta
-               valid = .true.
-               exit iter_loop
-            end if
-            if (sval < 0.0d0) then
-               init_theta = 0.5d0 * (guess_theta + k(i - 1) * global_gmin)
-               valid = .true.
-               exit iter_loop
-            end if
-            
-            guess_theta = k(7 - i) * global_gmin
-            sval = sfunc(guess_theta)
-            ! extremely lucky
-            if (abs(sval) < ctol) then
-               init_theta = guess_theta
-               valid = .true.
-               exit iter_loop
-            end if
-            if (sval > 0.0d0) then
-               init_theta = 0.5d0 * (guess_theta + k(8 - i) * global_gmin)
-               valid = .true.
-               exit iter_loop
-            end if
-
-            ! finally, the theta falls between k(5) and k(6)
-            init_theta = 0.5d0 * (k(3) + k(4)) * global_gmin
-            valid = .true.
-            exit iter_loop
-            
-         end do grid_loop
-
-      end do iter_loop
-      
-      if (.not. valid) then
-         init_theta = -1.0d0
-      end if
 
    end function get_initial_theta
-
-   function get_initial_theta_10() result(init_theta)
-      ! only can be called from solve_theta
-      ! return the initial theta for the Newton method
-      ! if failed to find an initial value,
-      ! the returned the value is -1.0
-      implicit none
-      real(8) :: init_theta, guess_theta
-      integer, parameter :: max_iter = 6
-      real(8), parameter :: ctol = 1.0d-6
-      integer :: iter, i
-      logical :: valid
-      real(8) :: k(10), sval
-
-      k = [ &
-         4.0d-2, 5.166199d-2, &
-         6.672402d-2, 8.617739d-2, &
-         1.1130238d-1, 1.4375255d-1, &
-         1.8566355d-1, 2.397937d-1, &
-         3.0970547d-1, 4.0d-1 &
-      ]
-
-      valid = .false.
-      
-      ! since the sfunc decrease as theta grows
-      ! it is convinient to exclude the general interval
-      ! by calculating the value of sfunc
-      ! at the lower and the upper boundaries of the general interval
-      iter_loop: do iter = 1, max_iter
-         ! theta is less than the general lower boundary
-         guess_theta = k(1) * global_gmin
-         sval = sfunc(guess_theta)
-         ! extremely lucky
-         if (abs(sval) < ctol) then
-            init_theta = guess_theta
-            valid = .true.
-            exit iter_loop
-         end if
-         if (sval < 0.0d0) then
-            k = k * 1.0d-1
-            cycle iter_loop
-         end if
-         
-         ! theta is greater than the general upper boundary
-         guess_theta = k(10) * global_gmin
-         sval = sfunc(guess_theta)
-         ! extremely lucky
-         if (abs(sval) < ctol) then
-            init_theta = guess_theta
-            valid = .true.
-            exit iter_loop
-         end if
-         if (sval > 0.0d0) then
-            k = k * 1.0d1
-            cycle
-         end if
-         
-         ! found the general interval where the theta locates at
-         ! scan the grid to find the delicate interval
-         grid_loop: do i = 2, 5
-            guess_theta = k(i) * global_gmin
-            sval = sfunc(guess_theta)
-            ! extremely lucky
-            if (abs(sval) < ctol) then
-               init_theta = guess_theta
-               valid = .true.
-               exit iter_loop
-            end if
-            if (sval < 0.0d0) then
-               init_theta = 0.5d0 * (guess_theta + k(i - 1) * global_gmin)
-               valid = .true.
-               exit iter_loop
-            end if
-            
-            guess_theta = k(11 - i) * global_gmin
-            sval = sfunc(guess_theta)
-            ! extremely lucky
-            if (abs(sval) < ctol) then
-               init_theta = guess_theta
-               valid = .true.
-               exit iter_loop
-            end if
-            if (sval > 0.0d0) then
-               init_theta = 0.5d0 * (guess_theta + k(12 - i) * global_gmin)
-               valid = .true.
-               exit iter_loop
-            end if
-
-            ! finally, the theta falls between k(5) and k(6)
-            init_theta = 0.5d0 * (k(5) + k(6)) * global_gmin
-            valid = .true.
-            exit iter_loop
-            
-         end do grid_loop
-
-      end do iter_loop
-      
-      if (.not. valid) then
-         init_theta = -1.0d0
-      end if
-
-   end function get_initial_theta_10
 
    function newton_method(init_theta, rtol, max_iter) result(best_theta)
       implicit none
@@ -587,7 +367,7 @@ module hybrid_spectrum_kernel_fast
       integer :: iter
   
       theta = init_theta
-      best_theta = -1.0d0
+      best_theta = init_theta
 
       ! Newton iteration method
       ! \Theta_{n+1} = \Theta_{n} - f(\Theta_{n}) / f'(\Theta_{n})
@@ -603,12 +383,13 @@ module hybrid_spectrum_kernel_fast
          rel_shift = rel_shift / (gdt - inv_theta*it2/it1) 
          if (abs(rel_shift) < rtol) then
             best_theta = theta * (1.0d0 + rel_shift)
-            exit iter_loop
+            return
          end if
 
          ! not converged yet
          theta = theta * (1.0d0 + rel_shift)
       end do iter_loop
+      error stop "hybrid_spectrum_kernel.newton_method failed to converge."
   
    end function newton_method
 
@@ -620,16 +401,10 @@ module hybrid_spectrum_kernel_fast
       real(8), intent(out) :: spec(n_gamma)
 
       real(8) :: theta, it1, int, thermal_constant, cpl_constant, inv_gmax, inv_theta
-      integer :: flag, i
+      integer :: i
       
       call solve_theta(p, gamma_min, gamma_max, xi_e, &
-         theta, flag)
-
-      if (flag > 1) then
-         print *, p, gamma_min, gamma_max, xi_e, theta, flag
-         spec = -1.0d0
-         return 
-      end if
+         theta)
 
       call integral_thermal1(gamma_min, theta, &
          it1)
@@ -668,27 +443,6 @@ module hybrid_spectrum_kernel_fast
    end function hybrid_spec_point
    end subroutine normalized_hybrid_spec
 
-   subroutine benchmark_normalized_hybrid_spec(n_gamma, gamma, p, gamma_min, gamma_max, xi_e, &
-      spec)
-      implicit none
-      integer, intent(in) :: n_gamma
-      real(8), intent(in) :: gamma(n_gamma)
-      real(8), intent(in) :: p, gamma_min, gamma_max, xi_e
-      real(8), intent(out) :: spec(n_gamma)
-   
-      integer i
-      real(8) :: t0, t1
-   
-      call cpu_time(t0)
-      do i=1, 10000
-         call normalized_hybrid_spec(n_gamma, gamma, p, gamma_min, gamma_max, xi_e, &
-            spec)
-      end do
-      call cpu_time(t1)
-      print *, "fast loop=10000, ", t1-t0
-   
-   end subroutine benchmark_normalized_hybrid_spec
-
    subroutine normalized_hybrid_spec_lg(n_gamma, gamma, p, gamma_min, gamma_max, xi_e, &
       spec)
       integer, intent(in) :: n_gamma
@@ -701,98 +455,5 @@ module hybrid_spectrum_kernel_fast
       
       spec = spec * gamma*ln_10
    end subroutine normalized_hybrid_spec_lg
-
-   function thermal(n_gamma, gamma, gamma_min, theta, xi_e) result(spec)
-      implicit none
-      integer, intent(in) :: n_gamma
-      real(8), intent(in) :: gamma(n_gamma) 
-      real(8), intent(in) :: gamma_min, theta, xi_e
-      
-      real(8) :: spec(n_gamma)
-      real(8) :: ln_expr(n_gamma)
-      real(8) :: it_1_val
-      logical :: mask(n_gamma) 
-      real(8), parameter :: tiny_val = 1.0d-30
-      real(8) :: scalar_constant
-      integer :: i
-      real(8) :: g, ln_val
-
-      call integral_thermal1(gamma_min, theta, &
-         it_1_val)
-      
-      spec = 0.0d0
-      ln_expr = m700
-      mask = (gamma > 1.0d0) .and. (gamma < gamma_min)
-      scalar_constant = log((1.0d0 - xi_e) / max(it_1_val, 1d-60))
-
-      !$OMP SIMD
-      do i = 1, n_gamma
-         g = gamma(i)
-         if (g > 1.0d0 .and. g < gamma_min) then
-            ln_val = log(g * sqrt(g*g - 1.0d0)) - g/theta + scalar_constant
-            if (ln_val > -700.0d0) then
-               spec(i) = exp(ln_val)
-            else
-               spec(i) = 0.0d0
-            end if
-         else
-            spec(i) = 0.0d0
-         end if
-      end do
-      
-   end function thermal
-
-   function cpl(n_gamma, gamma, p, gamma_min, gamma_max, xi_e) result(spec)
-      implicit none
-      integer, intent(in) :: n_gamma
-      real(8), intent(in) :: gamma(n_gamma) 
-      real(8), intent(in) :: p, gamma_min, gamma_max, xi_e
-      
-      real(8) :: spec(n_gamma)
-      real(8) :: ln_expr(n_gamma)
-      real(8) :: int_p_val
-      logical :: mask(n_gamma) 
-      real(8), parameter :: tiny_val = 1.0d-30
-      real(8) :: scalar_constant
-
-      integer :: i
-      real(8) :: g, ln_val
-
-      call integral_cpl(p, gamma_min, gamma_max, &
-         int_p_val)
-      
-      spec = 0.0d0
-      ln_expr = m700
-      mask = gamma >= gamma_min
-      scalar_constant = log(xi_e / max(int_p_val, 1d-60))
-
-      !$OMP SIMD
-      do i = 1, n_gamma
-         g = gamma(i)
-         if (g >= gamma_min) then
-            ln_val = -p * log(g) - g/gamma_max + scalar_constant
-            if (ln_val > -700.0d0) then
-               spec(i) = exp(ln_val)
-            else
-               spec(i) = 0.0d0
-            end if
-         else
-            spec(i) = 0.0d0
-         end if
-      end do
-      
-   end function cpl
-
-   function get_thermal_peak(theta) result(gamma_peak)
-      implicit none
-      real(8), intent(in) :: theta
-      real(8) :: gamma_peak, theta2, r, phi
-
-      theta2 = theta * theta
-      r = sqrt(3.0 + 4.0 * theta2)
-      phi = acos(0.5 * theta * (16.0 * theta2 - 9.0) / (r * r * r))
-      gamma_peak = 2.0d0 / 3.0d0 * (r * cos(phi / 3.0) + theta)
-
-   end function get_thermal_peak
 
 end module hybrid_spectrum_kernel_fast

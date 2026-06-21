@@ -263,23 +263,6 @@ subroutine electron_initial_powerlaw_exp_cutoff_coord_edges(Para_N_e_ini,p,Gam_e
     end do
 end subroutine electron_initial_powerlaw_exp_cutoff_coord_edges
 
-! 构建幂律+指数截断源项 dF/dx（网格中心值）。
-subroutine electron_build_source_term_exp_cutoff(Num_gam_e,gam_e,Gam_e_m,Gam_e_max,Q,p,dF1)
-    implicit real(8)(A-H,O-Z)
-    integer, intent(in) :: Num_gam_e
-    integer :: I_gam_e
-    real(8), intent(in) :: gam_e(Num_gam_e),Gam_e_m,Gam_e_max,Q,p
-    real(8), intent(out) :: dF1(Num_gam_e)
-
-    dF1=zero
-    if (Gam_e_max <= zero) return
-
-    do I_gam_e=1,Num_gam_e
-        if (gam_e(I_gam_e) <= Gam_e_m) cycle
-        dF1(I_gam_e)=Q*gam_e(I_gam_e)**(one-p)*dlog(ten)*electron_exp_cutoff_factor(gam_e(I_gam_e),Gam_e_max)
-    end do
-end subroutine electron_build_source_term_exp_cutoff
-
 ! 构建幂律+指数截断源项 dF/dx（网格单元平均，保正/守恒）。
 subroutine electron_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m,Gam_e_max,Q,p,dF1)
     implicit real(8)(A-H,O-Z)

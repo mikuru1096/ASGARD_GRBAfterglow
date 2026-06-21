@@ -150,19 +150,6 @@ real(8) :: P_emit(Num_nu),Tau_syn(Num_nu)
     call get_syn_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed,P_emit,P_syn,Seed_syn,Tau_syn)
 end subroutine get_syn
 
-! GitHub基线的复合Simpson电子能量积分；case(2)不能退化成区间中点核，否则高频尾会断崖式归零。
-subroutine get_syn_simpson(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
-                           P_syn,Seed_syn)
-implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: Num_gam_e,Num_nu,n_threads
-real(8), intent(in) :: R_loc,DB,gam_e(Num_gam_e),dN_gam_e(Num_gam_e),V_seed(Num_nu)
-real(8), intent(out) :: P_syn(Num_nu),Seed_syn(Num_nu)
-real(8) :: P_emit(Num_nu),Tau_syn(Num_nu)
-
-    call get_syn_simpson_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
-                               P_emit,P_syn,Seed_syn,Tau_syn)
-end subroutine get_syn_simpson
-
 subroutine get_syn_simpson_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
                                  P_emit,P_syn,Seed_syn,Tau_syn)
 !$ use omp_lib
@@ -357,17 +344,6 @@ integer :: i
     call get_syn_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_syn,V_seed,P_emit,P_syn,Seed_syn,Tau_syn)
     call add_cyclotron_fundamental(R_loc,DB,Num_gam_e,Num_nu,gam_e,dN_gam_e,V_seed,P_emit,P_syn,Seed_syn,Tau_syn)
 end subroutine get_syn_cyclotron_state
-
-subroutine get_syn_cyclotron(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed,P_syn,Seed_syn)
-implicit none
-integer, intent(in) :: Num_gam_e,Num_nu,n_threads
-real(8), intent(in) :: R_loc,DB,gam_e(Num_gam_e),dN_gam_e(Num_gam_e),V_seed(Num_nu)
-real(8), intent(out) :: P_syn(Num_nu),Seed_syn(Num_nu)
-real(8) :: P_emit(Num_nu),Tau_syn(Num_nu)
-
-    call get_syn_cyclotron_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
-                                 P_emit,P_syn,Seed_syn,Tau_syn)
-end subroutine get_syn_cyclotron
 
 subroutine add_cyclotron_fundamental(R_loc,DB,Num_gam_e,Num_nu,gam_e,dN_gam_e,V_seed,P_emit,P_syn,Seed_syn,Tau_syn)
 implicit none
@@ -772,8 +748,7 @@ real(8) :: h_ref,h_loc
         call get_syn_cyclotron_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
                                      P_emit,P_syn,Seed_syn,Tau_syn)
     case default
-        print*, 'invalid synchrotron integral case, check your chosen model!'
-        stop
+        error stop 'get_syn_selected_state: index_syn_intger must be 1, 2, 3, or 4.'
     end select
 end subroutine get_syn_selected_state
 
@@ -905,8 +880,7 @@ allocate (dN1(Num_gam_e),x_gam(Num_gam_e))
        end do
 
        if (Tau_high > one) then
-          V_a=V_high
-          print*, 'nu_a_comoving larger than adaptive upper bound!', V_a_cap
+          error stop 'get_nu_a: tau remains above unity at the adaptive upper bound.'
        else
           if (Tau_low <= one .or. Tau_low == Tau_high) then
              V_a=V_high
