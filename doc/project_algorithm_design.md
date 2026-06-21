@@ -1200,7 +1200,7 @@ CPU wavefront 优化只允许重排满足因果依赖的 stencil：
 2. Public API 配置边界检查。
 3. Fortran wrapper build。
 4. `-Wline-truncation` source closure 检查。
-5. 最小 smoke test。
+5. 最小端到端验证。
 6. 物理量连续性和预算闭合。
 7. 文献或独立 backend benchmark。
 

@@ -41,12 +41,12 @@ rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/AS
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && TMPDIR=/tmp uv run python build_extensions.py --module electron_forward_dg_1d --module electron_reverse_kernel --module structured_jet_1d --force'
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && TMPDIR=/tmp uv run python build_extensions.py --module electron_forward_charint_2d --force'
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && TMPDIR=/tmp uv run python build_extensions.py --module hadronic_forward_1d --force'
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/hadronic_1d_smoke.py'
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/reverse_shared_solver_smoke.py'
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/structured_shared_solver_smoke.py'
+rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tools/check_text_encoding.py'
+rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && git diff --check'
+rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run --with "mkdocs<2" --with "mkdocs-material>=9.5" mkdocs build --strict --site-dir /tmp/asgard_mkdocs_site'
 ```
 
-当前已知验证阻塞不计入普通基线命令：`tests/hadronic_reverse_shock_smoke.py` 的 RS full-chain 分支和 `tests/electron_photon_joint_secondary_feedback_smoke.py` 会在 formal hadronic electron-energy 网格契约处失败，报 `electron_energy_gev must be logarithmically uniform`；`tests/dg_1d_smoke.py` 当前在 RS DG 谱形 sawtooth-turn 诊断处失败。它们保留为真实问题入口，不用删除或改宽断言来掩盖。
+当前已知验证阻塞不计入普通文档基线：RS full-chain hadronic 和 joint feedback 会在 formal hadronic electron-energy 网格契约处失败，报 `electron_energy_gev must be logarithmically uniform`；RS DG 谱形诊断当前暴露 sawtooth-turn 问题。这些是待修真实问题，不能用删除断言、调宽阈值或 fallback 掩盖。
 
 当前 Vegas baseline benchmark artifacts:
 - `output/asgard_doc/vegas_afterglow_compare/compare_reverse_shock_lc.png`

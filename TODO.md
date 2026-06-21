@@ -33,7 +33,7 @@
 - `electron_forward_slc1_1d.f90`、`electron_forward_t2g1_1d.f90`、`Dynamics_forward.f90`、`hadronic_common.f90`、`interpolation_common.f90`、`quantum_synchrotron_kernel.f90`、`synchrotron_polarization_kernel.f90` 等文件短且职责单一，继续拆分的边际信息增益低。
 - `adaptive_resampling_mod.f90` 已有内部 helper；若未来要改采样策略或模块私有过程边界，需另开数值审计，不能夹在行为保持重构中。
 
-验收口径：每个批次必须通过受影响 `build_extensions.py --force`、干净 `/tmp` module 目录的 `gfortran -Wall -Werror=line-truncation -Wline-truncation -cpp -fopenmp -fsyntax-only` source closure 检查、最小相关 smoke test；每累计约 5 个代码文件或高风险批次后运行 CCreview。最终完成标记只记录提交哈希。
+验收口径：每个批次必须通过受影响 `build_extensions.py --force`、干净 `/tmp` module 目录的 `gfortran -Wall -Werror=line-truncation -Wline-truncation -cpp -fopenmp -fsyntax-only` source closure 检查和对应端到端验证；每累计约 5 个代码文件或高风险批次后运行 CCreview。最终完成标记只记录提交哈希。
 
 ## 已完成记录
 
@@ -79,16 +79,16 @@ Lan 2023 overlay 的峰值幅度已匹配，峰时仍偏早。当前证据指向
 
 formal FS/RS shell-sequence transport 已由 `asgard_core/asgard_runtime.py::_solve_hadronic_hummer_transport_coupled` 调用 `src/Hadronic/hadronic_forward_1d.f90::fs_hadronic_formal_transport_1d` 推进。当前未完成项不是迁移到 Fortran，而是修复 formal hadronic validation blocker：
 
-- `tests/hadronic_reverse_shock_smoke.py` 的 base 和 RS light proton-synch 分支可执行，但 full-chain RS hadronic 分支报 `electron_energy_gev must be logarithmically uniform`。
-- `tests/electron_photon_joint_secondary_feedback_smoke.py` 同样在 formal hadronic electron-energy grid contract 处失败。
-- `tests/hadronic_1d_smoke.py` 仍是当前 FS 1D hadronic smoke。
+- RS light proton-synch 分支可执行，但 full-chain RS hadronic 分支报 `electron_energy_gev must be logarithmically uniform`。
+- Joint feedback 同样在 formal hadronic electron-energy grid contract 处失败。
+- FS 1D hadronic 路径仍是当前可执行基线。
 
 修复契约：
 
 - 不添加 fallback、网格重采样补丁或忽略错误；必须从输入 `electron_gamma` 到 `electron_energy_gev` 的构造路径证明 Fortran kernel 看到的是严格等比能量网格，或者修正 kernel 对当前契约的错误假设。
 - RS full-chain 必须继续使用 RS seed photons、RS magnetic field、RS shell energy 和 RS baryon target density。
 - joint feedback 必须保持 shell-level electron/photon/hadronic 闭合，不恢复 Python substep 推进。
-- 修复后 `hadronic_1d_smoke.py`、`hadronic_reverse_shock_smoke.py`、`electron_photon_joint_secondary_feedback_smoke.py` 必须全部通过。
+- 修复后 FS 1D hadronic、RS full-chain hadronic 和 joint feedback 端到端验证必须全部通过。
 - 与迁移前同一输入的 proton synch、pγ gamma、neutrino、BH/pp secondary luminosity 和 energy budget 在数值误差内一致，且随半径连续平滑。
 - 受影响 `hadronic_forward_1d` / `structured_jet_1d` build、干净 `/tmp` source closure `-Wline-truncation` 检查通过。
 

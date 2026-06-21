@@ -37,9 +37,9 @@ f_{\rm surv}
 
 ## 当前验证状态
 
-- `tests/hadronic_1d_smoke.py` 是当前通过的 FS 1D hadronic smoke。
-- `tests/hadronic_reverse_shock_smoke.py` 的 base 和 RS light proton-synch 分支可执行；full-chain RS hadronic 分支当前在 formal kernel 的 electron-energy grid contract 处失败，错误为 `electron_energy_gev must be logarithmically uniform`。
-- `tests/electron_photon_joint_secondary_feedback_smoke.py` 当前触发同一个 formal hadronic electron-energy grid contract 失败。
+- FS 1D hadronic 路径当前可执行。
+- RS light proton-synch 分支可执行；full-chain RS hadronic 分支当前在 formal kernel 的 electron-energy grid contract 处失败，错误为 `electron_energy_gev must be logarithmically uniform`。
+- Joint feedback 当前触发同一个 formal hadronic electron-energy grid contract 失败。
 
 ## 当前边界
 

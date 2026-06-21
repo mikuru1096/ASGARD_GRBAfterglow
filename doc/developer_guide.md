@@ -59,7 +59,7 @@ Fortran 负责：
 3. 做最小改动。
 4. 检查声明块长度和 line truncation。
 5. 强制编译受影响 extension。
-6. 跑最小 smoke/benchmark。
+6. 跑最小端到端验证或 benchmark。
 7. 做 review 查 bug，再从第一性原理确认实现是否仍是最简单稳健路径。
 
 声明块规则：
@@ -75,7 +75,7 @@ Fortran 负责：
 2. 不改变现有兼容入口，除非任务要求。
 3. API 边界只验证用户输入、外部 API 或文件输入。
 4. 内部状态不做防御性编程。
-5. 更新 `doc/public_api.md` 和相关 smoke。
+5. 更新 `doc/public_api.md` 和相关验证入口。
 
 ## 物理结果自检
 
@@ -128,7 +128,7 @@ Fortran：
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && TMPDIR=/tmp uv run python build_extensions.py --module MODULE_NAME --force'
 ```
 
-然后跑 line-truncation 和最小 smoke。
+然后跑 line-truncation 和最小端到端验证。
 
 ## Review 检查表
 

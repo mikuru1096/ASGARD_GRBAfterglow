@@ -86,8 +86,8 @@ ASGARD 当前主线是 GRB 余辉的壳层演化爆波和观测者投影模型�
 - 反向激波电子同步辐射、RS SSC、FS/RS 跨区逆康普顿。
 - 反向激波热/磁化基线：使用激波前沿 `gamma34` 注入能标、显式 `U3/V3` 热状态、可选 `ReverseShock.upstream_sigma`、有限强度 MHD 跳跃条件和有序磁场分量。
 - 正向激波强子 `legacy_1d` 与正式研究路径 `am3_1d`。
-- `electron_photon_coupling="joint"` 是需要显式启用的壳层级联合闭合：正向激波电子、光子场、正式强子输运、BH/pp/\(\gamma\gamma\) 二级 \(e^\pm\) 和光子存活率在同一 \(R\) 网格上迭代；当前 smoke 在 formal hadronic electron-energy grid contract 处失败，修复入口见 `TODO.md`。
-- 反向激波强子轻量质子同步辐射路径可执行；复用正式 1D 强子核的完整链路调度已接入，但当前 RS full-chain smoke 在 formal hadronic electron-energy grid contract 处失败。
+- `electron_photon_coupling="joint"` 是需要显式启用的壳层级联合闭合：正向激波电子、光子场、正式强子输运、BH/pp/\(\gamma\gamma\) 二级 \(e^\pm\) 和光子存活率在同一 \(R\) 网格上迭代；当前在 formal hadronic electron-energy grid contract 处失败，修复入口见 `TODO.md`。
+- 反向激波强子轻量质子同步辐射路径可执行；复用正式 1D 强子核的完整链路调度已接入，但当前 RS full-chain 在 formal hadronic electron-energy grid contract 处失败。
 - \(\gamma\gamma\) 对产生与壳层序列含时对产生/同步辐射级联。
 - 同步辐射偏振 Stokes 投影，覆盖 FS/RS 电子同步辐射与 FS/RS 强子同步辐射。
 - `prompt/` 内部激波快照诊断，覆盖两壳碰撞、磁化 FS/RS jump、同步/SSC/\(\gamma\gamma\) 和 EATS 投影；它不是 `asgard_core` 顶层 public API 或拟合入口。

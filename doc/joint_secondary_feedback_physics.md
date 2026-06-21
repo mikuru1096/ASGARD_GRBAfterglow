@@ -166,7 +166,7 @@ P_{e,{\rm IC\,loss}}
 P_{\gamma,{\rm IC\,source}}.
 \]
 
-如果只改变 electron cooling 而没有同步改变 IC photon source，电子能量会从系统中消失。当前 joint 路径通过同一 seed 传入 coupled electron pass；`tests/electron_photon_joint_secondary_feedback_smoke.py` 是对应诊断入口，但当前工作树会在 formal hadronic electron-energy grid contract 处失败，需先修复该契约后再把它作为绿色验收。
+如果只改变 electron cooling 而没有同步改变 IC photon source，电子能量会从系统中消失。当前 joint 路径通过同一 seed 传入 coupled electron pass；端到端验证当前会在 formal hadronic electron-energy grid contract 处失败，需先修复该契约后再把它作为绿色验收。
 
 ### BH 预算
 

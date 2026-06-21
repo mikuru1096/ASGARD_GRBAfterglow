@@ -520,7 +520,7 @@ N_{\rm thread,eff}=\min(N_{\rm thread},N_\chi,4),
 - 电子总数是否在无物理注入或逃逸事件时突变。
 - 平滑参数扫描中高频端是否出现台阶式截断。
 - `dg_1d` 输出给辐射核前的固定网格谱是否出现元素边界零洞或多重 grid-scale sawtooth turns。
-- FS density-jump 场景使用默认 troubled positive-kernel 后，仍应检查支撑连续、非负和辐射结果平滑，不把真实尖断点的高曲率当作失败。`tests/dg_1d_smoke.py` 当前在 RS DG sawtooth-turn 判据处失败，保留为待修诊断入口，不作为绿色门槛。
+- FS density-jump 场景使用默认 troubled positive-kernel 后，仍应检查支撑连续、非负和辐射结果平滑，不把真实尖断点的高曲率当作失败。当前 RS DG 谱形诊断暴露 sawtooth-turn 问题，保留为待修真实问题，不作为绿色门槛。
 - `charint_2d` 的 \(x\) 子步是否过粗导致高能端提前消失。
 - 2D reduced cooling bands 在窄频带问题中是否引入系统偏差。
 

@@ -24,7 +24,7 @@
 - `doc/numerical_methods.md`：数值核、求解器和 line-truncation 检查。
 - `doc/joint_secondary_feedback_physics.md`：含时 BH / 二级 e± / 光子场 joint feedback 的物理方程、源汇预算和支持边界。
 - `doc/joint_secondary_feedback_algorithm.md`：joint feedback 的 public switch、状态机、数组契约、函数入口、测试和 benchmark。
-- `doc/validation_and_benchmarks.md`：build gate、smoke tests、benchmark refresh 和 artifact policy。
+- `doc/validation_and_benchmarks.md`：build gate、benchmark refresh 和 artifact policy。
 - `doc/developer_guide.md`：开发工作流、提交前检查和 review checklist。
 - `doc/call_chain.md`：public call chain 到 runtime/Fortran kernel 的路径。
 - `doc/code_overview.md`：代码结构、运行主链和关键边界。
@@ -57,15 +57,7 @@
 
 ## 测试与基准
 
-- 基础 smoke：`tests/readme_smoke_bench.py`, `tests/reverse_shock_smoke.py`
-- DG/shared electron smoke：`tests/reverse_shared_solver_smoke.py`, `tests/structured_shared_solver_smoke.py`
-- DG diagnostic：`tests/dg_1d_smoke.py`；当前在 RS DG sawtooth-turn 判据处失败，保留作真实问题入口。
-- Public API smoke：`tests/fitter_public_api_smoke.py`
-- 2D electron：`tests/fullhide_2d_smoke_bench.py`
-- q-shell diagnostics：`tests/benchmark_theta_j_multiples_magnetic_decay.py`, `tests/benchmark_skymap_centroid_motion.py`
-- prompt snapshot：`tests/internal_shock_prompt_smoke.py`
-- Hadronic：`tests/hadronic_1d_smoke.py` 当前通过；`tests/hadronic_reverse_shock_smoke.py` 的 RS full-chain 分支当前在 `electron_energy_gev` log-grid contract 处失败。
-- Electron-photon joint feedback：`tests/electron_photon_joint_secondary_feedback_smoke.py` 当前同样在 formal hadronic electron-energy grid contract 处失败。
+测试脚本清单不在源码树页重复维护。构建门槛、benchmark refresh 和当前已知验证阻塞集中见 `doc/validation_and_benchmarks.md`。
 
 ## 生成产物
 

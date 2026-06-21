@@ -144,15 +144,7 @@ rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/AS
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && TMPDIR=/tmp uv run python build_extensions.py --module hadronic_forward_1d --force'
 ```
 
-Smoke tests：`tests/readme_smoke_bench.py`, `tests/fitter_public_api_smoke.py`, `tests/eats_adaptive_projection_smoke.py`, `tests/fullhide_2d_smoke_bench.py`, `tests/internal_shock_prompt_smoke.py`。
-
-Reverse/structured electron regressions：`tests/reverse_shared_solver_smoke.py`, `tests/reverse_shock_smoke.py`, `tests/structured_shared_solver_smoke.py`。
-
-DG diagnostic：`tests/dg_1d_smoke.py`。当前工作树中该脚本在 RS DG sawtooth-turn 判据处失败；它不是普通通过门禁，而是待修真实问题入口。
-
-Hadronic regressions：`tests/hadronic_1d_smoke.py` 当前通过；`tests/hadronic_reverse_shock_smoke.py` 的 RS full-chain 分支当前报 `electron_energy_gev must be logarithmically uniform`。
-
-Joint feedback：`tests/electron_photon_joint_secondary_feedback_smoke.py` 当前触发同一个 formal hadronic electron-energy grid contract 失败。
+端到端验证入口不在代码概览页逐项列出；构建门槛、benchmark refresh 和当前已知验证阻塞集中见 `doc/validation_and_benchmarks.md`。
 
 新增正式基准测试入口前必须先明确假设、决策价值和物理验收口径。
 

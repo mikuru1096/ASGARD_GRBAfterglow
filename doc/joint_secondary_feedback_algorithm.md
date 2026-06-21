@@ -192,7 +192,7 @@ electron cooling
 IC photon production
 ```
 
-该局部一致性不再保留独立 smoke，joint feedback 的可执行验收收敛到端到端入口。
+该局部一致性不再保留独立脚本，joint feedback 的可执行验收收敛到端到端入口。
 
 ## 10. gamma-gamma pair branch
 
@@ -239,13 +239,7 @@ rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/AS
 
 必须额外跑 line-truncation source closure 检查，使用干净 `/tmp` module 目录。
 
-joint 相关 smoke：
-
-```text
-tests/electron_photon_joint_secondary_feedback_smoke.py
-```
-
-当前工作树中该 smoke 会在 formal hadronic electron-energy grid contract 处失败，错误为 `electron_energy_gev must be logarithmically uniform`。修复时必须回到 hadronic input grid 契约和 joint shell state 构造，不能删除断言、跳过 formal hadronic 分支或添加 fallback。
+当前工作树中 joint 端到端验证会在 formal hadronic electron-energy grid contract 处失败，错误为 `electron_energy_gev must be logarithmically uniform`。修复时必须回到 hadronic input grid 契约和 joint shell state 构造，不能删除断言、跳过 formal hadronic 分支或添加 fallback。
 
 文档/格式：
 

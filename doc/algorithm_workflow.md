@@ -635,7 +635,7 @@ CPU 版本的 `fullhide` 优化目标是保持同一物理离散和代数依赖�
 不应接受的路线包括：
 
 - 直接照搬 GPU cell-level anti-diagonal OpenMP `parallel do`。
-- 只在 smoke 网格上证明加速。
+- 只在过小网格上证明加速。
 - 用 smoothing、截断或经验因子修正不平滑输出。
 - 为避免退化添加隐藏 fallback。
 
@@ -1158,8 +1158,8 @@ benchmark 必须报告使用的是 cold solve 还是 warm query。把 warm query
 | 改动类型 | 必要验证 |
 | --- | --- |
 | Markdown 文档 | `mkdocs build --strict`, 公式抽取 LaTeX 编译 |
-| Python API | 相关 smoke test, `git diff --check` |
-| Fortran 数值核 | `build_extensions.py --force`, line-truncation, narrow smoke |
+| Python API | 端到端验证, `git diff --check` |
+| Fortran 数值核 | `build_extensions.py --force`, line-truncation, 窄范围端到端验证 |
 | 物理公式或 benchmark | 生成图、检查平滑性、记录 git HEAD 和命令 |
 
 物理验收优先级高于图像好看。若结果不连续，先查 dynamics、transport、source normalization、seed conversion 和 projection grid。

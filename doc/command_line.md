@@ -63,4 +63,4 @@ rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/AS
 
 ## 5. 何时不用命令行
 
-如果任务是交互式建模、拟合 likelihood、检查内部物理量或组合多个观测数据集，优先写一个短 Python 脚本调用 `Model` 和 `Fitter`。命令行适合构建、跑保留的 smoke/benchmark 测试和构建文档，不适合承载复杂研究逻辑。
+如果任务是交互式建模、拟合 likelihood、检查内部物理量或组合多个观测数据集，优先写一个短 Python 脚本调用 `Model` 和 `Fitter`。命令行适合构建、benchmark 刷新和构建文档，不适合承载复杂研究逻辑。

@@ -66,12 +66,6 @@ print(result.total.shape)  # (num_frequency, num_time)
 
 ## 验证
 
-README 面向的公开查询路径由 smoke test 覆盖：
-
-```bash
-uv run python tests/readme_smoke_bench.py
-```
-
 文档和文本编码检查：
 
 ```bash
@@ -79,7 +73,13 @@ uv run python tools/check_text_encoding.py
 git diff --check
 ```
 
-修改 Fortran 后还必须重建受影响模块，并运行 `-Wline-truncation` 语法检查和最窄相关 smoke test。验证分层见 `doc/validation_and_benchmarks.md`。
+网页文档检查：
+
+```bash
+uv run --with "mkdocs<2" --with "mkdocs-material>=9.5" mkdocs build --strict --site-dir /tmp/asgard_mkdocs_site
+```
+
+修改 Fortran 后还必须重建受影响模块，并运行 `-Wline-truncation` 语法检查。验证分层见 `doc/validation_and_benchmarks.md`。
 
 ## 文档地图
 

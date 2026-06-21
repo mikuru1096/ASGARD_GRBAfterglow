@@ -918,7 +918,7 @@ Fortran 重要改动后的最低验证包括：
 ```text
 affected build_extensions.py --force
 gfortran -Wall -Wline-truncation -Werror=line-truncation -fsyntax-only
-minimal smoke test
+minimal end-to-end check
 ```
 
 行截断检查必须从干净 `/tmp` 工作目录执行，并显式指定模块输出目录：
@@ -935,7 +935,7 @@ rtk bash -lc 'source ~/.wsl_env && rm -rf /tmp/asgard_linecheck && mkdir -p /tmp
 | --- | --- |
 | \(R\)-坐标输运 | 率是否用 \(\mathrm{d}t'/\mathrm{d}R\) 转换 |
 | `fullhide_1d` 隐式输运 | 刚性冷却下 \(N_e\)、\(\nu_c\)、高能截断是否平滑 |
-| `dg_1d` troubled positive-kernel | smooth-cell 空间阶数为 P12 的 \(O(\Delta y^{13})\)，端到端电子推进受 BE 限制为 \(O(\Delta R)\)；同时检查非负、活动支撑连续、无元素边界零洞、无多重 grid-scale sawtooth turns、辐射结果平滑；`tests/dg_1d_smoke.py` 当前在 RS DG sawtooth-turn 判据处失败，作为待修诊断入口保留 |
+| `dg_1d` troubled positive-kernel | smooth-cell 空间阶数为 P12 的 \(O(\Delta y^{13})\)，端到端电子推进受 BE 限制为 \(O(\Delta R)\)；同时检查非负、活动支撑连续、无元素边界零洞、无多重 grid-scale sawtooth turns、辐射结果平滑；当前 RS DG sawtooth-turn 判据失败，作为待修诊断入口保留 |
 | 子步压缩 | 与未压缩小步结果的粒子数和谱形一致 |
 | 多求解器互证 | `fullhide_1d`、`charint_1d`、`weno5_1d` 的 break frequency 趋势一致 |
 | `PhotonFieldState` | 每赫兹/每能量雅可比因子与壳层体积、逃逸时间一致 |

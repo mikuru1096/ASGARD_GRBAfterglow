@@ -51,7 +51,7 @@ HEtools 的 afterglow 页面从 `base_func/afterglow_base_func.py` 调用 ASGARD
 
 - `-Wline-truncation` 检查覆盖 `Constants`、`Dynamics_forward`、`electron_forward_fullhide_1d`、`electron_radiation`、`SED_interpolation`、`radiation_gamma_gamma_absorption`、`hadronic_forward_1d` 的源闭包。
 - 用 `/home/wangyun/anaconda3/envs/mylab/bin/python build_extensions.py --force` 编译上述模块。
-- 调用 `ASGARD_fs_fluxdensity` 做最小 live-shape smoke test，要求 `Tobs.shape == (180,)`、`Fluxes.shape == (1, 180)` 且全部 finite。
+- 调用 `ASGARD_fs_fluxdensity` 做最小 live-shape 检查，要求 `Tobs.shape == (180,)`、`Fluxes.shape == (1, 180)` 且全部 finite。
 - 通过 staging 检查后再停止服务、备份旧目录和旧胶水、替换正式目录、重启 `/home/wangyun/Desktop/run_HEtools.py`。
 
 替换后必须同时验收：
@@ -59,7 +59,7 @@ HEtools 的 afterglow 页面从 `base_func/afterglow_base_func.py` 调用 ASGARD
 - `https://hetools.cn/` 返回 Streamlit 首页。
 - `https://hetools.cn/asgard-doc/` 返回 ASGARD 文档。
 - `127.0.0.1:8501`、`127.0.0.1:8502` 正常监听。
-- live `afterglow_base_func.py` 可导入，`ASGARD_fs_fluxdensity` 最小 smoke test 通过。
+- live `afterglow_base_func.py` 可导入，`ASGARD_fs_fluxdensity` 最小 live-shape 检查通过。
 
 ### HEtools Afterglow_modeling 页面
 
@@ -97,9 +97,9 @@ rtk bash -lc 'source ~/.wsl_env && ssh wangyun@100.108.14.93 "cd /home/wangyun/D
 
 - `py_compile menu.py pages/Afterglow_modeling.py base_func/afterglow_base_func.py` 通过。
 - `ASGARD_fs_fluxdensity` 标量和数组频率输入都保持 `(180,)`、`(Nfreq, 180)` 形状且 finite。
-- ASGARD / VegasAfterglow lightcurve smoke 必须通过；ASGARD / VegasAfterglow SED smoke 必须通过。
-- `include_ssc=True` 时，ASGARD / VegasAfterglow lightcurve 和 SED smoke 必须输出 finite 且形状不变。
-- `medium_type="Wind"` 时，ASGARD / VegasAfterglow lightcurve 和 SED smoke 必须通过；legacy 9 参数 tuple 继续默认 `ISM`。
+- ASGARD / VegasAfterglow lightcurve 和 SED 最小检查必须通过。
+- `include_ssc=True` 时，ASGARD / VegasAfterglow lightcurve 和 SED 必须输出 finite 且形状不变。
+- `medium_type="Wind"` 时，ASGARD / VegasAfterglow lightcurve 和 SED 必须通过；legacy 9 参数 tuple 继续默认 `ISM`。
 - SED `nuFnu` 模式下，ASGARD SSC 分量在 payload/CSV/图像中可见，且 total 等于 sync + SSC。
 - SED 自适应 y 轴改动后，`streamlit.testing.v1.AppTest` 勾选 `Wind + SSC + nuFnu` 运行无 exception。
 - VegasAfterglow SED 诊断显示单点 `sed_time_s` 调用与完整时间网格截面差异约 `10^-3`；页面保留原 Vegas total 求解路径，但在 `include_ssc=True` 时导出并绘制 `sync` / `SSC` 分量，且验证 total 等于 sync + SSC。

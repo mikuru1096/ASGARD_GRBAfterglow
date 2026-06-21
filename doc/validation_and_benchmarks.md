@@ -12,7 +12,7 @@ rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/AS
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run --with "mkdocs<2" --with "mkdocs-material>=9.5" mkdocs build --strict --site-dir /tmp/asgard_mkdocs_site'
 ```
 
-如果改动涉及示例命令，还应运行对应 smoke 或最小命令片段。
+如果改动涉及示例命令，还应运行对应最小命令片段。
 
 ### Fortran 语法和行截断
 
@@ -20,50 +20,17 @@ Fortran 重要改动必须跑：
 
 - 受影响 `build_extensions.py --module ... --force`
 - `gfortran -Wall -Wline-truncation -fsyntax-only`
-- 最小相关 smoke test
+- 最小相关端到端验证
 
 Line check 必须从 `/tmp` 执行，并指定临时 `-J` / `-I` 目录。
 
-### 冒烟测试
-
-Forward/electron：
-
-```bash
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/readme_smoke_bench.py'
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/fitter_public_api_smoke.py'
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/eats_adaptive_projection_smoke.py'
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/fullhide_2d_smoke_bench.py'
-```
-
-Reverse shock：
-
-```bash
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/reverse_shock_smoke.py'
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/reverse_shared_solver_smoke.py'
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/structured_shared_solver_smoke.py'
-```
-
-Hadronic：
-
-```bash
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/hadronic_1d_smoke.py'
-```
-
-Prompt snapshot：
-
-```bash
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/internal_shock_prompt_smoke.py'
-```
-
-`tests/dg_1d_smoke.py` 是 DG 谱形诊断入口。它检查有限值、非负、活动支撑无零洞、无多重 grid-scale sawtooth turns、粒子数和同步光度量级；尖锐曲率本身不判失败，因为 troubled positive-kernel 的目标是消除 Gibbs 振荡，同时保留真实冷却断点和高能 cutoff。当前工作树中该脚本在 RS DG spectrum sawtooth-turn 判据处失败，因此不属于绿色基线。这个 smoke 不是阶数测试。当前阶数口径是：未滤波光滑谱元的能量空间形式阶数为 P12 的 \(O(\Delta y^{13})\)，普通 shell-to-shell 电子推进受后向 Euler 限制为 \(O(\Delta R)\)，主 RS crossing 后纯冷却解析映射对固定冷却系数无 BE 时间截断误差。需要验证阶数时，应分开做能量空间光滑谱测试和半径步长减半测试，不用真实断点附近的局部 Gibbs 区域拟合单一阶数。
-
-### 当前已知失败诊断
+### 当前已知验证阻塞
 
 以下入口当前不属于“绿色基线”，但必须保留为真实问题入口：
 
-- `tests/hadronic_reverse_shock_smoke.py`：base 和 RS light proton-synch 分支可执行；RS full-chain hadronic 分支报 `electron_energy_gev must be logarithmically uniform`。
-- `tests/electron_photon_joint_secondary_feedback_smoke.py`：同样在 formal hadronic electron-energy grid contract 处失败。
-- `tests/dg_1d_smoke.py`：当前在 RS DG spectrum sawtooth-turn 判据处失败。
+- RS full-chain hadronic：base 和 RS light proton-synch 分支可执行；full-chain 分支报 `electron_energy_gev must be logarithmically uniform`。
+- Joint feedback：同样在 formal hadronic electron-energy grid contract 处失败。
+- RS DG electron spectrum：当前暴露 sawtooth-turn 判据失败。
 
 修复这些失败时不得删除断言、放宽阈值或添加 fallback；必须回到对应 hadronic grid contract 或 DG RS 电子谱演化路径。
 
@@ -156,7 +123,7 @@ Reverse-shock：
 - Pre-crossing 的 `M3` crossing 端点应由 `m3_frac=1` 给出，不允许 RK step 跨越 pre/post 方程分支。
 - `sigma -> 0` 必须恢复 unmagnetized baseline。
 - `B3`, `gamma34`, `U3/V3` 应平滑；断频只作为可选 `nu_callback` 诊断。
-- `dg_1d` 的 RS primary electron 路径必须通过 `reverse_shared_solver_smoke.py` 和 `structured_shared_solver_smoke.py`。RS crossing 后的纯冷却段在 `fullhide_1d` 和 `dg_1d` 下都使用 post-crossing direct characteristic map，并采用闭合低能边界保持冷却到网格下界以下的电子数；121 格 fullhide 的旧 post-crossing 宽尾不作为 DG 真值，需用 direct-map 有效支撑图、高分辨率对照或守恒谱形诊断判断。
+- `dg_1d` 的 RS primary electron 路径必须在 public structured/reverse 查询中保持有限、非负和平滑。RS crossing 后的纯冷却段在 `fullhide_1d` 和 `dg_1d` 下都使用 post-crossing direct characteristic map，并采用闭合低能边界保持冷却到网格下界以下的电子数；121 格 fullhide 的旧 post-crossing 宽尾不作为 DG 真值，需用 direct-map 有效支撑图、高分辨率对照或守恒谱形诊断判断。
 - VegasAfterglow 是 comparison backend，不是目标真值。
 
 Hadronic：
@@ -174,7 +141,7 @@ Prompt snapshot：
 
 - `prompt/` 内部激波只按 snapshot 诊断验收：\(\sigma\rightarrow0\) 接近 hydrodynamic baseline，磁化 case 的 baryonic mass 降低且 ordered field 上升，fast shock 不允许时对应分量为零。
 - `fs_sync`、`fs_ssc`、`rs_sync`、`rs_ssc` 和 `total` 必须有限、非负，活动光变段分段平滑。
-- 不把 prompt snapshot smoke 当作观测 GRB prompt light curve 拟合验收。
+- 不把 prompt snapshot 诊断当作观测 GRB prompt light curve 拟合验收。
 
 ## 失败处理
 

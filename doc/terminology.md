@@ -5,7 +5,7 @@
 ## 写法规则
 
 - 代码标识、文件名、枚举值和环境变量使用反引号，例如 `Model`、`electron_solver="dg_1d"`、`ASGARD_DG_FILTER`。
-- 普通解释文本优先使用中文：写“公开 API”“后端”“基准测试”“冒烟测试”，不在中文句子里直接写 public API、backend、benchmark、smoke test。
+- 普通解释文本优先使用中文：写“公开 API”“后端”“基准测试”“端到端验证”，不在中文句子里直接写 public API、backend、benchmark。
 - 稳定缩写可以保留英文，但首次出现应给出中文：正向激波（FS）、反向激波（RS）、同步自康普顿（SSC）、等到达时间面（EATS）。
 - 中文和英文缩写、数字、代码标识之间保留空格：写“2D 壳层”“RS SSC”“`dg_1d` 路径”，不写“2D壳层”“RSSSC”。
 - 物理名词若已有固定英文缩写，标题中可保留缩写，但正文应先解释物理含义。
@@ -56,7 +56,6 @@
 | kernel | 数值核 | 高代价 Fortran 算子。 |
 | solver | 求解器 | `fullhide_1d` 等名称保持英文。 |
 | benchmark | 基准测试 | 图像/CSV 必须可由脚本复现。 |
-| smoke test | 冒烟测试 | 用于快速验证接口和物理边界。 |
 | opt-in | 显式启用 | 不写作“opt-in 路径”；可写“需要显式启用的路径”。 |
 | line truncation | 行截断 | Fortran 检查写作“行截断检查”。 |
 | transport | 输运 | 强子、电子和光子过程中的演化方程统一用“输运”。 |

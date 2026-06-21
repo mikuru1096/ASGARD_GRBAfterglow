@@ -17,7 +17,6 @@
 | `prompt/radiation.py` | 复用现有 reverse electron kernel、SSC、\(\gamma\gamma\) absorption，输出 FS/RS sync/SSC。 |
 | `prompt/run_snapshot.py` | 快速 snapshot 图件入口。 |
 | `prompt/run_formal_results.py` | formal prompt 图件、Band reference、CSV/NPZ 诊断入口。 |
-| `tests/internal_shock_prompt_smoke.py` | 当前最小物理和接口冒烟测试。 |
 
 导入方式：
 
@@ -404,13 +403,7 @@ rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/AS
 
 ## 10. 验证口径
 
-最小测试：
-
-```bash
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/internal_shock_prompt_smoke.py'
-```
-
-该测试检查：
+最小端到端验证检查：
 
 - 离轴 `num_phi=1` 被拒绝。
 - \(\sigma\rightarrow0\) 的弱磁化 case 接近非磁化 hydrodynamic baseline。
@@ -418,7 +411,7 @@ rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/AS
 - fast shock 不允许时对应分量为零。
 - FS/RS sync/SSC 和 total flux 有限、非负，并且活动光变段分段平滑。
 
-当前不要把它解释为 prompt light curve 已经与观测 GRB 拟合一致。它只是代码和物理链路冒烟。
+当前不要把它解释为 prompt light curve 已经与观测 GRB 拟合一致。它只是代码和物理链路诊断。
 
 ## 11. 当前边界
 
@@ -426,5 +419,5 @@ rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/AS
 - 不接 `Fitter`，不作为 afterglow posterior 的参数分支。
 - 不含 shell spreading、multi-collision train、curvature-tail engine history、photosphere 或 subphotospheric dissipation。
 - 不含 prompt hadronic cascade、pair photosphere 或 IC-mediated electromagnetic cascade。
-- 当前电子辐射复用 reverse electron kernel；独立 prompt electron kernel 进入前要先写清方程、网格、能量预算和 smoke benchmark。
+- 当前电子辐射复用 reverse electron kernel；独立 prompt electron kernel 进入前要先写清方程、网格、能量预算和 benchmark。
 - Off-axis 投影必须 `num_phi>=2`；on-axis 可以用 `num_phi=1` 的轴对称 collapse。
