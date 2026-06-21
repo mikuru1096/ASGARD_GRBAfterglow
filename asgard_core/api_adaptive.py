@@ -49,24 +49,6 @@ def _observe_parts(
     )
 
 
-def _observe_total(
-    state: SolveState,
-    times_s: np.ndarray,
-    nu_hz: np.ndarray,
-    timings: dict[str, float] | None = None,
-    projection_kind: str = "lightcurve",
-) -> np.ndarray:
-    observed_state = project_flux_grid(
-        state,
-        times_s,
-        nu_hz,
-        timings=timings,
-        mode="total_only",
-        projection_kind=projection_kind,
-    )
-    return np.asarray(observed_state.components["total"], dtype=float)
-
-
 def _adaptive_observer_time_grid(model: Model, times_s: np.ndarray) -> np.ndarray:
     # 用完整半径发射历史生成 EATS 解析时间网格；默认 API 的返回时间轴不变。
     user_times = _positive_unique_times(times_s)

@@ -16,13 +16,13 @@ from asgard_core.asgard_config import (
     SpectrumOutputConfig,
     default_num_threads,
 )
-from asgard_core.asgard_postprocess import build_multiband_observer_frequencies, combine_multiband_flux
 from asgard_core.asgard_state import (
     FluxComponents,
     SolveState,
     make_query_cfg,
     make_query_setup,
     make_tgrid,
+    project_flux_grid,
     solve_state_from_setup,
 )
 from src import Interpolation, constants
@@ -1188,29 +1188,6 @@ class Model:
             self._last_details = self._compute_details_only(self.default_detail_times())
         return self._last_details
 
-    def jet_E_iso(self, phi: float, theta: float) -> float:
-        return self.jet.energy_iso(phi, theta)
-
-    def jet_Gamma0(self, phi: float, theta: float) -> float:
-        return self.jet.gamma0(phi, theta)
-
-    def medium_rho(self, phi: float, theta: float, r_cm: float) -> float:
-        return self.medium.density(phi, theta, r_cm)
-
-    def component_fluxes(
-        self,
-        times_s: np.ndarray,
-        nu_hz: np.ndarray,
-        *,
-        projection_kind: str = "lightcurve",
-    ) -> FluxResult:
-        return self._compute_raw(times_s, nu_hz, projection_kind=projection_kind)
-
-    def flux_density_bands(self, times_s: np.ndarray, *, projection_kind: str = "lightcurve") -> np.ndarray:
-        frequencies_hz = build_multiband_observer_frequencies()[1]
-        total_matrix = self.flux_density_grid(times_s, frequencies_hz, projection_kind=projection_kind).total
-        return combine_multiband_flux(total_matrix, frequencies_hz, 8)
-
     def default_times(self) -> np.ndarray:
         return np.logspace(
             np.log10(self.setups.observer_time_min_s),
@@ -1224,9 +1201,6 @@ class Model:
             np.log10(self.setups.observer_time_max_s),
             self._detail_time_count(self.setups.observer_time_min_s, self.setups.observer_time_max_s),
         )
-
-    def default_frequencies(self) -> np.ndarray:
-        return np.logspace(np.log10(1.0e9), np.log10(1.0e24), 64)
 
     def _compute_raw(
         self,
@@ -1279,6 +1253,48 @@ class Model:
         self._last_details = model_result[1]
         _remember_cache_entry(self._raw_cache, cache_key, model_result)
         return model_result[0]
+
+    def _total_matrix(
+        self,
+        times_s: np.ndarray,
+        nu_hz: np.ndarray,
+        *,
+        timings: dict[str, float] | None = None,
+        projection_kind: str = "lightcurve",
+    ) -> np.ndarray:
+        times_s = np.asarray(times_s, dtype=float)
+        nu_hz = np.asarray(nu_hz, dtype=float)
+        if self.jet.kind == "tophat" and self._supports_direct_kernel():
+            config = _direct_tophat_patch_config(self)
+            state = _solve_patch_state(self, config, times_s, nu_hz, timings=timings)
+            observed = project_flux_grid(
+                state,
+                times_s,
+                nu_hz,
+                timings=timings,
+                mode="total_only",
+                projection_kind=projection_kind,
+            )
+            return np.asarray(observed.components["total"], dtype=float)
+
+        total = np.zeros((nu_hz.shape[0], times_s.shape[0]), dtype=float)
+        for _patch, state in _iter_solved_patch_elements(
+            self,
+            times_s,
+            nu_hz,
+            _iter_patch_elements(self),
+            timings=timings,
+        ):
+            observed = project_flux_grid(
+                state,
+                times_s,
+                nu_hz,
+                timings=timings,
+                mode="total_only",
+                projection_kind=projection_kind,
+            )
+            total += np.asarray(observed.components["total"], dtype=float)
+        return total
 
     def _compute_details_only(self, times_s: np.ndarray) -> TrackBundle:
         times_s = np.asarray(times_s, dtype=float)

@@ -24,7 +24,7 @@ from asgard_core.asgard_postprocess import (
     select_spectrum_time_index,
 )
 from src import constants
-from .api_adaptive import _observe_parts, _observe_total
+from .api_adaptive import _observe_parts
 from .api_fit import FitResult, Param
 from .api_model import (
     Model,
@@ -41,37 +41,10 @@ from .api_model import (
     UniformMedium,
     WindMedium,
     top_hat_jet,
-    _direct_tophat_patch_config,
     _iter_patch_elements,
     _iter_solved_patch_elements,
     _project_surface_element,
-    _solve_patch_state,
 )
-
-
-def _total_matrix(
-    model: Model,
-    times_s: np.ndarray,
-    nu_hz: np.ndarray,
-    timings: dict[str, float] | None = None,
-    projection_kind: str = "lightcurve",
-) -> np.ndarray:
-    times_s = np.asarray(times_s, dtype=float)
-    nu_hz = np.asarray(nu_hz, dtype=float)
-    if model.jet.kind == "tophat" and model._supports_direct_kernel():
-        config = _direct_tophat_patch_config(model)
-        state = _solve_patch_state(model, config, times_s, nu_hz, timings=timings)
-        return _observe_total(state, times_s, nu_hz, timings=timings, projection_kind=projection_kind)
-    total = np.zeros((nu_hz.shape[0], times_s.shape[0]), dtype=float)
-    for _patch, state in _iter_solved_patch_elements(
-        model,
-        times_s,
-        nu_hz,
-        _iter_patch_elements(model),
-        timings=timings,
-    ):
-        total += _observe_total(state, times_s, nu_hz, timings=timings, projection_kind=projection_kind)
-    return total
 
 
 def _compute_polarization(

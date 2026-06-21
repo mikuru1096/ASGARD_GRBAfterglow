@@ -18,7 +18,6 @@ from asgard_core.asgard_setup import build_simulation_setup
 from asgard_core.asgard_state import project_flux_grid, solve_state_from_setup
 from .api_model import (
     Model,
-    FluxResult,
     Scale,
     make_empty_obs,
     make_flux_density_entry,
@@ -100,16 +99,6 @@ class Fitter:
 
     def loglike(self, values: dict[str, float]) -> float:
         return eval_loglike(self._compiled_problem, values)
-
-    def flux_density_grid(
-        self,
-        values: dict[str, float],
-        times_s: np.ndarray,
-        nu_hz: np.ndarray,
-        *,
-        projection_kind: str = "lightcurve",
-    ) -> FluxResult:
-        return self.build_model(values).flux_density_grid(times_s, nu_hz, projection_kind=projection_kind)
 
     def add_flux_density(self, times_s, frequencies_hz, flux, flux_err) -> None:
         entry = make_flux_density_entry(times_s, frequencies_hz, flux, flux_err)
@@ -487,8 +476,6 @@ def _eval_model(
     *,
     timings: dict[str, float] | None = None,
 ) -> float:
-    from .api_observe import _total_matrix
-
     original_values: list[tuple[Any, str, Any]] = []
     try:
         for binding in problem.param_bindings:
@@ -497,8 +484,7 @@ def _eval_model(
             transformed = 10.0**raw_value if binding.scale in {"log", "log10"} else float(raw_value)
             setattr(binding.target, binding.attr_name, transformed)
         total_matrices = [
-            _total_matrix(
-                problem.model,
+            problem.model._total_matrix(
                 block.observer_time_s,
                 block.requested_frequencies_hz,
                 timings=timings,
