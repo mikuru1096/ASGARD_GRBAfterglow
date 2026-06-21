@@ -8,89 +8,124 @@
 
 ### 1.1 物理坐标
 
-正向激波半径为 \(R\)，激波 Lorentz 因子为 \(\Gamma_{\rm sh}\)，当前实现的 ISM/BM 厚壳几何使用
+正向激波半径为 \(R\)，激波 Lorentz 因子为 \(\Gamma_{\rm sh}\)。当前 2D 电子输运的主坐标不是无限延伸的 \(\eta=\log_{10}\chi\)，而是有限主动壳层质量坐标 \(q\)：
 
 \[
-\chi
+q\in[0,q_{\rm active}],
+\qquad
+q_{\rm active}
 =
-1+
-8\Gamma_{\rm sh}^2
-\left(1-\frac{r}{R}\right),
-\qquad
-1\le \chi \le 1+8\Gamma_{\rm sh}^2 .
+1-\left(1-\frac{1}{4}\right)^4 .
 \]
 
-\(\chi=1\) 是激波前沿，较大的 \(\chi\) 是更深的下游。数值网格使用
+\(q=0\) 是激波前沿，\(q=q_{\rm active}\) 是强激波压缩给出的有限主动下游外边界量级。代码入口是 `compute_q_geometry`：
 
 \[
-\eta=\log_{10}\chi,
+q_{k+1/2}=k\Delta q,
 \qquad
-\eta_{k+1/2}=k\Delta\eta,
+\Delta q=\frac{q_{\rm active}}{N_\chi},
 \qquad
-\chi_{k+1/2}=10^{\eta_{k+1/2}},
+q_k=\left(k-\frac12\right)\Delta q .
 \]
 
-\[
-\eta_k=\left(k-\frac12\right)\Delta\eta,
-\qquad
-\chi_k=10^{\eta_k}.
-\]
-
-代码中的几何系数为
+为了和 BM 解析图像、投影层字段名以及已有 `chi_eats_2d` 术语相连，代码为每个 \(q\) cell 定义 BM 等效坐标
 
 \[
-a(R)=\frac{8\Gamma_{\rm sh}^2}{R},
-\qquad
-\chi=1+a(R)(R-r).
-\]
-
-激波系下游距离和共动距离为
-
-\[
-x_{{\rm sh},k+1/2}
+\chi_{\rm BM}(q)
 =
-\frac{(\chi_{k+1/2}-1)R}{8\Gamma_{\rm sh}^2},
+(1-q)^{-\alpha},
+\qquad
+\alpha=\frac{4-k}{3-k},
 \]
+
+其中 \(k=0\) 表示 ISM，\(k=2\) 表示 wind。`chi_grid`、`chi_radius_cm`、`chi_gamma_bulk` 和 `chi_dvolume_weight` 保留历史命名，但当前语义是 finite \(q\)-shell cell 的投影几何。
+
+cell 半径用 BM 极限和低 Lorentz 因子有限半径近似做 rapidity bridge。设
+
+\[
+u_f=\sqrt{\Gamma_{\rm sh}^2-1},
+\qquad
+\beta_f=\frac{u_f}{\Gamma_{\rm sh}},
+\qquad
+w=\frac{u_f^2}{1+u_f^2}.
+\]
+
+\[
+\log x_{\rm BM}
+=
+-
+\frac{\chi_{\rm BM}-1}
+{4(4-k)\Gamma_{\rm sh}^2},
+\qquad
+\log x_{\rm ST}
+=
+\frac{\log(1-q)}{4(3-k)} .
+\]
+
+\[
+\frac{r(q)}{R}
+=
+\exp\left[
+w\log x_{\rm BM}+(1-w)\log x_{\rm ST}
+\right].
+\]
+
+局域下游四速度用同一个权重桥接：
+
+\[
+\Gamma_{\rm BM}(q)
+=
+\sqrt{1+\frac{u_f^2}{\chi_{\rm BM}}},
+\qquad
+u_{\rm BM}(q)=\frac{u_f}{\sqrt{\chi_{\rm BM}}},
+\qquad
+\beta_{\rm ST}(q)
+=
+\beta_f\exp\left[\frac{\log(1-q)}{4(3-k)}\right].
+\]
+
+\[
+u_{\rm ST}
+=
+\frac{\beta_{\rm ST}}{\sqrt{1-\beta_{\rm ST}^2}},
+\qquad
+u(q)
+=
+\sinh\left[
+w\sinh^{-1}u_{\rm BM}
++
+(1-w)\sinh^{-1}u_{\rm ST}
+\right],
+\]
+
+\[
+\Gamma(q)=\sqrt{1+u(q)^2},
+\qquad
+\beta(q)=\frac{u(q)}{\Gamma(q)}.
+\]
+
+共动厚度由相邻 \(q\) face 半径差得到：
 
 \[
 \Delta x'_k
 =
-\gamma_{{\rm rel},k}
-\left(x_{{\rm sh},k+1/2}-x_{{\rm sh},k-1/2}\right),
-\qquad
-\gamma_{{\rm rel},k}
-=
-\left(1-\beta_{2,{\rm sh}}^2(\chi_k)\right)^{-1/2}.
+\Gamma(q_k)
+\left[
+r(q_{k-1/2})-r(q_{k+1/2})
+\right].
 \]
 
-BM 下游速度近似为
-
-\[
-\Gamma_2(\chi)
-=
-\frac{\Gamma_{\rm sh}}{\sqrt{2\chi}},
-\qquad
-\beta_2(\chi)
-=
-\sqrt{1-\Gamma_2^{-2}(\chi)} ,
-\]
-
-\[
-\beta_{2,{\rm sh}}(\chi)
-=
-\frac{\beta_{\rm sh}-\beta_2(\chi)}
-{1-\beta_{\rm sh}\beta_2(\chi)} .
-\]
+这套坐标保证投影使用正半径、有限厚度和局域 \(\Gamma(q)\)，同时在 ultra-relativistic 极限保留 BM 下游结构。
 
 ### 1.2 电子输运方程
 
 2D 电子状态使用
 
 \[
-U(x,\eta,R)
+U(x,q,R)
 =
 \frac{\mathrm{d}N_e}
-{\mathrm{d}x\,\mathrm{d}\eta},
+{\mathrm{d}x\,\mathrm{d}q},
 \qquad
 x=\log_{10}\gamma_e .
 \]
@@ -102,15 +137,15 @@ x=\log_{10}\gamma_e .
 +
 \frac{\partial(A_xU)}{\partial x}
 +
-\frac{\partial(A_\eta U)}{\partial \eta}
+\frac{\partial(A_q U)}{\partial q}
 =
-\frac{\partial}{\partial\eta}
+\frac{\partial}{\partial q}
 \left(
-D_\eta
-\frac{\partial U}{\partial\eta}
+D_q
+\frac{\partial U}{\partial q}
 \right)
 +
-S(x,\eta,R).
+S(x,q,R).
 \]
 
 能量方向系数来自冷却和绝热项：
@@ -138,47 +173,37 @@ A_x
 \right).
 \]
 
-\(\eta\) 方向输运系数与代码 `eta_face_transport_coeff` 对应：
+\(q\) 方向输运系数与代码 `q_face_transport_coeff` 对应：
 
 \[
-A_\eta(\chi,R)
+A_q(q,R)
 =
-\frac{1}{\ln 10}
-\left[
-\frac{a(R)\beta_{2,{\rm sh}}(\chi)}
-{\chi\beta_{\rm sh}}
-+
-\frac{\chi-1}{\chi}
-\frac{\mathrm{d}\ln a}{\mathrm{d}R}
-\right].
+\frac{3-k}{R}(1-q).
 \]
 
-局域绝热冷却系数使用 BM 下游速度场散度。当前实现的有效形式是
+局域绝热冷却系数使用有限 \(q\)-shell 的下游速度场散度。代码在相邻 cell 中对 \(\beta(q)\) 与 \(r(q)\) 做有限差分：
 
 \[
-\left(\nabla\cdot \mathbf{v}\right)_\chi
+\left(\nabla\cdot \mathbf{v}\right)_q
 =
 c
 \left[
-\frac{2\beta_2(\chi)}
-{R_\chi/R}
+\frac{2\beta(q)}{r(q)}
 +
-8\frac{1}{\beta_2(\chi)}
-\right]\frac{1}{R},
-\qquad
-R_\chi=R\left[1-\frac{\chi-1}{8\Gamma_{\rm sh}^2}\right],
+\frac{\partial \beta}{\partial r}
+\right],
 \]
 
 \[
 \left(\frac{\mathrm{d}x}{\mathrm{d}R}\right)_{\rm ad}
 =
-\frac{1}{3\beta_{\rm sh}c\ln 10}
-\left(\nabla\cdot\mathbf{v}\right)_\chi .
+\frac{1}{3\beta_f c\ln 10}
+\left(\nabla\cdot\mathbf{v}\right)_q .
 \]
 
 ### 1.3 离散推进
 
-`fullhide_2d` 对 \(\eta\) 方向使用隐式有限体积形式。设 cell 平均量为 \(U_k^n\)，步长为 \(\Delta R\)，通量为
+`fullhide_2d` 对 \(q\) 方向使用隐式有限体积形式。设 cell 平均量为 \(U_k^n\)，步长为 \(\Delta R\)，通量为
 
 \[
 F_{k+1/2}
@@ -188,7 +213,7 @@ A^+_{k+1/2}U_k^{n+1}
 A^-_{k+1/2}U_{k+1}^{n+1}
 -
 D_{k+1/2}
-\frac{U_{k+1}^{n+1}-U_k^{n+1}}{\Delta\eta}.
+\frac{U_{k+1}^{n+1}-U_k^{n+1}}{\Delta q}.
 \]
 
 则每个能量 bin 上求解三对角系统
@@ -196,7 +221,7 @@ D_{k+1/2}
 \[
 U_k^{n+1}
 +
-\frac{\Delta R}{\Delta\eta}
+\frac{\Delta R}{\Delta q}
 \left(
 F_{k+1/2}^{n+1}
 -
@@ -206,16 +231,16 @@ F_{k-1/2}^{n+1}
 U_k^n+\Delta R\,S_{k,{\rm shock}},
 \]
 
-其中 \(S_{k,{\rm shock}}\) 只注入到 shock-front 侧的 \(\eta\) cell。`charint_2d` 在 \(\eta\) 对流部分用特征线回溯：
+其中 \(S_{k,{\rm shock}}\) 只注入到 shock-front 侧的 \(q\) cell。`charint_2d` 在 \(q\) 对流部分用特征线回溯：
 
 \[
-\frac{\mathrm{d}\eta}{\mathrm{d}R}=A_\eta(\eta,R),
+\frac{\mathrm{d}q}{\mathrm{d}R}=A_q(q,R),
 \qquad
-\eta_{\rm back}
+q_{\rm back}
 =
-\eta_{\rm face}(R_{n+1})
+q_{\rm face}(R_{n+1})
 -
-\int_{R_n}^{R_{n+1}}A_\eta\,\mathrm{d}R,
+\int_{R_n}^{R_{n+1}}A_q\,\mathrm{d}R,
 \]
 
 然后用守恒 PPM 前缀积分重映射：
@@ -224,19 +249,19 @@ U_k^n+\Delta R\,S_{k,{\rm shock}},
 U_k^{n+1}
 =
 \frac{
-\int_{\eta_{{\rm back},k-1/2}}^{\eta_{{\rm back},k+1/2}}
-U^n(\eta)\,\mathrm{d}\eta
-}{\Delta\eta}.
+\int_{q_{{\rm back},k-1/2}}^{q_{{\rm back},k+1/2}}
+U^n(q)\,\mathrm{d}q
+}{\Delta q}.
 \]
 
-2D 子步限制来自 \(\eta\) 方向 CFL：
+2D 子步限制来自 \(q\) 方向 CFL：
 
 \[
-\Delta R_\eta
+\Delta R_q
 =
 C_{\rm CFL}
-\frac{\Delta\eta}
-{\max_k |A_{\eta,k+1/2}|}.
+\frac{\Delta q}
+{\max_k |A_{q,k+1/2}|}.
 \]
 
 ### 1.4 \(\chi\) 分辨等到达时间面投影

@@ -245,6 +245,8 @@ joint 相关 smoke：
 tests/electron_photon_joint_secondary_feedback_smoke.py
 ```
 
+当前工作树中该 smoke 会在 formal hadronic electron-energy grid contract 处失败，错误为 `electron_energy_gev must be logarithmically uniform`。修复时必须回到 hadronic input grid 契约和 joint shell state 构造，不能删除断言、跳过 formal hadronic 分支或添加 fallback。
+
 文档/格式：
 
 ```bash

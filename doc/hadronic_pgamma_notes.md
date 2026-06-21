@@ -35,6 +35,12 @@ f_{\rm surv}
 - hadronic acceleration/injection operators。
 - reverse-shock full-chain dispatch：开启 RS hadronic full-chain flags 时，runtime 复用 formal 1D kernels，并使用 RS seed photons、RS magnetic field、RS shell energy 和 RS baryon target density。
 
+## 当前验证状态
+
+- `tests/hadronic_1d_smoke.py` 是当前通过的 FS 1D hadronic smoke。
+- `tests/hadronic_reverse_shock_smoke.py` 的 base 和 RS light proton-synch 分支可执行；full-chain RS hadronic 分支当前在 formal kernel 的 electron-energy grid contract 处失败，错误为 `electron_energy_gev must be logarithmically uniform`。
+- `tests/electron_photon_joint_secondary_feedback_smoke.py` 当前触发同一个 formal hadronic electron-energy grid contract 失败。
+
 ## 当前边界
 
 Hadronic 未完成项集中维护在根目录 `TODO.md`。本文件只记录当前 pγ 耦合、命名和 AM3 参考边界。

@@ -9,7 +9,7 @@ ASGARD 的网页文档由 `mkdocs.yml` 从 `doc/` 目录构建，并通过 GitHu
 - README URL: `https://github.com/mikuru1096/ASGARD_private#readme`
 - Web docs URL: `https://hetools.cn/asgard-doc/`
 
-当前网页导航已包含 `magnetized_rs_dg1d_tutorial.md`，作为磁化反向激波、`upstream_sigma` 物理闭合、DG1D 高阶输运、当前收敛阶和接口默认设置的专题教程。新增或改名该类专题页时，必须同步 `mkdocs.yml` 并跑 strict build。
+当前网页导航已包含 `magnetized_rs_dg1d_tutorial.md`，作为磁化反向激波、`upstream_sigma` 物理闭合、DG1D 高阶输运、当前收敛阶和接口默认设置的专题教程；也包含 `prompt_internal_shock_tutorial.md`，作为 prompt internal-shock snapshot 的物理推导、代码入口、formal plotting 和边界说明。新增或改名该类专题页时，必须同步 `mkdocs.yml` 并跑 strict build。
 
 ## 发布目标
 
@@ -97,9 +97,9 @@ rtk bash -lc 'source ~/.wsl_env && ssh wangyun@100.108.14.93 "cd /home/wangyun/D
 
 - `py_compile menu.py pages/Afterglow_modeling.py base_func/afterglow_base_func.py` 通过。
 - `ASGARD_fs_fluxdensity` 标量和数组频率输入都保持 `(180,)`、`(Nfreq, 180)` 形状且 finite。
-- ASGARD / VegasAfterglow lightcurve smoke 通过；ASGARD / VegasAfterglow SED smoke 通过。
-- `include_ssc=True` 时，ASGARD / VegasAfterglow lightcurve 和 SED smoke 均通过，输出 finite 且形状不变。
-- `medium_type="Wind"` 时，ASGARD / VegasAfterglow lightcurve 和 SED smoke 均通过；legacy 9 参数 tuple 继续默认 `ISM`。
+- ASGARD / VegasAfterglow lightcurve smoke 必须通过；ASGARD / VegasAfterglow SED smoke 必须通过。
+- `include_ssc=True` 时，ASGARD / VegasAfterglow lightcurve 和 SED smoke 必须输出 finite 且形状不变。
+- `medium_type="Wind"` 时，ASGARD / VegasAfterglow lightcurve 和 SED smoke 必须通过；legacy 9 参数 tuple 继续默认 `ISM`。
 - SED `nuFnu` 模式下，ASGARD SSC 分量在 payload/CSV/图像中可见，且 total 等于 sync + SSC。
 - SED 自适应 y 轴改动后，`streamlit.testing.v1.AppTest` 勾选 `Wind + SSC + nuFnu` 运行无 exception。
 - VegasAfterglow SED 诊断显示单点 `sed_time_s` 调用与完整时间网格截面差异约 `10^-3`；页面保留原 Vegas total 求解路径，但在 `include_ssc=True` 时导出并绘制 `sync` / `SSC` 分量，且验证 total 等于 sync + SSC。

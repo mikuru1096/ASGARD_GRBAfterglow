@@ -611,17 +611,25 @@ F_\nu(t),\quad
 
 ## 11. 2D \(\chi\) 电子输运
 
-2D 路径在能量坐标 \(x=\log_{10}\gamma_e\) 外增加下游厚度坐标 \(\eta=\log_{10}\chi\)，推进 \(U=\mathrm{d}N_e/(\mathrm{d}x\,\mathrm{d}\eta)\)。它把有限厚壳层内不同下游深度的电子冷却历史保留下来，然后给 `chi_eats_2d` 投影使用。
+2D 路径在能量坐标 \(x=\log_{10}\gamma_e\) 外增加有限主动壳层质量坐标 \(q\)，推进
+
+\[
+U(x,q,R)
+=
+\frac{\mathrm{d}N_e}{\mathrm{d}x\,\mathrm{d}q}.
+\]
+
+\(q=0\) 是激波前沿，\(q=q_{\rm active}=1-(3/4)^4\) 是当前主动下游壳层外边界。`chi_grid` 是 \(q\) cell 的 BM 等效 \(\chi_{\rm BM}=(1-q)^{-(4-k)/(3-k)}\) 诊断值；真正进入投影几何的是 `chi_radius_cm`、`chi_gamma_bulk` 和 `chi_dvolume_weight`。
 
 完整连续方程
 
 \[
-\partial_R U+\partial_x(A_xU)+\partial_\eta(A_\eta U)
+\partial_R U+\partial_x(A_xU)+\partial_q(A_qU)
 =
-\partial_\eta(D_\eta\partial_\eta U)+S
+\partial_q(D_q\partial_q U)+S
 \]
 
-以及 \(A_\eta\)、BM 下游速度、隐式三对角系统、characteristic remap 和 CFL 子步公式见 `doc/shock_shell_adaptive_algorithms.md`。该路径不表示强子、SSC 或对级联也变成 \(\chi\) 分辨；这些过程当前仍是壳层级契约。
+以及 \(A_q\)、有限 \(q\)-shell 下游速度、隐式三对角系统、characteristic remap 和 CFL 子步公式见 `doc/shock_shell_adaptive_algorithms.md`。该路径不表示强子、SSC 或对级联也变成 \(\chi\) 分辨；这些过程当前仍是壳层级契约。
 
 ## 12. 辐射积分与种子光子场复用
 
@@ -927,7 +935,7 @@ rtk bash -lc 'source ~/.wsl_env && rm -rf /tmp/asgard_linecheck && mkdir -p /tmp
 | --- | --- |
 | \(R\)-坐标输运 | 率是否用 \(\mathrm{d}t'/\mathrm{d}R\) 转换 |
 | `fullhide_1d` 隐式输运 | 刚性冷却下 \(N_e\)、\(\nu_c\)、高能截断是否平滑 |
-| `dg_1d` troubled positive-kernel | smooth-cell 空间阶数为 P12 的 \(O(\Delta y^{13})\)，端到端电子推进受 BE 限制为 \(O(\Delta R)\)；同时检查非负、活动支撑连续、无元素边界零洞、无多重 grid-scale sawtooth turns、辐射结果平滑；对应 `tests/dg_1d_smoke.py` |
+| `dg_1d` troubled positive-kernel | smooth-cell 空间阶数为 P12 的 \(O(\Delta y^{13})\)，端到端电子推进受 BE 限制为 \(O(\Delta R)\)；同时检查非负、活动支撑连续、无元素边界零洞、无多重 grid-scale sawtooth turns、辐射结果平滑；`tests/dg_1d_smoke.py` 当前在 RS DG sawtooth-turn 判据处失败，作为待修诊断入口保留 |
 | 子步压缩 | 与未压缩小步结果的粒子数和谱形一致 |
 | 多求解器互证 | `fullhide_1d`、`charint_1d`、`weno5_1d` 的 break frequency 趋势一致 |
 | `PhotonFieldState` | 每赫兹/每能量雅可比因子与壳层体积、逃逸时间一致 |

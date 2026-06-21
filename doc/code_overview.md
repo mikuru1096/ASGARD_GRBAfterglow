@@ -5,14 +5,15 @@
 ## 1. 公开 API
 
 - `asgard_core/api_model.py`：`Model`, `Medium`, `JetProfile`, `UniformMedium`, `WindMedium`, `TabulatedMedium`, `top_hat_jet`, `gaussian_jet`, `power_law_jet`, `Observer`, `Radiation`, `Numerics`, `ObserverGrid`, `SolverOptions`, `ReverseShock`, `Hadronic`。介质和喷流 public constructors 返回带 `kind` 标记的 `Medium` / `JetProfile`。`Model` 查询路径在本文件内完成 direct top-hat、structured Fortran backend 和 Python patch backend 调度，并直接构造内部 `RuntimeConfig`。
-- `Model.flux_density_grid(times_s, nu_hz, projection_kind="lightcurve")`, `flux_density(times_s, nu_hz, projection_kind="lightcurve")`, `spectrum(time_s, nu_hz, projection_kind="sed")`, `flux(time_s, nu_min, nu_max, projection_kind="sed")`, `sky_image(t_obs, nu_obs, fov)`, `details()`。
+- `Model.flux_density_grid(times_s, nu_hz, projection_kind="lightcurve")`, `flux_density_grid_adaptive(...)`, `flux_density(...)`, `flux_density_exposures(...)`, `spectrum(time_s, nu_hz, projection_kind="sed")`, `flux(time_s, nu_min, nu_max, projection_kind="sed")`, `sky_image(t_obs, nu_obs, fov)`, `details()`。
 - `Model.polarization(times_s, nu_hz, magnetic_geometry=..., local_emissivity=...)`。
 - Hadronic public switches：`Radiation.pair_production`, `Radiation.include_pgamma`, `Radiation.bethe_heitler`, `Radiation.pp`, `Radiation.neutrino`, `Radiation.reverse_proton_energy_fraction`；cascade substeps 使用 `Hadronic.pair_cascade_iterations`。
 - Electron-photon coupling switch：`SolverOptions.electron_photon_coupling="separated" | "joint"`；`joint` 是正向激波 1D formal 强子壳层级反馈路径，物理契约见 `doc/joint_secondary_feedback_physics.md`。
 - Reverse-shock magnetization switch：`ReverseShock.upstream_sigma`，控制反向激波 upstream magnetization。
 - `asgard_core/api_observe.py`：内部/旧配置观测工具，以及 `Model.sky_image(...)` / `Model.polarization(...)` 复用的实现函数；`observe(model, config)` 和 `run_fit(config)` 不从 `asgard_core` 顶层导出，不作为新教程的公开入口。
 - `asgard_core/api_fit.py`：`Fitter`, `Param`, `FitResult`。
-- Electron solver names：`fullhide_1d`, `fullhide_1d_hz`, `slc1_1d`, `charint_1d`, `dg_1d`, `charint_2d`, `t2g1_1d`, `weno5_1d`, `fullhide_2d`, `fullhide_2d_pic`。public API 只使用这些完整名称。
+- Electron solver names：`fullhide_1d`, `fullhide_1d_hz`, `slc1_1d`, `charint_1d`, `dg_1d`, `charint_2d`, `t2g1_1d`, `weno5_1d`, `fullhide_2d`。public API 只使用这些完整名称。`fullhide_2d_pic` 只剩运行时历史映射，本仓库没有跟踪源码和 `build_extensions.py` 构建登记，不作为当前可复现 public backend。
+- `prompt/`：内部激波 snapshot 研究入口，不从 `asgard_core` 顶层导出。当前对象包括 `InternalShockShell`, `simulate_internal_shock`, `compute_prompt_observed_flux`，用于两壳碰撞、磁化 jump、FS/RS sync/SSC 和 prompt EATS 诊断。
 
 ## 2. 运行时主链
 
@@ -32,7 +33,7 @@ Model.flux_density_grid / flux_density / spectrum / flux
 
 - `DynamicsSolution`：`r_tobs`, `r_gamma`, `radius`, `swept_mass_g`。
 - `ReverseShockDynamics`：`M3`, total `B3`, ordered crossing field `B3_ordered_cross`, `U3/V3`, `gamma34` 和 crossing thermal records；`B3` 是 turbulent `sqrt(8 pi epsilon_B,r U3/V3)` 与可选 ordered upstream field 的总和。
-- `ElectronSolution`：`gam_e`, `d_n_gam_e`, `l_syn_spec`, `seed_syn`；2D 额外包含 `d_n_gam_e_chi`, `chi_grid`, `l_syn_spec_chi`, `seed_syn_chi`, `tau_syn_chi`, `chi_radius_cm`, `chi_gamma_bulk`, `chi_dvolume_weight`；BH 额外包含 `d_n_gam_e_bh`。
+- `ElectronSolution`：`gam_e`, `d_n_gam_e`, `l_syn_spec`, `seed_syn`；2D finite \(q\)-shell 额外包含 `d_n_gam_e_chi`, `chi_grid`, `l_syn_spec_chi`, `seed_syn_chi`, `tau_syn_chi`, `chi_radius_cm`, `chi_gamma_bulk`, `chi_dvolume_weight`。其中 `chi_grid` 是 \(q\) cell 的 BM 等效诊断坐标，observer projection 以 `chi_radius_cm`、`chi_gamma_bulk` 和 `chi_dvolume_weight` 为准；BH 额外包含 `d_n_gam_e_bh`。
 - `PhotonFieldState`：forward synch seed、hadronic target field、absorption seed field。
 - `HadronicSolution`：1D hadronic proton/secondary/radiation results；joint path 额外使用 `secondary_electron_source_r`、`tau_bh` 和 `bh_photon_loss_rate` 做 shell-level feedback。
 - `ObserverState`：absorption factors、`tau_pair`、flux components。
@@ -66,6 +67,7 @@ Fitter.loglike -> compile_problem -> eval_loglike -> solve_state_from_setup
 - `api_fit.py`：public `Fitter`、fit problem compilation 和 likelihood path。
 - `asgard_types.py`：runtime dataclass contracts。
 - `structured_jet_kernel.py`：结构化喷流 Fortran backend 的薄中间层，负责采样结构化参数、选择轴对称/非轴对称分支、调用 `structured_jet_1d` 并组装 API 结果。
+- `prompt/internal_shock.py`、`prompt/radiation.py`、`prompt/eats.py`：prompt internal-shock snapshot 的 Python orchestration。它复用现有 Fortran jump/electron/radiation/interpolation 核，不是 afterglow `Model` 主链的一部分。
 
 强子 Python 模块只做编排、包装和轻量 helper：
 
@@ -142,17 +144,22 @@ rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/AS
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && TMPDIR=/tmp uv run python build_extensions.py --module hadronic_forward_1d --force'
 ```
 
-Smoke tests：`tests/readme_smoke_bench.py`, `tests/fitter_public_api_smoke.py`, `tests/fullhide_2d_smoke_bench.py`。
+Smoke tests：`tests/readme_smoke_bench.py`, `tests/fitter_public_api_smoke.py`, `tests/eats_adaptive_projection_smoke.py`, `tests/fullhide_2d_smoke_bench.py`, `tests/internal_shock_prompt_smoke.py`。
 
 Reverse/structured electron regressions：`tests/reverse_shared_solver_smoke.py`, `tests/reverse_shock_smoke.py`, `tests/structured_shared_solver_smoke.py`。
 
-DG baseline diagnostic：`tests/dg_1d_smoke.py`。当前门槛检查有限值、非负、活动支撑无零洞、无多重 grid-scale sawtooth turns、粒子数和同步光度量级；尖锐曲率本身不判失败。
+DG diagnostic：`tests/dg_1d_smoke.py`。当前工作树中该脚本在 RS DG sawtooth-turn 判据处失败；它不是普通通过门禁，而是待修真实问题入口。
 
-Hadronic regressions：`tests/hadronic_1d_smoke.py`, `tests/hadronic_reverse_shock_smoke.py`。
+Hadronic regressions：`tests/hadronic_1d_smoke.py` 当前通过；`tests/hadronic_reverse_shock_smoke.py` 的 RS full-chain 分支当前报 `electron_energy_gev must be logarithmically uniform`。
 
-Joint feedback：`tests/electron_photon_joint_secondary_feedback_smoke.py`。
+Joint feedback：`tests/electron_photon_joint_secondary_feedback_smoke.py` 当前触发同一个 formal hadronic electron-energy grid contract 失败。
 
 新增正式基准测试入口前必须先明确假设、决策价值和物理验收口径。
+
+当前 finite q-shell diagnostic benchmark 入口：
+
+- `tests/benchmark_theta_j_multiples_magnetic_decay.py`：1D thin shell 与 2D q-shell magnetic-decay 多观测角 lightcurve/spectrum 对照，2D 分支复用同一 solve state 重跑 projection。
+- `tests/benchmark_skymap_centroid_motion.py`：1D thin shell 与 2D q-shell magnetic-decay 天图、flux centroid 和 apparent speed 诊断。
 
 ## 7. 已知边界
 

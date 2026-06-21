@@ -1127,7 +1127,7 @@ t_q\quad{\rm fixed\ or\ few},
 
 二者使用同一 `SolveState`，但投影插值目标不同。不能用 SED 插值误差解释光变峰时，也不能用 lightcurve 路径替代宽频谱积分。
 
-`chi_eats_2d` 在 FS synchrotron+SSA 分量中把 shell 内有限厚度坐标 \(\chi\) 纳入投影：
+`chi_eats_2d` 在 FS synchrotron+SSA 分量中把 finite \(q\)-shell 的局域半径、bulk Lorentz factor 和体积权重纳入投影。`chi_grid` 只是 \(q\) cell 的 BM 等效诊断坐标；投影实际读取 `chi_radius_cm`、`chi_gamma_bulk` 和 `chi_dvolume_weight`：
 
 \[
 F_{\nu,t}^{\rm FS,syn}
@@ -1136,10 +1136,11 @@ F_{\nu,t}^{\rm FS,syn}
 W_{i,k_\chi,a\rightarrow t}
 \frac{1+z}{4\pi d_L^2}
 \delta_{i,k_\chi,a}^3
-L_{\nu'}'(R_i,\chi_{k_\chi},a).
+L_{\nu'}'(R_{i,k_\chi},q_{k_\chi},a)
+S_{\nu'}(R_i,q_{k_\chi}).
 \]
 
-非 chi 分量仍遵守 shell-level projection。
+非 chi 分量仍遵守 shell-level projection。SSC、强子、pair cascade 和 cross-zone IC 不因为 `chi_eats_2d` 自动获得 \(q\)-local 反馈。
 
 ## 12. 缓存、状态复用和性能边界
 
@@ -1160,7 +1161,7 @@ R{\rm\ grid}
 | --- | --- | --- |
 | 只改变 `nu_hz` 查询点 | 可以 | 本地 solve 已经在 seed 网格上完成。 |
 | 只改变 `times_s` 查询点且覆盖在已求解时间范围内 | 可以 | 只需 EATS/interpolation。 |
-| 只改变 `viewing_angle_rad` | 取决于路径 | top-hat/部分结构化 benchmark 可复用局域 solve；若角向结构或 patch 权重随 observer 策略改变，则需重算投影或 patch。 |
+| 只改变 `viewing_angle_rad` | 取决于路径 | top-hat finite \(q\)-shell benchmark 可在同一 `SolveState` 上重跑 `project_flux_grid`；若角向结构、patch 选择或 observer cache key 参与 transport solve，则需重新求解或重建 patch。 |
 | 改变 `epsilon_e`、`epsilon_B`、`p` | 不可复用 | 电子谱和 photon field 改变。 |
 | 改变 `include_pgamma`、BH、pp、pair cascade | 不可复用 | hadronic/source-sink 方程改变。 |
 | 改变 `num_radius`、`num_electron_gamma`、`num_photon_frequency` | 不可复用 | 离散网格和 Jacobian 改变。 |

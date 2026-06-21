@@ -64,6 +64,8 @@ Model
 | `gam_p` | `(Num_gam_p,)` | proton Lorentz-factor grid |
 | `chi_grid` | `(Num_chi,)` | 2D q-mass downstream coordinate reported as its BM-equivalent chi value |
 
+2D transport 的真实厚壳坐标是 `q_grid/q_face/dq`。`chi_grid` 只把每个 \(q\) cell 映射成 BM 等效 \(\chi\) 诊断值；`chi_eats_2d` 投影实际读取 `chi_radius_cm`、`chi_gamma_bulk` 和 `chi_dvolume_weight`。
+
 电子和质子通常在 log grid 上离散：
 
 \[

@@ -258,7 +258,7 @@ numerics = Numerics(
 | `num_observer_time` | 内部观测时间网格。 | 光变插值更细。 | 不等于用户查询点数量。 |
 | `num_electron_gamma` | 电子能量网格。 | 谱断点和冷却更稳。 | 太低会产生非物理谱形。 |
 | `num_photon_frequency` | photon/辐射频率网格。 | SSC、吸收、强子 target 更稳。 | 强子和 feedback 对它敏感。 |
-| `num_chi` | \(\chi\) 网格数。 | 2D 厚壳层解析。 | 只有 2D electron solver / `chi_eats_2d` 需要。 |
+| `num_chi` | finite \(q\)-shell cell 数。 | 2D 厚壳层解析；`chi_grid` 是 BM 等效诊断值。 | 只有 2D electron solver / `chi_eats_2d` 需要。 |
 | `num_threads` | OpenMP/并行线程。 | 可能加速。 | 小网格可能被线程开销支配。 |
 | `electron_adaptive_substeps` | 自适应电子子步。 | 根据误差调步长。 | joint feedback 当前要求固定子步。 |
 | `electron_substep_rtol/min/max` | 自适应子步控制。 | 控制误差和步数范围。 | 不用于后处理 smoothing。 |
@@ -315,9 +315,9 @@ solver_options = SolverOptions(
 | `dg_1d` | 多域 P12 LGL-DG 1D 输运。 | FS/RS 共享、需要显式启用的高阶路径，默认问题单元正性核控制 Gibbs 振荡；光滑谱元空间阶数为 \(O(\Delta y^{13})\)。 | 端到端电子推进当前受后向 Euler 限制为 \(O(\Delta R)\)；不作为新手拟合默认；正性核是输运层局部模态滤波，不是输出平滑。 |
 | `t2g1_1d` | legacy implicit path。 | 回归比较。 | 不作为新工作默认。 |
 | `weno5_1d` | 高阶 WENO5。 | 诊断谱形和数值耗散。 | 需要额外平滑性检查。 |
-| `fullhide_2d` | \((\gamma,\chi)\) 电子输运。 | 给厚壳层电子历史和 `chi_eats_2d`。 | 不代表强子/SSC 也 \(\chi\) 局域。 |
-| `charint_2d` | 2D characteristic 混合路径。 | 加速/比较 2D 输运。 | 同样只服务已定义的 2D 电子契约。 |
-| `fullhide_2d_pic` | 2D PIC/实验路径。 | 特定研究路径。 | 不写入新手拟合默认。 |
+| `fullhide_2d` | \((\gamma,q)\) finite-shell 电子输运。 | 给厚壳层电子历史和 `chi_eats_2d`。 | `chi_grid` 是 BM 等效诊断坐标；不代表强子/SSC 也 \(\chi\) 局域。 |
+| `charint_2d` | 2D characteristic 混合路径。 | 加速/比较 finite \(q\)-shell 输运。 | 同样只服务已定义的 2D 电子契约。 |
+| `fullhide_2d_pic` | 历史/本地实验映射。 | 当前仓库没有跟踪源码和构建登记。 | 不作为可复现 public backend；新工作不要使用。 |
 
 ### 9.2 投影和耦合
 
@@ -426,6 +426,10 @@ hadronic = Hadronic(
 | `"lightcurve"` | 光变投影。 | `flux_density_grid` 返回 `(num_frequency, num_time)`，插值目标是同一频率随时间演化。 | 光变、拟合、曝光平均默认用它。 |
 | `"sed"` | SED 投影。 | 返回形状仍是 `(num_frequency, num_time)`，但插值目标是固定时刻扫频率。 | `spectrum()`、`flux()` 和固定时刻宽频谱用它。 |
 
+`geometry_projection="chi_eats_2d"` 只在 `projection_kind="lightcurve"` 时替换 FS synch+SSA 投影；`projection_kind="sed"` 仍使用 shell-level SED 插值。离轴 `chi_eats_2d` 要求 `Numerics.num_phi >= 2`。只改变 `Observer.viewing_angle_rad` 时，冷态 `Model` 查询会把观测角写入 cache signature，避免复用错误投影；若显式持有同一 `SolveState` 做 top-hat q-shell benchmark，可以在物理状态不变时只改 `state.config.theta_v` 并重跑 `project_flux_grid`。
+
+`prompt/` 内部激波快照不属于本页 public API。它的入口是 `prompt.internal_shock`, `prompt.radiation`, `prompt.eats`，完整说明见 `doc/prompt_internal_shock_tutorial.md`。
+
 ## 13. 返回类型怎么读
 
 ### 13.1 `FluxResult`
@@ -461,7 +465,7 @@ hadronic = Hadronic(
 | 类型 | 来源方法 | 关键字段 | 意思 |
 | --- | --- | --- | --- |
 | `AdaptiveFluxResult` | `flux_density_grid_adaptive(...)` | `time_s`, `flux`, `total`, `fwd`, `rev`, `cross_ic` | 自适应内部观测时间网格和对应 `FluxResult`。 |
-| `SkyImage` | `sky_image(...)` | `image`, `extent`, `pixel_solid_angle`, `pixel_size`, `direct_flux`, `rendered_flux`, `normalization_scale`, `x_centroid`, `y_centroid`, `centroid`, `flux_ratio` | 天图、像素尺度、直接通量/渲染通量和质心。 |
+| `SkyImage` | `sky_image(...)` | `image`, `extent`, `pixel_solid_angle`, `pixel_size`, `direct_flux`, `rendered_flux`, `normalization_scale`, `x_centroid`, `y_centroid`, `centroid`, `flux_ratio` | 天图、像素尺度、直接通量/渲染通量和 flux centroid。 |
 | `PolarizationResult` | `polarization(...)` | `I_sync`, `Q`, `U`, `linear_polarization`, `polarization_angle_rad`, `components` | 同步辐射 Stokes 量、线偏振度、偏振角和分量拆分。 |
 
 ## 14. Fitter、Param 和采样器

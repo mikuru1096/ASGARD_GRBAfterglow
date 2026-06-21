@@ -580,6 +580,6 @@ fig.savefig("posterior_corner.png", dpi=220)
 | 结构化喷流 | off-axis 峰时/峰宽无法由 top-hat 解释。 | 角向 patch 收敛、viewing angle 连续性。 |
 | `ReverseShock` | 早期光学/射电 excess 有 crossing 物理动机。 | `rev.sync` 是否来自区域 3，\(\sigma\to0\) 是否回归。 |
 | `Hadronic` | 高能谱、neutrino 或二级反馈是科学目标。 | proton/secondary/photon sink/source 能量预算。 |
-| `chi_eats_2d` | 研究有限厚壳层投影或 \(\chi\) 收敛。 | 只解释 FS synch+SSA；强子和 SSC 仍是壳层级。 |
+| `chi_eats_2d` | 研究有限 q-shell 投影或 `num_chi` 收敛。 | 只解释 FS synch+SSA；强子和 SSC 仍是壳层级。 |
 
 不要为了“看起来完整”穷举无决策价值的 ablation。每次增加模块前先写清它要验证的物理假设。

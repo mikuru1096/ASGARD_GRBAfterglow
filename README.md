@@ -11,16 +11,17 @@ ASGARD 是面向伽马射线暴余辉的数值建模、辐射计算和参数拟�
 ## 当前能力
 
 - 正向激波电子同步辐射、SSC、SSA、gamma-gamma 吸收和观测者等到达时间投影。
-- 多个 1D 电子求解器，以及登记的 `fullhide_2d` / `charint_2d` 输运路径。
+- 多个 1D 电子求解器，以及 finite q-shell `fullhide_2d` / `charint_2d` 输运路径。
 - 反向激波电子同步辐射、反向激波 SSC、FS/RS cross-zone IC。
 - 正向激波和反向激波的 1D hadronic research path，包括 proton synchrotron、p-gamma、BH、pp、secondary 和 pair-cascade 相关诊断。
 - 结构化喷流 patch 投影、偏振 Stokes 投影、天图渲染和频段积分。
+- `prompt/` 内部激波 snapshot 诊断入口，覆盖两壳碰撞、磁化 FS/RS jump、同步/SSC/\(\gamma\gamma\) 和 EATS 投影；它不是 `asgard_core` 顶层 public API。
 - `Fitter.fit(..., sampler="emcee")` 与 `sampler="pymultinest"` 的公开拟合入口。
 
 ## 明确边界
 
 - 重要数值物理在 Fortran 核中实现；Python 主要做 API glue、编排、验证和文档示例。
-- `solver_options.geometry_projection="chi_eats_2d"` 当前只替换 FS synchrotron+SSA 的观测者投影；SSC、hadronic 和 pair cascade 仍按 shell-level 契约处理。
+- `solver_options.geometry_projection="chi_eats_2d"` 当前只替换 FS synchrotron+SSA 的 finite q-shell 观测者投影；SSC、hadronic 和 pair cascade 仍按 shell-level 契约处理。
 - Hadronic 正式路径保持 1D shell 契约，直到 chi-local photon field、hadron density、secondary feedback 和 observer projection 的物理契约完成。
 - Jet spreading、自定义 `Medium` kernel dispatch、wind `k != 2`、`fullhide_1d` 外的 thermal-electron public runtime 是明确未支持边界。见 `doc/public_backend_limits.md`。
 - 光变、谱断频和反映真实物理演化的参数应连续平滑；如果出现孤立跳变，应回到动力学、输运、源项或投影查 bug，不用 smoothing 或经验补丁掩盖。
@@ -87,6 +88,7 @@ git diff --check
 - `doc/parameter_reference.md`：参数路径、单位和拟合参数建议。
 - `doc/fitting_workflow.md`：从观测数据到 `emcee` 拟合的完整教程。
 - `doc/mcmc_fitting.md`：`emcee` 和 PyMultiNest 专题。
+- `doc/prompt_internal_shock_tutorial.md`：prompt internal-shock snapshot 的物理公式、代码入口和 formal plotting。
 - `doc/physics_model.md`、`doc/physical_processes.md`：已实现物理模块和过程说明。
 - `doc/algorithm_workflow.md`、`doc/numerical_methods.md`：数值链路、离散方程和求解器族。
 - `doc/public_backend_limits.md`：公开 backend 的已知边界。

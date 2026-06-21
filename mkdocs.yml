@@ -49,6 +49,7 @@ nav:
       - MCMC 拟合专题: mcmc_fitting.md
       - 外部采样接口: external_inference.md
       - 磁化反向激波与 DG1D 教程: magnetized_rs_dg1d_tutorial.md
+      - Prompt 内部激波快照: prompt_internal_shock_tutorial.md
   - 物理模型:
       - 物理设计总纲: project_physics_design.md
       - 物理过程详解: physical_processes.md
@@ -72,6 +73,4 @@ nav:
       - 代码概览: code_overview.md
       - 源码树: source_tree.md
       - 调用链: call_chain.md
-      - 代码指标: code_metrics.md
-      - AM3 迁移计划: am3_migration_plan.md
       - 网页文档发布: web_docs.md

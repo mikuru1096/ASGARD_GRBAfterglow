@@ -46,6 +46,21 @@ rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/AS
 - 输出路径。
 - 物理验收口径。
 
+当前保留的 q-shell 诊断 benchmark 入口：
+
+```bash
+rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/benchmark_theta_j_multiples_magnetic_decay.py'
+rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/benchmark_skymap_centroid_motion.py'
+```
+
+当前 prompt snapshot formal plotting 入口：
+
+```bash
+rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python prompt/run_formal_results.py'
+```
+
+这些入口都是诊断或图件生成，不是通用命令行物理模型前端。
+
 ## 5. 何时不用命令行
 
 如果任务是交互式建模、拟合 likelihood、检查内部物理量或组合多个观测数据集，优先写一个短 Python 脚本调用 `Model` 和 `Fitter`。命令行适合构建、跑保留的 smoke/benchmark 测试和构建文档，不适合承载复杂研究逻辑。

@@ -62,20 +62,30 @@ J_y
 
 因此输出给辐射核时先做守恒投影，再除以 \(J_y\) 回到 \(dN_{x_\gamma}\) 或 \(\mathrm{d}N/\mathrm{d}\gamma_e\)。
 
-2D 求解器额外展开下游厚壳坐标
+2D 求解器额外展开下游有限壳层质量坐标
 
 \[
-\eta=\log_{10}\chi,
+q\in[0,q_{\rm active}],
 \qquad
-\chi=1+\frac{8\Gamma_{\rm sh}^2 x_{\rm downstream}}{R},
+q_{\rm active}=1-\left(1-\frac14\right)^4 .
 \]
 
-并推进
+\(q=0\) 是激波前沿，\(q=q_{\rm active}\) 是当前主动下游壳层的有限外边界。代码仍把投影输出字段命名为 `chi_*`，但 2D transport 主坐标是 `q_grid/q_face/dq`。投影和诊断中使用的 BM 等效坐标由
 
 \[
-U(x,\eta,R)
+q_{\rm tail}=1-q,
+\qquad
+\chi_{\rm BM}(q)=q_{\rm tail}^{-\alpha},
+\qquad
+\alpha=\frac{4-k}{3-k}
+\]
+
+给出，其中 \(k=0\) 是 ISM，\(k=2\) 是 wind。电子守恒变量为
+
+\[
+U(x,q,R)
 =\frac{\mathrm{d}N}
-{\mathrm{d}\log_{10}\gamma_e\,\mathrm{d}\log_{10}\chi}.
+{\mathrm{d}\log_{10}\gamma_e\,\mathrm{d}q}.
 \]
 
 这里 \(R\) 是激波半径，\(\Gamma_{\rm sh}\) 是激波 Lorentz 因子。
@@ -183,23 +193,68 @@ A_{x_\gamma,{\rm face}}
 
 ## 4. 2D 连续方程
 
-2D 路径推进 \(U(x,\eta,R)\)：
+2D 路径推进 \(U(x,q,R)\)：
 
 \[
 \frac{\partial U}{\partial R}
 +\frac{\partial(A_xU)}{\partial x}
-+\frac{\partial(A_\eta U)}{\partial\eta}
+\frac{\partial(A_q U)}{\partial q}
 =
-\frac{\partial}{\partial\eta}
-\left(D_\eta\frac{\partial U}{\partial\eta}\right)
+\frac{\partial}{\partial q}
+\left(D_q\frac{\partial U}{\partial q}\right)
 +S.
 \]
 
-\(x\) 方向是能量冷却平流，\(\eta\) 方向包含下游流体平流、扩散和局域源项。`charint_2d` 中只有 \(\eta=1\) 的 shock-front 列接收新注入源；已经 advect/diffuse 到下游的其它 \(\chi\) 列在能量方向调用公共无源特征线冷却 primitive。
+\(x\) 方向是能量冷却平流，\(q\) 方向包含下游流体平流、扩散和局域源项。当前 `electron_transport_2d_kernel.f90` 中的几何关系为
+
+\[
+A_q(q,R)
+=
+\frac{3-k}{R}(1-q),
+\]
+
+\[
+\log\frac{r(q)}{R}
+=
+w\left[-\frac{\chi_{\rm BM}(q)-1}{4(4-k)\Gamma_{\rm sh}^2}\right]
++
+(1-w)\left[\frac{\log(1-q)}{4(3-k)}\right],
+\]
+
+\[
+w=\frac{u_{\rm sh}^2}{1+u_{\rm sh}^2},
+\qquad
+u_{\rm sh}=\sqrt{\Gamma_{\rm sh}^2-1},
+\qquad
+\beta_f=\frac{u_{\rm sh}}{\Gamma_{\rm sh}}.
+\]
+
+局域下游 Lorentz 因子也用同一个 BM/Sedov-Taylor rapidity bridge：
+
+\[
+u_{\rm BM}(q)=\frac{u_{\rm sh}}{\sqrt{\chi_{\rm BM}(q)}},
+\qquad
+\beta_{\rm ST}(q)=\beta_f
+\exp\left[\frac{\log(1-q)}{4(3-k)}\right],
+\qquad
+u_{\rm ST}(q)=\frac{\beta_{\rm ST}}{\sqrt{1-\beta_{\rm ST}^2}},
+\]
+
+\[
+u(q)=\sinh\left[
+w\sinh^{-1}u_{\rm BM}
++
+(1-w)\sinh^{-1}u_{\rm ST}
+\right].
+\]
+
+代码由 \(\beta_{\rm ST}\) 得到 \(u_{\rm ST}\)。这组公式的目标是让高 Lorentz 因子时回到 BM 下游，低 Lorentz 因子时保持有限正半径壳层。
+
+`charint_2d` 中只有 shock-front 侧的 \(q\) cell 接收新注入源；已经 advect/diffuse 到下游的其它 \(q\) cell 在能量方向调用公共无源特征线冷却 primitive。`chi_radius_cm`、`chi_gamma_bulk` 和 `chi_dvolume_weight` 是从 \(q\) cell 映射到 observer projection 的有限厚壳层几何字段，不表示强子或 SSC 已经 \(\chi\) 局域。
 
 ## 5. 求解器角色
 
-| 求解器 | 能量方向 | \(\chi\) 方向 | 当前角色 |
+| 求解器 | 能量方向 | 厚壳方向 | 当前角色 |
 | --- | --- | --- | --- |
 | `fullhide_1d` | 一阶隐式迎风 | 无 | 默认稳定基线 |
 | `slc1_1d` | 半拉格朗日 + Strang splitting | 无 | 方法比较 |
@@ -207,10 +262,10 @@ A_{x_\gamma,{\rm face}}
 | `t2g1_1d` | BDF2 三层推进 | 无 | 时间推进比较 |
 | `weno5_1d` | WENO5 + SSP RK3 | 无 | 高阶显式比较 |
 | `dg_1d` | 多域 LGL 谱元 DG | 无 | FS/RS opt-in 高阶路径 |
-| `fullhide_2d` | 一阶隐式迎风 | 隐式平流-扩散 | 2D 物理基线 |
-| `charint_2d` | 特征线重映射 | 隐式平流-扩散 | 2D 加速混合版 |
+| `fullhide_2d` | 一阶隐式迎风 | \(q\)-mass 隐式平流-扩散 | 2D 物理基线 |
+| `charint_2d` | 特征线重映射 | \(q\)-mass 隐式平流-扩散 | 2D 加速混合版 |
 
-`fullhide_1d` 最稳健，但数值扩散较强。`dg_1d` 使用 moving multi-domain LGL 谱元，在固定 1D 电子网格数下保留更尖锐的冷却断点和高能截断；它是 opt-in 路径，不替代默认 `fullhide_1d`。`dg_1d` 默认启用 troubled-cell positive-kernel 滤波，局部衰减高阶 Legendre 模态并保留 cell average，用于控制 Gibbs 振荡；尖锐曲率本身不作为失败条件。`charint_1d` 对高能截止和冷却断点也更锋利，但子步选择更敏感。`fullhide_2d` 是当前最完整的厚壳电子路径。`charint_2d` 只把能量方向换成特征线重映射，\(\eta\) 方向仍使用隐式平流-扩散，因为扩散项不能写成单纯特征线更新。
+`fullhide_1d` 最稳健，但数值扩散较强。`dg_1d` 使用 moving multi-domain LGL 谱元，在固定 1D 电子网格数下保留更尖锐的冷却断点和高能截断；它是 opt-in 路径，不替代默认 `fullhide_1d`。`dg_1d` 默认启用 troubled-cell positive-kernel 滤波，局部衰减高阶 Legendre 模态并保留 cell average，用于控制 Gibbs 振荡；尖锐曲率本身不作为失败条件。`charint_1d` 对高能截止和冷却断点也更锋利，但子步选择更敏感。`fullhide_2d` 是当前最完整的有限 \(q\)-shell 电子路径。`charint_2d` 只把能量方向换成特征线重映射，\(q\) 方向仍使用隐式平流-扩散，因为扩散项不能写成单纯特征线更新。
 
 ## 6. `dg_1d` 谱元路径
 
@@ -414,15 +469,15 @@ Primary RS 在完全 crossing 之后没有新的反向激波注入。`fullhide_1
 
 \[
 \Delta R_{\rm try}
-=\min(\Delta R_\xi,\Delta R_\eta,\Delta R_D).
+=\min(\Delta R_x,\Delta R_q,\Delta R_D).
 \]
 
 quick/formal 2D 路径使用隐式算子的精度步长：
 
 \[
-\Delta R_\xi \propto \frac{4\Delta x}{|A_\xi|},
+\Delta R_x \propto \frac{4\Delta x}{|A_x|},
 \qquad
-\Delta R_\eta \propto \frac{4\Delta\eta}{|A_\eta|}.
+\Delta R_q \propto \frac{4\Delta q}{|A_q|}.
 \]
 
 2D 冷却使用 reduced frequency grid：
@@ -444,14 +499,14 @@ N_{\rm thread,eff}=\min(N_{\rm thread},N_\chi,4),
 | 方程项 | 主要实现 |
 | --- | --- |
 | \(\gamma_e\) 网格 | `electron_common.f90` |
-| \(\chi/\eta\) 几何 | `electron_transport_2d_kernel.f90` |
+| \(q/\chi_{\rm BM}\) 几何 | `electron_transport_2d_kernel.f90` |
 | 注入源项 \(Q_e\) | `electron_injection_profiles.f90` |
 | 冷却系数 \(A_x\) | `electron_cooling_kernel.f90` |
 | FS/RS shared 1D transport wrapper | `electron_shell_transport_common.f90` |
 | 1D 隐式迎风 | `electron_transport_common.f90` |
 | 1D LGL-DG | `electron_transport_dg_1d_kernel.f90` |
 | 1D 特征线 | `electron_transport_common.f90` |
-| 2D \(\eta\) 输运 | `electron_transport_2d_kernel.f90` |
+| 2D \(q\) 输运 | `electron_transport_2d_kernel.f90` |
 | 2D 能量输运 | `electron_transport_2d_kernel.f90` |
 | 同步辐射谱 | `electron_radiation_kernel.f90` |
 | 历史光子场 | `electron_seed_history_kernel.f90` |
@@ -465,8 +520,8 @@ N_{\rm thread,eff}=\min(N_{\rm thread},N_\chi,4),
 - 电子总数是否在无物理注入或逃逸事件时突变。
 - 平滑参数扫描中高频端是否出现台阶式截断。
 - `dg_1d` 输出给辐射核前的固定网格谱是否出现元素边界零洞或多重 grid-scale sawtooth turns。
-- FS density-jump 场景使用默认 troubled positive-kernel 后纳入 `tests/dg_1d_smoke.py` 门槛；验收重点是支撑连续、非负和辐射结果平滑，不把真实尖断点的高曲率当作失败。
-- `charint_2d` 的 \(\xi\) 子步是否过粗导致高能端提前消失。
+- FS density-jump 场景使用默认 troubled positive-kernel 后，仍应检查支撑连续、非负和辐射结果平滑，不把真实尖断点的高曲率当作失败。`tests/dg_1d_smoke.py` 当前在 RS DG sawtooth-turn 判据处失败，保留为待修诊断入口，不作为绿色门槛。
+- `charint_2d` 的 \(x\) 子步是否过粗导致高能端提前消失。
 - 2D reduced cooling bands 在窄频带问题中是否引入系统偏差。
 
 如果这些诊断不平滑，应回到动力学、冷却源项、网格映射和投影检查，不能在后处理层 smoothing。

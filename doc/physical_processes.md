@@ -763,11 +763,114 @@ EATS 的角向延迟为
 
 ## 19. \(\chi\) 分辨有限厚壳层
 
-`chi_eats_2d` 只用于正向激波同步辐射+SSA 的有限厚度等到达时间面投影。它的物理对象是 \((R,\chi,\theta,\phi)\) 体元，其中 \(\chi=1\) 接近激波前沿，较大的 \(\chi\) 对应更深的下游。
+`chi_eats_2d` 只用于正向激波同步辐射+SSA 的有限厚度等到达时间面投影。当前 2D 电子输运的主坐标是有限主动壳层质量坐标 \(q\)，不是无限延伸的 \(\log\chi\) 网格：
 
-当前强子、SSC 和对级联仍是壳层级契约。不能因为电子同步辐射的观测者投影有 \(\chi\) 维，就把强子输运解释成 \(\chi\) 局域。完整 \(\chi\) 几何、输运方程、SSA survival、投影权重和薄壳极限见 `doc/shock_shell_adaptive_algorithms.md`。
+\[
+q\in[0,q_{\rm active}],
+\qquad
+q_{\rm active}=1-\left(1-\frac14\right)^4 .
+\]
 
-## 20. 多密度增强下的次级反向激波
+\(q=0\) 对应激波前沿，\(q=q_{\rm active}\) 对应当前主动下游壳层外侧。为了和 BM 解析图像相连，代码报告
+
+\[
+\chi_{\rm BM}(q)
+=
+(1-q)^{-(4-k)/(3-k)}
+\]
+
+作为 `chi_grid` 诊断值。真正进入 EATS 投影的是每个 cell 的 `chi_radius_cm`、`chi_gamma_bulk` 和 `chi_dvolume_weight`。因此有限厚壳层的物理对象更准确地写作 \((R,q,\theta,\phi)\) 体元。
+
+观测者时间使用局域 cell 半径：
+
+\[
+t_{{\rm obs},ikj}
+=
+t_{{\rm axis},i}
++
+(1+z)
+\frac{
+R_{{\rm front},i}
+-
+R_{ik}\mu_j
+}{c}.
+\]
+
+局域 Doppler factor 使用 cell 自身的 \(\Gamma_{ik}\)：
+
+\[
+\delta_{ikj}
+=
+\left[
+\Gamma_{ik}(1-\beta_{ik}\mu_j)
+\right]^{-1}.
+\]
+
+同步自吸收 survival 沿有限 \(q\) cell 的 optical-depth coordinate 平均，而不是取单点前边界值：
+
+\[
+S_{\nu,k}
+=
+\exp(-\tau_{{\rm front},k})
+\frac{1-\exp(-\tau_{{\rm cell},k})}
+{\tau_{{\rm cell},k}} .
+\]
+
+当前强子、SSC 和对级联仍是壳层级契约。不能因为电子同步辐射的观测者投影有有限厚度维度，就把强子输运解释成 \(\chi\) 局域。完整 \(q\)-shell 几何、输运方程、SSA survival、投影权重和薄壳极限见 `doc/shock_shell_adaptive_algorithms.md`。
+
+## 20. Prompt 内部激波快照
+
+`prompt/` 目录中的内部激波模型描述两个 relativistic shells 的碰撞快照。它不是余辉 `Model` 的 public API，而是用于验证 prompt shock history、磁化 jump、辐射核复用和 EATS 投影的研究入口。
+
+慢壳和快壳的碰撞半径由
+
+\[
+R_{\rm col}
+=
+c\,t_{\rm gap}
+\frac{\beta_s\beta_f}{\beta_f-\beta_s}
+\]
+
+给出。上式来自 \(\beta_sct_{\rm col}=\beta_fc(t_{\rm col}-t_{\rm gap})\)。每个壳层的 baryonic mass 与余辉磁化反向激波使用同一能量拆分：
+
+\[
+M_{b,i}
+=
+\frac{E_{{\rm iso},i}}
+{(1+\sigma_i)\Gamma_i c^2}.
+\]
+
+接触面 Lorentz 因子 \(\Gamma_c\) 由两侧总压强平衡决定：
+
+\[
+p_{\rm FS}(\Gamma_c)=p_{\rm RS}(\Gamma_c),
+\]
+
+\[
+p_i
+=
+\frac13
+C_i\epsilon_{{\rm th},i}n'_i m_pc^2
++
+\frac12 C_i^2\sigma_i n'_i m_pc^2 .
+\]
+
+其中 \(C_i\) 和 \(\epsilon_{{\rm th},i}\) 来自共享 MHD jump helper。FS/RS branch 只有在 fast magnetosonic 条件允许时才产生辐射；否则对应 branch 的同步和 SSC 源项为零。
+
+每个 branch 的辐射链为
+
+```text
+BranchHistory
+-> electron_reverse_kernel.electron_reverse_evolve
+-> electron_secondary_reverse_synchrotron
+-> Radiation.ssc_spec
+-> Radiation.annihilation
+-> prompt.eats.project_branch_flux
+```
+
+当前复用 reverse electron kernel 是为了先验证 prompt snapshot 的 shock history 和辐射投影组合，不表示 prompt electron transport 已经成为正式 public kernel。完整教程和边界见 `doc/prompt_internal_shock_tutorial.md`。
+
+## 21. 多密度增强下的次级反向激波
 
 多密度增强反向激波用于描述均匀 ISM 中多个平滑密度增强触发的次级反向激波电子同步辐射。它不是 wind bump、结构化喷流、强子、RS SSC 或 \(\chi\) 分辨输运的通用替代模型。
 
@@ -816,7 +919,7 @@ n_0
 
 该图像对应 Nakar & Granot 2007 的 density-jump 四区结构和平滑观测响应约束，也与 Uhm & Zhang 2014 中密度增强/空洞触发 long-lived reverse shock 的动力学机制相容。代码验收仍以当前实现的状态量连续性和能量预算为准。
 
-## 21. 物理验收清单
+## 22. 物理验收清单
 
 每个正式结果至少检查：
 

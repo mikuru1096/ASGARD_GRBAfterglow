@@ -7,10 +7,12 @@
 ### 文档或 Python-only 轻量改动
 
 ```bash
+rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tools/check_text_encoding.py'
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && git diff --check'
+rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run --with "mkdocs<2" --with "mkdocs-material>=9.5" mkdocs build --strict --site-dir /tmp/asgard_mkdocs_site'
 ```
 
-如果改动涉及 Markdown 链接或示例命令，还应人工确认路径和命令仍对应当前工作树。
+如果改动涉及示例命令，还应运行对应 smoke 或最小命令片段。
 
 ### Fortran 语法和行截断
 
@@ -28,6 +30,8 @@ Forward/electron：
 
 ```bash
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/readme_smoke_bench.py'
+rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/fitter_public_api_smoke.py'
+rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/eats_adaptive_projection_smoke.py'
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/fullhide_2d_smoke_bench.py'
 ```
 
@@ -37,7 +41,6 @@ Reverse shock：
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/reverse_shock_smoke.py'
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/reverse_shared_solver_smoke.py'
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/structured_shared_solver_smoke.py'
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/hadronic_reverse_shock_smoke.py'
 ```
 
 Hadronic：
@@ -46,7 +49,23 @@ Hadronic：
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/hadronic_1d_smoke.py'
 ```
 
-`tests/dg_1d_smoke.py` 是当前 DG 基线门槛。它检查有限值、非负、活动支撑无零洞、无多重 grid-scale sawtooth turns、粒子数和同步光度量级；尖锐曲率本身不判失败，因为 troubled positive-kernel 的目标是消除 Gibbs 振荡，同时保留真实冷却断点和高能 cutoff。这个 smoke 不是阶数测试。当前阶数口径是：未滤波光滑谱元的能量空间形式阶数为 P12 的 \(O(\Delta y^{13})\)，普通 shell-to-shell 电子推进受后向 Euler 限制为 \(O(\Delta R)\)，主 RS crossing 后纯冷却解析映射对固定冷却系数无 BE 时间截断误差。需要验证阶数时，应分开做能量空间光滑谱测试和半径步长减半测试，不用真实断点附近的局部 Gibbs 区域拟合单一阶数。
+Prompt snapshot：
+
+```bash
+rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/internal_shock_prompt_smoke.py'
+```
+
+`tests/dg_1d_smoke.py` 是 DG 谱形诊断入口。它检查有限值、非负、活动支撑无零洞、无多重 grid-scale sawtooth turns、粒子数和同步光度量级；尖锐曲率本身不判失败，因为 troubled positive-kernel 的目标是消除 Gibbs 振荡，同时保留真实冷却断点和高能 cutoff。当前工作树中该脚本在 RS DG spectrum sawtooth-turn 判据处失败，因此不属于绿色基线。这个 smoke 不是阶数测试。当前阶数口径是：未滤波光滑谱元的能量空间形式阶数为 P12 的 \(O(\Delta y^{13})\)，普通 shell-to-shell 电子推进受后向 Euler 限制为 \(O(\Delta R)\)，主 RS crossing 后纯冷却解析映射对固定冷却系数无 BE 时间截断误差。需要验证阶数时，应分开做能量空间光滑谱测试和半径步长减半测试，不用真实断点附近的局部 Gibbs 区域拟合单一阶数。
+
+### 当前已知失败诊断
+
+以下入口当前不属于“绿色基线”，但必须保留为真实问题入口：
+
+- `tests/hadronic_reverse_shock_smoke.py`：base 和 RS light proton-synch 分支可执行；RS full-chain hadronic 分支报 `electron_energy_gev must be logarithmically uniform`。
+- `tests/electron_photon_joint_secondary_feedback_smoke.py`：同样在 formal hadronic electron-energy grid contract 处失败。
+- `tests/dg_1d_smoke.py`：当前在 RS DG spectrum sawtooth-turn 判据处失败。
+
+修复这些失败时不得删除断言、放宽阈值或添加 fallback；必须回到对应 hadronic grid contract 或 DG RS 电子谱演化路径。
 
 ## 按区域划分的构建门槛
 
@@ -96,6 +115,13 @@ rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/AS
 
 旧 `scripts/benchmarks/` 入口已删除。新增 formal benchmark 必须先进入 `tests/`，并在脚本内固定物理参数、网格、输出路径和验收口径。
 
+当前保留的 q-shell diagnostic benchmark：
+
+| 入口 | 决策问题 | 输出默认目录 | 注意事项 |
+| --- | --- | --- | --- |
+| `tests/benchmark_theta_j_multiples_magnetic_decay.py` | 有限 q-shell 与磁场衰减在离轴角度扫描中如何改变 lightcurve/spectrum。 | `output/benchmark_1d_vs_qshell_theta_j_multiples_bdecay_alpha04/` | 2D 分支复用同一 solve state 只重跑 projection；只适用于底层物理状态不变的 top-hat 诊断。 |
+| `tests/benchmark_skymap_centroid_motion.py` | 1D thin shell 与 2D q-shell 的 sky map、flux centroid 和 apparent speed 差异。 | `output/benchmark_1d_vs_qshell_skymap_motion_bdecay_alpha04/` | 是诊断 benchmark，不是已验证天图科学产品。 |
+
 ## 产物策略
 
 可以提交：
@@ -121,8 +147,9 @@ Forward-shock：
 - Light curves 应平滑，除非物理 density jump 或 injection event 产生已记录特征。
 - 电子谱、磁场和最终光变应连续演化；需要断频诊断时通过 `nu_callback` 临时收集。
 - SSA breaks 不应出现 grid-cell discontinuity。
-- `solver_options.geometry_projection="chi_eats_2d"` 只验收 FS synchrotron+SSA；图中 forward SSC 仍是 shell-level 总通量贡献。Projection χ 网格必须跟随当前 shell 的正半径 BM 壳层域自适应，transport-to-projection χ remap 必须保守 `sum(P*Delta chi)` 和 `sum(tau)`，SSA survival 必须按 emitting cell 的 optical-depth coordinate 平均。图中不得出现由负半径、负通量、孤立尖峰、全部 `chi_dvolume_weight` 同时归零或源项截断造成的光变断崖。2D/1D SED 与 top-hat 角度扫描允许离轴情况下出现 order-unity 以上差异，但光变和频谱方向应保持连续。
-- ISM χ grid convergence scan 中 `num_chi=512` 是参考曲线；`F_chi/F_512` 的时间演化应连续，不允许用 smoothing 或显示裁剪掩盖孤立尖峰。
+- `solver_options.geometry_projection="chi_eats_2d"` 只验收 FS synchrotron+SSA；图中 forward SSC 仍是 shell-level 总通量贡献。Finite q-shell 投影必须使用正半径 `chi_radius_cm`、局域 `chi_gamma_bulk` 和非零 `chi_dvolume_weight`，SSA survival 必须按 emitting cell 的 optical-depth coordinate 平均。图中不得出现由负半径、负通量、孤立尖峰、全部 `chi_dvolume_weight` 同时归零或源项截断造成的光变断崖。2D/1D SED 与 top-hat 角度扫描允许离轴情况下出现 order-unity 以上差异，但光变和频谱方向应保持连续。
+- ISM q-shell `num_chi` convergence scan 中 `num_chi=512` 是参考曲线；`F_chi/F_512` 的时间演化应连续，不允许用 smoothing 或显示裁剪掩盖孤立尖峰。
+- q-shell magnetic-decay angle benchmark 允许 1D thin shell 与 2D q-shell 在离轴峰时/峰值上出现 order-unity 差异，但每个角度和频段的光变、谱形、centroid offset 和 \(\beta_{\rm app}\) 应随时间平滑。
 
 Reverse-shock：
 
@@ -142,6 +169,12 @@ Polarization：
 
 - Peak amplitude 和 peak time 是分开的诊断。
 - 不用经验 time shift 或 smoothing 修正 timing mismatch。
+
+Prompt snapshot：
+
+- `prompt/` 内部激波只按 snapshot 诊断验收：\(\sigma\rightarrow0\) 接近 hydrodynamic baseline，磁化 case 的 baryonic mass 降低且 ordered field 上升，fast shock 不允许时对应分量为零。
+- `fs_sync`、`fs_ssc`、`rs_sync`、`rs_ssc` 和 `total` 必须有限、非负，活动光变段分段平滑。
+- 不把 prompt snapshot smoke 当作观测 GRB prompt light curve 拟合验收。
 
 ## 失败处理
 

@@ -73,7 +73,7 @@ Python 层组织状态机、配置和观测投影；Fortran 层求解电子、�
 - `weno5_1d`：高阶电子谱解析路径。
 - `fullhide_2d`：energy + chi resolved electron transport。
 - `charint_2d`：2D characteristic path。
-- `fullhide_2d_pic`：2D PIC/实验路径，不作为普通拟合默认。
+- `fullhide_2d_pic`：运行时保留历史映射，但当前仓库没有跟踪源码和构建登记，不作为可复现 public backend。
 
 runtime 默认保留的电子输运状态：
 
@@ -95,11 +95,7 @@ runtime 默认保留的电子输运状态：
 - `chi_gamma_bulk`
 - `chi_dvolume_weight`
 
-In `fullhide_2d` and `charint_2d`, the transport grid is a finite active-shell
-q-mass coordinate; the public `chi_grid` field reports the BM-equivalent chi
-value of each q cell for diagnostics. The observer-side radius, local bulk
-Lorentz factor, and volume weight are the authoritative geometry carried by
-`chi_radius_cm`, `chi_gamma_bulk`, and `chi_dvolume_weight`.
+在 `fullhide_2d` 和 `charint_2d` 中，transport 主网格是有限主动壳层的 \(q\)-mass 坐标。公开状态里的 `chi_grid` 只报告每个 \(q\) cell 的 BM 等效 \(\chi\) 诊断值；observer-side 半径、局域 bulk Lorentz factor 和体积权重以 `chi_radius_cm`、`chi_gamma_bulk`、`chi_dvolume_weight` 为准。
 
 `solver_options.geometry_projection="chi_eats_2d"` 是 `fullhide_2d` / `charint_2d` 的 opt-in observer projection。该 public API 字段会写入底层 `geometry_kernel`。该路径仅对正向激波同步辐射+SSA 使用 \(\chi\) 分辨有限厚壳层等到达时间面；SSC、强子和 pair cascade 仍是壳层级契约。完整几何、输运、SSA survival、transport-to-projection 重映射和薄壳极限见 `doc/shock_shell_adaptive_algorithms.md`。
 

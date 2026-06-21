@@ -73,7 +73,7 @@ A_{\rm ad}=\frac{1}{R\ln 10}.
 
 这里的回退不是数值兜底，而是 BM 近似适用域之外的显式物理边界。
 
-## 4. \(\eta\) 空间扩散
+## 4. \(q\) 空间扩散
 
 物理扩散通量为
 
@@ -81,17 +81,19 @@ A_{\rm ad}=\frac{1}{R\ln 10}.
 F_x=-\kappa\frac{\partial N}{\partial x}.
 \]
 
-现有 `fullhide_2d` 几何把下游物理距离映射到
+现有 `fullhide_2d` 几何把下游有限主动壳层映射到
 
 \[
-\eta=\log_{10}\chi.
+q\in[0,q_{\rm active}],
+\qquad
+q_{\rm active}=1-\left(1-\frac14\right)^4 .
 \]
 
-`pwn_cr_v1` 继续在 \(\eta\) 空间使用三对角隐式求解，系数来自 `advance_eta_logchi_implicit` 已使用的几何因子，避免在每个子步中切换物理网格。
+`pwn_cr_v1` 继续在 \(q\) 空间使用三对角隐式求解，系数来自 `advance_q_pwncr_implicit` 和共享 \(q\)-shell 几何，避免在每个子步中切换物理网格。
 
 边界条件：
 
-- `closed`：外侧 \(\eta\) 面扩散通量为零。
+- `closed`：外侧 \(q\) 面扩散通量为零。
 - `free_outer`：外侧 ghost density 为零，最外层单元出现向外逃逸 sink。
 
 ## 5. 微湍动磁场闭合

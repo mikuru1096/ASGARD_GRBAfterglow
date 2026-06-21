@@ -10,6 +10,7 @@
 - `asgard_core/hadronic_*.py`：hadronic Python wrappers 和 glue，只做 orchestration；formal shell sequence 由 `src/Hadronic/hadronic_forward_1d.f90` 推进。
 - RS hadronic light proton transport + synchrotron wrapper 位于 `asgard_core/asgard_runtime.py`。
 - `asgard_core/hadronic_cascade.py`：shell-sequence time-dependent γγ pair/synch cascade。
+- `prompt/`：内部激波 snapshot 研究入口，包括 `internal_shock.py`, `radiation.py`, `eats.py`, `run_snapshot.py`, `run_formal_results.py`；不从 `asgard_core` 顶层导出。
 
 ## 文档
 
@@ -29,10 +30,10 @@
 - `doc/code_overview.md`：代码结构、运行主链和关键边界。
 - `doc/electron_solver_algorithms.md`：电子输运算法说明。
 - `doc/hadronic_pgamma_notes.md`：p-gamma 微物理和基准说明。
-- `doc/am3_migration_plan.md`：AM3 共存、迁移和引用边界。
 - `doc/hadronic_chi_transport_decision.md`：2D / \(\chi\) 分辨 hadronic transport 的当前决策边界。
 - `doc/pair_cascade_extension_boundary.md`：IC-mediated electromagnetic cascade 的扩展边界。
 - `doc/fullhide2d_pwn_cr_transport.md`：`fullhide2d_transport_model="pwn_cr_v1"` 的物理契约。
+- `doc/prompt_internal_shock_tutorial.md`：prompt internal-shock snapshot 的公式、代码入口、formal plotting 和边界。
 - `doc/public_backend_limits.md`：public API/backend 未支持和部分支持边界。
 - `doc/web_docs.md` 与 `mkdocs.yml`：网页文档发布配置和导航入口；新增或改名文档必须同步 `nav` 并跑 strict build。
 
@@ -52,17 +53,19 @@
 
 ## 构建入口
 
-- `build_extensions.py`：f2py 编译入口。已登记 active electron extensions 包括 `electron_forward_fullhide_1d`, `electron_forward_dg_1d`, `electron_reverse_kernel`, `structured_jet_1d`；active hadronic extensions 包括 `hadronic_forward_1d`, `hadronic_reverse_1d`。
+- `build_extensions.py`：f2py 编译入口。当前登记的 module names 包括 `Constants`, `Dynamics_forward`, `Dynamics_reverse`, `electron_forward_weno5_1d`, `electron_forward_slc1_1d`, `electron_forward_charint_1d`, `electron_forward_dg_1d`, `electron_forward_fullhide_1d`, `electron_forward_fullhide_1d_hybrid`, `electron_forward_transport_2d`（alias `electron_forward_charint_2d`）, `electron_forward_t2g1_1d`, `electron_radiation`, `electron_reverse_kernel`, `SED_interpolation`, `SED_interpolation_structured`, `radiation_gamma_gamma_absorption`, `radiation_ssc_spectrum`, `hadronic_forward_1d`, `hadronic_reverse_1d`, `structured_jet_1d`。
 
 ## 测试与基准
 
 - 基础 smoke：`tests/readme_smoke_bench.py`, `tests/reverse_shock_smoke.py`
 - DG/shared electron smoke：`tests/reverse_shared_solver_smoke.py`, `tests/structured_shared_solver_smoke.py`
-- DG baseline diagnostic：`tests/dg_1d_smoke.py`；默认 troubled positive-kernel 下检查非负、支撑连续、无多重 grid-scale sawtooth turns、粒子数和同步光度量级。
+- DG diagnostic：`tests/dg_1d_smoke.py`；当前在 RS DG sawtooth-turn 判据处失败，保留作真实问题入口。
 - Public API smoke：`tests/fitter_public_api_smoke.py`
 - 2D electron：`tests/fullhide_2d_smoke_bench.py`
-- Hadronic：`tests/hadronic_1d_smoke.py`, `tests/hadronic_reverse_shock_smoke.py`
-- Electron-photon joint feedback：`tests/electron_photon_joint_secondary_feedback_smoke.py`
+- q-shell diagnostics：`tests/benchmark_theta_j_multiples_magnetic_decay.py`, `tests/benchmark_skymap_centroid_motion.py`
+- prompt snapshot：`tests/internal_shock_prompt_smoke.py`
+- Hadronic：`tests/hadronic_1d_smoke.py` 当前通过；`tests/hadronic_reverse_shock_smoke.py` 的 RS full-chain 分支当前在 `electron_energy_gev` log-grid contract 处失败。
+- Electron-photon joint feedback：`tests/electron_photon_joint_secondary_feedback_smoke.py` 当前同样在 formal hadronic electron-energy grid contract 处失败。
 
 ## 生成产物
 

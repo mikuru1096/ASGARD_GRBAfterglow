@@ -176,3 +176,108 @@ solver_options = SolverOptions(
 ```
 
 对照测试只改变 `electron_solver`，其它物理参数保持不变。DG 谱峰低能侧若有小幅局部振荡，但活动支撑连续、无零洞、辐射光变平滑，可以接受；若光变或断频出现孤立尖跳，应回到电子输运、冷却项或动力学检查。
+
+## 12. 有限 q-shell 2D 投影
+
+`fullhide_2d` / `charint_2d` 的厚壳层输运主坐标是有限 \(q\)-mass shell。`chi_grid` 是每个 \(q\) cell 的 BM 等效诊断坐标；实际投影几何由 `chi_radius_cm`、`chi_gamma_bulk` 和 `chi_dvolume_weight` 决定。
+
+在 quickstart 的 `Numerics` 和 `SolverOptions` 中改成：
+
+```python
+numerics = Numerics(
+    num_radius=88,
+    num_theta=36,
+    num_phi=24,
+    num_observer_time=88,
+    num_electron_gamma=61,
+    num_photon_frequency=72,
+    num_chi=12,
+    num_threads=4,
+    electron_adaptive_substeps=True,
+    electron_substep_rtol=0.02,
+    electron_substep_min=16,
+    electron_substep_max=256,
+    initial_radius_cm=1.0e14,
+)
+
+solver_options = SolverOptions(
+    electron_solver="fullhide_2d",
+    dynamics_solver="forward_legacy",
+    geometry_projection="chi_eats_2d",
+    electron_photon_coupling="separated",
+    ssc_cooling_mode="none",
+    synchrotron_integration="fixed_grid",
+    cooling_kernel="legacy",
+    radiation_kernel="legacy",
+    structured_backend="fortran_1d",
+    patch_sampling="uniform",
+    patch_projection="auto",
+    patch_sampling_pilot_theta=0,
+    patch_sampling_num_times=12,
+    patch_sampling_beaming_factor=3.0,
+    patch_sampling_beaming_resolution=8.0,
+    structured_parallel_mode="outer",
+    structured_outer_threads=None,
+    structured_inner_threads=None,
+    fullhide2d_transport_model="legacy",
+    fullhide2d_stochastic_accel_norm=0.0,
+    fullhide2d_escape_mode="closed",
+)
+```
+
+随后使用普通 `Model` 查询：
+
+```python
+times = np.geomspace(1.0e2, 1.0e7, 88)
+freqs = np.array([1.0e10, 1.0e14, 1.0e18])
+result = model.flux_density_grid(times, freqs, projection_kind="lightcurve")
+```
+
+`projection_kind="lightcurve"` 才会让 `chi_eats_2d` 替换 FS synch+SSA 的投影；`projection_kind="sed"` 仍走 shell-level SED 插值。若 off-axis 观测角非零，`num_phi` 必须至少为 2。
+
+多观测角 benchmark 可以复用同一个 2D solve state，只重跑 `project_flux_grid`，条件是底层物理参数、时间网格、频率 seed 网格、电子输运状态不变。保留入口是：
+
+```bash
+rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/benchmark_theta_j_multiples_magnetic_decay.py'
+```
+
+输出的 1D thin shell 与 2D q-shell 差异是有限厚度、磁场衰减和离轴 EATS 几何共同作用的诊断，不应解释为强子、SSC 或 pair cascade 已经 \(q\)-local。
+
+## 13. Prompt 内部激波快照
+
+Prompt internal-shock snapshot 使用 `prompt/` 包，不从 `asgard_core` 顶层导出。最小代码：
+
+```python
+import numpy as np
+
+from prompt.eats import EATSNumerics
+from prompt.internal_shock import InternalShockNumerics, InternalShockShell, simulate_internal_shock
+from prompt.radiation import InternalShockMicrophysics, RadiationNumerics, compute_prompt_observed_flux
+
+slow = InternalShockShell(gamma=200.0, total_energy_iso_erg=4.0e52, duration_s=0.2, sigma=0.01)
+fast = InternalShockShell(gamma=600.0, total_energy_iso_erg=4.0e52, duration_s=0.2, sigma=0.03)
+microphysics = InternalShockMicrophysics(epsilon_e=0.1, epsilon_b=0.01, electron_index_p=2.3)
+
+solution = simulate_internal_shock(
+    slow,
+    fast,
+    engine_gap_s=0.2,
+    redshift=0.5,
+    luminosity_distance_cm=1.0e28,
+    opening_angle_rad=0.1,
+    epsilon_e=microphysics.epsilon_e,
+    epsilon_b=microphysics.epsilon_b,
+    numerics=InternalShockNumerics(num_branch_steps=64),
+)
+
+flux = compute_prompt_observed_flux(
+    solution,
+    observer_frequency_hz=np.logspace(16.0, 24.0, 64),
+    observer_time_s=np.linspace(1.0e-4, 2.0, 128),
+    microphysics=microphysics,
+    radiation_numerics=RadiationNumerics(num_electron_gamma=121, num_photon_frequency=161, num_threads=4),
+    eats_numerics=EATSNumerics(num_theta=32, num_phi=1, num_threads=4),
+)
+```
+
+完整物理推导、formal plotting 命令和边界见 `prompt_internal_shock_tutorial.md`。当前 prompt snapshot 是诊断工作流，不是余辉 `Model` 的拟合分支。

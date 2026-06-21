@@ -1,6 +1,6 @@
 # ASGARD Work Plan
 
-本文档是当前工作树的后续工作基线。实现状态细节见 `doc/code_overview.md`，电子算法细节见 `doc/electron_solver_algorithms.md`，AM3 迁移历史见 `doc/am3_migration_plan.md`。
+本文档是当前工作树的后续工作基线。实现状态细节见 `doc/code_overview.md`，电子算法细节见 `doc/electron_solver_algorithms.md`，AM3-derived hadronic 说明见 `doc/hadronic_pgamma_notes.md`。
 
 ## Current Baseline
 
@@ -42,12 +42,11 @@ rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/AS
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && TMPDIR=/tmp uv run python build_extensions.py --module electron_forward_charint_2d --force'
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && TMPDIR=/tmp uv run python build_extensions.py --module hadronic_forward_1d --force'
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/hadronic_1d_smoke.py'
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/hadronic_reverse_shock_smoke.py'
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/reverse_shared_solver_smoke.py'
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/structured_shared_solver_smoke.py'
 ```
 
-`tests/dg_1d_smoke.py` 是当前 DG 基线门槛之一；判据检查有限值、非负、活动支撑无零洞、无多重 grid-scale sawtooth turns、粒子数和同步光度量级。尖锐曲率本身不是失败条件，因为 DG 的目标是保留真实冷却断点和高能 cutoff。
+当前已知验证阻塞不计入普通基线命令：`tests/hadronic_reverse_shock_smoke.py` 的 RS full-chain 分支和 `tests/electron_photon_joint_secondary_feedback_smoke.py` 会在 formal hadronic electron-energy 网格契约处失败，报 `electron_energy_gev must be logarithmically uniform`；`tests/dg_1d_smoke.py` 当前在 RS DG 谱形 sawtooth-turn 诊断处失败。它们保留为真实问题入口，不用删除或改宽断言来掩盖。
 
 当前 Vegas baseline benchmark artifacts:
 - `output/asgard_doc/vegas_afterglow_compare/compare_reverse_shock_lc.png`

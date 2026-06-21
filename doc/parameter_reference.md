@@ -61,7 +61,7 @@
 | `num_observer_time` | 正整数 | 控制内部观测者时间网格。 | 过低会让峰时和谱断点插值粗糙。 |
 | `num_electron_gamma` | 正整数 | 控制电子能量网格。 | 过低会抹平冷却断点；过高会增加运行时间。 |
 | `num_photon_frequency` | 正整数 | 控制光子频率网格。 | SSC、\(\gamma\gamma\) 和强子 target photon 对它敏感。 |
-| `electron_solver` | `fullhide_1d`, `fullhide_1d_hz`, `slc1_1d`, `charint_1d`, `dg_1d`, `t2g1_1d`, `weno5_1d`, `fullhide_2d`, `charint_2d`, `fullhide_2d_pic` | 选择电子输运核。 | 新手先用 `fullhide_1d`；`dg_1d` 是 FS/RS 共享的 opt-in 高阶 1D 路径；2D solver 只在需要有限厚度或 \(\chi\) 结构时使用，`*_pic` 和 `*_hz` 不是普通拟合默认。 |
+| `electron_solver` | `fullhide_1d`, `fullhide_1d_hz`, `slc1_1d`, `charint_1d`, `dg_1d`, `t2g1_1d`, `weno5_1d`, `fullhide_2d`, `charint_2d` | 选择电子输运核。 | 新手先用 `fullhide_1d`；`dg_1d` 是 FS/RS 共享的 opt-in 高阶 1D 路径；2D solver 只在需要 finite \(q\)-shell 厚度结构时使用，`*_hz` 不是普通拟合默认。`fullhide_2d_pic` 没有跟踪源码和构建登记，不作为当前可复现 public backend。 |
 | `geometry_projection` | `sed_legacy`, `sed_adaptive_theta`, `chi_eats_2d` | 选择观测者投影核。 | `sed_adaptive_theta` 对壳层级 EATS 做 θ 方向自适应积分；`chi_eats_2d` 要配 2D electron solver，只替换 FS synchrotron+SSA lightcurve projection。 |
 | `num_threads` | 正整数 | 控制 Fortran/OpenMP 线程数。 | 拟合时并行层级要和外部采样器并行统一规划。 |
 | `electron_photon_coupling` | `separated`, `joint` | `separated` 是默认后处理语义；`joint` 做 shell-level 含时二级反馈闭合。 | `joint` 约束更强，需要 `ssc_cooling_mode="numeric_ic_kn"`、formal hadronic 和相容开关。 |
@@ -84,7 +84,7 @@
 | 反向激波 | `ReverseShock(enabled=True, upstream_sigma=...)` | ejecta 被反向激波加热后形成 region 3，同步辐射叠加到 `rev.sync`；有限 `upstream_sigma` 同时改变 baryonic mass、MHD jump、ordered field 和磁压焓惯性。 | `upstream_sigma -> 0` 回到非磁化基线，crossing 前后状态连续。 |
 | formal 强子 | `Hadronic(enabled=True, solver="am3_1d", pgamma_scheme="hummer_2010_response")` | 质子输运与 p-gamma/BH/pp 二级产物在 shell-level 计算。 | proton loss、secondary pair、photon survival 能量预算一致。 |
 | 联合二级反馈 | `electron_photon_coupling="joint"` 加 BH、`am3_1d`、`ssc_cooling_mode="numeric_ic_kn"` | 主电子、强子二级 \(e^\pm\)、光子 target/sink 在同一 \(R\) 网格闭合。 | 弱反馈回到 separated baseline；强反馈时谱和光变仍连续。 |
-| 有限厚度投影 | `electron_solver="fullhide_2d"`, `geometry_projection="chi_eats_2d"` | FS synchrotron+SSA 在 \(\chi\) 分辨壳层上做 EATS 投影。 | chi 网格收敛；不要把强子解释成 chi-local。 |
+| 有限厚度投影 | `electron_solver="fullhide_2d"`, `geometry_projection="chi_eats_2d"` | FS synchrotron+SSA 在 finite \(q\)-shell 上做 EATS 投影。 | `num_chi` 收敛；不要把强子解释成 chi-local。 |
 
 ## 6. 拟合参数路径
 
