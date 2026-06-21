@@ -1361,21 +1361,6 @@ def _hadronic_pg_survival_factor(tau_pg: np.ndarray) -> np.ndarray:
     return survival
 
 
-def _energy_luminosity_from_rate_spectrum(
-    energy_gev: np.ndarray,
-    spectrum: np.ndarray,
-    shell_volume_cm3: float,
-) -> np.ndarray:
-    return np.asarray(
-        hadronic_legacy_module.fs_hadronic_energy_luminosity_from_rate(
-            np.asarray(energy_gev, dtype=float),
-            np.asarray(spectrum, dtype=float),
-            float(shell_volume_cm3),
-        ),
-        dtype=float,
-    )
-
-
 def solve_reverse_shock_emission(
     boundary: np.ndarray,
     dynamics: DynamicsSolution,

@@ -471,25 +471,6 @@ def _apply_hadronic_photon_survival(
     photon_field.hadronic_forward_ssc_seed = np.asarray(photon_field.hadronic_forward_ssc_seed, dtype=float) * survival
 
 
-def _solve_reverse_stage(
-    config: RuntimeConfig,
-    setup,
-    dynamics: DynamicsSolution,
-    timings: dict[str, float] | None,
-) -> ReverseShockEmission | None:
-    if not (config.reverse or config.reverse_shock.enabled):
-        return None
-    return _timed_call(
-        timings,
-        "ReverseShock.emission",
-        solve_reverse_shock_emission,
-        setup.boundary,
-        dynamics,
-        setup.seed_frequency_hz,
-        config,
-    )
-
-
 def solve_state_from_setup(
     config: RuntimeConfig,
     setup,
@@ -534,7 +515,17 @@ def solve_state_from_setup(
             photon_field,
             timings,
         )
-    reverse_emission = _solve_reverse_stage(config, setup, dynamics, timings)
+    reverse_emission = None
+    if config.reverse or config.reverse_shock.enabled:
+        reverse_emission = _timed_call(
+            timings,
+            "ReverseShock.emission",
+            solve_reverse_shock_emission,
+            setup.boundary,
+            dynamics,
+            setup.seed_frequency_hz,
+            config,
+        )
     observer = _assemble_observer_stage(
         setup,
         config,
@@ -836,22 +827,6 @@ def _assemble_observer_stage(
     if _electron_photon_coupling(config) == _COUPLING_JOINT and hadronic is not None and hadronic.tau_bh is not None:
         s["tau_extra"] = s["tau_extra"] + np.asarray(hadronic.tau_bh, dtype=float)
         s["joint_ic_seed"] = np.asarray(photon_field.hadronic_target_seed, dtype=float)
-    s = _stage_forward_ssc(s, setup, config, dynamics, electron, timings)
-    s = _stage_reverse_emission(s, setup, config, dynamics, electron, reverse_emission, timings)
-    s = _stage_hadronic_absorption(s, setup, config, dynamics, electron, hadronic)
-    s = _stage_pair_production(s, setup, config, dynamics, electron)
-    s = _stage_annihilation(s, setup, config, dynamics, timings)
-    return _stage_assemble_result(s, config, dynamics, electron, hadronic)
-
-
-def _stage_forward_ssc(
-    s: dict,
-    setup,
-    config: RuntimeConfig,
-    dynamics: DynamicsSolution,
-    electron: ElectronSolution,
-    timings: dict[str, float] | None,
-) -> dict:
     if config.include_forward_ssc:
         seed_for_ssc = s["seed_syn_absorption"] if s["joint_ic_seed"] is None else s["joint_ic_seed"]
         s["fwd_ssc"], s["seed_ssc_total"] = _ssc_spectrum(
@@ -867,7 +842,35 @@ def _stage_forward_ssc(
             survival = np.asarray(s["pg_photon_survival"], dtype=float)
             s["fwd_ssc"] = np.asarray(s["fwd_ssc"], dtype=float) * survival
             s["seed_ssc_total"] = np.asarray(s["seed_ssc_total"], dtype=float) * survival
-    return s
+    s = _stage_reverse_emission(s, setup, config, dynamics, electron, reverse_emission, timings)
+    s["magnetic_field_g"] = compute_magnetic_field(dynamics.r_gamma, dynamics.radius, config)
+    if hadronic is not None:
+        s["hadronic_ssa_transfer"] = _forward_synchrotron_absorption_transfer(
+            electron=electron,
+            radius_cm=dynamics.radius,
+            magnetic_field_g=s["magnetic_field_g"],
+            seed_frequency_hz=setup.seed_frequency_hz,
+            config=config,
+        )
+        s["seed_syn_absorption"] = s["seed_syn_absorption"] + _hadronic_absorbed_seed_density(
+            hadronic=hadronic,
+            radius_cm=dynamics.radius,
+            seed_frequency_hz=setup.seed_frequency_hz,
+            ssa_transfer=s["hadronic_ssa_transfer"],
+        )
+    if bool(config.hadronic.include_pair_production):
+        s["pair_lum_total"], s["pair_seed_total"], s["tau_pair"], _pair_density = _compute_pair_production_branch(
+            dynamics=dynamics,
+            electron=electron,
+            combined_seed_field_hz=s["seed_syn_absorption"] + s["seed_ssc_total"],
+            seed_frequency_hz=setup.seed_frequency_hz,
+            magnetic_field_g=s["magnetic_field_g"],
+            config=config,
+        )
+        s["seed_syn_absorption"] = s["seed_syn_absorption"] + s["pair_seed_total"]
+    s["tau_extra"] = s["tau_extra"] + s["tau_pair"]
+    s = _stage_annihilation(s, setup, config, dynamics, timings)
+    return _stage_assemble_result(s, config, dynamics, electron, hadronic)
 
 
 def _stage_reverse_emission(
@@ -939,53 +942,6 @@ def _stage_reverse_emission(
             )
             s["cross_ic"] = l_cic_fs_spec + l_cic_rs_spec
             s["seed_ssc_total"] = s["seed_ssc_total"] + seed_cic_fs + seed_cic_rs
-    return s
-
-
-def _stage_hadronic_absorption(
-    s: dict,
-    setup,
-    config: RuntimeConfig,
-    dynamics: DynamicsSolution,
-    electron: ElectronSolution,
-    hadronic,
-) -> dict:
-    s["magnetic_field_g"] = compute_magnetic_field(dynamics.r_gamma, dynamics.radius, config)
-    if hadronic is not None:
-        s["hadronic_ssa_transfer"] = _forward_synchrotron_absorption_transfer(
-            electron=electron,
-            radius_cm=dynamics.radius,
-            magnetic_field_g=s["magnetic_field_g"],
-            seed_frequency_hz=setup.seed_frequency_hz,
-            config=config,
-        )
-        s["seed_syn_absorption"] = s["seed_syn_absorption"] + _hadronic_absorbed_seed_density(
-            hadronic=hadronic,
-            radius_cm=dynamics.radius,
-            seed_frequency_hz=setup.seed_frequency_hz,
-            ssa_transfer=s["hadronic_ssa_transfer"],
-        )
-    return s
-
-
-def _stage_pair_production(
-    s: dict,
-    setup,
-    config: RuntimeConfig,
-    dynamics: DynamicsSolution,
-    electron: ElectronSolution,
-) -> dict:
-    if bool(config.hadronic.include_pair_production):
-        s["pair_lum_total"], s["pair_seed_total"], s["tau_pair"], _pair_density = _compute_pair_production_branch(
-            dynamics=dynamics,
-            electron=electron,
-            combined_seed_field_hz=s["seed_syn_absorption"] + s["seed_ssc_total"],
-            seed_frequency_hz=setup.seed_frequency_hz,
-            magnetic_field_g=s["magnetic_field_g"],
-            config=config,
-        )
-        s["seed_syn_absorption"] = s["seed_syn_absorption"] + s["pair_seed_total"]
-    s["tau_extra"] = s["tau_extra"] + s["tau_pair"]
     return s
 
 

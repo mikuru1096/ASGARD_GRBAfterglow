@@ -39,12 +39,8 @@ def build_simulation_setup(
         luminosity_distance_cm=luminosity_distance_cm,
         boundary=build_boundary(config, luminosity_distance_cm),
         seed_frequency_hz=build_seed_frequency_grid(config, requested_frequencies_hz),
-        observer_time_s=build_observer_time_grid(config),
+        observer_time_s=np.logspace(config.t_obs_min_log10, config.t_obs_max_log10, config.num_tobs),
     )
-
-
-def build_observer_time_grid(config: RuntimeConfig) -> np.ndarray:
-    return np.logspace(config.t_obs_min_log10, config.t_obs_max_log10, config.num_tobs)
 
 
 def build_seed_frequency_grid(config: RuntimeConfig, requested_frequencies_hz: np.ndarray | None = None) -> np.ndarray:
