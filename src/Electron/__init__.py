@@ -6,7 +6,9 @@ from typing import Any
 
 _SOLVERS = {
     "fs_electron_charint_1d": "electron_forward_charint_1d",
+    "fs_electron_dg_1d": "electron_forward_dg_1d",
     "fs_electron_fullhide_1d": "electron_forward_fullhide_1d",
+    "fs_electron_fullhide_1d_hz": "electron_forward_fullhide_1d_hybrid",
     "fs_electron_transport_2d_core": "electron_forward_transport_2d",
     "fs_electron_slc1_1d": "electron_forward_slc1_1d",
     "fs_electron_t2g1_1d": "electron_forward_t2g1_1d",
@@ -15,6 +17,7 @@ _SOLVERS = {
 }
 _ALIASES = {
     "fs_electron_charint": "fs_electron_charint_1d",
+    "fs_electron_dg": "fs_electron_dg_1d",
     "fs_electron_fullhide": "fs_electron_fullhide_1d",
     "fs_electron_slc1": "fs_electron_slc1_1d",
     "fs_electron_t2g1": "fs_electron_t2g1_1d",
