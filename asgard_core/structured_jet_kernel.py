@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import multiprocessing as mp
 import os
+from concurrent.futures import ProcessPoolExecutor
 from typing import Callable
 
 import numpy as np
@@ -161,11 +163,12 @@ def _solve_structured_chi_ring_states(
     solve_times: np.ndarray,
     frequencies: np.ndarray,
 ):
-    ring_states = []
+    outer_threads, inner_threads = _structured_threads(model)
+    ring_states = [None] * int(theta_centers.size)
+    payloads = []
     theta_width = float(model.jet.theta_max) / float(theta_centers.size)
     for i_theta, theta_center in enumerate(theta_centers):
         if int(active[i_theta]) == 0:
-            ring_states.append(None)
             continue
         config = build_patch_config(
             model,
@@ -177,15 +180,36 @@ def _solve_structured_chi_ring_states(
         )
         query_config = make_query_cfg(config, solve_times)
         query_config.num_r = max(int(query_config.num_r), int(solve_times.size))
+        query_config.num_threads = int(inner_threads)
         setup = make_query_setup(query_config, solve_times, frequencies)
-        ring_states.append(
-            solve_state_from_setup(
+        if int(outer_threads) == 1:
+            ring_states[i_theta] = solve_state_from_setup(
                 query_config,
                 setup,
                 requested_frequencies_hz=frequencies,
             )
-        )
+        else:
+            if query_config.nu_callback is not None:
+                raise NotImplementedError("parallel structured chi_eats_2d ring solves do not support nu_callback.")
+            payloads.append((int(i_theta), query_config, setup, np.asarray(frequencies, dtype=float)))
+    if payloads:
+        if "fork" not in mp.get_all_start_methods():
+            raise NotImplementedError("parallel structured chi_eats_2d ring solves require a POSIX fork multiprocessing context.")
+        context = mp.get_context("fork")
+        worker_count = min(int(outer_threads), len(payloads))
+        with ProcessPoolExecutor(max_workers=worker_count, mp_context=context) as executor:
+            for i_theta, state in executor.map(_solve_structured_chi_ring_payload, payloads):
+                ring_states[i_theta] = state
     return ring_states
+
+
+def _solve_structured_chi_ring_payload(payload):
+    i_theta, query_config, setup, frequencies = payload
+    return i_theta, solve_state_from_setup(
+        query_config,
+        setup,
+        requested_frequencies_hz=frequencies,
+    )
 
 
 def _project_structured_chi_sync_once(model, ring_states, first_state, times: np.ndarray, frequencies: np.ndarray) -> np.ndarray:

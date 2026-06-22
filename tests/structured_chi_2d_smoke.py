@@ -131,6 +131,19 @@ def case_public_structured_fullhide_2d_chi_path():
     return {"max_flux": float(np.max(flux.total)), "patch_count": len(details.patches)}
 
 
+def case_public_structured_parallel_matches_serial():
+    times = np.array([1.0e3, 1.0e4], dtype=float)
+    freq = np.array([1.0e9], dtype=float)
+    serial = _public_structured_chi_model(num_threads=1)
+    parallel = _public_structured_chi_model(num_threads=2, structured_outer_threads=2, structured_inner_threads=1)
+    serial_flux = serial.flux_density_grid(times, freq).total
+    parallel_flux = parallel.flux_density_grid(times, freq).total
+    np.testing.assert_allclose(parallel_flux, serial_flux, rtol=1.0e-12, atol=1.0e-12)
+    assert parallel._last_details is not None
+    assert len(parallel._last_details.patches) == 8
+    return {"parallel_max_flux": float(np.max(parallel_flux)), "patch_count": len(parallel._last_details.patches)}
+
+
 def case_python_patch_chi_path_rejected():
     model = _public_structured_chi_model()
     model.setups.structured_backend = "python_patch"
@@ -142,7 +155,7 @@ def case_python_patch_chi_path_rejected():
         raise AssertionError("python_patch chi_eats_2d path was not rejected")
 
 
-def _public_structured_chi_model():
+def _public_structured_chi_model(num_threads=1, structured_outer_threads=None, structured_inner_threads=None):
     model = top_hat_model(
         jet=tabulated_angular_jet(
             theta_rad=np.array([0.0, 0.04, 0.10, 0.16], dtype=float),
@@ -164,7 +177,7 @@ def _public_structured_chi_model():
             num_electron_gamma=8,
             num_photon_frequency=8,
             downstream_num_chi=3,
-            num_threads=1,
+            num_threads=num_threads,
         ),
         solver_options=solver_options(
             electron_solver="fullhide_2d",
@@ -172,6 +185,9 @@ def _public_structured_chi_model():
             structured_backend="fortran_1d",
             ssc_cooling_mode="nakar_y_thomson",
             synchrotron_integration="fixed_grid",
+            structured_parallel_mode="outer",
+            structured_outer_threads=structured_outer_threads,
+            structured_inner_threads=structured_inner_threads,
         ),
     )
     model.observer.viewing_angle_rad = 0.2
@@ -182,6 +198,7 @@ def main() -> None:
     results = {
         "kernel_parity": case_structured_chi_batch_matches_direct_sum(),
         "public_path": case_public_structured_fullhide_2d_chi_path(),
+        "parallel_path": case_public_structured_parallel_matches_serial(),
     }
     case_python_patch_chi_path_rejected()
     print(
