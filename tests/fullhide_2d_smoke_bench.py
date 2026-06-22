@@ -128,6 +128,25 @@ def case_electron_grid():
     }
 
 
+def case_substep_max_public_config_smoke():
+    model = top_hat_model(
+        numerics=numerics(
+            num_electron_gamma=NUM_GAM_E,
+            downstream_num_chi=NUM_CHI,
+            num_photon_frequency=NUM_NU,
+            num_radius=NUM_R,
+            eats_num_theta=NUM_THETA,
+            num_observer_time=NUM_TOBS,
+            electron_substep_max=16,
+        ),
+        solver_options=solver_options(electron_solver="fullhide_2d", geometry_projection="chi_eats_2d"),
+    )
+    flux = model.flux_density_grid(np.array([1.0e4, 3.0e4]), np.array([1.0e10]), projection_kind="lightcurve").total
+    assert flux.shape == (1, 2)
+    assert np.all(np.isfinite(flux))
+    return {"flux": flux[0].tolist()}
+
+
 def case_chi_eats_geometry_smoke():
     model = _build_model_with_geometry("fullhide_2d", "chi_eats_2d")
     flux = model.flux_density(np.array([1.0e4]), np.array([1.0e14])).total
@@ -426,19 +445,20 @@ def case_chi_ssa_nonuniform_tau_matches_manual():
 
 def main() -> None:
     cases = [
-        ("[1/13] fullhide_2d:basic_smoke", case_basic_smoke),
-        ("[2/13] fullhide_2d:electron_grid", case_electron_grid),
-        ("[3/13] fullhide_2d:chi_eats_geometry", case_chi_eats_geometry_smoke),
-        ("[4/13] chi_eats_2d:projection_kind_routes", case_chi_eats_projection_kind_routes),
-        ("[5/13] chi_eats_2d:rejects_1d_solver", case_chi_eats_rejects_1d_solver),
-        ("[6/13] eats:rejects_off_axis_phi_collapse", case_off_axis_phi_collapse_rejected),
-        ("[7/13] eats:syncs_observer_theta_boundary", case_project_flux_grid_syncs_observer_theta_boundary),
-        ("[8/13] model_cache:observer_angle", case_model_cache_includes_observer_angle),
-        ("[9/13] eats:on_axis_phi_collapse", case_on_axis_phi_collapse_matches_explicit_phi),
-        ("[10/13] chi_eats_2d:delta_layer_thin_shell", case_chi_projection_delta_layer_matches_thin_shell),
-        ("[11/13] chi_eats_2d:finite_width_converges", case_chi_projection_finite_width_converges_to_thin_shell),
-        ("[12/13] chi_eats_2d:ssa_cell_split_invariance", case_chi_ssa_cell_split_invariance),
-        ("[13/13] chi_eats_2d:ssa_nonuniform_tau", case_chi_ssa_nonuniform_tau_matches_manual),
+        ("[1/14] fullhide_2d:basic_smoke", case_basic_smoke),
+        ("[2/14] fullhide_2d:electron_grid", case_electron_grid),
+        ("[3/14] fullhide_2d:substep_max_public_config", case_substep_max_public_config_smoke),
+        ("[4/14] fullhide_2d:chi_eats_geometry", case_chi_eats_geometry_smoke),
+        ("[5/14] chi_eats_2d:projection_kind_routes", case_chi_eats_projection_kind_routes),
+        ("[6/14] chi_eats_2d:rejects_1d_solver", case_chi_eats_rejects_1d_solver),
+        ("[7/14] eats:rejects_off_axis_phi_collapse", case_off_axis_phi_collapse_rejected),
+        ("[8/14] eats:syncs_observer_theta_boundary", case_project_flux_grid_syncs_observer_theta_boundary),
+        ("[9/14] model_cache:observer_angle", case_model_cache_includes_observer_angle),
+        ("[10/14] eats:on_axis_phi_collapse", case_on_axis_phi_collapse_matches_explicit_phi),
+        ("[11/14] chi_eats_2d:delta_layer_thin_shell", case_chi_projection_delta_layer_matches_thin_shell),
+        ("[12/14] chi_eats_2d:finite_width_converges", case_chi_projection_finite_width_converges_to_thin_shell),
+        ("[13/14] chi_eats_2d:ssa_cell_split_invariance", case_chi_ssa_cell_split_invariance),
+        ("[14/14] chi_eats_2d:ssa_nonuniform_tau", case_chi_ssa_nonuniform_tau_matches_manual),
     ]
     for label, fn in cases:
         print(f"  {label} ...", flush=True)

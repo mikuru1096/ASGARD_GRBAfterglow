@@ -862,6 +862,7 @@ def _solve_electron_transport_2d(
         config.index_y,
         config.index_syn_integr,
         num_threads_2d,
+        config.electron_substep_max,
         use_characteristic_integrator,
         solver_name,
     )

@@ -3,7 +3,7 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
                                          Num_chi,index_Y,index_syn_intger,n_threads, &
                                          gam_e,dN_gam_e,dN_gam_e_total,P_syn,Seed_syn,V_m,V_c,V_a, &
                                          P_syn_chi,Seed_syn_chi,Tau_syn_chi,chi_radius,chi_gamma_bulk,chi_weight_out, &
-                                         use_charint_transport, profile_tag)
+                                         substep_max,use_charint_transport, profile_tag)
     !$ use omp_lib
     use constants
     use dynamics_common, only: dynamics_external_density_profile
@@ -30,7 +30,7 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
                                          electron_dnx_to_dndgamma_exp_centers
     implicit real(8)(a-h,o-z)
 
-    integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,Num_chi,index_Y,index_syn_intger,n_threads
+    integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,Num_chi,index_Y,index_syn_intger,n_threads,substep_max
     real(8), intent(in) :: Boundary(n),R_Tobs(Num_R),R_Gamma(Num_R),R(Num_R),V_seed(Num_nu)
     logical, intent(in) :: use_charint_transport
     character(len=*), intent(in) :: profile_tag
@@ -71,7 +71,7 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
     real(8) :: Q
     real(8) :: t_start, t_stop
     real(8) :: t_hist_accum, t_syn_state, t_prepare_aux, t_cooling, t_eta, t_xi
-    integer :: I_tobs, I_chi, Num_nu_cool, k_medium
+    integer :: I_tobs, I_chi, Num_nu_cool, k_medium, substep_limit
     integer :: total_substeps, max_shell_substeps, shell_cooling_calls, substep_cooling_calls
     integer :: prepare_aux_calls, history_calls, syn_state_calls, eta_calls, xi_calls
     logical :: profile_enabled, magnetic_decay_active, pwn_cr_transport, free_outer_escape
@@ -149,6 +149,7 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
     eta_calls = 0
     xi_calls = 0
     Num_nu_cool = min(6, Num_nu)
+    substep_limit = max(1, substep_max)
     allocate(V_cool(Num_nu_cool), P_hist(Num_nu, Num_chi, Num_R), &
              Seed_hist(Num_nu, Num_chi, Num_R), Tau_hist(Num_nu, Num_chi, Num_R), &
              P_hist_cool(Num_nu_cool, Num_chi, Num_R), Seed_hist_cool(Num_nu_cool, Num_chi, Num_R), &
@@ -198,8 +199,7 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
     end do
     dN_gam_e_total(:,1) = zero
     do I_chi = 1, Num_chi
-        call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge_E,gam_e,U_log(:,I_chi),dN_cell)
-        dN_gam_e_total(:,1) = dN_gam_e_total(:,1) + dN_cell*dq
+        dN_gam_e_total(:,1) = dN_gam_e_total(:,1) + dN_gam_e(:,I_chi,1)*dq
     end do
     call compute_downstream_comoving_grid(Num_chi,k_medium,R(1),R_Gamma(1),q_face,q_grid, &
                                           x_face_hist(:,1),x_comov_face_hist(:,1),x_comov_hist(:,1),dx_comov_hist(:,1), &
@@ -361,7 +361,7 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
 
             dDD     = R(I_tobs)-R(I_tobs-1)
             dDR_try = min(dDD, min(dDR_xi, dDR_q))
-            L1      = max(1, min(1000, ceiling(dDD/max(dDR_try, tiny(one)))))
+            L1      = max(1, min(substep_limit, ceiling(dDD/max(dDR_try, tiny(one)))))
             dDR     = dDD/dble(L1)
             total_substeps = total_substeps + L1
             max_shell_substeps = max(max_shell_substeps, L1)
@@ -494,8 +494,7 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
 
         dN_gam_e_total(:, I_tobs) = zero
         do I_chi = 1, Num_chi
-            call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge_E,gam_e,U_log(:,I_chi),dN_cell)
-            dN_gam_e_total(:, I_tobs) = dN_gam_e_total(:, I_tobs) + dN_cell*dq
+            dN_gam_e_total(:, I_tobs) = dN_gam_e_total(:, I_tobs) + dN_gam_e(:,I_chi,I_tobs)*dq
         end do
     end do
 
