@@ -126,7 +126,7 @@ ELECTRON_REVERSE_SOURCES = (
     *ELECTRON_COMMON_SOURCES,
     "electron_transport_dg_1d_kernel.f90",
 )
-HADRONIC_1D_SOURCES = (
+HADRONIC_COMMON_SOURCES = (
     "../Constants.f90",
     "../Dynamics/dynamics_common.f90",
     "../Radiation/radiation_common.f90",
@@ -149,6 +149,11 @@ HADRONIC_1D_SOURCES = (
     "../Electron/electron_radiation_kernel.f90",
     "hadronic_pair_cascade_kernel.f90",
     "hadronic_pp_models_kernel.f90",
+)
+HADRONIC_1D_SOURCES = (
+    *HADRONIC_COMMON_SOURCES,
+    "hadronic_forward_shell_1d.f90",
+    "hadronic_forward_formal_1d.f90",
 )
 STRUCTURED_JET_1D_SOURCES = (
     # Keep this list in module-topological order: every used module must be
@@ -191,6 +196,8 @@ STRUCTURED_JET_1D_SOURCES = (
     "../Electron/electron_reverse_kernel.f90",
     "../Radiation/radiation_ssc_spectrum.f90",
     "../Radiation/radiation_gamma_gamma_absorption.f90",
+    "../Hadronic/hadronic_forward_shell_1d.f90",
+    "../Hadronic/hadronic_forward_formal_1d.f90",
     "../Hadronic/hadronic_forward_1d.f90",
     "../Interpolation/interpolation_common.f90",
     "../Interpolation/SED_interpolation_structured.f90",
@@ -641,7 +648,7 @@ def main() -> None:
                 "fs_hadronic_quantum_syn_cooling_factor",
             ),
         ),
-        ModuleSpec("hadronic_reverse_1d", had, _with_main(HADRONIC_1D_SOURCES, "hadronic_reverse_1d.f90"), omp_flags, OPENMP_LIBS, True, ("fs_hadronic_reverse_1d",)),
+        ModuleSpec("hadronic_reverse_1d", had, _with_main(HADRONIC_COMMON_SOURCES, "hadronic_reverse_1d.f90"), omp_flags, OPENMP_LIBS, True, ("fs_hadronic_reverse_1d",)),
         ModuleSpec("structured_jet_1d", structured, _with_main(STRUCTURED_JET_1D_SOURCES, "structured_jet_1d.f90"), omp_flags, OPENMP_LIBS, True, ("structured_jet_flux_1d",)),
     ]
     module_aliases = {alias: spec.name for spec in module_specs for alias in spec.aliases}
