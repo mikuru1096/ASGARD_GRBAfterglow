@@ -1350,24 +1350,14 @@ class Model:
             )
             return np.asarray(observed.components["total"], dtype=float)
 
-        total = np.zeros((nu_hz.shape[0], times_s.shape[0]), dtype=float)
-        for _patch, state in _iter_solved_patch_elements(
+        result, details = _solve_patch_model(
             self,
             times_s,
             nu_hz,
-            _iter_patch_elements(self),
-            timings=timings,
-        ):
-            observed = project_flux_grid(
-                state,
-                times_s,
-                nu_hz,
-                timings=timings,
-                mode="total_only",
-                projection_kind=projection_kind,
-            )
-            total += np.asarray(observed.components["total"], dtype=float)
-        return total
+            projection_kind=projection_kind,
+        )
+        self._last_details = details
+        return np.asarray(result.total, dtype=float)
 
     def _compute_details_only(self, times_s: np.ndarray) -> TrackBundle:
         times_s = np.asarray(times_s, dtype=float)
@@ -1382,6 +1372,13 @@ class Model:
             config = _direct_tophat_patch_config(self)
             state = _solve_patch_state(self, config, times_s, None)
             details = _make_details(state.components, patches=[{"phi": 0.0, "theta": 0.0, "weight": 1.0}], state=state)
+        elif str(self.setups.structured_backend).lower() != "python_patch":
+            _result, details = _solve_patch_model(
+                self,
+                times_s,
+                np.array([1.0e9], dtype=float),
+                projection_kind="lightcurve",
+            )
         else:
             details = _patch_details(self, times_s)
         self._last_details = details
@@ -1485,6 +1482,11 @@ def _solve_patch_model(
         raise ValueError(
             f"Unknown patch_sampling={patch_sampling!r}; expected one of {SUPPORTED_PATCH_SAMPLING}."
         )
+    if structured_backend == "python_patch" and str(model.setups.geometry_kernel).lower() == "chi_eats_2d":
+        raise NotImplementedError(
+            "structured chi_eats_2d no longer supports the deprecated python_patch theta/phi loop; "
+            "use structured_backend='fortran_1d' for the single-call structured chi projection backend."
+        )
     if structured_backend != "python_patch":
         if patch_sampling != "uniform":
             raise NotImplementedError(
@@ -1492,7 +1494,9 @@ def _solve_patch_model(
                 "structured_backend='python_patch'."
             )
         if solve_reference_times_s is not None:
-            raise NotImplementedError("structured_backend='fortran_1d' does not yet support external solve_reference_times_s.")
+            raise NotImplementedError(
+                f"structured_backend={structured_backend!r} does not yet support external solve_reference_times_s."
+            )
         from asgard_core.structured_jet_kernel import solve_structured_jet_fortran
 
         return solve_structured_jet_fortran(model, times_s, nu_hz, _build_fit_config_for_patch)
