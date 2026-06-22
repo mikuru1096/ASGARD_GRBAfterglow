@@ -254,7 +254,7 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
         call accumulate_comoving_history_fields(I_tobs-1,Num_R,Num_chi,Num_nu_cool,proper_time_arr,V_cool, &
                                                 x_comov_face_hist,x_comov_hist,dx_comov_hist,beta_hist, &
                                                 Tau_prop_hist_cool,P_hist_cool,Seed_hist_cool, &
-                                                P_eff_cool_chi,Seed_eff_cool_chi)
+                                                P_eff_cool_chi,Seed_eff_cool_chi,n_threads)
         history_calls = history_calls + 1
         if (profile_enabled) then
             call cpu_time(t_stop)
@@ -514,7 +514,7 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
     call accumulate_comoving_history_fields(Num_R,Num_R,Num_chi,Num_nu_cool,proper_time_arr,V_cool, &
                                             x_comov_face_hist,x_comov_hist,dx_comov_hist,beta_hist, &
                                             Tau_prop_hist_cool,P_hist_cool,Seed_hist_cool, &
-                                            P_eff_cool_chi,Seed_eff_cool_chi)
+                                            P_eff_cool_chi,Seed_eff_cool_chi,n_threads)
     history_calls = history_calls + 1
     if (profile_enabled) then
         call cpu_time(t_stop)

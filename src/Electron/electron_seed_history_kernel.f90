@@ -9,7 +9,7 @@ module electron_seed_history_kernel
   public :: history_transfer_weight
 
   integer, save :: hist_cache_num_shell=0, hist_cache_num_chi=0, hist_cache_num_nu=0, hist_cache_built_shells=0
-  real(8), allocatable, save :: hist_inv_dx_ws(:,:)
+  real(8), allocatable, save :: hist_inv_dx_ws(:,:), hist_log_transfer_prefix_ws(:,:,:)
   logical, allocatable, save :: hist_valid_map_ws(:)
   integer, allocatable, save :: hist_idx_lo_map_ws(:)
   real(8), allocatable, save :: hist_log_frac_map_ws(:)
@@ -17,7 +17,7 @@ module electron_seed_history_kernel
   logical, save :: hist_seed_cache_ready=.false.
   real(8), allocatable, save :: hist_v_seed_cache(:), hist_log_v_seed_cache(:), hist_inv_dlog_v_cell_cache(:)
   !$omp threadprivate(hist_cache_num_shell,hist_cache_num_chi,hist_cache_num_nu,hist_cache_built_shells)
-  !$omp threadprivate(hist_inv_dx_ws,hist_valid_map_ws,hist_idx_lo_map_ws,hist_log_frac_map_ws)
+  !$omp threadprivate(hist_inv_dx_ws,hist_log_transfer_prefix_ws,hist_valid_map_ws,hist_idx_lo_map_ws,hist_log_frac_map_ws)
   !$omp threadprivate(hist_seed_num_nu_cache,hist_seed_cache_ready,hist_v_seed_cache,hist_log_v_seed_cache)
   !$omp threadprivate(hist_inv_dlog_v_cell_cache)
 
@@ -36,7 +36,8 @@ logical :: rebuild_main, rebuild_map, cache_match
     end if
     if (rebuild_main) then
         if (allocated(hist_inv_dx_ws)) deallocate(hist_inv_dx_ws)
-        allocate(hist_inv_dx_ws(Num_chi,Num_shell))
+        if (allocated(hist_log_transfer_prefix_ws)) deallocate(hist_log_transfer_prefix_ws)
+        allocate(hist_inv_dx_ws(Num_chi,Num_shell),hist_log_transfer_prefix_ws(Num_nu,0:Num_chi,Num_shell))
         hist_cache_num_shell=Num_shell
         hist_cache_num_chi=Num_chi
         hist_cache_num_nu=Num_nu
@@ -88,10 +89,10 @@ end subroutine integrate_downstream_proper_time
 ! 把可由光行时连接的历史壳层辐射叠加到当前共动光子场。
 subroutine accumulate_comoving_history_fields(target_t,Num_shell,Num_chi,Num_nu,proper_time_s,V_seed, &
                                               x_face_hist,x_center_hist,dx_hist,beta_hist,tau_hist,P_hist,Seed_hist, &
-                                              P_eff,Seed_eff)
+                                              P_eff,Seed_eff,n_threads)
 implicit none
-integer, intent(in) :: target_t,Num_shell,Num_chi,Num_nu
-integer :: I_src_t,I_src_chi
+integer, intent(in) :: target_t,Num_shell,Num_chi,Num_nu,n_threads
+integer :: I_src_t,I_src_chi,I_tgt_chi
 real(8), intent(in) :: proper_time_s(Num_shell),V_seed(Num_nu)
 real(8), intent(in) :: x_face_hist(0:Num_chi,Num_shell),x_center_hist(Num_chi,Num_shell),dx_hist(Num_chi,Num_shell)
 real(8), intent(in) :: beta_hist(Num_chi,Num_shell)
@@ -101,35 +102,38 @@ real(8) :: delta_tau_total,dtau_src
 
     P_eff = P_hist(:,:,target_t)
     Seed_eff = Seed_hist(:,:,target_t)
-    call ensure_history_cache(Num_shell,Num_chi,Num_nu,V_seed)
-    call build_shell_transfer_cache(target_t,Num_chi,dx_hist,hist_inv_dx_ws)
-    do I_src_t = 1, target_t-1
-        delta_tau_total = proper_time_s(target_t)-proper_time_s(I_src_t)
-        if (delta_tau_total <= zero) cycle
-        if (I_src_t == 1) then
-            dtau_src = proper_time_s(2)-proper_time_s(1)
-        else
-            dtau_src = proper_time_s(I_src_t)-proper_time_s(I_src_t-1)
-        end if
-        do I_src_chi = 1, Num_chi
-            call accumulate_history_source_cell(I_src_t,I_src_chi,delta_tau_total,dtau_src)
+    !$OMP PARALLEL DO num_threads(n_threads) if(n_threads > 1 .and. target_t*Num_chi*Num_chi*Num_nu >= 512) &
+    !$OMP& schedule(static) private(I_tgt_chi,I_src_t,I_src_chi,delta_tau_total,dtau_src)
+    do I_tgt_chi = 1, Num_chi
+        call ensure_history_cache(Num_shell,Num_chi,Num_nu,V_seed)
+        call build_shell_transfer_cache(target_t,Num_chi,Num_nu,dx_hist,tau_hist, &
+                                        hist_inv_dx_ws,hist_log_transfer_prefix_ws)
+        do I_src_t = 1, target_t-1
+            delta_tau_total = proper_time_s(target_t)-proper_time_s(I_src_t)
+            if (delta_tau_total <= zero) cycle
+            if (I_src_t == 1) then
+                dtau_src = proper_time_s(2)-proper_time_s(1)
+            else
+                dtau_src = proper_time_s(I_src_t)-proper_time_s(I_src_t-1)
+            end if
+            do I_src_chi = 1, Num_chi
+                call accumulate_history_source_cell(I_src_t,I_src_chi,I_tgt_chi,delta_tau_total,dtau_src)
+            end do
         end do
     end do
+    !$OMP END PARALLEL DO
 
 contains
 
-    subroutine accumulate_history_source_cell(src_t,src_chi,delta_tau_total_src,dtau_src)
+    subroutine accumulate_history_source_cell(src_t,src_chi,tgt_chi,delta_tau_total_src,dtau_src)
     implicit none
-    integer, intent(in) :: src_t,src_chi
-    integer :: tgt_chi
+    integer, intent(in) :: src_t,src_chi,tgt_chi
     real(8), intent(in) :: delta_tau_total_src,dtau_src
     real(8) :: source_weight,x_src
 
         x_src = x_center_hist(src_chi,src_t)
         source_weight = min(one, Para_c*dtau_src/max(dx_hist(src_chi,src_t), tiny(one)))
-        do tgt_chi = 1, Num_chi
-            call accumulate_history_target_cell(src_t,src_chi,tgt_chi,delta_tau_total_src,source_weight,x_src)
-        end do
+        call accumulate_history_target_cell(src_t,src_chi,tgt_chi,delta_tau_total_src,source_weight,x_src)
     end subroutine accumulate_history_source_cell
 
     subroutine accumulate_history_target_cell(src_t,src_chi,tgt_chi,delta_tau_total_src,source_weight,x_src)
@@ -152,7 +156,8 @@ contains
             if (dt_seg <= zero) cycle
             x_curr = max(x_tgt, x_prev-Para_c*dt_seg)
             call apply_shell_path_attenuation(Num_chi,Num_nu,x_prev,x_curr,x_face_hist(:,I_seg), &
-                                              hist_inv_dx_ws(:,I_seg),tau_hist(:,:,I_seg),attenuation)
+                                              hist_inv_dx_ws(:,I_seg),tau_hist(:,:,I_seg), &
+                                              hist_log_transfer_prefix_ws(:,:,I_seg),attenuation)
             x_prev = x_curr
             if (x_prev <= x_tgt) exit
         end do
@@ -229,28 +234,37 @@ real(8) :: beta_rel,gamma_rel
 end function relative_doppler_backward
 
 ! 缓存每个壳层 chi 单元宽度倒数，供历史光线路径吸收计算复用。
-subroutine build_shell_transfer_cache(Num_shell,Num_chi,dx_hist,inv_dx_hist)
+subroutine build_shell_transfer_cache(Num_shell,Num_chi,Num_nu,dx_hist,tau_hist,inv_dx_hist,log_transfer_prefix)
 implicit none
-integer, intent(in) :: Num_shell,Num_chi
-integer :: I_shell,I_chi
+integer, intent(in) :: Num_shell,Num_chi,Num_nu
+integer :: I_shell,I_chi,I_nu
 real(8), intent(in) :: dx_hist(Num_chi,Num_shell)
+real(8), intent(in) :: tau_hist(Num_nu,Num_chi,Num_shell)
 real(8), intent(out) :: inv_dx_hist(Num_chi,Num_shell)
+real(8), intent(out) :: log_transfer_prefix(Num_nu,0:Num_chi,Num_shell)
 
     if (Num_shell < hist_cache_built_shells) hist_cache_built_shells=0
     do I_shell = hist_cache_built_shells+1, Num_shell
+        log_transfer_prefix(:,0,I_shell) = zero
         do I_chi = 1, Num_chi
             inv_dx_hist(I_chi,I_shell) = one/max(dx_hist(I_chi,I_shell), tiny(one))
+            do I_nu = 1, Num_nu
+                log_transfer_prefix(I_nu,I_chi,I_shell) = log_transfer_prefix(I_nu,I_chi-1,I_shell) + &
+                    dlog(history_transfer_weight(tau_hist(I_nu,I_chi,I_shell)))
+            end do
         end do
     end do
     hist_cache_built_shells=max(hist_cache_built_shells,Num_shell)
 end subroutine build_shell_transfer_cache
 
 ! 用壳层内路径段的吸收权重对 attenuation 做累乘。
-subroutine apply_shell_path_attenuation(Num_chi,Num_nu,x_start,x_stop,x_face,inv_dx_cell,tau_cell,attenuation)
+subroutine apply_shell_path_attenuation(Num_chi,Num_nu,x_start,x_stop,x_face,inv_dx_cell,tau_cell, &
+                                        log_transfer_prefix,attenuation)
 implicit none
 integer, intent(in) :: Num_chi,Num_nu
-integer :: I_start,I_stop,I_cell,I_nu
+integer :: I_start,I_stop,I_nu
 real(8), intent(in) :: x_start,x_stop,x_face(0:Num_chi),inv_dx_cell(Num_chi),tau_cell(Num_nu,Num_chi)
+real(8), intent(in) :: log_transfer_prefix(Num_nu,0:Num_chi)
 real(8), intent(inout) :: attenuation(Num_nu)
 real(8) :: frac_start,frac_stop
 
@@ -275,10 +289,9 @@ real(8) :: frac_start,frac_stop
         end do
     end if
     if (I_stop < I_start-1) then
-        do I_cell = I_start-1, I_stop+1, -1
-            do I_nu = 1, Num_nu
-                attenuation(I_nu) = attenuation(I_nu) * history_transfer_weight(tau_cell(I_nu,I_cell))
-            end do
+        do I_nu = 1, Num_nu
+            attenuation(I_nu) = attenuation(I_nu) * &
+                dexp(log_transfer_prefix(I_nu,I_start-1)-log_transfer_prefix(I_nu,I_stop))
         end do
     end if
     if (frac_stop > zero) then

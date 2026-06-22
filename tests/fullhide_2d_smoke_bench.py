@@ -147,6 +147,30 @@ def case_substep_max_public_config_smoke():
     return {"flux": flux[0].tolist()}
 
 
+def case_2d_thread_equivalence_smoke():
+    states = []
+    for num_threads in (1, 8):
+        states.append(
+            solve_state(
+                RuntimeConfig(
+                    electron_solver="fullhide_2d",
+                    num_gam_e=NUM_GAM_E,
+                    downstream_num_chi=NUM_CHI,
+                    num_nu=NUM_NU,
+                    num_r=NUM_R,
+                    eats_num_theta=NUM_THETA,
+                    num_tobs=NUM_TOBS,
+                    num_threads=num_threads,
+                ),
+                np.array([1.0e4, 3.0e4], dtype=float),
+                requested_frequencies_hz=np.array([1.0e10], dtype=float),
+            ).electron
+        )
+    for attr in ("d_n_gam_e_chi", "l_syn_spec_chi", "seed_syn_chi", "tau_syn_chi"):
+        np.testing.assert_allclose(getattr(states[0], attr), getattr(states[1], attr), rtol=0.0, atol=0.0)
+    return {"checked": ["d_n_gam_e_chi", "l_syn_spec_chi", "seed_syn_chi", "tau_syn_chi"]}
+
+
 def case_chi_eats_geometry_smoke():
     model = _build_model_with_geometry("fullhide_2d", "chi_eats_2d")
     flux = model.flux_density(np.array([1.0e4]), np.array([1.0e14])).total
@@ -445,20 +469,21 @@ def case_chi_ssa_nonuniform_tau_matches_manual():
 
 def main() -> None:
     cases = [
-        ("[1/14] fullhide_2d:basic_smoke", case_basic_smoke),
-        ("[2/14] fullhide_2d:electron_grid", case_electron_grid),
-        ("[3/14] fullhide_2d:substep_max_public_config", case_substep_max_public_config_smoke),
-        ("[4/14] fullhide_2d:chi_eats_geometry", case_chi_eats_geometry_smoke),
-        ("[5/14] chi_eats_2d:projection_kind_routes", case_chi_eats_projection_kind_routes),
-        ("[6/14] chi_eats_2d:rejects_1d_solver", case_chi_eats_rejects_1d_solver),
-        ("[7/14] eats:rejects_off_axis_phi_collapse", case_off_axis_phi_collapse_rejected),
-        ("[8/14] eats:syncs_observer_theta_boundary", case_project_flux_grid_syncs_observer_theta_boundary),
-        ("[9/14] model_cache:observer_angle", case_model_cache_includes_observer_angle),
-        ("[10/14] eats:on_axis_phi_collapse", case_on_axis_phi_collapse_matches_explicit_phi),
-        ("[11/14] chi_eats_2d:delta_layer_thin_shell", case_chi_projection_delta_layer_matches_thin_shell),
-        ("[12/14] chi_eats_2d:finite_width_converges", case_chi_projection_finite_width_converges_to_thin_shell),
-        ("[13/14] chi_eats_2d:ssa_cell_split_invariance", case_chi_ssa_cell_split_invariance),
-        ("[14/14] chi_eats_2d:ssa_nonuniform_tau", case_chi_ssa_nonuniform_tau_matches_manual),
+        ("[1/15] fullhide_2d:basic_smoke", case_basic_smoke),
+        ("[2/15] fullhide_2d:electron_grid", case_electron_grid),
+        ("[3/15] fullhide_2d:substep_max_public_config", case_substep_max_public_config_smoke),
+        ("[4/15] fullhide_2d:thread_equivalence", case_2d_thread_equivalence_smoke),
+        ("[5/15] fullhide_2d:chi_eats_geometry", case_chi_eats_geometry_smoke),
+        ("[6/15] chi_eats_2d:projection_kind_routes", case_chi_eats_projection_kind_routes),
+        ("[7/15] chi_eats_2d:rejects_1d_solver", case_chi_eats_rejects_1d_solver),
+        ("[8/15] eats:rejects_off_axis_phi_collapse", case_off_axis_phi_collapse_rejected),
+        ("[9/15] eats:syncs_observer_theta_boundary", case_project_flux_grid_syncs_observer_theta_boundary),
+        ("[10/15] model_cache:observer_angle", case_model_cache_includes_observer_angle),
+        ("[11/15] eats:on_axis_phi_collapse", case_on_axis_phi_collapse_matches_explicit_phi),
+        ("[12/15] chi_eats_2d:delta_layer_thin_shell", case_chi_projection_delta_layer_matches_thin_shell),
+        ("[13/15] chi_eats_2d:finite_width_converges", case_chi_projection_finite_width_converges_to_thin_shell),
+        ("[14/15] chi_eats_2d:ssa_cell_split_invariance", case_chi_ssa_cell_split_invariance),
+        ("[15/15] chi_eats_2d:ssa_nonuniform_tau", case_chi_ssa_nonuniform_tau_matches_manual),
     ]
     for label, fn in cases:
         print(f"  {label} ...", flush=True)

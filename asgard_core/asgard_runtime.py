@@ -835,7 +835,7 @@ def _solve_electron_transport_2d(
 ) -> ElectronSolution | tuple[ElectronSolution, SolverAdapterReport]:
     electron_2d_module = _electron_module(solver_name)
     num_chi = _resolve_num_chi(config, solver_name)
-    num_threads_2d = max(1, min(int(config.num_threads), int(num_chi), 4))
+    num_threads_2d = max(1, min(int(config.num_threads), int(num_chi), 16))
     (
         gam_e,
         d_n_gam_e_chi,
