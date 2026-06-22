@@ -7,12 +7,13 @@ import numpy as np
 
 from asgard_core.angular_sampling import angular_separation, is_axisymmetric_jet
 from asgard_core.asgard_physics_utils import compute_doppler
-from asgard_core.asgard_state import make_query_setup
+from asgard_core.asgard_state import make_query_cfg, make_query_setup
 from src import Structured, constants
 
 
 HUMMER_SCHEMES = {"hummer_2010_response"}
 ELECTRON_1D_TRANSPORT_IDS = {"fullhide_1d": 1, "dg_1d": 2}
+STRUCTURED_FORTRAN_MIN_GAMMA0 = 2.0
 
 
 def solve_structured_jet_fortran(model, times_s: np.ndarray, nu_hz: np.ndarray, build_patch_config: Callable):
@@ -24,6 +25,7 @@ def solve_structured_jet_fortran(model, times_s: np.ndarray, nu_hz: np.ndarray, 
     sampled = _sample_structured_grid(model)
     _theta_centers, _phi_centers, e_iso, gamma0, active, _axisymmetric = sampled
     i_theta, i_phi = np.argwhere(active > 0)[0]
+    solve_times = _solve_time_grid(model, times)
     base_config = build_patch_config(
         model,
         theta_v=model.observer.theta_obs,
@@ -32,10 +34,12 @@ def solve_structured_jet_fortran(model, times_s: np.ndarray, nu_hz: np.ndarray, 
         gamma0=float(gamma0[i_theta, i_phi]),
         theta_center=0.0,
     )
-    setup = make_query_setup(base_config, _solve_time_grid(model, times), frequencies)
+    query_config = make_query_cfg(base_config, solve_times)
+    query_config.num_r = max(int(query_config.num_r), int(solve_times.size))
+    setup = make_query_setup(query_config, solve_times, frequencies)
 
     outputs = Structured.structured_jet_flux_1d(
-        *_structured_kernel_args(model, base_config, setup, sampled, times, frequencies)
+        *_structured_kernel_args(model, query_config, setup, sampled, times, frequencies)
     )
     fwd_sync, fwd_ssc, _fwd_hadronic, rev_sync, total = (np.asarray(value, dtype=float) for value in outputs[:5])
     if base_config.nu_callback is not None:
@@ -168,7 +172,16 @@ def _sample_structured_grid(model):
         for i_phi, phi in enumerate(phi_centers):
             e_iso[i_theta, i_phi] = float(model.jet.energy_iso(float(phi), float(theta)))
             gamma0[i_theta, i_phi] = float(model.jet.gamma0(float(phi), float(theta)))
-    active = np.asarray((e_iso > 0.0) & (gamma0 > 1.0), dtype=np.int32)
+    transrelativistic = (e_iso > 0.0) & (gamma0 > 1.0) & (gamma0 < STRUCTURED_FORTRAN_MIN_GAMMA0)
+    if np.any(transrelativistic):
+        gamma_min = float(np.min(gamma0[transrelativistic]))
+        raise ValueError(
+            "structured_backend='fortran_1d' requires Gamma0 >= "
+            f"{STRUCTURED_FORTRAN_MIN_GAMMA0:g} for every positive-energy active patch; "
+            f"found Gamma0={gamma_min:.6g}. Trim the mildly/Newtonian cocoon before using "
+            "the relativistic structured-jet afterglow backend."
+        )
+    active = np.asarray((e_iso > 0.0) & (gamma0 >= STRUCTURED_FORTRAN_MIN_GAMMA0), dtype=np.int32)
     if not np.any(active):
         raise ValueError("No active jet elements were found for the requested structured jet.")
     return theta_centers, phi_centers, e_iso, gamma0, active, axisymmetric
@@ -184,6 +197,12 @@ def _structured_threads(model) -> tuple[int, int]:
         raise ValueError("num_threads must be positive for structured jet execution.")
     if cpu_count is not None and total > int(cpu_count):
         raise ValueError("num_threads exceeds the available CPU thread count for structured jet execution.")
+    if bool(model.setups.rvs_shock and model.rvs_rad is not None):
+        resolved_inner = int(total if inner is None else inner)
+        if outer is not None and int(outer) != 1:
+            raise ValueError("structured reverse-shock execution requires structured_outer_threads=1.")
+        _validate_structured_thread_budget(1, resolved_inner, total, cpu_count)
+        return 1, resolved_inner
     if mode == "outer":
         resolved_outer = int(total if outer is None else outer)
         _validate_structured_thread_budget(resolved_outer, 1, total, cpu_count)

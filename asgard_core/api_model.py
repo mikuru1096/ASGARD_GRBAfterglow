@@ -194,7 +194,7 @@ class Magnetar(NamedTuple):
 
 @dataclass
 class JetProfile:
-    """Unified jet profile. Use top_hat_jet, gaussian_jet, or power_law_jet."""
+    """Unified jet profile."""
     kind: str
     theta_max: float
     # Tophat / Gaussian / PowerLaw params
@@ -217,6 +217,9 @@ class JetProfile:
     # Function-defined jet params
     e_iso_fn: Callable[[float, float], float] | None = None
     gamma0_fn: Callable[[float, float], float] | None = None
+    theta_table: tuple[float, ...] = field(default_factory=tuple)
+    e_iso_table: tuple[float, ...] = field(default_factory=tuple)
+    gamma0_table: tuple[float, ...] = field(default_factory=tuple)
     # Common
     spreading: bool = False
     duration: float | None = None
@@ -374,6 +377,72 @@ def power_law_jet(
         else 1.0 + (jet.lf - 1.0) * (theta / jet.theta_c) ** (-jet.k_g)
     )
     return jet
+
+
+def tabulated_angular_jet(
+    theta_rad,
+    energy_iso_erg,
+    lorentz_factor,
+    shell_duration_s: float | None,
+    magnetar: Optional[Magnetar],
+    spreading: bool,
+) -> JetProfile:
+    theta = tuple(float(value) for value in theta_rad)
+    e_iso = tuple(float(value) for value in energy_iso_erg)
+    gamma0 = tuple(float(value) for value in lorentz_factor)
+    _validate_tabulated_angular_jet(theta, e_iso, gamma0)
+    theta_arr = np.asarray(theta, dtype=float)
+    log_e_iso = np.log(np.asarray(e_iso, dtype=float))
+    gamma0_arr = np.asarray(gamma0, dtype=float)
+    jet = JetProfile(
+        kind="tabulated",
+        theta_max=float(theta[-1]),
+        E_iso=float(np.max(np.asarray(e_iso, dtype=float))),
+        lf=float(np.max(gamma0_arr)),
+        theta_table=theta,
+        e_iso_table=e_iso,
+        gamma0_table=gamma0,
+        duration=None if shell_duration_s is None else float(shell_duration_s),
+        magnetar=magnetar,
+        spreading=bool(spreading),
+    )
+
+    def _energy_iso(_phi, theta_value):
+        theta_eval = np.asarray(theta_value, dtype=float)
+        log_value = np.interp(theta_eval, theta_arr, log_e_iso, left=-np.inf, right=-np.inf)
+        value = np.exp(log_value)
+        return float(value) if value.ndim == 0 else value
+
+    def _gamma0(_phi, theta_value):
+        theta_eval = np.asarray(theta_value, dtype=float)
+        value = np.interp(theta_eval, theta_arr, gamma0_arr, left=1.0, right=1.0)
+        return float(value) if value.ndim == 0 else value
+
+    jet.energy_iso = _energy_iso
+    jet.gamma0 = _gamma0
+    return jet
+
+
+def _validate_tabulated_angular_jet(
+    theta_rad: tuple[float, ...],
+    energy_iso_erg: tuple[float, ...],
+    lorentz_factor: tuple[float, ...],
+) -> None:
+    theta = np.asarray(theta_rad, dtype=float)
+    e_iso = np.asarray(energy_iso_erg, dtype=float)
+    gamma0 = np.asarray(lorentz_factor, dtype=float)
+    if theta.shape != e_iso.shape or theta.shape != gamma0.shape:
+        raise ValueError("theta_rad, energy_iso_erg, and lorentz_factor must have the same shape.")
+    if theta.size < 2:
+        raise ValueError("tabulated angular jet requires at least two theta samples.")
+    if not np.all(np.isfinite(theta)) or not np.all(np.isfinite(e_iso)) or not np.all(np.isfinite(gamma0)):
+        raise ValueError("tabulated angular jet arrays must contain finite values.")
+    if np.any(theta < 0.0) or np.any(np.diff(theta) <= 0.0):
+        raise ValueError("theta_rad must be non-negative and strictly increasing.")
+    if np.any(e_iso <= 0.0):
+        raise ValueError("energy_iso_erg must be positive inside the tabulated active angular domain.")
+    if np.any(gamma0 <= 1.0):
+        raise ValueError("lorentz_factor must be greater than 1 inside the tabulated active angular domain.")
 
 
 Jet = JetProfile

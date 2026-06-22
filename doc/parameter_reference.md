@@ -11,7 +11,7 @@
 | `jet.opening_angle_rad` | rad | \(0.02\) 到 \(0.3\) | top-hat 半开角。 |
 | `jet.shell_duration_s` | s | 任务相关 | 反向激波 shell 宽度相关参数；这是推荐 `Param` 路径。 |
 
-公开结构化喷流使用 `gaussian_jet(...)` 或 `power_law_jet(...)` 构造器。当前 jet spreading 后端未支持，边界见 `doc/public_backend_limits.md`。内部研究用喷流 helper 不属于稳定 public API，新文档和教程不以这些名称作为用户入口。
+公开结构化喷流使用 `gaussian_jet(...)`、`power_law_jet(...)` 或 `tabulated_angular_jet(...)` 构造器。当前 jet spreading 后端未支持，边界见 `doc/public_backend_limits.md`。内部研究用喷流 helper 不属于稳定 public API，新文档和教程不以这些名称作为用户入口。
 
 ## 2. 外部介质
 
@@ -79,7 +79,7 @@
 | --- | --- | --- | --- |
 | 标准 FS afterglow | `top_hat_jet`, `UniformMedium`, `electron_solver="fullhide_1d"` | 爆波扫掠外介质，非热电子同步/SSC 辐射，经 EATS 投影成光变。 | \(\Gamma(R)\)、\(\nu_m,\nu_c,\nu_a\) 和光变平滑。 |
 | wind afterglow | `WindMedium`, `forward_legacy` | 外介质 \(n\propto R^{-2}\)，减速标度比 ISM 更浅。 | \(\Gamma(t)\) 是否接近 wind 标度，早期 SSA 是否合理。 |
-| 结构化喷流 off-axis | `gaussian_jet` 或 `power_law_jet`, `structured_backend="fortran_1d"` | 每个角向 patch 有不同能量和 \(\Gamma_0\)，观测峰由 Doppler cone 进入视线决定。 | 角向采样收敛、峰时随 `viewing_angle_rad` 连续变化。 |
+| 结构化喷流 off-axis | `gaussian_jet`、`power_law_jet` 或 `tabulated_angular_jet`, `structured_backend="fortran_1d"` | 每个角向 patch 有不同能量和 \(\Gamma_0\)，观测峰由 Doppler cone 进入视线决定。 | 角向采样收敛、峰时随 `viewing_angle_rad` 连续变化。 |
 | 壳层级自适应 EATS | `geometry_projection="sed_adaptive_theta"` | 普通 shell-level SED 投影在 θ 方向用嵌套中点规则估计积分误差并细分。 | 适合检查 off-axis / 窄 beaming 的角向积分收敛；φ 方向仍由 `num_phi` 控制。 |
 | 反向激波 | `ReverseShock(enabled=True, upstream_sigma=...)` | ejecta 被反向激波加热后形成 region 3，同步辐射叠加到 `rev.sync`；有限 `upstream_sigma` 同时改变 baryonic mass、MHD jump、ordered field 和磁压焓惯性。 | `upstream_sigma -> 0` 回到非磁化基线，crossing 前后状态连续。 |
 | formal 强子 | `Hadronic(enabled=True, solver="am3_1d", pgamma_scheme="hummer_2010_response")` | 质子输运与 p-gamma/BH/pp 二级产物在 shell-level 计算。 | proton loss、secondary pair、photon survival 能量预算一致。 |

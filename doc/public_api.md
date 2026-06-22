@@ -22,6 +22,7 @@ from asgard_core import (
     WindMedium,
     gaussian_jet,
     power_law_jet,
+    tabulated_angular_jet,
     top_hat_jet,
     units,
 )
@@ -137,7 +138,22 @@ jet = power_law_jet(
 
 核内常数，核外按幂律下降。`lorentz_index=None` 时沿用 `energy_index`。大指数会制造更尖的角向边界，需要更认真地检查 patch sampling。
 
-### 4.4 `Magnetar`
+### 4.4 `tabulated_angular_jet`
+
+```python
+jet = tabulated_angular_jet(
+    theta_rad=theta,
+    energy_iso_erg=e_iso,
+    lorentz_factor=gamma0,
+    shell_duration_s=None,
+    magnetar=None,
+    spreading=False,
+)
+```
+
+该入口用于把外部流体模拟或解析模型给出的轴对称角结构直接送入结构化喷流后端。`theta_rad` 必须严格递增；表内 `energy_iso_erg` 和 `lorentz_factor` 必须为正的活动喷流区域，表外角度按无喷流处理。能量在角向按 log-linear 插值，Lorentz 因子按 linear 插值。
+
+### 4.5 `Magnetar`
 
 ```python
 magnetar = Magnetar(L0=1.0e47, t0=1.0e5, q=2.0)

@@ -6,7 +6,7 @@ import numpy as np
 
 
 SUPPORTED_PATCH_SAMPLING = ("uniform", "dominant_region_ioka_v1", "dominant_region_ioka_time_v1")
-AXISYMMETRIC_JET_KINDS = frozenset(("tophat", "gaussian", "powerlaw", "twocomponent", "steppowerlaw"))
+AXISYMMETRIC_JET_KINDS = frozenset(("tophat", "gaussian", "powerlaw", "twocomponent", "steppowerlaw", "tabulated"))
 
 
 def is_axisymmetric_jet(jet) -> bool:

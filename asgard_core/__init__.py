@@ -25,6 +25,7 @@ from .api_model import (
     WindMedium,
     gaussian_jet,
     power_law_jet,
+    tabulated_angular_jet,
     top_hat_jet,
 )
 from .api_fit import FitResult, Fitter, Param
@@ -41,6 +42,7 @@ __all__ = [
     "top_hat_jet",
     "gaussian_jet",
     "power_law_jet",
+    "tabulated_angular_jet",
     "Observer",
     "Radiation",
     "Numerics",
