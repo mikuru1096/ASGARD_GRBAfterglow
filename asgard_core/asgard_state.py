@@ -35,6 +35,7 @@ from asgard_core.asgard_runtime import (
     _hadronic_pg_survival_factor,
     _hadronic_shell_comoving_dt_from_radius,
     _solver_report,
+    _use_direct_chi_projection_contract,
     solve_dynamics,
     solve_electron,
     solve_electron_with_cooling_seed,
@@ -620,6 +621,21 @@ def _normalize_projection_kind(projection_kind: str) -> str:
 def _require_chi_eats_electron_state(state: SolveState) -> None:
     if not str(state.config.electron_solver).lower().endswith("_2d"):
         raise ValueError("geometry_kernel='chi_eats_2d' requires a 2d electron solver.")
+    if _use_direct_chi_projection_contract(state.config):
+        missing = [
+            name
+            for name in (
+                "d_n_gam_e_chi",
+                "b_chi_g",
+                "chi_radius_cm",
+                "chi_gamma_bulk",
+                "chi_dvolume_weight",
+            )
+            if getattr(state.electron, name) is None
+        ]
+        if missing:
+            raise RuntimeError("direct chi_eats_2d electron state is missing: " + ", ".join(missing))
+        return
     missing = [
         name
         for name in (
@@ -677,27 +693,48 @@ def _project_chi_fwd_sync(
     frequencies_hz = np.asarray(frequencies_hz, dtype=float)
     order = np.argsort(frequencies_hz)
     sorted_frequencies = frequencies_hz[order]
-    source_chi = np.asarray(state.electron.l_syn_spec_chi, dtype=float) * np.asarray(state.observer.prefactor, dtype=float)[:, None, :]
     num_phi = 1 if float(state.config.theta_v) == 0.0 else int(state.config.eats_num_phi)
-    flux_sorted = _timed_call(
-        timings,
-        "Interpolation.sed_interpolation_chi [fwd_sync]",
-        Interpolation.sed_interpolation_chi,
-        setup.boundary,
-        state.components.fwd.characteristic_time_s,
-        state.components.fwd.radius_cm,
-        source_chi,
-        np.asarray(state.electron.tau_syn_chi, dtype=float),
-        np.asarray(state.electron.chi_radius_cm, dtype=float),
-        np.asarray(state.electron.chi_gamma_bulk, dtype=float),
-        np.asarray(state.electron.chi_dvolume_weight, dtype=float),
-        setup.seed_frequency_hz,
-        sorted_frequencies,
-        setup.observer_time_s,
-        state.config.eats_num_theta,
-        num_phi,
-        state.config.num_threads,
-    )
+    if _use_direct_chi_projection_contract(state.config):
+        flux_sorted = _timed_call(
+            timings,
+            "Interpolation.sed_interpolation_chi_electron [fwd_sync]",
+            Interpolation.sed_interpolation_chi_electron,
+            setup.boundary,
+            state.components.fwd.characteristic_time_s,
+            state.components.fwd.radius_cm,
+            np.asarray(state.electron.d_n_gam_e_chi, dtype=float),
+            np.asarray(state.electron.b_chi_g, dtype=float),
+            np.asarray(state.electron.chi_radius_cm, dtype=float),
+            np.asarray(state.electron.chi_gamma_bulk, dtype=float),
+            np.asarray(state.electron.chi_dvolume_weight, dtype=float),
+            np.asarray(state.electron.gam_e, dtype=float),
+            sorted_frequencies,
+            setup.observer_time_s,
+            state.config.eats_num_theta,
+            num_phi,
+            state.config.num_threads,
+        )
+    else:
+        source_chi = np.asarray(state.electron.l_syn_spec_chi, dtype=float) * np.asarray(state.observer.prefactor, dtype=float)[:, None, :]
+        flux_sorted = _timed_call(
+            timings,
+            "Interpolation.sed_interpolation_chi [fwd_sync]",
+            Interpolation.sed_interpolation_chi,
+            setup.boundary,
+            state.components.fwd.characteristic_time_s,
+            state.components.fwd.radius_cm,
+            source_chi,
+            np.asarray(state.electron.tau_syn_chi, dtype=float),
+            np.asarray(state.electron.chi_radius_cm, dtype=float),
+            np.asarray(state.electron.chi_gamma_bulk, dtype=float),
+            np.asarray(state.electron.chi_dvolume_weight, dtype=float),
+            setup.seed_frequency_hz,
+            sorted_frequencies,
+            setup.observer_time_s,
+            state.config.eats_num_theta,
+            num_phi,
+            state.config.num_threads,
+        )
     if np.array_equal(order, np.arange(order.shape[0])):
         return flux_sorted
     flux_matrix = np.empty_like(flux_sorted)
@@ -1351,6 +1388,7 @@ def _merge_bh_into_forward_electrons(
         chi_radius_cm=None if electron.chi_radius_cm is None else np.asarray(electron.chi_radius_cm, dtype=float),
         chi_gamma_bulk=None if electron.chi_gamma_bulk is None else np.asarray(electron.chi_gamma_bulk, dtype=float),
         chi_dvolume_weight=None if electron.chi_dvolume_weight is None else np.asarray(electron.chi_dvolume_weight, dtype=float),
+        b_chi_g=None if electron.b_chi_g is None else np.asarray(electron.b_chi_g, dtype=float),
     )
 
 

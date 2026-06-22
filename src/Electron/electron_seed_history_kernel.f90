@@ -6,6 +6,7 @@ module electron_seed_history_kernel
 
   public :: integrate_downstream_proper_time
   public :: accumulate_comoving_history_fields
+  public :: advance_comoving_history_stream
   public :: history_transfer_weight
 
   integer, save :: hist_cache_num_shell=0, hist_cache_num_chi=0, hist_cache_num_nu=0, hist_cache_built_shells=0
@@ -176,6 +177,93 @@ contains
         end do
     end subroutine accumulate_history_target_cell
 end subroutine accumulate_comoving_history_fields
+
+! 以一阶特征线递推下游历史光子场，避免每个目标壳层回扫所有过去壳层。
+subroutine advance_comoving_history_stream(prev_t,target_t,Num_shell,Num_chi,Num_nu,proper_time_s,V_seed, &
+                                           x_face_hist,x_center_hist,dx_hist,beta_hist,tau_hist,P_hist,Seed_hist, &
+                                           P_stream,Seed_stream)
+implicit none
+integer, intent(in) :: prev_t,target_t,Num_shell,Num_chi,Num_nu
+integer :: I_src_chi,I_tgt_chi,I_nu,I_lo
+real(8), intent(in) :: proper_time_s(Num_shell),V_seed(Num_nu)
+real(8), intent(in) :: x_face_hist(0:Num_chi,Num_shell),x_center_hist(Num_chi,Num_shell),dx_hist(Num_chi,Num_shell)
+real(8), intent(in) :: beta_hist(Num_chi,Num_shell)
+real(8), intent(in) :: tau_hist(Num_nu,Num_chi,Num_shell),P_hist(Num_nu,Num_chi,Num_shell),Seed_hist(Num_nu,Num_chi,Num_shell)
+real(8), intent(inout) :: P_stream(Num_nu,Num_chi),Seed_stream(Num_nu,Num_chi)
+real(8) :: P_next(Num_nu,Num_chi),Seed_next(Num_nu,Num_chi),attenuation(Num_nu)
+real(8) :: dtau,path_hi,path_lo,seg_lo,seg_hi,x_src,x_tgt,doppler_rel,weight
+real(8) :: amp_p,amp_seed
+
+    call ensure_history_cache(Num_shell,Num_chi,Num_nu,V_seed)
+    call build_shell_transfer_cache(target_t,Num_chi,Num_nu,dx_hist,tau_hist, &
+                                    hist_inv_dx_ws,hist_log_transfer_prefix_ws)
+    dtau = proper_time_s(target_t)-proper_time_s(prev_t)
+    P_next = zero
+    Seed_next = zero
+    do I_tgt_chi = 1, Num_chi
+        x_tgt = x_center_hist(I_tgt_chi,target_t)
+        path_lo = x_tgt
+        path_hi = x_tgt + Para_c*dtau
+        if (path_hi >= x_face_hist(0,prev_t) .and. path_hi <= x_face_hist(Num_chi,prev_t)) then
+            call locate_path_cell(Num_chi,x_face_hist(:,prev_t),path_hi,.false.,I_src_chi)
+            call accumulate_stream_cell(I_src_chi,path_hi,I_tgt_chi)
+        end if
+        do I_src_chi = 1, Num_chi
+            seg_lo = max(x_face_hist(I_src_chi-1,prev_t),path_lo)
+            seg_hi = min(x_face_hist(I_src_chi,prev_t),path_hi)
+            if (seg_hi <= seg_lo) cycle
+            weight = (seg_hi-seg_lo)/max(dx_hist(I_src_chi,prev_t), tiny(one))
+            x_src = 0.5d0*(seg_lo+seg_hi)
+            call accumulate_source_cell(I_src_chi,x_src,I_tgt_chi,weight)
+        end do
+    end do
+    P_stream = P_next
+    Seed_stream = Seed_next
+
+contains
+
+    subroutine accumulate_stream_cell(src_chi,x_src_pos,tgt_chi)
+    implicit none
+    integer, intent(in) :: src_chi,tgt_chi
+    real(8), intent(in) :: x_src_pos
+        call accumulate_mapped_cell(src_chi,x_src_pos,tgt_chi,one,P_stream,Seed_stream)
+    end subroutine accumulate_stream_cell
+
+    subroutine accumulate_source_cell(src_chi,x_src_pos,tgt_chi,source_weight)
+    implicit none
+    integer, intent(in) :: src_chi,tgt_chi
+    real(8), intent(in) :: x_src_pos,source_weight
+        call accumulate_mapped_cell(src_chi,x_src_pos,tgt_chi,source_weight,P_hist(:,:,prev_t),Seed_hist(:,:,prev_t))
+    end subroutine accumulate_source_cell
+
+    subroutine accumulate_mapped_cell(src_chi,x_src_pos,tgt_chi,source_weight,P_src,Seed_src)
+    implicit none
+    integer, intent(in) :: src_chi,tgt_chi
+    real(8), intent(in) :: x_src_pos,source_weight,P_src(Num_nu,Num_chi),Seed_src(Num_nu,Num_chi)
+
+        x_tgt = x_center_hist(tgt_chi,target_t)
+        if (x_src_pos < x_tgt) return
+        if (source_weight <= zero) return
+        x_src = x_src_pos
+        doppler_rel = relative_doppler_backward(beta_hist(src_chi,prev_t),beta_hist(tgt_chi,target_t))
+        if (doppler_rel <= zero) return
+        call build_doppler_map(Num_nu,V_seed,doppler_rel,hist_valid_map_ws,hist_idx_lo_map_ws,hist_log_frac_map_ws)
+        attenuation = one
+        call apply_shell_path_attenuation(Num_chi,Num_nu,x_src,x_tgt,x_face_hist(:,target_t), &
+                                          hist_inv_dx_ws(:,target_t),tau_hist(:,:,target_t), &
+                                          hist_log_transfer_prefix_ws(:,:,target_t),attenuation)
+        amp_p = source_weight*doppler_rel**3
+        amp_seed = source_weight*doppler_rel**2
+        do I_nu = 1, Num_nu
+            if (.not. hist_valid_map_ws(I_nu)) cycle
+            I_lo = hist_idx_lo_map_ws(I_nu)
+            P_next(I_nu,tgt_chi) = P_next(I_nu,tgt_chi) + amp_p*attenuation(I_nu) * &
+                loglog_interp_mapped(P_src(I_lo,src_chi),P_src(I_lo+1,src_chi),hist_log_frac_map_ws(I_nu))
+            Seed_next(I_nu,tgt_chi) = Seed_next(I_nu,tgt_chi) + amp_seed*attenuation(I_nu) * &
+                loglog_interp_mapped(Seed_src(I_lo,src_chi),Seed_src(I_lo+1,src_chi),hist_log_frac_map_ws(I_nu))
+        end do
+    end subroutine accumulate_mapped_cell
+end subroutine advance_comoving_history_stream
 
 ! 构造当前相对多普勒因子下目标频率到源频率网格的映射。
 subroutine build_doppler_map(Num_nu,V_seed,doppler_rel,valid_map,idx_lo_map,log_frac_map)

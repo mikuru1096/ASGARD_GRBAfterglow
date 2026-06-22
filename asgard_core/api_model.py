@@ -779,6 +779,7 @@ class CharTrack:
     chi_radius_cm: Optional[np.ndarray] = None
     chi_gamma_bulk: Optional[np.ndarray] = None
     chi_dvolume_weight: Optional[np.ndarray] = None
+    b_chi_g: Optional[np.ndarray] = None
     gamma_p: Optional[np.ndarray] = None
     dN_dgamma_p: Optional[np.ndarray] = None
     gamma_secondary: Optional[np.ndarray] = None
@@ -1974,6 +1975,7 @@ def _make_details(
     fwd_chi_radius = None if electron is None else _as_float_array_or_none(electron.chi_radius_cm)
     fwd_chi_gamma = None if electron is None else _as_float_array_or_none(electron.chi_gamma_bulk)
     fwd_chi_weight = None if electron is None else _as_float_array_or_none(electron.chi_dvolume_weight)
+    fwd_b_chi = None if electron is None else _as_float_array_or_none(electron.b_chi_g)
     fwd_gamma_p = None if hadronic is None else np.asarray(hadronic.gam_p, dtype=float)
     fwd_dndp = None if hadronic is None else np.asarray(hadronic.d_n_gam_p, dtype=float)
     fwd_gamma_secondary = None if hadronic is None else _as_float_array_or_none(hadronic.gam_secondary)
@@ -2050,6 +2052,7 @@ def _make_details(
             chi_radius_cm=fwd_chi_radius,
             chi_gamma_bulk=fwd_chi_gamma,
             chi_dvolume_weight=fwd_chi_weight,
+            b_chi_g=fwd_b_chi,
             gamma_p=fwd_gamma_p,
             dN_dgamma_p=fwd_dndp,
             gamma_secondary=fwd_gamma_secondary,

@@ -836,6 +836,7 @@ def _solve_electron_transport_2d(
     electron_2d_module = _electron_module(solver_name)
     num_chi = _resolve_num_chi(config, solver_name)
     num_threads_2d = max(1, min(int(config.num_threads), int(num_chi), 16))
+    emit_full_chi_spectrum = not _use_direct_chi_projection_contract(config)
     (
         gam_e,
         d_n_gam_e_chi,
@@ -851,6 +852,7 @@ def _solve_electron_transport_2d(
         chi_radius_cm,
         chi_gamma_bulk,
         chi_dvolume_weight,
+        b_chi_g,
     ) = electron_2d_module.fs_electron_transport_2d_core(
         boundary,
         dynamics.r_tobs,
@@ -862,6 +864,7 @@ def _solve_electron_transport_2d(
         config.index_y,
         config.index_syn_integr,
         num_threads_2d,
+        1 if emit_full_chi_spectrum else 0,
         config.electron_substep_max,
         use_characteristic_integrator,
         solver_name,
@@ -885,6 +888,18 @@ def _solve_electron_transport_2d(
         chi_radius_cm=chi_radius_cm,
         chi_gamma_bulk=chi_gamma_bulk,
         chi_dvolume_weight=chi_dvolume_weight,
+        b_chi_g=b_chi_g,
+    )
+
+
+def _use_direct_chi_projection_contract(config: RuntimeConfig) -> bool:
+    return (
+        str(config.geometry_kernel).lower() == "chi_eats_2d"
+        and not bool(config.include_forward_ssc)
+        and not bool(config.hadronic.enabled)
+        and not bool(config.hadronic.reverse_enabled)
+        and not bool(config.reverse)
+        and not bool(config.reverse_shock.enabled)
     )
 
 
@@ -1053,6 +1068,7 @@ def _build_electron_solution(
     chi_radius_cm: np.ndarray | None = None,
     chi_gamma_bulk: np.ndarray | None = None,
     chi_dvolume_weight: np.ndarray | None = None,
+    b_chi_g: np.ndarray | None = None,
 ) -> ElectronSolution:
     return ElectronSolution(
         gam_e=np.asarray(gam_e, dtype=float),
@@ -1068,6 +1084,7 @@ def _build_electron_solution(
         chi_radius_cm=None if chi_radius_cm is None else np.asarray(chi_radius_cm, dtype=float),
         chi_gamma_bulk=None if chi_gamma_bulk is None else np.asarray(chi_gamma_bulk, dtype=float),
         chi_dvolume_weight=None if chi_dvolume_weight is None else np.asarray(chi_dvolume_weight, dtype=float),
+        b_chi_g=None if b_chi_g is None else np.asarray(b_chi_g, dtype=float),
     )
 
 

@@ -223,6 +223,7 @@ class ElectronSolution:
     chi_radius_cm: np.ndarray | None = None
     chi_gamma_bulk: np.ndarray | None = None
     chi_dvolume_weight: np.ndarray | None = None
+    b_chi_g: np.ndarray | None = None
 
 
 @dataclass

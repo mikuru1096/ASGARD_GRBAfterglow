@@ -219,21 +219,38 @@ def _project_structured_chi_sync_once(model, ring_states, first_state, times: np
     boundary[8] = float(model.jet.theta_max)
     boundary[9] = float(model.observer.theta_obs)
     arrays = _structured_chi_projection_arrays(ring_states, first_state)
-    flux_sorted = Interpolation.sed_interpolation_chi_structured_axisym(
-        boundary,
-        arrays["r_tobs"],
-        arrays["radius"],
-        arrays["source_chi"],
-        arrays["tau_chi"],
-        arrays["chi_radius"],
-        arrays["chi_gamma"],
-        arrays["chi_weight"],
-        first_state.setup.seed_frequency_hz,
-        sorted_frequencies,
-        times,
-        int(model.setups.structured_num_phi),
-        int(model.setups.num_threads),
-    )
+    if arrays["direct_electron"]:
+        flux_sorted = Interpolation.sed_interpolation_chi_structured_axisym_electron(
+            boundary,
+            arrays["r_tobs"],
+            arrays["radius"],
+            arrays["dne_chi"],
+            arrays["b_chi"],
+            arrays["chi_radius"],
+            arrays["chi_gamma"],
+            arrays["chi_weight"],
+            arrays["gam_e"],
+            sorted_frequencies,
+            times,
+            int(model.setups.structured_num_phi),
+            int(model.setups.num_threads),
+        )
+    else:
+        flux_sorted = Interpolation.sed_interpolation_chi_structured_axisym(
+            boundary,
+            arrays["r_tobs"],
+            arrays["radius"],
+            arrays["source_chi"],
+            arrays["tau_chi"],
+            arrays["chi_radius"],
+            arrays["chi_gamma"],
+            arrays["chi_weight"],
+            first_state.setup.seed_frequency_hz,
+            sorted_frequencies,
+            times,
+            int(model.setups.structured_num_phi),
+            int(model.setups.num_threads),
+        )
     if np.array_equal(order, np.arange(order.shape[0])):
         return flux_sorted
     flux_matrix = np.empty_like(flux_sorted)
@@ -243,31 +260,45 @@ def _project_structured_chi_sync_once(model, ring_states, first_state, times: np
 
 def _structured_chi_projection_arrays(ring_states, first_state) -> dict[str, np.ndarray]:
     electron = first_state.electron
-    num_nu, num_chi, num_r = np.asarray(electron.l_syn_spec_chi, dtype=float).shape
+    direct_electron = electron.b_chi_g is not None and not np.any(np.asarray(electron.l_syn_spec_chi, dtype=float))
+    if direct_electron:
+        num_gam, num_chi, num_r = np.asarray(electron.d_n_gam_e_chi, dtype=float).shape
+    else:
+        num_nu, num_chi, num_r = np.asarray(electron.l_syn_spec_chi, dtype=float).shape
     num_theta = len(ring_states)
     r_tobs = np.zeros((num_r, num_theta), dtype=float, order="F")
     radius = np.zeros((num_r, num_theta), dtype=float, order="F")
-    source_chi = np.zeros((num_nu, num_chi, num_r, num_theta), dtype=float, order="F")
-    tau_chi = np.zeros_like(source_chi, order="F")
+    source_chi = None if direct_electron else np.zeros((num_nu, num_chi, num_r, num_theta), dtype=float, order="F")
+    tau_chi = None if direct_electron else np.zeros_like(source_chi, order="F")
+    dne_chi = np.zeros((num_gam, num_chi, num_r, num_theta), dtype=float, order="F") if direct_electron else None
+    b_chi = np.zeros((num_chi, num_r, num_theta), dtype=float, order="F") if direct_electron else None
     chi_radius = np.zeros((num_chi, num_r, num_theta), dtype=float, order="F")
     chi_gamma = np.ones_like(chi_radius, order="F")
     chi_weight = np.zeros_like(chi_radius, order="F")
     for i_theta, state in enumerate(ring_states):
         if state is None:
             continue
-        source = np.asarray(state.electron.l_syn_spec_chi, dtype=float) * np.asarray(state.observer.prefactor, dtype=float)[:, None, :]
         r_tobs[:, i_theta] = np.asarray(state.components.fwd.characteristic_time_s, dtype=float)
         radius[:, i_theta] = np.asarray(state.components.fwd.radius_cm, dtype=float)
-        source_chi[:, :, :, i_theta] = source
-        tau_chi[:, :, :, i_theta] = np.asarray(state.electron.tau_syn_chi, dtype=float)
+        if direct_electron:
+            dne_chi[:, :, :, i_theta] = np.asarray(state.electron.d_n_gam_e_chi, dtype=float)
+            b_chi[:, :, i_theta] = np.asarray(state.electron.b_chi_g, dtype=float)
+        else:
+            source = np.asarray(state.electron.l_syn_spec_chi, dtype=float) * np.asarray(state.observer.prefactor, dtype=float)[:, None, :]
+            source_chi[:, :, :, i_theta] = source
+            tau_chi[:, :, :, i_theta] = np.asarray(state.electron.tau_syn_chi, dtype=float)
         chi_radius[:, :, i_theta] = np.asarray(state.electron.chi_radius_cm, dtype=float)
         chi_gamma[:, :, i_theta] = np.asarray(state.electron.chi_gamma_bulk, dtype=float)
         chi_weight[:, :, i_theta] = np.asarray(state.electron.chi_dvolume_weight, dtype=float)
     return {
+        "direct_electron": direct_electron,
         "r_tobs": np.asfortranarray(r_tobs),
         "radius": np.asfortranarray(radius),
-        "source_chi": np.asfortranarray(source_chi),
-        "tau_chi": np.asfortranarray(tau_chi),
+        "source_chi": None if source_chi is None else np.asfortranarray(source_chi),
+        "tau_chi": None if tau_chi is None else np.asfortranarray(tau_chi),
+        "dne_chi": None if dne_chi is None else np.asfortranarray(dne_chi),
+        "b_chi": None if b_chi is None else np.asfortranarray(b_chi),
+        "gam_e": np.asfortranarray(np.asarray(electron.gam_e, dtype=float)),
         "chi_radius": np.asfortranarray(chi_radius),
         "chi_gamma": np.asfortranarray(chi_gamma),
         "chi_weight": np.asfortranarray(chi_weight),
