@@ -39,10 +39,10 @@ def build_patch_grid(model, observer_time_s: np.ndarray | None = None) -> PatchG
 
 
 def _patch_counts(model) -> tuple[int, int]:
-    n_theta = int(model.setups.patch_theta)
-    n_phi = int(model.setups.patch_phi)
+    n_theta = int(model.setups.structured_num_theta)
+    n_phi = int(model.setups.structured_num_phi)
     if n_theta <= 0 or n_phi <= 0:
-        raise ValueError("patch_theta and patch_phi must be positive for patch sampling.")
+        raise ValueError("structured_num_theta and structured_num_phi must be positive for patch sampling.")
     return n_theta, n_phi
 
 
@@ -137,7 +137,7 @@ def _dominant_weight(
 
 def _axisymmetric_phi_quadrature(n_phi: int, phi_obs: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     if n_phi < 2:
-        raise ValueError("axisymmetric half-plane phi quadrature requires patch_phi >= 2.")
+        raise ValueError("axisymmetric half-plane phi quadrature requires structured_num_phi >= 2.")
     half_centers = np.linspace(0.0, np.pi, n_phi)
     phi_centers = np.mod(float(phi_obs) + half_centers, 2.0 * np.pi)
     phi_edges = np.linspace(float(phi_obs), float(phi_obs) + np.pi, n_phi + 1)
@@ -223,7 +223,7 @@ def _pilot_gamma_theta_time(model, theta: np.ndarray, observer_time_s: np.ndarra
     observer_time_s = np.asarray(observer_time_s, dtype=float)
     sample_count = int(model.setups.patch_sampling_pilot_theta)
     if sample_count <= 0:
-        sample_count = max(2 * int(model.setups.patch_theta), 48)
+        sample_count = max(2 * int(model.setups.structured_num_theta), 48)
     pilot_theta = np.linspace(0.0, float(model.jet.theta_max), sample_count)
     def solve_pilot_theta(theta_center: float) -> np.ndarray:
         e_iso = model.jet.energy_iso(0.0, float(theta_center))

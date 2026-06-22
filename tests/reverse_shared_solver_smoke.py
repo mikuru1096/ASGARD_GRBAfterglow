@@ -22,7 +22,7 @@ def _config(solver: str, *, medium: str) -> RuntimeConfig:
         num_gam_e=121,
         num_nu=25,
         num_r=34,
-        num_theta=10,
+        eats_num_theta=10,
         num_tobs=8,
         reverse=True,
         reverse_shock=ReverseShockConfig(

@@ -18,8 +18,8 @@ def _model(solver: str):
         rvs_rad=radiation(include_ssc=False, epsilon_B=1.0e-2, p=2.4, accelerated_electron_fraction=1.0),
         numerics=numerics(
             num_radius=24,
-            num_theta=6,
-            num_phi=1,
+            eats_num_theta=6,
+            eats_num_phi=1,
             num_observer_time=6,
             num_electron_gamma=121,
             num_photon_frequency=21,
@@ -49,8 +49,8 @@ def _tabulated_model():
         rvs_rad=None,
         numerics=numerics(
             num_radius=24,
-            num_theta=6,
-            num_phi=1,
+            eats_num_theta=6,
+            eats_num_phi=1,
             num_observer_time=6,
             num_electron_gamma=61,
             num_photon_frequency=21,
@@ -79,8 +79,8 @@ def _transrelativistic_tabulated_model():
         rvs_rad=None,
         numerics=numerics(
             num_radius=24,
-            num_theta=6,
-            num_phi=1,
+            eats_num_theta=6,
+            eats_num_phi=1,
             num_observer_time=6,
             num_electron_gamma=61,
             num_photon_frequency=21,

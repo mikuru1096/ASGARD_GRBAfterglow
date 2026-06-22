@@ -139,9 +139,9 @@ class _RuntimeConfig:
     num_gam_e: int = 201
     num_nu: int = 201
     num_r: int = 300
-    num_theta: int = 300
-    num_phi: int = 1
-    num_chi: int | None = None
+    eats_num_theta: int = 300
+    eats_num_phi: int = 1
+    downstream_num_chi: int | None = None
 
     z: float = 0.4
     eta_0: float = 1.0e2

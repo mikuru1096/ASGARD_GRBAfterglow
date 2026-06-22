@@ -1011,13 +1011,13 @@ def _resolve_pgamma_scheme(config: RuntimeConfig) -> str:
 
 def _resolve_num_chi(config: RuntimeConfig, solver_name: str | None = None) -> int:
     resolved_solver = _resolve_electron_solver(config) if solver_name is None else solver_name
-    user_value = config.num_chi
+    user_value = config.downstream_num_chi
     if resolved_solver.endswith("_1d"):
         return 1
     if user_value is None:
         return 64
     if int(user_value) < 2:
-        raise ValueError("num_chi must be >= 2 for 2d electron solvers.")
+        raise ValueError("downstream_num_chi must be >= 2 for 2d electron solvers.")
     return int(user_value)
 
 

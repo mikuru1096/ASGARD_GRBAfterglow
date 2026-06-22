@@ -602,12 +602,14 @@ class Radiation:
 @dataclass
 class Numerics:
     num_radius: int
-    num_theta: int
-    num_phi: int
+    structured_num_theta: int
+    structured_num_phi: int
+    eats_num_theta: int
+    eats_num_phi: int
+    downstream_num_chi: int | None
     num_observer_time: int
     num_electron_gamma: int
     num_photon_frequency: int
-    num_chi: int | None
     num_threads: int
     electron_adaptive_substeps: bool
     electron_substep_rtol: float
@@ -696,11 +698,11 @@ class _RuntimeSetups:
     num_gam_e: int = 201
     num_nu: int = 201
     num_r: int = 300
-    num_theta: int = 300
-    num_phi: int = 1
+    structured_num_theta: int = 12
+    structured_num_phi: int = 24
+    eats_num_theta: int = 300
+    eats_num_phi: int = 1
     num_tobs: int = 200
-    patch_theta: int = 12
-    patch_phi: int = 24
     observer_time_min_s: float = 1.0e2
     observer_time_max_s: float = 1.0e8
     initial_radius_cm: float = 1.0e14
@@ -986,12 +988,14 @@ def _compose_runtime_setups(
         raise TypeError("Model requires explicit numerics, observer_grid, solver_options, reverse_shock, and hadronic.")
     result = deepcopy(_RuntimeSetups())
     result.num_r = int(numerics.num_radius)
-    result.num_theta = int(numerics.num_theta)
-    result.num_phi = int(numerics.num_phi)
+    result.structured_num_theta = int(numerics.structured_num_theta)
+    result.structured_num_phi = int(numerics.structured_num_phi)
+    result.eats_num_theta = int(numerics.eats_num_theta)
+    result.eats_num_phi = int(numerics.eats_num_phi)
+    result.downstream_num_chi = numerics.downstream_num_chi
     result.num_tobs = int(numerics.num_observer_time)
     result.num_gam_e = int(numerics.num_electron_gamma)
     result.num_nu = int(numerics.num_photon_frequency)
-    result.num_chi = numerics.num_chi
     result.num_threads = int(numerics.num_threads)
     result.electron_adaptive_substeps = bool(numerics.electron_adaptive_substeps)
     result.electron_substep_rtol = float(numerics.electron_substep_rtol)
@@ -1399,10 +1403,10 @@ class Model:
         required_theta = int(np.ceil(theta_j * resolution * gamma / factor)) + 1
         required_phi = int(np.ceil(np.pi * resolution * gamma * np.sin(theta_j) / factor)) + 1
         required_phi = max(required_phi, 2)
-        if required_theta <= int(self.setups.num_theta) and required_phi <= int(self.setups.num_phi):
+        if required_theta <= int(self.setups.eats_num_theta) and required_phi <= int(self.setups.eats_num_phi):
             return
-        self.setups.num_theta = max(int(self.setups.num_theta), required_theta)
-        self.setups.num_phi = max(int(self.setups.num_phi), required_phi)
+        self.setups.eats_num_theta = max(int(self.setups.eats_num_theta), required_theta)
+        self.setups.eats_num_phi = max(int(self.setups.eats_num_phi), required_phi)
         self._last_details = None
         self._raw_cache.clear()
         self._details_cache.clear()
@@ -1782,8 +1786,8 @@ def _build_fit_config_for_patch(
         num_gam_e=model.setups.num_gam_e,
         num_nu=model.setups.num_nu,
         num_r=model.setups.num_r,
-        num_theta=model.setups.num_theta,
-        num_phi=model.setups.num_phi,
+        eats_num_theta=model.setups.eats_num_theta,
+        eats_num_phi=model.setups.eats_num_phi,
         num_tobs=model.setups.num_tobs,
         t_obs_min_log10=float(np.log10(model.setups.observer_time_min_s)),
         t_obs_max_log10=float(np.log10(model.setups.observer_time_max_s)),
@@ -1807,7 +1811,7 @@ def _build_fit_config_for_patch(
         structured_inner_threads=model.setups.structured_inner_threads,
         projection_adaptive_rtol=model.setups.projection_adaptive_rtol,
         projection_adaptive_max_depth=model.setups.projection_adaptive_max_depth,
-        num_chi=model.setups.num_chi,
+        downstream_num_chi=model.setups.downstream_num_chi,
         fullhide2d_transport_model=model.setups.fullhide2d_transport_model,
         fullhide2d_stochastic_accel_norm=model.setups.fullhide2d_stochastic_accel_norm,
         fullhide2d_escape_mode=model.setups.fullhide2d_escape_mode,

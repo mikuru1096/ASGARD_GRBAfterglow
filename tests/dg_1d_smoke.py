@@ -20,7 +20,7 @@ def _config(solver: str) -> RuntimeConfig:
         num_gam_e=121,
         num_nu=31,
         num_r=24,
-        num_theta=12,
+        eats_num_theta=12,
         num_tobs=8,
     )
 
@@ -34,7 +34,7 @@ def _jump_config(solver: str) -> RuntimeConfig:
         num_gam_e=121,
         num_nu=31,
         num_r=32,
-        num_theta=12,
+        eats_num_theta=12,
         num_tobs=8,
         jump_r_cm=(3.0e16, 1.2e17),
         jump_factor=(8.0, 0.35),
@@ -51,7 +51,7 @@ def _reverse_config(solver: str) -> RuntimeConfig:
         num_gam_e=121,
         num_nu=25,
         num_r=32,
-        num_theta=10,
+        eats_num_theta=10,
         num_tobs=8,
         reverse=True,
         reverse_shock=ReverseShockConfig(

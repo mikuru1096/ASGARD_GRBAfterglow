@@ -230,7 +230,7 @@ def _validate_joint_electron_photon_config(config: RuntimeConfig) -> None:
         raise NotImplementedError("electron_photon_coupling='joint' currently supports only electron_solver='fullhide_1d'.")
     if config.reverse or config.reverse_shock.enabled:
         raise NotImplementedError("electron_photon_coupling='joint' does not support reverse shock in this version.")
-    if str(config.geometry_kernel).lower() == "chi_eats_2d" or config.num_chi is not None:
+    if str(config.geometry_kernel).lower() == "chi_eats_2d" or config.downstream_num_chi is not None:
         raise NotImplementedError("electron_photon_coupling='joint' does not support chi-resolved transport.")
     if str(config.structured_backend).lower() != "fortran_1d":
         raise NotImplementedError("electron_photon_coupling='joint' does not support structured backends.")
@@ -636,8 +636,8 @@ def _require_chi_eats_electron_state(state: SolveState) -> None:
 
 
 def _require_top_hat_phi_grid(config: RuntimeConfig) -> None:
-    if float(config.theta_v) != 0.0 and int(config.num_phi) == 1:
-        raise ValueError("off-axis EATS projection requires num_phi >= 2; num_phi=1 is only valid for on-axis axial collapse.")
+    if float(config.theta_v) != 0.0 and int(config.eats_num_phi) == 1:
+        raise ValueError("off-axis EATS projection requires eats_num_phi >= 2; eats_num_phi=1 is only valid for on-axis axial collapse.")
 
 
 _OBSERVED_COMPONENT_ATTRS = (
@@ -678,7 +678,7 @@ def _project_chi_fwd_sync(
     order = np.argsort(frequencies_hz)
     sorted_frequencies = frequencies_hz[order]
     source_chi = np.asarray(state.electron.l_syn_spec_chi, dtype=float) * np.asarray(state.observer.prefactor, dtype=float)[:, None, :]
-    num_phi = 1 if float(state.config.theta_v) == 0.0 else int(state.config.num_phi)
+    num_phi = 1 if float(state.config.theta_v) == 0.0 else int(state.config.eats_num_phi)
     flux_sorted = _timed_call(
         timings,
         "Interpolation.sed_interpolation_chi [fwd_sync]",
@@ -694,7 +694,7 @@ def _project_chi_fwd_sync(
         setup.seed_frequency_hz,
         sorted_frequencies,
         setup.observer_time_s,
-        state.config.num_theta,
+        state.config.eats_num_theta,
         num_phi,
         state.config.num_threads,
     )

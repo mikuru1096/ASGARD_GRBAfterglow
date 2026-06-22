@@ -86,8 +86,8 @@ def case_postprocess_routes_adaptive_kernel():
     )
     config = RuntimeConfig(
         geometry_kernel="sed_adaptive_theta",
-        num_theta=8,
-        num_phi=8,
+        eats_num_theta=8,
+        eats_num_phi=8,
         num_threads=1,
         projection_adaptive_rtol=1.0e-30,
         projection_adaptive_max_depth=1,

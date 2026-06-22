@@ -42,13 +42,15 @@ def radiation(**updates) -> Radiation:
 
 def numerics(**updates) -> Numerics:
     return Numerics(**(dict(
+            structured_num_theta=12,
+            structured_num_phi=24,
         num_radius=48,
-        num_theta=12,
-        num_phi=1,
+        eats_num_theta=12,
+        eats_num_phi=1,
         num_observer_time=24,
         num_electron_gamma=41,
         num_photon_frequency=31,
-        num_chi=None,
+        downstream_num_chi=None,
         num_threads=1,
         electron_adaptive_substeps=False,
         electron_substep_rtol=0.02,

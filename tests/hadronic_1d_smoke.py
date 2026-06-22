@@ -28,7 +28,7 @@ def _build_model(enabled: bool, epsilon_p: float, include_pg: bool = False, incl
             num_electron_gamma=24,
             num_photon_frequency=32,
             num_radius=24,
-            num_theta=16,
+            eats_num_theta=16,
             num_observer_time=24,
         ),
         solver_options=solver_options(electron_solver="fullhide_1d"),

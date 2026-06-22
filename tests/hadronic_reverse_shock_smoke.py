@@ -29,7 +29,7 @@ def _build_rs_model(rs_eps_p: float = 0.0, full_chain: bool = False) -> Model:
             num_electron_gamma=24,
             num_photon_frequency=24,
             num_radius=24,
-            num_theta=8,
+            eats_num_theta=8,
             num_observer_time=24,
         ),
         solver_options=solver_options(electron_solver="fullhide_1d"),

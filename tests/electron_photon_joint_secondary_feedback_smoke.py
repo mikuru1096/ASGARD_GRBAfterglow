@@ -42,7 +42,7 @@ def _joint_secondary_model() -> Model:
             num_electron_gamma=18,
             num_photon_frequency=20,
             num_radius=14,
-            num_theta=8,
+            eats_num_theta=8,
             num_observer_time=14,
         ),
         solver_options=solver_options(

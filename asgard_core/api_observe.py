@@ -557,8 +557,8 @@ def _render_sky_image(model: Model, times_s: np.ndarray, nu_obs: float, fov: flo
 
 
 def _iter_img_patches(model: Model, npixel: int, *, collapse_phi: bool = False):
-    theta_bins = min(model.setups.patch_theta, max(2, int(np.ceil(np.sqrt(npixel) / 6.0))))
-    phi_bins = min(model.setups.patch_phi, max(12, 6 * theta_bins))
+    theta_bins = min(model.setups.structured_num_theta, max(2, int(np.ceil(np.sqrt(npixel) / 6.0))))
+    phi_bins = min(model.setups.structured_num_phi, max(12, 6 * theta_bins))
     theta_edges = np.linspace(0.0, model.jet.theta_max, theta_bins + 1)
     for i_theta in range(theta_bins):
         theta1 = theta_edges[i_theta]
@@ -858,13 +858,15 @@ def _build_model_from_fit_config(config: RuntimeConfig) -> Model:
         ),
         rvs_rad=rvs_rad,
         numerics=Numerics(
+            structured_num_theta=12,
+            structured_num_phi=24,
             num_radius=config.num_r,
-            num_theta=config.num_theta,
-            num_phi=config.num_phi,
+            eats_num_theta=config.eats_num_theta,
+            eats_num_phi=config.eats_num_phi,
             num_observer_time=config.num_tobs,
             num_electron_gamma=config.num_gam_e,
             num_photon_frequency=config.num_nu,
-            num_chi=config.num_chi,
+            downstream_num_chi=config.downstream_num_chi,
             num_threads=config.num_threads,
             electron_adaptive_substeps=config.electron_adaptive_substeps,
             electron_substep_rtol=config.electron_substep_rtol,

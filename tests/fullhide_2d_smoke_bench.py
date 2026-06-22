@@ -28,10 +28,10 @@ def _build_model(solver: str) -> Model:
     return top_hat_model(
         numerics=numerics(
             num_electron_gamma=NUM_GAM_E,
-            num_chi=NUM_CHI,
+            downstream_num_chi=NUM_CHI,
             num_photon_frequency=NUM_NU,
             num_radius=NUM_R,
-            num_theta=NUM_THETA,
+            eats_num_theta=NUM_THETA,
             num_observer_time=NUM_TOBS,
         ),
         solver_options=solver_options(electron_solver=solver),
@@ -42,10 +42,10 @@ def _build_model_with_geometry(solver: str, geometry_kernel: str) -> Model:
     return top_hat_model(
         numerics=numerics(
             num_electron_gamma=NUM_GAM_E,
-            num_chi=NUM_CHI,
+            downstream_num_chi=NUM_CHI,
             num_photon_frequency=NUM_NU,
             num_radius=NUM_R,
-            num_theta=NUM_THETA,
+            eats_num_theta=NUM_THETA,
             num_observer_time=NUM_TOBS,
         ),
         solver_options=solver_options(electron_solver=solver, geometry_projection=geometry_kernel),
@@ -65,10 +65,10 @@ def case_electron_grid():
         RuntimeConfig(
             electron_solver="fullhide_2d",
             num_gam_e=NUM_GAM_E,
-            num_chi=NUM_CHI,
+            downstream_num_chi=NUM_CHI,
             num_nu=NUM_NU,
             num_r=NUM_R,
-            num_theta=NUM_THETA,
+            eats_num_theta=NUM_THETA,
             num_tobs=NUM_TOBS,
         ),
         np.array([1.0e2, 1.1e2]),
@@ -171,13 +171,13 @@ def case_chi_eats_rejects_1d_solver():
 def case_off_axis_phi_collapse_rejected():
     model = _build_model_with_geometry("fullhide_2d", "chi_eats_2d")
     model.observer.theta_obs = 0.03
-    model.setups.num_phi = 1
+    model.setups.eats_num_phi = 1
     try:
         model.flux_density(np.array([1.0e4]), np.array([1.0e14]))
     except ValueError as exc:
-        assert "off-axis EATS projection requires num_phi >= 2" in str(exc)
+        assert "off-axis EATS projection requires eats_num_phi >= 2" in str(exc)
         return {"error": str(exc)}
-    raise AssertionError("off-axis EATS projection accepted num_phi=1")
+    raise AssertionError("off-axis EATS projection accepted eats_num_phi=1")
 
 
 def case_project_flux_grid_syncs_observer_theta_boundary():
@@ -209,11 +209,11 @@ def case_model_cache_includes_observer_angle():
     model = top_hat_model(
         numerics=numerics(
             num_electron_gamma=NUM_GAM_E,
-            num_chi=NUM_CHI,
+            downstream_num_chi=NUM_CHI,
             num_photon_frequency=NUM_NU,
             num_radius=NUM_R,
-            num_theta=NUM_THETA,
-            num_phi=12,
+            eats_num_theta=NUM_THETA,
+            eats_num_phi=12,
             num_observer_time=NUM_TOBS,
         ),
         solver_options=solver_options(electron_solver="fullhide_2d", geometry_projection="chi_eats_2d"),

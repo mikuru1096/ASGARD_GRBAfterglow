@@ -94,7 +94,7 @@ def diagnostic_model():
         fwd_rad=radiation(include_ssc=True, include_kn_correction=False),
         numerics=numerics(
             num_radius=24,
-            num_theta=12,
+            eats_num_theta=12,
             num_observer_time=24,
             num_electron_gamma=32,
             num_photon_frequency=32,
@@ -262,7 +262,7 @@ def fig3_electron_transport() -> None:
         fwd_rad=radiation(include_ssc=False),
         numerics=numerics(
             num_radius=12,
-            num_theta=8,
+            eats_num_theta=8,
             num_observer_time=12,
             num_electron_gamma=16,
             num_photon_frequency=16,
@@ -274,11 +274,11 @@ def fig3_electron_transport() -> None:
         fwd_rad=radiation(include_ssc=False),
         numerics=numerics(
             num_radius=8,
-            num_theta=6,
+            eats_num_theta=6,
             num_observer_time=8,
             num_electron_gamma=12,
             num_photon_frequency=12,
-            num_chi=6,
+            downstream_num_chi=6,
             num_threads=1,
         ),
         solver_options=solver_options(

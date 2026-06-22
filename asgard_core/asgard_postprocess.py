@@ -75,8 +75,8 @@ def interpolate_observed_flux(
         sorted_frequencies,
         setup.observer_time_s,
         *interpolate_args,
-        config.num_theta,
-        config.num_phi,
+        config.eats_num_theta,
+        config.eats_num_phi,
         config.num_threads,
     )
     if np.array_equal(order, np.arange(order.shape[0])):

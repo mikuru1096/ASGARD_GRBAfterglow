@@ -100,11 +100,11 @@ def _emitting_radius_mask(track: CharTrack) -> np.ndarray:
 
 
 def _eats_mu_values(model: Model) -> np.ndarray:
-    theta_edges = np.linspace(0.0, model.jet.theta_j, int(model.setups.num_theta) + 1)
+    theta_edges = np.linspace(0.0, model.jet.theta_j, int(model.setups.eats_num_theta) + 1)
     theta_centers = 0.5 * (theta_edges[:-1] + theta_edges[1:])
-    if float(model.observer.theta_obs) == 0.0 or int(model.setups.num_phi) == 1:
+    if float(model.observer.theta_obs) == 0.0 or int(model.setups.eats_num_phi) == 1:
         return np.cos(theta_centers)
-    phi_edges = np.linspace(0.0, np.pi, int(model.setups.num_phi) + 1)
+    phi_edges = np.linspace(0.0, np.pi, int(model.setups.eats_num_phi) + 1)
     phi_centers = 0.5 * (phi_edges[:-1] + phi_edges[1:])
     theta = theta_centers[:, None]
     phi = phi_centers[None, :]

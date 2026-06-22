@@ -76,8 +76,8 @@ def _structured_kernel_args(model, base_config, setup, sampled, times: np.ndarra
         times,
         int(base_config.num_r),
         int(base_config.num_gam_e),
-        int(base_config.num_theta),
-        int(base_config.num_phi),
+        int(base_config.eats_num_theta),
+        int(base_config.eats_num_phi),
         int(base_config.index_dyn),
         int(base_config.index_y),
         int(base_config.index_syn_integr),
@@ -164,8 +164,8 @@ def _assert_supported_hadronic_branch(model) -> None:
 
 def _sample_structured_grid(model):
     axisymmetric = is_axisymmetric_jet(model.jet)
-    theta_centers = _cell_centers(0.0, float(model.jet.theta_max), int(model.setups.patch_theta))
-    phi_centers = np.array([0.0], dtype=float) if axisymmetric else _cell_centers(0.0, 2.0 * np.pi, int(model.setups.patch_phi))
+    theta_centers = _cell_centers(0.0, float(model.jet.theta_max), int(model.setups.structured_num_theta))
+    phi_centers = np.array([0.0], dtype=float) if axisymmetric else _cell_centers(0.0, 2.0 * np.pi, int(model.setups.structured_num_phi))
     e_iso = np.zeros((theta_centers.size, phi_centers.size), dtype=float)
     gamma0 = np.ones_like(e_iso)
     for i_theta, theta in enumerate(theta_centers):
@@ -250,7 +250,7 @@ def _solve_time_grid(model, requested_times: np.ndarray) -> np.ndarray:
 
 
 def _patch_metadata(theta_centers, phi_centers, e_iso, gamma0, active, axisymmetric: bool, model):
-    phi_values = np.linspace(0.0, 2.0 * np.pi, int(model.setups.patch_phi), endpoint=False) if axisymmetric else phi_centers
+    phi_values = np.linspace(0.0, 2.0 * np.pi, int(model.setups.structured_num_phi), endpoint=False) if axisymmetric else phi_centers
     theta_obs = float(model.observer.theta_obs)
     phi_obs = float(model.observer.phi_obs)
     patches = []
