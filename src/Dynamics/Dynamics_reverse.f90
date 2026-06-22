@@ -25,7 +25,7 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
                                active_density_jump_factor, active_density_jump_width
     implicit none
     integer, intent(in) :: n,Num_R
-    integer :: I_tobs, Num_R1, Num_state
+    integer :: I_tobs, Num_R1, Num_state, j_event
     procedure(dynamics_reverse_rhs_iface) :: reverse_dynamics_rhs
     real(8), intent(in) :: Boundary(n),Delta_t,e_r,b_r,p_r,f_e_r,sigma_r
     real(8), intent(out) :: T_cross,R_cross,e3_cross,gam20,U3_cross,V3_cross,M3_cross,gam_m_cross,B3_ordered_cross
@@ -117,7 +117,7 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
         call dynamics_log_time_step(T00,Grid_Tobs_bin,T_log10,Num_R1,I_tobs,T_target,H)
         do while (T_state < T_target)
             if (T_cross < zero .and. Y(4) < one) then
-                if (reverse_shock_ready()) then
+                if (reverse_shock_pressure_ready_state(Y)) then
                     call dynamics_rk4_reverse_pre_m3(reverse_dynamics_rhs,dB3,T_cross,R_cross,e3_cross,gam20, &
                                                      U3_cross,V3_cross,M3_cross,gam_m_cross,B3_ordered_cross, &
                                                      T_state,T_target,Y,Num_state,para_m_ej,V3_scale,Delta_0,eta_0,A_star,dNe_ISM, &
@@ -161,16 +161,16 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
         Gamma34_inst(I_tobs)=(Y(1)*Y(1)+Eta_0*Eta_0-one)/(Eta_0*Y(1)+dsqrt(Y(1)*Y(1)-one)*u4_init)
     end do
 
-    call close_open_secondary_reverse_events()
+    do j_event=1,active_density_jump_count
+        if (Secondary_event_active(j_event) .and. .not. Secondary_event_closed(j_event)) then
+            Secondary_event_closed(j_event)=.true.
+            Secondary_end_radius(j_event)=event_prev_radius
+            Secondary_end_tobs_axis(j_event)=event_prev_tobs
+        end if
+    end do
     deallocate(Y,event_prev_state,event_curr_state,wait_trial_state,pressure_event_state)
 
 contains
-
-    logical function reverse_shock_ready()
-    implicit none
-
-        reverse_shock_ready=reverse_shock_pressure_ready_state(Y)
-    end function reverse_shock_ready
 
     logical function reverse_shock_pressure_ready_state(state)
     implicit none
@@ -245,6 +245,7 @@ contains
     integer :: j,k,n_scan
     real(8) :: radius_lo,radius_hi,gamma_lo,gamma_hi,tobs_lo,tobs_hi,source_lo,source_hi
     real(8) :: width,overlap_lo,overlap_hi,scan_length
+    real(8) :: root_radius,root_tobs
     real(8) :: state_lo(Num_state),state_hi(Num_state),frac_scan
 
         do j=1,active_density_jump_count
@@ -263,45 +264,33 @@ contains
                 tobs_hi=event_prev_tobs+(event_curr_tobs-event_prev_tobs)*frac_scan
                 state_hi=event_prev_state+frac_scan*(event_curr_state-event_prev_state)
                 call secondary_reverse_event_source(j,radius_hi,gamma_hi,state_hi,source_hi)
-                call record_secondary_reverse_event_segment(j,radius_lo,radius_hi,gamma_lo,gamma_hi,tobs_lo,tobs_hi, &
-                                                            state_lo,state_hi,source_lo,source_hi)
+                if (.not. Secondary_event_active(j)) then
+                    if (source_lo > zero) then
+                        Secondary_event_active(j)=.true.
+                        Secondary_start_radius(j)=radius_lo
+                        Secondary_start_tobs_axis(j)=tobs_lo
+                    else if (source_lo <= zero .and. source_hi > zero) then
+                        call secondary_reverse_event_root_between(j,radius_lo,radius_hi,gamma_lo,gamma_hi, &
+                                                                  tobs_lo,tobs_hi,state_lo,state_hi,root_radius,root_tobs)
+                        Secondary_event_active(j)=.true.
+                        Secondary_start_radius(j)=root_radius
+                        Secondary_start_tobs_axis(j)=root_tobs
+                    end if
+                end if
+                if (Secondary_event_active(j) .and. .not. Secondary_event_closed(j)) then
+                    if (source_lo > zero .and. source_hi <= zero) then
+                        call secondary_reverse_event_root_between(j,radius_lo,radius_hi,gamma_lo,gamma_hi, &
+                                                                  tobs_lo,tobs_hi,state_lo,state_hi,root_radius,root_tobs)
+                        Secondary_event_closed(j)=.true.
+                        if (root_radius >= active_density_jump_r(j)) root_radius=nearest(active_density_jump_r(j),-one)
+                        Secondary_end_radius(j)=root_radius
+                        Secondary_end_tobs_axis(j)=root_tobs
+                    end if
+                end if
                 radius_lo=radius_hi; gamma_lo=gamma_hi; tobs_lo=tobs_hi; source_lo=source_hi; state_lo=state_hi
             end do
         end do
     end subroutine update_secondary_reverse_events
-
-    subroutine record_secondary_reverse_event_segment(j,radius_lo,radius_hi,gamma_lo,gamma_hi,tobs_lo,tobs_hi, &
-                                                      state_lo,state_hi,source_lo,source_hi)
-    implicit none
-    integer, intent(in) :: j
-    real(8), intent(in) :: radius_lo,radius_hi,gamma_lo,gamma_hi,tobs_lo,tobs_hi,source_lo,source_hi
-    real(8), intent(in) :: state_lo(Num_state),state_hi(Num_state)
-    real(8) :: root_radius,root_tobs
-
-        if (.not. Secondary_event_active(j)) then
-            if (source_lo > zero) then
-                Secondary_event_active(j)=.true.
-                Secondary_start_radius(j)=radius_lo
-                Secondary_start_tobs_axis(j)=tobs_lo
-            else if (source_lo <= zero .and. source_hi > zero) then
-                call secondary_reverse_event_root_between(j,radius_lo,radius_hi,gamma_lo,gamma_hi, &
-                                                          tobs_lo,tobs_hi,state_lo,state_hi,root_radius,root_tobs)
-                Secondary_event_active(j)=.true.
-                Secondary_start_radius(j)=root_radius
-                Secondary_start_tobs_axis(j)=root_tobs
-            end if
-        end if
-        if (Secondary_event_active(j) .and. .not. Secondary_event_closed(j)) then
-            if (source_lo > zero .and. source_hi <= zero) then
-                call secondary_reverse_event_root_between(j,radius_lo,radius_hi,gamma_lo,gamma_hi, &
-                                                          tobs_lo,tobs_hi,state_lo,state_hi,root_radius,root_tobs)
-                Secondary_event_closed(j)=.true.
-                if (root_radius >= active_density_jump_r(j)) root_radius=nearest(active_density_jump_r(j),-one)
-                Secondary_end_radius(j)=root_radius
-                Secondary_end_tobs_axis(j)=root_tobs
-            end if
-        end if
-    end subroutine record_secondary_reverse_event_segment
 
     subroutine secondary_reverse_event_root_between(jump_index,r_lo_in,r_hi_in,g_lo_in,g_hi_in,t_lo_in,t_hi_in, &
                                                     state_lo_in,state_hi_in,root_r,root_t)
@@ -334,19 +323,6 @@ contains
         root_r=0.5d0*(r_lo+r_hi)
         root_t=0.5d0*(t_lo+t_hi)
     end subroutine secondary_reverse_event_root_between
-
-    subroutine close_open_secondary_reverse_events()
-    implicit none
-    integer :: j
-
-        do j=1,active_density_jump_count
-            if (Secondary_event_active(j) .and. .not. Secondary_event_closed(j)) then
-                Secondary_event_closed(j)=.true.
-                Secondary_end_radius(j)=event_prev_radius
-                Secondary_end_tobs_axis(j)=event_prev_tobs
-            end if
-        end do
-    end subroutine close_open_secondary_reverse_events
 
     subroutine secondary_reverse_event_sources(radius,gamma_bulk,state,sources)
     implicit none
@@ -987,21 +963,113 @@ subroutine reverse_dynamics_rhs(dB3,T_cross,R_cross,e3_cross,gam20,U3_cross,V3_c
     real(8) :: thermal_specific3,thermal_response3,thermal_gamma3,ad3,dV3_exp,dV3_shock,dU3_shock,dU3_ad,dU3,dV3
     real(8) :: secondary_m_total,secondary_u_total,secondary_v_total,secondary_p_total,secondary_inertia_mass
     real(8) :: comp_ratio,rho4,B4_ordered,B3_ordered,sigma_inertia,para_n4_inertia
-    real(8) :: magnetic_inertia_mass,waiting_shell_inertia_mass,smooth_shell_fraction
+    real(8) :: magnetic_inertia_mass,magnetic_pressure,magnetic_energy,waiting_shell_inertia_mass,smooth_shell_fraction
+    integer :: j_inertia,m_idx_inertia,u_idx_inertia,v_idx_inertia
     logical :: pre_crossing, waiting_reverse
 
     waiting_reverse=(reverse_rhs_phase == -1)
-    call decode_reverse_state()
+    gam2=Y(1); RR=Y(2); para_m2=Y(3); para_m3=Y(4)*para_m_ej
+    U3=Y(5)*para_m_ej*para_c**2; V3=Y(6)*V3_scale
+    call dynamics_external_density_profile(A_star,dNe_ISM,RR,R0,1,R_tr,f_jump,f_wide,dNe)
+    u2=dsqrt(gam2*gam2-one); u4=dsqrt(eta_0*eta_0-one); Delta=rs_shell_width(RR,eta_0,Delta_0)
+    para1=4d0*pi*Para_m_p*RR*RR; para_n4=para_m_ej/(para1*eta_0*Delta)
+    if (sigma_r <= zero) then
+        sigma_inertia=one
+    else
+        sigma_inertia=one/rs_shell_matter_fraction(sigma_r)
+    end if
+    para_n4_inertia=para_n4*sigma_inertia
+    smooth_shell_fraction=rs_shell_contact_fraction(RR,eta_0,sigma_r,Delta)
+    waiting_shell_inertia_mass=para_m_ej*sigma_inertia*eta_0/(eta_0-one)*smooth_shell_fraction
+    beta4=u4/eta_0; beta2=u2/gam2
+    gam34=(gam2*gam2+eta_0*eta_0-one)/(eta_0*gam2+u2*u4)
+    if (waiting_reverse) then
+        comp_ratio=one
+        para_n3=para_n4
+        delta_beta_rs=zero
+        betars=beta4
+    else
+        u3s=rs_vegas_ud(gam34,sigma_r)
+        u4s_shock=rs_shock_upstream_u(gam34,sigma_r)
+        gamma4s=dsqrt(one+u4s_shock*u4s_shock)
+        comp_ratio=u4s_shock/u3s
+        para_n3=comp_ratio*para_n4
+        delta_beta_rs=u4s_shock/(eta_0*(eta_0*gamma4s-u4*u4s_shock))
+        betars=beta4-delta_beta_rs
+    end if
     D=zero
     pre_crossing=(reverse_rhs_phase == 1 .or. (reverse_rhs_phase == 0 .and. para_m_ej > para_m3))
 
-    call compute_region2_radiative_efficiency()
+    dB2=reverse_synch_b_coeff*dsqrt((Epsilon_b*dNe)*(gam2*gam2-one))
+    gam_c2=reverse_gamma_c_precise_coeff/(dB2*dB2*gam2*T)
+    gam_m2=Epsilon_e/f_e*Para_m_p_div_m_e*(p_f-two)*(gam2-one)/(p_f-one)+one
+    eps2=Epsilon_e*min(one,(gam_m2/gam_c2)**(p_f-two))
     e3=U3/V3
-    call compute_region3_field()
-    call compute_region3_thermal_state()
-    call compute_region3_radiative_efficiency()
-    call compute_secondary_inertia_mass()
-    call compute_ordered_magnetic_inertia()
+    if (waiting_reverse) then
+        B3_ordered=zero
+        dB3=zero
+    else
+        B3_ordered=zero
+        if (pre_crossing) then
+            rho4=para_n4*Para_m_p
+            B4_ordered=rs_b4_up(rho4,sigma_r)
+            B3_ordered=B4_ordered*comp_ratio
+        else
+            if (T_cross < zero .and. gam2 > one) then
+                rho4=para_n4*Para_m_p
+                B4_ordered=rs_b4_up(rho4,sigma_r)
+                B3_ordered=B4_ordered*comp_ratio
+            else
+                B3_ordered=B3_ordered_cross*V3_cross/V3*RR/R_cross
+            end if
+        end if
+        dB3=dsqrt(8d0*pi*b_r*e3+B3_ordered*B3_ordered)
+    end if
+    if (waiting_reverse) then
+        thermal_specific3=zero
+        thermal_response3=zero
+    else if (pre_crossing) then
+        thermal_specific3=rs_mag_specific_internal(gam34,sigma_r)
+        if (sigma_r <= zero) then
+            thermal_response3=one
+        else
+            thermal_response3=thermal_specific3/(gam34-one)
+        end if
+    else
+        thermal_specific3=U3/(para_m3*para_c**2)
+        thermal_response3=zero
+    end if
+    thermal_gamma3=one+thermal_specific3
+    if (waiting_reverse) then
+        gam_c3=zero
+        gam_m3=one
+        eps3=zero
+    else
+        gam_c3=reverse_gamma_c_precise_coeff/(dB3*dB3*gam2*T)
+        gam_m3=e_r/f_e_r*Para_m_p_div_m_e*(p_r-two)*thermal_specific3/(p_r-one)+one
+        eps3=e_r*min(one,(gam_m3/gam_c3)**(p_r-two))
+    end if
+    secondary_m_total=zero; secondary_u_total=zero; secondary_v_total=zero
+    secondary_p_total=zero; secondary_inertia_mass=zero
+    do j_inertia=1,active_density_jump_count
+        m_idx_inertia=6+j_inertia
+        u_idx_inertia=6+active_density_jump_count+j_inertia
+        v_idx_inertia=6+2*active_density_jump_count+j_inertia
+        if (v_idx_inertia > M) error stop 'secondary RS branch state exceeds reverse dynamics vector'
+        secondary_m_total=secondary_m_total+Y(m_idx_inertia)*para_m_ej
+        secondary_u_total=secondary_u_total+Y(u_idx_inertia)*para_m_ej*para_c**2
+        secondary_v_total=secondary_v_total+Y(v_idx_inertia)*V3_scale
+    end do
+    if (secondary_v_total > zero) then
+        secondary_p_total=secondary_u_total/(3d0*secondary_v_total)
+        secondary_inertia_mass=(secondary_m_total*para_c**2+secondary_u_total+ &
+                                secondary_p_total*secondary_v_total)/para_c**2
+        secondary_inertia_mass=secondary_inertia_mass+secondary_p_total*secondary_v_total/(gam2*gam2*para_c**2)
+    end if
+    magnetic_pressure=B3_ordered*B3_ordered/(8d0*pi)
+    magnetic_energy=magnetic_pressure*V3
+    magnetic_inertia_mass=(magnetic_energy+magnetic_pressure*V3)/(para_c**2)
+    magnetic_inertia_mass=magnetic_inertia_mass+magnetic_pressure*V3/(gam2*gam2*para_c**2)
 
     dgam2_1=-para1*((gam2*gam2-one)*dNe+(gam2*gam34-eta_0)*delta_beta_rs*eta_0*para_n4_inertia)
     dgam2_2=(para_m2+para_m3+magnetic_inertia_mass+(one-eps2)*(two*gam2-one)*para_m2+ &
@@ -1052,142 +1120,6 @@ subroutine reverse_dynamics_rhs(dB3,T_cross,R_cross,e3_cross,gam20,U3_cross,V3_c
     call compute_secondary_branch_derivatives()
 
 contains
-
-    subroutine decode_reverse_state()
-    implicit none
-
-        gam2=Y(1); RR=Y(2); para_m2=Y(3); para_m3=Y(4)*para_m_ej
-        U3=Y(5)*para_m_ej*para_c**2; V3=Y(6)*V3_scale
-        call dynamics_external_density_profile(A_star,dNe_ISM,RR,R0,1,R_tr,f_jump,f_wide,dNe)
-        u2=dsqrt(gam2*gam2-one); u4=dsqrt(eta_0*eta_0-one); Delta=rs_shell_width(RR,eta_0,Delta_0)
-        para1=4d0*pi*Para_m_p*RR*RR; para_n4=para_m_ej/(para1*eta_0*Delta)
-        if (sigma_r <= zero) then
-            sigma_inertia=one
-        else
-            sigma_inertia=one/rs_shell_matter_fraction(sigma_r)
-        end if
-        para_n4_inertia=para_n4*sigma_inertia
-        smooth_shell_fraction=rs_shell_contact_fraction(RR,eta_0,sigma_r,Delta)
-        waiting_shell_inertia_mass=para_m_ej*sigma_inertia*eta_0/(eta_0-one)*smooth_shell_fraction
-        beta4=u4/eta_0; beta2=u2/gam2
-        gam34=(gam2*gam2+eta_0*eta_0-one)/(eta_0*gam2+u2*u4)
-        if (waiting_reverse) then
-            comp_ratio=one
-            para_n3=para_n4
-            delta_beta_rs=zero
-            betars=beta4
-        else
-            u3s=rs_vegas_ud(gam34,sigma_r)
-            u4s_shock=rs_shock_upstream_u(gam34,sigma_r)
-            gamma4s=dsqrt(one+u4s_shock*u4s_shock)
-            comp_ratio=u4s_shock/u3s
-            para_n3=comp_ratio*para_n4
-            delta_beta_rs=u4s_shock/(eta_0*(eta_0*gamma4s-u4*u4s_shock))
-            betars=beta4-delta_beta_rs
-        end if
-    end subroutine decode_reverse_state
-
-    subroutine compute_region2_radiative_efficiency()
-    implicit none
-
-        dB2=reverse_synch_b_coeff*dsqrt((Epsilon_b*dNe)*(gam2*gam2-one))
-        gam_c2=reverse_gamma_c_precise_coeff/(dB2*dB2*gam2*T)
-        gam_m2=Epsilon_e/f_e*Para_m_p_div_m_e*(p_f-two)*(gam2-one)/(p_f-one)+one
-        eps2=Epsilon_e*min(one,(gam_m2/gam_c2)**(p_f-two))
-    end subroutine compute_region2_radiative_efficiency
-
-    subroutine compute_region3_field()
-    implicit none
-
-        if (waiting_reverse) then
-            B3_ordered=zero
-            dB3=zero
-            return
-        end if
-        B3_ordered=zero
-        if (pre_crossing) then
-            rho4=para_n4*Para_m_p
-            B4_ordered=rs_b4_up(rho4,sigma_r)
-            B3_ordered=B4_ordered*comp_ratio
-        else
-            if (T_cross < zero .and. gam2 > one) then
-                rho4=para_n4*Para_m_p
-                B4_ordered=rs_b4_up(rho4,sigma_r)
-                B3_ordered=B4_ordered*comp_ratio
-            else
-                B3_ordered=B3_ordered_cross*V3_cross/V3*RR/R_cross
-            end if
-        end if
-        dB3=dsqrt(8d0*pi*b_r*e3+B3_ordered*B3_ordered)
-    end subroutine compute_region3_field
-
-    subroutine compute_region3_thermal_state()
-    implicit none
-
-        if (waiting_reverse) then
-            thermal_specific3=zero
-            thermal_response3=zero
-        else if (pre_crossing) then
-            thermal_specific3=rs_mag_specific_internal(gam34,sigma_r)
-            if (sigma_r <= zero) then
-                thermal_response3=one
-            else
-                thermal_response3=thermal_specific3/(gam34-one)
-            end if
-        else
-            thermal_specific3=U3/(para_m3*para_c**2)
-            thermal_response3=zero
-        end if
-        thermal_gamma3=one+thermal_specific3
-    end subroutine compute_region3_thermal_state
-
-    subroutine compute_region3_radiative_efficiency()
-    implicit none
-
-        if (waiting_reverse) then
-            gam_c3=zero
-            gam_m3=one
-            eps3=zero
-            return
-        end if
-        gam_c3=reverse_gamma_c_precise_coeff/(dB3*dB3*gam2*T)
-        gam_m3=e_r/f_e_r*Para_m_p_div_m_e*(p_r-two)*thermal_specific3/(p_r-one)+one
-        eps3=e_r*min(one,(gam_m3/gam_c3)**(p_r-two))
-    end subroutine compute_region3_radiative_efficiency
-
-    subroutine compute_ordered_magnetic_inertia()
-    implicit none
-    real(8) :: magnetic_pressure,magnetic_energy
-
-        magnetic_pressure=B3_ordered*B3_ordered/(8d0*pi)
-        magnetic_energy=magnetic_pressure*V3
-        magnetic_inertia_mass=(magnetic_energy+magnetic_pressure*V3)/(para_c**2)
-        magnetic_inertia_mass=magnetic_inertia_mass+magnetic_pressure*V3/(gam2*gam2*para_c**2)
-    end subroutine compute_ordered_magnetic_inertia
-
-    ! Secondary reservoirs 随 contact 共动；其 comoving enthalpy 给 Gamma 方程增加有效惯性。
-    subroutine compute_secondary_inertia_mass()
-    implicit none
-    integer :: j, m_idx, u_idx, v_idx
-
-        secondary_m_total=zero; secondary_u_total=zero; secondary_v_total=zero
-        secondary_p_total=zero; secondary_inertia_mass=zero
-        do j=1,active_density_jump_count
-            m_idx=6+j
-            u_idx=6+active_density_jump_count+j
-            v_idx=6+2*active_density_jump_count+j
-            if (v_idx > M) error stop 'secondary RS branch state exceeds reverse dynamics vector'
-            secondary_m_total=secondary_m_total+Y(m_idx)*para_m_ej
-            secondary_u_total=secondary_u_total+Y(u_idx)*para_m_ej*para_c**2
-            secondary_v_total=secondary_v_total+Y(v_idx)*V3_scale
-        end do
-        if (secondary_v_total > zero) then
-            secondary_p_total=secondary_u_total/(3d0*secondary_v_total)
-            secondary_inertia_mass=(secondary_m_total*para_c**2+secondary_u_total+ &
-                                    secondary_p_total*secondary_v_total)/para_c**2
-            secondary_inertia_mass=secondary_inertia_mass+secondary_p_total*secondary_v_total/(gam2*gam2*para_c**2)
-        end if
-    end subroutine compute_secondary_inertia_mass
 
     logical function secondary_parent_upstream_available(jump_index,parent_mass,parent_energy,parent_volume)
     implicit none

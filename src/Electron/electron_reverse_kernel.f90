@@ -40,12 +40,12 @@ contains
     implicit none
     integer, intent(in) :: Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads
     integer, intent(in), optional :: solver_id
-        integer :: I_tobs,I_gam_e,L1,L,active_solver
+    integer :: I_tobs,I_gam_e,L1,L,active_solver,i_empty,i_edge,i_coord
     real(8), intent(in) :: Delta_0,e_r,b_r,p_r,f_e_r,eta_0,Epsilon_e,Epsilon_b,z,A_star,dNe_ISM,para_m_ej
     real(8), intent(in) :: R_tr,f_jump,f_wide,R0
-        real(8), intent(in) :: T_cross,R_cross,U3_cross,V3_cross,M3_cross
-        real(8), intent(in) :: R_Tobs(Num_R),R_Gamma(Num_R),R(Num_R),B3(Num_R),M3_shell(Num_R)
-        real(8), intent(in) :: U3_shell(Num_R),V3_shell(Num_R),V_seed(Num_nu)
+    real(8), intent(in) :: T_cross,R_cross,U3_cross,V3_cross,M3_cross
+    real(8), intent(in) :: R_Tobs(Num_R),R_Gamma(Num_R),R(Num_R),B3(Num_R),M3_shell(Num_R)
+    real(8), intent(in) :: U3_shell(Num_R),V3_shell(Num_R),V_seed(Num_nu)
     real(8), intent(out) :: gam_e(Num_gam_e),dN_gam_e(Num_gam_e,Num_R)
     real(8), parameter :: reverse_gamma_c_coeff=7.7d8, reverse_synch_b_coeff=0.39d0, reverse_adv_coeff=1.35d-19
     real(8), parameter :: reverse_transrel_gamma_break=2d0
@@ -53,16 +53,17 @@ contains
     real(8) :: factor2,dB,gamma34,Gam_e_max,Gam_e_m,Gam_e_c,dNe,DB_min,Gam_e_max_max,Gam_e_min_global,d_x,R_loc,R_Gamma_loc,Delta
     real(8) :: R_n4,beta4,beta2,u2,u4,f_r,dDR,dDD,Qshell,cooling_scale,R_step_mid
     real(8) :: thermal_scale_lo,thermal_scale_hi,thermal_loss_rate,adiabatic_rate,dg_gamma_scale,coord_scale
+    real(8) :: coord_mid,dxdy
     real(8) :: dg_gamma_low,dg_gamma_m_front,dg_gamma_high
-        real(8) :: injection_rate,inj_hi,inj_width,mass_lo,mass_hi
-        real(8), allocatable :: dEl(:),x(:),dF1(:),temp3(:),dN_x(:),x_edge(:),coord_edge(:)
-        real(8), allocatable :: post_cross_log_state(:),post_cross_edge_map(:),post_cross_edge_work(:)
-        real(8), allocatable :: post_cross_step_back(:),post_cross_u_edge(:),post_cross_a_cell(:),post_cross_b_cell(:)
-        real(8), allocatable :: post_cross_affine_back(:,:)
-        real(8), allocatable :: dB3_serial(:),P_syn(:),Seed_syn(:),cooling_aux(:),Compton(:)
-        type(electron_dg1d_mesh) :: dg_mesh,dg_new_mesh
-        real(8), allocatable :: dg_state(:),dg_work(:),dg_dEl(:),dg_source(:)
-        logical :: crossed_reverse,post_cross_cache_ready
+    real(8) :: injection_rate,inj_hi,inj_width,mass_lo,mass_hi
+    real(8), allocatable :: dEl(:),x(:),dF1(:),temp3(:),dN_x(:),x_edge(:),coord_edge(:)
+    real(8), allocatable :: post_cross_log_state(:),post_cross_edge_map(:),post_cross_edge_work(:)
+    real(8), allocatable :: post_cross_step_back(:),post_cross_u_edge(:),post_cross_a_cell(:),post_cross_b_cell(:)
+    real(8), allocatable :: post_cross_affine_back(:,:)
+    real(8), allocatable :: dB3_serial(:),P_syn(:),Seed_syn(:),cooling_aux(:),Compton(:)
+    type(electron_dg1d_mesh) :: dg_mesh,dg_new_mesh
+    real(8), allocatable :: dg_state(:),dg_work(:),dg_dEl(:),dg_source(:)
+    logical :: crossed_reverse,post_cross_cache_ready
 
     allocate(dEl(Num_gam_e),x(Num_gam_e),dF1(Num_gam_e),temp3(Num_gam_e-1),dN_x(Num_gam_e), &
              x_edge(Num_gam_e+1),coord_edge(Num_gam_e+1), &
@@ -74,18 +75,25 @@ contains
              cooling_aux(Num_gam_e),Compton(Num_gam_e))
     dB3_serial=B3
 
-        active_solver=electron_resolve_1d_solver_id(solver_id)
-        crossed_reverse=(T_cross > zero .and. R_cross > zero .and. M3_cross > zero .and. V3_cross > zero)
-        post_cross_cache_ready=.false.
-        if (maxval(B3) <= zero .or. maxval(M3_shell) <= M3_shell(1)) then
-            call set_empty_reverse_electrons()
-            deallocate(dEl,x,dF1,temp3,dN_x,x_edge,coord_edge,post_cross_log_state,post_cross_edge_map, &
-                       post_cross_edge_work,post_cross_step_back,post_cross_u_edge,post_cross_a_cell, &
-                       post_cross_b_cell,post_cross_affine_back,dB3_serial,P_syn,Seed_syn,cooling_aux,Compton)
-            return
-        end if
+    active_solver=electron_resolve_1d_solver_id(solver_id)
+    crossed_reverse=(T_cross > zero .and. R_cross > zero .and. M3_cross > zero .and. V3_cross > zero)
+    post_cross_cache_ready=.false.
+    if (maxval(B3) <= zero .or. maxval(M3_shell) <= M3_shell(1)) then
+        do i_empty=1,Num_gam_e
+            if (Num_gam_e == 1) then
+                gam_e(i_empty)=one
+            else
+                gam_e(i_empty)=ten**(dble(i_empty-1)/dble(Num_gam_e-1))
+            end if
+        end do
+        dN_gam_e=zero
+        deallocate(dEl,x,dF1,temp3,dN_x,x_edge,coord_edge,post_cross_log_state,post_cross_edge_map, &
+                   post_cross_edge_work,post_cross_step_back,post_cross_u_edge,post_cross_a_cell, &
+                   post_cross_b_cell,post_cross_affine_back,dB3_serial,P_syn,Seed_syn,cooling_aux,Compton)
+        return
+    end if
 
-        factor2=(p_r-two)/(p_r-one)*e_r*Para_m_p_div_m_e
+    factor2=(p_r-two)/(p_r-one)*e_r*Para_m_p_div_m_e
     if (p_r < 2.05d0) factor2=0.05d0/1.05d0*e_r*Para_m_p_div_m_e
     beta4=dsqrt(one-one/eta_0**2); u4=dsqrt(eta_0*eta_0-one)
     dB3_serial(1)=dB3_serial(min(2,Num_R))
@@ -128,34 +136,7 @@ contains
     R_loc=R(1)
     if (active_solver == electron_solver_dg_1d) call initialize_reverse_dg_state()
 
-        do I_tobs=2,Num_R
-            call prepare_reverse_shell_state(I_tobs)
-            if (dB <= zero) then
-                dN_gam_e(:,I_tobs)=dN_gam_e(:,I_tobs-1)
-                cycle
-            end if
-            call compute_reverse_thermal_loss(I_tobs)
-            call compute_reverse_injection_rate(I_tobs)
-        L1=reverse_transport_substeps(dDR,dDD,active_solver)
-        dDR=dDD/L1
-        call load_reverse_coord_state(I_tobs-1)
-
-        call compute_reverse_cooling_loss(I_tobs)
-        call advance_reverse_transport_shell(I_tobs)
-    end do
-
-    deallocate(dEl,x,dF1,temp3,dN_x,x_edge,coord_edge,post_cross_log_state,post_cross_edge_map, &
-               post_cross_edge_work,post_cross_step_back,post_cross_u_edge,post_cross_a_cell, &
-               post_cross_b_cell,post_cross_affine_back,dB3_serial,P_syn,Seed_syn,cooling_aux,Compton)
-    if (allocated(dg_state)) deallocate(dg_state)
-    if (allocated(dg_work)) deallocate(dg_work,dg_dEl,dg_source)
-
-contains
-
-    subroutine prepare_reverse_shell_state(I_tobs)
-    implicit none
-    integer, intent(in) :: I_tobs
-
+    do I_tobs=2,Num_R
         R_loc=R(I_tobs-1)
         R_Gamma_loc=(R_Gamma(I_tobs)+R_Gamma(I_tobs-1))/two
         Delta=max(Delta_0,R_loc/Eta_0**2)
@@ -169,13 +150,10 @@ contains
         f_r=reverse_adv_coeff/beta2/R_Gamma_loc*dB**2/pi
         dDR=0.7d0/(f_r*Gam_e_max+1.333d0/(R(I_tobs)+R(I_tobs-1)))
         dDD=R(I_tobs)-R(I_tobs-1)
-
-    end subroutine prepare_reverse_shell_state
-
-    subroutine compute_reverse_thermal_loss(I_tobs)
-    implicit none
-    integer, intent(in) :: I_tobs
-
+        if (dB <= zero) then
+            dN_gam_e(:,I_tobs)=dN_gam_e(:,I_tobs-1)
+            cycle
+        end if
         thermal_loss_rate=zero
         if (crossed_reverse .and. R(I_tobs) > R_cross) then
             if (R(I_tobs-1) < R_cross) then
@@ -195,26 +173,6 @@ contains
             if (thermal_loss_rate < zero) &
                 error stop "electron_reverse_evolve: post-crossing comoving volume must not decrease."
         end if
-    end subroutine compute_reverse_thermal_loss
-
-    subroutine set_empty_reverse_electrons()
-    implicit none
-    integer :: i_empty
-
-        do i_empty=1,Num_gam_e
-            if (Num_gam_e == 1) then
-                gam_e(i_empty)=one
-            else
-                gam_e(i_empty)=ten**(dble(i_empty-1)/dble(Num_gam_e-1))
-            end if
-        end do
-        dN_gam_e=zero
-    end subroutine set_empty_reverse_electrons
-
-    subroutine compute_reverse_injection_rate(I_tobs)
-    implicit none
-    integer, intent(in) :: I_tobs
-
         injection_rate=zero
         if ((.not. crossed_reverse) .or. R(I_tobs-1) < R_cross) then
             if (crossed_reverse) then
@@ -231,7 +189,25 @@ contains
                 injection_rate=f_e_r*(mass_hi-mass_lo)/(Para_m_p*inj_width)
             end if
         end if
-    end subroutine compute_reverse_injection_rate
+        L1=reverse_transport_substeps(dDR,dDD,active_solver)
+        dDR=dDD/L1
+        do i_coord=1,Num_gam_e
+            coord_mid=0.5d0*(coord_edge(i_coord)+coord_edge(i_coord+1))
+            dxdy=electron_dxgamma_dcoord(electron_coord_log_four_velocity_sq,coord_scale,coord_mid)
+            dN_x(i_coord)=dN_gam_e(i_coord,I_tobs-1)*gam_e(i_coord)*dlog(ten)*dxdy
+        end do
+
+        call compute_reverse_cooling_loss(I_tobs)
+        call advance_reverse_transport_shell(I_tobs)
+    end do
+
+    deallocate(dEl,x,dF1,temp3,dN_x,x_edge,coord_edge,post_cross_log_state,post_cross_edge_map, &
+               post_cross_edge_work,post_cross_step_back,post_cross_u_edge,post_cross_a_cell, &
+               post_cross_b_cell,post_cross_affine_back,dB3_serial,P_syn,Seed_syn,cooling_aux,Compton)
+    if (allocated(dg_state)) deallocate(dg_state)
+    if (allocated(dg_work)) deallocate(dg_work,dg_dEl,dg_source)
+
+contains
 
     subroutine compute_reverse_cooling_loss(I_tobs)
     implicit none
@@ -291,7 +267,11 @@ contains
                     call remesh_reverse_dg_state()
                     if (index_Y /= 0) call prepare_reverse_dg_cooling()
                 end if
-                call prepare_reverse_dg_source(source_norm_step)
+                if (source_norm_step > zero) then
+                    call electron_dg1d_project_kinetic_source(dg_mesh,source_norm_step,p_r,Gam_e_m,Gam_e_max,dg_source)
+                else
+                    dg_source=zero
+                end if
                 call electron_dg1d_scale_to_content(dg_mesh,source_norm_step,dg_source)
                 if (index_Y == 0) then
                     call electron_dg1d_advance_characteristic_step(dg_mesh,dDR,f_r,adiabatic_rate,dg_source, &
@@ -311,7 +291,11 @@ contains
             call electron_dg1d_project_to_coord_cells(dg_mesh,dg_state,Num_gam_e,coord_edge,dF1)
             call electron_shell_dcoord_to_dndgamma_exp_centers(Num_gam_e,coord_edge,coord_scale, &
                                                                gam_e,dF1,dN_gam_e(:,I_tobs))
-            call reverse_output_positivity(I_tobs)
+            where (dN_gam_e(:,I_tobs) > zero)
+                dN_gam_e(:,I_tobs)=dN_gam_e(:,I_tobs)
+            elsewhere
+                dN_gam_e(:,I_tobs)=zero
+            end where
             dN_x=dN_gam_e(:,I_tobs)*gam_e*dlog(ten)
             return
         end if
@@ -348,7 +332,11 @@ contains
     integer, intent(in) :: I_tobs
 
         dF1=zero
-        if (.not. post_cross_cache_ready) call cache_reverse_post_cross_state(I_tobs-1)
+        if (.not. post_cross_cache_ready) then
+            post_cross_log_state=dN_gam_e(:,I_tobs-1)*gam_e*dlog(ten)
+            post_cross_edge_map=x_edge
+            post_cross_cache_ready=.true.
+        end if
         do L=1,L1
             R_step_mid=R_loc+0.5d0*dDR
             if (index_Y == 0) then
@@ -364,32 +352,20 @@ contains
                                                              post_cross_a_cell,post_cross_b_cell,dDR, &
                                                              post_cross_step_back)
             end if
-            call compose_reverse_post_cross_map()
+            do i_edge=1,Num_gam_e+1
+                post_cross_edge_work(i_edge)=reverse_post_cross_map_value(post_cross_step_back(i_edge))
+            end do
             post_cross_edge_map=post_cross_edge_work
             R_loc=R_loc+dDR
         end do
         call electron_characteristic_remap_edges(Num_gam_e,x_edge,post_cross_edge_map,post_cross_log_state,dN_x,.true.)
         call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,I_tobs))
-        call reverse_output_positivity(I_tobs)
+        where (dN_gam_e(:,I_tobs) > zero)
+            dN_gam_e(:,I_tobs)=dN_gam_e(:,I_tobs)
+        elsewhere
+            dN_gam_e(:,I_tobs)=zero
+        end where
     end subroutine advance_reverse_post_cross_analytic
-
-    subroutine cache_reverse_post_cross_state(I_prev)
-    implicit none
-    integer, intent(in) :: I_prev
-
-        post_cross_log_state=dN_gam_e(:,I_prev)*gam_e*dlog(ten)
-        post_cross_edge_map=x_edge
-        post_cross_cache_ready=.true.
-    end subroutine cache_reverse_post_cross_state
-
-    subroutine compose_reverse_post_cross_map()
-    implicit none
-    integer :: i_edge
-
-        do i_edge=1,Num_gam_e+1
-            post_cross_edge_work(i_edge)=reverse_post_cross_map_value(post_cross_step_back(i_edge))
-        end do
-    end subroutine compose_reverse_post_cross_map
 
     real(8) function reverse_post_cross_map_value(x_eval) result(x_cross)
     implicit none
@@ -421,30 +397,6 @@ contains
         frac=(x_eval-x_edge(left))/(x_edge(left+1)-x_edge(left))
         x_cross=post_cross_edge_map(left)+frac*(post_cross_edge_map(left+1)-post_cross_edge_map(left))
     end function reverse_post_cross_map_value
-
-    subroutine load_reverse_coord_state(I_tobs)
-    implicit none
-    integer, intent(in) :: I_tobs
-    integer :: i
-    real(8) :: coord_mid,dxdy
-
-        do i=1,Num_gam_e
-            coord_mid=0.5d0*(coord_edge(i)+coord_edge(i+1))
-            dxdy=electron_dxgamma_dcoord(electron_coord_log_four_velocity_sq,coord_scale,coord_mid)
-            dN_x(i)=dN_gam_e(i,I_tobs)*gam_e(i)*dlog(ten)*dxdy
-        end do
-    end subroutine load_reverse_coord_state
-
-    subroutine reverse_output_positivity(I_tobs)
-    implicit none
-    integer, intent(in) :: I_tobs
-
-        where (dN_gam_e(:,I_tobs) > zero)
-            dN_gam_e(:,I_tobs)=dN_gam_e(:,I_tobs)
-        elsewhere
-            dN_gam_e(:,I_tobs)=zero
-        end where
-    end subroutine reverse_output_positivity
 
     subroutine initialize_reverse_dg_state()
     implicit none
@@ -517,17 +469,6 @@ contains
         frac=(radius_eval-R(i_shell-1))/(R(i_shell)-R(i_shell-1))
         value=values(i_shell-1)+frac*(values(i_shell)-values(i_shell-1))
     end function reverse_shell_linear_value
-
-    subroutine prepare_reverse_dg_source(source_norm)
-    implicit none
-    real(8), intent(in) :: source_norm
-
-        if (source_norm > zero) then
-            call electron_dg1d_project_kinetic_source(dg_mesh,source_norm,p_r,Gam_e_m,Gam_e_max,dg_source)
-        else
-            dg_source=zero
-        end if
-    end subroutine prepare_reverse_dg_source
 
     real(8) function reverse_dg_upper_break() result(gamma_break)
     implicit none
@@ -675,20 +616,6 @@ subroutine electron_secondary_reverse_evolve(e_r,b_r,p_r,f_e_r,z,R_Tobs,R_Gamma,
             dN_gam_e(:,I_tobs)=dN_gam_e(:,I_tobs-1)
             cycle
         end if
-        call prepare_secondary_shell_state(I_tobs)
-        call compute_secondary_injection_rate(I_tobs)
-        call compute_secondary_adiabatic_rate(I_tobs)
-        call advance_secondary_transport_shell(I_tobs)
-    end do
-
-    deallocate(dEl,x,dF1,temp3,dN_x,x_edge)
-
-contains
-
-    subroutine prepare_secondary_shell_state(I_tobs)
-    implicit none
-    integer, intent(in) :: I_tobs
-
         R_loc=R(I_tobs-1)
         R_Gamma_loc=(R_Gamma(I_tobs)+R_Gamma(I_tobs-1))/two
         beta2=dsqrt(one-one/R_Gamma_loc**2)
@@ -706,29 +633,22 @@ contains
         L1=reverse_transport_substeps(dDR,dDD,active_solver)
         dDR=dDD/L1
         dEl=f_r*gam_e
-    end subroutine prepare_secondary_shell_state
-
-    subroutine compute_secondary_injection_rate(I_tobs)
-    implicit none
-    integer, intent(in) :: I_tobs
-
         mass_lo=M3_shell(I_tobs-1)
         mass_hi=M3_shell(I_tobs)
         if (mass_hi < mass_lo) error stop "electron_secondary_reverse_evolve: secondary swept mass must not decrease."
         inj_width=R(I_tobs)-R(I_tobs-1)
         injection_rate=f_e_r*(mass_hi-mass_lo)/(Para_m_p*inj_width)
-    end subroutine compute_secondary_injection_rate
-
-    subroutine compute_secondary_adiabatic_rate(I_tobs)
-    implicit none
-    integer, intent(in) :: I_tobs
-
         if (V3_shell(I_tobs) <= zero .or. V3_shell(I_tobs-1) <= zero) then
             adiabatic_rate=zero
         else
             adiabatic_rate=dlog(V3_shell(I_tobs)/V3_shell(I_tobs-1))/(3d0*(R(I_tobs)-R(I_tobs-1)))
         end if
-    end subroutine compute_secondary_adiabatic_rate
+        call advance_secondary_transport_shell(I_tobs)
+    end do
+
+    deallocate(dEl,x,dF1,temp3,dN_x,x_edge)
+
+contains
 
     subroutine advance_secondary_transport_shell(I_tobs)
     implicit none
