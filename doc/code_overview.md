@@ -1,6 +1,6 @@
 # ASGARD 代码总览
 
-本文档按当前工作树整理代码结构、运行主链和关键边界。电子算法细节见 `doc/electron_solver_algorithms.md`；当前唯一 TODO / 未完成项入口见根目录 `TODO.md`。
+本文档按当前工作树整理代码结构、运行主链和关键边界。电子算法细节见 `doc/electron_solver_algorithms.md`；物理过程到 Fortran 程序单元的交叉索引见 `doc/physics_algorithm_crosswalk.md`；逐文件程序单元索引见 `doc/fortran_kernel_index.md`；当前唯一 TODO / 未完成项入口见根目录 `TODO.md`。
 
 ## 1. 公开 API
 
@@ -79,6 +79,8 @@ Fitter.loglike -> compile_problem -> eval_loglike -> solve_state_from_setup
 最终 AM3-derived microphysics 位于 `src/Hadronic/*.f90`。
 
 ## 4. Fortran 数值核
+
+本节只列主要文件和阶段责任。需要逐个查 `module`、`subroutine`、`function` 时，使用 `doc/fortran_kernel_index.md`；需要从物理过程反查实现入口和验收指纹时，使用 `doc/physics_algorithm_crosswalk.md`。
 
 ### 动力学
 

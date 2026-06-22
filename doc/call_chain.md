@@ -1,5 +1,7 @@
 # ASGARD 调用链
 
+本页给出 Python 编排和 Fortran 数值核的主链。若要逐个进入 Fortran `subroutine` / `function`，使用 `doc/fortran_kernel_index.md`；若要按物理过程反查算法阶段，使用 `doc/physics_algorithm_crosswalk.md`。
+
 ## Python 编排层
 
 ```mermaid

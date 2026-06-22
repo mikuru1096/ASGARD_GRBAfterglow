@@ -29,6 +29,8 @@
 - `doc/call_chain.md`：public call chain 到 runtime/Fortran kernel 的路径。
 - `doc/code_overview.md`：代码结构、运行主链和关键边界。
 - `doc/electron_solver_algorithms.md`：电子输运算法说明。
+- `doc/physics_algorithm_crosswalk.md`：物理过程、离散变量、Fortran 程序单元和验收指纹的交叉索引。
+- `doc/fortran_kernel_index.md`：按 Fortran 源文件列出的 `module` / `subroutine` / `function` 程序单元索引。
 - `doc/hadronic_pgamma_notes.md`：p-gamma 微物理和基准说明。
 - `doc/hadronic_chi_transport_decision.md`：2D / \(\chi\) 分辨 hadronic transport 的当前决策边界。
 - `doc/pair_cascade_extension_boundary.md`：IC-mediated electromagnetic cascade 的扩展边界。
@@ -38,6 +40,8 @@
 - `doc/web_docs.md` 与 `mkdocs.yml`：网页文档发布配置和导航入口；新增或改名文档必须同步 `nav` 并跑 strict build。
 
 ## Fortran 运行层
+
+以下是目录级源码树。逐个程序单元的行号、职责和 f2py 入口映射见 `doc/fortran_kernel_index.md`。
 
 - `src/Constants.f90`
 - `src/Dynamics/`：`dynamics_common.f90`, `Dynamics_forward.f90`, `Dynamics_reverse.f90`

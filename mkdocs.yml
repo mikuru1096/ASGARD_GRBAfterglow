@@ -61,6 +61,7 @@ nav:
   - 算法与数值:
       - 算法设计总纲: project_algorithm_design.md
       - 算法流程详解: algorithm_workflow.md
+      - 物理算法交叉指南: physics_algorithm_crosswalk.md
       - 2D 壳层、反向激波与自适应网格: shock_shell_adaptive_algorithms.md
       - 数值方法: numerical_methods.md
       - 电子求解器: electron_solver_algorithms.md
@@ -73,4 +74,5 @@ nav:
       - 代码概览: code_overview.md
       - 源码树: source_tree.md
       - 调用链: call_chain.md
+      - Fortran 程序单元索引: fortran_kernel_index.md
       - 网页文档发布: web_docs.md

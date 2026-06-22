@@ -56,11 +56,12 @@
 
 1. `doc/project_algorithm_design.md`：全项目算法设计总纲。
 2. `doc/algorithm_workflow.md`：数组维度、离散方程、缓存和验证矩阵。
-3. `doc/shock_shell_adaptive_algorithms.md`：有限厚壳层、反向激波和自适应网格。
-4. `doc/numerical_methods.md`：数值方法和构建检查。
-5. `doc/electron_solver_algorithms.md`：电子输运算法。
-6. `doc/fullhide2d_pwn_cr_transport.md`：`fullhide2d_transport_model="pwn_cr_v1"` 的物理契约。
-7. `doc/joint_secondary_feedback_algorithm.md`：`electron_photon_coupling="joint"` 的状态机和数组契约。
+3. `doc/physics_algorithm_crosswalk.md`：物理问题、离散变量、Fortran 程序单元和验收指纹的交叉指南。
+4. `doc/shock_shell_adaptive_algorithms.md`：有限厚壳层、反向激波和自适应网格。
+5. `doc/numerical_methods.md`：数值方法和构建检查。
+6. `doc/electron_solver_algorithms.md`：电子输运算法。
+7. `doc/fullhide2d_pwn_cr_transport.md`：`fullhide2d_transport_model="pwn_cr_v1"` 的物理契约。
+8. `doc/joint_secondary_feedback_algorithm.md`：`electron_photon_coupling="joint"` 的状态机和数组契约。
 
 开发、验证与发布：
 
@@ -69,7 +70,8 @@
 3. `doc/validation_and_benchmarks.md`：构建门禁、冒烟测试和基准刷新。
 4. `doc/public_backend_limits.md`：公开 API 与后端能力边界。
 5. `doc/code_overview.md`、`doc/source_tree.md`、`doc/call_chain.md`：代码结构和调用链。
-6. `doc/web_docs.md`：网页文档发布和 HEtools 托管流程。
+6. `doc/fortran_kernel_index.md`：按源文件逐个列出 Fortran `module`、`subroutine` 和 `function` 的程序单元索引。
+7. `doc/web_docs.md`：网页文档发布和 HEtools 托管流程。
 
 除 `README.md`、`AGENTS.md`、`PLAN.md` 和 `TODO.md` 这类根目录入口/开发状态文件外，用户说明、物理说明、算法设计、API 参考、教程、拟合说明和验证说明都应维护在本 `doc/` 网页文档树中。专题计划若已经沉淀为当前能力或明确边界，应合并到对应网页章节，不再保留根目录副本文档。
 
@@ -106,6 +108,7 @@ Public Python API：
 Fortran 构建入口：
 
 - `build_extensions.py`
+- Fortran 程序单元级指南：`doc/fortran_kernel_index.md`；物理到算法的交叉索引：`doc/physics_algorithm_crosswalk.md`。
 
 默认强制编译命令：
 
