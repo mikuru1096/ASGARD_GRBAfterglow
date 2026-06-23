@@ -648,6 +648,8 @@ class SolverOptions:
     fullhide2d_escape_mode: str
     projection_adaptive_rtol: float = 2.0e-2
     projection_adaptive_max_depth: int = 4
+    structured_adaptive_rtol: float = 0.0
+    structured_adaptive_max_depth: int = 4
     nu_callback: Optional[Callable[[str, np.ndarray, np.ndarray, np.ndarray], None]] = None
 
 
@@ -946,6 +948,8 @@ def _build_base_runtime_config(
         structured_inner_threads=so.structured_inner_threads,
         projection_adaptive_rtol=float(so.projection_adaptive_rtol),
         projection_adaptive_max_depth=int(so.projection_adaptive_max_depth),
+        structured_adaptive_rtol=float(getattr(so, "structured_adaptive_rtol", 0.0)),
+        structured_adaptive_max_depth=int(getattr(so, "structured_adaptive_max_depth", 4)),
         downstream_num_chi=n.downstream_num_chi,
         fullhide2d_transport_model=str(so.fullhide2d_transport_model),
         fullhide2d_stochastic_accel_norm=float(so.fullhide2d_stochastic_accel_norm),
