@@ -116,12 +116,13 @@ def build_cross_zone_seed_fields(
 
 
 def _integrate_proper_time(radius_cm: np.ndarray, gamma: np.ndarray) -> np.ndarray:
-    proper_time_s = np.zeros_like(radius_cm)
-    for i in range(1, radius_cm.shape[0]):
-        gamma_mean = 0.5 * (gamma[i - 1] + gamma[i])
-        beta_mean = np.sqrt(1.0 - gamma_mean**-2)
-        d_radius = radius_cm[i] - radius_cm[i - 1]
-        proper_time_s[i] = proper_time_s[i - 1] + d_radius / (beta_mean * gamma_mean * constants.para_c)
+    gamma_mean = 0.5 * (gamma[1:] + gamma[:-1])
+    beta_mean = np.sqrt(1.0 - gamma_mean**-2)
+    d_radius = radius_cm[1:] - radius_cm[:-1]
+    dtau = d_radius / (beta_mean * gamma_mean * constants.para_c)
+    proper_time_s = np.empty_like(radius_cm)
+    proper_time_s[0] = 0.0
+    proper_time_s[1:] = np.cumsum(dtau)
     return proper_time_s
 
 
@@ -478,6 +479,7 @@ def solve_state_from_setup(
     timings: dict[str, float] | None = None,
     policy: ExecutionPolicy | None = None,
     requested_frequencies_hz: np.ndarray | None = None,
+    assemble_observer: bool = True,
 ) -> SolveState:
     _validate_multi_density_reverse_config(config)
     execution_policy = ExecutionPolicy(num_threads=config.num_threads) if policy is None else policy
@@ -527,16 +529,19 @@ def solve_state_from_setup(
             setup.seed_frequency_hz,
             config,
         )
-    observer = _assemble_observer_stage(
-        setup,
-        config,
-        dynamics,
-        electron,
-        photon_field,
-        hadronic,
-        reverse_emission,
-        timings=timings,
-    )
+    if assemble_observer:
+        observer = _assemble_observer_stage(
+            setup,
+            config,
+            dynamics,
+            electron,
+            photon_field,
+            hadronic,
+            reverse_emission,
+            timings=timings,
+        )
+    else:
+        observer = _observer_state_without_projection(setup, config, dynamics)
     freq_min: float | None = None
     freq_max: float | None = None
     if requested_frequencies_hz is not None:
@@ -564,6 +569,40 @@ def solve_state_from_setup(
             "electron": electron_report,
             "hadronic": hadronic_report,
         },
+    )
+
+
+def _observer_state_without_projection(setup, config: RuntimeConfig, dynamics) -> ObserverState:
+    frequency = np.asarray(setup.seed_frequency_hz, dtype=float)
+    radius = np.asarray(dynamics.radius, dtype=float)
+    zeros = np.zeros((frequency.size, radius.size), dtype=float)
+    fwd = BranchState(
+        characteristic_time_s=np.asarray(dynamics.r_tobs, dtype=float),
+        gamma=np.asarray(dynamics.r_gamma, dtype=float),
+        radius_cm=radius,
+        swept_mass_g=np.asarray(dynamics.swept_mass_g, dtype=float),
+        doppler=compute_doppler(dynamics.r_gamma, config.z),
+        magnetic_field_g=compute_magnetic_field(dynamics.r_gamma, dynamics.radius, config),
+    )
+    components = FluxComponents(
+        total=zeros,
+        fwd_sync=zeros.copy(),
+        fwd_ssc=zeros.copy(),
+        fwd_hadronic_gamma=None,
+        fwd_hadronic_bethe_heitler=None,
+        fwd_hadronic_inverse_compton=None,
+        fwd_hadronic_pair_production=None,
+        rev_sync=None,
+        rev_ssc=None,
+        cross_ic=None,
+        fwd=fwd,
+        rev=None,
+    )
+    return ObserverState(
+        prefactor=zeros.copy(),
+        tau_extra=zeros.copy(),
+        tau_pair=zeros.copy(),
+        components=components,
     )
 
 
@@ -1190,14 +1229,10 @@ def _electron_density_to_source_r(gam_e: np.ndarray, density_per_gamma: np.ndarr
     gamma = np.asarray(gam_e, dtype=float)
     density = np.asarray(density_per_gamma, dtype=float)
     radius = np.asarray(radius_cm, dtype=float)
-    source = np.zeros_like(density, dtype=float)
-    for i_shell in range(radius.size):
-        if i_shell == 0:
-            dr = radius[1] - radius[0]
-        else:
-            dr = radius[i_shell] - radius[i_shell - 1]
-        source[:, i_shell] = density[:, i_shell] * gamma * np.log(10.0) / dr
-    return source
+    dr = np.empty_like(radius)
+    dr[0] = radius[1] - radius[0]
+    dr[1:] = radius[1:] - radius[:-1]
+    return density * gamma[:, None] * np.log(10.0) / dr[None, :]
 
 
 def _forward_synchrotron_absorption_transfer(

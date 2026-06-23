@@ -112,6 +112,66 @@ def case_structured_chi_batch_matches_direct_sum():
     }
 
 
+def case_structured_chi_electron_cached_ring_sum():
+    boundary, r_tobs, radius, _source, _tau, chi_radius, chi_gamma, chi_weight, seed, obs, tobs, phi_centers = (
+        _structured_kernel_inputs()
+    )
+    boundary = np.array(boundary, copy=True)
+    boundary[12] = 1.0e27
+    num_theta = r_tobs.shape[1]
+    num_phi = phi_centers.size
+    num_chi = chi_radius.shape[0]
+    num_r = radius.shape[0]
+    gam_e = np.geomspace(2.0, 2.0e4, 9)
+    gam_shape = (gam_e[:, None, None, None] / gam_e[0]) ** -2.2
+    chi_shape = 1.0 + 0.1 * np.arange(num_chi, dtype=float)[None, :, None, None]
+    radius_shape = (radius[None, None, :, :] / radius[0, 0]) ** -0.5
+    theta_shape = 1.0 + 0.03 * np.arange(num_theta, dtype=float)[None, None, None, :]
+    dne_chi = 1.0e44 * gam_shape * chi_shape * radius_shape * theta_shape
+    b_chi = 0.08 * (radius[None, :, :] / radius[0, 0]) ** -0.6
+    b_chi = b_chi * (1.0 + 0.04 * np.arange(num_chi, dtype=float)[:, None, None])
+    dtheta = boundary[8] / float(num_theta)
+
+    batch = Interpolation.sed_interpolation_chi_structured_axisym_electron_cached(
+        boundary,
+        r_tobs,
+        radius,
+        dne_chi,
+        b_chi,
+        chi_radius,
+        chi_gamma,
+        chi_weight,
+        gam_e,
+        seed,
+        obs,
+        tobs,
+        num_phi,
+        1,
+    )
+    ring_sum = np.zeros_like(batch)
+    for i_theta in range(num_theta):
+        ring_sum += Interpolation.sed_interpolation_chi_structured_axisym_electron_cached_ring(
+            boundary,
+            r_tobs[:, i_theta],
+            radius[:, i_theta],
+            dne_chi[:, :, :, i_theta],
+            b_chi[:, :, i_theta],
+            chi_radius[:, :, i_theta],
+            chi_gamma[:, :, i_theta],
+            chi_weight[:, :, i_theta],
+            gam_e,
+            seed,
+            obs,
+            tobs,
+            dtheta * i_theta,
+            dtheta * (i_theta + 1),
+            num_phi,
+        )
+    assert np.any(batch > 0.0)
+    np.testing.assert_allclose(ring_sum, batch, rtol=1.0e-12, atol=1.0e-12)
+    return {"max_flux": float(np.max(batch)), "num_r": int(num_r)}
+
+
 def case_public_structured_fullhide_2d_chi_path():
     model = _public_structured_chi_model()
     times = np.array([1.0e3, 1.0e4], dtype=float)
@@ -144,18 +204,13 @@ def case_public_structured_parallel_matches_serial():
     return {"parallel_max_flux": float(np.max(parallel_flux)), "patch_count": len(parallel._last_details.patches)}
 
 
-def case_python_patch_chi_path_rejected():
-    model = _public_structured_chi_model()
-    model.setups.structured_backend = "python_patch"
-    try:
-        model.flux_density_grid(np.array([1.0e3], dtype=float), np.array([1.0e9], dtype=float))
-    except NotImplementedError as exc:
-        assert "deprecated python_patch theta/phi loop" in str(exc)
-    else:
-        raise AssertionError("python_patch chi_eats_2d path was not rejected")
 
-
-def _public_structured_chi_model(num_threads=1, structured_outer_threads=None, structured_inner_threads=None):
+def _public_structured_chi_model(
+    num_threads=1,
+    structured_outer_threads=None,
+    structured_inner_threads=None,
+    patch_sampling="uniform",
+):
     model = top_hat_model(
         jet=tabulated_angular_jet(
             theta_rad=np.array([0.0, 0.04, 0.10, 0.16], dtype=float),
@@ -188,6 +243,7 @@ def _public_structured_chi_model(num_threads=1, structured_outer_threads=None, s
             structured_parallel_mode="outer",
             structured_outer_threads=structured_outer_threads,
             structured_inner_threads=structured_inner_threads,
+            patch_sampling=patch_sampling,
         ),
     )
     model.observer.viewing_angle_rad = 0.2
@@ -197,10 +253,10 @@ def _public_structured_chi_model(num_threads=1, structured_outer_threads=None, s
 def main() -> None:
     results = {
         "kernel_parity": case_structured_chi_batch_matches_direct_sum(),
+        "electron_ring_parity": case_structured_chi_electron_cached_ring_sum(),
         "public_path": case_public_structured_fullhide_2d_chi_path(),
         "parallel_path": case_public_structured_parallel_matches_serial(),
     }
-    case_python_patch_chi_path_rejected()
     print(
         "structured-chi-2d-smoke-ok "
         f"batch_calls={results['kernel_parity']['batch_calls']} "

@@ -57,7 +57,7 @@ _ELECTRON_MODULES = {
     "weno5_1d": "src.Electron.electron_forward_weno5_1d",
 }
 
-_ELECTRON_1D_TRANSPORT_IDS = {
+ELECTRON_1D_TRANSPORT_IDS = {
     "fullhide_1d": 1,
     "fullhide_1d_hz": 1,
     "dg_1d": 2,
@@ -869,6 +869,10 @@ def _solve_electron_transport_2d(
         use_characteristic_integrator,
         solver_name,
     )
+    if not emit_full_chi_spectrum:
+        l_syn_spec_chi = None
+        seed_syn_chi = None
+        tau_syn_chi = None
     uses_four_velocity = (
         not use_characteristic_integrator
         and str(config.fullhide2d_transport_model).lower() != "pwn_cr_v1"
@@ -1018,9 +1022,9 @@ def _resolve_electron_solver(config: RuntimeConfig) -> str:
 
 def _electron_1d_transport_solver_id(config: RuntimeConfig) -> int:
     solver_name = _resolve_electron_solver(config)
-    if solver_name not in _ELECTRON_1D_TRANSPORT_IDS:
+    if solver_name not in ELECTRON_1D_TRANSPORT_IDS:
         raise NotImplementedError("reverse-shock electron transport supports electron_solver='fullhide_1d' or 'dg_1d'.")
-    return _ELECTRON_1D_TRANSPORT_IDS[solver_name]
+    return ELECTRON_1D_TRANSPORT_IDS[solver_name]
 
 
 def _resolve_pgamma_scheme(config: RuntimeConfig) -> str:
@@ -1612,21 +1616,11 @@ def _compute_secondary_reverse_shock_synchrotron(
     compression_branch = np.asarray(dynamics.reverse_shock.secondary_branch_compression, dtype=float)
     beta_rs_branch = np.asarray(dynamics.reverse_shock.secondary_branch_beta_rs, dtype=float)
     u_diss_branch = np.asarray(dynamics.reverse_shock.secondary_branch_dissipated_energy_density, dtype=float)
-    gamma_m_shell = np.zeros_like(radius)
-    previous_branch_mass = np.zeros(gamma_m_branch.shape[0], dtype=float)
-    for i_shell in range(radius.size):
-        branch_mass = dyn_m3_branch[:, i_shell]
-        branch_delta = branch_mass - previous_branch_mass
-        injected_mass = float(np.sum(branch_delta))
-        if injected_mass > 0.0:
-            gamma_m_shell[i_shell] = float(np.sum(gamma_m_branch[:, i_shell] * branch_delta) / injected_mass)
-        previous_branch_mass = branch_mass
     if not np.any(dyn_m3_shell > 0.0):
         return None
     parent_branch = np.zeros(gamma_43_branch.shape[0], dtype=np.int32)
-    for i_branch in range(1, parent_branch.size):
-        if bool(event_active[i_branch]) and bool(event_active[i_branch - 1]):
-            parent_branch[i_branch] = i_branch
+    consecutive = event_active[:-1] & event_active[1:]
+    parent_branch[1:] = np.where(consecutive, np.arange(1, parent_branch.size), 0)
     (
         gam_e_sec,
         dist,
@@ -1730,15 +1724,9 @@ def _renormalize_reverse_shock_distribution(
     f_e: float,
 ) -> np.ndarray:
     gam = np.asarray(gam_e, dtype=float)
-    dist = np.asarray(d_n_gam_e, dtype=float).copy()
-    dist = np.where(np.isfinite(dist) & (dist > 0.0), dist, 0.0)
+    dist = np.where(np.isfinite(d_n_gam_e) & (d_n_gam_e > 0.0), d_n_gam_e, 0.0)
     targets = np.asarray(swept_mass_g, dtype=float) / constants.para_m_p * float(f_e)
-    for i in range(dist.shape[1]):
-        total = float(np.trapezoid(dist[:, i], gam))
-        target = float(targets[i])
-        if not np.isfinite(total) or total <= 0.0:
-            continue
-        if not np.isfinite(target) or target <= 0.0:
-            continue
-        dist[:, i] *= target / total
+    totals = np.trapezoid(dist, gam, axis=0)
+    valid = np.isfinite(totals) & (totals > 0.0) & np.isfinite(targets) & (targets > 0.0)
+    dist[:, valid] *= (targets[valid] / totals[valid])[None, :]
     return dist

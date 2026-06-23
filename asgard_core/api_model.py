@@ -7,7 +7,6 @@ from typing import Callable, NamedTuple, Optional
 
 import numpy as np
 
-from asgard_core.angular_sampling import angular_separation, build_patch_grid, is_axisymmetric_jet
 from asgard_core.asgard_config import (
     RuntimeConfig,
     HadronicConfig,
@@ -669,16 +668,6 @@ class Hadronic:
     num_neutrino_frequency: int
     pgamma_scheme: str
     pair_cascade_iterations: int
-
-
-class _ActivePatch(NamedTuple):
-    phi_center: float
-    theta_center: float
-    half_angle: float
-    domega: float
-    theta_v: float
-    e_iso: float
-    gamma0: float
 
 
 @dataclass
@@ -1373,15 +1362,13 @@ class Model:
             config = _direct_tophat_patch_config(self)
             state = _solve_patch_state(self, config, times_s, None)
             details = _make_details(state.components, patches=[{"phi": 0.0, "theta": 0.0, "weight": 1.0}], state=state)
-        elif str(self.setups.structured_backend).lower() != "python_patch":
+        else:
             _result, details = _solve_patch_model(
                 self,
                 times_s,
                 np.array([1.0e9], dtype=float),
                 projection_kind="lightcurve",
             )
-        else:
-            details = _patch_details(self, times_s)
         self._last_details = details
         _remember_cache_entry(self._details_cache, cache_key, details)
         return details
@@ -1475,290 +1462,13 @@ def _solve_patch_model(
     solve_reference_times_s: np.ndarray | None = None,
     projection_kind: str = "lightcurve",
 ) -> tuple[FluxResult, TrackBundle]:
-    structured_backend = str(model.setups.structured_backend).lower()
-    patch_sampling = str(model.setups.patch_sampling).lower()
-    from asgard_core.angular_sampling import SUPPORTED_PATCH_SAMPLING
-
-    if patch_sampling not in SUPPORTED_PATCH_SAMPLING:
-        raise ValueError(
-            f"Unknown patch_sampling={patch_sampling!r}; expected one of {SUPPORTED_PATCH_SAMPLING}."
-        )
-    if structured_backend == "python_patch" and str(model.setups.geometry_kernel).lower() == "chi_eats_2d":
+    if solve_reference_times_s is not None:
         raise NotImplementedError(
-            "structured chi_eats_2d no longer supports the deprecated python_patch theta/phi loop; "
-            "use structured_backend='fortran_1d' for the single-call structured chi projection backend."
+            "structured_backend does not yet support external solve_reference_times_s."
         )
-    if structured_backend != "python_patch":
-        if patch_sampling != "uniform":
-            raise NotImplementedError(
-                "patch_sampling='dominant_region_ioka_v1' is only supported by "
-                "structured_backend='python_patch'."
-            )
-        if solve_reference_times_s is not None:
-            raise NotImplementedError(
-                f"structured_backend={structured_backend!r} does not yet support external solve_reference_times_s."
-            )
-        from asgard_core.structured_jet_kernel import solve_structured_jet_fortran
+    from asgard_core.structured_jet_kernel import solve_structured_jet_fortran
 
-        return solve_structured_jet_fortran(model, times_s, nu_hz, _build_fit_config_for_patch)
-
-    return _solve_patch_model_python(
-        model,
-        times_s,
-        nu_hz,
-        solve_reference_times_s=solve_reference_times_s,
-        projection_kind=projection_kind,
-    )
-
-
-def _empty_patch_flux_accumulator(nu_hz: np.ndarray, times_s: np.ndarray) -> FluxResult:
-    shape = (nu_hz.shape[0], times_s.shape[0])
-    total, fwd_sync, fwd_ssc, rev_sync, rev_ssc, cross_ic = np.zeros((6, *shape), dtype=float)
-    return FluxResult(
-        total=total,
-        fwd=FluxPair(sync=fwd_sync, ssc=fwd_ssc),
-        rev=FluxPair(sync=rev_sync, ssc=rev_ssc),
-        cross_ic=cross_ic,
-    )
-
-
-def _accumulate_patch_flux(accumulator: FluxResult, observed: FluxResult) -> None:
-    accumulator.total += observed.total
-    accumulator.fwd.sync += observed.fwd.sync
-    accumulator.fwd.ssc += observed.fwd.ssc
-    accumulator.rev.sync += observed.rev.sync
-    accumulator.rev.ssc += observed.rev.ssc
-    if observed.cross_ic is not None:
-        accumulator.cross_ic += observed.cross_ic
-
-
-def _solve_patch_model_python(
-    model: Model,
-    times_s: np.ndarray,
-    nu_hz: np.ndarray,
-    solve_reference_times_s: np.ndarray | None = None,
-    projection_kind: str = "lightcurve",
-) -> tuple[FluxResult, TrackBundle]:
-    from .api_adaptive import _observe_parts
-
-    flux_accumulator = _empty_patch_flux_accumulator(nu_hz, times_s)
-    patches_meta: list[dict[str, float]] = []
-    details_fwd: Optional[CharTrack] = None
-    details_rev: Optional[CharTrack] = None
-
-    patch_sampling = str(model.setups.patch_sampling).lower()
-    patch_projection = _resolve_patch_projection(model, patch_sampling)
-    if patch_projection == "surface_element" and is_axisymmetric_jet(model.jet):
-        return _solve_axisymmetric_surface_patch_model_python(
-            model,
-            times_s,
-            nu_hz,
-            solve_reference_times_s=solve_reference_times_s,
-        )
-    for patch, state in _iter_solved_patch_elements(
-        model,
-        times_s,
-        nu_hz,
-        _iter_patch_elements(model, times_s),
-        solve_reference_times_s=solve_reference_times_s,
-    ):
-        if patch_projection == "tophat_cell":
-            observed = _observe_parts(state, times_s, nu_hz, projection_kind=projection_kind)
-        else:
-            observed = _observe_surface_element_parts(state, times_s, nu_hz, patch.domega)
-        _accumulate_patch_flux(flux_accumulator, observed)
-        patches_meta.append(_patch_metadata(patch, patch_sampling, patch_projection))
-        if details_fwd is None:
-            details = _make_details(state.components, patches_meta, state=state)
-            details_fwd = details.fwd
-            details_rev = details.rev
-
-    if details_fwd is None:
-        raise ValueError("No active jet patches were found for the requested structured jet.")
-    return (
-        flux_accumulator,
-        TrackBundle(fwd=details_fwd, rev=details_rev, patches=patches_meta),
-    )
-
-
-def _solve_axisymmetric_surface_patch_model_python(
-    model: Model,
-    times_s: np.ndarray,
-    nu_hz: np.ndarray,
-    solve_reference_times_s: np.ndarray | None = None,
-) -> tuple[FluxResult, TrackBundle]:
-    grid = build_patch_grid(model, times_s)
-    flux_accumulator = _empty_patch_flux_accumulator(nu_hz, times_s)
-    patches_meta: list[dict[str, float]] = []
-    details_fwd: Optional[CharTrack] = None
-    details_rev: Optional[CharTrack] = None
-    patch_sampling = str(model.setups.patch_sampling).lower()
-
-    for i_theta, theta_center_value in enumerate(grid.theta_centers):
-        theta_center = float(theta_center_value)
-        e_iso = model.jet.energy_iso(0.0, theta_center)
-        gamma0 = model.jet.gamma0(0.0, theta_center)
-        if e_iso <= 0.0 or gamma0 <= 1.0:
-            continue
-        config = _build_fit_config_for_patch(
-            model,
-            theta_v=0.0,
-            opening_angle_jet=float(grid.patch_half_angle[i_theta, 0]),
-            e_iso=e_iso,
-            gamma0=gamma0,
-            theta_center=theta_center,
-        )
-        state = _solve_patch_state(
-            model,
-            config,
-            times_s,
-            nu_hz,
-            solve_reference_times_s=solve_reference_times_s,
-        )
-        boundary = state.setup.boundary
-        for i_phi, phi_center_value in enumerate(grid.phi_centers):
-            phi_center = float(phi_center_value)
-            theta_v = float(angular_separation(theta_center, phi_center, model.observer.theta_obs, model.observer.phi_obs))
-            patch = _ActivePatch(
-                phi_center,
-                theta_center,
-                float(grid.patch_half_angle[i_theta, i_phi]),
-                float(grid.domega[i_theta, i_phi]),
-                theta_v,
-                float(e_iso),
-                float(gamma0),
-            )
-            boundary[9] = patch.theta_v
-            observed = _observe_surface_element_parts(state, times_s, nu_hz, patch.domega)
-            _accumulate_patch_flux(flux_accumulator, observed)
-            patches_meta.append(_patch_metadata(patch, patch_sampling, "surface_element"))
-        if details_fwd is None:
-            details = _make_details(state.components, patches_meta, state=state)
-            details_fwd = details.fwd
-            details_rev = details.rev
-
-    if details_fwd is None:
-        raise ValueError("No active jet patches were found for the requested structured jet.")
-    return (
-        flux_accumulator,
-        TrackBundle(fwd=details_fwd, rev=details_rev, patches=patches_meta),
-    )
-
-
-def _patch_details(model: Model, times_s: np.ndarray) -> TrackBundle:
-    patches_meta: list[dict[str, float]] = []
-    first_component: Optional[FluxComponents] = None
-    first_details: Optional[TrackBundle] = None
-
-    patch_sampling = str(model.setups.patch_sampling).lower()
-    patch_projection = _resolve_patch_projection(model, patch_sampling)
-    for patch in _active_patch_elements(model, _iter_patch_elements(model, times_s)):
-        patches_meta.append(_patch_metadata(patch, patch_sampling, patch_projection))
-        if first_component is None:
-            config = _patch_runtime_config(model, patch)
-            first_state = _solve_patch_state(model, config, times_s, None)
-            first_component = first_state.components
-            first_details = _make_details(first_component, patches_meta, state=first_state)
-
-    if first_component is None or first_details is None:
-        raise ValueError("No active jet patches were found for the requested structured jet.")
-    return first_details
-
-
-def _resolve_patch_projection(model: Model, patch_sampling: str) -> str:
-    projection = str(model.setups.patch_projection).lower()
-    if projection == "auto":
-        return "tophat_cell" if patch_sampling == "uniform" else "surface_element"
-    if projection in {"tophat_cell", "surface_element"}:
-        return projection
-    raise ValueError("patch_projection must be 'auto', 'tophat_cell', or 'surface_element'.")
-
-
-def _observe_surface_element_parts(
-    state: SolveState,
-    times_s: np.ndarray,
-    nu_hz: np.ndarray,
-    domega: float,
-) -> FluxResult:
-    from asgard_core.asgard_state import _build_observer_setup_from_state
-
-    setup = _build_observer_setup_from_state(state, times_s)
-    components = state.components
-    fwd_sync = _project_surface_element(
-        setup,
-        components.fwd.characteristic_time_s,
-        components.fwd.gamma,
-        components.fwd.radius_cm,
-        setup.seed_frequency_hz,
-        components.fwd_sync,
-        nu_hz,
-        domega,
-    )
-    fwd_ssc = _project_optional_surface_element(setup, components, components.fwd_ssc, nu_hz, domega)
-    rev_sync = _project_optional_surface_element(setup, components, components.rev_sync, nu_hz, domega)
-    rev_ssc = _project_optional_surface_element(setup, components, components.rev_ssc, nu_hz, domega)
-    cross_ic = _project_optional_surface_element(setup, components, components.cross_ic, nu_hz, domega)
-    total = fwd_sync + fwd_ssc + rev_sync + rev_ssc + cross_ic
-    return FluxResult(
-        total=total,
-        fwd=FluxPair(sync=fwd_sync, ssc=fwd_ssc),
-        rev=FluxPair(sync=rev_sync, ssc=rev_ssc),
-        cross_ic=cross_ic,
-    )
-
-
-def _project_optional_surface_element(
-    setup,
-    components: FluxComponents,
-    source: np.ndarray | None,
-    nu_hz: np.ndarray,
-    domega: float,
-) -> np.ndarray:
-    if source is None:
-        return np.zeros((nu_hz.shape[0], setup.observer_time_s.shape[0]), dtype=float)
-    return _project_surface_element(
-        setup,
-        components.fwd.characteristic_time_s,
-        components.fwd.gamma,
-        components.fwd.radius_cm,
-        setup.seed_frequency_hz,
-        source,
-        nu_hz,
-        domega,
-    )
-
-
-def _project_surface_element(
-    setup,
-    characteristic_time_s: np.ndarray,
-    gamma: np.ndarray,
-    radius_cm: np.ndarray,
-    seed_frequency_hz: np.ndarray,
-    absorbed_spectral_flux: np.ndarray,
-    frequencies_hz: np.ndarray,
-    domega: float,
-) -> np.ndarray:
-    if not np.any(absorbed_spectral_flux):
-        return np.zeros((frequencies_hz.shape[0], setup.observer_time_s.shape[0]), dtype=float)
-    frequencies_hz = np.asarray(frequencies_hz, dtype=float)
-    order = np.argsort(frequencies_hz)
-    sorted_frequencies = frequencies_hz[order]
-    flux_sorted = Interpolation.sed_interpolation_surface_element(
-        setup.boundary,
-        characteristic_time_s,
-        gamma,
-        radius_cm,
-        absorbed_spectral_flux,
-        seed_frequency_hz,
-        sorted_frequencies,
-        setup.observer_time_s,
-        float(domega),
-    )
-    if np.array_equal(order, np.arange(order.shape[0])):
-        return flux_sorted
-    flux_matrix = np.empty_like(flux_sorted)
-    flux_matrix[order] = flux_sorted
-    return flux_matrix
+    return solve_structured_jet_fortran(model, times_s, nu_hz, _build_fit_config_for_patch)
 
 
 def _extract_pair_flux(grid: np.ndarray, times_s: np.ndarray, frequencies_hz: np.ndarray) -> np.ndarray:
@@ -2096,87 +1806,6 @@ def _make_details(
         ),
         patches=patches,
     )
-
-
-def _iter_patch_elements(model: Model, observer_time_s: np.ndarray | None = None):
-    grid = build_patch_grid(model, observer_time_s)
-    for i_theta, theta_center in enumerate(grid.theta_centers):
-        for i_phi, phi_center in enumerate(grid.phi_centers):
-            yield (
-                float(phi_center),
-                float(theta_center),
-                float(grid.patch_half_angle[i_theta, i_phi]),
-                float(grid.domega[i_theta, i_phi]),
-            )
-
-
-def _active_patch_elements(model: Model, patch_elements):
-    for phi_center, theta_center, patch_half_angle, domega in patch_elements:
-        e_iso = model.jet.energy_iso(phi_center, theta_center)
-        gamma0 = model.jet.gamma0(phi_center, theta_center)
-        if e_iso <= 0.0 or gamma0 <= 1.0:
-            continue
-        theta_v = angular_separation(theta_center, phi_center, model.observer.theta_obs, model.observer.phi_obs)
-        yield _ActivePatch(
-            float(phi_center),
-            float(theta_center),
-            float(patch_half_angle),
-            float(domega),
-            float(theta_v),
-            float(e_iso),
-            float(gamma0),
-        )
-
-
-def _patch_runtime_config(
-    model: Model,
-    patch: _ActivePatch,
-    opening_angle_jet: float | None = None,
-) -> RuntimeConfig:
-    return _build_fit_config_for_patch(
-        model,
-        theta_v=patch.theta_v,
-        opening_angle_jet=patch.half_angle if opening_angle_jet is None else float(opening_angle_jet),
-        e_iso=patch.e_iso,
-        gamma0=patch.gamma0,
-        theta_center=patch.theta_center,
-    )
-
-
-def _iter_solved_patch_elements(
-    model: Model,
-    times_s: np.ndarray,
-    nu_hz: np.ndarray | None,
-    patch_elements,
-    *,
-    opening_angle_jet: float | None = None,
-    timings: Optional[dict[str, float]] = None,
-    solve_reference_times_s: np.ndarray | None = None,
-):
-    for patch in _active_patch_elements(model, patch_elements):
-        state = _solve_patch_state(
-            model,
-            _patch_runtime_config(model, patch, opening_angle_jet=opening_angle_jet),
-            times_s,
-            nu_hz,
-            timings=timings,
-            solve_reference_times_s=solve_reference_times_s,
-        )
-        yield patch, state
-
-
-def _patch_metadata(patch: _ActivePatch, patch_sampling: str, patch_projection: str) -> dict[str, float | str]:
-    return {
-        "phi": patch.phi_center,
-        "theta": patch.theta_center,
-        "theta_v": patch.theta_v,
-        "half_angle": patch.half_angle,
-        "domega": patch.domega,
-        "patch_sampling": patch_sampling,
-        "patch_projection": patch_projection,
-        "E_iso": patch.e_iso,
-        "Gamma0": patch.gamma0,
-    }
 
 
 def _jet_magnetar_active(jet: JetProfile, theta_center: float) -> bool:
