@@ -89,8 +89,9 @@ def solve_structured_jet_chi_2d(model, times_s: np.ndarray, nu_hz: np.ndarray, b
     theta_centers, theta_edges, _phi_centers, e_iso, gamma0, active, axisymmetric = sampled
     _assert_supported_structured_chi_2d(model, axisymmetric)
     solve_times = _solve_time_grid(model, times)
+    adaptive_rtol = float(getattr(model.setups, "structured_adaptive_rtol", 0.0))
+
     if _uses_direct_structured_chi_projection(model):
-        adaptive_rtol = float(getattr(model.setups, "structured_adaptive_rtol", 0.0))
         if adaptive_rtol > 0.0 and axisymmetric:
             fwd_sync, first_state = _solve_project_structured_chi_ring_flux_adaptive(
                 model,
@@ -119,6 +120,24 @@ def solve_structured_jet_chi_2d(model, times_s: np.ndarray, nu_hz: np.ndarray, b
                 times,
                 frequencies,
             )
+    elif adaptive_rtol > 0.0 and axisymmetric:
+        # Non-direct chi_2d path with adaptive theta: solve only the sparse
+        # ring subset and project each ring individually, avoiding the 4-D
+        # ring_states allocation of the uniform-grid path.
+        fwd_sync, first_state = _solve_project_structured_chi_ring_flux_adaptive(
+            model,
+            build_patch_config,
+            theta_centers,
+            e_iso[:, 0],
+            gamma0[:, 0],
+            active[:, 0],
+            theta_edges,
+            solve_times,
+            times,
+            frequencies,
+            adaptive_rtol=adaptive_rtol,
+            adaptive_max_depth=int(getattr(model.setups, "structured_adaptive_max_depth", 4)),
+        )
     else:
         ring_states = _solve_structured_chi_ring_states(
             model,
@@ -134,6 +153,7 @@ def solve_structured_jet_chi_2d(model, times_s: np.ndarray, nu_hz: np.ndarray, b
         if first_state is None:
             raise ValueError("No active jet elements were found for the requested structured jet.")
         fwd_sync = _project_structured_chi_sync_once(model, ring_states, first_state, times, frequencies)
+
     zero = np.zeros_like(fwd_sync)
     flux = FluxResult(
         total=fwd_sync,
@@ -338,30 +358,35 @@ def _solve_project_structured_chi_ring_flux(
     return _unsort_flux(flux_sorted, order), first_state
 
 
-def _build_adaptive_ring_indices(
+def _build_adaptive_ring_windows(
     e_iso: np.ndarray,
     gamma0: np.ndarray,
     active: np.ndarray,
+    theta_edges: np.ndarray,
     adaptive_rtol: float,
     adaptive_max_depth: int,
-) -> list[int]:
-    """Build a sparse theta-ring index set for structured chi_2d projection.
+) -> list[tuple[int, float, float, float, float]]:
+    """Build sparse theta-ring windows for structured chi_2d projection.
 
-    The base grid uses every ``step``-th active ring, where *step* is derived
-    from *adaptive_rtol* (tighter tolerance → smaller step).  After building
-    the base grid, cells whose log-E_iso curvature exceeds a threshold are
-    recursively subdivided (up to *adaptive_max_depth* levels).  Smooth-
-    structured jets (e.g. Gaussians) typically need zero refinement, so the
-    effective ring count drops by the step factor.
+    Returns ``(i_theta, theta_lo, theta_hi, e_iso_window, gamma0_window)``
+    tuples.  Each window spans from its own left edge to the **next** selected
+    ring's left edge, so the union of all windows covers the full jet without
+    gaps.  ``e_iso_window`` and ``gamma0_window`` are re-evaluated at the
+    window midpoint, which may differ from the original uniform-grid centre
+    for widened windows.
+
+    The selection algorithm is unchanged: base down-sampling with curvature-
+    based safety refinement.
     """
     active_indices = [int(i) for i, flag in enumerate(active) if int(flag) != 0]
     if len(active_indices) <= 8:
-        return active_indices
+        return [
+            (i, float(theta_edges[i]), float(theta_edges[i + 1]),
+             float(e_iso[i]), float(gamma0[i]))
+            for i in active_indices
+        ]
 
-    # Map rtol to down-sampling step.  The convergence test on Gaussian jets
-    # showed that n_theta=8 (step≈12) gives 0.12 % error and n_theta=16
-    # (step≈6) gives 0.05 % error.  We target step so that the expected
-    # integration error stays well below adaptive_rtol.
+    # Map rtol to down-sampling step
     if adaptive_rtol <= 0.005:
         step = 2
     elif adaptive_rtol <= 0.01:
@@ -377,8 +402,7 @@ def _build_adaptive_ring_indices(
     if active_indices[-1] not in base_indices:
         base_indices.append(active_indices[-1])
 
-    # Curvature-based safety refinement: only subdivide cells where
-    # log-E_iso has significant second-derivative structure.
+    # Curvature-based safety refinement
     log_e = np.log(np.maximum(np.asarray(e_iso, dtype=float), 1e-100))
     refined = list(base_indices)
     for _ in range(adaptive_max_depth):
@@ -390,7 +414,7 @@ def _build_adaptive_ring_indices(
             if il > 0 and ir < len(log_e) - 1:
                 im = (il + ir) // 2
                 d2 = abs(log_e[ir] - 2.0 * log_e[im] + log_e[il])
-                if d2 > 0.5:  # significant log-curvature
+                if d2 > 0.5:
                     if im not in refined and im not in added:
                         added.append(im)
         if not added:
@@ -398,7 +422,24 @@ def _build_adaptive_ring_indices(
         refined.extend(added)
         refined.sort()
 
-    return refined
+    # Build windows: each ring covers [its own left edge, next ring's left edge)
+    theta_all = np.asarray(theta_edges, dtype=float)
+    t_centers = 0.5 * (theta_all[:-1] + theta_all[1:])
+    n_full = len(e_iso)
+    windows = []
+    for idx_pos in range(len(refined)):
+        i_theta = refined[idx_pos]
+        theta_lo = float(theta_all[i_theta])
+        if idx_pos + 1 < len(refined):
+            theta_hi = float(theta_all[refined[idx_pos + 1]])
+        else:
+            theta_hi = float(theta_all[active_indices[-1] + 1])
+        theta_mid = 0.5 * (theta_lo + theta_hi)
+        # Find the closest uniform-grid cell to the window midpoint
+        j = max(0, min(n_full - 1, int(np.searchsorted(t_centers, theta_mid))))
+        windows.append((i_theta, theta_lo, theta_hi, float(e_iso[j]), float(gamma0[j])))
+
+    return windows
 
 
 def _solve_project_structured_chi_ring_flux_adaptive(
@@ -417,57 +458,63 @@ def _solve_project_structured_chi_ring_flux_adaptive(
 ):
     """Adaptive-theta variant of _solve_project_structured_chi_ring_flux.
 
-    Builds a sparse theta grid via _build_adaptive_ring_indices, solves
-    transport only on those rings, and projects.  For smooth-structured jets
-    this typically uses 1/4 to 1/2 of the uniform-grid rings with negligible
-    (< 0.5 %) accuracy loss.
+    Builds a sparse set of theta *windows* via _build_adaptive_ring_windows.
+    Each window spans from its own left edge to the next selected ring's left
+    edge, covering the full jet without gaps.  Transport is solved at the
+    window midpoint, so E_iso / Gamma0 may differ from the original uniform-
+    grid values for widened windows.
     """
     outer_threads, inner_threads = _structured_threads(model)
     active_indices = [int(i) for i, flag in enumerate(active) if int(flag) != 0]
     if not active_indices:
         raise ValueError("No active jet elements were found for the requested structured jet.")
 
-    ring_indices = _build_adaptive_ring_indices(
-        e_iso, gamma0, active, adaptive_rtol, adaptive_max_depth,
+    windows = _build_adaptive_ring_windows(
+        e_iso, gamma0, active, theta_edges, adaptive_rtol, adaptive_max_depth,
     )
 
     order = np.argsort(frequencies)
     sorted_frequencies = frequencies[order]
     flux_sorted = np.zeros((sorted_frequencies.size, times.size), dtype=float)
 
-    first_index = ring_indices[0]
+    # First window
+    i_first, tlo_first, thi_first, e_first, g_first = windows[0]
     first_config, first_setup = _structured_chi_ring_config_setup(
         model, build_patch_config,
-        float(theta_edges[first_index + 1] - theta_edges[first_index]),
+        thi_first - tlo_first,
         theta_centers, e_iso, gamma0, solve_times, sorted_frequencies,
-        first_index, int(inner_threads),
+        i_first, int(inner_threads),
     )
+    # Override E_iso / Gamma0 to window midpoint values
+    first_config.e_iso = e_first
+    first_config.eta_0 = g_first
     first_state = solve_state_from_setup(
         first_config, first_setup,
         requested_frequencies_hz=sorted_frequencies,
         assemble_observer=False,
     )
     flux_sorted += _project_structured_chi_ring_state(
-        first_state,
-        float(theta_edges[first_index]),
-        float(theta_edges[first_index + 1]),
+        first_state, tlo_first, thi_first,
         float(model.observer.theta_obs),
         int(model.setups.structured_num_phi),
         times, sorted_frequencies,
     )
 
+    # Remaining windows
     payloads = []
-    for i_theta in ring_indices[1:]:
+    for i_theta, tlo, thi, e_win, g_win in windows[1:]:
         query_config, setup = _structured_chi_ring_config_setup(
             model, build_patch_config,
-            float(theta_edges[i_theta + 1] - theta_edges[i_theta]),
+            thi - tlo,
             theta_centers, e_iso, gamma0, solve_times, sorted_frequencies,
             i_theta, int(inner_threads),
         )
+        query_config.e_iso = e_win
+        query_config.eta_0 = g_win
         payloads.append((
             int(i_theta), query_config, setup,
             sorted_frequencies, times,
-            float(theta_edges[i_theta]), float(theta_edges[i_theta + 1]),
+            tlo, thi,
             float(model.observer.theta_obs), int(model.setups.structured_num_phi),
         ))
 
