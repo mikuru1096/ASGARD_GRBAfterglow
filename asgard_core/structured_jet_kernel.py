@@ -509,32 +509,22 @@ def _project_structured_chi_ring_state(
         float(theta_lo), float(theta_hi), float(theta_obs), int(num_phi), float(state.config.z),
     )
     e = state.electron
-    if e.l_syn_spec_chi is not None and e.tau_syn_chi is not None:
-        z = float(state.config.z)
-        DL = float(state.setup.luminosity_distance_cm)
-        flux_prefactor = (1.0 + z) / (4.0 * np.pi * DL * DL)
-        F_ring = np.asfortranarray(
-            np.asarray(e.l_syn_spec_chi, dtype=float)[selected, :, :] * flux_prefactor
-        )
-        Tau_ring = np.asfortranarray(
-            np.asarray(e.tau_syn_chi, dtype=float)[selected, :, :]
-        )
-        return Interpolation.sed_interpolation_chi_structured_axisym_ring_precomputed(
-            boundary,
-            state.components.fwd.characteristic_time_s,
-            state.components.fwd.radius_cm,
-            F_ring, Tau_ring,
-            e.chi_radius_cm, e.chi_gamma_bulk,
-            e.chi_dvolume_weight,
-            seed_frequency, frequencies, times,
-            float(theta_lo), float(theta_hi), int(num_phi),
-        )
-    return Interpolation.sed_interpolation_chi_structured_axisym_electron_cached_ring(
+    z = float(state.config.z)
+    DL = float(state.setup.luminosity_distance_cm)
+    flux_prefactor = (1.0 + z) / (4.0 * np.pi * DL * DL)
+    F_ring = np.asfortranarray(
+        np.asarray(e.l_syn_spec_chi, dtype=float)[selected, :, :] * flux_prefactor
+    )
+    Tau_ring = np.asfortranarray(
+        np.asarray(e.tau_syn_chi, dtype=float)[selected, :, :]
+    )
+    return Interpolation.sed_interpolation_chi_structured_axisym_ring_precomputed(
         boundary,
         state.components.fwd.characteristic_time_s,
         state.components.fwd.radius_cm,
-        e.d_n_gam_e_chi, e.b_chi_g, e.chi_radius_cm, e.chi_gamma_bulk,
-        e.chi_dvolume_weight, e.gam_e,
+        F_ring, Tau_ring,
+        e.chi_radius_cm, e.chi_gamma_bulk,
+        e.chi_dvolume_weight,
         seed_frequency, frequencies, times,
         float(theta_lo), float(theta_hi), int(num_phi),
     )

@@ -9,7 +9,6 @@ _BINDINGS = {
     "sed_interpolation_adaptive_theta": "SED_interpolation",
     "sed_interpolation_chi": "SED_interpolation",
     "sed_interpolation_chi_electron_cached": "SED_interpolation",
-    "sed_interpolation_chi_structured_axisym_electron_cached_ring": "SED_interpolation",
     "sed_interpolation_chi_structured_axisym_ring_precomputed": "SED_interpolation",
     "sed_interpolation_structured": "SED_interpolation_structured",
     "sed_interpolation_structured_phi": "SED_interpolation_structured",
