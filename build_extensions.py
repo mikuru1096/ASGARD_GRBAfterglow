@@ -32,12 +32,13 @@ class ModuleSpec:
 
 DYNAMICS_COMMON_SOURCES = ("../Constants.f90", "dynamics_common.f90")
 F2PY_SKIP_DYNAMICS_COMMON_INTERNALS = (
-    "skip:",
     "dynamics_rk4_forward_ln_step",
     "dynamics_rk4_reverse",
     "dynamics_rk4_reverse_waiting",
     "dynamics_rk4_reverse_pre_m3",
-    ":",
+)
+F2PY_SKIP_RADIATION_COMMON_INTERNALS = (
+    "radiation_syn_kernel_value",
 )
 RADIATION_COMMON_SOURCES = (
     "../Constants.f90",
@@ -684,8 +685,13 @@ def main() -> None:
             )
             print(f"Done {spec.name}: {elapsed:.2f}s")
             continue
+        skip_names: list[str] = []
         if any(Path(source).name == "dynamics_common.f90" for source in spec.sources):
-            module_extra_args = [*F2PY_SKIP_DYNAMICS_COMMON_INTERNALS, *module_extra_args]
+            skip_names.extend(F2PY_SKIP_DYNAMICS_COMMON_INTERNALS)
+        if any(Path(source).name == "radiation_common.f90" for source in spec.sources):
+            skip_names.extend(F2PY_SKIP_RADIATION_COMMON_INTERNALS)
+        if skip_names:
+            module_extra_args = ["skip:", *skip_names, ":", *module_extra_args]
         elapsed = _build_module(
             spec.name,
             spec.cwd,

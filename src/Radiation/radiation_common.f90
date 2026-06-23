@@ -60,6 +60,20 @@ subroutine radiation_transfer_factor(Tau, factor)
     end if
 end subroutine radiation_transfer_factor
 
+elemental real(8) function radiation_syn_kernel_value(x, ratio_v_pow, factor) result(Fx)
+    implicit none
+    real(8), intent(in) :: x, ratio_v_pow, factor
+
+    ! 同一近似同步核的低频渐近、指数段和高频尾分段；用于避免无贡献区反复算exp/sqrt。
+    if (x > 30d0) then
+        Fx = zero
+    else if (x < 3d-6) then
+        Fx = 1.81d0/dsqrt(ratio_v_pow)
+    else
+        Fx = 1.81d0*dexp(-x)/dsqrt(ratio_v_pow+factor)
+    end if
+end function radiation_syn_kernel_value
+
 ! 准备湮灭计算网格：转换为以电子静能归一化的光子能量，计算中心值和体积元。
 subroutine radiation_prepare_annihilation_grid(V_seed, Num_nu, ep1, ep2, dVloc, V_mid)
     implicit real(8)(A-H,O-Z)
@@ -184,7 +198,7 @@ subroutine radiation_syn_seed_point(I_nu)
     do I_gam_e=1,Num_gam_e-1
         x=V_cal*Vc_inv_arr(I_gam_e)
         ratio_v_pow=Vc_pow23_arr(I_gam_e)*V_seed_powm23(I_nu)
-        Fx=1.81d0*dexp(-x)/dsqrt(ratio_v_pow+factor)
+        Fx=radiation_syn_kernel_value(x,ratio_v_pow,factor)
         dInteg=dInteg+dN_dgam_arr(I_gam_e)*Fx
         Tau=Tau+gam_e_mean2_arr(I_gam_e)*ddN_arr(I_gam_e)*Fx
     end do
@@ -205,11 +219,13 @@ subroutine radiation_syn_seed_chi_batch_core(R_loc,Num_gam_e,Num_nu,Num_chi,gam_
     integer, intent(in) :: Num_gam_e,Num_nu,Num_chi
     real(8), intent(in) :: R_loc,gam_e(Num_gam_e),DNe_chi(Num_gam_e,Num_chi),V_seed(Num_nu),DB_chi(Num_chi),ssa_prefactor
     real(8), intent(out) :: P_emit(Num_nu,Num_chi),P_syn(Num_nu,Num_chi),Seed_syn(Num_nu,Num_chi),Tau_syn(Num_nu,Num_chi)
-    real(8) :: factor,Temp_syn,Rariv2,temp_para,DB_ref,dInteg,Tau,P_v,temp_abs
+    real(8) :: factor,Temp_syn,Rariv2,temp_para,DB_ref,DB_loc,dInteg,Tau,P_v,temp_abs
+    real(8) :: vc_inv_loc,vc_pow_loc,vc_powm13
+    real(8) :: integ_nu(Num_nu),tau_nu(Num_nu),emit_w,tau_w
     real(8) :: gam_mean2(Num_gam_e-1),dgamma_half(Num_gam_e-1),inv_gam2(Num_gam_e)
-    real(8) :: vc_inv(Num_gam_e-1),vc_pow23(Num_gam_e-1),v_powm23(Num_nu)
+    real(8) :: vc_inv(Num_gam_e-1),vc_pow23(Num_gam_e-1),v_powm23(Num_nu),v_pow13(Num_nu)
     real(8) :: fx_grid(Num_gam_e-1,Num_nu),emit_weight(Num_gam_e-1),tau_weight(Num_gam_e-1)
-    integer :: I_chi,I_gam_e,I_nu
+    integer :: I_chi,I_gam_e,I_nu,low_last,tail_last
     logical :: uniform_db
 
     DB_ref = DB_chi(1)
@@ -217,13 +233,6 @@ subroutine radiation_syn_seed_chi_batch_core(R_loc,Num_gam_e,Num_nu,Num_chi,gam_
     do I_chi = 2, Num_chi
         if (DB_chi(I_chi) /= DB_ref) uniform_db = .false.
     end do
-    if (.not. uniform_db) then
-        do I_chi = 1, Num_chi
-            call radiation_syn_seed_core(R_loc,DB_chi(I_chi),Num_gam_e,Num_nu,1,gam_e,DNe_chi(:,I_chi),V_seed, &
-                                         ssa_prefactor,P_emit(:,I_chi),P_syn(:,I_chi),Seed_syn(:,I_chi),Tau_syn(:,I_chi))
-        end do
-        return
-    end if
 
     factor = (3.62d0/pi)**2
     Temp_syn = dsqrt(3d0)*para_e*para_e*para_e/Para_m_energy
@@ -241,9 +250,58 @@ subroutine radiation_syn_seed_chi_batch_core(R_loc,Num_gam_e,Num_nu,Num_chi,gam_
     end do
     do I_nu = 1, Num_nu
         v_powm23(I_nu) = V_seed(I_nu)**(-2d0/3d0)
+        v_pow13(I_nu) = V_seed(I_nu)**(one/3d0)
+    end do
+    if (.not. uniform_db) then
+        do I_chi = 1, Num_chi
+            DB_loc = DB_chi(I_chi)
+            integ_nu = zero
+            tau_nu = zero
+            low_last = 0
+            tail_last = 0
+            do I_gam_e = 1, Num_gam_e-1
+                emit_w = (DNe_chi(I_gam_e,I_chi)+DNe_chi(I_gam_e+1,I_chi))*dgamma_half(I_gam_e)
+                tau_w = gam_mean2(I_gam_e)*(DNe_chi(I_gam_e,I_chi)*inv_gam2(I_gam_e) - &
+                        DNe_chi(I_gam_e+1,I_chi)*inv_gam2(I_gam_e+1))
+                Vc = (4.2d6)*gam_mean2(I_gam_e)*DB_loc
+                vc_inv_loc = one/Vc
+                vc_pow_loc = Vc**(2d0/3d0)
+                vc_powm13 = one/(Vc**(one/3d0))
+                do while (low_last < Num_nu .and. V_seed(low_last+1) < 3d-6*Vc)
+                    low_last = low_last+1
+                end do
+                if (tail_last < low_last) tail_last = low_last
+                do while (tail_last < Num_nu .and. V_seed(tail_last+1) <= 30d0*Vc)
+                    tail_last = tail_last+1
+                end do
+                do I_nu = 1, low_last
+                    Fx = 1.81d0*v_pow13(I_nu)*vc_powm13
+                    integ_nu(I_nu) = integ_nu(I_nu) + emit_w*Fx
+                    tau_nu(I_nu) = tau_nu(I_nu) + tau_w*Fx
+                end do
+                do I_nu = low_last+1, tail_last
+                    x = V_seed(I_nu)*vc_inv_loc
+                    Fx = radiation_syn_kernel_value(x,vc_pow_loc*v_powm23(I_nu),factor)
+                    integ_nu(I_nu) = integ_nu(I_nu) + emit_w*Fx
+                    tau_nu(I_nu) = tau_nu(I_nu) + tau_w*Fx
+                end do
+            end do
+            do I_nu = 1, Num_nu
+                P_v = Temp_syn*DB_loc*integ_nu(I_nu)
+                Tau = ssa_prefactor*tau_nu(I_nu)*DB_loc/(4d0*pi*Rariv2*V_seed(I_nu)*V_seed(I_nu))
+                P_emit(I_nu,I_chi) = P_v
+                Tau_syn(I_nu,I_chi) = Tau
+                call radiation_transfer_factor(Tau,temp_abs)
+                P_syn(I_nu,I_chi) = P_v*temp_abs
+                Seed_syn(I_nu,I_chi) = P_syn(I_nu,I_chi)/(Rariv2*V_seed(I_nu)*temp_para)
+            end do
+        end do
+        return
+    end if
+    do I_nu = 1, Num_nu
         do I_gam_e = 1, Num_gam_e-1
             x = V_seed(I_nu)*vc_inv(I_gam_e)
-            fx_grid(I_gam_e,I_nu) = 1.81d0*dexp(-x)/dsqrt(vc_pow23(I_gam_e)*v_powm23(I_nu)+factor)
+            fx_grid(I_gam_e,I_nu) = radiation_syn_kernel_value(x,vc_pow23(I_gam_e)*v_powm23(I_nu),factor)
         end do
     end do
 
@@ -270,5 +328,119 @@ subroutine radiation_syn_seed_chi_batch_core(R_loc,Num_gam_e,Num_nu,Num_chi,gam_
         end do
     end do
 end subroutine radiation_syn_seed_chi_batch_core
+
+subroutine radiation_syn_flux_tau_chi_batch_core(R_loc,Num_gam_e,Num_nu,Num_chi,gam_e,DNe_chi,V_seed,DB_chi, &
+                                                 ssa_prefactor,P_syn,Tau_syn)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: Num_gam_e,Num_nu,Num_chi
+    real(8), intent(in) :: R_loc,gam_e(Num_gam_e),DNe_chi(Num_gam_e,Num_chi),V_seed(Num_nu),DB_chi(Num_chi),ssa_prefactor
+    real(8), intent(out) :: P_syn(Num_nu,Num_chi),Tau_syn(Num_nu,Num_chi)
+    real(8) :: factor,Temp_syn,Rariv2,DB_ref,DB_loc,dInteg,Tau,P_v,temp_abs
+    real(8) :: integ_nu(Num_nu),tau_nu(Num_nu),emit_w,tau_w,vc_inv_loc,vc_pow_loc,vc_powm13
+    real(8) :: gam_mean2(Num_gam_e-1),dgamma_half(Num_gam_e-1),inv_gam2(Num_gam_e)
+    real(8) :: vc_inv(Num_gam_e-1),vc_pow23(Num_gam_e-1),v_powm23(Num_nu),v_pow13(Num_nu)
+    real(8) :: fx_grid(Num_gam_e-1,Num_nu),emit_weight(Num_gam_e-1),tau_weight(Num_gam_e-1)
+    integer :: I_chi,I_gam_e,I_nu,low_last,tail_last
+    logical :: uniform_db
+
+    DB_ref = DB_chi(1)
+    uniform_db = .true.
+    do I_chi = 2, Num_chi
+        if (DB_chi(I_chi) /= DB_ref) uniform_db = .false.
+    end do
+    factor = (3.62d0/pi)**2
+    Temp_syn = dsqrt(3d0)*para_e*para_e*para_e/Para_m_energy
+    Rariv2 = R_loc*R_loc
+    do I_gam_e = 1, Num_gam_e
+        inv_gam2(I_gam_e) = one/(gam_e(I_gam_e)*gam_e(I_gam_e))
+    end do
+    do I_gam_e = 1, Num_gam_e-1
+        gam_mean2(I_gam_e) = (gam_e(I_gam_e)+gam_e(I_gam_e+1))**2/4d0
+        dgamma_half(I_gam_e) = (gam_e(I_gam_e+1)-gam_e(I_gam_e))/two
+    end do
+    do I_nu = 1, Num_nu
+        v_powm23(I_nu) = V_seed(I_nu)**(-2d0/3d0)
+        v_pow13(I_nu) = V_seed(I_nu)**(one/3d0)
+    end do
+
+    if (uniform_db) then
+        do I_gam_e = 1, Num_gam_e-1
+            Vc = (4.2d6)*gam_mean2(I_gam_e)*DB_ref
+            vc_inv(I_gam_e) = one/Vc
+            vc_pow23(I_gam_e) = Vc**(2d0/3d0)
+        end do
+        do I_nu = 1, Num_nu
+            do I_gam_e = 1, Num_gam_e-1
+                x = V_seed(I_nu)*vc_inv(I_gam_e)
+                fx_grid(I_gam_e,I_nu) = radiation_syn_kernel_value(x,vc_pow23(I_gam_e)*v_powm23(I_nu),factor)
+            end do
+        end do
+    end if
+
+    if (uniform_db) then
+        do I_chi = 1, Num_chi
+            do I_gam_e = 1, Num_gam_e-1
+                emit_weight(I_gam_e) = (DNe_chi(I_gam_e,I_chi)+DNe_chi(I_gam_e+1,I_chi))*dgamma_half(I_gam_e)
+                tau_weight(I_gam_e) = gam_mean2(I_gam_e)*(DNe_chi(I_gam_e,I_chi)*inv_gam2(I_gam_e) - &
+                                       DNe_chi(I_gam_e+1,I_chi)*inv_gam2(I_gam_e+1))
+            end do
+            do I_nu = 1, Num_nu
+                dInteg = zero
+                Tau = zero
+                do I_gam_e = 1, Num_gam_e-1
+                    dInteg = dInteg + emit_weight(I_gam_e)*fx_grid(I_gam_e,I_nu)
+                    Tau = Tau + tau_weight(I_gam_e)*fx_grid(I_gam_e,I_nu)
+                end do
+                P_v = Temp_syn*DB_ref*dInteg
+                Tau = ssa_prefactor*Tau*DB_ref/(4d0*pi*Rariv2*V_seed(I_nu)*V_seed(I_nu))
+                Tau_syn(I_nu,I_chi) = Tau
+                call radiation_transfer_factor(Tau,temp_abs)
+                P_syn(I_nu,I_chi) = P_v*temp_abs
+            end do
+        end do
+    else
+        do I_chi = 1, Num_chi
+            DB_loc = DB_chi(I_chi)
+            integ_nu = zero
+            tau_nu = zero
+            low_last = 0
+            tail_last = 0
+            do I_gam_e = 1, Num_gam_e-1
+                emit_w = (DNe_chi(I_gam_e,I_chi)+DNe_chi(I_gam_e+1,I_chi))*dgamma_half(I_gam_e)
+                tau_w = gam_mean2(I_gam_e)*(DNe_chi(I_gam_e,I_chi)*inv_gam2(I_gam_e) - &
+                        DNe_chi(I_gam_e+1,I_chi)*inv_gam2(I_gam_e+1))
+                Vc = (4.2d6)*gam_mean2(I_gam_e)*DB_loc
+                vc_inv_loc = one/Vc
+                vc_pow_loc = Vc**(2d0/3d0)
+                vc_powm13 = one/(Vc**(one/3d0))
+                do while (low_last < Num_nu .and. V_seed(low_last+1) < 3d-6*Vc)
+                    low_last = low_last+1
+                end do
+                if (tail_last < low_last) tail_last = low_last
+                do while (tail_last < Num_nu .and. V_seed(tail_last+1) <= 30d0*Vc)
+                    tail_last = tail_last+1
+                end do
+                do I_nu = 1, low_last
+                    Fx = 1.81d0*v_pow13(I_nu)*vc_powm13
+                    integ_nu(I_nu) = integ_nu(I_nu) + emit_w*Fx
+                    tau_nu(I_nu) = tau_nu(I_nu) + tau_w*Fx
+                end do
+                do I_nu = low_last+1, tail_last
+                    x = V_seed(I_nu)*vc_inv_loc
+                    Fx = radiation_syn_kernel_value(x,vc_pow_loc*v_powm23(I_nu),factor)
+                    integ_nu(I_nu) = integ_nu(I_nu) + emit_w*Fx
+                    tau_nu(I_nu) = tau_nu(I_nu) + tau_w*Fx
+                end do
+            end do
+            do I_nu = 1, Num_nu
+                P_v = Temp_syn*DB_loc*integ_nu(I_nu)
+                Tau = ssa_prefactor*tau_nu(I_nu)*DB_loc/(4d0*pi*Rariv2*V_seed(I_nu)*V_seed(I_nu))
+                Tau_syn(I_nu,I_chi) = Tau
+                call radiation_transfer_factor(Tau,temp_abs)
+                P_syn(I_nu,I_chi) = P_v*temp_abs
+            end do
+        end do
+    end if
+end subroutine radiation_syn_flux_tau_chi_batch_core
 
 end module radiation_common

@@ -1,6 +1,7 @@
 module electron_radiation_kernel
   use constants
-  use radiation_common, only: radiation_syn_seed_core, radiation_syn_seed_chi_batch_core, radiation_transfer_factor
+  use radiation_common, only: radiation_syn_seed_core, radiation_syn_seed_chi_batch_core, radiation_syn_kernel_value, &
+                              radiation_transfer_factor
   use synchrotron_polarization_kernel, only: synchrotron_polarized_components
   private
 
@@ -217,7 +218,7 @@ integer :: I_gam_e
     simpson_sum=zero
     do I_gam_e=1,Num_gam_e
         x=V_cal*Vc_emit_inv(I_gam_e)
-        Fx=1.81d0*dexp(-x)/dsqrt(Vc_emit_pow23(I_gam_e)*V_powm23+factor)
+        Fx=radiation_syn_kernel_value(x,Vc_emit_pow23(I_gam_e)*V_powm23,factor)
         simpson_sum=simpson_sum+emit_weight(I_gam_e)*Fx
     end do
     simpson_emission_integral=h*simpson_sum/3d0
@@ -232,7 +233,7 @@ integer :: I_gam_e
     simpson_ssa_tau_integral=zero
     do I_gam_e=1,Num_gam_e-1
         x=V_cal*Vc_tau_inv(I_gam_e)
-        Fx=1.81d0*dexp(-x)/dsqrt(Vc_tau_pow23(I_gam_e)*V_powm23+factor)
+        Fx=radiation_syn_kernel_value(x,Vc_tau_pow23(I_gam_e)*V_powm23,factor)
         simpson_ssa_tau_integral=simpson_ssa_tau_integral+tau_weight(I_gam_e)*Fx
     end do
 end function simpson_ssa_tau_integral
@@ -413,7 +414,7 @@ real(8) :: Vc,x,ratio_v
     Vc=(4.2d6)*gam*gam*DB
     x=V_cal/Vc
     ratio_v=Vc/V_cal
-    electron_syn_fx=1.81d0*dexp(-x)/dsqrt(ratio_v**(2d0/3d0)+factor)
+    electron_syn_fx=radiation_syn_kernel_value(x,ratio_v**(2d0/3d0),factor)
 end function electron_syn_fx
 
 ! 线性插值：x∈[x0,x1]→y，等距时取平均。

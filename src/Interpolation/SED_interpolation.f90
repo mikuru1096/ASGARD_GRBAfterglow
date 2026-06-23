@@ -799,29 +799,29 @@ subroutine sed_interpolation_chi_electron_cached(Boundary,R_Tobs1,R_front,DNe_ch
                              gam_e,V_seed,V_obs,Tobs,n,Num_gam_e,Num_nu,Num_nu_obs,Num_Tobs,Num_Theta,Num_Phi, &
                              Num_chi,Num_R,n_threads,F_tot_obs)
     use constants
-    use radiation_common, only: radiation_syn_seed_chi_batch_core
+    use radiation_common, only: radiation_syn_flux_tau_chi_batch_core
     IMPLICIT REAL(8)(A-H,O-Z)
     integer, intent(in) :: n,Num_gam_e,Num_nu,Num_nu_obs,Num_Tobs,Num_Theta,Num_Phi,Num_chi,Num_R,n_threads
     real(8), intent(in) :: Boundary(n),R_Tobs1(Num_R),R_front(Num_R),Tobs(Num_Tobs),V_seed(Num_nu),V_obs(Num_nu_obs)
     real(8), intent(in) :: gam_e(Num_gam_e),DNe_chi(Num_gam_e,Num_chi,Num_R),B_chi(Num_chi,Num_R)
     real(8), intent(in) :: R_chi(Num_chi,Num_R),Gamma_chi(Num_chi,Num_R),Chi_weight(Num_chi,Num_R)
     real(8), intent(out) :: F_tot_obs(Num_nu_obs,Num_Tobs)
-    real(8), allocatable :: F_chi(:,:,:),Tau_chi(:,:,:),P_emit(:,:),P_syn(:,:),Seed_syn(:,:),Tau_syn(:,:)
+    real(8), allocatable :: F_chi(:,:,:),Tau_chi(:,:,:),P_syn(:,:),Tau_syn(:,:)
 
     DL = Boundary(13)
     z = Boundary(8)
     flux_prefactor = (one+z)/(4d0*pi*DL*DL)
     allocate(F_chi(Num_nu,Num_chi,Num_R),Tau_chi(Num_nu,Num_chi,Num_R), &
-             P_emit(Num_nu,Num_chi),P_syn(Num_nu,Num_chi),Seed_syn(Num_nu,Num_chi),Tau_syn(Num_nu,Num_chi))
+             P_syn(Num_nu,Num_chi),Tau_syn(Num_nu,Num_chi))
     do K2 = 1, Num_R
-        call radiation_syn_seed_chi_batch_core(R_front(K2),Num_gam_e,Num_nu,Num_chi,gam_e,DNe_chi(:,:,K2), &
-                                               V_seed,B_chi(:,K2),1.046d4,P_emit,P_syn,Seed_syn,Tau_syn)
+        call radiation_syn_flux_tau_chi_batch_core(R_front(K2),Num_gam_e,Num_nu,Num_chi,gam_e,DNe_chi(:,:,K2), &
+                                                   V_seed,B_chi(:,K2),1.046d4,P_syn,Tau_syn)
         F_chi(:,:,K2) = P_syn*flux_prefactor
         Tau_chi(:,:,K2) = Tau_syn
     end do
     call sed_interpolation_chi(Boundary,R_Tobs1,R_front,F_chi,Tau_chi,R_chi,Gamma_chi,Chi_weight,V_seed,V_obs,Tobs, &
                                n,Num_nu,Num_nu_obs,Num_Tobs,Num_Theta,Num_Phi,Num_chi,Num_R,n_threads,F_tot_obs)
-    deallocate(F_chi,Tau_chi,P_emit,P_syn,Seed_syn,Tau_syn)
+    deallocate(F_chi,Tau_chi,P_syn,Tau_syn)
 end subroutine sed_interpolation_chi_electron_cached
 
 ! 直接从结构化喷流每个θ ring的χ分辨电子分布做一次性EATS投影。
@@ -970,7 +970,7 @@ subroutine sed_interpolation_chi_structured_axisym_electron_cached(Boundary,R_To
                              Num_Tobs,Num_theta_patch,Num_phi_patch,Num_chi,Num_R,n_threads,F_tot_obs)
     use constants
     use interpolation_common
-    use radiation_common, only: radiation_syn_seed_chi_batch_core
+    use radiation_common, only: radiation_syn_flux_tau_chi_batch_core
     IMPLICIT REAL(8)(A-H,O-Z)
     integer, intent(in) :: n,Num_gam_e,Num_nu,Num_nu_obs,Num_Tobs,Num_theta_patch,Num_phi_patch,Num_chi,Num_R,n_threads
     real(8), intent(in) :: Boundary(n),R_Tobs1(Num_R,Num_theta_patch),R_front(Num_R,Num_theta_patch)
@@ -980,7 +980,7 @@ subroutine sed_interpolation_chi_structured_axisym_electron_cached(Boundary,R_To
     real(8), intent(in) :: Chi_weight(Num_chi,Num_R,Num_theta_patch)
     real(8), intent(out) :: F_tot_obs(Num_nu_obs,Num_Tobs)
     real(8), allocatable :: F_temp(:,:),V_obs_log(:),V_seed_log(:),F_ring(:,:,:),Tau_ring(:,:,:),Tau_prefix(:,:,:)
-    real(8), allocatable :: P_emit(:,:),P_syn(:,:),Seed_syn(:,:),Tau_syn(:,:)
+    real(8), allocatable :: P_syn(:,:),Tau_syn(:,:)
     real(8) :: R_Tobs_chi(Num_R),log_domega_4pi,log_gamma_lo,log_gamma_hi,segment_lo,segment_hi
     real(8) :: cos_tv,sin_tv,theta_lo,theta_hi,theta_center,phi_center,domega
     integer :: last_k2,k_start,lower_bound_real8
@@ -988,7 +988,7 @@ subroutine sed_interpolation_chi_structured_axisym_electron_cached(Boundary,R_To
 
     allocate(F_temp(Num_nu_obs,Num_Tobs),V_obs_log(Num_nu_obs),V_seed_log(Num_nu))
     allocate(F_ring(Num_nu,Num_chi,Num_R),Tau_ring(Num_nu,Num_chi,Num_R),Tau_prefix(Num_nu,0:Num_chi,Num_R))
-    allocate(P_emit(Num_nu,Num_chi),P_syn(Num_nu,Num_chi),Seed_syn(Num_nu,Num_chi),Tau_syn(Num_nu,Num_chi))
+    allocate(P_syn(Num_nu,Num_chi),Tau_syn(Num_nu,Num_chi))
     F_tot_obs = zero
     F_temp = zero
     z = Boundary(8)
@@ -1005,9 +1005,9 @@ subroutine sed_interpolation_chi_structured_axisym_electron_cached(Boundary,R_To
 
     do I_Theta = 1, Num_theta_patch
         do K2 = 1, Num_R
-            call radiation_syn_seed_chi_batch_core(R_front(K2,I_Theta),Num_gam_e,Num_nu,Num_chi,gam_e, &
-                                                   DNe_chi(:,:,K2,I_Theta),V_seed,B_chi(:,K2,I_Theta), &
-                                                   1.046d4,P_emit,P_syn,Seed_syn,Tau_syn)
+            call radiation_syn_flux_tau_chi_batch_core(R_front(K2,I_Theta),Num_gam_e,Num_nu,Num_chi,gam_e, &
+                                                       DNe_chi(:,:,K2,I_Theta),V_seed,B_chi(:,K2,I_Theta), &
+                                                       1.046d4,P_syn,Tau_syn)
             F_ring(:,:,K2) = P_syn*flux_prefactor
             Tau_ring(:,:,K2) = Tau_syn
         end do
@@ -1065,7 +1065,7 @@ subroutine sed_interpolation_chi_structured_axisym_electron_cached(Boundary,R_To
         end do
     end do
     F_tot_obs = F_temp
-    deallocate(F_temp,V_obs_log,V_seed_log,F_ring,Tau_ring,Tau_prefix,P_emit,P_syn,Seed_syn,Tau_syn)
+    deallocate(F_temp,V_obs_log,V_seed_log,F_ring,Tau_ring,Tau_prefix,P_syn,Tau_syn)
     return
 
 contains
@@ -1124,6 +1124,7 @@ end subroutine sed_interpolation_chi_structured_axisym_electron_cached
 ! 单频同步辐射点计算：与radiation_syn_seed_core同一核，用于direct chi投影。
 subroutine chi_synch_point(R_loc,DB,Num_gam_e,gam_e,dN_gam_e,V_cal,P_syn,Tau_syn)
     use constants
+    use radiation_common, only: radiation_syn_kernel_value, radiation_transfer_factor
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: Num_gam_e
     real(8), intent(in) :: R_loc,DB,gam_e(Num_gam_e),dN_gam_e(Num_gam_e),V_cal
@@ -1143,18 +1144,14 @@ subroutine chi_synch_point(R_loc,DB,Num_gam_e,gam_e,dN_gam_e,V_cal,P_syn,Tau_syn
         Vc=(4.2d6)*gam_mid2*DB
         x=V_cal/Vc
         ratio_v_pow=(Vc/V_cal)**(2d0/3d0)
-        Fx=1.81d0*dexp(-x)/dsqrt(ratio_v_pow+factor)
+        Fx=radiation_syn_kernel_value(x,ratio_v_pow,factor)
         dInteg=dInteg+dN_seg*Fx
         Tau=Tau+gam_mid2*ddN*Fx
     end do
     P_v=Temp_syn*DB*dInteg
     Tau=1.046d4*Tau*DB/(4d0*pi*Rariv2*V_cal*V_cal)
     Tau_syn=Tau
-    if (Tau <= 1d-4) then
-        transfer=one
-    else
-        transfer=(one-dexp(-Tau))/Tau
-    end if
+    call radiation_transfer_factor(Tau,transfer)
     P_syn=P_v*transfer
 end subroutine chi_synch_point
 
