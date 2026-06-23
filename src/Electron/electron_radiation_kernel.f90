@@ -152,110 +152,6 @@ real(8) :: P_emit(Num_nu),Tau_syn(Num_nu)
     call get_syn_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed,P_emit,P_syn,Seed_syn,Tau_syn)
 end subroutine get_syn
 
-subroutine get_syn_simpson_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
-                                 P_emit,P_syn,Seed_syn,Tau_syn)
-!$ use omp_lib
-implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: Num_gam_e,Num_nu,n_threads
-real(8), intent(in) :: R_loc,DB,gam_e(Num_gam_e),dN_gam_e(Num_gam_e),V_seed(Num_nu)
-real(8), intent(out) :: P_emit(Num_nu),P_syn(Num_nu),Seed_syn(Num_nu),Tau_syn(Num_nu)
-real(8) :: dN1(Num_gam_e),ddN(Num_gam_e-1),simpson_weight(Num_gam_e),emit_weight(Num_gam_e)
-real(8) :: gam_e_mean2_arr(Num_gam_e-1),tau_weight(Num_gam_e-1),V_seed_powm23(Num_nu)
-real(8) :: Vc_emit_inv(Num_gam_e),Vc_emit_pow23(Num_gam_e),Vc_tau_inv(Num_gam_e-1),Vc_tau_pow23(Num_gam_e-1)
-integer :: I_nu
-
-    factor=(3.62d0/pi)**2
-    Temp_syn=dsqrt(3d0)*para_e*para_e*para_e/Para_m_energy
-    Rariv2=R_loc*R_loc
-    dN1=dN_gam_e/(gam_e*gam_e)
-    ddN=dN1(1:Num_gam_e-1)-dN1(2:Num_gam_e)
-    h=dlog(gam_e(2))-dlog(gam_e(1))
-    do I_gam_e=1,Num_gam_e
-        if (I_gam_e == 1 .or. I_gam_e == Num_gam_e) then
-            simpson_weight(I_gam_e)=one
-        else if (mod(I_gam_e,2) == 0) then
-            simpson_weight(I_gam_e)=4d0
-        else
-            simpson_weight(I_gam_e)=2d0
-        end if
-        Vc=4.2d6*gam_e(I_gam_e)*gam_e(I_gam_e)*DB
-        Vc_emit_inv(I_gam_e)=one/Vc
-        Vc_emit_pow23(I_gam_e)=Vc**(2d0/3d0)
-        emit_weight(I_gam_e)=simpson_weight(I_gam_e)*dN_gam_e(I_gam_e)*gam_e(I_gam_e)
-    end do
-    do I_gam_e=1,Num_gam_e-1
-        gam_e_mean2_arr(I_gam_e)=(gam_e(I_gam_e)+gam_e(I_gam_e+1))**2/4d0
-        Vc=4.2d6*gam_e_mean2_arr(I_gam_e)*DB
-        Vc_tau_inv(I_gam_e)=one/Vc
-        Vc_tau_pow23(I_gam_e)=Vc**(2d0/3d0)
-        tau_weight(I_gam_e)=gam_e_mean2_arr(I_gam_e)*ddN(I_gam_e)
-    end do
-    do I_nu=1,Num_nu
-        V_seed_powm23(I_nu)=V_seed(I_nu)**(-2d0/3d0)
-    end do
-
-    !$OMP PARALLEL num_threads(n_threads), private(I_nu)
-    !$OMP DO SCHEDULE(STATIC)
-    do I_nu=1,Num_nu
-        call accumulate_simpson_syn_point(I_nu)
-    end do
-    !$OMP END DO
-    !$OMP END PARALLEL
-
-    temp_para=4d0*pi*Para_c*Para_h
-    Seed_syn=Seed_syn/temp_para
-
-    return
-
-contains
-
-real(8) function simpson_emission_integral(V_cal,V_powm23)
-implicit REAL(8)(A-H,O-Z)
-real(8), intent(in) :: V_cal,V_powm23
-real(8) :: simpson_sum,x,Fx
-integer :: I_gam_e
-
-    simpson_sum=zero
-    do I_gam_e=1,Num_gam_e
-        x=V_cal*Vc_emit_inv(I_gam_e)
-        Fx=radiation_syn_kernel_value(x,Vc_emit_pow23(I_gam_e)*V_powm23,factor)
-        simpson_sum=simpson_sum+emit_weight(I_gam_e)*Fx
-    end do
-    simpson_emission_integral=h*simpson_sum/3d0
-end function simpson_emission_integral
-
-real(8) function simpson_ssa_tau_integral(V_cal,V_powm23)
-implicit REAL(8)(A-H,O-Z)
-real(8), intent(in) :: V_cal,V_powm23
-real(8) :: x,Fx
-integer :: I_gam_e
-
-    simpson_ssa_tau_integral=zero
-    do I_gam_e=1,Num_gam_e-1
-        x=V_cal*Vc_tau_inv(I_gam_e)
-        Fx=radiation_syn_kernel_value(x,Vc_tau_pow23(I_gam_e)*V_powm23,factor)
-        simpson_ssa_tau_integral=simpson_ssa_tau_integral+tau_weight(I_gam_e)*Fx
-    end do
-end function simpson_ssa_tau_integral
-
-subroutine accumulate_simpson_syn_point(I_nu)
-implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: I_nu
-real(8) :: V_cal,dInteg,Tau,P_v
-
-    V_cal=V_seed(I_nu)
-    dInteg=simpson_emission_integral(V_cal,V_seed_powm23(I_nu))
-    Tau=simpson_ssa_tau_integral(V_cal,V_seed_powm23(I_nu))
-    P_v=Temp_syn*DB*dInteg
-    Tau=1.046d4*Tau*DB/(4d0*pi*Rariv2*V_cal*V_cal)
-    if ((Tau-1d-4) < 1d-5) Tau=1d-4
-    P_emit(I_nu)=P_v
-    Tau_syn(I_nu)=Tau
-    P_syn(I_nu)=P_v*(one-dexp(-Tau))/Tau
-    Seed_syn(I_nu)=P_syn(I_nu)/(Rariv2*V_cal)
-end subroutine accumulate_simpson_syn_point
-end subroutine get_syn_simpson_state
-
 ! 构建约化对数频率网格：在85%高频处加密采样，用于冷却计算的轻量级频率表。
 subroutine build_reduced_log_grid(Num_nu_in,V_in,Num_nu_out,V_out)
 implicit REAL(8)(A-H,O-Z)
@@ -340,24 +236,6 @@ real(8), intent(out) :: P_emit(Num_nu,Num_chi),P_syn(Num_nu,Num_chi),Seed_syn(Nu
                                            P_emit,P_syn,Seed_syn,Tau_syn)
 end subroutine get_syn_chi_batch_state
 
-! 同步+非相对论回旋发射核：γ<2 的电子使用基频回旋发射，γ>=2 仍走标准同步核。
-subroutine get_syn_cyclotron_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
-                                   P_emit,P_syn,Seed_syn,Tau_syn)
-implicit none
-integer, intent(in) :: Num_gam_e,Num_nu,n_threads
-real(8), intent(in) :: R_loc,DB,gam_e(Num_gam_e),dN_gam_e(Num_gam_e),V_seed(Num_nu)
-real(8), intent(out) :: P_emit(Num_nu),P_syn(Num_nu),Seed_syn(Num_nu),Tau_syn(Num_nu)
-real(8) :: dN_syn(Num_gam_e)
-integer :: i
-
-    dN_syn=zero
-    do i=1,Num_gam_e
-        if (gam_e(i) >= two) dN_syn(i)=dN_gam_e(i)
-    end do
-    call get_syn_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_syn,V_seed,P_emit,P_syn,Seed_syn,Tau_syn)
-    call add_cyclotron_fundamental(R_loc,DB,Num_gam_e,Num_nu,gam_e,dN_gam_e,V_seed,P_emit,P_syn,Seed_syn,Tau_syn)
-end subroutine get_syn_cyclotron_state
-
 subroutine add_cyclotron_fundamental(R_loc,DB,Num_gam_e,Num_nu,gam_e,dN_gam_e,V_seed,P_emit,P_syn,Seed_syn,Tau_syn)
 implicit none
 integer, intent(in) :: Num_gam_e,Num_nu
@@ -404,41 +282,6 @@ real(8), intent(out) :: nu_edge(Num_nu+1)
     end do
     nu_edge(Num_nu+1)=V_seed(Num_nu)*dsqrt(V_seed(Num_nu)/V_seed(Num_nu-1))
 end subroutine build_log_frequency_edges
-
-! 同步辐射F(x)核：F(x) = 1.81 e^(-x)/√(x^(-2/3)+factor)，x=ν/ν_c。
-real(8) function electron_syn_fx(gam,V_cal,DB,factor)
-implicit REAL(8)(A-H,O-Z)
-real(8), intent(in) :: gam,V_cal,DB,factor
-real(8) :: Vc,x,ratio_v
-
-    Vc=(4.2d6)*gam*gam*DB
-    x=V_cal/Vc
-    ratio_v=Vc/V_cal
-    electron_syn_fx=radiation_syn_kernel_value(x,ratio_v**(2d0/3d0),factor)
-end function electron_syn_fx
-
-! 线性插值：x∈[x0,x1]→y，等距时取平均。
-real(8) function electron_linear_interp(x0,x1,y0,y1,x)
-implicit REAL(8)(A-H,O-Z)
-real(8), intent(in) :: x0,x1,y0,y1,x
-
-    if (x1 <= x0) then
-        electron_linear_interp=0.5d0*(y0+y1)
-    else
-        electron_linear_interp=y0+(y1-y0)*(x-x0)/(x1-x0)
-    end if
-end function electron_linear_interp
-
-! 同步辐射被积函数：dN/dx * F(x) * γ，用于发射功率积分。
-real(8) function electron_syn_integrand_x(x,x0,x1,dN0,dN1,V_cal,DB,factor)
-implicit REAL(8)(A-H,O-Z)
-real(8), intent(in) :: x,x0,x1,dN0,dN1,V_cal,DB,factor
-real(8) :: gam,dN
-
-    gam=dexp(x)
-    dN=max(zero,electron_linear_interp(x0,x1,dN0,dN1,x))
-    electron_syn_integrand_x=dN*electron_syn_fx(gam,V_cal,DB,factor)*gam
-end function electron_syn_integrand_x
 
 ! 幂律插值：两端为正时做log-log线性插值，否则退化为线性插值。
 real(8) function electron_powerlaw_interp(v0,v1,y0,y1,v)
@@ -630,92 +473,6 @@ real(8) :: p3_l,p3_r,t3_l,t3_r
     end if
 end subroutine electron_syn_cell_adaptive
 
-! 自适应同步辐射计算：发射率自适应积分，SSA光深按有限体积端点差守恒积分。
-subroutine get_syn_adaptive_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
-                                  P_emit,P_syn,Seed_syn,Tau_syn)
-!$ use omp_lib
-implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: Num_gam_e,Num_nu,n_threads
-real(8), intent(in) :: R_loc,DB,gam_e(Num_gam_e),dN_gam_e(Num_gam_e),V_seed(Num_nu)
-real(8), intent(out) :: P_emit(Num_nu),P_syn(Num_nu),Seed_syn(Num_nu),Tau_syn(Num_nu)
-real(8), parameter :: rel_tol=5d-4
-real(8), allocatable :: dN1(:),x_gam(:)
-real(8) :: factor,Temp_syn,Rariv2,temp_para
-integer :: I_nu
-
-    allocate(dN1(Num_gam_e),x_gam(Num_gam_e))
-
-    factor=(3.62d0/pi)**2
-    Temp_syn=dsqrt(3d0)*para_e*para_e*para_e/Para_m_energy
-    Rariv2=R_loc*R_loc
-    dN1=dN_gam_e/(gam_e*gam_e)
-    x_gam=dlog(gam_e)
-
-    !$OMP PARALLEL num_threads(n_threads), private(I_nu)
-    !$OMP DO SCHEDULE(STATIC)
-    do I_nu=1,Num_nu
-       call accumulate_adaptive_syn_point(I_nu)
-    end do
-    !$OMP END DO
-    !$OMP END PARALLEL
-
-    temp_para=4d0*pi*Para_c*Para_h
-    Seed_syn=Seed_syn/temp_para
-
-    deallocate(dN1,x_gam)
-
-    return
-
-contains
-
-subroutine adaptive_syn_integrals(V_cal,dInteg,Tau)
-implicit REAL(8)(A-H,O-Z)
-real(8), intent(in) :: V_cal
-real(8), intent(out) :: dInteg,Tau
-real(8) :: cell_int,tau_cell
-integer :: I_gam_e
-
-    dInteg=zero
-    Tau=zero
-    do I_gam_e=1,Num_gam_e-1
-       call electron_syn_cell_adaptive(x_gam(I_gam_e),x_gam(I_gam_e+1), &
-                                       dN_gam_e(I_gam_e),dN_gam_e(I_gam_e+1), &
-                                       dN1(I_gam_e),dN1(I_gam_e+1), &
-                                       V_cal,DB,factor,rel_tol,cell_int,tau_cell)
-       dInteg=dInteg+cell_int
-       Tau=Tau+tau_cell
-    end do
-end subroutine adaptive_syn_integrals
-
-subroutine accumulate_adaptive_syn_point(I_nu)
-implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: I_nu
-real(8) :: V_cal,dInteg,Tau,P_v
-
-    V_cal=V_seed(I_nu)
-    call adaptive_syn_integrals(V_cal,dInteg,Tau)
-    P_v=Temp_syn*DB*dInteg
-    Tau=1.046d4*Tau*DB/(4d0*pi*Rariv2*V_cal*V_cal)
-    if ((Tau-1d-4) < 1d-5) Tau=1d-4
-    P_emit(I_nu)=P_v
-    Tau_syn(I_nu)=Tau
-    P_syn(I_nu)=P_v*(one-dexp(-Tau))/Tau
-    Seed_syn(I_nu)=P_syn(I_nu)/(Rariv2*V_cal)
-end subroutine accumulate_adaptive_syn_point
-end subroutine get_syn_adaptive_state
-
-subroutine get_syn_adaptive(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
-                            P_syn,Seed_syn)
-implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: Num_gam_e,Num_nu,n_threads
-real(8), intent(in) :: R_loc,DB,gam_e(Num_gam_e),dN_gam_e(Num_gam_e),V_seed(Num_nu)
-real(8), intent(out) :: P_syn(Num_nu),Seed_syn(Num_nu)
-real(8) :: P_emit(Num_nu),Tau_syn(Num_nu)
-
-    call get_syn_adaptive_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
-                                P_emit,P_syn,Seed_syn,Tau_syn)
-end subroutine get_syn_adaptive
-
     ! 同步辐射计算选择器：index=4 在标准同步核之外加入非相对论回旋基频发射。
 subroutine get_syn_selected(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
                             P_syn,Seed_syn)
@@ -782,41 +539,6 @@ real(8) :: P_syn(Num_nu),Seed_syn(Num_nu),Pi_emit(Num_nu)
     P_perp=0.5d0*(one+Pi_nu)*P_syn
     P_parallel=0.5d0*(one-Pi_nu)*P_syn
 end subroutine get_syn_polarization_selected
-
-! 输出专用局域偏振率核：对电子谱直接卷积(F+G)/2和(F-G)/2两个偏振发射核。
-subroutine get_syn_polarization_fraction(DB,Num_gam_e,Num_nu,gam_e,dN_gam_e,V_seed,Pi_nu)
-implicit none
-integer, intent(in) :: Num_gam_e,Num_nu
-real(8), intent(in) :: DB,gam_e(Num_gam_e),dN_gam_e(Num_gam_e),V_seed(Num_nu)
-real(8), intent(out) :: Pi_nu(Num_nu)
-integer :: I_nu,I_gam_e
-real(8) :: V_cal,dPerp,dParallel,total_pol,gam_e_mean2,Vc,x,dN,dgam_e,perp_kernel,parallel_kernel
-
-    if (DB <= zero) error stop "get_syn_polarization_fraction requires DB > 0."
-    do I_nu=1,Num_nu
-        V_cal=V_seed(I_nu)
-        if (V_cal <= zero) error stop "get_syn_polarization_fraction requires positive frequency."
-        dPerp=zero
-        dParallel=zero
-        do I_gam_e=1,Num_gam_e-1
-            dN=(dN_gam_e(I_gam_e)+dN_gam_e(I_gam_e+1))/two
-            if (dN <= zero) cycle
-            gam_e_mean2=(gam_e(I_gam_e)+gam_e(I_gam_e+1))**2/4d0
-            Vc=(4.2d6)*gam_e_mean2*DB
-            x=V_cal/Vc
-            dgam_e=gam_e(I_gam_e+1)-gam_e(I_gam_e)
-            call synchrotron_polarized_components(x,perp_kernel,parallel_kernel)
-            dPerp=dPerp+dN*perp_kernel*dgam_e
-            dParallel=dParallel+dN*parallel_kernel*dgam_e
-        end do
-        total_pol=dPerp+dParallel
-        if (total_pol > zero) then
-            Pi_nu(I_nu)=(dPerp-dParallel)/total_pol
-        else
-            Pi_nu(I_nu)=zero
-        end if
-    end do
-end subroutine get_syn_polarization_fraction
 
 ! 计算同步辐射转移函数：Transfer = P_absorbed / P_emit，即(1-e^(-τ))/τ。
 subroutine get_syn_transfer(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed,Transfer_syn)
