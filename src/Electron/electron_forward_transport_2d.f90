@@ -16,7 +16,8 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
                                            electron_build_source_term_exp_cutoff_coord_edges
     use electron_cooling_kernel, only: prepare_forward_cooling_aux_batch, assemble_forward_cooling_split, &
                                        assemble_forward_cooling_split_batch
-    use electron_radiation_kernel, only: get_syn_state, get_syn_selected_state, get_nu_a_2d_cell_path, &
+    use electron_radiation_kernel, only: get_syn_state, get_syn_selected_state, get_syn_chi_batch_state, &
+                                         get_nu_a_2d_cell_path, &
                                          build_reduced_log_grid, project_syn_state_logbands
     use electron_seed_history_kernel, only: integrate_downstream_proper_time, advance_comoving_history_stream
     use radiation_common, only: radiation_pair_tau_headon_segment
@@ -246,29 +247,36 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
         DB_chi(I_chi) = 0.39d0*dsqrt(Epsilon_b_chi(I_chi)*dNe*(R_Gamma(1)*(R_Gamma(1)-one)))
         B_chi_out(I_chi,1) = DB_chi(I_chi)
     end do
-    do I_chi = 1, Num_chi
-        dN_cell = dN_gam_e(:,I_chi,1)
-        if (profile_enabled) call cpu_time(t_start)
-        if (emit_full_spectrum) then
-            call get_syn_state(R(1),DB_chi(I_chi),Num_gam_e,Num_nu,n_threads,gam_e,dN_cell,V_seed, &
-                               P_local(:,I_chi),P_hist(:,I_chi,1),Seed_hist(:,I_chi,1),Tau_hist(:,I_chi,1))
+    if (profile_enabled) call cpu_time(t_start)
+    if (emit_full_spectrum) then
+        call get_syn_chi_batch_state(R(1),Num_gam_e,Num_nu,Num_chi,gam_e,dN_gam_e(:,:,1),V_seed,DB_chi, &
+                                     P_local,P_hist(:,:,1),Seed_hist(:,:,1),Tau_hist(:,:,1))
+        do I_chi = 1, Num_chi
             call project_syn_state_logbands(Num_nu,V_seed,P_hist(:,I_chi,1),Seed_hist(:,I_chi,1),Tau_hist(:,I_chi,1), &
                                             Num_nu_cool,V_cool,P_hist_cool(:,I_chi,1), &
                                             Seed_hist_cool(:,I_chi,1),Tau_hist_cool(:,I_chi,1))
-        else
+            Tau_pair_hist_cool(:,I_chi,1) = zero
+            call radiation_pair_tau_headon_segment(V_cool,Num_nu_cool,Seed_hist_cool(:,I_chi,1),dx_comov_hist(I_chi,1), &
+                                                   Tau_pair_hist_cool(:,I_chi,1))
+            Tau_prop_hist_cool(:,I_chi,1) = Tau_hist_cool(:,I_chi,1) + Tau_pair_hist_cool(:,I_chi,1)
+        end do
+        syn_state_calls = syn_state_calls + Num_chi
+    else
+        do I_chi = 1, Num_chi
+            dN_cell = dN_gam_e(:,I_chi,1)
             call get_syn_state(R(1),DB_chi(I_chi),Num_gam_e,Num_nu_cool,n_threads,gam_e,dN_cell,V_cool, &
                                P_emit_cool,P_hist_cool(:,I_chi,1),Seed_hist_cool(:,I_chi,1),Tau_hist_cool(:,I_chi,1))
-        end if
-        Tau_pair_hist_cool(:,I_chi,1) = zero
-        call radiation_pair_tau_headon_segment(V_cool,Num_nu_cool,Seed_hist_cool(:,I_chi,1),dx_comov_hist(I_chi,1), &
-                                               Tau_pair_hist_cool(:,I_chi,1))
-        Tau_prop_hist_cool(:,I_chi,1) = Tau_hist_cool(:,I_chi,1) + Tau_pair_hist_cool(:,I_chi,1)
-        if (profile_enabled) then
-            call cpu_time(t_stop)
-            t_syn_state = t_syn_state + (t_stop-t_start)
-        end if
-        syn_state_calls = syn_state_calls + 1
-    end do
+            Tau_pair_hist_cool(:,I_chi,1) = zero
+            call radiation_pair_tau_headon_segment(V_cool,Num_nu_cool,Seed_hist_cool(:,I_chi,1),dx_comov_hist(I_chi,1), &
+                                                   Tau_pair_hist_cool(:,I_chi,1))
+            Tau_prop_hist_cool(:,I_chi,1) = Tau_hist_cool(:,I_chi,1) + Tau_pair_hist_cool(:,I_chi,1)
+        end do
+        syn_state_calls = syn_state_calls + Num_chi
+    end if
+    if (profile_enabled) then
+        call cpu_time(t_stop)
+        t_syn_state = t_syn_state + (t_stop-t_start)
+    end if
 
     do I_tobs = 2, Num_R
         R_loc       = R(I_tobs-1)
@@ -622,15 +630,7 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
             end if
             DB_chi(I_chi) = 0.39d0*dsqrt(Epsilon_b_chi(I_chi)*dNe*(R_Gamma(I_tobs)*(R_Gamma(I_tobs)-one)))
             B_chi_out(I_chi,I_tobs) = DB_chi(I_chi)
-            if (emit_full_spectrum) then
-                call get_syn_state(R(I_tobs),DB_chi(I_chi),Num_gam_e,Num_nu,1,gam_e,dN_gam_e(:,I_chi,I_tobs), &
-                                   V_seed,P_local(:,I_chi),P_hist(:,I_chi,I_tobs),Seed_hist(:,I_chi,I_tobs), &
-                                   Tau_hist(:,I_chi,I_tobs))
-                call project_syn_state_logbands(Num_nu,V_seed,P_hist(:,I_chi,I_tobs), &
-                                                Seed_hist(:,I_chi,I_tobs),Tau_hist(:,I_chi,I_tobs), &
-                                                Num_nu_cool,V_cool,P_hist_cool(:,I_chi,I_tobs), &
-                                                Seed_hist_cool(:,I_chi,I_tobs),Tau_hist_cool(:,I_chi,I_tobs))
-            else
+            if (.not. emit_full_spectrum) then
                 block
                     real(8) :: P_emit_tmp(Num_nu_cool)
                     call get_syn_state(R(I_tobs),DB_chi(I_chi),Num_gam_e,Num_nu_cool,1, &
@@ -638,13 +638,27 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
                                        P_hist_cool(:,I_chi,I_tobs),Seed_hist_cool(:,I_chi,I_tobs), &
                                        Tau_hist_cool(:,I_chi,I_tobs))
                 end block
+                Tau_pair_hist_cool(:,I_chi,I_tobs) = zero
+                call radiation_pair_tau_headon_segment(V_cool,Num_nu_cool,Seed_hist_cool(:,I_chi,I_tobs), &
+                                                       dx_comov_hist(I_chi,I_tobs),Tau_pair_hist_cool(:,I_chi,I_tobs))
+                Tau_prop_hist_cool(:,I_chi,I_tobs) = Tau_hist_cool(:,I_chi,I_tobs) + Tau_pair_hist_cool(:,I_chi,I_tobs)
             end if
-            Tau_pair_hist_cool(:,I_chi,I_tobs) = zero
-            call radiation_pair_tau_headon_segment(V_cool,Num_nu_cool,Seed_hist_cool(:,I_chi,I_tobs),dx_comov_hist(I_chi,I_tobs), &
-                                                   Tau_pair_hist_cool(:,I_chi,I_tobs))
-            Tau_prop_hist_cool(:,I_chi,I_tobs) = Tau_hist_cool(:,I_chi,I_tobs) + Tau_pair_hist_cool(:,I_chi,I_tobs)
         end do
         !$OMP END PARALLEL DO
+        if (emit_full_spectrum) then
+            call get_syn_chi_batch_state(R(I_tobs),Num_gam_e,Num_nu,Num_chi,gam_e,dN_gam_e(:,:,I_tobs),V_seed,DB_chi, &
+                                         P_local,P_hist(:,:,I_tobs),Seed_hist(:,:,I_tobs),Tau_hist(:,:,I_tobs))
+            do I_chi = 1, Num_chi
+                call project_syn_state_logbands(Num_nu,V_seed,P_hist(:,I_chi,I_tobs), &
+                                                Seed_hist(:,I_chi,I_tobs),Tau_hist(:,I_chi,I_tobs), &
+                                                Num_nu_cool,V_cool,P_hist_cool(:,I_chi,I_tobs), &
+                                                Seed_hist_cool(:,I_chi,I_tobs),Tau_hist_cool(:,I_chi,I_tobs))
+                Tau_pair_hist_cool(:,I_chi,I_tobs) = zero
+                call radiation_pair_tau_headon_segment(V_cool,Num_nu_cool,Seed_hist_cool(:,I_chi,I_tobs), &
+                                                       dx_comov_hist(I_chi,I_tobs),Tau_pair_hist_cool(:,I_chi,I_tobs))
+                Tau_prop_hist_cool(:,I_chi,I_tobs) = Tau_hist_cool(:,I_chi,I_tobs) + Tau_pair_hist_cool(:,I_chi,I_tobs)
+            end do
+        end if
         if (profile_enabled) then
             call cpu_time(t_stop)
             t_syn_state = t_syn_state + (t_stop-t_start)

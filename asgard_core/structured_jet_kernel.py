@@ -220,7 +220,7 @@ def _project_structured_chi_sync_once(model, ring_states, first_state, times: np
     boundary[9] = float(model.observer.theta_obs)
     arrays = _structured_chi_projection_arrays(ring_states, first_state)
     if arrays["direct_electron"]:
-        flux_sorted = Interpolation.sed_interpolation_chi_structured_axisym_electron(
+        flux_sorted = Interpolation.sed_interpolation_chi_structured_axisym_electron_cached(
             boundary,
             arrays["r_tobs"],
             arrays["radius"],
@@ -230,6 +230,7 @@ def _project_structured_chi_sync_once(model, ring_states, first_state, times: np
             arrays["chi_gamma"],
             arrays["chi_weight"],
             arrays["gam_e"],
+            first_state.setup.seed_frequency_hz,
             sorted_frequencies,
             times,
             int(model.setups.structured_num_phi),

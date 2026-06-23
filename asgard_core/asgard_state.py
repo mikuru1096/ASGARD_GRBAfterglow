@@ -697,8 +697,8 @@ def _project_chi_fwd_sync(
     if _use_direct_chi_projection_contract(state.config):
         flux_sorted = _timed_call(
             timings,
-            "Interpolation.sed_interpolation_chi_electron [fwd_sync]",
-            Interpolation.sed_interpolation_chi_electron,
+            "Interpolation.sed_interpolation_chi_electron_cached [fwd_sync]",
+            Interpolation.sed_interpolation_chi_electron_cached,
             setup.boundary,
             state.components.fwd.characteristic_time_s,
             state.components.fwd.radius_cm,
@@ -708,6 +708,7 @@ def _project_chi_fwd_sync(
             np.asarray(state.electron.chi_gamma_bulk, dtype=float),
             np.asarray(state.electron.chi_dvolume_weight, dtype=float),
             np.asarray(state.electron.gam_e, dtype=float),
+            setup.seed_frequency_hz,
             sorted_frequencies,
             setup.observer_time_s,
             state.config.eats_num_theta,
