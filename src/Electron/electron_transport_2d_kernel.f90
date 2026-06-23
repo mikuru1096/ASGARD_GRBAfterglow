@@ -184,8 +184,10 @@ end subroutine compute_q_divergence
 real(8) function q_face_transport_coeff(k_medium,R_loc,q_loc)
     integer, intent(in) :: k_medium
     real(8), intent(in) :: R_loc,q_loc
+    real(8) :: q_active
 
-    q_face_transport_coeff = dble(3-k_medium)*(one-q_loc)/R_loc
+    q_active = one-(one-one/sigma_strong_shock)**sigma_strong_shock
+    q_face_transport_coeff = dble(3-k_medium)*(q_active-q_loc)/R_loc
 end function q_face_transport_coeff
 
 subroutine q_face_transport_coeffs(k_medium,R_loc,Num_chi,q_face,A_q_face)

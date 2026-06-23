@@ -869,10 +869,15 @@ def _solve_electron_transport_2d(
         use_characteristic_integrator,
         solver_name,
     )
+    uses_four_velocity = (
+        not use_characteristic_integrator
+        and str(config.fullhide2d_transport_model).lower() != "pwn_cr_v1"
+    )
+    grid_semantics = "log-four-velocity-q-mass-2d" if uses_four_velocity else "log-gamma-q-mass-2d"
     return _finish_electron_solution(
         config,
         solver_name,
-        "log-gamma-q-mass-2d",
+        grid_semantics,
         gam_e,
         d_n_gam_e,
         l_syn_spec,

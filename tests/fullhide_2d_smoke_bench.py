@@ -11,7 +11,7 @@ ensure_repo_root_on_path()
 
 from asgard_core import Model
 from asgard_core.asgard_config import RuntimeConfig
-from asgard_core.asgard_state import _build_observer_setup_from_state, solve_state
+from asgard_core.asgard_state import _build_observer_setup_from_state, project_flux_grid, solve_state
 from src import Interpolation
 from tests.public_api_builders import numerics, solver_options, top_hat_model
 
@@ -169,6 +169,47 @@ def case_2d_thread_equivalence_smoke():
     for attr in ("d_n_gam_e_chi", "l_syn_spec_chi", "seed_syn_chi", "tau_syn_chi"):
         np.testing.assert_allclose(getattr(states[0], attr), getattr(states[1], attr), rtol=0.0, atol=0.0)
     return {"checked": ["d_n_gam_e_chi", "l_syn_spec_chi", "seed_syn_chi", "tau_syn_chi"]}
+
+
+def case_shell_reduced_returns_to_1d_baseline():
+    times = np.geomspace(1.0e3, 3.0e6, 10)
+    freqs = np.array([1.0e10, 1.0e14, 1.0e18], dtype=float)
+    base = dict(
+        num_gam_e=81,
+        num_nu=81,
+        num_r=80,
+        num_tobs=times.size,
+        eats_num_theta=24,
+        eats_num_phi=1,
+        num_threads=1,
+        include_forward_ssc=False,
+        index_y=0,
+        geometry_kernel="sed_legacy",
+    )
+    cfg_1d = RuntimeConfig(electron_solver="fullhide_1d", **base)
+    cfg_2d = RuntimeConfig(electron_solver="fullhide_2d", downstream_num_chi=8, **base)
+    state_1d = solve_state(cfg_1d, times, requested_frequencies_hz=freqs)
+    state_2d = solve_state(cfg_2d, times, requested_frequencies_hz=freqs)
+    flux_1d = project_flux_grid(state_1d, times, freqs, projection_kind="sed").components["total"]
+    flux_2d = project_flux_grid(state_2d, times, freqs, projection_kind="sed").components["total"]
+    mask = np.isfinite(flux_1d) & np.isfinite(flux_2d) & (flux_1d > np.max(flux_1d) * 1.0e-10)
+    assert np.count_nonzero(mask) >= 8
+    flux_ratio = flux_2d[mask] / flux_1d[mask]
+    assert 0.95 < np.median(flux_ratio) < 1.08
+    assert np.min(flux_ratio) > 0.80
+    assert np.max(flux_ratio) < 1.30
+
+    count_1d = np.sum(np.asarray(state_1d.electron.d_n_gam_e, dtype=float), axis=0)
+    count_2d = np.sum(np.asarray(state_2d.electron.d_n_gam_e, dtype=float), axis=0)
+    count_mask = count_1d > np.max(count_1d) * 1.0e-8
+    count_ratio = count_2d[count_mask] / count_1d[count_mask]
+    assert 0.95 < np.median(count_ratio) < 1.08
+    return {
+        "flux_ratio_min": float(np.min(flux_ratio)),
+        "flux_ratio_median": float(np.median(flux_ratio)),
+        "flux_ratio_max": float(np.max(flux_ratio)),
+        "count_ratio_median": float(np.median(count_ratio)),
+    }
 
 
 def case_chi_eats_geometry_smoke():
@@ -469,21 +510,22 @@ def case_chi_ssa_nonuniform_tau_matches_manual():
 
 def main() -> None:
     cases = [
-        ("[1/15] fullhide_2d:basic_smoke", case_basic_smoke),
-        ("[2/15] fullhide_2d:electron_grid", case_electron_grid),
-        ("[3/15] fullhide_2d:substep_max_public_config", case_substep_max_public_config_smoke),
-        ("[4/15] fullhide_2d:thread_equivalence", case_2d_thread_equivalence_smoke),
-        ("[5/15] fullhide_2d:chi_eats_geometry", case_chi_eats_geometry_smoke),
-        ("[6/15] chi_eats_2d:projection_kind_routes", case_chi_eats_projection_kind_routes),
-        ("[7/15] chi_eats_2d:rejects_1d_solver", case_chi_eats_rejects_1d_solver),
-        ("[8/15] eats:rejects_off_axis_phi_collapse", case_off_axis_phi_collapse_rejected),
-        ("[9/15] eats:syncs_observer_theta_boundary", case_project_flux_grid_syncs_observer_theta_boundary),
-        ("[10/15] model_cache:observer_angle", case_model_cache_includes_observer_angle),
-        ("[11/15] eats:on_axis_phi_collapse", case_on_axis_phi_collapse_matches_explicit_phi),
-        ("[12/15] chi_eats_2d:delta_layer_thin_shell", case_chi_projection_delta_layer_matches_thin_shell),
-        ("[13/15] chi_eats_2d:finite_width_converges", case_chi_projection_finite_width_converges_to_thin_shell),
-        ("[14/15] chi_eats_2d:ssa_cell_split_invariance", case_chi_ssa_cell_split_invariance),
-        ("[15/15] chi_eats_2d:ssa_nonuniform_tau", case_chi_ssa_nonuniform_tau_matches_manual),
+        ("[1/16] fullhide_2d:basic_smoke", case_basic_smoke),
+        ("[2/16] fullhide_2d:electron_grid", case_electron_grid),
+        ("[3/16] fullhide_2d:substep_max_public_config", case_substep_max_public_config_smoke),
+        ("[4/16] fullhide_2d:thread_equivalence", case_2d_thread_equivalence_smoke),
+        ("[5/16] fullhide_2d:shell_reduced_returns_to_1d", case_shell_reduced_returns_to_1d_baseline),
+        ("[6/16] fullhide_2d:chi_eats_geometry", case_chi_eats_geometry_smoke),
+        ("[7/16] chi_eats_2d:projection_kind_routes", case_chi_eats_projection_kind_routes),
+        ("[8/16] chi_eats_2d:rejects_1d_solver", case_chi_eats_rejects_1d_solver),
+        ("[9/16] eats:rejects_off_axis_phi_collapse", case_off_axis_phi_collapse_rejected),
+        ("[10/16] eats:syncs_observer_theta_boundary", case_project_flux_grid_syncs_observer_theta_boundary),
+        ("[11/16] model_cache:observer_angle", case_model_cache_includes_observer_angle),
+        ("[12/16] eats:on_axis_phi_collapse", case_on_axis_phi_collapse_matches_explicit_phi),
+        ("[13/16] chi_eats_2d:delta_layer_thin_shell", case_chi_projection_delta_layer_matches_thin_shell),
+        ("[14/16] chi_eats_2d:finite_width_converges", case_chi_projection_finite_width_converges_to_thin_shell),
+        ("[15/16] chi_eats_2d:ssa_cell_split_invariance", case_chi_ssa_cell_split_invariance),
+        ("[16/16] chi_eats_2d:ssa_nonuniform_tau", case_chi_ssa_nonuniform_tau_matches_manual),
     ]
     for label, fn in cases:
         print(f"  {label} ...", flush=True)

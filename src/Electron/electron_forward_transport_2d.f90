@@ -8,13 +8,15 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
     use constants
     use dynamics_common, only: dynamics_external_density_profile
     use electron_common, only: electron_initial_density, electron_initialize_spectrum, electron_unpack_boundary, &
-                               electron_initial_grid_log_edges, &
+                               electron_initial_grid_log_edges, electron_exp_tail_grid_factor, &
                                electron_gamma_m_exact, electron_injection_prefactor, &
                                electron_gamma_c_from_loss_mean, electron_source_bounds
-    use electron_injection_profiles, only: electron_build_source_term_exp_cutoff_edges, electron_profile_log_cell_edges
+    use electron_injection_profiles, only: electron_build_source_term_exp_cutoff_edges, electron_profile_log_cell_edges, &
+                                           electron_initial_powerlaw_exp_cutoff_coord_edges, &
+                                           electron_build_source_term_exp_cutoff_coord_edges
     use electron_cooling_kernel, only: prepare_forward_cooling_aux_batch, assemble_forward_cooling_split, &
                                        assemble_forward_cooling_split_batch
-    use electron_radiation_kernel, only: get_syn_state, get_nu_a_2d_cell_path, &
+    use electron_radiation_kernel, only: get_syn_state, get_syn_selected_state, get_nu_a_2d_cell_path, &
                                          build_reduced_log_grid, project_syn_state_logbands
     use electron_seed_history_kernel, only: integrate_downstream_proper_time, advance_comoving_history_stream
     use radiation_common, only: radiation_pair_tau_headon_segment
@@ -28,6 +30,10 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
                                          electron_active_gamma_hi, electron_active_chi_hi, &
                                          electron_max_xi_coeff_chi, &
                                          electron_dnx_to_dndgamma_exp_centers
+    use electron_energy_coordinate_common, only: electron_build_four_velocity_grid, electron_coord_log_four_velocity_sq, &
+                                                 electron_dxgamma_dcoord, electron_four_velocity_grid_gamma_scale
+    use electron_shell_transport_common, only: electron_shell_flux_split_coord_sequence, &
+                                               electron_shell_dcoord_to_dndgamma_exp_centers
     implicit real(8)(a-h,o-z)
 
     integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,Num_chi,index_Y,index_syn_intger,n_threads,substep_max
@@ -47,7 +53,7 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
     real(8), intent(out) :: B_chi_out(Num_chi, Num_R)
 
     real(8), allocatable :: dEl(:), dEL_mean(:), kappa2_arr(:)
-    real(8), allocatable :: dN_init(:), dN_init_log(:), U_log(:,:), U_shell(:,:), source_q1(:)
+    real(8), allocatable :: dN_init(:), dN_init_log(:), U_log(:,:), U_shell(:,:), source_q1(:), coord_face_step(:)
     real(8), allocatable :: q_grid(:), q_face(:)
     real(8), allocatable :: dF1(:), shell_population(:), chi_population(:), dEL_mean_shell(:)
     real(8), allocatable :: V_m_chi(:), V_c_chi(:), V_a_chi(:), chi_weight(:), Epsilon_b_chi(:), DB_chi(:), t_decay_chi(:)
@@ -56,14 +62,14 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
     real(8), allocatable :: radius_cell_hist(:,:), gamma_cell_hist(:,:), beta_hist(:,:)
     real(8), allocatable :: radius_cell_chi(:), gamma_cell_chi(:), beta_cell_chi(:), beta_rel_sh_chi(:)
     real(8), allocatable :: P_local(:,:), kappa2_chi(:,:)
-    real(8), allocatable :: V_cool(:), P_emit_cool(:)
+    real(8), allocatable :: V_cool(:), P_emit_cool(:), P_emit_shell(:), Tau_shell(:)
     real(8), allocatable :: P_hist(:,:,:), Seed_hist(:,:,:), Tau_hist(:,:,:)
     real(8), allocatable :: P_hist_cool(:,:,:), Seed_hist_cool(:,:,:), Tau_hist_cool(:,:,:), &
                              Tau_pair_hist_cool(:,:,:), Tau_prop_hist_cool(:,:,:)
     real(8), allocatable :: P_eff_cool_chi(:,:), Seed_eff_cool_chi(:,:), P_stream_cool(:,:), Seed_stream_cool(:,:)
     real(8), allocatable :: cooling_aux_chi(:,:), dEl_chi(:,:), dEL_mean_chi(:,:), adiabatic_log_coeff_chi(:)
 
-    real(8) :: temp, dq, d_x_E, ln10, x_edge_E(Num_gam_e+1)
+    real(8) :: temp, dq, d_x_E, ln10, coord_scale, x_edge_E(Num_gam_e+1), coord_edge_E(Num_gam_e+1)
     real(8) :: R_loc, R_Gamma_loc, dNe, Para_N_e_ini, DB, DB_min
     real(8) :: Epsilon_b_floor, magnetic_decay_alpha_t, magnetic_decay_t0_s
     real(8) :: stochastic_accel_norm
@@ -77,12 +83,13 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
     integer :: total_substeps, max_shell_substeps, shell_cooling_calls, substep_cooling_calls
     integer :: prepare_aux_calls, history_calls, syn_state_calls, eta_calls, xi_calls
     logical :: profile_enabled, magnetic_decay_active, pwn_cr_transport, free_outer_escape, emit_full_spectrum
+    logical :: four_velocity_coord
 
     allocate(dEl(Num_gam_e), dEL_mean(Num_gam_e-1), dEL_mean_shell(Num_gam_e-1), kappa2_arr(Num_gam_e), &
              dN_init(Num_gam_e), dN_init_log(Num_gam_e), dF1(Num_gam_e), shell_population(Num_gam_e), chi_population(Num_chi), &
              V_m_chi(Num_chi), V_c_chi(Num_chi), V_a_chi(Num_chi), chi_weight(Num_chi), &
              Epsilon_b_chi(Num_chi), DB_chi(Num_chi), t_decay_chi(Num_chi), &
-             source_q1(Num_gam_e), U_log(Num_gam_e, Num_chi), U_shell(Num_gam_e, Num_chi), &
+             source_q1(Num_gam_e), coord_face_step(Num_gam_e-1), U_log(Num_gam_e, Num_chi), U_shell(Num_gam_e, Num_chi), &
              q_grid(Num_chi), q_face(0:Num_chi), &
              proper_time_arr(Num_R), x_face_hist(0:Num_chi, Num_R), &
              x_comov_face_hist(0:Num_chi, Num_R), x_comov_hist(Num_chi, Num_R), dx_comov_hist(Num_chi, Num_R), &
@@ -123,8 +130,10 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
     end block
     magnetic_decay_active = magnetic_decay_alpha_t < zero .and. magnetic_decay_t0_s > zero .and. &
                             Epsilon_b_floor > zero .and. Epsilon_b_floor < Epsilon_b
+    four_velocity_coord = .not. use_charint_transport .and. .not. pwn_cr_transport
 
     ln10 = dlog(ten)
+    coord_scale = electron_four_velocity_grid_gamma_scale*electron_four_velocity_grid_gamma_scale-one
     profile_enabled = .false.
     emit_full_spectrum = emit_full_chi_spectrum /= 0
     block
@@ -154,7 +163,8 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
     xi_calls = 0
     Num_nu_cool = min(6, Num_nu)
     substep_limit = max(1, substep_max)
-    allocate(V_cool(Num_nu_cool), P_emit_cool(Num_nu_cool), P_hist(Num_nu, Num_chi, Num_R), &
+    allocate(V_cool(Num_nu_cool), P_emit_cool(Num_nu_cool), P_emit_shell(Num_nu), Tau_shell(Num_nu), &
+             P_hist(Num_nu, Num_chi, Num_R), &
              Seed_hist(Num_nu, Num_chi, Num_R), Tau_hist(Num_nu, Num_chi, Num_R), &
              P_hist_cool(Num_nu_cool, Num_chi, Num_R), Seed_hist_cool(Num_nu_cool, Num_chi, Num_R), &
              Tau_hist_cool(Num_nu_cool, Num_chi, Num_R), &
@@ -195,15 +205,28 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
     call electron_gamma_m_exact(p,temp_gam,Gam_e_max,Gam_e_m)
     Gam_e_c       = 7.7d8/(one+dsqrt(Epsilon_e/Epsilon_b))/R_Gamma(1)/DB**2/(R_Tobs(1)/two)
 
-    call electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
-                                      electron_initial_grid_log_edges,gam_e,dN_init,x_edge_E)
+    if (four_velocity_coord) then
+        call electron_build_four_velocity_grid(Num_gam_e,one,electron_exp_tail_grid_factor*Gam_e_max_max, &
+                                               electron_four_velocity_grid_gamma_scale,gam_e,coord_edge_E,x_edge_E)
+        call electron_initial_powerlaw_exp_cutoff_coord_edges(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
+                                                              Num_gam_e,coord_edge_E,coord_scale,dN_init)
+    else
+        call electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
+                                          electron_initial_grid_log_edges,gam_e,dN_init,x_edge_E)
+        coord_edge_E = x_edge_E
+    end if
     d_x_E = dlog10(gam_e(2)/gam_e(1))
     dN_init_log = dN_init
 
     U_log(:,1) = dN_init_log / dq
 
     do I_chi = 1, Num_chi
-        call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge_E,gam_e,U_log(:,I_chi),dN_gam_e(:,I_chi,1))
+        if (four_velocity_coord) then
+            call electron_shell_dcoord_to_dndgamma_exp_centers(Num_gam_e,coord_edge_E,coord_scale,gam_e, &
+                                                               U_log(:,I_chi),dN_gam_e(:,I_chi,1))
+        else
+            call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge_E,gam_e,U_log(:,I_chi),dN_gam_e(:,I_chi,1))
+        end if
     end do
     dN_gam_e_total(:,1) = zero
     do I_chi = 1, Num_chi
@@ -262,8 +285,9 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
         call get_shock_transport_state(R_Gamma_loc, beta_sh, beta_2, beta_2_sh)
 
         if (emit_full_spectrum) then
-            call reduce_syn_shell_from_q(Num_nu,Num_chi,dq,P_hist(:,:,I_tobs-1),Seed_hist(:,:,I_tobs-1), &
-                                         P_syn(:,I_tobs),Seed_syn(:,I_tobs))
+            call get_syn_selected_state(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e, &
+                                        dN_gam_e_total(:,I_tobs-1),V_seed,P_emit_shell, &
+                                        P_syn(:,I_tobs),Seed_syn(:,I_tobs),Tau_shell)
         end if
 
         if (profile_enabled) call cpu_time(t_start)
@@ -360,7 +384,12 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
             integer :: L, L1, src_lo, src_hi, active_hi, active_chi_hi
 
             call electron_source_bounds(Num_gam_e,gam_e,Gam_e_m,Gam_e_max,src_lo,src_hi)
-            call electron_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge_E,Gam_e_m,Gam_e_max,one,p,dF1)
+            if (four_velocity_coord) then
+                call electron_build_source_term_exp_cutoff_coord_edges(Num_gam_e,coord_edge_E,coord_scale, &
+                                                                       Gam_e_m,Gam_e_max,one,p,dF1)
+            else
+                call electron_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge_E,Gam_e_m,Gam_e_max,one,p,dF1)
+            end if
             shell_population = sum(U_log, dim=2)
             chi_population = sum(U_log, dim=1)
             chi_peak = maxval(chi_population)
@@ -387,6 +416,7 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
             if (.not. use_charint_transport .and. .not. pwn_cr_transport) then
                 block
                     real(8) :: R_sub, R_eff, half_dR, Gamma_sh_sub, Gam_e_m_p
+                    real(8) :: adiabatic_integral, face_coord, face_jac
 
                     R_sub = 0.5d0*(R(I_tobs-1)+R(I_tobs))
                     Gamma_sh_sub = 0.5d0*(R_Gamma(I_tobs-1)+R_Gamma(I_tobs))
@@ -410,9 +440,9 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
                     temp_gam = Epsilon_e/f_e*para_m_p/para_m_e*(Gamma_sh_sub-one)
                     call electron_gamma_m_exact(p,temp_gam,Gam_e_max,Gam_e_m)
                     Gam_e_m_p = (one-p)/(Gam_e_max**(one-p)-Gam_e_m**(one-p))
-                    Q_rate = 4d0*pi*R_sub**2*dNe*f_e*Gam_e_m_p
-                    call electron_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge_E,Gam_e_m,Gam_e_max,Q_rate,p,dF1)
-                    source_q1 = dF1/dq
+                    call electron_injection_prefactor(R(I_tobs-1),dDD,dNe,f_e,Gam_e_m_p,Q_rate)
+                    call electron_build_source_term_exp_cutoff_coord_edges(Num_gam_e,coord_edge_E,coord_scale, &
+                                                                           Gam_e_m,Gam_e_max,Q_rate*dDD/dq,p,source_q1)
 
                     U_shell = U_log
                     dF1 = zero
@@ -429,15 +459,30 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
                     end if
 
                     if (profile_enabled) call cpu_time(t_start)
-                    call advance_energy_loggamma_chi_charint(U_shell, Num_gam_e, Num_chi, gam_e, DB_chi, dEl_chi, &
-                                                             R_eff, Gamma_sh_sub, beta_sh, index_Y, dDD, &
-                                                             active_chi_hi, n_threads, source_q1)
+                    adiabatic_integral = dlog(R(I_tobs)/R(I_tobs-1))
+                    do I_chi = 1, active_chi_hi
+                        do I_face = 1, Num_gam_e-1
+                            face_coord = coord_edge_E(I_face+1)
+                            face_jac = ln10*electron_dxgamma_dcoord(electron_coord_log_four_velocity_sq,coord_scale,face_coord)
+                            coord_face_step(I_face) = &
+                                (dDD*(dEl_chi(I_face,I_chi)+dEl_chi(I_face+1,I_chi))/two+adiabatic_integral)/face_jac
+                        end do
+                        if (I_chi == 1) then
+                            call electron_shell_flux_split_coord_sequence(Num_gam_e,coord_edge_E,coord_face_step, &
+                                                                          source_q1,U_shell(:,I_chi),U_log(:,I_chi))
+                        else
+                            call electron_shell_flux_split_coord_sequence(Num_gam_e,coord_edge_E,coord_face_step, &
+                                                                          dF1,U_shell(:,I_chi),U_log(:,I_chi))
+                        end if
+                    end do
+                    if (active_chi_hi < Num_chi) U_log(:,active_chi_hi+1:Num_chi) = U_shell(:,active_chi_hi+1:Num_chi)
                     xi_calls = xi_calls + 1
                     if (profile_enabled) then
                         call cpu_time(t_stop)
                         t_xi = t_xi + (t_stop-t_start)
                     end if
                     if (profile_enabled) call cpu_time(t_start)
+                    U_shell = U_log
                     call advance_q_advection_charint(U_shell, Num_gam_e, Num_chi, active_hi, dq, q_face, &
                                                      k_medium, R_eff, dF1, half_dR)
                     call advance_q_diffusion_implicit(U_shell, Num_gam_e, Num_chi, active_hi, dq, q_face, &
@@ -562,7 +607,12 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
         !$OMP PARALLEL DO num_threads(n_threads) if(n_threads > 1 .and. Num_chi*Num_nu >= 128) schedule(static) &
         !$OMP& private(I_chi)
         do I_chi = 1, Num_chi
-            call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge_E,gam_e,U_log(:,I_chi),dN_gam_e(:,I_chi,I_tobs))
+            if (four_velocity_coord) then
+                call electron_shell_dcoord_to_dndgamma_exp_centers(Num_gam_e,coord_edge_E,coord_scale,gam_e, &
+                                                                   U_log(:,I_chi),dN_gam_e(:,I_chi,I_tobs))
+            else
+                call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge_E,gam_e,U_log(:,I_chi),dN_gam_e(:,I_chi,I_tobs))
+            end if
             t_decay_chi(I_chi) = x_comov_hist(I_chi,I_tobs)/max(beta_rel_sh_chi(I_chi)*para_c,tiny(one))
             if (magnetic_decay_active) then
                 Epsilon_b_chi(I_chi) = Epsilon_b_floor + (Epsilon_b-Epsilon_b_floor) * &
@@ -627,8 +677,9 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
     call get_shock_transport_state(R_Gamma_loc, beta_sh, beta_2, beta_2_sh)
 
     if (emit_full_spectrum) then
-        call reduce_syn_shell_from_q(Num_nu,Num_chi,dq,P_hist(:,:,Num_R),Seed_hist(:,:,Num_R), &
-                                     P_syn(:,Num_R),Seed_syn(:,Num_R))
+        call get_syn_selected_state(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e, &
+                                    dN_gam_e_total(:,Num_R),V_seed,P_emit_shell,P_syn(:,Num_R), &
+                                    Seed_syn(:,Num_R),Tau_shell)
     end if
     if (profile_enabled) call cpu_time(t_start)
     P_eff_cool_chi = P_hist_cool(:,:,Num_R) + P_stream_cool
@@ -741,13 +792,13 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
         print '(A,1X,I12)', 'PROFILE '//trim(profile_tag)//' xi_calls', xi_calls
     end if
     deallocate(dEl, dEL_mean, dEL_mean_shell, kappa2_arr, dN_init, dN_init_log, dF1, &
-               shell_population, chi_population, U_log, U_shell, source_q1, &
+               shell_population, chi_population, U_log, U_shell, source_q1, coord_face_step, &
                V_m_chi, V_c_chi, V_a_chi, chi_weight, Epsilon_b_chi, DB_chi, t_decay_chi, &
                q_grid, q_face, proper_time_arr, &
                x_face_hist, x_comov_face_hist, &
                x_comov_hist, dx_comov_hist, radius_cell_hist, gamma_cell_hist, beta_hist, &
                radius_cell_chi, gamma_cell_chi, beta_cell_chi, beta_rel_sh_chi, &
-               dN_cell, P_local, V_cool, P_emit_cool, P_hist, Seed_hist, Tau_hist, &
+               dN_cell, P_local, V_cool, P_emit_cool, P_emit_shell, Tau_shell, P_hist, Seed_hist, Tau_hist, &
                P_hist_cool, Seed_hist_cool, Tau_hist_cool, Tau_pair_hist_cool, Tau_prop_hist_cool, &
                P_eff_cool_chi, Seed_eff_cool_chi, P_stream_cool, Seed_stream_cool, &
                cooling_aux_chi, dEl_chi, dEL_mean_chi, adiabatic_log_coeff_chi, kappa2_chi)
