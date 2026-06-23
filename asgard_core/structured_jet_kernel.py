@@ -131,7 +131,7 @@ def solve_structured_jet_chi_2d(model, times_s: np.ndarray, nu_hz: np.ndarray, b
 def _structured_kernel_args(model, base_config, setup, sampled, times: np.ndarray, frequencies: np.ndarray) -> tuple:
     theta_centers, _theta_edges, phi_centers, e_iso, gamma0, active, axisymmetric = sampled
     outer_threads, inner_threads = _structured_threads(model)
-    include_reverse = bool(model.setups.rvs_shock and model.rvs_rad is not None)
+    include_reverse = bool(model.setups.reverse_shock.enabled and model.rvs_rad is not None)
     reverse_rad = model.rvs_rad
 
     return (
@@ -151,18 +151,18 @@ def _structured_kernel_args(model, base_config, setup, sampled, times: np.ndarra
         int(base_config.index_syn_integr),
         int(include_reverse),
         int(bool(model.fwd_rad.ssc)),
-        int(bool(model.setups.hadronic_enabled and model.fwd_rad.epsilon_p > 0.0)),
+        int(bool(model.setups.hadronic.enabled and model.fwd_rad.epsilon_p > 0.0)),
         int(bool(model.fwd_rad.proton_synch)),
         int(bool(model.fwd_rad.pg)),
         int(bool(model.fwd_rad.neutrino)),
-        int(model.setups.num_gam_p),
-        int(model.setups.num_nu_nu),
-        float(model.setups.reverse_delta_t_s if include_reverse else 0.0),
+        int(model.setups.hadronic.num_gam_p),
+        int(model.setups.hadronic.num_nu_nu),
+        float(model.setups.reverse_shock.delta_t_s if include_reverse else 0.0),
         float(reverse_rad.eps_e if include_reverse else 0.0),
         float(reverse_rad.eps_B if include_reverse else 0.0),
         float(reverse_rad.p if include_reverse else 0.0),
         float(reverse_rad.xi_N if include_reverse else 0.0),
-        float(model.setups.reverse_sigma if include_reverse else 0.0),
+        float(model.setups.reverse_shock.sigma if include_reverse else 0.0),
         float(model.fwd_rad.p),
         float(model.fwd_rad.epsilon_p),
         float(model.fwd_rad.eta_acc),
@@ -555,9 +555,9 @@ def _assert_no_unsupported_structured_features(model, backend: str) -> None:
 def _assert_no_fancy_physics(model, backend: str) -> None:
     """Checks for features no structured backend supports yet."""
     fancy = []
-    if bool(model.setups.include_cross_zone_ic):
+    if bool(model.setups.reverse_shock.include_cross_zone_ic):
         fancy.append("cross-zone IC")
-    if bool(model.fwd_rad.pair_production) or int(model.setups.pair_cascade_iterations) > 1:
+    if bool(model.fwd_rad.pair_production) or int(model.setups.hadronic.pair_cascade_iterations) > 1:
         fancy.append("pair-cascade")
     if fancy:
         raise NotImplementedError(f"structured_backend='{backend}' does not support: {', '.join(fancy)}.")
@@ -565,11 +565,11 @@ def _assert_no_fancy_physics(model, backend: str) -> None:
 def _assert_supported_structured_fortran(model) -> None:
     if str(model.setups.electron_solver).lower() not in ELECTRON_1D_TRANSPORT_IDS:
         raise NotImplementedError("structured_backend='fortran_1d' requires electron_solver='fullhide_1d' or 'dg_1d'.")
-    if bool(model.setups.rvs_shock) and model.rvs_rad is None:
+    if bool(model.setups.reverse_shock.enabled) and model.rvs_rad is None:
         raise NotImplementedError("structured_backend='fortran_1d' requires rvs_rad when reverse shock is enabled.")
-    if model.rvs_rad is not None and (bool(model.rvs_rad.ssc) or bool(model.setups.rvs_ssc)):
+    if model.rvs_rad is not None and (bool(model.rvs_rad.ssc) or bool(model.setups.reverse_shock.include_ssc)):
         raise NotImplementedError("structured_backend='fortran_1d' migrates reverse synchrotron only, not RS SSC.")
-    if bool(model.setups.rvs_shock) and float(model.fwd_rad.reverse_epsilon_p) > 0.0:
+    if bool(model.setups.reverse_shock.enabled) and float(model.fwd_rad.reverse_epsilon_p) > 0.0:
         raise NotImplementedError("structured_backend='fortran_1d' does not migrate reverse-shock hadronic branches.")
     if bool(model.fwd_rad.bethe_heitler or model.fwd_rad.pp or model.fwd_rad.hadronic_inverse_compton):
         raise NotImplementedError("structured_backend='fortran_1d' does not migrate BH, pp, or hadronic IC branches.")
@@ -579,11 +579,11 @@ def _assert_supported_structured_fortran(model) -> None:
 
 
 def _assert_supported_hadronic_branch(model) -> None:
-    solver = str(model.setups.hadronic_solver).lower()
+    solver = str(model.setups.hadronic.solver).lower()
     if bool(model.fwd_rad.pg or model.fwd_rad.neutrino):
         if solver != "am3_1d":
             raise NotImplementedError("structured p-gamma/neutrino output requires hadronic_solver='am3_1d'.")
-        scheme = str(model.setups.pgamma_scheme if model.setups.pgamma_scheme != "disabled" else model.fwd_rad.pgamma_scheme)
+        scheme = str(model.setups.hadronic.pgamma_scheme if model.setups.hadronic.pgamma_scheme != "disabled" else model.fwd_rad.pgamma_scheme)
         if scheme.lower() not in HUMMER_SCHEMES:
             raise NotImplementedError("structured p-gamma/neutrino output supports only the Hummer2010 response kernel.")
     elif solver not in {"legacy_1d", "am3_1d"}:
@@ -608,9 +608,9 @@ def _assert_supported_structured_chi_2d(model, axisymmetric: bool) -> None:
         raise ValueError("off-axis structured chi_eats_2d projection requires structured_num_phi >= 2.")
     if bool(model.fwd_rad.ssc):
         raise NotImplementedError("structured chi_eats_2d batch projection currently covers FS synchrotron+SSA, not SSC emission.")
-    if bool(model.setups.rvs_shock):
+    if bool(model.setups.reverse_shock.enabled):
         raise NotImplementedError("structured chi_eats_2d batch projection currently does not include reverse-shock emission.")
-    if bool(model.setups.hadronic_enabled and model.fwd_rad.epsilon_p > 0.0):
+    if bool(model.setups.hadronic.enabled and model.fwd_rad.epsilon_p > 0.0):
         raise NotImplementedError("structured chi_eats_2d batch projection currently does not include hadronic emission.")
     _assert_no_fancy_physics(model, "chi_eats_2d")
     _assert_no_unsupported_structured_features(model, "chi_eats_2d")
@@ -619,11 +619,11 @@ def _assert_supported_structured_chi_2d(model, axisymmetric: bool) -> None:
 def _uses_direct_structured_chi_projection(model) -> bool:
     return (
         not bool(model.fwd_rad.ssc)
-        and not bool(model.setups.rvs_shock)
-        and not bool(model.setups.hadronic_enabled)
-        and not bool(model.setups.include_cross_zone_ic)
+        and not bool(model.setups.reverse_shock.enabled)
+        and not bool(model.setups.hadronic.enabled)
+        and not bool(model.setups.reverse_shock.include_cross_zone_ic)
         and not bool(model.fwd_rad.pair_production)
-        and int(model.setups.pair_cascade_iterations) <= 1
+        and int(model.setups.hadronic.pair_cascade_iterations) <= 1
     )
 
 
@@ -669,7 +669,7 @@ def _structured_threads(model) -> tuple[int, int]:
         raise ValueError("num_threads must be positive for structured jet execution.")
     if cpu_count is not None and total > int(cpu_count):
         raise ValueError("num_threads exceeds the available CPU thread count for structured jet execution.")
-    if bool(model.setups.rvs_shock and model.rvs_rad is not None):
+    if bool(model.setups.reverse_shock.enabled and model.rvs_rad is not None):
         resolved_inner = int(total if inner is None else inner)
         if outer is not None and int(outer) != 1:
             raise ValueError("structured reverse-shock execution requires structured_outer_threads=1.")
@@ -708,11 +708,11 @@ def _solve_time_grid(model, requested_times: np.ndarray) -> np.ndarray:
     base_count = max(int(model.setups.num_tobs), int(np.unique(requested).size))
     if requested.size <= 1:
         return np.logspace(
-            np.log10(float(model.setups.observer_time_min_s)),
-            np.log10(float(model.setups.observer_time_max_s)),
+            np.log10(float(10**model.setups.t_obs_min_log10)),
+            np.log10(float(10**model.setups.t_obs_max_log10)),
             base_count,
         )
-    solve_t_min = min(float(model.setups.observer_time_min_s), float(np.min(requested)))
+    solve_t_min = min(float(10**model.setups.t_obs_min_log10), float(np.min(requested)))
     solve_t_max = float(np.max(requested))
     solve_count = max(base_count, model._detail_time_count(solve_t_min, solve_t_max))
     log_t_min = np.log10(solve_t_min)
