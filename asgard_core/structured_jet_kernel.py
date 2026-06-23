@@ -387,11 +387,31 @@ def _project_structured_chi_ring_state(
     boundary = np.array(state.setup.boundary, dtype=float, copy=True)
     boundary[9] = float(theta_obs)
     src_freq = projection_seed_frequency_hz if projection_seed_frequency_hz is not None else state.setup.seed_frequency_hz
-    seed_frequency = _trim_structured_ring_projection_seed(
+    seed_frequency, selected = _trim_structured_ring_projection_seed(
         src_freq, frequencies, state.electron.chi_gamma_bulk,
         float(theta_lo), float(theta_hi), float(theta_obs), int(num_phi), float(state.config.z),
     )
     e = state.electron
+    if e.l_syn_spec_chi is not None and e.tau_syn_chi is not None:
+        z = float(state.config.z)
+        DL = float(state.setup.luminosity_distance_cm)
+        flux_prefactor = (1.0 + z) / (4.0 * np.pi * DL * DL)
+        F_ring = np.asfortranarray(
+            np.asarray(e.l_syn_spec_chi, dtype=float)[selected, :, :] * flux_prefactor
+        )
+        Tau_ring = np.asfortranarray(
+            np.asarray(e.tau_syn_chi, dtype=float)[selected, :, :]
+        )
+        return Interpolation.sed_interpolation_chi_structured_axisym_ring_precomputed(
+            boundary,
+            state.components.fwd.characteristic_time_s,
+            state.components.fwd.radius_cm,
+            F_ring, Tau_ring,
+            e.chi_radius_cm, e.chi_gamma_bulk,
+            e.chi_dvolume_weight,
+            seed_frequency, frequencies, times,
+            float(theta_lo), float(theta_hi), int(num_phi),
+        )
     return Interpolation.sed_interpolation_chi_structured_axisym_electron_cached_ring(
         boundary,
         state.components.fwd.characteristic_time_s,
@@ -412,7 +432,7 @@ def _trim_structured_ring_projection_seed(
     theta_obs: float,
     num_phi: int,
     redshift: float,
-) -> np.ndarray:
+) -> tuple[np.ndarray, np.ndarray]:
     seed = seed_frequency_hz
     frequency = frequencies_hz
     beta = np.sqrt(1.0 - chi_gamma_bulk**-2)
@@ -433,7 +453,7 @@ def _trim_structured_ring_projection_seed(
         lo = max(0, int(np.searchsorted(seed, source_min, side="left")) - 1)
         hi = min(seed.size - 1, int(np.searchsorted(seed, source_max, side="left")))
         selected[lo : hi + 1] = True
-    return np.asfortranarray(seed[selected])
+    return np.asfortranarray(seed[selected]), selected
 
 
 def _project_structured_chi_sync_once(model, ring_states, first_state, times: np.ndarray, frequencies: np.ndarray) -> np.ndarray:

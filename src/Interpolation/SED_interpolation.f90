@@ -1121,6 +1121,278 @@ subroutine accumulate_cached_structured_source(I_chi,K2,Ratio,F_theta)
 end subroutine accumulate_cached_structured_source
 end subroutine sed_interpolation_chi_structured_axisym_electron_cached
 
+! 结构化direct-electronχ投影的单θ-ring版本：用于Python流式solve/project/accumulate。
+subroutine sed_interpolation_chi_structured_axisym_electron_cached_ring(Boundary,R_Tobs1,R_front,DNe_chi, &
+                             B_chi,R_chi,Gamma_chi,Chi_weight,gam_e,V_seed,V_obs,Tobs,theta_lo,theta_hi, &
+                             n,Num_gam_e,Num_nu,Num_nu_obs,Num_Tobs,Num_phi_patch,Num_chi,Num_R,F_tot_obs)
+    use constants
+    use interpolation_common
+    use radiation_common, only: radiation_syn_flux_tau_chi_batch_core
+    IMPLICIT REAL(8)(A-H,O-Z)
+    integer, intent(in) :: n,Num_gam_e,Num_nu,Num_nu_obs,Num_Tobs,Num_phi_patch,Num_chi,Num_R
+    real(8), intent(in) :: Boundary(n),R_Tobs1(Num_R),R_front(Num_R),Tobs(Num_Tobs),V_seed(Num_nu),V_obs(Num_nu_obs)
+    real(8), intent(in) :: gam_e(Num_gam_e),DNe_chi(Num_gam_e,Num_chi,Num_R),B_chi(Num_chi,Num_R)
+    real(8), intent(in) :: R_chi(Num_chi,Num_R),Gamma_chi(Num_chi,Num_R),Chi_weight(Num_chi,Num_R)
+    real(8), intent(in) :: theta_lo,theta_hi
+    real(8), intent(out) :: F_tot_obs(Num_nu_obs,Num_Tobs)
+    real(8), allocatable :: F_temp(:,:),V_obs_log(:),V_seed_log(:),F_ring(:,:,:),Tau_ring(:,:,:),Tau_prefix(:,:,:)
+    real(8), allocatable :: P_syn(:,:),Tau_syn(:,:)
+    real(8) :: R_Tobs_chi(Num_R),log_domega_4pi,log_gamma_lo,log_gamma_hi,segment_lo,segment_hi
+    real(8) :: cos_tv,sin_tv,theta_center,phi_center,domega,dPhi
+    integer :: last_k2,k_start,lower_bound_real8
+    logical :: monotonic_chi
+
+    allocate(F_temp(Num_nu_obs,Num_Tobs),V_obs_log(Num_nu_obs),V_seed_log(Num_nu))
+    allocate(F_ring(Num_nu,Num_chi,Num_R),Tau_ring(Num_nu,Num_chi,Num_R),Tau_prefix(Num_nu,0:Num_chi,Num_R))
+    allocate(P_syn(Num_nu,Num_chi),Tau_syn(Num_nu,Num_chi))
+    F_tot_obs = zero
+    F_temp = zero
+    z = Boundary(8)
+    Tv = Boundary(10)
+    DL = Boundary(13)
+    flux_prefactor = (one+z)/(4d0*pi*DL*DL)
+    dPhi = two*pi/Num_phi_patch
+    V_obs_log = dlog(V_obs)
+    V_seed_log = dlog(V_seed)
+    cos_tv = dcos(Tv)
+    sin_tv = dsin(Tv)
+
+    do K2 = 1, Num_R
+        call radiation_syn_flux_tau_chi_batch_core(R_front(K2),Num_gam_e,Num_nu,Num_chi,gam_e, &
+                                                   DNe_chi(:,:,K2),V_seed,B_chi(:,K2),1.046d4,P_syn,Tau_syn)
+        F_ring(:,:,K2) = P_syn*flux_prefactor
+        Tau_ring(:,:,K2) = Tau_syn
+    end do
+    Tau_prefix(:,0,:) = zero
+    do I_chi = 1, Num_chi
+        Tau_prefix(:,I_chi,:) = Tau_prefix(:,I_chi-1,:) + Tau_ring(:,I_chi,:)
+    end do
+    theta_center = 0.5d0*(theta_lo+theta_hi)
+    do i_Phi = 1, Num_phi_patch
+        phi_center = (i_Phi-0.5d0)*dPhi
+        domega = (dcos(theta_lo)-dcos(theta_hi))*dPhi
+        log_domega_4pi = dlog(domega)-dlog(4d0*pi)
+        DMu = cos_tv*dcos(theta_center)+sin_tv*dsin(theta_center)*dcos(phi_center)
+        do I_chi = 1, Num_chi
+            R_Tobs_chi = R_Tobs1 + (one+z)*(R_front-R_chi(I_chi,:)*DMu)/Para_c
+            monotonic_chi = all(R_Tobs_chi(2:Num_R) > R_Tobs_chi(1:Num_R-1))
+            if (monotonic_chi) then
+                II = 1
+                last_k2 = 0
+                do K1 = 1, Num_Tobs
+                    if (Tobs(K1) < R_Tobs_chi(1) .or. Tobs(K1) > R_Tobs_chi(Num_R)) cycle
+                    do while (II < Num_R-1 .and. Tobs(K1) >= R_Tobs_chi(II+1))
+                        II = II + 1
+                    end do
+                    K2 = II
+                    if (Tobs(K1) >= R_Tobs_chi(K2) .and. Tobs(K1) < R_Tobs_chi(K2+1)) then
+                        if (K2 /= last_k2) then
+                            log_gamma_lo = dlog(Gamma_chi(I_chi,K2))
+                            log_gamma_hi = dlog(Gamma_chi(I_chi,K2+1))
+                            last_k2 = K2
+                        end if
+                        Ratio = (Tobs(K1)-R_Tobs_chi(K2))/(R_Tobs_chi(K2+1)-R_Tobs_chi(K2))
+                        call project_cached_ring_segment(I_chi,K2,K1,Ratio,DMu,log_domega_4pi, &
+                                                         log_gamma_lo,log_gamma_hi)
+                    end if
+                end do
+            else
+                do K2 = 1, Num_R-1
+                    segment_lo = min(R_Tobs_chi(K2),R_Tobs_chi(K2+1))
+                    segment_hi = max(R_Tobs_chi(K2),R_Tobs_chi(K2+1))
+                    k_start = lower_bound_real8(Tobs,Num_Tobs,segment_lo)
+                    log_gamma_lo = dlog(Gamma_chi(I_chi,K2))
+                    log_gamma_hi = dlog(Gamma_chi(I_chi,K2+1))
+                    do K1 = k_start, Num_Tobs
+                        if (Tobs(K1) >= segment_hi) exit
+                        Ratio = (Tobs(K1)-R_Tobs_chi(K2))/(R_Tobs_chi(K2+1)-R_Tobs_chi(K2))
+                        call project_cached_ring_segment(I_chi,K2,K1,Ratio,DMu,log_domega_4pi, &
+                                                         log_gamma_lo,log_gamma_hi)
+                    end do
+                end do
+            end if
+        end do
+    end do
+    F_tot_obs = F_temp
+    deallocate(F_temp,V_obs_log,V_seed_log,F_ring,Tau_ring,Tau_prefix,P_syn,Tau_syn)
+    return
+
+contains
+
+subroutine project_cached_ring_segment(I_chi,K2,K1,Ratio,DMu,log_domega_4pi,log_gamma_lo,log_gamma_hi)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: I_chi,K2,K1
+    real(8), intent(in) :: Ratio,DMu,log_domega_4pi,log_gamma_lo,log_gamma_hi
+    real(8) :: F_theta(Num_nu),log_doppler_redshift,log_flux_weight,doppler
+
+    call compute_cached_ring_state(I_chi,K2,Ratio,DMu,log_gamma_lo,log_gamma_hi, &
+                                   log_doppler_redshift,doppler,F_theta)
+    log_flux_weight = log_domega_4pi - 3d0*dlog(doppler)
+    call interpolation_accumulate_shifted_linear_sed(V_seed_log,F_theta,Num_nu,V_obs_log,Num_nu_obs, &
+                                                     log_doppler_redshift,log_flux_weight,F_temp(:,K1))
+end subroutine project_cached_ring_segment
+
+subroutine compute_cached_ring_state(I_chi,K2,Ratio,DMu,log_gamma_lo,log_gamma_hi, &
+                                     log_doppler_redshift,doppler,F_theta)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: I_chi,K2
+    real(8), intent(in) :: Ratio,DMu,log_gamma_lo,log_gamma_hi
+    real(8), intent(out) :: log_doppler_redshift,doppler,F_theta(Num_nu)
+    real(8) :: DG,Beta
+
+    DG = dexp(log_gamma_lo+Ratio*(log_gamma_hi-log_gamma_lo))
+    Beta = dsqrt(one-DG**(-2))
+    doppler = DG*(one-Beta*DMu)
+    log_doppler_redshift = dlog(doppler)+dlog(one+z)
+    call accumulate_cached_ring_source(I_chi,K2,Ratio,F_theta)
+end subroutine compute_cached_ring_state
+
+subroutine accumulate_cached_ring_source(I_chi,K2,Ratio,F_theta)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: I_chi,K2
+    real(8), intent(in) :: Ratio
+    real(8), intent(out) :: F_theta(Num_nu)
+    real(8) :: source_lo,source_hi,tau_front_lo,tau_front_hi,tau_cell_lo,tau_cell_hi
+    integer :: I_nu
+
+    F_theta = zero
+    do I_nu = 1, Num_nu
+        tau_front_lo = Tau_prefix(I_nu,I_chi-1,K2)
+        tau_front_hi = Tau_prefix(I_nu,I_chi-1,K2+1)
+        tau_cell_lo = Tau_ring(I_nu,I_chi,K2)
+        tau_cell_hi = Tau_ring(I_nu,I_chi,K2+1)
+        source_lo = F_ring(I_nu,I_chi,K2)*Chi_weight(I_chi,K2)*chi_ssa_cell_escape(tau_front_lo,tau_cell_lo)
+        source_hi = F_ring(I_nu,I_chi,K2+1)*Chi_weight(I_chi,K2+1)*chi_ssa_cell_escape(tau_front_hi,tau_cell_hi)
+        F_theta(I_nu) = (one-Ratio)*source_lo + Ratio*source_hi
+    end do
+end subroutine accumulate_cached_ring_source
+end subroutine sed_interpolation_chi_structured_axisym_electron_cached_ring
+
+! 预计算光谱版：F_ring=P_syn*flux_prefactor 和 Tau_ring 已在Python侧从transport输出准备好，
+! 跳过 radiation_syn_flux_tau_chi_batch_core 重算。
+subroutine sed_interpolation_chi_structured_axisym_ring_precomputed(Boundary,R_Tobs1,R_front, &
+                             F_ring,Tau_ring,R_chi,Gamma_chi,Chi_weight,V_seed,V_obs,Tobs,theta_lo,theta_hi, &
+                             n,Num_nu,Num_nu_obs,Num_Tobs,Num_phi_patch,Num_chi,Num_R,F_tot_obs)
+    use constants
+    use interpolation_common
+    IMPLICIT REAL(8)(A-H,O-Z)
+    integer, intent(in) :: n,Num_nu,Num_nu_obs,Num_Tobs,Num_phi_patch,Num_chi,Num_R
+    real(8), intent(in) :: Boundary(n),R_Tobs1(Num_R),R_front(Num_R),Tobs(Num_Tobs),V_seed(Num_nu),V_obs(Num_nu_obs)
+    real(8), intent(in) :: F_ring(Num_nu,Num_chi,Num_R),Tau_ring(Num_nu,Num_chi,Num_R)
+    real(8), intent(in) :: R_chi(Num_chi,Num_R),Gamma_chi(Num_chi,Num_R),Chi_weight(Num_chi,Num_R)
+    real(8), intent(in) :: theta_lo,theta_hi
+    real(8), intent(out) :: F_tot_obs(Num_nu_obs,Num_Tobs)
+    real(8), allocatable :: F_temp(:,:),V_obs_log(:),V_seed_log(:),Tau_prefix(:,:,:)
+    real(8) :: R_Tobs_chi(Num_R),log_domega_4pi,log_gamma_lo,log_gamma_hi,segment_lo,segment_hi
+    real(8) :: cos_tv,sin_tv,theta_center,phi_center,domega,dPhi
+    integer :: last_k2,k_start,lower_bound_real8
+    logical :: monotonic_chi
+
+    allocate(F_temp(Num_nu_obs,Num_Tobs),V_obs_log(Num_nu_obs),V_seed_log(Num_nu))
+    allocate(Tau_prefix(Num_nu,0:Num_chi,Num_R))
+    F_tot_obs = zero
+    F_temp = zero
+    z = Boundary(8)
+    Tv = Boundary(10)
+    dPhi = two*pi/Num_phi_patch
+    V_obs_log = dlog(V_obs)
+    V_seed_log = dlog(V_seed)
+    cos_tv = dcos(Tv)
+    sin_tv = dsin(Tv)
+
+    Tau_prefix(:,0,:) = zero
+    do I_chi = 1, Num_chi
+        Tau_prefix(:,I_chi,:) = Tau_prefix(:,I_chi-1,:) + Tau_ring(:,I_chi,:)
+    end do
+    theta_center = 0.5d0*(theta_lo+theta_hi)
+    do i_Phi = 1, Num_phi_patch
+        phi_center = (i_Phi-0.5d0)*dPhi
+        domega = (dcos(theta_lo)-dcos(theta_hi))*dPhi
+        log_domega_4pi = dlog(domega)-dlog(4d0*pi)
+        DMu = cos_tv*dcos(theta_center)+sin_tv*dsin(theta_center)*dcos(phi_center)
+        do I_chi = 1, Num_chi
+            R_Tobs_chi = R_Tobs1 + (one+z)*(R_front-R_chi(I_chi,:)*DMu)/Para_c
+            monotonic_chi = all(R_Tobs_chi(2:Num_R) > R_Tobs_chi(1:Num_R-1))
+            if (monotonic_chi) then
+                II = 1
+                last_k2 = 0
+                do K1 = 1, Num_Tobs
+                    if (Tobs(K1) < R_Tobs_chi(1) .or. Tobs(K1) > R_Tobs_chi(Num_R)) cycle
+                    do while (II < Num_R-1 .and. Tobs(K1) >= R_Tobs_chi(II+1))
+                        II = II + 1
+                    end do
+                    K2 = II
+                    if (Tobs(K1) >= R_Tobs_chi(K2) .and. Tobs(K1) < R_Tobs_chi(K2+1)) then
+                        if (K2 /= last_k2) then
+                            log_gamma_lo = dlog(Gamma_chi(I_chi,K2))
+                            log_gamma_hi = dlog(Gamma_chi(I_chi,K2+1))
+                            last_k2 = K2
+                        end if
+                        Ratio = (Tobs(K1)-R_Tobs_chi(K2))/(R_Tobs_chi(K2+1)-R_Tobs_chi(K2))
+                        call project_precomputed_ring_segment(I_chi,K2,K1,Ratio,DMu,log_domega_4pi, &
+                                                              log_gamma_lo,log_gamma_hi)
+                    end if
+                end do
+            else
+                do K2 = 1, Num_R-1
+                    segment_lo = min(R_Tobs_chi(K2),R_Tobs_chi(K2+1))
+                    segment_hi = max(R_Tobs_chi(K2),R_Tobs_chi(K2+1))
+                    k_start = lower_bound_real8(Tobs,Num_Tobs,segment_lo)
+                    log_gamma_lo = dlog(Gamma_chi(I_chi,K2))
+                    log_gamma_hi = dlog(Gamma_chi(I_chi,K2+1))
+                    do K1 = k_start, Num_Tobs
+                        if (Tobs(K1) >= segment_hi) exit
+                        Ratio = (Tobs(K1)-R_Tobs_chi(K2))/(R_Tobs_chi(K2+1)-R_Tobs_chi(K2))
+                        call project_precomputed_ring_segment(I_chi,K2,K1,Ratio,DMu,log_domega_4pi, &
+                                                              log_gamma_lo,log_gamma_hi)
+                    end do
+                end do
+            end if
+        end do
+    end do
+    F_tot_obs = F_temp
+    deallocate(F_temp,V_obs_log,V_seed_log,Tau_prefix)
+    return
+
+contains
+
+subroutine project_precomputed_ring_segment(I_chi,K2,K1,Ratio,DMu,log_domega_4pi,log_gamma_lo,log_gamma_hi)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: I_chi,K2,K1
+    real(8), intent(in) :: Ratio,DMu,log_domega_4pi,log_gamma_lo,log_gamma_hi
+    real(8) :: F_theta(Num_nu),log_doppler_redshift,log_flux_weight,doppler,DG,Beta
+
+    DG = dexp(log_gamma_lo+Ratio*(log_gamma_hi-log_gamma_lo))
+    Beta = dsqrt(one-DG**(-2))
+    doppler = DG*(one-Beta*DMu)
+    log_doppler_redshift = dlog(doppler)+dlog(one+z)
+    call accumulate_precomputed_ring_source(I_chi,K2,Ratio,F_theta)
+    log_flux_weight = log_domega_4pi - 3d0*dlog(doppler)
+    call interpolation_accumulate_shifted_linear_sed(V_seed_log,F_theta,Num_nu,V_obs_log,Num_nu_obs, &
+                                                     log_doppler_redshift,log_flux_weight,F_temp(:,K1))
+end subroutine project_precomputed_ring_segment
+
+subroutine accumulate_precomputed_ring_source(I_chi,K2,Ratio,F_theta)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: I_chi,K2
+    real(8), intent(in) :: Ratio
+    real(8), intent(out) :: F_theta(Num_nu)
+    real(8) :: source_lo,source_hi,tau_front_lo,tau_front_hi,tau_cell_lo,tau_cell_hi
+    integer :: I_nu
+
+    F_theta = zero
+    do I_nu = 1, Num_nu
+        tau_front_lo = Tau_prefix(I_nu,I_chi-1,K2)
+        tau_front_hi = Tau_prefix(I_nu,I_chi-1,K2+1)
+        tau_cell_lo = Tau_ring(I_nu,I_chi,K2)
+        tau_cell_hi = Tau_ring(I_nu,I_chi,K2+1)
+        source_lo = F_ring(I_nu,I_chi,K2)*Chi_weight(I_chi,K2)*chi_ssa_cell_escape(tau_front_lo,tau_cell_lo)
+        source_hi = F_ring(I_nu,I_chi,K2+1)*Chi_weight(I_chi,K2+1)*chi_ssa_cell_escape(tau_front_hi,tau_cell_hi)
+        F_theta(I_nu) = (one-Ratio)*source_lo + Ratio*source_hi
+    end do
+end subroutine accumulate_precomputed_ring_source
+end subroutine sed_interpolation_chi_structured_axisym_ring_precomputed
+
 ! 单频同步辐射点计算：与radiation_syn_seed_core同一核，用于direct chi投影。
 subroutine chi_synch_point(R_loc,DB,Num_gam_e,gam_e,dN_gam_e,V_cal,P_syn,Tau_syn)
     use constants

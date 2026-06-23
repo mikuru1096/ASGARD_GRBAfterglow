@@ -744,7 +744,10 @@ def _solve_electron_transport_2d(
     electron_2d_module = _electron_module(solver_name)
     num_chi = _resolve_num_chi(config, solver_name)
     num_threads_2d = max(1, min(int(config.num_threads), int(num_chi), 16))
-    emit_full_chi_spectrum = not _use_direct_chi_projection_contract(config)
+    emit_full_chi_spectrum = (
+        str(config.geometry_kernel).lower() == "chi_eats_2d"
+        or not _use_direct_chi_projection_contract(config)
+    )
     (
         gam_e,
         d_n_gam_e_chi,
