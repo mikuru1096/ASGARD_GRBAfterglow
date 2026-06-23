@@ -1166,6 +1166,15 @@ def _electron_density_to_source_r(gam_e: np.ndarray, density_per_gamma: np.ndarr
     return density * gamma[:, None] * np.log(10.0) / dr[None, :]
 
 
+def _solve_shell_transfer(args):
+    i, radius, bfield, gam_e, d_n_gam_e_col, frequency = args
+    if bfield <= 0.0:
+        return i, None
+    transfer = electron_radiation_module.get_syn_transfer(
+        float(radius), float(bfield), 1, gam_e, d_n_gam_e_col, frequency)
+    return i, transfer
+
+
 def _forward_synchrotron_absorption_transfer(
     *,
     electron: ElectronSolution,
@@ -1174,31 +1183,28 @@ def _forward_synchrotron_absorption_transfer(
     seed_frequency_hz: np.ndarray,
     config: RuntimeConfig,
 ) -> np.ndarray:
-    radius = np.asarray(radius_cm, dtype=float)
-    magnetic_field = np.asarray(magnetic_field_g, dtype=float)
-    frequency = np.asarray(seed_frequency_hz, dtype=float)
-    if np.any(radius <= 0.0):
-        raise ValueError("forward synchrotron absorption transfer requires positive shell radii.")
-    if np.any(frequency <= 0.0):
-        raise ValueError("forward synchrotron absorption transfer requires positive photon frequencies.")
-
+    radius = radius_cm
+    bfield = magnetic_field_g
+    frequency = seed_frequency_hz
+    gam_e = electron.gam_e
+    d_n_gam_e = electron.d_n_gam_e
     transfer = np.ones((frequency.size, radius.size), dtype=float)
-    gam_e = np.asarray(electron.gam_e, dtype=float)
-    d_n_gam_e = np.asarray(electron.d_n_gam_e, dtype=float)
-    for i_shell in range(radius.size):
-        if magnetic_field[i_shell] <= 0.0:
-            continue
-        transfer[:, i_shell] = np.asarray(
-            electron_radiation_module.get_syn_transfer(
-                float(radius[i_shell]),
-                float(magnetic_field[i_shell]),
-                int(config.num_threads),
-                gam_e,
-                d_n_gam_e[:, i_shell],
-                frequency,
-            ),
-            dtype=float,
-        )
+    tasks = [(i, radius[i], bfield[i], gam_e, d_n_gam_e[:, i], frequency)
+             for i in range(radius.size) if bfield[i] > 0.0]
+    if not tasks:
+        return transfer
+    workers = min(config.num_threads, len(tasks))
+    if workers > 1:
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            for i, col in ex.map(_solve_shell_transfer, tasks):
+                if col is not None:
+                    transfer[:, i] = col
+    else:
+        for task in tasks:
+            i, col = _solve_shell_transfer(task)
+            if col is not None:
+                transfer[:, i] = col
     return transfer
 
 

@@ -1440,6 +1440,15 @@ def _solve_reverse_shock_electrons(
     return np.asarray(gam_e, dtype=float), np.asarray(d_n_gam_e, dtype=float)
 
 
+def _solve_shell_syn(args):
+    i, radius, bfield, index_syn, gam_e, d_n_gam_e_col, v_seed = args
+    if bfield <= 0.0:
+        return i, None, None
+    p_syn, seed_syn = electron_radiation_module.get_syn_selected(
+        index_syn, float(radius), float(bfield), 1, gam_e, d_n_gam_e_col, v_seed)
+    return i, p_syn, seed_syn
+
+
 def _compute_reverse_shock_synchrotron_emission(
     dynamics: DynamicsSolution,
     v_seed: np.ndarray,
@@ -1451,27 +1460,29 @@ def _compute_reverse_shock_synchrotron_emission(
     d_n_gam_e = dynamics.reverse_shock.d_n_gam_e
     if gam_e is None or d_n_gam_e is None:
         raise ValueError("Reverse shock electrons are required to compute reverse emission.")
-    num_nu = v_seed.shape[0]
-    num_r = dynamics.radius.shape[0]
+    num_nu, num_r = v_seed.shape[0], dynamics.radius.shape[0]
     l_syn_spec, seed_syn = np.zeros((2, num_nu, num_r), dtype=float)
-    magnetic_field_g = np.asarray(dynamics.reverse_shock.magnetic_field_g, dtype=float)
+    bfield = dynamics.reverse_shock.magnetic_field_g
+    radius = dynamics.radius
 
-    for i in range(num_r):
-        db = float(magnetic_field_g[i])
-        radius_loc = float(dynamics.radius[i])
-        if not np.isfinite(db) or not np.isfinite(radius_loc) or db <= 0.0 or radius_loc <= 0.0:
-            continue
-        p_syn_i, seed_syn_i = electron_radiation_module.get_syn_selected(
-            config.index_syn_integr,
-            radius_loc,
-            db,
-            config.num_threads,
-            gam_e,
-            d_n_gam_e[:, i],
-            v_seed,
-        )
-        l_syn_spec[:, i] = np.asarray(p_syn_i, dtype=float)
-        seed_syn[:, i] = np.asarray(seed_syn_i, dtype=float)
+    tasks = [(i, radius[i], bfield[i], config.index_syn_integr,
+              gam_e, d_n_gam_e[:, i], v_seed) for i in range(num_r) if bfield[i] > 0.0]
+    if not tasks:
+        return l_syn_spec, seed_syn
+    workers = min(config.num_threads, len(tasks))
+    if workers > 1:
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            for i, p_syn_i, seed_syn_i in ex.map(_solve_shell_syn, tasks):
+                if p_syn_i is not None:
+                    l_syn_spec[:, i] = p_syn_i
+                    seed_syn[:, i] = seed_syn_i
+    else:
+        for task in tasks:
+            i, p_syn_i, seed_syn_i = _solve_shell_syn(task)
+            if p_syn_i is not None:
+                l_syn_spec[:, i] = p_syn_i
+                seed_syn[:, i] = seed_syn_i
     return l_syn_spec, seed_syn
 
 
