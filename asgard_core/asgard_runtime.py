@@ -443,37 +443,22 @@ def solve_dynamics(
         config.num_r,
     )
     jump_r, _, _ = density_jump_arrays(config)
-    secondary_branch_swept_mass_g = np.asarray(secondary_branch_swept_mass_g, dtype=float)[: jump_r.size, :]
-    secondary_branch_internal_energy_erg = np.asarray(secondary_branch_internal_energy_erg, dtype=float)[: jump_r.size, :]
-    secondary_branch_comoving_volume_cm3 = np.asarray(secondary_branch_comoving_volume_cm3, dtype=float)[: jump_r.size, :]
-    secondary_branch_magnetic_field_g = np.asarray(secondary_branch_magnetic_field_g, dtype=float)[: jump_r.size, :]
-    secondary_swept_mass_g = np.asarray(secondary_swept_mass_g, dtype=float)
-    secondary_internal_energy_erg = np.asarray(secondary_internal_energy_erg, dtype=float)
-    secondary_comoving_volume_cm3 = np.asarray(secondary_comoving_volume_cm3, dtype=float)
-    secondary_magnetic_field_g = np.asarray(secondary_magnetic_field_g, dtype=float)
-    secondary_pressure_total = np.asarray(secondary_pressure_total, dtype=float)
-    secondary_enthalpy_density_total = np.asarray(secondary_enthalpy_density_total, dtype=float)
-    secondary_gamma_contact = np.asarray(secondary_gamma_contact, dtype=float)
-    secondary_pressure_3 = np.asarray(secondary_pressure_3, dtype=float)
-    secondary_gamma_43 = np.asarray(secondary_gamma_43, dtype=float)
-    secondary_beta_rs = np.asarray(secondary_beta_rs, dtype=float)
-    secondary_dissipated_energy_density = np.asarray(secondary_dissipated_energy_density, dtype=float)
-    secondary_dissipated_energy_erg = np.asarray(secondary_dissipated_energy_erg, dtype=float)
-    secondary_electron_injected_energy_erg = np.asarray(secondary_electron_injected_energy_erg, dtype=float)
-    secondary_branch_gamma_m = np.asarray(secondary_branch_gamma_m, dtype=float)[: jump_r.size, :]
-    secondary_branch_gamma_contact = np.asarray(secondary_branch_gamma_contact, dtype=float)[: jump_r.size, :]
-    secondary_branch_gamma_43 = np.asarray(secondary_branch_gamma_43, dtype=float)[: jump_r.size, :]
-    secondary_branch_compression = np.asarray(secondary_branch_compression, dtype=float)[: jump_r.size, :]
-    secondary_branch_beta_rs = np.asarray(secondary_branch_beta_rs, dtype=float)[: jump_r.size, :]
-    secondary_branch_dissipated_energy_density = np.asarray(
-        secondary_branch_dissipated_energy_density,
-        dtype=float,
-    )[: jump_r.size, :]
-    secondary_event_active = np.asarray(secondary_event_active, dtype=bool)[: jump_r.size]
-    secondary_start_radius_cm = np.asarray(secondary_start_radius_cm, dtype=float)[: jump_r.size]
-    secondary_shock_end_radius_cm = np.asarray(secondary_shock_end_radius_cm, dtype=float)[: jump_r.size]
-    secondary_start_tobs_axis_s = np.asarray(secondary_start_tobs_axis_s, dtype=float)[: jump_r.size]
-    secondary_shock_end_tobs_axis_s = np.asarray(secondary_shock_end_tobs_axis_s, dtype=float)[: jump_r.size]
+    n_j = jump_r.size
+    secondary_branch_swept_mass_g = secondary_branch_swept_mass_g[:n_j, :]
+    secondary_branch_internal_energy_erg = secondary_branch_internal_energy_erg[:n_j, :]
+    secondary_branch_comoving_volume_cm3 = secondary_branch_comoving_volume_cm3[:n_j, :]
+    secondary_branch_magnetic_field_g = secondary_branch_magnetic_field_g[:n_j, :]
+    secondary_branch_gamma_m = secondary_branch_gamma_m[:n_j, :]
+    secondary_branch_gamma_contact = secondary_branch_gamma_contact[:n_j, :]
+    secondary_branch_gamma_43 = secondary_branch_gamma_43[:n_j, :]
+    secondary_branch_compression = secondary_branch_compression[:n_j, :]
+    secondary_branch_beta_rs = secondary_branch_beta_rs[:n_j, :]
+    secondary_branch_dissipated_energy_density = secondary_branch_dissipated_energy_density[:n_j, :]
+    secondary_event_active = np.asarray(secondary_event_active, dtype=bool)[:n_j]
+    secondary_start_radius_cm = secondary_start_radius_cm[:n_j]
+    secondary_shock_end_radius_cm = secondary_shock_end_radius_cm[:n_j]
+    secondary_start_tobs_axis_s = secondary_start_tobs_axis_s[:n_j]
+    secondary_shock_end_tobs_axis_s = secondary_shock_end_tobs_axis_s[:n_j]
     reverse_shock = ReverseShockDynamics(
         t_cross,
         r_cross,
@@ -1190,22 +1175,22 @@ def _solve_hadronic_hummer_transport_coupled(
     config: RuntimeConfig,
     pp_target_density_cm3: np.ndarray | None = None,
 ) -> HadronicSolution:
-    radius = np.asarray(dynamics.radius, dtype=float)
-    gamma_bulk = np.asarray(dynamics.r_gamma, dtype=float)
-    b_field = np.asarray(magnetic_field_g, dtype=float)
-    v_seed_arr = np.asarray(v_seed_hz, dtype=float)
-    seed_target_arr = np.asarray(seed_target_hz, dtype=float)
-    shell_energy_inj = np.asarray(shell_energy_inj_erg, dtype=float)
-    pp_target_density_arr = None if pp_target_density_cm3 is None else np.asarray(pp_target_density_cm3, dtype=float)
+    radius = dynamics.radius
+    gamma_bulk = dynamics.r_gamma
+    b_field = magnetic_field_g
+    v_seed_arr = v_seed_hz
+    seed_target_arr = seed_target_hz
+    shell_energy_inj = shell_energy_inj_erg
+    pp_target_density_arr = pp_target_density_cm3
     if pp_target_density_arr is not None and pp_target_density_arr.shape != radius.shape:
         raise ValueError("pp_target_density_cm3 must match the shell radius grid.")
-    num_r = int(radius.size)
-    num_nu = int(v_seed_arr.size)
+    num_r = radius.size
+    num_nu = v_seed_arr.size
     num_gam_p = int(config.hadronic.num_gam_p)
     num_nu_nu = int(config.hadronic.num_nu_nu)
-    gam_e = np.asarray(electron_gamma, dtype=float)
+    gam_e = electron_gamma
     if pp_target_density_arr is None:
-        pp_target_density_arr = np.asarray(ambient_density(radius, config), dtype=float)
+        pp_target_density_arr = ambient_density(radius, config)
     t_total_start = time.perf_counter()
     (
         gam_p, gam_secondary, d_n_gam_p, l_had_syn_spec, seed_had_syn,
@@ -1217,7 +1202,7 @@ def _solve_hadronic_hummer_transport_coupled(
         l_had_muon_synch, l_had_pion_ic, l_had_muon_ic, tau_pg,
         pg_photon_survival, am3_process_power,
     ) = hadronic_legacy_module.fs_hadronic_formal_transport_1d(
-        np.asarray(dynamics.r_tobs, dtype=float),
+        dynamics.r_tobs,
         gamma_bulk,
         radius,
         b_field,
