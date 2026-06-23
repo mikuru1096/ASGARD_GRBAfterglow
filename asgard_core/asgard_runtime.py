@@ -1593,72 +1593,38 @@ def _compute_secondary_reverse_shock_synchrotron(
     end_tobs = np.asarray(dynamics.reverse_shock.secondary_shock_end_tobs_axis_s, dtype=float)
     if not np.any(event_active):
         return None
-    dyn_m3_shell = np.asarray(dynamics.reverse_shock.secondary_swept_mass_g, dtype=float)
-    dyn_u3_shell = np.asarray(dynamics.reverse_shock.secondary_internal_energy_erg, dtype=float)
-    dyn_v3_shell = np.asarray(dynamics.reverse_shock.secondary_comoving_volume_cm3, dtype=float)
-    dyn_b_field = np.asarray(dynamics.reverse_shock.secondary_magnetic_field_g, dtype=float)
-    dyn_pressure_total = np.asarray(dynamics.reverse_shock.secondary_pressure_total, dtype=float)
-    dyn_enthalpy_density_total = np.asarray(dynamics.reverse_shock.secondary_enthalpy_density_total, dtype=float)
-    dyn_m3_branch = np.asarray(dynamics.reverse_shock.secondary_branch_swept_mass_g, dtype=float)
-    dyn_u3_branch = np.asarray(dynamics.reverse_shock.secondary_branch_internal_energy_erg, dtype=float)
-    dyn_v3_branch = np.asarray(dynamics.reverse_shock.secondary_branch_comoving_volume_cm3, dtype=float)
-    dyn_b3_branch = np.asarray(dynamics.reverse_shock.secondary_branch_magnetic_field_g, dtype=float)
-    gamma_contact = np.asarray(dynamics.reverse_shock.secondary_gamma_contact, dtype=float)
-    pressure_3 = np.asarray(dynamics.reverse_shock.secondary_pressure_3, dtype=float)
-    gamma_43 = np.asarray(dynamics.reverse_shock.secondary_gamma_43, dtype=float)
-    beta_rs = np.asarray(dynamics.reverse_shock.secondary_beta_rs, dtype=float)
-    u_diss = np.asarray(dynamics.reverse_shock.secondary_dissipated_energy_density, dtype=float)
-    dissipated_energy = np.asarray(dynamics.reverse_shock.secondary_dissipated_energy_erg, dtype=float)
-    electron_injected_energy = np.asarray(dynamics.reverse_shock.secondary_electron_injected_energy_erg, dtype=float)
-    gamma_m_branch = np.asarray(dynamics.reverse_shock.secondary_branch_gamma_m, dtype=float)
-    gamma_contact_branch = np.asarray(dynamics.reverse_shock.secondary_branch_gamma_contact, dtype=float)
-    gamma_43_branch = np.asarray(dynamics.reverse_shock.secondary_branch_gamma_43, dtype=float)
-    compression_branch = np.asarray(dynamics.reverse_shock.secondary_branch_compression, dtype=float)
-    beta_rs_branch = np.asarray(dynamics.reverse_shock.secondary_branch_beta_rs, dtype=float)
-    u_diss_branch = np.asarray(dynamics.reverse_shock.secondary_branch_dissipated_energy_density, dtype=float)
-    if not np.any(dyn_m3_shell > 0.0):
+    rs = dynamics.reverse_shock
+    if not np.any(rs.secondary_swept_mass_g > 0.0):
         return None
-    parent_branch = np.zeros(gamma_43_branch.shape[0], dtype=np.int32)
+    parent_branch = np.zeros(rs.secondary_branch_gamma_43.shape[0], dtype=np.int32)
     consecutive = event_active[:-1] & event_active[1:]
     parent_branch[1:] = np.where(consecutive, np.arange(1, parent_branch.size), 0)
     (
-        gam_e_sec,
-        dist,
-        branch_luminosity,
-        luminosity,
-        reacceleration_seed_energy,
-        reaccelerated_energy,
-    ) = (
-        _electron_reverse_module().electron_reverse_kernel.electron_secondary_reverse_branch_reaccelerated(
-            reverse_params.epsilon_e,
-            reverse_params.epsilon_b,
-            reverse_params.p,
-            reverse_params.f_e,
-            config.z,
-            dynamics.r_tobs,
-            dynamics.r_gamma,
-            radius,
-            dyn_b3_branch,
-            dyn_m3_branch,
-            dyn_u3_branch,
-            dyn_v3_branch,
-            gamma_m_branch,
-            gamma_43_branch,
-            compression_branch,
-            parent_branch,
-            v_seed,
-            config.num_gam_e,
-            config.index_syn_integr,
-            config.num_threads,
-            solver_id=_electron_1d_transport_solver_id(config),
-        )
+        gam_e_sec, dist, branch_luminosity, luminosity,
+        reacceleration_seed_energy, reaccelerated_energy,
+    ) = _electron_reverse_module().electron_reverse_kernel.electron_secondary_reverse_branch_reaccelerated(
+        reverse_params.epsilon_e,
+        reverse_params.epsilon_b,
+        reverse_params.p,
+        reverse_params.f_e,
+        config.z,
+        dynamics.r_tobs,
+        dynamics.r_gamma,
+        radius,
+        rs.secondary_branch_magnetic_field_g,
+        rs.secondary_branch_swept_mass_g,
+        rs.secondary_branch_internal_energy_erg,
+        rs.secondary_branch_comoving_volume_cm3,
+        rs.secondary_branch_gamma_m,
+        rs.secondary_branch_gamma_43,
+        rs.secondary_branch_compression,
+        parent_branch,
+        v_seed,
+        config.num_gam_e,
+        config.index_syn_integr,
+        config.num_threads,
+        solver_id=_electron_1d_transport_solver_id(config),
     )
-    gam_e_sec = np.asarray(gam_e_sec, dtype=float)
-    dist = np.asarray(dist, dtype=float)
-    branch_luminosity = np.asarray(branch_luminosity, dtype=float)
-    luminosity = np.asarray(luminosity, dtype=float)
-    reacceleration_seed_energy = np.asarray(reacceleration_seed_energy, dtype=float)
-    reaccelerated_energy = np.asarray(reaccelerated_energy, dtype=float)
     return SecondaryReverseShockState(
         luminosity_syn=luminosity,
         branch_luminosity_syn=branch_luminosity,
@@ -1669,31 +1635,31 @@ def _compute_secondary_reverse_shock_synchrotron(
         shock_end_radius_cm=end_radius,
         start_tobs_axis_s=start_tobs,
         shock_end_tobs_axis_s=end_tobs,
-        gamma_contact=gamma_contact,
-        pressure_3=pressure_3,
-        gamma_43=gamma_43,
-        beta_rs=beta_rs,
-        dissipated_energy_density=u_diss,
-        dissipated_energy_erg=dissipated_energy,
-        electron_injected_energy_erg=electron_injected_energy,
-        swept_mass_g=dyn_m3_shell,
-        internal_energy_erg=dyn_u3_shell,
-        comoving_volume_cm3=dyn_v3_shell,
-        pressure_total=dyn_pressure_total,
-        enthalpy_density_total=dyn_enthalpy_density_total,
-        branch_swept_mass_g=dyn_m3_branch,
-        branch_internal_energy_erg=dyn_u3_branch,
-        branch_comoving_volume_cm3=dyn_v3_branch,
-        branch_magnetic_field_g=dyn_b3_branch,
-        branch_gamma_m=gamma_m_branch,
-        branch_gamma_contact=gamma_contact_branch,
-        branch_gamma_43=gamma_43_branch,
-        branch_compression=compression_branch,
-        branch_beta_rs=beta_rs_branch,
-        branch_dissipated_energy_density=u_diss_branch,
+        gamma_contact=rs.secondary_gamma_contact,
+        pressure_3=rs.secondary_pressure_3,
+        gamma_43=rs.secondary_gamma_43,
+        beta_rs=rs.secondary_beta_rs,
+        dissipated_energy_density=rs.secondary_dissipated_energy_density,
+        dissipated_energy_erg=rs.secondary_dissipated_energy_erg,
+        electron_injected_energy_erg=rs.secondary_electron_injected_energy_erg,
+        swept_mass_g=rs.secondary_swept_mass_g,
+        internal_energy_erg=rs.secondary_internal_energy_erg,
+        comoving_volume_cm3=rs.secondary_comoving_volume_cm3,
+        pressure_total=rs.secondary_pressure_total,
+        enthalpy_density_total=rs.secondary_enthalpy_density_total,
+        branch_swept_mass_g=rs.secondary_branch_swept_mass_g,
+        branch_internal_energy_erg=rs.secondary_branch_internal_energy_erg,
+        branch_comoving_volume_cm3=rs.secondary_branch_comoving_volume_cm3,
+        branch_magnetic_field_g=rs.secondary_branch_magnetic_field_g,
+        branch_gamma_m=rs.secondary_branch_gamma_m,
+        branch_gamma_contact=rs.secondary_branch_gamma_contact,
+        branch_gamma_43=rs.secondary_branch_gamma_43,
+        branch_compression=rs.secondary_branch_compression,
+        branch_beta_rs=rs.secondary_branch_beta_rs,
+        branch_dissipated_energy_density=rs.secondary_branch_dissipated_energy_density,
         branch_reacceleration_seed_energy_erg=reacceleration_seed_energy,
         branch_reaccelerated_energy_erg=reaccelerated_energy,
-        magnetic_field_g=dyn_b_field,
+        magnetic_field_g=rs.secondary_magnetic_field_g,
     )
 
 

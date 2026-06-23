@@ -1388,43 +1388,41 @@ def _merge_bh_into_forward_electrons(
     config: RuntimeConfig,
 ) -> ElectronSolution:
     bh_distribution = np.asarray(hadronic.d_n_gam_e_bh, dtype=float)
-    total_distribution = np.asarray(electron.d_n_gam_e, dtype=float) + bh_distribution
+    total_distribution = electron.d_n_gam_e + bh_distribution
+    gam_e_local = electron.gam_e
+    nu_seed = seed_frequency_hz
     num_shell = total_distribution.shape[1]
-    num_nu = int(np.asarray(seed_frequency_hz, dtype=float).size)
+    num_nu = nu_seed.size
     l_syn_total, seed_syn_total = np.zeros((2, num_nu, num_shell), dtype=float)
     for i_shell in range(num_shell):
-        if radius_cm[i_shell] <= 0.0:
-            raise ValueError("BH electron merge requires positive shell radii.")
-        if magnetic_field_g[i_shell] < 0.0:
-            raise ValueError("BH electron merge requires non-negative magnetic fields.")
-        if magnetic_field_g[i_shell] == 0.0:
+        if radius_cm[i_shell] <= 0.0 or magnetic_field_g[i_shell] <= 0.0:
             continue
         p_syn_i, seed_syn_i = electron_radiation_module.get_syn_selected(
-            int(config.index_syn_integr),
+            config.index_syn_integr,
             float(radius_cm[i_shell]),
             float(magnetic_field_g[i_shell]),
-            int(config.num_threads),
-            np.asarray(electron.gam_e, dtype=float),
-            np.asarray(total_distribution[:, i_shell], dtype=float),
-            np.asarray(seed_frequency_hz, dtype=float),
+            config.num_threads,
+            gam_e_local,
+            total_distribution[:, i_shell],
+            nu_seed,
         )
-        l_syn_total[:, i_shell] = np.asarray(p_syn_i, dtype=float)
-        seed_syn_total[:, i_shell] = np.asarray(seed_syn_i, dtype=float)
+        l_syn_total[:, i_shell] = p_syn_i
+        seed_syn_total[:, i_shell] = seed_syn_i
     return ElectronSolution(
-        gam_e=np.asarray(electron.gam_e, dtype=float),
-        d_n_gam_e=np.asarray(total_distribution, dtype=float),
+        gam_e=gam_e_local,
+        d_n_gam_e=total_distribution,
         l_syn_spec=l_syn_total,
         seed_syn=seed_syn_total,
         d_n_gam_e_bh=bh_distribution,
-        d_n_gam_e_chi=None if electron.d_n_gam_e_chi is None else np.asarray(electron.d_n_gam_e_chi, dtype=float),
-        chi_grid=None if electron.chi_grid is None else np.asarray(electron.chi_grid, dtype=float),
-        l_syn_spec_chi=None if electron.l_syn_spec_chi is None else np.asarray(electron.l_syn_spec_chi, dtype=float),
-        seed_syn_chi=None if electron.seed_syn_chi is None else np.asarray(electron.seed_syn_chi, dtype=float),
-        tau_syn_chi=None if electron.tau_syn_chi is None else np.asarray(electron.tau_syn_chi, dtype=float),
-        chi_radius_cm=None if electron.chi_radius_cm is None else np.asarray(electron.chi_radius_cm, dtype=float),
-        chi_gamma_bulk=None if electron.chi_gamma_bulk is None else np.asarray(electron.chi_gamma_bulk, dtype=float),
-        chi_dvolume_weight=None if electron.chi_dvolume_weight is None else np.asarray(electron.chi_dvolume_weight, dtype=float),
-        b_chi_g=None if electron.b_chi_g is None else np.asarray(electron.b_chi_g, dtype=float),
+        d_n_gam_e_chi=electron.d_n_gam_e_chi,
+        chi_grid=electron.chi_grid,
+        l_syn_spec_chi=electron.l_syn_spec_chi,
+        seed_syn_chi=electron.seed_syn_chi,
+        tau_syn_chi=electron.tau_syn_chi,
+        chi_radius_cm=electron.chi_radius_cm,
+        chi_gamma_bulk=electron.chi_gamma_bulk,
+        chi_dvolume_weight=electron.chi_dvolume_weight,
+        b_chi_g=electron.b_chi_g,
     )
 
 
