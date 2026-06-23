@@ -944,11 +944,9 @@ def _assemble_observer_stage(
         )
         s["seed_syn_absorption"] = s["seed_syn_absorption"] + s["pair_seed_total"]
     s["tau_extra"] = s["tau_extra"] + s["tau_pair"]
-    annihilation_seed_syn = s["seed_syn_absorption"]
-    annihilation_seed_ssc = s["seed_ssc_total"]
-    if bool(config.hadronic.include_pair_production):
-        annihilation_seed_syn = np.zeros_like(s["seed_syn_absorption"])
-        annihilation_seed_ssc = np.zeros_like(s["seed_ssc_total"])
+    pair_active = bool(config.hadronic.include_pair_production)
+    annihilation_seed_syn = np.zeros_like(s["seed_syn_absorption"]) if pair_active else s["seed_syn_absorption"]
+    annihilation_seed_ssc = np.zeros_like(s["seed_ssc_total"]) if pair_active else s["seed_ssc_total"]
     absorption = _timed_call(
         timings,
         "Radiation.annihilation",

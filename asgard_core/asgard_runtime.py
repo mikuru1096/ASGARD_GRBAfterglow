@@ -63,6 +63,9 @@ ELECTRON_1D_TRANSPORT_IDS = {
     "dg_1d": 2,
 }
 
+_ELECTRON_1D_NU_SOLVERS = {"t2g1_1d", "slc1_1d", "charint_1d", "dg_1d"}
+_ELECTRON_1D_NU_GRID = {"dg_1d": "log-four-velocity-1d-dg"}
+
 
 @cache
 def _electron_module(solver: str):
@@ -546,6 +549,27 @@ def solve_dynamics(
     return solution
 
 
+def _solve_electron_1d_standard(boundary, dynamics, v_seed, config, solver_name, return_report):
+    module = _electron_module(solver_name)
+    func = getattr(module, f"fs_electron_{solver_name}")
+    args = [
+        boundary, dynamics.r_tobs, dynamics.r_gamma, dynamics.radius, v_seed,
+        config.num_gam_e, config.index_y, config.index_syn_integr, config.num_threads,
+    ]
+    if solver_name == "charint_1d":
+        args.extend([
+            1 if config.electron_adaptive_substeps else 0,
+            config.electron_substep_rtol, config.electron_substep_min, config.electron_substep_max,
+        ])
+    gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = func(*args)
+    return _finish_electron_solution(
+        config, solver_name,
+        _ELECTRON_1D_NU_GRID.get(solver_name, "log-gamma-1d"),
+        gam_e, d_n_gam_e, l_syn_spec, seed_syn,
+        nu=(nu_m, nu_c, nu_a), return_report=return_report,
+    )
+
+
 def solve_electron(
     boundary: np.ndarray,
     dynamics: DynamicsSolution,
@@ -582,109 +606,8 @@ def solve_electron(
             return_report=return_report,
         )
 
-    if solver_name == "t2g1_1d":
-        electron_t2g1_module = _electron_module(solver_name)
-        gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = electron_t2g1_module.fs_electron_t2g1_1d(
-            boundary,
-            dynamics.r_tobs,
-            dynamics.r_gamma,
-            dynamics.radius,
-            v_seed,
-            config.num_gam_e,
-            config.index_y,
-            config.index_syn_integr,
-            config.num_threads,
-        )
-        return _finish_electron_solution(
-            config,
-            solver_name,
-            "log-gamma-1d",
-            gam_e,
-            d_n_gam_e,
-            l_syn_spec,
-            seed_syn,
-            nu=(nu_m, nu_c, nu_a),
-            return_report=return_report,
-        )
-
-    if solver_name == "slc1_1d":
-        electron_slc1_module = _electron_module(solver_name)
-        gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = electron_slc1_module.fs_electron_slc1_1d(
-            boundary,
-            dynamics.r_tobs,
-            dynamics.r_gamma,
-            dynamics.radius,
-            v_seed,
-            config.num_gam_e,
-            config.index_y,
-            config.index_syn_integr,
-            config.num_threads,
-        )
-        return _finish_electron_solution(
-            config,
-            solver_name,
-            "log-gamma-1d",
-            gam_e,
-            d_n_gam_e,
-            l_syn_spec,
-            seed_syn,
-            nu=(nu_m, nu_c, nu_a),
-            return_report=return_report,
-        )
-
-    if solver_name == "charint_1d":
-        electron_charint_module = _electron_module(solver_name)
-        gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = electron_charint_module.fs_electron_charint_1d(
-            boundary,
-            dynamics.r_tobs,
-            dynamics.r_gamma,
-            dynamics.radius,
-            v_seed,
-            config.num_gam_e,
-            config.index_y,
-            config.index_syn_integr,
-            config.num_threads,
-            1 if config.electron_adaptive_substeps else 0,
-            config.electron_substep_rtol,
-            config.electron_substep_min,
-            config.electron_substep_max,
-        )
-        return _finish_electron_solution(
-            config,
-            solver_name,
-            "log-gamma-1d",
-            gam_e,
-            d_n_gam_e,
-            l_syn_spec,
-            seed_syn,
-            nu=(nu_m, nu_c, nu_a),
-            return_report=return_report,
-        )
-
-    if solver_name == "dg_1d":
-        electron_dg_module = _electron_module(solver_name)
-        gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = electron_dg_module.fs_electron_dg_1d(
-            boundary,
-            dynamics.r_tobs,
-            dynamics.r_gamma,
-            dynamics.radius,
-            v_seed,
-            config.num_gam_e,
-            config.index_y,
-            config.index_syn_integr,
-            config.num_threads,
-        )
-        return _finish_electron_solution(
-            config,
-            solver_name,
-            "log-four-velocity-1d-dg",
-            gam_e,
-            d_n_gam_e,
-            l_syn_spec,
-            seed_syn,
-            nu=(nu_m, nu_c, nu_a),
-            return_report=return_report,
-        )
+    if solver_name in _ELECTRON_1D_NU_SOLVERS:
+        return _solve_electron_1d_standard(boundary, dynamics, v_seed, config, solver_name, return_report)
 
     if solver_name == "charint_2d":
         return _solve_electron_transport_2d(

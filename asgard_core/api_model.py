@@ -1615,76 +1615,39 @@ def _make_details(
     reverse_shock = None if state is None else state.dynamics.reverse_shock
     reverse_emission = None if state is None else state.reverse_emission
 
-    fwd_gamma_e = None if electron is None else np.asarray(electron.gam_e, dtype=float)
-    fwd_dnde = None if electron is None else np.asarray(electron.d_n_gam_e, dtype=float)
-    fwd_dnde_bh = None if electron is None else _as_float_array_or_none(electron.d_n_gam_e_bh)
-    if hadronic is not None and hadronic.d_n_gam_e_bh is not None:
-        fwd_dnde_bh = np.asarray(hadronic.d_n_gam_e_bh, dtype=float)
-    fwd_dnde_chi = None if electron is None else _as_float_array_or_none(electron.d_n_gam_e_chi)
-    fwd_chi_grid = None if electron is None else _as_float_array_or_none(electron.chi_grid)
-    fwd_lsyn_chi = None if electron is None else _as_float_array_or_none(electron.l_syn_spec_chi)
-    fwd_seed_chi = None if electron is None else _as_float_array_or_none(electron.seed_syn_chi)
-    fwd_tau_chi = None if electron is None else _as_float_array_or_none(electron.tau_syn_chi)
-    fwd_chi_radius = None if electron is None else _as_float_array_or_none(electron.chi_radius_cm)
-    fwd_chi_gamma = None if electron is None else _as_float_array_or_none(electron.chi_gamma_bulk)
-    fwd_chi_weight = None if electron is None else _as_float_array_or_none(electron.chi_dvolume_weight)
-    fwd_b_chi = None if electron is None else _as_float_array_or_none(electron.b_chi_g)
-    fwd_gamma_p = None if hadronic is None else np.asarray(hadronic.gam_p, dtype=float)
-    fwd_dndp = None if hadronic is None else np.asarray(hadronic.d_n_gam_p, dtype=float)
-    fwd_gamma_secondary = None if hadronic is None else _as_float_array_or_none(hadronic.gam_secondary)
-    fwd_dndn = None if hadronic is None else _as_float_array_or_none(hadronic.d_n_gam_n)
-    fwd_dndpi_plus = None if hadronic is None else _as_float_array_or_none(hadronic.d_n_gam_pi_plus)
-    fwd_dndpi_minus = None if hadronic is None else _as_float_array_or_none(hadronic.d_n_gam_pi_minus)
-    fwd_dndmu_ml = None if hadronic is None else _as_float_array_or_none(hadronic.d_n_gam_mu_minus_left)
-    fwd_dndmu_mr = None if hadronic is None else _as_float_array_or_none(hadronic.d_n_gam_mu_minus_right)
-    fwd_dndmu_pl = None if hadronic is None else _as_float_array_or_none(hadronic.d_n_gam_mu_plus_left)
-    fwd_dndmu_pr = None if hadronic is None else _as_float_array_or_none(hadronic.d_n_gam_mu_plus_right)
+    _opt = lambda src, attr: None if src is None else _as_float_array_or_none(getattr(src, attr, None))
+    fwd_gamma_e, fwd_dnde = (None, None) if electron is None else (electron.gam_e, electron.d_n_gam_e)
+    fwd_dnde_bh = _as_float_array_or_none(hadronic.d_n_gam_e_bh) if hadronic is not None else _opt(electron, "d_n_gam_e_bh")
+    _echi = ["d_n_gam_e_chi", "chi_grid", "l_syn_spec_chi", "seed_syn_chi", "tau_syn_chi",
+             "chi_radius_cm", "chi_gamma_bulk", "chi_dvolume_weight", "b_chi_g"]
+    (fwd_dnde_chi, fwd_chi_grid, fwd_lsyn_chi, fwd_seed_chi, fwd_tau_chi,
+     fwd_chi_radius, fwd_chi_gamma, fwd_chi_weight, fwd_b_chi) = (_opt(electron, a) for a in _echi)
+    fwd_gamma_p, fwd_dndp = (None, None) if hadronic is None else (hadronic.gam_p, hadronic.d_n_gam_p)
+    _hdist = ["gam_secondary", "d_n_gam_n", "d_n_gam_pi_plus", "d_n_gam_pi_minus",
+              "d_n_gam_mu_minus_left", "d_n_gam_mu_minus_right", "d_n_gam_mu_plus_left", "d_n_gam_mu_plus_right"]
+    (fwd_gamma_secondary, fwd_dndn, fwd_dndpi_plus, fwd_dndpi_minus,
+     fwd_dndmu_ml, fwd_dndmu_mr, fwd_dndmu_pl, fwd_dndmu_pr) = (_opt(hadronic, a) for a in _hdist)
+    _hcomp = ["l_had_pion_synch", "l_had_muon_synch", "l_had_pion_inverse_compton", "l_had_muon_inverse_compton"]
     fwd_had_gamma = None
     if hadronic is not None:
-        fwd_had_gamma = np.asarray(hadronic.l_had_syn_spec + hadronic.l_had_pg_gamma, dtype=float)
-        if hadronic.l_had_pion_synch is not None:
-            fwd_had_gamma = fwd_had_gamma + np.asarray(hadronic.l_had_pion_synch, dtype=float)
-        if hadronic.l_had_muon_synch is not None:
-            fwd_had_gamma = fwd_had_gamma + np.asarray(hadronic.l_had_muon_synch, dtype=float)
-        if hadronic.l_had_pion_inverse_compton is not None:
-            fwd_had_gamma = fwd_had_gamma + np.asarray(hadronic.l_had_pion_inverse_compton, dtype=float)
-        if hadronic.l_had_muon_inverse_compton is not None:
-            fwd_had_gamma = fwd_had_gamma + np.asarray(hadronic.l_had_muon_inverse_compton, dtype=float)
-    fwd_had_pi_syn = None if hadronic is None else _as_float_array_or_none(hadronic.l_had_pion_synch)
-    fwd_had_mu_syn = None if hadronic is None else _as_float_array_or_none(hadronic.l_had_muon_synch)
-    fwd_had_pi_ic = None if hadronic is None else _as_float_array_or_none(hadronic.l_had_pion_inverse_compton)
-    fwd_had_mu_ic = None if hadronic is None else _as_float_array_or_none(hadronic.l_had_muon_inverse_compton)
-    fwd_nu_freq = None
-    fwd_nu_lum = None
+        fwd_had_gamma = hadronic.l_had_syn_spec + hadronic.l_had_pg_gamma
+        for a in _hcomp:
+            v = getattr(hadronic, a, None)
+            if v is not None:
+                fwd_had_gamma = fwd_had_gamma + v
+    fwd_had_pi_syn, fwd_had_mu_syn, fwd_had_pi_ic, fwd_had_mu_ic = (_opt(hadronic, a) for a in _hcomp)
+    fwd_nu_freq, fwd_nu_lum = (None, None)
     if hadronic is not None and state.config.hadronic.include_neutrino:
-        fwd_nu_freq = np.asarray(hadronic.neutrino_frequency_hz, dtype=float)
-        fwd_nu_lum = np.asarray(hadronic.neutrino_luminosity, dtype=float)
-    fwd_had_syn = None
-    fwd_had_pg_gamma = None
-    fwd_had_bh = None
-    fwd_had_hic = None
-    fwd_am3_power = None
-    fwd_tau_pg = None
-    fwd_tau_bh = None
-    fwd_pg_survival = None
-    fwd_timings = None
-    fwd_seed_freq = None
-    if hadronic is not None:
-        fwd_seed_freq = np.asarray(state.photon_field.seed_frequency_hz, dtype=float)
-        fwd_had_syn = np.asarray(hadronic.l_had_syn_spec, dtype=float)
-        fwd_had_pg_gamma = np.asarray(hadronic.l_had_pg_gamma, dtype=float)
-        fwd_had_bh = _as_float_array_or_none(hadronic.l_had_bethe_heitler)
-        fwd_had_hic = _as_float_array_or_none(hadronic.l_had_hadronic_inverse_compton)
-        fwd_am3_power = _as_float_array_or_none(hadronic.am3_process_power)
-        fwd_tau_pg = _as_float_array_or_none(hadronic.tau_pg)
-        fwd_tau_bh = _as_float_array_or_none(hadronic.tau_bh)
-        fwd_pg_survival = _as_float_array_or_none(hadronic.pg_photon_survival)
-        fwd_timings = dict(hadronic.timings) if hadronic.timings else {}
-    rev_gamma_e = None
-    rev_dnde = None
+        fwd_nu_freq, fwd_nu_lum = hadronic.neutrino_frequency_hz, hadronic.neutrino_luminosity
+    fwd_seed_freq = None if hadronic is None else np.asarray(state.photon_field.seed_frequency_hz, dtype=float)
+    _hsed = ["l_had_syn_spec", "l_had_pg_gamma", "l_had_bethe_heitler", "l_had_hadronic_inverse_compton",
+             "am3_process_power", "tau_pg", "tau_bh", "pg_photon_survival"]
+    (fwd_had_syn, fwd_had_pg_gamma, fwd_had_bh, fwd_had_hic,
+     fwd_am3_power, fwd_tau_pg, fwd_tau_bh, fwd_pg_survival) = (_opt(hadronic, a) for a in _hsed)
+    fwd_timings = dict(hadronic.timings) if (hadronic is not None and hadronic.timings) else None
+    rev_gamma_e, rev_dnde = (None, None)
     if reverse_shock is not None:
-        rev_gamma_e = np.asarray(reverse_shock.gam_e, dtype=float)
-        rev_dnde = np.asarray(reverse_shock.d_n_gam_e, dtype=float)
+        rev_gamma_e, rev_dnde = reverse_shock.gam_e, reverse_shock.d_n_gam_e
     secondary_rs = None if reverse_emission is None else reverse_emission.secondary_rs
     return TrackBundle(
         fwd=CharTrack(
