@@ -926,6 +926,7 @@ def _build_base_runtime_config(
         num_threads=int(n.num_threads), num_gam_e=int(n.num_electron_gamma),
         num_nu=int(n.num_photon_frequency), num_r=int(n.num_radius),
         eats_num_theta=int(n.eats_num_theta), eats_num_phi=int(n.eats_num_phi),
+        structured_num_theta=int(n.structured_num_theta), structured_num_phi=int(n.structured_num_phi),
         num_tobs=int(n.num_observer_time),
         t_obs_min_log10=float(np.log10(observer_grid.time_min_s)),
         t_obs_max_log10=float(np.log10(observer_grid.time_max_s)),
@@ -1380,7 +1381,7 @@ def _solve_patch_state(
         solve_t_max_requested = float(np.max(solve_reference))
         solve_count = max(base_count, model._detail_time_count(solve_t_min, solve_t_max_requested))
         if solve_t_max_requested <= solve_t_min:
-            solve_t_max = max(float(model10**self.setups.t_obs_max_log10), solve_t_min * 10.0)
+            solve_t_max = max(float(10**model.setups.t_obs_max_log10), solve_t_min * 10.0)
         else:
             log_t_min = np.log10(solve_t_min)
             log_t_max_requested = np.log10(solve_t_max_requested)

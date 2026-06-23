@@ -141,6 +141,8 @@ class _RuntimeConfig:
     num_r: int = 300
     eats_num_theta: int = 300
     eats_num_phi: int = 1
+    structured_num_theta: int = 12
+    structured_num_phi: int = 24
     downstream_num_chi: int | None = None
 
     z: float = 0.4
