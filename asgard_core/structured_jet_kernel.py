@@ -768,6 +768,3 @@ def _patch_metadata(theta_centers, theta_edges, phi_centers, e_iso, gamma0, acti
     return patches
 
 
-def _cell_centers(start: float, stop: float, count: int) -> np.ndarray:
-    edges = np.linspace(start, stop, count + 1)
-    return 0.5 * (edges[:-1] + edges[1:])
