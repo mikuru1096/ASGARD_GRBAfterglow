@@ -1366,13 +1366,6 @@ def _solve_hadronic_hummer_transport_coupled(
     )
 
 
-def _hadronic_shell_comoving_dt_from_radius(radius_cm: np.ndarray, gamma_bulk: np.ndarray, i_shell: int) -> float:
-    return float(hadronic_legacy_module.fs_hadronic_shell_comoving_dt(
-        np.asarray(radius_cm, dtype=float),
-        np.asarray(gamma_bulk, dtype=float),
-        int(i_shell) + 1,
-    ))
-
 
 def _hadronic_pg_survival_factor(tau_pg: np.ndarray) -> np.ndarray:
     tau = np.asarray(tau_pg, dtype=float)

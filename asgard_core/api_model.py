@@ -974,77 +974,54 @@ def _compose_runtime_setups(
     reverse_shock: ReverseShock | None,
     hadronic: Hadronic | None,
 ) -> _RuntimeSetups:
-    if any(value is None for value in (numerics, observer_grid, solver_options, reverse_shock, hadronic)):
+    if any(v is None for v in (numerics, observer_grid, solver_options, reverse_shock, hadronic)):
         raise TypeError("Model requires explicit numerics, observer_grid, solver_options, reverse_shock, and hadronic.")
-    result = deepcopy(_RuntimeSetups())
-    result.num_r = int(numerics.num_radius)
-    result.structured_num_theta = int(numerics.structured_num_theta)
-    result.structured_num_phi = int(numerics.structured_num_phi)
-    result.eats_num_theta = int(numerics.eats_num_theta)
-    result.eats_num_phi = int(numerics.eats_num_phi)
-    result.downstream_num_chi = numerics.downstream_num_chi
-    result.num_tobs = int(numerics.num_observer_time)
-    result.num_gam_e = int(numerics.num_electron_gamma)
-    result.num_nu = int(numerics.num_photon_frequency)
-    result.num_threads = int(numerics.num_threads)
-    result.electron_adaptive_substeps = bool(numerics.electron_adaptive_substeps)
-    result.electron_substep_rtol = float(numerics.electron_substep_rtol)
-    result.electron_substep_min = int(numerics.electron_substep_min)
-    result.electron_substep_max = int(numerics.electron_substep_max)
-    result.initial_radius_cm = float(numerics.initial_radius_cm)
-    result.observer_time_min_s = float(observer_grid.time_min_s)
-    result.observer_time_max_s = float(observer_grid.time_max_s)
-    ssc_mode = str(solver_options.ssc_cooling_mode).lower()
+    r = deepcopy(_RuntimeSetups())
+    n, og, so, rs, h = numerics, observer_grid, solver_options, reverse_shock, hadronic
+    r.num_r, r.structured_num_theta, r.structured_num_phi = int(n.num_radius), int(n.structured_num_theta), int(n.structured_num_phi)
+    r.eats_num_theta, r.eats_num_phi = int(n.eats_num_theta), int(n.eats_num_phi)
+    r.downstream_num_chi, r.num_tobs = n.downstream_num_chi, int(n.num_observer_time)
+    r.num_gam_e, r.num_nu, r.num_threads = int(n.num_electron_gamma), int(n.num_photon_frequency), int(n.num_threads)
+    r.electron_adaptive_substeps = bool(n.electron_adaptive_substeps)
+    r.electron_substep_rtol, r.electron_substep_min, r.electron_substep_max = float(n.electron_substep_rtol), int(n.electron_substep_min), int(n.electron_substep_max)
+    r.initial_radius_cm = float(n.initial_radius_cm)
+    r.observer_time_min_s, r.observer_time_max_s = float(og.time_min_s), float(og.time_max_s)
+    ssc_mode = str(so.ssc_cooling_mode).lower()
     if ssc_mode == "none":
-        index_y, result.ssc_cooling, result.kn = 0, False, False
+        index_y, r.ssc_cooling, r.kn = 0, False, False
     elif ssc_mode == "numeric_ic_kn":
-        index_y, result.ssc_cooling, result.kn = 1, True, True
+        index_y, r.ssc_cooling, r.kn = 1, True, True
     elif ssc_mode == "nakar_y_thomson":
-        index_y, result.ssc_cooling, result.kn = 2, True, False
+        index_y, r.ssc_cooling, r.kn = 2, True, False
     else:
         raise ValueError("ssc_cooling_mode must be 'none', 'numeric_ic_kn', or 'nakar_y_thomson'.")
-    result.electron_solver = str(solver_options.electron_solver)
-    result.dynamics_kernel = str(solver_options.dynamics_solver)
-    result.geometry_kernel = str(solver_options.geometry_projection)
-    result.electron_photon_coupling = str(solver_options.electron_photon_coupling)
-    synch_mode = str(solver_options.synchrotron_integration).lower()
+    r.electron_solver, r.dynamics_kernel = str(so.electron_solver), str(so.dynamics_solver)
+    r.geometry_kernel, r.electron_photon_coupling = str(so.geometry_projection), str(so.electron_photon_coupling)
+    synch_mode = str(so.synchrotron_integration).lower()
     if synch_mode == "fixed_grid":
-        result.index_syn_integr = 2
+        r.index_syn_integr = 2
     elif synch_mode == "cyclotron":
-        result.index_syn_integr = 4
+        r.index_syn_integr = 4
     else:
         raise ValueError("synchrotron_integration must be 'fixed_grid' or 'cyclotron'.")
-    result.cooling_kernel = str(solver_options.cooling_kernel)
-    result.radiation_kernel = str(solver_options.radiation_kernel)
-    result.structured_backend = str(solver_options.structured_backend)
-    result.patch_sampling = str(solver_options.patch_sampling)
-    result.patch_projection = str(solver_options.patch_projection)
-    result.patch_sampling_pilot_theta = int(solver_options.patch_sampling_pilot_theta)
-    result.patch_sampling_num_times = int(solver_options.patch_sampling_num_times)
-    result.patch_sampling_beaming_factor = float(solver_options.patch_sampling_beaming_factor)
-    result.patch_sampling_beaming_resolution = float(solver_options.patch_sampling_beaming_resolution)
-    result.structured_parallel_mode = str(solver_options.structured_parallel_mode)
-    result.structured_outer_threads = solver_options.structured_outer_threads
-    result.structured_inner_threads = solver_options.structured_inner_threads
-    result.projection_adaptive_rtol = float(solver_options.projection_adaptive_rtol)
-    result.projection_adaptive_max_depth = int(solver_options.projection_adaptive_max_depth)
-    result.fullhide2d_transport_model = str(solver_options.fullhide2d_transport_model)
-    result.fullhide2d_stochastic_accel_norm = float(solver_options.fullhide2d_stochastic_accel_norm)
-    result.fullhide2d_escape_mode = str(solver_options.fullhide2d_escape_mode)
-    result.nu_callback = solver_options.nu_callback
-    result._index_y_override = index_y
-    result.rvs_shock = bool(reverse_shock.enabled)
-    result.reverse_delta_t_s = float(reverse_shock.shell_duration_s)
-    result.reverse_sigma = float(reverse_shock.upstream_sigma)
-    result.include_cross_zone_ic = bool(reverse_shock.include_cross_zone_ic)
-    result.rvs_ssc = bool(reverse_shock.include_ssc)
-    result.hadronic_enabled = bool(hadronic.enabled)
-    result.hadronic_solver = str(hadronic.solver)
-    result.num_gam_p = int(hadronic.num_proton_gamma)
-    result.num_nu_nu = int(hadronic.num_neutrino_frequency)
-    result.pgamma_scheme = str(hadronic.pgamma_scheme)
-    result.pair_cascade_iterations = int(hadronic.pair_cascade_iterations)
-    return result
+    r.cooling_kernel, r.radiation_kernel = str(so.cooling_kernel), str(so.radiation_kernel)
+    r.structured_backend, r.patch_sampling, r.patch_projection = str(so.structured_backend), str(so.patch_sampling), str(so.patch_projection)
+    r.patch_sampling_pilot_theta = int(so.patch_sampling_pilot_theta)
+    r.patch_sampling_num_times = int(so.patch_sampling_num_times)
+    r.patch_sampling_beaming_factor, r.patch_sampling_beaming_resolution = float(so.patch_sampling_beaming_factor), float(so.patch_sampling_beaming_resolution)
+    r.structured_parallel_mode, r.structured_outer_threads, r.structured_inner_threads = str(so.structured_parallel_mode), so.structured_outer_threads, so.structured_inner_threads
+    r.projection_adaptive_rtol, r.projection_adaptive_max_depth = float(so.projection_adaptive_rtol), int(so.projection_adaptive_max_depth)
+    r.fullhide2d_transport_model, r.fullhide2d_stochastic_accel_norm = str(so.fullhide2d_transport_model), float(so.fullhide2d_stochastic_accel_norm)
+    r.fullhide2d_escape_mode, r.nu_callback = str(so.fullhide2d_escape_mode), so.nu_callback
+    r._index_y_override = index_y
+    r.rvs_shock = bool(rs.enabled)
+    r.reverse_delta_t_s, r.reverse_sigma = float(rs.shell_duration_s), float(rs.upstream_sigma)
+    r.include_cross_zone_ic, r.rvs_ssc = bool(rs.include_cross_zone_ic), bool(rs.include_ssc)
+    r.hadronic_enabled, r.hadronic_solver = bool(h.enabled), str(h.solver)
+    r.num_gam_p, r.num_nu_nu = int(h.num_proton_gamma), int(h.num_neutrino_frequency)
+    r.pgamma_scheme = str(h.pgamma_scheme)
+    r.pair_cascade_iterations = int(h.pair_cascade_iterations)
+    return r
 
 
 
@@ -1494,127 +1471,93 @@ def _build_fit_config_for_patch(
 ) -> RuntimeConfig:
     if model.jet.spreading:
         raise NotImplementedError("Jet spreading is not implemented in the current ASGARD backend.")
-    reverse_delta_t = model.setups.reverse_delta_t_s if model.jet.duration is None else float(model.jet.duration)
-    index_y = model.setups._index_y_override
+    s, o, fr = model.setups, model.observer, model.fwd_rad
     config = RuntimeConfig(
-        num_threads=model.setups.num_threads,
-        num_gam_e=model.setups.num_gam_e,
-        num_nu=model.setups.num_nu,
-        num_r=model.setups.num_r,
-        eats_num_theta=model.setups.eats_num_theta,
-        eats_num_phi=model.setups.eats_num_phi,
-        num_tobs=model.setups.num_tobs,
-        t_obs_min_log10=float(np.log10(model.setups.observer_time_min_s)),
-        t_obs_max_log10=float(np.log10(model.setups.observer_time_max_s)),
-        index_dyn=model.setups.index_dyn,
-        index_syn_integr=model.setups.index_syn_integr,
-        electron_solver=model.setups.electron_solver,
-        cooling_kernel=model.setups.cooling_kernel,
-        radiation_kernel=model.setups.radiation_kernel,
-        dynamics_kernel=model.setups.dynamics_kernel,
-        geometry_kernel=model.setups.geometry_kernel,
-        electron_photon_coupling=model.setups.electron_photon_coupling,
-        structured_backend=model.setups.structured_backend,
-        patch_sampling=model.setups.patch_sampling,
-        patch_projection=model.setups.patch_projection,
-        patch_sampling_pilot_theta=model.setups.patch_sampling_pilot_theta,
-        patch_sampling_num_times=model.setups.patch_sampling_num_times,
-        patch_sampling_beaming_factor=model.setups.patch_sampling_beaming_factor,
-        patch_sampling_beaming_resolution=model.setups.patch_sampling_beaming_resolution,
-        structured_parallel_mode=model.setups.structured_parallel_mode,
-        structured_outer_threads=model.setups.structured_outer_threads,
-        structured_inner_threads=model.setups.structured_inner_threads,
-        projection_adaptive_rtol=model.setups.projection_adaptive_rtol,
-        projection_adaptive_max_depth=model.setups.projection_adaptive_max_depth,
-        downstream_num_chi=model.setups.downstream_num_chi,
-        fullhide2d_transport_model=model.setups.fullhide2d_transport_model,
-        fullhide2d_stochastic_accel_norm=model.setups.fullhide2d_stochastic_accel_norm,
-        fullhide2d_escape_mode=model.setups.fullhide2d_escape_mode,
-        nu_callback=model.setups.nu_callback,
-        electron_adaptive_substeps=model.setups.electron_adaptive_substeps,
-        electron_substep_rtol=model.setups.electron_substep_rtol,
-        electron_substep_min=model.setups.electron_substep_min,
-        electron_substep_max=model.setups.electron_substep_max,
-        z=model.observer.z,
-        theta_v=theta_v,
-        opening_angle_jet=opening_angle_jet,
-        e_iso=e_iso,
-        eta_0=gamma0,
-        epsilon_e=model.fwd_rad.eps_e,
-        epsilon_b=model.fwd_rad.eps_B,
-        epsilon_b_floor=model.fwd_rad.epsilon_b_floor,
-        magnetic_decay_alpha_t=model.fwd_rad.magnetic_decay_alpha_t,
-        magnetic_decay_t0_s=model.fwd_rad.magnetic_decay_t0_s,
-        p=model.fwd_rad.p,
-        f_e=model.fwd_rad.xi_N,
-        thermal_electrons=bool(model.fwd_rad.thermal_electrons),
-        index_y=index_y,
-        include_forward_ssc=model.fwd_rad.ssc,
-        luminosity_distance_cm_override=model.observer.lumi_dist_cm,
-        initial_radius_cm=model.setups.initial_radius_cm,
+        num_threads=s.num_threads, num_gam_e=s.num_gam_e, num_nu=s.num_nu, num_r=s.num_r,
+        eats_num_theta=s.eats_num_theta, eats_num_phi=s.eats_num_phi,
+        num_tobs=s.num_tobs,
+        t_obs_min_log10=float(np.log10(s.observer_time_min_s)),
+        t_obs_max_log10=float(np.log10(s.observer_time_max_s)),
+        index_dyn=s.index_dyn, index_syn_integr=s.index_syn_integr,
+        electron_solver=s.electron_solver, cooling_kernel=s.cooling_kernel,
+        radiation_kernel=s.radiation_kernel, dynamics_kernel=s.dynamics_kernel,
+        geometry_kernel=s.geometry_kernel, electron_photon_coupling=s.electron_photon_coupling,
+        structured_backend=s.structured_backend, patch_sampling=s.patch_sampling,
+        patch_projection=s.patch_projection,
+        patch_sampling_pilot_theta=s.patch_sampling_pilot_theta,
+        patch_sampling_num_times=s.patch_sampling_num_times,
+        patch_sampling_beaming_factor=s.patch_sampling_beaming_factor,
+        patch_sampling_beaming_resolution=s.patch_sampling_beaming_resolution,
+        structured_parallel_mode=s.structured_parallel_mode,
+        structured_outer_threads=s.structured_outer_threads,
+        structured_inner_threads=s.structured_inner_threads,
+        projection_adaptive_rtol=s.projection_adaptive_rtol,
+        projection_adaptive_max_depth=s.projection_adaptive_max_depth,
+        downstream_num_chi=s.downstream_num_chi,
+        fullhide2d_transport_model=s.fullhide2d_transport_model,
+        fullhide2d_stochastic_accel_norm=s.fullhide2d_stochastic_accel_norm,
+        fullhide2d_escape_mode=s.fullhide2d_escape_mode,
+        nu_callback=s.nu_callback,
+        electron_adaptive_substeps=s.electron_adaptive_substeps,
+        electron_substep_rtol=s.electron_substep_rtol,
+        electron_substep_min=s.electron_substep_min,
+        electron_substep_max=s.electron_substep_max,
+        z=o.z, theta_v=theta_v, opening_angle_jet=opening_angle_jet,
+        e_iso=e_iso, eta_0=gamma0,
+        epsilon_e=fr.eps_e, epsilon_b=fr.eps_B, epsilon_b_floor=fr.epsilon_b_floor,
+        magnetic_decay_alpha_t=fr.magnetic_decay_alpha_t, magnetic_decay_t0_s=fr.magnetic_decay_t0_s,
+        p=fr.p, f_e=fr.xi_N, thermal_electrons=bool(fr.thermal_electrons),
+        index_y=s._index_y_override, include_forward_ssc=fr.ssc,
+        luminosity_distance_cm_override=o.lumi_dist_cm,
+        initial_radius_cm=s.initial_radius_cm,
         spectrum_output=SpectrumOutputConfig(enabled=False),
     )
     config.hadronic = HadronicConfig(
-        enabled=bool(model.setups.hadronic_enabled and model.fwd_rad.epsilon_p > 0.0),
-        solver=str(model.setups.hadronic_solver),
-        epsilon_p=float(model.fwd_rad.epsilon_p),
-        p_p=float(model.fwd_rad.p),
-        eta_acc=float(model.fwd_rad.eta_acc),
-        num_gam_p=int(model.setups.num_gam_p),
-        include_proton_synch=bool(model.fwd_rad.proton_synch),
-        include_pg=bool(model.fwd_rad.pg),
-        include_bethe_heitler=bool(model.fwd_rad.bethe_heitler),
-        include_hadronic_inverse_compton=bool(model.fwd_rad.hadronic_inverse_compton),
-        include_pp=bool(model.fwd_rad.pp),
-        include_neutrino=bool(model.fwd_rad.neutrino),
-        include_pair_production=bool(model.fwd_rad.pair_production),
-        pgamma_scheme=str(model.setups.pgamma_scheme if model.setups.pgamma_scheme != "disabled" else model.fwd_rad.pgamma_scheme),
-        num_nu_nu=int(model.setups.num_nu_nu),
-        reverse_enabled=bool(model.setups.rvs_shock and model.fwd_rad.reverse_epsilon_p > 0.0),
-        reverse_epsilon_p=float(model.fwd_rad.reverse_epsilon_p),
-        pair_cascade_iterations=int(model.setups.pair_cascade_iterations),
-        pp_model=int(getattr(model.fwd_rad, "pp_model", -1)),
+        enabled=bool(s.hadronic_enabled and fr.epsilon_p > 0.0),
+        solver=str(s.hadronic_solver), epsilon_p=float(fr.epsilon_p),
+        p_p=float(fr.p), eta_acc=float(fr.eta_acc), num_gam_p=int(s.num_gam_p),
+        include_proton_synch=bool(fr.proton_synch), include_pg=bool(fr.pg),
+        include_bethe_heitler=bool(fr.bethe_heitler),
+        include_hadronic_inverse_compton=bool(fr.hadronic_inverse_compton),
+        include_pp=bool(fr.pp), include_neutrino=bool(fr.neutrino),
+        include_pair_production=bool(fr.pair_production),
+        pgamma_scheme=str(s.pgamma_scheme if s.pgamma_scheme != "disabled" else fr.pgamma_scheme),
+        num_nu_nu=int(s.num_nu_nu),
+        reverse_enabled=bool(s.rvs_shock and fr.reverse_epsilon_p > 0.0),
+        reverse_epsilon_p=float(fr.reverse_epsilon_p),
+        pair_cascade_iterations=int(s.pair_cascade_iterations),
+        pp_model=int(getattr(fr, "pp_model", -1)),
     )
     magnetar = model.jet.magnetar
     if magnetar is not None and _jet_magnetar_active(model.jet, 0.0 if theta_center is None else theta_center):
-        config.l_inj_0 = float(magnetar.L0)
-        config.e_inj_t2 = float(magnetar.t0)
-        config.q_inj = float(magnetar.q)
+        config.l_inj_0, config.e_inj_t2, config.q_inj = float(magnetar.L0), float(magnetar.t0), float(magnetar.q)
     config.reverse = model.rvs_rad is not None
     if model.rvs_rad is not None:
+        rr = model.rvs_rad
         config.reverse_shock = ReverseShockConfig(
             enabled=True,
-            delta_t_s=reverse_delta_t,
-            epsilon_e=model.rvs_rad.eps_e,
-            epsilon_b=model.rvs_rad.eps_B,
-            p=model.rvs_rad.p,
-            f_e=model.rvs_rad.xi_N,
-            sigma=model.setups.reverse_sigma,
-            include_ssc=model.rvs_rad.ssc,
-            include_cross_zone_ic=model.setups.include_cross_zone_ic,
+            delta_t_s=s.reverse_delta_t_s if model.jet.duration is None else float(model.jet.duration),
+            epsilon_e=rr.eps_e, epsilon_b=rr.eps_B, p=rr.p, f_e=rr.xi_N,
+            sigma=s.reverse_sigma, include_ssc=rr.ssc,
+            include_cross_zone_ic=s.include_cross_zone_ic,
         )
     if model.medium.kind not in ("ism", "wind", "density_profile"):
         raise NotImplementedError("User-defined Medium is not supported by the current ASGARD kernel.")
     for key, value in model.medium.to_kernel_params().items():
         setattr(config, key, value)
-    if model.medium.density_profile_radius_cm or model.medium.density_profile_n_cm3:
-        config.density_profile_radius_cm = tuple(float(value) for value in model.medium.density_profile_radius_cm)
-        config.density_profile_n_cm3 = tuple(float(value) for value in model.medium.density_profile_n_cm3)
-    if model.setups.density_profile_radius_cm or model.setups.density_profile_n_cm3:
-        config.density_profile_radius_cm = tuple(float(value) for value in model.setups.density_profile_radius_cm)
-        config.density_profile_n_cm3 = tuple(float(value) for value in model.setups.density_profile_n_cm3)
-    if model.medium.kind == "ism" and float(model.setups.f_jump) != 1.0:
-        config.r_tr = float(model.setups.r_tr)
-        config.f_jump = float(model.setups.f_jump)
-        config.f_wide = float(model.setups.f_wide)
-    if (
-        model.setups.jump_r_cm
-        or model.setups.jump_factor
-        or model.setups.jump_width_log10
-    ):
-        config.jump_r_cm = tuple(float(value) for value in model.setups.jump_r_cm)
-        config.jump_factor = tuple(float(value) for value in model.setups.jump_factor)
-        config.jump_width_log10 = tuple(float(value) for value in model.setups.jump_width_log10)
+    dm, ds = model.medium, model.setups
+    if dm.density_profile_radius_cm or dm.density_profile_n_cm3:
+        config.density_profile_radius_cm = tuple(float(v) for v in dm.density_profile_radius_cm)
+        config.density_profile_n_cm3 = tuple(float(v) for v in dm.density_profile_n_cm3)
+    if ds.density_profile_radius_cm or ds.density_profile_n_cm3:
+        config.density_profile_radius_cm = tuple(float(v) for v in ds.density_profile_radius_cm)
+        config.density_profile_n_cm3 = tuple(float(v) for v in ds.density_profile_n_cm3)
+    if dm.kind == "ism" and float(ds.f_jump) != 1.0:
+        config.r_tr, config.f_jump, config.f_wide = float(ds.r_tr), float(ds.f_jump), float(ds.f_wide)
+    if ds.jump_r_cm or ds.jump_factor or ds.jump_width_log10:
+        config.jump_r_cm = tuple(float(v) for v in ds.jump_r_cm)
+        config.jump_factor = tuple(float(v) for v in ds.jump_factor)
+        config.jump_width_log10 = tuple(float(v) for v in ds.jump_width_log10)
     return config
 
 
