@@ -5,13 +5,13 @@ module electron_radiation_kernel
   use synchrotron_polarization_kernel, only: synchrotron_polarized_components
   private
 
-    public :: first_greater_monotonic, first_greater_monotonic_window
-    public :: besselk, get_syn, get_syn_state, get_syn_cyclotron_state, get_syn_selected, get_syn_selected_state
+ public :: first_greater_monotonic, first_greater_monotonic_window
+    public :: besselk, get_syn, get_syn_state, get_syn_selected, get_syn_selected_state
     public :: get_syn_chi_batch_state
     public :: get_syn_transfer, get_syn_polarization_selected, get_nu_a
     public :: get_nu_a_2d_path, get_nu_a_2d_cell_path, reduce_syn_shell_from_chi
     public :: build_reduced_log_grid, project_syn_state_logbands
-    public :: get_syn_adaptive, get_syn_adaptive_state, get_nu_a_from_tau_grid
+    public :: get_nu_a_from_tau_grid
     public :: electron_powerlaw_interp, electron_log_gauss2_interval, electron_integrate_powerlaw_segment, electron_ssa_segment
 
 contains
@@ -341,69 +341,6 @@ real(8), intent(out) :: P_emit(Num_nu,Num_chi),P_syn(Num_nu,Num_chi),Seed_syn(Nu
 end subroutine get_syn_chi_batch_state
 
 ! 同步+非相对论回旋发射核：γ<2 的电子使用基频回旋发射，γ>=2 仍走标准同步核。
-subroutine get_syn_cyclotron_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
-                                   P_emit,P_syn,Seed_syn,Tau_syn)
-implicit none
-integer, intent(in) :: Num_gam_e,Num_nu,n_threads
-real(8), intent(in) :: R_loc,DB,gam_e(Num_gam_e),dN_gam_e(Num_gam_e),V_seed(Num_nu)
-real(8), intent(out) :: P_emit(Num_nu),P_syn(Num_nu),Seed_syn(Num_nu),Tau_syn(Num_nu)
-real(8) :: dN_syn(Num_gam_e)
-integer :: i
-
-    dN_syn=zero
-    do i=1,Num_gam_e
-        if (gam_e(i) >= two) dN_syn(i)=dN_gam_e(i)
-    end do
-    call get_syn_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_syn,V_seed,P_emit,P_syn,Seed_syn,Tau_syn)
-    call add_cyclotron_fundamental(R_loc,DB,Num_gam_e,Num_nu,gam_e,dN_gam_e,V_seed,P_emit,P_syn,Seed_syn,Tau_syn)
-end subroutine get_syn_cyclotron_state
-
-subroutine add_cyclotron_fundamental(R_loc,DB,Num_gam_e,Num_nu,gam_e,dN_gam_e,V_seed,P_emit,P_syn,Seed_syn,Tau_syn)
-implicit none
-integer, intent(in) :: Num_gam_e,Num_nu
-integer :: i,j
-real(8), intent(in) :: R_loc,DB,gam_e(Num_gam_e),dN_gam_e(Num_gam_e),V_seed(Num_nu),Tau_syn(Num_nu)
-real(8), intent(inout) :: P_emit(Num_nu),P_syn(Num_nu),Seed_syn(Num_nu)
-real(8) :: nu_edge(Num_nu+1),nu_b,nu0,gamma_mid,beta2,n_e_seg,p_total,p_nu,transfer
-real(8) :: r2,temp_para
-
-    if (DB <= zero) return
-    call build_log_frequency_edges(Num_nu,V_seed,nu_edge)
-    nu_b=Para_e*DB/(two*pi*Para_m_e*Para_c)
-    r2=R_loc*R_loc
-    temp_para=4d0*pi*Para_c*Para_h
-    do i=1,Num_gam_e-1
-        gamma_mid=0.5d0*(gam_e(i)+gam_e(i+1))
-        if (gamma_mid >= two) cycle
-        n_e_seg=0.5d0*(dN_gam_e(i)+dN_gam_e(i+1))*(gam_e(i+1)-gam_e(i))
-        if (n_e_seg <= zero) cycle
-        beta2=one-one/(gamma_mid*gamma_mid)
-        nu0=nu_b/gamma_mid
-        if (nu0 < nu_edge(1) .or. nu0 >= nu_edge(Num_nu+1)) cycle
-        call first_greater_monotonic(nu_edge,Num_nu+1,nu0,j)
-        j=max(1,min(Num_nu,j-1))
-        p_total=n_e_seg*(4d0/3d0)*Para_SigmaT*Para_c*(DB*DB/(8d0*pi))*gamma_mid*gamma_mid*beta2
-        p_nu=p_total/(nu_edge(j+1)-nu_edge(j))
-        call radiation_transfer_factor(Tau_syn(j),transfer)
-        P_emit(j)=P_emit(j)+p_nu
-        P_syn(j)=P_syn(j)+p_nu*transfer
-        Seed_syn(j)=Seed_syn(j)+p_nu*transfer/(r2*V_seed(j)*temp_para)
-    end do
-end subroutine add_cyclotron_fundamental
-
-subroutine build_log_frequency_edges(Num_nu,V_seed,nu_edge)
-implicit none
-integer, intent(in) :: Num_nu
-integer :: i
-real(8), intent(in) :: V_seed(Num_nu)
-real(8), intent(out) :: nu_edge(Num_nu+1)
-
-    nu_edge(1)=V_seed(1)*dsqrt(V_seed(1)/V_seed(2))
-    do i=2,Num_nu
-        nu_edge(i)=dsqrt(V_seed(i-1)*V_seed(i))
-    end do
-    nu_edge(Num_nu+1)=V_seed(Num_nu)*dsqrt(V_seed(Num_nu)/V_seed(Num_nu-1))
-end subroutine build_log_frequency_edges
 
 ! 同步辐射F(x)核：F(x) = 1.81 e^(-x)/√(x^(-2/3)+factor)，x=ν/ν_c。
 real(8) function electron_syn_fx(gam,V_cal,DB,factor)
@@ -631,90 +568,6 @@ real(8) :: p3_l,p3_r,t3_l,t3_r
 end subroutine electron_syn_cell_adaptive
 
 ! 自适应同步辐射计算：发射率自适应积分，SSA光深按有限体积端点差守恒积分。
-subroutine get_syn_adaptive_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
-                                  P_emit,P_syn,Seed_syn,Tau_syn)
-!$ use omp_lib
-implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: Num_gam_e,Num_nu,n_threads
-real(8), intent(in) :: R_loc,DB,gam_e(Num_gam_e),dN_gam_e(Num_gam_e),V_seed(Num_nu)
-real(8), intent(out) :: P_emit(Num_nu),P_syn(Num_nu),Seed_syn(Num_nu),Tau_syn(Num_nu)
-real(8), parameter :: rel_tol=5d-4
-real(8), allocatable :: dN1(:),x_gam(:)
-real(8) :: factor,Temp_syn,Rariv2,temp_para
-integer :: I_nu
-
-    allocate(dN1(Num_gam_e),x_gam(Num_gam_e))
-
-    factor=(3.62d0/pi)**2
-    Temp_syn=dsqrt(3d0)*para_e*para_e*para_e/Para_m_energy
-    Rariv2=R_loc*R_loc
-    dN1=dN_gam_e/(gam_e*gam_e)
-    x_gam=dlog(gam_e)
-
-    !$OMP PARALLEL num_threads(n_threads), private(I_nu)
-    !$OMP DO SCHEDULE(STATIC)
-    do I_nu=1,Num_nu
-       call accumulate_adaptive_syn_point(I_nu)
-    end do
-    !$OMP END DO
-    !$OMP END PARALLEL
-
-    temp_para=4d0*pi*Para_c*Para_h
-    Seed_syn=Seed_syn/temp_para
-
-    deallocate(dN1,x_gam)
-
-    return
-
-contains
-
-subroutine adaptive_syn_integrals(V_cal,dInteg,Tau)
-implicit REAL(8)(A-H,O-Z)
-real(8), intent(in) :: V_cal
-real(8), intent(out) :: dInteg,Tau
-real(8) :: cell_int,tau_cell
-integer :: I_gam_e
-
-    dInteg=zero
-    Tau=zero
-    do I_gam_e=1,Num_gam_e-1
-       call electron_syn_cell_adaptive(x_gam(I_gam_e),x_gam(I_gam_e+1), &
-                                       dN_gam_e(I_gam_e),dN_gam_e(I_gam_e+1), &
-                                       dN1(I_gam_e),dN1(I_gam_e+1), &
-                                       V_cal,DB,factor,rel_tol,cell_int,tau_cell)
-       dInteg=dInteg+cell_int
-       Tau=Tau+tau_cell
-    end do
-end subroutine adaptive_syn_integrals
-
-subroutine accumulate_adaptive_syn_point(I_nu)
-implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: I_nu
-real(8) :: V_cal,dInteg,Tau,P_v
-
-    V_cal=V_seed(I_nu)
-    call adaptive_syn_integrals(V_cal,dInteg,Tau)
-    P_v=Temp_syn*DB*dInteg
-    Tau=1.046d4*Tau*DB/(4d0*pi*Rariv2*V_cal*V_cal)
-    if ((Tau-1d-4) < 1d-5) Tau=1d-4
-    P_emit(I_nu)=P_v
-    Tau_syn(I_nu)=Tau
-    P_syn(I_nu)=P_v*(one-dexp(-Tau))/Tau
-    Seed_syn(I_nu)=P_syn(I_nu)/(Rariv2*V_cal)
-end subroutine accumulate_adaptive_syn_point
-end subroutine get_syn_adaptive_state
-
-subroutine get_syn_adaptive(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
-                            P_syn,Seed_syn)
-implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: Num_gam_e,Num_nu,n_threads
-real(8), intent(in) :: R_loc,DB,gam_e(Num_gam_e),dN_gam_e(Num_gam_e),V_seed(Num_nu)
-real(8), intent(out) :: P_syn(Num_nu),Seed_syn(Num_nu)
-real(8) :: P_emit(Num_nu),Tau_syn(Num_nu)
-
-    call get_syn_adaptive_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
-                                P_emit,P_syn,Seed_syn,Tau_syn)
-end subroutine get_syn_adaptive
 
     ! 同步辐射计算选择器：index=4 在标准同步核之外加入非相对论回旋基频发射。
 subroutine get_syn_selected(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
@@ -737,32 +590,8 @@ real(8), intent(in) :: R_loc,DB,gam_e(Num_gam_e),dN_gam_e(Num_gam_e),V_seed(Num_
 real(8), intent(out) :: P_emit(Num_nu),P_syn(Num_nu),Seed_syn(Num_nu),Tau_syn(Num_nu)
 real(8) :: h_ref,h_loc
 
-    select case(index_syn_intger)
-    case(1)
-        if (Num_gam_e > 2) then
-            h_ref=dlog(gam_e(2))-dlog(gam_e(1))
-            do I_gam_e=3,Num_gam_e
-                h_loc=dlog(gam_e(I_gam_e))-dlog(gam_e(I_gam_e-1))
-                if (abs(h_loc-h_ref) > 1d-6*max(abs(h_ref),1d-30)) then
-                    call get_syn_adaptive_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
-                                                P_emit,P_syn,Seed_syn,Tau_syn)
-                    return
-                end if
-            end do
-        end if
-        call get_syn_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed,P_emit,P_syn,Seed_syn,Tau_syn)
-    case(2)
-        call get_syn_simpson_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
-                                   P_emit,P_syn,Seed_syn,Tau_syn)
-    case(3)
-        call get_syn_adaptive_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
-                                    P_emit,P_syn,Seed_syn,Tau_syn)
-    case(4)
-        call get_syn_cyclotron_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
-                                     P_emit,P_syn,Seed_syn,Tau_syn)
-    case default
-        error stop 'get_syn_selected_state: index_syn_intger must be 1, 2, 3, or 4.'
-    end select
+    call get_syn_simpson_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
+                               P_emit,P_syn,Seed_syn,Tau_syn)
 end subroutine get_syn_selected_state
 
 ! 同步辐射偏振核：现有总谱给强度，F/G偏振核直接积分给频率依赖Pi。
