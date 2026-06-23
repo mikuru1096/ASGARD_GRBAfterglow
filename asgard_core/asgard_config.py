@@ -91,6 +91,17 @@ _HADRONIC_DELEGATES = (
     ("include_hadronic_inverse_compton", "include_hadronic_inverse_compton"),
     ("include_pair_production", "include_pair_production"),
     ("include_pp", "include_pp"),
+    ("pair_cascade_iterations", "pair_cascade_iterations"),
+    ("reverse_enabled", "reverse_enabled"),
+    ("reverse_epsilon_p", "reverse_epsilon_p"),
+)
+
+_REVERSE_SHOCK_DELEGATES = (
+    ("rvs_shock", "enabled"),
+    ("rvs_ssc", "include_ssc"),
+    ("reverse_delta_t_s", "delta_t_s"),
+    ("reverse_sigma", "sigma"),
+    ("include_cross_zone_ic", "include_cross_zone_ic"),
 )
 
 
@@ -207,6 +218,21 @@ def _make_hadronic_delegate(field_name: str) -> property:
 
 for _public_name, _field_name in _HADRONIC_DELEGATES:
     setattr(_RuntimeConfig, _public_name, _make_hadronic_delegate(_field_name))
+
+
+def _make_reverse_shock_delegate(field_name: str) -> property:
+    def getter(self):
+        return getattr(self.reverse_shock, field_name)
+
+    def setter(self, value) -> None:
+        current = getattr(self.reverse_shock, field_name)
+        setattr(self.reverse_shock, field_name, type(current)(value))
+
+    return property(getter, setter)
+
+
+for _public_name, _field_name in _REVERSE_SHOCK_DELEGATES:
+    setattr(_RuntimeConfig, _public_name, _make_reverse_shock_delegate(_field_name))
 
 del _public_name, _field_name
 

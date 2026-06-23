@@ -1361,7 +1361,7 @@ class Model:
         decades = np.log10(float(t_max) / float(t_min))
         density_jumps = self.setups.jump_r_cm and self.setups.jump_factor and self.setups.jump_width_log10
         density_profile = self.setups.density_profile_radius_cm and self.setups.density_profile_n_cm3
-        samples_per_decade = 96.0 if self.setups.reverse_shock.enabled and (density_jumps or density_profile) else 8.0
+        samples_per_decade = 96.0 if self.setups.rvs_shock and (density_jumps or density_profile) else 8.0
         return max(int(self.setups.num_tobs), int(np.ceil(samples_per_decade * decades)))
 
 
