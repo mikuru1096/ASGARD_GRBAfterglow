@@ -12,7 +12,6 @@ module electron_transport_2d_kernel
 
   public :: compute_q_geometry, compute_q_cell_geometry, get_shock_transport_state
   public :: compute_downstream_comoving_grid
-  public :: bm_beta2_lab, bm_beta2_shock
   public :: compute_q_divergence
   public :: compute_q_step_limit
   public :: advance_q_implicit, advance_energy_loggamma_chi
@@ -66,27 +65,21 @@ subroutine q_geometry_point(k_medium,R_shell,Gamma_f,q_loc,radius_cell,gamma_cel
     radius_cell = R_shell*x_ratio
 end subroutine q_geometry_point
 
-real(8) function shock_beta_from_front_gamma(Gamma_f)
-    real(8), intent(in) :: Gamma_f
-    real(8) :: u_f,w,u_sh_bm,u_sh_st,y_sh,u_sh
+subroutine compute_q_cell_geometry(Num_chi,k_medium,R_shell,Gamma_f,q_grid,radius_cell,gamma_cell,beta_cell,beta_rel_sh)
+    integer, intent(in) :: Num_chi,k_medium
+    real(8), intent(in) :: R_shell,Gamma_f,q_grid(Num_chi)
+    real(8), intent(out) :: radius_cell(Num_chi),gamma_cell(Num_chi),beta_cell(Num_chi),beta_rel_sh(Num_chi)
+    real(8) :: beta_shock, u_f, w, u_sh_bm, u_sh_st, y_sh, u_sh
+    integer :: I_chi
 
+    ! Inlined from shock_beta_from_front_gamma
     u_f = dsqrt(Gamma_f*Gamma_f-one)
     w = u_f*u_f/(one+u_f*u_f)
     u_sh_bm = dsqrt(two*Gamma_f*Gamma_f-one)
     u_sh_st = sigma_strong_shock*u_f/(sigma_strong_shock-one)
     y_sh = w*dasinh(u_sh_bm)+(one-w)*dasinh(u_sh_st)
     u_sh = dsinh(y_sh)
-    shock_beta_from_front_gamma = u_sh/dsqrt(one+u_sh*u_sh)
-end function shock_beta_from_front_gamma
-
-subroutine compute_q_cell_geometry(Num_chi,k_medium,R_shell,Gamma_f,q_grid,radius_cell,gamma_cell,beta_cell,beta_rel_sh)
-    integer, intent(in) :: Num_chi,k_medium
-    real(8), intent(in) :: R_shell,Gamma_f,q_grid(Num_chi)
-    real(8), intent(out) :: radius_cell(Num_chi),gamma_cell(Num_chi),beta_cell(Num_chi),beta_rel_sh(Num_chi)
-    real(8) :: beta_shock
-    integer :: I_chi
-
-    beta_shock = shock_beta_from_front_gamma(Gamma_f)
+    beta_shock = u_sh/dsqrt(one+u_sh*u_sh)
     do I_chi = 1, Num_chi
         call q_geometry_point(k_medium,R_shell,Gamma_f,q_grid(I_chi), &
                               radius_cell(I_chi),gamma_cell(I_chi),beta_cell(I_chi))
@@ -135,29 +128,6 @@ subroutine get_shock_transport_state(Gamma_sh, beta_sh, beta_2, beta_2_sh)
     beta_2_sh = (beta_sh-beta_2)/(one-beta_sh*beta_2)
 end subroutine get_shock_transport_state
 
-! BM解中实验室系下游速度：Γ_2 = Γ_sh/√(2χ)，β_2 = √(1-1/Γ_2²)。
-real(8) function bm_beta2_lab(Gamma_sh, chi_loc)
-    real(8), intent(in) :: Gamma_sh, chi_loc
-    real(8) :: Gamma_2
-
-    Gamma_2 = Gamma_sh/dsqrt(two*chi_loc)
-    if (Gamma_2 > one) then
-        bm_beta2_lab = dsqrt(one-one/Gamma_2**2)
-    else
-        bm_beta2_lab = zero
-    end if
-end function bm_beta2_lab
-
-! BM解中下游相对激波的速度：β_2_sh = (β_sh-β_2)/(1-β_sh·β_2)。
-real(8) function bm_beta2_shock(Gamma_sh, chi_loc)
-    real(8), intent(in) :: Gamma_sh, chi_loc
-    real(8) :: beta_sh, beta_2
-
-    beta_sh = dsqrt(one-one/Gamma_sh**2)
-    beta_2 = bm_beta2_lab(Gamma_sh, chi_loc)
-    bm_beta2_shock = (beta_sh-beta_2)/(one-beta_sh*beta_2)
-end function bm_beta2_shock
-
 ! q下游局部散度：用桥接半径/速度场计算(∇·v)/(3β_f c)，返回log10 γ方程系数。
 subroutine compute_q_divergence(Num_chi,k_medium,R_loc,Gamma_f,beta_f,q_grid,adiabatic_log_coeff)
     integer, intent(in) :: Num_chi,k_medium
@@ -205,11 +175,9 @@ subroutine q_face_transport_coeffs_all(k_medium,R_loc,Num_chi,q_face,A_q_face)
     integer, intent(in) :: k_medium,Num_chi
     real(8), intent(in) :: R_loc,q_face(0:Num_chi)
     real(8), intent(out) :: A_q_face(0:Num_chi)
-    integer :: I_face
 
-    do I_face = 0, Num_chi
-        A_q_face(I_face) = q_face_transport_coeff(k_medium,R_loc,q_face(I_face))
-    end do
+    call q_face_transport_coeffs(k_medium, R_loc, Num_chi, q_face, A_q_face(1:))
+    A_q_face(0) = q_face_transport_coeff(k_medium, R_loc, q_face(0))
 end subroutine q_face_transport_coeffs_all
 
 ! 估计q方向对流子步长限制。
@@ -227,18 +195,6 @@ real(8) function compute_q_step_limit(Num_chi,k_medium,R_loc,dq,q_face,cfl_facto
     compute_q_step_limit = huge(one)
     if (max_q_coeff > zero) compute_q_step_limit = cfl_factor*dq/max_q_coeff
 end function compute_q_step_limit
-
-real(8) function eta_linear_back_position(eta_start, a_cell, b_cell, lag)
-    real(8), intent(in) :: eta_start, a_cell, b_cell, lag
-    real(8) :: shift
-
-    if (dabs(b_cell) <= 1d-30) then
-        eta_linear_back_position = eta_start - a_cell*lag
-    else
-        shift = a_cell/b_cell
-        eta_linear_back_position = (eta_start+shift)*dexp(-b_cell*lag) - shift
-    end if
-end function eta_linear_back_position
 
 real(8) function eta_linear_hit_time(eta_start, eta_bound, a_cell, b_cell)
     real(8), intent(in) :: eta_start, eta_bound, a_cell, b_cell
@@ -285,7 +241,12 @@ subroutine eta_trace_back_faces_piecewise(Num_chi, dR_step, eta_face, A_eta_face
             a_cell = A_eta_face(I_cell-1)-b_cell*eta_face(I_cell-1)
             A_cur = a_cell+b_cell*eta_cur
             if (A_cur == zero) exit
-            eta_trial = eta_linear_back_position(eta_cur, a_cell, b_cell, s_rem)
+            ! Inlined from eta_linear_back_position
+            if (dabs(b_cell) <= 1d-30) then
+                eta_trial = eta_cur - a_cell*s_rem
+            else
+                eta_trial = (eta_cur + a_cell/b_cell)*dexp(-b_cell*s_rem) - a_cell/b_cell
+            end if
             if (A_cur > zero) then
                 eta_bound = eta_face(I_cell-1)
                 if (eta_trial > eta_bound) then

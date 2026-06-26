@@ -16,14 +16,7 @@ subroutine hadronic_advance_energy_loggamma_remap(num_gamma,gamma,dn_prev,q_inj,
 
     call hadronic_build_gamma_edges(num_gamma,gamma,gamma_edge)
     dn_next=zero
-    call deposit_cooled_bin_content()
-    call restore_density_units()
-
-contains
-
-    subroutine deposit_cooled_bin_content()
-    implicit none
-
+    ! Inlined from deposit_cooled_bin_content
     do i=1,num_gamma
         dgamma=gamma_edge(i+1)-gamma_edge(i)
         if (dgamma <= zero) error stop "hadronic remap transport requires positive gamma cell width."
@@ -32,16 +25,11 @@ contains
         target=hadronic_remap_target(num_gamma,gamma_edge,cooled_gamma)
         if (target >= 1 .and. target <= num_gamma) dn_next(target)=dn_next(target)+content
     end do
-    end subroutine deposit_cooled_bin_content
-
-    subroutine restore_density_units()
-    implicit none
-
+    ! Inlined from restore_density_units
     do i=1,num_gamma
         dgamma=gamma_edge(i+1)-gamma_edge(i)
         dn_next(i)=dn_next(i)/dgamma+q_inj(i)
     end do
-    end subroutine restore_density_units
 end subroutine hadronic_advance_energy_loggamma_remap
 
 integer function hadronic_remap_target(num_gamma,gamma_edge,value)

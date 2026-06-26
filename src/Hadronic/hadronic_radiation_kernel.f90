@@ -90,25 +90,13 @@ subroutine hadronic_get_proton_syn_state(R_loc,B_field_g,Num_gam_p,Num_nu,gam_p,
     P_had_syn=zero
     Seed_had_syn=zero
 
-    call build_proton_syn_quadrature()
-    call accumulate_proton_syn_power()
-    call normalize_proton_syn_seed_density()
-
-contains
-
-    subroutine build_proton_syn_quadrature()
-    implicit none
-
+    ! Inlined from build_proton_syn_quadrature
     do I_gam=1,Num_gam_p-1
         gam_mid(I_gam)=dsqrt(gam_p(I_gam)*gam_p(I_gam+1))
         dN_mid(I_gam)=(dN_gam_p(I_gam)+dN_gam_p(I_gam+1))/two
         dln_gam(I_gam)=dlog(gam_p(I_gam+1)/gam_p(I_gam))
     end do
-    end subroutine build_proton_syn_quadrature
-
-    subroutine accumulate_proton_syn_power()
-    implicit none
-
+    ! Inlined from accumulate_proton_syn_power
     do I_nu=1,Num_nu
         V_cal=V_seed(I_nu)
         if (V_cal <= zero) error stop "hadronic_get_proton_syn_state: frequency grid must be positive."
@@ -120,14 +108,9 @@ contains
         P_had_syn(I_nu)=temp_syn*B_field_g*dInteg
         Seed_had_syn(I_nu)=P_had_syn(I_nu)/(Rariv2*V_cal)
     end do
-    end subroutine accumulate_proton_syn_power
-
-    subroutine normalize_proton_syn_seed_density()
-    implicit none
-
+    ! Inlined from normalize_proton_syn_seed_density
     temp_para=4d0*pi*Para_c*Para_h
     Seed_had_syn=Seed_had_syn/temp_para
-    end subroutine normalize_proton_syn_seed_density
 end subroutine hadronic_get_proton_syn_state
 
 ! 输出专用强子同步频率依赖偏振率核：直接卷积(F+G)/2和(F-G)/2两个偏振发射核。

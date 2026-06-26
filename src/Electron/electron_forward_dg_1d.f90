@@ -117,14 +117,11 @@ subroutine fs_electron_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Nu
         R_Gamma_loc = (R_Gamma(I_tobs_local) + R_Gamma(I_tobs_local - 1))/two
         if (R_Gamma_loc < one) error stop 'fs_electron_dg_1d requires Gamma >= 1'
         beta_Gam = dsqrt(one - one/R_Gamma_loc**2)
-        call dynamics_external_density_profile(A_star, dNe_ISM, R_loc, R0, 1, R_tr, f_jump, f_wide, dNe)
-        dNe_shell = dNe
-        DB = 0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma_loc*(R_Gamma_loc - one)))
-        Gam_e_max = 3d0*Para_m_energy/dsqrt(8d0*DB*Para_e**3)
+        call dynamics_external_density_profile(A_star, dNe_ISM, R_loc, R0, 1, R_tr, f_jump, f_wide, dNe_shell)
+        DB = 0.39d0*dsqrt(Epsilon_b*dNe_shell*(R_Gamma_loc*(R_Gamma_loc - one)))
+        Gam_e_max_inj_shell = 3d0*Para_m_energy/dsqrt(8d0*DB*Para_e**3)
         temp_gam = Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma_loc - one)
-        call electron_gamma_m_exact(p, temp_gam, Gam_e_max, Gam_e_m)
-        Gam_e_max_inj_shell = Gam_e_max
-        Gam_e_m_inj_shell = Gam_e_m
+        call electron_gamma_m_exact(p, temp_gam, Gam_e_max_inj_shell, Gam_e_m_inj_shell)
         Gam_e_m_p_shell = (one - p)/(Gam_e_max_inj_shell**(one - p) - Gam_e_m_inj_shell**(one - p))
         uniform_density_shell = (A_star <= zero .and. active_density_profile_count == 0 .and. &
                                  active_density_jump_count == 0 .and. abs(f_jump - one) <= zero)
@@ -150,7 +147,12 @@ subroutine fs_electron_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Nu
         call electron_dg1d_build_four_velocity_mesh(x_edge(1), forward_dg_active_xmax(gamma_upper), &
                                                     dlog10(gamma_m_break), dlog10(gamma_c_break), &
                                                     dlog10(gamma_max_break), dg_gamma_scale, new_mesh)
-        call ensure_dg_work(new_mesh%ntot)
+        ! Inlined from ensure_dg_work
+    if (allocated(projected)) then
+        if (size(projected) /= new_mesh%ntot) deallocate(projected, gamma_dg, dEl_dg, dEl_dg_base, source_dg, source_template)
+    endif
+    if (.not. allocated(projected)) allocate(projected(new_mesh%ntot), gamma_dg(new_mesh%ntot), dEl_dg(new_mesh%ntot), &
+                                             dEl_dg_base(new_mesh%ntot), source_dg(new_mesh%ntot), source_template(new_mesh%ntot))
         call electron_dg1d_project_state(mesh, state, new_mesh, projected)
         call electron_dg1d_apply_positive_kernel_filter(new_mesh, projected)
         call electron_dg1d_limit_positive_cell_preserving(new_mesh, projected)
@@ -161,25 +163,12 @@ subroutine fs_electron_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Nu
         state = projected
         mesh = new_mesh
         source_cache_ready = .false.
-        call prepare_dg_cooling()
-    end subroutine remesh_shell
-
-    subroutine ensure_dg_work(ntot)
-        integer, intent(in) :: ntot
-
-        if (allocated(projected)) then
-            if (size(projected) /= ntot) deallocate(projected, gamma_dg, dEl_dg, dEl_dg_base, source_dg, source_template)
-        endif
-        if (.not. allocated(projected)) allocate(projected(ntot), gamma_dg(ntot), dEl_dg(ntot), dEl_dg_base(ntot), &
-                                                 source_dg(ntot), source_template(ntot))
-    end subroutine ensure_dg_work
-
-    subroutine prepare_dg_cooling()
         call electron_dg1d_gamma_nodes(mesh, gamma_dg)
         call get_forward_cooling(index_Y, Epsilon_e, Epsilon_b, p, DB, Gam_e_m, Gam_e_c, Gam_e_max, &
                                  R_loc, R_Gamma_loc, beta_Gam, dNe_shell, mesh%ntot, Num_nu, n_threads, &
                                  gamma_dg, V_seed, P_syn(:,I_tobs), Seed_syn(:,I_tobs), dEl_dg_base)
-    end subroutine prepare_dg_cooling
+                                 
+    end subroutine remesh_shell
 
     subroutine advance_substep(dR_local, R_step)
         real(8), intent(in) :: dR_local, R_step
@@ -236,6 +225,7 @@ subroutine fs_electron_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Nu
     subroutine limit_density_jump_step(R_left, R_stop, dR_limited)
         real(8), intent(in) :: R_left, R_stop
         real(8), intent(inout) :: dR_limited
+        real(8) :: R_probe, slope
         integer :: j
 
         if (active_density_jump_count > 0) then
@@ -246,7 +236,10 @@ subroutine fs_electron_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Nu
         else if (abs(f_jump - one) > zero) then
             call limit_one_density_jump(R_tr, f_jump, f_wide, R_left, R_stop, dR_limited)
         endif
-        call limit_density_log_slope(R_left, dR_limited)
+        ! Inlined from limit_density_log_slope
+        R_probe = R_left + 0.5d0*dR_limited
+        slope = density_jump_log_slope(R_probe)
+        if (abs(slope) > zero) dR_limited = min(dR_limited, dg_jump_log_density_step/abs(slope))
     end subroutine limit_density_jump_step
 
     subroutine limit_one_density_jump(R_jump, jump_factor, width_frac, R_left, R_stop, dR_limited)
@@ -271,16 +264,6 @@ subroutine fs_electron_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Nu
             dR_limited = min(dR_limited, sigma_r/dg_jump_substeps_per_sigma)
         endif
     end subroutine limit_one_density_jump
-
-    subroutine limit_density_log_slope(R_left, dR_limited)
-        real(8), intent(in) :: R_left
-        real(8), intent(inout) :: dR_limited
-        real(8) :: R_probe, slope
-
-        R_probe = R_left + 0.5d0*dR_limited
-        slope = density_jump_log_slope(R_probe)
-        if (abs(slope) > zero) dR_limited = min(dR_limited, dg_jump_log_density_step/abs(slope))
-    end subroutine limit_density_log_slope
 
     real(8) function density_jump_log_slope(radius) result(slope)
         real(8), intent(in) :: radius

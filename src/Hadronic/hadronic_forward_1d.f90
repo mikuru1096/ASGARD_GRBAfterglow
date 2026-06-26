@@ -1,25 +1,25 @@
 ! Python/f2py ABI wrapper; the shell implementation lives in hadronic_forward_shell_1d.
 subroutine fs_hadronic_proton_syn_shell(R_loc,B_field_g,Num_gam_p,Num_nu,gam_p,dN_gam_p,V_seed,P_had_syn,Seed_had_syn)
-    use hadronic_forward_shell_1d, only: hadronic_forward_proton_syn_shell
+    use hadronic_radiation_kernel, only: hadronic_get_proton_syn_state
     implicit none
     integer, intent(in) :: Num_gam_p,Num_nu
     real(8), intent(in) :: R_loc,B_field_g,gam_p(Num_gam_p),dN_gam_p(Num_gam_p),V_seed(Num_nu)
     real(8), intent(out) :: P_had_syn(Num_nu),Seed_had_syn(Num_nu)
 
-    call hadronic_forward_proton_syn_shell(R_loc, B_field_g, Num_gam_p, Num_nu, gam_p, dN_gam_p, V_seed, &
+    call hadronic_get_proton_syn_state(R_loc, B_field_g, Num_gam_p, Num_nu, gam_p, dN_gam_p, V_seed, &
         P_had_syn, Seed_had_syn)
 end subroutine fs_hadronic_proton_syn_shell
 ! Python/f2py ABI wrapper; the shell implementation lives in hadronic_forward_shell_1d.
 subroutine fs_hadronic_syn_polarization_shell(Num_had,hadron_energy_gev,density_per_gev,Num_ph, &
                                               photon_frequency_hz,particle_mass_gev,magnetic_field_g,p_index,Pi_nu)
-    use hadronic_forward_shell_1d, only: hadronic_forward_syn_polarization_shell
+    use hadronic_radiation_kernel, only: hadronic_syn_polarization_fraction
     implicit none
     integer, intent(in) :: Num_had,Num_ph
     real(8), intent(in) :: hadron_energy_gev(Num_had),density_per_gev(Num_had),photon_frequency_hz(Num_ph)
     real(8), intent(in) :: particle_mass_gev,magnetic_field_g,p_index
     real(8), intent(out) :: Pi_nu(Num_ph)
 
-    call hadronic_forward_syn_polarization_shell(Num_had, hadron_energy_gev, density_per_gev, Num_ph, &
+    call hadronic_syn_polarization_fraction(Num_had, hadron_energy_gev, density_per_gev, Num_ph, &
         photon_frequency_hz, particle_mass_gev, magnetic_field_g, p_index, Pi_nu)
 end subroutine fs_hadronic_syn_polarization_shell
 ! Python/f2py ABI wrapper; the shell implementation lives in hadronic_forward_shell_1d.
@@ -28,7 +28,7 @@ subroutine fs_hadronic_pgamma_operator_shell(Num_gam_p,Num_nu,hadron_energy_gev,
                                              pion_plus_source_rate_per_gev,pion_minus_source_rate_per_gev, &
                                              proton_reinjection_rate_per_gev,neutron_reinjection_rate_per_gev, &
                                              proton_loss_rate,neutron_loss_rate,photon_loss_rate)
-    use hadronic_forward_shell_1d, only: hadronic_forward_pgamma_operator_shell
+    use hadronic_interaction_kernel, only: hadronic_pg_hummer2010_operator
     implicit none
     integer, intent(in) :: Num_gam_p,Num_nu
     real(8), intent(in) :: hadron_energy_gev(Num_gam_p),hadron_density_per_gev(Num_gam_p),photon_energy_gev(Num_nu)
@@ -38,7 +38,7 @@ subroutine fs_hadronic_pgamma_operator_shell(Num_gam_p,Num_nu,hadron_energy_gev,
     real(8), intent(out) :: neutron_reinjection_rate_per_gev(Num_gam_p),proton_loss_rate(Num_gam_p)
     real(8), intent(out) :: neutron_loss_rate(Num_gam_p),photon_loss_rate(Num_nu)
 
-    call hadronic_forward_pgamma_operator_shell(Num_gam_p, Num_nu, hadron_energy_gev, hadron_density_per_gev, &
+    call hadronic_pg_hummer2010_operator(Num_gam_p, Num_nu, hadron_energy_gev, hadron_density_per_gev, &
         photon_energy_gev, photon_density_per_gev, neutron_density_per_gev, pion0_source_rate_per_gev, &
         pion_plus_source_rate_per_gev, pion_minus_source_rate_per_gev, proton_reinjection_rate_per_gev, &
         neutron_reinjection_rate_per_gev, proton_loss_rate, neutron_loss_rate, photon_loss_rate)
@@ -48,7 +48,7 @@ subroutine fs_hadronic_pair_production_shell(Num_gamma,photon_energy_gev,photon_
                                              max_com_energy_factor,photon_loss_rate,pair_injection_rate_per_gev_per_species, &
                                              pair_injection_rate_per_gev_total,absorbed_power_gev_per_cm3_s, &
                                              injected_power_gev_per_cm3_s)
-    use hadronic_forward_shell_1d, only: hadronic_forward_pair_production_shell
+    use hadronic_pair_production_kernel, only: hadronic_pair_production_operator
     implicit none
     integer, intent(in) :: Num_gamma,Num_e,max_com_energy_factor
     real(8), intent(in) :: photon_energy_gev(Num_gamma),photon_density_per_gev(Num_gamma),electron_energy_gev(Num_e)
@@ -56,7 +56,7 @@ subroutine fs_hadronic_pair_production_shell(Num_gamma,photon_energy_gev,photon_
     real(8), intent(out) :: pair_injection_rate_per_gev_total(Num_e),absorbed_power_gev_per_cm3_s
     real(8), intent(out) :: injected_power_gev_per_cm3_s
 
-    call hadronic_forward_pair_production_shell(Num_gamma, photon_energy_gev, photon_density_per_gev, Num_e, &
+    call hadronic_pair_production_operator(Num_gamma, photon_energy_gev, photon_density_per_gev, Num_e, &
         electron_energy_gev, max_com_energy_factor, photon_loss_rate, pair_injection_rate_per_gev_per_species, &
         pair_injection_rate_per_gev_total, absorbed_power_gev_per_cm3_s, injected_power_gev_per_cm3_s)
 end subroutine fs_hadronic_pair_production_shell
@@ -83,7 +83,7 @@ end subroutine fs_hadronic_pp_delta_shell
 subroutine fs_hadronic_bethe_heitler_shell(Num_p,proton_energy_gev,proton_density_per_gev,Num_ph,photon_energy_gev, &
                                            photon_density_per_gev,Num_e,electron_energy_gev,pair_rate_per_gev, &
                                            proton_loss_rate,photon_loss_rate)
-    use hadronic_forward_shell_1d, only: hadronic_forward_bethe_heitler_shell
+    use hadronic_bethe_heitler_kernel, only: hadronic_bethe_heitler_operator
     implicit none
     integer, intent(in) :: Num_p,Num_ph,Num_e
     real(8), intent(in) :: proton_energy_gev(Num_p),proton_density_per_gev(Num_p)
@@ -91,7 +91,7 @@ subroutine fs_hadronic_bethe_heitler_shell(Num_p,proton_energy_gev,proton_densit
     real(8), intent(in) :: electron_energy_gev(Num_e)
     real(8), intent(out) :: pair_rate_per_gev(Num_e),proton_loss_rate(Num_p),photon_loss_rate(Num_ph)
 
-    call hadronic_forward_bethe_heitler_shell(Num_p, proton_energy_gev, proton_density_per_gev, Num_ph, &
+    call hadronic_bethe_heitler_operator(Num_p, proton_energy_gev, proton_density_per_gev, Num_ph, &
         photon_energy_gev, photon_density_per_gev, Num_e, electron_energy_gev, pair_rate_per_gev, &
         proton_loss_rate, photon_loss_rate)
 end subroutine fs_hadronic_bethe_heitler_shell
@@ -143,7 +143,7 @@ subroutine fs_hadronic_species_transport_shell(Num_gamma,gamma,dt_s,b_field_g,di
                                                muon_plus_right_source_per_gamma_s,neutron_next,pion_plus_next, &
                                                pion_minus_next,muon_minus_left_next,muon_minus_right_next, &
                                                muon_plus_left_next,muon_plus_right_next)
-    use hadronic_forward_shell_1d, only: hadronic_forward_species_transport_shell
+    use hadronic_species_transport_kernel, only: hadronic_species_advance_operator
     implicit none
     integer, intent(in) :: Num_gamma
     real(8), intent(in) :: gamma(Num_gamma),dt_s,b_field_g,divergence_rate_s_inv
@@ -158,7 +158,7 @@ subroutine fs_hadronic_species_transport_shell(Num_gamma,gamma,dt_s,b_field_g,di
     real(8), intent(out) :: muon_minus_left_next(Num_gamma),muon_minus_right_next(Num_gamma)
     real(8), intent(out) :: muon_plus_left_next(Num_gamma),muon_plus_right_next(Num_gamma)
 
-    call hadronic_forward_species_transport_shell(Num_gamma, gamma, dt_s, b_field_g, divergence_rate_s_inv, &
+    call hadronic_species_advance_operator(Num_gamma, gamma, dt_s, b_field_g, divergence_rate_s_inv, &
         neutron_prev, pion_plus_prev, pion_minus_prev, muon_minus_left_prev, muon_minus_right_prev, &
         muon_plus_left_prev, muon_plus_right_prev, neutron_source_per_gamma_s, pion_plus_source_per_gamma_s, &
         pion_minus_source_per_gamma_s, muon_minus_left_source_per_gamma_s, muon_minus_right_source_per_gamma_s, &
@@ -204,7 +204,7 @@ subroutine fs_hadronic_acceleration_shell(Num_gamma,species,gamma,b_field_g,eta_
                                           gamma_min,gamma_max_inj,gamma_cut,has_gamma_cut,radius_cm,gamma_bulk, &
                                           Num_gamma_scan,gamma_scan,external_cooling_rate,has_external_cooling, &
                                           t_acc,t_syn,q_inj,gamma_max,gamma_dyn,gamma_syn,gamma_ext,has_gamma_ext)
-    use hadronic_forward_shell_1d, only: hadronic_forward_acceleration_shell
+    use hadronic_acceleration_kernel, only: hadronic_acceleration_operator
     implicit none
     integer, intent(in) :: Num_gamma,Num_gamma_scan
     character(len=*), intent(in) :: species
@@ -216,7 +216,7 @@ subroutine fs_hadronic_acceleration_shell(Num_gamma,species,gamma,b_field_g,eta_
     real(8), intent(out) :: gamma_max,gamma_dyn,gamma_syn,gamma_ext
     logical, intent(out) :: has_gamma_ext
 
-    call hadronic_forward_acceleration_shell(Num_gamma, species, gamma, b_field_g, eta_acc, luminosity_erg_s, &
+    call hadronic_acceleration_operator(Num_gamma, species, gamma, b_field_g, eta_acc, luminosity_erg_s, &
         spectral_index, gamma_min, gamma_max_inj, gamma_cut, has_gamma_cut, radius_cm, gamma_bulk, &
         Num_gamma_scan, gamma_scan, external_cooling_rate, has_external_cooling, t_acc, t_syn, q_inj, gamma_max, &
         gamma_dyn, gamma_syn, gamma_ext, has_gamma_ext)
@@ -304,7 +304,7 @@ subroutine fs_hadronic_decay_operator_shell(Num_gam_p,hadron_energy_gev,pion0_so
                                             muon_minus_left_source_rate_per_gev,muon_minus_right_source_rate_per_gev, &
                                             prompt_pion_neutrino_rate_per_gev,muon_neutrino_rate_per_gev, &
                                             muon_electron_rate_per_gev,neutrino_rate_per_gev)
-    use hadronic_forward_shell_1d, only: hadronic_forward_decay_operator_shell
+    use hadronic_decay_kernel, only: hadronic_hummer2010_decay_operator
     implicit none
     integer, intent(in) :: Num_gam_p,Num_gamma,Num_nu,Num_proc
     real(8), intent(in) :: hadron_energy_gev(Num_gam_p),pion0_source_rate_per_gev(Num_gam_p)
@@ -319,7 +319,7 @@ subroutine fs_hadronic_decay_operator_shell(Num_gam_p,hadron_energy_gev,pion0_so
     real(8), intent(out) :: prompt_pion_neutrino_rate_per_gev(Num_nu),muon_neutrino_rate_per_gev(Num_nu)
     real(8), intent(out) :: muon_electron_rate_per_gev(Num_proc),neutrino_rate_per_gev(Num_nu)
 
-    call hadronic_forward_decay_operator_shell(Num_gam_p, hadron_energy_gev, pion0_source_rate_per_gev, &
+    call hadronic_hummer2010_decay_operator(Num_gam_p, hadron_energy_gev, pion0_source_rate_per_gev, &
         pion_plus_source_rate_per_gev, pion_minus_source_rate_per_gev, Num_gamma, gamma_energy_gev, Num_nu, &
         neutrino_energy_gev, Num_proc, process_energy_gev, gamma_rate_per_gev, process_rate_per_gev, &
         muon_plus_right_source_rate_per_gev, muon_plus_left_source_rate_per_gev, &
@@ -551,14 +551,14 @@ end subroutine fs_hadronic_formal_transport_1d
 subroutine fs_hadronic_pair_cascade_step(num_ph,photon_energy_gev,photon_density, &
                                           num_e,electron_energy_gev,b_field_g,path_time_s, &
                                           cascade_syn_spec,photon_loss_rate,absorbed_power)
-    use hadronic_forward_shell_1d, only: hadronic_forward_pair_cascade_step
+    use hadronic_pair_cascade_kernel, only: hadronic_cascade_step
     implicit none
     integer, intent(in) :: num_ph,num_e
     real(8), intent(in) :: photon_energy_gev(num_ph),photon_density(num_ph)
     real(8), intent(in) :: electron_energy_gev(num_e),b_field_g,path_time_s
     real(8), intent(out) :: cascade_syn_spec(num_ph),photon_loss_rate(num_ph),absorbed_power
 
-    call hadronic_forward_pair_cascade_step(num_ph, photon_energy_gev, photon_density, num_e, &
+    call hadronic_cascade_step(num_ph, photon_energy_gev, photon_density, num_e, &
         electron_energy_gev, b_field_g, path_time_s, cascade_syn_spec, photon_loss_rate, absorbed_power)
 end subroutine fs_hadronic_pair_cascade_step
 ! Python/f2py ABI wrapper; the shell implementation lives in hadronic_forward_shell_1d.
@@ -567,7 +567,7 @@ subroutine fs_hadronic_pair_cascade_sequence(num_ph,num_e,num_shell,photon_energ
                                              b_field_g,num_threads,index_syn_integr,substeps_per_shell, &
                                              photon_loss_rate,tau_pair,pair_density,pair_luminosity, &
                                              pair_seed,cascade_photon_density,absorbed_power,injected_power)
-    use hadronic_forward_shell_1d, only: hadronic_forward_pair_cascade_sequence
+    use hadronic_pair_cascade_kernel, only: hadronic_cascade_sequence
     implicit none
     integer, intent(in) :: num_ph,num_e,num_shell,num_threads,index_syn_integr,substeps_per_shell
     real(8), intent(in) :: photon_energy_gev(num_ph),primary_photon_density(num_ph,num_shell)
@@ -578,20 +578,20 @@ subroutine fs_hadronic_pair_cascade_sequence(num_ph,num_e,num_shell,photon_energ
     real(8), intent(out) :: pair_seed(num_ph,num_shell),cascade_photon_density(num_ph,num_shell)
     real(8), intent(out) :: absorbed_power(num_shell),injected_power(num_shell)
 
-    call hadronic_forward_pair_cascade_sequence(num_ph, num_e, num_shell, photon_energy_gev, &
+    call hadronic_cascade_sequence(num_ph, num_e, num_shell, photon_energy_gev, &
         primary_photon_density, electron_energy_gev, frequency_hz, radius_cm, gamma_bulk, observer_time_s, &
         b_field_g, num_threads, index_syn_integr, substeps_per_shell, photon_loss_rate, tau_pair, pair_density, &
         pair_luminosity, pair_seed, cascade_photon_density, absorbed_power, injected_power)
 end subroutine fs_hadronic_pair_cascade_sequence
 ! Python/f2py ABI wrapper; the shell implementation lives in hadronic_forward_shell_1d.
 subroutine fs_hadronic_advance_energy_loggamma(num_gamma,gamma,dn_prev,q_inj,loss_total,dt_s,dn_next)
-    use hadronic_forward_shell_1d, only: hadronic_forward_advance_energy_loggamma
+    use hadronic_transport_remap_kernel, only: hadronic_advance_energy_loggamma_remap
     implicit none
     integer, intent(in) :: num_gamma
     real(8), intent(in) :: gamma(num_gamma),dn_prev(num_gamma),q_inj(num_gamma),loss_total(num_gamma),dt_s
     real(8), intent(out) :: dn_next(num_gamma)
 
-    call hadronic_forward_advance_energy_loggamma(num_gamma, gamma, dn_prev, q_inj, loss_total, dt_s, dn_next)
+    call hadronic_advance_energy_loggamma_remap(num_gamma, gamma, dn_prev, q_inj, loss_total, dt_s, dn_next)
 end subroutine fs_hadronic_advance_energy_loggamma
 ! Python/f2py ABI wrapper; the shell implementation lives in hadronic_forward_shell_1d.
 subroutine fs_hadronic_continuous_loss_rates(num_gamma,gamma,b_field_g,t_dyn_s,mass_gev,quantum_syn,loss_total)
@@ -859,14 +859,14 @@ end subroutine fs_hadronic_dynamical_time
 subroutine fs_hadronic_pp_spectral_source(num_p,proton_kinetic_energy_gev, &
     proton_density_per_gev,num_g,gamma_energy_gev,target_density_cm3,model, &
     pi0_gamma_rate)
-    use hadronic_forward_shell_1d, only: hadronic_forward_pp_spectral_source
+    use hadronic_pp_models_kernel, only: hadronic_pp_pi0_source_spectrum
     implicit none
     integer, intent(in) :: num_p,num_g,model
     real(8), intent(in) :: proton_kinetic_energy_gev(num_p),proton_density_per_gev(num_p)
     real(8), intent(in) :: gamma_energy_gev(num_g),target_density_cm3
     real(8), intent(out) :: pi0_gamma_rate(num_g)
 
-    call hadronic_forward_pp_spectral_source(num_p, proton_kinetic_energy_gev, proton_density_per_gev, num_g, &
+    call hadronic_pp_pi0_source_spectrum(num_p, proton_kinetic_energy_gev, proton_density_per_gev, num_g, &
         gamma_energy_gev, target_density_cm3, model, pi0_gamma_rate)
 end subroutine fs_hadronic_pp_spectral_source
 ! Python/f2py ABI wrapper; the shell implementation lives in hadronic_forward_shell_1d.

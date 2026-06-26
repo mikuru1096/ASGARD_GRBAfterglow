@@ -764,32 +764,22 @@ real(8), intent(out) :: Compton(Num_gam_e)
     end do
 
     do I_Compton=1,Num_gam_e
-       call accumulate_y_nakar_point(I_Compton,Compton(I_Compton))
+       ! Inlined from accumulate_y_nakar_point
+       Compton(I_Compton)=zero
+       I_nu=y_nakar_idx_cache(I_Compton)
+       if (I_nu == 0) cycle
+       if (I_nu <= Num_nu) then
+          Compton(I_Compton)=y_nakar_prefix_cache(I_nu-1)+ &
+                      electron_integrate_powerlaw_segment(V_seed(I_nu-1),y_nakar_vloc_cache(I_Compton), &
+                          P_syn(I_nu-1), &
+                          electron_powerlaw_interp(V_seed(I_nu-1),V_seed(I_nu), &
+                                                   P_syn(I_nu-1),P_syn(I_nu),y_nakar_vloc_cache(I_Compton)))
+       else
+          Compton(I_Compton)=y_nakar_prefix_cache(Num_nu)
+       end if
     end do
 
 contains
-
-subroutine accumulate_y_nakar_point(I_Compton,Compton_val)
-implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: I_Compton
-real(8), intent(out) :: Compton_val
-integer :: I_nu
-real(8) :: V_loc
-
-    Compton_val=zero
-    I_nu=y_nakar_idx_cache(I_Compton)
-    if (I_nu == 0) return
-    if (I_nu <= Num_nu) then
-       V_loc=y_nakar_vloc_cache(I_Compton)
-       Compton_val=y_nakar_prefix_cache(I_nu-1)+ &
-                   electron_integrate_powerlaw_segment(V_seed(I_nu-1),V_loc, &
-                       P_syn(I_nu-1), &
-                       electron_powerlaw_interp(V_seed(I_nu-1),V_seed(I_nu), &
-                                                P_syn(I_nu-1),P_syn(I_nu),V_loc))
-    else
-       Compton_val=y_nakar_prefix_cache(Num_nu)
-    end if
-end subroutine accumulate_y_nakar_point
 end subroutine electron_cooling_y_nakar
 
 ! Fan+2008 Compton Y参数：解析分段η_NK(γ) × η_rad，含快/慢冷却和谱指数分支。

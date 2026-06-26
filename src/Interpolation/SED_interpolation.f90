@@ -411,33 +411,21 @@ subroutine compute_chi_segment_state(I_chi,K2,Ratio,DMu,log_gamma_lo,log_gamma_h
     real(8), intent(in) :: Ratio,DMu,log_gamma_lo,log_gamma_hi
     real(8), intent(out) :: log_doppler_redshift,doppler,F_theta(Num_nu)
     real(8) :: DG,Beta
+    integer :: I_nu_inl
 
     DG = dexp(log_gamma_lo+Ratio*(log_gamma_hi-log_gamma_lo))
     Beta = dsqrt(one-DG**(-2))
     doppler = DG*(one-Beta*DMu)
     log_doppler_redshift = dlog(doppler)+dlog(one+z)
-    call accumulate_chi_cell_source(I_chi,K2,Ratio,F_theta)
-end subroutine compute_chi_segment_state
-
-subroutine accumulate_chi_cell_source(I_chi,K2,Ratio,F_theta)
-    implicit real(8)(A-H,O-Z)
-    integer, intent(in) :: I_chi,K2
-    real(8), intent(in) :: Ratio
-    real(8), intent(out) :: F_theta(Num_nu)
-    real(8) :: source_lo,source_hi,tau_front_lo,tau_front_hi,tau_cell_lo,tau_cell_hi
-    integer :: I_nu
-
+    ! Inlined from accumulate_chi_cell_source
     F_theta = zero
-    do I_nu = 1, Num_nu
-        tau_front_lo = Tau_prefix(I_nu,I_chi-1,K2)
-        tau_front_hi = Tau_prefix(I_nu,I_chi-1,K2+1)
-        tau_cell_lo = Tau_chi(I_nu,I_chi,K2)
-        tau_cell_hi = Tau_chi(I_nu,I_chi,K2+1)
-        source_lo = F_chi(I_nu,I_chi,K2)*Chi_weight(I_chi,K2)*chi_ssa_cell_escape(tau_front_lo,tau_cell_lo)
-        source_hi = F_chi(I_nu,I_chi,K2+1)*Chi_weight(I_chi,K2+1)*chi_ssa_cell_escape(tau_front_hi,tau_cell_hi)
-        F_theta(I_nu) = (one-Ratio)*source_lo + Ratio*source_hi
+    do I_nu_inl = 1, Num_nu
+        F_theta(I_nu_inl) = (one-Ratio) * F_chi(I_nu_inl,I_chi,K2)*Chi_weight(I_chi,K2) &
+            * chi_ssa_cell_escape(Tau_prefix(I_nu_inl,I_chi-1,K2), Tau_chi(I_nu_inl,I_chi,K2)) &
+          + Ratio * F_chi(I_nu_inl,I_chi,K2+1)*Chi_weight(I_chi,K2+1) &
+            * chi_ssa_cell_escape(Tau_prefix(I_nu_inl,I_chi-1,K2+1), Tau_chi(I_nu_inl,I_chi,K2+1))
     end do
-end subroutine accumulate_chi_cell_source
+end subroutine compute_chi_segment_state
 end subroutine sed_interpolation_chi
 
 ! 将轴对称结构化喷流的χ分辨有限厚壳层一次性积分到观测系。

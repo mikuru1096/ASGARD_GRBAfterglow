@@ -89,10 +89,12 @@ subroutine hadronic_hadronic_ic_apply_kernel(num_had,num_ph,photons_on_had_grid_
 
     call apply_hadronic_ic_species(am3_mass_proton_gev,protons_per_gev,delta_e_p,jmax_p,coeff_p_cgs,epsilon_p_ic)
 
-    call sum_charged_pion_density(hadron_sum)
+    ! Inlined from sum_charged_pion_density
+    hadron_sum = pion_plus_per_gev + pion_minus_per_gev
     call apply_hadronic_ic_species(am3_mass_pion_charged_gev,hadron_sum,delta_e_pi,jmax_pi,coeff_pi_cgs,epsilon_pi_ic)
 
-    call sum_muon_helicity_density(hadron_sum)
+    ! Inlined from sum_muon_helicity_density
+    hadron_sum = muon_minus_left_per_gev + muon_minus_right_per_gev + muon_plus_left_per_gev + muon_plus_right_per_gev
     call apply_hadronic_ic_species(am3_mass_muon_gev,hadron_sum,delta_e_mu,jmax_mu,coeff_mu_cgs,epsilon_mu_ic)
 
 contains
@@ -106,18 +108,6 @@ contains
         call hadronic_hadronic_ic_compute_channel(num_ph,photons_on_had_grid_per_gev,num_had,hadron_density_per_gev, &
                                                   delta_e,jmax,dln_energy,coeff_cgs,epsilon_ic)
     end subroutine apply_hadronic_ic_species
-
-    subroutine sum_charged_pion_density(hadron_sum)
-        real(8), intent(out) :: hadron_sum(num_had)
-
-        hadron_sum = pion_plus_per_gev + pion_minus_per_gev
-    end subroutine sum_charged_pion_density
-
-    subroutine sum_muon_helicity_density(hadron_sum)
-        real(8), intent(out) :: hadron_sum(num_had)
-
-        hadron_sum = muon_minus_left_per_gev + muon_minus_right_per_gev + muon_plus_left_per_gev + muon_plus_right_per_gev
-    end subroutine sum_muon_helicity_density
 end subroutine hadronic_hadronic_ic_apply_kernel
 
 ! 为给定粒子种类构建IC映射kernel：计算delta_e（能量偏移）和jmax（最大光子索引）。
