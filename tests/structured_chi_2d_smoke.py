@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import time
-
 from _repo_path import ensure_repo_root_on_path
 
 import numpy as np
@@ -48,128 +46,89 @@ def _structured_kernel_inputs():
     return boundary, r_tobs, radius, source, tau, chi_radius, chi_gamma, chi_weight, seed, obs, tobs, phi_centers
 
 
-def case_structured_chi_batch_matches_direct_sum():
+def case_structured_chi_ring_precomputed_matches_single_ring_chi():
     boundary, r_tobs, radius, source, tau, chi_radius, chi_gamma, chi_weight, seed, obs, tobs, phi_centers = (
         _structured_kernel_inputs()
     )
     num_theta = r_tobs.shape[1]
-    num_phi = phi_centers.size
+    num_phi_half = phi_centers.size
     dtheta = boundary[8] / float(num_theta)
-    dphi = 2.0 * np.pi / float(num_phi)
+    ring_boundary = np.array(boundary, copy=True)
+    ring_boundary[8] = dtheta
 
-    start = time.perf_counter()
-    batch = Interpolation.sed_interpolation_chi_structured_axisym(
+    precomputed = Interpolation.sed_interpolation_chi_structured_axisym_ring_precomputed(
         boundary,
-        r_tobs,
-        radius,
-        source,
-        tau,
-        chi_radius,
-        chi_gamma,
-        chi_weight,
+        r_tobs[:, 0],
+        radius[:, 0],
+        source[:, :, :, 0],
+        tau[:, :, :, 0],
+        chi_radius[:, :, 0],
+        chi_gamma[:, :, 0],
+        chi_weight[:, :, 0],
         seed,
         obs,
         tobs,
-        num_phi,
+        0.0,
+        dtheta,
+        2 * num_phi_half,
+    )
+    reference = Interpolation.sed_interpolation_chi(
+        ring_boundary,
+        r_tobs[:, 0],
+        radius[:, 0],
+        source[:, :, :, 0],
+        tau[:, :, :, 0],
+        chi_radius[:, :, 0],
+        chi_gamma[:, :, 0],
+        chi_weight[:, :, 0],
+        seed,
+        obs,
+        tobs,
+        1,
+        num_phi_half,
         1,
     )
-    batch_seconds = time.perf_counter() - start
-
-    direct = np.zeros_like(batch)
-    start = time.perf_counter()
-    for i_theta in range(num_theta):
-        theta_lo = dtheta * i_theta
-        theta_hi = dtheta * (i_theta + 1)
-        theta_center = dtheta * (i_theta + 0.5)
-        domega = (np.cos(theta_lo) - np.cos(theta_hi)) * dphi
-        for phi_center in phi_centers:
-            mu = np.cos(boundary[9]) * np.cos(theta_center) + np.sin(boundary[9]) * np.sin(theta_center) * np.cos(phi_center)
-            patch_boundary = np.array(boundary, copy=True)
-            patch_boundary[9] = np.arccos(mu)
-            direct += Interpolation.sed_interpolation_chi_surface_element(
-                patch_boundary,
-                r_tobs[:, i_theta],
-                radius[:, i_theta],
-                source[:, :, :, i_theta],
-                tau[:, :, :, i_theta],
-                chi_radius[:, :, i_theta],
-                chi_gamma[:, :, i_theta],
-                chi_weight[:, :, i_theta],
-                seed,
-                obs,
-                tobs,
-                domega,
-            )
-    direct_seconds = time.perf_counter() - start
-
-    assert np.any(batch > 0.0)
-    np.testing.assert_allclose(batch, direct, rtol=1.0e-12, atol=1.0e-12)
-    return {
-        "batch_calls": 1,
-        "direct_calls": int(num_theta * num_phi),
-        "batch_seconds": batch_seconds,
-        "direct_seconds": direct_seconds,
-    }
+    assert np.any(precomputed > 0.0)
+    np.testing.assert_allclose(precomputed, reference, rtol=1.0e-12, atol=1.0e-12)
+    return {"max_flux": float(np.max(precomputed)), "num_phi_full": int(2 * num_phi_half)}
 
 
-def case_structured_chi_electron_cached_ring_sum():
+def case_chi_electron_cached_top_hat_path():
     boundary, r_tobs, radius, _source, _tau, chi_radius, chi_gamma, chi_weight, seed, obs, tobs, phi_centers = (
         _structured_kernel_inputs()
     )
     boundary = np.array(boundary, copy=True)
     boundary[12] = 1.0e27
-    num_theta = r_tobs.shape[1]
-    num_phi = phi_centers.size
     num_chi = chi_radius.shape[0]
     num_r = radius.shape[0]
     gam_e = np.geomspace(2.0, 2.0e4, 9)
-    gam_shape = (gam_e[:, None, None, None] / gam_e[0]) ** -2.2
-    chi_shape = 1.0 + 0.1 * np.arange(num_chi, dtype=float)[None, :, None, None]
-    radius_shape = (radius[None, None, :, :] / radius[0, 0]) ** -0.5
-    theta_shape = 1.0 + 0.03 * np.arange(num_theta, dtype=float)[None, None, None, :]
-    dne_chi = 1.0e44 * gam_shape * chi_shape * radius_shape * theta_shape
-    b_chi = 0.08 * (radius[None, :, :] / radius[0, 0]) ** -0.6
-    b_chi = b_chi * (1.0 + 0.04 * np.arange(num_chi, dtype=float)[:, None, None])
-    dtheta = boundary[8] / float(num_theta)
+    gam_shape = (gam_e[:, None, None] / gam_e[0]) ** -2.2
+    chi_shape = 1.0 + 0.1 * np.arange(num_chi, dtype=float)[None, :, None]
+    radius_shape = (radius[None, None, :, 0] / radius[0, 0]) ** -0.5
+    dne_chi = 1.0e44 * gam_shape * chi_shape * radius_shape
+    b_chi = 0.08 * (radius[None, :, 0] / radius[0, 0]) ** -0.6
+    b_chi = b_chi * (1.0 + 0.04 * np.arange(num_chi, dtype=float)[:, None])
 
-    batch = Interpolation.sed_interpolation_chi_structured_axisym_electron_cached(
+    flux = Interpolation.sed_interpolation_chi_electron_cached(
         boundary,
-        r_tobs,
-        radius,
+        r_tobs[:, 0],
+        radius[:, 0],
         dne_chi,
         b_chi,
-        chi_radius,
-        chi_gamma,
-        chi_weight,
+        chi_radius[:, :, 0],
+        chi_gamma[:, :, 0],
+        chi_weight[:, :, 0],
         gam_e,
         seed,
         obs,
         tobs,
-        num_phi,
+        1,
+        phi_centers.size,
         1,
     )
-    ring_sum = np.zeros_like(batch)
-    for i_theta in range(num_theta):
-        ring_sum += Interpolation.sed_interpolation_chi_structured_axisym_electron_cached_ring(
-            boundary,
-            r_tobs[:, i_theta],
-            radius[:, i_theta],
-            dne_chi[:, :, :, i_theta],
-            b_chi[:, :, i_theta],
-            chi_radius[:, :, i_theta],
-            chi_gamma[:, :, i_theta],
-            chi_weight[:, :, i_theta],
-            gam_e,
-            seed,
-            obs,
-            tobs,
-            dtheta * i_theta,
-            dtheta * (i_theta + 1),
-            num_phi,
-        )
-    assert np.any(batch > 0.0)
-    np.testing.assert_allclose(ring_sum, batch, rtol=1.0e-12, atol=1.0e-12)
-    return {"max_flux": float(np.max(batch)), "num_r": int(num_r)}
+    assert np.any(flux > 0.0)
+    assert np.all(np.isfinite(flux))
+    return {"max_flux": float(np.max(flux)), "num_r": int(num_r)}
 
 
 def case_public_structured_fullhide_2d_chi_path():
@@ -252,17 +211,15 @@ def _public_structured_chi_model(
 
 def main() -> None:
     results = {
-        "kernel_parity": case_structured_chi_batch_matches_direct_sum(),
-        "electron_ring_parity": case_structured_chi_electron_cached_ring_sum(),
+        "ring_precomputed_parity": case_structured_chi_ring_precomputed_matches_single_ring_chi(),
+        "electron_cached_top_hat": case_chi_electron_cached_top_hat_path(),
         "public_path": case_public_structured_fullhide_2d_chi_path(),
         "parallel_path": case_public_structured_parallel_matches_serial(),
     }
     print(
         "structured-chi-2d-smoke-ok "
-        f"batch_calls={results['kernel_parity']['batch_calls']} "
-        f"direct_calls={results['kernel_parity']['direct_calls']} "
-        f"batch_seconds={results['kernel_parity']['batch_seconds']:.6g} "
-        f"direct_seconds={results['kernel_parity']['direct_seconds']:.6g} "
+        f"ring_max_flux={results['ring_precomputed_parity']['max_flux']:.6g} "
+        f"electron_cached_max_flux={results['electron_cached_top_hat']['max_flux']:.6g} "
         f"patch_count={results['public_path']['patch_count']}"
     )
 

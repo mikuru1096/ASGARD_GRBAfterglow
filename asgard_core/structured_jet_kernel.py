@@ -257,88 +257,14 @@ def _solve_project_structured_chi_ring_flux(
     return _unsort_flux(flux_sorted, order), first_state
 
 
-def _build_adaptive_ring_windows(
-    e_iso: np.ndarray,
-    gamma0: np.ndarray,
-    active: np.ndarray,
-    theta_edges: np.ndarray,
-    adaptive_rtol: float,
-    adaptive_max_depth: int,
-) -> list[tuple[int, float, float, float, float]]:
-    """Build sparse theta-ring windows for structured chi_2d projection.
+def _solid_angle_mid(theta_lo: float, theta_hi: float) -> float:
+    """Theta such that cos(theta) bisects [cos(hi), cos(lo)]."""
+    return float(np.arccos(0.5 * (np.cos(theta_lo) + np.cos(theta_hi))))
 
-    Returns ``(i_theta, theta_lo, theta_hi, e_iso_window, gamma0_window)``
-    tuples.  Each window spans from its own left edge to the **next** selected
-    ring's left edge, so the union of all windows covers the full jet without
-    gaps.  ``e_iso_window`` and ``gamma0_window`` are re-evaluated at the
-    window midpoint, which may differ from the original uniform-grid centre
-    for widened windows.
 
-    The selection algorithm is unchanged: base down-sampling with curvature-
-    based safety refinement.
-    """
-    active_indices = [int(i) for i, flag in enumerate(active) if int(flag) != 0]
-    if len(active_indices) <= 8:
-        return [
-            (i, float(theta_edges[i]), float(theta_edges[i + 1]),
-             float(e_iso[i]), float(gamma0[i]))
-            for i in active_indices
-        ]
-
-    # Map rtol to down-sampling step
-    if adaptive_rtol <= 0.005:
-        step = 2
-    elif adaptive_rtol <= 0.01:
-        step = 4
-    elif adaptive_rtol <= 0.02:
-        step = 6
-    elif adaptive_rtol <= 0.05:
-        step = 8
-    else:
-        step = 12
-    step = min(step, max(len(active_indices) // 4, 2))
-    base_indices = active_indices[::step]
-    if active_indices[-1] not in base_indices:
-        base_indices.append(active_indices[-1])
-
-    # Curvature-based safety refinement
-    log_e = np.log(np.maximum(np.asarray(e_iso, dtype=float), 1e-100))
-    refined = list(base_indices)
-    for _ in range(adaptive_max_depth):
-        added = []
-        for i in range(len(refined) - 1):
-            il, ir = refined[i], refined[i + 1]
-            if ir - il <= 1:
-                continue
-            if il > 0 and ir < len(log_e) - 1:
-                im = (il + ir) // 2
-                d2 = abs(log_e[ir] - 2.0 * log_e[im] + log_e[il])
-                if d2 > 0.5:
-                    if im not in refined and im not in added:
-                        added.append(im)
-        if not added:
-            break
-        refined.extend(added)
-        refined.sort()
-
-    # Build windows: each ring covers [its own left edge, next ring's left edge)
-    theta_all = np.asarray(theta_edges, dtype=float)
-    t_centers = 0.5 * (theta_all[:-1] + theta_all[1:])
-    n_full = len(e_iso)
-    windows = []
-    for idx_pos in range(len(refined)):
-        i_theta = refined[idx_pos]
-        theta_lo = float(theta_all[i_theta])
-        if idx_pos + 1 < len(refined):
-            theta_hi = float(theta_all[refined[idx_pos + 1]])
-        else:
-            theta_hi = float(theta_all[active_indices[-1] + 1])
-        theta_mid = 0.5 * (theta_lo + theta_hi)
-        # Find the closest uniform-grid cell to the window midpoint
-        j = max(0, min(n_full - 1, int(np.searchsorted(t_centers, theta_mid))))
-        windows.append((i_theta, theta_lo, theta_hi, float(e_iso[j]), float(gamma0[j])))
-
-    return windows
+def _eval_jet_at_theta(model, theta: float) -> tuple[float, float]:
+    """Evaluate E_iso and Gamma0 at theta using the jet model."""
+    return float(model.jet.energy_iso(0.0, theta)), float(model.jet.gamma0(0.0, theta))
 
 
 def _solve_project_structured_chi_ring_flux_adaptive(
@@ -355,87 +281,164 @@ def _solve_project_structured_chi_ring_flux_adaptive(
     adaptive_rtol: float = 0.02,
     adaptive_max_depth: int = 4,
 ):
-    """Adaptive-theta variant of _solve_project_structured_chi_ring_flux.
+    """Adaptive theta integration with solid-angle spacing and gradient-based refinement.
 
-    Builds a sparse set of theta *windows* via _build_adaptive_ring_windows.
-    Each window spans from its own left edge to the next selected ring's left
-    edge, covering the full jet without gaps.  Transport is solved at the
-    window midpoint, so E_iso / Gamma0 may differ from the original uniform-
-    grid values for widened windows.
+    1. Build a base grid with uniform solid-angle spacing (n_base = n_full // 6).
+    2. Solve all base rings in parallel → {F_i} at solid-angle midpoints.
+    3. For each adjacent pair (i, i+1): if the relative flux gradient
+       |F_i - F_{i+1}| / |F_i + F_{i+1}| exceeds *adaptive_rtol*, add a
+       refinement ring at the solid-angle midpoint between them.
+    4. Recurse on refinement rings up to *adaptive_max_depth* levels.
+
+    Midpoints use ``arccos(0.5*(cos(lo)+cos(hi)))`` for equal solid angle.
+    E_iso / Gamma0 are re-evaluated at each actual midpoint via the jet model.
     """
     outer_threads, inner_threads = _structured_threads(model)
     active_indices = [int(i) for i, flag in enumerate(active) if int(flag) != 0]
     if not active_indices:
-        raise ValueError("No active jet elements were found for the requested structured jet.")
+        raise ValueError("No active jet elements found.")
 
-    windows = _build_adaptive_ring_windows(
-        e_iso, gamma0, active, theta_edges, adaptive_rtol, adaptive_max_depth,
-    )
-
+    theta_max = float(theta_edges[active_indices[-1] + 1])
     order = np.argsort(frequencies)
     sorted_frequencies = frequencies[order]
     flux_sorted = np.zeros((sorted_frequencies.size, times.size), dtype=float)
+    theta_obs = float(model.observer.theta_obs)
+    num_phi = int(model.setups.structured_num_phi)
 
-    # First window
-    i_first, tlo_first, thi_first, e_first, g_first = windows[0]
-    first_config, first_setup = _structured_chi_ring_config_setup(
-        model, build_patch_config,
-        thi_first - tlo_first,
-        theta_centers, e_iso, gamma0, solve_times, sorted_frequencies,
-        i_first, int(inner_threads),
-    )
-    # Override E_iso / Gamma0 to window midpoint values
-    first_config.e_iso = e_first
-    first_config.eta_0 = g_first
-    first_state = solve_state_from_setup(
-        first_config, first_setup,
-        requested_frequencies_hz=sorted_frequencies,
-        assemble_observer=False,
-    )
-    flux_sorted += _project_structured_chi_ring_state(
-        first_state, tlo_first, thi_first,
-        float(model.observer.theta_obs),
-        int(model.setups.structured_num_phi),
-        times, sorted_frequencies,
-    )
+    # ---- Build base grid (uniform solid-angle spacing) ----
+    n_base = max(4, len(active_indices) // 6)
+    cos_edges = np.linspace(1.0, np.cos(theta_max), n_base + 1)
+    base_t_edges = np.arccos(cos_edges)
 
-    # Remaining windows
-    payloads = []
-    for i_theta, tlo, thi, e_win, g_win in windows[1:]:
-        query_config, setup = _structured_chi_ring_config_setup(
-            model, build_patch_config,
-            thi - tlo,
-            theta_centers, e_iso, gamma0, solve_times, sorted_frequencies,
-            i_theta, int(inner_threads),
-        )
-        query_config.e_iso = e_win
-        query_config.eta_0 = g_win
-        payloads.append((
-            int(i_theta), query_config, setup,
-            sorted_frequencies, times,
-            tlo, thi,
-            float(model.observer.theta_obs), int(model.setups.structured_num_phi),
-        ))
+    # Each cell: (theta_lo, theta_hi, epsilon) where epsilon tracks the ring's
+    # angular width relative to its neighbour for gradient comparison.
+    cells = [(float(base_t_edges[i]), float(base_t_edges[i + 1]), 0)
+             for i in range(n_base)]
+    all_fluxes = {}   # (tlo, thi) -> flux_array
+    first_state = None
 
-    if payloads:
-        if int(outer_threads) == 1:
-            for _i_theta, flux_ring in map(_solve_project_structured_chi_ring_payload, payloads):
-                flux_sorted += flux_ring
+    next_cells = []
+    for level in range(adaptive_max_depth + 1):
+        if not cells and level > 0:
+            break
+
+        # ---- Solve all cells at this level ----
+        payloads = []
+        cell_keys = []
+        for tlo, thi, depth in cells:
+            if (tlo, thi) in all_fluxes:
+                continue
+            tmid = _solid_angle_mid(tlo, thi)
+            e_val, g_val = _eval_jet_at_theta(model, tmid)
+            if g_val < 1.4:
+                continue
+            config = build_patch_config(
+                model, theta_v=0.0, opening_angle_jet=thi - tlo,
+                e_iso=e_val, gamma0=g_val, theta_center=tmid,
+            )
+            qc = make_query_cfg(config, solve_times)
+            qc.num_r = max(int(qc.num_r), int(solve_times.size))
+            qc.num_threads = int(inner_threads)
+            setup = make_query_setup(qc, solve_times, sorted_frequencies)
+            payloads.append((tlo, thi, qc, setup))
+            cell_keys.append((tlo, thi))
+
+        if not payloads:
+            break
+
+        # First payload: serial (provides first_state)
+        tlo0, thi0, qc0, setup0 = payloads[0]
+        if first_state is None:
+            first_state = solve_state_from_setup(
+                qc0, setup0, requested_frequencies_hz=sorted_frequencies, assemble_observer=False,
+            )
         else:
-            if "fork" not in mp.get_all_start_methods():
-                raise NotImplementedError(
-                    "parallel structured chi_eats_2d ring solves require a POSIX fork "
-                    "multiprocessing context."
-                )
-            context = mp.get_context("fork")
-            worker_count = min(int(outer_threads), len(payloads))
-            with ProcessPoolExecutor(max_workers=worker_count, mp_context=context) as executor:
-                for _i_theta, flux_ring in executor.map(
-                    _solve_project_structured_chi_ring_payload, payloads
-                ):
-                    flux_sorted += flux_ring
+            state0 = solve_state_from_setup(
+                qc0, setup0, requested_frequencies_hz=sorted_frequencies, assemble_observer=False,
+            )
+        all_fluxes[(tlo0, thi0)] = _project_structured_chi_ring_state(
+            first_state if first_state is not None else state0,
+            tlo0, thi0, theta_obs, num_phi, times, sorted_frequencies,
+        )
+
+        # Remaining: serial or parallel
+        remaining = payloads[1:]
+        if remaining:
+            rkeys = cell_keys[1:]
+            if int(outer_threads) == 1 or len(remaining) <= 1:
+                for (tlo, thi, qc, setup), key in zip(remaining, rkeys):
+                    state = solve_state_from_setup(qc, setup, requested_frequencies_hz=sorted_frequencies,
+                                                   assemble_observer=False)
+                    all_fluxes[key] = _project_structured_chi_ring_state(
+                        state, tlo, thi, theta_obs, num_phi, times, sorted_frequencies,
+                    )
+            else:
+                if "fork" not in mp.get_all_start_methods():
+                    raise NotImplementedError("Requires POSIX fork.")
+                ctx = mp.get_context("fork")
+                wc = min(int(outer_threads), len(remaining))
+                proj_payloads = [(tlo, thi, qc, setup, sorted_frequencies, times, theta_obs, num_phi)
+                                 for tlo, thi, qc, setup in remaining]
+                with ProcessPoolExecutor(max_workers=wc, mp_context=ctx) as ex:
+                    futures = [ex.submit(_adaptive_ring_solve_project, *p) for p in proj_payloads]
+                    for f in futures:
+                        tlo, thi, flux = f.result()
+                        all_fluxes[(tlo, thi)] = flux
+
+        # ---- Gradient-based refinement ----
+        if level >= adaptive_max_depth:
+            break
+
+        # Track which cells get subdivided (their flux is replaced by children)
+        subdivided = set()
+        sorted_cells = sorted(cells, key=lambda x: x[0])
+        for idx in range(len(sorted_cells) - 1):
+            tlo_a, thi_a, d_a = sorted_cells[idx]
+            tlo_b, thi_b, d_b = sorted_cells[idx + 1]
+            if abs(thi_a - tlo_b) > 1e-12:
+                continue
+            flux_a = all_fluxes.get((tlo_a, thi_a))
+            flux_b = all_fluxes.get((tlo_b, thi_b))
+            if flux_a is None or flux_b is None:
+                continue
+            na = float(np.sum(np.abs(flux_a)))
+            nb = float(np.sum(np.abs(flux_b)))
+            total = na + nb
+            if total < 1e-100:
+                continue
+            grad = abs(na - nb) / total
+            if grad > adaptive_rtol:
+                # Split cell A at its own solid-angle midpoint
+                tmid_a = _solid_angle_mid(tlo_a, thi_a)
+                next_cells.append((tlo_a, tmid_a, d_a + 1))
+                next_cells.append((tmid_a, thi_a, d_a + 1))
+                subdivided.add((tlo_a, thi_a))
+                # Split cell B similarly
+                tmid_b = _solid_angle_mid(tlo_b, thi_b)
+                next_cells.append((tlo_b, tmid_b, d_b + 1))
+                next_cells.append((tmid_b, thi_b, d_b + 1))
+                subdivided.add((tlo_b, thi_b))
+
+        cells = next_cells
+        # Remove subdivided cells' fluxes from all_fluxes (children will replace them)
+        for key in subdivided:
+            all_fluxes.pop(key, None)
+
+    if first_state is None:
+        raise ValueError("No active jet elements found.")
+
+    # ---- Sum all leaf fluxes ----
+    for _, flux in all_fluxes.items():
+        flux_sorted += flux
 
     return _unsort_flux(flux_sorted, order), first_state
+
+
+def _adaptive_ring_solve_project(tlo, thi, qc, setup, freq, times, theta_obs, num_phi):
+    """Picklable helper for ProcessPoolExecutor."""
+    state = solve_state_from_setup(qc, setup, requested_frequencies_hz=freq, assemble_observer=False)
+    flux = _project_structured_chi_ring_state(state, tlo, thi, theta_obs, num_phi, times, freq)
+    return tlo, thi, flux
 
 
 def _structured_chi_ring_config_setup(
@@ -561,6 +564,104 @@ def _trim_structured_ring_projection_seed(
         hi = min(seed.size - 1, int(np.searchsorted(seed, source_max, side="left")))
         selected[lo : hi + 1] = True
     return np.asfortranarray(seed[selected]), selected
+
+
+def _details_from_kernel_outputs(model, sampled, outputs):
+    from asgard_core.api_model import CharTrack, TrackBundle
+
+    theta_centers, theta_edges, phi_centers, e_iso, gamma0, active, axisymmetric = sampled
+    track_tobs, track_gamma, track_radius, track_mass = (np.asarray(value, dtype=float) for value in outputs[5:9])
+    track_bfield = np.asarray(outputs[9], dtype=float)
+    return TrackBundle(
+        fwd=CharTrack(
+            t_obs=track_tobs,
+            radius=track_radius,
+            Gamma=track_gamma,
+            N_p=track_mass / constants.para_m_p,
+            Doppler=np.asarray(compute_doppler(track_gamma, model.observer.z), dtype=float),
+            B_comv=track_bfield,
+        ),
+        rev=None,
+        patches=_patch_metadata(theta_centers, theta_edges, phi_centers, e_iso, gamma0, active, axisymmetric, model),
+    )
+
+
+def _assert_no_unsupported_structured_features(model, backend: str) -> None:
+    if not model.jet.spreading:
+        return
+    raise NotImplementedError(f"Jet spreading is not implemented in the structured {backend} backend.")
+
+
+def _assert_no_fancy_physics(model, backend: str) -> None:
+    fancy = []
+    if bool(model.setups.include_cross_zone_ic):
+        fancy.append("cross-zone IC")
+    if bool(model.fwd_rad.pair_production) or int(model.setups.pair_cascade_iterations) > 1:
+        fancy.append("pair-cascade")
+    if fancy:
+        raise NotImplementedError(f"structured_backend='{backend}' does not support: {', '.join(fancy)}.")
+
+
+def _assert_supported_structured_fortran(model) -> None:
+    if str(model.setups.electron_solver).lower() not in ELECTRON_1D_TRANSPORT_IDS:
+        raise NotImplementedError("structured_backend='fortran_1d' requires electron_solver='fullhide_1d' or 'dg_1d'.")
+    if bool(model.setups.rvs_shock) and model.rvs_rad is None:
+        raise NotImplementedError("structured_backend='fortran_1d' requires rvs_rad when reverse shock is enabled.")
+    if model.rvs_rad is not None and (bool(model.rvs_rad.ssc) or bool(model.setups.rvs_ssc)):
+        raise NotImplementedError("structured_backend='fortran_1d' migrates reverse synchrotron only, not RS SSC.")
+    if bool(model.setups.rvs_shock) and float(model.fwd_rad.reverse_epsilon_p) > 0.0:
+        raise NotImplementedError("structured_backend='fortran_1d' does not migrate reverse-shock hadronic branches.")
+    if bool(model.fwd_rad.bethe_heitler or model.fwd_rad.pp or model.fwd_rad.hadronic_inverse_compton):
+        raise NotImplementedError("structured_backend='fortran_1d' does not migrate BH, pp, or hadronic IC branches.")
+    _assert_supported_hadronic_branch(model)
+    _assert_no_fancy_physics(model, "fortran_1d")
+    _assert_no_unsupported_structured_features(model, "Fortran")
+
+
+def _assert_supported_hadronic_branch(model) -> None:
+    solver = str(model.setups.hadronic_solver).lower()
+    if bool(model.fwd_rad.pg or model.fwd_rad.neutrino):
+        if solver != "am3_1d":
+            raise NotImplementedError("structured p-gamma/neutrino output requires hadronic_solver='am3_1d'.")
+        scheme = str(model.setups.pgamma_scheme if model.setups.pgamma_scheme != "disabled" else model.fwd_rad.pgamma_scheme)
+        if scheme.lower() not in HUMMER_SCHEMES:
+            raise NotImplementedError("structured p-gamma/neutrino output supports only the Hummer2010 response kernel.")
+    elif solver not in {"legacy_1d", "am3_1d"}:
+        raise NotImplementedError("structured_backend='fortran_1d' supports hadronic_solver='legacy_1d' or 'am3_1d'.")
+
+
+def _uses_structured_chi_2d(model) -> bool:
+    return (
+        str(model.setups.geometry_kernel).lower() == "chi_eats_2d"
+        or str(model.setups.electron_solver).lower().endswith("_2d")
+    )
+
+
+def _assert_supported_structured_chi_2d(model, axisymmetric: bool) -> None:
+    if not axisymmetric:
+        raise NotImplementedError("structured chi_eats_2d ring projection currently requires an axisymmetric jet profile.")
+    if str(model.setups.geometry_kernel).lower() != "chi_eats_2d":
+        raise NotImplementedError("structured 2d electron transport requires geometry_projection='chi_eats_2d'.")
+    if str(model.setups.electron_solver).lower() != "fullhide_2d":
+        raise NotImplementedError("structured chi_eats_2d ring projection currently requires electron_solver='fullhide_2d'.")
+    if float(model.observer.theta_obs) != 0.0 and int(model.setups.structured_num_phi) < 2:
+        raise ValueError("off-axis structured chi_eats_2d projection requires structured_num_phi >= 2.")
+    if bool(model.fwd_rad.ssc):
+        raise NotImplementedError("structured chi_eats_2d ring projection currently covers FS synchrotron+SSA, not SSC emission.")
+    if bool(model.setups.rvs_shock):
+        raise NotImplementedError("structured chi_eats_2d ring projection currently does not include reverse-shock emission.")
+    if bool(model.setups.hadronic_enabled and model.fwd_rad.epsilon_p > 0.0):
+        raise NotImplementedError("structured chi_eats_2d ring projection currently does not include hadronic emission.")
+    _assert_no_fancy_physics(model, "chi_eats_2d")
+    _assert_no_unsupported_structured_features(model, "chi_eats_2d")
+
+
+def _sample_structured_grid(
+    model,
+    min_gamma0: float = STRUCTURED_FORTRAN_MIN_GAMMA0,
+    reject_transrelativistic: bool = True,
+    observer_time_s: np.ndarray | None = None,
+):
     axisymmetric = is_axisymmetric_jet(model.jet)
     grid = build_patch_grid(model, observer_time_s)
     theta_edges = np.asarray(grid.theta_edges, dtype=float)

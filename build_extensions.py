@@ -568,7 +568,7 @@ def main() -> None:
             omp_flags,
             OPENMP_LIBS,
             True,
-            ("fs_electron_fullhide_1d", "fs_electron_fullhide_1d_coupled", "fs_electron_ic_cooling_loss_shell"),
+            ("fs_electron_fullhide_1d", "fs_electron_fullhide_1d_coupled"),
             ("electron_forward_fullhide",),
         ),
         ModuleSpec("electron_forward_fullhide_1d_hybrid", ele, _with_main(ELECTRON_HISTORY_SOURCES_HZ, "electron_forward_fullhide_1d_hybrid.f90"), omp_flags, OPENMP_LIBS, True, ("fs_electron_fullhide_1d_hz",)),

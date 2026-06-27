@@ -67,6 +67,7 @@
 | `electron_photon_coupling` | `separated`, `joint` | `separated` 是默认后处理语义；`joint` 做 shell-level 含时二级反馈闭合。 | `joint` 约束更强，需要 `ssc_cooling_mode="numeric_ic_kn"`、formal hadronic 和相容开关。 |
 | `ssc_cooling_mode` | `none`, `numeric_ic_kn`, `nakar_y_thomson` | 控制电子冷却方程中的 IC/SSC 项。 | `numeric_ic_kn` 是含 KN/Jones 核的数值 IC 损失积分；`nakar_y_thomson` 是 Nakar \(Y\) 参数 Thomson 近似；`include_ssc=True` 只控制 SSC 光子输出。 |
 | `patch_sampling` | `uniform`, `dominant_region_ioka_v1`, `dominant_region_ioka_time_v1` | 控制结构化喷流角向 patch 的采样策略。 | dominant-region 当前只支持 `structured_backend="python_patch"`。 |
+| `structured_adaptive_rtol` / `structured_adaptive_max_depth` | 非负数 / 非负整数 | 控制 axisymmetric structured `chi_eats_2d` theta-ring 自适应窗口。 | 只重排 observer projection ring 采样；不改变动力学、电子输运、强子源项或 seed photon 场。 |
 | `fullhide2d_transport_model` | `legacy`, `pwn_cr_v1` | 选择 2D transport 研究路径。 | 普通 afterglow 使用 `legacy`。 |
 | `projection_adaptive_rtol` / `projection_adaptive_max_depth` | 正数 / 非负整数 | 控制 `sed_adaptive_theta` 的角向积分误差阈值和最大递归深度。 | 只控制 observer projection quadrature，不改变动力学、电子输运或强子源项。 |
 | `pair_cascade_iterations` | 正整数 | `1` 为低层诊断路径；`>1` 为 shell-sequence 含时 pair/synch cascade。 | IC-mediated cascade 边界仍按 TODO 记录，不要过度解释为完整 EM cascade。 |

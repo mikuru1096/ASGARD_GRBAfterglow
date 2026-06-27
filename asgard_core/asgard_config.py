@@ -138,7 +138,7 @@ class _RuntimeConfig:
     structured_inner_threads: int | None = None
     projection_adaptive_rtol: float = 2.0e-2
     projection_adaptive_max_depth: int = 4
-    structured_adaptive_rtol: float = 0.0  # >0 enables adaptive theta grid for chi_2d
+    structured_adaptive_rtol: float = 0.01  # flux-based adaptive theta/phi for chi_2d
     structured_adaptive_max_depth: int = 4
     fullhide2d_transport_model: str = "legacy"
     fullhide2d_stochastic_accel_norm: float = 0.0

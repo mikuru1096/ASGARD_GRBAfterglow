@@ -24,7 +24,7 @@ Model.flux_density_grid / flux_density / spectrum / flux
   -> solve_dynamics -> solve_electron / joint electron-photon-hadronic stage
   -> solve_reverse_shock_emission
   -> observer assembly -> Radiation.annihilation
-  -> project_flux_grid -> Interpolation.sed_interpolation[_chi] -> API result
+  -> project_flux_grid -> Interpolation.sed_interpolation[_chi] / structured chi ring projection -> API result
 ```
 
 `Fitter` 是当前公开拟合入口；低层 `api_observe.run_fit(config)` 仅服务旧 `RuntimeConfig` 测试和内部工具。二者最终进入同一 `RuntimeConfig -> SimulationSetup -> solve_state_from_setup -> project_flux_grid` 主链。
@@ -66,7 +66,7 @@ Fitter.loglike -> compile_problem -> eval_loglike -> solve_state_from_setup
 - `asgard_postprocess.py`：observer projection、band aggregation、fit postprocessing 和观测数据 χ² helpers。
 - `api_fit.py`：public `Fitter`、fit problem compilation 和 likelihood path。
 - `asgard_types.py`：runtime dataclass contracts。
-- `structured_jet_kernel.py`：结构化喷流 Fortran backend 的薄中间层，负责采样结构化参数、选择轴对称/非轴对称分支、调用 `structured_jet_1d` 并组装 API 结果。
+- `structured_jet_kernel.py`：结构化喷流 Fortran backend 的薄中间层，负责采样结构化参数、选择轴对称/非轴对称分支、调用 `structured_jet_1d` 并组装 API 结果。`fullhide_2d + chi_eats_2d` 的 axisymmetric structured 路径逐 theta ring 求解并预计算 chi-local synchrotron/SSA spectra，再调用 `sed_interpolation_chi_structured_axisym_ring_precomputed` 做观测者投影；外层并行使用 POSIX `fork` 进程。
 - `prompt/internal_shock.py`、`prompt/radiation.py`、`prompt/eats.py`：prompt internal-shock snapshot 的 Python orchestration。它复用现有 Fortran jump/electron/radiation/interpolation 核，不是 afterglow `Model` 主链的一部分。
 
 强子 Python 模块只做编排、包装和轻量 helper：
@@ -100,8 +100,8 @@ Fitter.loglike -> compile_problem -> eval_loglike -> solve_state_from_setup
 - `src/Radiation/radiation_common.f90`：Simpson weights、power-law interpolation、pair cross-section、synchrotron seed core、transfer factor。
 - `src/Radiation/synchrotron_polarization_kernel.f90`：频率相关同步辐射偏振 emissivity。
 - `src/Radiation/quantum_synchrotron_kernel.f90`：quantum synchrotron helper。
-- `src/Interpolation/SED_interpolation.f90`：observer-frame EATS/Doppler interpolation。
-- `src/Interpolation/SED_interpolation_structured.f90`：structured jet interpolation。
+- `src/Interpolation/SED_interpolation.f90`：observer-frame EATS/Doppler interpolation，包含 shell-level、adaptive theta、top-hat chi、direct-electron chi 和 structured ring-precomputed chi 投影入口。
+- `src/Interpolation/SED_interpolation_structured.f90`：`structured_jet_1d` 内部使用的 shell-level structured jet interpolation；不再从 `src.Interpolation` 暴露旧 Python 绑定。
 - `src/Structured/structured_jet_1d.f90`：结构化喷流 Fortran 聚合入口，调度 theta 或 theta-phi 网格并复用现有动力学、电子、辐射、强子和 SED 插值核。
 
 ### 强子

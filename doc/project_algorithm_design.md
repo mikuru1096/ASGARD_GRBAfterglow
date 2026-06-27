@@ -1142,6 +1142,8 @@ S_{\nu'}(R_i,q_{k_\chi}).
 
 非 chi 分量仍遵守 shell-level projection。SSC、强子、pair cascade 和 cross-zone IC 不因为 `chi_eats_2d` 自动获得 \(q\)-local 反馈。
 
+axisymmetric structured `chi_eats_2d` 将上述求和按 theta ring 拆开：每个 active ring 独立求解 2D electron state，Python 侧只准备该 ring 的 `F_ring = l_syn_spec_chi(1+z)/(4\pi d_L^2)` 和 `Tau_ring = tau_syn_chi`，观测者投影由 `sed_interpolation_chi_structured_axisym_ring_precomputed` 累加 `theta_lo/theta_hi` 与 `structured_num_phi`。`structured_adaptive_rtol > 0` 只改变 theta-ring window 的投影采样；它不改变动力学、电子输运、强子输运或 photon-field closure。
+
 ## 12. 缓存、状态复用和性能边界
 
 `Model` 查询可以复用已经构建的 `SolveState`。复用的充分条件是底层物理状态不变：

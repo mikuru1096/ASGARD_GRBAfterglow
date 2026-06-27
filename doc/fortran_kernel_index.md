@@ -30,8 +30,8 @@
 | `electron_radiation` | `src/Electron` | `ELECTRON_RADIATION_SOURCES` | `get_syn_*; get_nu_a_*` | 电子同步/SSA/seed 低层核；通常经其他 entry 调用。 |
 | `radiation_ssc_spectrum` | `src/Radiation` | `radiation_common + radiation_ssc_spectrum` | `ssc_spec; ssc_spec_nonuniform` | SSC spectrum 和 KN/Jones 积分。 |
 | `radiation_gamma_gamma_absorption` | `src/Radiation` | `radiation_common + radiation_gamma_gamma_absorption` | `annihilation` | 观测侧 gamma-gamma absorption。 |
-| `SED_interpolation` | `src/Interpolation` | `interpolation_common + SED_interpolation` | `sed_interpolation; sed_interpolation_chi` | shell-level、adaptive-theta 和 chi-resolved EATS 投影。 |
-| `SED_interpolation_structured` | `src/Interpolation` | `interpolation_common + SED_interpolation_structured` | `sed_interpolation_structured; sed_interpolation_structured_phi` | 结构化喷流投影。 |
+| `SED_interpolation` | `src/Interpolation` | `radiation_common + interpolation_common + SED_interpolation` | `sed_interpolation; sed_interpolation_adaptive_theta; sed_interpolation_chi; sed_interpolation_chi_electron_cached; sed_interpolation_chi_structured_axisym_ring_precomputed` | 观测者投影；Python 公开绑定集中在此模块。 |
+| `SED_interpolation_structured` | `src/Interpolation` | `interpolation_common + SED_interpolation_structured` | `sed_interpolation_structured; sed_interpolation_structured_phi` | `structured_jet_1d` 内部 shell-level structured projection；不再从 `src.Interpolation` 暴露旧 Python 绑定。 |
 | `hadronic_forward_1d` | `src/Hadronic` | `HADRONIC_1D_SOURCES + hadronic_forward_1d` | `fs_hadronic_formal_transport_1d; shell operators` | formal 1D proton/secondary/photon-loss shell sequence。 |
 | `hadronic_reverse_1d` | `src/Hadronic` | `HADRONIC_1D_SOURCES + hadronic_reverse_1d` | `fs_hadronic_reverse_1d` | RS light proton transport + proton synchrotron。 |
 | `structured_jet_1d` | `src/Structured` | `STRUCTURED_JET_1D_SOURCES + structured_jet_1d` | `structured_jet_flux_1d` | 结构化喷流 Fortran 聚合入口。 |
@@ -289,7 +289,6 @@ log-gamma 与 log-four-velocity 坐标映射。
 | `S` | 305 | `prepare_fullhide_shell` | 局部 helper；语义由所在文件的算法阶段决定。 |
 | `S` | 343 | `fs_electron_fullhide_1d_coupled` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
 | `S` | 469 | `prepare_coupled_shell` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 506 | `fs_electron_ic_cooling_loss_shell` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
 
 ### `src/Electron/electron_forward_fullhide_1d_hybrid.f90`
 
@@ -392,38 +391,25 @@ WENO5 方法比较电子输运入口。
 | `S` | 239 | `accumulate_simpson_syn_point` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
 | `S` | 258 | `build_reduced_log_grid` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
 | `S` | 287 | `project_syn_state_logbands` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 320 | `get_syn_state` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 331 | `get_syn_cyclotron_state` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 348 | `add_cyclotron_fundamental` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 381 | `build_log_frequency_edges` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `F` | 396 | `electron_syn_fx` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `F` | 408 | `electron_linear_interp` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `F` | 420 | `electron_syn_integrand_x` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `F` | 431 | `electron_powerlaw_interp` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `S` | 456 | `electron_log_gauss2_interval` | 积分权重或求积 primitive；影响谱积分精度。 |
-| `F` | 474 | `electron_integrate_powerlaw_segment` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 491 | `electron_ssa_segment` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 523 | `electron_tau_kernel_x` | 光深、gamma-gamma absorption、pair injection 或 photon survival 相关算子。 |
-| `S` | 533 | `electron_syn_gauss_cell` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 557 | `electron_tau_gauss_cell` | 光深、gamma-gamma absorption、pair injection 或 photon survival 相关算子。 |
-| `S` | 589 | `electron_syn_cell_adaptive` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 621 | `get_syn_adaptive_state` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 658 | `adaptive_syn_integrals` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 677 | `accumulate_adaptive_syn_point` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 694 | `get_syn_adaptive` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 707 | `get_syn_selected` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 719 | `get_syn_selected_state` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 756 | `get_syn_polarization_selected` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 774 | `get_syn_polarization_fraction` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 809 | `get_syn_transfer` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 828 | `get_nu_a` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 900 | `evaluate_tau` | 光深、gamma-gamma absorption、pair injection 或 photon survival 相关算子。 |
-| `S` | 918 | `refine_nu_a_bracket` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 965 | `get_nu_a_2d_path` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 982 | `get_nu_a_2d_cell_path` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 998 | `reduce_syn_shell_from_chi` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 1017 | `get_nu_a_from_tau_grid` | 光深、gamma-gamma absorption、pair injection 或 photon survival 相关算子。 |
-| `S` | 1056 | `interpolate_log_tau_root` | 光深、gamma-gamma absorption、pair injection 或 photon survival 相关算子。 |
+| `S` | 322 | `get_syn_state` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
+| `S` | 332 | `get_syn_chi_batch_state` | chi-local synchrotron/SSA batch kernel；structured projection 可复用其输出。 |
+| `S` | 406 | `electron_log_gauss2_interval` | 积分权重或求积 primitive；影响谱积分精度。 |
+| `S` | 483 | `electron_syn_gauss_cell` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
+| `S` | 507 | `electron_tau_gauss_cell` | 光深、SSA transfer 或 photon survival 相关算子。 |
+| `S` | 539 | `electron_syn_cell_adaptive` | 低层单 cell adaptive diagnostic helper；public selected path 默认仍是 fixed-grid。 |
+| `S` | 573 | `get_syn_selected` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
+| `S` | 585 | `get_syn_selected_state` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
+| `S` | 598 | `get_syn_polarization_selected` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
+| `S` | 616 | `get_syn_polarization_fraction` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
+| `S` | 651 | `get_syn_transfer` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
+| `S` | 670 | `get_nu_a` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 742 | `evaluate_tau` | 光深、SSA transfer 或 photon survival 相关算子。 |
+| `S` | 760 | `refine_nu_a_bracket` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 807 | `get_nu_a_2d_path` | 2D/chi SSA break diagnostic。 |
+| `S` | 824 | `get_nu_a_2d_cell_path` | 2D/chi cell-level SSA break diagnostic。 |
+| `S` | 840 | `reduce_syn_shell_from_chi` | chi-local spectra 到 shell-level baseline 的 reduction helper。 |
+| `S` | 859 | `get_nu_a_from_tau_grid` | 从已计算 optical-depth grid 求 SSA break；避免重复 root search。 |
+| `S` | 898 | `interpolate_log_tau_root` | 光深、SSA transfer 或 photon survival 相关算子。 |
 
 ### `src/Electron/electron_reverse_kernel.f90`
 
@@ -1084,21 +1070,21 @@ shell-level 和 chi-resolved EATS/Doppler 投影。
 | `S` | 168 | `integrate_theta_cell` | 局部 helper；语义由所在文件的算法阶段决定。 |
 | `S` | 198 | `project_theta_sample` | 局部 helper；语义由所在文件的算法阶段决定。 |
 | `S` | 230 | `project_shell_segment` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 253 | `sed_interpolation_surface_element` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `F` | 307 | `chi_ssa_cell_escape` | finite-q shell 几何或 chi-equivalent 投影字段。 |
-| `F` | 321 | `lower_bound_real8` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 340 | `sed_interpolation_chi` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 448 | `project_chi_segment_flux` | finite-q shell 几何或 chi-equivalent 投影字段。 |
-| `S` | 462 | `compute_chi_segment_state` | finite-q shell 几何或 chi-equivalent 投影字段。 |
-| `S` | 477 | `accumulate_chi_cell_source` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
-| `S` | 499 | `sed_interpolation_chi_surface_element` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `S` | 569 | `project_surface_chi_segment_flux` | finite-q shell 几何或 chi-equivalent 投影字段。 |
-| `S` | 583 | `compute_surface_chi_state` | finite-q shell 几何或 chi-equivalent 投影字段。 |
-| `S` | 598 | `accumulate_surface_chi_cell_source` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
+| `F` | 252 | `chi_ssa_cell_escape` | finite-q shell SSA escape factor。 |
+| `F` | 266 | `lower_bound_real8` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 285 | `sed_interpolation_chi` | top-hat chi-resolved FS synchrotron+SSA lightcurve projection。 |
+| `S` | 393 | `project_chi_segment_flux` | finite-q shell 几何或 chi-equivalent 投影字段。 |
+| `S` | 407 | `compute_chi_segment_state` | finite-q shell 几何或 chi-equivalent 投影字段。 |
+| `S` | 422 | `accumulate_chi_cell_source` | chi cell source + SSA escape 累加。 |
+| `S` | 446 | `sed_interpolation_chi_electron_cached` | direct-electron chi projection；先批量计算 chi-local synchrotron/SSA 再投影。 |
+| `S` | 481 | `sed_interpolation_chi_structured_axisym_ring_precomputed` | axisymmetric structured chi ring projection；输入为预计算 `F_ring/Tau_ring`。 |
+| `S` | 567 | `project_precomputed_ring_segment` | structured ring EATS/Doppler segment projection。 |
+| `S` | 583 | `accumulate_precomputed_ring_source` | structured ring chi cell source + SSA escape 累加。 |
+| `S` | 605 | `chi_synch_point` | 单点 chi synchrotron/SSA diagnostic helper。 |
 
 ### `src/Interpolation/SED_interpolation_structured.f90`
 
-结构化喷流 theta/theta-phi 投影。
+结构化喷流 theta/theta-phi shell-level 投影。该文件仍由 `structured_jet_1d` Fortran 聚合入口调用；旧 Python binding 不再从 `src.Interpolation` 导出。
 
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |

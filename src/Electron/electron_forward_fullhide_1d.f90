@@ -502,13 +502,3 @@ contains
                                             Seed_syn(:,I_tobs),cooling_aux,dEl)
     end subroutine prepare_coupled_shell
 end subroutine fs_electron_fullhide_1d_coupled
-
-subroutine fs_electron_ic_cooling_loss_shell(gam_e,V_seed,Seed_photon,Num_gam_e,Num_nu,n_threads,dot_gam_e)
-    use electron_cooling_kernel, only: electron_cooling_ic_loss_emissivity_budget
-    IMPLICIT REAL(8)(A-H,O-Z)
-    integer, intent(in) :: Num_gam_e,Num_nu,n_threads
-    real(8), intent(in) :: gam_e(Num_gam_e),V_seed(Num_nu),Seed_photon(Num_nu)
-    real(8), intent(out) :: dot_gam_e(Num_gam_e)
-
-    call electron_cooling_ic_loss_emissivity_budget(Num_gam_e,Num_nu,n_threads,gam_e,V_seed,Seed_photon,dot_gam_e)
-end subroutine fs_electron_ic_cooling_loss_shell

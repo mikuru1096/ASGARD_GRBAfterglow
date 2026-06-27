@@ -6,7 +6,7 @@ module electron_transport_2d_kernel
                              electron_characteristic_update, electron_characteristic_cooling_update, &
                              electron_cooling_affine, electron_cooling_piecewise
   use electron_injection_profiles, only: electron_profile_log_cell_edges
-  implicit real(8)(a-h,o-z)
+  implicit none
   private
   real(8), parameter :: sigma_strong_shock = 4d0
 
@@ -341,6 +341,53 @@ subroutine q_diffusion_face_coeffs(Num_chi,dq,q_face,k_medium,R_loc,Gamma_f,beta
     end if
 end subroutine q_diffusion_face_coeffs
 
+subroutine build_q_advection_base_matrix(Num_chi, lambda_q, A_q_face, lower_base, diag_base, upper_base)
+    integer, intent(in) :: Num_chi
+    real(8), intent(in) :: lambda_q, A_q_face(1:Num_chi)
+    real(8), intent(out) :: lower_base(Num_chi), diag_base(Num_chi), upper_base(Num_chi)
+    real(8) :: adv_face_left(1:Num_chi), adv_face_right(1:Num_chi)
+    integer :: I_chi
+
+    call q_split_advection_faces(Num_chi,A_q_face,adv_face_left,adv_face_right)
+    lower_base = zero
+    diag_base = one
+    upper_base = zero
+    do I_chi = 1, Num_chi
+        diag_base(I_chi) = diag_base(I_chi) + lambda_q*adv_face_left(I_chi)
+        if (I_chi < Num_chi) upper_base(I_chi) = upper_base(I_chi) + lambda_q*adv_face_right(I_chi)
+    end do
+    do I_chi = 2, Num_chi
+        lower_base(I_chi) = lower_base(I_chi) - lambda_q*adv_face_left(I_chi-1)
+        diag_base(I_chi) = diag_base(I_chi) - lambda_q*adv_face_right(I_chi-1)
+    end do
+end subroutine build_q_advection_base_matrix
+
+subroutine add_q_diffusion_to_matrix(Num_chi, lambda_q, kappa_row, diff_face_left_base, &
+                                     diff_face_right_base, free_outer_escape, lower, diag, upper)
+    integer, intent(in) :: Num_chi
+    logical, intent(in) :: free_outer_escape
+    real(8), intent(in) :: lambda_q, kappa_row(Num_chi)
+    real(8), intent(in) :: diff_face_left_base(1:Num_chi), diff_face_right_base(1:Num_chi)
+    real(8), intent(inout) :: lower(Num_chi), diag(Num_chi), upper(Num_chi)
+    real(8) :: kappa_face
+    integer :: I_chi
+
+    do I_chi = 1, Num_chi
+        if (I_chi < Num_chi) then
+            kappa_face = 0.5d0*(kappa_row(I_chi)+kappa_row(I_chi+1))
+            diag(I_chi) = diag(I_chi) + lambda_q*kappa_face*diff_face_left_base(I_chi)
+            upper(I_chi) = upper(I_chi) + lambda_q*kappa_face*diff_face_right_base(I_chi)
+        else if (free_outer_escape) then
+            diag(I_chi) = diag(I_chi) + lambda_q*kappa_row(I_chi)*diff_face_left_base(I_chi)
+        end if
+    end do
+    do I_chi = 2, Num_chi
+        kappa_face = 0.5d0*(kappa_row(I_chi-1)+kappa_row(I_chi))
+        lower(I_chi) = lower(I_chi) - lambda_q*kappa_face*diff_face_left_base(I_chi-1)
+        diag(I_chi) = diag(I_chi) - lambda_q*kappa_face*diff_face_right_base(I_chi-1)
+    end do
+end subroutine add_q_diffusion_to_matrix
+
 ! Thomas算法求解三对角线性方程组。
 subroutine solve_tridiagonal(Num_cell, lower, diag, upper, rhs, sol)
     integer, intent(in) :: Num_cell
@@ -375,7 +422,7 @@ subroutine advance_q_advection_charint(U_log, Num_gam_e, Num_chi, active_hi, dq,
     real(8) :: A_q_face(0:Num_chi), q_back(0:Num_chi)
     real(8) :: U_q_in(Num_chi), U_q_out(Num_chi)
     real(8) :: ppm_left(Num_chi), ppm_right(Num_chi), prefix(0:Num_chi)
-    integer :: I_gam_e
+    integer :: I_gam_e, I_face
 
     call q_face_transport_coeffs_all(k_medium, R_loc, Num_chi, q_face, A_q_face)
     call eta_trace_back_faces_piecewise(Num_chi, dR_step, q_face, A_q_face, q_back)
@@ -405,8 +452,8 @@ subroutine advance_q_diffusion_implicit(U_log, Num_gam_e, Num_chi, active_hi, dq
 
     real(8) :: diff_face_left_base(1:Num_chi), diff_face_right_base(1:Num_chi)
     real(8) :: lower(Num_chi), diag(Num_chi), upper(Num_chi), rhs(Num_chi), sol(Num_chi)
-    real(8) :: lambda_q, kappa_face
-    integer :: I_gam_e, I_chi
+    real(8) :: lambda_q
+    integer :: I_gam_e
 
     lambda_q = dR_step/dq
     call q_diffusion_face_coeffs(Num_chi,dq,q_face,k_medium,R_loc,Gamma_f,beta_sh,.false., &
@@ -416,18 +463,8 @@ subroutine advance_q_diffusion_implicit(U_log, Num_gam_e, Num_chi, active_hi, dq
         lower = zero
         diag = one
         upper = zero
-        do I_chi = 1, Num_chi
-            if (I_chi < Num_chi) then
-                kappa_face = 0.5d0*(kappa2_chi(I_gam_e,I_chi)+kappa2_chi(I_gam_e,I_chi+1))
-                diag(I_chi) = diag(I_chi) + lambda_q*kappa_face*diff_face_left_base(I_chi)
-                upper(I_chi) = upper(I_chi) + lambda_q*kappa_face*diff_face_right_base(I_chi)
-            end if
-            if (I_chi > 1) then
-                kappa_face = 0.5d0*(kappa2_chi(I_gam_e,I_chi-1)+kappa2_chi(I_gam_e,I_chi))
-                lower(I_chi) = lower(I_chi) - lambda_q*kappa_face*diff_face_left_base(I_chi-1)
-                diag(I_chi) = diag(I_chi) - lambda_q*kappa_face*diff_face_right_base(I_chi-1)
-            end if
-        end do
+        call add_q_diffusion_to_matrix(Num_chi,lambda_q,kappa2_chi(I_gam_e,:), &
+                                       diff_face_left_base,diff_face_right_base,.false.,lower,diag,upper)
         rhs = U_log(I_gam_e, :)
         call solve_tridiagonal(Num_chi, lower, diag, upper, rhs, sol)
         U_log(I_gam_e, :) = max(zero, sol)
@@ -440,53 +477,29 @@ subroutine advance_q_implicit(U_log, Num_gam_e, Num_chi, active_hi, dq, q_face, 
     integer, intent(in) :: Num_gam_e, Num_chi, active_hi, k_medium, n_threads
     real(8), intent(inout) :: U_log(Num_gam_e, Num_chi)
     real(8), intent(in) :: dq, q_face(0:Num_chi), R_loc, Gamma_f
-      real(8), intent(in) :: beta_sh, kappa2_chi(Num_gam_e,Num_chi), source_q1(Num_gam_e)
+    real(8), intent(in) :: beta_sh, kappa2_chi(Num_gam_e,Num_chi), source_q1(Num_gam_e)
     real(8), intent(in) :: dR_step
 
-    real(8) :: A_q_face(1:Num_chi), adv_face_left(1:Num_chi), adv_face_right(1:Num_chi)
-    real(8) :: diff_face_left_base(1:Num_chi), diff_face_right_base(1:Num_chi)
-      real(8) :: lower_base(Num_chi), diag_base(Num_chi), upper_base(Num_chi)
-      real(8) :: lower(Num_chi), diag(Num_chi), upper(Num_chi), rhs(Num_chi), sol(Num_chi)
-      real(8) :: lambda_q, kappa_face
-    integer :: I_gam_e, I_chi
+    real(8) :: A_q_face(1:Num_chi), diff_face_left_base(1:Num_chi), diff_face_right_base(1:Num_chi)
+    real(8) :: lower_base(Num_chi), diag_base(Num_chi), upper_base(Num_chi)
+    real(8) :: lower(Num_chi), diag(Num_chi), upper(Num_chi), rhs(Num_chi), sol(Num_chi)
+    real(8) :: lambda_q
+    integer :: I_gam_e
 
     lambda_q = dR_step/dq
     call q_face_transport_coeffs(k_medium, R_loc, Num_chi, q_face, A_q_face)
-
-    call q_split_advection_faces(Num_chi,A_q_face,adv_face_left,adv_face_right)
     call q_diffusion_face_coeffs(Num_chi,dq,q_face,k_medium,R_loc,Gamma_f,beta_sh,.false., &
                                  diff_face_left_base,diff_face_right_base)
-
-    lower_base = zero
-    diag_base = one
-    upper_base = zero
-    do I_chi = 1, Num_chi
-        diag_base(I_chi) = diag_base(I_chi) + lambda_q*adv_face_left(I_chi)
-        if (I_chi < Num_chi) upper_base(I_chi) = upper_base(I_chi) + lambda_q*adv_face_right(I_chi)
-        if (I_chi > 1) then
-            lower_base(I_chi) = lower_base(I_chi) - lambda_q*adv_face_left(I_chi-1)
-            diag_base(I_chi) = diag_base(I_chi) - lambda_q*adv_face_right(I_chi-1)
-        end if
-    end do
+    call build_q_advection_base_matrix(Num_chi, lambda_q, A_q_face, lower_base, diag_base, upper_base)
 
     !$OMP PARALLEL DO num_threads(n_threads) if(n_threads > 1 .and. active_hi*Num_chi >= 512) schedule(static) &
-    !$OMP& private(I_gam_e,I_chi,kappa_face,lower,diag,upper,rhs,sol)
+    !$OMP& private(I_gam_e,lower,diag,upper,rhs,sol)
     do I_gam_e = 1, active_hi
         lower = lower_base
         diag = diag_base
         upper = upper_base
-        do I_chi = 1, Num_chi
-            if (I_chi < Num_chi) then
-                kappa_face = 0.5d0*(kappa2_chi(I_gam_e,I_chi)+kappa2_chi(I_gam_e,I_chi+1))
-                diag(I_chi) = diag(I_chi) + lambda_q*kappa_face*diff_face_left_base(I_chi)
-                upper(I_chi) = upper(I_chi) + lambda_q*kappa_face*diff_face_right_base(I_chi)
-            end if
-            if (I_chi > 1) then
-                kappa_face = 0.5d0*(kappa2_chi(I_gam_e,I_chi-1)+kappa2_chi(I_gam_e,I_chi))
-                lower(I_chi) = lower(I_chi) - lambda_q*kappa_face*diff_face_left_base(I_chi-1)
-                diag(I_chi) = diag(I_chi) - lambda_q*kappa_face*diff_face_right_base(I_chi-1)
-            end if
-        end do
+        call add_q_diffusion_to_matrix(Num_chi,lambda_q,kappa2_chi(I_gam_e,:), &
+                                       diff_face_left_base,diff_face_right_base,.false.,lower,diag,upper)
         rhs = U_log(I_gam_e, :)
         rhs(1) = rhs(1) + dR_step*source_q1(I_gam_e)
 
@@ -505,52 +518,26 @@ subroutine advance_q_pwncr_implicit(U_log, Num_gam_e, Num_chi, active_hi, dq, q_
     real(8), intent(inout) :: U_log(Num_gam_e, Num_chi)
     real(8), intent(in) :: dq, q_face(0:Num_chi), R_loc, Gamma_f, beta_sh
     real(8), intent(in) :: kappa2_chi(Num_gam_e,Num_chi), source_q1(Num_gam_e), dR_step
-    real(8) :: A_q_face(1:Num_chi), adv_face_left(1:Num_chi), adv_face_right(1:Num_chi)
-    real(8) :: diff_face_left_base(1:Num_chi), diff_face_right_base(1:Num_chi)
+    real(8) :: A_q_face(1:Num_chi), diff_face_left_base(1:Num_chi), diff_face_right_base(1:Num_chi)
     real(8) :: lower_base(Num_chi), diag_base(Num_chi), upper_base(Num_chi)
     real(8) :: lower(Num_chi), diag(Num_chi), upper(Num_chi), rhs(Num_chi), sol(Num_chi)
-    real(8) :: lambda_q, kappa_face
-    integer :: I_gam_e, I_chi
+    real(8) :: lambda_q
+    integer :: I_gam_e
 
     lambda_q = dR_step/dq
     call q_face_transport_coeffs(k_medium, R_loc, Num_chi, q_face, A_q_face)
-
-    call q_split_advection_faces(Num_chi,A_q_face,adv_face_left,adv_face_right)
     call q_diffusion_face_coeffs(Num_chi,dq,q_face,k_medium,R_loc,Gamma_f,beta_sh,free_outer_escape, &
                                  diff_face_left_base,diff_face_right_base)
-
-    lower_base = zero
-    diag_base = one
-    upper_base = zero
-    do I_chi = 1, Num_chi
-        diag_base(I_chi) = diag_base(I_chi) + lambda_q*adv_face_left(I_chi)
-        if (I_chi < Num_chi) upper_base(I_chi) = upper_base(I_chi) + lambda_q*adv_face_right(I_chi)
-        if (I_chi > 1) then
-            lower_base(I_chi) = lower_base(I_chi) - lambda_q*adv_face_left(I_chi-1)
-            diag_base(I_chi) = diag_base(I_chi) - lambda_q*adv_face_right(I_chi-1)
-        end if
-    end do
+    call build_q_advection_base_matrix(Num_chi, lambda_q, A_q_face, lower_base, diag_base, upper_base)
 
     !$OMP PARALLEL DO num_threads(n_threads) if(n_threads > 1 .and. active_hi*Num_chi >= 512) schedule(static) &
-    !$OMP& private(I_gam_e,I_chi,kappa_face,lower,diag,upper,rhs,sol)
+    !$OMP& private(I_gam_e,lower,diag,upper,rhs,sol)
     do I_gam_e = 1, active_hi
         lower = lower_base
         diag = diag_base
         upper = upper_base
-        do I_chi = 1, Num_chi
-            if (I_chi < Num_chi) then
-                kappa_face = 0.5d0*(kappa2_chi(I_gam_e,I_chi)+kappa2_chi(I_gam_e,I_chi+1))
-                diag(I_chi) = diag(I_chi) + lambda_q*kappa_face*diff_face_left_base(I_chi)
-                upper(I_chi) = upper(I_chi) + lambda_q*kappa_face*diff_face_right_base(I_chi)
-            else if (free_outer_escape) then
-                diag(I_chi) = diag(I_chi) + lambda_q*kappa2_chi(I_gam_e,I_chi)*diff_face_left_base(I_chi)
-            end if
-            if (I_chi > 1) then
-                kappa_face = 0.5d0*(kappa2_chi(I_gam_e,I_chi-1)+kappa2_chi(I_gam_e,I_chi))
-                lower(I_chi) = lower(I_chi) - lambda_q*kappa_face*diff_face_left_base(I_chi-1)
-                diag(I_chi) = diag(I_chi) - lambda_q*kappa_face*diff_face_right_base(I_chi-1)
-            end if
-        end do
+        call add_q_diffusion_to_matrix(Num_chi,lambda_q,kappa2_chi(I_gam_e,:), &
+                                       diff_face_left_base,diff_face_right_base,free_outer_escape,lower,diag,upper)
         rhs = U_log(I_gam_e, :)
         rhs(1) = rhs(1) + dR_step*source_q1(I_gam_e)
         call solve_tridiagonal(Num_chi, lower, diag, upper, rhs, sol)

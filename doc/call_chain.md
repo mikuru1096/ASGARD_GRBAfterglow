@@ -25,9 +25,11 @@ flowchart TD
     J --> L
     G --> L
     L --> M["project_flux_grid\nprojection_kind"]
-    M --> N["lightcurve:\nInterpolation.sed_interpolation_chi\nfor chi_eats_2d FS synch+SSA"]
+    M --> N["top-hat chi_eats_2d lightcurve:\nInterpolation.sed_interpolation_chi"]
+    M --> T["axisymmetric structured chi_eats_2d:\nring solve + sed_interpolation_chi_structured_axisym_ring_precomputed"]
     M --> R["sed / shell components:\nInterpolation.sed_interpolation\nEATS + Doppler + redshift"]
     N --> O["combine_multiband_flux"]
+    T --> O
     R --> O
     O --> P["compute_light_curve_redchi"]
 ```
@@ -44,7 +46,8 @@ flowchart TD
     E --> G["electron_transport_2d_kernel + electron_seed_history_kernel"]
     F --> H["radiation_common -> radiation_ssc_spectrum / radiation_gamma_gamma_absorption"]
     G --> H
-    H --> I["SED_interpolation / SED_interpolation_structured"]
+    H --> I["SED_interpolation\nsed / adaptive / chi / structured ring-precomputed"]
+    H --> U["SED_interpolation_structured\ninternal structured_jet_1d shell projection"]
     C --> J["solve_hadronic -> hadronic_forward_1d"]
     J --> K["hadronic_transport + radiation + interaction + decay + pp + BH + IC + pair_prod + species_transport + acceleration + secondary_radiation"]
 ```

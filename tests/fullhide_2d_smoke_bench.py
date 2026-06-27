@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from types import SimpleNamespace
 
 from _repo_path import ensure_repo_root_on_path
@@ -129,22 +130,28 @@ def case_electron_grid():
 
 
 def case_substep_max_public_config_smoke():
-    model = top_hat_model(
-        numerics=numerics(
-            num_electron_gamma=NUM_GAM_E,
-            downstream_num_chi=NUM_CHI,
-            num_photon_frequency=NUM_NU,
-            num_radius=NUM_R,
-            eats_num_theta=NUM_THETA,
-            num_observer_time=NUM_TOBS,
-            electron_substep_max=16,
-        ),
-        solver_options=solver_options(electron_solver="fullhide_2d", geometry_projection="chi_eats_2d"),
-    )
-    flux = model.flux_density_grid(np.array([1.0e4, 3.0e4]), np.array([1.0e10]), projection_kind="lightcurve").total
+    flux_by_limit = []
+    for substep_max in (1, 16):
+        model = top_hat_model(
+            numerics=numerics(
+                num_electron_gamma=NUM_GAM_E,
+                downstream_num_chi=NUM_CHI,
+                num_photon_frequency=NUM_NU,
+                num_radius=NUM_R,
+                eats_num_theta=NUM_THETA,
+                num_observer_time=NUM_TOBS,
+                electron_substep_max=substep_max,
+            ),
+            solver_options=solver_options(electron_solver="fullhide_2d", geometry_projection="chi_eats_2d"),
+        )
+        flux_by_limit.append(
+            model.flux_density_grid(np.array([1.0e4, 3.0e4]), np.array([1.0e10]), projection_kind="lightcurve").total
+        )
+    flux = flux_by_limit[1]
     assert flux.shape == (1, 2)
     assert np.all(np.isfinite(flux))
-    return {"flux": flux[0].tolist()}
+    np.testing.assert_allclose(flux_by_limit[0], flux_by_limit[1], rtol=0.0, atol=0.0)
+    return {"flux": flux[0].tolist(), "checked_substep_max": [1, 16]}
 
 
 def case_2d_thread_equivalence_smoke():
@@ -242,64 +249,41 @@ def case_chi_eats_projection_kind_routes():
     return {"lightcurve_shape": list(lightcurve.shape), "spectrum_shape": list(spectrum.shape)}
 
 
-def case_chi_electron_cached_matches_direct_sum():
-    boundary = np.zeros(30, dtype=float)
-    boundary[7] = 0.0
-    boundary[8] = 0.02
-    boundary[9] = 0.0
-    boundary[12] = 1.0e26
-    num_gam = 9
-    num_chi = 3
-    num_r = 5
-    gam = np.geomspace(2.0, 1.0e4, num_gam)
-    radius = np.linspace(1.0e16, 1.4e16, num_r)
-    r_tobs = np.linspace(1.0e3, 5.0e3, num_r)
-    r_chi = np.tile(radius, (num_chi, 1))
-    gamma_chi = np.ones((num_chi, num_r), dtype=float)
-    chi_weight = np.full((num_chi, num_r), 1.0 / num_chi)
-    b_chi = np.full((num_chi, num_r), 0.2)
-    dne = np.zeros((num_gam, num_chi, num_r), dtype=float)
-    for i_chi in range(num_chi):
-        for i_r in range(num_r):
-            dne[:, i_chi, i_r] = 1.0e45 * (i_chi + 1.0) * (i_r + 1.0) * gam ** -2.4 * np.exp(-gam / 3.0e3)
-    observed = np.array([1.0e12], dtype=float)
-    seed = np.array([5.0e11, 1.0e12, 2.0e12], dtype=float)
-    tobs = np.array([2.5e3, 4.0e3], dtype=float)
-    direct = Interpolation.sed_interpolation_chi_electron(
-        boundary,
-        r_tobs,
-        radius,
-        dne,
-        b_chi,
-        r_chi,
-        gamma_chi,
-        chi_weight,
-        gam,
-        observed,
-        tobs,
-        1,
-        1,
-        1,
+def case_chi_electron_cached_path_smoke():
+    times = np.array([1.0e4, 3.0e4], dtype=float)
+    freqs = np.array([1.0e10, 1.0e14], dtype=float)
+    config = RuntimeConfig(
+        electron_solver="fullhide_2d",
+        geometry_kernel="chi_eats_2d",
+        include_forward_ssc=False,
+        num_gam_e=NUM_GAM_E,
+        downstream_num_chi=NUM_CHI,
+        num_nu=NUM_NU,
+        num_r=NUM_R,
+        eats_num_theta=NUM_THETA,
+        eats_num_phi=1,
+        num_tobs=NUM_TOBS,
+        num_threads=1,
     )
-    cached = Interpolation.sed_interpolation_chi_electron_cached(
-        boundary,
-        r_tobs,
-        radius,
-        dne,
-        b_chi,
-        r_chi,
-        gamma_chi,
-        chi_weight,
-        gam,
-        seed,
-        observed,
-        tobs,
-        1,
-        1,
-        1,
-    )
-    np.testing.assert_allclose(cached, direct, rtol=2.0e-12, atol=0.0)
-    return {"max_flux": float(np.max(cached)), "max_abs_diff": float(np.max(np.abs(cached - direct)))}
+    state = solve_state(config, times, requested_frequencies_hz=freqs)
+    direct = project_flux_grid(state, times, freqs, projection_kind="lightcurve").components["fwd_sync"]
+    precomputed_state = replace(state, config=replace(state.config, include_forward_ssc=True))
+    precomputed = project_flux_grid(precomputed_state, times, freqs, projection_kind="lightcurve").components["fwd_sync"]
+    assert direct.shape == (freqs.size, times.size)
+    assert precomputed.shape == direct.shape
+    assert np.all(np.isfinite(direct))
+    assert np.all(np.isfinite(precomputed))
+    assert np.any(direct > 0.0)
+    np.testing.assert_allclose(direct, precomputed, rtol=1.0e-13, atol=0.0)
+    return {"max_flux": float(np.max(direct))}
+
+
+def case_charint_2d_basic_chi_smoke():
+    model = _build_model_with_geometry("charint_2d", "chi_eats_2d")
+    flux = model.flux_density(np.array([1.0e4]), np.array([1.0e14])).total
+    assert flux.shape == (1,)
+    assert np.all(np.isfinite(flux))
+    return {"flux": float(flux[0])}
 
 
 def case_chi_eats_rejects_1d_solver():
@@ -524,18 +508,23 @@ def case_chi_ssa_cell_split_invariance():
 
 
 def case_chi_ssa_nonuniform_tau_matches_manual():
-    boundary = np.ones(24, dtype=float)
+    boundary = np.zeros(24, dtype=float)
     boundary[7] = 0.0
+    d_omega = 1.0e-4
+    opening_angle = np.arccos(1.0 - d_omega / (2.0 * np.pi))
+    effective_d_omega = 2.0 * np.pi * (1.0 - np.cos(opening_angle))
+    theta_center = 0.5 * opening_angle
+    boundary[8] = opening_angle
     boundary[9] = 0.0
     gamma = 12.0
     beta = np.sqrt(1.0 - gamma**-2)
-    doppler_den = gamma * (1.0 - beta)
+    mu = np.cos(theta_center)
+    doppler_den = gamma * (1.0 - beta * mu)
     radius = np.array([1.0e15, 1.2e15], dtype=float)
     r_tobs = np.array([1.0, 3.0], dtype=float)
     seed = np.array([1.0e9, 1.0e10, 1.0e11], dtype=float)
     observed = np.array([seed[1] / doppler_den], dtype=float)
     tobs = np.array([2.0], dtype=float)
-    d_omega = 1.0e-4
     tau_profile = np.array([0.1, 1.3, 0.4, 2.2], dtype=float)
     num_chi = tau_profile.size
     source = np.ones((seed.size, num_chi, radius.size), dtype=float)
@@ -544,7 +533,7 @@ def case_chi_ssa_nonuniform_tau_matches_manual():
     r_chi = np.tile(radius, (num_chi, 1))
     gamma_chi = np.full((num_chi, radius.size), gamma)
     chi_weight = np.full((num_chi, radius.size), 1.0 / num_chi)
-    flux = Interpolation.sed_interpolation_chi_surface_element(
+    flux = Interpolation.sed_interpolation_chi(
         boundary,
         r_tobs,
         radius,
@@ -556,37 +545,40 @@ def case_chi_ssa_nonuniform_tau_matches_manual():
         seed,
         observed,
         tobs,
-        d_omega,
+        1,
+        1,
+        1,
     )
     front_tau = 0.0
     escaped = 0.0
     for tau_cell in tau_profile:
         escaped += (1.0 / num_chi) * np.exp(-front_tau) * (1.0 - np.exp(-tau_cell)) / tau_cell
         front_tau += tau_cell
-    expected = escaped * d_omega / (4.0 * np.pi) * doppler_den**-3
+    expected = escaped * effective_d_omega / (4.0 * np.pi) * doppler_den**-3
     np.testing.assert_allclose(flux[0, 0], expected, rtol=1.0e-12, atol=0.0)
     return {"flux": float(flux[0, 0]), "expected": float(expected)}
 
 
 def main() -> None:
     cases = [
-        ("[1/17] fullhide_2d:basic_smoke", case_basic_smoke),
-        ("[2/17] fullhide_2d:electron_grid", case_electron_grid),
-        ("[3/17] fullhide_2d:substep_max_public_config", case_substep_max_public_config_smoke),
-        ("[4/17] fullhide_2d:thread_equivalence", case_2d_thread_equivalence_smoke),
-        ("[5/17] fullhide_2d:shell_reduced_returns_to_1d", case_shell_reduced_returns_to_1d_baseline),
-        ("[6/17] fullhide_2d:chi_eats_geometry", case_chi_eats_geometry_smoke),
-        ("[7/17] chi_eats_2d:projection_kind_routes", case_chi_eats_projection_kind_routes),
-        ("[8/17] chi_eats_2d:electron_cached_direct_parity", case_chi_electron_cached_matches_direct_sum),
-        ("[9/17] chi_eats_2d:rejects_1d_solver", case_chi_eats_rejects_1d_solver),
-        ("[10/17] eats:rejects_off_axis_phi_collapse", case_off_axis_phi_collapse_rejected),
-        ("[11/17] eats:syncs_observer_theta_boundary", case_project_flux_grid_syncs_observer_theta_boundary),
-        ("[12/17] model_cache:observer_angle", case_model_cache_includes_observer_angle),
-        ("[13/17] eats:on_axis_phi_collapse", case_on_axis_phi_collapse_matches_explicit_phi),
-        ("[14/17] chi_eats_2d:delta_layer_thin_shell", case_chi_projection_delta_layer_matches_thin_shell),
-        ("[15/17] chi_eats_2d:finite_width_converges", case_chi_projection_finite_width_converges_to_thin_shell),
-        ("[16/17] chi_eats_2d:ssa_cell_split_invariance", case_chi_ssa_cell_split_invariance),
-        ("[17/17] chi_eats_2d:ssa_nonuniform_tau", case_chi_ssa_nonuniform_tau_matches_manual),
+        ("[1/18] fullhide_2d:basic_smoke", case_basic_smoke),
+        ("[2/18] fullhide_2d:electron_grid", case_electron_grid),
+        ("[3/18] fullhide_2d:substep_max_public_config", case_substep_max_public_config_smoke),
+        ("[4/18] fullhide_2d:thread_equivalence", case_2d_thread_equivalence_smoke),
+        ("[5/18] fullhide_2d:shell_reduced_returns_to_1d", case_shell_reduced_returns_to_1d_baseline),
+        ("[6/18] fullhide_2d:chi_eats_geometry", case_chi_eats_geometry_smoke),
+        ("[7/18] chi_eats_2d:projection_kind_routes", case_chi_eats_projection_kind_routes),
+        ("[8/18] chi_eats_2d:electron_cached_path", case_chi_electron_cached_path_smoke),
+        ("[9/18] chi_eats_2d:rejects_1d_solver", case_chi_eats_rejects_1d_solver),
+        ("[10/18] eats:rejects_off_axis_phi_collapse", case_off_axis_phi_collapse_rejected),
+        ("[11/18] eats:syncs_observer_theta_boundary", case_project_flux_grid_syncs_observer_theta_boundary),
+        ("[12/18] model_cache:observer_angle", case_model_cache_includes_observer_angle),
+        ("[13/18] eats:on_axis_phi_collapse", case_on_axis_phi_collapse_matches_explicit_phi),
+        ("[14/18] chi_eats_2d:delta_layer_thin_shell", case_chi_projection_delta_layer_matches_thin_shell),
+        ("[15/18] chi_eats_2d:finite_width_converges", case_chi_projection_finite_width_converges_to_thin_shell),
+        ("[16/18] chi_eats_2d:ssa_cell_split_invariance", case_chi_ssa_cell_split_invariance),
+        ("[17/18] chi_eats_2d:ssa_nonuniform_tau", case_chi_ssa_nonuniform_tau_matches_manual),
+        ("[18/18] charint_2d:basic_chi_smoke", case_charint_2d_basic_chi_smoke),
     ]
     for label, fn in cases:
         print(f"  {label} ...", flush=True)
