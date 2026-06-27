@@ -357,6 +357,19 @@ def _solve_joint_forward_stage(
     )
     electron = primary_electron
     photon_field = _build_photon_field_stage(config, setup, dynamics, electron, timings)
+    primary_electron, electron_report = _timed_call(
+        timings,
+        f"{_solver_label(config, 'electron')} [joint cooling seed]",
+        solve_electron_with_cooling_seed,
+        setup.boundary,
+        dynamics,
+        setup.seed_frequency_hz,
+        photon_field.hadronic_target_seed,
+        config,
+        return_report=True,
+    )
+    electron = primary_electron
+    photon_field = _build_photon_field_stage(config, setup, dynamics, electron, timings)
     hadronic = None
     hadronic_report = _solver_report("hadronic_disabled", "log-gamma-1d", "disabled", backend="none")
 

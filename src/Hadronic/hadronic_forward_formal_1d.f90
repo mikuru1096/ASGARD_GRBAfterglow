@@ -17,6 +17,10 @@ subroutine hadronic_forward_formal_transport_1d_impl(R_Tobs,R_Gamma,R,B_field_g,
         tau_pg,pg_photon_survival,am3_process_power)
     use constants
     use hadronic_common, only: hadronic_build_gamma_p_grid
+    use hadronic_bethe_heitler_kernel, only: hadronic_bethe_heitler_operator
+    use hadronic_decay_kernel, only: hadronic_hummer2010_decay_operator
+    use hadronic_interaction_kernel, only: hadronic_pg_hummer2010_operator
+    use hadronic_radiation_kernel, only: hadronic_get_proton_syn_state
     implicit none
     integer, intent(in) :: index_syn_integr,include_proton_synch,include_pg,include_neutrino
     integer, intent(in) :: include_bethe_heitler,include_hadronic_inverse_compton,include_pp,quantum_syn,n_threads
@@ -105,31 +109,31 @@ subroutine hadronic_forward_formal_transport_1d_impl(R_Tobs,R_Gamma,R,B_field_g,
 
         call hadronic_forward_photon_density_hz_to_gev(Num_nu,V_seed,Seed_target(:,i_r), &
                                                   photon_energy,photon_density_tau)
-        call hadronic_forward_pgamma_operator_shell(num_gam_p,Num_nu,hadron_energy,proton_density, &
-                                                 photon_energy,photon_density_tau,neutron_density,pion0_source, &
-                                                 pip_source,pim_source,pg_reinj,neutron_reinj,pg_loss, &
-                                                 neutron_loss,pg_photon_loss)
-        call hadronic_forward_decay_operator_shell(num_gam_p,hadron_energy,pion0_source,pip_source,pim_source, &
-                                                   Num_nu,photon_energy,num_nu_nu,neutrino_energy,Num_nu, &
-                                                   photon_energy,gamma_rate,process_rate,mupr_source,mupl_source, &
-                                                   muml_source,mumr_source,prompt_nu_rate,muon_nu_rate, &
-                                                   muon_e_rate,nu_rate)
+        call hadronic_pg_hummer2010_operator(num_gam_p,Num_nu,hadron_energy,proton_density, &
+                                             photon_energy,photon_density_tau,neutron_density,pion0_source, &
+                                             pip_source,pim_source,pg_reinj,neutron_reinj,pg_loss, &
+                                             neutron_loss,pg_photon_loss)
+        call hadronic_hummer2010_decay_operator(num_gam_p,hadron_energy,pion0_source,pip_source,pim_source, &
+                                                Num_nu,photon_energy,num_nu_nu,neutrino_energy,Num_nu, &
+                                                photon_energy,gamma_rate,process_rate,mupr_source,mupl_source, &
+                                                muml_source,mumr_source,prompt_nu_rate,muon_nu_rate, &
+                                                muon_e_rate,nu_rate)
         call hadronic_forward_photon_loss_closure(Num_nu,Num_R,R,R_Gamma,i_r,pg_photon_loss, &
                                              tau_pg(:,i_r),pg_photon_survival(:,i_r))
         photon_density=photon_density_tau*pg_photon_survival(:,i_r)
-        call hadronic_forward_pgamma_operator_shell(num_gam_p,Num_nu,hadron_energy,proton_density, &
-                                                 photon_energy,photon_density,neutron_density,pion0_source, &
-                                                 pip_source,pim_source,pg_reinj,neutron_reinj,pg_loss, &
-                                                 neutron_loss,pg_photon_loss)
-        call hadronic_forward_decay_operator_shell(num_gam_p,hadron_energy,pion0_source,pip_source,pim_source, &
-                                                   Num_nu,photon_energy,num_nu_nu,neutrino_energy,Num_nu, &
-                                                   photon_energy,gamma_rate,process_rate,mupr_source,mupl_source, &
-                                                   muml_source,mumr_source,prompt_nu_rate,muon_nu_rate, &
-                                                   muon_e_rate,nu_rate)
+        call hadronic_pg_hummer2010_operator(num_gam_p,Num_nu,hadron_energy,proton_density, &
+                                             photon_energy,photon_density,neutron_density,pion0_source, &
+                                             pip_source,pim_source,pg_reinj,neutron_reinj,pg_loss, &
+                                             neutron_loss,pg_photon_loss)
+        call hadronic_hummer2010_decay_operator(num_gam_p,hadron_energy,pion0_source,pip_source,pim_source, &
+                                                Num_nu,photon_energy,num_nu_nu,neutrino_energy,Num_nu, &
+                                                photon_energy,gamma_rate,process_rate,mupr_source,mupl_source, &
+                                                muml_source,mumr_source,prompt_nu_rate,muon_nu_rate, &
+                                                muon_e_rate,nu_rate)
 
         bh_loss=0d0; bh_pair_rate=0d0; bh_photon_loss_rate(:,i_r)=0d0
         if (include_bethe_heitler /= 0) then
-            call hadronic_forward_bethe_heitler_shell(num_gam_p,hadron_energy,proton_density,Num_nu, &
+            call hadronic_bethe_heitler_operator(num_gam_p,hadron_energy,proton_density,Num_nu, &
                                                  photon_energy,photon_density,Num_e,electron_energy, &
                                                  bh_pair_rate,bh_proton_loss,bh_photon_loss_rate(:,i_r))
             if (any(bh_proton_loss > 0d0)) error stop "Bethe-Heitler proton loss rate must be non-positive."
@@ -156,8 +160,8 @@ subroutine hadronic_forward_formal_transport_1d_impl(R_Tobs,R_Gamma,R,B_field_g,
         dN_gam_p(:,i_r)=dN_next
 
         if (include_proton_synch /= 0) then
-            call hadronic_forward_proton_syn_shell(R(i_r),B_field_g(i_r),num_gam_p,Num_nu,gam_p,dN_next,V_seed, &
-                                              P_had_syn(:,i_r),Seed_had_syn(:,i_r))
+            call hadronic_get_proton_syn_state(R(i_r),B_field_g(i_r),num_gam_p,Num_nu,gam_p,dN_next,V_seed, &
+                                               P_had_syn(:,i_r),Seed_had_syn(:,i_r))
         end if
 
         divergence_rate=3d0/t_dyn_s

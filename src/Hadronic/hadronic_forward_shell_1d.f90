@@ -113,6 +113,7 @@ subroutine hadronic_forward_species_transport_step(num_gamma,num_src,gamma,sourc
                                               muon_minus_left_next,muon_minus_right_next,muon_plus_left_next, &
                                               muon_plus_right_next)
     use constants
+    use hadronic_species_transport_kernel, only: hadronic_species_advance_operator
     implicit none
     integer, intent(in) :: num_gamma,num_src
     real(8), intent(in) :: gamma(num_gamma),source_energy_gev(num_src),dt_s,b_field_g,divergence_rate_s_inv
@@ -151,13 +152,13 @@ subroutine hadronic_forward_species_transport_step(num_gamma,num_src,gamma,sourc
                                       muon_energy,Para_m_mu_GeV,shell_volume_cm3,muon_pl_source)
     call hadronic_forward_source_per_gamma(num_src,num_gamma,source_energy_gev,muon_plus_right_source_per_gev_s, &
                                       muon_energy,Para_m_mu_GeV,shell_volume_cm3,muon_pr_source)
-    call hadronic_forward_species_transport_shell(num_gamma,gamma,dt_s,b_field_g,divergence_rate_s_inv,neutron_prev, &
-                                             pion_plus_prev,pion_minus_prev,muon_minus_left_prev, &
-                                             muon_minus_right_prev,muon_plus_left_prev,muon_plus_right_prev, &
-                                             neutron_source,pion_plus_source,pion_minus_source,muon_ml_source, &
-                                             muon_mr_source,muon_pl_source,muon_pr_source,neutron_transport, &
-                                             pion_plus_next,pion_minus_next,muon_minus_left_next, &
-                                             muon_minus_right_next,muon_plus_left_next,muon_plus_right_next)
+    call hadronic_species_advance_operator(num_gamma,gamma,dt_s,b_field_g,divergence_rate_s_inv,neutron_prev, &
+                                           pion_plus_prev,pion_minus_prev,muon_minus_left_prev, &
+                                           muon_minus_right_prev,muon_plus_left_prev,muon_plus_right_prev, &
+                                           neutron_source,pion_plus_source,pion_minus_source,muon_ml_source, &
+                                           muon_mr_source,muon_pl_source,muon_pr_source,neutron_transport, &
+                                           pion_plus_next,pion_minus_next,muon_minus_left_next, &
+                                           muon_minus_right_next,muon_plus_left_next,muon_plus_right_next)
     call hadronic_forward_positive_loglog_interp(num_src,num_gamma,source_energy_gev,neutron_loss_src_s_inv, &
                                             neutron_energy,neutron_loss)
     call hadronic_forward_exponential_sink(num_gamma,neutron_transport,neutron_loss,dt_s,neutron_next)
@@ -428,6 +429,7 @@ end subroutine hadronic_forward_pgamma_proton_update
 subroutine hadronic_forward_proton_transport_step(num_gamma,gamma,dn_prev,q_inj,b_field_g,t_dyn_s,mass_gev, &
                                              quantum_syn,bh_loss,pp_loss,pg_loss_rate,pg_reinj_rate_per_gev, &
                                              shell_volume_cm3,dt_s,dn_next)
+    use hadronic_transport_remap_kernel, only: hadronic_advance_energy_loggamma_remap
     implicit none
     integer, intent(in) :: num_gamma,quantum_syn
     real(8), intent(in) :: gamma(num_gamma),dn_prev(num_gamma),q_inj(num_gamma)
@@ -439,7 +441,7 @@ subroutine hadronic_forward_proton_transport_step(num_gamma,gamma,dn_prev,q_inj,
 
     call hadronic_forward_continuous_loss_rates(num_gamma,gamma,b_field_g,t_dyn_s,mass_gev,quantum_syn,loss_total)
     loss_total(1:num_gamma)=loss_total(1:num_gamma)+bh_loss(1:num_gamma)+pp_loss(1:num_gamma)
-    call hadronic_forward_advance_energy_loggamma(num_gamma,gamma,dn_prev,q_inj,loss_total,dt_s,dn_transport)
+    call hadronic_advance_energy_loggamma_remap(num_gamma,gamma,dn_prev,q_inj,loss_total,dt_s,dn_transport)
     call hadronic_forward_pgamma_proton_update(num_gamma,dn_transport,pg_loss_rate,pg_reinj_rate_per_gev, &
                                           shell_volume_cm3,dt_s,dn_next)
 end subroutine hadronic_forward_proton_transport_step
