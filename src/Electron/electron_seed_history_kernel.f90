@@ -133,7 +133,8 @@ contains
     real(8) :: source_weight,x_src
 
         x_src = x_center_hist(src_chi,src_t)
-        source_weight = min(one, Para_c*dtau_src/max(dx_hist(src_chi,src_t), tiny(one)))
+        if (dx_hist(src_chi,src_t) <= zero) error stop 'history source cell requires positive dx_hist'
+        source_weight = min(one, Para_c*dtau_src/dx_hist(src_chi,src_t))
         call accumulate_history_target_cell(src_t,src_chi,tgt_chi,delta_tau_total_src,source_weight,x_src)
     end subroutine accumulate_history_source_cell
 
@@ -212,7 +213,8 @@ real(8) :: amp_p,amp_seed
             seg_lo = max(x_face_hist(I_src_chi-1,prev_t),path_lo)
             seg_hi = min(x_face_hist(I_src_chi,prev_t),path_hi)
             if (seg_hi <= seg_lo) cycle
-            weight = (seg_hi-seg_lo)/max(dx_hist(I_src_chi,prev_t), tiny(one))
+            if (dx_hist(I_src_chi,prev_t) <= zero) error stop 'history stream cell requires positive dx_hist'
+            weight = (seg_hi-seg_lo)/dx_hist(I_src_chi,prev_t)
             x_src = 0.5d0*(seg_lo+seg_hi)
             call accumulate_source_cell(I_src_chi,x_src,I_tgt_chi,weight)
         end do
@@ -335,7 +337,8 @@ real(8), intent(out) :: log_transfer_prefix(Num_nu,0:Num_chi,Num_shell)
     do I_shell = hist_cache_built_shells+1, Num_shell
         log_transfer_prefix(:,0,I_shell) = zero
         do I_chi = 1, Num_chi
-            inv_dx_hist(I_chi,I_shell) = one/max(dx_hist(I_chi,I_shell), tiny(one))
+            if (dx_hist(I_chi,I_shell) <= zero) error stop 'history transfer cache requires positive dx_hist'
+            inv_dx_hist(I_chi,I_shell) = one/dx_hist(I_chi,I_shell)
             do I_nu = 1, Num_nu
                 log_transfer_prefix(I_nu,I_chi,I_shell) = log_transfer_prefix(I_nu,I_chi-1,I_shell) + &
                     dlog(history_transfer_weight(tau_hist(I_nu,I_chi,I_shell)))

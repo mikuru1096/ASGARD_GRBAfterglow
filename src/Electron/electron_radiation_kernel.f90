@@ -883,14 +883,18 @@ real(8) :: Tau_left,Tau_right
     end do
 
     if (I_cross == 0) then
-        call interpolate_log_tau_root(V_seed(Num_nu-1),max(Tau_grid(Num_nu-1),tiny(one)), &
-                                      V_seed(Num_nu),max(Tau_grid(Num_nu),tiny(one)),V_a)
+        if (Tau_grid(Num_nu-1) <= zero .or. Tau_grid(Num_nu) <= zero) &
+            error stop 'get_nu_a_from_tau_grid requires positive tau values for log interpolation'
+        call interpolate_log_tau_root(V_seed(Num_nu-1),Tau_grid(Num_nu-1), &
+                                      V_seed(Num_nu),Tau_grid(Num_nu),V_a)
         if (V_a < V_seed(Num_nu)) V_a=V_seed(Num_nu)
         return
     end if
 
-    Tau_left=max(Tau_grid(I_cross-1),tiny(one))
-    Tau_right=max(Tau_grid(I_cross),tiny(one))
+    Tau_left=Tau_grid(I_cross-1)
+    Tau_right=Tau_grid(I_cross)
+    if (Tau_left <= zero .or. Tau_right <= zero) &
+        error stop 'get_nu_a_from_tau_grid requires positive tau values for log interpolation'
     call interpolate_log_tau_root(V_seed(I_cross-1),Tau_left,V_seed(I_cross),Tau_right,V_a)
 end subroutine get_nu_a_from_tau_grid
 
