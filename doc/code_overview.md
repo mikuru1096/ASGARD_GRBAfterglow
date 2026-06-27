@@ -106,7 +106,7 @@ Fitter.loglike -> compile_problem -> eval_loglike -> solve_state_from_setup
 
 ### 强子
 
-`src/Hadronic/hadronic_forward_1d.f90` 是正向激波强子 f2py 入口，调度：
+`src/Hadronic/hadronic_forward_1d.f90` 是正向激波强子 f2py 入口。公开 f2py 面只保留 Python 正式路径调用的 drivers、process wrappers 和少量单位/插值 helper；其余 shell operators 保留为 Fortran 内部实现，不再从 `build_extensions.py` 导出。
 
 - `fs_hadronic_formal_transport_1d`：formal 1D shell sequence driver，闭合 proton transport、pγ photon survival、BH、pp、secondary species、hadronic IC 和 BH/pp 二级电子序列。
 - `hadronic_transport_kernel.f90`：proton injection、adiabatic/synchrotron loss、log-gamma energy advance。
