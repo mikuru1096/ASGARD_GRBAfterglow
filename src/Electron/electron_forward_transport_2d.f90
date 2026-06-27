@@ -693,7 +693,8 @@ subroutine update_epsilon_b_db_chi(x_comov_col, Gamma_f, dNe_val, beta_rel_sh)
     integer :: I
     Gam_m1 = Gamma_f*(Gamma_f-one)
     do I = 1, Num_chi
-        t_decay_chi(I) = x_comov_col(I)/max(beta_rel_sh(I)*para_c, tiny(one))
+        if (beta_rel_sh(I) <= zero) error stop 'electron 2d magnetic decay requires positive shock-relative speed'
+        t_decay_chi(I) = x_comov_col(I)/(beta_rel_sh(I)*para_c)
         if (magnetic_decay_active) then
             Epsilon_b_chi(I) = Epsilon_b_floor + (Epsilon_b-Epsilon_b_floor) * &
                                (one+t_decay_chi(I)/magnetic_decay_t0_s)**magnetic_decay_alpha_t
