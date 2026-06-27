@@ -643,7 +643,7 @@ subroutine advance_energy_loggamma_chi_charint(U_log, Num_gam_e, Num_chi, gam_e,
     real(8), intent(in), optional :: source_q1(Num_gam_e)
 
     real(8) :: x_edge(Num_gam_e+1), U_in(Num_gam_e), U_out(Num_gam_e)
-    real(8) :: a_rad, b_ad
+    real(8) :: a_rad, b_ad, shock_four_velocity
     integer :: I_chi, chi_hi, cooling_mode
     logical :: source_column
 
@@ -658,7 +658,9 @@ subroutine advance_energy_loggamma_chi_charint(U_log, Num_gam_e, Num_chi, gam_e,
         a_rad = zero
         b_ad = zero
         if (index_Y == 0) then
-            a_rad = 1.35d-19*DB_chi(I_chi)**2/(max(beta_sh*Gamma_sh, tiny(one))*pi)
+            shock_four_velocity = beta_sh*Gamma_sh
+            if (shock_four_velocity <= zero) error stop "advance_energy_loggamma_chi_charint requires beta_sh*Gamma_sh > 0"
+            a_rad = 1.35d-19*DB_chi(I_chi)**2/(shock_four_velocity*pi)
             b_ad = one/R_loc
             cooling_mode = electron_cooling_affine
         end if
