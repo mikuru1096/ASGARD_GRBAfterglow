@@ -41,7 +41,7 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
     integer :: env_len,env_status,I_face
     character(len=32) :: diag_env
     real(8) :: dDR_xi
-    real(8) :: n_before_step,n_after_step,inj_step,rel_loss_xi_max
+    real(8) :: n_before_step,n_after_step,inj_step,n_budget,rel_loss_xi_max
     real(8) :: source_integral,adiabatic_integral,l_count_real,step_sum,step_sq_sum
     real(8) :: radius_sum,radius_sq_sum,source_prefactor,coord_scale,dg_gamma_scale,face_coord,face_jac
     allocate (dEl(Num_gam_e),dEl_step(Num_gam_e),dEL_mean(Num_gam_e-1),x(Num_gam_e),dN_x(Num_gam_e), &
@@ -106,7 +106,9 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
         dEL_mean_base=dEL_mean
         dDR_xi=dDR
         if (adaptive_substeps == 0) then
-            L1=max(100,min(1000,int(dDD/max(dDR,tiny(one)))))
+            if (dDD <= zero) error stop 'fs_electron_fullhide_1d requires increasing radius grid'
+            if (dDR <= zero) error stop 'fs_electron_fullhide_1d requires positive cooling substep width'
+            L1=max(100,min(1000,int(dDD/dDR)))
             dDR=dDD/dble(L1)
             if (is_uniform_density .and. thermal_electrons == 0) then
                 allocate(dF_steps(Num_gam_e,1),face_coupling(Num_gam_e-1,1))
@@ -136,8 +138,8 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
                 call electron_shell_flux_split_coord_sequence(Num_gam_e,coord_edge,face_coupling(:,1),dF_steps(:,1),dN_x,x)
                 if (budget_diag_enabled) then
                     n_after_step=sum(x*(coord_edge(2:Num_gam_e+1)-coord_edge(1:Num_gam_e)))
-                    rel_loss_xi_max=max(rel_loss_xi_max, &
-                        max(zero,(n_before_step+inj_step-n_after_step)/max(n_before_step+inj_step,tiny(one))))
+                    n_budget=n_before_step+inj_step
+                    if (n_budget > zero) rel_loss_xi_max=max(rel_loss_xi_max,max(zero,(n_budget-n_after_step)/n_budget))
                 end if
                 dN_x=x
                 deallocate(dF_steps,face_coupling)
@@ -170,8 +172,8 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
                                                               dEl_step,one/R_loc,dF1,dN_x,x)
                     if (budget_diag_enabled) then
                         n_after_step=sum(x*(coord_edge(2:Num_gam_e+1)-coord_edge(1:Num_gam_e)))
-                        rel_loss_xi_max=max(rel_loss_xi_max, &
-                            max(zero,(n_before_step+inj_step-n_after_step)/max(n_before_step+inj_step,tiny(one))))
+                        n_budget=n_before_step+inj_step
+                        if (n_budget > zero) rel_loss_xi_max=max(rel_loss_xi_max,max(zero,(n_budget-n_after_step)/n_budget))
                         if (I_tobs <= 6 .and. L == L1) then
                             print '(A,1X,I4,1X,ES12.4,1X,ES12.4,1X,ES12.4)', &
                                   'BUDGET1D shell', I_tobs, n_before_step, inj_step, n_after_step
@@ -366,7 +368,7 @@ subroutine fs_electron_fullhide_1d_coupled(Boundary,R_Tobs,R_Gamma,R,V_seed,Seed
     logical :: budget_diag_enabled
     integer :: Num_gam_rad,env_len,env_status
     character(len=32) :: diag_env
-    real(8) :: n_before_step,n_after_step,inj_step,rel_loss_xi_max,thermal_count
+    real(8) :: n_before_step,n_after_step,inj_step,n_budget,rel_loss_xi_max,thermal_count
 
     if (adaptive_substeps /= 0) error stop 'fs_electron_fullhide_1d_coupled requires fixed shell substeps'
     if (index_Y /= 1) error stop 'fs_electron_fullhide_1d_coupled requires index_Y=1'
@@ -422,7 +424,9 @@ subroutine fs_electron_fullhide_1d_coupled(Boundary,R_Tobs,R_Gamma,R,V_seed,Seed
     do I_tobs=2,Num_R
         call prepare_coupled_shell(I_tobs)
         dEL_mean=(dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/two/dlog(ten)
-        L1=max(100,min(1000,int(dDD/max(dDR,tiny(one)))))
+        if (dDD <= zero) error stop 'fs_electron_fullhide_1d_coupled requires increasing radius grid'
+        if (dDR <= zero) error stop 'fs_electron_fullhide_1d_coupled requires positive cooling substep width'
+        L1=max(100,min(1000,int(dDD/dDR)))
         dDR=dDD/dble(L1)
 
         do L=1,L1
@@ -452,8 +456,8 @@ subroutine fs_electron_fullhide_1d_coupled(Boundary,R_Tobs,R_Gamma,R,V_seed,Seed
             call electron_shell_fullhide_step(Num_gam_e,R_loc,dDR,d_x,dEL_mean_step,dF1,dN_x,x)
             if (budget_diag_enabled) then
                 n_after_step=sum(x)*d_x
-                rel_loss_xi_max=max(rel_loss_xi_max, &
-                    max(zero,(n_before_step+inj_step-n_after_step)/max(n_before_step+inj_step,tiny(one))))
+                n_budget=n_before_step+inj_step
+                if (n_budget > zero) rel_loss_xi_max=max(rel_loss_xi_max,max(zero,(n_budget-n_after_step)/n_budget))
             end if
             dN_x=x
         end do
