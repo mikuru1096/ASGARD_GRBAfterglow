@@ -1080,7 +1080,6 @@ shell-level 和 chi-resolved EATS/Doppler 投影。
 | `S` | 481 | `sed_interpolation_chi_structured_axisym_ring_precomputed` | axisymmetric structured chi ring projection；输入为预计算 `F_ring/Tau_ring`。 |
 | `S` | 567 | `project_precomputed_ring_segment` | structured ring EATS/Doppler segment projection。 |
 | `S` | 583 | `accumulate_precomputed_ring_source` | structured ring chi cell source + SSA escape 累加。 |
-| `S` | 605 | `chi_synch_point` | 单点 chi synchrotron/SSA diagnostic helper。 |
 
 ### `src/Interpolation/SED_interpolation_structured.f90`
 

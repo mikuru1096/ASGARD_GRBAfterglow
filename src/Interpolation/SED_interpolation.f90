@@ -552,40 +552,6 @@ subroutine accumulate_precomputed_ring_source(I_chi,K2,Ratio,F_theta)
 end subroutine accumulate_precomputed_ring_source
 end subroutine sed_interpolation_chi_structured_axisym_ring_precomputed
 
-! 单频同步辐射点计算：与radiation_syn_seed_core同一核，用于direct chi投影。
-subroutine chi_synch_point(R_loc,DB,Num_gam_e,gam_e,dN_gam_e,V_cal,P_syn,Tau_syn)
-    use constants
-    use radiation_common, only: radiation_syn_kernel_value, radiation_transfer_factor
-    implicit real(8)(A-H,O-Z)
-    integer, intent(in) :: Num_gam_e
-    real(8), intent(in) :: R_loc,DB,gam_e(Num_gam_e),dN_gam_e(Num_gam_e),V_cal
-    real(8), intent(out) :: P_syn,Tau_syn
-    real(8) :: factor,Temp_syn,Rariv2,dInteg,Tau,x,ratio_v_pow,Fx,P_v,transfer
-
-    factor=(3.62d0/pi)**2
-    Temp_syn=dsqrt(3d0)*para_e*para_e*para_e/Para_m_energy
-    Rariv2=R_loc*R_loc
-    dInteg=zero
-    Tau=zero
-    do I_gam_e=1,Num_gam_e-1
-        gam_mid2=(gam_e(I_gam_e)+gam_e(I_gam_e+1))**2/4d0
-        dN_seg=(dN_gam_e(I_gam_e)+dN_gam_e(I_gam_e+1))*(gam_e(I_gam_e+1)-gam_e(I_gam_e))/two
-        ddN=dN_gam_e(I_gam_e)/(gam_e(I_gam_e)*gam_e(I_gam_e)) - &
-            dN_gam_e(I_gam_e+1)/(gam_e(I_gam_e+1)*gam_e(I_gam_e+1))
-        Vc=(4.2d6)*gam_mid2*DB
-        x=V_cal/Vc
-        ratio_v_pow=(Vc/V_cal)**(2d0/3d0)
-        Fx=radiation_syn_kernel_value(x,ratio_v_pow,factor)
-        dInteg=dInteg+dN_seg*Fx
-        Tau=Tau+gam_mid2*ddN*Fx
-    end do
-    P_v=Temp_syn*DB*dInteg
-    Tau=1.046d4*Tau*DB/(4d0*pi*Rariv2*V_cal*V_cal)
-    Tau_syn=Tau
-    call radiation_transfer_factor(Tau,transfer)
-    P_syn=P_v*transfer
-end subroutine chi_synch_point
-
 ! Shared projection helpers.
 real(8) function chi_ssa_cell_escape(tau_front,tau_cell)
     use constants
