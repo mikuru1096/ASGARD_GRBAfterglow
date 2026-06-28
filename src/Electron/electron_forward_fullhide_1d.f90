@@ -418,6 +418,7 @@ subroutine fs_electron_fullhide_1d_coupled(Boundary,R_Tobs,R_Gamma,R,V_seed,Seed
     integer :: Num_gam_rad,env_len,env_status
     character(len=32) :: diag_env
     real(8) :: n_before_step,n_after_step,inj_step,n_budget,rel_loss_xi_max,thermal_count
+    real(8) :: R_loc,R_Gamma_loc,beta_Gam,dNe,DB,Gam_e_max,Gam_e_m,Gam_e_m_p,Gam_e_c,dNe_shell,dDR,dDD,f_r
 
     if (adaptive_substeps /= 0) error stop 'fs_electron_fullhide_1d_coupled requires fixed shell substeps'
     if (index_Y /= 1) error stop 'fs_electron_fullhide_1d_coupled requires index_Y=1'
@@ -473,43 +474,7 @@ subroutine fs_electron_fullhide_1d_coupled(Boundary,R_Tobs,R_Gamma,R,V_seed,Seed
     do I_tobs=2,Num_R
         call prepare_coupled_shell(I_tobs)
         dEL_mean=(dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/two/dlog(ten)
-        if (dDD <= zero) error stop 'fs_electron_fullhide_1d_coupled requires increasing radius grid'
-        if (dDR <= zero) error stop 'fs_electron_fullhide_1d_coupled requires positive cooling substep width'
-        L1=max(100,min(1000,int(dDD/dDR)))
-        dDR=dDD/dble(L1)
-
-        do L=1,L1
-            R_loc=R_loc+dDR
-            call dynamics_external_density_profile(A_star,dNe_ISM,R_loc,R0,1,R_tr,f_jump,f_wide,dNe)
-            DB_step=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma_loc*(R_Gamma_loc-one)))
-            Gam_e_max_step=3d0*Para_m_energy/dsqrt(8d0*DB_step*Para_e**3)
-            temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma_loc-one)
-            call electron_gamma_m_exact(p,temp_gam,Gam_e_max_step,Gam_e_m_step)
-            Gam_e_m_p_step=(one-p)/(Gam_e_max_step**(one-p)-Gam_e_m_step**(one-p))
-            Q=4d0/3d0*pi*(3d0*R_loc**2+dDR*(3d0*R_loc+dDR))*dNe*f_e*Gam_e_m_p_step
-            call electron_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m_step,Gam_e_max_step,Q,p,dF1)
-            dF1=dF1+Secondary_source(:,I_tobs)
-            if (thermal_electrons /= 0) then
-                thermal_count=Q*(one-f_e)/(f_e*Gam_e_m_p_step)
-                call electron_add_thermal_source_term(Num_gam_e,gam_e,R_Gamma_loc*beta_Gam,thermal_count,dF1)
-            end if
-            if (dNe_shell > zero) then
-                dEL_mean_step=dEL_mean*(dNe/dNe_shell)
-            else
-                dEL_mean_step=dEL_mean
-            end if
-            if (budget_diag_enabled) then
-                n_before_step=sum(dN_x)*d_x
-                inj_step=dDR*sum(dF1)*d_x
-            end if
-            call electron_shell_fullhide_step(Num_gam_e,R_loc,dDR,d_x,dEL_mean_step,dF1,dN_x,x)
-            if (budget_diag_enabled) then
-                n_after_step=sum(x)*d_x
-                n_budget=n_before_step+inj_step
-                if (n_budget > zero) rel_loss_xi_max=max(rel_loss_xi_max,max(zero,(n_budget-n_after_step)/n_budget))
-            end if
-            dN_x=x
-        end do
+        call advance_coupled_fixed_shell(I_tobs)
         call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,I_tobs))
     end do
 
@@ -554,4 +519,47 @@ contains
                                             R_Gamma_loc,beta_Gam,dNe,Num_gam_e,Num_nu,n_threads,gam_e,V_seed, &
                                             Seed_syn(:,I_tobs),cooling_aux,dEl)
     end subroutine prepare_coupled_shell
+
+    subroutine advance_coupled_fixed_shell(I_tobs)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: I_tobs
+
+        if (dDD <= zero) error stop 'fs_electron_fullhide_1d_coupled requires increasing radius grid'
+        if (dDR <= zero) error stop 'fs_electron_fullhide_1d_coupled requires positive cooling substep width'
+        L1=max(100,min(1000,int(dDD/dDR)))
+        dDR=dDD/dble(L1)
+
+        do L=1,L1
+            R_loc=R_loc+dDR
+            call dynamics_external_density_profile(A_star,dNe_ISM,R_loc,R0,1,R_tr,f_jump,f_wide,dNe)
+            DB_step=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma_loc*(R_Gamma_loc-one)))
+            Gam_e_max_step=3d0*Para_m_energy/dsqrt(8d0*DB_step*Para_e**3)
+            temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma_loc-one)
+            call electron_gamma_m_exact(p,temp_gam,Gam_e_max_step,Gam_e_m_step)
+            Gam_e_m_p_step=(one-p)/(Gam_e_max_step**(one-p)-Gam_e_m_step**(one-p))
+            Q=4d0/3d0*pi*(3d0*R_loc**2+dDR*(3d0*R_loc+dDR))*dNe*f_e*Gam_e_m_p_step
+            call electron_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m_step,Gam_e_max_step,Q,p,dF1)
+            dF1=dF1+Secondary_source(:,I_tobs)
+            if (thermal_electrons /= 0) then
+                thermal_count=Q*(one-f_e)/(f_e*Gam_e_m_p_step)
+                call electron_add_thermal_source_term(Num_gam_e,gam_e,R_Gamma_loc*beta_Gam,thermal_count,dF1)
+            end if
+            if (dNe_shell > zero) then
+                dEL_mean_step=dEL_mean*(dNe/dNe_shell)
+            else
+                dEL_mean_step=dEL_mean
+            end if
+            if (budget_diag_enabled) then
+                n_before_step=sum(dN_x)*d_x
+                inj_step=dDR*sum(dF1)*d_x
+            end if
+            call electron_shell_fullhide_step(Num_gam_e,R_loc,dDR,d_x,dEL_mean_step,dF1,dN_x,x)
+            if (budget_diag_enabled) then
+                n_after_step=sum(x)*d_x
+                n_budget=n_before_step+inj_step
+                if (n_budget > zero) rel_loss_xi_max=max(rel_loss_xi_max,max(zero,(n_budget-n_after_step)/n_budget))
+            end if
+            dN_x=x
+        end do
+    end subroutine advance_coupled_fixed_shell
 end subroutine fs_electron_fullhide_1d_coupled
