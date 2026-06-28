@@ -39,6 +39,7 @@ class FluxComponents:
     fwd_hadronic_inverse_compton: np.ndarray | None
     fwd_hadronic_pair_production: np.ndarray | None
     rev_sync: np.ndarray | None
+    rev_hadronic_gamma: np.ndarray | None
     rev_ssc: np.ndarray | None
     cross_ic: np.ndarray | None
     fwd: BranchState

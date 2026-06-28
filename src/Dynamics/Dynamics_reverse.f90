@@ -1,3 +1,7 @@
+! 反向激波动力学主驱动。
+! 顺序: unpack ejecta/medium -> resolve RS start/crossing -> integrate main RS state
+!       -> update density-jump secondary RS events -> compute hydro/MHD jump state
+!       -> output region-3 thermal, magnetic, and secondary-branch records.
 subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, &
                             T_cross,R_cross,e3_cross,gam20,U3_cross,V3_cross,M3_cross,gam_m_cross,B3_ordered_cross, &
                             R_Tobs,R_Gamma,R,M2,M3,B3,U3_th,V3_comoving,Gamma34_inst, &

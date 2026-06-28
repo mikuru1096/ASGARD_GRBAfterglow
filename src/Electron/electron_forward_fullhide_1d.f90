@@ -3,7 +3,10 @@
 !****************************************************************************************
 !******************************* main program *******************************************
 !****************************************************************************************
-! 电子1D全隐格式主驱动：自适应子步+隐式迎风冷却，支持均匀/非均匀介质和粒子数守恒诊断。
+! 电子1D全隐格式主驱动。
+! 顺序: unpack boundary/config -> build log-four-velocity grid -> initialize electron distribution
+!       -> loop shells: density/B/gamma_m/c -> injection/cooling -> transport -> synch/SSA diagnostics
+!       -> return shell-level electron, synchrotron seed, and break frequencies.
 subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads, &
                                    adaptive_substeps,substep_rtol,substep_min,substep_max,thermal_electrons, &
                                    gam_e,dN_gam_e,P_syn,Seed_syn,V_m,V_c,V_a)
@@ -342,6 +345,8 @@ contains
 end subroutine fs_electron_fullhide_1d
 
 ! 1D joint-coupling electron pass: use externally closed photon and secondary pair source fields.
+! Joint electron-photon pass: same fixed-substep fullhide shell transport, but cooling seed and
+! secondary source are supplied by the shell-level photon/hadronic feedback stage.
 subroutine fs_electron_fullhide_1d_coupled(Boundary,R_Tobs,R_Gamma,R,V_seed,Seed_cooling,Secondary_source,n,Num_nu,Num_R, &
                                            Num_gam_e,index_Y,index_syn_intger,n_threads,adaptive_substeps, &
                                            substep_rtol,substep_min,substep_max,thermal_electrons, &

@@ -484,6 +484,16 @@ def _apply_hadronic_photon_survival(
     photon_field.hadronic_forward_ssc_seed = np.asarray(photon_field.hadronic_forward_ssc_seed, dtype=float) * survival
 
 
+def _positive_frequency_range(frequencies_hz: np.ndarray | None) -> tuple[float | None, float | None]:
+    if frequencies_hz is None:
+        return None, None
+    requested = np.asarray(frequencies_hz, dtype=float)
+    requested = requested[np.isfinite(requested) & (requested > 0.0)]
+    if requested.size == 0:
+        return None, None
+    return float(np.min(requested)), float(np.max(requested))
+
+
 def solve_state_from_setup(
     config: RuntimeConfig,
     setup,
@@ -494,6 +504,8 @@ def solve_state_from_setup(
 ) -> SolveState:
     _validate_multi_density_reverse_config(config)
     execution_policy = ExecutionPolicy(num_threads=config.num_threads) if policy is None else policy
+
+    # Physical spine: dynamics -> forward electron/photon/hadronic -> reverse -> observer.
     dynamics, dynamics_report = _timed_call(
         timings,
         _solver_label(config, "dynamics"),
@@ -502,6 +514,7 @@ def solve_state_from_setup(
         config,
         return_report=True,
     )
+
     if _electron_photon_coupling(config) == _COUPLING_JOINT:
         electron, photon_field, hadronic, electron_report, hadronic_report = _solve_joint_forward_stage(
             config,
@@ -529,6 +542,7 @@ def solve_state_from_setup(
             photon_field,
             timings,
         )
+
     reverse_emission = None
     if config.reverse or config.reverse_shock.enabled:
         reverse_emission = _timed_call(
@@ -540,6 +554,7 @@ def solve_state_from_setup(
             setup.seed_frequency_hz,
             config,
         )
+
     if assemble_observer:
         observer = _assemble_observer_stage(
             setup,
@@ -553,14 +568,8 @@ def solve_state_from_setup(
         )
     else:
         observer = _observer_state_without_projection(setup, config, dynamics)
-    freq_min: float | None = None
-    freq_max: float | None = None
-    if requested_frequencies_hz is not None:
-        requested = np.asarray(requested_frequencies_hz, dtype=float)
-        requested = requested[np.isfinite(requested) & (requested > 0.0)]
-        if requested.size > 0:
-            freq_min = float(np.min(requested))
-            freq_max = float(np.max(requested))
+
+    freq_min, freq_max = _positive_frequency_range(requested_frequencies_hz)
     return SolveState(
         config=config,
         setup=setup,
@@ -604,6 +613,7 @@ def _observer_state_without_projection(setup, config: RuntimeConfig, dynamics) -
         fwd_hadronic_inverse_compton=None,
         fwd_hadronic_pair_production=None,
         rev_sync=None,
+        rev_hadronic_gamma=None,
         rev_ssc=None,
         cross_ic=None,
         fwd=fwd,
@@ -714,6 +724,7 @@ _OBSERVED_COMPONENT_ATTRS = (
     ("fwd_hadronic_inverse_compton", "fwd_hadronic_inverse_compton"),
     ("fwd_hadronic_pair_production", "fwd_hadronic_pair_production"),
     ("rev_sync", "rev_sync"),
+    ("rev_hadronic", "rev_hadronic_gamma"),
     ("rev_ssc", "rev_ssc"),
     ("cross_ic", "cross_ic"),
 )
@@ -896,6 +907,7 @@ def _assemble_observer_stage(
         fwd_sync=fwd_sync,
         fwd_ssc=np.zeros_like(fwd_sync),
         rev_sync=None,
+        rev_hadronic=None,
         rev_ssc=None,
         cross_ic=None,
         rev_details=None,
@@ -995,12 +1007,15 @@ def _assemble_observer_stage(
             s["absorbed_fwd_hadronic_pair_production"] = s["pair_lum_total"] * prefactor
         s["absorbed_fwd_hadronic_gamma"] = hadronic_gamma_total * prefactor
     absorbed_rev_sync = None if s["rev_sync"] is None else s["rev_sync"] * prefactor
+    absorbed_rev_hadronic = None if s["rev_hadronic"] is None else s["rev_hadronic"] * prefactor
     absorbed_rev_ssc = None if s["rev_ssc"] is None else s["rev_ssc"] * prefactor
     absorbed_cross_ic = None if s["cross_ic"] is None else s["cross_ic"] * prefactor
 
     total = absorbed_fwd_sync + absorbed_fwd_ssc
     if absorbed_rev_sync is not None:
         total = total + absorbed_rev_sync
+    if absorbed_rev_hadronic is not None:
+        total = total + absorbed_rev_hadronic
     if absorbed_rev_ssc is not None:
         total = total + absorbed_rev_ssc
     if absorbed_cross_ic is not None:
@@ -1021,6 +1036,7 @@ def _assemble_observer_stage(
             fwd_hadronic_inverse_compton=s["absorbed_fwd_hadronic_inverse_compton"],
             fwd_hadronic_pair_production=s["absorbed_fwd_hadronic_pair_production"],
             rev_sync=absorbed_rev_sync,
+            rev_hadronic_gamma=absorbed_rev_hadronic,
             rev_ssc=absorbed_rev_ssc,
             cross_ic=absorbed_cross_ic,
             fwd=BranchState(
@@ -1054,7 +1070,7 @@ def _stage_reverse_emission(
                 radius_cm=dynamics.radius,
                 seed_frequency_hz=setup.seed_frequency_hz,
             )
-            s["rev_sync"] = s["rev_sync"] + _reverse_hadronic_luminosity(reverse_emission.rs_hadronic)
+            s["rev_hadronic"] = _reverse_hadronic_luminosity(reverse_emission.rs_hadronic)
         s["rev_details"] = BranchState(
             characteristic_time_s=dynamics.r_tobs,
             gamma=dynamics.r_gamma,

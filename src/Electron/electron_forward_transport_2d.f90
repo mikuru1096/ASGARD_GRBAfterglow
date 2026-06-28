@@ -1,4 +1,9 @@
-! 电子2D输运核心：χ网格构建→壳层循环（历史场叠加+冷却+η对流/扩散+能量维冷却），支持charint/fullhide双模式。
+! 电子2D输运核心。
+! 顺序: unpack config -> construct finite-q shell geometry -> initialize shock-front electrons
+!       -> loop shells/substeps: shock state -> chi-local cooling/radiation history
+!       -> energy advance -> q advection/diffusion -> shell/chi spectrum accumulation
+!       -> return shell-level outputs plus projection geometry.  The chi_* arrays are observer
+!       projection geometry, not a chi-local hadronic contract.
 subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e, &
                                          Num_chi,index_Y,index_syn_intger,n_threads,emit_full_chi_spectrum, &
                                          gam_e,dN_gam_e,dN_gam_e_total,P_syn,Seed_syn,V_m,V_c,V_a, &

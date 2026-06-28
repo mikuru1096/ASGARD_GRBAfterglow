@@ -328,7 +328,9 @@ subroutine fs_hadronic_decay_operator_shell(Num_gam_p,hadron_energy_gev,pion0_so
         neutrino_rate_per_gev)
 end subroutine fs_hadronic_decay_operator_shell
 
-! Forward-shock 1D hadronic driver.
+! Forward-shock 1D hadronic light driver.
+! 顺序: build proton grid -> loop shells: inject protons -> transport losses
+!       -> optional Hummer p-gamma secondary chain -> proton synchrotron emission.
 subroutine fs_hadronic_1d(R_Tobs,R_Gamma,R,shell_energy_inj_erg,B_field_g,V_seed,Seed_target,p_p,epsilon_p,eta_acc, &
                           include_proton_synch,include_pg,include_neutrino,Num_nu,Num_R,num_gam_p,num_nu_nu,n_threads, &
                           gam_p,dN_gam_p,P_had_syn,Seed_had_syn,P_had_pg_gamma,V_nu,P_nu_all)
@@ -506,7 +508,9 @@ contains
     end subroutine emit_proton_synchrotron_for_shell
 end subroutine fs_hadronic_1d
 
-! Formal 1D hadronic shell sequence ABI wrapper.
+! Formal 1D hadronic shell-sequence ABI wrapper.
+! The implementation advances proton transport, p-gamma/BH/pp interactions, secondary species,
+! secondary radiation, photon survival, and secondary electron source on the shell grid.
 subroutine fs_hadronic_formal_transport_1d(R_Tobs,R_Gamma,R,B_field_g,V_seed,Seed_target,gamma_e, &
         shell_energy_inj_erg,pp_target_density_cm3,p_p,eta_acc,index_syn_integr,include_proton_synch, &
         include_pg,include_neutrino,include_bethe_heitler,include_hadronic_inverse_compton,include_pp, &

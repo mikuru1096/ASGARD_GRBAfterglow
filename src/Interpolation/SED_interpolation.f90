@@ -5,7 +5,9 @@
 !to produce the observed SED 'F_tot_obs' after consider the EATS and Doppler boosting effect.
 !##################################################################################################
 
-! 将共动系SED插值到观测系：EATS时间修正 + 多普勒增亮 + 红移，均匀角网格。
+! Shell-level top-hat projection.
+! 顺序: angular EATS geometry -> Doppler/redshift factor -> log-frequency interpolation
+!       -> observer-time accumulation over theta/phi cells.
 subroutine sed_interpolation(Boundary,R_Tobs1,R_gamma,R,F_tot,V_seed,V_obs,Tobs, &
                              n,Num_nu,Num_nu_obs,Num_Tobs,Num_Theta,Num_R,Num_Phi,n_threads, F_tot_obs)
     !$ use omp_lib

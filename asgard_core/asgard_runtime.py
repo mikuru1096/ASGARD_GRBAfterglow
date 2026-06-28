@@ -1191,7 +1191,8 @@ def _solve_hadronic_hummer_transport_coupled(
     num_nu = v_seed_arr.size
     num_gam_p = int(config.hadronic.num_gam_p)
     num_nu_nu = int(config.hadronic.num_nu_nu)
-    gam_e = electron_gamma
+    gam_e = np.asarray(electron_gamma, dtype=float)
+    hadronic_gam_e = _formal_hadronic_electron_grid(gam_e)
     if pp_target_density_arr is None:
         pp_target_density_arr = ambient_density(radius, config)
     t_total_start = time.perf_counter()
@@ -1211,7 +1212,7 @@ def _solve_hadronic_hummer_transport_coupled(
         b_field,
         v_seed_arr,
         seed_target_arr,
-        gam_e,
+        hadronic_gam_e,
         shell_energy_inj,
         pp_target_density_arr,
         float(config.hadronic.p_p),
@@ -1227,6 +1228,12 @@ def _solve_hadronic_hummer_transport_coupled(
         int(config.num_threads),
         num_gam_p,
         num_nu_nu,
+    )
+    d_n_gam_e_bh, secondary_electron_source_r = _project_hadronic_electron_outputs(
+        hadronic_gam_e,
+        gam_e,
+        np.asarray(d_n_gam_e_bh, dtype=float).reshape(hadronic_gam_e.size, num_r),
+        np.asarray(secondary_electron_source_r, dtype=float).reshape(hadronic_gam_e.size, num_r),
     )
     timings = {"formal_transport_fortran": time.perf_counter() - t_total_start}
     sed_components = {
@@ -1276,6 +1283,37 @@ def _solve_hadronic_hummer_transport_coupled(
         sed_components=sed_components,
     )
 
+
+def _formal_hadronic_electron_grid(gamma_e: np.ndarray) -> np.ndarray:
+    gamma = np.asarray(gamma_e, dtype=float)
+    if gamma.size < 2:
+        return gamma.copy()
+    return np.geomspace(float(gamma[0]), float(gamma[-1]), gamma.size)
+
+
+def _project_hadronic_electron_outputs(
+    source_gamma: np.ndarray,
+    target_gamma: np.ndarray,
+    electron_density: np.ndarray,
+    source_radius: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    if np.array_equal(source_gamma, target_gamma):
+        return electron_density, source_radius
+    num_shell = electron_density.shape[1]
+    density_out = np.zeros((target_gamma.size, num_shell), dtype=float)
+    source_out = np.zeros((target_gamma.size, num_shell), dtype=float)
+    for i_shell in range(num_shell):
+        density_out[:, i_shell] = hadronic_legacy_module.fs_hadronic_positive_loglog_interp(
+            source_gamma,
+            electron_density[:, i_shell],
+            target_gamma,
+        )
+        source_out[:, i_shell] = hadronic_legacy_module.fs_hadronic_positive_loglog_interp(
+            source_gamma,
+            source_radius[:, i_shell],
+            target_gamma,
+        )
+    return density_out, source_out
 
 
 def _hadronic_pg_survival_factor(tau_pg: np.ndarray) -> np.ndarray:

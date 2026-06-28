@@ -35,6 +35,9 @@ def _observe_parts(
     observed_state = project_flux_grid(state, times_s, nu_hz, mode=mode, projection_kind=projection_kind)
     observed = observed_state.components
     total = np.asarray(observed["total"], dtype=float)
+    rev_sync = np.zeros_like(total) if observed["rev_sync"] is None else np.asarray(observed["rev_sync"], dtype=float)
+    if observed.get("rev_hadronic") is not None:
+        rev_sync = rev_sync + np.asarray(observed["rev_hadronic"], dtype=float)
     return FluxResult(
         total=total,
         fwd=FluxPair(
@@ -42,7 +45,7 @@ def _observe_parts(
             ssc=np.zeros_like(total) if observed["fwd_ssc"] is None else np.asarray(observed["fwd_ssc"], dtype=float),
         ),
         rev=FluxPair(
-            sync=np.zeros_like(total) if observed["rev_sync"] is None else np.asarray(observed["rev_sync"], dtype=float),
+            sync=rev_sync,
             ssc=np.zeros_like(total) if observed["rev_ssc"] is None else np.asarray(observed["rev_ssc"], dtype=float),
         ),
         cross_ic=None if observed["cross_ic"] is None else np.asarray(observed["cross_ic"], dtype=float),
