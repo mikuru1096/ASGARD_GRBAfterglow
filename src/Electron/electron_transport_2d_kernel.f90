@@ -388,6 +388,23 @@ subroutine add_q_diffusion_to_matrix(Num_chi, lambda_q, kappa_row, diff_face_lef
     end do
 end subroutine add_q_diffusion_to_matrix
 
+subroutine build_q_transport_base_matrix(Num_chi,dq,q_face,k_medium,R_loc,Gamma_f,beta_sh,dR_step, &
+                                         free_outer_escape,lambda_q,diff_face_left_base,diff_face_right_base, &
+                                         lower_base,diag_base,upper_base)
+    integer, intent(in) :: Num_chi,k_medium
+    logical, intent(in) :: free_outer_escape
+    real(8), intent(in) :: dq,q_face(0:Num_chi),R_loc,Gamma_f,beta_sh,dR_step
+    real(8), intent(out) :: lambda_q,diff_face_left_base(1:Num_chi),diff_face_right_base(1:Num_chi)
+    real(8), intent(out) :: lower_base(Num_chi),diag_base(Num_chi),upper_base(Num_chi)
+    real(8) :: A_q_face(1:Num_chi)
+
+    lambda_q = dR_step/dq
+    call q_face_transport_coeffs(k_medium, R_loc, Num_chi, q_face, A_q_face)
+    call q_diffusion_face_coeffs(Num_chi,dq,q_face,k_medium,R_loc,Gamma_f,beta_sh,free_outer_escape, &
+                                 diff_face_left_base,diff_face_right_base)
+    call build_q_advection_base_matrix(Num_chi,lambda_q,A_q_face,lower_base,diag_base,upper_base)
+end subroutine build_q_transport_base_matrix
+
 ! Thomas算法求解三对角线性方程组。
 subroutine solve_tridiagonal(Num_cell, lower, diag, upper, rhs, sol)
     integer, intent(in) :: Num_cell
@@ -480,17 +497,15 @@ subroutine advance_q_implicit(U_log, Num_gam_e, Num_chi, active_hi, dq, q_face, 
     real(8), intent(in) :: beta_sh, kappa2_chi(Num_gam_e,Num_chi), source_q1(Num_gam_e)
     real(8), intent(in) :: dR_step
 
-    real(8) :: A_q_face(1:Num_chi), diff_face_left_base(1:Num_chi), diff_face_right_base(1:Num_chi)
+    real(8) :: diff_face_left_base(1:Num_chi), diff_face_right_base(1:Num_chi)
     real(8) :: lower_base(Num_chi), diag_base(Num_chi), upper_base(Num_chi)
     real(8) :: lower(Num_chi), diag(Num_chi), upper(Num_chi), rhs(Num_chi), sol(Num_chi)
     real(8) :: lambda_q
     integer :: I_gam_e
 
-    lambda_q = dR_step/dq
-    call q_face_transport_coeffs(k_medium, R_loc, Num_chi, q_face, A_q_face)
-    call q_diffusion_face_coeffs(Num_chi,dq,q_face,k_medium,R_loc,Gamma_f,beta_sh,.false., &
-                                 diff_face_left_base,diff_face_right_base)
-    call build_q_advection_base_matrix(Num_chi, lambda_q, A_q_face, lower_base, diag_base, upper_base)
+    call build_q_transport_base_matrix(Num_chi,dq,q_face,k_medium,R_loc,Gamma_f,beta_sh,dR_step,.false., &
+                                       lambda_q,diff_face_left_base,diff_face_right_base, &
+                                       lower_base,diag_base,upper_base)
 
     !$OMP PARALLEL DO num_threads(n_threads) if(n_threads > 1 .and. active_hi*Num_chi >= 512) schedule(static) &
     !$OMP& private(I_gam_e,lower,diag,upper,rhs,sol)
@@ -518,17 +533,15 @@ subroutine advance_q_pwncr_implicit(U_log, Num_gam_e, Num_chi, active_hi, dq, q_
     real(8), intent(inout) :: U_log(Num_gam_e, Num_chi)
     real(8), intent(in) :: dq, q_face(0:Num_chi), R_loc, Gamma_f, beta_sh
     real(8), intent(in) :: kappa2_chi(Num_gam_e,Num_chi), source_q1(Num_gam_e), dR_step
-    real(8) :: A_q_face(1:Num_chi), diff_face_left_base(1:Num_chi), diff_face_right_base(1:Num_chi)
+    real(8) :: diff_face_left_base(1:Num_chi), diff_face_right_base(1:Num_chi)
     real(8) :: lower_base(Num_chi), diag_base(Num_chi), upper_base(Num_chi)
     real(8) :: lower(Num_chi), diag(Num_chi), upper(Num_chi), rhs(Num_chi), sol(Num_chi)
     real(8) :: lambda_q
     integer :: I_gam_e
 
-    lambda_q = dR_step/dq
-    call q_face_transport_coeffs(k_medium, R_loc, Num_chi, q_face, A_q_face)
-    call q_diffusion_face_coeffs(Num_chi,dq,q_face,k_medium,R_loc,Gamma_f,beta_sh,free_outer_escape, &
-                                 diff_face_left_base,diff_face_right_base)
-    call build_q_advection_base_matrix(Num_chi, lambda_q, A_q_face, lower_base, diag_base, upper_base)
+    call build_q_transport_base_matrix(Num_chi,dq,q_face,k_medium,R_loc,Gamma_f,beta_sh,dR_step,free_outer_escape, &
+                                       lambda_q,diff_face_left_base,diff_face_right_base, &
+                                       lower_base,diag_base,upper_base)
 
     !$OMP PARALLEL DO num_threads(n_threads) if(n_threads > 1 .and. active_hi*Num_chi >= 512) schedule(static) &
     !$OMP& private(I_gam_e,lower,diag,upper,rhs,sol)
