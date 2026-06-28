@@ -564,7 +564,7 @@ subroutine store_transport_2d_shell_state(I_tobs)
 end subroutine store_transport_2d_shell_state
 
 subroutine finalize_transport_2d_outputs()
-    integer :: I_proj
+    integer :: I_proj, I_proj_chi
 
     R_loc = R(Num_R)
     R_Gamma_loc = R_Gamma(Num_R)
@@ -605,15 +605,22 @@ subroutine finalize_transport_2d_outputs()
     call compute_vm_vc_va(R_Gamma_loc, beta_sh, Num_R, R_loc)
     if (emit_full_spectrum) then
         do I_proj = 1, Num_R
-            call project_q_projection_shell(Num_nu,Num_chi,dq,P_hist(:,:,I_proj),Seed_hist(:,:,I_proj), &
-                                            Tau_hist(:,:,I_proj),radius_cell_hist(:,I_proj),gamma_cell_hist(:,I_proj), &
-                                            P_syn_chi(:,:,I_proj),Seed_syn_chi(:,:,I_proj),Tau_syn_chi(:,:,I_proj), &
-                                            chi_radius(:,I_proj),chi_gamma_bulk(:,I_proj),chi_weight_out(:,I_proj))
+            P_syn_chi(:,:,I_proj) = P_hist(:,:,I_proj)
+            Seed_syn_chi(:,:,I_proj) = Seed_hist(:,:,I_proj)
+            Tau_syn_chi(:,:,I_proj) = Tau_hist(:,:,I_proj)
+            do I_proj_chi = 1, Num_chi
+                chi_radius(I_proj_chi,I_proj) = radius_cell_hist(I_proj_chi,I_proj)
+                chi_gamma_bulk(I_proj_chi,I_proj) = gamma_cell_hist(I_proj_chi,I_proj)
+                chi_weight_out(I_proj_chi,I_proj) = dq
+            end do
         end do
     else
         do I_proj = 1, Num_R
-            call project_q_projection_geometry(Num_chi,dq,radius_cell_hist(:,I_proj),gamma_cell_hist(:,I_proj), &
-                                               chi_radius(:,I_proj),chi_gamma_bulk(:,I_proj),chi_weight_out(:,I_proj))
+            do I_proj_chi = 1, Num_chi
+                chi_radius(I_proj_chi,I_proj) = radius_cell_hist(I_proj_chi,I_proj)
+                chi_gamma_bulk(I_proj_chi,I_proj) = gamma_cell_hist(I_proj_chi,I_proj)
+                chi_weight_out(I_proj_chi,I_proj) = dq
+            end do
         end do
     end if
 end subroutine finalize_transport_2d_outputs
@@ -805,55 +812,3 @@ subroutine compute_vm_vc_va(Gamma_f, beta_sh, I_tobs_out, Radius_val)
 end subroutine compute_vm_vc_va
 
 end subroutine fs_electron_transport_2d_core
-
-subroutine reduce_syn_shell_from_q(Num_nu,Num_chi,dq,P_q,Seed_q,P_shell,Seed_shell)
-    use constants
-    implicit real(8)(a-h,o-z)
-    integer, intent(in) :: Num_nu,Num_chi
-    real(8), intent(in) :: dq,P_q(Num_nu,Num_chi),Seed_q(Num_nu,Num_chi)
-    real(8), intent(out) :: P_shell(Num_nu),Seed_shell(Num_nu)
-    integer :: I_chi
-
-    P_shell = zero
-    Seed_shell = zero
-    do I_chi = 1, Num_chi
-        P_shell = P_shell + dq*P_q(:,I_chi)
-        Seed_shell = Seed_shell + dq*Seed_q(:,I_chi)
-    end do
-end subroutine reduce_syn_shell_from_q
-
-subroutine project_q_projection_shell(Num_nu,Num_chi,dq,P_src,Seed_src,Tau_src,radius_cell,gamma_cell, &
-                                      P_dst,Seed_dst,Tau_dst,chi_radius_dst,chi_gamma_dst,chi_weight_dst)
-    implicit real(8)(a-h,o-z)
-    integer, intent(in) :: Num_nu,Num_chi
-    real(8), intent(in) :: dq
-    real(8), intent(in) :: P_src(Num_nu,Num_chi),Seed_src(Num_nu,Num_chi),Tau_src(Num_nu,Num_chi)
-    real(8), intent(in) :: radius_cell(Num_chi),gamma_cell(Num_chi)
-    real(8), intent(out) :: P_dst(Num_nu,Num_chi),Seed_dst(Num_nu,Num_chi),Tau_dst(Num_nu,Num_chi)
-    real(8), intent(out) :: chi_radius_dst(Num_chi),chi_gamma_dst(Num_chi),chi_weight_dst(Num_chi)
-    integer :: I_chi
-
-    P_dst = P_src
-    Seed_dst = Seed_src
-    Tau_dst = Tau_src
-    do I_chi = 1, Num_chi
-        chi_radius_dst(I_chi) = radius_cell(I_chi)
-        chi_gamma_dst(I_chi) = gamma_cell(I_chi)
-        chi_weight_dst(I_chi) = dq
-    end do
-end subroutine project_q_projection_shell
-
-subroutine project_q_projection_geometry(Num_chi,dq,radius_cell,gamma_cell,chi_radius_dst,chi_gamma_dst,chi_weight_dst)
-    implicit real(8)(a-h,o-z)
-    integer, intent(in) :: Num_chi
-    real(8), intent(in) :: dq
-    real(8), intent(in) :: radius_cell(Num_chi),gamma_cell(Num_chi)
-    real(8), intent(out) :: chi_radius_dst(Num_chi),chi_gamma_dst(Num_chi),chi_weight_dst(Num_chi)
-    integer :: I_chi
-
-    do I_chi = 1, Num_chi
-        chi_radius_dst(I_chi) = radius_cell(I_chi)
-        chi_gamma_dst(I_chi) = gamma_cell(I_chi)
-        chi_weight_dst(I_chi) = dq
-    end do
-end subroutine project_q_projection_geometry
