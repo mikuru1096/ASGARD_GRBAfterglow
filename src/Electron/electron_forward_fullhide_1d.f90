@@ -37,8 +37,7 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
                             Seed_syn(Num_nu,Num_R), V_m(Num_R), V_c(Num_R), V_a(Num_R)
     
     real(8),allocatable,dimension (:) :: dEl,dEl_step,dEL_mean,x,dN_x,x_edge,coord_edge,dxdy_grid, &
-                                         dN_full,dN_half,dN_half2,dF1,dEL_mean_base,dEL_mean_step, &
-                                         P_emit_shell,Tau_syn_shell
+                                         dN_full,dN_half,dN_half2,dF1,dEL_mean_step,P_emit_shell,Tau_syn_shell
     real(8),allocatable,dimension (:,:) :: dF_steps,face_coupling
     logical :: is_uniform_density,budget_diag_enabled
     integer :: env_len,env_status,I_face
@@ -50,8 +49,8 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
     allocate (dEl(Num_gam_e),dEl_step(Num_gam_e),dEL_mean(Num_gam_e-1),x(Num_gam_e),dN_x(Num_gam_e), &
               dN_full(Num_gam_e), &
               x_edge(Num_gam_e+1),coord_edge(Num_gam_e+1),dxdy_grid(Num_gam_e), &
-              dN_half(Num_gam_e),dN_half2(Num_gam_e),dF1(Num_gam_e),dEL_mean_base(Num_gam_e-1), &
-              dEL_mean_step(Num_gam_e-1),P_emit_shell(Num_nu),Tau_syn_shell(Num_nu))
+              dN_half(Num_gam_e),dN_half2(Num_gam_e),dF1(Num_gam_e),dEL_mean_step(Num_gam_e-1), &
+              P_emit_shell(Num_nu),Tau_syn_shell(Num_nu))
     call electron_unpack_boundary(Boundary,n,Eta_0,R_ini,Epsilon_e,Epsilon_b,p,z,dNe_ISM,A_star, &
                                   E_iso,T_log10_duration,f_e,R_tr,f_jump,f_wide,R0)
     if (thermal_electrons /= 0) then
@@ -78,10 +77,7 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
 
     do I_tobs=2,Num_R
         call prepare_fullhide_shell(I_tobs)
-         
-        dEL_mean=(dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/two/dlog(ten)
-        dEL_mean_base=dEL_mean
-        dDR_xi=dDR
+        call prepare_shell_cooling_faces()
         if (adaptive_substeps == 0) then
             if (dDD <= zero) error stop 'fs_electron_fullhide_1d requires increasing radius grid'
             if (dDR <= zero) error stop 'fs_electron_fullhide_1d requires positive cooling substep width'
@@ -159,7 +155,7 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
                     dN_x=x
                 end do
             end if
-            call electron_shell_dcoord_to_dndgamma_exp_centers(Num_gam_e,coord_edge,coord_scale,gam_e,dN_x,dN_gam_e(:,I_tobs))
+            call store_forward_shell_distribution(I_tobs)
         else
             dR_min=dDD/max(substep_max,1)
             dR_max=dDD/max(substep_min,1)
@@ -253,12 +249,12 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
                     dR_try=max(0.5d0*dR_try,dR_min)
                 end if
             end do
-            call electron_shell_dcoord_to_dndgamma_exp_centers(Num_gam_e,coord_edge,coord_scale,gam_e,dN_x,dN_gam_e(:,I_tobs))
+            call store_forward_shell_distribution(I_tobs)
         end if
     end do
 
     deallocate (dEl,dEl_step,dEL_mean,x,dN_x,x_edge,coord_edge,dxdy_grid,dN_full,dN_half,dN_half2,dF1, &
-                dEL_mean_base,dEL_mean_step,P_emit_shell,Tau_syn_shell)
+                dEL_mean_step,P_emit_shell,Tau_syn_shell)
     if (budget_diag_enabled) then
         print '(A,1X,ES12.4)', 'BUDGET1D max_rel_loss', rel_loss_xi_max
     end if
@@ -311,6 +307,21 @@ contains
                                                       0.5d0*(coord_edge(I_grid)+coord_edge(I_grid+1)))
         end do
     end subroutine initialize_forward_four_velocity_grid
+
+    subroutine prepare_shell_cooling_faces()
+    implicit real(8)(A-H,O-Z)
+
+        dEL_mean=(dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/two/dlog(ten)
+        dDR_xi=dDR
+    end subroutine prepare_shell_cooling_faces
+
+    subroutine store_forward_shell_distribution(I_tobs)
+    implicit real(8)(A-H,O-Z)
+    integer, intent(in) :: I_tobs
+
+        call electron_shell_dcoord_to_dndgamma_exp_centers(Num_gam_e,coord_edge,coord_scale,gam_e,dN_x, &
+                                                           dN_gam_e(:,I_tobs))
+    end subroutine store_forward_shell_distribution
 
     subroutine prepare_fullhide_shell(I_tobs)
     implicit real(8)(A-H,O-Z)
