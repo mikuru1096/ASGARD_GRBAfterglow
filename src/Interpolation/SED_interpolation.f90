@@ -251,38 +251,6 @@ subroutine project_shell_segment(K1,K2,Ratio,DMu,log_domega_4pi,log_gamma_lo,log
 end subroutine project_shell_segment
 end subroutine sed_interpolation_adaptive_theta
 
-real(8) function chi_ssa_cell_escape(tau_front,tau_cell)
-    use constants
-    implicit real(8)(a-h,o-z)
-    real(8), intent(in) :: tau_front,tau_cell
-    if (tau_cell > 1d-6) then
-        chi_ssa_cell_escape = dexp(-tau_front)*(one-dexp(-tau_cell))/tau_cell
-    else if (tau_cell > zero) then
-        ! Taylor expansion of the removable tau_cell -> 0 singularity.
-        chi_ssa_cell_escape = dexp(-tau_front)*(one - 0.5d0*tau_cell + tau_cell*tau_cell/6d0)
-    else
-        chi_ssa_cell_escape = dexp(-tau_front)
-    end if
-end function chi_ssa_cell_escape
-
-integer function lower_bound_real8(values,n,x)
-    implicit none
-    integer, intent(in) :: n
-    real(8), intent(in) :: values(n),x
-    integer :: lo,hi,mid
-    lo = 1
-    hi = n + 1
-    do while (lo < hi)
-        mid = (lo + hi) / 2
-        if (values(mid) < x) then
-            lo = mid + 1
-        else
-            hi = mid
-        end if
-    end do
-    lower_bound_real8 = lo
-end function lower_bound_real8
-
 ! 将χ分辨有限厚壳层积分到完整top-hat角网格：θ/φ EATS + χ厚度EATS + 局域Doppler。
 subroutine sed_interpolation_chi(Boundary,R_Tobs1,R_front,F_chi,Tau_chi,R_chi,Gamma_chi,Chi_weight,V_seed,V_obs,Tobs, &
                              n,Num_nu,Num_nu_obs,Num_Tobs,Num_Theta,Num_Phi,Num_chi,Num_R,n_threads,F_tot_obs)
@@ -430,9 +398,7 @@ subroutine compute_chi_segment_state(I_chi,K2,Ratio,DMu,log_gamma_lo,log_gamma_h
 end subroutine compute_chi_segment_state
 end subroutine sed_interpolation_chi
 
-! 将轴对称结构化喷流的χ分辨有限厚壳层一次性积分到观测系。
-
-! direct-electronχ投影的批量同步谱版本：先按V_seed生成χ谱，再进入快速EATS累加。
+! Direct-electron chi projection: build chi-local synchrotron spectra on V_seed, then use top-hat chi EATS.
 subroutine sed_interpolation_chi_electron_cached(Boundary,R_Tobs1,R_front,DNe_chi,B_chi,R_chi,Gamma_chi,Chi_weight, &
                              gam_e,V_seed,V_obs,Tobs,n,Num_gam_e,Num_nu,Num_nu_obs,Num_Tobs,Num_Theta,Num_Phi, &
                              Num_chi,Num_R,n_threads,F_tot_obs)
@@ -462,12 +428,7 @@ subroutine sed_interpolation_chi_electron_cached(Boundary,R_Tobs1,R_front,DNe_ch
     deallocate(F_chi,Tau_chi,P_syn,Tau_syn)
 end subroutine sed_interpolation_chi_electron_cached
 
-! 结构化direct-electronχ投影的批量同步谱版本：单次调用内逐theta ring流式生成χ谱并累加。
-
-! 结构化direct-electronχ投影的单θ-ring版本：用于Python流式solve/project/accumulate。
-
-! 预计算光谱版：F_ring=P_syn*flux_prefactor 和 Tau_ring 已在Python侧从transport输出准备好，
-! 跳过 radiation_syn_flux_tau_chi_batch_core 重算。
+! Structured precomputed-ring chi projection: Python supplies one theta-ring chi spectra and SSA grids.
 subroutine sed_interpolation_chi_structured_axisym_ring_precomputed(Boundary,R_Tobs1,R_front, &
                              F_ring,Tau_ring,R_chi,Gamma_chi,Chi_weight,V_seed,V_obs,Tobs,theta_lo,theta_hi, &
                              n,Num_nu,Num_nu_obs,Num_Tobs,Num_phi_patch,Num_chi,Num_R,F_tot_obs)
@@ -624,3 +585,36 @@ subroutine chi_synch_point(R_loc,DB,Num_gam_e,gam_e,dN_gam_e,V_cal,P_syn,Tau_syn
     call radiation_transfer_factor(Tau,transfer)
     P_syn=P_v*transfer
 end subroutine chi_synch_point
+
+! Shared projection helpers.
+real(8) function chi_ssa_cell_escape(tau_front,tau_cell)
+    use constants
+    implicit real(8)(a-h,o-z)
+    real(8), intent(in) :: tau_front,tau_cell
+    if (tau_cell > 1d-6) then
+        chi_ssa_cell_escape = dexp(-tau_front)*(one-dexp(-tau_cell))/tau_cell
+    else if (tau_cell > zero) then
+        ! Taylor expansion of the removable tau_cell -> 0 singularity.
+        chi_ssa_cell_escape = dexp(-tau_front)*(one - 0.5d0*tau_cell + tau_cell*tau_cell/6d0)
+    else
+        chi_ssa_cell_escape = dexp(-tau_front)
+    end if
+end function chi_ssa_cell_escape
+
+integer function lower_bound_real8(values,n,x)
+    implicit none
+    integer, intent(in) :: n
+    real(8), intent(in) :: values(n),x
+    integer :: lo,hi,mid
+    lo = 1
+    hi = n + 1
+    do while (lo < hi)
+        mid = (lo + hi) / 2
+        if (values(mid) < x) then
+            lo = mid + 1
+        else
+            hi = mid
+        end if
+    end do
+    lower_bound_real8 = lo
+end function lower_bound_real8
