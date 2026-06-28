@@ -18,7 +18,7 @@
 | Build module | CWD | Source closure | 主 entry | 物理/算法角色 |
 | --- | --- | --- | --- | --- |
 | `Dynamics_forward` | `src/Dynamics` | `Constants + dynamics_common + Dynamics_forward` | `dynamics_forward` | 正向激波动力学、ISM/wind、密度跳变和能量注入。 |
-| `Dynamics_reverse` | `src/Dynamics` | `Constants + dynamics_common + Dynamics_reverse` | `dynamics_reverse` | 反向激波 crossing、region-3 thermal state、磁化 jump 和次级 RS 分支。 |
+| `Dynamics_reverse` | `src/Dynamics` | `Constants + dynamics_common + reverse_jump_conditions + reverse_secondary_events + reverse_rhs + Dynamics_reverse` | `dynamics_reverse` | 反向激波 crossing、region-3 thermal state、磁化 jump 和次级 RS 分支。 |
 | `electron_forward_fullhide_1d` | `src/Electron` | `ELECTRON_COMMON_SOURCES + electron_forward_fullhide_1d` | `fs_electron_fullhide_1d; fs_electron_fullhide_1d_coupled` | 默认 1D 电子输运和 joint feedback coupled pass。 |
 | `electron_forward_fullhide_1d_hybrid` | `src/Electron` | `ELECTRON_HISTORY_SOURCES_HZ + electron_forward_fullhide_1d_hybrid` | `fs_electron_fullhide_1d_hz` | 热/非热混合谱路径。 |
 | `electron_forward_charint_1d` | `src/Electron` | `ELECTRON_COMMON_SOURCES + electron_forward_charint_1d` | `fs_electron_charint_1d` | 1D 特征线输运对照。 |

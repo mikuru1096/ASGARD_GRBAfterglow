@@ -44,7 +44,8 @@
 以下是目录级源码树。逐个程序单元的行号、职责和 f2py 入口映射见 `doc/fortran_kernel_index.md`。
 
 - `src/Constants.f90`
-- `src/Dynamics/`：`dynamics_common.f90`, `Dynamics_forward.f90`, `Dynamics_reverse.f90`
+- `src/Dynamics/`：`dynamics_common.f90`, `Dynamics_forward.f90`, `Dynamics_reverse.f90`,
+  `reverse_jump_conditions.f90`, `reverse_secondary_events.f90`, `reverse_rhs.f90`
 - `src/Electron/`：
   - 1D/2D entries：`electron_forward_fullhide_1d.f90`, `electron_forward_dg_1d.f90`, `electron_forward_transport_2d.f90`, `electron_forward_charint_1d.f90`, `electron_forward_slc1_1d.f90`, `electron_forward_t2g1_1d.f90`, `electron_forward_weno5_1d.f90`；`electron_forward_charint_2d` extension 由 `electron_forward_transport_2d.f90` 的 `fs_electron_transport_2d_core` 构建
   - Kernels：`electron_common.f90`, `electron_radiation_kernel.f90`, `electron_cooling_kernel.f90`, `electron_seed_history_kernel.f90`, `electron_transport_2d_kernel.f90`, `electron_injection_profiles.f90`, `electron_shell_transport_common.f90`, `electron_transport_common.f90`, `electron_transport_dg_1d_kernel.f90`, `electron_reverse_kernel.f90`, `adaptive_resampling_mod.f90`

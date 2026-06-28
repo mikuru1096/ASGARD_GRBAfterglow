@@ -31,6 +31,13 @@ class ModuleSpec:
 
 
 DYNAMICS_COMMON_SOURCES = ("../Constants.f90", "dynamics_common.f90")
+DYNAMICS_REVERSE_SOURCES = (
+    *DYNAMICS_COMMON_SOURCES,
+    "reverse_jump_conditions.f90",
+    "reverse_secondary_events.f90",
+    "reverse_rhs.f90",
+    "Dynamics_reverse.f90",
+)
 F2PY_SKIP_DYNAMICS_COMMON_INTERNALS = (
     "dynamics_rk4_forward_ln_step",
     "dynamics_rk4_reverse",
@@ -191,6 +198,9 @@ STRUCTURED_JET_1D_SOURCES = (
     "../Hadronic/hadronic_pair_cascade_kernel.f90",
     "../Hadronic/hadronic_pp_models_kernel.f90",
     "../Dynamics/Dynamics_forward.f90",
+    "../Dynamics/reverse_jump_conditions.f90",
+    "../Dynamics/reverse_secondary_events.f90",
+    "../Dynamics/reverse_rhs.f90",
     "../Dynamics/Dynamics_reverse.f90",
     "../Electron/electron_forward_dg_1d.f90",
     "../Electron/electron_forward_fullhide_1d.f90",
@@ -546,7 +556,7 @@ def main() -> None:
     omp_flags = OMP_FLAGS
     module_specs = [
         ModuleSpec("Constants", src, ["Constants.f90"]),
-        ModuleSpec("Dynamics_reverse", dyn, _with_main(DYNAMICS_COMMON_SOURCES, "Dynamics_reverse.f90"), COMMON_FLAGS),
+        ModuleSpec("Dynamics_reverse", dyn, list(DYNAMICS_REVERSE_SOURCES), COMMON_FLAGS),
         ModuleSpec("Dynamics_forward", dyn, _with_main(DYNAMICS_COMMON_SOURCES, "Dynamics_forward.f90"), COMMON_FLAGS),
         ModuleSpec("electron_forward_weno5_1d", ele, _with_main(ELECTRON_COMMON_SOURCES, "electron_forward_weno5_1d.f90"), omp_flags, OPENMP_LIBS, True, ("fs_electron_weno5_1d",), ("electron_forward_weno5",)),
         ModuleSpec("electron_forward_slc1_1d", ele, _with_main(ELECTRON_COMMON_SOURCES, "electron_forward_slc1_1d.f90"), omp_flags, OPENMP_LIBS, True, ("fs_electron_slc1_1d",), ("electron_forward_slc1",)),
