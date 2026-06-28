@@ -119,38 +119,7 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
 
     do I_tobs=1,Num_R
         call dynamics_log_time_step(T00,Grid_Tobs_bin,T_log10,Num_R1,I_tobs,T_target,H)
-        do while (T_state < T_target)
-            if (T_cross < zero .and. Y(4) < one) then
-                if (reverse_shock_pressure_ready_state(Y)) then
-                    call dynamics_rk4_reverse_pre_m3(reverse_dynamics_rhs,dB3,T_cross,R_cross,e3_cross,gam20, &
-                                                     U3_cross,V3_cross,M3_cross,gam_m_cross,B3_ordered_cross, &
-                                                     T_state,T_target,Y,Num_state,para_m_ej,V3_scale,Delta_0,eta_0,A_star,dNe_ISM, &
-                                                     R_tr,f_jump,f_wide,R0,Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,f_e_r,sigma_r)
-                else
-                    call waiting_trial(T_target,wait_trial_state,dB3_wait_trial)
-                    pressure_ready_trial=reverse_shock_pressure_ready_state(wait_trial_state)
-                    if (.not. pressure_ready_trial) then
-                        Y=wait_trial_state
-                        dB3=dB3_wait_trial
-                        T_state=T_target
-                    else
-                        call locate_waiting_event(T_target,T_pressure_event,pressure_event_state,dB3_pressure_event)
-                        Y=pressure_event_state
-                        dB3=dB3_pressure_event
-                        T_state=T_pressure_event
-                    end if
-                end if
-            else
-                H=T_target-T_state
-                T=T_state
-                call dynamics_rk4_reverse(reverse_dynamics_rhs,dB3,T_cross,R_cross,e3_cross,gam20, &
-                                          U3_cross,V3_cross,M3_cross, &
-                                          gam_m_cross,B3_ordered_cross,T,H,Y,Num_state,para_m_ej,V3_scale,Delta_0, &
-                                          eta_0,A_star,dNe_ISM,R_tr,f_jump,f_wide,R0, &
-                                          Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,f_e_r,sigma_r)
-                T_state=T_target
-            end if
-        end do
+        call advance_reverse_state_to_target(T_target)
         R_Tobs(I_tobs)=T_target*(one+z); R_Gamma(I_tobs)=Y(1); R(I_tobs)=Y(2); M2(I_tobs)=Y(3)
         event_curr_radius=Y(2); event_curr_gamma=Y(1); event_curr_tobs=R_Tobs(I_tobs)
         event_curr_state=Y
@@ -175,6 +144,44 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
     deallocate(Y,event_prev_state,event_curr_state,wait_trial_state,pressure_event_state)
 
 contains
+
+    subroutine advance_reverse_state_to_target(T_target_in)
+    implicit none
+    real(8), intent(in) :: T_target_in
+
+        do while (T_state < T_target_in)
+            if (T_cross < zero .and. Y(4) < one) then
+                if (reverse_shock_pressure_ready_state(Y)) then
+                    call dynamics_rk4_reverse_pre_m3(reverse_dynamics_rhs,dB3,T_cross,R_cross,e3_cross,gam20, &
+                                                     U3_cross,V3_cross,M3_cross,gam_m_cross,B3_ordered_cross, &
+                                                     T_state,T_target_in,Y,Num_state,para_m_ej,V3_scale,Delta_0,eta_0,A_star,dNe_ISM, &
+                                                     R_tr,f_jump,f_wide,R0,Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,f_e_r,sigma_r)
+                else
+                    call waiting_trial(T_target_in,wait_trial_state,dB3_wait_trial)
+                    pressure_ready_trial=reverse_shock_pressure_ready_state(wait_trial_state)
+                    if (.not. pressure_ready_trial) then
+                        Y=wait_trial_state
+                        dB3=dB3_wait_trial
+                        T_state=T_target_in
+                    else
+                        call locate_waiting_event(T_target_in,T_pressure_event,pressure_event_state,dB3_pressure_event)
+                        Y=pressure_event_state
+                        dB3=dB3_pressure_event
+                        T_state=T_pressure_event
+                    end if
+                end if
+            else
+                H=T_target_in-T_state
+                T=T_state
+                call dynamics_rk4_reverse(reverse_dynamics_rhs,dB3,T_cross,R_cross,e3_cross,gam20, &
+                                          U3_cross,V3_cross,M3_cross, &
+                                          gam_m_cross,B3_ordered_cross,T,H,Y,Num_state,para_m_ej,V3_scale,Delta_0, &
+                                          eta_0,A_star,dNe_ISM,R_tr,f_jump,f_wide,R0, &
+                                          Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,f_e_r,sigma_r)
+                T_state=T_target_in
+            end if
+        end do
+    end subroutine advance_reverse_state_to_target
 
     logical function reverse_shock_pressure_ready_state(state)
     implicit none
