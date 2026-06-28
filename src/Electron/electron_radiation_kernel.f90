@@ -6,7 +6,7 @@ module electron_radiation_kernel
   private
 
  public :: first_greater_monotonic, first_greater_monotonic_window
-    public :: besselk, get_syn, get_syn_state, get_syn_selected, get_syn_selected_state
+    public :: besselk, get_syn_state, get_syn_selected, get_syn_selected_state
     public :: get_syn_chi_batch_state
     public :: get_syn_transfer, get_syn_polarization_selected, get_nu_a
     public :: get_nu_a_2d_path, get_nu_a_2d_cell_path, reduce_syn_shell_from_chi
@@ -137,20 +137,6 @@ function besselk(var)
    return
 end function besselk
 
-
-!****************************************************************************************
-!************************** get syn power and number density ****************************
-!****************************************************************************************
-subroutine get_syn(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
-                       P_syn,Seed_syn)
-implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: Num_gam_e,Num_nu,n_threads
-real(8), intent(in) :: R_loc,DB,gam_e(Num_gam_e),dN_gam_e(Num_gam_e),V_seed(Num_nu)
-real(8), intent(out) ::P_syn(Num_nu),Seed_syn(Num_nu)
-real(8) :: P_emit(Num_nu),Tau_syn(Num_nu)
-
-    call get_syn_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed,P_emit,P_syn,Seed_syn,Tau_syn)
-end subroutine get_syn
 
 subroutine get_syn_simpson_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
                                  P_emit,P_syn,Seed_syn,Tau_syn)
@@ -588,7 +574,6 @@ implicit REAL(8)(A-H,O-Z)
 integer, intent(in) :: index_syn_intger,Num_gam_e,Num_nu,n_threads
 real(8), intent(in) :: R_loc,DB,gam_e(Num_gam_e),dN_gam_e(Num_gam_e),V_seed(Num_nu)
 real(8), intent(out) :: P_emit(Num_nu),P_syn(Num_nu),Seed_syn(Num_nu),Tau_syn(Num_nu)
-real(8) :: h_ref,h_loc
 
     call get_syn_simpson_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
                                P_emit,P_syn,Seed_syn,Tau_syn)

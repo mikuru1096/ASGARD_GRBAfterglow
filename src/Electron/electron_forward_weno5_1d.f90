@@ -6,7 +6,7 @@ subroutine fs_electron_weno5_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,
     use dynamics_common, only: dynamics_external_density_profile
     use electron_common
     use electron_injection_profiles, only: electron_build_source_term_exp_cutoff_edges, electron_profile_log_cell_edges
-    use electron_radiation_kernel, only: get_syn
+    use electron_radiation_kernel, only: get_syn_state
     use electron_cooling_kernel, only: get_forward_cooling
     use electron_transport_common, only: electron_dnx_to_dndgamma_exp_centers
     IMPLICIT REAL(8)(A-H,O-Z)
@@ -99,9 +99,10 @@ contains
     subroutine write_weno_radiation_and_cooling(I_tobs)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: I_tobs
+    real(8) :: P_emit_shell(Num_nu),Tau_syn_shell(Num_nu)
 
-        call get_syn(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e(:,I_tobs-1),V_seed, &
-                     P_syn(:,I_tobs),Seed_syn(:,I_tobs))
+        call get_syn_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e(:,I_tobs-1),V_seed, &
+                           P_emit_shell,P_syn(:,I_tobs),Seed_syn(:,I_tobs),Tau_syn_shell)
 
         call get_forward_cooling(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc, &
                                  R_Gamma_loc,beta_Gam,dNe,Num_gam_e,Num_nu,n_threads,gam_e,V_seed, &
