@@ -319,7 +319,8 @@ real(8), intent(in) :: beta_src,beta_tgt
 real(8) :: beta_rel,gamma_rel
 
     beta_rel = (beta_tgt-beta_src)/(one-beta_tgt*beta_src)
-    gamma_rel = one/dsqrt(max(one-beta_rel*beta_rel, tiny(one)))
+    if (dabs(beta_rel) >= one) error stop 'relative_doppler_backward requires subluminal relative beta'
+    gamma_rel = one/dsqrt(one-beta_rel*beta_rel)
     relative_doppler_backward = gamma_rel*(one+beta_rel)
 end function relative_doppler_backward
 
