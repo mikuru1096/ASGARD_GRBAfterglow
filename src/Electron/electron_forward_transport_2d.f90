@@ -200,81 +200,7 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
 
     call compute_q_geometry(Num_chi, dq, q_face, q_grid)
     call integrate_downstream_proper_time(Num_R,R,R_Gamma,proper_time_arr)
-
-    call electron_initial_density(A_star,dNe_ISM,R_ini,R(1),R0,dNe,Para_N_e_ini)
-
-    DB            = 0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma(1)*(R_Gamma(1)-one)))
-    DB_min        = 0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma(Num_R)*(R_Gamma(Num_R)-one)))
-    Gam_e_max     = 3d0*Para_m_energy/dsqrt(8d0*DB*Para_e**3)
-    Gam_e_max_max = 3d0*Para_m_energy/dsqrt(8d0*DB_min*Para_e**3)
-    temp_gam      = Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma(1)-one)
-    call electron_gamma_m_exact(p,temp_gam,Gam_e_max,Gam_e_m)
-    Gam_e_c       = 7.7d8/(one+dsqrt(Epsilon_e/Epsilon_b))/R_Gamma(1)/DB**2/(R_Tobs(1)/two)
-
-    if (four_velocity_coord) then
-        call electron_build_four_velocity_grid(Num_gam_e,one,electron_exp_tail_grid_factor*Gam_e_max_max, &
-                                               electron_four_velocity_grid_gamma_scale,gam_e,coord_edge_E,x_edge_E)
-        call electron_initial_powerlaw_exp_cutoff_coord_edges(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
-                                                              Num_gam_e,coord_edge_E,coord_scale,dN_init)
-    else
-        call electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
-                                          electron_initial_grid_log_edges,gam_e,dN_init,x_edge_E)
-        coord_edge_E = x_edge_E
-    end if
-    d_x_E = dlog10(gam_e(2)/gam_e(1))
-    dN_init_log = dN_init
-
-    U_log(:,1) = dN_init_log / dq
-
-    do I_chi = 1, Num_chi
-        if (four_velocity_coord) then
-            call electron_shell_dcoord_to_dndgamma_exp_centers(Num_gam_e,coord_edge_E,coord_scale,gam_e, &
-                                                               U_log(:,I_chi),dN_gam_e(:,I_chi,1))
-        else
-            call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge_E,gam_e,U_log(:,I_chi),dN_gam_e(:,I_chi,1))
-        end if
-    end do
-    dN_gam_e_total(:,1) = zero
-    do I_chi = 1, Num_chi
-        dN_gam_e_total(:,1) = dN_gam_e_total(:,1) + dN_gam_e(:,I_chi,1)*dq
-    end do
-    call compute_downstream_comoving_grid(Num_chi,k_medium,R(1),R_Gamma(1),q_face,q_grid, &
-                                          x_face_hist(:,1),x_comov_face_hist(:,1),x_comov_hist(:,1),dx_comov_hist(:,1), &
-                                          radius_cell_hist(:,1),gamma_cell_hist(:,1),beta_hist(:,1),beta_rel_sh_chi)
-    call update_epsilon_b_db_chi(x_comov_hist(:,1), R_Gamma(1), dNe, beta_rel_sh_chi)
-    do I_chi = 1, Num_chi
-        B_chi_out(I_chi,1) = DB_chi(I_chi)
-    end do
-    if (profile_enabled) call cpu_time(t_start)
-    if (emit_full_spectrum) then
-        call get_syn_chi_batch_state(R(1),Num_gam_e,Num_nu,Num_chi,gam_e,dN_gam_e(:,:,1),V_seed,DB_chi, &
-                                     P_local,P_hist(:,:,1),Seed_hist(:,:,1),Tau_hist(:,:,1))
-        do I_chi = 1, Num_chi
-            call project_syn_state_logbands(Num_nu,V_seed,P_hist(:,I_chi,1),Seed_hist(:,I_chi,1),Tau_hist(:,I_chi,1), &
-                                            Num_nu_cool,V_cool,P_hist_cool(:,I_chi,1), &
-                                            Seed_hist_cool(:,I_chi,1),Tau_hist_cool(:,I_chi,1))
-            Tau_pair_hist_cool(:,I_chi,1) = zero
-            call radiation_pair_tau_headon_segment(V_cool,Num_nu_cool,Seed_hist_cool(:,I_chi,1),dx_comov_hist(I_chi,1), &
-                                                   Tau_pair_hist_cool(:,I_chi,1))
-            Tau_prop_hist_cool(:,I_chi,1) = Tau_hist_cool(:,I_chi,1) + Tau_pair_hist_cool(:,I_chi,1)
-        end do
-        syn_state_calls = syn_state_calls + Num_chi
-    else
-        do I_chi = 1, Num_chi
-            dN_cell = dN_gam_e(:,I_chi,1)
-            call get_syn_state(R(1),DB_chi(I_chi),Num_gam_e,Num_nu_cool,n_threads,gam_e,dN_cell,V_cool, &
-                               P_emit_cool,P_hist_cool(:,I_chi,1),Seed_hist_cool(:,I_chi,1),Tau_hist_cool(:,I_chi,1))
-            Tau_pair_hist_cool(:,I_chi,1) = zero
-            call radiation_pair_tau_headon_segment(V_cool,Num_nu_cool,Seed_hist_cool(:,I_chi,1),dx_comov_hist(I_chi,1), &
-                                                   Tau_pair_hist_cool(:,I_chi,1))
-            Tau_prop_hist_cool(:,I_chi,1) = Tau_hist_cool(:,I_chi,1) + Tau_pair_hist_cool(:,I_chi,1)
-        end do
-        syn_state_calls = syn_state_calls + Num_chi
-    end if
-    if (profile_enabled) then
-        call cpu_time(t_stop)
-        t_syn_state = t_syn_state + (t_stop-t_start)
-    end if
+    call initialize_transport_2d_front_state()
 
     do I_tobs = 2, Num_R
         R_loc       = R(I_tobs-1)
@@ -599,6 +525,83 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
                cooling_aux_chi, dEl_chi, dEL_mean_chi, adiabatic_log_coeff_chi, kappa2_chi)
 
 contains
+
+subroutine initialize_transport_2d_front_state()
+    call electron_initial_density(A_star,dNe_ISM,R_ini,R(1),R0,dNe,Para_N_e_ini)
+
+    DB            = 0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma(1)*(R_Gamma(1)-one)))
+    DB_min        = 0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma(Num_R)*(R_Gamma(Num_R)-one)))
+    Gam_e_max     = 3d0*Para_m_energy/dsqrt(8d0*DB*Para_e**3)
+    Gam_e_max_max = 3d0*Para_m_energy/dsqrt(8d0*DB_min*Para_e**3)
+    temp_gam      = Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma(1)-one)
+    call electron_gamma_m_exact(p,temp_gam,Gam_e_max,Gam_e_m)
+    Gam_e_c       = 7.7d8/(one+dsqrt(Epsilon_e/Epsilon_b))/R_Gamma(1)/DB**2/(R_Tobs(1)/two)
+
+    if (four_velocity_coord) then
+        call electron_build_four_velocity_grid(Num_gam_e,one,electron_exp_tail_grid_factor*Gam_e_max_max, &
+                                               electron_four_velocity_grid_gamma_scale,gam_e,coord_edge_E,x_edge_E)
+        call electron_initial_powerlaw_exp_cutoff_coord_edges(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
+                                                              Num_gam_e,coord_edge_E,coord_scale,dN_init)
+    else
+        call electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
+                                          electron_initial_grid_log_edges,gam_e,dN_init,x_edge_E)
+        coord_edge_E = x_edge_E
+    end if
+    d_x_E = dlog10(gam_e(2)/gam_e(1))
+    dN_init_log = dN_init
+
+    U_log(:,1) = dN_init_log / dq
+
+    do I_chi = 1, Num_chi
+        if (four_velocity_coord) then
+            call electron_shell_dcoord_to_dndgamma_exp_centers(Num_gam_e,coord_edge_E,coord_scale,gam_e, &
+                                                               U_log(:,I_chi),dN_gam_e(:,I_chi,1))
+        else
+            call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge_E,gam_e,U_log(:,I_chi),dN_gam_e(:,I_chi,1))
+        end if
+    end do
+    dN_gam_e_total(:,1) = zero
+    do I_chi = 1, Num_chi
+        dN_gam_e_total(:,1) = dN_gam_e_total(:,1) + dN_gam_e(:,I_chi,1)*dq
+    end do
+    call compute_downstream_comoving_grid(Num_chi,k_medium,R(1),R_Gamma(1),q_face,q_grid, &
+                                          x_face_hist(:,1),x_comov_face_hist(:,1),x_comov_hist(:,1),dx_comov_hist(:,1), &
+                                          radius_cell_hist(:,1),gamma_cell_hist(:,1),beta_hist(:,1),beta_rel_sh_chi)
+    call update_epsilon_b_db_chi(x_comov_hist(:,1), R_Gamma(1), dNe, beta_rel_sh_chi)
+    do I_chi = 1, Num_chi
+        B_chi_out(I_chi,1) = DB_chi(I_chi)
+    end do
+    if (profile_enabled) call cpu_time(t_start)
+    if (emit_full_spectrum) then
+        call get_syn_chi_batch_state(R(1),Num_gam_e,Num_nu,Num_chi,gam_e,dN_gam_e(:,:,1),V_seed,DB_chi, &
+                                     P_local,P_hist(:,:,1),Seed_hist(:,:,1),Tau_hist(:,:,1))
+        do I_chi = 1, Num_chi
+            call project_syn_state_logbands(Num_nu,V_seed,P_hist(:,I_chi,1),Seed_hist(:,I_chi,1),Tau_hist(:,I_chi,1), &
+                                            Num_nu_cool,V_cool,P_hist_cool(:,I_chi,1), &
+                                            Seed_hist_cool(:,I_chi,1),Tau_hist_cool(:,I_chi,1))
+            Tau_pair_hist_cool(:,I_chi,1) = zero
+            call radiation_pair_tau_headon_segment(V_cool,Num_nu_cool,Seed_hist_cool(:,I_chi,1),dx_comov_hist(I_chi,1), &
+                                                   Tau_pair_hist_cool(:,I_chi,1))
+            Tau_prop_hist_cool(:,I_chi,1) = Tau_hist_cool(:,I_chi,1) + Tau_pair_hist_cool(:,I_chi,1)
+        end do
+        syn_state_calls = syn_state_calls + Num_chi
+    else
+        do I_chi = 1, Num_chi
+            dN_cell = dN_gam_e(:,I_chi,1)
+            call get_syn_state(R(1),DB_chi(I_chi),Num_gam_e,Num_nu_cool,n_threads,gam_e,dN_cell,V_cool, &
+                               P_emit_cool,P_hist_cool(:,I_chi,1),Seed_hist_cool(:,I_chi,1),Tau_hist_cool(:,I_chi,1))
+            Tau_pair_hist_cool(:,I_chi,1) = zero
+            call radiation_pair_tau_headon_segment(V_cool,Num_nu_cool,Seed_hist_cool(:,I_chi,1),dx_comov_hist(I_chi,1), &
+                                                   Tau_pair_hist_cool(:,I_chi,1))
+            Tau_prop_hist_cool(:,I_chi,1) = Tau_hist_cool(:,I_chi,1) + Tau_pair_hist_cool(:,I_chi,1)
+        end do
+        syn_state_calls = syn_state_calls + Num_chi
+    end if
+    if (profile_enabled) then
+        call cpu_time(t_stop)
+        t_syn_state = t_syn_state + (t_stop-t_start)
+    end if
+end subroutine initialize_transport_2d_front_state
 
 subroutine transport_step_fullhide(R_prev, R_curr, Gamma_prev, Gamma_curr, dDR_step, &
                                     active_hi, active_chi_hi)
