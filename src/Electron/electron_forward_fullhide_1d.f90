@@ -52,45 +52,19 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
               x_edge(Num_gam_e+1),coord_edge(Num_gam_e+1),dxdy_grid(Num_gam_e), &
               dN_half(Num_gam_e),dN_half2(Num_gam_e),dF1(Num_gam_e),dEL_mean_base(Num_gam_e-1), &
               dEL_mean_step(Num_gam_e-1),P_emit_shell(Num_nu),Tau_syn_shell(Num_nu))
-    
-    !***********************[Parameter Initial]**********************
     call electron_unpack_boundary(Boundary,n,Eta_0,R_ini,Epsilon_e,Epsilon_b,p,z,dNe_ISM,A_star, &
                                   E_iso,T_log10_duration,f_e,R_tr,f_jump,f_wide,R0)
     if (thermal_electrons /= 0) then
         if (f_e <= zero .or. f_e > one) error stop 'thermal electrons require 0 < f_e <= 1'
     end if
-    
+
     P_syn=zero
     Seed_syn=zero
     V_m=zero
     V_c=zero
     V_a=zero
 
-    !*****************Part 1: given the boundary consition [Using the analytical approximation]*********************
-    call electron_initial_density(A_star,dNe_ISM,R_ini,R(1),R0,dNe,Para_N_e_ini)
-
-    DB=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma(1)*(R_Gamma(1)-one)))
-    Gam_e_max=3d0*Para_m_energy/dsqrt(8d0*DB*Para_e**3)
-    DB_min=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma(Num_R)*(R_Gamma(Num_R)-one)))
-    Gam_e_max_max=3d0*Para_m_energy/dsqrt(8d0*DB_min*Para_e**3)
-    temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma(1)-one)
-    call electron_gamma_m_exact(p,temp_gam,Gam_e_max,Gam_e_m)
-    Gam_e_c=7.7d8/(one+dsqrt(Epsilon_e/Epsilon_b))/R_Gamma(1)/DB**2/(R_Tobs(1)/two)
-    if (R_Gamma(1) < one) error stop 'fs_electron_fullhide_1d requires initial Gamma >= 1'
-    beta_Gam=dsqrt(one-one/R_Gamma(1)**2)
-    call initialize_forward_four_velocity_grid()
-    if (thermal_electrons == 0) then
-        call electron_initial_powerlaw_exp_cutoff_coord_edges(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
-                                                              Num_gam_e,coord_edge,coord_scale,dN_x)
-        call electron_shell_dcoord_to_dndgamma_exp_centers(Num_gam_e,coord_edge,coord_scale,gam_e,dN_x,dN_gam_e(:,1))
-    else
-        call electron_initial_powerlaw_exp_cutoff(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
-                                                  Num_gam_e,gam_e,dN_gam_e(:,1))
-        call electron_add_thermal_population(Num_gam_e,gam_e,R_Gamma(1)*beta_Gam,Para_N_e_ini*(one-f_e),dN_gam_e(:,1))
-        dN_x=dN_gam_e(:,1)*gam_e*dlog(ten)*dxdy_grid
-    end if
-    !*******************Part 1 is completed [has been checked and there is no bug]**********************************
-    !*******************Part 2: To calculate the electron distribution**********************************************
+    call initialize_forward_electron_state()
     d_x=dlog10(gam_e(2)/gam_e(1))
     is_uniform_density=(A_star <= zero .and. f_jump == one)
     budget_diag_enabled=.false.
@@ -293,13 +267,44 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
 
 contains
 
-    subroutine initialize_forward_four_velocity_grid()
+    subroutine initialize_forward_electron_state()
+    implicit real(8)(A-H,O-Z)
+
+        call electron_initial_density(A_star,dNe_ISM,R_ini,R(1),R0,dNe,Para_N_e_ini)
+
+        DB=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma(1)*(R_Gamma(1)-one)))
+        Gam_e_max=3d0*Para_m_energy/dsqrt(8d0*DB*Para_e**3)
+        DB_min=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma(Num_R)*(R_Gamma(Num_R)-one)))
+        Gam_e_max_max=3d0*Para_m_energy/dsqrt(8d0*DB_min*Para_e**3)
+        temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma(1)-one)
+        call electron_gamma_m_exact(p,temp_gam,Gam_e_max,Gam_e_m)
+        Gam_e_c=7.7d8/(one+dsqrt(Epsilon_e/Epsilon_b))/R_Gamma(1)/DB**2/(R_Tobs(1)/two)
+        if (R_Gamma(1) < one) error stop 'fs_electron_fullhide_1d requires initial Gamma >= 1'
+        beta_Gam=dsqrt(one-one/R_Gamma(1)**2)
+
+        call initialize_forward_four_velocity_grid(Gam_e_max_max)
+        if (thermal_electrons == 0) then
+            call electron_initial_powerlaw_exp_cutoff_coord_edges(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
+                                                                  Num_gam_e,coord_edge,coord_scale,dN_x)
+            call electron_shell_dcoord_to_dndgamma_exp_centers(Num_gam_e,coord_edge,coord_scale,gam_e,dN_x, &
+                                                               dN_gam_e(:,1))
+        else
+            call electron_initial_powerlaw_exp_cutoff(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
+                                                      Num_gam_e,gam_e,dN_gam_e(:,1))
+            call electron_add_thermal_population(Num_gam_e,gam_e,R_Gamma(1)*beta_Gam,Para_N_e_ini*(one-f_e), &
+                                                 dN_gam_e(:,1))
+            dN_x=dN_gam_e(:,1)*gam_e*dlog(ten)*dxdy_grid
+        end if
+    end subroutine initialize_forward_electron_state
+
+    subroutine initialize_forward_four_velocity_grid(grid_gamma_max)
     implicit real(8)(A-H,O-Z)
     integer :: I_grid
+    real(8), intent(in) :: grid_gamma_max
 
         dg_gamma_scale=electron_four_velocity_grid_gamma_scale
         coord_scale=dg_gamma_scale*dg_gamma_scale-one
-        call electron_build_four_velocity_grid(Num_gam_e,one,electron_exp_tail_grid_factor*Gam_e_max_max, &
+        call electron_build_four_velocity_grid(Num_gam_e,one,electron_exp_tail_grid_factor*grid_gamma_max, &
                                                dg_gamma_scale,gam_e,coord_edge,x_edge)
         do I_grid=1,Num_gam_e
             dxdy_grid(I_grid)=electron_dxgamma_dcoord(electron_coord_log_four_velocity_sq,coord_scale, &
