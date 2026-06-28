@@ -1,3 +1,4 @@
+! Public diagnostic wrappers for single-process hadronic checks.
 ! Python/f2py ABI wrapper; the shell implementation lives in hadronic_forward_shell_1d.
 subroutine fs_hadronic_proton_syn_shell(R_loc,B_field_g,Num_gam_p,Num_nu,gam_p,dN_gam_p,V_seed,P_had_syn,Seed_had_syn)
     use hadronic_radiation_kernel, only: hadronic_get_proton_syn_state
@@ -328,6 +329,45 @@ subroutine fs_hadronic_decay_operator_shell(Num_gam_p,hadron_energy_gev,pion0_so
         neutrino_rate_per_gev)
 end subroutine fs_hadronic_decay_operator_shell
 
+! Python/f2py ABI wrapper for the time-dependent gamma-gamma pair/synch cascade diagnostic.
+subroutine fs_hadronic_pair_cascade_step(num_ph,photon_energy_gev,photon_density, &
+                                          num_e,electron_energy_gev,b_field_g,path_time_s, &
+                                          cascade_syn_spec,photon_loss_rate,absorbed_power)
+    use hadronic_pair_cascade_kernel, only: hadronic_cascade_step
+    implicit none
+    integer, intent(in) :: num_ph,num_e
+    real(8), intent(in) :: photon_energy_gev(num_ph),photon_density(num_ph)
+    real(8), intent(in) :: electron_energy_gev(num_e),b_field_g,path_time_s
+    real(8), intent(out) :: cascade_syn_spec(num_ph),photon_loss_rate(num_ph),absorbed_power
+
+    call hadronic_cascade_step(num_ph, photon_energy_gev, photon_density, num_e, &
+        electron_energy_gev, b_field_g, path_time_s, cascade_syn_spec, photon_loss_rate, absorbed_power)
+end subroutine fs_hadronic_pair_cascade_step
+
+! Python/f2py ABI wrapper for the shell-sequence pair cascade diagnostic.
+subroutine fs_hadronic_pair_cascade_sequence(num_ph,num_e,num_shell,photon_energy_gev,primary_photon_density, &
+                                             electron_energy_gev,frequency_hz,radius_cm,gamma_bulk,observer_time_s, &
+                                             b_field_g,num_threads,index_syn_integr,substeps_per_shell, &
+                                             photon_loss_rate,tau_pair,pair_density,pair_luminosity, &
+                                             pair_seed,cascade_photon_density,absorbed_power,injected_power)
+    use hadronic_pair_cascade_kernel, only: hadronic_cascade_sequence
+    implicit none
+    integer, intent(in) :: num_ph,num_e,num_shell,num_threads,index_syn_integr,substeps_per_shell
+    real(8), intent(in) :: photon_energy_gev(num_ph),primary_photon_density(num_ph,num_shell)
+    real(8), intent(in) :: electron_energy_gev(num_e),frequency_hz(num_ph)
+    real(8), intent(in) :: radius_cm(num_shell),gamma_bulk(num_shell),observer_time_s(num_shell),b_field_g(num_shell)
+    real(8), intent(out) :: photon_loss_rate(num_ph,num_shell),tau_pair(num_ph,num_shell)
+    real(8), intent(out) :: pair_density(num_e,num_shell),pair_luminosity(num_ph,num_shell)
+    real(8), intent(out) :: pair_seed(num_ph,num_shell),cascade_photon_density(num_ph,num_shell)
+    real(8), intent(out) :: absorbed_power(num_shell),injected_power(num_shell)
+
+    call hadronic_cascade_sequence(num_ph, num_e, num_shell, photon_energy_gev, &
+        primary_photon_density, electron_energy_gev, frequency_hz, radius_cm, gamma_bulk, observer_time_s, &
+        b_field_g, num_threads, index_syn_integr, substeps_per_shell, photon_loss_rate, tau_pair, pair_density, &
+        pair_luminosity, pair_seed, cascade_photon_density, absorbed_power, injected_power)
+end subroutine fs_hadronic_pair_cascade_sequence
+
+! Public shell-sequence drivers.
 ! Forward-shock 1D hadronic light driver.
 ! 顺序: build proton grid -> loop shells: inject protons -> transport losses
 !       -> optional Hummer p-gamma secondary chain -> proton synchrotron emission.
@@ -551,42 +591,8 @@ subroutine fs_hadronic_formal_transport_1d(R_Tobs,R_Gamma,R,B_field_g,V_seed,See
         dN_gam_mu_minus_right,dN_gam_mu_plus_left,dN_gam_mu_plus_right,P_had_pion_synch,P_had_muon_synch, &
         P_had_pion_ic,P_had_muon_ic,tau_pg,pg_photon_survival,am3_process_power)
 end subroutine fs_hadronic_formal_transport_1d
-! Python/f2py ABI wrapper; the shell implementation lives in hadronic_forward_shell_1d.
-subroutine fs_hadronic_pair_cascade_step(num_ph,photon_energy_gev,photon_density, &
-                                          num_e,electron_energy_gev,b_field_g,path_time_s, &
-                                          cascade_syn_spec,photon_loss_rate,absorbed_power)
-    use hadronic_pair_cascade_kernel, only: hadronic_cascade_step
-    implicit none
-    integer, intent(in) :: num_ph,num_e
-    real(8), intent(in) :: photon_energy_gev(num_ph),photon_density(num_ph)
-    real(8), intent(in) :: electron_energy_gev(num_e),b_field_g,path_time_s
-    real(8), intent(out) :: cascade_syn_spec(num_ph),photon_loss_rate(num_ph),absorbed_power
 
-    call hadronic_cascade_step(num_ph, photon_energy_gev, photon_density, num_e, &
-        electron_energy_gev, b_field_g, path_time_s, cascade_syn_spec, photon_loss_rate, absorbed_power)
-end subroutine fs_hadronic_pair_cascade_step
-! Python/f2py ABI wrapper; the shell implementation lives in hadronic_forward_shell_1d.
-subroutine fs_hadronic_pair_cascade_sequence(num_ph,num_e,num_shell,photon_energy_gev,primary_photon_density, &
-                                             electron_energy_gev,frequency_hz,radius_cm,gamma_bulk,observer_time_s, &
-                                             b_field_g,num_threads,index_syn_integr,substeps_per_shell, &
-                                             photon_loss_rate,tau_pair,pair_density,pair_luminosity, &
-                                             pair_seed,cascade_photon_density,absorbed_power,injected_power)
-    use hadronic_pair_cascade_kernel, only: hadronic_cascade_sequence
-    implicit none
-    integer, intent(in) :: num_ph,num_e,num_shell,num_threads,index_syn_integr,substeps_per_shell
-    real(8), intent(in) :: photon_energy_gev(num_ph),primary_photon_density(num_ph,num_shell)
-    real(8), intent(in) :: electron_energy_gev(num_e),frequency_hz(num_ph)
-    real(8), intent(in) :: radius_cm(num_shell),gamma_bulk(num_shell),observer_time_s(num_shell),b_field_g(num_shell)
-    real(8), intent(out) :: photon_loss_rate(num_ph,num_shell),tau_pair(num_ph,num_shell)
-    real(8), intent(out) :: pair_density(num_e,num_shell),pair_luminosity(num_ph,num_shell)
-    real(8), intent(out) :: pair_seed(num_ph,num_shell),cascade_photon_density(num_ph,num_shell)
-    real(8), intent(out) :: absorbed_power(num_shell),injected_power(num_shell)
-
-    call hadronic_cascade_sequence(num_ph, num_e, num_shell, photon_energy_gev, &
-        primary_photon_density, electron_energy_gev, frequency_hz, radius_cm, gamma_bulk, observer_time_s, &
-        b_field_g, num_threads, index_syn_integr, substeps_per_shell, photon_loss_rate, tau_pair, pair_density, &
-        pair_luminosity, pair_seed, cascade_photon_density, absorbed_power, injected_power)
-end subroutine fs_hadronic_pair_cascade_sequence
+! Unit/grid helpers kept after the shell-sequence drivers.
 ! Python/f2py ABI wrapper; the shell implementation lives in hadronic_forward_shell_1d.
 subroutine fs_hadronic_advance_energy_loggamma(num_gamma,gamma,dn_prev,q_inj,loss_total,dt_s,dn_next)
     use hadronic_transport_remap_kernel, only: hadronic_advance_energy_loggamma_remap
