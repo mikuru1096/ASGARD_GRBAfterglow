@@ -41,9 +41,6 @@ from .api_model import (
     UniformMedium,
     WindMedium,
     top_hat_jet,
-    _iter_patch_elements,
-    _iter_solved_patch_elements,
-    _project_surface_element,
 )
 
 
@@ -69,6 +66,9 @@ def _compute_polarization(
         raise ValueError("local_emissivity must be 'analytic' or 'analytic_then_kernel'.")
     if magnetic_geometry == "toroidal" and not is_axisymmetric_jet(model.jet):
         raise NotImplementedError("toroidal polarization currently requires an axisymmetric jet.")
+    raise NotImplementedError(
+        "polarization currently has no supported backend after the Python patch projection path was removed."
+    )
 
     total_i = np.zeros((nu_hz.shape[0], times_s.shape[0]), dtype=float)
     total_q, total_u = np.zeros((2, *total_i.shape), dtype=float)
@@ -464,6 +464,9 @@ def _render_sky_image(model: Model, times_s: np.ndarray, nu_obs: float, fov: flo
     patch_cache: list[tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, float]] = []
     if model.observer.lumi_dist_cm is None or model.observer.lumi_dist_cm <= 0.0:
         raise ValueError("Observer.luminosity_distance_cm must be set for sky_image().")
+    raise NotImplementedError(
+        "sky_image currently has no supported backend after the Python patch projection path was removed."
+    )
     angular_diameter_distance_cm = model.observer.lumi_dist_cm / (1.0 + model.observer.z) ** 2
     sightline, sky_x_axis, sky_y_axis = _sky_basis(model.observer)
     frequencies_hz = np.array([nu_obs], dtype=float)
@@ -726,8 +729,8 @@ def observe(
 
     setups = model.setups
     t_obs_s = np.logspace(
-        np.log10(setups.observer_time_min_s),
-        np.log10(setups.observer_time_max_s),
+        float(setups.t_obs_min_log10),
+        float(setups.t_obs_max_log10),
         setups.num_tobs,
     )
 
