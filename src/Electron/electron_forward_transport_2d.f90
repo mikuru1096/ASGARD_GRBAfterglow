@@ -263,56 +263,7 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
         end do
     end do
 
-    R_loc = R(Num_R)
-    R_Gamma_loc = R_Gamma(Num_R)
-    call dynamics_external_density_profile(A_star,dNe_ISM,R_loc,R0,1,R_tr,f_jump,f_wide,dNe)
-    call update_shock_cooling_scales(R_Gamma_loc, R_Tobs(Num_R), beta_sh, beta_2, beta_2_sh)
-
-    if (emit_full_spectrum) then
-        call get_syn_selected_state(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e, &
-                                    dN_gam_e_total(:,Num_R),V_seed,P_emit_shell,P_syn(:,Num_R), &
-                                    Seed_syn(:,Num_R),Tau_shell)
-    end if
-    if (profile_enabled) call cpu_time(t_start)
-    P_eff_cool_chi = P_hist_cool(:,:,Num_R) + P_stream_cool
-    Seed_eff_cool_chi = Seed_hist_cool(:,:,Num_R) + Seed_stream_cool
-    history_calls = history_calls + 1
-    if (profile_enabled) then
-        call cpu_time(t_stop)
-        t_hist_accum = t_hist_accum + (t_stop-t_start)
-    end if
-    if (profile_enabled) call cpu_time(t_start)
-    call prepare_forward_cooling_aux_batch(index_Y,Num_gam_e,Num_nu_cool,Num_chi,n_threads,gam_e,V_cool, &
-                                           P_eff_cool_chi,Seed_eff_cool_chi,cooling_aux_chi)
-    if (profile_enabled) then
-        call cpu_time(t_stop)
-        t_prepare_aux = t_prepare_aux + (t_stop-t_start)
-    end if
-    prepare_aux_calls = prepare_aux_calls + 1
-    if (profile_enabled) call cpu_time(t_start)
-    call compute_q_cell_geometry(Num_chi,k_medium,R_loc,R_Gamma_loc,q_grid, &
-                                 radius_cell_chi,gamma_cell_chi,beta_cell_chi,beta_rel_sh_chi)
-    call update_epsilon_b_db_chi(x_comov_hist(:,Num_R), R_Gamma_loc, dNe, beta_rel_sh_chi)
-    if (profile_enabled) call cpu_time(t_start)
-    call assemble_cooling_chi(R_loc, R_Gamma_loc, beta_sh, Seed_eff_cool_chi, R_Tobs(Num_R))
-    if (profile_enabled) then
-        call cpu_time(t_stop)
-        t_cooling = t_cooling + (t_stop-t_start)
-    end if
-    call compute_vm_vc_va(R_Gamma_loc, beta_sh, Num_R, R_loc)
-    if (emit_full_spectrum) then
-        do I_tobs = 1, Num_R
-            call project_q_projection_shell(Num_nu,Num_chi,dq,P_hist(:,:,I_tobs),Seed_hist(:,:,I_tobs), &
-                                            Tau_hist(:,:,I_tobs),radius_cell_hist(:,I_tobs),gamma_cell_hist(:,I_tobs), &
-                                            P_syn_chi(:,:,I_tobs),Seed_syn_chi(:,:,I_tobs),Tau_syn_chi(:,:,I_tobs), &
-                                            chi_radius(:,I_tobs),chi_gamma_bulk(:,I_tobs),chi_weight_out(:,I_tobs))
-        end do
-    else
-        do I_tobs = 1, Num_R
-            call project_q_projection_geometry(Num_chi,dq,radius_cell_hist(:,I_tobs),gamma_cell_hist(:,I_tobs), &
-                                               chi_radius(:,I_tobs),chi_gamma_bulk(:,I_tobs),chi_weight_out(:,I_tobs))
-        end do
-    end if
+    call finalize_transport_2d_outputs()
     if (profile_enabled) then
         print '(A,1X,F10.4)', 'PROFILE '//trim(profile_tag)//' history_s', t_hist_accum
         print '(A,1X,F10.4)', 'PROFILE '//trim(profile_tag)//' syn_state_s', t_syn_state
@@ -611,6 +562,61 @@ subroutine store_transport_2d_shell_state(I_tobs)
     end if
     syn_state_calls = syn_state_calls + Num_chi
 end subroutine store_transport_2d_shell_state
+
+subroutine finalize_transport_2d_outputs()
+    integer :: I_proj
+
+    R_loc = R(Num_R)
+    R_Gamma_loc = R_Gamma(Num_R)
+    call dynamics_external_density_profile(A_star,dNe_ISM,R_loc,R0,1,R_tr,f_jump,f_wide,dNe)
+    call update_shock_cooling_scales(R_Gamma_loc, R_Tobs(Num_R), beta_sh, beta_2, beta_2_sh)
+
+    if (emit_full_spectrum) then
+        call get_syn_selected_state(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e, &
+                                    dN_gam_e_total(:,Num_R),V_seed,P_emit_shell,P_syn(:,Num_R), &
+                                    Seed_syn(:,Num_R),Tau_shell)
+    end if
+    if (profile_enabled) call cpu_time(t_start)
+    P_eff_cool_chi = P_hist_cool(:,:,Num_R) + P_stream_cool
+    Seed_eff_cool_chi = Seed_hist_cool(:,:,Num_R) + Seed_stream_cool
+    history_calls = history_calls + 1
+    if (profile_enabled) then
+        call cpu_time(t_stop)
+        t_hist_accum = t_hist_accum + (t_stop-t_start)
+    end if
+    if (profile_enabled) call cpu_time(t_start)
+    call prepare_forward_cooling_aux_batch(index_Y,Num_gam_e,Num_nu_cool,Num_chi,n_threads,gam_e,V_cool, &
+                                           P_eff_cool_chi,Seed_eff_cool_chi,cooling_aux_chi)
+    if (profile_enabled) then
+        call cpu_time(t_stop)
+        t_prepare_aux = t_prepare_aux + (t_stop-t_start)
+    end if
+    prepare_aux_calls = prepare_aux_calls + 1
+    if (profile_enabled) call cpu_time(t_start)
+    call compute_q_cell_geometry(Num_chi,k_medium,R_loc,R_Gamma_loc,q_grid, &
+                                 radius_cell_chi,gamma_cell_chi,beta_cell_chi,beta_rel_sh_chi)
+    call update_epsilon_b_db_chi(x_comov_hist(:,Num_R), R_Gamma_loc, dNe, beta_rel_sh_chi)
+    if (profile_enabled) call cpu_time(t_start)
+    call assemble_cooling_chi(R_loc, R_Gamma_loc, beta_sh, Seed_eff_cool_chi, R_Tobs(Num_R))
+    if (profile_enabled) then
+        call cpu_time(t_stop)
+        t_cooling = t_cooling + (t_stop-t_start)
+    end if
+    call compute_vm_vc_va(R_Gamma_loc, beta_sh, Num_R, R_loc)
+    if (emit_full_spectrum) then
+        do I_proj = 1, Num_R
+            call project_q_projection_shell(Num_nu,Num_chi,dq,P_hist(:,:,I_proj),Seed_hist(:,:,I_proj), &
+                                            Tau_hist(:,:,I_proj),radius_cell_hist(:,I_proj),gamma_cell_hist(:,I_proj), &
+                                            P_syn_chi(:,:,I_proj),Seed_syn_chi(:,:,I_proj),Tau_syn_chi(:,:,I_proj), &
+                                            chi_radius(:,I_proj),chi_gamma_bulk(:,I_proj),chi_weight_out(:,I_proj))
+        end do
+    else
+        do I_proj = 1, Num_R
+            call project_q_projection_geometry(Num_chi,dq,radius_cell_hist(:,I_proj),gamma_cell_hist(:,I_proj), &
+                                               chi_radius(:,I_proj),chi_gamma_bulk(:,I_proj),chi_weight_out(:,I_proj))
+        end do
+    end if
+end subroutine finalize_transport_2d_outputs
 
 subroutine transport_step_fullhide(R_prev, R_curr, Gamma_prev, Gamma_curr, dDR_step, &
                                     active_hi, active_chi_hi)
