@@ -44,7 +44,7 @@ from asgard_core.asgard_physics_utils import (
 from src import Dynamics, constants
 
 
-_ELECTRON_MODULES = {
+_ELECTRON_BACKEND_MODULES = {
     "charint_1d": "src.Electron.electron_forward_charint_1d",
     "charint_2d": "src.Electron.electron_forward_transport_2d",
     "dg_1d": "src.Electron.electron_forward_dg_1d",
@@ -57,19 +57,19 @@ _ELECTRON_MODULES = {
     "weno5_1d": "src.Electron.electron_forward_weno5_1d",
 }
 
-ELECTRON_1D_TRANSPORT_IDS = {
+ELECTRON_SHARED_1D_TRANSPORT_IDS = {
     "fullhide_1d": 1,
     "fullhide_1d_hz": 1,
     "dg_1d": 2,
 }
 
-_ELECTRON_1D_NU_SOLVERS = {"t2g1_1d", "slc1_1d", "charint_1d", "dg_1d"}
-_ELECTRON_1D_NU_GRID = {"dg_1d": "log-four-velocity-1d-dg"}
+_ELECTRON_STANDARD_1D_SOLVERS = {"t2g1_1d", "slc1_1d", "charint_1d", "dg_1d"}
+_ELECTRON_1D_GRID_LABELS = {"dg_1d": "log-four-velocity-1d-dg"}
 
 
 @cache
 def _electron_module(solver: str):
-    return import_module(_ELECTRON_MODULES[solver])
+    return import_module(_ELECTRON_BACKEND_MODULES[solver])
 
 
 @cache
@@ -549,7 +549,7 @@ def _solve_electron_1d_standard(boundary, dynamics, v_seed, config, solver_name,
     gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = func(*args)
     return _finish_electron_solution(
         config, solver_name,
-        _ELECTRON_1D_NU_GRID.get(solver_name, "log-gamma-1d"),
+        _ELECTRON_1D_GRID_LABELS.get(solver_name, "log-gamma-1d"),
         gam_e, d_n_gam_e, l_syn_spec, seed_syn,
         nu=(nu_m, nu_c, nu_a), return_report=return_report,
     )
@@ -591,7 +591,7 @@ def solve_electron(
             return_report=return_report,
         )
 
-    if solver_name in _ELECTRON_1D_NU_SOLVERS:
+    if solver_name in _ELECTRON_STANDARD_1D_SOLVERS:
         return _solve_electron_1d_standard(boundary, dynamics, v_seed, config, solver_name, return_report)
 
     if solver_name == "charint_2d":
@@ -926,16 +926,16 @@ def _emit_nu_callback(config: RuntimeConfig, label: str, nu_m, nu_c, nu_a) -> No
 
 def _resolve_electron_solver(config: RuntimeConfig) -> str:
     solver_name = config.electron_solver.lower()
-    if solver_name not in _ELECTRON_MODULES:
+    if solver_name not in _ELECTRON_BACKEND_MODULES:
         raise ValueError(f"Unsupported electron solver: {config.electron_solver}")
     return solver_name
 
 
 def _electron_1d_transport_solver_id(config: RuntimeConfig) -> int:
     solver_name = _resolve_electron_solver(config)
-    if solver_name not in ELECTRON_1D_TRANSPORT_IDS:
+    if solver_name not in ELECTRON_SHARED_1D_TRANSPORT_IDS:
         raise NotImplementedError("reverse-shock electron transport supports electron_solver='fullhide_1d' or 'dg_1d'.")
-    return ELECTRON_1D_TRANSPORT_IDS[solver_name]
+    return ELECTRON_SHARED_1D_TRANSPORT_IDS[solver_name]
 
 
 def _resolve_pgamma_scheme(config: RuntimeConfig) -> str:

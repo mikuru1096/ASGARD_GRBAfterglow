@@ -205,6 +205,7 @@ def _solver_label(config: RuntimeConfig, stage: str) -> str:
         electron_label_map = {
             "fullhide_1d": "Electron.fs_electron_fullhide_1d",
             "fullhide_2d": "Electron.fs_electron_transport_2d_core",
+            "dg_1d": "Electron.fs_electron_dg_1d",
             "t2g1_1d": "Electron.fs_electron_t2g1_1d",
             "slc1_1d": "Electron.fs_electron_slc1_1d",
             "charint_1d": "Electron.fs_electron_charint_1d",

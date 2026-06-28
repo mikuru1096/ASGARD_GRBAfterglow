@@ -11,36 +11,7 @@
 
 ## 当前活动任务
 
-### Electron solver backend 统一设计
-
-目标：新版接口只保留一个电子求解器选择点 `RuntimeConfig.electron_solver -> solve_electron -> Fortran f2py backend -> ElectronSolution`。各 Fortran 求解器是同一物理阶段下的可替换数值离散，不允许新增 registry、OOP manager、compat shim 或平行主流程。
-
-调用层级固定为：
-
-```text
-RuntimeConfig.electron_solver
-  -> asgard_runtime._resolve_electron_solver
-  -> asgard_runtime.solve_electron
-  -> fs_electron_<solver>
-  -> _finish_electron_solution / ElectronSolution
-```
-
-设计契约：
-
-- `fullhide_1d` 是默认正式 1D 路径，支持最完整功能，包括 thermal electrons 和 joint electron-photon coupling。
-- `dg_1d` 是一等 opt-in 高阶 1D 路径，和 `fullhide_1d` 共用固定 1D 输出合同：`gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a`。它支持 FS、RS 和 `structured_backend="fortran_1d"`，但不支持 thermal electron branch，也不支持 joint electron-photon coupling。
-- `charint_1d`、`slc1_1d`、`t2g1_1d`、`weno5_1d` 保留为方法对照或诊断型 1D backend，走同一个 `solve_electron` 分发和 `ElectronSolution` 输出；除非单独证明 RS crossing 后冷却合同，否则不进入 RS / structured 共享 solver-id 路径。
-- `fullhide_2d` 和 `charint_2d` 是 finite q-shell 厚度路径，共用 `fs_electron_transport_2d_core`；区别只允许是能量方向积分器。`structured chi_eats_2d` 当前只接受 `fullhide_2d`，不得自动扩展到 `charint_2d`。
-- `fullhide_1d_hz` 是热/非热混合谱专用路径，不作为普通拟合默认，也不进入 RS / structured 共享 solver-id。
-- Hadronic 当前只读取 shell-level 1D electron contract；若 `electron_solver` 是 2D，不允许把 hadronic 输出解释成 chi-local feedback。
-
-小步 TODO：
-
-- 同步 `asgard_state._solver_label`，补齐 `dg_1d -> Electron.fs_electron_dg_1d` 标签，避免报告和计时层把一等 solver 当成未知字符串。
-- 审计 `_ELECTRON_MODULES`、`_ELECTRON_1D_NU_SOLVERS`、`ELECTRON_1D_TRANSPORT_IDS`、`structured_jet_kernel.ELECTRON_1D_TRANSPORT_IDS` 的含义边界：module import、普通 1D 输出、RS/structured 共享 solver-id 三者分开，不用一个集合承担多种语义。
-- 对 `electron_forward_fullhide_1d.f90`、`electron_forward_dg_1d.f90`、`electron_reverse_kernel.f90` 和 `structured_jet_1d.f90` 建立最小调用图，确认 `dg_1d` 只共享物理输入/输出合同，不复制 `fullhide_1d` 内部推进结构。
-- 清理 Electron 主链时先处理 `fullhide_1d` 和 `dg_1d` 共享边界，再处理诊断型 1D solver；禁止为统一接口创建新的抽象层。
-- 每次触及上述 Fortran backend 或 solver-id 分发后，运行对应 f2py build、干净 `/tmp` source closure `-Wline-truncation` 检查和已有 smoke；不新增测试文件。
+当前没有活动任务。
 
 ## 当前未完成边界
 

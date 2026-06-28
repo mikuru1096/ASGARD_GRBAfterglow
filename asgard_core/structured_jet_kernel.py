@@ -13,7 +13,7 @@ from asgard_core.asgard_state import make_query_cfg, make_query_setup, solve_sta
 from src import Interpolation, Structured, constants
 
 
-from asgard_core.asgard_runtime import ELECTRON_1D_TRANSPORT_IDS
+from asgard_core.asgard_runtime import ELECTRON_SHARED_1D_TRANSPORT_IDS
 
 HUMMER_SCHEMES = {"hummer_2010_response"}
 STRUCTURED_FORTRAN_MIN_GAMMA0 = 2.0
@@ -163,7 +163,7 @@ def _structured_kernel_args(model, base_config, setup, sampled, times: np.ndarra
         int(model.setups.electron_substep_min),
         int(model.setups.electron_substep_max),
         int(bool(model.fwd_rad.thermal_electrons)),
-        ELECTRON_1D_TRANSPORT_IDS[str(model.setups.electron_solver).lower()],
+        ELECTRON_SHARED_1D_TRANSPORT_IDS[str(model.setups.electron_solver).lower()],
     )
     i_theta, query_config, setup, frequencies = payload
     return i_theta, solve_state_from_setup(
@@ -603,7 +603,7 @@ def _assert_no_fancy_physics(model, backend: str) -> None:
 
 
 def _assert_supported_structured_fortran(model) -> None:
-    if str(model.setups.electron_solver).lower() not in ELECTRON_1D_TRANSPORT_IDS:
+    if str(model.setups.electron_solver).lower() not in ELECTRON_SHARED_1D_TRANSPORT_IDS:
         raise NotImplementedError("structured_backend='fortran_1d' requires electron_solver='fullhide_1d' or 'dg_1d'.")
     if bool(model.setups.rvs_shock) and model.rvs_rad is None:
         raise NotImplementedError("structured_backend='fortran_1d' requires rvs_rad when reverse shock is enabled.")
@@ -775,5 +775,4 @@ def _patch_metadata(theta_centers, theta_edges, phi_centers, e_iso, gamma0, acti
                 }
             )
     return patches
-
 
