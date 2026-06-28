@@ -378,57 +378,7 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
             end if
         end block
 
-        call dynamics_external_density_profile(A_star,dNe_ISM,R(I_tobs),R0,1,R_tr,f_jump,f_wide,dNe)
-        call compute_downstream_comoving_grid(Num_chi,k_medium,R(I_tobs),R_Gamma(I_tobs),q_face,q_grid, &
-                                              x_face_hist(:,I_tobs),x_comov_face_hist(:,I_tobs),x_comov_hist(:,I_tobs), &
-                                              dx_comov_hist(:,I_tobs),radius_cell_hist(:,I_tobs),gamma_cell_hist(:,I_tobs), &
-                                              beta_hist(:,I_tobs),beta_rel_sh_chi)
-        call update_epsilon_b_db_chi(x_comov_hist(:,I_tobs), R_Gamma(I_tobs), dNe, beta_rel_sh_chi)
-        if (profile_enabled) call cpu_time(t_start)
-        !$OMP PARALLEL DO num_threads(n_threads) if(n_threads > 1 .and. Num_chi*Num_nu >= 128) schedule(static) &
-        !$OMP& private(I_chi)
-        do I_chi = 1, Num_chi
-            if (four_velocity_coord) then
-                call electron_shell_dcoord_to_dndgamma_exp_centers(Num_gam_e,coord_edge_E,coord_scale,gam_e, &
-                                                                   U_log(:,I_chi),dN_gam_e(:,I_chi,I_tobs))
-            else
-                call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge_E,gam_e,U_log(:,I_chi),dN_gam_e(:,I_chi,I_tobs))
-            end if
-            B_chi_out(I_chi,I_tobs) = DB_chi(I_chi)
-            if (.not. emit_full_spectrum) then
-                block
-                    real(8) :: P_emit_tmp(Num_nu_cool)
-                    call get_syn_state(R(I_tobs),DB_chi(I_chi),Num_gam_e,Num_nu_cool,1, &
-                                       gam_e,dN_gam_e(:,I_chi,I_tobs),V_cool,P_emit_tmp, &
-                                       P_hist_cool(:,I_chi,I_tobs),Seed_hist_cool(:,I_chi,I_tobs), &
-                                       Tau_hist_cool(:,I_chi,I_tobs))
-                end block
-                Tau_pair_hist_cool(:,I_chi,I_tobs) = zero
-                call radiation_pair_tau_headon_segment(V_cool,Num_nu_cool,Seed_hist_cool(:,I_chi,I_tobs), &
-                                                       dx_comov_hist(I_chi,I_tobs),Tau_pair_hist_cool(:,I_chi,I_tobs))
-                Tau_prop_hist_cool(:,I_chi,I_tobs) = Tau_hist_cool(:,I_chi,I_tobs) + Tau_pair_hist_cool(:,I_chi,I_tobs)
-            end if
-        end do
-        !$OMP END PARALLEL DO
-        if (emit_full_spectrum) then
-            call get_syn_chi_batch_state(R(I_tobs),Num_gam_e,Num_nu,Num_chi,gam_e,dN_gam_e(:,:,I_tobs),V_seed,DB_chi, &
-                                         P_local,P_hist(:,:,I_tobs),Seed_hist(:,:,I_tobs),Tau_hist(:,:,I_tobs))
-            do I_chi = 1, Num_chi
-                call project_syn_state_logbands(Num_nu,V_seed,P_hist(:,I_chi,I_tobs), &
-                                                Seed_hist(:,I_chi,I_tobs),Tau_hist(:,I_chi,I_tobs), &
-                                                Num_nu_cool,V_cool,P_hist_cool(:,I_chi,I_tobs), &
-                                                Seed_hist_cool(:,I_chi,I_tobs),Tau_hist_cool(:,I_chi,I_tobs))
-                Tau_pair_hist_cool(:,I_chi,I_tobs) = zero
-                call radiation_pair_tau_headon_segment(V_cool,Num_nu_cool,Seed_hist_cool(:,I_chi,I_tobs), &
-                                                       dx_comov_hist(I_chi,I_tobs),Tau_pair_hist_cool(:,I_chi,I_tobs))
-                Tau_prop_hist_cool(:,I_chi,I_tobs) = Tau_hist_cool(:,I_chi,I_tobs) + Tau_pair_hist_cool(:,I_chi,I_tobs)
-            end do
-        end if
-        if (profile_enabled) then
-            call cpu_time(t_stop)
-            t_syn_state = t_syn_state + (t_stop-t_start)
-        end if
-        syn_state_calls = syn_state_calls + Num_chi
+        call store_transport_2d_shell_state(I_tobs)
 
         if (profile_enabled) call cpu_time(t_start)
         call advance_comoving_history_stream(I_tobs-1,I_tobs,Num_R,Num_chi,Num_nu_cool,proper_time_arr,V_cool, &
@@ -602,6 +552,62 @@ subroutine initialize_transport_2d_front_state()
         t_syn_state = t_syn_state + (t_stop-t_start)
     end if
 end subroutine initialize_transport_2d_front_state
+
+subroutine store_transport_2d_shell_state(I_tobs)
+    integer, intent(in) :: I_tobs
+
+    call dynamics_external_density_profile(A_star,dNe_ISM,R(I_tobs),R0,1,R_tr,f_jump,f_wide,dNe)
+    call compute_downstream_comoving_grid(Num_chi,k_medium,R(I_tobs),R_Gamma(I_tobs),q_face,q_grid, &
+                                          x_face_hist(:,I_tobs),x_comov_face_hist(:,I_tobs),x_comov_hist(:,I_tobs), &
+                                          dx_comov_hist(:,I_tobs),radius_cell_hist(:,I_tobs),gamma_cell_hist(:,I_tobs), &
+                                          beta_hist(:,I_tobs),beta_rel_sh_chi)
+    call update_epsilon_b_db_chi(x_comov_hist(:,I_tobs), R_Gamma(I_tobs), dNe, beta_rel_sh_chi)
+    if (profile_enabled) call cpu_time(t_start)
+    !$OMP PARALLEL DO num_threads(n_threads) if(n_threads > 1 .and. Num_chi*Num_nu >= 128) schedule(static) &
+    !$OMP& private(I_chi)
+    do I_chi = 1, Num_chi
+        if (four_velocity_coord) then
+            call electron_shell_dcoord_to_dndgamma_exp_centers(Num_gam_e,coord_edge_E,coord_scale,gam_e, &
+                                                               U_log(:,I_chi),dN_gam_e(:,I_chi,I_tobs))
+        else
+            call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge_E,gam_e,U_log(:,I_chi),dN_gam_e(:,I_chi,I_tobs))
+        end if
+        B_chi_out(I_chi,I_tobs) = DB_chi(I_chi)
+        if (.not. emit_full_spectrum) then
+            block
+                real(8) :: P_emit_tmp(Num_nu_cool)
+                call get_syn_state(R(I_tobs),DB_chi(I_chi),Num_gam_e,Num_nu_cool,1, &
+                                   gam_e,dN_gam_e(:,I_chi,I_tobs),V_cool,P_emit_tmp, &
+                                   P_hist_cool(:,I_chi,I_tobs),Seed_hist_cool(:,I_chi,I_tobs), &
+                                   Tau_hist_cool(:,I_chi,I_tobs))
+            end block
+            Tau_pair_hist_cool(:,I_chi,I_tobs) = zero
+            call radiation_pair_tau_headon_segment(V_cool,Num_nu_cool,Seed_hist_cool(:,I_chi,I_tobs), &
+                                                   dx_comov_hist(I_chi,I_tobs),Tau_pair_hist_cool(:,I_chi,I_tobs))
+            Tau_prop_hist_cool(:,I_chi,I_tobs) = Tau_hist_cool(:,I_chi,I_tobs) + Tau_pair_hist_cool(:,I_chi,I_tobs)
+        end if
+    end do
+    !$OMP END PARALLEL DO
+    if (emit_full_spectrum) then
+        call get_syn_chi_batch_state(R(I_tobs),Num_gam_e,Num_nu,Num_chi,gam_e,dN_gam_e(:,:,I_tobs),V_seed,DB_chi, &
+                                     P_local,P_hist(:,:,I_tobs),Seed_hist(:,:,I_tobs),Tau_hist(:,:,I_tobs))
+        do I_chi = 1, Num_chi
+            call project_syn_state_logbands(Num_nu,V_seed,P_hist(:,I_chi,I_tobs), &
+                                            Seed_hist(:,I_chi,I_tobs),Tau_hist(:,I_chi,I_tobs), &
+                                            Num_nu_cool,V_cool,P_hist_cool(:,I_chi,I_tobs), &
+                                            Seed_hist_cool(:,I_chi,I_tobs),Tau_hist_cool(:,I_chi,I_tobs))
+            Tau_pair_hist_cool(:,I_chi,I_tobs) = zero
+            call radiation_pair_tau_headon_segment(V_cool,Num_nu_cool,Seed_hist_cool(:,I_chi,I_tobs), &
+                                                   dx_comov_hist(I_chi,I_tobs),Tau_pair_hist_cool(:,I_chi,I_tobs))
+            Tau_prop_hist_cool(:,I_chi,I_tobs) = Tau_hist_cool(:,I_chi,I_tobs) + Tau_pair_hist_cool(:,I_chi,I_tobs)
+        end do
+    end if
+    if (profile_enabled) then
+        call cpu_time(t_stop)
+        t_syn_state = t_syn_state + (t_stop-t_start)
+    end if
+    syn_state_calls = syn_state_calls + Num_chi
+end subroutine store_transport_2d_shell_state
 
 subroutine transport_step_fullhide(R_prev, R_curr, Gamma_prev, Gamma_curr, dDR_step, &
                                     active_hi, active_chi_hi)
