@@ -244,139 +244,7 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
         end if
         shell_cooling_calls = shell_cooling_calls + 1
         call compute_vm_vc_va(R_Gamma_loc, beta_sh, I_tobs-1, R_loc)
-        block
-            real(8) :: dDD, dDR, dDR_try, dDR_xi, dDR_q, max_xi_coeff
-            real(8) :: chi_peak
-            integer :: L, L1, src_lo, src_hi, active_hi, active_chi_hi
-
-            call electron_source_bounds(Num_gam_e,gam_e,Gam_e_m,Gam_e_max,src_lo,src_hi)
-            if (four_velocity_coord) then
-                call electron_build_source_term_exp_cutoff_coord_edges(Num_gam_e,coord_edge_E,coord_scale, &
-                                                                       Gam_e_m,Gam_e_max,one,p,dF1)
-            else
-                call electron_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge_E,Gam_e_m,Gam_e_max,one,p,dF1)
-            end if
-            shell_population = sum(U_log, dim=2)
-            chi_population = sum(U_log, dim=1)
-            chi_peak = maxval(chi_population)
-            active_hi = electron_active_gamma_hi(Num_gam_e,dF1,shell_population,src_lo,src_hi,chi_peak)
-            if (pwn_cr_transport) then
-                call compute_q_divergence(Num_chi,k_medium,R_loc,R_Gamma_loc,beta_sh,q_grid,adiabatic_log_coeff_chi)
-            else
-                adiabatic_log_coeff_chi = one/(R_loc*ln10)
-            end if
-            max_xi_coeff = electron_max_xi_coeff_chi(Num_gam_e,Num_chi,dEL_mean_chi, &
-                                                     adiabatic_log_coeff_chi,chi_population,chi_peak,active_hi)
-
-            dDR_xi = huge(one)
-            if (max_xi_coeff > zero) dDR_xi = 4d0*d_x_E/max_xi_coeff
-            active_chi_hi = electron_active_chi_hi(Num_chi,chi_population,chi_peak)
-            dDR_q = huge(one)
-            if (use_charint_transport) then
-                dDR_q = compute_q_step_limit(Num_chi,k_medium,R_loc,dq,q_face,4d0)
-            end if
-
-            dDD     = R(I_tobs)-R(I_tobs-1)
-            dDR_try = min(dDD, min(dDR_xi, dDR_q))
-            L1      = max(1, min(substep_limit, ceiling(dDD/dDR_try)))
-            if (.not. use_charint_transport .and. .not. pwn_cr_transport) then
-                call transport_step_fullhide(R(I_tobs-1), R(I_tobs), R_Gamma(I_tobs-1), R_Gamma(I_tobs), &
-                                              dDD, active_hi, active_chi_hi)
-            else
-                dDR     = dDD/dble(L1)
-                total_substeps = total_substeps + L1
-                max_shell_substeps = max(max_shell_substeps, L1)
-
-                do L = 1, L1
-                    block
-                        real(8) :: frac_sub, R_sub, Gamma_sh_sub, Gam_e_m_p
-
-                        frac_sub = (dble(L)-0.5d0)/dble(L1)
-                        R_sub = R(I_tobs-1) + frac_sub*dDD
-                        Gamma_sh_sub = (one-frac_sub)*R_Gamma(I_tobs-1) + frac_sub*R_Gamma(I_tobs)
-
-                        call dynamics_external_density_profile(A_star,dNe_ISM,R_sub,R0,1,R_tr,f_jump,f_wide,dNe)
-
-                        call update_shock_cooling_scales(Gamma_sh_sub, R_Tobs(I_tobs), beta_sh, beta_2, beta_2_sh)
-                        if (pwn_cr_transport) then
-                            call compute_q_divergence(Num_chi,k_medium,R_sub,Gamma_sh_sub,beta_sh,q_grid,adiabatic_log_coeff_chi)
-                        else
-                            adiabatic_log_coeff_chi = one/(R_sub*ln10)
-                        end if
-
-                        Gam_e_m_p = (one-p)/(Gam_e_max**(one-p)-Gam_e_m**(one-p))
-                        call electron_injection_prefactor(R_sub,dDR,dNe,f_e,Gam_e_m_p,Q)
-                        Q_rate = Q/dDR
-                        call electron_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge_E,Gam_e_m,Gam_e_max,Q_rate,p,dF1)
-                        source_q1 = dF1/dq
-
-                        if (use_charint_transport) then
-                            if (profile_enabled) call cpu_time(t_start)
-                            call advance_q_advection_charint(U_log, Num_gam_e, Num_chi, active_hi, dq, q_face, &
-                                                             k_medium, R_sub, zero*source_q1, dDR)
-                            call advance_q_diffusion_implicit(U_log, Num_gam_e, Num_chi, active_hi, dq, q_face, &
-                                                              k_medium, R_sub, Gamma_sh_sub, beta_sh, &
-                                                              kappa2_chi, dDR, n_threads)
-                            eta_calls = eta_calls + 1
-                            if (profile_enabled) then
-                                call cpu_time(t_stop)
-                                t_eta = t_eta + (t_stop-t_start)
-                            end if
-
-                            if (profile_enabled) call cpu_time(t_start)
-                            call advance_energy_loggamma_chi_charint(U_log, Num_gam_e, Num_chi, gam_e, DB_chi, &
-                                                                     dEl_chi, R_sub, Gamma_sh_sub, beta_sh, index_Y, &
-                                                                     dDR, active_chi_hi, n_threads, source_q1)
-                            xi_calls = xi_calls + 1
-                            if (profile_enabled) then
-                                call cpu_time(t_stop)
-                                t_xi = t_xi + (t_stop-t_start)
-                            end if
-                        else
-                            if (profile_enabled) call cpu_time(t_start)
-                            if (pwn_cr_transport) then
-                                call advance_q_pwncr_implicit(U_log, Num_gam_e, Num_chi, active_hi, dq, q_face, &
-                                                              k_medium, R_sub, Gamma_sh_sub, beta_sh, kappa2_chi, &
-                                                              source_q1, dDR, free_outer_escape, n_threads)
-                            else
-                                call advance_q_implicit(U_log, Num_gam_e, Num_chi, active_hi, dq, q_face, &
-                                                        k_medium, R_sub, Gamma_sh_sub, beta_sh, kappa2_chi, &
-                                                        source_q1, dDR, n_threads)
-                            end if
-                            eta_calls = eta_calls + 1
-                            if (profile_enabled) then
-                                call cpu_time(t_stop)
-                                t_eta = t_eta + (t_stop-t_start)
-                            end if
-
-                            if (profile_enabled) call cpu_time(t_start)
-                            if (pwn_cr_transport) then
-                                if (stochastic_accel_norm > zero) then
-                                    call advance_energy_stochastic_loggamma_chi(U_log, Num_gam_e, Num_chi, &
-                                                                                stochastic_accel_norm, R_sub, &
-                                                                                d_x_E, 0.5d0*dDR, n_threads)
-                                end if
-                                call advance_energy_loggamma_chi_pwncr(U_log, Num_gam_e, Num_chi, dEL_mean_chi, &
-                                                                       adiabatic_log_coeff_chi, d_x_E, dDR, n_threads)
-                                if (stochastic_accel_norm > zero) then
-                                    call advance_energy_stochastic_loggamma_chi(U_log, Num_gam_e, Num_chi, &
-                                                                                stochastic_accel_norm, R_sub, &
-                                                                                d_x_E, 0.5d0*dDR, n_threads)
-                                end if
-                            else
-                                call advance_energy_loggamma_chi(U_log, Num_gam_e, Num_chi, dEL_mean_chi, &
-                                                                 R_sub, d_x_E, dDR, n_threads)
-                            end if
-                            xi_calls = xi_calls + 1
-                            if (profile_enabled) then
-                                call cpu_time(t_stop)
-                                t_xi = t_xi + (t_stop-t_start)
-                            end if
-                        end if
-                    end block
-                end do
-            end if
-        end block
+        call advance_transport_2d_shell(I_tobs)
 
         call store_transport_2d_shell_state(I_tobs)
 
@@ -552,6 +420,141 @@ subroutine initialize_transport_2d_front_state()
         t_syn_state = t_syn_state + (t_stop-t_start)
     end if
 end subroutine initialize_transport_2d_front_state
+
+subroutine advance_transport_2d_shell(I_tobs)
+    integer, intent(in) :: I_tobs
+    real(8) :: dDD, dDR, dDR_try, dDR_xi, dDR_q, max_xi_coeff
+    real(8) :: chi_peak
+    integer :: L, L1, src_lo, src_hi, active_hi, active_chi_hi
+
+    call electron_source_bounds(Num_gam_e,gam_e,Gam_e_m,Gam_e_max,src_lo,src_hi)
+    if (four_velocity_coord) then
+        call electron_build_source_term_exp_cutoff_coord_edges(Num_gam_e,coord_edge_E,coord_scale, &
+                                                               Gam_e_m,Gam_e_max,one,p,dF1)
+    else
+        call electron_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge_E,Gam_e_m,Gam_e_max,one,p,dF1)
+    end if
+    shell_population = sum(U_log, dim=2)
+    chi_population = sum(U_log, dim=1)
+    chi_peak = maxval(chi_population)
+    active_hi = electron_active_gamma_hi(Num_gam_e,dF1,shell_population,src_lo,src_hi,chi_peak)
+    if (pwn_cr_transport) then
+        call compute_q_divergence(Num_chi,k_medium,R_loc,R_Gamma_loc,beta_sh,q_grid,adiabatic_log_coeff_chi)
+    else
+        adiabatic_log_coeff_chi = one/(R_loc*ln10)
+    end if
+    max_xi_coeff = electron_max_xi_coeff_chi(Num_gam_e,Num_chi,dEL_mean_chi, &
+                                             adiabatic_log_coeff_chi,chi_population,chi_peak,active_hi)
+
+    dDR_xi = huge(one)
+    if (max_xi_coeff > zero) dDR_xi = 4d0*d_x_E/max_xi_coeff
+    active_chi_hi = electron_active_chi_hi(Num_chi,chi_population,chi_peak)
+    dDR_q = huge(one)
+    if (use_charint_transport) then
+        dDR_q = compute_q_step_limit(Num_chi,k_medium,R_loc,dq,q_face,4d0)
+    end if
+
+    dDD     = R(I_tobs)-R(I_tobs-1)
+    dDR_try = min(dDD, min(dDR_xi, dDR_q))
+    L1      = max(1, min(substep_limit, ceiling(dDD/dDR_try)))
+    if (.not. use_charint_transport .and. .not. pwn_cr_transport) then
+        call transport_step_fullhide(R(I_tobs-1), R(I_tobs), R_Gamma(I_tobs-1), R_Gamma(I_tobs), &
+                                      dDD, active_hi, active_chi_hi)
+    else
+        dDR     = dDD/dble(L1)
+        total_substeps = total_substeps + L1
+        max_shell_substeps = max(max_shell_substeps, L1)
+
+        do L = 1, L1
+            block
+                real(8) :: frac_sub, R_sub, Gamma_sh_sub, Gam_e_m_p
+
+                frac_sub = (dble(L)-0.5d0)/dble(L1)
+                R_sub = R(I_tobs-1) + frac_sub*dDD
+                Gamma_sh_sub = (one-frac_sub)*R_Gamma(I_tobs-1) + frac_sub*R_Gamma(I_tobs)
+
+                call dynamics_external_density_profile(A_star,dNe_ISM,R_sub,R0,1,R_tr,f_jump,f_wide,dNe)
+
+                call update_shock_cooling_scales(Gamma_sh_sub, R_Tobs(I_tobs), beta_sh, beta_2, beta_2_sh)
+                if (pwn_cr_transport) then
+                    call compute_q_divergence(Num_chi,k_medium,R_sub,Gamma_sh_sub,beta_sh,q_grid,adiabatic_log_coeff_chi)
+                else
+                    adiabatic_log_coeff_chi = one/(R_sub*ln10)
+                end if
+
+                Gam_e_m_p = (one-p)/(Gam_e_max**(one-p)-Gam_e_m**(one-p))
+                call electron_injection_prefactor(R_sub,dDR,dNe,f_e,Gam_e_m_p,Q)
+                Q_rate = Q/dDR
+                call electron_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge_E,Gam_e_m,Gam_e_max,Q_rate,p,dF1)
+                source_q1 = dF1/dq
+
+                if (use_charint_transport) then
+                    if (profile_enabled) call cpu_time(t_start)
+                    call advance_q_advection_charint(U_log, Num_gam_e, Num_chi, active_hi, dq, q_face, &
+                                                     k_medium, R_sub, zero*source_q1, dDR)
+                    call advance_q_diffusion_implicit(U_log, Num_gam_e, Num_chi, active_hi, dq, q_face, &
+                                                      k_medium, R_sub, Gamma_sh_sub, beta_sh, &
+                                                      kappa2_chi, dDR, n_threads)
+                    eta_calls = eta_calls + 1
+                    if (profile_enabled) then
+                        call cpu_time(t_stop)
+                        t_eta = t_eta + (t_stop-t_start)
+                    end if
+
+                    if (profile_enabled) call cpu_time(t_start)
+                    call advance_energy_loggamma_chi_charint(U_log, Num_gam_e, Num_chi, gam_e, DB_chi, &
+                                                             dEl_chi, R_sub, Gamma_sh_sub, beta_sh, index_Y, &
+                                                             dDR, active_chi_hi, n_threads, source_q1)
+                    xi_calls = xi_calls + 1
+                    if (profile_enabled) then
+                        call cpu_time(t_stop)
+                        t_xi = t_xi + (t_stop-t_start)
+                    end if
+                else
+                    if (profile_enabled) call cpu_time(t_start)
+                    if (pwn_cr_transport) then
+                        call advance_q_pwncr_implicit(U_log, Num_gam_e, Num_chi, active_hi, dq, q_face, &
+                                                      k_medium, R_sub, Gamma_sh_sub, beta_sh, kappa2_chi, &
+                                                      source_q1, dDR, free_outer_escape, n_threads)
+                    else
+                        call advance_q_implicit(U_log, Num_gam_e, Num_chi, active_hi, dq, q_face, &
+                                                k_medium, R_sub, Gamma_sh_sub, beta_sh, kappa2_chi, &
+                                                source_q1, dDR, n_threads)
+                    end if
+                    eta_calls = eta_calls + 1
+                    if (profile_enabled) then
+                        call cpu_time(t_stop)
+                        t_eta = t_eta + (t_stop-t_start)
+                    end if
+
+                    if (profile_enabled) call cpu_time(t_start)
+                    if (pwn_cr_transport) then
+                        if (stochastic_accel_norm > zero) then
+                            call advance_energy_stochastic_loggamma_chi(U_log, Num_gam_e, Num_chi, &
+                                                                        stochastic_accel_norm, R_sub, &
+                                                                        d_x_E, 0.5d0*dDR, n_threads)
+                        end if
+                        call advance_energy_loggamma_chi_pwncr(U_log, Num_gam_e, Num_chi, dEL_mean_chi, &
+                                                               adiabatic_log_coeff_chi, d_x_E, dDR, n_threads)
+                        if (stochastic_accel_norm > zero) then
+                            call advance_energy_stochastic_loggamma_chi(U_log, Num_gam_e, Num_chi, &
+                                                                        stochastic_accel_norm, R_sub, &
+                                                                        d_x_E, 0.5d0*dDR, n_threads)
+                        end if
+                    else
+                        call advance_energy_loggamma_chi(U_log, Num_gam_e, Num_chi, dEL_mean_chi, &
+                                                         R_sub, d_x_E, dDR, n_threads)
+                    end if
+                    xi_calls = xi_calls + 1
+                    if (profile_enabled) then
+                        call cpu_time(t_stop)
+                        t_xi = t_xi + (t_stop-t_start)
+                    end if
+                end if
+            end block
+        end do
+    end if
+end subroutine advance_transport_2d_shell
 
 subroutine store_transport_2d_shell_state(I_tobs)
     integer, intent(in) :: I_tobs
