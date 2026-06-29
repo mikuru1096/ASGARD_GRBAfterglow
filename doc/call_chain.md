@@ -42,7 +42,7 @@ flowchart TD
     B --> C["solve_electron"]
     C --> D["electron_forward_fullhide_1d / charint_1d / weno5_1d / t2g1_1d / slc1_1d"]
     C --> E["electron_forward_transport_2d / charint_2d"]
-    D --> F["electron_common + electron_cooling_kernel + electron_radiation_kernel"]
+    D --> F["electron_common + electron_cooling_kernel facade\nSSA / IC / Y cooling kernels + radiation kernel"]
     E --> G["electron_transport_2d_kernel + electron_seed_history_kernel"]
     F --> H["radiation_common -> radiation_ssc_spectrum / radiation_gamma_gamma_absorption"]
     G --> H

@@ -117,7 +117,7 @@ Q_e(\gamma_e)\propto \gamma_e^{-p}
 \exp\!\left(-\frac{\gamma_e}{\gamma_{\max}}\right).
 \]
 
-冷却系数由 `electron_cooling_kernel.f90` 组装。它包含同步辐射、同步自康普顿/逆康普顿和同步自吸收回热修正；绝热项通过输运系数中的几何项进入。`index_y` 的含义是：
+冷却系数由 `electron_cooling_kernel.f90` 门面组装；SSA、IC 和 Compton-Y 物理核分别位于 `electron_cooling_ssa_kernel.f90`、`electron_cooling_ic_kernel.f90` 和 `electron_cooling_y_kernel.f90`。它包含同步辐射、同步自康普顿/逆康普顿和同步自吸收回热修正；绝热项通过输运系数中的几何项进入。`index_y` 的含义是：
 
 - `0`：只使用同步辐射主项
 
@@ -501,7 +501,7 @@ N_{\rm thread,eff}=\min(N_{\rm thread},N_\chi,4),
 | \(\gamma_e\) 网格 | `electron_common.f90` |
 | \(q/\chi_{\rm BM}\) 几何 | `electron_transport_2d_kernel.f90` |
 | 注入源项 \(Q_e\) | `electron_injection_profiles.f90` |
-| 冷却系数 \(A_x\) | `electron_cooling_kernel.f90` |
+| 冷却系数 \(A_x\) | `electron_cooling_kernel.f90` facade；SSA/IC/Y 实现见对应 `electron_cooling_*_kernel.f90` |
 | FS/RS shared 1D transport wrapper | `electron_shell_transport_common.f90` |
 | 1D 隐式迎风 | `electron_transport_common.f90` |
 | 1D LGL-DG | `electron_transport_dg_1d_kernel.f90` |

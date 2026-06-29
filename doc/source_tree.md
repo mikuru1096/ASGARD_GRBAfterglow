@@ -48,7 +48,7 @@
   `reverse_jump_conditions.f90`, `reverse_secondary_events.f90`, `reverse_rhs.f90`
 - `src/Electron/`：
   - 1D/2D entries：`electron_forward_fullhide_1d.f90`, `electron_forward_dg_1d.f90`, `electron_forward_transport_2d.f90`, `electron_forward_charint_1d.f90`, `electron_forward_slc1_1d.f90`, `electron_forward_t2g1_1d.f90`, `electron_forward_weno5_1d.f90`；`electron_forward_charint_2d` extension 由 `electron_forward_transport_2d.f90` 的 `fs_electron_transport_2d_core` 构建
-  - Kernels：`electron_common.f90`, `electron_radiation_kernel.f90`, `electron_cooling_kernel.f90`, `electron_seed_history_kernel.f90`, `electron_transport_2d_kernel.f90`, `electron_injection_profiles.f90`, `electron_shell_transport_common.f90`, `electron_transport_common.f90`, `electron_transport_dg_1d_kernel.f90`, `electron_reverse_kernel.f90`, `adaptive_resampling_mod.f90`
+  - Kernels：`electron_common.f90`, `electron_radiation_kernel.f90`, `electron_cooling_kernel.f90`（门面/组装）, `electron_cooling_ssa_kernel.f90`, `electron_cooling_ic_kernel.f90`, `electron_cooling_y_kernel.f90`, `electron_seed_history_kernel.f90`, `electron_transport_2d_kernel.f90`, `electron_injection_profiles.f90`, `electron_shell_transport_common.f90`, `electron_transport_common.f90`, `electron_transport_dg_1d_kernel.f90`, `electron_reverse_kernel.f90`, `adaptive_resampling_mod.f90`
 - `src/Radiation/`：`radiation_common.f90`, `radiation_ssc_spectrum.f90`, `radiation_gamma_gamma_absorption.f90`, `synchrotron_polarization_kernel.f90`, `quantum_synchrotron_kernel.f90`
 - `src/Hadronic/`：
   - Entries：`hadronic_forward_1d.f90`（公开 `fs_hadronic_1d`, `fs_hadronic_formal_transport_1d` 和 Python 正式调用的 process wrappers）, `hadronic_reverse_1d.f90`

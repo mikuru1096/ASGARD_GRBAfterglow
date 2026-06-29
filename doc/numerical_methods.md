@@ -547,7 +547,7 @@ Q_x(\gamma)
 
 ## 9. 冷却组装
 
-冷却核位于 `src/Electron/electron_cooling_kernel.f90`。它把不同物理项组装为界面速度：
+冷却组装门面位于 `src/Electron/electron_cooling_kernel.f90`，SSA、IC 和 Compton-Y 实现分别位于 `electron_cooling_ssa_kernel.f90`、`electron_cooling_ic_kernel.f90` 和 `electron_cooling_y_kernel.f90`。门面把不同物理项组装为界面速度：
 
 \[
 v_x
@@ -974,5 +974,8 @@ ASGARD 的数值方法刻意不包含以下处理：
 - `src/Electron/electron_forward_fullhide_1d.f90`
 - `src/Electron/electron_transport_common.f90`
 - `src/Electron/electron_cooling_kernel.f90`
+- `src/Electron/electron_cooling_ssa_kernel.f90`
+- `src/Electron/electron_cooling_ic_kernel.f90`
+- `src/Electron/electron_cooling_y_kernel.f90`
 - `src/Hadronic/hadronic_forward_1d.f90`
 - `src/Interpolation/SED_interpolation.f90`

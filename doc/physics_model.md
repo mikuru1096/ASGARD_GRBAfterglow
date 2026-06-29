@@ -109,6 +109,7 @@ runtime 默认保留的电子输运状态：
 SSA cooling 和 transfer：
 
 - `src/Electron/electron_cooling_kernel.f90`
+- `src/Electron/electron_cooling_ssa_kernel.f90`
 - `src/Radiation/radiation_common.f90`
 
 SSC：

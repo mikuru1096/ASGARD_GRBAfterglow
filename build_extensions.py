@@ -65,6 +65,9 @@ ELECTRON_COMMON_SOURCES = (
     "electron_injection_profiles.f90",
     "electron_shell_transport_common.f90",
     "electron_common.f90",
+    "electron_cooling_ssa_kernel.f90",
+    "electron_cooling_ic_kernel.f90",
+    "electron_cooling_y_kernel.f90",
     "electron_cooling_kernel.f90",
 )
 ELECTRON_RADIATION_SOURCES = (
@@ -178,6 +181,9 @@ STRUCTURED_JET_1D_SOURCES = (
     "../Electron/electron_injection_profiles.f90",
     "../Electron/electron_shell_transport_common.f90",
     "../Electron/electron_common.f90",
+    "../Electron/electron_cooling_ssa_kernel.f90",
+    "../Electron/electron_cooling_ic_kernel.f90",
+    "../Electron/electron_cooling_y_kernel.f90",
     "../Electron/electron_cooling_kernel.f90",
     "../Electron/electron_transport_dg_1d_kernel.f90",
     "../Electron/electron_seed_history_kernel.f90",

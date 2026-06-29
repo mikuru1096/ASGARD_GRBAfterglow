@@ -192,44 +192,68 @@ Fortran 改动后的最低门槛见 `doc/validation_and_benchmarks.md`。文档-
 | `S` | 268 | `electron_max_relative_error` | 局部 helper；语义由所在文件的算法阶段决定。 |
 | `S` | 284 | `electron_initial_density` | 介质密度或 density-jump 分支；直接影响 swept mass、动力学和注入源项。 |
 
-### `src/Electron/electron_cooling_kernel.f90`
+### `src/Electron/electron_cooling_ssa_kernel.f90`
 
-同步、SSA、IC 和 Compton-Y 电子冷却算子。
+同步自吸收回热/冷却核，含 seed 频率缓存、SSA 几何映射和 χ 批量版本。
 
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
-| `M` | 2 | `electron_cooling_kernel` | 模块命名空间；集中声明本文件共享 procedure。 |
-| `S` | 45 | `ensure_ssa_geometry_workspace` | workspace/cache 管理；只服务性能和内存复用，不改变物理语义。 |
-| `S` | 70 | `ensure_ic_grid_cache` | inverse-Compton/KN 相关核；joint 模式要求 cooling 和 emissivity 使用同一 photon field。 |
-| `F` | 79 | `ic_grid_cache_current` | workspace/cache 管理；只服务性能和内存复用，不改变物理语义。 |
-| `F` | 91 | `ic_seed_grid_current` | workspace/cache 管理；只服务性能和内存复用，不改变物理语义。 |
-| `F` | 103 | `ic_gamma_grid_current` | workspace/cache 管理；只服务性能和内存复用，不改变物理语义。 |
-| `S` | 115 | `rebuild_ic_grid_cache` | workspace/cache 管理；只服务性能和内存复用，不改变物理语义。 |
-| `S` | 136 | `ensure_ssa_seed_cache` | workspace/cache 管理；只服务性能和内存复用，不改变物理语义。 |
-| `S` | 170 | `advance_ssa_seed_cursor` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 191 | `build_ssa_geometry` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 234 | `accumulate_ssa_for_seed` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 266 | `accumulate_ssa_single_gamma` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 336 | `clipped_ssa_cell_segment` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `S` | 368 | `electron_cooling_ssa_loss` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 404 | `electron_cooling_ssa_loss_batch` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 461 | `accumulate_ssa_batch_gamma` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 531 | `clipped_ssa_batch_segment` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `S` | 565 | `electron_cooling_ic_loss` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 595 | `accumulate_ic_gamma_loss` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 636 | `electron_cooling_ic_loss_emissivity_budget` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 671 | `accumulate_budget_gamma` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 698 | `low_seed_kernel` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 715 | `high_seed_kernel` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 725 | `ensure_y_nakar_workspace` | workspace/cache 管理；只服务性能和内存复用，不改变物理语义。 |
-| `S` | 766 | `electron_cooling_y_nakar` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 807 | `electron_cooling_y_fan` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 871 | `prepare_forward_cooling_aux` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 890 | `prepare_forward_cooling_aux_batch` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 914 | `assemble_forward_cooling_split` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 935 | `assemble_forward_cooling_split_batch` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 961 | `assemble_forward_cooling_from_terms` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 997 | `get_forward_cooling` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
+| `M` | 2 | `electron_cooling_ssa_kernel` | SSA 物理核模块；不承担 IC/Y 或冷却项组装分派。 |
+| `S` | 26 | `ensure_ssa_geometry_workspace` | workspace/cache 管理；只服务性能和内存复用，不改变物理语义。 |
+| `S` | 51 | `ensure_ssa_seed_cache` | workspace/cache 管理；只服务性能和内存复用，不改变物理语义。 |
+| `S` | 85 | `advance_ssa_seed_cursor` | SSA seed 频率窗口推进 primitive。 |
+| `S` | 106 | `build_ssa_geometry` | 构建 SSA 低频/高频截面区间和 prefactor。 |
+| `S` | 149 | `accumulate_ssa_for_seed` | 对单个 seed photon field 累加 SSA 回热率。 |
+| `S` | 181 | `accumulate_ssa_single_gamma` | `accumulate_ssa_for_seed` 的单 gamma 局部累加。 |
+| `F` | 251 | `clipped_ssa_cell_segment` | 对被上下限裁剪的 SSA 频率 cell 做 log-Gauss 积分。 |
+| `S` | 283 | `electron_cooling_ssa_loss` | 单 seed photon field 的 SSA 冷却/回热算子。 |
+| `S` | 319 | `electron_cooling_ssa_loss_batch` | χ-resolved seed photon fields 的 SSA 批量算子。 |
+| `S` | 376 | `accumulate_ssa_batch_gamma` | `electron_cooling_ssa_loss_batch` 的 gamma/χ 局部累加。 |
+| `F` | 446 | `clipped_ssa_batch_segment` | χ 批量路径中被上下限裁剪的 SSA cell 积分。 |
+
+### `src/Electron/electron_cooling_ic_kernel.f90`
+
+逆康普顿/KN 冷却核，含 IC 网格缓存、旧积分冷却率和 emissivity-budget 冷却率。
+
+| Kind | Line | Program unit | 算法/物理责任 |
+| --- | ---: | --- | --- |
+| `M` | 2 | `electron_cooling_ic_kernel` | IC 物理核模块；joint 模式要求 cooling 和 emissivity 使用同一 photon field。 |
+| `S` | 19 | `ensure_ic_grid_cache` | workspace/cache 管理；缓存 seed 频率中点、间距和电子能量中点。 |
+| `F` | 28 | `ic_grid_cache_current` | IC cache 总命中判断。 |
+| `F` | 40 | `ic_seed_grid_current` | IC seed 频率网格命中判断。 |
+| `F` | 52 | `ic_gamma_grid_current` | IC 电子能量中点网格命中判断。 |
+| `S` | 64 | `rebuild_ic_grid_cache` | 重建 IC 派生网格量。 |
+| `S` | 85 | `electron_cooling_ic_loss` | 数值 IC/KN 冷却率双重积分。 |
+| `S` | 115 | `accumulate_ic_gamma_loss` | `electron_cooling_ic_loss` 的单 gamma 积分累加。 |
+| `S` | 156 | `electron_cooling_ic_loss_emissivity_budget` | 与 radiation SSC emissivity 核一致的 IC cooling budget。 |
+| `S` | 191 | `accumulate_budget_gamma` | emissivity-budget 路径的单 gamma 累加。 |
+| `F` | 218 | `low_seed_kernel` | Jones/KN 低 seed 侧核函数。 |
+| `F` | 235 | `high_seed_kernel` | Jones/KN 高 seed 侧核函数。 |
+
+### `src/Electron/electron_cooling_y_kernel.f90`
+
+Compton-Y 辅助量核，含 Nakar 数值积分和 Fan 解析分段模型。
+
+| Kind | Line | Program unit | 算法/物理责任 |
+| --- | ---: | --- | --- |
+| `M` | 2 | `electron_cooling_y_kernel` | Compton-Y 物理核模块；不承担 SSA/IC 回热积分或最终冷却组装。 |
+| `S` | 20 | `ensure_y_nakar_workspace` | workspace/cache 管理；缓存 hat-nu、频率段 Gauss 节点和查找区间。 |
+| `S` | 61 | `electron_cooling_y_nakar` | Nakar+2009 Compton-Y 数值积分。 |
+| `S` | 102 | `electron_cooling_y_fan` | Fan+2008 Compton-Y 解析分段模型。 |
+
+### `src/Electron/electron_cooling_kernel.f90`
+
+电子冷却门面模块；只保留 prepare/assemble/get_forward_cooling 组装入口，具体 SSA/IC/Y 物理核从对应实现模块直接调用。
+
+| Kind | Line | Program unit | 算法/物理责任 |
+| --- | ---: | --- | --- |
+| `M` | 2 | `electron_cooling_kernel` | 冷却组装门面模块；不承载 SSA/IC/Y 具体物理核。 |
+| `S` | 14 | `prepare_forward_cooling_aux` | 根据 `index_Y` 准备 IC 或 Nakar-Y 冷却辅助量。 |
+| `S` | 29 | `prepare_forward_cooling_aux_batch` | χ-resolved 版本的冷却辅助量准备；单列入口复用此实现。 |
+| `S` | 53 | `assemble_forward_cooling_split` | 单 photon field 正向激波冷却率组装，按需加入 SSA 回热。 |
+| `S` | 74 | `assemble_forward_cooling_split_batch` | χ-resolved 正向激波冷却率组装。 |
+| `S` | 100 | `assemble_forward_cooling_from_terms` | 由 synch、SSA、IC/Y 辅助项组装最终 dγ/dR。 |
+| `S` | 136 | `get_forward_cooling` | 正向激波冷却主入口；保留既有调用边界。 |
 
 ### `src/Electron/electron_energy_coordinate_common.f90`
 

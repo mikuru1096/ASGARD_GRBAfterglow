@@ -181,7 +181,7 @@ dF1 = Q_e,shock + Secondary_source(:, I_tobs)
 IC 冷却预算 kernel 位于：
 
 ```text
-src/Electron/electron_cooling_kernel.f90
+src/Electron/electron_cooling_ic_kernel.f90
 electron_cooling_ic_loss_emissivity_budget
 ```
 

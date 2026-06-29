@@ -401,7 +401,8 @@ subroutine fs_electron_fullhide_1d_coupled(Boundary,R_Tobs,R_Gamma,R,V_seed,Seed
     use electron_injection_profiles, only: electron_build_source_term_exp_cutoff_edges, electron_add_thermal_source_term, &
                                            electron_profile_log_cell_edges
     use electron_radiation_kernel, only: get_nu_a, get_syn_selected
-    use electron_cooling_kernel, only: electron_cooling_ic_loss_emissivity_budget, assemble_forward_cooling_split
+    use electron_cooling_ic_kernel, only: electron_cooling_ic_loss_emissivity_budget
+    use electron_cooling_kernel, only: assemble_forward_cooling_split
     use electron_transport_common, only: electron_dnx_to_dndgamma_exp_centers, electron_fullhide_step
     IMPLICIT REAL(8)(A-H,O-Z)
     integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads
