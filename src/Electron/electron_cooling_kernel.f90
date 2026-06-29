@@ -213,23 +213,20 @@ real(8), intent(in) :: Low_prefix(0:Num_nu-1),High_amp1(Num_nu-1),High_amp2(Num_
 real(8), intent(in) :: sigma_prefactor_low(Num_gam_e),sigma_prefactor_high(Num_gam_e),Cyclotron_nu
 real(8), intent(out) :: dot_gam_e(Num_gam_e)
 integer, parameter :: parallel_work_threshold=512
-integer :: work_items
+integer :: work_items,thread_count
+logical :: use_parallel
 
     dot_gam_e=zero
 
     work_items=Num_gam_e*Num_nu
-    if (n_threads <= 1 .or. work_items < parallel_work_threshold) then
-       do I_gam_e=1,Num_gam_e
-          call accumulate_ssa_single_gamma(I_gam_e,dot_gam_e(I_gam_e))
-       end do
-    else
-       !$OMP PARALLEL DO num_threads(n_threads) schedule(static) &
-       !$OMP& private(I_gam_e)
-       do I_gam_e=1,Num_gam_e
-          call accumulate_ssa_single_gamma(I_gam_e,dot_gam_e(I_gam_e))
-       end do
-       !$OMP END PARALLEL DO
-    end if
+    thread_count=max(1,n_threads)
+    use_parallel=(n_threads > 1 .and. work_items >= parallel_work_threshold)
+    !$OMP PARALLEL DO if(use_parallel) num_threads(thread_count) schedule(static) &
+    !$OMP& private(I_gam_e)
+    do I_gam_e=1,Num_gam_e
+       call accumulate_ssa_single_gamma(I_gam_e,dot_gam_e(I_gam_e))
+    end do
+    !$OMP END PARALLEL DO
 
 contains
 
@@ -379,7 +376,8 @@ real(8), intent(in) :: gam_e(Num_gam_e),V_seed(Num_nu),Seed_syn_batch(Num_nu,Num
 real(8), intent(out) :: dot_gam_e_batch(Num_gam_e,Num_chi)
 integer, parameter :: parallel_work_threshold=512
 integer :: V_low_idx(Num_gam_e),V_low_first(Num_gam_e),V_low_last(Num_gam_e),V_high_first(Num_gam_e)
-integer :: I_nu,I_chi,I_gam_e,work_items
+integer :: I_nu,I_chi,I_gam_e,work_items,thread_count
+logical :: use_parallel
 real(8) :: V_seed_low(Num_nu-1),V_seed_high(Num_nu-1),V_seed_g1(Num_nu-1),V_seed_g2(Num_nu-1)
 real(8) :: V_seed_w1(Num_nu-1),V_seed_w2(Num_nu-1),sigma_low(Num_gam_e),sigma_high(Num_gam_e)
 real(8) :: Cyclotron_nu,Seed_g1(Num_nu-1,Num_chi),Seed_g2(Num_nu-1,Num_chi)
@@ -414,22 +412,16 @@ real(8) :: Low_prefix(0:Num_nu-1,Num_chi),High_amp1(Num_nu-1,Num_chi),High_amp2(
 
     dot_gam_e_batch=zero
     work_items=Num_gam_e*Num_chi*Num_nu
-    if (n_threads <= 1 .or. work_items < parallel_work_threshold) then
-        do I_chi=1,Num_chi
-            do I_gam_e=1,Num_gam_e
-                call accumulate_ssa_batch_gamma(I_gam_e,I_chi,dot_gam_e_batch(I_gam_e,I_chi))
-            end do
+    thread_count=max(1,n_threads)
+    use_parallel=(n_threads > 1 .and. work_items >= parallel_work_threshold)
+    !$OMP PARALLEL DO collapse(2) if(use_parallel) num_threads(thread_count) schedule(static) &
+    !$OMP& private(I_chi,I_gam_e)
+    do I_chi=1,Num_chi
+        do I_gam_e=1,Num_gam_e
+            call accumulate_ssa_batch_gamma(I_gam_e,I_chi,dot_gam_e_batch(I_gam_e,I_chi))
         end do
-    else
-        !$OMP PARALLEL DO collapse(2) num_threads(n_threads) schedule(static) &
-        !$OMP& private(I_chi,I_gam_e)
-        do I_chi=1,Num_chi
-            do I_gam_e=1,Num_gam_e
-                call accumulate_ssa_batch_gamma(I_gam_e,I_chi,dot_gam_e_batch(I_gam_e,I_chi))
-            end do
-        end do
-        !$OMP END PARALLEL DO
-    end if
+    end do
+    !$OMP END PARALLEL DO
 
 contains
 
@@ -615,7 +607,8 @@ integer, intent(in) :: Num_gam_e,Num_nu,n_threads
 real(8), intent(in) :: gam_e(Num_gam_e),V_seed(Num_nu),Seed_syn(Num_nu)
 real(8), intent(out) :: dot_gam_over_gam(Num_gam_e)
 real(8), allocatable :: seed_weights(:),obs_weights(:),e_seed(:),inv_v_seed(:)
-integer :: i_gam,work_items
+integer :: i_gam,work_items,thread_count
+logical :: use_parallel
 
     allocate(seed_weights(Num_nu),obs_weights(Num_nu),e_seed(Num_nu),inv_v_seed(Num_nu))
     call compute_simpson_weights(seed_weights,Num_nu)
@@ -629,19 +622,14 @@ integer :: i_gam,work_items
     dot_gam_over_gam=zero
 
     work_items=Num_gam_e*Num_nu*Num_nu
-    if (n_threads <= 1 .or. work_items < 8192) then
-        do i_gam=1,Num_gam_e
-            call accumulate_budget_gamma(i_gam,dot_gam_over_gam(i_gam))
-        end do
-    else
-        !$OMP PARALLEL num_threads(n_threads), private(i_gam)
-        !$OMP DO SCHEDULE(STATIC)
-        do i_gam=1,Num_gam_e
-            call accumulate_budget_gamma(i_gam,dot_gam_over_gam(i_gam))
-        end do
-        !$OMP END DO
-        !$OMP END PARALLEL
-    end if
+    thread_count=max(1,n_threads)
+    use_parallel=(n_threads > 1 .and. work_items >= 8192)
+    !$OMP PARALLEL DO if(use_parallel) num_threads(thread_count) schedule(static) &
+    !$OMP& private(i_gam)
+    do i_gam=1,Num_gam_e
+        call accumulate_budget_gamma(i_gam,dot_gam_over_gam(i_gam))
+    end do
+    !$OMP END PARALLEL DO
 
     deallocate(seed_weights,obs_weights,e_seed,inv_v_seed)
 

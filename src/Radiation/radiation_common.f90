@@ -147,7 +147,8 @@ subroutine radiation_syn_seed_core(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_
     real(8), intent(in) :: R_loc,DB,gam_e(Num_gam_e),dN_gam_e(Num_gam_e),V_seed(Num_nu),ssa_prefactor
     real(8), intent(out) :: P_emit(Num_nu),P_syn(Num_nu),Seed_syn(Num_nu),Tau_syn(Num_nu)
     integer, parameter :: parallel_work_threshold=512
-    integer :: I_nu,I_gam_e,work_items
+    integer :: I_nu,I_gam_e,work_items,thread_count
+    logical :: use_parallel
     real(8) :: factor,Temp_syn,Rariv2,temp_para
     real(8) :: gam_e_mean2_arr(Num_gam_e-1),dN_dgam_arr(Num_gam_e-1),ddN_arr(Num_gam_e-1)
     real(8) :: Vc_inv_arr(Num_gam_e-1),Vc_pow23_arr(Num_gam_e-1),V_seed_powm23(Num_nu)
@@ -167,19 +168,14 @@ subroutine radiation_syn_seed_core(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_
         V_seed_powm23(I_nu)=V_seed(I_nu)**(-2d0/3d0)
     end do
     work_items=Num_nu*(Num_gam_e-1)
-    if (n_threads <= 1 .or. work_items < parallel_work_threshold) then
-        do I_nu=1,Num_nu
-            call radiation_syn_seed_point(I_nu)
-        end do
-    else
-        !$OMP PARALLEL num_threads(n_threads), private(I_nu)
-        !$OMP DO SCHEDULE(STATIC)
-        do I_nu=1,Num_nu
-            call radiation_syn_seed_point(I_nu)
-        end do
-        !$OMP END DO
-        !$OMP END PARALLEL
-    end if
+    thread_count=max(1,n_threads)
+    use_parallel=(n_threads > 1 .and. work_items >= parallel_work_threshold)
+    !$OMP PARALLEL DO if(use_parallel) num_threads(thread_count) schedule(static) &
+    !$OMP& private(I_nu)
+    do I_nu=1,Num_nu
+        call radiation_syn_seed_point(I_nu)
+    end do
+    !$OMP END PARALLEL DO
 
     temp_para=4d0*pi*Para_c*Para_h
     Seed_syn=Seed_syn/temp_para

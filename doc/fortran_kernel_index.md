@@ -205,28 +205,27 @@ Fortran 改动后的最低门槛见 `doc/validation_and_benchmarks.md`。文档-
 | `S` | 137 | `advance_ssa_seed_cursor` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
 | `S` | 158 | `build_ssa_geometry` | 局部 helper；语义由所在文件的算法阶段决定。 |
 | `S` | 201 | `accumulate_ssa_for_seed` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 236 | `accumulate_ssa_single_gamma` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 306 | `clipped_ssa_cell_segment` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `S` | 338 | `electron_cooling_ssa_loss` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 374 | `electron_cooling_ssa_loss_batch` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 436 | `accumulate_ssa_batch_gamma` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 506 | `clipped_ssa_batch_segment` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `S` | 540 | `electron_cooling_ic_loss` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 570 | `accumulate_ic_gamma_loss` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 611 | `electron_cooling_ic_loss_emissivity_budget` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 650 | `accumulate_budget_gamma` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 677 | `low_seed_kernel` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 694 | `high_seed_kernel` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 704 | `ensure_y_nakar_workspace` | workspace/cache 管理；只服务性能和内存复用，不改变物理语义。 |
-| `S` | 745 | `electron_cooling_y_nakar` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 772 | `accumulate_y_nakar_point` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 796 | `electron_cooling_y_fan` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 860 | `prepare_forward_cooling_aux` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 879 | `prepare_forward_cooling_aux_batch` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 903 | `assemble_forward_cooling_split` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 924 | `assemble_forward_cooling_split_batch` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 950 | `assemble_forward_cooling_from_terms` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 986 | `get_forward_cooling` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
+| `S` | 233 | `accumulate_ssa_single_gamma` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 303 | `clipped_ssa_cell_segment` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
+| `S` | 335 | `electron_cooling_ssa_loss` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
+| `S` | 371 | `electron_cooling_ssa_loss_batch` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
+| `S` | 428 | `accumulate_ssa_batch_gamma` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 498 | `clipped_ssa_batch_segment` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
+| `S` | 532 | `electron_cooling_ic_loss` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
+| `S` | 562 | `accumulate_ic_gamma_loss` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
+| `S` | 603 | `electron_cooling_ic_loss_emissivity_budget` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
+| `S` | 638 | `accumulate_budget_gamma` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 665 | `low_seed_kernel` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 682 | `high_seed_kernel` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 692 | `ensure_y_nakar_workspace` | workspace/cache 管理；只服务性能和内存复用，不改变物理语义。 |
+| `S` | 733 | `electron_cooling_y_nakar` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
+| `S` | 774 | `electron_cooling_y_fan` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
+| `S` | 838 | `prepare_forward_cooling_aux` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
+| `S` | 857 | `prepare_forward_cooling_aux_batch` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
+| `S` | 881 | `assemble_forward_cooling_split` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
+| `S` | 902 | `assemble_forward_cooling_split_batch` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
+| `S` | 928 | `assemble_forward_cooling_from_terms` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
+| `S` | 964 | `get_forward_cooling` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
 
 ### `src/Electron/electron_energy_coordinate_common.f90`
 
@@ -1134,11 +1133,14 @@ SED 插值共享累加 primitive。
 | `S` | 9 | `compute_simpson_weights` | 积分权重或求积 primitive；影响谱积分精度。 |
 | `F` | 27 | `radiation_powerlaw_interp` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
 | `S` | 52 | `radiation_transfer_factor` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 64 | `radiation_prepare_annihilation_grid` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `F` | 80 | `radiation_pair_cross_section` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 98 | `radiation_pair_tau_headon_segment` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 128 | `radiation_syn_seed_core` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 175 | `radiation_syn_seed_point` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
+| `F` | 63 | `radiation_syn_kernel_value` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
+| `S` | 78 | `radiation_prepare_annihilation_grid` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
+| `F` | 94 | `radiation_pair_cross_section` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
+| `S` | 112 | `radiation_pair_tau_headon_segment` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
+| `S` | 142 | `radiation_syn_seed_core` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
+| `S` | 185 | `radiation_syn_seed_point` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
+| `S` | 212 | `radiation_syn_seed_chi_batch_core` | chi-resolved synchrotron/SSA batch kernel。 |
+| `S` | 328 | `radiation_syn_flux_tau_chi_batch_core` | chi-resolved projection-only synchrotron flux/tau batch kernel。 |
 
 ### `src/Radiation/radiation_gamma_gamma_absorption.f90`
 
