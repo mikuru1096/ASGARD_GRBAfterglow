@@ -71,24 +71,56 @@ subroutine ensure_ic_grid_cache(Num_gam_e,Num_nu,gam_e,V_seed)
 implicit REAL(8)(A-H,O-Z)
 integer, intent(in) :: Num_gam_e,Num_nu
 real(8), intent(in) :: gam_e(Num_gam_e),V_seed(Num_nu)
-logical :: rebuild
 
-    rebuild=.not. ic_grid_cache_ready
-    if (.not. rebuild) then
-        rebuild = (ic_num_gam_cache /= Num_gam_e) .or. (ic_num_nu_cache /= Num_nu)
-    end if
-    if (.not. rebuild) then
-        if (allocated(ic_x_seed_cache)) rebuild = any(ic_x_seed_cache /= dlog(V_seed))
-        if (.not. rebuild .and. allocated(ic_gam_e_mean_cache)) rebuild = &
-            any(ic_gam_e_mean_cache /= (gam_e(1:Num_gam_e-1)+gam_e(2:Num_gam_e))/two)
-    end if
-    if (.not. rebuild) return
+    if (ic_grid_cache_current()) return
+    call rebuild_ic_grid_cache()
 
-    if (allocated(ic_d_nu_cache)) deallocate(ic_d_nu_cache,ic_gam_e_mean_cache,ic_e_seed_cache,ic_x_seed_cache,ic_v_seed_mid_cache)
+contains
+logical function ic_grid_cache_current()
+implicit REAL(8)(A-H,O-Z)
+
+    ic_grid_cache_current=.false.
+    if (.not. ic_grid_cache_ready) return
+    if (ic_num_gam_cache /= Num_gam_e) return
+    if (ic_num_nu_cache /= Num_nu) return
+    if (.not. ic_seed_grid_current()) return
+    if (.not. ic_gamma_grid_current()) return
+    ic_grid_cache_current=.true.
+end function ic_grid_cache_current
+
+logical function ic_seed_grid_current()
+implicit REAL(8)(A-H,O-Z)
+integer :: I_nu
+
+    ic_seed_grid_current=.false.
+    if (.not. allocated(ic_x_seed_cache)) return
+    do I_nu=1,Num_nu
+        if (ic_x_seed_cache(I_nu) /= dlog(V_seed(I_nu))) return
+    end do
+    ic_seed_grid_current=.true.
+end function ic_seed_grid_current
+
+logical function ic_gamma_grid_current()
+implicit REAL(8)(A-H,O-Z)
+integer :: I_gam_e
+
+    ic_gamma_grid_current=.false.
+    if (.not. allocated(ic_gam_e_mean_cache)) return
+    do I_gam_e=1,Num_gam_e-1
+        if (ic_gam_e_mean_cache(I_gam_e) /= (gam_e(I_gam_e)+gam_e(I_gam_e+1))/two) return
+    end do
+    ic_gamma_grid_current=.true.
+end function ic_gamma_grid_current
+
+subroutine rebuild_ic_grid_cache()
+implicit REAL(8)(A-H,O-Z)
+
+    if (allocated(ic_d_nu_cache)) deallocate(ic_d_nu_cache,ic_gam_e_mean_cache,ic_e_seed_cache, &
+                                             ic_x_seed_cache,ic_v_seed_mid_cache)
     allocate(ic_d_nu_cache(Num_nu-1),ic_gam_e_mean_cache(Num_gam_e-1),ic_e_seed_cache(Num_nu-1), &
              ic_x_seed_cache(Num_nu),ic_v_seed_mid_cache(Num_nu-1))
 
-    para_hEme = Para_h/para_m_energy
+    para_hEme=Para_h/para_m_energy
     ic_x_seed_cache=dlog(V_seed)
     ic_v_seed_mid_cache=dexp(0.5d0*(ic_x_seed_cache(1:Num_nu-1)+ic_x_seed_cache(2:Num_nu)))
     ic_d_nu_cache=ic_v_seed_mid_cache*(ic_x_seed_cache(2:Num_nu)-ic_x_seed_cache(1:Num_nu-1))
@@ -97,6 +129,7 @@ logical :: rebuild
     ic_num_gam_cache=Num_gam_e
     ic_num_nu_cache=Num_nu
     ic_grid_cache_ready=.true.
+end subroutine rebuild_ic_grid_cache
 end subroutine ensure_ic_grid_cache
 
 ! 确保SSA种子频率缓存已按当前种子网格分配。

@@ -201,31 +201,35 @@ Fortran 改动后的最低门槛见 `doc/validation_and_benchmarks.md`。文档-
 | `M` | 2 | `electron_cooling_kernel` | 模块命名空间；集中声明本文件共享 procedure。 |
 | `S` | 45 | `ensure_ssa_geometry_workspace` | workspace/cache 管理；只服务性能和内存复用，不改变物理语义。 |
 | `S` | 70 | `ensure_ic_grid_cache` | inverse-Compton/KN 相关核；joint 模式要求 cooling 和 emissivity 使用同一 photon field。 |
-| `S` | 103 | `ensure_ssa_seed_cache` | workspace/cache 管理；只服务性能和内存复用，不改变物理语义。 |
-| `S` | 137 | `advance_ssa_seed_cursor` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 158 | `build_ssa_geometry` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 201 | `accumulate_ssa_for_seed` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 233 | `accumulate_ssa_single_gamma` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 303 | `clipped_ssa_cell_segment` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `S` | 335 | `electron_cooling_ssa_loss` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 371 | `electron_cooling_ssa_loss_batch` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 428 | `accumulate_ssa_batch_gamma` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 498 | `clipped_ssa_batch_segment` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `S` | 532 | `electron_cooling_ic_loss` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 562 | `accumulate_ic_gamma_loss` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 603 | `electron_cooling_ic_loss_emissivity_budget` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 638 | `accumulate_budget_gamma` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 665 | `low_seed_kernel` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 682 | `high_seed_kernel` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 692 | `ensure_y_nakar_workspace` | workspace/cache 管理；只服务性能和内存复用，不改变物理语义。 |
-| `S` | 733 | `electron_cooling_y_nakar` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 774 | `electron_cooling_y_fan` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 838 | `prepare_forward_cooling_aux` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 857 | `prepare_forward_cooling_aux_batch` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 881 | `assemble_forward_cooling_split` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 902 | `assemble_forward_cooling_split_batch` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 928 | `assemble_forward_cooling_from_terms` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 964 | `get_forward_cooling` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
+| `F` | 79 | `ic_grid_cache_current` | workspace/cache 管理；只服务性能和内存复用，不改变物理语义。 |
+| `F` | 91 | `ic_seed_grid_current` | workspace/cache 管理；只服务性能和内存复用，不改变物理语义。 |
+| `F` | 103 | `ic_gamma_grid_current` | workspace/cache 管理；只服务性能和内存复用，不改变物理语义。 |
+| `S` | 115 | `rebuild_ic_grid_cache` | workspace/cache 管理；只服务性能和内存复用，不改变物理语义。 |
+| `S` | 136 | `ensure_ssa_seed_cache` | workspace/cache 管理；只服务性能和内存复用，不改变物理语义。 |
+| `S` | 170 | `advance_ssa_seed_cursor` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 191 | `build_ssa_geometry` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 234 | `accumulate_ssa_for_seed` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 266 | `accumulate_ssa_single_gamma` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 336 | `clipped_ssa_cell_segment` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
+| `S` | 368 | `electron_cooling_ssa_loss` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
+| `S` | 404 | `electron_cooling_ssa_loss_batch` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
+| `S` | 461 | `accumulate_ssa_batch_gamma` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 531 | `clipped_ssa_batch_segment` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
+| `S` | 565 | `electron_cooling_ic_loss` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
+| `S` | 595 | `accumulate_ic_gamma_loss` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
+| `S` | 636 | `electron_cooling_ic_loss_emissivity_budget` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
+| `S` | 671 | `accumulate_budget_gamma` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 698 | `low_seed_kernel` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 715 | `high_seed_kernel` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 725 | `ensure_y_nakar_workspace` | workspace/cache 管理；只服务性能和内存复用，不改变物理语义。 |
+| `S` | 766 | `electron_cooling_y_nakar` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
+| `S` | 807 | `electron_cooling_y_fan` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
+| `S` | 871 | `prepare_forward_cooling_aux` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
+| `S` | 890 | `prepare_forward_cooling_aux_batch` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
+| `S` | 914 | `assemble_forward_cooling_split` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
+| `S` | 935 | `assemble_forward_cooling_split_batch` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
+| `S` | 961 | `assemble_forward_cooling_from_terms` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
+| `S` | 997 | `get_forward_cooling` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
 
 ### `src/Electron/electron_energy_coordinate_common.f90`
 
