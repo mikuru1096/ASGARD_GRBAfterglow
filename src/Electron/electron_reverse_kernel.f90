@@ -25,7 +25,7 @@ module electron_reverse_kernel
                                                electron_dg1d_scale_to_content, electron_dg1d_tail_moment_fraction, &
                                                electron_dg1d_apply_positive_kernel_filter
     use electron_radiation_kernel, only: get_syn_selected, get_nu_a
-    use electron_cooling_kernel, only: prepare_forward_cooling_aux
+    use electron_cooling_kernel, only: prepare_forward_cooling_aux_batch
     implicit none
     integer, parameter :: reverse_dg_base_substeps = 10
 contains
@@ -212,10 +212,15 @@ contains
     subroutine compute_reverse_cooling_loss(I_tobs)
     implicit none
     integer, intent(in) :: I_tobs
+    real(8) :: P_syn_column(Num_nu,1),Seed_syn_column(Num_nu,1),cooling_aux_column(Num_gam_e,1)
 
         call get_syn_selected(index_syn_intger,R(I_tobs-1),dB,Num_gam_e,Num_nu,n_threads, &
                               gam_e,dN_gam_e(:,I_tobs-1),V_seed,P_syn,Seed_syn)
-        call prepare_forward_cooling_aux(index_Y,Num_gam_e,Num_nu,n_threads,gam_e,V_seed,P_syn,Seed_syn,cooling_aux)
+        P_syn_column(:,1)=P_syn
+        Seed_syn_column(:,1)=Seed_syn
+        call prepare_forward_cooling_aux_batch(index_Y,Num_gam_e,Num_nu,1,n_threads,gam_e,V_seed, &
+                                               P_syn_column,Seed_syn_column,cooling_aux_column)
+        cooling_aux=cooling_aux_column(:,1)
         select case(index_Y)
         case(0)
             dEl=f_r*gam_e

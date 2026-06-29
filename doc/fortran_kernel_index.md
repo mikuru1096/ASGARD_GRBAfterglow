@@ -243,17 +243,15 @@ Compton-Y 辅助量核，含 Nakar 数值积分和 Fan 解析分段模型。
 
 ### `src/Electron/electron_cooling_kernel.f90`
 
-电子冷却门面模块；只保留 prepare/assemble/get_forward_cooling 组装入口，具体 SSA/IC/Y 物理核从对应实现模块直接调用。
+电子冷却门面模块；只保留 batch auxiliary、assemble 和 get_forward_cooling 组装入口，具体 SSA/IC/Y 物理核从对应实现模块直接调用。
 
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
 | `M` | 2 | `electron_cooling_kernel` | 冷却组装门面模块；不承载 SSA/IC/Y 具体物理核。 |
-| `S` | 14 | `prepare_forward_cooling_aux` | 根据 `index_Y` 准备 IC 或 Nakar-Y 冷却辅助量。 |
-| `S` | 29 | `prepare_forward_cooling_aux_batch` | χ-resolved 版本的冷却辅助量准备；单列入口复用此实现。 |
-| `S` | 53 | `assemble_forward_cooling_split` | 单 photon field 正向激波冷却率组装，按需加入 SSA 回热。 |
-| `S` | 74 | `assemble_forward_cooling_split_batch` | χ-resolved 正向激波冷却率组装。 |
-| `S` | 100 | `assemble_forward_cooling_from_terms` | 由 synch、SSA、IC/Y 辅助项组装最终 dγ/dR。 |
-| `S` | 136 | `get_forward_cooling` | 正向激波冷却主入口；保留既有调用边界。 |
+| `S` | 14 | `prepare_forward_cooling_aux_batch` | χ-resolved 冷却辅助量准备；单列调用传 `Num_chi=1`。 |
+| `S` | 38 | `assemble_forward_cooling_split_batch` | χ-resolved 正向激波冷却率组装；单列调用传 `Num_chi=1`。 |
+| `S` | 64 | `assemble_forward_cooling_from_terms` | 由 synch、SSA、IC/Y 辅助项组装最终 dγ/dR。 |
+| `S` | 100 | `get_forward_cooling` | 正向激波 1D 冷却主入口；内部走 batch 单列路径。 |
 
 ### `src/Electron/electron_energy_coordinate_common.f90`
 

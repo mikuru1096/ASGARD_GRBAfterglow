@@ -19,8 +19,7 @@ subroutine fs_electron_transport_2d_core(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_
     use electron_injection_profiles, only: electron_build_source_term_exp_cutoff_edges, electron_profile_log_cell_edges, &
                                            electron_initial_powerlaw_exp_cutoff_coord_edges, &
                                            electron_build_source_term_exp_cutoff_coord_edges
-    use electron_cooling_kernel, only: prepare_forward_cooling_aux_batch, assemble_forward_cooling_split, &
-                                       assemble_forward_cooling_split_batch
+    use electron_cooling_kernel, only: prepare_forward_cooling_aux_batch, assemble_forward_cooling_split_batch
     use electron_radiation_kernel, only: get_syn_state, get_syn_selected_state, get_syn_chi_batch_state, &
                                          get_nu_a_2d_cell_path, &
                                          build_reduced_log_grid, project_syn_state_logbands
@@ -748,17 +747,20 @@ end subroutine update_shock_cooling_scales
 
 subroutine assemble_cooling_chi(Radius, Gamma_f, beta_sh, Seed_eff_chi, R_Tobs_val)
     real(8), intent(in) :: Radius, Gamma_f, beta_sh, Seed_eff_chi(Num_nu_cool, Num_chi), R_Tobs_val
+    real(8) :: Seed_eff_column(Num_nu_cool,1),cooling_aux_column(Num_gam_e,1),dEl_column(Num_gam_e,1)
     if (magnetic_decay_active) then
         do I_chi = 1, Num_chi
             Gam_e_max_cell = 3d0*Para_m_energy/dsqrt(8d0*DB_chi(I_chi)*Para_e**3)
             temp_gam = Epsilon_e/f_e*para_m_p/para_m_e*(Gamma_f-one)
             call electron_gamma_m_exact(p, temp_gam, Gam_e_max_cell, Gam_e_m_cell)
             Gam_e_c_cell = 7.7d8*(one+z)/Gamma_f/DB_chi(I_chi)**2/R_Tobs_val
-            call assemble_forward_cooling_split(index_Y, Epsilon_e, Epsilon_b_chi(I_chi), p, DB_chi(I_chi), &
-                                                Gam_e_m_cell, Gam_e_c_cell, &
-                                                Gam_e_max_cell, Radius, Gamma_f, beta_sh, dNe, Num_gam_e, &
-                                                Num_nu_cool, n_threads, gam_e, V_cool, Seed_eff_chi(:,I_chi), &
-                                                cooling_aux_chi(:,I_chi), dEl_chi(:,I_chi))
+            Seed_eff_column(:,1)=Seed_eff_chi(:,I_chi)
+            cooling_aux_column(:,1)=cooling_aux_chi(:,I_chi)
+            call assemble_forward_cooling_split_batch(index_Y, Epsilon_e, Epsilon_b_chi(I_chi), p, DB_chi(I_chi), &
+                                                      Gam_e_m_cell, Gam_e_c_cell, Gam_e_max_cell, Radius, Gamma_f, &
+                                                      beta_sh, dNe, Num_gam_e, Num_nu_cool, 1, n_threads, gam_e, &
+                                                      V_cool, Seed_eff_column, cooling_aux_column, dEl_column)
+            dEl_chi(:,I_chi)=dEl_column(:,1)
             dEL_mean_chi(:,I_chi)=(dEl_chi(2:Num_gam_e,I_chi)+dEl_chi(1:Num_gam_e-1,I_chi))/two/dlog(ten)
             kappa2_chi(:,I_chi) = gam_e*Para_m_energy*para_c/(3d0*Para_e*DB_chi(I_chi))
         end do

@@ -402,7 +402,7 @@ subroutine fs_electron_fullhide_1d_coupled(Boundary,R_Tobs,R_Gamma,R,V_seed,Seed
                                            electron_profile_log_cell_edges
     use electron_radiation_kernel, only: get_nu_a, get_syn_selected
     use electron_cooling_ic_kernel, only: electron_cooling_ic_loss_emissivity_budget
-    use electron_cooling_kernel, only: assemble_forward_cooling_split
+    use electron_cooling_kernel, only: assemble_forward_cooling_split_batch
     use electron_transport_common, only: electron_dnx_to_dndgamma_exp_centers, electron_fullhide_step
     IMPLICIT REAL(8)(A-H,O-Z)
     integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads
@@ -486,6 +486,7 @@ contains
     subroutine prepare_coupled_shell(I_tobs)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: I_tobs
+    real(8) :: Seed_ssa_column(Num_nu,1),cooling_aux_column(Num_gam_e,1),dEl_column(Num_gam_e,1)
 
         R_loc=R(I_tobs-1)
         R_Gamma_loc=(R_Gamma(I_tobs)+R_Gamma(I_tobs-1))/two
@@ -514,9 +515,12 @@ contains
         Gam_e_max_cool=Gam_e_max
         call electron_cooling_ic_loss_emissivity_budget(Num_gam_e,Num_nu,n_threads,gam_e,V_seed, &
                                                         Seed_cooling(:,I_tobs),cooling_aux)
-        call assemble_forward_cooling_split(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max_cool,R_loc, &
-                                            R_Gamma_loc,beta_Gam,dNe,Num_gam_e,Num_nu,n_threads,gam_e,V_seed, &
-                                            Seed_syn(:,I_tobs),cooling_aux,dEl)
+        Seed_ssa_column(:,1)=Seed_syn(:,I_tobs)
+        cooling_aux_column(:,1)=cooling_aux
+        call assemble_forward_cooling_split_batch(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max_cool, &
+                                                  R_loc,R_Gamma_loc,beta_Gam,dNe,Num_gam_e,Num_nu,1,n_threads, &
+                                                  gam_e,V_seed,Seed_ssa_column,cooling_aux_column,dEl_column)
+        dEl=dEl_column(:,1)
     end subroutine prepare_coupled_shell
 
     subroutine advance_coupled_fixed_shell(I_tobs)

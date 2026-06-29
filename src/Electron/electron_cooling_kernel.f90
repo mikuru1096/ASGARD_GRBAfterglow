@@ -1,31 +1,16 @@
 !f2py: skip
 module electron_cooling_kernel
   use constants
-  use electron_cooling_ssa_kernel, only: electron_cooling_ssa_loss, electron_cooling_ssa_loss_batch
+  use electron_cooling_ssa_kernel, only: electron_cooling_ssa_loss_batch
   use electron_cooling_ic_kernel, only: electron_cooling_ic_loss
   use electron_cooling_y_kernel, only: electron_cooling_y_nakar, electron_cooling_y_fan
   private
 
-  public :: get_forward_cooling, prepare_forward_cooling_aux, prepare_forward_cooling_aux_batch
-  public :: assemble_forward_cooling_split, assemble_forward_cooling_split_batch
+  public :: get_forward_cooling, prepare_forward_cooling_aux_batch
+  public :: assemble_forward_cooling_split_batch
 
 contains
-! 根据index_Y准备正向激波冷却辅助量：IC数值积分或Nakar Y参数。
-subroutine prepare_forward_cooling_aux(index_Y,Num_gam_e,Num_nu,n_threads,gam_e,V_seed,P_syn,Seed_syn,cooling_aux)
-implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: index_Y,Num_gam_e,Num_nu,n_threads
-real(8), intent(in) :: gam_e(Num_gam_e),V_seed(Num_nu),P_syn(Num_nu),Seed_syn(Num_nu)
-real(8), intent(out) :: cooling_aux(Num_gam_e)
-real(8) :: P_syn_column(Num_nu,1),Seed_syn_column(Num_nu,1),cooling_aux_column(Num_gam_e,1)
-
-    P_syn_column(:,1)=P_syn
-    Seed_syn_column(:,1)=Seed_syn
-    call prepare_forward_cooling_aux_batch(index_Y,Num_gam_e,Num_nu,1,n_threads,gam_e,V_seed, &
-                                           P_syn_column,Seed_syn_column,cooling_aux_column)
-    cooling_aux=cooling_aux_column(:,1)
-end subroutine prepare_forward_cooling_aux
-
-! 批量版prepare_forward_cooling_aux：对多个χ列分别计算冷却辅助量。
+! 对多个χ列分别计算冷却辅助量；单列调用传 Num_chi=1。
 subroutine prepare_forward_cooling_aux_batch(index_Y,Num_gam_e,Num_nu,Num_chi,n_threads,gam_e,V_seed,P_syn,Seed_syn,cooling_aux)
 implicit REAL(8)(A-H,O-Z)
 integer, intent(in) :: index_Y,Num_gam_e,Num_nu,Num_chi,n_threads
@@ -49,28 +34,7 @@ integer :: I_chi
     end select
 end subroutine prepare_forward_cooling_aux_batch
 
-! 组装正向激波冷却率 dγ/dR：index_Y=0为纯同步冷却，IC/Compton分支加入SSA回热。
-subroutine assemble_forward_cooling_split(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc,R_Gamma_loc, &
-                                          beta_Gam,dNe,Num_gam_e,Num_nu,n_threads,gam_e,V_seed, &
-                                          Seed_syn_ssa,cooling_aux,dEl)
-implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: index_Y,Num_gam_e,Num_nu,n_threads
-real(8), intent(in) :: Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,R_loc,R_Gamma_loc,beta_Gam,dNe
-real(8), intent(inout) :: Gam_e_max
-real(8), intent(in) :: gam_e(Num_gam_e),V_seed(Num_nu),Seed_syn_ssa(Num_nu),cooling_aux(Num_gam_e)
-real(8), intent(out) :: dEl(Num_gam_e)
-real(8) :: Compton(Num_gam_e),dot_gam_e_SSA(Num_gam_e)
-
-    if (index_Y == 0) then
-        dot_gam_e_SSA=zero
-    else
-        call electron_cooling_ssa_loss(DB,Num_gam_e,Num_nu,n_threads,gam_e,V_seed,Seed_syn_ssa,dot_gam_e_SSA)
-    end if
-    call assemble_forward_cooling_from_terms(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc,R_Gamma_loc, &
-                                             beta_Gam,dNe,Num_gam_e,gam_e,Compton,dot_gam_e_SSA,cooling_aux,dEl)
-end subroutine assemble_forward_cooling_split
-
-! 批量版assemble_forward_cooling_split：对多个χ列分别组装冷却率。
+! 对多个χ列分别组装冷却率；单列调用传 Num_chi=1。
 subroutine assemble_forward_cooling_split_batch(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc,R_Gamma_loc, &
                                                 beta_Gam,dNe,Num_gam_e,Num_nu,Num_chi,n_threads,gam_e,V_seed, &
                                                 Seed_syn_ssa,cooling_aux,dEl)
@@ -141,17 +105,16 @@ real(8), intent(in) :: Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,R_loc,R_Gamma_lo
 real(8), intent(inout) :: Gam_e_max
 real(8), intent(in) :: gam_e(Num_gam_e),V_seed(Num_nu),P_syn(Num_nu),Seed_syn(Num_nu)
 real(8), intent(out) :: dEl(Num_gam_e)
-real(8) :: cooling_aux(Num_gam_e)
-real(8) :: Compton(Num_gam_e),dot_gam_e_SSA(Num_gam_e)
+real(8) :: P_syn_column(Num_nu,1),Seed_syn_column(Num_nu,1),cooling_aux_column(Num_gam_e,1),dEl_column(Num_gam_e,1)
 
-    call prepare_forward_cooling_aux(index_Y,Num_gam_e,Num_nu,n_threads,gam_e,V_seed,P_syn,Seed_syn,cooling_aux)
-    if (index_Y == 0) then
-        dot_gam_e_SSA=zero
-    else
-        call electron_cooling_ssa_loss(DB,Num_gam_e,Num_nu,n_threads,gam_e,V_seed,Seed_syn,dot_gam_e_SSA)
-    end if
-    call assemble_forward_cooling_from_terms(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc,R_Gamma_loc, &
-                                             beta_Gam,dNe,Num_gam_e,gam_e,Compton,dot_gam_e_SSA,cooling_aux,dEl)
+    P_syn_column(:,1)=P_syn
+    Seed_syn_column(:,1)=Seed_syn
+    call prepare_forward_cooling_aux_batch(index_Y,Num_gam_e,Num_nu,1,n_threads,gam_e,V_seed, &
+                                           P_syn_column,Seed_syn_column,cooling_aux_column)
+    call assemble_forward_cooling_split_batch(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc, &
+                                              R_Gamma_loc,beta_Gam,dNe,Num_gam_e,Num_nu,1,n_threads,gam_e,V_seed, &
+                                              Seed_syn_column,cooling_aux_column,dEl_column)
+    dEl=dEl_column(:,1)
 end subroutine get_forward_cooling
 
 
