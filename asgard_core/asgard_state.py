@@ -1364,7 +1364,7 @@ def _merge_bh_into_forward_electrons(
     for i_shell in range(num_shell):
         if radius_cm[i_shell] <= 0.0 or magnetic_field_g[i_shell] <= 0.0:
             continue
-        p_syn_i, seed_syn_i = electron_radiation_module.get_syn_selected(
+        _, p_syn_i, seed_syn_i, _ = electron_radiation_module.get_syn_selected_state(
             config.index_syn_integr,
             float(radius_cm[i_shell]),
             float(magnetic_field_g[i_shell]),

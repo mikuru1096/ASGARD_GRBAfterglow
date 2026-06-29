@@ -16,7 +16,7 @@ module hadronic_forward_shell_1d
     public :: hadronic_forward_shell_density_per_gev, hadronic_forward_gamma_edges, hadronic_forward_photon_density_hz_to_gev
     public :: hadronic_forward_process_power, hadronic_forward_positive_loglog_interp, hadronic_forward_source_per_gamma
     public :: hadronic_forward_distribution_per_gev, hadronic_forward_aligned_photon_grid, hadronic_forward_shell_volumes
-    public :: hadronic_forward_shell_comoving_dt, hadronic_forward_dynamical_time
+    public :: hadronic_sequence_shell_geometry, hadronic_forward_dynamical_time
     public :: hadronic_forward_quantum_syn_cooling_factor
 contains
 
@@ -330,7 +330,7 @@ subroutine hadronic_forward_secondary_electron_sequence(num_e,num_nu,num_r,gamma
                                                    frequency_hz,source_content,index_syn_integr,n_threads,quantum_syn, &
                                                    electron_density,luminosity_syn,seed_syn,source_radius)
     use constants
-    use electron_radiation_kernel, only: get_syn_selected
+    use electron_radiation_kernel, only: get_syn_selected_state
     use hadronic_transport_remap_kernel, only: hadronic_advance_energy_loggamma_remap
     implicit none
     integer, intent(in) :: num_e,num_nu,num_r,index_syn_integr,n_threads,quantum_syn
@@ -340,6 +340,7 @@ subroutine hadronic_forward_secondary_electron_sequence(num_e,num_nu,num_r,gamma
     real(8), intent(out) :: source_radius(num_e,num_r)
     integer :: i_r
     real(8) :: dr,dt_s,t_dyn_s,loss_total(num_e),prev_density(num_e),next_density(num_e)
+    real(8) :: p_emit_tmp(num_nu),tau_syn_tmp(num_nu)
 
     electron_density=zero; luminosity_syn=zero; seed_syn=zero; source_radius=zero
     prev_density=zero
@@ -350,8 +351,9 @@ subroutine hadronic_forward_secondary_electron_sequence(num_e,num_nu,num_r,gamma
                                                Para_m_e_GeV,quantum_syn,loss_total)
         call hadronic_advance_energy_loggamma_remap(num_e,gamma_e,prev_density, &
                                                     source_content(:,i_r),loss_total,dt_s,next_density)
-        call get_syn_selected(index_syn_integr,radius_cm(i_r),b_field_g(i_r),num_e,num_nu,n_threads, &
-                              gamma_e,next_density,frequency_hz,luminosity_syn(:,i_r),seed_syn(:,i_r))
+        call get_syn_selected_state(index_syn_integr,radius_cm(i_r),b_field_g(i_r),num_e,num_nu,n_threads, &
+                                    gamma_e,next_density,frequency_hz,p_emit_tmp,luminosity_syn(:,i_r), &
+                                    seed_syn(:,i_r),tau_syn_tmp)
         source_radius(:,i_r)=source_content(:,i_r)*dt_s/dr*gamma_e(:)*dlog(ten)
         electron_density(:,i_r)=next_density
         prev_density=next_density
@@ -740,17 +742,6 @@ subroutine hadronic_forward_shell_volumes(num_r,radius_cm,shell_volume_cm3)
         r_prev=radius_cm(i)
     end do
 end subroutine hadronic_forward_shell_volumes
-
-! 壳层 comoving 时间步长 wrapper：复用统一的半径壳层几何定义。
-subroutine hadronic_forward_shell_comoving_dt(num_r,radius_cm,gamma_bulk,shell_index,dt_s)
-    implicit none
-    integer, intent(in) :: num_r,shell_index
-    real(8), intent(in) :: radius_cm(num_r),gamma_bulk(num_r)
-    real(8), intent(out) :: dt_s
-    real(8) :: dr
-
-    call hadronic_sequence_shell_geometry(num_r,radius_cm,gamma_bulk,shell_index,dr,dt_s)
-end subroutine hadronic_forward_shell_comoving_dt
 
 ! 动力学时间 wrapper：t_dyn=R/(Gamma c)。
 subroutine hadronic_forward_dynamical_time(radius_cm,gamma_bulk,t_dyn_s)

@@ -155,8 +155,9 @@ contains
                 if (reverse_shock_pressure_ready_state(Y)) then
                     call dynamics_rk4_reverse_pre_m3(reverse_dynamics_rhs,dB3,T_cross,R_cross,e3_cross,gam20, &
                                                      U3_cross,V3_cross,M3_cross,gam_m_cross,B3_ordered_cross, &
-                                                     T_state,T_target_in,Y,Num_state,para_m_ej,V3_scale,Delta_0,eta_0,A_star,dNe_ISM, &
-                                                     R_tr,f_jump,f_wide,R0,Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,f_e_r,sigma_r)
+                                                     T_state,T_target_in,Y,Num_state,para_m_ej,V3_scale,Delta_0,eta_0, &
+                                                     A_star,dNe_ISM,R_tr,f_jump,f_wide,R0,Epsilon_b,Epsilon_e,p_f, &
+                                                     f_e,e_r,b_r,p_r,f_e_r,sigma_r)
                 else
                     call waiting_trial(T_target_in,wait_trial_state,dB3_wait_trial)
                     pressure_ready_trial=reverse_shock_pressure_ready_state(wait_trial_state)

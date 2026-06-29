@@ -6,7 +6,7 @@ subroutine fs_electron_weno5_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,
     use dynamics_common, only: dynamics_external_density_profile
     use electron_common
     use electron_injection_profiles, only: electron_build_source_term_exp_cutoff_edges, electron_profile_log_cell_edges
-    use electron_radiation_kernel, only: get_syn_state
+    use radiation_common, only: radiation_syn_seed_chi_batch_core
     use electron_cooling_kernel, only: get_forward_cooling
     use electron_transport_common, only: electron_dnx_to_dndgamma_exp_centers
     IMPLICIT REAL(8)(A-H,O-Z)
@@ -99,10 +99,15 @@ contains
     subroutine write_weno_radiation_and_cooling(I_tobs)
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: I_tobs
-    real(8) :: P_emit_shell(Num_nu),Tau_syn_shell(Num_nu)
+    real(8) :: DB_chi(1),DNe_chi(Num_gam_e,1),P_emit_shell(Num_nu,1),P_syn_shell(Num_nu,1)
+    real(8) :: Seed_syn_shell(Num_nu,1),Tau_syn_shell(Num_nu,1)
 
-        call get_syn_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e(:,I_tobs-1),V_seed, &
-                           P_emit_shell,P_syn(:,I_tobs),Seed_syn(:,I_tobs),Tau_syn_shell)
+        DB_chi(1)=DB
+        DNe_chi(:,1)=dN_gam_e(:,I_tobs-1)
+        call radiation_syn_seed_chi_batch_core(R_loc,Num_gam_e,Num_nu,1,gam_e,DNe_chi,V_seed,DB_chi,1.046d4, &
+                                               P_emit_shell,P_syn_shell,Seed_syn_shell,Tau_syn_shell)
+        P_syn(:,I_tobs)=P_syn_shell(:,1)
+        Seed_syn(:,I_tobs)=Seed_syn_shell(:,1)
 
         call get_forward_cooling(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc, &
                                  R_Gamma_loc,beta_Gam,dNe,Num_gam_e,Num_nu,n_threads,gam_e,V_seed, &

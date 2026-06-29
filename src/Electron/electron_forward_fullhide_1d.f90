@@ -24,9 +24,9 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
     use electron_radiation_kernel, only: get_syn_selected_state, get_nu_a_from_tau_grid
     use electron_cooling_kernel, only: get_forward_cooling
     use electron_shell_transport_common, only: electron_shell_flux_split_coord_step, &
-                                               electron_shell_flux_split_coord_sequence, &
                                                electron_shell_dcoord_to_dndgamma_exp_centers
-    use electron_transport_common, only: electron_dnx_to_dndgamma_exp_centers
+    use electron_transport_common, only: electron_dnx_to_dndgamma_exp_centers, &
+                                         electron_fullhide_flux_split_sequence_nonuniform
     IMPLICIT REAL(8)(A-H,O-Z)
     integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads
     integer, intent(in) :: adaptive_substeps,substep_min,substep_max,thermal_electrons
@@ -80,11 +80,11 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
         call prepare_shell_cooling_faces()
         if (adaptive_substeps == 0) then
             call advance_fixed_substep_shell(I_tobs)
-            call store_forward_shell_distribution(I_tobs)
         else
             call advance_adaptive_substep_shell()
-            call store_forward_shell_distribution(I_tobs)
         end if
+        call electron_shell_dcoord_to_dndgamma_exp_centers(Num_gam_e,coord_edge,coord_scale,gam_e,dN_x, &
+                                                           dN_gam_e(:,I_tobs))
     end do
 
     deallocate (dEl,dEl_step,dEL_mean,x,dN_x,x_edge,coord_edge,dxdy_grid,dN_full,dN_half,dN_half2,dF1, &
@@ -148,14 +148,6 @@ contains
         dEL_mean=(dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/two/dlog(ten)
         dDR_xi=dDR
     end subroutine prepare_shell_cooling_faces
-
-    subroutine store_forward_shell_distribution(I_tobs)
-    implicit real(8)(A-H,O-Z)
-    integer, intent(in) :: I_tobs
-
-        call electron_shell_dcoord_to_dndgamma_exp_centers(Num_gam_e,coord_edge,coord_scale,gam_e,dN_x, &
-                                                           dN_gam_e(:,I_tobs))
-    end subroutine store_forward_shell_distribution
 
     subroutine prepare_fullhide_shell(I_tobs)
     implicit real(8)(A-H,O-Z)
@@ -236,7 +228,8 @@ contains
             n_before_step=sum(dN_x*(coord_edge(2:Num_gam_e+1)-coord_edge(1:Num_gam_e)))
             inj_step=sum(dF_steps(:,1)*(coord_edge(2:Num_gam_e+1)-coord_edge(1:Num_gam_e)))
         end if
-        call electron_shell_flux_split_coord_sequence(Num_gam_e,coord_edge,face_coupling(:,1),dF_steps(:,1),dN_x,x)
+        call electron_fullhide_flux_split_sequence_nonuniform(Num_gam_e,coord_edge,face_coupling(:,1),dF_steps(:,1), &
+                                                              dN_x,x,.true.)
         if (budget_diag_enabled) then
             n_after_step=sum(x*(coord_edge(2:Num_gam_e+1)-coord_edge(1:Num_gam_e)))
             n_budget=n_before_step+inj_step
@@ -400,7 +393,7 @@ subroutine fs_electron_fullhide_1d_coupled(Boundary,R_Tobs,R_Gamma,R,V_seed,Seed
     use electron_common
     use electron_injection_profiles, only: electron_build_source_term_exp_cutoff_edges, electron_add_thermal_source_term, &
                                            electron_profile_log_cell_edges
-    use electron_radiation_kernel, only: get_nu_a, get_syn_selected
+    use electron_radiation_kernel, only: get_nu_a, get_syn_selected_state
     use electron_cooling_ic_kernel, only: electron_cooling_ic_loss_emissivity_budget
     use electron_cooling_kernel, only: assemble_forward_cooling_split_batch
     use electron_transport_common, only: electron_dnx_to_dndgamma_exp_centers, electron_fullhide_step
@@ -487,6 +480,7 @@ contains
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: I_tobs
     real(8) :: Seed_ssa_column(Num_nu,1),cooling_aux_column(Num_gam_e,1),dEl_column(Num_gam_e,1)
+    real(8) :: P_emit_tmp(Num_nu),Tau_syn_tmp(Num_nu)
 
         R_loc=R(I_tobs-1)
         R_Gamma_loc=(R_Gamma(I_tobs)+R_Gamma(I_tobs-1))/two
@@ -510,8 +504,9 @@ contains
         V_c(I_tobs-1)=4.2d6*DB*Gam_e_c*Gam_e_c/(R_Gamma_loc*(1d0-beta_Gam)*(one+z))
         call get_nu_a(R_loc,DB,Num_gam_rad,gam_e_rad(1:Num_gam_rad),dN_gam_e_rad(1:Num_gam_rad),temp)
         V_a(I_tobs-1)=temp/(R_Gamma_loc*(1d0-beta_Gam)*(one+z))
-        call get_syn_selected(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads, &
-                              gam_e,dN_gam_e(:,I_tobs-1),V_seed,P_syn(:,I_tobs),Seed_syn(:,I_tobs))
+        call get_syn_selected_state(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads, &
+                                    gam_e,dN_gam_e(:,I_tobs-1),V_seed,P_emit_tmp,P_syn(:,I_tobs), &
+                                    Seed_syn(:,I_tobs),Tau_syn_tmp)
         Gam_e_max_cool=Gam_e_max
         call electron_cooling_ic_loss_emissivity_budget(Num_gam_e,Num_nu,n_threads,gam_e,V_seed, &
                                                         Seed_cooling(:,I_tobs),cooling_aux)

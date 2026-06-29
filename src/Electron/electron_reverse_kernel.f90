@@ -9,13 +9,14 @@ module electron_reverse_kernel
                                            electron_build_kinetic_source_term_exp_cutoff_coord_edges, &
                                            electron_profile_log_cell_edges
     use electron_common, only: electron_exp_tail_grid_factor
-    use electron_shell_transport_common, only: electron_resolve_1d_solver_id, electron_shell_flux_split_step, &
+    use electron_shell_transport_common, only: electron_resolve_1d_solver_id, &
                                                electron_shell_flux_split_coord_step, &
                                                electron_shell_dcoord_to_dndgamma_exp_centers, &
                                                electron_solver_dg_1d, electron_solver_fullhide_1d
     use electron_transport_common, only: electron_build_piecewise_affine_u, electron_characteristic_remap_edges, &
                                          electron_dnx_to_dndgamma_exp_centers, electron_trace_affine_u_edges_batch, &
-                                         electron_trace_piecewise_affine_u_edges, electron_u_edges_from_x
+                                         electron_trace_piecewise_affine_u_edges_batch, electron_u_edges_from_x, &
+                                         electron_fullhide_flux_split_step
     use electron_transport_dg_1d_kernel, only: electron_dg1d_mesh, electron_dg1d_advance_characteristic_step, &
                                                electron_dg1d_advance_step, &
                                                electron_dg1d_build_four_velocity_mesh, electron_dg1d_integral, &
@@ -24,7 +25,7 @@ module electron_reverse_kernel
                                                electron_dg1d_project_state, electron_dg1d_project_to_coord_cells, &
                                                electron_dg1d_scale_to_content, electron_dg1d_tail_moment_fraction, &
                                                electron_dg1d_apply_positive_kernel_filter
-    use electron_radiation_kernel, only: get_syn_selected, get_nu_a
+    use electron_radiation_kernel, only: get_syn_selected_state, get_nu_a
     use electron_cooling_kernel, only: prepare_forward_cooling_aux_batch
     implicit none
     integer, parameter :: reverse_dg_base_substeps = 10
@@ -213,9 +214,10 @@ contains
     implicit none
     integer, intent(in) :: I_tobs
     real(8) :: P_syn_column(Num_nu,1),Seed_syn_column(Num_nu,1),cooling_aux_column(Num_gam_e,1)
+    real(8) :: P_emit_tmp(Num_nu),Tau_syn_tmp(Num_nu)
 
-        call get_syn_selected(index_syn_intger,R(I_tobs-1),dB,Num_gam_e,Num_nu,n_threads, &
-                              gam_e,dN_gam_e(:,I_tobs-1),V_seed,P_syn,Seed_syn)
+        call get_syn_selected_state(index_syn_intger,R(I_tobs-1),dB,Num_gam_e,Num_nu,n_threads, &
+                                    gam_e,dN_gam_e(:,I_tobs-1),V_seed,P_emit_tmp,P_syn,Seed_syn,Tau_syn_tmp)
         P_syn_column(:,1)=P_syn
         Seed_syn_column(:,1)=Seed_syn
         call prepare_forward_cooling_aux_batch(index_Y,Num_gam_e,Num_nu,1,n_threads,gam_e,V_seed, &
@@ -353,9 +355,10 @@ contains
             else
                 call electron_build_piecewise_affine_u(Num_gam_e,x_edge,gam_e,dEl,thermal_loss_rate, &
                                                        post_cross_u_edge,post_cross_a_cell,post_cross_b_cell)
-                call electron_trace_piecewise_affine_u_edges(Num_gam_e,post_cross_u_edge,post_cross_u_edge, &
-                                                             post_cross_a_cell,post_cross_b_cell,dDR, &
-                                                             post_cross_step_back)
+                call electron_trace_piecewise_affine_u_edges_batch(Num_gam_e,1,post_cross_u_edge,post_cross_u_edge, &
+                                                                   post_cross_a_cell,post_cross_b_cell,(/dDR/), &
+                                                                   post_cross_affine_back)
+                post_cross_step_back=post_cross_affine_back(:,1)
             end if
             do i_edge=1,Num_gam_e+1
                 post_cross_edge_work(i_edge)=reverse_post_cross_map_value(post_cross_step_back(i_edge))
@@ -659,6 +662,7 @@ contains
     implicit none
     integer, intent(in) :: I_tobs
     real(8) :: dg_adiabatic(L1), dg_source_norm(L1)
+    real(8) :: face_speed(Num_gam_e-1)
 
         dN_x=dN_gam_e(:,I_tobs-1)*gam_e*dlog(ten)
         if (active_solver == electron_solver_dg_1d) then
@@ -686,7 +690,8 @@ contains
             else
                 dF1=zero
             end if
-            call electron_shell_flux_split_step(Num_gam_e,dDR,d_x,dEl,adiabatic_rate,dF1,dN_x,x)
+            face_speed=((dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/two+adiabatic_rate)/dlog(ten)
+            call electron_fullhide_flux_split_step(Num_gam_e,dDR,d_x,face_speed,dF1,dN_x,x,.true.)
             dN_x=x
             if (L == L1) call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,I_tobs))
         end do
@@ -702,15 +707,16 @@ subroutine electron_secondary_reverse_synchrotron(index_syn_intger,Num_nu,Num_R,
     real(8), intent(in) :: R(Num_R),R_Gamma(Num_R),B3(Num_R),gam_e(Num_gam_e),dN_gam_e(Num_gam_e,Num_R)
     real(8), intent(in) :: V_seed(Num_nu),z
     real(8), intent(out) :: L_syn_spec(Num_nu,Num_R),Seed_syn(Num_nu,Num_R),Nu_a(Num_R)
-    real(8) :: doppler_den
+    real(8) :: doppler_den,P_emit_tmp(Num_nu),Tau_syn_tmp(Num_nu)
 
     L_syn_spec=zero
     Seed_syn=zero
     Nu_a=zero
     do I_tobs=1,Num_R
         if (B3(I_tobs) <= zero) cycle
-        call get_syn_selected(index_syn_intger,R(I_tobs),B3(I_tobs),Num_gam_e,Num_nu,n_threads, &
-                              gam_e,dN_gam_e(:,I_tobs),V_seed,L_syn_spec(:,I_tobs),Seed_syn(:,I_tobs))
+        call get_syn_selected_state(index_syn_intger,R(I_tobs),B3(I_tobs),Num_gam_e,Num_nu,n_threads, &
+                                    gam_e,dN_gam_e(:,I_tobs),V_seed,P_emit_tmp,L_syn_spec(:,I_tobs), &
+                                    Seed_syn(:,I_tobs),Tau_syn_tmp)
         doppler_den=R_Gamma(I_tobs)*(one-dsqrt(one-R_Gamma(I_tobs)**(-2)))*(one+z)
         call get_nu_a(R(I_tobs),B3(I_tobs),Num_gam_e,gam_e,dN_gam_e(:,I_tobs),Nu_a(I_tobs))
         Nu_a(I_tobs)=Nu_a(I_tobs)/doppler_den
@@ -878,6 +884,7 @@ contains
     implicit none
     integer, intent(in) :: i_shell,jump_index
     real(8) :: dg_adiabatic(L1), dg_source_norm(L1)
+    real(8) :: face_speed(Num_gam_e-1)
 
         if (M3_branch(jump_index,i_shell) <= zero .and. M3_branch(jump_index,i_shell-1) <= zero) then
             dN_gamma_branch(jump_index,:,i_shell)=dN_x(jump_index,:)/gam_e/dlog(ten)
@@ -910,7 +917,8 @@ contains
             else
                 dF1=zero
             end if
-            call electron_shell_flux_split_step(Num_gam_e,dDR,d_x,dEl,adiabatic_rate,dF1,dN_x(jump_index,:),x)
+            face_speed=((dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/two+adiabatic_rate)/dlog(ten)
+            call electron_fullhide_flux_split_step(Num_gam_e,dDR,d_x,face_speed,dF1,dN_x(jump_index,:),x,.true.)
             dN_x(jump_index,:)=x
         end do
         dN_gamma_branch(jump_index,:,i_shell)=dN_x(jump_index,:)/gam_e/dlog(ten)

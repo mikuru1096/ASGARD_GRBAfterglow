@@ -29,8 +29,8 @@ subroutine hadronic_pair_production_operator(num_ph,photon_energy_gev,photon_den
     real(8) :: afpair_ssc(num_ph),epspair_ssc(num_e)
     integer :: ind_min_energy_pho
 
-    dln_ph = hadronic_uniform_log_spacing(num_ph,photon_energy_gev)
-    dln_e = hadronic_uniform_log_spacing(num_e,electron_energy_gev)
+    call hadronic_validate_log_grid(num_ph,photon_energy_gev,"pair_production_photon_grid",dln_ph)
+    call hadronic_validate_log_grid(num_e,electron_energy_gev,"pair_production_electron_grid",dln_e)
     dln = dln_ph
 
     if (dabs(dln_ph-dln_e) > dmax1(1.0d-14,1.0d-10*dabs(dln_ph))) then
@@ -468,15 +468,6 @@ integer function hadronic_sign_int(i)
         hadronic_sign_int = -1
     end if
 end function hadronic_sign_int
-
-! 验证并返回网格的对数均匀间距。
-real(8) function hadronic_uniform_log_spacing(num_grid,grid)
-    integer, intent(in) :: num_grid
-    real(8), intent(in) :: grid(num_grid)
-    real(8) :: dln_local
-    call hadronic_validate_log_grid(num_grid,grid,"pair_production_grid",dln_local)
-    hadronic_uniform_log_spacing = dln_local
-end function hadronic_uniform_log_spacing
 
 ! 计算两网格最小能量值在对数空间中的整数索引偏移量。
 integer function hadronic_grid_index_offset(e_min,ph_min,dln)

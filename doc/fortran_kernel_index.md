@@ -199,17 +199,13 @@ Fortran 改动后的最低门槛见 `doc/validation_and_benchmarks.md`。文档-
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
 | `M` | 2 | `electron_cooling_ssa_kernel` | SSA 物理核模块；不承担 IC/Y 或冷却项组装分派。 |
-| `S` | 26 | `ensure_ssa_geometry_workspace` | workspace/cache 管理；只服务性能和内存复用，不改变物理语义。 |
-| `S` | 51 | `ensure_ssa_seed_cache` | workspace/cache 管理；只服务性能和内存复用，不改变物理语义。 |
-| `S` | 85 | `advance_ssa_seed_cursor` | SSA seed 频率窗口推进 primitive。 |
-| `S` | 106 | `build_ssa_geometry` | 构建 SSA 低频/高频截面区间和 prefactor。 |
-| `S` | 149 | `accumulate_ssa_for_seed` | 对单个 seed photon field 累加 SSA 回热率。 |
-| `S` | 181 | `accumulate_ssa_single_gamma` | `accumulate_ssa_for_seed` 的单 gamma 局部累加。 |
-| `F` | 251 | `clipped_ssa_cell_segment` | 对被上下限裁剪的 SSA 频率 cell 做 log-Gauss 积分。 |
-| `S` | 283 | `electron_cooling_ssa_loss` | 单 seed photon field 的 SSA 冷却/回热算子。 |
-| `S` | 319 | `electron_cooling_ssa_loss_batch` | χ-resolved seed photon fields 的 SSA 批量算子。 |
-| `S` | 376 | `accumulate_ssa_batch_gamma` | `electron_cooling_ssa_loss_batch` 的 gamma/χ 局部累加。 |
-| `F` | 446 | `clipped_ssa_batch_segment` | χ 批量路径中被上下限裁剪的 SSA cell 积分。 |
+| `S` | 24 | `ensure_ssa_geometry_workspace` | workspace/cache 管理；只服务性能和内存复用，不改变物理语义。 |
+| `S` | 40 | `ensure_ssa_seed_cache` | workspace/cache 管理；只服务性能和内存复用，不改变物理语义。 |
+| `S` | 74 | `advance_ssa_seed_cursor` | SSA seed 频率窗口推进 primitive。 |
+| `S` | 95 | `build_ssa_geometry` | 构建 SSA 低频/高频截面区间和 prefactor。 |
+| `S` | 138 | `electron_cooling_ssa_loss_batch` | χ-resolved seed photon fields 的 SSA 算子；单列调用传 `Num_chi=1`。 |
+| `S` | 195 | `accumulate_ssa_batch_gamma` | `electron_cooling_ssa_loss_batch` 的 gamma/χ 局部累加。 |
+| `F` | 265 | `clipped_ssa_batch_segment` | χ 批量路径中被上下限裁剪的 SSA cell 积分。 |
 
 ### `src/Electron/electron_cooling_ic_kernel.f90`
 
@@ -405,36 +401,38 @@ WENO5 方法比较电子输运入口。
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
 | `M` | 1 | `electron_radiation_kernel` | 模块命名空间；集中声明本文件共享 procedure。 |
-| `S` | 18 | `first_greater_monotonic_from` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 39 | `first_greater_monotonic` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 58 | `first_greater_monotonic_window` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 79 | `besselk` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 142 | `get_syn` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 153 | `get_syn_simpson_state` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `F` | 210 | `simpson_emission_integral` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `F` | 225 | `simpson_ssa_tau_integral` | 光深、gamma-gamma absorption、pair injection 或 photon survival 相关算子。 |
-| `S` | 239 | `accumulate_simpson_syn_point` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 258 | `build_reduced_log_grid` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `S` | 287 | `project_syn_state_logbands` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 322 | `get_syn_state` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 332 | `get_syn_chi_batch_state` | chi-local synchrotron/SSA batch kernel；structured projection 可复用其输出。 |
-| `S` | 406 | `electron_log_gauss2_interval` | 积分权重或求积 primitive；影响谱积分精度。 |
-| `S` | 483 | `electron_syn_gauss_cell` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 507 | `electron_tau_gauss_cell` | 光深、SSA transfer 或 photon survival 相关算子。 |
-| `S` | 539 | `electron_syn_cell_adaptive` | 低层单 cell adaptive diagnostic helper；public selected path 默认仍是 fixed-grid。 |
-| `S` | 573 | `get_syn_selected` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 585 | `get_syn_selected_state` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 598 | `get_syn_polarization_selected` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 616 | `get_syn_polarization_fraction` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 651 | `get_syn_transfer` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 670 | `get_nu_a` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 742 | `evaluate_tau` | 光深、SSA transfer 或 photon survival 相关算子。 |
-| `S` | 760 | `refine_nu_a_bracket` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 807 | `get_nu_a_2d_path` | 2D/chi SSA break diagnostic。 |
-| `S` | 824 | `get_nu_a_2d_cell_path` | 2D/chi cell-level SSA break diagnostic。 |
-| `S` | 840 | `reduce_syn_shell_from_chi` | chi-local spectra 到 shell-level baseline 的 reduction helper。 |
-| `S` | 859 | `get_nu_a_from_tau_grid` | 从已计算 optical-depth grid 求 SSA break；避免重复 root search。 |
-| `S` | 898 | `interpolate_log_tau_root` | 光深、SSA transfer 或 photon survival 相关算子。 |
+| `S` | 19 | `first_greater_monotonic_from` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 40 | `first_greater_monotonic` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 59 | `first_greater_monotonic_window` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 80 | `besselk` | 同步辐射 Bessel kernel 插值/渐近 primitive。 |
+| `S` | 140 | `get_syn_selected_state` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
+| `F` | 197 | `simpson_emission_integral` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
+| `F` | 212 | `simpson_ssa_tau_integral` | 光深、gamma-gamma absorption、pair injection 或 photon survival 相关算子。 |
+| `S` | 226 | `accumulate_simpson_syn_point` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
+| `S` | 245 | `build_reduced_log_grid` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
+| `S` | 274 | `project_syn_state_logbands` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
+| `F` | 309 | `electron_syn_fx` | 同步辐射 kernel primitive。 |
+| `F` | 321 | `electron_linear_interp` | 插值 primitive。 |
+| `F` | 333 | `electron_syn_integrand_x` | 同步辐射 cell 积分 integrand。 |
+| `F` | 344 | `electron_powerlaw_interp` | log-log/power-law 插值 primitive。 |
+| `S` | 369 | `electron_log_gauss2_interval` | 积分权重或求积 primitive；影响谱积分精度。 |
+| `F` | 387 | `electron_integrate_powerlaw_segment` | power-law cell 积分 primitive。 |
+| `F` | 404 | `electron_ssa_segment` | SSA cell 光深积分 primitive。 |
+| `F` | 436 | `electron_tau_kernel_x` | SSA optical-depth kernel primitive。 |
+| `S` | 446 | `electron_syn_gauss_cell` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
+| `S` | 470 | `electron_tau_gauss_cell` | 光深、SSA transfer 或 photon survival 相关算子。 |
+| `S` | 502 | `electron_syn_cell_adaptive` | 低层单 cell adaptive diagnostic helper；public selected path 默认仍是 fixed-grid。 |
+| `S` | 534 | `get_syn_polarization_selected` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
+| `S` | 552 | `get_syn_polarization_fraction` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
+| `S` | 587 | `get_syn_transfer` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
+| `S` | 609 | `get_nu_a` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 681 | `evaluate_tau` | 光深、SSA transfer 或 photon survival 相关算子。 |
+| `S` | 699 | `refine_nu_a_bracket` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 746 | `get_nu_a_2d_path` | 2D/chi SSA break diagnostic。 |
+| `S` | 763 | `get_nu_a_2d_cell_path` | 2D/chi cell-level SSA break diagnostic。 |
+| `S` | 779 | `reduce_syn_shell_from_chi` | chi-local spectra 到 shell-level baseline 的 reduction helper。 |
+| `S` | 798 | `get_nu_a_from_tau_grid` | 从已计算 optical-depth grid 求 SSA break；避免重复 root search。 |
+| `S` | 841 | `interpolate_log_tau_root` | 光深、SSA transfer 或 photon survival 相关算子。 |
 
 ### `src/Electron/electron_reverse_kernel.f90`
 
@@ -520,13 +518,9 @@ shell-level fullhide/flux-split 共享 primitive。
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
 | `M` | 2 | `electron_shell_transport_common` | 公共模块；提供多个入口复用的物理/数值 primitive。 |
-| `F` | 23 | `electron_resolve_1d_solver_id` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 32 | `electron_shell_fullhide_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 40 | `electron_shell_fullhide_spacetime_sequence` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 48 | `electron_shell_flux_split_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 58 | `electron_shell_flux_split_coord_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 76 | `electron_shell_flux_split_coord_sequence` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `S` | 87 | `electron_shell_dcoord_to_dndgamma_exp_centers` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
+| `F` | 19 | `electron_resolve_1d_solver_id` | 1D 电子输运 solver id 解析。 |
+| `S` | 28 | `electron_shell_flux_split_coord_step` | 四速度坐标上的单步 flux-split 推进；内部计算坐标 Jacobian。 |
+| `S` | 46 | `electron_shell_dcoord_to_dndgamma_exp_centers` | 四速度坐标密度映射回 `dN/dgamma`。 |
 
 ### `src/Electron/electron_transport_2d_kernel.f90`
 
@@ -535,34 +529,32 @@ finite-q 几何、q 方向对流/扩散和 2D 能量推进。
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
 | `M` | 2 | `electron_transport_2d_kernel` | 模块命名空间；集中声明本文件共享 procedure。 |
-| `S` | 27 | `compute_q_geometry` | finite-q shell 几何或 chi-equivalent 投影字段。 |
-| `S` | 43 | `q_geometry_point` | finite-q shell 几何或 chi-equivalent 投影字段。 |
-| `F` | 69 | `shock_beta_from_front_gamma` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 82 | `compute_q_cell_geometry` | finite-q shell 几何或 chi-equivalent 投影字段。 |
-| `S` | 98 | `compute_downstream_comoving_grid` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `S` | 123 | `get_shock_transport_state` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 139 | `bm_beta2_lab` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 152 | `bm_beta2_shock` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 162 | `compute_q_divergence` | finite-q shell 几何或 chi-equivalent 投影字段。 |
-| `F` | 184 | `q_face_transport_coeff` | finite-q shell 几何或 chi-equivalent 投影字段。 |
-| `S` | 191 | `q_face_transport_coeffs` | finite-q shell 几何或 chi-equivalent 投影字段。 |
-| `S` | 202 | `q_face_transport_coeffs_all` | finite-q shell 几何或 chi-equivalent 投影字段。 |
-| `F` | 214 | `compute_q_step_limit` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `F` | 229 | `eta_linear_back_position` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 241 | `eta_linear_hit_time` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 255 | `eta_trace_back_faces_piecewise` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `S` | 315 | `q_split_advection_faces` | finite-q shell 几何或 chi-equivalent 投影字段。 |
-| `F` | 334 | `q_depth_inverse_metric` | finite-q shell 几何或 chi-equivalent 投影字段。 |
-| `S` | 356 | `q_diffusion_face_coeffs` | finite-q shell 几何或 chi-equivalent 投影字段。 |
-| `S` | 382 | `solve_tridiagonal` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 406 | `advance_q_advection_charint` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 436 | `advance_q_diffusion_implicit` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 475 | `advance_q_implicit` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 537 | `advance_q_pwncr_implicit` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 600 | `advance_energy_loggamma_chi` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 626 | `advance_energy_loggamma_chi_pwncr` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 651 | `advance_energy_stochastic_loggamma_chi` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 685 | `advance_energy_loggamma_chi_charint` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 25 | `compute_q_geometry` | finite-q shell 几何或 chi-equivalent 投影字段。 |
+| `S` | 41 | `q_geometry_point` | finite-q shell 几何或 chi-equivalent 投影字段。 |
+| `S` | 67 | `compute_q_cell_geometry` | finite-q shell 几何或 chi-equivalent 投影字段。 |
+| `S` | 90 | `compute_downstream_comoving_grid` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
+| `S` | 115 | `get_shock_transport_state` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 131 | `compute_q_divergence` | finite-q shell 几何或 chi-equivalent 投影字段。 |
+| `F` | 153 | `q_face_transport_coeff` | finite-q shell 几何或 chi-equivalent 投影字段。 |
+| `S` | 162 | `q_face_transport_coeffs` | finite-q shell 几何或 chi-equivalent 投影字段。 |
+| `F` | 174 | `compute_q_step_limit` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `F` | 189 | `eta_linear_hit_time` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 203 | `eta_trace_back_faces_piecewise` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
+| `S` | 268 | `q_split_advection_faces` | finite-q shell 几何或 chi-equivalent 投影字段。 |
+| `F` | 287 | `q_depth_inverse_metric` | finite-q shell 几何或 chi-equivalent 投影字段。 |
+| `S` | 309 | `q_diffusion_face_coeffs` | finite-q shell 几何或 chi-equivalent 投影字段。 |
+| `S` | 334 | `build_q_advection_base_matrix` | q 方向对流矩阵 primitive。 |
+| `S` | 355 | `add_q_diffusion_to_matrix` | q 方向扩散矩阵 primitive。 |
+| `S` | 381 | `build_q_transport_base_matrix` | q 方向对流/扩散隐式矩阵组装。 |
+| `S` | 399 | `solve_tridiagonal` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 423 | `advance_q_advection_charint` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 454 | `advance_q_diffusion_implicit` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 483 | `advance_q_implicit` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 519 | `advance_q_pwncr_implicit` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 554 | `advance_energy_loggamma_chi` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 580 | `advance_energy_loggamma_chi_pwncr` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 605 | `advance_energy_stochastic_loggamma_chi` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 639 | `advance_energy_loggamma_chi_charint` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
 
 ### `src/Electron/electron_transport_common.f90`
 
@@ -590,20 +582,18 @@ finite-q 几何、q 方向对流/扩散和 2D 能量推进。
 | `S` | 389 | `electron_build_piecewise_affine_u` | 局部 helper；语义由所在文件的算法阶段决定。 |
 | `S` | 427 | `electron_find_u_cell_desc_hint` | 局部 helper；语义由所在文件的算法阶段决定。 |
 | `S` | 452 | `electron_trace_piecewise_affine_u_edge_from_cell` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `S` | 573 | `electron_trace_piecewise_affine_u_edges` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `S` | 591 | `electron_trace_piecewise_affine_u_edges_batch` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `S` | 605 | `electron_characteristic_core` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 642 | `electron_characteristic_remap_edges` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `S` | 666 | `electron_characteristic_update` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 700 | `electron_characteristic_cooling_update` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `F` | 718 | `electron_ppm_cell_int` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `S` | 735 | `electron_semi_lagrangian_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 762 | `electron_fullhide_flux_split_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 811 | `electron_fullhide_flux_split_step_nonuniform` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 861 | `electron_fullhide_flux_split_sequence_nonuniform` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 910 | `electron_fullhide_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 933 | `electron_fullhide_spacetime_sequence` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 984 | `electron_logparabola_peak_frequency` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 573 | `electron_trace_piecewise_affine_u_edges_batch` | 多滞后分段仿射 u 特征线回溯；单滞后调用传 `Num_lag=1`。 |
+| `S` | 594 | `electron_characteristic_core` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 631 | `electron_characteristic_remap_edges` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
+| `S` | 655 | `electron_characteristic_update` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 689 | `electron_ppm_cell_int` | PPM 单元积分 primitive。 |
+| `S` | 706 | `electron_semi_lagrangian_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 733 | `electron_fullhide_flux_split_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 782 | `electron_fullhide_flux_split_step_nonuniform` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 832 | `electron_fullhide_flux_split_sequence_nonuniform` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 881 | `electron_fullhide_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 904 | `electron_fullhide_spacetime_sequence` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 955 | `electron_logparabola_peak_frequency` | 局部 helper；语义由所在文件的算法阶段决定。 |
 | `F` | 1012 | `electron_active_gamma_hi` | 局部 helper；语义由所在文件的算法阶段决定。 |
 | `F` | 1045 | `electron_active_chi_hi` | finite-q shell 几何或 chi-equivalent 投影字段。 |
 | `F` | 1064 | `electron_max_xi_coeff_chi` | finite-q shell 几何或 chi-equivalent 投影字段。 |
@@ -714,7 +704,6 @@ Bethe-Heitler 质子损失、pair source 和 photon loss kernel。
 | `S` | 18 | `hadronic_bethe_heitler_operator` | Bethe-Heitler pair/source/loss 算子。 |
 | `F` | 77 | `bh_proton_loss_point` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
 | `S` | 83 | `accumulate_bh_pair_source` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
-| `F` | 98 | `hadronic_uniform_log_spacing` | 局部 helper；语义由所在文件的算法阶段决定。 |
 | `F` | 108 | `hadronic_bh_kernel_electron_generation` | Bethe-Heitler pair/source/loss 算子。 |
 | `F` | 125 | `hadronic_bh_outer` | Bethe-Heitler pair/source/loss 算子。 |
 | `F` | 145 | `hadronic_bh_inner` | Bethe-Heitler pair/source/loss 算子。 |
@@ -833,8 +822,7 @@ formal 1D 强子底层 shell primitive 与单位/投影 helper；f2py wrapper �
 | `S` | 685 | `hadronic_forward_aligned_photon_grid` | hadron/photon grid 对齐 helper。 |
 | `S` | 702 | `hadronic_sequence_shell_geometry` | shell dr、dt geometry helper。 |
 | `S` | 723 | `hadronic_forward_shell_volumes` | 壳层体积序列。 |
-| `S` | 745 | `hadronic_forward_shell_comoving_dt` | lab/radius shell spacing 到 comoving dt。 |
-| `S` | 756 | `hadronic_forward_dynamical_time` | shell dynamical time。 |
+| `S` | 747 | `hadronic_forward_dynamical_time` | shell dynamical time。 |
 | `S` | 768 | `hadronic_forward_quantum_syn_cooling_factor` | quantum synchrotron cooling factor。 |
 
 ### `src/Hadronic/hadronic_hadronic_ic_kernel.f90`
@@ -853,7 +841,6 @@ formal 1D 强子底层 shell primitive 与单位/投影 helper；f2py wrapper �
 | `S` | 124 | `hadronic_hadronic_ic_build_species_kernel` | inverse-Compton/KN 相关核；joint 模式要求 cooling 和 emissivity 使用同一 photon field。 |
 | `S` | 149 | `hadronic_hadronic_ic_compute_channel` | inverse-Compton/KN 相关核；joint 模式要求 cooling 和 emissivity 使用同一 photon field。 |
 | `F` | 176 | `hadronic_hadronic_ic_coeff` | inverse-Compton/KN 相关核；joint 模式要求 cooling 和 emissivity 使用同一 photon field。 |
-| `F` | 185 | `hadronic_hadronic_ic_log_spacing` | inverse-Compton/KN 相关核；joint 模式要求 cooling 和 emissivity 使用同一 photon field。 |
 
 ### `src/Hadronic/hadronic_interaction_kernel.f90`
 
@@ -940,7 +927,6 @@ gamma-gamma pair injection 和 photon loss kernel。
 | `F` | 443 | `hadronic_a_a0_hf` | 局部 helper；语义由所在文件的算法阶段决定。 |
 | `F` | 453 | `hadronic_beta` | 局部 helper；语义由所在文件的算法阶段决定。 |
 | `F` | 463 | `hadronic_sign_int` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 473 | `hadronic_uniform_log_spacing` | 局部 helper；语义由所在文件的算法阶段决定。 |
 | `F` | 482 | `hadronic_grid_index_offset` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
 
 ### `src/Hadronic/hadronic_pgamma_hummer_1d.f90`
@@ -974,7 +960,6 @@ Delta 近似 pp 算子和 secondary source。
 | `S` | 149 | `hadronic_pp_loglog_interp_positive` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
 | `F` | 183 | `hadronic_pp_upper_bracket` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
 | `F` | 211 | `hadronic_pp_loglog_linear_eval` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `S` | 225 | `hadronic_pp_validate_grid` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
 
 ### `src/Hadronic/hadronic_pp_models_kernel.f90`
 
@@ -1163,10 +1148,8 @@ SED 插值共享累加 primitive。
 | `S` | 78 | `radiation_prepare_annihilation_grid` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
 | `F` | 94 | `radiation_pair_cross_section` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
 | `S` | 112 | `radiation_pair_tau_headon_segment` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 142 | `radiation_syn_seed_core` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 185 | `radiation_syn_seed_point` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 212 | `radiation_syn_seed_chi_batch_core` | chi-resolved synchrotron/SSA batch kernel。 |
-| `S` | 328 | `radiation_syn_flux_tau_chi_batch_core` | chi-resolved projection-only synchrotron flux/tau batch kernel。 |
+| `S` | 142 | `radiation_syn_seed_chi_batch_core` | chi-resolved synchrotron/SSA batch kernel；单列调用传 `Num_chi=1`。 |
+| `S` | 258 | `radiation_syn_flux_tau_chi_batch_core` | chi-resolved projection-only synchrotron flux/tau batch kernel。 |
 
 ### `src/Radiation/radiation_gamma_gamma_absorption.f90`
 

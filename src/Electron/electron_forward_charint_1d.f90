@@ -9,7 +9,7 @@ subroutine fs_electron_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_
         electron_cooling_affine, electron_cooling_piecewise, electron_characteristic_update, &
         electron_dnx_to_dndgamma_exp_centers
     use electron_injection_profiles, only: electron_build_source_term_exp_cutoff_edges
-    use electron_radiation_kernel, only: get_nu_a, get_syn_selected
+    use electron_radiation_kernel, only: get_nu_a, get_syn_selected_state
     use electron_cooling_kernel, only: get_forward_cooling
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads,adaptive_substeps,substep_min,substep_max
@@ -20,6 +20,7 @@ subroutine fs_electron_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_
 
     real(8), allocatable :: dEl_base(:),dEl_step(:),dN_x(:),dN_step(:),dF1(:),dF1_shape(:),x_edge(:)
     real(8), allocatable :: gam_e_rad(:),dN_gam_e_rad(:)
+    real(8) :: P_emit_tmp(Num_nu),Tau_syn_tmp(Num_nu)
     logical :: is_uniform_density
     integer :: Num_gam_rad
 
@@ -272,8 +273,9 @@ contains
         call get_nu_a(R_loc,DB,Num_gam_rad,gam_e_rad(1:Num_gam_rad),dN_gam_e_rad(1:Num_gam_rad),temp)
         V_a(I_tobs-1)=temp/(R_Gamma_loc*(1d0-beta_Gam)*(one+z))
 
-        call get_syn_selected(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads, &
-                              gam_e,dN_gam_e(:,I_tobs-1),V_seed,P_syn(:,I_tobs),Seed_syn(:,I_tobs))
+        call get_syn_selected_state(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads, &
+                                    gam_e,dN_gam_e(:,I_tobs-1),V_seed,P_emit_tmp,P_syn(:,I_tobs), &
+                                    Seed_syn(:,I_tobs),Tau_syn_tmp)
         if (index_Y == 0) then
             dEl_base=zero
         else

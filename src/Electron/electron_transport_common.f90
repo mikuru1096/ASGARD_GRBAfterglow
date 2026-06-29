@@ -569,33 +569,22 @@ end subroutine electron_trace_piecewise_affine_u_edge_from_cell
 
 
 
-! 沿分段仿射 u 特征线回溯整组网格边界。
-subroutine electron_trace_piecewise_affine_u_edges(Num_gam_e,u_now_edge,u_edge,a_cell,b_cell,lag,x_back)
-    implicit none
-    integer, intent(in) :: Num_gam_e
-    integer :: I_gam_e,I_cell
-    real(8), intent(in) :: u_now_edge(Num_gam_e+1),u_edge(Num_gam_e+1),a_cell(Num_gam_e),b_cell(Num_gam_e),lag
-    real(8), intent(out) :: x_back(Num_gam_e+1)
-    real(8) :: u_prev
-    I_cell=1
-    do I_gam_e=1,Num_gam_e+1
-        call electron_find_u_cell_desc_hint(Num_gam_e,u_edge,u_now_edge(I_gam_e),I_cell)
-        call electron_trace_piecewise_affine_u_edge_from_cell(Num_gam_e,u_edge,a_cell,b_cell,lag,u_now_edge(I_gam_e),I_cell,u_prev)
-        x_back(I_gam_e)=electron_x_from_u(u_prev)
-    end do
-end subroutine electron_trace_piecewise_affine_u_edges
-
-
-
 ! 批量回溯多个滞后时间下的分段仿射 u 特征线边界。
 subroutine electron_trace_piecewise_affine_u_edges_batch(Num_gam_e,Num_lag,u_now_edge,u_edge,a_cell,b_cell,lag_arr,x_back_batch)
     implicit none
     integer, intent(in) :: Num_gam_e,Num_lag
-    integer :: I_lag
+    integer :: I_gam_e,I_lag,I_cell
     real(8), intent(in) :: u_now_edge(Num_gam_e+1),u_edge(Num_gam_e+1),a_cell(Num_gam_e),b_cell(Num_gam_e),lag_arr(Num_lag)
     real(8), intent(out) :: x_back_batch(Num_gam_e+1,Num_lag)
+    real(8) :: u_prev
     do I_lag=1,Num_lag
-        call electron_trace_piecewise_affine_u_edges(Num_gam_e,u_now_edge,u_edge,a_cell,b_cell,lag_arr(I_lag),x_back_batch(:,I_lag))
+        I_cell=1
+        do I_gam_e=1,Num_gam_e+1
+            call electron_find_u_cell_desc_hint(Num_gam_e,u_edge,u_now_edge(I_gam_e),I_cell)
+            call electron_trace_piecewise_affine_u_edge_from_cell(Num_gam_e,u_edge,a_cell,b_cell,lag_arr(I_lag), &
+                                                                  u_now_edge(I_gam_e),I_cell,u_prev)
+            x_back_batch(I_gam_e,I_lag)=electron_x_from_u(u_prev)
+        end do
     end do
 end subroutine electron_trace_piecewise_affine_u_edges_batch
 
@@ -693,24 +682,6 @@ subroutine electron_characteristic_update(Num_gam_e,dDR,x_edge,cooling_mode,a_u,
     call electron_characteristic_core(Num_gam_e,dDR,x_edge,x_back_batch,source_scale,dF1, &
                                            dN_x_in,dN_x_out)
 end subroutine electron_characteristic_update
-
-
-
-! 无源特征线冷却更新；用于已经离开注入面的纯冷却电子。
-subroutine electron_characteristic_cooling_update(Num_gam_e,dDR,x_edge,cooling_mode,a_u,b_u,gam_e,dEl,R_loc, &
-                                                  dN_x_in,dN_x_out,adiabatic_rate)
-    implicit none
-    integer, intent(in) :: Num_gam_e,cooling_mode
-    real(8), intent(in) :: dDR,x_edge(Num_gam_e+1),a_u,b_u,gam_e(Num_gam_e),dEl(Num_gam_e),R_loc,dN_x_in(Num_gam_e)
-    real(8), intent(in), optional :: adiabatic_rate
-    real(8), intent(out) :: dN_x_out(Num_gam_e)
-    real(8) :: dF_zero(Num_gam_e)
-
-    dF_zero=zero
-    call electron_characteristic_update(Num_gam_e,dDR,x_edge,cooling_mode,a_u,b_u,gam_e,dEl,R_loc, &
-                                        zero,dF_zero,dN_x_in,dN_x_out,adiabatic_rate)
-end subroutine electron_characteristic_cooling_update
-
 
 
 

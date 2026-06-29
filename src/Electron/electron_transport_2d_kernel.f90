@@ -3,8 +3,7 @@ module electron_transport_2d_kernel
   use constants
   use electron_transport_common, only: electron_prepare_implicit_coeffs_common, electron_backward_sweep_common, &
                              electron_prepare_conservative_remap_nonuniform, electron_ppm_prefix_eval_nonuniform, &
-                             electron_characteristic_update, electron_characteristic_cooling_update, &
-                             electron_cooling_affine, electron_cooling_piecewise
+                             electron_characteristic_update, electron_cooling_affine, electron_cooling_piecewise
   use electron_injection_profiles, only: electron_profile_log_cell_edges
   implicit none
   private
@@ -170,15 +169,6 @@ subroutine q_face_transport_coeffs(k_medium,R_loc,Num_chi,q_face,A_q_face)
         A_q_face(I_face) = q_face_transport_coeff(k_medium,R_loc,q_face(I_face))
     end do
 end subroutine q_face_transport_coeffs
-
-subroutine q_face_transport_coeffs_all(k_medium,R_loc,Num_chi,q_face,A_q_face)
-    integer, intent(in) :: k_medium,Num_chi
-    real(8), intent(in) :: R_loc,q_face(0:Num_chi)
-    real(8), intent(out) :: A_q_face(0:Num_chi)
-
-    call q_face_transport_coeffs(k_medium, R_loc, Num_chi, q_face, A_q_face(1:))
-    A_q_face(0) = q_face_transport_coeff(k_medium, R_loc, q_face(0))
-end subroutine q_face_transport_coeffs_all
 
 ! 估计q方向对流子步长限制。
 real(8) function compute_q_step_limit(Num_chi,k_medium,R_loc,dq,q_face,cfl_factor)
@@ -441,7 +431,8 @@ subroutine advance_q_advection_charint(U_log, Num_gam_e, Num_chi, active_hi, dq,
     real(8) :: ppm_left(Num_chi), ppm_right(Num_chi), prefix(0:Num_chi)
     integer :: I_gam_e, I_face
 
-    call q_face_transport_coeffs_all(k_medium, R_loc, Num_chi, q_face, A_q_face)
+    call q_face_transport_coeffs(k_medium, R_loc, Num_chi, q_face, A_q_face(1:))
+    A_q_face(0) = q_face_transport_coeff(k_medium, R_loc, q_face(0))
     call eta_trace_back_faces_piecewise(Num_chi, dR_step, q_face, A_q_face, q_back)
 
     do I_gam_e = 1, active_hi
@@ -655,12 +646,13 @@ subroutine advance_energy_loggamma_chi_charint(U_log, Num_gam_e, Num_chi, gam_e,
     real(8), intent(in) :: R_loc, Gamma_sh, beta_sh, dR_step
     real(8), intent(in), optional :: source_q1(Num_gam_e)
 
-    real(8) :: x_edge(Num_gam_e+1), U_in(Num_gam_e), U_out(Num_gam_e)
+    real(8) :: x_edge(Num_gam_e+1), U_in(Num_gam_e), U_out(Num_gam_e), source_zero(Num_gam_e)
     real(8) :: a_rad, b_ad, shock_four_velocity
     integer :: I_chi, chi_hi, cooling_mode
     logical :: source_column
 
     call electron_profile_log_cell_edges(Num_gam_e, gam_e, x_edge)
+    source_zero = zero
 
     chi_hi = Num_chi
     if (present(active_chi_hi)) chi_hi = max(1, min(Num_chi, active_chi_hi))
@@ -682,9 +674,9 @@ subroutine advance_energy_loggamma_chi_charint(U_log, Num_gam_e, Num_chi, gam_e,
                                                  a_rad, b_ad, gam_e, dEl_chi(:,I_chi), R_loc, &
                                                  one, source_q1, U_in, U_out)
         else
-            call electron_characteristic_cooling_update(Num_gam_e, dR_step, x_edge, cooling_mode, &
-                                                        a_rad, b_ad, gam_e, dEl_chi(:,I_chi), R_loc, &
-                                                        U_in, U_out)
+            call electron_characteristic_update(Num_gam_e, dR_step, x_edge, cooling_mode, &
+                                                a_rad, b_ad, gam_e, dEl_chi(:,I_chi), R_loc, &
+                                                zero, source_zero, U_in, U_out)
         end if
         U_log(:, I_chi) = U_out
     end do

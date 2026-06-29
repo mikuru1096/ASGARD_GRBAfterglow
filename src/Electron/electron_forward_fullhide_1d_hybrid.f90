@@ -14,7 +14,7 @@ subroutine fs_electron_fullhide_1d_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,
     use electron_common
     use electron_injection_profiles, only: electron_build_source_term_exp_cutoff_edges, electron_add_thermal_source_term, &
                                            electron_profile_log_cell_edges
-    use electron_radiation_kernel, only: get_nu_a, get_syn_selected
+    use electron_radiation_kernel, only: get_nu_a, get_syn_selected_state
     use electron_cooling_kernel, only: get_forward_cooling
     use electron_transport_common, only: electron_fullhide_step, electron_dnx_to_dndgamma_exp_centers
     use hybrid_spectrum_kernel_fast, only: normalized_hybrid_spec_lg
@@ -34,6 +34,7 @@ subroutine fs_electron_fullhide_1d_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,
     character(len=32) :: diag_env
     real(8) :: dDR_xi,ln10
     real(8) :: n_before_step,n_after_step,inj_step,rel_loss_xi_max
+    real(8) :: P_emit_tmp(Num_nu),Tau_syn_tmp(Num_nu)
     allocate (dEl(Num_gam_e),dEL_mean(Num_gam_e-1),x(Num_gam_e),dN_x(Num_gam_e), &
               dN_full(Num_gam_e), &
               x_edge(Num_gam_e+1),dN_half(Num_gam_e),dN_half2(Num_gam_e),dF1(Num_gam_e),dEL_mean_base(Num_gam_e-1), &
@@ -115,8 +116,9 @@ subroutine fs_electron_fullhide_1d_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,
         call get_nu_a(R_loc,DB,Num_gam_rad,gam_e_rad(1:Num_gam_rad),dN_gam_e_rad(1:Num_gam_rad),temp)
         V_a(I_tobs-1)=temp/(R_Gamma_loc*(1d0-beta_Gam)*(one+z))
 
-        call get_syn_selected(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads, &
-                              gam_e,dN_gam_e(:,I_tobs-1),V_seed,P_syn(:,I_tobs),Seed_syn(:,I_tobs))
+        call get_syn_selected_state(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads, &
+                                    gam_e,dN_gam_e(:,I_tobs-1),V_seed,P_emit_tmp,P_syn(:,I_tobs), &
+                                    Seed_syn(:,I_tobs),Tau_syn_tmp)
         
         call get_forward_cooling(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc, &
                                  R_Gamma_loc,beta_Gam,dNe,Num_gam_e,Num_nu,n_threads,gam_e,V_seed, &

@@ -28,8 +28,8 @@ subroutine hadronic_hadronic_ic_initialize_kernel(num_had,hadron_energy_gev,num_
     integer, intent(out) :: delta_e_mu(num_had),jmax_mu(num_had)
     real(8) :: dln_had,dln_ph
 
-    dln_had = hadronic_hadronic_ic_log_spacing(num_had,hadron_energy_gev)
-    dln_ph = hadronic_hadronic_ic_log_spacing(num_ph,photon_energy_gev)
+    call hadronic_validate_log_grid(num_had,hadron_energy_gev,"hadronic_IC_hadron_grid",dln_had)
+    call hadronic_validate_log_grid(num_ph,photon_energy_gev,"hadronic_IC_photon_grid",dln_ph)
     if (dabs(dln_had-dln_ph) > dmax1(1d-12,1d-10*dabs(dln_had))) then
         error stop "hadronic IC requires hadron/photon grids with the same logarithmic spacing."
     end if
@@ -170,14 +170,5 @@ real(8) function hadronic_hadronic_ic_coeff(mass_gev)
     mass_ratio = mass_gev/am3_mass_electron_gev
     hadronic_hadronic_ic_coeff = am3_c_cgs*am3_sigma_t_cgs/(mass_ratio*mass_ratio)
 end function hadronic_hadronic_ic_coeff
-
-! 获取能量网格的对数间距（调用验证逻辑）。
-real(8) function hadronic_hadronic_ic_log_spacing(num_grid,energy_grid)
-    integer, intent(in) :: num_grid
-    real(8), intent(in) :: energy_grid(num_grid)
-    real(8) :: dln_local
-    call hadronic_validate_log_grid(num_grid,energy_grid,"hadronic_IC_grid",dln_local)
-    hadronic_hadronic_ic_log_spacing = dln_local
-end function hadronic_hadronic_ic_log_spacing
 
 end module hadronic_hadronic_ic_kernel

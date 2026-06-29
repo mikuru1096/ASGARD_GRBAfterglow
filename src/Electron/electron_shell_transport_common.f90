@@ -4,7 +4,6 @@ module electron_shell_transport_common
     use electron_energy_coordinate_common, only: electron_coord_log_four_velocity_sq, electron_dxgamma_dcoord
     use electron_transport_common, only: electron_fullhide_flux_split_step, &
                                          electron_fullhide_flux_split_step_nonuniform, &
-                                         electron_fullhide_flux_split_sequence_nonuniform, &
                                          electron_prepare_exponential_source_remap
     implicit none
     private
@@ -12,9 +11,8 @@ module electron_shell_transport_common
     integer, parameter, public :: electron_solver_fullhide_1d = 1
     integer, parameter, public :: electron_solver_dg_1d = 2
 
-    public :: electron_resolve_1d_solver_id, electron_shell_flux_split_step
+    public :: electron_resolve_1d_solver_id
     public :: electron_shell_flux_split_coord_step, electron_shell_dcoord_to_dndgamma_exp_centers
-    public :: electron_shell_flux_split_coord_sequence
 
 contains
 
@@ -26,16 +24,6 @@ integer function electron_resolve_1d_solver_id(solver_id) result(resolved)
     if (resolved /= electron_solver_fullhide_1d .and. resolved /= electron_solver_dg_1d) &
         error stop 'electron_resolve_1d_solver_id: unsupported electron solver id.'
 end function electron_resolve_1d_solver_id
-
-subroutine electron_shell_flux_split_step(Num_gam_e,dDR,d_x,dEl,adiabatic_rate,dF1,dN_x_in,dN_x_out)
-    integer, intent(in) :: Num_gam_e
-    real(8), intent(in) :: dDR,d_x,dEl(Num_gam_e),adiabatic_rate,dF1(Num_gam_e),dN_x_in(Num_gam_e)
-    real(8), intent(out) :: dN_x_out(Num_gam_e)
-    real(8) :: face_speed(Num_gam_e-1)
-
-    face_speed=((dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/two+adiabatic_rate)/dlog(ten)
-    call electron_fullhide_flux_split_step(Num_gam_e,dDR,d_x,face_speed,dF1,dN_x_in,dN_x_out,.true.)
-end subroutine electron_shell_flux_split_step
 
 subroutine electron_shell_flux_split_coord_step(Num_gam_e,dDR,coord_edge,coord_scale,dEl,adiabatic_rate, &
                                                 dF1,dN_coord_in,dN_coord_out)
@@ -54,17 +42,6 @@ subroutine electron_shell_flux_split_coord_step(Num_gam_e,dDR,coord_edge,coord_s
     call electron_fullhide_flux_split_step_nonuniform(Num_gam_e,dDR,coord_edge,face_speed,dF1, &
                                                       dN_coord_in,dN_coord_out,.true.)
 end subroutine electron_shell_flux_split_coord_step
-
-subroutine electron_shell_flux_split_coord_sequence(Num_gam_e,coord_edge,face_displacement,source_step, &
-                                                    dN_coord_in,dN_coord_out)
-    integer, intent(in) :: Num_gam_e
-    real(8), intent(in) :: coord_edge(Num_gam_e+1),face_displacement(Num_gam_e-1),source_step(Num_gam_e)
-    real(8), intent(in) :: dN_coord_in(Num_gam_e)
-    real(8), intent(out) :: dN_coord_out(Num_gam_e)
-
-    call electron_fullhide_flux_split_sequence_nonuniform(Num_gam_e,coord_edge,face_displacement,source_step, &
-                                                          dN_coord_in,dN_coord_out,.true.)
-end subroutine electron_shell_flux_split_coord_sequence
 
 subroutine electron_shell_dcoord_to_dndgamma_exp_centers(Num_gam_e,coord_edge,coord_scale,gam_e,dN_coord,dN_gam_e)
     integer, intent(in) :: Num_gam_e

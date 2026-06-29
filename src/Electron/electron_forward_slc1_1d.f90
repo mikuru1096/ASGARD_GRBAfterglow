@@ -7,7 +7,7 @@ subroutine fs_electron_slc1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,N
     use electron_common
     use electron_transport_common, only: electron_semi_lagrangian_step, electron_dnx_to_dndgamma_exp_centers
     use electron_injection_profiles, only: electron_build_source_term_exp_cutoff_edges
-    use electron_radiation_kernel, only: get_nu_a, get_syn_selected
+    use electron_radiation_kernel, only: get_nu_a, get_syn_selected_state
     use electron_cooling_kernel, only: get_forward_cooling
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads
@@ -17,6 +17,7 @@ subroutine fs_electron_slc1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,N
 
     real(8), allocatable :: dEl(:),dEL_mean(:),dEL_mean_base(:),dN_x(:),dN_step(:),dF1(:),x_edge(:)
     real(8), allocatable :: gam_e_rad(:),dN_gam_e_rad(:)
+    real(8) :: P_emit_tmp(Num_nu),Tau_syn_tmp(Num_nu)
     logical :: is_uniform_density,anchor_gamma_m,anchor_gamma_c
     integer :: Num_gam_rad
 
@@ -73,8 +74,9 @@ subroutine fs_electron_slc1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,N
         call get_nu_a(R_loc,DB,Num_gam_rad,gam_e_rad(1:Num_gam_rad),dN_gam_e_rad(1:Num_gam_rad),temp)
         V_a(I_tobs-1)=temp/(R_Gamma_loc*(1d0-beta_Gam)*(one+z))
 
-        call get_syn_selected(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads, &
-                              gam_e,dN_gam_e(:,I_tobs-1),V_seed,P_syn(:,I_tobs),Seed_syn(:,I_tobs))
+        call get_syn_selected_state(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads, &
+                                    gam_e,dN_gam_e(:,I_tobs-1),V_seed,P_emit_tmp,P_syn(:,I_tobs), &
+                                    Seed_syn(:,I_tobs),Tau_syn_tmp)
         call get_forward_cooling(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc, &
                                  R_Gamma_loc,beta_Gam,dNe,Num_gam_e,Num_nu,n_threads,gam_e,V_seed, &
                                  P_syn(:,I_tobs),Seed_syn(:,I_tobs),dEl)

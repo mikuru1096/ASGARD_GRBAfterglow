@@ -216,7 +216,7 @@ real(8) :: amp_p,amp_seed
             if (dx_hist(I_src_chi,prev_t) <= zero) error stop 'history stream cell requires positive dx_hist'
             weight = (seg_hi-seg_lo)/dx_hist(I_src_chi,prev_t)
             x_src = 0.5d0*(seg_lo+seg_hi)
-            call accumulate_source_cell(I_src_chi,x_src,I_tgt_chi,weight)
+            call accumulate_mapped_cell(I_src_chi,x_src,I_tgt_chi,weight,P_hist(:,:,prev_t),Seed_hist(:,:,prev_t))
         end do
     end do
     P_stream = P_next
@@ -230,13 +230,6 @@ contains
     real(8), intent(in) :: x_src_pos
         call accumulate_mapped_cell(src_chi,x_src_pos,tgt_chi,one,P_stream,Seed_stream)
     end subroutine accumulate_stream_cell
-
-    subroutine accumulate_source_cell(src_chi,x_src_pos,tgt_chi,source_weight)
-    implicit none
-    integer, intent(in) :: src_chi,tgt_chi
-    real(8), intent(in) :: x_src_pos,source_weight
-        call accumulate_mapped_cell(src_chi,x_src_pos,tgt_chi,source_weight,P_hist(:,:,prev_t),Seed_hist(:,:,prev_t))
-    end subroutine accumulate_source_cell
 
     subroutine accumulate_mapped_cell(src_chi,x_src_pos,tgt_chi,source_weight,P_src,Seed_src)
     implicit none

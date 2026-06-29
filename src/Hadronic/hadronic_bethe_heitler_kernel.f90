@@ -31,13 +31,9 @@ subroutine hadronic_bethe_heitler_operator(num_p,proton_energy_gev,proton_densit
     integer :: j_p,k_ph,i_e
     real(8) :: kernel_value
 
-    call hadronic_validate_log_grid(num_p,proton_energy_gev,"proton_energy_gev")
-    call hadronic_validate_log_grid(num_ph,photon_energy_gev,"photon_energy_gev")
-    call hadronic_validate_log_grid(num_e,electron_energy_gev,"electron_energy_gev")
-
-    dln_ep = hadronic_uniform_log_spacing(num_p,proton_energy_gev,"proton_energy_gev")
-    dln_eph = hadronic_uniform_log_spacing(num_ph,photon_energy_gev,"photon_energy_gev")
-    dln_ee = hadronic_uniform_log_spacing(num_e,electron_energy_gev,"electron_energy_gev")
+    call hadronic_validate_log_grid(num_p,proton_energy_gev,"proton_energy_gev",dln_ep)
+    call hadronic_validate_log_grid(num_ph,photon_energy_gev,"photon_energy_gev",dln_eph)
+    call hadronic_validate_log_grid(num_e,electron_energy_gev,"electron_energy_gev",dln_ee)
 
     proton_log_density = proton_energy_gev*proton_density_per_gev
     photon_log_density = photon_energy_gev*photon_density_per_gev
@@ -85,16 +81,6 @@ contains
         bh_proton_loss_point = -k_loss_rate*dln_eph*hadronic_bh_kernel_proton_loss(gp,eph)*photon_log_value
     end function bh_proton_loss_point
 end subroutine hadronic_bethe_heitler_operator
-
-! 检查网格为对数均匀并返回对数间距。
-real(8) function hadronic_uniform_log_spacing(num_values,values,name)
-    integer, intent(in) :: num_values
-    real(8), intent(in) :: values(num_values)
-    character(*), intent(in) :: name
-    real(8) :: dln_local
-    call hadronic_validate_log_grid(num_values,values,name,dln_local)
-    hadronic_uniform_log_spacing = dln_local
-end function hadronic_uniform_log_spacing
 
 ! Bethe-Heitler电子产生核：计算给定质子/光子能量下产生能量为ee的电子的微分谱。
 real(8) function hadronic_bh_kernel_electron_generation(ee,gp,eph)

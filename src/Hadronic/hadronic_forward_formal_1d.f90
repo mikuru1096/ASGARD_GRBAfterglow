@@ -42,7 +42,7 @@ subroutine hadronic_forward_formal_transport_1d_impl(R_Tobs,R_Gamma,R,B_field_g,
     real(8), intent(out) :: P_had_muon_ic(Num_nu,Num_R),tau_pg(Num_nu,Num_R)
     real(8), intent(out) :: pg_photon_survival(Num_nu,Num_R),am3_process_power(3,num_gam_p,Num_R)
     integer :: i_r,i_nu_out,num_align
-    real(8) :: dt_s,t_dyn_s,gam_p_min,gam_p_max_global,shell_volume,divergence_rate,dln_had
+    real(8) :: dt_s,t_dyn_s,dr_shell,gam_p_min,gam_p_max_global,shell_volume,divergence_rate,dln_had
     real(8) :: shell_volumes(Num_R)
     real(8) :: hadron_energy(num_gam_p),photon_energy(Num_nu),electron_energy(Num_e),zero_rate(num_gam_p)
     real(8) :: neutrino_energy(num_nu_nu)
@@ -95,7 +95,7 @@ subroutine hadronic_forward_formal_transport_1d_impl(R_Tobs,R_Gamma,R,B_field_g,
     call hadronic_forward_shell_volumes(Num_R,R,shell_volumes)
 
     do i_r=1,Num_R
-        call hadronic_forward_shell_comoving_dt(Num_R,R,R_Gamma,i_r,dt_s)
+        call hadronic_sequence_shell_geometry(Num_R,R,R_Gamma,i_r,dr_shell,dt_s)
         call hadronic_forward_dynamical_time(R(i_r),R_Gamma(i_r),t_dyn_s)
         gam_p_min=max(gam_p(1),R_Gamma(i_r))
         shell_volume=shell_volumes(i_r)

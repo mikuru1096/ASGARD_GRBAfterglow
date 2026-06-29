@@ -1,13 +1,12 @@
 module electron_radiation_kernel
   use constants
-  use radiation_common, only: radiation_syn_seed_core, radiation_syn_seed_chi_batch_core, radiation_syn_kernel_value, &
+  use radiation_common, only: radiation_syn_seed_chi_batch_core, radiation_syn_kernel_value, &
                               radiation_transfer_factor
   use synchrotron_polarization_kernel, only: synchrotron_polarized_components
   private
 
  public :: first_greater_monotonic, first_greater_monotonic_window
-    public :: besselk, get_syn_state, get_syn_selected, get_syn_selected_state
-    public :: get_syn_chi_batch_state
+    public :: besselk, get_syn_selected_state
     public :: get_syn_transfer, get_syn_polarization_selected, get_nu_a
     public :: get_nu_a_2d_path, get_nu_a_2d_cell_path, reduce_syn_shell_from_chi
     public :: build_reduced_log_grid, project_syn_state_logbands
@@ -138,11 +137,11 @@ function besselk(var)
 end function besselk
 
 
-subroutine get_syn_simpson_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
-                                 P_emit,P_syn,Seed_syn,Tau_syn)
+subroutine get_syn_selected_state(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
+                                  P_emit,P_syn,Seed_syn,Tau_syn)
 !$ use omp_lib
 implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: Num_gam_e,Num_nu,n_threads
+integer, intent(in) :: index_syn_intger,Num_gam_e,Num_nu,n_threads
 real(8), intent(in) :: R_loc,DB,gam_e(Num_gam_e),dN_gam_e(Num_gam_e),V_seed(Num_nu)
 real(8), intent(out) :: P_emit(Num_nu),P_syn(Num_nu),Seed_syn(Num_nu),Tau_syn(Num_nu)
 real(8) :: dN1(Num_gam_e),ddN(Num_gam_e-1),simpson_weight(Num_gam_e),emit_weight(Num_gam_e)
@@ -240,7 +239,7 @@ real(8) :: V_cal,dInteg,Tau,P_v
     P_syn(I_nu)=P_v*(one-dexp(-Tau))/Tau
     Seed_syn(I_nu)=P_syn(I_nu)/(Rariv2*V_cal)
 end subroutine accumulate_simpson_syn_point
-end subroutine get_syn_simpson_state
+end subroutine get_syn_selected_state
 
 ! 构建约化对数频率网格：在85%高频处加密采样，用于冷却计算的轻量级频率表。
 subroutine build_reduced_log_grid(Num_nu_in,V_in,Num_nu_out,V_out)
@@ -303,28 +302,6 @@ real(8) :: V_tar
         Tau_out(I_out)=max(electron_powerlaw_interp(V_in(idx_lo),V_in(idx_hi),Tau_in(idx_lo),Tau_in(idx_hi),V_tar),1d-4)
     end do
 end subroutine project_syn_state_logbands
-
-! 调用radiation_syn_seed_core计算同步辐射发射功率、SSA光深、转移后谱和种子光子场。
-subroutine get_syn_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
-                         P_emit,P_syn,Seed_syn,Tau_syn)
-implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: Num_gam_e,Num_nu,n_threads
-real(8), intent(in) :: R_loc,DB,gam_e(Num_gam_e),dN_gam_e(Num_gam_e),V_seed(Num_nu)
-real(8), intent(out) ::P_emit(Num_nu),P_syn(Num_nu),Seed_syn(Num_nu),Tau_syn(Num_nu)
-    call radiation_syn_seed_core(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed,1.046d4, &
-                                 P_emit,P_syn,Seed_syn,Tau_syn)
-end subroutine get_syn_state
-
-subroutine get_syn_chi_batch_state(R_loc,Num_gam_e,Num_nu,Num_chi,gam_e,DNe_chi,V_seed,DB_chi, &
-                                   P_emit,P_syn,Seed_syn,Tau_syn)
-implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: Num_gam_e,Num_nu,Num_chi
-real(8), intent(in) :: R_loc,gam_e(Num_gam_e),DNe_chi(Num_gam_e,Num_chi),V_seed(Num_nu),DB_chi(Num_chi)
-real(8), intent(out) :: P_emit(Num_nu,Num_chi),P_syn(Num_nu,Num_chi),Seed_syn(Num_nu,Num_chi),Tau_syn(Num_nu,Num_chi)
-
-    call radiation_syn_seed_chi_batch_core(R_loc,Num_gam_e,Num_nu,Num_chi,gam_e,DNe_chi,V_seed,DB_chi,1.046d4, &
-                                           P_emit,P_syn,Seed_syn,Tau_syn)
-end subroutine get_syn_chi_batch_state
 
 ! 同步+非相对论回旋发射核：γ<2 的电子使用基频回旋发射，γ>=2 仍走标准同步核。
 
@@ -553,32 +530,6 @@ real(8) :: p3_l,p3_r,t3_l,t3_r
     end if
 end subroutine electron_syn_cell_adaptive
 
-! 自适应同步辐射计算：发射率自适应积分，SSA光深按有限体积端点差守恒积分。
-
-    ! 同步辐射计算选择器：index=4 在标准同步核之外加入非相对论回旋基频发射。
-subroutine get_syn_selected(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
-                            P_syn,Seed_syn)
-implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: index_syn_intger,Num_gam_e,Num_nu,n_threads
-real(8), intent(in) :: R_loc,DB,gam_e(Num_gam_e),dN_gam_e(Num_gam_e),V_seed(Num_nu)
-real(8), intent(out) :: P_syn(Num_nu),Seed_syn(Num_nu)
-real(8) :: P_emit(Num_nu),Tau_syn(Num_nu)
-
-    call get_syn_selected_state(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
-                                P_emit,P_syn,Seed_syn,Tau_syn)
-end subroutine get_syn_selected
-
-subroutine get_syn_selected_state(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
-                                  P_emit,P_syn,Seed_syn,Tau_syn)
-implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: index_syn_intger,Num_gam_e,Num_nu,n_threads
-real(8), intent(in) :: R_loc,DB,gam_e(Num_gam_e),dN_gam_e(Num_gam_e),V_seed(Num_nu)
-real(8), intent(out) :: P_emit(Num_nu),P_syn(Num_nu),Seed_syn(Num_nu),Tau_syn(Num_nu)
-
-    call get_syn_simpson_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
-                               P_emit,P_syn,Seed_syn,Tau_syn)
-end subroutine get_syn_selected_state
-
 ! 同步辐射偏振核：现有总谱给强度，F/G偏振核直接积分给频率依赖Pi。
 subroutine get_syn_polarization_selected(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads, &
                                          gam_e,dN_gam_e,V_seed,p_index,P_perp,P_parallel,Pi_nu)
@@ -586,11 +537,11 @@ implicit none
 integer, intent(in) :: index_syn_intger,Num_gam_e,Num_nu,n_threads
 real(8), intent(in) :: R_loc,DB,gam_e(Num_gam_e),dN_gam_e(Num_gam_e),V_seed(Num_nu),p_index
 real(8), intent(out) :: P_perp(Num_nu),P_parallel(Num_nu),Pi_nu(Num_nu)
-real(8) :: P_syn(Num_nu),Seed_syn(Num_nu),Pi_emit(Num_nu)
+real(8) :: P_emit(Num_nu),P_syn(Num_nu),Seed_syn(Num_nu),Tau_syn(Num_nu),Pi_emit(Num_nu)
 
     if (p_index <= zero) error stop "get_syn_polarization_selected requires p_index > 0."
-    call get_syn_selected(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
-                          P_syn,Seed_syn)
+    call get_syn_selected_state(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
+                                P_emit,P_syn,Seed_syn,Tau_syn)
     call get_syn_polarization_fraction(DB,Num_gam_e,Num_nu,gam_e,dN_gam_e,V_seed,Pi_emit)
     Pi_nu=Pi_emit
     P_perp=0.5d0*(one+Pi_nu)*P_syn
@@ -638,13 +589,16 @@ implicit none
 integer, intent(in) :: Num_gam_e,Num_nu,n_threads
 real(8), intent(in) :: R_loc,DB,gam_e(Num_gam_e),dN_gam_e(Num_gam_e),V_seed(Num_nu)
 real(8), intent(out) :: Transfer_syn(Num_nu)
-real(8) :: P_emit(Num_nu),P_syn(Num_nu),Seed_syn(Num_nu),Tau_syn(Num_nu)
+real(8) :: DB_chi(1),DNe_chi(Num_gam_e,1),P_emit(Num_nu,1),P_syn(Num_nu,1),Seed_syn(Num_nu,1),Tau_syn(Num_nu,1)
 integer :: I_nu
 
-    call get_syn_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed,P_emit,P_syn,Seed_syn,Tau_syn)
+    DB_chi(1)=DB
+    DNe_chi(:,1)=dN_gam_e
+    call radiation_syn_seed_chi_batch_core(R_loc,Num_gam_e,Num_nu,1,gam_e,DNe_chi,V_seed,DB_chi,1.046d4, &
+                                           P_emit,P_syn,Seed_syn,Tau_syn)
     do I_nu=1,Num_nu
-        if (P_emit(I_nu) > 0d0 .and. P_syn(I_nu) >= 0d0) then
-            Transfer_syn(I_nu)=P_syn(I_nu)/P_emit(I_nu)
+        if (P_emit(I_nu,1) > 0d0 .and. P_syn(I_nu,1) >= 0d0) then
+            Transfer_syn(I_nu)=P_syn(I_nu,1)/P_emit(I_nu,1)
         else
             Transfer_syn(I_nu)=one
         end if

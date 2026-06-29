@@ -46,10 +46,10 @@ subroutine hadronic_pp_delta_operator(num_p,proton_energy_gev,proton_density_per
 contains
 
     subroutine validate_pp_delta_inputs
-        call hadronic_pp_validate_grid(num_p,proton_energy_gev,"proton_energy_gev")
-        call hadronic_pp_validate_grid(num_gamma,gamma_energy_gev,"gamma_energy_gev")
-        call hadronic_pp_validate_grid(num_nu,neutrino_energy_gev,"neutrino_energy_gev")
-        call hadronic_pp_validate_grid(num_pair,pair_energy_gev,"pair_energy_gev")
+        call hadronic_validate_log_grid(num_p,proton_energy_gev,"proton_energy_gev")
+        call hadronic_validate_log_grid(num_gamma,gamma_energy_gev,"gamma_energy_gev")
+        call hadronic_validate_log_grid(num_nu,neutrino_energy_gev,"neutrino_energy_gev")
+        call hadronic_validate_log_grid(num_pair,pair_energy_gev,"pair_energy_gev")
 
         if (target_proton_density_cm3 < zero) then
             error stop "hadronic_pp_delta_operator: target_proton_density_cm3 must be non-negative."
@@ -105,7 +105,7 @@ subroutine hadronic_pp_sigma_inelastic_kelner2006(num_p,proton_energy_gev,sigma_
     integer :: i_p
     real(8) :: kinetic_energy_gev,threshold_gev,ratio,log_term,cutoff
 
-    call hadronic_pp_validate_grid(num_p,proton_energy_gev,"proton_energy_gev")
+    call hadronic_validate_log_grid(num_p,proton_energy_gev,"proton_energy_gev")
     if (minval(proton_energy_gev) <= proton_mass_gev) then
         error stop "hadronic_pp_sigma_inelastic_kelner2006: proton_energy_gev must exceed proton rest energy."
     end if
@@ -154,7 +154,7 @@ subroutine hadronic_pp_loglog_interp_positive(num_x,x,y,num_x_new,x_new,y_new)
     real(8) :: xp(num_x),yp(num_x)
     integer :: i,ipos
 
-    call hadronic_pp_validate_grid(num_x,x,"interpolation x")
+    call hadronic_validate_log_grid(num_x,x,"interpolation x")
 
     num_positive = 0
     do i=1,num_x
@@ -220,14 +220,5 @@ real(8) function hadronic_pp_loglog_linear_eval(x0,x1,y0,y1,x_eval)
     frac = (lx_eval - lx0)/(lx1 - lx0)
     hadronic_pp_loglog_linear_eval = ly0 + frac*(ly1 - ly0)
 end function hadronic_pp_loglog_linear_eval
-
-! 验证网格为非空且对数均匀（包装hadronic_validate_log_grid）。
-subroutine hadronic_pp_validate_grid(num_x,x,name)
-    integer, intent(in) :: num_x
-    real(8), intent(in) :: x(num_x)
-    character(*), intent(in) :: name
-
-    call hadronic_validate_log_grid(num_x,x,name)
-end subroutine hadronic_pp_validate_grid
 
 end module hadronic_pp_kernel

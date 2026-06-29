@@ -3,7 +3,7 @@ module hadronic_pair_cascade_kernel
     use constants
     use hadronic_common, only: hadronic_electron_mass_gev, hadronic_validate_log_grid
     use hadronic_pair_production_kernel, only: hadronic_pair_production_operator
-    use electron_radiation_kernel, only: get_syn_selected
+    use electron_radiation_kernel, only: get_syn_selected_state
     implicit none
     private
 
@@ -218,13 +218,15 @@ contains
         integer, intent(in) :: i_shell_in
         real(8), intent(in) :: pair_state(num_e)
         real(8), intent(out) :: p_syn(num_ph),seed_syn(num_ph)
+        real(8) :: p_emit_tmp(num_ph),tau_syn_tmp(num_ph)
 
         if (b_field_g(i_shell_in) == zero) then
             p_syn=zero; seed_syn=zero
             return
         end if
-        call get_syn_selected(index_syn_integr,radius_cm(i_shell_in),b_field_g(i_shell_in), &
-                              num_e,num_ph,num_threads,gm_e,pair_state,frequency_hz,p_syn,seed_syn)
+        call get_syn_selected_state(index_syn_integr,radius_cm(i_shell_in),b_field_g(i_shell_in), &
+                                    num_e,num_ph,num_threads,gm_e,pair_state,frequency_hz,p_emit_tmp,p_syn, &
+                                    seed_syn,tau_syn_tmp)
     end subroutine pair_synchrotron_state
 end subroutine hadronic_cascade_sequence
 

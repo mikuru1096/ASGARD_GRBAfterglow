@@ -1485,7 +1485,7 @@ def _solve_shell_syn(args):
     i, radius, bfield, index_syn, gam_e, d_n_gam_e_col, v_seed = args
     if bfield <= 0.0:
         return i, None, None
-    p_syn, seed_syn = electron_radiation_module.get_syn_selected(
+    _, p_syn, seed_syn, _ = electron_radiation_module.get_syn_selected_state(
         index_syn, float(radius), float(bfield), 1, gam_e, d_n_gam_e_col, v_seed)
     return i, p_syn, seed_syn
 

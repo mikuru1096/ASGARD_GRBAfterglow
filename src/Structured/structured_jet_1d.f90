@@ -377,7 +377,7 @@ subroutine structured_solve_element(Boundary,E_iso,Gamma0,V_seed,n,Num_nu,Num_R,
     use constants
     use dynamics_common, only: dynamics_external_density_profile, density_jump_max, rs_shell_matter_fraction
     use electron_shell_transport_common, only: electron_solver_dg_1d, electron_solver_fullhide_1d
-    use electron_radiation_kernel, only: get_syn_selected
+    use electron_radiation_kernel, only: get_syn_selected_state
     use electron_reverse_kernel, only: electron_reverse_evolve
     implicit none
     integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,index_dyn,index_Y,index_syn_intger,include_forward_ssc
@@ -410,7 +410,7 @@ subroutine structured_solve_element(Boundary,E_iso,Gamma0,V_seed,n,Num_nu,Num_R,
     real(8) :: Secondary_start_tobs_axis(density_jump_max),Secondary_end_tobs_axis(density_jump_max)
     real(8) :: T_cross,R_cross,e3_cross,gam20,U3_cross,V3_cross,M3_cross,gam_m_cross,B3_ordered_cross
     real(8), allocatable :: gam_e(:),dN_gam_e(:,:),P_syn(:,:),Seed_syn(:,:),P_ssc(:,:),Seed_ssc(:,:),B_field(:),shell_energy(:)
-    real(8) :: dNe,prev_radius,shell_volume
+    real(8) :: dNe,prev_radius,shell_volume,P_emit_tmp(Num_nu),Tau_syn_tmp(Num_nu)
     logical :: Secondary_event_active(density_jump_max)
     integer :: ir
 
@@ -500,8 +500,9 @@ subroutine structured_solve_element(Boundary,E_iso,Gamma0,V_seed,n,Num_nu,Num_R,
             reverse_target=M3(ir)/Para_m_p*reverse_f_e
             if (reverse_total > zero .and. reverse_target > zero) &
                 dN_gam_e_rev(:,ir)=dN_gam_e_rev(:,ir)*reverse_target/reverse_total
-            call get_syn_selected(index_syn_intger,R(ir),B3(ir),Num_gam_e,Num_nu,n_threads,gam_e_rev,dN_gam_e_rev(:,ir), &
-                                  V_seed,P_rev_syn(:,ir),Seed_rev_syn(:,ir))
+            call get_syn_selected_state(index_syn_intger,R(ir),B3(ir),Num_gam_e,Num_nu,n_threads,gam_e_rev, &
+                                        dN_gam_e_rev(:,ir),V_seed,P_emit_tmp,P_rev_syn(:,ir), &
+                                        Seed_rev_syn(:,ir),Tau_syn_tmp)
         end do
         rev_abs=P_rev_syn
         end block

@@ -8,10 +8,10 @@ ASGARD 的第一性原理主线是：先在局域壳层坐标中闭合动力学�
 
 | 对象 | 离散变量 | 核心公式 | 程序单元/调用路径 | 验收指纹 |
 | --- | --- | --- | --- | --- |
-| 半径主坐标 | `R(i)` | `dtprime/dR = 1/(beta Gamma c)` | `Dynamics_forward`, `Dynamics_reverse`, `hadronic_shell_dt`, `hadronic_forward_shell_comoving_dt` | 所有自然时间率进入电子/强子方程前先换算到 `R` 坐标。 |
+| 半径主坐标 | `R(i)` | `dtprime/dR = 1/(beta Gamma c)` | `Dynamics_forward`, `Dynamics_reverse`, `hadronic_sequence_shell_geometry` | 所有自然时间率进入电子/强子方程前先换算到 `R` 坐标。 |
 | log 能量谱 | `dN/dlog10(gamma)` | `dN_x = gamma ln(10) dN/dgamma` | `electron_injection_profiles`, `electron_transport_common`, `hadronic_common` | 粒子数积分用 `sum dN_x dx`，不能丢 Jacobian。 |
 | 2D 厚壳 | `q_grid/q_face/dq` | `chi_BM=(1-q)^[-(4-k)/(3-k)]` | `compute_q_geometry`, `q_geometry_point`, `sed_interpolation_chi` | `chi_grid` 只作 BM-equivalent 诊断，投影读 `chi_radius_cm`、`chi_gamma_bulk`、`chi_dvolume_weight`。 |
-| photon field | `Seed_syn(nu,R)` | `n_nu = u_nu/(h nu)` | `radiation_syn_seed_core`, `get_syn_state`, Python `photon_density_hz_to_gev` direct unit conversion | Observer luminosity 不能直接当 target density，必须经 shell volume/escape time/单位转换。 |
+| photon field | `Seed_syn(nu,R)` | `n_nu = u_nu/(h nu)` | `radiation_syn_seed_chi_batch_core`, Python `photon_density_hz_to_gev` direct unit conversion | Observer luminosity 不能直接当 target density，必须经 shell volume/escape time/单位转换。 |
 
 ## 2. 物理过程到程序单元
 
@@ -22,7 +22,7 @@ ASGARD 的第一性原理主线是：先在局域壳层坐标中闭合动力学�
 | 磁化 RS jump | 有限强度 MHD jump，`E_iso/[(1+sigma) Gamma0 c^2]` baryonic mass。 | `Dynamics_reverse` + `dynamics_common` | `rs_mag_comp`, `rs_b4_up`, `rs_mag_specific_internal`, `compute_ordered_magnetic_inertia` | `sigma -> 0` 回到 unmagnetized baseline，不能用 `4 gamma43 + 3` 替代有限强度极限。 |
 | 多密度增强次级 RS | 扫描 jump window，记录可触发的新 shock branch。 | `secondary_reverse_profile` | `secondary_reverse_scan_event_window`, `secondary_reverse_event_source`, `record_secondary_reverse_event_segment` | 只在密度增强和 pressure 条件允许时出现，分支权重随半径平滑。 |
 | 电子注入 | shock electron count 与能量预算归一化截断幂律/热分布。 | electron entry files | `electron_gamma_m_exact`, `electron_injection_prefactor`, `electron_build_source_term_exp_cutoff_edges`, `electron_build_thermal_shape_dnx` | `sum Q dx` 和能量矩同时闭合；`p≈2` 不用渐近公式替代精确归一化。 |
-| 1D fullhide 电子输运 | 隐式有限体积解 `partial_R N_x + partial_x(v_x N_x)=Q_x`。 | `fs_electron_fullhide_1d` | `prepare_fullhide_shell`, `electron_shell_flux_split_coord_sequence`, `get_forward_cooling` | 冷却谱不出现网格锯齿；`nu_a` 来自同一次 `Tau_syn` 网格。 |
+| 1D fullhide 电子输运 | 隐式有限体积解 `partial_R N_x + partial_x(v_x N_x)=Q_x`。 | `fs_electron_fullhide_1d` | `prepare_fullhide_shell`, `electron_fullhide_flux_split_sequence_nonuniform`, `get_forward_cooling` | 冷却谱不出现网格锯齿；`nu_a` 来自同一次 `Tau_syn` 网格。 |
 | joint coupled electron pass | 电子冷却 seed 和 secondary `Q_e,R` 进入同一 fullhide solve。 | `fs_electron_fullhide_1d_coupled` | `prepare_coupled_shell`, `electron_cooling_ic_loss_emissivity_budget` | 只在 `fullhide_1d + index_y=1 + am3_1d` 合同内运行；失败应暴露 grid contract。 |
 | DG 电子输运 | LGL 元、正性核和闭合低能边界。 | `fs_electron_dg_1d` | `electron_dg1d_advance_step`, `electron_dg1d_apply_positive_kernel_filter`, `electron_dg1d_closed_low_boundary_content` | DG 不是 smoothing；谱形、守恒量和断点位置共同验收。 |
 | WENO/T2G1/SLC/charint | 方法对照和数值诊断。 | `fs_electron_weno5_1d`, `fs_electron_t2g1_1d`, `fs_electron_slc1_1d`, `fs_electron_charint_1d` | `compute_weno_fluxes`, `advance_t2g1_substep`, `electron_characteristic_update` | 用于判别输运误差，不作为物理 fallback。 |

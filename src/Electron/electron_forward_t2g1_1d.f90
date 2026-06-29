@@ -12,7 +12,7 @@ subroutine fs_electron_t2g1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,N
     use dynamics_common, only: dynamics_external_density_profile
     use electron_common
     use electron_injection_profiles, only: electron_build_source_term_exp_cutoff_edges, electron_profile_log_cell_edges
-    use electron_radiation_kernel, only: get_nu_a, get_syn_selected
+    use electron_radiation_kernel, only: get_nu_a, get_syn_selected_state
     use electron_cooling_kernel, only: get_forward_cooling
     use electron_transport_common, only: electron_prepare_implicit_coeffs_common, electron_backward_sweep_common, &
                                          electron_dnx_to_dndgamma_exp_centers
@@ -26,6 +26,7 @@ subroutine fs_electron_t2g1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,N
     real(8) :: R_tr,f_jump,f_wide,R0,dNe,Para_N_e_ini,DB,Gam_e_max,DB_min,Gam_e_max_max
     real(8) :: temp_gam,Gam_e_m,Gam_e_c,d_x,R_loc,R_Gamma_loc,Gam_e_m_p,dNe_shell
     real(8) :: beta_Gam,f_r,dDR,dDD,CFL,temp,DB_step,Gam_e_max_step,Gam_e_m_step,Gam_e_m_p_step,Q
+    real(8) :: P_emit_tmp(Num_nu),Tau_syn_tmp(Num_nu)
     
     real(8),allocatable,dimension (:) :: dEl,dEL_mean,dEL_mean_base,principal,x,dF1,up,dot_gam_e_SSA, &
                                          dN_x,dN_x_prev,x_edge,temp1,temp2,temp3,temp4,para_maxwell,Compton,Compton1,dot_gam_e, &
@@ -127,9 +128,9 @@ contains
         call get_nu_a(R_loc,DB,Num_gam_rad,gam_e_rad(1:Num_gam_rad),dN_gam_e_rad(1:Num_gam_rad),temp)
         V_a(I_tobs-1)=temp/(R_Gamma_loc*(1d0-beta_Gam)*(one+z))
 
-        call get_syn_selected(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads, &
-                              gam_e,dN_gam_e(:,I_tobs-1),V_seed, &
-                              P_syn(:,I_tobs),Seed_syn(:,I_tobs))
+        call get_syn_selected_state(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads, &
+                                    gam_e,dN_gam_e(:,I_tobs-1),V_seed,P_emit_tmp, &
+                                    P_syn(:,I_tobs),Seed_syn(:,I_tobs),Tau_syn_tmp)
 
         call get_forward_cooling(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc, &
                                  R_Gamma_loc,beta_Gam,dNe,Num_gam_e,Num_nu,n_threads,gam_e,V_seed, &
