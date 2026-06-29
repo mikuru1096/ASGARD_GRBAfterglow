@@ -4,11 +4,15 @@ module hadronic_forward_shell_1d
     public :: hadronic_forward_pp_delta_shell
     public :: hadronic_forward_hadronic_ic_shell, hadronic_forward_hic_projected
     public :: hadronic_forward_species_transport_step, hadronic_forward_injection_content
-    public :: hadronic_forward_global_gamma_p_max, hadronic_forward_secondary_radiation_shell, hadronic_forward_secondary_radiation_projected
+    public :: hadronic_forward_global_gamma_p_max, hadronic_forward_secondary_radiation_shell
+    public :: hadronic_forward_secondary_radiation_projected
     public :: hadronic_forward_continuous_loss_rates, hadronic_forward_secondary_electron_sequence
-    public :: hadronic_forward_photon_loss_closure, hadronic_forward_interaction_effective_time, hadronic_forward_pgamma_proton_update
-    public :: hadronic_forward_proton_transport_step, hadronic_forward_exponential_sink, hadronic_forward_energy_luminosity_from_rate
-    public :: hadronic_forward_project_luminosity_from_rate, hadronic_forward_project_hic_luminosity, hadronic_forward_pair_source_content
+    public :: hadronic_forward_photon_loss_closure, hadronic_forward_interaction_effective_time
+    public :: hadronic_forward_pgamma_proton_update
+    public :: hadronic_forward_proton_transport_step, hadronic_forward_exponential_sink
+    public :: hadronic_forward_energy_luminosity_from_rate
+    public :: hadronic_forward_project_luminosity_from_rate, hadronic_forward_project_hic_luminosity
+    public :: hadronic_forward_pair_source_content
     public :: hadronic_forward_shell_density_per_gev, hadronic_forward_gamma_edges, hadronic_forward_photon_density_hz_to_gev
     public :: hadronic_forward_process_power, hadronic_forward_positive_loglog_interp, hadronic_forward_source_per_gamma
     public :: hadronic_forward_distribution_per_gev, hadronic_forward_aligned_photon_grid, hadronic_forward_shell_volumes

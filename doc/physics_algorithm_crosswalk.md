@@ -1,17 +1,17 @@
 # 物理算法交叉指南
 
-本文把“物理问题 -> 离散变量 -> Fortran 程序单元 -> 验收指纹”放在同一页。它不是 public API 说明；public API 见 `doc/public_api.md`，完整程序单元表见 `doc/fortran_kernel_index.md`。
+本文把“物理问题 -> 离散变量 -> 程序单元/调用路径 -> 验收指纹”放在同一页。它不是 public API 说明；public API 见 `doc/public_api.md`，完整程序单元表见 `doc/fortran_kernel_index.md`。
 
 ASGARD 的第一性原理主线是：先在局域壳层坐标中闭合动力学、粒子输运、光子场和强子源汇，再做等到达时间面投影。观测光变不是状态变量，不能用后处理平滑、经验 time shift 或 fallback 修补局域物理错误。
 
 ## 1. 共同坐标和守恒量
 
-| 对象 | 离散变量 | 核心公式 | Fortran 程序单元 | 验收指纹 |
+| 对象 | 离散变量 | 核心公式 | 程序单元/调用路径 | 验收指纹 |
 | --- | --- | --- | --- | --- |
-| 半径主坐标 | `R(i)` | `dtprime/dR = 1/(beta Gamma c)` | `Dynamics_forward`, `Dynamics_reverse`, `hadronic_shell_dt`, `fs_hadronic_shell_comoving_dt` | 所有自然时间率进入电子/强子方程前先换算到 `R` 坐标。 |
+| 半径主坐标 | `R(i)` | `dtprime/dR = 1/(beta Gamma c)` | `Dynamics_forward`, `Dynamics_reverse`, `hadronic_shell_dt`, `hadronic_forward_shell_comoving_dt` | 所有自然时间率进入电子/强子方程前先换算到 `R` 坐标。 |
 | log 能量谱 | `dN/dlog10(gamma)` | `dN_x = gamma ln(10) dN/dgamma` | `electron_injection_profiles`, `electron_transport_common`, `hadronic_common` | 粒子数积分用 `sum dN_x dx`，不能丢 Jacobian。 |
 | 2D 厚壳 | `q_grid/q_face/dq` | `chi_BM=(1-q)^[-(4-k)/(3-k)]` | `compute_q_geometry`, `q_geometry_point`, `sed_interpolation_chi` | `chi_grid` 只作 BM-equivalent 诊断，投影读 `chi_radius_cm`、`chi_gamma_bulk`、`chi_dvolume_weight`。 |
-| photon field | `Seed_syn(nu,R)` | `n_nu = u_nu/(h nu)` | `radiation_syn_seed_core`, `get_syn_state`, `fs_hadronic_photon_density_hz_to_gev` | Observer luminosity 不能直接当 target density，必须经 shell volume/escape time/单位转换。 |
+| photon field | `Seed_syn(nu,R)` | `n_nu = u_nu/(h nu)` | `radiation_syn_seed_core`, `get_syn_state`, Python `photon_density_hz_to_gev` direct unit conversion | Observer luminosity 不能直接当 target density，必须经 shell volume/escape time/单位转换。 |
 
 ## 2. 物理过程到程序单元
 
@@ -32,12 +32,12 @@ ASGARD 的第一性原理主线是：先在局域壳层坐标中闭合动力学�
 | SSC 与 IC cooling | 同一 photon seed 决定 cooling 与 emissivity。 | `ssc_spec`, `ssc_spec_nonuniform`, `electron_cooling_ic_loss` | `prepare_kn_tables`, `accumulate_uniform_point`, `accumulate_nonuniform_point` | joint 预算中不能只改 cooling 不改 photon source。 |
 | gamma-gamma absorption | 目标 photon field 上积分 pair cross-section。 | `annihilation` | `radiation_prepare_annihilation_grid`, `build_pair_sigma_kernel`, `set_pair_energy_window` | 输出是 observer attenuation；不要把它误作局域 cascade 全闭合。 |
 | pair synch cascade | shell-sequence gamma-gamma pair/synch branch。 | `fs_hadronic_pair_cascade_sequence` | `hadronic_cascade_sequence`, `run_pair_production_stage`, `emit_pair_synchrotron_stage` | `pair_cascade_iterations>1` 仍不是 IC-mediated electromagnetic cascade。 |
-| proton injection/transport | log-gamma 质子源项、连续损失和保守推进。 | `fs_hadronic_formal_transport_1d` | `hadronic_proton_injection_powerlaw`, `hadronic_advance_energy_loggamma`, `fs_hadronic_proton_transport_step` | 质子数/能量源项、loss 和 photon survival 同壳层对齐。 |
-| p-gamma Hummer response | proton loss、re-injection、photon loss、secondary families。 | `formal_pgamma_operator` | `hadronic_pg_hummer2010_operator`, `hadronic_pg_deposit_family`, `fs_hadronic_pgamma_proton_update` | `pgamma_scheme="hummer_2010_response"` 才是正式反馈路径。 |
+| proton injection/transport | log-gamma 质子源项、连续损失和保守推进。 | `fs_hadronic_formal_transport_1d` | `hadronic_proton_injection_powerlaw`, `hadronic_advance_energy_loggamma`, `hadronic_forward_proton_transport_step` | 质子数/能量源项、loss 和 photon survival 同壳层对齐。 |
+| p-gamma Hummer response | proton loss、re-injection、photon loss、secondary families。 | `formal_pgamma_operator` | `hadronic_pg_hummer2010_operator`, `hadronic_pg_deposit_family`, `hadronic_forward_pgamma_proton_update` | `pgamma_scheme="hummer_2010_response"` 才是正式反馈路径。 |
 | Bethe-Heitler | proton loss、e± pair source 和 photon loss 同一算子。 | `fs_hadronic_bethe_heitler_shell` | `hadronic_bethe_heitler_operator`, `accumulate_bh_pair_source`, `bh_proton_loss_point` | joint 模式必须同时使用 pair source 与 photon sink。 |
 | pp 过程 | baryon target density 上的 pp source/loss。 | `fs_hadronic_pp_delta_shell` | `hadronic_pp_delta_operator`, `hadronic_pp_pi0_source_spectrum` | target density 和 shell volume 不能从 observer flux 反推。 |
-| secondary species/decay | n、pi、mu 输运与 decay/neutrino/electron channel。 | `fs_hadronic_species_transport_shell`, `fs_hadronic_decay_operator_shell` | `hadronic_species_advance_operator`, `hadronic_pion_decay_operator`, `hadronic_muon_decay_operator` | neutrino 逃逸不反馈；e± source 只有 formal 输出才能进入电子方程。 |
-| hadronic secondary radiation | pion/muon synchrotron 与 IC。 | `fs_hadronic_secondary_radiation_shell` | `hadronic_secondary_radiation_operator`, `hadronic_secondary_compute_ic_channel` | 分量可输出/诊断，不能自动回灌 photon field。 |
+| secondary species/decay | n、pi、mu 输运与 decay/neutrino/electron channel。 | `fs_hadronic_formal_transport_1d`, `fs_hadronic_decay_operator_shell` | `hadronic_species_advance_operator`, `hadronic_pion_decay_operator`, `hadronic_muon_decay_operator` | neutrino 逃逸不反馈；e± source 只有 formal 输出才能进入电子方程。 |
+| hadronic secondary radiation | pion/muon synchrotron 与 IC。 | `fs_hadronic_formal_transport_1d` | `hadronic_forward_secondary_radiation_shell`, `hadronic_secondary_radiation_operator`, `hadronic_secondary_compute_ic_channel` | 分量可输出/诊断，不能自动回灌 photon field。 |
 | RS hadronic light path | RS proton transport + proton synchrotron。 | `fs_hadronic_reverse_1d` | `advance_reverse_hadronic_shell`, `emit_reverse_proton_synchrotron` | full-chain RS hadronic 复用 formal 1D kernel；不是新 2D RS transport。 |
 | EATS 投影 | Doppler、redshift、SSA survival 到 `Fnu(t_obs)`。 | `sed_interpolation`, `sed_interpolation_adaptive_theta`, `sed_interpolation_chi` | `project_shell_segment`, `integrate_theta_cell`, `accumulate_chi_cell_source` | projection 只读本地 emissivity，不修正上游谱/动力学。 |
 | 结构化喷流 | axisymmetric 或 theta-phi patch 调度。 | `structured_jet_flux_1d` | `run_axisymmetric`, `run_nonaxisymmetric`, `structured_solve_element`, `structured_apply_observer_absorption` | patch 权重/角向投影可变，微物理 kernel 语义不变。 |

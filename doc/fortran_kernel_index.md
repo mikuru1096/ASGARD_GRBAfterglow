@@ -745,60 +745,23 @@ pi0、pi±、mu± decay、neutrino 和 electron channel。
 
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
-| `S` | 2 | `fs_hadronic_proton_syn_shell` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 13 | `fs_hadronic_syn_polarization_shell` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 27 | `fs_hadronic_pgamma_operator_shell` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 50 | `fs_hadronic_pair_production_shell` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 69 | `fs_hadronic_pp_delta_shell` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 96 | `fs_hadronic_bethe_heitler_shell` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 113 | `fs_hadronic_hadronic_ic_shell` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 145 | `fs_hadronic_hic_projected` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 171 | `fs_hadronic_species_transport_shell` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 206 | `fs_hadronic_species_transport_step` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 268 | `fs_hadronic_acceleration_shell` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 291 | `fs_hadronic_injection_content` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 313 | `fs_hadronic_global_gamma_p_max` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 337 | `fs_hadronic_secondary_radiation_shell` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 366 | `fs_hadronic_secondary_radiation_projected` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 426 | `fs_hadronic_decay_operator_shell` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 458 | `fs_hadronic_1d` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 533 | `initialize_proton_gamma_grid` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `S` | 561 | `initialize_output_grids` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `S` | 582 | `inject_protons_for_shell` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
-| `S` | 594 | `advance_proton_transport_for_shell` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 605 | `advance_hummer_secondary_chain` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 623 | `emit_proton_synchrotron_for_shell` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 636 | `fs_hadronic_formal_transport_1d` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 833 | `formal_pgamma_operator` | p-gamma Hummer response 或 secondary family deposition。 |
-| `S` | 850 | `fs_hadronic_pair_cascade_step` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 865 | `fs_hadronic_pair_cascade_sequence` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 888 | `fs_hadronic_advance_energy_loggamma` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 899 | `fs_hadronic_continuous_loss_rates` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 921 | `fs_hadronic_secondary_electron_sequence` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 954 | `fs_hadronic_photon_loss_closure` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 979 | `fs_hadronic_interaction_effective_time` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 1005 | `fs_hadronic_pgamma_proton_update` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 1025 | `fs_hadronic_proton_transport_step` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 1045 | `fs_hadronic_exponential_sink` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 1061 | `fs_hadronic_energy_luminosity_from_rate` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 1074 | `fs_hadronic_project_luminosity_from_rate` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 1092 | `fs_hadronic_project_hic_luminosity` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 1110 | `fs_hadronic_pair_source_content` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 1126 | `fs_hadronic_shell_density_per_gev` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 1139 | `fs_hadronic_gamma_edges` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 1161 | `fs_hadronic_photon_density_hz_to_gev` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 1174 | `fs_hadronic_process_power` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `F` | 1199 | `hadronic_trapezoid` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 1213 | `fs_hadronic_positive_loglog_interp` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 1244 | `fs_hadronic_source_per_gamma` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 1260 | `fs_hadronic_distribution_per_gev` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 1276 | `fs_hadronic_aligned_photon_grid` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 1293 | `hadronic_sequence_shell_geometry` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 1314 | `fs_hadronic_shell_volumes` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 1336 | `fs_hadronic_shell_comoving_dt` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 1347 | `fs_hadronic_dynamical_time` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 1359 | `fs_hadronic_pp_spectral_source` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 1375 | `fs_hadronic_quantum_syn_cooling_factor` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
+| `S` | 3 | `fs_hadronic_syn_polarization_shell` | f2py/Python 调用边界；同步偏振诊断使用的 proton synchrotron polarization wrapper。 |
+| `S` | 16 | `fs_hadronic_pgamma_operator_shell` | f2py/Python 调用边界；Hummer 2010 p-gamma operator。 |
+| `S` | 37 | `fs_hadronic_pair_production_shell` | f2py/Python 调用边界；gamma-gamma pair source/loss operator。 |
+| `S` | 54 | `fs_hadronic_pp_delta_shell` | f2py/Python 调用边界；pp delta source/loss operator。 |
+| `S` | 73 | `fs_hadronic_bethe_heitler_shell` | f2py/Python 调用边界；Bethe-Heitler pair source 和 photon/proton loss。 |
+| `S` | 89 | `fs_hadronic_hadronic_ic_shell` | f2py/Python 调用边界；pion/muon/proton hadronic IC diagnostic operator。 |
+| `S` | 114 | `fs_hadronic_decay_operator_shell` | f2py/Python 调用边界；pion/muon decay 到 gamma、e± 和 neutrino。 |
+| `S` | 146 | `fs_hadronic_pair_cascade_sequence` | f2py/Python 调用边界；shell-sequence gamma-gamma pair/synch cascade。 |
+| `S` | 172 | `fs_hadronic_1d` | light 1D proton transport + proton synchrotron shell-sequence driver。 |
+| `S` | 247 | `initialize_proton_gamma_grid` | `fs_hadronic_1d` 内部网格初始化；Jacobians 不能省略。 |
+| `S` | 275 | `initialize_output_grids` | `fs_hadronic_1d` 输出频率和数组初始化。 |
+| `S` | 296 | `inject_protons_for_shell` | `fs_hadronic_1d` 壳层质子源项；必须同时满足粒子数和能量预算。 |
+| `S` | 308 | `advance_proton_transport_for_shell` | `fs_hadronic_1d` 壳层质子输运推进。 |
+| `S` | 319 | `advance_hummer_secondary_chain` | `fs_hadronic_1d` Hummer p-gamma secondary chain 推进。 |
+| `S` | 337 | `emit_proton_synchrotron_for_shell` | `fs_hadronic_1d` proton synchrotron emissivity 和 seed 计算。 |
+| `S` | 352 | `fs_hadronic_formal_transport_1d` | formal 1D 强子主入口；推进 proton transport、p-gamma/BH/pp、secondary、photon survival 和 secondary e± source。 |
+| `S` | 394 | `fs_hadronic_positive_loglog_interp` | f2py/Python 调用边界；当前 secondary-feedback grid projection 仍直接调用。 |
 
 ### `src/Hadronic/hadronic_hadronic_ic_kernel.f90`
 

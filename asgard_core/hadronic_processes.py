@@ -76,11 +76,9 @@ def photon_density_hz_to_gev(photon_nu_hz: np.ndarray, photon_density_per_hz: np
         raise ValueError("photon_nu_hz and photon_density_per_hz must be 1d arrays with the same shape.")
     if np.any(nu <= 0.0):
         raise ValueError("photon_nu_hz must be positive.")
-    photon_energy_gev, photon_density_per_gev = hadronic_fortran_module.fs_hadronic_photon_density_hz_to_gev(
-        nu,
-        density,
-    )
-    return np.asarray(photon_energy_gev, dtype=float), np.asarray(photon_density_per_gev, dtype=float)
+    photon_energy_gev = constants.para_h_gev * nu
+    photon_density_per_gev = density / constants.para_h_gev
+    return photon_energy_gev, photon_density_per_gev
 
 
 @dataclass(frozen=True)

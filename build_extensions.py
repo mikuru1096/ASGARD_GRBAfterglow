@@ -628,7 +628,6 @@ def main() -> None:
                 "fs_hadronic_hadronic_ic_shell",
                 "fs_hadronic_decay_operator_shell",
                 "fs_hadronic_pair_cascade_sequence",
-                "fs_hadronic_photon_density_hz_to_gev",
                 "fs_hadronic_positive_loglog_interp",
             ),
         ),
