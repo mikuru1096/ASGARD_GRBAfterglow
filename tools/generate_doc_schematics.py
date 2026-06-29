@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from pathlib import Path
 
 import matplotlib as mpl
@@ -18,6 +19,7 @@ mpl.rcParams.update(
         "font.sans-serif": ["DejaVu Sans", "Arial", "Helvetica", "sans-serif"],
         "svg.fonttype": "none",
         "pdf.fonttype": 42,
+        "svg.hashsalt": "asgard-doc-schematics",
         "font.size": 7,
         "axes.spines.right": False,
         "axes.spines.top": False,
@@ -39,6 +41,10 @@ COL = {
     "gold": "#edc948",
     "gray": "#a7b0b7",
 }
+
+STATIC_DATE = datetime(2026, 6, 29, tzinfo=timezone.utc)
+SVG_METADATA = {"Date": STATIC_DATE.isoformat()}
+PDF_METADATA = {"CreationDate": STATIC_DATE, "ModDate": STATIC_DATE}
 
 
 def _fig(title: str, subtitle: str = "", size: tuple[float, float] = (7.4, 4.2)):
@@ -105,11 +111,16 @@ def _label(ax, x, y, text, fs=7, color="ink", ha="center", va="center", weight=N
 
 def _save(fig, stem: Path):
     stem.parent.mkdir(parents=True, exist_ok=True)
-    for ext in ("svg", "pdf"):
-        target = stem.with_suffix(f".{ext}")
-        if target.exists():
-            target.unlink()
-        fig.savefig(target, bbox_inches="tight", facecolor="white")
+    svg = stem.with_suffix(".svg")
+    if svg.exists():
+        svg.unlink()
+    fig.savefig(svg, bbox_inches="tight", facecolor="white", metadata=SVG_METADATA)
+    svg_text = "\n".join(line.rstrip() for line in svg.read_text(encoding="utf-8").splitlines()) + "\n"
+    svg.write_text(svg_text, encoding="utf-8")
+    pdf = stem.with_suffix(".pdf")
+    if pdf.exists():
+        pdf.unlink()
+    fig.savefig(pdf, bbox_inches="tight", facecolor="white", metadata=PDF_METADATA)
     png = stem.with_suffix(".png")
     if png.exists():
         png.unlink()

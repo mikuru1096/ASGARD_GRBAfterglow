@@ -763,6 +763,55 @@ pi0、pi±、mu± decay、neutrino 和 electron channel。
 | `S` | 352 | `fs_hadronic_formal_transport_1d` | formal 1D 强子主入口；推进 proton transport、p-gamma/BH/pp、secondary、photon survival 和 secondary e± source。 |
 | `S` | 394 | `fs_hadronic_positive_loglog_interp` | f2py/Python 调用边界；当前 secondary-feedback grid projection 仍直接调用。 |
 
+### `src/Hadronic/hadronic_forward_formal_1d.f90`
+
+formal 1D 强子壳层序列实现层；Python/f2py 只通过 `fs_hadronic_formal_transport_1d` 进入这里。
+
+| Kind | Line | Program unit | 算法/物理责任 |
+| --- | ---: | --- | --- |
+| `M` | 1 | `hadronic_forward_formal_1d` | formal 1D 强子 shell-sequence 模块命名空间。 |
+| `S` | 9 | `hadronic_forward_formal_transport_1d_impl` | 按半径推进 proton injection/transport、pγ/BH/pp、secondary species、secondary radiation、photon survival 和 secondary e± source。 |
+
+### `src/Hadronic/hadronic_forward_shell_1d.f90`
+
+formal 1D 强子底层 shell primitive 与单位/投影 helper；f2py wrapper 已收窄到运行时真正需要的入口。
+
+| Kind | Line | Program unit | 算法/物理责任 |
+| --- | ---: | --- | --- |
+| `M` | 1 | `hadronic_forward_shell_1d` | shell-level 强子 primitive 模块命名空间。 |
+| `S` | 24 | `hadronic_forward_pp_delta_shell` | pp delta source/loss operator；输出 gamma、neutrino、e± 源和 proton loss。 |
+| `S` | 51 | `hadronic_forward_hadronic_ic_shell` | proton/pion/muon hadronic IC operator；输出 IC emissivity 与投影系数。 |
+| `S` | 83 | `hadronic_forward_hic_projected` | hadronic IC shell emissivity 投影到 photon grid。 |
+| `S` | 109 | `hadronic_forward_species_transport_step` | n、pi、mu secondary species 同壳层保守推进。 |
+| `S` | 172 | `hadronic_forward_injection_content` | 壳层注入能量预算到 species source content 的归一化。 |
+| `S` | 194 | `hadronic_forward_global_gamma_p_max` | 沿半径序列估计全局 proton 最大 Lorentz factor。 |
+| `S` | 218 | `hadronic_forward_secondary_radiation_shell` | pion/muon synchrotron 与 IC shell emissivity。 |
+| `S` | 247 | `hadronic_forward_secondary_radiation_projected` | secondary radiation 从 hadron grid 投影到 photon grid。 |
+| `S` | 307 | `hadronic_forward_continuous_loss_rates` | adiabatic、synchrotron 和 quantum-synch 连续损失率。 |
+| `S` | 329 | `hadronic_forward_secondary_electron_sequence` | secondary e± source 随壳层序列组装。 |
+| `S` | 362 | `hadronic_forward_photon_loss_closure` | photon loss rate 到 optical-depth/survival closure。 |
+| `S` | 387 | `hadronic_forward_interaction_effective_time` | interaction loss rate 的有效时间积分。 |
+| `S` | 413 | `hadronic_forward_pgamma_proton_update` | pγ loss/re-injection 对 proton spectrum 的壳层更新。 |
+| `S` | 433 | `hadronic_forward_proton_transport_step` | proton injection、continuous loss 和 pγ update 的单壳层推进。 |
+| `S` | 454 | `hadronic_forward_exponential_sink` | 指数 sink primitive；用于已定义 interaction/loss closure。 |
+| `S` | 470 | `hadronic_forward_energy_luminosity_from_rate` | rate-per-energy 到 luminosity-per-frequency/energy 的壳层换算。 |
+| `S` | 483 | `hadronic_forward_project_luminosity_from_rate` | source energy grid 到目标 photon grid 的 luminosity 投影。 |
+| `S` | 501 | `hadronic_forward_project_hic_luminosity` | hadronic IC 多 species emissivity 投影。 |
+| `S` | 519 | `hadronic_forward_pair_source_content` | pp/BH pair source 组合成电子方程使用的 content source。 |
+| `S` | 535 | `hadronic_forward_shell_density_per_gev` | shell content 到 density-per-GeV 的单位变换。 |
+| `S` | 548 | `hadronic_forward_gamma_edges` | Lorentz-factor grid edges；守恒积分需要的 bin geometry。 |
+| `S` | 570 | `hadronic_forward_photon_density_hz_to_gev` | photon density Hz 到 GeV 单位换算 primitive；Python 运行时当前直接公式化调用。 |
+| `S` | 583 | `hadronic_forward_process_power` | secondary process power diagnostic。 |
+| `S` | 622 | `hadronic_forward_positive_loglog_interp` | 正值 log-log grid projection；当前 secondary-feedback Python glue 仍使用。 |
+| `S` | 653 | `hadronic_forward_source_per_gamma` | source-per-energy 到 source-per-gamma 的 grid projection。 |
+| `S` | 669 | `hadronic_forward_distribution_per_gev` | distribution-per-gamma 到 distribution-per-GeV 的 grid projection。 |
+| `S` | 685 | `hadronic_forward_aligned_photon_grid` | hadron/photon grid 对齐 helper。 |
+| `S` | 702 | `hadronic_sequence_shell_geometry` | shell dr、dt geometry helper。 |
+| `S` | 723 | `hadronic_forward_shell_volumes` | 壳层体积序列。 |
+| `S` | 745 | `hadronic_forward_shell_comoving_dt` | lab/radius shell spacing 到 comoving dt。 |
+| `S` | 756 | `hadronic_forward_dynamical_time` | shell dynamical time。 |
+| `S` | 768 | `hadronic_forward_quantum_syn_cooling_factor` | quantum synchrotron cooling factor。 |
+
 ### `src/Hadronic/hadronic_hadronic_ic_kernel.f90`
 
 强子 secondary inverse-Compton kernel。
