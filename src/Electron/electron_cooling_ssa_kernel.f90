@@ -19,9 +19,10 @@ module electron_cooling_ssa_kernel
 contains
 ! 确保SSA种子频率缓存已按当前种子网格分配。
 subroutine ensure_ssa_seed_cache(Num_nu,V_seed)
-implicit REAL(8)(A-H,O-Z)
+implicit none
 integer, intent(in) :: Num_nu
 real(8), intent(in) :: V_seed(Num_nu)
+integer :: I_nu
 logical :: cache_match
 
     cache_match=.false.
@@ -53,7 +54,7 @@ end subroutine ensure_ssa_seed_cache
 
 ! 推进SSA种子频率游标至第一个 > V_lowlim 的位置。
 subroutine advance_ssa_seed_cursor(Num_nu,V_lowlim,low_idx)
-implicit REAL(8)(A-H,O-Z)
+implicit none
 integer, intent(in) :: Num_nu
 real(8), intent(in) :: V_lowlim
 integer, intent(inout) :: low_idx
@@ -75,12 +76,13 @@ end subroutine advance_ssa_seed_cursor
 ! 构建SSA几何映射：对每个电子γ，计算种子频率的低频/高频索引范围和截面前因子。
 subroutine build_ssa_geometry(DB,Num_gam_e,Num_nu,gam_e,V_low_idx,V_low_first,V_low_last,V_high_first, &
                               sigma_prefactor_low,sigma_prefactor_high,Cyclotron_nu)
-implicit REAL(8)(A-H,O-Z)
+implicit none
 integer, intent(in) :: Num_gam_e,Num_nu
 real(8), intent(in) :: DB,gam_e(Num_gam_e)
 integer, intent(out) :: V_low_idx(Num_gam_e),V_low_first(Num_gam_e),V_low_last(Num_gam_e),V_high_first(Num_gam_e)
 real(8), intent(out) :: sigma_prefactor_low(Num_gam_e),sigma_prefactor_high(Num_gam_e),Cyclotron_nu
-integer :: low_idx,upper_idx
+integer :: I_gam_e,low_idx,upper_idx
+real(8) :: B_cr,Temp1,Temp2,gam,gam2,gam3,V_lowlim,V_uplim
 
     B_cr=4.4d13
     Temp1=2.5042d-22*B_cr/DB
@@ -118,9 +120,9 @@ end subroutine build_ssa_geometry
 ! SSA冷却率：对多个χ列的种子光子场同时计算；单列调用传 Num_chi=1。
 subroutine electron_cooling_ssa_loss_batch(DB,Num_gam_e,Num_nu,Num_chi,n_threads,gam_e,V_seed,Seed_syn_batch,dot_gam_e_batch)
 !$ use omp_lib
-implicit REAL(8)(A-H,O-Z)
+implicit none
 integer, intent(in) :: Num_gam_e,Num_nu,Num_chi,n_threads
-real(8), intent(in) :: gam_e(Num_gam_e),V_seed(Num_nu),Seed_syn_batch(Num_nu,Num_chi)
+real(8), intent(in) :: DB,gam_e(Num_gam_e),V_seed(Num_nu),Seed_syn_batch(Num_nu,Num_chi)
 real(8), intent(out) :: dot_gam_e_batch(Num_gam_e,Num_chi)
 integer, parameter :: parallel_work_threshold=512
 integer :: V_low_idx(Num_gam_e),V_low_first(Num_gam_e),V_low_last(Num_gam_e),V_high_first(Num_gam_e)
@@ -173,7 +175,7 @@ real(8) :: Low_prefix(0:Num_nu-1,Num_chi),High_amp1(Num_nu-1,Num_chi),High_amp2(
 contains
 
 subroutine accumulate_ssa_batch_gamma(I_gam_e,I_chi,dot_val)
-implicit REAL(8)(A-H,O-Z)
+implicit none
 integer, intent(in) :: I_gam_e,I_chi
 real(8), intent(out) :: dot_val
 integer :: I_nu,low_full_first,low_full_last,high_full_first
@@ -243,7 +245,7 @@ real(8) :: gam,gam2,V_lowlim,V_uplim,inv_uplim,high_prefactor,ssa_sum,cell_low,c
 end subroutine accumulate_ssa_batch_gamma
 
 real(8) function clipped_ssa_batch_segment(cell_low,cell_high,I_nu,I_chi,sigma_prefactor,mode,Cyclotron_nu,V_uplim)
-implicit REAL(8)(A-H,O-Z)
+implicit none
 integer, intent(in) :: I_nu,I_chi,mode
 real(8), intent(in) :: cell_low,cell_high,sigma_prefactor,Cyclotron_nu,V_uplim
 integer :: I_quad
