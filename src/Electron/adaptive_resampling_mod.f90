@@ -2,11 +2,14 @@
 module adaptive_resampling_mod
     implicit none
     integer, parameter :: dp = kind(1.0d0)
+    private
+
+    public :: adaptive_resampling_log
     
 contains
     
     ! 对数空间自适应重采样：基于二阶导数曲率权重，将n点网格重采样为m点。
-subroutine adaptive_resampling_log(x, f1, n, m, g, indices, n_resampled, info)
+    subroutine adaptive_resampling_log(x, f1, n, m, g, indices, n_resampled, info)
 
         integer, intent(in) :: n, m, g
         real(dp), intent(in) :: x(n), f1(n)
@@ -127,29 +130,29 @@ subroutine adaptive_resampling_log(x, f1, n, m, g, indices, n_resampled, info)
     contains
     
         ! 滑动平均平滑：窗口半径为window/2。
-subroutine moving_average(input, n, window, output)
+        subroutine moving_average(input, n, window, output)
             integer, intent(in) :: n, window
             real(dp), intent(in) :: input(n)
             real(dp), intent(out) :: output(n)
             integer :: i, j, w_start, w_end, count
-            real(dp) :: sum
+            real(dp) :: window_sum
             
             do i = 1, n
                 w_start = max(1, i - window/2)
                 w_end = min(n, i + window/2)
                 count = w_end - w_start + 1
-                sum = 0.0_dp
+                window_sum = 0.0_dp
                 
                 do j = w_start, w_end
-                    sum = sum + input(j)
+                    window_sum = window_sum + input(j)
                 end do
                 
-                output(i) = sum / count
+                output(i) = window_sum / count
             end do
         end subroutine moving_average
         
         ! 提取有序数组中的唯一值（去重）。
-subroutine unique_sorted(input, n_input, output, n_output)
+        subroutine unique_sorted(input, n_input, output, n_output)
             integer, intent(in) :: n_input
             integer, intent(in) :: input(n_input)
             integer, intent(out) :: n_output
@@ -169,9 +172,8 @@ subroutine unique_sorted(input, n_input, output, n_output)
             end do
         end subroutine unique_sorted
         
-        ! bubble sort
         ! 冒泡排序整型数组。
-subroutine sort_integers(arr, n)
+        subroutine sort_integers(arr, n)
             integer, intent(in) :: n
             integer, intent(inout) :: arr(n)
             integer :: i, j, temp
@@ -188,74 +190,35 @@ subroutine sort_integers(arr, n)
         end subroutine sort_integers
         
         ! 补充不足的索引点：从缺失索引中均匀选取，填充至目标数量m_target。
-subroutine supplement_indices(current_indices, n_current, n_total, m_target, new_indices)
+        subroutine supplement_indices(current_indices, n_current, n_total, m_target, new_indices)
             integer, intent(in) :: n_current, n_total, m_target
             integer, intent(in) :: current_indices(n_current)
             integer, intent(out) :: new_indices(m_target)
-            integer :: i, j, k, missing_count
-            integer, allocatable :: missing_indices(:)
-            logical, allocatable :: present(:)
+            integer :: i, j, k, missing_count, missing_needed, target_missing
+            integer :: missing_indices(n_total)
+            logical :: present(n_total)
             
-            ! Mark indices that are already present
-            allocate(present(n_total))
             present = .false.
-            
             do j = 1, n_current
-                if (current_indices(j) >= 1 .and. current_indices(j) <= n_total) then
-                    present(current_indices(j)) = .true.
-                end if
+                present(current_indices(j)) = .true.
             end do
             
-            ! Count missing indices
             missing_count = 0
             do i = 1, n_total
                 if (.not. present(i)) then
                     missing_count = missing_count + 1
+                    missing_indices(missing_count) = i
                 end if
             end do
             
-            ! Allocate memory and collect missing indices
-            if (missing_count > 0) then
-                allocate(missing_indices(missing_count))
-                missing_count = 0
-                do i = 1, n_total
-                    if (.not. present(i)) then
-                        missing_count = missing_count + 1
-                        missing_indices(missing_count) = i
-                    end if
-                end do
-            else
-                ! Create an empty array when nothing is missing
-                allocate(missing_indices(1))
-                missing_count = 0
-            end if
-            
-            ! Fill in the missing indices
             new_indices(1:n_current) = current_indices(1:n_current)
+            missing_needed = m_target - n_current
+            do k = 1, missing_needed
+                target_missing = nint((k-1) * real(missing_count - 1, dp) / max(1, missing_needed - 1)) + 1
+                new_indices(n_current + k) = missing_indices(target_missing)
+            end do
             
-            if (missing_count > 0) then
-                do k = 1, m_target - n_current
-                    i = nint((k-1) * real(missing_count, dp) / max(1, m_target - n_current - 1)) + 1
-                    if (i <= missing_count) then
-                        new_indices(n_current + k) = missing_indices(i)
-                    else
-                        new_indices(n_current + k) = n_total
-                    end if
-                end do
-            else
-                ! Fill uniformly when nothing is missing
-                do k = 1, m_target - n_current
-                    i = nint((k-1) * real(n_total, dp) / max(1, m_target - n_current - 1)) + 1
-                    new_indices(n_current + k) = min(i, n_total)
-                end do
-            end if
-            
-            ! Sort the new indices
             call sort_integers(new_indices, m_target)
-            
-            ! Release memory
-            if (allocated(present)) deallocate(present)
-            if (allocated(missing_indices)) deallocate(missing_indices)
         end subroutine supplement_indices
         
     end subroutine adaptive_resampling_log
