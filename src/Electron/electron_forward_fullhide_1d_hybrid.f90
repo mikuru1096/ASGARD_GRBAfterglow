@@ -1,20 +1,13 @@
-!Calculate the electron distibutions of forward shock.
-!New improvement at 11.29.2022
-!****************************************************************************************
-!******************************* main program *******************************************
-!****************************************************************************************
-
 subroutine fs_electron_fullhide_1d_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e, &
                                       index_Y,index_syn_intger,n_threads,adaptive_substeps,substep_rtol, &
                                       substep_min,substep_max,thermal_electrons,gam_e,dN_gam_e,P_syn, &
                                       Seed_syn,V_m,V_c,V_a)
-    !$ use omp_lib
     use constants
     use dynamics_common, only: dynamics_external_density_profile
     use electron_common
     use electron_injection_profiles, only: electron_build_source_term_exp_cutoff_edges, electron_add_thermal_source_term, &
                                            electron_profile_log_cell_edges
-    use electron_radiation_kernel, only: get_nu_a, get_syn_selected_state
+    use electron_radiation_kernel, only: get_syn_selected_state, get_nu_a_from_tau_grid
     use electron_cooling_kernel, only: get_forward_cooling
     use electron_transport_common, only: electron_fullhide_step, electron_dnx_to_dndgamma_exp_centers
     use hybrid_spectrum_kernel_fast, only: normalized_hybrid_spec_lg
@@ -27,10 +20,9 @@ subroutine fs_electron_fullhide_1d_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,
                             Seed_syn(Num_nu,Num_R), V_m(Num_R), V_c(Num_R), V_a(Num_R)
     
     real(8),allocatable,dimension (:) :: dEl,dEL_mean,x,dN_x,x_edge, &
-                                         dN_full,dN_half,dN_half2,dF1,dEL_mean_base,dEL_mean_step, &
-                                         gam_e_rad,dN_gam_e_rad
+                                         dN_full,dN_half,dN_half2,dF1,dEL_mean_base,dEL_mean_step
     logical :: is_uniform_density,budget_diag_enabled
-    integer :: Num_gam_rad,env_len,env_status
+    integer :: env_len,env_status
     character(len=32) :: diag_env
     real(8) :: dDR_xi,ln10
     real(8) :: n_before_step,n_after_step,inj_step,rel_loss_xi_max
@@ -38,9 +30,8 @@ subroutine fs_electron_fullhide_1d_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,
     allocate (dEl(Num_gam_e),dEL_mean(Num_gam_e-1),x(Num_gam_e),dN_x(Num_gam_e), &
               dN_full(Num_gam_e), &
               x_edge(Num_gam_e+1),dN_half(Num_gam_e),dN_half2(Num_gam_e),dF1(Num_gam_e),dEL_mean_base(Num_gam_e-1), &
-              dEL_mean_step(Num_gam_e-1),gam_e_rad(Num_gam_e),dN_gam_e_rad(Num_gam_e))
+              dEL_mean_step(Num_gam_e-1))
     
-    !***********************[Parameter Initial]**********************
     call electron_unpack_boundary(Boundary,n,Eta_0,R_ini,Epsilon_e,Epsilon_b,p,z,dNe_ISM,A_star, &
                                   E_iso,T_log10_duration,f_e,R_tr,f_jump,f_wide,R0)
     if (thermal_electrons /= 0) then
@@ -53,7 +44,6 @@ subroutine fs_electron_fullhide_1d_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,
     V_c=zero
     V_a=zero
 
-    !*****************Part 1: given the boundary consition [Using the analytical approximation]*********************
     call electron_initial_density(A_star,dNe_ISM,R_ini,R(1),R0,dNe,Para_N_e_ini)
 
     DB=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma(1)*(R_Gamma(1)-one)))
@@ -76,8 +66,6 @@ subroutine fs_electron_fullhide_1d_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,
         dN_x=dN_gam_e(:,1)*gam_e*dlog(ten)
         call electron_profile_log_cell_edges(Num_gam_e,gam_e,x_edge)
     end if
-    !*******************Part 1 is completed [has been checked and there is no bug]**********************************
-    !*******************Part 2: To calculate the electron distribution**********************************************
     d_x=dlog10(gam_e(2)/gam_e(1))
     ln10=dlog(ten)
     is_uniform_density=(A_star <= zero .and. f_jump == one)
@@ -109,16 +97,14 @@ subroutine fs_electron_fullhide_1d_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,
         dDR=0.1d0/(f_r*Gam_e_max+1.333d0/(R(I_tobs)+R(I_tobs-1)))
         dDD=R(I_tobs)-R(I_tobs-1)
         dN_x=dN_gam_e(:,I_tobs-1)*gam_e*dlog(ten)
-        call electron_prepare_radiation_spectrum(Num_gam_e,gam_e,dN_gam_e(:,I_tobs-1), &
-                                                 Num_gam_rad,gam_e_rad,dN_gam_e_rad)
         V_m(I_tobs-1)=4.2d6*DB*Gam_e_m*Gam_e_m/(R_Gamma_loc*(1d0-beta_Gam)*(one+z))
         V_c(I_tobs-1)=4.2d6*DB*Gam_e_c*Gam_e_c/(R_Gamma_loc*(1d0-beta_Gam)*(one+z))
-        call get_nu_a(R_loc,DB,Num_gam_rad,gam_e_rad(1:Num_gam_rad),dN_gam_e_rad(1:Num_gam_rad),temp)
-        V_a(I_tobs-1)=temp/(R_Gamma_loc*(1d0-beta_Gam)*(one+z))
 
         call get_syn_selected_state(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads, &
                                     gam_e,dN_gam_e(:,I_tobs-1),V_seed,P_emit_tmp,P_syn(:,I_tobs), &
                                     Seed_syn(:,I_tobs),Tau_syn_tmp)
+        call get_nu_a_from_tau_grid(Num_nu,V_seed,Tau_syn_tmp,temp)
+        V_a(I_tobs-1)=temp/(R_Gamma_loc*(1d0-beta_Gam)*(one+z))
         
         call get_forward_cooling(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc, &
                                  R_Gamma_loc,beta_Gam,dNe,Num_gam_e,Num_nu,n_threads,gam_e,V_seed, &
@@ -255,8 +241,7 @@ subroutine fs_electron_fullhide_1d_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,
         end if
     end do
 
-    deallocate (dEl,dEL_mean,x,dN_x,x_edge,dN_full,dN_half,dN_half2,dF1, &
-                dEL_mean_base,dEL_mean_step,gam_e_rad,dN_gam_e_rad)
+    deallocate (dEl,dEL_mean,x,dN_x,x_edge,dN_full,dN_half,dN_half2,dF1,dEL_mean_base,dEL_mean_step)
     if (budget_diag_enabled) then
         print '(A,1X,ES12.4)', 'BUDGET1D max_rel_loss', rel_loss_xi_max
     end if
