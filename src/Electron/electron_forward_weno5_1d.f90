@@ -1,11 +1,10 @@
 ! 电子1D WENO5格式主驱动：三阶TVD Runge-Kutta + WENO5通量重构。
 subroutine fs_electron_weno5_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e,index_Y,n_threads, &
                                 gam_e,dN_gam_e,P_syn,Seed_syn)
-    !$ use omp_lib
     use constants
     use dynamics_common, only: dynamics_external_density_profile
     use electron_common
-    use electron_injection_profiles, only: electron_build_source_term_exp_cutoff_edges, electron_profile_log_cell_edges
+    use electron_injection_profiles, only: electron_build_source_term_exp_cutoff_edges
     use radiation_common, only: radiation_syn_seed_chi_batch_core
     use electron_cooling_kernel, only: get_forward_cooling
     use electron_transport_common, only: electron_dnx_to_dndgamma_exp_centers
@@ -16,17 +15,13 @@ subroutine fs_electron_weno5_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,
     real(8), intent(out) :: dN_gam_e(Num_gam_e,Num_R),gam_e(Num_gam_e),P_syn(Num_nu,Num_R),Seed_syn(Num_nu,Num_R)
     real(8) :: Eta_0,R_ini,Epsilon_e,Epsilon_b,p,z,dNe_ISM,A_star,E_iso,T_log10_duration,f_e
     real(8) :: R_tr,f_jump,f_wide,R0,dNe,Para_N_e_ini,DB,Gam_e_max,DB_min,Gam_e_max_max
-    real(8) :: temp_gam,Gam_e_m,Gam_e_c,d_x,factor_adv,CFL_target,R_loc,R_Gamma_loc,Gam_e_m_p
+    real(8) :: temp_gam,Gam_e_m,Gam_e_c,d_x,CFL_target,R_loc,R_Gamma_loc,Gam_e_m_p
     real(8) :: beta_Gam,f_r,dDR,dDD,WENO_speed_max,CFL,Q
 
-    real(8),allocatable,dimension (:) :: f_r_times_gam_e,dEl,para_minus_gam_e_p,dEl1,x, &
-            dN_x,x_edge,dF1,fp,flux,Compton,Compton1,dot_gam_e,dot_gam_e_SSA
-    real(8),allocatable,dimension (:,:) :: temp_store,temp_store_extended
+    real(8),allocatable,dimension (:) :: dEl,dEl1,dN_x,x_edge,dF1
+    real(8),allocatable,dimension (:,:) :: temp_store_extended
     real(8),allocatable,dimension (:) :: dN_x_extended,fp_extended,flux_extended,dEl1_extended
-    allocate (f_r_times_gam_e(Num_gam_e),dEl(Num_gam_e),para_minus_gam_e_p(Num_gam_e), &
-            dEl1(Num_gam_e),x(Num_gam_e),dN_x(Num_gam_e),x_edge(Num_gam_e+1),dF1(Num_gam_e),fp(Num_gam_e), &
-            flux(0:Num_gam_e), temp_store(3,Num_gam_e),Compton(Num_gam_e), &
-              dot_gam_e(Num_gam_e),dot_gam_e_SSA(Num_gam_e),Compton1(Num_gam_e))
+    allocate (dEl(Num_gam_e),dEl1(Num_gam_e),dN_x(Num_gam_e),x_edge(Num_gam_e+1),dF1(Num_gam_e))
     allocate(dN_x_extended(1-3:Num_gam_e+3),temp_store_extended(3, 1-3:Num_gam_e+3),&
              fp_extended(1-3:Num_gam_e+3),flux_extended(0:Num_gam_e),dEl1_extended(1-3:Num_gam_e+3)) !ghost cells
 
@@ -53,8 +48,6 @@ subroutine fs_electron_weno5_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,
     !*******************Part 1 is completed [has been checked and there is no bug]**********************************
     !*******************Part 2: To calculate the electron distribution**********************************************
     d_x=dlog10(gam_e(2)/gam_e(1))
-    factor_adv=Para_sigmaT/(6.0d0*pi*Para_m_energy)
-    para_minus_gam_e_p=gam_e**(-p)*gam_e*dlog(ten)
     
     CFL_target=0.8d0
 
@@ -67,10 +60,7 @@ subroutine fs_electron_weno5_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,
         end do
     end do
 
-    deallocate (f_r_times_gam_e,dEl,para_minus_gam_e_p,dEl1,x,dN_x,x_edge,dF1,fp,flux,temp_store,Compton,Compton1,dot_gam_e, &
-                dN_x_extended, temp_store_extended, fp_extended, flux_extended)
-
-    return
+    deallocate (dEl,dEl1,dN_x,x_edge,dF1,dN_x_extended,temp_store_extended,fp_extended,flux_extended,dEl1_extended)
 
 contains
 
@@ -135,7 +125,6 @@ contains
         dEl1=(dEl+one/R_loc)/dlog(ten)
         call electron_injection_prefactor(R_loc,dDR,dNe,f_e,Gam_e_m_p,Q)
         call electron_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m,Gam_e_max,Q,p,dF1)
-!        dF1=dF1+Q*para_maxwell/Gam_e_m_p*(one-f_e)
 
         call load_weno_extended_state()
 
@@ -145,8 +134,6 @@ contains
         end do
 
         dN_x = dN_x_extended(1:Num_gam_e)
-
-        where(dN_x < 0.0d0) dN_x = 0.0d0
 
         if (L1 == L) then
             call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,I_tobs))
@@ -204,36 +191,27 @@ contains
             end do
         end if
     end subroutine advance_weno_rk_stage
-end subroutine
 
 ! 更新WENO5鬼点：零阶外推（复制边界值）。
 subroutine weno5_update_ghost_cells(arr, n)
-        integer, intent(in) :: n
-        real(8), intent(inout) :: arr(1-3:n+3)
+    implicit none
+    integer, intent(in) :: n
+    real(8), intent(inout) :: arr(1-3:n+3)
         
-        arr(1-3:0) = arr(1)
-        arr(n+1:n+3) = arr(n)
-        
-        ! Periodic boundary conditions, not used.
-        ! arr(1-2) = arr(n-1)
-        ! arr(1-1) = arr(n)
-        ! arr(n+1) = arr(1)
-        ! arr(n+2) = arr(2)
-    end subroutine weno5_update_ghost_cells
+    arr(1-3:0) = arr(1)
+    arr(n+1:n+3) = arr(n)
+end subroutine weno5_update_ghost_cells
 
 ! WENO5正通量重构 f⁺(f_{i-2},...,f_{i+2})。
 function weno5_positive_flux(fps)
-    real(8) :: fps(-2:2), weno5_positive_flux
+    implicit none
+    real(8), intent(in) :: fps(-2:2)
+    real(8) :: weno5_positive_flux
     real(8) :: omega(3), fu(3), beta(3)
     real(8) :: tao5, totalpha, alpha(3), fomega(3), eps
 
     omega(1) = 0.1d0;   omega(2) = 0.6d0;   omega(3) = 0.3d0
     eps=1d-30
-    
-    if(any(isnan(fps))) then
-        weno5_positive_flux = 0.0d0
-        return
-    end if
     
     fu(1) =  1.0d0/3.0d0*fps(-2) - 7.0d0/6.0d0*fps(-1) + 11.0d0/6.0d0*fps(0)
     fu(2) = -1.0d0/6.0d0*fps(-1) + 5.0d0/6.0d0*fps(0)  + 1.0d0/3.0d0*fps(1)
@@ -258,22 +236,18 @@ function weno5_positive_flux(fps)
         weno5_positive_flux = fu(1)*fomega(1) + fu(2)*fomega(2) + fu(3)*fomega(3)
     end if
     
-    return
 end function weno5_positive_flux
 
 ! WENO5负通量重构 f⁻(f_{i-1},...,f_{i+3})。
 function weno5_negative_flux(fms)
-    real(8) :: fms(-1:3), weno5_negative_flux
+    implicit none
+    real(8), intent(in) :: fms(-1:3)
+    real(8) :: weno5_negative_flux
     real(8) :: omega(3), fu(3), beta(3)
     real(8) :: tao5, totalpha, alpha(3), fomega(3), eps
     
     omega(1) = 0.1d0;   omega(2) = 0.6d0;   omega(3) = 0.3d0
     eps=1d-30
-    
-    if(any(isnan(fms))) then
-        weno5_negative_flux = 0.0d0
-        return
-    end if
     
     fu(1) =  1.0d0/3.0d0*fms(3) - 7.0d0/6.0d0*fms(2) + 11.0d0/6.0d0*fms(1)
     fu(2) = -1.0d0/6.0d0*fms(2) + 5.0d0/6.0d0*fms(1) + 1.0d0/3.0d0*fms(0)
@@ -298,5 +272,5 @@ function weno5_negative_flux(fms)
         weno5_negative_flux = fu(1)*fomega(1) + fu(2)*fomega(2) + fu(3)*fomega(3)
     end if
     
-    return
 end function weno5_negative_flux
+end subroutine fs_electron_weno5_1d
