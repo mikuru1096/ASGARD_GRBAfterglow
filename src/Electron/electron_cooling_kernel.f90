@@ -20,7 +20,7 @@ integer :: I_chi
 
     cooling_aux=zero
     select case(index_Y)
-    case(0)
+    case(0,3)
     case(1)
         do I_chi=1,Num_chi
             call electron_cooling_ic_loss(Num_gam_e,Num_nu,n_threads,gam_e,V_seed,Seed_syn(:,I_chi),cooling_aux(:,I_chi))
@@ -30,7 +30,7 @@ integer :: I_chi
             call electron_cooling_y_nakar(Num_gam_e,Num_nu,n_threads,gam_e,V_seed,P_syn(:,I_chi),cooling_aux(:,I_chi))
         end do
     case default
-        error stop 'prepare_forward_cooling_aux_batch: index_Y must be 0, 1, or 2.'
+        error stop 'prepare_forward_cooling_aux_batch: index_Y must be 0, 1, 2, or 3.'
     end select
 end subroutine prepare_forward_cooling_aux_batch
 
