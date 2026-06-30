@@ -85,7 +85,7 @@ Fitter.loglike -> compile_problem -> eval_loglike -> solve_state_from_setup
 ### 动力学
 
 - `src/Dynamics/Dynamics_forward.f90`：正向激波动力学、ISM/wind、density jumps、energy injection。
-- `src/Dynamics/Dynamics_reverse.f90`：反向激波主时间推进和输出组装；region-3 `U3/V3/gamma34`、磁化 jump、次级 RS 分支分别由 `reverse_rhs.f90`、`reverse_jump_conditions.f90` 和 `reverse_secondary_events.f90` 承担。
+- `src/Dynamics/Dynamics_reverse.f90`：反向激波主时间推进和输出组装；region-3 `U3/V3/gamma34`、磁化 jump 和次级 RS 分支由 `reverse_rhs.f90`、`reverse_jump_conditions.f90` 与主驱动内的事件定位逻辑承担。
 - `src/Dynamics/dynamics_common.f90`：共享动力学辅助函数。
 
 ### 电子

@@ -1,7 +1,8 @@
 subroutine dynamics_forward(Boundary,n,Num_R,index_dyn,R_Tobs,R_Gamma,R,R_m)
-    !$ use omp_lib
     use constants
-    use dynamics_common
+    use dynamics_common, only: dynamics_forward_rhs_iface, dynamics_deceleration_radius, dynamics_boundary_r0, &
+                               dynamics_set_density_jump_profile, dynamics_log_time_step, &
+                               dynamics_rk4_forward
     implicit none
     integer, intent(in) :: n,Num_R,index_dyn
     integer :: I_tobs, Num_R1, M
@@ -42,7 +43,7 @@ end subroutine dynamics_forward
 subroutine forward_dynamics_rhs(T,Y,M,D,E_e,E_iso,Eta_0,dNe_ISM,A_star,E_b,p,z,f_e, &
                                 E_inj_t1,E_inj_t2,E_inj,E_inj_q,R_tr,f_jump,f_wide,R0,index_dyn)
     use constants
-    use dynamics_common
+    use dynamics_common, only: dynamics_external_density_profile
     implicit none
     integer, intent(in) :: M,index_dyn
     real(8), intent(in) :: T,E_e,E_iso,Eta_0,dNe_ISM,A_star,E_b,p,z,f_e,E_inj_t1,E_inj_t2,E_inj,E_inj_q,R_tr,f_jump,f_wide,R0

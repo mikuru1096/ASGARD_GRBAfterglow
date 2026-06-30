@@ -15,7 +15,6 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
                             Secondary_nu_m,Secondary_nu_c, &
                             Secondary_event_active,Secondary_start_radius,Secondary_end_radius, &
                             Secondary_start_tobs_axis,Secondary_end_tobs_axis)
-    !$ use omp_lib
     use constants
     use dynamics_common, only: dynamics_deceleration_radius, dynamics_rk4_reverse, &
                                dynamics_rk4_reverse_pre_m3, &
@@ -395,7 +394,7 @@ contains
     subroutine store_secondary_branch_state(i_out)
     implicit none
     integer, intent(in) :: i_out
-    integer :: j, m_idx, u_idx, v_idx, e_idx, g_idx
+    integer :: j, m_idx, u_idx, v_idx, e_idx, g_idx, parent_idx
     real(8) :: e_cum,g_cum,e_delta,g_delta,diag_total,gamma_m_total
     real(8) :: density_factor,branch_weight,n1,n_excess,n_pre,n4,e4,p4,p3,e3_sec,e_ad,comp,beta_s
     real(8) :: gamma_c_j,gamma43_j,n3,gamma_m_j,b_i,gam_e_max
@@ -431,11 +430,12 @@ contains
                     e4=4d0*R_Gamma(i_out)*(R_Gamma(i_out)-one)*n_pre*Para_m_p*Para_c**2
                     p4=e4/3d0
                     if (j > 1) then
-                        if (secondary_parent_upstream_available(j,Secondary_M3(j-1,i_out)/para_m_ej, &
-                                                                Secondary_U3(j-1,i_out)/(para_m_ej*para_c**2), &
-                                                                Secondary_V3(j-1,i_out)/V3_scale)) then
-                            n4=Secondary_M3(j-1,i_out)/(Para_m_p*Secondary_V3(j-1,i_out))
-                            e4=Secondary_U3(j-1,i_out)/Secondary_V3(j-1,i_out)
+                        parent_idx = j-1
+                        if (secondary_parent_upstream_available(j,Secondary_M3(parent_idx,i_out)/para_m_ej, &
+                                                                Secondary_U3(parent_idx,i_out)/(para_m_ej*para_c**2), &
+                                                                Secondary_V3(parent_idx,i_out)/V3_scale)) then
+                            n4=Secondary_M3(parent_idx,i_out)/(Para_m_p*Secondary_V3(parent_idx,i_out))
+                            e4=Secondary_U3(parent_idx,i_out)/Secondary_V3(parent_idx,i_out)
                             p4=e4/3d0
                         end if
                     end if

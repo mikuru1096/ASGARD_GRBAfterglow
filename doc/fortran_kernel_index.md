@@ -18,7 +18,7 @@
 | Build module | CWD | Source closure | 主 entry | 物理/算法角色 |
 | --- | --- | --- | --- | --- |
 | `Dynamics_forward` | `src/Dynamics` | `Constants + dynamics_common + Dynamics_forward` | `dynamics_forward` | 正向激波动力学、ISM/wind、密度跳变和能量注入。 |
-| `Dynamics_reverse` | `src/Dynamics` | `Constants + dynamics_common + reverse_jump_conditions + reverse_secondary_events + reverse_rhs + Dynamics_reverse` | `dynamics_reverse` | 反向激波 crossing、region-3 thermal state、磁化 jump 和次级 RS 分支。 |
+| `Dynamics_reverse` | `src/Dynamics` | `Constants + dynamics_common + reverse_jump_conditions + reverse_rhs + Dynamics_reverse` | `dynamics_reverse` | 反向激波 crossing、region-3 thermal state、磁化 jump 和次级 RS 分支。 |
 | `electron_forward_fullhide_1d` | `src/Electron` | `ELECTRON_COMMON_SOURCES + electron_forward_fullhide_1d` | `fs_electron_fullhide_1d; fs_electron_fullhide_1d_coupled` | 默认 1D 电子输运和 joint feedback coupled pass。 |
 | `electron_forward_fullhide_1d_hybrid` | `src/Electron` | `ELECTRON_HISTORY_SOURCES_HZ + electron_forward_fullhide_1d_hybrid` | `fs_electron_fullhide_1d_hz` | 热/非热混合谱路径。 |
 | `electron_forward_charint_1d` | `src/Electron` | `ELECTRON_COMMON_SOURCES + electron_forward_charint_1d` | `fs_electron_charint_1d` | 1D 特征线输运对照。 |
@@ -93,13 +93,6 @@ Fortran 改动后的最低门槛见 `doc/validation_and_benchmarks.md`。文档-
 | `S` | 590 | `solve_reverse_shock_compression` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
 | `S` | 622 | `solve_compression_unity_speed` | 磁化 RS/MHD jump 或 pressure-balance helper；不要用 ultra-relativistic 近似替代有限强度 jump。 |
 | `S` | 645 | `shock_momentum_difference` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 665 | `secondary_reverse_profile` | 介质密度或 density-jump 分支；直接影响 swept mass、动力学和注入源项。 |
-| `S` | 805 | `secondary_reverse_scan_event_window` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
-| `S` | 839 | `secondary_reverse_density_branch` | 介质密度或 density-jump 分支；直接影响 swept mass、动力学和注入源项。 |
-| `F` | 857 | `secondary_reverse_event_root_bracket` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
-| `S` | 890 | `secondary_reverse_signed_source` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
-| `S` | 923 | `secondary_reverse_interp_gamma` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
-| `S` | 944 | `secondary_reverse_interp_tobs` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
 | `S` | 967 | `reverse_dynamics_rhs` | ODE/PDE 右端项；定义物理源汇和动力学变量导数。 |
 | `S` | 1056 | `decode_reverse_state` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
 | `S` | 1090 | `compute_region2_radiative_efficiency` | 局部 helper；语义由所在文件的算法阶段决定。 |

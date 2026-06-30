@@ -2,9 +2,17 @@ module dynamics_common
     use constants
     use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
     implicit none
-    private :: dynamics_rk4_forward_ln_step, &
-               dynamics_rk4_reverse_plain_step, dynamics_rk4_reverse_event_step, &
-               dynamics_rk4_reverse_pre_step, dynamics_rk4_reverse_pre_integrate
+    private
+    public :: dynamics_forward_rhs_iface, dynamics_reverse_rhs_iface
+    public :: density_jump_max, active_density_jump_count, active_density_jump_r
+    public :: active_density_jump_factor, active_density_jump_width, reverse_rhs_phase
+    public :: dynamics_deceleration_radius, dynamics_external_density_base, dynamics_external_density_profile
+    public :: dynamics_set_density_jump_profile, dynamics_boundary_r0, dynamics_log_time_step
+    public :: dynamics_reverse_gamma_extrema, dynamics_rk4_forward
+    public :: dynamics_rk4_reverse, dynamics_rk4_reverse_pre_m3, dynamics_rk4_reverse_waiting
+    public :: rs_shell_matter_fraction, rs_mag_comp, rs_b4_up, rs_mag_specific_internal
+    public :: rs_vegas_ud, rs_shock_upstream_u, rs_reverse_wave_shock_branch
+    public :: rs_pressure_balance_allowed, rs_shell_width, rs_shell_contact_fraction
     integer :: reverse_rhs_phase = 0
     integer, parameter :: density_jump_max = 8, density_profile_max = 96
     integer, parameter :: density_boundary_r0_index = 27, density_boundary_count_index = 28
@@ -165,7 +173,9 @@ subroutine dynamics_set_density_jump_profile(Boundary, n)
         active_density_profile_n(i) = Boundary(factor_index+i-1)
         if (active_density_profile_r(i) <= zero .or. active_density_profile_n(i) <= zero) &
             error stop 'density profile radii and densities must be positive'
-        if (i > 1 .and. active_density_profile_r(i) <= active_density_profile_r(i-1)) &
+    end do
+    do i = 2, active_density_profile_count
+        if (active_density_profile_r(i) <= active_density_profile_r(i-1)) &
             error stop 'density profile radii must be strictly increasing'
     end do
 end subroutine dynamics_set_density_jump_profile
@@ -322,17 +332,17 @@ real(8) function rs_vegas_comp(gamma_rel, sigma)
     real(8) :: gamma_eff, u_down, u_up
 
     gamma_eff = max(one, gamma_rel)
+    if (gamma_eff <= one) then
+        rs_vegas_comp = 4d0*gamma_eff
+        return
+    end if
     if (sigma <= sigma_cut) then
         rs_vegas_comp = 4d0*gamma_eff
         return
     end if
     u_down = rs_vegas_ud(gamma_eff, sigma)
-    if (u_down == zero) then
-        rs_vegas_comp = 4d0*gamma_eff
-    else
-        u_up = rs_shock_upstream_u(gamma_eff, sigma)
-        rs_vegas_comp = u_up/u_down
-    end if
+    u_up = rs_shock_upstream_u(gamma_eff, sigma)
+    rs_vegas_comp = u_up/u_down
 end function rs_vegas_comp
 
 ! 磁化 RS 压缩比：使用有限强度 shock 的 jump condition；sigma=0 时压缩比为 4*gamma_rel。
