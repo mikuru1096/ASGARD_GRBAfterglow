@@ -3,7 +3,7 @@ subroutine ssc_spec(R,gam_e,dN_gam_e,V_seed,seed,Num_nu,Num_R,Num_gam_e,n_thread
     use constants
     use radiation_common
     !$ use omp_lib
-    IMPLICIT REAL(8)(A-H,O-Z)
+    implicit none
     !***********************************************************
     integer, intent(in) :: Num_nu,Num_R,Num_gam_e,n_threads
     real(8), intent(in) :: R(Num_R),gam_e(Num_gam_e)
@@ -19,7 +19,7 @@ subroutine ssc_spec(R,gam_e,dN_gam_e,V_seed,seed,Num_nu,Num_R,Num_gam_e,n_thread
     real(8), allocatable :: tail_weighted_dN(:,:), tail_weighted_dN_inv2(:,:)
     integer, allocatable :: gamma_start(:), gamma_low(:,:), gamma_high(:,:)
     integer :: I_R, I_nu
-    real(8) :: h_nu_third, h_gam_third
+    real(8) :: para_hEme,h_nu,h_gam,h_nu_third,h_gam_third,Temp_para,Temp_para2
 
     allocate (simpson_weights(Num_gam_e), V_weights(Num_nu))
     allocate (E_seed(Num_nu), inv_gam(Num_gam_e), inv_gam2(Num_gam_e))
@@ -239,7 +239,7 @@ subroutine ssc_spec_nonuniform(R,x_edge_log10,dN_x,V_seed,seed,Num_nu,Num_R,Num_
     use constants
     use radiation_common
     !$ use omp_lib
-    implicit REAL(8)(A-H,O-Z)
+    implicit none
     integer, intent(in) :: Num_nu,Num_R,Num_gam_e,n_threads
     real(8), intent(in) :: R(Num_R),x_edge_log10(Num_gam_e+1,Num_R),dN_x(Num_gam_e,Num_R)
     real(8), intent(in) :: V_seed(Num_nu),seed(Num_nu,Num_R)
@@ -247,7 +247,7 @@ subroutine ssc_spec_nonuniform(R,x_edge_log10,dN_x,V_seed,seed,Num_nu,Num_R,Num_
 
     real(8), allocatable :: x_seed(:),radius_inv2(:)
     real(8), allocatable :: x_center(:,:),slope_q(:,:),tail_gamma(:,:),tail_gamma_inv2(:,:)
-    real(8) :: w2
+    real(8) :: para_hEme,w2,Temp_para,Temp_para2
     integer :: I_R,I_nu
 
     allocate(x_seed(Num_nu),radius_inv2(Num_R),x_center(Num_gam_e,Num_R),slope_q(Num_gam_e,Num_R))
@@ -459,7 +459,7 @@ end function first_cell_above_edge
 
 ! minmod斜率限制器：同号取绝对值最小者，异号返回零。
 real(8) function ssc_minmod(a,b)
-    implicit REAL(8)(A-H,O-Z)
+    implicit none
     real(8), intent(in) :: a,b
 
     if (a*b <= zero) then
@@ -471,7 +471,7 @@ end function ssc_minmod
 
 ! 计算线性重构剖面在x点的值：q(x) = q̄ + slope*(x - xc)，截断负值为零。
 real(8) function linear_profile_value(x,qbar,slope,xc)
-    implicit REAL(8)(A-H,O-Z)
+    implicit none
     real(8), intent(in) :: x,qbar,slope,xc
     linear_profile_value=qbar+slope*(x-xc)
     if (linear_profile_value < zero) then
@@ -481,7 +481,7 @@ end function linear_profile_value
 
 ! 计算线性重构剖面在[x0,x1]上的γ^(-power)矩积分（解析公式）。
 real(8) function linear_gamma_moment(x0,x1,qbar,slope,xc,power)
-    implicit REAL(8)(A-H,O-Z)
+    implicit none
     real(8), intent(in) :: x0,x1,qbar,slope,xc,power
     real(8) :: alpha,exp0,exp1,i0,i1
 
@@ -500,7 +500,7 @@ end function linear_gamma_moment
 
 ! 低能种子区（ν_seed < ν_obs）单个网格单元的SSC散射积分。
 real(8) function ssc_low_gamma_cell(x0,x1,qbar,slope,xc,Vloc,V_seed_loc,Ephoton2eV)
-    implicit REAL(8)(A-H,O-Z)
+    implicit none
     real(8), intent(in) :: x0,x1,qbar,slope,xc,Vloc,V_seed_loc,Ephoton2eV
     real(8) :: xm,dx,w2_loc,xg,gam,temp,q,q_gamma,kn_coeff,fssc,val,q_loc
     integer :: I_pt
@@ -538,7 +538,7 @@ end function ssc_low_gamma_cell
 
 ! 低能种子区（ν_seed < ν_obs）的完整SSC散射积分，遍历电子能格。
 real(8) function ssc_low_gamma_integral(I_R,x_floor,Vloc,V_seed_loc,Ephoton2eV)
-    implicit REAL(8)(A-H,O-Z)
+    implicit none
     integer, intent(in) :: I_R
     real(8), intent(in) :: x_floor,Vloc,V_seed_loc,Ephoton2eV
     integer :: i_start,i_game
@@ -563,7 +563,7 @@ end function ssc_low_gamma_integral
 
 ! 高能种子区（ν_seed ≥ ν_obs）SSC尾部积分，利用预计算的gamma矩加速。
 real(8) function ssc_high_gamma_tail(I_R,x_floor,ratio_v)
-    implicit REAL(8)(A-H,O-Z)
+    implicit none
     integer, intent(in) :: I_R
     real(8), intent(in) :: x_floor,ratio_v
     integer :: i_start
