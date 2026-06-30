@@ -1,14 +1,13 @@
 ! f2py: skip
-! public: integral_thermal1, integral_thermal12, integral_cp, normalized_hybrid_spec, normalized_hybrid_spec_lg
+! public: normalized_hybrid_spec, normalized_hybrid_spec_lg
 
 module hybrid_spectrum_kernel_fast
    use hybrid_special_functions, only: gammauic, besselk0, besselk1
    implicit none
    private
-   public :: integral_thermal1, integral_thermal12, integral_cpl, normalized_hybrid_spec, normalized_hybrid_spec_lg
+   public :: normalized_hybrid_spec, normalized_hybrid_spec_lg
    
    real(8), private, parameter :: m700 = -7.0d2
-   real(8), private :: global_gmin, global_lnc
 
    ! coefficients for integral_thermal
    real(8), private, parameter :: coeff0 = -1.0d0
@@ -337,30 +336,14 @@ module hybrid_spectrum_kernel_fast
          + (1.0d0+p)*log(gamma_min) &
          + log(int) &
          + gamma_min/gamma_max
-      global_lnc = ln_c
-      global_gmin = gamma_min
-
-      init_theta = get_initial_theta()
-      if (init_theta < 0.0d0) then
-         error stop "hybrid_spectrum_kernel.solve_theta: initial theta must be non-negative."
-      end if
-
-      theta = newton_method(init_theta, 1.0d-6, 50)
+      init_theta = 0.144d0*gamma_min
+      theta = newton_method(init_theta, 1.0d-6, 50, gamma_min, ln_c)
 
    end subroutine solve_theta
 
-   function get_initial_theta() result(init_theta)
-      ! Initial theta used by solve_theta's Newton iteration.
+   function newton_method(init_theta, rtol, max_iter, gamma_min, ln_c) result(best_theta)
       implicit none
-      real(8) :: init_theta
-
-      init_theta = 0.144d0 * global_gmin
-
-   end function get_initial_theta
-
-   function newton_method(init_theta, rtol, max_iter) result(best_theta)
-      implicit none
-      real(8), intent(in) :: init_theta, rtol
+      real(8), intent(in) :: init_theta, rtol, gamma_min, ln_c
       integer, intent(in) :: max_iter
       real(8) :: best_theta, theta
       real(8) :: inv_theta, gdt, it1, it2, rel_shift
@@ -372,14 +355,14 @@ module hybrid_spectrum_kernel_fast
       ! Newton iteration method
       ! \Theta_{n+1} = \Theta_{n} - f(\Theta_{n}) / f'(\Theta_{n})
       iter_loop: do iter = 1, max_iter
-         call integral_thermal12(global_gmin, theta, &
+         call integral_thermal12(gamma_min, theta, &
             it1, it2)
          inv_theta = 1.0d0/theta
-         gdt = global_gmin*inv_theta
+         gdt = gamma_min*inv_theta
 
          ! relative shift for each iter
          ! \Theta_{n+1}/\Theta_{n} - 1.0d0 = - f(\Theta_{n}) / f'(\Theta_{n}) / \Theta_{n}
-         rel_shift = gdt + log(it1) - global_lnc
+         rel_shift = gdt + log(it1) - ln_c
          rel_shift = rel_shift / (gdt - inv_theta*it2/it1) 
          if (abs(rel_shift) < rtol) then
             best_theta = theta * (1.0d0 + rel_shift)
@@ -395,6 +378,7 @@ module hybrid_spectrum_kernel_fast
 
    subroutine normalized_hybrid_spec(n_gamma, gamma, p, gamma_min, gamma_max, xi_e, &
       spec)
+      implicit none
       integer, intent(in) :: n_gamma
       real(8), intent(in) :: gamma(n_gamma)
       real(8), intent(in) :: p, gamma_min, gamma_max, xi_e
@@ -445,6 +429,7 @@ module hybrid_spectrum_kernel_fast
 
    subroutine normalized_hybrid_spec_lg(n_gamma, gamma, p, gamma_min, gamma_max, xi_e, &
       spec)
+      implicit none
       integer, intent(in) :: n_gamma
       real(8), intent(in) :: gamma(n_gamma)
       real(8), intent(in) :: p, gamma_min, gamma_max, xi_e
