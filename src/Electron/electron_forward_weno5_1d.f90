@@ -134,6 +134,7 @@ contains
         end do
 
         dN_x = dN_x_extended(1:Num_gam_e)
+        where(dN_x < 0.0d0) dN_x = 0.0d0
 
         if (L1 == L) then
             call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,I_tobs))
