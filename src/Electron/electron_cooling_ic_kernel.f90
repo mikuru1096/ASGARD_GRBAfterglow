@@ -11,8 +11,6 @@ module electron_cooling_ic_kernel
   logical, save :: ic_grid_cache_ready=.false.
   real(8), allocatable, save :: ic_d_nu_cache(:), ic_gam_e_mean_cache(:), &
                                 ic_e_seed_cache(:), ic_x_seed_cache(:), ic_v_seed_mid_cache(:)
-  ! threadprivate(ic_num_gam_cache,ic_num_nu_cache,ic_grid_cache_ready,ic_d_nu_cache)
-  ! threadprivate(ic_gam_e_mean_cache,ic_e_seed_cache,ic_x_seed_cache,ic_v_seed_mid_cache)
 
 contains
 ! 确保IC网格缓存已计算（种子频率中点值、间距、电子能量中点值等）。
@@ -83,17 +81,13 @@ end subroutine ensure_ic_grid_cache
 
 ! 数值计算逆康普顿（IC）冷却率：双重积分（种子光子×散射截面），含Jones/Blumenthal核。
 subroutine electron_cooling_ic_loss(Num_gam_e,Num_nu,n_threads,gam_e,V_seed,Seed_syn, dot_gam_e)
-!$ use omp_lib
 implicit REAL(8)(A-H,O-Z)
 integer, intent(in) :: Num_gam_e,Num_nu,n_threads
 real(8), intent(in) :: gam_e(Num_gam_e),V_seed(Num_nu),Seed_syn(Num_nu)
 real(8), intent(out) :: dot_gam_e(Num_gam_e)
-
-real(8),allocatable,dimension (:) :: photon_number
+real(8) :: photon_number(Num_nu-1)
 
     call ensure_ic_grid_cache(Num_gam_e,Num_nu,gam_e,V_seed)
-    allocate (photon_number(Num_nu-1))
-    
     dot_gam_e=zero
 
     do I_nu=1,Num_nu-1
@@ -107,8 +101,6 @@ real(8),allocatable,dimension (:) :: photon_number
 
     dot_gam_e=dot_gam_e/gam_e/gam_e*para_h*Para_h*Para_SigmaT/para_m_energy
     dot_gam_e(Num_gam_e)=0.99*dot_gam_e(Num_gam_e-1)
-
-deallocate (photon_number)
 
 contains
 
