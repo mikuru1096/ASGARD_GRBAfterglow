@@ -9,7 +9,7 @@ subroutine fs_electron_t2g1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,N
     use electron_cooling_kernel, only: get_forward_cooling
     use electron_transport_common, only: electron_prepare_implicit_coeffs_common, electron_backward_sweep_common, &
                                          electron_dnx_to_dndgamma_exp_centers
-    implicit real(8)(A-H,O-Z)
+    implicit none
     integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads
     integer :: I_tobs,L,L1
     real(8), intent(in) :: Boundary(n),R_Tobs(Num_R),R_Gamma(Num_R),R(Num_R),V_seed(Num_nu)
@@ -69,8 +69,8 @@ subroutine fs_electron_t2g1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,N
 contains
 
     subroutine prepare_t2g1_shell(I_tobs)
-    implicit real(8)(A-H,O-Z)
-    integer, intent(in) :: I_tobs
+        implicit none
+        integer, intent(in) :: I_tobs
 
         R_loc=R(I_tobs-1)
         R_Gamma_loc=(R_Gamma(I_tobs)+R_Gamma(I_tobs-1))/two
@@ -94,8 +94,8 @@ contains
     end subroutine prepare_t2g1_shell
 
     subroutine write_t2g1_radiation_and_cooling(I_tobs)
-    implicit real(8)(A-H,O-Z)
-    integer, intent(in) :: I_tobs
+        implicit none
+        integer, intent(in) :: I_tobs
 
         V_m(I_tobs-1)=4.2d6*DB*Gam_e_m*Gam_e_m/(R_Gamma_loc*(1d0-beta_Gam)*(one+z))
         V_c(I_tobs-1)=4.2d6*DB*Gam_e_c*Gam_e_c/(R_Gamma_loc*(1d0-beta_Gam)*(one+z))
@@ -115,8 +115,8 @@ contains
     end subroutine write_t2g1_radiation_and_cooling
 
     subroutine advance_t2g1_substep(I_tobs,L)
-    implicit real(8)(A-H,O-Z)
-    integer, intent(in) :: I_tobs,L
+        implicit none
+        integer, intent(in) :: I_tobs,L
 
         R_loc=R_loc+dDR
 
