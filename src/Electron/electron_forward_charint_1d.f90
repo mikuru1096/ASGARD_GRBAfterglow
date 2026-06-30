@@ -10,13 +10,18 @@ subroutine fs_electron_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_
     use electron_injection_profiles, only: electron_build_source_term_exp_cutoff_edges
     use electron_radiation_kernel, only: get_syn_selected_state, get_nu_a_from_tau_grid
     use electron_cooling_kernel, only: get_forward_cooling
-    implicit real(8)(A-H,O-Z)
+    implicit none
     integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads,adaptive_substeps,substep_min,substep_max
+    integer :: I_tobs,L,L1
     real(8), intent(in) :: Boundary(n),R_Tobs(Num_R),R_Gamma(Num_R),R(Num_R),V_seed(Num_nu)
     real(8), intent(in) :: substep_rtol
     real(8), intent(out) :: dN_gam_e(Num_gam_e,Num_R),gam_e(Num_gam_e),P_syn(Num_nu,Num_R), &
                             Seed_syn(Num_nu,Num_R),V_m(Num_R),V_c(Num_R),V_a(Num_R)
-
+    real(8) :: Eta_0,R_ini,Epsilon_e,Epsilon_b,p,z,dNe_ISM,A_star,E_iso,T_log10_duration,f_e,R_tr,f_jump,f_wide,R0
+    real(8) :: dNe,Para_N_e_ini,DB,DB_min,DB_step,beta_Gam,f_r,cooling_scale,a_rad,b_ad,Q,temp
+    real(8) :: Gam_e_max,Gam_e_max_max,Gam_e_max_step,Gam_e_m,Gam_e_m_p,Gam_e_m_step,Gam_e_m_p_step,Gam_e_c,temp_gam
+    real(8) :: R_loc,R_left,R_right,R_mid,R_Gamma_loc,dDR,dDD,dR_min,dR_max,dR_try,dR_left,dR_cap,step_limit,step_error
+    real(8) :: dNe_shell,dNe_mid,dNe_right
     real(8), allocatable :: dEl_base(:),dEl_step(:),dN_x(:),dN_step(:),dF1(:),dF1_shape(:),x_edge(:)
     real(8) :: P_emit_tmp(Num_nu),Tau_syn_tmp(Num_nu)
     logical :: is_uniform_density
@@ -85,7 +90,6 @@ subroutine fs_electron_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_
             else
                 do L=1,L1
                     R_left=R_loc
-                    dNe_left=dNe
                     R_right=R_left+dDR
                     call dynamics_external_density_profile(A_star,dNe_ISM,R_right,R0,1,R_tr,f_jump,f_wide,dNe_right)
                     R_mid=0.5d0*(R_left+R_right)
@@ -241,8 +245,8 @@ contains
     end subroutine advance_characteristic_with_split_source
 
     subroutine prepare_characteristic_shell(I_tobs)
-    implicit real(8)(A-H,O-Z)
-    integer, intent(in) :: I_tobs
+        implicit none
+        integer, intent(in) :: I_tobs
 
         R_loc=R(I_tobs-1)
         R_Gamma_loc=(R_Gamma(I_tobs)+R_Gamma(I_tobs-1))/two
@@ -281,7 +285,7 @@ contains
     end subroutine prepare_characteristic_shell
 
     subroutine write_final_characteristic_diagnostics()
-    implicit real(8)(A-H,O-Z)
+        implicit none
 
         R_loc=R(Num_R)
         R_Gamma_loc=R_Gamma(Num_R)
