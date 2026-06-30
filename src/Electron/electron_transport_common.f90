@@ -749,20 +749,14 @@ subroutine electron_fullhide_flux_split_step(Num_gam_e,dDR,d_x,face_speed,dF1,dN
     low_boundary_closed=.false.
     if (present(close_low_boundary)) low_boundary_closed=close_low_boundary
 
-    do I_gam_e=1,Num_gam_e
-        if (I_gam_e == 1) then
-            if (.not. low_boundary_closed) diag(I_gam_e)=diag(I_gam_e)+lambda*a_plus(1)
-        else
-            diag(I_gam_e)=diag(I_gam_e)+lambda*a_plus(I_gam_e-1)
-            lower(I_gam_e)=-lambda*(-a_minus(I_gam_e-1))
-        end if
-        if (I_gam_e == Num_gam_e) then
-            diag(I_gam_e)=diag(I_gam_e)+lambda*(-a_minus(Num_gam_e-1))
-        else
-            diag(I_gam_e)=diag(I_gam_e)+lambda*(-a_minus(I_gam_e))
-            upper(I_gam_e)=-lambda*a_plus(I_gam_e)
-        end if
+    do I_gam_e=1,Num_gam_e-1
+        diag(I_gam_e)=diag(I_gam_e)+lambda*(-a_minus(I_gam_e))
+        upper(I_gam_e)=-lambda*a_plus(I_gam_e)
+        diag(I_gam_e+1)=diag(I_gam_e+1)+lambda*a_plus(I_gam_e)
+        lower(I_gam_e+1)=lambda*a_minus(I_gam_e)
     end do
+    if (.not. low_boundary_closed) diag(1)=diag(1)+lambda*a_plus(1)
+    diag(Num_gam_e)=diag(Num_gam_e)+lambda*(-a_minus(Num_gam_e-1))
 
     cprime(1)=upper(1)/diag(1)
     dprime(1)=rhs(1)/diag(1)
@@ -797,22 +791,21 @@ subroutine electron_fullhide_flux_split_step_nonuniform(Num_gam_e,dDR,coord_edge
     low_boundary_closed=.false.
     if (present(close_low_boundary)) low_boundary_closed=close_low_boundary
 
-    do I_gam_e=1,Num_gam_e
+    do I_gam_e=1,Num_gam_e-1
         dx_cell=coord_edge(I_gam_e+1)-coord_edge(I_gam_e)
         lambda=dDR/dx_cell
-        if (I_gam_e == 1) then
-            if (.not. low_boundary_closed) diag(I_gam_e)=diag(I_gam_e)+lambda*a_plus(1)
-        else
-            diag(I_gam_e)=diag(I_gam_e)+lambda*a_plus(I_gam_e-1)
-            lower(I_gam_e)=-lambda*(-a_minus(I_gam_e-1))
-        end if
-        if (I_gam_e == Num_gam_e) then
-            diag(I_gam_e)=diag(I_gam_e)+lambda*(-a_minus(Num_gam_e-1))
-        else
-            diag(I_gam_e)=diag(I_gam_e)+lambda*(-a_minus(I_gam_e))
-            upper(I_gam_e)=-lambda*a_plus(I_gam_e)
-        end if
+        diag(I_gam_e)=diag(I_gam_e)+lambda*(-a_minus(I_gam_e))
+        upper(I_gam_e)=-lambda*a_plus(I_gam_e)
+
+        dx_cell=coord_edge(I_gam_e+2)-coord_edge(I_gam_e+1)
+        lambda=dDR/dx_cell
+        diag(I_gam_e+1)=diag(I_gam_e+1)+lambda*a_plus(I_gam_e)
+        lower(I_gam_e+1)=lambda*a_minus(I_gam_e)
     end do
+    dx_cell=coord_edge(2)-coord_edge(1)
+    if (.not. low_boundary_closed) diag(1)=diag(1)+(dDR/dx_cell)*a_plus(1)
+    dx_cell=coord_edge(Num_gam_e+1)-coord_edge(Num_gam_e)
+    diag(Num_gam_e)=diag(Num_gam_e)+(dDR/dx_cell)*(-a_minus(Num_gam_e-1))
 
     cprime(1)=upper(1)/diag(1)
     dprime(1)=rhs(1)/diag(1)
@@ -911,7 +904,6 @@ subroutine electron_fullhide_spacetime_sequence(Num_gam_e,Num_step,face_coupling
     real(8), intent(in) :: dN_x_in(Num_gam_e)
     real(8), intent(out) :: dN_x_out(Num_gam_e)
     real(8) :: diag(Num_gam_e,Num_step),upper(Num_gam_e,Num_step),rhs(Num_gam_e,Num_step)
-    real(8) :: face_left,face_right,previous_step,upper_neighbor
 
     diag=one
     upper=zero
@@ -919,32 +911,26 @@ subroutine electron_fullhide_spacetime_sequence(Num_gam_e,Num_step,face_coupling
     rhs(:,1)=rhs(:,1)+dN_x_in
 
     do I_step=1,Num_step
-        do I_gam_e=1,Num_gam_e
-            face_left=zero
-            face_right=zero
-            if (I_gam_e > 1) face_left=face_coupling(I_gam_e-1,I_step)
-            if (I_gam_e < Num_gam_e) face_right=face_coupling(I_gam_e,I_step)
-
-            if (I_gam_e == 1) then
-                diag(I_gam_e,I_step)=one+face_right
-                upper(I_gam_e,I_step)=-face_right
-            else if (I_gam_e == Num_gam_e) then
-                diag(I_gam_e,I_step)=one+face_left
-            else
-                diag(I_gam_e,I_step)=one+face_left
-                upper(I_gam_e,I_step)=-face_right
-            end if
+        diag(1,I_step)=one+face_coupling(1,I_step)
+        upper(1,I_step)=-face_coupling(1,I_step)
+        do I_gam_e=2,Num_gam_e-1
+            diag(I_gam_e,I_step)=one+face_coupling(I_gam_e-1,I_step)
+            upper(I_gam_e,I_step)=-face_coupling(I_gam_e,I_step)
         end do
+        diag(Num_gam_e,I_step)=one+face_coupling(Num_gam_e-1,I_step)
     end do
 
-    do I_step=1,Num_step
-        do I_gam_e=Num_gam_e,1,-1
-            previous_step=zero
-            if (I_step > 1) previous_step=rhs(I_gam_e,I_step-1)
-            upper_neighbor=zero
-            if (I_gam_e < Num_gam_e) upper_neighbor=rhs(I_gam_e+1,I_step)
-            rhs(I_gam_e,I_step)=max(zero,(rhs(I_gam_e,I_step)+previous_step &
-                                  -upper(I_gam_e,I_step)*upper_neighbor)/diag(I_gam_e,I_step))
+    rhs(Num_gam_e,1)=max(zero,rhs(Num_gam_e,1)/diag(Num_gam_e,1))
+    do I_gam_e=Num_gam_e-1,1,-1
+        rhs(I_gam_e,1)=max(zero,(rhs(I_gam_e,1) &
+                         -upper(I_gam_e,1)*rhs(I_gam_e+1,1))/diag(I_gam_e,1))
+    end do
+
+    do I_step=2,Num_step
+        rhs(Num_gam_e,I_step)=max(zero,(rhs(Num_gam_e,I_step)+rhs(Num_gam_e,I_step-1))/diag(Num_gam_e,I_step))
+        do I_gam_e=Num_gam_e-1,1,-1
+            rhs(I_gam_e,I_step)=max(zero,(rhs(I_gam_e,I_step)+rhs(I_gam_e,I_step-1) &
+                                  -upper(I_gam_e,I_step)*rhs(I_gam_e+1,I_step))/diag(I_gam_e,I_step))
         end do
     end do
 
