@@ -1,7 +1,7 @@
 !f2py: skip
 module electron_common
     use constants
-    use dynamics_common, only: dynamics_boundary_r0, dynamics_set_density_jump_profile
+    use dynamics_common, only: dynamics_set_density_jump_profile
     use adaptive_resampling_mod, only: adaptive_resampling_log
     use electron_injection_profiles, only: electron_profile_log_cell_edges, &
                                      electron_initial_powerlaw_exp_cutoff, electron_initial_powerlaw_exp_cutoff_edges, &
@@ -20,6 +20,7 @@ subroutine electron_unpack_boundary(Boundary,n,Eta_0,R_ini,Epsilon_e,Epsilon_b,p
                                     E_iso,T_log10_duration,f_e,R_tr,f_jump,f_wide,R0)
     implicit none
     integer, intent(in) :: n
+    integer, parameter :: density_boundary_r0_index = 27
     real(8), intent(in) :: Boundary(n)
     real(8), intent(out) :: Eta_0,R_ini,Epsilon_e,Epsilon_b,p,z,dNe_ISM,A_star
     real(8), intent(out) :: E_iso,T_log10_duration,f_e,R_tr,f_jump,f_wide,R0
@@ -38,7 +39,11 @@ subroutine electron_unpack_boundary(Boundary,n,Eta_0,R_ini,Epsilon_e,Epsilon_b,p
     R_tr=Boundary(21)
     f_jump=Boundary(22)
     f_wide=Boundary(23)
-    call dynamics_boundary_r0(Boundary,n,R0)
+    if (n >= density_boundary_r0_index) then
+        R0=Boundary(density_boundary_r0_index)
+    else
+        R0=Boundary(n)
+    end if
     call dynamics_set_density_jump_profile(Boundary,n)
 end subroutine electron_unpack_boundary
 

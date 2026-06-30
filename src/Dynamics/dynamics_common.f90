@@ -6,13 +6,10 @@ module dynamics_common
     public :: dynamics_forward_rhs_iface, dynamics_reverse_rhs_iface
     public :: density_jump_max, active_density_jump_count, active_density_jump_r
     public :: active_density_jump_factor, active_density_jump_width, reverse_rhs_phase
-    public :: dynamics_deceleration_radius, dynamics_external_density_base, dynamics_external_density_profile
-    public :: dynamics_set_density_jump_profile, dynamics_boundary_r0, dynamics_log_time_step
-    public :: dynamics_reverse_gamma_extrema, dynamics_rk4_forward
+    public :: dynamics_external_density_profile, dynamics_set_density_jump_profile
+    public :: dynamics_rk4_forward
     public :: dynamics_rk4_reverse, dynamics_rk4_reverse_pre_m3, dynamics_rk4_reverse_waiting
-    public :: rs_shell_matter_fraction, rs_mag_comp, rs_b4_up, rs_mag_specific_internal
-    public :: rs_vegas_ud, rs_shock_upstream_u, rs_reverse_wave_shock_branch
-    public :: rs_pressure_balance_allowed, rs_shell_width, rs_shell_contact_fraction
+    public :: rs_vegas_ud, rs_vegas_comp, rs_mag_specific_internal
     integer :: reverse_rhs_phase = 0
     integer, parameter :: density_jump_max = 8, density_profile_max = 96
     integer, parameter :: density_boundary_r0_index = 27, density_boundary_count_index = 28
@@ -61,70 +58,59 @@ module dynamics_common
 
 contains
 
-subroutine dynamics_deceleration_radius(A_star, dNe_ISM, Eta_0, DM_0, R_dec)
-    implicit none
-    real(8), intent(in) :: A_star, dNe_ISM, Eta_0, DM_0
-    real(8), intent(out) :: R_dec
-    real(8) :: R_dec_ism, R_dec_wind
-
-    R_dec_ism = (dNe_ISM*Eta_0/DM_0)**(-one/3d0)
-    if (A_star > zero) then
-        R_dec_wind = DM_0/(2.0d35*A_star*Eta_0)
-        R_dec = min(R_dec_wind, R_dec_ism)
-    else
-        R_dec = R_dec_ism
-    end if
-end subroutine dynamics_deceleration_radius
-
-subroutine dynamics_external_density_base(A_star, dNe_ISM, RR, dNe)
-    implicit none
-    real(8), intent(in) :: A_star, dNe_ISM, RR
-    real(8), intent(out) :: dNe
-    real(8) :: dNe_wind
-
-    if (A_star > zero) then
-        dNe_wind = A_star*3.0d35/RR**2
-        if (dNe_wind <= dNe_ISM/4d0) then
-            dNe = dNe_ISM
-        else
-            dNe = dNe_wind
-        end if
-    else
-        dNe = dNe_ISM
-    end if
-end subroutine dynamics_external_density_base
-
 subroutine dynamics_external_density_profile(A_star, dNe_ISM, RR, R0, apply_jump, R_tr, f_jump, f_wide, dNe)
     implicit none
     integer, intent(in) :: apply_jump
+    integer :: i
     real(8), intent(in) :: A_star, dNe_ISM, RR, R0, R_tr, f_jump, f_wide
     real(8), intent(out) :: dNe
-    real(8) :: dNe_base
+    real(8) :: dNe_base, dNe_wind, enhancement, width_cm
 
-    if (active_density_profile_count > 0) then
-        call dynamics_density_tabulated_profile(RR, dNe)
-    else
-        call dynamics_external_density_base(A_star, dNe_ISM, RR, dNe)
-    end if
-
-    if (apply_jump /= 0 .and. active_density_profile_count == 0) then
-        if (active_density_jump_count > 0) then
-            dNe_base = dNe
-            call dynamics_density_multi_jump(dNe_base,RR,dNe)
-        else
-            dNe = dNe*(one+(f_jump-one)* &
-                  exp(-((RR-R_tr)*(RR-R_tr))/(two*(f_wide*R_tr)*(f_wide*R_tr))))
-        end if
-    end if
-
-    if (RR < R0) then
-        if (active_density_profile_count > 0) then
-            call dynamics_density_tabulated_profile(R0, dNe)
-        else if (A_star > zero) then
-            dNe = A_star*3.0d35/R0**2
+    select case (active_density_profile_count)
+    case (0)
+        if (A_star > zero) then
+            dNe_wind = A_star*3.0d35/RR**2
+            if (dNe_wind <= dNe_ISM/4d0) then
+                dNe = dNe_ISM
+            else
+                dNe = dNe_wind
+            end if
         else
             dNe = dNe_ISM
         end if
+    case default
+        call dynamics_density_tabulated_profile(RR, dNe)
+    end select
+
+    if (apply_jump /= 0 .and. active_density_profile_count == 0) then
+        select case (active_density_jump_count)
+        case (0)
+            dNe = dNe*(one+(f_jump-one)* &
+                  exp(-((RR-R_tr)*(RR-R_tr))/(two*(f_wide*R_tr)*(f_wide*R_tr))))
+        case default
+            dNe_base = dNe
+            enhancement = one
+            do i = 1, active_density_jump_count
+                width_cm = active_density_jump_width(i)*active_density_jump_r(i)
+                enhancement = enhancement+(active_density_jump_factor(i)-one)* &
+                              exp(-((RR-active_density_jump_r(i))*(RR-active_density_jump_r(i)))/ &
+                              (two*width_cm*width_cm))
+            end do
+            dNe = dNe_base*enhancement
+        end select
+    end if
+
+    if (RR < R0) then
+        select case (active_density_profile_count)
+        case (0)
+            if (A_star > zero) then
+                dNe = A_star*3.0d35/R0**2
+            else
+                dNe = dNe_ISM
+            end if
+        case default
+            call dynamics_density_tabulated_profile(R0, dNe)
+        end select
     end if
 end subroutine dynamics_external_density_profile
 
@@ -180,36 +166,6 @@ subroutine dynamics_set_density_jump_profile(Boundary, n)
     end do
 end subroutine dynamics_set_density_jump_profile
 
-subroutine dynamics_boundary_r0(Boundary, n, R0)
-    implicit none
-    integer, intent(in) :: n
-    real(8), intent(in) :: Boundary(n)
-    real(8), intent(out) :: R0
-
-    if (n >= density_boundary_r0_index) then
-        R0 = Boundary(density_boundary_r0_index)
-    else
-        R0 = Boundary(n)
-    end if
-end subroutine dynamics_boundary_r0
-
-subroutine dynamics_density_multi_jump(dNe_base, RR, dNe)
-    implicit none
-    integer :: i
-    real(8), intent(in) :: dNe_base, RR
-    real(8), intent(out) :: dNe
-    real(8) :: enhancement, width_cm
-
-    enhancement = one
-    do i = 1, active_density_jump_count
-        width_cm = active_density_jump_width(i)*active_density_jump_r(i)
-        enhancement = enhancement+(active_density_jump_factor(i)-one)* &
-                      exp(-((RR-active_density_jump_r(i))*(RR-active_density_jump_r(i)))/ &
-                      (two*width_cm*width_cm))
-    end do
-    dNe = dNe_base*enhancement
-end subroutine dynamics_density_multi_jump
-
 subroutine dynamics_density_tabulated_profile(RR, dNe)
     implicit none
     integer :: lo, hi, mid
@@ -242,43 +198,6 @@ subroutine dynamics_density_tabulated_profile(RR, dNe)
     weight = (x-x0)/(x1-x0)
     dNe = exp(y0+weight*(y1-y0))
 end subroutine dynamics_density_tabulated_profile
-
-subroutine dynamics_log_time_step(T_base, Grid_Tobs_bin, T_log10, Num_R1, I_tobs, T, H)
-    implicit none
-    integer, intent(in) :: Num_R1, I_tobs
-    real(8), intent(in) :: T_base, Grid_Tobs_bin, T_log10
-    real(8), intent(out) :: T, H
-    real(8) :: dT
-
-    dT = ten**(Grid_Tobs_bin+T_log10*(I_tobs-one)/Num_R1)
-    T = T_base+dT
-    if (I_tobs == 1) then
-        H = dT
-    else
-        H = ten**(Grid_Tobs_bin+T_log10*I_tobs/Num_R1)-dT
-    end if
-end subroutine dynamics_log_time_step
-
-subroutine dynamics_reverse_gamma_extrema(dB, gamma34, factor2, f_e_r, Gam_e_max, Gam_e_m)
-    implicit none
-    real(8), intent(in) :: dB, gamma34, factor2, f_e_r
-    real(8), intent(out) :: Gam_e_max, Gam_e_m
-
-    Gam_e_max = 3d0*Para_m_energy/dsqrt(8d0*dB*Para_e**3)
-    Gam_e_m = factor2*(gamma34-one)/f_e_r+one
-end subroutine dynamics_reverse_gamma_extrema
-
-! 固定 E_iso 为总 ejecta 能量；有限 sigma 时只有 1/(1+sigma) 是 baryonic rest-mass 分量。
-real(8) function rs_shell_matter_fraction(sigma)
-    implicit none
-    real(8), intent(in) :: sigma
-
-    if (sigma <= zero) then
-        rs_shell_matter_fraction = one
-    else
-        rs_shell_matter_fraction = one/(one+sigma)
-    end if
-end function rs_shell_matter_fraction
 
 ! Vegas 磁化跳跃条件的解析根：给定相对 Lorentz 因子和上游 sigma，返回下游四速度。
 real(8) function rs_vegas_ud(gamma_rel, sigma)
@@ -314,22 +233,12 @@ real(8) function rs_vegas_ud(gamma_rel, sigma)
     rs_vegas_ud = dsqrt(u2_down)
 end function rs_vegas_ud
 
-real(8) function rs_shock_upstream_u(gamma_rel, sigma)
-    implicit none
-    real(8), intent(in) :: gamma_rel, sigma
-    real(8) :: u_down, gamma_sq_minus_one
-
-    u_down = rs_vegas_ud(gamma_rel, sigma)
-    gamma_sq_minus_one = (gamma_rel-one)*(gamma_rel+one)
-    rs_shock_upstream_u = dsqrt((one+u_down*u_down)*gamma_sq_minus_one)+u_down*gamma_rel
-end function rs_shock_upstream_u
-
 ! Vegas 压缩比 u_up/u_down；上游四速度由相对速度合成关系给出。
 real(8) function rs_vegas_comp(gamma_rel, sigma)
     implicit none
     real(8), intent(in) :: gamma_rel, sigma
     real(8), parameter :: sigma_cut = 1d-6
-    real(8) :: gamma_eff, u_down, u_up
+    real(8) :: gamma_eff, u_down, u_up, gamma_sq_minus_one
 
     gamma_eff = max(one, gamma_rel)
     if (gamma_eff <= one) then
@@ -341,150 +250,16 @@ real(8) function rs_vegas_comp(gamma_rel, sigma)
         return
     end if
     u_down = rs_vegas_ud(gamma_eff, sigma)
-    u_up = rs_shock_upstream_u(gamma_eff, sigma)
+    gamma_sq_minus_one = (gamma_eff-one)*(gamma_eff+one)
+    u_up = dsqrt((one+u_down*u_down)*gamma_sq_minus_one)+u_down*gamma_eff
     rs_vegas_comp = u_up/u_down
 end function rs_vegas_comp
-
-! 磁化 RS 压缩比：使用有限强度 shock 的 jump condition；sigma=0 时压缩比为 4*gamma_rel。
-real(8) function rs_mag_comp(gamma_rel, sigma)
-    implicit none
-    real(8), intent(in) :: gamma_rel, sigma
-
-    rs_mag_comp = rs_vegas_comp(gamma_rel, sigma)
-end function rs_mag_comp
-
-logical function rs_fast_shock_allowed(gamma_rel, sigma)
-    implicit none
-    real(8), intent(in) :: gamma_rel, sigma
-
-    rs_fast_shock_allowed = rs_reverse_wave_shock_branch(gamma_rel, sigma)
-end function rs_fast_shock_allowed
-
-logical function rs_reverse_wave_shock_branch(gamma_rel, sigma)
-    implicit none
-    real(8), intent(in) :: gamma_rel, sigma
-    real(8) :: u_up
-
-    if (sigma <= zero) then
-        rs_reverse_wave_shock_branch = .true.
-        return
-    end if
-    u_up = rs_shock_upstream_u(gamma_rel, sigma)
-    rs_reverse_wave_shock_branch = (u_up*u_up > sigma)
-end function rs_reverse_wave_shock_branch
-
-real(8) function rs_fast_wave_shell_relative_beta(gamma4, sigma)
-    implicit none
-    real(8), intent(in) :: gamma4, sigma
-    real(8) :: beta4, beta_fast
-
-    if (sigma <= zero) then
-        rs_fast_wave_shell_relative_beta = huge(one)
-        return
-    end if
-    beta4 = dsqrt(one-one/(gamma4*gamma4))
-    beta_fast = dsqrt(sigma/(one+sigma))
-    rs_fast_wave_shell_relative_beta = beta_fast/(gamma4*gamma4*(one-beta4*beta_fast))
-end function rs_fast_wave_shell_relative_beta
-
-real(8) function rs_shell_width(radius, gamma4, delta0)
-    implicit none
-    real(8), intent(in) :: radius, gamma4, delta0
-
-    rs_shell_width = max(delta0, radius/(gamma4*gamma4))
-end function rs_shell_width
-
-real(8) function rs_fast_wave_depth(radius, gamma4, sigma)
-    implicit none
-    real(8), intent(in) :: radius, gamma4, sigma
-    real(8) :: beta_shell
-
-    if (sigma <= zero) then
-        rs_fast_wave_depth = zero
-        return
-    end if
-    beta_shell = dsqrt(one-one/(gamma4*gamma4))
-    rs_fast_wave_depth = radius*rs_fast_wave_shell_relative_beta(gamma4,sigma)/beta_shell
-end function rs_fast_wave_depth
-
-real(8) function rs_shell_contact_fraction(radius, gamma4, sigma, delta_shell)
-    implicit none
-    real(8), intent(in) :: radius, gamma4, sigma, delta_shell
-    real(8) :: depth
-
-    if (sigma <= zero) then
-        rs_shell_contact_fraction = one
-        return
-    end if
-    depth = rs_fast_wave_depth(radius,gamma4,sigma)
-    if (depth >= delta_shell) then
-        rs_shell_contact_fraction = one
-    else
-        rs_shell_contact_fraction = depth/delta_shell
-    end if
-end function rs_shell_contact_fraction
-
-real(8) function rs_shocked_external_pressure_norm(gamma_cd, n1)
-    implicit none
-    real(8), intent(in) :: gamma_cd, n1
-
-    rs_shocked_external_pressure_norm = (4d0*gamma_cd+3d0)*(gamma_cd-one)*n1/3d0
-end function rs_shocked_external_pressure_norm
-
-real(8) function rs_ejecta_magnetic_pressure_norm(sigma, n4)
-    implicit none
-    real(8), intent(in) :: sigma, n4
-
-    rs_ejecta_magnetic_pressure_norm = 0.5d0*sigma*n4
-end function rs_ejecta_magnetic_pressure_norm
-
-real(8) function rs_pressure_balance_ratio(gamma_cd, n1, n4, sigma)
-    implicit none
-    real(8), intent(in) :: gamma_cd, n1, n4, sigma
-
-    if (sigma <= zero) then
-        rs_pressure_balance_ratio = huge(one)
-    else
-        rs_pressure_balance_ratio = rs_shocked_external_pressure_norm(gamma_cd,n1)/ &
-                                    rs_ejecta_magnetic_pressure_norm(sigma,n4)
-    end if
-end function rs_pressure_balance_ratio
-
-real(8) function rs_pressure_balance_sigma_cr(gamma4, n1, n4)
-    implicit none
-    real(8), intent(in) :: gamma4, n1, n4
-
-    rs_pressure_balance_sigma_cr = two*(4d0*gamma4+3d0)*(gamma4-one)*n1/(3d0*n4)
-end function rs_pressure_balance_sigma_cr
-
-logical function rs_pressure_balance_allowed(gamma4, n1, n4, sigma)
-    implicit none
-    real(8), intent(in) :: gamma4, n1, n4, sigma
-
-    if (sigma <= zero) then
-        rs_pressure_balance_allowed = .true.
-    else
-        rs_pressure_balance_allowed = (rs_pressure_balance_ratio(gamma4,n1,n4,sigma) >= one)
-    end if
-end function rs_pressure_balance_allowed
-
-! 上游喷流有序磁场强度，采用 Vegas 的 B4=sqrt(4*pi*c^2*sigma*rho4) 定义。
-real(8) function rs_b4_up(rho_up, sigma)
-    implicit none
-    real(8), intent(in) :: rho_up, sigma
-
-    if (sigma <= zero) then
-        rs_b4_up = zero
-    else
-        rs_b4_up = dsqrt(4d0*pi*para_c*para_c*sigma*rho_up)
-    end if
-end function rs_b4_up
 
 ! MHD jump 给出的下游热比内能；sigma=0 精确回到 hydrodynamic (gamma_rel-1)。
 real(8) function rs_mag_specific_internal(gamma_rel, sigma)
     implicit none
     real(8), intent(in) :: gamma_rel, sigma
-    real(8) :: gamma_eff, ad, u_down, u_up, gamma_down, gamma_up, comp_ratio, h_down
+    real(8) :: gamma_eff, ad, u_down, u_up, gamma_down, gamma_up, comp_ratio, h_down, gamma_sq_minus_one
 
     gamma_eff = max(one, gamma_rel)
     if (sigma <= zero) then
@@ -492,7 +267,8 @@ real(8) function rs_mag_specific_internal(gamma_rel, sigma)
     else
         ad = 4d0/3d0+one/(3d0*gamma_eff)
         u_down = rs_vegas_ud(gamma_eff, sigma)
-        u_up = rs_shock_upstream_u(gamma_eff, sigma)
+        gamma_sq_minus_one = (gamma_eff-one)*(gamma_eff+one)
+        u_up = dsqrt((one+u_down*u_down)*gamma_sq_minus_one)+u_down*gamma_eff
         gamma_down = dsqrt(one+u_down*u_down)
         gamma_up = dsqrt(one+u_up*u_up)
         comp_ratio = u_up/u_down

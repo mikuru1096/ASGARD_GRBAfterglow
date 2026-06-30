@@ -3,9 +3,8 @@ subroutine reverse_dynamics_rhs(dB3,T_cross,R_cross,e3_cross,gam20,U3_cross,V3_c
              T,Y,D,M,para_m_ej,V3_scale,Delta_0,eta_0,A_star,dNe_ISM,R_tr,f_jump,f_wide,R0, &
              Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,f_e_r,sigma_r)
     use constants
-    use dynamics_common, only: dynamics_external_density_base, dynamics_external_density_profile, &
-                               rs_mag_comp, rs_b4_up, rs_mag_specific_internal, rs_vegas_ud, rs_shock_upstream_u, &
-                               rs_shell_matter_fraction, rs_shell_width, rs_shell_contact_fraction, reverse_rhs_phase, &
+    use dynamics_common, only: dynamics_external_density_profile, &
+                               rs_mag_specific_internal, rs_vegas_ud, reverse_rhs_phase, &
                                active_density_jump_count, active_density_jump_r, active_density_jump_factor, &
                                active_density_jump_width
     use reverse_jump_conditions, only: secondary_reverse_contact_rh
@@ -24,6 +23,7 @@ subroutine reverse_dynamics_rhs(dB3,T_cross,R_cross,e3_cross,gam20,U3_cross,V3_c
     real(8) :: secondary_m_total,secondary_u_total,secondary_v_total,secondary_p_total,secondary_inertia_mass
     real(8) :: comp_ratio,rho4,B4_ordered,B3_ordered,sigma_inertia,para_n4_inertia
     real(8) :: magnetic_inertia_mass,magnetic_pressure,magnetic_energy,waiting_shell_inertia_mass,smooth_shell_fraction
+    real(8) :: beta_fast,fast_wave_depth,gamma_sq_minus_one
     integer :: j_inertia,m_idx_inertia,u_idx_inertia,v_idx_inertia
     logical :: pre_crossing, waiting_reverse
 
@@ -31,17 +31,25 @@ subroutine reverse_dynamics_rhs(dB3,T_cross,R_cross,e3_cross,gam20,U3_cross,V3_c
     gam2=Y(1); RR=Y(2); para_m2=Y(3); para_m3=Y(4)*para_m_ej
     U3=Y(5)*para_m_ej*para_c**2; V3=Y(6)*V3_scale
     call dynamics_external_density_profile(A_star,dNe_ISM,RR,R0,1,R_tr,f_jump,f_wide,dNe)
-    u2=dsqrt(gam2*gam2-one); u4=dsqrt(eta_0*eta_0-one); Delta=rs_shell_width(RR,eta_0,Delta_0)
+    u2=dsqrt(gam2*gam2-one); u4=dsqrt(eta_0*eta_0-one)
+    beta4=u4/eta_0; beta2=u2/gam2
+    Delta=max(Delta_0,RR/(eta_0*eta_0))
     para1=4d0*pi*Para_m_p*RR*RR; para_n4=para_m_ej/(para1*eta_0*Delta)
     if (sigma_r <= zero) then
         sigma_inertia=one
+        smooth_shell_fraction=one
     else
-        sigma_inertia=one/rs_shell_matter_fraction(sigma_r)
+        sigma_inertia=one+sigma_r
+        beta_fast=dsqrt(sigma_r/(one+sigma_r))
+        fast_wave_depth=RR*beta_fast/(eta_0*eta_0*(one-beta4*beta_fast))/beta4
+        if (fast_wave_depth >= Delta) then
+            smooth_shell_fraction=one
+        else
+            smooth_shell_fraction=fast_wave_depth/Delta
+        end if
     end if
     para_n4_inertia=para_n4*sigma_inertia
-    smooth_shell_fraction=rs_shell_contact_fraction(RR,eta_0,sigma_r,Delta)
     waiting_shell_inertia_mass=para_m_ej*sigma_inertia*eta_0/(eta_0-one)*smooth_shell_fraction
-    beta4=u4/eta_0; beta2=u2/gam2
     gam34=(gam2*gam2+eta_0*eta_0-one)/(eta_0*gam2+u2*u4)
     if (waiting_reverse) then
         comp_ratio=one
@@ -50,7 +58,8 @@ subroutine reverse_dynamics_rhs(dB3,T_cross,R_cross,e3_cross,gam20,U3_cross,V3_c
         betars=beta4
     else
         u3s=rs_vegas_ud(gam34,sigma_r)
-        u4s_shock=rs_shock_upstream_u(gam34,sigma_r)
+        gamma_sq_minus_one=(gam34-one)*(gam34+one)
+        u4s_shock=dsqrt((one+u3s*u3s)*gamma_sq_minus_one)+u3s*gam34
         gamma4s=dsqrt(one+u4s_shock*u4s_shock)
         comp_ratio=u4s_shock/u3s
         para_n3=comp_ratio*para_n4
@@ -72,12 +81,20 @@ subroutine reverse_dynamics_rhs(dB3,T_cross,R_cross,e3_cross,gam20,U3_cross,V3_c
         B3_ordered=zero
         if (pre_crossing) then
             rho4=para_n4*Para_m_p
-            B4_ordered=rs_b4_up(rho4,sigma_r)
+            if (sigma_r <= zero) then
+                B4_ordered=zero
+            else
+                B4_ordered=dsqrt(4d0*pi*para_c*para_c*sigma_r*rho4)
+            end if
             B3_ordered=B4_ordered*comp_ratio
         else
             if (T_cross < zero .and. gam2 > one) then
                 rho4=para_n4*Para_m_p
-                B4_ordered=rs_b4_up(rho4,sigma_r)
+                if (sigma_r <= zero) then
+                    B4_ordered=zero
+                else
+                    B4_ordered=dsqrt(4d0*pi*para_c*para_c*sigma_r*rho4)
+                end if
                 B3_ordered=B4_ordered*comp_ratio
             else
                 B3_ordered=B3_ordered_cross*V3_cross/V3*RR/R_cross

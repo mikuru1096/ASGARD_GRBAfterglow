@@ -16,19 +16,18 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
                             Secondary_event_active,Secondary_start_radius,Secondary_end_radius, &
                             Secondary_start_tobs_axis,Secondary_end_tobs_axis)
     use constants
-    use dynamics_common, only: dynamics_deceleration_radius, dynamics_rk4_reverse, &
+    use dynamics_common, only: dynamics_rk4_reverse, &
                                dynamics_rk4_reverse_pre_m3, &
                                dynamics_rk4_reverse_waiting, &
-                               dynamics_reverse_rhs_iface, dynamics_log_time_step, &
-                               dynamics_external_density_base, dynamics_external_density_profile, rs_mag_comp, &
-                               rs_mag_specific_internal, rs_shell_matter_fraction, &
-                               rs_pressure_balance_allowed, rs_reverse_wave_shock_branch, rs_shell_width, &
-                               dynamics_boundary_r0, dynamics_set_density_jump_profile, &
+                               dynamics_reverse_rhs_iface, dynamics_external_density_profile, &
+                               rs_vegas_ud, rs_vegas_comp, rs_mag_specific_internal, &
+                               dynamics_set_density_jump_profile, &
                                active_density_jump_count, density_jump_max, active_density_jump_r, &
                                active_density_jump_factor, active_density_jump_width
     use reverse_jump_conditions, only: secondary_reverse_contact_rh
     implicit none
     integer, intent(in) :: n,Num_R
+    integer, parameter :: density_boundary_r0_index = 27
     integer :: I_tobs, Num_R1, Num_state, j_event
     procedure(dynamics_reverse_rhs_iface) :: reverse_dynamics_rhs
     real(8), intent(in) :: Boundary(n),Delta_t,e_r,b_r,p_r,f_e_r,sigma_r
@@ -53,7 +52,8 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
     real(8), intent(out) :: Secondary_start_tobs_axis(density_jump_max),Secondary_end_tobs_axis(density_jump_max)
     real(8) :: Eta_0,Epsilon_e,Epsilon_b,p_f,z,dNe_ISM,A_star,E_iso,T_log10_duration,f_e
     real(8) :: R_tr,f_jump,f_wide,R0
-    real(8) :: Delta_0,para_m_ej,V3_scale,para_m2,para_m3,DM_0,R_dec,T00,t_dec,Grid_Tobs_bin,T_log10,T,H,dB3
+    real(8) :: Delta_0,para_m_ej,V3_scale,para_m2,para_m3,DM_0,R_dec,T00,t_dec,Grid_Tobs_bin,T_log10,dB3
+    real(8) :: dT_grid,R_dec_ism,R_dec_wind
     real(8) :: T_state,T_target,T_pressure_event,dB3_wait_trial,dB3_pressure_event
     real(8) :: u2_init,u4_init,Delta_init,para_n4_init,gam34_init,para_n3_init,comp_init
     real(8) :: event_prev_radius,event_prev_gamma,event_prev_tobs,event_curr_radius,event_curr_gamma,event_curr_tobs
@@ -66,13 +66,22 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
     Eta_0=Boundary(1); R(1)=Boundary(4); Epsilon_e=Boundary(5); Epsilon_b=Boundary(6); p_f=Boundary(7); z=Boundary(8)
     dNe_ISM=Boundary(11); A_star=Boundary(12); E_iso=Boundary(14); T_log10_duration=Boundary(15); f_e=Boundary(16)
     R_tr=Boundary(21); f_jump=Boundary(22); f_wide=Boundary(23)
-    call dynamics_boundary_r0(Boundary,n,R0)
+    if (n >= density_boundary_r0_index) then
+        R0=Boundary(density_boundary_r0_index)
+    else
+        R0=Boundary(n)
+    end if
     call dynamics_set_density_jump_profile(Boundary,n)
     Num_state=6+5*active_density_jump_count
     allocate(Y(Num_state),event_prev_state(Num_state),event_curr_state(Num_state), &
              wait_trial_state(Num_state),pressure_event_state(Num_state))
     Y=zero
-    Delta_0=Delta_t*para_c; para_m_ej=E_iso*rs_shell_matter_fraction(sigma_r)/eta_0/para_c**2
+    Delta_0=Delta_t*para_c
+    if (sigma_r <= zero) then
+        para_m_ej=E_iso/eta_0/para_c**2
+    else
+        para_m_ej=E_iso/(one+sigma_r)/eta_0/para_c**2
+    end if
 
     if (A_star > zero) then
         para_m2=4d0*pi*R(1)*A_star*3d35*para_m_p
@@ -84,14 +93,20 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
     Delta_init=max(Delta_0,R(1)/Eta_0**2)
     para_n4_init=para_m_ej/(4d0*pi*Para_m_p*R(1)*R(1)*Eta_0*Delta_init)
     gam34_init=(R_Gamma(1)*R_Gamma(1)+Eta_0*Eta_0-one)/(Eta_0*R_Gamma(1)+u2_init*u4_init)
-    comp_init=rs_mag_comp(gam34_init,sigma_r)
+    comp_init=rs_vegas_comp(gam34_init,sigma_r)
     para_n3_init=comp_init*para_n4_init
     V3_scale=para_m_ej/(para_n3_init*Para_m_p)
     Y(1:6)=[R_Gamma(1),R(1),para_m2,para_m3/para_m_ej,rs_mag_specific_internal(gam34_init,sigma_r)*para_m3/para_m_ej, &
             para_m3/(para_n3_init*Para_m_p)/V3_scale]
 
     DM_0=E_iso/((Eta_0-one)*4d0*pi*Para_m_p_E)
-    call dynamics_deceleration_radius(A_star,dNe_ISM,Eta_0,DM_0,R_dec)
+    R_dec_ism=(dNe_ISM*Eta_0/DM_0)**(-one/3d0)
+    if (A_star > zero) then
+        R_dec_wind=DM_0/(2.0d35*A_star*Eta_0)
+        R_dec=min(R_dec_wind,R_dec_ism)
+    else
+        R_dec=R_dec_ism
+    end if
     T_cross=-1d0; R_cross=zero; e3_cross=zero; gam20=one
     U3_cross=zero; V3_cross=zero; M3_cross=zero; gam_m_cross=zero
     Secondary_M3=zero; Secondary_U3=zero; Secondary_V3=zero; Secondary_B3=zero
@@ -118,7 +133,8 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
     call secondary_reverse_event_sources(event_prev_radius,event_prev_gamma,event_prev_state,event_prev_source)
 
     do I_tobs=1,Num_R
-        call dynamics_log_time_step(T00,Grid_Tobs_bin,T_log10,Num_R1,I_tobs,T_target,H)
+        dT_grid=ten**(Grid_Tobs_bin+T_log10*(I_tobs-one)/Num_R1)
+        T_target=T00+dT_grid
         call advance_reverse_state_to_target(T_target)
         R_Tobs(I_tobs)=T_target*(one+z); R_Gamma(I_tobs)=Y(1); R(I_tobs)=Y(2); M2(I_tobs)=Y(3)
         event_curr_radius=Y(2); event_curr_gamma=Y(1); event_curr_tobs=R_Tobs(I_tobs)
@@ -148,6 +164,7 @@ contains
     subroutine advance_reverse_state_to_target(T_target_in)
     implicit none
     real(8), intent(in) :: T_target_in
+    real(8) :: T_local,H_local
 
         do while (T_state < T_target_in)
             if (T_cross < zero .and. Y(4) < one) then
@@ -172,11 +189,11 @@ contains
                     end if
                 end if
             else
-                H=T_target_in-T_state
-                T=T_state
+                H_local=T_target_in-T_state
+                T_local=T_state
                 call dynamics_rk4_reverse(reverse_dynamics_rhs,dB3,T_cross,R_cross,e3_cross,gam20, &
                                           U3_cross,V3_cross,M3_cross, &
-                                          gam_m_cross,B3_ordered_cross,T,H,Y,Num_state,para_m_ej,V3_scale,Delta_0, &
+                                          gam_m_cross,B3_ordered_cross,T_local,H_local,Y,Num_state,para_m_ej,V3_scale,Delta_0, &
                                           eta_0,A_star,dNe_ISM,R_tr,f_jump,f_wide,R0, &
                                           Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,f_e_r,sigma_r)
                 T_state=T_target_in
@@ -188,6 +205,8 @@ contains
     implicit none
     real(8), intent(in) :: state(Num_state)
     real(8) :: radius,gamma_cd,u_cd,u4,gamma43,delta_shell,n1,n4
+    real(8) :: u_down,u_up,sigma_cr
+    logical :: pressure_ready,fast_ready
 
         if (sigma_r <= zero) then
             reverse_shock_pressure_ready_state=.true.
@@ -198,11 +217,15 @@ contains
         u_cd=dsqrt(gamma_cd*gamma_cd-one)
         u4=dsqrt(Eta_0*Eta_0-one)
         gamma43=(gamma_cd*gamma_cd+Eta_0*Eta_0-one)/(Eta_0*gamma_cd+u_cd*u4)
-        delta_shell=rs_shell_width(radius,Eta_0,Delta_0)
+        delta_shell=max(Delta_0,radius/(Eta_0*Eta_0))
         call dynamics_external_density_profile(A_star,dNe_ISM,radius,R0,1,R_tr,f_jump,f_wide,n1)
         n4=para_m_ej/(4d0*pi*Para_m_p*radius*radius*Eta_0*delta_shell)
-        reverse_shock_pressure_ready_state=rs_pressure_balance_allowed(gamma_cd,n1,n4,sigma_r) .and. &
-                                           rs_reverse_wave_shock_branch(gamma43,sigma_r)
+        sigma_cr=two*(4d0*gamma_cd+3d0)*(gamma_cd-one)*n1/(3d0*n4)
+        pressure_ready=(sigma_cr >= sigma_r)
+        u_down=rs_vegas_ud(gamma43,sigma_r)
+        u_up=dsqrt((one+u_down*u_down)*(gamma43-one)*(gamma43+one))+u_down*gamma43
+        fast_ready=(u_up*u_up > sigma_r)
+        reverse_shock_pressure_ready_state=pressure_ready .and. fast_ready
     end function reverse_shock_pressure_ready_state
 
     subroutine waiting_trial(T_end,state_out,dB3_out)

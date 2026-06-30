@@ -172,10 +172,10 @@ B_3
 
 | 物理量 | 公式角色 | 实现入口 |
 | --- | --- | --- |
-| \(M_{\rm ej,b}=E_{\rm iso}/[(1+\sigma)\eta_0c^2]\) | 有限磁化下的 baryonic ejecta mass | `rs_shell_matter_fraction` |
-| \(C=u_{4s}/u_{3s}\) | 有限强度 MHD jump 压缩比 | `rs_mag_comp`, `rs_vegas_ud`, `rs_shock_upstream_u` |
+| \(M_{\rm ej,b}=E_{\rm iso}/[(1+\sigma)\eta_0c^2]\) | 有限磁化下的 baryonic ejecta mass | `Dynamics_reverse`, `structured_jet_1d` 主流程内显式分支 |
+| \(C=u_{4s}/u_{3s}\) | 有限强度 MHD jump 压缩比 | `rs_vegas_comp`, `rs_vegas_ud` |
 | \(\epsilon_{\rm th,3}\) | 下游热比内能和 \(\mathrm{d}U_{3,{\rm sh}}\) | `rs_mag_specific_internal` |
-| \(B_{4,{\rm ord}}=\sqrt{4\pi c^2\sigma\rho_4}\) | 上游有序磁场 | `rs_b4_up` |
+| \(B_{4,{\rm ord}}=\sqrt{4\pi c^2\sigma\rho_4}\) | 上游有序磁场 | `reverse_rhs` 主流程内显式分支 |
 | \(M_{B,{\rm eff}}\) | 有序场磁压焓对 bulk 方程的惯性贡献 | `compute_ordered_magnetic_inertia` |
 
 ### 4.1 穿越捕获而不是跨步修补

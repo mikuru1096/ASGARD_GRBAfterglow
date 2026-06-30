@@ -1,6 +1,6 @@
 module electron_reverse_kernel
     use constants
-    use dynamics_common, only: dynamics_external_density_profile, dynamics_reverse_gamma_extrema
+    use dynamics_common, only: dynamics_external_density_profile
     use electron_energy_coordinate_common, only: electron_build_four_velocity_grid, electron_coord_from_xgamma, &
                                                  electron_dxgamma_dcoord, &
                                                  electron_coord_log_four_velocity_sq, &
@@ -99,7 +99,8 @@ contains
     beta4=dsqrt(one-one/eta_0**2); u4=dsqrt(eta_0*eta_0-one)
     dB3_serial(1)=dB3_serial(min(2,Num_R))
     dB=dB3_serial(1); gamma34=1.001d0
-    call dynamics_reverse_gamma_extrema(dB,gamma34,factor2,f_e_r,Gam_e_max,Gam_e_m)
+    Gam_e_max=3d0*Para_m_energy/dsqrt(8d0*dB*Para_e**3)
+    Gam_e_m=factor2*(gamma34-one)/f_e_r+one
     dg_gamma_scale=electron_four_velocity_grid_gamma_scale
     dg_gamma_low=one
     dg_gamma_m_front=Gam_e_m
@@ -117,7 +118,8 @@ contains
         u2=dsqrt(R_Gamma_loc*R_Gamma_loc-one)
         gamma34=(R_Gamma_loc*R_Gamma_loc+eta_0*eta_0-one)/(eta_0*R_Gamma_loc+u2*u4)
         dB=(dB3_serial(I_tobs)+dB3_serial(I_tobs-1))/two
-        call dynamics_reverse_gamma_extrema(dB,gamma34,factor2,f_e_r,Gam_e_max,Gam_e_m)
+        Gam_e_max=3d0*Para_m_energy/dsqrt(8d0*dB*Para_e**3)
+        Gam_e_m=factor2*(gamma34-one)/f_e_r+one
     end do
     if (Gam_e_max_max <= Gam_e_min_global) error stop "electron_reverse_evolve: reverse electron grid maximum must exceed minimum."
 
@@ -146,7 +148,8 @@ contains
         u2=dsqrt(R_Gamma_loc*R_Gamma_loc-one)
         gamma34=(R_Gamma_loc*R_Gamma_loc+eta_0*eta_0-one)/(eta_0*R_Gamma_loc+u2*u4)
         dB=(dB3_serial(I_tobs)+dB3_serial(I_tobs-1))/two
-        call dynamics_reverse_gamma_extrema(dB,gamma34,factor2,f_e_r,Gam_e_max,Gam_e_m)
+        Gam_e_max=3d0*Para_m_energy/dsqrt(8d0*dB*Para_e**3)
+        Gam_e_m=factor2*(gamma34-one)/f_e_r+one
         Gam_e_c=reverse_gamma_c_coeff*(one+z)/R_Gamma_loc/dB**2/R_Tobs(I_tobs)
         f_r=reverse_adv_coeff/beta2/R_Gamma_loc*dB**2/pi
         dDR=0.7d0/(f_r*Gam_e_max+1.333d0/(R(I_tobs)+R(I_tobs-1)))
@@ -463,7 +466,8 @@ contains
         u2=dsqrt(R_Gamma_loc*R_Gamma_loc-one)
         gamma34=(R_Gamma_loc*R_Gamma_loc+eta_0*eta_0-one)/(eta_0*R_Gamma_loc+u2*u4)
         dB=reverse_shell_linear_value(I_tobs,dB3_serial,radius_eval)
-        call dynamics_reverse_gamma_extrema(dB,gamma34,factor2,f_e_r,Gam_e_max,Gam_e_m)
+        Gam_e_max=3d0*Para_m_energy/dsqrt(8d0*dB*Para_e**3)
+        Gam_e_m=factor2*(gamma34-one)/f_e_r+one
         f_r=reverse_adv_coeff/beta2/R_Gamma_loc*dB**2/pi
         dEl=f_r*gam_e
     end subroutine prepare_reverse_transport_substep_state

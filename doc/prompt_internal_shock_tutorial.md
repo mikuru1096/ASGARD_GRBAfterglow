@@ -90,7 +90,7 @@ M_{b,i}
 \frac{E_{{\rm iso},i}}{(1+\sigma_i)\Gamma_i c^2}.
 \]
 
-代码路径是 `baryonic_mass_g(shell)`，实际调用 `dynamics_common.rs_shell_matter_fraction(shell.sigma)` 固定同一物理闭合。
+代码路径是 `baryonic_mass_g(shell)`，与动力学 Fortran 主流程一样直接使用同一 baryonic mass 闭合。
 
 碰撞半径处的壳层本征数密度为
 
@@ -116,7 +116,7 @@ n'_i(R_{\rm col})
 MHD jump 给出压缩比 \(C_i(\gamma_{\rm rel},\sigma)\) 和下游热比内能 \(\epsilon_{{\rm th},i}(\gamma_{\rm rel},\sigma)\)。代码通过
 
 ```text
-dynamics_common.rs_mag_comp
+dynamics_common.rs_vegas_comp
 dynamics_common.rs_mag_specific_internal
 ```
 

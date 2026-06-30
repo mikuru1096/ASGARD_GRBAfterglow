@@ -112,48 +112,27 @@ Fortran 改动后的最低门槛见 `doc/validation_and_benchmarks.md`。文档-
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
 | `M` | 1 | `dynamics_common` | 公共模块；提供多个入口复用的物理/数值 primitive。 |
-| `S` | 20 | `dynamics_forward_rhs_iface` | ODE/PDE 右端项；定义物理源汇和动力学变量导数。 |
-| `S` | 35 | `dynamics_reverse_rhs_iface` | ODE/PDE 右端项；定义物理源汇和动力学变量导数。 |
-| `S` | 56 | `dynamics_deceleration_radius` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 71 | `dynamics_external_density_base` | 介质密度或 density-jump 分支；直接影响 swept mass、动力学和注入源项。 |
-| `S` | 89 | `dynamics_external_density_profile` | 介质密度或 density-jump 分支；直接影响 swept mass、动力学和注入源项。 |
-| `S` | 123 | `dynamics_set_density_jump_profile` | 介质密度或 density-jump 分支；直接影响 swept mass、动力学和注入源项。 |
-| `S` | 173 | `dynamics_boundary_r0` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 186 | `dynamics_density_multi_jump` | 介质密度或 density-jump 分支；直接影响 swept mass、动力学和注入源项。 |
-| `S` | 203 | `dynamics_density_tabulated_profile` | 介质密度或 density-jump 分支；直接影响 swept mass、动力学和注入源项。 |
-| `S` | 236 | `dynamics_log_time_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 252 | `dynamics_reverse_gamma_extrema` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
-| `F` | 262 | `rs_shell_matter_fraction` | 磁化 RS/MHD jump 或 pressure-balance helper；不要用 ultra-relativistic 近似替代有限强度 jump。 |
-| `F` | 274 | `rs_vegas_ud` | 磁化 RS/MHD jump 或 pressure-balance helper；不要用 ultra-relativistic 近似替代有限强度 jump。 |
-| `F` | 307 | `rs_shock_upstream_u` | 磁化 RS/MHD jump 或 pressure-balance helper；不要用 ultra-relativistic 近似替代有限强度 jump。 |
-| `F` | 318 | `rs_vegas_comp` | 磁化 RS/MHD jump 或 pressure-balance helper；不要用 ultra-relativistic 近似替代有限强度 jump。 |
-| `F` | 339 | `rs_mag_comp` | 磁化 RS/MHD jump 或 pressure-balance helper；不要用 ultra-relativistic 近似替代有限强度 jump。 |
-| `F` | 346 | `rs_fast_shock_allowed` | 磁化 RS/MHD jump 或 pressure-balance helper；不要用 ultra-relativistic 近似替代有限强度 jump。 |
-| `F` | 353 | `rs_reverse_wave_shock_branch` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
-| `F` | 366 | `rs_fast_wave_shell_relative_beta` | 磁化 RS/MHD jump 或 pressure-balance helper；不要用 ultra-relativistic 近似替代有限强度 jump。 |
-| `F` | 380 | `rs_shell_width` | 磁化 RS/MHD jump 或 pressure-balance helper；不要用 ultra-relativistic 近似替代有限强度 jump。 |
-| `F` | 387 | `rs_fast_wave_depth` | 磁化 RS/MHD jump 或 pressure-balance helper；不要用 ultra-relativistic 近似替代有限强度 jump。 |
-| `F` | 400 | `rs_shell_contact_fraction` | 磁化 RS/MHD jump 或 pressure-balance helper；不要用 ultra-relativistic 近似替代有限强度 jump。 |
-| `F` | 417 | `rs_shocked_external_pressure_norm` | 磁化 RS/MHD jump 或 pressure-balance helper；不要用 ultra-relativistic 近似替代有限强度 jump。 |
-| `F` | 424 | `rs_ejecta_magnetic_pressure_norm` | 磁化 RS/MHD jump 或 pressure-balance helper；不要用 ultra-relativistic 近似替代有限强度 jump。 |
-| `F` | 431 | `rs_pressure_balance_ratio` | 磁化 RS/MHD jump 或 pressure-balance helper；不要用 ultra-relativistic 近似替代有限强度 jump。 |
-| `F` | 443 | `rs_pressure_balance_sigma_cr` | 磁化 RS/MHD jump 或 pressure-balance helper；不要用 ultra-relativistic 近似替代有限强度 jump。 |
-| `F` | 450 | `rs_pressure_balance_allowed` | 磁化 RS/MHD jump 或 pressure-balance helper；不要用 ultra-relativistic 近似替代有限强度 jump。 |
-| `F` | 462 | `rs_b4_up` | 磁化 RS/MHD jump 或 pressure-balance helper；不要用 ultra-relativistic 近似替代有限强度 jump。 |
-| `F` | 474 | `rs_mag_specific_internal` | 磁化 RS/MHD jump 或 pressure-balance helper；不要用 ultra-relativistic 近似替代有限强度 jump。 |
-| `S` | 494 | `dynamics_rk4_error_n` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 517 | `dynamics_rk4_reverse_error` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 540 | `dynamics_rk4_forward_ln_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 573 | `dynamics_rk4_forward` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 644 | `dynamics_rk4_reverse_plain_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 690 | `dynamics_rk4_reverse_event_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 771 | `reset_trial_state` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 788 | `advance_phase1_trial` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 803 | `dynamics_rk4_reverse_pre_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 868 | `dynamics_rk4_reverse_pre_integrate` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 891 | `dynamics_rk4_reverse_pre_m3` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 1004 | `dynamics_rk4_reverse_waiting` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 1067 | `dynamics_rk4_reverse` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 25 | `dynamics_forward_rhs_iface` | ODE/PDE 右端项；定义物理源汇和动力学变量导数。 |
+| `S` | 40 | `dynamics_reverse_rhs_iface` | ODE/PDE 右端项；定义物理源汇和动力学变量导数。 |
+| `S` | 61 | `dynamics_external_density_profile` | 介质密度或 density-jump 分支；直接影响 swept mass、动力学和注入源项。 |
+| `S` | 117 | `dynamics_set_density_jump_profile` | 介质密度或 density-jump 分支；直接影响 swept mass、动力学和注入源项。 |
+| `S` | 169 | `dynamics_density_tabulated_profile` | 介质密度或 density-jump 分支；直接影响 swept mass、动力学和注入源项。 |
+| `F` | 203 | `rs_vegas_ud` | 有限强度 MHD jump 解析根；不要用 ultra-relativistic 近似替代。 |
+| `F` | 237 | `rs_vegas_comp` | 有限强度 MHD jump 压缩比；sigma->0 极限回到 hydrodynamic baseline。 |
+| `F` | 259 | `rs_mag_specific_internal` | MHD jump 下游热比内能；保持 crossing 前后和 sigma->0 极限连续。 |
+| `S` | 280 | `dynamics_rk4_error_n` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 303 | `dynamics_rk4_reverse_error` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 326 | `dynamics_rk4_forward_ln_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 359 | `dynamics_rk4_forward` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 430 | `dynamics_rk4_reverse_plain_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 476 | `dynamics_rk4_reverse_event_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 557 | `reset_trial_state` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 574 | `advance_phase1_trial` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 589 | `dynamics_rk4_reverse_pre_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 654 | `dynamics_rk4_reverse_pre_integrate` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 677 | `dynamics_rk4_reverse_pre_m3` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 790 | `dynamics_rk4_reverse_waiting` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 853 | `dynamics_rk4_reverse` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
 
 ### `src/Electron/adaptive_resampling_mod.f90`
 
