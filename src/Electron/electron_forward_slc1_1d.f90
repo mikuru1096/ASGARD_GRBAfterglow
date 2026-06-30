@@ -1,13 +1,12 @@
 ! 电子1D半拉格朗日格式主驱动：初始化→壳层循环（辐射+冷却+半拉格朗日步进）。
 subroutine fs_electron_slc1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads, &
                             gam_e,dN_gam_e,P_syn,Seed_syn,V_m,V_c,V_a)
-    !$ use omp_lib
     use constants
     use dynamics_common, only: dynamics_external_density_profile
     use electron_common
     use electron_transport_common, only: electron_semi_lagrangian_step, electron_dnx_to_dndgamma_exp_centers
     use electron_injection_profiles, only: electron_build_source_term_exp_cutoff_edges
-    use electron_radiation_kernel, only: get_nu_a, get_syn_selected_state
+    use electron_radiation_kernel, only: get_syn_selected_state, get_nu_a_from_tau_grid
     use electron_cooling_kernel, only: get_forward_cooling
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads
@@ -16,13 +15,11 @@ subroutine fs_electron_slc1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,N
                             Seed_syn(Num_nu,Num_R),V_m(Num_R),V_c(Num_R),V_a(Num_R)
 
     real(8), allocatable :: dEl(:),dEL_mean(:),dEL_mean_base(:),dN_x(:),dN_step(:),dF1(:),x_edge(:)
-    real(8), allocatable :: gam_e_rad(:),dN_gam_e_rad(:)
     real(8) :: P_emit_tmp(Num_nu),Tau_syn_tmp(Num_nu)
-    logical :: is_uniform_density,anchor_gamma_m,anchor_gamma_c
-    integer :: Num_gam_rad
+    logical :: is_uniform_density
 
     allocate(dEl(Num_gam_e),dEL_mean(Num_gam_e-1),dEL_mean_base(Num_gam_e-1),dN_x(Num_gam_e), &
-             dN_step(Num_gam_e),dF1(Num_gam_e),x_edge(Num_gam_e+1),gam_e_rad(Num_gam_e),dN_gam_e_rad(Num_gam_e))
+             dN_step(Num_gam_e),dF1(Num_gam_e),x_edge(Num_gam_e+1))
 
     call electron_unpack_boundary(Boundary,n,Eta_0,R_ini,Epsilon_e,Epsilon_b,p,z,dNe_ISM,A_star, &
                                   E_iso,T_log10_duration,f_e,R_tr,f_jump,f_wide,R0)
@@ -67,16 +64,14 @@ subroutine fs_electron_slc1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,N
         L1=max(100,min(1000,Int(dDD/dDR)))
         dDR=dDD/L1
 
-        call electron_prepare_radiation_spectrum(Num_gam_e,gam_e,dN_gam_e(:,I_tobs-1), &
-                                                 Num_gam_rad,gam_e_rad,dN_gam_e_rad)
         V_m(I_tobs-1)=4.2d6*DB*Gam_e_m*Gam_e_m/(R_Gamma_loc*(1d0-beta_Gam)*(one+z))
         V_c(I_tobs-1)=4.2d6*DB*Gam_e_c*Gam_e_c/(R_Gamma_loc*(1d0-beta_Gam)*(one+z))
-        call get_nu_a(R_loc,DB,Num_gam_rad,gam_e_rad(1:Num_gam_rad),dN_gam_e_rad(1:Num_gam_rad),temp)
-        V_a(I_tobs-1)=temp/(R_Gamma_loc*(1d0-beta_Gam)*(one+z))
 
         call get_syn_selected_state(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads, &
                                     gam_e,dN_gam_e(:,I_tobs-1),V_seed,P_emit_tmp,P_syn(:,I_tobs), &
                                     Seed_syn(:,I_tobs),Tau_syn_tmp)
+        call get_nu_a_from_tau_grid(Num_nu,V_seed,Tau_syn_tmp,temp)
+        V_a(I_tobs-1)=temp/(R_Gamma_loc*(1d0-beta_Gam)*(one+z))
         call get_forward_cooling(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc, &
                                  R_Gamma_loc,beta_Gam,dNe,Num_gam_e,Num_nu,n_threads,gam_e,V_seed, &
                                  P_syn(:,I_tobs),Seed_syn(:,I_tobs),dEl)
@@ -115,5 +110,5 @@ subroutine fs_electron_slc1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,N
         call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,I_tobs))
     end do
 
-    deallocate(dEl,dEL_mean,dEL_mean_base,dN_x,dN_step,dF1,x_edge,gam_e_rad,dN_gam_e_rad)
+    deallocate(dEl,dEL_mean,dEL_mean_base,dN_x,dN_step,dF1,x_edge)
 end subroutine fs_electron_slc1_1d
