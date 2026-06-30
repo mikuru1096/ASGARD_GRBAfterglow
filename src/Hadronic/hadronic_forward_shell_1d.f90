@@ -13,7 +13,7 @@ module hadronic_forward_shell_1d
     public :: hadronic_forward_energy_luminosity_from_rate
     public :: hadronic_forward_project_luminosity_from_rate, hadronic_forward_project_hic_luminosity
     public :: hadronic_forward_pair_source_content
-    public :: hadronic_forward_shell_density_per_gev, hadronic_forward_gamma_edges, hadronic_forward_photon_density_hz_to_gev
+    public :: hadronic_forward_shell_density_per_gev, hadronic_forward_gamma_edges
     public :: hadronic_forward_process_power, hadronic_forward_positive_loglog_interp, hadronic_forward_source_per_gamma
     public :: hadronic_forward_distribution_per_gev, hadronic_forward_aligned_photon_grid, hadronic_forward_shell_volumes
     public :: hadronic_sequence_shell_geometry, hadronic_forward_dynamical_time
@@ -567,19 +567,6 @@ subroutine hadronic_forward_gamma_edges(num_gamma,gamma,gamma_edge)
     end do
     gamma_edge(num_gamma+1)=gamma(num_gamma)*dsqrt(gamma(num_gamma)/gamma(num_gamma-1))
 end subroutine hadronic_forward_gamma_edges
-
-! photon density 单位变换：E=h nu，n_E=n_nu/h。
-subroutine hadronic_forward_photon_density_hz_to_gev(num_ph,photon_nu_hz,photon_density_per_hz, &
-                                                photon_energy_gev,photon_density_per_gev)
-    use constants
-    implicit none
-    integer, intent(in) :: num_ph
-    real(8), intent(in) :: photon_nu_hz(num_ph),photon_density_per_hz(num_ph)
-    real(8), intent(out) :: photon_energy_gev(num_ph),photon_density_per_gev(num_ph)
-
-    photon_energy_gev(1:num_ph)=Para_h_GeV*photon_nu_hz(1:num_ph)
-    photon_density_per_gev(1:num_ph)=photon_density_per_hz(1:num_ph)/Para_h_GeV
-end subroutine hadronic_forward_photon_density_hz_to_gev
 
 ! AM3 分过程功率归并：积分每个过程 luminosity，并按质子能量分布投到 hadron grid。
 subroutine hadronic_forward_process_power(num_had,num_proc_energy,num_process,hadron_energy_gev,dn_had, &

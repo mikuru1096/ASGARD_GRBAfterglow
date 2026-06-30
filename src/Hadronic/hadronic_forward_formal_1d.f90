@@ -107,8 +107,8 @@ subroutine hadronic_forward_formal_transport_1d_impl(R_Tobs,R_Gamma,R,B_field_g,
         call hadronic_forward_shell_density_per_gev(num_gam_p,dN_trial,Para_m_p_GeV,shell_volume,proton_density)
         call hadronic_forward_shell_density_per_gev(num_gam_p,n_prev,Para_m_n_GeV,shell_volume,neutron_density)
 
-        call hadronic_forward_photon_density_hz_to_gev(Num_nu,V_seed,Seed_target(:,i_r), &
-                                                  photon_energy,photon_density_tau)
+        photon_energy(1:Num_nu)=Para_h_GeV*V_seed(1:Num_nu)
+        photon_density_tau(1:Num_nu)=Seed_target(1:Num_nu,i_r)/Para_h_GeV
         call hadronic_pg_hummer2010_operator(num_gam_p,Num_nu,hadron_energy,proton_density, &
                                              photon_energy,photon_density_tau,neutron_density,pion0_source, &
                                              pip_source,pim_source,pg_reinj,neutron_reinj,pg_loss, &

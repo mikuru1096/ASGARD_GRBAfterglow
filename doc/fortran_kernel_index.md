@@ -783,19 +783,18 @@ formal 1D 强子底层 shell primitive 与单位/投影 helper；f2py wrapper �
 | `S` | 470 | `hadronic_forward_energy_luminosity_from_rate` | rate-per-energy 到 luminosity-per-frequency/energy 的壳层换算。 |
 | `S` | 483 | `hadronic_forward_project_luminosity_from_rate` | source energy grid 到目标 photon grid 的 luminosity 投影。 |
 | `S` | 501 | `hadronic_forward_project_hic_luminosity` | hadronic IC 多 species emissivity 投影。 |
-| `S` | 519 | `hadronic_forward_pair_source_content` | pp/BH pair source 组合成电子方程使用的 content source。 |
+| `S` | 521 | `hadronic_forward_pair_source_content` | pp/BH pair source 组合成电子方程使用的 content source。 |
 | `S` | 535 | `hadronic_forward_shell_density_per_gev` | shell content 到 density-per-GeV 的单位变换。 |
-| `S` | 548 | `hadronic_forward_gamma_edges` | Lorentz-factor grid edges；守恒积分需要的 bin geometry。 |
-| `S` | 570 | `hadronic_forward_photon_density_hz_to_gev` | photon density Hz 到 GeV 单位换算 primitive；Python 运行时当前直接公式化调用。 |
-| `S` | 583 | `hadronic_forward_process_power` | secondary process power diagnostic。 |
-| `S` | 622 | `hadronic_forward_positive_loglog_interp` | 正值 log-log grid projection；当前 secondary-feedback Python glue 仍使用。 |
-| `S` | 653 | `hadronic_forward_source_per_gamma` | source-per-energy 到 source-per-gamma 的 grid projection。 |
-| `S` | 669 | `hadronic_forward_distribution_per_gev` | distribution-per-gamma 到 distribution-per-GeV 的 grid projection。 |
-| `S` | 685 | `hadronic_forward_aligned_photon_grid` | hadron/photon grid 对齐 helper。 |
-| `S` | 702 | `hadronic_sequence_shell_geometry` | shell dr、dt geometry helper。 |
-| `S` | 723 | `hadronic_forward_shell_volumes` | 壳层体积序列。 |
-| `S` | 747 | `hadronic_forward_dynamical_time` | shell dynamical time。 |
-| `S` | 768 | `hadronic_forward_quantum_syn_cooling_factor` | quantum synchrotron cooling factor。 |
+| `S` | 550 | `hadronic_forward_gamma_edges` | Lorentz-factor grid edges；守恒积分需要的 bin geometry。 |
+| `S` | 572 | `hadronic_forward_process_power` | secondary process power diagnostic。 |
+| `S` | 611 | `hadronic_forward_positive_loglog_interp` | 正值 log-log grid projection；当前 secondary-feedback Python glue 仍使用。 |
+| `S` | 642 | `hadronic_forward_source_per_gamma` | source-per-energy 到 source-per-gamma 的 grid projection。 |
+| `S` | 658 | `hadronic_forward_distribution_per_gev` | distribution-per-gamma 到 distribution-per-GeV 的 grid projection。 |
+| `S` | 674 | `hadronic_forward_aligned_photon_grid` | hadron/photon grid 对齐 helper。 |
+| `S` | 691 | `hadronic_sequence_shell_geometry` | shell dr、dt geometry helper。 |
+| `S` | 712 | `hadronic_forward_shell_volumes` | 壳层体积序列。 |
+| `S` | 734 | `hadronic_forward_dynamical_time` | shell dynamical time。 |
+| `S` | 746 | `hadronic_forward_quantum_syn_cooling_factor` | quantum synchrotron cooling factor。 |
 
 ### `src/Hadronic/hadronic_hadronic_ic_kernel.f90`
 
