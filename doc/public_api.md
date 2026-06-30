@@ -346,7 +346,7 @@ solver_options = SolverOptions(
 | `projection_adaptive_rtol` / `projection_adaptive_max_depth` | 正数 / 非负整数 | `sed_adaptive_theta` 的积分误差阈值和最大递归深度。 | 不改变源项物理，只控制 observer projection quadrature。 |
 | `electron_photon_coupling` | `separated`, `joint` | 是否做壳层级 electron/photon/hadronic 联合闭合。 | `joint` 只支持 `fullhide_1d`、`am3_1d`、BH enabled、`pgamma_scheme="hummer_2010_response"`、`ssc_cooling_mode="numeric_ic_kn"` 和固定子步。 |
 | `ssc_cooling_mode` | `none`, `numeric_ic_kn`, `nakar_y_thomson` | 电子冷却方程中如何加入 IC/SSC 冷却。 | `none` 不把 SSC/IC 写入电子冷却；`numeric_ic_kn` 对 seed photon field 做含 KN/Jones 核的数值 IC 损失积分；`nakar_y_thomson` 用 Nakar 型 \(Y\) 参数近似放大同步冷却。 |
-| `synchrotron_integration` | `fixed_grid` | 同步辐射积分核。 | 当前公开只支持这个值。 |
+| `synchrotron_integration` | `fixed_grid`, `cyclotron` | 同步辐射积分核。 | `fixed_grid` 是默认快速路径；`cyclotron` 在 `γ<2` 电子上加入非相对论回旋基频发射，用于深度牛顿相。 |
 | `cooling_kernel` | `legacy` | 电子冷却核族。 | 目前 public path 只接受 `legacy`。 |
 | `radiation_kernel` | `legacy` | 辐射核族。 | 目前 public path 只接受 `legacy`。 |
 

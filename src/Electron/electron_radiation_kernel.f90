@@ -5,13 +5,15 @@ module electron_radiation_kernel
   use synchrotron_polarization_kernel, only: synchrotron_polarized_components
   private
 
- public :: first_greater_monotonic, first_greater_monotonic_window
-    public :: besselk, get_syn_selected_state
-    public :: get_syn_transfer, get_syn_polarization_selected, get_nu_a
-    public :: get_nu_a_2d_path, get_nu_a_2d_cell_path, reduce_syn_shell_from_chi
-    public :: build_reduced_log_grid, project_syn_state_logbands
-    public :: get_nu_a_from_tau_grid
-    public :: electron_powerlaw_interp, electron_log_gauss2_interval, electron_integrate_powerlaw_segment, electron_ssa_segment
+  integer, parameter :: index_syn_fixed_grid_legacy=1, index_syn_fixed_grid=2, index_syn_cyclotron=4
+
+  public :: first_greater_monotonic, first_greater_monotonic_window
+  public :: besselk, get_syn_selected_state
+  public :: get_syn_transfer, get_syn_polarization_selected, get_nu_a
+  public :: get_nu_a_2d_path, get_nu_a_2d_cell_path, reduce_syn_shell_from_chi
+  public :: build_reduced_log_grid, project_syn_state_logbands
+  public :: get_nu_a_from_tau_grid
+  public :: electron_powerlaw_interp, electron_log_gauss2_interval, electron_integrate_powerlaw_segment, electron_ssa_segment
 
 contains
 
@@ -139,9 +141,28 @@ end function besselk
 
 subroutine get_syn_selected_state(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
                                   P_emit,P_syn,Seed_syn,Tau_syn)
+implicit none
+integer, intent(in) :: index_syn_intger,Num_gam_e,Num_nu,n_threads
+real(8), intent(in) :: R_loc,DB,gam_e(Num_gam_e),dN_gam_e(Num_gam_e),V_seed(Num_nu)
+real(8), intent(out) :: P_emit(Num_nu),P_syn(Num_nu),Seed_syn(Num_nu),Tau_syn(Num_nu)
+
+    select case(index_syn_intger)
+    case(index_syn_fixed_grid_legacy,index_syn_fixed_grid)
+        call get_syn_fixed_grid_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
+                                      P_emit,P_syn,Seed_syn,Tau_syn)
+    case(index_syn_cyclotron)
+        call get_syn_cyclotron_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
+                                     P_emit,P_syn,Seed_syn,Tau_syn)
+    case default
+        error stop 'get_syn_selected_state: index_syn_intger must be 1, 2, or 4.'
+    end select
+end subroutine get_syn_selected_state
+
+subroutine get_syn_fixed_grid_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
+                                    P_emit,P_syn,Seed_syn,Tau_syn)
 !$ use omp_lib
 implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: index_syn_intger,Num_gam_e,Num_nu,n_threads
+integer, intent(in) :: Num_gam_e,Num_nu,n_threads
 real(8), intent(in) :: R_loc,DB,gam_e(Num_gam_e),dN_gam_e(Num_gam_e),V_seed(Num_nu)
 real(8), intent(out) :: P_emit(Num_nu),P_syn(Num_nu),Seed_syn(Num_nu),Tau_syn(Num_nu)
 real(8) :: dN1(Num_gam_e),ddN(Num_gam_e-1),simpson_weight(Num_gam_e),emit_weight(Num_gam_e)
@@ -239,7 +260,7 @@ real(8) :: V_cal,dInteg,Tau,P_v
     P_syn(I_nu)=P_v*(one-dexp(-Tau))/Tau
     Seed_syn(I_nu)=P_syn(I_nu)/(Rariv2*V_cal)
 end subroutine accumulate_simpson_syn_point
-end subroutine get_syn_selected_state
+end subroutine get_syn_fixed_grid_state
 
 ! 构建约化对数频率网格：在85%高频处加密采样，用于冷却计算的轻量级频率表。
 subroutine build_reduced_log_grid(Num_nu_in,V_in,Num_nu_out,V_out)
@@ -304,6 +325,70 @@ real(8) :: V_tar
 end subroutine project_syn_state_logbands
 
 ! 同步+非相对论回旋发射核：γ<2 的电子使用基频回旋发射，γ>=2 仍走标准同步核。
+subroutine get_syn_cyclotron_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
+                                   P_emit,P_syn,Seed_syn,Tau_syn)
+implicit none
+integer, intent(in) :: Num_gam_e,Num_nu,n_threads
+real(8), intent(in) :: R_loc,DB,gam_e(Num_gam_e),dN_gam_e(Num_gam_e),V_seed(Num_nu)
+real(8), intent(out) :: P_emit(Num_nu),P_syn(Num_nu),Seed_syn(Num_nu),Tau_syn(Num_nu)
+real(8) :: dN_syn(Num_gam_e)
+integer :: I_gam_e
+
+    dN_syn=zero
+    do I_gam_e=1,Num_gam_e
+        if (gam_e(I_gam_e) >= two) dN_syn(I_gam_e)=dN_gam_e(I_gam_e)
+    end do
+    call get_syn_fixed_grid_state(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_syn,V_seed, &
+                                  P_emit,P_syn,Seed_syn,Tau_syn)
+    call add_cyclotron_fundamental(R_loc,DB,Num_gam_e,Num_nu,gam_e,dN_gam_e,V_seed,P_emit,P_syn,Seed_syn,Tau_syn)
+end subroutine get_syn_cyclotron_state
+
+subroutine add_cyclotron_fundamental(R_loc,DB,Num_gam_e,Num_nu,gam_e,dN_gam_e,V_seed,P_emit,P_syn,Seed_syn,Tau_syn)
+implicit none
+integer, intent(in) :: Num_gam_e,Num_nu
+integer :: I_gam_e,I_nu
+real(8), intent(in) :: R_loc,DB,gam_e(Num_gam_e),dN_gam_e(Num_gam_e),V_seed(Num_nu),Tau_syn(Num_nu)
+real(8), intent(inout) :: P_emit(Num_nu),P_syn(Num_nu),Seed_syn(Num_nu)
+real(8) :: nu_edge(Num_nu+1),nu_b,nu0,gamma_mid,beta2,n_e_seg,p_total,p_nu,transfer
+real(8) :: r2,temp_para
+
+    if (DB <= zero) return
+    call build_log_frequency_edges(Num_nu,V_seed,nu_edge)
+    nu_b=para_e*DB/(two*pi*para_m_e*para_c)
+    r2=R_loc*R_loc
+    temp_para=4d0*pi*para_c*para_h
+    do I_gam_e=1,Num_gam_e-1
+        gamma_mid=0.5d0*(gam_e(I_gam_e)+gam_e(I_gam_e+1))
+        if (gamma_mid >= two) cycle
+        n_e_seg=0.5d0*(dN_gam_e(I_gam_e)+dN_gam_e(I_gam_e+1))*(gam_e(I_gam_e+1)-gam_e(I_gam_e))
+        if (n_e_seg <= zero) cycle
+        beta2=one-one/(gamma_mid*gamma_mid)
+        nu0=nu_b/gamma_mid
+        if (nu0 < nu_edge(1) .or. nu0 >= nu_edge(Num_nu+1)) cycle
+        call first_greater_monotonic(nu_edge,Num_nu+1,nu0,I_nu)
+        I_nu=max(1,min(Num_nu,I_nu-1))
+        p_total=n_e_seg*(4d0/3d0)*para_sigmat*para_c*(DB*DB/(8d0*pi))*gamma_mid*gamma_mid*beta2
+        p_nu=p_total/(nu_edge(I_nu+1)-nu_edge(I_nu))
+        call radiation_transfer_factor(Tau_syn(I_nu),transfer)
+        P_emit(I_nu)=P_emit(I_nu)+p_nu
+        P_syn(I_nu)=P_syn(I_nu)+p_nu*transfer
+        Seed_syn(I_nu)=Seed_syn(I_nu)+p_nu*transfer/(r2*V_seed(I_nu)*temp_para)
+    end do
+end subroutine add_cyclotron_fundamental
+
+subroutine build_log_frequency_edges(Num_nu,V_seed,nu_edge)
+implicit none
+integer, intent(in) :: Num_nu
+integer :: I_nu
+real(8), intent(in) :: V_seed(Num_nu)
+real(8), intent(out) :: nu_edge(Num_nu+1)
+
+    nu_edge(1)=V_seed(1)*dsqrt(V_seed(1)/V_seed(2))
+    do I_nu=2,Num_nu
+        nu_edge(I_nu)=dsqrt(V_seed(I_nu-1)*V_seed(I_nu))
+    end do
+    nu_edge(Num_nu+1)=V_seed(Num_nu)*dsqrt(V_seed(Num_nu)/V_seed(Num_nu-1))
+end subroutine build_log_frequency_edges
 
 ! 同步辐射F(x)核：F(x) = 1.81 e^(-x)/√(x^(-2/3)+factor)，x=ν/ν_c。
 real(8) function electron_syn_fx(gam,V_cal,DB,factor)
@@ -585,6 +670,7 @@ end subroutine get_syn_polarization_fraction
 
 ! 计算同步辐射转移函数：Transfer = P_absorbed / P_emit，即(1-e^(-τ))/τ。
 subroutine get_syn_transfer(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed,Transfer_syn)
+!$ use omp_lib
 implicit none
 integer, intent(in) :: Num_gam_e,Num_nu,n_threads
 real(8), intent(in) :: R_loc,DB,gam_e(Num_gam_e),dN_gam_e(Num_gam_e),V_seed(Num_nu)
@@ -596,6 +682,7 @@ integer :: I_nu
     DNe_chi(:,1)=dN_gam_e
     call radiation_syn_seed_chi_batch_core(R_loc,Num_gam_e,Num_nu,1,gam_e,DNe_chi,V_seed,DB_chi,1.046d4, &
                                            P_emit,P_syn,Seed_syn,Tau_syn)
+    !$OMP PARALLEL DO SCHEDULE(STATIC) num_threads(n_threads) private(I_nu)
     do I_nu=1,Num_nu
         if (P_emit(I_nu,1) > 0d0 .and. P_syn(I_nu,1) >= 0d0) then
             Transfer_syn(I_nu)=P_syn(I_nu,1)/P_emit(I_nu,1)
@@ -603,6 +690,7 @@ integer :: I_nu
             Transfer_syn(I_nu)=one
         end if
     end do
+    !$OMP END PARALLEL DO
 end subroutine get_syn_transfer
 
 ! 计算SSA频率ν_a：二分搜索+对数割线法求解τ(ν_a)=1。
