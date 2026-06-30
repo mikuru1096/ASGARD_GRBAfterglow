@@ -2,6 +2,12 @@
 module radiation_common
     use constants
     implicit none
+    private
+
+    public :: compute_simpson_weights, radiation_powerlaw_interp, radiation_transfer_factor, &
+              radiation_syn_kernel_value, radiation_prepare_annihilation_grid, &
+              radiation_pair_cross_section, radiation_pair_tau_headon_segment, &
+              radiation_syn_seed_chi_batch_core, radiation_syn_flux_tau_chi_batch_core
 
 contains
 
@@ -25,7 +31,7 @@ end subroutine compute_simpson_weights
 
 ! 幂律插值（对数空间线性插值）：若两端为正则用log-log，否则用线性。
 real(8) function radiation_powerlaw_interp(v0,v1,y0,y1,v)
-    implicit real(8)(A-H,O-Z)
+    implicit none
     real(8), intent(in) :: v0,v1,y0,y1,v
     real(8) :: slope
 
@@ -50,7 +56,7 @@ end function radiation_powerlaw_interp
 
 ! 辐射转移因子：(1 - e^(-τ))/τ，τ=0 时取连续极限 1。
 subroutine radiation_transfer_factor(Tau, factor)
-    implicit real(8)(A-H,O-Z)
+    implicit none
     real(8), intent(in) :: Tau
     real(8), intent(out) :: factor
     if (Tau <= 1d-4) then
@@ -76,11 +82,11 @@ end function radiation_syn_kernel_value
 
 ! 准备湮灭计算网格：转换为以电子静能归一化的光子能量，计算中心值和体积元。
 subroutine radiation_prepare_annihilation_grid(V_seed, Num_nu, ep1, ep2, dVloc, V_mid)
-    implicit real(8)(A-H,O-Z)
+    implicit none
     integer, intent(in) :: Num_nu
     real(8), intent(in) :: V_seed(Num_nu)
     real(8), intent(out) :: ep1(1,Num_nu),ep2(Num_nu-1,1),dVloc(Num_nu-1),V_mid(Num_nu-1)
-    real(8) :: x_seed(Num_nu)
+    real(8) :: para_hEme,x_seed(Num_nu)
 
     para_hEme=Para_h/para_m_energy
     ep1(1,:)=para_hEme*V_seed
@@ -92,7 +98,7 @@ end subroutine radiation_prepare_annihilation_grid
 
 ! 光子-光子对产生截面（elemental）：σ_γγ(s) = 3/16 σ_T(1-β²)[(3-β⁴)ln((1+β)/(1-β))-2β(2-β²)]。
 elemental real(8) function radiation_pair_cross_section(s_center) result(sigma_pair)
-    implicit real(8)(A-H,O-Z)
+    implicit none
     real(8), intent(in) :: s_center
     real(8) :: beta_sq,beta_loc,log_term
 
@@ -110,7 +116,7 @@ end function radiation_pair_cross_section
 
 ! 对头碰撞近似下计算光子-光子对产生光深：单段路径积分。
 subroutine radiation_pair_tau_headon_segment(V_seed,Num_nu,Seed_target,dx_cm,Tau_pair)
-    implicit real(8)(A-H,O-Z)
+    implicit none
     integer, intent(in) :: Num_nu
     real(8), intent(in) :: V_seed(Num_nu),Seed_target(Num_nu),dx_cm
     real(8), intent(out) :: Tau_pair(Num_nu)
@@ -141,11 +147,11 @@ end subroutine radiation_pair_tau_headon_segment
     ! χ批量同步辐射核心：同一半径且χ上磁场相同的时候复用F(ν/νc)核。
 subroutine radiation_syn_seed_chi_batch_core(R_loc,Num_gam_e,Num_nu,Num_chi,gam_e,DNe_chi,V_seed,DB_chi,ssa_prefactor, &
                                              P_emit,P_syn,Seed_syn,Tau_syn)
-    implicit real(8)(A-H,O-Z)
+    implicit none
     integer, intent(in) :: Num_gam_e,Num_nu,Num_chi
     real(8), intent(in) :: R_loc,gam_e(Num_gam_e),DNe_chi(Num_gam_e,Num_chi),V_seed(Num_nu),DB_chi(Num_chi),ssa_prefactor
     real(8), intent(out) :: P_emit(Num_nu,Num_chi),P_syn(Num_nu,Num_chi),Seed_syn(Num_nu,Num_chi),Tau_syn(Num_nu,Num_chi)
-    real(8) :: factor,Temp_syn,Rariv2,temp_para,DB_ref,DB_loc,dInteg,Tau,P_v,temp_abs
+    real(8) :: factor,Temp_syn,Rariv2,temp_para,DB_ref,DB_loc,dInteg,Tau,P_v,temp_abs,Vc,Fx,x
     real(8) :: vc_inv_loc,vc_pow_loc,vc_powm13
     real(8) :: integ_nu(Num_nu),tau_nu(Num_nu),emit_w,tau_w
     real(8) :: gam_mean2(Num_gam_e-1),dgamma_half(Num_gam_e-1),inv_gam2(Num_gam_e)
@@ -257,11 +263,11 @@ end subroutine radiation_syn_seed_chi_batch_core
 
 subroutine radiation_syn_flux_tau_chi_batch_core(R_loc,Num_gam_e,Num_nu,Num_chi,gam_e,DNe_chi,V_seed,DB_chi, &
                                                  ssa_prefactor,P_syn,Tau_syn)
-    implicit real(8)(A-H,O-Z)
+    implicit none
     integer, intent(in) :: Num_gam_e,Num_nu,Num_chi
     real(8), intent(in) :: R_loc,gam_e(Num_gam_e),DNe_chi(Num_gam_e,Num_chi),V_seed(Num_nu),DB_chi(Num_chi),ssa_prefactor
     real(8), intent(out) :: P_syn(Num_nu,Num_chi),Tau_syn(Num_nu,Num_chi)
-    real(8) :: factor,Temp_syn,Rariv2,DB_ref,DB_loc,dInteg,Tau,P_v,temp_abs
+    real(8) :: factor,Temp_syn,Rariv2,DB_ref,DB_loc,dInteg,Tau,P_v,temp_abs,Vc,Fx,x
     real(8) :: integ_nu(Num_nu),tau_nu(Num_nu),emit_w,tau_w,vc_inv_loc,vc_pow_loc,vc_powm13
     real(8) :: gam_mean2(Num_gam_e-1),dgamma_half(Num_gam_e-1),inv_gam2(Num_gam_e)
     real(8) :: vc_inv(Num_gam_e-1),vc_pow23(Num_gam_e-1),v_powm23(Num_nu),v_pow13(Num_nu)

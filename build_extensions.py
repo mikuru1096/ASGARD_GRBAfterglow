@@ -45,6 +45,7 @@ F2PY_SKIP_DYNAMICS_COMMON_INTERNALS = (
     "dynamics_rk4_reverse_pre_m3",
 )
 F2PY_SKIP_RADIATION_COMMON_INTERNALS = (
+    "radiation_pair_cross_section",
     "radiation_syn_kernel_value",
 )
 RADIATION_COMMON_SOURCES = (
