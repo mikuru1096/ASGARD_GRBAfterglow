@@ -6,12 +6,21 @@ module electron_injection_profiles
                                                  electron_dxgamma_dcoord
     use electron_radiation_kernel, only: besselk
     implicit none
+    private
+
+    public :: electron_exp_cutoff_factor, electron_dnx_powerlaw_cutoff_value, electron_initial_powerlaw_params
+    public :: electron_profile_log_cell_edges
+    public :: electron_initial_powerlaw_exp_cutoff, electron_initial_powerlaw_exp_cutoff_edges
+    public :: electron_initial_powerlaw_exp_cutoff_coord_edges
+    public :: electron_build_source_term_exp_cutoff_edges, electron_build_source_term_exp_cutoff_coord_edges
+    public :: electron_build_kinetic_source_term_exp_cutoff_edges, electron_build_kinetic_source_term_exp_cutoff_coord_edges
+    public :: electron_add_thermal_source_term, electron_add_thermal_population
 
 contains
 
 ! 指数截断因子：γ > Gam_e_max 时返回 exp(1-γ/Gam_e_max)，否则返回1。
 pure real(8) function electron_exp_cutoff_factor(gam,Gam_e_max)
-    implicit real(8)(A-H,O-Z)
+    implicit none
     real(8), intent(in) :: gam,Gam_e_max
 
     electron_exp_cutoff_factor=one
@@ -20,7 +29,7 @@ end function electron_exp_cutoff_factor
 
 ! 根据快冷却/慢冷却分支返回幂律注入参数：系数coeff和谱指数slope。
 subroutine electron_initial_powerlaw_params(Para_N_e_ini,p,Gam_e_m,Gam_e_c,gam,active,coeff,slope)
-    implicit real(8)(A-H,O-Z)
+    implicit none
     logical, intent(out) :: active
     real(8), intent(in) :: Para_N_e_ini,p,Gam_e_m,Gam_e_c,gam
     real(8), intent(out) :: coeff,slope
@@ -45,7 +54,7 @@ end subroutine electron_initial_powerlaw_params
 
 ! 幂律+指数截断的 dN/dx 值：dN/dx = coeff * ln(10) * γ^(1-slope) * cutoff(γ)。
 real(8) function electron_dnx_powerlaw_cutoff_value(x,coeff,slope,Gam_e_max)
-    implicit real(8)(A-H,O-Z)
+    implicit none
     real(8), intent(in) :: x,coeff,slope,Gam_e_max
     real(8) :: gam,cutoff_factor
 
@@ -62,7 +71,7 @@ end function electron_dnx_powerlaw_cutoff_value
 
 ! 3点Gauss-Legendre积分：在[x_lo, x_hi]上对dN/dx进行数值积分。
 real(8) function electron_dnx_gauss3_integral(coeff,slope,Gam_e_max,x_lo,x_hi)
-    implicit real(8)(A-H,O-Z)
+    implicit none
     integer :: I_q
     real(8), intent(in) :: coeff,slope,Gam_e_max,x_lo,x_hi
     real(8), parameter :: xi(3)=(/-dsqrt(3d0/5d0),zero,dsqrt(3d0/5d0)/)
@@ -112,7 +121,7 @@ end function electron_dny_gauss3_integral
 
 ! 将激活区间上的dN/dx积分累加到acc，在Gam_e_max处自动分段处理截断。
 subroutine electron_add_dnx_segment(cell_lo,cell_hi,active_lo,active_hi,coeff,slope,Gam_e_max,acc)
-    implicit real(8)(A-H,O-Z)
+    implicit none
     real(8), intent(in) :: cell_lo,cell_hi,active_lo,active_hi,coeff,slope,Gam_e_max
     real(8), intent(inout) :: acc
     real(8) :: x_lo,x_hi,x_cut
@@ -122,7 +131,7 @@ subroutine electron_add_dnx_segment(cell_lo,cell_hi,active_lo,active_hi,coeff,sl
     x_hi=min(cell_hi,active_hi)
     if (x_hi <= x_lo) return
 
-    x_cut=dlog10(max(Gam_e_max,1d-300))
+    x_cut=dlog10(Gam_e_max)
     if (x_lo < x_cut .and. x_hi > x_cut) then
         acc=acc+electron_dnx_gauss3_integral(coeff,slope,Gam_e_max,x_lo,x_cut)
         acc=acc+electron_dnx_gauss3_integral(coeff,slope,Gam_e_max,x_cut,x_hi)
@@ -154,7 +163,7 @@ end subroutine electron_add_dny_segment
 
 ! 由网格中心值推导log10(gamma)的单元边界。
 subroutine electron_profile_log_cell_edges(Num_gam_e,gam_e,x_edge)
-    implicit real(8)(A-H,O-Z)
+    implicit none
     integer, intent(in) :: Num_gam_e
     integer :: I_gam_e
     real(8), intent(in) :: gam_e(Num_gam_e)
@@ -169,7 +178,7 @@ end subroutine electron_profile_log_cell_edges
 
 ! 生成快/慢冷却幂律+指数截断的初始电子谱 dN/dγ（网格中心值）。
 subroutine electron_initial_powerlaw_exp_cutoff(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,gam_e,dN_gam_e_1)
-    implicit real(8)(A-H,O-Z)
+    implicit none
     integer, intent(in) :: Num_gam_e
     integer :: I_gam_e
     real(8), intent(in) :: Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,gam_e(Num_gam_e)
@@ -188,7 +197,7 @@ end subroutine electron_initial_powerlaw_exp_cutoff
 
 ! 生成快/慢冷却幂律+指数截断的初始电子谱 dN/dx（网格单元平均，保正/守恒）。
 subroutine electron_initial_powerlaw_exp_cutoff_edges(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,x_edge,dN_x_1)
-    implicit real(8)(A-H,O-Z)
+    implicit none
     integer, intent(in) :: Num_gam_e
     integer :: I_gam_e
     real(8), intent(in) :: Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,x_edge(Num_gam_e+1)
@@ -198,8 +207,8 @@ subroutine electron_initial_powerlaw_exp_cutoff_edges(Para_N_e_ini,p,Gam_e_m,Gam
     dN_x_1=zero
     if (Gam_e_max <= zero) return
 
-    x_m=dlog10(max(Gam_e_m,1d-300))
-    x_c=dlog10(max(Gam_e_c,1d-300))
+    x_m=dlog10(Gam_e_m)
+    x_c=dlog10(Gam_e_c)
     huge_x=1d300
 
     do I_gam_e=1,Num_gam_e
@@ -265,7 +274,7 @@ end subroutine electron_initial_powerlaw_exp_cutoff_coord_edges
 
 ! 构建幂律+指数截断源项 dF/dx（网格单元平均，保正/守恒）。
 subroutine electron_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m,Gam_e_max,Q,p,dF1)
-    implicit real(8)(A-H,O-Z)
+    implicit none
     integer, intent(in) :: Num_gam_e
     integer :: I_gam_e
     real(8), intent(in) :: x_edge(Num_gam_e+1),Gam_e_m,Gam_e_max,Q,p
@@ -275,7 +284,7 @@ subroutine electron_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m,
     dF1=zero
     if (Gam_e_max <= zero .or. Q <= zero) return
 
-    x_m=dlog10(max(Gam_e_m,1d-300))
+    x_m=dlog10(Gam_e_m)
     huge_x=1d300
     do I_gam_e=1,Num_gam_e
         cell_lo=x_edge(I_gam_e)
@@ -348,6 +357,7 @@ subroutine electron_build_kinetic_source_term_exp_cutoff_edges(Num_gam_e,x_edge,
         dF1(I_gam_e)=cell_sum/dx_cell
         shape_norm=shape_norm+cell_sum
     end do
+    if (shape_norm <= zero) error stop 'kinetic electron source has empty active support'
     dF1=Q*dF1/shape_norm
 end subroutine electron_build_kinetic_source_term_exp_cutoff_edges
 
@@ -385,6 +395,7 @@ subroutine electron_build_kinetic_source_term_exp_cutoff_coord_edges(Num_gam_e,c
         dF1(I_gam_e)=cell_sum/dy_cell
         shape_norm=shape_norm+cell_sum
     end do
+    if (shape_norm <= zero) error stop 'kinetic electron coordinate source has empty active support'
     dF1=Q*dF1/shape_norm
 end subroutine electron_build_kinetic_source_term_exp_cutoff_coord_edges
 
