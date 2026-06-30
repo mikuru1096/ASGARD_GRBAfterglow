@@ -1,14 +1,16 @@
 from pathlib import Path
 
 import numpy as np
-from scipy.interpolate import interp1d
 
 from src import constants
 
+_EBL_DIR = Path(__file__).resolve().parent / "EBL"
+
 
 def cal_ebl(z, v_obs, model="Dominguez11.txt"):
-    file_path = Path(__file__).parent / "EBL" / model
-    table = np.loadtxt(file_path)
+    """Return EBL attenuation exp(-tau) for observed frequencies."""
+    table = np.loadtxt(_EBL_DIR / model)
+    v_obs = np.asarray(v_obs, dtype=float)
 
     redshifts = table[0, 1:]
     energies_hz = table[1:, 0] * constants.para_tev2hz
@@ -21,10 +23,6 @@ def cal_ebl(z, v_obs, model="Dominguez11.txt"):
     else:
         tau_at_z = np.array([np.interp(z, redshifts, tau_values[i, :]) for i in range(tau_values.shape[0])])
 
-    tau_interp = interp1d(energies_hz, tau_at_z, kind="linear", bounds_error=False, fill_value=(tau_at_z[0], tau_at_z[-1]))
-    tau_obs = tau_interp(v_obs)
+    tau_obs = np.interp(v_obs, energies_hz, tau_at_z, left=tau_at_z[0], right=tau_at_z[-1])
     absorption = np.exp(-tau_obs)
-
-    absorption[v_obs < energies_hz[0]] = 1.0
-    absorption[v_obs > energies_hz[-1]] = 1.0e-30
-    return absorption
+    return np.where(v_obs < energies_hz[0], 1.0, np.where(v_obs > energies_hz[-1], 1.0e-30, absorption))
