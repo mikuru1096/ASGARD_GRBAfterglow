@@ -2,8 +2,7 @@
 module electron_shell_transport_common
     use constants
     use electron_energy_coordinate_common, only: electron_coord_log_four_velocity_sq, electron_dxgamma_dcoord
-    use electron_transport_common, only: electron_fullhide_flux_split_step, &
-                                         electron_fullhide_flux_split_step_nonuniform, &
+    use electron_transport_common, only: electron_fullhide_flux_split_step_nonuniform, &
                                          electron_prepare_exponential_source_remap
     implicit none
     private
@@ -47,14 +46,15 @@ subroutine electron_shell_dcoord_to_dndgamma_exp_centers(Num_gam_e,coord_edge,co
     integer, intent(in) :: Num_gam_e
     real(8), intent(in) :: coord_edge(Num_gam_e+1),coord_scale,gam_e(Num_gam_e),dN_coord(Num_gam_e)
     real(8), intent(out) :: dN_gam_e(Num_gam_e)
-    real(8) :: slope(Num_gam_e),center(Num_gam_e),prefix(0:Num_gam_e),coord_mid,dxdy
+    real(8) :: exp_slope(Num_gam_e),coord_center_density(Num_gam_e),exp_prefix(0:Num_gam_e),coord_mid,dxdy
     integer :: i
 
-    call electron_prepare_exponential_source_remap(Num_gam_e,coord_edge,dN_coord,slope,center,prefix)
+    call electron_prepare_exponential_source_remap(Num_gam_e,coord_edge,dN_coord, &
+                                                   exp_slope,coord_center_density,exp_prefix)
     do i = 1, Num_gam_e
         coord_mid = 0.5d0*(coord_edge(i) + coord_edge(i + 1))
         dxdy = electron_dxgamma_dcoord(electron_coord_log_four_velocity_sq, coord_scale, coord_mid)
-        dN_gam_e(i) = center(i)/(gam_e(i)*dlog(ten)*dxdy)
+        dN_gam_e(i) = coord_center_density(i)/(gam_e(i)*dlog(ten)*dxdy)
     enddo
 end subroutine electron_shell_dcoord_to_dndgamma_exp_centers
 
