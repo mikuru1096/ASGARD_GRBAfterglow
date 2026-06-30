@@ -2,12 +2,15 @@
 module interpolation_common
     use constants
     implicit none
+    private
+
+    public :: interpolation_accumulate_log_sed, interpolation_accumulate_shifted_linear_sed
 
 contains
 
 ! 在对数-线性空间中插值并累加SED到观测网格：源为(log x, log y)，目标为log x，输出累加线性y。
 subroutine interpolation_accumulate_log_sed(src_x, src_y, num_src, dst_x, num_dst, accum)
-    implicit real(8)(A-H,O-Z)
+    implicit none
     integer, intent(in) :: num_src, num_dst
     real(8), intent(in) :: src_x(num_src), src_y(num_src), dst_x(num_dst)
     real(8), intent(inout) :: accum(num_dst)
@@ -44,7 +47,7 @@ end subroutine interpolation_accumulate_log_sed
 
 ! 源频率整体平移时，直接从线性SED对目标频率做对数频率插值并累加。
 subroutine interpolation_accumulate_shifted_linear_sed(src_x, src_y, num_src, dst_x, num_dst, log_shift, log_weight, accum)
-    implicit real(8)(A-H,O-Z)
+    implicit none
     integer, intent(in) :: num_src, num_dst
     real(8), intent(in) :: src_x(num_src), src_y(num_src), dst_x(num_dst), log_shift, log_weight
     real(8), intent(inout) :: accum(num_dst)
