@@ -4,16 +4,18 @@ subroutine annihilation(R_gamma,R,V_seed,seed_syn,seed_ssc,tau_extra,Num_nu,Num_
     !$ use omp_lib
     use constants
     use radiation_common
-    IMPLICIT REAL(8)(A-H,O-Z)
+    implicit none
     integer, intent(in) :: Num_R,Num_nu,n_threads
     real(8), intent(in) :: R_gamma(Num_R),R(Num_R),V_seed(Num_nu),seed_syn(Num_nu,Num_R),seed_ssc(Num_nu,Num_R), &
                            tau_extra(Num_nu,Num_R)
     real(8), intent(out) :: absorption(Num_nu,Num_R)
 
-    allocatable :: seed_tot(:,:),seed_tot_mid(:,:),ep1(:,:),ep2(:,:),ep2ep1(:,:),dVloc(:),V_mid(:), &
-                dRariv_Sigma(:),beta(:),seed_tot_mid_dVloc(:,:),dcos_grid(:),z_grid(:),cos_weight(:,:), &
-                sigma_kernel(:,:,:)
+    real(8), allocatable :: seed_tot(:,:),seed_tot_mid(:,:),ep1(:,:),ep2(:,:),ep2ep1(:,:),dVloc(:),V_mid(:), &
+                            dRariv_Sigma(:),beta(:),seed_tot_mid_dVloc(:,:),dcos_grid(:),z_grid(:), &
+                            cos_weight(:,:),sigma_kernel(:,:,:)
     integer, allocatable :: nu2_start(:,:),nu2_stop(:,:)
+    integer :: Num_cos,I_R,Nu_s1,i_cos
+    real(8) :: dcos_bin,Cross_Area,Tau,Tau1,temp_abs
                 
     allocate (seed_tot(Num_nu,Num_R),dRariv_Sigma(Num_R),ep1(1,Num_nu),ep2(Num_nu-1,1),ep2ep1(Num_nu-1,Num_nu), &
             dVloc(Num_nu-1),V_mid(Num_nu-1),seed_tot_mid(Num_nu-1,Num_R),beta(Num_R), &
@@ -77,7 +79,7 @@ subroutine annihilation(R_gamma,R,V_seed,seed_syn,seed_ssc,tau_extra,Num_nu,Num_
 contains
 
 subroutine compute_mid_seed_field()
-    implicit real(8)(A-H,O-Z)
+    implicit none
     integer :: Nu_s2,i_R
 
     do Nu_s2=1,Num_nu-1
@@ -90,7 +92,7 @@ subroutine compute_mid_seed_field()
 end subroutine compute_mid_seed_field
 
 subroutine prepare_pair_angle_weights()
-    implicit real(8)(A-H,O-Z)
+    implicit none
     integer :: i_cos,i_R
 
     do i_cos=1,Num_cos+1
@@ -103,7 +105,7 @@ subroutine prepare_pair_angle_weights()
 end subroutine prepare_pair_angle_weights
 
 subroutine build_pair_sigma_kernel()
-    implicit real(8)(A-H,O-Z)
+    implicit none
     integer :: Nu_s1,i_cos,Nu_s2
     real(8) :: s_center
 
@@ -121,7 +123,7 @@ subroutine build_pair_sigma_kernel()
 end subroutine build_pair_sigma_kernel
 
 subroutine set_pair_energy_window(i_cos,Nu_s1)
-    implicit real(8)(A-H,O-Z)
+    implicit none
     integer, intent(in) :: i_cos,Nu_s1
     real(8) :: lo_target,hi_target
 
@@ -151,7 +153,7 @@ subroutine clear_pair_energy_window(i_cos,Nu_s1)
 end subroutine clear_pair_energy_window
 
 integer function first_pair_index_gt(Nu_s1,target)
-    implicit real(8)(A-H,O-Z)
+    implicit none
     integer, intent(in) :: Nu_s1
     real(8), intent(in) :: target
     integer :: i_low,i_high,i_mid
@@ -170,7 +172,7 @@ integer function first_pair_index_gt(Nu_s1,target)
 end function first_pair_index_gt
 
 integer function last_pair_index_lt(Nu_s1,target)
-    implicit real(8)(A-H,O-Z)
+    implicit none
     integer, intent(in) :: Nu_s1
     real(8), intent(in) :: target
     integer :: i_low,i_high,i_mid
