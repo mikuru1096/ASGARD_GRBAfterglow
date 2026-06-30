@@ -2,7 +2,7 @@
 ! public: integral_thermal1, integral_thermal12, integral_cp, normalized_hybrid_spec, normalized_hybrid_spec_lg
 
 module hybrid_spectrum_kernel_fast
-   use specfun, only: gammauic, besselk0, besselk1
+   use hybrid_special_functions, only: gammauic, besselk0, besselk1
    implicit none
    private
    public :: integral_thermal1, integral_thermal12, integral_cpl, normalized_hybrid_spec, normalized_hybrid_spec_lg
