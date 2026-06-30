@@ -11,7 +11,7 @@ subroutine sed_interpolation_structured(Boundary, angle_narrow_jet, R_Tobs1,R_ga
     !$ use omp_lib
     use constants
     use interpolation_common
-    IMPLICIT REAL(8)(A-H,O-Z)
+    implicit none
     !##############################################################################################
     integer, intent(in) :: n,Num_nu,Num_nu_obs,Num_Tobs,Num_Theta,Num_R,Num_Phi,n_threads
     real(8), intent(in) :: Boundary(n),angle_narrow_jet
@@ -23,16 +23,15 @@ subroutine sed_interpolation_structured(Boundary, angle_narrow_jet, R_Tobs1,R_ga
     
     real(8), allocatable :: P_tot_obs_temp(:,:),V_obs_log(:),V_seed_log(:)
     real(8) :: R_Tobs_theta(Num_R),P_tot_log_lo(Num_nu),P_tot_log_hi(Num_nu)
-    real(8) :: log_gamma_lo,log_gamma_hi,log_domega_4pi
-    integer :: last_k2
+    real(8) :: z,OpeningAngle_jet,Tv,dPhi,phi_scale,dtheta,Taa_lower,Taa_boundary,Taa_center,domega
+    real(8) :: Phi_center,DMu,Ratio,log_gamma_lo,log_gamma_hi,log_domega_4pi
+    integer :: I_Theta,i_Phi,K1,K2,II,last_k2
     allocate (P_tot_obs_temp(Num_nu_obs,Num_Tobs),V_obs_log(Num_nu_obs),V_seed_log(Num_nu))
     
     
     P_tot_obs_temp=zero
     P_tot_obs=zero
     
-    G00 = Boundary(1)
-    R00 = Boundary(4)
     z = Boundary(8)
     OpeningAngle_jet = Boundary(9)
     Tv = Boundary(10)
@@ -102,7 +101,7 @@ contains
 
 subroutine project_structured_segment(K1,Ratio,DMu,log_domega_4pi,log_gamma_lo,log_gamma_hi, &
                                       P_tot_log_lo,P_tot_log_hi)
-    implicit real(8)(A-H,O-Z)
+    implicit none
     integer, intent(in) :: K1
     real(8), intent(in) :: Ratio,DMu,log_domega_4pi,log_gamma_lo,log_gamma_hi
     real(8), intent(in) :: P_tot_log_lo(Num_nu),P_tot_log_hi(Num_nu)
@@ -127,7 +126,7 @@ subroutine sed_interpolation_structured_phi(Boundary,R_Tobs1,R_gamma,R,P_tot,V_s
     !$ use omp_lib
     use constants
     use interpolation_common
-    IMPLICIT REAL(8)(A-H,O-Z)
+    implicit none
     integer, intent(in) :: n,Num_nu,Num_nu_obs,Num_Tobs,Num_Theta,Num_Phi,Num_R,n_threads
     real(8), intent(in) :: Boundary(n),Tobs(Num_Tobs),V_seed(Num_nu),V_obs(Num_nu_obs)
     real(8), intent(in) :: R_Tobs1(Num_R,Num_Theta,Num_Phi),R_gamma(Num_R,Num_Theta,Num_Phi)
@@ -136,8 +135,9 @@ subroutine sed_interpolation_structured_phi(Boundary,R_Tobs1,R_gamma,R,P_tot,V_s
 
     real(8), allocatable :: P_tot_obs_temp(:,:),V_obs_log(:),V_seed_log(:)
     real(8) :: R_Tobs_theta(Num_R),P_tot_log_lo(Num_nu),P_tot_log_hi(Num_nu)
-    real(8) :: log_gamma_lo,log_gamma_hi,log_domega_4pi
-    integer :: last_k2
+    real(8) :: z,OpeningAngle_jet,Tv,dtheta,dPhi,Taa_lower,Taa_boundary,Taa_center,domega
+    real(8) :: Phi_center,DMu,Ratio,log_gamma_lo,log_gamma_hi,log_domega_4pi
+    integer :: I_Theta,i_Phi,K1,K2,II,last_k2
     allocate (P_tot_obs_temp(Num_nu_obs,Num_Tobs),V_obs_log(Num_nu_obs),V_seed_log(Num_nu))
 
     P_tot_obs_temp=zero
@@ -201,7 +201,7 @@ contains
 
 subroutine project_structured_phi_segment(K1,Ratio,DMu,log_domega_4pi,log_gamma_lo,log_gamma_hi, &
                                           P_tot_log_lo,P_tot_log_hi)
-    implicit real(8)(A-H,O-Z)
+    implicit none
     integer, intent(in) :: K1
     real(8), intent(in) :: Ratio,DMu,log_domega_4pi,log_gamma_lo,log_gamma_hi
     real(8), intent(in) :: P_tot_log_lo(Num_nu),P_tot_log_hi(Num_nu)
