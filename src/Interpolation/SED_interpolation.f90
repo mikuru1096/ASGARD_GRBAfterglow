@@ -13,7 +13,7 @@ subroutine sed_interpolation(Boundary,R_Tobs1,R_gamma,R,F_tot,V_seed,V_obs,Tobs,
     !$ use omp_lib
     use constants
     use interpolation_common
-    IMPLICIT REAL(8)(A-H,O-Z)
+    implicit none
     !##############################################################################################
     integer, intent(in) :: n,Num_nu,Num_nu_obs,Num_Tobs,Num_Theta,Num_R,Num_Phi,n_threads
     real(8), intent(in) :: Boundary(n)
@@ -23,17 +23,15 @@ subroutine sed_interpolation(Boundary,R_Tobs1,R_gamma,R,F_tot,V_seed,V_obs,Tobs,
     
     
     real(8), allocatable :: F_tot_obs_temp(:,:),V_obs_log(:),V_seed_log(:)
-    real(8) :: R_Tobs_theta(Num_R),F_tot_theta(Num_nu),F_tot_log_theta(Num_nu), &
-               V_seed_log_theta(Num_nu),log_gamma_lo,log_gamma_hi,log_domega_4pi, &
-               log_doppler_redshift
-    integer :: last_k2
+    real(8) :: R_Tobs_theta(Num_R),F_tot_theta(Num_nu),F_tot_log_theta(Num_nu),V_seed_log_theta(Num_nu)
+    real(8) :: z,OpeningAngle_jet,Tv,dPhi,phi_scale,dtheta,Taa_lower,Taa_boundary,Taa_center,domega
+    real(8) :: Phi_center,DMu,Ratio,DG,Beta,doppler,log_gamma_lo,log_gamma_hi,log_domega_4pi,log_doppler_redshift
+    integer :: I_Theta,i_Phi,K1,K2,II,last_k2
     allocate (F_tot_obs_temp(Num_nu_obs,Num_Tobs),V_obs_log(Num_nu_obs),V_seed_log(Num_nu))
 
     F_tot_obs=zero
     F_tot_obs_temp=zero
     
-    G00 = Boundary(1)
-    R00 = Boundary(4)
     z = Boundary(8)
     OpeningAngle_jet = Boundary(9)
     Tv = Boundary(10)
@@ -113,7 +111,7 @@ subroutine sed_interpolation_adaptive_theta(Boundary,R_Tobs1,R_gamma,R,F_tot,V_s
     !$ use omp_lib
     use constants
     use interpolation_common
-    IMPLICIT REAL(8)(A-H,O-Z)
+    implicit none
     integer, intent(in) :: n,Num_nu,Num_nu_obs,Num_Tobs,Num_Theta,Num_R,Num_Phi,n_threads
     integer, intent(in) :: adaptive_max_depth
     real(8), intent(in) :: Boundary(n),Tobs(Num_Tobs),V_seed(Num_nu),V_obs(Num_nu_obs)
@@ -122,6 +120,8 @@ subroutine sed_interpolation_adaptive_theta(Boundary,R_Tobs1,R_gamma,R,F_tot,V_s
     real(8), intent(out) :: F_tot_obs(Num_nu_obs,Num_Tobs)
     real(8), allocatable :: F_tot_obs_temp(:,:),V_obs_log(:),V_seed_log(:)
     real(8) :: cell_obs(Num_nu_obs,Num_Tobs)
+    real(8) :: z,OpeningAngle_jet,Tv,dPhi,phi_scale,dtheta,Taa_lower,Taa_boundary,Phi_center
+    integer :: I_Theta,i_Phi
 
     if (adaptive_max_depth == 0) then
         call sed_interpolation(Boundary,R_Tobs1,R_gamma,R,F_tot,V_seed,V_obs,Tobs, &
@@ -168,7 +168,7 @@ subroutine sed_interpolation_adaptive_theta(Boundary,R_Tobs1,R_gamma,R,F_tot,V_s
 contains
 
 recursive subroutine integrate_theta_cell(theta_lo,theta_hi,phi_center,depth,accum_obs)
-    implicit real(8)(A-H,O-Z)
+    implicit none
     integer, intent(in) :: depth
     real(8), intent(in) :: theta_lo,theta_hi,phi_center
     real(8), intent(inout) :: accum_obs(Num_nu_obs,Num_Tobs)
@@ -198,10 +198,12 @@ recursive subroutine integrate_theta_cell(theta_lo,theta_hi,phi_center,depth,acc
 end subroutine integrate_theta_cell
 
 subroutine project_theta_sample(theta_lo,theta_hi,theta_center,phi_center,local_obs)
-    implicit real(8)(A-H,O-Z)
+    implicit none
     real(8), intent(in) :: theta_lo,theta_hi,theta_center,phi_center
     real(8), intent(inout) :: local_obs(Num_nu_obs,Num_Tobs)
     real(8) :: R_Tobs_theta(Num_R),log_gamma_lo,log_gamma_hi,log_domega_4pi
+    real(8) :: domega,DMu,Ratio
+    integer :: K1,K2,II
     integer :: last_k2
 
     domega = (dcos(theta_lo)-dcos(theta_hi))*dPhi
@@ -230,12 +232,12 @@ subroutine project_theta_sample(theta_lo,theta_hi,theta_center,phi_center,local_
 end subroutine project_theta_sample
 
 subroutine project_shell_segment(K1,K2,Ratio,DMu,log_domega_4pi,log_gamma_lo,log_gamma_hi,local_obs)
-    implicit real(8)(A-H,O-Z)
+    implicit none
     integer, intent(in) :: K1,K2
     real(8), intent(in) :: Ratio,DMu,log_domega_4pi,log_gamma_lo,log_gamma_hi
     real(8), intent(inout) :: local_obs(Num_nu_obs,Num_Tobs)
     real(8) :: F_tot_theta(Num_nu),F_tot_log_theta(Num_nu),V_seed_log_theta(Num_nu)
-    real(8) :: log_doppler_redshift
+    real(8) :: DG,Beta,doppler,log_doppler_redshift
 
     DG = dexp(log_gamma_lo+Ratio*(log_gamma_hi-log_gamma_lo))
     F_tot_theta = (one-Ratio)*F_tot(:,K2)+Ratio*F_tot(:,K2+1)
@@ -257,7 +259,7 @@ subroutine sed_interpolation_chi(Boundary,R_Tobs1,R_front,F_chi,Tau_chi,R_chi,Ga
     !$ use omp_lib
     use constants
     use interpolation_common
-    IMPLICIT REAL(8)(A-H,O-Z)
+    implicit none
     integer, intent(in) :: n,Num_nu,Num_nu_obs,Num_Tobs,Num_Theta,Num_Phi,Num_chi,Num_R,n_threads
     real(8), intent(in) :: Boundary(n),R_Tobs1(Num_R),R_front(Num_R),Tobs(Num_Tobs),V_seed(Num_nu),V_obs(Num_nu_obs)
     real(8), intent(in) :: F_chi(Num_nu,Num_chi,Num_R),Tau_chi(Num_nu,Num_chi,Num_R)
@@ -265,9 +267,10 @@ subroutine sed_interpolation_chi(Boundary,R_Tobs1,R_front,F_chi,Tau_chi,R_chi,Ga
     real(8), intent(out) :: F_tot_obs(Num_nu_obs,Num_Tobs)
     real(8), allocatable :: F_temp(:,:),V_obs_log(:),V_seed_log(:),Tau_prefix(:,:,:)
     real(8), allocatable :: Angle_dmu(:),Angle_log_domega(:)
-    real(8) :: R_Tobs_chi(Num_R),log_domega_4pi
+    real(8) :: R_Tobs_chi(Num_R),log_domega_4pi,z,OpeningAngle_jet,Tv,dPhi,phi_scale,dtheta
+    real(8) :: Taa_lower,Taa_boundary,Taa_center,domega,Phi_center,DMu,Ratio
     real(8) :: log_gamma_lo,log_gamma_hi,segment_lo,segment_hi,cos_tv,sin_tv
-    integer :: last_k2,k_start,lower_bound_real8,I_ang
+    integer :: I_chi,I_Theta,i_Phi,K1,K2,II,I_ang,last_k2,k_start,lower_bound_real8
     logical :: monotonic_chi
 
     allocate(F_temp(Num_nu_obs,Num_Tobs),V_obs_log(Num_nu_obs),V_seed_log(Num_nu))
@@ -361,7 +364,7 @@ subroutine sed_interpolation_chi(Boundary,R_Tobs1,R_front,F_chi,Tau_chi,R_chi,Ga
 contains
 
 subroutine project_chi_segment_flux(I_chi,K2,K1,Ratio,DMu,log_domega_4pi,log_gamma_lo,log_gamma_hi)
-    implicit real(8)(A-H,O-Z)
+    implicit none
     integer, intent(in) :: I_chi,K2,K1
     real(8), intent(in) :: Ratio,DMu,log_domega_4pi,log_gamma_lo,log_gamma_hi
     real(8) :: F_theta(Num_nu)
@@ -376,11 +379,12 @@ end subroutine project_chi_segment_flux
 
 subroutine compute_chi_segment_state(I_chi,K2,Ratio,DMu,log_gamma_lo,log_gamma_hi, &
                                      log_doppler_redshift,doppler,F_theta)
-    implicit real(8)(A-H,O-Z)
+    implicit none
     integer, intent(in) :: I_chi,K2
     real(8), intent(in) :: Ratio,DMu,log_gamma_lo,log_gamma_hi
     real(8), intent(out) :: log_doppler_redshift,doppler,F_theta(Num_nu)
     real(8) :: DG,Beta
+    real(8), external :: chi_ssa_cell_escape
     integer :: I_nu_inl
 
     DG = dexp(log_gamma_lo+Ratio*(log_gamma_hi-log_gamma_lo))
@@ -404,13 +408,15 @@ subroutine sed_interpolation_chi_electron_cached(Boundary,R_Tobs1,R_front,DNe_ch
                              Num_chi,Num_R,n_threads,F_tot_obs)
     use constants
     use radiation_common, only: radiation_syn_flux_tau_chi_batch_core
-    IMPLICIT REAL(8)(A-H,O-Z)
+    implicit none
     integer, intent(in) :: n,Num_gam_e,Num_nu,Num_nu_obs,Num_Tobs,Num_Theta,Num_Phi,Num_chi,Num_R,n_threads
     real(8), intent(in) :: Boundary(n),R_Tobs1(Num_R),R_front(Num_R),Tobs(Num_Tobs),V_seed(Num_nu),V_obs(Num_nu_obs)
     real(8), intent(in) :: gam_e(Num_gam_e),DNe_chi(Num_gam_e,Num_chi,Num_R),B_chi(Num_chi,Num_R)
     real(8), intent(in) :: R_chi(Num_chi,Num_R),Gamma_chi(Num_chi,Num_R),Chi_weight(Num_chi,Num_R)
     real(8), intent(out) :: F_tot_obs(Num_nu_obs,Num_Tobs)
     real(8), allocatable :: F_chi(:,:,:),Tau_chi(:,:,:),P_syn(:,:),Tau_syn(:,:)
+    real(8) :: DL,z,flux_prefactor
+    integer :: K2
 
     DL = Boundary(13)
     z = Boundary(8)
@@ -434,7 +440,7 @@ subroutine sed_interpolation_chi_structured_axisym_ring_precomputed(Boundary,R_T
                              n,Num_nu,Num_nu_obs,Num_Tobs,Num_phi_patch,Num_chi,Num_R,F_tot_obs)
     use constants
     use interpolation_common
-    IMPLICIT REAL(8)(A-H,O-Z)
+    implicit none
     integer, intent(in) :: n,Num_nu,Num_nu_obs,Num_Tobs,Num_phi_patch,Num_chi,Num_R
     real(8), intent(in) :: Boundary(n),R_Tobs1(Num_R),R_front(Num_R),Tobs(Num_Tobs),V_seed(Num_nu),V_obs(Num_nu_obs)
     real(8), intent(in) :: F_ring(Num_nu,Num_chi,Num_R),Tau_ring(Num_nu,Num_chi,Num_R)
@@ -443,8 +449,8 @@ subroutine sed_interpolation_chi_structured_axisym_ring_precomputed(Boundary,R_T
     real(8), intent(out) :: F_tot_obs(Num_nu_obs,Num_Tobs)
     real(8), allocatable :: F_temp(:,:),V_obs_log(:),V_seed_log(:),Tau_prefix(:,:,:)
     real(8) :: R_Tobs_chi(Num_R),log_domega_4pi,log_gamma_lo,log_gamma_hi,segment_lo,segment_hi
-    real(8) :: cos_tv,sin_tv,theta_center,phi_center,domega,dPhi
-    integer :: last_k2,k_start,lower_bound_real8
+    real(8) :: z,Tv,cos_tv,sin_tv,theta_center,phi_center,domega,dPhi,DMu,Ratio
+    integer :: I_chi,i_Phi,K1,K2,II,last_k2,k_start,lower_bound_real8
     logical :: monotonic_chi
 
     allocate(F_temp(Num_nu_obs,Num_Tobs),V_obs_log(Num_nu_obs),V_seed_log(Num_nu))
@@ -516,7 +522,7 @@ subroutine sed_interpolation_chi_structured_axisym_ring_precomputed(Boundary,R_T
 contains
 
 subroutine project_precomputed_ring_segment(I_chi,K2,K1,Ratio,DMu,log_domega_4pi,log_gamma_lo,log_gamma_hi)
-    implicit real(8)(A-H,O-Z)
+    implicit none
     integer, intent(in) :: I_chi,K2,K1
     real(8), intent(in) :: Ratio,DMu,log_domega_4pi,log_gamma_lo,log_gamma_hi
     real(8) :: F_theta(Num_nu),log_doppler_redshift,log_flux_weight,doppler,DG,Beta
@@ -532,11 +538,12 @@ subroutine project_precomputed_ring_segment(I_chi,K2,K1,Ratio,DMu,log_domega_4pi
 end subroutine project_precomputed_ring_segment
 
 subroutine accumulate_precomputed_ring_source(I_chi,K2,Ratio,F_theta)
-    implicit real(8)(A-H,O-Z)
+    implicit none
     integer, intent(in) :: I_chi,K2
     real(8), intent(in) :: Ratio
     real(8), intent(out) :: F_theta(Num_nu)
     real(8) :: source_lo,source_hi,tau_front_lo,tau_front_hi,tau_cell_lo,tau_cell_hi
+    real(8), external :: chi_ssa_cell_escape
     integer :: I_nu
 
     F_theta = zero
@@ -555,7 +562,7 @@ end subroutine sed_interpolation_chi_structured_axisym_ring_precomputed
 ! Shared projection helpers.
 real(8) function chi_ssa_cell_escape(tau_front,tau_cell)
     use constants
-    implicit real(8)(a-h,o-z)
+    implicit none
     real(8), intent(in) :: tau_front,tau_cell
     if (tau_cell > 1d-6) then
         chi_ssa_cell_escape = dexp(-tau_front)*(one-dexp(-tau_cell))/tau_cell
