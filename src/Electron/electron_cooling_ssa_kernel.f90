@@ -7,35 +7,16 @@ module electron_cooling_ssa_kernel
 
   public :: electron_cooling_ssa_loss_batch
 
+  integer, parameter :: ssa_segment_low = 1
+  integer, parameter :: ssa_segment_high = 2
   integer, save :: ssa_seed_num_nu_cache=0
   logical, save :: ssa_seed_cache_ready=.false.
   real(8), allocatable, save :: ssa_seed_v_cache(:), ssa_seed_v_low(:), ssa_seed_v_high(:), &
                                 ssa_seed_vg1(:), ssa_seed_vg2(:), ssa_seed_wg1(:), ssa_seed_wg2(:)
-  integer, save :: ssa_geom_num_gam_cache=0
-  integer, allocatable, save :: ssa_low_idx_cache(:), ssa_low_first_cache(:), ssa_low_last_cache(:), ssa_high_first_cache(:)
-  real(8), allocatable, save :: ssa_prefactor_low_cache(:), ssa_prefactor_high_cache(:)
   !$omp threadprivate(ssa_seed_num_nu_cache,ssa_seed_cache_ready,ssa_seed_v_cache,ssa_seed_v_low,ssa_seed_v_high)
   !$omp threadprivate(ssa_seed_vg1,ssa_seed_vg2,ssa_seed_wg1,ssa_seed_wg2)
-  !$omp threadprivate(ssa_geom_num_gam_cache,ssa_low_idx_cache,ssa_low_first_cache,ssa_low_last_cache)
-  !$omp threadprivate(ssa_high_first_cache,ssa_prefactor_low_cache,ssa_prefactor_high_cache)
 
 contains
-! 确保SSA几何工作数组已按当前电子网格大小分配（含缓存检查）。
-subroutine ensure_ssa_geometry_workspace(Num_gam_e)
-implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: Num_gam_e
-
-    if (.not. allocated(ssa_low_idx_cache) .or. ssa_geom_num_gam_cache /= Num_gam_e) then
-        if (allocated(ssa_low_idx_cache)) then
-            deallocate(ssa_low_idx_cache,ssa_low_first_cache,ssa_low_last_cache,ssa_high_first_cache, &
-                       ssa_prefactor_low_cache,ssa_prefactor_high_cache)
-        end if
-        allocate(ssa_low_idx_cache(Num_gam_e),ssa_low_first_cache(Num_gam_e),ssa_low_last_cache(Num_gam_e), &
-                 ssa_high_first_cache(Num_gam_e),ssa_prefactor_low_cache(Num_gam_e),ssa_prefactor_high_cache(Num_gam_e))
-        ssa_geom_num_gam_cache=Num_gam_e
-    end if
-end subroutine ensure_ssa_geometry_workspace
-
 ! 确保SSA种子频率缓存已按当前种子网格分配。
 subroutine ensure_ssa_seed_cache(Num_nu,V_seed)
 implicit REAL(8)(A-H,O-Z)
@@ -151,7 +132,6 @@ real(8) :: Cyclotron_nu,Seed_g1(Num_nu-1,Num_chi),Seed_g2(Num_nu-1,Num_chi)
 real(8) :: Low_prefix(0:Num_nu-1,Num_chi),High_amp1(Num_nu-1,Num_chi),High_amp2(Num_nu-1,Num_chi)
 
     call ensure_ssa_seed_cache(Num_nu,V_seed)
-    call ensure_ssa_geometry_workspace(Num_gam_e)
     V_seed_low=ssa_seed_v_low
     V_seed_high=ssa_seed_v_high
     V_seed_g1=ssa_seed_vg1
@@ -218,7 +198,7 @@ real(8) :: gam,gam2,V_lowlim,V_uplim,inv_uplim,high_prefactor,ssa_sum,cell_low,c
         if (cell_high > cell_low) then
             if (cell_low /= V_seed_low(low_full_first) .or. cell_high /= V_seed_high(low_full_first)) then
                 ssa_sum=ssa_sum+clipped_ssa_batch_segment(cell_low,cell_high,low_full_first,I_chi, &
-                                                          sigma_low(I_gam_e),1,Cyclotron_nu,V_uplim)
+                                                          sigma_low(I_gam_e),ssa_segment_low,Cyclotron_nu,V_uplim)
                 low_full_first=low_full_first+1
             end if
         else
@@ -231,7 +211,7 @@ real(8) :: gam,gam2,V_lowlim,V_uplim,inv_uplim,high_prefactor,ssa_sum,cell_low,c
         if (cell_high > cell_low) then
             if (cell_low /= V_seed_low(low_full_last) .or. cell_high /= V_seed_high(low_full_last)) then
                 ssa_sum=ssa_sum+clipped_ssa_batch_segment(cell_low,cell_high,low_full_last,I_chi, &
-                                                          sigma_low(I_gam_e),1,Cyclotron_nu,V_uplim)
+                                                          sigma_low(I_gam_e),ssa_segment_low,Cyclotron_nu,V_uplim)
                 low_full_last=low_full_last-1
             end if
         else
@@ -249,7 +229,7 @@ real(8) :: gam,gam2,V_lowlim,V_uplim,inv_uplim,high_prefactor,ssa_sum,cell_low,c
         if (cell_high > cell_low) then
             if (cell_low /= V_seed_low(high_full_first)) then
                 ssa_sum=ssa_sum+clipped_ssa_batch_segment(cell_low,cell_high,high_full_first,I_chi, &
-                                                          sigma_high(I_gam_e),2,Cyclotron_nu,V_uplim)
+                                                          sigma_high(I_gam_e),ssa_segment_high,Cyclotron_nu,V_uplim)
                 high_full_first=high_full_first+1
             end if
         end if
@@ -266,32 +246,23 @@ real(8) function clipped_ssa_batch_segment(cell_low,cell_high,I_nu,I_chi,sigma_p
 implicit REAL(8)(A-H,O-Z)
 integer, intent(in) :: I_nu,I_chi,mode
 real(8), intent(in) :: cell_low,cell_high,sigma_prefactor,Cyclotron_nu,V_uplim
-real(8) :: seed_loc,sigma_loc,vg,wg,vg1,vg2,wg1,wg2
+integer :: I_quad
+real(8) :: seed_loc,sigma_loc,vg(2),wg(2)
 
-    call electron_log_gauss2_interval(cell_low,cell_high,vg1,vg2,wg1,wg2)
+    call electron_log_gauss2_interval(cell_low,cell_high,vg(1),vg(2),wg(1),wg(2))
     clipped_ssa_batch_segment=zero
 
-    vg=vg1
-    wg=wg1
-    seed_loc=electron_powerlaw_interp(V_seed_low(I_nu),V_seed_high(I_nu), &
-                                      Seed_syn_batch(I_nu,I_chi),Seed_syn_batch(I_nu+1,I_chi),vg)
-    if (mode == 1) then
-        sigma_loc=sigma_prefactor*vg**(-5d0/3d0)
-    else
-        sigma_loc=sigma_prefactor*(Cyclotron_nu/vg)*dexp(-vg/V_uplim)
-    end if
-    clipped_ssa_batch_segment=wg*sigma_loc*seed_loc*para_h*vg*para_c
-
-    vg=vg2
-    wg=wg2
-    seed_loc=electron_powerlaw_interp(V_seed_low(I_nu),V_seed_high(I_nu), &
-                                      Seed_syn_batch(I_nu,I_chi),Seed_syn_batch(I_nu+1,I_chi),vg)
-    if (mode == 1) then
-        sigma_loc=sigma_prefactor*vg**(-5d0/3d0)
-    else
-        sigma_loc=sigma_prefactor*(Cyclotron_nu/vg)*dexp(-vg/V_uplim)
-    end if
-    clipped_ssa_batch_segment=clipped_ssa_batch_segment+wg*sigma_loc*seed_loc*para_h*vg*para_c
+    do I_quad=1,2
+        seed_loc=electron_powerlaw_interp(V_seed_low(I_nu),V_seed_high(I_nu), &
+                                          Seed_syn_batch(I_nu,I_chi),Seed_syn_batch(I_nu+1,I_chi),vg(I_quad))
+        if (mode == ssa_segment_low) then
+            sigma_loc=sigma_prefactor*vg(I_quad)**(-5d0/3d0)
+        else
+            sigma_loc=sigma_prefactor*(Cyclotron_nu/vg(I_quad))*dexp(-vg(I_quad)/V_uplim)
+        end if
+        clipped_ssa_batch_segment=clipped_ssa_batch_segment+ &
+                                  wg(I_quad)*sigma_loc*seed_loc*para_h*vg(I_quad)*para_c
+    end do
 end function clipped_ssa_batch_segment
 end subroutine electron_cooling_ssa_loss_batch
 
