@@ -37,7 +37,7 @@ subroutine fs_electron_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Nu
     real(8) :: dNe_shell, dNe_step, DB_step, Gam_e_max_step, Gam_e_m_step, Gam_e_m_p_step, source_norm, temp
     real(8) :: Gam_e_max_inj_shell, Gam_e_m_inj_shell, Gam_e_m_p_shell
     real(8) :: dR_base, dR_step, R_end, R_mid, dg_gamma_scale, coord_scale
-    real(8) :: grid_content, dg_content, source_cache_gamma_m, source_cache_gamma_max
+    real(8) :: source_cache_gamma_m, source_cache_gamma_max
     real(8), parameter :: dg_base_substeps = 10d0, dg_jump_window_sigma = 4d0
     real(8), parameter :: dg_jump_substeps_per_sigma = 8d0, dg_jump_log_density_step = 5d-2
     real(8), parameter :: dg_tail_moment_threshold = 1d-10, dg_tail_moment_power = 2d0
@@ -147,12 +147,13 @@ subroutine fs_electron_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Nu
         call electron_dg1d_build_four_velocity_mesh(x_edge(1), forward_dg_active_xmax(gamma_upper), &
                                                     dlog10(gamma_m_break), dlog10(gamma_c_break), &
                                                     dlog10(gamma_max_break), dg_gamma_scale, new_mesh)
-        ! Inlined from ensure_dg_work
-    if (allocated(projected)) then
-        if (size(projected) /= new_mesh%ntot) deallocate(projected, gamma_dg, dEl_dg, dEl_dg_base, source_dg, source_template)
-    endif
-    if (.not. allocated(projected)) allocate(projected(new_mesh%ntot), gamma_dg(new_mesh%ntot), dEl_dg(new_mesh%ntot), &
-                                             dEl_dg_base(new_mesh%ntot), source_dg(new_mesh%ntot), source_template(new_mesh%ntot))
+        if (allocated(projected)) then
+            if (size(projected) /= new_mesh%ntot) &
+                deallocate(projected, gamma_dg, dEl_dg, dEl_dg_base, source_dg, source_template)
+        endif
+        if (.not. allocated(projected)) &
+            allocate(projected(new_mesh%ntot), gamma_dg(new_mesh%ntot), dEl_dg(new_mesh%ntot), &
+                     dEl_dg_base(new_mesh%ntot), source_dg(new_mesh%ntot), source_template(new_mesh%ntot))
         call electron_dg1d_project_state(mesh, state, new_mesh, projected)
         call electron_dg1d_apply_positive_kernel_filter(new_mesh, projected)
         call electron_dg1d_limit_positive_cell_preserving(new_mesh, projected)
@@ -320,6 +321,7 @@ subroutine fs_electron_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Nu
     subroutine scale_dg_state_to_grid_content(dg_state, grid_state)
         real(8), intent(inout) :: dg_state(:)
         real(8), intent(in) :: grid_state(Num_gam_e)
+        real(8) :: grid_content, dg_content
 
         grid_content = sum(grid_state*(coord_edge(2:Num_gam_e+1) - coord_edge(1:Num_gam_e)))
         call electron_dg1d_integral(mesh, dg_state, dg_content)
@@ -348,9 +350,7 @@ subroutine fs_electron_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Nu
     subroutine enforce_output_positivity(I_tobs_local)
         integer, intent(in) :: I_tobs_local
 
-        where (dN_gam_e(:,I_tobs_local) > zero .and. ieee_is_finite(dN_gam_e(:,I_tobs_local)))
-            dN_gam_e(:,I_tobs_local) = dN_gam_e(:,I_tobs_local)
-        elsewhere
+        where (dN_gam_e(:,I_tobs_local) <= zero .or. .not. ieee_is_finite(dN_gam_e(:,I_tobs_local)))
             dN_gam_e(:,I_tobs_local) = zero
         end where
     end subroutine enforce_output_positivity
