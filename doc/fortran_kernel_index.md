@@ -74,36 +74,28 @@ Fortran 改动后的最低门槛见 `doc/validation_and_benchmarks.md`。文档-
 
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
-| `S` | 1 | `dynamics_reverse` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `F` | 169 | `reverse_shock_ready` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
-| `F` | 175 | `reverse_shock_pressure_ready_state` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
-| `S` | 196 | `waiting_trial` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 217 | `locate_waiting_event` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 243 | `update_secondary_reverse_events` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
-| `S` | 273 | `record_secondary_reverse_event_segment` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
-| `S` | 306 | `secondary_reverse_event_root_between` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
-| `S` | 338 | `close_open_secondary_reverse_events` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
-| `S` | 351 | `secondary_reverse_event_sources` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
-| `S` | 364 | `secondary_reverse_event_source` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
-| `S` | 406 | `store_secondary_branch_state` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 509 | `secondary_parent_upstream_available` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 519 | `secondary_reverse_density_branch_state` | 介质密度或 density-jump 分支；直接影响 swept mass、动力学和注入源项。 |
-| `S` | 546 | `secondary_reverse_contact_rh` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
-| `S` | 577 | `pressure_difference` | 磁化 RS/MHD jump 或 pressure-balance helper；不要用 ultra-relativistic 近似替代有限强度 jump。 |
-| `S` | 590 | `solve_reverse_shock_compression` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
-| `S` | 622 | `solve_compression_unity_speed` | 磁化 RS/MHD jump 或 pressure-balance helper；不要用 ultra-relativistic 近似替代有限强度 jump。 |
-| `S` | 645 | `shock_momentum_difference` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 967 | `reverse_dynamics_rhs` | ODE/PDE 右端项；定义物理源汇和动力学变量导数。 |
-| `S` | 1056 | `decode_reverse_state` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
-| `S` | 1090 | `compute_region2_radiative_efficiency` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 1099 | `compute_region3_field` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
-| `S` | 1124 | `compute_region3_thermal_state` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
-| `S` | 1144 | `compute_region3_radiative_efficiency` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
-| `S` | 1158 | `compute_ordered_magnetic_inertia` | 磁化 RS/MHD jump 或 pressure-balance helper；不要用 ultra-relativistic 近似替代有限强度 jump。 |
-| `S` | 1169 | `compute_secondary_inertia_mass` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 1192 | `secondary_parent_upstream_available` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 1202 | `compute_secondary_branch_derivatives` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 1282 | `secondary_reverse_density_branch_rhs` | ODE/PDE 右端项；定义物理源汇和动力学变量导数。 |
+| `S` | 5 | `dynamics_reverse` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
+| `S` | 171 | `advance_reverse_state_to_target` | 反向激波 waiting/pre-crossing/post-crossing 时间推进。 |
+| `F` | 211 | `reverse_shock_pressure_ready_state` | 反向激波 pressure-balance 和 fast-mode shock 条件。 |
+| `S` | 238 | `waiting_trial` | 磁化 RS 尚未成 shock 时的 waiting 分支 trial 推进。 |
+| `S` | 259 | `locate_waiting_event` | 定位 waiting 到 shock-ready 的事件时间。 |
+| `S` | 285 | `update_secondary_reverse_events` | 密度增强窗口内扫描次级 RS start/end。 |
+| `S` | 337 | `secondary_reverse_event_root_between` | 次级 RS source 过零半径定位。 |
+| `S` | 369 | `secondary_reverse_event_source` | 次级 RS mechanical source，比较新 shock 与上游绝热态。 |
+| `S` | 411 | `store_secondary_branch_state` | 输出次级 RS 分支热、磁、注入和诊断量。 |
+| `F` | 515 | `secondary_parent_upstream_available` | 判断上一级次级分支是否可作为当前上游。 |
+| `S` | 525 | `secondary_reverse_density_branch_state` | density-jump 分支的局部密度和权重。 |
+
+### `src/Dynamics/reverse_rhs.f90`
+
+反向激波 RHS，显式处理 shock 注入、磁化惯性、区域 3 热演化和次级分支导数。
+
+| Kind | Line | Program unit | 算法/物理责任 |
+| --- | ---: | --- | --- |
+| `S` | 2 | `reverse_dynamics_rhs` | ODE/PDE 右端项；定义反向激波主状态和次级分支导数。 |
+| `F` | 201 | `secondary_parent_upstream_available` | 判断上一级次级分支是否可作为当前上游。 |
+| `S` | 211 | `compute_secondary_branch_derivatives` | 次级 RS 分支质量、热能、体积和注入诊断导数。 |
+| `S` | 291 | `secondary_reverse_density_branch_rhs` | density-jump 分支的局部密度和 source 权重。 |
 
 ### `src/Dynamics/dynamics_common.f90`
 

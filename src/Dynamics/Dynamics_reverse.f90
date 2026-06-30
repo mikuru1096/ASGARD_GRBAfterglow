@@ -130,7 +130,10 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
     T_state=T00
     event_prev_radius=Y(2); event_prev_gamma=Y(1); event_prev_tobs=T00*(one+z)
     event_prev_state=Y
-    call secondary_reverse_event_sources(event_prev_radius,event_prev_gamma,event_prev_state,event_prev_source)
+    event_prev_source=-one
+    do j_event=1,active_density_jump_count
+        call secondary_reverse_event_source(j_event,event_prev_radius,event_prev_gamma,event_prev_state,event_prev_source(j_event))
+    end do
 
     do I_tobs=1,Num_R
         dT_grid=ten**(Grid_Tobs_bin+T_log10*(I_tobs-one)/Num_R1)
@@ -139,7 +142,11 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
         R_Tobs(I_tobs)=T_target*(one+z); R_Gamma(I_tobs)=Y(1); R(I_tobs)=Y(2); M2(I_tobs)=Y(3)
         event_curr_radius=Y(2); event_curr_gamma=Y(1); event_curr_tobs=R_Tobs(I_tobs)
         event_curr_state=Y
-        call secondary_reverse_event_sources(event_curr_radius,event_curr_gamma,event_curr_state,event_curr_source)
+        event_curr_source=-one
+        do j_event=1,active_density_jump_count
+            call secondary_reverse_event_source(j_event,event_curr_radius,event_curr_gamma, &
+                                                event_curr_state,event_curr_source(j_event))
+        end do
         call update_secondary_reverse_events()
         event_prev_radius=event_curr_radius; event_prev_gamma=event_curr_gamma
         event_prev_tobs=event_curr_tobs; event_prev_source=event_curr_source
@@ -358,19 +365,6 @@ contains
         root_r=0.5d0*(r_lo+r_hi)
         root_t=0.5d0*(t_lo+t_hi)
     end subroutine secondary_reverse_event_root_between
-
-    subroutine secondary_reverse_event_sources(radius,gamma_bulk,state,sources)
-    implicit none
-    integer :: j
-    real(8), intent(in) :: radius,gamma_bulk
-    real(8), intent(in) :: state(Num_state)
-    real(8), intent(out) :: sources(density_jump_max)
-
-        sources=-one
-        do j=1,active_density_jump_count
-            call secondary_reverse_event_source(j,radius,gamma_bulk,state,sources(j))
-        end do
-    end subroutine secondary_reverse_event_sources
 
     subroutine secondary_reverse_event_source(jump_index,radius,gamma_bulk,state,source)
     implicit none
