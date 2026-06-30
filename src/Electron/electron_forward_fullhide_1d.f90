@@ -1,8 +1,3 @@
-!Calculate the electron distibutions of forward shock.
-!New improvement at 11.29.2022
-!****************************************************************************************
-!******************************* main program *******************************************
-!****************************************************************************************
 ! 电子1D全隐格式主驱动。
 ! 顺序: unpack boundary/config -> build log-four-velocity grid -> initialize electron distribution
 !       -> loop shells: density/B/gamma_m/c -> injection/cooling -> transport -> synch/SSA diagnostics
@@ -10,7 +5,6 @@
 subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads, &
                                    adaptive_substeps,substep_rtol,substep_min,substep_max,thermal_electrons, &
                                    gam_e,dN_gam_e,P_syn,Seed_syn,V_m,V_c,V_a)
-    !$ use omp_lib
     use constants
     use dynamics_common, only: dynamics_external_density_profile
     use electron_common
@@ -92,8 +86,6 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
     if (budget_diag_enabled) then
         print '(A,1X,ES12.4)', 'BUDGET1D max_rel_loss', rel_loss_xi_max
     end if
-
-    return
 
 contains
 
@@ -387,13 +379,12 @@ subroutine fs_electron_fullhide_1d_coupled(Boundary,R_Tobs,R_Gamma,R,V_seed,Seed
                                            Num_gam_e,index_Y,index_syn_intger,n_threads,adaptive_substeps, &
                                            substep_rtol,substep_min,substep_max,thermal_electrons, &
                                            gam_e,dN_gam_e,P_syn,Seed_syn,V_m,V_c,V_a)
-    !$ use omp_lib
     use constants
     use dynamics_common, only: dynamics_external_density_profile
     use electron_common
     use electron_injection_profiles, only: electron_build_source_term_exp_cutoff_edges, electron_add_thermal_source_term, &
                                            electron_profile_log_cell_edges
-    use electron_radiation_kernel, only: get_nu_a, get_syn_selected_state
+    use electron_radiation_kernel, only: get_syn_selected_state, get_nu_a_from_tau_grid
     use electron_cooling_ic_kernel, only: electron_cooling_ic_loss_emissivity_budget
     use electron_cooling_kernel, only: assemble_forward_cooling_split_batch
     use electron_transport_common, only: electron_dnx_to_dndgamma_exp_centers, electron_fullhide_step
@@ -404,10 +395,9 @@ subroutine fs_electron_fullhide_1d_coupled(Boundary,R_Tobs,R_Gamma,R,V_seed,Seed
     real(8), intent(in) :: Seed_cooling(Num_nu,Num_R),Secondary_source(Num_gam_e,Num_R),substep_rtol
     real(8), intent(out) :: dN_gam_e(Num_gam_e,Num_R),gam_e(Num_gam_e),P_syn(Num_nu,Num_R), &
                             Seed_syn(Num_nu,Num_R),V_m(Num_R),V_c(Num_R),V_a(Num_R)
-    real(8), allocatable :: dEl(:),dEL_mean(:),dEL_mean_step(:),cooling_aux(:),x(:),dN_x(:),x_edge(:),dF1(:), &
-                            gam_e_rad(:),dN_gam_e_rad(:)
+    real(8), allocatable :: dEl(:),dEL_mean(:),dEL_mean_step(:),cooling_aux(:),x(:),dN_x(:),x_edge(:),dF1(:)
     logical :: budget_diag_enabled
-    integer :: Num_gam_rad,env_len,env_status
+    integer :: env_len,env_status
     character(len=32) :: diag_env
     real(8) :: n_before_step,n_after_step,inj_step,n_budget,rel_loss_xi_max,thermal_count
     real(8) :: R_loc,R_Gamma_loc,beta_Gam,dNe,DB,Gam_e_max,Gam_e_m,Gam_e_m_p,Gam_e_c,dNe_shell,dDR,dDD,f_r
@@ -417,8 +407,7 @@ subroutine fs_electron_fullhide_1d_coupled(Boundary,R_Tobs,R_Gamma,R,V_seed,Seed
     if (substep_min < 1 .or. substep_max < 1) error stop 'fs_electron_fullhide_1d_coupled requires positive substep bounds'
     if (substep_rtol <= zero) error stop 'fs_electron_fullhide_1d_coupled requires positive substep_rtol'
     allocate(dEl(Num_gam_e),dEL_mean(Num_gam_e-1),dEL_mean_step(Num_gam_e-1),cooling_aux(Num_gam_e), &
-             x(Num_gam_e),dN_x(Num_gam_e),x_edge(Num_gam_e+1),dF1(Num_gam_e), &
-             gam_e_rad(Num_gam_e),dN_gam_e_rad(Num_gam_e))
+             x(Num_gam_e),dN_x(Num_gam_e),x_edge(Num_gam_e+1),dF1(Num_gam_e))
 
     call electron_unpack_boundary(Boundary,n,Eta_0,R_ini,Epsilon_e,Epsilon_b,p,z,dNe_ISM,A_star, &
                                   E_iso,T_log10_duration,f_e,R_tr,f_jump,f_wide,R0)
@@ -470,9 +459,8 @@ subroutine fs_electron_fullhide_1d_coupled(Boundary,R_Tobs,R_Gamma,R,V_seed,Seed
         call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,I_tobs))
     end do
 
-    deallocate(dEl,dEL_mean,dEL_mean_step,cooling_aux,x,dN_x,x_edge,dF1,gam_e_rad,dN_gam_e_rad)
+    deallocate(dEl,dEL_mean,dEL_mean_step,cooling_aux,x,dN_x,x_edge,dF1)
     if (budget_diag_enabled) print '(A,1X,ES12.4)', 'BUDGET1D coupled max_rel_loss', rel_loss_xi_max
-    return
 
 contains
 
@@ -498,15 +486,13 @@ contains
         dDR=0.1d0/(f_r*Gam_e_max+1.333d0/(R(I_tobs)+R(I_tobs-1)))
         dDD=R(I_tobs)-R(I_tobs-1)
         dN_x=dN_gam_e(:,I_tobs-1)*gam_e*dlog(ten)
-        call electron_prepare_radiation_spectrum(Num_gam_e,gam_e,dN_gam_e(:,I_tobs-1), &
-                                                 Num_gam_rad,gam_e_rad,dN_gam_e_rad)
         V_m(I_tobs-1)=4.2d6*DB*Gam_e_m*Gam_e_m/(R_Gamma_loc*(1d0-beta_Gam)*(one+z))
         V_c(I_tobs-1)=4.2d6*DB*Gam_e_c*Gam_e_c/(R_Gamma_loc*(1d0-beta_Gam)*(one+z))
-        call get_nu_a(R_loc,DB,Num_gam_rad,gam_e_rad(1:Num_gam_rad),dN_gam_e_rad(1:Num_gam_rad),temp)
-        V_a(I_tobs-1)=temp/(R_Gamma_loc*(1d0-beta_Gam)*(one+z))
         call get_syn_selected_state(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads, &
                                     gam_e,dN_gam_e(:,I_tobs-1),V_seed,P_emit_tmp,P_syn(:,I_tobs), &
                                     Seed_syn(:,I_tobs),Tau_syn_tmp)
+        call get_nu_a_from_tau_grid(Num_nu,V_seed,Tau_syn_tmp,temp)
+        V_a(I_tobs-1)=temp/(R_Gamma_loc*(1d0-beta_Gam)*(one+z))
         Gam_e_max_cool=Gam_e_max
         call electron_cooling_ic_loss_emissivity_budget(Num_gam_e,Num_nu,n_threads,gam_e,V_seed, &
                                                         Seed_cooling(:,I_tobs),cooling_aux)
