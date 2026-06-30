@@ -323,39 +323,6 @@ subroutine dynamics_rk4_reverse_error(Y, G, M, P)
     end do
 end subroutine dynamics_rk4_reverse_error
 
-subroutine dynamics_rk4_forward_ln_step(rhs, T_base, S, H, Y, M, D, B, E, &
-                                        Epsilon_e, E_iso, Eta_0, dNe_ISM, A_star, Eb, pp, z0, f_e, &
-                                        E_inj_t1, E_inj_t2, E_inj, E_inj_q, &
-                                        R_tr, f_jump, f_wide, R0, index_dyn)
-    implicit none
-    procedure(dynamics_forward_rhs_iface) :: rhs
-    integer, intent(in) :: M, index_dyn
-    integer :: K
-    real(8), intent(inout) :: S, Y(M), D(M), B(M), E(M)
-    real(8), intent(in) :: T_base, H, Epsilon_e, E_iso, Eta_0, dNe_ISM, A_star, Eb, pp, z0, f_e
-    real(8), intent(in) :: E_inj_t1, E_inj_t2, E_inj, E_inj_q, R_tr, f_jump, f_wide, R0
-    real(8) :: A(4), SS, T_phys
-
-    A = (/0.5d0*H, 0.5d0*H, H, H/)
-    T_phys = T_base*exp(S)
-    call rhs(T_phys, Y, M, D, Epsilon_e, E_iso, Eta_0, dNe_ISM, A_star, Eb, pp, z0, f_e, &
-             E_inj_t1, E_inj_t2, E_inj, E_inj_q, R_tr, f_jump, f_wide, R0, index_dyn)
-    D = T_phys*D
-    E = Y
-    B = Y
-    do K = 1, 3
-        Y = E+A(K)*D
-        B = B+A(K+1)*D/3.0d0
-        SS = S+A(K)
-        T_phys = T_base*exp(SS)
-        call rhs(T_phys, Y, M, D, Epsilon_e, E_iso, Eta_0, dNe_ISM, A_star, Eb, pp, z0, f_e, &
-                 E_inj_t1, E_inj_t2, E_inj, E_inj_q, R_tr, f_jump, f_wide, R0, index_dyn)
-        D = T_phys*D
-    end do
-    Y = B+H*D/6.0d0
-    S = S+H
-end subroutine dynamics_rk4_forward_ln_step
-
 subroutine dynamics_rk4_forward(rhs, T, H, Y, M, EPS, D, B, C, G, E, &
                                 Epsilon_e, E_iso, Eta_0, dNe_ISM, A_star, Eb, pp, z0, f_e, &
                                 E_inj_t1, E_inj_t2, E_inj, E_inj_q, &
@@ -368,7 +335,7 @@ subroutine dynamics_rk4_forward(rhs, T, H, Y, M, EPS, D, B, C, G, E, &
     real(8), intent(inout) :: T, Y(M), D(M), B(M), C(M), G(M), E(M)
     real(8), intent(in) :: H, EPS, Epsilon_e, E_iso, Eta_0, dNe_ISM, A_star, Eb, pp, z0, f_e
     real(8), intent(in) :: E_inj_t1, E_inj_t2, E_inj, E_inj_q, R_tr, f_jump, f_wide, R0
-    real(8) :: HH, DT, P, X, TT, S, HS
+    real(8) :: HH, DT, P, X, TT, S, HS, SS, T_phys
     real(8) :: A(4)
 
     X = T
@@ -379,14 +346,28 @@ subroutine dynamics_rk4_forward(rhs, T, H, Y, M, EPS, D, B, C, G, E, &
         N = 1
         P = one+EPS
         do while (P >= EPS)
+            A = (/0.5d0*HH, 0.5d0*HH, HH, HH/)
             G = Y
             Y = C
             S = zero
             do J = 1, N
-                call dynamics_rk4_forward_ln_step(rhs, X, S, HH, Y, M, D, B, E, &
-                                                  Epsilon_e, E_iso, Eta_0, dNe_ISM, A_star, Eb, pp, z0, f_e, &
-                                                  E_inj_t1, E_inj_t2, E_inj, E_inj_q, &
-                                                  R_tr, f_jump, f_wide, R0, index_dyn)
+                T_phys = X*exp(S)
+                call rhs(T_phys, Y, M, D, Epsilon_e, E_iso, Eta_0, dNe_ISM, A_star, Eb, pp, z0, f_e, &
+                         E_inj_t1, E_inj_t2, E_inj, E_inj_q, R_tr, f_jump, f_wide, R0, index_dyn)
+                D = T_phys*D
+                E = Y
+                B = Y
+                do K = 1, 3
+                    Y = E+A(K)*D
+                    B = B+A(K+1)*D/3.0d0
+                    SS = S+A(K)
+                    T_phys = X*exp(SS)
+                    call rhs(T_phys, Y, M, D, Epsilon_e, E_iso, Eta_0, dNe_ISM, A_star, Eb, pp, z0, f_e, &
+                             E_inj_t1, E_inj_t2, E_inj, E_inj_q, R_tr, f_jump, f_wide, R0, index_dyn)
+                    D = T_phys*D
+                end do
+                Y = B+HH*D/6.0d0
+                S = S+HH
             end do
             call dynamics_rk4_error_n(Y, G, M, P)
             HH = 0.5d0*HH
@@ -651,29 +632,6 @@ subroutine dynamics_rk4_reverse_pre_step(rhs, dB3, T, Y, M, H, para_m_ej, V3_sca
     reverse_rhs_phase = 0
 end subroutine dynamics_rk4_reverse_pre_step
 
-subroutine dynamics_rk4_reverse_pre_integrate(rhs, dB3, T, Y, M, H, N, para_m_ej, V3_scale, Delta_0, &
-                                              eta_0, A_star, dNe_ISM, R_tr, f_jump, f_wide, R0, &
-                                              Epsilon_b, Epsilon_e, p_f, f_e, &
-                                              e_r, b_r, p_r, f_e_r, sigma_r)
-    implicit none
-    procedure(dynamics_reverse_rhs_iface) :: rhs
-    integer, intent(in) :: M, N
-    integer :: J
-    real(8), intent(inout) :: dB3, T, Y(M)
-    real(8), intent(in) :: H, para_m_ej, V3_scale, Delta_0, eta_0, A_star, dNe_ISM
-    real(8), intent(in) :: R_tr, f_jump, f_wide, R0, Epsilon_b, Epsilon_e
-    real(8), intent(in) :: p_f, f_e, e_r, b_r, p_r, f_e_r, sigma_r
-    real(8) :: HH
-
-    HH = H/dble(N)
-    do J = 1, N
-        call dynamics_rk4_reverse_pre_step(rhs, dB3, T, Y, M, HH, para_m_ej, V3_scale, Delta_0, &
-                                           eta_0, A_star, dNe_ISM, R_tr, f_jump, f_wide, R0, &
-                                           Epsilon_b, Epsilon_e, p_f, f_e, &
-                                           e_r, b_r, p_r, f_e_r, sigma_r)
-    end do
-end subroutine dynamics_rk4_reverse_pre_integrate
-
 subroutine dynamics_rk4_reverse_pre_m3(rhs, dB3, T_cross, R_cross, e3_cross, gam20, &
                                        U3_cross, V3_cross, M3_cross, gam_m_cross, B3_ordered_cross, &
                                        T_state, T_target, Y, M, para_m_ej, V3_scale, Delta_0, &
@@ -683,7 +641,7 @@ subroutine dynamics_rk4_reverse_pre_m3(rhs, dB3, T_cross, R_cross, e3_cross, gam
     implicit none
     procedure(dynamics_reverse_rhs_iface) :: rhs
     integer, intent(in) :: M
-    integer :: I, N, N_bracket
+    integer :: I, J, N, N_bracket
     real(8), intent(inout) :: dB3, T_cross, R_cross, e3_cross, gam20, U3_cross, V3_cross, M3_cross
     real(8), intent(inout) :: gam_m_cross, B3_ordered_cross, T_state, Y(M)
     real(8), intent(in) :: T_target, para_m_ej, V3_scale, Delta_0, eta_0, A_star, dNe_ISM
@@ -691,7 +649,7 @@ subroutine dynamics_rk4_reverse_pre_m3(rhs, dB3, T_cross, R_cross, e3_cross, gam
     real(8), intent(in) :: p_f, f_e, e_r, b_r, p_r, f_e_r, sigma_r
     real(8), parameter :: pre_m3_fraction_step_max = 5d-2
     logical :: crossing_first, has_reference
-    real(8) :: H_bound, H_event, H_lo, H_hi, H_mid, H_target_est, P, Q
+    real(8) :: H_bound, H_event, H_lo, H_hi, H_mid, H_target_est, HH, P, Q
     real(8) :: dB3_try, T_try, T_ref, Y_try(M), G(M), D(M), dummy(8)
 
     dummy = zero
@@ -707,20 +665,24 @@ subroutine dynamics_rk4_reverse_pre_m3(rhs, dB3, T_cross, R_cross, e3_cross, gam
     Y_try = Y
     dB3_try = dB3
     N_bracket = max(2, ceiling(H_hi/pre_m3_fraction_step_max))
-    call dynamics_rk4_reverse_pre_integrate(rhs, dB3_try, T_try, Y_try, M, H_hi, N_bracket, para_m_ej, V3_scale, &
-                                            Delta_0, eta_0, A_star, dNe_ISM, R_tr, f_jump, f_wide, R0, &
-                                            Epsilon_b, Epsilon_e, &
-                                            p_f, f_e, e_r, b_r, p_r, f_e_r, sigma_r)
+    HH = H_hi/dble(N_bracket)
+    do J = 1, N_bracket
+        call dynamics_rk4_reverse_pre_step(rhs, dB3_try, T_try, Y_try, M, HH, para_m_ej, V3_scale, &
+                                           Delta_0, eta_0, A_star, dNe_ISM, R_tr, f_jump, f_wide, R0, &
+                                           Epsilon_b, Epsilon_e, p_f, f_e, e_r, b_r, p_r, f_e_r, sigma_r)
+    end do
     do while (T_try < T_target .and. H_hi < H_bound)
         H_hi = min(H_bound, two*H_hi)
         T_try = T_state
         Y_try = Y
         dB3_try = dB3
         N_bracket = max(2, ceiling(H_hi/pre_m3_fraction_step_max))
-        call dynamics_rk4_reverse_pre_integrate(rhs, dB3_try, T_try, Y_try, M, H_hi, N_bracket, para_m_ej, V3_scale, &
-                                                Delta_0, eta_0, A_star, dNe_ISM, R_tr, f_jump, f_wide, R0, &
-                                                Epsilon_b, Epsilon_e, &
-                                                p_f, f_e, e_r, b_r, p_r, f_e_r, sigma_r)
+        HH = H_hi/dble(N_bracket)
+        do J = 1, N_bracket
+            call dynamics_rk4_reverse_pre_step(rhs, dB3_try, T_try, Y_try, M, HH, para_m_ej, V3_scale, &
+                                               Delta_0, eta_0, A_star, dNe_ISM, R_tr, f_jump, f_wide, R0, &
+                                               Epsilon_b, Epsilon_e, p_f, f_e, e_r, b_r, p_r, f_e_r, sigma_r)
+        end do
     end do
     crossing_first = (T_try < T_target)
     if (crossing_first) then
@@ -733,10 +695,12 @@ subroutine dynamics_rk4_reverse_pre_m3(rhs, dB3, T_cross, R_cross, e3_cross, gam
             Y_try = Y
             dB3_try = dB3
             N_bracket = max(2, ceiling(H_mid/pre_m3_fraction_step_max))
-            call dynamics_rk4_reverse_pre_integrate(rhs, dB3_try, T_try, Y_try, M, H_mid, N_bracket, para_m_ej, V3_scale, &
-                                                    Delta_0, eta_0, A_star, dNe_ISM, R_tr, f_jump, f_wide, R0, &
-                                                    Epsilon_b, Epsilon_e, &
-                                                    p_f, f_e, e_r, b_r, p_r, f_e_r, sigma_r)
+            HH = H_mid/dble(N_bracket)
+            do J = 1, N_bracket
+                call dynamics_rk4_reverse_pre_step(rhs, dB3_try, T_try, Y_try, M, HH, para_m_ej, V3_scale, &
+                                                   Delta_0, eta_0, A_star, dNe_ISM, R_tr, f_jump, f_wide, R0, &
+                                                   Epsilon_b, Epsilon_e, p_f, f_e, e_r, b_r, p_r, f_e_r, sigma_r)
+            end do
             if (T_try >= T_target) then
                 H_hi = H_mid
             else
@@ -753,10 +717,12 @@ subroutine dynamics_rk4_reverse_pre_m3(rhs, dB3, T_cross, R_cross, e3_cross, gam
         T_try = T_state
         Y_try = Y
         dB3_try = dB3
-        call dynamics_rk4_reverse_pre_integrate(rhs, dB3_try, T_try, Y_try, M, H_event, N, para_m_ej, &
-                                                V3_scale, Delta_0, eta_0, A_star, dNe_ISM, &
-                                                R_tr, f_jump, f_wide, R0, Epsilon_b, Epsilon_e, p_f, f_e, e_r, b_r, p_r, &
-                                                f_e_r, sigma_r)
+        HH = H_event/dble(N)
+        do J = 1, N
+            call dynamics_rk4_reverse_pre_step(rhs, dB3_try, T_try, Y_try, M, HH, para_m_ej, V3_scale, &
+                                               Delta_0, eta_0, A_star, dNe_ISM, R_tr, f_jump, f_wide, R0, &
+                                               Epsilon_b, Epsilon_e, p_f, f_e, e_r, b_r, p_r, f_e_r, sigma_r)
+        end do
         if (has_reference) then
             call dynamics_rk4_reverse_error(Y_try, G, M, P)
             Q = two*abs(T_try-T_ref)/(T_try+T_ref)

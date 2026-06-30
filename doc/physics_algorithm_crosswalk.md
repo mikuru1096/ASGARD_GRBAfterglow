@@ -17,7 +17,7 @@ ASGARD 的第一性原理主线是：先在局域壳层坐标中闭合动力学�
 
 | 物理过程 | 算法方程或决策 | 主要 Fortran 入口 | 关键内部程序单元 | 必须检查 |
 | --- | --- | --- | --- | --- |
-| 正向激波动力学 | RK4 推进 `Gamma, M_sw, R`，支持 ISM/wind、密度跳变和注入。 | `dynamics_forward` | `forward_dynamics_rhs`, `dynamics_external_density_profile`, `dynamics_rk4_forward_ln_step` | 无跳变/无注入时 `Gamma(R)` 应接近 BM 标度并保持平滑。 |
+| 正向激波动力学 | RK4 推进 `Gamma, M_sw, R`，支持 ISM/wind、密度跳变和注入。 | `dynamics_forward` | `forward_dynamics_rhs`, `dynamics_external_density_profile`, `dynamics_rk4_forward` | 无跳变/无注入时 `Gamma(R)` 应接近 BM 标度并保持平滑。 |
 | 反向激波动力学 | crossing 前后分支，`gamma34` 注入能标，显式 `U3/V3`。 | `dynamics_reverse` | `reverse_dynamics_rhs`, `dynamics_rk4_reverse_pre_m3`, `compute_region3_field`, `compute_region3_thermal_state` | `M3/Mej` crossing 端点连续；`B3, gamma34, U3/V3` 无孤立尖峰。 |
 | 磁化 RS jump | 有限强度 MHD jump，`E_iso/[(1+sigma) Gamma0 c^2]` baryonic mass。 | `Dynamics_reverse` + `reverse_rhs` + `dynamics_common` | `rs_vegas_comp`, `rs_vegas_ud`, `rs_mag_specific_internal`, 主流程内有序场和磁压焓惯性 | `sigma -> 0` 回到 unmagnetized baseline，不能用 `4 gamma43 + 3` 替代有限强度极限。 |
 | 多密度增强次级 RS | 扫描 jump window，记录可触发的新 shock branch。 | `dynamics_reverse` | `update_secondary_reverse_events`, `secondary_reverse_event_source`, `store_secondary_branch_state` | 只在密度增强和 pressure 条件允许时出现，分支权重随半径平滑。 |

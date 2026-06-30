@@ -114,17 +114,15 @@ Fortran 改动后的最低门槛见 `doc/validation_and_benchmarks.md`。文档-
 | `F` | 259 | `rs_mag_specific_internal` | MHD jump 下游热比内能；保持 crossing 前后和 sigma->0 极限连续。 |
 | `S` | 280 | `dynamics_rk4_error_n` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
 | `S` | 303 | `dynamics_rk4_reverse_error` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 326 | `dynamics_rk4_forward_ln_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 359 | `dynamics_rk4_forward` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 430 | `dynamics_rk4_reverse_plain_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 476 | `dynamics_rk4_reverse_event_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 557 | `reset_trial_state` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 574 | `advance_phase1_trial` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 589 | `dynamics_rk4_reverse_pre_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 654 | `dynamics_rk4_reverse_pre_integrate` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 677 | `dynamics_rk4_reverse_pre_m3` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 790 | `dynamics_rk4_reverse_waiting` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 853 | `dynamics_rk4_reverse` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 326 | `dynamics_rk4_forward` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 411 | `dynamics_rk4_reverse_plain_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 457 | `dynamics_rk4_reverse_event_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 538 | `reset_trial_state` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 555 | `advance_phase1_trial` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 570 | `dynamics_rk4_reverse_pre_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 635 | `dynamics_rk4_reverse_pre_m3` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 756 | `dynamics_rk4_reverse_waiting` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 819 | `dynamics_rk4_reverse` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
 
 ### `src/Electron/adaptive_resampling_mod.f90`
 

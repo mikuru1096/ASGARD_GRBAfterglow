@@ -38,7 +38,6 @@ DYNAMICS_REVERSE_SOURCES = (
     "Dynamics_reverse.f90",
 )
 F2PY_SKIP_DYNAMICS_COMMON_INTERNALS = (
-    "dynamics_rk4_forward_ln_step",
     "dynamics_rk4_reverse",
     "dynamics_rk4_reverse_waiting",
     "dynamics_rk4_reverse_pre_m3",
