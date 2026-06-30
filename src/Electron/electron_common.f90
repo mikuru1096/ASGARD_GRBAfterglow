@@ -79,7 +79,6 @@ subroutine electron_gamma_m_exact(p,temp_gam,Gam_e_max,Gam_e_m)
     real(8), intent(out) :: Gam_e_m
     real(8) :: eps,temp
 
-    Gam_e_m=(p-two)/(p-one)*temp_gam+one
     if (p>two) then
         Gam_e_m=(p-two)/(p-one)*temp_gam+one
     else if (p<two .and. p>one) then
@@ -191,77 +190,59 @@ subroutine electron_prepare_radiation_spectrum(Num_gam_e,gam_e,dN_gam_e,Num_gam_
     implicit none
     integer, intent(in) :: Num_gam_e
     integer, intent(out) :: Num_gam_rad
-    integer :: I_gam_e,left_pos,right_pos,first_pos,last_pos,n_active,m_target,n_resampled,info
-    integer :: idx(Num_gam_e),out_idx,src_idx,last_added_idx
+    integer :: I_gam_e,first_pos,last_pos,n_active,m_target,n_resampled,resample_info
+    integer :: idx(Num_gam_e),out_idx,src_idx
     real(8), intent(in) :: gam_e(Num_gam_e),dN_gam_e(Num_gam_e)
     real(8), intent(out) :: gam_e_rad(Num_gam_e),dN_gam_e_rad(Num_gam_e)
 
     first_pos = 0
-    last_pos = 0
-    left_pos = 1
-    right_pos = Num_gam_e
-    do while (left_pos <= right_pos .and. (first_pos == 0 .or. last_pos == 0))
-        if (first_pos == 0) then
-            if (dN_gam_e(left_pos) > zero) then
-                first_pos = left_pos
-            else
-                left_pos = left_pos + 1
-            end if
-        end if
-        if (last_pos == 0 .and. right_pos >= left_pos) then
-            if (dN_gam_e(right_pos) > zero) then
-                last_pos = right_pos
-            else
-                right_pos = right_pos - 1
-            end if
+    do I_gam_e = 1, Num_gam_e
+        if (dN_gam_e(I_gam_e) > zero) then
+            first_pos = I_gam_e
+            exit
         end if
     end do
     gam_e_rad = gam_e
     dN_gam_e_rad = dN_gam_e
     Num_gam_rad = Num_gam_e
     if (first_pos == 0) return
+    last_pos = 0
+    do I_gam_e = Num_gam_e, first_pos, -1
+        if (dN_gam_e(I_gam_e) > zero) then
+            last_pos = I_gam_e
+            exit
+        end if
+    end do
     n_active = last_pos - first_pos + 1
     if (n_active <= radiation_resample_threshold) return
     m_target = min(n_active, radiation_resample_target)
     if (m_target >= n_active) return
     call adaptive_resampling_log(gam_e(first_pos:last_pos), dN_gam_e(first_pos:last_pos), n_active, &
-                                 m_target, radiation_resample_smoothness, idx(1:m_target), n_resampled, info)
-    if (info /= 0 .or. n_resampled <= 0) return
+                                 m_target, radiation_resample_smoothness, idx(1:m_target), &
+                                 n_resampled, resample_info)
+    if (resample_info /= 0 .or. n_resampled /= m_target) then
+        error stop 'electron_prepare_radiation_spectrum: adaptive resampling failed'
+    end if
     gam_e_rad = zero
     dN_gam_e_rad = zero
     out_idx = 0
-    if (first_pos > 1) then
-        out_idx = out_idx + 1
-        gam_e_rad(out_idx) = gam_e(first_pos-1)
-        dN_gam_e_rad(out_idx) = dN_gam_e(first_pos-1)
-    end if
-    out_idx = out_idx + 1
-    gam_e_rad(out_idx) = gam_e(first_pos)
-    dN_gam_e_rad(out_idx) = dN_gam_e(first_pos)
-    last_added_idx = first_pos
+    if (first_pos > 1) call append_radiation_sample(first_pos-1)
+    call append_radiation_sample(first_pos)
     do I_gam_e = 1, n_resampled
         src_idx = first_pos + idx(I_gam_e) - 1
-        if (src_idx > first_pos .and. src_idx < last_pos) then
-            if (src_idx /= last_added_idx) then
-                out_idx = out_idx + 1
-                gam_e_rad(out_idx) = gam_e(src_idx)
-                dN_gam_e_rad(out_idx) = dN_gam_e(src_idx)
-                last_added_idx = src_idx
-            end if
-        end if
+        if (src_idx > first_pos .and. src_idx < last_pos) call append_radiation_sample(src_idx)
     end do
-    if (last_pos > first_pos) then
-        out_idx = out_idx + 1
-        gam_e_rad(out_idx) = gam_e(last_pos)
-        dN_gam_e_rad(out_idx) = dN_gam_e(last_pos)
-        last_added_idx = last_pos
-    end if
-    if (last_pos < Num_gam_e) then
-        out_idx = out_idx + 1
-        gam_e_rad(out_idx) = gam_e(last_pos+1)
-        dN_gam_e_rad(out_idx) = dN_gam_e(last_pos+1)
-    end if
+    if (last_pos > first_pos) call append_radiation_sample(last_pos)
+    if (last_pos < Num_gam_e) call append_radiation_sample(last_pos+1)
     Num_gam_rad = out_idx
+contains
+    subroutine append_radiation_sample(src_idx)
+        integer, intent(in) :: src_idx
+
+        out_idx = out_idx + 1
+        gam_e_rad(out_idx) = gam_e(src_idx)
+        dN_gam_e_rad(out_idx) = dN_gam_e(src_idx)
+    end subroutine append_radiation_sample
 end subroutine electron_prepare_radiation_spectrum
 
 ! 计算两个数组之间的最大相对误差。
@@ -304,11 +285,6 @@ subroutine electron_initial_density(A_star,dNe_ISM,R_ini,R_start,R0,dNe,Para_N_e
             dNe=A_star*3.0d35/R0**2*4d0
         else
             dNe=dNe_ISM
-        end if
-        if (A_star > zero) then
-            Para_N_e_ini=4d0*pi*R_ini*A_star*3.0d35
-        else
-            Para_N_e_ini=4d0/3d0*pi*R_ini**3*dNe_ISM
         end if
     end if
 end subroutine electron_initial_density
