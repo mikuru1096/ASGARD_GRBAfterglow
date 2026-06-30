@@ -8,7 +8,7 @@ subroutine fs_electron_weno5_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,
     use radiation_common, only: radiation_syn_seed_chi_batch_core
     use electron_cooling_kernel, only: get_forward_cooling
     use electron_transport_common, only: electron_dnx_to_dndgamma_exp_centers
-    IMPLICIT REAL(8)(A-H,O-Z)
+    implicit none
     integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,index_Y,n_threads
     integer :: I_tobs,L,L1
     real(8), intent(in) :: Boundary(n),R_Tobs(Num_R),R_Gamma(Num_R),R(Num_R),V_seed(Num_nu)
@@ -39,7 +39,7 @@ subroutine fs_electron_weno5_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,
     Gam_e_max=3d0*Para_m_energy/dsqrt(8d0*DB*Para_e**3)
     DB_min=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma(Num_R)*(R_Gamma(Num_R)-one)))
     Gam_e_max_max=3d0*Para_m_energy/dsqrt(8d0*DB_min*Para_e**3)
-    temp_gam=Epsilon_e/f_e*1836d0*(R_Gamma(1)-one)
+    temp_gam=Epsilon_e/f_e*Para_m_p_DIV_m_e*(R_Gamma(1)-one)
     call electron_gamma_m_exact(p,temp_gam,Gam_e_max,Gam_e_m)
     Gam_e_c=7.7d8/(one+dsqrt(Epsilon_e/Epsilon_b))/R_Gamma(1)/DB**2/(R_Tobs(1)/two)
     call electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
@@ -56,7 +56,7 @@ subroutine fs_electron_weno5_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,
         call write_weno_radiation_and_cooling(I_tobs)
 
         do L=1,L1
-            call advance_weno_substep(I_tobs,L)
+            call advance_weno_substep(L)
         end do
     end do
 
@@ -65,8 +65,8 @@ subroutine fs_electron_weno5_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,
 contains
 
     subroutine prepare_weno_shell(I_tobs)
-    implicit real(8)(A-H,O-Z)
-    integer, intent(in) :: I_tobs
+        implicit none
+        integer, intent(in) :: I_tobs
 
         R_loc=R(I_tobs-1)
         R_Gamma_loc=(R_Gamma(I_tobs)+R_Gamma(I_tobs-1))/two
@@ -74,7 +74,7 @@ contains
 
         DB=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma_loc*(R_Gamma_loc-one)))
         Gam_e_max=3d0*Para_m_energy/dsqrt(8d0*DB*Para_e**3)
-        temp_gam=Epsilon_e/f_e*1836d0*(R_Gamma_loc-one)
+        temp_gam=Epsilon_e/f_e*Para_m_p_DIV_m_e*(R_Gamma_loc-one)
         call electron_gamma_m_exact(p,temp_gam,Gam_e_max,Gam_e_m)
         Gam_e_m_p=(one-p)/(Gam_e_max**(one-p)-Gam_e_m**(one-p))
         Gam_e_c=7.7d8*(one+z)/R_Gamma_loc/DB**2/R_Tobs(I_tobs)
@@ -87,10 +87,10 @@ contains
     end subroutine prepare_weno_shell
 
     subroutine write_weno_radiation_and_cooling(I_tobs)
-    implicit real(8)(A-H,O-Z)
-    integer, intent(in) :: I_tobs
-    real(8) :: DB_chi(1),DNe_chi(Num_gam_e,1),P_emit_shell(Num_nu,1),P_syn_shell(Num_nu,1)
-    real(8) :: Seed_syn_shell(Num_nu,1),Tau_syn_shell(Num_nu,1)
+        implicit none
+        integer, intent(in) :: I_tobs
+        real(8) :: DB_chi(1),DNe_chi(Num_gam_e,1),P_emit_shell(Num_nu,1),P_syn_shell(Num_nu,1)
+        real(8) :: Seed_syn_shell(Num_nu,1),Tau_syn_shell(Num_nu,1)
 
         DB_chi(1)=DB
         DNe_chi(:,1)=dN_gam_e(:,I_tobs-1)
@@ -114,9 +114,10 @@ contains
         CFL=dDR/d_x
     end subroutine write_weno_radiation_and_cooling
 
-    subroutine advance_weno_substep(I_tobs,L)
-    implicit real(8)(A-H,O-Z)
-    integer, intent(in) :: I_tobs,L
+    subroutine advance_weno_substep(L)
+        implicit none
+        integer, intent(in) :: L
+        integer :: j
 
         R_loc=R_loc+dDR
         
@@ -142,7 +143,7 @@ contains
     end subroutine advance_weno_substep
 
     subroutine load_weno_extended_state()
-    implicit real(8)(A-H,O-Z)
+        implicit none
 
         dN_x_extended(1-3:0) = dN_x(1)
         dN_x_extended(1:Num_gam_e) = dN_x
@@ -155,7 +156,8 @@ contains
     end subroutine load_weno_extended_state
 
     subroutine compute_weno_fluxes()
-    implicit real(8)(A-H,O-Z)
+        implicit none
+        integer :: i_gam_e
 
         call weno5_update_ghost_cells(dN_x_extended, Num_gam_e)
 
@@ -171,8 +173,9 @@ contains
     end subroutine compute_weno_fluxes
 
     subroutine advance_weno_rk_stage(j)
-    implicit real(8)(A-H,O-Z)
-    integer, intent(in) :: j
+        implicit none
+        integer, intent(in) :: j
+        integer :: i
 
         if(j==1) then
             do i = 1, Num_gam_e
