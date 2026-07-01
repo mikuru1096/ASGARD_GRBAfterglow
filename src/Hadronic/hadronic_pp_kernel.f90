@@ -38,7 +38,9 @@ subroutine hadronic_pp_delta_operator(num_p,proton_energy_gev,proton_density_per
 
     call validate_pp_delta_inputs
     call set_pp_delta_options
-    call build_pp_parent_collision_rate
+    call hadronic_pp_sigma_inelastic_kelner2006(num_p,proton_energy_gev,sigma_inel)
+    collision_rate = target_proton_density_cm3*Para_c*sigma_inel
+    parent_rate = collision_rate*proton_density_per_gev
     proton_loss_rate = -kappa_loc*parent_rate
 
     call emit_pp_delta_secondaries
@@ -80,12 +82,6 @@ contains
         x_nu = 0.25d0*pion_frac_loc
         x_pair = x_nu
     end subroutine set_pp_delta_options
-
-    subroutine build_pp_parent_collision_rate
-        call hadronic_pp_sigma_inelastic_kelner2006(num_p,proton_energy_gev,sigma_inel)
-        collision_rate = target_proton_density_cm3*Para_c*sigma_inel
-        parent_rate = collision_rate*proton_density_per_gev
-    end subroutine build_pp_parent_collision_rate
 
     subroutine emit_pp_delta_secondaries
         call hadronic_pp_delta_secondary_source(num_gamma,gamma_energy_gev,num_p,proton_energy_gev,parent_rate, &

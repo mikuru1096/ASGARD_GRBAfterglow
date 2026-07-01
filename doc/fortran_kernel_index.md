@@ -2,7 +2,7 @@
 
 本文是当前工作树的 Fortran kernel 索引。它面向需要逐个进入子程序读算法的人：先看 f2py 入口和物理阶段，再进入文件内的 `module`、`subroutine`、`function`。更高层的物理到算法映射见 `doc/physics_algorithm_crosswalk.md`，运行主链见 `doc/call_chain.md`。
 
-当前索引按 ASGARD 自有 Fortran 数值核抽取，排除第三方固定格式特殊函数依赖，共 808 个程序单元：35 个 module、565 个 subroutine、208 个 function。行号是生成本页时的源文件位置。
+当前索引按 ASGARD 自有 Fortran 数值核抽取，排除第三方固定格式特殊函数依赖，共 805 个程序单元：35 个 module、562 个 subroutine、208 个 function。行号是生成本页时的源文件位置。
 
 ## 读源码顺序
 
@@ -112,13 +112,11 @@ Fortran 改动后的最低门槛见 `doc/validation_and_benchmarks.md`。文档-
 | `F` | 205 | `rs_vegas_ud` | 有限强度 MHD jump 解析根；不要用 ultra-relativistic 近似替代。 |
 | `F` | 239 | `rs_vegas_comp` | 有限强度 MHD jump 压缩比；sigma->0 极限回到 hydrodynamic baseline。 |
 | `F` | 261 | `rs_mag_specific_internal` | MHD jump 下游热比内能；保持 crossing 前后和 sigma->0 极限连续。 |
-| `S` | 282 | `dynamics_rk4_error_n` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 305 | `dynamics_rk4_reverse_error` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 328 | `dynamics_rk4_forward` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 413 | `dynamics_rk4_reverse_plain_step` | 单个 log-time RK4 子步；只负责给定 phase 的 RHS 采样。 |
-| `S` | 459 | `dynamics_rk4_reverse_pre_step` | crossing 前以 M3 fraction 为自变量的 RK4 子步。 |
-| `S` | 524 | `dynamics_rk4_reverse_pre_m3` | pressure-ready 到 crossing/目标时刻的 pre-M3 推进。 |
-| `S` | 645 | `dynamics_rk4_reverse` | `select case` 展示 waiting、pre-crossing event split 和 post-crossing 推进。 |
+| `S` | 282 | `dynamics_rk4_forward` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 391 | `dynamics_rk4_reverse_pre_m3` | pressure-ready 到 crossing/目标时刻的 pre-M3 推进。 |
+| `S` | 517 | `advance_pre_crossing_m3_step` | `dynamics_rk4_reverse_pre_m3` 内部 RK4 stage；不是独立物理边界。 |
+| `S` | 580 | `dynamics_rk4_reverse` | `select case` 展示 waiting、pre-crossing event split 和 post-crossing 推进。 |
+| `S` | 747 | `advance_reverse_logtime_phase` | `dynamics_rk4_reverse` 内部 log-time RK4 stage；phase 由外层 case 决定。 |
 
 ### `src/Electron/adaptive_resampling_mod.f90`
 
@@ -880,16 +878,15 @@ Delta 近似 pp 算子和 secondary source。
 | --- | ---: | --- | --- |
 | `M` | 2 | `hadronic_pp_kernel` | 模块命名空间；集中声明本文件共享 procedure。 |
 | `S` | 19 | `hadronic_pp_delta_operator` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `S` | 48 | `validate_pp_delta_inputs` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `S` | 59 | `set_pp_delta_options` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `S` | 84 | `build_pp_parent_collision_rate` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `S` | 90 | `emit_pp_delta_secondaries` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `S` | 101 | `hadronic_pp_sigma_inelastic_kelner2006` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `F` | 127 | `hadronic_pp_threshold_kinetic_energy_gev` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `S` | 133 | `hadronic_pp_delta_secondary_source` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
-| `S` | 149 | `hadronic_pp_loglog_interp_positive` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `F` | 183 | `hadronic_pp_upper_bracket` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `F` | 211 | `hadronic_pp_loglog_linear_eval` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
+| `S` | 50 | `validate_pp_delta_inputs` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
+| `S` | 61 | `set_pp_delta_options` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
+| `S` | 86 | `emit_pp_delta_secondaries` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
+| `S` | 97 | `hadronic_pp_sigma_inelastic_kelner2006` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
+| `F` | 123 | `hadronic_pp_threshold_kinetic_energy_gev` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
+| `S` | 129 | `hadronic_pp_delta_secondary_source` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
+| `S` | 145 | `hadronic_pp_loglog_interp_positive` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
+| `F` | 179 | `hadronic_pp_upper_bracket` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
+| `F` | 207 | `hadronic_pp_loglog_linear_eval` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
 
 ### `src/Hadronic/hadronic_pp_models_kernel.f90`
 
