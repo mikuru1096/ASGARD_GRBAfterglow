@@ -217,11 +217,11 @@ log-gamma 与 log-four-velocity 坐标映射。
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
 | `M` | 2 | `electron_energy_coordinate_common` | 公共模块；提供多个入口复用的物理/数值 primitive。 |
-| `F` | 17 | `electron_coord_from_xgamma` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `F` | 34 | `electron_xgamma_from_coord` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `F` | 50 | `electron_gamma_from_coord` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `F` | 64 | `electron_dxgamma_dcoord` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `S` | 80 | `electron_build_four_velocity_grid` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
+| `F` | 17 | `electron_coord_from_xgamma` | 按坐标类型把 `x=log10(gamma)` 映射到输运坐标；four-velocity 分支直接写出 `log10(1+u^2/u_s^2)`。 |
+| `F` | 32 | `electron_xgamma_from_coord` | 按坐标类型从输运坐标恢复 `log10(gamma)`。 |
+| `F` | 44 | `electron_gamma_from_coord` | 按坐标类型从输运坐标恢复电子 Lorentz factor。 |
+| `F` | 56 | `electron_dxgamma_dcoord` | 计算坐标变换 Jacobian `d log10(gamma) / d coord`。 |
+| `S` | 70 | `electron_build_four_velocity_grid` | 在线性 four-velocity 坐标上构造 gamma 中心和 `x=log10(gamma)` 边界。 |
 
 ### `src/Electron/electron_forward_charint_1d.f90`
 
