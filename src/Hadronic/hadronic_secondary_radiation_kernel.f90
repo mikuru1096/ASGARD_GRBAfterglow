@@ -106,10 +106,8 @@ subroutine hadronic_secondary_initialize_synchrotron_kernel(num_had,hadron_energ
     real(8), intent(out) :: dln_energy,kernel_pion(num_ph,num_had),kernel_muon(num_ph,num_had)
     integer :: i,j
 
-    call hadronic_secondary_validate_positive_log_grid(num_had,hadron_energy_gev, &
-                                                       "hadron_energy_gev",dln_energy)
-    call hadronic_secondary_validate_positive_log_grid(num_ph,photon_energy_gev, &
-                                                       "photon_energy_gev")
+    call hadronic_validate_log_grid(num_had,hadron_energy_gev,"hadron_energy_gev",dln_energy)
+    call hadronic_validate_log_grid(num_ph,photon_energy_gev,"photon_energy_gev")
     if (magnetic_field_g <= zero) then
         error stop "secondary synchrotron requires magnetic_field_g > 0."
     end if
@@ -139,10 +137,8 @@ subroutine hadronic_secondary_initialize_inverse_compton_kernel(num_had,hadron_e
     integer, intent(out) :: delta_e_pi(num_had),jmax_pi(num_had),delta_e_mu(num_had),jmax_mu(num_had)
     real(8) :: dln_had,dln_ph
 
-    call hadronic_secondary_validate_positive_log_grid(num_had,hadron_energy_gev, &
-                                                       "hadron_energy_gev",dln_had)
-    call hadronic_secondary_validate_positive_log_grid(num_ph,photon_energy_gev, &
-                                                       "photon_energy_gev",dln_ph)
+    call hadronic_validate_log_grid(num_had,hadron_energy_gev,"hadron_energy_gev",dln_had)
+    call hadronic_validate_log_grid(num_ph,photon_energy_gev,"photon_energy_gev",dln_ph)
     if (dabs(dln_had-dln_ph) > dmax1(1d-12,1d-10*dabs(dln_had))) then
         error stop "secondary IC requires hadron/photon grids with one shared logarithmic spacing."
     end if
@@ -330,18 +326,6 @@ real(8) function hadronic_secondary_ic_coeff(mass_gev)
     hadronic_secondary_ic_coeff = am3_c_cgs*am3_sigma_t_cgs/(mass_ratio*mass_ratio)
 end function hadronic_secondary_ic_coeff
 
-! 验证能量网格为正且对数均匀，可选返回对数间距。
-subroutine hadronic_secondary_validate_positive_log_grid(num_grid,energy_grid,name,dln_energy)
-    integer, intent(in) :: num_grid
-    character(*), intent(in) :: name
-    real(8), intent(in) :: energy_grid(num_grid)
-    real(8), intent(out), optional :: dln_energy
-    real(8) :: dln_local
-
-    call hadronic_validate_log_grid(num_grid,energy_grid,name,dln_local)
-    if (present(dln_energy)) dln_energy = dln_local
-end subroutine hadronic_secondary_validate_positive_log_grid
-
 ! 验证密度数组所有值为有限（非NaN/Inf）。
 subroutine hadronic_secondary_validate_density(num_grid,values,name)
     integer, intent(in) :: num_grid
@@ -351,7 +335,7 @@ subroutine hadronic_secondary_validate_density(num_grid,values,name)
 
     do i=1,num_grid
         if (.not. ieee_is_finite(values(i))) then
-            error stop "secondary radiation requires finite densities."
+            error stop trim(name)//" must contain only finite densities."
         end if
     end do
 end subroutine hadronic_secondary_validate_density

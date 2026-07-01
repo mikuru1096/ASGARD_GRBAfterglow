@@ -2,7 +2,7 @@
 
 本文是当前工作树的 Fortran kernel 索引。它面向需要逐个进入子程序读算法的人：先看 f2py 入口和物理阶段，再进入文件内的 `module`、`subroutine`、`function`。更高层的物理到算法映射见 `doc/physics_algorithm_crosswalk.md`，运行主链见 `doc/call_chain.md`。
 
-当前索引按 ASGARD 自有 Fortran 数值核抽取，排除第三方固定格式特殊函数依赖，共 805 个程序单元：35 个 module、562 个 subroutine、208 个 function。行号是生成本页时的源文件位置。
+当前索引按 ASGARD 自有 Fortran 数值核抽取，排除第三方固定格式特殊函数依赖，共 804 个程序单元：35 个 module、561 个 subroutine、208 个 function。行号是生成本页时的源文件位置。
 
 ## 读源码顺序
 
@@ -949,17 +949,16 @@ pion/muon synchrotron 和 IC secondary radiation。
 | `S` | 28 | `hadronic_secondary_radiation_operator` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
 | `S` | 67 | `hadronic_secondary_apply_radiation_kernels` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
 | `S` | 102 | `hadronic_secondary_initialize_synchrotron_kernel` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 132 | `hadronic_secondary_initialize_inverse_compton_kernel` | inverse-Compton/KN 相关核；joint 模式要求 cooling 和 emissivity 使用同一 photon field。 |
-| `S` | 160 | `hadronic_secondary_pion_synchrotron_rate` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 175 | `hadronic_secondary_muon_synchrotron_rate` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 196 | `hadronic_secondary_pion_inverse_compton_rate` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `S` | 216 | `hadronic_secondary_muon_inverse_compton_rate` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `F` | 241 | `hadronic_secondary_syn_kernel_ultrarel` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 274 | `hadronic_secondary_build_ic_species_kernel` | inverse-Compton/KN 相关核；joint 模式要求 cooling 和 emissivity 使用同一 photon field。 |
-| `S` | 296 | `hadronic_secondary_compute_ic_channel` | inverse-Compton/KN 相关核；joint 模式要求 cooling 和 emissivity 使用同一 photon field。 |
-| `F` | 325 | `hadronic_secondary_ic_coeff` | inverse-Compton/KN 相关核；joint 模式要求 cooling 和 emissivity 使用同一 photon field。 |
-| `S` | 334 | `hadronic_secondary_validate_positive_log_grid` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `S` | 346 | `hadronic_secondary_validate_density` | 介质密度或 density-jump 分支；直接影响 swept mass、动力学和注入源项。 |
+| `S` | 130 | `hadronic_secondary_initialize_inverse_compton_kernel` | inverse-Compton/KN 相关核；joint 模式要求 cooling 和 emissivity 使用同一 photon field。 |
+| `S` | 156 | `hadronic_secondary_pion_synchrotron_rate` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
+| `S` | 171 | `hadronic_secondary_muon_synchrotron_rate` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
+| `S` | 192 | `hadronic_secondary_pion_inverse_compton_rate` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
+| `S` | 212 | `hadronic_secondary_muon_inverse_compton_rate` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
+| `F` | 237 | `hadronic_secondary_syn_kernel_ultrarel` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
+| `S` | 270 | `hadronic_secondary_build_ic_species_kernel` | inverse-Compton/KN 相关核；joint 模式要求 cooling 和 emissivity 使用同一 photon field。 |
+| `S` | 292 | `hadronic_secondary_compute_ic_channel` | inverse-Compton/KN 相关核；joint 模式要求 cooling 和 emissivity 使用同一 photon field。 |
+| `F` | 321 | `hadronic_secondary_ic_coeff` | inverse-Compton/KN 相关核；joint 模式要求 cooling 和 emissivity 使用同一 photon field。 |
+| `S` | 330 | `hadronic_secondary_validate_density` | secondary radiation 输入密度校验；报错保留具体数组名。 |
 
 ### `src/Hadronic/hadronic_species_transport_kernel.f90`
 
