@@ -460,17 +460,19 @@ WENO5 方法比较电子输运入口。
 | --- | ---: | --- | --- |
 | `M` | 2 | `electron_seed_history_kernel` | 模块命名空间；集中声明本文件共享 procedure。 |
 | `S` | 27 | `ensure_history_cache` | workspace/cache 管理；只服务性能和内存复用，不改变物理语义。 |
-| `S` | 71 | `integrate_downstream_proper_time` | finite-q shell 几何或 chi-equivalent 投影字段。 |
-| `S` | 89 | `accumulate_comoving_history_fields` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 121 | `accumulate_history_source_cell` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
-| `S` | 135 | `accumulate_history_target_cell` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 176 | `build_doppler_map` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `F` | 208 | `loglog_interp_mapped` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `F` | 221 | `relative_doppler_backward` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `S` | 232 | `build_shell_transfer_cache` | workspace/cache 管理；只服务性能和内存复用，不改变物理语义。 |
-| `S` | 249 | `apply_shell_path_attenuation` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `S` | 292 | `locate_path_cell` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 343 | `history_transfer_weight` | 积分权重或求积 primitive；影响谱积分精度。 |
+| `S` | 72 | `integrate_downstream_proper_time` | 从径向网格和 bulk Lorentz factor 积分下游共动固有时间。 |
+| `S` | 90 | `accumulate_comoving_history_fields` | 直接回扫历史壳层，把可由光行时连接的历史辐射叠加到当前共动 photon field。 |
+| `S` | 135 | `accumulate_history_source_cell` | 计算源 chi cell 的有限光行时权重并进入目标 cell 累积。 |
+| `S` | 147 | `accumulate_history_target_cell` | 沿历史源到当前目标的路径应用 Doppler 映射和壳层吸收。 |
+| `S` | 188 | `advance_comoving_history_stream` | 用一阶特征线推进历史 photon stream，避免每个目标壳层回扫全部过去壳层。 |
+| `S` | 233 | `accumulate_mapped_cell` | 把旧 stream 或上一壳层源场按权重、Doppler 映射和路径吸收累积到下一 stream。 |
+| `S` | 262 | `build_doppler_map` | 构造目标频率到历史源频率网格的相对 Doppler 映射。 |
+| `F` | 293 | `loglog_interp_mapped` | 按预计算对数分数做正谱 log-log 插值。 |
+| `F` | 305 | `relative_doppler_backward` | 计算历史源区到当前目标区的相对 Doppler 因子 `D = gamma_rel*(1+beta_rel)`。 |
+| `S` | 317 | `build_shell_transfer_cache` | 缓存 chi 单元宽度倒数和吸收 log-prefix，用于历史光线路径吸收。 |
+| `S` | 342 | `apply_shell_path_attenuation` | 对一段壳层内光线路径累乘均匀源函数传输权重。 |
+| `S` | 386 | `locate_path_cell` | 在下游面网格中定位光线路径端点所在 chi 单元。 |
+| `F` | 437 | `history_transfer_weight` | 把 optical-depth segment 转换为均匀源函数逃逸/传输权重。 |
 
 ### `src/Electron/electron_shell_transport_common.f90`
 

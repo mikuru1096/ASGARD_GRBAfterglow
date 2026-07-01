@@ -109,14 +109,20 @@ real(8) :: delta_tau_total,dtau_src
         call ensure_history_cache(Num_shell,Num_chi,Num_nu,V_seed)
         call build_shell_transfer_cache(target_t,Num_chi,Num_nu,dx_hist,tau_hist, &
                                         hist_inv_dx_ws,hist_log_transfer_prefix_ws)
-        do I_src_t = 1, target_t-1
+        if (target_t > 1) then
+            I_src_t = 1
+            delta_tau_total = proper_time_s(target_t)-proper_time_s(I_src_t)
+            if (delta_tau_total > zero) then
+                dtau_src = proper_time_s(2)-proper_time_s(1)
+                do I_src_chi = 1, Num_chi
+                    call accumulate_history_source_cell(I_src_t,I_src_chi,I_tgt_chi,delta_tau_total,dtau_src)
+                end do
+            end if
+        end if
+        do I_src_t = 2, target_t-1
             delta_tau_total = proper_time_s(target_t)-proper_time_s(I_src_t)
             if (delta_tau_total <= zero) cycle
-            if (I_src_t == 1) then
-                dtau_src = proper_time_s(2)-proper_time_s(1)
-            else
-                dtau_src = proper_time_s(I_src_t)-proper_time_s(I_src_t-1)
-            end if
+            dtau_src = proper_time_s(I_src_t)-proper_time_s(I_src_t-1)
             do I_src_chi = 1, Num_chi
                 call accumulate_history_source_cell(I_src_t,I_src_chi,I_tgt_chi,delta_tau_total,dtau_src)
             end do
@@ -207,7 +213,7 @@ real(8) :: amp_p,amp_seed
         path_hi = x_tgt + Para_c*dtau
         if (path_hi >= x_face_hist(0,prev_t) .and. path_hi <= x_face_hist(Num_chi,prev_t)) then
             call locate_path_cell(Num_chi,x_face_hist(:,prev_t),path_hi,.false.,I_src_chi)
-            call accumulate_stream_cell(I_src_chi,path_hi,I_tgt_chi)
+            call accumulate_mapped_cell(I_src_chi,path_hi,I_tgt_chi,one,P_stream,Seed_stream)
         end if
         do I_src_chi = 1, Num_chi
             seg_lo = max(x_face_hist(I_src_chi-1,prev_t),path_lo)
@@ -223,13 +229,6 @@ real(8) :: amp_p,amp_seed
     Seed_stream = Seed_next
 
 contains
-
-    subroutine accumulate_stream_cell(src_chi,x_src_pos,tgt_chi)
-    implicit none
-    integer, intent(in) :: src_chi,tgt_chi
-    real(8), intent(in) :: x_src_pos
-        call accumulate_mapped_cell(src_chi,x_src_pos,tgt_chi,one,P_stream,Seed_stream)
-    end subroutine accumulate_stream_cell
 
     subroutine accumulate_mapped_cell(src_chi,x_src_pos,tgt_chi,source_weight,P_src,Seed_src)
     implicit none
@@ -291,7 +290,6 @@ real(8) :: nu_src
     end do
 end subroutine build_doppler_map
 
-! 按预计算对数分数做 log-log 插值。
 ! 按预计算对数分数做 log-log 插值：y = y0 * exp(log_frac * log(y1/y0))。
 real(8) function loglog_interp_mapped(y0,y1,log_frac)
 implicit none
@@ -304,7 +302,6 @@ real(8), intent(in) :: y0,y1,log_frac
     end if
 end function loglog_interp_mapped
 
-! 计算从历史源区到当前目标区的相对多普勒因子。
 ! 计算从历史源区到当前目标区的相对多普勒因子：D = γ_rel(1+β_rel)。
 real(8) function relative_doppler_backward(beta_src,beta_tgt)
 implicit none
