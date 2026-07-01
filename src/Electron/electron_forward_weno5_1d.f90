@@ -159,7 +159,8 @@ contains
         implicit none
         integer :: i_gam_e
 
-        call weno5_update_ghost_cells(dN_x_extended, Num_gam_e)
+        dN_x_extended(1-3:0) = dN_x_extended(1)
+        dN_x_extended(Num_gam_e+1:Num_gam_e+3) = dN_x_extended(Num_gam_e)
 
         fp_extended = dEl1_extended * dN_x_extended
 
@@ -195,16 +196,6 @@ contains
             end do
         end if
     end subroutine advance_weno_rk_stage
-
-! 更新WENO5鬼点：零阶外推（复制边界值）。
-subroutine weno5_update_ghost_cells(arr, n)
-    implicit none
-    integer, intent(in) :: n
-    real(8), intent(inout) :: arr(1-3:n+3)
-        
-    arr(1-3:0) = arr(1)
-    arr(n+1:n+3) = arr(n)
-end subroutine weno5_update_ghost_cells
 
 ! WENO5正通量重构 f⁺(f_{i-2},...,f_{i+2})。
 function weno5_positive_flux(fps)

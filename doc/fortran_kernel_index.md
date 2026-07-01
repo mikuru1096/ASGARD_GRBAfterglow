@@ -309,15 +309,14 @@ WENO5 方法比较电子输运入口。
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
 | `S` | 2 | `fs_electron_weno5_1d` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 77 | `prepare_weno_shell` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 99 | `write_weno_radiation_and_cooling` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 121 | `advance_weno_substep` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 150 | `load_weno_extended_state` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 163 | `compute_weno_fluxes` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 179 | `advance_weno_rk_stage` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 204 | `weno5_update_ghost_cells` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 219 | `weno5_positive_flux` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 259 | `weno5_negative_flux` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 67 | `prepare_weno_shell` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 89 | `write_weno_radiation_and_cooling` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
+| `S` | 117 | `advance_weno_substep` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 145 | `load_weno_extended_state` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 158 | `compute_weno_fluxes` | 刷新零阶外推鬼点并按速度符号构造 WENO5 数值通量。 |
+| `S` | 176 | `advance_weno_rk_stage` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `F` | 201 | `weno5_positive_flux` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 237 | `weno5_negative_flux` | 局部 helper；语义由所在文件的算法阶段决定。 |
 
 ### `src/Electron/electron_injection_profiles.f90`
 
