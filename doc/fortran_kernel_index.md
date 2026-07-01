@@ -395,13 +395,12 @@ WENO5 方法比较电子输运入口。
 | `M` | 1 | `electron_reverse_kernel` | 模块命名空间；集中声明本文件共享 procedure。 |
 | `S` | 35 | `electron_reverse_evolve` | 反向激波电子演化入口；串接主 RS 注入、冷却、DG/有限体积输运和输出投影。 |
 | `S` | 216 | `compute_reverse_cooling_loss` | 反向激波电子冷却率；把同步辐射、IC/Y 修正写入能量损失数组。 |
-| `S` | 245 | `advance_reverse_transport_shell` | 主 RS 电子壳层输运；显式推进注入、冷却、绝热损失和 DG 活动能段边界。 |
-| `S` | 344 | `advance_reverse_post_cross_analytic` | crossing 后无新注入时的解析特征线重映射。 |
-| `F` | 385 | `reverse_post_cross_map_value` | crossing 后特征线边界映射插值。 |
-| `S` | 416 | `initialize_reverse_dg_state` | 初始化反向激波 DG 活动谱元网格和状态。 |
-| `S` | 426 | `remesh_reverse_dg_state` | 按当前 cooling/injection break 重建 DG 网格并保守投影状态。 |
-| `S` | 444 | `ensure_reverse_dg_work` | DG workspace 管理；只服务状态投影和子步推进暂存。 |
-| `S` | 454 | `prepare_reverse_dg_cooling` | 把用户 gamma 网格上的冷却率插值到 DG 节点。 |
+| `S` | 245 | `advance_reverse_transport_shell` | 主 RS 电子壳层输运；显式推进注入、冷却、绝热损失、DG 冷却节点插值和活动能段边界。 |
+| `S` | 353 | `advance_reverse_post_cross_analytic` | crossing 后无新注入时的解析特征线重映射。 |
+| `F` | 394 | `reverse_post_cross_map_value` | crossing 后特征线边界映射插值。 |
+| `S` | 425 | `initialize_reverse_dg_state` | 初始化反向激波 DG 活动谱元网格和状态。 |
+| `S` | 435 | `remesh_reverse_dg_state` | 按当前 cooling/injection break 重建 DG 网格并保守投影状态。 |
+| `S` | 453 | `ensure_reverse_dg_work` | DG workspace 管理；只服务状态投影和子步推进暂存。 |
 | `S` | 463 | `prepare_reverse_transport_substep_state` | 取半步半径处的 RS 动力学量并更新冷却/注入能标。 |
 | `F` | 479 | `reverse_shell_linear_value` | 在相邻半径壳层之间线性插值反向激波动力学数组。 |
 | `F` | 489 | `reverse_dg_upper_break` | DG 高能活动边界；crossing 后跟踪冷却过的高能 front。 |

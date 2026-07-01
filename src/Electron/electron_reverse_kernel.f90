@@ -245,6 +245,7 @@ contains
     subroutine advance_reverse_transport_shell(I_tobs)
     implicit none
     integer, intent(in) :: I_tobs
+    integer :: i_node
     real(8) :: source_norm_step
     logical :: pure_post_cross_shell
 
@@ -255,7 +256,11 @@ contains
         end if
         if (active_solver == electron_solver_dg_1d) then
             call remesh_reverse_dg_state()
-            if (index_Y /= 0) call prepare_reverse_dg_cooling()
+            if (index_Y /= 0) then
+                do i_node=1,dg_mesh%ntot
+                    dg_dEl(i_node)=reverse_interp_log_grid(Num_gam_e,x_edge,dEl,dg_mesh%x_gamma(i_node))
+                end do
+            end if
             do L=1,L1
                 if (index_Y == 0) then
                     R_step_mid=R_loc+0.5d0*dDR
@@ -275,7 +280,11 @@ contains
                 end if
                 if (source_norm_step > zero) then
                     call remesh_reverse_dg_state()
-                    if (index_Y /= 0) call prepare_reverse_dg_cooling()
+                    if (index_Y /= 0) then
+                        do i_node=1,dg_mesh%ntot
+                            dg_dEl(i_node)=reverse_interp_log_grid(Num_gam_e,x_edge,dEl,dg_mesh%x_gamma(i_node))
+                        end do
+                    end if
                 end if
                 if (source_norm_step > zero) then
                     call electron_dg1d_project_kinetic_source(dg_mesh,source_norm_step,p_r,Gam_e_m,Gam_e_max,dg_source)
@@ -450,15 +459,6 @@ contains
         end if
         if (.not. allocated(dg_work)) allocate(dg_work(ntot),dg_dEl(ntot),dg_source(ntot))
     end subroutine ensure_reverse_dg_work
-
-    subroutine prepare_reverse_dg_cooling()
-    implicit none
-    integer :: i_node
-
-        do i_node=1,dg_mesh%ntot
-            dg_dEl(i_node)=reverse_interp_log_grid(Num_gam_e,x_edge,dEl,dg_mesh%x_gamma(i_node))
-        end do
-    end subroutine prepare_reverse_dg_cooling
 
     subroutine prepare_reverse_transport_substep_state(I_tobs,radius_eval)
     implicit none
