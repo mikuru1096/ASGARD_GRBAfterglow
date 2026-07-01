@@ -231,9 +231,8 @@ log-gamma 与 log-four-velocity 坐标映射。
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
 | `S` | 2 | `fs_electron_charint_1d` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 233 | `advance_characteristic_with_split_source` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 245 | `prepare_characteristic_shell` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 286 | `write_final_characteristic_diagnostics` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 235 | `prepare_characteristic_shell` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 275 | `write_final_characteristic_diagnostics` | 局部 helper；语义由所在文件的算法阶段决定。 |
 
 ### `src/Electron/electron_forward_dg_1d.f90`
 

@@ -74,12 +74,12 @@ subroutine fs_electron_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_
 
                     if (index_Y == 0) then
                         b_ad=one/R_mid
-                        call advance_characteristic_with_split_source(dDR,electron_cooling_affine, &
-                            a_rad,b_ad,dEl_step,R_mid,Q,dF1_shape,dN_x,dN_step)
+                        call electron_characteristic_update(Num_gam_e,dDR,x_edge,electron_cooling_affine, &
+                            a_rad,b_ad,gam_e,dEl_step,R_mid,Q,dF1_shape,dN_x,dN_step)
                     else
                         dEl_step=dEl_base
-                        call advance_characteristic_with_split_source(dDR,electron_cooling_piecewise, &
-                            zero,zero,dEl_step,R_mid,Q,dF1_shape,dN_x,dN_step)
+                        call electron_characteristic_update(Num_gam_e,dDR,x_edge,electron_cooling_piecewise, &
+                            zero,zero,gam_e,dEl_step,R_mid,Q,dF1_shape,dN_x,dN_step)
                     end if
 
                     dN_x=dN_step
@@ -106,16 +106,16 @@ subroutine fs_electron_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_
                         cooling_scale=one/(beta_Gam*R_Gamma_loc)
                         a_rad=1.35d-19*DB_step**2*cooling_scale/pi
                         b_ad=one/R_mid
-                        call advance_characteristic_with_split_source(dDR,electron_cooling_affine, &
-                            a_rad,b_ad,dEl_step,R_mid,one,dF1,dN_x,dN_step)
+                        call electron_characteristic_update(Num_gam_e,dDR,x_edge,electron_cooling_affine, &
+                            a_rad,b_ad,gam_e,dEl_step,R_mid,one,dF1,dN_x,dN_step)
                     else
                         if (dNe_shell > zero) then
                             dEl_step=dEl_base*(dNe_mid/dNe_shell)
                         else
                             dEl_step=dEl_base
                         end if
-                        call advance_characteristic_with_split_source(dDR,electron_cooling_piecewise, &
-                            zero,zero,dEl_step,R_mid,one,dF1,dN_x,dN_step)
+                        call electron_characteristic_update(Num_gam_e,dDR,x_edge,electron_cooling_piecewise, &
+                            zero,zero,gam_e,dEl_step,R_mid,one,dF1,dN_x,dN_step)
                     end if
 
                     dN_x=dN_step
@@ -162,12 +162,12 @@ subroutine fs_electron_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_
                     call electron_injection_prefactor(R_mid,dR_try,dNe_shell,f_e,Gam_e_m_p_step,Q)
                     if (index_Y == 0) then
                         b_ad=one/R_mid
-                        call advance_characteristic_with_split_source(dR_try,electron_cooling_affine, &
-                            a_rad,b_ad,dEl_step,R_mid,Q,dF1_shape,dN_x,dN_step)
+                        call electron_characteristic_update(Num_gam_e,dR_try,x_edge,electron_cooling_affine, &
+                            a_rad,b_ad,gam_e,dEl_step,R_mid,Q,dF1_shape,dN_x,dN_step)
                     else
                         dEl_step=dEl_base
-                        call advance_characteristic_with_split_source(dR_try,electron_cooling_piecewise, &
-                            zero,zero,dEl_step,R_mid,Q,dF1_shape,dN_x,dN_step)
+                        call electron_characteristic_update(Num_gam_e,dR_try,x_edge,electron_cooling_piecewise, &
+                            zero,zero,gam_e,dEl_step,R_mid,Q,dF1_shape,dN_x,dN_step)
                     end if
                 else
                     R_right=R_loc+dR_try
@@ -191,16 +191,16 @@ subroutine fs_electron_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_
                         cooling_scale=one/(beta_Gam*R_Gamma_loc)
                         a_rad=1.35d-19*DB_step**2*cooling_scale/pi
                         b_ad=one/R_mid
-                        call advance_characteristic_with_split_source(dR_try,electron_cooling_affine, &
-                            a_rad,b_ad,dEl_step,R_mid,one,dF1,dN_x,dN_step)
+                        call electron_characteristic_update(Num_gam_e,dR_try,x_edge,electron_cooling_affine, &
+                            a_rad,b_ad,gam_e,dEl_step,R_mid,one,dF1,dN_x,dN_step)
                     else
                         if (dNe_shell > zero) then
                             dEl_step=dEl_base*(dNe_mid/dNe_shell)
                         else
                             dEl_step=dEl_base
                         end if
-                        call advance_characteristic_with_split_source(dR_try,electron_cooling_piecewise, &
-                            zero,zero,dEl_step,R_mid,one,dF1,dN_x,dN_step)
+                        call electron_characteristic_update(Num_gam_e,dR_try,x_edge,electron_cooling_piecewise, &
+                            zero,zero,gam_e,dEl_step,R_mid,one,dF1,dN_x,dN_step)
                     end if
                 end if
 
@@ -231,18 +231,6 @@ subroutine fs_electron_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_
     deallocate(dEl_base,dEl_step,dN_x,dN_step,dF1,dF1_shape,x_edge)
 
 contains
-
-    subroutine advance_characteristic_with_split_source(dR_step,cooling_mode,a_u,b_u,dEl_in,R_step, &
-                                                        source_scale,dF_in,dN_in,dN_out)
-    implicit none
-    integer, intent(in) :: cooling_mode
-    real(8), intent(in) :: dR_step,a_u,b_u,R_step,source_scale
-    real(8), intent(in) :: dEl_in(Num_gam_e),dF_in(Num_gam_e),dN_in(Num_gam_e)
-    real(8), intent(out) :: dN_out(Num_gam_e)
-
-        call electron_characteristic_update(Num_gam_e,dR_step,x_edge,cooling_mode,a_u,b_u, &
-                                            gam_e,dEl_in,R_step,source_scale,dF_in,dN_in,dN_out)
-    end subroutine advance_characteristic_with_split_source
 
     subroutine prepare_characteristic_shell(I_tobs)
         implicit none
