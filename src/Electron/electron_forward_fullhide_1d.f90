@@ -71,7 +71,8 @@ subroutine fs_electron_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num
 
     do I_tobs=2,Num_R
         call prepare_fullhide_shell(I_tobs)
-        call prepare_shell_cooling_faces()
+        dEL_mean=(dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/two/dlog(ten)
+        dDR_xi=dDR
         if (adaptive_substeps == 0) then
             call advance_fixed_substep_shell(I_tobs)
         else
@@ -133,13 +134,6 @@ contains
                                                       0.5d0*(coord_edge(I_grid)+coord_edge(I_grid+1)))
         end do
     end subroutine initialize_forward_four_velocity_grid
-
-    subroutine prepare_shell_cooling_faces()
-    implicit real(8)(A-H,O-Z)
-
-        dEL_mean=(dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/two/dlog(ten)
-        dDR_xi=dDR
-    end subroutine prepare_shell_cooling_faces
 
     subroutine prepare_fullhide_shell(I_tobs)
     implicit real(8)(A-H,O-Z)

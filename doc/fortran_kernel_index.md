@@ -257,11 +257,11 @@ log-gamma 与 log-four-velocity 坐标映射。
 
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
-| `S` | 7 | `fs_electron_fullhide_1d` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 291 | `initialize_forward_four_velocity_grid` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `S` | 305 | `prepare_fullhide_shell` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 343 | `fs_electron_fullhide_1d_coupled` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 469 | `prepare_coupled_shell` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 5 | `fs_electron_fullhide_1d` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
+| `S` | 123 | `initialize_forward_four_velocity_grid` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
+| `S` | 138 | `prepare_fullhide_shell` | 单个 FS shell 的密度、磁场、注入能标、同步谱、SSA break 和冷却率准备。 |
+| `S` | 372 | `fs_electron_fullhide_1d_coupled` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
+| `S` | 461 | `prepare_coupled_shell` | joint electron-photon shell 的辐射场、SSA break 和耦合冷却率准备。 |
 
 ### `src/Electron/electron_forward_fullhide_1d_hybrid.f90`
 
