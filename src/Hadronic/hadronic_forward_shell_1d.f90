@@ -16,7 +16,7 @@ module hadronic_forward_shell_1d
     public :: hadronic_forward_shell_density_per_gev, hadronic_forward_gamma_edges
     public :: hadronic_forward_process_power, hadronic_forward_positive_loglog_interp, hadronic_forward_source_per_gamma
     public :: hadronic_forward_distribution_per_gev, hadronic_forward_aligned_photon_grid, hadronic_forward_shell_volumes
-    public :: hadronic_sequence_shell_geometry, hadronic_forward_dynamical_time
+    public :: hadronic_sequence_shell_geometry
     public :: hadronic_forward_quantum_syn_cooling_factor
 contains
 
@@ -729,18 +729,6 @@ subroutine hadronic_forward_shell_volumes(num_r,radius_cm,shell_volume_cm3)
         r_prev=radius_cm(i)
     end do
 end subroutine hadronic_forward_shell_volumes
-
-! 动力学时间 wrapper：t_dyn=R/(Gamma c)。
-subroutine hadronic_forward_dynamical_time(radius_cm,gamma_bulk,t_dyn_s)
-    use constants
-    implicit none
-    real(8), intent(in) :: radius_cm,gamma_bulk
-    real(8), intent(out) :: t_dyn_s
-
-    if (radius_cm <= zero) error stop "hadronic dynamical time requires positive radius."
-    if (gamma_bulk < one) error stop "hadronic dynamical time requires gamma_bulk >= 1."
-    t_dyn_s=radius_cm/(gamma_bulk*Para_c)
-end subroutine hadronic_forward_dynamical_time
 
 ! Quantum synchrotron cooling-factor array wrapper.
 subroutine hadronic_forward_quantum_syn_cooling_factor(num_gamma,gamma,b_field_g,mass_gev,factor)

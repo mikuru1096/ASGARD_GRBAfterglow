@@ -2,7 +2,7 @@
 
 本文是当前工作树的 Fortran kernel 索引。它面向需要逐个进入子程序读算法的人：先看 f2py 入口和物理阶段，再进入文件内的 `module`、`subroutine`、`function`。更高层的物理到算法映射见 `doc/physics_algorithm_crosswalk.md`，运行主链见 `doc/call_chain.md`。
 
-当前索引按 ASGARD 自有 Fortran 数值核抽取，排除第三方固定格式特殊函数依赖，共 800 个程序单元：35 个 module、558 个 subroutine、207 个 function。行号是生成本页时的源文件位置。
+当前索引按 ASGARD 自有 Fortran 数值核抽取，排除第三方固定格式特殊函数依赖，共 799 个程序单元：35 个 module、557 个 subroutine、207 个 function。行号是生成本页时的源文件位置。
 
 ## 读源码顺序
 
@@ -747,8 +747,7 @@ formal 1D 强子底层 shell primitive 与单位/投影 helper；f2py wrapper �
 | `S` | 674 | `hadronic_forward_aligned_photon_grid` | hadron/photon grid 对齐 helper。 |
 | `S` | 691 | `hadronic_sequence_shell_geometry` | shell dr、dt geometry helper。 |
 | `S` | 712 | `hadronic_forward_shell_volumes` | 壳层体积序列。 |
-| `S` | 734 | `hadronic_forward_dynamical_time` | shell dynamical time。 |
-| `S` | 746 | `hadronic_forward_quantum_syn_cooling_factor` | quantum synchrotron cooling factor。 |
+| `S` | 734 | `hadronic_forward_quantum_syn_cooling_factor` | quantum synchrotron cooling factor。 |
 
 ### `src/Hadronic/hadronic_hadronic_ic_kernel.f90`
 

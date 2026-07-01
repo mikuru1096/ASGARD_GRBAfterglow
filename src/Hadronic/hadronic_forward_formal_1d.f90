@@ -16,7 +16,7 @@ subroutine hadronic_forward_formal_transport_1d_impl(R_Tobs,R_Gamma,R,B_field_g,
         dN_gam_mu_plus_right,P_had_pion_synch,P_had_muon_synch,P_had_pion_ic,P_had_muon_ic, &
         tau_pg,pg_photon_survival,am3_process_power)
     use constants
-    use hadronic_common, only: hadronic_build_gamma_p_grid
+    use hadronic_common, only: hadronic_build_gamma_p_grid, hadronic_dynamical_time
     use hadronic_bethe_heitler_kernel, only: hadronic_bethe_heitler_operator
     use hadronic_decay_kernel, only: hadronic_hummer2010_decay_operator
     use hadronic_interaction_kernel, only: hadronic_pg_hummer2010_operator
@@ -96,7 +96,7 @@ subroutine hadronic_forward_formal_transport_1d_impl(R_Tobs,R_Gamma,R,B_field_g,
 
     do i_r=1,Num_R
         call hadronic_sequence_shell_geometry(Num_R,R,R_Gamma,i_r,dr_shell,dt_s)
-        call hadronic_forward_dynamical_time(R(i_r),R_Gamma(i_r),t_dyn_s)
+        t_dyn_s=hadronic_dynamical_time(R(i_r),R_Gamma(i_r))
         gam_p_min=max(gam_p(1),R_Gamma(i_r))
         shell_volume=shell_volumes(i_r)
         call hadronic_forward_injection_content(num_gam_p,"proton",gam_p,shell_energy_inj_erg(i_r),dt_s, &
