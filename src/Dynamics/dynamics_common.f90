@@ -4,7 +4,7 @@ module dynamics_common
     implicit none
     private
     public :: dynamics_forward_rhs_iface, dynamics_reverse_rhs_iface
-    public :: density_jump_max, active_density_jump_count, active_density_jump_r
+    public :: density_jump_max, active_density_jump_count, active_density_profile_count, active_density_jump_r
     public :: active_density_jump_factor, active_density_jump_width, reverse_rhs_phase
     public :: dynamics_external_density_profile, dynamics_set_density_jump_profile
     public :: dynamics_rk4_forward

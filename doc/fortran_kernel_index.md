@@ -604,19 +604,14 @@ DG 谱元网格、投影、正性核和特征线投影。
 | `S` | 954 | `ensure_projection_quadrature` | workspace/cache 管理；只服务性能和内存复用，不改变物理语义。 |
 | `S` | 962 | `set_domain_bounds` | 局部 helper；语义由所在文件的算法阶段决定。 |
 | `S` | 990 | `fill_physical_nodes` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 1008 | `electron_dg1d_coord_from_xgamma` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `F` | 1015 | `electron_dg1d_xgamma_from_coord` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `F` | 1022 | `electron_dg1d_gamma_from_coord` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `F` | 1029 | `electron_dg1d_dxgamma_dcoord` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `S` | 1036 | `lgl_nodes_weights` | 积分权重或求积 primitive；影响谱积分精度。 |
-| `S` | 1062 | `legendre_value_derivative` | 积分权重或求积 primitive；影响谱积分精度。 |
-| `S` | 1089 | `legendre_basis_values` | 积分权重或求积 primitive；影响谱积分精度。 |
-| `S` | 1103 | `gauss_legendre_nodes_weights` | 积分权重或求积 primitive；影响谱积分精度。 |
-| `S` | 1122 | `barycentric_weights` | 积分权重或求积 primitive；影响谱积分精度。 |
-| `S` | 1137 | `differentiation_matrix` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 1152 | `domain_offset` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 1159 | `locate_domain` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 1177 | `interpolate_domain` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
+| `S` | 1008 | `lgl_nodes_weights` | 积分权重或求积 primitive；影响谱积分精度。 |
+| `S` | 1034 | `legendre_value_derivative` | 积分权重或求积 primitive；影响谱积分精度。 |
+| `S` | 1061 | `legendre_basis_values` | 积分权重或求积 primitive；影响谱积分精度。 |
+| `S` | 1075 | `gauss_legendre_nodes_weights` | 积分权重或求积 primitive；影响谱积分精度。 |
+| `S` | 1094 | `barycentric_weights` | 积分权重或求积 primitive；影响谱积分精度。 |
+| `S` | 1109 | `differentiation_matrix` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 1124 | `locate_domain` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 1142 | `interpolate_domain` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
 
 ### `src/Electron/hybrid_spectrum_kernel_fast.f90`
 
