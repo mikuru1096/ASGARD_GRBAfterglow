@@ -2,7 +2,7 @@
 
 本文是当前工作树的 Fortran kernel 索引。它面向需要逐个进入子程序读算法的人：先看 f2py 入口和物理阶段，再进入文件内的 `module`、`subroutine`、`function`。更高层的物理到算法映射见 `doc/physics_algorithm_crosswalk.md`，运行主链见 `doc/call_chain.md`。
 
-当前索引按 ASGARD 自有 Fortran 数值核抽取，排除第三方固定格式特殊函数依赖，共 801 个程序单元：35 个 module、559 个 subroutine、207 个 function。行号是生成本页时的源文件位置。
+当前索引按 ASGARD 自有 Fortran 数值核抽取，排除第三方固定格式特殊函数依赖，共 800 个程序单元：35 个 module、558 个 subroutine、207 个 function。行号是生成本页时的源文件位置。
 
 ## 读源码顺序
 
@@ -614,12 +614,11 @@ DG 谱元网格、投影、正性核和特征线投影。
 | `S` | 100 | `hadronic_external_photon_cooling_timescale_s` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
 | `S` | 118 | `hadronic_species_injection_operator` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
 | `S` | 165 | `hadronic_estimate_max_gamma` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 201 | `initialize_acceleration_limits` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 214 | `build_external_cooling_timescales` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `F` | 219 | `find_external_cooling_crossing` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 233 | `apply_external_cooling_limit` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 255 | `hadronic_acceleration_operator` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 284 | `hadronic_trapezoid` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 202 | `initialize_acceleration_limits` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 215 | `find_external_cooling_crossing` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
+| `S` | 229 | `apply_external_cooling_limit` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
+| `S` | 251 | `hadronic_acceleration_operator` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 280 | `hadronic_trapezoid` | 局部 helper；语义由所在文件的算法阶段决定。 |
 
 ### `src/Hadronic/hadronic_bethe_heitler_kernel.f90`
 

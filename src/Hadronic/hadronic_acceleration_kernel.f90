@@ -190,7 +190,8 @@ subroutine hadronic_estimate_max_gamma(species,b_field_g,radius_cm,gamma_bulk,et
 
     if (.not. has_external_cooling) return
 
-    call build_external_cooling_timescales
+    call hadronic_acceleration_timescale_s(num_gamma_scan,species,gamma_scan,b_field_g,eta_acc,t_acc)
+    call hadronic_external_photon_cooling_timescale_s(num_gamma_scan,gamma_scan,external_cooling_rate,t_ext)
     i_cross = find_external_cooling_crossing()
     if (i_cross == 0) return
 
@@ -210,11 +211,6 @@ contains
         gamma_ext = zero
         gamma_max = dmin1(gamma_dyn,gamma_syn)
     end subroutine initialize_acceleration_limits
-
-    subroutine build_external_cooling_timescales
-        call hadronic_acceleration_timescale_s(num_gamma_scan,species,gamma_scan,b_field_g,eta_acc,t_acc)
-        call hadronic_external_photon_cooling_timescale_s(num_gamma_scan,gamma_scan,external_cooling_rate,t_ext)
-    end subroutine build_external_cooling_timescales
 
     integer function find_external_cooling_crossing()
         integer :: i_gam
