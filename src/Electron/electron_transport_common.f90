@@ -145,21 +145,6 @@ end subroutine electron_ppm_positive_cell
 
 
 
-! 将正性限制应用到所有 PPM 单元，形成正的通量守恒重构。
-subroutine electron_ppm_positive_interfaces(Num_gam_e,q,q_left,q_right)
-    implicit none
-    integer, intent(in) :: Num_gam_e
-    integer :: I_gam_e
-    real(8), intent(in) :: q(Num_gam_e)
-    real(8), intent(inout) :: q_left(Num_gam_e),q_right(Num_gam_e)
-
-    do I_gam_e=1,Num_gam_e
-        call electron_ppm_positive_cell(q(I_gam_e),q_left(I_gam_e),q_right(I_gam_e))
-    end do
-end subroutine electron_ppm_positive_interfaces
-
-
-
 ! 计算非均匀网格 PPM 分段抛物线的前缀积分。
 subroutine electron_ppm_prefix_nonuniform(Num_gam_e,x_edge,q,q_left,q_right,prefix)
     implicit none
@@ -218,10 +203,14 @@ end function electron_ppm_prefix_eval_nonuniform
 subroutine electron_prepare_conservative_remap_nonuniform(Num_gam_e,x_edge,q,q_left,q_right,prefix)
     implicit none
     integer, intent(in) :: Num_gam_e
+    integer :: I_gam_e
     real(8), intent(in) :: x_edge(Num_gam_e+1),q(Num_gam_e)
     real(8), intent(out) :: q_left(Num_gam_e),q_right(Num_gam_e),prefix(0:Num_gam_e)
+
     call electron_ppm_interfaces_nonuniform(Num_gam_e,x_edge,q,q_left,q_right)
-    call electron_ppm_positive_interfaces(Num_gam_e,q,q_left,q_right)
+    do I_gam_e=1,Num_gam_e
+        call electron_ppm_positive_cell(q(I_gam_e),q_left(I_gam_e),q_right(I_gam_e))
+    end do
     call electron_ppm_prefix_nonuniform(Num_gam_e,x_edge,q,q_left,q_right,prefix)
 end subroutine electron_prepare_conservative_remap_nonuniform
 

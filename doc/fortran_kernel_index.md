@@ -528,38 +528,37 @@ finite-q 几何、q 方向对流/扩散和 2D 能量推进。
 | `S` | 21 | `electron_prepare_implicit_coeffs_common` | 局部 helper；语义由所在文件的算法阶段决定。 |
 | `S` | 33 | `electron_backward_sweep_common` | 局部 helper；语义由所在文件的算法阶段决定。 |
 | `F` | 47 | `electron_quadratic_interp3` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `S` | 60 | `electron_ppm_interfaces_nonuniform` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `S` | 119 | `electron_ppm_positive_cell` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `S` | 149 | `electron_ppm_positive_interfaces` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `S` | 164 | `electron_ppm_prefix_nonuniform` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `F` | 183 | `electron_ppm_prefix_eval_nonuniform` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `S` | 218 | `electron_prepare_conservative_remap_nonuniform` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `S` | 231 | `electron_prepare_exponential_source_remap` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
-| `F` | 265 | `electron_exp_source_cell_int` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
-| `F` | 285 | `electron_exp_source_prefix_eval` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
-| `S` | 321 | `electron_dnx_to_dndgamma_exp_centers` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 335 | `electron_u_edges_from_x` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `F` | 349 | `electron_x_from_u` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 358 | `electron_trace_affine_u_edges_batch` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `S` | 389 | `electron_build_piecewise_affine_u` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 427 | `electron_find_u_cell_desc_hint` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 452 | `electron_trace_piecewise_affine_u_edge_from_cell` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `S` | 573 | `electron_trace_piecewise_affine_u_edges_batch` | 多滞后分段仿射 u 特征线回溯；单滞后调用传 `Num_lag=1`。 |
-| `S` | 594 | `electron_characteristic_core` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 631 | `electron_characteristic_remap_edges` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `S` | 655 | `electron_characteristic_update` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 689 | `electron_ppm_cell_int` | PPM 单元积分 primitive。 |
-| `S` | 706 | `electron_semi_lagrangian_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 733 | `electron_fullhide_flux_split_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 782 | `electron_fullhide_flux_split_step_nonuniform` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 832 | `electron_fullhide_flux_split_sequence_nonuniform` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 881 | `electron_fullhide_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 904 | `electron_fullhide_spacetime_sequence` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 955 | `electron_logparabola_peak_frequency` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 1012 | `electron_active_gamma_hi` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 1045 | `electron_active_chi_hi` | finite-q shell 几何或 chi-equivalent 投影字段。 |
-| `F` | 1064 | `electron_max_xi_coeff_chi` | finite-q shell 几何或 chi-equivalent 投影字段。 |
-| `F` | 1091 | `electron_max_xi_coeff_uniform` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 60 | `electron_ppm_interfaces_nonuniform` | 非均匀电子能量网格的 PPM 界面重构。 |
+| `S` | 119 | `electron_ppm_positive_cell` | PPM 单元正性限制；保持重构后的粒子数密度非负。 |
+| `S` | 149 | `electron_ppm_prefix_nonuniform` | 非均匀网格 PPM 前缀积分。 |
+| `F` | 168 | `electron_ppm_prefix_eval_nonuniform` | 任意位置的 PPM 保守前缀积分求值。 |
+| `S` | 203 | `electron_prepare_conservative_remap_nonuniform` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
+| `S` | 220 | `electron_prepare_exponential_source_remap` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
+| `F` | 254 | `electron_exp_source_cell_int` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
+| `F` | 274 | `electron_exp_source_prefix_eval` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
+| `S` | 310 | `electron_dnx_to_dndgamma_exp_centers` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 324 | `electron_u_edges_from_x` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
+| `F` | 338 | `electron_x_from_u` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 347 | `electron_trace_affine_u_edges_batch` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
+| `S` | 378 | `electron_build_piecewise_affine_u` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 416 | `electron_find_u_cell_desc_hint` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 441 | `electron_trace_piecewise_affine_u_edge_from_cell` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
+| `S` | 562 | `electron_trace_piecewise_affine_u_edges_batch` | 多滞后分段仿射 u 特征线回溯；单滞后调用传 `Num_lag=1`。 |
+| `S` | 583 | `electron_characteristic_core` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 620 | `electron_characteristic_remap_edges` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
+| `S` | 644 | `electron_characteristic_update` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 678 | `electron_ppm_cell_int` | PPM 单元积分 primitive。 |
+| `S` | 695 | `electron_semi_lagrangian_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 722 | `electron_fullhide_flux_split_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 765 | `electron_fullhide_flux_split_step_nonuniform` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 814 | `electron_fullhide_flux_split_sequence_nonuniform` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 863 | `electron_fullhide_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 886 | `electron_fullhide_spacetime_sequence` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 930 | `electron_logparabola_peak_frequency` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 958 | `electron_active_gamma_hi` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 991 | `electron_active_chi_hi` | finite-q shell 几何或 chi-equivalent 投影字段。 |
+| `F` | 1010 | `electron_max_xi_coeff_chi` | finite-q shell 几何或 chi-equivalent 投影字段。 |
+| `F` | 1037 | `electron_max_xi_coeff_uniform` | 局部 helper；语义由所在文件的算法阶段决定。 |
 
 ### `src/Electron/electron_transport_dg_1d_kernel.f90`
 
