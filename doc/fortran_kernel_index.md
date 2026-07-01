@@ -1149,17 +1149,14 @@ SSC 谱、KN/Jones kernel、均匀/非均匀电子谱积分。
 | `S` | 57 | `run_axisymmetric` | 结构化喷流 patch/角向投影调度。 |
 | `S` | 93 | `run_nonaxisymmetric` | 结构化喷流 patch/角向投影调度。 |
 | `S` | 131 | `structured_solve_axisymmetric` | 结构化喷流 patch/角向投影调度。 |
-| `S` | 187 | `register_axis_patch` | 结构化喷流 patch/角向投影调度。 |
-| `S` | 204 | `solve_axis_patch` | 结构化喷流 patch/角向投影调度。 |
-| `S` | 222 | `copy_axis_patch` | 结构化喷流 patch/角向投影调度。 |
+| `S` | 195 | `register_axis_patch` | 结构化喷流 patch/角向投影调度。 |
+| `S` | 212 | `solve_axis_patch` | 结构化喷流 patch/角向投影调度。 |
 | `S` | 232 | `structured_solve_nonaxisymmetric` | 结构化喷流 patch/角向投影调度。 |
-| `F` | 300 | `flatten_patch` | 结构化喷流 patch/角向投影调度。 |
-| `S` | 307 | `unflatten_patch` | 结构化喷流 patch/角向投影调度。 |
-| `S` | 316 | `register_phi_patch` | 结构化喷流 patch/角向投影调度。 |
-| `S` | 335 | `solve_phi_patch` | 结构化喷流 patch/角向投影调度。 |
-| `S` | 353 | `copy_phi_patch` | 结构化喷流 patch/角向投影调度。 |
-| `S` | 367 | `structured_solve_element` | 结构化喷流 patch/角向投影调度。 |
-| `S` | 523 | `structured_apply_observer_absorption` | 光深、gamma-gamma absorption、pair injection 或 photon survival 相关算子。 |
+| `S` | 302 | `register_phi_patch` | 结构化喷流 patch/角向投影调度。 |
+| `S` | 322 | `solve_phi_patch` | 结构化喷流 patch/角向投影调度。 |
+| `S` | 340 | `copy_phi_patch` | 结构化喷流 patch/角向投影调度。 |
+| `S` | 354 | `structured_solve_element` | 结构化喷流 patch/角向投影调度。 |
+| `S` | 515 | `structured_apply_observer_absorption` | 光深、gamma-gamma absorption、pair injection 或 photon survival 相关算子。 |
 
 ## 修改时的最短自检
 

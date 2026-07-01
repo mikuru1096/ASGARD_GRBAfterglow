@@ -176,7 +176,15 @@ subroutine structured_solve_axisymmetric(Boundary,E_iso_grid,Gamma0_grid,active_
     !$OMP PARALLEL DO num_threads(n_threads_outer) schedule(static) private(rep_idx)
     do it=1,Num_theta_patch
         rep_idx=solve_index(it)
-        if (rep_idx /= 0 .and. rep_idx /= it) call copy_axis_patch(rep_idx,it)
+        if (rep_idx /= 0 .and. rep_idx /= it) then
+            rt_axis(:,it)=rt_axis(:,rep_idx)
+            rg_axis(:,it)=rg_axis(:,rep_idx)
+            rr_axis(:,it)=rr_axis(:,rep_idx)
+            sync_axis(:,:,it)=sync_axis(:,:,rep_idx)
+            ssc_axis(:,:,it)=ssc_axis(:,:,rep_idx)
+            had_axis(:,:,it)=had_axis(:,:,rep_idx)
+            rev_axis(:,:,it)=rev_axis(:,:,rep_idx)
+        end if
     end do
     !$OMP END PARALLEL DO
 
@@ -219,14 +227,6 @@ contains
                                       track_nu_a,track_set)
     end subroutine solve_axis_patch
 
-    subroutine copy_axis_patch(src,dst)
-        implicit none
-        integer, intent(in) :: src,dst
-
-        rt_axis(:,dst)=rt_axis(:,src); rg_axis(:,dst)=rg_axis(:,src); rr_axis(:,dst)=rr_axis(:,src)
-        sync_axis(:,:,dst)=sync_axis(:,:,src); ssc_axis(:,:,dst)=ssc_axis(:,:,src)
-        had_axis(:,:,dst)=had_axis(:,:,src); rev_axis(:,:,dst)=rev_axis(:,:,src)
-    end subroutine copy_axis_patch
 end subroutine structured_solve_axisymmetric
 
 subroutine structured_solve_nonaxisymmetric(Boundary,E_iso_grid,Gamma0_grid,active_grid,V_seed,n,Num_theta_patch, &
@@ -267,7 +267,7 @@ subroutine structured_solve_nonaxisymmetric(Boundary,E_iso_grid,Gamma0_grid,acti
     solve_index=0; solve_reps=0; unique_count=0
     do ip=1,Num_phi_patch
         do it=1,Num_theta_patch
-            flat=flatten_patch(it,ip)
+            flat=(ip-1)*Num_theta_patch+it
             if (active_grid(it,ip) /= 0) call register_phi_patch(it,ip,flat)
         end do
     end do
@@ -275,7 +275,8 @@ subroutine structured_solve_nonaxisymmetric(Boundary,E_iso_grid,Gamma0_grid,acti
     !$OMP PARALLEL DO num_threads(n_threads_outer) schedule(dynamic,1) private(rep_flat,rep_it,rep_ip)
     do iu=1,unique_count
         rep_flat=solve_reps(iu)
-        call unflatten_patch(rep_flat,rep_it,rep_ip)
+        rep_it=mod(rep_flat-1,Num_theta_patch)+1
+        rep_ip=(rep_flat-1)/Num_theta_patch+1
         call solve_phi_patch(rep_it,rep_ip)
     end do
     !$OMP END PARALLEL DO
@@ -283,10 +284,11 @@ subroutine structured_solve_nonaxisymmetric(Boundary,E_iso_grid,Gamma0_grid,acti
     !$OMP PARALLEL DO num_threads(n_threads_outer) collapse(2) schedule(static) private(flat,rep_flat,rep_it,rep_ip)
     do ip=1,Num_phi_patch
         do it=1,Num_theta_patch
-            flat=flatten_patch(it,ip)
+            flat=(ip-1)*Num_theta_patch+it
             rep_flat=solve_index(flat)
             if (rep_flat /= 0 .and. rep_flat /= flat) then
-                call unflatten_patch(rep_flat,rep_it,rep_ip)
+                rep_it=mod(rep_flat-1,Num_theta_patch)+1
+                rep_ip=(rep_flat-1)/Num_theta_patch+1
                 call copy_phi_patch(rep_it,rep_ip,it,ip)
             end if
         end do
@@ -297,22 +299,6 @@ subroutine structured_solve_nonaxisymmetric(Boundary,E_iso_grid,Gamma0_grid,acti
 
 contains
 
-    integer function flatten_patch(it,ip)
-        implicit none
-        integer, intent(in) :: it,ip
-
-        flatten_patch=(ip-1)*Num_theta_patch+it
-    end function flatten_patch
-
-    subroutine unflatten_patch(flat,it,ip)
-        implicit none
-        integer, intent(in) :: flat
-        integer, intent(out) :: it,ip
-
-        it=mod(flat-1,Num_theta_patch)+1
-        ip=(flat-1)/Num_theta_patch+1
-    end subroutine unflatten_patch
-
     subroutine register_phi_patch(it,ip,flat)
         implicit none
         integer, intent(in) :: it,ip,flat
@@ -320,7 +306,8 @@ contains
 
         do jr=1,unique_count
             rep=solve_reps(jr)
-            call unflatten_patch(rep,rep_it,rep_ip)
+            rep_it=mod(rep-1,Num_theta_patch)+1
+            rep_ip=(rep-1)/Num_theta_patch+1
             if (E_iso_grid(it,ip) == E_iso_grid(rep_it,rep_ip) .and. &
                 Gamma0_grid(it,ip) == Gamma0_grid(rep_it,rep_ip)) then
                 solve_index(flat)=rep
