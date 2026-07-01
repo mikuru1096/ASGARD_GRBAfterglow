@@ -393,55 +393,41 @@ WENO5 方法比较电子输运入口。
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
 | `M` | 1 | `electron_reverse_kernel` | 模块命名空间；集中声明本文件共享 procedure。 |
-| `S` | 34 | `electron_reverse_evolve` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
-| `S` | 155 | `prepare_reverse_shell_state` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
-| `S` | 175 | `compute_reverse_thermal_loss` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
-| `S` | 200 | `set_empty_reverse_electrons` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
-| `S` | 214 | `compute_reverse_injection_rate` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
-| `S` | 236 | `compute_reverse_cooling_loss` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
-| `S` | 259 | `advance_reverse_transport_shell` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 346 | `advance_reverse_post_cross_analytic` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 376 | `cache_reverse_post_cross_state` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
-| `S` | 385 | `compose_reverse_post_cross_map` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
-| `F` | 394 | `reverse_post_cross_map_value` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
-| `S` | 425 | `load_reverse_coord_state` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
-| `S` | 438 | `reverse_output_positivity` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
-| `S` | 449 | `initialize_reverse_dg_state` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
-| `S` | 459 | `remesh_reverse_dg_state` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
-| `S` | 477 | `ensure_reverse_dg_work` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
-| `S` | 487 | `prepare_reverse_dg_cooling` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
-| `S` | 496 | `prepare_reverse_transport_substep_state` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `F` | 511 | `reverse_shell_linear_value` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
-| `S` | 521 | `prepare_reverse_dg_source` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
-| `F` | 532 | `reverse_dg_upper_break` | 特征 Lorentz 因子/断点诊断；用于注入、冷却或活动网格边界。 |
-| `F` | 542 | `reverse_dg_source_upper_xmax` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
-| `F` | 550 | `reverse_dg_active_xmax` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
-| `S` | 564 | `advance_reverse_dg_high_front` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 572 | `advance_reverse_dg_low_front` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `F` | 582 | `reverse_dg_low_break` | 特征 Lorentz 因子/断点诊断；用于注入、冷却或活动网格边界。 |
-| `S` | 592 | `advance_reverse_dg_injection_front` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `F` | 604 | `reverse_dg_injection_break` | 特征 Lorentz 因子/断点诊断；用于注入、冷却或活动网格边界。 |
-| `S` | 611 | `advance_reverse_dg_front_value` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 630 | `electron_secondary_reverse_evolve` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
-| `S` | 688 | `prepare_secondary_shell_state` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 711 | `compute_secondary_injection_rate` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
-| `S` | 722 | `compute_secondary_adiabatic_rate` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 733 | `advance_secondary_transport_shell` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 772 | `electron_secondary_reverse_synchrotron` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
-| `S` | 796 | `electron_secondary_reverse_branch_synchrotron` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
-| `S` | 828 | `electron_secondary_reverse_branch_reaccelerated` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
-| `S` | 888 | `build_secondary_reaccel_gamma_grid` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `S` | 913 | `transfer_reaccelerated_parent_electrons` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 952 | `advance_reaccelerated_branch_shell` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 994 | `prepare_branch_shell` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 1022 | `compute_branch_injection` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
-| `S` | 1032 | `boost_log_distribution` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 1057 | `dsa_reaccelerate_distribution` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 1074 | `distribution_energy_from_log` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 1082 | `reverse_transport_substeps` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `F` | 1094 | `reverse_dg_kinetic_break` | 特征 Lorentz 因子/断点诊断；用于注入、冷却或活动网格边界。 |
-| `S` | 1102 | `reverse_dg_grid_sequence` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
-| `F` | 1157 | `reverse_interp_log_grid` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
+| `S` | 35 | `electron_reverse_evolve` | 反向激波电子演化入口；串接主 RS 注入、冷却、DG/有限体积输运和输出投影。 |
+| `S` | 216 | `compute_reverse_cooling_loss` | 反向激波电子冷却率；把同步辐射、IC/Y 修正写入能量损失数组。 |
+| `S` | 245 | `advance_reverse_transport_shell` | 主 RS 电子壳层输运；显式推进注入、冷却、绝热损失和 DG 活动能段边界。 |
+| `S` | 344 | `advance_reverse_post_cross_analytic` | crossing 后无新注入时的解析特征线重映射。 |
+| `F` | 385 | `reverse_post_cross_map_value` | crossing 后特征线边界映射插值。 |
+| `S` | 416 | `initialize_reverse_dg_state` | 初始化反向激波 DG 活动谱元网格和状态。 |
+| `S` | 426 | `remesh_reverse_dg_state` | 按当前 cooling/injection break 重建 DG 网格并保守投影状态。 |
+| `S` | 444 | `ensure_reverse_dg_work` | DG workspace 管理；只服务状态投影和子步推进暂存。 |
+| `S` | 454 | `prepare_reverse_dg_cooling` | 把用户 gamma 网格上的冷却率插值到 DG 节点。 |
+| `S` | 463 | `prepare_reverse_transport_substep_state` | 取半步半径处的 RS 动力学量并更新冷却/注入能标。 |
+| `F` | 479 | `reverse_shell_linear_value` | 在相邻半径壳层之间线性插值反向激波动力学数组。 |
+| `F` | 489 | `reverse_dg_upper_break` | DG 高能活动边界；crossing 后跟踪冷却过的高能 front。 |
+| `F` | 499 | `reverse_dg_source_upper_xmax` | 由高能注入/冷却边界确定 DG 源项上界。 |
+| `F` | 507 | `reverse_dg_active_xmax` | 结合尾部能量矩阈值确定 DG 活动网格上界。 |
+| `F` | 521 | `reverse_dg_low_break` | DG 低能活动边界；处理近跨相对论 kinetic-source break。 |
+| `S` | 531 | `advance_reverse_dg_injection_front` | 推进或重置 crossing 后的注入能标 front。 |
+| `F` | 543 | `reverse_dg_injection_break` | DG 注入 break；crossing 后使用已冷却的 gamma_m front。 |
+| `S` | 550 | `advance_reverse_dg_front_value` | 对单个 DG break/front 施加同步冷却和绝热漂移。 |
+| `S` | 569 | `electron_secondary_reverse_evolve` | 次级反向激波电子演化入口；处理密度跳变分支和再加速分支。 |
+| `S` | 651 | `advance_secondary_transport_shell` | 次级 RS 分支的电子输运推进。 |
+| `S` | 692 | `electron_secondary_reverse_synchrotron` | 聚合次级 RS 分支同步辐射谱。 |
+| `S` | 717 | `electron_secondary_reverse_branch_synchrotron` | 单个次级 RS 分支同步辐射输出。 |
+| `S` | 749 | `electron_secondary_reverse_branch_reaccelerated` | 次级 RS 再加速电子分支输出。 |
+| `S` | 809 | `build_secondary_reaccel_gamma_grid` | 构造再加速分支 gamma 网格。 |
+| `S` | 834 | `transfer_reaccelerated_parent_electrons` | 把父分支电子谱转移到再加速分支网格。 |
+| `S` | 873 | `advance_reaccelerated_branch_shell` | 再加速分支的输运推进。 |
+| `S` | 917 | `prepare_branch_shell` | 读取单个次级分支在当前壳层的动力学和辐射参数。 |
+| `S` | 945 | `compute_branch_injection` | 次级分支注入归一化和能标。 |
+| `S` | 955 | `boost_log_distribution` | 对数谱的 Lorentz boost 重映射。 |
+| `S` | 980 | `dsa_reaccelerate_distribution` | DSA 再加速谱构造。 |
+| `F` | 997 | `distribution_energy_from_log` | 对数电子谱能量积分。 |
+| `F` | 1005 | `reverse_transport_substeps` | 根据冷却步长和求解器类型选择反向输运子步数。 |
+| `F` | 1017 | `reverse_dg_kinetic_break` | 反向 DG kinetic source 的低能 break。 |
+| `S` | 1025 | `reverse_dg_grid_sequence` | 根据低/注入/高能 break 构造 DG 网格序列。 |
+| `F` | 1080 | `reverse_interp_log_grid` | 在对数 gamma 网格上插值正谱/冷却量。 |
 
 ### `src/Electron/electron_seed_history_kernel.f90`
 

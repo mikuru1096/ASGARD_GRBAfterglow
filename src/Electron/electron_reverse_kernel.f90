@@ -293,9 +293,13 @@ contains
                 call electron_dg1d_apply_positive_kernel_filter(dg_mesh,dg_work)
                 call electron_dg1d_limit_positive_cell_preserving(dg_mesh,dg_work)
                 dg_state=dg_work
-                call advance_reverse_dg_low_front(source_norm_step)
+                if (source_norm_step > zero .and. dg_gamma_low <= one) dg_gamma_low=Gam_e_m
+                if (dg_gamma_low > one) call advance_reverse_dg_front_value(dg_gamma_low)
+                if (source_norm_step > zero) dg_gamma_low=min(dg_gamma_low,Gam_e_m)
+                dg_gamma_low=max(one,dg_gamma_low)
                 call advance_reverse_dg_injection_front(source_norm_step)
-                call advance_reverse_dg_high_front(source_norm_step)
+                if (dg_gamma_high > one) call advance_reverse_dg_front_value(dg_gamma_high)
+                if (source_norm_step > zero) dg_gamma_high=max(dg_gamma_high,Gam_e_max)
                 R_loc=R_loc+dDR
             end do
             call electron_dg1d_project_to_coord_cells(dg_mesh,dg_state,Num_gam_e,coord_edge,dF1)
@@ -513,24 +517,6 @@ contains
             end if
         end if
     end function reverse_dg_active_xmax
-
-    subroutine advance_reverse_dg_high_front(source_norm)
-    implicit none
-    real(8), intent(in) :: source_norm
-
-        if (dg_gamma_high > one) call advance_reverse_dg_front_value(dg_gamma_high)
-        if (source_norm > zero) dg_gamma_high=max(dg_gamma_high,Gam_e_max)
-    end subroutine advance_reverse_dg_high_front
-
-    subroutine advance_reverse_dg_low_front(source_norm)
-    implicit none
-    real(8), intent(in) :: source_norm
-
-        if (source_norm > zero .and. dg_gamma_low <= one) dg_gamma_low=Gam_e_m
-        if (dg_gamma_low > one) call advance_reverse_dg_front_value(dg_gamma_low)
-        if (source_norm > zero) dg_gamma_low=min(dg_gamma_low,Gam_e_m)
-        dg_gamma_low=max(one,dg_gamma_low)
-    end subroutine advance_reverse_dg_low_front
 
     real(8) function reverse_dg_low_break() result(gamma_break)
     implicit none
