@@ -2,7 +2,7 @@
 
 本文是当前工作树的 Fortran kernel 索引。它面向需要逐个进入子程序读算法的人：先看 f2py 入口和物理阶段，再进入文件内的 `module`、`subroutine`、`function`。更高层的物理到算法映射见 `doc/physics_algorithm_crosswalk.md`，运行主链见 `doc/call_chain.md`。
 
-当前索引按 ASGARD 自有 Fortran 数值核抽取，排除第三方固定格式特殊函数依赖，共 804 个程序单元：35 个 module、561 个 subroutine、208 个 function。行号是生成本页时的源文件位置。
+当前索引按 ASGARD 自有 Fortran 数值核抽取，排除第三方固定格式特殊函数依赖，共 803 个程序单元：35 个 module、560 个 subroutine、208 个 function。行号是生成本页时的源文件位置。
 
 ## 读源码顺序
 
@@ -866,9 +866,8 @@ gamma-gamma pair injection 和 photon loss kernel。
 | `M` | 2 | `hadronic_pgamma_hummer_1d` | 模块命名空间；集中声明本文件共享 procedure。 |
 | `S` | 12 | `hadronic_pgamma_hummer_shell` | p-gamma Hummer response 或 secondary family deposition。 |
 | `S` | 105 | `map_pgamma_secondary_sources` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
-| `S` | 136 | `apply_neutron_pgamma_loss` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 152 | `interp_source_per_gamma` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
-| `S` | 163 | `interp_positive_loglog` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
+| `S` | 138 | `apply_neutron_pgamma_loss` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
+| `S` | 154 | `interp_positive_loglog` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
 
 ### `src/Hadronic/hadronic_pp_kernel.f90`
 

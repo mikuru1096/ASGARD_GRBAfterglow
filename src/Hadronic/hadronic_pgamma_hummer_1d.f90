@@ -113,24 +113,26 @@ subroutine map_pgamma_secondary_sources(num_gam_p,gam_p,hadron_energy,shell_volu
     real(8), intent(out) :: neutron_source(num_gam_p),pip_source(num_gam_p),pim_source(num_gam_p)
     real(8), intent(out) :: muml_source(num_gam_p),mumr_source(num_gam_p),mupl_source(num_gam_p),mupr_source(num_gam_p)
     real(8) :: neutron_energy(num_gam_p),pion_energy(num_gam_p),muon_energy(num_gam_p)
+    real(8) :: source_per_gev(num_gam_p)
 
     neutron_energy=gam_p*hadronic_neutron_mass_gev
     pion_energy=gam_p*hadronic_pion_charged_mass_gev
     muon_energy=gam_p*hadronic_muon_mass_gev
-    call interp_source_per_gamma(num_gam_p,hadron_energy,nreinj,neutron_energy,hadronic_neutron_mass_gev, &
-                                 shell_volume_cm3,neutron_source)
-    call interp_source_per_gamma(num_gam_p,hadron_energy,qpip,pion_energy,hadronic_pion_charged_mass_gev, &
-                                 shell_volume_cm3,pip_source)
-    call interp_source_per_gamma(num_gam_p,hadron_energy,qpim,pion_energy,hadronic_pion_charged_mass_gev, &
-                                 shell_volume_cm3,pim_source)
-    call interp_source_per_gamma(num_gam_p,hadron_energy,mumnl,muon_energy,hadronic_muon_mass_gev, &
-                                 shell_volume_cm3,muml_source)
-    call interp_source_per_gamma(num_gam_p,hadron_energy,mumnr,muon_energy,hadronic_muon_mass_gev, &
-                                 shell_volume_cm3,mumr_source)
-    call interp_source_per_gamma(num_gam_p,hadron_energy,mupl,muon_energy,hadronic_muon_mass_gev, &
-                                 shell_volume_cm3,mupl_source)
-    call interp_source_per_gamma(num_gam_p,hadron_energy,mupr,muon_energy,hadronic_muon_mass_gev, &
-                                 shell_volume_cm3,mupr_source)
+
+    call interp_positive_loglog(num_gam_p,hadron_energy,nreinj,neutron_energy,source_per_gev)
+    neutron_source=shell_volume_cm3*source_per_gev*hadronic_neutron_mass_gev
+    call interp_positive_loglog(num_gam_p,hadron_energy,qpip,pion_energy,source_per_gev)
+    pip_source=shell_volume_cm3*source_per_gev*hadronic_pion_charged_mass_gev
+    call interp_positive_loglog(num_gam_p,hadron_energy,qpim,pion_energy,source_per_gev)
+    pim_source=shell_volume_cm3*source_per_gev*hadronic_pion_charged_mass_gev
+    call interp_positive_loglog(num_gam_p,hadron_energy,mumnl,muon_energy,source_per_gev)
+    muml_source=shell_volume_cm3*source_per_gev*hadronic_muon_mass_gev
+    call interp_positive_loglog(num_gam_p,hadron_energy,mumnr,muon_energy,source_per_gev)
+    mumr_source=shell_volume_cm3*source_per_gev*hadronic_muon_mass_gev
+    call interp_positive_loglog(num_gam_p,hadron_energy,mupl,muon_energy,source_per_gev)
+    mupl_source=shell_volume_cm3*source_per_gev*hadronic_muon_mass_gev
+    call interp_positive_loglog(num_gam_p,hadron_energy,mupr,muon_energy,source_per_gev)
+    mupr_source=shell_volume_cm3*source_per_gev*hadronic_muon_mass_gev
 end subroutine map_pgamma_secondary_sources
 
 subroutine apply_neutron_pgamma_loss(num_gam_p,gam_p,dt_s,hadron_energy,nloss,neutron_next)
@@ -148,17 +150,6 @@ subroutine apply_neutron_pgamma_loss(num_gam_p,gam_p,dt_s,hadron_energy,nloss,ne
         neutron_next(i)=neutron_next(i)*(one-dt_s*neutron_loss_interp(i))
     end do
 end subroutine apply_neutron_pgamma_loss
-
-subroutine interp_source_per_gamma(num_src,energy_src,source_src,energy_dst,mass_gev,shell_volume_cm3,source_dst)
-    implicit none
-    integer, intent(in) :: num_src
-    real(8), intent(in) :: energy_src(num_src),source_src(num_src),energy_dst(num_src),mass_gev,shell_volume_cm3
-    real(8), intent(out) :: source_dst(num_src)
-    real(8) :: source_per_gev(num_src)
-
-    call interp_positive_loglog(num_src,energy_src,source_src,energy_dst,source_per_gev)
-    source_dst=shell_volume_cm3*source_per_gev*mass_gev
-end subroutine interp_source_per_gamma
 
 subroutine interp_positive_loglog(num_src,x_src,y_src,x_dst,y_dst)
     implicit none
