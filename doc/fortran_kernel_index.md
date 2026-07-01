@@ -975,14 +975,12 @@ neutron、pion、muon explicit species transport。
 | `S` | 37 | `hadronic_species_synchrotron_dgamma_dt` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
 | `S` | 66 | `hadronic_species_adiabatic_dgamma_dt` | 局部 helper；语义由所在文件的算法阶段决定。 |
 | `S` | 83 | `hadronic_species_advance_operator` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 131 | `validate_species_transport_inputs` | 系统边界校验；用于拒绝外部输入或正式 kernel contract 违反。 |
-| `S` | 156 | `build_species_cooling_rates` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 163 | `advance_charged_pion_pair` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 170 | `advance_muon_helicity_species` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 187 | `hadronic_species_advance_one` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 255 | `hadronic_species_validate_gamma_grid` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `S` | 276 | `hadronic_species_validate_non_negative` | 系统边界校验；用于拒绝外部输入或正式 kernel contract 违反。 |
-| `F` | 290 | `hadronic_species_log_spacing` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 137 | `validate_species_transport_inputs` | 系统边界校验；用于拒绝外部输入或正式 kernel contract 违反。 |
+| `S` | 162 | `advance_muon_helicity_species` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 179 | `hadronic_species_advance_one` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 247 | `hadronic_species_validate_gamma_grid` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
+| `S` | 268 | `hadronic_species_validate_non_negative` | 系统边界校验；用于拒绝外部输入或正式 kernel contract 违反。 |
+| `F` | 282 | `hadronic_species_log_spacing` | 局部 helper；语义由所在文件的算法阶段决定。 |
 
 ### `src/Hadronic/hadronic_transport_kernel.f90`
 

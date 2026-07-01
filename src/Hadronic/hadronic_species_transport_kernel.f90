@@ -114,14 +114,20 @@ subroutine hadronic_species_advance_operator(num_gamma,gamma,dt_s,b_field_g,dive
     end if
 
     call validate_species_transport_inputs
-    call build_species_cooling_rates
+    call hadronic_species_synchrotron_dgamma_dt(num_gamma,gamma,b_field_g,neutron_mass_gev,0,dgamma_total)
+    call hadronic_species_synchrotron_dgamma_dt(num_gamma,gamma,b_field_g,pion_mass_gev,1,dgamma_syn_pion)
+    call hadronic_species_synchrotron_dgamma_dt(num_gamma,gamma,b_field_g,muon_mass_gev,1,dgamma_syn_muon)
+    call hadronic_species_adiabatic_dgamma_dt(num_gamma,gamma,divergence_rate_s_inv,dgamma_ad)
 
     dgamma_total = dgamma_ad
     call hadronic_species_advance_one(num_gamma,gamma,neutron_prev,neutron_source_per_gamma_s,dt_s, &
                                       neutron_beta_decay_s,dgamma_total,neutron_next)
 
     dgamma_total = dgamma_syn_pion + dgamma_ad
-    call advance_charged_pion_pair
+    call hadronic_species_advance_one(num_gamma,gamma,pion_plus_prev,pion_plus_source_per_gamma_s,dt_s, &
+                                      charged_pion_decay_s,dgamma_total,pion_plus_next)
+    call hadronic_species_advance_one(num_gamma,gamma,pion_minus_prev,pion_minus_source_per_gamma_s,dt_s, &
+                                      charged_pion_decay_s,dgamma_total,pion_minus_next)
 
     dgamma_total = dgamma_syn_muon + dgamma_ad
     call advance_muon_helicity_species
@@ -152,20 +158,6 @@ contains
         call hadronic_species_validate_non_negative(num_gamma,muon_plus_right_source_per_gamma_s, &
                                                     "muon_plus_right_source_per_gamma_s")
     end subroutine validate_species_transport_inputs
-
-    subroutine build_species_cooling_rates
-        call hadronic_species_synchrotron_dgamma_dt(num_gamma,gamma,b_field_g,neutron_mass_gev,0,dgamma_total)
-        call hadronic_species_synchrotron_dgamma_dt(num_gamma,gamma,b_field_g,pion_mass_gev,1,dgamma_syn_pion)
-        call hadronic_species_synchrotron_dgamma_dt(num_gamma,gamma,b_field_g,muon_mass_gev,1,dgamma_syn_muon)
-        call hadronic_species_adiabatic_dgamma_dt(num_gamma,gamma,divergence_rate_s_inv,dgamma_ad)
-    end subroutine build_species_cooling_rates
-
-    subroutine advance_charged_pion_pair
-        call hadronic_species_advance_one(num_gamma,gamma,pion_plus_prev,pion_plus_source_per_gamma_s,dt_s, &
-                                          charged_pion_decay_s,dgamma_total,pion_plus_next)
-        call hadronic_species_advance_one(num_gamma,gamma,pion_minus_prev,pion_minus_source_per_gamma_s,dt_s, &
-                                          charged_pion_decay_s,dgamma_total,pion_minus_next)
-    end subroutine advance_charged_pion_pair
 
     subroutine advance_muon_helicity_species
         call hadronic_species_advance_one(num_gamma,gamma,muon_minus_left_prev, &
