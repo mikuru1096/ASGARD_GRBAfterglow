@@ -5,6 +5,7 @@ subroutine reverse_dynamics_rhs(dB3,T_cross,R_cross,e3_cross,gam20,U3_cross,V3_c
     use constants
     use dynamics_common, only: dynamics_external_density_profile, &
                                rs_mag_specific_internal, rs_vegas_ud, reverse_rhs_phase, &
+                               reverse_waiting_phase, reverse_pre_crossing_phase, &
                                active_density_jump_count, active_density_jump_r, active_density_jump_factor, &
                                active_density_jump_width
     use reverse_jump_conditions, only: secondary_reverse_contact_rh
@@ -27,7 +28,7 @@ subroutine reverse_dynamics_rhs(dB3,T_cross,R_cross,e3_cross,gam20,U3_cross,V3_c
     integer :: j_inertia,m_idx_inertia,u_idx_inertia,v_idx_inertia
     logical :: pre_crossing, waiting_reverse
 
-    waiting_reverse=(reverse_rhs_phase == -1)
+    waiting_reverse=(reverse_rhs_phase == reverse_waiting_phase)
     gam2=Y(1); RR=Y(2); para_m2=Y(3); para_m3=Y(4)*para_m_ej
     U3=Y(5)*para_m_ej*para_c**2; V3=Y(6)*V3_scale
     call dynamics_external_density_profile(A_star,dNe_ISM,RR,R0,1,R_tr,f_jump,f_wide,dNe)
@@ -67,7 +68,7 @@ subroutine reverse_dynamics_rhs(dB3,T_cross,R_cross,e3_cross,gam20,U3_cross,V3_c
         betars=beta4-delta_beta_rs
     end if
     D=zero
-    pre_crossing=(reverse_rhs_phase == 1 .or. (reverse_rhs_phase == 0 .and. para_m_ej > para_m3))
+    pre_crossing=(reverse_rhs_phase == reverse_pre_crossing_phase .or. (reverse_rhs_phase == 0 .and. para_m_ej > para_m3))
 
     dB2=reverse_synch_b_coeff*dsqrt((Epsilon_b*dNe)*(gam2*gam2-one))
     gam_c2=reverse_gamma_c_precise_coeff/(dB2*dB2*gam2*T)
@@ -132,7 +133,6 @@ subroutine reverse_dynamics_rhs(dB3,T_cross,R_cross,e3_cross,gam20,U3_cross,V3_c
         m_idx_inertia=6+j_inertia
         u_idx_inertia=6+active_density_jump_count+j_inertia
         v_idx_inertia=6+2*active_density_jump_count+j_inertia
-        if (v_idx_inertia > M) error stop 'secondary RS branch state exceeds reverse dynamics vector'
         secondary_m_total=secondary_m_total+Y(m_idx_inertia)*para_m_ej
         secondary_u_total=secondary_u_total+Y(u_idx_inertia)*para_m_ej*para_c**2
         secondary_v_total=secondary_v_total+Y(v_idx_inertia)*V3_scale
@@ -221,7 +221,6 @@ contains
             v_idx=6+2*active_density_jump_count+j
             e_idx=6+3*active_density_jump_count+j
             g_idx=6+4*active_density_jump_count+j
-            if (g_idx > M) error stop 'secondary RS branch state exceeds reverse dynamics vector'
             u_sec=Y(u_idx)*para_m_ej*para_c**2
             v_sec=Y(v_idx)*V3_scale
             D(e_idx)=zero; D(g_idx)=zero

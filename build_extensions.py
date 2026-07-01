@@ -39,7 +39,6 @@ DYNAMICS_REVERSE_SOURCES = (
 )
 F2PY_SKIP_DYNAMICS_COMMON_INTERNALS = (
     "dynamics_rk4_reverse",
-    "dynamics_rk4_reverse_waiting",
     "dynamics_rk4_reverse_pre_m3",
 )
 F2PY_SKIP_RADIATION_COMMON_INTERNALS = (

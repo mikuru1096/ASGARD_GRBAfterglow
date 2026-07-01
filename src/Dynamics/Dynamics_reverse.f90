@@ -18,9 +18,9 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,f_e_r,sigma_r,Boundary,n,Num_R, 
     use constants
     use dynamics_common, only: dynamics_rk4_reverse, &
                                dynamics_rk4_reverse_pre_m3, &
-                               dynamics_rk4_reverse_waiting, &
                                dynamics_reverse_rhs_iface, dynamics_external_density_profile, &
                                rs_vegas_ud, rs_vegas_comp, rs_mag_specific_internal, &
+                               reverse_waiting_phase, reverse_pre_crossing_phase, &
                                dynamics_set_density_jump_profile, &
                                active_density_jump_count, density_jump_max, active_density_jump_r, &
                                active_density_jump_factor, active_density_jump_width
@@ -202,7 +202,7 @@ contains
                                           U3_cross,V3_cross,M3_cross, &
                                           gam_m_cross,B3_ordered_cross,T_local,H_local,Y,Num_state,para_m_ej,V3_scale,Delta_0, &
                                           eta_0,A_star,dNe_ISM,R_tr,f_jump,f_wide,R0, &
-                                          Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,f_e_r,sigma_r)
+                                          Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,f_e_r,sigma_r,reverse_pre_crossing_phase)
                 T_state=T_target_in
             end if
         end do
@@ -249,11 +249,12 @@ contains
         gam_m_cross_trial=gam_m_cross; B3_ordered_cross_trial=B3_ordered_cross
         T_local=T_state
         H_local=T_end-T_state
-        call dynamics_rk4_reverse_waiting(reverse_dynamics_rhs,dB3_out,T_cross_trial,R_cross_trial,e3_cross_trial, &
-                                          gam20_trial,U3_cross_trial,V3_cross_trial,M3_cross_trial, &
-                                          gam_m_cross_trial,B3_ordered_cross_trial,T_local,H_local,state_out, &
-                                          Num_state,para_m_ej,V3_scale,Delta_0,eta_0,A_star,dNe_ISM, &
-                                          R_tr,f_jump,f_wide,R0,Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,f_e_r,sigma_r)
+        call dynamics_rk4_reverse(reverse_dynamics_rhs,dB3_out,T_cross_trial,R_cross_trial,e3_cross_trial, &
+                                  gam20_trial,U3_cross_trial,V3_cross_trial,M3_cross_trial, &
+                                  gam_m_cross_trial,B3_ordered_cross_trial,T_local,H_local,state_out, &
+                                  Num_state,para_m_ej,V3_scale,Delta_0,eta_0,A_star,dNe_ISM, &
+                                  R_tr,f_jump,f_wide,R0,Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,f_e_r, &
+                                  sigma_r,reverse_waiting_phase)
     end subroutine waiting_trial
 
     subroutine locate_waiting_event(T_end,event_T,event_state,dB3_event)

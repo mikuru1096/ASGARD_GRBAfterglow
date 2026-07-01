@@ -104,25 +104,21 @@ Fortran 改动后的最低门槛见 `doc/validation_and_benchmarks.md`。文档-
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
 | `M` | 1 | `dynamics_common` | 公共模块；提供多个入口复用的物理/数值 primitive。 |
-| `S` | 25 | `dynamics_forward_rhs_iface` | ODE/PDE 右端项；定义物理源汇和动力学变量导数。 |
-| `S` | 40 | `dynamics_reverse_rhs_iface` | ODE/PDE 右端项；定义物理源汇和动力学变量导数。 |
-| `S` | 61 | `dynamics_external_density_profile` | 介质密度或 density-jump 分支；直接影响 swept mass、动力学和注入源项。 |
-| `S` | 117 | `dynamics_set_density_jump_profile` | 介质密度或 density-jump 分支；直接影响 swept mass、动力学和注入源项。 |
-| `S` | 169 | `dynamics_density_tabulated_profile` | 介质密度或 density-jump 分支；直接影响 swept mass、动力学和注入源项。 |
-| `F` | 203 | `rs_vegas_ud` | 有限强度 MHD jump 解析根；不要用 ultra-relativistic 近似替代。 |
-| `F` | 237 | `rs_vegas_comp` | 有限强度 MHD jump 压缩比；sigma->0 极限回到 hydrodynamic baseline。 |
-| `F` | 259 | `rs_mag_specific_internal` | MHD jump 下游热比内能；保持 crossing 前后和 sigma->0 极限连续。 |
-| `S` | 280 | `dynamics_rk4_error_n` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 303 | `dynamics_rk4_reverse_error` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 326 | `dynamics_rk4_forward` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 411 | `dynamics_rk4_reverse_plain_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 457 | `dynamics_rk4_reverse_event_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 538 | `reset_trial_state` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 555 | `advance_phase1_trial` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 570 | `dynamics_rk4_reverse_pre_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 635 | `dynamics_rk4_reverse_pre_m3` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 756 | `dynamics_rk4_reverse_waiting` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 819 | `dynamics_rk4_reverse` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 27 | `dynamics_forward_rhs_iface` | ODE/PDE 右端项；定义物理源汇和动力学变量导数。 |
+| `S` | 42 | `dynamics_reverse_rhs_iface` | ODE/PDE 右端项；定义物理源汇和动力学变量导数。 |
+| `S` | 63 | `dynamics_external_density_profile` | 介质密度或 density-jump 分支；直接影响 swept mass、动力学和注入源项。 |
+| `S` | 119 | `dynamics_set_density_jump_profile` | 介质密度或 density-jump 分支；直接影响 swept mass、动力学和注入源项。 |
+| `S` | 171 | `dynamics_density_tabulated_profile` | 介质密度或 density-jump 分支；直接影响 swept mass、动力学和注入源项。 |
+| `F` | 205 | `rs_vegas_ud` | 有限强度 MHD jump 解析根；不要用 ultra-relativistic 近似替代。 |
+| `F` | 239 | `rs_vegas_comp` | 有限强度 MHD jump 压缩比；sigma->0 极限回到 hydrodynamic baseline。 |
+| `F` | 261 | `rs_mag_specific_internal` | MHD jump 下游热比内能；保持 crossing 前后和 sigma->0 极限连续。 |
+| `S` | 282 | `dynamics_rk4_error_n` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 305 | `dynamics_rk4_reverse_error` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 328 | `dynamics_rk4_forward` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 413 | `dynamics_rk4_reverse_plain_step` | 单个 log-time RK4 子步；只负责给定 phase 的 RHS 采样。 |
+| `S` | 459 | `dynamics_rk4_reverse_pre_step` | crossing 前以 M3 fraction 为自变量的 RK4 子步。 |
+| `S` | 524 | `dynamics_rk4_reverse_pre_m3` | pressure-ready 到 crossing/目标时刻的 pre-M3 推进。 |
+| `S` | 645 | `dynamics_rk4_reverse` | `select case` 展示 waiting、pre-crossing event split 和 post-crossing 推进。 |
 
 ### `src/Electron/adaptive_resampling_mod.f90`
 
@@ -567,51 +563,50 @@ DG 谱元网格、投影、正性核和特征线投影。
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
 | `M` | 2 | `electron_transport_dg_1d_kernel` | 模块命名空间；集中声明本文件共享 procedure。 |
-| `S` | 50 | `electron_dg1d_build_four_velocity_mesh` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 62 | `electron_dg1d_build_coord_mesh` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `S` | 95 | `electron_dg1d_initial_state` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 115 | `electron_dg1d_project_state` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 136 | `electron_dg1d_gamma_nodes` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 143 | `electron_dg1d_project_source` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
-| `S` | 185 | `electron_dg1d_project_kinetic_source` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
-| `S` | 224 | `electron_dg1d_scale_to_content` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 237 | `electron_dg1d_limit_positive_cell_preserving` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 264 | `electron_dg1d_apply_positive_kernel_filter` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `S` | 318 | `electron_dg1d_advance_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 362 | `electron_dg1d_advance_step_dense` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 384 | `electron_dg1d_assemble_transport_matrix` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 438 | `electron_dg1d_advance_characteristic_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 455 | `electron_dg1d_zero_negative_cell_means` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 470 | `electron_dg1d_project_characteristic` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 529 | `electron_dg1d_closed_low_boundary_content` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 552 | `electron_dg1d_integrate_domain_interval` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 569 | `electron_dg1d_characteristic_back_x` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 597 | `electron_dg1d_characteristic_forward_x` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 616 | `electron_dg1d_project_element` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 656 | `electron_dg1d_solve_lgl_block` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 704 | `electron_dg1d_solve_dense` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 746 | `electron_dg1d_project_to_coord_cells` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `S` | 782 | `electron_dg1d_integral` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 797 | `electron_dg1d_tail_moment_fraction` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 823 | `electron_dg1d_positive_kernel_mode` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 850 | `electron_dg1d_element_is_troubled` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 870 | `electron_dg1d_kernel_factor` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 880 | `electron_dg1d_jackson_factor` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 894 | `add_active_break` | 特征 Lorentz 因子/断点诊断；用于注入、冷却或活动网格边界。 |
-| `S` | 907 | `electron_dg1d_sort_breaks` | 特征 Lorentz 因子/断点诊断；用于注入、冷却或活动网格边界。 |
-| `S` | 923 | `allocate_spectral_mesh` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 937 | `ensure_reference_spectral` | workspace/cache 管理；只服务性能和内存复用，不改变物理语义。 |
-| `S` | 954 | `ensure_projection_quadrature` | workspace/cache 管理；只服务性能和内存复用，不改变物理语义。 |
-| `S` | 962 | `set_domain_bounds` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 990 | `fill_physical_nodes` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 1008 | `lgl_nodes_weights` | 积分权重或求积 primitive；影响谱积分精度。 |
-| `S` | 1034 | `legendre_value_derivative` | 积分权重或求积 primitive；影响谱积分精度。 |
-| `S` | 1061 | `legendre_basis_values` | 积分权重或求积 primitive；影响谱积分精度。 |
-| `S` | 1075 | `gauss_legendre_nodes_weights` | 积分权重或求积 primitive；影响谱积分精度。 |
-| `S` | 1094 | `barycentric_weights` | 积分权重或求积 primitive；影响谱积分精度。 |
-| `S` | 1109 | `differentiation_matrix` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 1124 | `locate_domain` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 1142 | `interpolate_domain` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
+| `S` | 49 | `electron_dg1d_build_four_velocity_mesh` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 61 | `electron_dg1d_build_coord_mesh` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
+| `S` | 94 | `electron_dg1d_initial_state` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 114 | `electron_dg1d_project_state` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 135 | `electron_dg1d_project_source` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
+| `S` | 177 | `electron_dg1d_project_kinetic_source` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
+| `S` | 216 | `electron_dg1d_scale_to_content` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 229 | `electron_dg1d_limit_positive_cell_preserving` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 256 | `electron_dg1d_apply_positive_kernel_filter` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
+| `S` | 310 | `electron_dg1d_advance_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 354 | `electron_dg1d_advance_step_dense` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 376 | `electron_dg1d_assemble_transport_matrix` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 430 | `electron_dg1d_advance_characteristic_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 447 | `electron_dg1d_zero_negative_cell_means` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 462 | `electron_dg1d_project_characteristic` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 521 | `electron_dg1d_closed_low_boundary_content` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 544 | `electron_dg1d_integrate_domain_interval` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 561 | `electron_dg1d_characteristic_back_x` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 589 | `electron_dg1d_characteristic_forward_x` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 608 | `electron_dg1d_project_element` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 648 | `electron_dg1d_solve_lgl_block` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 696 | `electron_dg1d_solve_dense` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 738 | `electron_dg1d_project_to_coord_cells` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
+| `S` | 774 | `electron_dg1d_integral` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 789 | `electron_dg1d_tail_moment_fraction` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 815 | `electron_dg1d_positive_kernel_mode` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 842 | `electron_dg1d_element_is_troubled` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 862 | `electron_dg1d_kernel_factor` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 872 | `electron_dg1d_jackson_factor` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 886 | `add_active_break` | 特征 Lorentz 因子/断点诊断；用于注入、冷却或活动网格边界。 |
+| `S` | 899 | `electron_dg1d_sort_breaks` | 特征 Lorentz 因子/断点诊断；用于注入、冷却或活动网格边界。 |
+| `S` | 915 | `allocate_spectral_mesh` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 929 | `ensure_reference_spectral` | workspace/cache 管理；只服务性能和内存复用，不改变物理语义。 |
+| `S` | 946 | `ensure_projection_quadrature` | workspace/cache 管理；只服务性能和内存复用，不改变物理语义。 |
+| `S` | 954 | `set_domain_bounds` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 982 | `fill_physical_nodes` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 1000 | `lgl_nodes_weights` | 积分权重或求积 primitive；影响谱积分精度。 |
+| `S` | 1026 | `legendre_value_derivative` | 积分权重或求积 primitive；影响谱积分精度。 |
+| `S` | 1053 | `legendre_basis_values` | 积分权重或求积 primitive；影响谱积分精度。 |
+| `S` | 1067 | `gauss_legendre_nodes_weights` | 积分权重或求积 primitive；影响谱积分精度。 |
+| `S` | 1086 | `barycentric_weights` | 积分权重或求积 primitive；影响谱积分精度。 |
+| `S` | 1101 | `differentiation_matrix` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 1116 | `locate_domain` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 1134 | `interpolate_domain` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
 
 ### `src/Electron/hybrid_spectrum_kernel_fast.f90`
 

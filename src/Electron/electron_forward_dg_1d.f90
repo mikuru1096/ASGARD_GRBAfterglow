@@ -12,7 +12,7 @@ subroutine fs_electron_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Nu
     use electron_energy_coordinate_common, only: electron_build_four_velocity_grid, electron_four_velocity_grid_gamma_scale
     use electron_transport_dg_1d_kernel, only: electron_dg1d_mesh, electron_dg1d_build_four_velocity_mesh, &
                                                electron_dg1d_initial_state, electron_dg1d_project_state, &
-                                               electron_dg1d_gamma_nodes, electron_dg1d_project_source, &
+                                               electron_dg1d_project_source, &
                                                electron_dg1d_advance_step, electron_dg1d_project_to_coord_cells, &
                                                electron_dg1d_limit_positive_cell_preserving, electron_dg1d_integral, &
                                                electron_dg1d_tail_moment_fraction, &
@@ -164,7 +164,7 @@ subroutine fs_electron_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Nu
         state = projected
         mesh = new_mesh
         source_cache_ready = .false.
-        call electron_dg1d_gamma_nodes(mesh, gamma_dg)
+        gamma_dg = mesh%gamma
         call get_forward_cooling(index_Y, Epsilon_e, Epsilon_b, p, DB, Gam_e_m, Gam_e_c, Gam_e_max, &
                                  R_loc, R_Gamma_loc, beta_Gam, dNe_shell, mesh%ntot, Num_nu, n_threads, &
                                  gamma_dg, V_seed, P_syn(:,I_tobs), Seed_syn(:,I_tobs), dEl_dg_base)

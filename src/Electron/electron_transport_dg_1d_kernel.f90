@@ -36,7 +36,6 @@ module electron_transport_dg_1d_kernel
 
     public :: electron_dg1d_initial_state, electron_dg1d_project_state
     public :: electron_dg1d_build_four_velocity_mesh
-    public :: electron_dg1d_gamma_nodes
     public :: electron_dg1d_project_source, electron_dg1d_project_kinetic_source
     public :: electron_dg1d_advance_step, electron_dg1d_scale_to_content
     public :: electron_dg1d_limit_positive_cell_preserving
@@ -132,13 +131,6 @@ subroutine electron_dg1d_project_state(old_mesh, old_state, new_mesh, new_state)
     endif
     call electron_dg1d_limit_positive_cell_preserving(new_mesh, new_state)
 end subroutine electron_dg1d_project_state
-
-subroutine electron_dg1d_gamma_nodes(mesh, gamma_nodes)
-    type(electron_dg1d_mesh), intent(in) :: mesh
-    real(8), intent(out) :: gamma_nodes(mesh%ntot)
-
-    gamma_nodes = mesh%gamma
-end subroutine electron_dg1d_gamma_nodes
 
 subroutine electron_dg1d_project_source(mesh, source_norm, p, gamma_m, gamma_max, source)
     type(electron_dg1d_mesh), intent(in) :: mesh
