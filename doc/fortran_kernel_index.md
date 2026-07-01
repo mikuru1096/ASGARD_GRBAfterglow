@@ -176,17 +176,16 @@ Fortran 改动后的最低门槛见 `doc/validation_and_benchmarks.md`。文档-
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
 | `M` | 2 | `electron_cooling_ic_kernel` | IC 物理核模块；joint 模式要求 cooling 和 emissivity 使用同一 photon field。 |
-| `S` | 19 | `ensure_ic_grid_cache` | workspace/cache 管理；缓存 seed 频率中点、间距和电子能量中点。 |
-| `F` | 28 | `ic_grid_cache_current` | IC cache 总命中判断。 |
-| `F` | 40 | `ic_seed_grid_current` | IC seed 频率网格命中判断。 |
-| `F` | 52 | `ic_gamma_grid_current` | IC 电子能量中点网格命中判断。 |
-| `S` | 64 | `rebuild_ic_grid_cache` | 重建 IC 派生网格量。 |
-| `S` | 85 | `electron_cooling_ic_loss` | 数值 IC/KN 冷却率双重积分。 |
-| `S` | 115 | `accumulate_ic_gamma_loss` | `electron_cooling_ic_loss` 的单 gamma 积分累加。 |
-| `S` | 156 | `electron_cooling_ic_loss_emissivity_budget` | 与 radiation SSC emissivity 核一致的 IC cooling budget。 |
-| `S` | 191 | `accumulate_budget_gamma` | emissivity-budget 路径的单 gamma 累加。 |
-| `F` | 218 | `low_seed_kernel` | Jones/KN 低 seed 侧核函数。 |
-| `F` | 235 | `high_seed_kernel` | Jones/KN 高 seed 侧核函数。 |
+| `S` | 17 | `ensure_ic_grid_cache` | workspace/cache 管理；缓存 seed 频率中点、间距和电子能量中点。 |
+| `F` | 26 | `ic_grid_cache_current` | IC cache 总命中判断。 |
+| `F` | 38 | `ic_seed_grid_current` | IC seed 频率网格命中判断。 |
+| `F` | 50 | `ic_gamma_grid_current` | IC 电子能量中点网格命中判断。 |
+| `S` | 62 | `rebuild_ic_grid_cache` | 重建 IC 派生网格量。 |
+| `S` | 83 | `electron_cooling_ic_loss` | 数值 IC/KN 冷却率双重积分。 |
+| `S` | 107 | `accumulate_ic_gamma_loss` | `electron_cooling_ic_loss` 的单 gamma 积分累加。 |
+| `S` | 148 | `electron_cooling_ic_loss_emissivity_budget` | 与 radiation SSC emissivity 核一致的 IC cooling budget。 |
+| `S` | 183 | `accumulate_budget_gamma` | emissivity-budget 路径的单 gamma 累加；低/高 seed 分支在同一循环内显式计算。 |
+| `F` | 211 | `low_seed_kernel` | Jones/KN 低 seed 侧核函数。 |
 
 ### `src/Electron/electron_cooling_y_kernel.f90`
 

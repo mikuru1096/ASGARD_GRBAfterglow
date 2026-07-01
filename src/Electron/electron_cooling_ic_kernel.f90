@@ -198,7 +198,8 @@ real(8) :: gam,gam2,seed_sum,power_log
             if (i_seed < i_obs) then
                 seed_sum=seed_sum+seed_weights(i_seed)*Seed_syn(i_seed)*low_seed_kernel(gam,i_obs,i_seed)/gam2
             else
-                seed_sum=seed_sum+seed_weights(i_seed)*Seed_syn(i_seed)*high_seed_kernel(gam,i_obs,i_seed)/gam2
+                seed_sum=seed_sum+seed_weights(i_seed)*Seed_syn(i_seed) * &
+                         max(zero,V_seed(i_obs)*inv_v_seed(i_seed)-0.25d0/gam2)/gam2
             end if
         end do
         power_log=temp_norm_ic*V_seed(i_obs)*h_nu_third*seed_sum
@@ -223,14 +224,6 @@ real(8) :: temp,q,log_q,q_gamma,kn_coeff
     kn_coeff=q_gamma*q_gamma/(two*(one+q_gamma))
     low_seed_kernel=two*q*(log_q-q)+one+q+kn_coeff*(one-q)
 end function low_seed_kernel
-
-real(8) function high_seed_kernel(gam,i_obs,i_seed)
-implicit REAL(8)(A-H,O-Z)
-real(8), intent(in) :: gam
-integer, intent(in) :: i_obs,i_seed
-
-    high_seed_kernel=max(zero,V_seed(i_obs)*inv_v_seed(i_seed)-0.25d0/(gam*gam))
-end function high_seed_kernel
 end subroutine electron_cooling_ic_loss_emissivity_budget
 
 end module electron_cooling_ic_kernel
