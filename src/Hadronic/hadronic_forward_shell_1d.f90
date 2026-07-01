@@ -17,7 +17,6 @@ module hadronic_forward_shell_1d
     public :: hadronic_forward_process_power, hadronic_forward_positive_loglog_interp, hadronic_forward_source_per_gamma
     public :: hadronic_forward_distribution_per_gev, hadronic_forward_aligned_photon_grid, hadronic_forward_shell_volumes
     public :: hadronic_sequence_shell_geometry
-    public :: hadronic_forward_quantum_syn_cooling_factor
 contains
 
 ! Single-shell pp delta-approximation wrapper.
@@ -729,19 +728,5 @@ subroutine hadronic_forward_shell_volumes(num_r,radius_cm,shell_volume_cm3)
         r_prev=radius_cm(i)
     end do
 end subroutine hadronic_forward_shell_volumes
-
-! Quantum synchrotron cooling-factor array wrapper.
-subroutine hadronic_forward_quantum_syn_cooling_factor(num_gamma,gamma,b_field_g,mass_gev,factor)
-    use hadronic_common, only: hadronic_quantum_syn_cooling_factor
-    implicit none
-    integer, intent(in) :: num_gamma
-    real(8), intent(in) :: gamma(num_gamma),b_field_g,mass_gev
-    real(8), intent(out) :: factor(num_gamma)
-    integer :: i
-
-    do i=1,num_gamma
-        factor(i) = hadronic_quantum_syn_cooling_factor(gamma(i),b_field_g,mass_gev)
-    end do
-end subroutine hadronic_forward_quantum_syn_cooling_factor
 
 end module hadronic_forward_shell_1d
