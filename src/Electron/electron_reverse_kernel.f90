@@ -496,19 +496,12 @@ contains
         end if
     end function reverse_dg_upper_break
 
-    real(8) function reverse_dg_source_upper_xmax() result(x_max)
+    real(8) function reverse_dg_active_xmax() result(x_max)
     implicit none
-    real(8) :: gamma_grid_max
+    real(8) :: gamma_grid_max,tail_fraction
 
         gamma_grid_max=ten**x_edge(Num_gam_e+1)
         x_max=dlog10(min(gamma_grid_max,electron_exp_tail_grid_factor*reverse_dg_upper_break()))
-    end function reverse_dg_source_upper_xmax
-
-    real(8) function reverse_dg_active_xmax() result(x_max)
-    implicit none
-    real(8) :: tail_fraction
-
-        x_max=reverse_dg_source_upper_xmax()
         if (allocated(dg_state)) then
             if (x_max < dg_mesh%x_gamma(dg_mesh%ntot)) then
                 call electron_dg1d_tail_moment_fraction(dg_mesh,dg_state,ten**x_max, &
@@ -1014,14 +1007,6 @@ integer function reverse_transport_substeps(candidate_dr,shell_dr,solver) result
     end if
 end function reverse_transport_substeps
 
-real(8) function reverse_dg_kinetic_break(gamma_m,gamma_max) result(gamma_break)
-    implicit none
-    real(8), intent(in) :: gamma_m,gamma_max
-
-    gamma_break=gamma_m
-    if (gamma_max > gamma_m) gamma_break=min(gamma_max,20d0*max(gamma_m,one))
-end function reverse_dg_kinetic_break
-
 subroutine reverse_dg_grid_sequence(Num_gam_e,x_edge,gam_e,num_step,dR,rad_coeff,adiabatic_rate_step,source_norm_step, &
                                     p,gamma_m,gamma_max,dN_x_in,dN_x_out)
     implicit none
@@ -1032,11 +1017,13 @@ subroutine reverse_dg_grid_sequence(Num_gam_e,x_edge,gam_e,num_step,dR,rad_coeff
     real(8), intent(out) :: dN_x_out(Num_gam_e)
     type(electron_dg1d_mesh) :: mesh
     real(8), allocatable :: state(:),advanced(:),source_nodes(:),source_template(:),dN_coord(:),dN_dgamma(:),coord_edge(:)
-    real(8) :: input_content,dg_content,projected_content
+    real(8) :: input_content,dg_content,projected_content,kinetic_break
     logical :: has_source
 
+    kinetic_break=gamma_m
+    if (gamma_max > gamma_m) kinetic_break=min(gamma_max,20d0*max(gamma_m,one))
     call electron_dg1d_build_four_velocity_mesh(x_edge(1),x_edge(Num_gam_e+1),dlog10(gamma_m), &
-                                                dlog10(reverse_dg_kinetic_break(gamma_m,gamma_max)), &
+                                                dlog10(kinetic_break), &
                                                 dlog10(gamma_max),electron_four_velocity_grid_gamma_scale,mesh)
     allocate(state(mesh%ntot),advanced(mesh%ntot),source_nodes(mesh%ntot),source_template(mesh%ntot),dN_coord(Num_gam_e), &
              dN_dgamma(Num_gam_e),coord_edge(Num_gam_e+1))

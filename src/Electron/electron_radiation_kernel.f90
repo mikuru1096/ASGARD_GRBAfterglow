@@ -10,7 +10,7 @@ module electron_radiation_kernel
   public :: first_greater_monotonic, first_greater_monotonic_window
   public :: besselk, get_syn_selected_state
   public :: get_syn_transfer, get_syn_polarization_selected, get_nu_a
-  public :: get_nu_a_2d_path, get_nu_a_2d_cell_path, reduce_syn_shell_from_chi
+  public :: get_nu_a_2d_cell_path, reduce_syn_shell_from_chi
   public :: build_reduced_log_grid, project_syn_state_logbands
   public :: get_nu_a_from_tau_grid
   public :: electron_powerlaw_interp, electron_log_gauss2_interval, electron_integrate_powerlaw_segment, electron_ssa_segment
@@ -353,7 +353,11 @@ real(8) :: nu_edge(Num_nu+1),nu_b,nu0,gamma_mid,beta2,n_e_seg,p_total,p_nu,trans
 real(8) :: r2,temp_para
 
     if (DB <= zero) return
-    call build_log_frequency_edges(Num_nu,V_seed,nu_edge)
+    nu_edge(1)=V_seed(1)*dsqrt(V_seed(1)/V_seed(2))
+    do I_nu=2,Num_nu
+        nu_edge(I_nu)=dsqrt(V_seed(I_nu-1)*V_seed(I_nu))
+    end do
+    nu_edge(Num_nu+1)=V_seed(Num_nu)*dsqrt(V_seed(Num_nu)/V_seed(Num_nu-1))
     nu_b=para_e*DB/(two*pi*para_m_e*para_c)
     r2=R_loc*R_loc
     temp_para=4d0*pi*para_c*para_h
@@ -375,20 +379,6 @@ real(8) :: r2,temp_para
         Seed_syn(I_nu)=Seed_syn(I_nu)+p_nu*transfer/(r2*V_seed(I_nu)*temp_para)
     end do
 end subroutine add_cyclotron_fundamental
-
-subroutine build_log_frequency_edges(Num_nu,V_seed,nu_edge)
-implicit none
-integer, intent(in) :: Num_nu
-integer :: I_nu
-real(8), intent(in) :: V_seed(Num_nu)
-real(8), intent(out) :: nu_edge(Num_nu+1)
-
-    nu_edge(1)=V_seed(1)*dsqrt(V_seed(1)/V_seed(2))
-    do I_nu=2,Num_nu
-        nu_edge(I_nu)=dsqrt(V_seed(I_nu-1)*V_seed(I_nu))
-    end do
-    nu_edge(Num_nu+1)=V_seed(Num_nu)*dsqrt(V_seed(Num_nu)/V_seed(Num_nu-1))
-end subroutine build_log_frequency_edges
 
 ! 同步辐射F(x)核：F(x) = 1.81 e^(-x)/√(x^(-2/3)+factor)，x=ν/ν_c。
 real(8) function electron_syn_fx(gam,V_cal,DB,factor)
@@ -829,23 +819,6 @@ integer :: I_iter
     end if
 end subroutine refine_nu_a_bracket
 end subroutine get_nu_a
-
-! 2D路径积分ν_a：累加所有χ列的光深后求解τ_total(ν_a)=1。
-subroutine get_nu_a_2d_path(Num_nu,Num_chi,V_seed,Tau_chi,V_a)
-implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: Num_nu,Num_chi
-integer :: I_nu
-real(8), intent(in) :: V_seed(Num_nu),Tau_chi(Num_nu,Num_chi)
-real(8), intent(out) :: V_a
-real(8) :: Tau_path(Num_nu)
-
-    Tau_path=zero
-    do I_nu=1,Num_nu
-        Tau_path(I_nu)=sum(Tau_chi(I_nu,:))
-    end do
-
-    call get_nu_a_from_tau_grid(Num_nu,V_seed,Tau_path,V_a)
-end subroutine get_nu_a_2d_path
 
 ! 2D逐列ν_a：对每个χ列累加光深后求解τ_cumul(ν_a)=1，输出各列ν_a(χ)。
 subroutine get_nu_a_2d_cell_path(Num_nu,Num_chi,V_seed,Tau_chi,V_a_chi)

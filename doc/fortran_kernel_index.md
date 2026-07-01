@@ -2,7 +2,7 @@
 
 本文是当前工作树的 Fortran kernel 索引。它面向需要逐个进入子程序读算法的人：先看 f2py 入口和物理阶段，再进入文件内的 `module`、`subroutine`、`function`。更高层的物理到算法映射见 `doc/physics_algorithm_crosswalk.md`，运行主链见 `doc/call_chain.md`。
 
-当前索引按 ASGARD 自有 Fortran 数值核抽取，排除第三方固定格式特殊函数依赖，共 798 个程序单元：35 个 module、556 个 subroutine、207 个 function。行号是生成本页时的源文件位置。
+当前索引按 ASGARD 自有 Fortran 数值核抽取，排除第三方固定格式特殊函数依赖，共 794 个程序单元：35 个 module、554 个 subroutine、205 个 function。行号是生成本页时的源文件位置。
 
 ## 读源码顺序
 
@@ -360,28 +360,27 @@ WENO5 方法比较电子输运入口。
 | `S` | 226 | `accumulate_simpson_syn_point` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
 | `S` | 245 | `build_reduced_log_grid` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
 | `S` | 274 | `project_syn_state_logbands` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `F` | 309 | `electron_syn_fx` | 同步辐射 kernel primitive。 |
-| `F` | 321 | `electron_linear_interp` | 插值 primitive。 |
-| `F` | 333 | `electron_syn_integrand_x` | 同步辐射 cell 积分 integrand。 |
-| `F` | 344 | `electron_powerlaw_interp` | log-log/power-law 插值 primitive。 |
-| `S` | 369 | `electron_log_gauss2_interval` | 积分权重或求积 primitive；影响谱积分精度。 |
-| `F` | 387 | `electron_integrate_powerlaw_segment` | power-law cell 积分 primitive。 |
-| `F` | 404 | `electron_ssa_segment` | SSA cell 光深积分 primitive。 |
-| `F` | 436 | `electron_tau_kernel_x` | SSA optical-depth kernel primitive。 |
-| `S` | 446 | `electron_syn_gauss_cell` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 470 | `electron_tau_gauss_cell` | 光深、SSA transfer 或 photon survival 相关算子。 |
-| `S` | 502 | `electron_syn_cell_adaptive` | 低层单 cell adaptive diagnostic helper；public selected path 默认仍是 fixed-grid。 |
-| `S` | 534 | `get_syn_polarization_selected` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 552 | `get_syn_polarization_fraction` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 587 | `get_syn_transfer` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 609 | `get_nu_a` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 681 | `evaluate_tau` | 光深、SSA transfer 或 photon survival 相关算子。 |
-| `S` | 699 | `refine_nu_a_bracket` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 746 | `get_nu_a_2d_path` | 2D/chi SSA break diagnostic。 |
-| `S` | 763 | `get_nu_a_2d_cell_path` | 2D/chi cell-level SSA break diagnostic。 |
-| `S` | 779 | `reduce_syn_shell_from_chi` | chi-local spectra 到 shell-level baseline 的 reduction helper。 |
-| `S` | 798 | `get_nu_a_from_tau_grid` | 从已计算 optical-depth grid 求 SSA break；避免重复 root search。 |
-| `S` | 841 | `interpolate_log_tau_root` | 光深、SSA transfer 或 photon survival 相关算子。 |
+| `F` | 384 | `electron_syn_fx` | 同步辐射 kernel primitive。 |
+| `F` | 396 | `electron_linear_interp` | 插值 primitive。 |
+| `F` | 408 | `electron_syn_integrand_x` | 同步辐射 cell 积分 integrand。 |
+| `F` | 419 | `electron_powerlaw_interp` | log-log/power-law 插值 primitive。 |
+| `S` | 444 | `electron_log_gauss2_interval` | 积分权重或求积 primitive；影响谱积分精度。 |
+| `F` | 462 | `electron_integrate_powerlaw_segment` | power-law cell 积分 primitive。 |
+| `F` | 479 | `electron_ssa_segment` | SSA cell 光深积分 primitive。 |
+| `F` | 511 | `electron_tau_kernel_x` | SSA optical-depth kernel primitive。 |
+| `S` | 521 | `electron_syn_gauss_cell` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
+| `S` | 545 | `electron_tau_gauss_cell` | 光深、SSA transfer 或 photon survival 相关算子。 |
+| `S` | 577 | `electron_syn_cell_adaptive` | 低层单 cell adaptive diagnostic helper；public selected path 默认仍是 fixed-grid。 |
+| `S` | 609 | `get_syn_polarization_selected` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
+| `S` | 627 | `get_syn_polarization_fraction` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
+| `S` | 662 | `get_syn_transfer` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
+| `S` | 687 | `get_nu_a` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 759 | `evaluate_tau` | 光深、SSA transfer 或 photon survival 相关算子。 |
+| `S` | 777 | `refine_nu_a_bracket` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 824 | `get_nu_a_2d_cell_path` | 2D/chi cell-level SSA break diagnostic。 |
+| `S` | 840 | `reduce_syn_shell_from_chi` | chi-local spectra 到 shell-level baseline 的 reduction helper。 |
+| `S` | 859 | `get_nu_a_from_tau_grid` | 从已计算 optical-depth grid 求 SSA break；避免重复 root search。 |
+| `S` | 902 | `interpolate_log_tau_root` | 光深、SSA transfer 或 photon survival 相关算子。 |
 
 ### `src/Electron/electron_reverse_kernel.f90`
 
@@ -401,29 +400,27 @@ WENO5 方法比较电子输运入口。
 | `S` | 463 | `prepare_reverse_transport_substep_state` | 取半步半径处的 RS 动力学量并更新冷却/注入能标。 |
 | `F` | 479 | `reverse_shell_linear_value` | 在相邻半径壳层之间线性插值反向激波动力学数组。 |
 | `F` | 489 | `reverse_dg_upper_break` | DG 高能活动边界；crossing 后跟踪冷却过的高能 front。 |
-| `F` | 499 | `reverse_dg_source_upper_xmax` | 由高能注入/冷却边界确定 DG 源项上界。 |
-| `F` | 507 | `reverse_dg_active_xmax` | 结合尾部能量矩阈值确定 DG 活动网格上界。 |
-| `F` | 521 | `reverse_dg_low_break` | DG 低能活动边界；处理近跨相对论 kinetic-source break。 |
-| `S` | 531 | `advance_reverse_dg_injection_front` | 推进或重置 crossing 后的注入能标 front。 |
-| `F` | 543 | `reverse_dg_injection_break` | DG 注入 break；crossing 后使用已冷却的 gamma_m front。 |
-| `S` | 550 | `advance_reverse_dg_front_value` | 对单个 DG break/front 施加同步冷却和绝热漂移。 |
-| `S` | 569 | `electron_secondary_reverse_evolve` | 次级反向激波电子演化入口；处理密度跳变分支和再加速分支。 |
-| `S` | 651 | `advance_secondary_transport_shell` | 次级 RS 分支的电子输运推进。 |
-| `S` | 692 | `electron_secondary_reverse_synchrotron` | 聚合次级 RS 分支同步辐射谱。 |
-| `S` | 717 | `electron_secondary_reverse_branch_synchrotron` | 单个次级 RS 分支同步辐射输出。 |
-| `S` | 749 | `electron_secondary_reverse_branch_reaccelerated` | 次级 RS 再加速电子分支输出。 |
-| `S` | 809 | `build_secondary_reaccel_gamma_grid` | 构造再加速分支 gamma 网格。 |
-| `S` | 834 | `transfer_reaccelerated_parent_electrons` | 把父分支电子谱转移到再加速分支网格。 |
-| `S` | 873 | `advance_reaccelerated_branch_shell` | 再加速分支的输运推进。 |
-| `S` | 917 | `prepare_branch_shell` | 读取单个次级分支在当前壳层的动力学和辐射参数。 |
-| `S` | 945 | `compute_branch_injection` | 次级分支注入归一化和能标。 |
-| `S` | 955 | `boost_log_distribution` | 对数谱的 Lorentz boost 重映射。 |
-| `S` | 980 | `dsa_reaccelerate_distribution` | DSA 再加速谱构造。 |
-| `F` | 997 | `distribution_energy_from_log` | 对数电子谱能量积分。 |
-| `F` | 1005 | `reverse_transport_substeps` | 根据冷却步长和求解器类型选择反向输运子步数。 |
-| `F` | 1017 | `reverse_dg_kinetic_break` | 反向 DG kinetic source 的低能 break。 |
-| `S` | 1025 | `reverse_dg_grid_sequence` | 根据低/注入/高能 break 构造 DG 网格序列。 |
-| `F` | 1080 | `reverse_interp_log_grid` | 在对数 gamma 网格上插值正谱/冷却量。 |
+| `F` | 499 | `reverse_dg_active_xmax` | 结合尾部能量矩阈值确定 DG 活动网格上界。 |
+| `F` | 514 | `reverse_dg_low_break` | DG 低能活动边界；处理近跨相对论 kinetic-source break。 |
+| `S` | 524 | `advance_reverse_dg_injection_front` | 推进或重置 crossing 后的注入能标 front。 |
+| `F` | 536 | `reverse_dg_injection_break` | DG 注入 break；crossing 后使用已冷却的 gamma_m front。 |
+| `S` | 543 | `advance_reverse_dg_front_value` | 对单个 DG break/front 施加同步冷却和绝热漂移。 |
+| `S` | 562 | `electron_secondary_reverse_evolve` | 次级反向激波电子演化入口；处理密度跳变分支和再加速分支。 |
+| `S` | 644 | `advance_secondary_transport_shell` | 次级 RS 分支的电子输运推进。 |
+| `S` | 685 | `electron_secondary_reverse_synchrotron` | 聚合次级 RS 分支同步辐射谱。 |
+| `S` | 710 | `electron_secondary_reverse_branch_synchrotron` | 单个次级 RS 分支同步辐射输出。 |
+| `S` | 742 | `electron_secondary_reverse_branch_reaccelerated` | 次级 RS 再加速电子分支输出。 |
+| `S` | 802 | `build_secondary_reaccel_gamma_grid` | 构造再加速分支 gamma 网格。 |
+| `S` | 827 | `transfer_reaccelerated_parent_electrons` | 把父分支电子谱转移到再加速分支网格。 |
+| `S` | 866 | `advance_reaccelerated_branch_shell` | 再加速分支的输运推进。 |
+| `S` | 910 | `prepare_branch_shell` | 读取单个次级分支在当前壳层的动力学和辐射参数。 |
+| `S` | 938 | `compute_branch_injection` | 次级分支注入归一化和能标。 |
+| `S` | 948 | `boost_log_distribution` | 对数谱的 Lorentz boost 重映射。 |
+| `S` | 973 | `dsa_reaccelerate_distribution` | DSA 再加速谱构造。 |
+| `F` | 990 | `distribution_energy_from_log` | 对数电子谱能量积分。 |
+| `F` | 998 | `reverse_transport_substeps` | 根据冷却步长和求解器类型选择反向输运子步数。 |
+| `S` | 1010 | `reverse_dg_grid_sequence` | 根据低/注入/高能 break 构造 DG 网格序列。 |
+| `F` | 1067 | `reverse_interp_log_grid` | 在对数 gamma 网格上插值正谱/冷却量。 |
 
 ### `src/Electron/electron_seed_history_kernel.f90`
 
