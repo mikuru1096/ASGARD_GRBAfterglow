@@ -145,7 +145,8 @@ subroutine hadronic_cascade_sequence(num_ph,num_e,num_shell,photon_energy_gev,pr
                                                    pair_inj_per_species,pair_inj_total, &
                                                    absorbed_local,injected_local)
             pair_source(1:num_e)=shell_volume*pair_inj_total(1:num_e)*hadronic_electron_mass_gev*dt_sub
-            call electron_loss_rates(num_e,gm_e,b_field_g(i_shell),dynamical_time(i_shell),pair_loss)
+            call electron_loss_rates(num_e,gm_e,b_field_g(i_shell), &
+                                     radius_cm(i_shell)/(gamma_bulk(i_shell)*Para_c),pair_loss)
             call advance_energy_loggamma(num_e,gm_e,gamma_edge,pair_current,pair_source,pair_loss,dt_sub,pair_next)
             pair_current(1:num_e)=pair_next(1:num_e)
 
@@ -208,11 +209,6 @@ contains
         if (dt_s <= zero) error stop "pair cascade sequence times must be strictly increasing."
         t_escape_s=radius_cm(i_shell_in)/(12d0*gamma_bulk(i_shell_in)*Para_c)
     end subroutine shell_geometry
-
-    real(8) function dynamical_time(i_shell_in)
-        integer, intent(in) :: i_shell_in
-        dynamical_time=radius_cm(i_shell_in)/(gamma_bulk(i_shell_in)*Para_c)
-    end function dynamical_time
 
     subroutine pair_synchrotron_state(i_shell_in,pair_state,p_syn,seed_syn)
         integer, intent(in) :: i_shell_in

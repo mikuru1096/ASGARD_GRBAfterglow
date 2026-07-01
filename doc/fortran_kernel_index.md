@@ -2,7 +2,7 @@
 
 本文是当前工作树的 Fortran kernel 索引。它面向需要逐个进入子程序读算法的人：先看 f2py 入口和物理阶段，再进入文件内的 `module`、`subroutine`、`function`。更高层的物理到算法映射见 `doc/physics_algorithm_crosswalk.md`，运行主链见 `doc/call_chain.md`。
 
-当前索引按 ASGARD 自有 Fortran 数值核抽取，排除第三方固定格式特殊函数依赖，共 794 个程序单元：35 个 module、554 个 subroutine、205 个 function。行号是生成本页时的源文件位置。
+当前索引按 ASGARD 自有 Fortran 数值核抽取，排除第三方固定格式特殊函数依赖，共 793 个程序单元：35 个 module、554 个 subroutine、204 个 function。行号是生成本页时的源文件位置。
 
 ## 读源码顺序
 
@@ -116,7 +116,7 @@ Fortran 改动后的最低门槛见 `doc/validation_and_benchmarks.md`。文档-
 | `S` | 391 | `dynamics_rk4_reverse_pre_m3` | pressure-ready 到 crossing/目标时刻的 pre-M3 推进。 |
 | `S` | 517 | `advance_pre_crossing_m3_step` | `dynamics_rk4_reverse_pre_m3` 内部 RK4 stage；不是独立物理边界。 |
 | `S` | 580 | `dynamics_rk4_reverse` | `select case` 展示 waiting、pre-crossing event split 和 post-crossing 推进。 |
-| `S` | 747 | `advance_reverse_logtime_phase` | `dynamics_rk4_reverse` 内部 log-time RK4 stage；phase 由外层 case 决定。 |
+| `S` | 728 | `advance_reverse_logtime_phase` | `dynamics_rk4_reverse` 内部 log-time RK4 stage；phase 由外层 case 决定。 |
 
 ### `src/Electron/adaptive_resampling_mod.f90`
 
@@ -802,16 +802,15 @@ gamma-gamma pair/synch shell-sequence cascade。
 | `S` | 71 | `evolve_pair_cooling_stage` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
 | `S` | 87 | `emit_pair_synchrotron_stage` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
 | `S` | 107 | `hadronic_cascade_sequence` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 174 | `validate_sequence_inputs` | 系统边界校验；用于拒绝外部输入或正式 kernel contract 违反。 |
-| `S` | 185 | `build_sequence_grids` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `S` | 197 | `shell_geometry` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 212 | `dynamical_time` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 217 | `pair_synchrotron_state` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 234 | `distribute_cooled_power` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 252 | `electron_loss_rates` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 262 | `advance_energy_loggamma` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `F` | 280 | `gamma_bin_index` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 294 | `advance_photon_density` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 175 | `validate_sequence_inputs` | 系统边界校验；用于拒绝外部输入或正式 kernel contract 违反。 |
+| `S` | 186 | `build_sequence_grids` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
+| `S` | 198 | `shell_geometry` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 213 | `pair_synchrotron_state` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
+| `S` | 232 | `distribute_cooled_power` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
+| `S` | 250 | `electron_loss_rates` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
+| `S` | 260 | `advance_energy_loggamma` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `F` | 278 | `gamma_bin_index` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 292 | `advance_photon_density` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
 
 ### `src/Hadronic/hadronic_pair_production_kernel.f90`
 
