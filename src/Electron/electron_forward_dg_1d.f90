@@ -104,10 +104,7 @@ subroutine fs_electron_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Nu
         call electron_initial_powerlaw_exp_cutoff_coord_edges(Para_N_e_ini, p, Gam_e_m, Gam_e_c, Gam_e_max, &
                                                               Num_gam_e, coord_edge, coord_scale, dN_x_init)
         call scale_dg_state_to_grid_content(state, dN_x_init)
-        call electron_dg1d_project_to_coord_cells(mesh, state, Num_gam_e, coord_edge, source_grid)
-        call electron_shell_dcoord_to_dndgamma_exp_centers(Num_gam_e, coord_edge, coord_scale, gam_e, &
-                                                           source_grid, dN_gam_e(:,1))
-        call enforce_output_positivity(1)
+        call write_positive_output(1)
     end subroutine initialize_forward_four_velocity_grid
 
     subroutine prepare_shell(I_tobs_local)
@@ -237,7 +234,7 @@ subroutine fs_electron_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Nu
         else if (abs(f_jump - one) > zero) then
             call limit_one_density_jump(R_tr, f_jump, f_wide, R_left, R_stop, dR_limited)
         endif
-        ! Inlined from limit_density_log_slope
+        ! Bound the substep by the local Gaussian density-jump logarithmic slope.
         R_probe = R_left + 0.5d0*dR_limited
         slope = density_jump_log_slope(R_probe)
         if (abs(slope) > zero) dR_limited = min(dR_limited, dg_jump_log_density_step/abs(slope))
@@ -338,7 +335,9 @@ subroutine fs_electron_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Nu
         call electron_dg1d_project_to_coord_cells(mesh, state, Num_gam_e, coord_edge, source_grid)
         call electron_shell_dcoord_to_dndgamma_exp_centers(Num_gam_e, coord_edge, coord_scale, gam_e, &
                                                            source_grid, dN_gam_e(:,I_tobs_local))
-        call enforce_output_positivity(I_tobs_local)
+        where (dN_gam_e(:,I_tobs_local) <= zero .or. .not. ieee_is_finite(dN_gam_e(:,I_tobs_local)))
+            dN_gam_e(:,I_tobs_local) = zero
+        end where
         call electron_dg1d_integral(mesh, state, dg_content_local)
         projected_content = sum(dN_gam_e(:,I_tobs_local)*gam_e*dlog(ten)*(x_edge(2:Num_gam_e+1) - x_edge(1:Num_gam_e)))
         if (.not. (dg_content_local > zero .and. ieee_is_finite(dg_content_local))) &
@@ -346,13 +345,5 @@ subroutine fs_electron_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Nu
         if (.not. (projected_content > zero .and. ieee_is_finite(projected_content))) &
             error stop 'fs_electron_dg_1d output projection lost positive content'
     end subroutine write_positive_output
-
-    subroutine enforce_output_positivity(I_tobs_local)
-        integer, intent(in) :: I_tobs_local
-
-        where (dN_gam_e(:,I_tobs_local) <= zero .or. .not. ieee_is_finite(dN_gam_e(:,I_tobs_local)))
-            dN_gam_e(:,I_tobs_local) = zero
-        end where
-    end subroutine enforce_output_positivity
 
 end subroutine fs_electron_dg_1d

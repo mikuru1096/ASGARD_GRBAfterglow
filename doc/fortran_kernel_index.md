@@ -237,23 +237,19 @@ log-gamma 与 log-four-velocity 坐标映射。
 | --- | ---: | --- | --- |
 | `S` | 2 | `fs_electron_dg_1d` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
 | `S` | 95 | `initialize_forward_four_velocity_grid` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `S` | 113 | `prepare_shell` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 135 | `write_radiation_and_breaks` | 特征 Lorentz 因子/断点诊断；用于注入、冷却或活动网格边界。 |
-| `S` | 147 | `remesh_shell` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 167 | `ensure_dg_work` | workspace/cache 管理；只服务性能和内存复用，不改变物理语义。 |
-| `S` | 177 | `prepare_dg_cooling` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 184 | `advance_substep` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 217 | `prepare_forward_dg_source` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
-| `S` | 236 | `limit_density_jump_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 252 | `limit_one_density_jump` | 介质密度或 density-jump 分支；直接影响 swept mass、动力学和注入源项。 |
-| `S` | 275 | `limit_density_log_slope` | 介质密度或 density-jump 分支；直接影响 swept mass、动力学和注入源项。 |
-| `F` | 285 | `density_jump_log_slope` | 介质密度或 density-jump 分支；直接影响 swept mass、动力学和注入源项。 |
-| `S` | 303 | `add_density_jump_derivative` | 介质密度或 density-jump 分支；直接影响 swept mass、动力学和注入源项。 |
-| `F` | 315 | `forward_dg_source_upper_xmax` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
-| `F` | 323 | `forward_dg_active_xmax` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 337 | `scale_dg_state_to_grid_content` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `S` | 349 | `write_positive_output` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 365 | `enforce_output_positivity` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 110 | `prepare_shell` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 129 | `write_radiation_and_breaks` | 特征 Lorentz 因子/断点诊断；用于注入、冷却或活动网格边界。 |
+| `S` | 141 | `remesh_shell` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 171 | `advance_substep` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 204 | `prepare_forward_dg_source` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
+| `S` | 223 | `limit_density_jump_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 243 | `limit_one_density_jump` | 介质密度或 density-jump 分支；直接影响 swept mass、动力学和注入源项。 |
+| `F` | 266 | `density_jump_log_slope` | 介质密度或 density-jump 分支；直接影响 swept mass、动力学和注入源项。 |
+| `S` | 284 | `add_density_jump_derivative` | 介质密度或 density-jump 分支；直接影响 swept mass、动力学和注入源项。 |
+| `F` | 296 | `forward_dg_source_upper_xmax` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
+| `F` | 304 | `forward_dg_active_xmax` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 318 | `scale_dg_state_to_grid_content` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
+| `S` | 331 | `write_positive_output` | DG 状态投影回用户 gamma 网格，并在输出边界显式施加非负电子谱。 |
 
 ### `src/Electron/electron_forward_fullhide_1d.f90`
 
