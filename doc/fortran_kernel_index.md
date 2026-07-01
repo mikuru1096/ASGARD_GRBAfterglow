@@ -2,7 +2,7 @@
 
 本文是当前工作树的 Fortran kernel 索引。它面向需要逐个进入子程序读算法的人：先看 f2py 入口和物理阶段，再进入文件内的 `module`、`subroutine`、`function`。更高层的物理到算法映射见 `doc/physics_algorithm_crosswalk.md`，运行主链见 `doc/call_chain.md`。
 
-当前索引按 ASGARD 自有 Fortran 数值核抽取，排除第三方固定格式特殊函数依赖，共 803 个程序单元：35 个 module、560 个 subroutine、208 个 function。行号是生成本页时的源文件位置。
+当前索引按 ASGARD 自有 Fortran 数值核抽取，排除第三方固定格式特殊函数依赖，共 801 个程序单元：35 个 module、559 个 subroutine、207 个 function。行号是生成本页时的源文件位置。
 
 ## 读源码顺序
 
@@ -471,26 +471,24 @@ finite-q 几何、q 方向对流/扩散和 2D 能量推进。
 | `S` | 90 | `compute_downstream_comoving_grid` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
 | `S` | 115 | `get_shock_transport_state` | 局部 helper；语义由所在文件的算法阶段决定。 |
 | `S` | 131 | `compute_q_divergence` | finite-q shell 几何或 chi-equivalent 投影字段。 |
-| `F` | 153 | `q_face_transport_coeff` | finite-q shell 几何或 chi-equivalent 投影字段。 |
-| `S` | 162 | `q_face_transport_coeffs` | finite-q shell 几何或 chi-equivalent 投影字段。 |
-| `F` | 174 | `compute_q_step_limit` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `F` | 189 | `eta_linear_hit_time` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 203 | `eta_trace_back_faces_piecewise` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `S` | 268 | `q_split_advection_faces` | finite-q shell 几何或 chi-equivalent 投影字段。 |
-| `F` | 287 | `q_depth_inverse_metric` | finite-q shell 几何或 chi-equivalent 投影字段。 |
-| `S` | 309 | `q_diffusion_face_coeffs` | finite-q shell 几何或 chi-equivalent 投影字段。 |
-| `S` | 334 | `build_q_advection_base_matrix` | q 方向对流矩阵 primitive。 |
-| `S` | 355 | `add_q_diffusion_to_matrix` | q 方向扩散矩阵 primitive。 |
-| `S` | 381 | `build_q_transport_base_matrix` | q 方向对流/扩散隐式矩阵组装。 |
-| `S` | 399 | `solve_tridiagonal` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 423 | `advance_q_advection_charint` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 454 | `advance_q_diffusion_implicit` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 483 | `advance_q_implicit` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 519 | `advance_q_pwncr_implicit` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 554 | `advance_energy_loggamma_chi` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 580 | `advance_energy_loggamma_chi_pwncr` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 605 | `advance_energy_stochastic_loggamma_chi` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 639 | `advance_energy_loggamma_chi_charint` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `F` | 154 | `compute_q_step_limit` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `F` | 170 | `eta_linear_hit_time` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 184 | `eta_trace_back_faces_piecewise` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
+| `S` | 249 | `q_split_advection_faces` | finite-q shell 几何或 chi-equivalent 投影字段。 |
+| `F` | 268 | `q_depth_inverse_metric` | finite-q shell 几何或 chi-equivalent 投影字段。 |
+| `S` | 290 | `q_diffusion_face_coeffs` | finite-q shell 几何或 chi-equivalent 投影字段。 |
+| `S` | 315 | `build_q_advection_base_matrix` | q 方向对流矩阵 primitive。 |
+| `S` | 336 | `add_q_diffusion_to_matrix` | q 方向扩散矩阵 primitive。 |
+| `S` | 362 | `build_q_transport_base_matrix` | q 方向对流/扩散隐式矩阵组装。 |
+| `S` | 384 | `solve_tridiagonal` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 408 | `advance_q_advection_charint` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 442 | `advance_q_diffusion_implicit` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 471 | `advance_q_implicit` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 507 | `advance_q_pwncr_implicit` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 542 | `advance_energy_loggamma_chi` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 568 | `advance_energy_loggamma_chi_pwncr` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 593 | `advance_energy_stochastic_loggamma_chi` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 627 | `advance_energy_loggamma_chi_charint` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
 
 ### `src/Electron/electron_transport_common.f90`
 

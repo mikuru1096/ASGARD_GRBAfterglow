@@ -150,36 +150,17 @@ subroutine compute_q_divergence(Num_chi,k_medium,R_loc,Gamma_f,beta_f,q_grid,adi
     adiabatic_log_coeff(Num_chi) = div_over_c/(3d0*beta_f*dlog(ten))
 end subroutine compute_q_divergence
 
-real(8) function q_face_transport_coeff(k_medium,R_loc,q_loc)
-    integer, intent(in) :: k_medium
-    real(8), intent(in) :: R_loc,q_loc
-    real(8) :: q_active
-
-    q_active = one-(one-one/sigma_strong_shock)**sigma_strong_shock
-    q_face_transport_coeff = dble(3-k_medium)*(q_active-q_loc)/R_loc
-end function q_face_transport_coeff
-
-subroutine q_face_transport_coeffs(k_medium,R_loc,Num_chi,q_face,A_q_face)
-    integer, intent(in) :: k_medium,Num_chi
-    real(8), intent(in) :: R_loc,q_face(0:Num_chi)
-    real(8), intent(out) :: A_q_face(1:Num_chi)
-    integer :: I_face
-
-    do I_face = 1, Num_chi
-        A_q_face(I_face) = q_face_transport_coeff(k_medium,R_loc,q_face(I_face))
-    end do
-end subroutine q_face_transport_coeffs
-
 ! 估计q方向对流子步长限制。
 real(8) function compute_q_step_limit(Num_chi,k_medium,R_loc,dq,q_face,cfl_factor)
     integer, intent(in) :: Num_chi,k_medium
     real(8), intent(in) :: R_loc,dq,q_face(0:Num_chi),cfl_factor
-    real(8) :: A_q_face,max_q_coeff
+    real(8) :: A_q_face,max_q_coeff,q_active
     integer :: I_chi
 
     max_q_coeff = zero
+    q_active = one-(one-one/sigma_strong_shock)**sigma_strong_shock
     do I_chi = 1, Num_chi
-        A_q_face = q_face_transport_coeff(k_medium,R_loc,q_face(I_chi))
+        A_q_face = dble(3-k_medium)*(q_active-q_face(I_chi))/R_loc
         max_q_coeff = max(max_q_coeff,dabs(A_q_face))
     end do
     compute_q_step_limit = huge(one)
@@ -386,10 +367,14 @@ subroutine build_q_transport_base_matrix(Num_chi,dq,q_face,k_medium,R_loc,Gamma_
     real(8), intent(in) :: dq,q_face(0:Num_chi),R_loc,Gamma_f,beta_sh,dR_step
     real(8), intent(out) :: lambda_q,diff_face_left_base(1:Num_chi),diff_face_right_base(1:Num_chi)
     real(8), intent(out) :: lower_base(Num_chi),diag_base(Num_chi),upper_base(Num_chi)
-    real(8) :: A_q_face(1:Num_chi)
+    real(8) :: A_q_face(1:Num_chi),q_active
+    integer :: I_face
 
     lambda_q = dR_step/dq
-    call q_face_transport_coeffs(k_medium, R_loc, Num_chi, q_face, A_q_face)
+    q_active = one-(one-one/sigma_strong_shock)**sigma_strong_shock
+    do I_face = 1, Num_chi
+        A_q_face(I_face) = dble(3-k_medium)*(q_active-q_face(I_face))/R_loc
+    end do
     call q_diffusion_face_coeffs(Num_chi,dq,q_face,k_medium,R_loc,Gamma_f,beta_sh,free_outer_escape, &
                                  diff_face_left_base,diff_face_right_base)
     call build_q_advection_base_matrix(Num_chi,lambda_q,A_q_face,lower_base,diag_base,upper_base)
@@ -426,13 +411,16 @@ subroutine advance_q_advection_charint(U_log, Num_gam_e, Num_chi, active_hi, dq,
     real(8), intent(inout) :: U_log(Num_gam_e, Num_chi)
     real(8), intent(in) :: dq, q_face(0:Num_chi), R_loc, source_q1(Num_gam_e), dR_step
 
-    real(8) :: A_q_face(0:Num_chi), q_back(0:Num_chi)
+    real(8) :: A_q_face(0:Num_chi), q_back(0:Num_chi), q_active
     real(8) :: U_q_in(Num_chi), U_q_out(Num_chi)
     real(8) :: ppm_left(Num_chi), ppm_right(Num_chi), prefix(0:Num_chi)
     integer :: I_gam_e, I_face
 
-    call q_face_transport_coeffs(k_medium, R_loc, Num_chi, q_face, A_q_face(1:))
-    A_q_face(0) = q_face_transport_coeff(k_medium, R_loc, q_face(0))
+    q_active = one-(one-one/sigma_strong_shock)**sigma_strong_shock
+    do I_face = 1, Num_chi
+        A_q_face(I_face) = dble(3-k_medium)*(q_active-q_face(I_face))/R_loc
+    end do
+    A_q_face(0) = dble(3-k_medium)*(q_active-q_face(0))/R_loc
     call eta_trace_back_faces_piecewise(Num_chi, dR_step, q_face, A_q_face, q_back)
 
     do I_gam_e = 1, active_hi

@@ -173,12 +173,16 @@ A_x
 \right).
 \]
 
-\(q\) 方向输运系数与代码 `q_face_transport_coeff` 对应：
+\(q\) 方向输运系数在 2D electron transport 的步长估计、隐式矩阵组装和特征线推进处内联计算：
 
 \[
 A_q(q,R)
 =
-\frac{3-k}{R}(1-q).
+\frac{3-k}{R}(q_{\rm active}-q),
+\quad
+q_{\rm active}
+=
+1-\left(1-\frac{1}{\sigma_{\rm strong}}\right)^{\sigma_{\rm strong}}.
 \]
 
 局域绝热冷却系数使用有限 \(q\)-shell 的下游速度场散度。代码在相邻 cell 中对 \(\beta(q)\) 与 \(r(q)\) 做有限差分：
