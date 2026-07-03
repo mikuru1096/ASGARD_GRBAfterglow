@@ -116,8 +116,8 @@ n'_i(R_{\rm col})
 MHD jump 给出压缩比 \(C_i(\gamma_{\rm rel},\sigma)\) 和下游热比内能 \(\epsilon_{{\rm th},i}(\gamma_{\rm rel},\sigma)\)。代码通过
 
 ```text
-dynamics_common.rs_vegas_comp
-dynamics_common.rs_mag_specific_internal
+reverse_shock_mhd_jump.rs_vegas_comp
+reverse_shock_mhd_jump.rs_mag_internal
 ```
 
 复用余辉反向激波基线。下游总压强写成热压强加 ordered magnetic pressure：
@@ -260,7 +260,7 @@ L'_{e}
 ```text
 BranchHistory
 -> electron_reverse_kernel.electron_reverse_evolve
--> electron_secondary_reverse_synchrotron
+-> multiple_synch
 -> Radiation.ssc_spec
 -> Radiation.annihilation
 -> prompt.eats.project_branch_flux

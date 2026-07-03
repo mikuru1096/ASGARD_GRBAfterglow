@@ -12,7 +12,7 @@ C           Schryer, N. L., (Bell Labs)
 C***DESCRIPTION
 C
 C   D1MACH can be used to obtain machine-dependent parameters for the
-C   local machine environment.  It is a function subprogram with one
+C   local machine environment.  It is a function subprogram with 1d0
 C   (input) argument, and can be referenced as follows:
 C
 C        D = D1MACH(I)

@@ -56,7 +56,7 @@ def case_structured_chi_ring_precomputed_matches_single_ring_chi():
     ring_boundary = np.array(boundary, copy=True)
     ring_boundary[8] = dtheta
 
-    precomputed = Interpolation.sed_interpolation_chi_structured_axisym_ring_precomputed(
+    precomputed = Interpolation.sed_chi_ring(
         boundary,
         r_tobs[:, 0],
         radius[:, 0],
@@ -109,7 +109,7 @@ def case_chi_electron_cached_top_hat_path():
     b_chi = 0.08 * (radius[None, :, 0] / radius[0, 0]) ** -0.6
     b_chi = b_chi * (1.0 + 0.04 * np.arange(num_chi, dtype=float)[:, None])
 
-    flux = Interpolation.sed_interpolation_chi_electron_cached(
+    flux = Interpolation.sed_chi_electron(
         boundary,
         r_tobs[:, 0],
         radius[:, 0],

@@ -10,7 +10,7 @@ C***KEYWORDS  ERROR MESSAGES, PRINTING, XERROR
 C***AUTHOR  Fong, Kirby, (NMFECC at LLNL)
 C***DESCRIPTION
 C
-C This routine sends one or more lines to each of the (up to five)
+C This routine sends 1d0 or more lines to each of the (up to five)
 C logical units to which error messages are to be sent.  This routine
 C is called several times by XERMSG, sometimes with a single line to
 C print and sometimes with a (potentially very long) message that may
@@ -24,7 +24,7 @@ C
 C NPREF   Input argument of type INTEGER.  This argument is the number
 C         of characters to use from PREFIX.  If it is negative, the
 C         intrinsic function LEN is used to determine its length.  If
-C         it is zero, PREFIX is not used.  If it exceeds 16 or if
+C         it is 0d0, PREFIX is not used.  If it exceeds 16 or if
 C         LEN(PREFIX) exceeds 16, only the first 16 characters will be
 C         used.  If NPREF is positive and the length of PREFIX is less
 C         than NPREF, a copy of PREFIX extended with blanks to length

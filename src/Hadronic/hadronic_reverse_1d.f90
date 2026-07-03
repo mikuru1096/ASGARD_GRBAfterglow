@@ -1,76 +1,81 @@
-! 反向激波强子核心：质子注入-冷却-输运-同步辐射，复用 hadronic 核。
-subroutine fs_hadronic_reverse_1d(R_Tobs,R_Gamma,R,shell_energy_inj_erg,B_field_g,V_seed, &
+! 反向激波强子 light path：质子注入、冷却输运、质子同步辐射。
+! Reverse-shock hadronic light path: proton injection, transport, and proton synchrotron.
+subroutine reverse_hadronic_1d(R_Tobs,R_Gamma,R,shell_energy_inj_erg,B_field_g,V_seed, &
                                   include_proton_synch,Num_nu,Num_R,num_gam_p, &
                                   gam_p,dN_gam_p,P_had_syn,Seed_had_syn)
     use constants
-    use hadronic_common
-    use hadronic_transport_kernel
-    use hadronic_radiation_kernel
-    implicit real(8)(A-H,O-Z)
+    use hadronic_base
+    use hadronic_transport
+    use hadronic_rad, only: proton_syn
+    implicit none
     integer, intent(in) :: include_proton_synch,Num_nu,Num_R,num_gam_p
-    real(8), intent(in) :: R_Tobs(Num_R),R_Gamma(Num_R),R(Num_R),shell_energy_inj_erg(Num_R)
-    real(8), intent(in) :: B_field_g(Num_R),V_seed(Num_nu)
-    real(8), intent(out) :: gam_p(num_gam_p),dN_gam_p(num_gam_p,Num_R)
-    real(8), intent(out) :: P_had_syn(Num_nu,Num_R),Seed_had_syn(Num_nu,Num_R)
-    integer :: I_R
-    real(8) :: gam_p_max_global,t_dyn_s,dt_s,gam_p_min,energy_budget_erg
-    real(8) :: dN_prev(num_gam_p),dN_next(num_gam_p),Q_inj(num_gam_p)
-    real(8) :: loss_ad(num_gam_p),loss_syn(num_gam_p),loss_total(num_gam_p)
+    real(8), intent(in), dimension(Num_R) :: R_Tobs,R_Gamma,R,shell_energy_inj_erg
+    real(8), intent(in), dimension(Num_R) :: B_field_g
+    real(8), intent(in), dimension(Num_nu) :: V_seed
+    real(8), intent(out), dimension(num_gam_p) :: gam_p
+    real(8), intent(out), dimension(num_gam_p,Num_R) :: dN_gam_p
+    real(8), intent(out), dimension(Num_nu,Num_R) :: P_had_syn,Seed_had_syn
+    integer :: ir
+    real(8) :: gmax,tdyn,dt,gmin,ebudget
+    real(8), dimension(num_gam_p) :: dnprev,dnnext,qinj
+    real(8), dimension(num_gam_p) :: lossad,losssyn,losstot
 
-    call initialize_reverse_proton_grid()
-    dN_prev=zero
+    call init_grid()
+    dnprev=0d0
 
-    dN_gam_p=zero
-    P_had_syn=zero
-    Seed_had_syn=zero
+    dN_gam_p=0d0
+    P_had_syn=0d0
+    Seed_had_syn=0d0
 
-    do I_R=1,Num_R
-        call advance_reverse_hadronic_shell(I_R)
-        call emit_reverse_proton_synchrotron(I_R)
-        dN_prev=dN_next
+    do ir=1,Num_R
+        call advance_shell(ir)
+        call emit_syn(ir)
+        dnprev=dnnext
     end do
 
 contains
 
-    subroutine initialize_reverse_proton_grid()
-    implicit none
+    ! 用所有 RS shell 的最大可加速能量建立统一 proton gamma grid。
+    ! Build a single proton gamma grid from the maximum acceleration limit over RS shells.
+    subroutine init_grid()
+        implicit none
 
-        t_dyn_s=hadronic_dynamical_time(R(1),R_Gamma(1))
-        gam_p_max_global=hadronic_gamma_p_max(B_field_g(1),t_dyn_s,ten)
-        do I_R=2,Num_R
-            t_dyn_s=hadronic_dynamical_time(R(I_R),R_Gamma(I_R))
-            gam_p_max_global=max(gam_p_max_global,hadronic_gamma_p_max( &
-                B_field_g(I_R),t_dyn_s,ten))
+        tdyn=dyn_time(R(1),R_Gamma(1))
+        gmax=proton_limit(B_field_g(1),tdyn,1d1)
+        do ir=2,Num_R
+            tdyn=dyn_time(R(ir),R_Gamma(ir))
+            gmax=max(gmax,proton_limit(B_field_g(ir),tdyn,1d1))
         end do
-        if (gam_p_max_global <= one+1d-3) error stop "reverse hadronic gamma_p_max must exceed the injection grid minimum."
-        call hadronic_build_gamma_p_grid(num_gam_p,one+1d-3,gam_p_max_global,gam_p)
-    end subroutine initialize_reverse_proton_grid
+        if (gmax <= 1d0+1d-3) error stop "reverse hadronic gamma_p_max must exceed the injection grid minimum."
+        call build_grid(num_gam_p,1d0+1d-3,gmax,gam_p)
+    end subroutine init_grid
 
-    subroutine advance_reverse_hadronic_shell(I_R)
-    implicit none
-    integer, intent(in) :: I_R
+    ! 单个 RS shell：注入 proton source，再用 log-gamma transport 推进。
+    ! One RS shell: inject proton source, then advance in log-gamma transport.
+    subroutine advance_shell(ir)
+        implicit none
+        integer, intent(in) :: ir
 
-        dt_s=hadronic_shell_dt(R_Tobs,I_R)
-        t_dyn_s=hadronic_dynamical_time(R(I_R),R_Gamma(I_R))
-        if (shell_energy_inj_erg(I_R) < zero) error stop "reverse hadronic shell injection energy must be non-negative."
-        energy_budget_erg=shell_energy_inj_erg(I_R)
-        gam_p_min=max(gam_p(1),R_Gamma(I_R))
-        call hadronic_proton_injection_powerlaw(num_gam_p,gam_p,2.2d0,energy_budget_erg, &
-                                                gam_p_min,gam_p(num_gam_p),Q_inj)
-        call hadronic_proton_loss_rates(num_gam_p,gam_p,B_field_g(I_R), &
-                                        t_dyn_s,loss_ad,loss_syn,loss_total)
-        call hadronic_advance_energy_loggamma(num_gam_p,gam_p,dN_prev,Q_inj,loss_total,dt_s,dN_next)
-        dN_gam_p(:,I_R)=dN_next
-    end subroutine advance_reverse_hadronic_shell
+        dt=shell_dt(R_Tobs,ir)
+        tdyn=dyn_time(R(ir),R_Gamma(ir))
+        if (shell_energy_inj_erg(ir) < 0d0) error stop "reverse hadronic shell injection energy must be non-negative."
+        ebudget=shell_energy_inj_erg(ir)
+        gmin=max(gam_p(1),R_Gamma(ir))
+        call proton_inject(num_gam_p,gam_p,2.2d0,ebudget,gmin,gam_p(num_gam_p),qinj)
+        call proton_loss(num_gam_p,gam_p,B_field_g(ir),tdyn,lossad,losssyn,losstot)
+        call advance_loggamma(num_gam_p,gam_p,dnprev,qinj,losstot,dt,dnnext)
+        dN_gam_p(:,ir)=dnnext
+    end subroutine advance_shell
 
-    subroutine emit_reverse_proton_synchrotron(I_R)
-    implicit none
-    integer, intent(in) :: I_R
+    ! 可选 proton synch 输出，使用当前 shell transport 结果。
+    ! Optional proton synchrotron output from the current shell spectrum.
+    subroutine emit_syn(ir)
+        implicit none
+        integer, intent(in) :: ir
 
         if (include_proton_synch /= 0) then
-            call hadronic_get_proton_syn_state(R(I_R),B_field_g(I_R), &
-                                               num_gam_p,Num_nu,gam_p,dN_next, &
-                                               V_seed,P_had_syn(:,I_R),Seed_had_syn(:,I_R))
+            call proton_syn(R(ir),B_field_g(ir),num_gam_p,Num_nu,gam_p,dnnext, &
+                            V_seed,P_had_syn(:,ir),Seed_had_syn(:,ir))
         end if
-    end subroutine emit_reverse_proton_synchrotron
-end subroutine fs_hadronic_reverse_1d
+    end subroutine emit_syn
+end subroutine reverse_hadronic_1d

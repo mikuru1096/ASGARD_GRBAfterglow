@@ -662,7 +662,7 @@ M_{B,{\rm eff}}
 
 VegasAfterglow 在这里只作为 jump-condition comparison backend，不是光变目标或全局动力学基准。
 
-磁化反向激波动力学在每个平滑分支内由 `dynamics_rk4_reverse` 系列 RK4 步推进，右端项平滑且没有事件端点时全局为四阶：
+磁化反向激波动力学在每个平滑分支内由 `advance_reverse_logtime` 系列 RK4 步推进，右端项平滑且没有事件端点时全局为四阶：
 
 \[
 Y(R)-Y_{\Delta R}(R)

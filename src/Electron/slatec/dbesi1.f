@@ -2,7 +2,7 @@
       DOUBLE PRECISION FUNCTION DBESI1 (X)
 C***BEGIN PROLOGUE  DBESI1
 C***PURPOSE  Compute the modified (hyperbolic) Bessel function of the
-C            first kind of order one.
+C            first kind of order 1d0.
 C***LIBRARY   SLATEC (FNLIB)
 C***CATEGORY  C10B1
 C***TYPE      DOUBLE PRECISION (BESI1-S, DBESI1-D)
@@ -12,7 +12,7 @@ C***AUTHOR  Fullerton, W., (LANL)
 C***DESCRIPTION
 C
 C DBESI1(X) calculates the double precision modified (hyperbolic)
-C Bessel function of the first kind of order one and double precision
+C Bessel function of the first kind of order 1d0 and double precision
 C argument X.
 C
 C Series for BI1        on the interval  0.          to  9.00000E+00

@@ -862,7 +862,7 @@ C_i\epsilon_{{\rm th},i}n'_i m_pc^2
 ```text
 BranchHistory
 -> electron_reverse_kernel.electron_reverse_evolve
--> electron_secondary_reverse_synchrotron
+-> multiple_synch
 -> Radiation.ssc_spec
 -> Radiation.annihilation
 -> prompt.eats.project_branch_flux

@@ -501,10 +501,10 @@ N_{\rm thread,eff}=\min(N_{\rm thread},N_\chi,4),
 | \(\gamma_e\) 网格 | `electron_common.f90` |
 | \(q/\chi_{\rm BM}\) 几何 | `electron_transport_2d_kernel.f90` |
 | 注入源项 \(Q_e\) | `electron_injection_profiles.f90` |
-| 冷却系数 \(A_x\) | `electron_cooling_kernel.f90` facade；SSA/IC/Y 实现见对应 `electron_cooling_*_kernel.f90` |
+| 冷却系数 \(A_x\) | `electron_cooling_kernel.f90` 组装层；SSA/IC/Y 实现见对应 `electron_cooling_*_kernel.f90` |
 | FS/RS shared 1D transport wrapper | `electron_shell_transport_common.f90` |
 | 1D 隐式迎风 | `electron_transport_common.f90` |
-| 1D LGL-DG | `electron_transport_dg_1d_kernel.f90` |
+| 1D LGL-DG | `electron_dg_transport.f90` |
 | 1D 特征线 | `electron_transport_common.f90` |
 | 2D \(q\) 输运 | `electron_transport_2d_kernel.f90` |
 | 2D 能量输运 | `electron_transport_2d_kernel.f90` |

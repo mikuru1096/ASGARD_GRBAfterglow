@@ -2,7 +2,7 @@
       DOUBLE PRECISION FUNCTION DBSI0E (X)
 C***BEGIN PROLOGUE  DBSI0E
 C***PURPOSE  Compute the exponentially scaled modified (hyperbolic)
-C            Bessel function of the first kind of order zero.
+C            Bessel function of the first kind of order 0d0.
 C***LIBRARY   SLATEC (FNLIB)
 C***CATEGORY  C10B1
 C***TYPE      DOUBLE PRECISION (BESI0E-S, DBSI0E-D)
@@ -14,7 +14,7 @@ C***DESCRIPTION
 C
 C DBSI0E(X) calculates the double precision exponentially scaled
 C modified (hyperbolic) Bessel function of the first kind of order
-C zero for double precision argument X.  The result is the Bessel
+C 0d0 for double precision argument X.  The result is the Bessel
 C function I0(X) multiplied by EXP(-ABS(X)).
 C
 C Series for BI0        on the interval  0.          to  9.00000E+00

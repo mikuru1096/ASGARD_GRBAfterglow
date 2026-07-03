@@ -1,93 +1,96 @@
 !f2py: skip
-module electron_energy_coordinate_common
+module electron_coord_common
     use constants
     implicit none
     private
 
-    integer, parameter, public :: electron_coord_log_gamma = 1
-    integer, parameter, public :: electron_coord_log_four_velocity_sq = 2
-    real(8), parameter, public :: electron_four_velocity_grid_gamma_scale = 2d0
+    integer, parameter, public :: coord_loggamma=1,coord_fourvel=2
+    real(8), parameter, public :: fourvel_scale=2d0
 
-    public :: electron_coord_from_xgamma, electron_xgamma_from_coord
-    public :: electron_gamma_from_coord, electron_dxgamma_dcoord
-    public :: electron_build_four_velocity_grid
+    public :: coord_from_xg, xg_from_coord
+    public :: gamma_from_coord, dxg_dcoord
+    public :: build_fourvel_grid
 
 contains
 
-pure real(8) function electron_coord_from_xgamma(coord_kind, coord_scale, x_gamma) result(coord)
-    integer, intent(in) :: coord_kind
-    real(8), intent(in) :: coord_scale, x_gamma
-    real(8) :: gamma, four_velocity_sq
+! 在 log-gamma 与 log four-velocity 坐标之间转换网格坐标。
+! Convert grid coordinates between log-gamma and log four-velocity forms.
+pure real(8) function coord_from_xg(kind,scale,xg) result(coord)
+    integer, intent(in) :: kind
+    real(8), intent(in) :: scale,xg
+    real(8) :: gamma,fourv
 
-    select case (coord_kind)
-    case (electron_coord_log_gamma)
-        coord = x_gamma
-    case (electron_coord_log_four_velocity_sq)
-        gamma = ten**x_gamma
-        four_velocity_sq = gamma*gamma - one
-        coord = dlog10(one + four_velocity_sq/coord_scale)
+    select case (kind)
+    case (coord_loggamma)
+        coord=xg
+    case (coord_fourvel)
+        gamma=1d1**xg
+        fourv=gamma*gamma-1d0
+        coord=dlog10(1d0+fourv/scale)
     end select
-end function electron_coord_from_xgamma
+end function coord_from_xg
 
-pure real(8) function electron_xgamma_from_coord(coord_kind, coord_scale, coord) result(x_gamma)
-    integer, intent(in) :: coord_kind
-    real(8), intent(in) :: coord_scale, coord
+pure real(8) function xg_from_coord(kind,scale,coord) result(xg)
+    integer, intent(in) :: kind
+    real(8), intent(in) :: scale,coord
 
-    select case (coord_kind)
-    case (electron_coord_log_gamma)
-        x_gamma = coord
-    case (electron_coord_log_four_velocity_sq)
-        x_gamma = dlog10(dsqrt(one + coord_scale*(ten**coord - one)))
+    select case (kind)
+    case (coord_loggamma)
+        xg=coord
+    case (coord_fourvel)
+        xg=dlog10(dsqrt(1d0+scale*(1d1**coord-1d0)))
     end select
-end function electron_xgamma_from_coord
+end function xg_from_coord
 
-pure real(8) function electron_gamma_from_coord(coord_kind, coord_scale, coord) result(gamma)
-    integer, intent(in) :: coord_kind
-    real(8), intent(in) :: coord_scale, coord
+pure real(8) function gamma_from_coord(kind,scale,coord) result(gamma)
+    integer, intent(in) :: kind
+    real(8), intent(in) :: scale,coord
 
-    select case (coord_kind)
-    case (electron_coord_log_gamma)
-        gamma = ten**coord
-    case (electron_coord_log_four_velocity_sq)
-        gamma = dsqrt(one + coord_scale*(ten**coord - one))
+    select case (kind)
+    case (coord_loggamma)
+        gamma=1d1**coord
+    case (coord_fourvel)
+        gamma=dsqrt(1d0+scale*(1d1**coord-1d0))
     end select
-end function electron_gamma_from_coord
+end function gamma_from_coord
 
-pure real(8) function electron_dxgamma_dcoord(coord_kind, coord_scale, coord) result(dxdy)
-    integer, intent(in) :: coord_kind
-    real(8), intent(in) :: coord_scale, coord
+pure real(8) function dxg_dcoord(kind,scale,coord) result(dxdy)
+    integer, intent(in) :: kind
+    real(8), intent(in) :: scale,coord
     real(8) :: gamma
 
-    select case (coord_kind)
-    case (electron_coord_log_gamma)
-        dxdy = one
-    case (electron_coord_log_four_velocity_sq)
-        gamma = dsqrt(one + coord_scale*(ten**coord - one))
-        dxdy = coord_scale*ten**coord/(two*gamma*gamma)
+    select case (kind)
+    case (coord_loggamma)
+        dxdy=1d0
+    case (coord_fourvel)
+        gamma=dsqrt(1d0+scale*(1d1**coord-1d0))
+        dxdy=scale*1d1**coord/(2d0*gamma*gamma)
     end select
-end function electron_dxgamma_dcoord
+end function dxg_dcoord
 
-subroutine electron_build_four_velocity_grid(num_gamma, gamma_min, gamma_max, coord_gamma_scale, &
-                                             gamma_grid, coord_edge, x_edge)
-    integer, intent(in) :: num_gamma
+! 构造 log four-velocity 网格，同时返回对应 log-gamma cell edge。
+! Build the log four-velocity grid and return matching log-gamma cell edges.
+subroutine build_fourvel_grid(ng,gmin,gmax,gscale,gam,coord_edge,xedge)
+    integer, intent(in) :: ng
     integer :: i
-    real(8), intent(in) :: gamma_min, gamma_max, coord_gamma_scale
-    real(8), intent(out) :: gamma_grid(num_gamma), coord_edge(num_gamma+1), x_edge(num_gamma+1)
-    real(8) :: coord_min, coord_max, coord_mid, coord_scale
+    real(8), intent(in) :: gmin,gmax,gscale
+    real(8), intent(out), dimension(ng) :: gam
+    real(8), intent(out), dimension(ng+1) :: coord_edge,xedge
+    real(8) :: cmin,cmax,cmid,scale
 
-    if (coord_gamma_scale <= one) error stop 'electron_build_four_velocity_grid requires coord_gamma_scale > 1.'
-    if (gamma_max <= gamma_min) error stop 'electron_build_four_velocity_grid requires gamma_max > gamma_min.'
-    coord_scale = coord_gamma_scale*coord_gamma_scale - one
-    coord_min = dlog10(one + (gamma_min*gamma_min - one)/coord_scale)
-    coord_max = dlog10(one + (gamma_max*gamma_max - one)/coord_scale)
-    do i = 1, num_gamma + 1
-        coord_edge(i) = coord_min + (coord_max - coord_min)*dble(i - 1)/dble(num_gamma)
-        x_edge(i) = dlog10(dsqrt(one + coord_scale*(ten**coord_edge(i) - one)))
+    if (gscale <= 1d0) error stop 'build_fourvel_grid requires gscale > 1.'
+    if (gmax <= gmin) error stop 'build_fourvel_grid requires gmax > gmin.'
+    scale=gscale*gscale-1d0
+    cmin=dlog10(1d0+(gmin*gmin-1d0)/scale)
+    cmax=dlog10(1d0+(gmax*gmax-1d0)/scale)
+    do i=1,ng+1
+        coord_edge(i)=cmin+(cmax-cmin)*dble(i-1)/dble(ng)
+        xedge(i)=dlog10(dsqrt(1d0+scale*(1d1**coord_edge(i)-1d0)))
     enddo
-    do i = 1, num_gamma
-        coord_mid = 0.5d0*(coord_edge(i) + coord_edge(i + 1))
-        gamma_grid(i) = dsqrt(one + coord_scale*(ten**coord_mid - one))
+    do i=1,ng
+        cmid=0.5d0*(coord_edge(i)+coord_edge(i+1))
+        gam(i)=dsqrt(1d0+scale*(1d1**cmid-1d0))
     enddo
-end subroutine electron_build_four_velocity_grid
+end subroutine build_fourvel_grid
 
-end module electron_energy_coordinate_common
+end module electron_coord_common

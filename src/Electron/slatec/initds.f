@@ -13,7 +13,7 @@ C***DESCRIPTION
 C
 C  Initialize the orthogonal series, represented by the array OS, so
 C  that INITDS is the number of terms needed to insure the error is no
-C  larger than ETA.  Ordinarily, ETA will be chosen to be one-tenth
+C  larger than ETA.  Ordinarily, ETA will be chosen to be 1d0-tenth
 C  machine precision.
 C
 C             Input Arguments --

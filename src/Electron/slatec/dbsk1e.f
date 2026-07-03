@@ -2,7 +2,7 @@
       DOUBLE PRECISION FUNCTION DBSK1E (X)
 C***BEGIN PROLOGUE  DBSK1E
 C***PURPOSE  Compute the exponentially scaled modified (hyperbolic)
-C            Bessel function of the third kind of order one.
+C            Bessel function of the third kind of order 1d0.
 C***LIBRARY   SLATEC (FNLIB)
 C***CATEGORY  C10B1
 C***TYPE      DOUBLE PRECISION (BESK1E-S, DBSK1E-D)
@@ -14,7 +14,7 @@ C***DESCRIPTION
 C
 C DBSK1E(S) computes the double precision exponentially scaled
 C modified (hyperbolic) Bessel function of the third kind of order
-C one for positive double precision argument X.
+C 1d0 for positive double precision argument X.
 C
 C Series for BK1        on the interval  0.          to  4.00000E+00
 C                                        with weighted error   9.16E-32

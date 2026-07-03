@@ -32,7 +32,7 @@ C                      not cleared.
 C        NERR   :IN    is the error number.
 C        LEVEL  :IN    is the error severity.
 C        ICOUNT :OUT   the number of times this message has been seen,
-C                      or zero if the table has overflowed and does not
+C                      or 0d0 if the table has overflowed and does not
 C                      contain this message specifically.  When KFLAG=0,
 C                      ICOUNT will not be altered.
 C

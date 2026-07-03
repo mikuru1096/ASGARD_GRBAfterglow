@@ -5,10 +5,10 @@ from typing import Any
 
 
 _BINDINGS = {
-    "annihilation": "radiation_gamma_gamma_absorption",
+    "annihilation": "pair_absorption",
     "cal_ebl": "Cal_ebl",
-    "ssc_spec": "radiation_ssc_spectrum",
-    "ssc_spec_nonuniform": "radiation_ssc_spectrum",
+    "ssc_spec": "ssc_spectrum",
+    "ssc_spec_nonuniform": "ssc_spectrum",
 }
 
 

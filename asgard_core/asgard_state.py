@@ -7,9 +7,8 @@ from time import perf_counter
 import numpy as np
 
 from src.Electron.electron_radiation import electron_radiation_kernel as electron_radiation_module
-import src.Hadronic.hadronic_forward_1d as hadronic_legacy_module
 from asgard_core.asgard_config import ExecutionPolicy, RuntimeConfig, SimulationSetup
-from asgard_core.hadronic_processes import photon_density_hz_to_gev
+from asgard_core.hadronic_processes import photon_density_hz_to_gev, positive_loglog_interp
 from asgard_core.asgard_types import (
     BranchState,
     FluxComponents,
@@ -203,18 +202,18 @@ def _solver_label(config: RuntimeConfig, stage: str) -> str:
     if stage == "electron":
         solver_name = config.electron_solver.lower()
         electron_label_map = {
-            "fullhide_1d": "Electron.fs_electron_fullhide_1d",
-            "fullhide_2d": "Electron.fs_electron_transport_2d_core",
-            "dg_1d": "Electron.fs_electron_dg_1d",
-            "t2g1_1d": "Electron.fs_electron_t2g1_1d",
-            "slc1_1d": "Electron.fs_electron_slc1_1d",
-            "charint_1d": "Electron.fs_electron_charint_1d",
-            "charint_2d": "Electron.fs_electron_transport_2d_core",
-            "weno5_1d": "Electron.fs_electron_weno5_1d",
+            "fullhide_1d": "Electron.fs_fullhide_1d",
+            "fullhide_2d": "Electron.fs_transport_2d",
+            "dg_1d": "Electron.fs_dg_1d",
+            "t2g1_1d": "Electron.fs_t2g1_1d",
+            "slc1_1d": "Electron.fs_slc1_1d",
+            "charint_1d": "Electron.fs_charint_1d",
+            "charint_2d": "Electron.fs_transport_2d",
+            "weno5_1d": "Electron.fs_weno5_1d",
         }
         return electron_label_map.get(solver_name, f"Electron.{solver_name}")
     if stage == "hadronic":
-        return "Hadronic.fs_hadronic_1d"
+        return "Hadronic.hadronic_1d"
     raise ValueError(f"Unsupported solver stage: {stage}")
 
 
@@ -759,8 +758,8 @@ def _project_chi_fwd_sync(
     if _use_direct_chi_projection_contract(state.config):
         flux_sorted = _timed_call(
             timings,
-            "Interpolation.sed_interpolation_chi_electron_cached [fwd_sync]",
-            Interpolation.sed_interpolation_chi_electron_cached,
+            "Interpolation.sed_chi_electron [fwd_sync]",
+            Interpolation.sed_chi_electron,
             setup.boundary,
             state.components.fwd.characteristic_time_s,
             state.components.fwd.radius_cm,
@@ -1179,10 +1178,7 @@ def _interp_pair_density_to_electron_grid(
     density = np.asarray(pair_density, dtype=float)
     out = np.zeros((np.asarray(gam_e, dtype=float).size, density.shape[1]), dtype=float)
     for i_shell in range(density.shape[1]):
-        out[:, i_shell] = np.asarray(
-            hadronic_legacy_module.fs_hadronic_positive_loglog_interp(gamma_pair, density[:, i_shell], gam_e),
-            dtype=float,
-        )
+        out[:, i_shell] = positive_loglog_interp(gamma_pair, density[:, i_shell], gam_e)
     return out
 
 
@@ -1200,7 +1196,7 @@ def _solve_shell_transfer(args):
     i, radius, bfield, gam_e, d_n_gam_e_col, frequency = args
     if bfield <= 0.0:
         return i, None
-    transfer = electron_radiation_module.get_syn_transfer(
+    transfer = electron_radiation_module.syn_transfer(
         float(radius), float(bfield), 1, gam_e, d_n_gam_e_col, frequency)
     return i, transfer
 
@@ -1364,7 +1360,7 @@ def _merge_bh_into_forward_electrons(
     for i_shell in range(num_shell):
         if radius_cm[i_shell] <= 0.0 or magnetic_field_g[i_shell] <= 0.0:
             continue
-        _, p_syn_i, seed_syn_i, _ = electron_radiation_module.get_syn_selected_state(
+        _, p_syn_i, seed_syn_i, _ = electron_radiation_module.syn_state(
             config.index_syn_integr,
             float(radius_cm[i_shell]),
             float(magnetic_field_g[i_shell]),
@@ -1427,7 +1423,7 @@ def _project_component(
     label: str | None = None,
 ) -> np.ndarray:
     if label is not None and str(config.geometry_kernel).lower() == "sed_adaptive_theta":
-        label = label.replace("Interpolation.sed_interpolation", "Interpolation.sed_interpolation_adaptive_theta")
+        label = label.replace("Interpolation.sed_interpolation", "Interpolation.sed_adaptive_theta")
     if not np.any(absorbed_spectral_flux):
         if timings is not None and label is not None:
             timings.setdefault(label, 0.0)

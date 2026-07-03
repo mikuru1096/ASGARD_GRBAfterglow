@@ -55,7 +55,7 @@ def _compute_polarization(
     times_s = np.asarray(times_s, dtype=float)
     nu_hz = np.asarray(nu_hz, dtype=float)
     if times_s.ndim != 1 or nu_hz.ndim != 1:
-        raise ValueError("polarization() requires one-dimensional times_s and nu_hz grids.")
+        raise ValueError("polarization() requires 1D times_s and nu_hz grids.")
     if times_s.size == 0 or nu_hz.size == 0:
         raise ValueError("polarization() grids must be non-empty.")
     if np.any(times_s <= 0.0) or np.any(nu_hz <= 0.0):
@@ -215,7 +215,7 @@ def _component_polarization_fraction(
     frequency = np.asarray(state.setup.seed_frequency_hz, dtype=float)
     pi_grid = np.zeros((frequency.size, magnetic_field.size), dtype=float)
     for i_shell in range(magnetic_field.size):
-        _, _, pi_nu = electron_radiation_module.get_syn_polarization_selected(
+        _, _, pi_nu = electron_radiation_module.syn_polarized(
             int(state.config.index_syn_integr),
             float(radius_cm[i_shell]),
             float(magnetic_field[i_shell]),
@@ -446,7 +446,7 @@ def _generic_hadronic_synchrotron_pi_grid(
         if magnetic_field[i_shell] <= 0.0:
             raise RuntimeError("positive hadronic synchrotron luminosity requires magnetic_field_g > 0.")
         pi_grid[:, i_shell] = np.asarray(
-            hadronic_fortran_module.fs_hadronic_syn_polarization_shell(
+            hadronic_fortran_module.had_syn_pol(
                 energy,
                 density[:, i_shell],
                 frequency,

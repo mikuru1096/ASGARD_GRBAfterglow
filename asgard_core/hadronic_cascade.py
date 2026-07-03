@@ -75,7 +75,7 @@ def compute_time_dependent_pair_cascade_sequence(
         cascade_photon_density,
         absorbed_power,
         injected_power,
-    ) = hadronic_module.fs_hadronic_pair_cascade_sequence(
+    ) = hadronic_module.cascade_sequence(
         e_ph,
         primary,
         e_e,
@@ -109,7 +109,7 @@ def _as_positive_grid(values: np.ndarray, name: str) -> np.ndarray:
     if arr.ndim != 1:
         raise ValueError(f"{name} must be a 1D grid.")
     if arr.size < 2:
-        raise ValueError(f"{name} must contain at least two points.")
+        raise ValueError(f"{name} must contain at least 2 points.")
     if np.any(arr <= 0.0) or np.any(np.diff(arr) <= 0.0):
         raise ValueError(f"{name} must be positive and strictly increasing.")
     return arr

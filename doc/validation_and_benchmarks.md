@@ -80,7 +80,7 @@ rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/AS
 - 输出路径。
 - 物理验收口径。
 
-旧 `scripts/benchmarks/` 入口已删除。新增 formal benchmark 必须先进入 `tests/`，并在脚本内固定物理参数、网格、输出路径和验收口径。
+`scripts/benchmarks/` 当前只保留从历史提交恢复的复现/迁移脚本，用于重画旧图、迁移口径或生成文档资产。新增 formal benchmark 仍必须先进入 `tests/`，并在脚本内固定物理参数、网格、输出路径和验收口径；不要把一次性恢复脚本当成 public API。
 
 当前保留的 q-shell diagnostic benchmark：
 

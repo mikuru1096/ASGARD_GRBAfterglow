@@ -1,89 +1,94 @@
 !f2py: skip
-module hadronic_transport_kernel
+module hadronic_transport
     use constants
-    use hadronic_common
+    use hadronic_base
     implicit none
 
 contains
 
-! 质子幂律注入：Q_inj ∝ γ^(-p)，按给定能量预算归一化。
-subroutine hadronic_proton_injection_powerlaw(Num_gam_p,gam_p,p_p,energy_budget_erg,gam_p_min,gam_p_max,Q_inj)
-    implicit real(8)(A-H,O-Z)
-    integer, intent(in) :: Num_gam_p
-    real(8), intent(in) :: gam_p(Num_gam_p),p_p,energy_budget_erg,gam_p_min,gam_p_max
-    real(8), intent(out) :: Q_inj(Num_gam_p)
-    integer :: I_gam,i_lo,i_hi
-    real(8) :: gam_edge(Num_gam_p+1),norm,moment,weight,gam_mid,dgam
+! 质子幂律注入：qinj ∝ γ^(-p)，按给定能量预算归一化。
+subroutine proton_inject(ng,gp,pidx,ebudget,gmin,gmax,qinj)
+    implicit none
+    integer, intent(in) :: ng
+    real(8), intent(in), dimension(ng) :: gp
+    real(8), intent(in) :: pidx,ebudget,gmin,gmax
+    real(8), intent(out), dimension(ng) :: qinj
+    integer :: ig,ilo,ihi
+    real(8), dimension(ng+1) :: edge
+    real(8) :: norm,moment,weight,gmid,dgam
 
-    call hadronic_build_gamma_edges(Num_gam_p,gam_p,gam_edge)
-    call hadronic_source_bounds(Num_gam_p,gam_p,gam_p_min,gam_p_max,i_lo,i_hi)
-    Q_inj=zero
-    if (energy_budget_erg <= zero .or. i_hi < i_lo) return
+    call build_edges(ng,gp,edge)
+    call source_bounds(ng,gp,gmin,gmax,ilo,ihi)
+    qinj=0d0
+    if (ebudget <= 0d0 .or. ihi < ilo) return
 
-    ! Inlined from accumulate_powerlaw_energy_moment
-    norm=zero
-    do I_gam=i_lo,i_hi
-        gam_mid=gam_p(I_gam)
-        dgam=gam_edge(I_gam+1)-gam_edge(I_gam)
-        weight=gam_mid**(-p_p)
-        moment=(gam_mid-one)*Para_m_p_E
+    ! 先积分能量矩作为归一化分母。 / First integrate the energy moment for normalization.
+    norm=0d0
+    do ig=ilo,ihi
+        gmid=gp(ig)
+        dgam=edge(ig+1)-edge(ig)
+        weight=gmid**(-pidx)
+        moment=(gmid-1d0)*Para_m_p_E
         norm=norm+weight*moment*dgam
     end do
-    if (norm <= zero) return
-    ! Inlined from write_powerlaw_injection
-    do I_gam=i_lo,i_hi
-        gam_mid=gam_p(I_gam)
-        Q_inj(I_gam)=energy_budget_erg*gam_mid**(-p_p)/norm
+    if (norm <= 0d0) return
+    ! 再写入每个 gamma bin 的注入率。 / Then write the injection rate per gamma bin.
+    do ig=ilo,ihi
+        gmid=gp(ig)
+        qinj(ig)=ebudget*gmid**(-pidx)/norm
     end do
-end subroutine hadronic_proton_injection_powerlaw
+end subroutine proton_inject
 
 ! 计算质子能量损失率：绝热冷却 dγ/dt = γ/t_dyn 和同步冷却 dγ/dt ∝ γ²。
-subroutine hadronic_proton_loss_rates(Num_gam_p,gam_p,B_field_g,t_dyn_s,loss_ad,loss_syn,loss_total)
-    implicit real(8)(A-H,O-Z)
-    integer, intent(in) :: Num_gam_p
-    real(8), intent(in) :: gam_p(Num_gam_p),B_field_g,t_dyn_s
-    real(8), intent(out) :: loss_ad(Num_gam_p),loss_syn(Num_gam_p),loss_total(Num_gam_p)
-    integer :: I_gam
+subroutine proton_loss(ng,gp,bfield,tdyn,lad,lsyn,ltot)
+    implicit none
+    integer, intent(in) :: ng
+    real(8), intent(in), dimension(ng) :: gp
+    real(8), intent(in) :: bfield,tdyn
+    real(8), intent(out), dimension(ng) :: lad,lsyn,ltot
+    integer :: ig
     real(8) :: coeff_syn
 
-    if (B_field_g < zero) error stop "hadronic proton loss rates require B_field_g >= 0."
-    if (t_dyn_s <= zero) error stop "hadronic proton loss rates require t_dyn_s > 0."
-    coeff_syn=Para_sigmaT*B_field_g*B_field_g/(6d0*pi*Para_m_e*Para_c) / (Para_m_p_div_m_e**3)
-    do I_gam=1,Num_gam_p
-        loss_ad(I_gam)=gam_p(I_gam)/t_dyn_s
-        loss_syn(I_gam)=coeff_syn*gam_p(I_gam)*gam_p(I_gam)
-        loss_total(I_gam)=loss_ad(I_gam)+loss_syn(I_gam)
+    if (bfield < 0d0) error stop "hadronic proton loss rates require bfield >= 0."
+    if (tdyn <= 0d0) error stop "hadronic proton loss rates require tdyn > 0."
+    coeff_syn=Para_sigmaT*bfield*bfield/(6d0*pi*Para_m_e*Para_c) / (Para_m_p_DIV_m_e**3)
+    do ig=1,ng
+        lad(ig)=gp(ig)/tdyn
+        lsyn(ig)=coeff_syn*gp(ig)*gp(ig)
+        ltot(ig)=lad(ig)+lsyn(ig)
     end do
-end subroutine hadronic_proton_loss_rates
+end subroutine proton_loss
 
 ! 对数gamma空间迎风输运推进：用边心公式计算损失通量，更新粒子谱。
-subroutine hadronic_advance_energy_loggamma(Num_gam_p,gam_p,dN_prev,Q_inj,loss_total,dt_s,dN_next)
-    implicit real(8)(A-H,O-Z)
-    integer, intent(in) :: Num_gam_p
-    real(8), intent(in) :: gam_p(Num_gam_p),dN_prev(Num_gam_p),Q_inj(Num_gam_p),loss_total(Num_gam_p),dt_s
-    real(8), intent(out) :: dN_next(Num_gam_p)
-    integer :: I_gam
-    real(8) :: gam_edge(Num_gam_p+1),flux_edge(Num_gam_p+1),dgam_cell
-    real(8) :: loss_edge,source_loc
+subroutine advance_loggamma(ng,gp,prev,qinj,ltot,dt,next)
+    implicit none
+    integer, intent(in) :: ng
+    real(8), intent(in), dimension(ng) :: gp,prev,qinj,ltot
+    real(8), intent(in) :: dt
+    real(8), intent(out), dimension(ng) :: next
+    integer :: ig
+    real(8), dimension(ng+1) :: edge,flux
+    real(8) :: dgam
+    real(8) :: ledge,src
 
-    call hadronic_build_gamma_edges(Num_gam_p,gam_p,gam_edge)
-    if (dt_s <= zero) error stop "hadronic energy advance requires dt_s > 0."
-    ! Inlined from build_loss_flux_edges
-    flux_edge=zero
-    do I_gam=2,Num_gam_p
-        loss_edge=0.5d0*(loss_total(I_gam-1)+loss_total(I_gam))
-        flux_edge(I_gam)=loss_edge*dN_prev(I_gam)
+    call build_edges(ng,gp,edge)
+    if (dt <= 0d0) error stop "hadronic energy advance requires dt > 0."
+    ! 边界通量使用相邻 cell 的损失率平均。 / Boundary flux uses averaged neighboring loss rates.
+    flux=0d0
+    do ig=2,ng
+        ledge=0.5d0*(ltot(ig-1)+ltot(ig))
+        flux(ig)=ledge*prev(ig)
     end do
-    flux_edge(1)=loss_total(1)*dN_prev(1)
-    flux_edge(Num_gam_p+1)=zero
-    ! Inlined from apply_flux_divergence_with_injection
-    do I_gam=1,Num_gam_p
-        dgam_cell=gam_edge(I_gam+1)-gam_edge(I_gam)
-        if (dgam_cell <= zero) error stop "hadronic energy advance requires positive gamma cell width."
-        source_loc=Q_inj(I_gam)
-        dN_next(I_gam)=dN_prev(I_gam)+dt_s*(flux_edge(I_gam+1)-flux_edge(I_gam))/dgam_cell+source_loc
-        if (dN_next(I_gam) < zero) error stop "hadronic energy advance produced negative particle density."
+    flux(1)=ltot(1)*prev(1)
+    flux(ng+1)=0d0
+    ! 通量散度和本步注入一起更新。 / Flux divergence and current injection advance together.
+    do ig=1,ng
+        dgam=edge(ig+1)-edge(ig)
+        if (dgam <= 0d0) error stop "hadronic energy advance requires positive gamma cell width."
+        src=qinj(ig)
+        next(ig)=prev(ig)+dt*(flux(ig+1)-flux(ig))/dgam+src
+        if (next(ig) < 0d0) error stop "hadronic energy advance produced negative particle density."
     end do
-end subroutine hadronic_advance_energy_loggamma
+end subroutine advance_loggamma
 
-end module hadronic_transport_kernel
+end module hadronic_transport

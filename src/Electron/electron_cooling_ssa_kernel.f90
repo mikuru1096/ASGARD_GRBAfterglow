@@ -1,271 +1,266 @@
 !f2py: skip
-module electron_cooling_ssa_kernel
+module electron_ssa_kernel
   use constants
-  use electron_radiation_kernel, only: first_greater_monotonic_window, electron_powerlaw_interp, &
-                                       electron_log_gauss2_interval
+  use electron_radiation_kernel, only: greater_window, pl_interp, &
+                                       log_gauss2
   private
 
-  public :: electron_cooling_ssa_loss_batch
+  public :: electron_ssa_loss
 
-  integer, parameter :: ssa_segment_low = 1
-  integer, parameter :: ssa_segment_high = 2
-  integer, save :: ssa_seed_num_nu_cache=0
-  logical, save :: ssa_seed_cache_ready=.false.
-  real(8), allocatable, save :: ssa_seed_v_cache(:), ssa_seed_v_low(:), ssa_seed_v_high(:), &
-                                ssa_seed_vg1(:), ssa_seed_vg2(:), ssa_seed_wg1(:), ssa_seed_wg2(:)
-  !$omp threadprivate(ssa_seed_num_nu_cache,ssa_seed_cache_ready,ssa_seed_v_cache,ssa_seed_v_low,ssa_seed_v_high)
-  !$omp threadprivate(ssa_seed_vg1,ssa_seed_vg2,ssa_seed_wg1,ssa_seed_wg2)
+  integer, parameter :: lowseg=1,highseg=2
+  integer, save :: nnu_cache=0
+  logical, save :: seed_ready=.false.
+  real(8), allocatable, save, dimension(:) :: v_cache,vlow_cache,vhigh_cache,vg1_cache,vg2_cache,wg1_cache,wg2_cache
+  !$omp threadprivate(nnu_cache,seed_ready,v_cache,vlow_cache,vhigh_cache)
+  !$omp threadprivate(vg1_cache,vg2_cache,wg1_cache,wg2_cache)
 
 contains
-! 确保SSA种子频率缓存已按当前种子网格分配。
-subroutine ensure_ssa_seed_cache(Num_nu,V_seed)
+! 刷新 SSA 种子频率缓存；线程私有，避免 OpenMP 列计算共享临时状态。
+! Refresh the SSA seed-frequency cache; it is thread-private for OpenMP column work.
+subroutine ensure_ssa_cache(nnu,vseed)
 implicit none
-integer, intent(in) :: Num_nu
-real(8), intent(in) :: V_seed(Num_nu)
-integer :: I_nu
-logical :: cache_match
+integer, intent(in) :: nnu
+real(8), intent(in), dimension(nnu) :: vseed
+integer :: inu
+logical :: match
 
-    cache_match=.false.
-    if (ssa_seed_cache_ready) then
-        if (ssa_seed_num_nu_cache == Num_nu) then
-            if (allocated(ssa_seed_v_cache)) then
-                cache_match=all(ssa_seed_v_cache == V_seed)
+    match=.false.
+    if (seed_ready) then
+        if (nnu_cache == nnu) then
+            if (allocated(v_cache)) then
+                match=all(v_cache == vseed)
             end if
         end if
     end if
 
-    if (cache_match) return
+    if (match) return
 
-    if (allocated(ssa_seed_v_cache)) deallocate(ssa_seed_v_cache, ssa_seed_v_low, ssa_seed_v_high, &
-                                                ssa_seed_vg1, ssa_seed_vg2, ssa_seed_wg1, ssa_seed_wg2)
-    allocate(ssa_seed_v_cache(Num_nu), ssa_seed_v_low(Num_nu-1), ssa_seed_v_high(Num_nu-1), &
-             ssa_seed_vg1(Num_nu-1), ssa_seed_vg2(Num_nu-1), ssa_seed_wg1(Num_nu-1), ssa_seed_wg2(Num_nu-1))
-    ssa_seed_v_cache=V_seed
-    ssa_seed_v_low=V_seed(1:Num_nu-1)
-    ssa_seed_v_high=V_seed(2:Num_nu)
-    do I_nu=1,Num_nu-1
-        call electron_log_gauss2_interval(ssa_seed_v_low(I_nu),ssa_seed_v_high(I_nu), &
-                                          ssa_seed_vg1(I_nu),ssa_seed_vg2(I_nu), &
-                                          ssa_seed_wg1(I_nu),ssa_seed_wg2(I_nu))
+    if (allocated(v_cache)) deallocate(v_cache,vlow_cache,vhigh_cache,vg1_cache,vg2_cache,wg1_cache,wg2_cache)
+    allocate(v_cache(nnu),vlow_cache(nnu-1),vhigh_cache(nnu-1),vg1_cache(nnu-1),vg2_cache(nnu-1), &
+             wg1_cache(nnu-1),wg2_cache(nnu-1))
+    v_cache=vseed
+    vlow_cache=vseed(1:nnu-1)
+    vhigh_cache=vseed(2:nnu)
+    do inu=1,nnu-1
+        call log_gauss2(vlow_cache(inu),vhigh_cache(inu),vg1_cache(inu),vg2_cache(inu), &
+                                          wg1_cache(inu),wg2_cache(inu))
     end do
-    ssa_seed_num_nu_cache=Num_nu
-    ssa_seed_cache_ready=.true.
-end subroutine ensure_ssa_seed_cache
+    nnu_cache=nnu
+    seed_ready=.true.
+end subroutine ensure_ssa_cache
 
-! 推进SSA种子频率游标至第一个 > V_lowlim 的位置。
-subroutine advance_ssa_seed_cursor(Num_nu,V_lowlim,low_idx)
+! 把 SSA 种子频率游标移到第一个超过低频阈值的网格点。
+! Move the SSA seed cursor to the first grid point above the low-frequency bound.
+subroutine advance_ssa_cursor(nnu,vmin,cursor)
 implicit none
-integer, intent(in) :: Num_nu
-real(8), intent(in) :: V_lowlim
-integer, intent(inout) :: low_idx
+integer, intent(in) :: nnu
+real(8), intent(in) :: vmin
+integer, intent(inout) :: cursor
 
-    if (low_idx < 1) low_idx=1
-    if (low_idx > Num_nu+1) low_idx=Num_nu+1
+    if (cursor < 1) cursor=1
+    if (cursor > nnu+1) cursor=nnu+1
 
-    do while (low_idx > 1)
-        if (ssa_seed_v_cache(low_idx-1) <= V_lowlim) exit
-        low_idx=low_idx-1
+    do while (cursor > 1)
+        if (v_cache(cursor-1) <= vmin) exit
+        cursor=cursor-1
     end do
 
-    do while (low_idx <= Num_nu)
-        if (ssa_seed_v_cache(low_idx) > V_lowlim) exit
-        low_idx=low_idx+1
+    do while (cursor <= nnu)
+        if (v_cache(cursor) > vmin) exit
+        cursor=cursor+1
     end do
-end subroutine advance_ssa_seed_cursor
+end subroutine advance_ssa_cursor
 
-! 构建SSA几何映射：对每个电子γ，计算种子频率的低频/高频索引范围和截面前因子。
-subroutine build_ssa_geometry(DB,Num_gam_e,Num_nu,gam_e,V_low_idx,V_low_first,V_low_last,V_high_first, &
-                              sigma_prefactor_low,sigma_prefactor_high,Cyclotron_nu)
+! 为每个电子能格预计算 SSA 积分段和截面前因子。
+! Precompute SSA integration segments and cross-section prefactors for each electron bin.
+subroutine build_ssa_geometry(db,ng,nnu,gam,lowpos,lowfirst,lowlast,highfirst,siglow,sighigh,cyclonu)
 implicit none
-integer, intent(in) :: Num_gam_e,Num_nu
-real(8), intent(in) :: DB,gam_e(Num_gam_e)
-integer, intent(out) :: V_low_idx(Num_gam_e),V_low_first(Num_gam_e),V_low_last(Num_gam_e),V_high_first(Num_gam_e)
-real(8), intent(out) :: sigma_prefactor_low(Num_gam_e),sigma_prefactor_high(Num_gam_e),Cyclotron_nu
-integer :: I_gam_e,low_idx,upper_idx
-real(8) :: B_cr,Temp1,Temp2,gam,gam2,gam3,V_lowlim,V_uplim
+integer, intent(in) :: ng,nnu
+real(8), intent(in), dimension(ng) :: gam
+real(8), intent(in) :: db
+integer, intent(out), dimension(ng) :: lowpos,lowfirst,lowlast,highfirst
+real(8), intent(out), dimension(ng) :: siglow,sighigh
+real(8), intent(out) :: cyclonu
+integer :: ig,cursor,upper
+real(8) :: bcr,pref1,pref2,ge,g2,g3,vmin,vmax
 
-    B_cr=4.4d13
-    Temp1=2.5042d-22*B_cr/DB
-    Temp2=7.787d-22*B_cr/DB
-    Cyclotron_nu=para_e*DB/(two*pi*para_m_e*para_c)
+    bcr=4.4d13
+    pref1=2.5042d-22*bcr/db
+    pref2=7.787d-22*bcr/db
+    cyclonu=para_e*db/(2d0*pi*para_m_e*para_c)
 
-    low_idx=1
-    do I_gam_e=1,Num_gam_e
-       gam=gam_e(I_gam_e)
-       gam2=gam*gam
-       gam3=gam2*gam
-       V_lowlim=Cyclotron_nu/gam
-       V_uplim=1.5d0*gam2*Cyclotron_nu
+    cursor=1
+    do ig=1,ng
+       ge=gam(ig)
+       g2=ge*ge
+       g3=g2*ge
+       vmin=cyclonu/ge
+       vmax=1.5d0*g2*cyclonu
 
-       call advance_ssa_seed_cursor(Num_nu,V_lowlim,low_idx)
-       V_low_idx(I_gam_e)=low_idx
+       call advance_ssa_cursor(nnu,vmin,cursor)
+       lowpos(ig)=cursor
 
-       if (low_idx <= Num_nu) then
-          call first_greater_monotonic_window(ssa_seed_v_cache,Num_nu,low_idx,V_uplim,upper_idx)
-          sigma_prefactor_low(I_gam_e)=Temp1*(3d0*V_lowlim)**(5d0/3d0)
-          sigma_prefactor_high(I_gam_e)=Temp2/gam3
-          V_low_first(I_gam_e)=max(1,low_idx-1)
-          V_low_last(I_gam_e)=min(Num_nu-1,upper_idx-1)
-          V_high_first(I_gam_e)=max(1,upper_idx-1)
+       if (cursor <= nnu) then
+          call greater_window(v_cache,nnu,cursor,vmax,upper)
+          siglow(ig)=pref1*(3d0*vmin)**(5d0/3d0)
+          sighigh(ig)=pref2/g3
+          lowfirst(ig)=max(1,cursor-1)
+          lowlast(ig)=min(nnu-1,upper-1)
+          highfirst(ig)=max(1,upper-1)
        else
-          sigma_prefactor_low(I_gam_e)=zero
-          sigma_prefactor_high(I_gam_e)=zero
-          V_low_first(I_gam_e)=1
-          V_low_last(I_gam_e)=0
-          V_high_first(I_gam_e)=Num_nu
+          siglow(ig)=0d0
+          sighigh(ig)=0d0
+          lowfirst(ig)=1
+          lowlast(ig)=0
+          highfirst(ig)=nnu
        end if
     end do
 end subroutine build_ssa_geometry
 
-! SSA冷却率：对多个χ列的种子光子场同时计算；单列调用传 Num_chi=1。
-subroutine electron_cooling_ssa_loss_batch(DB,Num_gam_e,Num_nu,Num_chi,n_threads,gam_e,V_seed,Seed_syn_batch,dot_gam_e_batch)
+! SSA 冷却率：同一电子能格上批量处理多个 chi 列的种子光子场。
+! SSA cooling rate: process several chi-column seed photon fields on the same electron grid.
+subroutine electron_ssa_loss(db,ng,nnu,nchi,nthr,gam,vseed,seed,loss)
 !$ use omp_lib
 implicit none
-integer, intent(in) :: Num_gam_e,Num_nu,Num_chi,n_threads
-real(8), intent(in) :: DB,gam_e(Num_gam_e),V_seed(Num_nu),Seed_syn_batch(Num_nu,Num_chi)
-real(8), intent(out) :: dot_gam_e_batch(Num_gam_e,Num_chi)
-integer, parameter :: parallel_work_threshold=512
-integer :: V_low_idx(Num_gam_e),V_low_first(Num_gam_e),V_low_last(Num_gam_e),V_high_first(Num_gam_e)
-integer :: I_nu,I_chi,I_gam_e,work_items,thread_count
-logical :: use_parallel
-real(8) :: V_seed_low(Num_nu-1),V_seed_high(Num_nu-1),V_seed_g1(Num_nu-1),V_seed_g2(Num_nu-1)
-real(8) :: V_seed_w1(Num_nu-1),V_seed_w2(Num_nu-1),sigma_low(Num_gam_e),sigma_high(Num_gam_e)
-real(8) :: Cyclotron_nu,Seed_g1(Num_nu-1,Num_chi),Seed_g2(Num_nu-1,Num_chi)
-real(8) :: Low_prefix(0:Num_nu-1,Num_chi),High_amp1(Num_nu-1,Num_chi),High_amp2(Num_nu-1,Num_chi)
+integer, intent(in) :: ng,nnu,nchi,nthr
+real(8), intent(in), dimension(ng) :: gam
+real(8), intent(in), dimension(nnu) :: vseed
+real(8), intent(in), dimension(nnu,nchi) :: seed
+real(8), intent(in) :: db
+real(8), intent(out), dimension(ng,nchi) :: loss
+integer, parameter :: work_min=512
+integer, dimension(ng) :: lowpos,lowfirst,lowlast,highfirst
+integer :: inu,ic,ig,work,nt
+logical :: doomp
+real(8), dimension(nnu-1) :: vlow,vhigh,vg1,vg2,wg1,wg2
+real(8), dimension(ng) :: siglow,sighigh
+real(8), dimension(nnu-1,nchi) :: seedg1,seedg2
+real(8) :: cyclonu
+real(8), dimension(0:nnu-1,nchi) :: lowpref
+real(8), dimension(nnu-1,nchi) :: high1,high2
 
-    call ensure_ssa_seed_cache(Num_nu,V_seed)
-    V_seed_low=ssa_seed_v_low
-    V_seed_high=ssa_seed_v_high
-    V_seed_g1=ssa_seed_vg1
-    V_seed_g2=ssa_seed_vg2
-    V_seed_w1=ssa_seed_wg1
-    V_seed_w2=ssa_seed_wg2
-    Low_prefix(0,:)=zero
-    do I_chi=1,Num_chi
-        do I_nu=1,Num_nu-1
-            Seed_g1(I_nu,I_chi)=electron_powerlaw_interp(V_seed_low(I_nu),V_seed_high(I_nu), &
-                                                         Seed_syn_batch(I_nu,I_chi),Seed_syn_batch(I_nu+1,I_chi), &
-                                                         V_seed_g1(I_nu))
-            Seed_g2(I_nu,I_chi)=electron_powerlaw_interp(V_seed_low(I_nu),V_seed_high(I_nu), &
-                                                         Seed_syn_batch(I_nu,I_chi),Seed_syn_batch(I_nu+1,I_chi), &
-                                                         V_seed_g2(I_nu))
-            Low_prefix(I_nu,I_chi)=Low_prefix(I_nu-1,I_chi)+para_h*para_c*(V_seed_w1(I_nu)* &
-                                    Seed_g1(I_nu,I_chi)*V_seed_g1(I_nu)**(-2d0/3d0)+ &
-                                    V_seed_w2(I_nu)*Seed_g2(I_nu,I_chi)*V_seed_g2(I_nu)**(-2d0/3d0))
-            High_amp1(I_nu,I_chi)=V_seed_w1(I_nu)*Seed_g1(I_nu,I_chi)
-            High_amp2(I_nu,I_chi)=V_seed_w2(I_nu)*Seed_g2(I_nu,I_chi)
+    call ensure_ssa_cache(nnu,vseed)
+    vlow=vlow_cache
+    vhigh=vhigh_cache
+    vg1=vg1_cache
+    vg2=vg2_cache
+    wg1=wg1_cache
+    wg2=wg2_cache
+    lowpref(0,:)=0d0
+    do ic=1,nchi
+        do inu=1,nnu-1
+            seedg1(inu,ic)=pl_interp(vlow(inu),vhigh(inu),seed(inu,ic),seed(inu+1,ic),vg1(inu))
+            seedg2(inu,ic)=pl_interp(vlow(inu),vhigh(inu),seed(inu,ic),seed(inu+1,ic),vg2(inu))
+            lowpref(inu,ic)=lowpref(inu-1,ic)+para_h*para_c*(wg1(inu)*seedg1(inu,ic)*vg1(inu)**(-2d0/3d0)+ &
+                              wg2(inu)*seedg2(inu,ic)*vg2(inu)**(-2d0/3d0))
+            high1(inu,ic)=wg1(inu)*seedg1(inu,ic)
+            high2(inu,ic)=wg2(inu)*seedg2(inu,ic)
         end do
     end do
-    call build_ssa_geometry(DB,Num_gam_e,Num_nu,gam_e,V_low_idx,V_low_first,V_low_last,V_high_first, &
-                            sigma_low,sigma_high,Cyclotron_nu)
+    call build_ssa_geometry(db,ng,nnu,gam,lowpos,lowfirst,lowlast,highfirst,siglow,sighigh,cyclonu)
 
-    dot_gam_e_batch=zero
-    work_items=Num_gam_e*Num_chi*Num_nu
-    thread_count=max(1,n_threads)
-    use_parallel=(n_threads > 1 .and. work_items >= parallel_work_threshold)
-    !$OMP PARALLEL DO collapse(2) if(use_parallel) num_threads(thread_count) schedule(static) &
-    !$OMP& private(I_chi,I_gam_e)
-    do I_chi=1,Num_chi
-        do I_gam_e=1,Num_gam_e
-            call accumulate_ssa_batch_gamma(I_gam_e,I_chi,dot_gam_e_batch(I_gam_e,I_chi))
+    loss=0d0
+    work=ng*nchi*nnu
+    nt=max(1,nthr)
+    doomp=(nthr > 1 .and. work >= work_min)
+    !$OMP PARALLEL DO collapse(2) if(doomp) num_threads(nt) schedule(static) &
+    !$OMP& private(ic,ig)
+    do ic=1,nchi
+        do ig=1,ng
+            call accumulate_ssa_cell(ig,ic,loss(ig,ic))
         end do
     end do
     !$OMP END PARALLEL DO
 
 contains
 
-subroutine accumulate_ssa_batch_gamma(I_gam_e,I_chi,dot_val)
+subroutine accumulate_ssa_cell(ig,ic,rate)
 implicit none
-integer, intent(in) :: I_gam_e,I_chi
-real(8), intent(out) :: dot_val
-integer :: I_nu,low_full_first,low_full_last,high_full_first
-real(8) :: gam,gam2,V_lowlim,V_uplim,inv_uplim,high_prefactor,ssa_sum,cell_low,cell_high
+integer, intent(in) :: ig,ic
+real(8), intent(out) :: rate
+integer :: inu,lfirst,llast,hfirst
+real(8) :: ge,g2,vmin,vmax,invmax,highpref,total,vlo,vhi
 
-    dot_val=zero
-    if (V_low_idx(I_gam_e) > Num_nu) return
+    rate=0d0
+    if (lowpos(ig) > nnu) return
 
-    gam=gam_e(I_gam_e)
-    gam2=gam*gam
-    V_lowlim=Cyclotron_nu/gam
-    V_uplim=1.5d0*gam2*Cyclotron_nu
-    inv_uplim=one/V_uplim
-    high_prefactor=sigma_high(I_gam_e)*Cyclotron_nu*para_h*para_c
-    ssa_sum=zero
+    ge=gam(ig)
+    g2=ge*ge
+    vmin=cyclonu/ge
+    vmax=1.5d0*g2*cyclonu
+    invmax=1d0/vmax
+    highpref=sighigh(ig)*cyclonu*para_h*para_c
+    total=0d0
 
-    low_full_first=V_low_first(I_gam_e)
-    low_full_last=V_low_last(I_gam_e)
-    if (low_full_first <= low_full_last) then
-        cell_low=max(V_seed_low(low_full_first),V_lowlim)
-        cell_high=min(V_seed_high(low_full_first),V_uplim)
-        if (cell_high > cell_low) then
-            if (cell_low /= V_seed_low(low_full_first) .or. cell_high /= V_seed_high(low_full_first)) then
-                ssa_sum=ssa_sum+clipped_ssa_batch_segment(cell_low,cell_high,low_full_first,I_chi, &
-                                                          sigma_low(I_gam_e),ssa_segment_low,Cyclotron_nu,V_uplim)
-                low_full_first=low_full_first+1
+    lfirst=lowfirst(ig)
+    llast=lowlast(ig)
+    if (lfirst <= llast) then
+        vlo=max(vlow(lfirst),vmin)
+        vhi=min(vhigh(lfirst),vmax)
+        if (vhi > vlo) then
+            if (vlo /= vlow(lfirst) .or. vhi /= vhigh(lfirst)) then
+                total=total+clipped_ssa_segment(vlo,vhi,lfirst,ic,siglow(ig),lowseg,cyclonu,vmax)
+                lfirst=lfirst+1
             end if
         else
-            low_full_first=low_full_first+1
+            lfirst=lfirst+1
         end if
     end if
-    if (low_full_last >= low_full_first) then
-        cell_low=max(V_seed_low(low_full_last),V_lowlim)
-        cell_high=min(V_seed_high(low_full_last),V_uplim)
-        if (cell_high > cell_low) then
-            if (cell_low /= V_seed_low(low_full_last) .or. cell_high /= V_seed_high(low_full_last)) then
-                ssa_sum=ssa_sum+clipped_ssa_batch_segment(cell_low,cell_high,low_full_last,I_chi, &
-                                                          sigma_low(I_gam_e),ssa_segment_low,Cyclotron_nu,V_uplim)
-                low_full_last=low_full_last-1
+    if (llast >= lfirst) then
+        vlo=max(vlow(llast),vmin)
+        vhi=min(vhigh(llast),vmax)
+        if (vhi > vlo) then
+            if (vlo /= vlow(llast) .or. vhi /= vhigh(llast)) then
+                total=total+clipped_ssa_segment(vlo,vhi,llast,ic,siglow(ig),lowseg,cyclonu,vmax)
+                llast=llast-1
             end if
         else
-            low_full_last=low_full_last-1
+            llast=llast-1
         end if
     end if
-    if (low_full_last >= low_full_first) then
-        ssa_sum=ssa_sum+sigma_low(I_gam_e)*(Low_prefix(low_full_last,I_chi)-Low_prefix(low_full_first-1,I_chi))
+    if (llast >= lfirst) then
+        total=total+siglow(ig)*(lowpref(llast,ic)-lowpref(lfirst-1,ic))
     end if
 
-    high_full_first=V_high_first(I_gam_e)
-    if (high_full_first <= Num_nu-1) then
-        cell_low=max(V_seed_low(high_full_first),V_uplim)
-        cell_high=V_seed_high(high_full_first)
-        if (cell_high > cell_low) then
-            if (cell_low /= V_seed_low(high_full_first)) then
-                ssa_sum=ssa_sum+clipped_ssa_batch_segment(cell_low,cell_high,high_full_first,I_chi, &
-                                                          sigma_high(I_gam_e),ssa_segment_high,Cyclotron_nu,V_uplim)
-                high_full_first=high_full_first+1
+    hfirst=highfirst(ig)
+    if (hfirst <= nnu-1) then
+        vlo=max(vlow(hfirst),vmax)
+        vhi=vhigh(hfirst)
+        if (vhi > vlo) then
+            if (vlo /= vlow(hfirst)) then
+                total=total+clipped_ssa_segment(vlo,vhi,hfirst,ic,sighigh(ig),highseg,cyclonu,vmax)
+                hfirst=hfirst+1
             end if
         end if
     end if
-    do I_nu=high_full_first,Num_nu-1
-        ssa_sum=ssa_sum+high_prefactor*(High_amp1(I_nu,I_chi)*dexp(-V_seed_g1(I_nu)*inv_uplim)+ &
-                                        High_amp2(I_nu,I_chi)*dexp(-V_seed_g2(I_nu)*inv_uplim))
+    do inu=hfirst,nnu-1
+        total=total+highpref*(high1(inu,ic)*dexp(-vg1(inu)*invmax)+high2(inu,ic)*dexp(-vg2(inu)*invmax))
     end do
 
-    dot_val=ssa_sum
-end subroutine accumulate_ssa_batch_gamma
+    rate=total
+end subroutine accumulate_ssa_cell
 
-real(8) function clipped_ssa_batch_segment(cell_low,cell_high,I_nu,I_chi,sigma_prefactor,mode,Cyclotron_nu,V_uplim)
+real(8) function clipped_ssa_segment(vlo,vhi,inu,ic,sigpref,mode,cyclonu,vmax)
 implicit none
-integer, intent(in) :: I_nu,I_chi,mode
-real(8), intent(in) :: cell_low,cell_high,sigma_prefactor,Cyclotron_nu,V_uplim
-integer :: I_quad
-real(8) :: seed_loc,sigma_loc,vg(2),wg(2)
+integer, intent(in) :: inu,ic,mode
+real(8), intent(in) :: vlo,vhi,sigpref,cyclonu,vmax
+integer :: iq
+real(8), dimension(2) :: vg,wg
+real(8) :: seedval,sigval
 
-    call electron_log_gauss2_interval(cell_low,cell_high,vg(1),vg(2),wg(1),wg(2))
-    clipped_ssa_batch_segment=zero
+    call log_gauss2(vlo,vhi,vg(1),vg(2),wg(1),wg(2))
+    clipped_ssa_segment=0d0
 
-    do I_quad=1,2
-        seed_loc=electron_powerlaw_interp(V_seed_low(I_nu),V_seed_high(I_nu), &
-                                          Seed_syn_batch(I_nu,I_chi),Seed_syn_batch(I_nu+1,I_chi),vg(I_quad))
-        if (mode == ssa_segment_low) then
-            sigma_loc=sigma_prefactor*vg(I_quad)**(-5d0/3d0)
+    do iq=1,2
+        seedval=pl_interp(vlow(inu),vhigh(inu),seed(inu,ic),seed(inu+1,ic),vg(iq))
+        if (mode == lowseg) then
+            sigval=sigpref*vg(iq)**(-5d0/3d0)
         else
-            sigma_loc=sigma_prefactor*(Cyclotron_nu/vg(I_quad))*dexp(-vg(I_quad)/V_uplim)
+            sigval=sigpref*(cyclonu/vg(iq))*dexp(-vg(iq)/vmax)
         end if
-        clipped_ssa_batch_segment=clipped_ssa_batch_segment+ &
-                                  wg(I_quad)*sigma_loc*seed_loc*para_h*vg(I_quad)*para_c
+        clipped_ssa_segment=clipped_ssa_segment+wg(iq)*sigval*seedval*para_h*vg(iq)*para_c
     end do
-end function clipped_ssa_batch_segment
-end subroutine electron_cooling_ssa_loss_batch
+end function clipped_ssa_segment
+end subroutine electron_ssa_loss
 
-end module electron_cooling_ssa_kernel
+end module electron_ssa_kernel

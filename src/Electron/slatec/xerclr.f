@@ -1,7 +1,7 @@
 *DECK XERCLR
       SUBROUTINE XERCLR
 C***BEGIN PROLOGUE  XERCLR
-C***PURPOSE  Reset current error number to zero.
+C***PURPOSE  Reset current error number to 0d0.
 C***LIBRARY   SLATEC (XERROR)
 C***CATEGORY  R3C
 C***TYPE      ALL (XERCLR-A)
@@ -10,7 +10,7 @@ C***AUTHOR  Jones, R. E., (SNLA)
 C***DESCRIPTION
 C
 C     Abstract
-C        This routine simply resets the current error number to zero.
+C        This routine simply resets the current error number to 0d0.
 C        This may be necessary in order to determine that a certain
 C        error has occurred again since the last time NUMXER was
 C        referenced.

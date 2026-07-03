@@ -129,7 +129,7 @@ def compute_branch_radiation(
     efficiency = np.zeros(num_r, dtype=float)
     if branch.valid_shock:
         gamma_e, d_n_dgamma = _solve_branch_electrons_fortran(branch, microphysics, numerics, seed_frequency, redshift)
-        sync_luminosity, sync_seed, _nu_a = electron_reverse_module.electron_secondary_reverse_synchrotron(
+        sync_luminosity, sync_seed, _nu_a = electron_reverse_module.multiple_synch(
             numerics.index_syn_integr,
             numerics.num_threads,
             branch.radius_cm,

@@ -2,7 +2,7 @@
       DOUBLE PRECISION FUNCTION DBESK0 (X)
 C***BEGIN PROLOGUE  DBESK0
 C***PURPOSE  Compute the modified (hyperbolic) Bessel function of the
-C            third kind of order zero.
+C            third kind of order 0d0.
 C***LIBRARY   SLATEC (FNLIB)
 C***CATEGORY  C10B1
 C***TYPE      DOUBLE PRECISION (BESK0-S, DBESK0-D)
@@ -13,8 +13,8 @@ C***AUTHOR  Fullerton, W., (LANL)
 C***DESCRIPTION
 C
 C DBESK0(X) calculates the double precision modified (hyperbolic)
-C Bessel function of the third kind of order zero for double
-C precision argument X.  The argument must be greater than zero
+C Bessel function of the third kind of order 0d0 for double
+C precision argument X.  The argument must be greater than 0d0
 C but not so large that the result underflows.
 C
 C Series for BK0        on the interval  0.          to  4.00000E+00

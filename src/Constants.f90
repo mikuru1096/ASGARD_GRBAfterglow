@@ -1,10 +1,7 @@
 !f2py: skip
 MODULE Constants
-  IMPLICIT REAL(8)(A-H,O-Z)
+  implicit none
     real(8),parameter ::zero=0.0d0
-    real(8),parameter ::one=1.0d0
-    real(8),parameter ::two=2.0d0
-    real(8),parameter ::ten=1.0d1
     real(8),parameter ::pi=3.141592653589793238462643d0
     real(8),parameter ::Para_Jy2erg=1.0d-23
     real(8),parameter ::Para_muJy2erg=Para_Jy2erg*1.0d-6

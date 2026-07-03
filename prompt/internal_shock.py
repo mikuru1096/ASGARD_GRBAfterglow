@@ -5,8 +5,8 @@ from math import pi
 
 import numpy as np
 
+from asgard_core.asgard_runtime import _rs_fast_shock_allowed, _rs_shock_upstream_u, _rs_vegas_downstream_u
 from src import constants
-from src.Dynamics.Dynamics_reverse import dynamics_common as dynamics_common_module
 
 
 @dataclass(frozen=True)
@@ -188,11 +188,13 @@ def simulate_internal_shock(
 
 
 def fast_shock_allowed(gamma_rel: float, sigma: float) -> bool:
-    return bool(dynamics_common_module.rs_fast_shock_allowed(gamma_rel, sigma))
+    if gamma_rel <= 1.0 + 1.0e-10:
+        return False
+    return bool(_rs_fast_shock_allowed(gamma_rel, sigma))
 
 
 def baryonic_mass_g(shell: InternalShockShell) -> float:
-    matter_fraction = float(dynamics_common_module.rs_shell_matter_fraction(shell.sigma))
+    matter_fraction = 1.0 / (1.0 + shell.sigma)
     return shell.total_energy_iso_erg * matter_fraction / (shell.gamma * constants.para_c**2)
 
 
@@ -244,7 +246,15 @@ def _solve_contact_gamma(
     f_lo = balance(lo)
     f_hi = balance(hi)
     if f_lo * f_hi > 0.0:
-        raise ValueError("contact pressure balance has no bracket between the two shell Lorentz factors.")
+        scan = np.linspace(lo, hi, 129)
+        values = np.array([balance(float(gamma)) for gamma in scan], dtype=float)
+        changes = np.flatnonzero(values[1:] * values[:-1] <= 0.0)
+        if changes.size == 0:
+            raise ValueError("contact pressure balance has no bracket between the 2 shell Lorentz factors.")
+        lo = float(scan[changes[0]])
+        hi = float(scan[changes[0] + 1])
+        f_lo = float(values[changes[0]])
+        f_hi = float(values[changes[0] + 1])
     for _ in range(96):
         mid = 0.5 * (lo + hi)
         f_mid = balance(mid)
@@ -260,8 +270,8 @@ def _solve_contact_gamma(
 
 
 def _postshock_pressure(gamma_rel: float, upstream_density_cm3: float, sigma: float) -> float:
-    compression = float(dynamics_common_module.rs_mag_comp(gamma_rel, sigma))
-    specific_internal = float(dynamics_common_module.rs_mag_specific_internal(gamma_rel, sigma))
+    compression = _rs_mag_comp(gamma_rel, sigma)
+    specific_internal = _rs_mag_specific_internal(gamma_rel, sigma)
     rest_energy_density = upstream_density_cm3 * constants.para_m_p * constants.para_c**2
     thermal_pressure = compression * specific_internal * rest_energy_density / 3.0
     ordered_magnetic_pressure = 0.5 * compression * compression * sigma * rest_energy_density
@@ -278,10 +288,10 @@ def _build_jump(
     shock_direction: float,
 ) -> BranchJump:
     gamma_rel = relative_gamma(gamma_contact, upstream_shell.gamma)
-    compression = float(dynamics_common_module.rs_mag_comp(gamma_rel, upstream_shell.sigma))
-    specific_internal = float(dynamics_common_module.rs_mag_specific_internal(gamma_rel, upstream_shell.sigma))
+    compression = _rs_mag_comp(gamma_rel, upstream_shell.sigma)
+    specific_internal = _rs_mag_specific_internal(gamma_rel, upstream_shell.sigma)
     pressure = _postshock_pressure(gamma_rel, upstream_density_cm3, upstream_shell.sigma)
-    valid = bool(dynamics_common_module.rs_fast_shock_allowed(gamma_rel, upstream_shell.sigma))
+    valid = fast_shock_allowed(gamma_rel, upstream_shell.sigma)
     upstream_beta = beta_from_gamma(upstream_shell.gamma)
     shock_speed_cd = _shock_speed_contact_frame(gamma_rel, upstream_shell.sigma)
     if shock_direction > 0.0:
@@ -388,9 +398,32 @@ def _build_branch_history(
 
 
 def _shock_speed_contact_frame(gamma_rel: float, sigma: float) -> float:
-    downstream_u = float(dynamics_common_module.rs_vegas_ud(gamma_rel, sigma))
+    downstream_u = float(_rs_vegas_downstream_u(gamma_rel, sigma))
     return downstream_u / np.sqrt(1.0 + downstream_u**2)
 
 
 def _upstream_ordered_b(rho_up_g_cm3: np.ndarray, sigma: float) -> np.ndarray:
-    return np.array([dynamics_common_module.rs_b4_up(float(rho), sigma) for rho in rho_up_g_cm3], dtype=float)
+    return np.sqrt(4.0 * np.pi * sigma * rho_up_g_cm3 * constants.para_c**2)
+
+
+def _rs_mag_comp(gamma_rel: float, sigma: float) -> float:
+    gamma_eff = max(1.0, float(gamma_rel))
+    if gamma_eff <= 1.0 or sigma <= 1.0e-6:
+        return 4.0 * gamma_eff
+    return _rs_shock_upstream_u(gamma_eff, sigma) / _rs_vegas_downstream_u(gamma_eff, sigma)
+
+
+def _rs_mag_specific_internal(gamma_rel: float, sigma: float) -> float:
+    gamma_eff = max(1.0, float(gamma_rel))
+    if gamma_eff <= 1.0:
+        return 0.0
+    if sigma <= 0.0:
+        return gamma_eff - 1.0
+    adiabatic_index = 4.0 / 3.0 + 1.0 / (3.0 * gamma_eff)
+    u_down = _rs_vegas_downstream_u(gamma_eff, sigma)
+    u_up = _rs_shock_upstream_u(gamma_eff, sigma)
+    gamma_down = np.sqrt(1.0 + u_down * u_down)
+    gamma_up = np.sqrt(1.0 + u_up * u_up)
+    compression = u_up / u_down
+    h_down = (1.0 + sigma) * gamma_up / gamma_down - compression * sigma
+    return float((h_down - 1.0) / adiabatic_index)

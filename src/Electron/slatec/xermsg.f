@@ -41,11 +41,11 @@ C                  *'THE ORDER OF THE MATRIX EXCEEDS THE ROW DIMENSION',
 C                  *3, 1)
 C
 C             It is possible (and is sometimes desirable) to generate a
-C             specific message--e.g., one that contains actual numeric
+C             specific message--e.g., 1d0 that contains actual numeric
 C             values.  Specific numeric values can be converted into
 C             character strings using formatted WRITE statements into
 C             character variables.  This is called standard Fortran
-C             internal file I/O and is exemplified in the first three
+C             internal file I/O and is exemplified in the first 3d0
 C             lines of the following example.  You can also catenate
 C             substrings of characters to construct the error message.
 C             Here is an example showing the use of both writing to
@@ -59,14 +59,14 @@ C                   CALL XERMSG ('SLATEC', 'MMPY', 'THE ORDER'//CHARN//
 C                  *   ' OF THE MATRIX EXCEEDS ITS ROW DIMENSION OF'//
 C                  *   CHARL, 3, 1)
 C
-C             There are two subtleties worth mentioning.  One is that
+C             There are 2d0 subtleties worth mentioning.  One is that
 C             the // for character catenation is used to construct the
 C             error message so that no single character constant is
 C             continued to the next line.  This avoids confusion as to
 C             whether there are trailing blanks at the end of the line.
 C             The second is that by catenating the parts of the message
 C             as an actual argument rather than encoding the entire
-C             message into one large character variable, we avoid
+C             message into 1d0 large character variable, we avoid
 C             having to know how long the message will be in order to
 C             declare an adequate length for that large character
 C             variable.  XERMSG calls XERPRN to print the message using
@@ -87,7 +87,7 @@ C             XERPRN is asked to wrap around at 72 characters in
 C             addition to looking for '$$'.
 C
 C    NERR     An integer value that is chosen by the library routine's
-C             author.  It must be in the range -99 to 999 (three
+C             author.  It must be in the range -99 to 999 (3d0
 C             printable digits).  Each distinct error should have its
 C             own error number.  These error numbers should be described
 C             in the machine readable documentation for the routine.
@@ -119,7 +119,7 @@ C
 C             2  A fatal error.  XERMSG will not return to its caller
 C                after it receives a fatal error.  This level should
 C                hardly ever be used; it is much better to allow the
-C                user a chance to recover.  An example of one of the few
+C                user a chance to recover.  An example of 1d0 of the few
 C                cases in which it is permissible to declare a level 2
 C                error is a reverse communication Library routine that
 C                is likely to be called repeatedly until it integrates

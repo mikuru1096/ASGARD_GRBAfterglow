@@ -164,7 +164,7 @@ HEtools 的 afterglow 页面从 `base_func/afterglow_base_func.py` 调用 ASGARD
 
 线上替换前必须在远端 staging 目录完成：
 
-- `-Wline-truncation` 检查覆盖 `Constants`、`Dynamics_forward`、`electron_forward_fullhide_1d`、`electron_radiation`、`SED_interpolation`、`radiation_gamma_gamma_absorption`、`hadronic_forward_1d` 的源闭包。
+- `-Wline-truncation` 检查覆盖 `Constants`、`Dynamics_forward`、`electron_forward_fullhide_1d`、`electron_radiation`、`SED_interpolation`、`pair_absorption`、`hadronic_forward_1d` 的源闭包。
 - 用 `/home/wangyun/anaconda3/envs/mylab/bin/python build_extensions.py --force` 编译上述模块。
 - 调用 `ASGARD_fs_fluxdensity` 做最小 live-shape 检查，要求 `Tobs.shape == (180,)`、`Fluxes.shape == (1, 180)` 且全部 finite。
 - 通过 staging 检查后再停止服务、备份旧目录和旧胶水、替换正式目录、重启 `/home/wangyun/Desktop/run_HEtools.py`。
@@ -189,10 +189,10 @@ HEtools 的 afterglow 页面从 `base_func/afterglow_base_func.py` 调用 ASGARD
 - 页面输出 `Lightcurve`、`SED`、`Downloads`、`Diagnostics` tabs；CSV/PNG 下载由页面即时从 raw arrays 和 figure 生成。
 - jetsimpy 保持 legacy lightcurve comparison，不扩展 SED。
 
-ASGARD SSC 线上依赖 `src/Radiation/radiation_ssc_spectrum*.so`。若重新部署 ASGARD 代码且该扩展缺失，需要在远端 ASGARD root 运行 `-Wline-truncation` 源闭包检查后执行：
+ASGARD SSC 线上依赖 `src/Radiation/ssc_spectrum*.so`。若重新部署 ASGARD 代码且该扩展缺失，需要在远端 ASGARD root 运行 `-Wline-truncation` 源闭包检查后执行：
 
 ```bash
-rtk bash -lc 'source ~/.wsl_env && ssh wangyun@100.108.14.93 "cd /home/wangyun/Desktop/HEtools_web_beta_v03/base_func/ASGARD_GRBAfterglow-main && PATH=/home/wangyun/anaconda3/envs/mylab/bin:\$PATH /home/wangyun/anaconda3/envs/mylab/bin/python build_extensions.py --force --module radiation_ssc_spectrum"'
+rtk bash -lc 'source ~/.wsl_env && ssh wangyun@100.108.14.93 "cd /home/wangyun/Desktop/HEtools_web_beta_v03/base_func/ASGARD_GRBAfterglow-main && PATH=/home/wangyun/anaconda3/envs/mylab/bin:\$PATH /home/wangyun/anaconda3/envs/mylab/bin/python build_extensions.py --force --module ssc_spectrum"'
 ```
 
 最近一次页面升级备份：

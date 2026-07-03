@@ -1,4 +1,4 @@
-subroutine structured_jet_flux_1d(Boundary,E_iso_grid,Gamma0_grid,active_grid,V_seed,V_obs,Tobs, &
+subroutine jet_flux_1d(Boundary,E_iso_grid,Gamma0_grid,active_grid,V_seed,V_obs,Tobs, &
                                   n,Num_theta_patch,Num_phi_patch,Num_nu,Num_nu_obs,Num_Tobs,Num_R,Num_gam_e, &
                                   Num_theta_sed,Num_phi_sed,index_dyn,index_Y,index_syn_intger, &
                                   include_reverse_sync,include_forward_ssc,include_hadronic,include_proton_synch, &
@@ -11,29 +11,34 @@ subroutine structured_jet_flux_1d(Boundary,E_iso_grid,Gamma0_grid,active_grid,V_
                                   track_tobs,track_gamma,track_radius,track_mass,track_bfield,track_nu_m,track_nu_c,track_nu_a)
     !$ use omp_lib
     use constants
-    use dynamics_common, only: dynamics_external_density_profile, density_jump_max
+    use dynamics_density_profile, only: density_profile, jump_max
     implicit none
     integer, intent(in) :: n,Num_theta_patch,Num_phi_patch,Num_nu,Num_nu_obs,Num_Tobs,Num_R,Num_gam_e
     integer, intent(in) :: Num_theta_sed,Num_phi_sed,index_dyn,index_Y,index_syn_intger
     integer, intent(in) :: include_reverse_sync,include_forward_ssc,include_hadronic,include_proton_synch
     integer, intent(in) :: include_pg,include_neutrino,num_gam_p,num_nu_nu
     integer, intent(in) :: axisymmetric,n_threads_outer,n_threads_inner,adaptive_substeps,substep_min,substep_max
-    integer, intent(in) :: thermal_electrons,electron_solver_id,active_grid(Num_theta_patch,Num_phi_patch)
-    real(8), intent(in) :: Boundary(n),E_iso_grid(Num_theta_patch,Num_phi_patch),Gamma0_grid(Num_theta_patch,Num_phi_patch)
-    real(8), intent(in) :: V_seed(Num_nu),V_obs(Num_nu_obs),Tobs(Num_Tobs),substep_rtol
+    integer, intent(in), dimension(Num_theta_patch,Num_phi_patch) :: active_grid
+    integer, intent(in) :: thermal_electrons,electron_solver_id
+    real(8), intent(in), dimension(n) :: Boundary
+    real(8), intent(in), dimension(Num_theta_patch,Num_phi_patch) :: E_iso_grid,Gamma0_grid
+    real(8), intent(in), dimension(Num_nu) :: V_seed
+    real(8), intent(in), dimension(Num_nu_obs) :: V_obs
+    real(8), intent(in), dimension(Num_Tobs) :: Tobs
+    real(8), intent(in) :: substep_rtol
     real(8), intent(in) :: reverse_delta_t_s,reverse_epsilon_e,reverse_epsilon_b,reverse_p,reverse_f_e,reverse_sigma
     real(8), intent(in) :: hadronic_p_p,hadronic_epsilon_p,hadronic_eta_acc
-    real(8), intent(out) :: fwd_sync_obs(Num_nu_obs,Num_Tobs),fwd_ssc_obs(Num_nu_obs,Num_Tobs)
-    real(8), intent(out) :: fwd_hadronic_obs(Num_nu_obs,Num_Tobs),rev_sync_obs(Num_nu_obs,Num_Tobs),total_obs(Num_nu_obs,Num_Tobs)
-    real(8), intent(out) :: track_tobs(Num_R),track_gamma(Num_R),track_radius(Num_R),track_mass(Num_R),track_bfield(Num_R)
-    real(8), intent(out) :: track_nu_m(Num_R),track_nu_c(Num_R),track_nu_a(Num_R)
+    real(8), intent(out), dimension(Num_nu_obs,Num_Tobs) :: fwd_sync_obs,fwd_ssc_obs
+    real(8), intent(out), dimension(Num_nu_obs,Num_Tobs) :: fwd_hadronic_obs,rev_sync_obs,total_obs
+    real(8), intent(out), dimension(Num_R) :: track_tobs,track_gamma,track_radius,track_mass,track_bfield
+    real(8), intent(out), dimension(Num_R) :: track_nu_m,track_nu_c,track_nu_a
 
-    real(8) :: Boundary_sed(n)
+    real(8), dimension(n) :: Boundary_sed
     integer :: track_set,n_threads_projection
 
-    fwd_sync_obs=zero; fwd_ssc_obs=zero; fwd_hadronic_obs=zero; rev_sync_obs=zero; total_obs=zero
-    track_tobs=zero; track_gamma=zero; track_radius=zero; track_mass=zero; track_bfield=zero
-    track_nu_m=zero; track_nu_c=zero; track_nu_a=zero; track_set=0
+    fwd_sync_obs=0d0; fwd_ssc_obs=0d0; fwd_hadronic_obs=0d0; rev_sync_obs=0d0; total_obs=0d0
+    track_tobs=0d0; track_gamma=0d0; track_radius=0d0; track_mass=0d0; track_bfield=0d0
+    track_nu_m=0d0; track_nu_c=0d0; track_nu_a=0d0; track_set=0
     n_threads_projection=max(n_threads_outer,n_threads_inner)
     Boundary_sed=Boundary
 
@@ -56,13 +61,14 @@ contains
 
     subroutine run_axisymmetric()
         implicit none
-        real(8), allocatable :: rt_axis(:,:),rg_axis(:,:),rr_axis(:,:),sync_axis(:,:,:),ssc_axis(:,:,:)
-        real(8), allocatable :: had_axis(:,:,:),rev_axis(:,:,:)
+        real(8), allocatable, dimension(:,:) :: rt_axis,rg_axis,rr_axis
+        real(8), allocatable, dimension(:,:,:) :: sync_axis,ssc_axis
+        real(8), allocatable, dimension(:,:,:) :: had_axis,rev_axis
 
         allocate(rt_axis(Num_R,Num_theta_patch),rg_axis(Num_R,Num_theta_patch),rr_axis(Num_R,Num_theta_patch), &
                  sync_axis(Num_nu,Num_R,Num_theta_patch),ssc_axis(Num_nu,Num_R,Num_theta_patch), &
                  had_axis(Num_nu,Num_R,Num_theta_patch),rev_axis(Num_nu,Num_R,Num_theta_patch))
-        rt_axis=zero; rg_axis=one; rr_axis=zero; sync_axis=zero; ssc_axis=zero; had_axis=zero; rev_axis=zero
+        rt_axis=0d0; rg_axis=1d0; rr_axis=0d0; sync_axis=0d0; ssc_axis=0d0; had_axis=0d0; rev_axis=0d0
         call structured_solve_axisymmetric(Boundary,E_iso_grid,Gamma0_grid,active_grid,V_seed,n,Num_theta_patch, &
                                            Num_phi_patch,Num_nu,Num_R,Num_gam_e,index_dyn,index_Y,index_syn_intger, &
                                            include_reverse_sync,include_forward_ssc,include_hadronic,include_proton_synch, &
@@ -75,31 +81,32 @@ contains
                                            sync_axis,ssc_axis,had_axis,rev_axis, &
                                            track_tobs,track_gamma,track_radius,track_mass,track_bfield,track_nu_m,track_nu_c, &
                                            track_nu_a,track_set)
-        call sed_interpolation_structured(Boundary_sed,zero,rt_axis,rg_axis,rr_axis,sync_axis,V_seed,V_obs,Tobs, &
+        call sed_interpolation_structured(Boundary_sed,0d0,rt_axis,rg_axis,rr_axis,sync_axis,V_seed,V_obs,Tobs, &
                                           n,Num_nu,Num_nu_obs,Num_Tobs,Num_theta_patch,Num_R,Num_phi_sed, &
                                           n_threads_projection,fwd_sync_obs)
-        if (include_forward_ssc /= 0) call sed_interpolation_structured(Boundary_sed,zero,rt_axis,rg_axis,rr_axis, &
+        if (include_forward_ssc /= 0) call sed_interpolation_structured(Boundary_sed,0d0,rt_axis,rg_axis,rr_axis, &
                                           ssc_axis,V_seed,V_obs,Tobs,n,Num_nu,Num_nu_obs,Num_Tobs, &
                                           Num_theta_patch,Num_R,Num_phi_sed,n_threads_projection,fwd_ssc_obs)
         if (include_hadronic /= 0 .and. (include_proton_synch /= 0 .or. include_pg /= 0)) &
-            call sed_interpolation_structured(Boundary_sed,zero, &
+            call sed_interpolation_structured(Boundary_sed,0d0, &
                                           rt_axis,rg_axis,rr_axis,had_axis,V_seed,V_obs,Tobs,n,Num_nu,Num_nu_obs, &
                                           Num_Tobs,Num_theta_patch,Num_R,Num_phi_sed,n_threads_projection,fwd_hadronic_obs)
-        if (include_reverse_sync /= 0) call sed_interpolation_structured(Boundary_sed,zero,rt_axis,rg_axis,rr_axis, &
+        if (include_reverse_sync /= 0) call sed_interpolation_structured(Boundary_sed,0d0,rt_axis,rg_axis,rr_axis, &
                                           rev_axis,V_seed,V_obs,Tobs,n,Num_nu,Num_nu_obs,Num_Tobs, &
                                           Num_theta_patch,Num_R,Num_phi_sed,n_threads_projection,rev_sync_obs)
     end subroutine run_axisymmetric
 
     subroutine run_nonaxisymmetric()
         implicit none
-        real(8), allocatable :: rt_phi(:,:,:),rg_phi(:,:,:),rr_phi(:,:,:),sync_phi(:,:,:,:),ssc_phi(:,:,:,:)
-        real(8), allocatable :: had_phi(:,:,:,:),rev_phi(:,:,:,:)
+        real(8), allocatable, dimension(:,:,:) :: rt_phi,rg_phi,rr_phi
+        real(8), allocatable, dimension(:,:,:,:) :: sync_phi,ssc_phi
+        real(8), allocatable, dimension(:,:,:,:) :: had_phi,rev_phi
 
         allocate(rt_phi(Num_R,Num_theta_patch,Num_phi_patch),rg_phi(Num_R,Num_theta_patch,Num_phi_patch), &
                  rr_phi(Num_R,Num_theta_patch,Num_phi_patch),sync_phi(Num_nu,Num_R,Num_theta_patch,Num_phi_patch), &
                  ssc_phi(Num_nu,Num_R,Num_theta_patch,Num_phi_patch),had_phi(Num_nu,Num_R,Num_theta_patch,Num_phi_patch), &
                  rev_phi(Num_nu,Num_R,Num_theta_patch,Num_phi_patch))
-        rt_phi=zero; rg_phi=one; rr_phi=zero; sync_phi=zero; ssc_phi=zero; had_phi=zero; rev_phi=zero
+        rt_phi=0d0; rg_phi=1d0; rr_phi=0d0; sync_phi=0d0; ssc_phi=0d0; had_phi=0d0; rev_phi=0d0
         call structured_solve_nonaxisymmetric(Boundary,E_iso_grid,Gamma0_grid,active_grid,V_seed,n,Num_theta_patch, &
                                               Num_phi_patch,Num_nu,Num_R,Num_gam_e,index_dyn,index_Y,index_syn_intger, &
                                               include_reverse_sync,include_forward_ssc,include_hadronic,include_proton_synch, &
@@ -112,21 +119,21 @@ contains
                                               sync_phi,ssc_phi,had_phi,rev_phi, &
                                               track_tobs,track_gamma,track_radius,track_mass,track_bfield,track_nu_m, &
                                               track_nu_c,track_nu_a,track_set)
-        call sed_interpolation_structured_phi(Boundary_sed,rt_phi,rg_phi,rr_phi,sync_phi,V_seed,V_obs,Tobs, &
+        call sed_structured_phi(Boundary_sed,rt_phi,rg_phi,rr_phi,sync_phi,V_seed,V_obs,Tobs, &
                                               n,Num_nu,Num_nu_obs,Num_Tobs,Num_theta_patch,Num_phi_patch,Num_R, &
                                               n_threads_projection,fwd_sync_obs)
-        if (include_forward_ssc /= 0) call sed_interpolation_structured_phi(Boundary_sed,rt_phi,rg_phi,rr_phi, &
+        if (include_forward_ssc /= 0) call sed_structured_phi(Boundary_sed,rt_phi,rg_phi,rr_phi, &
                                               ssc_phi,V_seed,V_obs,Tobs,n,Num_nu,Num_nu_obs,Num_Tobs, &
                                               Num_theta_patch,Num_phi_patch,Num_R,n_threads_projection,fwd_ssc_obs)
         if (include_hadronic /= 0 .and. (include_proton_synch /= 0 .or. include_pg /= 0)) &
-            call sed_interpolation_structured_phi(Boundary_sed, &
+            call sed_structured_phi(Boundary_sed, &
                                               rt_phi,rg_phi,rr_phi,had_phi,V_seed,V_obs,Tobs,n,Num_nu,Num_nu_obs, &
                                               Num_Tobs,Num_theta_patch,Num_phi_patch,Num_R,n_threads_projection,fwd_hadronic_obs)
-        if (include_reverse_sync /= 0) call sed_interpolation_structured_phi(Boundary_sed,rt_phi,rg_phi,rr_phi, &
+        if (include_reverse_sync /= 0) call sed_structured_phi(Boundary_sed,rt_phi,rg_phi,rr_phi, &
                                               rev_phi,V_seed,V_obs,Tobs,n,Num_nu,Num_nu_obs,Num_Tobs, &
                                               Num_theta_patch,Num_phi_patch,Num_R,n_threads_projection,rev_sync_obs)
     end subroutine run_nonaxisymmetric
-end subroutine structured_jet_flux_1d
+end subroutine jet_flux_1d
 
 subroutine structured_solve_axisymmetric(Boundary,E_iso_grid,Gamma0_grid,active_grid,V_seed,n,Num_theta_patch, &
                                          Num_phi_patch,Num_nu,Num_R,Num_gam_e,index_dyn,index_Y,index_syn_intger, &
@@ -148,17 +155,19 @@ subroutine structured_solve_axisymmetric(Boundary,E_iso_grid,Gamma0_grid,active_
     integer, intent(in) :: include_pg,include_neutrino,num_gam_p,num_nu_nu
     integer, intent(in) :: n_threads_outer,n_threads_inner,adaptive_substeps,substep_min,substep_max,thermal_electrons
     integer, intent(in) :: electron_solver_id
-    integer, intent(in) :: active_grid(Num_theta_patch,Num_phi_patch)
+    integer, intent(in), dimension(Num_theta_patch,Num_phi_patch) :: active_grid
     integer, intent(inout) :: track_set
-    real(8), intent(in) :: Boundary(n),E_iso_grid(Num_theta_patch,Num_phi_patch),Gamma0_grid(Num_theta_patch,Num_phi_patch)
-    real(8), intent(in) :: V_seed(Num_nu),substep_rtol,hadronic_p_p,hadronic_epsilon_p,hadronic_eta_acc
+    real(8), intent(in), dimension(n) :: Boundary
+    real(8), intent(in), dimension(Num_theta_patch,Num_phi_patch) :: E_iso_grid,Gamma0_grid
+    real(8), intent(in), dimension(Num_nu) :: V_seed
+    real(8), intent(in) :: substep_rtol,hadronic_p_p,hadronic_epsilon_p,hadronic_eta_acc
     real(8), intent(in) :: reverse_delta_t_s,reverse_epsilon_e,reverse_epsilon_b,reverse_p,reverse_f_e,reverse_sigma
-    real(8), intent(out) :: rt_axis(Num_R,Num_theta_patch),rg_axis(Num_R,Num_theta_patch),rr_axis(Num_R,Num_theta_patch)
-    real(8), intent(out) :: sync_axis(Num_nu,Num_R,Num_theta_patch),ssc_axis(Num_nu,Num_R,Num_theta_patch)
-    real(8), intent(out) :: had_axis(Num_nu,Num_R,Num_theta_patch),rev_axis(Num_nu,Num_R,Num_theta_patch)
-    real(8), intent(out) :: track_tobs(Num_R),track_gamma(Num_R),track_radius(Num_R),track_mass(Num_R),track_bfield(Num_R)
-    real(8), intent(out) :: track_nu_m(Num_R),track_nu_c(Num_R),track_nu_a(Num_R)
-    integer, allocatable :: solve_index(:), solve_reps(:)
+    real(8), intent(out), dimension(Num_R,Num_theta_patch) :: rt_axis,rg_axis,rr_axis
+    real(8), intent(out), dimension(Num_nu,Num_R,Num_theta_patch) :: sync_axis,ssc_axis
+    real(8), intent(out), dimension(Num_nu,Num_R,Num_theta_patch) :: had_axis,rev_axis
+    real(8), intent(out), dimension(Num_R) :: track_tobs,track_gamma,track_radius,track_mass,track_bfield
+    real(8), intent(out), dimension(Num_R) :: track_nu_m,track_nu_c,track_nu_a
+    integer, allocatable, dimension(:) :: solve_index,solve_reps
     integer :: it,iu,rep_idx,unique_count
 
     allocate(solve_index(Num_theta_patch),solve_reps(Num_theta_patch))
@@ -249,18 +258,21 @@ subroutine structured_solve_nonaxisymmetric(Boundary,E_iso_grid,Gamma0_grid,acti
     integer, intent(in) :: include_pg,include_neutrino,num_gam_p,num_nu_nu
     integer, intent(in) :: n_threads_outer,n_threads_inner,adaptive_substeps,substep_min,substep_max,thermal_electrons
     integer, intent(in) :: electron_solver_id
-    integer, intent(in) :: active_grid(Num_theta_patch,Num_phi_patch)
+    integer, intent(in), dimension(Num_theta_patch,Num_phi_patch) :: active_grid
     integer, intent(inout) :: track_set
-    real(8), intent(in) :: Boundary(n),E_iso_grid(Num_theta_patch,Num_phi_patch),Gamma0_grid(Num_theta_patch,Num_phi_patch)
-    real(8), intent(in) :: V_seed(Num_nu),substep_rtol,hadronic_p_p,hadronic_epsilon_p,hadronic_eta_acc
+    real(8), intent(in), dimension(n) :: Boundary
+    real(8), intent(in), dimension(Num_theta_patch,Num_phi_patch) :: E_iso_grid,Gamma0_grid
+    real(8), intent(in), dimension(Num_nu) :: V_seed
+    real(8), intent(in) :: substep_rtol,hadronic_p_p,hadronic_epsilon_p,hadronic_eta_acc
     real(8), intent(in) :: reverse_delta_t_s,reverse_epsilon_e,reverse_epsilon_b,reverse_p,reverse_f_e,reverse_sigma
-    real(8), intent(out) :: rt_phi(Num_R,Num_theta_patch,Num_phi_patch),rg_phi(Num_R,Num_theta_patch,Num_phi_patch)
-    real(8), intent(out) :: rr_phi(Num_R,Num_theta_patch,Num_phi_patch),sync_phi(Num_nu,Num_R,Num_theta_patch,Num_phi_patch)
-    real(8), intent(out) :: ssc_phi(Num_nu,Num_R,Num_theta_patch,Num_phi_patch),had_phi(Num_nu,Num_R,Num_theta_patch,Num_phi_patch)
-    real(8), intent(out) :: rev_phi(Num_nu,Num_R,Num_theta_patch,Num_phi_patch)
-    real(8), intent(out) :: track_tobs(Num_R),track_gamma(Num_R),track_radius(Num_R),track_mass(Num_R),track_bfield(Num_R)
-    real(8), intent(out) :: track_nu_m(Num_R),track_nu_c(Num_R),track_nu_a(Num_R)
-    integer, allocatable :: solve_index(:), solve_reps(:)
+    real(8), intent(out), dimension(Num_R,Num_theta_patch,Num_phi_patch) :: rt_phi,rg_phi
+    real(8), intent(out), dimension(Num_R,Num_theta_patch,Num_phi_patch) :: rr_phi
+    real(8), intent(out), dimension(Num_nu,Num_R,Num_theta_patch,Num_phi_patch) :: sync_phi
+    real(8), intent(out), dimension(Num_nu,Num_R,Num_theta_patch,Num_phi_patch) :: ssc_phi,had_phi
+    real(8), intent(out), dimension(Num_nu,Num_R,Num_theta_patch,Num_phi_patch) :: rev_phi
+    real(8), intent(out), dimension(Num_R) :: track_tobs,track_gamma,track_radius,track_mass,track_bfield
+    real(8), intent(out), dimension(Num_R) :: track_nu_m,track_nu_c,track_nu_a
+    integer, allocatable, dimension(:) :: solve_index,solve_reps
     integer :: it,ip,flat,iu,rep_flat,rep_it,rep_ip,unique_count
 
     allocate(solve_index(Num_theta_patch*Num_phi_patch),solve_reps(Num_theta_patch*Num_phi_patch))
@@ -362,9 +374,9 @@ subroutine structured_solve_element(Boundary,E_iso,Gamma0,V_seed,n,Num_nu,Num_R,
                                     track_nu_m,track_nu_c,track_nu_a,track_set)
     !$ use omp_lib
     use constants
-    use dynamics_common, only: dynamics_external_density_profile, density_jump_max
-    use electron_shell_transport_common, only: electron_solver_dg_1d, electron_solver_fullhide_1d
-    use electron_radiation_kernel, only: get_syn_selected_state
+    use dynamics_density_profile, only: density_profile, jump_max
+    use electron_shell_transport, only: solver_dg, solver_fullhide
+    use electron_radiation_kernel, only: syn_state
     use electron_reverse_kernel, only: electron_reverse_evolve
     implicit none
     integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,index_dyn,index_Y,index_syn_intger,include_forward_ssc
@@ -372,33 +384,38 @@ subroutine structured_solve_element(Boundary,E_iso,Gamma0,V_seed,n,Num_nu,Num_R,
     integer, intent(in) :: num_gam_p,num_nu_nu,n_threads,adaptive_substeps
     integer, intent(in) :: include_reverse_sync,substep_min,substep_max,thermal_electrons,electron_solver_id
     integer, intent(inout) :: track_set
-    real(8), intent(in) :: Boundary(n),E_iso,Gamma0,V_seed(Num_nu),substep_rtol
+    real(8), intent(in), dimension(n) :: Boundary
+    real(8), intent(in), dimension(Num_nu) :: V_seed
+    real(8), intent(in) :: E_iso,Gamma0,substep_rtol
     real(8), intent(in) :: reverse_delta_t_s,reverse_epsilon_e,reverse_epsilon_b,reverse_p,reverse_f_e,reverse_sigma
     real(8), intent(in) :: hadronic_p_p,hadronic_epsilon_p,hadronic_eta_acc
-    real(8), intent(out) :: R_Tobs(Num_R),R_Gamma(Num_R),R(Num_R)
-    real(8), intent(out) :: sync_abs(Num_nu,Num_R),ssc_abs(Num_nu,Num_R),had_abs(Num_nu,Num_R),rev_abs(Num_nu,Num_R)
-    real(8), intent(out) :: track_tobs(Num_R),track_gamma(Num_R),track_radius(Num_R),track_mass(Num_R),track_bfield(Num_R)
-    real(8), intent(out) :: track_nu_m(Num_R),track_nu_c(Num_R),track_nu_a(Num_R)
-    real(8) :: B_local(n)
-    real(8) :: R_mass(Num_R),nu_m_local(Num_R),nu_c_local(Num_R),nu_a_local(Num_R)
-    real(8) :: M3(Num_R),B3(Num_R),U3(Num_R),V3(Num_R),Gamma34(Num_R)
-    real(8) :: Secondary_M3(density_jump_max,Num_R),Secondary_U3(density_jump_max,Num_R)
-    real(8) :: Secondary_V3(density_jump_max,Num_R),Secondary_B3(density_jump_max,Num_R)
-    real(8) :: Secondary_M3_total(Num_R),Secondary_U3_total(Num_R),Secondary_V3_total(Num_R),Secondary_B3_total(Num_R)
-    real(8) :: Secondary_pressure_total(Num_R),Secondary_enthalpy_density_total(Num_R)
-    real(8) :: Secondary_gamma_contact(Num_R),Secondary_pressure_3(Num_R),Secondary_gamma_43(Num_R)
-    real(8) :: Secondary_beta_rs(Num_R),Secondary_u_diss(Num_R),Secondary_dissipated_energy(Num_R)
-    real(8) :: Secondary_electron_injected_energy(Num_R),Secondary_branch_gamma_m(density_jump_max,Num_R)
-    real(8) :: Secondary_branch_gamma_contact(density_jump_max,Num_R),Secondary_branch_gamma_43(density_jump_max,Num_R)
-    real(8) :: Secondary_branch_compression(density_jump_max,Num_R)
-    real(8) :: Secondary_branch_beta_rs(density_jump_max,Num_R),Secondary_branch_u_diss(density_jump_max,Num_R)
-    real(8) :: Secondary_nu_m(Num_R),Secondary_nu_c(Num_R)
-    real(8) :: Secondary_start_radius(density_jump_max),Secondary_end_radius(density_jump_max)
-    real(8) :: Secondary_start_tobs_axis(density_jump_max),Secondary_end_tobs_axis(density_jump_max)
-    real(8) :: T_cross,R_cross,e3_cross,gam20,U3_cross,V3_cross,M3_cross,gam_m_cross,B3_ordered_cross
-    real(8), allocatable :: gam_e(:),dN_gam_e(:,:),P_syn(:,:),Seed_syn(:,:),P_ssc(:,:),Seed_ssc(:,:),B_field(:),shell_energy(:)
-    real(8) :: dNe,prev_radius,shell_volume,P_emit_tmp(Num_nu),Tau_syn_tmp(Num_nu)
-    logical :: Secondary_event_active(density_jump_max)
+    real(8), intent(out), dimension(Num_R) :: R_Tobs,R_Gamma,R
+    real(8), intent(out), dimension(Num_nu,Num_R) :: sync_abs,ssc_abs,had_abs,rev_abs
+    real(8), intent(out), dimension(Num_R) :: track_tobs,track_gamma,track_radius,track_mass,track_bfield
+    real(8), intent(out), dimension(Num_R) :: track_nu_m,track_nu_c,track_nu_a
+    real(8), dimension(n) :: B_local
+    real(8), dimension(Num_R) :: R_mass,nu_m_local,nu_c_local,nu_a_local
+    real(8), dimension(Num_R) :: M3,B3,U3,V3,Gamma34
+    real(8), dimension(jump_max,Num_R) :: branch_m3,branch_u3
+    real(8), dimension(jump_max,Num_R) :: branch_v3,branch_b3
+    real(8), dimension(Num_R) :: total_m3,total_u3,total_v3,total_b3
+    real(8), dimension(Num_R) :: total_p,total_w
+    real(8), dimension(Num_R) :: avg_gc,avg_p3,avg_g43
+    real(8), dimension(Num_R) :: avg_brs,total_ud,diss_e
+    real(8), dimension(Num_R) :: inj_e
+    real(8), dimension(jump_max,Num_R) :: branch_gm
+    real(8), dimension(jump_max,Num_R) :: branch_gc,branch_g43
+    real(8), dimension(jump_max,Num_R) :: branch_comp
+    real(8), dimension(jump_max,Num_R) :: branch_brs,branch_ud
+    real(8), dimension(Num_R) :: nu_m_rs,nu_c_rs
+    real(8), dimension(jump_max) :: start_r,end_r
+    real(8), dimension(jump_max) :: start_t,end_t
+    real(8) :: T_cross,R_cross,e3_cross,gam20,U3_cross,V3_cross,M3_cross,gmcross,b3ordx
+    real(8), allocatable, dimension(:) :: gam_e,B_field,shell_energy
+    real(8), allocatable, dimension(:,:) :: dN_gam_e,P_syn,Seed_syn,P_ssc,Seed_ssc
+    real(8), dimension(Num_nu) :: P_emit_tmp,Tau_syn_tmp
+    real(8) :: dNe,prev_radius,shell_volume
+    logical, dimension(jump_max) :: event_on
     integer :: ir
 
     B_local=Boundary; B_local(1)=Gamma0; B_local(14)=E_iso
@@ -407,55 +424,56 @@ subroutine structured_solve_element(Boundary,E_iso,Gamma0,V_seed,n,Num_nu,Num_R,
     if (include_reverse_sync /= 0) then
         call dynamics_reverse(reverse_delta_t_s,reverse_epsilon_e,reverse_epsilon_b,reverse_p,reverse_f_e, &
                               reverse_sigma,B_local,n,Num_R,T_cross,R_cross,e3_cross,gam20,U3_cross,V3_cross, &
-                              M3_cross,gam_m_cross,B3_ordered_cross,R_Tobs,R_Gamma,R,R_mass,M3,B3,U3,V3,Gamma34, &
-                              Secondary_M3,Secondary_U3,Secondary_V3,Secondary_B3, &
-                              Secondary_M3_total,Secondary_U3_total,Secondary_V3_total,Secondary_B3_total, &
-                              Secondary_pressure_total,Secondary_enthalpy_density_total, &
-                              Secondary_gamma_contact,Secondary_pressure_3,Secondary_gamma_43,Secondary_beta_rs, &
-                              Secondary_u_diss,Secondary_dissipated_energy,Secondary_electron_injected_energy, &
-                              Secondary_branch_gamma_m,Secondary_branch_gamma_contact,Secondary_branch_gamma_43, &
-                              Secondary_branch_compression,Secondary_branch_beta_rs,Secondary_branch_u_diss, &
-                              Secondary_nu_m,Secondary_nu_c, &
-                              Secondary_event_active,Secondary_start_radius,Secondary_end_radius, &
-                              Secondary_start_tobs_axis,Secondary_end_tobs_axis)
+                              M3_cross,gmcross,b3ordx,R_Tobs,R_Gamma,R,R_mass,M3,B3,U3,V3,Gamma34, &
+                              branch_m3,branch_u3,branch_v3,branch_b3, &
+                              total_m3,total_u3,total_v3,total_b3, &
+                              total_p,total_w, &
+                              avg_gc,avg_p3,avg_g43,avg_brs, &
+                              total_ud,diss_e,inj_e, &
+                              branch_gm,branch_gc,branch_g43, &
+                              branch_comp,branch_brs,branch_ud, &
+                              nu_m_rs,nu_c_rs, &
+                              event_on,start_r,end_r, &
+                              start_t,end_t)
     else
         call dynamics_forward(B_local,n,Num_R,index_dyn,R_Tobs,R_Gamma,R,R_mass)
-        M3=zero; B3=zero; U3=zero; V3=zero; Gamma34=zero
-        T_cross=zero; R_cross=zero; U3_cross=zero; M3_cross=zero
+        M3=0d0; B3=0d0; U3=0d0; V3=0d0; Gamma34=0d0
+        T_cross=0d0; R_cross=0d0; U3_cross=0d0; M3_cross=0d0
     end if
     select case(electron_solver_id)
-    case(electron_solver_fullhide_1d)
-        call fs_electron_fullhide_1d(B_local,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e, &
+    case(solver_fullhide)
+        call fs_fullhide_1d(B_local,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e, &
                                      index_Y,index_syn_intger,n_threads,adaptive_substeps,substep_rtol, &
                                      substep_min,substep_max,thermal_electrons,gam_e,dN_gam_e,P_syn,Seed_syn, &
                                      nu_m_local,nu_c_local,nu_a_local)
-    case(electron_solver_dg_1d)
+    case(solver_dg)
         if (thermal_electrons /= 0) error stop 'structured_solve_element: dg_1d does not support thermal electrons.'
-        call fs_electron_dg_1d(B_local,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e,index_Y, &
+        call fs_dg_1d(B_local,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e,index_Y, &
                                index_syn_intger,n_threads,gam_e,dN_gam_e,P_syn,Seed_syn,nu_m_local,nu_c_local,nu_a_local)
     case default
         error stop 'structured_solve_element: unsupported electron solver id.'
     end select
-    P_ssc=zero; Seed_ssc=zero; had_abs=zero; rev_abs=zero
+    P_ssc=0d0; Seed_ssc=0d0; had_abs=0d0; rev_abs=0d0
     if (include_forward_ssc /= 0) call ssc_spec(R,gam_e,dN_gam_e,V_seed,Seed_syn,Num_nu,Num_R,Num_gam_e,n_threads,P_ssc,Seed_ssc)
 
     do ir=1,Num_R
-        call dynamics_external_density_profile(B_local(12),B_local(11),R(ir),B_local(n),1,B_local(21),B_local(22),B_local(23),dNe)
-        B_field(ir)=0.39d0*dsqrt(B_local(6)*dNe*(R_Gamma(ir)*(R_Gamma(ir)-one)))
-        prev_radius=zero
+        call density_profile(B_local(12),B_local(11),R(ir),B_local(n),1,B_local(21),B_local(22),B_local(23),dNe)
+        B_field(ir)=0.39d0*dsqrt(B_local(6)*dNe*(R_Gamma(ir)*(R_Gamma(ir)-1d0)))
+        prev_radius=0d0
         if (ir > 1) prev_radius=R(ir-1)
         shell_volume=(4d0/3d0)*pi*(R(ir)**3-prev_radius**3)
-        shell_energy(ir)=zero
-        if (include_hadronic /= 0) shell_energy(ir)=hadronic_epsilon_p*(R_Gamma(ir)-one)*shell_volume*dNe*Para_m_p*Para_c**2
+        shell_energy(ir)=0d0
+        if (include_hadronic /= 0) shell_energy(ir)=hadronic_epsilon_p*(R_Gamma(ir)-1d0)*shell_volume*dNe*Para_m_p*Para_c**2
     end do
 
     if (include_hadronic /= 0 .and. (include_proton_synch /= 0 .or. include_pg /= 0)) then
         block
-            real(8), allocatable :: gam_p(:),dN_gam_p(:,:),P_had_syn(:,:),Seed_had_syn(:,:),P_pg(:,:),V_nu(:),P_nu(:,:)
+            real(8), allocatable, dimension(:) :: gam_p,V_nu
+            real(8), allocatable, dimension(:,:) :: dN_gam_p,P_had_syn,Seed_had_syn,P_pg,P_nu
 
         allocate(gam_p(num_gam_p),dN_gam_p(num_gam_p,Num_R),P_had_syn(Num_nu,Num_R),Seed_had_syn(Num_nu,Num_R), &
                  P_pg(Num_nu,Num_R),V_nu(num_nu_nu),P_nu(num_nu_nu,Num_R))
-        call fs_hadronic_1d(R_Tobs,R_Gamma,R,shell_energy,B_field,V_seed,Seed_syn,hadronic_p_p, &
+        call hadronic_1d(R_Tobs,R_Gamma,R,shell_energy,B_field,V_seed,Seed_syn,hadronic_p_p, &
                             hadronic_epsilon_p,hadronic_eta_acc, &
                             include_proton_synch,include_pg,include_neutrino,Num_nu,Num_R,num_gam_p,num_nu_nu,n_threads, &
                             gam_p,dN_gam_p,P_had_syn,Seed_had_syn,P_pg,V_nu,P_nu)
@@ -466,15 +484,16 @@ subroutine structured_solve_element(Boundary,E_iso,Gamma0,V_seed,n,Num_nu,Num_R,
 
     if (include_reverse_sync /= 0) then
         block
-            real(8), allocatable :: gam_e_rev(:),dN_gam_e_rev(:,:),P_rev_syn(:,:),Seed_rev_syn(:,:)
+            real(8), allocatable, dimension(:) :: gam_e_rev
+            real(8), allocatable, dimension(:,:) :: dN_gam_e_rev,P_rev_syn,Seed_rev_syn
             real(8) :: para_m_ej,reverse_total,reverse_target
             integer :: ig
 
         allocate(gam_e_rev(Num_gam_e),dN_gam_e_rev(Num_gam_e,Num_R),P_rev_syn(Num_nu,Num_R),Seed_rev_syn(Num_nu,Num_R))
-        if (reverse_sigma <= zero) then
+        if (reverse_sigma <= 0d0) then
             para_m_ej=E_iso/Gamma0/Para_c**2
         else
-            para_m_ej=E_iso/(one+reverse_sigma)/Gamma0/Para_c**2
+            para_m_ej=E_iso/(1d0+reverse_sigma)/Gamma0/Para_c**2
         end if
         call electron_reverse_evolve(reverse_delta_t_s*Para_c,reverse_epsilon_e,reverse_epsilon_b,reverse_p,reverse_f_e, &
                                      Gamma0,B_local(5),B_local(6),B_local(8),B_local(12),B_local(11),para_m_ej, &
@@ -483,15 +502,15 @@ subroutine structured_solve_element(Boundary,E_iso,Gamma0,V_seed,n,Num_nu,Num_R,
                                      Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads,gam_e_rev,dN_gam_e_rev, &
                                      electron_solver_id)
         do ir=1,Num_R
-            reverse_total=zero
+            reverse_total=0d0
             do ig=2,Num_gam_e
                 reverse_total=reverse_total+0.5d0*(dN_gam_e_rev(ig,ir)+dN_gam_e_rev(ig-1,ir)) &
                               *(gam_e_rev(ig)-gam_e_rev(ig-1))
             end do
             reverse_target=M3(ir)/Para_m_p*reverse_f_e
-            if (reverse_total > zero .and. reverse_target > zero) &
+            if (reverse_total > 0d0 .and. reverse_target > 0d0) &
                 dN_gam_e_rev(:,ir)=dN_gam_e_rev(:,ir)*reverse_target/reverse_total
-            call get_syn_selected_state(index_syn_intger,R(ir),B3(ir),Num_gam_e,Num_nu,n_threads,gam_e_rev, &
+            call syn_state(index_syn_intger,R(ir),B3(ir),Num_gam_e,Num_nu,n_threads,gam_e_rev, &
                                         dN_gam_e_rev(:,ir),V_seed,P_emit_tmp,P_rev_syn(:,ir), &
                                         Seed_rev_syn(:,ir),Tau_syn_tmp)
         end do
@@ -499,7 +518,7 @@ subroutine structured_solve_element(Boundary,E_iso,Gamma0,V_seed,n,Num_nu,Num_R,
         end block
     end if
 
-    call structured_apply_observer_absorption(Boundary,R_Gamma,R,V_seed,Seed_syn,Seed_ssc,P_syn,P_ssc, &
+    call apply_absorption(Boundary,R_Gamma,R,V_seed,Seed_syn,Seed_ssc,P_syn,P_ssc, &
                                               Num_nu,Num_R,n_threads,include_reverse_sync,include_hadronic, &
                                               include_proton_synch,include_pg,sync_abs,ssc_abs,rev_abs,had_abs)
 
@@ -512,25 +531,27 @@ subroutine structured_solve_element(Boundary,E_iso,Gamma0,V_seed,n,Num_nu,Num_R,
     deallocate(gam_e,dN_gam_e,P_syn,Seed_syn,P_ssc,Seed_ssc,B_field,shell_energy)
 end subroutine structured_solve_element
 
-subroutine structured_apply_observer_absorption(Boundary,R_Gamma,R,V_seed,Seed_syn,Seed_ssc,P_syn,P_ssc, &
+subroutine apply_absorption(Boundary,R_Gamma,R,V_seed,Seed_syn,Seed_ssc,P_syn,P_ssc, &
                                                 Num_nu,Num_R,n_threads,include_reverse_sync,include_hadronic, &
                                                 include_proton_synch,include_pg,sync_abs,ssc_abs,rev_abs,had_abs)
     use constants
     implicit none
     integer, intent(in) :: Num_nu,Num_R,n_threads,include_reverse_sync,include_hadronic,include_proton_synch,include_pg
-    real(8), intent(in) :: Boundary(*),R_Gamma(Num_R),R(Num_R),V_seed(Num_nu)
-    real(8), intent(in) :: Seed_syn(Num_nu,Num_R),Seed_ssc(Num_nu,Num_R),P_syn(Num_nu,Num_R),P_ssc(Num_nu,Num_R)
-    real(8), intent(inout) :: rev_abs(Num_nu,Num_R),had_abs(Num_nu,Num_R)
-    real(8), intent(out) :: sync_abs(Num_nu,Num_R),ssc_abs(Num_nu,Num_R)
-    real(8) :: prefactor(Num_nu,Num_R),tau_extra(Num_nu,Num_R),absorption(Num_nu,Num_R)
+    real(8), intent(in), dimension(*) :: Boundary
+    real(8), intent(in), dimension(Num_R) :: R_Gamma,R
+    real(8), intent(in), dimension(Num_nu) :: V_seed
+    real(8), intent(in), dimension(Num_nu,Num_R) :: Seed_syn,Seed_ssc,P_syn,P_ssc
+    real(8), intent(inout), dimension(Num_nu,Num_R) :: rev_abs,had_abs
+    real(8), intent(out), dimension(Num_nu,Num_R) :: sync_abs,ssc_abs
+    real(8), dimension(Num_nu,Num_R) :: prefactor,tau_extra,absorption
 
-    tau_extra=zero
+    tau_extra=0d0
     call annihilation(R_Gamma,R,V_seed,Seed_syn,Seed_ssc,tau_extra,Num_nu,Num_R,n_threads,absorption)
-    associate(luminosity_distance_cm => Boundary(13), redshift_factor => one+Boundary(8))
+    associate(luminosity_distance_cm => Boundary(13), redshift_factor => 1d0+Boundary(8))
         prefactor=absorption/(4d0*pi*luminosity_distance_cm**2)*redshift_factor
     end associate
     sync_abs=P_syn*prefactor
     ssc_abs=P_ssc*prefactor
     if (include_reverse_sync /= 0) rev_abs=rev_abs*prefactor
     if (include_hadronic /= 0 .and. (include_proton_synch /= 0 .or. include_pg /= 0)) had_abs=had_abs*prefactor
-end subroutine structured_apply_observer_absorption
+end subroutine apply_absorption

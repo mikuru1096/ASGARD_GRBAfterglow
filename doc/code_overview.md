@@ -35,7 +35,7 @@ Model.flux_density_grid / flux_density / spectrum / flux
 - `ReverseShockDynamics`：`M3`, total `B3`, ordered crossing field `B3_ordered_cross`, `U3/V3`, `gamma34` 和 crossing thermal records；`B3` 是 turbulent `sqrt(8 pi epsilon_B,r U3/V3)` 与可选 ordered upstream field 的总和。
 - `ElectronSolution`：`gam_e`, `d_n_gam_e`, `l_syn_spec`, `seed_syn`；2D finite \(q\)-shell 额外包含 `d_n_gam_e_chi`, `chi_grid`, `l_syn_spec_chi`, `seed_syn_chi`, `tau_syn_chi`, `chi_radius_cm`, `chi_gamma_bulk`, `chi_dvolume_weight`。其中 `chi_grid` 是 \(q\) cell 的 BM 等效诊断坐标，observer projection 以 `chi_radius_cm`、`chi_gamma_bulk` 和 `chi_dvolume_weight` 为准；BH 额外包含 `d_n_gam_e_bh`。
 - `PhotonFieldState`：forward synch seed、hadronic target field、absorption seed field。
-- `HadronicSolution`：1D hadronic proton/secondary/radiation results；joint path 额外使用 `secondary_electron_source_r`、`tau_bh` 和 `bh_photon_loss_rate` 做 shell-level feedback。
+- `HadronicSolution`：1D hadronic proton/secondary/radiation results；joint path 额外使用 `secondary_electron_source_r`、`tau_bh` 和 `bh_phloss` 做 shell-level feedback。
 - `ObserverState`：absorption factors、`tau_pair`、flux components。
 - `FluxComponents`：`total`、FS synch/SSC、hadronic、RS synch/SSC、cross-zone IC。
 
@@ -66,13 +66,13 @@ Fitter.loglike -> compile_problem -> eval_loglike -> solve_state_from_setup
 - `asgard_postprocess.py`：observer projection、band aggregation、fit postprocessing 和观测数据 χ² helpers。
 - `api_fit.py`：public `Fitter`、fit problem compilation 和 likelihood path。
 - `asgard_types.py`：runtime dataclass contracts。
-- `structured_jet_kernel.py`：结构化喷流 Fortran backend 的薄中间层，负责采样结构化参数、选择轴对称/非轴对称分支、调用 `structured_jet_1d` 并组装 API 结果。`fullhide_2d + chi_eats_2d` 的 axisymmetric structured 路径逐 theta ring 求解并预计算 chi-local synchrotron/SSA spectra，再调用 `sed_interpolation_chi_structured_axisym_ring_precomputed` 做观测者投影；外层并行使用 POSIX `fork` 进程。
+- `structured_jet_kernel.py`：结构化喷流 Fortran backend 的薄中间层，负责采样结构化参数、选择轴对称/非轴对称分支、调用 `structured_jet_1d` 并组装 API 结果。`fullhide_2d + chi_eats_2d` 的 axisymmetric structured 路径逐 theta ring 求解并预计算 chi-local synchrotron/SSA spectra，再调用 `sed_chi_ring` 做观测者投影；外层并行使用 POSIX `fork` 进程。
 - `prompt/internal_shock.py`、`prompt/radiation.py`、`prompt/eats.py`：prompt internal-shock snapshot 的 Python orchestration。它复用现有 Fortran jump/electron/radiation/interpolation 核，不是 afterglow `Model` 主链的一部分。
 
 强子 Python 模块只做编排、包装和轻量 helper：
 
 - Fortran wrappers：`hadronic_processes.py`。
-- Formal FS/RS shell-sequence transport 由 `src/Hadronic/hadronic_forward_1d.f90::fs_hadronic_formal_transport_1d` 推进；Python 只展开配置、传入数组并组装 `HadronicSolution`。
+- Formal FS/RS shell-sequence transport 由 `src/Hadronic/hadronic_forward_1d.f90::formal_transport_1d` 推进；Python 只展开配置、传入数组并组装 `HadronicSolution`。
 - Reverse shock light wrapper 已并入 `asgard_runtime.py`；开启 RS full-chain flags 时，runtime 通过 formal 1D 强子核处理 RS seed photons、RS `B3`、shell energy 和 baryon target density。
 - Process/backend glue：`hadronic_am3_solver.py`, `hadronic_cascade.py`；pγ 单位转换和共享 wrapper 校验位于 `hadronic_processes.py`。
 
@@ -85,21 +85,23 @@ Fitter.loglike -> compile_problem -> eval_loglike -> solve_state_from_setup
 ### 动力学
 
 - `src/Dynamics/Dynamics_forward.f90`：正向激波动力学、ISM/wind、density jumps、energy injection。
-- `src/Dynamics/Dynamics_reverse.f90`：反向激波主时间推进和输出组装；region-3 `U3/V3/gamma34`、磁化 jump 和次级 RS 分支由 `reverse_rhs.f90`、`reverse_jump_conditions.f90` 与主驱动内的事件定位逻辑承担。
-- `src/Dynamics/dynamics_common.f90`：共享动力学辅助函数。
+- `src/Dynamics/reverse_shock.f90`：反向激波 `Dynamics_reverse.dynamics_reverse` f2py 入口；first RS 推进、crossing event split 和 density-jump multiple RS 分支在同一输出循环内同步记录。
+- `src/Dynamics/dynamics_density_profile.f90`：共享外介质密度、density jump/profile 状态和插值。
+- 正向 RK4 推进留在 `Dynamics_forward.f90`；反向 event-split RK 推进位于 `reverse_shock.f90`。
+- `src/Dynamics/reverse_shock_state.f90`、`src/Dynamics/reverse_shock_mhd_jump.f90`：反向激波 phase/state 下标和有限强度 MHD jump 公式。
 
 ### 电子
 
-- Main entries：`electron_forward_fullhide_1d.f90`, `electron_forward_dg_1d.f90`, `electron_forward_transport_2d.f90`, `electron_forward_charint_1d.f90`, `electron_forward_slc1_1d.f90`, `electron_forward_t2g1_1d.f90`, `electron_forward_weno5_1d.f90`。`electron_forward_charint_2d` extension 复用 `electron_forward_transport_2d.f90` 中的 `fs_electron_transport_2d_core`，通过 `use_charint_transport` 选择 charint 2D path。
-- Shared kernels：`electron_common.f90`, `electron_cooling_kernel.f90`（门面/组装）, `electron_cooling_ssa_kernel.f90`, `electron_cooling_ic_kernel.f90`, `electron_cooling_y_kernel.f90`, `electron_radiation_kernel.f90`, `electron_seed_history_kernel.f90`, `electron_transport_2d_kernel.f90`, `electron_injection_profiles.f90`, `electron_shell_transport_common.f90`, `electron_transport_common.f90`, `electron_transport_dg_1d_kernel.f90`, `electron_reverse_kernel.f90`, `adaptive_resampling_mod.f90`。
+- Main entries：`electron_forward_fullhide_1d.f90`, `electron_forward_dg_1d.f90`, `electron_forward_transport_2d.f90`, `electron_forward_charint_1d.f90`, `electron_forward_slc1_1d.f90`, `electron_forward_t2g1_1d.f90`, `electron_forward_weno5_1d.f90`。`electron_forward_charint_2d` extension 复用 `electron_forward_transport_2d.f90` 中的 `fs_transport_2d`，通过 `use_charint_transport` 选择 charint 2D path。
+- Shared kernels：`electron_common.f90`, `electron_cooling_kernel.f90`（门面/组装）, `electron_cooling_ssa_kernel.f90`, `electron_cooling_ic_kernel.f90`, `electron_cooling_y_kernel.f90`, `electron_radiation_kernel.f90`, `electron_seed_history_kernel.f90`, `electron_transport_2d_kernel.f90`, `electron_injection_profiles.f90`, `electron_shell_transport_common.f90`, `electron_transport_common.f90`, `electron_dg_transport.f90`, `electron_reverse_kernel.f90`, `adaptive_resampling_mod.f90`。
 
 ### 辐射与插值
 
-- `src/Radiation/radiation_ssc_spectrum.f90`：SSC spectrum 和 seed。
-- `src/Radiation/radiation_gamma_gamma_absorption.f90`：gamma-gamma absorption。
-- `src/Radiation/radiation_common.f90`：Simpson weights、power-law interpolation、pair cross-section、synchrotron seed core、transfer factor。
-- `src/Radiation/synchrotron_polarization_kernel.f90`：频率相关同步辐射偏振 emissivity。
-- `src/Radiation/quantum_synchrotron_kernel.f90`：quantum synchrotron helper。
+- `src/Radiation/ssc_spectrum.f90`：SSC spectrum 和 seed。
+- `src/Radiation/pair_absorption.f90`：gamma-gamma absorption。
+- `src/Radiation/rad_common.f90`：Simpson weights、power-law interpolation、pair cross-section、synchrotron seed core、transfer factor。
+- `src/Radiation/syn_polarization.f90`：频率相关同步辐射偏振 emissivity。
+- `src/Radiation/quantum_synch.f90`：quantum synchrotron helper。
 - `src/Interpolation/SED_interpolation.f90`：observer-frame EATS/Doppler interpolation，包含 shell-level、adaptive theta、top-hat chi、direct-electron chi 和 structured ring-precomputed chi 投影入口。
 - `src/Interpolation/SED_interpolation_structured.f90`：`structured_jet_1d` 内部使用的 shell-level structured jet interpolation；不再从 `src.Interpolation` 暴露旧 Python 绑定。
 - `src/Structured/structured_jet_1d.f90`：结构化喷流 Fortran 聚合入口，调度 theta 或 theta-phi 网格并复用现有动力学、电子、辐射、强子和 SED 插值核。
@@ -108,22 +110,22 @@ Fitter.loglike -> compile_problem -> eval_loglike -> solve_state_from_setup
 
 `src/Hadronic/hadronic_forward_1d.f90` 是正向激波强子 f2py 入口。公开 f2py 面只保留 Python 正式路径调用的 drivers、process wrappers 和少量单位/插值 helper；其余 shell operators 保留为 Fortran 内部实现，不再从 `build_extensions.py` 导出。
 
-- `fs_hadronic_formal_transport_1d`：formal 1D shell sequence driver，闭合 proton transport、pγ photon survival、BH、pp、secondary species、hadronic IC 和 BH/pp 二级电子序列。
+- `formal_transport_1d`：formal 1D shell sequence driver，闭合 proton transport、pγ photon survival、BH、pp、secondary species、hadronic IC 和 BH/pp 二级电子序列。
 - `hadronic_transport_kernel.f90`：proton injection、adiabatic/synchrotron loss、log-gamma energy advance。
 - `hadronic_transport_remap_kernel.f90`：强子 transport 网格 remap helper。
-- `hadronic_radiation_kernel.f90`：proton synchrotron。
-- `hadronic_interaction_kernel.f90`：Hummer 2010 photopion operator。
-- `hadronic_pgamma_hummer_1d.f90`：旧 Hummer pγ 1D aggregate helper；formal path 不使用其 photon escape 时间尺度。
-- `hadronic_decay_kernel.f90`：pi0 -> gamma、pi/mu decay、neutrino emissivity。
-- `hadronic_pair_production_kernel.f90`：gamma-gamma pair production。
-- `hadronic_pair_cascade_kernel.f90`：pair-cascade synchrotron kernel。
-- `hadronic_pp_kernel.f90`、`hadronic_pp_models_kernel.f90`：pp source/loss helpers。
-- `hadronic_bethe_heitler_kernel.f90`：Bethe-Heitler pair source 与 proton loss。
-- `hadronic_hadronic_ic_kernel.f90`：hadronic inverse Compton。
-- `hadronic_species_transport_kernel.f90`：neutron、pi±、mu± explicit transport。
-- `hadronic_acceleration_kernel.f90`：acceleration timescale、injection operator、gamma_max estimate。
-- `hadronic_secondary_radiation_kernel.f90`：pion/muon synchrotron 与 IC。
-- `hadronic_common.f90`：共享常量、grid builders、validation。
+- `hadronic_rad.f90`：proton synchrotron。
+- `hadronic_pg.f90`：Hummer 2010 photopion operator。
+- `hadronic_hummer.f90`：旧 Hummer pγ 1D aggregate helper；formal path 不使用其 photon escape 时间尺度。
+- `hadronic_decay.f90`：pi0 -> gamma、pi/mu decay、neutrino emissivity。
+- `hadronic_pair.f90`：gamma-gamma pair production。
+- `hadronic_cascade.f90`：pair-cascade synchrotron kernel。
+- `hadronic_pp.f90`、`pp_models.f90`：pp source/loss helpers。
+- `hadronic_bh.f90`：Bethe-Heitler pair source 与 proton loss。
+- `hadronic_ic.f90`：hadronic inverse Compton。
+- `hadronic_species.f90`：neutron、pi±、mu± explicit transport。
+- `hadronic_accel.f90`：acceleration timescale、injection rate、gamma limit estimate。
+- `hadronic_secondary.f90`：pion/muon synchrotron 与 IC。
+- `hadronic_base.f90`：共享常量、grid builders、validation。
 
 反向激波强子 light entry 是 `src/Hadronic/hadronic_reverse_1d.f90`。Full-chain RS hadronic dispatch 通过 Python runtime wrapper 复用 `hadronic_forward_1d` formal 1D kernels，使用 RS magnetic field、RS seed photons、RS shell energy 和 RS baryon target density。
 

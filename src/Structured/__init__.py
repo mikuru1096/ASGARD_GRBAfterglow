@@ -5,7 +5,7 @@ from typing import Any
 
 
 _BINDINGS = {
-    "structured_jet_flux_1d": "structured_jet_1d",
+    "jet_flux_1d": "structured_jet_1d",
 }
 
 

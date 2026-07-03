@@ -18,8 +18,8 @@ C        or a call to XSETUA, or may be a default value.
 C
 C     Description of Parameters
 C      --Output--
-C        IUNIT - an array of one to five unit numbers, depending
-C                on the value of N.  A value of zero refers to the
+C        IUNIT - an array of 1d0 to five unit numbers, depending
+C                on the value of N.  A value of 0d0 refers to the
 C                default unit, as defined by the I1MACH machine
 C                constant routine.  Only IUNIT(1),...,IUNIT(N) are
 C                defined by XGETUA.  The values of IUNIT(N+1),...,

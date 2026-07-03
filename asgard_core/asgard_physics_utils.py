@@ -50,7 +50,7 @@ def density_profile_arrays(config: RuntimeConfig) -> tuple[np.ndarray, np.ndarra
     if profile_r.shape != profile_n.shape:
         raise ValueError("density_profile_radius_cm and density_profile_n_cm3 must have the same length.")
     if profile_r.size < 2:
-        raise ValueError("density_profile requires at least two radius-density points.")
+        raise ValueError("density_profile requires at least 2 radius-density points.")
     if profile_r.size > MAX_DENSITY_PROFILE_POINTS:
         raise ValueError(f"At most {MAX_DENSITY_PROFILE_POINTS} density profile points are supported.")
     if not np.all(np.isfinite(profile_r)) or not np.all(np.isfinite(profile_n)):

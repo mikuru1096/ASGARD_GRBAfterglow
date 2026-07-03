@@ -1,24 +1,30 @@
-subroutine fs_electron_fullhide_1d_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e, &
+! HZ hybrid 电子分布路径：热/非热源项共用 fullhide 输运，辐射诊断仍走 selected synchrotron。
+! HZ hybrid electron path: thermal and non-thermal sources share fullhide transport, with selected synchrotron diagnostics.
+subroutine fs_fullhide_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e, &
                                       index_Y,index_syn_intger,n_threads,adaptive_substeps,substep_rtol, &
                                       substep_min,substep_max,thermal_electrons,gam_e,dN_gam_e,P_syn, &
                                       Seed_syn,V_m,V_c,V_a)
     use constants
-    use dynamics_common, only: dynamics_external_density_profile
+    use dynamics_density_profile, only: density_profile
     use electron_common
-    use electron_injection_profiles, only: electron_build_source_term_exp_cutoff_edges, electron_add_thermal_source_term, &
-                                           electron_profile_log_cell_edges
-    use electron_radiation_kernel, only: get_syn_selected_state, get_nu_a_from_tau_grid
+    use electron_injection_profiles, only: source_edges, add_thermal, &
+                                           log_edges
+    use electron_radiation_kernel, only: syn_state, nua_fromtau
     use electron_cooling_kernel, only: get_forward_cooling
-    use electron_transport_common, only: electron_fullhide_step, electron_dnx_to_dndgamma_exp_centers
-    use hybrid_spectrum_kernel_fast, only: normalized_hybrid_spec_lg
+    use electron_transport_common, only: fullhide_step, dnx_dgamma
+    use hybrid_spectrum, only: hybrid_spec
     IMPLICIT REAL(8)(A-H,O-Z)
     integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads
     integer, intent(in) :: adaptive_substeps,substep_min,substep_max,thermal_electrons
-    real(8), intent(in) :: Boundary(n),R_Tobs(Num_R),R_Gamma(Num_R),R(Num_R),V_seed(Num_nu)
+    real(8), intent(in), dimension(n) :: Boundary
+    real(8), intent(in), dimension(Num_R) :: R_Tobs,R_Gamma,R
+    real(8), intent(in), dimension(Num_nu) :: V_seed
     real(8), intent(in) :: substep_rtol
-    real(8), intent(out) :: dN_gam_e(Num_gam_e,Num_R),gam_e(Num_gam_e),P_syn(Num_nu,Num_R), &
-                            Seed_syn(Num_nu,Num_R), V_m(Num_R), V_c(Num_R), V_a(Num_R)
-    
+    real(8), intent(out), dimension(Num_gam_e,Num_R) :: dN_gam_e
+    real(8), intent(out), dimension(Num_gam_e) :: gam_e
+    real(8), intent(out), dimension(Num_nu,Num_R) :: P_syn,Seed_syn
+    real(8), intent(out), dimension(Num_R) :: V_m,V_c,V_a
+
     real(8),allocatable,dimension (:) :: dEl,dEL_mean,x,dN_x,x_edge, &
                                          dN_full,dN_half,dN_half2,dF1,dEL_mean_base,dEL_mean_step
     logical :: is_uniform_density,budget_diag_enabled
@@ -26,112 +32,112 @@ subroutine fs_electron_fullhide_1d_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,
     character(len=32) :: diag_env
     real(8) :: dDR_xi,ln10
     real(8) :: n_before_step,n_after_step,inj_step,rel_loss_xi_max
-    real(8) :: P_emit_tmp(Num_nu),Tau_syn_tmp(Num_nu)
+    real(8), dimension(Num_nu) :: P_emit_tmp,Tau_syn_tmp
     allocate (dEl(Num_gam_e),dEL_mean(Num_gam_e-1),x(Num_gam_e),dN_x(Num_gam_e), &
               dN_full(Num_gam_e), &
               x_edge(Num_gam_e+1),dN_half(Num_gam_e),dN_half2(Num_gam_e),dF1(Num_gam_e),dEL_mean_base(Num_gam_e-1), &
               dEL_mean_step(Num_gam_e-1))
-    
+
     call electron_unpack_boundary(Boundary,n,Eta_0,R_ini,Epsilon_e,Epsilon_b,p,z,dNe_ISM,A_star, &
                                   E_iso,T_log10_duration,f_e,R_tr,f_jump,f_wide,R0)
     if (thermal_electrons /= 0) then
-        if (f_e <= zero .or. f_e > one) error stop 'thermal electrons require 0 < f_e <= 1'
+        if (f_e <= 0d0 .or. f_e > 1d0) error stop 'thermal electrons require 0 < f_e <= 1'
     end if
-    
-    P_syn=zero
-    Seed_syn=zero
-    V_m=zero
-    V_c=zero
-    V_a=zero
+
+    P_syn=0d0
+    Seed_syn=0d0
+    V_m=0d0
+    V_c=0d0
+    V_a=0d0
 
     call electron_initial_density(A_star,dNe_ISM,R_ini,R(1),R0,dNe,Para_N_e_ini)
 
-    DB=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma(1)*(R_Gamma(1)-one)))
+    DB=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma(1)*(R_Gamma(1)-1d0)))
     Gam_e_max=3d0*Para_m_energy/dsqrt(8d0*DB*Para_e**3)
-    DB_min=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma(Num_R)*(R_Gamma(Num_R)-one)))
+    DB_min=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma(Num_R)*(R_Gamma(Num_R)-1d0)))
     Gam_e_max_max=3d0*Para_m_energy/dsqrt(8d0*DB_min*Para_e**3)
-    temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma(1)-one)
-    call electron_gamma_m_exact(p,temp_gam,Gam_e_max,Gam_e_m)
-    Gam_e_c=7.7d8/(one+dsqrt(Epsilon_e/Epsilon_b))/R_Gamma(1)/DB**2/(R_Tobs(1)/two)
-    if (R_Gamma(1) < one) error stop 'fs_electron_fullhide_1d requires initial Gamma >= 1'
-    beta_Gam=dsqrt(one-one/R_Gamma(1)**2)
+    temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma(1)-1d0)
+    call electron_gm_exact(p,temp_gam,Gam_e_max,Gam_e_m)
+    Gam_e_c=7.7d8/(1d0+dsqrt(Epsilon_e/Epsilon_b))/R_Gamma(1)/DB**2/(R_Tobs(1)/2d0)
+    if (R_Gamma(1) < 1d0) error stop 'fs_fullhide_1d requires initial Gamma >= 1'
+    beta_Gam=dsqrt(1d0-1d0/R_Gamma(1)**2)
     if (thermal_electrons == 0) then
         call electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
-                                          electron_initial_grid_log_edges,gam_e,dN_x,x_edge)
-        call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,1))
+                                          imodelog,gam_e,dN_x,x_edge)
+        call dnx_dgamma(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,1))
     else
         call electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
-                                          electron_initial_grid_gamma,gam_e,dN_gam_e(:,1),thermal_electrons=thermal_electrons, &
+                                          imodeg,gam_e,dN_gam_e(:,1),thermal_electrons=thermal_electrons, &
                                           f_e=f_e,four_v=R_Gamma(1)*beta_Gam)
-        dN_x=dN_gam_e(:,1)*gam_e*dlog(ten)
-        call electron_profile_log_cell_edges(Num_gam_e,gam_e,x_edge)
+        dN_x=dN_gam_e(:,1)*gam_e*dlog(1d1)
+        call log_edges(Num_gam_e,gam_e,x_edge)
     end if
     d_x=dlog10(gam_e(2)/gam_e(1))
-    ln10=dlog(ten)
-    is_uniform_density=(A_star <= zero .and. f_jump == one)
+    ln10=dlog(1d1)
+    is_uniform_density=(A_star <= 0d0 .and. f_jump == 1d0)
     budget_diag_enabled=.false.
     diag_env=''
     call get_environment_variable('ASGARD_DIAG_1D_BUDGET',diag_env,length=env_len,status=env_status)
     if (env_status == 0 .and. env_len > 0) then
         if (diag_env(1:1) /= '0') budget_diag_enabled=.true.
     end if
-    rel_loss_xi_max=zero
+    rel_loss_xi_max=0d0
 !    factor_adv=Para_sigmaT/(6.0d0*pi*Para_m_energy)
 
     do I_tobs=2,Num_R
         R_loc=R(I_tobs-1)
-        R_Gamma_loc=(R_Gamma(I_tobs)+R_Gamma(I_tobs-1))/two
-        if (R_Gamma_loc < one) error stop 'fs_electron_fullhide_1d requires Gamma >= 1'
-        beta_Gam=dsqrt(one-one/R_Gamma_loc**2)
-        call dynamics_external_density_profile(A_star,dNe_ISM,R_loc,R0,1,R_tr,f_jump,f_wide,dNe)
+        R_Gamma_loc=(R_Gamma(I_tobs)+R_Gamma(I_tobs-1))/2d0
+        if (R_Gamma_loc < 1d0) error stop 'fs_fullhide_1d requires Gamma >= 1'
+        beta_Gam=dsqrt(1d0-1d0/R_Gamma_loc**2)
+        call density_profile(A_star,dNe_ISM,R_loc,R0,1,R_tr,f_jump,f_wide,dNe)
 
-        DB=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma_loc*(R_Gamma_loc-one)))
+        DB=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma_loc*(R_Gamma_loc-1d0)))
         Gam_e_max=3d0*Para_m_energy/dsqrt(8d0*DB*Para_e**3)
-        temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma_loc-one)
-        call electron_gamma_m_exact(p,temp_gam,Gam_e_max,Gam_e_m)
-        Gam_e_m_p=(one-p)/(Gam_e_max**(one-p)-Gam_e_m**(one-p))
-        Gam_e_c=7.7d8*(one+z)/R_Gamma_loc/DB**2/R_Tobs(I_tobs)
+        temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma_loc-1d0)
+        call electron_gm_exact(p,temp_gam,Gam_e_max,Gam_e_m)
+        Gam_e_m_p=(1d0-p)/(Gam_e_max**(1d0-p)-Gam_e_m**(1d0-p))
+        Gam_e_c=7.7d8*(1d0+z)/R_Gamma_loc/DB**2/R_Tobs(I_tobs)
         dNe_shell=dNe
 
         f_r=(1.35d-19)/beta_Gam/R_Gamma_loc*DB**2/pi
         dDR=0.1d0/(f_r*Gam_e_max+1.333d0/(R(I_tobs)+R(I_tobs-1)))
         dDD=R(I_tobs)-R(I_tobs-1)
-        dN_x=dN_gam_e(:,I_tobs-1)*gam_e*dlog(ten)
-        V_m(I_tobs-1)=4.2d6*DB*Gam_e_m*Gam_e_m/(R_Gamma_loc*(1d0-beta_Gam)*(one+z))
-        V_c(I_tobs-1)=4.2d6*DB*Gam_e_c*Gam_e_c/(R_Gamma_loc*(1d0-beta_Gam)*(one+z))
+        dN_x=dN_gam_e(:,I_tobs-1)*gam_e*dlog(1d1)
+        V_m(I_tobs-1)=4.2d6*DB*Gam_e_m*Gam_e_m/(R_Gamma_loc*(1d0-beta_Gam)*(1d0+z))
+        V_c(I_tobs-1)=4.2d6*DB*Gam_e_c*Gam_e_c/(R_Gamma_loc*(1d0-beta_Gam)*(1d0+z))
 
-        call get_syn_selected_state(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads, &
+        call syn_state(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads, &
                                     gam_e,dN_gam_e(:,I_tobs-1),V_seed,P_emit_tmp,P_syn(:,I_tobs), &
                                     Seed_syn(:,I_tobs),Tau_syn_tmp)
-        call get_nu_a_from_tau_grid(Num_nu,V_seed,Tau_syn_tmp,temp)
-        V_a(I_tobs-1)=temp/(R_Gamma_loc*(1d0-beta_Gam)*(one+z))
-        
+        call nua_fromtau(Num_nu,V_seed,Tau_syn_tmp,temp)
+        V_a(I_tobs-1)=temp/(R_Gamma_loc*(1d0-beta_Gam)*(1d0+z))
+
         call get_forward_cooling(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc, &
                                  R_Gamma_loc,beta_Gam,dNe,Num_gam_e,Num_nu,n_threads,gam_e,V_seed, &
                                  P_syn(:,I_tobs),Seed_syn(:,I_tobs),dEl)
-         
-        dEL_mean=(dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/two/dlog(ten)
+
+        dEL_mean=(dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/2d0/dlog(1d1)
         dEL_mean_base=dEL_mean
         dDR_xi=dDR
         if (adaptive_substeps == 0) then
-            L1=max(100,min(1000,int(dDD/max(dDR,tiny(one)))))
+            L1=max(100,min(1000,int(dDD/max(dDR,tiny(1d0)))))
             dDR=dDD/dble(L1)
 
             do L=1,L1
                     R_loc=R_loc+dDR
 
                     if (is_uniform_density .and. thermal_electrons == 0) then
-                        call build_hybrid_or_powerlaw_source(R_loc,dDR,dNe,Gam_e_m,Gam_e_max,Gam_e_m_p)
+                        call build_hybrid_source(R_loc,dDR,dNe,Gam_e_m,Gam_e_max,Gam_e_m_p)
                     else
-                        call dynamics_external_density_profile(A_star,dNe_ISM,R_loc,R0,1,R_tr,f_jump,f_wide,dNe)
-                        DB_step=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma_loc*(R_Gamma_loc-one)))
+                        call density_profile(A_star,dNe_ISM,R_loc,R0,1,R_tr,f_jump,f_wide,dNe)
+                        DB_step=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma_loc*(R_Gamma_loc-1d0)))
                         Gam_e_max_step=3d0*Para_m_energy/dsqrt(8d0*DB_step*Para_e**3)
-                        temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma_loc-one)
-                        call electron_gamma_m_exact(p,temp_gam,Gam_e_max_step,Gam_e_m_step)
-                        Gam_e_m_p_step=(one-p)/(Gam_e_max_step**(one-p)-Gam_e_m_step**(one-p))
-                        call build_hybrid_or_powerlaw_source(R_loc,dDR,dNe,Gam_e_m_step,Gam_e_max_step,Gam_e_m_p_step)
+                        temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma_loc-1d0)
+                        call electron_gm_exact(p,temp_gam,Gam_e_max_step,Gam_e_m_step)
+                        Gam_e_m_p_step=(1d0-p)/(Gam_e_max_step**(1d0-p)-Gam_e_m_step**(1d0-p))
+                        call build_hybrid_source(R_loc,dDR,dNe,Gam_e_m_step,Gam_e_max_step,Gam_e_m_p_step)
 
-                        if (dNe_shell > zero) then
+                        if (dNe_shell > 0d0) then
                             dEL_mean_step=dEL_mean_base*(dNe/dNe_shell)
                         else
                             dEL_mean_step=dEL_mean_base
@@ -143,11 +149,11 @@ subroutine fs_electron_fullhide_1d_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,
                     end if
 
                     if (is_uniform_density .and. thermal_electrons == 0) dEL_mean_step=dEL_mean_base
-                    call electron_fullhide_step(Num_gam_e,R_loc,dDR,d_x,dEL_mean_step,dF1,dN_x,x)
+                    call fullhide_step(Num_gam_e,R_loc,dDR,d_x,dEL_mean_step,dF1,dN_x,x)
                     if (budget_diag_enabled) then
                         n_after_step=sum(x)*d_x
                         rel_loss_xi_max=max(rel_loss_xi_max, &
-                            max(zero,(n_before_step+inj_step-n_after_step)/max(n_before_step+inj_step,tiny(one))))
+                            max(0d0,(n_before_step+inj_step-n_after_step)/max(n_before_step+inj_step,tiny(1d0))))
                         if (I_tobs <= 6 .and. L == L1) then
                             print '(A,1X,I4,1X,ES12.4,1X,ES12.4,1X,ES12.4)', &
                                   'BUDGET1D shell', I_tobs, n_before_step, inj_step, n_after_step
@@ -156,7 +162,7 @@ subroutine fs_electron_fullhide_1d_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,
                     dN_x=x
 
                     if (L1 == L) then
-                        call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,I_tobs))
+                        call dnx_dgamma(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,I_tobs))
                     end if
             end do
         else
@@ -165,7 +171,7 @@ subroutine fs_electron_fullhide_1d_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,
             dR_try=min(min(dDR_xi,dR_max),dDD)
             dR_left=dDD
 
-            do while (dR_left > zero)
+            do while (dR_left > 0d0)
                 dR_try=min(dR_try,dR_left)
                 if (dR_left < 1.5d0*dR_try) dR_try=dR_left
 
@@ -173,71 +179,71 @@ subroutine fs_electron_fullhide_1d_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,
                 if (is_uniform_density) then
                     dNe_full=dNe
                 else
-                    call dynamics_external_density_profile(A_star,dNe_ISM,R_full,R0,1,R_tr,f_jump,f_wide,dNe_full)
+                    call density_profile(A_star,dNe_ISM,R_full,R0,1,R_tr,f_jump,f_wide,dNe_full)
                 end if
-                DB_full=0.39d0*dsqrt(Epsilon_b*dNe_full*(R_Gamma_loc*(R_Gamma_loc-one)))
+                DB_full=0.39d0*dsqrt(Epsilon_b*dNe_full*(R_Gamma_loc*(R_Gamma_loc-1d0)))
                 Gam_e_max_full=3d0*Para_m_energy/dsqrt(8d0*DB_full*Para_e**3)
-                temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma_loc-one)
-                call electron_gamma_m_exact(p,temp_gam,Gam_e_max_full,Gam_e_m_full)
-                Gam_e_m_p_full=(one-p)/(Gam_e_max_full**(one-p)-Gam_e_m_full**(one-p))
+                temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma_loc-1d0)
+                call electron_gm_exact(p,temp_gam,Gam_e_max_full,Gam_e_m_full)
+                Gam_e_m_p_full=(1d0-p)/(Gam_e_max_full**(1d0-p)-Gam_e_m_full**(1d0-p))
                 call electron_injection_prefactor(R_full,dR_try,dNe_full,f_e,Gam_e_m_p_full,Q)
-                call build_hybrid_or_powerlaw_source_from_count(Q,Gam_e_m_full,Gam_e_max_full,Gam_e_m_p_full)
+                call build_hybrid_count(Q,Gam_e_m_full,Gam_e_max_full,Gam_e_m_p_full)
 
-                if (dNe_shell > zero) then
+                if (dNe_shell > 0d0) then
                     dEL_mean_step=dEL_mean_base*(dNe_full/dNe_shell)
                 else
                     dEL_mean_step=dEL_mean_base
                 end if
-                call electron_fullhide_step(Num_gam_e,R_full,dR_try,d_x,dEL_mean_step,dF1,dN_x,dN_full)
+                call fullhide_step(Num_gam_e,R_full,dR_try,d_x,dEL_mean_step,dF1,dN_x,dN_full)
 
                 dR_half=0.5d0*dR_try
                 R_half=R_loc+dR_half
                 if (is_uniform_density) then
                     dNe_half=dNe
                 else
-                    call dynamics_external_density_profile(A_star,dNe_ISM,R_half,R0,1,R_tr,f_jump,f_wide,dNe_half)
+                    call density_profile(A_star,dNe_ISM,R_half,R0,1,R_tr,f_jump,f_wide,dNe_half)
                 end if
-                DB_half=0.39d0*dsqrt(Epsilon_b*dNe_half*(R_Gamma_loc*(R_Gamma_loc-one)))
+                DB_half=0.39d0*dsqrt(Epsilon_b*dNe_half*(R_Gamma_loc*(R_Gamma_loc-1d0)))
                 Gam_e_max_half=3d0*Para_m_energy/dsqrt(8d0*DB_half*Para_e**3)
-                temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma_loc-one)
-                call electron_gamma_m_exact(p,temp_gam,Gam_e_max_half,Gam_e_m_half)
-                Gam_e_m_p_half=(one-p)/(Gam_e_max_half**(one-p)-Gam_e_m_half**(one-p))
+                temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma_loc-1d0)
+                call electron_gm_exact(p,temp_gam,Gam_e_max_half,Gam_e_m_half)
+                Gam_e_m_p_half=(1d0-p)/(Gam_e_max_half**(1d0-p)-Gam_e_m_half**(1d0-p))
                 call electron_injection_prefactor(R_half,dR_half,dNe_half,f_e,Gam_e_m_p_half,Q)
-                call build_hybrid_or_powerlaw_source_from_count(Q,Gam_e_m_half,Gam_e_max_half,Gam_e_m_p_half)
+                call build_hybrid_count(Q,Gam_e_m_half,Gam_e_max_half,Gam_e_m_p_half)
 
-                if (dNe_shell > zero) then
+                if (dNe_shell > 0d0) then
                     dEL_mean_step=dEL_mean_base*(dNe_half/dNe_shell)
                 else
                     dEL_mean_step=dEL_mean_base
                 end if
-                call electron_fullhide_step(Num_gam_e,R_half,dR_half,d_x,dEL_mean_step,dF1,dN_x,dN_half)
+                call fullhide_step(Num_gam_e,R_half,dR_half,d_x,dEL_mean_step,dF1,dN_x,dN_half)
 
                 call electron_injection_prefactor(R_full,dR_half,dNe_full,f_e,Gam_e_m_p_full,Q)
-                call build_hybrid_or_powerlaw_source_from_count(Q,Gam_e_m_full,Gam_e_max_full,Gam_e_m_p_full)
+                call build_hybrid_count(Q,Gam_e_m_full,Gam_e_max_full,Gam_e_m_p_full)
 
-                if (dNe_shell > zero) then
+                if (dNe_shell > 0d0) then
                     dEL_mean_step=dEL_mean_base*(dNe_full/dNe_shell)
                 else
                     dEL_mean_step=dEL_mean_base
                 end if
-                call electron_fullhide_step(Num_gam_e,R_full,dR_half,d_x,dEL_mean_step,dF1,dN_half,dN_half2)
+                call fullhide_step(Num_gam_e,R_full,dR_half,d_x,dEL_mean_step,dF1,dN_half,dN_half2)
 
-                call electron_max_relative_error(Num_gam_e,dN_half2,dN_full,step_error)
+                call electron_relerr_max(Num_gam_e,dN_half2,dN_full,step_error)
                 if (step_error <= substep_rtol .or. dR_try <= dR_min) then
                     dN_x=dN_half2
                     R_loc=R_full
                     dNe=dNe_full
                     dR_left=dR_left-dR_try
-                    if (dR_left > zero) then
+                    if (dR_left > 0d0) then
                         if (step_error <= 0.25d0*substep_rtol) then
-                            dR_try=min(two*dR_try,dR_max)
+                            dR_try=min(2d0*dR_try,dR_max)
                         end if
                     end if
                 else
                     dR_try=max(0.5d0*dR_try,dR_min)
                 end if
             end do
-            call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,I_tobs))
+            call dnx_dgamma(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,I_tobs))
         end if
     end do
 
@@ -250,31 +256,37 @@ subroutine fs_electron_fullhide_1d_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,
 
 contains
 
-    subroutine build_hybrid_or_powerlaw_source(R_source,dR_source,dNe_source,Gam_e_m_source,Gam_e_max_source, &
-                                               Gam_e_m_p_source)
+    ! 从半径壳层几何直接构建本子步注入源。
+    ! Build the substep injection source directly from shell geometry.
+    subroutine build_hybrid_source(rsrc,drsrc,nsrc,gm_src,gmax_src, &
+                                               gmp_src)
     implicit none
-    real(8), intent(in) :: R_source,dR_source,dNe_source,Gam_e_m_source,Gam_e_max_source,Gam_e_m_p_source
+    real(8), intent(in) :: rsrc,drsrc,nsrc,gm_src,gmax_src,gmp_src
 
         if (thermal_electrons /= 0) then
-            Q = 4d0/3d0*pi*(3d0*R_source**2+dR_source*(3d0*R_source+dR_source))*dNe_source
-            call normalized_hybrid_spec_lg(Num_gam_e,gam_e,p,Gam_e_m_source,Gam_e_max_source,f_e,dF1)
+            Q = 4d0/3d0*pi*(3d0*rsrc**2+drsrc*(3d0*rsrc+drsrc))*nsrc
+            call hybrid_spec(Num_gam_e,gam_e,p,gm_src,gmax_src,f_e,dF1)
+            dF1 = dF1*gam_e*ln10
             dF1 = dF1*Q
         else
-            Q = 4d0/3d0*pi*(3d0*R_source**2+dR_source*(3d0*R_source+dR_source))*dNe_source*f_e*Gam_e_m_p_source
-            call electron_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m_source,Gam_e_max_source,Q,p,dF1)
+            Q = 4d0/3d0*pi*(3d0*rsrc**2+drsrc*(3d0*rsrc+drsrc))*nsrc*f_e*gmp_src
+            call source_edges(Num_gam_e,x_edge,gm_src,gmax_src,Q,p,dF1)
         end if
-    end subroutine build_hybrid_or_powerlaw_source
+    end subroutine build_hybrid_source
 
-    subroutine build_hybrid_or_powerlaw_source_from_count(source_count,Gam_e_m_source,Gam_e_max_source,Gam_e_m_p_source)
+    ! 自适应半步已给出粒子数时，只按 hybrid/power-law 谱形分配源项。
+    ! When adaptive half-steps already provide the particle count, only distribute it by hybrid/power-law shape.
+    subroutine build_hybrid_count(nsource,gm_src,gmax_src,gmp_src)
     implicit none
-    real(8), intent(in) :: source_count,Gam_e_m_source,Gam_e_max_source,Gam_e_m_p_source
+    real(8), intent(in) :: nsource,gm_src,gmax_src,gmp_src
 
         if (thermal_electrons /= 0) then
-            Q = source_count/(f_e*Gam_e_m_p_source)
-            call normalized_hybrid_spec_lg(Num_gam_e,gam_e,p,Gam_e_m_source,Gam_e_max_source,f_e,dF1)
+            Q = nsource/(f_e*gmp_src)
+            call hybrid_spec(Num_gam_e,gam_e,p,gm_src,gmax_src,f_e,dF1)
+            dF1 = dF1*gam_e*ln10
             dF1 = dF1*Q
         else
-            call electron_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m_source,Gam_e_max_source,source_count,p,dF1)
+            call source_edges(Num_gam_e,x_edge,gm_src,gmax_src,nsource,p,dF1)
         end if
-    end subroutine build_hybrid_or_powerlaw_source_from_count
-end subroutine fs_electron_fullhide_1d_hz
+    end subroutine build_hybrid_count
+end subroutine fs_fullhide_hz

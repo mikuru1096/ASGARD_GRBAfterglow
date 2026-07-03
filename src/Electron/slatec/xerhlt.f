@@ -14,7 +14,7 @@ C     Abstract
 C        ***Note*** machine dependent routine
 C        XERHLT aborts the execution of the program.
 C        The error message causing the abort is given in the calling
-C        sequence, in case one needs it for printing on a dayfile,
+C        sequence, in case 1d0 needs it for printing on a dayfile,
 C        for example.
 C
 C     Description of Parameters

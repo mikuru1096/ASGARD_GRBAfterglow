@@ -1123,7 +1123,7 @@ W_{n,j}
 
 `patch_sampling="dominant_region_ioka_*"` 改变的是角向采样点和权重，不改变每个 patch 内的物理求解方程。
 
-axisymmetric structured `fullhide_2d + chi_eats_2d` 不走旧 Python theta/phi patch-loop。当前路径按 theta ring 构造独立 `SimulationSetup`，先求解该 ring 的 2D electron state，再从 `l_syn_spec_chi/tau_syn_chi` 预计算 ring-local spectra 并调用 `sed_interpolation_chi_structured_axisym_ring_precomputed` 投影。只改变 viewing angle 或 projection 采样时，可以复用同一个 solve state 的 spectra 并只重跑 observer projection；外层 ring 并行使用 POSIX `fork` 进程，单 ring 内线程由 `structured_inner_threads` 控制。
+axisymmetric structured `fullhide_2d + chi_eats_2d` 不走旧 Python theta/phi patch-loop。当前路径按 theta ring 构造独立 `SimulationSetup`，先求解该 ring 的 2D electron state，再从 `l_syn_spec_chi/tau_syn_chi` 预计算 ring-local spectra 并调用 `sed_chi_ring` 投影。只改变 viewing angle 或 projection 采样时，可以复用同一个 solve state 的 spectra 并只重跑 observer projection；外层 ring 并行使用 POSIX `fork` 进程，单 ring 内线程由 `structured_inner_threads` 控制。
 
 ### Cache 与 benchmark 计时
 

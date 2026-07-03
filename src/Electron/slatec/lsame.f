@@ -2,7 +2,7 @@
       LOGICAL FUNCTION LSAME (CA, CB)
 C***BEGIN PROLOGUE  LSAME
 C***SUBSIDIARY
-C***PURPOSE  Test two characters to determine if they are the same
+C***PURPOSE  Test 2d0 characters to determine if they are the same
 C            letter, except for case.
 C***LIBRARY   SLATEC
 C***CATEGORY  R, N3

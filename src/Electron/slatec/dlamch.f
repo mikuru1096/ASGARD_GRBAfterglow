@@ -129,7 +129,7 @@
       ELSE IF( LSAME( CMACH, 'M' ) ) THEN
          RMACH = MINEXPONENT(ZERO)
       ELSE IF( LSAME( CMACH, 'U' ) ) THEN
-         RMACH = tiny(zero)
+         RMACH = tiny(0d0)
       ELSE IF( LSAME( CMACH, 'L' ) ) THEN
          RMACH = MAXEXPONENT(ZERO)
       ELSE IF( LSAME( CMACH, 'O' ) ) THEN
@@ -152,7 +152,7 @@
 *> \verbatim
 *> DLAMC3  is intended to force  A  and  B  to be stored prior to doing
 *> the addition of  A  and  B ,  for use in situations where optimizers
-*> might hold one of these in a register.
+*> might hold 1d0 of these in a register.
 *> \endverbatim
 *> \author LAPACK is a software package provided by Univ. of Tennessee, Univ. of California Berkeley, Univ. of Colorado Denver and NAG Ltd..
 *> \param[in] A

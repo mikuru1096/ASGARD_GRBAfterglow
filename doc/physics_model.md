@@ -104,17 +104,17 @@ runtime 默认保留的电子输运状态：
 同步辐射核：
 
 - `src/Electron/electron_radiation_kernel.f90`
-- `src/Radiation/radiation_common.f90`
+- `src/Radiation/rad_common.f90`
 
 SSA cooling 和 transfer：
 
 - `src/Electron/electron_cooling_kernel.f90`
 - `src/Electron/electron_cooling_ssa_kernel.f90`
-- `src/Radiation/radiation_common.f90`
+- `src/Radiation/rad_common.f90`
 
 SSC：
 
-- `src/Radiation/radiation_ssc_spectrum.f90`
+- `src/Radiation/ssc_spectrum.f90`
 
 SSC、强子、pair cascade 当前仍是壳层级契约。启用 `chi_eats_2d` 不表示这些通道已经 \(\chi\) 局域自洽。
 

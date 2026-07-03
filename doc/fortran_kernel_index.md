@@ -2,7 +2,7 @@
 
 本文是当前工作树的 Fortran kernel 索引。它面向需要逐个进入子程序读算法的人：先看 f2py 入口和物理阶段，再进入文件内的 `module`、`subroutine`、`function`。更高层的物理到算法映射见 `doc/physics_algorithm_crosswalk.md`，运行主链见 `doc/call_chain.md`。
 
-当前索引按 ASGARD 自有 Fortran 数值核抽取，排除第三方固定格式特殊函数依赖，共 793 个程序单元：35 个 module、554 个 subroutine、204 个 function。行号是生成本页时的源文件位置。
+当前索引按 ASGARD 自有 Fortran 数值核抽取，排除第三方固定格式特殊函数依赖，共 723 个程序单元：45 个 module、497 个 subroutine、181 个 function。行号是生成本页时的源文件位置。
 
 ## 读源码顺序
 
@@ -17,24 +17,24 @@
 
 | Build module | CWD | Source closure | 主 entry | 物理/算法角色 |
 | --- | --- | --- | --- | --- |
-| `Dynamics_forward` | `src/Dynamics` | `Constants + dynamics_common + Dynamics_forward` | `dynamics_forward` | 正向激波动力学、ISM/wind、密度跳变和能量注入。 |
-| `Dynamics_reverse` | `src/Dynamics` | `Constants + dynamics_common + reverse_jump_conditions + reverse_rhs + Dynamics_reverse` | `dynamics_reverse` | 反向激波 crossing、region-3 thermal state、磁化 jump 和次级 RS 分支。 |
-| `electron_forward_fullhide_1d` | `src/Electron` | `ELECTRON_COMMON_SOURCES + electron_forward_fullhide_1d` | `fs_electron_fullhide_1d; fs_electron_fullhide_1d_coupled` | 默认 1D 电子输运和 joint feedback coupled pass。 |
-| `electron_forward_fullhide_1d_hybrid` | `src/Electron` | `ELECTRON_HISTORY_SOURCES_HZ + electron_forward_fullhide_1d_hybrid` | `fs_electron_fullhide_1d_hz` | 热/非热混合谱路径。 |
-| `electron_forward_charint_1d` | `src/Electron` | `ELECTRON_COMMON_SOURCES + electron_forward_charint_1d` | `fs_electron_charint_1d` | 1D 特征线输运对照。 |
-| `electron_forward_dg_1d` | `src/Electron` | `ELECTRON_DG_1D_SOURCES + electron_forward_dg_1d` | `fs_electron_dg_1d` | P12 LGL-DG 正向电子输运。 |
-| `electron_forward_charint_2d` | `src/Electron` | `ELECTRON_2D_SOURCES + electron_forward_transport_2d` | `fs_electron_transport_2d_core` | finite-q shell 2D 电子输运；别把 chi_grid 当强子局域坐标。 |
-| `electron_forward_t2g1_1d` | `src/Electron` | `ELECTRON_COMMON_SOURCES + electron_forward_t2g1_1d` | `fs_electron_t2g1_1d` | 方法比较电子输运。 |
-| `electron_forward_weno5_1d` | `src/Electron` | `ELECTRON_COMMON_SOURCES + electron_forward_weno5_1d` | `fs_electron_weno5_1d` | WENO5 方法比较电子输运。 |
-| `electron_reverse_kernel` | `src/Electron` | `ELECTRON_REVERSE_SOURCES + electron_reverse_kernel` | `electron_reverse_evolve; electron_secondary_reverse_evolve` | RS primary/secondary electron transport 和 reacceleration。 |
-| `electron_radiation` | `src/Electron` | `ELECTRON_RADIATION_SOURCES` | `get_syn_*; get_nu_a_*` | 电子同步/SSA/seed 低层核；通常经其他 entry 调用。 |
-| `radiation_ssc_spectrum` | `src/Radiation` | `radiation_common + radiation_ssc_spectrum` | `ssc_spec; ssc_spec_nonuniform` | SSC spectrum 和 KN/Jones 积分。 |
-| `radiation_gamma_gamma_absorption` | `src/Radiation` | `radiation_common + radiation_gamma_gamma_absorption` | `annihilation` | 观测侧 gamma-gamma absorption。 |
-| `SED_interpolation` | `src/Interpolation` | `radiation_common + interpolation_common + SED_interpolation` | `sed_interpolation; sed_interpolation_adaptive_theta; sed_interpolation_chi; sed_interpolation_chi_electron_cached; sed_interpolation_chi_structured_axisym_ring_precomputed` | 观测者投影；Python 公开绑定集中在此模块。 |
-| `SED_interpolation_structured` | `src/Interpolation` | `interpolation_common + SED_interpolation_structured` | `sed_interpolation_structured; sed_interpolation_structured_phi` | `structured_jet_1d` 内部 shell-level structured projection；不再从 `src.Interpolation` 暴露旧 Python 绑定。 |
-| `hadronic_forward_1d` | `src/Hadronic` | `HADRONIC_1D_SOURCES + hadronic_forward_1d` | `fs_hadronic_formal_transport_1d; shell operators` | formal 1D proton/secondary/photon-loss shell sequence。 |
-| `hadronic_reverse_1d` | `src/Hadronic` | `HADRONIC_1D_SOURCES + hadronic_reverse_1d` | `fs_hadronic_reverse_1d` | RS light proton transport + proton synchrotron。 |
-| `structured_jet_1d` | `src/Structured` | `STRUCTURED_JET_1D_SOURCES + structured_jet_1d` | `structured_jet_flux_1d` | 结构化喷流 Fortran 聚合入口。 |
+| `Dynamics_forward` | `src/Dynamics` | `Constants + dynamics_density_profile + Dynamics_forward` | `dynamics_forward` | 正向激波动力学、ISM/wind、密度跳变和能量注入。 |
+| `Dynamics_reverse` | `src/Dynamics` | `Constants + dynamics_density_profile + reverse_shock_state + reverse_shock_mhd_jump + reverse_jump_conditions + reverse_rhs + reverse_shock` | `dynamics_reverse` | first RS crossing/region-3 thermal state 和 density-jump multiple RS 分支。 |
+| `electron_forward_fullhide_1d` | `src/Electron` | `ELECTRON_COMMON_SOURCES + electron_forward_fullhide_1d` | `fs_fullhide_1d; fs_fullhide_coupled` | 默认 1D 电子输运和 joint feedback coupled pass。 |
+| `electron_forward_fullhide_1d_hybrid` | `src/Electron` | `ELECTRON_HISTORY_SOURCES_HZ + electron_forward_fullhide_1d_hybrid` | `fs_fullhide_hz` | 热/非热混合谱路径。 |
+| `electron_forward_charint_1d` | `src/Electron` | `ELECTRON_COMMON_SOURCES + electron_forward_charint_1d` | `fs_charint_1d` | 1D 特征线输运对照。 |
+| `electron_forward_dg_1d` | `src/Electron` | `ELECTRON_DG_1D_SOURCES + electron_forward_dg_1d` | `fs_dg_1d` | P12 LGL-DG 正向电子输运。 |
+| `electron_forward_charint_2d` | `src/Electron` | `ELECTRON_2D_SOURCES + electron_forward_transport_2d` | `fs_transport_2d` | finite-q shell 2D 电子输运；别把 chi_grid 当强子局域坐标。 |
+| `electron_forward_t2g1_1d` | `src/Electron` | `ELECTRON_COMMON_SOURCES + electron_forward_t2g1_1d` | `fs_t2g1_1d` | 方法比较电子输运。 |
+| `electron_forward_weno5_1d` | `src/Electron` | `ELECTRON_COMMON_SOURCES + electron_forward_weno5_1d` | `fs_weno5_1d` | WENO5 方法比较电子输运。 |
+| `electron_reverse_kernel` | `src/Electron` | `ELECTRON_REVERSE_SOURCES + electron_reverse_kernel` | `electron_reverse_evolve; multiple_evolve` | RS primary/secondary electron transport 和 reacceleration。 |
+| `electron_radiation` | `src/Electron` | `ELECTRON_RADIATION_SOURCES` | `get_syn_*; nua_solve_*` | 电子同步/SSA/seed 低层核；通常经其他 entry 调用。 |
+| `ssc_spectrum` | `src/Radiation` | `rad_common + ssc_spectrum` | `ssc_spec; ssc_spec_nonuniform` | SSC spectrum 和 KN/Jones 积分。 |
+| `pair_absorption` | `src/Radiation` | `rad_common + pair_absorption` | `annihilation` | 观测侧 gamma-gamma absorption。 |
+| `SED_interpolation` | `src/Interpolation` | `rad_common + interpolation_common + SED_interpolation` | `sed_interpolation; sed_adaptive_theta; sed_interpolation_chi; sed_chi_electron; sed_chi_ring` | 观测者投影；Python 公开绑定集中在此模块。 |
+| `SED_interpolation_structured` | `src/Interpolation` | `interpolation_common + SED_interpolation_structured` | `sed_interpolation_structured; sed_structured_phi` | `structured_jet_1d` 内部 shell-level structured projection；不再从 `src.Interpolation` 暴露旧 Python 绑定。 |
+| `hadronic_forward_1d` | `src/Hadronic` | `HADRONIC_1D_SOURCES + hadronic_forward_1d` | `formal_transport_1d; shell operators` | formal 1D proton/secondary/photon-loss shell sequence。 |
+| `hadronic_reverse_1d` | `src/Hadronic` | `HADRONIC_1D_SOURCES + hadronic_reverse_1d` | `reverse_hadronic_1d` | RS light proton transport + proton synchrotron。 |
+| `structured_jet_1d` | `src/Structured` | `STRUCTURED_JET_1D_SOURCES + structured_jet_1d` | `jet_flux_1d` | 结构化喷流 Fortran 聚合入口。 |
 
 Fortran 改动后的最低门槛见 `doc/validation_and_benchmarks.md`。文档-only 改动不需要重建扩展；若修改本页对应源码，必须跑受影响 module 的 `build_extensions.py --force`、独立 `-Wline-truncation` 源闭包检查和最小 smoke。
 
@@ -66,25 +66,15 @@ Fortran 改动后的最低门槛见 `doc/validation_and_benchmarks.md`。文档-
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
 | `S` | 1 | `dynamics_forward` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 42 | `forward_dynamics_rhs` | ODE/PDE 右端项；定义物理源汇和动力学变量导数。 |
+| `S` | 42 | `forward_rhs` | ODE/PDE 右端项；定义物理源汇和动力学变量导数。 |
 
-### `src/Dynamics/Dynamics_reverse.f90`
+### `src/Dynamics/reverse_shock.f90`
 
-反向激波主入口、穿越事件、磁化 jump、次级反向激波分支。
+反向激波 `Dynamics_reverse.dynamics_reverse` f2py 入口：first RS 推进、等待成 shock、pre-crossing swept-mass 推进、crossing event split、post-crossing log-time RK、density-jump 分支扫描和 branch 输出都在同一个输出循环中完成。
 
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
-| `S` | 5 | `dynamics_reverse` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 171 | `advance_reverse_state_to_target` | 反向激波 waiting/pre-crossing/post-crossing 时间推进。 |
-| `F` | 211 | `reverse_shock_pressure_ready_state` | 反向激波 pressure-balance 和 fast-mode shock 条件。 |
-| `S` | 238 | `waiting_trial` | 磁化 RS 尚未成 shock 时的 waiting 分支 trial 推进。 |
-| `S` | 259 | `locate_waiting_event` | 定位 waiting 到 shock-ready 的事件时间。 |
-| `S` | 285 | `update_secondary_reverse_events` | 密度增强窗口内扫描次级 RS start/end。 |
-| `S` | 337 | `secondary_reverse_event_root_between` | 次级 RS source 过零半径定位。 |
-| `S` | 369 | `secondary_reverse_event_source` | 次级 RS mechanical source，比较新 shock 与上游绝热态。 |
-| `S` | 411 | `store_secondary_branch_state` | 输出次级 RS 分支热、磁、注入和诊断量。 |
-| `F` | 515 | `secondary_parent_upstream_available` | 判断上一级次级分支是否可作为当前上游。 |
-| `S` | 525 | `secondary_reverse_density_branch_state` | density-jump 分支的局部密度和权重。 |
+| `S` | 3 | `dynamics_reverse` | `Dynamics_reverse` f2py/Python 调用边界；解包 public `Boundary`，推进 first 分支并同步扫描 density-jump multiple 分支。 |
 
 ### `src/Dynamics/reverse_rhs.f90`
 
@@ -93,30 +83,33 @@ Fortran 改动后的最低门槛见 `doc/validation_and_benchmarks.md`。文档-
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
 | `S` | 2 | `reverse_dynamics_rhs` | ODE/PDE 右端项；定义反向激波主状态和次级分支导数。 |
-| `F` | 201 | `secondary_parent_upstream_available` | 判断上一级次级分支是否可作为当前上游。 |
-| `S` | 211 | `compute_secondary_branch_derivatives` | 次级 RS 分支质量、热能、体积和注入诊断导数。 |
-| `S` | 291 | `secondary_reverse_density_branch_rhs` | density-jump 分支的局部密度和 source 权重。 |
+| `F` | 201 | `parent_ready` | 判断上一级次级分支是否可作为当前上游。 |
+| `S` | 211 | `branch_derivs` | 次级 RS 分支质量、热能、体积和注入诊断导数。 |
+| `S` | 291 | `branch_density` | density-jump 分支的局部密度和 source 权重。 |
 
-### `src/Dynamics/dynamics_common.f90`
+### `src/Dynamics/dynamics_density_profile.f90`
 
-动力学共享介质、MHD jump、RK4 和事件分裂 primitive。
+外介质密度、density jump/profile 状态和 tabulated profile 插值。
 
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
-| `M` | 1 | `dynamics_common` | 公共模块；提供多个入口复用的物理/数值 primitive。 |
-| `S` | 27 | `dynamics_forward_rhs_iface` | ODE/PDE 右端项；定义物理源汇和动力学变量导数。 |
-| `S` | 42 | `dynamics_reverse_rhs_iface` | ODE/PDE 右端项；定义物理源汇和动力学变量导数。 |
-| `S` | 63 | `dynamics_external_density_profile` | 介质密度或 density-jump 分支；直接影响 swept mass、动力学和注入源项。 |
-| `S` | 119 | `dynamics_set_density_jump_profile` | 介质密度或 density-jump 分支；直接影响 swept mass、动力学和注入源项。 |
-| `S` | 171 | `dynamics_density_tabulated_profile` | 介质密度或 density-jump 分支；直接影响 swept mass、动力学和注入源项。 |
-| `F` | 205 | `rs_vegas_ud` | 有限强度 MHD jump 解析根；不要用 ultra-relativistic 近似替代。 |
-| `F` | 239 | `rs_vegas_comp` | 有限强度 MHD jump 压缩比；sigma->0 极限回到 hydrodynamic baseline。 |
-| `F` | 261 | `rs_mag_specific_internal` | MHD jump 下游热比内能；保持 crossing 前后和 sigma->0 极限连续。 |
-| `S` | 282 | `dynamics_rk4_forward` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 391 | `dynamics_rk4_reverse_pre_m3` | pressure-ready 到 crossing/目标时刻的 pre-M3 推进。 |
-| `S` | 517 | `advance_pre_crossing_m3_step` | `dynamics_rk4_reverse_pre_m3` 内部 RK4 stage；不是独立物理边界。 |
-| `S` | 580 | `dynamics_rk4_reverse` | `select case` 展示 waiting、pre-crossing event split 和 post-crossing 推进。 |
-| `S` | 728 | `advance_reverse_logtime_phase` | `dynamics_rk4_reverse` 内部 log-time RK4 stage；phase 由外层 case 决定。 |
+| `M` | 1 | `dynamics_density_profile` | 介质密度和 density-jump/profile 状态；被 dynamics、electron、structured 路径按需引用。 |
+| `S` | 20 | `density_profile` | 介质密度或 density-jump 分支；直接影响 swept mass、动力学和注入源项。 |
+| `S` | 76 | `set_density_profile` | 从 `Boundary` 解包 density jump/profile 状态。 |
+| `S` | 128 | `tab_density` | tabulated profile 的 log-log 插值。 |
+
+### `src/Dynamics/reverse_shock_mhd_jump.f90`
+
+有限强度反向激波 MHD jump 公式。
+
+| Kind | Line | Program unit | 算法/物理责任 |
+| --- | ---: | --- | --- |
+| `M` | 1 | `reverse_shock_mhd_jump` | MHD jump 公式模块；不包含时间推进状态。 |
+| `F` | 10 | `rs_vegas_ud` | 有限强度 MHD jump 解析根；不要用 ultra-relativistic 近似替代。 |
+| `F` | 44 | `rs_vegas_comp` | 有限强度 MHD jump 压缩比；sigma->0 极限回到 hydrodynamic baseline。 |
+| `F` | 66 | `rs_mag_internal` | MHD jump 下游热比内能；保持 crossing 前后和 sigma->0 极限连续。 |
+
+正向 RK4 是 `Dynamics_forward.f90` 的本地 helper；反向 event-split RK 是 `reverse_shock.f90` 的本地 helper。
 
 ### `src/Electron/adaptive_resampling_mod.f90`
 
@@ -223,7 +216,7 @@ log-gamma 与 log-four-velocity 坐标映射。
 
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
-| `S` | 2 | `fs_electron_charint_1d` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
+| `S` | 2 | `fs_charint_1d` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
 | `S` | 235 | `prepare_characteristic_shell` | 局部 helper；语义由所在文件的算法阶段决定。 |
 | `S` | 275 | `write_final_characteristic_diagnostics` | 局部 helper；语义由所在文件的算法阶段决定。 |
 
@@ -233,7 +226,7 @@ log-gamma 与 log-four-velocity 坐标映射。
 
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
-| `S` | 2 | `fs_electron_dg_1d` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
+| `S` | 2 | `fs_dg_1d` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
 | `S` | 95 | `initialize_forward_four_velocity_grid` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
 | `S` | 110 | `prepare_shell` | 局部 helper；语义由所在文件的算法阶段决定。 |
 | `S` | 129 | `write_radiation_and_breaks` | 特征 Lorentz 因子/断点诊断；用于注入、冷却或活动网格边界。 |
@@ -255,10 +248,10 @@ log-gamma 与 log-four-velocity 坐标映射。
 
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
-| `S` | 5 | `fs_electron_fullhide_1d` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
+| `S` | 5 | `fs_fullhide_1d` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
 | `S` | 123 | `initialize_forward_four_velocity_grid` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
 | `S` | 138 | `prepare_fullhide_shell` | 单个 FS shell 的密度、磁场、注入能标、同步谱、SSA break 和冷却率准备。 |
-| `S` | 372 | `fs_electron_fullhide_1d_coupled` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
+| `S` | 372 | `fs_fullhide_coupled` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
 | `S` | 461 | `prepare_coupled_shell` | joint electron-photon shell 的辐射场、SSA break 和耦合冷却率准备。 |
 
 ### `src/Electron/electron_forward_fullhide_1d_hybrid.f90`
@@ -267,7 +260,7 @@ log-gamma 与 log-four-velocity 坐标映射。
 
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
-| `S` | 7 | `fs_electron_fullhide_1d_hz` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
+| `S` | 7 | `fs_fullhide_hz` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
 | `S` | 266 | `build_hybrid_or_powerlaw_source` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
 | `S` | 281 | `build_hybrid_or_powerlaw_source_from_count` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
 
@@ -277,7 +270,7 @@ log-gamma 与 log-four-velocity 坐标映射。
 
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
-| `S` | 2 | `fs_electron_slc1_1d` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
+| `S` | 2 | `fs_slc1_1d` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
 
 ### `src/Electron/electron_forward_t2g1_1d.f90`
 
@@ -285,7 +278,7 @@ T2G1 方法比较电子输运入口。
 
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
-| `S` | 8 | `fs_electron_t2g1_1d` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
+| `S` | 8 | `fs_t2g1_1d` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
 | `S` | 93 | `prepare_t2g1_shell` | 局部 helper；语义由所在文件的算法阶段决定。 |
 | `S` | 118 | `write_t2g1_radiation_and_cooling` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
 | `S` | 142 | `advance_t2g1_substep` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
@@ -296,7 +289,7 @@ T2G1 方法比较电子输运入口。
 
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
-| `S` | 2 | `fs_electron_transport_2d_core` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
+| `S` | 2 | `fs_transport_2d` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
 | `S` | 623 | `reduce_syn_shell_from_q` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
 | `S` | 639 | `project_q_projection_shell` | finite-q shell 几何或 chi-equivalent 投影字段。 |
 
@@ -306,7 +299,7 @@ WENO5 方法比较电子输运入口。
 
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
-| `S` | 2 | `fs_electron_weno5_1d` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
+| `S` | 2 | `fs_weno5_1d` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
 | `S` | 67 | `prepare_weno_shell` | 局部 helper；语义由所在文件的算法阶段决定。 |
 | `S` | 89 | `write_weno_radiation_and_cooling` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
 | `S` | 117 | `advance_weno_substep` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
@@ -323,25 +316,25 @@ WENO5 方法比较电子输运入口。
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
 | `M` | 2 | `electron_injection_profiles` | 模块命名空间；集中声明本文件共享 procedure。 |
-| `F` | 13 | `electron_exp_cutoff_factor` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 22 | `electron_initial_powerlaw_params` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 47 | `electron_dnx_powerlaw_cutoff_value` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 13 | `exp_cutoff` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 22 | `pl_params` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 47 | `dnx_cutoff` | 局部 helper；语义由所在文件的算法阶段决定。 |
 | `F` | 64 | `electron_dnx_gauss3_integral` | 积分权重或求积 primitive；影响谱积分精度。 |
 | `F` | 88 | `electron_dny_gauss3_integral` | 积分权重或求积 primitive；影响谱积分精度。 |
-| `S` | 114 | `electron_add_dnx_segment` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 135 | `electron_add_dny_segment` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 156 | `electron_profile_log_cell_edges` | 介质密度或 density-jump 分支；直接影响 swept mass、动力学和注入源项。 |
-| `S` | 171 | `electron_initial_powerlaw_exp_cutoff` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 190 | `electron_initial_powerlaw_exp_cutoff_edges` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `S` | 228 | `electron_initial_powerlaw_exp_cutoff_coord_edges` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `S` | 267 | `electron_build_source_term_exp_cutoff_edges` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
-| `S` | 292 | `electron_build_source_term_exp_cutoff_coord_edges` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
-| `S` | 317 | `electron_build_kinetic_source_term_exp_cutoff_edges` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
-| `S` | 355 | `electron_build_kinetic_source_term_exp_cutoff_coord_edges` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
+| `S` | 114 | `electron_dnx_segment` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 135 | `electron_dny_segment` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 156 | `log_edges` | 介质密度或 density-jump 分支；直接影响 swept mass、动力学和注入源项。 |
+| `S` | 171 | `init_powerlaw` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 190 | `init_edges` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
+| `S` | 228 | `init_coord` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
+| `S` | 267 | `source_edges` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
+| `S` | 292 | `source_coord` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
+| `S` | 317 | `kinetic_edges` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
+| `S` | 355 | `kinetic_coord` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
 | `F` | 391 | `electron_thermal_theta` | 局部 helper；语义由所在文件的算法阶段决定。 |
 | `S` | 399 | `electron_build_thermal_shape_dnx` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 424 | `electron_add_thermal_source_term` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
-| `S` | 437 | `electron_add_thermal_population` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 424 | `add_thermal` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
+| `S` | 437 | `thermal_pop` | 局部 helper；语义由所在文件的算法阶段决定。 |
 
 ### `src/Electron/electron_radiation_kernel.f90`
 
@@ -350,36 +343,36 @@ WENO5 方法比较电子输运入口。
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
 | `M` | 1 | `electron_radiation_kernel` | 模块命名空间；集中声明本文件共享 procedure。 |
-| `S` | 19 | `first_greater_monotonic_from` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 40 | `first_greater_monotonic` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 59 | `first_greater_monotonic_window` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 19 | `greater_from` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 40 | `first_greater` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 59 | `greater_window` | 局部 helper；语义由所在文件的算法阶段决定。 |
 | `F` | 80 | `besselk` | 同步辐射 Bessel kernel 插值/渐近 primitive。 |
-| `S` | 140 | `get_syn_selected_state` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
+| `S` | 140 | `syn_state` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
 | `F` | 197 | `simpson_emission_integral` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
 | `F` | 212 | `simpson_ssa_tau_integral` | 光深、gamma-gamma absorption、pair injection 或 photon survival 相关算子。 |
 | `S` | 226 | `accumulate_simpson_syn_point` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 245 | `build_reduced_log_grid` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `S` | 274 | `project_syn_state_logbands` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
+| `S` | 245 | `reduce_grid` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
+| `S` | 274 | `project_syn` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
 | `F` | 384 | `electron_syn_fx` | 同步辐射 kernel primitive。 |
 | `F` | 396 | `electron_linear_interp` | 插值 primitive。 |
 | `F` | 408 | `electron_syn_integrand_x` | 同步辐射 cell 积分 integrand。 |
-| `F` | 419 | `electron_powerlaw_interp` | log-log/power-law 插值 primitive。 |
-| `S` | 444 | `electron_log_gauss2_interval` | 积分权重或求积 primitive；影响谱积分精度。 |
-| `F` | 462 | `electron_integrate_powerlaw_segment` | power-law cell 积分 primitive。 |
-| `F` | 479 | `electron_ssa_segment` | SSA cell 光深积分 primitive。 |
+| `F` | 419 | `pl_interp` | log-log/power-law 插值 primitive。 |
+| `S` | 444 | `log_gauss2` | 积分权重或求积 primitive；影响谱积分精度。 |
+| `F` | 462 | `pl_integral` | power-law cell 积分 primitive。 |
+| `F` | 479 | `ssa_segment` | SSA cell 光深积分 primitive。 |
 | `F` | 511 | `electron_tau_kernel_x` | SSA optical-depth kernel primitive。 |
-| `S` | 521 | `electron_syn_gauss_cell` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 545 | `electron_tau_gauss_cell` | 光深、SSA transfer 或 photon survival 相关算子。 |
-| `S` | 577 | `electron_syn_cell_adaptive` | 低层单 cell adaptive diagnostic helper；public selected path 默认仍是 fixed-grid。 |
-| `S` | 609 | `get_syn_polarization_selected` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
+| `S` | 521 | `electron_syn_gauss` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
+| `S` | 545 | `electron_tau_gauss` | 光深、SSA transfer 或 photon survival 相关算子。 |
+| `S` | 577 | `electron_syn_adapt` | 低层单 cell adaptive diagnostic helper；public selected path 默认仍是 fixed-grid。 |
+| `S` | 609 | `syn_polarized` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
 | `S` | 627 | `get_syn_polarization_fraction` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 662 | `get_syn_transfer` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 687 | `get_nu_a` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 662 | `syn_transfer` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
+| `S` | 687 | `nua_solve` | 局部 helper；语义由所在文件的算法阶段决定。 |
 | `S` | 759 | `evaluate_tau` | 光深、SSA transfer 或 photon survival 相关算子。 |
 | `S` | 777 | `refine_nu_a_bracket` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 824 | `get_nu_a_2d_cell_path` | 2D/chi cell-level SSA break diagnostic。 |
-| `S` | 840 | `reduce_syn_shell_from_chi` | chi-local spectra 到 shell-level baseline 的 reduction helper。 |
-| `S` | 859 | `get_nu_a_from_tau_grid` | 从已计算 optical-depth grid 求 SSA break；避免重复 root search。 |
+| `S` | 824 | `nua_path` | 2D/chi cell-level SSA break diagnostic。 |
+| `S` | 840 | `reduce_chi` | chi-local spectra 到 shell-level baseline 的 reduction helper。 |
+| `S` | 859 | `nua_fromtau` | 从已计算 optical-depth grid 求 SSA break；避免重复 root search。 |
 | `S` | 902 | `interpolate_log_tau_root` | 光深、SSA transfer 或 photon survival 相关算子。 |
 
 ### `src/Electron/electron_reverse_kernel.f90`
@@ -405,22 +398,22 @@ WENO5 方法比较电子输运入口。
 | `S` | 524 | `advance_reverse_dg_injection_front` | 推进或重置 crossing 后的注入能标 front。 |
 | `F` | 536 | `reverse_dg_injection_break` | DG 注入 break；crossing 后使用已冷却的 gamma_m front。 |
 | `S` | 543 | `advance_reverse_dg_front_value` | 对单个 DG break/front 施加同步冷却和绝热漂移。 |
-| `S` | 562 | `electron_secondary_reverse_evolve` | 次级反向激波电子演化入口；处理密度跳变分支和再加速分支。 |
-| `S` | 644 | `advance_secondary_transport_shell` | 次级 RS 分支的电子输运推进。 |
-| `S` | 685 | `electron_secondary_reverse_synchrotron` | 聚合次级 RS 分支同步辐射谱。 |
-| `S` | 710 | `electron_secondary_reverse_branch_synchrotron` | 单个次级 RS 分支同步辐射输出。 |
-| `S` | 742 | `electron_secondary_reverse_branch_reaccelerated` | 次级 RS 再加速电子分支输出。 |
-| `S` | 802 | `build_secondary_reaccel_gamma_grid` | 构造再加速分支 gamma 网格。 |
-| `S` | 827 | `transfer_reaccelerated_parent_electrons` | 把父分支电子谱转移到再加速分支网格。 |
-| `S` | 866 | `advance_reaccelerated_branch_shell` | 再加速分支的输运推进。 |
+| `S` | 562 | `multiple_evolve` | 次级反向激波电子演化入口；处理密度跳变分支和再加速分支。 |
+| `S` | 644 | `advance_multiple` | 次级 RS 分支的电子输运推进。 |
+| `S` | 685 | `multiple_synch` | 聚合次级 RS 分支同步辐射谱。 |
+| `S` | 710 | `branch_synch` | 单个次级 RS 分支同步辐射输出。 |
+| `S` | 742 | `branch_reaccel` | 次级 RS 再加速电子分支输出。 |
+| `S` | 802 | `reaccel_grid` | 构造再加速分支 gamma 网格。 |
+| `S` | 827 | `transfer_parent` | 把父分支电子谱转移到再加速分支网格。 |
+| `S` | 866 | `advance_reaccel` | 再加速分支的输运推进。 |
 | `S` | 910 | `prepare_branch_shell` | 读取单个次级分支在当前壳层的动力学和辐射参数。 |
-| `S` | 938 | `compute_branch_injection` | 次级分支注入归一化和能标。 |
-| `S` | 948 | `boost_log_distribution` | 对数谱的 Lorentz boost 重映射。 |
-| `S` | 973 | `dsa_reaccelerate_distribution` | DSA 再加速谱构造。 |
-| `F` | 990 | `distribution_energy_from_log` | 对数电子谱能量积分。 |
+| `S` | 938 | `branch_inject` | 次级分支注入归一化和能标。 |
+| `S` | 948 | `boost_log` | 对数谱的 Lorentz boost 重映射。 |
+| `S` | 973 | `dsa_reaccel` | DSA 再加速谱构造。 |
+| `F` | 990 | `log_energy` | 对数电子谱能量积分。 |
 | `F` | 998 | `reverse_transport_substeps` | 根据冷却步长和求解器类型选择反向输运子步数。 |
-| `S` | 1010 | `reverse_dg_grid_sequence` | 根据低/注入/高能 break 构造 DG 网格序列。 |
-| `F` | 1067 | `reverse_interp_log_grid` | 在对数 gamma 网格上插值正谱/冷却量。 |
+| `S` | 1010 | `dg_sequence` | 根据低/注入/高能 break 构造 DG 网格序列。 |
+| `F` | 1067 | `log_interp` | 在对数 gamma 网格上插值正谱/冷却量。 |
 
 ### `src/Electron/electron_seed_history_kernel.f90`
 
@@ -482,10 +475,10 @@ finite-q 几何、q 方向对流/扩散和 2D 能量推进。
 | `S` | 442 | `advance_q_diffusion_implicit` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
 | `S` | 471 | `advance_q_implicit` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
 | `S` | 507 | `advance_q_pwncr_implicit` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 542 | `advance_energy_loggamma_chi` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 568 | `advance_energy_loggamma_chi_pwncr` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 542 | `advance_energy_chi` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 568 | `advance_energy_chi_pwncr` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
 | `S` | 593 | `advance_energy_stochastic_loggamma_chi` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 627 | `advance_energy_loggamma_chi_charint` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 627 | `advance_energy_chi_charint` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
 
 ### `src/Electron/electron_transport_common.f90`
 
@@ -494,79 +487,79 @@ finite-q 几何、q 方向对流/扩散和 2D 能量推进。
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
 | `M` | 1 | `electron_transport_common` | 公共模块；提供多个入口复用的物理/数值 primitive。 |
-| `S` | 21 | `electron_prepare_implicit_coeffs_common` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 33 | `electron_backward_sweep_common` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 47 | `electron_quadratic_interp3` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `S` | 60 | `electron_ppm_interfaces_nonuniform` | 非均匀电子能量网格的 PPM 界面重构。 |
-| `S` | 119 | `electron_ppm_positive_cell` | PPM 单元正性限制；保持重构后的粒子数密度非负。 |
-| `S` | 149 | `electron_ppm_prefix_nonuniform` | 非均匀网格 PPM 前缀积分。 |
-| `F` | 168 | `electron_ppm_prefix_eval_nonuniform` | 任意位置的 PPM 保守前缀积分求值。 |
-| `S` | 203 | `electron_prepare_conservative_remap_nonuniform` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `S` | 220 | `electron_prepare_exponential_source_remap` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
-| `F` | 254 | `electron_exp_source_cell_int` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
-| `F` | 274 | `electron_exp_source_prefix_eval` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
-| `S` | 310 | `electron_dnx_to_dndgamma_exp_centers` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 324 | `electron_u_edges_from_x` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `F` | 338 | `electron_x_from_u` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 347 | `electron_trace_affine_u_edges_batch` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `S` | 378 | `electron_build_piecewise_affine_u` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 416 | `electron_find_u_cell_desc_hint` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 441 | `electron_trace_piecewise_affine_u_edge_from_cell` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `S` | 562 | `electron_trace_piecewise_affine_u_edges_batch` | 多滞后分段仿射 u 特征线回溯；单滞后调用传 `Num_lag=1`。 |
-| `S` | 583 | `electron_characteristic_core` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 620 | `electron_characteristic_remap_edges` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `S` | 644 | `electron_characteristic_update` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 678 | `electron_ppm_cell_int` | PPM 单元积分 primitive。 |
-| `S` | 695 | `electron_semi_lagrangian_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 722 | `electron_fullhide_flux_split_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 765 | `electron_fullhide_flux_split_step_nonuniform` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 814 | `electron_fullhide_flux_split_sequence_nonuniform` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 863 | `electron_fullhide_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 886 | `electron_fullhide_spacetime_sequence` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 930 | `electron_logparabola_peak_frequency` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 958 | `electron_active_gamma_hi` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 991 | `electron_active_chi_hi` | finite-q shell 几何或 chi-equivalent 投影字段。 |
-| `F` | 1010 | `electron_max_xi_coeff_chi` | finite-q shell 几何或 chi-equivalent 投影字段。 |
-| `F` | 1037 | `electron_max_xi_coeff_uniform` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 21 | `prepare_implicit_coeffs` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 33 | `backward_sweep` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 47 | `quad_interp3` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
+| `S` | 60 | `ppm_interfaces` | 非均匀电子能量网格的 PPM 界面重构。 |
+| `S` | 119 | `ppm_positive_cell` | PPM 单元正性限制；保持重构后的粒子数密度非负。 |
+| `S` | 149 | `ppm_prefix` | 非均匀网格 PPM 前缀积分。 |
+| `F` | 168 | `ppm_eval_prefix` | 任意位置的 PPM 保守前缀积分求值。 |
+| `S` | 203 | `prepare_remap` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
+| `S` | 220 | `prepare_exp_source` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
+| `F` | 254 | `exp_source_int` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
+| `F` | 274 | `exp_source_prefix` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
+| `S` | 310 | `dnx_dgamma` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 324 | `u_edges` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
+| `F` | 338 | `x_from_u` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 347 | `trace_affine_u` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
+| `S` | 378 | `build_piece_u` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 416 | `find_u_cell` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 441 | `trace_piece_edge` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
+| `S` | 562 | `trace_piece_u` | 多滞后分段仿射 u 特征线回溯；单滞后调用传 `Num_lag=1`。 |
+| `S` | 583 | `char_core` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 620 | `remap_edges` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
+| `S` | 644 | `char_update` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 678 | `ppm_cell_int` | PPM 单元积分 primitive。 |
+| `S` | 695 | `semi_lagrangian_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 722 | `flux_split_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 765 | `flux_split_nonuniform` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 814 | `flux_seq_nonuniform` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 863 | `fullhide_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 886 | `fullhide_spacetime` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 930 | `logparabola_peak` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 958 | `gamma_active_hi` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 991 | `chi_active_hi` | finite-q shell 几何或 chi-equivalent 投影字段。 |
+| `F` | 1010 | `max_xi_chi` | finite-q shell 几何或 chi-equivalent 投影字段。 |
+| `F` | 1037 | `max_xi_uniform` | 局部 helper；语义由所在文件的算法阶段决定。 |
 
-### `src/Electron/electron_transport_dg_1d_kernel.f90`
+### `src/Electron/electron_dg_transport.f90`
 
 DG 谱元网格、投影、正性核和特征线投影。
 
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
-| `M` | 2 | `electron_transport_dg_1d_kernel` | 模块命名空间；集中声明本文件共享 procedure。 |
-| `S` | 49 | `electron_dg1d_build_four_velocity_mesh` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 61 | `electron_dg1d_build_coord_mesh` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `S` | 94 | `electron_dg1d_initial_state` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 114 | `electron_dg1d_project_state` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 135 | `electron_dg1d_project_source` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
-| `S` | 177 | `electron_dg1d_project_kinetic_source` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
-| `S` | 216 | `electron_dg1d_scale_to_content` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 229 | `electron_dg1d_limit_positive_cell_preserving` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 256 | `electron_dg1d_apply_positive_kernel_filter` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `S` | 310 | `electron_dg1d_advance_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 354 | `electron_dg1d_advance_step_dense` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 376 | `electron_dg1d_assemble_transport_matrix` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 430 | `electron_dg1d_advance_characteristic_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 447 | `electron_dg1d_zero_negative_cell_means` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 462 | `electron_dg1d_project_characteristic` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 521 | `electron_dg1d_closed_low_boundary_content` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 544 | `electron_dg1d_integrate_domain_interval` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 561 | `electron_dg1d_characteristic_back_x` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 589 | `electron_dg1d_characteristic_forward_x` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 608 | `electron_dg1d_project_element` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 648 | `electron_dg1d_solve_lgl_block` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 696 | `electron_dg1d_solve_dense` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 738 | `electron_dg1d_project_to_coord_cells` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `S` | 774 | `electron_dg1d_integral` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 789 | `electron_dg1d_tail_moment_fraction` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 815 | `electron_dg1d_positive_kernel_mode` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 842 | `electron_dg1d_element_is_troubled` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 862 | `electron_dg1d_kernel_factor` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 872 | `electron_dg1d_jackson_factor` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `M` | 2 | `electron_dg_transport` | 模块命名空间；集中声明本文件共享 procedure。 |
+| `S` | 49 | `dg_build_mesh` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 61 | `dg_build_coord` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
+| `S` | 94 | `dg_initial_state` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 114 | `dg_project_state` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 135 | `dg_project_source` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
+| `S` | 177 | `dg_kinetic_source` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
+| `S` | 216 | `dg_scale_content` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 229 | `dg_limit_positive` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 256 | `dg_filter_positive` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
+| `S` | 310 | `dg_advance_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 354 | `dg_dense_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 376 | `dg_transport_matrix` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 430 | `dg_char_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 447 | `dg_zero_bad` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 462 | `dg_project_char` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 521 | `dg_low_content` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 544 | `dg_interval_int` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 561 | `dg_back_x` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 589 | `dg_forward_x` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 608 | `dg_project_element` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 648 | `dg_solve_block` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 696 | `dg_solve_dense` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 738 | `dg_project_cells` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
+| `S` | 774 | `dg_integral` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 789 | `dg_tail_fraction` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 815 | `dg_filter_mode` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 842 | `dg_is_troubled` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 862 | `dg_filter_factor` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 872 | `dg_jackson_factor` | 局部 helper；语义由所在文件的算法阶段决定。 |
 | `S` | 886 | `add_active_break` | 特征 Lorentz 因子/断点诊断；用于注入、冷却或活动网格边界。 |
-| `S` | 899 | `electron_dg1d_sort_breaks` | 特征 Lorentz 因子/断点诊断；用于注入、冷却或活动网格边界。 |
+| `S` | 899 | `sort_breaks` | 特征 Lorentz 因子/断点诊断；用于注入、冷却或活动网格边界。 |
 | `S` | 915 | `allocate_spectral_mesh` | 局部 helper；语义由所在文件的算法阶段决定。 |
 | `S` | 929 | `ensure_reference_spectral` | workspace/cache 管理；只服务性能和内存复用，不改变物理语义。 |
 | `S` | 946 | `ensure_projection_quadrature` | workspace/cache 管理；只服务性能和内存复用，不改变物理语义。 |
@@ -575,106 +568,102 @@ DG 谱元网格、投影、正性核和特征线投影。
 | `S` | 1000 | `lgl_nodes_weights` | 积分权重或求积 primitive；影响谱积分精度。 |
 | `S` | 1026 | `legendre_value_derivative` | 积分权重或求积 primitive；影响谱积分精度。 |
 | `S` | 1053 | `legendre_basis_values` | 积分权重或求积 primitive；影响谱积分精度。 |
-| `S` | 1067 | `gauss_legendre_nodes_weights` | 积分权重或求积 primitive；影响谱积分精度。 |
+| `S` | 1067 | `gauss_nodes_weights` | 积分权重或求积 primitive；影响谱积分精度。 |
 | `S` | 1086 | `barycentric_weights` | 积分权重或求积 primitive；影响谱积分精度。 |
 | `S` | 1101 | `differentiation_matrix` | 局部 helper；语义由所在文件的算法阶段决定。 |
 | `F` | 1116 | `locate_domain` | 局部 helper；语义由所在文件的算法阶段决定。 |
 | `F` | 1134 | `interpolate_domain` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
 
-### `src/Electron/hybrid_spectrum_kernel_fast.f90`
+### `src/Electron/hybrid_spectrum.f90`
 
 热-非热混合谱归一化和特殊函数加速。
 
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
-| `M` | 4 | `hybrid_spectrum_kernel_fast` | 模块命名空间；集中声明本文件共享 procedure。 |
-| `S` | 48 | `integral_thermal1` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 145 | `integral_thermal12` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 305 | `integral_cpl` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `M` | 4 | `hybrid_spectrum` | 模块命名空间；集中声明本文件共享 procedure。 |
+| `S` | 48 | `thermal_int1` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 145 | `thermal_int12` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 305 | `cpl_integral` | 局部 helper；语义由所在文件的算法阶段决定。 |
 | `S` | 322 | `solve_theta` | 局部 helper；语义由所在文件的算法阶段决定。 |
 | `F` | 352 | `get_initial_theta` | 局部 helper；语义由所在文件的算法阶段决定。 |
 | `F` | 361 | `newton_method` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 396 | `normalized_hybrid_spec` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 424 | `hybrid_spec_point` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 446 | `normalized_hybrid_spec_lg` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 396 | `hybrid_spec` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 424 | `spec_point` | 局部 helper；语义由所在文件的算法阶段决定。 |
 
-### `src/Hadronic/hadronic_acceleration_kernel.f90`
+### `src/Hadronic/hadronic_accel.f90`
 
-强子加速时间、外部冷却限制和 gamma_max/injection operator。
+强子加速时间、外部冷却限制和 gamma limit / injection rate。
 
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
-| `M` | 2 | `hadronic_acceleration_kernel` | 模块命名空间；集中声明本文件共享 procedure。 |
-| `S` | 22 | `hadronic_species_properties` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 55 | `hadronic_acceleration_timescale_s` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 77 | `hadronic_synchrotron_cooling_timescale_s` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 100 | `hadronic_external_photon_cooling_timescale_s` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 118 | `hadronic_species_injection_operator` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
-| `S` | 165 | `hadronic_estimate_max_gamma` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 202 | `initialize_acceleration_limits` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 215 | `find_external_cooling_crossing` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 229 | `apply_external_cooling_limit` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 251 | `hadronic_acceleration_operator` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 280 | `hadronic_trapezoid` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `M` | 2 | `hadronic_accel` | 模块命名空间；集中声明本文件共享 procedure。 |
+| `S` | 20 | `species_info` | 查询 hadronic species 的质量和电荷。 |
+| `S` | 52 | `accel_time` | 费米加速时标。 |
+| `S` | 75 | `syn_time` | 同步辐射冷却时标。 |
+| `S` | 96 | `ext_time` | 外部光子场冷却时标。 |
+| `S` | 113 | `inject_rate` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
+| `S` | 158 | `gamma_limit` | 动力学、同步冷却和外部冷却限制给出的最大 Lorentz factor。 |
+| `S` | 197 | `init_limit` | 未加入外部冷却前的动力学和同步辐射限制。 |
+| `F` | 213 | `find_cross` | 查找 t_acc 与 t_ext 的交叉区间。 |
+| `S` | 229 | `apply_xlimit` | 用对数插值给出外部冷却限制。 |
+| `S` | 253 | `accel_calc` | 一次性计算加速、冷却、注入和最大能量限制。 |
+| `F` | 276 | `trapz` | 梯形法则积分。 |
 
-### `src/Hadronic/hadronic_bethe_heitler_kernel.f90`
+### `src/Hadronic/hadronic_bh.f90`
 
 Bethe-Heitler 质子损失、pair source 和 photon loss kernel。
 
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
-| `M` | 2 | `hadronic_bethe_heitler_kernel` | 模块命名空间；集中声明本文件共享 procedure。 |
-| `S` | 18 | `hadronic_bethe_heitler_operator` | Bethe-Heitler pair/source/loss 算子。 |
-| `F` | 77 | `bh_proton_loss_point` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 83 | `accumulate_bh_pair_source` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
-| `F` | 108 | `hadronic_bh_kernel_electron_generation` | Bethe-Heitler pair/source/loss 算子。 |
-| `F` | 125 | `hadronic_bh_outer` | Bethe-Heitler pair/source/loss 算子。 |
-| `F` | 145 | `hadronic_bh_inner` | Bethe-Heitler pair/source/loss 算子。 |
-| `F` | 161 | `hadronic_bh_sigma_w` | Bethe-Heitler pair/source/loss 算子。 |
-| `F` | 200 | `hadronic_bh_kernel_proton_loss` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `F` | 206 | `hadronic_bh_eloss_kernel_phi` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `F` | 227 | `hadronic_rk4_3` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `F` | 229 | `func` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 252 | `hadronic_rk4_4` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `F` | 254 | `func` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `M` | 2 | `hadronic_bh` | 模块命名空间；集中声明本文件共享 procedure。 |
+| `S` | 17 | `bh_calc` | Bethe-Heitler pair/source/loss 算子。 |
+| `F` | 77 | `loss_point` | 单个 photon bin 对 proton loss 的贡献。 |
+| `F` | 86 | `bh_pair` | Bethe-Heitler pair 产生核；进入 pair source 与 photon sink。 |
+| `F` | 104 | `bh_outer` | Bethe-Heitler 外层 omega 积分核。 |
+| `F` | 124 | `bh_inner` | Bethe-Heitler 内层 ebar 积分核。 |
+| `F` | 142 | `bh_sigma` | Blumenthal 1970 微分截面。 |
+| `F` | 184 | `proton_loss` | Bethe-Heitler 质子能量损失核。 |
+| `F` | 191 | `bh_phi` | Bethe-Heitler 能量损失 phi(x) 近似。 |
+| `F` | 212 | `bh_rk3` | 三参数 RK 3/8 积分器。 |
+| `F` | 237 | `bh_rk4` | 四参数 RK 3/8 积分器。 |
 
-### `src/Hadronic/hadronic_common.f90`
+### `src/Hadronic/hadronic_base.f90`
 
 强子网格、时间尺度、log-grid 校验和量子同步冷却公共工具。
 
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
-| `M` | 2 | `hadronic_common` | 公共模块；提供多个入口复用的物理/数值 primitive。 |
-| `S` | 17 | `hadronic_build_gamma_p_grid` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `S` | 42 | `hadronic_source_bounds` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
-| `S` | 66 | `hadronic_build_gamma_edges` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `F` | 89 | `hadronic_shell_dt` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 103 | `hadronic_dynamical_time` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 113 | `hadronic_gamma_p_max` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 127 | `hadronic_validate_log_grid` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `F` | 154 | `hadronic_quantum_syn_cooling_factor` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
+| `M` | 2 | `hadronic_base` | 公共模块；提供多个入口复用的物理/数值 primitive。 |
+| `S` | 17 | `build_grid` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
+| `S` | 42 | `source_bounds` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
+| `S` | 66 | `build_edges` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
+| `F` | 89 | `shell_dt` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 103 | `dyn_time` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 113 | `proton_limit` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 127 | `check_grid` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
+| `F` | 154 | `quant_factor` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
 
-### `src/Hadronic/hadronic_decay_kernel.f90`
+### `src/Hadronic/hadronic_decay.f90`
 
 pi0、pi±、mu± decay、neutrino 和 electron channel。
 
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
-| `M` | 2 | `hadronic_decay_kernel` | 模块命名空间；集中声明本文件共享 procedure。 |
-| `S` | 20 | `hadronic_pi0_to_gamma_operator` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `S` | 48 | `hadronic_pion_decay_operator` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `S` | 96 | `build_pion_decay_log_rates` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `S` | 106 | `accumulate_pion_muon_channel` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `S` | 130 | `accumulate_prompt_pion_neutrino_channel` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `S` | 151 | `hadronic_muon_decay_operator` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `S` | 199 | `build_muon_decay_log_rates` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `S` | 211 | `accumulate_muon_neutrino_channel` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `S` | 235 | `accumulate_muon_electron_channel` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `S` | 255 | `hadronic_hummer2010_decay_operator` | p-gamma Hummer response 或 secondary family deposition。 |
-| `F` | 313 | `hadronic_log_spacing` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 326 | `hadronic_fnu1_decay` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `F` | 336 | `hadronic_fnu2_decay` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `F` | 346 | `hadronic_log_interpolate` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
+| `M` | 2 | `hadronic_decay` | 模块命名空间；集中声明本文件共享 procedure。 |
+| `S` | 20 | `pi0_gamma` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
+| `S` | 48 | `pion_decay` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
+| `S` | 82 | `build_pion` | pion decay source 的 log-energy rate 预处理。 |
+| `S` | 91 | `pion_madd` | charged-pion decay 到 helicity-resolved muon。 |
+| `S` | 116 | `pion_nadd` | charged-pion prompt neutrino source。 |
+| `S` | 151 | `muon_decay` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
+| `S` | 181 | `build_muon` | muon decay source 的 log-energy rate 预处理。 |
+| `S` | 191 | `muon_nadd` | muon decay 到 flavor-resolved neutrino。 |
+| `S` | 217 | `muon_eadd` | muon decay 到 e± source。 |
+| `S` | 255 | `decay_hummer` | p-gamma Hummer response 或 secondary family deposition。 |
+| `F` | 313 | `log_spacing` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 326 | `nu1_decay` | muon decay neutrino 谱函数 f_nu1(x,h)。 |
+| `F` | 337 | `nu2_decay` | muon decay neutrino 谱函数 f_nu2(x,h)。 |
+| `F` | 346 | `log_interp` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
 
 ### `src/Hadronic/hadronic_forward_1d.f90`
 
@@ -682,241 +671,237 @@ pi0、pi±、mu± decay、neutrino 和 electron channel。
 
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
-| `S` | 3 | `fs_hadronic_syn_polarization_shell` | f2py/Python 调用边界；同步偏振诊断使用的 proton synchrotron polarization wrapper。 |
-| `S` | 16 | `fs_hadronic_pgamma_operator_shell` | f2py/Python 调用边界；Hummer 2010 p-gamma operator。 |
-| `S` | 37 | `fs_hadronic_pair_production_shell` | f2py/Python 调用边界；gamma-gamma pair source/loss operator。 |
-| `S` | 54 | `fs_hadronic_pp_delta_shell` | f2py/Python 调用边界；pp delta source/loss operator。 |
-| `S` | 73 | `fs_hadronic_bethe_heitler_shell` | f2py/Python 调用边界；Bethe-Heitler pair source 和 photon/proton loss。 |
-| `S` | 89 | `fs_hadronic_hadronic_ic_shell` | f2py/Python 调用边界；pion/muon/proton hadronic IC diagnostic operator。 |
-| `S` | 114 | `fs_hadronic_decay_operator_shell` | f2py/Python 调用边界；pion/muon decay 到 gamma、e± 和 neutrino。 |
-| `S` | 146 | `fs_hadronic_pair_cascade_sequence` | f2py/Python 调用边界；shell-sequence gamma-gamma pair/synch cascade。 |
-| `S` | 172 | `fs_hadronic_1d` | light 1D proton transport + proton synchrotron shell-sequence driver。 |
-| `S` | 247 | `initialize_proton_gamma_grid` | `fs_hadronic_1d` 内部网格初始化；Jacobians 不能省略。 |
-| `S` | 275 | `initialize_output_grids` | `fs_hadronic_1d` 输出频率和数组初始化。 |
-| `S` | 296 | `inject_protons_for_shell` | `fs_hadronic_1d` 壳层质子源项；必须同时满足粒子数和能量预算。 |
-| `S` | 308 | `advance_proton_transport_for_shell` | `fs_hadronic_1d` 壳层质子输运推进。 |
-| `S` | 319 | `advance_hummer_secondary_chain` | `fs_hadronic_1d` Hummer p-gamma secondary chain 推进。 |
-| `S` | 337 | `emit_proton_synchrotron_for_shell` | `fs_hadronic_1d` proton synchrotron emissivity 和 seed 计算。 |
-| `S` | 352 | `fs_hadronic_formal_transport_1d` | formal 1D 强子主入口；推进 proton transport、p-gamma/BH/pp、secondary、photon survival 和 secondary e± source。 |
-| `S` | 394 | `fs_hadronic_positive_loglog_interp` | f2py/Python 调用边界；当前 secondary-feedback grid projection 仍直接调用。 |
+| `S` | 3 | `had_syn_pol` | f2py/Python 调用边界；同步偏振诊断使用的 proton synchrotron polarization wrapper。 |
+| `S` | 16 | `pg_operator` | f2py/Python 调用边界；Hummer 2010 p-gamma operator。 |
+| `S` | 37 | `pair_production` | f2py/Python 调用边界；gamma-gamma pair source/loss operator。 |
+| `S` | 54 | `pp_shell` | f2py/Python 调用边界；pp delta source/loss operator。 |
+| `S` | 73 | `bethe_heitler` | f2py/Python 调用边界；Bethe-Heitler pair source 和 photon/proton loss。 |
+| `S` | 89 | `hadronic_ic` | f2py/Python 调用边界；pion/muon/proton hadronic IC diagnostic operator。 |
+| `S` | 114 | `decay_operator` | f2py/Python 调用边界；pion/muon decay 到 gamma、e± 和 neutrino。 |
+| `S` | 146 | `cascade_sequence` | f2py/Python 调用边界；shell-sequence gamma-gamma pair/synch cascade。 |
+| `S` | 172 | `hadronic_1d` | light 1D proton transport + proton synchrotron shell-sequence driver。 |
+| `S` | 279 | `init_grid` | `hadronic_1d` 内部 proton grid 初始化；Jacobians 不能省略。 |
+| `S` | 306 | `init_out` | `hadronic_1d` 输出频率和数组初始化。 |
+| `S` | 326 | `inject_p` | `hadronic_1d` 壳层质子源项；必须同时满足粒子数和能量预算。 |
+| `S` | 336 | `advance_p` | `hadronic_1d` 壳层质子输运推进。 |
+| `S` | 345 | `advance_sec` | `hadronic_1d` Hummer p-gamma secondary chain 推进。 |
+| `S` | 361 | `emit_syn` | `hadronic_1d` proton synchrotron emissivity 和 seed 计算。 |
+| `S` | 352 | `formal_transport_1d` | formal 1D 强子主入口；推进 proton transport、p-gamma/BH/pp、secondary、photon survival 和 secondary e± source。 |
 
-### `src/Hadronic/hadronic_forward_formal_1d.f90`
+### `src/Hadronic/hadronic_formal.f90`
 
-formal 1D 强子壳层序列实现层；Python/f2py 只通过 `fs_hadronic_formal_transport_1d` 进入这里。
+formal 1D 强子壳层序列实现层；Python/f2py 只通过 `formal_transport_1d` 进入这里。
 
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
-| `M` | 1 | `hadronic_forward_formal_1d` | formal 1D 强子 shell-sequence 模块命名空间。 |
-| `S` | 9 | `hadronic_forward_formal_transport_1d_impl` | 按半径推进 proton injection/transport、pγ/BH/pp、secondary species、secondary radiation、photon survival 和 secondary e± source。 |
+| `M` | 1 | `hadronic_formal` | formal 1D 强子 shell-sequence 模块命名空间。 |
+| `S` | 9 | `formal_transport` | 按半径推进 proton injection/transport、pγ/BH/pp、secondary species、secondary radiation、photon survival 和 secondary e± source。 |
 
-### `src/Hadronic/hadronic_forward_shell_1d.f90`
+### `src/Hadronic/hadronic_shell.f90`
 
 formal 1D 强子底层 shell primitive 与单位/投影 helper；f2py wrapper 已收窄到运行时真正需要的入口。
 
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
-| `M` | 1 | `hadronic_forward_shell_1d` | shell-level 强子 primitive 模块命名空间。 |
-| `S` | 24 | `hadronic_forward_pp_delta_shell` | pp delta source/loss operator；输出 gamma、neutrino、e± 源和 proton loss。 |
-| `S` | 51 | `hadronic_forward_hadronic_ic_shell` | proton/pion/muon hadronic IC operator；输出 IC emissivity 与投影系数。 |
-| `S` | 83 | `hadronic_forward_hic_projected` | hadronic IC shell emissivity 投影到 photon grid。 |
-| `S` | 109 | `hadronic_forward_species_transport_step` | n、pi、mu secondary species 同壳层保守推进。 |
-| `S` | 172 | `hadronic_forward_injection_content` | 壳层注入能量预算到 species source content 的归一化。 |
-| `S` | 194 | `hadronic_forward_global_gamma_p_max` | 沿半径序列估计全局 proton 最大 Lorentz factor。 |
-| `S` | 218 | `hadronic_forward_secondary_radiation_shell` | pion/muon synchrotron 与 IC shell emissivity。 |
-| `S` | 247 | `hadronic_forward_secondary_radiation_projected` | secondary radiation 从 hadron grid 投影到 photon grid。 |
-| `S` | 307 | `hadronic_forward_continuous_loss_rates` | adiabatic、synchrotron 和 quantum-synch 连续损失率。 |
-| `S` | 329 | `hadronic_forward_secondary_electron_sequence` | secondary e± source 随壳层序列组装。 |
-| `S` | 362 | `hadronic_forward_photon_loss_closure` | photon loss rate 到 optical-depth/survival closure。 |
-| `S` | 387 | `hadronic_forward_interaction_effective_time` | interaction loss rate 的有效时间积分。 |
-| `S` | 413 | `hadronic_forward_pgamma_proton_update` | pγ loss/re-injection 对 proton spectrum 的壳层更新。 |
-| `S` | 433 | `hadronic_forward_proton_transport_step` | proton injection、continuous loss 和 pγ update 的单壳层推进。 |
-| `S` | 454 | `hadronic_forward_exponential_sink` | 指数 sink primitive；用于已定义 interaction/loss closure。 |
-| `S` | 470 | `hadronic_forward_energy_luminosity_from_rate` | rate-per-energy 到 luminosity-per-frequency/energy 的壳层换算。 |
-| `S` | 483 | `hadronic_forward_project_luminosity_from_rate` | source energy grid 到目标 photon grid 的 luminosity 投影。 |
-| `S` | 501 | `hadronic_forward_project_hic_luminosity` | hadronic IC 多 species emissivity 投影。 |
-| `S` | 521 | `hadronic_forward_pair_source_content` | pp/BH pair source 组合成电子方程使用的 content source。 |
-| `S` | 535 | `hadronic_forward_shell_density_per_gev` | shell content 到 density-per-GeV 的单位变换。 |
-| `S` | 550 | `hadronic_forward_gamma_edges` | Lorentz-factor grid edges；守恒积分需要的 bin geometry。 |
-| `S` | 572 | `hadronic_forward_process_power` | secondary process power diagnostic。 |
-| `S` | 611 | `hadronic_forward_positive_loglog_interp` | 正值 log-log grid projection；当前 secondary-feedback Python glue 仍使用。 |
-| `S` | 642 | `hadronic_forward_source_per_gamma` | source-per-energy 到 source-per-gamma 的 grid projection。 |
-| `S` | 658 | `hadronic_forward_distribution_per_gev` | distribution-per-gamma 到 distribution-per-GeV 的 grid projection。 |
-| `S` | 674 | `hadronic_forward_aligned_photon_grid` | hadron/photon grid 对齐 helper。 |
-| `S` | 691 | `hadronic_sequence_shell_geometry` | shell dr、dt geometry helper。 |
-| `S` | 712 | `hadronic_forward_shell_volumes` | 壳层体积序列。 |
+| `M` | 1 | `hadronic_shell` | shell-level 强子 primitive 模块命名空间。 |
+| `S` | 24 | `pp_shell` | pp delta source/loss operator；输出 gamma、neutrino、e± 源和 proton loss。 |
+| `S` | 51 | `hic_shell` | proton/pion/muon hadronic IC operator；输出 IC emissivity 与投影系数。 |
+| `S` | 83 | `hic_project` | hadronic IC shell emissivity 投影到 photon grid。 |
+| `S` | 109 | `species_step` | n、pi、mu secondary species 同壳层保守推进。 |
+| `S` | 172 | `inject_content` | 壳层注入能量预算到 species source content 的归一化。 |
+| `S` | 194 | `scan_pmax` | 沿半径序列估计全局 proton 最大 Lorentz factor。 |
+| `S` | 218 | `secondary_rad` | pion/muon synchrotron 与 IC shell emissivity。 |
+| `S` | 247 | `secondary_project` | secondary radiation 从 hadron grid 投影到 photon grid。 |
+| `S` | 307 | `loss_rates` | adiabatic、synchrotron 和 quantum-synch 连续损失率。 |
+| `S` | 329 | `electron_seq` | secondary e± source 随壳层序列组装。 |
+| `S` | 362 | `photon_loss` | photon loss rate 到 optical-depth/survival closure。 |
+| `S` | 387 | `effective_time` | interaction loss rate 的有效时间积分。 |
+| `S` | 413 | `pgamma_update` | pγ loss/re-injection 对 proton spectrum 的壳层更新。 |
+| `S` | 433 | `proton_step` | proton injection、continuous loss 和 pγ update 的单壳层推进。 |
+| `S` | 454 | `exp_sink` | 指数 sink primitive；用于已定义 interaction/loss closure。 |
+| `S` | 470 | `rate_lum` | rate-per-energy 到 luminosity-per-frequency/energy 的壳层换算。 |
+| `S` | 483 | `project_lum` | source energy grid 到目标 photon grid 的 luminosity 投影。 |
+| `S` | 501 | `project_hic` | hadronic IC 多 species emissivity 投影。 |
+| `S` | 521 | `pair_content` | pp/BH pair source 组合成电子方程使用的 content source。 |
+| `S` | 535 | `shell_density` | shell content 到 density-per-GeV 的单位变换。 |
+| `S` | 550 | `gamma_edges` | Lorentz-factor grid edges；守恒积分需要的 bin geometry。 |
+| `S` | 572 | `proc_power` | secondary process power diagnostic。 |
+| `S` | 611 | `pos_interp` | 正值 log-log grid projection；当前 secondary-feedback Python glue 仍使用。 |
+| `S` | 642 | `gamma_source` | source-per-energy 到 source-per-gamma 的 grid projection。 |
+| `S` | 658 | `dist_gev` | distribution-per-gamma 到 distribution-per-GeV 的 grid projection。 |
+| `S` | 674 | `align_photon` | hadron/photon grid 对齐 helper。 |
+| `S` | 691 | `shell_geom` | shell dr、dt geometry helper。 |
+| `S` | 712 | `shell_volumes` | 壳层体积序列。 |
 
-### `src/Hadronic/hadronic_hadronic_ic_kernel.f90`
+### `src/Hadronic/hadronic_ic.f90`
 
 强子 secondary inverse-Compton kernel。
 
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
-| `M` | 2 | `hadronic_hadronic_ic_kernel` | 模块命名空间；集中声明本文件共享 procedure。 |
-| `S` | 21 | `hadronic_hadronic_ic_initialize_kernel` | inverse-Compton/KN 相关核；joint 模式要求 cooling 和 emissivity 使用同一 photon field。 |
-| `S` | 47 | `hadronic_hadronic_ic_operator_from_kernel` | inverse-Compton/KN 相关核；joint 模式要求 cooling 和 emissivity 使用同一 photon field。 |
-| `S` | 73 | `hadronic_hadronic_ic_apply_kernel` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `S` | 100 | `apply_hadronic_ic_species` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
+| `M` | 2 | `hadronic_ic` | 模块命名空间；集中声明本文件共享 procedure。 |
+| `S` | 21 | `ic_init` | inverse-Compton/KN 相关核；joint 模式要求 cooling 和 emissivity 使用同一 photon field。 |
+| `S` | 47 | `ic_operator` | inverse-Compton/KN 相关核；joint 模式要求 cooling 和 emissivity 使用同一 photon field。 |
+| `S` | 73 | `ic_apply` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
+| `S` | 100 | `apply_species` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
 | `S` | 110 | `sum_charged_pion_density` | 介质密度或 density-jump 分支；直接影响 swept mass、动力学和注入源项。 |
 | `S` | 116 | `sum_muon_helicity_density` | 介质密度或 density-jump 分支；直接影响 swept mass、动力学和注入源项。 |
-| `S` | 124 | `hadronic_hadronic_ic_build_species_kernel` | inverse-Compton/KN 相关核；joint 模式要求 cooling 和 emissivity 使用同一 photon field。 |
-| `S` | 149 | `hadronic_hadronic_ic_compute_channel` | inverse-Compton/KN 相关核；joint 模式要求 cooling 和 emissivity 使用同一 photon field。 |
-| `F` | 176 | `hadronic_hadronic_ic_coeff` | inverse-Compton/KN 相关核；joint 模式要求 cooling 和 emissivity 使用同一 photon field。 |
+| `S` | 124 | `ic_build` | inverse-Compton/KN 相关核；joint 模式要求 cooling 和 emissivity 使用同一 photon field。 |
+| `S` | 149 | `ic_channel` | inverse-Compton/KN 相关核；joint 模式要求 cooling 和 emissivity 使用同一 photon field。 |
+| `F` | 176 | `ic_coeff` | inverse-Compton/KN 相关核；joint 模式要求 cooling 和 emissivity 使用同一 photon field。 |
 
-### `src/Hadronic/hadronic_interaction_kernel.f90`
+### `src/Hadronic/hadronic_pg.f90`
 
 Hummer 2010 p-gamma response、光子汇和 secondary family deposition。
 
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
-| `M` | 2 | `hadronic_interaction_kernel` | 模块命名空间；集中声明本文件共享 procedure。 |
-| `S` | 91 | `hadronic_pg_hummer2010_operator` | p-gamma Hummer response 或 secondary family deposition。 |
+| `M` | 2 | `hadronic_pg` | 模块命名空间；集中声明本文件共享 procedure。 |
+| `S` | 91 | `pg_hummer` | p-gamma Hummer response 或 secondary family deposition。 |
 | `S` | 165 | `accumulate_pg_photon_loss` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 195 | `hadronic_pg_deposit_family` | p-gamma Hummer response 或 secondary family deposition。 |
-| `S` | 214 | `hadronic_pg_deposit_baryons` | p-gamma Hummer response 或 secondary family deposition。 |
-| `S` | 231 | `hadronic_pg_deposit_shifted` | p-gamma Hummer response 或 secondary family deposition。 |
-| `S` | 247 | `hadronic_pg_family_rates_res` | p-gamma Hummer response 或 secondary family deposition。 |
-| `S` | 266 | `hadronic_pg_family_rates_dir` | p-gamma Hummer response 或 secondary family deposition。 |
-| `S` | 283 | `hadronic_pg_family_rates_mul` | p-gamma Hummer response 或 secondary family deposition。 |
-| `F` | 300 | `hadronic_pg_loss_coeff_res` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `F` | 310 | `hadronic_pg_loss_coeff_dir` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `F` | 320 | `hadronic_pg_loss_coeff_mul` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `F` | 332 | `hadronic_pg_family_photon_loss_res` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `F` | 340 | `hadronic_pg_family_photon_loss_dir` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `F` | 347 | `hadronic_pg_family_photon_loss_mul` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `F` | 355 | `hadronic_pg_kernel_res` | p-gamma Hummer response 或 secondary family deposition。 |
-| `F` | 367 | `hadronic_pg_kernel_mul` | p-gamma Hummer response 或 secondary family deposition。 |
-| `F` | 381 | `hadronic_pg_kernel_dir` | p-gamma Hummer response 或 secondary family deposition。 |
-| `F` | 397 | `hadronic_pg_idir` | p-gamma Hummer response 或 secondary family deposition。 |
+| `S` | 195 | `deposit_pions` | p-gamma Hummer response 或 secondary family deposition。 |
+| `S` | 214 | `deposit_baryons` | p-gamma Hummer response 或 secondary family deposition。 |
+| `S` | 231 | `deposit_shift` | p-gamma Hummer response 或 secondary family deposition。 |
+| `S` | 247 | `rates_res` | p-gamma Hummer response 或 secondary family deposition。 |
+| `S` | 266 | `rates_dir` | p-gamma Hummer response 或 secondary family deposition。 |
+| `S` | 283 | `rates_mul` | p-gamma Hummer response 或 secondary family deposition。 |
+| `F` | 300 | `loss_res` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
+| `F` | 310 | `loss_dir` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
+| `F` | 320 | `loss_mul` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
+| `F` | 332 | `phloss_res` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
+| `F` | 340 | `phloss_dir` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
+| `F` | 347 | `phloss_mul` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
+| `F` | 355 | `kernel_res` | p-gamma Hummer response 或 secondary family deposition。 |
+| `F` | 367 | `kernel_mul` | p-gamma Hummer response 或 secondary family deposition。 |
+| `F` | 381 | `kernel_dir` | p-gamma Hummer response 或 secondary family deposition。 |
+| `F` | 397 | `idir` | p-gamma Hummer response 或 secondary family deposition。 |
 
-### `src/Hadronic/hadronic_pair_cascade_kernel.f90`
+### `src/Hadronic/hadronic_cascade.f90`
 
 gamma-gamma pair/synch shell-sequence cascade。
 
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
-| `M` | 2 | `hadronic_pair_cascade_kernel` | 模块命名空间；集中声明本文件共享 procedure。 |
-| `S` | 15 | `hadronic_cascade_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 48 | `validate_pair_cascade_inputs` | 光深、gamma-gamma absorption、pair injection 或 photon survival 相关算子。 |
-| `S` | 56 | `run_pair_production_stage` | 光深、gamma-gamma absorption、pair injection 或 photon survival 相关算子。 |
-| `S` | 66 | `build_pair_electron_gamma_grid` | 光深、gamma-gamma absorption、pair injection 或 photon survival 相关算子。 |
-| `S` | 71 | `evolve_pair_cooling_stage` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 87 | `emit_pair_synchrotron_stage` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 107 | `hadronic_cascade_sequence` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 175 | `validate_sequence_inputs` | 系统边界校验；用于拒绝外部输入或正式 kernel contract 违反。 |
-| `S` | 186 | `build_sequence_grids` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `S` | 198 | `shell_geometry` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 213 | `pair_synchrotron_state` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 232 | `distribute_cooled_power` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 250 | `electron_loss_rates` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 260 | `advance_energy_loggamma` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `F` | 278 | `gamma_bin_index` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 292 | `advance_photon_density` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `M` | 2 | `hadronic_cascade` | 模块命名空间；集中声明本文件共享 procedure。 |
+| `S` | 15 | `cascade_step` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `S` | 48 | `validate_step` | 光深、gamma-gamma absorption、pair injection 或 photon survival 相关算子。 |
+| `S` | 56 | `produce_pairs` | 光深、gamma-gamma absorption、pair injection 或 photon survival 相关算子。 |
+| `S` | 66 | `build_egamma` | 光深、gamma-gamma absorption、pair injection 或 photon survival 相关算子。 |
+| `S` | 71 | `cool_pairs` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
+| `S` | 87 | `emit_syn` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
+| `S` | 107 | `cascade_seq` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 175 | `validate_seq` | 系统边界校验；用于拒绝外部输入或正式 kernel contract 违反。 |
+| `S` | 186 | `build_grids` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
+| `S` | 198 | `shell_geom` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 213 | `pair_syn` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
+| `S` | 232 | `cool_deposit` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
+| `S` | 250 | `electron_loss` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
+| `S` | 260 | `advance_energy` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `F` | 278 | `gamma_bin` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 292 | `advance_photon` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
 
-### `src/Hadronic/hadronic_pair_production_kernel.f90`
+### `src/Hadronic/hadronic_pair.f90`
 
 gamma-gamma pair injection 和 photon loss kernel。
 
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
-| `M` | 2 | `hadronic_pair_production_kernel` | 模块命名空间；集中声明本文件共享 procedure。 |
-| `S` | 18 | `hadronic_pair_production_operator` | 光深、gamma-gamma absorption、pair injection 或 photon survival 相关算子。 |
-| `S` | 65 | `hadronic_calc_pair_injection_full` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
-| `F` | 84 | `accumulate_pair_injection_bin` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
-| `S` | 100 | `pair_injection_energy_window` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
-| `S` | 109 | `renormalize_pair_energy_closure` | 光深、gamma-gamma absorption、pair injection 或 photon survival 相关算子。 |
-| `S` | 124 | `hadronic_build_photon_loss_kernel` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `F` | 143 | `hadronic_phibar` | 结构化喷流 patch/角向投影调度。 |
-| `F` | 160 | `hadronic_phibar1` | 结构化喷流 patch/角向投影调度。 |
-| `F` | 169 | `hadronic_phibar2` | 结构化喷流 patch/角向投影调度。 |
-| `F` | 181 | `hadronic_phibar3` | 结构化喷流 patch/角向投影调度。 |
-| `F` | 189 | `hadronic_phisum` | 结构化喷流 patch/角向投影调度。 |
-| `F` | 200 | `hadronic_inner_pp` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `F` | 251 | `hadronic_outer_pp` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `F` | 258 | `hadronic_x_l` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 264 | `hadronic_gm_b` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 270 | `hadronic_fpp_m` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `F` | 276 | `hadronic_fpp_p` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `F` | 282 | `hadronic_rgg_d1` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 346 | `hadronic_xcm_u` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 358 | `hadronic_xcm_l` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 390 | `hadronic_td2` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 411 | `hadronic_a_a0_h` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 421 | `hadronic_a0` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 431 | `hadronic_a0f` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 443 | `hadronic_a_a0_hf` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 453 | `hadronic_beta` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 463 | `hadronic_sign_int` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 482 | `hadronic_grid_index_offset` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
+| `M` | 2 | `hadronic_pair` | 模块命名空间；集中声明本文件共享 procedure。 |
+| `S` | 19 | `pair_operator` | gamma-gamma absorption、pair injection 和能量闭合主算子。 |
+| `S` | 64 | `pair_injection` | pair 注入谱双重卷积和吸收功率重标定。 |
+| `F` | 86 | `pair_bin` | 单个 electron bin 的 pair 注入积分。 |
+| `S` | 104 | `energy_window` | 当前 electron energy 对应的 photon 积分窗。 |
+| `S` | 115 | `energy_closure` | 将单电荷 pair source 归一到吸收功率的一半。 |
+| `S` | 131 | `photon_loss` | phibar 卷积得到 photon absorption rate。 |
+| `F` | 152 | `phibar` | 各向同性 gamma-gamma 截面的角度平均核。 |
+| `F` | 170 | `phibar1` | 近阈区 phibar Taylor 分支。 |
+| `F` | 180 | `phibar2` | 中间区 phibar 解析分支。 |
+| `F` | 193 | `phibar3` | 高能区 phibar 渐近分支。 |
+| `F` | 202 | `phisum` | phibar2 的辅助级数。 |
+| `F` | 214 | `inner_pp` | pair-production 内层 photon 积分下界。 |
+| `F` | 266 | `outer_pp` | pair-production 外层 photon 积分下界。 |
+| `F` | 274 | `xlow` | pair-production kinematic 最小 photon 能量。 |
+| `F` | 281 | `gmb` | f_minus/f_plus 积分分支边界。 |
+| `F` | 288 | `fppm` | f_minus photon 积分边界函数。 |
+| `F` | 295 | `fppp` | f_plus photon 积分边界函数。 |
+| `F` | 302 | `rggd1` | Aharonian+1983 gamma-gamma 微分截面核。 |
+| `F` | 368 | `xcmu` | 质心系能量上界。 |
+| `F` | 381 | `xcml` | 质心系能量下界。 |
+| `F` | 414 | `td2` | 微分截面中的 T 辅助函数。 |
+| `F` | 436 | `a0ratio` | 截面核中的稳定 a0 ratio。 |
+| `F` | 447 | `a0` | 截面核中的 a0 函数。 |
+| `F` | 458 | `a0f` | a0 的基础分支实现。 |
+| `F` | 471 | `a0ratiof` | a0ratio 的基础分支实现。 |
+| `F` | 482 | `betag` | 相对论 beta(gamma)。 |
+| `F` | 493 | `sign_int` | phibar2 级数符号。 |
+| `F` | 504 | `grid_offset` | photon/electron 对数网格最小能量偏移。 |
 
-### `src/Hadronic/hadronic_pgamma_hummer_1d.f90`
+### `src/Hadronic/hadronic_hummer.f90`
 
 旧/诊断型 Hummer p-gamma shell 聚合 helper。
 
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
-| `M` | 2 | `hadronic_pgamma_hummer_1d` | 模块命名空间；集中声明本文件共享 procedure。 |
-| `S` | 12 | `hadronic_pgamma_hummer_shell` | p-gamma Hummer response 或 secondary family deposition。 |
-| `S` | 105 | `map_pgamma_secondary_sources` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
-| `S` | 138 | `apply_neutron_pgamma_loss` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 154 | `interp_positive_loglog` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
+| `M` | 2 | `hadronic_hummer` | 模块命名空间；集中声明本文件共享 procedure。 |
+| `S` | 17 | `hummer_shell` | 旧 Hummer p-gamma shell path，估计 photon survival 并推进 secondary species。 |
+| `S` | 117 | `map_secondaries` | 将 p-gamma secondary source 映射到 species gamma 网格。 |
+| `S` | 153 | `neutron_loss` | neutron p-gamma loss 插值和显式扣除。 |
+| `S` | 172 | `pos_interp` | 正值 log-log 插值 helper。 |
 
-### `src/Hadronic/hadronic_pp_kernel.f90`
+### `src/Hadronic/hadronic_pp.f90`
 
 Delta 近似 pp 算子和 secondary source。
 
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
-| `M` | 2 | `hadronic_pp_kernel` | 模块命名空间；集中声明本文件共享 procedure。 |
-| `S` | 19 | `hadronic_pp_delta_operator` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `S` | 50 | `validate_pp_delta_inputs` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `S` | 61 | `set_pp_delta_options` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `S` | 86 | `emit_pp_delta_secondaries` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `S` | 97 | `hadronic_pp_sigma_inelastic_kelner2006` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `F` | 123 | `hadronic_pp_threshold_kinetic_energy_gev` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `S` | 129 | `hadronic_pp_delta_secondary_source` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
-| `S` | 145 | `hadronic_pp_loglog_interp_positive` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `F` | 179 | `hadronic_pp_upper_bracket` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `F` | 207 | `hadronic_pp_loglog_linear_eval` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
+| `M` | 2 | `hadronic_pp` | 模块命名空间；集中声明本文件共享 procedure。 |
+| `S` | 20 | `pp_source` | pp delta source/loss kernel；输出 gamma、neutrino、e± 源和 proton loss。 |
+| `S` | 51 | `validate_inputs` | pp delta 输入网格和 target density 检查。 |
+| `S` | 62 | `set_options` | pp delta 能量份额和 charged/neutral pion 分支设置。 |
+| `S` | 83 | `emit_secondaries` | 按 delta 能量映射输出三类 secondary source。 |
+| `S` | 94 | `pp_sigma` | Kelner+2006 pp 非弹性截面。 |
+| `F` | 121 | `pp_threshold` | pp 反应阈值动能。 |
+| `S` | 127 | `secondary_source` | delta 近似 secondary source。 |
+| `S` | 143 | `pos_interp` | 正值 log-log 插值 helper。 |
+| `F` | 180 | `upper_bracket` | 单调数组 bracket 查找。 |
+| `F` | 210 | `log_eval` | 单次 log-log 线性插值。 |
 
-### `src/Hadronic/hadronic_pp_models_kernel.f90`
+### `src/Hadronic/pp_models.f90`
 
 Kelner/Kafexhiu 类 pp spectral model helper。
 
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
-| `M` | 3 | `hadronic_pp_models_kernel` | 模块命名空间；集中声明本文件共享 procedure。 |
-| `F` | 21 | `hadronic_pp_threshold_kinetic_energy_gev` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `F` | 28 | `hadronic_pp_spectral_shape` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `F` | 63 | `high_energy_or_geant4_shape` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 76 | `F_geant4_local` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 111 | `Egam_max` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 119 | `hadronic_pp_pi0_source_spectrum` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
-| `F` | 150 | `sigma_pi0_model` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `F` | 172 | `Amax_model` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 196 | `sigma_1_pi_local` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 206 | `sigma_2_pi_local` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 215 | `sigma_inel_local` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 222 | `multip_pi0_SIBYLL` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `F` | 231 | `multip_pi0_QGSJET` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `F` | 240 | `multip_pi0_Geant4` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `F` | 247 | `multip_pi0_Pythia8` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
+| `M` | 4 | `pp_models` | 模块命名空间；集中声明本文件共享 procedure。 |
+| `F` | 22 | `pp_threshold` | pp -> pi0 动能阈值。 |
+| `F` | 28 | `pp_shape` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
+| `F` | 63 | `high_shape` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 76 | `geant4_shape` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 111 | `egam_max` | pi0 衰变光子的最大能量。 |
+| `S` | 118 | `pi0_source` | pi0 gamma source spectrum。 |
+| `F` | 150 | `sigpi0` | 总 pi0 产生截面。 |
+| `F` | 172 | `amax_model` | pp spectral model 归一化因子。 |
+| `F` | 197 | `sig1pi` | Kafexhiu+2014 低能单 pion 截面分支。 |
+| `F` | 207 | `sig2pi` | Kafexhiu+2014 低能双 pion 截面分支。 |
+| `F` | 216 | `siginel` | Kafexhiu+2014 pp 非弹性截面 fit。 |
+| `F` | 224 | `mult_sibyll` | SIBYLL pi0 multiplicity。 |
+| `F` | 233 | `mult_qgsjet` | QGSJET pi0 multiplicity。 |
+| `F` | 242 | `mult_geant4` | Geant4 pi0 multiplicity。 |
+| `F` | 249 | `mult_pythia` | Pythia8 pi0 multiplicity。 |
 
-### `src/Hadronic/hadronic_radiation_kernel.f90`
+### `src/Hadronic/hadronic_rad.f90`
 
 质子同步辐射和偏振。
 
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
-| `M` | 2 | `hadronic_radiation_kernel` | 模块命名空间；集中声明本文件共享 procedure。 |
-| `F` | 16 | `hadronic_syn_x_arg_mass` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `F` | 31 | `hadronic_syn_kernel_ultrarel_mass` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `F` | 66 | `hadronic_syn_kernel_ultrarel` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 77 | `hadronic_get_proton_syn_state` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 99 | `build_proton_syn_quadrature` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 109 | `accumulate_proton_syn_power` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 125 | `normalize_proton_syn_seed_density` | 介质密度或 density-jump 分支；直接影响 swept mass、动力学和注入源项。 |
-| `S` | 134 | `hadronic_syn_polarization_fraction` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 162 | `accumulate_polarized_synch_integral` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
+| `M` | 2 | `hadronic_rad` | 模块命名空间；集中声明本文件共享 procedure。 |
+| `F` | 16 | `syn_xarg` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
+| `F` | 31 | `syn_mass` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
+| `F` | 66 | `syn_kernel` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
+| `S` | 77 | `proton_syn` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
+| `S` | 134 | `syn_polarization` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
+| `S` | 162 | `polar_integral` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
 
 ### `src/Hadronic/hadronic_reverse_1d.f90`
 
@@ -924,49 +909,47 @@ Kelner/Kafexhiu 类 pp spectral model helper。
 
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
-| `S` | 2 | `fs_hadronic_reverse_1d` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 35 | `initialize_reverse_proton_grid` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
-| `S` | 49 | `advance_reverse_hadronic_shell` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 66 | `emit_reverse_proton_synchrotron` | 反向激波局域状态；必须保持 crossing 前后和 sigma->0 极限连续。 |
+| `S` | 3 | `reverse_hadronic_1d` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
+| `S` | 40 | `init_grid` | 基于全部 RS shell 的最大加速能量建立 proton grid。 |
+| `S` | 55 | `advance_shell` | 单个 RS shell 的 proton 注入和 log-gamma transport。 |
+| `S` | 72 | `emit_syn` | 可选输出当前 shell 的 proton synchrotron。 |
 
-### `src/Hadronic/hadronic_secondary_radiation_kernel.f90`
+### `src/Hadronic/hadronic_secondary.f90`
 
 pion/muon synchrotron 和 IC secondary radiation。
 
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
-| `M` | 2 | `hadronic_secondary_radiation_kernel` | 模块命名空间；集中声明本文件共享 procedure。 |
-| `S` | 28 | `hadronic_secondary_radiation_operator` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 67 | `hadronic_secondary_apply_radiation_kernels` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 102 | `hadronic_secondary_initialize_synchrotron_kernel` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 130 | `hadronic_secondary_initialize_inverse_compton_kernel` | inverse-Compton/KN 相关核；joint 模式要求 cooling 和 emissivity 使用同一 photon field。 |
-| `S` | 156 | `hadronic_secondary_pion_synchrotron_rate` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 171 | `hadronic_secondary_muon_synchrotron_rate` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 192 | `hadronic_secondary_pion_inverse_compton_rate` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `S` | 212 | `hadronic_secondary_muon_inverse_compton_rate` | hadronic secondary/decay/pp 过程；输出 gamma、e± 或 neutrino 源项。 |
-| `F` | 237 | `hadronic_secondary_syn_kernel_ultrarel` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 270 | `hadronic_secondary_build_ic_species_kernel` | inverse-Compton/KN 相关核；joint 模式要求 cooling 和 emissivity 使用同一 photon field。 |
-| `S` | 292 | `hadronic_secondary_compute_ic_channel` | inverse-Compton/KN 相关核；joint 模式要求 cooling 和 emissivity 使用同一 photon field。 |
-| `F` | 321 | `hadronic_secondary_ic_coeff` | inverse-Compton/KN 相关核；joint 模式要求 cooling 和 emissivity 使用同一 photon field。 |
-| `S` | 330 | `hadronic_secondary_validate_density` | secondary radiation 输入密度校验；报错保留具体数组名。 |
+| `M` | 2 | `hadronic_secondary` | 模块命名空间；集中声明本文件共享 procedure。 |
+| `S` | 22 | `secondary_calc` | pion/muon secondary radiation 顶层算子。 |
+| `S` | 45 | `apply_rad` | 应用已预计算的同步辐射和 IC 映射。 |
+| `S` | 66 | `init_syn` | 建立 pion/muon 同步辐射核矩阵。 |
+| `S` | 91 | `init_ic` | 建立 pion/muon IC 能量偏移和上界索引。 |
+| `S` | 114 | `pion_syn` | π 介子同步辐射冷却率。 |
+| `S` | 132 | `muon_syn` | μ 子同步辐射冷却率。 |
+| `S` | 153 | `pion_ic` | π 介子 inverse-Compton 冷却率。 |
+| `S` | 175 | `muon_ic` | μ 子 inverse-Compton 冷却率。 |
+| `F` | 201 | `syn_kernel` | AM3 分段超相对论同步辐射核。 |
+| `S` | 235 | `build_ic` | 为一个粒子种类建立 IC 偏移和上界索引。 |
+| `S` | 260 | `ic_channel` | 单个 IC 通道卷积。 |
+| `F` | 291 | `ic_coeff` | Thomson 截面和质量缩放的 IC 系数。 |
+| `S` | 302 | `check_density` | secondary radiation 输入密度有限性检查。 |
 
-### `src/Hadronic/hadronic_species_transport_kernel.f90`
+### `src/Hadronic/hadronic_species.f90`
 
 neutron、pion、muon explicit species transport。
 
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
-| `M` | 2 | `hadronic_species_transport_kernel` | 模块命名空间；集中声明本文件共享 procedure。 |
-| `F` | 24 | `hadronic_species_spherical_divergence_rate` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 37 | `hadronic_species_synchrotron_dgamma_dt` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 66 | `hadronic_species_adiabatic_dgamma_dt` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 83 | `hadronic_species_advance_operator` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 137 | `validate_species_transport_inputs` | 系统边界校验；用于拒绝外部输入或正式 kernel contract 违反。 |
-| `S` | 162 | `advance_muon_helicity_species` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 179 | `hadronic_species_advance_one` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 247 | `hadronic_species_validate_gamma_grid` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `S` | 268 | `hadronic_species_validate_non_negative` | 系统边界校验；用于拒绝外部输入或正式 kernel contract 违反。 |
-| `F` | 282 | `hadronic_species_log_spacing` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `M` | 2 | `hadronic_species` | 模块命名空间；集中声明本文件共享 procedure。 |
+| `F` | 25 | `div_rate` | 球对称膨胀发散率，用于绝热冷却。 |
+| `S` | 39 | `synch_loss` | charged species 同步冷却率。 |
+| `S` | 70 | `ad_loss` | species 绝热冷却率。 |
+| `S` | 89 | `species_advance` | 七分量 neutron/pi/mu 输运主推进。 |
+| `S` | 154 | `advance_one` | 单一 species 的 decay-transport-decay 推进。 |
+| `S` | 226 | `validate_gamma` | gamma 网格正值、递增和点数检查。 |
+| `S` | 248 | `validate_positive` | transport/source 谱非负检查。 |
+| `F` | 263 | `log_spacing` | gamma 网格平均对数间距检查。 |
 
 ### `src/Hadronic/hadronic_transport_kernel.f90`
 
@@ -974,14 +957,10 @@ neutron、pion、muon explicit species transport。
 
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
-| `M` | 2 | `hadronic_transport_kernel` | 模块命名空间；集中声明本文件共享 procedure。 |
-| `S` | 10 | `hadronic_proton_injection_powerlaw` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
-| `S` | 29 | `accumulate_powerlaw_energy_moment` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 42 | `write_powerlaw_injection` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
-| `S` | 53 | `hadronic_proton_loss_rates` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 72 | `hadronic_advance_energy_loggamma` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 88 | `build_loss_flux_edges` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 100 | `apply_flux_divergence_with_injection` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
+| `M` | 2 | `hadronic_transport` | 模块命名空间；集中声明本文件共享 procedure。 |
+| `S` | 10 | `proton_inject` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
+| `S` | 43 | `proton_loss` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
+| `S` | 63 | `advance_loggamma` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
 
 ### `src/Hadronic/hadronic_transport_remap_kernel.f90`
 
@@ -989,11 +968,9 @@ neutron、pion、muon explicit species transport。
 
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
-| `M` | 2 | `hadronic_transport_remap_kernel` | 模块命名空间；集中声明本文件共享 procedure。 |
-| `S` | 9 | `hadronic_advance_energy_loggamma_remap` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
-| `S` | 24 | `deposit_cooled_bin_content` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
-| `S` | 37 | `restore_density_units` | 介质密度或 density-jump 分支；直接影响 swept mass、动力学和注入源项。 |
-| `F` | 47 | `hadronic_remap_target` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
+| `M` | 2 | `hadronic_remap` | 模块命名空间；集中声明本文件共享 procedure。 |
+| `S` | 9 | `remap_loggamma` | 推进 primitive；把源项、通量或事件分裂推进到下一半径/时间步。 |
+| `F` | 39 | `remap_target` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
 
 ### `src/Interpolation/SED_interpolation.f90`
 
@@ -1002,20 +979,20 @@ shell-level 和 chi-resolved EATS/Doppler 投影。
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
 | `S` | 9 | `sed_interpolation` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 108 | `sed_interpolation_adaptive_theta` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
+| `S` | 108 | `sed_adaptive_theta` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
 | `S` | 168 | `integrate_theta_cell` | 局部 helper；语义由所在文件的算法阶段决定。 |
 | `S` | 198 | `project_theta_sample` | 局部 helper；语义由所在文件的算法阶段决定。 |
 | `S` | 230 | `project_shell_segment` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 252 | `chi_ssa_cell_escape` | finite-q shell SSA escape factor。 |
+| `F` | 252 | `chi_escape` | finite-q shell SSA escape factor。 |
 | `F` | 266 | `lower_bound_real8` | 局部 helper；语义由所在文件的算法阶段决定。 |
 | `S` | 285 | `sed_interpolation_chi` | top-hat chi-resolved FS synchrotron+SSA lightcurve projection。 |
-| `S` | 393 | `project_chi_segment_flux` | finite-q shell 几何或 chi-equivalent 投影字段。 |
-| `S` | 407 | `compute_chi_segment_state` | finite-q shell 几何或 chi-equivalent 投影字段。 |
+| `S` | 393 | `project_chi` | finite-q shell 几何或 chi-equivalent 投影字段。 |
+| `S` | 407 | `chi_state` | finite-q shell 几何或 chi-equivalent 投影字段。 |
 | `S` | 422 | `accumulate_chi_cell_source` | chi cell source + SSA escape 累加。 |
-| `S` | 446 | `sed_interpolation_chi_electron_cached` | direct-electron chi projection；先批量计算 chi-local synchrotron/SSA 再投影。 |
-| `S` | 481 | `sed_interpolation_chi_structured_axisym_ring_precomputed` | axisymmetric structured chi ring projection；输入为预计算 `F_ring/Tau_ring`。 |
-| `S` | 567 | `project_precomputed_ring_segment` | structured ring EATS/Doppler segment projection。 |
-| `S` | 583 | `accumulate_precomputed_ring_source` | structured ring chi cell source + SSA escape 累加。 |
+| `S` | 446 | `sed_chi_electron` | direct-electron chi projection；先批量计算 chi-local synchrotron/SSA 再投影。 |
+| `S` | 481 | `sed_chi_ring` | axisymmetric structured chi ring projection；输入为预计算 `F_ring/Tau_ring`。 |
+| `S` | 567 | `project_ring` | structured ring EATS/Doppler segment projection。 |
+| `S` | 583 | `ring_source` | structured ring chi cell source + SSA escape 累加。 |
 
 ### `src/Interpolation/SED_interpolation_structured.f90`
 
@@ -1025,8 +1002,8 @@ shell-level 和 chi-resolved EATS/Doppler 投影。
 | --- | ---: | --- | --- |
 | `S` | 9 | `sed_interpolation_structured` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
 | `S` | 103 | `project_structured_segment` | 结构化喷流 patch/角向投影调度。 |
-| `S` | 125 | `sed_interpolation_structured_phi` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `S` | 202 | `project_structured_phi_segment` | 结构化喷流 patch/角向投影调度。 |
+| `S` | 125 | `sed_structured_phi` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
+| `S` | 202 | `project_phi` | 结构化喷流 patch/角向投影调度。 |
 
 ### `src/Interpolation/interpolation_common.f90`
 
@@ -1035,93 +1012,93 @@ SED 插值共享累加 primitive。
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
 | `M` | 2 | `interpolation_common` | 公共模块；提供多个入口复用的物理/数值 primitive。 |
-| `S` | 9 | `interpolation_accumulate_log_sed` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `S` | 46 | `interpolation_accumulate_shifted_linear_sed` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
+| `S` | 13 | `accum_logsed` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
+| `S` | 52 | `accum_shifted` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
 
-### `src/Radiation/quantum_synchrotron_kernel.f90`
+### `src/Radiation/quantum_synch.f90`
 
 量子同步辐射修正因子。
 
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
-| `M` | 2 | `quantum_synchrotron_kernel` | 模块命名空间；集中声明本文件共享 procedure。 |
-| `F` | 18 | `quantum_chi_parameter` | finite-q shell 几何或 chi-equivalent 投影字段。 |
-| `F` | 30 | `quantum_syn_cooling_factor` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
+| `M` | 3 | `quantum_synch` | 模块命名空间；集中声明本文件共享 procedure。 |
+| `F` | 19 | `quantum_chi_parameter` | 量子同步辐射参数 \(\chi\)；按粒子质量缩放临界磁场。 |
+| `F` | 29 | `quantum_cooling` | Landau/QED 同步冷却压制因子。 |
 
-### `src/Radiation/radiation_common.f90`
+### `src/Radiation/rad_common.f90`
 
 辐射共享 Simpson 权重、transfer、pair cross-section 和 seed 转换。
 
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
-| `M` | 2 | `radiation_common` | 公共模块；提供多个入口复用的物理/数值 primitive。 |
-| `S` | 9 | `compute_simpson_weights` | 积分权重或求积 primitive；影响谱积分精度。 |
-| `F` | 27 | `radiation_powerlaw_interp` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 52 | `radiation_transfer_factor` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `F` | 63 | `radiation_syn_kernel_value` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 78 | `radiation_prepare_annihilation_grid` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `F` | 94 | `radiation_pair_cross_section` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 112 | `radiation_pair_tau_headon_segment` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 142 | `radiation_syn_seed_chi_batch_core` | chi-resolved synchrotron/SSA batch kernel；单列调用传 `Num_chi=1`。 |
-| `S` | 258 | `radiation_syn_flux_tau_chi_batch_core` | chi-resolved projection-only synchrotron flux/tau batch kernel。 |
+| `M` | 2 | `rad_common` | 公共模块；提供多个入口复用的物理/数值 primitive。 |
+| `S` | 16 | `compute_simpson_weights` | 积分权重或求积 primitive；影响谱积分精度。 |
+| `F` | 35 | `rad_interp` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
+| `S` | 61 | `transfer_factor` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
+| `F` | 72 | `syn_kernel` | 近似同步辐射核的低频、指数段和高频分支。 |
+| `S` | 89 | `pair_grid` | gamma-gamma pair-production 能量网格和测度准备。 |
+| `F` | 109 | `pair_sigma` | gamma-gamma pair-production 截面。 |
+| `S` | 128 | `pair_tau` | 对头碰撞近似下的 gamma-gamma 光深。 |
+| `S` | 159 | `syn_seed_chi` | chi-resolved synchrotron/SSA batch kernel；单列调用传 `Num_chi=1`。 |
+| `S` | 279 | `syn_flux_chi` | chi-resolved projection-only synchrotron flux/tau batch kernel。 |
 
-### `src/Radiation/radiation_gamma_gamma_absorption.f90`
+### `src/Radiation/pair_absorption.f90`
 
 观测侧 gamma-gamma 吸收光深。
 
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
-| `S` | 3 | `annihilation` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 79 | `compute_mid_seed_field` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 92 | `prepare_pair_angle_weights` | 光深、gamma-gamma absorption、pair injection 或 photon survival 相关算子。 |
-| `S` | 105 | `build_pair_sigma_kernel` | 光深、gamma-gamma absorption、pair injection 或 photon survival 相关算子。 |
-| `S` | 123 | `set_pair_energy_window` | 光深、gamma-gamma absorption、pair injection 或 photon survival 相关算子。 |
-| `S` | 145 | `clear_pair_energy_window` | 光深、gamma-gamma absorption、pair injection 或 photon survival 相关算子。 |
-| `F` | 153 | `first_pair_index_gt` | 光深、gamma-gamma absorption、pair injection 或 photon survival 相关算子。 |
-| `F` | 172 | `last_pair_index_lt` | 光深、gamma-gamma absorption、pair injection 或 photon survival 相关算子。 |
+| `S` | 7 | `annihilation` | f2py/Python 调用边界；对 photon field、角度权重和 pair 截面积分后返回 absorption factor。 |
+| `S` | 85 | `mid_seed` | 把种子光子场插值到相邻频率 cell 中点。 |
+| `S` | 96 | `angle_weights` | 构造各向异性 gamma-gamma absorption 的角度权重。 |
+| `S` | 109 | `build_sigma` | 预计算 pair-production 截面窗口。 |
+| `S` | 127 | `set_window` | 为给定角度和目标频率定位有效 seed 频率窗口。 |
+| `S` | 149 | `clear_window` | 清空无贡献 pair-production 窗口。 |
+| `F` | 157 | `first_gt` | 有效 seed 频率窗口的下界二分搜索。 |
+| `F` | 176 | `last_lt` | 有效 seed 频率窗口的上界二分搜索。 |
 
-### `src/Radiation/radiation_ssc_spectrum.f90`
+### `src/Radiation/ssc_spectrum.f90`
 
 SSC 谱、KN/Jones kernel、均匀/非均匀电子谱积分。
 
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
-| `S` | 2 | `ssc_spec` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `F` | 83 | `first_gamma_gt` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 102 | `first_gamma_ge` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 121 | `prepare_uniform_weights_and_tails` | 积分权重或求积 primitive；影响谱积分精度。 |
-| `S` | 141 | `prepare_kn_tables` | inverse-Compton/KN 相关核；joint 模式要求 cooling 和 emissivity 使用同一 photon field。 |
-| `S` | 158 | `prepare_uniform_gamma_bounds` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 176 | `low_seed_sum` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 199 | `high_seed_tail_sum` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 220 | `accumulate_uniform_point` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 237 | `ssc_spec_nonuniform` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
-| `S` | 289 | `validate_nonuniform_inputs` | 系统边界校验；用于拒绝外部输入或正式 kernel contract 违反。 |
-| `S` | 304 | `build_nonuniform_reconstruction_and_tails` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 318 | `build_shell_reconstruction` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 336 | `set_limited_cell_slope` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 364 | `add_shell_tail_cell` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 379 | `gauss2_abscissa` | 积分权重或求积 primitive；影响谱积分精度。 |
-| `S` | 391 | `accumulate_nonuniform_point` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 432 | `first_cell_above_edge` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `F` | 461 | `ssc_minmod` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `F` | 473 | `linear_profile_value` | 介质密度或 density-jump 分支；直接影响 swept mass、动力学和注入源项。 |
-| `F` | 483 | `linear_gamma_moment` | 特征 Lorentz 因子/断点诊断；用于注入、冷却或活动网格边界。 |
-| `F` | 502 | `ssc_low_gamma_cell` | 特征 Lorentz 因子/断点诊断；用于注入、冷却或活动网格边界。 |
-| `F` | 540 | `ssc_low_gamma_integral` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `F` | 565 | `ssc_high_gamma_tail` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
+| `S` | 6 | `ssc_spec` | 均匀电子网格 SSC f2py/Python 调用边界。 |
+| `F` | 87 | `first_gt` | 电子 Lorentz factor 下界二分搜索。 |
+| `F` | 106 | `first_ge` | 电子 Lorentz factor 闭区间下界二分搜索。 |
+| `S` | 125 | `uniform_weights` | 均匀网格 Simpson 权重和电子尾积分预处理。 |
+| `S` | 143 | `kn_tables` | 预计算 Jones/KN 散射核表。 |
+| `S` | 160 | `uniform_bounds` | 均匀 SSC seed/electron 有效积分边界。 |
+| `F` | 177 | `low_sum` | 低 seed 侧 SSC 积分。 |
+| `F` | 200 | `high_tail` | 高 seed 侧 SSC 尾积分。 |
+| `S` | 220 | `uniform_point` | 单个 shell/frequency 的均匀网格 SSC 累加。 |
+| `S` | 242 | `ssc_spec_nonuniform` | 非均匀电子网格 SSC f2py/Python 调用边界。 |
+| `S` | 297 | `check_inputs` | 系统边界校验；用于拒绝外部输入或正式 kernel contract 违反。 |
+| `S` | 312 | `build_state` | 非均匀网格重构和尾矩预处理。 |
+| `S` | 326 | `build_shell` | 单 shell 非均匀电子谱重构。 |
+| `S` | 344 | `limit_slope` | minmod 斜率限制。 |
+| `S` | 372 | `add_tail` | 非均匀电子谱 gamma 矩尾积分累加。 |
+| `F` | 385 | `gauss_point` | 二点 Gauss-Legendre 节点。 |
+| `S` | 397 | `nonuniform_point` | 单个 shell/frequency 的非均匀网格 SSC 累加。 |
+| `F` | 438 | `first_cell` | 非均匀电子 cell 下界二分搜索。 |
+| `F` | 469 | `ssc_minmod` | minmod 斜率限制器。 |
+| `F` | 482 | `profile_value` | 线性重构剖面值。 |
+| `F` | 493 | `gamma_moment` | 线性重构剖面的 gamma 矩解析积分。 |
+| `F` | 513 | `low_cell` | 低 seed 侧单电子 cell SSC 积分。 |
+| `F` | 552 | `low_integral` | 低 seed 侧完整电子网格 SSC 积分。 |
+| `F` | 577 | `high_tail` | 高 seed 侧 SSC 尾积分。 |
 
-### `src/Radiation/synchrotron_polarization_kernel.f90`
+### `src/Radiation/syn_polarization.f90`
 
 同步辐射偏振 F/G kernel。
 
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
-| `M` | 2 | `synchrotron_polarization_kernel` | 模块命名空间；集中声明本文件共享 procedure。 |
-| `S` | 12 | `synchrotron_fg_kernel` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 37 | `synchrotron_polarized_components` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 49 | `synchrotron_fg_integral` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
-| `S` | 78 | `add_fg_node` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `M` | 2 | `syn_polarization` | 模块命名空间；集中声明本文件共享 procedure。 |
+| `S` | 16 | `synchrotron_fg_kernel` | 同步辐射 F/G kernel，含小/大 x 渐近式和中段积分。 |
+| `S` | 42 | `synchrotron_polarized_components` | 单粒子两个线偏振分量。 |
+| `S` | 55 | `fg_integral` | 有限 u 区间上的复合 4 点 Gauss 积分。 |
+| `S` | 85 | `add_node` | 累加单个 Gauss 节点的 F/G 被积函数值。 |
 
 ### `src/Structured/structured_jet_1d.f90`
 
@@ -1129,7 +1106,7 @@ SSC 谱、KN/Jones kernel、均匀/非均匀电子谱积分。
 
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
-| `S` | 1 | `structured_jet_flux_1d` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
+| `S` | 1 | `jet_flux_1d` | f2py/Python 调用边界或主聚合入口；稳定性高于内部 helper，改动需同步 wrapper、构建和冒烟测试。 |
 | `S` | 57 | `run_axisymmetric` | 结构化喷流 patch/角向投影调度。 |
 | `S` | 93 | `run_nonaxisymmetric` | 结构化喷流 patch/角向投影调度。 |
 | `S` | 131 | `structured_solve_axisymmetric` | 结构化喷流 patch/角向投影调度。 |
@@ -1140,7 +1117,7 @@ SSC 谱、KN/Jones kernel、均匀/非均匀电子谱积分。
 | `S` | 322 | `solve_phi_patch` | 结构化喷流 patch/角向投影调度。 |
 | `S` | 340 | `copy_phi_patch` | 结构化喷流 patch/角向投影调度。 |
 | `S` | 354 | `structured_solve_element` | 结构化喷流 patch/角向投影调度。 |
-| `S` | 515 | `structured_apply_observer_absorption` | 光深、gamma-gamma absorption、pair injection 或 photon survival 相关算子。 |
+| `S` | 515 | `apply_absorption` | 光深、gamma-gamma absorption、pair injection 或 photon survival 相关算子。 |
 
 ## 修改时的最短自检
 

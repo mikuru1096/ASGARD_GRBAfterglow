@@ -1,183 +1,194 @@
+module reverse_rhs_module
+    implicit none
+    private
+    public :: reverse_dynamics_rhs
+
+contains
+
 ! Reverse-shock dynamical RHS, including MHD jump state and secondary branch derivatives.
-subroutine reverse_dynamics_rhs(dB3,T_cross,R_cross,e3_cross,gam20,U3_cross,V3_cross,M3_cross,gam_m_cross,B3_ordered_cross, &
-             T,Y,D,M,para_m_ej,V3_scale,Delta_0,eta_0,A_star,dNe_ISM,R_tr,f_jump,f_wide,R0, &
-             Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,f_e_r,sigma_r)
+subroutine reverse_dynamics_rhs(rs_state,T,Y,D,M,mej,V3_scale,Delta_0,eta_0,A_star,dNe_ISM,R_tr,f_jump,f_wide,R0, &
+             Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,fer,sigma_r)
     use constants
-    use dynamics_common, only: dynamics_external_density_profile, &
-                               rs_mag_specific_internal, rs_vegas_ud, reverse_rhs_phase, &
-                               reverse_waiting_phase, reverse_pre_crossing_phase, &
-                               active_density_jump_count, active_density_jump_r, active_density_jump_factor, &
-                               active_density_jump_width
-    use reverse_jump_conditions, only: secondary_reverse_contact_rh
+    use dynamics_density_profile, only: density_profile, &
+                                        jump_count, jump_radius, jump_factor, &
+                                        jump_width
+    use reverse_shock_mhd_jump, only: rs_mag_internal, rs_vegas_ud
+    use reverse_shock_state, only: rhs_phase, wait_phase, precross_phase, &
+                                   rs_db3, rs_tcross, rs_rcross, rs_e3cross, rs_gam20, &
+                                   rs_u3cross, rs_v3cross, rs_m3cross, rs_gammcross, rs_b3ordered, rs_nstate
+    use reverse_jump_conditions, only: reverse_contact
     implicit none
     integer, intent(in) :: M
-    real(8), intent(inout) :: dB3,T_cross,R_cross,e3_cross,gam20,U3_cross,V3_cross,M3_cross,gam_m_cross,B3_ordered_cross
-    real(8), intent(in) :: T,para_m_ej,V3_scale,Delta_0,eta_0,A_star,dNe_ISM,R_tr,f_jump,f_wide,R0
-    real(8), intent(in) :: Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,f_e_r,sigma_r
-    real(8), intent(in) :: Y(M)
-    real(8), intent(out) :: D(M)
-    real(8), parameter :: reverse_synch_b_coeff=0.39d0, reverse_gamma_c_precise_coeff=7.739d8
+    real(8), intent(inout), dimension(rs_nstate) :: rs_state
+    real(8), intent(in) :: T,mej,V3_scale,Delta_0,eta_0,A_star,dNe_ISM,R_tr,f_jump,f_wide,R0
+    real(8), intent(in) :: Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,fer,sigma_r
+    real(8), intent(in), dimension(M) :: Y
+    real(8), intent(out), dimension(M) :: D
+    real(8), parameter :: rs_bcoeff=0.39d0, cool_coeff=7.739d8
     real(8) :: gam2,RR,para_m2,para_m3,U3,V3,dNe,u2,u4,Delta,para1,para_n4,beta4,beta2,gam34
-    real(8) :: para_n3,betars,delta_beta_rs,u3s,u4s_shock,gamma4s
+    real(8) :: para_n3,betars,dbrs,u3s,u4s_shock,gamma4s
     real(8) :: dB2,gam_c2,gam_m2,eps2,e3,gam_c3,gam_m3,eps3,dgam2_1,dgam2_2,dgam2,dR,dm2,dm3
     real(8) :: thermal_specific3,thermal_response3,thermal_gamma3,ad3,dV3_exp,dV3_shock,dU3_shock,dU3_ad,dU3,dV3
-    real(8) :: secondary_m_total,secondary_u_total,secondary_v_total,secondary_p_total,secondary_inertia_mass
-    real(8) :: comp_ratio,rho4,B4_ordered,B3_ordered,sigma_inertia,para_n4_inertia
-    real(8) :: magnetic_inertia_mass,magnetic_pressure,magnetic_energy,waiting_shell_inertia_mass,smooth_shell_fraction
-    real(8) :: beta_fast,fast_wave_depth,gamma_sq_minus_one
-    integer :: j_inertia,m_idx_inertia,u_idx_inertia,v_idx_inertia
+    real(8) :: sec_m,sec_u,sec_v,sec_p,sec_inertia
+    real(8) :: comp_ratio,rho4,B4_ordered,B3_ordered,sigma_inertia,n4_inertia
+    real(8) :: mag_inertia,magnetic_pressure,magnetic_energy,wait_inertia,shell_frac
+    real(8) :: beta_fast,fast_depth,gsq1
+    integer :: j_inertia,mi_idx,ui_idx,vi_idx
+    integer, parameter :: idb=rs_db3,itc=rs_tcross,irc=rs_rcross,iec=rs_e3cross,ig20=rs_gam20
+    integer, parameter :: iuc=rs_u3cross,ivc=rs_v3cross,imc=rs_m3cross,igm=rs_gammcross,ib3=rs_b3ordered
     logical :: pre_crossing, waiting_reverse
 
-    waiting_reverse=(reverse_rhs_phase == reverse_waiting_phase)
-    gam2=Y(1); RR=Y(2); para_m2=Y(3); para_m3=Y(4)*para_m_ej
-    U3=Y(5)*para_m_ej*para_c**2; V3=Y(6)*V3_scale
-    call dynamics_external_density_profile(A_star,dNe_ISM,RR,R0,1,R_tr,f_jump,f_wide,dNe)
-    u2=dsqrt(gam2*gam2-one); u4=dsqrt(eta_0*eta_0-one)
+
+    waiting_reverse=(rhs_phase == wait_phase)
+    gam2=Y(1); RR=Y(2); para_m2=Y(3); para_m3=Y(4)*mej
+    U3=Y(5)*mej*para_c**2; V3=Y(6)*V3_scale
+    call density_profile(A_star,dNe_ISM,RR,R0,1,R_tr,f_jump,f_wide,dNe)
+    u2=dsqrt(gam2*gam2-1d0); u4=dsqrt(eta_0*eta_0-1d0)
     beta4=u4/eta_0; beta2=u2/gam2
     Delta=max(Delta_0,RR/(eta_0*eta_0))
-    para1=4d0*pi*Para_m_p*RR*RR; para_n4=para_m_ej/(para1*eta_0*Delta)
-    if (sigma_r <= zero) then
-        sigma_inertia=one
-        smooth_shell_fraction=one
+    para1=4d0*pi*Para_m_p*RR*RR; para_n4=mej/(para1*eta_0*Delta)
+    if (sigma_r <= 0d0) then
+        sigma_inertia=1d0
+        shell_frac=1d0
     else
-        sigma_inertia=one+sigma_r
-        beta_fast=dsqrt(sigma_r/(one+sigma_r))
-        fast_wave_depth=RR*beta_fast/(eta_0*eta_0*(one-beta4*beta_fast))/beta4
-        if (fast_wave_depth >= Delta) then
-            smooth_shell_fraction=one
+        sigma_inertia=1d0+sigma_r
+        beta_fast=dsqrt(sigma_r/(1d0+sigma_r))
+        fast_depth=RR*beta_fast/(eta_0*eta_0*(1d0-beta4*beta_fast))/beta4
+        if (fast_depth >= Delta) then
+            shell_frac=1d0
         else
-            smooth_shell_fraction=fast_wave_depth/Delta
+            shell_frac=fast_depth/Delta
         end if
     end if
-    para_n4_inertia=para_n4*sigma_inertia
-    waiting_shell_inertia_mass=para_m_ej*sigma_inertia*eta_0/(eta_0-one)*smooth_shell_fraction
-    gam34=(gam2*gam2+eta_0*eta_0-one)/(eta_0*gam2+u2*u4)
+    n4_inertia=para_n4*sigma_inertia
+    wait_inertia=mej*sigma_inertia*eta_0/(eta_0-1d0)*shell_frac
+    gam34=(gam2*gam2+eta_0*eta_0-1d0)/(eta_0*gam2+u2*u4)
     if (waiting_reverse) then
-        comp_ratio=one
+        comp_ratio=1d0
         para_n3=para_n4
-        delta_beta_rs=zero
+        dbrs=0d0
         betars=beta4
     else
         u3s=rs_vegas_ud(gam34,sigma_r)
-        gamma_sq_minus_one=(gam34-one)*(gam34+one)
-        u4s_shock=dsqrt((one+u3s*u3s)*gamma_sq_minus_one)+u3s*gam34
-        gamma4s=dsqrt(one+u4s_shock*u4s_shock)
+        gsq1=(gam34-1d0)*(gam34+1d0)
+        u4s_shock=dsqrt((1d0+u3s*u3s)*gsq1)+u3s*gam34
+        gamma4s=dsqrt(1d0+u4s_shock*u4s_shock)
         comp_ratio=u4s_shock/u3s
         para_n3=comp_ratio*para_n4
-        delta_beta_rs=u4s_shock/(eta_0*(eta_0*gamma4s-u4*u4s_shock))
-        betars=beta4-delta_beta_rs
+        dbrs=u4s_shock/(eta_0*(eta_0*gamma4s-u4*u4s_shock))
+        betars=beta4-dbrs
     end if
-    D=zero
-    pre_crossing=(reverse_rhs_phase == reverse_pre_crossing_phase .or. (reverse_rhs_phase == 0 .and. para_m_ej > para_m3))
+    D=0d0
+    pre_crossing=(rhs_phase == precross_phase .or. (rhs_phase == 0 .and. mej > para_m3))
 
-    dB2=reverse_synch_b_coeff*dsqrt((Epsilon_b*dNe)*(gam2*gam2-one))
-    gam_c2=reverse_gamma_c_precise_coeff/(dB2*dB2*gam2*T)
-    gam_m2=Epsilon_e/f_e*Para_m_p_div_m_e*(p_f-two)*(gam2-one)/(p_f-one)+one
-    eps2=Epsilon_e*min(one,(gam_m2/gam_c2)**(p_f-two))
+    dB2=rs_bcoeff*dsqrt((Epsilon_b*dNe)*(gam2*gam2-1d0))
+    gam_c2=cool_coeff/(dB2*dB2*gam2*T)
+    gam_m2=Epsilon_e/f_e*Para_m_p_DIV_m_e*(p_f-2d0)*(gam2-1d0)/(p_f-1d0)+1d0
+    eps2=Epsilon_e*min(1d0,(gam_m2/gam_c2)**(p_f-2d0))
     e3=U3/V3
     if (waiting_reverse) then
-        B3_ordered=zero
-        dB3=zero
+        B3_ordered=0d0
+        rs_state(idb)=0d0
     else
-        B3_ordered=zero
+        B3_ordered=0d0
         if (pre_crossing) then
             rho4=para_n4*Para_m_p
-            if (sigma_r <= zero) then
-                B4_ordered=zero
+            if (sigma_r <= 0d0) then
+                B4_ordered=0d0
             else
                 B4_ordered=dsqrt(4d0*pi*para_c*para_c*sigma_r*rho4)
             end if
             B3_ordered=B4_ordered*comp_ratio
         else
-            if (T_cross < zero .and. gam2 > one) then
+            if (rs_state(itc) < 0d0 .and. gam2 > 1d0) then
                 rho4=para_n4*Para_m_p
-                if (sigma_r <= zero) then
-                    B4_ordered=zero
+                if (sigma_r <= 0d0) then
+                    B4_ordered=0d0
                 else
                     B4_ordered=dsqrt(4d0*pi*para_c*para_c*sigma_r*rho4)
                 end if
                 B3_ordered=B4_ordered*comp_ratio
             else
-                B3_ordered=B3_ordered_cross*V3_cross/V3*RR/R_cross
+                B3_ordered=rs_state(ib3)*rs_state(ivc)/V3*RR/rs_state(irc)
             end if
         end if
-        dB3=dsqrt(8d0*pi*b_r*e3+B3_ordered*B3_ordered)
+        rs_state(idb)=dsqrt(8d0*pi*b_r*e3+B3_ordered*B3_ordered)
     end if
     if (waiting_reverse) then
-        thermal_specific3=zero
-        thermal_response3=zero
+        thermal_specific3=0d0
+        thermal_response3=0d0
     else if (pre_crossing) then
-        thermal_specific3=rs_mag_specific_internal(gam34,sigma_r)
-        if (sigma_r <= zero) then
-            thermal_response3=one
+        thermal_specific3=rs_mag_internal(gam34,sigma_r)
+        if (sigma_r <= 0d0) then
+            thermal_response3=1d0
         else
-            thermal_response3=thermal_specific3/(gam34-one)
+            thermal_response3=thermal_specific3/(gam34-1d0)
         end if
     else
         thermal_specific3=U3/(para_m3*para_c**2)
-        thermal_response3=zero
+        thermal_response3=0d0
     end if
-    thermal_gamma3=one+thermal_specific3
+    thermal_gamma3=1d0+thermal_specific3
     if (waiting_reverse) then
-        gam_c3=zero
-        gam_m3=one
-        eps3=zero
+        gam_c3=0d0
+        gam_m3=1d0
+        eps3=0d0
     else
-        gam_c3=reverse_gamma_c_precise_coeff/(dB3*dB3*gam2*T)
-        gam_m3=e_r/f_e_r*Para_m_p_div_m_e*(p_r-two)*thermal_specific3/(p_r-one)+one
-        eps3=e_r*min(one,(gam_m3/gam_c3)**(p_r-two))
+        gam_c3=cool_coeff/(rs_state(idb)*rs_state(idb)*gam2*T)
+        gam_m3=e_r/fer*Para_m_p_DIV_m_e*(p_r-2d0)*thermal_specific3/(p_r-1d0)+1d0
+        eps3=e_r*min(1d0,(gam_m3/gam_c3)**(p_r-2d0))
     end if
-    secondary_m_total=zero; secondary_u_total=zero; secondary_v_total=zero
-    secondary_p_total=zero; secondary_inertia_mass=zero
-    do j_inertia=1,active_density_jump_count
-        m_idx_inertia=6+j_inertia
-        u_idx_inertia=6+active_density_jump_count+j_inertia
-        v_idx_inertia=6+2*active_density_jump_count+j_inertia
-        secondary_m_total=secondary_m_total+Y(m_idx_inertia)*para_m_ej
-        secondary_u_total=secondary_u_total+Y(u_idx_inertia)*para_m_ej*para_c**2
-        secondary_v_total=secondary_v_total+Y(v_idx_inertia)*V3_scale
+    sec_m=0d0; sec_u=0d0; sec_v=0d0
+    sec_p=0d0; sec_inertia=0d0
+    do j_inertia=1,jump_count
+        mi_idx=6+j_inertia
+        ui_idx=6+jump_count+j_inertia
+        vi_idx=6+2*jump_count+j_inertia
+        sec_m=sec_m+Y(mi_idx)*mej
+        sec_u=sec_u+Y(ui_idx)*mej*para_c**2
+        sec_v=sec_v+Y(vi_idx)*V3_scale
     end do
-    if (secondary_v_total > zero) then
-        secondary_p_total=secondary_u_total/(3d0*secondary_v_total)
-        secondary_inertia_mass=(secondary_m_total*para_c**2+secondary_u_total+ &
-                                secondary_p_total*secondary_v_total)/para_c**2
-        secondary_inertia_mass=secondary_inertia_mass+secondary_p_total*secondary_v_total/(gam2*gam2*para_c**2)
+    if (sec_v > 0d0) then
+        sec_p=sec_u/(3d0*sec_v)
+        sec_inertia=(sec_m*para_c**2+sec_u+ &
+                                sec_p*sec_v)/para_c**2
+        sec_inertia=sec_inertia+sec_p*sec_v/(gam2*gam2*para_c**2)
     end if
     magnetic_pressure=B3_ordered*B3_ordered/(8d0*pi)
     magnetic_energy=magnetic_pressure*V3
-    magnetic_inertia_mass=(magnetic_energy+magnetic_pressure*V3)/(para_c**2)
-    magnetic_inertia_mass=magnetic_inertia_mass+magnetic_pressure*V3/(gam2*gam2*para_c**2)
+    mag_inertia=(magnetic_energy+magnetic_pressure*V3)/(para_c**2)
+    mag_inertia=mag_inertia+magnetic_pressure*V3/(gam2*gam2*para_c**2)
 
-    dgam2_1=-para1*((gam2*gam2-one)*dNe+(gam2*gam34-eta_0)*delta_beta_rs*eta_0*para_n4_inertia)
-    dgam2_2=(para_m2+para_m3+magnetic_inertia_mass+(one-eps2)*(two*gam2-one)*para_m2+ &
-             (one-eps3)*thermal_specific3*para_m3 + &
-             (one-eps3)*gam2*thermal_response3*para_m3* &
-             (eta_0*(one-beta4*beta2)-eta_0*beta4/(gam2**2*beta2)) + secondary_inertia_mass)
+    dgam2_1=-para1*((gam2*gam2-1d0)*dNe+(gam2*gam34-eta_0)*dbrs*eta_0*n4_inertia)
+    dgam2_2=(para_m2+para_m3+mag_inertia+(1d0-eps2)*(2d0*gam2-1d0)*para_m2+ &
+             (1d0-eps3)*thermal_specific3*para_m3 + &
+             (1d0-eps3)*gam2*thermal_response3*para_m3* &
+             (eta_0*(1d0-beta4*beta2)-eta_0*beta4/(gam2**2*beta2)) + sec_inertia)
     dgam2=dgam2_1/dgam2_2
-    dR=beta2/(one-beta2)*para_c; dm2=para1*dNe*dR
+    dR=beta2/(1d0-beta2)*para_c; dm2=para1*dNe*dR
 
     if (waiting_reverse) then
-        dm3=zero
+        dm3=0d0
         dgam2_1=-u2**2*dm2/dR
-        dgam2_2=waiting_shell_inertia_mass+(eps2+two*(one-eps2)*gam2)*para_m2
+        dgam2_2=wait_inertia+(eps2+2d0*(1d0-eps2)*gam2)*para_m2
         dgam2=dgam2_1/dgam2_2
     else if (pre_crossing) then
-        dm3=para1*delta_beta_rs*eta_0*para_n4*dR
+        dm3=para1*dbrs*eta_0*para_n4*dR
     else
-        dm3=zero
-        if (T_cross < zero .and. gam2 > one) then
-            T_cross=T; R_cross=RR; gam20=gam2; e3_cross=e3
-            U3_cross=U3; V3_cross=V3; M3_cross=para_m3; gam_m_cross=gam_m3
-            B3_ordered_cross=B3_ordered
+        dm3=0d0
+        if (rs_state(itc) < 0d0 .and. gam2 > 1d0) then
+            rs_state(itc)=T; rs_state(irc)=RR; rs_state(ig20)=gam2; rs_state(iec)=e3
+            rs_state(iuc)=U3; rs_state(ivc)=V3; rs_state(imc)=para_m3; rs_state(igm)=gam_m3
+            rs_state(ib3)=B3_ordered
         end if
         dgam2_1=-u2**2*dm2/dR
-        dgam2_2=para_m3+magnetic_inertia_mass+secondary_inertia_mass+(eps2+two*(one-eps2)*gam2)*para_m2
+        dgam2_2=para_m3+mag_inertia+sec_inertia+(eps2+2d0*(1d0-eps2)*gam2)*para_m2
         dgam2=dgam2_1/dgam2_2
     end if
     dgam2=dgam2*dR
-    ad3=(4d0*thermal_gamma3+one)/(3d0*thermal_gamma3)
+    ad3=(4d0*thermal_gamma3+1d0)/(3d0*thermal_gamma3)
     if (waiting_reverse) then
-        dV3_exp=zero
+        dV3_exp=0d0
     else
         dV3_exp=V3*(3d0*dR/RR-dgam2/gam2)
     end if
@@ -185,109 +196,109 @@ subroutine reverse_dynamics_rhs(dB3,T_cross,R_cross,e3_cross,gam20,U3_cross,V3_c
         dV3_shock=dm3/(para_n3*Para_m_p)
         dU3_shock=thermal_specific3*dm3*para_c**2
     else
-        dV3_shock=zero; dU3_shock=zero
+        dV3_shock=0d0; dU3_shock=0d0
     end if
     if (waiting_reverse) then
-        dU3_ad=zero
+        dU3_ad=0d0
     else
-        dU3_ad=-(ad3-one)*U3*dV3_exp/V3
+        dU3_ad=-(ad3-1d0)*U3*dV3_exp/V3
     end if
     dU3=dU3_shock+dU3_ad; dV3=dV3_shock+dV3_exp
-    D(1:6)=[dgam2,dR,dm2,dm3/para_m_ej,dU3/(para_m_ej*para_c**2),dV3/V3_scale]
-    call compute_secondary_branch_derivatives()
+    D(1:6)=[dgam2,dR,dm2,dm3/mej,dU3/(mej*para_c**2),dV3/V3_scale]
+    call branch_derivs()
 
 contains
 
-    logical function secondary_parent_upstream_available(jump_index,parent_mass,parent_energy,parent_volume)
+    logical function parent_ready(jump_index,parent_mass,parent_energy,parent_volume)
     implicit none
     integer, intent(in) :: jump_index
     real(8), intent(in) :: parent_mass,parent_energy,parent_volume
-        secondary_parent_upstream_available=.false.
+        parent_ready=.false.
         if (jump_index <= 1) return
-        if (parent_mass <= zero .or. parent_energy <= zero .or. parent_volume <= zero) return
-        secondary_parent_upstream_available=.true.
-    end function secondary_parent_upstream_available
+        if (parent_mass <= 0d0 .or. parent_energy <= 0d0 .or. parent_volume <= 0d0) return
+        parent_ready=.true.
+    end function parent_ready
 
-    subroutine compute_secondary_branch_derivatives()
+    subroutine branch_derivs()
     implicit none
-    integer :: j, m_idx, u_idx, v_idx, e_idx, g_idx, parent_m_idx, parent_u_idx, parent_v_idx
+    integer :: j, m_idx, u_idx, v_idx, e_idx, g_idx, pm_idx, pu_idx, pv_idx
     real(8) :: density_factor,branch_weight,n1,n_excess,n_pre,n4,e4,p4,p3,e3_sec,e_ad,comp,beta_s
-    real(8) :: gamma_c_j,gamma43_j,beta_c_j,n3,dm_dR,dM_shock,dV_shock,dU_shock
-    real(8) :: u_sec,v_sec,dV_exp_sec,dU_ad_sec,gamma_m_sec,b_i,gam_e_max
+    real(8) :: gc_j,gamma43_j,bc_j,n3,dm_dR,dM_shock,dV_shock,dU_shock
+    real(8) :: u_sec,v_sec,dv_exp,du_ad,gm_sec,b_i,gemax
 
-        do j=1,active_density_jump_count
+        do j=1,jump_count
             m_idx=6+j
-            u_idx=6+active_density_jump_count+j
-            v_idx=6+2*active_density_jump_count+j
-            e_idx=6+3*active_density_jump_count+j
-            g_idx=6+4*active_density_jump_count+j
-            u_sec=Y(u_idx)*para_m_ej*para_c**2
+            u_idx=6+jump_count+j
+            v_idx=6+2*jump_count+j
+            e_idx=6+3*jump_count+j
+            g_idx=6+4*jump_count+j
+            u_sec=Y(u_idx)*mej*para_c**2
             v_sec=Y(v_idx)*V3_scale
-            D(e_idx)=zero; D(g_idx)=zero
-            dV_exp_sec=zero; dU_ad_sec=zero
-            if (v_sec > zero) then
-                dV_exp_sec=v_sec*(3d0*dR/RR-dgam2/gam2)
-                dU_ad_sec=-(one/3d0)*u_sec*dV_exp_sec/v_sec
+            D(e_idx)=0d0; D(g_idx)=0d0
+            dv_exp=0d0; du_ad=0d0
+            if (v_sec > 0d0) then
+                dv_exp=v_sec*(3d0*dR/RR-dgam2/gam2)
+                du_ad=-(1d0/3d0)*u_sec*dv_exp/v_sec
             end if
-            call secondary_reverse_density_branch_rhs(RR,j,density_factor,branch_weight)
-            if (branch_weight <= zero .or. gam2 <= one) then
-                D(m_idx)=zero
-                D(u_idx)=dU_ad_sec/(para_m_ej*para_c**2)
-                D(v_idx)=dV_exp_sec/V3_scale
+            call branch_density(RR,j,density_factor,branch_weight)
+            if (branch_weight <= 0d0 .or. gam2 <= 1d0) then
+                D(m_idx)=0d0
+                D(u_idx)=du_ad/(mej*para_c**2)
+                D(v_idx)=dv_exp/V3_scale
                 cycle
             end if
             n1=dNe_ISM*density_factor
             n_excess=dNe_ISM*branch_weight
             n_pre=n1-n_excess
-            if (n_pre <= zero) error stop 'secondary branch RHS found non-positive pre-bump density'
+            if (n_pre <= 0d0) error stop 'secondary branch RHS found non-positive pre-bump density'
             n4=4d0*gam2*n_pre
-            e4=4d0*gam2*(gam2-one)*n_pre*Para_m_p*Para_c**2
+            e4=4d0*gam2*(gam2-1d0)*n_pre*Para_m_p*Para_c**2
             p4=e4/3d0
             if (j > 1) then
-                parent_m_idx=6+j-1
-                parent_u_idx=6+active_density_jump_count+j-1
-                parent_v_idx=6+2*active_density_jump_count+j-1
-                if (secondary_parent_upstream_available(j,Y(parent_m_idx),Y(parent_u_idx),Y(parent_v_idx))) then
-                    n4=Y(parent_m_idx)*para_m_ej/(Para_m_p*Y(parent_v_idx)*V3_scale)
-                    e4=Y(parent_u_idx)*para_m_ej*para_c**2/(Y(parent_v_idx)*V3_scale)
+                pm_idx=6+j-1
+                pu_idx=6+jump_count+j-1
+                pv_idx=6+2*jump_count+j-1
+                if (parent_ready(j,Y(pm_idx),Y(pu_idx),Y(pv_idx))) then
+                    n4=Y(pm_idx)*mej/(Para_m_p*Y(pv_idx)*V3_scale)
+                    e4=Y(pu_idx)*mej*para_c**2/(Y(pv_idx)*V3_scale)
                     p4=e4/3d0
                 end if
             end if
-            call secondary_reverse_contact_rh(gam2,n1,n4,e4,p4,gamma_c_j,p3,gamma43_j,comp,beta_s)
-            if (comp <= zero) then
-                D(m_idx)=zero
-                D(u_idx)=dU_ad_sec/(para_m_ej*para_c**2)
-                D(v_idx)=dV_exp_sec/V3_scale
+            call reverse_contact(gam2,n1,n4,e4,p4,gc_j,p3,gamma43_j,comp,beta_s)
+            if (comp <= 0d0) then
+                D(m_idx)=0d0
+                D(u_idx)=du_ad/(mej*para_c**2)
+                D(v_idx)=dv_exp/V3_scale
                 cycle
             end if
             e3_sec=3d0*p3
             e_ad=e4*comp**(4d0/3d0)
             if (e3_sec <= e_ad) then
-                D(m_idx)=zero
-                D(u_idx)=dU_ad_sec/(para_m_ej*para_c**2)
-                D(v_idx)=dV_exp_sec/V3_scale
+                D(m_idx)=0d0
+                D(u_idx)=du_ad/(mej*para_c**2)
+                D(v_idx)=dv_exp/V3_scale
                 cycle
             end if
-            beta_c_j=dsqrt(one-gamma_c_j**(-2))
+            bc_j=dsqrt(1d0-gc_j**(-2))
             n3=comp*n4
-            if (p_r <= two) error stop 'secondary branch RHS requires p_r > 2'
+            if (p_r <= 2d0) error stop 'secondary branch RHS requires p_r > 2'
             b_i=dsqrt(8d0*pi*b_r*e3_sec)
-            gamma_m_sec=one+e_r/f_e_r*(p_r-two)/(p_r-one)*(e3_sec-e_ad)/(n3*Para_m_e*Para_c**2)
-            gam_e_max=3d0*Para_m_energy/dsqrt(8d0*b_i*Para_e**3)
-            if (gamma_m_sec >= gam_e_max) error stop 'secondary branch RHS electron injection exceeds maximum'
-            dm_dR=4d0*pi*RR*RR*n4*Para_m_p*gam2*(beta2-beta_s)/beta_c_j
+            gm_sec=1d0+e_r/fer*(p_r-2d0)/(p_r-1d0)*(e3_sec-e_ad)/(n3*Para_m_e*Para_c**2)
+            gemax=3d0*Para_m_energy/dsqrt(8d0*b_i*Para_e**3)
+            if (gm_sec >= gemax) error stop 'secondary branch RHS electron injection exceeds maximum'
+            dm_dR=4d0*pi*RR*RR*n4*Para_m_p*gam2*(beta2-beta_s)/bc_j
             dM_shock=dm_dR*dR
             dV_shock=dM_shock/(n3*Para_m_p)
             dU_shock=(e3_sec-e_ad)*dV_shock
-            D(m_idx)=dM_shock/para_m_ej
-            D(u_idx)=(dU_shock+dU_ad_sec)/(para_m_ej*para_c**2)
-            D(v_idx)=(dV_shock+dV_exp_sec)/V3_scale
-            D(e_idx)=dU_shock/(para_m_ej*para_c**2)
-            D(g_idx)=gamma_m_sec*dU_shock/(para_m_ej*para_c**2)
+            D(m_idx)=dM_shock/mej
+            D(u_idx)=(dU_shock+du_ad)/(mej*para_c**2)
+            D(v_idx)=(dV_shock+dv_exp)/V3_scale
+            D(e_idx)=dU_shock/(mej*para_c**2)
+            D(g_idx)=gm_sec*dU_shock/(mej*para_c**2)
         end do
-    end subroutine compute_secondary_branch_derivatives
+    end subroutine branch_derivs
 
-    subroutine secondary_reverse_density_branch_rhs(radius,jump_index,density_factor,branch_weight)
+    subroutine branch_density(radius,jump_index,density_factor,branch_weight)
     implicit none
     integer, intent(in) :: jump_index
     integer :: k
@@ -295,21 +306,23 @@ contains
     real(8), intent(out) :: density_factor,branch_weight
     real(8) :: x,width,profile,total_density,base_density,enhancement
 
-        call dynamics_external_density_profile(A_star,dNe_ISM,radius,R0,1,R_tr,f_jump,f_wide,total_density)
-        enhancement=one; branch_weight=zero
-        do k=1,active_density_jump_count
-            x=radius-active_density_jump_r(k)
-            width=active_density_jump_width(k)*active_density_jump_r(k)
-            profile=(active_density_jump_factor(k)-one)*dexp(-(x*x)/(2d0*width*width))
+        call density_profile(A_star,dNe_ISM,radius,R0,1,R_tr,f_jump,f_wide,total_density)
+        enhancement=1d0; branch_weight=0d0
+        do k=1,jump_count
+            x=radius-jump_radius(k)
+            width=jump_width(k)*jump_radius(k)
+            profile=(jump_factor(k)-1d0)*dexp(-(x*x)/(2d0*width*width))
             enhancement=enhancement+profile
         end do
         base_density=total_density/enhancement
-        do k=1,active_density_jump_count
-            x=radius-active_density_jump_r(k)
-            width=active_density_jump_width(k)*active_density_jump_r(k)
-            profile=(active_density_jump_factor(k)-one)*dexp(-(x*x)/(2d0*width*width))
-            if (k == jump_index .and. x >= -4d0*width .and. x < zero) branch_weight=base_density*profile
+        do k=1,jump_count
+            x=radius-jump_radius(k)
+            width=jump_width(k)*jump_radius(k)
+            profile=(jump_factor(k)-1d0)*dexp(-(x*x)/(2d0*width*width))
+            if (k == jump_index .and. x >= -4d0*width .and. x < 0d0) branch_weight=base_density*profile
         end do
         density_factor=total_density
-    end subroutine secondary_reverse_density_branch_rhs
+    end subroutine branch_density
 end subroutine reverse_dynamics_rhs
+
+end module reverse_rhs_module

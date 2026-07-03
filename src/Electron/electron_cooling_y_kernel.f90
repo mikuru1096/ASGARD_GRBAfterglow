@@ -1,155 +1,153 @@
 !f2py: skip
-module electron_cooling_y_kernel
+module electron_y_kernel
   use constants
-  use electron_radiation_kernel, only: first_greater_monotonic_window, electron_powerlaw_interp, &
-                                       electron_integrate_powerlaw_segment, electron_log_gauss2_interval
+  use electron_radiation_kernel, only: greater_window, pl_interp, &
+                                       pl_integral, log_gauss2
   private
 
-  public :: electron_cooling_y_nakar, electron_cooling_y_fan
+  public :: electron_y_nakar, electron_y_fan
 
-  integer, save :: y_nakar_num_gam_cache=0, y_nakar_num_nu_cache=0
-  integer, allocatable, save :: y_nakar_idx_cache(:)
-  real(8), allocatable, save :: y_nakar_hat_nu_cache(:), y_nakar_prefix_cache(:), y_nakar_v_cache(:), y_nakar_vloc_cache(:), &
-                                y_nakar_vg1(:), y_nakar_vg2(:), y_nakar_wg1(:), y_nakar_wg2(:)
+  integer, save :: nakar_ng=0,nakar_nnu=0
+  integer, allocatable, save, dimension(:) :: idx_cache
+  real(8), allocatable, save, dimension(:) :: hat_cache,prefix_cache,v_cache,vloc_cache,vg1_cache,vg2_cache &
+      & ,wg1_cache,wg2_cache
 
 contains
-! 确保Nakar Y参数工作数组已分配（缓存hat_nu、频率段Gauss节点和查找区间）。
-subroutine ensure_y_nakar_workspace(Num_gam_e,Num_nu,gam_e,V_seed)
+! 准备 Nakar Y 积分缓存：hat_nu、频段 Gauss 节点和查找区间。
+! Prepare Nakar-Y integration cache: hat_nu, frequency-bin Gauss nodes, and lookup windows.
+subroutine ensure_y_nakar(ng,nnu,gam,vseed)
 implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: Num_gam_e,Num_nu
-real(8), intent(in) :: gam_e(Num_gam_e),V_seed(Num_nu)
+integer, intent(in) :: ng,nnu
+real(8), intent(in), dimension(ng) :: gam
+real(8), intent(in), dimension(nnu) :: vseed
 logical :: rebuild
 
-    rebuild=.not. allocated(y_nakar_hat_nu_cache)
-    if (.not. rebuild) rebuild = (y_nakar_num_gam_cache /= Num_gam_e)
-    if (.not. rebuild) rebuild = (y_nakar_num_nu_cache /= Num_nu)
-    if (.not. rebuild) rebuild = any(y_nakar_hat_nu_cache /= Para_m_energy/Para_h/gam_e)
-    if (.not. rebuild) rebuild = any(y_nakar_v_cache /= V_seed)
+    rebuild=.not. allocated(hat_cache)
+    if (.not. rebuild) rebuild = (nakar_ng /= ng)
+    if (.not. rebuild) rebuild = (nakar_nnu /= nnu)
+    if (.not. rebuild) rebuild = any(hat_cache /= Para_m_energy/Para_h/gam)
+    if (.not. rebuild) rebuild = any(v_cache /= vseed)
     if (.not. rebuild) return
 
-    if (allocated(y_nakar_hat_nu_cache)) deallocate(y_nakar_hat_nu_cache,y_nakar_prefix_cache,y_nakar_v_cache, &
-                                                    y_nakar_vloc_cache,y_nakar_idx_cache,y_nakar_vg1,y_nakar_vg2, &
-                                                    y_nakar_wg1,y_nakar_wg2)
-    allocate(y_nakar_hat_nu_cache(Num_gam_e),y_nakar_prefix_cache(Num_nu),y_nakar_v_cache(Num_nu), &
-             y_nakar_vloc_cache(Num_gam_e),y_nakar_idx_cache(Num_gam_e),y_nakar_vg1(Num_nu-1), &
-             y_nakar_vg2(Num_nu-1),y_nakar_wg1(Num_nu-1),y_nakar_wg2(Num_nu-1))
-    y_nakar_hat_nu_cache=Para_m_energy/Para_h/gam_e
-    y_nakar_v_cache=V_seed
-    do I_nu=1,Num_nu-1
-        call electron_log_gauss2_interval(V_seed(I_nu),V_seed(I_nu+1), &
-                                          y_nakar_vg1(I_nu),y_nakar_vg2(I_nu), &
-                                          y_nakar_wg1(I_nu),y_nakar_wg2(I_nu))
+    if (allocated(hat_cache)) deallocate(hat_cache,prefix_cache,v_cache,vloc_cache,idx_cache,vg1_cache,vg2_cache, &
+                                         wg1_cache,wg2_cache)
+    allocate(hat_cache(ng),prefix_cache(nnu),v_cache(nnu),vloc_cache(ng),idx_cache(ng),vg1_cache(nnu-1), &
+             vg2_cache(nnu-1),wg1_cache(nnu-1),wg2_cache(nnu-1))
+    hat_cache=Para_m_energy/Para_h/gam
+    v_cache=vseed
+    do inu=1,nnu-1
+        call log_gauss2(vseed(inu),vseed(inu+1),vg1_cache(inu),vg2_cache(inu), &
+                                          wg1_cache(inu),wg2_cache(inu))
     end do
-    do I_Compton=1,Num_gam_e
-        if (y_nakar_hat_nu_cache(I_Compton) <= V_seed(1)) then
-            y_nakar_idx_cache(I_Compton)=0
-            y_nakar_vloc_cache(I_Compton)=V_seed(1)
+    do icomp=1,ng
+        if (hat_cache(icomp) <= vseed(1)) then
+            idx_cache(icomp)=0
+            vloc_cache(icomp)=vseed(1)
         else
-            call first_greater_monotonic_window(V_seed,Num_nu,2,y_nakar_hat_nu_cache(I_Compton),I_nu)
-            y_nakar_idx_cache(I_Compton)=I_nu
-            if (I_nu <= Num_nu) y_nakar_vloc_cache(I_Compton)=min(y_nakar_hat_nu_cache(I_Compton),V_seed(I_nu))
+            call greater_window(vseed,nnu,2,hat_cache(icomp),inu)
+            idx_cache(icomp)=inu
+            if (inu <= nnu) vloc_cache(icomp)=min(hat_cache(icomp),vseed(inu))
         end if
     end do
-    y_nakar_num_gam_cache=Num_gam_e
-    y_nakar_num_nu_cache=Num_nu
-end subroutine ensure_y_nakar_workspace
+    nakar_ng=ng
+    nakar_nnu=nnu
+end subroutine ensure_y_nakar
 
-! Nakar+2009 Compton Y参数：Y(γ) = ∫_{ν̂(γ)}^{ν_max} P_syn(ν) dν，谱形依赖。
-subroutine electron_cooling_y_nakar(Num_gam_e,Num_nu,n_threads,gam_e,V_seed,P_syn, Compton)
+! Nakar+2009 Y 参数：从 hat_nu(gamma) 到最高频积分同步光谱。
+! Nakar+2009 Y parameter: integrate the synchrotron spectrum above hat_nu(gamma).
+subroutine electron_y_nakar(ng,nnu,nthr,gam,vseed,psyn,comp)
 implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: Num_gam_e,Num_nu,n_threads
-real(8), intent(in) :: gam_e(Num_gam_e),V_seed(Num_nu),P_syn(Num_nu)
-real(8), intent(out) :: Compton(Num_gam_e)
-integer :: I_Compton,I_nu
+integer, intent(in) :: ng,nnu,nthr
+real(8), intent(in), dimension(ng) :: gam
+real(8), intent(in), dimension(nnu) :: vseed,psyn
+real(8), intent(out), dimension(ng) :: comp
+integer :: icomp,inu
 
-    call ensure_y_nakar_workspace(Num_gam_e,Num_nu,gam_e,V_seed)
+    call ensure_y_nakar(ng,nnu,gam,vseed)
 
-    Compton=zero
-    y_nakar_prefix_cache(1)=zero
-    do I_nu=2,Num_nu
-       y_nakar_prefix_cache(I_nu)=y_nakar_prefix_cache(I_nu-1)+ &
-            y_nakar_wg1(I_nu-1)*electron_powerlaw_interp(V_seed(I_nu-1),V_seed(I_nu), &
-                                                          P_syn(I_nu-1),P_syn(I_nu),y_nakar_vg1(I_nu-1))+ &
-            y_nakar_wg2(I_nu-1)*electron_powerlaw_interp(V_seed(I_nu-1),V_seed(I_nu), &
-                                                          P_syn(I_nu-1),P_syn(I_nu),y_nakar_vg2(I_nu-1))
+    comp=0d0
+    prefix_cache(1)=0d0
+    do inu=2,nnu
+       prefix_cache(inu)=prefix_cache(inu-1)+ &
+            wg1_cache(inu-1)*pl_interp(vseed(inu-1),vseed(inu),psyn(inu-1),psyn(inu),vg1_cache(inu-1))+ &
+            wg2_cache(inu-1)*pl_interp(vseed(inu-1),vseed(inu),psyn(inu-1),psyn(inu),vg2_cache(inu-1))
     end do
 
-    do I_Compton=1,Num_gam_e
-       ! Inlined from accumulate_y_nakar_point
-       Compton(I_Compton)=zero
-       I_nu=y_nakar_idx_cache(I_Compton)
-       if (I_nu == 0) cycle
-       if (I_nu <= Num_nu) then
-          Compton(I_Compton)=y_nakar_prefix_cache(I_nu-1)+ &
-                      electron_integrate_powerlaw_segment(V_seed(I_nu-1),y_nakar_vloc_cache(I_Compton), &
-                          P_syn(I_nu-1), &
-                          electron_powerlaw_interp(V_seed(I_nu-1),V_seed(I_nu), &
-                                                   P_syn(I_nu-1),P_syn(I_nu),y_nakar_vloc_cache(I_Compton)))
+    do icomp=1,ng
+       comp(icomp)=0d0
+       inu=idx_cache(icomp)
+       if (inu == 0) cycle
+       if (inu <= nnu) then
+          comp(icomp)=prefix_cache(inu-1)+pl_integral(vseed(inu-1),vloc_cache(icomp), &
+                      psyn(inu-1),pl_interp(vseed(inu-1),vseed(inu),psyn(inu-1),psyn(inu), &
+                      vloc_cache(icomp)))
        else
-          Compton(I_Compton)=y_nakar_prefix_cache(Num_nu)
+          comp(icomp)=prefix_cache(nnu)
        end if
     end do
-end subroutine electron_cooling_y_nakar
+end subroutine electron_y_nakar
 
-! Fan+2008 Compton Y参数：解析分段η_NK(γ) × η_rad，含快/慢冷却和谱指数分支。
-subroutine electron_cooling_y_fan(Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,gam_e, Compton)
+! Fan+2008 Y 参数：解析分段 eta_KN(gamma) x eta_rad，区分快/慢冷却。
+! Fan+2008 Y parameter: analytic eta_KN(gamma) x eta_rad branches for fast/slow cooling.
+subroutine electron_y_fan(ee,eb,p,db,gm,gc,gmax,ng,gam,comp)
 implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: Num_gam_e
-real(8), intent(in) :: Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,gam_e(Num_gam_e)
-real(8), intent(out) :: Compton(Num_gam_e)
-integer :: i_gam_e
+integer, intent(in) :: ng
+real(8), intent(in), dimension(ng) :: gam
+real(8), intent(in) :: ee,eb,p,db,gm,gc,gmax
+real(8), intent(out), dimension(ng) :: comp
+integer :: ig
 
-    eta=(Gam_e_m/Gam_e_c)**(p-two)
-    if (eta-one > 0.001) eta=one
+    eta=(gm/gc)**(p-2d0)
+    if (eta-1d0 > 0.001) eta=1d0
 
-    do i_gam_e=1,Num_gam_e-1
-        hat_gam=5.4246D6/sqrt(DB*gam_e(i_gam_e+1))
-        if (Gam_e_m > Gam_e_c) then
-            if (hat_gam < Gam_e_c) then
-                eta_NK=zero
-            else if (hat_gam < Gam_e_m) then
+    do ig=1,ng-1
+        hatgam=5.4246d6/sqrt(db*gam(ig+1))
+        if (gm > gc) then
+            if (hatgam < gc) then
+                etakn=0d0
+            else if (hatgam < gm) then
                 if (p>2) then
-                    Step1=(p-1)/(p-2)*Gam_e_m-Gam_e_c
-                    eta_NK=(hat_gam-Gam_e_c)/Step1
+                    Step1=(p-1)/(p-2)*gm-gc
+                    etakn=(hatgam-gc)/Step1
                 else
-                    Step1=Gam_e_m**(p-1)*Gam_e_max**(2-p)-(p-1)*Gam_e_m-(2-p)*Gam_e_c
-                    eta_NK=(2-p)*(hat_gam-Gam_e_c)/Step1
+                    Step1=gm**(p-1)*gmax**(2-p)-(p-1)*gm-(2-p)*gc
+                    etakn=(2-p)*(hatgam-gc)/Step1
                 end if
             else
                 if (p>2) then
-                    Step2=Gam_e_m**(p-1)*hat_gam**(2-p)
-                    Step3=(p-1)*Gam_e_m-(p-2)*Gam_e_c
-                    eta_NK=1-Step2/Step3
+                    Step2=gm**(p-1)*hatgam**(2-p)
+                    Step3=(p-1)*gm-(p-2)*gc
+                    etakn=1-Step2/Step3
                 else
-                    Step2=Gam_e_m**(p-1)*Gam_e_max**(2-p)-(p-1)*Gam_e_m-(2-p)*Gam_e_c
-                    Step3=Gam_e_m**(p-1)*(Gam_e_max**(2-p)-hat_gam**(2-p))
-                    eta_NK=1-Step2/Step3
+                    Step2=gm**(p-1)*gmax**(2-p)-(p-1)*gm-(2-p)*gc
+                    Step3=gm**(p-1)*(gmax**(2-p)-hatgam**(2-p))
+                    etakn=1-Step2/Step3
                 end if
             end if
-        else if (hat_gam < Gam_e_m) then
-            eta_NK=zero
-        else if (hat_gam < Gam_e_c) then
+        else if (hatgam < gm) then
+            etakn=0d0
+        else if (hatgam < gc) then
             if (p>2) then
-                Step4=Gam_e_c**(3-p)/(p-2.0)-Gam_e_m**(3-p)
-                eta_NK=(hat_gam**(3-p)-Gam_e_m**(3-p))/Step4
+                Step4=gc**(3-p)/(p-2d0)-gm**(3-p)
+                etakn=(hatgam**(3-p)-gm**(3-p))/Step4
             else
-                Step4=(3-p)*Gam_e_c*Gam_e_max**(2-p)-Gam_e_c**(3-p)-(2-p)*Gam_e_m**(3-p)
-                eta_NK=(2-p)*(hat_gam**(3-p)-Gam_e_m**(3-p))/Step4
+                Step4=(3-p)*gc*gmax**(2-p)-gc**(3-p)-(2-p)*gm**(3-p)
+                etakn=(2-p)*(hatgam**(3-p)-gm**(3-p))/Step4
             end if
         else
             if (p>2) then
-                Step5=(3-p)*Gam_e_c*hat_gam**(2-p)
-                Step6=Gam_e_c**(3.0-p)-(p-2)*Gam_e_m**(3.0-p)
-                eta_NK=1-Step5/Step6
+                Step5=(3-p)*gc*hatgam**(2-p)
+                Step6=gc**(3d0-p)-(p-2)*gm**(3d0-p)
+                etakn=1-Step5/Step6
             else
-                Step5=(3-p)*Gam_e_c*(Gam_e_max**(2-p)-hat_gam**(2-p))
-                Step6=(3-p)*Gam_e_c*Gam_e_max**(2-p)-Gam_e_c**(3-p)-(2-p)*Gam_e_m**(3-p)
-                eta_NK=1-Step5/Step6
+                Step5=(3-p)*gc*(gmax**(2-p)-hatgam**(2-p))
+                Step6=(3-p)*gc*gmax**(2-p)-gc**(3-p)-(2-p)*gm**(3-p)
+                etakn=1-Step5/Step6
             end if
         end if
-        Compton(i_gam_e)=0.5d0*(-1.0+sqrt(1.0+4.0*eta*eta_NK*Epsilon_e/Epsilon_b))
+        comp(ig)=0.5d0*(-1d0+sqrt(1d0+4d0*eta*etakn*ee/eb))
     end do
-    Compton(Num_gam_e)=0.99*Compton(Num_gam_e-1)
-end subroutine electron_cooling_y_fan
+    comp(ng)=0.99*comp(ng-1)
+end subroutine electron_y_fan
 
-end module electron_cooling_y_kernel
+end module electron_y_kernel

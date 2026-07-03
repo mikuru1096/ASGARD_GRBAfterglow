@@ -4,16 +4,18 @@ module interpolation_common
     implicit none
     private
 
-    public :: interpolation_accumulate_log_sed, interpolation_accumulate_shifted_linear_sed
+    public :: accum_logsed, accum_shifted
 
 contains
 
-! 在对数-线性空间中插值并累加SED到观测网格：源为(log x, log y)，目标为log x，输出累加线性y。
-subroutine interpolation_accumulate_log_sed(src_x, src_y, num_src, dst_x, num_dst, accum)
+! 在对数-线性空间中插值并累加 SED 到观测网格。
+! Interpolate in log-linear space and accumulate the SED on the observer grid.
+subroutine accum_logsed(src_x, src_y, num_src, dst_x, num_dst, accum)
     implicit none
     integer, intent(in) :: num_src, num_dst
-    real(8), intent(in) :: src_x(num_src), src_y(num_src), dst_x(num_dst)
-    real(8), intent(inout) :: accum(num_dst)
+    real(8), intent(in), dimension(num_src) :: src_x,src_y
+    real(8), intent(in), dimension(num_dst) :: dst_x
+    real(8), intent(inout), dimension(num_dst) :: accum
     integer :: i_dst, i_src
     real(8) :: ratio, y_lo, y_hi
 
@@ -26,31 +28,34 @@ subroutine interpolation_accumulate_log_sed(src_x, src_y, num_src, dst_x, num_ds
         end do
         if (dst_x(i_dst) > src_x(i_src) .and. dst_x(i_dst) <= src_x(i_src + 1)) then
             ratio = (dst_x(i_dst) - src_x(i_src)) / (src_x(i_src + 1) - src_x(i_src))
-            if (src_y(i_src) > -huge(one)/two) then
+            if (src_y(i_src) > -huge(1d0)/2d0) then
                 y_lo = exp(src_y(i_src))
             else
-                y_lo = zero
+                y_lo = 0d0
             end if
-            if (src_y(i_src + 1) > -huge(one)/two) then
+            if (src_y(i_src + 1) > -huge(1d0)/2d0) then
                 y_hi = exp(src_y(i_src + 1))
             else
-                y_hi = zero
+                y_hi = 0d0
             end if
-            if (y_lo > zero .and. y_hi > zero) then
+            if (y_lo > 0d0 .and. y_hi > 0d0) then
                 accum(i_dst) = accum(i_dst) + exp(src_y(i_src) + ratio * (src_y(i_src + 1) - src_y(i_src)))
             else
-                accum(i_dst) = accum(i_dst) + (one-ratio)*y_lo + ratio*y_hi
+                accum(i_dst) = accum(i_dst) + (1d0-ratio)*y_lo + ratio*y_hi
             end if
         end if
     end do
-end subroutine interpolation_accumulate_log_sed
+end subroutine accum_logsed
 
-! 源频率整体平移时，直接从线性SED对目标频率做对数频率插值并累加。
-subroutine interpolation_accumulate_shifted_linear_sed(src_x, src_y, num_src, dst_x, num_dst, log_shift, log_weight, accum)
+! 源频率整体平移时，从线性 SED 对目标频率插值并累加。
+! For a global source-frequency shift, interpolate linear SED values and accumulate.
+subroutine accum_shifted(src_x, src_y, num_src, dst_x, num_dst, log_shift, log_weight, accum)
     implicit none
     integer, intent(in) :: num_src, num_dst
-    real(8), intent(in) :: src_x(num_src), src_y(num_src), dst_x(num_dst), log_shift, log_weight
-    real(8), intent(inout) :: accum(num_dst)
+    real(8), intent(in), dimension(num_src) :: src_x,src_y
+    real(8), intent(in), dimension(num_dst) :: dst_x
+    real(8), intent(in) :: log_shift,log_weight
+    real(8), intent(inout), dimension(num_dst) :: accum
     integer :: i_dst, i_src
     real(8) :: target_x, ratio, y_lo, y_hi, y_interp
 
@@ -66,14 +71,14 @@ subroutine interpolation_accumulate_shifted_linear_sed(src_x, src_y, num_src, ds
             ratio = (target_x - src_x(i_src)) / (src_x(i_src + 1) - src_x(i_src))
             y_lo = src_y(i_src)
             y_hi = src_y(i_src + 1)
-            if (y_lo > zero .and. y_hi > zero) then
+            if (y_lo > 0d0 .and. y_hi > 0d0) then
                 y_interp = dexp(dlog(y_lo) + ratio * (dlog(y_hi) - dlog(y_lo)))
             else
-                y_interp = (one-ratio)*y_lo + ratio*y_hi
+                y_interp = (1d0-ratio)*y_lo + ratio*y_hi
             end if
             accum(i_dst) = accum(i_dst) + y_interp*dexp(log_weight)
         end if
     end do
-end subroutine interpolation_accumulate_shifted_linear_sed
+end subroutine accum_shifted
 
 end module interpolation_common

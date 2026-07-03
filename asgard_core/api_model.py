@@ -174,7 +174,7 @@ def _validate_density_profile(radius: tuple[float, ...], density: tuple[float, .
     if radius_arr.shape != density_arr.shape:
         raise ValueError("density profile radius and density arrays must have the same length.")
     if radius_arr.size < 2:
-        raise ValueError("density profile requires at least two points.")
+        raise ValueError("density profile requires at least 2 points.")
     if radius_arr.size > MAX_DENSITY_PROFILE_POINTS:
         raise ValueError(f"At most {MAX_DENSITY_PROFILE_POINTS} density profile points are supported.")
     if not np.all(np.isfinite(radius_arr)) or not np.all(np.isfinite(density_arr)):
@@ -433,7 +433,7 @@ def _validate_tabulated_angular_jet(
     if theta.shape != e_iso.shape or theta.shape != gamma0.shape:
         raise ValueError("theta_rad, energy_iso_erg, and lorentz_factor must have the same shape.")
     if theta.size < 2:
-        raise ValueError("tabulated angular jet requires at least two theta samples.")
+        raise ValueError("tabulated angular jet requires at least 2 theta samples.")
     if not np.all(np.isfinite(theta)) or not np.all(np.isfinite(e_iso)) or not np.all(np.isfinite(gamma0)):
         raise ValueError("tabulated angular jet arrays must contain finite values.")
     if np.any(theta < 0.0) or np.any(np.diff(theta) <= 0.0):

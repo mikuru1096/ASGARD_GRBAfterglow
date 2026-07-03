@@ -5,8 +5,8 @@ from typing import Any
 
 
 _BINDINGS = {
-    "fs_hadronic_1d": "hadronic_forward_1d",
-    "fs_hadronic_reverse_1d": "hadronic_reverse_1d",
+    "hadronic_1d": "hadronic_forward_1d",
+    "reverse_hadronic_1d": "hadronic_reverse_1d",
 }
 
 

@@ -14,7 +14,7 @@ HUMMER2010_DECAY_BACKEND = "fortran_decay"
 ACCELERATION_BACKEND = "fortran_acceleration"
 BETHE_HEITLER_BACKEND = "fortran_bethe_heitler"
 HADRONIC_IC_BACKEND = "fortran_hadronic_ic"
-PP_DELTA_BACKEND = "fortran_pp_delta"
+PP_DELTA_BACKEND = "fortran_pp_shell"
 SECONDARY_RADIATION_BACKEND = "fortran_secondary_radiation"
 SPECIES_TRANSPORT_BACKEND = "fortran_species_transport"
 
@@ -43,7 +43,7 @@ def as_strictly_increasing_grid(values: np.ndarray, name: str, *, require_finite
     if arr.ndim != 1:
         raise ValueError(f"{name} must be a 1d array.")
     if arr.size < 2:
-        raise ValueError(f"{name} must contain at least two points.")
+        raise ValueError(f"{name} must contain at least 2 points.")
     if np.any(arr <= 0.0):
         raise ValueError(f"{name} must be strictly positive.")
     if np.any(np.diff(arr) <= 0.0):
@@ -79,6 +79,21 @@ def photon_density_hz_to_gev(photon_nu_hz: np.ndarray, photon_density_per_hz: np
     photon_energy_gev = constants.para_h_gev * nu
     photon_density_per_gev = density / constants.para_h_gev
     return photon_energy_gev, photon_density_per_gev
+
+
+def positive_loglog_interp(x_src: np.ndarray, y_src: np.ndarray, x_dst: np.ndarray) -> np.ndarray:
+    x = np.asarray(x_src, dtype=float)
+    y = np.asarray(y_src, dtype=float)
+    target = np.asarray(x_dst, dtype=float)
+    out = np.zeros_like(target, dtype=float)
+    valid = np.isfinite(x) & np.isfinite(y) & (x > 0.0) & (y > 0.0)
+    if np.count_nonzero(valid) < 2:
+        return out
+    xv = x[valid]
+    yv = y[valid]
+    in_range = np.isfinite(target) & (target >= xv[0]) & (target <= xv[-1])
+    out[in_range] = np.exp(np.interp(np.log(target[in_range]), np.log(xv), np.log(yv)))
+    return out
 
 
 @dataclass(frozen=True)
@@ -137,7 +152,7 @@ def solve_hummer2010_pgamma(
         afpg_pro,
         afpg_ntr,
         afpg_rad,
-    ) = hadronic_fortran_module.fs_hadronic_pgamma_operator_shell(
+    ) = hadronic_fortran_module.pg_operator(
         e_p,
         n_p,
         e_gam_t,
@@ -159,7 +174,7 @@ def solve_hummer2010_pgamma(
         muon_neutrino_rate,
         muon_electron_rate,
         neutrino_rate,
-    ) = hadronic_fortran_module.fs_hadronic_decay_operator_shell(
+    ) = hadronic_fortran_module.decay_operator(
         e_p,
         qpi0_rate,
         qpip_rate,
@@ -216,7 +231,7 @@ def solve_bethe_heitler(
     n_ph = as_matching(photon_density_per_gev, e_ph, "photon_density_per_gev")
     e_e = as_strictly_increasing_grid(electron_energy_gev, "electron_energy_gev")
 
-    pair_rate_per_gev, proton_loss_rate, photon_loss_rate = hadronic_fortran_module.fs_hadronic_bethe_heitler_shell(
+    pair_rate_per_gev, proton_loss_rate, photon_loss_rate = hadronic_fortran_module.bethe_heitler(
         e_p,
         n_p,
         e_ph,
@@ -295,7 +310,7 @@ def initialize_hadronic_inverse_compton_kernel(
         jmax_pi,
         delta_e_mu,
         jmax_mu,
-    ) = hadronic_fortran_module.fs_hadronic_hadronic_ic_shell(
+    ) = hadronic_fortran_module.hadronic_ic(
         e_had,
         e_ph,
         zeros_ph,
@@ -341,7 +356,7 @@ def solve_hadronic_inverse_compton(
     - energies in GeV
     - distributions as number density per GeV [cm^-3 GeV^-1]
     - output epsilon_* arrays are AM3-style emissivity terms with
-      coeff = c * sigma_T * (m_e / m)^2 and one dlnE integration factor.
+      coeff = c * sigma_T * (m_e / m)^2 and 1 dlnE integration factor.
     """
 
     e_had = as_strictly_increasing_grid(hadron_energy_gev, "hadron_energy_gev", require_finite=True)
@@ -369,7 +384,7 @@ def solve_hadronic_inverse_compton(
         jmax_pi,
         delta_e_mu,
         jmax_mu,
-    ) = hadronic_fortran_module.fs_hadronic_hadronic_ic_shell(
+    ) = hadronic_fortran_module.hadronic_ic(
         e_had,
         e_ph,
         photons,
@@ -447,7 +462,7 @@ def solve_pair_production(
         pair_rate_per_gev_total,
         absorbed_power,
         injected_power,
-    ) = hadronic_fortran_module.fs_hadronic_pair_production_shell(
+    ) = hadronic_fortran_module.pair_production(
         e_ph,
         n_ph,
         e_e,
@@ -476,7 +491,7 @@ class HadronicPPOutput:
     proton_loss_rate: np.ndarray
 
 
-def solve_pp_delta(
+def solve_pp_shell(
     proton_energy_gev: np.ndarray,
     proton_density_per_gev: np.ndarray,
     target_proton_density_cm3: float,
@@ -520,7 +535,7 @@ def solve_pp_delta(
     if not (0.0 <= neutral_pion_fraction <= 1.0):
         raise ValueError("neutral_pion_fraction must be in [0, 1].")
 
-    gamma_rate, neutrino_rate, pair_rate, proton_loss_rate = hadronic_fortran_module.fs_hadronic_pp_delta_shell(
+    gamma_rate, neutrino_rate, pair_rate, proton_loss_rate = hadronic_fortran_module.pp_shell(
         e_p,
         n_p,
         float(target_proton_density_cm3),

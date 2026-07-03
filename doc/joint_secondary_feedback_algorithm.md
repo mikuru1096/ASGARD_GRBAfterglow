@@ -152,7 +152,7 @@ joint 电子入口：
 
 ```text
 solve_electron_with_cooling_seed(...)
-  -> fs_electron_fullhide_1d_coupled(...)
+  -> fs_fullhide_coupled(...)
 ```
 
 Fortran entry 位于：
@@ -165,16 +165,16 @@ src/Electron/electron_forward_fullhide_1d.f90
 
 ```text
 Seed_cooling(num_nu, num_R)
-Secondary_source(num_gam_e, num_R)
+sec_source(num_gam_e, num_R)
 ```
 
-`Seed_cooling` 用于 IC cooling。`Secondary_source` 以 `Q_e,secondary,R` 加到每个 shell substep 的电子源项中：
+`Seed_cooling` 用于 IC cooling。`sec_source` 以 `Q_e,secondary,R` 加到每个 shell substep 的电子源项中：
 
 ```text
-dF1 = Q_e,shock + Secondary_source(:, I_tobs)
+dF1 = Q_e,shock + sec_source(:, I_tobs)
 ```
 
-`fs_electron_fullhide_1d_coupled` 只接受 fixed substeps 和 `index_y=1`，因为当前预算测试依赖同一个数值 IC kernel。
+`fs_fullhide_coupled` 只接受 fixed substeps 和 `index_y=1`，因为当前预算测试依赖同一个数值 IC kernel。
 
 ## 9. IC 预算 kernel
 

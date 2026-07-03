@@ -53,7 +53,7 @@ def solve_structured_jet_fortran(model, times_s: np.ndarray, nu_hz: np.ndarray, 
     query_config.num_r = max(int(query_config.num_r), int(solve_times.size))
     setup = make_query_setup(query_config, solve_times, frequencies)
 
-    outputs = Structured.structured_jet_flux_1d(
+    outputs = Structured.jet_flux_1d(
         *_structured_kernel_args(model, query_config, setup, sampled, times, frequencies)
     )
     fwd_sync, fwd_ssc, _fwd_hadronic, rev_sync, total = (np.asarray(value, dtype=float) for value in outputs[:5])
@@ -198,12 +198,11 @@ def _solve_project_structured_chi_ring_flux(
         model,
         build_patch_config,
         float(theta_edges[first_index + 1] - theta_edges[first_index]),
-        theta_centers,
-        e_iso,
-        gamma0,
+        float(theta_centers[first_index]),
+        float(e_iso[first_index]),
+        float(gamma0[first_index]),
         solve_times,
         sorted_frequencies,
-        first_index,
         int(inner_threads),
     )
     first_state = solve_state_from_setup(
@@ -228,12 +227,11 @@ def _solve_project_structured_chi_ring_flux(
             model,
             build_patch_config,
             float(theta_edges[i_theta + 1] - theta_edges[i_theta]),
-            theta_centers,
-            e_iso,
-            gamma0,
+            float(theta_centers[i_theta]),
+            float(e_iso[i_theta]),
+            float(gamma0[i_theta]),
             solve_times,
             sorted_frequencies,
-            i_theta,
             int(inner_threads),
         )
         payloads.append((
@@ -257,14 +255,82 @@ def _solve_project_structured_chi_ring_flux(
     return _unsort_flux(flux_sorted, order), first_state
 
 
-def _solid_angle_mid(theta_lo: float, theta_hi: float) -> float:
-    """Theta such that cos(theta) bisects [cos(hi), cos(lo)]."""
-    return float(np.arccos(0.5 * (np.cos(theta_lo) + np.cos(theta_hi))))
+def _build_adaptive_ring_windows(
+    e_iso: np.ndarray,
+    gamma0: np.ndarray,
+    active: np.ndarray,
+    theta_edges: np.ndarray,
+    adaptive_rtol: float,
+    adaptive_max_depth: int,
+) -> list[tuple[int, float, float, float, float]]:
+    """Build sparse theta-ring windows for structured chi_2d projection."""
+    active_indices = [int(i) for i, flag in enumerate(active) if int(flag) != 0]
+    if len(active_indices) <= 8:
+        return [
+            (
+                i,
+                float(theta_edges[i]),
+                float(theta_edges[i + 1]),
+                float(e_iso[i]),
+                float(gamma0[i]),
+            )
+            for i in active_indices
+        ]
 
+    if adaptive_rtol <= 0.005:
+        step = 2
+    elif adaptive_rtol <= 0.01:
+        step = 4
+    elif adaptive_rtol <= 0.02:
+        step = 6
+    elif adaptive_rtol <= 0.05:
+        step = 8
+    else:
+        step = 12
+    step = min(step, max(len(active_indices) // 4, 2))
+    base_indices = active_indices[::step]
+    if active_indices[-1] not in base_indices:
+        base_indices.append(active_indices[-1])
 
-def _eval_jet_at_theta(model, theta: float) -> tuple[float, float]:
-    """Evaluate E_iso and Gamma0 at theta using the jet model."""
-    return float(model.jet.energy_iso(0.0, theta)), float(model.jet.gamma0(0.0, theta))
+    log_e = np.log(np.maximum(np.asarray(e_iso, dtype=float), 1.0e-100))
+    refined = list(base_indices)
+    for _ in range(adaptive_max_depth):
+        added = []
+        for i_cell in range(len(refined) - 1):
+            i_left, i_right = refined[i_cell], refined[i_cell + 1]
+            if i_right - i_left <= 1:
+                continue
+            if i_left > 0 and i_right < len(log_e) - 1:
+                i_mid = (i_left + i_right) // 2
+                curvature = abs(log_e[i_right] - 2.0 * log_e[i_mid] + log_e[i_left])
+                if curvature > 0.5 and i_mid not in refined and i_mid not in added:
+                    added.append(i_mid)
+        if not added:
+            break
+        refined.extend(added)
+        refined.sort()
+
+    theta_all = np.asarray(theta_edges, dtype=float)
+    theta_centers = 0.5 * (theta_all[:-1] + theta_all[1:])
+    n_full = len(e_iso)
+    windows = []
+    for i_pos, i_theta in enumerate(refined):
+        theta_lo = float(theta_all[i_theta])
+        if i_pos + 1 < len(refined):
+            theta_hi = float(theta_all[refined[i_pos + 1]])
+        else:
+            theta_hi = float(theta_all[active_indices[-1] + 1])
+        theta_mid = 0.5 * (theta_lo + theta_hi)
+        i_mid = int(np.searchsorted(theta_centers, theta_mid))
+        i_mid = max(0, min(n_full - 1, i_mid))
+        windows.append((
+            int(i_theta),
+            theta_lo,
+            theta_hi,
+            float(e_iso[i_mid]),
+            float(gamma0[i_mid]),
+        ))
+    return windows
 
 
 def _solve_project_structured_chi_ring_flux_adaptive(
@@ -281,185 +347,108 @@ def _solve_project_structured_chi_ring_flux_adaptive(
     adaptive_rtol: float = 0.02,
     adaptive_max_depth: int = 4,
 ):
-    """Adaptive theta integration with solid-angle spacing and gradient-based refinement.
-
-    1. Build a base grid with uniform solid-angle spacing (n_base = n_full // 6).
-    2. Solve all base rings in parallel → {F_i} at solid-angle midpoints.
-    3. For each adjacent pair (i, i+1): if the relative flux gradient
-       |F_i - F_{i+1}| / |F_i + F_{i+1}| exceeds *adaptive_rtol*, add a
-       refinement ring at the solid-angle midpoint between them.
-    4. Recurse on refinement rings up to *adaptive_max_depth* levels.
-
-    Midpoints use ``arccos(0.5*(cos(lo)+cos(hi)))`` for equal solid angle.
-    E_iso / Gamma0 are re-evaluated at each actual midpoint via the jet model.
-    """
+    """Sparse theta-window projection for structured chi_2d light curves."""
     outer_threads, inner_threads = _structured_threads(model)
     active_indices = [int(i) for i, flag in enumerate(active) if int(flag) != 0]
     if not active_indices:
-        raise ValueError("No active jet elements found.")
+        raise ValueError("No active jet elements were found for the requested structured jet.")
 
-    theta_max = float(theta_edges[active_indices[-1] + 1])
+    windows = _build_adaptive_ring_windows(
+        e_iso, gamma0, active, theta_edges, adaptive_rtol, adaptive_max_depth,
+    )
     order = np.argsort(frequencies)
     sorted_frequencies = frequencies[order]
     flux_sorted = np.zeros((sorted_frequencies.size, times.size), dtype=float)
-    theta_obs = float(model.observer.theta_obs)
-    num_phi = int(model.setups.structured_num_phi)
 
-    # ---- Build base grid (uniform solid-angle spacing) ----
-    n_base = max(4, len(active_indices) // 6)
-    cos_edges = np.linspace(1.0, np.cos(theta_max), n_base + 1)
-    base_t_edges = np.arccos(cos_edges)
+    first_index, theta_lo, theta_hi, e_first, gamma_first = windows[0]
+    first_config, first_setup = _structured_chi_ring_config_setup(
+        model,
+        build_patch_config,
+        theta_hi - theta_lo,
+        0.5 * (theta_lo + theta_hi),
+        e_first,
+        gamma_first,
+        solve_times,
+        sorted_frequencies,
+        int(inner_threads),
+    )
+    first_state = solve_state_from_setup(
+        first_config,
+        first_setup,
+        requested_frequencies_hz=sorted_frequencies,
+        assemble_observer=False,
+    )
+    flux_sorted += _project_structured_chi_ring_state(
+        first_state,
+        theta_lo,
+        theta_hi,
+        float(model.observer.theta_obs),
+        int(model.setups.structured_num_phi),
+        times,
+        sorted_frequencies,
+    )
 
-    # Each cell: (theta_lo, theta_hi, epsilon) where epsilon tracks the ring's
-    # angular width relative to its neighbour for gradient comparison.
-    cells = [(float(base_t_edges[i]), float(base_t_edges[i + 1]), 0)
-             for i in range(n_base)]
-    all_fluxes = {}   # (tlo, thi) -> flux_array
-    first_state = None
-
-    next_cells = []
-    for level in range(adaptive_max_depth + 1):
-        if not cells and level > 0:
-            break
-
-        # ---- Solve all cells at this level ----
-        payloads = []
-        cell_keys = []
-        for tlo, thi, depth in cells:
-            if (tlo, thi) in all_fluxes:
-                continue
-            tmid = _solid_angle_mid(tlo, thi)
-            e_val, g_val = _eval_jet_at_theta(model, tmid)
-            if g_val < 1.4:
-                continue
-            config = build_patch_config(
-                model, theta_v=0.0, opening_angle_jet=thi - tlo,
-                e_iso=e_val, gamma0=g_val, theta_center=tmid,
-            )
-            qc = make_query_cfg(config, solve_times)
-            qc.num_r = max(int(qc.num_r), int(solve_times.size))
-            qc.num_threads = int(inner_threads)
-            setup = make_query_setup(qc, solve_times, sorted_frequencies)
-            payloads.append((tlo, thi, qc, setup))
-            cell_keys.append((tlo, thi))
-
-        if not payloads:
-            break
-
-        # First payload: serial (provides first_state)
-        tlo0, thi0, qc0, setup0 = payloads[0]
-        if first_state is None:
-            first_state = solve_state_from_setup(
-                qc0, setup0, requested_frequencies_hz=sorted_frequencies, assemble_observer=False,
-            )
-        else:
-            state0 = solve_state_from_setup(
-                qc0, setup0, requested_frequencies_hz=sorted_frequencies, assemble_observer=False,
-            )
-        all_fluxes[(tlo0, thi0)] = _project_structured_chi_ring_state(
-            first_state if first_state is not None else state0,
-            tlo0, thi0, theta_obs, num_phi, times, sorted_frequencies,
+    payloads = []
+    for i_theta, theta_lo, theta_hi, e_window, gamma_window in windows[1:]:
+        query_config, setup = _structured_chi_ring_config_setup(
+            model,
+            build_patch_config,
+            theta_hi - theta_lo,
+            0.5 * (theta_lo + theta_hi),
+            e_window,
+            gamma_window,
+            solve_times,
+            sorted_frequencies,
+            int(inner_threads),
         )
+        payloads.append((
+            int(i_theta),
+            query_config,
+            setup,
+            sorted_frequencies,
+            times,
+            theta_lo,
+            theta_hi,
+            float(model.observer.theta_obs),
+            int(model.setups.structured_num_phi),
+        ))
 
-        # Remaining: serial or parallel
-        remaining = payloads[1:]
-        if remaining:
-            rkeys = cell_keys[1:]
-            if int(outer_threads) == 1 or len(remaining) <= 1:
-                for (tlo, thi, qc, setup), key in zip(remaining, rkeys):
-                    state = solve_state_from_setup(qc, setup, requested_frequencies_hz=sorted_frequencies,
-                                                   assemble_observer=False)
-                    all_fluxes[key] = _project_structured_chi_ring_state(
-                        state, tlo, thi, theta_obs, num_phi, times, sorted_frequencies,
-                    )
-            else:
-                if "fork" not in mp.get_all_start_methods():
-                    raise NotImplementedError("Requires POSIX fork.")
-                ctx = mp.get_context("fork")
-                wc = min(int(outer_threads), len(remaining))
-                proj_payloads = [(tlo, thi, qc, setup, sorted_frequencies, times, theta_obs, num_phi)
-                                 for tlo, thi, qc, setup in remaining]
-                with ProcessPoolExecutor(max_workers=wc, mp_context=ctx) as ex:
-                    futures = [ex.submit(_adaptive_ring_solve_project, *p) for p in proj_payloads]
-                    for f in futures:
-                        tlo, thi, flux = f.result()
-                        all_fluxes[(tlo, thi)] = flux
-
-        # ---- Gradient-based refinement ----
-        if level >= adaptive_max_depth:
-            break
-
-        # Track which cells get subdivided (their flux is replaced by children)
-        subdivided = set()
-        sorted_cells = sorted(cells, key=lambda x: x[0])
-        for idx in range(len(sorted_cells) - 1):
-            tlo_a, thi_a, d_a = sorted_cells[idx]
-            tlo_b, thi_b, d_b = sorted_cells[idx + 1]
-            if abs(thi_a - tlo_b) > 1e-12:
-                continue
-            flux_a = all_fluxes.get((tlo_a, thi_a))
-            flux_b = all_fluxes.get((tlo_b, thi_b))
-            if flux_a is None or flux_b is None:
-                continue
-            na = float(np.sum(np.abs(flux_a)))
-            nb = float(np.sum(np.abs(flux_b)))
-            total = na + nb
-            if total < 1e-100:
-                continue
-            grad = abs(na - nb) / total
-            if grad > adaptive_rtol:
-                # Split cell A at its own solid-angle midpoint
-                tmid_a = _solid_angle_mid(tlo_a, thi_a)
-                next_cells.append((tlo_a, tmid_a, d_a + 1))
-                next_cells.append((tmid_a, thi_a, d_a + 1))
-                subdivided.add((tlo_a, thi_a))
-                # Split cell B similarly
-                tmid_b = _solid_angle_mid(tlo_b, thi_b)
-                next_cells.append((tlo_b, tmid_b, d_b + 1))
-                next_cells.append((tmid_b, thi_b, d_b + 1))
-                subdivided.add((tlo_b, thi_b))
-
-        cells = next_cells
-        # Remove subdivided cells' fluxes from all_fluxes (children will replace them)
-        for key in subdivided:
-            all_fluxes.pop(key, None)
-
-    if first_state is None:
-        raise ValueError("No active jet elements found.")
-
-    # ---- Sum all leaf fluxes ----
-    for _, flux in all_fluxes.items():
-        flux_sorted += flux
+    if payloads:
+        if int(outer_threads) == 1:
+            for _i_theta, flux_ring in map(_solve_project_structured_chi_ring_payload, payloads):
+                flux_sorted += flux_ring
+        else:
+            if "fork" not in mp.get_all_start_methods():
+                raise NotImplementedError(
+                    "parallel structured chi_eats_2d ring solves require a POSIX fork multiprocessing context."
+                )
+            context = mp.get_context("fork")
+            worker_count = min(int(outer_threads), len(payloads))
+            with ProcessPoolExecutor(max_workers=worker_count, mp_context=context) as executor:
+                for _i_theta, flux_ring in executor.map(_solve_project_structured_chi_ring_payload, payloads):
+                    flux_sorted += flux_ring
 
     return _unsort_flux(flux_sorted, order), first_state
-
-
-def _adaptive_ring_solve_project(tlo, thi, qc, setup, freq, times, theta_obs, num_phi):
-    """Picklable helper for ProcessPoolExecutor."""
-    state = solve_state_from_setup(qc, setup, requested_frequencies_hz=freq, assemble_observer=False)
-    flux = _project_structured_chi_ring_state(state, tlo, thi, theta_obs, num_phi, times, freq)
-    return tlo, thi, flux
 
 
 def _structured_chi_ring_config_setup(
     model,
     build_patch_config: Callable,
     theta_width: float,
-    theta_centers: np.ndarray,
-    e_iso: np.ndarray,
-    gamma0: np.ndarray,
+    theta_center: float,
+    e_iso: float,
+    gamma0: float,
     solve_times: np.ndarray,
     frequencies: np.ndarray,
-    i_theta: int,
     inner_threads: int,
 ):
     config = build_patch_config(
         model,
         theta_v=0.0,
         opening_angle_jet=float(theta_width),
-        e_iso=float(e_iso[i_theta]),
-        gamma0=float(gamma0[i_theta]),
-        theta_center=float(theta_centers[i_theta]),
+        e_iso=float(e_iso),
+        gamma0=float(gamma0),
+        theta_center=float(theta_center),
     )
     query_config = make_query_cfg(config, solve_times)
     query_config.num_r = max(int(query_config.num_r), int(solve_times.size))
@@ -521,7 +510,7 @@ def _project_structured_chi_ring_state(
     Tau_ring = np.asfortranarray(
         np.asarray(e.tau_syn_chi, dtype=float)[selected, :, :]
     )
-    return Interpolation.sed_interpolation_chi_structured_axisym_ring_precomputed(
+    return Interpolation.sed_chi_ring(
         boundary,
         state.components.fwd.characteristic_time_s,
         state.components.fwd.radius_cm,
@@ -775,4 +764,3 @@ def _patch_metadata(theta_centers, theta_edges, phi_centers, e_iso, gamma0, acti
                 }
             )
     return patches
-

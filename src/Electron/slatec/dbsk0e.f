@@ -2,7 +2,7 @@
       DOUBLE PRECISION FUNCTION DBSK0E (X)
 C***BEGIN PROLOGUE  DBSK0E
 C***PURPOSE  Compute the exponentially scaled modified (hyperbolic)
-C            Bessel function of the third kind of order zero.
+C            Bessel function of the third kind of order 0d0.
 C***LIBRARY   SLATEC (FNLIB)
 C***CATEGORY  C10B1
 C***TYPE      DOUBLE PRECISION (BESK0E-S, DBSK0E-D)
@@ -14,7 +14,7 @@ C***DESCRIPTION
 C
 C DBSK0E(X) computes the double precision exponentially scaled
 C modified (hyperbolic) Bessel function of the third kind of
-C order zero for positive double precision argument X.
+C order 0d0 for positive double precision argument X.
 C
 C Series for BK0        on the interval  0.          to  4.00000E+00
 C                                        with weighted error   3.08E-33

@@ -44,21 +44,22 @@
 以下是目录级源码树。逐个程序单元的行号、职责和 f2py 入口映射见 `doc/fortran_kernel_index.md`。
 
 - `src/Constants.f90`
-- `src/Dynamics/`：`dynamics_common.f90`, `Dynamics_forward.f90`, `Dynamics_reverse.f90`,
-  `reverse_jump_conditions.f90`, `reverse_rhs.f90`
+- `src/Dynamics/`：`Dynamics_forward.f90`,
+  `dynamics_density_profile.f90`, `reverse_shock_state.f90`, `reverse_shock_mhd_jump.f90`, `reverse_jump_conditions.f90`,
+  `reverse_rhs.f90`, `reverse_shock.f90`
 - `src/Electron/`：
-  - 1D/2D entries：`electron_forward_fullhide_1d.f90`, `electron_forward_dg_1d.f90`, `electron_forward_transport_2d.f90`, `electron_forward_charint_1d.f90`, `electron_forward_slc1_1d.f90`, `electron_forward_t2g1_1d.f90`, `electron_forward_weno5_1d.f90`；`electron_forward_charint_2d` extension 由 `electron_forward_transport_2d.f90` 的 `fs_electron_transport_2d_core` 构建
-  - Kernels：`electron_common.f90`, `electron_radiation_kernel.f90`, `electron_cooling_kernel.f90`（门面/组装）, `electron_cooling_ssa_kernel.f90`, `electron_cooling_ic_kernel.f90`, `electron_cooling_y_kernel.f90`, `electron_seed_history_kernel.f90`, `electron_transport_2d_kernel.f90`, `electron_injection_profiles.f90`, `electron_shell_transport_common.f90`, `electron_transport_common.f90`, `electron_transport_dg_1d_kernel.f90`, `electron_reverse_kernel.f90`, `adaptive_resampling_mod.f90`
-- `src/Radiation/`：`radiation_common.f90`, `radiation_ssc_spectrum.f90`, `radiation_gamma_gamma_absorption.f90`, `synchrotron_polarization_kernel.f90`, `quantum_synchrotron_kernel.f90`
+  - 1D/2D entries：`electron_forward_fullhide_1d.f90`, `electron_forward_dg_1d.f90`, `electron_forward_transport_2d.f90`, `electron_forward_charint_1d.f90`, `electron_forward_slc1_1d.f90`, `electron_forward_t2g1_1d.f90`, `electron_forward_weno5_1d.f90`；`electron_forward_charint_2d` extension 由 `electron_forward_transport_2d.f90` 的 `fs_transport_2d` 构建
+  - Kernels：`electron_common.f90`, `electron_radiation_kernel.f90`, `electron_cooling_kernel.f90`（门面/组装）, `electron_cooling_ssa_kernel.f90`, `electron_cooling_ic_kernel.f90`, `electron_cooling_y_kernel.f90`, `electron_seed_history_kernel.f90`, `electron_transport_2d_kernel.f90`, `electron_injection_profiles.f90`, `electron_shell_transport_common.f90`, `electron_transport_common.f90`, `electron_dg_transport.f90`, `electron_reverse_kernel.f90`, `adaptive_resampling_mod.f90`
+- `src/Radiation/`：`rad_common.f90`, `ssc_spectrum.f90`, `pair_absorption.f90`, `syn_polarization.f90`, `quantum_synch.f90`
 - `src/Hadronic/`：
-  - Entries：`hadronic_forward_1d.f90`（公开 `fs_hadronic_1d`, `fs_hadronic_formal_transport_1d` 和 Python 正式调用的 process wrappers）, `hadronic_reverse_1d.f90`
-  - Kernels：`hadronic_common.f90`, `hadronic_transport_kernel.f90`, `hadronic_transport_remap_kernel.f90`, `hadronic_radiation_kernel.f90`, `hadronic_interaction_kernel.f90`, `hadronic_pgamma_hummer_1d.f90`, `hadronic_decay_kernel.f90`, `hadronic_pair_production_kernel.f90`, `hadronic_pair_cascade_kernel.f90`, `hadronic_pp_kernel.f90`, `hadronic_pp_models_kernel.f90`, `hadronic_bethe_heitler_kernel.f90`, `hadronic_hadronic_ic_kernel.f90`, `hadronic_species_transport_kernel.f90`, `hadronic_acceleration_kernel.f90`, `hadronic_secondary_radiation_kernel.f90`
+  - Entries：`hadronic_forward_1d.f90`（公开 `hadronic_1d`, `formal_transport_1d` 和 Python 正式调用的 process wrappers）, `hadronic_reverse_1d.f90`
+  - Kernels：`hadronic_base.f90`, `hadronic_transport_kernel.f90`, `hadronic_transport_remap_kernel.f90`, `hadronic_rad.f90`, `hadronic_pg.f90`, `hadronic_hummer.f90`, `hadronic_decay.f90`, `hadronic_pair.f90`, `hadronic_cascade.f90`, `hadronic_pp.f90`, `pp_models.f90`, `hadronic_bh.f90`, `hadronic_ic.f90`, `hadronic_species.f90`, `hadronic_accel.f90`, `hadronic_secondary.f90`
 - `src/Structured/`：`structured_jet_1d.f90` 聚合结构化喷流 theta/theta-phi 网格调度，复用现有 Fortran 动力学、电子、辐射、强子和 SED 插值核。
 - `src/Interpolation/`：`SED_interpolation.f90`, `SED_interpolation_structured.f90`, `interpolation_common.f90`。`src.Interpolation` 当前公开懒加载绑定集中在 `SED_interpolation`；`SED_interpolation_structured.f90` 保留给 `structured_jet_1d` 内部 shell-level structured projection。
 
 ## 构建入口
 
-- `build_extensions.py`：f2py 编译入口。当前登记的 module names 包括 `Constants`, `Dynamics_forward`, `Dynamics_reverse`, `electron_forward_weno5_1d`, `electron_forward_slc1_1d`, `electron_forward_charint_1d`, `electron_forward_dg_1d`, `electron_forward_fullhide_1d`, `electron_forward_fullhide_1d_hybrid`, `electron_forward_transport_2d`（alias `electron_forward_charint_2d`）, `electron_forward_t2g1_1d`, `electron_radiation`, `electron_reverse_kernel`, `SED_interpolation`, `SED_interpolation_structured`（Fortran internal structured projection build target, not a public Python export）, `radiation_gamma_gamma_absorption`, `radiation_ssc_spectrum`, `hadronic_forward_1d`, `hadronic_reverse_1d`, `structured_jet_1d`。
+- `build_extensions.py`：f2py 编译入口。当前登记的 module names 包括 `Constants`, `Dynamics_forward`, `Dynamics_reverse`, `electron_forward_weno5_1d`, `electron_forward_slc1_1d`, `electron_forward_charint_1d`, `electron_forward_dg_1d`, `electron_forward_fullhide_1d`, `electron_forward_fullhide_1d_hybrid`, `electron_forward_transport_2d`（alias `electron_forward_charint_2d`）, `electron_forward_t2g1_1d`, `electron_radiation`, `electron_reverse_kernel`, `SED_interpolation`, `SED_interpolation_structured`（Fortran internal structured projection build target, not a public Python export）, `pair_absorption`, `ssc_spectrum`, `hadronic_forward_1d`, `hadronic_reverse_1d`, `structured_jet_1d`。
 
 ## 测试与基准
 

@@ -120,7 +120,7 @@ ASGARD 的动力学实现不追求单一解析标度，而是在同一右端项�
 
 ## 4. 反向激波动力学的分支处理
 
-反向激波入口是 `src/Dynamics/Dynamics_reverse.f90`。该路径把穿越前后作为不同物理分支处理，避免一个 RK 步跨过不连续方程组。
+反向激波 f2py 入口 `Dynamics_reverse.dynamics_reverse` 位于 `src/Dynamics/reverse_shock.f90`。first RS 和 density-jump multiple RS 使用同一个状态推进循环：每个输出时刻先把 first 分支推进到目标时间，写主 RS 输出，再用相邻两个状态扫描 jump window 并写 multiple 分支诊断。穿越前后仍作为不同物理分支处理，避免一个 RK 步跨过不连续方程组。
 
 穿越前使用
 
@@ -174,7 +174,7 @@ B_3
 | --- | --- | --- |
 | \(M_{\rm ej,b}=E_{\rm iso}/[(1+\sigma)\eta_0c^2]\) | 有限磁化下的 baryonic ejecta mass | `Dynamics_reverse`, `structured_jet_1d` 主流程内显式分支 |
 | \(C=u_{4s}/u_{3s}\) | 有限强度 MHD jump 压缩比 | `rs_vegas_comp`, `rs_vegas_ud` |
-| \(\epsilon_{\rm th,3}\) | 下游热比内能和 \(\mathrm{d}U_{3,{\rm sh}}\) | `rs_mag_specific_internal` |
+| \(\epsilon_{\rm th,3}\) | 下游热比内能和 \(\mathrm{d}U_{3,{\rm sh}}\) | `rs_mag_internal` |
 | \(B_{4,{\rm ord}}=\sqrt{4\pi c^2\sigma\rho_4}\) | 上游有序磁场 | `reverse_rhs` 主流程内显式分支 |
 | \(M_{B,{\rm eff}}\) | 有序场磁压焓对 bulk 方程的惯性贡献 | `compute_ordered_magnetic_inertia` |
 

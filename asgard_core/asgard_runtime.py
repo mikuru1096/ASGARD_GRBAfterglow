@@ -24,6 +24,7 @@ from asgard_core.hadronic_processes import (
     HUMMER2010_OPERATOR_BACKEND,
 )
 from asgard_core.hadronic_processes import PP_DELTA_BACKEND
+from asgard_core.hadronic_processes import positive_loglog_interp
 from asgard_core.asgard_config import RuntimeConfig
 from asgard_core.asgard_types import (
     ReverseShockParameters,
@@ -65,6 +66,12 @@ ELECTRON_SHARED_1D_TRANSPORT_IDS = {
 
 _ELECTRON_STANDARD_1D_SOLVERS = {"t2g1_1d", "slc1_1d", "charint_1d", "dg_1d"}
 _ELECTRON_1D_GRID_LABELS = {"dg_1d": "log-four-velocity-1d-dg"}
+_ELECTRON_ENTRYPOINTS = {
+    "charint_1d": "fs_charint_1d",
+    "dg_1d": "fs_dg_1d",
+    "slc1_1d": "fs_slc1_1d",
+    "t2g1_1d": "fs_t2g1_1d",
+}
 
 
 @cache
@@ -536,7 +543,7 @@ def solve_dynamics(
 
 def _solve_electron_1d_standard(boundary, dynamics, v_seed, config, solver_name, return_report):
     module = _electron_module(solver_name)
-    func = getattr(module, f"fs_electron_{solver_name}")
+    func = getattr(module, _ELECTRON_ENTRYPOINTS[solver_name])
     args = [
         boundary, dynamics.r_tobs, dynamics.r_gamma, dynamics.radius, v_seed,
         config.num_gam_e, config.index_y, config.index_syn_integr, config.num_threads,
@@ -570,7 +577,7 @@ def solve_electron(
         raise NotImplementedError("thermal_electrons currently requires electron_solver='fullhide_1d' or 'fullhide_1d_hz'.")
     if solver_name == "weno5_1d":
         electron_weno5_module = _electron_module(solver_name)
-        gam_e, d_n_gam_e, l_syn_spec, seed_syn = electron_weno5_module.fs_electron_weno5_1d(
+        gam_e, d_n_gam_e, l_syn_spec, seed_syn = electron_weno5_module.fs_weno5_1d(
             boundary,
             dynamics.r_tobs,
             dynamics.r_gamma,
@@ -658,7 +665,7 @@ def solve_electron(
     if solver_name == "fullhide_1d_hz":
         electron_fullhide_1d_module = _electron_module("fullhide_1d_hz")
         gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = _solve_fullhide_1d(
-            electron_fullhide_1d_module.fs_electron_fullhide_1d_hz,
+            electron_fullhide_1d_module.fs_fullhide_hz,
             boundary,
             dynamics,
             v_seed,
@@ -678,7 +685,7 @@ def solve_electron(
 
     electron_fullhide_1d_module = _electron_module("fullhide_1d")
     gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = _solve_fullhide_1d(
-        electron_fullhide_1d_module.fs_electron_fullhide_1d,
+        electron_fullhide_1d_module.fs_fullhide_1d,
         boundary,
         dynamics,
         v_seed,
@@ -764,7 +771,7 @@ def _solve_electron_transport_2d(
         chi_gamma_bulk,
         chi_dvolume_weight,
         b_chi_g,
-    ) = electron_2d_module.fs_electron_transport_2d_core(
+    ) = electron_2d_module.fs_transport_2d(
         boundary,
         dynamics.r_tobs,
         dynamics.r_gamma,
@@ -878,7 +885,7 @@ def solve_electron_with_cooling_seed(
             raise ValueError("joint secondary electron source must have shape (num_gam_e, num_radius).")
     electron_fullhide_1d_module = _electron_module("fullhide_1d")
     gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = (
-        electron_fullhide_1d_module.fs_electron_fullhide_1d_coupled(
+        electron_fullhide_1d_module.fs_fullhide_coupled(
             boundary,
             dynamics.r_tobs,
             dynamics.r_gamma,
@@ -1093,7 +1100,7 @@ def solve_hadronic(
             )
         return solution
 
-    outputs = hadronic_legacy_module.fs_hadronic_1d(
+    outputs = hadronic_legacy_module.hadronic_1d(
         dynamics.r_tobs,
         dynamics.r_gamma,
         dynamics.radius,
@@ -1205,7 +1212,7 @@ def _solve_hadronic_hummer_transport_coupled(
         d_n_gam_mu_plus_left, d_n_gam_mu_plus_right, l_had_pion_synch,
         l_had_muon_synch, l_had_pion_ic, l_had_muon_ic, tau_pg,
         pg_photon_survival, am3_process_power,
-    ) = hadronic_legacy_module.fs_hadronic_formal_transport_1d(
+    ) = hadronic_legacy_module.formal_transport_1d(
         dynamics.r_tobs,
         gamma_bulk,
         radius,
@@ -1303,16 +1310,8 @@ def _project_hadronic_electron_outputs(
     density_out = np.zeros((target_gamma.size, num_shell), dtype=float)
     source_out = np.zeros((target_gamma.size, num_shell), dtype=float)
     for i_shell in range(num_shell):
-        density_out[:, i_shell] = hadronic_legacy_module.fs_hadronic_positive_loglog_interp(
-            source_gamma,
-            electron_density[:, i_shell],
-            target_gamma,
-        )
-        source_out[:, i_shell] = hadronic_legacy_module.fs_hadronic_positive_loglog_interp(
-            source_gamma,
-            source_radius[:, i_shell],
-            target_gamma,
-        )
+        density_out[:, i_shell] = positive_loglog_interp(source_gamma, electron_density[:, i_shell], target_gamma)
+        source_out[:, i_shell] = positive_loglog_interp(source_gamma, source_radius[:, i_shell], target_gamma)
     return density_out, source_out
 
 
@@ -1404,7 +1403,7 @@ def solve_reverse_shock_emission(
                 * constants.para_c
                 * constants.para_c
             )
-            gam_p, d_n_gam_p, l_had_syn_spec, seed_had_syn = _hadronic_reverse_module.fs_hadronic_reverse_1d(
+            gam_p, d_n_gam_p, l_had_syn_spec, seed_had_syn = _hadronic_reverse_module.reverse_hadronic_1d(
                 np.asarray(dynamics.r_tobs, dtype=float),
                 np.asarray(dynamics.r_gamma, dtype=float),
                 np.asarray(dynamics.radius, dtype=float),
@@ -1485,7 +1484,7 @@ def _solve_shell_syn(args):
     i, radius, bfield, index_syn, gam_e, d_n_gam_e_col, v_seed = args
     if bfield <= 0.0:
         return i, None, None
-    _, p_syn, seed_syn, _ = electron_radiation_module.get_syn_selected_state(
+    _, p_syn, seed_syn, _ = electron_radiation_module.syn_state(
         index_syn, float(radius), float(bfield), 1, gam_e, d_n_gam_e_col, v_seed)
     return i, p_syn, seed_syn
 
@@ -1555,7 +1554,7 @@ def _compute_secondary_reverse_shock_synchrotron(
     (
         gam_e_sec, dist, branch_luminosity, luminosity,
         reacceleration_seed_energy, reaccelerated_energy,
-    ) = _electron_reverse_module().electron_reverse_kernel.electron_secondary_reverse_branch_reaccelerated(
+    ) = _electron_reverse_module().electron_reverse_kernel.branch_reaccel(
         reverse_params.epsilon_e,
         reverse_params.epsilon_b,
         reverse_params.p,
@@ -1564,14 +1563,14 @@ def _compute_secondary_reverse_shock_synchrotron(
         dynamics.r_tobs,
         dynamics.r_gamma,
         radius,
-        rs.secondary_branch_magnetic_field_g,
-        rs.secondary_branch_swept_mass_g,
-        rs.secondary_branch_internal_energy_erg,
-        rs.secondary_branch_comoving_volume_cm3,
-        rs.secondary_branch_gamma_m,
-        rs.secondary_branch_gamma_43,
-        rs.secondary_branch_compression,
-        parent_branch,
+        np.asfortranarray(rs.secondary_branch_magnetic_field_g, dtype=float),
+        np.asfortranarray(rs.secondary_branch_swept_mass_g, dtype=float),
+        np.asfortranarray(rs.secondary_branch_internal_energy_erg, dtype=float),
+        np.asfortranarray(rs.secondary_branch_comoving_volume_cm3, dtype=float),
+        np.asfortranarray(rs.secondary_branch_gamma_m, dtype=float),
+        np.asfortranarray(rs.secondary_branch_gamma_43, dtype=float),
+        np.asfortranarray(rs.secondary_branch_compression, dtype=float),
+        np.ascontiguousarray(parent_branch, dtype=np.int32),
         v_seed,
         config.num_gam_e,
         config.index_syn_integr,

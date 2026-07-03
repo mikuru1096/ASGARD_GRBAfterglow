@@ -49,7 +49,7 @@ def project_branch_flux(
     order = np.argsort(observer_frequency_hz)
     sorted_observer_frequency = np.asarray(observer_frequency_hz, dtype=float)[order]
     if numerics.adaptive_max_depth > 0:
-        projected = Interpolation.sed_interpolation_adaptive_theta(
+        projected = Interpolation.sed_adaptive_theta(
             boundary,
             np.asarray(characteristic_time_s, dtype=float),
             np.asarray(gamma, dtype=float),

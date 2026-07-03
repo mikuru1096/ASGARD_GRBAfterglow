@@ -2,7 +2,7 @@
       DOUBLE PRECISION FUNCTION DBESI0 (X)
 C***BEGIN PROLOGUE  DBESI0
 C***PURPOSE  Compute the hyperbolic Bessel function of the first kind
-C            of order zero.
+C            of order 0d0.
 C***LIBRARY   SLATEC (FNLIB)
 C***CATEGORY  C10B1
 C***TYPE      DOUBLE PRECISION (BESI0-S, DBESI0-D)
@@ -12,7 +12,7 @@ C***AUTHOR  Fullerton, W., (LANL)
 C***DESCRIPTION
 C
 C DBESI0(X) calculates the double precision modified (hyperbolic)
-C Bessel function of the first kind of order zero and double
+C Bessel function of the first kind of order 0d0 and double
 C precision argument X.
 C
 C Series for BI0        on the interval  0.          to  9.00000E+00

@@ -6,7 +6,7 @@
 
 - `asgard_core/hadronic_cascade.py` 提供 `compute_time_dependent_pair_cascade_sequence(...)`：主链使用的 shell-sequence time-dependent \(\gamma\gamma\) pair/synch cascade。
 - `_compute_pair_production_branch(...)` 在 `pair_cascade_iterations > 1` 时调用 shell-sequence path，返回 `pair_syn_luminosity_hz`、`pair_syn_seed_per_hz` 和 `tau_pair_path`。
-- Fortran `hadronic_pair_cascade_kernel.f90` 的单步物理是
+- Fortran `hadronic_cascade.f90` 的单步物理是
 
 \[
 \gamma+\gamma

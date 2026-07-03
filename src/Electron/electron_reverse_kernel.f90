@@ -1,37 +1,38 @@
 module electron_reverse_kernel
     use constants
-    use dynamics_common, only: dynamics_external_density_profile
-    use electron_energy_coordinate_common, only: electron_build_four_velocity_grid, electron_coord_from_xgamma, &
-                                                 electron_dxgamma_dcoord, &
-                                                 electron_coord_log_four_velocity_sq, &
-                                                 electron_four_velocity_grid_gamma_scale
-    use electron_injection_profiles, only: electron_build_kinetic_source_term_exp_cutoff_edges, &
-                                           electron_build_kinetic_source_term_exp_cutoff_coord_edges, &
-                                           electron_profile_log_cell_edges
-    use electron_common, only: electron_exp_tail_grid_factor
-    use electron_shell_transport_common, only: electron_resolve_1d_solver_id, &
-                                               electron_shell_flux_split_coord_step, &
-                                               electron_shell_dcoord_to_dndgamma_exp_centers, &
-                                               electron_solver_dg_1d, electron_solver_fullhide_1d
-    use electron_transport_common, only: electron_build_piecewise_affine_u, electron_characteristic_remap_edges, &
-                                         electron_dnx_to_dndgamma_exp_centers, electron_trace_affine_u_edges_batch, &
-                                         electron_trace_piecewise_affine_u_edges_batch, electron_u_edges_from_x, &
-                                         electron_fullhide_flux_split_step
-    use electron_transport_dg_1d_kernel, only: electron_dg1d_mesh, electron_dg1d_advance_characteristic_step, &
-                                               electron_dg1d_advance_step, &
-                                               electron_dg1d_build_four_velocity_mesh, electron_dg1d_integral, &
-                                               electron_dg1d_limit_positive_cell_preserving, &
-                                               electron_dg1d_project_kinetic_source, &
-                                               electron_dg1d_project_state, electron_dg1d_project_to_coord_cells, &
-                                               electron_dg1d_scale_to_content, electron_dg1d_tail_moment_fraction, &
-                                               electron_dg1d_apply_positive_kernel_filter
-    use electron_radiation_kernel, only: get_syn_selected_state, get_nu_a
-    use electron_cooling_kernel, only: prepare_forward_cooling_aux_batch
+    use dynamics_density_profile, only: density_profile
+    use electron_coord_common, only: build_fourvel_grid, coord_from_xg, &
+                                                 dxg_dcoord, &
+                                                 coord_fourvel, &
+                                                 fourvel_scale
+    use electron_injection_profiles, only: kinetic_edges, &
+                                           kinetic_coord, &
+                                           log_edges
+    use electron_common, only: tail_factor
+    use electron_shell_transport, only: resolve_solver, &
+                                               shell_coord_step, &
+                                               coord_to_dgamma, &
+                                               solver_dg, solver_fullhide
+    use electron_transport_common, only: build_piece_u, remap_edges, &
+                                         dnx_dgamma, trace_affine_u, &
+                                         trace_piece_u, u_edges, &
+                                         flux_split_step
+    use electron_dg_transport, only: dg_mesh, dg_char_step, &
+                                               dg_advance_step, &
+                                               dg_build_mesh, dg_integral, &
+                                               dg_limit_positive, &
+                                               dg_kinetic_source, &
+                                               dg_project_state, dg_project_cells, &
+                                               dg_scale_content, dg_tail_fraction, &
+                                               dg_filter_positive
+    use electron_radiation_kernel, only: syn_state, nua_solve
+    use electron_cooling_kernel, only: forward_cooling_aux
     implicit none
     integer, parameter :: reverse_dg_base_substeps = 10
 contains
 
-! 反向激波电子演化主驱动：注入→同步+IC冷却→隐式输运推进，IC模式遵循公开标准选择。
+! 反向激波电子演化主驱动：注入 -> 同步/IC 冷却 -> 1D 或 DG 输运推进。
+! Reverse-shock electron driver: injection -> synchrotron/IC cooling -> 1D or DG transport.
     subroutine electron_reverse_evolve(Delta_0,e_r,b_r,p_r,f_e_r,eta_0,Epsilon_e,Epsilon_b,z,A_star,dNe_ISM,para_m_ej, &
                                        R_tr,f_jump,f_wide,R0, &
                                        T_cross,R_cross,U3_cross,V3_cross,M3_cross,R_Tobs,R_Gamma,R,B3,M3_shell, &
@@ -45,139 +46,147 @@ contains
     real(8), intent(in) :: Delta_0,e_r,b_r,p_r,f_e_r,eta_0,Epsilon_e,Epsilon_b,z,A_star,dNe_ISM,para_m_ej
     real(8), intent(in) :: R_tr,f_jump,f_wide,R0
     real(8), intent(in) :: T_cross,R_cross,U3_cross,V3_cross,M3_cross
-    real(8), intent(in) :: R_Tobs(Num_R),R_Gamma(Num_R),R(Num_R),B3(Num_R),M3_shell(Num_R)
-    real(8), intent(in) :: U3_shell(Num_R),V3_shell(Num_R),V_seed(Num_nu)
-    real(8), intent(out) :: gam_e(Num_gam_e),dN_gam_e(Num_gam_e,Num_R)
-    real(8), parameter :: reverse_gamma_c_coeff=7.7d8, reverse_synch_b_coeff=0.39d0, reverse_adv_coeff=1.35d-19
-    real(8), parameter :: reverse_transrel_gamma_break=2d0
-    real(8), parameter :: reverse_dg_tail_moment_threshold=1d-10, reverse_dg_tail_moment_power=2d0
-    real(8) :: factor2,dB,gamma34,Gam_e_max,Gam_e_m,Gam_e_c,dNe,DB_min,Gam_e_max_max,Gam_e_min_global,d_x,R_loc,R_Gamma_loc,Delta
-    real(8) :: R_n4,beta4,beta2,u2,u4,f_r,dDR,dDD,Qshell,cooling_scale,R_step_mid
-    real(8) :: thermal_scale_lo,thermal_scale_hi,thermal_loss_rate,adiabatic_rate,dg_gamma_scale,coord_scale
+    real(8), intent(in), dimension(Num_R) :: R_Tobs,R_Gamma,R,B3,M3_shell
+    real(8), intent(in), dimension(Num_R) :: U3_shell,V3_shell
+    real(8), intent(in), dimension(Num_nu) :: V_seed
+    real(8), intent(out), dimension(Num_gam_e) :: gam_e
+    real(8), intent(out), dimension(Num_gam_e,Num_R) :: dN_gam_e
+    real(8), parameter :: gc_coeff=7.7d8, bsyn_coeff=0.39d0, adv_coeff=1.35d-19
+    real(8), parameter :: trans_break=2d0
+    real(8), parameter :: tail_thresh=1d-10, tail_power=2d0
+    real(8) :: factor2,dB,gamma34,gmax,gm,gc,dNe,DB_min,gmax0,gmin,d_x,rloc,gloc,Delta
+    real(8) :: rn4,beta4,beta2,u2,u4,f_r,dDR,dDD,Qshell,coolscale,R_step_mid
+    real(8) :: vol_lo,vol_hi,thermloss,adrate,dgscale,coord_scale
     real(8) :: coord_mid,dxdy
-    real(8) :: dg_gamma_low,dg_gamma_m_front,dg_gamma_high
+    real(8) :: dglow,dgmid,dghigh
     real(8) :: injection_rate,inj_hi,inj_width,mass_lo,mass_hi
-    real(8), allocatable :: dEl(:),x(:),dF1(:),temp3(:),dN_x(:),x_edge(:),coord_edge(:)
-    real(8), allocatable :: post_cross_log_state(:),post_cross_edge_map(:),post_cross_edge_work(:)
-    real(8), allocatable :: post_cross_step_back(:),post_cross_u_edge(:),post_cross_a_cell(:),post_cross_b_cell(:)
-    real(8), allocatable :: post_cross_affine_back(:,:)
-    real(8), allocatable :: dB3_serial(:),P_syn(:),Seed_syn(:),cooling_aux(:),Compton(:)
-    type(electron_dg1d_mesh) :: dg_mesh,dg_new_mesh
-    real(8), allocatable :: dg_state(:),dg_work(:),dg_dEl(:),dg_source(:)
-    logical :: crossed_reverse,post_cross_cache_ready
+    real(8), allocatable, dimension(:) :: dEl,x,dF1,temp3,dN_x,x_edge,coord_edge
+    real(8), allocatable, dimension(:) :: pc_log,pc_map,pc_work
+    real(8), allocatable, dimension(:) :: pc_back,pc_u,pc_a,pc_b
+    real(8), allocatable, dimension(:,:) :: pc_affine
+    real(8), allocatable, dimension(:) :: dB3_serial,P_syn,Seed_syn,cooling_aux,Compton
+    type(dg_mesh) :: dg_mesh,dg_new_mesh
+    real(8), allocatable, dimension(:) :: dg_state,dg_work,dg_dEl,dg_source
+    logical :: crossed_reverse,pc_ready
 
     allocate(dEl(Num_gam_e),x(Num_gam_e),dF1(Num_gam_e),temp3(Num_gam_e-1),dN_x(Num_gam_e), &
              x_edge(Num_gam_e+1),coord_edge(Num_gam_e+1), &
-             post_cross_log_state(Num_gam_e),post_cross_edge_map(Num_gam_e+1), &
-             post_cross_edge_work(Num_gam_e+1),post_cross_step_back(Num_gam_e+1), &
-             post_cross_u_edge(Num_gam_e+1),post_cross_a_cell(Num_gam_e),post_cross_b_cell(Num_gam_e), &
-             post_cross_affine_back(Num_gam_e+1,1), &
+             pc_log(Num_gam_e),pc_map(Num_gam_e+1), &
+             pc_work(Num_gam_e+1),pc_back(Num_gam_e+1), &
+             pc_u(Num_gam_e+1),pc_a(Num_gam_e),pc_b(Num_gam_e), &
+             pc_affine(Num_gam_e+1,1), &
              dB3_serial(Num_R),P_syn(Num_nu),Seed_syn(Num_nu), &
              cooling_aux(Num_gam_e),Compton(Num_gam_e))
     dB3_serial=B3
 
-    active_solver=electron_resolve_1d_solver_id(solver_id)
-    crossed_reverse=(T_cross > zero .and. R_cross > zero .and. M3_cross > zero .and. V3_cross > zero)
-    post_cross_cache_ready=.false.
-    if (maxval(B3) <= zero .or. maxval(M3_shell) <= M3_shell(1)) then
+    ! 先决定输运后端；后续 shell 循环保留同一物理源项和冷却定义。
+    ! Resolve the transport backend first; later shell loops keep the same source and cooling definitions.
+    active_solver=resolve_solver(solver_id)
+    crossed_reverse=(T_cross > 0d0 .and. R_cross > 0d0 .and. M3_cross > 0d0 .and. V3_cross > 0d0)
+    pc_ready=.false.
+    if (maxval(B3) <= 0d0 .or. maxval(M3_shell) <= M3_shell(1)) then
         do i_empty=1,Num_gam_e
             if (Num_gam_e == 1) then
-                gam_e(i_empty)=one
+                gam_e(i_empty)=1d0
             else
-                gam_e(i_empty)=ten**(dble(i_empty-1)/dble(Num_gam_e-1))
+                gam_e(i_empty)=1d1**(dble(i_empty-1)/dble(Num_gam_e-1))
             end if
         end do
-        dN_gam_e=zero
-        deallocate(dEl,x,dF1,temp3,dN_x,x_edge,coord_edge,post_cross_log_state,post_cross_edge_map, &
-                   post_cross_edge_work,post_cross_step_back,post_cross_u_edge,post_cross_a_cell, &
-                   post_cross_b_cell,post_cross_affine_back,dB3_serial,P_syn,Seed_syn,cooling_aux,Compton)
+        dN_gam_e=0d0
+        deallocate(dEl,x,dF1,temp3,dN_x,x_edge,coord_edge,pc_log,pc_map, &
+                   pc_work,pc_back,pc_u,pc_a, &
+                   pc_b,pc_affine,dB3_serial,P_syn,Seed_syn,cooling_aux,Compton)
         return
     end if
 
-    factor2=(p_r-two)/(p_r-one)*e_r*Para_m_p_div_m_e
-    if (p_r < 2.05d0) factor2=0.05d0/1.05d0*e_r*Para_m_p_div_m_e
-    beta4=dsqrt(one-one/eta_0**2); u4=dsqrt(eta_0*eta_0-one)
+    ! 初始 gamma 网格覆盖整段 RS 可能达到的最高注入能量。
+    ! The initial gamma grid spans the largest injection energy reachable over the RS history.
+    factor2=(p_r-2d0)/(p_r-1d0)*e_r*Para_m_p_DIV_m_e
+    if (p_r < 2.05d0) factor2=0.05d0/1.05d0*e_r*Para_m_p_DIV_m_e
+    beta4=dsqrt(1d0-1d0/eta_0**2); u4=dsqrt(eta_0*eta_0-1d0)
     dB3_serial(1)=dB3_serial(min(2,Num_R))
     dB=dB3_serial(1); gamma34=1.001d0
-    Gam_e_max=3d0*Para_m_energy/dsqrt(8d0*dB*Para_e**3)
-    Gam_e_m=factor2*(gamma34-one)/f_e_r+one
-    dg_gamma_scale=electron_four_velocity_grid_gamma_scale
-    dg_gamma_low=one
-    dg_gamma_m_front=Gam_e_m
-    dg_gamma_high=Gam_e_max
-    Gam_e_c=reverse_gamma_c_coeff/(one+dsqrt(e_r/b_r))/R_Gamma(1)/dB**2/(R_Tobs(1)/two)
+    gmax=3d0*Para_m_energy/dsqrt(8d0*dB*Para_e**3)
+    gm=factor2*(gamma34-1d0)/f_e_r+1d0
+    dgscale=fourvel_scale
+    dglow=1d0
+    dgmid=gm
+    dghigh=gmax
+    gc=gc_coeff/(1d0+dsqrt(e_r/b_r))/R_Gamma(1)/dB**2/(R_Tobs(1)/2d0)
 
-    call dynamics_external_density_profile(A_star,dNe_ISM,R(1),R0,1,R_tr,f_jump,f_wide,dNe)
-    DB_min=reverse_synch_b_coeff*dsqrt(Epsilon_b*dNe*(R_Gamma(Num_R)*(R_Gamma(Num_R)-one)))
-    Gam_e_max_max=3d0*Para_m_energy/dsqrt(8d0*DB_min*Para_e**3)
-    Gam_e_min_global=one
+    call density_profile(A_star,dNe_ISM,R(1),R0,1,R_tr,f_jump,f_wide,dNe)
+    DB_min=bsyn_coeff*dsqrt(Epsilon_b*dNe*(R_Gamma(Num_R)*(R_Gamma(Num_R)-1d0)))
+    gmax0=3d0*Para_m_energy/dsqrt(8d0*DB_min*Para_e**3)
+    gmin=1d0
 
+    ! 主循环每个输出壳层先重建局部 shock 状态，再推进电子谱。
+    ! The main loop rebuilds local shock state for each output shell before advancing the spectrum.
     do I_tobs=2,Num_R
-        R_Gamma_loc=(R_Gamma(I_tobs)+R_Gamma(I_tobs-1))/two
-        beta2=dsqrt(one-one/R_Gamma_loc**2)
-        u2=dsqrt(R_Gamma_loc*R_Gamma_loc-one)
-        gamma34=(R_Gamma_loc*R_Gamma_loc+eta_0*eta_0-one)/(eta_0*R_Gamma_loc+u2*u4)
-        dB=(dB3_serial(I_tobs)+dB3_serial(I_tobs-1))/two
-        Gam_e_max=3d0*Para_m_energy/dsqrt(8d0*dB*Para_e**3)
-        Gam_e_m=factor2*(gamma34-one)/f_e_r+one
+        gloc=(R_Gamma(I_tobs)+R_Gamma(I_tobs-1))/2d0
+        beta2=dsqrt(1d0-1d0/gloc**2)
+        u2=dsqrt(gloc*gloc-1d0)
+        gamma34=(gloc*gloc+eta_0*eta_0-1d0)/(eta_0*gloc+u2*u4)
+        dB=(dB3_serial(I_tobs)+dB3_serial(I_tobs-1))/2d0
+        gmax=3d0*Para_m_energy/dsqrt(8d0*dB*Para_e**3)
+        gm=factor2*(gamma34-1d0)/f_e_r+1d0
     end do
-    if (Gam_e_max_max <= Gam_e_min_global) error stop "electron_reverse_evolve: reverse electron grid maximum must exceed minimum."
+    if (gmax0 <= gmin) error stop "electron_reverse_evolve: reverse electron grid maximum must exceed minimum."
 
     do I_gam_e=1,Num_gam_e
         if (Num_gam_e == 1) then
-            gam_e(I_gam_e)=Gam_e_min_global
+            gam_e(I_gam_e)=gmin
         else
-            gam_e(I_gam_e)=Gam_e_min_global*ten**(dlog10(Gam_e_max_max/Gam_e_min_global)*(I_gam_e-1)/(Num_gam_e-1))
+            gam_e(I_gam_e)=gmin*1d1**(dlog10(gmax0/gmin)*(I_gam_e-1)/(Num_gam_e-1))
         end if
-        dN_gam_e(I_gam_e,1)=zero
+        dN_gam_e(I_gam_e,1)=0d0
     end do
 
-    coord_scale=dg_gamma_scale*dg_gamma_scale-one
-    call electron_build_four_velocity_grid(Num_gam_e,Gam_e_min_global,Gam_e_max_max,dg_gamma_scale,gam_e,coord_edge,x_edge)
-    dN_x=zero
+    coord_scale=dgscale*dgscale-1d0
+    call build_fourvel_grid(Num_gam_e,gmin,gmax0,dgscale,gam_e,coord_edge,x_edge)
+    dN_x=0d0
     d_x=coord_edge(2)-coord_edge(1)
-    R_loc=R(1)
-    if (active_solver == electron_solver_dg_1d) call initialize_reverse_dg_state()
+    rloc=R(1)
+    if (active_solver == solver_dg) call init_dg_state()
 
     do I_tobs=2,Num_R
-        R_loc=R(I_tobs-1)
-        R_Gamma_loc=(R_Gamma(I_tobs)+R_Gamma(I_tobs-1))/two
-        Delta=max(Delta_0,R_loc/Eta_0**2)
-        R_n4=para_m_ej/(4d0*pi*Para_m_p*R_loc*R_loc*Eta_0*Delta)
-        beta2=dsqrt(one-one/R_Gamma_loc**2)
-        u2=dsqrt(R_Gamma_loc*R_Gamma_loc-one)
-        gamma34=(R_Gamma_loc*R_Gamma_loc+eta_0*eta_0-one)/(eta_0*R_Gamma_loc+u2*u4)
-        dB=(dB3_serial(I_tobs)+dB3_serial(I_tobs-1))/two
-        Gam_e_max=3d0*Para_m_energy/dsqrt(8d0*dB*Para_e**3)
-        Gam_e_m=factor2*(gamma34-one)/f_e_r+one
-        Gam_e_c=reverse_gamma_c_coeff*(one+z)/R_Gamma_loc/dB**2/R_Tobs(I_tobs)
-        f_r=reverse_adv_coeff/beta2/R_Gamma_loc*dB**2/pi
-        dDR=0.7d0/(f_r*Gam_e_max+1.333d0/(R(I_tobs)+R(I_tobs-1)))
+        rloc=R(I_tobs-1)
+        gloc=(R_Gamma(I_tobs)+R_Gamma(I_tobs-1))/2d0
+        Delta=max(Delta_0,rloc/Eta_0**2)
+        rn4=para_m_ej/(4d0*pi*Para_m_p*rloc*rloc*Eta_0*Delta)
+        beta2=dsqrt(1d0-1d0/gloc**2)
+        u2=dsqrt(gloc*gloc-1d0)
+        gamma34=(gloc*gloc+eta_0*eta_0-1d0)/(eta_0*gloc+u2*u4)
+        dB=(dB3_serial(I_tobs)+dB3_serial(I_tobs-1))/2d0
+        gmax=3d0*Para_m_energy/dsqrt(8d0*dB*Para_e**3)
+        gm=factor2*(gamma34-1d0)/f_e_r+1d0
+        gc=gc_coeff*(1d0+z)/gloc/dB**2/R_Tobs(I_tobs)
+        f_r=adv_coeff/beta2/gloc*dB**2/pi
+        dDR=0.7d0/(f_r*gmax+1.333d0/(R(I_tobs)+R(I_tobs-1)))
         dDD=R(I_tobs)-R(I_tobs-1)
-        if (dB <= zero) then
+        if (dB <= 0d0) then
             dN_gam_e(:,I_tobs)=dN_gam_e(:,I_tobs-1)
             cycle
         end if
-        thermal_loss_rate=zero
+        thermloss=0d0
         if (crossed_reverse .and. R(I_tobs) > R_cross) then
             if (R(I_tobs-1) < R_cross) then
-                thermal_scale_lo=V3_cross
-                thermal_scale_hi=V3_shell(I_tobs)
+                vol_lo=V3_cross
+                vol_hi=V3_shell(I_tobs)
             else
-                thermal_scale_lo=V3_shell(I_tobs-1)
-                thermal_scale_hi=V3_shell(I_tobs)
+                vol_lo=V3_shell(I_tobs-1)
+                vol_hi=V3_shell(I_tobs)
             end if
-            if (thermal_scale_lo <= zero .or. thermal_scale_hi <= zero) &
+            if (vol_lo <= 0d0 .or. vol_hi <= 0d0) &
                 error stop "electron_reverse_evolve: post-crossing comoving volume must be positive."
             if (R(I_tobs-1) < R_cross) then
-                thermal_loss_rate=dlog(thermal_scale_hi/thermal_scale_lo)/(3d0*(R(I_tobs)-R_cross))
+                thermloss=dlog(vol_hi/vol_lo)/(3d0*(R(I_tobs)-R_cross))
             else
-                thermal_loss_rate=dlog(thermal_scale_hi/thermal_scale_lo)/(3d0*dDD)
+                thermloss=dlog(vol_hi/vol_lo)/(3d0*dDD)
             end if
-            if (thermal_loss_rate < zero) &
+            if (thermloss < 0d0) &
                 error stop "electron_reverse_evolve: post-crossing comoving volume must not decrease."
         end if
-        injection_rate=zero
+        injection_rate=0d0
         if ((.not. crossed_reverse) .or. R(I_tobs-1) < R_cross) then
             if (crossed_reverse) then
                 inj_hi=min(R(I_tobs),R_cross)
@@ -197,201 +206,200 @@ contains
         dDR=dDD/L1
         do i_coord=1,Num_gam_e
             coord_mid=0.5d0*(coord_edge(i_coord)+coord_edge(i_coord+1))
-            dxdy=electron_dxgamma_dcoord(electron_coord_log_four_velocity_sq,coord_scale,coord_mid)
-            dN_x(i_coord)=dN_gam_e(i_coord,I_tobs-1)*gam_e(i_coord)*dlog(ten)*dxdy
+            dxdy=dxg_dcoord(coord_fourvel,coord_scale,coord_mid)
+            dN_x(i_coord)=dN_gam_e(i_coord,I_tobs-1)*gam_e(i_coord)*dlog(1d1)*dxdy
         end do
 
-        call compute_reverse_cooling_loss(I_tobs)
-        call advance_reverse_transport_shell(I_tobs)
+        call compute_cooling(I_tobs)
+        call advance_shell(I_tobs)
     end do
 
-    deallocate(dEl,x,dF1,temp3,dN_x,x_edge,coord_edge,post_cross_log_state,post_cross_edge_map, &
-               post_cross_edge_work,post_cross_step_back,post_cross_u_edge,post_cross_a_cell, &
-               post_cross_b_cell,post_cross_affine_back,dB3_serial,P_syn,Seed_syn,cooling_aux,Compton)
+    deallocate(dEl,x,dF1,temp3,dN_x,x_edge,coord_edge,pc_log,pc_map, &
+               pc_work,pc_back,pc_u,pc_a, &
+               pc_b,pc_affine,dB3_serial,P_syn,Seed_syn,cooling_aux,Compton)
     if (allocated(dg_state)) deallocate(dg_state)
     if (allocated(dg_work)) deallocate(dg_work,dg_dEl,dg_source)
 
 contains
 
-    subroutine compute_reverse_cooling_loss(I_tobs)
+    ! 当前壳层同步辐射和 IC 冷却；index_Y 控制公开冷却模式。
+    ! Synchrotron and IC cooling for the current shell; index_Y selects the public cooling mode.
+    subroutine compute_cooling(I_tobs)
     implicit none
     integer, intent(in) :: I_tobs
-    real(8) :: P_syn_column(Num_nu,1),Seed_syn_column(Num_nu,1),cooling_aux_column(Num_gam_e,1)
-    real(8) :: P_emit_tmp(Num_nu),Tau_syn_tmp(Num_nu)
+    real(8), dimension(Num_nu,1) :: P_syn_column,Seed_syn_column
+    real(8), dimension(Num_gam_e,1) :: cooling_aux_column
+    real(8), dimension(Num_nu) :: P_emit_tmp,Tau_syn_tmp
 
-        call get_syn_selected_state(index_syn_intger,R(I_tobs-1),dB,Num_gam_e,Num_nu,n_threads, &
+        call syn_state(index_syn_intger,R(I_tobs-1),dB,Num_gam_e,Num_nu,n_threads, &
                                     gam_e,dN_gam_e(:,I_tobs-1),V_seed,P_emit_tmp,P_syn,Seed_syn,Tau_syn_tmp)
         P_syn_column(:,1)=P_syn
         Seed_syn_column(:,1)=Seed_syn
-        call prepare_forward_cooling_aux_batch(index_Y,Num_gam_e,Num_nu,1,n_threads,gam_e,V_seed, &
+        call forward_cooling_aux(index_Y,Num_gam_e,Num_nu,1,n_threads,gam_e,V_seed, &
                                                P_syn_column,Seed_syn_column,cooling_aux_column)
         cooling_aux=cooling_aux_column(:,1)
         select case(index_Y)
         case(0)
             dEl=f_r*gam_e
         case(1)
-            cooling_scale=one/(beta2*R_Gamma_loc*Para_c)
-            dEl=(f_r+cooling_aux*cooling_scale)*gam_e
+            coolscale=1d0/(beta2*gloc*Para_c)
+            dEl=(f_r+cooling_aux*coolscale)*gam_e
         case(2)
             Qshell=4d0*pi*R(I_tobs-1)*R(I_tobs-1)*Para_c
-            Compton=one+cooling_aux/Qshell/(4d0*R_Gamma_loc*R_Gamma_loc*R_n4*Para_m_p_E)
-            Gam_e_max=Gam_e_max/dsqrt(Compton(Num_gam_e))
+            Compton=1d0+cooling_aux/Qshell/(4d0*gloc*gloc*rn4*Para_m_p_E)
+            gmax=gmax/dsqrt(Compton(Num_gam_e))
             dEl=f_r*Compton*gam_e
         case default
             error stop 'electron_reverse_evolve: index_Y must be 0, 1, or 2.'
         end select
-    end subroutine compute_reverse_cooling_loss
+    end subroutine compute_cooling
 
-    subroutine advance_reverse_transport_shell(I_tobs)
+    ! 推进一个输出壳层：pre-crossing 有注入，post-crossing 只做冷却和膨胀。
+    ! Advance a single output shell: pre-crossing injects particles; post-crossing only cools and expands.
+    subroutine advance_shell(I_tobs)
     implicit none
     integer, intent(in) :: I_tobs
     integer :: i_node
-    real(8) :: source_norm_step
-    logical :: pure_post_cross_shell
+    real(8) :: srcstep
+    logical :: postonly
 
-        pure_post_cross_shell = (crossed_reverse .and. R(I_tobs - 1) >= R_cross)
-        if (pure_post_cross_shell) then
-            call advance_reverse_post_cross_analytic(I_tobs)
+        postonly = (crossed_reverse .and. R(I_tobs - 1) >= R_cross)
+        if (postonly) then
+            call advance_postcross(I_tobs)
             return
         end if
-        if (active_solver == electron_solver_dg_1d) then
-            call remesh_reverse_dg_state()
+        if (active_solver == solver_dg) then
+            call remesh_dg_state()
             if (index_Y /= 0) then
                 do i_node=1,dg_mesh%ntot
-                    dg_dEl(i_node)=reverse_interp_log_grid(Num_gam_e,x_edge,dEl,dg_mesh%x_gamma(i_node))
+                    dg_dEl(i_node)=log_interp(Num_gam_e,x_edge,dEl,dg_mesh%x_gamma(i_node))
                 end do
             end if
             do L=1,L1
                 if (index_Y == 0) then
-                    R_step_mid=R_loc+0.5d0*dDR
-                    call prepare_reverse_transport_substep_state(I_tobs,R_step_mid)
+                    R_step_mid=rloc+0.5d0*dDR
+                    call prepare_substep_state(I_tobs,R_step_mid)
                 else
-                    R_step_mid=R_loc+dDR
+                    R_step_mid=rloc+dDR
                 end if
                 if ((.not. crossed_reverse) .or. R_cross >= R_step_mid) then
-                    source_norm_step=injection_rate
+                    srcstep=injection_rate
                 else
-                    source_norm_step=zero
+                    srcstep=0d0
                 end if
                 if ((.not. crossed_reverse) .or. R_step_mid <= R_cross) then
-                    adiabatic_rate=one/R_step_mid
+                    adrate=1d0/R_step_mid
                 else
-                    adiabatic_rate=thermal_loss_rate
+                    adrate=thermloss
                 end if
-                if (source_norm_step > zero) then
-                    call remesh_reverse_dg_state()
+                if (srcstep > 0d0) then
+                    call remesh_dg_state()
                     if (index_Y /= 0) then
                         do i_node=1,dg_mesh%ntot
-                            dg_dEl(i_node)=reverse_interp_log_grid(Num_gam_e,x_edge,dEl,dg_mesh%x_gamma(i_node))
+                            dg_dEl(i_node)=log_interp(Num_gam_e,x_edge,dEl,dg_mesh%x_gamma(i_node))
                         end do
                     end if
                 end if
-                if (source_norm_step > zero) then
-                    call electron_dg1d_project_kinetic_source(dg_mesh,source_norm_step,p_r,Gam_e_m,Gam_e_max,dg_source)
+                if (srcstep > 0d0) then
+                    call dg_kinetic_source(dg_mesh,srcstep,p_r,gm,gmax,dg_source)
                 else
-                    dg_source=zero
+                    dg_source=0d0
                 end if
-                call electron_dg1d_scale_to_content(dg_mesh,source_norm_step,dg_source)
+                call dg_scale_content(dg_mesh,srcstep,dg_source)
                 if (index_Y == 0) then
-                    call electron_dg1d_advance_characteristic_step(dg_mesh,dDR,f_r,adiabatic_rate,dg_source, &
+                    call dg_char_step(dg_mesh,dDR,f_r,adrate,dg_source, &
                                                                    dg_state,dg_work)
                 else
-                    call electron_dg1d_advance_step(dg_mesh,adiabatic_rate,dDR,dg_dEl,dg_source,dg_state,dg_work)
-                    call electron_dg1d_limit_positive_cell_preserving(dg_mesh,dg_work)
+                    call dg_advance_step(dg_mesh,adrate,dDR,dg_dEl,dg_source,dg_state,dg_work)
+                    call dg_limit_positive(dg_mesh,dg_work)
                 end if
-                call electron_dg1d_apply_positive_kernel_filter(dg_mesh,dg_work)
-                call electron_dg1d_limit_positive_cell_preserving(dg_mesh,dg_work)
+                call dg_filter_positive(dg_mesh,dg_work)
+                call dg_limit_positive(dg_mesh,dg_work)
                 dg_state=dg_work
-                if (source_norm_step > zero .and. dg_gamma_low <= one) dg_gamma_low=Gam_e_m
-                if (dg_gamma_low > one) call advance_reverse_dg_front_value(dg_gamma_low)
-                if (source_norm_step > zero) dg_gamma_low=min(dg_gamma_low,Gam_e_m)
-                dg_gamma_low=max(one,dg_gamma_low)
-                call advance_reverse_dg_injection_front(source_norm_step)
-                if (dg_gamma_high > one) call advance_reverse_dg_front_value(dg_gamma_high)
-                if (source_norm_step > zero) dg_gamma_high=max(dg_gamma_high,Gam_e_max)
-                R_loc=R_loc+dDR
+                if (srcstep > 0d0 .and. dglow <= 1d0) dglow=gm
+                if (dglow > 1d0) call advance_dg_front(dglow)
+                if (srcstep > 0d0) dglow=min(dglow,gm)
+                dglow=max(1d0,dglow)
+                call advance_dg_inject(srcstep)
+                if (dghigh > 1d0) call advance_dg_front(dghigh)
+                if (srcstep > 0d0) dghigh=max(dghigh,gmax)
+                rloc=rloc+dDR
             end do
-            call electron_dg1d_project_to_coord_cells(dg_mesh,dg_state,Num_gam_e,coord_edge,dF1)
-            call electron_shell_dcoord_to_dndgamma_exp_centers(Num_gam_e,coord_edge,coord_scale, &
+            call dg_project_cells(dg_mesh,dg_state,Num_gam_e,coord_edge,dF1)
+            call coord_to_dgamma(Num_gam_e,coord_edge,coord_scale, &
                                                                gam_e,dF1,dN_gam_e(:,I_tobs))
-            where (dN_gam_e(:,I_tobs) > zero)
-                dN_gam_e(:,I_tobs)=dN_gam_e(:,I_tobs)
-            elsewhere
-                dN_gam_e(:,I_tobs)=zero
-            end where
-            dN_x=dN_gam_e(:,I_tobs)*gam_e*dlog(ten)
+            where (dN_gam_e(:,I_tobs) <= 0d0) dN_gam_e(:,I_tobs)=0d0
+            dN_x=dN_gam_e(:,I_tobs)*gam_e*dlog(1d1)
             return
         end if
 
         do L=1,L1
             if (index_Y == 0) then
-                R_step_mid=R_loc+0.5d0*dDR
-                call prepare_reverse_transport_substep_state(I_tobs,R_step_mid)
+                R_step_mid=rloc+0.5d0*dDR
+                call prepare_substep_state(I_tobs,R_step_mid)
             else
-                R_loc=R_loc+dDR
-                R_step_mid=R_loc
+                rloc=rloc+dDR
+                R_step_mid=rloc
             end if
             if ((.not. crossed_reverse) .or. R_cross >= R_step_mid) then
-                call electron_build_kinetic_source_term_exp_cutoff_coord_edges(Num_gam_e,coord_edge,coord_scale, &
-                                                                               Gam_e_m,Gam_e_max,injection_rate,p_r,dF1)
+                call kinetic_coord(Num_gam_e,coord_edge,coord_scale, &
+                                                                               gm,gmax,injection_rate,p_r,dF1)
             else
-                dF1=zero
+                dF1=0d0
             end if
             if ((.not. crossed_reverse) .or. R_step_mid <= R_cross) then
-                adiabatic_rate=one/R_step_mid
+                adrate=1d0/R_step_mid
             else
-                adiabatic_rate=thermal_loss_rate
+                adrate=thermloss
             end if
-            call electron_shell_flux_split_coord_step(Num_gam_e,dDR,coord_edge,coord_scale,dEl,adiabatic_rate,dF1,dN_x,x)
+            call shell_coord_step(Num_gam_e,dDR,coord_edge,coord_scale,dEl,adrate,dF1,dN_x,x)
             dN_x=x
-            if (index_Y == 0) R_loc=R_loc+dDR
-            if (L == L1) call electron_shell_dcoord_to_dndgamma_exp_centers(Num_gam_e,coord_edge,coord_scale, &
+            if (index_Y == 0) rloc=rloc+dDR
+            if (L == L1) call coord_to_dgamma(Num_gam_e,coord_edge,coord_scale, &
                                                                             gam_e,dN_x,dN_gam_e(:,I_tobs))
         end do
-    end subroutine advance_reverse_transport_shell
+    end subroutine advance_shell
 
-    subroutine advance_reverse_post_cross_analytic(I_tobs)
+    ! Crossing 后没有新注入，沿特征线搬运既有电子谱。
+    ! After crossing there is no new injection; advect the existing spectrum along characteristics.
+    subroutine advance_postcross(I_tobs)
     implicit none
     integer, intent(in) :: I_tobs
 
-        dF1=zero
-        if (.not. post_cross_cache_ready) then
-            post_cross_log_state=dN_gam_e(:,I_tobs-1)*gam_e*dlog(ten)
-            post_cross_edge_map=x_edge
-            post_cross_cache_ready=.true.
+        dF1=0d0
+        if (.not. pc_ready) then
+            pc_log=dN_gam_e(:,I_tobs-1)*gam_e*dlog(1d1)
+            pc_map=x_edge
+            pc_ready=.true.
         end if
         do L=1,L1
-            R_step_mid=R_loc+0.5d0*dDR
+            R_step_mid=rloc+0.5d0*dDR
             if (index_Y == 0) then
-                call prepare_reverse_transport_substep_state(I_tobs,R_step_mid)
-                call electron_u_edges_from_x(Num_gam_e,x_edge,post_cross_u_edge)
-                call electron_trace_affine_u_edges_batch(Num_gam_e,1,post_cross_u_edge,(/dDR/), &
-                                                         f_r,thermal_loss_rate,post_cross_affine_back)
-                post_cross_step_back=post_cross_affine_back(:,1)
+                call prepare_substep_state(I_tobs,R_step_mid)
+                call u_edges(Num_gam_e,x_edge,pc_u)
+                call trace_affine_u(Num_gam_e,1,pc_u,[dDR], &
+                                                         f_r,thermloss,pc_affine)
+                pc_back=pc_affine(:,1)
             else
-                call electron_build_piecewise_affine_u(Num_gam_e,x_edge,gam_e,dEl,thermal_loss_rate, &
-                                                       post_cross_u_edge,post_cross_a_cell,post_cross_b_cell)
-                call electron_trace_piecewise_affine_u_edges_batch(Num_gam_e,1,post_cross_u_edge,post_cross_u_edge, &
-                                                                   post_cross_a_cell,post_cross_b_cell,(/dDR/), &
-                                                                   post_cross_affine_back)
-                post_cross_step_back=post_cross_affine_back(:,1)
+                call build_piece_u(Num_gam_e,x_edge,gam_e,dEl,thermloss, &
+                                                       pc_u,pc_a,pc_b)
+                call trace_piece_u(Num_gam_e,1,pc_u,pc_u, &
+                                                                   pc_a,pc_b,[dDR], &
+                                                                   pc_affine)
+                pc_back=pc_affine(:,1)
             end if
             do i_edge=1,Num_gam_e+1
-                post_cross_edge_work(i_edge)=reverse_post_cross_map_value(post_cross_step_back(i_edge))
+                pc_work(i_edge)=postcross_map(pc_back(i_edge))
             end do
-            post_cross_edge_map=post_cross_edge_work
-            R_loc=R_loc+dDR
+            pc_map=pc_work
+            rloc=rloc+dDR
         end do
-        call electron_characteristic_remap_edges(Num_gam_e,x_edge,post_cross_edge_map,post_cross_log_state,dN_x,.true.)
-        call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,I_tobs))
-        where (dN_gam_e(:,I_tobs) > zero)
-            dN_gam_e(:,I_tobs)=dN_gam_e(:,I_tobs)
-        elsewhere
-            dN_gam_e(:,I_tobs)=zero
-        end where
-    end subroutine advance_reverse_post_cross_analytic
+        call remap_edges(Num_gam_e,x_edge,pc_map,pc_log,dN_x,.true.)
+        call dnx_dgamma(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,I_tobs))
+        where (dN_gam_e(:,I_tobs) <= 0d0) dN_gam_e(:,I_tobs)=0d0
+    end subroutine advance_postcross
 
-    real(8) function reverse_post_cross_map_value(x_eval) result(x_cross)
+    real(8) function postcross_map(x_eval) result(x_cross)
     implicit none
     integer :: left,right,mid
     real(8), intent(in) :: x_eval
@@ -399,13 +407,13 @@ contains
 
         if (x_eval <= x_edge(1)) then
             frac=(x_eval-x_edge(1))/(x_edge(2)-x_edge(1))
-            x_cross=post_cross_edge_map(1)+frac*(post_cross_edge_map(2)-post_cross_edge_map(1))
+            x_cross=pc_map(1)+frac*(pc_map(2)-pc_map(1))
             return
         end if
         if (x_eval >= x_edge(Num_gam_e+1)) then
             frac=(x_eval-x_edge(Num_gam_e+1))/(x_edge(Num_gam_e+1)-x_edge(Num_gam_e))
-            x_cross=post_cross_edge_map(Num_gam_e+1)+ &
-                    frac*(post_cross_edge_map(Num_gam_e+1)-post_cross_edge_map(Num_gam_e))
+            x_cross=pc_map(Num_gam_e+1)+ &
+                    frac*(pc_map(Num_gam_e+1)-pc_map(Num_gam_e))
             return
         end if
         left=1
@@ -419,38 +427,38 @@ contains
             end if
         end do
         frac=(x_eval-x_edge(left))/(x_edge(left+1)-x_edge(left))
-        x_cross=post_cross_edge_map(left)+frac*(post_cross_edge_map(left+1)-post_cross_edge_map(left))
-    end function reverse_post_cross_map_value
+        x_cross=pc_map(left)+frac*(pc_map(left+1)-pc_map(left))
+    end function postcross_map
 
-    subroutine initialize_reverse_dg_state()
+    subroutine init_dg_state()
     implicit none
 
-        call electron_dg1d_build_four_velocity_mesh(x_edge(1),reverse_dg_active_xmax(),dlog10(reverse_dg_low_break()), &
-                                                    dlog10(reverse_dg_injection_break()), &
-                                                    dlog10(reverse_dg_upper_break()),dg_gamma_scale,dg_mesh)
+        call dg_build_mesh(x_edge(1),dg_active_xmax(),dlog10(dg_low_break()), &
+                                                    dlog10(dg_inject_break()), &
+                                                    dlog10(dg_upper_break()),dgscale,dg_mesh)
         allocate(dg_state(dg_mesh%ntot))
-        dg_state=zero
-    end subroutine initialize_reverse_dg_state
+        dg_state=0d0
+    end subroutine init_dg_state
 
-    subroutine remesh_reverse_dg_state()
+    subroutine remesh_dg_state()
     implicit none
 
-        call electron_dg1d_build_four_velocity_mesh(x_edge(1),reverse_dg_active_xmax(),dlog10(reverse_dg_low_break()), &
-                                                    dlog10(reverse_dg_injection_break()), &
-                                                    dlog10(reverse_dg_upper_break()),dg_gamma_scale,dg_new_mesh)
-        call ensure_reverse_dg_work(dg_new_mesh%ntot)
-        call electron_dg1d_project_state(dg_mesh,dg_state,dg_new_mesh,dg_work)
-        call electron_dg1d_apply_positive_kernel_filter(dg_new_mesh,dg_work)
-        call electron_dg1d_limit_positive_cell_preserving(dg_new_mesh,dg_work)
+        call dg_build_mesh(x_edge(1),dg_active_xmax(),dlog10(dg_low_break()), &
+                                                    dlog10(dg_inject_break()), &
+                                                    dlog10(dg_upper_break()),dgscale,dg_new_mesh)
+        call ensure_dg_work(dg_new_mesh%ntot)
+        call dg_project_state(dg_mesh,dg_state,dg_new_mesh,dg_work)
+        call dg_filter_positive(dg_new_mesh,dg_work)
+        call dg_limit_positive(dg_new_mesh,dg_work)
         if (size(dg_state) /= dg_new_mesh%ntot) then
             deallocate(dg_state)
             allocate(dg_state(dg_new_mesh%ntot))
         end if
         dg_state=dg_work
         dg_mesh=dg_new_mesh
-    end subroutine remesh_reverse_dg_state
+    end subroutine remesh_dg_state
 
-    subroutine ensure_reverse_dg_work(ntot)
+    subroutine ensure_dg_work(ntot)
     implicit none
     integer, intent(in) :: ntot
 
@@ -458,108 +466,110 @@ contains
             if (size(dg_work) /= ntot) deallocate(dg_work,dg_dEl,dg_source)
         end if
         if (.not. allocated(dg_work)) allocate(dg_work(ntot),dg_dEl(ntot),dg_source(ntot))
-    end subroutine ensure_reverse_dg_work
+    end subroutine ensure_dg_work
 
-    subroutine prepare_reverse_transport_substep_state(I_tobs,radius_eval)
+    subroutine prepare_substep_state(I_tobs,radius_eval)
     implicit none
     integer, intent(in) :: I_tobs
     real(8), intent(in) :: radius_eval
 
-        R_Gamma_loc=reverse_shell_linear_value(I_tobs,R_Gamma,radius_eval)
-        beta2=dsqrt(one-one/R_Gamma_loc**2)
-        u2=dsqrt(R_Gamma_loc*R_Gamma_loc-one)
-        gamma34=(R_Gamma_loc*R_Gamma_loc+eta_0*eta_0-one)/(eta_0*R_Gamma_loc+u2*u4)
-        dB=reverse_shell_linear_value(I_tobs,dB3_serial,radius_eval)
-        Gam_e_max=3d0*Para_m_energy/dsqrt(8d0*dB*Para_e**3)
-        Gam_e_m=factor2*(gamma34-one)/f_e_r+one
-        f_r=reverse_adv_coeff/beta2/R_Gamma_loc*dB**2/pi
+        gloc=shell_linear_value(I_tobs,R_Gamma,radius_eval)
+        beta2=dsqrt(1d0-1d0/gloc**2)
+        u2=dsqrt(gloc*gloc-1d0)
+        gamma34=(gloc*gloc+eta_0*eta_0-1d0)/(eta_0*gloc+u2*u4)
+        dB=shell_linear_value(I_tobs,dB3_serial,radius_eval)
+        gmax=3d0*Para_m_energy/dsqrt(8d0*dB*Para_e**3)
+        gm=factor2*(gamma34-1d0)/f_e_r+1d0
+        f_r=adv_coeff/beta2/gloc*dB**2/pi
         dEl=f_r*gam_e
-    end subroutine prepare_reverse_transport_substep_state
+    end subroutine prepare_substep_state
 
-    real(8) function reverse_shell_linear_value(i_shell,values,radius_eval) result(value)
+    real(8) function shell_linear_value(i_shell,values,radius_eval) result(value)
     implicit none
     integer, intent(in) :: i_shell
-    real(8), intent(in) :: values(Num_R),radius_eval
+    real(8), intent(in), dimension(Num_R) :: values
+    real(8), intent(in) :: radius_eval
     real(8) :: frac
 
         frac=(radius_eval-R(i_shell-1))/(R(i_shell)-R(i_shell-1))
         value=values(i_shell-1)+frac*(values(i_shell)-values(i_shell-1))
-    end function reverse_shell_linear_value
+    end function shell_linear_value
 
-    real(8) function reverse_dg_upper_break() result(gamma_break)
+    real(8) function dg_upper_break() result(gamma_break)
     implicit none
 
-        if ((.not. crossed_reverse) .or. R_loc < R_cross) then
-            gamma_break=Gam_e_max
+        if ((.not. crossed_reverse) .or. rloc < R_cross) then
+            gamma_break=gmax
         else
-            gamma_break=dg_gamma_high
+            gamma_break=dghigh
         end if
-    end function reverse_dg_upper_break
+    end function dg_upper_break
 
-    real(8) function reverse_dg_active_xmax() result(x_max)
+    real(8) function dg_active_xmax() result(x_max)
     implicit none
     real(8) :: gamma_grid_max,tail_fraction
 
-        gamma_grid_max=ten**x_edge(Num_gam_e+1)
-        x_max=dlog10(min(gamma_grid_max,electron_exp_tail_grid_factor*reverse_dg_upper_break()))
+        gamma_grid_max=1d1**x_edge(Num_gam_e+1)
+        x_max=dlog10(min(gamma_grid_max,tail_factor*dg_upper_break()))
         if (allocated(dg_state)) then
             if (x_max < dg_mesh%x_gamma(dg_mesh%ntot)) then
-                call electron_dg1d_tail_moment_fraction(dg_mesh,dg_state,ten**x_max, &
-                                                        reverse_dg_tail_moment_power,tail_fraction)
-                if (tail_fraction > reverse_dg_tail_moment_threshold) x_max=dg_mesh%x_gamma(dg_mesh%ntot)
+                call dg_tail_fraction(dg_mesh,dg_state,1d1**x_max, &
+                                                        tail_power,tail_fraction)
+                if (tail_fraction > tail_thresh) x_max=dg_mesh%x_gamma(dg_mesh%ntot)
             end if
         end if
-    end function reverse_dg_active_xmax
+    end function dg_active_xmax
 
-    real(8) function reverse_dg_low_break() result(gamma_break)
+    real(8) function dg_low_break() result(gamma_break)
     implicit none
 
-        gamma_break=one
-        if (dg_gamma_low > one) gamma_break=min(dg_gamma_low,Gam_e_m)
+        gamma_break=1d0
+        if (dglow > 1d0) gamma_break=min(dglow,gm)
         ! Resolve the trans-relativistic kinetic-source singularity when gamma_m is nearly 1.
-        if (Gam_e_m < reverse_transrel_gamma_break .and. Gam_e_max > reverse_transrel_gamma_break) &
-            gamma_break=reverse_transrel_gamma_break
-    end function reverse_dg_low_break
+        if (gm < trans_break .and. gmax > trans_break) &
+            gamma_break=trans_break
+    end function dg_low_break
 
-    subroutine advance_reverse_dg_injection_front(source_norm)
+    subroutine advance_dg_inject(source_norm)
     implicit none
     real(8), intent(in) :: source_norm
 
-        if (source_norm > zero) then
-            dg_gamma_m_front=Gam_e_m
-        else if (dg_gamma_m_front > one) then
-            call advance_reverse_dg_front_value(dg_gamma_m_front)
+        if (source_norm > 0d0) then
+            dgmid=gm
+        else if (dgmid > 1d0) then
+            call advance_dg_front(dgmid)
         end if
-        dg_gamma_m_front=max(one,dg_gamma_m_front)
-    end subroutine advance_reverse_dg_injection_front
+        dgmid=max(1d0,dgmid)
+    end subroutine advance_dg_inject
 
-    real(8) function reverse_dg_injection_break() result(gamma_break)
+    real(8) function dg_inject_break() result(gamma_break)
     implicit none
 
-        gamma_break=Gam_e_m
-        if (crossed_reverse .and. R_loc >= R_cross .and. dg_gamma_m_front > one) gamma_break=dg_gamma_m_front
-    end function reverse_dg_injection_break
+        gamma_break=gm
+        if (crossed_reverse .and. rloc >= R_cross .and. dgmid > 1d0) gamma_break=dgmid
+    end function dg_inject_break
 
-    subroutine advance_reverse_dg_front_value(gamma_front)
+    subroutine advance_dg_front(gamma_front)
     implicit none
     real(8), intent(inout) :: gamma_front
     real(8) :: exp_b,loss_front
 
         if (index_Y == 0) then
-            if (abs(adiabatic_rate*dDR) <= 1d-10) then
-                gamma_front=gamma_front/(one+f_r*gamma_front*dDR)
+            if (abs(adrate*dDR) <= 1d-10) then
+                gamma_front=gamma_front/(1d0+f_r*gamma_front*dDR)
             else
-                exp_b=dexp(-adiabatic_rate*dDR)
-                gamma_front=gamma_front*exp_b/(one+(f_r/adiabatic_rate)*gamma_front*(one-exp_b))
+                exp_b=dexp(-adrate*dDR)
+                gamma_front=gamma_front*exp_b/(1d0+(f_r/adrate)*gamma_front*(1d0-exp_b))
             end if
         else
-            loss_front=reverse_interp_log_grid(Num_gam_e,x_edge,dEl,dlog10(gamma_front))
-            gamma_front=gamma_front*dexp(-(loss_front+adiabatic_rate)*dDR)
+            loss_front=log_interp(Num_gam_e,x_edge,dEl,dlog10(gamma_front))
+            gamma_front=gamma_front*dexp(-(loss_front+adrate)*dDR)
         end if
-    end subroutine advance_reverse_dg_front_value
+    end subroutine advance_dg_front
 end subroutine electron_reverse_evolve
 
-subroutine electron_secondary_reverse_evolve(e_r,b_r,p_r,f_e_r,z,R_Tobs,R_Gamma,R,B3,M3_shell,U3_shell,V3_shell,Gam_m_shell, &
+subroutine multiple_evolve(e_r,b_r,p_r,f_e_r,z,R_Tobs,R_Gamma,R,B3, &
+                                             M3_shell,U3_shell,V3_shell,Gam_m_shell, &
                                              V_seed,Num_nu,Num_R,Num_gam_e,index_syn_intger,n_threads,gam_e,dN_gam_e, &
                                              solver_id)
     implicit none
@@ -567,147 +577,157 @@ subroutine electron_secondary_reverse_evolve(e_r,b_r,p_r,f_e_r,z,R_Tobs,R_Gamma,
     integer, intent(in), optional :: solver_id
     integer :: I_tobs,I_gam_e,L1,L,active_solver
     real(8), intent(in) :: e_r,b_r,p_r,f_e_r,z
-    real(8), intent(in) :: R_Tobs(Num_R),R_Gamma(Num_R),R(Num_R),B3(Num_R),M3_shell(Num_R),U3_shell(Num_R)
-    real(8), intent(in) :: V3_shell(Num_R),Gam_m_shell(Num_R),V_seed(Num_nu)
-    real(8), intent(out) :: gam_e(Num_gam_e),dN_gam_e(Num_gam_e,Num_R)
+    real(8), intent(in), dimension(Num_R) :: R_Tobs,R_Gamma,R,B3,M3_shell,U3_shell
+    real(8), intent(in), dimension(Num_R) :: V3_shell,Gam_m_shell
+    real(8), intent(in), dimension(Num_nu) :: V_seed
+    real(8), intent(out), dimension(Num_gam_e) :: gam_e
+    real(8), intent(out), dimension(Num_gam_e,Num_R) :: dN_gam_e
     real(8), parameter :: secondary_adv_coeff=1.35d-19
-    real(8) :: dB,Gam_e_max,Gam_e_m,Gam_e_max_max,Gam_e_min_global,d_x,R_loc,R_Gamma_loc,beta2
-    real(8) :: f_r,dDR,dDD,injection_rate,mass_lo,mass_hi,inj_width,adiabatic_rate
-    real(8), allocatable :: dEl(:),x(:),dF1(:),temp3(:),dN_x(:),x_edge(:)
+    real(8) :: dB,gmax,gm,gmax0,gmin,d_x,rloc,gloc,beta2
+    real(8) :: f_r,dDR,dDD,injection_rate,mass_lo,mass_hi,inj_width,adrate
+    real(8), allocatable, dimension(:) :: dEl,x,dF1,temp3,dN_x,x_edge
 
-    active_solver=electron_resolve_1d_solver_id(solver_id)
+    active_solver=resolve_solver(solver_id)
     allocate(dEl(Num_gam_e),x(Num_gam_e),dF1(Num_gam_e),temp3(Num_gam_e-1),dN_x(Num_gam_e),x_edge(Num_gam_e+1))
 
-    Gam_e_min_global=one
-    Gam_e_max_max=zero
+    gmin=1d0
+    gmax0=0d0
     do I_tobs=2,Num_R
-        dB=(B3(I_tobs)+B3(I_tobs-1))/two
-        if (dB > zero .and. Gam_m_shell(I_tobs) > one) then
-            Gam_e_max=3d0*Para_m_energy/dsqrt(8d0*dB*Para_e**3)
-            Gam_e_max_max=max(Gam_e_max_max,Gam_e_max)
+        dB=(B3(I_tobs)+B3(I_tobs-1))/2d0
+        if (dB > 0d0 .and. Gam_m_shell(I_tobs) > 1d0) then
+            gmax=3d0*Para_m_energy/dsqrt(8d0*dB*Para_e**3)
+            gmax0=max(gmax0,gmax)
         end if
     end do
-    if (Gam_e_max_max <= Gam_e_min_global) error stop "electron_secondary_reverse_evolve: empty secondary electron grid."
+    if (gmax0 <= gmin) error stop "multiple_evolve: empty secondary electron grid."
 
     do I_gam_e=1,Num_gam_e
         if (Num_gam_e == 1) then
-            gam_e(I_gam_e)=Gam_e_min_global
+            gam_e(I_gam_e)=gmin
         else
-            gam_e(I_gam_e)=Gam_e_min_global*ten**(dlog10(Gam_e_max_max/Gam_e_min_global)*(I_gam_e-1)/(Num_gam_e-1))
+            gam_e(I_gam_e)=gmin*1d1**(dlog10(gmax0/gmin)*(I_gam_e-1)/(Num_gam_e-1))
         end if
-        dN_gam_e(I_gam_e,1)=zero
+        dN_gam_e(I_gam_e,1)=0d0
     end do
 
-    dN_x=dN_gam_e(:,1)*gam_e*dlog(ten)
+    dN_x=dN_gam_e(:,1)*gam_e*dlog(1d1)
     d_x=dlog10(gam_e(2)/gam_e(1))
-    call electron_profile_log_cell_edges(Num_gam_e,gam_e,x_edge)
+    call log_edges(Num_gam_e,gam_e,x_edge)
 
     do I_tobs=2,Num_R
-        if (M3_shell(I_tobs) <= zero .and. M3_shell(I_tobs-1) <= zero) then
+        if (M3_shell(I_tobs) <= 0d0 .and. M3_shell(I_tobs-1) <= 0d0) then
             dN_gam_e(:,I_tobs)=dN_gam_e(:,I_tobs-1)
             cycle
         end if
-        R_loc=R(I_tobs-1)
-        R_Gamma_loc=(R_Gamma(I_tobs)+R_Gamma(I_tobs-1))/two
-        beta2=dsqrt(one-one/R_Gamma_loc**2)
-        dB=(B3(I_tobs)+B3(I_tobs-1))/two
-        if (dB <= zero) error stop "electron_secondary_reverse_evolve: secondary reservoir requires B3 > 0."
-        if (Gam_m_shell(I_tobs-1) > one) then
-            Gam_e_m=(Gam_m_shell(I_tobs)+Gam_m_shell(I_tobs-1))/two
+        rloc=R(I_tobs-1)
+        gloc=(R_Gamma(I_tobs)+R_Gamma(I_tobs-1))/2d0
+        beta2=dsqrt(1d0-1d0/gloc**2)
+        dB=(B3(I_tobs)+B3(I_tobs-1))/2d0
+        if (dB <= 0d0) error stop "multiple_evolve: secondary reservoir requires B3 > 0."
+        if (Gam_m_shell(I_tobs-1) > 1d0) then
+            gm=(Gam_m_shell(I_tobs)+Gam_m_shell(I_tobs-1))/2d0
         else
-            Gam_e_m=Gam_m_shell(I_tobs)
+            gm=Gam_m_shell(I_tobs)
         end if
-        Gam_e_max=3d0*Para_m_energy/dsqrt(8d0*dB*Para_e**3)
-        f_r=secondary_adv_coeff/beta2/R_Gamma_loc*dB**2/pi
+        gmax=3d0*Para_m_energy/dsqrt(8d0*dB*Para_e**3)
+        f_r=secondary_adv_coeff/beta2/gloc*dB**2/pi
         dDD=R(I_tobs)-R(I_tobs-1)
-        dDR=0.7d0/(f_r*Gam_e_max+one/R(I_tobs-1))
+        dDR=0.7d0/(f_r*gmax+1d0/R(I_tobs-1))
         L1=reverse_transport_substeps(dDR,dDD,active_solver)
         dDR=dDD/L1
         dEl=f_r*gam_e
         mass_lo=M3_shell(I_tobs-1)
         mass_hi=M3_shell(I_tobs)
-        if (mass_hi < mass_lo) error stop "electron_secondary_reverse_evolve: secondary swept mass must not decrease."
+        if (mass_hi < mass_lo) error stop "multiple_evolve: secondary swept mass must not decrease."
         inj_width=R(I_tobs)-R(I_tobs-1)
         injection_rate=f_e_r*(mass_hi-mass_lo)/(Para_m_p*inj_width)
-        if (V3_shell(I_tobs) <= zero .or. V3_shell(I_tobs-1) <= zero) then
-            adiabatic_rate=zero
+        if (V3_shell(I_tobs) <= 0d0 .or. V3_shell(I_tobs-1) <= 0d0) then
+            adrate=0d0
         else
-            adiabatic_rate=dlog(V3_shell(I_tobs)/V3_shell(I_tobs-1))/(3d0*(R(I_tobs)-R(I_tobs-1)))
+            adrate=dlog(V3_shell(I_tobs)/V3_shell(I_tobs-1))/(3d0*(R(I_tobs)-R(I_tobs-1)))
         end if
-        call advance_secondary_transport_shell(I_tobs)
+        call advance_multiple(I_tobs)
     end do
 
     deallocate(dEl,x,dF1,temp3,dN_x,x_edge)
 
 contains
 
-    subroutine advance_secondary_transport_shell(I_tobs)
+    subroutine advance_multiple(I_tobs)
     implicit none
     integer, intent(in) :: I_tobs
-    real(8) :: dg_adiabatic(L1), dg_source_norm(L1)
-    real(8) :: face_speed(Num_gam_e-1)
+    real(8), dimension(Num_gam_e-1) :: face_speed
+    real(8), allocatable, dimension(:) :: dg_adiabatic,dg_source_norm
 
-        dN_x=dN_gam_e(:,I_tobs-1)*gam_e*dlog(ten)
-        if (active_solver == electron_solver_dg_1d) then
+        dN_x=dN_gam_e(:,I_tobs-1)*gam_e*dlog(1d1)
+        if (active_solver == solver_dg) then
+            allocate(dg_adiabatic(L1),dg_source_norm(L1))
             do L=1,L1
-                R_loc=R_loc+dDR
-                dg_adiabatic(L)=adiabatic_rate
-                if (injection_rate > zero) then
+                rloc=rloc+dDR
+                dg_adiabatic(L)=adrate
+                if (injection_rate > 0d0) then
                     dg_source_norm(L)=injection_rate
                 else
-                    dg_source_norm(L)=zero
+                    dg_source_norm(L)=0d0
                 end if
             end do
-            call reverse_dg_grid_sequence(Num_gam_e,x_edge,gam_e,L1,dDR,f_r,dg_adiabatic,dg_source_norm, &
-                                          p_r,Gam_e_m,Gam_e_max,dN_x,x)
+            call dg_sequence(Num_gam_e,x_edge,gam_e,L1,dDR,f_r,dg_adiabatic,dg_source_norm, &
+                                          p_r,gm,gmax,dN_x,x)
             dN_x=x
-            call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,I_tobs))
+            call dnx_dgamma(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,I_tobs))
+            deallocate(dg_adiabatic,dg_source_norm)
             return
         end if
 
         do L=1,L1
-            R_loc=R_loc+dDR
-            if (injection_rate > zero) then
-                call electron_build_kinetic_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m,Gam_e_max, &
+            rloc=rloc+dDR
+            if (injection_rate > 0d0) then
+                call kinetic_edges(Num_gam_e,x_edge,gm,gmax, &
                                                                           injection_rate,p_r,dF1)
             else
-                dF1=zero
+                dF1=0d0
             end if
-            face_speed=((dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/two+adiabatic_rate)/dlog(ten)
-            call electron_fullhide_flux_split_step(Num_gam_e,dDR,d_x,face_speed,dF1,dN_x,x,.true.)
+            face_speed=((dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/2d0+adrate)/dlog(1d1)
+            call flux_split_step(Num_gam_e,dDR,d_x,face_speed,dF1,dN_x,x,.true.)
             dN_x=x
-            if (L == L1) call electron_dnx_to_dndgamma_exp_centers(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,I_tobs))
+            if (L == L1) call dnx_dgamma(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,I_tobs))
         end do
-    end subroutine advance_secondary_transport_shell
-end subroutine electron_secondary_reverse_evolve
+    end subroutine advance_multiple
+end subroutine multiple_evolve
 
 ! Secondary RS 源项历史：逐半径壳层调用同步辐射和SSA核，返回给统一EATS投影使用。
-subroutine electron_secondary_reverse_synchrotron(index_syn_intger,Num_nu,Num_R,Num_gam_e,n_threads,R,R_Gamma,B3,gam_e, &
+subroutine multiple_synch(index_syn_intger,Num_nu,Num_R,Num_gam_e, &
+                                                  n_threads,R,R_Gamma,B3,gam_e, &
                                                   dN_gam_e,V_seed,z,L_syn_spec,Seed_syn,Nu_a)
     implicit none
     integer, intent(in) :: index_syn_intger,Num_nu,Num_R,Num_gam_e,n_threads
     integer :: I_tobs
-    real(8), intent(in) :: R(Num_R),R_Gamma(Num_R),B3(Num_R),gam_e(Num_gam_e),dN_gam_e(Num_gam_e,Num_R)
-    real(8), intent(in) :: V_seed(Num_nu),z
-    real(8), intent(out) :: L_syn_spec(Num_nu,Num_R),Seed_syn(Num_nu,Num_R),Nu_a(Num_R)
-    real(8) :: doppler_den,P_emit_tmp(Num_nu),Tau_syn_tmp(Num_nu)
+    real(8), intent(in), dimension(Num_R) :: R,R_Gamma,B3
+    real(8), intent(in), dimension(Num_gam_e) :: gam_e
+    real(8), intent(in), dimension(Num_gam_e,Num_R) :: dN_gam_e
+    real(8), intent(in), dimension(Num_nu) :: V_seed
+    real(8), intent(in) :: z
+    real(8), intent(out), dimension(Num_nu,Num_R) :: L_syn_spec,Seed_syn
+    real(8), intent(out), dimension(Num_R) :: Nu_a
+    real(8), dimension(Num_nu) :: P_emit_tmp,Tau_syn_tmp
+    real(8) :: doppler_den
 
-    L_syn_spec=zero
-    Seed_syn=zero
-    Nu_a=zero
+    L_syn_spec=0d0
+    Seed_syn=0d0
+    Nu_a=0d0
     do I_tobs=1,Num_R
-        if (B3(I_tobs) <= zero) cycle
-        call get_syn_selected_state(index_syn_intger,R(I_tobs),B3(I_tobs),Num_gam_e,Num_nu,n_threads, &
+        if (B3(I_tobs) <= 0d0) cycle
+        call syn_state(index_syn_intger,R(I_tobs),B3(I_tobs),Num_gam_e,Num_nu,n_threads, &
                                     gam_e,dN_gam_e(:,I_tobs),V_seed,P_emit_tmp,L_syn_spec(:,I_tobs), &
                                     Seed_syn(:,I_tobs),Tau_syn_tmp)
-        doppler_den=R_Gamma(I_tobs)*(one-dsqrt(one-R_Gamma(I_tobs)**(-2)))*(one+z)
-        call get_nu_a(R(I_tobs),B3(I_tobs),Num_gam_e,gam_e,dN_gam_e(:,I_tobs),Nu_a(I_tobs))
+        doppler_den=R_Gamma(I_tobs)*(1d0-dsqrt(1d0-R_Gamma(I_tobs)**(-2)))*(1d0+z)
+        call nua_solve(R(I_tobs),B3(I_tobs),Num_gam_e,gam_e,dN_gam_e(:,I_tobs),Nu_a(I_tobs))
         Nu_a(I_tobs)=Nu_a(I_tobs)/doppler_den
     end do
-end subroutine electron_secondary_reverse_synchrotron
+end subroutine multiple_synch
 
 ! Secondary RS 分支辐射归并：每个 reservoir 独立输运电子谱，再在源项半径网格上求和。
-subroutine electron_secondary_reverse_branch_synchrotron(e_r,b_r,p_r,f_e_r,z,R_Tobs,R_Gamma,R,B3_branch, &
+subroutine branch_synch(e_r,b_r,p_r,f_e_r,z,R_Tobs,R_Gamma,R,B3_branch, &
                                                          M3_branch,U3_branch,V3_branch,Gam_m_branch,V_seed, &
                                                          Num_jump,Num_nu,Num_R,Num_gam_e,index_syn_intger,n_threads, &
                                                          Branch_L_syn_spec,L_syn_spec,solver_id)
@@ -716,139 +736,153 @@ subroutine electron_secondary_reverse_branch_synchrotron(e_r,b_r,p_r,f_e_r,z,R_T
     integer, intent(in), optional :: solver_id
     integer :: I_jump
     real(8), intent(in) :: e_r,b_r,p_r,f_e_r,z
-    real(8), intent(in) :: R_Tobs(Num_R),R_Gamma(Num_R),R(Num_R),V_seed(Num_nu)
-    real(8), intent(in) :: B3_branch(Num_jump,Num_R),M3_branch(Num_jump,Num_R),U3_branch(Num_jump,Num_R)
-    real(8), intent(in) :: V3_branch(Num_jump,Num_R),Gam_m_branch(Num_jump,Num_R)
-    real(8), intent(out) :: Branch_L_syn_spec(Num_jump,Num_nu,Num_R),L_syn_spec(Num_nu,Num_R)
-    real(8), allocatable :: gam_e_branch(:),dN_branch(:,:),seed_dummy(:,:),nu_a_dummy(:)
+    real(8), intent(in), dimension(Num_R) :: R_Tobs,R_Gamma,R
+    real(8), intent(in), dimension(Num_nu) :: V_seed
+    real(8), intent(in), dimension(Num_jump,Num_R) :: B3_branch,M3_branch,U3_branch
+    real(8), intent(in), dimension(Num_jump,Num_R) :: V3_branch,Gam_m_branch
+    real(8), intent(out), dimension(Num_jump,Num_nu,Num_R) :: Branch_L_syn_spec
+    real(8), intent(out), dimension(Num_nu,Num_R) :: L_syn_spec
+    real(8), allocatable, dimension(:) :: gam_e_branch,nu_a_dummy
+    real(8), allocatable, dimension(:,:) :: dN_branch,seed_dummy
 
     allocate(gam_e_branch(Num_gam_e),dN_branch(Num_gam_e,Num_R),seed_dummy(Num_nu,Num_R),nu_a_dummy(Num_R))
-    Branch_L_syn_spec=zero
-    L_syn_spec=zero
+    Branch_L_syn_spec=0d0
+    L_syn_spec=0d0
     do I_jump=1,Num_jump
-        if (.not. any(M3_branch(I_jump,:) > zero)) cycle
-        call electron_secondary_reverse_evolve(e_r,b_r,p_r,f_e_r,z,R_Tobs,R_Gamma,R,B3_branch(I_jump,:), &
+        if (.not. any(M3_branch(I_jump,:) > 0d0)) cycle
+        call multiple_evolve(e_r,b_r,p_r,f_e_r,z,R_Tobs,R_Gamma,R,B3_branch(I_jump,:), &
                                                M3_branch(I_jump,:),U3_branch(I_jump,:),V3_branch(I_jump,:), &
                                                Gam_m_branch(I_jump,:),V_seed,Num_nu,Num_R,Num_gam_e, &
                                                index_syn_intger,n_threads,gam_e_branch,dN_branch,solver_id)
-        call electron_secondary_reverse_synchrotron(index_syn_intger,Num_nu,Num_R,Num_gam_e,n_threads,R,R_Gamma, &
+        call multiple_synch(index_syn_intger,Num_nu,Num_R,Num_gam_e,n_threads,R,R_Gamma, &
                                                     B3_branch(I_jump,:),gam_e_branch,dN_branch,V_seed,z, &
                                                     Branch_L_syn_spec(I_jump,:,:),seed_dummy,nu_a_dummy)
         L_syn_spec=L_syn_spec+Branch_L_syn_spec(I_jump,:,:)
     end do
     deallocate(gam_e_branch,dN_branch,seed_dummy,nu_a_dummy)
-end subroutine electron_secondary_reverse_branch_synchrotron
+end subroutine branch_synch
 
-subroutine electron_secondary_reverse_branch_reaccelerated(e_r,b_r,p_r,f_e_r,z,R_Tobs,R_Gamma,R,B3_branch, &
-                                                           M3_branch,U3_branch,V3_branch,Gam_m_branch,Gamma43_branch, &
-                                                           Comp_branch,Parent_branch,V_seed,Num_jump,Num_nu,Num_R,Num_gam_e, &
-                                                           index_syn_intger,n_threads,gam_e,dN_total,Branch_L_syn_spec, &
-                                                           L_syn_spec,Branch_seed_energy,Branch_reaccel_energy,solver_id)
+subroutine branch_reaccel(e_r,b_r,p_r,f_e_r,z,R_Tobs,R_Gamma,R, &
+                                                           B3_branch,M3_branch,U3_branch,V3_branch, &
+                                                           Gam_m_branch,Gamma43_branch,Comp_branch,Parent_branch, &
+                                                           V_seed,Num_jump,Num_nu,Num_R,Num_gam_e,index_syn_intger, &
+                                                           n_threads,gam_e,dN_total,Branch_L_syn_spec,L_syn_spec, &
+                                                           Branch_seed_energy,Branch_reaccel_energy,solver_id)
     implicit none
     integer, intent(in) :: Num_jump,Num_nu,Num_R,Num_gam_e,index_syn_intger,n_threads
-    integer, intent(in) :: Parent_branch(Num_jump)
+    integer, intent(in), dimension(Num_jump) :: Parent_branch
     integer, intent(in), optional :: solver_id
     integer :: I_tobs,I_jump,I_gam_e,L1,L,parent,active_solver
     real(8), intent(in) :: e_r,b_r,p_r,f_e_r,z
-    real(8), intent(in) :: R_Tobs(Num_R),R_Gamma(Num_R),R(Num_R),V_seed(Num_nu)
-    real(8), intent(in) :: B3_branch(Num_jump,Num_R),M3_branch(Num_jump,Num_R),U3_branch(Num_jump,Num_R)
-    real(8), intent(in) :: V3_branch(Num_jump,Num_R),Gam_m_branch(Num_jump,Num_R),Gamma43_branch(Num_jump,Num_R)
-    real(8), intent(in) :: Comp_branch(Num_jump,Num_R)
-    real(8), intent(out) :: gam_e(Num_gam_e),dN_total(Num_gam_e,Num_R)
-    real(8), intent(out) :: Branch_L_syn_spec(Num_jump,Num_nu,Num_R),L_syn_spec(Num_nu,Num_R)
-    real(8), intent(out) :: Branch_seed_energy(Num_jump,Num_R),Branch_reaccel_energy(Num_jump,Num_R)
+    real(8), intent(in), dimension(Num_R) :: R_Tobs,R_Gamma,R
+    real(8), intent(in), dimension(Num_nu) :: V_seed
+    real(8), intent(in), dimension(Num_jump,Num_R) :: B3_branch,M3_branch,U3_branch
+    real(8), intent(in), dimension(Num_jump,Num_R) :: V3_branch,Gam_m_branch,Gamma43_branch
+    real(8), intent(in), dimension(Num_jump,Num_R) :: Comp_branch
+    real(8), intent(out), dimension(Num_gam_e) :: gam_e
+    real(8), intent(out), dimension(Num_gam_e,Num_R) :: dN_total
+    real(8), intent(out), dimension(Num_jump,Num_nu,Num_R) :: Branch_L_syn_spec
+    real(8), intent(out), dimension(Num_nu,Num_R) :: L_syn_spec
+    real(8), intent(out), dimension(Num_jump,Num_R) :: Branch_seed_energy,Branch_reaccel_energy
     real(8), parameter :: secondary_adv_coeff=1.35d-19
-    real(8) :: dB,Gam_e_max,Gam_e_m,Gam_e_max_max,Gam_e_min_global,d_x,R_loc,R_Gamma_loc,beta2
-    real(8) :: f_r,dDR,dDD,injection_rate,mass_lo,mass_hi,mass_delta,fresh_mass,adiabatic_rate
+    real(8) :: dB,gmax,gm,gmax0,gmin,d_x,rloc,gloc,beta2
+    real(8) :: f_r,dDR,dDD,injection_rate,mass_lo,mass_hi,mass_delta,fresh_mass,adrate
     real(8) :: parent_mass,transfer_mass,transfer_fraction,boost_factor,seed_energy,out_energy
     logical :: dissipative_shell
-    real(8), allocatable :: dEl(:),x(:),dF1(:),temp3(:),x_edge(:),dN_x(:,:),dN_work(:,:)
-    real(8), allocatable :: dN_seed(:),dN_boost(:),dN_reaccel(:),dN_gamma_branch(:,:,:),seed_dummy(:,:),nu_a_dummy(:)
-    real(8), allocatable :: branch_mass_available(:),fresh_mass_branch(:)
+    real(8), allocatable, dimension(:) :: dEl,x,dF1,temp3,x_edge
+    real(8), allocatable, dimension(:,:) :: dN_x,dN_work,dN_branch,spec_branch
+    real(8), allocatable, dimension(:) :: dN_seed,dN_boost,dN_reaccel,nu_a_dummy
+    real(8), allocatable, dimension(:,:,:) :: dN_gamma_branch
+    real(8), allocatable, dimension(:,:) :: seed_dummy
+    real(8), allocatable, dimension(:) :: branch_mass_available,fresh_mass_branch
 
-    active_solver=electron_resolve_1d_solver_id(solver_id)
+    active_solver=resolve_solver(solver_id)
     allocate(dEl(Num_gam_e),x(Num_gam_e),dF1(Num_gam_e),temp3(Num_gam_e-1),x_edge(Num_gam_e+1), &
              dN_x(Num_jump,Num_gam_e),dN_work(Num_jump,Num_gam_e),dN_seed(Num_gam_e),dN_boost(Num_gam_e), &
-             dN_reaccel(Num_gam_e),dN_gamma_branch(Num_jump,Num_gam_e,Num_R),seed_dummy(Num_nu,Num_R), &
+             dN_reaccel(Num_gam_e),dN_gamma_branch(Num_jump,Num_gam_e,Num_R), &
+             dN_branch(Num_gam_e,Num_R),spec_branch(Num_nu,Num_R),seed_dummy(Num_nu,Num_R), &
              nu_a_dummy(Num_R),branch_mass_available(Num_jump),fresh_mass_branch(Num_jump))
 
-    call build_secondary_reaccel_gamma_grid()
-    call electron_profile_log_cell_edges(Num_gam_e,gam_e,x_edge)
+    call reaccel_grid()
+    call log_edges(Num_gam_e,gam_e,x_edge)
     d_x=dlog10(gam_e(2)/gam_e(1))
-    dN_gamma_branch=zero; dN_total=zero; dN_x=zero; branch_mass_available=zero
-    fresh_mass_branch=zero
-    Branch_L_syn_spec=zero; L_syn_spec=zero; Branch_seed_energy=zero; Branch_reaccel_energy=zero
+    dN_gamma_branch=0d0; dN_total=0d0; dN_x=0d0; branch_mass_available=0d0
+    fresh_mass_branch=0d0
+    Branch_L_syn_spec=0d0; L_syn_spec=0d0; Branch_seed_energy=0d0; Branch_reaccel_energy=0d0
 
     do I_tobs=2,Num_R
-        dN_work=dN_gamma_branch(:,:,I_tobs-1)*spread(gam_e*dlog(ten),1,Num_jump)
-        call transfer_reaccelerated_parent_electrons(I_tobs)
+        dN_work=dN_gamma_branch(:,:,I_tobs-1)*spread(gam_e*dlog(1d1),1,Num_jump)
+        call transfer_parent(I_tobs)
         do I_jump=1,Num_jump
-            call advance_reaccelerated_branch_shell(I_tobs,I_jump)
+            call advance_reaccel(I_tobs,I_jump)
         end do
     end do
     do I_jump=1,Num_jump
-        dN_total=dN_total+dN_gamma_branch(I_jump,:,:)
-        if (.not. any(dN_gamma_branch(I_jump,:,:) > zero)) cycle
-        call electron_secondary_reverse_synchrotron(index_syn_intger,Num_nu,Num_R,Num_gam_e,n_threads,R,R_Gamma, &
-                                                    B3_branch(I_jump,:),gam_e,dN_gamma_branch(I_jump,:,:),V_seed,z, &
-                                                    Branch_L_syn_spec(I_jump,:,:),seed_dummy,nu_a_dummy)
-        L_syn_spec=L_syn_spec+Branch_L_syn_spec(I_jump,:,:)
+        dN_branch=dN_gamma_branch(I_jump,:,:)
+        dN_total=dN_total+dN_branch
+        if (.not. any(dN_branch > 0d0)) cycle
+        call multiple_synch(index_syn_intger,Num_nu,Num_R,Num_gam_e,n_threads,R,R_Gamma, &
+                                                    B3_branch(I_jump,:),gam_e,dN_branch,V_seed,z, &
+                                                    spec_branch,seed_dummy,nu_a_dummy)
+        Branch_L_syn_spec(I_jump,:,:)=spec_branch
+        L_syn_spec=L_syn_spec+spec_branch
     end do
     deallocate(dEl,x,dF1,temp3,x_edge,dN_x,dN_work,dN_seed,dN_boost,dN_reaccel,dN_gamma_branch, &
-               seed_dummy,nu_a_dummy,branch_mass_available,fresh_mass_branch)
+               dN_branch,spec_branch,seed_dummy,nu_a_dummy,branch_mass_available,fresh_mass_branch)
 
 contains
 
-    subroutine build_secondary_reaccel_gamma_grid()
+    subroutine reaccel_grid()
     implicit none
 
-        Gam_e_min_global=one
-        Gam_e_max_max=zero
+        gmin=1d0
+        gmax0=0d0
         do I_tobs=2,Num_R
             do I_jump=1,Num_jump
-                dB=(B3_branch(I_jump,I_tobs)+B3_branch(I_jump,I_tobs-1))/two
-                if (dB > zero .and. Gam_m_branch(I_jump,I_tobs) > one) then
-                    Gam_e_max=3d0*Para_m_energy/dsqrt(8d0*dB*Para_e**3)
-                    Gam_e_max_max=max(Gam_e_max_max,Gam_e_max)
+                dB=(B3_branch(I_jump,I_tobs)+B3_branch(I_jump,I_tobs-1))/2d0
+                if (dB > 0d0 .and. Gam_m_branch(I_jump,I_tobs) > 1d0) then
+                    gmax=3d0*Para_m_energy/dsqrt(8d0*dB*Para_e**3)
+                    gmax0=max(gmax0,gmax)
                 end if
             end do
         end do
-        if (Gam_e_max_max <= Gam_e_min_global) &
-            error stop "electron_secondary_reverse_branch_reaccelerated: empty electron grid."
+        if (gmax0 <= gmin) &
+            error stop "branch_reaccel: empty electron grid."
         do I_gam_e=1,Num_gam_e
             if (Num_gam_e == 1) then
-                gam_e(I_gam_e)=Gam_e_min_global
+                gam_e(I_gam_e)=gmin
             else
-                gam_e(I_gam_e)=Gam_e_min_global*ten**(dlog10(Gam_e_max_max/Gam_e_min_global)*(I_gam_e-1)/(Num_gam_e-1))
+                gam_e(I_gam_e)=gmin*1d1**(dlog10(gmax0/gmin)*(I_gam_e-1)/(Num_gam_e-1))
             end if
         end do
-    end subroutine build_secondary_reaccel_gamma_grid
+    end subroutine reaccel_grid
 
-    subroutine transfer_reaccelerated_parent_electrons(i_shell)
+    subroutine transfer_parent(i_shell)
     implicit none
     integer, intent(in) :: i_shell
 
-        fresh_mass_branch=zero
+        fresh_mass_branch=0d0
         do I_jump=1,Num_jump
             mass_delta=M3_branch(I_jump,i_shell)-M3_branch(I_jump,i_shell-1)
-            if (mass_delta < zero) error stop "electron_secondary_reverse_branch_reaccelerated: branch mass decreased."
-            dissipative_shell=Gam_m_branch(I_jump,i_shell) > one .and. Gamma43_branch(I_jump,i_shell) > one
-            fresh_mass=zero
+            if (mass_delta < 0d0) error stop "branch_reaccel: branch mass decreased."
+            dissipative_shell=Gam_m_branch(I_jump,i_shell) > 1d0 .and. Gamma43_branch(I_jump,i_shell) > 1d0
+            fresh_mass=0d0
             if (dissipative_shell) fresh_mass=mass_delta
-            if (Parent_branch(I_jump) > 0 .and. dissipative_shell .and. mass_delta > zero) then
+            if (Parent_branch(I_jump) > 0 .and. dissipative_shell .and. mass_delta > 0d0) then
                 parent=Parent_branch(I_jump)
                 parent_mass=branch_mass_available(parent)
-                if (parent_mass > zero) then
+                if (parent_mass > 0d0) then
                     transfer_mass=min(mass_delta,parent_mass)
                     transfer_fraction=transfer_mass/parent_mass
                     dN_seed=dN_work(parent,:)*transfer_fraction
                     dN_work(parent,:)=dN_work(parent,:)-dN_seed
                     boost_factor=Gamma43_branch(I_jump,i_shell)
-                    if (Comp_branch(I_jump,i_shell) > one) boost_factor=boost_factor*Comp_branch(I_jump,i_shell)**(one/3d0)
-                    call boost_log_distribution(boost_factor,dN_seed,dN_boost)
-                    call dsa_reaccelerate_distribution(p_r,dN_boost,dN_reaccel)
-                    seed_energy=distribution_energy_from_log(dN_seed)
-                    out_energy=distribution_energy_from_log(dN_reaccel)
+                    if (Comp_branch(I_jump,i_shell) > 1d0) &
+                        boost_factor=boost_factor*Comp_branch(I_jump,i_shell)**(1d0/3d0)
+                    call boost_log(boost_factor,dN_seed,dN_boost)
+                    call dsa_reaccel(p_r,dN_boost,dN_reaccel)
+                    seed_energy=log_energy(dN_seed)
+                    out_energy=log_energy(dN_reaccel)
                     Branch_seed_energy(I_jump,i_shell)=Branch_seed_energy(I_jump,i_shell)+seed_energy
                     Branch_reaccel_energy(I_jump,i_shell)=Branch_reaccel_energy(I_jump,i_shell)+out_energy
                     dN_work(I_jump,:)=dN_work(I_jump,:)+dN_reaccel
@@ -861,103 +895,106 @@ contains
             branch_mass_available(I_jump)=branch_mass_available(I_jump)+fresh_mass
             dN_x(I_jump,:)=dN_work(I_jump,:)
         end do
-    end subroutine transfer_reaccelerated_parent_electrons
+    end subroutine transfer_parent
 
-    subroutine advance_reaccelerated_branch_shell(i_shell,jump_index)
+    subroutine advance_reaccel(i_shell,jump_index)
     implicit none
     integer, intent(in) :: i_shell,jump_index
-    real(8) :: dg_adiabatic(L1), dg_source_norm(L1)
-    real(8) :: face_speed(Num_gam_e-1)
+    real(8), dimension(Num_gam_e-1) :: face_speed
+    real(8), allocatable, dimension(:) :: dg_adiabatic,dg_source_norm
 
-        if (M3_branch(jump_index,i_shell) <= zero .and. M3_branch(jump_index,i_shell-1) <= zero) then
-            dN_gamma_branch(jump_index,:,i_shell)=dN_x(jump_index,:)/gam_e/dlog(ten)
+        if (M3_branch(jump_index,i_shell) <= 0d0 .and. M3_branch(jump_index,i_shell-1) <= 0d0) then
+            dN_gamma_branch(jump_index,:,i_shell)=dN_x(jump_index,:)/gam_e/dlog(1d1)
             return
         end if
         call prepare_branch_shell(i_shell,jump_index)
-        call compute_branch_injection(i_shell,jump_index)
-        if (active_solver == electron_solver_dg_1d) then
+        call branch_inject(i_shell,jump_index)
+        if (active_solver == solver_dg) then
+            allocate(dg_adiabatic(L1),dg_source_norm(L1))
             do L=1,L1
-                R_loc=R_loc+dDR
-                dg_adiabatic(L)=adiabatic_rate
-                if (injection_rate > zero) then
+                rloc=rloc+dDR
+                dg_adiabatic(L)=adrate
+                if (injection_rate > 0d0) then
                     dg_source_norm(L)=injection_rate
                 else
-                    dg_source_norm(L)=zero
+                    dg_source_norm(L)=0d0
                 end if
             end do
-            call reverse_dg_grid_sequence(Num_gam_e,x_edge,gam_e,L1,dDR,f_r,dg_adiabatic,dg_source_norm, &
-                                          p_r,Gam_e_m,Gam_e_max,dN_x(jump_index,:),x)
+            call dg_sequence(Num_gam_e,x_edge,gam_e,L1,dDR,f_r,dg_adiabatic,dg_source_norm, &
+                                          p_r,gm,gmax,dN_x(jump_index,:),x)
             dN_x(jump_index,:)=x
-            dN_gamma_branch(jump_index,:,i_shell)=dN_x(jump_index,:)/gam_e/dlog(ten)
+            dN_gamma_branch(jump_index,:,i_shell)=dN_x(jump_index,:)/gam_e/dlog(1d1)
+            deallocate(dg_adiabatic,dg_source_norm)
             return
         end if
 
         do L=1,L1
-            R_loc=R_loc+dDR
-            if (injection_rate > zero) then
-                call electron_build_kinetic_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m,Gam_e_max, &
+            rloc=rloc+dDR
+            if (injection_rate > 0d0) then
+                call kinetic_edges(Num_gam_e,x_edge,gm,gmax, &
                                                                           injection_rate,p_r,dF1)
             else
-                dF1=zero
+                dF1=0d0
             end if
-            face_speed=((dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/two+adiabatic_rate)/dlog(ten)
-            call electron_fullhide_flux_split_step(Num_gam_e,dDR,d_x,face_speed,dF1,dN_x(jump_index,:),x,.true.)
+            face_speed=((dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/2d0+adrate)/dlog(1d1)
+            call flux_split_step(Num_gam_e,dDR,d_x,face_speed,dF1,dN_x(jump_index,:),x,.true.)
             dN_x(jump_index,:)=x
         end do
-        dN_gamma_branch(jump_index,:,i_shell)=dN_x(jump_index,:)/gam_e/dlog(ten)
-    end subroutine advance_reaccelerated_branch_shell
+        dN_gamma_branch(jump_index,:,i_shell)=dN_x(jump_index,:)/gam_e/dlog(1d1)
+    end subroutine advance_reaccel
 
     subroutine prepare_branch_shell(i_shell,jump_index)
     implicit none
     integer, intent(in) :: i_shell,jump_index
 
-        R_loc=R(i_shell-1)
-        R_Gamma_loc=(R_Gamma(i_shell)+R_Gamma(i_shell-1))/two
-        beta2=dsqrt(one-one/R_Gamma_loc**2)
-        dB=(B3_branch(jump_index,i_shell)+B3_branch(jump_index,i_shell-1))/two
-        if (dB <= zero) error stop "electron_secondary_reverse_branch_reaccelerated: active branch requires B3 > 0."
-        if (Gam_m_branch(jump_index,i_shell-1) > one) then
-            Gam_e_m=(Gam_m_branch(jump_index,i_shell)+Gam_m_branch(jump_index,i_shell-1))/two
+        rloc=R(i_shell-1)
+        gloc=(R_Gamma(i_shell)+R_Gamma(i_shell-1))/2d0
+        beta2=dsqrt(1d0-1d0/gloc**2)
+        dB=(B3_branch(jump_index,i_shell)+B3_branch(jump_index,i_shell-1))/2d0
+        if (dB <= 0d0) error stop "branch_reaccel: active branch requires B3 > 0."
+        if (Gam_m_branch(jump_index,i_shell-1) > 1d0) then
+            gm=(Gam_m_branch(jump_index,i_shell)+Gam_m_branch(jump_index,i_shell-1))/2d0
         else
-            Gam_e_m=Gam_m_branch(jump_index,i_shell)
+            gm=Gam_m_branch(jump_index,i_shell)
         end if
-        Gam_e_max=3d0*Para_m_energy/dsqrt(8d0*dB*Para_e**3)
-        f_r=secondary_adv_coeff/beta2/R_Gamma_loc*dB**2/pi
+        gmax=3d0*Para_m_energy/dsqrt(8d0*dB*Para_e**3)
+        f_r=secondary_adv_coeff/beta2/gloc*dB**2/pi
         dDD=R(i_shell)-R(i_shell-1)
-        dDR=0.7d0/(f_r*Gam_e_max+one/R(i_shell-1))
+        dDR=0.7d0/(f_r*gmax+1d0/R(i_shell-1))
         L1=reverse_transport_substeps(dDR,dDD,active_solver)
         dDR=dDD/L1
         dEl=f_r*gam_e
-        if (V3_branch(jump_index,i_shell) <= zero .or. V3_branch(jump_index,i_shell-1) <= zero) then
-            adiabatic_rate=zero
+        if (V3_branch(jump_index,i_shell) <= 0d0 .or. V3_branch(jump_index,i_shell-1) <= 0d0) then
+            adrate=0d0
         else
-            adiabatic_rate=dlog(V3_branch(jump_index,i_shell)/V3_branch(jump_index,i_shell-1))/(3d0*dDD)
+            adrate=dlog(V3_branch(jump_index,i_shell)/V3_branch(jump_index,i_shell-1))/(3d0*dDD)
         end if
     end subroutine prepare_branch_shell
 
-    subroutine compute_branch_injection(i_shell,jump_index)
+    subroutine branch_inject(i_shell,jump_index)
     implicit none
     integer, intent(in) :: i_shell,jump_index
 
         mass_lo=M3_branch(jump_index,i_shell-1)
         mass_hi=M3_branch(jump_index,i_shell)
-        if (mass_hi < mass_lo) error stop "electron_secondary_reverse_branch_reaccelerated: swept mass must not decrease."
+        if (mass_hi < mass_lo) error stop "branch swept mass decreased."
         injection_rate=f_e_r*fresh_mass_branch(jump_index)/(Para_m_p*dDD)
-    end subroutine compute_branch_injection
+    end subroutine branch_inject
 
-    subroutine boost_log_distribution(boost,dN_in,dN_out)
+    subroutine boost_log(boost,dN_in,dN_out)
     implicit none
-    real(8), intent(in) :: boost,dN_in(Num_gam_e)
-    real(8), intent(out) :: dN_out(Num_gam_e)
+    real(8), intent(in), dimension(Num_gam_e) :: dN_in
+    real(8), intent(in) :: boost
+    real(8), intent(out), dimension(Num_gam_e) :: dN_out
     integer :: i_src,i_hi
     real(8) :: x_src,pos,frac
 
-        if (boost <= one) error stop "electron_secondary_reverse_branch_reaccelerated: boost must exceed unity."
-        dN_out=zero
+        if (boost <= 1d0) error stop "branch_reaccel: boost must exceed unity."
+        dN_out=0d0
         do I_gam_e=1,Num_gam_e
             x_src=dlog10(gam_e(I_gam_e)/boost)
             if (x_src < dlog10(gam_e(1)) .or. x_src > dlog10(gam_e(Num_gam_e))) cycle
-            pos=(x_src-dlog10(gam_e(1)))/d_x+one
+            pos=(x_src-dlog10(gam_e(1)))/d_x+1d0
             i_src=int(pos)
             if (i_src < 1) cycle
             if (i_src >= Num_gam_e) then
@@ -965,110 +1002,118 @@ contains
             else
                 i_hi=i_src+1
                 frac=pos-dble(i_src)
-                dN_out(I_gam_e)=(one-frac)*dN_in(i_src)+frac*dN_in(i_hi)
+                dN_out(I_gam_e)=(1d0-frac)*dN_in(i_src)+frac*dN_in(i_hi)
             end if
         end do
-    end subroutine boost_log_distribution
+    end subroutine boost_log
 
-    subroutine dsa_reaccelerate_distribution(p,dN_seed_log,dN_out_log)
+    subroutine dsa_reaccel(p,dN_seed_log,dN_out_log)
     implicit none
-    real(8), intent(in) :: p,dN_seed_log(Num_gam_e)
-    real(8), intent(out) :: dN_out_log(Num_gam_e)
+    real(8), intent(in), dimension(Num_gam_e) :: dN_seed_log
+    real(8), intent(in) :: p
+    real(8), intent(out), dimension(Num_gam_e) :: dN_out_log
     integer :: i
     real(8) :: integral,dN_dgamma
 
-        if (p <= two) error stop "electron_secondary_reverse_branch_reaccelerated: DSA requires p > 2."
-        integral=zero
-        dN_out_log=zero
+        if (p <= 2d0) error stop "branch_reaccel: DSA requires p > 2."
+        integral=0d0
+        dN_out_log=0d0
         do i=1,Num_gam_e
-            dN_dgamma=dN_seed_log(i)/(gam_e(i)*dlog(ten))
-            integral=integral+dN_dgamma*gam_e(i)**(p-one)*(gam_e(i)*dlog(ten)*d_x)
-            dN_out_log(i)=(p-one)*gam_e(i)**(-p)*integral*gam_e(i)*dlog(ten)
+            dN_dgamma=dN_seed_log(i)/(gam_e(i)*dlog(1d1))
+            integral=integral+dN_dgamma*gam_e(i)**(p-1d0)*(gam_e(i)*dlog(1d1)*d_x)
+            dN_out_log(i)=(p-1d0)*gam_e(i)**(-p)*integral*gam_e(i)*dlog(1d1)
         end do
-    end subroutine dsa_reaccelerate_distribution
+    end subroutine dsa_reaccel
 
-    real(8) function distribution_energy_from_log(dN_log)
+    real(8) function log_energy(dN_log)
     implicit none
-    real(8), intent(in) :: dN_log(Num_gam_e)
+    real(8), intent(in), dimension(Num_gam_e) :: dN_log
 
-        distribution_energy_from_log=sum((gam_e-one)*Para_m_e*Para_c**2*dN_log)*d_x
-    end function distribution_energy_from_log
-end subroutine electron_secondary_reverse_branch_reaccelerated
+        log_energy=sum((gam_e-1d0)*Para_m_e*Para_c**2*dN_log)*d_x
+    end function log_energy
+end subroutine branch_reaccel
 
 integer function reverse_transport_substeps(candidate_dr,shell_dr,solver) result(nstep)
     implicit none
     integer, intent(in) :: solver
     real(8), intent(in) :: candidate_dr,shell_dr
 
-    if (solver == electron_solver_dg_1d) then
+    if (solver == solver_dg) then
         nstep=reverse_dg_base_substeps
     else
         nstep=max(100,min(1000,int(shell_dr/candidate_dr)))
     end if
 end function reverse_transport_substeps
 
-subroutine reverse_dg_grid_sequence(Num_gam_e,x_edge,gam_e,num_step,dR,rad_coeff,adiabatic_rate_step,source_norm_step, &
+subroutine dg_sequence(Num_gam_e,x_edge,gam_e,num_step,dR,rad_coeff,adrate_step,srcstep, &
                                     p,gamma_m,gamma_max,dN_x_in,dN_x_out)
     implicit none
     integer, intent(in) :: Num_gam_e,num_step
     integer :: i,step
-    real(8), intent(in) :: x_edge(Num_gam_e+1),gam_e(Num_gam_e),dR,rad_coeff
-    real(8), intent(in) :: adiabatic_rate_step(num_step),source_norm_step(num_step),p,gamma_m,gamma_max,dN_x_in(Num_gam_e)
-    real(8), intent(out) :: dN_x_out(Num_gam_e)
-    type(electron_dg1d_mesh) :: mesh
-    real(8), allocatable :: state(:),advanced(:),source_nodes(:),source_template(:),dN_coord(:),dN_dgamma(:),coord_edge(:)
+    real(8), intent(in), dimension(Num_gam_e+1) :: x_edge
+    real(8), intent(in), dimension(Num_gam_e) :: gam_e
+    real(8), intent(in) :: dR,rad_coeff
+    real(8), intent(in), dimension(num_step) :: adrate_step,srcstep
+    real(8), intent(in), dimension(Num_gam_e) :: dN_x_in
+    real(8), intent(in) :: p,gamma_m,gamma_max
+    real(8), intent(out), dimension(Num_gam_e) :: dN_x_out
+    type(dg_mesh) :: mesh
+    real(8), allocatable, dimension(:) :: state,advanced,source_nodes,source_template,dN_coord,dN_dgamma,coord_edge
     real(8) :: input_content,dg_content,projected_content,kinetic_break
     logical :: has_source
 
     kinetic_break=gamma_m
-    if (gamma_max > gamma_m) kinetic_break=min(gamma_max,20d0*max(gamma_m,one))
-    call electron_dg1d_build_four_velocity_mesh(x_edge(1),x_edge(Num_gam_e+1),dlog10(gamma_m), &
+    if (gamma_max > gamma_m) kinetic_break=min(gamma_max,20d0*max(gamma_m,1d0))
+    call dg_build_mesh(x_edge(1),x_edge(Num_gam_e+1),dlog10(gamma_m), &
                                                 dlog10(kinetic_break), &
-                                                dlog10(gamma_max),electron_four_velocity_grid_gamma_scale,mesh)
-    allocate(state(mesh%ntot),advanced(mesh%ntot),source_nodes(mesh%ntot),source_template(mesh%ntot),dN_coord(Num_gam_e), &
+                                                dlog10(gamma_max),fourvel_scale,mesh)
+    allocate(state(mesh%ntot),advanced(mesh%ntot),source_nodes(mesh%ntot), &
+             source_template(mesh%ntot),dN_coord(Num_gam_e), &
              dN_dgamma(Num_gam_e),coord_edge(Num_gam_e+1))
     do i=1,Num_gam_e+1
-        coord_edge(i)=electron_coord_from_xgamma(mesh%coord_kind,mesh%coord_scale,x_edge(i))
+        coord_edge(i)=coord_from_xg(mesh%coord_kind,mesh%coord_scale,x_edge(i))
     end do
     do i=1,mesh%ntot
-        state(i)=reverse_interp_log_grid(Num_gam_e,x_edge,dN_x_in,mesh%x_gamma(i))*mesh%dxgamma_dcoord(i)
+        state(i)=log_interp(Num_gam_e,x_edge,dN_x_in,mesh%x_gamma(i))*mesh%dxgamma_dcoord(i)
     end do
     input_content=sum(dN_x_in*(x_edge(2:Num_gam_e+1)-x_edge(1:Num_gam_e)))
-    call electron_dg1d_scale_to_content(mesh,input_content,state)
-    has_source = maxval(source_norm_step) > zero
+    call dg_scale_content(mesh,input_content,state)
+    has_source = maxval(srcstep) > 0d0
     if (has_source) then
-        call electron_dg1d_project_kinetic_source(mesh,one,p,gamma_m,gamma_max,source_template)
-        call electron_dg1d_scale_to_content(mesh,one,source_template)
+        call dg_kinetic_source(mesh,1d0,p,gamma_m,gamma_max,source_template)
+        call dg_scale_content(mesh,1d0,source_template)
     endif
     do step=1,num_step
-        if (source_norm_step(step) > zero) then
-            source_nodes=source_norm_step(step)*source_template
+        if (srcstep(step) > 0d0) then
+            source_nodes=srcstep(step)*source_template
         else
-            source_nodes=zero
+            source_nodes=0d0
         end if
-        call electron_dg1d_advance_characteristic_step(mesh,dR,rad_coeff,adiabatic_rate_step(step), &
+        call dg_char_step(mesh,dR,rad_coeff,adrate_step(step), &
                                                        source_nodes,state,advanced)
-        call electron_dg1d_apply_positive_kernel_filter(mesh,advanced)
-        call electron_dg1d_limit_positive_cell_preserving(mesh,advanced)
+        call dg_filter_positive(mesh,advanced)
+        call dg_limit_positive(mesh,advanced)
         state=advanced
     end do
-    call electron_dg1d_integral(mesh,state,dg_content)
-    call electron_dg1d_project_to_coord_cells(mesh,state,Num_gam_e,coord_edge,dN_coord)
-    call electron_shell_dcoord_to_dndgamma_exp_centers(Num_gam_e,coord_edge,mesh%coord_scale,gam_e,dN_coord,dN_dgamma)
-    dN_x_out=dN_dgamma*gam_e*dlog(ten)
+    call dg_integral(mesh,state,dg_content)
+    call dg_project_cells(mesh,state,Num_gam_e,coord_edge,dN_coord)
+    call coord_to_dgamma(Num_gam_e,coord_edge,mesh%coord_scale,gam_e,dN_coord,dN_dgamma)
+    dN_x_out=dN_dgamma*gam_e*dlog(1d1)
     projected_content=sum(dN_x_out*(x_edge(2:Num_gam_e+1)-x_edge(1:Num_gam_e)))
-    if (dg_content > zero) then
-        if (projected_content <= zero) error stop "reverse_dg_grid_sequence: projection lost positive content."
+    if (dg_content > 0d0) then
+        if (projected_content <= 0d0) error stop "dg_sequence: projection lost positive content."
         dN_x_out=dN_x_out*(dg_content/projected_content)
     end if
     deallocate(state,advanced,source_nodes,source_template,dN_coord,dN_dgamma,coord_edge)
-end subroutine reverse_dg_grid_sequence
+end subroutine dg_sequence
 
-real(8) function reverse_interp_log_grid(Num_gam_e,x_edge,values,x_eval) result(value)
+real(8) function log_interp(Num_gam_e,x_edge,values,x_eval) result(value)
     implicit none
     integer, intent(in) :: Num_gam_e
     integer :: i_cell,lo,hi,mid
-    real(8), intent(in) :: x_edge(Num_gam_e+1),values(Num_gam_e),x_eval
+    real(8), intent(in), dimension(Num_gam_e+1) :: x_edge
+    real(8), intent(in), dimension(Num_gam_e) :: values
+    real(8), intent(in) :: x_eval
     real(8) :: x_left,x_right
 
     x_left=0.5d0*(x_edge(1)+x_edge(2))
@@ -1096,6 +1141,6 @@ real(8) function reverse_interp_log_grid(Num_gam_e,x_edge,values,x_eval) result(
     x_left=0.5d0*(x_edge(i_cell)+x_edge(i_cell+1))
     x_right=0.5d0*(x_edge(i_cell+1)+x_edge(i_cell+2))
     value=values(i_cell)+(values(i_cell+1)-values(i_cell))*(x_eval-x_left)/(x_right-x_left)
-end function reverse_interp_log_grid
+end function log_interp
 
 end module electron_reverse_kernel

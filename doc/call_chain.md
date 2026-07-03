@@ -26,7 +26,7 @@ flowchart TD
     G --> L
     L --> M["project_flux_grid\nprojection_kind"]
     M --> N["top-hat chi_eats_2d lightcurve:\nInterpolation.sed_interpolation_chi"]
-    M --> T["axisymmetric structured chi_eats_2d:\nring solve + sed_interpolation_chi_structured_axisym_ring_precomputed"]
+    M --> T["axisymmetric structured chi_eats_2d:\nring solve + sed_chi_ring"]
     M --> R["sed / shell components:\nInterpolation.sed_interpolation\nEATS + Doppler + redshift"]
     N --> O["combine_multiband_flux"]
     T --> O
@@ -42,14 +42,14 @@ flowchart TD
     B --> C["solve_electron"]
     C --> D["electron_forward_fullhide_1d / charint_1d / weno5_1d / t2g1_1d / slc1_1d"]
     C --> E["electron_forward_transport_2d / charint_2d"]
-    D --> F["electron_common + electron_cooling_kernel facade\nSSA / IC / Y cooling kernels + radiation kernel"]
+    D --> F["electron_common + electron_cooling_kernel assembly\nSSA / IC / Y cooling kernels + radiation kernel"]
     E --> G["electron_transport_2d_kernel + electron_seed_history_kernel"]
-    F --> H["radiation_common -> radiation_ssc_spectrum / radiation_gamma_gamma_absorption"]
+    F --> H["rad_common -> ssc_spectrum / pair_absorption"]
     G --> H
     H --> I["SED_interpolation\nsed / adaptive / chi / structured ring-precomputed"]
     H --> U["SED_interpolation_structured\ninternal structured_jet_1d shell projection"]
     C --> J["solve_hadronic -> hadronic_forward_1d"]
-    J --> K["hadronic_transport + radiation + interaction + decay + pp + BH + IC + pair_prod + species_transport + acceleration + secondary_radiation"]
+    J --> K["hadronic_transport + hadronic_rad + hadronic_pg + decay + pp + BH + IC + pair + species + accel + secondary"]
 ```
 
 ## 有效主线

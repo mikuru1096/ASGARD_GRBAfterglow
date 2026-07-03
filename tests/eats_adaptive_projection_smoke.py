@@ -35,7 +35,7 @@ def _projection_inputs(theta_v: float = 0.025):
 def case_adaptive_depth_one_matches_uniform_double_theta():
     boundary, radius, gamma, r_tobs, seed, obs, tobs, source = _projection_inputs()
     reference = Interpolation.sed_interpolation(boundary, r_tobs, gamma, radius, source, seed, obs, tobs, 16, 8, 1)
-    adaptive = Interpolation.sed_interpolation_adaptive_theta(
+    adaptive = Interpolation.sed_adaptive_theta(
         boundary,
         r_tobs,
         gamma,
@@ -57,7 +57,7 @@ def case_adaptive_depth_one_matches_uniform_double_theta():
 def case_adaptive_depth_zero_matches_legacy_baseline():
     boundary, radius, gamma, r_tobs, seed, obs, tobs, source = _projection_inputs()
     legacy = Interpolation.sed_interpolation(boundary, r_tobs, gamma, radius, source, seed, obs, tobs, 8, 8, 1)
-    adaptive = Interpolation.sed_interpolation_adaptive_theta(
+    adaptive = Interpolation.sed_adaptive_theta(
         boundary,
         r_tobs,
         gamma,
@@ -93,7 +93,7 @@ def case_postprocess_routes_adaptive_kernel():
         projection_adaptive_max_depth=1,
     )
     routed = interpolate_observed_flux(setup, r_tobs, gamma, radius, source, obs, config)
-    direct = Interpolation.sed_interpolation_adaptive_theta(
+    direct = Interpolation.sed_adaptive_theta(
         boundary,
         r_tobs,
         gamma,
@@ -114,7 +114,7 @@ def case_postprocess_routes_adaptive_kernel():
 
 def case_adaptive_projection_thread_invariant():
     boundary, radius, gamma, r_tobs, seed, obs, tobs, source = _projection_inputs()
-    single = Interpolation.sed_interpolation_adaptive_theta(
+    single = Interpolation.sed_adaptive_theta(
         boundary,
         r_tobs,
         gamma,
@@ -129,7 +129,7 @@ def case_adaptive_projection_thread_invariant():
         8,
         1,
     )
-    threaded = Interpolation.sed_interpolation_adaptive_theta(
+    threaded = Interpolation.sed_adaptive_theta(
         boundary,
         r_tobs,
         gamma,

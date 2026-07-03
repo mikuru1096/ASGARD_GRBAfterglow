@@ -1,211 +1,226 @@
 !f2py: skip
+! 电子注入谱工具：统一处理快/慢冷却初始谱、FS源项、RS动能源项和热电子注入。
+! Electron injection-profile utilities: fast/slow-cooling spectra, FS sources, RS kinetic sources,
+! and thermal injection.
 module electron_injection_profiles
     use constants
-    use electron_energy_coordinate_common, only: electron_coord_log_four_velocity_sq, electron_coord_from_xgamma, &
-                                                 electron_xgamma_from_coord, electron_gamma_from_coord, &
-                                                 electron_dxgamma_dcoord
+    use electron_coord_common, only: coord_fourvel, coord_from_xg, &
+                                                 xg_from_coord, gamma_from_coord, &
+                                                 dxg_dcoord
     use electron_radiation_kernel, only: besselk
     implicit none
     private
 
-    public :: electron_exp_cutoff_factor, electron_dnx_powerlaw_cutoff_value, electron_initial_powerlaw_params
-    public :: electron_profile_log_cell_edges
-    public :: electron_initial_powerlaw_exp_cutoff, electron_initial_powerlaw_exp_cutoff_edges
-    public :: electron_initial_powerlaw_exp_cutoff_coord_edges
-    public :: electron_build_source_term_exp_cutoff_edges, electron_build_source_term_exp_cutoff_coord_edges
-    public :: electron_build_kinetic_source_term_exp_cutoff_edges, electron_build_kinetic_source_term_exp_cutoff_coord_edges
-    public :: electron_add_thermal_source_term, electron_add_thermal_population
+    public :: exp_cutoff, dnx_cutoff, pl_params
+    public :: log_edges
+    public :: init_powerlaw, init_edges
+    public :: init_coord
+    public :: source_edges, source_coord
+    public :: kinetic_edges, kinetic_coord
+    public :: add_thermal, thermal_pop
 
 contains
 
-! 指数截断因子：γ > Gam_e_max 时返回 exp(1-γ/Gam_e_max)，否则返回1。
-pure real(8) function electron_exp_cutoff_factor(gam,Gam_e_max)
+! 指数截断因子：γ > gmax 时返回 exp(1-γ/gmax)，否则返回 1。
+! Exponential cutoff factor: return exp(1-gamma/gmax) above gmax, otherwise 1.
+pure real(8) function exp_cutoff(gam,Gam_e_max)
     implicit none
     real(8), intent(in) :: gam,Gam_e_max
 
-    electron_exp_cutoff_factor=one
-    if (gam > Gam_e_max) electron_exp_cutoff_factor=dexp(one-gam/Gam_e_max)
-end function electron_exp_cutoff_factor
+    exp_cutoff=1d0
+    if (gam > Gam_e_max) exp_cutoff=dexp(1d0-gam/Gam_e_max)
+end function exp_cutoff
 
-! 根据快冷却/慢冷却分支返回幂律注入参数：系数coeff和谱指数slope。
-subroutine electron_initial_powerlaw_params(Para_N_e_ini,p,Gam_e_m,Gam_e_c,gam,active,coeff,slope)
+! 根据快冷却/慢冷却分支返回幂律注入参数：系数 coeff 和谱指数 slope。
+! Return power-law injection parameters, coefficient and slope, for fast/slow cooling branches.
+subroutine pl_params(Para_N_e_ini,p,Gam_e_m,Gam_e_c,gam,active,coeff,slope)
     implicit none
     logical, intent(out) :: active
     real(8), intent(in) :: Para_N_e_ini,p,Gam_e_m,Gam_e_c,gam
     real(8), intent(out) :: coeff,slope
 
     active=.false.
-    coeff=zero
-    slope=zero
+    coeff=0d0
+    slope=0d0
     if (Gam_e_m > Gam_e_c) then
         if (gam < Gam_e_c) return
         active=.true.
         coeff=Para_N_e_ini*Gam_e_c
-        slope=merge(2d0,p+one,gam < Gam_e_m)
-        if (gam >= Gam_e_m) coeff=coeff*Gam_e_m**(p-one)
+        slope=merge(2d0,p+1d0,gam < Gam_e_m)
+        if (gam >= Gam_e_m) coeff=coeff*Gam_e_m**(p-1d0)
     else
         if (gam < Gam_e_m) return
         active=.true.
-        coeff=Para_N_e_ini*(p-one)*Gam_e_m**(p-one)
-        slope=merge(p,p+one,gam < Gam_e_c)
+        coeff=Para_N_e_ini*(p-1d0)*Gam_e_m**(p-1d0)
+        slope=merge(p,p+1d0,gam < Gam_e_c)
         if (gam >= Gam_e_c) coeff=coeff*Gam_e_c
     end if
-end subroutine electron_initial_powerlaw_params
+end subroutine pl_params
 
-! 幂律+指数截断的 dN/dx 值：dN/dx = coeff * ln(10) * γ^(1-slope) * cutoff(γ)。
-real(8) function electron_dnx_powerlaw_cutoff_value(x,coeff,slope,Gam_e_max)
+! 幂律+指数截断的 dN/dx 值：dN/dx = coeff * ln(10) * gamma^(1-slope) * cutoff(gamma)。
+! Power law with exponential cutoff in dN/dx form.
+real(8) function dnx_cutoff(x,coeff,slope,Gam_e_max)
     implicit none
     real(8), intent(in) :: x,coeff,slope,Gam_e_max
     real(8) :: gam,cutoff_factor
 
-    gam=ten**x
-    if (gam <= zero .or. coeff <= zero) then
-        electron_dnx_powerlaw_cutoff_value=zero
+    gam=1d1**x
+    if (gam <= 0d0 .or. coeff <= 0d0) then
+        dnx_cutoff=0d0
         return
     end if
 
-    cutoff_factor=one
-    if (Gam_e_max > zero .and. gam > Gam_e_max) cutoff_factor=dexp(one-gam/Gam_e_max)
-    electron_dnx_powerlaw_cutoff_value=coeff*dlog(ten)*gam**(one-slope)*cutoff_factor
-end function electron_dnx_powerlaw_cutoff_value
+    cutoff_factor=1d0
+    if (Gam_e_max > 0d0 .and. gam > Gam_e_max) cutoff_factor=dexp(1d0-gam/Gam_e_max)
+    dnx_cutoff=coeff*dlog(1d1)*gam**(1d0-slope)*cutoff_factor
+end function dnx_cutoff
 
-! 3点Gauss-Legendre积分：在[x_lo, x_hi]上对dN/dx进行数值积分。
-real(8) function electron_dnx_gauss3_integral(coeff,slope,Gam_e_max,x_lo,x_hi)
+! 3点 Gauss-Legendre 积分：在 [xlo, xhi] 上对 dN/dx 积分。
+! Three-point Gauss-Legendre integral of dN/dx over [xlo, xhi].
+real(8) function dnx_gauss3(coeff,slope,Gam_e_max,x_lo,x_hi)
     implicit none
     integer :: I_q
     real(8), intent(in) :: coeff,slope,Gam_e_max,x_lo,x_hi
-    real(8), parameter :: xi(3)=(/-dsqrt(3d0/5d0),zero,dsqrt(3d0/5d0)/)
-    real(8), parameter :: wi(3)=(/5d0/9d0,8d0/9d0,5d0/9d0/)
+    real(8), parameter, dimension(3) :: xi=[-dsqrt(3d0/5d0),0d0,dsqrt(3d0/5d0)]
+    real(8), parameter, dimension(3) :: wi=[5d0/9d0,8d0/9d0,5d0/9d0]
     real(8) :: half_dx,x_mid,x_eval,quad
 
     if (x_hi <= x_lo) then
-        electron_dnx_gauss3_integral=zero
+        dnx_gauss3=0d0
         return
     end if
 
     half_dx=0.5d0*(x_hi-x_lo)
     x_mid=0.5d0*(x_hi+x_lo)
-    quad=zero
+    quad=0d0
     do I_q=1,3
         x_eval=x_mid+half_dx*xi(I_q)
-        quad=quad+wi(I_q)*electron_dnx_powerlaw_cutoff_value(x_eval,coeff,slope,Gam_e_max)
+        quad=quad+wi(I_q)*dnx_cutoff(x_eval,coeff,slope,Gam_e_max)
     end do
-    electron_dnx_gauss3_integral=half_dx*quad
-end function electron_dnx_gauss3_integral
+    dnx_gauss3=half_dx*quad
+end function dnx_gauss3
 
-! 3点Gauss-Legendre积分：在四速度坐标y上对dN/dy=(dN/dx)(dx/dy)积分。
-real(8) function electron_dny_gauss3_integral(coord_scale,coeff,slope,Gam_e_max,y_lo,y_hi)
+! 3点 Gauss-Legendre 积分：在四速度坐标 y 上对 dN/dy=(dN/dx)(dx/dy) 积分。
+! Three-point Gauss-Legendre integral in four-velocity coordinate y.
+real(8) function dny_gauss3(coord_scale,coeff,slope,Gam_e_max,y_lo,y_hi)
     implicit none
     integer :: I_q
     real(8), intent(in) :: coord_scale,coeff,slope,Gam_e_max,y_lo,y_hi
-    real(8), parameter :: xi(3)=(/-dsqrt(3d0/5d0),zero,dsqrt(3d0/5d0)/)
-    real(8), parameter :: wi(3)=(/5d0/9d0,8d0/9d0,5d0/9d0/)
+    real(8), parameter, dimension(3) :: xi=[-dsqrt(3d0/5d0),0d0,dsqrt(3d0/5d0)]
+    real(8), parameter, dimension(3) :: wi=[5d0/9d0,8d0/9d0,5d0/9d0]
     real(8) :: half_dy,y_mid,y_eval,x_eval,quad
 
     if (y_hi <= y_lo) then
-        electron_dny_gauss3_integral=zero
+        dny_gauss3=0d0
         return
     end if
 
     half_dy=0.5d0*(y_hi-y_lo)
     y_mid=0.5d0*(y_hi+y_lo)
-    quad=zero
+    quad=0d0
     do I_q=1,3
         y_eval=y_mid+half_dy*xi(I_q)
-        x_eval=electron_xgamma_from_coord(electron_coord_log_four_velocity_sq,coord_scale,y_eval)
-        quad=quad+wi(I_q)*electron_dnx_powerlaw_cutoff_value(x_eval,coeff,slope,Gam_e_max) &
-             *electron_dxgamma_dcoord(electron_coord_log_four_velocity_sq,coord_scale,y_eval)
+        x_eval=xg_from_coord(coord_fourvel,coord_scale,y_eval)
+        quad=quad+wi(I_q)*dnx_cutoff(x_eval,coeff,slope,Gam_e_max) &
+             *dxg_dcoord(coord_fourvel,coord_scale,y_eval)
     end do
-    electron_dny_gauss3_integral=half_dy*quad
-end function electron_dny_gauss3_integral
+    dny_gauss3=half_dy*quad
+end function dny_gauss3
 
-! 将激活区间上的dN/dx积分累加到acc，在Gam_e_max处自动分段处理截断。
-subroutine electron_add_dnx_segment(cell_lo,cell_hi,active_lo,active_hi,coeff,slope,Gam_e_max,acc)
+! 将激活区间上的 dN/dx 积分累加到 acc，在 gmax 处自动分段处理截断。
+! Accumulate active dN/dx support into acc, split at gmax for the cutoff kink.
+subroutine dnx_segment(cell_lo,cell_hi,active_lo,active_hi,coeff,slope,Gam_e_max,acc)
     implicit none
     real(8), intent(in) :: cell_lo,cell_hi,active_lo,active_hi,coeff,slope,Gam_e_max
     real(8), intent(inout) :: acc
     real(8) :: x_lo,x_hi,x_cut
 
-    if (coeff <= zero .or. cell_hi <= cell_lo .or. active_hi <= active_lo) return
+    if (coeff <= 0d0 .or. cell_hi <= cell_lo .or. active_hi <= active_lo) return
     x_lo=max(cell_lo,active_lo)
     x_hi=min(cell_hi,active_hi)
     if (x_hi <= x_lo) return
 
     x_cut=dlog10(Gam_e_max)
     if (x_lo < x_cut .and. x_hi > x_cut) then
-        acc=acc+electron_dnx_gauss3_integral(coeff,slope,Gam_e_max,x_lo,x_cut)
-        acc=acc+electron_dnx_gauss3_integral(coeff,slope,Gam_e_max,x_cut,x_hi)
+        acc=acc+dnx_gauss3(coeff,slope,Gam_e_max,x_lo,x_cut)
+        acc=acc+dnx_gauss3(coeff,slope,Gam_e_max,x_cut,x_hi)
     else
-        acc=acc+electron_dnx_gauss3_integral(coeff,slope,Gam_e_max,x_lo,x_hi)
+        acc=acc+dnx_gauss3(coeff,slope,Gam_e_max,x_lo,x_hi)
     end if
-end subroutine electron_add_dnx_segment
+end subroutine dnx_segment
 
-! 将激活区间上的dN/dy积分累加到acc，在Gam_e_max处自动分段处理截断。
-subroutine electron_add_dny_segment(cell_lo,cell_hi,active_lo,active_hi,coord_scale,coeff,slope,Gam_e_max,acc)
+! 将激活区间上的 dN/dy 积分累加到 acc，在 gmax 处自动分段处理截断。
+! Accumulate active dN/dy support into acc, split at gmax for the cutoff kink.
+subroutine dny_segment(cell_lo,cell_hi,active_lo,active_hi,coord_scale,coeff,slope,Gam_e_max,acc)
     implicit none
     real(8), intent(in) :: cell_lo,cell_hi,active_lo,active_hi,coord_scale,coeff,slope,Gam_e_max
     real(8), intent(inout) :: acc
     real(8) :: y_lo,y_hi,y_cut
 
-    if (coeff <= zero .or. cell_hi <= cell_lo .or. active_hi <= active_lo) return
+    if (coeff <= 0d0 .or. cell_hi <= cell_lo .or. active_hi <= active_lo) return
     y_lo=max(cell_lo,active_lo)
     y_hi=min(cell_hi,active_hi)
     if (y_hi <= y_lo) return
 
-    y_cut=electron_coord_from_xgamma(electron_coord_log_four_velocity_sq,coord_scale,dlog10(Gam_e_max))
+    y_cut=coord_from_xg(coord_fourvel,coord_scale,dlog10(Gam_e_max))
     if (y_lo < y_cut .and. y_hi > y_cut) then
-        acc=acc+electron_dny_gauss3_integral(coord_scale,coeff,slope,Gam_e_max,y_lo,y_cut)
-        acc=acc+electron_dny_gauss3_integral(coord_scale,coeff,slope,Gam_e_max,y_cut,y_hi)
+        acc=acc+dny_gauss3(coord_scale,coeff,slope,Gam_e_max,y_lo,y_cut)
+        acc=acc+dny_gauss3(coord_scale,coeff,slope,Gam_e_max,y_cut,y_hi)
     else
-        acc=acc+electron_dny_gauss3_integral(coord_scale,coeff,slope,Gam_e_max,y_lo,y_hi)
+        acc=acc+dny_gauss3(coord_scale,coeff,slope,Gam_e_max,y_lo,y_hi)
     end if
-end subroutine electron_add_dny_segment
+end subroutine dny_segment
 
-! 由网格中心值推导log10(gamma)的单元边界。
-subroutine electron_profile_log_cell_edges(Num_gam_e,gam_e,x_edge)
+! 由网格中心值推导 log10(gamma) 单元边界。
+! Build log10(gamma) cell edges from grid-center values.
+subroutine log_edges(Num_gam_e,gam_e,x_edge)
     implicit none
     integer, intent(in) :: Num_gam_e
     integer :: I_gam_e
-    real(8), intent(in) :: gam_e(Num_gam_e)
-    real(8), intent(out) :: x_edge(Num_gam_e+1)
+    real(8), intent(in), dimension(Num_gam_e) :: gam_e
+    real(8), intent(out), dimension(Num_gam_e+1) :: x_edge
 
     x_edge(1)=dlog10(gam_e(1))-0.5d0*(dlog10(gam_e(2))-dlog10(gam_e(1)))
     do I_gam_e=2,Num_gam_e
         x_edge(I_gam_e)=0.5d0*(dlog10(gam_e(I_gam_e-1))+dlog10(gam_e(I_gam_e)))
     end do
     x_edge(Num_gam_e+1)=dlog10(gam_e(Num_gam_e))+0.5d0*(dlog10(gam_e(Num_gam_e))-dlog10(gam_e(Num_gam_e-1)))
-end subroutine electron_profile_log_cell_edges
+end subroutine log_edges
 
-! 生成快/慢冷却幂律+指数截断的初始电子谱 dN/dγ（网格中心值）。
-subroutine electron_initial_powerlaw_exp_cutoff(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,gam_e,dN_gam_e_1)
+! 生成快/慢冷却幂律+指数截断的初始电子谱 dN/dgamma（网格中心值）。
+! Build the fast/slow-cooling initial electron spectrum dN/dgamma at grid centers.
+subroutine init_powerlaw(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,gam_e,dN_gam_e_1)
     implicit none
     integer, intent(in) :: Num_gam_e
     integer :: I_gam_e
-    real(8), intent(in) :: Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,gam_e(Num_gam_e)
-    real(8), intent(out) :: dN_gam_e_1(Num_gam_e)
+    real(8), intent(in), dimension(Num_gam_e) :: gam_e
+    real(8), intent(in) :: Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max
+    real(8), intent(out), dimension(Num_gam_e) :: dN_gam_e_1
     logical :: active
     real(8) :: coeff,slope
 
-    dN_gam_e_1=zero
-    if (Gam_e_max <= zero) return
+    dN_gam_e_1=0d0
+    if (Gam_e_max <= 0d0) return
 
     do I_gam_e=1,Num_gam_e
-        call electron_initial_powerlaw_params(Para_N_e_ini,p,Gam_e_m,Gam_e_c,gam_e(I_gam_e),active,coeff,slope)
-        if (active) dN_gam_e_1(I_gam_e)=coeff*gam_e(I_gam_e)**(-slope)*electron_exp_cutoff_factor(gam_e(I_gam_e),Gam_e_max)
+        call pl_params(Para_N_e_ini,p,Gam_e_m,Gam_e_c,gam_e(I_gam_e),active,coeff,slope)
+        if (active) dN_gam_e_1(I_gam_e)=coeff*gam_e(I_gam_e)**(-slope)*exp_cutoff(gam_e(I_gam_e),Gam_e_max)
     end do
-end subroutine electron_initial_powerlaw_exp_cutoff
+end subroutine init_powerlaw
 
 ! 生成快/慢冷却幂律+指数截断的初始电子谱 dN/dx（网格单元平均，保正/守恒）。
-subroutine electron_initial_powerlaw_exp_cutoff_edges(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,x_edge,dN_x_1)
+! Build the fast/slow-cooling initial dN/dx as conservative positive cell averages.
+subroutine init_edges(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,x_edge,dN_x_1)
     implicit none
     integer, intent(in) :: Num_gam_e
     integer :: I_gam_e
-    real(8), intent(in) :: Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,x_edge(Num_gam_e+1)
-    real(8), intent(out) :: dN_x_1(Num_gam_e)
+    real(8), intent(in), dimension(Num_gam_e+1) :: x_edge
+    real(8), intent(in) :: Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max
+    real(8), intent(out), dimension(Num_gam_e) :: dN_x_1
     real(8) :: cell_lo,cell_hi,dx_cell,seg_sum,x_m,x_c,coeff_lo,coeff_hi,huge_x
 
-    dN_x_1=zero
-    if (Gam_e_max <= zero) return
+    dN_x_1=0d0
+    if (Gam_e_max <= 0d0) return
 
     x_m=dlog10(Gam_e_m)
     x_c=dlog10(Gam_e_c)
@@ -215,74 +230,78 @@ subroutine electron_initial_powerlaw_exp_cutoff_edges(Para_N_e_ini,p,Gam_e_m,Gam
         cell_lo=x_edge(I_gam_e)
         cell_hi=x_edge(I_gam_e+1)
         dx_cell=cell_hi-cell_lo
-        if (dx_cell <= zero) cycle
+        if (dx_cell <= 0d0) cycle
 
-        seg_sum=zero
+        seg_sum=0d0
         if (Gam_e_m > Gam_e_c) then
             coeff_lo=Para_N_e_ini*Gam_e_c
-            coeff_hi=Para_N_e_ini*Gam_e_c*Gam_e_m**(p-one)
-            call electron_add_dnx_segment(cell_lo,cell_hi,x_c,x_m,coeff_lo,2d0,Gam_e_max,seg_sum)
-            call electron_add_dnx_segment(cell_lo,cell_hi,x_m,huge_x,coeff_hi,p+one,Gam_e_max,seg_sum)
+            coeff_hi=Para_N_e_ini*Gam_e_c*Gam_e_m**(p-1d0)
+            call dnx_segment(cell_lo,cell_hi,x_c,x_m,coeff_lo,2d0,Gam_e_max,seg_sum)
+            call dnx_segment(cell_lo,cell_hi,x_m,huge_x,coeff_hi,p+1d0,Gam_e_max,seg_sum)
         else
-            coeff_lo=Para_N_e_ini*(p-one)*Gam_e_m**(p-one)
+            coeff_lo=Para_N_e_ini*(p-1d0)*Gam_e_m**(p-1d0)
             coeff_hi=coeff_lo*Gam_e_c
-            call electron_add_dnx_segment(cell_lo,cell_hi,x_m,x_c,coeff_lo,p,Gam_e_max,seg_sum)
-            call electron_add_dnx_segment(cell_lo,cell_hi,x_c,huge_x,coeff_hi,p+one,Gam_e_max,seg_sum)
+            call dnx_segment(cell_lo,cell_hi,x_m,x_c,coeff_lo,p,Gam_e_max,seg_sum)
+            call dnx_segment(cell_lo,cell_hi,x_c,huge_x,coeff_hi,p+1d0,Gam_e_max,seg_sum)
         end if
         dN_x_1(I_gam_e)=seg_sum/dx_cell
     end do
-end subroutine electron_initial_powerlaw_exp_cutoff_edges
+end subroutine init_edges
 
-! 生成快/慢冷却幂律+指数截断的初始电子谱 dN/dy，y为四速度坐标。
-subroutine electron_initial_powerlaw_exp_cutoff_coord_edges(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
+! 生成快/慢冷却幂律+指数截断的初始电子谱 dN/dy，y 为四速度坐标。
+! Build the initial dN/dy in four-velocity coordinate y.
+subroutine init_coord(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
                                                             Num_gam_e,coord_edge,coord_scale,dN_y_1)
     implicit none
     integer, intent(in) :: Num_gam_e
     integer :: I_gam_e
-    real(8), intent(in) :: Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,coord_edge(Num_gam_e+1),coord_scale
-    real(8), intent(out) :: dN_y_1(Num_gam_e)
+    real(8), intent(in), dimension(Num_gam_e+1) :: coord_edge
+    real(8), intent(in) :: Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,coord_scale
+    real(8), intent(out), dimension(Num_gam_e) :: dN_y_1
     real(8) :: cell_lo,cell_hi,dy_cell,seg_sum,y_m,y_c,coeff_lo,coeff_hi,huge_y
 
-    dN_y_1=zero
-    if (Gam_e_max <= zero) return
+    dN_y_1=0d0
+    if (Gam_e_max <= 0d0) return
 
-    y_m=electron_coord_from_xgamma(electron_coord_log_four_velocity_sq,coord_scale,dlog10(Gam_e_m))
-    y_c=electron_coord_from_xgamma(electron_coord_log_four_velocity_sq,coord_scale,dlog10(Gam_e_c))
+    y_m=coord_from_xg(coord_fourvel,coord_scale,dlog10(Gam_e_m))
+    y_c=coord_from_xg(coord_fourvel,coord_scale,dlog10(Gam_e_c))
     huge_y=1d300
 
     do I_gam_e=1,Num_gam_e
         cell_lo=coord_edge(I_gam_e)
         cell_hi=coord_edge(I_gam_e+1)
         dy_cell=cell_hi-cell_lo
-        if (dy_cell <= zero) cycle
+        if (dy_cell <= 0d0) cycle
 
-        seg_sum=zero
+        seg_sum=0d0
         if (Gam_e_m > Gam_e_c) then
             coeff_lo=Para_N_e_ini*Gam_e_c
-            coeff_hi=Para_N_e_ini*Gam_e_c*Gam_e_m**(p-one)
-            call electron_add_dny_segment(cell_lo,cell_hi,y_c,y_m,coord_scale,coeff_lo,2d0,Gam_e_max,seg_sum)
-            call electron_add_dny_segment(cell_lo,cell_hi,y_m,huge_y,coord_scale,coeff_hi,p+one,Gam_e_max,seg_sum)
+            coeff_hi=Para_N_e_ini*Gam_e_c*Gam_e_m**(p-1d0)
+            call dny_segment(cell_lo,cell_hi,y_c,y_m,coord_scale,coeff_lo,2d0,Gam_e_max,seg_sum)
+            call dny_segment(cell_lo,cell_hi,y_m,huge_y,coord_scale,coeff_hi,p+1d0,Gam_e_max,seg_sum)
         else
-            coeff_lo=Para_N_e_ini*(p-one)*Gam_e_m**(p-one)
+            coeff_lo=Para_N_e_ini*(p-1d0)*Gam_e_m**(p-1d0)
             coeff_hi=coeff_lo*Gam_e_c
-            call electron_add_dny_segment(cell_lo,cell_hi,y_m,y_c,coord_scale,coeff_lo,p,Gam_e_max,seg_sum)
-            call electron_add_dny_segment(cell_lo,cell_hi,y_c,huge_y,coord_scale,coeff_hi,p+one,Gam_e_max,seg_sum)
+            call dny_segment(cell_lo,cell_hi,y_m,y_c,coord_scale,coeff_lo,p,Gam_e_max,seg_sum)
+            call dny_segment(cell_lo,cell_hi,y_c,huge_y,coord_scale,coeff_hi,p+1d0,Gam_e_max,seg_sum)
         end if
         dN_y_1(I_gam_e)=seg_sum/dy_cell
     end do
-end subroutine electron_initial_powerlaw_exp_cutoff_coord_edges
+end subroutine init_coord
 
 ! 构建幂律+指数截断源项 dF/dx（网格单元平均，保正/守恒）。
-subroutine electron_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m,Gam_e_max,Q,p,dF1)
+! Build the power-law cutoff source dF/dx as conservative positive cell averages.
+subroutine source_edges(Num_gam_e,x_edge,Gam_e_m,Gam_e_max,Q,p,dF1)
     implicit none
     integer, intent(in) :: Num_gam_e
     integer :: I_gam_e
-    real(8), intent(in) :: x_edge(Num_gam_e+1),Gam_e_m,Gam_e_max,Q,p
-    real(8), intent(out) :: dF1(Num_gam_e)
+    real(8), intent(in), dimension(Num_gam_e+1) :: x_edge
+    real(8), intent(in) :: Gam_e_m,Gam_e_max,Q,p
+    real(8), intent(out), dimension(Num_gam_e) :: dF1
     real(8) :: cell_lo,cell_hi,dx_cell,seg_sum,x_m,huge_x
 
-    dF1=zero
-    if (Gam_e_max <= zero .or. Q <= zero) return
+    dF1=0d0
+    if (Gam_e_max <= 0d0 .or. Q <= 0d0) return
 
     x_m=dlog10(Gam_e_m)
     huge_x=1d300
@@ -290,91 +309,97 @@ subroutine electron_build_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m,
         cell_lo=x_edge(I_gam_e)
         cell_hi=x_edge(I_gam_e+1)
         dx_cell=cell_hi-cell_lo
-        if (dx_cell <= zero) cycle
-        seg_sum=zero
-        call electron_add_dnx_segment(cell_lo,cell_hi,x_m,huge_x,Q,p,Gam_e_max,seg_sum)
+        if (dx_cell <= 0d0) cycle
+        seg_sum=0d0
+        call dnx_segment(cell_lo,cell_hi,x_m,huge_x,Q,p,Gam_e_max,seg_sum)
         dF1(I_gam_e)=seg_sum/dx_cell
     end do
-end subroutine electron_build_source_term_exp_cutoff_edges
+end subroutine source_edges
 
-! 构建FS幂律+指数截断源项 dF/dy，y为四速度坐标，物理谱仍为γ^{-p}。
-subroutine electron_build_source_term_exp_cutoff_coord_edges(Num_gam_e,coord_edge,coord_scale,Gam_e_m,Gam_e_max,Q,p,dF1)
+! 构建 FS 幂律+指数截断源项 dF/dy，y 为四速度坐标，物理谱仍为 gamma^(-p)。
+! Build the FS source dF/dy in four-velocity coordinate y; the physical spectrum remains gamma^(-p).
+subroutine source_coord(Num_gam_e,coord_edge,coord_scale,Gam_e_m,Gam_e_max,Q,p,dF1)
     implicit none
     integer, intent(in) :: Num_gam_e
     integer :: I_gam_e
-    real(8), intent(in) :: coord_edge(Num_gam_e+1),coord_scale,Gam_e_m,Gam_e_max,Q,p
-    real(8), intent(out) :: dF1(Num_gam_e)
+    real(8), intent(in), dimension(Num_gam_e+1) :: coord_edge
+    real(8), intent(in) :: coord_scale,Gam_e_m,Gam_e_max,Q,p
+    real(8), intent(out), dimension(Num_gam_e) :: dF1
     real(8) :: cell_lo,cell_hi,dy_cell,seg_sum,y_m,huge_y
 
-    dF1=zero
-    if (Gam_e_max <= zero .or. Q <= zero) return
+    dF1=0d0
+    if (Gam_e_max <= 0d0 .or. Q <= 0d0) return
 
-    y_m=electron_coord_from_xgamma(electron_coord_log_four_velocity_sq,coord_scale,dlog10(Gam_e_m))
+    y_m=coord_from_xg(coord_fourvel,coord_scale,dlog10(Gam_e_m))
     huge_y=1d300
     do I_gam_e=1,Num_gam_e
         cell_lo=coord_edge(I_gam_e)
         cell_hi=coord_edge(I_gam_e+1)
         dy_cell=cell_hi-cell_lo
-        if (dy_cell <= zero) cycle
-        seg_sum=zero
-        call electron_add_dny_segment(cell_lo,cell_hi,y_m,huge_y,coord_scale,Q,p,Gam_e_max,seg_sum)
+        if (dy_cell <= 0d0) cycle
+        seg_sum=0d0
+        call dny_segment(cell_lo,cell_hi,y_m,huge_y,coord_scale,Q,p,Gam_e_max,seg_sum)
         dF1(I_gam_e)=seg_sum/dy_cell
     end do
-end subroutine electron_build_source_term_exp_cutoff_coord_edges
+end subroutine source_coord
 
-! 构建以动能幂律归一的反向激波源项：dN/dx ∝ γ (γ-1)^(-p) exp cutoff。
-subroutine electron_build_kinetic_source_term_exp_cutoff_edges(Num_gam_e,x_edge,Gam_e_m,Gam_e_max,Q,p,dF1)
+! 构建以动能幂律归一的反向激波源项：dN/dx 正比 gamma*(gamma-1)^(-p)*cutoff。
+! Build the reverse-shock kinetic source normalized from gamma*(gamma-1)^(-p)*cutoff.
+subroutine kinetic_edges(Num_gam_e,x_edge,Gam_e_m,Gam_e_max,Q,p,dF1)
     implicit none
     integer, intent(in) :: Num_gam_e
     integer :: I_gam_e,I_q
-    real(8), intent(in) :: x_edge(Num_gam_e+1),Gam_e_m,Gam_e_max,Q,p
-    real(8), intent(out) :: dF1(Num_gam_e)
-    real(8), parameter :: xi(3)=(/-dsqrt(3d0/5d0),zero,dsqrt(3d0/5d0)/)
-    real(8), parameter :: wi(3)=(/5d0/9d0,8d0/9d0,5d0/9d0/)
+    real(8), intent(in), dimension(Num_gam_e+1) :: x_edge
+    real(8), intent(in) :: Gam_e_m,Gam_e_max,Q,p
+    real(8), intent(out), dimension(Num_gam_e) :: dF1
+    real(8), parameter, dimension(3) :: xi=[-dsqrt(3d0/5d0),0d0,dsqrt(3d0/5d0)]
+    real(8), parameter, dimension(3) :: wi=[5d0/9d0,8d0/9d0,5d0/9d0]
     real(8) :: cell_lo,cell_hi,dx_cell,half_dx,x_mid,x_eval,gam,cutoff_factor,cell_sum,shape_norm
 
-    dF1=zero
-    shape_norm=zero
-    if (Gam_e_max <= zero .or. Q <= zero) return
+    dF1=0d0
+    shape_norm=0d0
+    if (Gam_e_max <= 0d0 .or. Q <= 0d0) return
 
     do I_gam_e=1,Num_gam_e
         cell_lo=x_edge(I_gam_e)
         cell_hi=x_edge(I_gam_e+1)
         dx_cell=cell_hi-cell_lo
-        if (dx_cell <= zero) cycle
+        if (dx_cell <= 0d0) cycle
         half_dx=0.5d0*dx_cell
         x_mid=0.5d0*(cell_lo+cell_hi)
-        cell_sum=zero
+        cell_sum=0d0
         do I_q=1,3
             x_eval=x_mid+half_dx*xi(I_q)
-            gam=ten**x_eval
+            gam=1d1**x_eval
             if (gam > Gam_e_m) then
-                cutoff_factor=electron_exp_cutoff_factor(gam,Gam_e_max)
-                cell_sum=cell_sum+wi(I_q)*gam*dlog(ten)*(gam-one)**(-p)*cutoff_factor
+                cutoff_factor=exp_cutoff(gam,Gam_e_max)
+                cell_sum=cell_sum+wi(I_q)*gam*dlog(1d1)*(gam-1d0)**(-p)*cutoff_factor
             end if
         end do
         cell_sum=half_dx*cell_sum
         dF1(I_gam_e)=cell_sum/dx_cell
         shape_norm=shape_norm+cell_sum
     end do
-    if (shape_norm <= zero) error stop 'kinetic electron source has empty active support'
+    if (shape_norm <= 0d0) error stop 'kinetic electron source has empty active support'
     dF1=Q*dF1/shape_norm
-end subroutine electron_build_kinetic_source_term_exp_cutoff_edges
+end subroutine kinetic_edges
 
 ! 构建以动能幂律归一的源项 dN/dy；y 为 log four-velocity-squared 坐标。
-subroutine electron_build_kinetic_source_term_exp_cutoff_coord_edges(Num_gam_e,coord_edge,coord_scale,Gam_e_m,Gam_e_max,Q,p,dF1)
+! Build the kinetic-normalized source dN/dy in log four-velocity-squared coordinate.
+subroutine kinetic_coord(Num_gam_e,coord_edge,coord_scale,Gam_e_m,Gam_e_max,Q,p,dF1)
     implicit none
     integer, intent(in) :: Num_gam_e
     integer :: I_gam_e,I_q
-    real(8), intent(in) :: coord_edge(Num_gam_e+1),coord_scale,Gam_e_m,Gam_e_max,Q,p
-    real(8), intent(out) :: dF1(Num_gam_e)
-    real(8), parameter :: xi(3)=(/-dsqrt(3d0/5d0),zero,dsqrt(3d0/5d0)/)
-    real(8), parameter :: wi(3)=(/5d0/9d0,8d0/9d0,5d0/9d0/)
+    real(8), intent(in), dimension(Num_gam_e+1) :: coord_edge
+    real(8), intent(in) :: coord_scale,Gam_e_m,Gam_e_max,Q,p
+    real(8), intent(out), dimension(Num_gam_e) :: dF1
+    real(8), parameter, dimension(3) :: xi=[-dsqrt(3d0/5d0),0d0,dsqrt(3d0/5d0)]
+    real(8), parameter, dimension(3) :: wi=[5d0/9d0,8d0/9d0,5d0/9d0]
     real(8) :: cell_lo,cell_hi,dy_cell,half_dy,y_mid,y_eval,gam,dxdy,cell_sum,shape_norm
 
-    dF1=zero
-    shape_norm=zero
-    if (Gam_e_max <= zero .or. Q <= zero) return
+    dF1=0d0
+    shape_norm=0d0
+    if (Gam_e_max <= 0d0 .or. Q <= 0d0) return
 
     do I_gam_e=1,Num_gam_e
         cell_lo=coord_edge(I_gam_e)
@@ -382,80 +407,94 @@ subroutine electron_build_kinetic_source_term_exp_cutoff_coord_edges(Num_gam_e,c
         dy_cell=cell_hi-cell_lo
         half_dy=0.5d0*dy_cell
         y_mid=0.5d0*(cell_lo+cell_hi)
-        cell_sum=zero
+        cell_sum=0d0
         do I_q=1,3
             y_eval=y_mid+half_dy*xi(I_q)
-            gam=electron_gamma_from_coord(electron_coord_log_four_velocity_sq,coord_scale,y_eval)
+            gam=gamma_from_coord(coord_fourvel,coord_scale,y_eval)
             if (gam > Gam_e_m) then
-                dxdy=electron_dxgamma_dcoord(electron_coord_log_four_velocity_sq,coord_scale,y_eval)
-                cell_sum=cell_sum+wi(I_q)*gam*dlog(ten)*dxdy*(gam-one)**(-p)*electron_exp_cutoff_factor(gam,Gam_e_max)
+                dxdy=dxg_dcoord(coord_fourvel,coord_scale,y_eval)
+                cell_sum=cell_sum+wi(I_q)*gam*dlog(1d1)*dxdy*(gam-1d0)**(-p)*exp_cutoff(gam,Gam_e_max)
             end if
         end do
         cell_sum=half_dy*cell_sum
         dF1(I_gam_e)=cell_sum/dy_cell
         shape_norm=shape_norm+cell_sum
     end do
-    if (shape_norm <= zero) error stop 'kinetic electron coordinate source has empty active support'
+    if (shape_norm <= 0d0) error stop 'kinetic electron coordinate source has empty active support'
     dF1=Q*dF1/shape_norm
-end subroutine electron_build_kinetic_source_term_exp_cutoff_coord_edges
+end subroutine kinetic_coord
 
-pure real(8) function electron_thermal_theta(four_v)
+! 由 shock-front 四速度估算 Maxwell-Juttner 温度 theta。
+! Estimate Maxwell-Juttner temperature theta from shock-front four velocity.
+pure real(8) function thermal_theta(four_v)
     implicit none
     real(8), intent(in) :: four_v
 
-    if (four_v <= zero) error stop 'electron_thermal_theta requires four_v > 0'
-    electron_thermal_theta=four_v*(four_v+1.07d0*four_v*four_v)/(3d0*(one+four_v+1.07d0*four_v*four_v))
-end function electron_thermal_theta
+    if (four_v <= 0d0) error stop 'thermal_theta requires four_v > 0'
+    thermal_theta=four_v*(four_v+1.07d0*four_v*four_v)/(3d0*(1d0+four_v+1.07d0*four_v*four_v))
+end function thermal_theta
 
-subroutine electron_build_thermal_shape_dnx(Num_gam_e,gam_e,theta,shape_dnx)
+! 构建单位归一的热电子 dN/dx 形状。
+! Build a unit-normalized thermal-electron dN/dx shape.
+subroutine thermal_shape(Num_gam_e,gam_e,theta,shape_dnx)
     implicit none
     integer, intent(in) :: Num_gam_e
     integer :: I_gam_e
-    real(8), intent(in) :: gam_e(Num_gam_e),theta
-    real(8), intent(out) :: shape_dnx(Num_gam_e)
-    real(8) :: shape_dgam(Num_gam_e),k2_theta,norm_dgam
+    real(8), intent(in), dimension(Num_gam_e) :: gam_e
+    real(8), intent(in) :: theta
+    real(8), intent(out), dimension(Num_gam_e) :: shape_dnx
+    real(8), dimension(Num_gam_e) :: shape_dgam
+    real(8) :: k2_theta,norm_dgam
 
-    if (theta <= zero) error stop 'electron_build_thermal_shape_dnx requires theta > 0'
-    if (any(gam_e <= one)) error stop 'thermal electron grid requires gamma > 1'
+    if (theta <= 0d0) error stop 'thermal_shape requires theta > 0'
+    if (any(gam_e <= 1d0)) error stop 'thermal electron grid requires gamma > 1'
 
-    k2_theta=besselk(one/theta)
-    if (k2_theta <= zero) error stop 'besselk normalization vanished in thermal electron source'
+    k2_theta=besselk(1d0/theta)
+    if (k2_theta <= 0d0) error stop 'besselk normalization vanished in thermal electron source'
 
     do I_gam_e=1,Num_gam_e
-        shape_dgam(I_gam_e)=gam_e(I_gam_e)**2*dsqrt(one-one/gam_e(I_gam_e)**2) &
+        shape_dgam(I_gam_e)=gam_e(I_gam_e)**2*dsqrt(1d0-1d0/gam_e(I_gam_e)**2) &
                           *dexp(-gam_e(I_gam_e)/theta)/(theta*k2_theta)
     end do
     norm_dgam=sum((shape_dgam(2:Num_gam_e)+shape_dgam(1:Num_gam_e-1)) &
-            *(gam_e(2:Num_gam_e)-gam_e(1:Num_gam_e-1)))/two
-    if (norm_dgam <= zero) error stop 'thermal electron distribution normalization is non-positive'
+            *(gam_e(2:Num_gam_e)-gam_e(1:Num_gam_e-1)))/2d0
+    if (norm_dgam <= 0d0) error stop 'thermal electron distribution normalization is non-positive'
 
-    shape_dnx=shape_dgam/norm_dgam*gam_e*dlog(ten)
-end subroutine electron_build_thermal_shape_dnx
+    shape_dnx=shape_dgam/norm_dgam*gam_e*dlog(1d1)
+end subroutine thermal_shape
 
-subroutine electron_add_thermal_source_term(Num_gam_e,gam_e,four_v,total_count,dF1)
+! 将热电子源项加入已有 dF1。
+! Add thermal-electron source counts into the existing dF1 source array.
+subroutine add_thermal(Num_gam_e,gam_e,four_v,total_count,dF1)
     implicit none
     integer, intent(in) :: Num_gam_e
-    real(8), intent(in) :: gam_e(Num_gam_e),four_v,total_count
-    real(8), intent(inout) :: dF1(Num_gam_e)
-    real(8) :: shape_dnx(Num_gam_e),theta
+    real(8), intent(in), dimension(Num_gam_e) :: gam_e
+    real(8), intent(in) :: four_v,total_count
+    real(8), intent(inout), dimension(Num_gam_e) :: dF1
+    real(8), dimension(Num_gam_e) :: shape_dnx
+    real(8) :: theta
 
-    if (total_count <= zero) return
-    theta=electron_thermal_theta(four_v)
-    call electron_build_thermal_shape_dnx(Num_gam_e,gam_e,theta,shape_dnx)
+    if (total_count <= 0d0) return
+    theta=thermal_theta(four_v)
+    call thermal_shape(Num_gam_e,gam_e,theta,shape_dnx)
     dF1=dF1+total_count*shape_dnx
-end subroutine electron_add_thermal_source_term
+end subroutine add_thermal
 
-subroutine electron_add_thermal_population(Num_gam_e,gam_e,four_v,total_count,dN_gam_e)
+! 将热电子种群直接加入 dN/dgamma 谱。
+! Add a thermal-electron population directly into the dN/dgamma spectrum.
+subroutine thermal_pop(Num_gam_e,gam_e,four_v,total_count,dN_gam_e)
     implicit none
     integer, intent(in) :: Num_gam_e
-    real(8), intent(in) :: gam_e(Num_gam_e),four_v,total_count
-    real(8), intent(inout) :: dN_gam_e(Num_gam_e)
-    real(8) :: shape_dnx(Num_gam_e),theta
+    real(8), intent(in), dimension(Num_gam_e) :: gam_e
+    real(8), intent(in) :: four_v,total_count
+    real(8), intent(inout), dimension(Num_gam_e) :: dN_gam_e
+    real(8), dimension(Num_gam_e) :: shape_dnx
+    real(8) :: theta
 
-    if (total_count <= zero) return
-    theta=electron_thermal_theta(four_v)
-    call electron_build_thermal_shape_dnx(Num_gam_e,gam_e,theta,shape_dnx)
-    dN_gam_e=dN_gam_e+total_count*shape_dnx/(gam_e*dlog(ten))
-end subroutine electron_add_thermal_population
+    if (total_count <= 0d0) return
+    theta=thermal_theta(four_v)
+    call thermal_shape(Num_gam_e,gam_e,theta,shape_dnx)
+    dN_gam_e=dN_gam_e+total_count*shape_dnx/(gam_e*dlog(1d1))
+end subroutine thermal_pop
 
 end module electron_injection_profiles

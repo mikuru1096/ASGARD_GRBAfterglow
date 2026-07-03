@@ -4,127 +4,135 @@ module electron_seed_history_kernel
   implicit none
   private
 
-  public :: integrate_downstream_proper_time
-  public :: accumulate_comoving_history_fields
-  public :: advance_comoving_history_stream
+  ! 历史种子光子场：按下游固有时把旧壳层辐射输运到当前 chi 网格。
+  ! Seed-photon history field: transport older shell emission to the current chi grid in downstream proper time.
+  public :: integrate_proper_time
+  public :: accumulate_history_fields
+  public :: advance_history_stream
   public :: history_transfer_weight
 
-  integer, save :: hist_cache_num_shell=0, hist_cache_num_chi=0, hist_cache_num_nu=0, hist_cache_built_shells=0
-  real(8), allocatable, save :: hist_inv_dx_ws(:,:), hist_log_transfer_prefix_ws(:,:,:)
-  logical, allocatable, save :: hist_valid_map_ws(:)
-  integer, allocatable, save :: hist_idx_lo_map_ws(:)
-  real(8), allocatable, save :: hist_log_frac_map_ws(:)
-  integer, save :: hist_seed_num_nu_cache=0
-  logical, save :: hist_seed_cache_ready=.false.
-  real(8), allocatable, save :: hist_v_seed_cache(:), hist_log_v_seed_cache(:), hist_inv_dlog_v_cell_cache(:)
-  !$omp threadprivate(hist_cache_num_shell,hist_cache_num_chi,hist_cache_num_nu,hist_cache_built_shells)
-  !$omp threadprivate(hist_inv_dx_ws,hist_log_transfer_prefix_ws,hist_valid_map_ws,hist_idx_lo_map_ws,hist_log_frac_map_ws)
-  !$omp threadprivate(hist_seed_num_nu_cache,hist_seed_cache_ready,hist_v_seed_cache,hist_log_v_seed_cache)
-  !$omp threadprivate(hist_inv_dlog_v_cell_cache)
+  integer, save :: cache_shells=0, cache_chi=0, cache_nu=0, built_shells=0
+  real(8), allocatable, save, dimension(:,:) :: inv_dx
+  real(8), allocatable, save, dimension(:,:,:) :: tau_prefix
+  logical, allocatable, save, dimension(:) :: map_valid
+  integer, allocatable, save, dimension(:) :: map_idx
+  real(8), allocatable, save, dimension(:) :: map_frac
+  integer, save :: seed_nu=0
+  logical, save :: seed_ready=.false.
+  real(8), allocatable, save, dimension(:) :: seed_v,seed_logv,seed_invdlog
+  !$omp threadprivate(cache_shells,cache_chi,cache_nu,built_shells)
+  !$omp threadprivate(inv_dx,tau_prefix,map_valid,map_idx,map_frac)
+  !$omp threadprivate(seed_nu,seed_ready,seed_v,seed_logv)
+  !$omp threadprivate(seed_invdlog)
 
 contains
 
 ! 确保历史场工作数组、频率映射和种子频率缓存已按当前网格分配。
-subroutine ensure_history_cache(Num_shell,Num_chi,Num_nu,V_seed)
+! Ensure history work arrays, frequency maps, and seed-frequency cache match the current grid.
+subroutine ensure_cache(Num_shell,Num_chi,Num_nu,V_seed)
 implicit none
 integer, intent(in) :: Num_shell,Num_chi,Num_nu
-real(8), intent(in) :: V_seed(Num_nu)
+real(8), intent(in), dimension(Num_nu) :: V_seed
 logical :: rebuild_main, rebuild_map, cache_match
 
-    rebuild_main=.not. allocated(hist_inv_dx_ws)
+    rebuild_main=.not. allocated(inv_dx)
     if (.not. rebuild_main) then
-        rebuild_main = (hist_cache_num_shell /= Num_shell) .or. (hist_cache_num_chi /= Num_chi) .or. (hist_cache_num_nu /= Num_nu)
+        rebuild_main = (cache_shells /= Num_shell) .or. (cache_chi /= Num_chi) .or. (cache_nu /= Num_nu)
     end if
     if (rebuild_main) then
-        if (allocated(hist_inv_dx_ws)) deallocate(hist_inv_dx_ws)
-        if (allocated(hist_log_transfer_prefix_ws)) deallocate(hist_log_transfer_prefix_ws)
-        allocate(hist_inv_dx_ws(Num_chi,Num_shell),hist_log_transfer_prefix_ws(Num_nu,0:Num_chi,Num_shell))
-        hist_cache_num_shell=Num_shell
-        hist_cache_num_chi=Num_chi
-        hist_cache_num_nu=Num_nu
-        hist_cache_built_shells=0
+        if (allocated(inv_dx)) deallocate(inv_dx)
+        if (allocated(tau_prefix)) deallocate(tau_prefix)
+        allocate(inv_dx(Num_chi,Num_shell),tau_prefix(Num_nu,0:Num_chi,Num_shell))
+        cache_shells=Num_shell
+        cache_chi=Num_chi
+        cache_nu=Num_nu
+        built_shells=0
     end if
 
-    rebuild_map=.not. allocated(hist_valid_map_ws)
-    if (.not. rebuild_map) rebuild_map = (size(hist_valid_map_ws) /= Num_nu)
+    rebuild_map=.not. allocated(map_valid)
+    if (.not. rebuild_map) rebuild_map = (size(map_valid) /= Num_nu)
     if (rebuild_map) then
-        if (allocated(hist_valid_map_ws)) deallocate(hist_valid_map_ws,hist_idx_lo_map_ws,hist_log_frac_map_ws)
-        allocate(hist_valid_map_ws(Num_nu),hist_idx_lo_map_ws(Num_nu),hist_log_frac_map_ws(Num_nu))
+        if (allocated(map_valid)) deallocate(map_valid,map_idx,map_frac)
+        allocate(map_valid(Num_nu),map_idx(Num_nu),map_frac(Num_nu))
     end if
 
     cache_match = .false.
-    if (hist_seed_cache_ready) then
-        if (hist_seed_num_nu_cache == Num_nu) then
-            if (allocated(hist_v_seed_cache)) cache_match=all(hist_v_seed_cache == V_seed)
+    if (seed_ready) then
+        if (seed_nu == Num_nu) then
+            if (allocated(seed_v)) cache_match=all(seed_v == V_seed)
         end if
     end if
     if (cache_match) return
 
-    if (allocated(hist_v_seed_cache)) deallocate(hist_v_seed_cache,hist_log_v_seed_cache,hist_inv_dlog_v_cell_cache)
-    allocate(hist_v_seed_cache(Num_nu),hist_log_v_seed_cache(Num_nu),hist_inv_dlog_v_cell_cache(Num_nu-1))
-    hist_v_seed_cache=V_seed
-    hist_log_v_seed_cache=dlog(V_seed)
-    hist_inv_dlog_v_cell_cache=one/(hist_log_v_seed_cache(2:Num_nu)-hist_log_v_seed_cache(1:Num_nu-1))
-    hist_seed_num_nu_cache=Num_nu
-    hist_seed_cache_ready=.true.
-end subroutine ensure_history_cache
+    if (allocated(seed_v)) deallocate(seed_v,seed_logv,seed_invdlog)
+    allocate(seed_v(Num_nu),seed_logv(Num_nu),seed_invdlog(Num_nu-1))
+    seed_v=V_seed
+    seed_logv=dlog(V_seed)
+    seed_invdlog=1d0/(seed_logv(2:Num_nu)-seed_logv(1:Num_nu-1))
+    seed_nu=Num_nu
+    seed_ready=.true.
+end subroutine ensure_cache
 
 ! 沿半径积分下游共动固有时间。
-subroutine integrate_downstream_proper_time(Num_shell,R_cm,Gamma_bulk,proper_time_s)
+! Integrate downstream comoving proper time along the radius grid.
+subroutine integrate_proper_time(Num_shell,r_cm,gamma_bulk,tprop)
 implicit none
 integer, intent(in) :: Num_shell
-integer :: I_shell
-real(8), intent(in) :: R_cm(Num_shell),Gamma_bulk(Num_shell)
-real(8), intent(out) :: proper_time_s(Num_shell)
+integer :: ishell
+real(8), intent(in), dimension(Num_shell) :: r_cm,gamma_bulk
+real(8), intent(out), dimension(Num_shell) :: tprop
 real(8) :: gamma_mean,beta_mean,dR
 
-    proper_time_s=zero
-    do I_shell=2,Num_shell
-        gamma_mean=0.5d0*(Gamma_bulk(I_shell-1)+Gamma_bulk(I_shell))
-        beta_mean=sqrt(one-one/gamma_mean**2)
-        dR=R_cm(I_shell)-R_cm(I_shell-1)
-        proper_time_s(I_shell)=proper_time_s(I_shell-1)+dR/(beta_mean*gamma_mean*Para_c)
+    tprop=0d0
+    do ishell=2,Num_shell
+        gamma_mean=0.5d0*(gamma_bulk(ishell-1)+gamma_bulk(ishell))
+        beta_mean=sqrt(1d0-1d0/gamma_mean**2)
+        dR=r_cm(ishell)-r_cm(ishell-1)
+        tprop(ishell)=tprop(ishell-1)+dR/(beta_mean*gamma_mean*Para_c)
     end do
-end subroutine integrate_downstream_proper_time
+end subroutine integrate_proper_time
 
 ! 把可由光行时连接的历史壳层辐射叠加到当前共动光子场。
-subroutine accumulate_comoving_history_fields(target_t,Num_shell,Num_chi,Num_nu,proper_time_s,V_seed, &
-                                              x_face_hist,x_center_hist,dx_hist,beta_hist,tau_hist,P_hist,Seed_hist, &
-                                              P_eff,Seed_eff,n_threads)
+! Accumulate light-travel-connected older shell emission into the current comoving photon field.
+subroutine accumulate_history_fields(target_t,Num_shell,Num_chi,Num_nu,tprop,V_seed, &
+                                     xface,xmid,dxcell,beta,tau,pemit,seed, &
+                                     peff,seeff,n_threads)
 implicit none
 integer, intent(in) :: target_t,Num_shell,Num_chi,Num_nu,n_threads
-integer :: I_src_t,I_src_chi,I_tgt_chi
-real(8), intent(in) :: proper_time_s(Num_shell),V_seed(Num_nu)
-real(8), intent(in) :: x_face_hist(0:Num_chi,Num_shell),x_center_hist(Num_chi,Num_shell),dx_hist(Num_chi,Num_shell)
-real(8), intent(in) :: beta_hist(Num_chi,Num_shell)
-real(8), intent(in) :: tau_hist(Num_nu,Num_chi,Num_shell),P_hist(Num_nu,Num_chi,Num_shell),Seed_hist(Num_nu,Num_chi,Num_shell)
-real(8), intent(out) :: P_eff(Num_nu,Num_chi),Seed_eff(Num_nu,Num_chi)
-real(8) :: delta_tau_total,dtau_src
+integer :: isrct,isrc,itgt
+real(8), intent(in), dimension(Num_shell) :: tprop
+real(8), intent(in), dimension(Num_nu) :: V_seed
+real(8), intent(in), dimension(0:Num_chi,Num_shell) :: xface
+real(8), intent(in), dimension(Num_chi,Num_shell) :: xmid,dxcell
+real(8), intent(in), dimension(Num_chi,Num_shell) :: beta
+real(8), intent(in), dimension(Num_nu,Num_chi,Num_shell) :: tau,pemit,seed
+real(8), intent(out), dimension(Num_nu,Num_chi) :: peff,seeff
+real(8) :: dtot,dtsrc
 
-    P_eff = P_hist(:,:,target_t)
-    Seed_eff = Seed_hist(:,:,target_t)
+    peff = pemit(:,:,target_t)
+    seeff = seed(:,:,target_t)
     !$OMP PARALLEL DO num_threads(n_threads) if(n_threads > 1 .and. target_t*Num_chi*Num_chi*Num_nu >= 512) &
-    !$OMP& schedule(static) private(I_tgt_chi,I_src_t,I_src_chi,delta_tau_total,dtau_src)
-    do I_tgt_chi = 1, Num_chi
-        call ensure_history_cache(Num_shell,Num_chi,Num_nu,V_seed)
-        call build_shell_transfer_cache(target_t,Num_chi,Num_nu,dx_hist,tau_hist, &
-                                        hist_inv_dx_ws,hist_log_transfer_prefix_ws)
+    !$OMP& schedule(static) private(itgt,isrct,isrc,dtot,dtsrc)
+    do itgt = 1, Num_chi
+        call ensure_cache(Num_shell,Num_chi,Num_nu,V_seed)
+        call build_transfer_cache(target_t,Num_chi,Num_nu,dxcell,tau, &
+                                  inv_dx,tau_prefix)
         if (target_t > 1) then
-            I_src_t = 1
-            delta_tau_total = proper_time_s(target_t)-proper_time_s(I_src_t)
-            if (delta_tau_total > zero) then
-                dtau_src = proper_time_s(2)-proper_time_s(1)
-                do I_src_chi = 1, Num_chi
-                    call accumulate_history_source_cell(I_src_t,I_src_chi,I_tgt_chi,delta_tau_total,dtau_src)
+            isrct = 1
+            dtot = tprop(target_t)-tprop(isrct)
+            if (dtot > 0d0) then
+                dtsrc = tprop(2)-tprop(1)
+                do isrc = 1, Num_chi
+                    call add_source_cell(isrct,isrc,itgt,dtot,dtsrc)
                 end do
             end if
         end if
-        do I_src_t = 2, target_t-1
-            delta_tau_total = proper_time_s(target_t)-proper_time_s(I_src_t)
-            if (delta_tau_total <= zero) cycle
-            dtau_src = proper_time_s(I_src_t)-proper_time_s(I_src_t-1)
-            do I_src_chi = 1, Num_chi
-                call accumulate_history_source_cell(I_src_t,I_src_chi,I_tgt_chi,delta_tau_total,dtau_src)
+        do isrct = 2, target_t-1
+            dtot = tprop(target_t)-tprop(isrct)
+            if (dtot <= 0d0) cycle
+            dtsrc = tprop(isrct)-tprop(isrct-1)
+            do isrc = 1, Num_chi
+                call add_source_cell(isrct,isrc,itgt,dtot,dtsrc)
             end do
         end do
     end do
@@ -132,278 +140,301 @@ real(8) :: delta_tau_total,dtau_src
 
 contains
 
-    subroutine accumulate_history_source_cell(src_t,src_chi,tgt_chi,delta_tau_total_src,dtau_src)
+    ! 源单元给出一个可达时间片和有效发射长度。
+    ! The source cell supplies a reachable time slice and effective emitting length.
+    subroutine add_source_cell(src_t,src_chi,tgt_chi,dtot,dtsrc)
     implicit none
     integer, intent(in) :: src_t,src_chi,tgt_chi
-    real(8), intent(in) :: delta_tau_total_src,dtau_src
-    real(8) :: source_weight,x_src
+    real(8), intent(in) :: dtot,dtsrc
+    real(8) :: swgt,xsrc
 
-        x_src = x_center_hist(src_chi,src_t)
-        if (dx_hist(src_chi,src_t) <= zero) error stop 'history source cell requires positive dx_hist'
-        source_weight = min(one, Para_c*dtau_src/dx_hist(src_chi,src_t))
-        call accumulate_history_target_cell(src_t,src_chi,tgt_chi,delta_tau_total_src,source_weight,x_src)
-    end subroutine accumulate_history_source_cell
+        xsrc = xmid(src_chi,src_t)
+        if (dxcell(src_chi,src_t) <= 0d0) error stop 'history source cell requires positive dxcell'
+        swgt = min(1d0, Para_c*dtsrc/dxcell(src_chi,src_t))
+        call add_target_cell(src_t,src_chi,tgt_chi,dtot,swgt,xsrc)
+    end subroutine add_source_cell
 
-    subroutine accumulate_history_target_cell(src_t,src_chi,tgt_chi,delta_tau_total_src,source_weight,x_src)
+    ! 目标单元沿光线路径累乘吸收，并把源频率映射到目标频率。
+    ! The target cell multiplies path absorption and maps source frequencies to target frequencies.
+    subroutine add_target_cell(src_t,src_chi,tgt_chi,dtot,swgt,xsrc)
     implicit none
     integer, intent(in) :: src_t,src_chi,tgt_chi
-    integer :: I_seg,I_nu,I_lo
-    real(8), intent(in) :: delta_tau_total_src,source_weight,x_src
-    real(8) :: attenuation(Num_nu),amp_p,amp_seed,doppler_rel,dt_seg,x_curr,x_prev,x_tgt
+    integer :: iseg,inu,ilo
+    real(8), intent(in) :: dtot,swgt,xsrc
+    real(8), dimension(Num_nu) :: attenuation
+    real(8) :: amp_p,amp_seed,doprel,dt_seg,xcurr,xprev,xtgt
 
-        x_tgt = x_center_hist(tgt_chi,target_t)
-        if (x_src < x_tgt) return
-        if (Para_c*delta_tau_total_src < x_src-x_tgt) return
-        doppler_rel = relative_doppler_backward(beta_hist(src_chi,src_t),beta_hist(tgt_chi,target_t))
-        call build_doppler_map(Num_nu,V_seed,doppler_rel,hist_valid_map_ws,hist_idx_lo_map_ws,hist_log_frac_map_ws)
+        xtgt = xmid(tgt_chi,target_t)
+        if (xsrc < xtgt) return
+        if (Para_c*dtot < xsrc-xtgt) return
+        doprel = relative_doppler(beta(src_chi,src_t),beta(tgt_chi,target_t))
+        call build_map(Num_nu,V_seed,doprel,map_valid,map_idx,map_frac)
 
-        attenuation = one
-        x_prev = x_src
-        do I_seg = src_t+1, target_t
-            dt_seg = proper_time_s(I_seg)-proper_time_s(I_seg-1)
-            if (dt_seg <= zero) cycle
-            x_curr = max(x_tgt, x_prev-Para_c*dt_seg)
-            call apply_shell_path_attenuation(Num_chi,Num_nu,x_prev,x_curr,x_face_hist(:,I_seg), &
-                                              hist_inv_dx_ws(:,I_seg),tau_hist(:,:,I_seg), &
-                                              hist_log_transfer_prefix_ws(:,:,I_seg),attenuation)
-            x_prev = x_curr
-            if (x_prev <= x_tgt) exit
+        attenuation = 1d0
+        xprev = xsrc
+        do iseg = src_t+1, target_t
+            dt_seg = tprop(iseg)-tprop(iseg-1)
+            if (dt_seg <= 0d0) cycle
+            xcurr = max(xtgt, xprev-Para_c*dt_seg)
+            call apply_path_tau(Num_chi,Num_nu,xprev,xcurr,xface(:,iseg), &
+                                inv_dx(:,iseg),tau(:,:,iseg), &
+                                tau_prefix(:,:,iseg),attenuation)
+            xprev = xcurr
+            if (xprev <= xtgt) exit
         end do
-        if (doppler_rel <= zero .or. source_weight <= zero) return
-        amp_p = source_weight*doppler_rel**3
-        amp_seed = source_weight*doppler_rel**2
-        do I_nu = 1, Num_nu
-            if (.not. hist_valid_map_ws(I_nu)) cycle
-            I_lo = hist_idx_lo_map_ws(I_nu)
-            P_eff(I_nu,tgt_chi) = P_eff(I_nu,tgt_chi) + amp_p*attenuation(I_nu) * &
-                loglog_interp_mapped(P_hist(I_lo,src_chi,src_t), &
-                                     P_hist(I_lo+1,src_chi,src_t),hist_log_frac_map_ws(I_nu))
-            Seed_eff(I_nu,tgt_chi) = Seed_eff(I_nu,tgt_chi) + amp_seed*attenuation(I_nu) * &
-                loglog_interp_mapped(Seed_hist(I_lo,src_chi,src_t), &
-                                     Seed_hist(I_lo+1,src_chi,src_t),hist_log_frac_map_ws(I_nu))
+        if (doprel <= 0d0 .or. swgt <= 0d0) return
+        amp_p = swgt*doprel**3
+        amp_seed = swgt*doprel**2
+        do inu = 1, Num_nu
+            if (.not. map_valid(inu)) cycle
+            ilo = map_idx(inu)
+            peff(inu,tgt_chi) = peff(inu,tgt_chi) + amp_p*attenuation(inu) * &
+                log_interp(pemit(ilo,src_chi,src_t), &
+                                     pemit(ilo+1,src_chi,src_t),map_frac(inu))
+            seeff(inu,tgt_chi) = seeff(inu,tgt_chi) + amp_seed*attenuation(inu) * &
+                log_interp(seed(ilo,src_chi,src_t), &
+                                     seed(ilo+1,src_chi,src_t),map_frac(inu))
         end do
-    end subroutine accumulate_history_target_cell
-end subroutine accumulate_comoving_history_fields
+    end subroutine add_target_cell
+end subroutine accumulate_history_fields
 
 ! 以一阶特征线递推下游历史光子场，避免每个目标壳层回扫所有过去壳层。
-subroutine advance_comoving_history_stream(prev_t,target_t,Num_shell,Num_chi,Num_nu,proper_time_s,V_seed, &
-                                           x_face_hist,x_center_hist,dx_hist,beta_hist,tau_hist,P_hist,Seed_hist, &
-                                           P_stream,Seed_stream)
+! Advance the downstream photon history with first-order characteristics instead of rescanning all past shells.
+subroutine advance_history_stream(prev_t,target_t,Num_shell,Num_chi,Num_nu,tprop,V_seed, &
+                                  xface,xmid,dxcell,beta,tau,pemit,seed, &
+                                  pstream,sstream)
 implicit none
 integer, intent(in) :: prev_t,target_t,Num_shell,Num_chi,Num_nu
-integer :: I_src_chi,I_tgt_chi,I_nu,I_lo
-real(8), intent(in) :: proper_time_s(Num_shell),V_seed(Num_nu)
-real(8), intent(in) :: x_face_hist(0:Num_chi,Num_shell),x_center_hist(Num_chi,Num_shell),dx_hist(Num_chi,Num_shell)
-real(8), intent(in) :: beta_hist(Num_chi,Num_shell)
-real(8), intent(in) :: tau_hist(Num_nu,Num_chi,Num_shell),P_hist(Num_nu,Num_chi,Num_shell),Seed_hist(Num_nu,Num_chi,Num_shell)
-real(8), intent(inout) :: P_stream(Num_nu,Num_chi),Seed_stream(Num_nu,Num_chi)
-real(8) :: P_next(Num_nu,Num_chi),Seed_next(Num_nu,Num_chi),attenuation(Num_nu)
-real(8) :: dtau,path_hi,path_lo,seg_lo,seg_hi,x_src,x_tgt,doppler_rel,weight
+integer :: isrc,itgt,inu,ilo
+real(8), intent(in), dimension(Num_shell) :: tprop
+real(8), intent(in), dimension(Num_nu) :: V_seed
+real(8), intent(in), dimension(0:Num_chi,Num_shell) :: xface
+real(8), intent(in), dimension(Num_chi,Num_shell) :: xmid,dxcell
+real(8), intent(in), dimension(Num_chi,Num_shell) :: beta
+real(8), intent(in), dimension(Num_nu,Num_chi,Num_shell) :: tau,pemit,seed
+real(8), intent(inout), dimension(Num_nu,Num_chi) :: pstream,sstream
+real(8), dimension(Num_nu,Num_chi) :: pnext,snext
+real(8), dimension(Num_nu) :: attenuation
+real(8) :: dtau,path_hi,path_lo,seg_lo,seg_hi,xsrc,xtgt,doprel,weight
 real(8) :: amp_p,amp_seed
 
-    call ensure_history_cache(Num_shell,Num_chi,Num_nu,V_seed)
-    call build_shell_transfer_cache(target_t,Num_chi,Num_nu,dx_hist,tau_hist, &
-                                    hist_inv_dx_ws,hist_log_transfer_prefix_ws)
-    dtau = proper_time_s(target_t)-proper_time_s(prev_t)
-    P_next = zero
-    Seed_next = zero
-    do I_tgt_chi = 1, Num_chi
-        x_tgt = x_center_hist(I_tgt_chi,target_t)
-        path_lo = x_tgt
-        path_hi = x_tgt + Para_c*dtau
-        if (path_hi >= x_face_hist(0,prev_t) .and. path_hi <= x_face_hist(Num_chi,prev_t)) then
-            call locate_path_cell(Num_chi,x_face_hist(:,prev_t),path_hi,.false.,I_src_chi)
-            call accumulate_mapped_cell(I_src_chi,path_hi,I_tgt_chi,one,P_stream,Seed_stream)
+    call ensure_cache(Num_shell,Num_chi,Num_nu,V_seed)
+    call build_transfer_cache(target_t,Num_chi,Num_nu,dxcell,tau, &
+                              inv_dx,tau_prefix)
+    dtau = tprop(target_t)-tprop(prev_t)
+    pnext = 0d0
+    snext = 0d0
+    do itgt = 1, Num_chi
+        xtgt = xmid(itgt,target_t)
+        path_lo = xtgt
+        path_hi = xtgt + Para_c*dtau
+        if (path_hi >= xface(0,prev_t) .and. path_hi <= xface(Num_chi,prev_t)) then
+            call locate_path_cell(Num_chi,xface(:,prev_t),path_hi,.false.,isrc)
+            call add_mapped_cell(isrc,path_hi,itgt,1d0,pstream,sstream)
         end if
-        do I_src_chi = 1, Num_chi
-            seg_lo = max(x_face_hist(I_src_chi-1,prev_t),path_lo)
-            seg_hi = min(x_face_hist(I_src_chi,prev_t),path_hi)
+        do isrc = 1, Num_chi
+            seg_lo = max(xface(isrc-1,prev_t),path_lo)
+            seg_hi = min(xface(isrc,prev_t),path_hi)
             if (seg_hi <= seg_lo) cycle
-            if (dx_hist(I_src_chi,prev_t) <= zero) error stop 'history stream cell requires positive dx_hist'
-            weight = (seg_hi-seg_lo)/dx_hist(I_src_chi,prev_t)
-            x_src = 0.5d0*(seg_lo+seg_hi)
-            call accumulate_mapped_cell(I_src_chi,x_src,I_tgt_chi,weight,P_hist(:,:,prev_t),Seed_hist(:,:,prev_t))
+            if (dxcell(isrc,prev_t) <= 0d0) error stop 'history stream cell requires positive dxcell'
+            weight = (seg_hi-seg_lo)/dxcell(isrc,prev_t)
+            xsrc = 0.5d0*(seg_lo+seg_hi)
+            call add_mapped_cell(isrc,xsrc,itgt,weight,pemit(:,:,prev_t),seed(:,:,prev_t))
         end do
     end do
-    P_stream = P_next
-    Seed_stream = Seed_next
+    pstream = pnext
+    sstream = snext
 
 contains
 
-    subroutine accumulate_mapped_cell(src_chi,x_src_pos,tgt_chi,source_weight,P_src,Seed_src)
+    ! 把上一壳层流式历史场或本壳层发射映射到当前目标单元。
+    ! Map either the previous streamed history field or current-shell emission into a single target cell.
+    subroutine add_mapped_cell(src_chi,xsrcpos,tgt_chi,swgt,P_src,Seed_src)
     implicit none
     integer, intent(in) :: src_chi,tgt_chi
-    real(8), intent(in) :: x_src_pos,source_weight,P_src(Num_nu,Num_chi),Seed_src(Num_nu,Num_chi)
+    real(8), intent(in), dimension(Num_nu,Num_chi) :: P_src,Seed_src
+    real(8), intent(in) :: xsrcpos,swgt
 
-        x_tgt = x_center_hist(tgt_chi,target_t)
-        if (x_src_pos < x_tgt) return
-        if (source_weight <= zero) return
-        x_src = x_src_pos
-        doppler_rel = relative_doppler_backward(beta_hist(src_chi,prev_t),beta_hist(tgt_chi,target_t))
-        if (doppler_rel <= zero) return
-        call build_doppler_map(Num_nu,V_seed,doppler_rel,hist_valid_map_ws,hist_idx_lo_map_ws,hist_log_frac_map_ws)
-        attenuation = one
-        call apply_shell_path_attenuation(Num_chi,Num_nu,x_src,x_tgt,x_face_hist(:,target_t), &
-                                          hist_inv_dx_ws(:,target_t),tau_hist(:,:,target_t), &
-                                          hist_log_transfer_prefix_ws(:,:,target_t),attenuation)
-        amp_p = source_weight*doppler_rel**3
-        amp_seed = source_weight*doppler_rel**2
-        do I_nu = 1, Num_nu
-            if (.not. hist_valid_map_ws(I_nu)) cycle
-            I_lo = hist_idx_lo_map_ws(I_nu)
-            P_next(I_nu,tgt_chi) = P_next(I_nu,tgt_chi) + amp_p*attenuation(I_nu) * &
-                loglog_interp_mapped(P_src(I_lo,src_chi),P_src(I_lo+1,src_chi),hist_log_frac_map_ws(I_nu))
-            Seed_next(I_nu,tgt_chi) = Seed_next(I_nu,tgt_chi) + amp_seed*attenuation(I_nu) * &
-                loglog_interp_mapped(Seed_src(I_lo,src_chi),Seed_src(I_lo+1,src_chi),hist_log_frac_map_ws(I_nu))
+        xtgt = xmid(tgt_chi,target_t)
+        if (xsrcpos < xtgt) return
+        if (swgt <= 0d0) return
+        xsrc = xsrcpos
+        doprel = relative_doppler(beta(src_chi,prev_t),beta(tgt_chi,target_t))
+        if (doprel <= 0d0) return
+        call build_map(Num_nu,V_seed,doprel,map_valid,map_idx,map_frac)
+        attenuation = 1d0
+        call apply_path_tau(Num_chi,Num_nu,xsrc,xtgt,xface(:,target_t), &
+                            inv_dx(:,target_t),tau(:,:,target_t), &
+                            tau_prefix(:,:,target_t),attenuation)
+        amp_p = swgt*doprel**3
+        amp_seed = swgt*doprel**2
+        do inu = 1, Num_nu
+            if (.not. map_valid(inu)) cycle
+            ilo = map_idx(inu)
+            pnext(inu,tgt_chi) = pnext(inu,tgt_chi) + amp_p*attenuation(inu) * &
+                log_interp(P_src(ilo,src_chi),P_src(ilo+1,src_chi),map_frac(inu))
+            snext(inu,tgt_chi) = snext(inu,tgt_chi) + amp_seed*attenuation(inu) * &
+                log_interp(Seed_src(ilo,src_chi),Seed_src(ilo+1,src_chi),map_frac(inu))
         end do
-    end subroutine accumulate_mapped_cell
-end subroutine advance_comoving_history_stream
+    end subroutine add_mapped_cell
+end subroutine advance_history_stream
 
 ! 构造当前相对多普勒因子下目标频率到源频率网格的映射。
-subroutine build_doppler_map(Num_nu,V_seed,doppler_rel,valid_map,idx_lo_map,log_frac_map)
+! Build the target-to-source frequency map for the current relative Doppler factor.
+subroutine build_map(Num_nu,V_seed,doprel,validmap,idxmap,fracmap)
 implicit none
 integer, intent(in) :: Num_nu
-logical, intent(out) :: valid_map(Num_nu)
-integer, intent(out) :: idx_lo_map(Num_nu)
-real(8), intent(in) :: V_seed(Num_nu),doppler_rel
-real(8), intent(out) :: log_frac_map(Num_nu)
-integer :: I_nu,I_lo
-real(8) :: nu_src
+logical, intent(out), dimension(Num_nu) :: validmap
+integer, intent(out), dimension(Num_nu) :: idxmap
+real(8), intent(in), dimension(Num_nu) :: V_seed
+real(8), intent(in) :: doprel
+real(8), intent(out), dimension(Num_nu) :: fracmap
+integer :: inu,ilo
+real(8) :: nusrc
 
-    valid_map = .false.
-    idx_lo_map = 1
-    log_frac_map = zero
-    if (doppler_rel <= zero) return
+    validmap = .false.
+    idxmap = 1
+    fracmap = 0d0
+    if (doprel <= 0d0) return
 
-    I_lo = 1
-    do I_nu = 1, Num_nu
-        nu_src = V_seed(I_nu)/doppler_rel
-        if (nu_src < V_seed(1) .or. nu_src > V_seed(Num_nu)) cycle
-        do while (I_lo < Num_nu-1)
-            if (V_seed(I_lo+1) > nu_src) exit
-            I_lo = I_lo + 1
+    ilo = 1
+    do inu = 1, Num_nu
+        nusrc = V_seed(inu)/doprel
+        if (nusrc < V_seed(1) .or. nusrc > V_seed(Num_nu)) cycle
+        do while (ilo < Num_nu-1)
+            if (V_seed(ilo+1) > nusrc) exit
+            ilo = ilo + 1
         end do
-        idx_lo_map(I_nu) = I_lo
-        if (hist_inv_dlog_v_cell_cache(I_lo) <= zero) cycle
-        log_frac_map(I_nu) = (dlog(nu_src)-hist_log_v_seed_cache(I_lo))*hist_inv_dlog_v_cell_cache(I_lo)
-        valid_map(I_nu) = .true.
+        idxmap(inu) = ilo
+        if (seed_invdlog(ilo) <= 0d0) cycle
+        fracmap(inu) = (dlog(nusrc)-seed_logv(ilo))*seed_invdlog(ilo)
+        validmap(inu) = .true.
     end do
-end subroutine build_doppler_map
+end subroutine build_map
 
 ! 按预计算对数分数做 log-log 插值：y = y0 * exp(log_frac * log(y1/y0))。
-real(8) function loglog_interp_mapped(y0,y1,log_frac)
+! Use the precomputed logarithmic fraction for log-log interpolation.
+real(8) function log_interp(y0,y1,log_frac)
 implicit none
 real(8), intent(in) :: y0,y1,log_frac
 
-    if (y0 <= zero .or. y1 <= zero) then
-        loglog_interp_mapped = zero
+    if (y0 <= 0d0 .or. y1 <= 0d0) then
+        log_interp = 0d0
     else
-        loglog_interp_mapped = y0*dexp(log_frac*dlog(y1/y0))
+        log_interp = y0*dexp(log_frac*dlog(y1/y0))
     end if
-end function loglog_interp_mapped
+end function log_interp
 
 ! 计算从历史源区到当前目标区的相对多普勒因子：D = γ_rel(1+β_rel)。
-real(8) function relative_doppler_backward(beta_src,beta_tgt)
+! Compute the relative Doppler factor from a history source cell to a current target cell.
+real(8) function relative_doppler(bsrc,btgt)
 implicit none
-real(8), intent(in) :: beta_src,beta_tgt
-real(8) :: beta_rel,gamma_rel
+real(8), intent(in) :: bsrc,btgt
+real(8) :: brel,grel
 
-    beta_rel = (beta_tgt-beta_src)/(one-beta_tgt*beta_src)
-    if (dabs(beta_rel) >= one) error stop 'relative_doppler_backward requires subluminal relative beta'
-    gamma_rel = one/dsqrt(one-beta_rel*beta_rel)
-    relative_doppler_backward = gamma_rel*(one+beta_rel)
-end function relative_doppler_backward
+    brel = (btgt-bsrc)/(1d0-btgt*bsrc)
+    if (dabs(brel) >= 1d0) error stop 'relative_doppler requires subluminal relative beta'
+    grel = 1d0/dsqrt(1d0-brel*brel)
+    relative_doppler = grel*(1d0+brel)
+end function relative_doppler
 
 ! 缓存每个壳层 chi 单元宽度倒数，供历史光线路径吸收计算复用。
-subroutine build_shell_transfer_cache(Num_shell,Num_chi,Num_nu,dx_hist,tau_hist,inv_dx_hist,log_transfer_prefix)
+! Cache inverse chi-cell widths and cumulative log transfer for path absorption reuse.
+subroutine build_transfer_cache(Num_shell,Num_chi,Num_nu,dxcell,tau,inv_dxcell,logprefix)
 implicit none
 integer, intent(in) :: Num_shell,Num_chi,Num_nu
-integer :: I_shell,I_chi,I_nu
-real(8), intent(in) :: dx_hist(Num_chi,Num_shell)
-real(8), intent(in) :: tau_hist(Num_nu,Num_chi,Num_shell)
-real(8), intent(out) :: inv_dx_hist(Num_chi,Num_shell)
-real(8), intent(out) :: log_transfer_prefix(Num_nu,0:Num_chi,Num_shell)
+integer :: ishell,ichi,inu
+real(8), intent(in), dimension(Num_chi,Num_shell) :: dxcell
+real(8), intent(in), dimension(Num_nu,Num_chi,Num_shell) :: tau
+real(8), intent(out), dimension(Num_chi,Num_shell) :: inv_dxcell
+real(8), intent(out), dimension(Num_nu,0:Num_chi,Num_shell) :: logprefix
 
-    if (Num_shell < hist_cache_built_shells) hist_cache_built_shells=0
-    do I_shell = hist_cache_built_shells+1, Num_shell
-        log_transfer_prefix(:,0,I_shell) = zero
-        do I_chi = 1, Num_chi
-            if (dx_hist(I_chi,I_shell) <= zero) error stop 'history transfer cache requires positive dx_hist'
-            inv_dx_hist(I_chi,I_shell) = one/dx_hist(I_chi,I_shell)
-            do I_nu = 1, Num_nu
-                log_transfer_prefix(I_nu,I_chi,I_shell) = log_transfer_prefix(I_nu,I_chi-1,I_shell) + &
-                    dlog(history_transfer_weight(tau_hist(I_nu,I_chi,I_shell)))
+    if (Num_shell < built_shells) built_shells=0
+    do ishell = built_shells+1, Num_shell
+        logprefix(:,0,ishell) = 0d0
+        do ichi = 1, Num_chi
+            if (dxcell(ichi,ishell) <= 0d0) error stop 'history transfer cache requires positive dxcell'
+            inv_dxcell(ichi,ishell) = 1d0/dxcell(ichi,ishell)
+            do inu = 1, Num_nu
+                logprefix(inu,ichi,ishell) = logprefix(inu,ichi-1,ishell) + &
+                    dlog(history_transfer_weight(tau(inu,ichi,ishell)))
             end do
         end do
     end do
-    hist_cache_built_shells=max(hist_cache_built_shells,Num_shell)
-end subroutine build_shell_transfer_cache
+    built_shells=max(built_shells,Num_shell)
+end subroutine build_transfer_cache
 
 ! 用壳层内路径段的吸收权重对 attenuation 做累乘。
-subroutine apply_shell_path_attenuation(Num_chi,Num_nu,x_start,x_stop,x_face,inv_dx_cell,tau_cell, &
-                                        log_transfer_prefix,attenuation)
+! Multiply attenuation by the absorption weight of a path segment inside a single shell.
+subroutine apply_path_tau(Num_chi,Num_nu,xstart,xstop,xface,invcell,tau_cell, &
+                          logprefix,attenuation)
 implicit none
 integer, intent(in) :: Num_chi,Num_nu
-integer :: I_start,I_stop,I_nu
-real(8), intent(in) :: x_start,x_stop,x_face(0:Num_chi),inv_dx_cell(Num_chi),tau_cell(Num_nu,Num_chi)
-real(8), intent(in) :: log_transfer_prefix(Num_nu,0:Num_chi)
-real(8), intent(inout) :: attenuation(Num_nu)
-real(8) :: frac_start,frac_stop
+integer :: istart,istop,inu
+real(8), intent(in), dimension(0:Num_chi) :: xface
+real(8), intent(in), dimension(Num_chi) :: invcell
+real(8), intent(in), dimension(Num_nu,Num_chi) :: tau_cell
+real(8), intent(in) :: xstart,xstop
+real(8), intent(in), dimension(Num_nu,0:Num_chi) :: logprefix
+real(8), intent(inout), dimension(Num_nu) :: attenuation
+real(8) :: fstart,fstop
 
-    if (x_start <= x_stop) return
-    call locate_path_cell(Num_chi,x_face,x_start,.true.,I_start)
-    call locate_path_cell(Num_chi,x_face,x_stop,.false.,I_stop)
-    if (I_start == I_stop) then
-        if (x_start > x_stop) then
-            do I_nu = 1, Num_nu
-                attenuation(I_nu) = attenuation(I_nu) * &
-                    history_transfer_weight((x_start-x_stop)*inv_dx_cell(I_start)*tau_cell(I_nu,I_start))
+    if (xstart <= xstop) return
+    call locate_path_cell(Num_chi,xface,xstart,.true.,istart)
+    call locate_path_cell(Num_chi,xface,xstop,.false.,istop)
+    if (istart == istop) then
+        if (xstart > xstop) then
+            do inu = 1, Num_nu
+                attenuation(inu) = attenuation(inu) * &
+                    history_transfer_weight((xstart-xstop)*invcell(istart)*tau_cell(inu,istart))
             end do
         end if
         return
     end if
 
-    frac_start = (x_start-x_face(I_start-1))*inv_dx_cell(I_start)
-    frac_stop = (x_face(I_stop)-x_stop)*inv_dx_cell(I_stop)
-    if (frac_start > zero) then
-        do I_nu = 1, Num_nu
-            attenuation(I_nu) = attenuation(I_nu) * history_transfer_weight(frac_start*tau_cell(I_nu,I_start))
+    fstart = (xstart-xface(istart-1))*invcell(istart)
+    fstop = (xface(istop)-xstop)*invcell(istop)
+    if (fstart > 0d0) then
+        do inu = 1, Num_nu
+            attenuation(inu) = attenuation(inu) * history_transfer_weight(fstart*tau_cell(inu,istart))
         end do
     end if
-    if (I_stop < I_start-1) then
-        do I_nu = 1, Num_nu
-            attenuation(I_nu) = attenuation(I_nu) * &
-                dexp(log_transfer_prefix(I_nu,I_start-1)-log_transfer_prefix(I_nu,I_stop))
+    if (istop < istart-1) then
+        do inu = 1, Num_nu
+            attenuation(inu) = attenuation(inu) * &
+                dexp(logprefix(inu,istart-1)-logprefix(inu,istop))
         end do
     end if
-    if (frac_stop > zero) then
-        do I_nu = 1, Num_nu
-            attenuation(I_nu) = attenuation(I_nu) * history_transfer_weight(frac_stop*tau_cell(I_nu,I_stop))
+    if (fstop > 0d0) then
+        do inu = 1, Num_nu
+            attenuation(inu) = attenuation(inu) * history_transfer_weight(fstop*tau_cell(inu,istop))
         end do
     end if
-end subroutine apply_shell_path_attenuation
+end subroutine apply_path_tau
 
 ! 在下游面网格中定位路径端点所在单元。
-subroutine locate_path_cell(Num_chi,x_face,x_pos,use_upper_face,I_cell)
+! Locate the downstream face-grid cell containing a path endpoint.
+subroutine locate_path_cell(Num_chi,xface,xpos,use_upper,icell)
 implicit none
 integer, intent(in) :: Num_chi
-integer, intent(out) :: I_cell
+integer, intent(out) :: icell
 integer :: left,right,mid
-real(8), intent(in) :: x_face(0:Num_chi),x_pos
-logical, intent(in) :: use_upper_face
+real(8), intent(in), dimension(0:Num_chi) :: xface
+real(8), intent(in) :: xpos
+logical, intent(in) :: use_upper
 
-    if (x_pos >= x_face(Num_chi)) then
-        I_cell = Num_chi
+    if (xpos >= xface(Num_chi)) then
+        icell = Num_chi
         return
     end if
-    if (use_upper_face) then
-        if (x_pos <= x_face(1)) then
-            I_cell = 1
+    if (use_upper) then
+        if (xpos <= xface(1)) then
+            icell = 1
             return
         end if
     else
-        if (x_pos <= x_face(0)) then
-            I_cell = 1
+        if (xpos <= xface(0)) then
+            icell = 1
             return
         end if
     end if
@@ -411,40 +442,41 @@ logical, intent(in) :: use_upper_face
     left = 1
     right = Num_chi
     do while (left < right)
-        if (use_upper_face) then
+        if (use_upper) then
             mid = (left+right+1)/2
-            if (x_face(mid) < x_pos) then
+            if (xface(mid) < xpos) then
                 left = mid
             else
                 right = mid-1
             end if
         else
             mid = (left+right)/2
-            if (x_face(mid) > x_pos) then
+            if (xface(mid) > xpos) then
                 right = mid
             else
                 left = mid + 1
             end if
         end if
     end do
-    if (use_upper_face) then
-        I_cell = left + 1
+    if (use_upper) then
+        icell = left + 1
     else
-        I_cell = left
+        icell = left
     end if
 end subroutine locate_path_cell
 
 ! 把光深转换为均匀源函数逃逸/传输权重。
-elemental real(8) function history_transfer_weight(tau_segment)
+! Convert optical depth into the escape/transfer weight for a uniform source function.
+elemental real(8) function history_transfer_weight(tauseg)
 implicit none
-real(8), intent(in) :: tau_segment
-real(8) :: tau_loc
+real(8), intent(in) :: tauseg
+real(8) :: tauloc
 
-    tau_loc=max(zero,tau_segment)
-    if (tau_loc < 1d-10) then
-        history_transfer_weight=one-0.5d0*tau_loc+tau_loc*tau_loc/6d0
+    tauloc=max(0d0,tauseg)
+    if (tauloc < 1d-10) then
+        history_transfer_weight=1d0-0.5d0*tauloc+tauloc*tauloc/6d0
     else
-        history_transfer_weight=(one-dexp(-tau_loc))/tau_loc
+        history_transfer_weight=(1d0-dexp(-tauloc))/tauloc
     end if
 end function history_transfer_weight
 

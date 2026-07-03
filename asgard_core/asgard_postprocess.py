@@ -57,7 +57,7 @@ def interpolate_observed_flux(
     sorted_frequencies = frequencies_hz[order]
     geometry_kernel = str(config.geometry_kernel).lower()
     if geometry_kernel == "sed_adaptive_theta":
-        interpolate = Interpolation.sed_interpolation_adaptive_theta
+        interpolate = Interpolation.sed_adaptive_theta
         interpolate_args = (
             float(config.projection_adaptive_rtol),
             int(config.projection_adaptive_max_depth),
