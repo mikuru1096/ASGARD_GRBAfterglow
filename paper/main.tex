@@ -1400,6 +1400,36 @@ from
 =\gamma_{\max}^{1-p}
 \Gamma\!\left(1-p,\frac{\gamma_m}{\gamma_{\max}}\right).
 \]
+The first Bessel support routine in the SLATEC subset is \texttt{dbesi0}, the
+modified Bessel function
+\[
+I_0(x)=\frac{1}{\pi}\int_0^\pi e^{x\cos\phi}\,d\phi
+=\sum_{m=0}^{\infty}\frac{(x^2/4)^m}{(m!)^2}.
+\]
+Because \(I_0\) is even, the routine uses \(y=|x|\).  For \(y\le3\), the
+argument is mapped to
+\[
+z=\frac{y^2}{4.5}-1\in[-1,1],
+\]
+and the evaluated expression is
+\[
+I_0(y)=2.75+\left[\frac{b_1}{2}
++\sum_{j=2}^{N}b_jT_{j-1}(z)\right],
+\]
+where the \(b_j\) are the stored \texttt{BI0CS} coefficients and \(N\) is chosen
+by \texttt{INITDS} from a one-tenth machine-precision target.  In the limit
+\(y\le\sqrt{4.5\,\texttt{d1mach}(3)}\), the next term in the Taylor series is
+below roundoff and the source returns \(I_0(0)=1\).  For \(y>3\), the routine
+checks the exponential overflow boundary \(y\le\ln(\texttt{d1mach}(2))\) and then
+uses the scaled identity
+\[
+I_0(x)=e^{|x|}\,[e^{-|x|}I_0(x)]
+=e^{y}\,\texttt{dbsi0e}(x).
+\]
+Thus \texttt{dbesi0} supplies the unscaled \(I_0\) needed by the small-argument
+\(K_0\) branch, while the large-argument approximation itself remains localized
+in \texttt{dbsi0e}.  This is a special-function support layer for the thermal
+integrals, not an additional electron population.
 The Bessel calls enter the thermal moments before the finite upper boundary is
 subtracted.  With \(\gamma=\cosh u\) and
 \(\sqrt{\gamma^2-1}\,d\gamma=\sinh^2u\,du\),
