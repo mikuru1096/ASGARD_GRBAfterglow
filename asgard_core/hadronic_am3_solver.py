@@ -9,12 +9,12 @@ from asgard_core.hadronic_processes import PROTON_MASS_GEV, photon_density_hz_to
 from src import constants
 
 
-HUMMER_PROCESS_GROUP_LABELS: tuple[str, ...] = ("photopion", "pion_decay", "muon_decay")
-GEV_TO_ERG = constants.para_gev2erg
-HUMMER2010_RESPONSE_BACKEND = "fortran_wrapped_response"
+HUMMER_GROUPS: tuple[str, ...] = ("photopion", "pion_decay", "muon_decay")
+GEV2ERG = constants.para_gev2erg
+HUMMER_BACKEND = "fortran_wrapped_response"
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class HadronicProcessOutput:
     """Process-resolved p-gamma output for a named hadronic backend."""
 
@@ -33,7 +33,7 @@ class HadronicProcessOutput:
     photon_loss_rate: np.ndarray | None = None
 
 
-def solve_hummer_2010_response_processes(
+def solve_hummer(
     radius_cm: np.ndarray,
     gam_p: np.ndarray,
     d_n_gam_p: np.ndarray,
@@ -46,31 +46,6 @@ def solve_hummer_2010_response_processes(
     include_neutrino: bool,
 ) -> HadronicProcessOutput:
     """Canonical backend for pgamma_scheme='hummer_2010_response'."""
-    return _solve_hummer_backend(
-        radius_cm,
-        gam_p,
-        d_n_gam_p,
-        v_seed_hz,
-        seed_target_hz,
-        num_nu_nu,
-        process_energy_gev=process_energy_gev,
-        include_pg=include_pg,
-        include_neutrino=include_neutrino,
-    )
-
-
-def _solve_hummer_backend(
-    radius_cm: np.ndarray,
-    gam_p: np.ndarray,
-    d_n_gam_p: np.ndarray,
-    v_seed_hz: np.ndarray,
-    seed_target_hz: np.ndarray,
-    num_nu_nu: int,
-    process_energy_gev: np.ndarray | None = None,
-    *,
-    include_pg: bool,
-    include_neutrino: bool,
-) -> HadronicProcessOutput:
     radius_arr = np.asarray(radius_cm, dtype=float)
     gam_p_arr = np.asarray(gam_p, dtype=float)
     d_n_gam_p_arr = np.asarray(d_n_gam_p, dtype=float)
@@ -113,8 +88,8 @@ def _solve_hummer_backend(
 
     l_had_pg_gamma = np.zeros((v_seed_arr.size, num_r), dtype=float)
     neutrino_luminosity = np.zeros((num_nu_nu, num_r), dtype=float)
-    am3_process_power = np.zeros((len(HUMMER_PROCESS_GROUP_LABELS), num_gam_p, num_r), dtype=float)
-    process_luminosity = np.zeros((len(HUMMER_PROCESS_GROUP_LABELS), process_energy_arr.size, num_r), dtype=float)
+    am3_process_power = np.zeros((len(HUMMER_GROUPS), num_gam_p, num_r), dtype=float)
+    process_luminosity = np.zeros((len(HUMMER_GROUPS), process_energy_arr.size, num_r), dtype=float)
     (
         proton_reinj_rate, neutron_reinj_rate,
         proton_loss_rate, neutron_loss_rate,
@@ -122,7 +97,7 @@ def _solve_hummer_backend(
     photon_loss_rate = np.zeros((v_seed_arr.size, num_r), dtype=float)
 
     proton_energy_gev = gam_p_arr * PROTON_MASS_GEV
-    shell_volume_arr = _shell_volumes_from_radius(radius_arr)
+    shell_volume_arr = _shellvolumes(radius_arr)
 
     for i_r in range(num_r):
         if not include_pg and not include_neutrino:
@@ -150,29 +125,20 @@ def _solve_hummer_backend(
         photon_loss_rate[:, i_r] = backend.photon_loss_rate
 
         if include_pg:
-            l_had_pg_gamma[:, i_r] = _energy_luminosity_from_rate_spectrum(
+            l_had_pg_gamma[:, i_r] = _ratelnu(
                 backend.gamma_energy_gev,
                 backend.gamma_rate_per_gev,
                 shell_volume_cm3,
             )
-            process_luminosity[0, :, i_r] = _energy_luminosity_from_rate_spectrum(
-                backend.process_energy_gev,
-                backend.process_rate_per_gev[0],
-                shell_volume_cm3,
-            )
-            process_luminosity[1, :, i_r] = _energy_luminosity_from_rate_spectrum(
-                backend.process_energy_gev,
-                backend.process_rate_per_gev[1],
-                shell_volume_cm3,
-            )
-            process_luminosity[2, :, i_r] = _energy_luminosity_from_rate_spectrum(
-                backend.process_energy_gev,
-                backend.process_rate_per_gev[2],
-                shell_volume_cm3,
-            )
+            for i_proc, process_rate in enumerate(backend.process_rate_per_gev):
+                process_luminosity[i_proc, :, i_r] = _ratelnu(
+                    backend.process_energy_gev,
+                    process_rate,
+                    shell_volume_cm3,
+                )
 
         if include_neutrino:
-            neutrino_luminosity[:, i_r] = _energy_luminosity_from_rate_spectrum(
+            neutrino_luminosity[:, i_r] = _ratelnu(
                 backend.neutrino_energy_gev,
                 backend.neutrino_rate_per_gev,
                 shell_volume_cm3,
@@ -180,11 +146,16 @@ def _solve_hummer_backend(
 
         proton_energy_weight = d_n_gam_p_arr[:, i_r] * proton_energy_gev
         total_weight = float(np.trapezoid(proton_energy_weight, proton_energy_gev))
-        normalized_weight = proton_energy_weight / total_weight if total_weight > 0.0 and np.isfinite(total_weight) else np.zeros_like(proton_energy_weight)
+        if total_weight <= 0.0 or not np.isfinite(total_weight):
+            raise ValueError("proton energy distribution must contain positive finite energy.")
+        normalized_weight = proton_energy_weight / total_weight
 
-        photopion_total = float(np.trapezoid(process_luminosity[0, :, i_r], process_energy_arr))
+        photopion_total = float(np.trapezoid(
+            _ratepower(backend.process_energy_gev, backend.process_rate_per_gev[0], shell_volume_cm3),
+            backend.process_energy_gev,
+        ))
         pion_decay_total = float(np.trapezoid(
-            _energy_luminosity_from_rate_spectrum(
+            _ratepower(
                 backend.neutrino_energy_gev,
                 backend.prompt_pion_neutrino_rate_per_gev,
                 shell_volume_cm3,
@@ -192,7 +163,7 @@ def _solve_hummer_backend(
             backend.neutrino_energy_gev,
         ))
         muon_decay_total = float(np.trapezoid(
-            _energy_luminosity_from_rate_spectrum(
+            _ratepower(
                 backend.neutrino_energy_gev,
                 backend.muon_neutrino_rate_per_gev,
                 shell_volume_cm3,
@@ -200,7 +171,7 @@ def _solve_hummer_backend(
             backend.neutrino_energy_gev,
         ))
         muon_decay_total += float(np.trapezoid(
-            _energy_luminosity_from_rate_spectrum(
+            _ratepower(
                 backend.process_energy_gev,
                 backend.muon_electron_rate_per_gev,
                 shell_volume_cm3,
@@ -228,7 +199,7 @@ def _solve_hummer_backend(
     )
 
 
-def _energy_luminosity_from_rate_spectrum(
+def _ratepower(
     energy_gev: np.ndarray,
     spectrum: np.ndarray,
     shell_volume_cm3: float,
@@ -241,11 +212,18 @@ def _energy_luminosity_from_rate_spectrum(
         raise ValueError("energy_gev must be positive.")
     if shell_volume_cm3 <= 0.0:
         raise ValueError("shell_volume_cm3 must be positive.")
-    rate = shell_volume_cm3 * spec
-    return rate * energy * constants.para_h_gev * GEV_TO_ERG
+    return shell_volume_cm3 * spec * energy * GEV2ERG
 
 
-def _shell_volumes_from_radius(radius_cm: np.ndarray) -> np.ndarray:
+def _ratelnu(
+    energy_gev: np.ndarray,
+    spectrum: np.ndarray,
+    shell_volume_cm3: float,
+) -> np.ndarray:
+    return _ratepower(energy_gev, spectrum, shell_volume_cm3) * constants.para_h_gev
+
+
+def _shellvolumes(radius_cm: np.ndarray) -> np.ndarray:
     radius = np.asarray(radius_cm, dtype=float)
     if radius.ndim != 1:
         raise ValueError("radius_cm must be a 1d array.")

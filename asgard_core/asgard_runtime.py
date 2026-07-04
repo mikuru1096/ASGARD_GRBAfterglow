@@ -10,9 +10,9 @@ from src.Electron.electron_radiation import electron_radiation_kernel as electro
 import src.Hadronic.hadronic_forward_1d as hadronic_legacy_module
 import src.Hadronic.hadronic_reverse_1d as _hadronic_reverse_module
 from asgard_core.hadronic_am3_solver import (
-    HUMMER_PROCESS_GROUP_LABELS,
-    HUMMER2010_RESPONSE_BACKEND,
-    solve_hummer_2010_response_processes,
+    HUMMER_BACKEND,
+    HUMMER_GROUPS,
+    solve_hummer,
 )
 from asgard_core.hadronic_processes import ACCELERATION_BACKEND
 from asgard_core.hadronic_processes import BETHE_HEITLER_BACKEND
@@ -1050,7 +1050,7 @@ def solve_hadronic(
                 hadronic_solver,
                 "log-gamma-1d",
                 "ok",
-                backend=HUMMER2010_RESPONSE_BACKEND,
+                backend=HUMMER_BACKEND,
                 pgamma_scheme=pgamma_scheme,
                 pgamma_operator_backend=HUMMER2010_OPERATOR_BACKEND,
                 decay_backend=HUMMER2010_DECAY_BACKEND,
@@ -1087,7 +1087,7 @@ def solve_hadronic(
     gam_p, d_n_gam_p, l_had_syn_spec, seed_had_syn, l_had_pg_gamma, neutrino_frequency_hz, neutrino_luminosity = outputs
 
     if hadronic_solver == "am3_1d":
-        am3_output = solve_hummer_2010_response_processes(
+        am3_output = solve_hummer(
             dynamics.radius,
             gam_p,
             d_n_gam_p,
@@ -1104,7 +1104,7 @@ def solve_hadronic(
             neutrino_luminosity = am3_output.neutrino_luminosity
         am3_process_power = am3_output.am3_process_power
     else:
-        am3_process_power = np.zeros((len(HUMMER_PROCESS_GROUP_LABELS), num_gam_p, num_r), dtype=float)
+        am3_process_power = np.zeros((len(HUMMER_GROUPS), num_gam_p, num_r), dtype=float)
 
     solution = HadronicSolution(
         solver=hadronic_solver,
@@ -1125,10 +1125,10 @@ def solve_hadronic(
         l_had_pair_production=None,
         tau_pg=None,
         pg_photon_survival=None,
-        am3_process_power=np.asarray(am3_process_power, dtype=float).reshape(len(HUMMER_PROCESS_GROUP_LABELS), num_gam_p, num_r),
+        am3_process_power=np.asarray(am3_process_power, dtype=float).reshape(len(HUMMER_GROUPS), num_gam_p, num_r),
     )
     if return_report:
-        backend = "fortran_core" if hadronic_solver == "legacy_1d" else HUMMER2010_RESPONSE_BACKEND
+        backend = "fortran_core" if hadronic_solver == "legacy_1d" else HUMMER_BACKEND
         return solution, _report(
             hadronic_solver,
             "log-gamma-1d",
