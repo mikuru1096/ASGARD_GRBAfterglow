@@ -211,23 +211,23 @@ The power-law profile sets \(k_\Gamma=k_E\) unless a separate Lorentz-index argu
 
 \subsection{Forward-shock dynamical variables}
 
-The forward dynamics integrate the state
+The forward dynamics advance a four-component state,
 \[
-Y=(\Gamma,\mathcal{M},U,R)
+\mathbf{y}=(\Gamma,\mathcal{M},U,R),
 \]
-over the source-frame on-axis arrival-time coordinate \(T\), where the output observer time is \(T_{\rm obs}=T(1+z)\).  The radius derivative used by all three dynamics branches is
+on the source-frame on-axis arrival-time coordinate \(T\).  The stored observer time is \(T_{\rm obs}=T(1+z)\).  The second component is branch dependent: branches 1 and 2 store a swept number column, while branch 3 stores the swept mass.  All branches use
 \[
 \dot R\equiv\frac{dR}{dT}
 =\frac{\beta c}{1-\beta},
 \qquad
 \beta=\sqrt{1-\Gamma^{-2}}.
 \]
-The dynamics branch computes a local magnetic field estimate from the shocked energy density.  With \(e'_{\rm sh}\simeq4(\Gamma^2-1)n(R)m_pc^2\),
+This derivative is taken with respect to the on-axis arrival-time variable, not the lab-frame time.  The dynamics branch then estimates the comoving magnetic field from the post-shock energy density.  With \(e'\simeq4(\Gamma^2-1)n(R)m_pc^2\),
 \[
-B'=\left(8\pi\epsilon_B e'_{\rm sh}\right)^{1/2}
+B'=\left(8\pi\epsilon_B e'\right)^{1/2}
 =\left[32\pi\epsilon_B n(R)m_pc^2(\Gamma^2-1)\right]^{1/2}.
 \]
-The cgs coefficient used internally is therefore fixed by \(\sqrt{32\pi m_pc^2}\), not by a fit to a light curve.  The corresponding synchrotron-cooling Lorentz factor is
+The cgs coefficient used internally is therefore fixed by \(\sqrt{32\pi m_pc^2}\), not by a light-curve fit.  The corresponding synchrotron-cooling Lorentz factor is
 \[
 \gamma_c=
 \frac{6\pi m_ec}{\sigma_T B'^2\Gamma T},
@@ -242,25 +242,25 @@ If \(\gamma_c>\gamma_m\) and \(p\ge2\), the dynamics branch uses the effective r
 \[
 \epsilon_{\rm eff}=\epsilon_e\left(\frac{\gamma_m}{\gamma_c}\right)^{p-2};
 \]
-otherwise \(\epsilon_{\rm eff}=\epsilon_e\).  This cooling diagnostic is used only inside the dynamics branch; the later electron transport evolves the electron distribution explicitly.
+otherwise \(\epsilon_{\rm eff}=\epsilon_e\).  This cooling diagnostic is used only inside the dynamics branch; the later electron-transport step evolves the electron distribution explicitly.
 
 The early logarithmic grid is placed using the deceleration-scale variables
 \[
 \mathcal{D}_0=
-\frac{E_{\rm iso}}{(\eta_0-1)4\pi m_pc^2},
+\frac{E_{\rm iso}}{(\Gamma_0-1)4\pi m_pc^2},
 \]
 \[
 R_{\rm dec,ISM}=
-\left(\frac{n_{\rm ISM}\eta_0}{\mathcal{D}_0}\right)^{-1/3},
+\left(\frac{n_{\rm ISM}\Gamma_0}{\mathcal{D}_0}\right)^{-1/3},
 \qquad
 R_{\rm dec,wind}=
-\frac{3\mathcal{D}_0}{2(A/m_p)\eta_0},
+\frac{3\mathcal{D}_0}{2(A/m_p)\Gamma_0},
 \]
-with \(R_{\rm dec}=\min(R_{\rm dec,ISM},R_{\rm dec,wind})\) for wind media and \(R_{\rm dec}=R_{\rm dec,ISM}\) otherwise.  The logarithmic integration grid begins before \(t_{\rm dec}=R_{\rm dec}/(2\eta_0^2c)\), so the coasting-to-decelerating transition is sampled rather than imposed as a broken power law.
+where \(\Gamma_0\) is the initial Lorentz factor.  The runtime variable carrying this quantity is named \(\eta_0\).  For wind media, \(R_{\rm dec}=\min(R_{\rm dec,ISM},R_{\rm dec,wind})\); otherwise \(R_{\rm dec}=R_{\rm dec,ISM}\).  The logarithmic integration grid begins before \(t_{\rm dec}=R_{\rm dec}/(2\Gamma_0^2c)\), so the coasting-to-decelerating transition is sampled rather than imposed as a broken power law.
 
 \subsection{Dynamical branches}
 
-The default dynamics option is branch 3.  The model nevertheless exposes three branches, named here by their integer index because the implementation does not attach a unique literature name to every branch.  Branch 1 uses the radiative-efficiency denominator associated with generic afterglow dynamics \citep{BlandfordMcKee1976,HuangDaiLu1999}.  Branches 2 and 3 use a variable effective adiabatic index,
+The default dynamics option is branch 3.  The model nevertheless exposes three branches, named here by their integer index because the implementation does not attach a unique literature name to every branch.  Branch 1 follows the radiative-efficiency form commonly used in semi-analytic afterglow dynamics \citep{BlandfordMcKee1976,HuangDaiLu1999}.  Branches 2 and 3 use a variable effective adiabatic index,
 \[
 u=\Gamma\beta,\qquad
 \Theta=\frac{u}{3}\frac{u+1.07u^2}{1+u+1.07u^2},
@@ -275,7 +275,7 @@ u=\Gamma\beta,\qquad
 -2.39332\zeta^5+1.07136\zeta^6
 }{3},
 \]
-where the numerical coefficients are the fitted equation-of-state coefficients of the relativistic Maxwell--Juttner gas approximation used in blast-wave calculations \citep{Service1986,Peer2012}.  They are not tuned to the afterglow data or to the validation examples.
+where the numerical coefficients come from the relativistic Maxwell--Juttner equation-of-state fit used in blast-wave calculations \citep{Service1986,Peer2012}.  They are not tuned to the afterglow data or to the validation examples.
 
 Let
 \[
@@ -285,9 +285,9 @@ L_0(T/t_1)^{q}, & t_1\le T\le t_2,\\
 0, & \text{otherwise},
 \end{cases}
 \]
-where \(t_1\) and \(t_2\) are source-frame injection bounds, \(L_0\) is the injected luminosity normalization, and \(q\) is the temporal injection index.  In the public model, \texttt{Magnetar}(\(L_0,t_0,q\)) stores \(L_0\), \(t_0\), and \(q\); the dynamics kernel then converts the configured injection bounds to the source frame by dividing by \(1+z\), so the upper bound entering the equation is \(t_2=t_0/(1+z)\).  The lower injection bound \(t_1\) remains the runtime injection-start parameter and is converted in the same way.  The public name is therefore a compact energy-injection constructor, not a claim that the dynamics solve a separate magnetar spin-down equation.
+where \(t_1\) and \(t_2\) are source-frame injection bounds, \(L_0\) is the injected luminosity normalization, and \(q\) is the temporal injection index.  In the public model, \texttt{Magnetar}(\(L_0,t_0,q\)) stores \(L_0\), \(t_0\), and \(q\).  The dynamics kernel converts the configured observer-frame bounds to source-frame bounds by dividing by \(1+z\), so the upper bound entering the equation is \(t_2=t_0/(1+z)\).  The lower injection bound \(t_1\) is converted in the same way.  The public name is therefore a compact energy-injection constructor, not a claim that the dynamics solve a separate magnetar spin-down equation.
 
-The injection term is branch dependent.  Branches 1 and 3 use \(\mathcal{A}(T)\) as a luminosity source in the source-frame time equation, while branch 2 has no injection source in its Lorentz-factor equation.  The manuscript therefore treats energy injection as part of the selected dynamics branch, not as a branch-independent postprocessing correction.  The swept-medium derivative is
+The injection term is branch dependent.  Branches 1 and 3 use \(\mathcal{A}(T)\) as a luminosity source in the source-frame time equation, while branch 2 has no injection source in its Lorentz-factor equation.  The manuscript therefore treats energy injection as part of the selected dynamics branch, not as a branch-independent post-processing correction.  The swept-medium derivative is
 \[
 \dot{\mathcal{M}}=
 \begin{cases}
@@ -295,30 +295,30 @@ n(R)R^2\dot R, & \text{branches 1 and 2},\\
 4\pi n(R)R^2m_p\dot R, & \text{branch 3}.
 \end{cases}
 \]
-Branches 1 and 2 use the swept number column \(d\mathcal{M}/dT=nR^2\dot R\).  Their ejecta normalization is therefore the isotropic-equivalent rest-energy column
+For branches 1 and 2, we write the second state variable as \(\mu\), with \(\dot\mu=nR^2\dot R\).  The corresponding ejecta normalization is
 \[
-\mathcal{M}_{0}^{N}=\frac{E_{\rm iso}}{4\pi(\eta_0-1)m_pc^2}.
+\mu_0=\frac{E_{\rm iso}}{4\pi(\Gamma_0-1)m_pc^2}.
 \]
-When these legacy branches are exposed through the public state, the internal swept column is converted to total swept mass as \(M_{\rm sw}=4\pi m_p\mathcal{M}\).  In branch 3, \(\mathcal{M}\) is already the total swept mass in grams.
+When these legacy branches are exposed through the public state, the internal swept column is converted to total swept mass as \(M_{\rm sw}=4\pi m_p\mu\).  In branch 3, \(\mathcal{M}\) is already the total swept mass in grams.
 For branch 1,
 \[
 \frac{d\Gamma}{dT}=
-\frac{-(\Gamma^2-1)\dot{\mathcal{M}}
+\frac{-(\Gamma^2-1)\dot\mu
 +\mathcal{A}(T)/(4\pi m_pc^2)}
-{\mathcal{M}_{0}^{N}+\epsilon_{\rm eff}\mathcal{M}
-+2(1-\epsilon_{\rm eff})\Gamma\mathcal{M}},
+{\mu_0+\epsilon_{\rm eff}\mu
++2(1-\epsilon_{\rm eff})\Gamma\mu},
 \qquad
-\frac{dU}{dT}=(\Gamma-1)\dot{\mathcal{M}}.
+\frac{dU}{dT}=(\Gamma-1)\dot\mu.
 \]
-For branch 2, the same \(\mathcal{M}_{0}^{N}\) is used, but the numerator and denominator are
+For branch 2, the same \(\mu_0\) is used, but the numerator and denominator are
 \[
 \mathcal{N}_2=
 \hat{\gamma}(\Gamma^2-1)-(\hat{\gamma}-1)\Gamma\beta^2,
 \]
 \[
 \mathcal{D}_2=
-\mathcal{M}_{0}^{N}+\epsilon_{\rm eff}\mathcal{M}
-+(1-\epsilon_{\rm eff})\mathcal{M}
+\mu_0+\epsilon_{\rm eff}\mu
++(1-\epsilon_{\rm eff})\mu
 \left[
 2\hat{\gamma}\Gamma-(\hat{\gamma}-1)(1+\Gamma^{-2})
 \right],
@@ -326,9 +326,9 @@ For branch 2, the same \(\mathcal{M}_{0}^{N}\) is used, but the numerator and de
 \[
 \frac{d\Gamma}{dT}=-
 \frac{\mathcal{N}_2}{\mathcal{D}_2}
-\dot{\mathcal{M}},
+\dot\mu,
 \qquad
-\frac{dU}{dT}=(\Gamma-1)\dot{\mathcal{M}}.
+\frac{dU}{dT}=(\Gamma-1)\dot\mu.
 \]
 Branch 2 is retained as a selectable legacy option; branch 3 is the default publication branch.
 
