@@ -3400,16 +3400,17 @@ P_\nu\simeq
 
 \section{Reverse-Shock and Secondary Reverse-Shock Stages} \label{sec:reverse-shock}
 
-The reverse-shock stage is enabled only when a shell duration is supplied.  It uses
+The reverse-shock stage is enabled only when a shell duration is supplied.  We denote the
+baryonic ejecta mass by \(M_{\rm ej}\), with
 \[
 \Delta_0=c\Delta t,\qquad
-M_{{\rm ej},b}=\frac{E_{\rm iso}}{(1+\sigma)\eta_0c^2},
+M_{\rm ej}=\frac{E_{\rm iso}}{(1+\sigma)\eta_0c^2},
 \qquad
 \Delta(R)=\max\left(\Delta_0,\frac{R}{\eta_0^2}\right),
 \]
 and an upstream ejecta density
 \[
-n_4(R)=\frac{M_{{\rm ej},b}}{4\pi m_pR^2\eta_0\Delta(R)}.
+n_4(R)=\frac{M_{\rm ej}}{4\pi m_pR^2\eta_0\Delta(R)}.
 \]
 Here \(E_{\rm iso}\) is the total ejecta energy.  A finite upstream magnetization therefore reduces the transported baryonic mass by the matter fraction \((1+\sigma)^{-1}\), while the dynamical inertia of the unshocked ejecta uses the corresponding matter-plus-magnetic factor \((1+\sigma)\).  The code keeps these two roles separate: \(n_4\) is the baryon target density for shock heating and particle injection, whereas \(n_{4,{\rm in}}=(1+\sigma)n_4\) enters the inertia carried by the waiting shell.
 The relative Lorentz factor used for reverse-shock electron injection is the shock-front value
@@ -3431,7 +3432,7 @@ Before these checks pass, \(dM_3=0\), no reverse-shock heating is applied,
 \(B_{3,{\rm ord}}=0\), and the decelerating forward shell carries the waiting ejecta inertia
 \[
 M_{\rm wait}=
-M_{{\rm ej},b}(1+\sigma)\frac{\eta_0}{\eta_0-1}f_{\rm fast},
+M_{\rm ej}(1+\sigma)\frac{\eta_0}{\eta_0-1}f_{\rm fast},
 \]
 \[
 \beta_{\rm f}=\left(\frac{\sigma}{1+\sigma}\right)^{1/2},
@@ -3552,12 +3553,26 @@ The reverse dynamics evolve \((\Gamma_2,R,M_2,M_3,U_3,V_3)\), with
 \[
 \frac{dM_2}{dR}=4\pi R^2m_pn_1 .
 \]
-The public reverse-dynamics entry stores this state as
+The time-integrator state is
 \[
-Y_{\rm RS}=\left(\Gamma_2,R,M_2,\frac{M_3}{M_{{\rm ej},b}},
-\frac{U_3}{M_{{\rm ej},b}c^2},\frac{V_3}{V_{3,0}},\ldots\right),
+Y_{\rm RS}=\left(\Gamma_2,R,M_2,\frac{M_3}{M_{\rm ej}},
+\frac{U_3}{M_{\rm ej}c^2},\frac{V_3}{V_0},\ldots\right),
 \]
-where \(V_{3,0}=M_{{\rm ej},b}/(n_{3,0}m_p)\) is only a volume normalization.
+where \(V_0=M_{\rm ej}/(n_{3,0}m_p)\) is only a volume normalization.
+With \(D=dY_{\rm RS}/dT\), the first six components are
+\[
+D_1=\frac{d\Gamma_2}{dT},\quad
+D_2=\frac{dR}{dT},\quad
+D_3=\frac{dM_2}{dT},
+\]
+\[
+D_4=
+\frac{1}{M_{\rm ej}}\frac{dM_3}{dT},\quad
+D_5=
+\frac{1}{M_{\rm ej}c^2}\frac{dU_3}{dT},\quad
+D_6=
+\frac{1}{V_0}\frac{dV_3}{dT}.
+\]
 The output grid is a source-frame on-axis time grid,
 \[
 T_i=T_{\rm base}+10^{\ell_0+(\ell_{\max}-\ell_0)(i-1)/(N_R-1)},
@@ -3652,7 +3667,7 @@ After crossing, \(dM_3=0\), the shock-heating term is removed, and the stored \(
 {[\epsilon_2+2(1-\epsilon_2)\Gamma_2]M_2+M_3+M_{B,3}+M_{{\rm sec,eff}}}.
 \]
 Before crossing, the integrator changes the independent variable to
-\(q=M_3/M_{{\rm ej},b}\).  If the RHS gives \(D=dY/dT\), the RK stages use
+\(q=M_3/M_{\rm ej}\).  If the RHS gives \(D=dY/dT\), the RK stages use
 \[
 \frac{dY}{dq}=\frac{D}{D_4},
 \qquad
@@ -3774,7 +3789,7 @@ Y_i=
 \frac{A_{{\rm Nakar},i}}
 {4\pi R^2c\,4\Gamma_2^2n_4m_pc^2},
 \qquad
-n_4=\frac{M_{\rm ej,b}}
+n_4=\frac{M_{\rm ej}}
 {4\pi m_pR^2\eta_0\Delta},
 \qquad
 \Delta=\max(\Delta_0,R/\eta_0^2),
@@ -3906,7 +3921,8 @@ M_{{\rm sec,eff}}=
 +\frac{p_{\rm sec}V_{\rm sec}}{\Gamma_2^2c^2}.
 \]
 The branch RHS uses the actual total density \(n_1=n_{\rm base}+\sum_k n_{\rm exc,k}\)
-and the selected excess density \(n_{\rm exc,j}\), so the first secondary upstream is
+and the selected excess density \(n_{\rm exc,j}\); both are number densities in \({\rm cm^{-3}}\), not dimensionless multipliers.
+The first secondary upstream is
 \[
 n_{\rm pre}=n_1-n_{\rm exc,j},
 \qquad
@@ -3982,7 +3998,21 @@ dU_{\rm sec}=u_{\rm diss}\,dV_{\rm sec}
 dV_{\rm sec}=\frac{dM_{\rm sec}}{n_3m_p}
 +V_{\rm sec}\left(\frac{3\,dR}{R}-\frac{d\Gamma_2}{\Gamma_2}\right).
 \]
-The event windows returned for these branches are diagnostic roots of the same source function
+The augmented state for \(N_J\) density structures appends normalized branch rates,
+\[
+\begin{gathered}
+D_{6+j}=\frac{1}{M_{\rm ej}}\frac{dM_j}{dT},\qquad
+D_{6+N_J+j}=\frac{1}{M_{\rm ej}c^2}\frac{dU_j}{dT},\\
+D_{6+2N_J+j}=\frac{1}{V_0}\frac{dV_j}{dT},\qquad
+D_{6+3N_J+j}=\frac{1}{M_{\rm ej}c^2}\frac{d\Delta U_j}{dT},\\
+D_{6+4N_J+j}=
+\frac{\gamma_{m,j}}{M_{\rm ej}c^2}
+\frac{d\Delta U_j}{dT}.
+\end{gathered}
+\]
+Here \(M_j\), \(U_j\), and \(V_j\) are the mass, internal energy, and volume of secondary branch \(j\), while \(\Delta U_j\) is the newly dissipated part.
+The final two entries are diagnostic weights for newly dissipated energy and its injection Lorentz factor; they do not add a separate inertia term.
+The event windows for these branches are diagnostic roots of the same source function
 \[
 S_j(R)=e_{3,j}-e_{4,j}\chi_j^{4/3}.
 \]
@@ -3990,51 +4020,51 @@ Between two stored first-RS states, the scanner subdivides the overlap with the 
 \([R_j-4w_jR_j,R_j)\) into intervals no wider than \(w_jR_j/16\), linearly interpolates
 \((Y,\Gamma_2,T_{\rm obs})\) within the bracket, and bisects sign changes of \(S_j\).
 Thus \(S_j>0\) marks an active secondary reverse-shock window, while a branch that remains open to the last sampled radius is closed at the last known state rather than extrapolated.
-The public branch arrays are the dimensional forms
+The dimensional branch variables are recovered as
 \[
-M_{{\rm sec},j}=Y_{m,j}M_{{\rm ej},b},\qquad
-U_{{\rm sec},j}=Y_{u,j}M_{{\rm ej},b}c^2,\qquad
-V_{{\rm sec},j}=Y_{v,j}V_{3,0}.
+M_j=Y_{m,j}M_{\rm ej},\qquad
+U_j=Y_{u,j}M_{\rm ej}c^2,\qquad
+V_j=Y_{v,j}V_0.
 \]
 Newly dissipated energy, not accumulated mass, weights the combined secondary diagnostics:
 \[
-\Delta E_{{\rm diss},j,i}=E_{{\rm diss},j,i}-E_{{\rm diss},j,i-1},
+\Delta E_{j,i}=E_{j,i}-E_{j,i-1},
 \qquad
 \langle Q\rangle_i=
-\frac{\sum_j \Delta E_{{\rm diss},j,i}Q_{j,i}}
-{\sum_j \Delta E_{{\rm diss},j,i}}.
+\frac{\sum_j \Delta E_{j,i}Q_{j,i}}
+{\sum_j \Delta E_{j,i}}.
 \]
 The combined secondary state reported to the observer stage is
 \[
-M_{\rm sec,tot}=\sum_j M_{{\rm sec},j},\quad
-U_{\rm sec,tot}=\sum_j U_{{\rm sec},j},\quad
-V_{\rm sec,tot}=\sum_j V_{{\rm sec},j},
+M_{\rm sec}=\sum_j M_j,\quad
+U_{\rm sec}=\sum_j U_j,\quad
+V_{\rm sec}=\sum_j V_j,
 \]
 \[
-B_{\rm sec,tot}=\left(8\pi\epsilon_{B,r}\frac{U_{\rm sec,tot}}{V_{\rm sec,tot}}\right)^{1/2},
+B_{\rm sec}=\left(8\pi\epsilon_{B,r}\frac{U_{\rm sec}}{V_{\rm sec}}\right)^{1/2},
 \quad
-p_{\rm sec,tot}=\frac{U_{\rm sec,tot}}{3V_{\rm sec,tot}},
+p_{\rm sec}=\frac{U_{\rm sec}}{3V_{\rm sec}},
 \quad
-w_{\rm sec,tot}=\frac{M_{\rm sec,tot}c^2+U_{\rm sec,tot}}{V_{\rm sec,tot}}+p_{\rm sec,tot}.
+w_{\rm sec}=\frac{M_{\rm sec}c^2+U_{\rm sec}}{V_{\rm sec}}+p_{\rm sec}.
 \]
 The associated break-frequency diagnostics use the same energy weights,
 \[
 \bar{\gamma}_{m,{\rm sec}}=
-\frac{\sum_j \Delta E_{{\rm diss},j}\gamma_{m,j}}
-{\sum_j \Delta E_{{\rm diss},j}},
+\frac{\sum_j \Delta E_j\gamma_{m,j}}
+{\sum_j \Delta E_j},
 \]
 \[
 \nu_{m,{\rm sec}}=
-\frac{4.2\times10^6 B_{\rm sec,tot}\bar{\gamma}_{m,{\rm sec}}^2}
+\frac{4.2\times10^6 B_{\rm sec}\bar{\gamma}_{m,{\rm sec}}^2}
 {\langle\Gamma_{\rm c}\rangle[1-\beta(\langle\Gamma_{\rm c}\rangle)](1+z)},
 \]
 \[
 \gamma_{c,{\rm sec}}=
 \frac{7.7\times10^8(1+z)}
-{\Gamma_2 B_{\rm sec,tot}^2T_{\rm obs}},
+{\Gamma_2 B_{\rm sec}^2T_{\rm obs}},
 \qquad
 \nu_{c,{\rm sec}}=
-\frac{4.2\times10^6 B_{\rm sec,tot}\gamma_{c,{\rm sec}}^2}
+\frac{4.2\times10^6 B_{\rm sec}\gamma_{c,{\rm sec}}^2}
 {\Gamma_2(1-\beta_2)(1+z)}.
 \]
 The current multi-density reverse-shock path is deliberately narrow: it requires \(p_r>2\), a supported one-dimensional electron solver, \texttt{fullhide\_1d} or \texttt{dg\_1d}, the direct 1D observer path, no hadronic processes, no forward SSC cooling, no reverse SSC, no cross-zone IC, and separated electron-photon coupling.  The event windows are diagnostic roots obtained from linearly interpolated adjacent output states, and the adaptive RK refinement controls the first-RS variables \(\Gamma_2,R,M_2\), not a separate conservative error norm for every secondary branch variable.  The manuscript therefore treats the secondary reverse-shock outputs as a diagnostic branch, not as a general reverse-shock model \citep{DaiLu2002,NakarGranot2007,UhmZhang2014,Laskar2016GRB160509A,Alexander2017GRB160625B,Laskar2019GRB181201A,PangDai2024OffaxisRS}.
