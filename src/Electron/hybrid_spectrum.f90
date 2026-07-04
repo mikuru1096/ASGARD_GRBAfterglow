@@ -363,10 +363,106 @@ module hybrid_spectrum
          + (1.0d0+p)*log(gamma_min) &
          + log(int) &
          + gamma_min/gamma_max
-      init_theta = 0.144d0*gamma_min
+      init_theta = get_initial_theta(gamma_min, ln_c)
       theta = newton_method(init_theta, 1.0d-6, 50, gamma_min, ln_c)
 
    end subroutine solve_theta
+
+   function theta_objective(theta, gamma_min, ln_c) result(val)
+      implicit none
+      real(8), intent(in) :: theta, gamma_min, ln_c
+      real(8) :: it1, val
+
+      call thermal_int1(gamma_min, theta, &
+         it1)
+      val = log(it1) - ln_c + gamma_min/theta
+
+   end function theta_objective
+
+   function get_initial_theta(gamma_min, ln_c) result(init_theta)
+      implicit none
+      real(8), intent(in) :: gamma_min, ln_c
+      real(8) :: init_theta, test_theta, test_val
+      real(8) :: theta_low, theta_hig, val_low, val_hig
+      real(8), dimension(11) :: scale
+      integer :: shift, idx_low, idx_hig, idx_mid
+      integer, parameter :: max_shift = 8
+      real(8), parameter :: close_tol = 1.0d-2
+
+      scale = [ &
+         6.0000000d-2, 7.5535520d-2, 9.5093590d-2, &
+         1.1971574d-1, 1.5071319d-1, 1.8973666d-1, &
+         2.3886430d-1, 3.0071234d-1, 3.7857441d-1, &
+         4.7659694d-1, 6.0000000d-1 &
+      ]
+
+      theta_low = scale(1)*gamma_min
+      val_low = theta_objective(theta_low, gamma_min, ln_c)
+      if (abs(val_low) < close_tol) then
+         init_theta = theta_low
+         return
+      end if
+
+      do shift = 1, max_shift
+         if (val_low >= 0.0d0) exit
+         scale = scale*1.0d-1
+         theta_low = scale(1)*gamma_min
+         val_low = theta_objective(theta_low, gamma_min, ln_c)
+         if (abs(val_low) < close_tol) then
+            init_theta = theta_low
+            return
+         end if
+      end do
+      if (val_low < 0.0d0) then
+         error stop "hybrid_spectrum.get_initial_theta: failed to bracket lower positive-temperature side."
+      end if
+
+      theta_hig = scale(11)*gamma_min
+      val_hig = theta_objective(theta_hig, gamma_min, ln_c)
+      if (abs(val_hig) < close_tol) then
+         init_theta = theta_hig
+         return
+      end if
+      do shift = 1, max_shift
+         if (val_hig <= 0.0d0) exit
+         theta_low = theta_hig
+         val_low = val_hig
+         scale = scale*1.0d1
+         theta_hig = scale(11)*gamma_min
+         val_hig = theta_objective(theta_hig, gamma_min, ln_c)
+         if (abs(val_hig) < close_tol) then
+            init_theta = theta_hig
+            return
+         end if
+      end do
+      if (val_hig > 0.0d0) then
+         error stop "hybrid_spectrum.get_initial_theta: failed to bracket upper positive-temperature side."
+      end if
+
+      idx_low = 1
+      idx_hig = 11
+      do while (idx_hig - idx_low > 1)
+         idx_mid = (idx_hig + idx_low)/2
+         test_theta = scale(idx_mid)*gamma_min
+         test_val = theta_objective(test_theta, gamma_min, ln_c)
+         if (abs(test_val) < close_tol) then
+            init_theta = test_theta
+            return
+         end if
+         if (test_val > 0.0d0) then
+            idx_low = idx_mid
+            theta_low = test_theta
+            val_low = test_val
+         else
+            idx_hig = idx_mid
+            theta_hig = test_theta
+            val_hig = test_val
+         end if
+      end do
+
+      init_theta = theta_low - val_low*(theta_hig - theta_low)/(val_hig - val_low)
+
+   end function get_initial_theta
 
    ! Newton 解 thermal 温度；状态全部经参数传入，保持 reentrant。
    ! Newton solve for the thermal temperature; all state is passed through arguments.
@@ -403,6 +499,9 @@ module hybrid_spectrum
          ! 尚未收敛，推进到下一次迭代。
          ! Not converged yet; advance to the next iteration.
          theta = theta * (1.0d0 + rel_shift)
+         if (theta <= 0.0d0) then
+            error stop "hybrid_spectrum.newton_method: theta left the positive domain."
+         end if
       end do iter_loop
       error stop "hybrid_spectrum.newton_method failed to converge."
 

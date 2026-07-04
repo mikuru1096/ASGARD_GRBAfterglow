@@ -7,11 +7,11 @@ subroutine fs_fullhide_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
     use constants
     use dynamics_density_profile, only: density_profile
     use electron_common
-    use electron_injection_profiles, only: source_edges, add_thermal, &
-                                           log_edges
+    use electron_injection_profiles, only: init_coord, source_coord
+    use electron_coord_common, only: build_fourvel_grid, dxg_dcoord, coord_fourvel, fourvel_scale
     use electron_radiation_kernel, only: syn_state, nua_fromtau
     use electron_cooling_kernel, only: get_forward_cooling
-    use electron_transport_common, only: fullhide_step, dnx_dgamma
+    use electron_shell_transport, only: shell_coord_step, coord_to_dgamma
     use hybrid_spectrum, only: hybrid_spec
     IMPLICIT REAL(8)(A-H,O-Z)
     integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads
@@ -25,18 +25,18 @@ subroutine fs_fullhide_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
     real(8), intent(out), dimension(Num_nu,Num_R) :: P_syn,Seed_syn
     real(8), intent(out), dimension(Num_R) :: V_m,V_c,V_a
 
-    real(8),allocatable,dimension (:) :: dEl,dEL_mean,x,dN_x,x_edge, &
-                                         dN_full,dN_half,dN_half2,dF1,dEL_mean_base,dEL_mean_step
+    real(8),allocatable,dimension (:) :: dEl,dEl_step,x,dN_x,x_edge,coord_edge,dxdy_grid, &
+                                         dN_full,dN_half,dN_half2,dF1
     logical :: is_uniform_density,budget_diag_enabled
     integer :: env_len,env_status
     character(len=32) :: diag_env
-    real(8) :: dDR_xi,ln10
+    real(8) :: dDR_xi,ln10,coord_scale,dg_gamma_scale
     real(8) :: n_before_step,n_after_step,inj_step,rel_loss_xi_max
     real(8), dimension(Num_nu) :: P_emit_tmp,Tau_syn_tmp
-    allocate (dEl(Num_gam_e),dEL_mean(Num_gam_e-1),x(Num_gam_e),dN_x(Num_gam_e), &
+    allocate (dEl(Num_gam_e),dEl_step(Num_gam_e),x(Num_gam_e),dN_x(Num_gam_e), &
               dN_full(Num_gam_e), &
-              x_edge(Num_gam_e+1),dN_half(Num_gam_e),dN_half2(Num_gam_e),dF1(Num_gam_e),dEL_mean_base(Num_gam_e-1), &
-              dEL_mean_step(Num_gam_e-1))
+              x_edge(Num_gam_e+1),coord_edge(Num_gam_e+1),dxdy_grid(Num_gam_e), &
+              dN_half(Num_gam_e),dN_half2(Num_gam_e),dF1(Num_gam_e))
 
     call electron_unpack_boundary(Boundary,n,Eta_0,R_ini,Epsilon_e,Epsilon_b,p,z,dNe_ISM,A_star, &
                                   E_iso,T_log10_duration,f_e,R_tr,f_jump,f_wide,R0)
@@ -61,19 +61,15 @@ subroutine fs_fullhide_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
     Gam_e_c=7.7d8/(1d0+dsqrt(Epsilon_e/Epsilon_b))/R_Gamma(1)/DB**2/(R_Tobs(1)/2d0)
     if (R_Gamma(1) < 1d0) error stop 'fs_fullhide_1d requires initial Gamma >= 1'
     beta_Gam=dsqrt(1d0-1d0/R_Gamma(1)**2)
-    if (thermal_electrons == 0) then
-        call electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
-                                          imodelog,gam_e,dN_x,x_edge)
-        call dnx_dgamma(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,1))
-    else
-        call electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
-                                          imodeg,gam_e,dN_gam_e(:,1),thermal_electrons=thermal_electrons, &
-                                          f_e=f_e,four_v=R_Gamma(1)*beta_Gam)
-        dN_x=dN_gam_e(:,1)*gam_e*dlog(1d1)
-        call log_edges(Num_gam_e,gam_e,x_edge)
-    end if
-    d_x=dlog10(gam_e(2)/gam_e(1))
     ln10=dlog(1d1)
+    call init_fourvel_grid(Gam_e_max_max)
+    if (thermal_electrons == 0) then
+        call init_coord(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,coord_edge,coord_scale,dN_x)
+    else
+        call hybrid_spec(Num_gam_e,gam_e,p,Gam_e_m,Gam_e_max,f_e,dN_gam_e(:,1))
+        dN_x=dN_gam_e(:,1)*gam_e*ln10*dxdy_grid*Para_N_e_ini
+    end if
+    call coord_to_dgamma(Num_gam_e,coord_edge,coord_scale,gam_e,dN_x,dN_gam_e(:,1))
     is_uniform_density=(A_star <= 0d0 .and. f_jump == 1d0)
     budget_diag_enabled=.false.
     diag_env=''
@@ -102,7 +98,7 @@ subroutine fs_fullhide_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
         f_r=(1.35d-19)/beta_Gam/R_Gamma_loc*DB**2/pi
         dDR=0.1d0/(f_r*Gam_e_max+1.333d0/(R(I_tobs)+R(I_tobs-1)))
         dDD=R(I_tobs)-R(I_tobs-1)
-        dN_x=dN_gam_e(:,I_tobs-1)*gam_e*dlog(1d1)
+        dN_x=dN_gam_e(:,I_tobs-1)*gam_e*ln10*dxdy_grid
         V_m(I_tobs-1)=4.2d6*DB*Gam_e_m*Gam_e_m/(R_Gamma_loc*(1d0-beta_Gam)*(1d0+z))
         V_c(I_tobs-1)=4.2d6*DB*Gam_e_c*Gam_e_c/(R_Gamma_loc*(1d0-beta_Gam)*(1d0+z))
 
@@ -116,8 +112,6 @@ subroutine fs_fullhide_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
                                  R_Gamma_loc,beta_Gam,dNe,Num_gam_e,Num_nu,n_threads,gam_e,V_seed, &
                                  P_syn(:,I_tobs),Seed_syn(:,I_tobs),dEl)
 
-        dEL_mean=(dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/2d0/dlog(1d1)
-        dEL_mean_base=dEL_mean
         dDR_xi=dDR
         if (adaptive_substeps == 0) then
             L1=max(100,min(1000,int(dDD/max(dDR,tiny(1d0)))))
@@ -138,20 +132,20 @@ subroutine fs_fullhide_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
                         call build_hybrid_source(R_loc,dDR,dNe,Gam_e_m_step,Gam_e_max_step,Gam_e_m_p_step)
 
                         if (dNe_shell > 0d0) then
-                            dEL_mean_step=dEL_mean_base*(dNe/dNe_shell)
+                            dEl_step=dEl*(dNe/dNe_shell)
                         else
-                            dEL_mean_step=dEL_mean_base
+                            dEl_step=dEl
                         end if
                     end if
+                    if (is_uniform_density .and. thermal_electrons == 0) dEl_step=dEl
                     if (budget_diag_enabled) then
-                        n_before_step=sum(dN_x)*d_x
-                        inj_step=dDR*sum(dF1)*d_x
+                        n_before_step=sum(dN_x*(coord_edge(2:Num_gam_e+1)-coord_edge(1:Num_gam_e)))
+                        inj_step=dDR*sum(dF1*(coord_edge(2:Num_gam_e+1)-coord_edge(1:Num_gam_e)))
                     end if
 
-                    if (is_uniform_density .and. thermal_electrons == 0) dEL_mean_step=dEL_mean_base
-                    call fullhide_step(Num_gam_e,R_loc,dDR,d_x,dEL_mean_step,dF1,dN_x,x)
+                    call shell_coord_step(Num_gam_e,dDR,coord_edge,coord_scale,dEl_step,1d0/R_loc,dF1,dN_x,x)
                     if (budget_diag_enabled) then
-                        n_after_step=sum(x)*d_x
+                        n_after_step=sum(x*(coord_edge(2:Num_gam_e+1)-coord_edge(1:Num_gam_e)))
                         rel_loss_xi_max=max(rel_loss_xi_max, &
                             max(0d0,(n_before_step+inj_step-n_after_step)/max(n_before_step+inj_step,tiny(1d0))))
                         if (I_tobs <= 6 .and. L == L1) then
@@ -162,7 +156,7 @@ subroutine fs_fullhide_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
                     dN_x=x
 
                     if (L1 == L) then
-                        call dnx_dgamma(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,I_tobs))
+                        call coord_to_dgamma(Num_gam_e,coord_edge,coord_scale,gam_e,dN_x,dN_gam_e(:,I_tobs))
                     end if
             end do
         else
@@ -190,11 +184,11 @@ subroutine fs_fullhide_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
                 call build_hybrid_count(Q,Gam_e_m_full,Gam_e_max_full,Gam_e_m_p_full)
 
                 if (dNe_shell > 0d0) then
-                    dEL_mean_step=dEL_mean_base*(dNe_full/dNe_shell)
+                    dEl_step=dEl*(dNe_full/dNe_shell)
                 else
-                    dEL_mean_step=dEL_mean_base
+                    dEl_step=dEl
                 end if
-                call fullhide_step(Num_gam_e,R_full,dR_try,d_x,dEL_mean_step,dF1,dN_x,dN_full)
+                call shell_coord_step(Num_gam_e,dR_try,coord_edge,coord_scale,dEl_step,1d0/R_full,dF1,dN_x,dN_full)
 
                 dR_half=0.5d0*dR_try
                 R_half=R_loc+dR_half
@@ -212,21 +206,21 @@ subroutine fs_fullhide_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
                 call build_hybrid_count(Q,Gam_e_m_half,Gam_e_max_half,Gam_e_m_p_half)
 
                 if (dNe_shell > 0d0) then
-                    dEL_mean_step=dEL_mean_base*(dNe_half/dNe_shell)
+                    dEl_step=dEl*(dNe_half/dNe_shell)
                 else
-                    dEL_mean_step=dEL_mean_base
+                    dEl_step=dEl
                 end if
-                call fullhide_step(Num_gam_e,R_half,dR_half,d_x,dEL_mean_step,dF1,dN_x,dN_half)
+                call shell_coord_step(Num_gam_e,dR_half,coord_edge,coord_scale,dEl_step,1d0/R_half,dF1,dN_x,dN_half)
 
                 call electron_injection_prefactor(R_full,dR_half,dNe_full,f_e,Gam_e_m_p_full,Q)
                 call build_hybrid_count(Q,Gam_e_m_full,Gam_e_max_full,Gam_e_m_p_full)
 
                 if (dNe_shell > 0d0) then
-                    dEL_mean_step=dEL_mean_base*(dNe_full/dNe_shell)
+                    dEl_step=dEl*(dNe_full/dNe_shell)
                 else
-                    dEL_mean_step=dEL_mean_base
+                    dEl_step=dEl
                 end if
-                call fullhide_step(Num_gam_e,R_full,dR_half,d_x,dEL_mean_step,dF1,dN_half,dN_half2)
+                call shell_coord_step(Num_gam_e,dR_half,coord_edge,coord_scale,dEl_step,1d0/R_full,dF1,dN_half,dN_half2)
 
                 call electron_relerr_max(Num_gam_e,dN_half2,dN_full,step_error)
                 if (step_error <= substep_rtol .or. dR_try <= dR_min) then
@@ -243,12 +237,12 @@ subroutine fs_fullhide_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
                     dR_try=max(0.5d0*dR_try,dR_min)
                 end if
             end do
-            call dnx_dgamma(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,I_tobs))
+            call coord_to_dgamma(Num_gam_e,coord_edge,coord_scale,gam_e,dN_x,dN_gam_e(:,I_tobs))
         end if
     end do
     call write_finaldiag()
 
-    deallocate (dEl,dEL_mean,x,dN_x,x_edge,dN_full,dN_half,dN_half2,dF1,dEL_mean_base,dEL_mean_step)
+    deallocate (dEl,dEl_step,x,dN_x,x_edge,coord_edge,dxdy_grid,dN_full,dN_half,dN_half2,dF1)
     if (budget_diag_enabled) then
         print '(A,1X,ES12.4)', 'BUDGET1D max_rel_loss', rel_loss_xi_max
     end if
@@ -256,6 +250,20 @@ subroutine fs_fullhide_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
     return
 
 contains
+
+    subroutine init_fourvel_grid(imodeg_max)
+    implicit real(8)(A-H,O-Z)
+    integer :: I_grid
+    real(8), intent(in) :: imodeg_max
+
+        dg_gamma_scale=fourvel_scale
+        coord_scale=dg_gamma_scale*dg_gamma_scale-1d0
+        call build_fourvel_grid(Num_gam_e,1d0,tail_factor*imodeg_max,dg_gamma_scale,gam_e,coord_edge,x_edge)
+        do I_grid=1,Num_gam_e
+            dxdy_grid(I_grid)=dxg_dcoord(coord_fourvel,coord_scale, &
+                                         0.5d0*(coord_edge(I_grid)+coord_edge(I_grid+1)))
+        end do
+    end subroutine init_fourvel_grid
 
     ! 最后一个输出点没有后续推进，只刷新与最终电子谱一致的辐射诊断。
     ! The final output point has no following advance, so refresh diagnostics from the final electron spectrum.
@@ -291,11 +299,11 @@ contains
         if (thermal_electrons /= 0) then
             Q = 4d0/3d0*pi*(3d0*rsrc**2+drsrc*(3d0*rsrc+drsrc))*nsrc
             call hybrid_spec(Num_gam_e,gam_e,p,gm_src,gmax_src,f_e,dF1)
-            dF1 = dF1*gam_e*ln10
+            dF1 = dF1*gam_e*ln10*dxdy_grid
             dF1 = dF1*Q
         else
             Q = 4d0/3d0*pi*(3d0*rsrc**2+drsrc*(3d0*rsrc+drsrc))*nsrc*f_e*gmp_src
-            call source_edges(Num_gam_e,x_edge,gm_src,gmax_src,Q,p,dF1)
+            call source_coord(Num_gam_e,coord_edge,coord_scale,gm_src,gmax_src,Q,p,dF1)
         end if
     end subroutine build_hybrid_source
 
@@ -308,10 +316,10 @@ contains
         if (thermal_electrons /= 0) then
             Q = nsource/(f_e*gmp_src)
             call hybrid_spec(Num_gam_e,gam_e,p,gm_src,gmax_src,f_e,dF1)
-            dF1 = dF1*gam_e*ln10
+            dF1 = dF1*gam_e*ln10*dxdy_grid
             dF1 = dF1*Q
         else
-            call source_edges(Num_gam_e,x_edge,gm_src,gmax_src,nsource,p,dF1)
+            call source_coord(Num_gam_e,coord_edge,coord_scale,gm_src,gmax_src,nsource,p,dF1)
         end if
     end subroutine build_hybrid_count
 end subroutine fs_fullhide_hz

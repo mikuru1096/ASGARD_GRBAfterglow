@@ -1085,13 +1085,22 @@ N_j^{n+1}=\max\left(0,r_j-c_jN_{j+1}^{n+1}\right).
 As in the separated fullhide path, the last output radius is refreshed from the final electron spectrum through the same synchrotron optical-depth grid, so the returned \(\nu_m\), \(\nu_c\), and \(\nu_a\) arrays do not end with a stale zero diagnostic.
 
 The \texttt{fullhide\_1d\_hz} branch uses the same shell state, cooling array, and
-\texttt{fullhide\_step} update as the log-gamma fullhide path, but replaces the
+four-velocity flux-split update as the standard fullhide path, but replaces the
 source shape when \texttt{thermal\_electrons} is enabled.  The conservative
 variable is
 \[
-N_{x,j}(R)=\frac{1}{\Delta x}
-\int_{x_{j-1/2}}^{x_{j+1/2}}\frac{dN_e}{dx}\,dx,
-\qquad x=\log_{10}\gamma_e .
+N_{y,j}(R)=\frac{1}{\Delta y_j}
+\int_{y_{j-1/2}}^{y_{j+1/2}}\frac{dN_e}{dy}\,dy,
+\qquad
+y=\log_{10}\!\left[1+\frac{\gamma_e^2-1}{s}\right],
+\quad s=\gamma_s^2-1 .
+\]
+The grid centers still return \(\gamma_e\) for radiation calls, but source and
+transport content live in \(y\).  Since \(x=\log_{10}\gamma_e\),
+\[
+\frac{dx}{dy}=\frac{s\,10^y}{2\gamma_e^2},
+\qquad
+\frac{dN_e}{dy}=\frac{dN_e}{d\gamma_e}\gamma_e\ln 10\,\frac{dx}{dy}.
 \]
 For a substep evaluated at source radius \(R_s\), the radial swept-electron rate
 used by the source array is the finite-shell volume increment divided by
@@ -1104,19 +1113,21 @@ used by the source array is the finite-shell volume increment divided by
 When the thermal branch is disabled, this reduces to the ordinary nonthermal
 source
 \[
-Q_{x,j}=\frac{1}{\Delta x_j}
-\int_{x_{j-1/2}}^{x_{j+1/2}}
+Q_{y,j}=\frac{1}{\Delta y_j}
+\int_{y_{j-1/2}}^{y_{j+1/2}}
 \dot N_R f_e
 \frac{1-p}{\gamma_{\max}^{1-p}-\gamma_m^{1-p}}
-\ln 10\,\gamma_e^{1-p}\mathcal{C}_{\max}(\gamma_e)\,dx .
+\gamma_e^{-p}\mathcal{C}_{\max}(\gamma_e)
+\gamma_e\ln 10\,\frac{dx}{dy}\,dy .
 \]
 When the thermal branch is enabled, the source is instead distributed over a
 unit-normalized hybrid density \(\phi_{\rm hz}(\gamma)\),
 \[
-Q_{x,j}^{\rm hz}=
-\frac{1}{\Delta x_j}
-\int_{x_{j-1/2}}^{x_{j+1/2}}
-\dot N_R\,\phi_{\rm hz}(\gamma_e)\,\gamma_e\ln 10\,dx .
+Q_{y,j}^{\rm hz}=
+\frac{1}{\Delta y_j}
+\int_{y_{j-1/2}}^{y_{j+1/2}}
+\dot N_R\,\phi_{\rm hz}(\gamma_e)\,\gamma_e\ln 10
+\frac{dx}{dy}\,dy .
 \]
 The implemented hybrid density is continuous at \(\gamma_m\) and partitions the
 newly swept electrons into a thermal fraction \(1-f_e\) and a cutoff power-law
@@ -1171,13 +1182,51 @@ so the relative iteration written in the kernel is
 \frac{F(\Theta_k)}
 {\gamma_m/\Theta_k-I_2/(\Theta_k I_1)} .
 \]
-The special functions in this branch enter only through
-\(\Gamma(s,x)\), \(K_0(1/\Theta)\), and \(K_1(1/\Theta)\), which are evaluated
-by the local SLATEC wrapper.  After the hybrid source is assembled, the spectrum
-is advanced by the same upper-triangular implicit system given above for
-\texttt{fullhide\_step}; the final output radius is also refreshed from the
-final electron spectrum and the same synchrotron optical-depth grid used for
-the active shells.
+The special-function layer for this branch is deliberately only a mathematical
+adapter.  The wrapper \texttt{hybrid\_special} exposes the upper incomplete
+gamma function
+\[
+\Gamma(s,x)=\int_x^\infty t^{s-1}e^{-t}\,dt
+\]
+and the two modified Bessel functions
+\[
+K_\nu(z)=\int_0^\infty e^{-z\cosh u}\cosh(\nu u)\,du,\qquad
+\nu\in\{0,1\},
+\]
+by forwarding \(\Gamma(s,x)\) to \texttt{dgamic} and evaluating
+\(K_\nu(z)=\exp(-z)[\exp(z)K_\nu(z)]\) through the scaled SLATEC routines
+\texttt{dbsk0e} and \texttt{dbsk1e}.  The power-law normalization follows directly from
+\(t=\gamma/\gamma_{\max}\):
+\[
+\int_{\gamma_m}^{\infty}\gamma^{-p}e^{-\gamma/\gamma_{\max}}\,d\gamma
+=\gamma_{\max}^{1-p}
+\int_{\gamma_m/\gamma_{\max}}^\infty t^{-p}e^{-t}\,dt
+=\gamma_{\max}^{1-p}
+\Gamma\!\left(1-p,\frac{\gamma_m}{\gamma_{\max}}\right).
+\]
+The Bessel calls enter the thermal moments before the finite upper boundary is
+subtracted.  With \(\gamma=\cosh u\) and
+\(\sqrt{\gamma^2-1}\,d\gamma=\sinh^2u\,du\),
+\[
+\int_1^\infty \gamma\sqrt{\gamma^2-1}e^{-\gamma/\Theta}\,d\gamma
+=2\Theta^2 K_1(1/\Theta)+\Theta K_0(1/\Theta),
+\]
+and
+\[
+\int_1^\infty \gamma^2\sqrt{\gamma^2-1}e^{-\gamma/\Theta}\,d\gamma
+=\left(6\Theta^3+\Theta\right)K_1(1/\Theta)
++3\Theta^2K_0(1/\Theta).
+\]
+The finite-\(\gamma_m\) thermal integrals used by the continuity solve are these
+complete moments minus their \(\gamma_m\rightarrow\infty\) tails, whose
+asymptotic expansion is written as powers of \(\Theta^{-2}\) multiplied by
+\(\Gamma(q,\gamma_m/\Theta)\).  Thus \texttt{hybrid\_special} supplies exact
+special functions for normalization only; it adds no source term, no cooling
+term, and no post-processing correction.  After the hybrid source is assembled,
+the spectrum is advanced by the same upper-triangular implicit system given
+above for \texttt{fullhide\_step}; the final output radius is also refreshed
+from the final electron spectrum and the same synchrotron optical-depth grid
+used for the active shells.
 
 The \texttt{slc1\_1d} branch is a one-dimensional semi-Lagrangian alternative on
 the same uniform log-gamma grid.  It keeps the conservative cell averages
