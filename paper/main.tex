@@ -419,6 +419,16 @@ P=\max_k
 \]
 and halves the substep until \(P<10^{-5}\).  The comparison is made only for positive paired states and with \(\Gamma>1\); these are the physical state-domain conditions of the relativistic blast-wave variables, not a smoothing or postprocessing correction.
 
+\subsection{Dynamics binding boundary}
+
+The Python \texttt{src.Dynamics} package initializer is not a hydrodynamic solver.  It defines the package-level binding map
+\[
+\texttt{dynamics\_forward}\mapsto\texttt{Dynamics\_forward},
+\qquad
+\texttt{dynamics\_reverse}\mapsto\texttt{Dynamics\_reverse},
+\]
+and resolves each entry on demand from the compiled f2py module of the same physical branch.  This layer therefore contributes no additional blast-wave equation, shock jump condition, or integration step.  Its physical role is a boundary condition on the code architecture: higher-level Python orchestration may request the forward or reverse dynamics kernel through a stable package-level name, but the equations are those of the compiled dynamics kernels described in this section and in Section~\ref{sec:reverse-shock}.
+
 \section{Electron Transport and Synchrotron Stage} \label{sec:electron}
 
 The electron stage solves a radius-evolution problem for the shock-accelerated electron distribution before any observer-time projection is applied.  The implemented solver families are the implicit \texttt{fullhide} branch (\texttt{fullhide\_1d}, \texttt{fullhide\_1d\_hz}, \texttt{fullhide\_2d}, and \texttt{fullhide\_2d\_pic}), the characteristic-integration branch (\texttt{charint\_1d} and \texttt{charint\_2d}), the one-dimensional nodal discontinuous-Galerkin branch (\texttt{dg\_1d}), and one-dimensional transport alternatives (\texttt{slc1\_1d}, \texttt{t2g1\_1d}, and \texttt{weno5\_1d}).  The default solver is \texttt{fullhide\_1d}.  One-dimensional solvers return \(N_e(\gamma_e,R)\), synchrotron luminosity, seed synchrotron photon density, and spectral-break diagnostics.  Two-dimensional solvers additionally return \(\chi\)-resolved electron, synchrotron, seed, optical-depth, radius, bulk-Lorentz-factor, and volume-weight arrays.  The \(\chi\)-resolved \eats\ projection is restricted to the supported two-dimensional projection path.  The DG, finite-volume, and WENO options are numerical transport options for the same electron equation rather than different physical electron models \citep{LeVeque2002,JiangShu1996,HesthavenWarburton2008}.
