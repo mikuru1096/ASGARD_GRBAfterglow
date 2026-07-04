@@ -2820,22 +2820,55 @@ provides weights \(w_i=(1,4,2,\ldots,4,1)\), so a uniform-grid integral is
 \frac{\Delta x}{3}\sum_{i=1}^{N}w_i f_i .
 \]
 
-Forward SSC is computed from the same transported electron distribution and local seed photon density.  The implemented kernel is the Jones/Klein--Nishina form,
+Forward SSC is computed from the same transported electron distribution and local seed photon density.  For the uniform electron grid, \texttt{ssc\_spec} evaluates the Jones/Klein--Nishina kernel on logarithmic \(\gamma\) and seed-frequency grids.  At observer-frame comoving frequency \(\nu\), define
 \[
-L_\nu^{\rm SSC}
-=\frac{3}{4}ch\sigma_T
-\int d\gamma_e\,\frac{N_e(\gamma_e)}{\gamma_e}
-\int d\nu_s\,n_{\nu_s}
-\,G(q,\Gamma_\epsilon),
+\epsilon=\frac{h\nu}{m_ec^2},\qquad
+\epsilon_s=\frac{h\nu_s}{m_ec^2},\qquad
+q=\frac{\nu}{4\gamma(\gamma-\epsilon)\nu_s},
+\qquad
+\Gamma_\epsilon=\frac{\epsilon}{\gamma-\epsilon}.
 \]
-with
+For seed bins with \(\nu_s<\nu\), the code keeps the kinematically allowed cells
+\[
+\gamma>
+\frac{1}{2}\left[\epsilon+
+\left(\epsilon^2+\frac{\nu}{\nu_s}\right)^{1/2}\right],
+\]
+and uses
 \[
 G(q,\Gamma_\epsilon)=
 2q\ln q+(1+2q)(1-q)
-+\frac{\Gamma_\epsilon^2q^2(1-q)}{2(1+\Gamma_\epsilon q)}.
++\frac{\Gamma_\epsilon^2(1-q)}{2(1+\Gamma_\epsilon)}.
 \label{eq:ssc-kernel}
 \]
-The numerical implementation precomputes the kinematic bounds in \((\nu_s,\gamma_e)\), uses Simpson weights on the log-spaced grids, and accumulates low-seed and high-seed contributions separately so that the Thomson and Klein--Nishina parts are evaluated by the same kernel \citep{Jones1968,BlumenthalGould1970}.
+The low-seed contribution is therefore
+\[
+L_{\nu,{\rm low}}^{\rm SSC}=
+\frac{3}{4}ch\sigma_T\,\nu
+\int_{\nu_s<\nu} d\ln\nu_s\,n_{\nu_s}
+\int d\ln\gamma\,\frac{N_e(\gamma)}{\gamma}
+G(q,\Gamma_\epsilon).
+\]
+For \(\nu_s\ge\nu\), the stored tail moments implement the allowed Thomson-limit
+form
+\[
+L_{\nu,{\rm high}}^{\rm SSC}=
+\frac{3}{4}ch\sigma_T\,\nu
+\int_{\nu_s\ge\nu}d\ln\nu_s\,n_{\nu_s}
+\int_{\gamma>\frac{1}{2}(\nu_s/\nu)^{1/2}}d\ln\gamma\,
+\frac{N_e(\gamma)}{\gamma}
+\left(\frac{\nu}{\nu_s}-\frac{1}{4\gamma^2}\right).
+\]
+Both logarithmic integrals use the Simpson weights described above.  The stored
+SSC seed field is normalized from the emitted luminosity by
+\[
+n_\nu^{\rm SSC}=\frac{L_\nu^{\rm SSC}}{4\pi R^2ch\nu}.
+\]
+The \texttt{ssc\_spec\_nonuniform} entry keeps the same low/high split but
+reconstructs \(N_e\) linearly in \(x=\log_{10}\gamma\) inside each electron cell,
+limits the slope with minmod, rejects negative reconstructed populations, and
+uses a two-point Gauss rule in \(\ln\nu_s\) and in the low-seed electron-cell
+integral \citep{Jones1968,BlumenthalGould1970}.
 
 Photon survival is applied as a shell-cell transfer, not as a point-screen attenuation.  The common transfer factor is
 \[
