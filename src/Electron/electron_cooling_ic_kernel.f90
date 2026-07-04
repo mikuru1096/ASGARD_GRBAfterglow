@@ -9,7 +9,7 @@ module electron_ic_kernel
 
   integer, save :: ng_cache=0,nnu_cache=0
   logical, save :: grid_ready=.false.
-  real(8), allocatable, save, dimension(:) :: dnu_cache,gmean_cache,eseed_cache,xseed_cache,vmid_cache
+  real(8), allocatable, save, dimension(:) :: dnu_cache,gamma_cache,eseed_cache,xseed_cache,vmid_cache
 
 contains
 ! 更新 IC 积分网格缓存；缓存只依赖电子能格和种子光子频格。
@@ -53,9 +53,9 @@ implicit REAL(8)(A-H,O-Z)
 integer :: ig
 
     ic_gamma_current=.false.
-    if (.not. allocated(gmean_cache)) return
-    do ig=1,ng-1
-        if (gmean_cache(ig) /= (gam(ig)+gam(ig+1))/2d0) return
+    if (.not. allocated(gamma_cache)) return
+    do ig=1,ng
+        if (gamma_cache(ig) /= gam(ig)) return
     end do
     ic_gamma_current=.true.
 end function ic_gamma_current
@@ -63,14 +63,14 @@ end function ic_gamma_current
 subroutine rebuild_ic_grid()
 implicit REAL(8)(A-H,O-Z)
 
-    if (allocated(dnu_cache)) deallocate(dnu_cache,gmean_cache,eseed_cache,xseed_cache,vmid_cache)
-    allocate(dnu_cache(nnu-1),gmean_cache(ng-1),eseed_cache(nnu-1),xseed_cache(nnu),vmid_cache(nnu-1))
+    if (allocated(dnu_cache)) deallocate(dnu_cache,gamma_cache,eseed_cache,xseed_cache,vmid_cache)
+    allocate(dnu_cache(nnu-1),gamma_cache(ng),eseed_cache(nnu-1),xseed_cache(nnu),vmid_cache(nnu-1))
 
     para_hEme=Para_h/para_m_energy
     xseed_cache=dlog(vseed)
     vmid_cache=dexp(0.5d0*(xseed_cache(1:nnu-1)+xseed_cache(2:nnu)))
     dnu_cache=vmid_cache*(xseed_cache(2:nnu)-xseed_cache(1:nnu-1))
-    gmean_cache=(gam(1:ng-1)+gam(2:ng))/2d0
+    gamma_cache=gam
     eseed_cache=vmid_cache*para_hEme
     ng_cache=ng
     nnu_cache=nnu
@@ -95,12 +95,11 @@ real(8), dimension(nnu-1) :: photons
        photons(inu)=pl_interp(vseed(inu),vseed(inu+1),seed(inu),seed(inu+1),vmid_cache(inu))
     end do
 
-    do ig=1,ng-1
+    do ig=1,ng
        call accumulate_ic_loss(ig,loss(ig))
     end do
 
-    loss=loss/gam/gam*para_h*Para_h*Para_SigmaT/para_m_energy
-    loss(ng)=0.99*loss(ng-1)
+    loss=loss/gam**3*0.75d0*Para_c*Para_h*Para_SigmaT/para_m_energy
 
 contains
 
@@ -112,7 +111,7 @@ integer :: inu,is
 real(8) :: gmid,g2,var,integ,vt,et,vloc,ev,uplim,temp,q,fssc,kn
 
     rate=0d0
-    gmid=gmean_cache(ig)
+    gmid=gamma_cache(ig)
     g2=gmid*gmid
     var=0.25d0/g2
     do inu=1,nnu-1
@@ -125,10 +124,11 @@ real(8) :: gmid,g2,var,integ,vt,et,vloc,ev,uplim,temp,q,fssc,kn
           fssc=0d0
           vloc=vmid_cache(is)
           ev=eseed_cache(is)
+          if (ev >= gmid) exit
+          if (ev > uplim) exit
           if (vloc > var*vt .and. vloc <= vt) then
              fssc=vloc/vt-var
           else
-             if (ev > uplim) exit
              temp=gmid-ev
              if (temp <= 0d0) exit
              q=ev/(kn*temp)
@@ -186,26 +186,27 @@ implicit REAL(8)(A-H,O-Z)
 integer, intent(in) :: ig
 real(8), intent(out) :: rate
 integer :: iobs,iseed
-real(8) :: ge,g2,seedsum,power
+real(8) :: ge,g2,seedsum,power,vobs
 
     ge=gam(ig)
     g2=ge*ge
     rate=0d0
     do iobs=1,nnu
-        if (gam(ng) <= eseed(iobs)) cycle
+        if (ge <= eseed(iobs)) cycle
         seedsum=0d0
         do iseed=1,nnu
             if (seed(iseed) <= 0d0) cycle
             if (iseed < iobs) then
-                seedsum=seedsum+wseed(iseed)*seed(iseed)*low_seed_kernel(ge,iobs,iseed)/g2
+                seedsum=seedsum+wseed(iseed)*seed(iseed)*low_seed_kernel(ge,iobs,iseed)
             else
-                seedsum=seedsum+wseed(iseed)*seed(iseed)*max(0d0,vseed(iobs)*inverseed(iseed)-0.25d0/g2)/g2
+                seedsum=seedsum+wseed(iseed)*seed(iseed)*max(0d0,vseed(iobs)*inverseed(iseed)-0.25d0/g2)
             end if
         end do
-        power=cnorm*vseed(iobs)*hthird*seedsum
+        vobs=vseed(iobs)
+        power=cnorm*vobs*vobs*hthird*seedsum
         rate=rate+wobs(iobs)*power
     end do
-    rate=hthird*rate/ge
+    rate=hthird*rate/(ge*g2)
 end subroutine accumulate_budget
 
 real(8) function low_seed_kernel(gam,i_obs,i_seed)

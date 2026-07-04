@@ -619,7 +619,50 @@ Cooling is assembled from synchrotron, inverse-Compton, self-absorption, and adi
 \left.\frac{d\gamma_e}{dR}\right|_{\rm syn}
 =-\frac{\sigma_T B'^2}{6\pi m_ec^2\,\beta\Gamma}\gamma_e^2,
 \]
-with optional Compton factors computed either from the numerical seed photon field or from analytic \(Y\)-parameter closures.  The numeric IC/KN branch integrates the same seed photon grid that is later used by the SSC emissivity.  The Nakar-style branch tabulates an energy-dependent Compton factor from the seed spectrum, while the Fan-style branch uses the analytic closure in \(\epsilon_e,\epsilon_B,p,\gamma_m,\gamma_c,\gamma_{\max}\).  Synchrotron self-absorption can also be included as an electron cooling sink through the same seed geometry used for photon transfer.  Joint hadronic feedback requires the numeric IC/KN cooling path because the secondary source \(Q_{e,{\rm sec},R}\) and the attenuated photon field must be evaluated against the same local \(N_e,n_\gamma\) state; an analytic \(Y\) closure would decouple those two objects.
+with optional Compton factors computed either from the numerical seed photon field or from analytic \(Y\)-parameter closures.  The numeric IC/KN branch integrates the same seed photon grid that is later used by the SSC emissivity.  The Nakar-style branch tabulates an energy-dependent Compton factor from the seed spectrum, while the Fan-style branch uses the analytic closure in \(\epsilon_e,\epsilon_B,p,\gamma_m,\gamma_c,\gamma_{\max}\).  Synchrotron self-absorption enters the electron energy equation as an absorption/heating correction through the same seed geometry used for photon transfer.  Joint hadronic feedback requires the numeric IC/KN cooling path because the secondary source \(Q_{e,{\rm sec},R}\) and the attenuated photon field must be evaluated against the same local \(N_e,n_\gamma\) state; an analytic \(Y\) closure would decouple those two objects.
+
+The grid-level IC cooling kernel first moves the seed photon field to logarithmic frequency-cell midpoints,
+\[
+\nu_{0,k+1/2}=(\nu_{0,k}\nu_{0,k+1})^{1/2},\qquad
+\Delta\nu_{0,k+1/2}=\nu_{0,k+1/2}
+\left(\ln\nu_{0,k+1}-\ln\nu_{0,k}\right),
+\]
+and evaluates the photon number density \(n_{\nu_0}\) there by power-law interpolation.  For each electron node \(\gamma_i\), the dimensionless seed and scattered photon energies are
+\[
+\epsilon_0=\frac{h\nu_0}{m_ec^2},\qquad
+\epsilon=\frac{h\nu}{m_ec^2},
+\]
+with \(\Gamma_\epsilon=4\gamma_i\epsilon_0\), scattering limit
+\[
+\epsilon\le
+\epsilon_{\max}=\frac{4\gamma_i^2\epsilon_0}
+{1+4\gamma_i\epsilon_0},
+\]
+and Jones variable
+\[
+q=\frac{\epsilon}{\Gamma_\epsilon(\gamma_i-\epsilon)} .
+\]
+Scattered bins that satisfy the kinematic limits and lie in the low-frequency Thomson branch
+\(\nu_0/(4\gamma_i^2)<\nu\le\nu_0\) use
+\[
+G_{\rm T}=\frac{\nu}{\nu_0}-\frac{1}{4\gamma_i^2},
+\]
+and the remaining allowed bins use \(G(q,\Gamma_\epsilon)\) from Eq.~(\ref{eq:ssc-kernel}).  The auxiliary loss coefficient passed to the cooling assembler is therefore
+\[
+A_{\rm IC}(\gamma_i)=
+\frac{3ch\sigma_T}{4m_ec^2\gamma_i^3}
+\int d\nu_0\,\frac{n_{\nu_0}}{\nu_0}
+\int d\nu\,\nu\,G_{\rm loss}(\nu,\nu_0,\gamma_i),
+\]
+where \(G_{\rm loss}\) denotes the branch-selected kernel above.  The one-dimensional cooling operator adds \((A_{\rm IC}-\dot{\gamma}_{\rm SSA})/(\beta\Gamma c)\) to the radiative-loss coefficient that multiplies \(\gamma_e^2\).  The coupled electron--photon budget path evaluates the same kernel with Simpson weights on the log-spaced seed and scattered-frequency grids,
+\[
+A_{\rm IC}^{\rm budget}(\gamma_i)=
+\frac{3ch\sigma_T}{4m_ec^2\gamma_i^3}
+\frac{\Delta\ln\nu^2}{9}
+\sum_l w_l\nu_l^2
+\left[\sum_k w_k n_{\nu_k}K_{lk}(\gamma_i)\right],
+\]
+using \(K_{lk}=G(q,\Gamma_\epsilon)\) when the seed bin is below the scattered bin and \(K_{lk}=\max[\nu_l/\nu_k-1/(4\gamma_i^2),0]\) for the low-frequency branch.  This path supplies the auxiliary coefficient used by the implicit cooling solve in the joint feedback calculation.
 
 The synchrotron emissivity uses the standard single-particle kernel and the same electron distribution that is transported,
 \[
@@ -710,6 +753,7 @@ with
 G(q,\Gamma_\epsilon)=
 2q\ln q+(1+2q)(1-q)
 +\frac{\Gamma_\epsilon^2q^2(1-q)}{2(1+\Gamma_\epsilon q)}.
+\label{eq:ssc-kernel}
 \]
 The numerical implementation precomputes the kinematic bounds in \((\nu_s,\gamma_e)\), uses Simpson weights on the log-spaced grids, and accumulates low-seed and high-seed contributions separately so that the Thomson and Klein--Nishina parts are evaluated by the same kernel \citep{Jones1968,BlumenthalGould1970}.
 
