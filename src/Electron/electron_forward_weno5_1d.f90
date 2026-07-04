@@ -65,6 +65,7 @@ subroutine fs_weno5_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e
             call advance_weno_substep(L)
         end do
     end do
+    call write_finaldiag()
 
     deallocate (dEl,deladv,spec,xedge,dF1,specext,stage,fpext,flux,delext)
 
@@ -126,6 +127,28 @@ contains
         dDR=dDD/L1
         CFL=dDR/dxlog
     end subroutine write_weno_cooling
+
+    ! 最后一个输出点没有后续推进，需与最终电子谱同步刷新辐射数组。
+    ! The final output point has no following advance, so refresh radiation from the final electron spectrum.
+    subroutine write_finaldiag()
+        implicit none
+        real(8), dimension(1) :: DB_chi,Weight_chi
+        real(8), dimension(Num_gam_e,1) :: specchi
+        real(8), dimension(Num_nu,1) :: pemit,pshell,seedshell,taushell
+
+        rloc=R(Num_R)
+        gloc=R_Gamma(Num_R)
+        call density_profile(A_star,dNe_ISM,rloc,R0,1,R_tr,f_jump,f_wide,dNe)
+        DB=0.39d0*dsqrt(Epsilon_b*dNe*(gloc*(gloc-1d0)))
+
+        DB_chi(1)=DB
+        Weight_chi(1)=1d0
+        specchi(:,1)=dN_gam_e(:,Num_R)
+        call syn_seed_chi(rloc,Num_gam_e,Num_nu,1,gam_e,specchi,V_seed,DB_chi,Weight_chi,1.046d4, &
+                                               pemit,pshell,seedshell,taushell)
+        P_syn(:,Num_R)=pshell(:,1)
+        Seed_syn(:,Num_R)=seedshell(:,1)
+    end subroutine write_finaldiag
 
     ! 一个 RK-WENO 子步：更新注入项，重构通量，最后投影到非负电子数。
     ! One RK-WENO substep: update injection, reconstruct fluxes, then project electron counts nonnegative.

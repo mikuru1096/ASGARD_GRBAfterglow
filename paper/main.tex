@@ -983,6 +983,167 @@ output shell is converted from \(dN/dx\) to centered \(dN/d\gamma\) with the sam
 conservative exponential cell-shape reconstruction used by the other log-gamma
 drivers.
 
+The \texttt{weno5\_1d} branch is an explicit finite-volume alternative on the
+same uniform log-gamma coordinate,
+\[
+x=\log_{10}\gamma_e,\qquad
+N_{x,j}(R)=\frac{1}{\Delta x}
+\int_{x_{j-1/2}}^{x_{j+1/2}}\frac{dN_e}{dx}\,dx .
+\]
+For the output shell \(R_{i-1}\rightarrow R_i\), it freezes the shock energy
+scales at
+\[
+R_{\rm loc}=R_{i-1},\qquad
+\bar\Gamma_i=\frac{\Gamma_i+\Gamma_{i-1}}{2},
+\]
+and uses the same field, cutoff, injection minimum, and cooling coefficients as
+the other forward one-dimensional solvers,
+\[
+B'_i=0.39\left[\epsilon_B n(R_{\rm loc})
+\bar\Gamma_i(\bar\Gamma_i-1)\right]^{1/2},
+\qquad
+\gamma_{\max,i}=\frac{3m_ec^2}{(8B'_ie^3)^{1/2}},
+\]
+\[
+\gamma_{c,i}=\frac{7.7\times10^8(1+z)}
+{\bar\Gamma_iB_i'^2t_{{\rm obs},i}},
+\qquad
+\beta_i=(1-\bar\Gamma_i^{-2})^{1/2}.
+\]
+The local cooling assembler returns \(D_j\) such that
+\[
+\frac{d\gamma_j}{dR}=-D_j\gamma_j .
+\]
+The WENO driver stores face speeds for the conservative equation
+\[
+\frac{\partial N_x}{\partial R}
+=\frac{\partial}{\partial x}\left(v_xN_x\right)+Q_x,
+\qquad
+v_{j+1/2}=
+\frac{(D_j+D_{j+1})/2+R^{-1}}{\ln10},
+\]
+with the outer high-energy face extrapolated from the last interior cooling
+face.  The trial radial step is set from the largest synchrotron-plus-adiabatic
+speed,
+\[
+\delta R_0=
+\frac{0.1}
+{(1.35\times10^{-19})B_i'^2\gamma_{\max,i}/(\pi\beta_i\bar\Gamma_i)
++1.333/(R_i+R_{i-1})},
+\]
+and the actual substep count is
+\[
+L_i=\max\left[
+\left\lfloor\frac{R_i-R_{i-1}}{\delta R_0}\right\rfloor+10,\,
+\left\lceil
+\frac{(R_i-R_{i-1})\max_j|v_j|}
+{0.8\,\Delta x}
+\right\rceil
+\right],
+\qquad
+\Delta R=\frac{R_i-R_{i-1}}{L_i}.
+\]
+Inside a substep the radius is advanced first, \(R_s\leftarrow R_s+\Delta R\),
+the density is resampled at this source radius, and the injected cell-average
+source is
+\[
+Q_{x,j}^{\rm weno}=
+\frac{1}{\Delta x_j}
+\int_{x_{j-1/2}}^{x_{j+1/2}}
+\mathcal{Q}_{\rm weno}(R_s,\Delta R)\,
+\ln10\,\gamma_e^{1-p}\mathcal{C}_{\max}(\gamma_e)\,dx ,
+\]
+where
+\[
+\mathcal{Q}_{\rm weno}=
+\frac{4\pi}{3}\left[3R_s^2+\Delta R(3R_s+\Delta R)\right]
+n(R_s)f_e
+\frac{1-p}{\gamma_{\max,i}^{1-p}-\gamma_{m,i}^{1-p}} .
+\]
+Thus the source carries the swept electron number over the finite radial shell
+increment, while \(\gamma_m\) and \(\gamma_{\max}\) remain the shell-level shock
+values for this explicit transport option.
+
+The flux variable reconstructed by the code is \(F=v_xN_x\).  Because the
+equation uses \(+\partial_xF\), positive \(v_x\) moves particles toward lower
+\(x\), so the upwind WENO stencil is the right-biased one; negative \(v_x\) uses
+the left-biased stencil.  For a left-biased interface, with
+\(f_m=F_{i+m}\), the three candidate fifth-order ingredients are
+\[
+\hat f_0=\frac{1}{3}f_{-2}-\frac{7}{6}f_{-1}+\frac{11}{6}f_0,
+\quad
+\hat f_1=-\frac{1}{6}f_{-1}+\frac{5}{6}f_0+\frac{1}{3}f_1,
+\]
+\[
+\hat f_2=\frac{1}{3}f_0+\frac{5}{6}f_1-\frac{1}{6}f_2 .
+\]
+The Jiang--Shu smoothness indicators are
+\[
+\beta_0=\frac{13}{12}(f_{-2}-2f_{-1}+f_0)^2
++\frac{1}{4}(f_{-2}-4f_{-1}+3f_0)^2,
+\]
+\[
+\beta_1=\frac{13}{12}(f_{-1}-2f_0+f_1)^2
++\frac{1}{4}(f_1-f_{-1})^2,
+\]
+\[
+\beta_2=\frac{13}{12}(f_0-2f_1+f_2)^2
++\frac{1}{4}(3f_0-4f_1+f_2)^2 .
+\]
+With linear weights \(d=(0.1,0.6,0.3)\), the implemented WENO-Z weights are
+\[
+\tau_5=|\beta_0-\beta_2|,\qquad
+\alpha_k=d_k\left[1+
+\left(\frac{\tau_5}{\beta_k+\epsilon_W}\right)^2\right],
+\qquad
+\omega_k=\frac{\alpha_k}{\sum_m\alpha_m},
+\]
+where \(\epsilon_W=10^{-30}\) is the smoothness-weight regularization in the
+Fortran kernel.  The left-biased numerical flux is
+\[
+F_{i+1/2}^{-}=\sum_{k=0}^{2}\omega_k\hat f_k .
+\]
+The right-biased flux used for \(v_x>0\) is the mirror of the same formula over
+\((f_{i-1},f_i,f_{i+1},f_{i+2},f_{i+3})\).  Constant ghost cells at both energy
+ends provide the five-point WENO stencil; they are numerical boundary states and
+are not returned as physical electron bins.
+
+Given
+\[
+\lambda=\frac{\Delta R}{\Delta x},
+\qquad
+\mathcal{D}_j(N)=F_{j+1/2}(N)-F_{j-1/2}(N),
+\]
+the time integrator is the third-order TVD Runge--Kutta sequence
+\[
+N_j^{(1)}=N_j^n+\lambda\mathcal{D}_j(N^n)+\Delta R\,Q_j,
+\]
+\[
+N_j^{(2)}=\frac{3}{4}N_j^n+
+\frac{1}{4}\left[N_j^{(1)}+
+\lambda\mathcal{D}_j(N^{(1)})\right]
++\frac{1}{4}\Delta R\,Q_j,
+\]
+\[
+N_j^{n+1}=\frac{1}{3}N_j^n+
+\frac{2}{3}\left[N_j^{(2)}+
+\lambda\mathcal{D}_j(N^{(2)})\right]
++\frac{2}{3}\Delta R\,Q_j .
+\]
+After each substep the stored conservative spectrum is projected to the physical
+domain \(N_x\ge0\).  This is a positivity projection on the transported electron
+population, not a smoothing operation on a light curve.  At the last substep in
+an output shell the same exponential cell-shape reconstruction used by the
+log-gamma solvers converts
+\[
+\left.\frac{dN_e}{d\gamma_e}\right|_j
+=\frac{N_{x,j}^{\rm exp}}{\gamma_j\ln10}.
+\]
+The radiation arrays written during shell preparation are shell-left fields used
+to build the cooling seed.  The final output point has no following shell, so
+the WENO driver refreshes \(L_\nu^{\rm syn}\) and \(n_\nu^{\rm syn}\) from the
+final transported electron spectrum and the final dynamics-grid field.
+
 The public \texttt{charint\_1d} forward solver advances the same conservative cell averages
 \[
 N_{x,j}(R)=\frac{1}{\Delta x_j}
