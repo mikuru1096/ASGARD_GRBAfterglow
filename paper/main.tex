@@ -2306,6 +2306,29 @@ F(x)=x\int_0^\infty
 G(x)=x\int_0^\infty
 \exp[-x\cosh u]\cosh(2u/3)\,du .
 \]
+The shared \texttt{syn\_polarization} kernel evaluates these functions by
+analytic asymptotes outside the main interval,
+\[
+F(x)=2^{2/3}\Gamma(2/3)x^{1/3},\qquad
+G(x)=2^{-1/3}\Gamma(2/3)x^{1/3},
+\quad x<10^{-4},
+\]
+and
+\[
+F(x)=\left(\frac{\pi x}{2}\right)^{1/2}e^{-x}
+\,\left(1+\frac{55}{72x}\right),\qquad
+G(x)=\left(\frac{\pi x}{2}\right)^{1/2}e^{-x}
+\,\left(1+\frac{7}{72x}\right),
+\quad x>50 .
+\]
+For \(10^{-4}\le x\le50\), it integrates the two \(u\)-space definitions on
+\[
+0\le u\le \sinh^{-1}(80/x)
+\]
+with 96 uniform cells and a four-point Gauss rule in each cell; the upper limit
+is chosen where the exponential argument has reached \(x\cosh u=80\).  The
+single-particle components returned to the compiled synchrotron callers
+are exactly \((F+G)/2\) and \((F-G)/2\).
 The frequency-local fraction is
 \[
 \Pi_\nu=
