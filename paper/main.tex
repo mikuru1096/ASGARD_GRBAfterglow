@@ -1217,16 +1217,82 @@ and
 =\left(6\Theta^3+\Theta\right)K_1(1/\Theta)
 +3\Theta^2K_0(1/\Theta).
 \]
-The finite-\(\gamma_m\) thermal integrals used by the continuity solve are these
-complete moments minus their \(\gamma_m\rightarrow\infty\) tails, whose
-asymptotic expansion is written as powers of \(\Theta^{-2}\) multiplied by
-\(\Gamma(q,\gamma_m/\Theta)\).  Thus \texttt{hybrid\_special} supplies exact
-special functions for normalization only; it adds no source term, no cooling
-term, and no post-processing correction.  After the hybrid source is assembled,
-the spectrum is advanced by the same upper-triangular implicit system given
-above for \texttt{fullhide\_step}; the final output radius is also refreshed
-from the final electron spectrum and the same synchrotron optical-depth grid
-used for the active shells.
+Let \(a=\gamma_m/\Theta\).  The finite-\(\gamma_m\) thermal integrals used by
+the continuity solve subtract the \(\gamma_m\rightarrow\infty\) tails from
+these complete moments.  The tail integrands are evaluated from
+\[
+\sqrt{\gamma^2-1}
+=\gamma\left(1-\frac{1}{2\gamma^2}-\frac{1}{8\gamma^4}
+-\frac{1}{16\gamma^6}-\frac{5}{128\gamma^8}
+-\frac{7}{256\gamma^{10}}-\frac{21}{1024\gamma^{12}}
+-\frac{33}{2048\gamma^{14}}\right),
+\]
+which gives the exact code expressions
+\begin{align}
+I_1(\Theta)
+&=2\Theta^2 K_1(\Theta^{-1})+\Theta K_0(\Theta^{-1})
++\sum_{k=0}^{7} b_k\Theta^{3-2k}\Gamma(3-2k,a),\\
+I_2(\Theta)
+&=(6\Theta^3+\Theta)K_1(\Theta^{-1})+3\Theta^2K_0(\Theta^{-1})
++\sum_{k=0}^{7} b_k\Theta^{4-2k}\Gamma(4-2k,a),
+\end{align}
+with
+\[
+(b_0,\ldots,b_7)=
+\left(-1,\frac{1}{2},\frac{1}{8},\frac{1}{16},
+\frac{5}{128},\frac{7}{256},\frac{21}{1024},\frac{33}{2048}\right).
+\]
+The terms are accumulated in this order and the remaining tail series is
+discarded once the current correction is smaller than
+\(10^{-15}\max(I,10^{-30})\) for the moment being evaluated.
+For non-positive orders, the recurrence
+\[
+\Gamma(s-1,a)=\frac{\Gamma(s,a)-a^{s-1}\exp(-a)}{s-1}
+\]
+steps downward from \(\Gamma(0,a)\).  The initial temperature is found by
+evaluating \(F(\Theta)\) on
+\[
+\begin{aligned}
+\frac{\Theta}{\gamma_m}\in
+\{&0.06,0.07553552,0.09509438,0.11971855,0.15072,0.18975074,\\
+&0.23888603,0.30074242,0.37861739,0.4766592,0.6\},
+\end{aligned}
+\]
+shifting the lower or upper side by factors of ten until the signs bracket the
+root, and applying a secant interpolation between the adjacent sign-changing
+entries.  Newton iteration then applies
+\[
+\frac{\Delta\Theta}{\Theta}
+=\frac{\gamma_m/\Theta+\ln I_1-\ln C}
+{\gamma_m/\Theta-\Theta^{-1}I_2/I_1}.
+\]
+The iteration stops at \(|\Delta\Theta/\Theta|<10^{-6}\); failure to reach this
+condition in 50 updates is treated as a failed physical solve, not as a
+recoverable branch.
+After \(\Theta\) is fixed, the pointwise hybrid distribution is evaluated from
+\[
+A_{\rm th}=\ln\frac{1-f_e}{I_1},\qquad
+A_{\rm pl}=\ln\frac{f_e}{I_{\rm pl}},
+\]
+as
+\[
+\phi_{\rm hz}(\gamma)=
+\begin{cases}
+\exp[\ln(\gamma\sqrt{\gamma^2-1})-\gamma/\Theta+A_{\rm th}],
+&1<\gamma<\gamma_m,\\
+\exp[-p\ln\gamma-\gamma/\gamma_{\max}+A_{\rm pl}],
+&\gamma\ge\gamma_m,\\
+0,&\gamma\le1.
+\end{cases}
+\]
+Logarithmic values below \(-700\) are outside the retained floating-point
+exponent range and are recorded as zero.  Thus \texttt{hybrid\_special}
+supplies exact special functions for normalization only; it adds no source
+term, no cooling term, and no post-processing correction.  After the hybrid
+source is assembled, the spectrum is advanced by the same upper-triangular
+implicit system given above for \texttt{fullhide\_step}; the final output
+radius is also refreshed from the final electron spectrum and the same
+synchrotron optical-depth grid used for the active shells.
 
 The \texttt{slc1\_1d} branch is a one-dimensional semi-Lagrangian alternative on
 the same uniform log-gamma grid.  It keeps the conservative cell averages
