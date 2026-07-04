@@ -1455,15 +1455,15 @@ def _solve_patch_model(
         raise NotImplementedError(
             "structured_backend does not yet support external solve_reference_times_s."
         )
-    from asgard_core.structured_jet_kernel import solve_structured_jet_fortran
+    from asgard_core.structured_jet_kernel import solve_structured
 
     if baseconfig is None:
-        return solve_structured_jet_fortran(model, times_s, nu_hz, _build_fit_config_for_patch)
+        return solve_structured(model, times_s, nu_hz, _build_fit_config_for_patch)
 
     def build(model: Model, **kwargs) -> RuntimeConfig:
         return _build_fit_config_for_patch(model, baseconfig=baseconfig, **kwargs)
 
-    return solve_structured_jet_fortran(model, times_s, nu_hz, build)
+    return solve_structured(model, times_s, nu_hz, build)
 
 
 def _extract_pair_flux(grid: np.ndarray, times_s: np.ndarray, frequencies_hz: np.ndarray) -> np.ndarray:
