@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-pi = 3.141592653589793
+from math import pi
 
 rad = 1.0
 deg = pi / 180.0
