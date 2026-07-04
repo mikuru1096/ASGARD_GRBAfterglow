@@ -849,6 +849,25 @@ The reverse dynamics evolve \((\Gamma_2,R,M_2,M_3,U_3,V_3)\), with
 \[
 \frac{dM_2}{dR}=4\pi R^2m_pn_1 .
 \]
+The public reverse-dynamics entry stores this state as
+\[
+Y_{\rm RS}=\left(\Gamma_2,R,M_2,\frac{M_3}{M_{{\rm ej},b}},
+\frac{U_3}{M_{{\rm ej},b}c^2},\frac{V_3}{V_{3,0}},\ldots\right),
+\]
+where \(V_{3,0}=M_{{\rm ej},b}/(n_{3,0}m_p)\) is only a volume normalization.
+The output grid is a source-frame on-axis time grid,
+\[
+T_i=T_{\rm base}+10^{\ell_0+(\ell_{\max}-\ell_0)(i-1)/(N_R-1)},
+\qquad
+T_{\rm obs,i}=(1+z)T_i,
+\]
+where \(\ell_{\max}\) is the requested \(\log_{10}\) observer-time solve horizon stored in the boundary vector, and
+\[
+T_{\rm base}=\frac{R_0(\beta_0^{-1}-1)}{c},
+\qquad
+\ell_0=\min\left[\log_{10}T_{\rm base}-2,\,
+\log_{10}\left(\frac{0.1R_{\rm dec}}{2\eta_0^2c}\right)\right].
+\]
 Before shell crossing,
 \[
 \frac{dM_3}{dT}=
@@ -929,6 +948,33 @@ After crossing, \(dM_3=0\), the shock-heating term is removed, and the stored \(
 =-\frac{u_2^2\,dM_2/dR}
 {[\epsilon_2+2(1-\epsilon_2)\Gamma_2]M_2+M_3+M_{B,3}+M_{{\rm sec,eff}}}.
 \]
+Before crossing, the integrator changes the independent variable to
+\(q=M_3/M_{{\rm ej},b}\).  If the RHS gives \(D=dY/dT\), the RK stages use
+\[
+\frac{dY}{dq}=\frac{D}{D_4},
+\qquad
+\frac{dT}{dq}=\frac{1}{D_4},
+\qquad
+D_4=\frac{d(M_3/M_{{\rm ej},b})}{dT}.
+\]
+The crossing event is therefore the fixed endpoint \(q=1\), not an interpolated afterthought.
+For log-time stages the code evolves \(s=\ln(T/T_0)\), so each smooth-branch RHS is multiplied by \(T\):
+\[
+\frac{dY}{ds}=T\frac{dY}{dT}.
+\]
+If a pre-crossing log-time stage reaches \(q=1\), the step is bisected to the event, the crossing state
+\[
+(T_\times,R_\times,U_{3,\times},V_{3,\times},
+M_{3,\times},\gamma_{m,\times},B_{{\rm ord},\times})
+\]
+is written once by a post-crossing RHS evaluation, and the remaining part of the step is advanced with the post-crossing RHS.
+Waiting-to-shock activation is handled in the same event style: a trial waiting step is first evaluated at the target \(T\), and if the pressure/fast-mode conditions turn on inside the interval, the activation time is bisected before the active reverse-shock equations are used.
+Smooth-step refinement compares two successive RK resolutions through
+\[
+P=\max_a\frac{2|a_N-a_{2N}|}{a_N+a_{2N}},
+\]
+with \(a\in\{\Gamma_2,R,M_2\}\) for log-time steps and \(a\in\{\Gamma_2,R,M_2,T\}\) for the \(q\)-step.
+Event points are excluded from a formal smooth-branch order claim because the physics branch changes there.
 Reverse-shock electrons are then transported through the same one-dimensional log-\(\gamma_e\) transport interface used by the forward solver, but their injection rate is tied to the newly shocked ejecta mass,
 \[
 \frac{dN_{e,r}}{dR}=f_{e,r}\frac{1}{m_p}\frac{dM_3}{dR},
@@ -1038,7 +1084,62 @@ dU_{\rm sec}=u_{\rm diss}\,dV_{\rm sec}
 dV_{\rm sec}=\frac{dM_{\rm sec}}{n_3m_p}
 +V_{\rm sec}\left(\frac{3\,dR}{R}-\frac{d\Gamma_2}{\Gamma_2}\right).
 \]
-The current multi-density reverse-shock path is deliberately narrow: it requires \(p_r>2\), a supported one-dimensional electron solver, \texttt{fullhide\_1d} or \texttt{dg\_1d}, the direct 1D observer path, no hadronic processes, no forward SSC cooling, no reverse SSC, no cross-zone IC, and separated electron-photon coupling.  The manuscript therefore treats the secondary reverse-shock outputs as a diagnostic branch, not as a general reverse-shock model \citep{DaiLu2002,NakarGranot2007,UhmZhang2014,Laskar2016GRB160509A,Alexander2017GRB160625B,Laskar2019GRB181201A,PangDai2024OffaxisRS}.
+The event windows returned for these branches are diagnostic roots of the same source function
+\[
+S_j(R)=e_{3,j}-e_{4,j}\chi_j^{4/3}.
+\]
+Between two stored first-RS states, the scanner subdivides the overlap with the active rising side
+\([R_j-4w_jR_j,R_j)\) into intervals no wider than \(w_jR_j/16\), linearly interpolates
+\((Y,\Gamma_2,T_{\rm obs})\) within the bracket, and bisects sign changes of \(S_j\).
+Thus \(S_j>0\) marks an active secondary reverse-shock window, while a branch that remains open to the last sampled radius is closed at the last known state rather than extrapolated.
+The public branch arrays are the dimensional forms
+\[
+M_{{\rm sec},j}=Y_{m,j}M_{{\rm ej},b},\qquad
+U_{{\rm sec},j}=Y_{u,j}M_{{\rm ej},b}c^2,\qquad
+V_{{\rm sec},j}=Y_{v,j}V_{3,0}.
+\]
+Newly dissipated energy, not accumulated mass, weights the combined secondary diagnostics:
+\[
+\Delta E_{{\rm diss},j,i}=E_{{\rm diss},j,i}-E_{{\rm diss},j,i-1},
+\qquad
+\langle Q\rangle_i=
+\frac{\sum_j \Delta E_{{\rm diss},j,i}Q_{j,i}}
+{\sum_j \Delta E_{{\rm diss},j,i}}.
+\]
+The combined secondary state reported to the observer stage is
+\[
+M_{\rm sec,tot}=\sum_j M_{{\rm sec},j},\quad
+U_{\rm sec,tot}=\sum_j U_{{\rm sec},j},\quad
+V_{\rm sec,tot}=\sum_j V_{{\rm sec},j},
+\]
+\[
+B_{\rm sec,tot}=\left(8\pi\epsilon_{B,r}\frac{U_{\rm sec,tot}}{V_{\rm sec,tot}}\right)^{1/2},
+\quad
+p_{\rm sec,tot}=\frac{U_{\rm sec,tot}}{3V_{\rm sec,tot}},
+\quad
+w_{\rm sec,tot}=\frac{M_{\rm sec,tot}c^2+U_{\rm sec,tot}}{V_{\rm sec,tot}}+p_{\rm sec,tot}.
+\]
+The associated break-frequency diagnostics use the same energy weights,
+\[
+\bar{\gamma}_{m,{\rm sec}}=
+\frac{\sum_j \Delta E_{{\rm diss},j}\gamma_{m,j}}
+{\sum_j \Delta E_{{\rm diss},j}},
+\]
+\[
+\nu_{m,{\rm sec}}=
+\frac{4.2\times10^6 B_{\rm sec,tot}\bar{\gamma}_{m,{\rm sec}}^2}
+{\langle\Gamma_{\rm c}\rangle[1-\beta(\langle\Gamma_{\rm c}\rangle)](1+z)},
+\]
+\[
+\gamma_{c,{\rm sec}}=
+\frac{7.7\times10^8(1+z)}
+{\Gamma_2 B_{\rm sec,tot}^2T_{\rm obs}},
+\qquad
+\nu_{c,{\rm sec}}=
+\frac{4.2\times10^6 B_{\rm sec,tot}\gamma_{c,{\rm sec}}^2}
+{\Gamma_2(1-\beta_2)(1+z)}.
+\]
+The current multi-density reverse-shock path is deliberately narrow: it requires \(p_r>2\), a supported one-dimensional electron solver, \texttt{fullhide\_1d} or \texttt{dg\_1d}, the direct 1D observer path, no hadronic processes, no forward SSC cooling, no reverse SSC, no cross-zone IC, and separated electron-photon coupling.  The event windows are diagnostic roots obtained from linearly interpolated adjacent output states, and the adaptive RK refinement controls the first-RS variables \(\Gamma_2,R,M_2\), not a separate conservative error norm for every secondary branch variable.  The manuscript therefore treats the secondary reverse-shock outputs as a diagnostic branch, not as a general reverse-shock model \citep{DaiLu2002,NakarGranot2007,UhmZhang2014,Laskar2016GRB160509A,Alexander2017GRB160625B,Laskar2019GRB181201A,PangDai2024OffaxisRS}.
 
 \begin{figure}[!tp]
   \centering
