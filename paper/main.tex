@@ -2298,7 +2298,77 @@ Thus the advection speed vanishes at the finite active outer face \(q=q_\ast\), 
 S_i(q,R)\Delta R=
 \frac{Q_i(R,\Delta R)}{\Delta q}\,\delta_{k1},
 \]
-with \(Q_i\) given by the same power-law cutoff injection integral used by the one-dimensional forward solvers.  The code advances the \(q\) part by characteristic PPM remap plus an implicit tridiagonal diffusion solve.  For \texttt{fullhide\_2d}, these \(q\) steps bracket the energy update as a Strang split.
+with \(Q_i\) given by the same power-law cutoff injection integral used by the one-dimensional forward solvers.  The characteristic \(q\)-advection branch solves
+\[
+\frac{dq}{dR}=A_q(q,R).
+\]
+Inside a cell the code linearly reconstructs the face speed,
+\[
+A_q(q)=a_k+b_kq ,
+\]
+so a face at \(q_f^{n+1}\) is traced back over \(\Delta R\) to
+\[
+q_f^n+\frac{a_k}{b_k}
+=
+\left(q_f^{n+1}+\frac{a_k}{b_k}\right)
+e^{-b_k\Delta R},
+\]
+with the constant-speed limit \(q_f^n=q_f^{n+1}-a_k\Delta R\).  If the back-traced characteristic crosses a cell face, the same analytic formula is restarted in the adjacent cell until the full step is consumed.  Before this remap the shock-front source is added to the first cell,
+\[
+U_{i1}^{\rm src}=U_{i1}^n+\Delta R\,S_i/\Delta q .
+\]
+The cell profile used for remapping is the positivity-preserving PPM reconstruction from the common transport layer.  Let \(M_i(q)=\int_0^q U_i(q')\,dq'\) be its prefix integral.  Conservation then gives the remapped state
+\[
+U_{ik}^{\rm adv}
+=\frac{M_i(q_{k+1/2}^n)-M_i(q_{k-1/2}^n)}{\Delta q}.
+\]
+
+The diffusion metric is derived from the same bridged radius law.  With
+\[
+x(q)=R-r(q),\qquad
+\frac{\partial q}{\partial s}
+=\left[-R\frac{\partial(r/R)}{\partial q}\right]^{-1},
+\]
+the spatial diffusion term in the shock-frame radial equation is written in \(q\) coordinates as
+\[
+\frac{\partial}{\partial q}
+\left[
+C_{i,k+1/2}
+\frac{U_{i,k+1}-U_{ik}}{\Delta q}
+\right],
+\qquad
+C_{i,k+1/2}=
+\frac{\kappa_{B,i,k+1/2}}{\beta_{\rm sh}c}
+\left(\frac{\partial q}{\partial s}\right)_{k+1/2}^{2}.
+\]
+The implicit centered diffusion step is therefore
+\[
+U_{ik}^{n+1}
+-\frac{\Delta R}{\Delta q}
+\left[
+C_{i,k+1/2}\frac{U_{i,k+1}^{n+1}-U_{ik}^{n+1}}{\Delta q}
+-C_{i,k-1/2}\frac{U_{ik}^{n+1}-U_{i,k-1}^{n+1}}{\Delta q}
+\right]
+=U_{ik}^{\rm rhs}.
+\]
+The default implicit \(q\) step combines advection and diffusion in one tridiagonal solve.  Its upwind advective face flux is
+\[
+F_{i,k+1/2}^{\rm adv}
+=A_{k+1/2}^{+}U_{ik}^{n+1}
++A_{k+1/2}^{-}U_{i,k+1}^{n+1},
+\qquad
+A^\pm=\max/\min(A,0),
+\]
+and the matrix equation is
+\[
+U_{ik}^{n+1}
++\frac{\Delta R}{\Delta q}
+\left(F_{i,k+1/2}^{\rm adv}-F_{i,k-1/2}^{\rm adv}\right)
+-\frac{\Delta R}{\Delta q}
+\left(F_{i,k+1/2}^{\rm diff}-F_{i,k-1/2}^{\rm diff}\right)
+=U_{ik}^{n}+\Delta R\,S_i\delta_{k1}/\Delta q .
+\]
+The direct implicit driver uses the joint \(q\) solve before the energy solve, whereas the split finite-width driver applies the conservative PPM advection remap plus the implicit diffusion solve as half steps around the energy update.  The \texttt{charint\_2d} diagnostic path uses the same remap-plus-diffusion \(q\) operator.  In the optional \texttt{pwn\_cr\_v1} branch, setting the outer escape flag adds the last-face term \(C_{i,N_\chi+1/2}U_{i,N_\chi}^{n+1}\) to the diagonal, which is the absorbing outer-boundary form \(U_{i,N_\chi+1}=0\).  Without that flag, the outer diffusive flux is closed.
 
 The energy step in the default branch is the integrated four-velocity finite-volume solve.  At an energy face,
 \[
@@ -2309,7 +2379,37 @@ The energy step in the default branch is the integrated four-velocity finite-vol
 }
 {\ln10\,(dx_g/dy)_{i+1/2}},
 \]
-and the conservative tridiagonal solve is the same implicit face-flux system used by the one-dimensional fullhide kernel, with \({\cal F}_{i+1/2,k}\) replacing \(\Delta R\,v_{i+1/2}\).  The \(\ln(R_j/R_{j-1})\) term is the integrated adiabatic loss \(d\ln\gamma_e/dR=1/R\).  In the \texttt{charint\_2d} branch, the energy coordinate is \(x\) and each \(q\) column is updated by the piecewise cooling characteristic map.  In the optional \texttt{pwn\_cr\_v1} branch, the adiabatic coefficient is local,
+and the conservative tridiagonal solve is the same implicit face-flux system used by the one-dimensional fullhide kernel, with \({\cal F}_{i+1/2,k}\) replacing \(\Delta R\,v_{i+1/2}\).  The \(\ln(R_j/R_{j-1})\) term is the integrated adiabatic loss \(d\ln\gamma_e/dR=1/R\).  The split log-\(\gamma\) kernel uses the same backward-sweep primitive column by column.  With \(x=\log_{10}\gamma_e\),
+\[
+\xi_{i+1/2,k}=D_{i+1/2,k}+\frac{1}{R\ln10},
+\qquad
+u_{i+1/2,k}=-\frac{\Delta R}{\Delta x}\xi_{i+1/2,k},
+\]
+and the implicit upper-triangular coefficients are
+\[
+p_{ik}=1-u_{i-1/2,k},\qquad
+c_{ik}=\frac{2u_{i+1/2,k}}{p_{ik}+p_{i+1,k}},
+\]
+followed by the high-to-low-energy recovery
+\[
+U_{N_\gamma,k}^{n+1}=r_{N_\gamma,k},\qquad
+U_{ik}^{n+1}=\max\left(0,r_{ik}-c_{ik}U_{i+1,k}^{n+1}\right),
+\quad
+r_{ik}=U_{ik}^{n}/p_{ik}.
+\]
+In the \texttt{charint\_2d} branch, the energy coordinate is \(x\) and each \(q\) column is updated by the same piecewise cooling characteristic map used by the one-dimensional characteristic solver.  The source term is supplied only to the shock-front column, so
+\[
+S_{ik}^{x}=S_i^x\delta_{k1}.
+\]
+When \(\texttt{index\_Y}=0\), the characteristic cooling law is the affine synchrotron-plus-adiabatic form
+\[
+\frac{d\gamma_e}{dR}
+=-a_{\rm syn,k}\gamma_e^2-\frac{\gamma_e}{R},
+\qquad
+a_{\rm syn,k}=
+\frac{1.35\times10^{-19}B_k'^2}{\pi\,\beta_{\rm sh}\Gamma_{\rm sh}},
+\]
+and otherwise the tabulated piecewise loss array \(D_{ik}\) supplies the characteristic map.  In the optional \texttt{pwn\_cr\_v1} branch, the adiabatic coefficient is local,
 \[
 \frac{d\log_{10}\gamma_e}{dR}\bigg|_{\rm ad}
 =
@@ -2317,7 +2417,23 @@ and the conservative tridiagonal solve is the same implicit face-flux system use
 \left(\frac{2\beta_\chi}{r_\chi}
 +\frac{\partial\beta_\chi}{\partial r}\right),
 \]
-and a positive stochastic-acceleration normalization adds a zero-flux diffusion step in \(x\), half before and half after the cooling solve.  That branch is a research transport option for the \(\chi\)-resolved electron path, not a general PWN or cosmic-ray propagation model.
+which is evaluated by finite differences of the bridged \(\beta_\chi(r_\chi)\) profile.  A positive stochastic-acceleration normalization adds a zero-flux diffusion step in \(x\), half before and half after the cooling solve,
+\[
+\frac{\partial U_k}{\partial R}
+=
+\frac{\alpha_{\rm st}}{R}
+\frac{\partial^2 U_k}{\partial x^2},
+\]
+with the implicit matrix
+\[
+-\lambda U_{i-1,k}^{n+1}
++(1+2\lambda)U_{ik}^{n+1}
+-\lambda U_{i+1,k}^{n+1}
+=U_{ik}^{n},
+\qquad
+\lambda=\frac{\Delta R\,\alpha_{\rm st}}{R\,\Delta x^2},
+\]
+and edge diagonals \(1+\lambda\), which enforce zero stochastic flux through the low- and high-energy boundaries.  That branch is a research transport option for the \(\chi\)-resolved electron path, not a general PWN or cosmic-ray propagation model.
 
 After each radius is stored, the wrapper converts \(U_{ik}\) back to \(dN_e/d\gamma_e\) with the coordinate Jacobian and sums over \(q\) for the shell-level state.  The returned \(\chi\)-resolved projection arrays are \(r_\chi\), \(\Gamma_\chi\), \(\Delta q\), \(B'_\chi\), the unabsorbed cell synchrotron luminosity, the local seed field, and the cell optical depth.  If only the one-dimensional shell contract is requested, the shell synchrotron field is recomputed from the summed spectrum; if the direct \(\chi\)-resolved projection is requested, local luminosities and optical depths are retained so foreground absorption can be evaluated during observer projection.  SSC, hadronic transport, pair-cascade feedback, and reverse-shock coupling remain shell-level or one-dimensional contracts and are not promoted to \(q\)-local physics by this wrapper.
 
