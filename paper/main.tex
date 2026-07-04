@@ -2760,6 +2760,16 @@ Thermal electrons are an explicit option only for \texttt{fullhide\_1d} and \tex
 
 \section{Photon-Field Assembly and Absorption} \label{sec:photon}
 
+The \texttt{src.Radiation} package initializer is a lazy namespace boundary for
+radiation-process kernels.  It maps \texttt{annihilation} to
+\texttt{pair\_absorption}, \texttt{cal\_ebl} to \texttt{Cal\_ebl}, and
+\texttt{ssc\_spec}/\texttt{ssc\_spec\_nonuniform} to \texttt{ssc\_spectrum}; on
+first access it imports the selected module, caches the requested symbol, and
+rejects every other attribute.  It therefore exposes the computed products
+\(\{L_\nu^{\rm SSC},\mathcal{A}_{\gamma\gamma},\mathcal{A}_{\rm EBL}\}\) but
+does not introduce a scattering kernel, pair-production cross section, EBL
+optical-depth model, or photon-field normalization.
+
 The photon stage converts the electron solution into local radiation fields before observer projection.  The state passed to later stages contains the seed frequency grid, the forward synchrotron seed field, a forward SSC seed field used only when forward SSC is enabled, the hadronic target field, and separate absorption seed arrays for synchrotron and SSC photons.  In separated calculations,
 \[
 n_\nu^{\rm target}
