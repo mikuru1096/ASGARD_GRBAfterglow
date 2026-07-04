@@ -1459,6 +1459,39 @@ after checking \(y\le\ln(\texttt{d1mach}(2))\).  The sign is then inherited from
 Chebyshev approximation.  This branch supplies the unscaled \(I_1\) term used in
 the small-argument \(K_1\) expression; it does not alter the thermal moment
 definitions.
+The order-zero third-kind routine \texttt{dbesk0} evaluates
+\[
+K_0(x)=\int_0^\infty e^{-x\cosh u}\,du,\qquad x>0,
+\]
+the same modified Bessel function that enters the complete thermal moments.
+The source rejects \(x\le0\), matching the integral domain.  For \(0<x\le2\), it
+separates the logarithmic singularity at the origin through
+\[
+K_0(x)=-\ln\left(\frac{x}{2}\right)I_0(x)+A_0(x^2),
+\]
+where the analytic remainder is represented by the stored \texttt{BK0CS}
+Chebyshev series,
+\[
+A_0(x^2)=-\frac{1}{4}+
+\left[\frac{k_1}{2}+\sum_{j=2}^{N}k_jT_{j-1}
+\left(\frac{x^2}{2}-1\right)\right].
+\]
+For \(x\le\sqrt{4\,\texttt{d1mach}(3)}\), the code evaluates the same expression
+at the endpoint \(x^2=0\) in the analytic remainder while keeping the exact
+\(-\ln(x/2)I_0(x)\) singular factor.  For \(x>2\), it uses the scaled identity
+\[
+K_0(x)=e^{-x}\,[e^xK_0(x)]=e^{-x}\,\texttt{dbsk0e}(x).
+\]
+Before this multiplication, it estimates the largest usable argument from the
+leading asymptotic form \(K_0(x)\simeq\sqrt{\pi/(2x)}e^{-x}\).  With
+\(X_t=-\ln(\texttt{d1mach}(1))\), the implemented threshold is
+\[
+X_{\max}=X_t-\frac{X_t\ln X_t}{2X_t+1},
+\]
+which approximates the point where the exponentially small Bessel value reaches
+the machine lower bound.  This unscaled entry is therefore a numerically stable
+way to expose the physical \(K_0\) function; the current hybrid wrapper calls the
+scaled companion directly for its thermal moment evaluation.
 The Bessel calls enter the thermal moments before the finite upper boundary is
 subtracted.  With \(\gamma=\cosh u\) and
 \(\sqrt{\gamma^2-1}\,d\gamma=\sinh^2u\,du\),
