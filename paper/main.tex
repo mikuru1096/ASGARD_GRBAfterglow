@@ -3975,6 +3975,64 @@ This ray path is still a projection operator over already computed synchrotron
 luminosity and SSA grids; it does not recompute the electron transport or the
 synchrotron kernel inside the observer loop.
 
+The companion \texttt{SED\_interpolation\_structured} source is the legacy
+thin-shell structured-jet projection used internally by
+\texttt{structured\_jet\_1d}; it is not exported by the package-level
+\texttt{src.Interpolation} lazy binding.  The axisymmetric entry receives one
+radius history and one comoving SED per theta patch.  It uses
+\[
+\theta_a=(i_\theta-1)\Delta\theta,\qquad
+\theta_b=i_\theta\Delta\theta,\qquad
+\Delta\theta=\theta_j/N_\theta ,
+\]
+and discards cells whose midpoint lies inside the supplied excluded narrow cone.
+For the retained half-plane quadrature,
+\[
+\Delta\Omega=(\cos\theta_a-\cos\theta_b)\Delta\phi,\qquad
+\Delta\phi=\pi/N_\phi ,
+\]
+the final sum is multiplied by the mirror factor \(S_\phi=2\).  The collapsed
+\(N_\phi=1\) diagnostic uses the same midpoint formula with
+\(\Delta\phi=\pi/1440\) and \(S_\phi=2880\), so that the product
+\(S_\phi\Delta\phi=2\pi\) remains the full azimuthal measure.  The
+non-axisymmetric entry instead receives patch-dependent histories
+\((R,t_0,\Gamma,L'_{\nu'})_{i_\theta i_\phi}\), uses
+\(\Delta\phi=2\pi/N_\phi\), and applies no mirror factor.
+
+Both structured entries then apply the same local EATS and Doppler map as the
+top-hat kernel, but with patch-dependent radial histories:
+\[
+\mu_{i_\theta i_\phi}=
+\cos\theta_v\cos\theta_{i_\theta}
++\sin\theta_v\sin\theta_{i_\theta}\cos\phi_{i_\phi},
+\]
+\[
+t_{\rm arr}(R)=t_0(R,i_\theta,i_\phi)
++\frac{(1+z)R(R,i_\theta,i_\phi)(1-\mu_{i_\theta i_\phi})}{c}.
+\]
+For an observer time bracketed by two stored radii,
+\[
+r=\frac{t_{\rm obs}-t_{\rm arr}(R_i)}
+{t_{\rm arr}(R_{i+1})-t_{\rm arr}(R_i)},\qquad
+\Gamma_r=\exp\!\left[(1-r)\ln\Gamma_i+r\ln\Gamma_{i+1}\right],
+\]
+and the comoving luminosity is interpolated as a non-negative physical flux,
+\[
+L'_{\nu',r}=(1-r)L'_{\nu',i}+rL'_{\nu',i+1}.
+\]
+Positive bins are passed to the shared log-frequency accumulator as
+\(\ln L'_{\nu',r}\), while empty bins remain empty.  With
+\(\mathcal{D}^{-1}=\Gamma_r(1-\beta_r\mu)\), each structured patch contributes
+\[
+\Delta F_{\nu_{\rm obs}}=
+S_\phi\frac{\Delta\Omega}{4\pi}\,
+\mathcal{D}^3\,
+L'_{(1+z)\mathcal{D}^{-1}\nu_{\rm obs},r},
+\]
+where \(S_\phi=1\) for the explicit two-dimensional patch grid.  Thus the
+structured file changes the angular bookkeeping and patch histories, not the
+radiative transformation itself.
+
 For a shell element with direction cosine \(\mu\) relative to the line of sight, observer time is computed from
 \[
 t_{\rm obs}=(1+z)\left(T-\frac{R\mu}{c}\right).
