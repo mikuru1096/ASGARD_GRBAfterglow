@@ -1350,8 +1350,48 @@ so the returned logarithm is
 Substitution into the preceding \(\Gamma(a,x)\) identity shows that this branch
 is the complementary large-\(a\) partner of \texttt{d9lgic}: both produce the
 same upper incomplete gamma integral, but from the side where the direct
-representation is numerically well conditioned.  The power-law normalization
-follows directly from
+representation is numerically well conditioned.  The complete gamma evaluations
+used by these branches call \texttt{d9lgmc} when \(|x|>10\).  The mathematical
+object is the Stirling correction \(\mu(x)\) defined by
+\[
+\ln\Gamma(x)=\frac{1}{2}\ln(2\pi)+\left(x-\frac{1}{2}\right)\ln x-x+\mu(x),
+\qquad x\ge10 .
+\]
+The asymptotic expansion of the correction is
+\[
+\mu(x)\sim \sum_{n=1}^{\infty}
+\frac{B_{2n}}{2n(2n-1)x^{2n-1}}
+=\frac{1}{12x}-\frac{1}{360x^3}
++\frac{1}{1260x^5}-\cdots ,
+\]
+where \(B_{2n}\) are Bernoulli numbers.  Rather than summing this divergent
+series term by term near \(x=10\), the code maps the interval \(0<(10/x)^2\le1\)
+to the Chebyshev coordinate
+\[
+z=2\left(\frac{10}{x}\right)^2-1
+\]
+and evaluates
+\[
+\mu(x)=\frac{1}{x}\left[\frac{c_1}{2}
++\sum_{j=2}^{N}c_jT_{j-1}(z)\right].
+\]
+Here \(T_j\) is the Chebyshev polynomial and the stored \(c_j\) are the
+\texttt{ALGMCS} coefficients.  \texttt{INITDS} chooses \(N\) by requiring the
+discarded coefficient tail to be below \(\texttt{d1mach}(3)\), while
+\texttt{DCSEVL} evaluates the finite series through Clenshaw's recurrence,
+\[
+b_{N+1}=b_{N+2}=0,\qquad
+b_j=2zb_{j+1}-b_{j+2}+c_j,\qquad
+C_N(z)=\frac{1}{2}(b_1-b_3).
+\]
+For \(x\ge\texttt{XBIG}=1/\sqrt{\texttt{d1mach}(3)}\), all higher powers are
+below the requested precision and the routine uses the leading correction
+\(\mu(x)=1/(12x)\).  If \(x\) is beyond the representable correction range, the
+routine returns zero because \(\mu(x)\) underflows compared with the retained
+Stirling terms.  This layer preserves the same \(\Gamma\)-function identities
+used in the incomplete-gamma branches; it only selects the stable arithmetic for
+the complete \(\Gamma\) factors.  The power-law normalization follows directly
+from
 \(t=\gamma/\gamma_{\max}\):
 \[
 \int_{\gamma_m}^{\infty}\gamma^{-p}e^{-\gamma/\gamma_{\max}}\,d\gamma
