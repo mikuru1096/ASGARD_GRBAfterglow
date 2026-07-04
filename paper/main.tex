@@ -564,36 +564,93 @@ For adaptive one-dimensional electron substeps, the shared error metric is
 \]
 where \(N^{(1)}\) is the one-full-step trial and \(N^{(2\times1/2)}\) is the two-half-step trial.
 
-The \texttt{dg\_1d} solver uses the same transported variable \(N_x\) but replaces the cell-average upwind update by a moving multi-domain nodal DG discretization.  On element \(K_k=[x_{k,L},x_{k,R}]\), with \(x=x_k+\Delta x_kr/2\) and \(r\in[-1,1]\),
+The \texttt{dg\_1d} solver replaces the cell-average upwind update by a moving multi-domain nodal DG discretization.  The shared DG kernel uses a general coordinate \(y\), either \(y=x_g=\log_{10}\gamma_e\) or the four-velocity coordinate
 \[
-N_x^h(x,R)\big|_{K_k}=
+y=\log_{10}\left[1+\frac{\gamma_e^2-1}{s}\right],
+\qquad
+x_g(y)=\log_{10}\left[1+s(10^y-1)\right]^{1/2},
+\qquad
+\frac{dx_g}{dy}=\frac{s10^y}{2\gamma_e^2},
+\]
+where the forward and reverse DG callers use \(s=\gamma_{\rm scale}^2-1\) with \(\gamma_{\rm scale}=2\).  The represented state is therefore the conservative coordinate density
+\[
+N_y(y,R)=\frac{dN_e}{dy}
+=\frac{dN_e}{dx_g}\frac{dx_g}{dy}.
+\]
+On element \(K_k=[y_{k,L},y_{k,R}]\), with \(y=y_k+\Delta y_kr/2\) and \(r\in[-1,1]\),
+\[
+N_y^h(y,R)\big|_{K_k}=
 \sum_{\ell=0}^{p_{\rm DG}}N_{k\ell}(R)\ell_\ell(r),
 \qquad p_{\rm DG}=12,
 \]
-where \(\ell_\ell\) are Lagrange polynomials on the Legendre--Gauss--Lobatto nodes.  The mesh is rebuilt at each shell from active break positions \(\log_{10}\gamma_m\), \(\log_{10}\gamma_c\), and \(\log_{10}\gamma_{\max}\); active intervals are split into six DG elements, and breaks outside the electron grid or indistinguishable at the current log-grid width are removed from the element-boundary list.  The old DG state is projected to the new mesh and rescaled to preserve the previous total electron content before the next shell advance.
+where \(\ell_\ell\) are Lagrange polynomials on the Legendre--Gauss--Lobatto nodes.  The mesh is rebuilt at each shell from active break positions \(\log_{10}\gamma_m\), \(\log_{10}\gamma_c\), and \(\log_{10}\gamma_{\max}\); active intervals are split into six DG elements, and breaks outside the electron grid or indistinguishable at the current log-grid width are removed from the element-boundary list.
 
-In log-energy form the DG operator advances
+Source projection uses the same conservative density.  For a source written in log-energy form \(Q_{x_g}\), the DG integrand is
 \[
-\frac{\partial N_x}{\partial R}
-+\frac{\partial}{\partial x}\left(v_xN_x\right)=Q_x,
-\qquad
-v_x=-\frac{1}{\ln 10}
-\left[\left.\frac{d\ln\gamma_e}{dR}\right|_{\rm rad}
-+\left.\frac{d\ln\gamma_e}{dR}\right|_{\rm ad}\right].
+Q_y(y)=Q_{x_g}[x_g(y)]\frac{dx_g}{dy}.
 \]
-For the production \texttt{dg\_1d} path the local advection problem is advanced with a fully implicit nodal DG step.  In each element the code forms the dense \(13\times13\) block
+The modal source coefficients in one element are
+\[
+\widehat Q_{km}=
+\frac{2m+1}{\Delta y_k}
+\int_{y_{k,L}}^{y_{k,R}}Q_y(y)P_m[r(y)]\,dy,
+\qquad
+Q_{k,i}=\sum_{m=0}^{p_{\rm DG}}\widehat Q_{km}P_m(r_i),
+\]
+with Gauss--Legendre quadrature for the integral.  The reverse-shock kinetic source uses
+\[
+Q_y=\dot N_0\gamma_e\ln 10\,
+(\gamma_e-1)^{-p}\exp(-\gamma_e/\gamma_{\max})\frac{dx_g}{dy},
+\]
+while the forward source uses the shared cutoff power-law profile and is scaled so that the DG source carries the same shell-integrated injected electron number as the edge-integrated source.
+
+In the DG coordinate the transport equation is
+\[
+\frac{\partial N_y}{\partial R}
++\frac{\partial}{\partial y}\left(v_yN_y\right)=Q_y,
+\qquad
+v_y=-\frac{D_{\rm rad}+D_{\rm ad}}
+{\ln 10\,dx_g/dy}.
+\]
+The forward path passes \(D_{\rm ad}=R^{-1}\) and \(D_{\rm rad}\) from the cooling assembler; the reverse path uses either \(R^{-1}\) before crossing or the stored post-crossing volume loss \(d\ln V_3/(3\,dR)\).  For the production \texttt{dg\_1d} path the local advection problem is advanced with a fully implicit nodal DG step.  In each element the code forms the dense \(13\times13\) block
 \[
 \left[
 \delta_{ij}
--\theta\Delta R
-\frac{2}{\Delta x_k}
-\frac{w_j}{w_i}D_{ji}v_{x,j}
+-\Delta R
+\frac{2}{\Delta y_k}
+\frac{w_j}{w_i}D_{ji}v_{y,j}
 \right]N_{k,j}^{n+1}
 =N_{k,i}^{n}+\Delta R\,Q_{k,i}
 +\mathcal{F}_{k,i}^{\rm up},
-\qquad \theta=1,
 \]
-where \(D_{ji}=d\ell_i/dr|_{r_j}\), \(w_i\) are the LGL quadrature weights, and \(\mathcal{F}_{k,i}^{\rm up}\) is the upwind boundary contribution.  Radiative and adiabatic losses move electrons from high to low \(\gamma_e\), so the element blocks are solved from the high-energy element to the low-energy element with the already-computed downstream interface state entering the next block.  The source normalization is computed from cell-edge power-law integrals and a four-node positive quadrature over injection bins; the DG source values are then evaluated at collocation nodes and scaled so the nodal source carries the same shell-integrated injected electron number as the edge-integrated source.  Density jumps activate additional shell substeps: candidate substep boundaries are placed around each Gaussian jump, and a local logarithmic density-slope limit prevents the DG mesh from advancing across a sharp density change in one radial solve.
+where \(D_{ji}=d\ell_i/dr|_{r_j}\), \(w_i\) are the LGL quadrature weights, and \(\mathcal{F}_{k,i}^{\rm up}\) is the upwind boundary contribution.  Radiative and adiabatic losses usually give \(v_y<0\), so the element blocks are solved from the high-energy element to the low-energy element with the already-computed upstream right-face state entering the next block.  If any node has \(v_y>0\), the same DG flux matrix is assembled as one global dense implicit system with upwind face states on both sides.  In four-velocity DG coordinates the first low-energy face is closed, so cooled particles that trace below the finite grid are kept in the first element rather than being removed.  Density jumps activate additional shell substeps: candidate substep boundaries are placed around each Gaussian jump, and a local logarithmic density-slope limit prevents the DG mesh from advancing across a sharp density change in one radial solve.
+
+Mesh changes and characteristic updates are conservative in the same coordinate measure.  If a new coordinate \(y_{\rm n}\) and old coordinate \(y_{\rm o}\) represent the same \(\gamma_e\), the remapped density is
+\[
+N_{\rm n}(y_{\rm n})=
+N_{\rm o}(y_{\rm o})
+\frac{dy_{\rm o}}{dy_{\rm n}}
+=
+N_{\rm o}(y_{\rm o})
+\frac{(dx_g/dy)_{\rm n}}{(dx_g/dy)_{\rm o}},
+\]
+and a final scalar rescaling enforces equality of
+\[
+N_{\rm tot}=\sum_k\frac{\Delta y_k}{2}
+\sum_i w_iN_{k,i}.
+\]
+After a projection or step, the element-local positivity limiter keeps the cell average
+\[
+\bar N_k=\frac{1}{2}\sum_iw_iN_{k,i}
+\]
+fixed and replaces nodal values by
+\[
+N_{k,i}\leftarrow
+\bar N_k+\theta_k(N_{k,i}-\bar N_k),
+\qquad
+\theta_k=\min\left[1,\frac{\bar N_k}{\bar N_k-N_{k,\min}}\right],
+\]
+when \(N_{k,\min}<0<\bar N_k\).  The optional Jackson or Fejer modal filter multiplies only high-order modal coefficients in flagged DG elements; it is a numerical positivity kernel for the DG representation, not an observer-level smoothing of light curves.
 
 The DG kernel also contains a conservative characteristic projector for the same loss equation.  For an affine loss law
 \[
@@ -612,7 +669,20 @@ the forward map over lag \(\Delta R\) is
 \left[1-e^{-b_{\rm ad}\Delta R}\right]}, & {\rm otherwise}.
 \end{cases}
 \]
-The inverse map is used to project upstream DG polynomials onto the arrival element with Gauss--Legendre quadrature and Legendre modal moments.  This characteristic projector is part of the DG transport kernel and is used for conservative remapping and diagnostic characteristic advances; the public \texttt{dg\_1d} forward light-curve path currently advances the shell-local transport operator with the fully implicit block solve described above.
+The inverse map used by \texttt{dg\_project\_char} is
+\[
+\gamma_{\rm back}=
+\begin{cases}
+\displaystyle \frac{\gamma_{\rm now}}
+{1-a_{\rm rad}\gamma_{\rm now}\Delta R}, &
+|b_{\rm ad}\Delta R|\ll1,\\[1.1ex]
+\displaystyle \frac{\gamma_{\rm now}}
+{e^{-b_{\rm ad}\Delta R}-(a_{\rm rad}/b_{\rm ad})
+\left[1-e^{-b_{\rm ad}\Delta R}\right]\gamma_{\rm now}}, &
+{\rm otherwise}.
+\end{cases}
+\]
+The inverse map is used to project upstream DG polynomials onto the arrival element with Gauss--Legendre quadrature and Legendre modal moments.  Any finite-grid content whose characteristic exits below the first four-velocity element is accumulated as \(M_{\rm low}\) and written back as a uniform first-element density \(M_{\rm low}/\Delta y_1\).  This characteristic projector is part of the DG transport kernel and is used for conservative remapping and diagnostic characteristic advances; the public \texttt{dg\_1d} forward light-curve path currently advances the shell-local transport operator with the fully implicit block solve described above.
 
 Cooling is assembled from synchrotron, inverse-Compton, and self-absorption terms before the transport solver adds adiabatic drift.  The forward cooling kernel stores a positive radial loss coefficient \(D_i(R)\) at each electron grid node,
 \[
