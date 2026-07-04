@@ -2096,6 +2096,122 @@ the source luminosity weight \({\cal D}_{s\to t}^3\), the seed-photon-density we
 \]
 The effective cooling seed in cell \(k\) is the sum of the current cell synchrotron seed and this streamed history field.  The cooling assembler then gives node coefficients \(D_{ik}\) satisfying \(d\gamma_i/dR=-D_{ik}\gamma_i\), using the same synchrotron, IC/KN, Nakar, Fan, and SSA terms as the one-dimensional forward solver.
 
+The implementation in \texttt{electron\_seed\_history\_kernel} makes this history field a comoving light-cone transport problem on the finite downstream grid.  The proper time grid used by both the reference and production paths is
+\[
+t'_1=0,\qquad
+t'_j=t'_{j-1}+
+\frac{R_j-R_{j-1}}
+{\bar\beta_j\bar\Gamma_jc},
+\qquad
+\bar\Gamma_j=\frac{\Gamma_j+\Gamma_{j-1}}{2}.
+\]
+For a source cell \(s=(m,a)\) and target cell \(t=(j,k)\), the source can contribute only if it lies upstream of the target and inside the comoving light cone,
+\[
+x_{m,a}\ge x_{j,k},\qquad
+c(t'_j-t'_m)\ge x_{m,a}-x_{j,k}.
+\]
+The full-history accumulator uses the finite emitting fraction
+\[
+w_s=\min\left[1,\frac{c\Delta t'_m}{\Delta x'_{m,a}}\right],
+\qquad
+\Delta t'_m=t'_m-t'_{m-1},
+\]
+with \(\Delta t'_1=t'_2-t'_1\).  The relative Doppler factor between source and target cells is
+\[
+\beta_{\rm rel}=
+\frac{\beta_t-\beta_s}{1-\beta_t\beta_s},\qquad
+{\cal D}_{s\to t}=
+\frac{1+\beta_{\rm rel}}{(1-\beta_{\rm rel}^2)^{1/2}}.
+\]
+The target frequency \(\nu\) samples the source spectrum at
+\[
+\nu_s=\frac{\nu}{{\cal D}_{s\to t}},
+\]
+and the code accepts the contribution only when \(\nu_s\) lies inside the cooling-frequency table.  Between two positive source bins \(\nu_l<\nu_s<\nu_{l+1}\), the interpolation is log-log,
+\[
+Q_s(\nu_s)=Q_{s,l}
+\exp\!\left[
+\frac{\ln\nu_s-\ln\nu_l}
+{\ln\nu_{l+1}-\ln\nu_l}
+\ln\!\left(\frac{Q_{s,l+1}}{Q_{s,l}}\right)
+\right],
+\]
+where \(Q\) denotes either the locally transferred synchrotron luminosity field or the seed-photon-density field; a non-positive endpoint gives zero contribution.
+
+The path absorption uses the same uniform-source transfer factor as the local synchrotron state, applied to every path segment,
+\[
+{\cal T}(\tau)=
+\begin{cases}
+1-\tau/2+\tau^2/6, & \tau<10^{-10},\\
+(1-e^{-\tau})/\tau, & \tau\ge10^{-10}.
+\end{cases}
+\]
+For a partial path length \(\Delta x\) inside cell \(q\),
+\[
+\tau_{\nu,q}^{\rm seg}
+=\tau_{\nu,q}^{\rm prop}
+\frac{\Delta x}{\Delta x'_q}.
+\]
+In code this is stored as \(\tau_{\nu,q}^{\rm prop}\Delta x/\Delta x'_q\).  Complete cells are accumulated through prefix sums of \(\ln{\cal T}(\tau_{\nu,q}^{\rm prop})\), so a path from \(x_{\rm start}\) to \(x_{\rm stop}<x_{\rm start}\) has
+\[
+{\cal A}_\nu(x_{\rm start},x_{\rm stop})
+=
+{\cal T}(\tau_{\nu,{\rm start}}^{\rm seg})
+\exp\left[
+\sum_{q={\rm stop}+1}^{{\rm start}-1}
+\ln{\cal T}(\tau_{\nu,q}^{\rm prop})
+\right]
+{\cal T}(\tau_{\nu,{\rm stop}}^{\rm seg}) .
+\]
+The propagation optical depth on the reduced cooling grid is the sum of synchrotron self-absorption and local pair-production opacity,
+\[
+\tau_{\nu,q}^{\rm prop}
+=\tau_{\nu,q}^{\rm SSA}
++
+\tau_{\nu,q}^{\gamma\gamma},
+\qquad
+\tau_{\nu,q}^{\gamma\gamma}
+=\Delta x'_q\int \sigma_{\gamma\gamma}(\nu,\nu')n_{\nu',q}\,d\nu',
+\]
+where the \(\gamma\gamma\) cross section is the same kernel used in the photon-absorption stage.
+
+The full-history contribution to a target cell is therefore
+\[
+\Delta L_{\nu,t}^{\rm hist}
+=w_s{\cal D}_{s\to t}^3
+{\cal A}_\nu Q_{L,s}(\nu/{\cal D}_{s\to t}),
+\qquad
+\Delta n_{\nu,t}^{\rm hist}
+=w_s{\cal D}_{s\to t}^2
+{\cal A}_\nu Q_{n,s}(\nu/{\cal D}_{s\to t}).
+\]
+The production path avoids rescanning all older shells by evolving two streamed arrays, \(P_{\nu,k}^{\rm stream}\) and \(n_{\nu,k}^{\rm stream}\), from \(j-1\) to \(j\).  For target cell \(k\), the one-step light-cone interval in the previous shell is
+\[
+[x_{j,k},\,x_{j,k}+c(t'_j-t'_{j-1})].
+\]
+The old streamed field is sampled at the upper endpoint if that point lies inside the previous shell, while newly emitted photons from previous-shell cells \(a\) are added with overlap weight
+\[
+w_{a\to k}^{(j)}
+=
+\frac{
+\max\!\left[0,
+\min(x_{a+1/2}^{j-1},x_{j,k}+c\Delta t'_j)
+-\max(x_{a-1/2}^{j-1},x_{j,k})
+\right]}
+{\Delta x'_{a,j-1}} .
+\]
+Each of these source terms is then mapped with the same \({\cal D}_{s\to t}\), log-frequency interpolation, and current-shell path attenuation.  The cooling field used by the two-dimensional electron solve is
+\[
+L_{\nu,k}^{\rm cool}(R_j)
+=L_{\nu,k}^{\rm local}(R_{j-1})
++P_{\nu,k}^{\rm stream}(R_j),
+\qquad
+n_{\nu,k}^{\rm cool}(R_j)
+=n_{\nu,k}^{\rm local}(R_{j-1})
++n_{\nu,k}^{\rm stream}(R_j),
+\]
+on the reduced cooling-frequency grid.  These history arrays enter only the local cooling calculation; observer-time projection still uses the stored synchrotron luminosity, optical depth, radius, Lorentz factor, and volume-weight arrays described below.
+
 The \(q\)-transport equation solved by the default branch is the conservative radial equation
 \[
 \frac{\partial U_i}{\partial R}
