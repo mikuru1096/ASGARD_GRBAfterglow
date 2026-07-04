@@ -109,7 +109,7 @@ solve_dynamics
 -> solve_electron
 -> build_photon_field
 -> solve_hadronic
--> solve_reverse_shock_emission
+-> solve_rsemission
 -> assemble_observer_stage
 -> SolveState
 ```

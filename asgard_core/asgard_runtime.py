@@ -45,28 +45,27 @@ from asgard_core.asgard_physics_utils import (
 from src import Dynamics, constants
 
 
-_ELECTRON_BACKEND_MODULES = {
+_ELECTRONMODULES = {
     "charint_1d": "src.Electron.electron_forward_charint_1d",
     "charint_2d": "src.Electron.electron_forward_transport_2d",
     "dg_1d": "src.Electron.electron_forward_dg_1d",
     "fullhide_1d": "src.Electron.electron_forward_fullhide_1d",
     "fullhide_1d_hz": "src.Electron.electron_forward_fullhide_1d_hybrid",
     "fullhide_2d": "src.Electron.electron_forward_transport_2d",
-    "fullhide_2d_pic": "src.Electron.electron_forward_transport_2d_pic",
     "slc1_1d": "src.Electron.electron_forward_slc1_1d",
     "t2g1_1d": "src.Electron.electron_forward_t2g1_1d",
     "weno5_1d": "src.Electron.electron_forward_weno5_1d",
 }
 
-ELECTRON_SHARED_1D_TRANSPORT_IDS = {
+ELECTRONTRANSPORT_IDS = {
     "fullhide_1d": 1,
     "fullhide_1d_hz": 1,
     "dg_1d": 2,
 }
 
-_ELECTRON_STANDARD_1D_SOLVERS = {"t2g1_1d", "slc1_1d", "charint_1d", "dg_1d"}
-_ELECTRON_1D_GRID_LABELS = {"dg_1d": "log-four-velocity-1d-dg"}
-_ELECTRON_ENTRYPOINTS = {
+_ELECTRON1D = {"t2g1_1d", "slc1_1d", "charint_1d", "dg_1d"}
+_ELECTRONGRID = {"dg_1d": "log-four-velocity-1d-dg"}
+_ELECTRONENTRY = {
     "charint_1d": "fs_charint_1d",
     "dg_1d": "fs_dg_1d",
     "slc1_1d": "fs_slc1_1d",
@@ -75,12 +74,12 @@ _ELECTRON_ENTRYPOINTS = {
 
 
 @cache
-def _electron_module(solver: str):
-    return import_module(_ELECTRON_BACKEND_MODULES[solver])
+def _electronmodule(solver: str):
+    return import_module(_ELECTRONMODULES[solver])
 
 
 @cache
-def _electron_reverse_module():
+def _reversemodule():
     return import_module("src.Electron.electron_reverse_kernel")
 
 
@@ -130,11 +129,11 @@ class ReverseShockHadronicSolution:
     seed_had_syn: np.ndarray
 
 
-_PGAMMA_SCHEME_DISABLED = "disabled"
-_PGAMMA_SCHEME_HUMMER2010_RESPONSE = "hummer_2010_response"
+_PGAMMADISABLED = "disabled"
+_PGAMMAHUMMER = "hummer_2010_response"
 
 
-def _rs_vegas_downstream_u(gamma_rel: float, sigma: float) -> float:
+def _rsvegasu(gamma_rel: float, sigma: float) -> float:
     sigma_cut = 1.0e-6
     gamma_eff = max(1.0, float(gamma_rel))
     ad = 4.0 / 3.0 + 1.0 / (3.0 * gamma_eff)
@@ -167,21 +166,21 @@ def _rs_vegas_downstream_u(gamma_rel: float, sigma: float) -> float:
     return float(np.sqrt(u2_down))
 
 
-def _rs_shock_upstream_u(gamma_rel: float, sigma: float) -> float:
-    u_down = _rs_vegas_downstream_u(gamma_rel, sigma)
+def _rsshocku(gamma_rel: float, sigma: float) -> float:
+    u_down = _rsvegasu(gamma_rel, sigma)
     gamma_eff = max(1.0, float(gamma_rel))
     gamma_sq_minus_one = (gamma_eff - 1.0) * (gamma_eff + 1.0)
     return float(np.sqrt((1.0 + u_down * u_down) * gamma_sq_minus_one) + u_down * gamma_eff)
 
 
-def _rs_fast_shock_allowed(gamma_rel: float, sigma: float) -> bool:
+def _rsfastok(gamma_rel: float, sigma: float) -> bool:
     if sigma <= 0.0:
         return True
-    u_up = _rs_shock_upstream_u(gamma_rel, sigma)
+    u_up = _rsshocku(gamma_rel, sigma)
     return bool(u_up * u_up > sigma)
 
 
-def _rs_fast_wave_relative_beta(gamma4: float, sigma: float) -> float:
+def _rsfastbeta(gamma4: float, sigma: float) -> float:
     if sigma <= 0.0:
         return np.inf
     beta4 = np.sqrt(1.0 - gamma4**-2)
@@ -189,35 +188,35 @@ def _rs_fast_wave_relative_beta(gamma4: float, sigma: float) -> float:
     return float(beta_fast / (gamma4 * gamma4 * (1.0 - beta4 * beta_fast)))
 
 
-def _rs_shell_width(radius_cm: np.ndarray, gamma4: float, delta0_cm: float) -> np.ndarray:
+def _rsshellwidth(radius_cm: np.ndarray, gamma4: float, delta0_cm: float) -> np.ndarray:
     return np.maximum(delta0_cm, radius_cm / (gamma4 * gamma4))
 
 
-def _rs_fast_wave_depth(radius_cm: np.ndarray, gamma4: float, sigma: float) -> np.ndarray:
+def _rsfastdepth(radius_cm: np.ndarray, gamma4: float, sigma: float) -> np.ndarray:
     if sigma <= 0.0:
         return np.zeros_like(radius_cm, dtype=float)
     beta4 = np.sqrt(1.0 - gamma4**-2)
-    return radius_cm * _rs_fast_wave_relative_beta(gamma4, sigma) / beta4
+    return radius_cm * _rsfastbeta(gamma4, sigma) / beta4
 
 
-def _rs_shell_contact_fraction(radius_cm: np.ndarray, gamma4: float, sigma: float, shell_width_cm: np.ndarray) -> np.ndarray:
+def _rscontactfrac(radius_cm: np.ndarray, gamma4: float, sigma: float, shell_width_cm: np.ndarray) -> np.ndarray:
     if sigma <= 0.0:
         return np.ones_like(radius_cm, dtype=float)
-    depth_cm = _rs_fast_wave_depth(radius_cm, gamma4, sigma)
+    depth_cm = _rsfastdepth(radius_cm, gamma4, sigma)
     return np.where(depth_cm >= shell_width_cm, 1.0, depth_cm / shell_width_cm)
 
 
-def _rs_relative_gamma_same_direction(gamma_contact: np.ndarray, gamma4: float) -> np.ndarray:
+def _rsgammarel(gamma_contact: np.ndarray, gamma4: float) -> np.ndarray:
     u_contact = np.sqrt((gamma_contact - 1.0) * (gamma_contact + 1.0))
     u4 = np.sqrt((gamma4 - 1.0) * (gamma4 + 1.0))
     return (gamma_contact * gamma_contact + gamma4 * gamma4 - 1.0) / (gamma4 * gamma_contact + u_contact * u4)
 
 
-def _rs_pressure_balance_sigma_cr(gamma_contact: np.ndarray, n1: np.ndarray, n4: np.ndarray) -> np.ndarray:
+def _rssigmacr(gamma_contact: np.ndarray, n1: np.ndarray, n4: np.ndarray) -> np.ndarray:
     return 2.0 * (4.0 * gamma_contact + 3.0) * (gamma_contact - 1.0) * n1 / (3.0 * n4)
 
 
-def _rs_pressure_balance_ratio(
+def _rspressureratio(
     gamma_contact: np.ndarray,
     n1: np.ndarray,
     n4: np.ndarray,
@@ -225,10 +224,10 @@ def _rs_pressure_balance_ratio(
 ) -> np.ndarray:
     if sigma <= 0.0:
         return np.full_like(gamma_contact, np.inf, dtype=float)
-    return _rs_pressure_balance_sigma_cr(gamma_contact, n1, n4) / sigma
+    return _rssigmacr(gamma_contact, n1, n4) / sigma
 
 
-def _reverse_shock_causality_diagnostics(
+def _rsdiagnostics(
     config: RuntimeConfig,
     reverse_params: ReverseShockParameters,
     dynamics: DynamicsSolution,
@@ -262,13 +261,13 @@ def _reverse_shock_causality_diagnostics(
     radius = np.asarray(dynamics.radius, dtype=float)
     tobs = np.asarray(dynamics.r_tobs, dtype=float)
     gamma_contact = np.asarray(dynamics.r_gamma, dtype=float)
-    shell_width_cm = _rs_shell_width(radius, gamma0, delta0_cm)
+    shell_width_cm = _rsshellwidth(radius, gamma0, delta0_cm)
     n1 = np.asarray(ambient_density(radius, config), dtype=float)
     baryonic_mass_g = reverse_mass(config)
     n4 = baryonic_mass_g / (4.0 * np.pi * constants.para_m_p * radius * radius * gamma0 * shell_width_cm)
-    pressure_ratio = _rs_pressure_balance_ratio(gamma_contact, n1, n4, sigma)
+    pressure_ratio = _rspressureratio(gamma_contact, n1, n4, sigma)
     pressure_allowed = pressure_ratio >= 1.0
-    contact_fraction = _rs_shell_contact_fraction(radius, gamma0, sigma, shell_width_cm)
+    contact_fraction = _rscontactfrac(radius, gamma0, sigma, shell_width_cm)
     if np.any(pressure_allowed):
         pressure_index = int(np.flatnonzero(pressure_allowed)[0])
         pressure_radius_cm = float(radius[pressure_index])
@@ -284,7 +283,7 @@ def _reverse_shock_causality_diagnostics(
         pressure_start_contact_fraction = 0.0
         pressure_seen = False
 
-    fast_wave_depth_cm = _rs_fast_wave_depth(radius, gamma0, sigma)
+    fast_wave_depth_cm = _rsfastdepth(radius, gamma0, sigma)
     fast_crossed = fast_wave_depth_cm >= shell_width_cm
     if np.any(fast_crossed):
         fast_index = int(np.flatnonzero(fast_crossed)[0])
@@ -295,8 +294,8 @@ def _reverse_shock_causality_diagnostics(
         fast_radius_cm = np.inf
         fast_tobs_s = np.inf
 
-    gamma34 = _rs_relative_gamma_same_direction(gamma_contact, gamma0)
-    local_allowed = np.array([_rs_fast_shock_allowed(float(gamma_rel), sigma) for gamma_rel in gamma34], dtype=bool)
+    gamma34 = _rsgammarel(gamma_contact, gamma0)
+    local_allowed = np.array([_rsfastok(float(gamma_rel), sigma) for gamma_rel in gamma34], dtype=bool)
     if np.any(local_allowed):
         local_start_index = int(np.flatnonzero(local_allowed)[0])
         local_start_radius_cm = float(radius[local_start_index])
@@ -356,7 +355,7 @@ def _reverse_shock_causality_diagnostics(
     )
 
 
-def _solver_report(
+def _report(
     solver: str,
     grid_semantics: str,
     status: str,
@@ -376,12 +375,12 @@ def solve_dynamics(
     *,
     return_report: bool = False,
 ) -> DynamicsSolution | tuple[DynamicsSolution, SolverAdapterReport]:
-    reverse_params = _resolve_reverse_shock_parameters(config)
+    reverse_params = _rsparams(config)
     if reverse_params is None:
         r_tobs, r_gamma, radius, swept_mass_g = Dynamics.dynamics_forward(boundary, config.num_r, config.index_dyn)
         solution = DynamicsSolution(r_tobs, r_gamma, radius, swept_mass_g)
         if return_report:
-            return solution, _solver_report(
+            return solution, _report(
                 "dynamics_forward",
                 "shell-radius",
                 "ok",
@@ -511,9 +510,9 @@ def solve_dynamics(
         secondary_shock_end_tobs_axis_s,
     )
     solution = DynamicsSolution(r_tobs, r_gamma, radius, swept_mass_g, reverse_shock=reverse_shock)
-    reverse_shock.causality = _reverse_shock_causality_diagnostics(config, reverse_params, solution, reverse_shock)
+    reverse_shock.causality = _rsdiagnostics(config, reverse_params, solution, reverse_shock)
     if return_report:
-        return solution, _solver_report(
+        return solution, _report(
             "dynamics_reverse",
             "shell-radius",
             "ok",
@@ -541,9 +540,9 @@ def solve_dynamics(
     return solution
 
 
-def _solve_electron_1d_standard(boundary, dynamics, v_seed, config, solver_name, return_report):
-    module = _electron_module(solver_name)
-    func = getattr(module, _ELECTRON_ENTRYPOINTS[solver_name])
+def _electron1d(boundary, dynamics, v_seed, config, solver_name, return_report):
+    module = _electronmodule(solver_name)
+    func = getattr(module, _ELECTRONENTRY[solver_name])
     args = [
         boundary, dynamics.r_tobs, dynamics.r_gamma, dynamics.radius, v_seed,
         config.num_gam_e, config.index_y, config.index_syn_integr, config.num_threads,
@@ -554,9 +553,9 @@ def _solve_electron_1d_standard(boundary, dynamics, v_seed, config, solver_name,
             config.electron_substep_rtol, config.electron_substep_min, config.electron_substep_max,
         ])
     gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = func(*args)
-    return _finish_electron_solution(
+    return _electronfinish(
         config, solver_name,
-        _ELECTRON_1D_GRID_LABELS.get(solver_name, "log-gamma-1d"),
+        _ELECTRONGRID.get(solver_name, "log-gamma-1d"),
         gam_e, d_n_gam_e, l_syn_spec, seed_syn,
         nu=(nu_m, nu_c, nu_a), return_report=return_report,
     )
@@ -570,13 +569,13 @@ def solve_electron(
     *,
     return_report: bool = False,
 ) -> ElectronSolution | tuple[ElectronSolution, SolverAdapterReport]:
-    solver_name = _resolve_electron_solver(config)
+    solver_name = _electronsolver(config)
     if config.cooling_kernel.lower() != "legacy":
         raise ValueError(f"Unsupported cooling kernel: {config.cooling_kernel}")
     if config.thermal_electrons and (solver_name not in ("fullhide_1d", "fullhide_1d_hz")):
         raise NotImplementedError("thermal_electrons currently requires electron_solver='fullhide_1d' or 'fullhide_1d_hz'.")
     if solver_name == "weno5_1d":
-        electron_weno5_module = _electron_module(solver_name)
+        electron_weno5_module = _electronmodule(solver_name)
         gam_e, d_n_gam_e, l_syn_spec, seed_syn = electron_weno5_module.fs_weno5_1d(
             boundary,
             dynamics.r_tobs,
@@ -587,7 +586,7 @@ def solve_electron(
             config.index_y,
             config.num_threads,
         )
-        return _finish_electron_solution(
+        return _electronfinish(
             config,
             solver_name,
             "log-gamma-1d",
@@ -598,11 +597,11 @@ def solve_electron(
             return_report=return_report,
         )
 
-    if solver_name in _ELECTRON_STANDARD_1D_SOLVERS:
-        return _solve_electron_1d_standard(boundary, dynamics, v_seed, config, solver_name, return_report)
+    if solver_name in _ELECTRON1D:
+        return _electron1d(boundary, dynamics, v_seed, config, solver_name, return_report)
 
     if solver_name == "charint_2d":
-        return _solve_electron_transport_2d(
+        return _electron2d(
             boundary,
             dynamics,
             v_seed,
@@ -613,7 +612,7 @@ def solve_electron(
         )
 
     if solver_name == "fullhide_2d":
-        return _solve_electron_transport_2d(
+        return _electron2d(
             boundary,
             dynamics,
             v_seed,
@@ -623,55 +622,16 @@ def solve_electron(
             return_report=return_report,
         )
 
-    if solver_name == "fullhide_2d_pic":
-        electron_fullhide_2d_pic_module = _electron_module(solver_name)
-        num_chi = _resolve_num_chi(config, solver_name)
-        gam_e, d_n_gam_e_chi, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = (
-            electron_fullhide_2d_pic_module.fs_electron_transport_2d_pic_core(
-                boundary,
-                dynamics.r_tobs,
-                dynamics.r_gamma,
-                dynamics.radius,
-                v_seed,
-                config.num_gam_e,
-                num_chi,
-                config.index_y,
-                config.index_syn_integr,
-                config.num_threads,
-                False,
-                "fullhide_2d_pic",
-                bool(getattr(config, "electron_pic_uniform_b", False)),
-                float(getattr(config, "electron_pic_eta_acc", 1.0)),
-                float(getattr(config, "electron_pic_kappa_diff_scale", 1.0)),
-                float(getattr(config, "electron_pic_bw_factor", 1.0)),
-            )
-        )
-        chi_grid = _build_log_chi_grid(dynamics.r_gamma, num_chi)
-        return _finish_electron_solution(
-            config,
-            solver_name,
-            "log-gamma-log-chi-2d-pic",
-            gam_e,
-            d_n_gam_e,
-            l_syn_spec,
-            seed_syn,
-            nu=(nu_m, nu_c, nu_a),
-            return_report=return_report,
-            num_chi=num_chi,
-            d_n_gam_e_chi=d_n_gam_e_chi,
-            chi_grid=chi_grid,
-        )
-
     if solver_name == "fullhide_1d_hz":
-        electron_fullhide_1d_module = _electron_module("fullhide_1d_hz")
-        gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = _solve_fullhide_1d(
+        electron_fullhide_1d_module = _electronmodule("fullhide_1d_hz")
+        gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = _fullhide1d(
             electron_fullhide_1d_module.fs_fullhide_hz,
             boundary,
             dynamics,
             v_seed,
             config,
         )
-        return _finish_electron_solution(
+        return _electronfinish(
             config,
             solver_name,
             "log-gamma-1d",
@@ -683,15 +643,15 @@ def solve_electron(
             return_report=return_report,
         )
 
-    electron_fullhide_1d_module = _electron_module("fullhide_1d")
-    gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = _solve_fullhide_1d(
+    electron_fullhide_1d_module = _electronmodule("fullhide_1d")
+    gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = _fullhide1d(
         electron_fullhide_1d_module.fs_fullhide_1d,
         boundary,
         dynamics,
         v_seed,
         config,
     )
-    return _finish_electron_solution(
+    return _electronfinish(
         config,
         solver_name,
         "log-four-velocity-1d",
@@ -704,7 +664,7 @@ def solve_electron(
     )
 
 
-def _finish_electron_solution(
+def _electronfinish(
     config: RuntimeConfig,
     solver_name: str,
     grid_semantics: str,
@@ -719,8 +679,8 @@ def _finish_electron_solution(
     **solution_kwargs,
 ) -> ElectronSolution | tuple[ElectronSolution, SolverAdapterReport]:
     if nu is not None:
-        _emit_nu_callback(config, solver_name, *nu)
-    solution = _build_electron_solution(
+        _emitnu(config, solver_name, *nu)
+    solution = _electronstate(
         gam_e,
         d_n_gam_e,
         l_syn_spec,
@@ -728,7 +688,7 @@ def _finish_electron_solution(
         **solution_kwargs,
     )
     if return_report:
-        return solution, _solver_report(
+        return solution, _report(
             solver_name,
             grid_semantics,
             "ok",
@@ -738,7 +698,7 @@ def _finish_electron_solution(
     return solution
 
 
-def _solve_electron_transport_2d(
+def _electron2d(
     boundary: np.ndarray,
     dynamics: DynamicsSolution,
     v_seed: np.ndarray,
@@ -748,12 +708,12 @@ def _solve_electron_transport_2d(
     use_characteristic_integrator: bool,
     return_report: bool,
 ) -> ElectronSolution | tuple[ElectronSolution, SolverAdapterReport]:
-    electron_2d_module = _electron_module(solver_name)
-    num_chi = _resolve_num_chi(config, solver_name)
+    electron_2d_module = _electronmodule(solver_name)
+    num_chi = _numchi(config, solver_name)
     num_threads_2d = max(1, min(int(config.num_threads), int(num_chi), 16))
     emit_full_chi_spectrum = (
         str(config.geometry_kernel).lower() == "chi_eats_2d"
-        or not _use_direct_chi_projection_contract(config)
+        or not _directchi(config)
     )
     (
         gam_e,
@@ -796,7 +756,7 @@ def _solve_electron_transport_2d(
         and str(config.fullhide2d_transport_model).lower() != "pwn_cr_v1"
     )
     grid_semantics = "log-four-velocity-q-mass-2d" if uses_four_velocity else "log-gamma-q-mass-2d"
-    return _finish_electron_solution(
+    return _electronfinish(
         config,
         solver_name,
         grid_semantics,
@@ -808,7 +768,7 @@ def _solve_electron_transport_2d(
         return_report=return_report,
         num_chi=num_chi,
         d_n_gam_e_chi=d_n_gam_e_chi,
-        chi_grid=_build_q_mass_chi_grid(config, num_chi),
+        chi_grid=_chigrid(config, num_chi),
         l_syn_spec_chi=l_syn_spec_chi,
         seed_syn_chi=seed_syn_chi,
         tau_syn_chi=tau_syn_chi,
@@ -819,7 +779,7 @@ def _solve_electron_transport_2d(
     )
 
 
-def _use_direct_chi_projection_contract(config: RuntimeConfig) -> bool:
+def _directchi(config: RuntimeConfig) -> bool:
     return (
         str(config.geometry_kernel).lower() == "chi_eats_2d"
         and not bool(config.include_forward_ssc)
@@ -830,7 +790,7 @@ def _use_direct_chi_projection_contract(config: RuntimeConfig) -> bool:
     )
 
 
-def _solve_fullhide_1d(
+def _fullhide1d(
     kernel,
     boundary: np.ndarray,
     dynamics: DynamicsSolution,
@@ -855,7 +815,7 @@ def _solve_fullhide_1d(
     )
 
 
-def solve_electron_with_cooling_seed(
+def solve_coolingseed(
     boundary: np.ndarray,
     dynamics: DynamicsSolution,
     v_seed: np.ndarray,
@@ -865,7 +825,7 @@ def solve_electron_with_cooling_seed(
     secondary_source_r: np.ndarray | None = None,
     return_report: bool = False,
 ) -> ElectronSolution | tuple[ElectronSolution, SolverAdapterReport]:
-    solver_name = _resolve_electron_solver(config)
+    solver_name = _electronsolver(config)
     if solver_name != "fullhide_1d":
         raise NotImplementedError("joint electron-photon coupling requires electron_solver='fullhide_1d'.")
     if int(config.index_y) != 1:
@@ -883,7 +843,7 @@ def solve_electron_with_cooling_seed(
         secondary_source_arr = np.asfortranarray(np.asarray(secondary_source_r, dtype=float))
         if secondary_source_arr.shape != (int(config.num_gam_e), radius_arr.size):
             raise ValueError("joint secondary electron source must have shape (num_gam_e, num_radius).")
-    electron_fullhide_1d_module = _electron_module("fullhide_1d")
+    electron_fullhide_1d_module = _electronmodule("fullhide_1d")
     gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = (
         electron_fullhide_1d_module.fs_fullhide_coupled(
             boundary,
@@ -903,15 +863,15 @@ def solve_electron_with_cooling_seed(
             1 if config.thermal_electrons else 0,
         )
     )
-    solution = _build_electron_solution(
+    solution = _electronstate(
         gam_e,
         d_n_gam_e,
         l_syn_spec,
         seed_syn,
     )
-    _emit_nu_callback(config, solver_name, nu_m, nu_c, nu_a)
+    _emitnu(config, solver_name, nu_m, nu_c, nu_a)
     if return_report:
-        return solution, _solver_report(
+        return solution, _report(
             solver_name,
             "log-gamma-1d-joint-cooling",
             "ok",
@@ -921,7 +881,7 @@ def solve_electron_with_cooling_seed(
     return solution
 
 
-def _emit_nu_callback(config: RuntimeConfig, label: str, nu_m, nu_c, nu_a) -> None:
+def _emitnu(config: RuntimeConfig, label: str, nu_m, nu_c, nu_a) -> None:
     if config.nu_callback is not None:
         config.nu_callback(
             label,
@@ -931,29 +891,29 @@ def _emit_nu_callback(config: RuntimeConfig, label: str, nu_m, nu_c, nu_a) -> No
         )
 
 
-def _resolve_electron_solver(config: RuntimeConfig) -> str:
+def _electronsolver(config: RuntimeConfig) -> str:
     solver_name = config.electron_solver.lower()
-    if solver_name not in _ELECTRON_BACKEND_MODULES:
+    if solver_name not in _ELECTRONMODULES:
         raise ValueError(f"Unsupported electron solver: {config.electron_solver}")
     return solver_name
 
 
-def _electron_1d_transport_solver_id(config: RuntimeConfig) -> int:
-    solver_name = _resolve_electron_solver(config)
-    if solver_name not in ELECTRON_SHARED_1D_TRANSPORT_IDS:
+def _transportid(config: RuntimeConfig) -> int:
+    solver_name = _electronsolver(config)
+    if solver_name not in ELECTRONTRANSPORT_IDS:
         raise NotImplementedError("reverse-shock electron transport supports electron_solver='fullhide_1d' or 'dg_1d'.")
-    return ELECTRON_SHARED_1D_TRANSPORT_IDS[solver_name]
+    return ELECTRONTRANSPORT_IDS[solver_name]
 
 
-def _resolve_pgamma_scheme(config: RuntimeConfig) -> str:
+def _pgammascheme(config: RuntimeConfig) -> str:
     key = str(config.hadronic.pgamma_scheme).lower()
-    if key not in (_PGAMMA_SCHEME_DISABLED, _PGAMMA_SCHEME_HUMMER2010_RESPONSE):
+    if key not in (_PGAMMADISABLED, _PGAMMAHUMMER):
         raise ValueError(f"Unsupported p-gamma scheme: {config.hadronic.pgamma_scheme}")
     return key
 
 
-def _resolve_num_chi(config: RuntimeConfig, solver_name: str | None = None) -> int:
-    resolved_solver = _resolve_electron_solver(config) if solver_name is None else solver_name
+def _numchi(config: RuntimeConfig, solver_name: str | None = None) -> int:
+    resolved_solver = _electronsolver(config) if solver_name is None else solver_name
     user_value = config.downstream_num_chi
     if resolved_solver.endswith("_1d"):
         return 1
@@ -964,15 +924,7 @@ def _resolve_num_chi(config: RuntimeConfig, solver_name: str | None = None) -> i
     return int(user_value)
 
 
-def _build_log_chi_grid(r_gamma: np.ndarray, num_chi: int) -> np.ndarray:
-    gamma_arr = np.asarray(r_gamma, dtype=float)
-    chi_max = 1.0 + 8.0 * np.max(gamma_arr * gamma_arr)
-    deta = np.log10(chi_max) / float(num_chi)
-    eta_grid = (np.arange(num_chi, dtype=float) + 0.5) * deta
-    return np.power(10.0, eta_grid)
-
-
-def _build_q_mass_chi_grid(config: RuntimeConfig, num_chi: int) -> np.ndarray:
+def _chigrid(config: RuntimeConfig, num_chi: int) -> np.ndarray:
     sigma = 4.0
     q_active = 1.0 - (1.0 - 1.0 / sigma) ** sigma
     q_grid = (np.arange(num_chi, dtype=float) + 0.5) * q_active / float(num_chi)
@@ -981,7 +933,7 @@ def _build_q_mass_chi_grid(config: RuntimeConfig, num_chi: int) -> np.ndarray:
     return np.power(1.0 - q_grid, -alpha)
 
 
-def _build_electron_solution(
+def _electronstate(
     gam_e: np.ndarray,
     d_n_gam_e: np.ndarray,
     l_syn_spec: np.ndarray,
@@ -1027,14 +979,14 @@ def solve_hadronic(
 ) -> HadronicSolution | None | tuple[HadronicSolution | None, SolverAdapterReport]:
     del boundary
     if not bool(config.hadronic.enabled) or float(config.hadronic.epsilon_p) <= 0.0:
-        report = _solver_report("hadronic_disabled", "log-gamma-1d", "disabled", backend="none")
+        report = _report("hadronic_disabled", "log-gamma-1d", "disabled", backend="none")
         return (None, report) if return_report else None
     hadronic_solver_key = str(config.hadronic.solver).lower()
     if hadronic_solver_key not in {"legacy_1d", "am3_1d"}:
         raise ValueError(f"Unsupported hadronic solver: {config.hadronic.solver}")
     hadronic_solver = hadronic_solver_key
-    pgamma_scheme = _resolve_pgamma_scheme(config)
-    electron_solver = _resolve_electron_solver(config)
+    pgamma_scheme = _pgammascheme(config)
+    electron_solver = _electronsolver(config)
     if not electron_solver.endswith("_1d"):
         raise NotImplementedError("The current hadronic kernel only supports 1d forward-shock electron solvers.")
 
@@ -1051,7 +1003,7 @@ def solve_hadronic(
             "legacy_1d only supports proton transport plus proton synchrotron. "
             "Use hadronic_solver='am3_1d' for p-gamma and neutrino channels."
         )
-    if (bool(config.hadronic.include_pg) or bool(config.hadronic.include_neutrino)) and pgamma_scheme == _PGAMMA_SCHEME_DISABLED:
+    if (bool(config.hadronic.include_pg) or bool(config.hadronic.include_neutrino)) and pgamma_scheme == _PGAMMADISABLED:
         raise ValueError(
             "p-gamma and neutrino channels require an explicit pgamma_scheme. "
             "Choose 'hummer_2010_response'."
@@ -1069,8 +1021,8 @@ def solve_hadronic(
         * constants.para_c**2
     )
 
-    if hadronic_solver == "am3_1d" and pgamma_scheme == _PGAMMA_SCHEME_HUMMER2010_RESPONSE:
-        solution = _solve_hadronic_hummer_transport_coupled(
+    if hadronic_solver == "am3_1d" and pgamma_scheme == _PGAMMAHUMMER:
+        solution = _hummertransport(
             dynamics,
             magnetic_field_g,
             electron.gam_e,
@@ -1080,7 +1032,7 @@ def solve_hadronic(
             config,
         )
         if return_report:
-            return solution, _solver_report(
+            return solution, _report(
                 hadronic_solver,
                 "log-gamma-1d",
                 "ok",
@@ -1163,7 +1115,7 @@ def solve_hadronic(
     )
     if return_report:
         backend = "fortran_core" if hadronic_solver == "legacy_1d" else HUMMER2010_RESPONSE_BACKEND
-        return solution, _solver_report(
+        return solution, _report(
             hadronic_solver,
             "log-gamma-1d",
             "ok",
@@ -1175,7 +1127,7 @@ def solve_hadronic(
     return solution
 
 
-def _solve_hadronic_hummer_transport_coupled(
+def _hummertransport(
     dynamics: DynamicsSolution,
     magnetic_field_g: np.ndarray,
     electron_gamma: np.ndarray,
@@ -1199,7 +1151,7 @@ def _solve_hadronic_hummer_transport_coupled(
     num_gam_p = int(config.hadronic.num_gam_p)
     num_nu_nu = int(config.hadronic.num_nu_nu)
     gam_e = np.asarray(electron_gamma, dtype=float)
-    hadronic_gam_e = _formal_hadronic_electron_grid(gam_e)
+    hadronic_gam_e = _hadronicgrid(gam_e)
     if pp_target_density_arr is None:
         pp_target_density_arr = ambient_density(radius, config)
     t_total_start = time.perf_counter()
@@ -1236,7 +1188,7 @@ def _solve_hadronic_hummer_transport_coupled(
         num_gam_p,
         num_nu_nu,
     )
-    d_n_gam_e_bh, secondary_electron_source_r = _project_hadronic_electron_outputs(
+    d_n_gam_e_bh, secondary_electron_source_r = _projectelectrons(
         hadronic_gam_e,
         gam_e,
         np.asarray(d_n_gam_e_bh, dtype=float).reshape(hadronic_gam_e.size, num_r),
@@ -1291,14 +1243,14 @@ def _solve_hadronic_hummer_transport_coupled(
     )
 
 
-def _formal_hadronic_electron_grid(gamma_e: np.ndarray) -> np.ndarray:
+def _hadronicgrid(gamma_e: np.ndarray) -> np.ndarray:
     gamma = np.asarray(gamma_e, dtype=float)
     if gamma.size < 2:
         return gamma.copy()
     return np.geomspace(float(gamma[0]), float(gamma[-1]), gamma.size)
 
 
-def _project_hadronic_electron_outputs(
+def _projectelectrons(
     source_gamma: np.ndarray,
     target_gamma: np.ndarray,
     electron_density: np.ndarray,
@@ -1315,7 +1267,7 @@ def _project_hadronic_electron_outputs(
     return density_out, source_out
 
 
-def _hadronic_pg_survival_factor(tau_pg: np.ndarray) -> np.ndarray:
+def pgsurvival(tau_pg: np.ndarray) -> np.ndarray:
     tau = np.asarray(tau_pg, dtype=float)
     survival = np.ones_like(tau, dtype=float)
     small = (tau > 0.0) & (tau < 1.0e-6)
@@ -1329,27 +1281,22 @@ def _hadronic_pg_survival_factor(tau_pg: np.ndarray) -> np.ndarray:
     return survival
 
 
-def solve_reverse_shock_emission(
+def solve_rsemission(
     boundary: np.ndarray,
     dynamics: DynamicsSolution,
     v_seed: np.ndarray,
     config: RuntimeConfig,
 ) -> ReverseShockEmission | None:
-    reverse_params = _resolve_reverse_shock_parameters(config)
+    reverse_params = _rsparams(config)
     if reverse_params is None or dynamics.reverse_shock is None:
         return None
 
-    gam_e, d_n_gam_e = _solve_reverse_shock_electrons(boundary, dynamics, v_seed, config, reverse_params)
+    gam_e, d_n_gam_e = _rselectrons(boundary, dynamics, v_seed, config, reverse_params)
     dynamics.reverse_shock.gam_e = gam_e
-    dynamics.reverse_shock.d_n_gam_e = _renormalize_reverse_shock_distribution(
-        gam_e,
-        d_n_gam_e,
-        dynamics.reverse_shock.swept_mass_g,
-        reverse_params.f_e,
-    )
+    dynamics.reverse_shock.d_n_gam_e = d_n_gam_e
 
-    l_syn_spec, seed_syn = _compute_reverse_shock_synchrotron_emission(dynamics, v_seed, config)
-    secondary_rs = _compute_secondary_reverse_shock_synchrotron(dynamics, v_seed, config, reverse_params)
+    l_syn_spec, seed_syn = _rssynch(dynamics, v_seed, config)
+    secondary_rs = _secondaryrs(dynamics, v_seed, config, reverse_params)
     if secondary_rs is not None:
         l_syn_spec = l_syn_spec + secondary_rs.luminosity_syn
 
@@ -1362,15 +1309,15 @@ def solve_reverse_shock_emission(
             bool(config.hadronic.include_hadronic_inverse_compton),
             bool(config.hadronic.include_pp),
         ))
+        rs_swept = np.asarray(dynamics.reverse_shock.swept_mass_g, dtype=float)
+        rs_shell_mass = np.empty_like(rs_swept)
+        rs_shell_mass[0] = rs_swept[0]
+        rs_shell_mass[1:] = rs_swept[1:] - rs_swept[:-1]
         if requires_full_chain:
             if (bool(config.hadronic.include_pg) or bool(config.hadronic.include_neutrino)) and (
-                _resolve_pgamma_scheme(config) != _PGAMMA_SCHEME_HUMMER2010_RESPONSE
+                _pgammascheme(config) != _PGAMMAHUMMER
             ):
                 raise ValueError("Reverse-shock p-gamma currently requires pgamma_scheme='hummer_2010_response'.")
-            rs_swept = np.asarray(dynamics.reverse_shock.swept_mass_g, dtype=float)
-            rs_shell_mass = np.empty_like(rs_swept)
-            rs_shell_mass[0] = rs_swept[0]
-            rs_shell_mass[1:] = rs_swept[1:] - rs_swept[:-1]
             prev_radius = np.empty_like(dynamics.radius)
             prev_radius[0] = 0.0
             prev_radius[1:] = dynamics.radius[:-1]
@@ -1382,7 +1329,7 @@ def solve_reverse_shock_emission(
                 * constants.para_c
                 * constants.para_c
             )
-            rs_hadronic = _solve_hadronic_hummer_transport_coupled(
+            rs_hadronic = _hummertransport(
                 dynamics,
                 np.asarray(dynamics.reverse_shock.magnetic_field_g, dtype=float),
                 gam_e,
@@ -1398,8 +1345,8 @@ def solve_reverse_shock_emission(
             num_r = int(np.asarray(dynamics.radius, dtype=float).size)
             shell_energy = (
                 float(config.hadronic.reverse_epsilon_p)
-                * np.asarray(dynamics.reverse_shock.swept_mass_g, dtype=float)
-                * np.maximum(np.asarray(dynamics.r_gamma, dtype=float) - 1.0, 0.0)
+                * rs_shell_mass
+                * (np.asarray(dynamics.r_gamma, dtype=float) - 1.0)
                 * constants.para_c
                 * constants.para_c
             )
@@ -1428,7 +1375,7 @@ def solve_reverse_shock_emission(
     )
 
 
-def _solve_reverse_shock_electrons(
+def _rselectrons(
     boundary: np.ndarray,
     dynamics: DynamicsSolution,
     v_seed: np.ndarray,
@@ -1437,10 +1384,10 @@ def _solve_reverse_shock_electrons(
 ) -> tuple[np.ndarray, np.ndarray]:
     if dynamics.reverse_shock is None:
         raise ValueError("Reverse shock dynamics are required to compute reverse electrons.")
-    module = _electron_reverse_module().electron_reverse_kernel
+    module = _reversemodule().electron_reverse_kernel
     delta_0 = reverse_params.delta_t_s * constants.para_c
     para_m_ej = reverse_mass(config)
-    solver_id = _electron_1d_transport_solver_id(config)
+    solver_id = _transportid(config)
     gam_e, d_n_gam_e = module.electron_reverse_evolve(
         delta_0,
         reverse_params.epsilon_e,
@@ -1480,7 +1427,7 @@ def _solve_reverse_shock_electrons(
     return np.asarray(gam_e, dtype=float), np.asarray(d_n_gam_e, dtype=float)
 
 
-def _solve_shell_syn(args):
+def _shellsyn(args):
     i, radius, bfield, index_syn, gam_e, d_n_gam_e_col, v_seed = args
     if bfield <= 0.0:
         return i, None, None
@@ -1489,7 +1436,7 @@ def _solve_shell_syn(args):
     return i, p_syn, seed_syn
 
 
-def _compute_reverse_shock_synchrotron_emission(
+def _rssynch(
     dynamics: DynamicsSolution,
     v_seed: np.ndarray,
     config: RuntimeConfig,
@@ -1513,20 +1460,20 @@ def _compute_reverse_shock_synchrotron_emission(
     if workers > 1:
         from concurrent.futures import ThreadPoolExecutor
         with ThreadPoolExecutor(max_workers=workers) as ex:
-            for i, p_syn_i, seed_syn_i in ex.map(_solve_shell_syn, tasks):
+            for i, p_syn_i, seed_syn_i in ex.map(_shellsyn, tasks):
                 if p_syn_i is not None:
                     l_syn_spec[:, i] = p_syn_i
                     seed_syn[:, i] = seed_syn_i
     else:
         for task in tasks:
-            i, p_syn_i, seed_syn_i = _solve_shell_syn(task)
+            i, p_syn_i, seed_syn_i = _shellsyn(task)
             if p_syn_i is not None:
                 l_syn_spec[:, i] = p_syn_i
                 seed_syn[:, i] = seed_syn_i
     return l_syn_spec, seed_syn
 
 
-def _compute_secondary_reverse_shock_synchrotron(
+def _secondaryrs(
     dynamics: DynamicsSolution,
     v_seed: np.ndarray,
     config: RuntimeConfig,
@@ -1554,7 +1501,7 @@ def _compute_secondary_reverse_shock_synchrotron(
     (
         gam_e_sec, dist, branch_luminosity, luminosity,
         reacceleration_seed_energy, reaccelerated_energy,
-    ) = _electron_reverse_module().electron_reverse_kernel.branch_reaccel(
+    ) = _reversemodule().electron_reverse_kernel.branch_reaccel(
         reverse_params.epsilon_e,
         reverse_params.epsilon_b,
         reverse_params.p,
@@ -1575,7 +1522,7 @@ def _compute_secondary_reverse_shock_synchrotron(
         config.num_gam_e,
         config.index_syn_integr,
         config.num_threads,
-        solver_id=_electron_1d_transport_solver_id(config),
+        solver_id=_transportid(config),
     )
     return SecondaryReverseShockState(
         luminosity_syn=luminosity,
@@ -1615,7 +1562,7 @@ def _compute_secondary_reverse_shock_synchrotron(
     )
 
 
-def _resolve_reverse_shock_parameters(config: RuntimeConfig) -> ReverseShockParameters | None:
+def _rsparams(config: RuntimeConfig) -> ReverseShockParameters | None:
     reverse_enabled = config.reverse or config.reverse_shock.enabled
     if not reverse_enabled:
         return None
@@ -1633,18 +1580,3 @@ def _resolve_reverse_shock_parameters(config: RuntimeConfig) -> ReverseShockPara
         p=config.p if config.reverse_shock.p is None else config.reverse_shock.p,
         f_e=config.f_e if config.reverse_shock.f_e is None else config.reverse_shock.f_e,
     )
-
-
-def _renormalize_reverse_shock_distribution(
-    gam_e: np.ndarray,
-    d_n_gam_e: np.ndarray,
-    swept_mass_g: np.ndarray,
-    f_e: float,
-) -> np.ndarray:
-    gam = np.asarray(gam_e, dtype=float)
-    dist = np.where(np.isfinite(d_n_gam_e) & (d_n_gam_e > 0.0), d_n_gam_e, 0.0)
-    targets = np.asarray(swept_mass_g, dtype=float) / constants.para_m_p * float(f_e)
-    totals = np.trapezoid(dist, gam, axis=0)
-    valid = np.isfinite(totals) & (totals > 0.0) & np.isfinite(targets) & (targets > 0.0)
-    dist[:, valid] *= (targets[valid] / totals[valid])[None, :]
-    return dist

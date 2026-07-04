@@ -30,13 +30,13 @@ from asgard_core.asgard_physics_utils import (
 from asgard_core.asgard_physics_utils import densityjumps
 from asgard_core.asgard_postprocess import observe_flux
 from asgard_core.asgard_runtime import (
-    _hadronic_pg_survival_factor,
-    _solver_report,
+    pgsurvival,
+    _report,
     solve_dynamics,
     solve_electron,
-    solve_electron_with_cooling_seed,
+    solve_coolingseed,
     solve_hadronic,
-    solve_reverse_shock_emission,
+    solve_rsemission,
 )
 from asgard_core.asgard_setup import build_simulation_setup
 from src import Interpolation, Radiation, constants
@@ -333,7 +333,7 @@ def _solve_hadronic_stage(
     if hadronic is not None and hadronic.pg_photon_survival is not None:
         _apply_hadronic_photon_survival(photon_field, hadronic.pg_photon_survival)
     if apply_bh_photon_sink and hadronic is not None and hadronic.tau_bh is not None:
-        _apply_hadronic_photon_survival(photon_field, _hadronic_pg_survival_factor(hadronic.tau_bh))
+        _apply_hadronic_photon_survival(photon_field, pgsurvival(hadronic.tau_bh))
     return electron, hadronic, report
 
 
@@ -359,7 +359,7 @@ def _solve_joint_forward_stage(
     primary_electron, electron_report = _timed_call(
         timings,
         f"{_solver_label(config, 'electron')} [joint cooling seed]",
-        solve_electron_with_cooling_seed,
+        solve_coolingseed,
         setup.boundary,
         dynamics,
         setup.seed_frequency_hz,
@@ -370,7 +370,7 @@ def _solve_joint_forward_stage(
     electron = primary_electron
     photon_field = _build_photon_field_stage(config, setup, dynamics, electron, timings)
     hadronic = None
-    hadronic_report = _solver_report("hadronic_disabled", "log-gamma-1d", "disabled", backend="none")
+    hadronic_report = _report("hadronic_disabled", "log-gamma-1d", "disabled", backend="none")
 
     for _ in range(_JOINT_ELECTRON_PHOTON_ITERATIONS):
         electron, hadronic, hadronic_report = _solve_hadronic_stage(
@@ -402,7 +402,7 @@ def _solve_joint_forward_stage(
         primary_electron, electron_report = _timed_call(
             timings,
             f"{_solver_label(config, 'electron')} [joint cooling]",
-            solve_electron_with_cooling_seed,
+            solve_coolingseed,
             setup.boundary,
             dynamics,
             setup.seed_frequency_hz,
@@ -437,7 +437,7 @@ def _build_joint_photon_field_after_hadronic(
     if hadronic is not None and hadronic.pg_photon_survival is not None:
         _apply_hadronic_photon_survival(photon_field, hadronic.pg_photon_survival)
     if hadronic is not None and hadronic.tau_bh is not None:
-        _apply_hadronic_photon_survival(photon_field, _hadronic_pg_survival_factor(hadronic.tau_bh))
+        _apply_hadronic_photon_survival(photon_field, pgsurvival(hadronic.tau_bh))
     return photon_field
 
 
@@ -467,7 +467,7 @@ def _apply_joint_secondary_feedback(
             hadronic.l_had_pair_production = pair_lum
         photon_field.hadronic_target_seed = np.asarray(photon_field.hadronic_target_seed, dtype=float) + pair_seed
         photon_field.absorption_syn_seed = np.asarray(photon_field.absorption_syn_seed, dtype=float) + pair_seed
-        _apply_hadronic_photon_survival(photon_field, _hadronic_pg_survival_factor(tau_pair))
+        _apply_hadronic_photon_survival(photon_field, pgsurvival(tau_pair))
         source = source + _electron_density_to_source_r(np.asarray(electron.gam_e, dtype=float), pair_density, dynamics.radius)
     return source
 
@@ -547,7 +547,7 @@ def solve_state_from_setup(
         reverse_emission = _timed_call(
             timings,
             "ReverseShock.emission",
-            solve_reverse_shock_emission,
+            solve_rsemission,
             setup.boundary,
             dynamics,
             setup.seed_frequency_hz,

@@ -335,7 +335,7 @@ solver_options = SolverOptions(
 | `weno5_1d` | 高阶 WENO5。 | 诊断谱形和数值耗散。 | 需要额外平滑性检查。 |
 | `fullhide_2d` | \((\gamma,q)\) finite-shell 电子输运。 | 给厚壳层电子历史和 `chi_eats_2d`。 | `chi_grid` 是 BM 等效诊断坐标；不代表强子/SSC 也 \(\chi\) 局域。 |
 | `charint_2d` | 2D characteristic 混合路径。 | 加速/比较 finite \(q\)-shell 输运。 | 同样只服务已定义的 2D 电子契约。 |
-| `fullhide_2d_pic` | 历史/本地实验映射。 | 当前仓库没有跟踪源码和构建登记。 | 不作为可复现 public backend；新工作不要使用。 |
+| `fullhide_2d_pic` | 已删除的历史/本地实验映射。 | 当前仓库没有跟踪源码和构建登记。 | 不作为可复现 public backend。 |
 
 ### 9.2 投影和耦合
 

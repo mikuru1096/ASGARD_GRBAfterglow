@@ -73,7 +73,7 @@ Python 层组织状态机、配置和观测投影；Fortran 层求解电子、�
 - `weno5_1d`：高阶电子谱解析路径。
 - `fullhide_2d`：energy + chi resolved electron transport。
 - `charint_2d`：2D characteristic path。
-- `fullhide_2d_pic`：运行时保留历史映射，但当前仓库没有跟踪源码和构建登记，不作为可复现 public backend。
+- `fullhide_2d_pic`：当前仓库没有跟踪源码和构建登记，运行时映射已删除。
 
 runtime 默认保留的电子输运状态：
 

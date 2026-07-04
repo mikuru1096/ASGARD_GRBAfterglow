@@ -12,7 +12,7 @@
 - Reverse-shock magnetization switch：`ReverseShock.upstream_sigma`，控制反向激波 upstream magnetization。
 - `asgard_core/api_observe.py`：内部/旧配置观测工具，以及 `Model.sky_image(...)` / `Model.polarization(...)` 复用的实现函数；`observe(model, config)` 和 `run_fit(config)` 不从 `asgard_core` 顶层导出，不作为新教程的公开入口。
 - `asgard_core/api_fit.py`：`Fitter`, `Param`, `FitResult`。
-- Electron solver names：`fullhide_1d`, `fullhide_1d_hz`, `slc1_1d`, `charint_1d`, `dg_1d`, `charint_2d`, `t2g1_1d`, `weno5_1d`, `fullhide_2d`。public API 只使用这些完整名称。`fullhide_2d_pic` 只剩运行时历史映射，本仓库没有跟踪源码和 `build_extensions.py` 构建登记，不作为当前可复现 public backend。
+- Electron solver names：`fullhide_1d`, `fullhide_1d_hz`, `slc1_1d`, `charint_1d`, `dg_1d`, `charint_2d`, `t2g1_1d`, `weno5_1d`, `fullhide_2d`。public API 只使用这些完整名称。`fullhide_2d_pic` 没有跟踪源码和 `build_extensions.py` 构建登记，运行时映射已删除。
 - `prompt/`：内部激波 snapshot 研究入口，不从 `asgard_core` 顶层导出。当前对象包括 `InternalShockShell`, `simulate_internal_shock`, `compute_prompt_observed_flux`，用于两壳碰撞、磁化 jump、FS/RS sync/SSC 和 prompt EATS 诊断。
 
 ## 2. 运行时主链
@@ -22,7 +22,7 @@ Model.flux_density_grid / flux_density / spectrum / flux
   -> RuntimeConfig -> SimulationSetup
   -> solve_state_from_setup
   -> solve_dynamics -> solve_electron / joint electron-photon-hadronic stage
-  -> solve_reverse_shock_emission
+  -> solve_rsemission
   -> observer assembly -> Radiation.annihilation
   -> project_flux_grid -> Interpolation.sed_interpolation[_chi] / structured chi ring projection -> API result
 ```

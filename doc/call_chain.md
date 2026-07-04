@@ -60,7 +60,7 @@ Model.flux_density_grid
   -> SimulationSetup
   -> solve_state_from_setup
   -> solve_dynamics -> solve_electron -> photon_field_stage
-  -> solve_hadronic -> solve_reverse_shock_emission
+  -> solve_hadronic -> solve_rsemission
   -> pair-production branch / Radiation.annihilation -> project_flux_grid
   -> projection_kind="lightcurve" or "sed"
   -> combine_flux -> FluxResult

@@ -56,7 +56,7 @@ repeat fixed small iteration count:
     apply pγ/BH photon survival
     secondary_source_R = assemble secondary e± source
     add gamma-gamma pair/synch feedback when enabled
-    primary_electron = solve_electron_with_cooling_seed(
+    primary_electron = solve_coolingseed(
         cooling_seed = photon_field.hadronic_target_seed,
         secondary_source_R = secondary_source_R,
     )
@@ -151,7 +151,7 @@ bh_photon_loss_rate(nu, R)
 joint 电子入口：
 
 ```text
-solve_electron_with_cooling_seed(...)
+solve_coolingseed(...)
   -> fs_fullhide_coupled(...)
 ```
 
