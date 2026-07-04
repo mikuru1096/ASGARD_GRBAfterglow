@@ -1218,7 +1218,44 @@ table; on first use it fills these five quantities from \texttt{dlamch}
 (\texttt{U}, \texttt{O}, \texttt{E}, \texttt{P}, and \texttt{B}) and caches
 them for later calls.  They set numerical convergence and range thresholds for
 the special functions; they do not modify the electron distribution or add a
-physical source term.  The power-law normalization follows directly from
+physical source term.  The \texttt{dgamic} dispatcher calls \texttt{d9gmic}
+when \(x<1\) and \(a\) lies sufficiently close to a non-positive integer.  Let
+\[
+m=\left\lfloor\frac{1}{2}-a\right\rfloor,\qquad m\ge0 ,
+\]
+and let \(\epsilon=\texttt{d1mach}(3)/2\).  The first small-\(x\) series is
+accumulated as
+\[
+e_0=1,\quad S_0=1,\qquad
+e_k=-\frac{x\,e_{k-1}}{m+k+1},\quad
+S_k=S_{k-1}+\frac{e_k}{k+1},
+\]
+until \(|e_k/(k+1)|<\epsilon S_k\).  It defines
+\[
+L_m(x)=-\ln x-\gamma_E+\frac{xS}{m+1},
+\]
+where \(\gamma_E\) is Euler's constant.  For \(m=0\), this is the retained
+small-\(x\) expansion of \(\Gamma(0,x)\).  For \(m=1\), the recurrence
+\(\Gamma(0,x)=-\Gamma(-1,x)+x^{-1}e^{-x}\) gives the code expression
+\[
+\Gamma(-1,x)=-L_1(x)-1+x^{-1}.
+\]
+For \(m\ge2\), the harmonic part and the finite pole series are
+\[
+H_m=\sum_{k=1}^{m}\frac{1}{k},\qquad
+P_m(x)=1+\sum_{k=1}^{m-1}\frac{m(-x)^k}{k!(m-k)} .
+\]
+The returned value is therefore
+\[
+\Gamma(-m,x)
+=\frac{(-1)^m\,[L_m(x)+H_m]}{\Gamma(m+1)}
++\frac{P_m(x)}{m x^m},
+\]
+with the first term formed in logarithmic arithmetic and skipped only when it
+falls below the machine lower exponent.  This branch is a numerical evaluation
+of the same upper incomplete gamma integral used in the hybrid normalization,
+not a separate approximation to the electron spectrum.  The power-law
+normalization follows directly from
 \(t=\gamma/\gamma_{\max}\):
 \[
 \int_{\gamma_m}^{\infty}\gamma^{-p}e^{-\gamma/\gamma_{\max}}\,d\gamma
