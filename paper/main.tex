@@ -2817,6 +2817,17 @@ and all component luminosities are multiplied by this prefactor before equal-arr
 \section{Hadronic Transport and Secondary Feedback} \label{sec:hadronic}
 
 Hadronic transport runs only when the hadronic stage is enabled and \(\epsilon_p>0\).  The current formal forward-shock hadronic path is one-dimensional, and the runtime rejects non-1D forward electron solvers for formal hadronic feedback.  The \texttt{legacy\_1d} solver transports protons and computes proton synchrotron only.  The \texttt{am3\_1d} solver with \texttt{hummer\_2010\_response} is the formal path for \(p\gamma\), neutrino, Bethe-Heitler, hadronic inverse-Compton, \(pp\), secondary-species, and pair-production branches \citep{Murase2007,Hummer2010,KelnerAharonian2008,Chodorowski1992,GouldSchreder1967,IceCube2017GRBNeutrinos,Sahu2022GRB190829AHadronic,Sahu2024GRB221009AHadronic}.
+The package initializer for \texttt{src.Hadronic} is only a lazy ABI boundary.
+It defines
+\[
+\texttt{hadronic\_1d}\mapsto\texttt{hadronic\_forward\_1d},\qquad
+\texttt{reverse\_hadronic\_1d}\mapsto\texttt{hadronic\_reverse\_1d},
+\]
+imports the requested compiled module on first attribute access, caches that
+attribute in the package namespace, and raises an attribute error for every
+other name.  This binding layer selects the implemented one-dimensional forward
+or reverse-shock hadronic kernel; it does not define a particle equation,
+interaction rate, or coupling term.
 
 The formal species ledger is
 \[
