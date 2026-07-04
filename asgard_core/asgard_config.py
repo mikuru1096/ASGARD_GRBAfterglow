@@ -19,10 +19,7 @@ def default_num_threads() -> int:
     env_value = os.environ.get("ASGARD_NUM_THREADS")
     if env_value is not None:
         return max(1, int(env_value))
-    cpu_count = os.cpu_count()
-    if cpu_count is None:
-        return 8
-    return max(1, cpu_count)
+    return max(1, os.cpu_count() or 1)
 
 
 @dataclass
@@ -75,7 +72,7 @@ class HadronicConfig:
     pp_model: int = -1
 
 
-_HADRONIC_DELEGATES = (
+hadronic_delegates = (
     ("hadronic_enabled", "enabled"),
     ("hadronic_solver", "solver"),
     ("epsilon_p", "epsilon_p"),
@@ -96,7 +93,7 @@ _HADRONIC_DELEGATES = (
     ("reverse_epsilon_p", "reverse_epsilon_p"),
 )
 
-_REVERSE_SHOCK_DELEGATES = (
+reverse_delegates = (
     ("rvs_shock", "enabled"),
     ("rvs_ssc", "include_ssc"),
     ("reverse_delta_t_s", "delta_t_s"),
@@ -112,7 +109,7 @@ class ExecutionPolicy:
 
 
 @dataclass
-class _RuntimeConfig:
+class RuntimeConfig:
     """
     Internal normalized runtime configuration consumed by the Fortran/kernel chain.
     """
@@ -208,39 +205,26 @@ class _RuntimeConfig:
     nu_callback: Callable[[str, np.ndarray, np.ndarray, np.ndarray], None] | None = None
 
 
-def _make_hadronic_delegate(field_name: str) -> property:
+def delegateprop(section: str, fieldname: str) -> property:
     def getter(self):
-        return getattr(self.hadronic, field_name)
+        return getattr(getattr(self, section), fieldname)
 
     def setter(self, value) -> None:
-        current = getattr(self.hadronic, field_name)
-        setattr(self.hadronic, field_name, type(current)(value))
+        setattr(getattr(self, section), fieldname, value)
 
     return property(getter, setter)
 
 
-for _public_name, _field_name in _HADRONIC_DELEGATES:
-    setattr(_RuntimeConfig, _public_name, _make_hadronic_delegate(_field_name))
+for section, delegates in (
+    ("hadronic", hadronic_delegates),
+    ("reverse_shock", reverse_delegates),
+):
+    for public, fieldname in delegates:
+        setattr(RuntimeConfig, public, delegateprop(section, fieldname))
 
-
-def _make_reverse_shock_delegate(field_name: str) -> property:
-    def getter(self):
-        return getattr(self.reverse_shock, field_name)
-
-    def setter(self, value) -> None:
-        current = getattr(self.reverse_shock, field_name)
-        setattr(self.reverse_shock, field_name, type(current)(value))
-
-    return property(getter, setter)
-
-
-for _public_name, _field_name in _REVERSE_SHOCK_DELEGATES:
-    setattr(_RuntimeConfig, _public_name, _make_reverse_shock_delegate(_field_name))
-
-del _public_name, _field_name
-
-
-RuntimeConfig = _RuntimeConfig
+del (
+    hadronic_delegates, reverse_delegates, section, delegates, public, fieldname, delegateprop,
+)
 
 
 @dataclass
@@ -250,17 +234,3 @@ class SimulationSetup:
     boundary: np.ndarray
     seed_frequency_hz: np.ndarray
     observer_time_s: np.ndarray
-
-
-@dataclass
-class FitResult:
-    """Fitting result data."""
-    t_obs_s: np.ndarray
-    characteristic_time_s: np.ndarray
-    bands: tuple[str, ...]
-    bands_flux: np.ndarray
-    redchi: float
-    spectrum_time_s: float | None = None
-    spectrum_freq_hz: np.ndarray | None = None
-    spectrum_fnu: np.ndarray | None = None
-    spectrum_redchi: float | None = None
