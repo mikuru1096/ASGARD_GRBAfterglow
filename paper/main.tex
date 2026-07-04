@@ -736,6 +736,101 @@ N_j^{n+1}=\max\left(0,r_j-c_jN_{j+1}^{n+1}\right).
 \]
 As in the separated fullhide path, the last output radius is refreshed from the final electron spectrum through the same synchrotron optical-depth grid, so the returned \(\nu_m\), \(\nu_c\), and \(\nu_a\) arrays do not end with a stale zero diagnostic.
 
+The \texttt{fullhide\_1d\_hz} branch uses the same shell state, cooling array, and
+\texttt{fullhide\_step} update as the log-gamma fullhide path, but replaces the
+source shape when \texttt{thermal\_electrons} is enabled.  The conservative
+variable is
+\[
+N_{x,j}(R)=\frac{1}{\Delta x}
+\int_{x_{j-1/2}}^{x_{j+1/2}}\frac{dN_e}{dx}\,dx,
+\qquad x=\log_{10}\gamma_e .
+\]
+For a substep evaluated at source radius \(R_s\), the radial swept-electron rate
+used by the source array is the finite-shell volume increment divided by
+\(\Delta R\) exactly as assembled by the kernel,
+\[
+\dot N_R(R_s,\Delta R)=
+\frac{4\pi}{3}
+\left[3R_s^2+\Delta R(3R_s+\Delta R)\right]n(R_s).
+\]
+When the thermal branch is disabled, this reduces to the ordinary nonthermal
+source
+\[
+Q_{x,j}=\frac{1}{\Delta x_j}
+\int_{x_{j-1/2}}^{x_{j+1/2}}
+\dot N_R f_e
+\frac{1-p}{\gamma_{\max}^{1-p}-\gamma_m^{1-p}}
+\ln 10\,\gamma_e^{1-p}\mathcal{C}_{\max}(\gamma_e)\,dx .
+\]
+When the thermal branch is enabled, the source is instead distributed over a
+unit-normalized hybrid density \(\phi_{\rm hz}(\gamma)\),
+\[
+Q_{x,j}^{\rm hz}=
+\frac{1}{\Delta x_j}
+\int_{x_{j-1/2}}^{x_{j+1/2}}
+\dot N_R\,\phi_{\rm hz}(\gamma_e)\,\gamma_e\ln 10\,dx .
+\]
+The implemented hybrid density is continuous at \(\gamma_m\) and partitions the
+newly swept electrons into a thermal fraction \(1-f_e\) and a cutoff power-law
+fraction \(f_e\):
+\[
+\phi_{\rm hz}(\gamma)=
+\begin{cases}
+\displaystyle
+(1-f_e)\,
+\frac{\gamma\sqrt{\gamma^2-1}\exp(-\gamma/\Theta)}
+{I_1(\gamma_m,\Theta)}, & 1<\gamma<\gamma_m,\\[1.0ex]
+\displaystyle
+f_e\,
+\frac{\gamma^{-p}\exp(-\gamma/\gamma_{\max})}
+{I_{\rm pl}(\gamma_m,\gamma_{\max},p)}, & \gamma\ge\gamma_m .
+\end{cases}
+\]
+Here
+\[
+I_1(\gamma_m,\Theta)=
+\int_1^{\gamma_m}\gamma\sqrt{\gamma^2-1}\exp(-\gamma/\Theta)\,d\gamma,
+\qquad
+I_{\rm pl}=\gamma_{\max}^{1-p}\Gamma\!\left(1-p,\frac{\gamma_m}{\gamma_{\max}}\right).
+\]
+The temperature \(\Theta\) is not an adjustable parameter.  It is set by the
+continuity condition at \(\gamma_m\),
+\[
+\frac{1-f_e}{I_1}\gamma_m\sqrt{\gamma_m^2-1}\exp(-\gamma_m/\Theta)
+=
+\frac{f_e}{I_{\rm pl}}\gamma_m^{-p}\exp(-\gamma_m/\gamma_{\max}) .
+\]
+Equivalently, the code solves
+\[
+F(\Theta)=\frac{\gamma_m}{\Theta}+\ln I_1-\ln C=0,
+\]
+with
+\[
+\ln C=
+\ln\!\left[\left(\frac{1}{f_e}-1\right)\sqrt{\gamma_m^2-1}\right]
++(1+p)\ln\gamma_m+\ln I_{\rm pl}
++\frac{\gamma_m}{\gamma_{\max}} .
+\]
+The Newton derivative uses
+\[
+I_2(\gamma_m,\Theta)=
+\int_1^{\gamma_m}\gamma^2\sqrt{\gamma^2-1}\exp(-\gamma/\Theta)\,d\gamma,
+\]
+so the relative iteration written in the kernel is
+\[
+\frac{\Theta_{k+1}}{\Theta_k}-1
+=
+\frac{F(\Theta_k)}
+{\gamma_m/\Theta_k-I_2/(\Theta_k I_1)} .
+\]
+The special functions in this branch enter only through
+\(\Gamma(s,x)\), \(K_0(1/\Theta)\), and \(K_1(1/\Theta)\), which are evaluated
+by the local SLATEC wrapper.  After the hybrid source is assembled, the spectrum
+is advanced by the same upper-triangular implicit system given above for
+\texttt{fullhide\_step}; the final output radius is also refreshed from the
+final electron spectrum and the same synchrotron optical-depth grid used for
+the active shells.
+
 The public \texttt{charint\_1d} forward solver advances the same conservative cell averages
 \[
 N_{x,j}(R)=\frac{1}{\Delta x_j}
