@@ -3844,6 +3844,24 @@ The current multi-density reverse-shock path is deliberately narrow: it requires
 
 Observer projection is performed after local luminosities have been assembled.  For a direct top-hat model with a supported medium, \asgard\ uses the direct kernel-backed path.  Other active jet profiles are solved as angular patches through either the Fortran structured backend or the Python patch backend.  The Fortran structured backend currently requires uniform patch sampling and a supported one-dimensional electron solver, \texttt{fullhide\_1d} or \texttt{dg\_1d}; it does not migrate reverse-shock SSC, cross-zone IC, reverse-shock hadronic branches, Bethe-Heitler, \(pp\), hadronic IC, or pair-cascade branches.  The \texttt{dominant\_region\_ioka\_v1} and \texttt{dominant\_region\_ioka\_time\_v1} samplers are restricted to \texttt{python\_patch}.
 
+The \texttt{src.Interpolation} package initializer is only a lazy binding layer
+for these observer-frame projection kernels.  The names
+\texttt{sed\_interpolation}, \texttt{sed\_adaptive\_theta},
+\texttt{sed\_interpolation\_chi}, and \texttt{sed\_chi\_electron} resolve to the
+compiled \texttt{SED\_interpolation} module.  The same module also supplies
+\texttt{sed\_chi\_ring}, \texttt{sed\_chiring\_batchlum}, and
+\texttt{sed\_chiring\_batchlum\_ray}.
+On first access it imports the compiled module, copies the requested symbol into
+the package namespace, and rejects every other name.  This layer therefore
+preserves the projection contract
+\[
+\{L'_{\nu'}(R),\tau_{\nu'}(R),R,\Gamma,t_{\rm obs},\nu_{\rm obs}\}
+\longrightarrow F_{\nu_{\rm obs}}(t_{\rm obs}),
+\]
+but it does not define a new radiation process, optical depth, Doppler factor,
+arrival-time map, or interpolation weight.  Those physical and numerical
+operations belong to the Fortran kernels selected by the exported symbol.
+
 For a shell element with direction cosine \(\mu\) relative to the line of sight, observer time is computed from
 \[
 t_{\rm obs}=(1+z)\left(T-\frac{R\mu}{c}\right).
