@@ -8,7 +8,7 @@ import numpy as np
 
 from src.Electron.electron_radiation import electron_radiation_kernel as electron_radiation_module
 from asgard_core.asgard_config import ExecutionPolicy, RuntimeConfig, SimulationSetup
-from asgard_core.hadronic_processes import photon_density_hz_to_gev, positive_loglog_interp
+from asgard_core.hadronic_cascade import solve_branch
 from asgard_core.asgard_types import (
     BranchState,
     FluxComponents,
@@ -42,7 +42,6 @@ from asgard_core.asgard_setup import build_setup
 from src import Interpolation, Radiation, constants
 
 
-ME_GEV = constants.para_m_e_gev
 PROJKINDS = {"lightcurve", "sed"}
 COUPLING_SEP = "separated"
 COUPLING_JOINT = "joint"
@@ -411,20 +410,24 @@ def _jointfeedback(
         source = source + np.asarray(hadronic_source, dtype=float)
     if bool(config.hadronic.include_pair_production):
         magnetic_field = magfield(dynamics.r_gamma, dynamics.radius, config)
-        pair_lum, pair_seed, tau_pair, pair_density = _pairbranch(
-            dynamics=dynamics,
-            electron=electron,
-            combined_seed_field_hz=photon_field.hadronic_target_seed,
-            seed_frequency_hz=setup.seed_frequency_hz,
-            magnetic_field_g=magnetic_field,
-            config=config,
+        pair_branch = solve_branch(
+            seed_hz=setup.seed_frequency_hz,
+            seed_field=photon_field.hadronic_target_seed,
+            electron_gamma=electron.gam_e,
+            radius_cm=dynamics.radius,
+            gamma_bulk=dynamics.r_gamma,
+            tobs_s=dynamics.r_tobs,
+            bfield_g=magnetic_field,
+            threads=int(config.num_threads),
+            syn_index=int(config.index_syn_integr),
+            substeps=int(config.hadronic.pair_cascade_iterations),
         )
         if hadronic is not None:
-            hadronic.l_had_pair_production = pair_lum
-        photon_field.hadronic_target_seed = np.asarray(photon_field.hadronic_target_seed, dtype=float) + pair_seed
-        photon_field.absorption_syn_seed = np.asarray(photon_field.absorption_syn_seed, dtype=float) + pair_seed
-        _photonsurvive(photon_field, pgsurvival(tau_pair))
-        source = source + _sourcer(np.asarray(electron.gam_e, dtype=float), pair_density, dynamics.radius)
+            hadronic.l_had_pair_production = pair_branch.syn_lum
+        photon_field.hadronic_target_seed = np.asarray(photon_field.hadronic_target_seed, dtype=float) + pair_branch.syn_seed
+        photon_field.absorption_syn_seed = np.asarray(photon_field.absorption_syn_seed, dtype=float) + pair_branch.syn_seed
+        _photonsurvive(photon_field, pgsurvival(pair_branch.tau_pair))
+        source = source + _sourcer(np.asarray(electron.gam_e, dtype=float), pair_branch.density_grid, dynamics.radius)
     return source
 
 
@@ -931,14 +934,21 @@ def _observerstage(
             ssa_transfer=s["hadronic_ssa_transfer"],
         )
     if bool(config.hadronic.include_pair_production):
-        s["pair_lum_total"], s["pair_seed_total"], s["tau_pair"], _pair_density = _pairbranch(
-            dynamics=dynamics,
-            electron=electron,
-            combined_seed_field_hz=s["seed_syn_absorption"] + s["seed_ssc_total"],
-            seed_frequency_hz=setup.seed_frequency_hz,
-            magnetic_field_g=s["magnetic_field_g"],
-            config=config,
+        pair_branch = solve_branch(
+            seed_hz=setup.seed_frequency_hz,
+            seed_field=s["seed_syn_absorption"] + s["seed_ssc_total"],
+            electron_gamma=electron.gam_e,
+            radius_cm=dynamics.radius,
+            gamma_bulk=dynamics.r_gamma,
+            tobs_s=dynamics.r_tobs,
+            bfield_g=s["magnetic_field_g"],
+            threads=int(config.num_threads),
+            syn_index=int(config.index_syn_integr),
+            substeps=int(config.hadronic.pair_cascade_iterations),
         )
+        s["pair_lum_total"] = pair_branch.syn_lum
+        s["pair_seed_total"] = pair_branch.syn_seed
+        s["tau_pair"] = pair_branch.tau_pair
         s["seed_syn_absorption"] = s["seed_syn_absorption"] + s["pair_seed_total"]
     s["tau_extra"] = s["tau_extra"] + s["tau_pair"]
     pair_active = bool(config.hadronic.include_pair_production)
@@ -1102,50 +1112,6 @@ def _reversestage(
             s["cross_ic"] = l_cic_fs_spec + l_cic_rs_spec
             s["seed_ssc_total"] = s["seed_ssc_total"] + seed_cic_fs + seed_cic_rs
     return s
-
-
-def _pairbranch(
-    dynamics: DynamicsSolution,
-    electron: ElectronSolution,
-    combined_seed_field_hz: np.ndarray,
-    seed_frequency_hz: np.ndarray,
-    magnetic_field_g: np.ndarray,
-    config: RuntimeConfig,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    from asgard_core.hadronic_cascade import compute_time_dependent_pair_cascade_sequence
-
-    v_seed = np.asarray(seed_frequency_hz, dtype=float)
-    seed_field = np.asarray(combined_seed_field_hz, dtype=float)
-    gam_e = np.asarray(electron.gam_e, dtype=float)
-    photon_energy_gev, _ = photon_density_hz_to_gev(v_seed, np.ones_like(v_seed))
-    dln_pair = float(np.log(photon_energy_gev[1] / photon_energy_gev[0]))
-    pair_offset = max(0, int(np.ceil(np.log(ME_GEV / photon_energy_gev[0]) / dln_pair)))
-    e_pair_gev = photon_energy_gev[0] * np.exp((pair_offset + np.arange(photon_energy_gev.size, dtype=float)) * dln_pair)
-    gam_pair = e_pair_gev / ME_GEV
-    substeps = max(1, int(config.hadronic.pair_cascade_iterations))
-    cascade = compute_time_dependent_pair_cascade_sequence(
-        photon_energy_gev=photon_energy_gev,
-        primary_photon_density_per_gev=seed_field / constants.para_h_gev,
-        electron_energy_gev=e_pair_gev,
-        frequency_hz=v_seed,
-        radius_cm=dynamics.radius,
-        gamma_bulk=dynamics.r_gamma,
-        observer_time_s=np.asarray(dynamics.r_tobs, dtype=float),
-        b_field_g=magnetic_field_g,
-        num_threads=int(config.num_threads),
-        index_syn_integr=int(config.index_syn_integr),
-        substeps_per_shell=substeps,
-    )
-    pair_density = np.asarray(cascade.pair_density_per_gamma, dtype=float)
-    density_grid = np.zeros((gam_e.size, pair_density.shape[1]), dtype=float)
-    for i_shell in range(pair_density.shape[1]):
-        density_grid[:, i_shell] = positive_loglog_interp(gam_pair, pair_density[:, i_shell], gam_e)
-    return (
-        np.asarray(cascade.pair_syn_luminosity_hz, dtype=float),
-        np.asarray(cascade.pair_syn_seed_per_hz, dtype=float),
-        np.asarray(cascade.tau_pair_path, dtype=float),
-        density_grid,
-    )
 
 
 def _sourcer(gam_e: np.ndarray, density_per_gamma: np.ndarray, radius_cm: np.ndarray) -> np.ndarray:
