@@ -37,6 +37,10 @@ real(8) function rad_interp(v0,v1,y0,y1,v)
     real(8), intent(in) :: v0,v1,y0,y1,v
     real(8) :: slope
 
+    if (v1 <= v0) then
+        error stop "rad_interp requires a strictly increasing frequency interval."
+    end if
+
     if (v <= v0) then
         rad_interp=y0
         return
@@ -46,9 +50,7 @@ real(8) function rad_interp(v0,v1,y0,y1,v)
         return
     end if
 
-    if (v1 <= v0) then
-        rad_interp=0.5d0*(y0+y1)
-    else if (y0 > 0d0 .and. y1 > 0d0) then
+    if (y0 > 0d0 .and. y1 > 0d0) then
         slope=dlog(y1/y0)/dlog(v1/v0)
         rad_interp=y0*(v/v0)**slope
     else

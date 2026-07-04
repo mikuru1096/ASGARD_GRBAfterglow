@@ -2455,6 +2455,30 @@ B'_\chi=\left[32\pi\epsilon_{B,\chi}n(R)m_pc^2
 \qquad
 \kappa_{B,i\chi}=\frac{\gamma_i m_ec^3}{3eB'_\chi}.
 \]
+The shared \texttt{rad\_common} \(\chi\)-batch kernel evaluates the same
+synchrotron state cell by cell.  With
+\[
+\bar\gamma_i=\frac{\gamma_i+\gamma_{i+1}}{2},\quad
+E_{i\chi}=\frac{N_{i\chi}+N_{i+1,\chi}}{2}(\gamma_{i+1}-\gamma_i),\quad
+A_{i\chi}=\bar\gamma_i^2
+\left(\frac{N_{i\chi}}{\gamma_i^2}
+-\frac{N_{i+1,\chi}}{\gamma_{i+1}^2}\right),
+\]
+and \(\nu_{c,i\chi}=4.2\times10^6B'_\chi\bar\gamma_i^2\), it computes
+\[
+L_{\nu,\chi}^{\rm em}=C_{\rm syn}B'_\chi
+\sum_iE_{i\chi}F_{\rm fit}\!\left(\nu/\nu_{c,i\chi}\right),\qquad
+\tau_{\nu,\chi}=
+\frac{C_\tau B'_\chi Q_\chi}{4\pi R^2\nu^2}
+\sum_iA_{i\chi}F_{\rm fit}\!\left(\nu/\nu_{c,i\chi}\right),
+\]
+then stores
+\[
+L_{\nu,\chi}=L_{\nu,\chi}^{\rm em}{\cal T}(\tau_{\nu,\chi}),\qquad
+n_{\nu,\chi}=\frac{L_{\nu,\chi}}{4\pi R^2ch\nu}.
+\]
+Uniform \(B'_\chi\) cells reuse one \(F_{\rm fit}\) table; nonuniform cells walk
+the low, main, and tail windows of the same kernel.
 
 For every radial interval \([R_{j-1},R_j]\), the wrapper first constructs the local photon field that enters Eq.~(\ref{eq:electron-forward-cooling-assembly}).  The proper time along the front is integrated as
 \[
@@ -2778,6 +2802,24 @@ n_\nu^{\rm target}
 \]
 where \(\mathcal{I}_{\rm SSC}=1\) only when forward SSC is enabled for the hadronic target.  In the joint branch, \(p\gamma\), Bethe-Heitler, and \(\gamma\gamma\) photon-survival factors are applied to this target field before the next electron solve.
 
+Shared radiation quadratures are collected in \texttt{rad\_common}.  On a
+strictly increasing frequency interval \(\nu_0<\nu<\nu_1\), the local
+interpolant is
+\[
+Y(\nu)=
+\begin{cases}
+Y_0\left(\nu/\nu_0\right)^{
+\ln(Y_1/Y_0)/\ln(\nu_1/\nu_0)}, & Y_0>0\ {\rm and}\ Y_1>0,\\
+Y_0+(Y_1-Y_0)(\nu-\nu_0)/(\nu_1-\nu_0), & {\rm otherwise}.
+\end{cases}
+\]
+An unordered interval is rejected rather than averaged.  The Simpson helper
+provides weights \(w_i=(1,4,2,\ldots,4,1)\), so a uniform-grid integral is
+\[
+\int_{x_1}^{x_N} f(x)\,dx \simeq
+\frac{\Delta x}{3}\sum_{i=1}^{N}w_i f_i .
+\]
+
 Forward SSC is computed from the same transported electron distribution and local seed photon density.  The implemented kernel is the Jones/Klein--Nishina form,
 \[
 L_\nu^{\rm SSC}
@@ -2850,6 +2892,17 @@ The returned array is
 which is the survival factor for photons emitted throughout the same absorbing
 cell rather than a foreground factor \(e^{-\tau}\)
 \citep{GouldSchreder1967,Svensson1987}.
+The lighter shared \texttt{pair\_tau} primitive used by downstream photon-history
+transport keeps only the head-on invariant \(s=\epsilon_1\epsilon_2\) and
+computes a local path depth
+\[
+\tau_{\gamma\gamma}^{\rm head}(\nu_1)=
+\Delta x
+\sum_j \sigma_{\gamma\gamma}(\epsilon_1\epsilon_{2,j})
+n_{\nu_{2,j}}\Delta\nu_j .
+\]
+It is therefore a cell-propagation opacity, not the angle-resolved shell
+survival calculation above.
 
 The optional \texttt{Cal\_ebl} helper applies extragalactic-background-light
 attenuation as an external propagation factor rather than as a local shell
