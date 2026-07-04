@@ -43,7 +43,7 @@ subroutine forward_cooling_batch(iy,ee,eb,p,db,gm,gc,gmax,rloc,rg,beta,dens,ng,n
 implicit REAL(8)(A-H,O-Z)
 integer, intent(in) :: iy,ng,nnu,nchi,nthr
 real(8), intent(in) :: ee,eb,p,db,gm,gc,rloc,rg,beta,dens
-real(8), intent(inout) :: gmax
+real(8), intent(in) :: gmax
 real(8), intent(in), dimension(ng) :: gam
 real(8), intent(in), dimension(nnu) :: vseed
 real(8), intent(in), dimension(nnu,nchi) :: seedssa
@@ -51,7 +51,6 @@ real(8), intent(in), dimension(ng,nchi) :: aux
 real(8), intent(out), dimension(ng,nchi) :: del
 real(8), dimension(ng) :: comp
 real(8), dimension(ng,nchi) :: dotssa
-real(8) :: gcell
 integer :: ic
 
     if (iy == 0) then
@@ -60,18 +59,17 @@ integer :: ic
         call electron_ssa_loss(db,ng,nnu,nchi,nthr,gam,vseed,seedssa,dotssa)
     end if
     do ic=1,nchi
-       gcell=gmax
-       call forward_cooling_terms(iy,ee,eb,p,db,gm,gc,gcell,rloc,rg,beta,dens,ng,gam,comp,dotssa(:,ic),aux(:,ic),del(:,ic))
+       call forward_cooling_terms(iy,ee,eb,p,db,gm,gc,gmax,rloc,rg,beta,dens,ng,gam,comp,dotssa(:,ic),aux(:,ic),del(:,ic))
     end do
 end subroutine forward_cooling_batch
 
-! 单列冷却率公式：d gamma/dt = (synch*Y - SSA)*gamma。
-! Single-column cooling formula: d gamma/dt = (synch*Y - SSA)*gamma.
+! 单列半径损失系数：d gamma/dR = -del*gamma。
+! Single-column radial loss coefficient: d gamma/dR = -del*gamma.
 subroutine forward_cooling_terms(iy,ee,eb,p,db,gm,gc,gmax,rloc,rg,beta,dens,ng,gam,comp,dotssa,aux,del)
 implicit REAL(8)(A-H,O-Z)
 integer, intent(in) :: iy,ng
 real(8), intent(in) :: ee,eb,p,db,gm,gc,rloc,rg,beta,dens
-real(8), intent(inout) :: gmax
+real(8), intent(in) :: gmax
 real(8), intent(in), dimension(ng) :: gam
 real(8), intent(inout), dimension(ng) :: comp
 real(8), intent(in), dimension(ng) :: dotssa,aux
@@ -89,12 +87,10 @@ real(8), intent(out), dimension(ng) :: del
     case(2)
         qvol=4d0*pi*rloc*rloc*para_c
         comp=1d0+aux/qvol/(4d0*rg*rg*dens*Para_m_p_E)
-        gmax=gmax/sqrt(comp(ng))
         del=(fr*comp-dotssa*ssascale)*gam
     case(3)
         call electron_y_fan(ee,eb,p,db,gm,gc,gmax,ng,gam,comp)
         comp=1d0+comp
-        gmax=gmax/sqrt(comp(ng))
         del=(fr*comp-dotssa*ssascale)*gam
     case default
         error stop 'forward_cooling_terms: index_Y must be 0, 1, 2, or 3.'
@@ -107,7 +103,7 @@ subroutine get_forward_cooling(iy,ee,eb,p,db,gm,gc,gmax,rloc,rg,beta,dens,ng,nnu
 implicit REAL(8)(A-H,O-Z)
 integer, intent(in) :: iy,ng,nnu,nthr
 real(8), intent(in) :: ee,eb,p,db,gm,gc,rloc,rg,beta,dens
-real(8), intent(inout) :: gmax
+real(8), intent(in) :: gmax
 real(8), intent(in), dimension(ng) :: gam
 real(8), intent(in), dimension(nnu) :: vseed,psyn,seed
 real(8), intent(out), dimension(ng) :: del

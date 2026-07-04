@@ -614,12 +614,49 @@ the forward map over lag \(\Delta R\) is
 \]
 The inverse map is used to project upstream DG polynomials onto the arrival element with Gauss--Legendre quadrature and Legendre modal moments.  This characteristic projector is part of the DG transport kernel and is used for conservative remapping and diagnostic characteristic advances; the public \texttt{dg\_1d} forward light-curve path currently advances the shell-local transport operator with the fully implicit block solve described above.
 
-Cooling is assembled from synchrotron, inverse-Compton, self-absorption, and adiabatic terms.  The synchrotron part corresponds to
+Cooling is assembled from synchrotron, inverse-Compton, and self-absorption terms before the transport solver adds adiabatic drift.  The forward cooling kernel stores a positive radial loss coefficient \(D_i(R)\) at each electron grid node,
 \[
-\left.\frac{d\gamma_e}{dR}\right|_{\rm syn}
-=-\frac{\sigma_T B'^2}{6\pi m_ec^2\,\beta\Gamma}\gamma_e^2,
+\frac{d\gamma_i}{dR}=-D_i\gamma_i,
+\qquad
+v_{\log\gamma,i+1/2}
+=\frac{(D_i+D_{i+1})/2+R^{-1}}{\ln 10},
 \]
-with optional Compton factors computed either from the numerical seed photon field or from analytic \(Y\)-parameter closures.  The numeric IC/KN branch integrates the same seed photon grid that is later used by the SSC emissivity.  The Nakar-style branch tabulates an energy-dependent Compton factor from the seed spectrum, while the Fan-style branch uses the analytic closure in \(\epsilon_e,\epsilon_B,p,\gamma_m,\gamma_c,\gamma_{\max}\).  Synchrotron self-absorption enters the electron energy equation as an absorption/heating correction through the same seed geometry used for photon transfer.  Joint hadronic feedback requires the numeric IC/KN cooling path because the secondary source \(Q_{e,{\rm sec},R}\) and the attenuated photon field must be evaluated against the same local \(N_e,n_\gamma\) state; an analytic \(Y\) closure would decouple those two objects.
+so positive \(v_{\log\gamma}\) advects the distribution toward lower \(\gamma_e\).  The synchrotron coefficient follows from
+\[
+\left.\frac{d\gamma_i}{dR}\right|_{\rm syn}
+=-\frac{\sigma_T B'^2}{6\pi m_ec^2\,\beta\Gamma}\gamma_i^2
+\equiv -a_{\rm syn}\gamma_i^2,
+\qquad
+a_{\rm syn}=\frac{\sigma_T B'^2}{6\pi m_ec^2\,\beta\Gamma},
+\]
+where the code constant \(1.35\times10^{-19}/\pi\) is
+\(\sigma_T/(6\pi m_ec^2)\) in cgs units.  The comoving-to-radial conversion for photon-mediated terms is \(dt'/dR=(\beta\Gamma c)^{-1}\).  Let \(A_{{\rm IC},i}\) be the numerical IC/KN coefficient from the seed photon field, \(A_{{\rm SSA},i}\) the synchrotron-self-absorption heating coefficient, and \(Y_i\) an analytic Compton factor.  The assembler implements
+\[
+D_i=
+\begin{cases}
+a_{\rm syn}\gamma_i, & \texttt{index\_Y}=0,\\[0.6ex]
+\left[a_{\rm syn}+
+\dfrac{A_{{\rm IC},i}-A_{{\rm SSA},i}}{\beta\Gamma c}
+\right]\gamma_i, & \texttt{index\_Y}=1,\\[2ex]
+\left[a_{\rm syn}(1+Y_{{\rm N},i})
+-\dfrac{A_{{\rm SSA},i}}{\beta\Gamma c}
+\right]\gamma_i, & \texttt{index\_Y}=2,\\[2ex]
+\left[a_{\rm syn}(1+Y_{{\rm F},i})
+-\dfrac{A_{{\rm SSA},i}}{\beta\Gamma c}
+\right]\gamma_i, & \texttt{index\_Y}=3.
+\end{cases}
+\label{eq:electron-forward-cooling-assembly}
+\]
+The Nakar-style branch computes the seed-luminosity part below the electron-dependent Klein--Nishina threshold,
+\[
+\hat\nu_i=\frac{m_ec^2}{h\gamma_i},\qquad
+Y_{{\rm N},i}=
+\frac{\displaystyle
+\int_{\nu_{\min}}^{\min(\hat\nu_i,\nu_{\max})}
+L_\nu^{\rm syn}\,d\nu}
+{4\pi R^2c\,4\Gamma^2nm_pc^2},
+\]
+using two-point logarithmic Gauss integration in every seed-frequency cell.  The Fan-style branch supplies \(Y_{{\rm F},i}\) from the analytic \(\epsilon_e,\epsilon_B,p,\gamma_m,\gamma_c,\gamma_{\max}\) closure; the piecewise closure itself is part of the \(Y\)-kernel, whereas this assembler only multiplies synchrotron cooling by \(1+Y_{{\rm F},i}\).  Self-absorption appears with the opposite sign because absorbed synchrotron photons heat the same electron grid.  Joint hadronic feedback requires the numeric IC/KN cooling path because the secondary source \(Q_{e,{\rm sec},R}\) and the attenuated photon field must be evaluated against the same local \(N_e,n_\gamma\) state; an analytic \(Y\) closure would decouple those two objects.
 
 The grid-level IC cooling kernel first moves the seed photon field to logarithmic frequency-cell midpoints,
 \[
@@ -654,7 +691,7 @@ A_{\rm IC}(\gamma_i)=
 \int d\nu_0\,\frac{n_{\nu_0}}{\nu_0}
 \int d\nu\,\nu\,G_{\rm loss}(\nu,\nu_0,\gamma_i),
 \]
-where \(G_{\rm loss}\) denotes the branch-selected kernel above.  The one-dimensional cooling operator adds \((A_{\rm IC}-\dot{\gamma}_{\rm SSA})/(\beta\Gamma c)\) to the radiative-loss coefficient that multiplies \(\gamma_e^2\).  The coupled electron--photon budget path evaluates the same kernel with Simpson weights on the log-spaced seed and scattered-frequency grids,
+where \(G_{\rm loss}\) denotes the branch-selected kernel above.  This is the \(A_{{\rm IC},i}\) coefficient in Eq.~(\ref{eq:electron-forward-cooling-assembly}).  The coupled electron--photon budget path evaluates the same kernel with Simpson weights on the log-spaced seed and scattered-frequency grids,
 \[
 A_{\rm IC}^{\rm budget}(\gamma_i)=
 \frac{3ch\sigma_T}{4m_ec^2\gamma_i^3}
