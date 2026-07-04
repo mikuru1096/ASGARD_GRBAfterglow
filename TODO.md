@@ -9,8 +9,8 @@
 - 不新增 fallback、clamp、smoothing、heuristic post-processing 或非边界输入验证。
 - public f2py ABI、模块名、入口名、参数顺序和数组 shape 默认不变；若确需收窄 public 面，必须先确认 Python/外部调用。
 - 物理公式和数值离散行为保持不变；重构只移动、内联、重排或重命名低价值抽象。
-- Fortran 重要改动后必须运行受影响 `build_extensions.py --force`、干净 `/tmp` source closure 的 `-Wline-truncation` 检查和最小相关 smoke。
-- 不新增测试文件；通过已有 smoke、真实构建和物理连续性检查暴露问题。
+- Fortran 重要改动后必须运行受影响 `build_extensions.py --force`、干净 `/tmp` source closure 的 `-Wline-truncation` 检查和最小相关直接运行或正式 benchmark 入口。
+- 不新增测试文件；通过真实构建、直接相关运行和物理连续性检查暴露问题。
 
 ## 当前活动任务
 

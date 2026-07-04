@@ -144,7 +144,7 @@ def _pilot_gamma_theta_time(
 ) -> np.ndarray:
     from asgard_core.api_model import _build_fit_config_for_patch
     from asgard_core.asgard_runtime import solve_dynamics
-    from asgard_core.asgard_setup import build_simulation_setup
+    from asgard_core.asgard_setup import build_setup
     from asgard_core.asgard_state import make_query_cfg
 
     sample_count = int(model.setups.patch_sampling_pilot_theta)
@@ -162,7 +162,7 @@ def _pilot_gamma_theta_time(
             theta_center=float(theta_center),
         )
         query = make_query_cfg(config, observer_time_s)
-        dynamics = solve_dynamics(build_simulation_setup(query).boundary, query)
+        dynamics = solve_dynamics(build_setup(query).boundary, query)
         pilot_gamma.append(np.interp(np.log(observer_time_s), np.log(dynamics.r_tobs), dynamics.r_gamma))
     pilot_gamma = np.asarray(pilot_gamma, dtype=float)
     gamma_time = np.empty((theta.size, observer_time_s.size), dtype=float)

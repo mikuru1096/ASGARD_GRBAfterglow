@@ -98,9 +98,9 @@ GPT_Academic 源码会直接调用 `pdflatex`，按需调用 `xelatex`，并在�
 
 修复后，用 `gpt_log/arxiv_cache/0711.1980/workfolder/merge_result.pkl` 重新合成的 `codex_remerge_after_latex_fix.tex` 可由 `xelatex` 编译出 PDF。
 
-GPT_Academic 的 arXiv LaTeX 翻译入口支持新旧两类 arXiv ID。`crazy_functions/Latex_Function.py` 会把 `0711.1980`、`0711.1980v2`、`astro-ph/9808007`、`astro-ph/9808007v1`、`https://arxiv.org/abs/...` 和 `https://arxiv.org/pdf/...` 规范化为 `/abs/` URL。旧格式 ID 的缓存目录仍保留 `astro-ph/9808007` 层级；下载源码 tar 文件名使用 `astro-ph_9808007.tar`，避免把 ID 中的 `/` 误当成本地文件名目录。远端 smoke 已验证 `astro-ph/9808007` 可下载源码并解包出 `.tex` 文件。
+GPT_Academic 的 arXiv LaTeX 翻译入口支持新旧两类 arXiv ID。`crazy_functions/Latex_Function.py` 会把 `0711.1980`、`0711.1980v2`、`astro-ph/9808007`、`astro-ph/9808007v1`、`https://arxiv.org/abs/...` 和 `https://arxiv.org/pdf/...` 规范化为 `/abs/` URL。旧格式 ID 的缓存目录仍保留 `astro-ph/9808007` 层级；下载源码 tar 文件名使用 `astro-ph_9808007.tar`，避免把 ID 中的 `/` 误当成本地文件名目录。远端直接运行已验证 `astro-ph/9808007` 可下载源码并解包出 `.tex` 文件。
 
-旧 arXiv 源码可能仍使用 LaTeX2.09 的 `\documentstyle`，例如 `astro-ph/9808007` 的 `SA_astro-ph2.tex`。`crazy_functions/latex_fns/latex_toolbox.py` 的主文件识别同时接受 `\documentclass` 和 `\documentstyle`；合并源码时会把 `\documentstyle[12pt,graphicx]{article}` 转成 `\documentclass[12pt]{article}` 加 `\usepackage{graphicx}`，再沿用现有 `ctex` 注入和编译链。远端 smoke 已验证 `astro-ph/9808007` 可定位主文件并生成包含 `documentclass`、`graphicx` 和 `ctex` 的 merged TeX。
+旧 arXiv 源码可能仍使用 LaTeX2.09 的 `\documentstyle`，例如 `astro-ph/9808007` 的 `SA_astro-ph2.tex`。`crazy_functions/latex_fns/latex_toolbox.py` 的主文件识别同时接受 `\documentclass` 和 `\documentstyle`；合并源码时会把 `\documentstyle[12pt,graphicx]{article}` 转成 `\documentclass[12pt]{article}` 加 `\usepackage{graphicx}`，再沿用现有 `ctex` 注入和编译链。远端直接运行已验证 `astro-ph/9808007` 可定位主文件并生成包含 `documentclass`、`graphicx` 和 `ctex` 的 merged TeX。
 
 GPT_Academic 提供已缓存 arXiv 翻译浏览页：`https://hetools.cn/gpt-academic/arxiv-cache`。该页只允许已登录用户访问，扫描共享 `gpt_log/arxiv_cache`，仅展示已有中文译文 PDF 的论文；PDF 优先使用 `translation/translate_zh.pdf`，否则使用 `workfolder/merge_translate_zh.pdf`。标题和摘要只从本地 `workfolder/merge.tex` 或 `extract/**/*.tex` 提取，不主动联网补全；TeX 数学片段保持原样并由 MathJax 渲染，避免把 `$\Omega_a$` 清理成 `$_a$` 这类残缺形式；下载链接统一使用 `/gpt-academic/dl/<token>`，不得输出 `/file=/home/...` 明文路径。
 

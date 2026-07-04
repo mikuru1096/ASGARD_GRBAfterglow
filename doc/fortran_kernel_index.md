@@ -36,7 +36,7 @@
 | `hadronic_reverse_1d` | `src/Hadronic` | `HADRONIC_1D_SOURCES + hadronic_reverse_1d` | `reverse_hadronic_1d` | RS light proton transport + proton synchrotron。 |
 | `structured_jet_1d` | `src/Structured` | `STRUCTURED_JET_1D_SOURCES + structured_jet_1d` | `jet_flux_1d` | 结构化喷流 Fortran 聚合入口。 |
 
-Fortran 改动后的最低门槛见 `doc/validation_and_benchmarks.md`。文档-only 改动不需要重建扩展；若修改本页对应源码，必须跑受影响 module 的 `build_extensions.py --force`、独立 `-Wline-truncation` 源闭包检查和最小 smoke。
+Fortran 改动后的最低门槛见 `doc/validation_and_benchmarks.md`。文档-only 改动不需要重建扩展；若修改本页对应源码，必须跑受影响 module 的 `build_extensions.py --force`、独立 `-Wline-truncation` 源闭包检查和最小相关直接运行。
 
 ## 目录级算法地图
 
@@ -1122,7 +1122,7 @@ SSC 谱、KN/Jones kernel、均匀/非均匀电子谱积分。
 ## 修改时的最短自检
 
 - 只改网页文档：`tools/check_text_encoding.py`、`git diff --check`、`mkdocs build --strict --site-dir /tmp/asgard_mkdocs_site`。
-- 改 dynamics：重建 `Dynamics_forward` / `Dynamics_reverse`，并跑 RS smoke 或受影响 lightcurve smoke。
+- 改 dynamics：重建 `Dynamics_forward` / `Dynamics_reverse`，并跑 RS 或受影响 lightcurve 的直接相关运行。
 - 改 electron：重建对应 electron module；显式从 `/tmp` 跑 `-Wline-truncation` 源闭包；看电子谱、`nu_a`、seed 和光变是否平滑。
 - 改 hadronic：重建 `hadronic_forward_1d` 或 `hadronic_reverse_1d`；检查 formal grid contract、proton/secondary/photon survival 预算。
 - 改 interpolation：重建 `SED_interpolation` 或 `SED_interpolation_structured`；比较 lightcurve/SED/chi projection 是否只改变预期投影层。

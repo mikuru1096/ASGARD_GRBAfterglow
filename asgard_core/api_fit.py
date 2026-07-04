@@ -14,7 +14,7 @@ from asgard_core.asgard_postprocess import (
     combine_flux,
     light_chi,
 )
-from asgard_core.asgard_setup import build_simulation_setup
+from asgard_core.asgard_setup import build_setup
 from asgard_core.asgard_state import project_flux_grid, solve_state_from_setup
 from .api_model import (
     Model,
@@ -294,7 +294,7 @@ def compile_problem(
 ):
     if isinstance(data_or_config, RuntimeConfig) and model_or_config is None:
         num_xrt, requested_frequencies_hz = band_freqs()
-        setup = build_simulation_setup(data_or_config)
+        setup = build_setup(data_or_config)
         return FitProblem(
             observer_time_s=np.asarray(setup.observer_time_s, dtype=float),
             requested_frequencies_hz=np.asarray(requested_frequencies_hz, dtype=float),
@@ -483,7 +483,7 @@ def _eval_cfg(
     *,
     timings: dict[str, float] | None = None,
 ) -> float:
-    setup = build_simulation_setup(config)
+    setup = build_setup(config)
     setup.observer_time_s = np.array(problem.observer_time_s, dtype=float, copy=True)
     state = solve_state_from_setup(
         config,

@@ -38,7 +38,7 @@ from asgard_core.asgard_runtime import (
     solve_hadronic,
     solve_rsemission,
 )
-from asgard_core.asgard_setup import build_simulation_setup
+from asgard_core.asgard_setup import build_setup
 from src import Interpolation, Radiation, constants
 
 
@@ -171,7 +171,7 @@ def make_query_setup(
     observer_time_s: np.ndarray,
     requested_frequencies_hz: np.ndarray | None = None,
 ):
-    setup = build_simulation_setup(make_query_cfg(config, observer_time_s), requested_frequencies_hz)
+    setup = build_setup(make_query_cfg(config, observer_time_s), requested_frequencies_hz)
     setup.observer_time_s = np.asarray(observer_time_s, dtype=float)
     return setup
 

@@ -5,7 +5,7 @@
 - 禁止加数值保护。
 - 物理量随时间演化若不连续不平滑，优先怀疑数值或物理 bug。
 - Fortran 代码保持 idiomatic Fortran 风格。
-- Fortran 重要改动后必须跑：受影响的 `build_extensions.py --force`、`-Wline-truncation` 检查、最小相关 smoke test。
+- Fortran 重要改动后必须跑：受影响的 `build_extensions.py --force`、`-Wline-truncation` 检查、最小相关直接运行或正式 benchmark 入口。
 - 不要提交 `.buildcache/`、临时 debug 脚本、失败占位图。
 - 文本源文件统一 UTF-8 无 BOM + LF；跨 Windows/WSL 操作前运行 `rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tools/check_text_encoding.py'`。禁止用 PowerShell 重定向或未显式 UTF-8 的 `Set-Content` 写源码/文档；Python 文本 IO 必须显式 `encoding="utf-8"`；Fortran/gfortran 构建通过 `LANG=C.UTF-8 LC_ALL=C.UTF-8 PYTHONUTF8=1 PYTHONIOENCODING=utf-8` 固定运行环境，不使用对 Fortran 前端无效的 C/C++ charset flags。
 

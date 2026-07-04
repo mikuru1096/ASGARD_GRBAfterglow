@@ -26,7 +26,6 @@ from tests.public_api_builders import hadronic, numerics, observer_grid, radiati
 OUTPUT_DIR = DOC_ROOT / "runtime_benchmark"
 
 GRID_MODES = {
-    "smoke": {"num_r": 20, "num_theta": 20, "num_tobs": 12, "num_gam_e": 31, "num_nu": 31, "num_chi": 4, "num_query_t": 10, "num_query_nu": 12},
     "standard": {"num_r": 80, "num_theta": 80, "num_tobs": 48, "num_gam_e": 81, "num_nu": 81, "num_chi": 8, "num_query_t": 32, "num_query_nu": 32},
 }
 

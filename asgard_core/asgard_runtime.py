@@ -42,6 +42,7 @@ from asgard_core.asgard_physics_utils import (
     magfield,
     reverse_mass,
 )
+from asgard_core.asgard_setup import R0_INDEX
 from src import Dynamics, constants
 
 
@@ -1404,7 +1405,7 @@ def _rselectrons(
         boundary[20],
         boundary[21],
         boundary[22],
-        boundary[-1],
+        boundary[R0_INDEX],
         dynamics.reverse_shock.t_cross,
         dynamics.reverse_shock.r_cross,
         dynamics.reverse_shock.u3_cross_erg,

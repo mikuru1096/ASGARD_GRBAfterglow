@@ -4,13 +4,13 @@
 
 ## 1. 边界数组
 
-现有公共解包器固定 `Boundary(27)=R_0`。因此扩展字段只能追加在 `R_0` 之后，不能占用第 27 位：
+现有公共解包器固定 `Boundary(27)=R_0`，density jump/profile 占用 `Boundary(28:245)`。因此 2D transport 扩展字段追加在 density profile 数组之后，不能占用第 27 位或 density profile 槽位：
 
-- `Boundary(28)`：`transport_model_selector`，`0=legacy`，`1=pwn_cr_v1`。
-- `Boundary(29)`：`stochastic_accel_norm`，无量纲动量扩散强度，默认 `0`。
-- `Boundary(30)`：`escape_mode_selector`，`0=closed`，`1=free_outer`。
+- `Boundary(246)`：`transport_model_selector`，`0=legacy`，`1=pwn_cr_v1`。
+- `Boundary(247)`：`stochastic_accel_norm`，无量纲动量扩散强度，默认 `0`。
+- `Boundary(248)`：`escape_mode_selector`，`0=closed`，`1=free_outer`。
 
-这个编号故意不同于早期草稿，因为覆盖 `Boundary(27)` 会破坏外部密度半径尺度。
+这个编号保留 `Boundary(27)` 和 density jump/profile 槽位不变，避免破坏外部密度半径尺度或密度跳变合同。
 
 ## 2. 输运方程基础
 

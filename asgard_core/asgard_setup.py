@@ -11,13 +11,16 @@ from asgard_core.asgard_physics_utils import densityjumps, densityprofile
 from src import constants
 
 
+R0_INDEX = 26
+
+
 @cache
-def _luminosity_distance_cm(redshift: float) -> float:
+def _lumdist(redshift: float) -> float:
     cosmo = FlatLambdaCDM(H0=67.8, Om0=0.308)
     return float(cosmo.luminosity_distance(redshift).to(units.cm).value)
 
 
-def build_simulation_setup(
+def build_setup(
     config: RuntimeConfig,
     requested_frequencies_hz: np.ndarray | None = None,
 ) -> SimulationSetup:
@@ -32,18 +35,18 @@ def build_simulation_setup(
         if int(config.projection_adaptive_max_depth) < 0:
             raise ValueError("projection_adaptive_max_depth must be non-negative for sed_adaptive_theta.")
     if config.luminosity_distance_cm_override is None:
-        luminosity_distance_cm = _luminosity_distance_cm(float(config.z))
+        luminosity_distance_cm = _lumdist(float(config.z))
     else:
         luminosity_distance_cm = config.luminosity_distance_cm_override
     return SimulationSetup(
         luminosity_distance_cm=luminosity_distance_cm,
         boundary=build_boundary(config, luminosity_distance_cm),
-        seed_frequency_hz=build_seed_frequency_grid(config, requested_frequencies_hz),
+        seed_frequency_hz=seedgrid(config, requested_frequencies_hz),
         observer_time_s=np.logspace(config.t_obs_min_log10, config.t_obs_max_log10, config.num_tobs),
     )
 
 
-def build_seed_frequency_grid(config: RuntimeConfig, requested_frequencies_hz: np.ndarray | None = None) -> np.ndarray:
+def seedgrid(config: RuntimeConfig, requested_frequencies_hz: np.ndarray | None = None) -> np.ndarray:
     seed_min_hz = 1.0e-8 * constants.para_ev2hz
     seed_max_hz = 1.0e4 * constants.para_tev2hz
     if requested_frequencies_hz is not None:
@@ -135,6 +138,5 @@ def build_boundary(config: RuntimeConfig, luminosity_distance_cm: float) -> np.n
     transport_selector = 1.0 if transport_model == "pwn_cr_v1" else 0.0
     escape_selector = 1.0 if escape_mode == "free_outer" else 0.0
     stochastic_accel_norm = float(config.fullhide2d_stochastic_accel_norm)
-    if transport_selector != 0.0 or stochastic_accel_norm != 0.0 or escape_selector != 0.0:
-        boundary.extend([transport_selector, stochastic_accel_norm, escape_selector])
+    boundary.extend([transport_selector, stochastic_accel_norm, escape_selector])
     return np.array(boundary, dtype=float)
