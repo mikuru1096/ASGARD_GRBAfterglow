@@ -157,15 +157,24 @@ def _adaptive_exposure_average(
     exposures_s: np.ndarray,
     num_subsamples: int,
 ) -> FluxResult:
+    if np.any(~np.isfinite(times_s)) or np.any(times_s <= 0.0):
+        raise ValueError("times_s must contain finite positive values.")
+    if np.any(~np.isfinite(frequencies_hz)) or np.any(frequencies_hz <= 0.0):
+        raise ValueError("frequencies_hz must contain finite positive values.")
+    if np.any(~np.isfinite(exposures_s)) or np.any(exposures_s < 0.0):
+        raise ValueError("exposures_s must contain finite non-negative values.")
+    if np.any(times_s - 0.5 * exposures_s <= 0.0):
+        raise ValueError("exposure windows must stay at positive observer times.")
+
     pair_cache: dict[tuple[float, float], tuple[float, float, float, float, float, float | None]] = {}
     exposure_nodes: list[np.ndarray] = []
     exposure_weights: list[np.ndarray] = []
     initial_pairs: list[tuple[float, float]] = []
 
     for time_s, freq_hz, exposure_s in zip(times_s, frequencies_hz, exposures_s):
-        t_start = max(float(time_s) - 0.5 * float(exposure_s), 1.0e-30)
+        t_start = float(time_s) - 0.5 * float(exposure_s)
         t_stop = float(time_s) + 0.5 * float(exposure_s)
-        if np.isclose(t_start, t_stop):
+        if float(exposure_s) == 0.0:
             nodes = np.array([float(time_s)], dtype=float)
             weights = np.array([1.0], dtype=float)
         else:
