@@ -441,9 +441,12 @@ and resolves each entry on demand from the compiled f2py module of the same phys
 
 \section{Electron Transport and Synchrotron Emission} \label{sec:electron}
 
-The electron calculation evolves the shock-accelerated distribution in radius before any observer-time projection is applied.  The solver families are the implicit \texttt{fullhide} solvers (\texttt{fullhide\_1d}, \texttt{fullhide\_1d\_hz}, and \texttt{fullhide\_2d}), the characteristic-integration solvers (\texttt{charint\_1d} and \texttt{charint\_2d}), the one-dimensional nodal discontinuous-Galerkin solver (\texttt{dg\_1d}), and one-dimensional transport alternatives (\texttt{slc1\_1d}, \texttt{t2g1\_1d}, and \texttt{weno5\_1d}).  The default solver is \texttt{fullhide\_1d}.  One-dimensional solvers return \(N_e(\gamma_e,R)\), synchrotron luminosity, seed synchrotron photon density, and spectral-break diagnostics.  Two-dimensional solvers additionally return \(\chi\)-resolved electron, synchrotron, seed, optical-depth, radius, bulk-Lorentz-factor, and volume-weight arrays.  The \(\chi\)-resolved \eats\ projection is restricted to the supported two-dimensional projection path.  The DG, finite-volume, and WENO options are numerical representations of the same electron equation rather than different physical electron models \citep{LeVeque2002,JiangShu1996,HesthavenWarburton2008}.
+The electron calculation evolves the shock-accelerated distribution in radius before any observer-time projection is applied.  The available solvers are implicit \texttt{fullhide} kernels, characteristic-integration kernels, a one-dimensional nodal discontinuous-Galerkin kernel, and one-dimensional finite-volume or WENO transport kernels.  The default solver is \texttt{fullhide\_1d}.  These choices are numerical representations of the same electron transport problem rather than different physical electron models \citep{LeVeque2002,JiangShu1996,HesthavenWarburton2008}.
 
-The package-level electron namespace only resolves ABI symbols for compiled kernels.  It defines a finite map \(\mathcal{M}_{e}\) from the aliases \texttt{fs\_charint\_1d}, \texttt{fs\_dg\_1d}, \texttt{fs\_fullhide\_1d}, \texttt{fs\_fullhide\_hz}, \texttt{fs\_transport\_2d}, \texttt{fs\_slc1\_1d}, \texttt{fs\_t2g1\_1d}, \texttt{fs\_weno5\_1d}, and \texttt{electron\_reverse\_kernel} to their compiled modules.  The mapping is one-to-one with the corresponding \texttt{electron\_forward\_*} module names except for \texttt{fs\_fullhide\_hz}, which resolves to \texttt{electron\_forward\_fullhide\_1d\_hybrid}, and \texttt{fs\_transport\_2d}, which resolves to \texttt{electron\_forward\_transport\_2d}.
+The one-dimensional solvers return \(N_e(\gamma,R)\), synchrotron luminosity, seed synchrotron photon density, and spectral-break diagnostics, where \(\gamma\) denotes the electron Lorentz factor.  The two-dimensional transport path additionally returns \(\chi\)-resolved electron, synchrotron, seed, optical-depth, radius, bulk-Lorentz-factor, and volume-weight arrays.  The \(\chi\)-resolved \eats\ projection is restricted to this supported two-dimensional projection path.
+
+The package-level electron namespace only resolves ABI symbols for compiled kernels.  It defines a finite map \(\mathcal{M}_{e}\) from the aliases \texttt{fs\_charint\_1d}, \texttt{fs\_dg\_1d}, \texttt{fs\_fullhide\_1d}, \texttt{fs\_fullhide\_hz}, \texttt{fs\_transport\_2d}, \texttt{fs\_slc1\_1d}, \texttt{fs\_t2g1\_1d}, \texttt{fs\_weno5\_1d}, and \texttt{electron\_reverse\_kernel} to their compiled modules.  The mapping is one-to-one with the corresponding \texttt{electron\_forward\_*} module names except that \texttt{fs\_fullhide\_hz} resolves to \texttt{electron\_forward\_fullhide\_1d\_hybrid}, and \texttt{fs\_transport\_2d} resolves to \texttt{electron\_forward\_transport\_2d}.
+
 For a requested public symbol \(a\), the resolver performs
 \[
 a\in{\rm dom}\,\mathcal{M}_e:\quad
@@ -451,37 +454,37 @@ v_a={\rm getattr}\left[
 {\rm import}\left(\texttt{src.Electron.}\mathcal{M}_e(a)\right),a\right],
 \qquad {\rm globals}(a)\leftarrow v_a ,
 \]
-and otherwise raises an attribute error.  This cache changes only symbol lookup.  Radiation helpers such as \texttt{electron\_radiation}, the coupled \texttt{fullhide\_1d} pass, and solver-selection logic in the runtime are imported explicitly by their callers, so the package namespace contributes no additional injection, cooling, emissivity, or transport equation.  The historical \texttt{fullhide\_2d\_pic} runtime name is not part of this package-level public map and has no current tracked source or build definition.
+and otherwise raises an attribute error.  This cache changes only symbol lookup.  Radiation helpers such as \texttt{electron\_radiation}, the coupled \texttt{fullhide\_1d} pass, and solver-selection logic in the runtime are imported explicitly by their callers.  The package namespace therefore contributes no injection, cooling, emissivity, or transport equation.  The historical \texttt{fullhide\_2d\_pic} runtime name is not part of this package-level public map and has no current tracked source or build definition.
 
 The common equation is written in radius form as
 \[
 \frac{\partial N_e}{\partial R}
-+\frac{\partial}{\partial\gamma_e}
-\left(\dot{\gamma}_{e,R}N_e\right)
-=Q_{e,R}+Q_{e,{\rm sec},R},
++\frac{\partial}{\partial\gamma}
+\left(g_RN_e\right)
+=Q_e+Q_e^{\rm sec},
 \]
-where \(Q_{e,{\rm sec},R}=0\) in separated forward-shock calculations and is supplied by the joint hadronic-feedback branch when Bethe-Heitler, \(pp\), or \(\gamma\gamma\) secondaries are fed back into the electron equation.  For the default implicit solver the transported variable is \(N_x=\gamma_e\ln 10\,N_e\) on \(x=\log_{10}\gamma_e\).  The shell update is an implicit upwind solve,
+where \(g_R=d\gamma/dR\).  The secondary source \(Q_e^{\rm sec}\) is zero in separated forward-shock calculations and is supplied by the joint hadronic-feedback branch when Bethe-Heitler, \(pp\), or \(\gamma\gamma\) secondaries are fed back into the electron equation.  For the default implicit solver, the transported variable is \(N_x=\gamma\ln 10\,N_e\) on \(x=\log_{10}\gamma\).  In the current \texttt{fullhide\_1d} kernel this log-\(\gamma\) density is carried on a log-four-velocity transport coordinate to resolve the trans-relativistic low-energy edge.  The shell update is an implicit upwind solve,
 \[
-\left(\mathbf{I}-\mathbf{A}_i\right)\mathbf{N}_{x,i+1}
-=\mathbf{N}_{x,i}+\Delta R_i\,\mathbf{Q}_{x,i},
+\left(\mathbf{I}-\mathbf{A}_i\right)\mathbf{N}_{i+1}
+=\mathbf{N}_{i}+\Delta R_i\,\mathbf{Q}_{i},
 \]
-where the upper-bidiagonal matrix \(\mathbf{A}_i\) is assembled from the face drift coefficients \(\Delta R_i\,\dot{x}_{R,j+1/2}/\Delta x\) and solved by a high-to-low-energy backward sweep.  The source term is integrated over log-\(\gamma_e\) cell edges, so the update evolves cell averages rather than only point values.
+where the upper-bidiagonal matrix \(\mathbf{A}_i\) is assembled from face drift coefficients and solved by a high-to-low-energy backward sweep.  The source term is integrated over cell edges, so the update evolves cell averages rather than only point values.
 
-The shared electron common layer unpacks the public boundary array, installs the active density-profile state, and defines the solver-independent initialization formulas.  For the built-in uniform and \(k=2\) wind media, the initial local density used by the electron kernels is the same density law as the dynamics layer.  With \(A_w=3\times10^{35}A_\star\), wind floor radius \(R_f=(4A_w/n_{\rm ISM})^{1/2}\), and optional wind cap radius \(R_0\), the local density at the starting radius is
+The shared electron common layer unpacks the public boundary array, installs the active density-profile state, and defines the solver-independent initialization formulas.  For the built-in uniform and \(k=2\) wind media, the initial local density used by the electron kernels is the same density law as the dynamics layer.  With \(A_{\rm w}=3\times10^{35}A_\ast\), wind floor radius \(R_f=(4A_{\rm w}/n_{\rm ISM})^{1/2}\), and optional wind cap radius \(R_0\), the local density at the starting radius is
 \[
 n(R)=
 \begin{cases}
-n_{\rm ISM}, & A_\star\le0,\\
-A_w/R_0^2, & A_\star>0,\ R_0>0,\ R<R_0,\\
-n_{\rm ISM}, & A_\star>0,\ A_w/R^2\le n_{\rm ISM}/4,\\
-A_w/R^2, & {\rm otherwise}.
+n_{\rm ISM}, & A_\ast\le0,\\
+A_{\rm w}/R_0^2, & A_\ast>0,\ R_0>0,\ R<R_0,\\
+n_{\rm ISM}, & A_\ast>0,\ A_{\rm w}/R^2\le n_{\rm ISM}/4,\\
+A_{\rm w}/R^2, & {\rm otherwise}.
 \end{cases}
 \]
 The corresponding initial swept electron count is the volume integral of this same piecewise profile.  Thus \(N_{\rm init}=4\pi R_{\rm ini}^3 n_{\rm ISM}/3\) for the uniform branch.  For the capped wind branch,
 \[
 N_{\rm init}=
-\frac{4\pi}{3}\frac{A_w}{R_0^2}\min(R_{\rm ini},R_0)^3
-+4\pi A_w\,[\min(R_{\rm ini},R_f)-R_0]_+
+\frac{4\pi}{3}\frac{A_{\rm w}}{R_0^2}\min(R_{\rm ini},R_0)^3
++4\pi A_{\rm w}\,[\min(R_{\rm ini},R_f)-R_0]_+
 +\frac{4\pi}{3}n_{\rm ISM}
 \left[R_{\rm ini}^3-\max(R_0,R_f)^3\right]_+ ,
 \]
@@ -530,10 +533,10 @@ A single \(p>2\) formula therefore does not represent the implemented injection 
 \]
 and the injection-profile module supplies the same physical spectrum to all electron solvers in the coordinate measure requested by the caller.  The high-energy cutoff is
 \[
-\mathcal{C}_{\max}(\gamma_e)=
+\mathcal{C}_{\max}(\gamma)=
 \begin{cases}
-1, & \gamma_e\le\gamma_{\max},\\
-\exp(1-\gamma_e/\gamma_{\max}), & \gamma_e>\gamma_{\max}.
+1, & \gamma\le\gamma_{\max},\\
+\exp(1-\gamma/\gamma_{\max}), & \gamma>\gamma_{\max}.
 \end{cases}
 \]
 For any power-law segment \(dN/d\gamma=A\gamma^{-s}\mathcal{C}_{\max}\),
