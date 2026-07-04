@@ -1430,6 +1430,35 @@ Thus \texttt{dbesi0} supplies the unscaled \(I_0\) needed by the small-argument
 \(K_0\) branch, while the large-argument approximation itself remains localized
 in \texttt{dbsi0e}.  This is a special-function support layer for the thermal
 integrals, not an additional electron population.
+The companion order-one routine, \texttt{dbesi1}, evaluates
+\[
+I_1(x)=\frac{1}{\pi}\int_0^\pi e^{x\cos\phi}\cos\phi\,d\phi
+=\sum_{m=0}^{\infty}\frac{(x/2)^{2m+1}}{m!(m+1)!}.
+\]
+The function is odd, so the code again forms \(y=|x|\) but retains the sign by
+multiplying the small-argument expansion by \(x\), not by \(y\).  For \(y\le3\),
+with the same Chebyshev coordinate \(z=y^2/4.5-1\), the evaluated expression is
+\[
+I_1(x)=x\left[0.875+\frac{d_1}{2}
++\sum_{j=2}^{N}d_jT_{j-1}(z)\right],
+\]
+where \(d_j\) are the stored \texttt{BI1CS} coefficients.  The separate
+underflow boundary \(y\le2\,\texttt{d1mach}(1)\) reports that the result is below
+the representable range, while for
+\[
+2\,\texttt{d1mach}(1)<y\le \sqrt{4.5\,\texttt{d1mach}(3)}
+\]
+the Taylor leading term \(I_1(x)=x/2+O(x^3)\) is the retained value.  For
+\(y>3\), \texttt{dbesi1} uses the same scaled reconstruction as the order-zero
+routine,
+\[
+I_1(x)=e^y\,\texttt{dbsi1e}(x),
+\]
+after checking \(y\le\ln(\texttt{d1mach}(2))\).  The sign is then inherited from
+\texttt{dbsi1e}, which applies the odd parity after its large-\(y\) scaled
+Chebyshev approximation.  This branch supplies the unscaled \(I_1\) term used in
+the small-argument \(K_1\) expression; it does not alter the thermal moment
+definitions.
 The Bessel calls enter the thermal moments before the finite upper boundary is
 subtracted.  With \(\gamma=\cosh u\) and
 \(\sqrt{\gamma^2-1}\,d\gamma=\sinh^2u\,du\),
