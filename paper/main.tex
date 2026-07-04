@@ -594,6 +594,154 @@ For adaptive one-dimensional electron substeps, the shared error metric is
 \]
 where \(N^{(1)}\) is the one-full-step trial and \(N^{(2\times1/2)}\) is the two-half-step trial.
 
+The public \texttt{charint\_1d} forward solver advances the same conservative cell averages
+\[
+N_{x,j}(R)=\frac{1}{\Delta x_j}
+\int_{x_{j-1/2}}^{x_{j+1/2}}\frac{dN_e}{dx}\,dx,
+\qquad x=\log_{10}\gamma_e,
+\]
+by direct characteristic integration.  For the output shell \(R_{i-1}\rightarrow R_i\), the solver uses
+\[
+R_{\rm loc}=R_{i-1},\qquad
+\Gamma_{\rm sh}=\frac{\Gamma_i+\Gamma_{i-1}}{2},\qquad
+n_{\rm ext}=n(R_{\rm loc}),
+\]
+and constructs
+\[
+B'=0.39\left[\epsilon_Bn_{\rm ext}\Gamma_{\rm sh}(\Gamma_{\rm sh}-1)\right]^{1/2},
+\qquad
+\gamma_{\max}=\frac{3m_ec^2}{(8B'e^3)^{1/2}},
+\]
+\[
+\gamma_c=\frac{7.7\times10^8(1+z)}
+{\Gamma_{\rm sh}B'^2t_{\rm obs,i}},
+\qquad
+\beta_{\rm sh}=(1-\Gamma_{\rm sh}^{-2})^{1/2}.
+\]
+The minimum injection Lorentz factor is the same \(\gamma_m\) solution given above, with
+\[
+\frac{\epsilon_e}{f_e}\frac{m_p}{m_e}(\Gamma_{\rm sh}-1)
+\]
+as the energy per accelerated electron.  These shell quantities set the diagnostics and the initial trial substep.  During non-uniform-density transport, the same \(B'\), \(\gamma_{\max}\), and \(\gamma_m\) formulae are re-evaluated at \(R_{\rm mid}\) with \(n_{\rm step}=n(R_{\rm mid})\).  The non-adaptive radial split is set by the local high-energy cooling scale,
+\[
+f_r=\frac{1.35\times10^{-19}}{\pi\beta_{\rm sh}\Gamma_{\rm sh}}B'^2,
+\qquad
+\delta R_0=\frac{3.2}
+{f_r\gamma_{\max}+1.333/(R_i+R_{i-1})},
+\]
+\[
+L_i=\max\left[4,\min\left(2048,
+\left\lceil\frac{R_i-R_{i-1}}{\delta R_0}\right\rceil\right)\right],
+\qquad
+\Delta R=(R_i-R_{i-1})/L_i .
+\]
+When adaptive substeps are enabled, the candidate step is bounded by
+\[
+\Delta R_{\min}=\frac{R_i-R_{i-1}}{N_{\max}},
+\qquad
+\Delta R_{\max}=\frac{R_i-R_{i-1}}{N_{\min}},
+\]
+and is accepted when
+\[
+\epsilon_R\le 8\,{\tt substep\_rtol}
+\]
+or the lower bound is reached.  For a uniform medium
+\[
+\epsilon_R=\Delta R/R_{\rm mid},
+\]
+whereas density jumps use
+\[
+\epsilon_R=\max\left[
+\frac{\Delta R}{R_{\rm mid}},
+\frac{|n(R+\Delta R)-n(R)|}{|n(R)|}
+\right].
+\]
+
+At a substep midpoint, the injected electron source is normalized per radial length as
+\[
+\dot N_{{\rm inj},R}=
+\frac{4\pi}{3}\frac{(R+\Delta R)^3-R^3}{\Delta R}
+n_{\rm step}f_e
+\frac{1-p}{\gamma_{\max}^{1-p}-\gamma_m^{1-p}} .
+\]
+The source profile placed on the \(x\) grid is
+\[
+S_x(x)=
+\dot N_{{\rm inj},R}\ln 10\,\gamma_e^{1-p}
+\,\mathcal{C}_{\max}(\gamma_e),
+\qquad \gamma_e\ge\gamma_m,
+\]
+with \(S_x=0\) below \(\gamma_m\) and
+\[
+\mathcal{C}_{\max}(\gamma_e)=
+\begin{cases}
+1, & \gamma_e\le\gamma_{\max},\\
+\exp(1-\gamma_e/\gamma_{\max}), & \gamma_e>\gamma_{\max}.
+\end{cases}
+\]
+The cell source is the conservative average
+\[
+S_j=\frac{1}{\Delta x_j}
+\int_{x_{j-1/2}}^{x_{j+1/2}}S_x(x)\,dx .
+\]
+
+The characteristic variable is \(u=1/\gamma_e\).  In the synchrotron-only branch, the loss law over one substep is
+\[
+\frac{d\gamma}{dR}=-a\gamma^2-b\gamma,\qquad
+a=\frac{1.35\times10^{-19}}{\pi\beta_{\rm sh}\Gamma_{\rm sh}}B'^2,
+\qquad b=R_{\rm mid}^{-1}.
+\]
+Thus
+\[
+\frac{du}{dR}=a+bu .
+\]
+For a face that arrives at \(u\) after a lag \(\tau\), the backward characteristic used by the code is
+\[
+u_{\rm back}=
+\begin{cases}
+u-a\tau, & |b|\tau\simeq0,\\[0.8ex]
+(u+a/b)e^{-b\tau}-a/b, & {\rm otherwise}.
+\end{cases}
+\]
+The general cooling branch first computes the node loss coefficients \(D_j\) from synchrotron, IC, and SSA terms.  In a non-uniform external medium the stored shell loss array is rescaled by \(n_{\rm step}/n_{\rm ext}\) before the characteristic map is built.  With \(u_j=1/\gamma_j\), it linearly reconstructs
+\[
+w(u)=uD(u)
+\]
+inside each \(u\)-cell as \(w(u)=a_k+s_ku\), then adds adiabatic cooling to obtain
+\[
+\frac{du}{dR}=a_k+(s_k+b_{\rm ad})u,\qquad b_{\rm ad}=R_{\rm mid}^{-1}.
+\]
+The same analytic backward map is applied in the current \(u\)-cell; when the traced point reaches a cell edge, the remaining lag is carried into the adjacent cell with the new coefficients.
+
+Let \(M_N(x)\) be the prefix integral of the positivity-limited PPM reconstruction of \(N_x\), and let \(M_S(x)\) be the corresponding exponential-reconstructed prefix integral of \(S_x\).  For arrival cell \(j\), direct conservation gives
+\[
+N_{x,j}^{n+1}=
+\frac{M_N[x_{j+1/2}^{\rm back}(\Delta R)]
+-M_N[x_{j-1/2}^{\rm back}(\Delta R)]}{\Delta x_j}
+\Delta R\sum_{q=1}^{4}w_q
+\frac{M_S[x_{j+1/2}^{\rm back}(s_q\Delta R)]
+-M_S[x_{j-1/2}^{\rm back}(s_q\Delta R)]}{\Delta x_j}.
+\]
+The quadrature nodes are \(s_q=t_q^4\), with weights \(w_q=4W_qt_q^3\), where \(t_q,W_q\) are the four-point Gauss--Legendre nodes and weights on \([0,1]\).  This is the implemented fourth-order source-in-characteristic integral.  After each output shell, the solver converts back to the centered diagnostic spectrum by the local exponential relation
+\[
+\frac{dN_e}{d\gamma_e}\bigg|_j
+=\frac{N_{x,j}^{\rm exp}}{\gamma_j\ln 10}.
+\]
+The reported break frequencies are
+\[
+\nu_m=\frac{4.2\times10^6B'\gamma_m^2}
+{\Gamma_{\rm sh}(1-\beta_{\rm sh})(1+z)},
+\qquad
+\nu_c=\frac{4.2\times10^6B'\gamma_c^2}
+{\Gamma_{\rm sh}(1-\beta_{\rm sh})(1+z)},
+\]
+and the self-absorption diagnostic is obtained from the same final synchrotron optical-depth grid,
+\[
+\tau_\nu(\nu_a)=1,\qquad
+\nu_{a,{\rm obs}}=\frac{\nu_a}
+{\Gamma_{\rm sh}(1-\beta_{\rm sh})(1+z)}.
+\]
+
 The \texttt{dg\_1d} solver replaces the cell-average upwind update by a moving multi-domain nodal DG discretization on this same coordinate \(y\).  The represented state is the conservative coordinate density
 \[
 N_y(y,R)=\frac{dN_e}{dy}
