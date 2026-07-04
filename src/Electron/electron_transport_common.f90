@@ -8,8 +8,12 @@ module electron_transport_common
     integer, parameter :: cooling_piecewise = 1
     real(8), parameter :: inv_logten = 4.3429448190325182765d-1
     real(8), parameter :: tiny_u = 1d-300
-    real(8), parameter, dimension(char_order) :: qnodes0= [6.9431844202973714d-2, 3.3000947820757187d-1, 6.6999052179242813d-1, 9.3056815579702629d-1]
-    real(8), parameter, dimension(char_order) :: qweights0= [1.7392742256872693d-1, 3.2607257743127307d-1, 3.2607257743127307d-1, 1.7392742256872693d-1]
+    real(8), parameter, dimension(char_order) :: qnodes0= [&
+        6.9431844202973714d-2, 3.3000947820757187d-1, &
+        6.6999052179242813d-1, 9.3056815579702629d-1]
+    real(8), parameter, dimension(char_order) :: qweights0= [&
+        1.7392742256872693d-1, 3.2607257743127307d-1, &
+        3.2607257743127307d-1, 1.7392742256872693d-1]
     real(8), parameter, dimension(char_order) :: qnodes= qnodes0**4
     real(8), parameter, dimension(char_order) :: qweights= 4d0*qweights0*qnodes0**3
 contains

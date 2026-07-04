@@ -32,7 +32,6 @@ from asgard_core.asgard_postprocess import interpolate_observed_flux
 from asgard_core.asgard_runtime import (
     _hadronic_pg_survival_factor,
     _solver_report,
-    _use_direct_chi_projection_contract,
     solve_dynamics,
     solve_electron,
     solve_electron_with_cooling_seed,
@@ -681,21 +680,6 @@ def _normalize_projection_kind(projection_kind: str) -> str:
 def _require_chi_eats_electron_state(state: SolveState) -> None:
     if not str(state.config.electron_solver).lower().endswith("_2d"):
         raise ValueError("geometry_kernel='chi_eats_2d' requires a 2d electron solver.")
-    if _use_direct_chi_projection_contract(state.config):
-        missing = [
-            name
-            for name in (
-                "d_n_gam_e_chi",
-                "b_chi_g",
-                "chi_radius_cm",
-                "chi_gamma_bulk",
-                "chi_dvolume_weight",
-            )
-            if getattr(state.electron, name) is None
-        ]
-        if missing:
-            raise RuntimeError("direct chi_eats_2d electron state is missing: " + ", ".join(missing))
-        return
     missing = [
         name
         for name in (
@@ -714,6 +698,54 @@ def _require_chi_eats_electron_state(state: SolveState) -> None:
 def _require_top_hat_phi_grid(config: RuntimeConfig) -> None:
     if float(config.theta_v) != 0.0 and int(config.eats_num_phi) == 1:
         raise ValueError("off-axis EATS projection requires eats_num_phi >= 2; eats_num_phi=1 is only valid for on-axis axial collapse.")
+
+
+def _project_chiray(
+    state: SolveState,
+    setup,
+    frequencies_hz: np.ndarray,
+    timings: dict[str, float] | None,
+) -> np.ndarray:
+    # 中文：top-hat 的 chi-resolved SSA 也走 patch-origin ray kernel，和结构化喷流共享同一个前景遮挡契约。
+    # English: Top-hat chi-resolved SSA also uses the patch-origin ray kernel, sharing the same foreground occultation contract as structured jets.
+    e = state.electron
+    tarr = np.asarray(state.components.fwd.characteristic_time_s, dtype=float)
+    rarr = np.asarray(state.components.fwd.radius_cm, dtype=float)
+    lchi = np.asarray(e.l_syn_spec_chi, dtype=float)
+    tau = np.asarray(e.tau_syn_chi, dtype=float)
+    rchi = np.asarray(e.chi_radius_cm, dtype=float)
+    gchi = np.asarray(e.chi_gamma_bulk, dtype=float)
+    wchi = np.asarray(e.chi_dvolume_weight, dtype=float)
+    nr = rarr.shape[0]
+    ntheta = int(state.config.eats_num_theta)
+    nphi = 1 if float(state.config.theta_v) == 0.0 else 2 * int(state.config.eats_num_phi)
+    edges = np.linspace(0.0, float(state.config.opening_angle_jet), ntheta + 1)
+    rtobs = np.asfortranarray(np.broadcast_to(tarr[:, None], (nr, ntheta)))
+    radius = np.asfortranarray(np.broadcast_to(rarr[:, None], (nr, ntheta)))
+    flux = np.asfortranarray(np.broadcast_to(lchi[..., None], (*lchi.shape, ntheta)))
+    tauarr = np.asfortranarray(np.broadcast_to(tau[..., None], (*tau.shape, ntheta)))
+    chrad = np.asfortranarray(np.broadcast_to(rchi[..., None], (*rchi.shape, ntheta)))
+    chgam = np.asfortranarray(np.broadcast_to(gchi[..., None], (*gchi.shape, ntheta)))
+    chwt = np.asfortranarray(np.broadcast_to(wchi[..., None], (*wchi.shape, ntheta)))
+    return _timed_call(
+        timings,
+        "Interpolation.sed_chiring_batchlum_ray [fwd_sync]",
+        Interpolation.sed_chiring_batchlum_ray,
+        setup.boundary,
+        rtobs,
+        radius,
+        flux,
+        tauarr,
+        chrad,
+        chgam,
+        chwt,
+        setup.seed_frequency_hz,
+        frequencies_hz,
+        setup.observer_time_s,
+        np.asfortranarray(edges[:-1]),
+        np.asfortranarray(edges[1:]),
+        nphi,
+    )
 
 
 _OBSERVED_COMPONENT_ATTRS = (
@@ -754,29 +786,10 @@ def _project_chi_fwd_sync(
     frequencies_hz = np.asarray(frequencies_hz, dtype=float)
     order = np.argsort(frequencies_hz)
     sorted_frequencies = frequencies_hz[order]
-    num_phi = 1 if float(state.config.theta_v) == 0.0 else int(state.config.eats_num_phi)
-    if _use_direct_chi_projection_contract(state.config):
-        flux_sorted = _timed_call(
-            timings,
-            "Interpolation.sed_chi_electron [fwd_sync]",
-            Interpolation.sed_chi_electron,
-            setup.boundary,
-            state.components.fwd.characteristic_time_s,
-            state.components.fwd.radius_cm,
-            np.asarray(state.electron.d_n_gam_e_chi, dtype=float),
-            np.asarray(state.electron.b_chi_g, dtype=float),
-            np.asarray(state.electron.chi_radius_cm, dtype=float),
-            np.asarray(state.electron.chi_gamma_bulk, dtype=float),
-            np.asarray(state.electron.chi_dvolume_weight, dtype=float),
-            np.asarray(state.electron.gam_e, dtype=float),
-            setup.seed_frequency_hz,
-            sorted_frequencies,
-            setup.observer_time_s,
-            state.config.eats_num_theta,
-            num_phi,
-            state.config.num_threads,
-        )
+    if int(state.config.downstream_num_chi or 0) != 1:
+        flux_sorted = _project_chiray(state, setup, sorted_frequencies, timings)
     else:
+        num_phi = 1 if float(state.config.theta_v) == 0.0 else int(state.config.eats_num_phi)
         source_chi = np.asarray(state.electron.l_syn_spec_chi, dtype=float) * np.asarray(state.observer.prefactor, dtype=float)[:, None, :]
         flux_sorted = _timed_call(
             timings,

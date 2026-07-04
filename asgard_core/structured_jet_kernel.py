@@ -18,6 +18,11 @@ from asgard_core.asgard_runtime import ELECTRON_SHARED_1D_TRANSPORT_IDS
 HUMMER_SCHEMES = {"hummer_2010_response"}
 STRUCTURED_FORTRAN_MIN_GAMMA0 = 2.0
 STRUCTURED_CHI_2D_MIN_GAMMA0 = 1.4
+AMR_THETAFACTOR = 5.0e-2
+AMR_PHIFACTOR = 6.0e-1
+AMR_MINTHETA = 16
+AMR_MINPHI = 12
+AMR_STEP = 4
 
 
 def _unsort_flux(flux_sorted: np.ndarray, order: np.ndarray) -> np.ndarray:
@@ -80,31 +85,26 @@ def solve_structured_jet_chi_2d(model, times_s: np.ndarray, nu_hz: np.ndarray, b
 
     times = np.asarray(times_s, dtype=float)
     frequencies = np.asarray(nu_hz, dtype=float)
+    adaptive_rtol = float(getattr(model.setups, "structured_adaptive_rtol", 0.0))
+    theta_count, phi_count = _chicounts(model, adaptive_rtol)
     sampled = _sample_structured_grid(
         model,
         min_gamma0=STRUCTURED_CHI_2D_MIN_GAMMA0,
         reject_transrelativistic=False,
         observer_time_s=times,
+        theta_count=theta_count,
+        phi_count=phi_count,
     )
-    theta_centers, theta_edges, _phi_centers, e_iso, gamma0, active, axisymmetric = sampled
-    _assert_supported_structured_chi_2d(model, axisymmetric)
+    theta_centers, theta_edges, phi_centers, e_iso, gamma0, active, axisymmetric = sampled
+    _assert_supported_structured_chi_2d(model, axisymmetric, phi_count)
     solve_times = _solve_time_grid(model, times)
-    adaptive_rtol = float(getattr(model.setups, "structured_adaptive_rtol", 0.0))
 
-    if adaptive_rtol > 0.0 and axisymmetric:
-        fwd_sync, first_state = _solve_project_structured_chi_ring_flux_adaptive(
-            model, build_patch_config,
-            theta_centers, e_iso[:, 0], gamma0[:, 0], active[:, 0],
-            theta_edges, solve_times, times, frequencies,
-            adaptive_rtol=adaptive_rtol,
-            adaptive_max_depth=int(getattr(model.setups, "structured_adaptive_max_depth", 4)),
-        )
-    else:
-        fwd_sync, first_state = _solve_project_structured_chi_ring_flux(
-            model, build_patch_config,
-            theta_centers, e_iso[:, 0], gamma0[:, 0], active[:, 0],
-            theta_edges, solve_times, times, frequencies,
-        )
+    fwd_sync, first_state = _solve_project_structured_chi_ring_flux(
+        model, build_patch_config,
+        theta_centers, e_iso[:, 0], gamma0[:, 0], active[:, 0],
+        theta_edges, solve_times, times, frequencies,
+        num_phi=phi_count,
+    )
 
     zero = np.zeros_like(fwd_sync)
     flux = FluxResult(
@@ -113,8 +113,65 @@ def solve_structured_jet_chi_2d(model, times_s: np.ndarray, nu_hz: np.ndarray, b
         rev=FluxPair(sync=zero, ssc=zero),
         cross_ic=None,
     )
-    details = _make_details(first_state.components, _patch_metadata(*sampled, model), state=first_state)
+    details = _make_details(
+        first_state.components,
+        _patch_metadata(theta_centers, theta_edges, phi_centers, e_iso, gamma0, active, axisymmetric, model, phi_count),
+        state=first_state,
+    )
     return flux, details
+
+
+def _chicounts(model, adaptive_rtol: float) -> tuple[int, int]:
+    # 中文：这里只用初始喷流参数选择全局角网格；SSA 遮挡是非局域量，不能在 Python 里做局部 flux-AMR 累加。
+    # English: This only selects a global angular grid from initial jet parameters; SSA occultation is nonlocal, so Python-side local flux-AMR summation is not valid.
+    thetaCount = int(model.setups.structured_num_theta)
+    phiCount = int(model.setups.structured_num_phi)
+    gridMode = str(getattr(model.setups, "adaptive_grid", "manual")).lower()
+    if float(adaptive_rtol) <= 0.0 or gridMode in {"manual", "fixed", "none"}:
+        return thetaCount, phiCount
+    if gridMode not in {"initial", "auto"}:
+        raise ValueError("adaptive_grid must be 'manual', 'initial', or 'auto'.")
+    return _amrcounts(model, int(getattr(model.setups, "structured_adaptive_max_depth", 4)))
+
+
+def _amrcounts(model, depth: int) -> tuple[int, int]:
+    thetaMax = float(model.jet.theta_max)
+    gammaMax = max(float(getattr(model.jet, "lf", 1.0)), STRUCTURED_CHI_2D_MIN_GAMMA0)
+    depthScale = 2.0 ** int(depth)
+    thetaNeed = thetaMax * gammaMax / (AMR_THETAFACTOR * depthScale)
+    thetaNeed = max(thetaNeed, _thetaneed(model, thetaMax))
+    thetaCount = _roundamr(thetaNeed, AMR_MINTHETA)
+    thetaObs = abs(float(model.observer.theta_obs))
+    if thetaObs == 0.0:
+        return thetaCount, 1
+    thetaRef = _phiref(thetaMax, thetaObs, gammaMax)
+    phiNeed = 2.0 * np.pi * gammaMax * np.sqrt(thetaRef * thetaObs) / (AMR_PHIFACTOR * depthScale)
+    phiCount = _roundamr(phiNeed, AMR_MINPHI)
+    return thetaCount, phiCount
+
+
+def _roundamr(value: float, minimum: int) -> int:
+    return int(AMR_STEP * np.ceil(max(float(value), float(minimum)) / AMR_STEP))
+
+
+def _thetaneed(model, thetaMax: float) -> float:
+    scales = []
+    thetaCore = float(getattr(model.jet, "theta_c", 0.0))
+    if thetaCore > 0.0 and str(getattr(model.jet, "kind", "")).lower() != "tophat":
+        scales.append(0.5 * thetaCore)
+    thetaTable = np.asarray(getattr(model.jet, "theta_table", ()), dtype=float)
+    if thetaTable.size > 1:
+        scales.append(float(np.min(np.diff(thetaTable))))
+    if not scales:
+        return 0.0
+    return float(thetaMax) / min(scales)
+
+
+def _phiref(thetaMax: float, thetaObs: float, gammaMax: float) -> float:
+    beamTheta = 1.0 / float(gammaMax)
+    if float(thetaObs) <= float(thetaMax):
+        return max(float(thetaObs), beamTheta)
+    return max(float(thetaMax), beamTheta)
 
 
 def _structured_kernel_args(model, base_config, setup, sampled, times: np.ndarray, frequencies: np.ndarray) -> tuple:
@@ -184,6 +241,7 @@ def _solve_project_structured_chi_ring_flux(
     solve_times: np.ndarray,
     times: np.ndarray,
     frequencies: np.ndarray,
+    num_phi: int,
 ):
     outer_threads, inner_threads = _structured_threads(model)
     active_indices = [int(i) for i, flag in enumerate(active) if int(flag) != 0]
@@ -191,8 +249,7 @@ def _solve_project_structured_chi_ring_flux(
         raise ValueError("No active jet elements were found for the requested structured jet.")
     order = np.argsort(frequencies)
     sorted_frequencies = frequencies[order]
-    flux_sorted = np.zeros((sorted_frequencies.size, times.size), dtype=float)
-
+    state_cache = _structured_chi_reuse_cache(e_iso, gamma0, active)
     first_index = active_indices[0]
     first_config, first_setup = _structured_chi_ring_config_setup(
         model,
@@ -211,18 +268,21 @@ def _solve_project_structured_chi_ring_flux(
         requested_frequencies_hz=sorted_frequencies,
         assemble_observer=False,
     )
-    flux_sorted += _project_structured_chi_ring_state(
+    ring_data = [_structured_chi_ring_projection_data(
         first_state,
         float(theta_edges[first_index]),
         float(theta_edges[first_index + 1]),
-        float(model.observer.theta_obs),
-        int(model.setups.structured_num_phi),
-        times,
-        sorted_frequencies,
-    )
+    )]
 
     payloads = []
     for i_theta in active_indices[1:]:
+        if state_cache is not None:
+            ring_data.append(_structured_chi_ring_projection_data(
+                first_state,
+                float(theta_edges[i_theta]),
+                float(theta_edges[i_theta + 1]),
+            ))
+            continue
         query_config, setup = _structured_chi_ring_config_setup(
             model,
             build_patch_config,
@@ -236,199 +296,41 @@ def _solve_project_structured_chi_ring_flux(
         )
         payloads.append((
             int(i_theta), query_config, setup,
-            sorted_frequencies, times,
+            sorted_frequencies,
             float(theta_edges[i_theta]), float(theta_edges[i_theta + 1]),
-            float(model.observer.theta_obs), int(model.setups.structured_num_phi),
         ))
     if payloads:
         if int(outer_threads) == 1:
-            for _i_theta, flux_ring in map(_solve_project_structured_chi_ring_payload, payloads):
-                flux_sorted += flux_ring
+            for _i_theta, ring_sample in map(_solve_project_structured_chi_ring_payload, payloads):
+                ring_data.append(ring_sample)
         else:
             if "fork" not in mp.get_all_start_methods():
                 raise NotImplementedError("parallel structured chi_eats_2d ring solves require a POSIX fork multiprocessing context.")
             context = mp.get_context("fork")
             worker_count = min(int(outer_threads), len(payloads))
             with ProcessPoolExecutor(max_workers=worker_count, mp_context=context) as executor:
-                for _i_theta, flux_ring in executor.map(_solve_project_structured_chi_ring_payload, payloads):
-                    flux_sorted += flux_ring
-    return _unsort_flux(flux_sorted, order), first_state
-
-
-def _build_adaptive_ring_windows(
-    e_iso: np.ndarray,
-    gamma0: np.ndarray,
-    active: np.ndarray,
-    theta_edges: np.ndarray,
-    adaptive_rtol: float,
-    adaptive_max_depth: int,
-) -> list[tuple[int, float, float, float, float]]:
-    """Build sparse theta-ring windows for structured chi_2d projection."""
-    active_indices = [int(i) for i, flag in enumerate(active) if int(flag) != 0]
-    if len(active_indices) <= 8:
-        return [
-            (
-                i,
-                float(theta_edges[i]),
-                float(theta_edges[i + 1]),
-                float(e_iso[i]),
-                float(gamma0[i]),
-            )
-            for i in active_indices
-        ]
-
-    if adaptive_rtol <= 0.005:
-        step = 2
-    elif adaptive_rtol <= 0.01:
-        step = 4
-    elif adaptive_rtol <= 0.02:
-        step = 6
-    elif adaptive_rtol <= 0.05:
-        step = 8
-    else:
-        step = 12
-    step = min(step, max(len(active_indices) // 4, 2))
-    base_indices = active_indices[::step]
-    if active_indices[-1] not in base_indices:
-        base_indices.append(active_indices[-1])
-
-    log_e = np.log(np.maximum(np.asarray(e_iso, dtype=float), 1.0e-100))
-    refined = list(base_indices)
-    for _ in range(adaptive_max_depth):
-        added = []
-        for i_cell in range(len(refined) - 1):
-            i_left, i_right = refined[i_cell], refined[i_cell + 1]
-            if i_right - i_left <= 1:
-                continue
-            if i_left > 0 and i_right < len(log_e) - 1:
-                i_mid = (i_left + i_right) // 2
-                curvature = abs(log_e[i_right] - 2.0 * log_e[i_mid] + log_e[i_left])
-                if curvature > 0.5 and i_mid not in refined and i_mid not in added:
-                    added.append(i_mid)
-        if not added:
-            break
-        refined.extend(added)
-        refined.sort()
-
-    theta_all = np.asarray(theta_edges, dtype=float)
-    theta_centers = 0.5 * (theta_all[:-1] + theta_all[1:])
-    n_full = len(e_iso)
-    windows = []
-    for i_pos, i_theta in enumerate(refined):
-        theta_lo = float(theta_all[i_theta])
-        if i_pos + 1 < len(refined):
-            theta_hi = float(theta_all[refined[i_pos + 1]])
-        else:
-            theta_hi = float(theta_all[active_indices[-1] + 1])
-        theta_mid = 0.5 * (theta_lo + theta_hi)
-        i_mid = int(np.searchsorted(theta_centers, theta_mid))
-        i_mid = max(0, min(n_full - 1, i_mid))
-        windows.append((
-            int(i_theta),
-            theta_lo,
-            theta_hi,
-            float(e_iso[i_mid]),
-            float(gamma0[i_mid]),
-        ))
-    return windows
-
-
-def _solve_project_structured_chi_ring_flux_adaptive(
-    model,
-    build_patch_config: Callable,
-    theta_centers: np.ndarray,
-    e_iso: np.ndarray,
-    gamma0: np.ndarray,
-    active: np.ndarray,
-    theta_edges: np.ndarray,
-    solve_times: np.ndarray,
-    times: np.ndarray,
-    frequencies: np.ndarray,
-    adaptive_rtol: float = 0.02,
-    adaptive_max_depth: int = 4,
-):
-    """Sparse theta-window projection for structured chi_2d light curves."""
-    outer_threads, inner_threads = _structured_threads(model)
-    active_indices = [int(i) for i, flag in enumerate(active) if int(flag) != 0]
-    if not active_indices:
-        raise ValueError("No active jet elements were found for the requested structured jet.")
-
-    windows = _build_adaptive_ring_windows(
-        e_iso, gamma0, active, theta_edges, adaptive_rtol, adaptive_max_depth,
-    )
-    order = np.argsort(frequencies)
-    sorted_frequencies = frequencies[order]
-    flux_sorted = np.zeros((sorted_frequencies.size, times.size), dtype=float)
-
-    first_index, theta_lo, theta_hi, e_first, gamma_first = windows[0]
-    first_config, first_setup = _structured_chi_ring_config_setup(
-        model,
-        build_patch_config,
-        theta_hi - theta_lo,
-        0.5 * (theta_lo + theta_hi),
-        e_first,
-        gamma_first,
-        solve_times,
-        sorted_frequencies,
-        int(inner_threads),
-    )
-    first_state = solve_state_from_setup(
-        first_config,
-        first_setup,
-        requested_frequencies_hz=sorted_frequencies,
-        assemble_observer=False,
-    )
-    flux_sorted += _project_structured_chi_ring_state(
+                for _i_theta, ring_sample in executor.map(_solve_project_structured_chi_ring_payload, payloads):
+                    ring_data.append(ring_sample)
+    flux_sorted = _project_structured_chi_ring_batch(
         first_state,
-        theta_lo,
-        theta_hi,
+        ring_data,
         float(model.observer.theta_obs),
-        int(model.setups.structured_num_phi),
+        int(num_phi),
         times,
         sorted_frequencies,
     )
-
-    payloads = []
-    for i_theta, theta_lo, theta_hi, e_window, gamma_window in windows[1:]:
-        query_config, setup = _structured_chi_ring_config_setup(
-            model,
-            build_patch_config,
-            theta_hi - theta_lo,
-            0.5 * (theta_lo + theta_hi),
-            e_window,
-            gamma_window,
-            solve_times,
-            sorted_frequencies,
-            int(inner_threads),
-        )
-        payloads.append((
-            int(i_theta),
-            query_config,
-            setup,
-            sorted_frequencies,
-            times,
-            theta_lo,
-            theta_hi,
-            float(model.observer.theta_obs),
-            int(model.setups.structured_num_phi),
-        ))
-
-    if payloads:
-        if int(outer_threads) == 1:
-            for _i_theta, flux_ring in map(_solve_project_structured_chi_ring_payload, payloads):
-                flux_sorted += flux_ring
-        else:
-            if "fork" not in mp.get_all_start_methods():
-                raise NotImplementedError(
-                    "parallel structured chi_eats_2d ring solves require a POSIX fork multiprocessing context."
-                )
-            context = mp.get_context("fork")
-            worker_count = min(int(outer_threads), len(payloads))
-            with ProcessPoolExecutor(max_workers=worker_count, mp_context=context) as executor:
-                for _i_theta, flux_ring in executor.map(_solve_project_structured_chi_ring_payload, payloads):
-                    flux_sorted += flux_ring
-
     return _unsort_flux(flux_sorted, order), first_state
+
+
+def _structured_chi_reuse_cache(e_iso: np.ndarray, gamma0: np.ndarray, active: np.ndarray):
+    active_mask = np.asarray(active, dtype=bool)
+    if not np.any(active_mask):
+        return None
+    active_energy = np.asarray(e_iso, dtype=float)[active_mask]
+    active_gamma = np.asarray(gamma0, dtype=float)[active_mask]
+    if np.all(active_energy == active_energy[0]) and np.all(active_gamma == active_gamma[0]):
+        return {}
+    return None
 
 
 def _structured_chi_ring_config_setup(
@@ -463,11 +365,8 @@ def _solve_project_structured_chi_ring_payload(payload):
         query_config,
         setup,
         frequencies,
-        times,
         theta_lo,
         theta_hi,
-        theta_obs,
-        num_phi,
     ) = payload
     state = solve_state_from_setup(
         query_config,
@@ -475,84 +374,59 @@ def _solve_project_structured_chi_ring_payload(payload):
         requested_frequencies_hz=frequencies,
         assemble_observer=False,
     )
-    flux_ring = _project_structured_chi_ring_state(
-        state,
-        float(theta_lo), float(theta_hi), float(theta_obs), int(num_phi),
-        times, frequencies,
+    return int(i_theta), _structured_chi_ring_projection_data(state, float(theta_lo), float(theta_hi))
+
+
+def _structured_chi_ring_projection_data(state, theta_lo: float, theta_hi: float):
+    e = state.electron
+    return (
+        float(theta_lo),
+        float(theta_hi),
+        np.asarray(state.components.fwd.characteristic_time_s, dtype=float),
+        np.asarray(state.components.fwd.radius_cm, dtype=float),
+        np.asarray(e.l_syn_spec_chi, dtype=float),
+        np.asarray(e.tau_syn_chi, dtype=float),
+        np.asarray(e.chi_radius_cm, dtype=float),
+        np.asarray(e.chi_gamma_bulk, dtype=float),
+        np.asarray(e.chi_dvolume_weight, dtype=float),
     )
-    return int(i_theta), flux_ring
 
 
-def _project_structured_chi_ring_state(
-    state,
-    theta_lo: float,
-    theta_hi: float,
+def _project_structured_chi_ring_batch(
+    reference_state,
+    ring_data,
     theta_obs: float,
     num_phi: int,
     times: np.ndarray,
     frequencies: np.ndarray,
-    projection_seed_frequency_hz: np.ndarray | None = None,
 ) -> np.ndarray:
-    boundary = np.array(state.setup.boundary, dtype=float, copy=True)
+    boundary = np.array(reference_state.setup.boundary, dtype=float, copy=True)
     boundary[9] = float(theta_obs)
-    src_freq = projection_seed_frequency_hz if projection_seed_frequency_hz is not None else state.setup.seed_frequency_hz
-    seed_frequency, selected = _trim_structured_ring_projection_seed(
-        src_freq, frequencies, state.electron.chi_gamma_bulk,
-        float(theta_lo), float(theta_hi), float(theta_obs), int(num_phi), float(state.config.z),
-    )
-    e = state.electron
-    z = float(state.config.z)
-    DL = float(state.setup.luminosity_distance_cm)
-    flux_prefactor = (1.0 + z) / (4.0 * np.pi * DL * DL)
-    F_ring = np.asfortranarray(
-        np.asarray(e.l_syn_spec_chi, dtype=float)[selected, :, :] * flux_prefactor
-    )
-    Tau_ring = np.asfortranarray(
-        np.asarray(e.tau_syn_chi, dtype=float)[selected, :, :]
-    )
-    return Interpolation.sed_chi_ring(
+    theta_lo = np.asfortranarray(np.array([sample[0] for sample in ring_data], dtype=float))
+    theta_hi = np.asfortranarray(np.array([sample[1] for sample in ring_data], dtype=float))
+    rtobs = np.asfortranarray(np.stack([sample[2] for sample in ring_data], axis=1))
+    radius = np.asfortranarray(np.stack([sample[3] for sample in ring_data], axis=1))
+    flux = np.asfortranarray(np.stack([sample[4] for sample in ring_data], axis=3))
+    tau = np.asfortranarray(np.stack([sample[5] for sample in ring_data], axis=3))
+    chi_radius = np.asfortranarray(np.stack([sample[6] for sample in ring_data], axis=2))
+    chi_gamma = np.asfortranarray(np.stack([sample[7] for sample in ring_data], axis=2))
+    chi_weight = np.asfortranarray(np.stack([sample[8] for sample in ring_data], axis=2))
+    return Interpolation.sed_chiring_batchlum_ray(
         boundary,
-        state.components.fwd.characteristic_time_s,
-        state.components.fwd.radius_cm,
-        F_ring, Tau_ring,
-        e.chi_radius_cm, e.chi_gamma_bulk,
-        e.chi_dvolume_weight,
-        seed_frequency, frequencies, times,
-        float(theta_lo), float(theta_hi), int(num_phi),
+        rtobs,
+        radius,
+        flux,
+        tau,
+        chi_radius,
+        chi_gamma,
+        chi_weight,
+        reference_state.setup.seed_frequency_hz,
+        frequencies,
+        times,
+        theta_lo,
+        theta_hi,
+        int(num_phi),
     )
-
-
-def _trim_structured_ring_projection_seed(
-    seed_frequency_hz: np.ndarray,
-    frequencies_hz: np.ndarray,
-    chi_gamma_bulk: np.ndarray,
-    theta_lo: float,
-    theta_hi: float,
-    theta_obs: float,
-    num_phi: int,
-    redshift: float,
-) -> tuple[np.ndarray, np.ndarray]:
-    seed = seed_frequency_hz
-    frequency = frequencies_hz
-    beta = np.sqrt(1.0 - chi_gamma_bulk**-2)
-    theta_center = 0.5 * (float(theta_lo) + float(theta_hi))
-    phi = (np.arange(int(num_phi), dtype=float) + 0.5) * (2.0 * np.pi / float(num_phi))
-    mu = np.cos(theta_obs) * np.cos(theta_center) + np.sin(theta_obs) * np.sin(theta_center) * np.cos(phi)
-    doppler_min = np.inf
-    doppler_max = 0.0
-    for mu_phi in mu:
-        doppler = chi_gamma_bulk * (1.0 - beta * mu_phi)
-        doppler_min = min(doppler_min, float(np.min(doppler)))
-        doppler_max = max(doppler_max, float(np.max(doppler)))
-    selected = np.zeros(seed.shape, dtype=bool)
-    redshift_factor = 1.0 + float(redshift)
-    for nu_obs in frequency:
-        source_min = float(nu_obs) * doppler_min * redshift_factor
-        source_max = float(nu_obs) * doppler_max * redshift_factor
-        lo = max(0, int(np.searchsorted(seed, source_min, side="left")) - 1)
-        hi = min(seed.size - 1, int(np.searchsorted(seed, source_max, side="left")))
-        selected[lo : hi + 1] = True
-    return np.asfortranarray(seed[selected]), selected
 
 
 def _details_from_kernel_outputs(model, sampled, outputs):
@@ -626,14 +500,14 @@ def _uses_structured_chi_2d(model) -> bool:
     )
 
 
-def _assert_supported_structured_chi_2d(model, axisymmetric: bool) -> None:
+def _assert_supported_structured_chi_2d(model, axisymmetric: bool, num_phi: int) -> None:
     if not axisymmetric:
         raise NotImplementedError("structured chi_eats_2d ring projection currently requires an axisymmetric jet profile.")
     if str(model.setups.geometry_kernel).lower() != "chi_eats_2d":
         raise NotImplementedError("structured 2d electron transport requires geometry_projection='chi_eats_2d'.")
     if str(model.setups.electron_solver).lower() != "fullhide_2d":
         raise NotImplementedError("structured chi_eats_2d ring projection currently requires electron_solver='fullhide_2d'.")
-    if float(model.observer.theta_obs) != 0.0 and int(model.setups.structured_num_phi) < 2:
+    if float(model.observer.theta_obs) != 0.0 and int(num_phi) < 2:
         raise ValueError("off-axis structured chi_eats_2d projection requires structured_num_phi >= 2.")
     if bool(model.fwd_rad.ssc):
         raise NotImplementedError("structured chi_eats_2d ring projection currently covers FS synchrotron+SSA, not SSC emission.")
@@ -650,9 +524,11 @@ def _sample_structured_grid(
     min_gamma0: float = STRUCTURED_FORTRAN_MIN_GAMMA0,
     reject_transrelativistic: bool = True,
     observer_time_s: np.ndarray | None = None,
+    theta_count: int | None = None,
+    phi_count: int | None = None,
 ):
     axisymmetric = is_axisymmetric_jet(model.jet)
-    grid = build_patch_grid(model, observer_time_s)
+    grid = build_patch_grid(model, observer_time_s, theta_count=theta_count, phi_count=phi_count)
     theta_edges = np.asarray(grid.theta_edges, dtype=float)
     theta_centers = np.asarray(grid.theta_centers, dtype=float)
     phi_centers = np.array([0.0], dtype=float) if axisymmetric else np.asarray(grid.phi_centers, dtype=float)
@@ -739,8 +615,9 @@ def _solve_time_grid(model, requested_times: np.ndarray) -> np.ndarray:
     return np.logspace(log_t_min, log_t_max + log_step, solve_count)
 
 
-def _patch_metadata(theta_centers, theta_edges, phi_centers, e_iso, gamma0, active, axisymmetric: bool, model):
-    phi_values = np.linspace(0.0, 2.0 * np.pi, int(model.setups.structured_num_phi), endpoint=False) if axisymmetric else phi_centers
+def _patch_metadata(theta_centers, theta_edges, phi_centers, e_iso, gamma0, active, axisymmetric: bool, model, num_phi: int | None = None):
+    count = int(model.setups.structured_num_phi if num_phi is None else num_phi)
+    phi_values = np.linspace(0.0, 2.0 * np.pi, count, endpoint=False) if axisymmetric else phi_centers
     theta_obs = float(model.observer.theta_obs)
     phi_obs = float(model.observer.phi_obs)
     patches = []

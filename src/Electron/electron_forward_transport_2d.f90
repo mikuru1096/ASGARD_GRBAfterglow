@@ -24,7 +24,7 @@ subroutine fs_transport_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,ng, &
     use electron_radiation_kernel, only: syn_state, nua_path, &
                                          reduce_grid, project_syn
     use electron_seed_history_kernel, only: integrate_proper_time, advance_history_stream
-    use rad_common, only: pair_tau, syn_seed_chi
+    use rad_common, only: pair_tau, syn_seed_chi, transfer_factor
     use electron_transport_2d, only: q_geometry, q_cell_geometry, shock_state, &
                                              downstream_grid, q_divergence, q_step_limit
     use electron_transport_2d, only: advance_q_implicit, advance_q_charint, &
@@ -62,7 +62,7 @@ subroutine fs_transport_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,ng, &
     real(8), allocatable, dimension(:) :: dEl,dEL_mean
     real(8), allocatable, dimension(:) :: dN_init,dN_init_log,source_q1
     real(8), allocatable, dimension(:,:) :: ulog,U_shell
-    real(8), allocatable, dimension(:) :: q_grid,q_face
+    real(8), allocatable, dimension(:) :: q_grid,q_face,q_weight
     real(8), allocatable, dimension(:) :: dF1,shell_population,chi_population,dEL_mean_shell
     real(8), allocatable, dimension(:) :: V_m_chi,V_c_chi,V_a_chi,chi_weight,Epsilon_b_chi,DB_chi,t_decay_chi
     real(8), allocatable, dimension(:) :: tprop
@@ -71,6 +71,7 @@ subroutine fs_transport_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,ng, &
     real(8), allocatable, dimension(:) :: rcell_chi,gcell_chi,bcell_chi,brel_sh_chi
     real(8), allocatable, dimension(:,:) :: P_local,kappa2_chi
     real(8), allocatable, dimension(:) :: V_cool,P_emit_shell,Taushell
+    real(8), allocatable, dimension(:,:) :: shell_emit,shell_tau
     real(8), allocatable, dimension(:,:,:) :: pemit,seed,Tau_hist
     real(8), allocatable, dimension(:,:,:) :: pemit_cool,seed_cool,Tau_hist_cool,Tau_pair_hist_cool &
         & ,Tau_prop_hist_cool
@@ -100,12 +101,13 @@ subroutine fs_transport_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,ng, &
              V_m_chi(nchi), V_c_chi(nchi), V_a_chi(nchi), chi_weight(nchi), &
              Epsilon_b_chi(nchi), DB_chi(nchi), t_decay_chi(nchi), &
              source_q1(ng), ulog(ng, nchi), U_shell(ng, nchi), &
-             q_grid(nchi), q_face(0:nchi), &
+             q_grid(nchi), q_face(0:nchi), q_weight(nchi), &
              tprop(Num_R), xface(0:nchi, Num_R), &
              x_comov_face_hist(0:nchi, Num_R), x_comov_hist(nchi, Num_R), dx_comov_hist(nchi, Num_R), &
              rcell_hist(nchi, Num_R), gcell_hist(nchi, Num_R), beta(nchi, Num_R), &
              rcell_chi(nchi), gcell_chi(nchi), bcell_chi(nchi), brel_sh_chi(nchi), &
-             P_local(Num_nu, nchi), kappa2_chi(ng, nchi), &
+             P_local(Num_nu, nchi), kappa2_chi(ng, nchi), shell_emit(Num_nu, Num_R), &
+             shell_tau(Num_nu, Num_R), &
              cooling_aux_chi(ng, nchi), dEl_chi(ng, nchi), dEL_mean_chi(ng-1, nchi), &
              adiabatic_log_coeff_chi(nchi))
 
@@ -188,6 +190,8 @@ subroutine fs_transport_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,ng, &
     P_syn_chi      = 0d0
     Seed_syn_chi   = 0d0
     Tau_syn_chi    = 0d0
+    shell_emit     = 0d0
+    shell_tau      = 0d0
     chi_radius     = 0d0
     chi_gamma_bulk = 1d0
     chi_weight_out = 0d0
@@ -203,6 +207,7 @@ subroutine fs_transport_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,ng, &
     sstream_cool = 0d0
 
     call q_geometry(nchi, dq, q_face, q_grid)
+    q_weight = dq
     call integrate_proper_time(Num_R,R,R_Gamma,tprop)
     call init_front()
 
@@ -218,6 +223,8 @@ subroutine fs_transport_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,ng, &
             call syn_state(index_syn_intger,rloc,DB,ng,Num_nu,n_threads,gam_e, &
                                         dN_gam_e_total(:,I_tobs-1),V_seed,P_emit_shell, &
                                         P_syn(:,I_tobs),Seed_syn(:,I_tobs),Taushell)
+            shell_emit(:,I_tobs) = P_emit_shell
+            shell_tau(:,I_tobs) = Taushell
         end if
 
         if (profile_enabled) call cpu_time(t_start)
@@ -288,11 +295,12 @@ subroutine fs_transport_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,ng, &
     deallocate(dEl, dEL_mean, dEL_mean_shell, dN_init, dN_init_log, dF1, &
                shell_population, chi_population, ulog, U_shell, source_q1, &
                V_m_chi, V_c_chi, V_a_chi, chi_weight, Epsilon_b_chi, DB_chi, t_decay_chi, &
-               q_grid, q_face, tprop, &
+               q_grid, q_face, q_weight, tprop, &
                xface, x_comov_face_hist, &
                x_comov_hist, dx_comov_hist, rcell_hist, gcell_hist, beta, &
                rcell_chi, gcell_chi, bcell_chi, brel_sh_chi, &
                P_local, V_cool, P_emit_shell, Taushell, pemit, seed, Tau_hist, &
+               shell_emit, shell_tau, &
                pemit_cool, seed_cool, Tau_hist_cool, Tau_pair_hist_cool, Tau_prop_hist_cool, &
                peff_cool_chi, seeff_cool_chi, pstream_cool, sstream_cool, &
                cooling_aux_chi, dEl_chi, dEL_mean_chi, adiabatic_log_coeff_chi, kappa2_chi)
@@ -341,13 +349,18 @@ subroutine init_front()
                                           xface(:,1),x_comov_face_hist(:,1),x_comov_hist(:,1),dx_comov_hist(:,1), &
                                           rcell_hist(:,1),gcell_hist(:,1),beta(:,1),brel_sh_chi)
     call update_bchi(x_comov_hist(:,1), R_Gamma(1), dNe, brel_sh_chi)
-    do ichi = 1, nchi
-        B_chi_out(ichi,1) = DB_chi(ichi)
-    end do
+    if (nchi == 1) then
+        B_chi_out(1,1) = DB
+    else
+        do ichi = 1, nchi
+            B_chi_out(ichi,1) = DB_chi(ichi)
+        end do
+    end if
     if (profile_enabled) call cpu_time(t_start)
     if (emit_full_spectrum) then
         call syn_seed_chi(R(1),ng,Num_nu,nchi,gam_e,dN_gam_e(:,:,1),V_seed, &
-                                               DB_chi,1.046d4,P_local,pemit(:,:,1),seed(:,:,1),Tau_hist(:,:,1))
+                                               DB_chi,q_weight,1.046d4, &
+                                               P_local,pemit(:,:,1),seed(:,:,1),Tau_hist(:,:,1))
         do ichi = 1, nchi
             call project_syn(Num_nu,V_seed,pemit(:,ichi,1),seed(:,ichi,1),Tau_hist(:,ichi,1), &
                                             Num_nu_cool,V_cool,pemit_cool(:,ichi,1), &
@@ -361,16 +374,17 @@ subroutine init_front()
     else
         do ichi = 1, nchi
             block
-                real(8), dimension(1) :: DB_cell
-                real(8), dimension(ng,1) :: DNe_cell
-                real(8), dimension(Num_nu_cool,1) :: P_emit_cell
-                real(8), dimension(Num_nu_cool,1) :: P_syn_cell,Seed_cell,Taucell
-                DB_cell(1) = DB_chi(ichi)
-                DNe_cell(:,1) = dN_gam_e(:,ichi,1)
-                call syn_seed_chi(R(1),ng,Num_nu_cool,1,gam_e,DNe_cell,V_cool,DB_cell, &
-                                                       1.046d4,P_emit_cell,P_syn_cell,Seed_cell,Taucell)
-                pemit_cool(:,ichi,1) = P_syn_cell(:,1)
-                seed_cool(:,ichi,1) = Seed_cell(:,1)
+                real(8), dimension(1) :: DBcell, Wcell
+                real(8), dimension(ng,1) :: DNcell
+                real(8), dimension(Num_nu_cool,1) :: Pemcell,Psyncell,Seedcell,Taucell
+                DBcell(1) = DB_chi(ichi)
+                Wcell(1) = q_weight(ichi)
+                DNcell(:,1) = dN_gam_e(:,ichi,1)
+                call syn_seed_chi(R(1),ng,Num_nu_cool,1,gam_e,DNcell,V_cool,DBcell, &
+                                                       Wcell,1.046d4, &
+                                                       Pemcell,Psyncell,Seedcell,Taucell)
+                pemit_cool(:,ichi,1) = Psyncell(:,1)
+                seed_cool(:,ichi,1) = Seedcell(:,1)
                 Tau_hist_cool(:,ichi,1) = Taucell(:,1)
             end block
             Tau_pair_hist_cool(:,ichi,1) = 0d0
@@ -540,19 +554,24 @@ subroutine store_shell(I_tobs)
         else
             call dnx_dgamma(ng,x_edge_E,gam_e,ulog(:,ichi),dN_gam_e(:,ichi,I_tobs))
         end if
-        B_chi_out(ichi,I_tobs) = DB_chi(ichi)
+        if (nchi == 1) then
+            B_chi_out(ichi,I_tobs) = DB_chi(ichi)
+        else
+            B_chi_out(ichi,I_tobs) = DB_chi(ichi)
+        end if
         if (.not. emit_full_spectrum) then
             block
-                real(8), dimension(1) :: DB_cell
-                real(8), dimension(ng,1) :: DNe_cell
-                real(8), dimension(Num_nu_cool,1) :: P_emit_cell
-                real(8), dimension(Num_nu_cool,1) :: P_syn_cell,Seed_cell,Taucell
-                DB_cell(1) = DB_chi(ichi)
-                DNe_cell(:,1) = dN_gam_e(:,ichi,I_tobs)
-                call syn_seed_chi(R(I_tobs),ng,Num_nu_cool,1,gam_e,DNe_cell,V_cool,DB_cell, &
-                                                       1.046d4,P_emit_cell,P_syn_cell,Seed_cell,Taucell)
-                pemit_cool(:,ichi,I_tobs) = P_syn_cell(:,1)
-                seed_cool(:,ichi,I_tobs) = Seed_cell(:,1)
+                real(8), dimension(1) :: DBcell, Wcell
+                real(8), dimension(ng,1) :: DNcell
+                real(8), dimension(Num_nu_cool,1) :: Pemcell,Psyncell,Seedcell,Taucell
+                DBcell(1) = DB_chi(ichi)
+                Wcell(1) = q_weight(ichi)
+                DNcell(:,1) = dN_gam_e(:,ichi,I_tobs)
+                call syn_seed_chi(R(I_tobs),ng,Num_nu_cool,1,gam_e,DNcell,V_cool,DBcell, &
+                                                       Wcell,1.046d4, &
+                                                       Pemcell,Psyncell,Seedcell,Taucell)
+                pemit_cool(:,ichi,I_tobs) = Psyncell(:,1)
+                seed_cool(:,ichi,I_tobs) = Seedcell(:,1)
                 Tau_hist_cool(:,ichi,I_tobs) = Taucell(:,1)
             end block
             Tau_pair_hist_cool(:,ichi,I_tobs) = 0d0
@@ -564,7 +583,8 @@ subroutine store_shell(I_tobs)
     !$OMP END PARALLEL DO
     if (emit_full_spectrum) then
         call syn_seed_chi(R(I_tobs),ng,Num_nu,nchi,gam_e,dN_gam_e(:,:,I_tobs),V_seed, &
-                                               DB_chi,1.046d4,P_local,pemit(:,:,I_tobs),seed(:,:,I_tobs), &
+                                               DB_chi,q_weight,1.046d4, &
+                                               P_local,pemit(:,:,I_tobs),seed(:,:,I_tobs), &
                                                Tau_hist(:,:,I_tobs))
         do ichi = 1, nchi
             call project_syn(Num_nu,V_seed,pemit(:,ichi,I_tobs), &
@@ -585,7 +605,8 @@ subroutine store_shell(I_tobs)
 end subroutine store_shell
 
 subroutine finish_output()
-    integer :: I_proj, I_proj_chi
+    integer :: I_proj, I_proj_chi, I_nu
+    real(8) :: trans
 
     rloc = R(Num_R)
     R_Gamma_loc = R_Gamma(Num_R)
@@ -596,6 +617,8 @@ subroutine finish_output()
         call syn_state(index_syn_intger,rloc,DB,ng,Num_nu,n_threads,gam_e, &
                                     dN_gam_e_total(:,Num_R),V_seed,P_emit_shell,P_syn(:,Num_R), &
                                     Seed_syn(:,Num_R),Taushell)
+        shell_emit(:,Num_R) = P_emit_shell
+        shell_tau(:,Num_R) = Taushell
     end if
     if (profile_enabled) call cpu_time(t_start)
     peff_cool_chi = pemit_cool(:,:,Num_R) + pstream_cool
@@ -626,20 +649,37 @@ subroutine finish_output()
     call break_freqs(R_Gamma_loc, bsh, Num_R, rloc)
     if (emit_full_spectrum) then
         do I_proj = 1, Num_R
-            P_syn_chi(:,:,I_proj) = pemit(:,:,I_proj)
-            Seed_syn_chi(:,:,I_proj) = seed(:,:,I_proj)
-            Tau_syn_chi(:,:,I_proj) = Tau_hist(:,:,I_proj)
-            do I_proj_chi = 1, nchi
-                chi_radius(I_proj_chi,I_proj) = rcell_hist(I_proj_chi,I_proj)
-                chi_gamma_bulk(I_proj_chi,I_proj) = gcell_hist(I_proj_chi,I_proj)
-                chi_weight_out(I_proj_chi,I_proj) = dq
-            end do
+            if (nchi == 1) then
+                chi_radius(1,I_proj) = R(I_proj)
+                chi_gamma_bulk(1,I_proj) = R_Gamma(I_proj)
+                chi_weight_out(1,I_proj) = dq
+                P_syn_chi(:,1,I_proj) = shell_emit(:,I_proj)/dq
+                Tau_syn_chi(:,1,I_proj) = shell_tau(:,I_proj)
+                Seed_syn_chi(:,1,I_proj) = Seed_syn(:,I_proj)
+            else
+                Seed_syn_chi(:,:,I_proj) = seed(:,:,I_proj)
+                Tau_syn_chi(:,:,I_proj) = Tau_hist(:,:,I_proj)
+                do I_proj_chi = 1, nchi
+                    chi_radius(I_proj_chi,I_proj) = rcell_hist(I_proj_chi,I_proj)
+                    chi_gamma_bulk(I_proj_chi,I_proj) = gcell_hist(I_proj_chi,I_proj)
+                    chi_weight_out(I_proj_chi,I_proj) = dq
+                    do I_nu = 1, Num_nu
+                        call transfer_factor(Tau_hist(I_nu,I_proj_chi,I_proj), trans)
+                        P_syn_chi(I_nu,I_proj_chi,I_proj) = pemit(I_nu,I_proj_chi,I_proj)/trans
+                    end do
+                end do
+            end if
         end do
     else
         do I_proj = 1, Num_R
             do I_proj_chi = 1, nchi
-                chi_radius(I_proj_chi,I_proj) = rcell_hist(I_proj_chi,I_proj)
-                chi_gamma_bulk(I_proj_chi,I_proj) = gcell_hist(I_proj_chi,I_proj)
+                if (nchi == 1) then
+                    chi_radius(I_proj_chi,I_proj) = R(I_proj)
+                    chi_gamma_bulk(I_proj_chi,I_proj) = R_Gamma(I_proj)
+                else
+                    chi_radius(I_proj_chi,I_proj) = rcell_hist(I_proj_chi,I_proj)
+                    chi_gamma_bulk(I_proj_chi,I_proj) = gcell_hist(I_proj_chi,I_proj)
+                end if
                 chi_weight_out(I_proj_chi,I_proj) = dq
             end do
         end do

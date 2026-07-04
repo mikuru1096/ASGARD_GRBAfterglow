@@ -646,6 +646,7 @@ class SolverOptions:
     fullhide2d_transport_model: str
     fullhide2d_stochastic_accel_norm: float
     fullhide2d_escape_mode: str
+    adaptive_grid: str = "manual"
     projection_adaptive_rtol: float = 2.0e-2
     projection_adaptive_max_depth: int = 4
     structured_adaptive_rtol: float = 0.0
@@ -946,6 +947,7 @@ def _build_base_runtime_config(
         structured_parallel_mode=str(so.structured_parallel_mode),
         structured_outer_threads=so.structured_outer_threads,
         structured_inner_threads=so.structured_inner_threads,
+        adaptive_grid=str(getattr(so, "adaptive_grid", "manual")),
         projection_adaptive_rtol=float(so.projection_adaptive_rtol),
         projection_adaptive_max_depth=int(so.projection_adaptive_max_depth),
         structured_adaptive_rtol=float(getattr(so, "structured_adaptive_rtol", 0.0)),

@@ -156,7 +156,9 @@ end subroutine pair_tau
 
 ! chi 批量同步辐射核心: 同一半径且 chi 上磁场相同时复用 F(nu/nu_c) 核。
 ! Chi-batch synchrotron core: reuse F(nu/nu_c) when B is shared across chi.
-subroutine syn_seed_chi(R_loc,Num_gam_e,Num_nu,Num_chi,gam_e,DNe_chi,V_seed,DB_chi,ssa_prefactor, &
+! 中文：Q_weight 只缩放每个 chi cell 的径向 SSA 光深；发射功率仍保持 cell-local 电子谱定义。
+! English: Q_weight scales only the radial SSA optical depth of each chi cell; emitted power remains defined by the cell-local electron spectrum.
+subroutine syn_seed_chi(R_loc,Num_gam_e,Num_nu,Num_chi,gam_e,DNe_chi,V_seed,DB_chi,Q_weight,ssa_prefactor, &
                                              P_emit,P_syn,Seed_syn,Tau_syn)
     implicit none
     integer, intent(in) :: Num_gam_e,Num_nu,Num_chi
@@ -164,6 +166,7 @@ subroutine syn_seed_chi(R_loc,Num_gam_e,Num_nu,Num_chi,gam_e,DNe_chi,V_seed,DB_c
     real(8), dimension(Num_gam_e,Num_chi), intent(in) :: DNe_chi
     real(8), dimension(Num_nu), intent(in) :: V_seed
     real(8), dimension(Num_chi), intent(in) :: DB_chi
+    real(8), dimension(Num_chi), intent(in) :: Q_weight
     real(8), intent(in) :: R_loc,ssa_prefactor
     real(8), dimension(Num_nu,Num_chi), intent(out) :: P_emit,P_syn,Seed_syn,Tau_syn
     real(8) :: factor,temp,r2,norm,dbref,db,sumv,tau,power,trans,vc,fx,x
@@ -236,7 +239,7 @@ subroutine syn_seed_chi(R_loc,Num_gam_e,Num_nu,Num_chi,gam_e,DNe_chi,V_seed,DB_c
             end do
             do i_nu = 1, Num_nu
                 power = temp*db*intg(i_nu)
-                tau = ssa_prefactor*taug(i_nu)*db/(4d0*pi*r2*V_seed(i_nu)*V_seed(i_nu))
+                tau = ssa_prefactor*taug(i_nu)*db*Q_weight(i_chi)/(4d0*pi*r2*V_seed(i_nu)*V_seed(i_nu))
                 P_emit(i_nu,i_chi) = power
                 Tau_syn(i_nu,i_chi) = tau
                 call transfer_factor(tau,trans)
@@ -266,7 +269,7 @@ subroutine syn_seed_chi(R_loc,Num_gam_e,Num_nu,Num_chi,gam_e,DNe_chi,V_seed,DB_c
                 tau = tau + twgt(i_gam)*fxgrid(i_gam,i_nu)
             end do
             power = temp*dbref*sumv
-            tau = ssa_prefactor*tau*dbref/(4d0*pi*r2*V_seed(i_nu)*V_seed(i_nu))
+            tau = ssa_prefactor*tau*dbref*Q_weight(i_chi)/(4d0*pi*r2*V_seed(i_nu)*V_seed(i_nu))
             P_emit(i_nu,i_chi) = power
             Tau_syn(i_nu,i_chi) = tau
             call transfer_factor(tau,trans)
@@ -276,7 +279,7 @@ subroutine syn_seed_chi(R_loc,Num_gam_e,Num_nu,Num_chi,gam_e,DNe_chi,V_seed,DB_c
     end do
 end subroutine syn_seed_chi
 
-subroutine syn_flux_chi(R_loc,Num_gam_e,Num_nu,Num_chi,gam_e,DNe_chi,V_seed,DB_chi, &
+subroutine syn_flux_chi(R_loc,Num_gam_e,Num_nu,Num_chi,gam_e,DNe_chi,V_seed,DB_chi,Q_weight, &
                                                  ssa_prefactor,P_syn,Tau_syn)
     implicit none
     integer, intent(in) :: Num_gam_e,Num_nu,Num_chi
@@ -284,9 +287,10 @@ subroutine syn_flux_chi(R_loc,Num_gam_e,Num_nu,Num_chi,gam_e,DNe_chi,V_seed,DB_c
     real(8), dimension(Num_gam_e,Num_chi), intent(in) :: DNe_chi
     real(8), dimension(Num_nu), intent(in) :: V_seed
     real(8), dimension(Num_chi), intent(in) :: DB_chi
+    real(8), dimension(Num_chi), intent(in) :: Q_weight
     real(8), intent(in) :: R_loc,ssa_prefactor
     real(8), dimension(Num_nu,Num_chi), intent(out) :: P_syn,Tau_syn
-    real(8) :: factor,temp,r2,dbref,db,sumv,tau,power,trans,vc,fx,x
+    real(8) :: factor,temp,r2,dbref,db,sumv,tau,power,vc,fx,x
     real(8), dimension(Num_nu) :: intg,taug
     real(8) :: emit_w,tau_w,vcinv,vcpow,vcm13
     real(8), dimension(Num_gam_e-1) :: gmean,dgam,vcarr,vpow23,ewgt,twgt
@@ -344,10 +348,9 @@ subroutine syn_flux_chi(R_loc,Num_gam_e,Num_nu,Num_chi,gam_e,DNe_chi,V_seed,DB_c
                     tau = tau + twgt(i_gam)*fxgrid(i_gam,i_nu)
                 end do
                 power = temp*dbref*sumv
-                tau = ssa_prefactor*tau*dbref/(4d0*pi*r2*V_seed(i_nu)*V_seed(i_nu))
+                tau = ssa_prefactor*tau*dbref*Q_weight(i_chi)/(4d0*pi*r2*V_seed(i_nu)*V_seed(i_nu))
                 Tau_syn(i_nu,i_chi) = tau
-                call transfer_factor(tau,trans)
-                P_syn(i_nu,i_chi) = power*trans
+                P_syn(i_nu,i_chi) = power
             end do
         end do
     else
@@ -385,10 +388,9 @@ subroutine syn_flux_chi(R_loc,Num_gam_e,Num_nu,Num_chi,gam_e,DNe_chi,V_seed,DB_c
             end do
             do i_nu = 1, Num_nu
                 power = temp*db*intg(i_nu)
-                tau = ssa_prefactor*taug(i_nu)*db/(4d0*pi*r2*V_seed(i_nu)*V_seed(i_nu))
+                tau = ssa_prefactor*taug(i_nu)*db*Q_weight(i_chi)/(4d0*pi*r2*V_seed(i_nu)*V_seed(i_nu))
                 Tau_syn(i_nu,i_chi) = tau
-                call transfer_factor(tau,trans)
-                P_syn(i_nu,i_chi) = power*trans
+                P_syn(i_nu,i_chi) = power
             end do
         end do
     end if

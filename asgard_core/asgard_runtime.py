@@ -959,8 +959,8 @@ def _resolve_num_chi(config: RuntimeConfig, solver_name: str | None = None) -> i
         return 1
     if user_value is None:
         return 64
-    if int(user_value) < 2:
-        raise ValueError("downstream_num_chi must be >= 2 for 2d electron solvers.")
+    if int(user_value) < 1:
+        raise ValueError("downstream_num_chi must be >= 1 for 2d electron solvers.")
     return int(user_value)
 
 

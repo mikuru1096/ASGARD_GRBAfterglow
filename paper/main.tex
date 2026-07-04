@@ -863,6 +863,117 @@ The supported magnetic geometries are \texttt{shock\_random} and axisymmetric \t
 
 The geometry kernel options are \texttt{sed\_legacy}, \texttt{sed\_adaptive\_theta}, and \texttt{chi\_eats\_2d}.  The \(\chi\)-resolved projection requires a two-dimensional electron solver and the stored \(\chi\)-resolved luminosity, optical depth, radius, bulk Lorentz factor, and volume weights.  Its finite-cell self-absorption transfer averages through the emitting cell instead of applying a single front-face optical depth, and the interpolation handles nonmonotonic \(\chi\)-arrival ordering by sorting cell arrival times before accumulation.  This path replaces only the forward-shock synchrotron plus SSA light-curve projection; SSC, hadronic, and pair-cascade components remain shell-level components.  An off-axis top-hat projection also requires \(\texttt{num\_phi}\ge2\); \(\texttt{num\_phi}=1\) is only valid for the on-axis collapsed case.
 
+\subsection{Ray-traced synchrotron self-absorption in the \texorpdfstring{\(\chi\)}{chi}-resolved projection}
+
+The \(\chi\)-resolved synchrotron projection treats synchrotron self-absorption as a local comoving transfer problem followed by a global ray projection.  For an angular cell centered at \((\theta,\phi)\), the line-of-sight cosine is
+\[
+\mu=\hat{\boldsymbol n}\cdot\hat{\boldsymbol r}
+=\cos\theta_v\cos\theta+\sin\theta_v\sin\theta\cos\phi .
+\]
+The equal-arrival-time condition for a downstream cell at radius \(R_\chi\) is
+\[
+T_{\rm obs}=(1+z)\left(t_{\rm lab}-\frac{\mu R_\chi}{c}\right).
+\]
+Equivalently, in the stored radius-ordered variables the projection solves
+\[
+T_{\rm obs}=T_0(R)+\frac{1+z}{c}\left[R_{\rm front}(R)-\mu R_\chi(R)\right],
+\]
+and interpolates local quantities between the two radius grid points that bracket the requested observer time.
+
+The Doppler factor is written through
+\[
+D=\Gamma(1-\beta\mu)=\delta^{-1},
+\qquad
+\nu'=(1+z)D\nu_{\rm obs}.
+\]
+For an angular element
+\[
+d\Omega=\left(\cos\theta_{\rm lo}-\cos\theta_{\rm hi}\right)d\phi ,
+\]
+the optically thin contribution is
+\[
+dF_{\nu_{\rm obs}}=
+\frac{1+z}{4\pi D_L^2}\,
+\frac{d\Omega}{4\pi}\,
+D^{-3}L'_{\nu'}\,W_\chi ,
+\]
+where \(L'_{\nu'}\) is the comoving synchrotron luminosity of the \(\chi\) cell and \(W_\chi\) is the stored downstream volume weight.  Frequency interpolation is performed in \(\log\nu'\)-\(\log L'_{\nu'}\) and \(\log\nu'\)-\(\log\tau'_{\nu'}\) space where both adjacent values are positive.
+
+The absorption coefficient is a comoving quantity, so the optical depth along a ray segment is
+\[
+d\tau'_{\nu'}=\alpha'_{\nu'}\,ds' .
+\]
+If the local radial optical-depth grid stores
+\[
+\tau'_{\nu',{\rm rad}}=\alpha'_{\nu'}\Delta r',
+\qquad
+\Delta r'=\Gamma\left(r_{\rm out}-r_{\rm in}\right),
+\]
+then a ray segment of comoving length \(\Delta s'\) contributes
+\[
+\tau'_{\nu',{\rm ray}}=
+\tau'_{\nu',{\rm rad}}\frac{\Delta s'}{\Delta r'} .
+\]
+For a foreground cell this length is defined by the intersection of the source ray with the cell volume.  The lab-frame ray is
+\[
+\boldsymbol x(s)=\boldsymbol x_{\rm src}+s\hat{\boldsymbol n},
+\qquad s>0 .
+\]
+For the foreground cell with local radial direction \(\hat{\boldsymbol e}_{r,{\rm fg}}\),
+\[
+\mu_{\rm fg}=\hat{\boldsymbol n}\cdot\hat{\boldsymbol e}_{r,{\rm fg}},
+\qquad
+\Delta s'_{\rm fg}=
+\Gamma_{\rm fg}\left(1-\beta_{\rm fg}\mu_{\rm fg}\right)
+\Delta s_{\rm lab}.
+\]
+The segment \(\Delta s_{\rm lab}=s_{\rm out}-s_{\rm in}\) is the positive line-cell intersection length.  In a local cell basis \((r,\theta,\phi)\), the intersection is computed by the slab equations
+\[
+x_i(s)=x_{0,i}+s n_i,
+\]
+\[
+s_{\rm in}=\max_i\left[\min\left(\frac{x_{i,{\rm lo}}-x_{0,i}}{n_i},
+\frac{x_{i,{\rm hi}}-x_{0,i}}{n_i}\right)\right],
+\qquad
+s_{\rm out}=\min_i\left[\max\left(\frac{x_{i,{\rm lo}}-x_{0,i}}{n_i},
+\frac{x_{i,{\rm hi}}-x_{0,i}}{n_i}\right)\right].
+\]
+A foreground cell contributes only when \(s_{\rm out}>s_{\rm in}\).  Its optical-depth contribution is therefore
+\[
+\tau'_{\nu',{\rm fg}}=
+\tau'_{\nu',{\rm rad,fg}}\,
+\frac{\Gamma_{\rm fg}(1-\beta_{\rm fg}\mu_{\rm fg})\Delta s_{\rm lab}}
+{\Gamma_{\rm fg}(r_{\rm out}-r_{\rm in})}
+=
+\tau'_{\nu',{\rm rad,fg}}\,
+\frac{(1-\beta_{\rm fg}\mu_{\rm fg})\Delta s_{\rm lab}}
+{r_{\rm out}-r_{\rm in}} .
+\]
+The foreground attenuation of a source cell is
+\[
+\tau_{\rm front}=\sum_{\rm fg}\tau'_{\nu',{\rm fg}} .
+\]
+
+The emitting cell is treated as a uniform source and absorber over its own ray segment.  Its transfer factor is
+\[
+\mathcal{E}(\tau_{\rm cell})=
+\frac{1-\exp(-\tau_{\rm cell})}{\tau_{\rm cell}},
+\qquad
+\tau_{\rm cell}=\tau'_{\nu',{\rm rad}}\frac{\Delta s'_{\rm cell}}{\Delta r'} .
+\]
+The final ray-traced synchrotron contribution is
+\[
+F_{\nu_{\rm obs}}(T_{\rm obs})=
+\sum_{\rm EATS\ cells}
+\frac{1+z}{4\pi D_L^2}
+\frac{d\Omega}{4\pi}
+D^{-3}
+L'_{\nu'}W_\chi
+\exp(-\tau_{\rm front})
+\frac{1-\exp(-\tau_{\rm cell})}{\tau_{\rm cell}} .
+\]
+This expression is nonlocal in angle because a foreground cell can attenuate emission from a different angular cell.  Consequently, local flux-pair criteria such as \(F(A\cup B)=F(A)+F(B)\) are not valid convergence tests for ray-traced SSA.  The supported convergence checks are global resolution tests in \(\theta\), \(\phi\), \(\chi\), and radius, while adaptive initial grids may only choose the starting angular resolution before the global ray projection is evaluated.
+
 \section{Fitting, Runtime, and Reproducibility} \label{sec:fitting}
 
 The fitting layer changes neither the dynamics nor the radiation kernels.  It binds model parameters to public constructors, solves the state chain, and evaluates residuals against observation blocks.  For flux-density and spectral points the implemented log likelihood is the Gaussian residual sum

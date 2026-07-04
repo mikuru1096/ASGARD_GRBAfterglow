@@ -10,6 +10,8 @@ _BINDINGS = {
     "sed_interpolation_chi": "SED_interpolation",
     "sed_chi_electron": "SED_interpolation",
     "sed_chi_ring": "SED_interpolation",
+    "sed_chiring_batchlum": "SED_interpolation",
+    "sed_chiring_batchlum_ray": "SED_interpolation",
 }
 
 

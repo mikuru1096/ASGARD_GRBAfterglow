@@ -136,6 +136,7 @@ class _RuntimeConfig:
     structured_parallel_mode: str = "outer"
     structured_outer_threads: int | None = None
     structured_inner_threads: int | None = None
+    adaptive_grid: str = "manual"
     projection_adaptive_rtol: float = 2.0e-2
     projection_adaptive_max_depth: int = 4
     structured_adaptive_rtol: float = 0.01  # flux-based adaptive theta/phi for chi_2d

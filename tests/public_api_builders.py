@@ -84,6 +84,7 @@ def solver_options(**updates) -> SolverOptions:
         structured_parallel_mode="outer",
         structured_outer_threads=None,
         structured_inner_threads=None,
+        adaptive_grid="manual",
         projection_adaptive_rtol=2.0e-2,
         projection_adaptive_max_depth=4,
         fullhide2d_transport_model="legacy",

@@ -100,12 +100,14 @@ contains
         implicit none
         integer, intent(in) :: I_tobs
         real(8), dimension(1) :: DB_chi
+        real(8), dimension(1) :: Weight_chi
         real(8), dimension(Num_gam_e,1) :: specchi
         real(8), dimension(Num_nu,1) :: pemit,pshell,seedshell,taushell
 
         DB_chi(1)=DB
+        Weight_chi(1)=1d0
         specchi(:,1)=dN_gam_e(:,I_tobs-1)
-        call syn_seed_chi(rloc,Num_gam_e,Num_nu,1,gam_e,specchi,V_seed,DB_chi,1.046d4, &
+        call syn_seed_chi(rloc,Num_gam_e,Num_nu,1,gam_e,specchi,V_seed,DB_chi,Weight_chi,1.046d4, &
                                                pemit,pshell,seedshell,taushell)
         P_syn(:,I_tobs)=pshell(:,1)
         Seed_syn(:,I_tobs)=seedshell(:,1)

@@ -693,13 +693,15 @@ real(8), intent(in), dimension(Num_nu) :: V_seed
 real(8), intent(in) :: R_loc,DB
 real(8), intent(out), dimension(Num_nu) :: Transfer_syn
 real(8), dimension(1) :: DB_chi
+real(8), dimension(1) :: Weight_chi
 real(8), dimension(Num_gam_e,1) :: DNe_chi
 real(8), dimension(Num_nu,1) :: P_emit,P_syn,Seed_syn,Tau_syn
 integer :: I_nu
 
     DB_chi(1)=DB
+    Weight_chi(1)=1d0
     DNe_chi(:,1)=dN_gam_e
-    call syn_seed_chi(R_loc,Num_gam_e,Num_nu,1,gam_e,DNe_chi,V_seed,DB_chi,1.046d4, &
+    call syn_seed_chi(R_loc,Num_gam_e,Num_nu,1,gam_e,DNe_chi,V_seed,DB_chi,Weight_chi,1.046d4, &
                                            P_emit,P_syn,Seed_syn,Tau_syn)
     !$OMP PARALLEL DO SCHEDULE(STATIC) num_threads(n_threads) private(I_nu)
     do I_nu=1,Num_nu
