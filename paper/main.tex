@@ -107,35 +107,35 @@ The public model definition is intentionally bounded.  A user-defined medium can
 
 \subsection{External media}
 
-The external medium enters the dynamics as one of three supported profiles: a uniform medium, a \(k=2\) stellar-wind medium, or a tabulated radial profile.
+The external medium enters the dynamics as a radial number-density profile \(n(R)\).  The implemented choices are a uniform medium, a \(k=2\) stellar-wind medium, and a tabulated radial profile.
 
 For a uniform medium, the proton number density is
 \[
 n(R)=n_{\rm ISM},
 \]
-with no wind component.
+where \(n_{\rm ISM}\) is constant.
 
-For a wind medium, only \(k=2\) is implemented.  The density module first forms the Chevalier--Li profile
+For a wind medium, the implemented profile is the \(k=2\) Chevalier--Li form
 \[
-n_w(R)=\frac{A}{m_pR^2},
+n_{\rm w}(R)=\frac{A}{m_pR^2},
 \qquad
 A=5\times10^{11}A_\ast\ {\rm g\ cm^{-1}},
 \]
-which is numerically \(n_w\simeq3.0\times10^{35}A_\ast R^{-2}\ {\rm cm^{-3}}\) in cgs units \citep{ChevalierLi2000}.  The implemented baseline then switches to the ISM density when the wind has fallen below one quarter of the ISM value:
+which is \(n_{\rm w}\simeq3.0\times10^{35}A_\ast R^{-2}\ {\rm cm^{-3}}\) in cgs units \citep{ChevalierLi2000}.  The baseline profile is then set to the ISM value once the wind density has fallen below one quarter of \(n_{\rm ISM}\):
 \[
-n_{\rm base}(R)=
+n_0(R)=
 \begin{cases}
-n_{\rm ISM}, & n_w(R)\le n_{\rm ISM}/4,\\
-n_w(R), & n_w(R)> n_{\rm ISM}/4,
+n_{\rm ISM}, & n_{\rm w}(R)\le n_{\rm ISM}/4,\\
+n_{\rm w}(R), & n_{\rm w}(R)> n_{\rm ISM}/4,
 \end{cases}
 \]
-where the factor of four is an explicit wind-to-ISM transition boundary rather than a smoothed termination-shock solution.  If the public wind model is given a positive density cap \(n_{\rm cap}\), the Python setup converts it to the radius
+where the factor of four is an explicit wind-to-ISM transition boundary, not a smoothed termination-shock solution.  If the public wind model is given a positive density cap \(n_{\rm cap}\), the setup converts that cap to the radius
 \[
 R_0=\left(\frac{A}{m_p n_{\rm cap}}\right)^{1/2}.
 \]
-The compiled density kernel receives only this radius.  For \(R<R_0\), it overwrites the density after the base-profile and jump logic with the unperturbed inner value: analytic wind media use \(n_w(R_0)\), uniform media use \(n_{\rm ISM}\), and tabulated media use the log-log table value at \(R_0\).  The cap is therefore a hard inner-radius state, not an additional Gaussian enhancement.  A wind profile with \(k\ne2\) is outside the implemented model.
+The public cap is therefore specified as a density, but the compiled density kernel receives only \(R_0\).  For \(R<R_0\), the kernel resets the density after the baseline and jump operations.  In the public wind path, the reset value is \(n_{\rm w}(R_0)\); the same kernel rule gives \(n_{\rm ISM}\) for a non-wind analytic medium and the log-log table value at \(R_0\) for a tabulated medium.  The cap is a hard inner-radius state, not an additional Gaussian enhancement.  A wind profile with \(k\ne2\) is outside the implemented model.
 
-For a tabulated medium, the model stores two strictly increasing positive arrays, \(R_i\) and \(n_i\), with at most 96 points.  The density is log-log interpolation,
+For a tabulated medium, the model stores two positive arrays, \(R_i\) and \(n_i\), with strictly increasing radii and \(N_{\rm tab}\le96\).  The density is log-log interpolation,
 \[
 n(R)=
 \exp\left[
@@ -150,11 +150,11 @@ n_i
 \ln(n_{i+1}/n_i)/\ln(R_{i+1}/R_i)
 }.
 \]
-The implementation uses the first two table points for \(R<R_1\) and the last two points for \(R>R_N\), so this is a power-law extrapolation outside the tabulated range, not a clamp.  When a tabulated profile is active, the density-jump enhancement described below is not applied.
+The implementation uses the first two table points for \(R<R_1\) and the last two points for \(R>R_N\).  The continuation outside the tabulated range is therefore a power-law extrapolation, not a clamp.  When a tabulated profile is active, the density-jump enhancement described below is not applied.
 
-Density jumps are represented separately from the base medium and are applied only when the caller requests the jump-bearing density.  The implemented multi-jump form is an additive Gaussian multiplier,
+Density jumps are represented separately from the baseline medium and are applied only when the caller requests the jump-bearing density.  The implemented multi-jump form is a multiplicative perturbation with additive Gaussian excesses,
 \[
-n(R)=n_{\rm base}(R)
+n(R)=n_0(R)
 \left[
 1+\sum_j
 (f_j-1)
@@ -163,23 +163,23 @@ n(R)=n_{\rm base}(R)
 \right)
 \right].
 \]
-The legacy single-jump path is the same formula with \(R_j=R_{\rm tr}\), \(f_j=f_{\rm jump}\), and \(w_j=f_{\rm wide}\).  The public field name \texttt{jump\_width\_log10} is a historical ABI name; in the compiled density kernel the value is a linear fractional width, \(\sigma_{R,j}=w_jR_j\), not a logarithmic width.  The jump radii, factors, and fractional widths must be positive and have matching lengths.  Because the current multi-jump definition adds the Gaussian excesses before multiplying the base density, overlapping strong density drops are physically meaningful only while the bracketed enhancement remains positive.  This representation is motivated by afterglow density-structure work, but the manuscript does not interpret every Gaussian bump as a unique astrophysical environment without a separate model comparison \citep{DaiLu2002,NakarGranot2007,UhmZhang2014}.
+The legacy single-jump path is the same formula with \(R_j=R_{\rm tr}\), \(f_j=f_{\rm jump}\), and \(w_j=f_{\rm wide}\).  The public field name \texttt{jump\_width\_log10} is a historical ABI name; in the compiled density kernel the value is the linear fractional width \(w_j\), so \(\sigma_{R,j}=w_jR_j\).  The jump radii, factors, and fractional widths must be positive and have matching lengths.  Because the Gaussian terms are summed inside the bracket, overlapping density decreases with \(f_j<1\) are physically admissible only where the bracket remains positive.  This representation is motivated by afterglow density-structure work, but the manuscript does not interpret each Gaussian feature as a unique astrophysical environment without a separate model comparison \citep{DaiLu2002,NakarGranot2007,UhmZhang2014}.
 
-The density module is configured once per dynamics or transport call by unpacking the runtime boundary vector.  It supports at most eight Gaussian density structures and at most 96 tabulated medium points.  The setup step rejects nonpositive jump radii, factors, or widths; nonpositive table radii or densities; a one-point table; and non-monotonic table radii.  These are boundary conditions on the medium definition, not additional physics.
+The density module is configured once per dynamics or transport call by unpacking the runtime boundary vector.  It supports at most eight Gaussian density structures and at most 96 tabulated medium points.  The setup step rejects nonpositive jump radii, factors, or widths; nonpositive table radii or densities; a one-point table; and non-monotonic table radii.  These checks define the allowed medium, not additional physics.
 
 \subsection{Jet angular profiles}
 
-The implemented jet profiles are top-hat, Gaussian, and power-law initial angular profiles.  They specify isotropic-equivalent energy and initial Lorentz factor as functions of polar angle.  The top-hat profile uses
+The implemented jet profiles specify the isotropic-equivalent energy \(E_{\rm iso}\) and initial Lorentz factor \(\Gamma_0\) as functions of polar angle.  The available initial profiles are top-hat, Gaussian, and power-law forms.  The top-hat profile uses
 \[
 E_{\rm iso}(\theta)=
 \begin{cases}
-E_0, & \theta<\theta_j,\\
+E_c, & \theta<\theta_j,\\
 0, & \theta\ge\theta_j,
 \end{cases}
 \qquad
 \Gamma_0(\theta)=
 \begin{cases}
-\Gamma_0, & \theta<\theta_j,\\
+\Gamma_c, & \theta<\theta_j,\\
 1, & \theta\ge\theta_j.
 \end{cases}
 \]
