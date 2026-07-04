@@ -286,7 +286,7 @@ local luminosity / seed / absorption
 
 ## 13. 拟合中的物理含义
 
-Fitting 不改变物理模型。`Fitter` 只是把参数路径映射到 `Model` / `RuntimeConfig`，执行同一个 solve-state 和 projection chain，再用观测数据计算 likelihood 或 redchi。
+Fitting 不改变物理模型。`Fitter` 只是把参数路径映射到 `Model` / `RuntimeConfig`，执行同一个 solve-state 和 projection chain，再用观测数据计算 chi2 likelihood。
 
 因此 fit 中发现的非平滑 light curve、非连续 break frequency 或异常 hadronic diagnostics，应回到动力学、输运、源项归一化或投影网格检查，而不是在 likelihood 层修补。
 

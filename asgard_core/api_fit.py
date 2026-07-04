@@ -10,9 +10,9 @@ import numpy as np
 
 from asgard_core.asgard_config import RuntimeConfig
 from asgard_core.asgard_postprocess import (
-    build_multiband_observer_frequencies,
-    combine_multiband_flux,
-    compute_light_curve_redchi,
+    band_freqs,
+    combine_flux,
+    light_chi,
 )
 from asgard_core.asgard_setup import build_simulation_setup
 from asgard_core.asgard_state import project_flux_grid, solve_state_from_setup
@@ -293,7 +293,7 @@ def compile_problem(
     params: list[Param] | None = None,
 ):
     if isinstance(data_or_config, RuntimeConfig) and model_or_config is None:
-        num_xrt, requested_frequencies_hz = build_multiband_observer_frequencies()
+        num_xrt, requested_frequencies_hz = band_freqs()
         setup = build_simulation_setup(data_or_config)
         return FitProblem(
             observer_time_s=np.asarray(setup.observer_time_s, dtype=float),
@@ -500,9 +500,9 @@ def _eval_cfg(
         projection_kind="lightcurve",
     )
     band_flux_matrix = np.asarray(observed.components["total"], dtype=float)
-    bands_flux = combine_multiband_flux(band_flux_matrix, problem.requested_frequencies_hz, problem.num_xrt)
-    redchi = compute_light_curve_redchi(bands_flux, problem.observer_time_s, config)
-    return -0.5 * redchi
+    bands_flux = combine_flux(band_flux_matrix, problem.requested_frequencies_hz, problem.num_xrt)
+    chi2 = light_chi(bands_flux, problem.observer_time_s, config)
+    return -0.5 * chi2
 
 
 def _eval_model(

@@ -8,7 +8,7 @@ import numpy as np
 ensure_repo_root_on_path()
 
 from asgard_core.asgard_config import RuntimeConfig, SimulationSetup
-from asgard_core.asgard_postprocess import interpolate_observed_flux
+from asgard_core.asgard_postprocess import observe_flux
 from asgard_core.asgard_setup import build_simulation_setup
 from src import Interpolation
 
@@ -92,7 +92,7 @@ def case_postprocess_routes_adaptive_kernel():
         projection_adaptive_rtol=1.0e-30,
         projection_adaptive_max_depth=1,
     )
-    routed = interpolate_observed_flux(setup, r_tobs, gamma, radius, source, obs, config)
+    routed = observe_flux(setup, r_tobs, gamma, radius, source, obs, config)
     direct = Interpolation.sed_adaptive_theta(
         boundary,
         r_tobs,

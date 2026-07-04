@@ -28,7 +28,7 @@ from asgard_core.asgard_physics_utils import (
     reverse_mass,
 )
 from asgard_core.asgard_physics_utils import densityjumps
-from asgard_core.asgard_postprocess import interpolate_observed_flux
+from asgard_core.asgard_postprocess import observe_flux
 from asgard_core.asgard_runtime import (
     _hadronic_pg_survival_factor,
     _solver_report,
@@ -1445,7 +1445,7 @@ def _project_component(
     return _timed_call(
         timings,
         label,
-        interpolate_observed_flux,
+        observe_flux,
         setup,
         characteristic_time_s,
         gamma,

@@ -8,8 +8,6 @@ from typing import Callable
 
 import numpy as np
 
-from src import constants
-
 MAX_DENSITY_JUMPS = 8
 MAX_DENSITY_PROFILE_POINTS = 96
 
@@ -20,17 +18,6 @@ def default_num_threads() -> int:
     if env_value is not None:
         return max(1, int(env_value))
     return max(1, os.cpu_count() or 1)
-
-
-@dataclass
-class SpectrumOutputConfig:
-    """Configuration for spectrum output."""
-    enabled: bool = False
-    num_nu_obs: int = 180
-    nu_min_hz: float = 1.0e-6 * constants.para_ev2hz
-    nu_max_hz: float = 1.0e-3 * constants.para_tev2hz
-    time_s: float | None = None
-    dataset_names: tuple[str, ...] = field(default_factory=tuple)
 
 
 @dataclass
@@ -175,7 +162,6 @@ class RuntimeConfig:
 
     ebv: float = 0.0
     rv: float = 2.93
-    lyman_ar: float = 0.0
     f_sys: float = -1.0
 
     e_inj_t1: float = 1.0
@@ -199,7 +185,6 @@ class RuntimeConfig:
 
     reverse: bool = False
 
-    spectrum_output: SpectrumOutputConfig = field(default_factory=SpectrumOutputConfig)
     reverse_shock: ReverseShockConfig = field(default_factory=ReverseShockConfig)
     hadronic: HadronicConfig = field(default_factory=HadronicConfig)
     nu_callback: Callable[[str, np.ndarray, np.ndarray, np.ndarray], None] | None = None

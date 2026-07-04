@@ -12,7 +12,6 @@ from asgard_core.asgard_config import (
     HadronicConfig,
     MAX_DENSITY_PROFILE_POINTS,
     ReverseShockConfig,
-    SpectrumOutputConfig,
 )
 from asgard_core.asgard_state import (
     FluxComponents,
@@ -971,7 +970,6 @@ def _build_base_runtime_config(
         index_y=index_y, include_forward_ssc=fwd_rad.ssc,
         luminosity_distance_cm_override=observer.lumi_dist_cm,
         initial_radius_cm=float(n.initial_radius_cm),
-        spectrum_output=SpectrumOutputConfig(enabled=False),
     )
     config.hadronic = HadronicConfig(
         enabled=bool(hadronic.enabled and fwd_rad.epsilon_p > 0.0),

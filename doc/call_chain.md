@@ -28,10 +28,10 @@ flowchart TD
     M --> N["top-hat chi_eats_2d lightcurve:\nInterpolation.sed_interpolation_chi"]
     M --> T["axisymmetric structured chi_eats_2d:\nring solve + sed_chi_ring"]
     M --> R["sed / shell components:\nInterpolation.sed_interpolation\nEATS + Doppler + redshift"]
-    N --> O["combine_multiband_flux"]
+    N --> O["combine_flux"]
     T --> O
     R --> O
-    O --> P["compute_light_curve_redchi"]
+    O --> P["light_chi"]
 ```
 
 ## Fortran 数值核层
@@ -63,12 +63,12 @@ Model.flux_density_grid
   -> solve_hadronic -> solve_reverse_shock_emission
   -> pair-production branch / Radiation.annihilation -> project_flux_grid
   -> projection_kind="lightcurve" or "sed"
-  -> combine_multiband_flux -> FluxResult
+  -> combine_flux -> FluxResult
 ```
 
 拟合最短路径：
 
 ```text
 Fitter.loglike -> eval_loglike -> solve_state_from_setup
-  -> project_flux_grid -> combine_multiband_flux -> compute_light_curve_redchi
+  -> project_flux_grid -> combine_flux -> light_chi
 ```

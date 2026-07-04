@@ -52,7 +52,7 @@ Model.flux_density_grid / flux_density / spectrum / flux
 
 ```text
 Fitter.loglike -> compile_problem -> eval_loglike -> solve_state_from_setup
-  -> project_flux_grid -> combine_multiband_flux -> compute_light_curve_redchi
+  -> project_flux_grid -> combine_flux -> light_chi
 ```
 
 ## 3. Python 编排层
