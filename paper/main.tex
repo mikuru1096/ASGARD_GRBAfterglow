@@ -1588,13 +1588,147 @@ T_k=\frac{(k-1)C_n}{m-1},\qquad k=1,\ldots,m,
 \]
 are mapped back to the first source index satisfying \(C_i\ge T_k\).  Duplicate indices are removed; if curvature concentration produces fewer than \(m\) distinct indices, the missing slots are filled uniformly from the absent original indices and the final list is sorted.  In the exact zero-curvature limit all \(C_i\) vanish, so the same duplicate-removal and missing-index fill gives a uniform subset of the original log grid.  The radiation grid then keeps the first and last positive active bins, the selected interior active bins, and one neighboring bin on each side when such a bin exists.  The physical reason for this construction is that synchrotron emissivity depends on the shape of \(N_e(\gamma)\) in log energy: power-law parts are nearly straight in \((\log\gamma,\log N_e)\), while cooling breaks, injection turnovers, and cutoffs have large \(|d^2\log N_e/d(\log\gamma)^2|\) and require denser quadrature support.
 
-The two-dimensional electron path adds a downstream coordinate \(\eta=\log_{10}\chi\) and advances \(U_e=dN_e/(dx\,d\eta)\).  The stored projection quantities are \(R_\chi\), \(\Gamma_\chi\), the \(\chi\)-resolved synchrotron luminosity, the \(\chi\)-resolved optical depth, and a volume weight.  In the optional \texttt{pwn\_cr\_v1} transport branch the local downstream kinematics are tied to the Blandford--McKee coordinate:
+The two-dimensional forward-electron wrapper advances the transported electron content on a finite downstream mass coordinate, not on an infinite \(\log_{10}\chi\) grid.  Let the strong-shock compression used by the kernel be \(r_{\rm sh}=4\).  The active domain is
 \[
-\Gamma_\chi=\frac{\Gamma_{\rm sh}}{\sqrt{2\chi}},
+q_\ast=1-\left(1-\frac{1}{r_{\rm sh}}\right)^{r_{\rm sh}},
 \qquad
-\frac{r_\chi}{R}=1-\frac{\chi-1}{8\Gamma_{\rm sh}^2}.
+q_{k+1/2}=k\Delta q,\qquad
+\Delta q=\frac{q_\ast}{N_\chi},
 \]
-The local adiabatic term is evaluated from the downstream divergence where the ultra-relativistic BM approximation is valid, and the explicit boundary of that approximation is stated in the code documentation.  Diffusion is solved implicitly in \(\eta\) with either a closed outer boundary or a free-outer escape sink.  The same local \(B_\chi\), including the optional microturbulent decay floor, is used for synchrotron/SSA diagnostics, radiative losses, and the Bohm-like diffusion coefficient.  A positive stochastic-acceleration normalization activates Strang splitting in \(x=\log_{10}\gamma_e\): half-step conservative energy diffusion, full radiative/adiabatic cooling, then a second half-step conservative diffusion.  This is a research transport option for the \(\chi\)-resolved electron path, not a general PWN or cosmic-ray propagation model.
+with \(q=0\) at the shock front.  The default \texttt{fullhide\_2d} branch uses the four-velocity coordinate \(y\) defined above and advances cell averages
+\[
+U_{ik}(R)=\frac{1}{\Delta y_i\Delta q}
+\int_{\Delta y_i}\int_{\Delta q_k}\frac{dN_e}{dy\,dq}\,dq\,dy .
+\]
+The \texttt{charint\_2d} and optional \texttt{pwn\_cr\_v1} branches use \(x=\log_{10}\gamma_e\) in the same \(q\) domain.  The initial finite-width state is a shock-front injection of the already computed shell spectrum,
+\[
+U_{i1}(R_1)=\frac{N_i^{\rm init}}{\Delta q},
+\qquad
+U_{ik}(R_1)=0\quad(k>1),
+\qquad
+N_i(R_j)=\sum_{k=1}^{N_\chi}U_{ik}(R_j)\Delta q .
+\]
+This normalization is the reason the shell-reduced spectrum returns to the one-zone spectrum when the downstream dimension is integrated out.
+
+The stored diagnostic \(\chi\) coordinate is derived from \(q\), while the transport geometry is evaluated by a finite-speed bridge between the ultra-relativistic Blandford--McKee limit and the planar strong-shock limit.  For an external profile index \(k\in\{0,2\}\),
+\[
+q_t=1-q,\qquad
+\alpha=\frac{4-k}{3-k},\qquad
+\chi_{\rm BM}=q_t^{-\alpha}.
+\]
+With shock-front four-speed \(u_f=(\Gamma_f^2-1)^{1/2}\), \(\beta_f=u_f/\Gamma_f\), and interpolation weight \(w=u_f^2/(1+u_f^2)\), the two limiting radius laws are
+\[
+\ell_{\rm BM}=-\frac{\chi_{\rm BM}-1}{4(4-k)\Gamma_f^2},
+\qquad
+\ell_{\rm ST}=\frac{\ln q_t}{r_{\rm sh}(3-k)} .
+\]
+The code stores
+\[
+r(q)=R\exp\!\left[w\ell_{\rm BM}+(1-w)\ell_{\rm ST}\right],
+\]
+and interpolates the downstream rapidity rather than \(\Gamma\) itself,
+\[
+u_{\rm BM}=\frac{u_f}{\chi_{\rm BM}^{1/2}},\qquad
+\beta_{\rm ST}=\beta_f e^{\ell_{\rm ST}},\qquad
+u_{\rm ST}=\frac{\beta_{\rm ST}}{(1-\beta_{\rm ST}^2)^{1/2}},
+\]
+\[
+u(q)=\sinh\!\left[w\sinh^{-1}u_{\rm BM}
++(1-w)\sinh^{-1}u_{\rm ST}\right],
+\qquad
+\Gamma(q)=\left(1+u(q)^2\right)^{1/2}.
+\]
+The same limiting argument fixes the shock-pattern speed used for magnetic decay.  With
+\[
+u_{\rm pat}=\sinh\!\left[
+w\sinh^{-1}\!\left(2\Gamma_f^2-1\right)^{1/2}
++(1-w)\sinh^{-1}\!\left(\frac{r_{\rm sh}}{r_{\rm sh}-1}u_f\right)
+\right],
+\]
+\[
+\beta_{\rm pat}=\frac{u_{\rm pat}}{(1+u_{\rm pat}^2)^{1/2}},
+\qquad
+\beta_{\rm rel,\chi}=
+\frac{\beta_{\rm pat}-\beta_\chi}{1-\beta_{\rm pat}\beta_\chi}.
+\]
+The downstream cell width is built from \(dx'_\chi=\Gamma_\chi dx_{\rm lab}\), so the microturbulent-age variable entering the field decay is
+\[
+t'_\chi=\frac{x'_\chi}{\beta_{\rm rel,\chi}c}.
+\]
+When the magnetic-decay option is active,
+\[
+\epsilon_{B,\chi}=\epsilon_{B,\rm floor}
++(\epsilon_B-\epsilon_{B,\rm floor})
+\left(1+\frac{t'_\chi}{t_0}\right)^{\alpha_t},
+\]
+and otherwise \(\epsilon_{B,\chi}=\epsilon_B\).  The local field used by synchrotron emission, SSA, cooling, and diffusion is
+\[
+B'_\chi=\left[32\pi\epsilon_{B,\chi}n(R)m_pc^2
+\Gamma_f(\Gamma_f-1)\right]^{1/2},
+\qquad
+\kappa_{B,i\chi}=\frac{\gamma_i m_ec^3}{3eB'_\chi}.
+\]
+
+For every radial interval \([R_{j-1},R_j]\), the wrapper first constructs the local photon field that enters Eq.~(\ref{eq:electron-forward-cooling-assembly}).  The proper time along the front is integrated as
+\[
+t'_j=t'_{j-1}
++\frac{R_j-R_{j-1}}{\bar\beta_j\bar\Gamma_j c}.
+\]
+Radiation emitted in an older downstream cell is mapped to a target cell with the relative Doppler factor
+\[
+{\cal D}_{s\to t}=\Gamma_{\rm rel}(1+\beta_{\rm rel}),
+\qquad
+\beta_{\rm rel}=\frac{\beta_t-\beta_s}{1-\beta_t\beta_s},
+\]
+the source luminosity weight \({\cal D}_{s\to t}^3\), the seed-photon-density weight \({\cal D}_{s\to t}^2\), and the path transfer factor
+\[
+{\cal T}(\tau)=\frac{1-e^{-\tau}}{\tau}.
+\]
+The effective cooling seed in cell \(k\) is the sum of the current cell synchrotron seed and this streamed history field.  The cooling assembler then gives node coefficients \(D_{ik}\) satisfying \(d\gamma_i/dR=-D_{ik}\gamma_i\), using the same synchrotron, IC/KN, Nakar, Fan, and SSA terms as the one-dimensional forward solver.
+
+The \(q\)-transport equation solved by the default branch is the conservative radial equation
+\[
+\frac{\partial U_i}{\partial R}
++\frac{\partial}{\partial q}\!\left[A_q(q,R)U_i\right]
+=
+\frac{\partial}{\partial q}\!\left[
+\frac{\kappa_{B,i\chi}}{\beta_f c}
+\left(\frac{\partial q}{\partial s}\right)^2
+\frac{\partial U_i}{\partial q}
+\right]
++S_i(q,R),
+\]
+where
+\[
+A_q(q,R)=\frac{(3-k)(q_\ast-q)}{R}.
+\]
+Thus the advection speed vanishes at the finite active outer face \(q=q_\ast\), not at a formal \(q=1\) tail.  The injection source is applied at the shock-front cell,
+\[
+S_i(q,R)\Delta R=
+\frac{Q_i(R,\Delta R)}{\Delta q}\,\delta_{k1},
+\]
+with \(Q_i\) given by the same power-law cutoff injection integral used by the one-dimensional forward solvers.  The code advances the \(q\) part by characteristic PPM remap plus an implicit tridiagonal diffusion solve.  For \texttt{fullhide\_2d}, these \(q\) steps bracket the energy update as a Strang split.
+
+The energy step in the default branch is the integrated four-velocity finite-volume solve.  At an energy face,
+\[
+{\cal F}_{i+1/2,k}=
+\frac{
+(R_j-R_{j-1})(D_{ik}+D_{i+1,k})/2
++\ln(R_j/R_{j-1})
+}
+{\ln10\,(dx_g/dy)_{i+1/2}},
+\]
+and the conservative tridiagonal solve is the same implicit face-flux system used by the one-dimensional fullhide kernel, with \({\cal F}_{i+1/2,k}\) replacing \(\Delta R\,v_{i+1/2}\).  The \(\ln(R_j/R_{j-1})\) term is the integrated adiabatic loss \(d\ln\gamma_e/dR=1/R\).  In the \texttt{charint\_2d} branch, the energy coordinate is \(x\) and each \(q\) column is updated by the piecewise cooling characteristic map.  In the optional \texttt{pwn\_cr\_v1} branch, the adiabatic coefficient is local,
+\[
+\frac{d\log_{10}\gamma_e}{dR}\bigg|_{\rm ad}
+=
+\frac{1}{3\beta_f\ln10}
+\left(\frac{2\beta_\chi}{r_\chi}
++\frac{\partial\beta_\chi}{\partial r}\right),
+\]
+and a positive stochastic-acceleration normalization adds a zero-flux diffusion step in \(x\), half before and half after the cooling solve.  That branch is a research transport option for the \(\chi\)-resolved electron path, not a general PWN or cosmic-ray propagation model.
+
+After each radius is stored, the wrapper converts \(U_{ik}\) back to \(dN_e/d\gamma_e\) with the coordinate Jacobian and sums over \(q\) for the shell-level state.  The returned \(\chi\)-resolved projection arrays are \(r_\chi\), \(\Gamma_\chi\), \(\Delta q\), \(B'_\chi\), the unabsorbed cell synchrotron luminosity, the local seed field, and the cell optical depth.  If only the one-dimensional shell contract is requested, the shell synchrotron field is recomputed from the summed spectrum; if the direct \(\chi\)-resolved projection is requested, local luminosities and optical depths are retained so foreground absorption can be evaluated during observer projection.  SSC, hadronic transport, pair-cascade feedback, and reverse-shock coupling remain shell-level or one-dimensional contracts and are not promoted to \(q\)-local physics by this wrapper.
 
 \begin{figure}[!tp]
   \centering
