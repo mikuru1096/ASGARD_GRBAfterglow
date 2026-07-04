@@ -1803,6 +1803,163 @@ F\!\left(\frac{\nu}{\nu_c}\right)d\gamma_e,
 \]
 with self-absorption applied through the shell transfer factor \((1-e^{-\tau_\nu})/\tau_\nu\) and seed photon density \(n_\nu^{\rm syn}=L_\nu^{\rm syn}/(4\pi R^2ch\nu)\) \citep{RybickiLightman1979,Sari1998,Granot2002}.
 
+The implementation in \texttt{electron\_radiation\_kernel} resolves this local statement into explicit quadratures.  The frequency kernel used by the fast synchrotron paths is the analytic fit
+\[
+F_{\rm fit}(x)=
+\begin{cases}
+1.81x^{1/3}, & x<3\times10^{-6},\\
+1.81\exp(-x)\left[x^{-2/3}+(3.62/\pi)^2\right]^{-1/2},
+&3\times10^{-6}\le x\le30,\\
+0, &x>30,
+\end{cases}
+\qquad x=\frac{\nu}{\nu_c}.
+\]
+On the one-dimensional logarithmic electron grid \(x_i=\ln\gamma_i\) with spacing \(h\), Simpson weights \(w_i=(1,4,2,\ldots,4,1)\), and \(N_i=dN_e/d\gamma_e(\gamma_i)\), the fixed-grid branch evaluates
+\[
+L_{\nu,{\rm em}}=
+C_{\rm syn}B'\frac{h}{3}
+\sum_i w_iN_i\gamma_i
+F_{\rm fit}\!\left(\frac{\nu}{4.2\times10^6B'\gamma_i^2}\right),
+\qquad
+C_{\rm syn}=\frac{\sqrt{3}e^3}{m_ec^2}.
+\]
+The self-absorption optical depth is the column-density form of the standard absorption coefficient.  With
+\[
+q_i=\frac{N_i}{\gamma_i^2},\qquad
+\bar\gamma_{i+1/2}=\frac{\gamma_i+\gamma_{i+1}}{2},
+\]
+the finite-volume endpoint difference gives
+\[
+\tau_\nu=
+\frac{C_\tau B'}{4\pi R^2\nu^2}
+\sum_i
+\bar\gamma_{i+1/2}^2
+\left(q_i-q_{i+1}\right)
+F_{\rm fit}\!\left[
+\frac{\nu}{4.2\times10^6B'\bar\gamma_{i+1/2}^2}
+\right],
+\qquad
+C_\tau=\frac{\sqrt{3}e^3}{8\pi m_e^2c^2}
+\simeq1.046\times10^4 .
+\]
+The emitted, transferred, and seed fields stored on the radius grid are then
+\[
+{\cal T}(\tau_\nu)=\frac{1-\exp(-\tau_\nu)}{\tau_\nu},\qquad
+L_\nu^{\rm syn}=L_{\nu,{\rm em}}{\cal T}(\tau_\nu),\qquad
+n_\nu^{\rm syn}=\frac{L_\nu^{\rm syn}}{4\pi R^2ch\nu}.
+\]
+For the state grid used by the fixed one-zone path, the stored transfer argument is \(\max(\tau_\nu,10^{-4})\); the adaptive \(\nu_a\) root below evaluates the unfloored optical depth.
+
+When \(\texttt{index\_syn\_intger}=4\), electrons with \(\gamma_e\ge2\) use the same synchrotron quadrature and electrons with \(\gamma_e<2\) add a fundamental cyclotron-bin contribution.  For an electron segment
+\[
+N_{{\rm seg},i}=\frac{N_i+N_{i+1}}{2}(\gamma_{i+1}-\gamma_i),
+\qquad
+\gamma_{{\rm seg},i}=\frac{\gamma_i+\gamma_{i+1}}{2},
+\]
+the code places the power at
+\[
+\nu_0=\frac{\nu_B}{\gamma_{{\rm seg},i}},\qquad
+\nu_B=\frac{eB'}{2\pi m_ec},
+\]
+in the frequency bin that contains \(\nu_0\).  The bin luminosity increment is
+\[
+\Delta L_{\nu_k,{\rm em}}=
+\frac{N_{{\rm seg},i}}{\Delta\nu_k}
+\frac{4}{3}\sigma_Tc\frac{B'^2}{8\pi}
+\gamma_{{\rm seg},i}^2
+\left(1-\gamma_{{\rm seg},i}^{-2}\right),
+\]
+and the same transfer factor \({\cal T}(\tau_{\nu_k})\) converts it to the absorbed luminosity and seed photon density.
+
+Several public helpers in this kernel are numerical forms of the same local radiation quantities.  Positive endpoint interpolation uses the power-law form
+\[
+Y(\nu)=Y_0
+\left(\frac{\nu}{\nu_0}\right)^{
+\ln(Y_1/Y_0)/\ln(\nu_1/\nu_0)}
+\]
+between adjacent positive frequency bins, while non-positive endpoints are interpolated linearly.  For at least five output frequencies, the reduced frequency table keeps logarithmic spacing from \(x_0=\ln\nu_{\min}\) to \(x_t=x_0+0.85(x_1-x_0)\) and places the last point at \(x_1=\ln\nu_{\max}\); smaller reduced tables use ordinary logarithmic spacing.  The two-point log-Gauss rule used by \texttt{pl\_integral} and \texttt{ssa\_segment} is
+\[
+\int_{\nu_0}^{\nu_1}Y(\nu)d\nu
+\simeq
+\sum_{a=1}^2 \Delta x\,\nu_a\,Y(\nu_a),
+\qquad
+\nu_a=\exp(x_m\pm\Delta x/\sqrt{3}),
+\]
+with \(x_m=(\ln\nu_0+\ln\nu_1)/2\) and \(\Delta x=(\ln\nu_1-\ln\nu_0)/2\).  The self-absorption heating segment integrates
+\[
+\int_{\nu_0}^{\nu_1}\sigma_{\rm SSA}(\nu)n_\nu h\nu c\,d\nu,
+\qquad
+\sigma_{\rm SSA}=
+\begin{cases}
+C_{\rm SSA}\nu^{-5/3}, & \nu<\nu_u,\\
+C_{\rm SSA}(\nu_B/\nu)\exp(-\nu/\nu_u), & \nu\ge\nu_u,
+\end{cases}
+\]
+using this same quadrature and the local power-law photon interpolation.
+
+The adaptive \(\nu_a\) solver evaluates the optical-depth integral off the stored frequency grid.  On a cell \([x_i,x_{i+1}]\) it linearly reconstructs \(N_e\) and \(q=N_e/\gamma^2\) in \(x=\ln\gamma\), compares two- and three-point Gauss estimates for both emissivity and optical depth, and splits the cell at its midpoint if
+\[
+\max\left(
+\frac{|P^{(3)}-P^{(2)}|}{|P^{(3)}|},
+\frac{|T^{(3)}-T^{(2)}|}{|T^{(3)}|}
+\right)>5\times10^{-4}.
+\]
+The root condition is \(\tau_\nu(\nu_a)=1\).  Starting from \(10^4\) Hz, the bracket is expanded by factors of ten toward lower or higher frequency until it encloses unity, with lower and upper search bounds \(10^{-20}\) Hz and
+\[
+\nu_{\rm cap}=\max\left[10^{14}{\rm Hz},
+\min\left(10^{30}{\rm Hz},10\max_i\nu_{c,i+1/2}\right)\right].
+\]
+Inside the bracket, the log-secant update is
+\[
+\ln\nu_\ast=
+\ln\nu_l-\ln\tau_l
+\frac{\ln\nu_h-\ln\nu_l}{\ln\tau_h-\ln\tau_l},
+\]
+clipped to the current bracket and iterated until the logarithmic width is below \(5\times10^{-3}\) or ten iterations have been reached.  When the optical-depth grid has already been computed, \texttt{nua\_fromtau} applies the same log-log root formula between the adjacent bins that straddle \(\tau_\nu=1\); if the crossing lies outside the supplied grid, it returns the corresponding boundary frequency.
+
+The polarization helper keeps the same transferred intensity and computes only the local intrinsic synchrotron polarization fraction.  For a single particle,
+\[
+P_\perp\propto\frac{F(x)+G(x)}{2},\qquad
+P_\parallel\propto\frac{F(x)-G(x)}{2},
+\]
+where
+\[
+F(x)=x\int_0^\infty
+\exp[-x\cosh u]\frac{\cosh(5u/3)}{\cosh u}\,du,\qquad
+G(x)=x\int_0^\infty
+\exp[-x\cosh u]\cosh(2u/3)\,du .
+\]
+The frequency-local fraction is
+\[
+\Pi_\nu=
+\frac{\int N_e(\gamma_e)[P_\perp(x)-P_\parallel(x)]d\gamma_e}
+{\int N_e(\gamma_e)[P_\perp(x)+P_\parallel(x)]d\gamma_e},
+\]
+and the returned polarized luminosities are
+\[
+L_{\nu,\perp}=\frac{1+\Pi_\nu}{2}L_\nu^{\rm syn},\qquad
+L_{\nu,\parallel}=\frac{1-\Pi_\nu}{2}L_\nu^{\rm syn}.
+\]
+For \(\chi\)-resolved states, the cumulative absorption path is
+\[
+\tau_{\nu,\le k}=\sum_{j=1}^k\tau_{\nu,j},
+\qquad
+\tau_{\nu,\le k}(\nu_{a,k})=1,
+\]
+and the shell-reduced spectra are log-\(\chi\) integrals,
+\[
+L_{\nu,{\rm shell}}=\sum_k \chi_k\Delta\eta\ln10\,L_{\nu,k},
+\qquad
+n_{\nu,{\rm shell}}=\sum_k \chi_k\Delta\eta\ln10\,n_{\nu,k}.
+\]
+The auxiliary modified Bessel function used by thermal normalizations returns the small-argument limit \(K_2(z)=2/z^2\), a tabulated piecewise-linear \(K_2\) value for \(10^{-4}\le z\le10\), and the large-argument expansion
+\[
+K_2(z)\simeq
+\left(\frac{\pi}{2z}\right)^{1/2}e^{-z}
+\left(1+\frac{15}{8z}+\frac{105}{128z^2}\right)
+\]
+outside the table at high \(z\).
+
 The \texttt{adaptive\_resampling\_mod} helper implements an optional compression of a one-dimensional active electron spectrum before a synchrotron quadrature is evaluated.  This operation is not an electron-transport update: it does not evolve, renormalize, or smooth \(N_e\).  It selects a subset of already transported pairs \((\gamma_i,N_{e,i})\) for use by the emissivity integral above.  The direct wrapper \texttt{electron\_radiation\_grid} is compiled with the electron common kernels, but the currently inspected production light-curve kernels do not call this wrapper; the equations below are therefore the contract of the helper itself.  That contract is positive, ordered \(\gamma_i\) and positive \(N_{e,i}\).  The wrapper forms a candidate interval from the first and last positive spectrum bins, \(i_-\le i\le i_+\), and is correct for the contiguous positive spectra generated by the one-dimensional electron solvers.  If \(N_{\rm act}=i_+-i_-+1\le180\), the full grid is retained.  Otherwise the wrapper requests \(m=160\) samples and the resampler works on
 \[
 x_i=\log_{10}\gamma_i,\qquad y_i=\log_{10}N_{e,i}.
