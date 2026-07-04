@@ -666,6 +666,71 @@ x_{g,i+1/2}=x_g(y_{i+1/2}),\qquad
 \]
 The conditions \(\gamma_{\rm scale}>1\) and \(\gamma_{\max}>\gamma_{\min}\) are the domain constraints that make \(s>0\) and the coordinate interval non-degenerate.  The Jacobian \(dx_g/dy\) is the factor used by injection integrals, cooling face displacements, and output conversion between coordinate density and \(dN_e/d\gamma_e\).
 
+The shared shell-transport layer then exposes only two accepted shell solvers,
+\[
+{\cal S}\in\{\texttt{fullhide},\texttt{dg}\},
+\]
+with \texttt{fullhide} selected when no solver id is supplied.  This selector does not change the electron equation; it only chooses which numerical representation advances the same shell-local population.
+For the finite-volume shell step, the input state is the coordinate-cell content
+\[
+N_{y,j}(R)=\frac{1}{\Delta y_j}
+\int_{y_{j-1/2}}^{y_{j+1/2}}\frac{dN_e}{dy}\,dy ,
+\qquad
+\Delta y_j=y_{j+1/2}-y_{j-1/2}.
+\]
+Given node loss coefficients \(D_j\) already assembled from radiation and an adiabatic rate \(D_{\rm ad}\), the module places the face drift at
+\[
+v_{j+1/2}=
+\frac{(D_j+D_{j+1})/2+D_{\rm ad}}
+{\ln10\,(dx_g/dy)_{j+1/2}} .
+\]
+The numerator is the radius derivative of \(\ln\gamma_e\); division by \(dx_g/dy\) converts that physical cooling speed to the computational coordinate \(y\).
+The conservative implicit update is
+\[
+N_j^{n+1}=N_j^n+\Delta R\,Q_j
++\frac{\Delta R}{\Delta y_j}
+\left[
+v_{j+1/2}^{+}N_{j+1}^{n+1}
++v_{j+1/2}^{-}N_{j}^{n+1}
+-v_{j-1/2}^{+}N_j^{n+1}
+-v_{j-1/2}^{-}N_{j-1}^{n+1}
+\right],
+\]
+where \(v^+=\max(v,0)\) and \(v^-=\min(v,0)\).  The low-energy face is closed for the shared shell step, so a particle packet that cools below the first active face is retained in the first coordinate cell rather than removed from the finite shell population.  The resulting tridiagonal system is solved by the Thomas algorithm, and the stored population is projected onto the physical non-negative domain \(N_{y,j}\ge0\).
+
+When a coordinate-space solution is written back to the diagnostic \(dN_e/d\gamma_e\), the same layer reconstructs a positive exponential profile inside each cell,
+\[
+\frac{dN_e}{dy}=A_j\exp[\sigma_j(y-y_j)],
+\qquad
+y_j=\frac{y_{j-1/2}+y_{j+1/2}}{2}.
+\]
+For interior cells with three positive neighboring averages, \(\sigma_j\) is the monotone log-slope
+\[
+\sigma_j={\rm minmod}\left[
+\frac{\ln N_{y,j}-\ln N_{y,j-1}}{y_j-y_{j-1}},
+\frac{\ln N_{y,j+1}-\ln N_{y,j}}{y_{j+1}-y_j}
+\right],
+\]
+and otherwise \(\sigma_j=0\).  Conservation of the cell average fixes
+\[
+A_j=
+\begin{cases}
+N_{y,j}, & z_j=0,\\
+N_{y,j}\,z_j/\sinh z_j, & z_j\ne0,
+\end{cases}
+\qquad
+z_j=\frac{1}{2}\sigma_j\Delta y_j .
+\]
+The centered diagnostic is therefore
+\[
+\left.\frac{dN_e}{d\gamma_e}\right|_j
+=
+\frac{A_j}{d\gamma_e/dy}
+=
+\frac{A_j}{\gamma_j\ln10\,(dx_g/dy)_j}.
+\]
+This conversion is used by the one-dimensional \texttt{fullhide} and reverse-shock finite-volume branches and by the \(\chi\)-resolved and DG drivers when they need shell-centered \(dN_e/d\gamma_e\) diagnostics.
+
 The common cooling-break diagnostic used by the \(\chi\)-resolved path solves a local equality between the face-averaged loss coefficient and the expansion scale.  With midpoint energies
 \[
 \gamma_{j+1/2}=(\gamma_j\gamma_{j+1})^{1/2},
@@ -737,8 +802,8 @@ N_j^{n+1}
 \left[
 v_{j+1/2}^{+}N_{j+1}^{n+1}
 -v_{j-1/2}^{+}N_j^{n+1}
--v_{j+1/2}^{-}N_j^{n+1}
-+v_{j-1/2}^{-}N_{j-1}^{n+1}
++v_{j+1/2}^{-}N_j^{n+1}
+-v_{j-1/2}^{-}N_{j-1}^{n+1}
 \right],
 \]
 where \(v^\pm=\max/\min(v,0)\) and \(N_0\) is not used when the low boundary is closed.  This is the physical reason for the solver's robustness in stiff cooling regimes: the high-energy loss flux is solved at the new radius instead of being applied explicitly.
