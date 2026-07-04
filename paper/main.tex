@@ -1313,8 +1313,45 @@ terms.  The returned value is
 \ln \Gamma(a,x)=a\ln x-x+\ln\left(\frac{S}{x_+}\right).
 \]
 This is the large-\(x\) logarithmic branch used to avoid forming a tiny
-\(\Gamma(a,x)\) before the final exponential in \texttt{dgamic}.  The power-law
-normalization follows directly from
+\(\Gamma(a,x)\) before the final exponential in \texttt{dgamic}.  The remaining
+large-\(x\) dispatcher branch, \texttt{d9lgit}, is used when \(a\ge x\ge1\).  It
+returns the logarithm of Tricomi's normalized incomplete gamma function
+\[
+\gamma^\ast(a,x)=x^{-a}\frac{\gamma(a,x)}{\Gamma(a)}
+\]
+in the relation already used by \texttt{dgamic},
+\[
+\Gamma(a,x)=\Gamma(a)\left[1-x^a\gamma^\ast(a,x)\right].
+\]
+Let
+\[
+A_x=a+x,\qquad A_{1x}=a+x+1 .
+\]
+Perron's continued fraction is accumulated with
+\[
+R_0=0,\qquad P_0=1,\qquad S_0=1 ,
+\]
+and, for \(k\ge1\),
+\[
+T_k=(a+k)x(1+R_{k-1}),
+\]
+\[
+R_k=\frac{T_k}{(A_x+k)(A_{1x}+k)-T_k},\qquad
+P_k=R_kP_{k-1},\qquad S_k=S_{k-1}+P_k .
+\]
+The iteration stops when \(|P_k|<\epsilon S_k\).  The continued fraction gives
+\[
+H^\ast=1-\frac{xS}{A_{1x}},
+\]
+so the returned logarithm is
+\[
+\ln\gamma^\ast(a,x)=-x-\ln\Gamma(a+1)-\ln H^\ast .
+\]
+Substitution into the preceding \(\Gamma(a,x)\) identity shows that this branch
+is the complementary large-\(a\) partner of \texttt{d9lgic}: both produce the
+same upper incomplete gamma integral, but from the side where the direct
+representation is numerically well conditioned.  The power-law normalization
+follows directly from
 \(t=\gamma/\gamma_{\max}\):
 \[
 \int_{\gamma_m}^{\infty}\gamma^{-p}e^{-\gamma/\gamma_{\max}}\,d\gamma
