@@ -12,7 +12,7 @@ subroutine fs_fullhide_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
     use electron_radiation_kernel, only: syn_state, nua_fromtau
     use electron_cooling_kernel, only: get_forward_cooling
     use electron_shell_transport, only: shell_coord_step, coord_to_dgamma
-    use hybrid_spectrum, only: hybrid_spec
+    use hybrid_spectrum, only: hybrid_coord
     IMPLICIT REAL(8)(A-H,O-Z)
     integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads
     integer, intent(in) :: adaptive_substeps,substep_min,substep_max,thermal_electrons
@@ -66,8 +66,8 @@ subroutine fs_fullhide_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
     if (thermal_electrons == 0) then
         call init_coord(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,coord_edge,coord_scale,dN_x)
     else
-        call hybrid_spec(Num_gam_e,gam_e,p,Gam_e_m,Gam_e_max,f_e,dN_gam_e(:,1))
-        dN_x=dN_gam_e(:,1)*gam_e*ln10*dxdy_grid*Para_N_e_ini
+        call hybrid_coord(Num_gam_e,coord_edge,coord_scale,p,Gam_e_m,Gam_e_max,f_e,dN_x)
+        dN_x=dN_x*Para_N_e_ini
     end if
     call coord_to_dgamma(Num_gam_e,coord_edge,coord_scale,gam_e,dN_x,dN_gam_e(:,1))
     is_uniform_density=(A_star <= 0d0 .and. f_jump == 1d0)
@@ -298,8 +298,7 @@ contains
 
         if (thermal_electrons /= 0) then
             Q = 4d0/3d0*pi*(3d0*rsrc**2+drsrc*(3d0*rsrc+drsrc))*nsrc
-            call hybrid_spec(Num_gam_e,gam_e,p,gm_src,gmax_src,f_e,dF1)
-            dF1 = dF1*gam_e*ln10*dxdy_grid
+            call hybrid_coord(Num_gam_e,coord_edge,coord_scale,p,gm_src,gmax_src,f_e,dF1)
             dF1 = dF1*Q
         else
             Q = 4d0/3d0*pi*(3d0*rsrc**2+drsrc*(3d0*rsrc+drsrc))*nsrc*f_e*gmp_src
@@ -315,8 +314,7 @@ contains
 
         if (thermal_electrons /= 0) then
             Q = nsource/(f_e*gmp_src)
-            call hybrid_spec(Num_gam_e,gam_e,p,gm_src,gmax_src,f_e,dF1)
-            dF1 = dF1*gam_e*ln10*dxdy_grid
+            call hybrid_coord(Num_gam_e,coord_edge,coord_scale,p,gm_src,gmax_src,f_e,dF1)
             dF1 = dF1*Q
         else
             call source_coord(Num_gam_e,coord_edge,coord_scale,gm_src,gmax_src,nsource,p,dF1)

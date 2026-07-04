@@ -1,11 +1,12 @@
 ! f2py: skip
-! public: hybrid_spec
+! public: hybrid_coord
 
 module hybrid_spectrum
    use hybrid_special, only: gamma_uic, bessel_k0, bessel_k1
+   use electron_coord_common, only: coord_fourvel, coord_from_xg, gamma_from_coord, dxg_dcoord
    implicit none
    private
-   public :: hybrid_spec
+   public :: hybrid_coord
 
    real(8), private, parameter :: m700 = -7.0d2
 
@@ -507,17 +508,19 @@ module hybrid_spectrum
 
    end function newton_method
 
-   ! 构造归一化 hybrid electron spectrum。
-   ! Build the normalized hybrid electron spectrum.
-   subroutine hybrid_spec(n_gamma, gamma, p, gamma_min, gamma_max, xi_e, &
+   ! 在四速度坐标单元上构造归一化 hybrid electron spectrum。
+   ! Build the normalized hybrid electron spectrum on four-velocity coordinate cells.
+   subroutine hybrid_coord(n_gamma, coord_edge, coord_scale, p, gamma_min, gamma_max, xi_e, &
       spec)
       implicit none
       integer, intent(in) :: n_gamma
-      real(8), intent(in), dimension(n_gamma) :: gamma
+      real(8), intent(in), dimension(n_gamma+1) :: coord_edge
+      real(8), intent(in) :: coord_scale
       real(8), intent(in) :: p, gamma_min, gamma_max, xi_e
       real(8), intent(out), dimension(n_gamma) :: spec
 
       real(8) :: theta, it1, int, thermal_constant, cpl_constant, inv_gmax, inv_theta
+      real(8) :: cell_lo, cell_hi, dy_cell, y_min, seg_sum
       integer :: i
 
       call solve_theta(p, gamma_min, gamma_max, xi_e, &
@@ -531,35 +534,67 @@ module hybrid_spectrum
       cpl_constant = log(xi_e/int)
       inv_theta = 1.0d0/theta
       inv_gmax = 1.0d0/gamma_max
+      y_min = coord_from_xg(coord_fourvel, coord_scale, dlog10(gamma_min))
+
       do i = 1, n_gamma
-         spec(i) = spec_point(gamma(i), gamma_min, p, inv_theta, inv_gmax, &
-                                     thermal_constant, cpl_constant)
+         cell_lo = coord_edge(i)
+         cell_hi = coord_edge(i+1)
+         dy_cell = cell_hi - cell_lo
+
+         seg_sum = 0.0d0
+         if (cell_lo < y_min) call add_segment(cell_lo, min(cell_hi, y_min), .true., seg_sum)
+         if (cell_hi > y_min) call add_segment(max(cell_lo, y_min), cell_hi, .false., seg_sum)
+         spec(i) = seg_sum/dy_cell
       end do
 
    contains
 
-   ! 单点谱值：低能 thermal，高能 cutoff power law。
-   ! Point spectrum value: thermal branch at low energy, cutoff power law at high energy.
-   real(8) function spec_point(g, gamma_min, p, inv_theta, inv_gmax, thermal_constant, cpl_constant)
+   ! 对一个四速度坐标子区间积分 dN/dy。
+   ! Integrate dN/dy over one four-velocity coordinate sub-interval.
+   subroutine add_segment(y_lo, y_hi, is_thermal, acc)
       implicit none
-      real(8), intent(in) :: g, gamma_min, p, inv_theta, inv_gmax, thermal_constant, cpl_constant
+      logical, intent(in) :: is_thermal
+      real(8), intent(in) :: y_lo, y_hi
+      real(8), intent(inout) :: acc
+      integer :: iq
+      real(8) :: half_dy, y_mid, y_eval, gamma, density, jac
+      real(8), parameter, dimension(3) :: xi=[-dsqrt(3d0/5d0),0d0,dsqrt(3d0/5d0)]
+      real(8), parameter, dimension(3) :: wi=[5d0/9d0,8d0/9d0,5d0/9d0]
+
+      if (y_hi <= y_lo) return
+
+      half_dy = 0.5d0*(y_hi-y_lo)
+      y_mid = 0.5d0*(y_hi+y_lo)
+      do iq = 1, 3
+         y_eval = y_mid + half_dy*xi(iq)
+         gamma = gamma_from_coord(coord_fourvel, coord_scale, y_eval)
+         density = spec_gamma(gamma, is_thermal)
+         jac = gamma*dlog(1d1)*dxg_dcoord(coord_fourvel, coord_scale, y_eval)
+         acc = acc + half_dy*wi(iq)*density*jac
+      end do
+   end subroutine add_segment
+
+   ! 单点物理谱密度 dN/dgamma：低能 thermal，高能 cutoff power law。
+   ! Point physical density dN/dgamma: thermal branch at low energy, cutoff power law at high energy.
+   real(8) function spec_gamma(g, is_thermal)
+      implicit none
+      logical, intent(in) :: is_thermal
+      real(8), intent(in) :: g
       real(8) :: ln_val
 
-      if (g > 1.0d0 .and. g < gamma_min) then
+      if (is_thermal) then
          ln_val = log(g * sqrt(g*g - 1.0d0)) - g*inv_theta + thermal_constant
-      else if (g >= gamma_min) then
-         ln_val = -p * log(g) - g*inv_gmax + cpl_constant
       else
-         spec_point = 0.0d0
+         ln_val = -p * log(g) - g*inv_gmax + cpl_constant
+      end if
+
+      if (ln_val <= m700) then
+         spec_gamma = 0.0d0
          return
       end if
 
-      if (ln_val > m700) then
-         spec_point = exp(ln_val)
-      else
-         spec_point = 0.0d0
-      end if
-   end function spec_point
-   end subroutine hybrid_spec
+      spec_gamma = exp(ln_val)
+   end function spec_gamma
+   end subroutine hybrid_coord
 
 end module hybrid_spectrum
