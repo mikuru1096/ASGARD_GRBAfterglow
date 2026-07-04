@@ -17,11 +17,11 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from asgard_core import Model, Observer, UniformMedium, top_hat_jet
-from asgard_core.asgard_paths import ASGARD_DOC_DIR
+from asgard_core.asgard_paths import DOC_ROOT
 from tests.public_api_builders import hadronic, numerics, observer_grid, radiation, reverse_shock, solver_options
 
 
-OUTPUT_DIR = ASGARD_DOC_DIR / "reverse_density_jump_tests"
+OUTPUT_DIR = DOC_ROOT / "reverse_density_jump_tests"
 OUTPUT_PATH = OUTPUT_DIR / "triple_density_jump_rs_fs_tophat.png"
 JUMP_RADII_CM = (1.0e15, 1.0e16, 1.0e17)
 JUMP_FACTOR = 1.0e2

@@ -23,11 +23,11 @@ if str(ROOT) not in sys.path:
 from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet, Wind
 from ASGARD.api_model import _solve_patch_state
 from asgard_core.asgard_config import FitConfig
-from asgard_core.asgard_paths import ASGARD_DOC_DIR
+from asgard_core.asgard_paths import DOC_ROOT
 from asgard_core.asgard_state import make_query_setup, project_flux_grid, solve_state
 
 
-OUTPUT_DIR = ASGARD_DOC_DIR / "chi_eats_2d_benchmark"
+OUTPUT_DIR = DOC_ROOT / "chi_eats_2d_benchmark"
 LIGHTCURVE_TIMES = np.logspace(2.0, 9.0, 128)
 SED_TIMES = np.array([1.0e3, 1.0e5, 1.0e7], dtype=float)
 LIGHTCURVE_BANDS = np.array([1.0e9, 1.0e14, 1.0e18], dtype=float)

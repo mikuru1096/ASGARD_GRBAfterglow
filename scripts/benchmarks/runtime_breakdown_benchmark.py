@@ -18,12 +18,12 @@ if str(ROOT) not in sys.path:
 
 from asgard_core import Model, Observer, UniformMedium, WindMedium, top_hat_jet
 from asgard_core.api_model import _direct_tophat_patch_config, _solve_patch_state
-from asgard_core.asgard_paths import ASGARD_DOC_DIR
+from asgard_core.asgard_paths import DOC_ROOT
 from asgard_core.asgard_state import project_flux_grid
 from tests.public_api_builders import hadronic, numerics, observer_grid, radiation, reverse_shock, solver_options
 
 
-OUTPUT_DIR = ASGARD_DOC_DIR / "runtime_benchmark"
+OUTPUT_DIR = DOC_ROOT / "runtime_benchmark"
 
 GRID_MODES = {
     "smoke": {"num_r": 20, "num_theta": 20, "num_tobs": 12, "num_gam_e": 31, "num_nu": 31, "num_chi": 4, "num_query_t": 10, "num_query_nu": 12},

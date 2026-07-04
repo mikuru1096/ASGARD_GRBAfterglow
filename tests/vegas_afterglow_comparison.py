@@ -21,7 +21,7 @@ import sys
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from asgard_core.asgard_paths import ASGARD_DOC_DIR
+from asgard_core.asgard_paths import DOC_ROOT
 from asgard_core.asgard_state import project_flux_grid
 from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet, Wind, units
 from ASGARD import PowerLawJet as ASGARD_PowerLawJet
@@ -39,7 +39,7 @@ from VegasAfterglow import TwoComponentJet as VegasTwoComponentJet
 from VegasAfterglow import units as vegas_units
 
 
-OUTPUT_DIR = ASGARD_DOC_DIR / "vegas_afterglow_compare"
+OUTPUT_DIR = DOC_ROOT / "vegas_afterglow_compare"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # ============================================================================
@@ -184,7 +184,7 @@ def _set_benchmark_context(scenario: str) -> None:
     global BENCHMARK_SCENARIO, OUTPUT_DIR
     _benchmark_scenario(scenario)
     BENCHMARK_SCENARIO = scenario
-    OUTPUT_DIR = ASGARD_DOC_DIR / BENCHMARK_SCENARIOS[scenario].output_subdir
+    OUTPUT_DIR = DOC_ROOT / BENCHMARK_SCENARIOS[scenario].output_subdir
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     _build_asgard_model.cache_clear()
     _build_vegas_model.cache_clear()
