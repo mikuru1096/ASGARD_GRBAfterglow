@@ -3094,6 +3094,105 @@ N_e^{(k)}
 \]
 The secondary source enters \(Q_{e,{\rm sec},R}\), the updated electron solution rebuilds the photon field, and the hadronic operators are evaluated again on the survived target field.  Pair-cascade iterations greater than one select the shell-sequence time-dependent \(\gamma\gamma\) pair/synch cascade path; the single-shell branch remains a diagnostic mode.  This branch does not implement an IC-mediated electromagnetic cascade.  Neutrino arrays are outputs of the charged-pion and muon decay chain, and the manuscript does not interpret them as a detection prediction without a separate exposure calculation.
 
+The shell-sequence pair cascade advances the local photon density and the
+secondary pair spectrum before observer projection.  The runtime converts the
+stored seed field to \(n_\epsilon=dN_\gamma/d\epsilon\), chooses an aligned pair
+grid \(E_{e,j}=E_{\gamma,1}\exp[(j-1+j_0)\Delta\ln E]\) with
+\(E_{e,1}\ge m_ec^2\), and carries the pair content from shell to shell.  In a
+shell of volume \(\Delta V_i\), observer-time width \(\Delta t_i\), and escape
+time
+\[
+t_{{\rm esc},i}=\frac{R_i}{12\Gamma_i c},
+\]
+each substep first evaluates the \(\gamma\gamma\) operator on the current photon
+field,
+\[
+n_\epsilon^{(m)}
+\rightarrow
+\left\{\lambda_{\gamma\gamma}(\epsilon),
+q_{\pm,\gamma\gamma}(E_e),P_{\rm abs},P_{\rm inj}\right\},
+\]
+where \(\lambda_{\gamma\gamma}\) is a local photon loss rate and
+\(q_{\pm,\gamma\gamma}\) is the combined \(e^-+e^+\) injection rate per GeV.  The
+source added to the transported pair content per Lorentz factor is
+\[
+S_{\pm,j}^{(m)}=\Delta V_i\,m_ec^2\,
+q_{\pm,\gamma\gamma}(E_{e,j})\,\Delta t_{\rm sub},
+\qquad
+\Delta t_{\rm sub}=\frac{\Delta t_i}{N_{\rm sub}} .
+\]
+Pairs cool with
+\[
+\dot{\gamma}_\pm=
+-\frac{\sigma_T B_i'^2}{6\pi m_ec}\gamma_\pm^2
+-\frac{\gamma_\pm}{t_{{\rm dyn},i}},
+\qquad
+t_{{\rm dyn},i}=\frac{R_i}{\Gamma_i c}.
+\]
+The discrete update conserves pair content across the finite grid by storing
+\(C_j=N_j\Delta\gamma_j\), moving it to the cell containing
+\[
+\gamma'_j=\gamma_j-
+\left[
+\frac{\sigma_T B_i'^2}{6\pi m_ec}\gamma_j^2
++\frac{\gamma_j}{t_{{\rm dyn},i}}
+\right]\Delta t_{\rm sub},
+\]
+and reconstructing
+\[
+N_j^{(m+1)}=
+\frac{1}{\Delta\gamma_j}
+\sum_{i\rightarrow j} C_i^{(m)}
++S_{\pm,j}^{(m)}.
+\]
+If the cooled value is
+outside the finite pair grid, that content leaves the represented cascade
+population.
+
+The updated pair distribution is passed to the same synchrotron state operator
+used by the electron solver, producing a pair synchrotron luminosity
+\(L_{\nu,\pm}\) and local seed photon density \(n_{\nu,\pm}\).  The photon field
+then solves the constant-coefficient substep equation
+\[
+\frac{dn_\epsilon}{dt'}=
+\frac{n_{\epsilon,{\rm prim}}}{t_{\rm esc}}
++\frac{n_{\epsilon,\pm}}{t_{\rm esc}}
+-\left[\lambda_{\gamma\gamma}(\epsilon)+t_{\rm esc}^{-1}\right]n_\epsilon,
+\]
+so that
+\[
+n_\epsilon^{(m+1)}=
+n_\epsilon^{(m)}e^{-\Lambda\Delta t_{\rm sub}}
++\frac{S_\epsilon}{\Lambda}
+\left(1-e^{-\Lambda\Delta t_{\rm sub}}\right),
+\quad
+\Lambda=\lambda_{\gamma\gamma}+t_{\rm esc}^{-1},
+\qquad
+S_\epsilon=\frac{n_{\epsilon,{\rm prim}}+n_{\epsilon,\pm}}{t_{\rm esc}},
+\qquad
+n_{\epsilon,\pm}=\frac{n_{\nu,\pm}}{h}.
+\]
+In the implementation the final factor is evaluated as
+\(n_\epsilon e^{-\Lambda\Delta t}+S_\epsilon(1-e^{-\Lambda\Delta t})/\Lambda\).
+The recorded optical depth is \(\tau_{\gamma\gamma}=\lambda_{\gamma\gamma}
+t_{\rm esc}\).  The lower-level single-shell diagnostic follows the same
+\(\gamma\gamma\) pair source, cools an injected pair from
+\(\gamma_{\rm inj}\) to
+\[
+\gamma_{\rm cool}=
+\frac{\gamma_{\rm inj}}
+{1+(\sigma_TB'^2/6\pi m_ec)\gamma_{\rm inj}t'},
+\]
+deposits \(dN/d\gamma\propto[\sigma_TB'^2\gamma^2/(6\pi m_ec)]^{-1}\) along
+that cooling track, and emits with the explicit synchrotron approximation
+\[
+\nu_c=4.2\times10^6 B'\gamma^2,\qquad
+P_\nu\simeq
+\frac{\sqrt{3}e^3B'}{m_ec^2}
+1.80842\left(\frac{\nu}{\nu_c}\right)^{1/3}
+\exp\!\left(-\frac{\nu}{\nu_c}\right).
+\]
+
 \section{Reverse-Shock and Secondary Reverse-Shock Stages} \label{sec:reverse-shock}
 
 The reverse-shock stage is enabled only when a shell duration is supplied.  It uses

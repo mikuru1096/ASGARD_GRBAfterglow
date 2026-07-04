@@ -95,7 +95,7 @@ contains
         integer :: ie,iph
 
         cspec(1:np) = 0d0
-        temp = dsqrt(3d0)*Para_e**3 / Para_m_p_e
+        temp = dsqrt(3d0)*Para_e**3 / Para_m_energy
 
         do iph=1,np
             do ie=2,nlep-1
