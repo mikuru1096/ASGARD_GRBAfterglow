@@ -831,6 +831,83 @@ is advanced by the same upper-triangular implicit system given above for
 final electron spectrum and the same synchrotron optical-depth grid used for
 the active shells.
 
+The \texttt{slc1\_1d} branch is a one-dimensional semi-Lagrangian alternative on
+the same uniform log-gamma grid.  It keeps the conservative cell averages
+\(N_{x,j}\) and uses the same shell-local \(B'\), \(\gamma_m\),
+\(\gamma_{\max}\), \(\gamma_c\), synchrotron state, and forward-cooling array as
+the log-gamma fullhide path.  The fixed radial substep count is again
+\[
+L_i=\max\left[100,\min\left(1000,
+\left\lfloor\frac{R_i-R_{i-1}}{\delta R_0}\right\rfloor\right)\right],
+\qquad
+\Delta R=(R_i-R_{i-1})/L_i .
+\]
+Within a substep \(R_L\rightarrow R_R=R_L+\Delta R\), non-uniform media are
+sampled at
+\[
+R_m=\frac{R_L+R_R}{2},\qquad n_m=n(R_m),\qquad n_R=n(R_R),
+\]
+while a uniform medium simply uses the shell density.  The injection source is
+the log-gamma cell average
+\[
+Q_{x,j}^{\rm slc}=
+\frac{1}{\Delta x_j}
+\int_{x_{j-1/2}}^{x_{j+1/2}}
+\mathcal{Q}_{\rm slc}(R_m,\Delta R)\,
+\ln 10\,\gamma_e^{1-p}\mathcal{C}_{\max}(\gamma_e)\,dx ,
+\]
+where
+\[
+\mathcal{Q}_{\rm slc}=
+\frac{4\pi}{3}
+\left[3R_m^2+\Delta R(3R_m+\Delta R)\right]
+n_m f_e
+\frac{1-p}{\gamma_{\max,m}^{1-p}-\gamma_{m,m}^{1-p}} .
+\]
+The cooling face speed is the midpoint-density-scaled version of the shell
+cooling array,
+\[
+f_{j+1/2,m}=
+\frac{1}{\ln 10}
+\left[
+\frac{D_{j,m}+D_{j+1,m}}{2}+\frac{1}{R_m}
+\right],
+\qquad
+D_{j,m}=D_{j,i-1}\frac{n_m}{n_{i-1}} .
+\]
+The actual semi-Lagrangian primitive is a source-split conservative remap.  First
+the source half-step forms
+\[
+N_j^{1/2}=\max\left(0,N_j^n+\frac{\Delta R}{2}Q_{x,j}^{\rm slc}\right).
+\]
+The code builds a positivity-limited PPM reconstruction of \(N^{1/2}\) and its
+prefix integral \(\mathcal{A}_{1/2}(x)\).  The arrival cell faces are traced
+backward along the cooling characteristics,
+\[
+x_{j-1/2}^{\rm dep}=
+{\rm clip}\!\left(x_{j-1/2}+\Delta R\,f_{j-1/2,m},
+x_{1/2},x_{N+1/2}\right),
+\]
+so the conservative remap is
+\[
+N_j^{*}=
+\frac{
+\mathcal{A}_{1/2}(x_{j+1/2}^{\rm dep})
+-\mathcal{A}_{1/2}(x_{j-1/2}^{\rm dep})}
+{\Delta x_j}.
+\]
+The second source half-step gives the stored post-substep spectrum,
+\[
+N_j^{n+1}=\max\left(0,N_j^{*}+
+\frac{\Delta R}{2}Q_{x,j}^{\rm slc}\right).
+\]
+After the last substep in the output shell, the same conservative exponential
+cell-shape conversion used elsewhere maps \(dN/dx\) back to centered
+\(dN/d\gamma\).  The \(\nu_m\), \(\nu_c\), and \(\nu_a\) diagnostics for this
+branch are shell-left diagnostics for the active slots \(1,\ldots,N_R-1\), with
+\(\nu_a\) obtained from the same synchrotron optical-depth grid used to compute
+the emitted spectrum.
+
 The public \texttt{charint\_1d} forward solver advances the same conservative cell averages
 \[
 N_{x,j}(R)=\frac{1}{\Delta x_j}
