@@ -985,6 +985,27 @@ For log-time stages the code evolves \(s=\ln(T/T_0)\), so each smooth-branch RHS
 \[
 \frac{dY}{ds}=T\frac{dY}{dT}.
 \]
+The event-split RHS is controlled by a small state register rather than by a new dynamical variable:
+\[
+\begin{gathered}
+\phi\in\{-1,0,1,2\}
+=\{{\rm waiting},{\rm default},{\rm pre},{\rm post}\},\\
+W=(\phi=-1),\qquad
+P=(\phi=1)\ {\rm or}\ [\phi=0\ {\rm and}\ M_3<M_{{\rm ej},b}],\\
+\mathbf S_{\rm RS}=
+(B_{3,{\rm cur}},T_\times,R_\times,e_{3,\times},\Gamma_{2,\times},
+U_{3,\times},V_{3,\times},M_{3,\times},\gamma_{m,\times},
+B_{{\rm ord},\times}) .
+\end{gathered}
+\]
+Here \(W\) selects the waiting equations and \(P\) selects the active pre-crossing source terms.  The default \(\phi=0\) is reset after each forced RK stage; it is not an additional physical branch.  The first slot carries the instantaneous reverse magnetic field returned by the RHS.  The crossing slots start with \(T_\times=-1\); the first post-crossing RHS evaluation writes
+\[
+(T_\times,R_\times,e_{3,\times},\Gamma_{2,\times},
+U_{3,\times},V_{3,\times},M_{3,\times},\gamma_{m,\times},B_{{\rm ord},\times})
+=
+\left(T,R,\frac{U_3}{V_3},\Gamma_2,U_3,V_3,M_3,\gamma_{m,3},B_{\rm ord}\right),
+\]
+and later post-crossing steps read, but do not rewrite, this event state.
 If a pre-crossing log-time stage reaches \(q=1\), the step is bisected to the event, the crossing state
 \[
 (T_\times,R_\times,U_{3,\times},V_{3,\times},
