@@ -544,6 +544,36 @@ with the integral split at \(\gamma_m\), \(\gamma_c\), and \(\gamma_{\max}\).  O
 \]
 where \(u=\Gamma\beta\) is the shock-front four-speed used by the caller.
 
+Several one-dimensional and \(\chi\)-resolved electron solvers use a shared energy-coordinate module before applying their own transport update.  The module keeps \(x_g=\log_{10}\gamma_e\) as the reference energy coordinate.  In the log-gamma branch,
+\[
+y=x_g,\qquad \gamma_e(y)=10^y,\qquad \frac{dx_g}{dy}=1.
+\]
+In the four-velocity branch it uses the squared electron four-velocity \(u_e^2=\gamma_e^2-1\) and a scale \(s=\gamma_{\rm scale}^2-1\).  The implemented map is
+\[
+y=\log_{10}\left(1+\frac{u_e^2}{s}\right)
+=\log_{10}\left[1+\frac{\gamma_e^2-1}{s}\right],
+\]
+with inverse and Jacobian
+\[
+\gamma_e(y)=\left[1+s(10^y-1)\right]^{1/2},
+\qquad
+x_g(y)=\log_{10}\gamma_e(y),
+\qquad
+\frac{dx_g}{dy}=\frac{s10^y}{2\gamma_e^2}.
+\]
+The current four-velocity callers set \(\gamma_{\rm scale}=2\).  A grid with \(N_\gamma\) cells is uniform in \(y\),
+\[
+y_{i+1/2}=y_{\min}+\frac{i}{N_\gamma}(y_{\max}-y_{\min}),
+\qquad
+y_{\min,\max}=\log_{10}\left[1+\frac{\gamma_{\min,\max}^2-1}{s}\right],
+\]
+and the returned diagnostic arrays are
+\[
+x_{g,i+1/2}=x_g(y_{i+1/2}),\qquad
+\gamma_i=\gamma_e\left(\frac{y_{i-1/2}+y_{i+1/2}}{2}\right).
+\]
+The conditions \(\gamma_{\rm scale}>1\) and \(\gamma_{\max}>\gamma_{\min}\) are the domain constraints that make \(s>0\) and the coordinate interval non-degenerate.  The Jacobian \(dx_g/dy\) is the factor used by injection integrals, cooling face displacements, and output conversion between coordinate density and \(dN_e/d\gamma_e\).
+
 The common cooling-break diagnostic used by the \(\chi\)-resolved path solves a local equality between the face-averaged loss coefficient and the expansion scale.  With midpoint energies
 \[
 \gamma_{j+1/2}=(\gamma_j\gamma_{j+1})^{1/2},
@@ -564,15 +594,7 @@ For adaptive one-dimensional electron substeps, the shared error metric is
 \]
 where \(N^{(1)}\) is the one-full-step trial and \(N^{(2\times1/2)}\) is the two-half-step trial.
 
-The \texttt{dg\_1d} solver replaces the cell-average upwind update by a moving multi-domain nodal DG discretization.  The shared DG kernel uses a general coordinate \(y\), either \(y=x_g=\log_{10}\gamma_e\) or the four-velocity coordinate
-\[
-y=\log_{10}\left[1+\frac{\gamma_e^2-1}{s}\right],
-\qquad
-x_g(y)=\log_{10}\left[1+s(10^y-1)\right]^{1/2},
-\qquad
-\frac{dx_g}{dy}=\frac{s10^y}{2\gamma_e^2},
-\]
-where the forward and reverse DG callers use \(s=\gamma_{\rm scale}^2-1\) with \(\gamma_{\rm scale}=2\).  The represented state is therefore the conservative coordinate density
+The \texttt{dg\_1d} solver replaces the cell-average upwind update by a moving multi-domain nodal DG discretization on this same coordinate \(y\).  The represented state is the conservative coordinate density
 \[
 N_y(y,R)=\frac{dN_e}{dy}
 =\frac{dN_e}{dx_g}\frac{dx_g}{dy}.
