@@ -1254,7 +1254,45 @@ The returned value is therefore
 with the first term formed in logarithmic arithmetic and skipped only when it
 falls below the machine lower exponent.  This branch is a numerical evaluation
 of the same upper incomplete gamma integral used in the hybrid normalization,
-not a separate approximation to the electron spectrum.  The power-law
+not a separate approximation to the electron spectrum.  Away from that
+near-pole branch, the same dispatcher uses \texttt{d9gmit} for the small-\(x\)
+Tricomi function \(\gamma^\ast(a,x)\), defined by
+\[
+\Gamma(a,x)=\Gamma(a)\left[1-x^a\gamma^\ast(a,x)\right].
+\]
+For \(a\ge -1/2\), the code evaluates
+\[
+\gamma^\ast(a,x)=
+\frac{1}{\Gamma(a+1)}
+\left[1+\sum_{k=1}^{\infty}
+\frac{a(-x)^k}{k!(a+k)}\right],
+\]
+stopping when the next term is smaller than
+\(\epsilon\) times the accumulated sum.  For \(a<-1/2\), let \(n\) be the
+nearest positive integer shift used by the code and write
+\[
+a=-n+\eta,\qquad n=-\texttt{ma},\qquad \eta=a+n,\qquad 0\le n .
+\]
+The same Taylor series is first evaluated with \(a\) replaced by \(\eta\),
+\[
+S_\eta=1+\sum_{k=1}^{\infty}
+\frac{\eta(-x)^k}{k!(\eta+k)} ,
+\]
+and the finite shift series is
+\[
+R_{n-1}=1+\sum_{k=1}^{n-1}
+\frac{x^k}{\prod_{r=n-k}^{n-1}(\eta-r)} .
+\]
+The returned value is
+\[
+\gamma^\ast(a,x)
+=\frac{x^nS_\eta}{\Gamma(1+\eta)}
++\frac{e^{-x}R_{n-1}}{\Gamma(a+1)} ,
+\]
+with the second term omitted in the exact-pole limit \(\eta=0\), where the
+factor \(1/\Gamma(a+1)\) vanishes.  This is the small-\(x\) representation used
+before \texttt{dgamic} recombines \(\gamma^\ast\) into the complementary
+incomplete gamma function.  The power-law
 normalization follows directly from
 \(t=\gamma/\gamma_{\max}\):
 \[
