@@ -681,11 +681,15 @@ def _electronfinish(
 ) -> ElectronSolution | tuple[ElectronSolution, SolverAdapterReport]:
     if nu is not None:
         _emitnu(config, solver_name, *nu)
+    nu_m, nu_c, nu_a = (None, None, None) if nu is None else nu
     solution = _electronstate(
         gam_e,
         d_n_gam_e,
         l_syn_spec,
         seed_syn,
+        nu_m=nu_m,
+        nu_c=nu_c,
+        nu_a=nu_a,
         **solution_kwargs,
     )
     if return_report:
@@ -869,6 +873,9 @@ def solve_coolingseed(
         d_n_gam_e,
         l_syn_spec,
         seed_syn,
+        nu_m=nu_m,
+        nu_c=nu_c,
+        nu_a=nu_a,
     )
     _emitnu(config, solver_name, nu_m, nu_c, nu_a)
     if return_report:
@@ -949,6 +956,9 @@ def _electronstate(
     chi_gamma_bulk: np.ndarray | None = None,
     chi_dvolume_weight: np.ndarray | None = None,
     b_chi_g: np.ndarray | None = None,
+    nu_m: np.ndarray | None = None,
+    nu_c: np.ndarray | None = None,
+    nu_a: np.ndarray | None = None,
 ) -> ElectronSolution:
     return ElectronSolution(
         gam_e=np.asarray(gam_e, dtype=float),
@@ -965,6 +975,9 @@ def _electronstate(
         chi_gamma_bulk=None if chi_gamma_bulk is None else np.asarray(chi_gamma_bulk, dtype=float),
         chi_dvolume_weight=None if chi_dvolume_weight is None else np.asarray(chi_dvolume_weight, dtype=float),
         b_chi_g=None if b_chi_g is None else np.asarray(b_chi_g, dtype=float),
+        nu_m=None if nu_m is None else np.asarray(nu_m, dtype=float),
+        nu_c=None if nu_c is None else np.asarray(nu_c, dtype=float),
+        nu_a=None if nu_a is None else np.asarray(nu_a, dtype=float),
     )
 
 

@@ -17,7 +17,7 @@ import numpy as np
 # State and Solution Types (from asgard_state.py)
 # ============================================================================
 
-@dataclass
+@dataclass(slots=True)
 class BranchState:
     """State information for a single shock branch (forward or reverse)."""
     characteristic_time_s: np.ndarray
@@ -28,7 +28,7 @@ class BranchState:
     magnetic_field_g: np.ndarray
 
 
-@dataclass
+@dataclass(slots=True)
 class FluxComponents:
     """Flux components from different emission processes."""
     total: np.ndarray
@@ -46,7 +46,7 @@ class FluxComponents:
     rev: BranchState | None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class SolverAdapterReport:
     """Thin solver-adapter report exposed to the orchestration layer."""
     solver: str
@@ -55,7 +55,7 @@ class SolverAdapterReport:
     diagnostics: dict[str, Any] = field(default_factory=dict)
 
 
-@dataclass
+@dataclass(slots=True)
 class PhotonFieldState:
     """Photon-field contract passed between electron, hadronic, and observer stages."""
     seed_frequency_hz: np.ndarray
@@ -66,7 +66,7 @@ class PhotonFieldState:
     absorption_ssc_seed: np.ndarray
 
 
-@dataclass
+@dataclass(slots=True)
 class ObserverState:
     """Observer-side assembly state prior to interpolation onto query grids."""
     prefactor: np.ndarray
@@ -75,7 +75,7 @@ class ObserverState:
     components: FluxComponents
 
 
-@dataclass
+@dataclass(slots=True)
 class SolveState:
     """Complete state from a simulation solve."""
     config: Any  # RuntimeConfig - avoid circular import
@@ -94,7 +94,7 @@ class SolveState:
     adapter_reports: dict[str, SolverAdapterReport] = field(default_factory=dict)
 
 
-@dataclass
+@dataclass(slots=True)
 class ObsState:
     """Observed state with frequency-dependent components."""
     state: SolveState
@@ -107,7 +107,7 @@ class ObsState:
 # Solver Types (from asgard_runtime.py)
 # ============================================================================
 
-@dataclass
+@dataclass(slots=True)
 class ReverseShockParameters:
     """Parameters for reverse shock physics."""
     delta_t_s: float
@@ -118,7 +118,7 @@ class ReverseShockParameters:
     f_e: float
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ReverseShockCausalityDiagnostics:
     """Global and local reverse-shock causality diagnostics."""
     medium: str
@@ -148,7 +148,7 @@ class ReverseShockCausalityDiagnostics:
     actual_start_contact_fraction: float
 
 
-@dataclass
+@dataclass(slots=True)
 class ReverseShockDynamics:
     """Dynamics solution for reverse shock."""
     t_cross: float
@@ -198,7 +198,7 @@ class ReverseShockDynamics:
     d_n_gam_e: np.ndarray | None = None
 
 
-@dataclass
+@dataclass(slots=True)
 class DynamicsSolution:
     """Solution from dynamics solver."""
     r_tobs: np.ndarray
@@ -208,7 +208,7 @@ class DynamicsSolution:
     reverse_shock: ReverseShockDynamics | None = None
 
 
-@dataclass
+@dataclass(slots=True)
 class ElectronSolution:
     """Solution from electron solver."""
     gam_e: np.ndarray
@@ -225,9 +225,12 @@ class ElectronSolution:
     chi_gamma_bulk: np.ndarray | None = None
     chi_dvolume_weight: np.ndarray | None = None
     b_chi_g: np.ndarray | None = None
+    nu_m: np.ndarray | None = None
+    nu_c: np.ndarray | None = None
+    nu_a: np.ndarray | None = None
 
 
-@dataclass
+@dataclass(slots=True)
 class ReverseShockEmission:
     """Emission from reverse shock."""
     l_syn_spec: np.ndarray
@@ -236,7 +239,7 @@ class ReverseShockEmission:
     secondary_rs: Any | None = None
 
 
-@dataclass
+@dataclass(slots=True)
 class HadronicSolution:
     """Solution from the 1d hadronic solver."""
     solver: str
@@ -273,12 +276,6 @@ class HadronicSolution:
     timings: dict[str, float] = field(default_factory=dict)
     sed_components: dict[str, np.ndarray] = field(default_factory=dict)
 
-
-DynamicsState = DynamicsSolution
-ElectronState = ElectronSolution
-HadronicState = HadronicSolution
-
-
 __all__ = [
     # State types
     "BranchState",
@@ -290,12 +287,10 @@ __all__ = [
     "ObsState",
     # Solver types
     "ReverseShockParameters",
+    "ReverseShockCausalityDiagnostics",
     "ReverseShockDynamics",
     "DynamicsSolution",
-    "DynamicsState",
     "ElectronSolution",
-    "ElectronState",
     "HadronicSolution",
-    "HadronicState",
     "ReverseShockEmission",
 ]

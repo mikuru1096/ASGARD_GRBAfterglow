@@ -1312,6 +1312,9 @@ def _mergebh(
         chi_gamma_bulk=electron.chi_gamma_bulk,
         chi_dvolume_weight=electron.chi_dvolume_weight,
         b_chi_g=electron.b_chi_g,
+        nu_m=electron.nu_m,
+        nu_c=electron.nu_c,
+        nu_a=electron.nu_a,
     )
 
 
