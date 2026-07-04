@@ -117,8 +117,8 @@ real(8) :: bcr,pref1,pref2,ge,g2,g3,vmin,vmax
     end do
 end subroutine build_ssa_geometry
 
-! SSA 冷却率：同一电子能格上批量处理多个 chi 列的种子光子场。
-! SSA cooling rate: process several chi-column seed photon fields on the same electron grid.
+! SSA 吸收加热系数：同一电子能格上批量处理多个 chi 列的种子光子场。
+! SSA absorption-heating coefficient on the same electron grid for several chi columns.
 subroutine electron_ssa_loss(db,ng,nnu,nchi,nthr,gam,vseed,seed,loss)
 !$ use omp_lib
 implicit none

@@ -658,6 +658,50 @@ L_\nu^{\rm syn}\,d\nu}
 \]
 using two-point logarithmic Gauss integration in every seed-frequency cell.  The Fan-style branch supplies \(Y_{{\rm F},i}\) from the analytic \(\epsilon_e,\epsilon_B,p,\gamma_m,\gamma_c,\gamma_{\max}\) closure; the piecewise closure itself is part of the \(Y\)-kernel, whereas this assembler only multiplies synchrotron cooling by \(1+Y_{{\rm F},i}\).  Self-absorption appears with the opposite sign because absorbed synchrotron photons heat the same electron grid.  Joint hadronic feedback requires the numeric IC/KN cooling path because the secondary source \(Q_{e,{\rm sec},R}\) and the attenuated photon field must be evaluated against the same local \(N_e,n_\gamma\) state; an analytic \(Y\) closure would decouple those two objects.
 
+The SSA cooling helper computes the coefficient \(A_{{\rm SSA},i}\) in Eq.~(\ref{eq:electron-forward-cooling-assembly}) from the local seed photon number density \(n_\nu\).  With
+\[
+\nu_B=\frac{eB'}{2\pi m_ec},\qquad
+\nu_{\min,i}=\frac{\nu_B}{\gamma_i},\qquad
+\nu_{u,i}=\frac{3}{2}\gamma_i^2\nu_B,
+\]
+the implemented absorption kernel is split at \(\nu_{u,i}\):
+\[
+\Sigma_i(\nu)=
+\begin{cases}
+C_1\dfrac{B_Q}{B'}(3\nu_{\min,i})^{5/3}\nu^{-5/3},
+& \nu_{\min,i}<\nu\le\nu_{u,i},\\[2ex]
+C_2\dfrac{B_Q}{B'}\gamma_i^{-3}
+\dfrac{\nu_B}{\nu}\exp(-\nu/\nu_{u,i}),
+& \nu>\nu_{u,i},
+\end{cases}
+\]
+where \(B_Q=4.4\times10^{13}\,{\rm G}\),
+\(C_1=2.5042\times10^{-22}\), and
+\(C_2=7.787\times10^{-22}\) are the cgs constants used by the single-particle absorption kernel.  The returned coefficient is
+\[
+A_{{\rm SSA},i}
+=c\int_{\nu_{\min,i}}^{\nu_{\max}}
+h\nu\,n_\nu\,\Sigma_i(\nu)\,d\nu .
+\]
+The helper finds the first seed-frequency node above \(\nu_{\min,i}\), the first node above \(\nu_{u,i}\), and clips only the two boundary cells; complete low-frequency cells are accumulated with a prefix sum
+\[
+P_k=\sum_{\ell=1}^{k}
+hc\sum_{q=1}^{2}w_{\ell q}
+n_\nu(\nu_{\ell q})\nu_{\ell q}^{-2/3},
+\]
+so their contribution is
+\[
+C_1\frac{B_Q}{B'}(3\nu_{\min,i})^{5/3}
+\left(P_{k_2}-P_{k_1-1}\right).
+\]
+The high-frequency cells use the same two-point logarithmic Gauss nodes and evaluate
+\[
+C_2\frac{B_Q}{B'}\gamma_i^{-3}\nu_B hc
+\sum_{\ell,q} w_{\ell q}n_\nu(\nu_{\ell q})
+\exp(-\nu_{\ell q}/\nu_{u,i}).
+\]
+Here \(\nu_{\ell q}\) and \(w_{\ell q}\) are obtained by applying two-node Gauss--Legendre quadrature in \(x=\ln\nu\), so \(w_{\ell q}\) already includes the \(d\nu=\nu\,dx\) Jacobian.  Within each frequency cell the shared interpolation helper supplies the local \(n_\nu\); for positive endpoints this is a log--log power-law interpolation.
+
 The grid-level IC cooling kernel first moves the seed photon field to logarithmic frequency-cell midpoints,
 \[
 \nu_{0,k+1/2}=(\nu_{0,k}\nu_{0,k+1})^{1/2},\qquad
