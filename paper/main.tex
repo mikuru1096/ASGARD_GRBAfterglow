@@ -1430,6 +1430,45 @@ Thus \texttt{dbesi0} supplies the unscaled \(I_0\) needed by the small-argument
 \(K_0\) branch, while the large-argument approximation itself remains localized
 in \texttt{dbsi0e}.  This is a special-function support layer for the thermal
 integrals, not an additional electron population.
+The scaled order-zero routine \texttt{dbsi0e} evaluates
+\[
+\widehat I_0(x)\equiv e^{-|x|}I_0(x)
+=\frac{1}{\pi}\int_0^\pi
+\exp[-|x|+x\cos\phi]\,d\phi .
+\]
+For the positive arguments used by the thermal support chain, this integrand is
+\(\exp[-x(1-\cos\phi)]\), so the exponential peak at \(\phi=0\) remains bounded
+even when the unscaled \(I_0\) would overflow.  The source again sets \(y=|x|\)
+and initializes the three Chebyshev series with a one-tenth machine-precision
+truncation target.  For \(y\le3\) and
+\(y>\sqrt{4.5\,\texttt{d1mach}(3)}\), it uses the same small-\(I_0\) expansion
+as \texttt{dbesi0} and applies the scaling explicitly,
+\[
+\widehat I_0(x)=e^{-y}
+\left\{2.75+\left[\frac{b_1}{2}
++\sum_{j=2}^{N}b_jT_{j-1}\!\left(\frac{y^2}{4.5}-1\right)\right]\right\}.
+\]
+Below this threshold the retained source shortcut is \(1-x\).  In the current
+ASGARD call graph \texttt{dbesi0} reaches \texttt{dbsi0e} only for \(y>3\), and
+the hybrid thermal moments use the scaled \(K_\nu\) routines directly; the
+shortcut therefore does not set a physical electron normalization.  For
+\(3<y\le8\), the code switches to the first scaled asymptotic expansion,
+\[
+\widehat I_0(x)=\frac{1}{\sqrt{y}}
+\left[0.375+\frac{a_1}{2}
++\sum_{j=2}^{N_a}a_jT_{j-1}\!\left(\frac{48/y-11}{5}\right)\right],
+\]
+where the map sends \(y=3\) to \(+1\) and \(y=8\) to \(-1\).  For \(y>8\), it
+uses the farther-asymptotic coefficient set,
+\[
+\widehat I_0(x)=\frac{1}{\sqrt{y}}
+\left[0.375+\frac{c_1}{2}
++\sum_{j=2}^{N_c}c_jT_{j-1}\!\left(\frac{16}{y}-1\right)\right],
+\]
+with \(16/y-1\in[-1,1]\) over \(y\in[8,\infty)\).  The three pieces are the
+standard small-argument series and large-\(y\) expansion of the same scaled
+integral, so the branch changes alter only the numerical representation, not the
+definition of \(I_0\).
 The companion order-one routine, \texttt{dbesi1}, evaluates
 \[
 I_1(x)=\frac{1}{\pi}\int_0^\pi e^{x\cos\phi}\cos\phi\,d\phi
