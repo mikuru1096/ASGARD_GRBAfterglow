@@ -2806,6 +2806,42 @@ The \(\gamma\gamma\) optical-depth kernel uses the pair-production cross section
 \]
 for \(s>1\).  The angular integral uses weights proportional to \(1-\beta\mu\), adds any extra hadronic photon-loss optical depth, and returns the absorption factor that enters the observer prefactor \citep{GouldSchreder1967,Svensson1987}.
 
+The optional \texttt{Cal\_ebl} helper applies extragalactic-background-light
+attenuation as an external propagation factor rather than as a local shell
+radiation process.  For the default Domínguez et al. table
+\citep{Dominguez2011EBL}, the first column gives photon energy \(E_i\) in TeV
+and the header gives source redshift \(z_j\).  The code converts the tabulated
+energy to observed frequency,
+\[
+\nu_i=\frac{E_i}{h}
+=E_i({\rm TeV})\,\texttt{Para\_TeV2Hz},
+\]
+extends the table by the physical boundary condition
+\[
+\tau_{\rm EBL}(E,0)=0,
+\]
+and linearly interpolates the tabulated optical depth in redshift,
+\[
+\tau_i(z)=
+\frac{z_{j+1}-z}{z_{j+1}-z_j}\tau_{ij}
++\frac{z-z_j}{z_{j+1}-z_j}\tau_{i,j+1}.
+\]
+The observer-frequency optical depth is then obtained by linear interpolation in
+the tabulated frequency coordinate,
+\[
+\tau_{\rm EBL}(\nu_{\rm obs},z)=
+\frac{\nu_{i+1}-\nu_{\rm obs}}{\nu_{i+1}-\nu_i}\tau_i(z)
++\frac{\nu_{\rm obs}-\nu_i}{\nu_{i+1}-\nu_i}\tau_{i+1}(z),
+\]
+with zero optical depth below the lowest tabulated gamma-ray energy.  The
+returned multiplicative factor is
+\[
+\mathcal{A}_{\rm EBL}(\nu_{\rm obs},z)
+=\exp[-\tau_{\rm EBL}(\nu_{\rm obs},z)].
+\]
+Inputs above the tabulated maximum redshift or energy are outside the selected
+EBL model and are rejected instead of being silently extrapolated.
+
 The observer-side assembly uses a fixed order.  It first adds forward SSC if enabled, then reverse-shock synchrotron and optional reverse SSC/cross-zone IC, then hadronic luminosities after forward synchrotron self-absorption transfer, then pair-production luminosity and pair seed photons if that branch is active.  The final local-to-observer prefactor is
 \[
 \mathcal{P}_\nu(R)=

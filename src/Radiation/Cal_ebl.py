@@ -12,17 +12,17 @@ def cal_ebl(z, v_obs, model="Dominguez11.txt"):
     table = np.loadtxt(_EBL_DIR / model)
     v_obs = np.asarray(v_obs, dtype=float)
 
-    redshifts = table[0, 1:]
-    energies_hz = table[1:, 0] * constants.para_tev2hz
-    tau_values = table[1:, 1:]
+    redshift = table[0, 1:]
+    energy_hz = table[1:, 0] * constants.para_tev2hz
+    tau_grid = table[1:, 1:]
 
-    if z <= redshifts[0]:
-        tau_at_z = tau_values[:, 0]
-    elif z >= redshifts[-1]:
-        tau_at_z = tau_values[:, -1]
-    else:
-        tau_at_z = np.array([np.interp(z, redshifts, tau_values[i, :]) for i in range(tau_values.shape[0])])
+    if z < 0.0 or z > redshift[-1]:
+        raise ValueError(f"EBL model {model} supports 0 <= z <= {redshift[-1]}")
+    if np.any(v_obs < 0.0) or np.any(v_obs > energy_hz[-1]):
+        raise ValueError(f"EBL model {model} supports 0 <= nu <= {energy_hz[-1]} Hz")
 
-    tau_obs = np.interp(v_obs, energies_hz, tau_at_z, left=tau_at_z[0], right=tau_at_z[-1])
-    absorption = np.exp(-tau_obs)
-    return np.where(v_obs < energies_hz[0], 1.0, np.where(v_obs > energies_hz[-1], 1.0e-30, absorption))
+    redshift = np.concatenate(([0.0], redshift))
+    tau_grid = np.column_stack((np.zeros(tau_grid.shape[0]), tau_grid))
+    tau_z = np.array([np.interp(z, redshift, tau_grid[i, :]) for i in range(tau_grid.shape[0])])
+    tau_obs = np.interp(v_obs, energy_hz, tau_z, left=0.0)
+    return np.exp(-tau_obs)
