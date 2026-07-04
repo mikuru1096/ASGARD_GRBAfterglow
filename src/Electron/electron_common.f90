@@ -287,26 +287,38 @@ subroutine electron_initial_density(A_star,dNe_ISM,R_ini,R_start,R0,dNe,ninit)
     implicit none
     real(8), intent(in) :: A_star,dNe_ISM,R_ini,R_start,R0
     real(8), intent(out) :: dNe,ninit
-    real(8) :: dNe_wind
+    real(8) :: dNe_wind,wind_norm,r_floor,r_cap,r_join,r_base
 
     if (A_star > 0d0) then
-        dNe_wind=A_star*3.0d35/R_start**2
-        ninit=4d0*pi*R_ini*A_star*3.0d35
-        if (dNe_wind <= dNe_ISM/4d0) then
-            dNe=dNe_ISM
+        wind_norm=A_star*3.0d35
+        r_floor=dsqrt(4d0*wind_norm/dNe_ISM)
+        if (R0 > 0d0) then
+            r_cap=min(R_ini,R0)
+            ninit=4d0/3d0*pi*r_cap**3*wind_norm/R0**2
+            if (R_ini > R0) then
+                r_join=min(R_ini,r_floor)
+                if (r_join > R0) ninit=ninit+4d0*pi*wind_norm*(r_join-R0)
+                r_base=max(R0,r_floor)
+                if (R_ini > r_base) ninit=ninit+4d0/3d0*pi*dNe_ISM*(R_ini**3-r_base**3)
+            end if
         else
-            dNe=dNe_wind
+            r_join=min(R_ini,r_floor)
+            ninit=4d0*pi*wind_norm*r_join
+            if (R_ini > r_join) ninit=ninit+4d0/3d0*pi*dNe_ISM*(R_ini**3-r_join**3)
+        end if
+        if (R0 > 0d0 .and. R_start < R0) then
+            dNe=wind_norm/R0**2
+        else
+            dNe_wind=wind_norm/R_start**2
+            if (dNe_wind <= dNe_ISM/4d0) then
+                dNe=dNe_ISM
+            else
+                dNe=dNe_wind
+            end if
         end if
     else
         dNe=dNe_ISM
         ninit=4d0/3d0*pi*R_ini**3*dNe_ISM
-    end if
-    if (R_start < R0) then
-        if (A_star > 0d0) then
-            dNe=A_star*3.0d35/R0**2*4d0
-        else
-            dNe=dNe_ISM
-        end if
     end if
 end subroutine electron_initial_density
 
