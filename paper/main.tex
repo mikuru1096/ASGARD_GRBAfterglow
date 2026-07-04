@@ -718,7 +718,7 @@ Let \(M_N(x)\) be the prefix integral of the positivity-limited PPM reconstructi
 N_{x,j}^{n+1}=
 \frac{M_N[x_{j+1/2}^{\rm back}(\Delta R)]
 -M_N[x_{j-1/2}^{\rm back}(\Delta R)]}{\Delta x_j}
-\Delta R\sum_{q=1}^{4}w_q
+{}+\Delta R\sum_{q=1}^{4}w_q
 \frac{M_S[x_{j+1/2}^{\rm back}(s_q\Delta R)]
 -M_S[x_{j-1/2}^{\rm back}(s_q\Delta R)]}{\Delta x_j}.
 \]
@@ -754,6 +754,108 @@ N_y^h(y,R)\big|_{K_k}=
 \qquad p_{\rm DG}=12,
 \]
 where \(\ell_\ell\) are Lagrange polynomials on the Legendre--Gauss--Lobatto nodes.  The mesh is rebuilt at each shell from active break positions \(\log_{10}\gamma_m\), \(\log_{10}\gamma_c\), and \(\log_{10}\gamma_{\max}\); active intervals are split into six DG elements, and breaks outside the electron grid or indistinguishable at the current log-grid width are removed from the element-boundary list.
+
+The forward \texttt{dg\_1d} entry supplies the physical shell data to this DG kernel.  Its fixed diagnostic electron grid is the shared four-velocity grid with \(\gamma_{\rm scale}=2\), but its upper edge is chosen as a coverage estimate
+\[
+\gamma_{\rm grid,max}=30\,\frac{3m_ec^2}{(8B'_{\rm ref}e^3)^{1/2}},
+\qquad
+B'_{\rm ref}=0.39\left[\epsilon_Bn(R_1)\Gamma_N(\Gamma_N-1)\right]^{1/2},
+\]
+where \(\Gamma_N\) is the last dynamics-grid Lorentz factor.  At every output shell the driver uses
+\[
+\bar\Gamma_i=\frac{\Gamma_i+\Gamma_{i-1}}{2}
+\]
+and computes the current shell break values
+\[
+\gamma_{\max,i}=\frac{3m_ec^2}{(8B_i'e^3)^{1/2}},
+\qquad
+\gamma_{m,i}=\gamma_m\!\left[
+\frac{\epsilon_e}{f_e}\frac{m_p}{m_e}(\bar\Gamma_i-\!1),
+\gamma_{\max,i},p\right],
+\qquad
+\gamma_{c,i}=\frac{7.7\times10^8(1+z)}
+{\bar\Gamma_iB_i'^2t_{{\rm obs},i}},
+\]
+before writing the local break-frequency diagnostics and constructing the substep injection source.  The ordinary shell remesh keeps the existing active support unless the high-energy source support requires extension.  For a trial upper cutoff \(\gamma_u\), the source support endpoint is
+\[
+x_{{\rm src},\max}=
+\log_{10}\left[\min(\gamma_{\rm grid,max},30\gamma_u)\right],
+\]
+and the active high-energy edge is not contracted while the existing DG state carries a significant high-energy moment,
+\[
+\frac{\int_{\gamma_e\ge10^{x_{{\rm src},\max}}}
+N_y\gamma_e^2\,dy}
+{\int N_y\gamma_e^2\,dy}
+>10^{-10}.
+\]
+If a substep source extends beyond the current active DG edge, the driver rebuilds the mesh using the current \(\gamma_{m,i}\), \(\gamma_{c,i}\), and \(\gamma_{\max,i}\) for that remap.  The regular radial split is
+\[
+\Delta R_{\rm DG}=\frac{R_i-R_{i-1}}{10}.
+\]
+For each Gaussian density jump with width \(\sigma_j=w_jR_j\), the candidate step is cut at the marker set
+\[
+R_j+\sigma_j\{-4,-2,-1,0,1,2,4\},
+\]
+and inside the \(|R-R_j|<4\sigma_j\) window it also obeys
+\[
+\Delta R\le \frac{\sigma_j}{8}.
+\]
+The final density-slope limiter uses the jump enhancement
+\[
+\mathcal{E}(R)=1+\sum_j(f_j-1)
+\exp\left[-\frac{(R-R_j)^2}{2\sigma_j^2}\right],
+\qquad
+\Delta R\le \frac{0.05}{|d\ln\mathcal{E}/dR|}.
+\]
+
+At a DG substep midpoint \(R_{\rm mid}\), the driver re-evaluates \(n(R_{\rm mid})\), \(B'\), \(\gamma_{\max}\), and \(\gamma_m\) unless the medium is strictly uniform.  It first builds a unit-normalized DG source template \(\widetilde Q_y^h\), then rescales that template so that its DG integral equals the conservative finite-cell source integral in the same \(y\) measure,
+\[
+\widetilde Q_y^h\leftarrow
+\widetilde Q_y^h
+\frac{\sum_j \bar Q_{y,j}\Delta y_j}
+{\int \widetilde Q_y^h\,dy}.
+\]
+The source entering the implicit DG step is
+\[
+Q_y^h(R_{\rm mid})=
+\dot N_{{\rm inj},R}(R_{\rm mid},\Delta R)\,\widetilde Q_y^h .
+\]
+The cooling array is computed once from the shell radiation field and, for a non-uniform medium, scaled locally as
+\[
+D_j(R_{\rm mid})=
+D_j(R_{i-1})\frac{n(R_{\rm mid})}{n(R_{i-1})}.
+\]
+The substep sent to the DG kernel is therefore
+\[
+\frac{\partial N_y}{\partial R}
++\frac{\partial}{\partial y}
+\left[
+-\frac{D(R_{\rm mid})+R_{\rm mid}^{-1}}
+{\ln 10\,dx_g/dy}N_y
+\right]
+=Q_y^h(R_{\rm mid}).
+\]
+
+After each output radius, the DG polynomial is projected back to the fixed diagnostic grid by exact cell-overlap quadrature,
+\[
+\bar N_{y,j}^{\rm out}=
+\frac{1}{\Delta y_j}
+\sum_k\int_{[y_{j-1/2},y_{j+1/2}]\cap K_k}
+N_y^h(y)\,dy .
+\]
+The published electron array is then
+\[
+\left.\frac{dN_e}{d\gamma_e}\right|_j=
+\frac{N_{y,j}^{\rm exp}}
+{\gamma_j\ln 10\,(dx_g/dy)_j},
+\]
+where \(N_{y,j}^{\rm exp}\) is the center value of the local exponential reconstruction of the cell average.  The driver requires the DG integral and the projected fixed-grid integral to remain positive,
+\[
+\int N_y^h\,dy>0,\qquad
+\sum_j\frac{dN_e}{d\gamma_e}\bigg|_j
+\gamma_j\ln 10\,\Delta x_j>0,
+\]
+and the final output radius is explicitly refreshed through the same synchrotron optical-depth grid used for \(\nu_a\), so the returned \(\nu_m\), \(\nu_c\), and \(\nu_a\) arrays are tied to the final electron spectrum rather than to a stale pre-advance shell.
 
 Source projection uses the same conservative density.  For a source written in log-energy form \(Q_{x_g}\), the DG integrand is
 \[

@@ -91,6 +91,7 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
         enddo
         call write_positive_output(I_tobs)
     enddo
+    call write_final()
 
     deallocate(state, nxinit, xedge, yedge, srcgrid, pemit, tau)
     if (allocated(projected)) deallocate(projected)
@@ -139,7 +140,7 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
     subroutine write_rad_breaks(it)
         integer, intent(in) :: it
 
-        V_m(it - 1) = 4.2d6*DB*gm*gm/(gloc*(1d0 - beta_Gam)*(1d0 + z))
+        V_m(it - 1) = 4.2d6*DB*gm_inj*gm_inj/(gloc*(1d0 - beta_Gam)*(1d0 + z))
         V_c(it - 1) = 4.2d6*DB*gc*gc/(gloc*(1d0 - beta_Gam)*(1d0 + z))
         call syn_state(index_syn_intger, R_loc, DB, Num_gam_e, Num_nu, n_threads, &
                                     gam_e, dN_gam_e(:,it - 1), V_seed, pemit, &
@@ -147,6 +148,28 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
         call nua_fromtau(Num_nu, V_seed, tau, temp)
         V_a(it - 1) = temp/(gloc*(1d0 - beta_Gam)*(1d0 + z))
     end subroutine write_rad_breaks
+
+    ! 最后一个输出点没有后续推进，只刷新与最终电子谱一致的辐射诊断。
+    ! The final output point has no following advance, so refresh diagnostics from the final electron spectrum.
+    subroutine write_final()
+        R_loc = R(Num_R)
+        gloc = R_Gamma(Num_R)
+        if (gloc < 1d0) error stop 'fs_dg_1d requires Gamma >= 1'
+        beta_Gam = dsqrt(1d0 - 1d0/gloc**2)
+        call density_profile(A_star, nism, R_loc, R0, 1, R_tr, f_jump, f_wide, dNe_shell)
+        DB = 0.39d0*dsqrt(Epsilon_b*dNe_shell*(gloc*(gloc - 1d0)))
+        gemax = 3d0*Para_m_energy/dsqrt(8d0*DB*Para_e**3)
+        temp_gam = Epsilon_e/f_e*para_m_p/para_m_e*(gloc - 1d0)
+        call electron_gm_exact(p, temp_gam, gemax, gm)
+        gc = 7.7d8*(1d0 + z)/gloc/DB**2/R_Tobs(Num_R)
+        V_m(Num_R) = 4.2d6*DB*gm*gm/(gloc*(1d0 - beta_Gam)*(1d0 + z))
+        V_c(Num_R) = 4.2d6*DB*gc*gc/(gloc*(1d0 - beta_Gam)*(1d0 + z))
+        call syn_state(index_syn_intger, R_loc, DB, Num_gam_e, Num_nu, n_threads, &
+                                    gam_e, dN_gam_e(:,Num_R), V_seed, pemit, &
+                                    P_syn(:,Num_R), Seed_syn(:,Num_R), tau)
+        call nua_fromtau(Num_nu, V_seed, tau, temp)
+        V_a(Num_R) = temp/(gloc*(1d0 - beta_Gam)*(1d0 + z))
+    end subroutine write_final
 
     ! 根据当前 cutoff 和尾部矩判断是否扩展 DG 网格，并守恒投影旧状态。
     ! Resize the DG mesh from the current cutoff and tail moment, then conservatively project the old state.

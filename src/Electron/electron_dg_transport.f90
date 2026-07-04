@@ -19,8 +19,10 @@ module electron_dg_transport
     integer, parameter :: dg_quadn = 4
     integer, parameter :: dg_loggamma = coord_loggamma
     integer, parameter :: dg_fourvel = coord_fourvel
-    real(8), parameter, dimension(dg_quadn) :: dg_qnodes= [2.3260475760753783d-5, 1.1852538299698612d-2, 2.0155705894317942d-1, 7.4986401224114997d-1]
-    real(8), parameter, dimension(dg_quadn) :: dg_qweights= [5.8639022562157604d-4, 1.1796387950693022d-1, 4.3814275798321245d-1, 4.4330715288489519d-1]
+    real(8), parameter, dimension(dg_quadn) :: dg_qnodes= [2.3260475760753783d-5, &
+        1.1852538299698612d-2, 2.0155705894317942d-1, 7.4986401224114997d-1]
+    real(8), parameter, dimension(dg_quadn) :: dg_qweights= [5.8639022562157604d-4, &
+        1.1796387950693022d-1, 4.3814275798321245d-1, 4.4330715288489519d-1]
     real(8), allocatable, dimension(:) :: reference_r,reference_w,reference_bary
     real(8), allocatable, dimension(:,:) :: reference_dmat,reference_transport
     real(8), allocatable, dimension(:) :: projection_r,projection_w
