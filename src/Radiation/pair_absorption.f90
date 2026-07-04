@@ -30,9 +30,9 @@ subroutine annihilation(R_gamma,R,V_seed,seed_syn,seed_ssc,tau_extra,Num_nu,Num_
     ncos=50
     dmu=2d0/ncos
     area=3d0/16d0*Para_sigmaT
-    allocate(mu(ncos+1),z(ncos+1),angw(ncos+1,Num_R))
-    allocate(sigker(Num_nu-1,Num_nu,ncos+1))
-    allocate(nu_start(ncos+1,Num_nu),nu_stop(ncos+1,Num_nu))
+    allocate(mu(ncos),z(ncos),angw(ncos,Num_R))
+    allocate(sigker(Num_nu-1,Num_nu,ncos))
+    allocate(nu_start(ncos,Num_nu),nu_stop(ncos,Num_nu))
     absorption=0d0
     seedsum=0d0
     sigker=0d0
@@ -59,7 +59,7 @@ subroutine annihilation(R_gamma,R,V_seed,seed_syn,seed_ssc,tau_extra,Num_nu,Num_
     do i_r=1,Num_R
         do n1=1,Num_nu
             tau=0d0
-            do i_cos=1,ncos+1
+            do i_cos=1,ncos
                 if (nu_stop(i_cos,n1) <= 0) cycle
                 tau1=dot_product( &
                     sigker(nu_start(i_cos,n1):nu_stop(i_cos,n1),n1,i_cos), &
@@ -69,7 +69,7 @@ subroutine annihilation(R_gamma,R,V_seed,seed_syn,seed_ssc,tau_extra,Num_nu,Num_
             end do
             tau=tau*geom(i_r)/2d0 + tau_extra(n1,i_r)
             call transfer_factor(tau,trans)
-            absorption(n1,i_r)=absorption(n1,i_r)+trans
+            absorption(n1,i_r)=trans
         end do
     end do
     !$OMP END DO
@@ -97,8 +97,8 @@ subroutine angle_weights()
     implicit none
     integer :: i_cos,i_r
 
-    do i_cos=1,ncos+1
-        mu(i_cos)=-1d0+dmu*(i_cos-1d0)
+    do i_cos=1,ncos
+        mu(i_cos)=-1d0+dmu*(i_cos-0.5d0)
         z(i_cos)=(1d0-mu(i_cos))/2d0
     end do
     do i_r=1,Num_R
@@ -112,7 +112,7 @@ subroutine build_sigma()
     real(8) :: s
 
     do n1=1,Num_nu
-        do i_cos=1,ncos+1
+        do i_cos=1,ncos
             call set_window(i_cos,n1)
             if (nu_stop(i_cos,n1) <= 0) cycle
             do n2=nu_start(i_cos,n1),nu_stop(i_cos,n1)

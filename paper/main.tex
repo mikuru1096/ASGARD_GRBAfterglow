@@ -2803,7 +2803,27 @@ Photon survival is applied as a shell-cell transfer, not as a point-screen atten
 (1-e^{-\tau})/\tau, & \tau>10^{-4}.
 \end{cases}
 \]
-The \(\gamma\gamma\) optical-depth kernel uses the pair-production cross section
+The \texttt{pair\_absorption} kernel evaluates the local \(\gamma\gamma\)
+loss from the same seed grid.  For a photon of frequency \(\nu_1\) and a target
+cell between \(\nu_j\) and \(\nu_{j+1}\), the code uses
+\[
+\epsilon_1=\frac{h\nu_1}{m_ec^2},\qquad
+\nu_{2,j}=(\nu_j\nu_{j+1})^{1/2},\qquad
+\epsilon_{2,j}=\frac{h\nu_{2,j}}{m_ec^2},
+\]
+and \(d\nu_j=\nu_{2,j}\Delta\ln\nu\).  The collision-angle integral is a
+midpoint quadrature,
+\[
+\mu_a=-1+\left(a-\frac{1}{2}\right)\Delta\mu,\qquad
+\Delta\mu=\frac{2}{N_\mu},\qquad
+z_a=\frac{1-\mu_a}{2},
+\]
+so the pair-production invariant is
+\[
+s_{aj}=\epsilon_1\epsilon_{2,j}z_a .
+\]
+Only cells with \(1<s_{aj}<10^{12}\) contribute to the finite kernel sum; the
+lower bound is the physical pair threshold.  For those cells the cross section is
 \[
 \sigma_{\gamma\gamma}(s)=
 \frac{3\sigma_T}{16}(1-\beta_s^2)
@@ -2814,7 +2834,22 @@ The \(\gamma\gamma\) optical-depth kernel uses the pair-production cross section
 \qquad
 \beta_s=(1-s^{-1})^{1/2},
 \]
-for \(s>1\).  The angular integral uses weights proportional to \(1-\beta\mu\), adds any extra hadronic photon-loss optical depth, and returns the absorption factor that enters the observer prefactor \citep{GouldSchreder1967,Svensson1987}.
+with \(\sigma_{\gamma\gamma}=0\) below threshold.  For a shell at
+\((R_i,\Gamma_i)\), \(\beta_i=(1-\Gamma_i^{-2})^{1/2}\), the implemented optical
+depth is therefore
+\[
+\tau_{\gamma\gamma}(\nu_1,R_i)=
+\frac{R_i}{24\Gamma_i}
+\sum_{a=1}^{N_\mu}\Delta\mu(1-\beta_i\mu_a)
+\sum_j \sigma_{\gamma\gamma}(s_{aj})
+n_{\nu_{2,j}}^{\rm target}(R_i)d\nu_j
++\tau_{\rm extra}(\nu_1,R_i).
+\]
+The returned array is
+\(\mathcal{A}_{\gamma\gamma}(\nu_1,R_i)=\mathcal{T}[\tau_{\gamma\gamma}]\),
+which is the survival factor for photons emitted throughout the same absorbing
+cell rather than a foreground factor \(e^{-\tau}\)
+\citep{GouldSchreder1967,Svensson1987}.
 
 The optional \texttt{Cal\_ebl} helper applies extragalactic-background-light
 attenuation as an external propagation factor rather than as a local shell
