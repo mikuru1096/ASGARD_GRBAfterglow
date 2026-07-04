@@ -4049,6 +4049,61 @@ The current multi-density reverse-shock path is deliberately narrow: it requires
 
 Observer projection is performed after local luminosities have been assembled.  For a direct top-hat model with a supported medium, \asgard\ uses the direct kernel-backed path.  Other active jet profiles are solved as angular patches through either the Fortran structured backend or the Python patch backend.  The Fortran structured backend currently requires uniform patch sampling and a supported one-dimensional electron solver, \texttt{fullhide\_1d} or \texttt{dg\_1d}; it does not migrate reverse-shock SSC, cross-zone IC, reverse-shock hadronic branches, Bethe-Heitler, \(pp\), hadronic IC, or pair-cascade branches.  The \texttt{dominant\_region\_ioka\_v1} and \texttt{dominant\_region\_ioka\_time\_v1} samplers are restricted to \texttt{python\_patch}.
 
+The compiled \texttt{structured\_jet\_1d} entry is the Fortran aggregate used by
+the uniform structured backend.  The Python caller first samples the jet on
+midpoint cells and passes arrays
+\[
+E_{ab}=E_{\rm iso}(\phi_b,\theta_a),\qquad
+\Gamma_{0,ab}=\Gamma_0(\phi_b,\theta_a),\qquad
+A_{ab}=\mathbf{1}(E_{ab}>0,\Gamma_{0,ab}\ge\Gamma_{\min}),
+\]
+with \(\Gamma_{\min}=2\) for this one-dimensional relativistic backend.  The
+Fortran aggregate solves only one representative for each exact state class,
+\[
+(a,b)\sim(a',b')
+\quad\Longleftrightarrow\quad
+E_{ab}=E_{a'b'}\ {\rm and}\ \Gamma_{0,ab}=\Gamma_{0,a'b'},
+\]
+and copies the resulting radius histories and component SEDs to all active
+members of that class.  For a representative patch \(q\), it replaces only the
+local boundary entries
+\[
+\Gamma_0\leftarrow\Gamma_{0,q},\qquad
+E_{\rm iso}\leftarrow E_q
+\]
+and then runs the same one-dimensional dynamics, electron, optional SSC, reverse
+synchrotron, and selected hadronic component kernels described earlier.  Thus
+the structured aggregate changes angular bookkeeping and state reuse, not the
+local shock, particle, or synchrotron equations.
+
+Before angular projection, the aggregate applies the same shell-level photon
+survival and distance prefactor to every local component:
+\[
+\mathcal{P}_{\nu R}=
+\frac{1+z}{4\pi d_L^2}\,
+\mathcal{A}_{\gamma\gamma}(\nu,R),
+\]
+\[
+\widetilde L^{k}_{\nu R q}=
+\mathcal{P}_{\nu R}L^{k}_{\nu R q},
+\qquad
+k\in\{\mathrm{fs\,syn},\mathrm{fs\,SSC},\mathrm{rs\,syn},
+\mathrm{selected\,hadronic}\}.
+\]
+The projected components are then accumulated by
+\texttt{SED\_interpolation\_structured} for axisymmetric profiles or
+\texttt{sed\_structured\_phi} for explicit two-dimensional angular grids, and the
+returned total is the algebraic component sum
+\[
+F_{\nu}(t)=F_{\nu}^{\rm fs\ syn}
++F_{\nu}^{\rm fs\ SSC}
++F_{\nu}^{\rm selected\ hadronic}
++F_{\nu}^{\rm rs\ syn}.
+\]
+The diagnostic radius track returned with a structured solve is copied from the
+first representative patch that enters the protected track-copy block; it records
+a valid local one-dimensional history but is not a flux-weighted angular average.
+
 The \texttt{src.Interpolation} package initializer is only a lazy binding layer
 for these observer-frame projection kernels.  The names
 \texttt{sed\_interpolation}, \texttt{sed\_adaptive\_theta},
