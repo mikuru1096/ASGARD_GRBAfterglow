@@ -771,7 +771,7 @@ The waiting-phase Lorentz equation is therefore
 \]
 The crossing from waiting to active reverse shock is bracketed within the current radial step rather than being assigned to the next stored output radius.  The reverse-shock framework follows the standard early-afterglow treatment, including wind reverse-shock diagnostics, and uses the same magnetized jump-condition variables as the \vegas\ comparison calculation without treating \vegas\ as a light-curve target \citep{SariPiran1999,Kobayashi2000,ZhangKobayashi2005,PeerWijers2006,Giannios2008,Wang2025VegasAfterglow}.
 
-The active magnetized jump is solved as a finite-strength local MHD shock.  Let \(g=\gamma_{34}\), \(\hat{\gamma}=4/3+1/(3g)\), \(h_1=\hat{\gamma}-1\), and \(h_2=\hat{\gamma}-2\).  For \(\sigma>10^{-6}\) the code solves a cubic for the downstream four-speed squared \(y=u_d^2\),
+The active magnetized jump is solved as a finite-strength local MHD shock for a cold upstream shell with a transverse ordered field in a one-dimensional shock frame.  Let \(g=\gamma_{34}\), \(\hat{\gamma}=4/3+1/(3g)\), \(h_1=\hat{\gamma}-1\), and \(h_2=\hat{\gamma}-2\).  For \(\sigma>10^{-6}\) the code solves a cubic for the downstream four-speed squared \(y=u_d^2\),
 \[
 A y^3+B y^2+C y+D=0,
 \]
@@ -793,13 +793,36 @@ C=(g+1)\left[\hat{\gamma}\left(1-\frac{\hat{\gamma}}{4}\right)
 \[
 D=-\frac{1}{4}(g-1)(g+1)^2h_2^2\sigma^2 .
 \]
-The physically selected root gives \(u_d=\sqrt{y}\).  The upstream four-speed in the downstream frame is
+The code reduces the polynomial to its depressed cubic before selecting the
+physical root.  With
+\[
+b=\frac{B}{A},\qquad c=\frac{C}{A},\qquad d=\frac{D}{A},
+\]
+\[
+p_c=c-\frac{b^2}{3},\qquad
+q_c=\frac{2b^3}{27}-\frac{bc}{3}+d,\qquad
+a_c=\left(-\frac{p_c}{3}\right)^{1/2},
+\]
+the selected branch is
+\[
+y=2a_c\cos\left[
+\frac{\cos^{-1}\!\left(3q_c/(2p_ca_c)\right)-2\pi}{3}
+\right]-\frac{b}{3},
+\qquad u_d=\sqrt{y}.
+\]
+This is the finite, positive downstream four-speed root selected by the implemented shock state.  The other real branches are not used.  The upstream four-speed in the downstream frame is
 \[
 u_u=\sqrt{(1+u_d^2)(g^2-1)}+u_dg,
 \]
 and the compression ratio used by the active RHS is \(r_\sigma=u_u/u_d\).
-In the \(\sigma\le10^{-6}\) branch the same finite-strength hydrodynamic downstream-speed routine is used, and the thermal specific internal energy is \(g-1\).
-The manuscript therefore does not use the ultra-relativistic \(4g+3\) approximation as the active dynamical jump condition.
+In the \(\sigma\le10^{-6}\) branch the module uses the finite-strength hydrodynamic downstream-speed expression
+\[
+y_{\rm h}=
+\frac{(g-1)(\hat{\gamma}-1)^2}
+{-\hat{\gamma}(\hat{\gamma}-2)(g-1)+2},
+\]
+which gives \(u_u/u_d=4g\) for the same \(\hat{\gamma}\).  The public compression helper therefore returns \(r_0=4g\) in this limit.  The thermal helper returns \(g-1\) only for exactly unmagnetized ejecta; for \(0<\sigma\le10^{-6}\) it evaluates the finite-\(\sigma\) enthalpy expression below with \(y_{\rm h}\), approaching \(g-1\) continuously.
+The manuscript therefore does not use the ultra-relativistic \(4g+3\) approximation as the active dynamical jump condition.  This MHD jump is used only by the primary ejecta reverse shock; the density-jump secondary branches described below remain hydrodynamic diagnostics and do not carry ordered-field compression or magnetic enthalpy feedback.
 
 The ordered upstream field is
 \[
