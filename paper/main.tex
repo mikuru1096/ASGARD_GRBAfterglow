@@ -2965,6 +2965,95 @@ interpolates \(\ln[t_{\rm acc}/t_{\rm ext}]\) against \(\ln\gamma\) to obtain
 when the external crossing exists, and otherwise
 \(\min(\gamma_{\rm dyn},\gamma_{\rm syn})\).
 
+The explicit Bethe-Heitler operator takes proton energy \(E_p\), photon energy
+\(\epsilon\), and secondary lepton energy \(E_e\) in GeV, then forms
+\[
+\gamma_p=\frac{E_p}{m_pc^2},\qquad
+x_\gamma=\frac{\epsilon}{m_ec^2},\qquad
+x_e=\frac{E_e}{m_ec^2}.
+\]
+The interaction contributes only when
+\(2\gamma_px_\gamma>2\).  For an allowed pair cell, the implemented differential
+kernel is the Blumenthal--Gould Bethe-Heitler form integrated over the photon
+energy \(\omega\) in the proton rest frame and the intermediate lepton energy
+\(\bar E\) \citep{BlumenthalGould1970}:
+\[
+\mathcal{K}_{\rm BH}(x_e,\gamma_p,x_\gamma)=
+\frac{x_e}{2\gamma_p^3x_\gamma^2}
+\int_{\omega_{\min}}^{\omega_{\max}} d\omega
+\int_{\bar E_{\min}}^{\omega-1} d\bar E\,
+\frac{\omega\,\sigma_{\rm BH}(\omega,\bar E,\xi)}{\bar p},
+\]
+\[
+\omega_{\max}=2\gamma_px_\gamma,\qquad
+\omega_{\min}=\frac{(\gamma_p+x_e)^2}{2\gamma_px_e},\qquad
+\bar E_{\min}=\frac{\gamma_p^2+x_e^2}{2\gamma_px_e},
+\]
+\[
+\bar p=(\bar E^2-1)^{1/2},\qquad
+\xi=\frac{\gamma_p\bar E-x_e}{\gamma_p\bar p}.
+\]
+The analytic cross section \(\sigma_{\rm BH}\) is evaluated only in its tabulated
+domain \(2.0001<\omega<600\); outside that domain this kernel contributes zero.
+The two integrals are evaluated with the fixed three-point closed
+Newton--Cotes weights in the source file, using five bins in each direction.  On the
+log-uniform energy grids, the pair production rate per GeV is therefore
+\[
+Q_{e,{\rm BH}}(E_{e,j})=
+\frac{k_{\rm BH}\,\Delta\ln E_p\,\Delta\ln\epsilon}{E_{e,j}}
+\sum_{i,k} E_{p,i}N_p(E_{p,i})\,
+\epsilon_k n_\gamma(\epsilon_k)\,
+\mathcal{K}_{\rm BH}(x_{e,j},\gamma_{p,i},x_{\gamma,k}),
+\]
+with
+\[
+k_{\rm BH}=\frac{3c\sigma_T\alpha}{16\pi}.
+\]
+The same pair kernel also defines the photon sink on the target-photon grid,
+\[
+\Lambda_{\gamma,{\rm BH}}(\epsilon_k)=
+\frac{k_{\rm BH}\,\Delta\ln E_p\,\Delta\ln E_e}
+{\epsilon_k n_\gamma(\epsilon_k)}
+\sum_{i,j} E_{p,i}N_p(E_{p,i})\,
+\epsilon_k n_\gamma(\epsilon_k)\,
+\mathcal{K}_{\rm BH}(x_{e,j},\gamma_{p,i},x_{\gamma,k}),
+\]
+which is later converted to the shell-cell optical depth and survival factor.
+The associated proton cooling is computed from the Chodorowski et al. energy-loss
+kernel \(\phi\) \citep{Chodorowski1992}:
+\[
+\dot{\gamma}_{p,{\rm BH}}(\gamma_p)=
+-k_{p{\rm BH}}\Delta\ln\epsilon
+\sum_k
+\frac{\phi(2\gamma_px_{\gamma,k})}
+{2\gamma_p^2x_{\gamma,k}^2}\,
+\epsilon_k n_\gamma(\epsilon_k),
+\qquad
+k_{p{\rm BH}}=\frac{3\alpha\sigma_Tc}{8\pi}\frac{m_e}{m_p}.
+\]
+The implemented approximation is
+\[
+\phi(x)=0\quad (x<2),
+\]
+\[
+\phi(x)=
+\frac{\pi(x-2)^4/12}
+{1+0.8048(x-2)+0.1459(x-2)^2+1.137\times10^{-3}(x-2)^3
+-3.879\times10^{-6}(x-2)^4}
+\quad (2<x<25),
+\]
+and
+\[
+\phi(x)=
+\frac{x\left[-86.07+50.96\ln x-14.45(\ln x)^2
++(8/3)(\ln x)^3\right]}
+{1-2.910/x-78.35/x^2-1837/x^3}
+\quad (x\ge25).
+\]
+Thus the BH branch contributes three coupled quantities in one shell: a
+secondary \(e^\pm\) source, a negative proton \(\dot{\gamma}_p\), and a positive
+target-photon loss rate.
+
 The proton transport equation is advanced on a log-\(\gamma_p\) grid,
 \[
 \frac{\partial N_p}{\partial t'}
