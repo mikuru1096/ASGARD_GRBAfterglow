@@ -2817,6 +2817,7 @@ and all component luminosities are multiplied by this prefactor before equal-arr
 \section{Hadronic Transport and Secondary Feedback} \label{sec:hadronic}
 
 Hadronic transport runs only when the hadronic stage is enabled and \(\epsilon_p>0\).  The current formal forward-shock hadronic path is one-dimensional, and the runtime rejects non-1D forward electron solvers for formal hadronic feedback.  The \texttt{legacy\_1d} solver transports protons and computes proton synchrotron only.  The \texttt{am3\_1d} solver with \texttt{hummer\_2010\_response} is the formal path for \(p\gamma\), neutrino, Bethe-Heitler, hadronic inverse-Compton, \(pp\), secondary-species, and pair-production branches \citep{Murase2007,Hummer2010,KelnerAharonian2008,Chodorowski1992,GouldSchreder1967,IceCube2017GRBNeutrinos,Sahu2022GRB190829AHadronic,Sahu2024GRB221009AHadronic}.
+
 The package initializer for \texttt{src.Hadronic} is only a lazy ABI boundary.
 It defines
 \[
@@ -2828,6 +2829,61 @@ attribute in the package namespace, and raises an attribute error for every
 other name.  This binding layer selects the implemented one-dimensional forward
 or reverse-shock hadronic kernel; it does not define a particle equation,
 interaction rate, or coupling term.
+
+The shared hadronic base module then fixes the numerical variables used by the
+process kernels.  It imports the electron, proton, neutron, charged-pion,
+neutral-pion, and muon rest masses from the common constants table, so all
+hadronic rates use the same mass scale as the radiation and dynamics layers.
+The Lorentz-factor grid is logarithmically uniform:
+\[
+\gamma_i
+=10^{\log_{10}\gamma_{\min}+(i-1)\Delta x},\qquad
+\Delta x=\frac{\log_{10}\gamma_{\max}-\log_{10}\gamma_{\min}}{N_\gamma-1},
+\]
+with \(\gamma_{\min}>1\) and \(\gamma_{\max}>\gamma_{\min}\).  Source support
+on this grid is represented by the first index with
+\(\gamma_i\ge\gamma_{\min}^{\rm src}\) and the last index with
+\(\gamma_i\le\gamma_{\max}^{\rm src}\).  Transport cell faces are geometric
+midpoints,
+\[
+\gamma_{i+1/2}=\sqrt{\gamma_i\gamma_{i+1}},
+\]
+with endpoint extrapolations
+\[
+\gamma_{1/2}=\gamma_1\sqrt{\gamma_1/\gamma_2},\qquad
+\gamma_{N+1/2}=\gamma_N\sqrt{\gamma_N/\gamma_{N-1}},
+\]
+and the one-cell diagnostic case uses \((\gamma_1/2,2\gamma_1)\).  The shell
+time increment is
+\[
+\Delta t_i =
+\begin{cases}
+t_{{\rm obs},1}, & i=1,\\
+t_{{\rm obs},i}-t_{{\rm obs},i-1}, & i>1,
+\end{cases}
+\]
+and must be positive.  The common comoving dynamical time is
+\[
+t_{\rm dyn}=\frac{R}{\Gamma c}.
+\]
+For the legacy proton-grid upper bound, the base module equates this time and
+the synchrotron time to the Fermi acceleration time and returns
+\[
+\gamma_{\rm dyn}=\frac{eB't_{\rm dyn}}{\eta_{\rm acc}m_pc},\qquad
+\gamma_{\rm syn}=\frac{m_p}{m_e}
+\left(\frac{6\pi e}{\eta_{\rm acc}\sigma_TB'}\right)^{1/2},
+\qquad
+\gamma_{\max}=\min(\gamma_{\rm dyn},\gamma_{\rm syn}) .
+\]
+Other hadronic kernels call the same base module to require positive, strictly
+increasing, logarithmically uniform energy grids.  When quantum synchrotron
+cooling is active, the base factor is
+\[
+f_q(\gamma,B',m)=
+\mathcal{Q}\!\left[\chi(\gamma,B',m)\right],
+\]
+where \(\chi\) and the cooling suppression \(\mathcal{Q}\) are delegated to the
+shared quantum-synchrotron radiation kernel; otherwise this factor is unity.
 
 The formal species ledger is
 \[
