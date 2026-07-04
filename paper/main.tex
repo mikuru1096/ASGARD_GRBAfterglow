@@ -647,16 +647,79 @@ a_{\rm syn}\gamma_i, & \texttt{index\_Y}=0,\\[0.6ex]
 \end{cases}
 \label{eq:electron-forward-cooling-assembly}
 \]
-The Nakar-style branch computes the seed-luminosity part below the electron-dependent Klein--Nishina threshold,
+The \(Y\)-kernel supplies the two analytic Compton closures used by Eq.~(\ref{eq:electron-forward-cooling-assembly}).  The Nakar-style branch computes the seed-luminosity part below the electron-dependent Klein--Nishina threshold \citep{NakarAndoSari2009},
 \[
 \hat\nu_i=\frac{m_ec^2}{h\gamma_i},\qquad
-Y_{{\rm N},i}=
-\frac{\displaystyle
+L_{<,i}^{\rm syn}=
 \int_{\nu_{\min}}^{\min(\hat\nu_i,\nu_{\max})}
-L_\nu^{\rm syn}\,d\nu}
+L_\nu^{\rm syn}\,d\nu,
+\]
+and the assembler converts that luminosity to the Compton factor
+\[
+Y_{{\rm N},i}=
+\frac{L_{<,i}^{\rm syn}}
 {4\pi R^2c\,4\Gamma^2nm_pc^2},
 \]
-using two-point logarithmic Gauss integration in every seed-frequency cell.  The Fan-style branch supplies \(Y_{{\rm F},i}\) from the analytic \(\epsilon_e,\epsilon_B,p,\gamma_m,\gamma_c,\gamma_{\max}\) closure; the piecewise closure itself is part of the \(Y\)-kernel, whereas this assembler only multiplies synchrotron cooling by \(1+Y_{{\rm F},i}\).  Self-absorption appears with the opposite sign because absorbed synchrotron photons heat the same electron grid.  Joint hadronic feedback requires the numeric IC/KN cooling path because the secondary source \(Q_{e,{\rm sec},R}\) and the attenuated photon field must be evaluated against the same local \(N_e,n_\gamma\) state; an analytic \(Y\) closure would decouple those two objects.
+using two-point logarithmic Gauss integration in every seed-frequency cell.  The Fan-style branch uses an analytic Klein--Nishina energy fraction \citep{FanPiran2008}.  For each electron node,
+\[
+\eta=\min\left[1,\left(\frac{\gamma_m}{\gamma_c}\right)^{p-2}\right],
+\qquad
+\hat\gamma_i=
+\left(\frac{m_ec^2}{hC_\nu B'\gamma_i}\right)^{1/2}
+=5.4246\times10^6(B'\gamma_i)^{-1/2},
+\]
+where \(C_\nu=3e/(4\pi m_ec)\).  The returned analytic factor solves
+\[
+Y_{{\rm F},i}(1+Y_{{\rm F},i})
+=\eta\,\eta_{{\rm KN},i}\frac{\epsilon_e}{\epsilon_B},
+\qquad
+Y_{{\rm F},i}=
+\frac{-1+\sqrt{1+4\eta\eta_{{\rm KN},i}\epsilon_e/\epsilon_B}}{2}.
+\]
+For fast cooling, \(\gamma_m>\gamma_c\), the code evaluates
+\[
+\eta_{{\rm KN},i}=
+\begin{cases}
+0, & \hat\gamma_i<\gamma_c,\\[0.6ex]
+\dfrac{\hat\gamma_i-\gamma_c}
+{(p-1)\gamma_m/(p-2)-\gamma_c},
+& \gamma_c\le\hat\gamma_i<\gamma_m,\ p>2,\\[2ex]
+\dfrac{(2-p)(\hat\gamma_i-\gamma_c)}
+{\gamma_m^{p-1}\gamma_{\max}^{2-p}-(p-1)\gamma_m-(2-p)\gamma_c},
+& \gamma_c\le\hat\gamma_i<\gamma_m,\ p\le2,\\[2ex]
+1-\dfrac{\gamma_m^{p-1}\hat\gamma_i^{2-p}}
+{(p-1)\gamma_m-(p-2)\gamma_c},
+& \gamma_m\le\hat\gamma_i<\gamma_{\max},\ p>2,\\[2ex]
+1-\dfrac{\gamma_m^{p-1}\gamma_{\max}^{2-p}
+-(p-1)\gamma_m-(2-p)\gamma_c}
+{\gamma_m^{p-1}(\gamma_{\max}^{2-p}-\hat\gamma_i^{2-p})},
+& \gamma_m\le\hat\gamma_i<\gamma_{\max},\ p\le2,\\[2ex]
+1, & \hat\gamma_i\ge\gamma_{\max}.
+\end{cases}
+\]
+For slow cooling, \(\gamma_m\le\gamma_c\), it uses
+\[
+\eta_{{\rm KN},i}=
+\begin{cases}
+0, & \hat\gamma_i<\gamma_m,\\[0.6ex]
+\dfrac{\hat\gamma_i^{3-p}-\gamma_m^{3-p}}
+{\gamma_c^{3-p}/(p-2)-\gamma_m^{3-p}},
+& \gamma_m\le\hat\gamma_i<\gamma_c,\ p>2,\\[2ex]
+\dfrac{(2-p)(\hat\gamma_i^{3-p}-\gamma_m^{3-p})}
+{(3-p)\gamma_c\gamma_{\max}^{2-p}
+-\gamma_c^{3-p}-(2-p)\gamma_m^{3-p}},
+& \gamma_m\le\hat\gamma_i<\gamma_c,\ p\le2,\\[2ex]
+1-\dfrac{(3-p)\gamma_c\hat\gamma_i^{2-p}}
+{\gamma_c^{3-p}-(p-2)\gamma_m^{3-p}},
+& \gamma_c\le\hat\gamma_i<\gamma_{\max},\ p>2,\\[2ex]
+1-\dfrac{(3-p)\gamma_c(\gamma_{\max}^{2-p}-\hat\gamma_i^{2-p})}
+{(3-p)\gamma_c\gamma_{\max}^{2-p}
+-\gamma_c^{3-p}-(2-p)\gamma_m^{3-p}},
+& \gamma_c\le\hat\gamma_i<\gamma_{\max},\ p\le2,\\[2ex]
+1, & \hat\gamma_i\ge\gamma_{\max}.
+\end{cases}
+\]
+Self-absorption appears with the opposite sign because absorbed synchrotron photons heat the same electron grid.  Joint hadronic feedback requires the numeric IC/KN cooling path because the secondary source \(Q_{e,{\rm sec},R}\) and the attenuated photon field must be evaluated against the same local \(N_e,n_\gamma\) state; an analytic \(Y\) closure would decouple those two objects.  The public Python cooling modes expose the no-IC, numeric IC/KN, and Nakar-style branches; the Fan-style branch is an internal Fortran closure.
 
 The SSA cooling helper computes the coefficient \(A_{{\rm SSA},i}\) in Eq.~(\ref{eq:electron-forward-cooling-assembly}) from the local seed photon number density \(n_\nu\).  With
 \[

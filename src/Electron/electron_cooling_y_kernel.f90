@@ -53,8 +53,8 @@ logical :: rebuild
     nakar_nnu=nnu
 end subroutine ensure_y_nakar
 
-! Nakar+2009 Y 参数：从 hat_nu(gamma) 到最高频积分同步光谱。
-! Nakar+2009 Y parameter: integrate the synchrotron spectrum above hat_nu(gamma).
+! Nakar+2009 Y 参数：积分低于 hat_nu(gamma) 的 Thomson 种子同步光谱。
+! Nakar+2009 Y parameter: integrate Thomson seed synchrotron power below hat_nu(gamma).
 subroutine electron_y_nakar(ng,nnu,nthr,gam,vseed,psyn,comp)
 implicit REAL(8)(A-H,O-Z)
 integer, intent(in) :: ng,nnu,nthr
@@ -100,9 +100,11 @@ integer :: ig
     eta=(gm/gc)**(p-2d0)
     if (eta-1d0 > 0.001) eta=1d0
 
-    do ig=1,ng-1
-        hatgam=5.4246d6/sqrt(db*gam(ig+1))
-        if (gm > gc) then
+    do ig=1,ng
+        hatgam=5.4246d6/sqrt(db*gam(ig))
+        if (hatgam >= gmax) then
+            etakn=1d0
+        else if (gm > gc) then
             if (hatgam < gc) then
                 etakn=0d0
             else if (hatgam < gm) then
@@ -147,7 +149,6 @@ integer :: ig
         end if
         comp(ig)=0.5d0*(-1d0+sqrt(1d0+4d0*eta*etakn*ee/eb))
     end do
-    comp(ng)=0.99*comp(ng-1)
 end subroutine electron_y_fan
 
 end module electron_y_kernel
