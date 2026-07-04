@@ -4033,6 +4033,38 @@ where \(S_\phi=1\) for the explicit two-dimensional patch grid.  Thus the
 structured file changes the angular bookkeeping and patch histories, not the
 radiative transformation itself.
 
+The shared \texttt{interpolation\_common} module supplies the frequency-grid
+accumulators used by these projection kernels.  Let \(x_i=\ln\nu_i\) denote the
+source-frequency coordinate after any Doppler/redshift shift has been applied,
+and let \(X_j=\ln\nu_{{\rm obs},j}\) be an observer-grid coordinate.  For
+\(x_i\le X_j\le x_{i+1}\), the interpolation fraction is
+\[
+q=\frac{X_j-x_i}{x_{i+1}-x_i}.
+\]
+If both neighboring source amplitudes are positive, the accumulator applies
+log-linear interpolation,
+\[
+F(X_j)\leftarrow F(X_j)+
+\exp\!\left[(1-q)\ln S_i+q\ln S_{i+1}\right],
+\]
+which is exact for a local power-law SED segment.  If either endpoint is an
+empty bin, the same source interval is accumulated in linear amplitude,
+\[
+F(X_j)\leftarrow F(X_j)+(1-q)S_i+qS_{i+1},
+\]
+so that physical zeros remain zeros and no artificial logarithmic floor is
+introduced.  The shifted-source helper uses the equivalent target coordinate
+\[
+X'_j=X_j+\Delta\ln\nu ,
+\qquad
+F(X_j)\leftarrow F(X_j)+
+\exp(\Delta\ln W)\,S(X'_j),
+\]
+where \(\Delta\ln\nu\) is the global Doppler/redshift frequency shift and
+\(\Delta\ln W\) is the multiplicative projection weight.  Both helpers evaluate
+the closed source interval \([x_1,x_N]\), so an observer frequency exactly on a
+stored source endpoint is treated as the corresponding physical grid value.
+
 For a shell element with direction cosine \(\mu\) relative to the line of sight, observer time is computed from
 \[
 t_{\rm obs}=(1+z)\left(T-\frac{R\mu}{c}\right).

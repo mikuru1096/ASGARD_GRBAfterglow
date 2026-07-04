@@ -21,12 +21,12 @@ subroutine accum_logsed(src_x, src_y, num_src, dst_x, num_dst, accum)
 
     i_src = 1
     do i_dst = 1, num_dst
-        if (dst_x(i_dst) <= src_x(1)) cycle
+        if (dst_x(i_dst) < src_x(1)) cycle
         if (dst_x(i_dst) > src_x(num_src)) exit
         do while (i_src < num_src - 1 .and. dst_x(i_dst) > src_x(i_src + 1))
             i_src = i_src + 1
         end do
-        if (dst_x(i_dst) > src_x(i_src) .and. dst_x(i_dst) <= src_x(i_src + 1)) then
+        if (dst_x(i_dst) >= src_x(i_src) .and. dst_x(i_dst) <= src_x(i_src + 1)) then
             ratio = (dst_x(i_dst) - src_x(i_src)) / (src_x(i_src + 1) - src_x(i_src))
             if (src_y(i_src) > -huge(1d0)/2d0) then
                 y_lo = exp(src_y(i_src))
@@ -62,12 +62,12 @@ subroutine accum_shifted(src_x, src_y, num_src, dst_x, num_dst, log_shift, log_w
     i_src = 1
     do i_dst = 1, num_dst
         target_x = dst_x(i_dst) + log_shift
-        if (target_x <= src_x(1)) cycle
+        if (target_x < src_x(1)) cycle
         if (target_x > src_x(num_src)) exit
         do while (i_src < num_src - 1 .and. target_x > src_x(i_src + 1))
             i_src = i_src + 1
         end do
-        if (target_x > src_x(i_src) .and. target_x <= src_x(i_src + 1)) then
+        if (target_x >= src_x(i_src) .and. target_x <= src_x(i_src + 1)) then
             ratio = (target_x - src_x(i_src)) / (src_x(i_src + 1) - src_x(i_src))
             y_lo = src_y(i_src)
             y_hi = src_y(i_src + 1)
