@@ -738,11 +738,38 @@ The relative Lorentz factor used for reverse-shock electron injection is the sho
 \frac{\Gamma_2^2+\eta_0^2-1}
 {\eta_0\Gamma_2+\sqrt{\Gamma_2^2-1}\sqrt{\eta_0^2-1}},
 \]
-not a postprocessed observer-time estimate.  A magnetized reverse shock is allowed to form only when
+not a postprocessed observer-time estimate.  For magnetized ejecta the outer driver keeps the reverse RHS
+in a waiting phase until the local pressure and fast-mode checks are both satisfied,
 \[
-\gamma_{34}>\sqrt{1+\sigma}.
+\sigma_{\rm cr}=
+\frac{2(4\Gamma_2+3)(\Gamma_2-1)n_1}{3n_4}\ge\sigma,
+\qquad
+u_{4s}^2>\sigma .
 \]
-Before this condition is met, the reverse branch is in a waiting phase: \(dM_3=0\), no reverse-shock heating is applied, \(B_{3,{\rm ord}}=0\), and the forward-shell deceleration still carries the waiting ejecta inertia.  The crossing from waiting to active reverse shock is bracketed within the current radial step rather than being assigned to the next stored output radius.  The reverse-shock framework follows the standard early-afterglow treatment, including wind reverse-shock diagnostics, and uses the same magnetized jump-condition variables as the \vegas\ comparison calculation without treating \vegas\ as a light-curve target \citep{SariPiran1999,Kobayashi2000,ZhangKobayashi2005,PeerWijers2006,Giannios2008,Wang2025VegasAfterglow}.
+Here \(u_{4s}\) is the upstream four-speed in the reverse-shock frame from the same jump relation used below.
+Before these checks pass, \(dM_3=0\), no reverse-shock heating is applied,
+\(B_{3,{\rm ord}}=0\), and the decelerating forward shell carries the waiting ejecta inertia
+\[
+M_{\rm wait}=
+M_{{\rm ej},b}(1+\sigma)\frac{\eta_0}{\eta_0-1}f_{\rm fast},
+\]
+\[
+\beta_{\rm f}=\left(\frac{\sigma}{1+\sigma}\right)^{1/2},
+\qquad
+f_{\rm fast}=
+\min\left[
+1,\,
+\frac{R\beta_{\rm f}}
+{\eta_0^2(1-\beta_4\beta_{\rm f})\beta_4\Delta(R)}
+\right].
+\]
+The waiting-phase Lorentz equation is therefore
+\[
+\frac{d\Gamma_2}{dR}
+=-\frac{u_2^2\,dM_2/dR}
+{M_{\rm wait}+[\epsilon_2+2(1-\epsilon_2)\Gamma_2]M_2}.
+\]
+The crossing from waiting to active reverse shock is bracketed within the current radial step rather than being assigned to the next stored output radius.  The reverse-shock framework follows the standard early-afterglow treatment, including wind reverse-shock diagnostics, and uses the same magnetized jump-condition variables as the \vegas\ comparison calculation without treating \vegas\ as a light-curve target \citep{SariPiran1999,Kobayashi2000,ZhangKobayashi2005,PeerWijers2006,Giannios2008,Wang2025VegasAfterglow}.
 
 The active magnetized jump is solved as a finite-strength local MHD shock.  Let \(g=\gamma_{34}\), \(\hat{\gamma}=4/3+1/(3g)\), \(h_1=\hat{\gamma}-1\), and \(h_2=\hat{\gamma}-2\).  For \(\sigma>10^{-6}\) the code solves a cubic for the downstream four-speed squared \(y=u_d^2\),
 \[
@@ -770,7 +797,9 @@ The physically selected root gives \(u_d=\sqrt{y}\).  The upstream four-speed in
 \[
 u_u=\sqrt{(1+u_d^2)(g^2-1)}+u_dg,
 \]
-and the compression ratio is \(r_\sigma=u_u/u_d\).  In the \(\sigma\le10^{-6}\) branch the same finite-strength hydrodynamic routine is used; the compression returned by the current implementation is \(r_\sigma=4g\), and the thermal specific internal energy is \(g-1\).  The manuscript therefore does not use the ultra-relativistic \(4g+3\) approximation as the baseline jump condition.
+and the compression ratio used by the active RHS is \(r_\sigma=u_u/u_d\).
+In the \(\sigma\le10^{-6}\) branch the same finite-strength hydrodynamic downstream-speed routine is used, and the thermal specific internal energy is \(g-1\).
+The manuscript therefore does not use the ultra-relativistic \(4g+3\) approximation as the active dynamical jump condition.
 
 The ordered upstream field is
 \[
@@ -816,7 +845,11 @@ During the active pre-crossing stage the \(\Gamma_2\) denominator also carries t
 \]
 so the magnetized jump changes both the explicit ordered-field inertia and the heat-inertia coupling of the shocked ejecta.
 
-The reverse dynamics evolve \((\Gamma_2,R,M_2,M_3,U_3,V_3)\).  Before shell crossing,
+The reverse dynamics evolve \((\Gamma_2,R,M_2,M_3,U_3,V_3)\), with
+\[
+\frac{dM_2}{dR}=4\pi R^2m_pn_1 .
+\]
+Before shell crossing,
 \[
 \frac{dM_3}{dT}=
 4\pi R^2m_p(\beta_4-\beta_{\rm rs})\eta_0 n_4
@@ -836,6 +869,46 @@ where \(dR/dT=\beta_2c/(1-\beta_2)\).  The reverse-shock velocity is computed fr
 u_2=\sqrt{\Gamma_2^2-1},\quad
 u_4=\sqrt{\eta_0^2-1}.
 \]
+In the active pre-crossing branch the Lorentz-factor RHS is
+\[
+\frac{d\Gamma_2}{dR}
+=-\frac{4\pi R^2m_p\left[
+(\Gamma_2^2-1)n_1+(\Gamma_2\gamma_{34}-\eta_0)
+\Delta\beta_{\rm rs}\eta_0 n_{4,{\rm in}}\right]}
+{\mathcal I_{\rm pre}},
+\qquad
+\Delta\beta_{\rm rs}\equiv\beta_4-\beta_{\rm rs},
+\]
+where \(n_{4,{\rm in}}=(1+\sigma)n_4\), \(\epsilon_{{\rm th},3}\equiv e_{{\rm th},3}/c^2\), and
+\[
+\begin{split}
+\mathcal I_{\rm pre}={}&
+[\epsilon_2+2(1-\epsilon_2)\Gamma_2]M_2
++M_3+M_{B,3}+M_{{\rm sec,eff}} \\
+& +(1-\epsilon_3)\epsilon_{{\rm th},3}M_3
++(1-\epsilon_3)\Gamma_2\mathcal R_{{\rm th},3}M_3\mathcal A_{34}.
+\end{split}
+\]
+The last factor is the implemented derivative of the relative Lorentz factor,
+\[
+\mathcal A_{34}=
+\eta_0(1-\beta_4\beta_2)
+-\frac{\eta_0\beta_4}{\Gamma_2^2\beta_2}.
+\]
+The reverse radiative fraction in this inertia term is computed with the same cooling diagnostic as the forward dynamics,
+\[
+\gamma_{c,3}=\frac{6\pi m_ec}{\sigma_T B_3^2\Gamma_2T},
+\qquad
+\gamma_{m,3}=1+
+\frac{\epsilon_{e,r}}{f_{e,r}}
+\frac{p_r-2}{p_r-1}
+\frac{m_p}{m_e}\epsilon_{{\rm th},3},
+\]
+\[
+\epsilon_3=\epsilon_{e,r}\min\left[
+1,\left(\frac{\gamma_{m,3}}{\gamma_{c,3}}\right)^{p_r-2}
+\right].
+\]
 The region-3 thermal state is advanced as
 \[
 dU_3=\frac{e_{{\rm th},3}}{c^2}c^2\,dM_3
@@ -850,7 +923,13 @@ dU_3=\frac{e_{{\rm th},3}}{c^2}c^2\,dM_3
 dV_3=\frac{dM_3}{r_\sigma n_4m_p}
 +V_3\left(\frac{3\,dR}{R}-\frac{d\Gamma_2}{\Gamma_2}\right).
 \]
-After crossing, \(dM_3=0\), the shock-heating term is removed, and the stored \(U_3/V_3\) thermal state controls the post-crossing electron cooling.  Reverse-shock electrons are then transported through the same one-dimensional log-\(\gamma_e\) transport interface used by the forward solver, but their injection rate is tied to the newly shocked ejecta mass,
+After crossing, \(dM_3=0\), the shock-heating term is removed, and the stored \(U_3/V_3\) thermal state controls the post-crossing electron cooling.  The post-crossing bulk update removes the active reverse-shock source and uses
+\[
+\frac{d\Gamma_2}{dR}
+=-\frac{u_2^2\,dM_2/dR}
+{[\epsilon_2+2(1-\epsilon_2)\Gamma_2]M_2+M_3+M_{B,3}+M_{{\rm sec,eff}}}.
+\]
+Reverse-shock electrons are then transported through the same one-dimensional log-\(\gamma_e\) transport interface used by the forward solver, but their injection rate is tied to the newly shocked ejecta mass,
 \[
 \frac{dN_{e,r}}{dR}=f_{e,r}\frac{1}{m_p}\frac{dM_3}{dR},
 \qquad
@@ -874,6 +953,34 @@ R_j-4w_jR_j\le R<R_j,
 \qquad
 n_{\rm exc,j}(R)=n_{\rm base}(R)(f_j-1)
 \exp\left[-\frac{(R-R_j)^2}{2(w_jR_j)^2}\right].
+\]
+All active secondary branches contribute their hot-gas enthalpy to the same bulk inertia,
+\[
+p_{\rm sec}=\frac{U_{\rm sec}}{3V_{\rm sec}},
+\qquad
+M_{{\rm sec,eff}}=
+\frac{M_{\rm sec,b}c^2+U_{\rm sec}+p_{\rm sec}V_{\rm sec}}{c^2}
++\frac{p_{\rm sec}V_{\rm sec}}{\Gamma_2^2c^2}.
+\]
+The branch RHS uses the actual total density \(n_1=n_{\rm base}+\sum_k n_{\rm exc,k}\)
+and the selected excess density \(n_{\rm exc,j}\), so the first secondary upstream is
+\[
+n_{\rm pre}=n_1-n_{\rm exc,j},
+\qquad
+n_4=4\Gamma_2 n_{\rm pre},
+\]
+\[
+e_4=4\Gamma_2(\Gamma_2-1)n_{\rm pre}m_pc^2,
+\qquad
+p_4=\frac{e_4}{3}.
+\]
+If a previous secondary branch has finite mass, energy, and volume, that parent branch instead supplies
+\[
+n_4=\frac{M_{\rm parent}}{m_pV_{\rm parent}},
+\qquad
+e_4=\frac{U_{\rm parent}}{V_{\rm parent}},
+\qquad
+p_4=\frac{e_4}{3}.
 \]
 The secondary contact state is solved from a scalar pressure-balance root.
 For a trial contact Lorentz factor \(\Gamma_{\rm c}\), the external shocked pressure is

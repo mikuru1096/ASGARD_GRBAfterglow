@@ -247,8 +247,8 @@ contains
                 D(v_idx)=dv_exp/V3_scale
                 cycle
             end if
-            n1=dNe_ISM*density_factor
-            n_excess=dNe_ISM*branch_weight
+            n1=density_factor
+            n_excess=branch_weight
             n_pre=n1-n_excess
             if (n_pre <= 0d0) error stop 'secondary branch RHS found non-positive pre-bump density'
             n4=4d0*gam2*n_pre
