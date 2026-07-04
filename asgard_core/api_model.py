@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields, is_dataclass
 from enum import Enum
 from typing import Callable, NamedTuple, Optional
 
@@ -13,7 +13,6 @@ from asgard_core.asgard_config import (
     MAX_DENSITY_PROFILE_POINTS,
     ReverseShockConfig,
     SpectrumOutputConfig,
-    default_num_threads,
 )
 from asgard_core.asgard_state import (
     FluxComponents,
@@ -24,7 +23,7 @@ from asgard_core.asgard_state import (
     project_flux_grid,
     solve_state_from_setup,
 )
-from src import Interpolation, constants
+from src import constants
 
 class Scale(str, Enum):
     LINEAR = "linear"
@@ -1035,11 +1034,17 @@ class Model:
         self.observer = observer
         self.fwd_rad = fwd_rad
         self.rvs_rad = rvs_rad
+        self.numerics = numerics
+        self.observer_grid = observer_grid
+        self.solver_options = solver_options
+        self.reverse_shock = reverse_shock
+        self.hadronic = hadronic
         self.setups = _build_base_runtime_config(
             numerics=numerics, observer_grid=observer_grid, solver_options=solver_options,
             reverse_shock=reverse_shock, hadronic=hadronic,
             observer=observer, fwd_rad=fwd_rad, medium=medium, jet=jet, rvs_rad=rvs_rad,
         )
+        self._sourceconfig = deepcopy(self.setups)
         self._last_details: Optional[TrackBundle] = None
         self._raw_cache: dict[tuple[object, ...], tuple[FluxResult, TrackBundle]] = {}
         self._details_cache: dict[tuple[object, ...], TrackBundle] = {}
@@ -1187,7 +1192,16 @@ class Model:
         projection_kind: str = "sed",
     ):
         times_s = np.atleast_1d(np.asarray(time_s, dtype=float))
-        nu_hz = np.logspace(np.log10(nu_min_hz), np.log10(nu_max_hz), num_points)
+        if times_s.size == 0 or not np.all(np.isfinite(times_s)) or np.any(times_s <= 0.0):
+            raise ValueError("time_s must contain positive finite values.")
+        if not np.isfinite(nu_min_hz) or not np.isfinite(nu_max_hz) or nu_min_hz <= 0.0 or nu_max_hz <= 0.0:
+            raise ValueError("nu_min_hz and nu_max_hz must be positive finite values.")
+        if nu_max_hz <= nu_min_hz:
+            raise ValueError("nu_max_hz must exceed nu_min_hz.")
+        points = int(num_points)
+        if points < 2:
+            raise ValueError("num_points must be at least 2 for band flux integration.")
+        nu_hz = np.logspace(np.log10(nu_min_hz), np.log10(nu_max_hz), points)
         result = self.flux_density_grid(times_s, nu_hz, projection_kind=projection_kind)
         total = np.trapezoid(result.total, nu_hz, axis=0)
         fwd_sync = np.trapezoid(result.fwd.sync, nu_hz, axis=0)
@@ -1209,6 +1223,8 @@ class Model:
         if t_min is not None or t_max is not None:
             t1 = 10**self.setups.t_obs_min_log10 if t_min is None else float(t_min)
             t2 = 10**self.setups.t_obs_max_log10 if t_max is None else float(t_max)
+            if not np.isfinite(t1) or not np.isfinite(t2) or t1 <= 0.0 or t2 <= 0.0 or t2 <= t1:
+                raise ValueError("details time bounds must be finite, positive, and increasing.")
             num_tobs = self._detail_time_count(t1, t2)
             times = np.logspace(np.log10(t1), np.log10(t2), num_tobs)
             self._last_details = self._compute_details_only(times)
@@ -1247,19 +1263,22 @@ class Model:
         reference_signature = None
         if solve_reference_times_s is not None:
             reference_signature = _array_signature(np.asarray(solve_reference_times_s, dtype=float))
+        baseconfig = _currentconfig(self)
+        config_signature = repr(baseconfig)
         cache_key = (
             _array_signature(times_s),
             _array_signature(nu_hz),
             reference_signature,
             projection_kind,
             self._observer_cache_signature(),
+            config_signature,
         )
         cached = self._raw_cache.get(cache_key)
         if cached is not None:
             self._last_details = cached[1]
             return cached[0]
         if self.jet.kind == "tophat" and self._supports_direct_kernel():
-            config = _direct_tophat_patch_config(self)
+            config = _direct_tophat_patch_config(self, baseconfig=baseconfig)
             state = _solve_patch_state(
                 self,
                 config,
@@ -1277,6 +1296,7 @@ class Model:
                 nu_hz,
                 solve_reference_times_s=solve_reference_times_s,
                 projection_kind=projection_kind,
+                baseconfig=baseconfig,
             )
         self._last_details = model_result[1]
         _remember_cache_entry(self._raw_cache, cache_key, model_result)
@@ -1292,8 +1312,9 @@ class Model:
     ) -> np.ndarray:
         times_s = np.asarray(times_s, dtype=float)
         nu_hz = np.asarray(nu_hz, dtype=float)
+        baseconfig = _currentconfig(self)
         if self.jet.kind == "tophat" and self._supports_direct_kernel():
-            config = _direct_tophat_patch_config(self)
+            config = _direct_tophat_patch_config(self, baseconfig=baseconfig)
             state = _solve_patch_state(self, config, times_s, nu_hz, timings=timings)
             observed = project_flux_grid(
                 state,
@@ -1310,6 +1331,7 @@ class Model:
             times_s,
             nu_hz,
             projection_kind=projection_kind,
+            baseconfig=baseconfig,
         )
         self._last_details = details
         return np.asarray(result.total, dtype=float)
@@ -1318,13 +1340,14 @@ class Model:
         times_s = np.asarray(times_s, dtype=float)
         from .api_adaptive import _array_signature, _remember_cache_entry
 
-        cache_key = (_array_signature(times_s), self._observer_cache_signature())
+        baseconfig = _currentconfig(self)
+        cache_key = (_array_signature(times_s), self._observer_cache_signature(), repr(baseconfig))
         cached = self._details_cache.get(cache_key)
         if cached is not None:
             self._last_details = cached
             return cached
         if self.jet.kind == "tophat" and self._supports_direct_kernel():
-            config = _direct_tophat_patch_config(self)
+            config = _direct_tophat_patch_config(self, baseconfig=baseconfig)
             state = _solve_patch_state(self, config, times_s, None)
             details = _make_details(state.components, patches=[{"phi": 0.0, "theta": 0.0, "weight": 1.0}], state=state)
         else:
@@ -1333,6 +1356,7 @@ class Model:
                 times_s,
                 np.array([1.0e9], dtype=float),
                 projection_kind="lightcurve",
+                baseconfig=baseconfig,
             )
         self._last_details = details
         _remember_cache_entry(self._details_cache, cache_key, details)
@@ -1363,7 +1387,7 @@ class Model:
 
     def _detail_time_count(self, t_min: float, t_max: float) -> int:
         if t_min <= 0.0 or t_max <= 0.0 or t_max <= t_min:
-            return int(self.setups.num_tobs)
+            raise ValueError("time bounds must be positive and increasing.")
         decades = np.log10(float(t_max) / float(t_min))
         density_jumps = self.setups.jump_r_cm and self.setups.jump_factor and self.setups.jump_width_log10
         density_profile = self.setups.density_profile_radius_cm and self.setups.density_profile_n_cm3
@@ -1409,7 +1433,7 @@ def _solve_patch_state(
     )
 
 
-def _direct_tophat_patch_config(model: Model) -> RuntimeConfig:
+def _direct_tophat_patch_config(model: Model, baseconfig: RuntimeConfig | None = None) -> RuntimeConfig:
     return _build_fit_config_for_patch(
         model,
         theta_v=model.observer.theta_obs,
@@ -1417,6 +1441,7 @@ def _direct_tophat_patch_config(model: Model) -> RuntimeConfig:
         e_iso=model.jet.E_iso,
         gamma0=model.jet.lf,
         theta_center=0.0,
+        baseconfig=baseconfig,
     )
 
 
@@ -1426,6 +1451,7 @@ def _solve_patch_model(
     nu_hz: np.ndarray,
     solve_reference_times_s: np.ndarray | None = None,
     projection_kind: str = "lightcurve",
+    baseconfig: RuntimeConfig | None = None,
 ) -> tuple[FluxResult, TrackBundle]:
     if solve_reference_times_s is not None:
         raise NotImplementedError(
@@ -1433,7 +1459,13 @@ def _solve_patch_model(
         )
     from asgard_core.structured_jet_kernel import solve_structured_jet_fortran
 
-    return solve_structured_jet_fortran(model, times_s, nu_hz, _build_fit_config_for_patch)
+    if baseconfig is None:
+        return solve_structured_jet_fortran(model, times_s, nu_hz, _build_fit_config_for_patch)
+
+    def build(model: Model, **kwargs) -> RuntimeConfig:
+        return _build_fit_config_for_patch(model, baseconfig=baseconfig, **kwargs)
+
+    return solve_structured_jet_fortran(model, times_s, nu_hz, build)
 
 
 def _extract_pair_flux(grid: np.ndarray, times_s: np.ndarray, frequencies_hz: np.ndarray) -> np.ndarray:
@@ -1456,10 +1488,11 @@ def _build_fit_config_for_patch(
     e_iso: float,
     gamma0: float,
     theta_center: Optional[float] = None,
+    baseconfig: RuntimeConfig | None = None,
 ) -> RuntimeConfig:
     if model.jet.spreading:
         raise NotImplementedError("Jet spreading is not implemented in the current ASGARD backend.")
-    config = deepcopy(model.setups)
+    config = deepcopy(_currentconfig(model) if baseconfig is None else baseconfig)
     config.theta_v = theta_v
     config.opening_angle_jet = opening_angle_jet
     config.e_iso = e_iso
@@ -1469,6 +1502,37 @@ def _build_fit_config_for_patch(
     magnetar = model.jet.magnetar
     if magnetar is not None and _jet_magnetar_active(model.jet, 0.0 if theta_center is None else theta_center):
         config.l_inj_0, config.e_inj_t2, config.q_inj = float(magnetar.L0), float(magnetar.t0), float(magnetar.q)
+    return config
+
+
+def _mergeconfig(target, source, baseline) -> None:
+    for item in fields(source):
+        name = item.name
+        value = getattr(source, name)
+        old = getattr(baseline, name)
+        if is_dataclass(value):
+            _mergeconfig(getattr(target, name), value, old)
+        elif value != old:
+            setattr(target, name, value)
+
+
+def _currentconfig(model: Model) -> RuntimeConfig:
+    source = _build_base_runtime_config(
+        numerics=model.numerics,
+        observer_grid=model.observer_grid,
+        solver_options=model.solver_options,
+        reverse_shock=model.reverse_shock,
+        hadronic=model.hadronic,
+        observer=model.observer,
+        fwd_rad=model.fwd_rad,
+        medium=model.medium,
+        jet=model.jet,
+        rvs_rad=model.rvs_rad,
+    )
+    config = deepcopy(model.setups)
+    _mergeconfig(config, source, model._sourceconfig)
+    model._sourceconfig = deepcopy(source)
+    model.setups = config
     return config
 
 
