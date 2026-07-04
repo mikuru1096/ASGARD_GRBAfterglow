@@ -196,8 +196,6 @@ class Fitter:
         def _lnprob(theta):
             trial = {param.name: theta[i] for i, param in enumerate(active_params)}
             for param in active_params:
-                if param.name not in trial:
-                    continue
                 if trial[param.name] < param.lower or trial[param.name] > param.upper:
                     return -np.inf
             return self.loglike(trial)
@@ -354,8 +352,17 @@ def eval_loglike(
 def _compile_obs(data: dict) -> ObsPlan:
     blocks: list[ObsBlock] = []
     for dataset in data["flux_density"]:
-        times_s = np.asarray(dataset["times_s"], dtype=float)
-        frequencies_hz = np.asarray(dataset["frequencies_hz"], dtype=float)
+        times_s = _positive("times_s", dataset["times_s"])
+        frequencies_hz = _positive("frequencies_hz", dataset["frequencies_hz"])
+        flux = _finite("flux", dataset["flux"])
+        fluxerr = _positive("flux_err", dataset["flux_err"])
+        pair_mode = times_s.shape == frequencies_hz.shape
+        if pair_mode:
+            flux = flux.reshape(-1)
+            fluxerr = fluxerr.reshape(-1)
+        expected = times_s.reshape(-1).shape if pair_mode else (frequencies_hz.size, times_s.size)
+        if flux.shape != expected or fluxerr.shape != expected:
+            raise ValueError("flux_density flux and flux_err must match the implied observation shape.")
         observer_time_s = np.unique(times_s.reshape(-1))
         requested_frequencies_hz = np.unique(frequencies_hz.reshape(-1))
         blocks.append(
@@ -364,11 +371,11 @@ def _compile_obs(data: dict) -> ObsPlan:
                 requested_frequencies_hz=requested_frequencies_hz,
                 flux_density=(
                     FluxData(
-                        pair_mode=times_s.shape == frequencies_hz.shape,
+                        pair_mode=pair_mode,
                         time_indices=_idx(observer_time_s, times_s.reshape(-1)),
                         freq_indices=_idx(requested_frequencies_hz, frequencies_hz.reshape(-1)),
-                        flux=np.asarray(dataset["flux"], dtype=float),
-                        flux_err=np.asarray(dataset["flux_err"], dtype=float),
+                        flux=flux,
+                        flux_err=fluxerr,
                     ),
                 ),
                 spectra=(),
@@ -376,8 +383,13 @@ def _compile_obs(data: dict) -> ObsPlan:
             )
         )
     for dataset in data["spectrum"]:
-        time_s = float(dataset["time_s"])
-        frequencies_hz = np.asarray(dataset["frequencies_hz"], dtype=float)
+        time_s = float(_positive("time_s", [dataset["time_s"]])[0])
+        frequencies_hz = _positive("frequencies_hz", dataset["frequencies_hz"])
+        flux = _finite("flux", dataset["flux"]).reshape(-1)
+        fluxerr = _positive("flux_err", dataset["flux_err"]).reshape(-1)
+        if flux.shape != frequencies_hz.reshape(-1).shape or fluxerr.shape != frequencies_hz.reshape(-1).shape:
+            raise ValueError("spectrum flux and flux_err must match frequencies_hz.")
+        frequencies_hz = frequencies_hz.reshape(-1)
         requested_frequencies_hz = np.unique(frequencies_hz)
         blocks.append(
             ObsBlock(
@@ -388,19 +400,28 @@ def _compile_obs(data: dict) -> ObsPlan:
                     SpecData(
                         time_index=0,
                         freq_indices=_idx(requested_frequencies_hz, frequencies_hz),
-                        flux=np.asarray(dataset["flux"], dtype=float),
-                        flux_err=np.asarray(dataset["flux_err"], dtype=float),
+                        flux=flux,
+                        flux_err=fluxerr,
                     ),
                 ),
                 band_fluxes=(),
             )
         )
     for dataset in data["flux"]:
-        time_s = float(dataset["time_s"])
+        time_s = float(_positive("time_s", [dataset["time_s"]])[0])
+        nu_min = float(_positive("nu_min_hz", [dataset["nu_min_hz"]])[0])
+        nu_max = float(_positive("nu_max_hz", [dataset["nu_max_hz"]])[0])
+        points = int(dataset["num_points"])
+        if nu_max <= nu_min:
+            raise ValueError("nu_max_hz must exceed nu_min_hz.")
+        if points < 2:
+            raise ValueError("num_points must be at least 2 for band flux integration.")
+        flux = float(_finite("flux", [dataset["flux"]])[0])
+        fluxerr = float(_positive("flux_err", [dataset["flux_err"]])[0])
         sample_frequencies_hz = np.logspace(
-            np.log10(float(dataset["nu_min_hz"])),
-            np.log10(float(dataset["nu_max_hz"])),
-            int(dataset["num_points"]),
+            np.log10(nu_min),
+            np.log10(nu_max),
+            points,
         )
         requested_frequencies_hz = np.unique(sample_frequencies_hz)
         blocks.append(
@@ -414,8 +435,8 @@ def _compile_obs(data: dict) -> ObsPlan:
                         time_index=0,
                         freq_indices=_idx(requested_frequencies_hz, sample_frequencies_hz),
                         sample_frequencies_hz=sample_frequencies_hz,
-                        flux=float(dataset["flux"]),
-                        flux_err=float(dataset["flux_err"]),
+                        flux=flux,
+                        flux_err=fluxerr,
                     ),
                 ),
             )
@@ -431,6 +452,20 @@ def _compile_obs(data: dict) -> ObsPlan:
             )
         )
     return ObsPlan(blocks=tuple(blocks))
+
+
+def _finite(name: str, values) -> np.ndarray:
+    array = np.asarray(values, dtype=float)
+    if np.any(~np.isfinite(array)):
+        raise ValueError(f"{name} must contain finite values.")
+    return array
+
+
+def _positive(name: str, values) -> np.ndarray:
+    array = _finite(name, values)
+    if np.any(array <= 0.0):
+        raise ValueError(f"{name} must contain positive values.")
+    return array
 
 
 def _idx(reference: np.ndarray, values: np.ndarray) -> np.ndarray:
