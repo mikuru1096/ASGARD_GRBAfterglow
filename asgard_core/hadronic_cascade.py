@@ -12,8 +12,8 @@ ME_GEV = constants.para_m_e_gev
 
 
 @dataclass(frozen=True, slots=True)
-class BranchOutput:
-    """Pair-branch fields passed back to photon-field assembly."""
+class PairCascade:
+    """γγ pair/synch fields passed back to photon-field assembly."""
 
     syn_lum: np.ndarray
     syn_seed: np.ndarray
@@ -21,7 +21,7 @@ class BranchOutput:
     density_grid: np.ndarray
 
 
-def solve_branch(
+def solve_paircascade(
     seed_hz: np.ndarray,
     seed_field: np.ndarray,
     electron_gamma: np.ndarray,
@@ -33,7 +33,7 @@ def solve_branch(
     threads: int,
     syn_index: int,
     substeps: int,
-) -> BranchOutput:
+) -> PairCascade:
     """Advance the gamma-gamma pair/synch cascade as a Fortran shell sequence."""
     from src.Hadronic import hadronic_forward_1d as hadronic_module
 
@@ -83,7 +83,7 @@ def solve_branch(
     density_grid = np.zeros((gamma_e.size, density.shape[1]), dtype=float)
     for i_shell in range(density.shape[1]):
         density_grid[:, i_shell] = loginterp(pair_gamma, density[:, i_shell], gamma_e)
-    return BranchOutput(
+    return PairCascade(
         syn_lum=lum,
         syn_seed=seedout,
         tau_pair=tau,

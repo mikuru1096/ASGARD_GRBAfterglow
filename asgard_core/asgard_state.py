@@ -8,7 +8,7 @@ import numpy as np
 
 from src.Electron.electron_radiation import electron_radiation_kernel as electron_radiation_module
 from asgard_core.asgard_config import ExecutionPolicy, RuntimeConfig, SimulationSetup
-from asgard_core.hadronic_cascade import solve_branch
+from asgard_core.hadronic_cascade import solve_paircascade
 from asgard_core.asgard_types import (
     BranchState,
     FluxComponents,
@@ -410,7 +410,7 @@ def _jointfeedback(
         source = source + np.asarray(hadronic_source, dtype=float)
     if bool(config.hadronic.include_pair_production):
         magnetic_field = magfield(dynamics.r_gamma, dynamics.radius, config)
-        pair_branch = solve_branch(
+        paircascade = solve_paircascade(
             seed_hz=setup.seed_frequency_hz,
             seed_field=photon_field.hadronic_target_seed,
             electron_gamma=electron.gam_e,
@@ -423,11 +423,11 @@ def _jointfeedback(
             substeps=int(config.hadronic.pair_cascade_iterations),
         )
         if hadronic is not None:
-            hadronic.l_had_pair_production = pair_branch.syn_lum
-        photon_field.hadronic_target_seed = np.asarray(photon_field.hadronic_target_seed, dtype=float) + pair_branch.syn_seed
-        photon_field.absorption_syn_seed = np.asarray(photon_field.absorption_syn_seed, dtype=float) + pair_branch.syn_seed
-        _photonsurvive(photon_field, pgsurvival(pair_branch.tau_pair))
-        source = source + _sourcer(np.asarray(electron.gam_e, dtype=float), pair_branch.density_grid, dynamics.radius)
+            hadronic.l_had_pair_production = paircascade.syn_lum
+        photon_field.hadronic_target_seed = np.asarray(photon_field.hadronic_target_seed, dtype=float) + paircascade.syn_seed
+        photon_field.absorption_syn_seed = np.asarray(photon_field.absorption_syn_seed, dtype=float) + paircascade.syn_seed
+        _photonsurvive(photon_field, pgsurvival(paircascade.tau_pair))
+        source = source + _sourcer(np.asarray(electron.gam_e, dtype=float), paircascade.density_grid, dynamics.radius)
     return source
 
 
@@ -934,7 +934,7 @@ def _observerstage(
             ssa_transfer=s["hadronic_ssa_transfer"],
         )
     if bool(config.hadronic.include_pair_production):
-        pair_branch = solve_branch(
+        paircascade = solve_paircascade(
             seed_hz=setup.seed_frequency_hz,
             seed_field=s["seed_syn_absorption"] + s["seed_ssc_total"],
             electron_gamma=electron.gam_e,
@@ -946,9 +946,9 @@ def _observerstage(
             syn_index=int(config.index_syn_integr),
             substeps=int(config.hadronic.pair_cascade_iterations),
         )
-        s["pair_lum_total"] = pair_branch.syn_lum
-        s["pair_seed_total"] = pair_branch.syn_seed
-        s["tau_pair"] = pair_branch.tau_pair
+        s["pair_lum_total"] = paircascade.syn_lum
+        s["pair_seed_total"] = paircascade.syn_seed
+        s["tau_pair"] = paircascade.tau_pair
         s["seed_syn_absorption"] = s["seed_syn_absorption"] + s["pair_seed_total"]
     s["tau_extra"] = s["tau_extra"] + s["tau_pair"]
     pair_active = bool(config.hadronic.include_pair_production)

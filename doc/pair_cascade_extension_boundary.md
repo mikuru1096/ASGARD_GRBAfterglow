@@ -4,8 +4,8 @@
 
 ## 当前契约
 
-- `asgard_core/hadronic_cascade.py` 提供 `solve_branch(...)`：主链使用的 shell-sequence time-dependent \(\gamma\gamma\) pair/synch cascade。
-- `solve_branch(...)` 在 `pair_cascade_iterations > 1` 时调用 shell-sequence path，返回 `syn_lum`、`syn_seed`、`tau_pair` 和 pair density 网格。
+- `asgard_core/hadronic_cascade.py` 提供 `solve_paircascade(...)`：主链使用的 shell-sequence time-dependent \(\gamma\gamma\) pair/synch cascade。
+- `solve_paircascade(...)` 在 `pair_cascade_iterations > 1` 时调用 shell-sequence path，返回 `syn_lum`、`syn_seed`、`tau_pair` 和 pair density 网格。
 - Fortran `hadronic_cascade.f90` 的单步物理是
 
 \[

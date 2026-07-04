@@ -205,7 +205,7 @@ asgard_core/asgard_state.py::_jointfeedback
 当 `pair_production=True`：
 
 ```text
-solve_branch(photon field)
+solve_paircascade(photon field)
 -> pair injection / photon loss
 -> advance pair spectrum in shell sequence
 -> compute pair synchrotron seed
