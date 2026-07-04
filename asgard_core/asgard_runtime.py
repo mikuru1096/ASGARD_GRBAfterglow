@@ -14,17 +14,17 @@ from asgard_core.hadronic_am3_solver import (
     HUMMER_GROUPS,
     solve_hummer,
 )
-from asgard_core.hadronic_processes import ACCELERATION_BACKEND
-from asgard_core.hadronic_processes import BETHE_HEITLER_BACKEND
-from asgard_core.hadronic_processes import HADRONIC_IC_BACKEND
-from asgard_core.hadronic_processes import SECONDARY_RADIATION_BACKEND
-from asgard_core.hadronic_processes import SPECIES_TRANSPORT_BACKEND
+from asgard_core.hadronic_processes import ACCEL_BACKEND
+from asgard_core.hadronic_processes import BH_BACKEND
+from asgard_core.hadronic_processes import HIC_BACKEND
+from asgard_core.hadronic_processes import SECONDARY_BACKEND
+from asgard_core.hadronic_processes import SPECIES_BACKEND
 from asgard_core.hadronic_processes import (
-    HUMMER2010_DECAY_BACKEND,
-    HUMMER2010_OPERATOR_BACKEND,
+    HUMMER_DECAY,
+    HUMMER_OPERATOR,
 )
-from asgard_core.hadronic_processes import PP_DELTA_BACKEND
-from asgard_core.hadronic_processes import positive_loglog_interp
+from asgard_core.hadronic_processes import PP_BACKEND
+from asgard_core.hadronic_processes import loginterp
 from asgard_core.asgard_config import RuntimeConfig
 from asgard_core.asgard_types import (
     ReverseShockParameters,
@@ -1052,14 +1052,14 @@ def solve_hadronic(
                 "ok",
                 backend=HUMMER_BACKEND,
                 pgamma_scheme=pgamma_scheme,
-                pgamma_operator_backend=HUMMER2010_OPERATOR_BACKEND,
-                decay_backend=HUMMER2010_DECAY_BACKEND,
-                acceleration_backend=ACCELERATION_BACKEND,
-                species_transport_backend=SPECIES_TRANSPORT_BACKEND,
-                secondary_radiation_backend=SECONDARY_RADIATION_BACKEND,
-                bethe_heitler_backend=BETHE_HEITLER_BACKEND if bool(config.hadronic.include_bethe_heitler) else "disabled",
-                pp_backend=PP_DELTA_BACKEND if bool(config.hadronic.include_pp) else "disabled",
-                hadronic_ic_backend=HADRONIC_IC_BACKEND if bool(config.hadronic.include_hadronic_inverse_compton) else "disabled",
+                pgamma_operator_backend=HUMMER_OPERATOR,
+                decay_backend=HUMMER_DECAY,
+                acceleration_backend=ACCEL_BACKEND,
+                species_transport_backend=SPECIES_BACKEND,
+                secondary_radiation_backend=SECONDARY_BACKEND,
+                bethe_heitler_backend=BH_BACKEND if bool(config.hadronic.include_bethe_heitler) else "disabled",
+                pp_backend=PP_BACKEND if bool(config.hadronic.include_pp) else "disabled",
+                hadronic_ic_backend=HIC_BACKEND if bool(config.hadronic.include_hadronic_inverse_compton) else "disabled",
                 num_gam_p=num_gam_p,
                 num_nu=num_nu,
                 timings=solution.timings,
@@ -1276,8 +1276,8 @@ def _projectelectrons(
     density_out = np.zeros((target_gamma.size, num_shell), dtype=float)
     source_out = np.zeros((target_gamma.size, num_shell), dtype=float)
     for i_shell in range(num_shell):
-        density_out[:, i_shell] = positive_loglog_interp(source_gamma, electron_density[:, i_shell], target_gamma)
-        source_out[:, i_shell] = positive_loglog_interp(source_gamma, source_radius[:, i_shell], target_gamma)
+        density_out[:, i_shell] = loginterp(source_gamma, electron_density[:, i_shell], target_gamma)
+        source_out[:, i_shell] = loginterp(source_gamma, source_radius[:, i_shell], target_gamma)
     return density_out, source_out
 
 

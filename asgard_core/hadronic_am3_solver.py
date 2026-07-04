@@ -5,7 +5,7 @@ import math
 
 import numpy as np
 
-from asgard_core.hadronic_processes import PROTON_MASS_GEV, photon_density_hz_to_gev, solve_hummer2010_pgamma
+from asgard_core.hadronic_processes import MP_GEV, solve_pgamma
 from src import constants
 
 
@@ -73,7 +73,7 @@ def solve_hummer(
 
     num_r = radius_arr.size
     num_gam_p = gam_p_arr.size
-    photon_energy_gev, _ = photon_density_hz_to_gev(v_seed_arr, np.ones_like(v_seed_arr))
+    photon_energy_gev = constants.para_h_gev * v_seed_arr
     process_energy_arr = photon_energy_gev if process_energy_gev is None else np.asarray(process_energy_gev, dtype=float)
     if process_energy_arr.ndim != 1:
         raise ValueError("process_energy_gev must be a 1d array.")
@@ -96,7 +96,7 @@ def solve_hummer(
     ) = np.zeros((4, num_gam_p, num_r), dtype=float)
     photon_loss_rate = np.zeros((v_seed_arr.size, num_r), dtype=float)
 
-    proton_energy_gev = gam_p_arr * PROTON_MASS_GEV
+    proton_energy_gev = gam_p_arr * MP_GEV
     shell_volume_arr = _shellvolumes(radius_arr)
 
     for i_r in range(num_r):
@@ -106,41 +106,41 @@ def solve_hummer(
         if shell_volume_cm3 <= 0.0:
             raise ValueError("radius_cm must be positive.")
 
-        proton_density_per_gev = d_n_gam_p_arr[:, i_r] / (shell_volume_cm3 * PROTON_MASS_GEV)
-        _, photon_density_per_gev = photon_density_hz_to_gev(v_seed_arr, seed_target_arr[:, i_r])
-        backend = solve_hummer2010_pgamma(
-            proton_energy_gev=proton_energy_gev,
-            proton_density_per_gev=proton_density_per_gev,
-            photon_energy_gev=photon_energy_gev,
-            photon_density_per_gev=photon_density_per_gev,
-            gamma_energy_gev=photon_energy_gev,
-            neutrino_energy_gev=neutrino_energy_gev,
-            process_energy_gev=process_energy_arr,
-            neutron_density_per_gev=None,
+        proton_density_per_gev = d_n_gam_p_arr[:, i_r] / (shell_volume_cm3 * MP_GEV)
+        photon_density_per_gev = seed_target_arr[:, i_r] / constants.para_h_gev
+        backend = solve_pgamma(
+            proton_gev=proton_energy_gev,
+            proton_density=proton_density_per_gev,
+            photon_gev=photon_energy_gev,
+            photon_density=photon_density_per_gev,
+            gamma_gev=photon_energy_gev,
+            neutrino_gev=neutrino_energy_gev,
+            process_gev=process_energy_arr,
+            neutron_density=None,
         )
-        proton_reinj_rate[:, i_r] = backend.proton_reinjection_rate_per_gev
-        neutron_reinj_rate[:, i_r] = backend.neutron_reinjection_rate_per_gev
-        proton_loss_rate[:, i_r] = backend.proton_loss_rate
-        neutron_loss_rate[:, i_r] = backend.neutron_loss_rate
-        photon_loss_rate[:, i_r] = backend.photon_loss_rate
+        proton_reinj_rate[:, i_r] = backend.proton_reinj
+        neutron_reinj_rate[:, i_r] = backend.neutron_reinj
+        proton_loss_rate[:, i_r] = backend.proton_loss
+        neutron_loss_rate[:, i_r] = backend.neutron_loss
+        photon_loss_rate[:, i_r] = backend.photon_loss
 
         if include_pg:
             l_had_pg_gamma[:, i_r] = _ratelnu(
-                backend.gamma_energy_gev,
-                backend.gamma_rate_per_gev,
+                backend.gamma_gev,
+                backend.gamma_rate,
                 shell_volume_cm3,
             )
-            for i_proc, process_rate in enumerate(backend.process_rate_per_gev):
+            for i_proc, process_rate in enumerate(backend.process_rate):
                 process_luminosity[i_proc, :, i_r] = _ratelnu(
-                    backend.process_energy_gev,
+                    backend.process_gev,
                     process_rate,
                     shell_volume_cm3,
                 )
 
         if include_neutrino:
             neutrino_luminosity[:, i_r] = _ratelnu(
-                backend.neutrino_energy_gev,
-                backend.neutrino_rate_per_gev,
+                backend.neutrino_gev,
+                backend.neutrino_rate,
                 shell_volume_cm3,
             )
 
@@ -151,32 +151,32 @@ def solve_hummer(
         normalized_weight = proton_energy_weight / total_weight
 
         photopion_total = float(np.trapezoid(
-            _ratepower(backend.process_energy_gev, backend.process_rate_per_gev[0], shell_volume_cm3),
-            backend.process_energy_gev,
+            _ratepower(backend.process_gev, backend.process_rate[0], shell_volume_cm3),
+            backend.process_gev,
         ))
         pion_decay_total = float(np.trapezoid(
             _ratepower(
-                backend.neutrino_energy_gev,
-                backend.prompt_pion_neutrino_rate_per_gev,
+                backend.neutrino_gev,
+                backend.pion_nu,
                 shell_volume_cm3,
             ),
-            backend.neutrino_energy_gev,
+            backend.neutrino_gev,
         ))
         muon_decay_total = float(np.trapezoid(
             _ratepower(
-                backend.neutrino_energy_gev,
-                backend.muon_neutrino_rate_per_gev,
+                backend.neutrino_gev,
+                backend.muon_nu,
                 shell_volume_cm3,
             ),
-            backend.neutrino_energy_gev,
+            backend.neutrino_gev,
         ))
         muon_decay_total += float(np.trapezoid(
             _ratepower(
-                backend.process_energy_gev,
-                backend.muon_electron_rate_per_gev,
+                backend.process_gev,
+                backend.muon_electron,
                 shell_volume_cm3,
             ),
-            backend.process_energy_gev,
+            backend.process_gev,
         ))
         am3_process_power[0, :, i_r] = normalized_weight * photopion_total
         am3_process_power[1, :, i_r] = normalized_weight * pion_decay_total

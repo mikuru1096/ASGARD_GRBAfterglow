@@ -71,10 +71,10 @@ Fitter.loglike -> compile_problem -> eval_loglike -> solve_setup
 
 强子 Python 模块只做编排、包装和轻量 helper：
 
-- Fortran wrappers：`hadronic_processes.py`。
+- pγ Fortran wrapper 和共享 log-log 插值：`hadronic_processes.py`。
 - Formal FS/RS shell-sequence transport 由 `src/Hadronic/hadronic_forward_1d.f90::formal_transport_1d` 推进；Python 只展开配置、传入数组并组装 `HadronicSolution`。
 - Reverse shock light wrapper 已并入 `asgard_runtime.py`；开启 RS full-chain flags 时，runtime 通过 formal 1D 强子核处理 RS seed photons、RS `B3`、shell energy 和 baryon target density。
-- Process/backend glue：`hadronic_am3_solver.py`, `hadronic_cascade.py`；pγ 单位转换和共享 wrapper 校验位于 `hadronic_processes.py`。
+- Process/backend glue：`hadronic_am3_solver.py`, `hadronic_cascade.py`；pγ shell 编排中的单位转换位于 `hadronic_am3_solver.py`，边界网格校验位于 `hadronic_processes.py`。
 
 最终 AM3-derived microphysics 位于 `src/Hadronic/*.f90`。
 

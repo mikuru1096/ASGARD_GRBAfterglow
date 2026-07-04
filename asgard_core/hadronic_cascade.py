@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import numpy as np
 
-from asgard_core.hadronic_processes import positive_loglog_interp as loginterp
+from asgard_core.hadronic_processes import loginterp
 from src import constants
 
 
