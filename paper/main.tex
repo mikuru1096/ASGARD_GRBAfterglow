@@ -1492,6 +1492,42 @@ which approximates the point where the exponentially small Bessel value reaches
 the machine lower bound.  This unscaled entry is therefore a numerically stable
 way to expose the physical \(K_0\) function; the current hybrid wrapper calls the
 scaled companion directly for its thermal moment evaluation.
+The order-one companion, \texttt{dbesk1}, evaluates
+\[
+K_1(x)=\int_0^\infty e^{-x\cosh u}\cosh u\,du,\qquad x>0 .
+\]
+The \(x\rightarrow0^+\) behavior is stronger than for \(K_0\):
+\[
+K_1(x)=\frac{1}{x}+O(x\ln x).
+\]
+The source therefore checks a lower overflow boundary
+\[
+X_{\min}=\exp\!\left[\max\{\ln(\texttt{d1mach}(1)),
+-\ln(\texttt{d1mach}(2))\}+0.01\right]
+\]
+before forming the small-argument expression.  For \(0<x\le2\), it separates
+the analytic and singular pieces as
+\[
+K_1(x)=\ln\left(\frac{x}{2}\right)I_1(x)
++\frac{B_1(x^2)}{x},
+\]
+where
+\[
+B_1(x^2)=0.75+\left[\frac{q_1}{2}
++\sum_{j=2}^{N}q_jT_{j-1}\left(\frac{x^2}{2}-1\right)\right],
+\]
+and the \(q_j\) are the stored \texttt{BK1CS} coefficients selected by
+\texttt{INITDS}.  As in \texttt{dbesk0}, the analytic remainder is evaluated at
+\(x^2=0\) when \(x\le\sqrt{4\,\texttt{d1mach}(3)}\), while the explicit
+\(1/x\) structure and logarithmic \(I_1\) term are retained.  For \(x>2\),
+\[
+K_1(x)=e^{-x}\,[e^xK_1(x)]=e^{-x}\,\texttt{dbsk1e}(x),
+\]
+with the same high-\(x\) underflow estimate based on the leading
+\(K_\nu(x)\simeq\sqrt{\pi/(2x)}e^{-x}\) asymptotic.  The current hybrid wrapper
+also uses the scaled \(K_1\) companion directly, so this unscaled routine
+documents the mathematical branch while keeping the runtime thermal calculation
+on the underflow-resistant path.
 The Bessel calls enter the thermal moments before the finite upper boundary is
 subtracted.  With \(\gamma=\cosh u\) and
 \(\sqrt{\gamma^2-1}\,d\gamma=\sinh^2u\,du\),
