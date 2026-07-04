@@ -101,47 +101,6 @@ The observer products include multi-frequency fluxes, spectra, band-integrated f
   \label{fig:forward-api}
 \end{figure}
 
-All compiled kernels share the same cgs constant table.  The
-\texttt{Constants} module is not a solver; it fixes units and derived conversion
-factors used by the physics kernels.  The base photon-energy conversion is
-\[
-E=h\nu,\qquad
-C_{\nu\rightarrow{\rm eV}}=h\,C_{{\rm erg}\rightarrow{\rm eV}},\qquad
-C_{{\rm eV}\rightarrow\nu}=C_{\nu\rightarrow{\rm eV}}^{-1}.
-\]
-The keV, MeV, GeV, and TeV conversions are powers of \(10^3\) built from the
-same relation, so a tabulated TeV photon energy is converted to frequency by
-\[
-\nu({\rm TeV})=
-10^3\,C_{{\rm GeV}\rightarrow\nu}\,E_{\rm TeV}.
-\]
-Mass-energy constants are similarly derived inside the table,
-\[
-E_{e,0}=m_ec^2,\qquad E_{p,0}=m_pc^2,\qquad
-\frac{m_p}{m_e}=1.8365\times10^3,
-\]
-and the Stefan--Boltzmann constant used by thermal helpers is
-\[
-\sigma_{\rm SB}=\frac{ac}{4}.
-\]
-Flux-density and distance conversions are plain unit maps,
-\[
-1\,{\rm Jy}=10^{-23}\ {\rm erg\,s^{-1}\,cm^{-2}\,Hz^{-1}},
-\qquad
-1\,\mu{\rm Jy}=10^{-6}\,{\rm Jy},
-\]
-and
-\[
-{\rm kpc}=10^3{\rm pc},\qquad
-{\rm Mpc}=10^6{\rm pc},\qquad
-{\rm Gpc}=10^9{\rm pc},
-\]
-with the implemented parsec value \(3.1\times10^{18}\) cm.  Thus numerical
-coefficients such as \(m_pc^2\), \(m_ec^2\), \(h\nu\), \(\sigma_T\), and
-Jy-to-cgs factors are shared by dynamics, electron cooling, hadronic rates, EBL
-attenuation, and observer flux conversion rather than redefined in individual
-kernels.
-
 The model contract is intentionally restrictive.  A user-defined medium can evaluate a density in Python, but it cannot be dispatched into the Fortran transport kernels unless it is one of the supported kernel media.  The structured backend rejects jet spreading.  Adaptive observer-time grids are currently limited to direct top-hat kernel-backed models.  These checks prevent unsupported physical combinations from being interpreted as modeled behavior.
 
 \section{Dynamics, Media, and Jet Initialization} \label{sec:dynamics}
