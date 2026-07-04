@@ -332,16 +332,16 @@ For branch 2, the same \(\mu_0\) is used, but the numerator and denominator are
 \]
 Branch 2 is retained as a selectable legacy option; branch 3 is the default publication branch.
 
-For the default branch 3, \(\mathcal{M}\) is physical swept mass in grams and \(U\) is internal energy.  With
+For the default branch 3, the second state variable is the physical swept mass \(M\), and \(U\) is the internal energy.  With
 \[
-\mathcal{M}_0=\frac{E_{\rm iso}}{(\eta_0-1)c^2},
+M_0=\frac{E_{\rm iso}}{(\Gamma_0-1)c^2},
 \qquad
 X=\Gamma^2-1,
 \]
 the implemented numerator and denominator are
 \[
 \mathcal{N}_3=
--\frac{\dot{\mathcal{M}}}{\dot R}c^2\Gamma X
+-\frac{\dot M}{\dot R}c^2\Gamma X
 (\hat{\gamma}\Gamma-\hat{\gamma}+1)
 -(\hat{\gamma}X+1)\Gamma(1-\hat{\gamma})
 \frac{3U}{R}
@@ -349,7 +349,7 @@ the implemented numerator and denominator are
 \]
 \[
 \mathcal{D}_3=
-\Gamma^2(\mathcal{M}_0+\mathcal{M})c^2
+\Gamma^2(M_0+M)c^2
 +(\hat{\gamma}^2X+3\hat{\gamma}-2)U,
 \]
 \[
@@ -360,7 +360,7 @@ the implemented numerator and denominator are
 \frac{dU}{dT}=
 \left[
 (1-\epsilon_{\rm eff})(\Gamma-1)
-\frac{\dot{\mathcal{M}}}{\dot R}c^2
+\frac{\dot M}{\dot R}c^2
 -(\hat{\gamma}-1)
 \left(\frac{3}{R}-\frac{1}{\Gamma\dot R}\frac{d\Gamma}{dT}\right)U
 \right]\dot R
@@ -374,20 +374,20 @@ The forward-dynamics kernel maps the runtime boundary vector to physical scalars
 \[
 \mathcal{B}\mapsto
 \left(
-\eta_0,\epsilon_e,\epsilon_B,p,z,n_{\rm ISM},A_\ast,E_{\rm iso},
+\Gamma_0,\epsilon_e,\epsilon_B,p,z,n_{\rm ISM},A_\ast,E_{\rm iso},
 \log_{10}T_{\rm end},f_e,t_1,t_2,L_0,q,R_{\rm tr},f_{\rm jump},
 w_{\rm jump},R_0
 \right).
 \]
-It then fixes the density profile and integrates the four-component state
+The first entry is named \(\eta_0\) in the runtime boundary but is the initial Lorentz factor \(\Gamma_0\).  The kernel then fixes the density profile and integrates the four-component state
 \[
-Y=(\Gamma,\mathcal{M},U,R)
+\mathbf{y}=(\Gamma,Y_2,U,R)
 \]
 from the runtime initial condition
 \[
-Y_0=(\eta_0-10^{-3},\mathcal{M}_{\rm init},U_{\rm init},R_{\rm init}),
+\mathbf{y}_0=(\Gamma_0-10^{-3},Y_{2,{\rm init}},U_{\rm init},R_{\rm init}),
 \]
-where \(\mathcal{M}_{\rm init}\), \(U_{\rm init}\), and \(R_{\rm init}\) are supplied by the runtime boundary rather than recomputed inside the kernel.  The output time grid is
+where \(Y_{2,{\rm init}}\), \(U_{\rm init}\), and \(R_{\rm init}\) are supplied by the runtime boundary rather than recomputed inside the kernel.  The value \(Y_2\) denotes \(\mu\) for branches 1 and 2, and \(M\) for branch 3.  The output time grid is
 \[
 T_i=10^{t_{\min}+(\log_{10}T_{\rm end}-t_{\min})(i-1)/(N_R-1)},
 \qquad
@@ -397,15 +397,15 @@ and the time-ordered integration rule is
 \[
 H_i=T_i-T_{i-1},\qquad T_0=0,
 \qquad
-Y_i=Y_{i-1}+\int_{T_{i-1}}^{T_i}F(T,Y)\,dT,
+\mathbf{y}_i=\mathbf{y}_{i-1}+\int_{T_{i-1}}^{T_i}F(T,\mathbf{y})\,dT,
 \]
-with \(F=dY/dT\) given by the branch equations above.  The stored public arrays are therefore paired as
+with \(F=d\mathbf{y}/dT\) given by the branch equations above.  The stored public arrays are therefore paired as
 \[
 \left(T_{{\rm obs},i},\Gamma_i,M_{{\rm sw},i},R_i\right)
 =
 \begin{cases}
-\left((1+z)T_i,Y_i^{(1)},4\pi m_pY_i^{(2)},Y_i^{(4)}\right), & \text{branches 1 and 2},\\
-\left((1+z)T_i,Y_i^{(1)},Y_i^{(2)},Y_i^{(4)}\right), & \text{branch 3}.
+\left((1+z)T_i,y_i^{(1)},4\pi m_py_i^{(2)},y_i^{(4)}\right), & \text{branches 1 and 2},\\
+\left((1+z)T_i,y_i^{(1)},y_i^{(2)},y_i^{(4)}\right), & \text{branch 3}.
 \end{cases}
 \]
 
@@ -413,7 +413,7 @@ For \(T_{i-1}>0\), the integrator changes variables from \(T\) to
 \[
 s=\ln(T/T_{i-1}),
 \qquad
-\frac{dY}{ds}=T\frac{dY}{dT}=T\,F(T,Y),
+\frac{d\mathbf{y}}{ds}=T\frac{d\mathbf{y}}{dT}=T\,F(T,\mathbf{y}),
 \]
 and uses classical fourth-order Runge--Kutta substeps over
 \[
@@ -424,10 +424,10 @@ and uses classical fourth-order Runge--Kutta substeps over
 For the first interval, where \(T_{i-1}=0\), the same RK4 tableau is applied directly in linear time.  The refinement criterion compares successive integrations of the same interval:
 \[
 P=\max_k
-\frac{2|Y_k^{(m)}-Y_k^{(m/2)}|}
-{Y_k^{(m)}+Y_k^{(m/2)}},
+\frac{2|y_k^{(m)}-y_k^{(m/2)}|}
+{y_k^{(m)}+y_k^{(m/2)}},
 \]
-and halves the substep until \(P<10^{-5}\).  The comparison is made only for positive paired states and with \(\Gamma>1\); these are the physical state-domain conditions of the relativistic blast-wave variables, not a smoothing or postprocessing correction.
+and halves the substep until \(P<10^{-5}\).  The comparison is made only for positive paired states and with \(\Gamma>1\); these are the physical state-domain conditions of the relativistic blast-wave variables, not a smoothing or post-processing correction.
 
 \subsection{Python binding boundary}
 
