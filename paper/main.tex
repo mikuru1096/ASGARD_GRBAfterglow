@@ -133,7 +133,7 @@ and, if a positive cap \(n_{\rm cap}\) is provided, uses the cutoff radius
 \[
 R_0=\left(\frac{A}{m_p n_{\rm cap}}\right)^{1/2}.
 \]
-For \(R<R_0\), the wind density is evaluated at \(R_0\), so \(n_w(R_0)=n_{\rm cap}\).  A wind profile with \(k\ne2\) is outside the implemented model.
+For \(R<R_0\), the density used by the dynamics kernel is re-evaluated at \(R_0\) after the base-profile and jump logic: analytic wind media use \(n_w(R_0)\), uniform media use \(n_{\rm ISM}\), and tabulated media use the log-log table value at \(R_0\).  The cap is therefore a hard inner-radius state for the dynamics, not an additional Gaussian enhancement.  A wind profile with \(k\ne2\) is outside the implemented model.
 
 For a tabulated medium, the model stores two strictly increasing positive arrays, \(R_i\) and \(n_i\), with at most 96 points.  The density is log-log interpolation,
 \[
@@ -277,7 +277,7 @@ L_0(T/t_1)^{q}, & t_1\le T\le t_2,\\
 \]
 where \(t_1\) and \(t_2\) are source-frame injection bounds, \(L_0\) is the injected luminosity normalization, and \(q\) is the temporal injection index.  In the public model, \texttt{Magnetar}(\(L_0,t_0,q\)) stores \(L_0\), \(t_0\), and \(q\); the dynamics kernel then converts the configured injection bounds to the source frame by dividing by \(1+z\), so the upper bound entering the equation is \(t_2=t_0/(1+z)\).  The lower injection bound \(t_1\) remains the runtime injection-start parameter and is converted in the same way.  The public name is therefore a compact energy-injection constructor, not a claim that the dynamics solve a separate magnetar spin-down equation.
 
-The injection term is branch dependent.  The default branch 3 uses \(\mathcal{A}(T)\) directly in the explicit internal-energy equation below.  Branch 1 is a legacy comparison path whose Lorentz-factor numerator contains the implemented factor \(\mathcal{A}(T)(1+T/t_1)^q\) in the swept-number normalization.  Branch 2 has no injection source in its Lorentz-factor equation.  The manuscript therefore treats energy injection as part of the selected dynamics branch, not as a branch-independent postprocessing correction.  The swept-medium derivative is
+The injection term is branch dependent.  Branches 1 and 3 use \(\mathcal{A}(T)\) as a luminosity source in the source-frame time equation, while branch 2 has no injection source in its Lorentz-factor equation.  The manuscript therefore treats energy injection as part of the selected dynamics branch, not as a branch-independent postprocessing correction.  The swept-medium derivative is
 \[
 D_{\mathcal{M}}=
 \begin{cases}
@@ -289,11 +289,12 @@ Branches 1 and 2 use the swept number column \(d\mathcal{M}/dT=nR^2D_R\).  Their
 \[
 \mathcal{M}_{0,N}=\frac{E_{\rm iso}}{4\pi(\eta_0-1)m_pc^2}.
 \]
+When these legacy branches are exposed through the public state, the internal swept column is converted to total swept mass as \(M_{\rm sw}=4\pi m_p\mathcal{M}\).  In branch 3, \(\mathcal{M}\) is already the total swept mass in grams.
 For branch 1,
 \[
 \frac{d\Gamma}{dT}=
 \frac{-(\Gamma^2-1)D_{\mathcal{M}}
-+\mathcal{A}(T)(1+T/t_1)^q/(4\pi m_pc^2)}
++\mathcal{A}(T)/(4\pi m_pc^2)}
 {\mathcal{M}_{0,N}+\epsilon_{\rm eff}\mathcal{M}
 +2(1-\epsilon_{\rm eff})\Gamma\mathcal{M}},
 \qquad
@@ -353,9 +354,70 @@ the implemented numerator and denominator are
 -(\hat{\gamma}-1)
 \left(\frac{3}{R}-\frac{1}{\Gamma D_R}\frac{d\Gamma}{dT}\right)U
 \right]D_R
-+\frac{\mathcal{A}(T)}{D_R}.
++\mathcal{A}(T).
 \]
 These equations define the branch-3 dynamics used for the default forward-shock calculations.
+
+\subsection{Forward-dynamics integration algorithm}
+
+The forward-dynamics kernel maps the runtime boundary vector to physical scalars once at entry:
+\[
+\mathcal{B}\mapsto
+\left(
+\eta_0,\epsilon_e,\epsilon_B,p,z,n_{\rm ISM},A_\ast,E_{\rm iso},
+\log_{10}T_{\rm end},f_e,t_1,t_2,L_0,q,R_{\rm tr},f_{\rm jump},
+w_{\rm jump},R_0
+\right).
+\]
+It then fixes the density profile and integrates the four-component state
+\[
+Y=(\Gamma,\mathcal{M},U,R)
+\]
+from the runtime initial condition
+\[
+Y_0=(\eta_0-10^{-3},\mathcal{M}_{\rm init},U_{\rm init},R_{\rm init}),
+\]
+where \(\mathcal{M}_{\rm init}\), \(U_{\rm init}\), and \(R_{\rm init}\) are supplied by the runtime boundary rather than recomputed inside the kernel.  The output time grid is
+\[
+T_i=10^{t_{\min}+(\log_{10}T_{\rm end}-t_{\min})(i-1)/(N_R-1)},
+\qquad
+t_{\min}=\min\left[-5,\log_{10}(0.1t_{\rm dec})\right],
+\]
+and the time-ordered integration contract is
+\[
+H_i=T_i-T_{i-1},\qquad T_0=0,
+\qquad
+Y_i=Y_{i-1}+\int_{T_{i-1}}^{T_i}F(T,Y)\,dT,
+\]
+with \(F=dY/dT\) given by the branch equations above.  The stored public arrays are therefore paired as
+\[
+\left(T_{{\rm obs},i},\Gamma_i,M_{{\rm sw},i},R_i\right)
+=
+\begin{cases}
+\left((1+z)T_i,Y_i^{(1)},4\pi m_pY_i^{(2)},Y_i^{(4)}\right), & \text{branches 1 and 2},\\
+\left((1+z)T_i,Y_i^{(1)},Y_i^{(2)},Y_i^{(4)}\right), & \text{branch 3}.
+\end{cases}
+\]
+
+For \(T_{i-1}>0\), the integrator changes variables from \(T\) to
+\[
+s=\ln(T/T_{i-1}),
+\qquad
+\frac{dY}{ds}=T\frac{dY}{dT}=T\,F(T,Y),
+\]
+and uses classical fourth-order Runge--Kutta substeps over
+\[
+0\le s\le \ln(T_i/T_{i-1}),
+\qquad
+|\Delta s|\le0.25.
+\]
+For the first interval, where \(T_{i-1}=0\), the same RK4 tableau is applied directly in linear time.  The refinement criterion compares successive integrations of the same interval:
+\[
+P=\max_k
+\frac{2|Y_k^{(m)}-Y_k^{(m/2)}|}
+{Y_k^{(m)}+Y_k^{(m/2)}},
+\]
+and halves the substep until \(P<10^{-5}\).  The comparison is made only for positive paired states and with \(\Gamma>1\); these are the physical state-domain conditions of the relativistic blast-wave variables, not a smoothing or postprocessing correction.
 
 \section{Electron Transport and Synchrotron Stage} \label{sec:electron}
 

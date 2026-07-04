@@ -43,18 +43,19 @@ subroutine dynamics_forward(Boundary,n,Num_R,index_dyn,R_Tobs,R_Gamma,R,R_m)
     tbin=min(-5d0,dlog10(tdec*0.1d0))
     tspan=tdur_log-tbin
 
-    ! 每个输出点推进到下一个观测时间，并写公开输出数组。
-    ! Each output step advances to the next observer time and stores the public output arrays.
+    ! 每个输出点从当前时间推进到目标观测时间，并写公开输出数组。
+    ! Each output step advances from the current time to the target observer time.
+    T=0d0
     do I_tobs=1,Num_R
         dtgrid=1d1**(tbin+tspan*(I_tobs-1d0)/Num_R1)
-        T=dtgrid
-        if (I_tobs == 1) then
-            H=dtgrid
-        else
-            H=1d1**(tbin+tspan*I_tobs/Num_R1)-dtgrid
-        end if
+        H=dtgrid-T
         call forward_rk4()
-        R_Tobs(I_tobs)=T*(1d0+z); R_Gamma(I_tobs)=Y(1); R_m(I_tobs)=Y(2)/Para_m_p; R(I_tobs)=Y(4)
+        R_Tobs(I_tobs)=T*(1d0+z); R_Gamma(I_tobs)=Y(1); R(I_tobs)=Y(4)
+        if (index_dyn == 3) then
+            R_m(I_tobs)=Y(2)
+        else
+            R_m(I_tobs)=4d0*pi*Para_m_p*Y(2)
+        end if
     end do
 
 contains
@@ -118,7 +119,7 @@ subroutine forward_rk4()
             HH = 0.5d0*HH
             N = N+N
         end do
-        T = X
+        T = X+H
         return
     end if
 
@@ -163,7 +164,7 @@ subroutine forward_rk4()
         HH = HH/2.0d0
         N = N+N
     end do
-    T = X
+    T = X+H
 end subroutine forward_rk4
 
 ! 正向激波 RHS：外介质密度、能量注入、辐射修正和动力学分支都在这里定义。
@@ -209,7 +210,7 @@ subroutine forward_rhs(T_rhs, Y_rhs, D_rhs)
     case(1)
         DNe0=E_iso/(Eta_0-1d0)/1.5d0*1.0D3/(4d0*pi)
         D02=DNe0+Epe*Y_rhs(2)+2d0*(1d0-Epe)*Y_rhs(1)*Y_rhs(2)
-        D_rhs(1)=(-D01*dM+A/(4d0*pi)*(1d0+T_rhs/t_1)**einj_q/1.5d0*1.0D3)/D02
+        D_rhs(1)=(-D01*dM+A/(4d0*pi)/1.5d0*1.0D3)/D02
         D_rhs(3)=(Y_rhs(1)-1d0)*dM
     case(2)
         DNe0=E_iso/(Eta_0-1d0)/1.5d0*1.0D3/(4d0*pi)
@@ -224,7 +225,7 @@ subroutine forward_rhs(T_rhs, Y_rhs, D_rhs)
         D022=Y_rhs(1)**2*(DNe0+Y_rhs(2))*Para_c**2+(hat_gam**2*D01+3d0*hat_gam-2d0)*Y_rhs(3)
         D_rhs(1)=D011/D022*D00
         D_rhs(3)=((1d0-Epe)*(Y_rhs(1)-1d0)*dM/D00*Para_c**2- &
-                 (hat_gam-1d0)*(3d0/Y_rhs(4)-1d0/Y_rhs(1)*D_rhs(1)/D00)*Y_rhs(3))*D00+A/D00
+                 (hat_gam-1d0)*(3d0/Y_rhs(4)-1d0/Y_rhs(1)*D_rhs(1)/D00)*Y_rhs(3))*D00+A
     end select
 end subroutine forward_rhs
 end subroutine dynamics_forward
