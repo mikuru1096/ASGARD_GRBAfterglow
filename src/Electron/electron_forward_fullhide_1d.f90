@@ -87,6 +87,7 @@ subroutine fs_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
         call coord_to_dgamma(Num_gam_e,coord_edge,coord_scale,gam_e,dN_x, &
                                                            dN_gam_e(:,I_tobs))
     end do
+    call write_finaldiag()
 
     deallocate (dEl,dEl_step,dEL_mean,x,dN_x,x_edge,coord_edge,dxdy_grid,dN_full,dN_half,dN_half2,dF1, &
                 dEL_mean_step,P_emit_shell,Tau_syn_shell)
@@ -182,6 +183,30 @@ contains
                                  R_Gamma_loc,beta_Gam,dNe,Num_gam_e,Num_nu,n_threads,gam_e,V_seed, &
                                  P_syn(:,I_tobs),Seed_syn(:,I_tobs),dEl)
     end subroutine prepare_fullhide_shell
+
+    ! 最后一个输出点没有后续推进，只刷新与最终电子谱一致的辐射诊断。
+    ! The final output point has no following advance, so refresh diagnostics from the final electron spectrum.
+    subroutine write_finaldiag()
+    implicit real(8)(A-H,O-Z)
+
+        R_loc=R(Num_R)
+        R_Gamma_loc=R_Gamma(Num_R)
+        if (R_Gamma_loc < 1d0) error stop 'fs_fullhide_1d requires Gamma >= 1'
+        beta_Gam=dsqrt(1d0-1d0/R_Gamma_loc**2)
+        call density_profile(A_star,dNe_ISM,R_loc,R0,1,R_tr,f_jump,f_wide,dNe)
+        DB=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma_loc*(R_Gamma_loc-1d0)))
+        Gam_e_max=3d0*Para_m_energy/dsqrt(8d0*DB*Para_e**3)
+        temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma_loc-1d0)
+        call electron_gm_exact(p,temp_gam,Gam_e_max,Gam_e_m)
+        Gam_e_c=7.7d8*(1d0+z)/R_Gamma_loc/DB**2/R_Tobs(Num_R)
+        V_m(Num_R)=4.2d6*DB*Gam_e_m*Gam_e_m/(R_Gamma_loc*(1d0-beta_Gam)*(1d0+z))
+        V_c(Num_R)=4.2d6*DB*Gam_e_c*Gam_e_c/(R_Gamma_loc*(1d0-beta_Gam)*(1d0+z))
+        call syn_state(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads, &
+                                    gam_e,dN_gam_e(:,Num_R),V_seed,P_emit_shell, &
+                                    P_syn(:,Num_R),Seed_syn(:,Num_R),Tau_syn_shell)
+        call nua_fromtau(Num_nu,V_seed,Tau_syn_shell,temp)
+        V_a(Num_R)=temp/(R_Gamma_loc*(1d0-beta_Gam)*(1d0+z))
+    end subroutine write_finaldiag
 
     ! 固定子步路径：均匀介质可合并源项，非均匀介质逐子步更新介质。
     ! Fixed-substep path: uniform media can merge sources, while nonuniform media update the medium per substep.
@@ -474,6 +499,7 @@ subroutine fs_fullhide_coupled(Boundary,R_Tobs,R_Gamma,R,V_seed,Seed_cooling,sec
         call advance_coupled_shell(I_tobs)
         call dnx_dgamma(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,I_tobs))
     end do
+    call write_finaldiag()
 
     deallocate(dEl,dEL_mean,dEL_mean_step,cooling_aux,x,dN_x,x_edge,dF1)
     if (budget_diag_enabled) print '(A,1X,ES12.4)', 'BUDGET1D coupled max_rel_loss', rel_loss_xi_max
@@ -519,6 +545,31 @@ contains
                                                   gam_e,V_seed,Seed_ssa_column,cooling_aux_column,dEl_column)
         dEl=dEl_column(:,1)
     end subroutine prepare_coupled_shell
+
+    ! 最后一个输出点没有后续推进，只刷新与最终电子谱一致的辐射诊断。
+    ! The final output point has no following advance, so refresh diagnostics from the final electron spectrum.
+    subroutine write_finaldiag()
+    implicit real(8)(A-H,O-Z)
+    real(8), dimension(Num_nu) :: Ptmp,Tautmp
+
+        R_loc=R(Num_R)
+        R_Gamma_loc=R_Gamma(Num_R)
+        if (R_Gamma_loc < 1d0) error stop 'fs_fullhide_coupled requires Gamma >= 1'
+        beta_Gam=dsqrt(1d0-1d0/R_Gamma_loc**2)
+        call density_profile(A_star,dNe_ISM,R_loc,R0,1,R_tr,f_jump,f_wide,dNe)
+        DB=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma_loc*(R_Gamma_loc-1d0)))
+        Gam_e_max=3d0*Para_m_energy/dsqrt(8d0*DB*Para_e**3)
+        temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma_loc-1d0)
+        call electron_gm_exact(p,temp_gam,Gam_e_max,Gam_e_m)
+        Gam_e_c=7.7d8*(1d0+z)/R_Gamma_loc/DB**2/R_Tobs(Num_R)
+        V_m(Num_R)=4.2d6*DB*Gam_e_m*Gam_e_m/(R_Gamma_loc*(1d0-beta_Gam)*(1d0+z))
+        V_c(Num_R)=4.2d6*DB*Gam_e_c*Gam_e_c/(R_Gamma_loc*(1d0-beta_Gam)*(1d0+z))
+        call syn_state(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads, &
+                                    gam_e,dN_gam_e(:,Num_R),V_seed,Ptmp, &
+                                    P_syn(:,Num_R),Seed_syn(:,Num_R),Tautmp)
+        call nua_fromtau(Num_nu,V_seed,Tautmp,temp)
+        V_a(Num_R)=temp/(R_Gamma_loc*(1d0-beta_Gam)*(1d0+z))
+    end subroutine write_finaldiag
 
     subroutine advance_coupled_shell(I_tobs)
     implicit real(8)(A-H,O-Z)

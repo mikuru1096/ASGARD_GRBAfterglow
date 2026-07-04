@@ -594,6 +594,148 @@ For adaptive one-dimensional electron substeps, the shared error metric is
 \]
 where \(N^{(1)}\) is the one-full-step trial and \(N^{(2\times1/2)}\) is the two-half-step trial.
 
+The default \texttt{fullhide\_1d} solver advances the same forward-shock electron equation with a fully implicit conservative finite-volume step.  Its production nonthermal path uses the shared four-velocity coordinate \(y\), with conservative cell averages
+\[
+N_{y,j}(R)=\frac{1}{\Delta y_j}
+\int_{y_{j-1/2}}^{y_{j+1/2}}\frac{dN_e}{dy}\,dy .
+\]
+At shell \(i\), the driver evaluates the local state at
+\[
+R_{\rm loc}=R_{i-1},\qquad
+\bar\Gamma_i=\frac{\Gamma_i+\Gamma_{i-1}}{2},\qquad
+n_i=n(R_{\rm loc}),
+\]
+and uses the same magnetic field and injection formulae,
+\[
+B_i'=0.39\left[\epsilon_Bn_i\bar\Gamma_i(\bar\Gamma_i-1)\right]^{1/2},
+\qquad
+\gamma_{\max,i}=\frac{3m_ec^2}{(8B_i'e^3)^{1/2}},
+\]
+\[
+\gamma_{c,i}=\frac{7.7\times10^8(1+z)}
+{\bar\Gamma_iB_i'^2t_{{\rm obs},i}},
+\qquad
+\beta_i=(1-\bar\Gamma_i^{-2})^{1/2}.
+\]
+The fixed-step estimate is
+\[
+\delta R_0=\frac{0.1}{
+\left[(1.35\times10^{-19})B_i'^2\gamma_{\max,i}/(\pi\beta_i\bar\Gamma_i)
++1.333/(R_i+R_{i-1})\right]},
+\]
+and the actual fixed-substep count is
+\[
+L_i=\max\left[100,\min\left(1000,
+\left\lfloor\frac{R_i-R_{i-1}}{\delta R_0}\right\rfloor\right)\right],
+\qquad
+\Delta R=(R_i-R_{i-1})/L_i .
+\]
+
+For one ordinary substep the code writes the cooling speed on a coordinate face as
+\[
+v_{j+1/2}=
+\frac{(D_j+D_{j+1})/2+R^{-1}}
+{\ln 10\,(dx_g/dy)_{j+1/2}},
+\]
+where positive \(v\) denotes motion toward lower electron energy.  With a closed low-energy boundary, the implicit update is the tridiagonal conservative solve
+\[
+N_j^{n+1}
+=N_j^n+\Delta R\,Q_j
++\frac{\Delta R}{\Delta y_j}
+\left[
+v_{j+1/2}^{+}N_{j+1}^{n+1}
+-v_{j-1/2}^{+}N_j^{n+1}
+-v_{j+1/2}^{-}N_j^{n+1}
++v_{j-1/2}^{-}N_{j-1}^{n+1}
+\right],
+\]
+where \(v^\pm=\max/\min(v,0)\) and \(N_0\) is not used when the low boundary is closed.  This is the physical reason for the solver's robustness in stiff cooling regimes: the high-energy loss flux is solved at the new radius instead of being applied explicitly.
+
+For a strictly uniform medium with no thermal-electron branch, the fixed substeps are merged into one integrated implicit solve.  Let
+\[
+R_\ell=R_{i-1}+\ell\Delta R,\qquad \ell=1,\ldots,L_i .
+\]
+The integrated source normalization passed to the cell-averaged source builder is
+\[
+\mathcal{Q}_{i}=
+\sum_{\ell=1}^{L_i}\Delta R\,
+\frac{4\pi}{3}
+\left[3R_\ell^2+\Delta R(3R_\ell+\Delta R)\right]
+n_if_e
+\frac{1-p}{\gamma_{\max,i}^{1-p}-\gamma_{m,i}^{1-p}} .
+\]
+The source cells are
+\[
+\bar Q_{y,j}^{\rm int}=
+\frac{1}{\Delta y_j}
+\int_{y_{j-1/2}}^{y_{j+1/2}}
+\mathcal{Q}_{i}\,
+\ln 10\,\gamma_e^{1-p}
+\mathcal{C}_{\max}(\gamma_e)
+\frac{dx_g}{dy}\,dy ,
+\]
+and the integrated face displacement is
+\[
+\mathcal{F}_{j+1/2}=
+\frac{
+(R_i-R_{i-1})(D_j+D_{j+1})/2
++\sum_{\ell=1}^{L_i}\Delta R/R_\ell}
+{\ln 10\,(dx_g/dy)_{j+1/2}} .
+\]
+The merged solve is the same tridiagonal system as the one-step update, with \(\Delta R\,v_{j+1/2}\) replaced by \(\mathcal{F}_{j+1/2}\) and \(\Delta R\,Q_j\) replaced by \(\bar Q_{y,j}^{\rm int}\).
+
+In non-uniform density or thermal-electron mode, the solver advances the substeps individually.  At each substep endpoint \(R_\ell\), it re-evaluates \(n(R_\ell)\), \(B'\), \(\gamma_{\max}\), and \(\gamma_m\).  The local source is
+\[
+Q_{y,j}^{(\ell)}=
+\frac{1}{\Delta y_j}
+\int_{y_{j-1/2}}^{y_{j+1/2}}
+\dot N_{{\rm inj},R}(R_\ell,\Delta R)\,
+\ln 10\,\gamma_e^{1-p}
+\mathcal{C}_{\max}(\gamma_e)
+\frac{dx_g}{dy}\,dy ,
+\]
+with an additional Maxwell--Juttner thermal population when \texttt{thermal\_electrons} is enabled.  The radiative cooling coefficient is assembled once from the shell photon field and scaled locally as
+\[
+D_j(R_\ell)=D_j(R_{i-1})\frac{n(R_\ell)}{n(R_{i-1})},
+\]
+which is exact for the local synchrotron term under fixed \(\bar\Gamma_i\) and fixed shell photon shape, and is the implemented density-response approximation for the complete cooling array.
+
+When adaptive substeps are requested, the driver accepts a trial \(\Delta R\) by comparing one full implicit step with two half implicit steps,
+\[
+\epsilon_{\rm adapt}=
+\max_j\frac{|N_j^{(2\times1/2)}-N_j^{(1)}|}
+{\max(|N_j^{(2\times1/2)}|,10^{-99})}.
+\]
+The accepted state is the two-half-step solution.  If \(\epsilon_{\rm adapt}\le{\tt substep\_rtol}\), the step is accepted and may double for the next trial when the error is below one quarter of the tolerance; otherwise it is halved down to \((R_i-R_{i-1})/{\tt substep\_max}\).  This controls radial integration error without smoothing the electron spectrum after the solve.
+
+The joint electron--photon coupled pass, \texttt{fs\_fullhide\_coupled}, keeps the legacy log-gamma coordinate \(x=\log_{10}\gamma_e\) and requires fixed substeps with \(\texttt{index\_Y}=1\).  It receives an externally closed photon field \(n_\nu^{\rm cool}\) and secondary pair source \(Q_{e,{\rm sec}}\).  The numeric IC budget is computed from \(n_\nu^{\rm cool}\), while SSA heating is computed from the local synchrotron seed field.  In each substep the source is
+\[
+Q_{x,j}^{\rm coupled}=Q_{x,j}^{\rm inj}+Q_{e,{\rm sec},j},
+\]
+and the implicit upper-triangular solve is the direct form used by
+\texttt{fullhide\_step}.  Define the face speed and signed Courant factor
+\[
+w_{j+1/2}=\bar D_{j+1/2}+\frac{1}{R\ln 10},
+\qquad
+u_{j+1/2}=-\frac{\Delta R}{\Delta x}w_{j+1/2}.
+\]
+The diagonal and right-hand side are
+\[
+p_j=1-u_{j-1/2}\quad (j\ge2),\qquad p_1=p_2,
+\qquad
+r_j=\frac{N_j^n+\Delta R\,Q_{x,j}^{\rm coupled}}{p_j},
+\]
+and adjacent cells are coupled by the averaged coefficient
+\[
+c_j=\frac{2u_{j+1/2}}{p_j+p_{j+1}} .
+\]
+The spectrum is recovered by back-substitution from high to low energy,
+\[
+N_N^{n+1}=r_N,\qquad
+N_j^{n+1}=\max\left(0,r_j-c_jN_{j+1}^{n+1}\right).
+\]
+As in the separated fullhide path, the last output radius is refreshed from the final electron spectrum through the same synchrotron optical-depth grid, so the returned \(\nu_m\), \(\nu_c\), and \(\nu_a\) arrays do not end with a stale zero diagnostic.
+
 The public \texttt{charint\_1d} forward solver advances the same conservative cell averages
 \[
 N_{x,j}(R)=\frac{1}{\Delta x_j}
