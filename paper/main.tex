@@ -875,17 +875,51 @@ R_j-4w_jR_j\le R<R_j,
 n_{\rm exc,j}(R)=n_{\rm base}(R)(f_j-1)
 \exp\left[-\frac{(R-R_j)^2}{2(w_jR_j)^2}\right].
 \]
-The secondary contact state is solved from pressure equality,
+The secondary contact state is solved from a scalar pressure-balance root.
+For a trial contact Lorentz factor \(\Gamma_{\rm c}\), the external shocked pressure is
 \[
-\frac{4}{3}(\Gamma_c^2-1)n_1m_pc^2
-=
-p_4+\frac{4}{3}(\gamma_{43}^2-1)(e_4+p_4),
+p_2(\Gamma_{\rm c})=
+\frac{4}{3}(\Gamma_{\rm c}^2-1)n_1m_pc^2,
 \]
-and the reverse-shock compression follows from the shock-frame momentum equation.  A branch deposits energy only when
+while the hot upstream branch is closed with
 \[
-u_{\rm diss}=e_3-e_4r^{4/3}>0,
+p_3(\Gamma_{\rm c})=
+p_4+\frac{4}{3}(\Gamma_{43}^2-1)(e_4+p_4),
+\qquad
+\Gamma_{43}=\Gamma_{\rm c}\Gamma_4(1-\beta_{\rm c}\beta_4).
 \]
-where \(r=n_3/n_4\).  Its mass, energy, and volume are then accumulated as
+The code bisects \(p_2-p_3=0\) on \(1<\Gamma_{\rm c}<\Gamma_4\).
+The reverse-shock speed is then found in the shock frame,
+\[
+\beta_{4s}=\frac{\beta_4-\beta_s}{1-\beta_4\beta_s},
+\qquad
+\beta_{3s}=\frac{\beta_{\rm c}-\beta_s}{1-\beta_{\rm c}\beta_s},
+\qquad
+u_{is}=\Gamma_{is}|\beta_{is}|,
+\]
+and the compression follows from baryon-flux continuity,
+\[
+\chi\equiv\frac{n_3}{n_4}=\frac{u_{4s}}{u_{3s}} .
+\]
+Only the compressive interval \(\chi>1\) is searched.
+The accepted root satisfies the shock-frame momentum flux equation
+\[
+w_4u_{4s}^2+p_4=w_3u_{3s}^2+p_3,
+\]
+\[
+w_4=n_4m_pc^2+e_4+p_4,\qquad
+e_3=3p_3,\qquad
+w_3=\chi n_4m_pc^2+e_3+p_3 .
+\]
+This is therefore a relativistically hot-gas closure for the secondary diagnostic branch,
+not a general finite-temperature Taub solve: after \(p_3\) is fixed by contact balance,
+only the shock speed and compression are solved from mass and momentum flux.
+If no compressive momentum root exists, the branch is left inactive.  Otherwise it deposits energy only when
+\[
+u_{\rm diss}=e_3-e_4\chi^{4/3}>0,
+\]
+which subtracts the adiabatically compressed upstream internal energy from the newly shocked hot-gas state.
+Its mass, energy, and volume are then accumulated as
 \[
 dM_{\rm sec}=4\pi R^2n_4m_p\Gamma_2
 \frac{\beta_2-\beta_{\rm rs}}{\beta_c}\,dR,
