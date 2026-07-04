@@ -1498,6 +1498,48 @@ after checking \(y\le\ln(\texttt{d1mach}(2))\).  The sign is then inherited from
 Chebyshev approximation.  This branch supplies the unscaled \(I_1\) term used in
 the small-argument \(K_1\) expression; it does not alter the thermal moment
 definitions.
+The scaled order-one routine \texttt{dbsi1e} evaluates
+\[
+\widehat I_1(x)\equiv e^{-|x|}I_1(x)
+=\frac{1}{\pi}\int_0^\pi
+\exp[-|x|+x\cos\phi]\cos\phi\,d\phi .
+\]
+For \(x>0\), the exponential part is again
+\(\exp[-x(1-\cos\phi)]\), while the \(\cos\phi\) weight is the order-one angular
+moment.  The function is odd because the unscaled \(I_1\) integral and power
+series are odd in \(x\), and the scaling factor \(e^{-|x|}\) is even.  For
+\(y=|x|\le3\), the source first handles the exact zero and the representable
+underflow boundary
+\[
+X_{\min}=2\,\texttt{d1mach}(1).
+\]
+When \(X_{\min}<y\le\sqrt{4.5\,\texttt{d1mach}(3)}\), the retained value before
+scaling is the Taylor leading term \(I_1(x)=x/2\).  For larger values inside the
+same interval, the code evaluates
+\[
+\widehat I_1(x)=e^{-y}x
+\left[0.875+\frac{d_1}{2}
++\sum_{j=2}^{N_d}d_jT_{j-1}\!\left(\frac{y^2}{4.5}-1\right)\right],
+\]
+with the stored \texttt{BI1CS} coefficients.  For \(3<y\le8\), it computes the
+positive scaled magnitude from the first asymptotic series,
+\[
+|\widehat I_1(x)|=\frac{1}{\sqrt{y}}
+\left[0.375+\frac{e_1}{2}
++\sum_{j=2}^{N_e}e_jT_{j-1}\!\left(\frac{48/y-11}{5}\right)\right],
+\]
+and for \(y>8\) from the farther-asymptotic series,
+\[
+|\widehat I_1(x)|=\frac{1}{\sqrt{y}}
+\left[0.375+\frac{f_1}{2}
++\sum_{j=2}^{N_f}f_jT_{j-1}\!\left(\frac{16}{y}-1\right)\right].
+\]
+The final \texttt{SIGN} operation multiplies this positive magnitude by the sign
+of \(x\), so the code implements
+\(\widehat I_1(-x)=-\widehat I_1(x)\) while sharing the same large-\(y\)
+approximants for both signs.  The approximation therefore preserves the
+order-one moment definition and only removes the exponential growth before
+\texttt{dbesi1} optionally reconstructs the unscaled function.
 The order-zero third-kind routine \texttt{dbesk0} evaluates
 \[
 K_0(x)=\int_0^\infty e^{-x\cosh u}\,du,\qquad x>0,
