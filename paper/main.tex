@@ -3862,6 +3862,119 @@ but it does not define a new radiation process, optical depth, Doppler factor,
 arrival-time map, or interpolation weight.  Those physical and numerical
 operations belong to the Fortran kernels selected by the exported symbol.
 
+The \texttt{SED\_interpolation} kernel defines the direct observer-frame
+projection used by these bindings.  In the shell-level top-hat path, the angular
+grid uses midpoint cells
+\[
+\Delta\Omega_{a b}=
+(\cos\theta_a-\cos\theta_b)\,\Delta\phi ,
+\]
+with a reflected half-plane factor for the public single-sided azimuth grid.
+For each angular cell,
+\[
+\mu=\cos\theta_v\cos\theta+\sin\theta_v\sin\theta\cos\phi ,
+\qquad
+t_{\rm arr}(R)=t_0(R)+\frac{(1+z)R(1-\mu)}{c}.
+\]
+For every requested observer time between two adjacent radii the code solves
+\[
+r=\frac{t_{\rm obs}-t_{\rm arr}(R_i)}
+{t_{\rm arr}(R_{i+1})-t_{\rm arr}(R_i)},\qquad
+\Gamma_r=\exp\!\left[(1-r)\ln\Gamma_i+r\ln\Gamma_{i+1}\right],
+\]
+and linearly interpolates the local luminosity in radius.  The source-frame
+frequency and projected flux weight are computed with the inverse Doppler
+factor
+\[
+\mathcal{D}^{-1}=\Gamma_r(1-\beta_r\mu),\qquad
+\nu'=(1+z)\mathcal{D}^{-1}\nu_{\rm obs},
+\]
+\[
+\Delta F_{\nu_{\rm obs}}=
+\frac{\Delta\Omega_{ab}}{4\pi}\,
+\mathcal{D}^3\,
+L'_{\nu'}(R_r).
+\]
+The frequency interpolation itself is delegated to the shared log-frequency SED
+accumulator; empty source bins contribute zero rather than a negative luminosity.
+
+The adaptive-\(\theta\) path keeps the same local projection formula and changes
+only the angular quadrature.  For a trial interval
+\([\theta_0,\theta_1]\), it compares a midpoint estimate \(F_{\rm coarse}\) with
+the sum of two midpoint estimates \(F_{\rm fine}\) on the two half intervals.
+The interval is accepted when
+\[
+\sum_{\nu,t}|F_{\rm fine}-F_{\rm coarse}|
+\le \epsilon_{\rm ad}
+\sum_{\nu,t}|F_{\rm fine}|,
+\]
+or when the requested recursion depth has been reached.  Thus the adaptivity
+changes angular sampling density but not the EATS map, Doppler weight, or
+frequency interpolation.
+
+For the \(\chi\)-resolved path the arrival map is evaluated for each finite
+downstream cell,
+\[
+t_{\rm arr,\chi}(R)=t_0(R)+\frac{1+z}{c}
+\left[R_{\rm front}(R)-\mu R_\chi(R)\right].
+\]
+The code first tries the monotonic sequence in \(R\); if a \(\chi\) cell maps
+nonmonotonically to observer time, each adjacent radial segment is searched
+independently.  The finite-cell absorption factor is
+\[
+\mathcal{E}_\chi(\nu)=
+\exp[-\tau_{\rm front}(\nu)]
+\frac{1-\exp[-\tau_{\rm cell}(\nu)]}{\tau_{\rm cell}(\nu)},
+\]
+with the analytic small-\(\tau_{\rm cell}\) limit used at the removable
+singularity.  The projected \(\chi\)-cell contribution is therefore
+\[
+\Delta F_{\nu_{\rm obs},\chi}=
+\frac{\Delta\Omega}{4\pi}\,
+\mathcal{D}^3\,
+W_\chi\,L'_{\nu',\chi}\,
+\mathcal{E}_\chi(\nu').
+\]
+The direct-electron diagnostic first constructs \(L'_{\nu',\chi}\) and
+\(\tau_{\nu',\chi}\) from the \(\chi\)-local electron spectrum, then calls the
+same \(\chi\)-projection kernel.
+
+The structured ring entries reuse this \(\chi\)-resolved projection on one or
+many precomputed theta rings.  The batch-luminosity variant sums rings with the
+observer prefactor
+\[
+\mathcal{P}_d=\frac{1+z}{4\pi d_L^2}.
+\]
+The ray-traced SSA variant instead builds, at each observer time, the list of
+emitting patch events \(({\rm ring},\chi,R,\phi)\).  Each event stores its sky
+position, inverse-Doppler factor, angular weight, cell faces, and the observer
+direction aberrated into the comoving frame,
+\[
+n'_r=\frac{\mu-\beta}{1-\beta\mu},\qquad
+n'_\theta=\frac{n_\theta}{\Gamma(1-\beta\mu)},\qquad
+n'_\phi=\frac{n_\phi}{\Gamma(1-\beta\mu)}.
+\]
+The local SSA path length is the chord through the comoving slab divided by the
+cell comoving radial width.  Foreground cells are accepted only when their
+projected sky patch contains the emitting point and they lie in front of it
+along the line of sight.  The foreground optical depth is then
+\[
+\tau_{\rm fg}(\nu')=\sum_{\rm hits}
+\tau_{\rm hit}(\nu')\,\ell_{\rm hit},
+\]
+and the event contributes
+\[
+\Delta F_{\nu_{\rm obs}}=
+\mathcal{P}_d\,\Delta\Omega\,\mathcal{D}^3\,
+L'_{\nu'}\,
+\exp[-\tau_{\rm fg}]\,
+\frac{1-\exp[-\tau_{\rm cell}\ell_{\rm src}]}
+{\tau_{\rm cell}\ell_{\rm src}} .
+\]
+This ray path is still a projection operator over already computed synchrotron
+luminosity and SSA grids; it does not recompute the electron transport or the
+synchrotron kernel inside the observer loop.
+
 For a shell element with direction cosine \(\mu\) relative to the line of sight, observer time is computed from
 \[
 t_{\rm obs}=(1+z)\left(T-\frac{R\mu}{c}\right).

@@ -894,8 +894,8 @@ subroutine fill_radiation()
             src = ((1d0-rfac)*srclo + rfac*srchi)*evamp(iev)
             tau = 0d0
         else
-            taulo = interplogidx(Tau_ring(:,jchi,jk,jring),jseed,frac)*evpath(iev)
-            tauhi = interplogidx(Tau_ring(:,jchi,jk+1,jring),jseed,frac)*evpath(iev)
+            taulo = interplogidx(Tau_ring(:,jchi,jk,jring),jseed,frac)
+            tauhi = interplogidx(Tau_ring(:,jchi,jk+1,jring),jseed,frac)
             srclo = interplogidx(F_ring(:,jchi,jk,jring),jseed,frac) * Chi_weight(jchi,jk,jring)
             srchi = interplogidx(F_ring(:,jchi,jk+1,jring),jseed,frac) * Chi_weight(jchi,jk+1,jring)
             tau = (1d0-rfac)*taulo + rfac*tauhi
