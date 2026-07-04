@@ -1158,9 +1158,9 @@ class Model:
             raise ValueError("fov must be positive.")
         if int(npixel) <= 0:
             raise ValueError("npixel must be positive.")
-        from .api_observe import _render_sky_image
+        from .api_observe import _skyimage
 
-        return _render_sky_image(self, times_s, float(nu_obs), float(fov), int(npixel))
+        return _skyimage(self, times_s, float(nu_obs), float(fov), int(npixel))
 
     def polarization(
         self,
@@ -1172,9 +1172,9 @@ class Model:
     ) -> PolarizationResult:
         times_s = np.asarray(times_s, dtype=float)
         nu_hz = np.asarray(nu_hz, dtype=float)
-        from .api_observe import _compute_polarization
+        from .api_observe import _polarization
 
-        return _compute_polarization(
+        return _polarization(
             self,
             times_s,
             nu_hz,

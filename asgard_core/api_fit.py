@@ -85,12 +85,12 @@ class Fitter:
 
     def build_model(self, values: dict[str, float]) -> Model:
         model = deepcopy(self.model)
-        from .api_observe import _param_path
+        from .api_observe import _parampath
 
         for param in self.params:
             if param.name in values or param.is_fixed():
                 raw_value = param.lower if param.is_fixed() else values[param.name]
-                parts = _param_path(model, param).split(".")
+                parts = _parampath(model, param).split(".")
                 target = model
                 for name in parts[:-1]:
                     target = getattr(target, name)
@@ -304,12 +304,12 @@ def compile_problem(
     data = data_or_config if isinstance(data_or_config, dict) else None
     if data is None:
         raise TypeError("compile_problem expects either (config) or (dict, model_or_config).")
-    from .api_observe import _as_model, _param_path
+    from .api_observe import _asmodel, _parampath
 
-    model = model_or_config if isinstance(model_or_config, Model) else _as_model(model_or_config)
+    model = model_or_config if isinstance(model_or_config, Model) else _asmodel(model_or_config)
     param_bindings = []
     for param in [] if params is None else params:
-        path = _param_path(model, param)
+        path = _parampath(model, param)
         target = model
         parts = path.split(".")
         for name in parts[:-1]:
