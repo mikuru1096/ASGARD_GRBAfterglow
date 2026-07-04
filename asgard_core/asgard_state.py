@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from time import perf_counter
 
 import numpy as np
@@ -42,11 +42,20 @@ from asgard_core.asgard_setup import build_setup
 from src import Interpolation, Radiation, constants
 
 
-_ELECTRON_MASS_GEV = constants.para_m_e_gev
-_PROJECTION_KINDS = {"lightcurve", "sed"}
-_COUPLING_SEPARATED = "separated"
-_COUPLING_JOINT = "joint"
-_JOINT_ELECTRON_PHOTON_ITERATIONS = 2
+ME_GEV = constants.para_m_e_gev
+PROJKINDS = {"lightcurve", "sed"}
+COUPLING_SEP = "separated"
+COUPLING_JOINT = "joint"
+JOINT_ITERS = 2
+HADRONOPTIONAL = (
+    ("bethe_heitler", "l_had_bethe_heitler"),
+    ("inverse_compton", "l_had_hadronic_inverse_compton"),
+    ("pair_production", "l_had_pair_production"),
+    ("pion_synch", "l_had_pion_synch"),
+    ("muon_synch", "l_had_muon_synch"),
+    ("pion_inverse_compton", "l_had_pion_inverse_compton"),
+    ("muon_inverse_compton", "l_had_muon_inverse_compton"),
+)
 
 
 @dataclass
@@ -57,7 +66,7 @@ class _CoupledShockGeometry:
     center_delay_s: np.ndarray
 
 
-def build_coupled_shock_geometry(dynamics, config: RuntimeConfig) -> _CoupledShockGeometry:
+def build_shockgeo(dynamics, config: RuntimeConfig) -> _CoupledShockGeometry:
     if dynamics.reverse_shock is None:
         raise ValueError("Reverse-shock dynamics are required to build coupled-shock geometry.")
     if config.reverse_shock.delta_t_s is None:
@@ -65,7 +74,12 @@ def build_coupled_shock_geometry(dynamics, config: RuntimeConfig) -> _CoupledSho
 
     radius_cm = dynamics.radius
     gamma = dynamics.r_gamma
-    proper_time_s = _integrate_proper_time(radius_cm, gamma)
+    gamma_mean = 0.5 * (gamma[1:] + gamma[:-1])
+    beta_mean = np.sqrt(1.0 - gamma_mean**-2)
+    d_radius = radius_cm[1:] - radius_cm[:-1]
+    proper_time_s = np.empty_like(radius_cm)
+    proper_time_s[0] = 0.0
+    proper_time_s[1:] = np.cumsum(d_radius / (beta_mean * gamma_mean * constants.para_c))
 
     fs_width_cm, rs_width_cm = np.zeros((2, radius_cm.size), dtype=float)
 
@@ -98,7 +112,7 @@ def build_coupled_shock_geometry(dynamics, config: RuntimeConfig) -> _CoupledSho
     )
 
 
-def build_cross_zone_seed_fields(
+def crossseed_fields(
     fs_seed_syn: np.ndarray,
     rs_seed_syn: np.ndarray,
     geometry: _CoupledShockGeometry,
@@ -106,38 +120,15 @@ def build_cross_zone_seed_fields(
 ) -> tuple[np.ndarray, np.ndarray]:
     tau = geometry.proper_time_s
     tau_ret = tau - geometry.center_delay_s
-    seed_fs_to_rs = _retarded_seed_interpolation(fs_seed_syn, tau, tau_ret, angular_factor)
-    seed_rs_to_fs = _retarded_seed_interpolation(rs_seed_syn, tau, tau_ret, angular_factor)
+    seed_fs_to_rs = angular_factor * np.vstack([
+        np.interp(tau_ret, tau, seed_nu, left=0.0, right=seed_nu[-1])
+        for seed_nu in fs_seed_syn
+    ])
+    seed_rs_to_fs = angular_factor * np.vstack([
+        np.interp(tau_ret, tau, seed_nu, left=0.0, right=seed_nu[-1])
+        for seed_nu in rs_seed_syn
+    ])
     return seed_fs_to_rs, seed_rs_to_fs
-
-
-def _integrate_proper_time(radius_cm: np.ndarray, gamma: np.ndarray) -> np.ndarray:
-    gamma_mean = 0.5 * (gamma[1:] + gamma[:-1])
-    beta_mean = np.sqrt(1.0 - gamma_mean**-2)
-    d_radius = radius_cm[1:] - radius_cm[:-1]
-    dtau = d_radius / (beta_mean * gamma_mean * constants.para_c)
-    proper_time_s = np.empty_like(radius_cm)
-    proper_time_s[0] = 0.0
-    proper_time_s[1:] = np.cumsum(dtau)
-    return proper_time_s
-
-
-def _retarded_seed_interpolation(
-    seed_syn: np.ndarray,
-    source_time_s: np.ndarray,
-    retarded_time_s: np.ndarray,
-    angular_factor: float,
-) -> np.ndarray:
-    shifted_seed = np.zeros_like(seed_syn)
-    for i_nu in range(seed_syn.shape[0]):
-        shifted_seed[i_nu] = angular_factor * np.interp(
-            retarded_time_s,
-            source_time_s,
-            seed_syn[i_nu],
-            left=0.0,
-            right=seed_syn[i_nu, -1],
-        )
-    return shifted_seed
 
 
 def make_tgrid(observer_time_s: np.ndarray, default_num_tobs: int) -> np.ndarray:
@@ -154,7 +145,7 @@ def make_tgrid(observer_time_s: np.ndarray, default_num_tobs: int) -> np.ndarray
     return np.logspace(np.log10(t_min), np.log10(t_max), num_tobs)
 
 
-def make_query_cfg(
+def query_cfg(
     config: RuntimeConfig,
     observer_time_s: np.ndarray,
 ) -> RuntimeConfig:
@@ -166,34 +157,19 @@ def make_query_cfg(
     return query
 
 
-def make_query_setup(
+def query_setup(
     config: RuntimeConfig,
     observer_time_s: np.ndarray,
     requested_frequencies_hz: np.ndarray | None = None,
 ):
-    setup = build_setup(make_query_cfg(config, observer_time_s), requested_frequencies_hz)
-    setup.observer_time_s = np.asarray(observer_time_s, dtype=float)
-    return setup
-
-
-def solve_state(
-    config: RuntimeConfig,
-    observer_time_s: np.ndarray,
-    requested_frequencies_hz: np.ndarray | None = None,
-    timings: dict[str, float] | None = None,
-    policy: ExecutionPolicy | None = None,
-) -> SolveState:
-    setup = make_query_setup(config, observer_time_s, requested_frequencies_hz)
-    return solve_state_from_setup(
-        config,
-        setup,
-        timings=timings,
-        policy=policy,
-        requested_frequencies_hz=requested_frequencies_hz,
+    observer_time = np.asarray(observer_time_s, dtype=float)
+    return replace(
+        build_setup(query_cfg(config, observer_time), requested_frequencies_hz),
+        observer_time_s=observer_time,
     )
 
 
-def _solver_label(config: RuntimeConfig, stage: str) -> str:
+def _solverlabel(config: RuntimeConfig, stage: str) -> str:
     if stage == "dynamics":
         if config.reverse or config.reverse_shock.enabled:
             return "Dynamics.dynamics_reverse"
@@ -216,14 +192,14 @@ def _solver_label(config: RuntimeConfig, stage: str) -> str:
     raise ValueError(f"Unsupported solver stage: {stage}")
 
 
-def _electron_photon_coupling(config: RuntimeConfig) -> str:
+def _coupling(config: RuntimeConfig) -> str:
     coupling = str(config.electron_photon_coupling).lower()
-    if coupling not in {_COUPLING_SEPARATED, _COUPLING_JOINT}:
+    if coupling not in {COUPLING_SEP, COUPLING_JOINT}:
         raise ValueError("electron_photon_coupling must be 'separated' or 'joint'.")
     return coupling
 
 
-def _validate_joint_electron_photon_config(config: RuntimeConfig) -> None:
+def _checkjoint(config: RuntimeConfig) -> None:
     electron_solver = str(config.electron_solver).lower()
     if electron_solver != "fullhide_1d":
         raise NotImplementedError("electron_photon_coupling='joint' currently supports only electron_solver='fullhide_1d'.")
@@ -245,7 +221,7 @@ def _validate_joint_electron_photon_config(config: RuntimeConfig) -> None:
         raise NotImplementedError("electron_photon_coupling='joint' currently requires fixed electron substeps.")
 
 
-def _validate_multi_density_reverse_config(config: RuntimeConfig) -> None:
+def _checkmultirs(config: RuntimeConfig) -> None:
     jump_r, _, _ = densityjumps(config)
     if jump_r.size < 1 or not config.reverse_shock.enabled:
         return
@@ -261,11 +237,11 @@ def _validate_multi_density_reverse_config(config: RuntimeConfig) -> None:
         raise NotImplementedError("multi-density reverse shock v1 does not include RS SSC.")
     if bool(config.reverse_shock.include_cross_zone_ic):
         raise NotImplementedError("multi-density reverse shock v1 does not include cross-zone IC.")
-    if _electron_photon_coupling(config) != _COUPLING_SEPARATED:
+    if _coupling(config) != COUPLING_SEP:
         raise NotImplementedError("multi-density reverse shock v1 requires separated electron-photon coupling.")
 
 
-def _build_photon_field_stage(
+def _photonfield(
     config: RuntimeConfig,
     setup,
     dynamics: DynamicsSolution,
@@ -276,14 +252,16 @@ def _build_photon_field_stage(
     hadronic_forward_ssc_seed = np.zeros_like(forward_syn_seed)
     hadronic_target_seed = np.array(forward_syn_seed, dtype=float, copy=True)
     if config.hadronic.enabled and config.hadronic.epsilon_p > 0.0 and config.include_forward_ssc:
-        _, hadronic_forward_ssc_seed = _ssc_spectrum(
+        _, hadronic_forward_ssc_seed = _timed(
+            timings,
+            "Radiation.ssc_spec [FS-Hadronic]",
+            Radiation.ssc_spec,
             dynamics.radius,
-            electron,
+            electron.gam_e,
+            electron.d_n_gam_e,
             setup.seed_frequency_hz,
             forward_syn_seed,
             config.num_threads,
-            timings,
-            "Radiation.ssc_spec [FS-Hadronic]",
         )
         hadronic_target_seed += hadronic_forward_ssc_seed
     return PhotonFieldState(
@@ -296,7 +274,7 @@ def _build_photon_field_stage(
     )
 
 
-def _solve_hadronic_stage(
+def _hadronstage(
     config: RuntimeConfig,
     setup,
     dynamics: DynamicsSolution,
@@ -307,9 +285,9 @@ def _solve_hadronic_stage(
     apply_bh_photon_sink: bool = False,
     merge_secondary_pairs: bool = True,
 ) -> tuple[ElectronSolution, object | None, SolverAdapterReport]:
-    hadronic, report = _timed_call(
+    hadronic, report = _timed(
         timings,
-        _solver_label(config, "hadronic"),
+        _solverlabel(config, "hadronic"),
         solve_hadronic,
         setup.boundary,
         dynamics,
@@ -320,7 +298,7 @@ def _solve_hadronic_stage(
         return_report=True,
     )
     if merge_secondary_pairs and hadronic is not None and hadronic.d_n_gam_e_bh is not None:
-        electron = _merge_bh_into_forward_electrons(
+        electron = _mergebh(
             electron,
             hadronic,
             dynamics.radius,
@@ -331,22 +309,22 @@ def _solve_hadronic_stage(
         hadronic.l_had_bethe_heitler = None
         hadronic.seed_had_bethe_heitler = None
     if hadronic is not None and hadronic.pg_photon_survival is not None:
-        _apply_hadronic_photon_survival(photon_field, hadronic.pg_photon_survival)
+        _photonsurvive(photon_field, hadronic.pg_photon_survival)
     if apply_bh_photon_sink and hadronic is not None and hadronic.tau_bh is not None:
-        _apply_hadronic_photon_survival(photon_field, pgsurvival(hadronic.tau_bh))
+        _photonsurvive(photon_field, pgsurvival(hadronic.tau_bh))
     return electron, hadronic, report
 
 
-def _solve_joint_forward_stage(
+def _jointstage(
     config: RuntimeConfig,
     setup,
     dynamics: DynamicsSolution,
     timings: dict[str, float] | None,
 ) -> tuple[ElectronSolution, PhotonFieldState, object | None, SolverAdapterReport, SolverAdapterReport]:
-    _validate_joint_electron_photon_config(config)
-    primary_electron, electron_report = _timed_call(
+    _checkjoint(config)
+    primary_electron, electron_report = _timed(
         timings,
-        _solver_label(config, "electron"),
+        _solverlabel(config, "electron"),
         solve_electron,
         setup.boundary,
         dynamics,
@@ -355,10 +333,10 @@ def _solve_joint_forward_stage(
         return_report=True,
     )
     electron = primary_electron
-    photon_field = _build_photon_field_stage(config, setup, dynamics, electron, timings)
-    primary_electron, electron_report = _timed_call(
+    photon_field = _photonfield(config, setup, dynamics, electron, timings)
+    primary_electron, electron_report = _timed(
         timings,
-        f"{_solver_label(config, 'electron')} [joint cooling seed]",
+        f"{_solverlabel(config, 'electron')} [joint cooling seed]",
         solve_coolingseed,
         setup.boundary,
         dynamics,
@@ -368,12 +346,12 @@ def _solve_joint_forward_stage(
         return_report=True,
     )
     electron = primary_electron
-    photon_field = _build_photon_field_stage(config, setup, dynamics, electron, timings)
+    photon_field = _photonfield(config, setup, dynamics, electron, timings)
     hadronic = None
     hadronic_report = _report("hadronic_disabled", "log-gamma-1d", "disabled", backend="none")
 
-    for _ in range(_JOINT_ELECTRON_PHOTON_ITERATIONS):
-        electron, hadronic, hadronic_report = _solve_hadronic_stage(
+    for _ in range(JOINT_ITERS):
+        electron, hadronic, hadronic_report = _hadronstage(
             config,
             setup,
             dynamics,
@@ -383,15 +361,12 @@ def _solve_joint_forward_stage(
             apply_bh_photon_sink=True,
             merge_secondary_pairs=False,
         )
-        photon_field = _build_joint_photon_field_after_hadronic(
-            config,
-            setup,
-            dynamics,
-            electron,
-            hadronic,
-            timings,
-        )
-        secondary_source_r = _apply_joint_secondary_feedback(
+        photon_field = _photonfield(config, setup, dynamics, electron, timings)
+        if hadronic is not None and hadronic.pg_photon_survival is not None:
+            _photonsurvive(photon_field, hadronic.pg_photon_survival)
+        if hadronic is not None and hadronic.tau_bh is not None:
+            _photonsurvive(photon_field, pgsurvival(hadronic.tau_bh))
+        secondary_source_r = _jointfeedback(
             config,
             setup,
             dynamics,
@@ -399,9 +374,9 @@ def _solve_joint_forward_stage(
             photon_field,
             hadronic,
         )
-        primary_electron, electron_report = _timed_call(
+        primary_electron, electron_report = _timed(
             timings,
-            f"{_solver_label(config, 'electron')} [joint cooling]",
+            f"{_solverlabel(config, 'electron')} [joint cooling]",
             solve_coolingseed,
             setup.boundary,
             dynamics,
@@ -412,36 +387,17 @@ def _solve_joint_forward_stage(
             return_report=True,
         )
         electron = primary_electron
-        photon_field = _build_joint_photon_field_after_hadronic(
-            config,
-            setup,
-            dynamics,
-            electron,
-            hadronic,
-            timings,
-        )
-        _apply_joint_secondary_feedback(config, setup, dynamics, electron, photon_field, hadronic)
+        photon_field = _photonfield(config, setup, dynamics, electron, timings)
+        if hadronic is not None and hadronic.pg_photon_survival is not None:
+            _photonsurvive(photon_field, hadronic.pg_photon_survival)
+        if hadronic is not None and hadronic.tau_bh is not None:
+            _photonsurvive(photon_field, pgsurvival(hadronic.tau_bh))
+        _jointfeedback(config, setup, dynamics, electron, photon_field, hadronic)
 
     return electron, photon_field, hadronic, electron_report, hadronic_report
 
 
-def _build_joint_photon_field_after_hadronic(
-    config: RuntimeConfig,
-    setup,
-    dynamics: DynamicsSolution,
-    electron: ElectronSolution,
-    hadronic,
-    timings: dict[str, float] | None,
-) -> PhotonFieldState:
-    photon_field = _build_photon_field_stage(config, setup, dynamics, electron, timings)
-    if hadronic is not None and hadronic.pg_photon_survival is not None:
-        _apply_hadronic_photon_survival(photon_field, hadronic.pg_photon_survival)
-    if hadronic is not None and hadronic.tau_bh is not None:
-        _apply_hadronic_photon_survival(photon_field, pgsurvival(hadronic.tau_bh))
-    return photon_field
-
-
-def _apply_joint_secondary_feedback(
+def _jointfeedback(
     config: RuntimeConfig,
     setup,
     dynamics: DynamicsSolution,
@@ -455,7 +411,7 @@ def _apply_joint_secondary_feedback(
         source = source + np.asarray(hadronic_source, dtype=float)
     if bool(config.hadronic.include_pair_production):
         magnetic_field = magfield(dynamics.r_gamma, dynamics.radius, config)
-        pair_lum, pair_seed, tau_pair, pair_density = _compute_pair_production_branch(
+        pair_lum, pair_seed, tau_pair, pair_density = _pairbranch(
             dynamics=dynamics,
             electron=electron,
             combined_seed_field_hz=photon_field.hadronic_target_seed,
@@ -467,12 +423,12 @@ def _apply_joint_secondary_feedback(
             hadronic.l_had_pair_production = pair_lum
         photon_field.hadronic_target_seed = np.asarray(photon_field.hadronic_target_seed, dtype=float) + pair_seed
         photon_field.absorption_syn_seed = np.asarray(photon_field.absorption_syn_seed, dtype=float) + pair_seed
-        _apply_hadronic_photon_survival(photon_field, pgsurvival(tau_pair))
-        source = source + _electron_density_to_source_r(np.asarray(electron.gam_e, dtype=float), pair_density, dynamics.radius)
+        _photonsurvive(photon_field, pgsurvival(tau_pair))
+        source = source + _sourcer(np.asarray(electron.gam_e, dtype=float), pair_density, dynamics.radius)
     return source
 
 
-def _apply_hadronic_photon_survival(
+def _photonsurvive(
     photon_field: PhotonFieldState,
     photon_survival: np.ndarray,
 ) -> None:
@@ -483,7 +439,7 @@ def _apply_hadronic_photon_survival(
     photon_field.hadronic_forward_ssc_seed = np.asarray(photon_field.hadronic_forward_ssc_seed, dtype=float) * survival
 
 
-def _positive_frequency_range(frequencies_hz: np.ndarray | None) -> tuple[float | None, float | None]:
+def _freqrange(frequencies_hz: np.ndarray | None) -> tuple[float | None, float | None]:
     if frequencies_hz is None:
         return None, None
     requested = np.asarray(frequencies_hz, dtype=float)
@@ -493,7 +449,7 @@ def _positive_frequency_range(frequencies_hz: np.ndarray | None) -> tuple[float 
     return float(np.min(requested)), float(np.max(requested))
 
 
-def solve_state_from_setup(
+def solve_setup(
     config: RuntimeConfig,
     setup,
     timings: dict[str, float] | None = None,
@@ -501,30 +457,30 @@ def solve_state_from_setup(
     requested_frequencies_hz: np.ndarray | None = None,
     assemble_observer: bool = True,
 ) -> SolveState:
-    _validate_multi_density_reverse_config(config)
+    _checkmultirs(config)
     execution_policy = ExecutionPolicy(num_threads=config.num_threads) if policy is None else policy
 
     # Physical spine: dynamics -> forward electron/photon/hadronic -> reverse -> observer.
-    dynamics, dynamics_report = _timed_call(
+    dynamics, dynamics_report = _timed(
         timings,
-        _solver_label(config, "dynamics"),
+        _solverlabel(config, "dynamics"),
         solve_dynamics,
         setup.boundary,
         config,
         return_report=True,
     )
 
-    if _electron_photon_coupling(config) == _COUPLING_JOINT:
-        electron, photon_field, hadronic, electron_report, hadronic_report = _solve_joint_forward_stage(
+    if _coupling(config) == COUPLING_JOINT:
+        electron, photon_field, hadronic, electron_report, hadronic_report = _jointstage(
             config,
             setup,
             dynamics,
             timings,
         )
     else:
-        electron, electron_report = _timed_call(
+        electron, electron_report = _timed(
             timings,
-            _solver_label(config, "electron"),
+            _solverlabel(config, "electron"),
             solve_electron,
             setup.boundary,
             dynamics,
@@ -532,8 +488,8 @@ def solve_state_from_setup(
             config,
             return_report=True,
         )
-        photon_field = _build_photon_field_stage(config, setup, dynamics, electron, timings)
-        electron, hadronic, hadronic_report = _solve_hadronic_stage(
+        photon_field = _photonfield(config, setup, dynamics, electron, timings)
+        electron, hadronic, hadronic_report = _hadronstage(
             config,
             setup,
             dynamics,
@@ -544,7 +500,7 @@ def solve_state_from_setup(
 
     reverse_emission = None
     if config.reverse or config.reverse_shock.enabled:
-        reverse_emission = _timed_call(
+        reverse_emission = _timed(
             timings,
             "ReverseShock.emission",
             solve_rsemission,
@@ -555,7 +511,7 @@ def solve_state_from_setup(
         )
 
     if assemble_observer:
-        observer = _assemble_observer_stage(
+        observer = _observerstage(
             setup,
             config,
             dynamics,
@@ -566,9 +522,9 @@ def solve_state_from_setup(
             timings=timings,
         )
     else:
-        observer = _observer_state_without_projection(setup, config, dynamics)
+        observer = _bareobserver(setup, config, dynamics)
 
-    freq_min, freq_max = _positive_frequency_range(requested_frequencies_hz)
+    freq_min, freq_max = _freqrange(requested_frequencies_hz)
     return SolveState(
         config=config,
         setup=setup,
@@ -591,7 +547,7 @@ def solve_state_from_setup(
     )
 
 
-def _observer_state_without_projection(setup, config: RuntimeConfig, dynamics) -> ObserverState:
+def _bareobserver(setup, config: RuntimeConfig, dynamics) -> ObserverState:
     frequency = np.asarray(setup.seed_frequency_hz, dtype=float)
     radius = np.asarray(dynamics.radius, dtype=float)
     zeros = np.zeros((frequency.size, radius.size), dtype=float)
@@ -626,7 +582,7 @@ def _observer_state_without_projection(setup, config: RuntimeConfig, dynamics) -
     )
 
 
-def _build_observer_setup_from_state(
+def _observersetup(
     state: SolveState,
     observer_time_s: np.ndarray,
 ) -> SimulationSetup:
@@ -641,7 +597,7 @@ def _build_observer_setup_from_state(
     )
 
 
-def project_flux_grid(
+def project_flux(
     state: SolveState,
     observer_time_s: np.ndarray,
     frequencies_hz: np.ndarray,
@@ -649,12 +605,12 @@ def project_flux_grid(
     mode: str = "full_components",
     projection_kind: str = "lightcurve",
 ) -> ObsState:
-    projection_kind = _normalize_projection_kind(projection_kind)
-    setup = _build_observer_setup_from_state(state, observer_time_s)
+    projection_kind = _projkind(projection_kind)
+    setup = _observersetup(state, observer_time_s)
     if str(state.config.geometry_kernel).lower() == "chi_eats_2d" and projection_kind == "lightcurve":
-        observed = _observe_components_chi_eats_2d(state, setup, frequencies_hz, timings=timings, mode=mode)
+        observed = _observechi(state, setup, frequencies_hz, timings=timings, mode=mode)
     else:
-        observed = observe_components_from_setup(
+        observed = observe_setup(
             state.config,
             state.components,
             setup,
@@ -670,14 +626,14 @@ def project_flux_grid(
     )
 
 
-def _normalize_projection_kind(projection_kind: str) -> str:
+def _projkind(projection_kind: str) -> str:
     kind = str(projection_kind).lower()
-    if kind not in _PROJECTION_KINDS:
+    if kind not in PROJKINDS:
         raise ValueError("projection_kind must be 'lightcurve' or 'sed'.")
     return kind
 
 
-def _require_chi_eats_electron_state(state: SolveState) -> None:
+def _needchi(state: SolveState) -> None:
     if not str(state.config.electron_solver).lower().endswith("_2d"):
         raise ValueError("geometry_kernel='chi_eats_2d' requires a 2d electron solver.")
     missing = [
@@ -695,57 +651,9 @@ def _require_chi_eats_electron_state(state: SolveState) -> None:
         raise RuntimeError("chi_eats_2d electron state is missing: " + ", ".join(missing))
 
 
-def _require_top_hat_phi_grid(config: RuntimeConfig) -> None:
+def _needphi(config: RuntimeConfig) -> None:
     if float(config.theta_v) != 0.0 and int(config.eats_num_phi) == 1:
         raise ValueError("off-axis EATS projection requires eats_num_phi >= 2; eats_num_phi=1 is only valid for on-axis axial collapse.")
-
-
-def _project_chiray(
-    state: SolveState,
-    setup,
-    frequencies_hz: np.ndarray,
-    timings: dict[str, float] | None,
-) -> np.ndarray:
-    # 中文：top-hat 的 chi-resolved SSA 也走 patch-origin ray kernel，和结构化喷流共享同一个前景遮挡契约。
-    # English: Top-hat chi-resolved SSA also uses the patch-origin ray kernel, sharing the same foreground occultation contract as structured jets.
-    e = state.electron
-    tarr = np.asarray(state.components.fwd.characteristic_time_s, dtype=float)
-    rarr = np.asarray(state.components.fwd.radius_cm, dtype=float)
-    lchi = np.asarray(e.l_syn_spec_chi, dtype=float)
-    tau = np.asarray(e.tau_syn_chi, dtype=float)
-    rchi = np.asarray(e.chi_radius_cm, dtype=float)
-    gchi = np.asarray(e.chi_gamma_bulk, dtype=float)
-    wchi = np.asarray(e.chi_dvolume_weight, dtype=float)
-    nr = rarr.shape[0]
-    ntheta = int(state.config.eats_num_theta)
-    nphi = 1 if float(state.config.theta_v) == 0.0 else 2 * int(state.config.eats_num_phi)
-    edges = np.linspace(0.0, float(state.config.opening_angle_jet), ntheta + 1)
-    rtobs = np.asfortranarray(np.broadcast_to(tarr[:, None], (nr, ntheta)))
-    radius = np.asfortranarray(np.broadcast_to(rarr[:, None], (nr, ntheta)))
-    flux = np.asfortranarray(np.broadcast_to(lchi[..., None], (*lchi.shape, ntheta)))
-    tauarr = np.asfortranarray(np.broadcast_to(tau[..., None], (*tau.shape, ntheta)))
-    chrad = np.asfortranarray(np.broadcast_to(rchi[..., None], (*rchi.shape, ntheta)))
-    chgam = np.asfortranarray(np.broadcast_to(gchi[..., None], (*gchi.shape, ntheta)))
-    chwt = np.asfortranarray(np.broadcast_to(wchi[..., None], (*wchi.shape, ntheta)))
-    return _timed_call(
-        timings,
-        "Interpolation.sed_chiring_batchlum_ray [fwd_sync]",
-        Interpolation.sed_chiring_batchlum_ray,
-        setup.boundary,
-        rtobs,
-        radius,
-        flux,
-        tauarr,
-        chrad,
-        chgam,
-        chwt,
-        setup.seed_frequency_hz,
-        frequencies_hz,
-        setup.observer_time_s,
-        np.asfortranarray(edges[:-1]),
-        np.asfortranarray(edges[1:]),
-        nphi,
-    )
 
 
 _OBSERVED_COMPONENT_ATTRS = (
@@ -762,11 +670,11 @@ _OBSERVED_COMPONENT_ATTRS = (
 )
 
 
-def _empty_observed_components(total: np.ndarray | None = None) -> dict[str, np.ndarray | None]:
+def _emptyobs(total: np.ndarray | None = None) -> dict[str, np.ndarray | None]:
     return {"total": total, **{key: None for key, _attr in _OBSERVED_COMPONENT_ATTRS}}
 
 
-def _sum_observed_components(observed: dict[str, np.ndarray | None], template: np.ndarray) -> np.ndarray:
+def _sumobs(observed: dict[str, np.ndarray | None], template: np.ndarray) -> np.ndarray:
     total = np.zeros_like(template)
     for key, _attr in _OBSERVED_COMPONENT_ATTRS:
         value = observed[key]
@@ -775,23 +683,61 @@ def _sum_observed_components(observed: dict[str, np.ndarray | None], template: n
     return total
 
 
-def _project_chi_fwd_sync(
+def _projectchisync(
     state: SolveState,
     setup,
     frequencies_hz: np.ndarray,
     timings: dict[str, float] | None,
 ) -> np.ndarray:
-    _require_chi_eats_electron_state(state)
-    _require_top_hat_phi_grid(state.config)
+    _needchi(state)
+    _needphi(state.config)
     frequencies_hz = np.asarray(frequencies_hz, dtype=float)
     order = np.argsort(frequencies_hz)
     sorted_frequencies = frequencies_hz[order]
     if int(state.config.downstream_num_chi or 0) != 1:
-        flux_sorted = _project_chiray(state, setup, sorted_frequencies, timings)
+        # Top-hat chi-resolved SSA uses the patch-origin ray kernel, matching the structured-jet occultation contract.
+        e = state.electron
+        tarr = np.asarray(state.components.fwd.characteristic_time_s, dtype=float)
+        rarr = np.asarray(state.components.fwd.radius_cm, dtype=float)
+        lchi = np.asarray(e.l_syn_spec_chi, dtype=float)
+        tau = np.asarray(e.tau_syn_chi, dtype=float)
+        rchi = np.asarray(e.chi_radius_cm, dtype=float)
+        gchi = np.asarray(e.chi_gamma_bulk, dtype=float)
+        wchi = np.asarray(e.chi_dvolume_weight, dtype=float)
+        nr = rarr.shape[0]
+        ntheta = int(state.config.eats_num_theta)
+        nphi = 1 if float(state.config.theta_v) == 0.0 else 2 * int(state.config.eats_num_phi)
+        edges = np.linspace(0.0, float(state.config.opening_angle_jet), ntheta + 1)
+        rtobs = np.asfortranarray(np.broadcast_to(tarr[:, None], (nr, ntheta)))
+        radius = np.asfortranarray(np.broadcast_to(rarr[:, None], (nr, ntheta)))
+        flux = np.asfortranarray(np.broadcast_to(lchi[..., None], (*lchi.shape, ntheta)))
+        tauarr = np.asfortranarray(np.broadcast_to(tau[..., None], (*tau.shape, ntheta)))
+        chrad = np.asfortranarray(np.broadcast_to(rchi[..., None], (*rchi.shape, ntheta)))
+        chgam = np.asfortranarray(np.broadcast_to(gchi[..., None], (*gchi.shape, ntheta)))
+        chwt = np.asfortranarray(np.broadcast_to(wchi[..., None], (*wchi.shape, ntheta)))
+        flux_sorted = _timed(
+            timings,
+            "Interpolation.sed_chiring_batchlum_ray [fwd_sync]",
+            Interpolation.sed_chiring_batchlum_ray,
+            setup.boundary,
+            rtobs,
+            radius,
+            flux,
+            tauarr,
+            chrad,
+            chgam,
+            chwt,
+            setup.seed_frequency_hz,
+            sorted_frequencies,
+            setup.observer_time_s,
+            np.asfortranarray(edges[:-1]),
+            np.asfortranarray(edges[1:]),
+            nphi,
+        )
     else:
         num_phi = 1 if float(state.config.theta_v) == 0.0 else int(state.config.eats_num_phi)
         source_chi = np.asarray(state.electron.l_syn_spec_chi, dtype=float) * np.asarray(state.observer.prefactor, dtype=float)[:, None, :]
-        flux_sorted = _timed_call(
+        flux_sorted = _timed(
             timings,
             "Interpolation.sed_interpolation_chi [fwd_sync]",
             Interpolation.sed_interpolation_chi,
@@ -817,17 +763,18 @@ def _project_chi_fwd_sync(
     return flux_matrix
 
 
-def _observe_components_chi_eats_2d(
+def _observechi(
     state: SolveState,
     setup,
     frequencies_hz: np.ndarray,
     timings: dict[str, float] | None,
     mode: str,
 ) -> dict[str, np.ndarray | None]:
-    chi_fwd_sync = _project_chi_fwd_sync(state, setup, frequencies_hz, timings)
+    frequencies_hz = np.asarray(frequencies_hz, dtype=float)
+    chi_fwd_sync = _projectchisync(state, setup, frequencies_hz, timings)
     if mode == "total_only":
         non_chi_total = np.asarray(state.components.total, dtype=float) - np.asarray(state.components.fwd_sync, dtype=float)
-        shell_total_without_fwd_sync = _project_component(
+        shell_total_without_fwd_sync = _projectcomp(
             setup,
             state.components.fwd.characteristic_time_s,
             state.components.fwd.gamma,
@@ -838,23 +785,33 @@ def _observe_components_chi_eats_2d(
             timings=timings,
             label="Interpolation.sed_interpolation [total_without_fwd_sync]",
         )
-        return _empty_observed_components(shell_total_without_fwd_sync + chi_fwd_sync)
-    observed = observe_components_from_setup(
-        state.config,
-        state.components,
-        setup,
-        frequencies_hz,
-        timings=timings,
-        mode="full_components",
-    )
-    observed["fwd_sync"] = chi_fwd_sync
-    observed["total"] = _sum_observed_components(observed, observed["fwd_sync"])
+        return _emptyobs(shell_total_without_fwd_sync + chi_fwd_sync)
     if mode != "full_components":
         raise ValueError(f"Unsupported observe mode: {mode}")
+    observed = _emptyobs()
+    for key, attr in _OBSERVED_COMPONENT_ATTRS:
+        if key == "fwd_sync":
+            continue
+        source = getattr(state.components, attr)
+        if source is not None:
+            branch = state.components.rev if key.startswith("rev_") and state.components.rev is not None else state.components.fwd
+            observed[key] = _projectcomp(
+                setup,
+                branch.characteristic_time_s,
+                branch.gamma,
+                branch.radius_cm,
+                source,
+                frequencies_hz,
+                state.config,
+                timings=timings,
+                label=f"Interpolation.sed_interpolation [{key}]",
+            )
+    observed["fwd_sync"] = chi_fwd_sync
+    observed["total"] = _sumobs(observed, observed["fwd_sync"])
     return observed
 
 
-def observe_components_from_setup(
+def observe_setup(
     config: RuntimeConfig,
     components: FluxComponents,
     setup,
@@ -866,7 +823,7 @@ def observe_components_from_setup(
     if mode not in {"full_components", "total_only"}:
         raise ValueError(f"Unsupported observe mode: {mode}")
     if mode == "total_only":
-        total = _project_component(
+        total = _projectcomp(
             setup,
             components.fwd.characteristic_time_s,
             components.fwd.gamma,
@@ -877,14 +834,14 @@ def observe_components_from_setup(
             timings=timings,
             label="Interpolation.sed_interpolation [total]",
         )
-        return _empty_observed_components(total)
+        return _emptyobs(total)
 
-    observed = _empty_observed_components()
+    observed = _emptyobs()
     for key, attr in _OBSERVED_COMPONENT_ATTRS:
         source = getattr(components, attr)
         if source is not None:
             branch = components.rev if key.startswith("rev_") and components.rev is not None else components.fwd
-            observed[key] = _project_component(
+            observed[key] = _projectcomp(
                 setup,
                 branch.characteristic_time_s,
                 branch.gamma,
@@ -895,13 +852,13 @@ def observe_components_from_setup(
                 timings=timings,
                 label=f"Interpolation.sed_interpolation [{key}]",
             )
-    observed["total"] = _sum_observed_components(observed, observed["fwd_sync"])
+    observed["total"] = _sumobs(observed, observed["fwd_sync"])
     if timings is not None:
         timings.setdefault("Interpolation.sed_interpolation [total]", 0.0)
     return observed
 
 
-def _assemble_observer_stage(
+def _observerstage(
     setup,
     config: RuntimeConfig,
     dynamics: DynamicsSolution,
@@ -937,42 +894,44 @@ def _assemble_observer_stage(
         absorbed_fwd_hadronic_inverse_compton=None,
         absorbed_fwd_hadronic_pair_production=None,
     )
-    if _electron_photon_coupling(config) == _COUPLING_JOINT and hadronic is not None and hadronic.tau_bh is not None:
+    if _coupling(config) == COUPLING_JOINT and hadronic is not None and hadronic.tau_bh is not None:
         s["tau_extra"] = s["tau_extra"] + np.asarray(hadronic.tau_bh, dtype=float)
         s["joint_ic_seed"] = np.asarray(photon_field.hadronic_target_seed, dtype=float)
     if config.include_forward_ssc:
         seed_for_ssc = s["seed_syn_absorption"] if s["joint_ic_seed"] is None else s["joint_ic_seed"]
-        s["fwd_ssc"], s["seed_ssc_total"] = _ssc_spectrum(
+        s["fwd_ssc"], s["seed_ssc_total"] = _timed(
+            timings,
+            "Radiation.ssc_spec [FS]",
+            Radiation.ssc_spec,
             dynamics.radius,
-            electron,
+            electron.gam_e,
+            electron.d_n_gam_e,
             setup.seed_frequency_hz,
             seed_for_ssc,
             config.num_threads,
-            timings,
-            "Radiation.ssc_spec [FS]",
         )
         if s["pg_photon_survival"] is not None and s["joint_ic_seed"] is None:
             survival = np.asarray(s["pg_photon_survival"], dtype=float)
             s["fwd_ssc"] = np.asarray(s["fwd_ssc"], dtype=float) * survival
             s["seed_ssc_total"] = np.asarray(s["seed_ssc_total"], dtype=float) * survival
-    s = _stage_reverse_emission(s, setup, config, dynamics, electron, reverse_emission, timings)
+    s = _reversestage(s, setup, config, dynamics, electron, reverse_emission, timings)
     s["magnetic_field_g"] = magfield(dynamics.r_gamma, dynamics.radius, config)
     if hadronic is not None:
-        s["hadronic_ssa_transfer"] = _forward_synchrotron_absorption_transfer(
+        s["hadronic_ssa_transfer"] = _fsabsorb(
             electron=electron,
             radius_cm=dynamics.radius,
             magnetic_field_g=s["magnetic_field_g"],
             seed_frequency_hz=setup.seed_frequency_hz,
             config=config,
         )
-        s["seed_syn_absorption"] = s["seed_syn_absorption"] + _hadronic_absorbed_seed_density(
+        s["seed_syn_absorption"] = s["seed_syn_absorption"] + _hadronseed(
             hadronic=hadronic,
             radius_cm=dynamics.radius,
             seed_frequency_hz=setup.seed_frequency_hz,
             ssa_transfer=s["hadronic_ssa_transfer"],
         )
     if bool(config.hadronic.include_pair_production):
-        s["pair_lum_total"], s["pair_seed_total"], s["tau_pair"], _pair_density = _compute_pair_production_branch(
+        s["pair_lum_total"], s["pair_seed_total"], s["tau_pair"], _pair_density = _pairbranch(
             dynamics=dynamics,
             electron=electron,
             combined_seed_field_hz=s["seed_syn_absorption"] + s["seed_ssc_total"],
@@ -985,7 +944,7 @@ def _assemble_observer_stage(
     pair_active = bool(config.hadronic.include_pair_production)
     annihilation_seed_syn = np.zeros_like(s["seed_syn_absorption"]) if pair_active else s["seed_syn_absorption"]
     annihilation_seed_ssc = np.zeros_like(s["seed_ssc_total"]) if pair_active else s["seed_ssc_total"]
-    absorption = _timed_call(
+    absorption = _timed(
         timings,
         "Radiation.annihilation",
         Radiation.annihilation,
@@ -1001,20 +960,17 @@ def _assemble_observer_stage(
     absorbed_fwd_sync = s["fwd_sync"] * prefactor
     absorbed_fwd_ssc = s["fwd_ssc"] * prefactor
     if hadronic is not None:
-        hadronic_luminosity = _hadronic_absorbed_luminosity(hadronic, s["hadronic_ssa_transfer"])
+        hadronic_luminosity = _hadronlum(hadronic, s["hadronic_ssa_transfer"])
         hadronic_gamma_total = hadronic_luminosity["total"]
-        s["absorbed_fwd_hadronic_bethe_heitler"] = _project_optional_luminosity(
-            hadronic_luminosity["bethe_heitler"],
-            prefactor,
-        )
-        s["absorbed_fwd_hadronic_inverse_compton"] = _project_optional_luminosity(
-            hadronic_luminosity["inverse_compton"],
-            prefactor,
-        )
-        s["absorbed_fwd_hadronic_pair_production"] = _project_optional_luminosity(
-            hadronic_luminosity["pair_production"],
-            prefactor,
-        )
+        bethe_heitler = hadronic_luminosity["bethe_heitler"]
+        inverse_compton = hadronic_luminosity["inverse_compton"]
+        pair_production = hadronic_luminosity["pair_production"]
+        if bethe_heitler is not None:
+            s["absorbed_fwd_hadronic_bethe_heitler"] = np.asarray(bethe_heitler, dtype=float) * prefactor
+        if inverse_compton is not None:
+            s["absorbed_fwd_hadronic_inverse_compton"] = np.asarray(inverse_compton, dtype=float) * prefactor
+        if pair_production is not None:
+            s["absorbed_fwd_hadronic_pair_production"] = np.asarray(pair_production, dtype=float) * prefactor
         if bool(config.hadronic.include_pair_production):
             hadronic_gamma_total += s["pair_lum_total"]
             s["absorbed_fwd_hadronic_pair_production"] = s["pair_lum_total"] * prefactor
@@ -1065,7 +1021,7 @@ def _assemble_observer_stage(
     )
 
 
-def _stage_reverse_emission(
+def _reversestage(
     s: dict,
     setup,
     config: RuntimeConfig,
@@ -1078,12 +1034,21 @@ def _stage_reverse_emission(
         s["rev_sync"] = reverse_emission.l_syn_spec
         s["seed_syn_absorption"] = s["seed_syn_absorption"] + reverse_emission.seed_syn
         if reverse_emission.rs_hadronic is not None:
-            s["seed_syn_absorption"] = s["seed_syn_absorption"] + _reverse_hadronic_seed_density(
-                reverse_emission.rs_hadronic,
-                radius_cm=dynamics.radius,
-                seed_frequency_hz=setup.seed_frequency_hz,
-            )
-            s["rev_hadronic"] = _reverse_hadronic_luminosity(reverse_emission.rs_hadronic)
+            rs_hadronic = reverse_emission.rs_hadronic
+            seed_total = np.asarray(rs_hadronic.seed_had_syn, dtype=float)
+            seed_bh = getattr(rs_hadronic, "seed_had_bethe_heitler", None)
+            if seed_bh is not None:
+                seed_total = seed_total + np.asarray(seed_bh, dtype=float)
+            l_pg = getattr(rs_hadronic, "l_had_pg_gamma", None)
+            for luminosity in (l_pg, *[getattr(rs_hadronic, attr, None) for _name, attr in HADRONOPTIONAL]):
+                if luminosity is not None:
+                    seed_total = seed_total + _seeddensity(
+                        luminosity,
+                        radius_cm=dynamics.radius,
+                        seed_frequency_hz=setup.seed_frequency_hz,
+                    )
+            s["seed_syn_absorption"] = s["seed_syn_absorption"] + seed_total
+            s["rev_hadronic"] = _rshadlum(reverse_emission.rs_hadronic)
         s["rev_details"] = BranchState(
             characteristic_time_s=dynamics.r_tobs,
             gamma=dynamics.r_gamma,
@@ -1093,7 +1058,7 @@ def _stage_reverse_emission(
             magnetic_field_g=dynamics.reverse_shock.magnetic_field_g,
         )
         if config.reverse_shock.include_ssc:
-            s["rev_ssc"], seed_ssc_rs = _timed_call(
+            s["rev_ssc"], seed_ssc_rs = _timed(
                 timings,
                 "Radiation.ssc_spec [RS-SSC]",
                 Radiation.ssc_spec,
@@ -1106,22 +1071,24 @@ def _stage_reverse_emission(
             )
             s["seed_ssc_total"] = s["seed_ssc_total"] + seed_ssc_rs
         if config.reverse_shock.include_cross_zone_ic:
-            coupling_geometry = build_coupled_shock_geometry(dynamics, config)
-            seed_fs_to_rs, seed_rs_to_fs = build_cross_zone_seed_fields(
+            coupling_geometry = build_shockgeo(dynamics, config)
+            seed_fs_to_rs, seed_rs_to_fs = crossseed_fields(
                 electron.seed_syn,
                 reverse_emission.seed_syn,
                 coupling_geometry,
             )
-            l_cic_fs_spec, seed_cic_fs = _ssc_spectrum(
+            l_cic_fs_spec, seed_cic_fs = _timed(
+                timings,
+                "Radiation.ssc_spec [CIC-FS]",
+                Radiation.ssc_spec,
                 dynamics.radius,
-                electron,
+                electron.gam_e,
+                electron.d_n_gam_e,
                 setup.seed_frequency_hz,
                 seed_rs_to_fs,
                 config.num_threads,
-                timings,
-                "Radiation.ssc_spec [CIC-FS]",
             )
-            l_cic_rs_spec, seed_cic_rs = _timed_call(
+            l_cic_rs_spec, seed_cic_rs = _timed(
                 timings,
                 "Radiation.ssc_spec [CIC-RS]",
                 Radiation.ssc_spec,
@@ -1137,7 +1104,7 @@ def _stage_reverse_emission(
     return s
 
 
-def _compute_pair_production_branch(
+def _pairbranch(
     dynamics: DynamicsSolution,
     electron: ElectronSolution,
     combined_seed_field_hz: np.ndarray,
@@ -1151,8 +1118,10 @@ def _compute_pair_production_branch(
     seed_field = np.asarray(combined_seed_field_hz, dtype=float)
     gam_e = np.asarray(electron.gam_e, dtype=float)
     photon_energy_gev, _ = photon_density_hz_to_gev(v_seed, np.ones_like(v_seed))
-    e_pair_gev = _aligned_pair_electron_grid(photon_energy_gev)
-    gam_pair = e_pair_gev / _ELECTRON_MASS_GEV
+    dln_pair = float(np.log(photon_energy_gev[1] / photon_energy_gev[0]))
+    pair_offset = max(0, int(np.ceil(np.log(ME_GEV / photon_energy_gev[0]) / dln_pair)))
+    e_pair_gev = photon_energy_gev[0] * np.exp((pair_offset + np.arange(photon_energy_gev.size, dtype=float)) * dln_pair)
+    gam_pair = e_pair_gev / ME_GEV
     substeps = max(1, int(config.hadronic.pair_cascade_iterations))
     cascade = compute_time_dependent_pair_cascade_sequence(
         photon_energy_gev=photon_energy_gev,
@@ -1167,35 +1136,19 @@ def _compute_pair_production_branch(
         index_syn_integr=int(config.index_syn_integr),
         substeps_per_shell=substeps,
     )
+    pair_density = np.asarray(cascade.pair_density_per_gamma, dtype=float)
+    density_grid = np.zeros((gam_e.size, pair_density.shape[1]), dtype=float)
+    for i_shell in range(pair_density.shape[1]):
+        density_grid[:, i_shell] = positive_loglog_interp(gam_pair, pair_density[:, i_shell], gam_e)
     return (
         np.asarray(cascade.pair_syn_luminosity_hz, dtype=float),
         np.asarray(cascade.pair_syn_seed_per_hz, dtype=float),
         np.asarray(cascade.tau_pair_path, dtype=float),
-        _interp_pair_density_to_electron_grid(gam_pair, np.asarray(cascade.pair_density_per_gamma, dtype=float), gam_e),
+        density_grid,
     )
 
 
-def _aligned_pair_electron_grid(photon_energy_gev: np.ndarray) -> np.ndarray:
-    photon_energy = np.asarray(photon_energy_gev, dtype=float)
-    dln = float(np.log(photon_energy[1] / photon_energy[0]))
-    offset = int(np.ceil(np.log(_ELECTRON_MASS_GEV / photon_energy[0]) / dln))
-    offset = max(0, offset)
-    return photon_energy[0] * np.exp((offset + np.arange(photon_energy.size, dtype=float)) * dln)
-
-
-def _interp_pair_density_to_electron_grid(
-    gamma_pair: np.ndarray,
-    pair_density: np.ndarray,
-    gam_e: np.ndarray,
-) -> np.ndarray:
-    density = np.asarray(pair_density, dtype=float)
-    out = np.zeros((np.asarray(gam_e, dtype=float).size, density.shape[1]), dtype=float)
-    for i_shell in range(density.shape[1]):
-        out[:, i_shell] = positive_loglog_interp(gamma_pair, density[:, i_shell], gam_e)
-    return out
-
-
-def _electron_density_to_source_r(gam_e: np.ndarray, density_per_gamma: np.ndarray, radius_cm: np.ndarray) -> np.ndarray:
+def _sourcer(gam_e: np.ndarray, density_per_gamma: np.ndarray, radius_cm: np.ndarray) -> np.ndarray:
     gamma = np.asarray(gam_e, dtype=float)
     density = np.asarray(density_per_gamma, dtype=float)
     radius = np.asarray(radius_cm, dtype=float)
@@ -1205,7 +1158,7 @@ def _electron_density_to_source_r(gam_e: np.ndarray, density_per_gamma: np.ndarr
     return density * gamma[:, None] * np.log(10.0) / dr[None, :]
 
 
-def _solve_shell_transfer(args):
+def _shelltransfer(args):
     i, radius, bfield, gam_e, d_n_gam_e_col, frequency = args
     if bfield <= 0.0:
         return i, None
@@ -1214,7 +1167,7 @@ def _solve_shell_transfer(args):
     return i, transfer
 
 
-def _forward_synchrotron_absorption_transfer(
+def _fsabsorb(
     *,
     electron: ElectronSolution,
     radius_cm: np.ndarray,
@@ -1236,84 +1189,43 @@ def _forward_synchrotron_absorption_transfer(
     if workers > 1:
         from concurrent.futures import ThreadPoolExecutor
         with ThreadPoolExecutor(max_workers=workers) as ex:
-            for i, col in ex.map(_solve_shell_transfer, tasks):
+            for i, col in ex.map(_shelltransfer, tasks):
                 if col is not None:
                     transfer[:, i] = col
     else:
         for task in tasks:
-            i, col = _solve_shell_transfer(task)
+            i, col = _shelltransfer(task)
             if col is not None:
                 transfer[:, i] = col
     return transfer
 
 
-def _apply_local_synchrotron_absorption(luminosity: np.ndarray, ssa_transfer: np.ndarray) -> np.ndarray:
-    return np.asarray(luminosity, dtype=float) * np.asarray(ssa_transfer, dtype=float)
-
-
-def _project_optional_luminosity(luminosity: np.ndarray | None, prefactor: np.ndarray) -> np.ndarray | None:
-    if luminosity is None:
-        return None
-    return np.asarray(luminosity, dtype=float) * np.asarray(prefactor, dtype=float)
-
-
-def _hadronic_optional_luminosities(hadronic) -> tuple[tuple[str, np.ndarray | None], ...]:
-    return (
-        ("bethe_heitler", getattr(hadronic, "l_had_bethe_heitler", None)),
-        ("inverse_compton", getattr(hadronic, "l_had_hadronic_inverse_compton", None)),
-        ("pair_production", getattr(hadronic, "l_had_pair_production", None)),
-        ("pion_synch", getattr(hadronic, "l_had_pion_synch", None)),
-        ("muon_synch", getattr(hadronic, "l_had_muon_synch", None)),
-        ("pion_inverse_compton", getattr(hadronic, "l_had_pion_inverse_compton", None)),
-        ("muon_inverse_compton", getattr(hadronic, "l_had_muon_inverse_compton", None)),
-    )
-
-
-def _reverse_hadronic_luminosity(rs_hadronic) -> np.ndarray:
+def _rshadlum(rs_hadronic) -> np.ndarray:
     total = np.asarray(rs_hadronic.l_had_syn_spec, dtype=float)
     l_pg = getattr(rs_hadronic, "l_had_pg_gamma", None)
     if l_pg is not None:
         total = total + np.asarray(l_pg, dtype=float)
-    for _name, luminosity in _hadronic_optional_luminosities(rs_hadronic):
+    for _name, attr in HADRONOPTIONAL:
+        luminosity = getattr(rs_hadronic, attr, None)
         if luminosity is not None:
             total = total + np.asarray(luminosity, dtype=float)
     return total
 
 
-def _reverse_hadronic_seed_density(
-    rs_hadronic,
-    *,
-    radius_cm: np.ndarray,
-    seed_frequency_hz: np.ndarray,
-) -> np.ndarray:
-    seed_total = np.asarray(rs_hadronic.seed_had_syn, dtype=float)
-    seed_bh = getattr(rs_hadronic, "seed_had_bethe_heitler", None)
-    if seed_bh is not None:
-        seed_total = seed_total + np.asarray(seed_bh, dtype=float)
-    l_pg = getattr(rs_hadronic, "l_had_pg_gamma", None)
-    luminosities = (l_pg, *[item[1] for item in _hadronic_optional_luminosities(rs_hadronic)])
-    for luminosity in luminosities:
-        if luminosity is not None:
-            seed_total = seed_total + _seed_density_from_luminosity(
-                luminosity,
-                radius_cm=radius_cm,
-                seed_frequency_hz=seed_frequency_hz,
-            )
-    return seed_total
-
-
-def _hadronic_absorbed_luminosity(hadronic, ssa_transfer: np.ndarray) -> dict[str, np.ndarray | None]:
+def _hadronlum(hadronic, ssa_transfer: np.ndarray) -> dict[str, np.ndarray | None]:
     base = np.asarray(hadronic.l_had_syn_spec + hadronic.l_had_pg_gamma, dtype=float)
-    out: dict[str, np.ndarray | None] = {"total": _apply_local_synchrotron_absorption(base, ssa_transfer)}
-    for name, luminosity in _hadronic_optional_luminosities(hadronic):
+    transfer = np.asarray(ssa_transfer, dtype=float)
+    out: dict[str, np.ndarray | None] = {"total": base * transfer}
+    for name, attr in HADRONOPTIONAL:
+        luminosity = getattr(hadronic, attr, None)
         out[name] = None
         if luminosity is not None:
-            out[name] = _apply_local_synchrotron_absorption(luminosity, ssa_transfer)
+            out[name] = np.asarray(luminosity, dtype=float) * transfer
             out["total"] = np.asarray(out["total"], dtype=float) + out[name]
     return out
 
 
-def _seed_density_from_luminosity(
+def _seeddensity(
     luminosity: np.ndarray,
     *,
     radius_cm: np.ndarray,
@@ -1332,22 +1244,23 @@ def _seed_density_from_luminosity(
     return lum / denominator
 
 
-def _hadronic_absorbed_seed_density(
+def _hadronseed(
     *,
     hadronic,
     radius_cm: np.ndarray,
     seed_frequency_hz: np.ndarray,
     ssa_transfer: np.ndarray,
 ) -> np.ndarray:
-    seed_total = np.asarray(hadronic.seed_had_syn, dtype=float) * np.asarray(ssa_transfer, dtype=float)
+    transfer = np.asarray(ssa_transfer, dtype=float)
+    seed_total = np.asarray(hadronic.seed_had_syn, dtype=float) * transfer
     if hadronic.seed_had_bethe_heitler is not None:
-        seed_total = seed_total + np.asarray(hadronic.seed_had_bethe_heitler, dtype=float) * np.asarray(ssa_transfer, dtype=float)
+        seed_total = seed_total + np.asarray(hadronic.seed_had_bethe_heitler, dtype=float) * transfer
 
-    for luminosity in (hadronic.l_had_pg_gamma, *[item[1] for item in _hadronic_optional_luminosities(hadronic)]):
+    for luminosity in (hadronic.l_had_pg_gamma, *[getattr(hadronic, attr, None) for _name, attr in HADRONOPTIONAL]):
         if luminosity is None:
             continue
-        escaped_luminosity = _apply_local_synchrotron_absorption(luminosity, ssa_transfer)
-        seed_total = seed_total + _seed_density_from_luminosity(
+        escaped_luminosity = np.asarray(luminosity, dtype=float) * transfer
+        seed_total = seed_total + _seeddensity(
             escaped_luminosity,
             radius_cm=radius_cm,
             seed_frequency_hz=seed_frequency_hz,
@@ -1355,7 +1268,7 @@ def _hadronic_absorbed_seed_density(
     return seed_total
 
 
-def _merge_bh_into_forward_electrons(
+def _mergebh(
     electron: ElectronSolution,
     hadronic,
     radius_cm: np.ndarray,
@@ -1402,29 +1315,7 @@ def _merge_bh_into_forward_electrons(
     )
 
 
-def _ssc_spectrum(
-    radius_cm: np.ndarray,
-    electron: ElectronSolution,
-    seed_frequency_hz: np.ndarray,
-    seed_field: np.ndarray,
-    num_threads: int,
-    timings: dict[str, float] | None,
-    label: str,
-) -> tuple[np.ndarray, np.ndarray]:
-    return _timed_call(
-        timings,
-        label,
-        Radiation.ssc_spec,
-        radius_cm,
-        electron.gam_e,
-        electron.d_n_gam_e,
-        seed_frequency_hz,
-        seed_field,
-        num_threads,
-    )
-
-
-def _project_component(
+def _projectcomp(
     setup,
     characteristic_time_s: np.ndarray,
     gamma: np.ndarray,
@@ -1441,8 +1332,8 @@ def _project_component(
         if timings is not None and label is not None:
             timings.setdefault(label, 0.0)
         return np.zeros((frequencies_hz.shape[0], setup.observer_time_s.shape[0]), dtype=float)
-    _require_top_hat_phi_grid(config)
-    return _timed_call(
+    _needphi(config)
+    return _timed(
         timings,
         label,
         observe_flux,
@@ -1456,7 +1347,7 @@ def _project_component(
     )
 
 
-def _timed_call(timings: dict[str, float] | None, label: str | None, func, *args, **kwargs):
+def _timed(timings: dict[str, float] | None, label: str | None, func, *args, **kwargs):
     start = perf_counter()
     result = func(*args, **kwargs)
     elapsed = perf_counter() - start

@@ -39,11 +39,11 @@ solve_dynamics
 -> observer assembly
 ```
 
-其中 `_merge_bh_into_forward_electrons` 只属于 separated 路径。该路径不能被 joint 复用为真实反馈，因为它发生在 electron solve 之后，无法改变本 shell 中电子冷却与 IC photon source。
+其中 `_mergebh` 只属于 separated 路径。该路径不能被 joint 复用为真实反馈，因为它发生在 electron solve 之后，无法改变本 shell 中电子冷却与 IC photon source。
 
 ## 3. joint 主链
 
-joint 主链位于 `asgard_core/asgard_state.py::_solve_joint_forward_stage`：
+joint 主链位于 `asgard_core/asgard_state.py::_jointstage`：
 
 ```text
 validate joint config
@@ -199,7 +199,7 @@ IC photon production
 joint secondary feedback 入口：
 
 ```text
-asgard_core/asgard_state.py::_apply_joint_secondary_feedback
+asgard_core/asgard_state.py::_jointfeedback
 ```
 
 当 `pair_production=True`：
@@ -220,7 +220,7 @@ solve_pair_production(photon field)
 observer stage 仍在 joint forward stage 之后统一执行：
 
 ```text
-_assemble_observer_stage
+_observerstage
 ```
 
 hadronic luminosity components、absorption factors、reverse shock 和 final projection 的 public 输出语义不变。joint 改变的是进入 observer stage 前的 electron/photon/hadronic state，而不是 observer projection API。

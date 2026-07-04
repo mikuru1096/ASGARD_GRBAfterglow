@@ -24,7 +24,7 @@ from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet, Wind
 from ASGARD.api_model import _solve_patch_state
 from asgard_core.asgard_config import FitConfig
 from asgard_core.asgard_paths import DOC_ROOT
-from asgard_core.asgard_state import make_query_setup, project_flux_grid, solve_state
+from asgard_core.asgard_state import query_cfg, query_setup, project_flux, solve_setup
 
 
 OUTPUT_DIR = DOC_ROOT / "chi_eats_2d_benchmark"
@@ -259,7 +259,9 @@ def _collect_case(case: CaseSpec, grid: dict[str, int], medium: MediumSpec) -> d
         dtype=float,
     )
     sed_fnu = np.asarray(model.flux_density_grid(SED_TIMES, SED_FREQUENCIES, projection_kind="sed").total, dtype=float)
-    state = solve_state(_build_fit_config(case, grid, medium=medium), LIGHTCURVE_TIMES, requested_frequencies_hz=SED_FREQUENCIES)
+    detail_config = query_cfg(_build_fit_config(case, grid, medium=medium), LIGHTCURVE_TIMES)
+    detail_setup = query_setup(detail_config, LIGHTCURVE_TIMES, SED_FREQUENCIES)
+    state = solve_setup(detail_config, detail_setup, requested_frequencies_hz=SED_FREQUENCIES)
     out: dict[str, Any] = {
         "lightcurve_nufnu": LIGHTCURVE_BANDS[:, None] * lightcurve_fnu,
         "sed_nufnu": SED_FREQUENCIES[:, None] * sed_fnu,
@@ -325,9 +327,9 @@ def _collect_lightcurve_from_state(
 ) -> dict[str, np.ndarray]:
     state = base["state"]
     theta_config = _build_fit_config(base["case"], base["grid"], medium=medium, theta_j=theta_j, theta_v=theta_v)
-    theta_setup = make_query_setup(theta_config, LIGHTCURVE_TIMES, LIGHTCURVE_BANDS)
+    theta_setup = query_setup(theta_config, LIGHTCURVE_TIMES, LIGHTCURVE_BANDS)
     theta_state = replace(state, config=theta_config, setup=theta_setup)
-    projected = project_flux_grid(theta_state, LIGHTCURVE_TIMES, LIGHTCURVE_BANDS, mode="total_only")
+    projected = project_flux(theta_state, LIGHTCURVE_TIMES, LIGHTCURVE_BANDS, mode="total_only")
     return {"lightcurve_nufnu": LIGHTCURVE_BANDS[:, None] * np.asarray(projected.components["total"], dtype=float)}
 
 

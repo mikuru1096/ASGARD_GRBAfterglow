@@ -5,7 +5,7 @@ from functools import cache
 
 import numpy as np
 
-from asgard_core.asgard_state import SolveState, project_flux_grid
+from asgard_core.asgard_state import SolveState, project_flux
 from src import constants
 
 from .api_model import CharTrack, FluxPair, Model, FluxResult
@@ -32,7 +32,7 @@ def _observe_parts(
     mode: str = "full_components",
     projection_kind: str = "lightcurve",
 ) -> FluxResult:
-    observed_state = project_flux_grid(state, times_s, nu_hz, mode=mode, projection_kind=projection_kind)
+    observed_state = project_flux(state, times_s, nu_hz, mode=mode, projection_kind=projection_kind)
     observed = observed_state.components
     total = np.asarray(observed["total"], dtype=float)
     rev_sync = np.zeros_like(total) if observed["rev_sync"] is None else np.asarray(observed["rev_sync"], dtype=float)

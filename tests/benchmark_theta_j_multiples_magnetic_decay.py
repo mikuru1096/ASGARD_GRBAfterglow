@@ -19,7 +19,7 @@ ensure_repo_root_on_path()
 
 from asgard_core import Observer, top_hat_jet
 from asgard_core.api_model import _direct_tophat_patch_config, _solve_patch_state
-from asgard_core.asgard_state import project_flux_grid
+from asgard_core.asgard_state import project_flux
 from tests.public_api_builders import numerics, observer_grid, radiation, solver_options, top_hat_model
 
 
@@ -136,8 +136,8 @@ def solve_2d_state():
 def project_2d_angle(state, theta_v: float) -> tuple[np.ndarray, np.ndarray, float]:
     state.config.theta_v = float(theta_v)
     started = perf_counter()
-    lc_state = project_flux_grid(state, LC_TIMES_S, LC_FREQS_HZ, projection_kind="lightcurve")
-    spec_state = project_flux_grid(state, SPEC_TIME_S, SPEC_FREQS_HZ, projection_kind="sed")
+    lc_state = project_flux(state, LC_TIMES_S, LC_FREQS_HZ, projection_kind="lightcurve")
+    spec_state = project_flux(state, SPEC_TIME_S, SPEC_FREQS_HZ, projection_kind="sed")
     elapsed = perf_counter() - started
     return (
         np.asarray(lc_state.components["total"], dtype=float),

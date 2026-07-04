@@ -235,7 +235,7 @@ result = model.flux_density_grid(times, freqs, projection_kind="lightcurve")
 
 `projection_kind="lightcurve"` 才会让 `chi_eats_2d` 替换 FS synch+SSA 的投影；`projection_kind="sed"` 仍走 shell-level SED 插值。若 off-axis 观测角非零，`num_phi` 必须至少为 2。
 
-多观测角 benchmark 可以复用同一个 2D solve state，只重跑 `project_flux_grid`，条件是底层物理参数、时间网格、频率 seed 网格、电子输运状态不变。保留入口是：
+多观测角 benchmark 可以复用同一个 2D solve state，只重跑 `project_flux`，条件是底层物理参数、时间网格、频率 seed 网格、电子输运状态不变。保留入口是：
 
 ```bash
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tests/benchmark_theta_j_multiples_magnetic_decay.py'

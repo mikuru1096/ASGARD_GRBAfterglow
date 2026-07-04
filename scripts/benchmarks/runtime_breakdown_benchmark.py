@@ -19,7 +19,7 @@ if str(ROOT) not in sys.path:
 from asgard_core import Model, Observer, UniformMedium, WindMedium, top_hat_jet
 from asgard_core.api_model import _direct_tophat_patch_config, _solve_patch_state
 from asgard_core.asgard_paths import DOC_ROOT
-from asgard_core.asgard_state import project_flux_grid
+from asgard_core.asgard_state import project_flux
 from tests.public_api_builders import hadronic, numerics, observer_grid, radiation, reverse_shock, solver_options
 
 
@@ -146,7 +146,7 @@ def _time_breakdown(case: CaseSpec, grid: dict[str, int], times_s: np.ndarray, f
 
     start = perf_counter()
     state = _solve_patch_state(model, config, times_s, frequencies_hz, timings=timings)
-    project_flux_grid(state, times_s, frequencies_hz, timings=timings)
+    project_flux(state, times_s, frequencies_hz, timings=timings)
     total = perf_counter() - start
 
     dynamics = sum(value for key, value in timings.items() if key.startswith("Dynamics."))

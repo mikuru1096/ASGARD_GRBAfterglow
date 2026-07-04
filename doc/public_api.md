@@ -445,7 +445,7 @@ hadronic = Hadronic(
 | `"lightcurve"` | 光变投影。 | `flux_density_grid` 返回 `(num_frequency, num_time)`，插值目标是同一频率随时间演化。 | 光变、拟合、曝光平均默认用它。 |
 | `"sed"` | SED 投影。 | 返回形状仍是 `(num_frequency, num_time)`，但插值目标是固定时刻扫频率。 | `spectrum()`、`flux()` 和固定时刻宽频谱用它。 |
 
-`geometry_projection="chi_eats_2d"` 只在 `projection_kind="lightcurve"` 时替换 FS synch+SSA 投影；`projection_kind="sed"` 仍使用 shell-level SED 插值。离轴 `chi_eats_2d` 要求 `Numerics.num_phi >= 2`。只改变 `Observer.viewing_angle_rad` 时，冷态 `Model` 查询会把观测角写入 cache signature，避免复用错误投影；若显式持有同一 `SolveState` 做 top-hat q-shell benchmark，可以在物理状态不变时只改 `state.config.theta_v` 并重跑 `project_flux_grid`。
+`geometry_projection="chi_eats_2d"` 只在 `projection_kind="lightcurve"` 时替换 FS synch+SSA 投影；`projection_kind="sed"` 仍使用 shell-level SED 插值。离轴 `chi_eats_2d` 要求 `Numerics.num_phi >= 2`。只改变 `Observer.viewing_angle_rad` 时，冷态 `Model` 查询会把观测角写入 cache signature，避免复用错误投影；若显式持有同一 `SolveState` 做 top-hat q-shell benchmark，可以在物理状态不变时只改 `state.config.theta_v` 并重跑 `project_flux`。
 
 `prompt/` 内部激波快照不属于本页 public API。它的入口是 `prompt.internal_shock`, `prompt.radiation`, `prompt.eats`，完整说明见 `doc/prompt_internal_shock_tutorial.md`。
 

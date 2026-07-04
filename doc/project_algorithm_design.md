@@ -1163,7 +1163,7 @@ R{\rm\ grid}
 | --- | --- | --- |
 | 只改变 `nu_hz` 查询点 | 可以 | 本地 solve 已经在 seed 网格上完成。 |
 | 只改变 `times_s` 查询点且覆盖在已求解时间范围内 | 可以 | 只需 EATS/interpolation。 |
-| 只改变 `viewing_angle_rad` | 取决于路径 | top-hat finite \(q\)-shell benchmark 可在同一 `SolveState` 上重跑 `project_flux_grid`；若角向结构、patch 选择或 observer cache key 参与 transport solve，则需重新求解或重建 patch。 |
+| 只改变 `viewing_angle_rad` | 取决于路径 | top-hat finite \(q\)-shell benchmark 可在同一 `SolveState` 上重跑 `project_flux`；若角向结构、patch 选择或 observer cache key 参与 transport solve，则需重新求解或重建 patch。 |
 | 改变 `epsilon_e`、`epsilon_B`、`p` | 不可复用 | 电子谱和 photon field 改变。 |
 | 改变 `include_pgamma`、BH、pp、pair cascade | 不可复用 | hadronic/source-sink 方程改变。 |
 | 改变 `num_radius`、`num_electron_gamma`、`num_photon_frequency` | 不可复用 | 离散网格和 Jacobian 改变。 |

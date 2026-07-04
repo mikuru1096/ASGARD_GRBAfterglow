@@ -20,14 +20,14 @@
 ```text
 Model.flux_density_grid / flux_density / spectrum / flux
   -> RuntimeConfig -> SimulationSetup
-  -> solve_state_from_setup
+  -> solve_setup
   -> solve_dynamics -> solve_electron / joint electron-photon-hadronic stage
   -> solve_rsemission
   -> observer assembly -> Radiation.annihilation
-  -> project_flux_grid -> Interpolation.sed_interpolation[_chi] / structured chi ring projection -> API result
+  -> project_flux -> Interpolation.sed_interpolation[_chi] / structured chi ring projection -> API result
 ```
 
-`Fitter` 是当前公开拟合入口；低层 `api_observe.run_fit(config)` 仅服务旧 `RuntimeConfig` 测试和内部工具。二者最终进入同一 `RuntimeConfig -> SimulationSetup -> solve_state_from_setup -> project_flux_grid` 主链。
+`Fitter` 是当前公开拟合入口；低层 `api_observe.run_fit(config)` 仅服务旧 `RuntimeConfig` 测试和内部工具。二者最终进入同一 `RuntimeConfig -> SimulationSetup -> solve_setup -> project_flux` 主链。
 
 核心状态对象位于 `asgard_core/asgard_types.py`：
 
@@ -41,18 +41,18 @@ Model.flux_density_grid / flux_density / spectrum / flux
 
 状态机位于 `asgard_core/asgard_state.py`：
 
-- `solve_state_from_setup`：dynamics -> separated 或 joint forward stage -> reverse shock -> observer。
-- `_build_photon_field_stage`：复制 electron `seed_syn`；hadronic SSC seed 写入 target field。
-- `_solve_hadronic_stage`：调用 `solve_hadronic`；BH 次级 e± 并入 forward electron 后重算 `l_syn_spec/seed_syn`；pγ photon survival 写回 photon field。
-- `_solve_joint_forward_stage`：在同一 `R` 网格上迭代 electron、photon field、formal hadronic transport、BH/pp/gamma-gamma 二级 e± 源项和 photon survival；不使用 separated BH post-merge。
-- `_assemble_observer_stage`：组装 FS synch/SSC、RS synch/SSC、cross-zone IC 和 hadronic components；hadronic photons 使用 electron Fortran kernel 的 SSA transfer。
-- `project_flux_grid`：按 `projection_kind` 选择观测投影。`lightcurve` 是光变/拟合默认路径；`solver_options.geometry_projection="sed_adaptive_theta"` 对壳层级 EATS 使用 θ 自适应积分；`geometry_projection="chi_eats_2d"` 对 FS synchrotron+SSA 使用 χ 分辨 `sed_interpolation_chi`，并将非 χ 分量保持 shell-level projection。`sed` 是 `spectrum()` / `flux()` 默认路径，使用通用 shell SED 插值器或显式选择的 shell-level adaptive kernel。
+- `solve_setup`：dynamics -> separated 或 joint forward stage -> reverse shock -> observer。
+- `_photonfield`：复制 electron `seed_syn`；hadronic SSC seed 写入 target field。
+- `_hadronstage`：调用 `solve_hadronic`；BH 次级 e± 并入 forward electron 后重算 `l_syn_spec/seed_syn`；pγ photon survival 写回 photon field。
+- `_jointstage`：在同一 `R` 网格上迭代 electron、photon field、formal hadronic transport、BH/pp/gamma-gamma 二级 e± 源项和 photon survival；不使用 separated BH post-merge。
+- `_observerstage`：组装 FS synch/SSC、RS synch/SSC、cross-zone IC 和 hadronic components；hadronic photons 使用 electron Fortran kernel 的 SSA transfer。
+- `project_flux`：按 `projection_kind` 选择观测投影。`lightcurve` 是光变/拟合默认路径；`solver_options.geometry_projection="sed_adaptive_theta"` 对壳层级 EATS 使用 θ 自适应积分；`geometry_projection="chi_eats_2d"` 对 FS synchrotron+SSA 使用 χ 分辨 `sed_interpolation_chi`，并将非 χ 分量保持 shell-level projection。`sed` 是 `spectrum()` / `flux()` 默认路径，使用通用 shell SED 插值器或显式选择的 shell-level adaptive kernel。
 
 拟合最短路径：
 
 ```text
-Fitter.loglike -> compile_problem -> eval_loglike -> solve_state_from_setup
-  -> project_flux_grid -> combine_flux -> light_chi
+Fitter.loglike -> compile_problem -> eval_loglike -> solve_setup
+  -> project_flux -> combine_flux -> light_chi
 ```
 
 ## 3. Python 编排层

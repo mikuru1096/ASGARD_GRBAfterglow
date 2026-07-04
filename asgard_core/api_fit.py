@@ -15,7 +15,7 @@ from asgard_core.asgard_postprocess import (
     light_chi,
 )
 from asgard_core.asgard_setup import build_setup
-from asgard_core.asgard_state import project_flux_grid, solve_state_from_setup
+from asgard_core.asgard_state import project_flux, solve_setup
 from .api_model import (
     Model,
     Scale,
@@ -485,13 +485,13 @@ def _eval_cfg(
 ) -> float:
     setup = build_setup(config)
     setup.observer_time_s = np.array(problem.observer_time_s, dtype=float, copy=True)
-    state = solve_state_from_setup(
+    state = solve_setup(
         config,
         setup,
         timings=timings,
         requested_frequencies_hz=problem.requested_frequencies_hz,
     )
-    observed = project_flux_grid(
+    observed = project_flux(
         state,
         problem.observer_time_s,
         problem.requested_frequencies_hz,

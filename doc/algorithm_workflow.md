@@ -38,9 +38,9 @@ result = model.flux_density_grid(times_s, nu_hz)
 Model
 -> RuntimeConfig
 -> SimulationSetup
--> solve_state_from_setup
+-> solve_setup
 -> SolveState
--> project_flux_grid
+-> project_flux
 -> FluxResult
 ```
 
@@ -334,7 +334,7 @@ SSA optical depth 的离散形式为
 
 ## 9. PhotonFieldState 构建
 
-`_build_photon_field_stage` 从电子辐射输出构建多个 seed：
+`_photonfield` 从电子辐射输出构建多个 seed：
 
 ```text
 forward_syn_seed

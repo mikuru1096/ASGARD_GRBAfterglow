@@ -10,7 +10,7 @@ flowchart TD
     X["asgard_core/api_observe.py\nobserve / run_fit"] --> B
     Y["asgard_core/api_fit.py\nFitter.loglike / eval_loglike"] --> S
     B --> S["asgard_setup.py\nSimulationSetup"]
-    S --> D["asgard_state.py\nsolve_state_from_setup"]
+    S --> D["asgard_state.py\nsolve_setup"]
     D --> E["求解动力学"]
     D --> F["求解电子谱"]
     D --> G["求解反向激波辐射\nRS 电子 + 可选 RS 质子同步"]
@@ -24,7 +24,7 @@ flowchart TD
     K --> L
     J --> L
     G --> L
-    L --> M["project_flux_grid\nprojection_kind"]
+    L --> M["project_flux\nprojection_kind"]
     M --> N["top-hat chi_eats_2d lightcurve:\nInterpolation.sed_interpolation_chi"]
     M --> T["axisymmetric structured chi_eats_2d:\nring solve + sed_chi_ring"]
     M --> R["sed / shell components:\nInterpolation.sed_interpolation\nEATS + Doppler + redshift"]
@@ -58,10 +58,10 @@ flowchart TD
 Model.flux_density_grid
   -> _build_fit_config_for_patch / _solve_patch_state
   -> SimulationSetup
-  -> solve_state_from_setup
+  -> solve_setup
   -> solve_dynamics -> solve_electron -> photon_field_stage
   -> solve_hadronic -> solve_rsemission
-  -> pair-production branch / Radiation.annihilation -> project_flux_grid
+  -> pair-production branch / Radiation.annihilation -> project_flux
   -> projection_kind="lightcurve" or "sed"
   -> combine_flux -> FluxResult
 ```
@@ -69,6 +69,6 @@ Model.flux_density_grid
 拟合最短路径：
 
 ```text
-Fitter.loglike -> eval_loglike -> solve_state_from_setup
-  -> project_flux_grid -> combine_flux -> light_chi
+Fitter.loglike -> eval_loglike -> solve_setup
+  -> project_flux -> combine_flux -> light_chi
 ```

@@ -7,7 +7,7 @@
       "Bash(python -c ' *)",
       "Bash(python -c \"from asgard_types import FluxComponents, BranchState, DynamicsSolution, ElectronSolution; print\\('asgard_types.py imports successfully'\\)\")",
       "Bash(python -c \"from asgard_runtime import solve_dynamics, solve_electron; print\\('asgard_runtime still imports correctly'\\)\")",
-      "Bash(python -c \"from asgard_state import solve_state_from_setup; print\\('asgard_state imports correctly'\\)\")",
+      "Bash(python -c \"from asgard_state import solve_setup; print\\('asgard_state imports correctly'\\)\")",
       "Bash(python -c \"from asgard_ssc import compute_ssc_auxiliary_grid; print\\('asgard_ssc imports correctly'\\)\")",
       "Bash(timeout 30 python lc_spec_demo.py)",
       "Bash(python tests/vegas_afterglow_comparison.py)",

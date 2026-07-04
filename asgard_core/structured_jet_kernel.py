@@ -9,7 +9,7 @@ import numpy as np
 
 from asgard_core.angular_sampling import angular_separation, build_patch_grid, is_axisymmetric_jet
 from asgard_core.asgard_physics_utils import doppler_factor
-from asgard_core.asgard_state import make_query_cfg, make_query_setup, solve_state_from_setup
+from asgard_core.asgard_state import query_cfg, query_setup, solve_setup
 from src import Interpolation, Structured, constants
 
 
@@ -54,9 +54,9 @@ def solve_structured_jet_fortran(model, times_s: np.ndarray, nu_hz: np.ndarray, 
         gamma0=float(gamma0[i_theta, i_phi]),
         theta_center=0.0,
     )
-    query_config = make_query_cfg(base_config, solve_times)
+    query_config = query_cfg(base_config, solve_times)
     query_config.num_r = max(int(query_config.num_r), int(solve_times.size))
-    setup = make_query_setup(query_config, solve_times, frequencies)
+    setup = query_setup(query_config, solve_times, frequencies)
 
     outputs = Structured.jet_flux_1d(
         *_structured_kernel_args(model, query_config, setup, sampled, times, frequencies)
@@ -223,7 +223,7 @@ def _structured_kernel_args(model, base_config, setup, sampled, times: np.ndarra
         ELECTRONTRANSPORT_IDS[str(model.setups.electron_solver).lower()],
     )
     i_theta, query_config, setup, frequencies = payload
-    return i_theta, solve_state_from_setup(
+    return i_theta, solve_setup(
         query_config,
         setup,
         requested_frequencies_hz=frequencies,
@@ -262,7 +262,7 @@ def _solve_project_structured_chi_ring_flux(
         sorted_frequencies,
         int(inner_threads),
     )
-    first_state = solve_state_from_setup(
+    first_state = solve_setup(
         first_config,
         first_setup,
         requested_frequencies_hz=sorted_frequencies,
@@ -352,10 +352,10 @@ def _structured_chi_ring_config_setup(
         gamma0=float(gamma0),
         theta_center=float(theta_center),
     )
-    query_config = make_query_cfg(config, solve_times)
+    query_config = query_cfg(config, solve_times)
     query_config.num_r = max(int(query_config.num_r), int(solve_times.size))
     query_config.num_threads = int(inner_threads)
-    setup = make_query_setup(query_config, solve_times, frequencies)
+    setup = query_setup(query_config, solve_times, frequencies)
     return query_config, setup
 
 
@@ -368,7 +368,7 @@ def _solve_project_structured_chi_ring_payload(payload):
         theta_lo,
         theta_hi,
     ) = payload
-    state = solve_state_from_setup(
+    state = solve_setup(
         query_config,
         setup,
         requested_frequencies_hz=frequencies,

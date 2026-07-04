@@ -16,11 +16,11 @@ from asgard_core.asgard_config import (
 from asgard_core.asgard_state import (
     FluxComponents,
     SolveState,
-    make_query_cfg,
-    make_query_setup,
+    query_cfg,
+    query_setup,
     make_tgrid,
-    project_flux_grid,
-    solve_state_from_setup,
+    project_flux,
+    solve_setup,
 )
 from src import constants
 
@@ -1254,10 +1254,10 @@ class Model:
     ) -> FluxResult:
         times_s = np.asarray(times_s, dtype=float)
         nu_hz = np.asarray(nu_hz, dtype=float)
-        from asgard_core.asgard_state import _normalize_projection_kind
+        from asgard_core.asgard_state import _projkind
         from .api_adaptive import _array_signature, _observe_parts, _remember_cache_entry
 
-        projection_kind = _normalize_projection_kind(projection_kind)
+        projection_kind = _projkind(projection_kind)
         reference_signature = None
         if solve_reference_times_s is not None:
             reference_signature = _array_signature(np.asarray(solve_reference_times_s, dtype=float))
@@ -1314,7 +1314,7 @@ class Model:
         if self.jet.kind == "tophat" and self._supports_direct_kernel():
             config = _direct_tophat_patch_config(self, baseconfig=baseconfig)
             state = _solve_patch_state(self, config, times_s, nu_hz, timings=timings)
-            observed = project_flux_grid(
+            observed = project_flux(
                 state,
                 times_s,
                 nu_hz,
@@ -1420,10 +1420,10 @@ def _solve_patch_state(
                 log_t_max = log_t_max_requested + log_step
             solve_t_max = 10.0**log_t_max
         solve_times_s = np.logspace(np.log10(solve_t_min), np.log10(solve_t_max), solve_count)
-    query_config = make_query_cfg(config, solve_times_s)
+    query_config = query_cfg(config, solve_times_s)
     query_config.num_r = max(int(query_config.num_r), int(solve_times_s.size))
-    setup = make_query_setup(query_config, solve_times_s, requested_frequencies_hz)
-    return solve_state_from_setup(
+    setup = query_setup(query_config, solve_times_s, requested_frequencies_hz)
+    return solve_setup(
         query_config,
         setup,
         timings=timings,

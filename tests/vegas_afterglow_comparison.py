@@ -22,7 +22,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from asgard_core.asgard_paths import DOC_ROOT
-from asgard_core.asgard_state import project_flux_grid
+from asgard_core.asgard_state import project_flux
 from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet, Wind, units
 from ASGARD import PowerLawJet as ASGARD_PowerLawJet
 from ASGARD import TwoComponentJet
@@ -428,7 +428,7 @@ def _project_asgard_hadronic_flux(model: Model, times_s: np.ndarray, frequencies
         theta_center=0.0,
     )
     state = _solve_patch_state(model, config, np.asarray(times_s, dtype=float), np.asarray(frequencies_hz, dtype=float))
-    observed = project_flux_grid(state, np.asarray(times_s, dtype=float), np.asarray(frequencies_hz, dtype=float))
+    observed = project_flux(state, np.asarray(times_s, dtype=float), np.asarray(frequencies_hz, dtype=float))
     hadronic = observed.components.get("fwd_hadronic")
     if hadronic is None:
         return np.zeros((np.asarray(frequencies_hz).size, np.asarray(times_s).size), dtype=float)

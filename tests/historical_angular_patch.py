@@ -16,7 +16,7 @@ from asgard_core import (
     gaussian_jet,
 )
 from asgard_core.api_model import _build_fit_config_for_patch, _solve_patch_state
-from asgard_core.asgard_state import project_flux_grid
+from asgard_core.asgard_state import project_flux
 
 
 @dataclass(frozen=True)
@@ -185,7 +185,7 @@ def patch_flux_grid(
         for i_phi, phi_center in enumerate(grid.phi_centers):
             state.config.theta_v = float(_angular_separation(theta_center, phi_center, model.observer.theta_obs, model.observer.phi_obs))
             state.config.opening_angle_jet = float(np.sqrt(float(grid.domega[i_theta, i_phi]) / np.pi))
-            observed = project_flux_grid(state, times, freqs, projection_kind="lightcurve")
+            observed = project_flux(state, times, freqs, projection_kind="lightcurve")
             total += np.asarray(observed.components["total"], dtype=float)
     return total, grid
 
@@ -287,7 +287,7 @@ def _sampling_times(model: Model, observer_time_s: np.ndarray) -> np.ndarray:
 def _pilot_gamma_theta_time(model: Model, theta: np.ndarray, observer_time_s: np.ndarray, patch_theta: int) -> np.ndarray:
     from asgard_core.asgard_runtime import solve_dynamics
     from asgard_core.asgard_setup import build_setup
-    from asgard_core.asgard_state import make_query_cfg
+    from asgard_core.asgard_state import query_cfg
 
     sample_count = int(model.setups.patch_sampling_pilot_theta)
     if sample_count <= 0:
@@ -305,7 +305,7 @@ def _pilot_gamma_theta_time(model: Model, theta: np.ndarray, observer_time_s: np
             gamma0=gamma0,
             theta_center=float(theta_center),
         )
-        query = make_query_cfg(config, observer_time_s)
+        query = query_cfg(config, observer_time_s)
         dynamics = solve_dynamics(build_setup(query).boundary, query)
         pilot_gamma.append(np.interp(np.log(observer_time_s), np.log(dynamics.r_tobs), dynamics.r_gamma))
     pilot_gamma = np.asarray(pilot_gamma, dtype=float)
