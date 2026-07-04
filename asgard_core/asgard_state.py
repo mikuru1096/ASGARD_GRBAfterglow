@@ -23,11 +23,11 @@ from asgard_core.asgard_types import (
 )
 from asgard_core.asgard_physics_utils import (
     ambient_density,
-    compute_doppler,
-    compute_magnetic_field,
-    reverse_shell_baryonic_mass,
+    doppler_factor,
+    magfield,
+    reverse_mass,
 )
-from asgard_core.asgard_physics_utils import density_jump_arrays
+from asgard_core.asgard_physics_utils import densityjumps
 from asgard_core.asgard_postprocess import interpolate_observed_flux
 from asgard_core.asgard_runtime import (
     _hadronic_pg_survival_factor,
@@ -70,7 +70,7 @@ def build_coupled_shock_geometry(dynamics, config: RuntimeConfig) -> _CoupledSho
     fs_width_cm, rs_width_cm = np.zeros((2, radius_cm.size), dtype=float)
 
     eta_0 = config.eta_0
-    shell_mass_g = reverse_shell_baryonic_mass(config)
+    shell_mass_g = reverse_mass(config)
     delta_0_cm = config.reverse_shock.delta_t_s * constants.para_c
 
     for i, radius_loc in enumerate(radius_cm):
@@ -246,7 +246,7 @@ def _validate_joint_electron_photon_config(config: RuntimeConfig) -> None:
 
 
 def _validate_multi_density_reverse_config(config: RuntimeConfig) -> None:
-    jump_r, _, _ = density_jump_arrays(config)
+    jump_r, _, _ = densityjumps(config)
     if jump_r.size < 1 or not config.reverse_shock.enabled:
         return
     if str(config.electron_solver).lower() not in {"fullhide_1d", "dg_1d"}:
@@ -324,7 +324,7 @@ def _solve_hadronic_stage(
             electron,
             hadronic,
             dynamics.radius,
-            compute_magnetic_field(dynamics.r_gamma, dynamics.radius, config),
+            magfield(dynamics.r_gamma, dynamics.radius, config),
             setup.seed_frequency_hz,
             config,
         )
@@ -454,7 +454,7 @@ def _apply_joint_secondary_feedback(
     if hadronic_source is not None:
         source = source + np.asarray(hadronic_source, dtype=float)
     if bool(config.hadronic.include_pair_production):
-        magnetic_field = compute_magnetic_field(dynamics.r_gamma, dynamics.radius, config)
+        magnetic_field = magfield(dynamics.r_gamma, dynamics.radius, config)
         pair_lum, pair_seed, tau_pair, pair_density = _compute_pair_production_branch(
             dynamics=dynamics,
             electron=electron,
@@ -600,8 +600,8 @@ def _observer_state_without_projection(setup, config: RuntimeConfig, dynamics) -
         gamma=np.asarray(dynamics.r_gamma, dtype=float),
         radius_cm=radius,
         swept_mass_g=np.asarray(dynamics.swept_mass_g, dtype=float),
-        doppler=compute_doppler(dynamics.r_gamma, config.z),
-        magnetic_field_g=compute_magnetic_field(dynamics.r_gamma, dynamics.radius, config),
+        doppler=doppler_factor(dynamics.r_gamma, config.z),
+        magnetic_field_g=magfield(dynamics.r_gamma, dynamics.radius, config),
     )
     components = FluxComponents(
         total=zeros,
@@ -956,7 +956,7 @@ def _assemble_observer_stage(
             s["fwd_ssc"] = np.asarray(s["fwd_ssc"], dtype=float) * survival
             s["seed_ssc_total"] = np.asarray(s["seed_ssc_total"], dtype=float) * survival
     s = _stage_reverse_emission(s, setup, config, dynamics, electron, reverse_emission, timings)
-    s["magnetic_field_g"] = compute_magnetic_field(dynamics.r_gamma, dynamics.radius, config)
+    s["magnetic_field_g"] = magfield(dynamics.r_gamma, dynamics.radius, config)
     if hadronic is not None:
         s["hadronic_ssa_transfer"] = _forward_synchrotron_absorption_transfer(
             electron=electron,
@@ -1057,8 +1057,8 @@ def _assemble_observer_stage(
                 gamma=dynamics.r_gamma,
                 radius_cm=dynamics.radius,
                 swept_mass_g=dynamics.swept_mass_g,
-                doppler=compute_doppler(dynamics.r_gamma, config.z),
-                magnetic_field_g=compute_magnetic_field(dynamics.r_gamma, dynamics.radius, config),
+                doppler=doppler_factor(dynamics.r_gamma, config.z),
+                magnetic_field_g=magfield(dynamics.r_gamma, dynamics.radius, config),
             ),
             rev=s["rev_details"],
         ),
@@ -1089,7 +1089,7 @@ def _stage_reverse_emission(
             gamma=dynamics.r_gamma,
             radius_cm=dynamics.radius,
             swept_mass_g=dynamics.reverse_shock.swept_mass_g,
-            doppler=compute_doppler(dynamics.r_gamma, config.z),
+            doppler=doppler_factor(dynamics.r_gamma, config.z),
             magnetic_field_g=dynamics.reverse_shock.magnetic_field_g,
         )
         if config.reverse_shock.include_ssc:

@@ -724,7 +724,7 @@ m_ec^2
 ```text
 jump_r_cm
 jump_factor
-jump_width_log10
+jump_width
 ```
 
 外介质密度写成
@@ -739,7 +739,7 @@ n_{\rm base}(R)
 (f_j-1)
 \exp\left(
 -
-\frac{(\log_{10}R-\log_{10}R_j)^2}{2w_j^2}
+\frac{(R-R_j)^2}{2(w_j R_j)^2}
 \right)
 \right].
 \]

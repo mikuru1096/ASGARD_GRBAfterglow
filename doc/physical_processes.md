@@ -879,7 +879,7 @@ BranchHistory
 ```text
 jump_r_cm
 jump_factor
-jump_width_log10
+jump_width
 ```
 
 对应的光滑密度增强可写为
@@ -895,9 +895,9 @@ n_0
 \exp\left(
 -
 \frac{
-(\log_{10}R-\log_{10}R_j)^2
+(R-R_j)^2
 }{
-2w_j^2
+2(w_j R_j)^2
 }
 \right)
 \right].

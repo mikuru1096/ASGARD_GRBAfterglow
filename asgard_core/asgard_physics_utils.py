@@ -1,10 +1,4 @@
-"""
-Shared physics utility functions for ASGARD.
-
-This module consolidates physics calculations that were previously
-duplicated across multiple modules (asgard_state, asgard_runtime,
-structured_jet_kernel).
-"""
+"""Shared physical formulas used by ASGARD runtime glue."""
 
 from __future__ import annotations
 
@@ -12,17 +6,17 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from asgard_core.asgard_config import MAX_DENSITY_PROFILE_POINTS
+from asgard_core.asgard_config import MAX_DENSITY_PROFILE_POINTS as PROFILE_MAX
 from src import constants
 
 if TYPE_CHECKING:
     from asgard_core.asgard_config import RuntimeConfig
 
 
-def density_jump_arrays(config: RuntimeConfig) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def densityjumps(config: RuntimeConfig) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     jump_r = np.asarray(config.jump_r_cm, dtype=float)
     jump_factor = np.asarray(config.jump_factor, dtype=float)
-    jump_width = np.asarray(config.jump_width_log10, dtype=float)
+    jump_width = np.asarray(config.jump_width, dtype=float)
     if jump_r.size == 0 and jump_factor.size == 0 and jump_width.size == 0:
         if float(config.f_jump) == 1.0:
             return np.array([], dtype=float), np.array([], dtype=float), np.array([], dtype=float)
@@ -32,7 +26,7 @@ def density_jump_arrays(config: RuntimeConfig) -> tuple[np.ndarray, np.ndarray, 
             np.array([float(config.f_wide)], dtype=float),
         )
     if jump_r.shape != jump_factor.shape or jump_r.shape != jump_width.shape:
-        raise ValueError("jump_r_cm, jump_factor, and jump_width_log10 must have the same length.")
+        raise ValueError("jump_r_cm, jump_factor, and jump_width must have the same length.")
     if jump_r.size == 0:
         return jump_r, jump_factor, jump_width
     if not np.all(np.isfinite(jump_r)) or not np.all(np.isfinite(jump_factor)) or not np.all(np.isfinite(jump_width)):
@@ -42,7 +36,7 @@ def density_jump_arrays(config: RuntimeConfig) -> tuple[np.ndarray, np.ndarray, 
     return jump_r, jump_factor, jump_width
 
 
-def density_profile_arrays(config: RuntimeConfig) -> tuple[np.ndarray, np.ndarray]:
+def densityprofile(config: RuntimeConfig) -> tuple[np.ndarray, np.ndarray]:
     profile_r = np.asarray(config.density_profile_radius_cm, dtype=float)
     profile_n = np.asarray(config.density_profile_n_cm3, dtype=float)
     if profile_r.size == 0 and profile_n.size == 0:
@@ -51,8 +45,8 @@ def density_profile_arrays(config: RuntimeConfig) -> tuple[np.ndarray, np.ndarra
         raise ValueError("density_profile_radius_cm and density_profile_n_cm3 must have the same length.")
     if profile_r.size < 2:
         raise ValueError("density_profile requires at least 2 radius-density points.")
-    if profile_r.size > MAX_DENSITY_PROFILE_POINTS:
-        raise ValueError(f"At most {MAX_DENSITY_PROFILE_POINTS} density profile points are supported.")
+    if profile_r.size > PROFILE_MAX:
+        raise ValueError(f"At most {PROFILE_MAX} density profile points are supported.")
     if not np.all(np.isfinite(profile_r)) or not np.all(np.isfinite(profile_n)):
         raise ValueError("density profile arrays must contain finite values.")
     if np.any(profile_r <= 0.0) or np.any(profile_n <= 0.0):
@@ -62,7 +56,7 @@ def density_profile_arrays(config: RuntimeConfig) -> tuple[np.ndarray, np.ndarra
     return profile_r, profile_n
 
 
-def reverse_shell_baryonic_mass(config: RuntimeConfig) -> float:
+def reverse_mass(config: RuntimeConfig) -> float:
     return config.e_iso / ((1.0 + config.reverse_shock.sigma) * config.eta_0 * constants.para_c**2)
 
 
@@ -76,18 +70,19 @@ def ambient_density(radius_cm: np.ndarray | float, config: RuntimeConfig) -> np.
     radius = np.asarray(radius_cm, dtype=float)
     scalar_input = radius.ndim == 0
 
-    profile_r, profile_n = density_profile_arrays(config)
+    profile_r, profile_n = densityprofile(config)
     if profile_r.size > 0:
-        density = np.exp(np.interp(np.log(radius), np.log(profile_r), np.log(profile_n)))
+        eval_radius = np.maximum(radius, config.r0) if config.r0 > 0.0 else radius
+        density = np.exp(np.interp(np.log(eval_radius), np.log(profile_r), np.log(profile_n)))
         return float(density) if scalar_input else density
 
     if config.a_star > 0.0:
-        d_ne_wind = config.a_star * 3.0e35 / radius**2
-        density = np.where(d_ne_wind <= config.d_ne / 4.0, config.d_ne, d_ne_wind)
+        winddensity = config.a_star * 3.0e35 / radius**2
+        density = np.where(winddensity <= config.d_ne / 4.0, config.d_ne, winddensity)
     else:
         density = np.full_like(radius, float(config.d_ne), dtype=float)
 
-    jump_r, jump_factor, jump_width = density_jump_arrays(config)
+    jump_r, jump_factor, jump_width = densityjumps(config)
     if jump_r.size > 0:
         enhancement = np.ones_like(radius, dtype=float)
         for radius_j, factor_j, width_j in zip(jump_r, jump_factor, jump_width):
@@ -111,7 +106,7 @@ def ambient_density(radius_cm: np.ndarray | float, config: RuntimeConfig) -> np.
     return float(density) if scalar_input else density
 
 
-def compute_doppler(gamma: np.ndarray | float, redshift: float, theta_obs: float = 0.0) -> np.ndarray | float:
+def doppler_factor(gamma: np.ndarray | float, redshift: float, theta_obs: float = 0.0) -> np.ndarray | float:
     """
     Calculate Doppler factor for given bulk Lorentz factor.
 
@@ -133,31 +128,26 @@ def compute_doppler(gamma: np.ndarray | float, redshift: float, theta_obs: float
     return float(doppler) if scalar_input else doppler
 
 
-def compute_magnetic_field(
+def magfield(
     gamma: np.ndarray | float,
     radius_cm: np.ndarray | float,
     config: RuntimeConfig,
-    swept_mass_g: np.ndarray | float | None = None,
+    swept_mass: np.ndarray | float | None = None,
 ) -> np.ndarray | float:
     """
     Calculate magnetic field strength.
 
-    If swept_mass_g is provided, uses it directly.
+    If swept_mass is provided, uses it directly.
     Otherwise, computes from ambient density.
     """
-    if swept_mass_g is not None:
-        # Direct calculation from swept mass
-        gamma_arr = np.asarray(gamma, dtype=float)
-        radius_arr = np.asarray(radius_cm, dtype=float)
-        swept_arr = np.asarray(swept_mass_g, dtype=float)
-
-        density = swept_arr / (4.0 / 3.0 * np.pi * radius_arr**3 * constants.para_m_p)
-        b_field = 0.39 * np.sqrt(config.epsilon_b * density * gamma_arr * np.maximum(gamma_arr - 1.0, 0.0))
-    else:
-        # Calculate from ambient density
+    gamma_arr = np.asarray(gamma, dtype=float)
+    if swept_mass is None:
         density = ambient_density(radius_cm, config)
-        gamma_arr = np.asarray(gamma, dtype=float)
-        b_field = 0.39 * np.sqrt(config.epsilon_b * density * gamma_arr * np.maximum(gamma_arr - 1.0, 0.0))
+    else:
+        radius_arr = np.asarray(radius_cm, dtype=float)
+        swept_arr = np.asarray(swept_mass, dtype=float)
+        density = swept_arr / (4.0 / 3.0 * np.pi * radius_arr**3 * constants.para_m_p)
 
-    scalar_input = np.asarray(gamma).ndim == 0
+    b_field = 0.39 * np.sqrt(config.epsilon_b * density * gamma_arr * (gamma_arr - 1.0))
+    scalar_input = np.asarray(b_field).ndim == 0
     return float(b_field) if scalar_input else b_field

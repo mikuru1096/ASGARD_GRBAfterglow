@@ -38,9 +38,9 @@ from asgard_core.asgard_types import (
 )
 from asgard_core.asgard_physics_utils import (
     ambient_density,
-    compute_magnetic_field,
-    density_jump_arrays,
-    reverse_shell_baryonic_mass,
+    densityjumps,
+    magfield,
+    reverse_mass,
 )
 from src import Dynamics, constants
 
@@ -264,7 +264,7 @@ def _reverse_shock_causality_diagnostics(
     gamma_contact = np.asarray(dynamics.r_gamma, dtype=float)
     shell_width_cm = _rs_shell_width(radius, gamma0, delta0_cm)
     n1 = np.asarray(ambient_density(radius, config), dtype=float)
-    baryonic_mass_g = reverse_shell_baryonic_mass(config)
+    baryonic_mass_g = reverse_mass(config)
     n4 = baryonic_mass_g / (4.0 * np.pi * constants.para_m_p * radius * radius * gamma0 * shell_width_cm)
     pressure_ratio = _rs_pressure_balance_ratio(gamma_contact, n1, n4, sigma)
     pressure_allowed = pressure_ratio >= 1.0
@@ -449,7 +449,7 @@ def solve_dynamics(
         boundary,
         config.num_r,
     )
-    jump_r, _, _ = density_jump_arrays(config)
+    jump_r, _, _ = densityjumps(config)
     n_j = jump_r.size
     secondary_branch_swept_mass_g = secondary_branch_swept_mass_g[:n_j, :]
     secondary_branch_internal_energy_erg = secondary_branch_internal_energy_erg[:n_j, :]
@@ -1040,7 +1040,7 @@ def solve_hadronic(
 
     v_seed_arr = np.asarray(v_seed, dtype=float)
     seed_target_arr = np.asarray(seed_target, dtype=float)
-    magnetic_field_g = np.asarray(compute_magnetic_field(dynamics.r_gamma, dynamics.radius, config), dtype=float)
+    magnetic_field_g = np.asarray(magfield(dynamics.r_gamma, dynamics.radius, config), dtype=float)
     num_nu = int(v_seed_arr.shape[0])
     num_r = int(np.asarray(dynamics.radius, dtype=float).shape[0])
     num_gam_p = int(config.hadronic.num_gam_p)
@@ -1439,7 +1439,7 @@ def _solve_reverse_shock_electrons(
         raise ValueError("Reverse shock dynamics are required to compute reverse electrons.")
     module = _electron_reverse_module().electron_reverse_kernel
     delta_0 = reverse_params.delta_t_s * constants.para_c
-    para_m_ej = reverse_shell_baryonic_mass(config)
+    para_m_ej = reverse_mass(config)
     solver_id = _electron_1d_transport_solver_id(config)
     gam_e, d_n_gam_e = module.electron_reverse_evolve(
         delta_0,
@@ -1532,7 +1532,7 @@ def _compute_secondary_reverse_shock_synchrotron(
     config: RuntimeConfig,
     reverse_params: ReverseShockParameters,
 ) -> SecondaryReverseShockState | None:
-    jump_r, _, _ = density_jump_arrays(config)
+    jump_r, _, _ = densityjumps(config)
     if jump_r.size == 0 or dynamics.reverse_shock is None:
         return None
     radius = np.asarray(dynamics.radius, dtype=float)

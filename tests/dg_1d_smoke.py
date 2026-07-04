@@ -38,7 +38,7 @@ def _jump_config(solver: str) -> RuntimeConfig:
         num_tobs=8,
         jump_r_cm=(3.0e16, 1.2e17),
         jump_factor=(8.0, 0.35),
-        jump_width_log10=(0.025, 0.035),
+        jump_width=(0.025, 0.035),
     )
 
 

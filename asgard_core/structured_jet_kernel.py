@@ -8,7 +8,7 @@ from typing import Callable
 import numpy as np
 
 from asgard_core.angular_sampling import angular_separation, build_patch_grid, is_axisymmetric_jet
-from asgard_core.asgard_physics_utils import compute_doppler
+from asgard_core.asgard_physics_utils import doppler_factor
 from asgard_core.asgard_state import make_query_cfg, make_query_setup, solve_state_from_setup
 from src import Interpolation, Structured, constants
 
@@ -441,7 +441,7 @@ def _details_from_kernel_outputs(model, sampled, outputs):
             radius=track_radius,
             Gamma=track_gamma,
             N_p=track_mass / constants.para_m_p,
-            Doppler=np.asarray(compute_doppler(track_gamma, model.observer.z), dtype=float),
+            Doppler=np.asarray(doppler_factor(track_gamma, model.observer.z), dtype=float),
             B_comv=track_bfield,
         ),
         rev=None,

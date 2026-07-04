@@ -7,7 +7,7 @@ from astropy import units
 from astropy.cosmology import FlatLambdaCDM
 
 from asgard_core.asgard_config import RuntimeConfig, MAX_DENSITY_JUMPS, MAX_DENSITY_PROFILE_POINTS, SimulationSetup
-from asgard_core.asgard_physics_utils import density_jump_arrays, density_profile_arrays
+from asgard_core.asgard_physics_utils import densityjumps, densityprofile
 from src import constants
 
 
@@ -80,10 +80,10 @@ def build_boundary(config: RuntimeConfig, luminosity_distance_cm: float) -> np.n
         raise ValueError("fullhide2d_transport_model must be 'legacy' or 'pwn_cr_v1'.")
     if escape_mode not in {"closed", "free_outer"}:
         raise ValueError("fullhide2d_escape_mode must be 'closed' or 'free_outer'.")
-    jump_r, jump_factor, jump_width = density_jump_arrays(config)
+    jump_r, jump_factor, jump_width = densityjumps(config)
     if jump_r.size > MAX_DENSITY_JUMPS:
         raise ValueError(f"At most {MAX_DENSITY_JUMPS} density jumps are supported.")
-    profile_r, profile_n = density_profile_arrays(config)
+    profile_r, profile_n = densityprofile(config)
     jump_r_pad = np.zeros(MAX_DENSITY_JUMPS, dtype=float)
     jump_factor_pad, jump_width_pad = np.ones((2, MAX_DENSITY_JUMPS), dtype=float)
     profile_r_pad = np.zeros(MAX_DENSITY_PROFILE_POINTS, dtype=float)

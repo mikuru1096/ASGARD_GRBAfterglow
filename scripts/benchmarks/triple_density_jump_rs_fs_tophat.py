@@ -112,7 +112,7 @@ def _model(*, with_jumps: bool, grid: dict[str, int]) -> Model:
     if with_jumps:
         model.setups.jump_r_cm = tuple(float(value) for value in JUMP_RADII_CM)
         model.setups.jump_factor = (float(JUMP_FACTOR),) * len(JUMP_RADII_CM)
-        model.setups.jump_width_log10 = (float(JUMP_WIDTH_REL),) * len(JUMP_RADII_CM)
+        model.setups.jump_width = (float(JUMP_WIDTH_REL),) * len(JUMP_RADII_CM)
     return model
 
 

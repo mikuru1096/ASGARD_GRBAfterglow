@@ -188,7 +188,7 @@ class RuntimeConfig:
     f_wide: float = 0.1
     jump_r_cm: tuple[float, ...] = field(default_factory=tuple)
     jump_factor: tuple[float, ...] = field(default_factory=tuple)
-    jump_width_log10: tuple[float, ...] = field(default_factory=tuple)
+    jump_width: tuple[float, ...] = field(default_factory=tuple)
     density_profile_radius_cm: tuple[float, ...] = field(default_factory=tuple)
     density_profile_n_cm3: tuple[float, ...] = field(default_factory=tuple)
 
