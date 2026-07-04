@@ -1292,7 +1292,28 @@ The returned value is
 with the second term omitted in the exact-pole limit \(\eta=0\), where the
 factor \(1/\Gamma(a+1)\) vanishes.  This is the small-\(x\) representation used
 before \texttt{dgamic} recombines \(\gamma^\ast\) into the complementary
-incomplete gamma function.  The power-law
+incomplete gamma function.  For \(x\ge1\) and \(a<x\), the dispatcher instead
+uses \texttt{d9lgic} to evaluate the logarithm of the same upper incomplete
+gamma integral.  Define
+\[
+x_+=x+1-a,\qquad x_-=x-1-a .
+\]
+The continued-fraction recurrence starts from \(R_0=0\), \(P_0=1\), and
+\(S_0=1\), and for \(k\ge1\) applies
+\[
+T_k=k(a-k)(1+R_{k-1}),
+\]
+\[
+R_k=-\frac{T_k}{(x_-+2k)(x_++2k)+T_k},\qquad
+P_k=R_kP_{k-1},\qquad S_k=S_{k-1}+P_k .
+\]
+The iteration stops when \(|P_k|<\epsilon S_k\), or fails explicitly after 300
+terms.  The returned value is
+\[
+\ln \Gamma(a,x)=a\ln x-x+\ln\left(\frac{S}{x_+}\right).
+\]
+This is the large-\(x\) logarithmic branch used to avoid forming a tiny
+\(\Gamma(a,x)\) before the final exponential in \texttt{dgamic}.  The power-law
 normalization follows directly from
 \(t=\gamma/\gamma_{\max}\):
 \[
