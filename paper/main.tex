@@ -2963,8 +2963,23 @@ cooling is active, the base factor is
 f_q(\gamma,B',m)=
 \mathcal{Q}\!\left[\chi(\gamma,B',m)\right],
 \]
-where \(\chi\) and the cooling suppression \(\mathcal{Q}\) are delegated to the
-shared quantum-synchrotron radiation kernel; otherwise this factor is unity.
+where the shared \texttt{quantum\_synch} radiation helper defines
+\[
+\chi(\gamma,B',m)=
+\gamma\,\frac{B'}{B_{\rm crit}}\,\frac{m_e}{m},
+\qquad
+B_{\rm crit}=4.414\times10^{13}\ {\rm G},
+\]
+and applies the AM3-style Landau/QED cooling suppression
+\[
+\mathcal{Q}(\chi)=
+\begin{cases}
+1, & \chi\le10^{-6},\\
+\left[1+\sqrt{2}\,\chi^{2/3}\right]^{-2}, & \chi>10^{-6}.
+\end{cases}
+\]
+The first branch is the classical small-\(\chi\) limit; otherwise this factor is
+unity when the quantum-synchrotron option is disabled \citep{Klinger2024AM3}.
 
 The formal species ledger is
 \[
