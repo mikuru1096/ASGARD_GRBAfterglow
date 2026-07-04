@@ -1195,7 +1195,30 @@ K_\nu(z)=\int_0^\infty e^{-z\cosh u}\cosh(\nu u)\,du,\qquad
 \]
 by forwarding \(\Gamma(s,x)\) to \texttt{dgamic} and evaluating
 \(K_\nu(z)=\exp(-z)[\exp(z)K_\nu(z)]\) through the scaled SLATEC routines
-\texttt{dbsk0e} and \texttt{dbsk1e}.  The power-law normalization follows directly from
+\texttt{dbsk0e} and \texttt{dbsk1e}.  These SLATEC kernels use
+\texttt{d1mach} only to define the local floating-point arithmetic.  In the
+model assumed by that routine, a nonzero double-precision number is represented
+as
+\[
+x=\pm B^E\sum_{j=1}^{T}X_jB^{-j},\qquad
+0<X_1,\quad 0\le X_j<B,\quad E_{\min}\le E\le E_{\max}.
+\]
+The five returned constants are
+\[
+\begin{array}{ll}
+\texttt{d1mach}(1)=B^{E_{\min}-1},&
+\texttt{d1mach}(2)=B^{E_{\max}}\left(1-B^{-T}\right),\\
+\texttt{d1mach}(3)=B^{-T},&
+\texttt{d1mach}(4)=B^{1-T},\\
+\texttt{d1mach}(5)=\log_{10}B.&
+\end{array}
+\]
+The current source does not activate any historical platform-specific data
+table; on first use it fills these five quantities from \texttt{dlamch}
+(\texttt{U}, \texttt{O}, \texttt{E}, \texttt{P}, and \texttt{B}) and caches
+them for later calls.  They set numerical convergence and range thresholds for
+the special functions; they do not modify the electron distribution or add a
+physical source term.  The power-law normalization follows directly from
 \(t=\gamma/\gamma_{\max}\):
 \[
 \int_{\gamma_m}^{\infty}\gamma^{-p}e^{-\gamma/\gamma_{\max}}\,d\gamma
