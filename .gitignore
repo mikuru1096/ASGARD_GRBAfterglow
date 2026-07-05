@@ -28,6 +28,8 @@ site-packages/
 Thumbs.db
 *.orig
 *.rej
+tmp/
+.claude/review-packets/
 
 .vscode/*
 !.vscode/
