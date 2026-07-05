@@ -1,0 +1,523 @@
+\begin{thebibliography}{}
+\expandafter\ifx\csname natexlab\endcsname\relax\def\natexlab#1{#1}\fi
+\providecommand{\url}[1]{\href{#1}{#1}}
+\providecommand{\dodoi}[1]{doi:~\href{http://doi.org/#1}{\nolinkurl{#1}}}
+\providecommand{\doeprint}[1]{\href{http://ascl.net/#1}{\nolinkurl{http://ascl.net/#1}}}
+\providecommand{\doarXiv}[1]{\href{https://arxiv.org/abs/#1}{\nolinkurl{https://arxiv.org/abs/#1}}}
+
+% type= article
+\bibitem[{K.~D. {Alexander} {et~al.}(2017){Alexander}, {Laskar}, {Berger},
+  {Guidorzi}, {Dichiara}, {Fong}, {et~al.}}]{Alexander2017GRB160625B}
+{Alexander}, K.~D., {Laskar}, T., {Berger}, E., {et~al.} 2017,
+  \bibinfo{title}{{A Reverse Shock and Unusual Radio Properties in GRB
+  160625B},} \apj, 848, 69, \dodoi{10.3847/1538-4357/aa8a76}
+
+% type= article
+\bibitem[{K.~D. {Alexander} {et~al.}(2018){Alexander}, {Margutti}, {Blanchard},
+  {Fong}, {Berger}, {Hajela}, {et~al.}}]{Alexander2018GW170817}
+{Alexander}, K.~D., {Margutti}, R., {Blanchard}, P.~K., {et~al.} 2018,
+  \bibinfo{title}{{A Decline in the X-Ray through Radio Emission from GW170817
+  Continues to Support an Off-axis Structured Jet},} \apjl, 863, L18,
+  \dodoi{10.3847/2041-8213/aad637}
+
+% type= article
+\bibitem[{{}{Astropy Collaboration} {et~al.}(2022){Astropy Collaboration},
+  {Price-Whelan}, {Lim}, {et~al.}}]{Astropy2022}
+{Astropy Collaboration}, {Price-Whelan}, A.~M., {Lim}, P.~L., {et~al.} 2022,
+  \bibinfo{title}{{The Astropy Project: Sustaining and Growing a
+  Community-oriented Open-source Project and the Latest Major Release (v5.0) of
+  the Core Package},} \apj, 935, 167, \dodoi{10.3847/1538-4357/ac7c74}
+
+% type= article
+\bibitem[{R.~D. {Blandford} {\&} C.~F. {McKee}(1976){Blandford} \&
+  {McKee}}]{BlandfordMcKee1976}
+{Blandford}, R.~D., \& {McKee}, C.~F. 1976, \bibinfo{title}{{Fluid dynamics of
+  relativistic blast waves},} Physics of Fluids, 19, 1130,
+  \dodoi{10.1063/1.861619}
+
+% type= article
+\bibitem[{G.~R. {Blumenthal} {\&} R.~J. {Gould}(1970){Blumenthal} \&
+  {Gould}}]{BlumenthalGould1970}
+{Blumenthal}, G.~R., \& {Gould}, R.~J. 1970, \bibinfo{title}{{Bremsstrahlung,
+  Synchrotron Radiation, and Compton Scattering of High-Energy Electrons
+  Traversing Dilute Gases},} Reviews of Modern Physics, 42, 237,
+  \dodoi{10.1103/RevModPhys.42.237}
+
+% type= article
+\bibitem[{R.~A. {Chevalier} {\&} Z.-Y. {Li}(2000){Chevalier} \&
+  {Li}}]{ChevalierLi2000}
+{Chevalier}, R.~A., \& {Li}, Z.-Y. 2000, \bibinfo{title}{{Wind Interaction
+  Models for Gamma-Ray Burst Afterglows: The Case for Two Types of
+  Progenitors},} \apj, 536, 195, \dodoi{10.1086/308914}
+
+% type= article
+\bibitem[{M.~J. {Chodorowski} {et~al.}(1992){Chodorowski}, {Zdziarski}, \&
+  {Sikora}}]{Chodorowski1992}
+{Chodorowski}, M.~J., {Zdziarski}, A.~A., \& {Sikora}, M. 1992,
+  \bibinfo{title}{{Reaction rate and energy-loss rate for photopair production
+  by relativistic nuclei},} \apj, 400, 181, \dodoi{10.1086/171984}
+
+% type= article
+\bibitem[{Z.~G. {Dai} {\&} T. {Lu}(2002){Dai} \& {Lu}}]{DaiLu2002}
+{Dai}, Z.~G., \& {Lu}, T. 2002, \bibinfo{title}{{Hydrodynamics of Relativistic
+  Blast Waves in a Density-Jump Medium and Their Emission Signature},} \apjl,
+  565, L87, \dodoi{10.1086/339418}
+
+% type= article
+\bibitem[{A. {Dom{\'i}nguez} {et~al.}(2011){Dom{\'i}nguez}
+  {et~al.}}]{Dominguez2011EBL}
+{Dom{\'i}nguez}, A., {et~al.} 2011, \bibinfo{title}{{Extragalactic background
+  light inferred from AEGIS galaxy-SED-type fractions},} \mnras, 410, 2556
+
+% type= article
+\bibitem[{Y.-Z. {Fan} {\&} T. {Piran}(2008){Fan} \& {Piran}}]{FanPiran2008}
+{Fan}, Y.-Z., \& {Piran}, T. 2008, \bibinfo{title}{{High-energy gamma-ray
+  emission from gamma-ray bursts -- before GLAST},} Frontiers of Physics in
+  China, 3, 306, \dodoi{10.1007/s11467-008-0033-z}
+
+% type= article
+\bibitem[{G. {Ghirlanda} {et~al.}(2019){Ghirlanda}, {Salafia}, {Paragi},
+  {Giroletti}, {Yang}, {Marcote}, {et~al.}}]{Ghirlanda2019StructuredJet}
+{Ghirlanda}, G., {Salafia}, O.~S., {Paragi}, Z., {et~al.} 2019,
+  \bibinfo{title}{{Compact radio emission indicates a structured jet was
+  produced by a binary neutron star merger},} Science, 363, 968,
+  \dodoi{10.1126/science.aau8815}
+
+% type= article
+\bibitem[{D. {Giannios} {et~al.}(2008){Giannios}, {Mimica}, \&
+  {Aloy}}]{Giannios2008}
+{Giannios}, D., {Mimica}, P., \& {Aloy}, M.~A. 2008, \bibinfo{title}{{On the
+  existence of a reverse shock in magnetized gamma-ray burst ejecta},} \aap,
+  478, 747, \dodoi{10.1051/0004-6361:20078931}
+
+% type= article
+\bibitem[{R. {Gill} {\&} J. {Granot}(2018){Gill} \&
+  {Granot}}]{GillGranot2018Polarization}
+{Gill}, R., \& {Granot}, J. 2018, \bibinfo{title}{{Afterglow imaging and
+  polarization of misaligned structured GRB jets and cocoons: breaking the
+  degeneracy in GRB 170817A},} \mnras, 478, 4128, \dodoi{10.1093/mnras/sty1214}
+
+% type= article
+\bibitem[{R.~J. {Gould} {\&} G.~P. {Schr{\"e}der}(1967){Gould} \&
+  {Schr{\"e}der}}]{GouldSchreder1967}
+{Gould}, R.~J., \& {Schr{\"e}der}, G.~P. 1967, \bibinfo{title}{{Opacity of the
+  Universe to High-Energy Photons},} Physical Review, 155, 1408,
+  \dodoi{10.1103/PhysRev.155.1408}
+
+% type= article
+\bibitem[{J. {Granot} {\&} R. {Sari}(2002){Granot} \& {Sari}}]{Granot2002}
+{Granot}, J., \& {Sari}, R. 2002, \bibinfo{title}{{The Shape of Spectral Breaks
+  in Gamma-Ray Burst Afterglows},} \apj, 568, 820, \dodoi{10.1086/338966}
+
+% type= article
+\bibitem[{A. {Hajela} {et~al.}(2022){Hajela}, {Margutti}, {Bright},
+  {Alexander}, {Metzger}, {Nedora}, {et~al.}}]{Hajela2022GW170817}
+{Hajela}, A., {Margutti}, R., {Bright}, J.~S., {et~al.} 2022,
+  \bibinfo{title}{{Evidence for X-Ray Emission in Excess to the Jet-afterglow
+  Decay 3.5 yr after the Binary Neutron Star Merger GW 170817: A New Emission
+  Component},} \apjl, 927, L17, \dodoi{10.3847/2041-8213/ac504a}
+
+% type= article
+\bibitem[{G. {Hallinan} {et~al.}(2017){Hallinan}, {Corsi}, {Mooley},
+  {Hotokezaka}, {Nakar}, {Kasliwal}, {et~al.}}]{Hallinan2017GW170817Radio}
+{Hallinan}, G., {Corsi}, A., {Mooley}, K.~P., {et~al.} 2017, \bibinfo{title}{{A
+  radio counterpart to a neutron star merger},} Science, 358, 1579,
+  \dodoi{10.1126/science.aap9855}
+
+% type= article
+\bibitem[{C.~R. {Harris} {et~al.}(2020){Harris}, {Millman}, {van der Walt},
+  {et~al.}}]{Harris2020}
+{Harris}, C.~R., {Millman}, K.~J., {van der Walt}, S.~J., {et~al.} 2020,
+  \bibinfo{title}{{Array programming with NumPy},} \nat, 585, 357,
+  \dodoi{10.1038/s41586-020-2649-2}
+
+% type= article
+\bibitem[{{}{H.E.S.S. Collaboration} {et~al.}(2019){H.E.S.S. Collaboration},
+  {Abdalla}, {et~al.}}]{HESS2019VHE}
+{H.E.S.S. Collaboration}, {Abdalla}, H., {et~al.} 2019, \bibinfo{title}{{A
+  very-high-energy component deep in the gamma-ray burst afterglow},} \nat,
+  575, 464, \dodoi{10.1038/s41586-019-1743-9}
+
+% type= article
+\bibitem[{{}{H.E.S.S. Collaboration} {et~al.}(2021){H.E.S.S. Collaboration},
+  {Abdalla}, {et~al.}}]{HESS2021GRB190829A}
+{H.E.S.S. Collaboration}, {Abdalla}, H., {et~al.} 2021,
+  \bibinfo{title}{{Revealing x-ray and gamma ray temporal and spectral
+  similarities in the GRB 190829A afterglow},} Science, 372, 1081,
+  \dodoi{10.1126/science.abe8560}
+
+% type= book
+\bibitem[{J.~S. {Hesthaven} {\&} T. {Warburton}(2008){Hesthaven} \&
+  {Warburton}}]{HesthavenWarburton2008}
+{Hesthaven}, J.~S., \& {Warburton}, T. 2008, Texts in Applied Mathematics,
+  Vol.~54, {Nodal Discontinuous Galerkin Methods: Algorithms, Analysis, and
+  Applications} (New York: Springer), \dodoi{10.1007/978-0-387-72067-8}
+
+% type= article
+\bibitem[{Y.~F. {Huang} {et~al.}(1999){Huang}, {Dai}, \& {Lu}}]{HuangDaiLu1999}
+{Huang}, Y.~F., {Dai}, Z.~G., \& {Lu}, T. 1999, \bibinfo{title}{{A generic
+  dynamical model of gamma-ray burst remnants},} \mnras, 309, 513,
+  \dodoi{10.1046/j.1365-8711.1999.02887.x}
+
+% type= article
+\bibitem[{S. {H{\"u}mmer} {et~al.}(2010){H{\"u}mmer}, {R{\"u}ger}, {Spanier},
+  \& {Winter}}]{Hummer2010}
+{H{\"u}mmer}, S., {R{\"u}ger}, M., {Spanier}, F., \& {Winter}, W. 2010,
+  \bibinfo{title}{{Simplified models for photohadronic interactions in cosmic
+  accelerators},} \apj, 721, 630, \dodoi{10.1088/0004-637X/721/1/630}
+
+% type= article
+\bibitem[{J.~D. {Hunter}(2007){Hunter}}]{Hunter2007}
+{Hunter}, J.~D. 2007, \bibinfo{title}{{Matplotlib: A 2D graphics environment},}
+  Computing in Science and Engineering, 9, 90, \dodoi{10.1109/MCSE.2007.55}
+
+% type= article
+\bibitem[{{}{IceCube Collaboration} {et~al.}(2017){IceCube Collaboration},
+  {Aartsen}, {et~al.}}]{IceCube2017GRBNeutrinos}
+{IceCube Collaboration}, {Aartsen}, M.~G., {et~al.} 2017,
+  \bibinfo{title}{{Extending the Search for Muon Neutrinos Coincident with
+  Gamma-Ray Bursts in IceCube Data},} \apj, 843, 112,
+  \dodoi{10.3847/1538-4357/aa7569}
+
+% type= article
+\bibitem[{G.-S. {Jiang} {\&} C.-W. {Shu}(1996){Jiang} \& {Shu}}]{JiangShu1996}
+{Jiang}, G.-S., \& {Shu}, C.-W. 1996, \bibinfo{title}{{Efficient Implementation
+  of Weighted ENO Schemes},} Journal of Computational Physics, 126, 202,
+  \dodoi{10.1006/jcph.1996.0130}
+
+% type= article
+\bibitem[{F.~C. {Jones}(1968){Jones}}]{Jones1968}
+{Jones}, F.~C. 1968, \bibinfo{title}{{Calculated Spectrum of
+  Inverse-Compton-Scattered Photons},} Physical Review, 167, 1159,
+  \dodoi{10.1103/PhysRev.167.1159}
+
+% type= article
+\bibitem[{A. {Katira} {et~al.}(2025){Katira}, {Mooley}, \&
+  {Hotokezaka}}]{Katira2025GW170817}
+{Katira}, A., {Mooley}, K.~P., \& {Hotokezaka}, K. 2025, \bibinfo{title}{{The
+  late-time afterglow of GW170817 and implications for jet dynamics},} \mnras,
+  539, 2654, \dodoi{10.1093/mnras/staf579}
+
+% type= article
+\bibitem[{S.~R. {Kelner} {\&} F.~A. {Aharonian}(2008){Kelner} \&
+  {Aharonian}}]{KelnerAharonian2008}
+{Kelner}, S.~R., \& {Aharonian}, F.~A. 2008, \bibinfo{title}{{Energy spectra of
+  gamma rays, electrons, and neutrinos produced at interactions of relativistic
+  protons with low energy radiation},} Physical Review D, 78, 034013,
+  \dodoi{10.1103/PhysRevD.78.034013}
+
+% type= article
+\bibitem[{M. {Klinger} {et~al.}(2024){Klinger}, {Rudolph}, {Rodrigues}, {Yuan},
+  {Fichet de Clairfontaine}, {Fedynitch}, {Winter}, {Pohl}, \&
+  {Gao}}]{Klinger2024AM3}
+{Klinger}, M., {Rudolph}, A., {Rodrigues}, X., {et~al.} 2024,
+  \bibinfo{title}{{AM$^3$: An Open-source Tool for Time-dependent
+  Lepto-hadronic Modeling of Astrophysical Sources},} \apjs, 275, 4,
+  \dodoi{10.3847/1538-4365/ad725c}
+
+% type= article
+\bibitem[{S. {Kobayashi}(2000){Kobayashi}}]{Kobayashi2000}
+{Kobayashi}, S. 2000, \bibinfo{title}{{Light Curves of Gamma-Ray Burst Optical
+  Flashes},} \apj, 545, 807, \dodoi{10.1086/317869}
+
+% type= article
+\bibitem[{G.~P. {Lamb} {\&} S. {Kobayashi}(2017){Lamb} \&
+  {Kobayashi}}]{LambKobayashi2017Structured}
+{Lamb}, G.~P., \& {Kobayashi}, S. 2017, \bibinfo{title}{{Electromagnetic
+  counterparts to structured jets from gravitational wave detected mergers},}
+  \mnras, 472, 4953, \dodoi{10.1093/mnras/stx2345}
+
+% type= article
+\bibitem[{T. {Laskar} {et~al.}(2016){Laskar}, {Alexander}, {Berger}, {Fong},
+  {Margutti}, {Shivvers}, {et~al.}}]{Laskar2016GRB160509A}
+{Laskar}, T., {Alexander}, K.~D., {Berger}, E., {et~al.} 2016,
+  \bibinfo{title}{{A Reverse Shock in GRB 160509A},} \apj, 833, 88,
+  \dodoi{10.3847/1538-4357/833/1/88}
+
+% type= article
+\bibitem[{T. {Laskar} {et~al.}(2023){Laskar}, {Alexander}, {Margutti},
+  {Eftekhari}, {Chornock}, {Berger}, {et~al.}}]{Laskar2023GRB221009A}
+{Laskar}, T., {Alexander}, K.~D., {Margutti}, R., {et~al.} 2023,
+  \bibinfo{title}{{The Radio to GeV Afterglow of GRB 221009A},} \apjl, 946,
+  L23, \dodoi{10.3847/2041-8213/acbfad}
+
+% type= article
+\bibitem[{T. {Laskar} {et~al.}(2019){Laskar}, {van Eerten}, {Schady},
+  {Mundell}, {Alexander}, {Barniol Duran}, {et~al.}}]{Laskar2019GRB181201A}
+{Laskar}, T., {van Eerten}, H., {Schady}, P., {et~al.} 2019, \bibinfo{title}{{A
+  Reverse Shock in GRB 181201A},} \apj, 884, 121,
+  \dodoi{10.3847/1538-4357/ab40ce}
+
+% type= article
+\bibitem[{D. {Lazzati} {et~al.}(2018){Lazzati}, {Perna}, {Morsony},
+  {Lopez-Camara}, {Cantiello}, {Ciolfi}, {et~al.}}]{Lazzati2018CollimatedJet}
+{Lazzati}, D., {Perna}, R., {Morsony}, B.~J., {et~al.} 2018,
+  \bibinfo{title}{{Late Time Afterglow Observations Reveal a Collimated
+  Relativistic Jet in the Ejecta of the Binary Neutron Star Merger GW170817},}
+  Physical Review Letters, 120, 241103, \dodoi{10.1103/PhysRevLett.120.241103}
+
+% type= book
+\bibitem[{R.~J. {LeVeque}(2002){LeVeque}}]{LeVeque2002}
+{LeVeque}, R.~J. 2002, {Finite Volume Methods for Hyperbolic Problems}
+  (Cambridge: Cambridge University Press), \dodoi{10.1017/CBO9780511791253}
+
+% type= article
+\bibitem[{{}{LHAASO Collaboration}(2023){LHAASO
+  Collaboration}}]{LHAASO2023Beyond10TeV}
+{LHAASO Collaboration}. 2023, \bibinfo{title}{{Very high-energy gamma-ray
+  emission beyond 10 TeV from GRB 221009A},} Science Advances, 9, eadj2778,
+  \dodoi{10.1126/sciadv.adj2778}
+
+% type= article
+\bibitem[{{}{LHAASO Collaboration} {et~al.}(2023){LHAASO Collaboration}, {Cao},
+  {et~al.}}]{LHAASO2023TeVAfterglow}
+{LHAASO Collaboration}, {Cao}, Z., {et~al.} 2023, \bibinfo{title}{{A
+  tera-electron volt afterglow from a narrow jet in an extremely bright
+  gamma-ray burst},} Science, 380, 1390, \dodoi{10.1126/science.adg9328}
+
+% type= article
+\bibitem[{{}{MAGIC Collaboration} {et~al.}(2019{\natexlab{a}}){MAGIC
+  Collaboration}, {Acciari}, {et~al.}}]{MAGIC2019TeV}
+{MAGIC Collaboration}, {Acciari}, V.~A., {et~al.} 2019{\natexlab{a}},
+  \bibinfo{title}{{Teraelectronvolt emission from the gamma-ray burst GRB
+  190114C},} \nat, 575, 455, \dodoi{10.1038/s41586-019-1750-x}
+
+% type= article
+\bibitem[{{}{MAGIC Collaboration} {et~al.}(2019{\natexlab{b}}){MAGIC
+  Collaboration}, {Acciari}, {et~al.}}]{MAGIC2019IC}
+{MAGIC Collaboration}, {Acciari}, V.~A., {et~al.} 2019{\natexlab{b}},
+  \bibinfo{title}{{Observation of inverse Compton emission from a long
+  gamma-ray burst},} \nat, 575, 459, \dodoi{10.1038/s41586-019-1754-6}
+
+% type= article
+\bibitem[{R. {Margutti} {et~al.}(2018){Margutti}, {Alexander}, {Xie}, {Sironi},
+  {Metzger}, {Kathirgamaraju}, {et~al.}}]{Margutti2018GW170817}
+{Margutti}, R., {Alexander}, K.~D., {Xie}, X., {et~al.} 2018,
+  \bibinfo{title}{{The Binary Neutron Star Event LIGO/Virgo GW170817 160 Days
+  after Merger: Synchrotron Emission across the Electromagnetic Spectrum},}
+  \apjl, 856, L18, \dodoi{10.3847/2041-8213/aab2ad}
+
+% type= article
+\bibitem[{P. {M{\'e}sz{\'a}ros} {\&} M.~J. {Rees}(1997){M{\'e}sz{\'a}ros} \&
+  {Rees}}]{MeszarosRees1997}
+{M{\'e}sz{\'a}ros}, P., \& {Rees}, M.~J. 1997, \bibinfo{title}{{Optical and
+  Long-Wavelength Afterglow from Gamma-Ray Bursts},} \apj, 476, 232,
+  \dodoi{10.1086/303625}
+
+% type= article
+\bibitem[{K.~P. {Mooley} {et~al.}(2018{\natexlab{a}}){Mooley}, {Deller},
+  {Gottlieb}, {Nakar}, {Hallinan}, {Bourke}, {et~al.}}]{Mooley2018Superluminal}
+{Mooley}, K.~P., {Deller}, A.~T., {Gottlieb}, O., {et~al.} 2018{\natexlab{a}},
+  \bibinfo{title}{{Superluminal motion of a relativistic jet in the
+  neutron-star merger GW170817},} \nat, 561, 355,
+  \dodoi{10.1038/s41586-018-0486-3}
+
+% type= article
+\bibitem[{K.~P. {Mooley} {et~al.}(2018{\natexlab{b}}){Mooley}, {Nakar},
+  {Hotokezaka}, {Hallinan}, {Corsi}, {Frail}, {et~al.}}]{Mooley2018WideAngle}
+{Mooley}, K.~P., {Nakar}, E., {Hotokezaka}, K., {et~al.} 2018{\natexlab{b}},
+  \bibinfo{title}{{A mildly relativistic wide-angle outflow in the neutron-star
+  merger event GW170817},} \nat, 554, 207, \dodoi{10.1038/nature25452}
+
+% type= article
+\bibitem[{K. {Murase}(2007){Murase}}]{Murase2007}
+{Murase}, K. 2007, \bibinfo{title}{{High-energy neutrino early afterglows from
+  gamma-ray bursts revisited},} Physical Review D, 76, 123001,
+  \dodoi{10.1103/PhysRevD.76.123001}
+
+% type= article
+\bibitem[{E. {Nakar} {et~al.}(2009){Nakar}, {Ando}, \&
+  {Sari}}]{NakarAndoSari2009}
+{Nakar}, E., {Ando}, S., \& {Sari}, R. 2009, \bibinfo{title}{{Klein-Nishina
+  Effects on Optically Thin Synchrotron and Synchrotron Self-Compton
+  Spectrum},} \apj, 703, 675, \dodoi{10.1088/0004-637X/703/1/675}
+
+% type= article
+\bibitem[{E. {Nakar} {\&} J. {Granot}(2007){Nakar} \&
+  {Granot}}]{NakarGranot2007}
+{Nakar}, E., \& {Granot}, J. 2007, \bibinfo{title}{{Smooth light curves from a
+  bumpy ride: relativistic blast wave encounters a density jump},} \mnras, 380,
+  1744, \dodoi{10.1111/j.1365-2966.2007.12245.x}
+
+% type= article
+\bibitem[{V. {Nedora} {et~al.}(2025){Nedora}, {Crosato Menegazzi}, {Peretti},
+  {Dietrich}, \& {Shibata}}]{Nedora2025PyBlastAfterglow}
+{Nedora}, V., {Crosato Menegazzi}, L., {Peretti}, E., {Dietrich}, T., \&
+  {Shibata}, M. 2025, \bibinfo{title}{{Multiphysics framework for fast
+  modelling of electromagnetic counterparts to neutron star mergers: kilonovae,
+  supernovae, afterglows and extinction},} \mnras, 538, 2089,
+  \dodoi{10.1093/mnras/staf302}
+
+% type= article
+\bibitem[{B. {O'Connor} {et~al.}(2023){O'Connor}, {Troja}, {Ryan}, {Beniamini},
+  {van Eerten}, {Granot}, {et~al.}}]{OConnor2023GRB221009A}
+{O'Connor}, B., {Troja}, E., {Ryan}, G., {et~al.} 2023, \bibinfo{title}{{A
+  structured jet explains the extreme GRB 221009A},} Science Advances, 9,
+  eadi1405, \dodoi{10.1126/sciadv.adi1405}
+
+% type= article
+\bibitem[{S.-L. {Pang} {\&} Z.-G. {Dai}(2024){Pang} \&
+  {Dai}}]{PangDai2024OffaxisRS}
+{Pang}, S.-L., \& {Dai}, Z.-G. 2024, \bibinfo{title}{{Reverse shock emission in
+  an off-axis top-hat jet model for gamma-ray bursts},} \mnras, 528, 2066,
+  \dodoi{10.1093/mnras/stae197}
+
+% type= article
+\bibitem[{A. {Pe'er}(2012){Pe'er}}]{Peer2012}
+{Pe'er}, A. 2012, \bibinfo{title}{{Dynamical Model of an Expanding Shell},}
+  \apjl, 752, L8, \dodoi{10.1088/2041-8205/752/1/L8}
+
+% type= article
+\bibitem[{A. {Pe'er} {\&} R.~A.~M.~J. {Wijers}(2006){Pe'er} \&
+  {Wijers}}]{PeerWijers2006}
+{Pe'er}, A., \& {Wijers}, R. A.~M.~J. 2006, \bibinfo{title}{{The Signature of a
+  Wind Reverse Shock in Gamma-Ray Burst Afterglows},} \apj, 643, 1036,
+  \dodoi{10.1086/500969}
+
+% type= misc
+\bibitem[{J. {Ren}(2026){Ren}}]{ASGARDSoftware}
+{Ren}, J. 2026, {ASGARD GRB afterglow simulation and fitting toolkit}, 4.2.1,
+  git 2cf7eaecda0b, Git repository
+  \url{https://github.com/mikuru1096/ASGARD_GRBAfterglow}
+
+% type= article
+\bibitem[{G. {Ryan} {et~al.}(2020){Ryan}, {van Eerten}, {Piro}, \&
+  {Troja}}]{Ryan2020}
+{Ryan}, G., {van Eerten}, H., {Piro}, L., \& {Troja}, E. 2020,
+  \bibinfo{title}{{Gamma-Ray Burst Afterglows in the Multimessenger Era:
+  Numerical Models and Closure Relations},} \apj, 896, 166,
+  \dodoi{10.3847/1538-4357/ab93cf}
+
+% type= article
+\bibitem[{G. {Ryan} {et~al.}(2024){Ryan}, {van Eerten}, {Troja}, {Piro},
+  {O'Connor}, \& {Ricci}}]{Ryan2024}
+{Ryan}, G., {van Eerten}, H., {Troja}, E., {et~al.} 2024,
+  \bibinfo{title}{{Modeling of Long-term Afterglow Counterparts to
+  Gravitational Wave Events: The Full View of GRB 170817A},} \apj, 975, 131,
+  \dodoi{10.3847/1538-4357/ad6a14}
+
+% type= book
+\bibitem[{G.~B. {Rybicki} {\&} A.~P. {Lightman}(1979){Rybicki} \&
+  {Lightman}}]{RybickiLightman1979}
+{Rybicki}, G.~B., \& {Lightman}, A.~P. 1979, {Radiative Processes in
+  Astrophysics} (New York: Wiley), \dodoi{10.1002/9783527618170}
+
+% type= article
+\bibitem[{S. {Sahu} {et~al.}(2024){Sahu}, {Medina-Carrillo},
+  {P{\'a}ez-S{\'a}nchez}, {S{\'a}nchez-Col{\'o}n}, \&
+  {Rajpoot}}]{Sahu2024GRB221009AHadronic}
+{Sahu}, S., {Medina-Carrillo}, B., {P{\'a}ez-S{\'a}nchez}, D.~I.,
+  {S{\'a}nchez-Col{\'o}n}, G., \& {Rajpoot}, S. 2024, \bibinfo{title}{{TeV
+  afterglow from GRB 221009A: photohadronic origin?},} Monthly Notices of the
+  Royal Astronomical Society: Letters, 533, L64, \dodoi{10.1093/mnrasl/slae063}
+
+% type= article
+\bibitem[{S. {Sahu} {et~al.}(2022){Sahu}, {Valadez Polanco}, \&
+  {Rajpoot}}]{Sahu2022GRB190829AHadronic}
+{Sahu}, S., {Valadez Polanco}, I.~A., \& {Rajpoot}, S. 2022,
+  \bibinfo{title}{{Very High-energy Afterglow Emission of GRB 190829A: Evidence
+  for Its Hadronic Origin?},} \apj, 929, 70, \dodoi{10.3847/1538-4357/ac5cc6}
+
+% type= article
+\bibitem[{O.~S. {Salafia} {\&} G. {Ghirlanda}(2022){Salafia} \&
+  {Ghirlanda}}]{Salafia2022JetStructure}
+{Salafia}, O.~S., \& {Ghirlanda}, G. 2022, \bibinfo{title}{{The Structure of
+  Gamma Ray Burst Jets},} Galaxies, 10, 93, \dodoi{10.3390/galaxies10050093}
+
+% type= article
+\bibitem[{R. {Sari} {\&} T. {Piran}(1999){Sari} \& {Piran}}]{SariPiran1999}
+{Sari}, R., \& {Piran}, T. 1999, \bibinfo{title}{{Predictions for the Very
+  Early Afterglow and the Optical Flash},} \apj, 520, 641,
+  \dodoi{10.1086/307508}
+
+% type= article
+\bibitem[{R. {Sari} {et~al.}(1998){Sari}, {Piran}, \& {Narayan}}]{Sari1998}
+{Sari}, R., {Piran}, T., \& {Narayan}, R. 1998, \bibinfo{title}{{Spectra and
+  Light Curves of Gamma-Ray Burst Afterglows},} \apjl, 497, L17,
+  \dodoi{10.1086/311269}
+
+% type= article
+\bibitem[{A.~T. {Service}(1986){Service}}]{Service1986}
+{Service}, A.~T. 1986, \bibinfo{title}{{Fitting Formulae for the Equation of
+  State of a Perfect, Semirelativistic Boltzmann Gas},} \apj, 307, 60,
+  \dodoi{10.1086/164392}
+
+% type= article
+\bibitem[{R. {Svensson}(1987){Svensson}}]{Svensson1987}
+{Svensson}, R. 1987, \bibinfo{title}{{Non-thermal pair production in compact
+  X-ray sources: first-order Compton cascades in soft radiation fields},}
+  \mnras, 227, 403, \dodoi{10.1093/mnras/227.2.403}
+
+% type= article
+\bibitem[{E. {Troja} {et~al.}(2017){Troja}, {Piro}, {van Eerten}, {Wollaeger},
+  {Im}, {Fox}, {et~al.}}]{Troja2017GW170817Xray}
+{Troja}, E., {Piro}, L., {van Eerten}, H., {et~al.} 2017, \bibinfo{title}{{The
+  X-ray counterpart to the gravitational-wave event GW170817},} \nat, 551, 71,
+  \dodoi{10.1038/nature24290}
+
+% type= article
+\bibitem[{E. {Troja} {et~al.}(2019){Troja}, {van Eerten}, {Ryan}, {Ricci},
+  {Burgess}, {Wieringa}, {et~al.}}]{Troja2019GW170817}
+{Troja}, E., {van Eerten}, H., {Ryan}, G., {et~al.} 2019, \bibinfo{title}{{A
+  year in the life of GW170817: the rise and fall of a structured jet from a
+  binary neutron star merger},} \mnras, 489, 1919,
+  \dodoi{10.1093/mnras/stz2248}
+
+% type= article
+\bibitem[{Z.~L. {Uhm} {\&} B. {Zhang}(2014{\natexlab{a}}){Uhm} \&
+  {Zhang}}]{UhmZhang2014}
+{Uhm}, Z.~L., \& {Zhang}, B. 2014{\natexlab{a}}, \bibinfo{title}{{Dynamics and
+  Afterglow Light Curves of Gamma-Ray Burst Blast Waves Encountering a Density
+  Bump or Void},} \apj, 789, 39, \dodoi{10.1088/0004-637X/789/1/39}
+
+% type= article
+\bibitem[{H. {van Eerten}(2018){van Eerten}}]{vanEerten2018BlastWaves}
+{van Eerten}, H. 2018, \bibinfo{title}{{Gamma-ray burst afterglow blast
+  waves},} International Journal of Modern Physics D, 27, 1842002,
+  \dodoi{10.1142/S0218271818420026}
+
+% type= article
+\bibitem[{H. {van Eerten} {et~al.}(2012){van Eerten}, {van der Horst}, \&
+  {MacFadyen}}]{vanEerten2012}
+{van Eerten}, H., {van der Horst}, A., \& {MacFadyen}, A. 2012,
+  \bibinfo{title}{{Gamma-ray burst afterglow broadband fitting based directly
+  on hydrodynamics simulations},} \apj, 749, 44,
+  \dodoi{10.1088/0004-637X/749/1/44}
+
+% type= article
+\bibitem[{H. {van Eerten} {et~al.}(2010){van Eerten}, {Zhang}, \&
+  {MacFadyen}}]{vanEerten2010}
+{van Eerten}, H., {Zhang}, W., \& {MacFadyen}, A. 2010,
+  \bibinfo{title}{{Off-axis Gamma-Ray Burst Afterglow Modeling Based on a
+  Two-dimensional Axisymmetric Hydrodynamics Simulation},} \apj, 722, 235,
+  \dodoi{10.1088/0004-637X/722/1/235}
+
+% type= article
+\bibitem[{P. {Virtanen} {et~al.}(2020){Virtanen}, {Gommers}, {Oliphant},
+  {et~al.}}]{Virtanen2020}
+{Virtanen}, P., {Gommers}, R., {Oliphant}, T.~E., {et~al.} 2020,
+  \bibinfo{title}{{SciPy 1.0: fundamental algorithms for scientific computing
+  in Python},} Nature Methods, 17, 261, \dodoi{10.1038/s41592-019-0686-2}
+
+% type= article
+\bibitem[{H. {Wang} {\&} D. {Giannios}(2024){Wang} \&
+  {Giannios}}]{Wang2024Jetsimpy}
+{Wang}, H., \& {Giannios}, D. 2024, \bibinfo{title}{{jetsimpy: A Highly
+  Efficient Hydrodynamic Code for Gamma-Ray Burst Afterglows},} \apjs, 270, 40,
+  \dodoi{10.3847/1538-4365/ad0d93}
+
+% type= article
+\bibitem[{Y. {Wang} {et~al.}(2026){Wang}, {Chen}, \&
+  {Zhang}}]{Wang2025VegasAfterglow}
+{Wang}, Y., {Chen}, C., \& {Zhang}, B. 2026, \bibinfo{title}{{VegasAfterglow: A
+  High-Performance Framework for Gamma-Ray Burst Afterglows},} Journal of High
+  Energy Astrophysics, 49, 74, \dodoi{10.1016/j.jheap.2025.11.010}
+
+% type= article
+\bibitem[{B. {Zhang} {\&} S. {Kobayashi}(2005){Zhang} \&
+  {Kobayashi}}]{ZhangKobayashi2005}
+{Zhang}, B., \& {Kobayashi}, S. 2005, \bibinfo{title}{{Gamma-Ray Burst Early
+  Afterglows: Reverse Shock Emission from an Arbitrarily Magnetized Ejecta},}
+  \apj, 628, 315, \dodoi{10.1086/429787}
+
+\end{thebibliography}

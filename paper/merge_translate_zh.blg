@@ -1,0 +1,47 @@
+This is BibTeX, Version 0.99d (TeX Live 2024)
+Capacity: max_strings=200000, hash_size=200000, hash_prime=170003
+The top-level auxiliary file: merge_translate_zh.aux
+The style file: aasjournalv7.1.bst
+Database file #1: references.bib
+Reallocated wiz_functions (elt_size=4) to 6000 items from 3000.
+You've used 74 entries,
+            3571 wiz_defined-function locations,
+            1294 strings with 21043 characters,
+and the built_in function-call counts, 38104 in all, are:
+= -- 3614
+> -- 2291
+< -- 35
++ -- 780
+- -- 835
+* -- 3520
+:= -- 6450
+add.period$ -- 74
+call.type$ -- 74
+change.case$ -- 444
+chr.to.int$ -- 76
+cite$ -- 74
+duplicate$ -- 1539
+empty$ -- 2348
+format.name$ -- 1046
+if$ -- 7806
+int.to.chr$ -- 3
+int.to.str$ -- 0
+missing$ -- 143
+newline$ -- 304
+num.names$ -- 296
+pop$ -- 416
+preamble$ -- 1
+purify$ -- 444
+quote$ -- 0
+skip$ -- 1276
+stack$ -- 0
+substring$ -- 1862
+swap$ -- 287
+text.length$ -- 3
+text.prefix$ -- 0
+top$ -- 0
+type$ -- 731
+warning$ -- 0
+while$ -- 293
+width$ -- 0
+write$ -- 1039
