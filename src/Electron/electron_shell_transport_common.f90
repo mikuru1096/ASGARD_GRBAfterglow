@@ -44,7 +44,7 @@ subroutine shell_coord_step(Num_gam_e,dDR,coord_edge,coord_scale,dEl,adiabatic_r
 
     do i = 1, Num_gam_e - 1
         yface = coord_edge(i + 1)
-        jface = dlog(1d1)*dxg_dcoord(coord_fourvel, coord_scale, yface)
+        jface = dxg_dcoord(coord_fourvel, coord_scale, yface)
         vface(i) = ((dEl(i) + dEl(i + 1))/2d0 + adiabatic_rate)/jface
     enddo
     call flux_split_nonuniform(Num_gam_e,dDR,coord_edge,vface,dF1, &
@@ -69,7 +69,7 @@ subroutine coord_to_dgamma(Num_gam_e,coord_edge,coord_scale,gam_e,ncoord,ndg)
     do i = 1, Num_gam_e
         ymid = 0.5d0*(coord_edge(i) + coord_edge(i + 1))
         dxdy = dxg_dcoord(coord_fourvel, coord_scale, ymid)
-        ndg(i) = center_density(i)/(gam_e(i)*dlog(1d1)*dxdy)
+        ndg(i) = center_density(i)/(gam_e(i)*dxdy)
     enddo
 end subroutine coord_to_dgamma
 

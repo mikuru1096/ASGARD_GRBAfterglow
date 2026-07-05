@@ -81,7 +81,7 @@ subroutine fs_transport_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,ng, &
     real(8), allocatable, dimension(:) :: adiabatic_log_coeff_chi
 
     real(8), dimension(ng+1) :: x_edge_E,coord_edge_E
-    real(8) :: temp,dq,d_x_E,ln10,coord_scale
+    real(8) :: temp,dq,d_x_E,coord_scale
     real(8) :: rloc, R_Gamma_loc, dNe, Para_N_e_ini, DB, DB_min
     real(8) :: Epsilon_b_floor, magnetic_decay_alpha_t, magnetic_decay_t0_s
     real(8) :: stochastic_accel_norm
@@ -145,7 +145,6 @@ subroutine fs_transport_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,ng, &
                             Epsilon_b_floor > 0d0 .and. Epsilon_b_floor < Epsilon_b
     four_velocity_coord = .not. use_charint_transport .and. .not. pwn_cr_transport
 
-    ln10 = dlog(1d1)
     coord_scale = fourvel_scale*fourvel_scale-1d0
     profile_enabled = .false.
     emit_full_spectrum = emit_full_chi_spectrum /= 0
@@ -329,7 +328,7 @@ subroutine init_front()
                                           imodelog,gam_e,dN_init,x_edge_E)
         coord_edge_E = x_edge_E
     end if
-    d_x_E = dlog10(gam_e(2)/gam_e(1))
+    d_x_E = dlog(gam_e(2)/gam_e(1))
     dN_init_log = dN_init
 
     ulog(:,1) = dN_init_log / dq
@@ -421,7 +420,7 @@ subroutine advance_shell(I_tobs)
     if (pwn_cr_transport) then
         call q_divergence(nchi,k_medium,rloc,R_Gamma_loc,bsh,q_grid,adiabatic_log_coeff_chi)
     else
-        adiabatic_log_coeff_chi = 1d0/(rloc*ln10)
+        adiabatic_log_coeff_chi = 1d0/rloc
     end if
     max_xi_coeff = max_xi_chi(ng,nchi,dEL_mean_chi, &
                                              adiabatic_log_coeff_chi,chi_population,chi_peak,active_hi)
@@ -459,7 +458,7 @@ subroutine advance_shell(I_tobs)
                 if (pwn_cr_transport) then
                     call q_divergence(nchi,k_medium,R_sub,gsh_sub,bsh,q_grid,adiabatic_log_coeff_chi)
                 else
-                    adiabatic_log_coeff_chi = 1d0/(R_sub*ln10)
+                    adiabatic_log_coeff_chi = 1d0/R_sub
                 end if
 
                 Gam_e_m_p = (1d0-p)/(Gam_e_max**(1d0-p)-Gam_e_m**(1d0-p))
@@ -712,7 +711,7 @@ subroutine transport_step_fullhide(R_prev, R_curr, Gamma_prev, Gamma_curr, dDR_s
     if (pwn_cr_transport) then
         call q_divergence(nchi,k_medium,R_sub,gsh_sub,bsh,q_grid,adiabatic_log_coeff_chi)
     else
-        adiabatic_log_coeff_chi = 1d0/(R_sub*ln10)
+        adiabatic_log_coeff_chi = 1d0/R_sub
     end if
 
     call density_profile(A_star,dNe_ISM,R_sub,R0,1,R_tr,f_jump,f_wide,dNe)
@@ -745,7 +744,7 @@ subroutine transport_step_fullhide(R_prev, R_curr, Gamma_prev, Gamma_curr, dDR_s
     do ichi = 1, active_chi
         do I = 1, ng-1
             face_coord = coord_edge_E(I+1)
-            face_jac = ln10*dxg_dcoord(coord_fourvel,coord_scale,face_coord)
+            face_jac = dxg_dcoord(coord_fourvel,coord_scale,face_coord)
             coord_face_step_loc(I) = &
                 (dDR_step*(dEl_chi(I,ichi)+dEl_chi(I+1,ichi))/2d0+adiabatic_integral)/face_jac
         end do
@@ -829,7 +828,7 @@ subroutine assemble_cooling_chi(Rad, gf, bsh, seeff_chi, R_Tobs_val)
                                                       bsh, dNe, ng, Num_nu_cool, 1, n_threads, gam_e, &
                                                       V_cool, seeff_column, cooling_aux_column, dEl_column)
             dEl_chi(:,ichi)=dEl_column(:,1)
-            dEL_mean_chi(:,ichi)=(dEl_chi(2:ng,ichi)+dEl_chi(1:ng-1,ichi))/2d0/dlog(1d1)
+            dEL_mean_chi(:,ichi)=(dEl_chi(2:ng,ichi)+dEl_chi(1:ng-1,ichi))/2d0
             kappa2_chi(:,ichi) = gam_e*Para_m_energy*para_c/(3d0*Para_e*DB_chi(ichi))
         end do
     else
@@ -838,7 +837,7 @@ subroutine assemble_cooling_chi(Rad, gf, bsh, seeff_chi, R_Tobs_val)
                                                   bsh, dNe, ng, Num_nu_cool, nchi, n_threads, gam_e, V_cool, &
                                                   seeff_chi, cooling_aux_chi, dEl_chi)
         do ichi = 1, nchi
-            dEL_mean_chi(:,ichi)=(dEl_chi(2:ng,ichi)+dEl_chi(1:ng-1,ichi))/2d0/dlog(1d1)
+            dEL_mean_chi(:,ichi)=(dEl_chi(2:ng,ichi)+dEl_chi(1:ng-1,ichi))/2d0
         end do
         do ichi = 1, nchi
             kappa2_chi(:,ichi) = gam_e*Para_m_energy*para_c/(3d0*Para_e*DB)

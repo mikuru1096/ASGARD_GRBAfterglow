@@ -30,7 +30,7 @@ subroutine fs_fullhide_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
     logical :: is_uniform_density,budget_diag_enabled
     integer :: env_len,env_status
     character(len=32) :: diag_env
-    real(8) :: dDR_xi,ln10,coord_scale,dg_gamma_scale
+    real(8) :: dDR_xi,coord_scale,dg_gamma_scale
     real(8) :: n_before_step,n_after_step,inj_step,rel_loss_xi_max
     real(8), dimension(Num_nu) :: P_emit_tmp,Tau_syn_tmp
     allocate (dEl(Num_gam_e),dEl_step(Num_gam_e),x(Num_gam_e),dN_x(Num_gam_e), &
@@ -61,7 +61,6 @@ subroutine fs_fullhide_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
     Gam_e_c=7.7d8/(1d0+dsqrt(Epsilon_e/Epsilon_b))/R_Gamma(1)/DB**2/(R_Tobs(1)/2d0)
     if (R_Gamma(1) < 1d0) error stop 'fs_fullhide_1d requires initial Gamma >= 1'
     beta_Gam=dsqrt(1d0-1d0/R_Gamma(1)**2)
-    ln10=dlog(1d1)
     call init_fourvel_grid(Gam_e_max_max)
     if (thermal_electrons == 0) then
         call init_coord(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,coord_edge,coord_scale,dN_x)
@@ -98,7 +97,7 @@ subroutine fs_fullhide_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
         f_r=(1.35d-19)/beta_Gam/R_Gamma_loc*DB**2/pi
         dDR=0.1d0/(f_r*Gam_e_max+1.333d0/(R(I_tobs)+R(I_tobs-1)))
         dDD=R(I_tobs)-R(I_tobs-1)
-        dN_x=dN_gam_e(:,I_tobs-1)*gam_e*ln10*dxdy_grid
+        dN_x=dN_gam_e(:,I_tobs-1)*gam_e*dxdy_grid
         V_m(I_tobs-1)=4.2d6*DB*Gam_e_m*Gam_e_m/(R_Gamma_loc*(1d0-beta_Gam)*(1d0+z))
         V_c(I_tobs-1)=4.2d6*DB*Gam_e_c*Gam_e_c/(R_Gamma_loc*(1d0-beta_Gam)*(1d0+z))
 

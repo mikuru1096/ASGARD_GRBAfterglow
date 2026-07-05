@@ -215,7 +215,7 @@ subroutine dg_kinetic_source(mesh, source_norm, p, gamma_m, gamma_max, source)
             x_eval = mid + half_width*projection_r(q)
             gamma = gamma_from_coord(mesh%coord_kind, mesh%coord_scale, x_eval)
             value = 0d0
-            if (gamma > gamma_m) value = source_norm*gamma*dlog(1d1)*(gamma - 1d0)**(-p)* &
+            if (gamma > gamma_m) value = source_norm*gamma*(gamma - 1d0)**(-p)* &
                                          exp_cutoff(gamma, gamma_max)* &
                                          dxg_dcoord(mesh%coord_kind, mesh%coord_scale, x_eval)
             call legendre_basis_values(degree, projection_r(q), pvals)
@@ -633,7 +633,7 @@ real(8) function dg_back_x(mesh, a_rad, b_ad, lag, x_new) result(x_back)
     if (.not. ieee_is_finite(gamma_back)) then
         x_back = mesh%x_right(mesh%ndom) + 1d0
     else
-        x_back = coord_from_xg(mesh%coord_kind, mesh%coord_scale, dlog10(gamma_back))
+        x_back = coord_from_xg(mesh%coord_kind, mesh%coord_scale, dlog(gamma_back))
     endif
 end function dg_back_x
 
@@ -655,7 +655,7 @@ real(8) function dg_forward_x(mesh, a_rad, b_ad, lag, x_old) result(x_new)
         exp_b = dexp(-b_ad*lag)
         gamma_new = gamma_old*exp_b/(1d0 + (a_rad/b_ad)*gamma_old*(1d0 - exp_b))
     endif
-    x_new = coord_from_xg(mesh%coord_kind, mesh%coord_scale, dlog10(gamma_new))
+    x_new = coord_from_xg(mesh%coord_kind, mesh%coord_scale, dlog(gamma_new))
 end function dg_forward_x
 
 ! 将旧网格单元贡献投影到新网格的目标单元。
@@ -1083,9 +1083,9 @@ subroutine fill_physical_nodes(mesh)
             idx = (k - 1)*mesh%nnode + i
             mesh%x(idx) = mesh%x_left(k) + 0.5d0*(mesh%r(i) + 1d0)*dx
             mesh%x_gamma(idx) = xg_from_coord(mesh%coord_kind, mesh%coord_scale, mesh%x(idx))
-            mesh%gamma(idx) = 1d1**mesh%x_gamma(idx)
+            mesh%gamma(idx) = dexp(mesh%x_gamma(idx))
             mesh%dxgamma_dcoord(idx) = dxg_dcoord(mesh%coord_kind, mesh%coord_scale, mesh%x(idx))
-            mesh%dln_dcoord(idx) = dlog(1d1)*mesh%dxgamma_dcoord(idx)
+            mesh%dln_dcoord(idx) = mesh%dxgamma_dcoord(idx)
         enddo
     enddo
 end subroutine fill_physical_nodes

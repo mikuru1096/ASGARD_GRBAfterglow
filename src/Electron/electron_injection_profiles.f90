@@ -64,7 +64,7 @@ real(8) function dnx_cutoff(x,coeff,slope,Gam_e_max)
     real(8), intent(in) :: x,coeff,slope,Gam_e_max
     real(8) :: gam,cutoff_factor
 
-    gam=1d1**x
+    gam=dexp(x)
     if (gam <= 0d0 .or. coeff <= 0d0) then
         dnx_cutoff=0d0
         return
@@ -72,7 +72,7 @@ real(8) function dnx_cutoff(x,coeff,slope,Gam_e_max)
 
     cutoff_factor=1d0
     if (Gam_e_max > 0d0 .and. gam > Gam_e_max) cutoff_factor=dexp(1d0-gam/Gam_e_max)
-    dnx_cutoff=coeff*dlog(1d1)*gam**(1d0-slope)*cutoff_factor
+    dnx_cutoff=coeff*gam**(1d0-slope)*cutoff_factor
 end function dnx_cutoff
 
 ! 3点 Gauss-Legendre 积分：在 [xlo, xhi] 上对 dN/dx 积分。
@@ -140,7 +140,7 @@ subroutine dnx_segment(cell_lo,cell_hi,active_lo,active_hi,coeff,slope,Gam_e_max
     x_hi=min(cell_hi,active_hi)
     if (x_hi <= x_lo) return
 
-    x_cut=dlog10(Gam_e_max)
+    x_cut=dlog(Gam_e_max)
     if (x_lo < x_cut .and. x_hi > x_cut) then
         acc=acc+dnx_gauss3(coeff,slope,Gam_e_max,x_lo,x_cut)
         acc=acc+dnx_gauss3(coeff,slope,Gam_e_max,x_cut,x_hi)
@@ -162,7 +162,7 @@ subroutine dny_segment(cell_lo,cell_hi,active_lo,active_hi,coord_scale,coeff,slo
     y_hi=min(cell_hi,active_hi)
     if (y_hi <= y_lo) return
 
-    y_cut=coord_from_xg(coord_fourvel,coord_scale,dlog10(Gam_e_max))
+    y_cut=coord_from_xg(coord_fourvel,coord_scale,dlog(Gam_e_max))
     if (y_lo < y_cut .and. y_hi > y_cut) then
         acc=acc+dny_gauss3(coord_scale,coeff,slope,Gam_e_max,y_lo,y_cut)
         acc=acc+dny_gauss3(coord_scale,coeff,slope,Gam_e_max,y_cut,y_hi)
@@ -171,8 +171,8 @@ subroutine dny_segment(cell_lo,cell_hi,active_lo,active_hi,coord_scale,coeff,slo
     end if
 end subroutine dny_segment
 
-! 由网格中心值推导 log10(gamma) 单元边界。
-! Build log10(gamma) cell edges from grid-center values.
+! 由网格中心值推导 ln(gamma) 单元边界。
+! Build ln(gamma) cell edges from grid-center values.
 subroutine log_edges(Num_gam_e,gam_e,x_edge)
     implicit none
     integer, intent(in) :: Num_gam_e
@@ -180,11 +180,11 @@ subroutine log_edges(Num_gam_e,gam_e,x_edge)
     real(8), intent(in), dimension(Num_gam_e) :: gam_e
     real(8), intent(out), dimension(Num_gam_e+1) :: x_edge
 
-    x_edge(1)=dlog10(gam_e(1))-0.5d0*(dlog10(gam_e(2))-dlog10(gam_e(1)))
+    x_edge(1)=dlog(gam_e(1))-0.5d0*(dlog(gam_e(2))-dlog(gam_e(1)))
     do I_gam_e=2,Num_gam_e
-        x_edge(I_gam_e)=0.5d0*(dlog10(gam_e(I_gam_e-1))+dlog10(gam_e(I_gam_e)))
+        x_edge(I_gam_e)=0.5d0*(dlog(gam_e(I_gam_e-1))+dlog(gam_e(I_gam_e)))
     end do
-    x_edge(Num_gam_e+1)=dlog10(gam_e(Num_gam_e))+0.5d0*(dlog10(gam_e(Num_gam_e))-dlog10(gam_e(Num_gam_e-1)))
+    x_edge(Num_gam_e+1)=dlog(gam_e(Num_gam_e))+0.5d0*(dlog(gam_e(Num_gam_e))-dlog(gam_e(Num_gam_e-1)))
 end subroutine log_edges
 
 ! 生成快/慢冷却幂律+指数截断的初始电子谱 dN/dgamma（网格中心值）。
@@ -222,8 +222,8 @@ subroutine init_edges(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,x_edge,
     dN_x_1=0d0
     if (Gam_e_max <= 0d0) return
 
-    x_m=dlog10(Gam_e_m)
-    x_c=dlog10(Gam_e_c)
+    x_m=dlog(Gam_e_m)
+    x_c=dlog(Gam_e_c)
     huge_x=1d300
 
     do I_gam_e=1,Num_gam_e
@@ -263,8 +263,8 @@ subroutine init_coord(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
     dN_y_1=0d0
     if (Gam_e_max <= 0d0) return
 
-    y_m=coord_from_xg(coord_fourvel,coord_scale,dlog10(Gam_e_m))
-    y_c=coord_from_xg(coord_fourvel,coord_scale,dlog10(Gam_e_c))
+    y_m=coord_from_xg(coord_fourvel,coord_scale,dlog(Gam_e_m))
+    y_c=coord_from_xg(coord_fourvel,coord_scale,dlog(Gam_e_c))
     huge_y=1d300
 
     do I_gam_e=1,Num_gam_e
@@ -303,7 +303,7 @@ subroutine source_edges(Num_gam_e,x_edge,Gam_e_m,Gam_e_max,Q,p,dF1)
     dF1=0d0
     if (Gam_e_max <= 0d0 .or. Q <= 0d0) return
 
-    x_m=dlog10(Gam_e_m)
+    x_m=dlog(Gam_e_m)
     huge_x=1d300
     do I_gam_e=1,Num_gam_e
         cell_lo=x_edge(I_gam_e)
@@ -330,7 +330,7 @@ subroutine source_coord(Num_gam_e,coord_edge,coord_scale,Gam_e_m,Gam_e_max,Q,p,d
     dF1=0d0
     if (Gam_e_max <= 0d0 .or. Q <= 0d0) return
 
-    y_m=coord_from_xg(coord_fourvel,coord_scale,dlog10(Gam_e_m))
+    y_m=coord_from_xg(coord_fourvel,coord_scale,dlog(Gam_e_m))
     huge_y=1d300
     do I_gam_e=1,Num_gam_e
         cell_lo=coord_edge(I_gam_e)
@@ -370,10 +370,10 @@ subroutine kinetic_edges(Num_gam_e,x_edge,Gam_e_m,Gam_e_max,Q,p,dF1)
         cell_sum=0d0
         do I_q=1,3
             x_eval=x_mid+half_dx*xi(I_q)
-            gam=1d1**x_eval
+            gam=dexp(x_eval)
             if (gam > Gam_e_m) then
                 cutoff_factor=exp_cutoff(gam,Gam_e_max)
-                cell_sum=cell_sum+wi(I_q)*gam*dlog(1d1)*(gam-1d0)**(-p)*cutoff_factor
+                cell_sum=cell_sum+wi(I_q)*gam*(gam-1d0)**(-p)*cutoff_factor
             end if
         end do
         cell_sum=half_dx*cell_sum
@@ -413,7 +413,7 @@ subroutine kinetic_coord(Num_gam_e,coord_edge,coord_scale,Gam_e_m,Gam_e_max,Q,p,
             gam=gamma_from_coord(coord_fourvel,coord_scale,y_eval)
             if (gam > Gam_e_m) then
                 dxdy=dxg_dcoord(coord_fourvel,coord_scale,y_eval)
-                cell_sum=cell_sum+wi(I_q)*gam*dlog(1d1)*dxdy*(gam-1d0)**(-p)*exp_cutoff(gam,Gam_e_max)
+                cell_sum=cell_sum+wi(I_q)*gam*dxdy*(gam-1d0)**(-p)*exp_cutoff(gam,Gam_e_max)
             end if
         end do
         cell_sum=half_dy*cell_sum
@@ -460,7 +460,7 @@ subroutine thermal_shape(Num_gam_e,gam_e,theta,shape_dnx)
             *(gam_e(2:Num_gam_e)-gam_e(1:Num_gam_e-1)))/2d0
     if (norm_dgam <= 0d0) error stop 'thermal electron distribution normalization is non-positive'
 
-    shape_dnx=shape_dgam/norm_dgam*gam_e*dlog(1d1)
+    shape_dnx=shape_dgam/norm_dgam*gam_e
 end subroutine thermal_shape
 
 ! 将热电子源项加入已有 dF1。
@@ -494,7 +494,7 @@ subroutine thermal_pop(Num_gam_e,gam_e,four_v,total_count,dN_gam_e)
     if (total_count <= 0d0) return
     theta=thermal_theta(four_v)
     call thermal_shape(Num_gam_e,gam_e,theta,shape_dnx)
-    dN_gam_e=dN_gam_e+total_count*shape_dnx/(gam_e*dlog(1d1))
+    dN_gam_e=dN_gam_e+total_count*shape_dnx/(gam_e)
 end subroutine thermal_pop
 
 end module electron_injection_profiles

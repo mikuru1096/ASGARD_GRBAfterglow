@@ -144,8 +144,8 @@ subroutine shock_state(gsh, bsh, b2, b2sh)
     b2sh = (bsh-b2)/(1d0-bsh*b2)
 end subroutine shock_state
 
-! q下游局部散度：用桥接半径/速度场计算(∇·v)/(3β_f c)，返回log10 γ方程系数。
-! Downstream q-local divergence: compute the log10-gamma adiabatic coefficient from bridged radius/velocity fields.
+! q下游局部散度：用桥接半径/速度场计算(∇·v)/(3β_f c)，返回ln γ方程系数。
+! Downstream q-local divergence: compute the ln-gamma adiabatic coefficient from bridged radius/velocity fields.
 subroutine q_divergence(nchi,kmed,rloc,gf,bf,q_grid,adlog)
     integer, intent(in) :: nchi,kmed
     real(8), intent(in), dimension(nchi) :: q_grid
@@ -158,15 +158,15 @@ subroutine q_divergence(nchi,kmed,rloc,gf,bf,q_grid,adlog)
     call q_cell_geometry(nchi,kmed,rloc,gf,q_grid,rcell,gcell,bcell,brelsh)
     dbdr = (bcell(2)-bcell(1))/(rcell(2)-rcell(1))
     divc = 2d0*bcell(1)/rcell(1) + dbdr
-    adlog(1) = divc/(3d0*bf*dlog(1d1))
+    adlog(1) = divc/(3d0*bf)
     do ichi = 2, nchi-1
         dbdr = (bcell(ichi+1)-bcell(ichi-1))/(rcell(ichi+1)-rcell(ichi-1))
         divc = 2d0*bcell(ichi)/rcell(ichi) + dbdr
-        adlog(ichi) = divc/(3d0*bf*dlog(1d1))
+        adlog(ichi) = divc/(3d0*bf)
     end do
     dbdr = (bcell(nchi)-bcell(nchi-1))/(rcell(nchi)-rcell(nchi-1))
     divc = 2d0*bcell(nchi)/rcell(nchi) + dbdr
-    adlog(nchi) = divc/(3d0*bf*dlog(1d1))
+    adlog(nchi) = divc/(3d0*bf)
 end subroutine q_divergence
 
 ! 估计q方向对流子步长限制。
@@ -617,7 +617,7 @@ subroutine advance_energy_chi(ulog, ng, nchi, dloss, rloc, dxg, dR_step, n_threa
     integer :: ichi
 
     CFL = dR_step/dxg
-    adcoef = 1d0/(rloc*dlog(1d1))
+    adcoef = 1d0/(rloc)
 
     !$OMP PARALLEL DO num_threads(n_threads) if(n_threads > 1 .and. nchi*ng >= 512) schedule(static) &
     !$OMP& private(ichi,xicoef,up,principal,temp1,rhs,sol)

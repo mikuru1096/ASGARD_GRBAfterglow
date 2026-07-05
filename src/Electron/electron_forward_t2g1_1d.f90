@@ -54,12 +54,12 @@ subroutine fs_t2g1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e,
                                       imodelog,gam_e,spec,xedge)
     call dnx_dgamma(Num_gam_e,xedge,gam_e,spec,dN_gam_e(:,1))
     spec_prev = spec
-    d_x=dlog10(gam_e(2)/gam_e(1))
+    d_x=dlog(gam_e(2)/gam_e(1))
 
     do I_tobs=2,Num_R
         call prepare_t2g1_shell(I_tobs)
         if (I_tobs == 2) then
-            spec=dN_gam_e(:,1)*gam_e*dlog(1d1)
+            spec=dN_gam_e(:,1)*gam_e
             spec_prev = spec
         end if
         call write_t2g1_cooling(I_tobs)
@@ -119,7 +119,7 @@ contains
                                  gloc,beta,dNe,Num_gam_e,Num_nu,n_threads,gam_e,V_seed, &
                                  P_syn(:,I_tobs),Seed_syn(:,I_tobs),dEl)
 
-        delmean=(dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/2d0/dlog(1d1)
+        delmean=(dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/2d0
         delbase=delmean
     end subroutine write_t2g1_cooling
 
@@ -146,7 +146,7 @@ contains
             delmean=delbase
         end if
 
-        temp3=delmean+1d0/rloc/dlog(1d1)
+        temp3=delmean+1d0/rloc
         up=-CFL*temp3
 
         if (I_tobs == 2 .and. L <= 2) then

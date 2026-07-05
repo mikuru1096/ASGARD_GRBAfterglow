@@ -52,7 +52,7 @@ subroutine fs_weno5_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e
     call electron_initialize_spectrum(Num_gam_e,gmax0,einit,p,gm,gc,gmax,imodelog,gam_e,spec,xedge)
     call dnx_dgamma(Num_gam_e,xedge,gam_e,spec,dN_gam_e(:,1))
 
-    dxlog=dlog10(gam_e(2)/gam_e(1))
+    dxlog=dlog(gam_e(2)/gam_e(1))
     cfl_target=0.8d0
 
     ! 每个半径壳层先冻结冷却速度，再用 RK-WENO 子步推进电子数。
@@ -92,7 +92,7 @@ contains
         f_r=(1.35d-19)/beta/gloc*DB**2/pi
         dDR=0.1d0/(f_r*gmax+1.333d0/(R(I_tobs)+R(I_tobs-1)))
         dDD=R(I_tobs)-R(I_tobs-1)
-        spec=dN_gam_e(:,I_tobs-1)*gam_e*dlog(1d1)
+        spec=dN_gam_e(:,I_tobs-1)*gam_e
     end subroutine prepare_weno_shell
 
     ! 写壳层同步辐射输出，并把冷却速度转成对数能量坐标速度。
@@ -119,7 +119,7 @@ contains
 
         dEl(1:Num_gam_e-1)=(dEl(1:Num_gam_e-1)+dEl(2:Num_gam_e))*0.5d0
         dEl(Num_gam_e)=dEl(Num_gam_e-1)*0.5d0
-        deladv=(dEl+1d0/rloc)/dlog(1d1)
+        deladv=(dEl+1d0/rloc)
 
         L1=Int(dDD/dDR)+10
         maxspeed=maxval(abs(deladv))
@@ -161,7 +161,7 @@ contains
 
         call density_profile(A_star,dNe_ISM,rloc,R0,1,R_tr,f_jump,f_wide,dNe)
 
-        deladv=(dEl+1d0/rloc)/dlog(1d1)
+        deladv=(dEl+1d0/rloc)
         call electron_injection_prefactor(rloc,dDR,dNe,f_e,gmp,Q)
         call source_edges(Num_gam_e,xedge,gm,gmax,Q,p,dF1)
 

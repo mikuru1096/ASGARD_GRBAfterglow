@@ -46,7 +46,7 @@ subroutine fs_slc1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e,
     call electron_initialize_spectrum(Num_gam_e,gemax0,einit,p,gm,gc,gemax, &
                                       imodelog,gam_e,spec,xedge)
     call dnx_dgamma(Num_gam_e,xedge,gam_e,spec,dN_gam_e(:,1))
-    d_x=dlog10(gam_e(2)/gam_e(1))
+    d_x=dlog(gam_e(2)/gam_e(1))
     uniform=(A_star <= 0d0 .and. f_jump == 1d0)
 
     ! 每个输出壳层先固定辐射诊断，再在半拉格朗日子步中推进电子谱。
@@ -82,7 +82,7 @@ subroutine fs_slc1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e,
         call get_forward_cooling(index_Y,Epsilon_e,Epsilon_b,p,DB,gm,gc,gemax,rloc, &
                                  gloc,beta,dNe,Num_gam_e,Num_nu,n_threads,gam_e,V_seed, &
                                  P_syn(:,I_tobs),Seed_syn(:,I_tobs),dEl)
-        delbase=(dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/2d0/dlog(1d1)
+        delbase=(dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/2d0
 
         ! 子步中非均匀介质使用中点密度计算注入，端点密度推进到下一步。
         ! For nonuniform media, each substep uses midpoint density for injection and endpoint density for the next state.
@@ -111,7 +111,7 @@ subroutine fs_slc1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e,
             else
                 delmean=delbase
             end if
-            call semi_lagrangian_step(Num_gam_e,dDR,d_x,delmean+1d0/rmid/dlog(1d1),dF1,spec,spec_step)
+            call semi_lagrangian_step(Num_gam_e,dDR,d_x,delmean+1d0/rmid,dF1,spec,spec_step)
             spec=spec_step
             rloc=rright
             dNe=rho_right

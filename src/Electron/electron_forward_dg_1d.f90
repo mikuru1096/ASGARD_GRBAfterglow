@@ -106,8 +106,8 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
         coord_scale = dgscale*dgscale - 1d0
         call build_fourvel_grid(Num_gam_e, 1d0, tail_factor*gemax0, &
                                                dgscale, gam_e, yedge, xedge)
-        call dg_build_mesh(xedge(1), dg_active_xmax(gemax), dlog10(gm), &
-                                                    dlog10(gc), dlog10(gemax), dgscale, mesh)
+        call dg_build_mesh(xedge(1), dg_active_xmax(gemax), dlog(gm), &
+                                                    dlog(gc), dlog(gemax), dgscale, mesh)
         allocate(state(mesh%ntot))
         call dg_initial_state(mesh, ninit, p, gm, gc, gemax, state)
         call init_coord(ninit, p, gm, gc, gemax, &
@@ -177,8 +177,8 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
         real(8), intent(in) :: gup, gmbr, gcbr, gxbr
 
         call dg_build_mesh(xedge(1), dg_active_xmax(gup), &
-                                                    dlog10(gmbr), dlog10(gcbr), &
-                                                    dlog10(gxbr), dgscale, new_mesh)
+                                                    dlog(gmbr), dlog(gcbr), &
+                                                    dlog(gxbr), dgscale, new_mesh)
         if (allocated(projected)) then
             if (size(projected) /= new_mesh%ntot) &
                 deallocate(projected, gdg, deldg, delbase, srcdg, srctpl)
@@ -336,8 +336,8 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
         real(8), intent(in) :: gup
         real(8) :: grid_gmax
 
-        grid_gmax = 1d1**xedge(Num_gam_e+1)
-        x_max = dlog10(min(grid_gmax, tail_factor*gup))
+        grid_gmax = dexp(xedge(Num_gam_e+1))
+        x_max = dlog(min(grid_gmax, tail_factor*gup))
     end function dg_source_xmax
 
     real(8) function dg_active_xmax(gup) result(x_max)
@@ -347,7 +347,7 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
         x_max = dg_source_xmax(gup)
         if (allocated(state)) then
             if (x_max < mesh%x_gamma(mesh%ntot)) then
-                call dg_tail_fraction(mesh, state, 1d1**x_max, &
+                call dg_tail_fraction(mesh, state, dexp(x_max), &
                                                         tail_power, tail_fraction)
                 if (tail_fraction > tail_thresh) x_max = mesh%x_gamma(mesh%ntot)
             endif
@@ -378,7 +378,7 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
             dN_gam_e(:,it) = 0d0
         end where
         call dg_integral(mesh, state, dgcontent)
-        proj = sum(dN_gam_e(:,it)*gam_e*dlog(1d1)*(xedge(2:Num_gam_e+1) - xedge(1:Num_gam_e)))
+        proj = sum(dN_gam_e(:,it)*gam_e*(xedge(2:Num_gam_e+1) - xedge(1:Num_gam_e)))
         if (.not. (dgcontent > 0d0 .and. ieee_is_finite(dgcontent))) &
             error stop 'fs_dg_1d output projection has non-positive DG content'
         if (.not. (proj > 0d0 .and. ieee_is_finite(proj))) &

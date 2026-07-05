@@ -534,7 +534,7 @@ module hybrid_spectrum
       cpl_constant = log(xi_e/int)
       inv_theta = 1.0d0/theta
       inv_gmax = 1.0d0/gamma_max
-      y_min = coord_from_xg(coord_fourvel, coord_scale, dlog10(gamma_min))
+      y_min = coord_from_xg(coord_fourvel, coord_scale, dlog(gamma_min))
 
       do i = 1, n_gamma
          cell_lo = coord_edge(i)
@@ -569,7 +569,7 @@ module hybrid_spectrum
          y_eval = y_mid + half_dy*xi(iq)
          gamma = gamma_from_coord(coord_fourvel, coord_scale, y_eval)
          density = spec_gamma(gamma, is_thermal)
-         jac = gamma*dlog(1d1)*dxg_dcoord(coord_fourvel, coord_scale, y_eval)
+         jac = gamma*dxg_dcoord(coord_fourvel, coord_scale, y_eval)
          acc = acc + half_dy*wi(iq)*density*jac
       end do
    end subroutine add_segment

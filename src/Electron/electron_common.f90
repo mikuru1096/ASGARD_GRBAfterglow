@@ -63,7 +63,7 @@ subroutine electron_initialize_spectrum(ng,gemax0,ninit,p,gm,gc,gemax, &
     real(8), intent(in), optional :: f_e,four_v
 
     do ig=1,ng
-        gam_e(ig)=3d0*1d1**(dlog10(tail_factor*gemax0/3d0)* &
+        gam_e(ig)=3d0*dexp(dlog(tail_factor*gemax0/3d0)* &
                                  (ig-1)/(ng-1))
     end do
     select case (grid_mode)
@@ -121,7 +121,7 @@ subroutine electron_gc_loss(ng,gam_e,dEL_mean,R_loc,gc)
     real(8) :: coeff_target
     real(8) :: x0,x1,y0,y1,ytarget,xroot
 
-    coeff_target=1d0/(R_loc*dlog(1d1))
+    coeff_target=1d0/(R_loc)
     do ig=1,ng-1
         gam_mid(ig)=dsqrt(gam_e(ig)*gam_e(ig+1))
     end do
@@ -180,8 +180,8 @@ subroutine electron_source_bounds(ng,gam_e,gm,gemax,src_lo,src_hi)
     real(8) :: x_lo,x_hi
 
     call log_edges(ng,gam_e,x_edge)
-    x_lo=dlog10(gm)
-    x_hi=dlog10(tail_factor*gemax)
+    x_lo=dlog(gm)
+    x_hi=dlog(tail_factor*gemax)
     src_lo=ng+1
     do ig=1,ng
         if (x_edge(ig+1) > x_lo) then

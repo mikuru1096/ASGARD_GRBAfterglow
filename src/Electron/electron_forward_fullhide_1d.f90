@@ -64,7 +64,7 @@ subroutine fs_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
     V_a=0d0
 
     call init_electron_state()
-    d_x=dlog10(gam_e(2)/gam_e(1))
+    d_x=dlog(gam_e(2)/gam_e(1))
     is_uniform_density=(A_star <= 0d0 .and. f_jump == 1d0)
     budget_diag_enabled=.false.
     diag_env=''
@@ -77,7 +77,7 @@ subroutine fs_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
 
     do I_tobs=2,Num_R
         call prepare_fullhide_shell(I_tobs)
-        dEL_mean=(dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/2d0/dlog(1d1)
+        dEL_mean=(dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/2d0
         dDR_xi=dDR
         if (adaptive_substeps == 0) then
             call advance_fixed_shell(I_tobs)
@@ -125,7 +125,7 @@ contains
                                                       Num_gam_e,gam_e,dN_gam_e(:,1))
             call thermal_pop(Num_gam_e,gam_e,R_Gamma(1)*beta_Gam,Para_N_e_ini*(1d0-f_e), &
                                                  dN_gam_e(:,1))
-            dN_x=dN_gam_e(:,1)*gam_e*dlog(1d1)*dxdy_grid
+            dN_x=dN_gam_e(:,1)*gam_e*dxdy_grid
         end if
     end subroutine init_electron_state
 
@@ -169,7 +169,7 @@ contains
         f_r=(1.35d-19)/beta_Gam/R_Gamma_loc*DB**2/pi
         dDR=0.1d0/(f_r*Gam_e_max+1.333d0/(R(I_tobs)+R(I_tobs-1)))
         dDD=R(I_tobs)-R(I_tobs-1)
-        dN_x=dN_gam_e(:,I_tobs-1)*gam_e*dlog(1d1)*dxdy_grid
+        dN_x=dN_gam_e(:,I_tobs-1)*gam_e*dxdy_grid
         V_m(I_tobs-1)=4.2d6*DB*Gam_e_m*Gam_e_m/(R_Gamma_loc*(1d0-beta_Gam)*(1d0+z))
         V_c(I_tobs-1)=4.2d6*DB*Gam_e_c*Gam_e_c/(R_Gamma_loc*(1d0-beta_Gam)*(1d0+z))
 
@@ -246,7 +246,7 @@ contains
                                                                dF_steps(:,1))
         do I_face=1,Num_gam_e-1
             face_coord=coord_edge(I_face+1)
-            face_jac=dlog(1d1)*dxg_dcoord(coord_fourvel,coord_scale,face_coord)
+            face_jac=dxg_dcoord(coord_fourvel,coord_scale,face_coord)
             face_coupling(I_face,1)=(dDD*(dEl(I_face)+dEl(I_face+1))/2d0+adiabatic_integral)/face_jac
         end do
         if (budget_diag_enabled) then
@@ -480,11 +480,11 @@ subroutine fs_fullhide_coupled(Boundary,R_Tobs,R_Gamma,R,V_seed,Seed_cooling,sec
         call electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
                                           imodeg,gam_e,dN_gam_e(:,1),thermal_electrons=thermal_electrons, &
                                           f_e=f_e,four_v=R_Gamma(1)*beta_Gam)
-        dN_x=dN_gam_e(:,1)*gam_e*dlog(1d1)
+        dN_x=dN_gam_e(:,1)*gam_e
         call log_edges(Num_gam_e,gam_e,x_edge)
     end if
 
-    d_x=dlog10(gam_e(2)/gam_e(1))
+    d_x=dlog(gam_e(2)/gam_e(1))
     budget_diag_enabled=.false.
     diag_env=''
     call get_environment_variable('ASGARD_DIAG_1D_BUDGET',diag_env,length=env_len,status=env_status)
@@ -495,7 +495,7 @@ subroutine fs_fullhide_coupled(Boundary,R_Tobs,R_Gamma,R,V_seed,Seed_cooling,sec
 
     do I_tobs=2,Num_R
         call prepare_coupled_shell(I_tobs)
-        dEL_mean=(dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/2d0/dlog(1d1)
+        dEL_mean=(dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/2d0
         call advance_coupled_shell(I_tobs)
         call dnx_dgamma(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,I_tobs))
     end do
@@ -528,7 +528,7 @@ contains
         f_r=(1.35d-19)/beta_Gam/R_Gamma_loc*DB**2/pi
         dDR=0.1d0/(f_r*Gam_e_max+1.333d0/(R(I_tobs)+R(I_tobs-1)))
         dDD=R(I_tobs)-R(I_tobs-1)
-        dN_x=dN_gam_e(:,I_tobs-1)*gam_e*dlog(1d1)
+        dN_x=dN_gam_e(:,I_tobs-1)*gam_e
         V_m(I_tobs-1)=4.2d6*DB*Gam_e_m*Gam_e_m/(R_Gamma_loc*(1d0-beta_Gam)*(1d0+z))
         V_c(I_tobs-1)=4.2d6*DB*Gam_e_c*Gam_e_c/(R_Gamma_loc*(1d0-beta_Gam)*(1d0+z))
         call syn_state(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads, &

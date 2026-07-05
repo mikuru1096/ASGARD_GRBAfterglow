@@ -89,7 +89,7 @@ contains
             if (Num_gam_e == 1) then
                 gam_e(i_empty)=1d0
             else
-                gam_e(i_empty)=1d1**(dble(i_empty-1)/dble(Num_gam_e-1))
+                gam_e(i_empty)=dexp(dlog(1d1)*dble(i_empty-1)/dble(Num_gam_e-1))
             end if
         end do
         dN_gam_e=0d0
@@ -136,7 +136,7 @@ contains
         if (Num_gam_e == 1) then
             gam_e(I_gam_e)=gmin
         else
-            gam_e(I_gam_e)=gmin*1d1**(dlog10(gmax0/gmin)*(I_gam_e-1)/(Num_gam_e-1))
+            gam_e(I_gam_e)=gmin*dexp(dlog(gmax0/gmin)*(I_gam_e-1)/(Num_gam_e-1))
         end if
         dN_gam_e(I_gam_e,1)=0d0
     end do
@@ -207,7 +207,7 @@ contains
         do i_coord=1,Num_gam_e
             coord_mid=0.5d0*(coord_edge(i_coord)+coord_edge(i_coord+1))
             dxdy=dxg_dcoord(coord_fourvel,coord_scale,coord_mid)
-            dN_x(i_coord)=dN_gam_e(i_coord,I_tobs-1)*gam_e(i_coord)*dlog(1d1)*dxdy
+            dN_x(i_coord)=dN_gam_e(i_coord,I_tobs-1)*gam_e(i_coord)*dxdy
         end do
 
         call compute_cooling(I_tobs)
@@ -329,7 +329,7 @@ contains
             call coord_to_dgamma(Num_gam_e,coord_edge,coord_scale, &
                                                                gam_e,dF1,dN_gam_e(:,I_tobs))
             where (dN_gam_e(:,I_tobs) <= 0d0) dN_gam_e(:,I_tobs)=0d0
-            dN_x=dN_gam_e(:,I_tobs)*gam_e*dlog(1d1)
+            dN_x=dN_gam_e(:,I_tobs)*gam_e
             return
         end if
 
@@ -368,7 +368,7 @@ contains
 
         dF1=0d0
         if (.not. pc_ready) then
-            pc_log=dN_gam_e(:,I_tobs-1)*gam_e*dlog(1d1)
+            pc_log=dN_gam_e(:,I_tobs-1)*gam_e
             pc_map=x_edge
             pc_ready=.true.
         end if
@@ -433,9 +433,9 @@ contains
     subroutine init_dg_state()
     implicit none
 
-        call dg_build_mesh(x_edge(1),dg_active_xmax(),dlog10(dg_low_break()), &
-                                                    dlog10(dg_inject_break()), &
-                                                    dlog10(dg_upper_break()),dgscale,dg_mesh)
+        call dg_build_mesh(x_edge(1),dg_active_xmax(),dlog(dg_low_break()), &
+                                                    dlog(dg_inject_break()), &
+                                                    dlog(dg_upper_break()),dgscale,dg_mesh)
         allocate(dg_state(dg_mesh%ntot))
         dg_state=0d0
     end subroutine init_dg_state
@@ -443,9 +443,9 @@ contains
     subroutine remesh_dg_state()
     implicit none
 
-        call dg_build_mesh(x_edge(1),dg_active_xmax(),dlog10(dg_low_break()), &
-                                                    dlog10(dg_inject_break()), &
-                                                    dlog10(dg_upper_break()),dgscale,dg_new_mesh)
+        call dg_build_mesh(x_edge(1),dg_active_xmax(),dlog(dg_low_break()), &
+                                                    dlog(dg_inject_break()), &
+                                                    dlog(dg_upper_break()),dgscale,dg_new_mesh)
         call ensure_dg_work(dg_new_mesh%ntot)
         call dg_project_state(dg_mesh,dg_state,dg_new_mesh,dg_work)
         call dg_filter_positive(dg_new_mesh,dg_work)
@@ -509,11 +509,11 @@ contains
     implicit none
     real(8) :: gamma_grid_max,tail_fraction
 
-        gamma_grid_max=1d1**x_edge(Num_gam_e+1)
-        x_max=dlog10(min(gamma_grid_max,tail_factor*dg_upper_break()))
+        gamma_grid_max=dexp(x_edge(Num_gam_e+1))
+        x_max=dlog(min(gamma_grid_max,tail_factor*dg_upper_break()))
         if (allocated(dg_state)) then
             if (x_max < dg_mesh%x_gamma(dg_mesh%ntot)) then
-                call dg_tail_fraction(dg_mesh,dg_state,1d1**x_max, &
+                call dg_tail_fraction(dg_mesh,dg_state,dexp(x_max), &
                                                         tail_power,tail_fraction)
                 if (tail_fraction > tail_thresh) x_max=dg_mesh%x_gamma(dg_mesh%ntot)
             end if
@@ -562,7 +562,7 @@ contains
                 gamma_front=gamma_front*exp_b/(1d0+(f_r/adrate)*gamma_front*(1d0-exp_b))
             end if
         else
-            loss_front=log_interp(Num_gam_e,x_edge,dEl,dlog10(gamma_front))
+            loss_front=log_interp(Num_gam_e,x_edge,dEl,dlog(gamma_front))
             gamma_front=gamma_front*dexp(-(loss_front+adrate)*dDR)
         end if
     end subroutine advance_dg_front
@@ -605,13 +605,13 @@ subroutine multiple_evolve(e_r,b_r,p_r,f_e_r,z,R_Tobs,R_Gamma,R,B3, &
         if (Num_gam_e == 1) then
             gam_e(I_gam_e)=gmin
         else
-            gam_e(I_gam_e)=gmin*1d1**(dlog10(gmax0/gmin)*(I_gam_e-1)/(Num_gam_e-1))
+            gam_e(I_gam_e)=gmin*dexp(dlog(gmax0/gmin)*(I_gam_e-1)/(Num_gam_e-1))
         end if
         dN_gam_e(I_gam_e,1)=0d0
     end do
 
-    dN_x=dN_gam_e(:,1)*gam_e*dlog(1d1)
-    d_x=dlog10(gam_e(2)/gam_e(1))
+    dN_x=dN_gam_e(:,1)*gam_e
+    d_x=dlog(gam_e(2)/gam_e(1))
     call log_edges(Num_gam_e,gam_e,x_edge)
 
     do I_tobs=2,Num_R
@@ -659,7 +659,7 @@ contains
     real(8), dimension(Num_gam_e-1) :: face_speed
     real(8), allocatable, dimension(:) :: dg_adiabatic,dg_source_norm
 
-        dN_x=dN_gam_e(:,I_tobs-1)*gam_e*dlog(1d1)
+        dN_x=dN_gam_e(:,I_tobs-1)*gam_e
         if (active_solver == solver_dg) then
             allocate(dg_adiabatic(L1),dg_source_norm(L1))
             do L=1,L1
@@ -687,7 +687,7 @@ contains
             else
                 dF1=0d0
             end if
-            face_speed=((dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/2d0+adrate)/dlog(1d1)
+            face_speed=((dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/2d0+adrate)
             call flux_split_step(Num_gam_e,dDR,d_x,face_speed,dF1,dN_x,x,.true.)
             dN_x=x
             if (L == L1) call dnx_dgamma(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,I_tobs))
@@ -805,13 +805,13 @@ subroutine branch_reaccel(e_r,b_r,p_r,f_e_r,z,R_Tobs,R_Gamma,R, &
 
     call reaccel_grid()
     call log_edges(Num_gam_e,gam_e,x_edge)
-    d_x=dlog10(gam_e(2)/gam_e(1))
+    d_x=dlog(gam_e(2)/gam_e(1))
     dN_gamma_branch=0d0; dN_total=0d0; dN_x=0d0; branch_mass_available=0d0
     fresh_mass_branch=0d0
     Branch_L_syn_spec=0d0; L_syn_spec=0d0; Branch_seed_energy=0d0; Branch_reaccel_energy=0d0
 
     do I_tobs=2,Num_R
-        dN_work=dN_gamma_branch(:,:,I_tobs-1)*spread(gam_e*dlog(1d1),1,Num_jump)
+        dN_work=dN_gamma_branch(:,:,I_tobs-1)*spread(gam_e,1,Num_jump)
         call transfer_parent(I_tobs)
         do I_jump=1,Num_jump
             call advance_reaccel(I_tobs,I_jump)
@@ -852,7 +852,7 @@ contains
             if (Num_gam_e == 1) then
                 gam_e(I_gam_e)=gmin
             else
-                gam_e(I_gam_e)=gmin*1d1**(dlog10(gmax0/gmin)*(I_gam_e-1)/(Num_gam_e-1))
+                gam_e(I_gam_e)=gmin*dexp(dlog(gmax0/gmin)*(I_gam_e-1)/(Num_gam_e-1))
             end if
         end do
     end subroutine reaccel_grid
@@ -904,7 +904,7 @@ contains
     real(8), allocatable, dimension(:) :: dg_adiabatic,dg_source_norm
 
         if (M3_branch(jump_index,i_shell) <= 0d0 .and. M3_branch(jump_index,i_shell-1) <= 0d0) then
-            dN_gamma_branch(jump_index,:,i_shell)=dN_x(jump_index,:)/gam_e/dlog(1d1)
+            dN_gamma_branch(jump_index,:,i_shell)=dN_x(jump_index,:)/gam_e
             return
         end if
         call prepare_branch_shell(i_shell,jump_index)
@@ -923,7 +923,7 @@ contains
             call dg_sequence(Num_gam_e,x_edge,gam_e,L1,dDR,f_r,dg_adiabatic,dg_source_norm, &
                                           p_r,gm,gmax,dN_x(jump_index,:),x)
             dN_x(jump_index,:)=x
-            dN_gamma_branch(jump_index,:,i_shell)=dN_x(jump_index,:)/gam_e/dlog(1d1)
+            dN_gamma_branch(jump_index,:,i_shell)=dN_x(jump_index,:)/gam_e
             deallocate(dg_adiabatic,dg_source_norm)
             return
         end if
@@ -936,11 +936,11 @@ contains
             else
                 dF1=0d0
             end if
-            face_speed=((dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/2d0+adrate)/dlog(1d1)
+            face_speed=((dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/2d0+adrate)
             call flux_split_step(Num_gam_e,dDR,d_x,face_speed,dF1,dN_x(jump_index,:),x,.true.)
             dN_x(jump_index,:)=x
         end do
-        dN_gamma_branch(jump_index,:,i_shell)=dN_x(jump_index,:)/gam_e/dlog(1d1)
+        dN_gamma_branch(jump_index,:,i_shell)=dN_x(jump_index,:)/gam_e
     end subroutine advance_reaccel
 
     subroutine prepare_branch_shell(i_shell,jump_index)
@@ -992,9 +992,9 @@ contains
         if (boost <= 1d0) error stop "branch_reaccel: boost must exceed unity."
         dN_out=0d0
         do I_gam_e=1,Num_gam_e
-            x_src=dlog10(gam_e(I_gam_e)/boost)
-            if (x_src < dlog10(gam_e(1)) .or. x_src > dlog10(gam_e(Num_gam_e))) cycle
-            pos=(x_src-dlog10(gam_e(1)))/d_x+1d0
+            x_src=dlog(gam_e(I_gam_e)/boost)
+            if (x_src < dlog(gam_e(1)) .or. x_src > dlog(gam_e(Num_gam_e))) cycle
+            pos=(x_src-dlog(gam_e(1)))/d_x+1d0
             i_src=int(pos)
             if (i_src < 1) cycle
             if (i_src >= Num_gam_e) then
@@ -1019,9 +1019,9 @@ contains
         integral=0d0
         dN_out_log=0d0
         do i=1,Num_gam_e
-            dN_dgamma=dN_seed_log(i)/(gam_e(i)*dlog(1d1))
-            integral=integral+dN_dgamma*gam_e(i)**(p-1d0)*(gam_e(i)*dlog(1d1)*d_x)
-            dN_out_log(i)=(p-1d0)*gam_e(i)**(-p)*integral*gam_e(i)*dlog(1d1)
+            dN_dgamma=dN_seed_log(i)/(gam_e(i))
+            integral=integral+dN_dgamma*gam_e(i)**(p-1d0)*(gam_e(i)*d_x)
+            dN_out_log(i)=(p-1d0)*gam_e(i)**(-p)*integral*gam_e(i)
         end do
     end subroutine dsa_reaccel
 
@@ -1064,9 +1064,9 @@ subroutine dg_sequence(Num_gam_e,x_edge,gam_e,num_step,dR,rad_coeff,adrate_step,
 
     kinetic_break=gamma_m
     if (gamma_max > gamma_m) kinetic_break=min(gamma_max,20d0*max(gamma_m,1d0))
-    call dg_build_mesh(x_edge(1),x_edge(Num_gam_e+1),dlog10(gamma_m), &
-                                                dlog10(kinetic_break), &
-                                                dlog10(gamma_max),fourvel_scale,mesh)
+    call dg_build_mesh(x_edge(1),x_edge(Num_gam_e+1),dlog(gamma_m), &
+                                                dlog(kinetic_break), &
+                                                dlog(gamma_max),fourvel_scale,mesh)
     allocate(state(mesh%ntot),advanced(mesh%ntot),source_nodes(mesh%ntot), &
              source_template(mesh%ntot),dN_coord(Num_gam_e), &
              dN_dgamma(Num_gam_e),coord_edge(Num_gam_e+1))
@@ -1098,7 +1098,7 @@ subroutine dg_sequence(Num_gam_e,x_edge,gam_e,num_step,dR,rad_coeff,adrate_step,
     call dg_integral(mesh,state,dg_content)
     call dg_project_cells(mesh,state,Num_gam_e,coord_edge,dN_coord)
     call coord_to_dgamma(Num_gam_e,coord_edge,mesh%coord_scale,gam_e,dN_coord,dN_dgamma)
-    dN_x_out=dN_dgamma*gam_e*dlog(1d1)
+    dN_x_out=dN_dgamma*gam_e
     projected_content=sum(dN_x_out*(x_edge(2:Num_gam_e+1)-x_edge(1:Num_gam_e)))
     if (dg_content > 0d0) then
         if (projected_content <= 0d0) error stop "dg_sequence: projection lost positive content."

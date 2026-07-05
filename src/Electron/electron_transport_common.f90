@@ -6,7 +6,6 @@ module electron_transport_common
     real(8), parameter :: rtol_relax = 8d0
     integer, parameter :: cooling_affine = 0
     integer, parameter :: cooling_piecewise = 1
-    real(8), parameter :: inv_logten = 4.3429448190325182765d-1
     real(8), parameter :: tiny_u = 1d-300
     real(8), parameter, dimension(char_order) :: qnodes0= [&
         6.9431844202973714d-2, 3.3000947820757187d-1, &
@@ -343,13 +342,13 @@ subroutine dnx_dgamma(ng,xedge,gam_e,nx,ndg)
     real(8), dimension(0:ng) :: eprefix
 
     call prepare_exp_source(ng,xedge,nx,eslope,nxmid,eprefix)
-    ndg=nxmid/(gam_e*dlog(1d1))
+    ndg=nxmid/(gam_e)
 end subroutine dnx_dgamma
 
 
 
-! 将 x=log10(gamma) 边界转换为 u=1/gamma 边界。
-! Convert x=log10(gamma) edges to u=1/gamma edges.
+! 将 x=ln(gamma) 边界转换为 u=1/gamma 边界。
+! Convert x=ln(gamma) edges to u=1/gamma edges.
 subroutine u_edges(ng,xedge,uedge)
     implicit none
     integer, intent(in) :: ng
@@ -357,18 +356,18 @@ subroutine u_edges(ng,xedge,uedge)
     real(8), intent(in), dimension(ng+1) :: xedge
     real(8), intent(out), dimension(ng+1) :: uedge
     do ig=1,ng+1
-        uedge(ig)=1d1**(-xedge(ig))
+        uedge(ig)=dexp(-xedge(ig))
     end do
 end subroutine u_edges
 
 
 
-! 将 u=1/gamma 转换回 x=log10(gamma)。
-! Convert u=1/gamma back to x=log10(gamma).
+! 将 u=1/gamma 转换回 x=ln(gamma)。
+! Convert u=1/gamma back to x=ln(gamma).
 real(8) function x_from_u(u)
     implicit none
     real(8), intent(in) :: u
-    x_from_u=-dlog(max(u,tiny_u))*inv_logten
+    x_from_u=-dlog(max(u,tiny_u))
 end function x_from_u
 
 
@@ -957,7 +956,7 @@ subroutine fullhide_step(ng,R_loc,dDR,d_x,dEL_mean,dF1,nxin,nxout)
     real(8), dimension(ng-1) :: vface,up,coupling
     real(8), dimension(ng) :: principal,rhs
 
-    vface=dEL_mean+1d0/R_loc/dlog(1d1)
+    vface=dEL_mean+1d0/R_loc
     up=-(dDR/d_x)*vface
     principal(2:ng)=1d0-up
     principal(1)=principal(2)
