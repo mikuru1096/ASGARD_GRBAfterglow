@@ -22,7 +22,7 @@ ASGARD 的第一性原理主线是：先在局域壳层坐标中闭合动力学�
 | 磁化 RS jump | 有限强度 MHD jump，`E_iso/[(1+sigma) Gamma0 c^2]` baryonic mass。 | `Dynamics_reverse` + `reverse_rhs` + `reverse_shock_mhd_jump` | `rs_vegas_comp`, `rs_vegas_ud`, `rs_mag_internal`, 主流程内有序场和磁压焓惯性 | `sigma -> 0` 回到 unmagnetized baseline，不能用 `4 gamma43 + 3` 替代有限强度极限。 |
 | 多密度增强 multiple RS | 扫描 jump window，记录可触发的新 shock branch。 | `dynamics_reverse` | `update_multiple_reverse_events`, `multiple_reverse_event_source`, `store_multiple_branch_state` | 只在密度增强和 pressure 条件允许时出现，分支权重随半径平滑。 |
 | 电子注入 | shock electron count 与能量预算归一化截断幂律/热分布。 | electron entry files | `electron_gamma_m_exact`, `electron_injection_prefactor`, `source_edges`, `electron_build_thermal_shape_dnx` | `sum Q dx` 和能量矩同时闭合；`p≈2` 不用渐近公式替代精确归一化。 |
-| 1D fullhide 电子输运 | 隐式有限体积解 `partial_R N_x + partial_x(v_x N_x)=Q_x`。 | `fs_fullhide_1d` | `prepare_fullhide_shell`, `flux_seq_nonuniform`, `get_forward_cooling` | 冷却谱不出现网格锯齿；`nu_a` 来自同一次 `Tau_syn` 网格。 |
+| 1D fullhide 电子输运 | 隐式有限体积解 `partial_R N_x + partial_x(v_x N_x)=Q_x`。 | `fs_fullhide_1d` | `prepare_fullhide_shell`, `flux_seq_nonuniform`, `forward_cooling` | 冷却谱不出现网格锯齿；`nu_a` 来自同一次 `Tau_syn` 网格。 |
 | joint coupled electron pass | 电子冷却 seed 和 secondary `Q_e,R` 进入同一 fullhide solve。 | `fs_fullhide_coupled` | `prepare_coupled_shell`, `electron_cooling_ic_loss_emissivity_budget` | 只在 `fullhide_1d + index_y=1 + am3_1d` 合同内运行；失败应暴露 grid contract。 |
 | DG 电子输运 | LGL 元、正性核和闭合低能边界。 | `fs_dg_1d` | `dg_advance_step`, `dg_filter_positive`, `dg_low_content` | DG 不是 smoothing；谱形、守恒量和断点位置共同验收。 |
 | WENO/T2G1/SLC/charint | 方法对照和数值诊断。 | `fs_weno5_1d`, `fs_t2g1_1d`, `fs_slc1_1d`, `fs_charint_1d` | `compute_weno_fluxes`, `advance_t2g1_substep`, `char_update` | 用于判别输运误差，不作为物理 fallback。 |

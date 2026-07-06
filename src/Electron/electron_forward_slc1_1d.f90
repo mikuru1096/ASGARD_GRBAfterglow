@@ -8,7 +8,7 @@ subroutine fs_slc1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e,
     use electron_transport_common, only: semi_lagrangian_step, dnx_dgamma
     use electron_injection_profiles, only: source_edges
     use electron_radiation_kernel, only: syn_state, nua_fromtau
-    use electron_cooling_kernel, only: get_forward_cooling
+    use electron_cooling_kernel, only: forward_cooling
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads
     real(8), intent(in), dimension(n) :: Boundary
@@ -79,9 +79,9 @@ subroutine fs_slc1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e,
                                     Seed_syn(:,I_tobs),tau)
         call nua_fromtau(Num_nu,V_seed,tau,temp)
         V_a(I_tobs-1)=temp/(gloc*(1d0-beta)*(1d0+z))
-        call get_forward_cooling(index_Y,Epsilon_e,Epsilon_b,p,DB,gm,gc,gemax,rloc, &
-                                 gloc,beta,dNe,Num_gam_e,Num_nu,n_threads,gam_e,V_seed, &
-                                 P_syn(:,I_tobs),Seed_syn(:,I_tobs),dEl)
+        call forward_cooling(1,index_Y,Epsilon_e,Epsilon_b,p,DB,gm,gc,gemax,rloc, &
+                             gloc,beta,dNe,Num_gam_e,Num_nu,1,n_threads,gam_e,V_seed, &
+                             P_syn(:,I_tobs),Seed_syn(:,I_tobs),Seed_syn(:,I_tobs),spec_step,dEl)
         delbase=(dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/2d0
 
         ! 子步中非均匀介质使用中点密度计算注入，端点密度推进到下一步。

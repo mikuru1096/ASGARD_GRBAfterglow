@@ -10,7 +10,7 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
                                         profile_count
     use electron_common, only: electron_initial_density, electron_unpack_boundary, electron_gm_exact, &
                                tail_factor, electron_injection_prefactor
-    use electron_cooling_kernel, only: get_forward_cooling
+    use electron_cooling_kernel, only: forward_cooling
     use electron_coord_common, only: build_fourvel_grid, fourvel_scale
     use electron_dg_transport, only: dg_mesh, dg_build_mesh, &
                                                dg_initial_state, dg_project_state, &
@@ -209,9 +209,10 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
         mesh = new_mesh
         cache_ready = .false.
         gdg = mesh%gamma
-        call get_forward_cooling(index_Y, Epsilon_e, Epsilon_b, p, DB, gm, gc, gemax, &
-                                 R_loc, gloc, beta_Gam, dNe_shell, mesh%ntot, Num_nu, n_threads, &
-                                 gdg, V_seed, P_syn(:,I_tobs), Seed_syn(:,I_tobs), delbase)
+        call forward_cooling(1,index_Y, Epsilon_e, Epsilon_b, p, DB, gm, gc, gemax, &
+                             R_loc, gloc, beta_Gam, dNe_shell, mesh%ntot, Num_nu, 1, n_threads, &
+                             gdg, V_seed, P_syn(:,I_tobs), Seed_syn(:,I_tobs), Seed_syn(:,I_tobs), &
+                             deldg, delbase)
 
     end subroutine remesh_shell
 

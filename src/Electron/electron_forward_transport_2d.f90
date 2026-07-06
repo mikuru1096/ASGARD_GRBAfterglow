@@ -20,7 +20,7 @@ subroutine fs_transport_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,ng, &
                                            log_edges, &
                                            init_coord, &
                                            source_coord
-    use electron_cooling_kernel, only: forward_cooling_aux, forward_cooling_batch
+    use electron_cooling_kernel, only: forward_cooling
     use electron_radiation_kernel, only: syn_state, nua_path, &
                                          reduce_grid, project_syn
     use electron_seed_history_kernel, only: integrate_proper_time, advance_history_stream
@@ -240,8 +240,9 @@ subroutine fs_transport_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,ng, &
         call update_bchi(x_comov_hist(:,I_tobs-1), R_Gamma_loc, dNe, brel_sh_chi)
 
         if (profile_enabled) call cpu_time(t_start)
-        call forward_cooling_aux(index_Y,ng,Num_nu_cool,nchi,n_threads,gam_e,V_cool, &
-                                               peff_cool_chi,seeff_cool_chi,cooling_aux_chi)
+        call forward_cooling(0,index_Y,0d0,0d0,0d0,0d0,0d0,0d0,0d0,0d0,0d0,0d0,0d0, &
+                             ng,Num_nu_cool,nchi,n_threads,gam_e,V_cool, &
+                             peff_cool_chi,seeff_cool_chi,seeff_cool_chi,cooling_aux_chi,dEl_chi)
         if (profile_enabled) then
             call cpu_time(t_stop)
             t_prepare_aux = t_prepare_aux + (t_stop-t_start)
@@ -629,8 +630,9 @@ subroutine finish_output()
         t_hist_accum = t_hist_accum + (t_stop-t_start)
     end if
     if (profile_enabled) call cpu_time(t_start)
-    call forward_cooling_aux(index_Y,ng,Num_nu_cool,nchi,n_threads,gam_e,V_cool, &
-                                           peff_cool_chi,seeff_cool_chi,cooling_aux_chi)
+    call forward_cooling(0,index_Y,0d0,0d0,0d0,0d0,0d0,0d0,0d0,0d0,0d0,0d0,0d0, &
+                         ng,Num_nu_cool,nchi,n_threads,gam_e,V_cool, &
+                         peff_cool_chi,seeff_cool_chi,seeff_cool_chi,cooling_aux_chi,dEl_chi)
     if (profile_enabled) then
         call cpu_time(t_stop)
         t_prepare_aux = t_prepare_aux + (t_stop-t_start)
@@ -823,19 +825,20 @@ subroutine assemble_cooling_chi(Rad, gf, bsh, seeff_chi, R_Tobs_val)
             Gam_e_c_cell = 7.7d8*(1d0+z)/gf/DB_chi(ichi)**2/R_Tobs_val
             seeff_column(:,1)=seeff_chi(:,ichi)
             cooling_aux_column(:,1)=cooling_aux_chi(:,ichi)
-            call forward_cooling_batch(index_Y, Epsilon_e, Epsilon_b_chi(ichi), p, DB_chi(ichi), &
-                                                      Gam_e_m_cell, Gam_e_c_cell, Gam_e_max_cell, Rad, gf, &
-                                                      bsh, dNe, ng, Num_nu_cool, 1, n_threads, gam_e, &
-                                                      V_cool, seeff_column, cooling_aux_column, dEl_column)
+            call forward_cooling(2,index_Y, Epsilon_e, Epsilon_b_chi(ichi), p, DB_chi(ichi), &
+                                 Gam_e_m_cell, Gam_e_c_cell, Gam_e_max_cell, Rad, gf, &
+                                 bsh, dNe, ng, Num_nu_cool, 1, n_threads, gam_e, &
+                                 V_cool, seeff_column, seeff_column, seeff_column, &
+                                 cooling_aux_column, dEl_column)
             dEl_chi(:,ichi)=dEl_column(:,1)
             dEL_mean_chi(:,ichi)=(dEl_chi(2:ng,ichi)+dEl_chi(1:ng-1,ichi))/2d0
             kappa2_chi(:,ichi) = gam_e*Para_m_energy*para_c/(3d0*Para_e*DB_chi(ichi))
         end do
     else
-        call forward_cooling_batch(index_Y, Epsilon_e, Epsilon_b, p, DB, Gam_e_m, Gam_e_c, &
-                                                  Gam_e_max, Rad, gf, &
-                                                  bsh, dNe, ng, Num_nu_cool, nchi, n_threads, gam_e, V_cool, &
-                                                  seeff_chi, cooling_aux_chi, dEl_chi)
+        call forward_cooling(2,index_Y, Epsilon_e, Epsilon_b, p, DB, Gam_e_m, Gam_e_c, &
+                             Gam_e_max, Rad, gf, &
+                             bsh, dNe, ng, Num_nu_cool, nchi, n_threads, gam_e, V_cool, &
+                             seeff_chi, seeff_chi, seeff_chi, cooling_aux_chi, dEl_chi)
         do ichi = 1, nchi
             dEL_mean_chi(:,ichi)=(dEl_chi(2:ng,ichi)+dEl_chi(1:ng-1,ichi))/2d0
         end do

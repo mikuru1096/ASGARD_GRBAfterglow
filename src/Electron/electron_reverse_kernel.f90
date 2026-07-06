@@ -26,7 +26,7 @@ module electron_reverse_kernel
                                                dg_scale_content, dg_tail_fraction, &
                                                dg_filter_positive
     use electron_radiation_kernel, only: syn_state, nua_solve
-    use electron_cooling_kernel, only: forward_cooling_aux
+    use electron_cooling_kernel, only: forward_cooling
     implicit none
     integer, parameter :: reverse_dg_base_substeps = 10
 contains
@@ -235,8 +235,9 @@ contains
                                     gam_e,dN_gam_e(:,I_tobs-1),V_seed,P_emit_tmp,P_syn,Seed_syn,Tau_syn_tmp)
         P_syn_column(:,1)=P_syn
         Seed_syn_column(:,1)=Seed_syn
-        call forward_cooling_aux(index_Y,Num_gam_e,Num_nu,1,n_threads,gam_e,V_seed, &
-                                               P_syn_column,Seed_syn_column,cooling_aux_column)
+        call forward_cooling(0,index_Y,0d0,0d0,0d0,0d0,0d0,0d0,0d0,0d0,0d0,0d0,0d0, &
+                             Num_gam_e,Num_nu,1,n_threads,gam_e,V_seed, &
+                             P_syn_column,Seed_syn_column,Seed_syn_column,cooling_aux_column,dEl)
         cooling_aux=cooling_aux_column(:,1)
         select case(index_Y)
         case(0)

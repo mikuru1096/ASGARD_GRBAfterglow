@@ -6,116 +6,91 @@ module electron_cooling_kernel
   use electron_y_kernel, only: electron_y_nakar, electron_y_fan
   private
 
-  public :: get_forward_cooling, forward_cooling_aux
-  public :: forward_cooling_batch
+  public :: forward_cooling
 
 contains
-! 为每个 chi 列准备 Compton 辅助量；index_Y 决定 IC/Nakar/Fan 路径。
-! Prepare the Compton auxiliary field per chi column; index_Y selects IC, Nakar, or Fan cooling.
-subroutine forward_cooling_aux(iy,ng,nnu,nchi,nthr,gam,vseed,psyn,seed,aux)
-implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: iy,ng,nnu,nchi,nthr
+
+! 正向激波电子冷却统一入口：mode=0 只准备 Compton auxiliary，mode=1 由 seed 计算 auxiliary 并组装冷却，
+! mode=2 复用调用方传入的 auxiliary 组装冷却。
+! Forward-shock cooling entry: mode=0 prepares Compton auxiliary only, mode=1 computes auxiliary
+! from seeds and assembles losses, and mode=2 reuses caller-supplied auxiliary for loss assembly.
+subroutine forward_cooling(mode,iy,ee,eb,p,db,gm,gc,gmax,rloc,rg,beta,dens,ng,nnu,nchi,nthr, &
+                           gam,vseed,psyn,seed,seedssa,aux,del)
+implicit none
+integer, intent(in) :: mode,iy,ng,nnu,nchi,nthr
+real(8), intent(in) :: ee,eb,p,db,gm,gc,gmax,rloc,rg,beta,dens
 real(8), intent(in), dimension(ng) :: gam
 real(8), intent(in), dimension(nnu) :: vseed
-real(8), intent(in), dimension(nnu,nchi) :: psyn,seed
-real(8), intent(out), dimension(ng,nchi) :: aux
-integer :: ic
+real(8), intent(in), dimension(*) :: psyn,seed,seedssa
+real(8), intent(inout), dimension(*) :: aux
+real(8), intent(out), dimension(*) :: del
+real(8), dimension(ng) :: comp,dotssa
+integer :: ic,ig,nu0,g0
+real(8) :: cscale,ssascale,fr,qvol
 
-    aux=0d0
-    select case(iy)
-    case(0,3)
-    case(1)
-        do ic=1,nchi
-            call electron_ic_loss(ng,nnu,nthr,gam,vseed,seed(:,ic),aux(:,ic))
-        end do
-    case(2)
-        do ic=1,nchi
-            call electron_y_nakar(ng,nnu,nthr,gam,vseed,psyn(:,ic),aux(:,ic))
-        end do
-    case default
-        error stop 'forward_cooling_aux: index_Y must be 0, 1, 2, or 3.'
-    end select
-end subroutine forward_cooling_aux
-
-! 把 synchrotron、SSA 和 Compton 项合成每个 chi 列的电子冷却率。
-! Assemble synchrotron, SSA, and Compton terms into the electron cooling rate per chi column.
-subroutine forward_cooling_batch(iy,ee,eb,p,db,gm,gc,gmax,rloc,rg,beta,dens,ng,nnu,nchi,nthr,gam,vseed,seedssa,aux,del)
-implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: iy,ng,nnu,nchi,nthr
-real(8), intent(in) :: ee,eb,p,db,gm,gc,rloc,rg,beta,dens
-real(8), intent(in) :: gmax
-real(8), intent(in), dimension(ng) :: gam
-real(8), intent(in), dimension(nnu) :: vseed
-real(8), intent(in), dimension(nnu,nchi) :: seedssa
-real(8), intent(in), dimension(ng,nchi) :: aux
-real(8), intent(out), dimension(ng,nchi) :: del
-real(8), dimension(ng) :: comp
-real(8), dimension(ng,nchi) :: dotssa
-integer :: ic
-
-    if (iy == 0) then
-        dotssa=0d0
-    else
-        call electron_ssa_loss(db,ng,nnu,nchi,nthr,gam,vseed,seedssa,dotssa)
+    if (mode /= 2) then
+        select case(iy)
+        case(0,3)
+            do ic=1,nchi
+                g0=(ic-1)*ng
+                aux(g0+1:g0+ng)=0d0
+            end do
+        case(1)
+            do ic=1,nchi
+                nu0=(ic-1)*nnu
+                g0=(ic-1)*ng
+                call electron_ic_loss(ng,nnu,nthr,gam,vseed,seed(nu0+1),aux(g0+1))
+            end do
+        case(2)
+            do ic=1,nchi
+                nu0=(ic-1)*nnu
+                g0=(ic-1)*ng
+                call electron_y_nakar(ng,nnu,nthr,gam,vseed,psyn(nu0+1),aux(g0+1))
+            end do
+        case default
+            error stop 'forward_cooling: index_Y must be 0, 1, 2, or 3.'
+        end select
     end if
-    do ic=1,nchi
-       call forward_cooling_terms(iy,ee,eb,p,db,gm,gc,gmax,rloc,rg,beta,dens,ng,gam,comp,dotssa(:,ic),aux(:,ic),del(:,ic))
-    end do
-end subroutine forward_cooling_batch
-
-! 单列半径损失系数：d gamma/dR = -del*gamma。
-! Single-column radial loss coefficient: d gamma/dR = -del*gamma.
-subroutine forward_cooling_terms(iy,ee,eb,p,db,gm,gc,gmax,rloc,rg,beta,dens,ng,gam,comp,dotssa,aux,del)
-implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: iy,ng
-real(8), intent(in) :: ee,eb,p,db,gm,gc,rloc,rg,beta,dens
-real(8), intent(in) :: gmax
-real(8), intent(in), dimension(ng) :: gam
-real(8), intent(inout), dimension(ng) :: comp
-real(8), intent(in), dimension(ng) :: dotssa,aux
-real(8), intent(out), dimension(ng) :: del
+    if (mode == 0) return
 
     cscale=1d0/(beta*rg)
     ssascale=cscale/para_c
     fr=1.35d-19*db**2*cscale/pi
+    if (iy /= 0) call electron_ssa_loss(db,ng,nnu,nchi,nthr,gam,vseed,seedssa,del)
 
-    select case(iy)
-    case(0)
-        del=fr*gam
-    case(1)
-        del=(fr+(aux-dotssa)*ssascale)*gam
-    case(2)
-        qvol=4d0*pi*rloc*rloc*para_c
-        comp=1d0+aux/qvol/(4d0*rg*rg*dens*Para_m_p_E)
-        del=(fr*comp-dotssa*ssascale)*gam
-    case(3)
-        call electron_y_fan(ee,eb,p,db,gm,gc,gmax,ng,gam,comp)
-        comp=1d0+comp
-        del=(fr*comp-dotssa*ssascale)*gam
-    case default
-        error stop 'forward_cooling_terms: index_Y must be 0, 1, 2, or 3.'
-    end select
-end subroutine forward_cooling_terms
-
-! 单壳层主入口：包装成一列 chi，再复用批量冷却装配。
-! Single-shell entry: wrap the state as 1 chi column and reuse the batch assembler.
-subroutine get_forward_cooling(iy,ee,eb,p,db,gm,gc,gmax,rloc,rg,beta,dens,ng,nnu,nthr,gam,vseed,psyn,seed,del)
-implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: iy,ng,nnu,nthr
-real(8), intent(in) :: ee,eb,p,db,gm,gc,rloc,rg,beta,dens
-real(8), intent(in) :: gmax
-real(8), intent(in), dimension(ng) :: gam
-real(8), intent(in), dimension(nnu) :: vseed,psyn,seed
-real(8), intent(out), dimension(ng) :: del
-real(8), dimension(nnu,1) :: pscol,secol
-real(8), dimension(ng,1) :: auxcol,delcol
-
-    pscol(:,1)=psyn
-    secol(:,1)=seed
-    call forward_cooling_aux(iy,ng,nnu,1,nthr,gam,vseed,pscol,secol,auxcol)
-    call forward_cooling_batch(iy,ee,eb,p,db,gm,gc,gmax,rloc,rg,beta,dens,ng,nnu,1,nthr,gam,vseed,secol,auxcol,delcol)
-    del=delcol(:,1)
-end subroutine get_forward_cooling
-
+    do ic=1,nchi
+        g0=(ic-1)*ng
+        if (iy == 0) then
+            dotssa=0d0
+        else
+            do ig=1,ng
+                dotssa(ig)=del(g0+ig)
+            end do
+        end if
+        select case(iy)
+        case(0)
+            do ig=1,ng
+                del(g0+ig)=fr*gam(ig)
+            end do
+        case(1)
+            do ig=1,ng
+                del(g0+ig)=(fr+(aux(g0+ig)-dotssa(ig))*ssascale)*gam(ig)
+            end do
+        case(2)
+            qvol=4d0*pi*rloc*rloc*para_c
+            do ig=1,ng
+                comp(ig)=1d0+aux(g0+ig)/qvol/(4d0*rg*rg*dens*Para_m_p_E)
+                del(g0+ig)=(fr*comp(ig)-dotssa(ig)*ssascale)*gam(ig)
+            end do
+        case(3)
+            call electron_y_fan(ee,eb,p,db,gm,gc,gmax,ng,gam,comp)
+            do ig=1,ng
+                del(g0+ig)=(fr*(1d0+comp(ig))-dotssa(ig)*ssascale)*gam(ig)
+            end do
+        case default
+            error stop 'forward_cooling: index_Y must be 0, 1, 2, or 3.'
+        end select
+    end do
+end subroutine forward_cooling
 
 end module electron_cooling_kernel

@@ -18,7 +18,7 @@ subroutine fs_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
                                                  coord_fourvel, &
                                                  fourvel_scale
     use electron_radiation_kernel, only: syn_state, nua_fromtau
-    use electron_cooling_kernel, only: get_forward_cooling
+    use electron_cooling_kernel, only: forward_cooling
     use electron_shell_transport, only: shell_coord_step, &
                                                coord_to_dgamma
     use electron_transport_common, only: dnx_dgamma, &
@@ -179,9 +179,9 @@ contains
         call nua_fromtau(Num_nu,V_seed,Tau_syn_shell,temp)
         V_a(I_tobs-1)=temp/(R_Gamma_loc*(1d0-beta_Gam)*(1d0+z))
 
-        call get_forward_cooling(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc, &
-                                 R_Gamma_loc,beta_Gam,dNe,Num_gam_e,Num_nu,n_threads,gam_e,V_seed, &
-                                 P_syn(:,I_tobs),Seed_syn(:,I_tobs),dEl)
+        call forward_cooling(1,index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc, &
+                             R_Gamma_loc,beta_Gam,dNe,Num_gam_e,Num_nu,1,n_threads,gam_e,V_seed, &
+                             P_syn(:,I_tobs),Seed_syn(:,I_tobs),Seed_syn(:,I_tobs),dEl_step,dEl)
     end subroutine prepare_fullhide_shell
 
     ! 最后一个输出点没有后续推进，只刷新与最终电子谱一致的辐射诊断。
@@ -421,7 +421,7 @@ subroutine fs_fullhide_coupled(Boundary,R_Tobs,R_Gamma,R,V_seed,Seed_cooling,sec
                                            log_edges
     use electron_radiation_kernel, only: syn_state, nua_fromtau
     use electron_ic_kernel, only: electron_ic_budget
-    use electron_cooling_kernel, only: forward_cooling_batch
+    use electron_cooling_kernel, only: forward_cooling
     use electron_transport_common, only: dnx_dgamma, fullhide_step
     IMPLICIT REAL(8)(A-H,O-Z)
     integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads
@@ -540,9 +540,10 @@ contains
         call electron_ic_budget(Num_gam_e,Num_nu,n_threads,gam_e,V_seed,Seed_cooling(:,I_tobs),cooling_aux)
         Seed_ssa_column(:,1)=Seed_syn(:,I_tobs)
         cooling_aux_column(:,1)=cooling_aux
-        call forward_cooling_batch(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max_cool, &
-                                                  R_loc,R_Gamma_loc,beta_Gam,dNe,Num_gam_e,Num_nu,1,n_threads, &
-                                                  gam_e,V_seed,Seed_ssa_column,cooling_aux_column,dEl_column)
+        call forward_cooling(2,index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max_cool, &
+                             R_loc,R_Gamma_loc,beta_Gam,dNe,Num_gam_e,Num_nu,1,n_threads, &
+                             gam_e,V_seed,Seed_ssa_column,Seed_ssa_column,Seed_ssa_column, &
+                             cooling_aux_column,dEl_column)
         dEl=dEl_column(:,1)
     end subroutine prepare_coupled_shell
 

@@ -10,7 +10,7 @@ subroutine fs_fullhide_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
     use electron_injection_profiles, only: init_coord, source_coord
     use electron_coord_common, only: build_fourvel_grid, dxg_dcoord, coord_fourvel, fourvel_scale
     use electron_radiation_kernel, only: syn_state, nua_fromtau
-    use electron_cooling_kernel, only: get_forward_cooling
+    use electron_cooling_kernel, only: forward_cooling
     use electron_shell_transport, only: shell_coord_step, coord_to_dgamma
     use hybrid_spectrum, only: hybrid_coord
     IMPLICIT REAL(8)(A-H,O-Z)
@@ -107,9 +107,9 @@ subroutine fs_fullhide_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
         call nua_fromtau(Num_nu,V_seed,Tau_syn_tmp,temp)
         V_a(I_tobs-1)=temp/(R_Gamma_loc*(1d0-beta_Gam)*(1d0+z))
 
-        call get_forward_cooling(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc, &
-                                 R_Gamma_loc,beta_Gam,dNe,Num_gam_e,Num_nu,n_threads,gam_e,V_seed, &
-                                 P_syn(:,I_tobs),Seed_syn(:,I_tobs),dEl)
+        call forward_cooling(1,index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc, &
+                             R_Gamma_loc,beta_Gam,dNe,Num_gam_e,Num_nu,1,n_threads,gam_e,V_seed, &
+                             P_syn(:,I_tobs),Seed_syn(:,I_tobs),Seed_syn(:,I_tobs),dEl_step,dEl)
 
         dDR_xi=dDR
         if (adaptive_substeps == 0) then

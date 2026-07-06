@@ -10,7 +10,7 @@ subroutine fs_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam
         dnx_dgamma
     use electron_injection_profiles, only: source_edges
     use electron_radiation_kernel, only: syn_state, nua_fromtau
-    use electron_cooling_kernel, only: get_forward_cooling
+    use electron_cooling_kernel, only: forward_cooling
     implicit none
     integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads,adaptive_substeps,substep_min,substep_max
     integer :: I_tobs,L,L1
@@ -273,9 +273,9 @@ contains
         if (index_Y == 0) then
             dEl_base=0d0
         else
-            call get_forward_cooling(index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc, &
-                                     R_Gamma_loc,beta_Gam,dNe,Num_gam_e,Num_nu,n_threads,gam_e,V_seed, &
-                                     P_syn(:,I_tobs),Seed_syn(:,I_tobs),dEl_base)
+            call forward_cooling(1,index_Y,Epsilon_e,Epsilon_b,p,DB,Gam_e_m,Gam_e_c,Gam_e_max,R_loc, &
+                                 R_Gamma_loc,beta_Gam,dNe,Num_gam_e,Num_nu,1,n_threads,gam_e,V_seed, &
+                                 P_syn(:,I_tobs),Seed_syn(:,I_tobs),Seed_syn(:,I_tobs),dEl_step,dEl_base)
         end if
     end subroutine prepare_characteristic_shell
 

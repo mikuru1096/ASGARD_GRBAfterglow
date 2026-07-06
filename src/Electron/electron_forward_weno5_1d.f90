@@ -7,7 +7,7 @@ subroutine fs_weno5_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e
     use electron_common
     use electron_injection_profiles, only: source_edges
     use rad_common, only: syn_seed_chi
-    use electron_cooling_kernel, only: get_forward_cooling
+    use electron_cooling_kernel, only: forward_cooling
     use electron_transport_common, only: dnx_dgamma
     implicit none
     integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,index_Y,n_threads
@@ -113,9 +113,9 @@ contains
         P_syn(:,I_tobs)=pshell(:,1)
         Seed_syn(:,I_tobs)=seedshell(:,1)
 
-        call get_forward_cooling(index_Y,Epsilon_e,Epsilon_b,p,DB,gm,gc,gmax,rloc, &
-                                 gloc,beta,dNe,Num_gam_e,Num_nu,n_threads,gam_e,V_seed, &
-                                 P_syn(:,I_tobs),Seed_syn(:,I_tobs),dEl)
+        call forward_cooling(1,index_Y,Epsilon_e,Epsilon_b,p,DB,gm,gc,gmax,rloc, &
+                             gloc,beta,dNe,Num_gam_e,Num_nu,1,n_threads,gam_e,V_seed, &
+                             P_syn(:,I_tobs),Seed_syn(:,I_tobs),Seed_syn(:,I_tobs),deladv,dEl)
 
         dEl(1:Num_gam_e-1)=(dEl(1:Num_gam_e-1)+dEl(2:Num_gam_e))*0.5d0
         dEl(Num_gam_e)=dEl(Num_gam_e-1)*0.5d0

@@ -7,7 +7,7 @@ subroutine fs_t2g1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e,
     use electron_common
     use electron_injection_profiles, only: source_edges
     use electron_radiation_kernel, only: syn_state, nua_fromtau
-    use electron_cooling_kernel, only: get_forward_cooling
+    use electron_cooling_kernel, only: forward_cooling
     use electron_transport_common, only: prepare_implicit_coeffs, backward_sweep, &
                                          dnx_dgamma
     implicit none
@@ -115,9 +115,9 @@ contains
         call nua_fromtau(Num_nu,V_seed,tau,temp)
         V_a(I_tobs-1)=temp/(gloc*(1d0-beta)*(1d0+z))
 
-        call get_forward_cooling(index_Y,Epsilon_e,Epsilon_b,p,DB,gm,gc,gemax,rloc, &
-                                 gloc,beta,dNe,Num_gam_e,Num_nu,n_threads,gam_e,V_seed, &
-                                 P_syn(:,I_tobs),Seed_syn(:,I_tobs),dEl)
+        call forward_cooling(1,index_Y,Epsilon_e,Epsilon_b,p,DB,gm,gc,gemax,rloc, &
+                             gloc,beta,dNe,Num_gam_e,Num_nu,1,n_threads,gam_e,V_seed, &
+                             P_syn(:,I_tobs),Seed_syn(:,I_tobs),Seed_syn(:,I_tobs),temp2,dEl)
 
         delmean=(dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/2d0
         delbase=delmean
