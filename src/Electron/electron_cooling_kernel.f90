@@ -24,73 +24,77 @@ real(8), intent(in), dimension(nnu) :: vseed
 real(8), intent(in), dimension(*) :: psyn,seed,seedssa
 real(8), intent(inout), dimension(*) :: aux
 real(8), intent(out), dimension(*) :: del
-real(8), dimension(ng) :: comp,dotssa
-integer :: ic,ig,nu0,g0
+real(8), dimension(ng) :: comp
+integer :: ic,nu0,g0
 real(8) :: cscale,ssascale,fr,qvol
 
-    if (mode /= 2) then
-        select case(iy)
-        case(0,3)
+    select case(iy)
+    case(0)
+        if (mode /= 2) then
             do ic=1,nchi
                 g0=(ic-1)*ng
                 aux(g0+1:g0+ng)=0d0
             end do
-        case(1)
+        end if
+    case(1)
+        if (mode /= 2) then
             do ic=1,nchi
                 nu0=(ic-1)*nnu
                 g0=(ic-1)*ng
                 call electron_ic_loss(ng,nnu,nthr,gam,vseed,seed(nu0+1),aux(g0+1))
             end do
-        case(2)
+        end if
+    case(2)
+        if (mode /= 2) then
             do ic=1,nchi
                 nu0=(ic-1)*nnu
                 g0=(ic-1)*ng
                 call electron_y_nakar(ng,nnu,nthr,gam,vseed,psyn(nu0+1),aux(g0+1))
             end do
-        case default
-            error stop 'forward_cooling: index_Y must be 0, 1, 2, or 3.'
-        end select
-    end if
+        end if
+    case(3)
+        if (mode /= 2) then
+            do ic=1,nchi
+                g0=(ic-1)*ng
+                aux(g0+1:g0+ng)=0d0
+            end do
+        end if
+    case default
+        error stop 'forward_cooling: index_Y must be 0, 1, 2, or 3.'
+    end select
     if (mode == 0) return
 
     cscale=1d0/(beta*rg)
     ssascale=cscale/para_c
     fr=1.35d-19*db**2*cscale/pi
-    if (iy /= 0) call electron_ssa_loss(db,ng,nnu,nchi,nthr,gam,vseed,seedssa,del)
+    if (iy == 0) then
+        do ic=1,nchi
+            g0=(ic-1)*ng
+            del(g0+1:g0+ng)=fr*gam
+        end do
+        return
+    end if
 
-    do ic=1,nchi
-        g0=(ic-1)*ng
-        if (iy == 0) then
-            dotssa=0d0
-        else
-            do ig=1,ng
-                dotssa(ig)=del(g0+ig)
-            end do
-        end if
-        select case(iy)
-        case(0)
-            do ig=1,ng
-                del(g0+ig)=fr*gam(ig)
-            end do
-        case(1)
-            do ig=1,ng
-                del(g0+ig)=(fr+(aux(g0+ig)-dotssa(ig))*ssascale)*gam(ig)
-            end do
-        case(2)
-            qvol=4d0*pi*rloc*rloc*para_c
-            do ig=1,ng
-                comp(ig)=1d0+aux(g0+ig)/qvol/(4d0*rg*rg*dens*Para_m_p_E)
-                del(g0+ig)=(fr*comp(ig)-dotssa(ig)*ssascale)*gam(ig)
-            end do
-        case(3)
-            call electron_y_fan(ee,eb,p,db,gm,gc,gmax,ng,gam,comp)
-            do ig=1,ng
-                del(g0+ig)=(fr*(1d0+comp(ig))-dotssa(ig)*ssascale)*gam(ig)
-            end do
-        case default
-            error stop 'forward_cooling: index_Y must be 0, 1, 2, or 3.'
-        end select
-    end do
+    call electron_ssa_loss(db,ng,nnu,nchi,nthr,gam,vseed,seedssa,del)
+    if (iy == 1) then
+        do ic=1,nchi
+            g0=(ic-1)*ng
+            del(g0+1:g0+ng)=(fr+(aux(g0+1:g0+ng)-del(g0+1:g0+ng))*ssascale)*gam
+        end do
+    else if (iy == 2) then
+        qvol=4d0*pi*rloc*rloc*para_c
+        do ic=1,nchi
+            g0=(ic-1)*ng
+            comp=1d0+aux(g0+1:g0+ng)/qvol/(4d0*rg*rg*dens*Para_m_p_E)
+            del(g0+1:g0+ng)=(fr*comp-del(g0+1:g0+ng)*ssascale)*gam
+        end do
+    else
+        call electron_y_fan(ee,eb,p,db,gm,gc,gmax,ng,gam,comp)
+        do ic=1,nchi
+            g0=(ic-1)*ng
+            del(g0+1:g0+ng)=(fr*(1d0+comp)-del(g0+1:g0+ng)*ssascale)*gam
+        end do
+    end if
 end subroutine forward_cooling
 
 end module electron_cooling_kernel
