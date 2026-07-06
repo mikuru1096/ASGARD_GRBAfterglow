@@ -23,6 +23,8 @@ rtk bash -lc "source ~/.wsl_env && cd \"/mnt/c/Users/jia/Documents/New project/A
 ```
 **声明块压缩规则**: 同类型声明合并到一行，语义相近的量分组。B 类子程序声明块 ≤15 行。禁止每行只声明一个变量。
 
+- **src 压缩/性能重构**: 先固定范围、基线 HEAD、行数口径和最小 public/direct 基准；删除代码必须有 `git grep`、构建闭包或 ABI smoke 证明无生产调用；声明压缩只合并同类型、同 intent/shape 且同物理角色的相邻变量。触达算法前先写收益假设，改后跑受影响 `build_extensions.py --force`、独立 `-Wline-truncation` 闭包检查和改前/改后 3 次 median。结束时用 `/tmp` 脚本重建 `doc/fortran_kernel_index.md`，脚本不提交。
+
 - **Reverse-shock hadronic**: light backend `hadronic_reverse_1d` covers RS proton injection/transport + proton synchrotron; when RS hadronic full-chain flags are enabled, the runtime reuses the formal 1D hadronic kernels for RS pγ/BH/pp/secondary/cascade coupling with RS seed photons and RS shell targets.
 - **Pair cascade**: `pair_cascade_iterations > 1` now uses a shell-sequence time-dependent γγ pair/synch cascade path; the legacy single-shell iterative kernel remains for low-level diagnostics. IC-mediated electromagnetic cascade boundary is tracked in `TODO.md`.
 - **Reverse-shock thermal/magnetized baseline**: RS 注入能标使用 shock-front `gamma34`；区域 3 turbulent field 和 post-crossing 热演化使用显式 `U3/V3` thermal state；`E_iso` 是总 ejecta 能量，有限 upstream `sigma` 下 baryonic ejecta mass 为 `E_iso/[(1+sigma) Gamma0 c^2]`，MHD jump 同时给出压缩比、有序磁场和热比内能，有序磁场焓进入主 RS 动力学惯性，返回的 `B3` 是 turbulent + ordered total field；局部压缩比的 `sigma -> 0` 极限必须使用有限强度 hydrodynamic jump，不能使用 ultra-relativistic `4*gamma43+3` 近似。VegasAfterglow 作为 jump-condition comparison backend，不作为光变目标或全局动力学基准。
