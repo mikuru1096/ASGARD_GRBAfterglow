@@ -2,15 +2,14 @@ module electron_radiation_kernel
   use constants
   use rad_common, only: syn_seed_chi, syn_kernel, &
                               transfer_factor
-  use syn_polarization, only: synchrotron_polarized_components
   private
 
   integer, parameter :: index_syn_fixed_grid_legacy=1, index_syn_fixed_grid=2, index_syn_cyclotron=4
 
-  public :: first_greater, greater_window
+  public :: greater_window
   public :: besselk, syn_state
-  public :: syn_transfer, syn_polarized, nua_solve
-  public :: nua_path, reduce_chi
+  public :: syn_transfer, nua_solve
+  public :: nua_path
   public :: reduce_grid, project_syn
   public :: nua_fromtau
   public :: pl_interp, log_gauss2, pl_integral, ssa_segment
@@ -40,25 +39,6 @@ integer :: lo,hi,mid
 end subroutine greater_from
 
 ! 在全数组arr(1:n)中二分查找第一个 > target 的索引，含边界快速返回。
-subroutine first_greater(arr,n,target,idx)
-implicit none
-integer, intent(in) :: n
-real(8), intent(in), dimension(n) :: arr
-real(8), intent(in) :: target
-integer, intent(out) :: idx
-
-    if (arr(1) > target) then
-        idx=1
-        return
-    end if
-    if (arr(n) <= target) then
-        idx=n+1
-        return
-    end if
-
-    call greater_from(arr,1,n,target,idx)
-end subroutine first_greater
-
 ! 从start_idx开始在arr(1:n)中查找第一个 > target 的索引（带游标加速）。
 subroutine greater_window(arr,n,start_idx,target,idx)
 implicit none
@@ -175,8 +155,7 @@ real(8), intent(in), dimension(Num_nu) :: V_seed
 real(8), intent(in) :: R_loc,DB
 real(8), intent(out), dimension(Num_nu) :: P_emit,P_syn,Seed_syn,Tau_syn
 real(8), dimension(Num_gam_e) :: dN1,wsim,wemit
-real(8), dimension(Num_gam_e-1) :: ddN
-real(8), dimension(Num_gam_e-1) :: gmean2,wtau
+real(8), dimension(Num_gam_e-1) :: ddN, gmean2, wtau
 real(8), dimension(Num_nu) :: vpow
 real(8), dimension(Num_gam_e) :: vcinv,vcpow
 real(8), dimension(Num_gam_e-1) :: tauinv,taupow
@@ -370,8 +349,7 @@ real(8), intent(in), dimension(Num_nu) :: V_seed,Tau_syn
 real(8), intent(in) :: R_loc,DB
 real(8), intent(inout), dimension(Num_nu) :: P_emit,P_syn,Seed_syn
 real(8), dimension(Num_nu+1) :: nu_edge
-real(8) :: nu_b,nu0,gamma_mid,beta2,n_e_seg,p_total,p_nu,transfer
-real(8) :: r2,hfac
+real(8) :: nu_b, nu0, gamma_mid, beta2, n_e_seg, p_total, p_nu, transfer, r2, hfac
 
     if (DB <= 0d0) return
     nu_edge(1)=V_seed(1)*dsqrt(V_seed(1)/V_seed(2))
@@ -390,7 +368,7 @@ real(8) :: r2,hfac
         beta2=1d0-1d0/(gamma_mid*gamma_mid)
         nu0=nu_b/gamma_mid
         if (nu0 < nu_edge(1) .or. nu0 >= nu_edge(Num_nu+1)) cycle
-        call first_greater(nu_edge,Num_nu+1,nu0,I_nu)
+        call greater_window(nu_edge,Num_nu+1,1,nu0,I_nu)
         I_nu=max(1,min(Num_nu,I_nu-1))
         p_total=n_e_seg*(4d0/3d0)*para_sigmat*para_c*(DB*DB/(8d0*pi))*gamma_mid*gamma_mid*beta2
         p_nu=p_total/(nu_edge(I_nu+1)-nu_edge(I_nu))
@@ -543,8 +521,7 @@ subroutine syn_gauss(x0,x1,dN0,dN1,V_cal,DB,factor,p2,p3)
 implicit REAL(8)(A-H,O-Z)
 real(8), intent(in) :: x0,x1,dN0,dN1,V_cal,DB,factor
 real(8), intent(out) :: p2,p3
-real(8) :: xm,dx,w2,w3a
-real(8) :: x2a,x2b,x3a,x3b
+real(8) :: xm, dx, w2, w3a, x2a, x2b, x3a, x3b
 
     xm=0.5d0*(x0+x1)
     dx=0.5d0*(x1-x0)
@@ -567,8 +544,7 @@ subroutine tau_gauss(x0,x1,dN10,dN11,V_cal,DB,factor,t2,t3)
 implicit REAL(8)(A-H,O-Z)
 real(8), intent(in) :: x0,x1,dN10,dN11,V_cal,DB,factor
 real(8), intent(out) :: t2,t3
-real(8) :: xm,dx,width,w2,w3a,q_drop
-real(8) :: x2a,x2b,x3a,x3b
+real(8) :: xm, dx, width, w2, w3a, q_drop, x2a, x2b, x3a, x3b
 
     if (x1 <= x0) then
         t2=0d0
@@ -600,8 +576,7 @@ subroutine syn_adapt(x0,x1,dN0,dN1,dN10,dN11, &
 implicit REAL(8)(A-H,O-Z)
 real(8), intent(in) :: x0,x1,dN0,dN1,dN10,dN11,V_cal,DB,factor,rel_tol
 real(8), intent(out) :: p_int,tau_int
-real(8) :: p2,p3,t2,t3,xm,dNm,dN1m,err_p,err_t,ref_p,ref_t
-real(8) :: p3_l,p3_r,t3_l,t3_r
+real(8) :: p2, p3, t2, t3, xm, dNm, dN1m, err_p, err_t, ref_p, ref_t, p3_l, p3_r, t3_l, t3_r
 
     call syn_gauss(x0,x1,dN0,dN1,V_cal,DB,factor,p2,p3)
     call tau_gauss(x0,x1,dN10,dN11,V_cal,DB,factor,t2,t3)
@@ -626,63 +601,6 @@ real(8) :: p3_l,p3_r,t3_l,t3_r
     end if
 end subroutine syn_adapt
 
-! 同步辐射偏振核：现有总谱给强度，F/G偏振核直接积分给频率依赖Pi。
-subroutine syn_polarized(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads, &
-                                         gam_e,dN_gam_e,V_seed,p_index,P_perp,P_parallel,Pi_nu)
-implicit none
-integer, intent(in) :: index_syn_intger,Num_gam_e,Num_nu,n_threads
-real(8), intent(in), dimension(Num_gam_e) :: gam_e,dN_gam_e
-real(8), intent(in), dimension(Num_nu) :: V_seed
-real(8), intent(in) :: R_loc,DB,p_index
-real(8), intent(out), dimension(Num_nu) :: P_perp,P_parallel,Pi_nu
-real(8), dimension(Num_nu) :: P_emit,P_syn,Seed_syn,Tau_syn,Pi_emit
-
-    if (p_index <= 0d0) error stop "syn_polarized requires p_index > 0."
-    call syn_state(index_syn_intger,R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed, &
-                                P_emit,P_syn,Seed_syn,Tau_syn)
-    call pol_frac(DB,Num_gam_e,Num_nu,gam_e,dN_gam_e,V_seed,Pi_emit)
-    Pi_nu=Pi_emit
-    P_perp=0.5d0*(1d0+Pi_nu)*P_syn
-    P_parallel=0.5d0*(1d0-Pi_nu)*P_syn
-end subroutine syn_polarized
-
-! 输出专用局域偏振率核：对电子谱直接卷积(F+G)/2和(F-G)/2两个偏振发射核。
-subroutine pol_frac(DB,Num_gam_e,Num_nu,gam_e,dN_gam_e,V_seed,Pi_nu)
-implicit none
-integer, intent(in) :: Num_gam_e,Num_nu
-real(8), intent(in), dimension(Num_gam_e) :: gam_e,dN_gam_e
-real(8), intent(in), dimension(Num_nu) :: V_seed
-real(8), intent(in) :: DB
-real(8), intent(out), dimension(Num_nu) :: Pi_nu
-integer :: I_nu,I_gam_e
-real(8) :: V_cal,dPerp,dParallel,total_pol,gam_e_mean2,Vc,x,dN,dgam_e,perp_kernel,parallel_kernel
-
-    if (DB <= 0d0) error stop "pol_frac requires DB > 0."
-    do I_nu=1,Num_nu
-        V_cal=V_seed(I_nu)
-        if (V_cal <= 0d0) error stop "pol_frac requires positive frequency."
-        dPerp=0d0
-        dParallel=0d0
-        do I_gam_e=1,Num_gam_e-1
-            dN=(dN_gam_e(I_gam_e)+dN_gam_e(I_gam_e+1))/2d0
-            if (dN <= 0d0) cycle
-            gam_e_mean2=(gam_e(I_gam_e)+gam_e(I_gam_e+1))**2/4d0
-            Vc=(4.2d6)*gam_e_mean2*DB
-            x=V_cal/Vc
-            dgam_e=gam_e(I_gam_e+1)-gam_e(I_gam_e)
-            call synchrotron_polarized_components(x,perp_kernel,parallel_kernel)
-            dPerp=dPerp+dN*perp_kernel*dgam_e
-            dParallel=dParallel+dN*parallel_kernel*dgam_e
-        end do
-        total_pol=dPerp+dParallel
-        if (total_pol > 0d0) then
-            Pi_nu(I_nu)=(dPerp-dParallel)/total_pol
-        else
-            Pi_nu(I_nu)=0d0
-        end if
-    end do
-end subroutine pol_frac
-
 ! 计算同步辐射转移函数：Transfer = P_absorbed / P_emit，即(1-e^(-τ))/τ。
 subroutine syn_transfer(R_loc,DB,Num_gam_e,Num_nu,n_threads,gam_e,dN_gam_e,V_seed,Transfer_syn)
 !$ use omp_lib
@@ -692,8 +610,7 @@ real(8), intent(in), dimension(Num_gam_e) :: gam_e,dN_gam_e
 real(8), intent(in), dimension(Num_nu) :: V_seed
 real(8), intent(in) :: R_loc,DB
 real(8), intent(out), dimension(Num_nu) :: Transfer_syn
-real(8), dimension(1) :: DB_chi
-real(8), dimension(1) :: Weight_chi
+real(8), dimension(1) :: DB_chi, Weight_chi
 real(8), dimension(Num_gam_e,1) :: DNe_chi
 real(8), dimension(Num_nu,1) :: P_emit,P_syn,Seed_syn,Tau_syn
 integer :: I_nu
@@ -810,8 +727,7 @@ subroutine refine_tau(V_low,Tau_low,V_high,Tau_high,V_root)
 implicit REAL(8)(A-H,O-Z)
 real(8), intent(inout) :: V_low,Tau_low,V_high,Tau_high
 real(8), intent(out) :: V_root
-real(8) :: log_v_low,log_v_high,log_v_mid,log_tau_low,log_tau_high
-real(8) :: V_mid,Tau_mid
+real(8) :: log_v_low, log_v_high, log_v_mid, log_tau_low, log_tau_high, V_mid, Tau_mid
 integer :: I_iter
 
     log_v_low=dlog(V_low)
@@ -868,27 +784,6 @@ real(8), dimension(Num_nu) :: Tau_path
         call nua_fromtau(Num_nu,V_seed,Tau_path,V_a_chi(I_chi))
     end do
 end subroutine nua_path
-
-! 将χ分辨的同步辐射谱加权求和为壳层平均谱：Σ χ dη ln(10) * Q(χ)。
-subroutine reduce_chi(Num_nu,Num_chi,deta,chi_grid,P_chi,Seed_chi,P_shell,Seed_shell)
-implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: Num_nu,Num_chi
-integer :: I_chi
-real(8), intent(in), dimension(Num_chi) :: chi_grid
-real(8), intent(in), dimension(Num_nu,Num_chi) :: P_chi,Seed_chi
-real(8), intent(in) :: deta
-real(8), intent(out), dimension(Num_nu) :: P_shell,Seed_shell
-real(8) :: weight,ln10
-
-    ln10=dlog(1d1)
-    P_shell=0d0
-    Seed_shell=0d0
-    do I_chi=1,Num_chi
-        weight=chi_grid(I_chi)*deta*ln10
-        P_shell=P_shell+weight*P_chi(:,I_chi)
-        Seed_shell=Seed_shell+weight*Seed_chi(:,I_chi)
-    end do
-end subroutine reduce_chi
 
 ! 从光深网格求解ν_a：在τ穿越1的位置对数插值。
 subroutine nua_fromtau(Num_nu,V_seed,Tau_grid,V_a)

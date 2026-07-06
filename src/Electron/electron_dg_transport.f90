@@ -12,13 +12,8 @@ module electron_dg_transport
 
     ! DG 谱元离散参数：LGL 节点、分段断点和源项投影积分阶数。
     ! DG spectral-element setup: LGL nodes, mesh breaks, and source quadrature order.
-    integer, parameter :: dg_order = 12
-    integer, parameter :: dg_nodes = dg_order + 1
-    integer, parameter :: dg_segments = 6
-    integer, parameter :: dg_breaks = 3
-    integer, parameter :: dg_quadn = 4
-    integer, parameter :: dg_loggamma = coord_loggamma
-    integer, parameter :: dg_fourvel = coord_fourvel
+    integer, parameter :: dg_order = 12, dg_nodes = dg_order + 1, dg_segments = 6, dg_breaks = 3
+    integer, parameter :: dg_quadn = 4, dg_loggamma = coord_loggamma, dg_fourvel = coord_fourvel
     real(8), parameter, dimension(dg_quadn) :: dg_qnodes= [2.3260475760753783d-5, &
         1.1852538299698612d-2, 2.0155705894317942d-1, 7.4986401224114997d-1]
     real(8), parameter, dimension(dg_quadn) :: dg_qweights= [5.8639022562157604d-4, &
@@ -30,10 +25,7 @@ module electron_dg_transport
     ! DG 网格记录：只保存坐标、节点、权重和导数矩阵，不承载推进逻辑。
     ! DG mesh record: stores coordinates, nodes, weights, and matrices without solver behavior.
     type, public :: dg_mesh
-        integer :: ndom = 0
-        integer :: nnode = dg_nodes
-        integer :: ntot = 0
-        integer :: coord_kind = dg_loggamma
+        integer :: ndom = 0, nnode = dg_nodes, ntot = 0, coord_kind = dg_loggamma
         real(8) :: coord_scale = 1d0
         real(8), allocatable, dimension(:) :: x_left,x_right,r,w,bary,x
         real(8), allocatable, dimension(:,:) :: dmat
@@ -75,8 +67,7 @@ subroutine dg_build_coord(coord_kind, coord_scale, x_min, x_max, x_breaks, mesh)
     real(8), intent(in) :: coord_scale,x_min,x_max
     type(dg_mesh), intent(out) :: mesh
     real(8), dimension(dg_breaks) :: breaks,active
-    real(8) :: min_width
-    real(8) :: coord_min, coord_max
+    real(8) :: min_width, coord_min, coord_max
     integer :: n_active
 
     coord_min = coord_from_xg(coord_kind, coord_scale, x_min)
@@ -666,9 +657,8 @@ subroutine dg_project_element(old_mesh, old_state, new_mesh, k_new, values)
     real(8), intent(in), dimension(old_mesh%ntot) :: old_state
     real(8), intent(out), dimension(new_mesh%nnode) :: values
     real(8), dimension(new_mesh%nnode) :: modal,pvals
-    real(8) :: dx_new, mid, half_width, x_eval, x_gamma, old_coord, old_value
-    real(8) :: old_min, old_max
-    real(8) :: old_jac, new_jac
+    real(8) :: dx_new, mid, half_width, x_eval, x_gamma, old_coord, old_value, old_min, old_max, old_jac
+    real(8) :: new_jac
     integer :: degree, k_old, q, m, i
 
     degree = new_mesh%nnode - 1

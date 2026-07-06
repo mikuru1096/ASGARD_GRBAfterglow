@@ -2,17 +2,12 @@
 module electron_common
     use constants
     use dynamics_density_profile, only: set_density_profile
-    use adaptive_resampling_mod, only: adaptive_resampling_log
     use electron_injection_profiles, only: log_edges, &
                                      init_powerlaw, init_edges, &
                                      thermal_pop
     implicit none
-    public :: rad_thresh, rad_target, rad_smooth, imodeg, imodelog, tail_factor
-    integer, parameter :: rad_thresh = 180
-    integer, parameter :: rad_target = 160
-    integer, parameter :: rad_smooth = 4
-    integer, parameter :: imodeg = 0
-    integer, parameter :: imodelog = 1
+    public :: imodeg, imodelog, tail_factor
+    integer, parameter :: imodeg = 0, imodelog = 1
     real(8), parameter :: tail_factor = 30d0
 contains
 
@@ -118,8 +113,7 @@ subroutine electron_gc_loss(ng,gam_e,dEL_mean,R_loc,gc)
     real(8), intent(in) :: R_loc
     real(8), intent(out) :: gc
     real(8), dimension(ng-1) :: gam_mid
-    real(8) :: coeff_target
-    real(8) :: x0,x1,y0,y1,ytarget,xroot
+    real(8) :: coeff_target, x0, x1, y0, y1, ytarget, xroot
 
     coeff_target=1d0/(R_loc)
     do ig=1,ng-1
@@ -201,68 +195,6 @@ subroutine electron_source_bounds(ng,gam_e,gm,gemax,src_lo,src_hi)
         src_hi=0
     end if
 end subroutine electron_source_bounds
-
-! 为辐射积分压缩活跃电子谱网格。
-! Compress the active electron spectrum grid for radiation integration.
-subroutine electron_radiation_grid(ng,gam_e,dn,ngrad,grad,dnrad)
-    implicit none
-    integer, intent(in) :: ng
-    integer, intent(out) :: ngrad
-    integer :: ig,first,last,nactive,mtarget,nkeep,rinfo
-    integer, dimension(ng) :: idx
-    integer :: out,src
-    real(8), intent(in), dimension(ng) :: gam_e,dn
-    real(8), intent(out), dimension(ng) :: grad,dnrad
-
-    first = 0
-    do ig = 1, ng
-        if (dn(ig) > 0d0) then
-            first = ig
-            exit
-        end if
-    end do
-    grad = gam_e
-    dnrad = dn
-    ngrad = ng
-    if (first == 0) return
-    last = 0
-    do ig = ng, first, -1
-        if (dn(ig) > 0d0) then
-            last = ig
-            exit
-        end if
-    end do
-    nactive = last - first + 1
-    if (nactive <= rad_thresh) return
-    mtarget = min(nactive, rad_target)
-    if (mtarget >= nactive) return
-    call adaptive_resampling_log(gam_e(first:last), dn(first:last), nactive, &
-                                 mtarget, rad_smooth, idx(1:mtarget), &
-                                 nkeep, rinfo)
-    if (rinfo /= 0 .or. nkeep /= mtarget) then
-        error stop 'electron_radiation_grid: adaptive resampling failed'
-    end if
-    grad = 0d0
-    dnrad = 0d0
-    out = 0
-    if (first > 1) call append_radiation_sample(first-1)
-    call append_radiation_sample(first)
-    do ig = 1, nkeep
-        src = first + idx(ig) - 1
-        if (src > first .and. src < last) call append_radiation_sample(src)
-    end do
-    if (last > first) call append_radiation_sample(last)
-    if (last < ng) call append_radiation_sample(last+1)
-    ngrad = out
-contains
-    subroutine append_radiation_sample(src)
-        integer, intent(in) :: src
-
-        out = out + 1
-        grad(out) = gam_e(src)
-        dnrad(out) = dn(src)
-    end subroutine append_radiation_sample
-end subroutine electron_radiation_grid
 
 ! 计算两个数组之间的最大相对误差。
 ! Compute the maximum relative error between 2 arrays.

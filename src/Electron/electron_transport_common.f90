@@ -2,10 +2,8 @@ module electron_transport_common
     use constants
     implicit none
     integer, parameter :: char_order = 4
-    real(8), parameter :: cfl_relax = 32d0
-    real(8), parameter :: rtol_relax = 8d0
-    integer, parameter :: cooling_affine = 0
-    integer, parameter :: cooling_piecewise = 1
+    real(8), parameter :: cfl_relax = 32d0, rtol_relax = 8d0
+    integer, parameter :: cooling_affine = 0, cooling_piecewise = 1
     real(8), parameter :: tiny_u = 1d-300
     real(8), parameter, dimension(char_order) :: qnodes0= [&
         6.9431844202973714d-2, 3.3000947820757187d-1, &
@@ -13,8 +11,7 @@ module electron_transport_common
     real(8), parameter, dimension(char_order) :: qweights0= [&
         1.7392742256872693d-1, 3.2607257743127307d-1, &
         3.2607257743127307d-1, 1.7392742256872693d-1]
-    real(8), parameter, dimension(char_order) :: qnodes= qnodes0**4
-    real(8), parameter, dimension(char_order) :: qweights= 4d0*qweights0*qnodes0**3
+    real(8), parameter, dimension(char_order) :: qnodes= qnodes0**4, qweights= 4d0*qweights0*qnodes0**3
 contains
 
 ! 准备隐式迎风输运系数：计算主对角元principal和上三角系数temp1。
@@ -481,8 +478,7 @@ end subroutine find_u_cell
 ! Trace a single edge backward along the piecewise affine-u characteristic.
 subroutine trace_piece_edge(ng,uedge,acell,bcell,lag,unow,icell,uback)
     implicit none
-    integer, intent(in) :: ng
-    integer, intent(in) :: icell
+    integer, intent(in) :: ng, icell
     integer :: I_cell
     real(8), intent(in), dimension(ng+1) :: uedge
     real(8), intent(in), dimension(ng) :: acell,bcell
@@ -640,8 +636,7 @@ subroutine char_core(ng,dDR,xedge,xbatch,srcscale,dF1,nxin,nxout)
     real(8), dimension(0:ng) :: prefix
     real(8), dimension(ng+1) :: xback
     real(8) :: dx_cur
-    real(8), dimension(ng) :: nsrc,nquad
-    real(8), dimension(ng) :: sslope,samp
+    real(8), dimension(ng) :: nsrc, nquad, sslope, samp
     real(8), dimension(0:ng) :: sprefix
     call prepare_remap(ng,xedge,nxin,ql,qr,prefix)
     xback=xbatch(:,1)
@@ -969,52 +964,6 @@ subroutine fullhide_step(ng,R_loc,dDR,d_x,dEL_mean,dF1,nxin,nxout)
     end do
 end subroutine fullhide_step
 
-! CPU版space-time fullhide推进：使用GPU同源离散，但按step-major顺序回代以避免反对角同步开销。
-! CPU space-time fullhide advance using the GPU-equivalent discretization in step-major order.
-subroutine fullhide_spacetime(ng,nstep,fcouple,srcstep, &
-                                                nxin,nxout)
-    !$ use omp_lib
-    implicit none
-    integer, intent(in) :: ng,nstep
-    integer :: ig,istep
-    real(8), intent(in), dimension(ng-1,nstep) :: fcouple
-    real(8), intent(in), dimension(ng,nstep) :: srcstep
-    real(8), intent(in), dimension(ng) :: nxin
-    real(8), intent(out), dimension(ng) :: nxout
-    real(8), dimension(ng,nstep) :: diag,upper,rhs
-
-    diag=1d0
-    upper=0d0
-    rhs=srcstep
-    rhs(:,1)=rhs(:,1)+nxin
-
-    do istep=1,nstep
-        diag(1,istep)=1d0+fcouple(1,istep)
-        upper(1,istep)=-fcouple(1,istep)
-        do ig=2,ng-1
-            diag(ig,istep)=1d0+fcouple(ig-1,istep)
-            upper(ig,istep)=-fcouple(ig,istep)
-        end do
-        diag(ng,istep)=1d0+fcouple(ng-1,istep)
-    end do
-
-    rhs(ng,1)=max(0d0,rhs(ng,1)/diag(ng,1))
-    do ig=ng-1,1,-1
-        rhs(ig,1)=max(0d0,(rhs(ig,1) &
-                         -upper(ig,1)*rhs(ig+1,1))/diag(ig,1))
-    end do
-
-    do istep=2,nstep
-        rhs(ng,istep)=max(0d0,(rhs(ng,istep)+rhs(ng,istep-1))/diag(ng,istep))
-        do ig=ng-1,1,-1
-            rhs(ig,istep)=max(0d0,(rhs(ig,istep)+rhs(ig,istep-1) &
-                                  -upper(ig,istep)*rhs(ig+1,istep))/diag(ig,istep))
-        end do
-    end do
-
-    nxout=rhs(:,nstep)
-end subroutine fullhide_spacetime
-
 ! 由离散谱峰附近三个点估计 log-parabola 峰值频率。
 ! Estimate the log-parabola peak frequency from the 3 samples around the discrete peak.
 real(8) function logparabola_peak(nnu,nu,pnu)
@@ -1108,8 +1057,7 @@ real(8) function max_xi_chi(ng,nchi,dloss, &
     integer, intent(in) :: ng,nchi,active_hi
     integer :: ichi
     real(8), intent(in), dimension(ng-1,nchi) :: dloss
-    real(8), intent(in), dimension(nchi) :: adlogchi
-    real(8), intent(in), dimension(nchi) :: chipop
+    real(8), intent(in), dimension(nchi) :: adlogchi, chipop
     real(8), intent(in) :: chipeak
 
     max_xi_chi=0d0

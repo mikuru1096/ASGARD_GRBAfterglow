@@ -52,13 +52,10 @@ subroutine fs_transport_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,ng, &
     real(8), intent(out), dimension(ng,nchi,Num_R) :: dN_gam_e
     real(8), intent(out), dimension(ng,Num_R) :: dN_gam_e_total
     real(8), intent(out), dimension(ng) :: gam_e
-    real(8), intent(out), dimension(Num_nu,Num_R) :: P_syn
-    real(8), intent(out), dimension(Num_nu,Num_R) :: Seed_syn
+    real(8), intent(out), dimension(Num_nu,Num_R) :: P_syn, Seed_syn
     real(8), intent(out), dimension(Num_R) :: V_m,V_c,V_a
-    real(8), intent(out), dimension(Num_nu,nchi,Num_R) :: P_syn_chi,Seed_syn_chi
-    real(8), intent(out), dimension(Num_nu,nchi,Num_R) :: Tau_syn_chi
-    real(8), intent(out), dimension(nchi,Num_R) :: chi_radius,chi_gamma_bulk,chi_weight_out
-    real(8), intent(out), dimension(nchi,Num_R) :: B_chi_out
+    real(8), intent(out), dimension(Num_nu,nchi,Num_R) :: P_syn_chi, Seed_syn_chi, Tau_syn_chi
+    real(8), intent(out), dimension(nchi,Num_R) :: chi_radius, chi_gamma_bulk, chi_weight_out, B_chi_out
 
     real(8), allocatable, dimension(:) :: dEl,dEL_mean
     real(8), allocatable, dimension(:) :: dN_init,dN_init_log,source_q1
@@ -81,16 +78,11 @@ subroutine fs_transport_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,ng, &
     real(8), allocatable, dimension(:) :: adiabatic_log_coeff_chi
 
     real(8), dimension(ng+1) :: x_edge_E,coord_edge_E
-    real(8) :: temp,dq,d_x_E,coord_scale
-    real(8) :: rloc, R_Gamma_loc, dNe, Para_N_e_ini, DB, DB_min
-    real(8) :: Epsilon_b_floor, magnetic_decay_alpha_t, magnetic_decay_t0_s
-    real(8) :: stochastic_accel_norm
-    real(8) :: Gam_e_max, Gam_e_max_max, Gam_e_m, Gam_e_c, Gam_e_c_diag, temp_gam
-    real(8) :: Gam_e_max_cell, Gam_e_m_cell, Gam_e_c_cell
-    real(8) :: bsh, b2, b2sh
-    real(8) :: Q, Q_rate
-    real(8) :: t_start, t_stop
-    real(8) :: t_hist_accum, t_syn_state, t_prepare_aux, t_cooling, t_eta, t_xi
+    real(8) :: temp, dq, d_x_E, coord_scale, rloc, R_Gamma_loc, dNe, Para_N_e_ini, DB, DB_min
+    real(8) :: Epsilon_b_floor, magnetic_decay_alpha_t, magnetic_decay_t0_s, stochastic_accel_norm
+    real(8) :: Gam_e_max, Gam_e_max_max, Gam_e_m, Gam_e_c, Gam_e_c_diag, temp_gam, Gam_e_max_cell
+    real(8) :: Gam_e_m_cell, Gam_e_c_cell, bsh, b2, b2sh, Q, Q_rate, t_start, t_stop, t_hist_accum
+    real(8) :: t_syn_state, t_prepare_aux, t_cooling, t_eta, t_xi
     integer :: I_tobs, ichi, Num_nu_cool, k_medium, substep_limit
     integer :: total_substeps, max_shell_substeps, shell_cooling_calls, substep_cooling_calls
     integer :: prepare_aux_calls, history_calls, syn_state_calls, eta_calls, xi_calls
@@ -403,8 +395,7 @@ end subroutine init_front
 
 subroutine advance_shell(I_tobs)
     integer, intent(in) :: I_tobs
-    real(8) :: dDD, dDR, dDR_try, dDR_xi, dDR_q, max_xi_coeff
-    real(8) :: chi_peak
+    real(8) :: dDD, dDR, dDR_try, dDR_xi, dDR_q, max_xi_coeff, chi_peak
     integer :: L, L1, src_lo, src_hi, active_hi, active_chi
 
     call electron_source_bounds(ng,gam_e,Gam_e_m,Gam_e_max,src_lo,src_hi)
@@ -692,8 +683,7 @@ subroutine transport_step_fullhide(R_prev, R_curr, Gamma_prev, Gamma_curr, dDR_s
                                     active_hi, active_chi)
     real(8), intent(in) :: R_prev, R_curr, Gamma_prev, Gamma_curr, dDR_step
     integer, intent(in) :: active_hi, active_chi
-    real(8) :: R_sub, R_eff, half_dR, gsh_sub, Gam_e_m_p
-    real(8) :: adiabatic_integral, face_coord, face_jac
+    real(8) :: R_sub, R_eff, half_dR, gsh_sub, Gam_e_m_p, adiabatic_integral, face_coord, face_jac
     real(8) :: DB_loc, Gam_e_max_loc, Gam_e_m_loc, temp_gam_loc
     real(8), dimension(ng) :: source_q1_loc,dF1_zero
     real(8) :: Q_rate_loc

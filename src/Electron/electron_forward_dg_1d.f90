@@ -33,23 +33,19 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
     real(8), intent(in), dimension(Num_nu) :: V_seed
     real(8), intent(out), dimension(Num_gam_e) :: gam_e
     real(8), intent(out), dimension(Num_gam_e,Num_R) :: dN_gam_e
-    real(8), intent(out), dimension(Num_nu,Num_R) :: P_syn
-    real(8), intent(out), dimension(Num_nu,Num_R) :: Seed_syn
+    real(8), intent(out), dimension(Num_nu,Num_R) :: P_syn, Seed_syn
     real(8), intent(out), dimension(Num_R) :: V_m,V_c,V_a
 
     type(dg_mesh) :: mesh, new_mesh
     real(8), allocatable, dimension(:) :: state,projected,gdg,deldg,delbase,srcdg,srctpl
     real(8), allocatable, dimension(:) :: nxinit,xedge,yedge,srcgrid,pemit,tau
     real(8), allocatable, dimension(:) :: thermal_x,thermal_out,thermal_src,loss_grid,loss_base,dg_dgam,th_dgam
-    real(8) :: Eta_0, R_ini, Epsilon_e, Epsilon_b, p, z, nism, A_star, E_iso, tdur_log
-    real(8) :: f_e, R_tr, f_jump, f_wide, R0, dNe, ninit, DB, DB_min, gemax0
-    real(8) :: gemax, gm, gc, temp_gam, beta_Gam, dDD, R_loc, gloc
-    real(8) :: dNe_shell, dNe_step, DB_step, gmax_step, gm_step, gmp_step, source_norm, thermal_norm, temp
-    real(8) :: gmax_inj, gm_inj, gmp_shell
-    real(8) :: dR_base, dR_step, R_end, R_mid, dgscale, coord_scale
-    real(8) :: cache_gm, cache_gmax
-    real(8), parameter :: dg_substeps = 10d0, jump_sigma = 4d0
-    real(8), parameter :: jump_nsigma = 8d0, jump_logstep = 5d-2
+    real(8) :: Eta_0, R_ini, Epsilon_e, Epsilon_b, p, z, nism, A_star, E_iso, tdur_log, f_e, R_tr
+    real(8) :: f_jump, f_wide, R0, dNe, ninit, DB, DB_min, gemax0, gemax, gm, gc, temp_gam, beta_Gam
+    real(8) :: dDD, R_loc, gloc, dNe_shell, dNe_step, DB_step, gmax_step, gm_step, gmp_step, source_norm
+    real(8) :: thermal_norm, temp, gmax_inj, gm_inj, gmp_shell, dR_base, dR_step, R_end, R_mid, dgscale
+    real(8) :: coord_scale, cache_gm, cache_gmax
+    real(8), parameter :: dg_substeps = 10d0, jump_sigma = 4d0, jump_nsigma = 8d0, jump_logstep = 5d-2
     real(8), parameter :: tail_thresh = 1d-10, tail_power = 2d0
     integer :: I_tobs, cache_n
     logical :: cache_ready, uniform_shell

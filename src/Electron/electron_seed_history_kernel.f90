@@ -7,7 +7,6 @@ module electron_seed_history_kernel
   ! 历史种子光子场：按下游固有时把旧壳层辐射输运到当前 chi 网格。
   ! Seed-photon history field: transport older shell emission to the current chi grid in downstream proper time.
   public :: integrate_proper_time
-  public :: accumulate_history_fields
   public :: advance_history_stream
   public :: history_transfer_weight
 
@@ -92,112 +91,6 @@ real(8) :: gamma_mean,beta_mean,dR
     end do
 end subroutine integrate_proper_time
 
-! 把可由光行时连接的历史壳层辐射叠加到当前共动光子场。
-! Accumulate light-travel-connected older shell emission into the current comoving photon field.
-subroutine accumulate_history_fields(target_t,Num_shell,Num_chi,Num_nu,tprop,V_seed, &
-                                     xface,xmid,dxcell,beta,tau,pemit,seed, &
-                                     peff,seeff,n_threads)
-implicit none
-integer, intent(in) :: target_t,Num_shell,Num_chi,Num_nu,n_threads
-integer :: isrct,isrc,itgt
-real(8), intent(in), dimension(Num_shell) :: tprop
-real(8), intent(in), dimension(Num_nu) :: V_seed
-real(8), intent(in), dimension(0:Num_chi,Num_shell) :: xface
-real(8), intent(in), dimension(Num_chi,Num_shell) :: xmid,dxcell
-real(8), intent(in), dimension(Num_chi,Num_shell) :: beta
-real(8), intent(in), dimension(Num_nu,Num_chi,Num_shell) :: tau,pemit,seed
-real(8), intent(out), dimension(Num_nu,Num_chi) :: peff,seeff
-real(8) :: dtot,dtsrc
-
-    peff = pemit(:,:,target_t)
-    seeff = seed(:,:,target_t)
-    !$OMP PARALLEL DO num_threads(n_threads) if(n_threads > 1 .and. target_t*Num_chi*Num_chi*Num_nu >= 512) &
-    !$OMP& schedule(static) private(itgt,isrct,isrc,dtot,dtsrc)
-    do itgt = 1, Num_chi
-        call ensure_cache(Num_shell,Num_chi,Num_nu,V_seed)
-        call build_transfer_cache(target_t,Num_chi,Num_nu,dxcell,tau, &
-                                  inv_dx,tau_prefix)
-        if (target_t > 1) then
-            isrct = 1
-            dtot = tprop(target_t)-tprop(isrct)
-            if (dtot > 0d0) then
-                dtsrc = tprop(2)-tprop(1)
-                do isrc = 1, Num_chi
-                    call add_source_cell(isrct,isrc,itgt,dtot,dtsrc)
-                end do
-            end if
-        end if
-        do isrct = 2, target_t-1
-            dtot = tprop(target_t)-tprop(isrct)
-            if (dtot <= 0d0) cycle
-            dtsrc = tprop(isrct)-tprop(isrct-1)
-            do isrc = 1, Num_chi
-                call add_source_cell(isrct,isrc,itgt,dtot,dtsrc)
-            end do
-        end do
-    end do
-    !$OMP END PARALLEL DO
-
-contains
-
-    ! 源单元给出一个可达时间片和有效发射长度。
-    ! The source cell supplies a reachable time slice and effective emitting length.
-    subroutine add_source_cell(src_t,src_chi,tgt_chi,dtot,dtsrc)
-    implicit none
-    integer, intent(in) :: src_t,src_chi,tgt_chi
-    real(8), intent(in) :: dtot,dtsrc
-    real(8) :: swgt,xsrc
-
-        xsrc = xmid(src_chi,src_t)
-        if (dxcell(src_chi,src_t) <= 0d0) error stop 'history source cell requires positive dxcell'
-        swgt = min(1d0, Para_c*dtsrc/dxcell(src_chi,src_t))
-        call add_target_cell(src_t,src_chi,tgt_chi,dtot,swgt,xsrc)
-    end subroutine add_source_cell
-
-    ! 目标单元沿光线路径累乘吸收，并把源频率映射到目标频率。
-    ! The target cell multiplies path absorption and maps source frequencies to target frequencies.
-    subroutine add_target_cell(src_t,src_chi,tgt_chi,dtot,swgt,xsrc)
-    implicit none
-    integer, intent(in) :: src_t,src_chi,tgt_chi
-    integer :: iseg,inu,ilo
-    real(8), intent(in) :: dtot,swgt,xsrc
-    real(8), dimension(Num_nu) :: attenuation
-    real(8) :: amp_p,amp_seed,doprel,dt_seg,xcurr,xprev,xtgt
-
-        xtgt = xmid(tgt_chi,target_t)
-        if (xsrc < xtgt) return
-        if (Para_c*dtot < xsrc-xtgt) return
-        doprel = relative_doppler(beta(src_chi,src_t),beta(tgt_chi,target_t))
-        call build_map(Num_nu,V_seed,doprel,map_valid,map_idx,map_frac)
-
-        attenuation = 1d0
-        xprev = xsrc
-        do iseg = src_t+1, target_t
-            dt_seg = tprop(iseg)-tprop(iseg-1)
-            if (dt_seg <= 0d0) cycle
-            xcurr = max(xtgt, xprev-Para_c*dt_seg)
-            call apply_path_tau(Num_chi,Num_nu,xprev,xcurr,xface(:,iseg), &
-                                inv_dx(:,iseg),tau(:,:,iseg), &
-                                tau_prefix(:,:,iseg),attenuation)
-            xprev = xcurr
-            if (xprev <= xtgt) exit
-        end do
-        if (doprel <= 0d0 .or. swgt <= 0d0) return
-        amp_p = swgt*doprel**3
-        amp_seed = swgt*doprel**2
-        do inu = 1, Num_nu
-            if (.not. map_valid(inu)) cycle
-            ilo = map_idx(inu)
-            peff(inu,tgt_chi) = peff(inu,tgt_chi) + amp_p*attenuation(inu) * &
-                log_interp(pemit(ilo,src_chi,src_t), &
-                                     pemit(ilo+1,src_chi,src_t),map_frac(inu))
-            seeff(inu,tgt_chi) = seeff(inu,tgt_chi) + amp_seed*attenuation(inu) * &
-                log_interp(seed(ilo,src_chi,src_t), &
-                                     seed(ilo+1,src_chi,src_t),map_frac(inu))
-        end do
-    end subroutine add_target_cell
-end subroutine accumulate_history_fields
-
 ! 以一阶特征线递推下游历史光子场，避免每个目标壳层回扫所有过去壳层。
 ! Advance the downstream photon history with first-order characteristics instead of rescanning all past shells.
 subroutine advance_history_stream(prev_t,target_t,Num_shell,Num_chi,Num_nu,tprop,V_seed, &
@@ -209,14 +102,12 @@ integer :: isrc,itgt,inu,ilo
 real(8), intent(in), dimension(Num_shell) :: tprop
 real(8), intent(in), dimension(Num_nu) :: V_seed
 real(8), intent(in), dimension(0:Num_chi,Num_shell) :: xface
-real(8), intent(in), dimension(Num_chi,Num_shell) :: xmid,dxcell
-real(8), intent(in), dimension(Num_chi,Num_shell) :: beta
+real(8), intent(in), dimension(Num_chi,Num_shell) :: xmid, dxcell, beta
 real(8), intent(in), dimension(Num_nu,Num_chi,Num_shell) :: tau,pemit,seed
 real(8), intent(inout), dimension(Num_nu,Num_chi) :: pstream,sstream
 real(8), dimension(Num_nu,Num_chi) :: pnext,snext
 real(8), dimension(Num_nu) :: attenuation
-real(8) :: dtau,path_hi,path_lo,seg_lo,seg_hi,xsrc,xtgt,doprel,weight
-real(8) :: amp_p,amp_seed
+real(8) :: dtau, path_hi, path_lo, seg_lo, seg_hi, xsrc, xtgt, doprel, weight, amp_p, amp_seed
 
     call ensure_cache(Num_shell,Num_chi,Num_nu,V_seed)
     call build_transfer_cache(target_t,Num_chi,Num_nu,dxcell,tau, &

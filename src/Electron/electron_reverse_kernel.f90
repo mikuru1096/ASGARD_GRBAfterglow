@@ -46,20 +46,16 @@ contains
     real(8), intent(in) :: Delta_0,e_r,b_r,p_r,f_e_r,eta_0,Epsilon_e,Epsilon_b,z,A_star,dNe_ISM,para_m_ej
     real(8), intent(in) :: R_tr,f_jump,f_wide,R0
     real(8), intent(in) :: T_cross,R_cross,U3_cross,V3_cross,M3_cross
-    real(8), intent(in), dimension(Num_R) :: R_Tobs,R_Gamma,R,B3,M3_shell
-    real(8), intent(in), dimension(Num_R) :: U3_shell,V3_shell
+    real(8), intent(in), dimension(Num_R) :: R_Tobs, R_Gamma, R, B3, M3_shell, U3_shell, V3_shell
     real(8), intent(in), dimension(Num_nu) :: V_seed
     real(8), intent(out), dimension(Num_gam_e) :: gam_e
     real(8), intent(out), dimension(Num_gam_e,Num_R) :: dN_gam_e
-    real(8), parameter :: gc_coeff=7.7d8, bsyn_coeff=0.39d0, adv_coeff=1.35d-19
-    real(8), parameter :: trans_break=2d0
+    real(8), parameter :: gc_coeff=7.7d8, bsyn_coeff=0.39d0, adv_coeff=1.35d-19, trans_break=2d0
     real(8), parameter :: tail_thresh=1d-10, tail_power=2d0
-    real(8) :: factor2,dB,gamma34,gmax,gm,gc,dNe,DB_min,gmax0,gmin,d_x,rloc,gloc,Delta
-    real(8) :: rn4,beta4,beta2,u2,u4,f_r,dDR,dDD,Qshell,coolscale,R_step_mid
-    real(8) :: vol_lo,vol_hi,thermloss,adrate,dgscale,coord_scale
-    real(8) :: coord_mid,dxdy
-    real(8) :: dglow,dgmid,dghigh
-    real(8) :: injection_rate,inj_hi,inj_width,mass_lo,mass_hi
+    real(8) :: factor2, dB, gamma34, gmax, gm, gc, dNe, DB_min, gmax0, gmin, d_x, rloc, gloc, Delta, rn4
+    real(8) :: beta4, beta2, u2, u4, f_r, dDR, dDD, Qshell, coolscale, R_step_mid, vol_lo, vol_hi
+    real(8) :: thermloss, adrate, dgscale, coord_scale, coord_mid, dxdy, dglow, dgmid, dghigh
+    real(8) :: injection_rate, inj_hi, inj_width, mass_lo, mass_hi
     real(8), allocatable, dimension(:) :: dEl,x,dF1,temp3,dN_x,x_edge,coord_edge
     real(8), allocatable, dimension(:) :: pc_log,pc_map,pc_work
     real(8), allocatable, dimension(:) :: pc_back,pc_u,pc_a,pc_b
@@ -777,9 +773,8 @@ subroutine branch_reaccel(e_r,b_r,p_r,f_e_r,z,R_Tobs,R_Gamma,R, &
     real(8), intent(in) :: e_r,b_r,p_r,f_e_r,z
     real(8), intent(in), dimension(Num_R) :: R_Tobs,R_Gamma,R
     real(8), intent(in), dimension(Num_nu) :: V_seed
-    real(8), intent(in), dimension(Num_jump,Num_R) :: B3_branch,M3_branch,U3_branch
-    real(8), intent(in), dimension(Num_jump,Num_R) :: V3_branch,Gam_m_branch,Gamma43_branch
-    real(8), intent(in), dimension(Num_jump,Num_R) :: Comp_branch
+    real(8), intent(in), dimension(Num_jump,Num_R) :: B3_branch, M3_branch, U3_branch, V3_branch
+    real(8), intent(in), dimension(Num_jump,Num_R) :: Gam_m_branch, Gamma43_branch, Comp_branch
     real(8), intent(out), dimension(Num_gam_e) :: gam_e
     real(8), intent(out), dimension(Num_gam_e,Num_R) :: dN_total
     real(8), intent(out), dimension(Num_jump,Num_nu,Num_R) :: Branch_L_syn_spec

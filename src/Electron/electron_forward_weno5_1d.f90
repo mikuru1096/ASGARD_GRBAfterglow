@@ -18,10 +18,9 @@ subroutine fs_weno5_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e
     real(8), intent(out), dimension(Num_gam_e,Num_R) :: dN_gam_e
     real(8), intent(out), dimension(Num_gam_e) :: gam_e
     real(8), intent(out), dimension(Num_nu,Num_R) :: P_syn,Seed_syn
-    real(8) :: Eta_0,R_ini,Epsilon_e,Epsilon_b,p,z,dNe_ISM,A_star,E_iso,tdur_log,f_e
-    real(8) :: R_tr,f_jump,f_wide,R0,dNe,einit,DB,DB_min,gmax,gmax0
-    real(8) :: temp_gam,gm,gc,dxlog,cfl_target,rloc,gloc,gmp
-    real(8) :: beta,f_r,dDR,dDD,maxspeed,CFL,Q
+    real(8) :: Eta_0, R_ini, Epsilon_e, Epsilon_b, p, z, dNe_ISM, A_star, E_iso, tdur_log, f_e, R_tr
+    real(8) :: f_jump, f_wide, R0, dNe, einit, DB, DB_min, gmax, gmax0, temp_gam, gm, gc, dxlog
+    real(8) :: cfl_target, rloc, gloc, gmp, beta, f_r, dDR, dDD, maxspeed, CFL, Q
 
     real(8),allocatable,dimension (:) :: dEl,deladv,spec,xedge,dF1
     real(8),allocatable,dimension (:,:) :: stage
@@ -100,8 +99,7 @@ contains
     subroutine write_weno_cooling(I_tobs)
         implicit none
         integer, intent(in) :: I_tobs
-        real(8), dimension(1) :: DB_chi
-        real(8), dimension(1) :: Weight_chi
+        real(8), dimension(1) :: DB_chi, Weight_chi
         real(8), dimension(Num_gam_e,1) :: specchi
         real(8), dimension(Num_nu,1) :: pemit,pshell,seedshell,taushell
 
@@ -247,8 +245,7 @@ function weno5_positive_flux(fps)
     implicit none
     real(8), intent(in), dimension(-2:2) :: fps
     real(8) :: weno5_positive_flux
-    real(8), dimension(3) :: omega,fu,beta
-    real(8), dimension(3) :: alpha,fomega
+    real(8), dimension(3) :: omega, fu, beta, alpha, fomega
     real(8) :: tao5,totalpha,eps
 
     omega(1) = 0.1d0;   omega(2) = 0.6d0;   omega(3) = 0.3d0
@@ -285,8 +282,7 @@ function weno5_negative_flux(fms)
     implicit none
     real(8), intent(in), dimension(-1:3) :: fms
     real(8) :: weno5_negative_flux
-    real(8), dimension(3) :: omega,fu,beta
-    real(8), dimension(3) :: alpha,fomega
+    real(8), dimension(3) :: omega, fu, beta, alpha, fomega
     real(8) :: tao5,totalpha,eps
 
     omega(1) = 0.1d0;   omega(2) = 0.6d0;   omega(3) = 0.3d0

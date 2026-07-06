@@ -12,37 +12,21 @@ module hybrid_spectrum
 
    ! 热核渐近修正系数。
    ! Coefficients for the thermal-kernel asymptotic corrections.
-   real(8), private, parameter :: coeff0 = -1.0d0
-   real(8), private, parameter :: coeff1 = 1.0d0/2.0d0
-   real(8), private, parameter :: coeff2 = 1.0d0/8.0d0
-   real(8), private, parameter :: coeff3 = 1.0d0/1.6d1
-   real(8), private, parameter :: coeff4 = 5.0d0/1.28d2
-   real(8), private, parameter :: coeff5 = 7.0d0/2.56d2
-   real(8), private, parameter :: coeff6 = 2.1d1/1.024d3
-   real(8), private, parameter :: coeff7 = 3.3d1/2.048d3
+   real(8), private, parameter :: coeff0 = -1.0d0, coeff1 = 1.0d0/2.0d0, coeff2 = 1.0d0/8.0d0
+   real(8), private, parameter :: coeff3 = 1.0d0/1.6d1, coeff4 = 5.0d0/1.28d2, coeff5 = 7.0d0/2.56d2
+   real(8), private, parameter :: coeff6 = 2.1d1/1.024d3, coeff7 = 3.3d1/2.048d3
 
    ! Gamma 递推中反复使用的倒数系数。
    ! Reused reciprocal factors in the Gamma-function recurrences.
-   real(8), private, parameter :: d2 = 1.0d0/2.0d0
-   real(8), private, parameter :: d3 = 1.0d0/3.0d0
-   real(8), private, parameter :: d4 = 1.0d0/4.0d0
-   real(8), private, parameter :: d5 = 1.0d0/5.0d0
-   real(8), private, parameter :: d6 = 1.0d0/6.0d0
-   real(8), private, parameter :: d7 = 1.0d0/7.0d0
-   real(8), private, parameter :: d8 = 1.0d0/8.0d0
-   real(8), private, parameter :: d9 = 1.0d0/9.0d0
-   real(8), private, parameter :: d10 = 1.0d0/1.0d1
-   real(8), private, parameter :: d11 = 1.0d0/1.1d1
-   real(8), private, parameter :: d2x3 = 1.0d0/6.0d0
-   real(8), private, parameter :: d4x5 = 1.0d0/2.0d1
-   real(8), private, parameter :: d6x7 = 1.0d0/4.2d1
-   real(8), private, parameter :: d8x9 = 1.0d0/7.2d1
+   real(8), private, parameter :: d2 = 1.0d0/2.0d0, d3 = 1.0d0/3.0d0, d4 = 1.0d0/4.0d0, d5 = 1.0d0/5.0d0
+   real(8), private, parameter :: d6 = 1.0d0/6.0d0, d7 = 1.0d0/7.0d0, d8 = 1.0d0/8.0d0, d9 = 1.0d0/9.0d0
+   real(8), private, parameter :: d10 = 1.0d0/1.0d1, d11 = 1.0d0/1.1d1, d2x3 = 1.0d0/6.0d0
+   real(8), private, parameter :: d4x5 = 1.0d0/2.0d1, d6x7 = 1.0d0/4.2d1, d8x9 = 1.0d0/7.2d1
    real(8), private, parameter :: d10x11 = 1.0d0/1.1d2
 
    ! 热积分级数截断精度。
    ! Accuracy controls for truncating the thermal integral series.
-   real(8), private, parameter :: tol = 1.0d-15
-   real(8), private, parameter :: floor_eps = 1.0d-30
+   real(8), private, parameter :: tol = 1.0d-15, floor_eps = 1.0d-30
 
    real(8), private, parameter :: ln_10 = log(1.0d1)
 
@@ -53,14 +37,11 @@ module hybrid_spectrum
    subroutine thermal_int1(gamma_min, theta, &
       it1)
       implicit none
-      real(8), intent(in) :: gamma_min
-      real(8), intent(in) :: theta
+      real(8), intent(in) :: gamma_min, theta
       real(8), intent(out) :: it1
 
-      real(8) :: inv_theta, inv_theta2, theta2
-      real(8) :: gdt, inv_gdt, inv_gdt2, exp_mgdt
-      real(8) :: theta_term, gdt_term, uig_term, cor_term
-      real(8) :: besk0, besk1
+      real(8) :: inv_theta, inv_theta2, theta2, gdt, inv_gdt, inv_gdt2, exp_mgdt, theta_term, gdt_term
+      real(8) :: uig_term, cor_term, besk0, besk1
 
       if (gamma_min < 1.0d0) then
          error stop "Error in thermal_int1: gamma_min must be >= 1"
@@ -160,15 +141,11 @@ module hybrid_spectrum
    subroutine thermal_int12(gamma_min, theta, &
       it1, it2)
       implicit none
-      real(8), intent(in) :: gamma_min
-      real(8), intent(in) :: theta
-      real(8), intent(out) :: it1
-      real(8), intent(out) :: it2
+      real(8), intent(in) :: gamma_min, theta
+      real(8), intent(out) :: it1, it2
 
-      real(8) :: theta2, inv_theta, inv_theta2
-      real(8) :: gdt2, gdt, inv_gdt, exp_mgdt
-      real(8) :: besk0, besk1
-      real(8) :: theta_term, gdt_term, uig_term, cxt_term, cor1_term, cor2_term
+      real(8) :: theta2, inv_theta, inv_theta2, gdt2, gdt, inv_gdt, exp_mgdt, besk0, besk1, theta_term
+      real(8) :: gdt_term, uig_term, cxt_term, cor1_term, cor2_term
 
       if (gamma_min < 1.0d0) then
          error stop "Error in thermal_int12: gamma_min must be >= 1"
@@ -383,8 +360,7 @@ module hybrid_spectrum
    function get_initial_theta(gamma_min, ln_c) result(init_theta)
       implicit none
       real(8), intent(in) :: gamma_min, ln_c
-      real(8) :: init_theta, test_theta, test_val
-      real(8) :: theta_low, theta_hig, val_low, val_hig
+      real(8) :: init_theta, test_theta, test_val, theta_low, theta_hig, val_low, val_hig
       real(8), dimension(11) :: scale
       integer :: shift, idx_low, idx_hig, idx_mid
       integer, parameter :: max_shift = 8
@@ -471,8 +447,7 @@ module hybrid_spectrum
       implicit none
       real(8), intent(in) :: init_theta, rtol, gamma_min, ln_c
       integer, intent(in) :: max_iter
-      real(8) :: best_theta, theta
-      real(8) :: inv_theta, gdt, it1, it2, rel_shift
+      real(8) :: best_theta, theta, inv_theta, gdt, it1, it2, rel_shift
       integer :: iter
 
       theta = init_theta
@@ -515,8 +490,7 @@ module hybrid_spectrum
       implicit none
       integer, intent(in) :: n_gamma
       real(8), intent(in), dimension(n_gamma+1) :: coord_edge
-      real(8), intent(in) :: coord_scale
-      real(8), intent(in) :: p, gamma_min, gamma_max, xi_e
+      real(8), intent(in) :: coord_scale, p, gamma_min, gamma_max, xi_e
       real(8), intent(out), dimension(n_gamma) :: spec
 
       real(8) :: theta, it1, int, thermal_constant, cpl_constant, inv_gmax, inv_theta
@@ -604,12 +578,10 @@ module hybrid_spectrum
       implicit none
       integer, intent(in) :: n_gamma
       real(8), intent(in), dimension(n_gamma+1) :: coord_edge
-      real(8), intent(in) :: coord_scale
-      real(8), intent(in) :: p, gamma_min, gamma_max, xi_e
+      real(8), intent(in) :: coord_scale, p, gamma_min, gamma_max, xi_e
       real(8), intent(out), dimension(n_gamma) :: spec
 
-      real(8) :: theta, it1, thermal_constant
-      real(8) :: inv_theta, y_min, cell_lo, cell_hi, dy_cell, seg_sum
+      real(8) :: theta, it1, thermal_constant, inv_theta, y_min, cell_lo, cell_hi, dy_cell, seg_sum
       integer :: i
 
       call solve_theta(p, gamma_min, gamma_max, xi_e, theta)

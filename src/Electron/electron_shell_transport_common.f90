@@ -9,8 +9,7 @@ module electron_shell_transport
 
     ! 1D shell 电子输运公共入口：选择后端、推进坐标空间通量、投影回 dN/dgamma。
     ! Shared 1D shell electron transport entry points: select backend, advance coordinate flux, project to dN/dgamma.
-    integer, parameter, public :: solver_fullhide = 1
-    integer, parameter, public :: solver_dg = 2
+    integer, parameter, public :: solver_fullhide = 1, solver_dg = 2
 
     public :: resolve_solver
     public :: shell_coord_step, coord_to_dgamma

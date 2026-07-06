@@ -53,10 +53,8 @@ ELECTRON_COMMON_SOURCES = (
     "../Constants.f90",
     "../Dynamics/dynamics_density_profile.f90",
     "../Radiation/rad_common.f90",
-    "../Radiation/syn_polarization.f90",
     "electron_energy_coordinate_common.f90",
     "electron_transport_common.f90",
-    "adaptive_resampling_mod.f90",
     "electron_radiation_kernel.f90",
     "electron_injection_profiles.f90",
     "electron_shell_transport_common.f90",
@@ -69,9 +67,7 @@ ELECTRON_COMMON_SOURCES = (
 ELECTRON_RADIATION_SOURCES = (
     "../Constants.f90",
     "../Radiation/rad_common.f90",
-    "../Radiation/syn_polarization.f90",
     "electron_transport_common.f90",
-    "adaptive_resampling_mod.f90",
     "electron_radiation_kernel.f90",
 )
 ELECTRON_HISTORY_SOURCES = (
@@ -173,7 +169,6 @@ STRUCTURED_JET_1D_SOURCES = (
     "../Radiation/syn_polarization.f90",
     "../Electron/electron_energy_coordinate_common.f90",
     "../Electron/electron_transport_common.f90",
-    "../Electron/adaptive_resampling_mod.f90",
     "../Electron/electron_radiation_kernel.f90",
     "../Electron/electron_injection_profiles.f90",
     "../Electron/electron_shell_transport_common.f90",
@@ -587,7 +582,7 @@ def main() -> None:
         ModuleSpec("electron_forward_fullhide_1d_hybrid", ele, _with_main(ELECTRON_HISTORY_SOURCES_HZ, "electron_forward_fullhide_1d_hybrid.f90"), omp_flags, OPENMP_LIBS, True, ("fs_fullhide_hz",)),
         ModuleSpec("electron_forward_transport_2d", ele, _with_main(ELECTRON_2D_SOURCES, "electron_forward_transport_2d.f90"), omp_flags, OPENMP_LIBS, True, ("fs_transport_2d",), ("electron_forward_charint_2d",)),
         ModuleSpec("electron_forward_t2g1_1d", ele, _with_main(ELECTRON_COMMON_SOURCES, "electron_forward_t2g1_1d.f90"), omp_flags, OPENMP_LIBS, True, ("fs_t2g1_1d",), ("electron_forward_t2g1",)),
-        ModuleSpec("electron_radiation", ele, list(ELECTRON_RADIATION_SOURCES), omp_flags, OPENMP_LIBS, True, ("nua_solve", "syn_state", "syn_transfer", "syn_polarized")),
+        ModuleSpec("electron_radiation", ele, list(ELECTRON_RADIATION_SOURCES), omp_flags, OPENMP_LIBS, True, ("nua_solve", "syn_state", "syn_transfer")),
         ModuleSpec(
             "electron_reverse_kernel",
             ele,

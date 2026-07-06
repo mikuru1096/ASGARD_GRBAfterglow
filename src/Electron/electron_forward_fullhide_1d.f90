@@ -41,11 +41,10 @@ subroutine fs_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
     logical :: is_uniform_density,budget_diag_enabled
     integer :: env_len,env_status,I_face
     character(len=32) :: diag_env
-    real(8) :: dDR_xi
-    real(8) :: n_before_step,n_after_step,inj_step,n_budget,rel_loss_xi_max
-    real(8) :: source_integral,adiabatic_integral,l_count_real,step_sum,step_sq_sum
-    real(8) :: radius_sum,radius_sq_sum,source_prefactor,coord_scale,dg_gamma_scale,face_coord,face_jac
-    real(8) :: R_loc,R_Gamma_loc,beta_Gam,dNe,DB,Gam_e_max,Gam_e_m,Gam_e_m_p,Gam_e_c,dNe_shell,dDR,dDD,f_r
+    real(8) :: dDR_xi, n_before_step, n_after_step, inj_step, n_budget, rel_loss_xi_max, source_integral
+    real(8) :: adiabatic_integral, l_count_real, step_sum, step_sq_sum, radius_sum, radius_sq_sum
+    real(8) :: source_prefactor, coord_scale, dg_gamma_scale, face_coord, face_jac, R_loc, R_Gamma_loc
+    real(8) :: beta_Gam, dNe, DB, Gam_e_max, Gam_e_m, Gam_e_m_p, Gam_e_c, dNe_shell, dDR, dDD, f_r
     allocate (dEl(Num_gam_e),dEl_step(Num_gam_e),dEL_mean(Num_gam_e-1),x(Num_gam_e),dN_x(Num_gam_e), &
               dN_full(Num_gam_e), &
               x_edge(Num_gam_e+1),coord_edge(Num_gam_e+1),dxdy_grid(Num_gam_e), &

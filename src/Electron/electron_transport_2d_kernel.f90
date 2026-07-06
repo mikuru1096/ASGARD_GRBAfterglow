@@ -49,8 +49,7 @@ subroutine q_point(kmed,rshell,gf,qloc,rcell,gcell,bcell)
     integer, intent(in) :: kmed
     real(8), intent(in) :: rshell,gf,qloc
     real(8), intent(out) :: rcell,gcell,bcell
-    real(8) :: qtail,alpha,uf,bf,w,chibm,logxbm,logxst
-    real(8) :: xrat,ubm,bst,ust,ycell,ucell
+    real(8) :: qtail, alpha, uf, bf, w, chibm, logxbm, logxst, xrat, ubm, bst, ust, ycell, ucell
 
     qtail = 1d0-qloc
     alpha = dble(4-kmed)/dble(3-kmed)
@@ -107,8 +106,7 @@ subroutine downstream_grid(nchi,kmed,rshell,gf,q_face,q_grid, &
     real(8), intent(in), dimension(nchi) :: q_grid
     real(8), intent(in) :: rshell,gf
     real(8), intent(out), dimension(0:nchi) :: xface,xcf
-    real(8), intent(out), dimension(nchi) :: xcmid,dxco
-    real(8), intent(out), dimension(nchi) :: rcell,gcell,bcell,brelsh
+    real(8), intent(out), dimension(nchi) :: xcmid, dxco, rcell, gcell, bcell, brelsh
     real(8), dimension(0:nchi) :: rface
     real(8) :: gface,bface,dx_lab
     integer :: ichi
@@ -299,8 +297,7 @@ end subroutine split_q_faces
 real(8) function q_inv_metric(kmed,rshell,gf,qloc)
     integer, intent(in) :: kmed
     real(8), intent(in) :: rshell,gf,qloc
-    real(8) :: qtail,alpha,uf,w,chibm,logxbm,logxst
-    real(8) :: xrat,dchidq,dlogbm,dlogst,dlogdq,dxdq
+    real(8) :: qtail, alpha, uf, w, chibm, logxbm, logxst, xrat, dchidq, dlogbm, dlogst, dlogdq, dxdq
 
     qtail = 1d0-qloc
     alpha = dble(4-kmed)/dble(3-kmed)
@@ -463,8 +460,7 @@ subroutine advance_q_charint(ulog, ng, nchi, active_hi, dq, q_face, &
 
     real(8), dimension(0:nchi) :: aqface,q_back
     real(8) :: qactive
-    real(8), dimension(nchi) :: qin,qout
-    real(8), dimension(nchi) :: ppm_left,ppm_right
+    real(8), dimension(nchi) :: qin, qout, ppm_left, ppm_right
     real(8), dimension(0:nchi) :: prefix
     integer :: ig, iface
 
@@ -532,12 +528,10 @@ subroutine advance_q_implicit(ulog, ng, nchi, active_hi, dq, q_face, kmed, rloc,
     real(8), intent(in) :: dq,rloc,gf
     real(8), intent(in), dimension(ng,nchi) :: kappa2_chi
     real(8), intent(in), dimension(ng) :: srcq
-    real(8), intent(in) :: bsh
-    real(8), intent(in) :: dR_step
+    real(8), intent(in) :: bsh, dR_step
 
     real(8), dimension(1:nchi) :: dlbase,drbase
-    real(8), dimension(nchi) :: lbase,dbase,ubase
-    real(8), dimension(nchi) :: lower,diag,upper,rhs,sol
+    real(8), dimension(nchi) :: lbase, dbase, ubase, lower, diag, upper, rhs, sol
     real(8) :: lamq
     integer :: ig
 
@@ -576,8 +570,7 @@ subroutine advance_pwncr_q(ulog, ng, nchi, active_hi, dq, q_face, kmed, &
     real(8), intent(in), dimension(ng) :: srcq
     real(8), intent(in) :: dR_step
     real(8), dimension(1:nchi) :: dlbase,drbase
-    real(8), dimension(nchi) :: lbase,dbase,ubase
-    real(8), dimension(nchi) :: lower,diag,upper,rhs,sol
+    real(8), dimension(nchi) :: lbase, dbase, ubase, lower, diag, upper, rhs, sol
     real(8) :: lamq
     integer :: ig
 
