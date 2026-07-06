@@ -657,8 +657,7 @@ subroutine dg_project_element(old_mesh, old_state, new_mesh, k_new, values)
     real(8), intent(in), dimension(old_mesh%ntot) :: old_state
     real(8), intent(out), dimension(new_mesh%nnode) :: values
     real(8), dimension(new_mesh%nnode) :: modal,pvals
-    real(8) :: dx_new, mid, half_width, x_eval, x_gamma, old_coord, old_value, old_min, old_max, old_jac
-    real(8) :: new_jac
+    real(8) :: dx_new, mid, half_width, x_eval, x_gamma, old_coord, old_value, old_min, old_max, old_jac, new_jac
     integer :: degree, k_old, q, m, i
 
     degree = new_mesh%nnode - 1

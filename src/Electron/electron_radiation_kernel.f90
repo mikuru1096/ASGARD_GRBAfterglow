@@ -12,7 +12,7 @@ module electron_radiation_kernel
   public :: nua_path
   public :: reduce_grid, project_syn
   public :: nua_fromtau
-  public :: pl_interp, log_gauss2, pl_integral, ssa_segment
+  public :: pl_interp, log_gauss2, pl_integral
 
 contains
 
@@ -473,38 +473,6 @@ real(8) :: vg1,vg2,wg1,wg2
         wg1*pl_interp(v0,v1,y0,y1,vg1)+ &
         wg2*pl_interp(v0,v1,y0,y1,vg2)
 end function pl_integral
-
-! SSA冷却率段积分：mode=1低频Σ∝ν^(-5/3)，mode=2高频Σ∝(ν_c/ν)e^(-ν/ν_uplim)。
-real(8) function ssa_segment(v0,v1,seed0,seed1,sigma_prefactor,mode,Cyclotron_nu,V_uplim)
-implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: mode
-real(8), intent(in) :: v0,v1,seed0,seed1,sigma_prefactor,Cyclotron_nu,V_uplim
-real(8) :: vg1,vg2,wg1,wg2,seed_loc,sigma_loc
-
-    if (v1 <= v0) then
-        ssa_segment=0d0
-        return
-    end if
-
-    call log_gauss2(v0,v1,vg1,vg2,wg1,wg2)
-    ssa_segment=0d0
-
-    seed_loc=pl_interp(v0,v1,seed0,seed1,vg1)
-    if (mode == 1) then
-        sigma_loc=sigma_prefactor*vg1**(-5d0/3d0)
-    else
-        sigma_loc=sigma_prefactor*(Cyclotron_nu/vg1)*dexp(-vg1/V_uplim)
-    end if
-    ssa_segment=ssa_segment+wg1*sigma_loc*seed_loc*para_h*vg1*para_c
-
-    seed_loc=pl_interp(v0,v1,seed0,seed1,vg2)
-    if (mode == 1) then
-        sigma_loc=sigma_prefactor*vg2**(-5d0/3d0)
-    else
-        sigma_loc=sigma_prefactor*(Cyclotron_nu/vg2)*dexp(-vg2/V_uplim)
-    end if
-    ssa_segment=ssa_segment+wg2*sigma_loc*seed_loc*para_h*vg2*para_c
-end function ssa_segment
 
 ! SSA光深核函数：γ²F(ν/νc)，电子谱导数由有限体积端点差单独给出。
 real(8) function tau_kernel(x,V_cal,DB,factor)

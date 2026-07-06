@@ -81,8 +81,7 @@ real(8) function dnx_gauss3(coeff,slope,Gam_e_max,x_lo,x_hi)
     implicit none
     integer :: I_q
     real(8), intent(in) :: coeff,slope,Gam_e_max,x_lo,x_hi
-    real(8), parameter, dimension(3) :: xi=[-dsqrt(3d0/5d0),0d0,dsqrt(3d0/5d0)]
-    real(8), parameter, dimension(3) :: wi=[5d0/9d0,8d0/9d0,5d0/9d0]
+    real(8), parameter, dimension(3) :: xi=[-dsqrt(3d0/5d0),0d0,dsqrt(3d0/5d0)], wi=[5d0/9d0,8d0/9d0,5d0/9d0]
     real(8) :: half_dx,x_mid,x_eval,quad
 
     if (x_hi <= x_lo) then
@@ -106,8 +105,7 @@ real(8) function dny_gauss3(coord_scale,coeff,slope,Gam_e_max,y_lo,y_hi)
     implicit none
     integer :: I_q
     real(8), intent(in) :: coord_scale,coeff,slope,Gam_e_max,y_lo,y_hi
-    real(8), parameter, dimension(3) :: xi=[-dsqrt(3d0/5d0),0d0,dsqrt(3d0/5d0)]
-    real(8), parameter, dimension(3) :: wi=[5d0/9d0,8d0/9d0,5d0/9d0]
+    real(8), parameter, dimension(3) :: xi=[-dsqrt(3d0/5d0),0d0,dsqrt(3d0/5d0)], wi=[5d0/9d0,8d0/9d0,5d0/9d0]
     real(8) :: half_dy,y_mid,y_eval,x_eval,quad
 
     if (y_hi <= y_lo) then
@@ -352,8 +350,7 @@ subroutine kinetic_edges(Num_gam_e,x_edge,Gam_e_m,Gam_e_max,Q,p,dF1)
     real(8), intent(in), dimension(Num_gam_e+1) :: x_edge
     real(8), intent(in) :: Gam_e_m,Gam_e_max,Q,p
     real(8), intent(out), dimension(Num_gam_e) :: dF1
-    real(8), parameter, dimension(3) :: xi=[-dsqrt(3d0/5d0),0d0,dsqrt(3d0/5d0)]
-    real(8), parameter, dimension(3) :: wi=[5d0/9d0,8d0/9d0,5d0/9d0]
+    real(8), parameter, dimension(3) :: xi=[-dsqrt(3d0/5d0),0d0,dsqrt(3d0/5d0)], wi=[5d0/9d0,8d0/9d0,5d0/9d0]
     real(8) :: cell_lo,cell_hi,dx_cell,half_dx,x_mid,x_eval,gam,cutoff_factor,cell_sum,shape_norm
 
     dF1=0d0
@@ -393,8 +390,7 @@ subroutine kinetic_coord(Num_gam_e,coord_edge,coord_scale,Gam_e_m,Gam_e_max,Q,p,
     real(8), intent(in), dimension(Num_gam_e+1) :: coord_edge
     real(8), intent(in) :: coord_scale,Gam_e_m,Gam_e_max,Q,p
     real(8), intent(out), dimension(Num_gam_e) :: dF1
-    real(8), parameter, dimension(3) :: xi=[-dsqrt(3d0/5d0),0d0,dsqrt(3d0/5d0)]
-    real(8), parameter, dimension(3) :: wi=[5d0/9d0,8d0/9d0,5d0/9d0]
+    real(8), parameter, dimension(3) :: xi=[-dsqrt(3d0/5d0),0d0,dsqrt(3d0/5d0)], wi=[5d0/9d0,8d0/9d0,5d0/9d0]
     real(8) :: cell_lo,cell_hi,dy_cell,half_dy,y_mid,y_eval,gam,dxdy,cell_sum,shape_norm
 
     dF1=0d0

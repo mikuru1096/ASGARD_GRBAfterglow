@@ -592,9 +592,7 @@ def main() -> None:
             True,
             (
                 "electron_reverse_evolve",
-                "multiple_evolve",
                 "multiple_synch",
-                "branch_synch",
                 "branch_reaccel",
             ),
         ),

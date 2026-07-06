@@ -1078,32 +1078,4 @@ real(8) function max_xi_chi(ng,nchi,dloss, &
     end if
 end function max_xi_chi
 
-! 扫描统一绝热项下的 χ-resolved 能量输运系数。
-! Scan chi-resolved energy transport coefficients with a uniform adiabatic term.
-real(8) function max_xi_uniform(ng,nchi,dloss, &
-                                               adlog,chipop,chipeak,active_hi)
-    implicit none
-    integer, intent(in) :: ng,nchi,active_hi
-    integer :: ichi
-    real(8), intent(in), dimension(ng-1,nchi) :: dloss
-    real(8), intent(in) :: adlog
-    real(8), intent(in), dimension(nchi) :: chipop
-    real(8), intent(in) :: chipeak
-
-    max_xi_uniform=0d0
-    if (active_hi > 1) then
-        do ichi=1,nchi
-            if (chipeak > 0d0) then
-                if (chipop(ichi) <= 1d-10*chipeak) cycle
-            end if
-            max_xi_uniform=max(max_xi_uniform, &
-                maxval(dabs(dloss(1:active_hi-1,ichi)+adlog)))
-        end do
-        if (max_xi_uniform <= 0d0) then
-            max_xi_uniform=maxval(dabs(dloss(1:active_hi-1,:)+adlog))
-        end if
-    end if
-end function max_xi_uniform
-
-
 end module electron_transport_common

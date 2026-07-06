@@ -57,8 +57,7 @@ contains
     real(8) :: thermloss, adrate, dgscale, coord_scale, coord_mid, dxdy, dglow, dgmid, dghigh
     real(8) :: injection_rate, inj_hi, inj_width, mass_lo, mass_hi
     real(8), allocatable, dimension(:) :: dEl,x,dF1,temp3,dN_x,x_edge,coord_edge
-    real(8), allocatable, dimension(:) :: pc_log,pc_map,pc_work
-    real(8), allocatable, dimension(:) :: pc_back,pc_u,pc_a,pc_b
+    real(8), allocatable, dimension(:) :: pc_log,pc_map,pc_work,pc_back,pc_u,pc_a,pc_b
     real(8), allocatable, dimension(:,:) :: pc_affine
     real(8), allocatable, dimension(:) :: dB3_serial,P_syn,Seed_syn,cooling_aux,Compton
     type(dg_mesh) :: dg_mesh,dg_new_mesh
@@ -565,133 +564,6 @@ contains
     end subroutine advance_dg_front
 end subroutine electron_reverse_evolve
 
-subroutine multiple_evolve(e_r,b_r,p_r,f_e_r,z,R_Tobs,R_Gamma,R,B3, &
-                                             M3_shell,U3_shell,V3_shell,Gam_m_shell, &
-                                             V_seed,Num_nu,Num_R,Num_gam_e,index_syn_intger,n_threads,gam_e,dN_gam_e, &
-                                             solver_id)
-    implicit none
-    integer, intent(in) :: Num_nu,Num_R,Num_gam_e,index_syn_intger,n_threads
-    integer, intent(in), optional :: solver_id
-    integer :: I_tobs,I_gam_e,L1,L,active_solver
-    real(8), intent(in) :: e_r,b_r,p_r,f_e_r,z
-    real(8), intent(in), dimension(Num_R) :: R_Tobs,R_Gamma,R,B3,M3_shell,U3_shell
-    real(8), intent(in), dimension(Num_R) :: V3_shell,Gam_m_shell
-    real(8), intent(in), dimension(Num_nu) :: V_seed
-    real(8), intent(out), dimension(Num_gam_e) :: gam_e
-    real(8), intent(out), dimension(Num_gam_e,Num_R) :: dN_gam_e
-    real(8), parameter :: secondary_adv_coeff=1.35d-19
-    real(8) :: dB,gmax,gm,gmax0,gmin,d_x,rloc,gloc,beta2
-    real(8) :: f_r,dDR,dDD,injection_rate,mass_lo,mass_hi,inj_width,adrate
-    real(8), allocatable, dimension(:) :: dEl,x,dF1,temp3,dN_x,x_edge
-
-    active_solver=resolve_solver(solver_id)
-    allocate(dEl(Num_gam_e),x(Num_gam_e),dF1(Num_gam_e),temp3(Num_gam_e-1),dN_x(Num_gam_e),x_edge(Num_gam_e+1))
-
-    gmin=1d0
-    gmax0=0d0
-    do I_tobs=2,Num_R
-        dB=(B3(I_tobs)+B3(I_tobs-1))/2d0
-        if (dB > 0d0 .and. Gam_m_shell(I_tobs) > 1d0) then
-            gmax=3d0*Para_m_energy/dsqrt(8d0*dB*Para_e**3)
-            gmax0=max(gmax0,gmax)
-        end if
-    end do
-    if (gmax0 <= gmin) error stop "multiple_evolve: empty secondary electron grid."
-
-    do I_gam_e=1,Num_gam_e
-        if (Num_gam_e == 1) then
-            gam_e(I_gam_e)=gmin
-        else
-            gam_e(I_gam_e)=gmin*dexp(dlog(gmax0/gmin)*(I_gam_e-1)/(Num_gam_e-1))
-        end if
-        dN_gam_e(I_gam_e,1)=0d0
-    end do
-
-    dN_x=dN_gam_e(:,1)*gam_e
-    d_x=dlog(gam_e(2)/gam_e(1))
-    call log_edges(Num_gam_e,gam_e,x_edge)
-
-    do I_tobs=2,Num_R
-        if (M3_shell(I_tobs) <= 0d0 .and. M3_shell(I_tobs-1) <= 0d0) then
-            dN_gam_e(:,I_tobs)=dN_gam_e(:,I_tobs-1)
-            cycle
-        end if
-        rloc=R(I_tobs-1)
-        gloc=(R_Gamma(I_tobs)+R_Gamma(I_tobs-1))/2d0
-        beta2=dsqrt(1d0-1d0/gloc**2)
-        dB=(B3(I_tobs)+B3(I_tobs-1))/2d0
-        if (dB <= 0d0) error stop "multiple_evolve: secondary reservoir requires B3 > 0."
-        if (Gam_m_shell(I_tobs-1) > 1d0) then
-            gm=(Gam_m_shell(I_tobs)+Gam_m_shell(I_tobs-1))/2d0
-        else
-            gm=Gam_m_shell(I_tobs)
-        end if
-        gmax=3d0*Para_m_energy/dsqrt(8d0*dB*Para_e**3)
-        f_r=secondary_adv_coeff/beta2/gloc*dB**2/pi
-        dDD=R(I_tobs)-R(I_tobs-1)
-        dDR=0.7d0/(f_r*gmax+1d0/R(I_tobs-1))
-        L1=reverse_transport_substeps(dDR,dDD,active_solver)
-        dDR=dDD/L1
-        dEl=f_r*gam_e
-        mass_lo=M3_shell(I_tobs-1)
-        mass_hi=M3_shell(I_tobs)
-        if (mass_hi < mass_lo) error stop "multiple_evolve: secondary swept mass must not decrease."
-        inj_width=R(I_tobs)-R(I_tobs-1)
-        injection_rate=f_e_r*(mass_hi-mass_lo)/(Para_m_p*inj_width)
-        if (V3_shell(I_tobs) <= 0d0 .or. V3_shell(I_tobs-1) <= 0d0) then
-            adrate=0d0
-        else
-            adrate=dlog(V3_shell(I_tobs)/V3_shell(I_tobs-1))/(3d0*(R(I_tobs)-R(I_tobs-1)))
-        end if
-        call advance_multiple(I_tobs)
-    end do
-
-    deallocate(dEl,x,dF1,temp3,dN_x,x_edge)
-
-contains
-
-    subroutine advance_multiple(I_tobs)
-    implicit none
-    integer, intent(in) :: I_tobs
-    real(8), dimension(Num_gam_e-1) :: face_speed
-    real(8), allocatable, dimension(:) :: dg_adiabatic,dg_source_norm
-
-        dN_x=dN_gam_e(:,I_tobs-1)*gam_e
-        if (active_solver == solver_dg) then
-            allocate(dg_adiabatic(L1),dg_source_norm(L1))
-            do L=1,L1
-                rloc=rloc+dDR
-                dg_adiabatic(L)=adrate
-                if (injection_rate > 0d0) then
-                    dg_source_norm(L)=injection_rate
-                else
-                    dg_source_norm(L)=0d0
-                end if
-            end do
-            call dg_sequence(Num_gam_e,x_edge,gam_e,L1,dDR,f_r,dg_adiabatic,dg_source_norm, &
-                                          p_r,gm,gmax,dN_x,x)
-            dN_x=x
-            call dnx_dgamma(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,I_tobs))
-            deallocate(dg_adiabatic,dg_source_norm)
-            return
-        end if
-
-        do L=1,L1
-            rloc=rloc+dDR
-            if (injection_rate > 0d0) then
-                call kinetic_edges(Num_gam_e,x_edge,gm,gmax, &
-                                                                          injection_rate,p_r,dF1)
-            else
-                dF1=0d0
-            end if
-            face_speed=((dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/2d0+adrate)
-            call flux_split_step(Num_gam_e,dDR,d_x,face_speed,dF1,dN_x,x,.true.)
-            dN_x=x
-            if (L == L1) call dnx_dgamma(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,I_tobs))
-        end do
-    end subroutine advance_multiple
-end subroutine multiple_evolve
-
 ! Secondary RS 源项历史：逐半径壳层调用同步辐射和SSA核，返回给统一EATS投影使用。
 subroutine multiple_synch(index_syn_intger,Num_nu,Num_R,Num_gam_e, &
                                                   n_threads,R,R_Gamma,B3,gam_e, &
@@ -722,42 +594,6 @@ subroutine multiple_synch(index_syn_intger,Num_nu,Num_R,Num_gam_e, &
         Nu_a(I_tobs)=Nu_a(I_tobs)/doppler_den
     end do
 end subroutine multiple_synch
-
-! Secondary RS 分支辐射归并：每个 reservoir 独立输运电子谱，再在源项半径网格上求和。
-subroutine branch_synch(e_r,b_r,p_r,f_e_r,z,R_Tobs,R_Gamma,R,B3_branch, &
-                                                         M3_branch,U3_branch,V3_branch,Gam_m_branch,V_seed, &
-                                                         Num_jump,Num_nu,Num_R,Num_gam_e,index_syn_intger,n_threads, &
-                                                         Branch_L_syn_spec,L_syn_spec,solver_id)
-    implicit none
-    integer, intent(in) :: Num_jump,Num_nu,Num_R,Num_gam_e,index_syn_intger,n_threads
-    integer, intent(in), optional :: solver_id
-    integer :: I_jump
-    real(8), intent(in) :: e_r,b_r,p_r,f_e_r,z
-    real(8), intent(in), dimension(Num_R) :: R_Tobs,R_Gamma,R
-    real(8), intent(in), dimension(Num_nu) :: V_seed
-    real(8), intent(in), dimension(Num_jump,Num_R) :: B3_branch,M3_branch,U3_branch
-    real(8), intent(in), dimension(Num_jump,Num_R) :: V3_branch,Gam_m_branch
-    real(8), intent(out), dimension(Num_jump,Num_nu,Num_R) :: Branch_L_syn_spec
-    real(8), intent(out), dimension(Num_nu,Num_R) :: L_syn_spec
-    real(8), allocatable, dimension(:) :: gam_e_branch,nu_a_dummy
-    real(8), allocatable, dimension(:,:) :: dN_branch,seed_dummy
-
-    allocate(gam_e_branch(Num_gam_e),dN_branch(Num_gam_e,Num_R),seed_dummy(Num_nu,Num_R),nu_a_dummy(Num_R))
-    Branch_L_syn_spec=0d0
-    L_syn_spec=0d0
-    do I_jump=1,Num_jump
-        if (.not. any(M3_branch(I_jump,:) > 0d0)) cycle
-        call multiple_evolve(e_r,b_r,p_r,f_e_r,z,R_Tobs,R_Gamma,R,B3_branch(I_jump,:), &
-                                               M3_branch(I_jump,:),U3_branch(I_jump,:),V3_branch(I_jump,:), &
-                                               Gam_m_branch(I_jump,:),V_seed,Num_nu,Num_R,Num_gam_e, &
-                                               index_syn_intger,n_threads,gam_e_branch,dN_branch,solver_id)
-        call multiple_synch(index_syn_intger,Num_nu,Num_R,Num_gam_e,n_threads,R,R_Gamma, &
-                                                    B3_branch(I_jump,:),gam_e_branch,dN_branch,V_seed,z, &
-                                                    Branch_L_syn_spec(I_jump,:,:),seed_dummy,nu_a_dummy)
-        L_syn_spec=L_syn_spec+Branch_L_syn_spec(I_jump,:,:)
-    end do
-    deallocate(gam_e_branch,dN_branch,seed_dummy,nu_a_dummy)
-end subroutine branch_synch
 
 subroutine branch_reaccel(e_r,b_r,p_r,f_e_r,z,R_Tobs,R_Gamma,R, &
                                                            B3_branch,M3_branch,U3_branch,V3_branch, &

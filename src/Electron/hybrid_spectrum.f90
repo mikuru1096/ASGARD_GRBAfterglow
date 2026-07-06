@@ -532,8 +532,7 @@ module hybrid_spectrum
       real(8), intent(inout) :: acc
       integer :: iq
       real(8) :: half_dy, y_mid, y_eval, gamma, density, jac
-      real(8), parameter, dimension(3) :: xi=[-dsqrt(3d0/5d0),0d0,dsqrt(3d0/5d0)]
-      real(8), parameter, dimension(3) :: wi=[5d0/9d0,8d0/9d0,5d0/9d0]
+      real(8), parameter, dimension(3) :: xi=[-dsqrt(3d0/5d0),0d0,dsqrt(3d0/5d0)], wi=[5d0/9d0,8d0/9d0,5d0/9d0]
 
       if (y_hi <= y_lo) return
 
@@ -607,8 +606,7 @@ module hybrid_spectrum
          real(8), intent(inout) :: acc
          integer :: iq
          real(8) :: half_dy, y_mid, y_eval, gamma, lnval, density, jac
-         real(8), parameter, dimension(3) :: xi=[-dsqrt(3d0/5d0),0d0,dsqrt(3d0/5d0)]
-         real(8), parameter, dimension(3) :: wi=[5d0/9d0,8d0/9d0,5d0/9d0]
+         real(8), parameter, dimension(3) :: xi=[-dsqrt(3d0/5d0),0d0,dsqrt(3d0/5d0)], wi=[5d0/9d0,8d0/9d0,5d0/9d0]
 
          half_dy = 0.5d0*(y_hi-y_lo)
          y_mid = 0.5d0*(y_hi+y_lo)
