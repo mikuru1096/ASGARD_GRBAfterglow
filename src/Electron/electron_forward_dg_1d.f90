@@ -14,15 +14,15 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
     use electron_coord_common, only: build_fourvel_grid, fourvel_scale
     use electron_dg_transport, only: dg_mesh, dg_build_mesh, &
                                                dg_initial_state, dg_project_state, &
-                                               dg_project_source, dg_project_cell_density, &
+                                               dg_project_source, &
                                                dg_advance_step, dg_project_cells, &
                                                dg_limit_positive, dg_integral, &
                                                dg_tail_fraction, &
                                                dg_filter_positive
-    use electron_shell_transport, only: coord_to_dgamma
+    use electron_shell_transport, only: shell_coord_step, coord_to_dgamma
     use electron_injection_profiles, only: init_coord, &
                                            source_coord
-    use hybrid_spectrum, only: hybrid_coord
+    use hybrid_spectrum, only: hybrid_thermal_coord
     use electron_radiation_kernel, only: syn_state, nua_fromtau
     implicit none
 
@@ -40,10 +40,11 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
     type(dg_mesh) :: mesh, new_mesh
     real(8), allocatable, dimension(:) :: state,projected,gdg,deldg,delbase,srcdg,srctpl
     real(8), allocatable, dimension(:) :: nxinit,xedge,yedge,srcgrid,pemit,tau
+    real(8), allocatable, dimension(:) :: thermal_x,thermal_out,thermal_src,loss_grid,loss_base,dg_dgam,th_dgam
     real(8) :: Eta_0, R_ini, Epsilon_e, Epsilon_b, p, z, nism, A_star, E_iso, tdur_log
     real(8) :: f_e, R_tr, f_jump, f_wide, R0, dNe, ninit, DB, DB_min, gemax0
     real(8) :: gemax, gm, gc, temp_gam, beta_Gam, dDD, R_loc, gloc
-    real(8) :: dNe_shell, dNe_step, DB_step, gmax_step, gm_step, gmp_step, source_norm, temp
+    real(8) :: dNe_shell, dNe_step, DB_step, gmax_step, gm_step, gmp_step, source_norm, thermal_norm, temp
     real(8) :: gmax_inj, gm_inj, gmp_shell
     real(8) :: dR_base, dR_step, R_end, R_mid, dgscale, coord_scale
     real(8) :: cache_gm, cache_gmax
@@ -54,7 +55,9 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
     logical :: cache_ready, uniform_shell
 
     allocate(nxinit(Num_gam_e), xedge(Num_gam_e+1), yedge(Num_gam_e+1), srcgrid(Num_gam_e), &
-             pemit(Num_nu), tau(Num_nu))
+             pemit(Num_nu), tau(Num_nu), thermal_x(Num_gam_e), thermal_out(Num_gam_e), &
+             thermal_src(Num_gam_e), loss_grid(Num_gam_e), loss_base(Num_gam_e), &
+             dg_dgam(Num_gam_e), th_dgam(Num_gam_e))
 
     call electron_unpack_boundary(Boundary, n, Eta_0, R_ini, Epsilon_e, Epsilon_b, p, z, nism, A_star, &
                                   E_iso, tdur_log, f_e, R_tr, f_jump, f_wide, R0)
@@ -70,6 +73,11 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
     cache_n = 0
     cache_gm = -1d0
     cache_gmax = -1d0
+    thermal_x = 0d0
+    thermal_out = 0d0
+    thermal_src = 0d0
+    loss_grid = 0d0
+    loss_base = 0d0
 
     call electron_initial_density(A_star, nism, R_ini, R(1), R0, dNe, ninit)
     DB = 0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma(1)*(R_Gamma(1) - 1d0)))
@@ -99,7 +107,8 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
     enddo
     call write_final()
 
-    deallocate(state, nxinit, xedge, yedge, srcgrid, pemit, tau)
+    deallocate(state, nxinit, xedge, yedge, srcgrid, pemit, tau, thermal_x, thermal_out, &
+               thermal_src, loss_grid, loss_base, dg_dgam, th_dgam)
     if (allocated(projected)) deallocate(projected)
     if (allocated(gdg)) deallocate(gdg, deldg, delbase, srcdg, srctpl)
 
@@ -120,9 +129,11 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
             call init_coord(ninit, p, gm, gc, gemax, &
                                                                   Num_gam_e, yedge, coord_scale, nxinit)
         else
-            call hybrid_coord(Num_gam_e, yedge, coord_scale, p, gm, gemax, f_e, nxinit)
-            nxinit = nxinit*ninit
-            call dg_project_cell_density(mesh, Num_gam_e, yedge, nxinit, state)
+            call dg_initial_state(mesh, ninit*f_e, p, gm, gc, gemax, state)
+            call init_coord(ninit*f_e, p, gm, gc, gemax, &
+                                                                  Num_gam_e, yedge, coord_scale, nxinit)
+            call hybrid_thermal_coord(Num_gam_e, yedge, coord_scale, p, gm, gemax, f_e, thermal_x)
+            thermal_x = thermal_x*ninit*(1d0 - f_e)
         endif
         call scale_dg_content(state, nxinit)
         call write_positive_output(1)
@@ -213,6 +224,12 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
                              R_loc, gloc, beta_Gam, dNe_shell, mesh%ntot, Num_nu, 1, n_threads, &
                              gdg, V_seed, P_syn(:,I_tobs), Seed_syn(:,I_tobs), Seed_syn(:,I_tobs), &
                              deldg, delbase)
+        if (thermal_electrons /= 0) then
+            call forward_cooling(1,index_Y, Epsilon_e, Epsilon_b, p, DB, gm, gc, gemax, &
+                                 R_loc, gloc, beta_Gam, dNe_shell, Num_gam_e, Num_nu, 1, n_threads, &
+                                 gam_e, V_seed, P_syn(:,I_tobs), Seed_syn(:,I_tobs), Seed_syn(:,I_tobs), &
+                                 loss_grid, loss_base)
+        endif
 
     end subroutine remesh_shell
 
@@ -235,10 +252,11 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
             call electron_gm_exact(p, temp_gam, gmax_step, gm_step)
             gmp_step = (1d0 - p)/(gmax_step**(1d0 - p) - gm_step**(1d0 - p))
         endif
-        if (thermal_electrons == 0) then
-            call electron_injection_prefactor(R_step, dR_local, dNe_step, f_e, gmp_step, source_norm)
+        call electron_injection_prefactor(R_step, dR_local, dNe_step, f_e, gmp_step, source_norm)
+        if (thermal_electrons /= 0) then
+            call electron_injection_prefactor(R_step, dR_local, dNe_step, 1d0 - f_e, 1d0, thermal_norm)
         else
-            call electron_injection_prefactor(R_step, dR_local, dNe_step, 1d0, 1d0, source_norm)
+            thermal_norm = 0d0
         endif
         if (dg_source_xmax(gmax_step) > mesh%x_gamma(mesh%ntot)) &
             call remesh_shell(gmax_step, gm_step, gc, gmax_step)
@@ -246,13 +264,21 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
         call prepare_dg_source()
         if (dNe_shell > 0d0) then
             deldg = delbase*(dNe_step/dNe_shell)
+            loss_grid = loss_base*(dNe_step/dNe_shell)
         else
             deldg = delbase
+            loss_grid = loss_base
         endif
         call dg_advance_step(mesh, 1d0/R_step, dR_local, deldg, srcdg, state, projected)
         call dg_filter_positive(mesh, projected)
         call dg_limit_positive(mesh, projected)
         state = projected
+        if (thermal_electrons /= 0) then
+            call prepare_thermal_source()
+            call shell_coord_step(Num_gam_e, dR_local, yedge, coord_scale, loss_grid, &
+                                  1d0/R_step, thermal_src, thermal_x, thermal_out)
+            thermal_x = thermal_out
+        endif
     end subroutine advance_substep
 
     subroutine prepare_dg_source()
@@ -262,14 +288,9 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
         endif
         if ((.not. cache_ready) .or. cache_n /= mesh%ntot .or. &
             cache_gm /= gm_step .or. cache_gmax /= gmax_step) then
-            if (thermal_electrons == 0) then
-                call dg_project_source(mesh, 1d0, p, gm_step, gmax_step, srctpl)
-                call source_coord(Num_gam_e, yedge, coord_scale, &
-                                                                       gm_step, gmax_step, 1d0, p, srcgrid)
-            else
-                call hybrid_coord(Num_gam_e, yedge, coord_scale, p, gm_step, gmax_step, f_e, srcgrid)
-                call dg_project_cell_density(mesh, Num_gam_e, yedge, srcgrid, srctpl)
-            endif
+            call dg_project_source(mesh, 1d0, p, gm_step, gmax_step, srctpl)
+            call source_coord(Num_gam_e, yedge, coord_scale, &
+                                                                   gm_step, gmax_step, 1d0, p, srcgrid)
             call scale_dg_content(srctpl, srcgrid)
             cache_ready = .true.
             cache_n = mesh%ntot
@@ -278,6 +299,15 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
         endif
         srcdg = source_norm*srctpl
     end subroutine prepare_dg_source
+
+    subroutine prepare_thermal_source()
+        if (thermal_norm <= 0d0) then
+            thermal_src = 0d0
+            return
+        endif
+        call hybrid_thermal_coord(Num_gam_e, yedge, coord_scale, p, gm_step, gmax_step, f_e, thermal_src)
+        thermal_src = thermal_src*thermal_norm
+    end subroutine prepare_thermal_source
 
     subroutine limit_jump_step(R_left, R_stop, dR_limited)
         real(8), intent(in) :: R_left, R_stop
@@ -395,12 +425,15 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
 
         call dg_project_cells(mesh, state, Num_gam_e, yedge, srcgrid)
         call coord_to_dgamma(Num_gam_e, yedge, coord_scale, gam_e, &
-                                                           srcgrid, dN_gam_e(:,it))
-        where (dN_gam_e(:,it) <= 0d0 .or. .not. ieee_is_finite(dN_gam_e(:,it)))
-            dN_gam_e(:,it) = 0d0
-        end where
+                                                           srcgrid, dg_dgam)
+        dN_gam_e(:,it) = dg_dgam
+        if (thermal_electrons /= 0) then
+            call coord_to_dgamma(Num_gam_e, yedge, coord_scale, gam_e, thermal_x, th_dgam)
+            dN_gam_e(:,it) = dN_gam_e(:,it) + th_dgam
+        endif
+        where (dN_gam_e(:,it) <= 0d0 .or. .not. ieee_is_finite(dN_gam_e(:,it))) dN_gam_e(:,it) = 0d0
         call dg_integral(mesh, state, dgcontent)
-        proj = sum(dN_gam_e(:,it)*gam_e*(xedge(2:Num_gam_e+1) - xedge(1:Num_gam_e)))
+        proj = sum(dg_dgam*gam_e*(xedge(2:Num_gam_e+1) - xedge(1:Num_gam_e)))
         if (.not. (dgcontent > 0d0 .and. ieee_is_finite(dgcontent))) &
             error stop 'fs_dg_1d output projection has non-positive DG content'
         if (.not. (proj > 0d0 .and. ieee_is_finite(proj))) &

@@ -1,12 +1,12 @@
 ! f2py: skip
-! public: hybrid_coord
+! public: hybrid_coord, hybrid_thermal_coord
 
 module hybrid_spectrum
    use hybrid_special, only: gamma_uic, bessel_k0, bessel_k1
    use electron_coord_common, only: coord_fourvel, coord_from_xg, gamma_from_coord, dxg_dcoord
    implicit none
    private
-   public :: hybrid_coord
+   public :: hybrid_coord, hybrid_thermal_coord
 
    real(8), private, parameter :: m700 = -7.0d2
 
@@ -596,5 +596,61 @@ module hybrid_spectrum
       spec_gamma = exp(ln_val)
    end function spec_gamma
    end subroutine hybrid_coord
+
+   ! 在 four-velocity 单元上积分 Maxwell-Juttner thermal 分支，归一化为单位热电子数。
+   ! Integrate the Maxwell-Juttner thermal branch on four-velocity cells, normalized to unit thermal count.
+   subroutine hybrid_thermal_coord(n_gamma, coord_edge, coord_scale, p, gamma_min, gamma_max, xi_e, &
+      spec)
+      implicit none
+      integer, intent(in) :: n_gamma
+      real(8), intent(in), dimension(n_gamma+1) :: coord_edge
+      real(8), intent(in) :: coord_scale
+      real(8), intent(in) :: p, gamma_min, gamma_max, xi_e
+      real(8), intent(out), dimension(n_gamma) :: spec
+
+      real(8) :: theta, it1, thermal_constant
+      real(8) :: inv_theta, y_min, cell_lo, cell_hi, dy_cell, seg_sum
+      integer :: i
+
+      call solve_theta(p, gamma_min, gamma_max, xi_e, theta)
+      call thermal_int1(gamma_min, theta, it1)
+      thermal_constant = -log(it1)
+      inv_theta = 1.0d0/theta
+      y_min = coord_from_xg(coord_fourvel, coord_scale, dlog(gamma_min))
+
+      do i = 1, n_gamma
+         cell_lo = coord_edge(i)
+         cell_hi = min(coord_edge(i+1), y_min)
+         dy_cell = coord_edge(i+1) - coord_edge(i)
+         seg_sum = 0.0d0
+         if (cell_hi > cell_lo) call add_segment(cell_lo, cell_hi, seg_sum)
+         spec(i) = seg_sum/dy_cell
+      end do
+
+   contains
+
+      subroutine add_segment(y_lo, y_hi, acc)
+         implicit none
+         real(8), intent(in) :: y_lo, y_hi
+         real(8), intent(inout) :: acc
+         integer :: iq
+         real(8) :: half_dy, y_mid, y_eval, gamma, lnval, density, jac
+         real(8), parameter, dimension(3) :: xi=[-dsqrt(3d0/5d0),0d0,dsqrt(3d0/5d0)]
+         real(8), parameter, dimension(3) :: wi=[5d0/9d0,8d0/9d0,5d0/9d0]
+
+         half_dy = 0.5d0*(y_hi-y_lo)
+         y_mid = 0.5d0*(y_hi+y_lo)
+         do iq = 1, 3
+            y_eval = y_mid + half_dy*xi(iq)
+            gamma = gamma_from_coord(coord_fourvel, coord_scale, y_eval)
+            lnval = log(gamma * sqrt(gamma*gamma - 1.0d0)) - gamma*inv_theta + thermal_constant
+            if (lnval > m700) then
+               density = exp(lnval)
+               jac = gamma*dxg_dcoord(coord_fourvel, coord_scale, y_eval)
+               acc = acc + half_dy*wi(iq)*density*jac
+            end if
+         end do
+      end subroutine add_segment
+   end subroutine hybrid_thermal_coord
 
 end module hybrid_spectrum
