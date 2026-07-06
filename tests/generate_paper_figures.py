@@ -75,16 +75,24 @@ def ensure_dirs() -> None:
 def save_pub(fig: plt.Figure, stem: str) -> None:
     for suffix, kwargs in (("svg", {}), ("pdf", {}), ("tiff", {"dpi": 600})):
         path = FIG_DIR / f"{stem}.{suffix}"
-        fig.savefig(path, bbox_inches="tight", **kwargs)
+        raw_path = FIG_DIR / f"{stem}.raw.{suffix}"
         if suffix == "svg":
-            strip_trailing_whitespace(path)
+            clean_path = FIG_DIR / f"{stem}.clean.svg"
+            fig.savefig(raw_path, bbox_inches="tight", **kwargs)
+            strip_trailing_whitespace(raw_path, clean_path)
+            clean_path.replace(path)
+            raw_path.unlink()
+        else:
+            fig.savefig(raw_path, bbox_inches="tight", **kwargs)
+            raw_path.replace(path)
     plt.close(fig)
 
 
-def strip_trailing_whitespace(path: Path) -> None:
+def strip_trailing_whitespace(path: Path, out_path: Path | None = None) -> None:
     text = path.read_text(encoding="utf-8")
     cleaned = "\n".join(line.rstrip() for line in text.splitlines()) + "\n"
-    path.write_text(cleaned, encoding="utf-8", newline="\n")
+    target = path if out_path is None else out_path
+    target.write_text(cleaned, encoding="utf-8", newline="\n")
 
 
 def write_rows(path: Path, rows: list[dict[str, object]]) -> None:
@@ -753,6 +761,361 @@ def fig5_validation_benchmark() -> None:
     save_pub(fig, "fig5_validation_benchmark")
 
 
+def _float_or_nan(value: str) -> float:
+    return np.nan if value == "" else float(value)
+
+
+def _positive_limits(values: np.ndarray, pad: float = 0.35) -> tuple[float, float]:
+    finite = np.asarray(values, dtype=float)
+    finite = finite[np.isfinite(finite) & (finite > 0.0)]
+    if finite.size == 0:
+        return 1.0, 10.0
+    low = np.nanmin(finite)
+    high = np.nanmax(finite)
+    if low == high:
+        return low / 2.0, high * 2.0
+    return low / 10.0**pad, high * 10.0**pad
+
+
+def _rows_for(rows: list[dict[str, str]], **selectors: str) -> list[dict[str, str]]:
+    selected = rows
+    for key, value in selectors.items():
+        selected = [row for row in selected if row[key] == value]
+    return selected
+
+
+def _band_label(nu: float) -> str:
+    if nu <= 3.0e8:
+        return "low radio"
+    if nu <= 3.0e10:
+        return "radio"
+    if nu <= 3.0e12:
+        return "mm/IR"
+    if nu <= 1.0e15:
+        return "optical"
+    if nu <= 3.0e18:
+        return "X-ray"
+    if nu <= 3.0e23:
+        return "GeV"
+    return "VHE"
+
+
+def _representative_freqs(freqs: list[float], targets: list[float]) -> list[float]:
+    chosen: list[float] = []
+    for target in targets:
+        value = min(freqs, key=lambda nu: abs(np.log10(nu) - np.log10(target)))
+        if value not in chosen:
+            chosen.append(value)
+    return chosen
+
+
+def fig6_cross_code_fs_benchmark() -> None:
+    rows = [row for row in read_csv(DATA_DIR / "figB1_cross_code_fs.csv") if row["value"]]
+    codes = ["ASGARD", "afterglowpy", "jetsimpy", "VegasAfterglow", "PyBlastAfterglowMag"]
+    labels = {
+        "ASGARD": "ASGARD",
+        "afterglowpy": "afterglowpy",
+        "jetsimpy": "jetsimpy",
+        "VegasAfterglow": "Vegas",
+        "PyBlastAfterglowMag": "PyBlast",
+    }
+    colors = {"ASGARD": BLUE, "afterglowpy": TEAL, "jetsimpy": RED, "VegasAfterglow": VIOLET, "PyBlastAfterglowMag": GOLD}
+    markers = {"ASGARD": "o", "afterglowpy": "s", "jetsimpy": "^", "VegasAfterglow": "D", "PyBlastAfterglowMag": "P"}
+    freqs = sorted({float(row["frequency_hz"]) for row in rows})
+    obs = sorted({float(row["observer_time"]) for row in rows})
+    nu_lc = min(freqs, key=lambda nu: abs(np.log10(nu) - 18.0))
+    sed_times = [obs[0], obs[len(obs) // 2], obs[-1]]
+    lc_freqs = _representative_freqs(freqs, [1.0e8, 1.0e10, 1.0e12, 5.0e14, 1.0e18, 2.4e23, 2.4e26])
+
+    fig, axes = plt.subplots(2, 2, figsize=(7.1, 4.55))
+    fig.subplots_adjust(left=0.09, right=0.985, bottom=0.13, top=0.92, wspace=0.38, hspace=0.50)
+
+    ax = axes[0, 0]
+    flux_pool = []
+    rows_for_asgard = [row for row in rows if row["code"] == "ASGARD"]
+    band_styles = ["-", "--", "-.", ":", (0, (3, 1, 1, 1)), (0, (5, 2)), (0, (1, 1))]
+    band_colors = [BLUE, TEAL, RED, VIOLET, GOLD, GREEN, NEUTRAL]
+    for idx, nu_value in enumerate(lc_freqs):
+        subset = sorted(
+            _rows_for(rows_for_asgard, frequency_hz=f"{nu_value:.8e}"),
+            key=lambda row: float(row["observer_time"]),
+        )
+        times = np.array([float(row["observer_time"]) for row in subset])
+        flux = np.array([float(row["value"]) for row in subset])
+        valid = flux > 0.0
+        flux_pool.append(flux[valid])
+        step = max(1, times.size // 6)
+        ax.loglog(
+            times[valid],
+            flux[valid],
+            color=band_colors[idx % len(band_colors)],
+            ls=band_styles[idx % len(band_styles)],
+            marker="o",
+            markevery=step,
+            ms=3.0,
+            lw=1.15,
+            label=_band_label(nu_value),
+        )
+    add_panel(ax, "a")
+    ax.set_xlabel(r"$t_{\rm obs}$ (s)")
+    ax.set_ylabel(r"$F_\nu$ (cgs)")
+    ax.set_title("ASGARD FS from radio to VHE")
+    ax.set_ylim(*_positive_limits(np.concatenate(flux_pool)))
+    ax.legend(fontsize=5.2, ncol=2)
+    ax.grid(color=LIGHT, lw=0.5, which="both")
+
+    ax = axes[0, 1]
+    sed_pool = []
+    sed_styles = ["-", "--", ":"]
+    for idx, obs_value in enumerate(sed_times):
+        subset = sorted(
+            _rows_for(rows_for_asgard, observer_time=f"{obs_value:.8e}"),
+            key=lambda row: float(row["frequency_hz"]),
+        )
+        nu = np.array([float(row["frequency_hz"]) for row in subset])
+        flux = np.array([float(row["value"]) for row in subset])
+        sed_pool.append(flux)
+        ax.loglog(nu, flux, color=band_colors[idx], ls=sed_styles[idx], marker="o", lw=1.2, label=rf"$t={obs_value:.0e}$ s")
+    add_panel(ax, "b")
+    ax.set_xlabel(r"$\nu$ (Hz)")
+    ax.set_ylabel(r"$F_\nu$ (cgs)")
+    ax.set_title("SEDs across the full frequency grid")
+    ax.set_ylim(*_positive_limits(np.concatenate(sed_pool)))
+    ax.legend(fontsize=5.5)
+    ax.grid(color=LIGHT, lw=0.5, which="both")
+
+    ax = axes[1, 0]
+    ratio_pool = []
+    for code in codes[1:]:
+        subset = sorted(
+            _rows_for(rows, code=code, frequency_hz=f"{nu_lc:.8e}"),
+            key=lambda row: float(row["observer_time"]),
+        )
+        times = np.array([float(row["observer_time"]) for row in subset])
+        ratio = np.array([_float_or_nan(row["asgard_ratio"]) for row in subset])
+        valid = np.isfinite(ratio) & (ratio > 0.0)
+        ratio_pool.append(ratio[valid])
+        ax.semilogx(times[valid], ratio[valid], color=colors[code], marker=markers[code], lw=1.25, label=labels[code])
+    ax.axhline(1.0, color=NEUTRAL, lw=0.8, ls=":")
+    add_panel(ax, "c")
+    ax.set_xlabel(r"$t_{\rm obs}$ (s)")
+    ax.set_ylabel("code / ASGARD")
+    ax.set_title(r"Cross-code ratios at X-ray band")
+    ratios = np.concatenate(ratio_pool)
+    ax.set_yscale("log")
+    ax.set_ylim(*_positive_limits(ratios, pad=0.20))
+    ax.legend(fontsize=5.2, ncol=2)
+    ax.grid(color=LIGHT, lw=0.5, which="both")
+
+    ax = axes[1, 1]
+    wall = []
+    for code in codes:
+        code_rows = _rows_for(rows, code=code)
+        wall.append(float(code_rows[0]["wall_time"]))
+    x = np.arange(len(codes))
+    ax.bar(x, wall, color=[colors[code] for code in codes], edgecolor="black", linewidth=0.5)
+    add_panel(ax, "d")
+    ax.set_xticks(x)
+    ax.set_xticklabels([labels[code] for code in codes], rotation=25, ha="right")
+    ax.set_ylabel("wall time (s)")
+    ax.set_title("Same machine, same scenario")
+    ax.grid(axis="y", color=LIGHT, lw=0.5)
+    save_pub(fig, "fig6_cross_code_fs_benchmark")
+
+
+def fig7_multiphysics_geometry_benchmark() -> None:
+    rows = read_csv(DATA_DIR / "figB2_rs_ssc_geometry.csv")
+    rs_rows = [row for row in rows if row["scenario"] == "rs_ssc_matched_tophat" and row["value"]]
+    geom_rows = [row for row in rows if row["scenario"] == "gaussian_off_axis_fs_synch" and row["value"]]
+    colors = {"ASGARD": BLUE, "VegasAfterglow": VIOLET, "afterglowpy": TEAL, "jetsimpy": RED, "PyBlastAfterglowMag": GOLD}
+    markers = {"ASGARD": "o", "VegasAfterglow": "D", "afterglowpy": "s", "jetsimpy": "^", "PyBlastAfterglowMag": "P"}
+    labels = {"afterglowpy": "afterglowpy", "jetsimpy": "jetsimpy", "VegasAfterglow": "Vegas", "PyBlastAfterglowMag": "PyBlast"}
+    comp_labels = {
+        "fs_sync_flux_density_cgs": "FS syn",
+        "fs_ssc_flux_density_cgs": "FS SSC",
+        "rs_sync_flux_density_cgs": "RS syn",
+        "rs_ssc_flux_density_cgs": "RS SSC",
+    }
+
+    fig, axes = plt.subplots(2, 2, figsize=(7.1, 4.55))
+    fig.subplots_adjust(left=0.09, right=0.985, bottom=0.13, top=0.92, wspace=0.42, hspace=0.50)
+
+    ax = axes[0, 0]
+    rs_freqs = sorted({float(row["frequency_hz"]) for row in rs_rows})
+    rs_nu_value = min(rs_freqs, key=lambda nu: abs(np.log10(nu) - np.log10(5.0e14)))
+    rs_nu = f"{rs_nu_value:.8e}"
+    rs_flux_pool = []
+    for comp, label in comp_labels.items():
+        subset = sorted(
+            [
+                row
+                for row in rs_rows
+                if row["code"] == "ASGARD" and row["value_name"] == comp and row["frequency_hz"] == rs_nu
+            ],
+            key=lambda row: float(row["observer_time"]),
+        )
+        times = np.array([float(row["observer_time"]) for row in subset])
+        flux = np.array([float(row["value"]) for row in subset])
+        valid = flux > 0.0
+        rs_flux_pool.append(flux[valid])
+        ax.loglog(times[valid], flux[valid], marker="o", lw=1.15, label=label)
+    add_panel(ax, "a")
+    ax.set_xlabel(r"$t_{\rm obs}$ (s)")
+    ax.set_ylabel(r"$F_\nu$ (cgs)")
+    ax.set_title("ASGARD RS/SSC optical slice")
+    ax.set_ylim(*_positive_limits(np.concatenate(rs_flux_pool)))
+    ax.legend(fontsize=5.6)
+    ax.grid(color=LIGHT, lw=0.5, which="both")
+
+    ax = axes[0, 1]
+    ratio_values = []
+    ratio_labels = []
+    for comp, label in comp_labels.items():
+        vals = [
+            float(row["asgard_ratio"])
+            for row in rs_rows
+            if row["code"] == "VegasAfterglow" and row["value_name"] == comp and row["asgard_ratio"]
+        ]
+        ratio_values.append(np.nanmedian(vals))
+        ratio_labels.append(label)
+    x = np.arange(len(ratio_labels))
+    ax.bar(x, ratio_values, color=[BLUE, TEAL, RED, VIOLET], edgecolor="black", linewidth=0.5)
+    ax.axhline(1.0, color=NEUTRAL, lw=0.8, ls=":")
+    add_panel(ax, "b")
+    ax.set_xticks(x)
+    ax.set_xticklabels(ratio_labels, rotation=20, ha="right")
+    ax.set_yscale("log")
+    ax.set_ylabel("Vegas / ASGARD")
+    ax.set_title("Median ratio over the broad grid")
+    ax.grid(axis="y", color=LIGHT, lw=0.5, which="both")
+
+    ax = axes[1, 0]
+    geom_pool = []
+    geom_freqs = sorted({float(row["frequency_hz"]) for row in geom_rows})
+    for idx, nu_value in enumerate(geom_freqs):
+        subset = sorted(
+            _rows_for(geom_rows, code="ASGARD", frequency_hz=f"{nu_value:.8e}"),
+            key=lambda row: float(row["observer_time"]),
+        )
+        times = np.array([float(row["observer_time"]) for row in subset])
+        flux = np.array([float(row["value"]) for row in subset])
+        valid = flux > 0.0
+        geom_pool.append(flux[valid])
+        step = max(1, times.size // 6)
+        ax.loglog(
+            times[valid],
+            flux[valid],
+            marker="o",
+            markevery=step,
+            ms=3.0,
+            lw=1.2,
+            label=_band_label(nu_value),
+        )
+    add_panel(ax, "c")
+    ax.set_xlabel(r"$t_{\rm obs}$ (s)")
+    ax.set_ylabel(r"$F_\nu$ (cgs)")
+    ax.set_title("ASGARD Gaussian off-axis FS")
+    ax.set_ylim(*_positive_limits(np.concatenate(geom_pool)))
+    ax.legend(fontsize=5.5)
+    ax.grid(color=LIGHT, lw=0.5, which="both")
+
+    ax = axes[1, 1]
+    ratio_freq = min(geom_freqs, key=lambda nu: abs(np.log10(nu) - 18.0))
+    ratio_pool = []
+    for code in ["afterglowpy", "jetsimpy", "VegasAfterglow", "PyBlastAfterglowMag"]:
+        subset = sorted(
+            _rows_for(geom_rows, code=code, frequency_hz=f"{ratio_freq:.8e}"),
+            key=lambda row: float(row["observer_time"]),
+        )
+        times = np.array([float(row["observer_time"]) for row in subset])
+        ratio = np.array([float(row["asgard_ratio"]) for row in subset])
+        valid = ratio > 0.0
+        ratio_pool.append(ratio[valid])
+        ax.loglog(times[valid], ratio[valid], color=colors[code], marker=markers[code], lw=1.25, label=labels[code])
+    ax.axhline(1.0, color=NEUTRAL, lw=0.8, ls=":")
+    add_panel(ax, "d")
+    ax.set_xlabel(r"$t_{\rm obs}$ (s)")
+    ax.set_ylabel("code / ASGARD")
+    ax.set_title(r"Geometry ratios at $10^{18}$ Hz")
+    ax.set_ylim(*_positive_limits(np.concatenate(ratio_pool), pad=0.20))
+    ax.legend(fontsize=5.2, ncol=2)
+    ax.grid(color=LIGHT, lw=0.5, which="both")
+    save_pub(fig, "fig7_multiphysics_geometry_benchmark")
+
+
+def fig8_asgard_complex_state_dashboard() -> None:
+    rows = [row for row in read_csv(DATA_DIR / "figB3_asgard_complex_state.csv") if row["code"] == "ASGARD"]
+    full = [row for row in rows if row["metric_group"] == "full_state_chain" and row["value"]]
+    had = [row for row in rows if row["metric_group"] == "hadronic_state" and row["value"]]
+    pair = [row for row in rows if row["metric_group"] == "pair_feedback_state" and row["value"]]
+    chi = [row for row in rows if row["metric_group"] == "chi_projection" and row["value"]]
+
+    fig, axes = plt.subplots(1, 3, figsize=(7.1, 2.65))
+    fig.subplots_adjust(left=0.075, right=0.985, bottom=0.22, top=0.84, wspace=0.62)
+
+    ax = axes[0]
+    for metric, color, label in [
+        ("proton_energy_erg", BLUE, r"$E_p$"),
+        ("bh_pair_energy_erg", RED, r"$E_{\pm}^{\rm BH}$"),
+    ]:
+        source = had if metric.startswith("proton") else pair
+        subset = sorted([row for row in source if row["value_name"] == metric], key=lambda row: float(row["radius_cm"]))
+        radius = np.array([float(row["radius_cm"]) for row in subset])
+        value = np.array([float(row["value"]) for row in subset])
+        step = max(1, radius.size // 12)
+        ax.loglog(radius, value, color=color, marker="o", markevery=step, ms=3.2, lw=1.2, label=label)
+    add_panel(ax, "a")
+    ax.set_xlabel(r"$R$ (cm)")
+    ax.set_ylabel("state energy (erg)")
+    ax.set_title("Hadronic and pair state")
+    ax.legend(fontsize=5.8)
+    ax.grid(color=LIGHT, lw=0.5, which="both")
+
+    ax = axes[1]
+    tau_rows = [row for row in chi if row["value_name"] == "max_tau_syn_chi"]
+    radii = sorted({float(row["radius_cm"]) for row in tau_rows})
+    chi_vals = sorted({float(row["chi"]) for row in tau_rows})
+    matrix = np.full((len(chi_vals), len(radii)), np.nan)
+    ri = {value: idx for idx, value in enumerate(radii)}
+    ci = {value: idx for idx, value in enumerate(chi_vals)}
+    for row in tau_rows:
+        matrix[ci[float(row["chi"])], ri[float(row["radius_cm"])]] = float(row["value"])
+    shown = np.log10(np.maximum(matrix, np.nanmax(matrix) * 1.0e-12))
+    image = ax.imshow(
+        shown,
+        aspect="auto",
+        origin="lower",
+        extent=[np.log10(min(radii)), np.log10(max(radii)), min(chi_vals), max(chi_vals)],
+        cmap="viridis",
+    )
+    add_panel(ax, "b")
+    ax.set_xlabel(r"$\log_{10} R$ (cm)")
+    ax.set_ylabel(r"$\chi$")
+    ax.set_title(r"$\chi$-resolved SSA state")
+    cb = fig.colorbar(image, ax=ax, fraction=0.040, pad=0.025)
+    cb.set_label(r"$\log_{10}\max\tau_\nu$")
+
+    ax = axes[2]
+    radius = sorted({float(row["radius_cm"]) for row in full})
+    for metric, color, label in [
+        ("Gamma", BLUE, r"$\Gamma$"),
+        ("B_comoving_G", TEAL, r"$B'$ (G)"),
+        ("electron_energy_erg", VIOLET, r"$E_e$ (erg)"),
+    ]:
+        subset = sorted([row for row in full if row["value_name"] == metric], key=lambda row: float(row["radius_cm"]))
+        vals = np.array([float(row["value"]) for row in subset])
+        vals = vals / np.nanmax(vals)
+        step = max(1, len(radius) // 12)
+        ax.semilogx(radius, vals, color=color, marker="o", markevery=step, ms=3.2, lw=1.2, label=label)
+    add_panel(ax, "c")
+    ax.set_xlabel(r"$R$ (cm)")
+    ax.set_ylabel("normalized state")
+    ax.set_title("Full state chain")
+    ax.legend(fontsize=5.5)
+    ax.grid(color=LIGHT, lw=0.5, which="both")
+    save_pub(fig, "fig8_asgard_complex_state_dashboard")
+
+
 def main() -> None:
     ensure_dirs()
     fig1_radius_state()
@@ -761,6 +1124,9 @@ def main() -> None:
     fig4_reverse_shock()
     fig5_validation_benchmark()
     figA1_hadronic_thresholds()
+    fig6_cross_code_fs_benchmark()
+    fig7_multiphysics_geometry_benchmark()
+    fig8_asgard_complex_state_dashboard()
 
 
 if __name__ == "__main__":

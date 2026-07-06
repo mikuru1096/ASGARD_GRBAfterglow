@@ -4,416 +4,395 @@
 \providecommand\HyField@AuxAddToCoFields[2]{}
 \authorcnt{1}
 \citation{MeszarosRees1997,Sari1998,Granot2002}
-\citation{SariPiran1999,Kobayashi2000,ZhangKobayashi2005,ChevalierLi2000,Murase2007,GillGranot2018Polarization,vanEerten2018BlastWaves,Salafia2022JetStructure}
 \citation{Troja2017GW170817Xray,Hallinan2017GW170817Radio,LambKobayashi2017Structured,Mooley2018WideAngle,Mooley2018Superluminal,Lazzati2018CollimatedJet,Margutti2018GW170817,Alexander2018GW170817,Ghirlanda2019StructuredJet,Troja2019GW170817,Hajela2022GW170817,Katira2025GW170817,Ryan2024}
 \citation{MAGIC2019TeV,MAGIC2019IC,HESS2019VHE,HESS2021GRB190829A,LHAASO2023TeVAfterglow,LHAASO2023Beyond10TeV,Laskar2023GRB221009A,OConnor2023GRB221009A}
 \newlabel{FirstPage}{{}{1}{}{Doc-Start}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {1}Introduction}{1}{section.1}\protected@file@percent }
-\newlabel{sec:intro}{{1}{1}{Introduction}{section.1}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {1}引言}{1}{section.1}\protected@file@percent }
+\newlabel{sec:intro}{{1}{1}{引言}{section.1}{}}
 \citation{Ryan2020}
 \citation{Wang2024Jetsimpy}
 \citation{Wang2025VegasAfterglow}
 \citation{Nedora2025PyBlastAfterglow}
 \citation{Granot2002,vanEerten2010,vanEerten2012,vanEerten2018BlastWaves,Salafia2022JetStructure}
-\citation{Ryan2020,Murase2007,GouldSchreder1967,Svensson1987}
-\@writefile{toc}{\contentsline {section}{\numberline {2}Model Definition and State Variables}{2}{section.2}\protected@file@percent }
-\newlabel{sec:contract}{{2}{2}{Model Definition and State Variables}{section.2}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {2}模型定义与半径排序状态}{2}{section.2}\protected@file@percent }
+\newlabel{sec:contract}{{2}{2}{模型定义与半径排序状态}{section.2}{}}
 \citation{ChevalierLi2000}
+\newlabel{fig:radius-state}{{1}{3}{模型定义与半径排序状态}{figure.1}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {3}动力学与喷流/介质设置}{3}{section.3}\protected@file@percent }
+\newlabel{sec:dynamics}{{3}{3}{动力学与喷流/介质设置}{section.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.1}外部介质}{3}{subsection.3.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.1.1}解析介质}{3}{subsubsection.3.1.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.1.2}表格化介质与跃变}{3}{subsubsection.3.1.2}\protected@file@percent }
 \citation{DaiLu2002,NakarGranot2007,UhmZhang2014}
-\@writefile{toc}{\contentsline {section}{\numberline {3}Dynamics, External Media, and Jet Initial Conditions}{3}{section.3}\protected@file@percent }
-\newlabel{sec:dynamics}{{3}{3}{Dynamics, External Media, and Jet Initial Conditions}{section.3}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.1}External media}{3}{subsection.3.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.1.1}Analytic media}{3}{subsubsection.3.1.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.1.2}Tabulated media and jumps}{3}{subsubsection.3.1.2}\protected@file@percent }
-\newlabel{fig:radius-state}{{1}{4}{Model Definition and State Variables}{figure.1}{}}
-\newlabel{fig:forward-api}{{2}{4}{Model Definition and State Variables}{figure.2}{}}
+\newlabel{fig:forward-api}{{2}{4}{模型定义与半径排序状态}{figure.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.2}喷流角向轮廓}{4}{subsection.3.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.3}前向激波动力学变量}{5}{subsection.3.3}\protected@file@percent }
 \citation{BlandfordMcKee1976,HuangDaiLu1999}
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.2}Jet angular profiles}{5}{subsection.3.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.3}Forward-shock dynamical variables}{5}{subsection.3.3}\protected@file@percent }
 \citation{Service1986,Peer2012}
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.4}Dynamical branches}{6}{subsection.3.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.4.1}Shared equation of state and injection source}{6}{subsubsection.3.4.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.4.2}Swept-medium state variables}{6}{subsubsection.3.4.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.4.3}Branch 1: radiative-efficiency dynamics}{6}{subsubsection.3.4.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.4.4}Branch 2: variable-index legacy dynamics}{6}{subsubsection.3.4.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.4.5}Branch 3: mass-energy baseline}{6}{subsubsection.3.4.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.5}Forward-dynamics integration}{7}{subsection.3.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.5.1}Runtime container and state vector}{7}{subsubsection.3.5.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.5.2}Output grid and stored state}{7}{subsubsection.3.5.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.5.3}Runge--Kutta advance}{7}{subsubsection.3.5.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.5.4}Adaptive refinement and state domain}{7}{subsubsection.3.5.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.4}动力学分支}{6}{subsection.3.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.4.1}共享状态方程与注入源}{6}{subsubsection.3.4.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.4.2}扫掠介质状态变量}{6}{subsubsection.3.4.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.4.3}分支1：辐射效率动力学}{6}{subsubsection.3.4.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.4.4}分支2：可变指数遗留动力学}{6}{subsubsection.3.4.4}\protected@file@percent }
 \citation{LeVeque2002,JiangShu1996,HesthavenWarburton2008}
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.6}Python binding boundary}{8}{subsection.3.6}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {4}Electron Transport and Synchrotron Emission}{8}{section.4}\protected@file@percent }
-\newlabel{sec:electron}{{4}{8}{Electron Transport and Synchrotron Emission}{section.4}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.1}Shared electron state, sources, and coordinates}{8}{subsection.4.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.1.1}ABI namespace boundary}{8}{subsubsection.4.1.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.1.2}Continuum state and solver storage}{8}{subsubsection.4.1.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.1.3}Finite-shell source and injection scales}{8}{subsubsection.4.1.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.1.4}Initial spectrum on the shared grid}{9}{subsubsection.4.1.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.1.5}Coordinate projection of shell sources}{10}{subsubsection.4.1.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.1.6}Reverse-shock kinetic source}{10}{subsubsection.4.1.6}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.1.7}Thermal electron component}{10}{subsubsection.4.1.7}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.1.8}Shared energy-coordinate maps}{10}{subsubsection.4.1.8}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.2}Shared conservative shell-transport primitives}{11}{subsection.4.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.1}Solver selector}{11}{subsubsection.4.2.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.2}Finite-volume shell update}{11}{subsubsection.4.2.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.3}Diagnostic reconstruction}{11}{subsubsection.4.2.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.4}Cooling-break and substep diagnostics}{11}{subsubsection.4.2.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.5}Triangular cooling sweep}{12}{subsubsection.4.2.5}\protected@file@percent }
-\newlabel{eq:triangular-cooling-sweep}{{91}{12}{Triangular cooling sweep}{equation.4.91}{}}
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.6}Interpolation primitives for remaps}{12}{subsubsection.4.2.6}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.7}Positive analytic-source reconstruction}{12}{subsubsection.4.2.7}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.3}Characteristic remap primitive}{13}{subsection.4.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.3.1}Affine characteristic traceback}{13}{subsubsection.4.3.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.3.2}Characteristic source quadrature}{13}{subsubsection.4.3.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.3.3}Semi-Lagrangian source split}{13}{subsubsection.4.3.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.3.4}Implicit flux-split primitive}{13}{subsubsection.4.3.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.3.5}Legacy fullhide triangular path}{13}{subsubsection.4.3.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.3.6}Centralized transport diagnostics}{14}{subsubsection.4.3.6}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.4}Implicit finite-volume \texttt  {fullhide\_1d} solver}{14}{subsection.4.4}\protected@file@percent }
-\newlabel{eq:fullhide-cell-average}{{117}{14}{Implicit finite-volume \texttt {fullhide\_1d} solver}{equation.4.117}{}}
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.4.1}Local shell state}{14}{subsubsection.4.4.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.4.2}Fixed radial substeps}{14}{subsubsection.4.4.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.4.3}Implicit finite-volume update}{14}{subsubsection.4.4.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.4.4}Finite-shell source normalization}{15}{subsubsection.4.4.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.4.5}Uniform-medium integrated solve}{15}{subsubsection.4.4.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.4.6}Substep-by-substep branch}{15}{subsubsection.4.4.6}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.4.7}Adaptive fullhide substeps}{15}{subsubsection.4.4.7}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.5}Coupled \texttt  {fullhide} electron--photon pass}{15}{subsection.4.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.5.1}Coupled input state}{15}{subsubsection.4.5.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.5.2}Coupled triangular solve}{15}{subsubsection.4.5.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.5.3}Coupled output refresh}{16}{subsubsection.4.5.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.6}Hybrid thermal \texttt  {fullhide} branch}{16}{subsection.4.6}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.6.1}Hybrid coordinate and state}{16}{subsubsection.4.6.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.6.2}Hybrid source cells}{16}{subsubsection.4.6.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.6.3}Hybrid density}{16}{subsubsection.4.6.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.6.4}Temperature continuity solve}{16}{subsubsection.4.6.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.6.5}Special-function backend}{17}{subsubsection.4.6.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.6.6}Thermal-tail moment subtraction}{17}{subsubsection.4.6.6}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.6.7}Temperature seed and update}{17}{subsubsection.4.6.7}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.6.8}Pointwise hybrid density and final advance}{17}{subsubsection.4.6.8}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.7}Semi-Lagrangian log-\(\gamma \) solver}{18}{subsection.4.7}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.7.1}SLC state and radial substeps}{18}{subsubsection.4.7.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.7.2}SLC source and cooling speed}{18}{subsubsection.4.7.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.7.3}SLC source-split remap}{18}{subsubsection.4.7.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.7.4}SLC output diagnostics}{18}{subsubsection.4.7.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.8}Three-level log-\(\gamma \) solver}{18}{subsection.4.8}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.8.1}T2G state and source}{18}{subsubsection.4.8.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.8.2}T2G cooling speed}{19}{subsubsection.4.8.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.8.3}T2G startup sweep}{19}{subsubsection.4.8.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.8.4}T2G BDF2 sweep}{19}{subsubsection.4.8.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.8.5}T2G output diagnostics}{19}{subsubsection.4.8.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.9}WENO finite-volume solver}{19}{subsection.4.9}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.9.1}WENO state and local shock scales}{19}{subsubsection.4.9.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.9.2}WENO conservative equation and substeps}{19}{subsubsection.4.9.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.9.3}WENO finite-shell source}{20}{subsubsection.4.9.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.9.4}WENO-Z interface flux}{20}{subsubsection.4.9.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.9.5}WENO Runge--Kutta update}{20}{subsubsection.4.9.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.9.6}WENO output diagnostics}{20}{subsubsection.4.9.6}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.10}Direct characteristic-integration solver}{21}{subsection.4.10}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.10.1}Characteristic state}{21}{subsubsection.4.10.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.10.2}Characteristic local shock scales}{21}{subsubsection.4.10.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.10.3}Characteristic radial substeps}{21}{subsubsection.4.10.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.10.4}Characteristic adaptive acceptance}{21}{subsubsection.4.10.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.10.5}Characteristic finite-shell source}{21}{subsubsection.4.10.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.10.6}Characteristic cooling map}{22}{subsubsection.4.10.6}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.10.7}Characteristic conservative remap}{22}{subsubsection.4.10.7}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.10.8}Characteristic output diagnostics}{22}{subsubsection.4.10.8}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.11}Discontinuous-Galerkin solver}{22}{subsection.4.11}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.11.1}DG state and nodal representation}{22}{subsubsection.4.11.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.11.2}DG shell scales and active support}{23}{subsubsection.4.11.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.11.3}DG active-support remesh}{23}{subsubsection.4.11.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.11.4}DG radial substeps and density jumps}{23}{subsubsection.4.11.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.11.5}DG finite-shell source and cooling}{23}{subsubsection.4.11.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.11.6}DG output projection}{24}{subsubsection.4.11.6}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.11.7}DG source projection}{24}{subsubsection.4.11.7}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.11.8}DG implicit transport solve}{24}{subsubsection.4.11.8}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.11.9}DG conservative remap and positivity}{24}{subsubsection.4.11.9}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.4.5}分支3：质量--能量基线}{7}{subsubsection.3.4.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.5}前向动力学积分}{7}{subsection.3.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.6}Python 绑定边界}{7}{subsection.3.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4}粒子与辐射输运}{7}{section.4}\protected@file@percent }
+\newlabel{sec:electron}{{4}{7}{粒子与辐射输运}{section.4}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.1}共享电子状态、源项与坐标}{8}{subsection.4.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.1.1}命名空间边界}{8}{subsubsection.4.1.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.1.2}连续状态与求解器存储}{8}{subsubsection.4.1.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.1.3}有限壳层源与注入标度}{8}{subsubsection.4.1.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.1.4}共享网格上的初始谱}{9}{subsubsection.4.1.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.1.5}壳层源的坐标投影}{9}{subsubsection.4.1.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.1.6}反向激波动能源}{9}{subsubsection.4.1.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.1.7}热电子分量}{10}{subsubsection.4.1.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.2}共享保守壳层输运原语}{10}{subsection.4.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.3}特征重映射原语}{11}{subsection.4.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.3.1}仿射特征回溯}{11}{subsubsection.4.3.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.4}隐式有限体积 \texttt  {fullhide\_1d} 求解器}{11}{subsection.4.4}\protected@file@percent }
+\newlabel{eq:fullhide-cell-average}{{70}{11}{隐式有限体积 \texttt {fullhide\_1d} 求解器}{equation.4.70}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.4.1}局部壳层状态}{11}{subsubsection.4.4.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.4.2}固定径向子步}{12}{subsubsection.4.4.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.4.3}隐式有限体积更新}{12}{subsubsection.4.4.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.4.4}有限壳层源归一化}{12}{subsubsection.4.4.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.4.5}自适应 fullhide 子步}{12}{subsubsection.4.4.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.5}耦合 \texttt  {fullhide} 电子--光子通道}{12}{subsection.4.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.5.1}耦合输入状态}{12}{subsubsection.4.5.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.5.2}耦合三角求解}{13}{subsubsection.4.5.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.5.3}耦合输出刷新}{13}{subsubsection.4.5.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.6}混合热 \texttt  {fullhide} 分支}{13}{subsection.4.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.6.1}混合坐标与状态}{13}{subsubsection.4.6.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.6.2}混合源单元}{13}{subsubsection.4.6.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.6.3}混合密度}{13}{subsubsection.4.6.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.6.4}温度连续性求解}{13}{subsubsection.4.6.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.6.5}混合输出}{14}{subsubsection.4.6.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.7}半拉格朗日 log-\(\gamma \) 求解器}{14}{subsection.4.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.7.1}SLC 状态与径向子步}{14}{subsubsection.4.7.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.7.2}SLC 源项与冷却速度}{14}{subsubsection.4.7.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.7.3}SLC 源分裂重映射}{14}{subsubsection.4.7.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.7.4}SLC 输出诊断}{14}{subsubsection.4.7.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.8}三层 log-\(\gamma \) 求解器}{14}{subsection.4.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.8.1}t2g 状态与源项}{14}{subsubsection.4.8.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.8.2}t2g 冷却速度}{15}{subsubsection.4.8.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.8.3}t2g 启动扫描}{15}{subsubsection.4.8.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.8.4}t2g BDF2 扫描}{15}{subsubsection.4.8.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.8.5}t2g 输出诊断}{15}{subsubsection.4.8.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.9}WENO 有限体积求解器}{15}{subsection.4.9}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.9.1}WENO 状态与局部激波标度}{15}{subsubsection.4.9.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.9.2}WENO 保守方程与子步}{15}{subsubsection.4.9.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.9.3}WENO 有限壳层源}{16}{subsubsection.4.9.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.9.4}WENO-Z 界面通量}{16}{subsubsection.4.9.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.9.5}WENO Runge--Kutta 更新}{16}{subsubsection.4.9.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.9.6}WENO 输出诊断}{16}{subsubsection.4.9.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.10}直接特征积分求解器}{16}{subsection.4.10}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.10.1}特征状态}{16}{subsubsection.4.10.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.10.2}特征局部激波标度}{17}{subsubsection.4.10.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.10.3}特征径向子步}{17}{subsubsection.4.10.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.10.4}特征自适应接受准则}{17}{subsubsection.4.10.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.10.5}特征有限壳层源}{17}{subsubsection.4.10.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.10.6}特征冷却映射}{18}{subsubsection.4.10.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.10.7}特征保守重映射}{18}{subsubsection.4.10.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.10.8}特征输出诊断}{18}{subsubsection.4.10.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.11}间断 Galerkin 求解器}{18}{subsection.4.11}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.11.1}DG 状态与节点表示}{18}{subsubsection.4.11.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.11.2}DG 壳层标度与活动支撑}{19}{subsubsection.4.11.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.11.3}DG 活动支撑重网格}{19}{subsubsection.4.11.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.11.4}DG 径向子步与密度跃变}{19}{subsubsection.4.11.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.11.5}DG 有限壳层源与冷却}{19}{subsubsection.4.11.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.11.6}DG 输出投影}{19}{subsubsection.4.11.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.11.7}DG 源项投影}{20}{subsubsection.4.11.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.11.8}DG 隐式输运求解}{20}{subsubsection.4.11.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.11.9}DG 保守重映射与正性}{20}{subsubsection.4.11.9}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.11.10}DG 特征投影器}{20}{subsubsection.4.11.10}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.12}冷却组装器}{20}{subsection.4.12}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.12.1}径向损失状态}{20}{subsubsection.4.12.1}\protected@file@percent }
 \citation{NakarAndoSari2009}
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.11.10}DG characteristic projector}{25}{subsubsection.4.11.10}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.12}Cooling assembler}{25}{subsection.4.12}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.12.1}Radial loss state}{25}{subsubsection.4.12.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.12.2}Cooling-branch assembly}{25}{subsubsection.4.12.2}\protected@file@percent }
-\newlabel{eq:electron-forward-cooling-assembly}{{260}{25}{Cooling-branch assembly}{equation.4.260}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.13}Nakar analytic Compton closure}{25}{subsection.4.13}\protected@file@percent }
 \citation{FanPiran2008}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.14}Fan Klein--Nishina Compton closure}{26}{subsection.4.14}\protected@file@percent }
-\newlabel{eq:synch-frequency-coeff}{{263}{26}{Fan Klein--Nishina Compton closure}{equation.4.263}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.15}Cooling-branch boundary}{26}{subsection.4.15}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.16}Synchrotron-self-absorption heating kernel}{26}{subsection.4.16}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.16.1}SSA target photon state}{26}{subsubsection.4.16.1}\protected@file@percent }
-\newlabel{eq:ssa-frequency-scales}{{269}{26}{SSA target photon state}{equation.4.269}{}}
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.16.2}SSA single-particle fit}{27}{subsubsection.4.16.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.16.3}SSA quadrature}{27}{subsubsection.4.16.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.17}Grid-level inverse-Compton cooling kernel}{27}{subsection.4.17}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.17.1}IC seed grid}{27}{subsubsection.4.17.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.17.2}IC kinematic kernel}{27}{subsubsection.4.17.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.17.3}IC loss coefficient}{27}{subsubsection.4.17.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.17.4}Coupled-budget IC coefficient}{27}{subsubsection.4.17.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.12.2}冷却分支组装}{21}{subsubsection.4.12.2}\protected@file@percent }
+\newlabel{eq:electron-forward-cooling-assembly}{{155}{21}{冷却分支组装}{equation.4.155}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.13}Nakar 解析康普顿闭合}{21}{subsection.4.13}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.14}Fan Klein--Nishina 康普顿闭合}{21}{subsection.4.14}\protected@file@percent }
+\newlabel{eq:synch-frequency-coeff}{{158}{21}{Fan Klein--Nishina 康普顿闭合}{equation.4.158}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.15}冷却分支边界}{21}{subsection.4.15}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.16}同步自吸收加热核}{21}{subsection.4.16}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.16.1}SSA 靶光子状态}{21}{subsubsection.4.16.1}\protected@file@percent }
 \citation{RybickiLightman1979,Sari1998,Granot2002}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.18}Synchrotron emissivity quadrature}{28}{subsection.4.18}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.18.1}Local synchrotron emissivity}{28}{subsubsection.4.18.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.18.2}Single-particle fit}{28}{subsubsection.4.18.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.18.3}Fixed-grid emissivity quadrature}{28}{subsubsection.4.18.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.19}Synchrotron self-absorption shell transfer}{28}{subsection.4.19}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.19.1}Self-absorption depth}{28}{subsubsection.4.19.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.19.2}Finite-cell transfer and seed photons}{28}{subsubsection.4.19.2}\protected@file@percent }
-\newlabel{sec:syn-shell-transfer}{{4.19.2}{28}{Finite-cell transfer and seed photons}{subsubsection.4.19.2}{}}
-\newlabel{eq:finite-cell-transfer}{{288}{28}{Finite-cell transfer and seed photons}{equation.4.288}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.20}Cyclotron-bin synchrotron extension}{28}{subsection.4.20}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.21}Positive-field radiation interpolation}{29}{subsection.4.21}\protected@file@percent }
-\newlabel{sec:positive-field-interpolation}{{4.21}{29}{Positive-field radiation interpolation}{subsection.4.21}{}}
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.21.1}Power-law positive branch}{29}{subsubsection.4.21.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.22}Log-Gauss radiation quadrature}{29}{subsection.4.22}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.22.1}Reduced frequency grid}{29}{subsubsection.4.22.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.23}SSA heating segment quadrature}{29}{subsection.4.23}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.24}Self-absorption frequency solver}{29}{subsection.4.24}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.24.1}Adaptive emissivity and opacity quadrature}{29}{subsubsection.4.24.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.24.2}Self-absorption root}{29}{subsubsection.4.24.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.25}Synchrotron polarization kernel}{29}{subsection.4.25}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.25.1}Intrinsic polarization kernels}{29}{subsubsection.4.25.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.25.2}Asymptotic and quadrature branches}{30}{subsubsection.4.25.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.25.3}Polarized luminosity assembly}{30}{subsubsection.4.25.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.25.4}Thermal Bessel table}{30}{subsubsection.4.25.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.26}Adaptive radiation-grid resampling}{30}{subsection.4.26}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.26.1}Active support selection}{30}{subsubsection.4.26.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.26.2}Log-slope and curvature estimator}{30}{subsubsection.4.26.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.26.3}Curvature-weighted support selection}{31}{subsubsection.4.26.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.27}\(\chi \)-resolved downstream electron state}{31}{subsection.4.27}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.27.1}Downstream coordinate and cell averages}{31}{subsubsection.4.27.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.27.2}Finite-speed downstream geometry}{31}{subsubsection.4.27.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.27.3}Pattern speed and magnetic decay}{32}{subsubsection.4.27.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.27.4}Cell synchrotron and absorption state}{32}{subsubsection.4.27.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.28}\(\chi \)-resolved photon-history cooling}{32}{subsection.4.28}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.28.1}Causal light-cone support}{32}{subsubsection.4.28.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.28.2}Frequency mapping and positive-field interpolation}{33}{subsubsection.4.28.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.28.3}Path attenuation}{33}{subsubsection.4.28.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.28.4}History contribution to cooling}{33}{subsubsection.4.28.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.28.5}Streamed light-cone update}{33}{subsubsection.4.28.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.29}Downstream \(q\)-space advection--diffusion}{34}{subsection.4.29}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.29.1}\(q\)-space conservation law}{34}{subsubsection.4.29.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.29.2}Shock-front source placement}{34}{subsubsection.4.29.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.29.3}Characteristic advection remap}{34}{subsubsection.4.29.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.29.4}Diffusion metric and implicit solve}{34}{subsubsection.4.29.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.30}Downstream energy-space update}{35}{subsection.4.30}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.30.1}Four-velocity branch}{35}{subsubsection.4.30.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.30.2}Log-gamma backward sweep}{35}{subsubsection.4.30.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.30.3}Characteristic energy branch and optional diffusion}{35}{subsubsection.4.30.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.30.4}Returned \(\chi \)-resolved state}{36}{subsubsection.4.30.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {5}Photon Fields and Absorption}{36}{section.5}\protected@file@percent }
-\newlabel{sec:photon}{{5}{36}{Photon Fields and Absorption}{section.5}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Comoving target photon state}{36}{subsection.5.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.1.1}ABI binding}{36}{subsubsection.5.1.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}Radiation interpolation reuse}{36}{subsection.5.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.3}Composite Simpson radiation quadrature}{36}{subsection.5.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.4}Uniform-grid SSC emissivity}{36}{subsection.5.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.4.1}Jones--Klein--Nishina variables}{36}{subsubsection.5.4.1}\protected@file@percent }
-\newlabel{fig:electron-transport}{{3}{37}{Returned \texorpdfstring {\(\chi \)}{chi}-resolved state}{figure.3}{}}
-\newlabel{eq:ssc-kernel}{{382}{37}{Jones--Klein--Nishina variables}{equation.5.382}{}}
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.4.2}Uniform-grid Simpson integration}{37}{subsubsection.5.4.2}\protected@file@percent }
+\newlabel{eq:ssa-frequency-scales}{{160}{22}{SSA 靶光子状态}{equation.4.160}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.16.2}SSA 单粒子拟合}{22}{subsubsection.4.16.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.16.3}SSA 求积}{22}{subsubsection.4.16.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.17}网格级逆康普顿冷却核}{22}{subsection.4.17}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.17.1}IC 种子光子与运动学}{22}{subsubsection.4.17.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.17.2}IC 损失系数}{22}{subsubsection.4.17.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.17.3}耦合预算 IC 系数}{22}{subsubsection.4.17.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.18}同步辐射发射率求积}{22}{subsection.4.18}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.18.1}局部同步辐射发射率}{22}{subsubsection.4.18.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.18.2}固定网格发射率求积}{23}{subsubsection.4.18.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.19}同步自吸收壳层传递}{23}{subsection.4.19}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.19.1}自吸收光深}{23}{subsubsection.4.19.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.19.2}有限单元传递与种子光子}{23}{subsubsection.4.19.2}\protected@file@percent }
+\newlabel{sec:syn-shell-transfer}{{4.19.2}{23}{有限单元传递与种子光子}{subsubsection.4.19.2}{}}
+\newlabel{eq:finite-cell-transfer}{{173}{23}{有限单元传递与种子光子}{equation.4.173}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.20}回旋频率单元同步辐射扩展}{23}{subsection.4.20}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.21}辐射插值与求积辅助器}{23}{subsection.4.21}\protected@file@percent }
+\newlabel{sec:positive-field-interpolation}{{4.21}{23}{辐射插值与求积辅助器}{subsection.4.21}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.22}SSA 加热区段求积}{24}{subsection.4.22}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.23}自吸收频率求解器}{24}{subsection.4.23}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.24}同步辐射偏振核}{24}{subsection.4.24}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.25}自适应辐射网格重采样}{24}{subsection.4.25}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.26}\(\chi \) 分辨下游电子状态}{25}{subsection.4.26}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.27}\(\chi \) 分辨光子历史冷却}{25}{subsection.4.27}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.28}下游 \(q\) 空间平流--扩散}{26}{subsection.4.28}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.29}下游能量空间更新}{26}{subsection.4.29}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.29.1}返回的 \(\chi \) 分辨状态}{27}{subsubsection.4.29.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.30}光子场与吸收}{27}{subsection.4.30}\protected@file@percent }
+\newlabel{sec:photon}{{4.30}{27}{光子场与吸收}{subsection.4.30}{}}
+\newlabel{fig:electron-transport}{{3}{28}{返回的 \texorpdfstring {\(\chi \)}{chi} 分辨状态}{figure.3}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.30.1}共动靶光子状态}{28}{subsubsection.4.30.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.30.2}辐射核边界}{28}{subsubsection.4.30.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.30.3}辐射插值复用}{28}{subsubsection.4.30.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.30.4}复合 Simpson 辐射求积}{28}{subsubsection.4.30.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.31}均匀网格 SSC 发射率}{29}{subsection.4.31}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.31.1}Jones--Klein--Nishina 变量}{29}{subsubsection.4.31.1}\protected@file@percent }
+\newlabel{eq:ssc-kernel}{{209}{29}{Jones--Klein--Nishina 变量}{equation.4.209}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.31.2}均匀网格 Simpson 积分}{29}{subsubsection.4.31.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.32}非均匀网格 SSC 发射率}{29}{subsection.4.32}\protected@file@percent }
 \citation{Jones1968,BlumenthalGould1970}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.33}有限单元光子传递}{30}{subsection.4.33}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.33.1}壳层传递因子}{30}{subsubsection.4.33.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.34}\(\gamma \gamma \) 壳层吸收}{30}{subsection.4.34}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.34.1}软光子单元测度}{30}{subsubsection.4.34.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.34.2}角向对产生核}{30}{subsubsection.4.34.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.34.3}壳层光深组装}{30}{subsubsection.4.34.3}\protected@file@percent }
 \citation{GouldSchreder1967,Svensson1987}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.5}Nonuniform-grid SSC emissivity}{38}{subsection.5.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.6}Finite-cell photon transfer}{38}{subsection.5.6}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.6.1}Shell transfer factor}{38}{subsubsection.5.6.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.7}\(\gamma \gamma \) shell absorption}{38}{subsection.5.7}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.7.1}Soft-photon cell measure}{38}{subsubsection.5.7.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.7.2}Angular pair-production kernel}{38}{subsubsection.5.7.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.7.3}Shell optical-depth assembly}{38}{subsubsection.5.7.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.8}Head-on path-opacity helper}{38}{subsection.5.8}\protected@file@percent }
 \citation{Dominguez2011EBL}
-\citation{Murase2007,Hummer2010,KelnerAharonian2008,Chodorowski1992,GouldSchreder1967,IceCube2017GRBNeutrinos,Sahu2022GRB190829AHadronic,Sahu2024GRB221009AHadronic}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.9}External EBL attenuation}{39}{subsection.5.9}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.9.1}Table boundary}{39}{subsubsection.5.9.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.9.2}Redshift and frequency interpolation}{39}{subsubsection.5.9.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.9.3}External attenuation factor}{39}{subsubsection.5.9.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.10}Observer-side photon component assembly}{39}{subsection.5.10}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.10.1}Component ordering}{39}{subsubsection.5.10.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.10.2}Distance and attenuation prefactor}{39}{subsubsection.5.10.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {6}Hadronic Transport and Secondary Pairs}{39}{section.6}\protected@file@percent }
-\newlabel{sec:hadronic}{{6}{39}{Hadronic Transport and Secondary Pairs}{section.6}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.1}One-dimensional activation boundary}{39}{subsection.6.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.1.1}Active physics boundary}{39}{subsubsection.6.1.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.1.2}Supported hadronic branches}{39}{subsubsection.6.1.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.2}Hadronic ABI boundary}{39}{subsection.6.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.2.1}Package binding}{39}{subsubsection.6.2.1}\protected@file@percent }
-\citation{Klinger2024AM3}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.3}Hadronic base grid}{40}{subsection.6.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.3.1}Log-Lorentz grid}{40}{subsubsection.6.3.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.3.2}Cell faces and shell time}{40}{subsubsection.6.3.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.3.3}Legacy maximum-energy estimate}{40}{subsubsection.6.3.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.4}Quantum-synchrotron helper}{40}{subsection.6.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.4.1}QED invariant}{40}{subsubsection.6.4.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.4.2}Cooling suppression factor}{40}{subsubsection.6.4.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.5}Hadronic species state}{40}{subsection.6.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.5.1}Returned species state}{40}{subsubsection.6.5.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.6}Proton process-operator equation}{41}{subsection.6.6}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.7}Hadronic species identifiers}{41}{subsection.6.7}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.7.1}Mass and charge map}{41}{subsubsection.6.7.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.8}Forward-shock proton energy budget}{41}{subsection.6.8}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.9}Hadronic injection spectrum}{41}{subsection.6.9}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.10}Hadronic source normalization}{41}{subsection.6.10}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.11}Hadronic acceleration limits}{41}{subsection.6.11}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.12}External hadronic cooling limit}{41}{subsection.6.12}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.13}Bethe-Heitler pair-production kernel}{41}{subsection.6.13}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.13.1}Kinematic variables and threshold}{41}{subsubsection.6.13.1}\protected@file@percent }
-\citation{BlumenthalGould1970}
-\citation{Chodorowski1992}
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.13.2}Differential pair kernel}{42}{subsubsection.6.13.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.13.3}Fit-domain and quadrature controls}{42}{subsubsection.6.13.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.13.4}Secondary-pair source}{42}{subsubsection.6.13.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.13.5}Target-photon sink}{42}{subsubsection.6.13.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.13.6}Proton cooling rate}{42}{subsubsection.6.13.6}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.13.7}Chodorowski loss fit}{42}{subsubsection.6.13.7}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.14}Proton transport operator}{42}{subsection.6.14}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.14.1}Log-\(\gamma _p\) conservation law}{42}{subsubsection.6.14.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.14.2}Baseline proton losses}{43}{subsubsection.6.14.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.15}\(p\gamma \) shell survival operator}{43}{subsection.6.15}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.16}Secondary-species source operators}{43}{subsection.6.16}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.16.1}\(p\gamma \) response products}{43}{subsubsection.6.16.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.16.2}\(pp\) delta source}{43}{subsubsection.6.16.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.16.3}Bethe-Heitler pair handoff}{43}{subsubsection.6.16.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.17}Joint electron--photon--hadron feedback iteration}{43}{subsection.6.17}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.17.1}Local fixed-point sequence}{43}{subsubsection.6.17.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.17.2}Cascade branch boundary}{43}{subsubsection.6.17.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.18}Shell-sequence pair-cascade algorithm}{43}{subsection.6.18}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.18.1}Pair grid and escape time}{43}{subsubsection.6.18.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.18.2}\(\gamma \gamma \) source evaluation}{43}{subsubsection.6.18.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.18.3}Finite-grid pair cooling}{44}{subsubsection.6.18.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.18.4}Photon-density transfer}{44}{subsubsection.6.18.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.19}Single-shell pair-synchrotron diagnostic}{44}{subsection.6.19}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.19.1}Cooling track}{44}{subsubsection.6.19.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.19.2}Diagnostic emissivity}{44}{subsubsection.6.19.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {7}Reverse Shocks and Density-Jump Secondary Shocks}{44}{section.7}\protected@file@percent }
-\newlabel{sec:reverse-shock}{{7}{44}{Reverse Shocks and Density-Jump Secondary Shocks}{section.7}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.1}Primary ejecta state and activation}{44}{subsection.7.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.1.1}Activation boundary}{44}{subsubsection.7.1.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.35}正面碰撞路径不透明度辅助器}{31}{subsection.4.35}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.36}外部 EBL 衰减}{31}{subsection.4.36}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.36.1}表格边界}{31}{subsubsection.4.36.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.36.2}红移与频率插值}{31}{subsubsection.4.36.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.36.3}外部衰减因子}{31}{subsubsection.4.36.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.37}观测者侧光子分量组装}{31}{subsection.4.37}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.37.1}分量排序}{31}{subsubsection.4.37.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.37.2}距离与衰减前因子}{32}{subsubsection.4.37.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5}反向激波与密度跃变次级激波}{32}{section.5}\protected@file@percent }
+\newlabel{sec:reverse-shock}{{5}{32}{反向激波与密度跃变次级激波}{section.5}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}主抛射物状态与激活}{32}{subsection.5.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.1.1}物理作用}{32}{subsubsection.5.1.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.1.2}激活边界}{32}{subsubsection.5.1.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.1.3}抛射物壳层状态}{32}{subsubsection.5.1.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.1.4}激波前沿相对洛伦兹因子}{32}{subsubsection.5.1.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.1.5}磁化激活判据}{32}{subsubsection.5.1.5}\protected@file@percent }
 \citation{SariPiran1999,Kobayashi2000,ZhangKobayashi2005,PeerWijers2006,Giannios2008,Wang2025VegasAfterglow}
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.1.2}Ejecta shell state}{45}{subsubsection.7.1.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.1.3}Shock-front relative Lorentz factor}{45}{subsubsection.7.1.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.1.4}Magnetized activation criteria}{45}{subsubsection.7.1.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.1.5}Waiting-state inertia}{45}{subsubsection.7.1.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.2}Finite-strength MHD jump solver}{45}{subsection.7.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.2.1}Cold upstream variables}{45}{subsubsection.7.2.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.2.2}Cubic root selection}{46}{subsubsection.7.2.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.2.3}Compression ratio}{46}{subsubsection.7.2.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.2.4}Low-\(\sigma \) hydrodynamic branch}{46}{subsubsection.7.2.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.3}Comoving region-3 field and heat state}{46}{subsection.7.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.3.1}Upstream ordered field}{46}{subsubsection.7.3.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.3.2}Turbulent and ordered region-3 field}{46}{subsubsection.7.3.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.3.3}Post-crossing ordered-field advection}{46}{subsubsection.7.3.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.3.4}Magnetic enthalpy inertia}{46}{subsubsection.7.3.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.3.5}Heat state from the jump}{47}{subsubsection.7.3.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.4}Primary reverse-shock ODE}{47}{subsection.7.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.4.1}State vector and normalization}{47}{subsubsection.7.4.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.4.2}Pre-crossing mass flux}{47}{subsubsection.7.4.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.4.3}Reverse-shock speed}{47}{subsubsection.7.4.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.4.4}Active pre-crossing Lorentz equation}{47}{subsubsection.7.4.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.4.5}Reverse radiative fraction}{47}{subsubsection.7.4.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.4.6}Thermal and volume update}{47}{subsubsection.7.4.6}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.4.7}Post-crossing bulk update}{48}{subsubsection.7.4.7}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.5}Crossing and activation event splitting}{48}{subsection.7.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.5.1}Mass-fraction independent variable}{48}{subsubsection.7.5.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.5.2}Log-time smooth stages}{48}{subsubsection.7.5.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.5.3}Event-state register}{48}{subsubsection.7.5.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.5.4}Crossing-state write}{48}{subsubsection.7.5.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.5.5}Crossing and activation split}{48}{subsubsection.7.5.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.5.6}Smooth-branch refinement}{48}{subsubsection.7.5.6}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.6}Reverse electron injection contract}{48}{subsection.7.6}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.7}Reverse radius-output sweep}{49}{subsection.7.7}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.8}Reverse cooling assembly}{49}{subsection.7.8}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.9}Reverse finite-volume transport and substeps}{49}{subsection.7.9}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.10}Post-crossing characteristic remap}{50}{subsection.7.10}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.10.1}Synchrotron affine map}{50}{subsubsection.7.10.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.10.2}IC/KN piecewise-affine map}{50}{subsubsection.7.10.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.11}Secondary-reservoir electron transport}{50}{subsection.7.11}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.11.1}Reservoir source and volume loss}{50}{subsubsection.7.11.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.11.2}Reservoir radiation product}{50}{subsubsection.7.11.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.12}Reacceleration diagnostic}{50}{subsection.7.12}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.12.1}Parent mass transfer}{50}{subsubsection.7.12.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.12.2}Compression boost}{51}{subsubsection.7.12.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.12.3}Diffusive-shock acceleration remap}{51}{subsubsection.7.12.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.12.4}Energy accounting}{51}{subsubsection.7.12.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.13}Density-jump secondary-shock solver}{51}{subsection.7.13}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.13.1}Event-window density}{51}{subsubsection.7.13.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.13.2}Secondary inertia register}{51}{subsubsection.7.13.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.13.3}Region-4 upstream state}{51}{subsubsection.7.13.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.13.4}Contact pressure root}{51}{subsubsection.7.13.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.13.5}Shock-frame compression}{52}{subsubsection.7.13.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.13.6}Dissipated-energy source}{52}{subsubsection.7.13.6}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.13.7}Normalized state-vector entries}{52}{subsubsection.7.13.7}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.14}Secondary event windows and observer diagnostics}{52}{subsection.7.14}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.14.1}Event-root scanner}{52}{subsubsection.7.14.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.1.6}等待态惯性}{33}{subsubsection.5.1.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}有限强度 MHD 跃变求解器}{33}{subsection.5.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.2.1}冷上游变量}{33}{subsubsection.5.2.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.2.2}三次方程根选择}{33}{subsubsection.5.2.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.2.3}压缩比}{33}{subsubsection.5.2.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.2.4}低 \(\sigma \) 流体动力学分支}{33}{subsubsection.5.2.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.3}共动区域3磁场与热状态}{34}{subsection.5.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.3.1}上游有序场}{34}{subsubsection.5.3.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.3.2}区域3湍动场与有序场}{34}{subsubsection.5.3.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.3.3}穿越后有序场平流}{34}{subsubsection.5.3.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.3.4}磁焓惯性}{34}{subsubsection.5.3.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.3.5}跃变给出的热状态}{34}{subsubsection.5.3.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.4}主反向激波 ODE}{35}{subsection.5.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.4.1}状态向量与归一化}{35}{subsubsection.5.4.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.4.2}穿越前质量通量}{35}{subsubsection.5.4.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.4.3}反向激波速度}{35}{subsubsection.5.4.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.4.4}活动穿越前洛伦兹方程}{35}{subsubsection.5.4.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.4.5}反向辐射份额}{35}{subsubsection.5.4.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.4.6}热量与体积更新}{36}{subsubsection.5.4.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.4.7}穿越后整体更新}{36}{subsubsection.5.4.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.5}穿越与激活事件切分}{36}{subsection.5.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.5.1}物理事件}{36}{subsubsection.5.5.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.5.2}质量份额自变量}{36}{subsubsection.5.5.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.5.3}对数时间单分支阶段}{36}{subsubsection.5.5.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.5.4}事件状态寄存器}{36}{subsubsection.5.5.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.5.5}穿越状态写入}{36}{subsubsection.5.5.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.5.6}穿越与激活切分}{37}{subsubsection.5.5.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.5.7}单分支细化}{37}{subsubsection.5.5.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.6}反向电子注入契约}{37}{subsection.5.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.7}反向半径输出扫描}{37}{subsection.5.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.8}反向冷却组装}{38}{subsection.5.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.9}反向有限体积输运与子步}{38}{subsection.5.9}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.10}穿越后特征重映射}{39}{subsection.5.10}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.10.1}同步辐射仿射映射}{39}{subsubsection.5.10.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.10.2}IC/KN 分段仿射映射}{39}{subsubsection.5.10.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.11}次级库电子输运}{39}{subsection.5.11}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.11.1}库源项与体积损失}{39}{subsubsection.5.11.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.11.2}库辐射产物}{39}{subsubsection.5.11.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.12}再加速诊断}{40}{subsection.5.12}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.12.1}母体质量转移}{40}{subsubsection.5.12.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.12.2}压缩增强}{40}{subsubsection.5.12.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.12.3}扩散激波加速重映射}{40}{subsubsection.5.12.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.12.4}能量核算}{40}{subsubsection.5.12.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.13}密度跃变次级激波求解器}{40}{subsection.5.13}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.13.1}事件窗口密度}{41}{subsubsection.5.13.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.13.2}次级惯性贡献}{41}{subsubsection.5.13.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.13.3}区域4上游状态}{41}{subsubsection.5.13.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.13.4}接触压力根}{41}{subsubsection.5.13.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.13.5}激波系压缩}{41}{subsubsection.5.13.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.13.6}耗散能量源}{42}{subsubsection.5.13.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.14}次级事件窗口与观测者诊断}{42}{subsection.5.14}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.14.1}事件根扫描器}{42}{subsubsection.5.14.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.14.2}有量纲分支状态}{42}{subsubsection.5.14.2}\protected@file@percent }
 \citation{DaiLu2002,NakarGranot2007,UhmZhang2014,Laskar2016GRB160509A,Alexander2017GRB160625B,Laskar2019GRB181201A,PangDai2024OffaxisRS}
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.14.2}Dimensional branch state}{53}{subsubsection.7.14.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.14.3}Dissipation-weighted diagnostics}{53}{subsubsection.7.14.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.14.4}Combined secondary state}{53}{subsubsection.7.14.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.14.5}Break-frequency diagnostics}{53}{subsubsection.7.14.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.14.6}Supported branch boundary}{53}{subsubsection.7.14.6}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {8}Observer Projection and Component Assembly}{53}{section.8}\protected@file@percent }
-\newlabel{sec:projection}{{8}{53}{Observer Projection and Component Assembly}{section.8}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {8.1}Equal-arrival-time projection}{53}{subsection.8.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {8.1.1}Local angular map}{53}{subsubsection.8.1.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {8.1.2}Radius-to-observer interpolation}{53}{subsubsection.8.1.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {8.2}Structured-jet aggregation boundary}{53}{subsection.8.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {8.2.1}Backend selection}{53}{subsubsection.8.2.1}\protected@file@percent }
-\newlabel{fig:reverse-shock}{{4}{54}{Supported branch boundary}{figure.4}{}}
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {8.2.2}Representative-patch register}{54}{subsubsection.8.2.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {8.2.3}Local one-dimensional solve}{54}{subsubsection.8.2.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {8.2.4}Shell prefactor}{54}{subsubsection.8.2.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {8.2.5}Angular accumulation}{54}{subsubsection.8.2.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {8.3}Projection symbol binding}{55}{subsection.8.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {8.4}Direct top-hat EATS interpolation}{55}{subsection.8.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {8.4.1}Midpoint angular cells}{55}{subsubsection.8.4.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {8.4.2}Radial EATS bracket}{55}{subsubsection.8.4.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {8.4.3}Doppler shift and SED accumulation}{55}{subsubsection.8.4.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {8.5}Adaptive angular quadrature}{55}{subsection.8.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {8.5.1}Theta-cell refinement}{55}{subsubsection.8.5.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {8.6}\(\chi \)-resolved finite-cell projection}{55}{subsection.8.6}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {8.6.1}Finite-cell arrival map}{55}{subsubsection.8.6.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {8.6.2}Radial segment search}{55}{subsubsection.8.6.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {8.6.3}Cell transfer factor}{56}{subsubsection.8.6.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {8.7}Structured rings and ray-list assembly}{56}{subsection.8.7}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {8.7.1}Ring summation}{56}{subsubsection.8.7.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {8.7.2}Ray-event construction}{56}{subsubsection.8.7.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {8.7.3}Foreground SSA path}{56}{subsubsection.8.7.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {8.7.4}Ray flux accumulation}{56}{subsubsection.8.7.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {8.8}Legacy structured-jet projection}{56}{subsection.8.8}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {8.8.1}Structured angular quadrature}{56}{subsubsection.8.8.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {8.8.2}Patch EATS accumulation}{57}{subsubsection.8.8.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {8.9}Shared frequency-grid accumulator}{57}{subsection.8.9}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {8.9.1}Log-SED accumulator}{57}{subsubsection.8.9.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {8.9.2}Shifted-source accumulator}{57}{subsubsection.8.9.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {8.10}Public projection boundaries}{57}{subsection.8.10}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {8.10.1}Supported projection kernels}{57}{subsubsection.8.10.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {8.11}Ray-traced synchrotron self-absorption boundary}{57}{subsection.8.11}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {8.11.1}Ray-path optical depth}{57}{subsubsection.8.11.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {9}Fitting, Runtime, and Reproducibility}{58}{section.9}\protected@file@percent }
-\newlabel{sec:fitting}{{9}{58}{Fitting, Runtime, and Reproducibility}{section.9}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {9.1}Active-variable map}{58}{subsection.9.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {9.2}Observation-block residuals}{58}{subsection.9.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {9.3}Band-flux quadrature}{59}{subsection.9.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {9.4}Exposure quadrature}{59}{subsection.9.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {9.5}Runtime query cache and public products}{59}{subsection.9.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {10}Verification and Figure Evidence}{59}{section.10}\protected@file@percent }
-\newlabel{sec:verification}{{10}{59}{Verification and Figure Evidence}{section.10}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {10.1}Figure-backed state checks}{59}{subsection.10.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {10.2}Bounded validation metrics}{59}{subsection.10.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {11}Model Boundaries}{59}{section.11}\protected@file@percent }
-\newlabel{sec:limits}{{11}{59}{Model Boundaries}{section.11}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {11.1}Runtime configuration boundaries}{59}{subsection.11.1}\protected@file@percent }
-\newlabel{fig:validation}{{5}{60}{Bounded validation metrics}{figure.5}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {11.2}Coupled-physics boundaries}{60}{subsection.11.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {12}Summary}{60}{section.12}\protected@file@percent }
-\newlabel{sec:summary}{{12}{60}{Summary}{section.12}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.14.3}耗散加权诊断}{43}{subsubsection.5.14.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.14.4}组合次级状态}{43}{subsubsection.5.14.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.14.5}断裂频率诊断}{43}{subsubsection.5.14.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.14.6}受支持分支边界}{43}{subsubsection.5.14.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {6}强子与电子对反馈边界}{43}{section.6}\protected@file@percent }
+\newlabel{sec:hadronic}{{6}{43}{强子与电子对反馈边界}{section.6}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.1}一维激活边界}{43}{subsection.6.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.1.1}活动物理边界}{43}{subsubsection.6.1.1}\protected@file@percent }
+\citation{Murase2007,Hummer2010,KelnerAharonian2008,Chodorowski1992,GouldSchreder1967,IceCube2017GRBNeutrinos,Sahu2022GRB190829AHadronic,Sahu2024GRB221009AHadronic}
+\newlabel{fig:reverse-shock}{{4}{44}{受支持分支边界}{figure.4}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.1.2}受支持强子分支}{44}{subsubsection.6.1.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.2}强子 ABI 边界}{44}{subsection.6.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.2.1}包绑定}{44}{subsubsection.6.2.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.3}强子基础网格}{44}{subsection.6.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.3.1}对数洛伦兹因子网格}{44}{subsubsection.6.3.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.3.2}单元面与壳层时间}{44}{subsubsection.6.3.2}\protected@file@percent }
+\citation{Klinger2024AM3}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.3.3}遗留最大能量估计}{45}{subsubsection.6.3.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.4}量子同步辐射辅助器}{45}{subsection.6.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.4.1}QED 不变量}{45}{subsubsection.6.4.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.4.2}冷却抑制因子}{45}{subsubsection.6.4.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.5}强子粒子种状态}{45}{subsection.6.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.5.1}返回的粒子种状态}{45}{subsubsection.6.5.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.6}质子过程算子方程}{45}{subsection.6.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.7}强子粒子种标识符}{46}{subsection.6.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.7.1}质量与电荷映射}{46}{subsubsection.6.7.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.8}强子壳层能量预算}{46}{subsection.6.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.9}强子注入谱}{46}{subsection.6.9}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.10}强子源归一化}{46}{subsection.6.10}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.11}强子加速极限}{46}{subsection.6.11}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.12}外部强子冷却极限}{46}{subsection.6.12}\protected@file@percent }
+\citation{BlumenthalGould1970}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.13}Bethe--Heitler 对产生核}{47}{subsection.6.13}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.13.1}运动学变量与阈值}{47}{subsubsection.6.13.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.13.2}微分对产生核}{47}{subsubsection.6.13.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.13.3}拟合域与求积控制}{47}{subsubsection.6.13.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.13.4}次级电子对源}{47}{subsubsection.6.13.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.13.5}靶光子汇}{47}{subsubsection.6.13.5}\protected@file@percent }
+\citation{Chodorowski1992}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.13.6}质子冷却率}{48}{subsubsection.6.13.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.13.7}Chodorowski 损失拟合}{48}{subsubsection.6.13.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.14}质子输运算子}{48}{subsection.6.14}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.14.1}Log-\(\gamma _p\) 输运步骤}{48}{subsubsection.6.14.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.14.2}基线质子损失}{48}{subsubsection.6.14.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.15}\(p\gamma \) 壳层生存算子}{49}{subsection.6.15}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.16}次级粒子种源算子}{49}{subsection.6.16}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.16.1}\(p\gamma \) 响应产物}{49}{subsubsection.6.16.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.16.2}\(pp\) delta 源}{49}{subsubsection.6.16.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.16.3}Bethe--Heitler 电子对交接}{49}{subsubsection.6.16.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.17}联合电子--光子--强子反馈迭代}{49}{subsection.6.17}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.17.1}局部不动点序列}{49}{subsubsection.6.17.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.17.2}级联分支边界}{49}{subsubsection.6.17.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.18}壳层序列电子对级联算法}{49}{subsection.6.18}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.18.1}电子对网格与逃逸时间}{49}{subsubsection.6.18.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.18.2}\(\gamma \gamma \) 源项计算}{50}{subsubsection.6.18.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.18.3}有限网格电子对冷却}{50}{subsubsection.6.18.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.18.4}光子密度传递}{50}{subsubsection.6.18.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.19}单壳层电子对同步辐射诊断}{50}{subsection.6.19}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.19.1}冷却轨迹}{50}{subsubsection.6.19.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.19.2}诊断发射率}{51}{subsubsection.6.19.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {7}观测者投影与分量组装}{51}{section.7}\protected@file@percent }
+\newlabel{sec:projection}{{7}{51}{观测者投影与分量组装}{section.7}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.1}等到达时间投影}{51}{subsection.7.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.1.1}局部角向映射}{51}{subsubsection.7.1.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.1.2}半径到观测者插值}{51}{subsubsection.7.1.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.2}结构喷流聚合边界}{51}{subsection.7.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.2.1}后端选择}{51}{subsubsection.7.2.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.2.2}活动斑块寄存器}{51}{subsubsection.7.2.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.2.3}局部一维求解}{52}{subsubsection.7.2.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.2.4}壳层前因子}{52}{subsubsection.7.2.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.2.5}角向累积}{52}{subsubsection.7.2.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.3}投影符号绑定}{52}{subsection.7.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.4}直接顶帽等到达时间插值}{52}{subsection.7.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.4.1}中点角向单元}{52}{subsubsection.7.4.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.4.2}径向到达时间括定}{53}{subsubsection.7.4.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.4.3}多普勒频移与 SED 累积}{53}{subsubsection.7.4.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.5}自适应角向求积}{53}{subsection.7.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.5.1}\(\theta \) 单元细化}{53}{subsubsection.7.5.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.6}\(\chi \) 分辨有限单元投影}{53}{subsection.7.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.6.1}有限单元到达映射}{53}{subsubsection.7.6.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.6.2}径向区段搜索}{53}{subsubsection.7.6.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.6.3}单元传递因子}{53}{subsubsection.7.6.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.7}结构环与射线列表组装}{54}{subsection.7.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.7.1}环求和}{54}{subsubsection.7.7.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.7.2}射线事件构造}{54}{subsubsection.7.7.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.7.3}前景 SSA 路径}{54}{subsubsection.7.7.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.7.4}射线通量累积}{54}{subsubsection.7.7.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.8}遗留结构喷流投影}{54}{subsection.7.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.8.1}结构角向求积}{54}{subsubsection.7.8.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.8.2}斑块到达时间累积}{55}{subsubsection.7.8.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.9}共享频率网格累加器}{55}{subsection.7.9}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.9.1}Log-SED 累加器}{55}{subsubsection.7.9.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.9.2}频移源累加器}{55}{subsubsection.7.9.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.10}公共投影边界}{56}{subsection.7.10}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.10.1}受支持投影核}{56}{subsubsection.7.10.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.11}射线追踪同步自吸收边界}{56}{subsection.7.11}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.11.1}射线路径光深}{56}{subsubsection.7.11.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {8}拟合、运行时与可重复性}{56}{section.8}\protected@file@percent }
+\newlabel{sec:fitting}{{8}{56}{拟合、运行时与可重复性}{section.8}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.1}活动变量映射}{56}{subsection.8.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.2}观测块残差}{57}{subsection.8.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.3}波段通量求积}{57}{subsection.8.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.4}曝光求积}{57}{subsection.8.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.5}运行时查询缓存与公共产物}{57}{subsection.8.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {9}验证与基准证据}{57}{section.9}\protected@file@percent }
+\newlabel{sec:verification}{{9}{57}{验证与基准证据}{section.9}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {9.1}图件支撑的状态检查}{57}{subsection.9.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {9.2}有界验证指标}{57}{subsection.9.2}\protected@file@percent }
+\newlabel{fig:validation}{{5}{59}{有界验证指标}{figure.5}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {9.3}跨代码基准证据}{60}{subsection.9.3}\protected@file@percent }
+\newlabel{tab:cross-code-capabilities}{{1}{60}{跨代码基准证据}{table.1}{}}
+\newlabel{fig:benchmark-fs}{{6}{60}{跨代码基准证据}{figure.6}{}}
+\newlabel{fig:benchmark-rs-ssc-geometry}{{7}{61}{跨代码基准证据}{figure.7}{}}
+\newlabel{fig:benchmark-complex-state}{{8}{61}{跨代码基准证据}{figure.8}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {10}讨论}{63}{section.10}\protected@file@percent }
+\newlabel{sec:discussion}{{10}{63}{讨论}{section.10}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {10.1}简并性}{63}{subsection.10.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {10.2}状态}{63}{subsection.10.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {10.3}边界}{63}{subsection.10.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {11}模型边界}{63}{section.11}\protected@file@percent }
+\newlabel{sec:limits}{{11}{63}{模型边界}{section.11}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {11.1}运行时配置边界}{63}{subsection.11.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {11.2}耦合物理边界}{63}{subsection.11.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {12}总结}{64}{section.12}\protected@file@percent }
+\newlabel{sec:summary}{{12}{64}{总结}{section.12}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {A}电子求解器}{64}{appendix.A}\protected@file@percent }
+\newlabel{app:electron-solvers}{{A}{64}{电子求解器}{appendix.A}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {A.1}初始谱求积与坐标映射}{64}{subsection.A.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {A.2}保守输运辅助器细节}{65}{subsection.A.2}\protected@file@percent }
+\newlabel{eq:triangular-cooling-sweep}{{\hbox {A14}}{66}{保守输运辅助器细节}{equation.A.14}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {A.3}特征与遗留重映射细节}{67}{subsection.A.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {A.4}\texttt  {fullhide\_1d} 固定子步细节}{72}{subsection.A.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {A.5}耦合 \texttt  {fullhide} 电子--光子系数}{72}{subsection.A.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {A.6}混合热 \texttt  {fullhide} 细节}{73}{subsection.A.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {A.7}\(\chi \) 分辨下游状态细节}{74}{subsection.A.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {A.8}\(\chi \) 分辨光子历史细节}{76}{subsection.A.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {A.9}下游 \(q\) 空间平流--扩散细节}{78}{subsection.A.9}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {A.10}下游能量空间更新细节}{79}{subsection.A.10}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {B}光子、SSC 与 SSA 核}{79}{appendix.B}\protected@file@percent }
+\newlabel{app:photon-kernels}{{B}{79}{光子、SSC 与 SSA 核}{appendix.B}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {B.1}辐射 ABI 绑定}{80}{subsection.B.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {C}强子与电子对反馈}{85}{appendix.C}\protected@file@percent }
+\newlabel{app:hadronic-pair-feedback}{{C}{85}{强子与电子对反馈}{appendix.C}{}}
+\newlabel{app:hadronic-figure}{{C}{85}{强子与电子对反馈}{appendix.C}{}}
+\newlabel{fig:hadronic-feedback}{{A1}{86}{强子与电子对反馈}{figure.A1}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {D}反向激波技术细节}{86}{appendix.D}\protected@file@percent }
+\newlabel{app:reverse-shock-technical}{{D}{86}{反向激波技术细节}{appendix.D}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {D.1}有限强度 MHD 跃变三次方程}{86}{subsection.D.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {E}投影、拟合与运行时细节}{87}{appendix.E}\protected@file@percent }
+\newlabel{app:projection-runtime}{{E}{87}{投影、拟合与运行时细节}{appendix.E}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {E.1}前向动力学运行时细节}{87}{subsection.E.1}\protected@file@percent }
 \citation{ASGARDSoftware}
 \citation{Harris2020,Virtanen2020,Hunter2007,Astropy2022}
-\newlabel{fig:hadronic-feedback}{{A1}{61}{Hadronic and Pair-Feedback Figure}{figure.A1}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {A}Hadronic and Pair-Feedback Figure}{61}{appendix.A}\protected@file@percent }
-\newlabel{app:hadronic-figure}{{A}{61}{Hadronic and Pair-Feedback Figure}{appendix.A}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {B}Software and Data Availability}{61}{appendix.B}\protected@file@percent }
-\newlabel{app:data}{{B}{61}{Software and Data Availability}{appendix.B}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {F}软件与数据可用性}{88}{appendix.F}\protected@file@percent }
+\newlabel{app:data}{{F}{88}{软件与数据可用性}{appendix.F}{}}
 \bibstyle{aasjournalv7.1}
 \bibdata{references}
 \bibcite{Alexander2017GRB160625B}{{1}{2017}{{K.~D. {Alexander} {et~al.}}}{{{Alexander}, {Laskar}, {Berger}, {Guidorzi}, {Dichiara}, {Fong}, {et~al.}}}}
@@ -428,67 +407,66 @@
 \bibcite{FanPiran2008}{{10}{2008}{{Y.-Z. {Fan} {\&} T. {Piran}}}{{{Fan} \& {Piran}}}}
 \bibcite{Ghirlanda2019StructuredJet}{{11}{2019}{{G. {Ghirlanda} {et~al.}}}{{{Ghirlanda}, {Salafia}, {Paragi}, {Giroletti}, {Yang}, {Marcote}, {et~al.}}}}
 \bibcite{Giannios2008}{{12}{2008}{{D. {Giannios} {et~al.}}}{{{Giannios}, {Mimica}, \& {Aloy}}}}
-\bibcite{GillGranot2018Polarization}{{13}{2018}{{R. {Gill} {\&} J. {Granot}}}{{{Gill} \& {Granot}}}}
-\bibcite{GouldSchreder1967}{{14}{1967}{{R.~J. {Gould} {\&} G.~P. {Schr{\"e}der}}}{{{Gould} \& {Schr{\"e}der}}}}
-\bibcite{Granot2002}{{15}{2002}{{J. {Granot} {\&} R. {Sari}}}{{{Granot} \& {Sari}}}}
-\bibcite{Hajela2022GW170817}{{16}{2022}{{A. {Hajela} {et~al.}}}{{{Hajela}, {Margutti}, {Bright}, {Alexander}, {Metzger}, {Nedora}, {et~al.}}}}
-\bibcite{Hallinan2017GW170817Radio}{{17}{2017}{{G. {Hallinan} {et~al.}}}{{{Hallinan}, {Corsi}, {Mooley}, {Hotokezaka}, {Nakar}, {Kasliwal}, {et~al.}}}}
-\bibcite{Harris2020}{{18}{2020}{{C.~R. {Harris} {et~al.}}}{{{Harris}, {Millman}, {van der Walt}, {et~al.}}}}
-\bibcite{HESS2019VHE}{{19}{2019}{{{}{H.E.S.S. Collaboration} {et~al.}}}{{{H.E.S.S. Collaboration}, {Abdalla}, {et~al.}}}}
-\bibcite{HESS2021GRB190829A}{{20}{2021}{{{}{H.E.S.S. Collaboration} {et~al.}}}{{{H.E.S.S. Collaboration}, {Abdalla}, {et~al.}}}}
-\bibcite{HesthavenWarburton2008}{{21}{2008}{{J.~S. {Hesthaven} {\&} T. {Warburton}}}{{{Hesthaven} \& {Warburton}}}}
-\bibcite{HuangDaiLu1999}{{22}{1999}{{Y.~F. {Huang} {et~al.}}}{{{Huang}, {Dai}, \& {Lu}}}}
-\bibcite{Hummer2010}{{23}{2010}{{S. {H{\"u}mmer} {et~al.}}}{{{H{\"u}mmer}, {R{\"u}ger}, {Spanier}, \& {Winter}}}}
-\bibcite{Hunter2007}{{24}{2007}{{J.~D. {Hunter}}}{{Hunter}}}
-\bibcite{IceCube2017GRBNeutrinos}{{25}{2017}{{{}{IceCube Collaboration} {et~al.}}}{{{IceCube Collaboration}, {Aartsen}, {et~al.}}}}
-\bibcite{JiangShu1996}{{26}{1996}{{G.-S. {Jiang} {\&} C.-W. {Shu}}}{{{Jiang} \& {Shu}}}}
-\bibcite{Jones1968}{{27}{1968}{{F.~C. {Jones}}}{{Jones}}}
-\bibcite{Katira2025GW170817}{{28}{2025}{{A. {Katira} {et~al.}}}{{{Katira}, {Mooley}, \& {Hotokezaka}}}}
-\bibcite{KelnerAharonian2008}{{29}{2008}{{S.~R. {Kelner} {\&} F.~A. {Aharonian}}}{{{Kelner} \& {Aharonian}}}}
-\bibcite{Klinger2024AM3}{{30}{2024}{{M. {Klinger} {et~al.}}}{{{Klinger}, {Rudolph}, {Rodrigues}, {Yuan}, {Fichet de Clairfontaine}, {Fedynitch}, {Winter}, {Pohl}, \& {Gao}}}}
-\bibcite{Kobayashi2000}{{31}{2000}{{S. {Kobayashi}}}{{Kobayashi}}}
-\bibcite{LambKobayashi2017Structured}{{32}{2017}{{G.~P. {Lamb} {\&} S. {Kobayashi}}}{{{Lamb} \& {Kobayashi}}}}
-\bibcite{Laskar2016GRB160509A}{{33}{2016}{{T. {Laskar} {et~al.}}}{{{Laskar}, {Alexander}, {Berger}, {Fong}, {Margutti}, {Shivvers}, {et~al.}}}}
-\bibcite{Laskar2023GRB221009A}{{34}{2023}{{T. {Laskar} {et~al.}}}{{{Laskar}, {Alexander}, {Margutti}, {Eftekhari}, {Chornock}, {Berger}, {et~al.}}}}
-\bibcite{Laskar2019GRB181201A}{{35}{2019}{{T. {Laskar} {et~al.}}}{{{Laskar}, {van Eerten}, {Schady}, {Mundell}, {Alexander}, {Barniol Duran}, {et~al.}}}}
-\bibcite{Lazzati2018CollimatedJet}{{36}{2018}{{D. {Lazzati} {et~al.}}}{{{Lazzati}, {Perna}, {Morsony}, {Lopez-Camara}, {Cantiello}, {Ciolfi}, {et~al.}}}}
-\bibcite{LeVeque2002}{{37}{2002}{{R.~J. {LeVeque}}}{{LeVeque}}}
-\bibcite{LHAASO2023Beyond10TeV}{{38}{2023}{{{}{LHAASO Collaboration}}}{{LHAASO Collaboration}}}
-\bibcite{LHAASO2023TeVAfterglow}{{39}{2023}{{{}{LHAASO Collaboration} {et~al.}}}{{{LHAASO Collaboration}, {Cao}, {et~al.}}}}
-\bibcite{MAGIC2019TeV}{{40}{2019{a}}{{{}{MAGIC Collaboration} {et~al.}}}{{{MAGIC Collaboration}, {Acciari}, {et~al.}}}}
-\bibcite{MAGIC2019IC}{{41}{2019{b}}{{{}{MAGIC Collaboration} {et~al.}}}{{{MAGIC Collaboration}, {Acciari}, {et~al.}}}}
-\bibcite{Margutti2018GW170817}{{42}{2018}{{R. {Margutti} {et~al.}}}{{{Margutti}, {Alexander}, {Xie}, {Sironi}, {Metzger}, {Kathirgamaraju}, {et~al.}}}}
-\bibcite{MeszarosRees1997}{{43}{1997}{{P. {M{\'e}sz{\'a}ros} {\&} M.~J. {Rees}}}{{{M{\'e}sz{\'a}ros} \& {Rees}}}}
-\bibcite{Mooley2018Superluminal}{{44}{2018{a}}{{K.~P. {Mooley} {et~al.}}}{{{Mooley}, {Deller}, {Gottlieb}, {Nakar}, {Hallinan}, {Bourke}, {et~al.}}}}
-\bibcite{Mooley2018WideAngle}{{45}{2018{b}}{{K.~P. {Mooley} {et~al.}}}{{{Mooley}, {Nakar}, {Hotokezaka}, {Hallinan}, {Corsi}, {Frail}, {et~al.}}}}
-\bibcite{Murase2007}{{46}{2007}{{K. {Murase}}}{{Murase}}}
-\bibcite{NakarAndoSari2009}{{47}{2009}{{E. {Nakar} {et~al.}}}{{{Nakar}, {Ando}, \& {Sari}}}}
-\bibcite{NakarGranot2007}{{48}{2007}{{E. {Nakar} {\&} J. {Granot}}}{{{Nakar} \& {Granot}}}}
-\bibcite{Nedora2025PyBlastAfterglow}{{49}{2025}{{V. {Nedora} {et~al.}}}{{{Nedora}, {Crosato Menegazzi}, {Peretti}, {Dietrich}, \& {Shibata}}}}
-\bibcite{OConnor2023GRB221009A}{{50}{2023}{{B. {O'Connor} {et~al.}}}{{{O'Connor}, {Troja}, {Ryan}, {Beniamini}, {van Eerten}, {Granot}, {et~al.}}}}
-\bibcite{PangDai2024OffaxisRS}{{51}{2024}{{S.-L. {Pang} {\&} Z.-G. {Dai}}}{{{Pang} \& {Dai}}}}
-\bibcite{Peer2012}{{52}{2012}{{A. {Pe'er}}}{{Pe'er}}}
-\bibcite{PeerWijers2006}{{53}{2006}{{A. {Pe'er} {\&} R.~A.~M.~J. {Wijers}}}{{{Pe'er} \& {Wijers}}}}
-\bibcite{ASGARDSoftware}{{54}{2026}{{J. {Ren}}}{{Ren}}}
-\bibcite{Ryan2020}{{55}{2020}{{G. {Ryan} {et~al.}}}{{{Ryan}, {van Eerten}, {Piro}, \& {Troja}}}}
-\bibcite{Ryan2024}{{56}{2024}{{G. {Ryan} {et~al.}}}{{{Ryan}, {van Eerten}, {Troja}, {Piro}, {O'Connor}, \& {Ricci}}}}
-\bibcite{RybickiLightman1979}{{57}{1979}{{G.~B. {Rybicki} {\&} A.~P. {Lightman}}}{{{Rybicki} \& {Lightman}}}}
-\bibcite{Sahu2024GRB221009AHadronic}{{58}{2024}{{S. {Sahu} {et~al.}}}{{{Sahu}, {Medina-Carrillo}, {P{\'a}ez-S{\'a}nchez}, {S{\'a}nchez-Col{\'o}n}, \& {Rajpoot}}}}
-\bibcite{Sahu2022GRB190829AHadronic}{{59}{2022}{{S. {Sahu} {et~al.}}}{{{Sahu}, {Valadez Polanco}, \& {Rajpoot}}}}
-\bibcite{Salafia2022JetStructure}{{60}{2022}{{O.~S. {Salafia} {\&} G. {Ghirlanda}}}{{{Salafia} \& {Ghirlanda}}}}
-\bibcite{SariPiran1999}{{61}{1999}{{R. {Sari} {\&} T. {Piran}}}{{{Sari} \& {Piran}}}}
-\bibcite{Sari1998}{{62}{1998}{{R. {Sari} {et~al.}}}{{{Sari}, {Piran}, \& {Narayan}}}}
-\bibcite{Service1986}{{63}{1986}{{A.~T. {Service}}}{{Service}}}
-\bibcite{Svensson1987}{{64}{1987}{{R. {Svensson}}}{{Svensson}}}
-\bibcite{Troja2017GW170817Xray}{{65}{2017}{{E. {Troja} {et~al.}}}{{{Troja}, {Piro}, {van Eerten}, {Wollaeger}, {Im}, {Fox}, {et~al.}}}}
-\bibcite{Troja2019GW170817}{{66}{2019}{{E. {Troja} {et~al.}}}{{{Troja}, {van Eerten}, {Ryan}, {Ricci}, {Burgess}, {Wieringa}, {et~al.}}}}
-\bibcite{UhmZhang2014}{{67}{2014{a}}{{Z.~L. {Uhm} {\&} B. {Zhang}}}{{{Uhm} \& {Zhang}}}}
-\bibcite{vanEerten2018BlastWaves}{{68}{2018}{{H. {van Eerten}}}{{van Eerten}}}
-\bibcite{vanEerten2012}{{69}{2012}{{H. {van Eerten} {et~al.}}}{{{van Eerten}, {van der Horst}, \& {MacFadyen}}}}
-\bibcite{vanEerten2010}{{70}{2010}{{H. {van Eerten} {et~al.}}}{{{van Eerten}, {Zhang}, \& {MacFadyen}}}}
-\bibcite{Virtanen2020}{{71}{2020}{{P. {Virtanen} {et~al.}}}{{{Virtanen}, {Gommers}, {Oliphant}, {et~al.}}}}
-\bibcite{Wang2024Jetsimpy}{{72}{2024}{{H. {Wang} {\&} D. {Giannios}}}{{{Wang} \& {Giannios}}}}
-\bibcite{Wang2025VegasAfterglow}{{73}{2026}{{Y. {Wang} {et~al.}}}{{{Wang}, {Chen}, \& {Zhang}}}}
-\bibcite{ZhangKobayashi2005}{{74}{2005}{{B. {Zhang} {\&} S. {Kobayashi}}}{{{Zhang} \& {Kobayashi}}}}
-\newlabel{LastPage}{{}{63}{}{}{}}
-\gdef \@abspage@last{63}
+\bibcite{GouldSchreder1967}{{13}{1967}{{R.~J. {Gould} {\&} G.~P. {Schr{\"e}der}}}{{{Gould} \& {Schr{\"e}der}}}}
+\bibcite{Granot2002}{{14}{2002}{{J. {Granot} {\&} R. {Sari}}}{{{Granot} \& {Sari}}}}
+\bibcite{Hajela2022GW170817}{{15}{2022}{{A. {Hajela} {et~al.}}}{{{Hajela}, {Margutti}, {Bright}, {Alexander}, {Metzger}, {Nedora}, {et~al.}}}}
+\bibcite{Hallinan2017GW170817Radio}{{16}{2017}{{G. {Hallinan} {et~al.}}}{{{Hallinan}, {Corsi}, {Mooley}, {Hotokezaka}, {Nakar}, {Kasliwal}, {et~al.}}}}
+\bibcite{Harris2020}{{17}{2020}{{C.~R. {Harris} {et~al.}}}{{{Harris}, {Millman}, {van der Walt}, {et~al.}}}}
+\bibcite{HESS2019VHE}{{18}{2019}{{{}{H.E.S.S. Collaboration} {et~al.}}}{{{H.E.S.S. Collaboration}, {Abdalla}, {et~al.}}}}
+\bibcite{HESS2021GRB190829A}{{19}{2021}{{{}{H.E.S.S. Collaboration} {et~al.}}}{{{H.E.S.S. Collaboration}, {Abdalla}, {et~al.}}}}
+\bibcite{HesthavenWarburton2008}{{20}{2008}{{J.~S. {Hesthaven} {\&} T. {Warburton}}}{{{Hesthaven} \& {Warburton}}}}
+\bibcite{HuangDaiLu1999}{{21}{1999}{{Y.~F. {Huang} {et~al.}}}{{{Huang}, {Dai}, \& {Lu}}}}
+\bibcite{Hummer2010}{{22}{2010}{{S. {H{\"u}mmer} {et~al.}}}{{{H{\"u}mmer}, {R{\"u}ger}, {Spanier}, \& {Winter}}}}
+\bibcite{Hunter2007}{{23}{2007}{{J.~D. {Hunter}}}{{Hunter}}}
+\bibcite{IceCube2017GRBNeutrinos}{{24}{2017}{{{}{IceCube Collaboration} {et~al.}}}{{{IceCube Collaboration}, {Aartsen}, {et~al.}}}}
+\bibcite{JiangShu1996}{{25}{1996}{{G.-S. {Jiang} {\&} C.-W. {Shu}}}{{{Jiang} \& {Shu}}}}
+\bibcite{Jones1968}{{26}{1968}{{F.~C. {Jones}}}{{Jones}}}
+\bibcite{Katira2025GW170817}{{27}{2025}{{A. {Katira} {et~al.}}}{{{Katira}, {Mooley}, \& {Hotokezaka}}}}
+\bibcite{KelnerAharonian2008}{{28}{2008}{{S.~R. {Kelner} {\&} F.~A. {Aharonian}}}{{{Kelner} \& {Aharonian}}}}
+\bibcite{Klinger2024AM3}{{29}{2024}{{M. {Klinger} {et~al.}}}{{{Klinger}, {Rudolph}, {Rodrigues}, {Yuan}, {Fichet de Clairfontaine}, {Fedynitch}, {Winter}, {Pohl}, \& {Gao}}}}
+\bibcite{Kobayashi2000}{{30}{2000}{{S. {Kobayashi}}}{{Kobayashi}}}
+\bibcite{LambKobayashi2017Structured}{{31}{2017}{{G.~P. {Lamb} {\&} S. {Kobayashi}}}{{{Lamb} \& {Kobayashi}}}}
+\bibcite{Laskar2016GRB160509A}{{32}{2016}{{T. {Laskar} {et~al.}}}{{{Laskar}, {Alexander}, {Berger}, {Fong}, {Margutti}, {Shivvers}, {et~al.}}}}
+\bibcite{Laskar2023GRB221009A}{{33}{2023}{{T. {Laskar} {et~al.}}}{{{Laskar}, {Alexander}, {Margutti}, {Eftekhari}, {Chornock}, {Berger}, {et~al.}}}}
+\bibcite{Laskar2019GRB181201A}{{34}{2019}{{T. {Laskar} {et~al.}}}{{{Laskar}, {van Eerten}, {Schady}, {Mundell}, {Alexander}, {Barniol Duran}, {et~al.}}}}
+\bibcite{Lazzati2018CollimatedJet}{{35}{2018}{{D. {Lazzati} {et~al.}}}{{{Lazzati}, {Perna}, {Morsony}, {Lopez-Camara}, {Cantiello}, {Ciolfi}, {et~al.}}}}
+\bibcite{LeVeque2002}{{36}{2002}{{R.~J. {LeVeque}}}{{LeVeque}}}
+\bibcite{LHAASO2023Beyond10TeV}{{37}{2023}{{{}{LHAASO Collaboration}}}{{LHAASO Collaboration}}}
+\bibcite{LHAASO2023TeVAfterglow}{{38}{2023}{{{}{LHAASO Collaboration} {et~al.}}}{{{LHAASO Collaboration}, {Cao}, {et~al.}}}}
+\bibcite{MAGIC2019TeV}{{39}{2019{a}}{{{}{MAGIC Collaboration} {et~al.}}}{{{MAGIC Collaboration}, {Acciari}, {et~al.}}}}
+\bibcite{MAGIC2019IC}{{40}{2019{b}}{{{}{MAGIC Collaboration} {et~al.}}}{{{MAGIC Collaboration}, {Acciari}, {et~al.}}}}
+\bibcite{Margutti2018GW170817}{{41}{2018}{{R. {Margutti} {et~al.}}}{{{Margutti}, {Alexander}, {Xie}, {Sironi}, {Metzger}, {Kathirgamaraju}, {et~al.}}}}
+\bibcite{MeszarosRees1997}{{42}{1997}{{P. {M{\'e}sz{\'a}ros} {\&} M.~J. {Rees}}}{{{M{\'e}sz{\'a}ros} \& {Rees}}}}
+\bibcite{Mooley2018Superluminal}{{43}{2018{a}}{{K.~P. {Mooley} {et~al.}}}{{{Mooley}, {Deller}, {Gottlieb}, {Nakar}, {Hallinan}, {Bourke}, {et~al.}}}}
+\bibcite{Mooley2018WideAngle}{{44}{2018{b}}{{K.~P. {Mooley} {et~al.}}}{{{Mooley}, {Nakar}, {Hotokezaka}, {Hallinan}, {Corsi}, {Frail}, {et~al.}}}}
+\bibcite{Murase2007}{{45}{2007}{{K. {Murase}}}{{Murase}}}
+\bibcite{NakarAndoSari2009}{{46}{2009}{{E. {Nakar} {et~al.}}}{{{Nakar}, {Ando}, \& {Sari}}}}
+\bibcite{NakarGranot2007}{{47}{2007}{{E. {Nakar} {\&} J. {Granot}}}{{{Nakar} \& {Granot}}}}
+\bibcite{Nedora2025PyBlastAfterglow}{{48}{2025}{{V. {Nedora} {et~al.}}}{{{Nedora}, {Crosato Menegazzi}, {Peretti}, {Dietrich}, \& {Shibata}}}}
+\bibcite{OConnor2023GRB221009A}{{49}{2023}{{B. {O'Connor} {et~al.}}}{{{O'Connor}, {Troja}, {Ryan}, {Beniamini}, {van Eerten}, {Granot}, {et~al.}}}}
+\bibcite{PangDai2024OffaxisRS}{{50}{2024}{{S.-L. {Pang} {\&} Z.-G. {Dai}}}{{{Pang} \& {Dai}}}}
+\bibcite{Peer2012}{{51}{2012}{{A. {Pe'er}}}{{Pe'er}}}
+\bibcite{PeerWijers2006}{{52}{2006}{{A. {Pe'er} {\&} R.~A.~M.~J. {Wijers}}}{{{Pe'er} \& {Wijers}}}}
+\bibcite{ASGARDSoftware}{{53}{2026}{{J. {Ren}}}{{Ren}}}
+\bibcite{Ryan2020}{{54}{2020}{{G. {Ryan} {et~al.}}}{{{Ryan}, {van Eerten}, {Piro}, \& {Troja}}}}
+\bibcite{Ryan2024}{{55}{2024}{{G. {Ryan} {et~al.}}}{{{Ryan}, {van Eerten}, {Troja}, {Piro}, {O'Connor}, \& {Ricci}}}}
+\bibcite{RybickiLightman1979}{{56}{1979}{{G.~B. {Rybicki} {\&} A.~P. {Lightman}}}{{{Rybicki} \& {Lightman}}}}
+\bibcite{Sahu2024GRB221009AHadronic}{{57}{2024}{{S. {Sahu} {et~al.}}}{{{Sahu}, {Medina-Carrillo}, {P{\'a}ez-S{\'a}nchez}, {S{\'a}nchez-Col{\'o}n}, \& {Rajpoot}}}}
+\bibcite{Sahu2022GRB190829AHadronic}{{58}{2022}{{S. {Sahu} {et~al.}}}{{{Sahu}, {Valadez Polanco}, \& {Rajpoot}}}}
+\bibcite{Salafia2022JetStructure}{{59}{2022}{{O.~S. {Salafia} {\&} G. {Ghirlanda}}}{{{Salafia} \& {Ghirlanda}}}}
+\bibcite{SariPiran1999}{{60}{1999}{{R. {Sari} {\&} T. {Piran}}}{{{Sari} \& {Piran}}}}
+\bibcite{Sari1998}{{61}{1998}{{R. {Sari} {et~al.}}}{{{Sari}, {Piran}, \& {Narayan}}}}
+\bibcite{Service1986}{{62}{1986}{{A.~T. {Service}}}{{Service}}}
+\bibcite{Svensson1987}{{63}{1987}{{R. {Svensson}}}{{Svensson}}}
+\bibcite{Troja2017GW170817Xray}{{64}{2017}{{E. {Troja} {et~al.}}}{{{Troja}, {Piro}, {van Eerten}, {Wollaeger}, {Im}, {Fox}, {et~al.}}}}
+\bibcite{Troja2019GW170817}{{65}{2019}{{E. {Troja} {et~al.}}}{{{Troja}, {van Eerten}, {Ryan}, {Ricci}, {Burgess}, {Wieringa}, {et~al.}}}}
+\bibcite{UhmZhang2014}{{66}{2014{a}}{{Z.~L. {Uhm} {\&} B. {Zhang}}}{{{Uhm} \& {Zhang}}}}
+\bibcite{vanEerten2018BlastWaves}{{67}{2018}{{H. {van Eerten}}}{{van Eerten}}}
+\bibcite{vanEerten2012}{{68}{2012}{{H. {van Eerten} {et~al.}}}{{{van Eerten}, {van der Horst}, \& {MacFadyen}}}}
+\bibcite{vanEerten2010}{{69}{2010}{{H. {van Eerten} {et~al.}}}{{{van Eerten}, {Zhang}, \& {MacFadyen}}}}
+\bibcite{Virtanen2020}{{70}{2020}{{P. {Virtanen} {et~al.}}}{{{Virtanen}, {Gommers}, {Oliphant}, {et~al.}}}}
+\bibcite{Wang2024Jetsimpy}{{71}{2024}{{H. {Wang} {\&} D. {Giannios}}}{{{Wang} \& {Giannios}}}}
+\bibcite{Wang2025VegasAfterglow}{{72}{2026}{{Y. {Wang} {et~al.}}}{{{Wang}, {Chen}, \& {Zhang}}}}
+\bibcite{ZhangKobayashi2005}{{73}{2005}{{B. {Zhang} {\&} S. {Kobayashi}}}{{{Zhang} \& {Kobayashi}}}}
+\newlabel{LastPage}{{}{90}{}{}{}}
+\gdef \@abspage@last{90}

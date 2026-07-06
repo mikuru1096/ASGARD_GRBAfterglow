@@ -48,7 +48,12 @@ fit = [
     "pymultinest",
 ]
 compare = [
-    "VegasAfterglow",
+    "afterglowpy==0.8.1",
+    "jetsimpy",
+    "pandas==2.3.3",
+    "pyblastafterglowmag",
+    "uncertainties==3.2.3",
+    "vegasafterglow==2.0.5",
 ]
 
 [project.urls]
@@ -62,3 +67,7 @@ include-package-data = true
 
 [tool.setuptools.packages.find]
 include = ["asgard_core*", "src*"]
+
+[tool.uv.sources]
+jetsimpy = { git = "https://github.com/haowang-astro/jetsimpy.git", rev = "53d07610830f2247d8c41364a2b469491fa22eb2" }
+pyblastafterglowmag = { git = "https://github.com/vsevolodnedora/PyBlastAfterglowMag.git", subdirectory = "package", rev = "b0a39d170930908a398de56089fde8cfab16883d" }
