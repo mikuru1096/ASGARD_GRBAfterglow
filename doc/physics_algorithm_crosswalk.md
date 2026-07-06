@@ -28,7 +28,7 @@ ASGARD 的第一性原理主线是：先在局域壳层坐标中闭合动力学�
 | WENO/T2G1/SLC/charint | 方法对照和数值诊断。 | `fs_weno5_1d`, `fs_t2g1_1d`, `fs_slc1_1d`, `fs_charint_1d` | `compute_weno_fluxes`, `advance_t2g1_substep`, `char_update` | 用于判别输运误差，不作为物理 fallback。 |
 | 2D q-shell 电子输运 | `x` 能量方向 + `q` 厚壳方向的对流/扩散/源项。 | `fs_transport_2d` | `compute_q_cell_geometry`, `advance_q_implicit`, `advance_energy_chi`, `project_q_projection_shell` | 有限半径、非零体积权重和时间连续 lightcurve；不宣称 chi-local hadronic。 |
 | 同步辐射与 SSA | 从电子谱计算 `P_syn`, `Seed_syn`, `Tau_syn`, `nu_a`。 | `syn_state` | `electron_syn_gauss`, `electron_tau_gauss`, `nua_fromtau` | `P_syn/Seed/Tau` 同源；避免重复 root search 造成 runtime 和语义分裂。 |
-| 同步偏振 | 频率相关 F/G kernel 到 Stokes emissivity。 | `syn_polarized`, `synchrotron_polarized_components` | `synchrotron_fg_kernel`, `synchrotron_fg_integral` | 只覆盖同步分支；峰时偏差优先查 dynamics/projection。 |
+| 同步偏振 | 频率相关 F/G kernel 到 Stokes emissivity。 | `synchrotron_polarized_components` | `synchrotron_fg_kernel`, `synchrotron_fg_integral` | 只覆盖同步分支；峰时偏差优先查 dynamics/projection。 |
 | SSC 与 IC cooling | 同一 photon seed 决定 cooling 与 emissivity。 | `ssc_spec`, `ssc_spec_nonuniform`, `electron_cooling_ic_loss` | `prepare_kn_tables`, `accumulate_uniform_point`, `accumulate_nonuniform_point` | joint 预算中不能只改 cooling 不改 photon source。 |
 | gamma-gamma absorption | 目标 photon field 上积分 pair cross-section。 | `annihilation` | `pair_grid`, `sigma_kernel`, `set_window` | 输出是 observer attenuation；不要把它误作局域 cascade 全闭合。 |
 | pair synch cascade | shell-sequence gamma-gamma pair/synch branch。 | `cascade_sequence` | `cascade_seq`, `produce_pairs`, `emit_syn` | `pair_cascade_iterations>1` 仍不是 IC-mediated electromagnetic cascade。 |
