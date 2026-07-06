@@ -78,8 +78,7 @@ ELECTRON_HISTORY_SOURCES = (
     *ELECTRON_COMMON_SOURCES,
     "electron_seed_history_kernel.f90",
 )
-ELECTRON_HISTORY_SOURCES_HZ = (
-    *ELECTRON_HISTORY_SOURCES,
+ELECTRON_HYBRID_SOURCES = (
     "./slatec/dgamic.f",
     "./slatec/d1mach.f",
     "./slatec/d9gmic.f",
@@ -116,6 +115,10 @@ ELECTRON_HISTORY_SOURCES_HZ = (
     "hybrid_special.f90",
     "hybrid_spectrum.f90",
 )
+ELECTRON_HISTORY_SOURCES_HZ = (
+    *ELECTRON_HISTORY_SOURCES,
+    *ELECTRON_HYBRID_SOURCES,
+)
 ELECTRON_2D_SOURCES = (
     *ELECTRON_COMMON_SOURCES,
     "electron_seed_history_kernel.f90",
@@ -123,6 +126,7 @@ ELECTRON_2D_SOURCES = (
 )
 ELECTRON_DG_1D_SOURCES = (
     *ELECTRON_COMMON_SOURCES,
+    *ELECTRON_HYBRID_SOURCES,
     "electron_dg_transport.f90",
 )
 ELECTRON_REVERSE_SOURCES = (
@@ -174,6 +178,7 @@ STRUCTURED_JET_1D_SOURCES = (
     "../Electron/electron_injection_profiles.f90",
     "../Electron/electron_shell_transport_common.f90",
     "../Electron/electron_common.f90",
+    *(f"../Electron/{source}" for source in ELECTRON_HYBRID_SOURCES),
     "../Electron/electron_cooling_ssa_kernel.f90",
     "../Electron/electron_cooling_ic_kernel.f90",
     "../Electron/electron_cooling_y_kernel.f90",

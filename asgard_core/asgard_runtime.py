@@ -548,6 +548,8 @@ def _electron1d(boundary, dynamics, v_seed, config, solver_name, return_report):
         boundary, dynamics.r_tobs, dynamics.r_gamma, dynamics.radius, v_seed,
         config.num_gam_e, config.index_y, config.index_syn_integr, config.num_threads,
     ]
+    if solver_name == "dg_1d":
+        args.append(1 if config.thermal_electrons else 0)
     if solver_name == "charint_1d":
         args.extend([
             1 if config.electron_adaptive_substeps else 0,
@@ -573,8 +575,8 @@ def solve_electron(
     solver_name = _electronsolver(config)
     if config.cooling_kernel.lower() != "legacy":
         raise ValueError(f"Unsupported cooling kernel: {config.cooling_kernel}")
-    if config.thermal_electrons and (solver_name not in ("fullhide_1d", "fullhide_1d_hz")):
-        raise NotImplementedError("thermal_electrons currently requires electron_solver='fullhide_1d' or 'fullhide_1d_hz'.")
+    if config.thermal_electrons and (solver_name not in ("fullhide_1d", "fullhide_1d_hz", "dg_1d")):
+        raise NotImplementedError("thermal_electrons currently requires electron_solver='fullhide_1d', 'fullhide_1d_hz', or 'dg_1d'.")
     if solver_name == "weno5_1d":
         electron_weno5_module = _electronmodule(solver_name)
         gam_e, d_n_gam_e, l_syn_spec, seed_syn = electron_weno5_module.fs_weno5_1d(

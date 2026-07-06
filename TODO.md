@@ -23,7 +23,7 @@
 - 2D / chi-resolved hadronic transport：formal hadronic path 仍保持 1D shell 契约。
 - IC-mediated electromagnetic cascade：当前 pair cascade 只覆盖 gamma-gamma pair/synch contract。
 - Formal pγ / π / μ 二级电子谱输出：joint 电子方程只接入 formal kernel 已直接输出且归一化明确的二级 e± 源项。
-- Jet spreading、自定义 `Medium` Fortran dispatch、wind `k != 2`、`fullhide_1d` 之外 thermal electrons、非轴对称 toroidal polarization 仍是 unsupported boundary。
+- Jet spreading、自定义 `Medium` Fortran dispatch、wind `k != 2`、`fullhide_1d`/`fullhide_1d_hz`/`dg_1d` 之外 thermal electrons、非轴对称 toroidal polarization 仍是 unsupported boundary。
 - Lan 2023 polarization 峰时偏早问题指向 dynamics/jet-evolution benchmark，禁止 projection 层经验修正。
 - FS formal hadronic benchmark refresh 只在假设和决策价值明确时做。
 - RS full-chain hadronic 的 `electron_energy_gev must be logarithmically uniform` blocker 需要从输入网格合同证明或修正 kernel 假设；禁止重采样 fallback。

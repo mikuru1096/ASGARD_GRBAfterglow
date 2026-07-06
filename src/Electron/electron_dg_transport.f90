@@ -42,7 +42,7 @@ module electron_dg_transport
 
     public :: dg_initial_state, dg_project_state
     public :: dg_build_mesh
-    public :: dg_project_source, dg_kinetic_source
+    public :: dg_project_source, dg_project_cell_density, dg_kinetic_source
     public :: dg_advance_step, dg_scale_content
     public :: dg_limit_positive
     public :: dg_filter_positive
@@ -190,6 +190,59 @@ subroutine dg_project_source(mesh, source_norm, p, gamma_m, gamma_max, source)
     enddo
     call dg_limit_positive(mesh, source)
 end subroutine dg_project_source
+
+! 将外部坐标单元平均谱密度投影到 DG 空间。
+! Project external coordinate-cell averaged density into the DG space.
+subroutine dg_project_cell_density(mesh, num_gamma, coord_edge, dN_coord, state)
+    type(dg_mesh), intent(in) :: mesh
+    integer, intent(in) :: num_gamma
+    real(8), intent(in), dimension(num_gamma+1) :: coord_edge
+    real(8), intent(in), dimension(num_gamma) :: dN_coord
+    real(8), intent(out), dimension(mesh%ntot) :: state
+    real(8), dimension(mesh%nnode) :: modal,pvals
+    real(8) :: dx, mid, half_width, lo, hi, sub_mid, sub_half, x_eval, r_eval
+    integer :: degree, k, i, q, m, node, offset, cell_start
+
+    state = 0d0
+    degree = mesh%nnode - 1
+    call ensure_projection_quadrature(mesh%nnode)
+    cell_start = 1
+    do k = 1, mesh%ndom
+        offset = (k - 1)*mesh%nnode
+        dx = mesh%x_right(k) - mesh%x_left(k)
+        mid = 0.5d0*(mesh%x_left(k) + mesh%x_right(k))
+        half_width = 0.5d0*dx
+        modal = 0d0
+        do while (cell_start < num_gamma .and. coord_edge(cell_start + 1) <= mesh%x_left(k))
+            cell_start = cell_start + 1
+        enddo
+        i = cell_start
+        do while (i <= num_gamma)
+            if (coord_edge(i) >= mesh%x_right(k)) exit
+            lo = max(mesh%x_left(k), coord_edge(i))
+            hi = min(mesh%x_right(k), coord_edge(i + 1))
+            if (hi > lo) then
+                sub_mid = 0.5d0*(lo + hi)
+                sub_half = 0.5d0*(hi - lo)
+                do q = 1, mesh%nnode
+                    x_eval = sub_mid + sub_half*projection_r(q)
+                    r_eval = (x_eval - mid)/half_width
+                    call legendre_basis_values(degree, r_eval, pvals)
+                    modal = modal + sub_half*projection_w(q)*dN_coord(i)*pvals
+                enddo
+            endif
+            i = i + 1
+        enddo
+        do m = 0, degree
+            modal(m + 1) = dble(2*m + 1)*modal(m + 1)/dx
+        enddo
+        do node = 1, mesh%nnode
+            call legendre_basis_values(degree, mesh%r(node), pvals)
+            state(offset + node) = sum(modal*pvals)
+        enddo
+    enddo
+    call dg_limit_positive(mesh, state)
+end subroutine dg_project_cell_density
 
 ! 将 reverse-shock kinetic 源项投影到 DG 空间。
 ! Project the reverse-shock kinetic source into the DG space.

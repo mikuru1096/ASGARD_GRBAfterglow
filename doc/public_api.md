@@ -223,7 +223,7 @@ fwd_rad = Radiation(
 | `epsilon_B` | shock 能量给磁场的比例。 | 控制 \(B'\)、同步辐射、冷却频率。 | 通常用 `Scale.LOG10`。 |
 | `p` | 非热电子谱指数。 | 控制谱斜率和衰减斜率。 | 典型要求 \(p>2\)，次级 RS 分支也要求 \(p>2\)。 |
 | `accelerated_electron_fraction` | 非热电子数分数 \(\xi_N\)。 | 改变 \(\gamma_m\) 和归一化。 | 与 \(\epsilon_e\)、\(E\)、\(n\) 强退化。 |
-| `thermal_electrons` | thermal electron branch。 | 改变电子分布。 | 当前要求 `electron_solver="fullhide_1d"` 或兼容路径。 |
+| `thermal_electrons` | thermal electron branch。 | 改变电子分布。 | 当前要求 `electron_solver="fullhide_1d"`, `"fullhide_1d_hz"` 或 `"dg_1d"`。 |
 | `epsilon_b_floor` | 磁场 floor。 | 约束磁场衰减下限。 | 只有明确物理理由时设置。 |
 | `magnetic_decay_alpha_t`, `magnetic_decay_t0_s` | 磁场衰减参数。 | 影响冷却和谱断点。 | 不是默认 afterglow 拟合第一轮参数。 |
 
@@ -356,7 +356,7 @@ solver_options = SolverOptions(
 
 | 字段 | 可选项 | 效果 | 注意事项 |
 | --- | --- | --- | --- |
-| `structured_backend` | `fortran_1d`, `python_patch` | 选择结构化喷流 patch 求解后端。 | `fortran_1d` 支持 `electron_solver="fullhide_1d"` 或 `"dg_1d"` 的同步路径；`dg_1d` 不支持 thermal electron branch。 |
+| `structured_backend` | `fortran_1d`, `python_patch` | 选择结构化喷流 patch 求解后端。 | `fortran_1d` 支持 `electron_solver="fullhide_1d"` 或 `"dg_1d"` 的同步路径；`dg_1d` 可接 thermal hybrid branch。 |
 | `patch_sampling` | `uniform`, `dominant_region_ioka_v1`, `dominant_region_ioka_time_v1` | 角向采样策略。 | dominant-region 当前只支持 `structured_backend="python_patch"`。 |
 | `patch_projection` | `auto`, `tophat_cell`, `surface_element` | patch 面元投影方式。 | `auto` 会按采样策略选择。 |
 | `patch_sampling_pilot_theta` | int | dominant-region pilot 中的 theta 采样控制。 | `uniform` 下不改变物理求解。 |

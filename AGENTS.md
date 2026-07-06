@@ -30,7 +30,7 @@ rtk bash -lc "source ~/.wsl_env && cd \"/mnt/c/Users/jia/Documents/New project/A
 - **Benchmark refresh protocol**: `scripts/benchmarks/` 仅保留历史提交恢复的复现/迁移脚本，不作为新 public benchmark API。重新生成 benchmark 前必须先说明假设和决策价值；刷新前后记录 git HEAD、`git status --short --branch`、`git diff --stat`、完整命令、受影响 Fortran build 状态、输出路径和物理验收口径。正式可复用入口应进入 `tests/`，临时研究脚本放 `/tmp`。
 - **2D/chi-resolved hadronic decision**: 当前不实现 2D/χ hadronic transport；正式 hadronic path 保持 1D shell 契约，直到 χ-local photon field、hadron density、secondary feedback 和 observer projection 的物理契约完成。
 - **Polarization timing diagnostic**: Lan 2023 overlay 的峰值幅度已匹配，峰时偏早主要指向 dynamics/jet-evolution benchmark；禁止在 polarization projection 层用经验时间因子或 smoothing 修正。
-- **Public/backend limits**: Jet spreading、自定义 `Medium` kernel dispatch、wind `k != 2`、thermal electrons outside `fullhide_1d` 是明确未支持边界；详见 `doc/public_backend_limits.md`。
+- **Public/backend limits**: Jet spreading、自定义 `Medium` kernel dispatch、wind `k != 2`、thermal electrons outside `fullhide_1d`/`fullhide_1d_hz`/`dg_1d` 是明确未支持边界；详见 `doc/public_backend_limits.md`。
 - **TODO index**: 当前未完成项集中维护在根目录 `TODO.md`；不要在其他文档新增分散待办列表。
 
 ## AM3 / ASGARD Coexistence

@@ -1,7 +1,8 @@
 ! 正向激波电子 DG 求解器：移动多域 LGL 网格跟踪注入、冷却和高能尾部。
 ! Forward-shock electron DG solver: a moving multi-domain LGL mesh tracks injection, cooling, and the high-energy tail.
 subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_gam_e, &
-                             index_Y, index_syn_intger, n_threads, gam_e, dN_gam_e, P_syn, Seed_syn, V_m, V_c, V_a)
+                             index_Y, index_syn_intger, n_threads, thermal_electrons, &
+                             gam_e, dN_gam_e, P_syn, Seed_syn, V_m, V_c, V_a)
     use constants
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use dynamics_density_profile, only: density_profile, jump_count, &
@@ -13,7 +14,7 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
     use electron_coord_common, only: build_fourvel_grid, fourvel_scale
     use electron_dg_transport, only: dg_mesh, dg_build_mesh, &
                                                dg_initial_state, dg_project_state, &
-                                               dg_project_source, &
+                                               dg_project_source, dg_project_cell_density, &
                                                dg_advance_step, dg_project_cells, &
                                                dg_limit_positive, dg_integral, &
                                                dg_tail_fraction, &
@@ -21,10 +22,12 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
     use electron_shell_transport, only: coord_to_dgamma
     use electron_injection_profiles, only: init_coord, &
                                            source_coord
+    use hybrid_spectrum, only: hybrid_coord
     use electron_radiation_kernel, only: syn_state, nua_fromtau
     implicit none
 
     integer, intent(in) :: n, Num_nu, Num_R, Num_gam_e, index_Y, index_syn_intger, n_threads
+    integer, intent(in) :: thermal_electrons
     real(8), intent(in), dimension(n) :: Boundary
     real(8), intent(in), dimension(Num_R) :: R_Tobs,R_Gamma,R
     real(8), intent(in), dimension(Num_nu) :: V_seed
@@ -55,6 +58,9 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
 
     call electron_unpack_boundary(Boundary, n, Eta_0, R_ini, Epsilon_e, Epsilon_b, p, z, nism, A_star, &
                                   E_iso, tdur_log, f_e, R_tr, f_jump, f_wide, R0)
+    if (thermal_electrons /= 0) then
+        if (f_e <= 0d0 .or. f_e > 1d0) error stop 'thermal electrons require 0 < f_e <= 1'
+    endif
     P_syn = 0d0
     Seed_syn = 0d0
     V_m = 0d0
@@ -109,9 +115,15 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
         call dg_build_mesh(xedge(1), dg_active_xmax(gemax), dlog(gm), &
                                                     dlog(gc), dlog(gemax), dgscale, mesh)
         allocate(state(mesh%ntot))
-        call dg_initial_state(mesh, ninit, p, gm, gc, gemax, state)
-        call init_coord(ninit, p, gm, gc, gemax, &
-                                                              Num_gam_e, yedge, coord_scale, nxinit)
+        if (thermal_electrons == 0) then
+            call dg_initial_state(mesh, ninit, p, gm, gc, gemax, state)
+            call init_coord(ninit, p, gm, gc, gemax, &
+                                                                  Num_gam_e, yedge, coord_scale, nxinit)
+        else
+            call hybrid_coord(Num_gam_e, yedge, coord_scale, p, gm, gemax, f_e, nxinit)
+            nxinit = nxinit*ninit
+            call dg_project_cell_density(mesh, Num_gam_e, yedge, nxinit, state)
+        endif
         call scale_dg_content(state, nxinit)
         call write_positive_output(1)
     end subroutine init_fourvel_grid
@@ -222,7 +234,11 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
             call electron_gm_exact(p, temp_gam, gmax_step, gm_step)
             gmp_step = (1d0 - p)/(gmax_step**(1d0 - p) - gm_step**(1d0 - p))
         endif
-        call electron_injection_prefactor(R_step, dR_local, dNe_step, f_e, gmp_step, source_norm)
+        if (thermal_electrons == 0) then
+            call electron_injection_prefactor(R_step, dR_local, dNe_step, f_e, gmp_step, source_norm)
+        else
+            call electron_injection_prefactor(R_step, dR_local, dNe_step, 1d0, 1d0, source_norm)
+        endif
         if (dg_source_xmax(gmax_step) > mesh%x_gamma(mesh%ntot)) &
             call remesh_shell(gmax_step, gm_step, gc, gmax_step)
 
@@ -245,9 +261,14 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
         endif
         if ((.not. cache_ready) .or. cache_n /= mesh%ntot .or. &
             cache_gm /= gm_step .or. cache_gmax /= gmax_step) then
-            call dg_project_source(mesh, 1d0, p, gm_step, gmax_step, srctpl)
-            call source_coord(Num_gam_e, yedge, coord_scale, &
-                                                                   gm_step, gmax_step, 1d0, p, srcgrid)
+            if (thermal_electrons == 0) then
+                call dg_project_source(mesh, 1d0, p, gm_step, gmax_step, srctpl)
+                call source_coord(Num_gam_e, yedge, coord_scale, &
+                                                                       gm_step, gmax_step, 1d0, p, srcgrid)
+            else
+                call hybrid_coord(Num_gam_e, yedge, coord_scale, p, gm_step, gmax_step, f_e, srcgrid)
+                call dg_project_cell_density(mesh, Num_gam_e, yedge, srcgrid, srctpl)
+            endif
             call scale_dg_content(srctpl, srcgrid)
             cache_ready = .true.
             cache_n = mesh%ntot

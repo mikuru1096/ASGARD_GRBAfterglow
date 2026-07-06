@@ -14,8 +14,8 @@
 - Wind `k != 2`：
   - `Wind._rho(...)` 和 `Wind.to_kernel_params()` 都拒绝 `k != 2`。
   - 当前 Fortran/Python 密度契约是 `A_star r^-2` 星风；当 `A_star 3e35 / R^2 <= n_ISM / 4` 时切到 ISM 下限，不是任意 `r^-k`。
-- `fullhide_1d` 之外的热电子：
-  - `solve_electron(...)` 在 `thermal_electrons=True` 且求解器不是 `fullhide_1d` 时直接抛出 `NotImplementedError`。
+- `fullhide_1d`/`fullhide_1d_hz`/`dg_1d` 之外的热电子：
+  - `solve_electron(...)` 在 `thermal_electrons=True` 且求解器不是 `fullhide_1d`, `fullhide_1d_hz`, `dg_1d` 时直接抛出 `NotImplementedError`。
   - 现有热电子分支未定义到 `weno5_1d`, `slc1_1d`, `charint_*`, `fullhide_2d`。
 - 非轴对称喷流上的环向磁场偏振：
   - `Model.polarization(..., magnetic_geometry="toroidal")` 当前要求轴对称喷流。

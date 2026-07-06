@@ -447,9 +447,9 @@ subroutine structured_solve_element(Boundary,E_iso,Gamma0,V_seed,n,Num_nu,Num_R,
                                      substep_min,substep_max,thermal_electrons,gam_e,dN_gam_e,P_syn,Seed_syn, &
                                      nu_m_local,nu_c_local,nu_a_local)
     case(solver_dg)
-        if (thermal_electrons /= 0) error stop 'structured_solve_element: dg_1d does not support thermal electrons.'
         call fs_dg_1d(B_local,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e,index_Y, &
-                               index_syn_intger,n_threads,gam_e,dN_gam_e,P_syn,Seed_syn,nu_m_local,nu_c_local,nu_a_local)
+                               index_syn_intger,n_threads,thermal_electrons,gam_e,dN_gam_e, &
+                               P_syn,Seed_syn,nu_m_local,nu_c_local,nu_a_local)
     case default
         error stop 'structured_solve_element: unsupported electron solver id.'
     end select

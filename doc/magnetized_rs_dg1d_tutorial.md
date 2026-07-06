@@ -401,6 +401,6 @@ Jackson 因子为
 - `upstream_sigma -> 0` 回到非磁化基线。
 - DG 电子谱活动支撑连续；低能峰附近的小振荡若不影响辐射且无零洞，可以接受。
 - 多波段光变从 \(0.1\,{\rm s}\) 或科学问题要求的最早时间开始检查，Y 轴不要压缩到看不见 RS 峰。
-- 结构化喷流 `fortran_1d` 后端可以使用 `fullhide_1d` 或 `dg_1d` 的同步路径；`dg_1d` 不支持热电子分支。
+- 结构化喷流 `fortran_1d` 后端可以使用 `fullhide_1d` 或 `dg_1d` 的同步路径；`dg_1d` 支持热电子 hybrid 分支。
 
 对应冒烟测试和基准测试入口见 `validation_and_benchmarks.md`。正式刷新基准测试前记录 git HEAD、命令、构建状态、输出路径和物理验收口径。
