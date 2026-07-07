@@ -2,7 +2,7 @@
 module electron_transport_2d
   use constants
   use electron_transport_common, only: prepare_implicit_coeffs, backward_sweep, &
-                             prepare_remap, ppm_eval_prefix, &
+                             prepare_remap, ppm_eval_cell, &
                              char_update, cooling_affine, cooling_piecewise
   use electron_injection_profiles, only: log_edges
   implicit none
@@ -456,7 +456,8 @@ subroutine advance_q_charint(ulog, ng, nchi, active_hi, dq, q_face, &
     real(8) :: qactive
     real(8), dimension(nchi) :: qin, qout, ppm_left, ppm_right
     real(8), dimension(0:nchi) :: prefix
-    integer :: ig, iface
+    integer, dimension(0:nchi) :: qcell
+    integer :: ig, iface, left, right, mid
 
     qactive = 1d0-(1d0-1d0/shock_comp)**shock_comp
     do iface = 1, nchi
@@ -464,6 +465,25 @@ subroutine advance_q_charint(ulog, ng, nchi, active_hi, dq, q_face, &
     end do
     aqface(0) = dble(3-kmed)*(qactive-q_face(0))/rloc
     call trace_faces(nchi, dR_step, q_face, aqface, q_back)
+    do iface = 0, nchi
+        if (q_back(iface) <= q_face(0)) then
+            qcell(iface) = 1
+        else if (q_back(iface) >= q_face(nchi)) then
+            qcell(iface) = nchi
+        else
+            left = 1
+            right = nchi
+            do while (left < right)
+                mid = (left+right)/2
+                if (q_face(mid) >= q_back(iface)) then
+                    right = mid
+                else
+                    left = mid+1
+                end if
+            end do
+            qcell(iface) = left
+        end if
+    end do
 
     !$OMP PARALLEL DO num_threads(n_threads) if(n_threads > 1 .and. active_hi*nchi >= 512) schedule(static) &
     !$OMP& private(ig,iface,qin,qout,ppm_left,ppm_right,prefix)
@@ -473,10 +493,10 @@ subroutine advance_q_charint(ulog, ng, nchi, active_hi, dq, q_face, &
         call prepare_remap(nchi, q_face, qin, ppm_left, ppm_right, prefix)
         do iface = 1, nchi
             qout(iface) = &
-                (ppm_eval_prefix(nchi, q_face, qin, &
-                                                     ppm_left, ppm_right, prefix, q_back(iface)) - &
-                 ppm_eval_prefix(nchi, q_face, qin, &
-                                                     ppm_left, ppm_right, prefix, q_back(iface-1))) / dq
+                (ppm_eval_cell(nchi, q_face, qin, &
+                                                   ppm_left, ppm_right, prefix, q_back(iface), qcell(iface)) - &
+                 ppm_eval_cell(nchi, q_face, qin, &
+                                                   ppm_left, ppm_right, prefix, q_back(iface-1), qcell(iface-1))) / dq
         end do
         ulog(ig, :) = qout
     end do

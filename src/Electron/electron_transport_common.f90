@@ -211,6 +211,32 @@ end function ppm_eval_prefix
 
 
 
+real(8) function ppm_eval_cell(ng,xedge,q,ql,qr,prefix,x_eval,icell)
+    implicit none
+    integer, intent(in) :: ng,icell
+    real(8), intent(in), dimension(ng+1) :: xedge
+    real(8), intent(in), dimension(ng) :: q,ql,qr
+    real(8), intent(in), dimension(0:ng) :: prefix
+    real(8), intent(in) :: x_eval
+    real(8) :: xa,dx
+
+    xa=max(xedge(1),min(x_eval,xedge(ng+1)))
+    if (xa <= xedge(1)) then
+        ppm_eval_cell=0d0
+        return
+    end if
+    if (xa >= xedge(ng+1)) then
+        ppm_eval_cell=prefix(ng)
+        return
+    end if
+    dx=xedge(icell+1)-xedge(icell)
+    ppm_eval_cell=prefix(icell-1)+ &
+        ppm_cell_int(q(icell),ql(icell),qr(icell), &
+                                  xedge(icell),dx,xedge(icell),xa)
+end function ppm_eval_cell
+
+
+
 ! 预处理非均匀网格守恒重映射所需的 PPM 界面值和前缀积分。
 ! Prepare PPM interface states and prefix mass for conservative remapping.
 subroutine prepare_remap(ng,xedge,q,ql,qr,prefix)
