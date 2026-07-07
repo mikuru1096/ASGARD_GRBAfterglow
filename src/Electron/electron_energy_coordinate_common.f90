@@ -7,9 +7,8 @@ module electron_coord_common
     integer, parameter, public :: coord_loggamma=1,coord_fourvel=2
     real(8), parameter, public :: fourvel_scale=2d0
 
-    public :: coord_from_xg, xg_from_coord
-    public :: gamma_from_coord, dxg_dcoord
-    public :: build_fourvel_grid
+  public :: coord_from_xg, xg_from_coord, gamma_from_coord, dxg_dcoord
+  public :: build_fourvel_grid
 
 contains
 

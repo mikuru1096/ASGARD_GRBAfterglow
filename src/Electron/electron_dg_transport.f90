@@ -32,15 +32,9 @@ module electron_dg_transport
         real(8), allocatable, dimension(:) :: x_gamma,gamma,dxgamma_dcoord,dln_dcoord
     end type dg_mesh
 
-    public :: dg_initial_state, dg_project_state
-    public :: dg_build_mesh
-    public :: dg_project_source, dg_kinetic_source
-    public :: dg_advance_step, dg_scale_content
-    public :: dg_limit_positive
-    public :: dg_filter_positive
-    public :: dg_char_step
-    public :: dg_project_cells, dg_integral
-    public :: dg_tail_fraction
+    public :: dg_initial_state, dg_project_state, dg_build_mesh, dg_project_source, dg_kinetic_source
+    public :: dg_advance_step, dg_scale_content, dg_limit_positive, dg_filter_positive, dg_char_step
+    public :: dg_project_cells, dg_integral, dg_tail_fraction
 
 contains
 

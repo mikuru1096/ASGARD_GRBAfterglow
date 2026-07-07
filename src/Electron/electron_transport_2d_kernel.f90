@@ -11,15 +11,9 @@ module electron_transport_2d
 
   ! 有限 q 质量坐标的 2D 电子输运核：几何、q 输运、能量输运分开暴露。
   ! Finite-q mass-coordinate 2D electron transport kernel: geometry, q transport, and energy transport are separate.
-  public :: q_geometry, q_cell_geometry, shock_state
-  public :: downstream_grid
-  public :: q_divergence
-  public :: q_step_limit
-  public :: advance_q_implicit, advance_energy_chi
-  public :: advance_pwncr_q, advance_pwncr_energy
-  public :: advance_stoch_chi
-  public :: advance_q_charint, advance_q_diffusion
-  public :: advance_energy_charint
+    public :: q_geometry, q_cell_geometry, shock_state, downstream_grid, q_divergence, q_step_limit
+    public :: advance_q_implicit, advance_energy_chi, advance_pwncr_q, advance_pwncr_energy
+    public :: advance_stoch_chi, advance_q_charint, advance_q_diffusion, advance_energy_charint
 
 contains
 

@@ -11,12 +11,8 @@ module electron_injection_profiles
     implicit none
     private
 
-    public :: exp_cutoff, dnx_cutoff, pl_params
-    public :: log_edges
-    public :: init_powerlaw, init_edges
-    public :: init_coord
-    public :: source_edges, source_coord
-    public :: kinetic_edges, kinetic_coord
+    public :: exp_cutoff, dnx_cutoff, pl_params, log_edges, init_powerlaw, init_edges
+    public :: init_coord, source_edges, source_coord, kinetic_edges, kinetic_coord
     public :: add_thermal, thermal_pop
 
 contains

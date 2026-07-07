@@ -11,8 +11,7 @@ module electron_shell_transport
     ! Shared 1D shell electron transport entry points: select backend, advance coordinate flux, project to dN/dgamma.
     integer, parameter, public :: solver_fullhide = 1, solver_dg = 2
 
-    public :: resolve_solver
-    public :: shell_coord_step, coord_to_dgamma
+  public :: resolve_solver, shell_coord_step, coord_to_dgamma
 
 contains
 

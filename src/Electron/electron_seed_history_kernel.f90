@@ -6,9 +6,7 @@ module electron_seed_history_kernel
 
   ! 历史种子光子场：按下游固有时把旧壳层辐射输运到当前 chi 网格。
   ! Seed-photon history field: transport older shell emission to the current chi grid in downstream proper time.
-  public :: integrate_proper_time
-  public :: advance_history_stream
-  public :: history_transfer_weight
+  public :: integrate_proper_time, advance_history_stream, history_transfer_weight
 
   integer, save :: cache_shells=0, cache_chi=0, cache_nu=0, built_shells=0
   real(8), allocatable, save, dimension(:,:) :: inv_dx

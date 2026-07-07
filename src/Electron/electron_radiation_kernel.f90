@@ -6,13 +6,8 @@ module electron_radiation_kernel
 
   integer, parameter :: index_syn_fixed_grid_legacy=1, index_syn_fixed_grid=2, index_syn_cyclotron=4
 
-  public :: greater_window
-  public :: besselk, syn_state
-  public :: syn_transfer, nua_solve
-  public :: nua_path
-  public :: reduce_grid, project_syn
-  public :: nua_fromtau
-  public :: pl_interp, log_gauss2, pl_integral
+  public :: greater_window, besselk, syn_state, syn_transfer, nua_solve, nua_path
+  public :: reduce_grid, project_syn, nua_fromtau, pl_interp, log_gauss2, pl_integral
 
 contains
 
