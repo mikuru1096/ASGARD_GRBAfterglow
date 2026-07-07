@@ -117,8 +117,6 @@ function besselk(var)
            exit
        end if
    end do
-
-   return
 end function besselk
 
 

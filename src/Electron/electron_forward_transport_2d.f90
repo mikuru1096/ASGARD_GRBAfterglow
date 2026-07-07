@@ -443,11 +443,7 @@ subroutine store_shell(I_tobs)
         else
             call dnx_dgamma(ng,x_edge_E,gam_e,ulog(:,ichi),dN_gam_e(:,ichi,I_tobs))
         end if
-        if (nchi == 1) then
-            B_chi_out(ichi,I_tobs) = DB_chi(ichi)
-        else
-            B_chi_out(ichi,I_tobs) = DB_chi(ichi)
-        end if
+        B_chi_out(ichi,I_tobs) = DB_chi(ichi)
         if (.not. emit_full_spectrum) then
             block
                 real(8), dimension(1) :: DBcell, Wcell
