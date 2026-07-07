@@ -500,6 +500,8 @@ subroutine advance_q_diffusion(ulog, ng, nchi, active_hi, dq, q_face, kmed, &
     call q_diff_faces(nchi,dq,q_face,kmed,rloc,gf,bsh,.false., &
                                  dlbase,drbase)
 
+    !$OMP PARALLEL DO num_threads(n_threads) if(n_threads > 1 .and. active_hi*nchi >= 512) schedule(static) &
+    !$OMP& private(ig,lower,diag,upper,rhs,sol)
     do ig = 1, active_hi
         lower = 0d0
         diag = 1d0
@@ -510,6 +512,7 @@ subroutine advance_q_diffusion(ulog, ng, nchi, active_hi, dq, q_face, kmed, &
         call solve_tridiagonal(nchi, lower, diag, upper, rhs, sol)
         ulog(ig, :) = max(0d0, sol)
     end do
+    !$OMP END PARALLEL DO
 end subroutine advance_q_diffusion
 
 ! q方向对流+扩散联合隐式推进：迎风对流+中心扩散，三对角求解。
