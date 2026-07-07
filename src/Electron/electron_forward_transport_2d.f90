@@ -627,6 +627,8 @@ subroutine transport_step_fullhide(R_prev, R_curr, Gamma_prev, Gamma_curr, dDR_s
         face_coord = coord_edge_E(I+1)
         face_invjac(I) = 1d0/dxg_dcoord(coord_fourvel,coord_scale,face_coord)
     end do
+    !$OMP PARALLEL DO num_threads(n_threads) if(n_threads > 1 .and. active_chi*ng >= 512) schedule(static) &
+    !$OMP& private(I,ichi,coord_face_step_loc)
     do ichi = 1, active_chi
         do I = 1, ng-1
             coord_face_step_loc(I) = &
@@ -640,6 +642,7 @@ subroutine transport_step_fullhide(R_prev, R_curr, Gamma_prev, Gamma_curr, dDR_s
                                                                   dF1_zero,U_shell(:,ichi),ulog(:,ichi),.true.)
         end if
     end do
+    !$OMP END PARALLEL DO
     if (active_chi < nchi) ulog(:,active_chi+1:nchi) = U_shell(:,active_chi+1:nchi)
 
     U_shell = ulog
