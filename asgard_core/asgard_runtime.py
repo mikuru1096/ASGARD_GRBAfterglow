@@ -65,12 +65,17 @@ ELECTRONTRANSPORT_IDS = {
 }
 
 _ELECTRON1D = {"t2g1_1d", "slc1_1d", "charint_1d", "dg_1d"}
+_ELECTRON2D_CHAR = {"charint_2d": True, "fullhide_2d": False}
 _ELECTRONGRID = {"dg_1d": "log-four-velocity-1d-dg"}
 _ELECTRONENTRY = {
     "charint_1d": "fs_charint_1d",
     "dg_1d": "fs_dg_1d",
     "slc1_1d": "fs_slc1_1d",
     "t2g1_1d": "fs_t2g1_1d",
+}
+_FULLHIDE1D = {
+    "fullhide_1d": ("fs_fullhide_1d", "log-four-velocity-1d"),
+    "fullhide_1d_hz": ("fs_fullhide_hz", "log-gamma-1d"),
 }
 
 
@@ -603,32 +608,22 @@ def solve_electron(
     if solver_name in _ELECTRON1D:
         return _electron1d(boundary, dynamics, v_seed, config, solver_name, return_report)
 
-    if solver_name == "charint_2d":
+    if solver_name in _ELECTRON2D_CHAR:
         return _electron2d(
             boundary,
             dynamics,
             v_seed,
             config,
             solver_name,
-            use_characteristic_integrator=True,
+            use_characteristic_integrator=_ELECTRON2D_CHAR[solver_name],
             return_report=return_report,
         )
 
-    if solver_name == "fullhide_2d":
-        return _electron2d(
-            boundary,
-            dynamics,
-            v_seed,
-            config,
-            solver_name,
-            use_characteristic_integrator=False,
-            return_report=return_report,
-        )
-
-    if solver_name == "fullhide_1d_hz":
-        electron_fullhide_1d_module = _electronmodule("fullhide_1d_hz")
+    if solver_name in _FULLHIDE1D:
+        entry_name, grid_semantics = _FULLHIDE1D[solver_name]
+        electron_module = _electronmodule(solver_name)
         gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = _fullhide1d(
-            electron_fullhide_1d_module.fs_fullhide_hz,
+            getattr(electron_module, entry_name),
             boundary,
             dynamics,
             v_seed,
@@ -637,7 +632,7 @@ def solve_electron(
         return _electronfinish(
             config,
             solver_name,
-            "log-gamma-1d",
+            grid_semantics,
             gam_e,
             d_n_gam_e,
             l_syn_spec,
@@ -646,25 +641,7 @@ def solve_electron(
             return_report=return_report,
         )
 
-    electron_fullhide_1d_module = _electronmodule("fullhide_1d")
-    gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = _fullhide1d(
-        electron_fullhide_1d_module.fs_fullhide_1d,
-        boundary,
-        dynamics,
-        v_seed,
-        config,
-    )
-    return _electronfinish(
-        config,
-        solver_name,
-        "log-four-velocity-1d",
-        gam_e,
-        d_n_gam_e,
-        l_syn_spec,
-        seed_syn,
-        nu=(nu_m, nu_c, nu_a),
-        return_report=return_report,
-    )
+    raise ValueError(f"Unsupported electron solver: {config.electron_solver}")
 
 
 def _electronfinish(
@@ -1316,78 +1293,77 @@ def solve_rsemission(
     if secondary_rs is not None:
         l_syn_spec = l_syn_spec + secondary_rs.luminosity_syn
 
-    rs_hadronic = None
-    if bool(config.hadronic.reverse_enabled) and float(config.hadronic.reverse_epsilon_p) > 0.0:
-        requires_full_chain = any((
-            bool(config.hadronic.include_pg),
-            bool(config.hadronic.include_neutrino),
-            bool(config.hadronic.include_bethe_heitler),
-            bool(config.hadronic.include_hadronic_inverse_compton),
-            bool(config.hadronic.include_pp),
-        ))
-        rs_swept = np.asarray(dynamics.reverse_shock.swept_mass_g, dtype=float)
-        rs_shell_mass = np.empty_like(rs_swept)
-        rs_shell_mass[0] = rs_swept[0]
-        rs_shell_mass[1:] = rs_swept[1:] - rs_swept[:-1]
-        if requires_full_chain:
-            if (bool(config.hadronic.include_pg) or bool(config.hadronic.include_neutrino)) and (
-                _pgammascheme(config) != _PGAMMAHUMMER
-            ):
-                raise ValueError("Reverse-shock p-gamma currently requires pgamma_scheme='hummer_2010_response'.")
-            prev_radius = np.empty_like(dynamics.radius)
-            prev_radius[0] = 0.0
-            prev_radius[1:] = dynamics.radius[:-1]
-            rs_shell_volume = (4.0 / 3.0) * np.pi * (dynamics.radius**3 - prev_radius**3)
-            rs_shell_energy = (
-                float(config.hadronic.reverse_epsilon_p)
-                * rs_shell_mass
-                * (np.asarray(dynamics.r_gamma, dtype=float) - 1.0)
-                * constants.para_c
-                * constants.para_c
-            )
-            rs_hadronic = _hummertransport(
-                dynamics,
-                np.asarray(dynamics.reverse_shock.magnetic_field_g, dtype=float),
-                gam_e,
-                v_seed,
-                seed_syn,
-                rs_shell_energy,
-                config,
-                pp_target_density_cm3=rs_shell_mass / (constants.para_m_p * rs_shell_volume),
-            )
-        else:
-            num_gam_p = int(config.hadronic.num_gam_p)
-            num_nu = int(np.asarray(v_seed, dtype=float).size)
-            num_r = int(np.asarray(dynamics.radius, dtype=float).size)
-            shell_energy = (
-                float(config.hadronic.reverse_epsilon_p)
-                * rs_shell_mass
-                * (np.asarray(dynamics.r_gamma, dtype=float) - 1.0)
-                * constants.para_c
-                * constants.para_c
-            )
-            gam_p, d_n_gam_p, l_had_syn_spec, seed_had_syn = _hadronic_reverse_module.reverse_hadronic_1d(
-                np.asarray(dynamics.r_tobs, dtype=float),
-                np.asarray(dynamics.r_gamma, dtype=float),
-                np.asarray(dynamics.radius, dtype=float),
-                shell_energy,
-                np.asarray(dynamics.reverse_shock.magnetic_field_g, dtype=float),
-                np.asarray(v_seed, dtype=float),
-                1 if bool(config.hadronic.include_proton_synch) else 0,
-                num_gam_p,
-            )
-            rs_hadronic = ReverseShockHadronicSolution(
-                gam_p=np.asarray(gam_p, dtype=float),
-                d_n_gam_p=np.asarray(d_n_gam_p, dtype=float).reshape(num_gam_p, num_r),
-                l_had_syn_spec=np.asarray(l_had_syn_spec, dtype=float).reshape(num_nu, num_r),
-                seed_had_syn=np.asarray(seed_had_syn, dtype=float).reshape(num_nu, num_r),
-            )
+    rs_hadronic = _rshadronic(dynamics, gam_e, v_seed, seed_syn, config)
 
     return ReverseShockEmission(
         l_syn_spec=l_syn_spec,
         seed_syn=seed_syn,
         rs_hadronic=rs_hadronic,
         secondary_rs=secondary_rs,
+    )
+
+
+def _rshadronic(
+    dynamics: DynamicsSolution,
+    gam_e: np.ndarray,
+    v_seed: np.ndarray,
+    seed_syn: np.ndarray,
+    config: RuntimeConfig,
+):
+    if not bool(config.hadronic.reverse_enabled) or float(config.hadronic.reverse_epsilon_p) <= 0.0:
+        return None
+    rs_swept = np.asarray(dynamics.reverse_shock.swept_mass_g, dtype=float)
+    shell_mass = np.empty_like(rs_swept)
+    shell_mass[0] = rs_swept[0]
+    shell_mass[1:] = rs_swept[1:] - rs_swept[:-1]
+    shell_energy = (
+        float(config.hadronic.reverse_epsilon_p)
+        * shell_mass
+        * (np.asarray(dynamics.r_gamma, dtype=float) - 1.0)
+        * constants.para_c
+        * constants.para_c
+    )
+    include_pg = bool(config.hadronic.include_pg)
+    include_neutrino = bool(config.hadronic.include_neutrino)
+    include_bh = bool(config.hadronic.include_bethe_heitler)
+    include_hic = bool(config.hadronic.include_hadronic_inverse_compton)
+    include_pp = bool(config.hadronic.include_pp)
+    full_chain = any((include_pg, include_neutrino, include_bh, include_hic, include_pp))
+    if full_chain:
+        if (include_pg or include_neutrino) and _pgammascheme(config) != _PGAMMAHUMMER:
+            raise ValueError("Reverse-shock p-gamma currently requires pgamma_scheme='hummer_2010_response'.")
+        prev_radius = np.empty_like(dynamics.radius)
+        prev_radius[0] = 0.0
+        prev_radius[1:] = dynamics.radius[:-1]
+        shell_volume = (4.0 / 3.0) * np.pi * (dynamics.radius**3 - prev_radius**3)
+        return _hummertransport(
+            dynamics,
+            np.asarray(dynamics.reverse_shock.magnetic_field_g, dtype=float),
+            gam_e,
+            v_seed,
+            seed_syn,
+            shell_energy,
+            config,
+            pp_target_density_cm3=shell_mass / (constants.para_m_p * shell_volume),
+        )
+    num_gam_p = int(config.hadronic.num_gam_p)
+    num_nu = int(np.asarray(v_seed, dtype=float).size)
+    num_r = int(np.asarray(dynamics.radius, dtype=float).size)
+    gam_p, d_n_gam_p, l_had_syn_spec, seed_had_syn = _hadronic_reverse_module.reverse_hadronic_1d(
+        np.asarray(dynamics.r_tobs, dtype=float),
+        np.asarray(dynamics.r_gamma, dtype=float),
+        np.asarray(dynamics.radius, dtype=float),
+        shell_energy,
+        np.asarray(dynamics.reverse_shock.magnetic_field_g, dtype=float),
+        np.asarray(v_seed, dtype=float),
+        1 if bool(config.hadronic.include_proton_synch) else 0,
+        num_gam_p,
+    )
+    return ReverseShockHadronicSolution(
+        gam_p=np.asarray(gam_p, dtype=float),
+        d_n_gam_p=np.asarray(d_n_gam_p, dtype=float).reshape(num_gam_p, num_r),
+        l_had_syn_spec=np.asarray(l_had_syn_spec, dtype=float).reshape(num_nu, num_r),
+        seed_had_syn=np.asarray(seed_had_syn, dtype=float).reshape(num_nu, num_r),
     )
 
 

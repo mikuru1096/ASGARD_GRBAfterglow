@@ -19,6 +19,7 @@ from asgard_core.asgard_state import project_flux, solve_setup
 from .api_model import (
     Model,
     Scale,
+    _currentconfig,
     make_empty_obs,
     make_flux_density_entry,
     make_spectrum_entry,
@@ -451,7 +452,27 @@ def _compile_obs(data: dict) -> ObsPlan:
                 band_fluxes=(),
             )
         )
-    return ObsPlan(blocks=tuple(blocks))
+    return ObsPlan(blocks=_merge_obsblocks(blocks))
+
+
+def _merge_obsblocks(blocks: list[ObsBlock]) -> tuple[ObsBlock, ...]:
+    merged: dict[tuple[tuple[float, ...], tuple[float, ...]], ObsBlock] = {}
+    order = []
+    for block in blocks:
+        key = (tuple(block.observer_time_s), tuple(block.requested_frequencies_hz))
+        if key not in merged:
+            merged[key] = block
+            order.append(key)
+            continue
+        old = merged[key]
+        merged[key] = ObsBlock(
+            observer_time_s=old.observer_time_s,
+            requested_frequencies_hz=old.requested_frequencies_hz,
+            flux_density=old.flux_density + block.flux_density,
+            spectra=old.spectra + block.spectra,
+            band_fluxes=old.band_fluxes + block.band_fluxes,
+        )
+    return tuple(merged[key] for key in order)
 
 
 def _finite(name: str, values) -> np.ndarray:
@@ -518,12 +539,14 @@ def _eval_model(
             raw_value = binding.fixed_value if binding.fixed_value is not None else float(values[binding.name])
             transformed = 10.0**raw_value if binding.scale in {"log", "log10"} else float(raw_value)
             setattr(binding.target, binding.attr_name, transformed)
+        baseconfig = _currentconfig(problem.model)
         total_matrices = [
             problem.model._total_matrix(
                 block.observer_time_s,
                 block.requested_frequencies_hz,
                 timings=timings,
                 projection_kind="lightcurve",
+                baseconfig=baseconfig,
             )
             for block in problem.observations.blocks
         ]

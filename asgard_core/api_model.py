@@ -1307,10 +1307,12 @@ class Model:
         *,
         timings: dict[str, float] | None = None,
         projection_kind: str = "lightcurve",
+        baseconfig: RuntimeConfig | None = None,
     ) -> np.ndarray:
         times_s = np.asarray(times_s, dtype=float)
         nu_hz = np.asarray(nu_hz, dtype=float)
-        baseconfig = _currentconfig(self)
+        if baseconfig is None:
+            baseconfig = _currentconfig(self)
         if self.jet.kind == "tophat" and self._supports_direct_kernel():
             config = _direct_tophat_patch_config(self, baseconfig=baseconfig)
             state = _solve_patch_state(self, config, times_s, nu_hz, timings=timings)
