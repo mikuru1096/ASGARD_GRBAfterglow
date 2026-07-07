@@ -11,7 +11,7 @@ subroutine fs_fullhide_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
     use electron_coord_common, only: build_fourvel_grid, dxg_dcoord, coord_fourvel, fourvel_scale
     use electron_radiation_kernel, only: syn_state, nua_fromtau
     use electron_cooling_kernel, only: forward_cooling
-    use electron_shell_transport, only: shell_coord_step, coord_to_dgamma
+    use electron_shell_transport, only: shellstep_cached, coord_to_dgamma
     use hybrid_spectrum, only: hybrid_coord
     IMPLICIT REAL(8)(A-H,O-Z)
     integer, intent(in) :: n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads
@@ -25,7 +25,7 @@ subroutine fs_fullhide_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
     real(8), intent(out), dimension(Num_nu,Num_R) :: P_syn,Seed_syn
     real(8), intent(out), dimension(Num_R) :: V_m,V_c,V_a
 
-    real(8),allocatable,dimension (:) :: dEl,dEl_step,x,dN_x,x_edge,coord_edge,dxdy_grid, &
+    real(8),allocatable,dimension (:) :: dEl,dEl_step,x,dN_x,x_edge,coord_edge,dxdy_grid,face_invjac, &
                                          dN_full,dN_half,dN_half2,dF1
     logical :: is_uniform_density
     real(8) :: dDR_xi,coord_scale,dg_gamma_scale
@@ -33,6 +33,7 @@ subroutine fs_fullhide_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
     allocate (dEl(Num_gam_e),dEl_step(Num_gam_e),x(Num_gam_e),dN_x(Num_gam_e), &
               dN_full(Num_gam_e), &
               x_edge(Num_gam_e+1),coord_edge(Num_gam_e+1),dxdy_grid(Num_gam_e), &
+              face_invjac(Num_gam_e-1), &
               dN_half(Num_gam_e),dN_half2(Num_gam_e),dF1(Num_gam_e))
 
     call electron_unpack_boundary(Boundary,n,Eta_0,R_ini,Epsilon_e,Epsilon_b,p,z,dNe_ISM,A_star, &
@@ -127,7 +128,7 @@ subroutine fs_fullhide_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
                         end if
                     end if
                     if (is_uniform_density .and. thermal_electrons == 0) dEl_step=dEl
-                    call shell_coord_step(Num_gam_e,dDR,coord_edge,coord_scale,dEl_step,1d0/R_loc,dF1,dN_x,x)
+                    call shellstep_cached(Num_gam_e,dDR,coord_edge,face_invjac,dEl_step,1d0/R_loc,dF1,dN_x,x)
                     dN_x=x
 
                     if (L1 == L) then
@@ -163,7 +164,7 @@ subroutine fs_fullhide_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
                 else
                     dEl_step=dEl
                 end if
-                call shell_coord_step(Num_gam_e,dR_try,coord_edge,coord_scale,dEl_step,1d0/R_full,dF1,dN_x,dN_full)
+                call shellstep_cached(Num_gam_e,dR_try,coord_edge,face_invjac,dEl_step,1d0/R_full,dF1,dN_x,dN_full)
 
                 dR_half=0.5d0*dR_try
                 R_half=R_loc+dR_half
@@ -185,7 +186,7 @@ subroutine fs_fullhide_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
                 else
                     dEl_step=dEl
                 end if
-                call shell_coord_step(Num_gam_e,dR_half,coord_edge,coord_scale,dEl_step,1d0/R_half,dF1,dN_x,dN_half)
+                call shellstep_cached(Num_gam_e,dR_half,coord_edge,face_invjac,dEl_step,1d0/R_half,dF1,dN_x,dN_half)
 
                 call electron_injection_prefactor(R_full,dR_half,dNe_full,f_e,Gam_e_m_p_full,Q)
                 call build_hybrid_count(Q,Gam_e_m_full,Gam_e_max_full,Gam_e_m_p_full)
@@ -195,7 +196,7 @@ subroutine fs_fullhide_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
                 else
                     dEl_step=dEl
                 end if
-                call shell_coord_step(Num_gam_e,dR_half,coord_edge,coord_scale,dEl_step,1d0/R_full,dF1,dN_half,dN_half2)
+                call shellstep_cached(Num_gam_e,dR_half,coord_edge,face_invjac,dEl_step,1d0/R_full,dF1,dN_half,dN_half2)
 
                 call electron_relerr_max(Num_gam_e,dN_half2,dN_full,step_error)
                 if (step_error <= substep_rtol .or. dR_try <= dR_min) then
@@ -217,7 +218,7 @@ subroutine fs_fullhide_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
     end do
     call write_finaldiag()
 
-    deallocate (dEl,dEl_step,x,dN_x,x_edge,coord_edge,dxdy_grid,dN_full,dN_half,dN_half2,dF1)
+    deallocate (dEl,dEl_step,x,dN_x,x_edge,coord_edge,dxdy_grid,face_invjac,dN_full,dN_half,dN_half2,dF1)
 
     return
 
@@ -225,7 +226,7 @@ contains
 
     subroutine init_fourvel_grid(imodeg_max)
     implicit real(8)(A-H,O-Z)
-    integer :: I_grid
+    integer :: I_grid,I_face
     real(8), intent(in) :: imodeg_max
 
         dg_gamma_scale=fourvel_scale
@@ -234,6 +235,9 @@ contains
         do I_grid=1,Num_gam_e
             dxdy_grid(I_grid)=dxg_dcoord(coord_fourvel,coord_scale, &
                                          0.5d0*(coord_edge(I_grid)+coord_edge(I_grid+1)))
+        end do
+        do I_face=1,Num_gam_e-1
+            face_invjac(I_face)=1d0/dxg_dcoord(coord_fourvel,coord_scale,coord_edge(I_face+1))
         end do
     end subroutine init_fourvel_grid
 

@@ -11,7 +11,7 @@ module electron_shell_transport
     ! Shared 1D shell electron transport entry points: select backend, advance coordinate flux, project to dN/dgamma.
     integer, parameter, public :: solver_fullhide = 1, solver_dg = 2
 
-  public :: resolve_solver, shell_coord_step, coord_to_dgamma
+  public :: resolve_solver, shell_coord_step, shellstep_cached, coord_to_dgamma
 
 contains
 
@@ -48,6 +48,27 @@ subroutine shell_coord_step(Num_gam_e,dDR,coord_edge,coord_scale,dEl,adiabatic_r
     call flux_split_nonuniform(Num_gam_e,dDR,coord_edge,vface,dF1, &
                                                       n_in,n_out,.true.)
 end subroutine shell_coord_step
+
+! 同一 four-velocity 网格上的缓存步进：face_invjac 只含固定坐标 Jacobian。
+! Cached step on the same four-velocity grid: face_invjac stores only fixed coordinate Jacobians.
+subroutine shellstep_cached(Num_gam_e,dDR,coord_edge,face_invjac,dEl,adiabatic_rate, &
+                            dF1,n_in,n_out)
+    integer, intent(in) :: Num_gam_e
+    real(8), intent(in), dimension(Num_gam_e+1) :: coord_edge
+    real(8), intent(in), dimension(Num_gam_e-1) :: face_invjac
+    real(8), intent(in), dimension(Num_gam_e) :: dEl
+    real(8), intent(in) :: dDR,adiabatic_rate
+    real(8), intent(in), dimension(Num_gam_e) :: dF1,n_in
+    real(8), intent(out), dimension(Num_gam_e) :: n_out
+    real(8), dimension(Num_gam_e-1) :: vface
+    integer :: i
+
+    do i = 1, Num_gam_e - 1
+        vface(i) = ((dEl(i) + dEl(i + 1))/2d0 + adiabatic_rate)*face_invjac(i)
+    enddo
+    call flux_split_nonuniform(Num_gam_e,dDR,coord_edge,vface,dF1, &
+                                                      n_in,n_out,.true.)
+end subroutine shellstep_cached
 
 ! 把坐标空间单元含量投影回 gamma 中心的 dN/dgamma 诊断量。
 ! Project coordinate-cell content back to center-sampled dN/dgamma diagnostics.
