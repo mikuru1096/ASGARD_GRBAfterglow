@@ -434,16 +434,7 @@ subroutine store_shell(I_tobs)
     end do
     !$OMP END PARALLEL DO
     if (.not. emit_full_spectrum) then
-        if (magnetic_decay_active) then
-            !$OMP PARALLEL DO num_threads(n_threads) if(n_threads > 1 .and. nchi*Num_nu_cool >= 128) schedule(static) &
-            !$OMP& private(ichi)
-            do ichi = 1, nchi
-                call coolscalar(R(I_tobs),I_tobs,ichi)
-            end do
-            !$OMP END PARALLEL DO
-        else
-            call coolbatch(R(I_tobs),I_tobs)
-        end if
+        call coolbatch(R(I_tobs),I_tobs)
     end if
     if (emit_full_spectrum) then
         call syn_seed_chi(R(I_tobs),ng,Num_nu,nchi,gam_e,dN_gam_e(:,:,I_tobs),V_seed, &
