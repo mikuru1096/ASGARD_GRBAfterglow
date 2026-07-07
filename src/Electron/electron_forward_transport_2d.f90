@@ -294,26 +294,13 @@ subroutine init_front()
             Tau_prop_hist_cool(:,ichi,1) = Tau_hist_cool(:,ichi,1) + Tau_pair_hist_cool(:,ichi,1)
         end do
     else
-        do ichi = 1, nchi
-            block
-                real(8), dimension(1) :: DBcell, Wcell
-                real(8), dimension(ng,1) :: DNcell
-                real(8), dimension(Num_nu_cool,1) :: Pemcell,Psyncell,Seedcell,Taucell
-                DBcell(1) = DB_chi(ichi)
-                Wcell(1) = q_weight(ichi)
-                DNcell(:,1) = dN_gam_e(:,ichi,1)
-                call syn_seed_chi(R(1),ng,Num_nu_cool,1,gam_e,DNcell,V_cool,DBcell, &
-                                                       Wcell,1.046d4, &
-                                                       Pemcell,Psyncell,Seedcell,Taucell)
-                pemit_cool(:,ichi,1) = Psyncell(:,1)
-                seed_cool(:,ichi,1) = Seedcell(:,1)
-                Tau_hist_cool(:,ichi,1) = Taucell(:,1)
-            end block
-            Tau_pair_hist_cool(:,ichi,1) = 0d0
-            call pair_tau(V_cool,Num_nu_cool,seed_cool(:,ichi,1),dx_comov_hist(ichi,1), &
-                                                   Tau_pair_hist_cool(:,ichi,1))
-            Tau_prop_hist_cool(:,ichi,1) = Tau_hist_cool(:,ichi,1) + Tau_pair_hist_cool(:,ichi,1)
-        end do
+        if (magnetic_decay_active) then
+            do ichi = 1, nchi
+                call coolscalar(R(1),1,ichi)
+            end do
+        else
+            call coolbatch(R(1),1)
+        end if
     end if
 end subroutine init_front
 
@@ -444,28 +431,20 @@ subroutine store_shell(I_tobs)
             call dnx_dgamma(ng,x_edge_E,gam_e,ulog(:,ichi),dN_gam_e(:,ichi,I_tobs))
         end if
         B_chi_out(ichi,I_tobs) = DB_chi(ichi)
-        if (.not. emit_full_spectrum) then
-            block
-                real(8), dimension(1) :: DBcell, Wcell
-                real(8), dimension(ng,1) :: DNcell
-                real(8), dimension(Num_nu_cool,1) :: Pemcell,Psyncell,Seedcell,Taucell
-                DBcell(1) = DB_chi(ichi)
-                Wcell(1) = q_weight(ichi)
-                DNcell(:,1) = dN_gam_e(:,ichi,I_tobs)
-                call syn_seed_chi(R(I_tobs),ng,Num_nu_cool,1,gam_e,DNcell,V_cool,DBcell, &
-                                                       Wcell,1.046d4, &
-                                                       Pemcell,Psyncell,Seedcell,Taucell)
-                pemit_cool(:,ichi,I_tobs) = Psyncell(:,1)
-                seed_cool(:,ichi,I_tobs) = Seedcell(:,1)
-                Tau_hist_cool(:,ichi,I_tobs) = Taucell(:,1)
-            end block
-            Tau_pair_hist_cool(:,ichi,I_tobs) = 0d0
-            call pair_tau(V_cool,Num_nu_cool,seed_cool(:,ichi,I_tobs), &
-                                                   dx_comov_hist(ichi,I_tobs),Tau_pair_hist_cool(:,ichi,I_tobs))
-            Tau_prop_hist_cool(:,ichi,I_tobs) = Tau_hist_cool(:,ichi,I_tobs) + Tau_pair_hist_cool(:,ichi,I_tobs)
-        end if
     end do
     !$OMP END PARALLEL DO
+    if (.not. emit_full_spectrum) then
+        if (magnetic_decay_active) then
+            !$OMP PARALLEL DO num_threads(n_threads) if(n_threads > 1 .and. nchi*Num_nu_cool >= 128) schedule(static) &
+            !$OMP& private(ichi)
+            do ichi = 1, nchi
+                call coolscalar(R(I_tobs),I_tobs,ichi)
+            end do
+            !$OMP END PARALLEL DO
+        else
+            call coolbatch(R(I_tobs),I_tobs)
+        end if
+    end if
     if (emit_full_spectrum) then
         call syn_seed_chi(R(I_tobs),ng,Num_nu,nchi,gam_e,dN_gam_e(:,:,I_tobs),V_seed, &
                                                DB_chi,q_weight,1.046d4, &
@@ -476,13 +455,61 @@ subroutine store_shell(I_tobs)
                                             seed(:,ichi,I_tobs),Tau_hist(:,ichi,I_tobs), &
                                             Num_nu_cool,V_cool,pemit_cool(:,ichi,I_tobs), &
                                             seed_cool(:,ichi,I_tobs),Tau_hist_cool(:,ichi,I_tobs))
-            Tau_pair_hist_cool(:,ichi,I_tobs) = 0d0
-            call pair_tau(V_cool,Num_nu_cool,seed_cool(:,ichi,I_tobs), &
-                                                   dx_comov_hist(ichi,I_tobs),Tau_pair_hist_cool(:,ichi,I_tobs))
-            Tau_prop_hist_cool(:,ichi,I_tobs) = Tau_hist_cool(:,ichi,I_tobs) + Tau_pair_hist_cool(:,ichi,I_tobs)
         end do
+        call pairall(I_tobs)
     end if
 end subroutine store_shell
+
+subroutine coolscalar(Rad,Iout,Ichi)
+    real(8), intent(in) :: Rad
+    integer, intent(in) :: Iout,Ichi
+    real(8), dimension(1) :: DBcell, Wcell
+    real(8), dimension(ng,1) :: DNcell
+    real(8), dimension(Num_nu_cool,1) :: Pemcell,Psyncell,Seedcell,Taucell
+
+    DBcell(1) = DB_chi(Ichi)
+    Wcell(1) = q_weight(Ichi)
+    DNcell(:,1) = dN_gam_e(:,Ichi,Iout)
+    call syn_seed_chi(Rad,ng,Num_nu_cool,1,gam_e,DNcell,V_cool,DBcell, &
+                                           Wcell,1.046d4, &
+                                           Pemcell,Psyncell,Seedcell,Taucell)
+    pemit_cool(:,Ichi,Iout) = Psyncell(:,1)
+    seed_cool(:,Ichi,Iout) = Seedcell(:,1)
+    Tau_hist_cool(:,Ichi,Iout) = Taucell(:,1)
+    call pairone(Iout,Ichi)
+end subroutine coolscalar
+
+subroutine coolbatch(Rad,Iout)
+    real(8), intent(in) :: Rad
+    integer, intent(in) :: Iout
+
+    call syn_seed_chi(Rad,ng,Num_nu_cool,nchi,gam_e,dN_gam_e(:,:,Iout),V_cool, &
+                                           DB_chi,q_weight,1.046d4, &
+                                           peff_cool_chi,pemit_cool(:,:,Iout), &
+                                           seed_cool(:,:,Iout),Tau_hist_cool(:,:,Iout))
+    call pairall(Iout)
+end subroutine coolbatch
+
+subroutine pairone(Iout,Ichi)
+    integer, intent(in) :: Iout,Ichi
+
+    Tau_pair_hist_cool(:,Ichi,Iout) = 0d0
+    call pair_tau(V_cool,Num_nu_cool,seed_cool(:,Ichi,Iout), &
+                                           dx_comov_hist(Ichi,Iout),Tau_pair_hist_cool(:,Ichi,Iout))
+    Tau_prop_hist_cool(:,Ichi,Iout) = Tau_hist_cool(:,Ichi,Iout) + Tau_pair_hist_cool(:,Ichi,Iout)
+end subroutine pairone
+
+subroutine pairall(Iout)
+    integer, intent(in) :: Iout
+    integer :: J
+
+    !$OMP PARALLEL DO num_threads(n_threads) if(n_threads > 1 .and. nchi*Num_nu_cool >= 128) schedule(static) &
+    !$OMP& private(J)
+    do J = 1, nchi
+        call pairone(Iout,J)
+    end do
+    !$OMP END PARALLEL DO
+end subroutine pairall
 
 subroutine finish_output()
     integer :: I_proj, I_proj_chi, I_nu
