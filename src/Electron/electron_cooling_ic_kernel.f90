@@ -5,7 +5,7 @@ module electron_ic_kernel
   use electron_radiation_kernel, only: pl_interp
   private
 
-  public :: electron_ic_loss, electron_ic_budget
+  public :: electron_ic_loss, electron_ic_loss_batch, electron_ic_budget
 
   integer, save :: ng_cache=0,nnu_cache=0
   logical, save :: grid_ready=.false.
@@ -96,16 +96,56 @@ real(8), dimension(nnu-1) :: photons
     end do
 
     do ig=1,ng
-       call accumulate_ic_loss(ig,loss(ig))
+       call accumulate_ic_loss(nnu,ig,photons,loss(ig))
     end do
 
     loss=loss/gam**3*0.75d0*Para_c*Para_h*Para_SigmaT/para_m_energy
+end subroutine electron_ic_loss
 
-contains
-
-subroutine accumulate_ic_loss(ig,rate)
+! 批量 IC 冷却率：多个 chi 列共享同一电子/频率积分网格。
+! Batched IC cooling rate: chi columns share the same electron/frequency quadrature grid.
+subroutine electron_ic_loss_batch(ng,nnu,nchi,nthr,gam,vseed,seed,loss)
+!$ use omp_lib
 implicit REAL(8)(A-H,O-Z)
-integer, intent(in) :: ig
+integer, intent(in) :: ng,nnu,nchi,nthr
+real(8), intent(in), dimension(ng) :: gam
+real(8), intent(in), dimension(nnu) :: vseed
+real(8), intent(in), dimension(nnu,nchi) :: seed
+real(8), intent(out), dimension(ng,nchi) :: loss
+real(8), dimension(nnu-1,nchi) :: photons
+integer :: ic,ig,inu,work,nt
+logical :: doomp
+
+    call ensure_ic_grid(ng,nnu,gam,vseed)
+    loss=0d0
+    do ic=1,nchi
+        do inu=1,nnu-1
+            photons(inu,ic)=pl_interp(vseed(inu),vseed(inu+1),seed(inu,ic),seed(inu+1,ic), &
+                                      vmid_cache(inu))
+        end do
+    end do
+
+    work=ng*nnu*nnu*nchi
+    nt=max(1,nthr)
+    doomp=(nthr > 1 .and. work >= 8192)
+    !$OMP PARALLEL DO collapse(2) if(doomp) num_threads(nt) schedule(static) &
+    !$OMP& private(ic,ig)
+    do ic=1,nchi
+        do ig=1,ng
+            call accumulate_ic_loss(nnu,ig,photons(:,ic),loss(ig,ic))
+        end do
+    end do
+    !$OMP END PARALLEL DO
+
+    do ic=1,nchi
+        loss(:,ic)=loss(:,ic)/gam**3*0.75d0*Para_c*Para_h*Para_SigmaT/para_m_energy
+    end do
+end subroutine electron_ic_loss_batch
+
+subroutine accumulate_ic_loss(nnu,ig,photons,rate)
+implicit REAL(8)(A-H,O-Z)
+integer, intent(in) :: nnu,ig
+real(8), intent(in), dimension(nnu-1) :: photons
 real(8), intent(out) :: rate
 integer :: inu,is
 real(8) :: gmid,g2,var,integ,vt,et,vloc,ev,uplim,temp,q,fssc,kn
@@ -141,7 +181,6 @@ real(8) :: gmid,g2,var,integ,vt,et,vloc,ev,uplim,temp,q,fssc,kn
        rate=rate+photons(inu)/vt*dnu_cache(inu)*integ
     end do
 end subroutine accumulate_ic_loss
-end subroutine electron_ic_loss
 
 ! 用 SSC 辐射同源的 Jones/KN 发射率核计算 IC 能量预算。
 ! Compute the IC energy budget with the same Jones/KN emissivity kernel used by SSC radiation.

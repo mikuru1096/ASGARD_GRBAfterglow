@@ -2,7 +2,7 @@
 module electron_cooling_kernel
   use constants
   use electron_ssa_kernel, only: electron_ssa_loss
-  use electron_ic_kernel, only: electron_ic_loss
+  use electron_ic_kernel, only: electron_ic_loss, electron_ic_loss_batch
   use electron_y_kernel, only: electron_y_nakar, electron_y_fan
   private
 
@@ -38,11 +38,11 @@ real(8) :: cscale,ssascale,fr,qvol
         end if
     case(1)
         if (mode /= 2) then
-            do ic=1,nchi
-                nu0=(ic-1)*nnu
-                g0=(ic-1)*ng
-                call electron_ic_loss(ng,nnu,nthr,gam,vseed,seed(nu0+1),aux(g0+1))
-            end do
+            if (nchi == 1) then
+                call electron_ic_loss(ng,nnu,nthr,gam,vseed,seed,aux)
+            else
+                call electron_ic_loss_batch(ng,nnu,nchi,nthr,gam,vseed,seed,aux)
+            end if
         end if
     case(2)
         if (mode /= 2) then
