@@ -553,11 +553,11 @@ subroutine transport_step_fullhide(R_prev, R_curr, Gamma_prev, Gamma_curr, dDR_s
                                     active_hi, active_chi)
     real(8), intent(in) :: R_prev, R_curr, Gamma_prev, Gamma_curr, dDR_step
     integer, intent(in) :: active_hi, active_chi
-    real(8) :: R_sub, R_eff, half_dR, gsh_sub, Gam_e_m_p, adiabatic_integral, face_coord, face_jac
+    real(8) :: R_sub, R_eff, half_dR, gsh_sub, Gam_e_m_p, adiabatic_integral, face_coord
     real(8) :: DB_loc, Gam_e_max_loc, Gam_e_m_loc, temp_gam_loc
     real(8), dimension(ng) :: source_q1_loc,dF1_zero
     real(8) :: Q_rate_loc
-    real(8), dimension(ng-1) :: coord_face_step_loc
+    real(8), dimension(ng-1) :: coord_face_step_loc, face_invjac
     integer :: I
 
     R_sub = 0.5d0*(R_prev+R_curr)
@@ -596,12 +596,14 @@ subroutine transport_step_fullhide(R_prev, R_curr, Gamma_prev, Gamma_curr, dDR_s
                                       kappa2_chi, half_dR, n_threads)
 
     adiabatic_integral = dlog(R_curr/R_prev)
+    do I = 1, ng-1
+        face_coord = coord_edge_E(I+1)
+        face_invjac(I) = 1d0/dxg_dcoord(coord_fourvel,coord_scale,face_coord)
+    end do
     do ichi = 1, active_chi
         do I = 1, ng-1
-            face_coord = coord_edge_E(I+1)
-            face_jac = dxg_dcoord(coord_fourvel,coord_scale,face_coord)
             coord_face_step_loc(I) = &
-                (dDR_step*(dEl_chi(I,ichi)+dEl_chi(I+1,ichi))/2d0+adiabatic_integral)/face_jac
+                (dDR_step*(dEl_chi(I,ichi)+dEl_chi(I+1,ichi))/2d0+adiabatic_integral)*face_invjac(I)
         end do
         if (ichi == 1) then
             call flux_seq_nonuniform(ng,coord_edge_E,coord_face_step_loc, &
