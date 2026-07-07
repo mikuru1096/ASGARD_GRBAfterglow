@@ -408,8 +408,7 @@ subroutine dg_transport_matrix(mesh, speed, kmat)
             row = offset + i
             do j = 1, mesh%nnode
                 col = offset + j
-                kmat(row,col) = kmat(row,col) + &
-                    (2d0/dx)*(mesh%w(j)/mesh%w(i))*mesh%dmat(j,i)*speed(offset + j)
+                kmat(row,col) = kmat(row,col) + (2d0/dx)*reference_transport(i,j)*speed(offset + j)
             enddo
         enddo
 
