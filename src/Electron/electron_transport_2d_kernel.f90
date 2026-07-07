@@ -445,8 +445,8 @@ end subroutine solve_tridiagonal
 ! q方向纯对流推进（特征线积分）：PPM重构+特征线回溯。
 ! Pure q-advection step by characteristic integration: PPM reconstruction plus face traceback.
 subroutine advance_q_charint(ulog, ng, nchi, active_hi, dq, q_face, &
-                                       kmed, rloc, srcq, dR_step)
-    integer, intent(in) :: ng, nchi, active_hi, kmed
+                                       kmed, rloc, srcq, dR_step, n_threads)
+    integer, intent(in) :: ng, nchi, active_hi, kmed, n_threads
     real(8), intent(inout), dimension(ng,nchi) :: ulog
     real(8), intent(in), dimension(0:nchi) :: q_face
     real(8), intent(in), dimension(ng) :: srcq
@@ -465,6 +465,8 @@ subroutine advance_q_charint(ulog, ng, nchi, active_hi, dq, q_face, &
     aqface(0) = dble(3-kmed)*(qactive-q_face(0))/rloc
     call trace_faces(nchi, dR_step, q_face, aqface, q_back)
 
+    !$OMP PARALLEL DO num_threads(n_threads) if(n_threads > 1 .and. active_hi*nchi >= 512) schedule(static) &
+    !$OMP& private(ig,iface,qin,qout,ppm_left,ppm_right,prefix)
     do ig = 1, active_hi
         qin = ulog(ig, :)
         qin(1) = qin(1) + dR_step*srcq(ig)
@@ -478,6 +480,7 @@ subroutine advance_q_charint(ulog, ng, nchi, active_hi, dq, q_face, &
         end do
         ulog(ig, :) = qout
     end do
+    !$OMP END PARALLEL DO
 end subroutine advance_q_charint
 
 ! q方向纯扩散推进（隐式）：三对角求解扩散项 ∂_q(κ∂_q U)。

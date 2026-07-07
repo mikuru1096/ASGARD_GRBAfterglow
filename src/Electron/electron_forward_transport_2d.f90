@@ -383,7 +383,7 @@ subroutine advance_shell(I_tobs)
 
                 if (use_charint_transport) then
                     call advance_q_charint(ulog, ng, nchi, active_hi, dq, q_face, &
-                                                     k_medium, R_sub, 0d0*source_q1, dDR)
+                                                     k_medium, R_sub, 0d0*source_q1, dDR, n_threads)
                     call advance_q_diffusion(ulog, ng, nchi, active_hi, dq, q_face, &
                                                       k_medium, R_sub, gsh_sub, bsh, &
                                                       kappa2_chi, dDR, n_threads)
@@ -590,7 +590,7 @@ subroutine transport_step_fullhide(R_prev, R_curr, Gamma_prev, Gamma_curr, dDR_s
     U_shell = ulog
     dF1_zero = 0d0
     call advance_q_charint(U_shell, ng, nchi, active_hi, dq, q_face, &
-                                     k_medium, R_eff, dF1_zero, half_dR)
+                                     k_medium, R_eff, dF1_zero, half_dR, n_threads)
     call advance_q_diffusion(U_shell, ng, nchi, active_hi, dq, q_face, &
                                       k_medium, R_eff, gsh_sub, bsh, &
                                       kappa2_chi, half_dR, n_threads)
@@ -617,7 +617,7 @@ subroutine transport_step_fullhide(R_prev, R_curr, Gamma_prev, Gamma_curr, dDR_s
 
     U_shell = ulog
     call advance_q_charint(U_shell, ng, nchi, active_hi, dq, q_face, &
-                                     k_medium, R_eff, dF1_zero, half_dR)
+                                     k_medium, R_eff, dF1_zero, half_dR, n_threads)
     call advance_q_diffusion(U_shell, ng, nchi, active_hi, dq, q_face, &
                                       k_medium, R_eff, gsh_sub, bsh, &
                                       kappa2_chi, half_dR, n_threads)
