@@ -690,6 +690,9 @@ subroutine assemble_cooling_chi(Rad, gf, bsh, seeff_chi, R_Tobs_val)
     real(8), dimension(Num_nu_cool,1) :: seeff_column
     real(8), dimension(ng,1) :: cooling_aux_column,dEl_column
     if (magnetic_decay_active) then
+        !$OMP PARALLEL DO num_threads(n_threads) if(n_threads > 1 .and. nchi*ng >= 512) schedule(static) &
+        !$OMP& private(ichi,Gam_e_max_cell,temp_gam,Gam_e_m_cell,Gam_e_c_cell, &
+        !$OMP&         seeff_column,cooling_aux_column,dEl_column)
         do ichi = 1, nchi
             Gam_e_max_cell = 3d0*Para_m_energy/dsqrt(8d0*DB_chi(ichi)*Para_e**3)
             temp_gam = Epsilon_e/f_e*para_m_p/para_m_e*(gf-1d0)
@@ -699,13 +702,14 @@ subroutine assemble_cooling_chi(Rad, gf, bsh, seeff_chi, R_Tobs_val)
             cooling_aux_column(:,1)=cooling_aux_chi(:,ichi)
             call forward_cooling(2,index_Y, Epsilon_e, Epsilon_b_chi(ichi), p, DB_chi(ichi), &
                                  Gam_e_m_cell, Gam_e_c_cell, Gam_e_max_cell, Rad, gf, &
-                                 bsh, dNe, ng, Num_nu_cool, 1, n_threads, gam_e, &
+                                 bsh, dNe, ng, Num_nu_cool, 1, 1, gam_e, &
                                  V_cool, seeff_column, seeff_column, seeff_column, &
                                  cooling_aux_column, dEl_column)
             dEl_chi(:,ichi)=dEl_column(:,1)
             dEL_mean_chi(:,ichi)=(dEl_chi(2:ng,ichi)+dEl_chi(1:ng-1,ichi))/2d0
             kappa2_chi(:,ichi) = gam_e*Para_m_energy*para_c/(3d0*Para_e*DB_chi(ichi))
         end do
+        !$OMP END PARALLEL DO
     else
         call forward_cooling(2,index_Y, Epsilon_e, Epsilon_b, p, DB, Gam_e_m, Gam_e_c, &
                              Gam_e_max, Rad, gf, &
