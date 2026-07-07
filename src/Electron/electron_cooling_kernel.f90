@@ -3,7 +3,7 @@ module electron_cooling_kernel
   use constants
   use electron_ssa_kernel, only: electron_ssa_loss
   use electron_ic_kernel, only: electron_ic_loss, electron_ic_loss_batch
-  use electron_y_kernel, only: electron_y_nakar, electron_y_fan
+  use electron_y_kernel, only: electron_y_nakar, electron_y_nakar_batch, electron_y_fan
   private
 
   public :: forward_cooling
@@ -25,7 +25,7 @@ real(8), intent(in), dimension(*) :: psyn,seed,seedssa
 real(8), intent(inout), dimension(*) :: aux
 real(8), intent(out), dimension(*) :: del
 real(8), dimension(ng) :: comp
-integer :: ic,nu0,g0
+integer :: ic,g0
 real(8) :: cscale,ssascale,fr,qvol
 
     select case(iy)
@@ -46,11 +46,11 @@ real(8) :: cscale,ssascale,fr,qvol
         end if
     case(2)
         if (mode /= 2) then
-            do ic=1,nchi
-                nu0=(ic-1)*nnu
-                g0=(ic-1)*ng
-                call electron_y_nakar(ng,nnu,nthr,gam,vseed,psyn(nu0+1),aux(g0+1))
-            end do
+            if (nchi == 1) then
+                call electron_y_nakar(ng,nnu,nthr,gam,vseed,psyn,aux)
+            else
+                call electron_y_nakar_batch(ng,nnu,nchi,nthr,gam,vseed,psyn,aux)
+            end if
         end if
     case(3)
         if (mode /= 2) then

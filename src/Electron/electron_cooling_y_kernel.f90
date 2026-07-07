@@ -5,7 +5,7 @@ module electron_y_kernel
                                        pl_integral, log_gauss2
   private
 
-  public :: electron_y_nakar, electron_y_fan
+  public :: electron_y_nakar, electron_y_nakar_batch, electron_y_fan
 
   integer, save :: nakar_ng=0,nakar_nnu=0
   integer, allocatable, save, dimension(:) :: idx_cache
@@ -86,6 +86,54 @@ integer :: icomp,inu
        end if
     end do
 end subroutine electron_y_nakar
+
+! 批量 Nakar-Y 冷却辅助量：多个 chi 列共享同一 hat_nu/频率窗口缓存。
+! Batched Nakar-Y auxiliary: chi columns share the same hat_nu/frequency-window cache.
+subroutine electron_y_nakar_batch(ng,nnu,nchi,nthr,gam,vseed,psyn,comp)
+!$ use omp_lib
+implicit REAL(8)(A-H,O-Z)
+integer, intent(in) :: ng,nnu,nchi,nthr
+real(8), intent(in), dimension(ng) :: gam
+real(8), intent(in), dimension(nnu) :: vseed
+real(8), intent(in), dimension(nnu,nchi) :: psyn
+real(8), intent(out), dimension(ng,nchi) :: comp
+real(8), dimension(nnu,nchi) :: prefix
+integer :: ic,icomp,inu,work,nt
+logical :: doomp
+
+    call ensure_y_nakar(ng,nnu,gam,vseed)
+    comp=0d0
+    do ic=1,nchi
+        prefix(1,ic)=0d0
+        do inu=2,nnu
+           prefix(inu,ic)=prefix(inu-1,ic)+ &
+                wg1_cache(inu-1)*pl_interp(vseed(inu-1),vseed(inu),psyn(inu-1,ic),psyn(inu,ic), &
+                                            vg1_cache(inu-1))+ &
+                wg2_cache(inu-1)*pl_interp(vseed(inu-1),vseed(inu),psyn(inu-1,ic),psyn(inu,ic), &
+                                            vg2_cache(inu-1))
+        end do
+    end do
+
+    work=ng*nnu*nchi
+    nt=max(1,nthr)
+    doomp=(nthr > 1 .and. work >= 8192)
+    !$OMP PARALLEL DO collapse(2) if(doomp) num_threads(nt) schedule(static) &
+    !$OMP& private(ic,icomp,inu)
+    do ic=1,nchi
+        do icomp=1,ng
+           inu=idx_cache(icomp)
+           if (inu == 0) cycle
+           if (inu <= nnu) then
+              comp(icomp,ic)=prefix(inu-1,ic)+pl_integral(vseed(inu-1),vloc_cache(icomp), &
+                          psyn(inu-1,ic),pl_interp(vseed(inu-1),vseed(inu),psyn(inu-1,ic), &
+                          psyn(inu,ic),vloc_cache(icomp)))
+           else
+              comp(icomp,ic)=prefix(nnu,ic)
+           end if
+        end do
+    end do
+    !$OMP END PARALLEL DO
+end subroutine electron_y_nakar_batch
 
 ! Fan+2008 Y 参数：解析分段 eta_KN(gamma) x eta_rad，区分快/慢冷却。
 ! Fan+2008 Y parameter: analytic eta_KN(gamma) x eta_rad branches for fast/slow cooling.
