@@ -715,6 +715,8 @@ subroutine advance_energy_charint(ulog, ng, nchi, gam_e, DB_chi, dEl_chi, rloc, 
 
     chi_hi = nchi
     if (present(chihi)) chi_hi = max(1, min(nchi, chihi))
+    !$OMP PARALLEL DO num_threads(n_threads) if(n_threads > 1 .and. chi_hi*ng >= 512) schedule(static) &
+    !$OMP& private(ichi,uin,uout,srccol,coolmode,arad,adcoef,ushock)
     do ichi = 1, chi_hi
         uin = ulog(:, ichi)
         srccol = present(srcq) .and. ichi == 1
@@ -739,6 +741,7 @@ subroutine advance_energy_charint(ulog, ng, nchi, gam_e, DB_chi, dEl_chi, rloc, 
         end if
         ulog(:, ichi) = uout
     end do
+    !$OMP END PARALLEL DO
 end subroutine advance_energy_charint
 
 end module electron_transport_2d
