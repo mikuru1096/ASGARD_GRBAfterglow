@@ -81,12 +81,9 @@ subroutine fs_transport_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,ng, &
     real(8) :: temp, dq, d_x_E, coord_scale, rloc, R_Gamma_loc, dNe, Para_N_e_ini, DB, DB_min
     real(8) :: Epsilon_b_floor, magnetic_decay_alpha_t, magnetic_decay_t0_s, stochastic_accel_norm
     real(8) :: Gam_e_max, Gam_e_max_max, Gam_e_m, Gam_e_c, Gam_e_c_diag, temp_gam, Gam_e_max_cell
-    real(8) :: Gam_e_m_cell, Gam_e_c_cell, bsh, b2, b2sh, Q, Q_rate, t_start, t_stop, t_hist_accum
-    real(8) :: t_syn_state, t_prepare_aux, t_cooling, t_eta, t_xi
+    real(8) :: Gam_e_m_cell, Gam_e_c_cell, bsh, b2, b2sh, Q, Q_rate
     integer :: I_tobs, ichi, Num_nu_cool, k_medium, substep_limit
-    integer :: total_substeps, max_shell_substeps, shell_cooling_calls, substep_cooling_calls
-    integer :: prepare_aux_calls, history_calls, syn_state_calls, eta_calls, xi_calls
-    logical :: profile_enabled, magnetic_decay_active, pwn_cr_transport, free_outer_escape, emit_full_spectrum
+    logical :: magnetic_decay_active, pwn_cr_transport, free_outer_escape, emit_full_spectrum
     logical :: four_velocity_coord
 
     allocate(dEl(ng), dEL_mean(ng-1), dEL_mean_shell(ng-1), &
@@ -138,33 +135,7 @@ subroutine fs_transport_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,ng, &
     four_velocity_coord = .not. use_charint_transport .and. .not. pwn_cr_transport
 
     coord_scale = fourvel_scale*fourvel_scale-1d0
-    profile_enabled = .false.
     emit_full_spectrum = emit_full_chi_spectrum /= 0
-    block
-        integer :: env_len, env_status
-        character(len=32) :: profile_env
-
-        profile_env = ''
-        call get_environment_variable('ASGARD_PROFILE_2D', profile_env, length=env_len, status=env_status)
-        if (env_status == 0 .and. env_len > 0) then
-            if (profile_env(1:1) /= '0') profile_enabled = .true.
-        end if
-    end block
-    t_hist_accum = 0d0
-    t_syn_state = 0d0
-    t_prepare_aux = 0d0
-    t_cooling = 0d0
-    t_eta = 0d0
-    t_xi = 0d0
-    total_substeps = 0
-    max_shell_substeps = 0
-    shell_cooling_calls = 0
-    substep_cooling_calls = 0
-    prepare_aux_calls = 0
-    history_calls = 0
-    syn_state_calls = 0
-    eta_calls = 0
-    xi_calls = 0
     Num_nu_cool = min(6, Num_nu)
     substep_limit = max(1, substep_max)
     allocate(V_cool(Num_nu_cool), P_emit_shell(Num_nu), Taushell(Num_nu), &
@@ -219,47 +190,24 @@ subroutine fs_transport_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,ng, &
             shell_tau(:,I_tobs) = Taushell
         end if
 
-        if (profile_enabled) call cpu_time(t_start)
         peff_cool_chi = pemit_cool(:,:,I_tobs-1) + pstream_cool
         seeff_cool_chi = seed_cool(:,:,I_tobs-1) + sstream_cool
-        history_calls = history_calls + 1
-        if (profile_enabled) then
-            call cpu_time(t_stop)
-            t_hist_accum = t_hist_accum + (t_stop-t_start)
-        end if
         call q_cell_geometry(nchi,k_medium,rloc,R_Gamma_loc,q_grid, &
                                      rcell_chi,gcell_chi,bcell_chi,brel_sh_chi)
         call update_bchi(x_comov_hist(:,I_tobs-1), R_Gamma_loc, dNe, brel_sh_chi)
 
-        if (profile_enabled) call cpu_time(t_start)
         call forward_cooling(0,index_Y,0d0,0d0,0d0,0d0,0d0,0d0,0d0,0d0,0d0,0d0,0d0, &
                              ng,Num_nu_cool,nchi,n_threads,gam_e,V_cool, &
                              peff_cool_chi,seeff_cool_chi,seeff_cool_chi,cooling_aux_chi,dEl_chi)
-        if (profile_enabled) then
-            call cpu_time(t_stop)
-            t_prepare_aux = t_prepare_aux + (t_stop-t_start)
-        end if
-        prepare_aux_calls = prepare_aux_calls + 1
-        if (profile_enabled) call cpu_time(t_start)
         call assemble_cooling_chi(rloc, R_Gamma_loc, bsh, seeff_cool_chi, R_Tobs(I_tobs))
-        if (profile_enabled) then
-            call cpu_time(t_stop)
-            t_cooling = t_cooling + (t_stop-t_start)
-        end if
-        shell_cooling_calls = shell_cooling_calls + 1
         call break_freqs(R_Gamma_loc, bsh, I_tobs-1, rloc)
         call advance_shell(I_tobs)
 
         call store_shell(I_tobs)
 
-        if (profile_enabled) call cpu_time(t_start)
         call advance_history_stream(I_tobs-1,I_tobs,Num_R,nchi,Num_nu_cool,tprop,V_cool, &
                                              x_comov_face_hist,x_comov_hist,dx_comov_hist,beta, &
                                              Tau_prop_hist_cool,pemit_cool,seed_cool,pstream_cool,sstream_cool)
-        if (profile_enabled) then
-            call cpu_time(t_stop)
-            t_hist_accum = t_hist_accum + (t_stop-t_start)
-        end if
 
         dN_gam_e_total(:, I_tobs) = 0d0
         do ichi = 1, nchi
@@ -268,23 +216,6 @@ subroutine fs_transport_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,ng, &
     end do
 
     call finish_output()
-    if (profile_enabled) then
-        print '(A,1X,F10.4)', 'PROFILE '//trim(profile_tag)//' history_s', t_hist_accum
-        print '(A,1X,F10.4)', 'PROFILE '//trim(profile_tag)//' syn_state_s', t_syn_state
-        print '(A,1X,F10.4)', 'PROFILE '//trim(profile_tag)//' prepare_aux_s', t_prepare_aux
-        print '(A,1X,F10.4)', 'PROFILE '//trim(profile_tag)//' cooling_s', t_cooling
-        print '(A,1X,F10.4)', 'PROFILE '//trim(profile_tag)//' eta_s', t_eta
-        print '(A,1X,F10.4)', 'PROFILE '//trim(profile_tag)//' xi_s', t_xi
-        print '(A,1X,I12)', 'PROFILE '//trim(profile_tag)//' total_substeps', total_substeps
-        print '(A,1X,I12)', 'PROFILE '//trim(profile_tag)//' max_shell_substeps', max_shell_substeps
-        print '(A,1X,I12)', 'PROFILE '//trim(profile_tag)//' shell_cooling_calls', shell_cooling_calls
-        print '(A,1X,I12)', 'PROFILE '//trim(profile_tag)//' substep_cooling_calls', substep_cooling_calls
-        print '(A,1X,I12)', 'PROFILE '//trim(profile_tag)//' prepare_aux_calls', prepare_aux_calls
-        print '(A,1X,I12)', 'PROFILE '//trim(profile_tag)//' history_calls', history_calls
-        print '(A,1X,I12)', 'PROFILE '//trim(profile_tag)//' syn_state_calls', syn_state_calls
-        print '(A,1X,I12)', 'PROFILE '//trim(profile_tag)//' eta_calls', eta_calls
-        print '(A,1X,I12)', 'PROFILE '//trim(profile_tag)//' xi_calls', xi_calls
-    end if
     deallocate(dEl, dEL_mean, dEL_mean_shell, dN_init, dN_init_log, dF1, &
                shell_population, chi_population, ulog, U_shell, source_q1, &
                V_m_chi, V_c_chi, V_a_chi, chi_weight, Epsilon_b_chi, DB_chi, t_decay_chi, &
@@ -349,7 +280,6 @@ subroutine init_front()
             B_chi_out(ichi,1) = DB_chi(ichi)
         end do
     end if
-    if (profile_enabled) call cpu_time(t_start)
     if (emit_full_spectrum) then
         call syn_seed_chi(R(1),ng,Num_nu,nchi,gam_e,dN_gam_e(:,:,1),V_seed, &
                                                DB_chi,q_weight,1.046d4, &
@@ -363,7 +293,6 @@ subroutine init_front()
                                                    Tau_pair_hist_cool(:,ichi,1))
             Tau_prop_hist_cool(:,ichi,1) = Tau_hist_cool(:,ichi,1) + Tau_pair_hist_cool(:,ichi,1)
         end do
-        syn_state_calls = syn_state_calls + nchi
     else
         do ichi = 1, nchi
             block
@@ -385,11 +314,6 @@ subroutine init_front()
                                                    Tau_pair_hist_cool(:,ichi,1))
             Tau_prop_hist_cool(:,ichi,1) = Tau_hist_cool(:,ichi,1) + Tau_pair_hist_cool(:,ichi,1)
         end do
-        syn_state_calls = syn_state_calls + nchi
-    end if
-    if (profile_enabled) then
-        call cpu_time(t_stop)
-        t_syn_state = t_syn_state + (t_stop-t_start)
     end if
 end subroutine init_front
 
@@ -433,8 +357,6 @@ subroutine advance_shell(I_tobs)
                                       dDD, active_hi, active_chi)
     else
         dDR     = dDD/dble(L1)
-        total_substeps = total_substeps + L1
-        max_shell_substeps = max(max_shell_substeps, L1)
 
         do L = 1, L1
             block
@@ -460,29 +382,16 @@ subroutine advance_shell(I_tobs)
                 source_q1 = dF1/dq
 
                 if (use_charint_transport) then
-                    if (profile_enabled) call cpu_time(t_start)
                     call advance_q_charint(ulog, ng, nchi, active_hi, dq, q_face, &
                                                      k_medium, R_sub, 0d0*source_q1, dDR)
                     call advance_q_diffusion(ulog, ng, nchi, active_hi, dq, q_face, &
                                                       k_medium, R_sub, gsh_sub, bsh, &
                                                       kappa2_chi, dDR, n_threads)
-                    eta_calls = eta_calls + 1
-                    if (profile_enabled) then
-                        call cpu_time(t_stop)
-                        t_eta = t_eta + (t_stop-t_start)
-                    end if
 
-                    if (profile_enabled) call cpu_time(t_start)
                     call advance_energy_charint(ulog, ng, nchi, gam_e, DB_chi, &
                                                              dEl_chi, R_sub, gsh_sub, bsh, index_Y, &
                                                              dDR, active_chi, n_threads, source_q1)
-                    xi_calls = xi_calls + 1
-                    if (profile_enabled) then
-                        call cpu_time(t_stop)
-                        t_xi = t_xi + (t_stop-t_start)
-                    end if
                 else
-                    if (profile_enabled) call cpu_time(t_start)
                     if (pwn_cr_transport) then
                         call advance_pwncr_q(ulog, ng, nchi, active_hi, dq, q_face, &
                                                       k_medium, R_sub, gsh_sub, bsh, kappa2_chi, &
@@ -492,13 +401,7 @@ subroutine advance_shell(I_tobs)
                                                 k_medium, R_sub, gsh_sub, bsh, kappa2_chi, &
                                                 source_q1, dDR, n_threads)
                     end if
-                    eta_calls = eta_calls + 1
-                    if (profile_enabled) then
-                        call cpu_time(t_stop)
-                        t_eta = t_eta + (t_stop-t_start)
-                    end if
 
-                    if (profile_enabled) call cpu_time(t_start)
                     if (pwn_cr_transport) then
                         if (stochastic_accel_norm > 0d0) then
                             call advance_stoch_chi(ulog, ng, nchi, &
@@ -516,11 +419,6 @@ subroutine advance_shell(I_tobs)
                         call advance_energy_chi(ulog, ng, nchi, dEL_mean_chi, &
                                                          R_sub, d_x_E, dDR, n_threads)
                     end if
-                    xi_calls = xi_calls + 1
-                    if (profile_enabled) then
-                        call cpu_time(t_stop)
-                        t_xi = t_xi + (t_stop-t_start)
-                    end if
                 end if
             end block
         end do
@@ -536,7 +434,6 @@ subroutine store_shell(I_tobs)
                                           dx_comov_hist(:,I_tobs),rcell_hist(:,I_tobs),gcell_hist(:,I_tobs), &
                                           beta(:,I_tobs),brel_sh_chi)
     call update_bchi(x_comov_hist(:,I_tobs), R_Gamma(I_tobs), dNe, brel_sh_chi)
-    if (profile_enabled) call cpu_time(t_start)
     !$OMP PARALLEL DO num_threads(n_threads) if(n_threads > 1 .and. nchi*Num_nu >= 128) schedule(static) &
     !$OMP& private(ichi)
     do ichi = 1, nchi
@@ -589,11 +486,6 @@ subroutine store_shell(I_tobs)
             Tau_prop_hist_cool(:,ichi,I_tobs) = Tau_hist_cool(:,ichi,I_tobs) + Tau_pair_hist_cool(:,ichi,I_tobs)
         end do
     end if
-    if (profile_enabled) then
-        call cpu_time(t_stop)
-        t_syn_state = t_syn_state + (t_stop-t_start)
-    end if
-    syn_state_calls = syn_state_calls + nchi
 end subroutine store_shell
 
 subroutine finish_output()
@@ -612,33 +504,15 @@ subroutine finish_output()
         shell_emit(:,Num_R) = P_emit_shell
         shell_tau(:,Num_R) = Taushell
     end if
-    if (profile_enabled) call cpu_time(t_start)
     peff_cool_chi = pemit_cool(:,:,Num_R) + pstream_cool
     seeff_cool_chi = seed_cool(:,:,Num_R) + sstream_cool
-    history_calls = history_calls + 1
-    if (profile_enabled) then
-        call cpu_time(t_stop)
-        t_hist_accum = t_hist_accum + (t_stop-t_start)
-    end if
-    if (profile_enabled) call cpu_time(t_start)
     call forward_cooling(0,index_Y,0d0,0d0,0d0,0d0,0d0,0d0,0d0,0d0,0d0,0d0,0d0, &
                          ng,Num_nu_cool,nchi,n_threads,gam_e,V_cool, &
                          peff_cool_chi,seeff_cool_chi,seeff_cool_chi,cooling_aux_chi,dEl_chi)
-    if (profile_enabled) then
-        call cpu_time(t_stop)
-        t_prepare_aux = t_prepare_aux + (t_stop-t_start)
-    end if
-    prepare_aux_calls = prepare_aux_calls + 1
-    if (profile_enabled) call cpu_time(t_start)
     call q_cell_geometry(nchi,k_medium,rloc,R_Gamma_loc,q_grid, &
                                  rcell_chi,gcell_chi,bcell_chi,brel_sh_chi)
     call update_bchi(x_comov_hist(:,Num_R), R_Gamma_loc, dNe, brel_sh_chi)
-    if (profile_enabled) call cpu_time(t_start)
     call assemble_cooling_chi(rloc, R_Gamma_loc, bsh, seeff_cool_chi, R_Tobs(Num_R))
-    if (profile_enabled) then
-        call cpu_time(t_stop)
-        t_cooling = t_cooling + (t_stop-t_start)
-    end if
     call break_freqs(R_Gamma_loc, bsh, Num_R, rloc)
     if (emit_full_spectrum) then
         do I_proj = 1, Num_R
@@ -719,19 +593,12 @@ subroutine transport_step_fullhide(R_prev, R_curr, Gamma_prev, Gamma_curr, dDR_s
 
     U_shell = ulog
     dF1_zero = 0d0
-    if (profile_enabled) call cpu_time(t_start)
     call advance_q_charint(U_shell, ng, nchi, active_hi, dq, q_face, &
                                      k_medium, R_eff, dF1_zero, half_dR)
     call advance_q_diffusion(U_shell, ng, nchi, active_hi, dq, q_face, &
                                       k_medium, R_eff, gsh_sub, bsh, &
                                       kappa2_chi, half_dR, n_threads)
-    eta_calls = eta_calls + 1
-    if (profile_enabled) then
-        call cpu_time(t_stop)
-        t_eta = t_eta + (t_stop-t_start)
-    end if
 
-    if (profile_enabled) call cpu_time(t_start)
     adiabatic_integral = dlog(R_curr/R_prev)
     do ichi = 1, active_chi
         do I = 1, ng-1
@@ -749,27 +616,14 @@ subroutine transport_step_fullhide(R_prev, R_curr, Gamma_prev, Gamma_curr, dDR_s
         end if
     end do
     if (active_chi < nchi) ulog(:,active_chi+1:nchi) = U_shell(:,active_chi+1:nchi)
-    xi_calls = xi_calls + 1
-    if (profile_enabled) then
-        call cpu_time(t_stop)
-        t_xi = t_xi + (t_stop-t_start)
-    end if
 
-    if (profile_enabled) call cpu_time(t_start)
     U_shell = ulog
     call advance_q_charint(U_shell, ng, nchi, active_hi, dq, q_face, &
                                      k_medium, R_eff, dF1_zero, half_dR)
     call advance_q_diffusion(U_shell, ng, nchi, active_hi, dq, q_face, &
                                       k_medium, R_eff, gsh_sub, bsh, &
                                       kappa2_chi, half_dR, n_threads)
-    eta_calls = eta_calls + 1
-    if (profile_enabled) then
-        call cpu_time(t_stop)
-        t_eta = t_eta + (t_stop-t_start)
-    end if
     ulog = U_shell
-    total_substeps = total_substeps + 1
-    max_shell_substeps = max(max_shell_substeps, 1)
 end subroutine transport_step_fullhide
 
 subroutine update_bchi(x_comov_col, gf, dNe_val, brel_sh)
