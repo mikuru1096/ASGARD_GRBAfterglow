@@ -25,7 +25,7 @@ module electron_reverse_kernel
                                                dg_project_state, dg_project_cells, &
                                                dg_scale_content, dg_tail_fraction, &
                                                dg_filter_positive
-    use electron_radiation_kernel, only: syn_state, nua_solve
+    use electron_radiation_kernel, only: syn_state, nua_fromtau
     use electron_cooling_kernel, only: forward_cooling
     implicit none
     integer, parameter :: reverse_dg_base_substeps = 10
@@ -590,7 +590,7 @@ subroutine multiple_synch(index_syn_intger,Num_nu,Num_R,Num_gam_e, &
                                     gam_e,dN_gam_e(:,I_tobs),V_seed,P_emit_tmp,L_syn_spec(:,I_tobs), &
                                     Seed_syn(:,I_tobs),Tau_syn_tmp)
         doppler_den=R_Gamma(I_tobs)*(1d0-dsqrt(1d0-R_Gamma(I_tobs)**(-2)))*(1d0+z)
-        call nua_solve(R(I_tobs),B3(I_tobs),Num_gam_e,gam_e,dN_gam_e(:,I_tobs),Nu_a(I_tobs))
+        call nua_fromtau(Num_nu,V_seed,Tau_syn_tmp,Nu_a(I_tobs))
         Nu_a(I_tobs)=Nu_a(I_tobs)/doppler_den
     end do
 end subroutine multiple_synch
