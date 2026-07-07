@@ -38,10 +38,9 @@ subroutine fs_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
     real(8),allocatable,dimension (:) :: dEl,dEl_step,dEL_mean,x,dN_x,x_edge,coord_edge,dxdy_grid, &
                                          dN_full,dN_half,dN_half2,dF1,dEL_mean_step,P_emit_shell,Tau_syn_shell
     real(8),allocatable,dimension (:,:) :: dF_steps,face_coupling
-    logical :: is_uniform_density,budget_diag_enabled
-    integer :: env_len,env_status,I_face
-    character(len=32) :: diag_env
-    real(8) :: dDR_xi, n_before_step, n_after_step, inj_step, n_budget, rel_loss_xi_max, source_integral
+    logical :: is_uniform_density
+    integer :: I_face
+    real(8) :: dDR_xi,source_integral
     real(8) :: adiabatic_integral, l_count_real, step_sum, step_sq_sum, radius_sum, radius_sq_sum
     real(8) :: source_prefactor, coord_scale, dg_gamma_scale, face_coord, face_jac, R_loc, R_Gamma_loc
     real(8) :: beta_Gam, dNe, DB, Gam_e_max, Gam_e_m, Gam_e_m_p, Gam_e_c, dNe_shell, dDR, dDD, f_r
@@ -65,13 +64,6 @@ subroutine fs_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
     call init_electron_state()
     d_x=dlog(gam_e(2)/gam_e(1))
     is_uniform_density=(A_star <= 0d0 .and. f_jump == 1d0)
-    budget_diag_enabled=.false.
-    diag_env=''
-    call get_environment_variable('ASGARD_DIAG_1D_BUDGET',diag_env,length=env_len,status=env_status)
-    if (env_status == 0 .and. env_len > 0) then
-        if (diag_env(1:1) /= '0') budget_diag_enabled=.true.
-    end if
-    rel_loss_xi_max=0d0
 !    factor_adv=Para_sigmaT/(6.0d0*pi*Para_m_energy)
 
     do I_tobs=2,Num_R
@@ -90,9 +82,6 @@ subroutine fs_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
 
     deallocate (dEl,dEl_step,dEL_mean,x,dN_x,x_edge,coord_edge,dxdy_grid,dN_full,dN_half,dN_half2,dF1, &
                 dEL_mean_step,P_emit_shell,Tau_syn_shell)
-    if (budget_diag_enabled) then
-        print '(A,1X,ES12.4)', 'BUDGET1D max_rel_loss', rel_loss_xi_max
-    end if
 
 contains
 
@@ -220,7 +209,7 @@ contains
         if (is_uniform_density .and. thermal_electrons == 0) then
             call advance_uniform_shell(L1)
         else
-            call advance_general_shell(I_tobs,L1)
+            call advance_general_shell(L1)
         end if
     end subroutine advance_fixed_shell
 
@@ -248,24 +237,15 @@ contains
             face_jac=dxg_dcoord(coord_fourvel,coord_scale,face_coord)
             face_coupling(I_face,1)=(dDD*(dEl(I_face)+dEl(I_face+1))/2d0+adiabatic_integral)/face_jac
         end do
-        if (budget_diag_enabled) then
-            n_before_step=sum(dN_x*(coord_edge(2:Num_gam_e+1)-coord_edge(1:Num_gam_e)))
-            inj_step=sum(dF_steps(:,1)*(coord_edge(2:Num_gam_e+1)-coord_edge(1:Num_gam_e)))
-        end if
         call flux_seq_nonuniform(Num_gam_e,coord_edge,face_coupling(:,1),dF_steps(:,1), &
                                                               dN_x,x,.true.)
-        if (budget_diag_enabled) then
-            n_after_step=sum(x*(coord_edge(2:Num_gam_e+1)-coord_edge(1:Num_gam_e)))
-            n_budget=n_before_step+inj_step
-            if (n_budget > 0d0) rel_loss_xi_max=max(rel_loss_xi_max,max(0d0,(n_budget-n_after_step)/n_budget))
-        end if
         dN_x=x
         deallocate(dF_steps,face_coupling)
     end subroutine advance_uniform_shell
 
-    subroutine advance_general_shell(I_tobs,L1)
+    subroutine advance_general_shell(L1)
     implicit real(8)(A-H,O-Z)
-    integer, intent(in) :: I_tobs,L1
+    integer, intent(in) :: L1
 
         do L=1,L1
             R_loc=R_loc+dDR
@@ -287,21 +267,8 @@ contains
             else
                 dEl_step=dEl
             end if
-            if (budget_diag_enabled) then
-                n_before_step=sum(dN_x*(coord_edge(2:Num_gam_e+1)-coord_edge(1:Num_gam_e)))
-                inj_step=dDR*sum(dF1*(coord_edge(2:Num_gam_e+1)-coord_edge(1:Num_gam_e)))
-            end if
             call shell_coord_step(Num_gam_e,dDR,coord_edge,coord_scale, &
                                                       dEl_step,1d0/R_loc,dF1,dN_x,x)
-            if (budget_diag_enabled) then
-                n_after_step=sum(x*(coord_edge(2:Num_gam_e+1)-coord_edge(1:Num_gam_e)))
-                n_budget=n_before_step+inj_step
-                if (n_budget > 0d0) rel_loss_xi_max=max(rel_loss_xi_max,max(0d0,(n_budget-n_after_step)/n_budget))
-                if (I_tobs <= 6 .and. L == L1) then
-                    print '(A,1X,I4,1X,ES12.4,1X,ES12.4,1X,ES12.4)', &
-                          'BUDGET1D shell', I_tobs, n_before_step, inj_step, n_after_step
-                end if
-            end if
             dN_x=x
         end do
     end subroutine advance_general_shell
@@ -436,10 +403,7 @@ subroutine fs_fullhide_coupled(Boundary,R_Tobs,R_Gamma,R,V_seed,Seed_cooling,sec
     real(8), intent(out), dimension(Num_nu,Num_R) :: P_syn,Seed_syn
     real(8), intent(out), dimension(Num_R) :: V_m,V_c,V_a
     real(8), allocatable, dimension(:) :: dEl,dEL_mean,dEL_mean_step,cooling_aux,x,dN_x,x_edge,dF1
-    logical :: budget_diag_enabled
-    integer :: env_len,env_status
-    character(len=32) :: diag_env
-    real(8) :: n_before_step,n_after_step,inj_step,n_budget,rel_loss_xi_max,thermal_count
+    real(8) :: thermal_count
     real(8) :: R_loc,R_Gamma_loc,beta_Gam,dNe,DB,Gam_e_max,Gam_e_m,Gam_e_m_p,Gam_e_c,dNe_shell,dDR,dDD,f_r
 
     if (adaptive_substeps /= 0) error stop 'fs_fullhide_coupled requires fixed shell substeps'
@@ -484,13 +448,6 @@ subroutine fs_fullhide_coupled(Boundary,R_Tobs,R_Gamma,R,V_seed,Seed_cooling,sec
     end if
 
     d_x=dlog(gam_e(2)/gam_e(1))
-    budget_diag_enabled=.false.
-    diag_env=''
-    call get_environment_variable('ASGARD_DIAG_1D_BUDGET',diag_env,length=env_len,status=env_status)
-    if (env_status == 0 .and. env_len > 0) then
-        if (diag_env(1:1) /= '0') budget_diag_enabled=.true.
-    end if
-    rel_loss_xi_max=0d0
 
     do I_tobs=2,Num_R
         call prepare_coupled_shell(I_tobs)
@@ -501,7 +458,6 @@ subroutine fs_fullhide_coupled(Boundary,R_Tobs,R_Gamma,R,V_seed,Seed_cooling,sec
     call write_finaldiag()
 
     deallocate(dEl,dEL_mean,dEL_mean_step,cooling_aux,x,dN_x,x_edge,dF1)
-    if (budget_diag_enabled) print '(A,1X,ES12.4)', 'BUDGET1D coupled max_rel_loss', rel_loss_xi_max
 
 contains
 
@@ -600,16 +556,7 @@ contains
             else
                 dEL_mean_step=dEL_mean
             end if
-            if (budget_diag_enabled) then
-                n_before_step=sum(dN_x)*d_x
-                inj_step=dDR*sum(dF1)*d_x
-            end if
             call fullhide_step(Num_gam_e,R_loc,dDR,d_x,dEL_mean_step,dF1,dN_x,x)
-            if (budget_diag_enabled) then
-                n_after_step=sum(x)*d_x
-                n_budget=n_before_step+inj_step
-                if (n_budget > 0d0) rel_loss_xi_max=max(rel_loss_xi_max,max(0d0,(n_budget-n_after_step)/n_budget))
-            end if
             dN_x=x
         end do
     end subroutine advance_coupled_shell

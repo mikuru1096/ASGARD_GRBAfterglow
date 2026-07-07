@@ -27,11 +27,8 @@ subroutine fs_fullhide_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
 
     real(8),allocatable,dimension (:) :: dEl,dEl_step,x,dN_x,x_edge,coord_edge,dxdy_grid, &
                                          dN_full,dN_half,dN_half2,dF1
-    logical :: is_uniform_density,budget_diag_enabled
-    integer :: env_len,env_status
-    character(len=32) :: diag_env
+    logical :: is_uniform_density
     real(8) :: dDR_xi,coord_scale,dg_gamma_scale
-    real(8) :: n_before_step,n_after_step,inj_step,rel_loss_xi_max
     real(8), dimension(Num_nu) :: P_emit_tmp,Tau_syn_tmp
     allocate (dEl(Num_gam_e),dEl_step(Num_gam_e),x(Num_gam_e),dN_x(Num_gam_e), &
               dN_full(Num_gam_e), &
@@ -70,13 +67,6 @@ subroutine fs_fullhide_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
     end if
     call coord_to_dgamma(Num_gam_e,coord_edge,coord_scale,gam_e,dN_x,dN_gam_e(:,1))
     is_uniform_density=(A_star <= 0d0 .and. f_jump == 1d0)
-    budget_diag_enabled=.false.
-    diag_env=''
-    call get_environment_variable('ASGARD_DIAG_1D_BUDGET',diag_env,length=env_len,status=env_status)
-    if (env_status == 0 .and. env_len > 0) then
-        if (diag_env(1:1) /= '0') budget_diag_enabled=.true.
-    end if
-    rel_loss_xi_max=0d0
 !    factor_adv=Para_sigmaT/(6.0d0*pi*Para_m_energy)
 
     do I_tobs=2,Num_R
@@ -137,21 +127,7 @@ subroutine fs_fullhide_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
                         end if
                     end if
                     if (is_uniform_density .and. thermal_electrons == 0) dEl_step=dEl
-                    if (budget_diag_enabled) then
-                        n_before_step=sum(dN_x*(coord_edge(2:Num_gam_e+1)-coord_edge(1:Num_gam_e)))
-                        inj_step=dDR*sum(dF1*(coord_edge(2:Num_gam_e+1)-coord_edge(1:Num_gam_e)))
-                    end if
-
                     call shell_coord_step(Num_gam_e,dDR,coord_edge,coord_scale,dEl_step,1d0/R_loc,dF1,dN_x,x)
-                    if (budget_diag_enabled) then
-                        n_after_step=sum(x*(coord_edge(2:Num_gam_e+1)-coord_edge(1:Num_gam_e)))
-                        rel_loss_xi_max=max(rel_loss_xi_max, &
-                            max(0d0,(n_before_step+inj_step-n_after_step)/max(n_before_step+inj_step,tiny(1d0))))
-                        if (I_tobs <= 6 .and. L == L1) then
-                            print '(A,1X,I4,1X,ES12.4,1X,ES12.4,1X,ES12.4)', &
-                                  'BUDGET1D shell', I_tobs, n_before_step, inj_step, n_after_step
-                        end if
-                    end if
                     dN_x=x
 
                     if (L1 == L) then
@@ -242,9 +218,6 @@ subroutine fs_fullhide_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
     call write_finaldiag()
 
     deallocate (dEl,dEl_step,x,dN_x,x_edge,coord_edge,dxdy_grid,dN_full,dN_half,dN_half2,dF1)
-    if (budget_diag_enabled) then
-        print '(A,1X,ES12.4)', 'BUDGET1D max_rel_loss', rel_loss_xi_max
-    end if
 
     return
 
