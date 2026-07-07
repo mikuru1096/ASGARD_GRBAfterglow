@@ -19,7 +19,7 @@ subroutine fs_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
                                                  fourvel_scale
     use electron_radiation_kernel, only: syn_state, nua_fromtau
     use electron_cooling_kernel, only: forward_cooling
-    use electron_shell_transport, only: shell_coord_step, &
+    use electron_shell_transport, only: shellstep_cached, &
                                                coord_to_dgamma
     use electron_transport_common, only: dnx_dgamma, &
                                          flux_seq_nonuniform
@@ -35,18 +35,19 @@ subroutine fs_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
     real(8), intent(out), dimension(Num_nu,Num_R) :: P_syn,Seed_syn
     real(8), intent(out), dimension(Num_R) :: V_m,V_c,V_a
 
-    real(8),allocatable,dimension (:) :: dEl,dEl_step,dEL_mean,x,dN_x,x_edge,coord_edge,dxdy_grid, &
+    real(8),allocatable,dimension (:) :: dEl,dEl_step,dEL_mean,x,dN_x,x_edge,coord_edge,dxdy_grid,face_invjac, &
                                          dN_full,dN_half,dN_half2,dF1,dEL_mean_step,P_emit_shell,Tau_syn_shell
     real(8),allocatable,dimension (:,:) :: dF_steps,face_coupling
     logical :: is_uniform_density
     integer :: I_face
     real(8) :: dDR_xi,source_integral
     real(8) :: adiabatic_integral, l_count_real, step_sum, step_sq_sum, radius_sum, radius_sq_sum
-    real(8) :: source_prefactor, coord_scale, dg_gamma_scale, face_coord, face_jac, R_loc, R_Gamma_loc
+    real(8) :: source_prefactor, coord_scale, dg_gamma_scale, R_loc, R_Gamma_loc
     real(8) :: beta_Gam, dNe, DB, Gam_e_max, Gam_e_m, Gam_e_m_p, Gam_e_c, dNe_shell, dDR, dDD, f_r
     allocate (dEl(Num_gam_e),dEl_step(Num_gam_e),dEL_mean(Num_gam_e-1),x(Num_gam_e),dN_x(Num_gam_e), &
               dN_full(Num_gam_e), &
               x_edge(Num_gam_e+1),coord_edge(Num_gam_e+1),dxdy_grid(Num_gam_e), &
+              face_invjac(Num_gam_e-1), &
               dN_half(Num_gam_e),dN_half2(Num_gam_e),dF1(Num_gam_e),dEL_mean_step(Num_gam_e-1), &
               P_emit_shell(Num_nu),Tau_syn_shell(Num_nu))
     call electron_unpack_boundary(Boundary,n,Eta_0,R_ini,Epsilon_e,Epsilon_b,p,z,dNe_ISM,A_star, &
@@ -80,7 +81,7 @@ subroutine fs_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
     end do
     call write_finaldiag()
 
-    deallocate (dEl,dEl_step,dEL_mean,x,dN_x,x_edge,coord_edge,dxdy_grid,dN_full,dN_half,dN_half2,dF1, &
+    deallocate (dEl,dEl_step,dEL_mean,x,dN_x,x_edge,coord_edge,dxdy_grid,face_invjac,dN_full,dN_half,dN_half2,dF1, &
                 dEL_mean_step,P_emit_shell,Tau_syn_shell)
 
 contains
@@ -121,7 +122,7 @@ contains
     ! The four-velocity coordinate resolves the gamma~1 region without over-coarsening the low-energy end.
     subroutine init_fourvel_grid(imodeg_max)
     implicit real(8)(A-H,O-Z)
-    integer :: I_grid
+    integer :: I_grid,I_face
     real(8), intent(in) :: imodeg_max
 
         dg_gamma_scale=fourvel_scale
@@ -131,6 +132,9 @@ contains
         do I_grid=1,Num_gam_e
             dxdy_grid(I_grid)=dxg_dcoord(coord_fourvel,coord_scale, &
                                                       0.5d0*(coord_edge(I_grid)+coord_edge(I_grid+1)))
+        end do
+        do I_face=1,Num_gam_e-1
+            face_invjac(I_face)=1d0/dxg_dcoord(coord_fourvel,coord_scale,coord_edge(I_face+1))
         end do
     end subroutine init_fourvel_grid
 
@@ -233,9 +237,7 @@ contains
                                                                Gam_e_m,Gam_e_max,source_integral,p, &
                                                                dF_steps(:,1))
         do I_face=1,Num_gam_e-1
-            face_coord=coord_edge(I_face+1)
-            face_jac=dxg_dcoord(coord_fourvel,coord_scale,face_coord)
-            face_coupling(I_face,1)=(dDD*(dEl(I_face)+dEl(I_face+1))/2d0+adiabatic_integral)/face_jac
+            face_coupling(I_face,1)=(dDD*(dEl(I_face)+dEl(I_face+1))/2d0+adiabatic_integral)*face_invjac(I_face)
         end do
         call flux_seq_nonuniform(Num_gam_e,coord_edge,face_coupling(:,1),dF_steps(:,1), &
                                                               dN_x,x,.true.)
@@ -267,7 +269,7 @@ contains
             else
                 dEl_step=dEl
             end if
-            call shell_coord_step(Num_gam_e,dDR,coord_edge,coord_scale, &
+            call shellstep_cached(Num_gam_e,dDR,coord_edge,face_invjac, &
                                                       dEl_step,1d0/R_loc,dF1,dN_x,x)
             dN_x=x
         end do
@@ -310,7 +312,7 @@ contains
             else
                 dEl_step=dEl
             end if
-            call shell_coord_step(Num_gam_e,dR_try,coord_edge,coord_scale, &
+            call shellstep_cached(Num_gam_e,dR_try,coord_edge,face_invjac, &
                                                       dEl_step,1d0/R_full,dF1,dN_x,dN_full)
 
             dR_half=0.5d0*dR_try
@@ -337,7 +339,7 @@ contains
             else
                 dEl_step=dEl
             end if
-            call shell_coord_step(Num_gam_e,dR_half,coord_edge,coord_scale, &
+            call shellstep_cached(Num_gam_e,dR_half,coord_edge,face_invjac, &
                                                       dEl_step,1d0/R_half,dF1,dN_x,dN_half)
 
             call electron_injection_prefactor(R_full,dR_half,dNe_full,f_e,Gam_e_m_p_full,Q)
@@ -352,7 +354,7 @@ contains
             else
                 dEl_step=dEl
             end if
-            call shell_coord_step(Num_gam_e,dR_half,coord_edge,coord_scale, &
+            call shellstep_cached(Num_gam_e,dR_half,coord_edge,face_invjac, &
                                                       dEl_step,1d0/R_full,dF1,dN_half,dN_half2)
 
             call electron_relerr_max(Num_gam_e,dN_half2,dN_full,step_error)
