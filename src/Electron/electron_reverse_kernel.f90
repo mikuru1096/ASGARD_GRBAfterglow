@@ -578,21 +578,38 @@ subroutine multiple_synch(index_syn_intger,Num_nu,Num_R,Num_gam_e, &
     real(8), intent(in) :: z
     real(8), intent(out), dimension(Num_nu,Num_R) :: L_syn_spec,Seed_syn
     real(8), intent(out), dimension(Num_R) :: Nu_a
-    real(8), dimension(Num_nu) :: P_emit_tmp,Tau_syn_tmp
-    real(8) :: doppler_den
 
     L_syn_spec=0d0
     Seed_syn=0d0
     Nu_a=0d0
-    do I_tobs=1,Num_R
-        if (B3(I_tobs) <= 0d0) cycle
-        call syn_state(index_syn_intger,R(I_tobs),B3(I_tobs),Num_gam_e,Num_nu,n_threads, &
-                                    gam_e,dN_gam_e(:,I_tobs),V_seed,P_emit_tmp,L_syn_spec(:,I_tobs), &
-                                    Seed_syn(:,I_tobs),Tau_syn_tmp)
-        doppler_den=R_Gamma(I_tobs)*(1d0-dsqrt(1d0-R_Gamma(I_tobs)**(-2)))*(1d0+z)
-        call nua_fromtau(Num_nu,V_seed,Tau_syn_tmp,Nu_a(I_tobs))
-        Nu_a(I_tobs)=Nu_a(I_tobs)/doppler_den
-    end do
+    if (n_threads > 1) then
+        !$OMP PARALLEL DO SCHEDULE(STATIC) num_threads(n_threads) private(I_tobs)
+        do I_tobs=1,Num_R
+            call write_shell(I_tobs,1)
+        end do
+        !$OMP END PARALLEL DO
+    else
+        do I_tobs=1,Num_R
+            call write_shell(I_tobs,n_threads)
+        end do
+    end if
+
+contains
+
+    subroutine write_shell(I_shell,syn_threads)
+    implicit none
+    integer, intent(in) :: I_shell,syn_threads
+    real(8), dimension(Num_nu) :: P_emit_tmp,Tau_syn_tmp
+    real(8) :: doppler_den
+
+        if (B3(I_shell) <= 0d0) return
+        call syn_state(index_syn_intger,R(I_shell),B3(I_shell),Num_gam_e,Num_nu,syn_threads, &
+                                    gam_e,dN_gam_e(:,I_shell),V_seed,P_emit_tmp,L_syn_spec(:,I_shell), &
+                                    Seed_syn(:,I_shell),Tau_syn_tmp)
+        doppler_den=R_Gamma(I_shell)*(1d0-dsqrt(1d0-R_Gamma(I_shell)**(-2)))*(1d0+z)
+        call nua_fromtau(Num_nu,V_seed,Tau_syn_tmp,Nu_a(I_shell))
+        Nu_a(I_shell)=Nu_a(I_shell)/doppler_den
+    end subroutine write_shell
 end subroutine multiple_synch
 
 subroutine branch_reaccel(e_r,b_r,p_r,f_e_r,z,R_Tobs,R_Gamma,R, &
