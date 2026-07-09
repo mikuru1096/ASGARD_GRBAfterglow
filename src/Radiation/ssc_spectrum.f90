@@ -1,8 +1,8 @@
 ! 计算同步自康普顿(SSC)辐射谱。
 ! Compute the synchrotron self-Compton spectrum.
 !
-! 均匀电子网格路径: 对电子谱和种子光子场做双重 Simpson 积分。
-! Uniform electron grid path: nested Simpson integration over electrons and seed photons.
+! 采样电子网格路径: 对 ln(gamma) 和 ln(nu) 的实际节点做双重 Simpson 积分。
+! Sampled electron-grid path: nested Simpson integration on the actual log-gamma and log-frequency nodes.
 subroutine ssc_spec(R,gam_e,dN_gam_e,V_seed,seed,Num_nu,Num_R,Num_gam_e,n_threads, P_SSC_spec,seed_SSC)
     use constants
     use rad_common
@@ -17,18 +17,18 @@ subroutine ssc_spec(R,gam_e,dN_gam_e,V_seed,seed,Num_nu,Num_R,Num_gam_e,n_thread
     real(8), dimension(Num_nu,Num_R), intent(in) :: seed
     real(8), dimension(Num_nu,Num_R), intent(out) :: P_SSC_spec,seed_SSC
 
-    real(8), dimension(:), allocatable :: simpson_weights,V_weights,E_seed,inv_gam,inv_gam2,radius_inv2
-    real(8), dimension(:), allocatable :: vinv,logvinv
+    real(8), dimension(:), allocatable :: gam_weights,V_weights,E_seed,inv_gam,inv_gam2,radius_inv2
+    real(8), dimension(:), allocatable :: vinv,logvinv,x_gam,x_seed
     real(8), dimension(:,:), allocatable :: q_pref,kn_pref,logq_pref,dnwg,weighted_seed
     real(8), dimension(:,:), allocatable :: tail_dn,tail_inv2
     integer, dimension(:), allocatable :: gamma_start
     integer, dimension(:,:), allocatable :: gamma_low,gamma_high
     integer :: i_r,i_nu
-    real(8) :: para_hEme,h_nu,h_gam,dnu3,dgam3,tmp,tmp2
+    real(8) :: para_hEme,tmp,tmp2
 
-    allocate (simpson_weights(Num_gam_e), V_weights(Num_nu))
+    allocate (gam_weights(Num_gam_e), V_weights(Num_nu))
     allocate (E_seed(Num_nu), inv_gam(Num_gam_e), inv_gam2(Num_gam_e))
-    allocate (radius_inv2(Num_R), vinv(Num_nu), logvinv(Num_nu))
+    allocate (radius_inv2(Num_R), vinv(Num_nu), logvinv(Num_nu), x_gam(Num_gam_e), x_seed(Num_nu))
     allocate (q_pref(Num_gam_e,Num_nu), kn_pref(Num_gam_e,Num_nu), logq_pref(Num_gam_e,Num_nu))
     allocate (dnwg(Num_gam_e,Num_R), weighted_seed(Num_nu,Num_R))
     allocate (tail_dn(Num_gam_e+1,Num_R), tail_inv2(Num_gam_e+1,Num_R))
@@ -36,8 +36,8 @@ subroutine ssc_spec(R,gam_e,dN_gam_e,V_seed,seed,Num_nu,Num_R,Num_gam_e,n_thread
 
     para_hEme = Para_h/para_m_energy
 
-    h_nu = log(V_seed(2))-log(V_seed(1))
-    h_gam = log(gam_e(2))-log(gam_e(1))
+    x_gam = log(gam_e)
+    x_seed = log(V_seed)
     E_seed = V_seed*para_hEme
     inv_gam = 1d0/gam_e
     inv_gam2 = inv_gam*inv_gam
@@ -48,15 +48,12 @@ subroutine ssc_spec(R,gam_e,dN_gam_e,V_seed,seed,Num_nu,Num_R,Num_gam_e,n_thread
     kn_pref = 0d0
     logq_pref = 0d0
 
-    call uniform_weights()
+    call build_weights()
     call kn_tables()
     call uniform_bounds()
 
     P_SSC_spec=0d0
     seed_SSC=0d0
-
-    dnu3 = h_nu/3d0
-    dgam3 = h_gam/3d0
 
     !$OMP PARALLEL num_threads(n_threads), private(i_r, i_nu)
     !$OMP DO COLLAPSE(2) SCHEDULE(GUIDED,4)
@@ -74,8 +71,8 @@ subroutine ssc_spec(R,gam_e,dN_gam_e,V_seed,seed,Num_nu,Num_R,Num_gam_e,n_thread
     tmp2=4d0*pi*Para_c*Para_h
     seed_SSC=seed_SSC/tmp2*tmp
 
-    deallocate(simpson_weights, V_weights, E_seed, inv_gam, inv_gam2)
-    deallocate(radius_inv2, vinv, logvinv)
+    deallocate(gam_weights, V_weights, E_seed, inv_gam, inv_gam2)
+    deallocate(radius_inv2, vinv, logvinv, x_gam, x_seed)
     deallocate(q_pref, kn_pref, logq_pref)
     deallocate(dnwg, weighted_seed, tail_dn, tail_inv2)
     deallocate(gamma_start, gamma_low, gamma_high)
@@ -122,14 +119,14 @@ integer function first_ge(gfloor, lower)
     first_ge=i_low
 end function first_ge
 
-subroutine uniform_weights()
+subroutine build_weights()
     implicit none
     integer :: i_shell, i_gamma
 
-    call compute_simpson_weights(simpson_weights, Num_gam_e)
-    call compute_simpson_weights(V_weights, Num_nu)
+    call sampled_weights(x_gam, gam_weights, Num_gam_e)
+    call sampled_weights(x_seed, V_weights, Num_nu)
     do i_shell=1,Num_R
-        dnwg(:,i_shell)=dN_gam_e(:,i_shell)*simpson_weights*inv_gam
+        dnwg(:,i_shell)=dN_gam_e(:,i_shell)*gam_weights*inv_gam
         weighted_seed(:,i_shell)=seed(:,i_shell)*V_weights
         tail_dn(Num_gam_e+1,i_shell)=0d0
         tail_inv2(Num_gam_e+1,i_shell)=0d0
@@ -138,7 +135,7 @@ subroutine uniform_weights()
             tail_inv2(i_gamma,i_shell)=tail_inv2(i_gamma+1,i_shell)+dnwg(i_gamma,i_shell)*inv_gam2(i_gamma)
         end do
     end do
-end subroutine uniform_weights
+end subroutine build_weights
 
 subroutine kn_tables()
     implicit none
@@ -178,7 +175,7 @@ real(8) function low_sum(i_shell, i_obs)
     implicit none
     integer, intent(in) :: i_shell, i_obs
     integer :: i_seed, i_gamma
-    real(8) :: q_coeff, q, logq, fssc, gsum, emiss
+    real(8) :: q_coeff, q, logq, fssc, gsum
 
     low_sum=0d0
     do i_seed=1,i_obs-1
@@ -192,8 +189,7 @@ real(8) function low_sum(i_shell, i_obs)
             fssc=2d0*q*(logq-q)+1d0+q+kn_pref(i_gamma,i_obs)*(1d0-q)
             gsum=gsum+dnwg(i_gamma,i_shell)*fssc
         end do
-        emiss=dgam3*gsum
-        low_sum=low_sum+weighted_seed(i_seed,i_shell)*emiss
+        low_sum=low_sum+weighted_seed(i_seed,i_shell)*gsum
     end do
 end function low_sum
 
@@ -201,7 +197,7 @@ real(8) function high_tail(i_shell, i_obs)
     implicit none
     integer, intent(in) :: i_shell, i_obs
     integer :: i_seed, i_gamma
-    real(8) :: ratio_v, gsum, emiss
+    real(8) :: ratio_v, gsum
 
     high_tail=0d0
     do i_seed=i_obs,Num_nu
@@ -212,8 +208,7 @@ real(8) function high_tail(i_shell, i_obs)
         else
             gsum=0d0
         end if
-        emiss=dgam3*gsum
-        high_tail=high_tail+weighted_seed(i_seed,i_shell)*emiss
+        high_tail=high_tail+weighted_seed(i_seed,i_shell)*gsum
     end do
 end function high_tail
 
@@ -224,7 +219,7 @@ subroutine uniform_point(i_shell, i_obs)
 
     if (gamma_start(i_obs) > Num_gam_e) return
 
-    integ=dnu3*(low_sum(i_shell, i_obs)+high_tail(i_shell, i_obs))
+    integ=low_sum(i_shell, i_obs)+high_tail(i_shell, i_obs)
     power=integ*V_seed(i_obs)
     P_SSC_spec(i_obs,i_shell)=P_SSC_spec(i_obs,i_shell)+power
     flux=integ*radius_inv2(i_shell)

@@ -1,7 +1,7 @@
 !f2py: skip
 module electron_ic_kernel
   use constants
-  use rad_common, only: compute_simpson_weights
+  use rad_common, only: sampled_weights
   use electron_radiation_kernel, only: pl_interp
   private
 
@@ -196,10 +196,9 @@ integer :: ig,work,nt
 logical :: doomp
 
     allocate(wseed(nnu),wobs(nnu),eseed(nnu),inverseed(nnu))
-    call compute_simpson_weights(wseed,nnu)
-    call compute_simpson_weights(wobs,nnu)
-    hstep=dlog(vseed(2))-dlog(vseed(1))
-    hthird=hstep/3d0
+    wobs=dlog(vseed)
+    call sampled_weights(wobs,wseed,nnu)
+    wobs=wseed
     para_hEme=Para_h/para_m_energy
     eseed=vseed*para_hEme
     inverseed=1d0/vseed
@@ -242,10 +241,10 @@ real(8) :: ge,g2,seedsum,power,vobs
             end if
         end do
         vobs=vseed(iobs)
-        power=cnorm*vobs*vobs*hthird*seedsum
+        power=cnorm*vobs*vobs*seedsum
         rate=rate+wobs(iobs)*power
     end do
-    rate=hthird*rate/(ge*g2)
+    rate=rate/(ge*g2)
 end subroutine accumulate_budget
 
 real(8) function low_seed_kernel(gam,i_obs,i_seed)

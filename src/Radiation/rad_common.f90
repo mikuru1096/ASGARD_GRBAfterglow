@@ -4,31 +4,52 @@ module rad_common
     implicit none
     private
 
-    public :: compute_simpson_weights, rad_interp, transfer_factor, &
+    public :: sampled_weights, rad_interp, transfer_factor, &
               syn_kernel, pair_grid, &
               pair_sigma, pair_tau, &
               syn_seed_chi, syn_flux_chi
 
 contains
 
-! 计算 Simpson 数值积分权重: [1,4,2,4,2,...,4,1]。
-! Compute Simpson quadrature weights: [1,4,2,4,2,...,4,1].
-subroutine compute_simpson_weights(weights, n)
+! 实际节点上的 Simpson 权重；偶数样点用 Cartwright 末区间校正。
+! Simpson weights on sampled nodes, with Cartwright's last-interval correction for even n.
+pure subroutine sampled_weights(x, w, n)
     integer, intent(in) :: n
-    integer :: i
-    real(8), dimension(n), intent(out) :: weights
+    integer :: i,last
+    real(8), dimension(n), intent(in) :: x
+    real(8), dimension(n), intent(out) :: w
+    real(8) :: h0,h1,hsum,alpha,beta,eta
 
-    weights = 1.0d0
-    if (n >= 3) then
-        do i = 2, n - 1
-            if (mod(i, 2) == 0) then
-                weights(i) = 4.0d0
-            else
-                weights(i) = 2.0d0
-            end if
-        end do
+    w=0d0
+    if (n == 2) then
+        h0=0.5d0*(x(2)-x(1))
+        w=h0
+        return
     end if
-end subroutine compute_simpson_weights
+
+    last=n
+    if (mod(n,2) == 0) last=n-1
+    do i=1,last-2,2
+        h0=x(i+1)-x(i)
+        h1=x(i+2)-x(i+1)
+        hsum=h0+h1
+        w(i)=w(i)+hsum*(2d0-h1/h0)/6d0
+        w(i+1)=w(i+1)+hsum**3/(6d0*h0*h1)
+        w(i+2)=w(i+2)+hsum*(2d0-h0/h1)/6d0
+    end do
+
+    if (last < n) then
+        h0=x(n-1)-x(n-2)
+        h1=x(n)-x(n-1)
+        hsum=h0+h1
+        alpha=(2d0*h1*h1+3d0*h0*h1)/(6d0*hsum)
+        beta=(h1*h1+3d0*h0*h1)/(6d0*h0)
+        eta=h1**3/(6d0*h0*hsum)
+        w(n)=w(n)+alpha
+        w(n-1)=w(n-1)+beta
+        w(n-2)=w(n-2)-eta
+    end if
+end subroutine sampled_weights
 
 ! 幂律插值: 两端为正时用 log-log，否则用线性插值。
 ! Power-law interpolation: log-log for positive endpoints, otherwise linear.
@@ -58,16 +79,16 @@ real(8) function rad_interp(v0,v1,y0,y1,v)
     end if
 end function rad_interp
 
-! 辐射转移因子: (1 - exp(-tau))/tau，小光深取连续极限。
-! Transfer factor: (1 - exp(-tau))/tau, with the small-tau limit.
+! 辐射转移因子: (1-exp(-tau))/tau；五阶级数是同一解析函数在零点的展开。
+! Transfer factor: the fifth-order branch is the analytic Taylor expansion at tau=0.
 subroutine transfer_factor(Tau, factor)
     implicit none
     real(8), intent(in) :: Tau
     real(8), intent(out) :: factor
-    if (Tau <= 1d-4) then
-        factor = 1d0
+    if (dabs(Tau) < 1d-3) then
+        factor=1d0+Tau*(-0.5d0+Tau*(1d0/6d0+Tau*(-1d0/24d0+Tau*(1d0/120d0-Tau/720d0))))
     else
-        factor = (1d0 - dexp(-Tau)) / Tau
+        factor=(1d0-dexp(-Tau))/Tau
     end if
 end subroutine transfer_factor
 

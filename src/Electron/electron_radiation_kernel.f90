@@ -1,6 +1,6 @@
 module electron_radiation_kernel
   use constants
-  use rad_common, only: syn_seed_chi, syn_kernel, &
+  use rad_common, only: sampled_weights, syn_seed_chi, syn_kernel, &
                               transfer_factor
   private
 
@@ -147,7 +147,7 @@ real(8), intent(in), dimension(Num_gam_e) :: gam_e,dN_gam_e
 real(8), intent(in), dimension(Num_nu) :: V_seed
 real(8), intent(in) :: R_loc,DB
 real(8), intent(out), dimension(Num_nu) :: P_emit,P_syn,Seed_syn,Tau_syn
-real(8), dimension(Num_gam_e) :: dN1,wsim,wemit
+real(8), dimension(Num_gam_e) :: dN1,xlog,wquad,wemit
 real(8), dimension(Num_gam_e-1) :: ddN, gmean2, wtau
 real(8), dimension(Num_nu) :: vpow
 real(8), dimension(Num_gam_e) :: vcinv,vcpow
@@ -159,22 +159,16 @@ integer :: I_nu
     r2=R_loc*R_loc
     dN1=dN_gam_e/(gam_e*gam_e)
     ddN=dN1(1:Num_gam_e-1)-dN1(2:Num_gam_e)
-    h=dlog(gam_e(2))-dlog(gam_e(1))
+    xlog=dlog(gam_e)
+    call sampled_weights(xlog,wquad,Num_gam_e)
+    wemit=wquad*dN_gam_e*gam_e
 
-    ! 预计算只依赖电子网格的权重，频率循环内只做 kernel 卷积。
-    ! Precompute electron-grid weights so the frequency loop only evaluates the radiation kernel.
+    ! 预计算只依赖电子网格的量，频率循环内只做 kernel 卷积。
+    ! Precompute electron-grid terms so the frequency loop only evaluates the radiation kernel.
     do I_gam_e=1,Num_gam_e
-        if (I_gam_e == 1 .or. I_gam_e == Num_gam_e) then
-            wsim(I_gam_e)=1d0
-        else if (mod(I_gam_e,2) == 0) then
-            wsim(I_gam_e)=4d0
-        else
-            wsim(I_gam_e)=2d0
-        end if
         Vc=4.2d6*gam_e(I_gam_e)*gam_e(I_gam_e)*DB
         vcinv(I_gam_e)=1d0/Vc
         vcpow(I_gam_e)=Vc**(2d0/3d0)
-        wemit(I_gam_e)=wsim(I_gam_e)*dN_gam_e(I_gam_e)*gam_e(I_gam_e)
     end do
     do I_gam_e=1,Num_gam_e-1
         gmean2(I_gam_e)=(gam_e(I_gam_e)+gam_e(I_gam_e+1))**2/4d0
@@ -214,7 +208,7 @@ integer :: I_gam_e
         Fx=syn_kernel(x,vcpow(I_gam_e)*V_powm23,factor)
         vsum=vsum+wemit(I_gam_e)*Fx
     end do
-    emit_simpson=h*vsum/3d0
+    emit_simpson=vsum
 end function emit_simpson
 
 real(8) function tau_simpson(V_cal,V_powm23)
@@ -234,17 +228,17 @@ end function tau_simpson
 subroutine store_syn(I_nu)
 implicit REAL(8)(A-H,O-Z)
 integer, intent(in) :: I_nu
-real(8) :: V_cal,integ,Tau,pv
+real(8) :: V_cal,integ,Tau,pv,transfer
 
     V_cal=V_seed(I_nu)
     integ=emit_simpson(V_cal,vpow(I_nu))
     Tau=tau_simpson(V_cal,vpow(I_nu))
     pv=Temp_syn*DB*integ
     Tau=1.046d4*Tau*DB/(4d0*pi*r2*V_cal*V_cal)
-    if ((Tau-1d-4) < 1d-5) Tau=1d-4
+    call transfer_factor(Tau,transfer)
     P_emit(I_nu)=pv
     Tau_syn(I_nu)=Tau
-    P_syn(I_nu)=pv*(1d0-dexp(-Tau))/Tau
+    P_syn(I_nu)=pv*transfer
     Seed_syn(I_nu)=P_syn(I_nu)/(r2*V_cal)
 end subroutine store_syn
 end subroutine syn_fixed
@@ -294,13 +288,13 @@ real(8) :: V_tar
         if (V_tar <= V_in(1)) then
             P_out(I_out)=max(P_in(1),0d0)
             Seed_out(I_out)=max(Seed_in(1),0d0)
-            Tau_out(I_out)=max(Tau_in(1),1d-4)
+            Tau_out(I_out)=Tau_in(1)
             cycle
         end if
         if (V_tar >= V_in(Num_nu_in)) then
             P_out(I_out)=max(P_in(Num_nu_in),0d0)
             Seed_out(I_out)=max(Seed_in(Num_nu_in),0d0)
-            Tau_out(I_out)=max(Tau_in(Num_nu_in),1d-4)
+            Tau_out(I_out)=Tau_in(Num_nu_in)
             cycle
         end if
 
@@ -308,7 +302,7 @@ real(8) :: V_tar
         idx_lo=max(1,min(idx_hi-1,Num_nu_in-1))
         P_out(I_out)=max(pl_interp(V_in(idx_lo),V_in(idx_hi),P_in(idx_lo),P_in(idx_hi),V_tar),0d0)
         Seed_out(I_out)=max(pl_interp(V_in(idx_lo),V_in(idx_hi),Seed_in(idx_lo),Seed_in(idx_hi),V_tar),0d0)
-        Tau_out(I_out)=max(pl_interp(V_in(idx_lo),V_in(idx_hi),Tau_in(idx_lo),Tau_in(idx_hi),V_tar),1d-4)
+        Tau_out(I_out)=pl_interp(V_in(idx_lo),V_in(idx_hi),Tau_in(idx_lo),Tau_in(idx_hi),V_tar)
     end do
 end subroutine project_syn
 

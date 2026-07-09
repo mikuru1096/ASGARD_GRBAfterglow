@@ -1141,7 +1141,7 @@ SED 插值共享累加 primitive。
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
 | `M` | 2 | `rad_common` | 公共模块；提供多个入口复用的物理/数值 primitive。 |
-| `S` | 16 | `compute_simpson_weights` | 积分权重或求积 primitive；影响谱积分精度。 |
+| `S` | 16 | `sampled_weights` | 实际节点 Simpson 权重；偶数样点用 Cartwright 末区间校正。 |
 | `F` | 35 | `rad_interp` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
 | `S` | 63 | `transfer_factor` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
 | `F` | 74 | `syn_kernel` | 近似同步辐射核的低频、指数段和高频分支。 |
