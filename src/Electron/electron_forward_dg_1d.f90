@@ -5,9 +5,8 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
                              gam_e, dN_gam_e, P_syn, Seed_syn, V_m, V_c, V_a)
     use constants
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
-    use dynamics_density_profile, only: density_profile, jump_count, &
-                                        jump_factor, jump_radius, jump_width, &
-                                        profile_count
+    use dynamics_density_profile, only: density_profile, uniform_density, jump_count, &
+                                        jump_factor, jump_radius, jump_width
     use electron_common, only: electron_initial_density, electron_unpack_boundary, electron_gm_exact, &
                                tail_factor, electron_injection_prefactor
     use electron_cooling_kernel, only: forward_cooling
@@ -148,8 +147,7 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
         temp_gam = Epsilon_e/f_e*para_m_p/para_m_e*(gloc - 1d0)
         call electron_gm_exact(p, temp_gam, gmax_inj, gm_inj)
         gmp_shell = (1d0 - p)/(gmax_inj**(1d0 - p) - gm_inj**(1d0 - p))
-        uniform_shell = (A_star <= 0d0 .and. profile_count == 0 .and. &
-                                 jump_count == 0 .and. abs(f_jump - 1d0) <= 0d0)
+        uniform_shell = uniform_density(A_star, f_jump)
         gc = 7.7d8*(1d0 + z)/gloc/DB**2/R_Tobs(it)
         dDD = R(it) - R(it - 1)
     end subroutine prepare_shell
@@ -248,9 +246,9 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
             call electron_gm_exact(p, temp_gam, gmax_step, gm_step)
             gmp_step = (1d0 - p)/(gmax_step**(1d0 - p) - gm_step**(1d0 - p))
         endif
-        call electron_injection_prefactor(R_step, dR_local, dNe_step, f_e, gmp_step, source_norm)
+        call electron_injection_prefactor(R_step - 0.5d0*dR_local, dR_local, dNe_step, f_e, gmp_step, source_norm)
         if (thermal_electrons /= 0) then
-            call electron_injection_prefactor(R_step, dR_local, dNe_step, 1d0 - f_e, 1d0, thermal_norm)
+            call electron_injection_prefactor(R_step - 0.5d0*dR_local, dR_local, dNe_step, 1d0 - f_e, 1d0, thermal_norm)
         else
             thermal_norm = 0d0
         endif

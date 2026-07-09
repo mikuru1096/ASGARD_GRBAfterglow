@@ -160,7 +160,7 @@ contains
         call density_profile(A_star,dNe_ISM,rloc,R0,1,R_tr,f_jump,f_wide,dNe)
 
         deladv=(dEl+1d0/rloc)
-        call electron_injection_prefactor(rloc,dDR,dNe,f_e,gmp,Q)
+        call electron_injection_prefactor(rloc-dDR,dDR,dNe,f_e,gmp,Q)
         call source_edges(Num_gam_e,xedge,gm,gmax,Q,p,dF1)
 
         call load_weno_state()

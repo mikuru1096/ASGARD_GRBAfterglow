@@ -138,7 +138,7 @@ contains
         call electron_gm_exact(p,temp_gam,gmax_step,gm_step)
         gmp_step=(1d0-p)/(gmax_step**(1d0-p)-gm_step**(1d0-p))
 
-        call electron_injection_prefactor(rloc,dDR,dNe,f_e,gmp_step,Q)
+        call electron_injection_prefactor(rloc-dDR,dDR,dNe,f_e,gmp_step,Q)
         call source_edges(Num_gam_e,xedge,gm_step,gmax_step,Q,p,dF1)
         if (rho_shell > 0d0) then
             delmean=delbase*(dNe/rho_shell)

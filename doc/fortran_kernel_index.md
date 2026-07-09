@@ -2,7 +2,7 @@
 
 本文是当前工作树的 Fortran kernel 索引。它面向需要逐个进入子程序读算法的人：先看 f2py 入口和物理阶段，再进入文件内的 `module`、`subroutine`、`function`。更高层的物理到算法映射见 `doc/physics_algorithm_crosswalk.md`，运行主链见 `doc/call_chain.md`。
 
-当前索引按 ASGARD 自有 Fortran 数值核抽取，排除第三方固定格式特殊函数依赖，共 734 个程序单元：44 个 module、501 个 subroutine、189 个 function。行号是生成本页时的源文件位置。
+当前索引按 ASGARD 自有 Fortran 数值核抽取，排除第三方固定格式特殊函数依赖，共 735 个程序单元：44 个 module、501 个 subroutine、190 个 function。行号是生成本页时的源文件位置。
 
 ## 读源码顺序
 
@@ -76,9 +76,10 @@ Fortran 改动后的最低门槛见 `doc/validation_and_benchmarks.md`。文档-
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
 | `M` | 1 | `dynamics_density_profile` | 介质密度和 density-jump/profile 状态；被 dynamics、electron、structured 路径按需引用。 |
-| `S` | 21 | `density_profile` | 介质密度或 density-jump 分支；直接影响 swept mass、动力学和注入源项。 |
-| `S` | 77 | `set_density_profile` | 从 `Boundary` 解包 density jump/profile 状态。 |
-| `S` | 129 | `tab_density` | tabulated profile 的 log-log 插值。 |
+| `F` | 21 | `uniform_density` | 纯函数；集中判定 ISM、legacy jump、modern jump 和 tabulated profile 是否满足均匀介质 fast-path 合同。 |
+| `S` | 29 | `density_profile` | 介质密度或 density-jump 分支；直接影响 swept mass、动力学和注入源项。 |
+| `S` | 85 | `set_density_profile` | 从 `Boundary` 解包 density jump/profile 状态。 |
+| `S` | 137 | `tab_density` | tabulated profile 的 log-log 插值。 |
 
 ### `src/Dynamics/reverse_jump_conditions.f90`
 

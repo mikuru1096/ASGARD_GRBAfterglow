@@ -81,7 +81,7 @@ subroutine fs_transport_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,ng, &
     real(8) :: temp, dq, d_x_E, coord_scale, rloc, R_Gamma_loc, dNe, Para_N_e_ini, DB, DB_min
     real(8) :: Epsilon_b_floor, magnetic_decay_alpha_t, magnetic_decay_t0_s, stochastic_accel_norm
     real(8) :: Gam_e_max, Gam_e_max_max, Gam_e_m, Gam_e_c, Gam_e_c_diag, temp_gam, Gam_e_max_cell
-    real(8) :: Gam_e_m_cell, Gam_e_c_cell, bsh, b2, b2sh, Q, Q_rate
+    real(8) :: Gam_e_m_cell, Gam_e_c_cell, bsh, b2, b2sh, Q
     integer :: I_tobs, ichi, Num_nu_cool, k_medium, substep_limit
     logical :: magnetic_decay_active, pwn_cr_transport, free_outer_escape, emit_full_spectrum
     logical :: four_velocity_coord
@@ -363,9 +363,8 @@ subroutine advance_shell(I_tobs)
                 end if
 
                 Gam_e_m_p = (1d0-p)/(Gam_e_max**(1d0-p)-Gam_e_m**(1d0-p))
-                call electron_injection_prefactor(R_sub,dDR,dNe,f_e,Gam_e_m_p,Q)
-                Q_rate = Q/dDR
-                call source_edges(ng,x_edge_E,Gam_e_m,Gam_e_max,Q_rate,p,dF1)
+                call electron_injection_prefactor(R_sub-0.5d0*dDR,dDR,dNe,f_e,Gam_e_m_p,Q)
+                call source_edges(ng,x_edge_E,Gam_e_m,Gam_e_max,Q,p,dF1)
                 source_q1 = dF1/dq
 
                 if (use_charint_transport) then

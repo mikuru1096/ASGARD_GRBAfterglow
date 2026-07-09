@@ -4,7 +4,7 @@ module dynamics_density_profile
     private
     public :: jump_max, jump_count, profile_count
     public :: jump_radius, jump_factor, jump_width
-    public :: density_profile, set_density_profile
+    public :: density_profile, set_density_profile, uniform_density
 
     integer, parameter :: jump_max = 8, profile_max = 96
     integer, parameter :: jump_slot = 28
@@ -17,6 +17,14 @@ module dynamics_density_profile
     real(8), dimension(profile_max) :: profile_density= 0d0
 
 contains
+
+pure logical function uniform_density(A_star, f_jump)
+    implicit none
+    real(8), intent(in) :: A_star, f_jump
+
+    uniform_density = A_star <= 0d0 .and. f_jump == 1d0 .and. &
+                      jump_count == 0 .and. profile_count == 0
+end function uniform_density
 
 subroutine density_profile(A_star, dNe_ISM, RR, R0, apply_jump, R_tr, f_jump, f_wide, dNe)
     implicit none

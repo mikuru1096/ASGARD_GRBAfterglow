@@ -5,7 +5,7 @@ subroutine fs_fullhide_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
                                       substep_min,substep_max,thermal_electrons,gam_e,dN_gam_e,P_syn, &
                                       Seed_syn,V_m,V_c,V_a)
     use constants
-    use dynamics_density_profile, only: density_profile
+    use dynamics_density_profile, only: density_profile, uniform_density
     use electron_common
     use electron_injection_profiles, only: init_coord, source_coord
     use electron_coord_common, only: build_fourvel_grid, dxg_dcoord, coord_fourvel, fourvel_scale
@@ -67,9 +67,7 @@ subroutine fs_fullhide_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
         dN_x=dN_x*Para_N_e_ini
     end if
     call coord_to_dgamma(Num_gam_e,coord_edge,coord_scale,gam_e,dN_x,dN_gam_e(:,1))
-    is_uniform_density=(A_star <= 0d0 .and. f_jump == 1d0)
-!    factor_adv=Para_sigmaT/(6.0d0*pi*Para_m_energy)
-
+    is_uniform_density=uniform_density(A_star,f_jump)
     do I_tobs=2,Num_R
         R_loc=R(I_tobs-1)
         R_Gamma_loc=(R_Gamma(I_tobs)+R_Gamma(I_tobs-1))/2d0
@@ -111,7 +109,7 @@ subroutine fs_fullhide_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
                     R_loc=R_loc+dDR
 
                     if (is_uniform_density .and. thermal_electrons == 0) then
-                        call build_hybrid_source(R_loc,dDR,dNe,Gam_e_m,Gam_e_max,Gam_e_m_p)
+                        call build_hybrid_source(R_loc-dDR,dDR,dNe,Gam_e_m,Gam_e_max,Gam_e_m_p)
                     else
                         call density_profile(A_star,dNe_ISM,R_loc,R0,1,R_tr,f_jump,f_wide,dNe)
                         DB_step=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma_loc*(R_Gamma_loc-1d0)))
@@ -119,7 +117,7 @@ subroutine fs_fullhide_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
                         temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma_loc-1d0)
                         call electron_gm_exact(p,temp_gam,Gam_e_max_step,Gam_e_m_step)
                         Gam_e_m_p_step=(1d0-p)/(Gam_e_max_step**(1d0-p)-Gam_e_m_step**(1d0-p))
-                        call build_hybrid_source(R_loc,dDR,dNe,Gam_e_m_step,Gam_e_max_step,Gam_e_m_p_step)
+                        call build_hybrid_source(R_loc-dDR,dDR,dNe,Gam_e_m_step,Gam_e_max_step,Gam_e_m_p_step)
 
                         if (dNe_shell > 0d0) then
                             dEl_step=dEl*(dNe/dNe_shell)
@@ -156,7 +154,7 @@ subroutine fs_fullhide_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
                 temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma_loc-1d0)
                 call electron_gm_exact(p,temp_gam,Gam_e_max_full,Gam_e_m_full)
                 Gam_e_m_p_full=(1d0-p)/(Gam_e_max_full**(1d0-p)-Gam_e_m_full**(1d0-p))
-                call electron_injection_prefactor(R_full,dR_try,dNe_full,f_e,Gam_e_m_p_full,Q)
+                call electron_injection_prefactor(R_loc,dR_try,dNe_full,f_e,Gam_e_m_p_full,Q)
                 call build_hybrid_count(Q,Gam_e_m_full,Gam_e_max_full,Gam_e_m_p_full)
 
                 if (dNe_shell > 0d0) then
@@ -178,7 +176,7 @@ subroutine fs_fullhide_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
                 temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma_loc-1d0)
                 call electron_gm_exact(p,temp_gam,Gam_e_max_half,Gam_e_m_half)
                 Gam_e_m_p_half=(1d0-p)/(Gam_e_max_half**(1d0-p)-Gam_e_m_half**(1d0-p))
-                call electron_injection_prefactor(R_half,dR_half,dNe_half,f_e,Gam_e_m_p_half,Q)
+                call electron_injection_prefactor(R_loc,dR_half,dNe_half,f_e,Gam_e_m_p_half,Q)
                 call build_hybrid_count(Q,Gam_e_m_half,Gam_e_max_half,Gam_e_m_p_half)
 
                 if (dNe_shell > 0d0) then
@@ -188,7 +186,7 @@ subroutine fs_fullhide_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
                 end if
                 call shellstep_cached(Num_gam_e,dR_half,coord_edge,face_invjac,dEl_step,1d0/R_half,dF1,dN_x,dN_half)
 
-                call electron_injection_prefactor(R_full,dR_half,dNe_full,f_e,Gam_e_m_p_full,Q)
+                call electron_injection_prefactor(R_half,dR_half,dNe_full,f_e,Gam_e_m_p_full,Q)
                 call build_hybrid_count(Q,Gam_e_m_full,Gam_e_max_full,Gam_e_m_p_full)
 
                 if (dNe_shell > 0d0) then
@@ -273,11 +271,11 @@ contains
     real(8), intent(in) :: rsrc,drsrc,nsrc,gm_src,gmax_src,gmp_src
 
         if (thermal_electrons /= 0) then
-            Q = 4d0/3d0*pi*(3d0*rsrc**2+drsrc*(3d0*rsrc+drsrc))*nsrc
+            call electron_injection_prefactor(rsrc,drsrc,nsrc,1d0,1d0,Q)
             call hybrid_coord(Num_gam_e,coord_edge,coord_scale,p,gm_src,gmax_src,f_e,dF1)
             dF1 = dF1*Q
         else
-            Q = 4d0/3d0*pi*(3d0*rsrc**2+drsrc*(3d0*rsrc+drsrc))*nsrc*f_e*gmp_src
+            call electron_injection_prefactor(rsrc,drsrc,nsrc,f_e,gmp_src,Q)
             call source_coord(Num_gam_e,coord_edge,coord_scale,gm_src,gmax_src,Q,p,dF1)
         end if
     end subroutine build_hybrid_source

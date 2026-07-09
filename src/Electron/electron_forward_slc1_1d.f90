@@ -3,7 +3,7 @@
 subroutine fs_slc1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads, &
                             gam_e,dN_gam_e,P_syn,Seed_syn,V_m,V_c,V_a)
     use constants
-    use dynamics_density_profile, only: density_profile
+    use dynamics_density_profile, only: density_profile, uniform_density
     use electron_common
     use electron_transport_common, only: semi_lagrangian_step, dnx_dgamma
     use electron_injection_profiles, only: source_edges
@@ -47,7 +47,7 @@ subroutine fs_slc1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e,
                                       imodelog,gam_e,spec,xedge)
     call dnx_dgamma(Num_gam_e,xedge,gam_e,spec,dN_gam_e(:,1))
     d_x=dlog(gam_e(2)/gam_e(1))
-    uniform=(A_star <= 0d0 .and. f_jump == 1d0)
+    uniform=uniform_density(A_star,f_jump)
 
     ! 每个输出壳层先固定辐射诊断，再在半拉格朗日子步中推进电子谱。
     ! Each output shell freezes diagnostics first, then advances the electron spectrum with semi-Lagrangian substeps.
@@ -104,7 +104,7 @@ subroutine fs_slc1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e,
             temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(gloc-1d0)
             call electron_gm_exact(p,temp_gam,gmax_step,gm_step)
             gmp_step=(1d0-p)/(gmax_step**(1d0-p)-gm_step**(1d0-p))
-            call electron_injection_prefactor(rmid,dDR,rho_mid,f_e,gmp_step,Q)
+            call electron_injection_prefactor(rleft,dDR,rho_mid,f_e,gmp_step,Q)
             call source_edges(Num_gam_e,xedge,gm_step,gmax_step,Q,p,dF1)
             if (rho_shell > 0d0) then
                 delmean=delbase*(rho_mid/rho_shell)

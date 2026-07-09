@@ -3,7 +3,7 @@
 subroutine fs_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads, &
                                 adaptive_substeps,substep_rtol,substep_min,substep_max,gam_e,dN_gam_e,P_syn,Seed_syn,V_m,V_c,V_a)
     use constants
-    use dynamics_density_profile, only: density_profile
+    use dynamics_density_profile, only: density_profile, uniform_density
     use electron_common
     use electron_transport_common, only: cfl_relax, rtol_relax, &
         cooling_affine, cooling_piecewise, char_update, &
@@ -54,7 +54,7 @@ subroutine fs_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam
     call electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
                                       imodelog,gam_e,dN_x,x_edge)
     call dnx_dgamma(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,1))
-    is_uniform_density=(A_star <= 0d0 .and. f_jump == 1d0)
+    is_uniform_density=uniform_density(A_star,f_jump)
 
     do I_tobs=2,Num_R
         call prepare_characteristic_shell(I_tobs)
@@ -75,7 +75,7 @@ subroutine fs_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam
 
                 R_mid=R_loc+0.5d0*dDR
                 do L=1,L1
-                    call electron_injection_prefactor(R_mid,dDR,dNe_mid,f_e,Gam_e_m_p_step,Q)
+                    call electron_injection_prefactor(R_mid-0.5d0*dDR,dDR,dNe_mid,f_e,Gam_e_m_p_step,Q)
 
                     if (index_Y == 0) then
                         b_ad=1d0/R_mid
@@ -104,7 +104,7 @@ subroutine fs_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam
                     temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma_loc-1d0)
                     call electron_gm_exact(p,temp_gam,Gam_e_max_step,Gam_e_m_step)
                     Gam_e_m_p_step=(1d0-p)/(Gam_e_max_step**(1d0-p)-Gam_e_m_step**(1d0-p))
-                    call electron_injection_prefactor(R_mid,dDR,dNe_mid,f_e,Gam_e_m_p_step,Q)
+                    call electron_injection_prefactor(R_left,dDR,dNe_mid,f_e,Gam_e_m_p_step,Q)
                     call source_edges(Num_gam_e,x_edge,Gam_e_m_step,Gam_e_max_step,Q,p,dF1)
 
                     if (index_Y == 0) then
@@ -164,7 +164,7 @@ subroutine fs_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam
                         cycle
                     end if
 
-                    call electron_injection_prefactor(R_mid,dR_try,dNe_shell,f_e,Gam_e_m_p_step,Q)
+                    call electron_injection_prefactor(R_loc,dR_try,dNe_shell,f_e,Gam_e_m_p_step,Q)
                     if (index_Y == 0) then
                         b_ad=1d0/R_mid
                         call char_update(Num_gam_e,dR_try,x_edge,cooling_affine, &
@@ -190,7 +190,7 @@ subroutine fs_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam
                     temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma_loc-1d0)
                     call electron_gm_exact(p,temp_gam,Gam_e_max_step,Gam_e_m_step)
                     Gam_e_m_p_step=(1d0-p)/(Gam_e_max_step**(1d0-p)-Gam_e_m_step**(1d0-p))
-                    call electron_injection_prefactor(R_mid,dR_try,dNe_mid,f_e,Gam_e_m_p_step,Q)
+                    call electron_injection_prefactor(R_loc,dR_try,dNe_mid,f_e,Gam_e_m_p_step,Q)
                     call source_edges(Num_gam_e,x_edge,Gam_e_m_step,Gam_e_max_step,Q,p,dF1)
                     if (index_Y == 0) then
                         cooling_scale=1d0/(beta_Gam*R_Gamma_loc)

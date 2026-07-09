@@ -151,14 +151,14 @@ subroutine electron_gc_loss(ng,gam_e,dEL_mean,R_loc,gc)
     gc=dexp(xroot)
 end subroutine electron_gc_loss
 
-! 计算当前径向壳层注入源项的归一化系数。
-! Compute the injection-source normalization for the current radial shell.
-subroutine electron_injection_prefactor(R_loc,dDR,dNe,f_e,gmfac,Q)
+! 计算从 R_left 开始的径向区间内平均单位半径注入源归一化。
+! Compute the per-unit-radius injection normalization averaged over the interval starting at R_left.
+subroutine electron_injection_prefactor(R_left,dDR,dNe,f_e,gmfac,Q)
     implicit none
-    real(8), intent(in) :: R_loc,dDR,dNe,f_e,gmfac
+    real(8), intent(in) :: R_left,dDR,dNe,f_e,gmfac
     real(8), intent(out) :: Q
 
-    Q=4d0/3d0*pi*(3d0*R_loc**2+dDR*(3d0*R_loc+dDR))*dNe*f_e*gmfac
+    Q=4d0/3d0*pi*(3d0*R_left**2+dDR*(3d0*R_left+dDR))*dNe*f_e*gmfac
 end subroutine electron_injection_prefactor
 
 ! 在电子网格上定位注入区间覆盖的单元范围。

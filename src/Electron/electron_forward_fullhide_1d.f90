@@ -8,7 +8,7 @@ subroutine fs_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
                                    adaptive_substeps,substep_rtol,substep_min,substep_max,thermal_electrons, &
                                    gam_e,dN_gam_e,P_syn,Seed_syn,V_m,V_c,V_a)
     use constants
-    use dynamics_density_profile, only: density_profile
+    use dynamics_density_profile, only: density_profile, uniform_density
     use electron_common
     use electron_injection_profiles, only: source_edges, add_thermal, &
                                            init_powerlaw, init_coord, &
@@ -35,20 +35,19 @@ subroutine fs_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
     real(8), intent(out), dimension(Num_nu,Num_R) :: P_syn,Seed_syn
     real(8), intent(out), dimension(Num_R) :: V_m,V_c,V_a
 
-    real(8),allocatable,dimension (:) :: dEl,dEl_step,dEL_mean,x,dN_x,x_edge,coord_edge,dxdy_grid,face_invjac, &
-                                         dN_full,dN_half,dN_half2,dF1,dEL_mean_step,P_emit_shell,Tau_syn_shell
-    real(8),allocatable,dimension (:,:) :: dF_steps,face_coupling
+    real(8),allocatable,dimension (:) :: dEl,dEl_step,x,dN_x,x_edge,coord_edge,dxdy_grid,face_invjac, &
+                                         dN_full,dN_half,dN_half2,dF1,face_disp,P_emit_shell,Tau_syn_shell
     logical :: is_uniform_density
     integer :: I_face
     real(8) :: dDR_xi,source_integral
-    real(8) :: adiabatic_integral, l_count_real, step_sum, step_sq_sum, radius_sum, radius_sq_sum
-    real(8) :: source_prefactor, coord_scale, dg_gamma_scale, R_loc, R_Gamma_loc
+    real(8) :: adiabatic_integral
+    real(8) :: coord_scale, dg_gamma_scale, R_loc, R_Gamma_loc
     real(8) :: beta_Gam, dNe, DB, Gam_e_max, Gam_e_m, Gam_e_m_p, Gam_e_c, dNe_shell, dDR, dDD, f_r
-    allocate (dEl(Num_gam_e),dEl_step(Num_gam_e),dEL_mean(Num_gam_e-1),x(Num_gam_e),dN_x(Num_gam_e), &
+    allocate (dEl(Num_gam_e),dEl_step(Num_gam_e),x(Num_gam_e),dN_x(Num_gam_e), &
               dN_full(Num_gam_e), &
               x_edge(Num_gam_e+1),coord_edge(Num_gam_e+1),dxdy_grid(Num_gam_e), &
               face_invjac(Num_gam_e-1), &
-              dN_half(Num_gam_e),dN_half2(Num_gam_e),dF1(Num_gam_e),dEL_mean_step(Num_gam_e-1), &
+              dN_half(Num_gam_e),dN_half2(Num_gam_e),dF1(Num_gam_e),face_disp(Num_gam_e-1), &
               P_emit_shell(Num_nu),Tau_syn_shell(Num_nu))
     call electron_unpack_boundary(Boundary,n,Eta_0,R_ini,Epsilon_e,Epsilon_b,p,z,dNe_ISM,A_star, &
                                   E_iso,T_log10_duration,f_e,R_tr,f_jump,f_wide,R0)
@@ -63,16 +62,12 @@ subroutine fs_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
     V_a=0d0
 
     call init_electron_state()
-    d_x=dlog(gam_e(2)/gam_e(1))
-    is_uniform_density=(A_star <= 0d0 .and. f_jump == 1d0)
-!    factor_adv=Para_sigmaT/(6.0d0*pi*Para_m_energy)
-
+    is_uniform_density=uniform_density(A_star,f_jump)
     do I_tobs=2,Num_R
         call prepare_fullhide_shell(I_tobs)
-        dEL_mean=(dEl(2:Num_gam_e)+dEl(1:Num_gam_e-1))/2d0
         dDR_xi=dDR
         if (adaptive_substeps == 0) then
-            call advance_fixed_shell(I_tobs)
+            call advance_fixed_shell()
         else
             call advance_adaptive_shell()
         end if
@@ -81,8 +76,8 @@ subroutine fs_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
     end do
     call write_finaldiag()
 
-    deallocate (dEl,dEl_step,dEL_mean,x,dN_x,x_edge,coord_edge,dxdy_grid,face_invjac,dN_full,dN_half,dN_half2,dF1, &
-                dEL_mean_step,P_emit_shell,Tau_syn_shell)
+    deallocate (dEl,dEl_step,x,dN_x,x_edge,coord_edge,dxdy_grid,face_invjac,dN_full,dN_half,dN_half2,dF1, &
+                face_disp,P_emit_shell,Tau_syn_shell)
 
 contains
 
@@ -202,9 +197,8 @@ contains
 
     ! 固定子步路径：均匀介质可合并源项，非均匀介质逐子步更新介质。
     ! Fixed-substep path: uniform media can merge sources, while nonuniform media update the medium per substep.
-    subroutine advance_fixed_shell(I_tobs)
+    subroutine advance_fixed_shell()
     implicit real(8)(A-H,O-Z)
-    integer, intent(in) :: I_tobs
 
         if (dDD <= 0d0) error stop 'fs_fullhide_1d requires increasing radius grid'
         if (dDR <= 0d0) error stop 'fs_fullhide_1d requires positive cooling substep width'
@@ -221,28 +215,21 @@ contains
     implicit real(8)(A-H,O-Z)
     integer, intent(in) :: L1
 
-        allocate(dF_steps(Num_gam_e,1),face_coupling(Num_gam_e-1,1))
-        l_count_real=dble(L1)
-        step_sum=l_count_real*(l_count_real+1d0)/2d0
-        step_sq_sum=l_count_real*(l_count_real+1d0)*(2d0*l_count_real+1d0)/6d0
-        radius_sum=l_count_real*R_loc+dDR*step_sum
-        radius_sq_sum=l_count_real*R_loc*R_loc+2d0*R_loc*dDR*step_sum+dDR*dDR*step_sq_sum
-        source_prefactor=4d0/3d0*pi*dNe*f_e*Gam_e_m_p
-        source_integral=dDR*source_prefactor*(3d0*radius_sq_sum+dDR*(3d0*radius_sum+l_count_real*dDR))
+        call electron_injection_prefactor(R_loc,dDD,dNe,f_e,Gam_e_m_p,source_integral)
+        source_integral=dDD*source_integral
         adiabatic_integral=0d0
         do L=1,L1
             adiabatic_integral=adiabatic_integral+dDR/(R_loc+dDR*dble(L))
         end do
         call source_coord(Num_gam_e,coord_edge,coord_scale, &
                                                                Gam_e_m,Gam_e_max,source_integral,p, &
-                                                               dF_steps(:,1))
+                                                               dF1)
         do I_face=1,Num_gam_e-1
-            face_coupling(I_face,1)=(dDD*(dEl(I_face)+dEl(I_face+1))/2d0+adiabatic_integral)*face_invjac(I_face)
+            face_disp(I_face)=(dDD*(dEl(I_face)+dEl(I_face+1))/2d0+adiabatic_integral)*face_invjac(I_face)
         end do
-        call flux_seq_nonuniform(Num_gam_e,coord_edge,face_coupling(:,1),dF_steps(:,1), &
+        call flux_seq_nonuniform(Num_gam_e,coord_edge,face_disp,dF1, &
                                                               dN_x,x,.true.)
         dN_x=x
-        deallocate(dF_steps,face_coupling)
     end subroutine advance_uniform_shell
 
     subroutine advance_general_shell(L1)
@@ -257,7 +244,7 @@ contains
             temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma_loc-1d0)
             call electron_gm_exact(p,temp_gam,Gam_e_max_step,Gam_e_m_step)
             Gam_e_m_p_step=(1d0-p)/(Gam_e_max_step**(1d0-p)-Gam_e_m_step**(1d0-p))
-            Q=4d0/3d0*pi*(3d0*R_loc**2+dDR*(3d0*R_loc+dDR))*dNe*f_e*Gam_e_m_p_step
+            call electron_injection_prefactor(R_loc-dDR,dDR,dNe,f_e,Gam_e_m_p_step,Q)
             call source_coord(Num_gam_e,coord_edge,coord_scale, &
                                                                    Gam_e_m_step,Gam_e_max_step,Q,p,dF1)
             if (thermal_electrons /= 0) then
@@ -300,7 +287,7 @@ contains
             temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma_loc-1d0)
             call electron_gm_exact(p,temp_gam,Gam_e_max_full,Gam_e_m_full)
             Gam_e_m_p_full=(1d0-p)/(Gam_e_max_full**(1d0-p)-Gam_e_m_full**(1d0-p))
-            call electron_injection_prefactor(R_full,dR_try,dNe_full,f_e,Gam_e_m_p_full,Q)
+            call electron_injection_prefactor(R_loc,dR_try,dNe_full,f_e,Gam_e_m_p_full,Q)
             call source_coord(Num_gam_e,coord_edge,coord_scale, &
                                                                    Gam_e_m_full,Gam_e_max_full,Q,p,dF1)
             if (thermal_electrons /= 0) then
@@ -327,7 +314,7 @@ contains
             temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma_loc-1d0)
             call electron_gm_exact(p,temp_gam,Gam_e_max_half,Gam_e_m_half)
             Gam_e_m_p_half=(1d0-p)/(Gam_e_max_half**(1d0-p)-Gam_e_m_half**(1d0-p))
-            call electron_injection_prefactor(R_half,dR_half,dNe_half,f_e,Gam_e_m_p_half,Q)
+            call electron_injection_prefactor(R_loc,dR_half,dNe_half,f_e,Gam_e_m_p_half,Q)
             call source_coord(Num_gam_e,coord_edge,coord_scale, &
                                                                    Gam_e_m_half,Gam_e_max_half,Q,p,dF1)
             if (thermal_electrons /= 0) then
@@ -342,7 +329,7 @@ contains
             call shellstep_cached(Num_gam_e,dR_half,coord_edge,face_invjac, &
                                                       dEl_step,1d0/R_half,dF1,dN_x,dN_half)
 
-            call electron_injection_prefactor(R_full,dR_half,dNe_full,f_e,Gam_e_m_p_full,Q)
+            call electron_injection_prefactor(R_half,dR_half,dNe_full,f_e,Gam_e_m_p_full,Q)
             call source_coord(Num_gam_e,coord_edge,coord_scale, &
                                                                    Gam_e_m_full,Gam_e_max_full,Q,p,dF1)
             if (thermal_electrons /= 0) then
@@ -546,7 +533,7 @@ contains
             temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma_loc-1d0)
             call electron_gm_exact(p,temp_gam,Gam_e_max_step,Gam_e_m_step)
             Gam_e_m_p_step=(1d0-p)/(Gam_e_max_step**(1d0-p)-Gam_e_m_step**(1d0-p))
-            Q=4d0/3d0*pi*(3d0*R_loc**2+dDR*(3d0*R_loc+dDR))*dNe*f_e*Gam_e_m_p_step
+            call electron_injection_prefactor(R_loc-dDR,dDR,dNe,f_e,Gam_e_m_p_step,Q)
             call source_edges(Num_gam_e,x_edge,Gam_e_m_step,Gam_e_max_step,Q,p,dF1)
             dF1=dF1+sec_source(:,I_tobs)
             if (thermal_electrons /= 0) then
