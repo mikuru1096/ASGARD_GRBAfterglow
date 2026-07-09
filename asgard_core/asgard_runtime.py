@@ -38,8 +38,10 @@ from asgard_core.asgard_types import (
 )
 from asgard_core.asgard_physics_utils import (
     ambient_density,
+    densityprofile,
     densityjumps,
     magfield,
+    profile_crossing,
     reverse_mass,
 )
 from asgard_core.asgard_setup import R0_INDEX
@@ -251,7 +253,15 @@ def _rsdiagnostics(
         contact_radius_cm = delta0_cm * gamma0 * gamma0 * (np.sqrt((1.0 + sigma) / sigma) - 1.0)
         initial_super_fast = bool(gamma0 > np.sqrt(1.0 + sigma))
 
-    if float(config.a_star) > 0.0:
+    profile_r, profile_n = densityprofile(config)
+    if profile_r.size > 0:
+        medium = "density_profile"
+        # Existing k=0 and k=2 formulae both solve R_x M_sw(R_x)=E Delta/[c^2(1+sigma)^2].
+        target = float(config.e_iso) * delta0_cm / (
+            4.0 * np.pi * constants.para_m_p * constants.para_c**2 * (1.0 + sigma) ** 2
+        )
+        reference_crossing_radius_cm = profile_crossing(target, config.r0, profile_r, profile_n)
+    elif float(config.a_star) > 0.0:
         medium = "wind"
         wind_mass_per_radius = float(config.a_star) * 3.0e35 * constants.para_m_p
         deceleration_radius_cm = float(config.e_iso) / (
@@ -1562,8 +1572,8 @@ def _rsparams(config: RuntimeConfig) -> ReverseShockParameters | None:
     if not reverse_enabled:
         return None
 
-    if config.reverse_shock.delta_t_s is None:
-        raise ValueError("ReverseShockConfig.delta_t_s must be set when reverse shock is enabled.")
+    if config.reverse_shock.delta_t_s is None or config.reverse_shock.delta_t_s <= 0.0:
+        raise ValueError("ReverseShockConfig.delta_t_s must be positive when reverse shock is enabled.")
     if config.reverse_shock.sigma < 0.0:
         raise ValueError("ReverseShockConfig.sigma must be non-negative.")
 

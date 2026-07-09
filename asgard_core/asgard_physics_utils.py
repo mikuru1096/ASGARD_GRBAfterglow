@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from decimal import Decimal, localcontext
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -64,6 +65,78 @@ def loglog_interp(radius_cm, log_r, log_n) -> np.ndarray | float:
     slope = (log_n[index + 1] - log_n[index]) / (log_r[index + 1] - log_r[index])
     density = np.exp(log_n[index] + slope * (logx - log_r[index]))
     return float(density) if radius.ndim == 0 else density
+
+
+def profile_power(profile_r, profile_n) -> np.ndarray:
+    """Return q=d ln(r^3 n)/d ln(r) without cancellation near q=0."""
+    values = []
+    with localcontext() as ctx:
+        ctx.prec = 50
+        for rleft, rright, nleft, nright in zip(profile_r[:-1], profile_r[1:], profile_n[:-1], profile_n[1:]):
+            rscale = Decimal.from_float(float(rright)) / Decimal.from_float(float(rleft))
+            nscale = Decimal.from_float(float(nright)) / Decimal.from_float(float(nleft))
+            product = nscale * rscale**3
+            values.append(float(product.ln() / rscale.ln()))
+    return np.asarray(values, dtype=float)
+
+
+def profile_moment(radius_cm, r0, profile_r, log_r, log_n, power) -> float:
+    """Return the exact radial moment integral_0^R r^2 n(r) dr of a log-log profile."""
+    radius = float(radius_cm)
+    moment = 0.0
+    left = 0.0
+    if r0 > 0.0:
+        core = min(radius, r0)
+        if core > 0.0:
+            index = np.searchsorted(profile_r[1:-1], r0, side="right")
+            logcore = log_n[index] + (power[index] - 3.0) * (np.log(r0) - log_r[index])
+            moment = np.exp(logcore + 3.0 * np.log(core) - np.log(3.0))
+        if radius <= r0:
+            return moment
+        left = r0
+
+    for index, qval in enumerate(power):
+        lo = left if index == 0 else max(left, profile_r[index])
+        hi = radius if index == power.size - 1 else min(radius, profile_r[index + 1])
+        if hi <= lo:
+            continue
+        logw = log_n[index] + 3.0 * log_r[index]
+        if lo == 0.0:
+            moment += np.exp(logw + qval * (np.log(hi) - log_r[index]) - np.log(qval))
+        elif qval == 0.0:
+            moment += np.exp(logw + np.log(np.log(hi / lo)))
+        else:
+            span = qval * np.log(hi / lo)
+            if span > 0.0:
+                logedge = logw + qval * (np.log(hi) - log_r[index])
+                factor = -np.expm1(-span)
+            else:
+                logedge = logw + qval * (np.log(lo) - log_r[index])
+                factor = -np.expm1(span)
+            moment += np.exp(logedge + np.log(factor) - np.log(abs(qval)))
+    return float(moment)
+
+
+def profile_crossing(target, r0, profile_r, profile_n) -> float:
+    """Solve R integral_0^R r^2 n(r) dr = target for a tabulated profile."""
+    from scipy.optimize import brentq
+
+    log_r = np.log(profile_r)
+    log_n = np.log(profile_n)
+    power = profile_power(profile_r, profile_n)
+    moment = lambda value: profile_moment(value, r0, profile_r, log_r, log_n, power)
+    base = max(float(r0), float(profile_r[0]))
+    edge = target / moment(base)
+    if edge == base:
+        return base
+    lower, upper = sorted((base, edge))
+    logtarget = np.log(target)
+    root = brentq(
+        lambda value: value + np.log(moment(np.exp(value))) - logtarget,
+        np.log(lower),
+        np.log(upper),
+    )
+    return float(np.exp(root))
 
 
 def reverse_mass(config: RuntimeConfig) -> float:
