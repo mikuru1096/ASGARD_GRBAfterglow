@@ -1,7 +1,13 @@
 # ASGARD defect ledger
 
-- **P1 — Python 与 Fortran 的 tabulated profile 端点外推合同不一致。**
-  症状：Fortran `tab_density` 在 profile 首点以前和末点以后继续使用首段/末段的 log-log 幂律斜率；`asgard_physics_utils.ambient_density` 与 `TabulatedMedium._rho` 使用 `np.interp`，端点以外保持常数。
-  原因：Python 路径把 profile 半径限制到了采样表端点的隐式 `np.interp` 行为，没有实现 Fortran 已采用的首末段幂律外推；`ambient_density` 因而不能作为 Fortran profile 的独立验收基准。
-  影响：profile 网格外的 coupled-shock geometry、诊断磁场、pp target density 和用户可见 `Medium.rho` 与 Dynamics/Electron 实际介质不同，早晚期结果及跨语言诊断会产生系统偏差。
-  严格验收：Python 标量和数组路径必须在表内保持相同 log-log 插值，在首末点外使用与 Fortran 完全相同的首段/末段斜率；`ambient_density` 还必须匹配 Fortran 的 `R0` core，而 profile 介质不得叠加 density jump。对首点前、节点上、每个分段内、末点后及 `R0` 两侧的查询，Python/Fortran 与独立解析值相对一致到 `1e-12`；相关 coupled geometry、磁场和 pp target 使用同一密度，不允许通过夹住半径、常数端点、fallback 或后处理掩盖差异。
+- **P1 — tabulated medium 在 2D chi 输运中被静默当作 `k=0`。**
+  症状：公开 `fullhide_2d/charint_2d` 可接收 tabulated profile，但 Python `_chigrid` 与 Fortran `fs_transport_2d` 都只按 `a_star` 二分 `k_medium=0/2`；profile 的 `a_star=-1`，因此任意径向斜率都进入 ISM 几何。
+  原因：有限-q downstream geometry、体积权重和绝热散度采用常数幂律 `n∝R^{-k}` 的 BM 参数化，Boundary 中虽有 profile 表，2D 核却没有非幂律几何合同；现有 `profile_tag` 形参未参与计算。
+  影响：shock-front 注入使用真实 profile 局部密度，而 chi 半径、体积、绝热冷却、输运与投影权重使用 `k=0`，可能得到平滑但物理不自洽的 2D 电子谱和光变。
+  严格验收：在推导并实现非幂律介质的 chi 几何前，Python 系统边界必须明确拒绝 tabulated profile 与 2D electron solver 的组合；若实现一般化，则必须从同一 profile/shock history 得到几何与散度，并严格退化到 `k=0/2`、保持粒子数闭合和 nchi 收敛。不得静默选 `k=0`、用局部拟合 k 或后处理修正。
+
+- **P2 — ReverseShockCausalityDiagnostics 将 tabulated medium 标记并近似为 ISM。**
+  症状：`_rsdiagnostics` 只按 `a_star>0` 区分 wind/ISM；tabulated profile 因 `a_star=-1` 被标为 `medium="ism"`，`reference_crossing_radius_cm` 使用末端 `d_ne` 的均匀介质 Sedov 标度。
+  原因：解析参考诊断没有 profile 的累计扫掠矩合同，尽管 pressure ratio 已通过 `ambient_density` 使用真实局部 profile。
+  影响：实际 Reverse Dynamics 可正确运行，但用户可见的介质标签、参考 crossing 半径和 criteria 对照不代表所输入的 profile，可能误导物理判断。
+  严格验收：诊断必须标识 `density_profile`，并从与 Dynamics 相同的累计 profile 矩求解相应减速/参考 crossing 尺度；ISM/wind 极限须回到现有解析式。不得把 profile 近似为末端常密度、返回占位值或隐藏该字段。

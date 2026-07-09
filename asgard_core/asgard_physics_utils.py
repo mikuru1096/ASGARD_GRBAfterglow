@@ -56,6 +56,16 @@ def densityprofile(config: RuntimeConfig) -> tuple[np.ndarray, np.ndarray]:
     return profile_r, profile_n
 
 
+def loglog_interp(radius_cm, log_r, log_n) -> np.ndarray | float:
+    """Interpolate logged profile nodes and extrapolate with their edge slopes."""
+    radius = np.asarray(radius_cm, dtype=float)
+    logx = np.log(radius)
+    index = np.searchsorted(log_r[1:-1], logx, side="right")
+    slope = (log_n[index + 1] - log_n[index]) / (log_r[index + 1] - log_r[index])
+    density = np.exp(log_n[index] + slope * (logx - log_r[index]))
+    return float(density) if radius.ndim == 0 else density
+
+
 def reverse_mass(config: RuntimeConfig) -> float:
     return config.e_iso / ((1.0 + config.reverse_shock.sigma) * config.eta_0 * constants.para_c**2)
 
@@ -73,8 +83,7 @@ def ambient_density(radius_cm: np.ndarray | float, config: RuntimeConfig) -> np.
     profile_r, profile_n = densityprofile(config)
     if profile_r.size > 0:
         eval_radius = np.maximum(radius, config.r0) if config.r0 > 0.0 else radius
-        density = np.exp(np.interp(np.log(eval_radius), np.log(profile_r), np.log(profile_n)))
-        return float(density) if scalar_input else density
+        return loglog_interp(eval_radius, np.log(profile_r), np.log(profile_n))
 
     if config.a_star > 0.0:
         winddensity = config.a_star * 3.0e35 / radius**2

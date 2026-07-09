@@ -22,6 +22,7 @@ from asgard_core.asgard_state import (
     project_flux,
     solve_setup,
 )
+from asgard_core.asgard_physics_utils import loglog_interp
 from src import constants
 
 class Scale(str, Enum):
@@ -148,12 +149,11 @@ def TabulatedMedium(radius_cm, density_cm3, label: str) -> Medium:
     radius = tuple(float(value) for value in radius_cm)
     density = tuple(float(value) for value in density_cm3)
     _validate_density_profile(radius, density)
-    radius_arr = np.asarray(radius, dtype=float)
-    density_arr = np.asarray(density, dtype=float)
+    log_r = np.log(radius)
+    log_n = np.log(density)
 
     def _rho(_phi, _theta, rc):
-        values = np.exp(np.interp(np.log(np.asarray(rc, dtype=float)), np.log(radius_arr), np.log(density_arr)))
-        return float(values) if values.ndim == 0 else values
+        return loglog_interp(rc, log_r, log_n)
 
     return Medium(
         rho=_rho,
