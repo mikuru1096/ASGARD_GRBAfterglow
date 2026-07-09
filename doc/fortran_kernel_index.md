@@ -76,10 +76,14 @@ Fortran 改动后的最低门槛见 `doc/validation_and_benchmarks.md`。文档-
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
 | `M` | 1 | `dynamics_density_profile` | 介质密度和 density-jump/profile 状态；被 dynamics、electron、structured 路径按需引用。 |
-| `F` | 21 | `uniform_density` | 纯函数；集中判定 ISM、legacy jump、modern jump 和 tabulated profile 是否满足均匀介质 fast-path 合同。 |
-| `S` | 29 | `density_profile` | 介质密度或 density-jump 分支；直接影响 swept mass、动力学和注入源项。 |
-| `S` | 85 | `set_density_profile` | 从 `Boundary` 解包 density jump/profile 状态。 |
-| `S` | 137 | `tab_density` | tabulated profile 的 log-log 插值。 |
+| `F` | 24 | `uniform_density` | 纯函数；集中判定 ISM、legacy jump、modern jump 和 tabulated profile 是否满足均匀介质 fast-path 合同。 |
+| `S` | 32 | `density_profile` | 唯一局部介质密度合同；匹配 `R0`、wind-to-ISM、Gaussian jump 和 tabulated profile。 |
+| `S` | 91 | `density_moment` | 解析计算 `integral_0^R r^2 n(r)dr`，供 Forward/Reverse Dynamics 与 Electron 共享初始扫掠量。 |
+| `S` | 167 | `set_density_profile` | 从 `Boundary` 解包互斥的 density jump/profile，并预存高精度 log-log 幂律指数。 |
+| `S` | 242 | `tab_moment` | 逐段解析积分首末外推的 tabulated profile，显式处理 `s=-3` 极限和原点发散。 |
+| `S` | 293 | `gauss_moments` | 解析 Gaussian 的零阶和二阶有限区间矩；同侧远尾使用稳定 `erfc` 差。 |
+| `F` | 314 | `tab_logdensity` | 在 log 域执行 tabulated profile 的分段插值与首末幂律外推。 |
+| `S` | 339 | `tab_density` | 将共享的 log-density 合同转换为局部数密度。 |
 
 ### `src/Dynamics/reverse_jump_conditions.f90`
 
@@ -178,13 +182,13 @@ Fortran 改动后的最低门槛见 `doc/validation_and_benchmarks.md`。文档-
 | --- | ---: | --- | --- |
 | `M` | 2 | `electron_common` | 公共模块；提供多个入口复用的物理/数值 primitive。 |
 | `S` | 16 | `electron_unpack_boundary` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 49 | `electron_initialize_spectrum` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 81 | `electron_gm_exact` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 108 | `electron_gc_loss` | 冷却或能量损失计算；必须和 emissivity/source 单位保持一致。 |
-| `S` | 157 | `electron_injection_prefactor` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
-| `S` | 167 | `electron_source_bounds` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
-| `S` | 202 | `electron_relerr_max` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 219 | `electron_initial_density` | 介质密度或 density-jump 分支；直接影响 swept mass、动力学和注入源项。 |
+| `S` | 48 | `electron_initialize_spectrum` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 80 | `electron_gm_exact` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 107 | `electron_gc_loss` | 冷却或能量损失计算；必须和 emissivity/source 单位保持一致。 |
+| `S` | 156 | `electron_injection_prefactor` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
+| `S` | 166 | `electron_source_bounds` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
+| `S` | 201 | `electron_relerr_max` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 218 | `electron_initial_density` | 在 `R(1)` 复用共享局部密度和解析扫掠矩，初始化首列总电子数。 |
 
 ### `src/Electron/electron_cooling_ic_kernel.f90`
 

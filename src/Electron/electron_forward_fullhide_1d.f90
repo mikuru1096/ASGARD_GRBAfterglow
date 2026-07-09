@@ -49,7 +49,7 @@ subroutine fs_fullhide_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
               face_invjac(Num_gam_e-1), &
               dN_half(Num_gam_e),dN_half2(Num_gam_e),dF1(Num_gam_e),face_disp(Num_gam_e-1), &
               P_emit_shell(Num_nu),Tau_syn_shell(Num_nu))
-    call electron_unpack_boundary(Boundary,n,Eta_0,R_ini,Epsilon_e,Epsilon_b,p,z,dNe_ISM,A_star, &
+    call electron_unpack_boundary(Boundary,n,Eta_0,Epsilon_e,Epsilon_b,p,z,dNe_ISM,A_star, &
                                   E_iso,T_log10_duration,f_e,R_tr,f_jump,f_wide,R0)
     if (thermal_electrons /= 0) then
         if (f_e <= 0d0 .or. f_e > 1d0) error stop 'thermal electrons require 0 < f_e <= 1'
@@ -86,7 +86,7 @@ contains
     subroutine init_electron_state()
     implicit real(8)(A-H,O-Z)
 
-        call electron_initial_density(A_star,dNe_ISM,R_ini,R(1),R0,dNe,Para_N_e_ini)
+        call electron_initial_density(A_star,dNe_ISM,R(1),R0,R_tr,f_jump,f_wide,dNe,Para_N_e_ini)
 
         DB=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma(1)*(R_Gamma(1)-1d0)))
         Gam_e_max=3d0*Para_m_energy/dsqrt(8d0*DB*Para_e**3)
@@ -402,7 +402,7 @@ subroutine fs_fullhide_coupled(Boundary,R_Tobs,R_Gamma,R,V_seed,Seed_cooling,sec
     allocate(dEl(Num_gam_e),dEL_mean(Num_gam_e-1),dEL_mean_step(Num_gam_e-1),cooling_aux(Num_gam_e), &
              x(Num_gam_e),dN_x(Num_gam_e),x_edge(Num_gam_e+1),dF1(Num_gam_e))
 
-    call electron_unpack_boundary(Boundary,n,Eta_0,R_ini,Epsilon_e,Epsilon_b,p,z,dNe_ISM,A_star, &
+    call electron_unpack_boundary(Boundary,n,Eta_0,Epsilon_e,Epsilon_b,p,z,dNe_ISM,A_star, &
                                   E_iso,T_log10_duration,f_e,R_tr,f_jump,f_wide,R0)
     if (thermal_electrons /= 0) then
         if (f_e <= 0d0 .or. f_e > 1d0) error stop 'thermal electrons require 0 < f_e <= 1'
@@ -414,7 +414,7 @@ subroutine fs_fullhide_coupled(Boundary,R_Tobs,R_Gamma,R,V_seed,Seed_cooling,sec
     V_c=0d0
     V_a=0d0
 
-    call electron_initial_density(A_star,dNe_ISM,R_ini,R(1),R0,dNe,Para_N_e_ini)
+    call electron_initial_density(A_star,dNe_ISM,R(1),R0,R_tr,f_jump,f_wide,dNe,Para_N_e_ini)
     DB=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma(1)*(R_Gamma(1)-1d0)))
     Gam_e_max=3d0*Para_m_energy/dsqrt(8d0*DB*Para_e**3)
     DB_min=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma(Num_R)*(R_Gamma(Num_R)-1d0)))

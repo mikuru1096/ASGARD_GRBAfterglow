@@ -22,7 +22,7 @@ subroutine fs_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam
     real(8), intent(out), dimension(Num_gam_e) :: gam_e
     real(8), intent(out), dimension(Num_nu,Num_R) :: P_syn,Seed_syn
     real(8), intent(out), dimension(Num_R) :: V_m,V_c,V_a
-    real(8) :: Eta_0,R_ini,Epsilon_e,Epsilon_b,p,z,dNe_ISM,A_star,E_iso,T_log10_duration,f_e,R_tr,f_jump,f_wide,R0
+    real(8) :: Eta_0,Epsilon_e,Epsilon_b,p,z,dNe_ISM,A_star,E_iso,T_log10_duration,f_e,R_tr,f_jump,f_wide,R0
     real(8) :: dNe,Para_N_e_ini,DB,DB_min,DB_step,beta_Gam,f_r,cooling_scale,a_rad,b_ad,Q,temp
     real(8) :: Gam_e_max,Gam_e_max_max,Gam_e_max_step,Gam_e_m,Gam_e_m_p,Gam_e_m_step,Gam_e_m_p_step,Gam_e_c,temp_gam
     real(8) :: R_loc,R_left,R_right,R_mid,R_Gamma_loc,dDR,dDD,dR_min,dR_max,dR_try,dR_left,dR_cap,step_limit,step_error
@@ -34,7 +34,7 @@ subroutine fs_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam
     allocate(dEl_base(Num_gam_e),dEl_step(Num_gam_e),dN_x(Num_gam_e),dN_step(Num_gam_e), &
              dF1(Num_gam_e),dF1_shape(Num_gam_e),x_edge(Num_gam_e+1))
 
-    call electron_unpack_boundary(Boundary,n,Eta_0,R_ini,Epsilon_e,Epsilon_b,p,z,dNe_ISM,A_star, &
+    call electron_unpack_boundary(Boundary,n,Eta_0,Epsilon_e,Epsilon_b,p,z,dNe_ISM,A_star, &
                                   E_iso,T_log10_duration,f_e,R_tr,f_jump,f_wide,R0)
 
     P_syn=0d0
@@ -43,7 +43,7 @@ subroutine fs_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam
     V_c=0d0
     V_a=0d0
 
-    call electron_initial_density(A_star,dNe_ISM,R_ini,R(1),R0,dNe,Para_N_e_ini)
+    call electron_initial_density(A_star,dNe_ISM,R(1),R0,R_tr,f_jump,f_wide,dNe,Para_N_e_ini)
     DB=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma(1)*(R_Gamma(1)-1d0)))
     Gam_e_max=3d0*Para_m_energy/dsqrt(8d0*DB*Para_e**3)
     DB_min=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma(Num_R)*(R_Gamma(Num_R)-1d0)))

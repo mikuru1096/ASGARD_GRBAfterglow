@@ -101,7 +101,7 @@ subroutine fs_transport_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,ng, &
              cooling_aux_chi(ng, nchi), dEl_chi(ng, nchi), dEL_mean_chi(ng-1, nchi), &
              adiabatic_log_coeff_chi(nchi))
 
-    call electron_unpack_boundary(Boundary,n,Eta_0,R_ini,Epsilon_e,Epsilon_b,p,z,dNe_ISM,A_star, &
+    call electron_unpack_boundary(Boundary,n,Eta_0,Epsilon_e,Epsilon_b,p,z,dNe_ISM,A_star, &
                                   E_iso,T_log10_duration,f_e,R_tr,f_jump,f_wide,R0)
     if (A_star > 0d0) then
         k_medium = 2
@@ -232,7 +232,7 @@ subroutine fs_transport_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,ng, &
 contains
 
 subroutine init_front()
-    call electron_initial_density(A_star,dNe_ISM,R_ini,R(1),R0,dNe,Para_N_e_ini)
+    call electron_initial_density(A_star,dNe_ISM,R(1),R0,R_tr,f_jump,f_wide,dNe,Para_N_e_ini)
 
     DB            = 0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma(1)*(R_Gamma(1)-1d0)))
     DB_min        = 0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma(Num_R)*(R_Gamma(Num_R)-1d0)))

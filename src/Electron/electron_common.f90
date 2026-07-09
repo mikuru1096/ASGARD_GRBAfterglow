@@ -1,7 +1,7 @@
 !f2py: skip
 module electron_common
     use constants
-    use dynamics_density_profile, only: set_density_profile
+    use dynamics_density_profile, only: density_moment, density_profile, set_density_profile
     use electron_injection_profiles, only: log_edges, &
                                      init_powerlaw, init_edges, &
                                      thermal_pop
@@ -13,17 +13,16 @@ contains
 
 ! 解包公共 Boundary 数组字段。
 ! Unpack public Boundary-array fields.
-subroutine electron_unpack_boundary(Boundary,n,Eta_0,R_ini,Epsilon_e,Epsilon_b,p,z,dNe_ISM,A_star, &
+subroutine electron_unpack_boundary(Boundary,n,Eta_0,Epsilon_e,Epsilon_b,p,z,dNe_ISM,A_star, &
                                     E_iso,tdur_log,f_e,R_tr,f_jump,f_wide,R0)
     implicit none
     integer, intent(in) :: n
     integer, parameter :: r0_slot = 27
     real(8), intent(in), dimension(n) :: Boundary
-    real(8), intent(out) :: Eta_0,R_ini,Epsilon_e,Epsilon_b,p,z,dNe_ISM,A_star
+    real(8), intent(out) :: Eta_0,Epsilon_e,Epsilon_b,p,z,dNe_ISM,A_star
     real(8), intent(out) :: E_iso,tdur_log,f_e,R_tr,f_jump,f_wide,R0
 
     Eta_0=Boundary(1)
-    R_ini=Boundary(4)
     Epsilon_e=Boundary(5)
     Epsilon_b=Boundary(6)
     p=Boundary(7)
@@ -214,45 +213,17 @@ subroutine electron_relerr_max(ng,x_ref,x_trial,error_max)
     end do
 end subroutine electron_relerr_max
 
-! 按风介质或均匀介质条件初始化外部电子密度和累计电子数。
-! Initialize external electron density and cumulative electron count for wind or ISM media.
-subroutine electron_initial_density(A_star,dNe_ISM,R_ini,R_start,R0,dNe,ninit)
+! 按真实外介质初始化首个输出半径的局部密度和累计电子数。
+! Initialize local density and cumulative electron count at the first output radius.
+subroutine electron_initial_density(A_star,dNe_ISM,R_start,R0,R_tr,f_jump,f_wide,dNe,ninit)
     implicit none
-    real(8), intent(in) :: A_star,dNe_ISM,R_ini,R_start,R0
+    real(8), intent(in) :: A_star,dNe_ISM,R_start,R0,R_tr,f_jump,f_wide
     real(8), intent(out) :: dNe,ninit
-    real(8) :: dNe_wind,wind_norm,r_floor,r_cap,r_join,r_base
+    real(8) :: moment
 
-    if (A_star > 0d0) then
-        wind_norm=A_star*3.0d35
-        r_floor=dsqrt(4d0*wind_norm/dNe_ISM)
-        if (R0 > 0d0) then
-            r_cap=min(R_ini,R0)
-            ninit=4d0/3d0*pi*r_cap**3*wind_norm/R0**2
-            if (R_ini > R0) then
-                r_join=min(R_ini,r_floor)
-                if (r_join > R0) ninit=ninit+4d0*pi*wind_norm*(r_join-R0)
-                r_base=max(R0,r_floor)
-                if (R_ini > r_base) ninit=ninit+4d0/3d0*pi*dNe_ISM*(R_ini**3-r_base**3)
-            end if
-        else
-            r_join=min(R_ini,r_floor)
-            ninit=4d0*pi*wind_norm*r_join
-            if (R_ini > r_join) ninit=ninit+4d0/3d0*pi*dNe_ISM*(R_ini**3-r_join**3)
-        end if
-        if (R0 > 0d0 .and. R_start < R0) then
-            dNe=wind_norm/R0**2
-        else
-            dNe_wind=wind_norm/R_start**2
-            if (dNe_wind <= dNe_ISM/4d0) then
-                dNe=dNe_ISM
-            else
-                dNe=dNe_wind
-            end if
-        end if
-    else
-        dNe=dNe_ISM
-        ninit=4d0/3d0*pi*R_ini**3*dNe_ISM
-    end if
+    call density_profile(A_star,dNe_ISM,R_start,R0,1,R_tr,f_jump,f_wide,dNe)
+    call density_moment(A_star,dNe_ISM,R_start,R0,R_tr,f_jump,f_wide,moment)
+    ninit=4d0*pi*moment
 end subroutine electron_initial_density
 
 end module electron_common

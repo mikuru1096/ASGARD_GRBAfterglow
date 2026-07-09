@@ -73,7 +73,6 @@ def seedgrid(config: RuntimeConfig, requested_frequencies_hz: np.ndarray | None 
 
 def build_boundary(config: RuntimeConfig, luminosity_distance_cm: float) -> np.ndarray:
     t_end = config.t_obs_max_log10
-    m_0 = 1.0e12
     u_0 = 1.0e13
     r_0 = config.initial_radius_cm
     epsilon_b_floor = config.epsilon_b if config.epsilon_b_floor is None else config.epsilon_b_floor
@@ -87,6 +86,8 @@ def build_boundary(config: RuntimeConfig, luminosity_distance_cm: float) -> np.n
     if jump_r.size > MAX_DENSITY_JUMPS:
         raise ValueError(f"At most {MAX_DENSITY_JUMPS} density jumps are supported.")
     profile_r, profile_n = densityprofile(config)
+    if jump_r.size > 0 and profile_r.size > 0:
+        raise ValueError("density profile and density jumps are mutually exclusive.")
     jump_r_pad = np.zeros(MAX_DENSITY_JUMPS, dtype=float)
     jump_factor_pad, jump_width_pad = np.ones((2, MAX_DENSITY_JUMPS), dtype=float)
     profile_r_pad = np.zeros(MAX_DENSITY_PROFILE_POINTS, dtype=float)
@@ -101,7 +102,7 @@ def build_boundary(config: RuntimeConfig, luminosity_distance_cm: float) -> np.n
 
     boundary = [
         config.eta_0,
-        m_0,
+        0.0,
         u_0,
         r_0,
         config.epsilon_e,

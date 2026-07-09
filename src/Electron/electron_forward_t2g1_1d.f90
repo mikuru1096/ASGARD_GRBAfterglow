@@ -20,7 +20,7 @@ subroutine fs_t2g1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e,
     real(8), intent(out), dimension(Num_gam_e) :: gam_e
     real(8), intent(out), dimension(Num_nu,Num_R) :: P_syn,Seed_syn
     real(8), intent(out), dimension(Num_R) :: V_m,V_c,V_a
-    real(8) :: Eta_0,R_ini,Epsilon_e,Epsilon_b,p,z,rho_ism,A_star,E_iso,tdur_log,f_e
+    real(8) :: Eta_0,Epsilon_e,Epsilon_b,p,z,rho_ism,A_star,E_iso,tdur_log,f_e
     real(8) :: R_tr,f_jump,f_wide,R0,dNe,einit,DB,gemax,DB_min,gemax0
     real(8) :: temp_gam,gm,gc,d_x,rloc,gloc,gmp,rho_shell
     real(8) :: beta,f_r,dDR,dDD,CFL,temp,dbstep,gmax_step,gm_step,gmp_step,Q
@@ -32,7 +32,7 @@ subroutine fs_t2g1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e,
               up(Num_gam_e-1),spec(Num_gam_e),spec_prev(Num_gam_e),xedge(Num_gam_e+1), &
               temp1(Num_gam_e-1),temp2(Num_gam_e),temp3(Num_gam_e-1))
 
-    call electron_unpack_boundary(Boundary,n,Eta_0,R_ini,Epsilon_e,Epsilon_b,p,z,rho_ism,A_star, &
+    call electron_unpack_boundary(Boundary,n,Eta_0,Epsilon_e,Epsilon_b,p,z,rho_ism,A_star, &
                                   E_iso,tdur_log,f_e,R_tr,f_jump,f_wide,R0)
 
     P_syn=0d0
@@ -41,7 +41,7 @@ subroutine fs_t2g1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e,
     V_c=0d0
     V_a=0d0
 
-    call electron_initial_density(A_star,rho_ism,R_ini,R(1),R0,dNe,einit)
+    call electron_initial_density(A_star,rho_ism,R(1),R0,R_tr,f_jump,f_wide,dNe,einit)
 
     DB=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma(1)*(R_Gamma(1)-1d0)))
     gemax=3d0*Para_m_energy/dsqrt(8d0*DB*Para_e**3)

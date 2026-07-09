@@ -18,7 +18,7 @@ subroutine fs_weno5_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e
     real(8), intent(out), dimension(Num_gam_e,Num_R) :: dN_gam_e
     real(8), intent(out), dimension(Num_gam_e) :: gam_e
     real(8), intent(out), dimension(Num_nu,Num_R) :: P_syn,Seed_syn
-    real(8) :: Eta_0, R_ini, Epsilon_e, Epsilon_b, p, z, dNe_ISM, A_star, E_iso, tdur_log, f_e, R_tr
+    real(8) :: Eta_0, Epsilon_e, Epsilon_b, p, z, dNe_ISM, A_star, E_iso, tdur_log, f_e, R_tr
     real(8) :: f_jump, f_wide, R0, dNe, einit, DB, DB_min, gmax, gmax0, temp_gam, gm, gc, dxlog
     real(8) :: cfl_target, rloc, gloc, gmp, beta, f_r, dDR, dDD, maxspeed, CFL, Q
 
@@ -31,7 +31,7 @@ subroutine fs_weno5_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e
 
     ! 解包公开边界参数，内部只用短名参与公式。
     ! Unpack the public boundary vector once; formulas below use short internal names.
-    call electron_unpack_boundary(Boundary,n,Eta_0,R_ini,Epsilon_e,Epsilon_b,p,z,dNe_ISM,A_star, &
+    call electron_unpack_boundary(Boundary,n,Eta_0,Epsilon_e,Epsilon_b,p,z,dNe_ISM,A_star, &
                                   E_iso,tdur_log,f_e,R_tr,f_jump,f_wide,R0)
 
     P_syn=0d0
@@ -39,7 +39,7 @@ subroutine fs_weno5_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e
 
     ! 初始 shock-front 电子谱使用解析注入近似，随后进入 WENO 输运。
     ! The initial shock-front spectrum uses the analytic injection approximation before WENO transport.
-    call electron_initial_density(A_star,dNe_ISM,R_ini,R(1),R0,dNe,einit)
+    call electron_initial_density(A_star,dNe_ISM,R(1),R0,R_tr,f_jump,f_wide,dNe,einit)
 
     DB=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma(1)*(R_Gamma(1)-1d0)))
     gmax=3d0*Para_m_energy/dsqrt(8d0*DB*Para_e**3)

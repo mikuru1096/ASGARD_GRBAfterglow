@@ -26,7 +26,7 @@ subroutine fs_slc1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e,
     allocate(dEl(Num_gam_e),delmean(Num_gam_e-1),delbase(Num_gam_e-1),spec(Num_gam_e), &
              spec_step(Num_gam_e),dF1(Num_gam_e),xedge(Num_gam_e+1))
 
-    call electron_unpack_boundary(Boundary,n,Eta_0,R_ini,Epsilon_e,Epsilon_b,p,z,rho_ism,A_star, &
+    call electron_unpack_boundary(Boundary,n,Eta_0,Epsilon_e,Epsilon_b,p,z,rho_ism,A_star, &
                                   E_iso,tdur_log,f_e,R_tr,f_jump,f_wide,R0)
 
     P_syn=0d0
@@ -35,7 +35,7 @@ subroutine fs_slc1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e,
     V_c=0d0
     V_a=0d0
 
-    call electron_initial_density(A_star,rho_ism,R_ini,R(1),R0,dNe,einit)
+    call electron_initial_density(A_star,rho_ism,R(1),R0,R_tr,f_jump,f_wide,dNe,einit)
     DB=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma(1)*(R_Gamma(1)-1d0)))
     gemax=3d0*Para_m_energy/dsqrt(8d0*DB*Para_e**3)
     DB_min=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma(Num_R)*(R_Gamma(Num_R)-1d0)))

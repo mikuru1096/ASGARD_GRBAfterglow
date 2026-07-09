@@ -16,7 +16,7 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,fer,sigma_r,Boundary,n,Num_R, &
                             event_on,start_r,end_r, &
                             start_t,end_t)
     use constants
-    use dynamics_density_profile, only: set_density_profile, density_profile, &
+    use dynamics_density_profile, only: set_density_profile, density_profile, density_moment, &
                                         jump_count, jump_radius, &
                                         jump_factor, jump_width
     use reverse_jump_conditions, only: reverse_contact
@@ -116,11 +116,8 @@ contains
             mej=eiso/(1d0+sigma_r)/eta_0/para_c**2
         end if
 
-        if (astar > 0d0) then
-            m2init=4d0*pi*R(1)*astar*3d35*para_m_p
-        else
-            m2init=4d0*pi*R(1)**3*nism*para_m_p/3d0
-        end if
+        call density_moment(astar,nism,R(1),R0,R_tr,f_jump,f_wide,m2init)
+        m2init=4d0*pi*para_m_p*m2init
 
         m3init=1d1
         R_Gamma(1)=Eta_0-0.001d0

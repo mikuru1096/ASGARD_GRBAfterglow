@@ -1,6 +1,6 @@
 subroutine dynamics_forward(Boundary,n,Num_R,index_dyn,R_Tobs,R_Gamma,R,R_m)
     use constants
-    use dynamics_density_profile, only: set_density_profile
+    use dynamics_density_profile, only: density_moment, set_density_profile
     implicit none
     integer, intent(in) :: n,Num_R,index_dyn
     integer, parameter :: r0_slot = 27
@@ -9,7 +9,7 @@ subroutine dynamics_forward(Boundary,n,Num_R,index_dyn,R_Tobs,R_Gamma,R,R_m)
     real(8), intent(out), dimension(Num_R) :: R_Tobs,R_Gamma,R,R_m
     real(8) :: Eta_0,Epsilon_e,Epsilon_b,p,z,dNe_ISM,A_star,E_iso,tdur_log,f_e
     real(8) :: einj1,einj2,E_inj,einj_q,R_tr,f_jump,f_wide,R0,EPS,dm0,rdec,tdec
-    real(8) :: tbin,tspan,T,H,dtgrid,rdecism,rdecwind
+    real(8) :: tbin,tspan,T,H,dtgrid,rdecism,rdecwind,mstart
     real(8),dimension(4) :: Y,D,B,C,E
 
     ! Boundary 只在入口解包一次；后续计算使用具名标量。
@@ -24,9 +24,11 @@ subroutine dynamics_forward(Boundary,n,Num_R,index_dyn,R_Tobs,R_Gamma,R,R_m)
         R0=Boundary(n)
     end if
     call set_density_profile(Boundary,n)
+    call density_moment(A_star,dNe_ISM,Boundary(4),R0,R_tr,f_jump,f_wide,mstart)
+    if (index_dyn == 3) mstart=4d0*pi*Para_m_p*mstart
 
     Num_R1=Num_R-1
-    Y=[Eta_0-0.001d0,Boundary(2),Boundary(3),Boundary(4)]
+    Y=[Eta_0-0.001d0,mstart,Boundary(3),Boundary(4)]
     M=4; EPS=1.0D-5
 
     ! 减速时间只决定 observer-time 网格；动力学仍由 RK 状态推进。

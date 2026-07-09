@@ -39,7 +39,7 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
     real(8), allocatable, dimension(:) :: state,projected,gdg,deldg,delbase,srcdg,srctpl
     real(8), allocatable, dimension(:) :: nxinit,xedge,yedge,srcgrid,pemit,tau
     real(8), allocatable, dimension(:) :: thermal_x,thermal_out,thermal_src,loss_grid,loss_base,dg_dgam,th_dgam
-    real(8) :: Eta_0, R_ini, Epsilon_e, Epsilon_b, p, z, nism, A_star, E_iso, tdur_log, f_e, R_tr
+    real(8) :: Eta_0, Epsilon_e, Epsilon_b, p, z, nism, A_star, E_iso, tdur_log, f_e, R_tr
     real(8) :: f_jump, f_wide, R0, dNe, ninit, DB, DB_min, gemax0, gemax, gm, gc, temp_gam, beta_Gam
     real(8) :: dDD, R_loc, gloc, dNe_shell, dNe_step, DB_step, gmax_step, gm_step, gmp_step, source_norm
     real(8) :: thermal_norm, temp, gmax_inj, gm_inj, gmp_shell, dR_base, dR_step, R_end, R_mid, dgscale
@@ -54,7 +54,7 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
              thermal_src(Num_gam_e), loss_grid(Num_gam_e), loss_base(Num_gam_e), &
              dg_dgam(Num_gam_e), th_dgam(Num_gam_e))
 
-    call electron_unpack_boundary(Boundary, n, Eta_0, R_ini, Epsilon_e, Epsilon_b, p, z, nism, A_star, &
+    call electron_unpack_boundary(Boundary, n, Eta_0, Epsilon_e, Epsilon_b, p, z, nism, A_star, &
                                   E_iso, tdur_log, f_e, R_tr, f_jump, f_wide, R0)
     if (thermal_electrons /= 0) then
         if (f_e <= 0d0 .or. f_e > 1d0) error stop 'thermal electrons require 0 < f_e <= 1'
@@ -75,7 +75,7 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
     loss_grid = 0d0
     loss_base = 0d0
 
-    call electron_initial_density(A_star, nism, R_ini, R(1), R0, dNe, ninit)
+    call electron_initial_density(A_star,nism,R(1),R0,R_tr,f_jump,f_wide,dNe,ninit)
     DB = 0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma(1)*(R_Gamma(1) - 1d0)))
     gemax = 3d0*Para_m_energy/dsqrt(8d0*DB*Para_e**3)
     DB_min = 0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma(Num_R)*(R_Gamma(Num_R) - 1d0)))
