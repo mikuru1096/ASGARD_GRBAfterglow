@@ -149,6 +149,7 @@ subroutine structured_solve_axisymmetric(Boundary,E_iso_grid,Gamma0_grid,active_
                                          track_nu_a,track_set)
     !$ use omp_lib
     use constants
+    use electron_ic_kernel, only: invalidate_ic_cache
     implicit none
     integer, intent(in) :: n,Num_theta_patch,Num_phi_patch,Num_nu,Num_R,Num_gam_e,index_dyn,index_Y,index_syn_intger
     integer, intent(in) :: include_reverse_sync,include_forward_ssc,include_hadronic,include_proton_synch
@@ -176,11 +177,14 @@ subroutine structured_solve_axisymmetric(Boundary,E_iso_grid,Gamma0_grid,active_
         if (active_grid(it,1) /= 0) call register_axis_patch(it)
     end do
 
-    !$OMP PARALLEL DO num_threads(n_threads_outer) schedule(dynamic,1)
+    !$OMP PARALLEL num_threads(n_threads_outer)
+    !$ if (n_threads_outer > 1) call invalidate_ic_cache()
+    !$OMP DO schedule(dynamic,1)
     do iu=1,unique_count
         call solve_axis_patch(solve_reps(iu))
     end do
-    !$OMP END PARALLEL DO
+    !$OMP END DO
+    !$OMP END PARALLEL
 
     !$OMP PARALLEL DO num_threads(n_threads_outer) schedule(static) private(rep_idx)
     do it=1,Num_theta_patch
@@ -252,6 +256,7 @@ subroutine structured_solve_nonaxisymmetric(Boundary,E_iso_grid,Gamma0_grid,acti
                                             track_nu_a,track_set)
     !$ use omp_lib
     use constants
+    use electron_ic_kernel, only: invalidate_ic_cache
     implicit none
     integer, intent(in) :: n,Num_theta_patch,Num_phi_patch,Num_nu,Num_R,Num_gam_e,index_dyn,index_Y,index_syn_intger
     integer, intent(in) :: include_reverse_sync,include_forward_ssc,include_hadronic,include_proton_synch
@@ -284,14 +289,17 @@ subroutine structured_solve_nonaxisymmetric(Boundary,E_iso_grid,Gamma0_grid,acti
         end do
     end do
 
-    !$OMP PARALLEL DO num_threads(n_threads_outer) schedule(dynamic,1) private(rep_flat,rep_it,rep_ip)
+    !$OMP PARALLEL num_threads(n_threads_outer) private(rep_flat,rep_it,rep_ip)
+    !$ if (n_threads_outer > 1) call invalidate_ic_cache()
+    !$OMP DO schedule(dynamic,1)
     do iu=1,unique_count
         rep_flat=solve_reps(iu)
         rep_it=mod(rep_flat-1,Num_theta_patch)+1
         rep_ip=(rep_flat-1)/Num_theta_patch+1
         call solve_phi_patch(rep_it,rep_ip)
     end do
-    !$OMP END PARALLEL DO
+    !$OMP END DO
+    !$OMP END PARALLEL
 
     !$OMP PARALLEL DO num_threads(n_threads_outer) collapse(2) schedule(static) private(flat,rep_flat,rep_it,rep_ip)
     do ip=1,Num_phi_patch
