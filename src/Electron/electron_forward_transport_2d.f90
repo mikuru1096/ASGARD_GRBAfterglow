@@ -245,10 +245,10 @@ subroutine init_front()
     if (four_velocity_coord) then
         call build_fourvel_grid(ng,1d0,tail_factor*Gam_e_max_max, &
                                                fourvel_scale,gam_e,coord_edge_E,x_edge_E)
-        call init_coord(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
+        call init_coord(f_e*Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
                                                               ng,coord_edge_E,coord_scale,dN_init)
     else
-        call electron_initialize_spectrum(ng,Gam_e_max_max,Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
+        call electron_initialize_spectrum(ng,Gam_e_max_max,f_e*Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
                                           imodelog,gam_e,dN_init,x_edge_E)
         coord_edge_E = x_edge_E
     end if

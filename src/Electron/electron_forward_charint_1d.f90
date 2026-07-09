@@ -51,7 +51,7 @@ subroutine fs_charint_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam
     temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma(1)-1d0)
     call electron_gm_exact(p,temp_gam,Gam_e_max,Gam_e_m)
     Gam_e_c=7.7d8/(1d0+dsqrt(Epsilon_e/Epsilon_b))/R_Gamma(1)/DB**2/(R_Tobs(1)/2d0)
-    call electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
+    call electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,f_e*Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
                                       imodelog,gam_e,dN_x,x_edge)
     call dnx_dgamma(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,1))
     is_uniform_density=uniform_density(A_star,f_jump)

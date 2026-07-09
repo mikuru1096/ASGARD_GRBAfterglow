@@ -179,12 +179,12 @@ Fortran 改动后的最低门槛见 `doc/validation_and_benchmarks.md`。文档-
 | `M` | 2 | `electron_common` | 公共模块；提供多个入口复用的物理/数值 primitive。 |
 | `S` | 16 | `electron_unpack_boundary` | 局部 helper；语义由所在文件的算法阶段决定。 |
 | `S` | 49 | `electron_initialize_spectrum` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 80 | `electron_gm_exact` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 107 | `electron_gc_loss` | 冷却或能量损失计算；必须和 emissivity/source 单位保持一致。 |
-| `S` | 156 | `electron_injection_prefactor` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
-| `S` | 166 | `electron_source_bounds` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
-| `S` | 201 | `electron_relerr_max` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 218 | `electron_initial_density` | 介质密度或 density-jump 分支；直接影响 swept mass、动力学和注入源项。 |
+| `S` | 81 | `electron_gm_exact` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 108 | `electron_gc_loss` | 冷却或能量损失计算；必须和 emissivity/source 单位保持一致。 |
+| `S` | 157 | `electron_injection_prefactor` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
+| `S` | 167 | `electron_source_bounds` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
+| `S` | 202 | `electron_relerr_max` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 219 | `electron_initial_density` | 介质密度或 density-jump 分支；直接影响 swept mass、动力学和注入源项。 |
 
 ### `src/Electron/electron_cooling_ic_kernel.f90`
 

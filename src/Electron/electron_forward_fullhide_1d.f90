@@ -100,12 +100,12 @@ contains
 
         call init_fourvel_grid(Gam_e_max_max)
         if (thermal_electrons == 0) then
-            call init_coord(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
+            call init_coord(f_e*Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
                                                                   Num_gam_e,coord_edge,coord_scale,dN_x)
             call coord_to_dgamma(Num_gam_e,coord_edge,coord_scale,gam_e,dN_x, &
                                                                dN_gam_e(:,1))
         else
-            call init_powerlaw(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
+            call init_powerlaw(f_e*Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
                                                       Num_gam_e,gam_e,dN_gam_e(:,1))
             call thermal_pop(Num_gam_e,gam_e,R_Gamma(1)*beta_Gam,Para_N_e_ini*(1d0-f_e), &
                                                  dN_gam_e(:,1))
@@ -425,7 +425,7 @@ subroutine fs_fullhide_coupled(Boundary,R_Tobs,R_Gamma,R,V_seed,Seed_cooling,sec
     if (R_Gamma(1) < 1d0) error stop 'fs_fullhide_coupled requires initial Gamma >= 1'
     beta_Gam=dsqrt(1d0-1d0/R_Gamma(1)**2)
     if (thermal_electrons == 0) then
-        call electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
+        call electron_initialize_spectrum(Num_gam_e,Gam_e_max_max,f_e*Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max, &
                                           imodelog,gam_e,dN_x,x_edge)
         call dnx_dgamma(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,1))
     else

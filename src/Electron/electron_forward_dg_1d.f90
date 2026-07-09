@@ -47,7 +47,7 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
     real(8), parameter :: dg_substeps = 10d0, jump_sigma = 4d0, jump_nsigma = 8d0, jump_logstep = 5d-2
     real(8), parameter :: tail_thresh = 1d-10, tail_power = 2d0
     integer :: I_tobs, cache_n
-    logical :: cache_ready, uniform_shell
+    logical :: cache_ready, uniform_shell, has_thermal
 
     allocate(nxinit(Num_gam_e), xedge(Num_gam_e+1), yedge(Num_gam_e+1), srcgrid(Num_gam_e), &
              pemit(Num_nu), tau(Num_nu), thermal_x(Num_gam_e), thermal_out(Num_gam_e), &
@@ -59,6 +59,7 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
     if (thermal_electrons /= 0) then
         if (f_e <= 0d0 .or. f_e > 1d0) error stop 'thermal electrons require 0 < f_e <= 1'
     endif
+    has_thermal = thermal_electrons /= 0 .and. f_e < 1d0
     P_syn = 0d0
     Seed_syn = 0d0
     V_m = 0d0
@@ -119,14 +120,10 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
         call dg_build_mesh(xedge(1), dg_active_xmax(gemax), dlog(gm), &
                                                     dlog(gc), dlog(gemax), dgscale, mesh)
         allocate(state(mesh%ntot))
-        if (thermal_electrons == 0) then
-            call dg_initial_state(mesh, ninit, p, gm, gc, gemax, state)
-            call init_coord(ninit, p, gm, gc, gemax, &
-                                                                  Num_gam_e, yedge, coord_scale, nxinit)
-        else
-            call dg_initial_state(mesh, ninit*f_e, p, gm, gc, gemax, state)
-            call init_coord(ninit*f_e, p, gm, gc, gemax, &
-                                                                  Num_gam_e, yedge, coord_scale, nxinit)
+        call dg_initial_state(mesh, ninit*f_e, p, gm, gc, gemax, state)
+        call init_coord(ninit*f_e, p, gm, gc, gemax, &
+                                                              Num_gam_e, yedge, coord_scale, nxinit)
+        if (has_thermal) then
             call hybrid_thermal_coord(Num_gam_e, yedge, coord_scale, p, gm, gemax, f_e, thermal_x)
             thermal_x = thermal_x*ninit*(1d0 - f_e)
         endif
@@ -218,7 +215,7 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
                              R_loc, gloc, beta_Gam, dNe_shell, mesh%ntot, Num_nu, 1, n_threads, &
                              gdg, V_seed, P_syn(:,I_tobs), Seed_syn(:,I_tobs), Seed_syn(:,I_tobs), &
                              deldg, delbase)
-        if (thermal_electrons /= 0) then
+        if (has_thermal) then
             call forward_cooling(1,index_Y, Epsilon_e, Epsilon_b, p, DB, gm, gc, gemax, &
                                  R_loc, gloc, beta_Gam, dNe_shell, Num_gam_e, Num_nu, 1, n_threads, &
                                  gam_e, V_seed, P_syn(:,I_tobs), Seed_syn(:,I_tobs), Seed_syn(:,I_tobs), &
@@ -247,7 +244,7 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
             gmp_step = (1d0 - p)/(gmax_step**(1d0 - p) - gm_step**(1d0 - p))
         endif
         call electron_injection_prefactor(R_step - 0.5d0*dR_local, dR_local, dNe_step, f_e, gmp_step, source_norm)
-        if (thermal_electrons /= 0) then
+        if (has_thermal) then
             call electron_injection_prefactor(R_step - 0.5d0*dR_local, dR_local, dNe_step, 1d0 - f_e, 1d0, thermal_norm)
         else
             thermal_norm = 0d0
@@ -267,7 +264,7 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
         call dg_filter_positive(mesh, projected)
         call dg_limit_positive(mesh, projected)
         state = projected
-        if (thermal_electrons /= 0) then
+        if (has_thermal) then
             call prepare_thermal_source()
             call shell_coord_step(Num_gam_e, dR_local, yedge, coord_scale, loss_grid, &
                                   1d0/R_step, thermal_src, thermal_x, thermal_out)
@@ -421,7 +418,7 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
         call coord_to_dgamma(Num_gam_e, yedge, coord_scale, gam_e, &
                                                            srcgrid, dg_dgam)
         dN_gam_e(:,it) = dg_dgam
-        if (thermal_electrons /= 0) then
+        if (has_thermal) then
             call coord_to_dgamma(Num_gam_e, yedge, coord_scale, gam_e, thermal_x, th_dgam)
             dN_gam_e(:,it) = dN_gam_e(:,it) + th_dgam
         endif

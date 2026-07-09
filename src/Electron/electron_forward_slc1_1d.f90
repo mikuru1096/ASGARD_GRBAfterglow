@@ -43,7 +43,7 @@ subroutine fs_slc1_1d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_gam_e,
     temp_gam=Epsilon_e/f_e*para_m_p/para_m_e*(R_Gamma(1)-1d0)
     call electron_gm_exact(p,temp_gam,gemax,gm)
     gc=7.7d8/(1d0+dsqrt(Epsilon_e/Epsilon_b))/R_Gamma(1)/DB**2/(R_Tobs(1)/2d0)
-    call electron_initialize_spectrum(Num_gam_e,gemax0,einit,p,gm,gc,gemax, &
+    call electron_initialize_spectrum(Num_gam_e,gemax0,f_e*einit,p,gm,gc,gemax, &
                                       imodelog,gam_e,spec,xedge)
     call dnx_dgamma(Num_gam_e,xedge,gam_e,spec,dN_gam_e(:,1))
     d_x=dlog(gam_e(2)/gam_e(1))

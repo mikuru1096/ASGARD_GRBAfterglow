@@ -70,6 +70,7 @@ subroutine electron_initialize_spectrum(ng,gemax0,ninit,p,gm,gc,gemax, &
     end select
     if (present(thermal_electrons)) then
         if (thermal_electrons /= 0) then
+            dN_init=f_e*dN_init
             call thermal_pop(ng,gam_e,four_v,ninit*(1d0-f_e),dN_init)
         end if
     end if

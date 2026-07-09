@@ -27,7 +27,7 @@ subroutine fs_fullhide_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
 
     real(8),allocatable,dimension (:) :: dEl,dEl_step,x,dN_x,x_edge,coord_edge,dxdy_grid,face_invjac, &
                                          dN_full,dN_half,dN_half2,dF1
-    logical :: is_uniform_density
+    logical :: is_uniform_density,has_thermal
     real(8) :: dDR_xi,coord_scale,dg_gamma_scale
     real(8), dimension(Num_nu) :: P_emit_tmp,Tau_syn_tmp
     allocate (dEl(Num_gam_e),dEl_step(Num_gam_e),x(Num_gam_e),dN_x(Num_gam_e), &
@@ -41,6 +41,7 @@ subroutine fs_fullhide_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
     if (thermal_electrons /= 0) then
         if (f_e <= 0d0 .or. f_e > 1d0) error stop 'thermal electrons require 0 < f_e <= 1'
     end if
+    has_thermal=thermal_electrons /= 0 .and. f_e < 1d0
 
     P_syn=0d0
     Seed_syn=0d0
@@ -60,8 +61,8 @@ subroutine fs_fullhide_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
     if (R_Gamma(1) < 1d0) error stop 'fs_fullhide_1d requires initial Gamma >= 1'
     beta_Gam=dsqrt(1d0-1d0/R_Gamma(1)**2)
     call init_fourvel_grid(Gam_e_max_max)
-    if (thermal_electrons == 0) then
-        call init_coord(Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,coord_edge,coord_scale,dN_x)
+    if (.not. has_thermal) then
+        call init_coord(f_e*Para_N_e_ini,p,Gam_e_m,Gam_e_c,Gam_e_max,Num_gam_e,coord_edge,coord_scale,dN_x)
     else
         call hybrid_coord(Num_gam_e,coord_edge,coord_scale,p,Gam_e_m,Gam_e_max,f_e,dN_x)
         dN_x=dN_x*Para_N_e_ini
@@ -108,7 +109,7 @@ subroutine fs_fullhide_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
             do L=1,L1
                     R_loc=R_loc+dDR
 
-                    if (is_uniform_density .and. thermal_electrons == 0) then
+                    if (is_uniform_density .and. .not. has_thermal) then
                         call build_hybrid_source(R_loc-dDR,dDR,dNe,Gam_e_m,Gam_e_max,Gam_e_m_p)
                     else
                         call density_profile(A_star,dNe_ISM,R_loc,R0,1,R_tr,f_jump,f_wide,dNe)
@@ -125,7 +126,7 @@ subroutine fs_fullhide_hz(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,Num_ga
                             dEl_step=dEl
                         end if
                     end if
-                    if (is_uniform_density .and. thermal_electrons == 0) dEl_step=dEl
+                    if (is_uniform_density .and. .not. has_thermal) dEl_step=dEl
                     call shellstep_cached(Num_gam_e,dDR,coord_edge,face_invjac,dEl_step,1d0/R_loc,dF1,dN_x,x)
                     dN_x=x
 
@@ -270,7 +271,7 @@ contains
     implicit none
     real(8), intent(in) :: rsrc,drsrc,nsrc,gm_src,gmax_src,gmp_src
 
-        if (thermal_electrons /= 0) then
+        if (has_thermal) then
             call electron_injection_prefactor(rsrc,drsrc,nsrc,1d0,1d0,Q)
             call hybrid_coord(Num_gam_e,coord_edge,coord_scale,p,gm_src,gmax_src,f_e,dF1)
             dF1 = dF1*Q
@@ -286,7 +287,7 @@ contains
     implicit none
     real(8), intent(in) :: nsource,gm_src,gmax_src,gmp_src
 
-        if (thermal_electrons /= 0) then
+        if (has_thermal) then
             Q = nsource/(f_e*gmp_src)
             call hybrid_coord(Num_gam_e,coord_edge,coord_scale,p,gm_src,gmax_src,f_e,dF1)
             dF1 = dF1*Q
