@@ -9,7 +9,7 @@ contains
 subroutine reverse_dynamics_rhs(rs_state,T,Y,D,M,mej,V3_scale,Delta_0,eta_0,A_star,dNe_ISM,R_tr,f_jump,f_wide,R0, &
              Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,fer,sigma_r)
     use constants
-    use dynamics_density_profile, only: density_profile, &
+    use dynamics_density_profile, only: density_profile, jump_max, &
                                         jump_count, jump_radius, jump_factor, &
                                         jump_width
     use reverse_shock_mhd_jump, only: rs_mag_internal, rs_vegas_ud
@@ -33,7 +33,9 @@ subroutine reverse_dynamics_rhs(rs_state,T,Y,D,M,mej,V3_scale,Delta_0,eta_0,A_st
     real(8) :: comp_ratio,rho4,B4_ordered,B3_ordered,sigma_inertia,n4_inertia
     real(8) :: mag_inertia,magnetic_pressure,magnetic_energy,wait_inertia,shell_frac
     real(8) :: beta_fast,fast_depth,gsq1
-    integer :: j_inertia,mi_idx,ui_idx,vi_idx
+    real(8) :: base_density,enhancement,jump_x,jump_w,jump_p
+    real(8), dimension(jump_max) :: branch_weight
+    integer :: j_inertia,j_density,mi_idx,ui_idx,vi_idx
     integer, parameter :: idb=rs_db3,itc=rs_tcross,irc=rs_rcross,iec=rs_e3cross,ig20=rs_gam20
     integer, parameter :: iuc=rs_u3cross,ivc=rs_v3cross,imc=rs_m3cross,igm=rs_gammcross,ib3=rs_b3ordered
     logical :: pre_crossing, waiting_reverse
@@ -205,6 +207,20 @@ subroutine reverse_dynamics_rhs(rs_state,T,Y,D,M,mej,V3_scale,Delta_0,eta_0,A_st
     end if
     dU3=dU3_shock+dU3_ad; dV3=dV3_shock+dV3_exp
     D(1:6)=[dgam2,dR,dm2,dm3/mej,dU3/(mej*para_c**2),dV3/V3_scale]
+
+    ! 各密度跳的 Gaussian 权重每个 RHS 只计算一次，供所有次级反向激波分支共享。
+    ! Evaluate each density-jump Gaussian once per RHS and share it across secondary branches.
+    enhancement=1d0; branch_weight=0d0
+    do j_density=1,jump_count
+        jump_x=RR-jump_radius(j_density)
+        jump_w=jump_width(j_density)*jump_radius(j_density)
+        jump_p=(jump_factor(j_density)-1d0)* &
+               dexp(-(jump_x*jump_x)/(2d0*jump_w*jump_w))
+        enhancement=enhancement+jump_p
+        if (jump_x >= -4d0*jump_w .and. jump_x < 0d0) branch_weight(j_density)=jump_p
+    end do
+    base_density=dNe/enhancement
+    branch_weight(1:jump_count)=base_density*branch_weight(1:jump_count)
     call branch_derivs()
 
 contains
@@ -222,7 +238,7 @@ contains
     subroutine branch_derivs()
     implicit none
     integer :: j, m_idx, u_idx, v_idx, e_idx, g_idx, pm_idx, pu_idx, pv_idx
-    real(8) :: density_factor,branch_weight,n1,n_excess,n_pre,n4,e4,p4,p3,e3_sec,e_ad,comp,beta_s
+    real(8) :: n1,n_excess,n_pre,n4,e4,p4,p3,e3_sec,e_ad,comp,beta_s
     real(8) :: gc_j,gamma43_j,bc_j,n3,dm_dR,dM_shock,dV_shock,dU_shock
     real(8) :: u_sec,v_sec,dv_exp,du_ad,gm_sec,b_i,gemax
 
@@ -240,15 +256,14 @@ contains
                 dv_exp=v_sec*(3d0*dR/RR-dgam2/gam2)
                 du_ad=-(1d0/3d0)*u_sec*dv_exp/v_sec
             end if
-            call branch_density(RR,j,density_factor,branch_weight)
-            if (branch_weight <= 0d0 .or. gam2 <= 1d0) then
+            if (branch_weight(j) <= 0d0 .or. gam2 <= 1d0) then
                 D(m_idx)=0d0
                 D(u_idx)=du_ad/(mej*para_c**2)
                 D(v_idx)=dv_exp/V3_scale
                 cycle
             end if
-            n1=density_factor
-            n_excess=branch_weight
+            n1=dNe
+            n_excess=branch_weight(j)
             n_pre=n1-n_excess
             if (n_pre <= 0d0) error stop 'secondary branch RHS found non-positive pre-bump density'
             n4=4d0*gam2*n_pre
@@ -298,31 +313,6 @@ contains
         end do
     end subroutine branch_derivs
 
-    subroutine branch_density(radius,jump_index,density_factor,branch_weight)
-    implicit none
-    integer, intent(in) :: jump_index
-    integer :: k
-    real(8), intent(in) :: radius
-    real(8), intent(out) :: density_factor,branch_weight
-    real(8) :: x,width,profile,total_density,base_density,enhancement
-
-        call density_profile(A_star,dNe_ISM,radius,R0,1,R_tr,f_jump,f_wide,total_density)
-        enhancement=1d0; branch_weight=0d0
-        do k=1,jump_count
-            x=radius-jump_radius(k)
-            width=jump_width(k)*jump_radius(k)
-            profile=(jump_factor(k)-1d0)*dexp(-(x*x)/(2d0*width*width))
-            enhancement=enhancement+profile
-        end do
-        base_density=total_density/enhancement
-        do k=1,jump_count
-            x=radius-jump_radius(k)
-            width=jump_width(k)*jump_radius(k)
-            profile=(jump_factor(k)-1d0)*dexp(-(x*x)/(2d0*width*width))
-            if (k == jump_index .and. x >= -4d0*width .and. x < 0d0) branch_weight=base_density*profile
-        end do
-        density_factor=total_density
-    end subroutine branch_density
 end subroutine reverse_dynamics_rhs
 
 end module reverse_rhs_module

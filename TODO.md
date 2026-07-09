@@ -14,7 +14,9 @@
 
 ## 当前活动任务
 
-当前没有活动任务。
+- 重新审计 Fortran 主计算链并按 `Dynamics -> Electron -> Radiation/Interpolation -> Hadronic` 顺序优化。动机是删除已证明的重复计算和低价值临时状态，同时提高真实求解速度、数值精度与物理连续性；只实施能由调用图、基准或编译诊断证明收益的改动。
+- 验收口径：public f2py ABI 与输出 shape 不变；受影响扩展强制构建和干净 `/tmp` `-Wline-truncation` 闭包通过；直接模型输出有限、非负且动力学/谱随时间连续；每个性能改动用同一输入至少 3 次 median 比较；总代码行数不因薄 wrapper 或无效抽象增加。
+- 受影响范围按阶段确定：`Dynamics_forward/Dynamics_reverse`，默认 1D/2D electron targets，`ssc_spectrum/pair_absorption/SED_interpolation`，最后 `hadronic_forward_1d`；不新增测试文件。
 
 ## 长期未完成物理边界
 
