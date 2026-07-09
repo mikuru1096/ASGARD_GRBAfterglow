@@ -11,7 +11,7 @@ subroutine fs_transport_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,ng, &
                                          B_chi_out,substep_max,use_charint_transport, profile_tag)
     !$ use omp_lib
     use constants
-    use dynamics_density_profile, only: density_profile
+    use dynamics_density_profile, only: density_profile, profile_count
     use electron_common, only: electron_initial_density, electron_initialize_spectrum, electron_unpack_boundary, &
                                imodelog, tail_factor, &
                                electron_gm_exact, electron_injection_prefactor, &
@@ -86,6 +86,10 @@ subroutine fs_transport_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,ng, &
     logical :: magnetic_decay_active, pwn_cr_transport, free_outer_escape, emit_full_spectrum
     logical :: four_velocity_coord
 
+    call electron_unpack_boundary(Boundary,n,Eta_0,Epsilon_e,Epsilon_b,p,z,dNe_ISM,A_star, &
+                                  E_iso,T_log10_duration,f_e,R_tr,f_jump,f_wide,R0)
+    if (profile_count > 0) error stop "fs_transport_2d does not support tabulated density profiles"
+
     allocate(dEl(ng), dEL_mean(ng-1), dEL_mean_shell(ng-1), &
              dN_init(ng), dN_init_log(ng), dF1(ng), shell_population(ng), chi_population(nchi), &
              V_m_chi(nchi), V_c_chi(nchi), V_a_chi(nchi), chi_weight(nchi), &
@@ -101,8 +105,6 @@ subroutine fs_transport_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,ng, &
              cooling_aux_chi(ng, nchi), dEl_chi(ng, nchi), dEL_mean_chi(ng-1, nchi), &
              adiabatic_log_coeff_chi(nchi))
 
-    call electron_unpack_boundary(Boundary,n,Eta_0,Epsilon_e,Epsilon_b,p,z,dNe_ISM,A_star, &
-                                  E_iso,T_log10_duration,f_e,R_tr,f_jump,f_wide,R0)
     if (A_star > 0d0) then
         k_medium = 2
     else

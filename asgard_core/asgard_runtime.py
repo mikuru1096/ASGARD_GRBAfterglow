@@ -882,6 +882,9 @@ def _electronsolver(config: RuntimeConfig) -> str:
     solver_name = config.electron_solver.lower()
     if solver_name not in _ELECTRONMODULES:
         raise ValueError(f"Unsupported electron solver: {config.electron_solver}")
+    has_profile = len(config.density_profile_radius_cm) > 0 or len(config.density_profile_n_cm3) > 0
+    if solver_name in _ELECTRON2D_CHAR and has_profile:
+        raise NotImplementedError("2d electron transport does not support tabulated density profiles.")
     return solver_name
 
 
