@@ -85,8 +85,8 @@ subroutine sed_interpolation_structured(Boundary, angle_narrow_jet, R_Tobs1,R_ga
                      last_k2=K2
                  end if
                  Ratio=(Tobs(K1)-R_Tobs_theta(K2))/(R_Tobs_theta(K2+1)-R_Tobs_theta(K2))
-                 call project_structured_segment(K1,Ratio,DMu,log_domega_4pi, &
-                                                 log_gamma_lo,log_gamma_hi,specLo,specHi)
+                 call project_structured_segment(Ratio,DMu,log_domega_4pi, &
+                                                 log_gamma_lo,log_gamma_hi,specLo,specHi,P_tot_obs_temp(:,K1))
              end if
          end do
        end do
@@ -103,12 +103,12 @@ subroutine sed_interpolation_structured(Boundary, angle_narrow_jet, R_Tobs1,R_ga
 
 contains
 
-subroutine project_structured_segment(K1,Ratio,DMu,log_domega_4pi,log_gamma_lo,log_gamma_hi, &
-                                      specLo,specHi)
+subroutine project_structured_segment(Ratio,DMu,log_domega_4pi,log_gamma_lo,log_gamma_hi, &
+                                      specLo,specHi,flux_accum)
     implicit none
-    integer, intent(in) :: K1
     real(8), intent(in) :: Ratio,DMu,log_domega_4pi,log_gamma_lo,log_gamma_hi
     real(8), intent(in), dimension(Num_nu) :: specLo,specHi
+    real(8), intent(inout), dimension(Num_nu_obs) :: flux_accum
     real(8), dimension(Num_nu) :: specTheta,logTheta,vShift
     real(8) :: DG,Beta,doppler,log_doppler_redshift
 
@@ -122,7 +122,7 @@ subroutine project_structured_segment(K1,Ratio,DMu,log_domega_4pi,log_gamma_lo,l
     logTheta=logTheta+log_domega_4pi-3d0*log(doppler)
     vShift=V_seed_log-log_doppler_redshift
     call accum_logsed(vShift,logTheta, &
-                                          Num_nu,V_obs_log,Num_nu_obs,P_tot_obs_temp(:,K1))
+                                          Num_nu,V_obs_log,Num_nu_obs,flux_accum)
 end subroutine project_structured_segment
 end subroutine sed_interpolation_structured
 
@@ -194,8 +194,8 @@ subroutine sed_structured_phi(Boundary,R_Tobs1,R_gamma,R,P_tot,V_seed,V_obs,Tobs
                      last_k2=K2
                  end if
                  Ratio=(Tobs(K1)-R_Tobs_theta(K2))/(R_Tobs_theta(K2+1)-R_Tobs_theta(K2))
-                 call project_phi(K1,Ratio,DMu,log_domega_4pi, &
-                                                     log_gamma_lo,log_gamma_hi,specLo,specHi)
+                 call project_phi(Ratio,DMu,log_domega_4pi, &
+                                                     log_gamma_lo,log_gamma_hi,specLo,specHi,P_tot_obs_temp(:,K1))
              end if
           end do
        end do
@@ -209,12 +209,12 @@ subroutine sed_structured_phi(Boundary,R_Tobs1,R_gamma,R,P_tot,V_seed,V_obs,Tobs
 
 contains
 
-subroutine project_phi(K1,Ratio,DMu,log_domega_4pi,log_gamma_lo,log_gamma_hi, &
-                                          specLo,specHi)
+subroutine project_phi(Ratio,DMu,log_domega_4pi,log_gamma_lo,log_gamma_hi, &
+                                          specLo,specHi,flux_accum)
     implicit none
-    integer, intent(in) :: K1
     real(8), intent(in) :: Ratio,DMu,log_domega_4pi,log_gamma_lo,log_gamma_hi
     real(8), intent(in), dimension(Num_nu) :: specLo,specHi
+    real(8), intent(inout), dimension(Num_nu_obs) :: flux_accum
     real(8), dimension(Num_nu) :: specTheta,logTheta,vShift
     real(8) :: DG,Beta,doppler,log_doppler_redshift
 
@@ -228,6 +228,6 @@ subroutine project_phi(K1,Ratio,DMu,log_domega_4pi,log_gamma_lo,log_gamma_hi, &
     logTheta=logTheta+log_domega_4pi-3d0*log(doppler)
     vShift=V_seed_log-log_doppler_redshift
     call accum_logsed(vShift,logTheta, &
-                                          Num_nu,V_obs_log,Num_nu_obs,P_tot_obs_temp(:,K1))
+                                          Num_nu,V_obs_log,Num_nu_obs,flux_accum)
 end subroutine project_phi
 end subroutine sed_structured_phi
