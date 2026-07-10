@@ -6,19 +6,19 @@ module reverse_rhs_module
 contains
 
 ! Reverse-shock dynamical RHS, including MHD jump state and secondary branch derivatives.
-subroutine reverse_dynamics_rhs(rs_state,T,Y,D,M,mej,V3_scale,Delta_0,eta_0,A_star,dNe_ISM,R_tr,f_jump,f_wide,R0, &
+subroutine reverse_dynamics_rhs(phase,rs_state,T,Y,D,M,mej,V3_scale,Delta_0,eta_0,A_star,dNe_ISM,R_tr,f_jump,f_wide,R0, &
              Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,fer,sigma_r)
     use constants
     use dynamics_density_profile, only: density_profile, jump_max, &
                                         jump_count, jump_radius, jump_factor, &
                                         jump_width
     use reverse_shock_mhd_jump, only: rs_mag_internal, rs_vegas_ud
-    use reverse_shock_state, only: rhs_phase, wait_phase, precross_phase, &
+    use reverse_shock_state, only: wait_phase, precross_phase, &
                                    rs_db3, rs_tcross, rs_rcross, rs_e3cross, rs_gam20, &
                                    rs_u3cross, rs_v3cross, rs_m3cross, rs_gammcross, rs_b3ordered, rs_nstate
     use reverse_jump_conditions, only: reverse_contact
     implicit none
-    integer, intent(in) :: M
+    integer, intent(in) :: phase,M
     real(8), intent(inout), dimension(rs_nstate) :: rs_state
     real(8), intent(in) :: T,mej,V3_scale,Delta_0,eta_0,A_star,dNe_ISM,R_tr,f_jump,f_wide,R0
     real(8), intent(in) :: Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,fer,sigma_r
@@ -41,7 +41,7 @@ subroutine reverse_dynamics_rhs(rs_state,T,Y,D,M,mej,V3_scale,Delta_0,eta_0,A_st
     logical :: pre_crossing, waiting_reverse
 
 
-    waiting_reverse=(rhs_phase == wait_phase)
+    waiting_reverse=(phase == wait_phase)
     gam2=Y(1); RR=Y(2); para_m2=Y(3); para_m3=Y(4)*mej
     U3=Y(5)*mej*para_c**2; V3=Y(6)*V3_scale
     call density_profile(A_star,dNe_ISM,RR,R0,1,R_tr,f_jump,f_wide,dNe)
@@ -81,7 +81,7 @@ subroutine reverse_dynamics_rhs(rs_state,T,Y,D,M,mej,V3_scale,Delta_0,eta_0,A_st
         betars=beta4-dbrs
     end if
     D=0d0
-    pre_crossing=(rhs_phase == precross_phase .or. (rhs_phase == 0 .and. mej > para_m3))
+    pre_crossing=(phase == precross_phase)
 
     dB2=rs_bcoeff*dsqrt((Epsilon_b*dNe)*(gam2*gam2-1d0))
     gam_c2=cool_coeff/(dB2*dB2*gam2*T)

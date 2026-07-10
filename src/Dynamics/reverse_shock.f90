@@ -21,7 +21,7 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,fer,sigma_r,Boundary,n,Num_R, &
                                         jump_factor, jump_width
     use reverse_jump_conditions, only: reverse_contact
     use reverse_shock_mhd_jump, only: rs_vegas_ud, rs_vegas_comp, rs_mag_internal
-    use reverse_shock_state, only: rhs_phase, wait_phase, precross_phase, &
+    use reverse_shock_state, only: wait_phase, precross_phase, &
                                    postcross_phase, rs_db3, rs_tcross, rs_rcross, rs_e3cross, &
                                    rs_gam20, rs_u3cross, rs_v3cross, rs_m3cross, rs_gammcross, &
                                    rs_b3ordered, rs_nstate
@@ -228,12 +228,10 @@ contains
 
         rs = 0d0
         rs(rs_db3) = dB3
-        rhs_phase = precross_phase
-        call reverse_dynamics_rhs(rs,tnow,Y,D,nstate,mej,v3s,delta0, &
+        call reverse_dynamics_rhs(precross_phase,rs,tnow,Y,D,nstate,mej,v3s,delta0, &
                                   eta_0,astar,nism,R_tr,f_jump,f_wide,R0,Epsilon_b,Epsilon_e, &
                                   p_f,f_e,e_r,b_r,p_r,fer,sigma_r)
         dB3 = rs(rs_db3)
-        rhs_phase = 0
         H_bound = 1d0-Y(4)
         hest = D(4)*(ttin-tnow)
         H_hi = min(hmax, H_bound, hest)
@@ -329,8 +327,7 @@ contains
             Y(4) = 1d0
             rs = [dB3,T_cross,R_cross,e3_cross,gam20,U3_cross,V3_cross,M3_cross, &
                          gmcross,b3ordx]
-            rhs_phase = postcross_phase
-            call reverse_dynamics_rhs(rs,tnow,Y,D,nstate,mej,v3s,delta0, &
+            call reverse_dynamics_rhs(postcross_phase,rs,tnow,Y,D,nstate,mej,v3s,delta0, &
                                       eta_0,astar,nism,R_tr,f_jump,f_wide,R0,Epsilon_b,Epsilon_e, &
                                       p_f,f_e,e_r,b_r,p_r,fer,sigma_r)
             dB3=rs(rs_db3); T_cross=rs(rs_tcross); R_cross=rs(rs_rcross)
@@ -338,7 +335,6 @@ contains
             U3_cross=rs(rs_u3cross); V3_cross=rs(rs_v3cross)
             M3_cross=rs(rs_m3cross); gmcross=rs(rs_gammcross)
             b3ordx=rs(rs_b3ordered)
-            rhs_phase = 0
         end if
 
     end subroutine advance_m3
@@ -360,8 +356,7 @@ contains
         T0 = t_step
         rs_step = 0d0
         rs_step(rs_db3) = db_step
-        rhs_phase = precross_phase
-        call reverse_dynamics_rhs(rs_step,T0,Y0,d_step,nstate,mej,v3s,delta0, &
+        call reverse_dynamics_rhs(precross_phase,rs_step,T0,Y0,d_step,nstate,mej,v3s,delta0, &
                                   eta_0,astar,nism,R_tr,f_jump,f_wide,R0,Epsilon_b,Epsilon_e, &
                                   p_f,f_e,e_r,b_r,p_r,fer,sigma_r)
         db_step = rs_step(rs_db3)
@@ -374,7 +369,7 @@ contains
         y_step(4) = Y0(4)+0.5d0*h_step
         t_step = T0+0.5d0*h_step*L1
         rs_step(rs_db3) = db_step
-        call reverse_dynamics_rhs(rs_step,t_step,y_step,d_step,nstate,mej,v3s,delta0, &
+        call reverse_dynamics_rhs(precross_phase,rs_step,t_step,y_step,d_step,nstate,mej,v3s,delta0, &
                                   eta_0,astar,nism,R_tr,f_jump,f_wide,R0,Epsilon_b,Epsilon_e, &
                                   p_f,f_e,e_r,b_r,p_r,fer,sigma_r)
         db_step = rs_step(rs_db3)
@@ -387,7 +382,7 @@ contains
         y_step(4) = Y0(4)+0.5d0*h_step
         t_step = T0+0.5d0*h_step*L2
         rs_step(rs_db3) = db_step
-        call reverse_dynamics_rhs(rs_step,t_step,y_step,d_step,nstate,mej,v3s,delta0, &
+        call reverse_dynamics_rhs(precross_phase,rs_step,t_step,y_step,d_step,nstate,mej,v3s,delta0, &
                                   eta_0,astar,nism,R_tr,f_jump,f_wide,R0,Epsilon_b,Epsilon_e, &
                                   p_f,f_e,e_r,b_r,p_r,fer,sigma_r)
         db_step = rs_step(rs_db3)
@@ -400,7 +395,7 @@ contains
         y_step(4) = Y0(4)+h_step
         t_step = T0+h_step*L3
         rs_step(rs_db3) = db_step
-        call reverse_dynamics_rhs(rs_step,t_step,y_step,d_step,nstate,mej,v3s,delta0, &
+        call reverse_dynamics_rhs(precross_phase,rs_step,t_step,y_step,d_step,nstate,mej,v3s,delta0, &
                                   eta_0,astar,nism,R_tr,f_jump,f_wide,R0,Epsilon_b,Epsilon_e, &
                                   p_f,f_e,e_r,b_r,p_r,fer,sigma_r)
         db_step = rs_step(rs_db3)
@@ -412,7 +407,6 @@ contains
         y_step = Y0+h_step*(K1+2d0*K2+2d0*K3+K4)/6.0d0
         y_step(4) = Y0(4)+h_step
         t_step = T0+h_step*(L1+2d0*L2+2d0*L3+L4)/6.0d0
-        rhs_phase = 0
     end subroutine rk_m3
 
     ! log(time) RK driver，覆盖 waiting、pre-crossing 和 post-crossing 三个阶段。
@@ -487,12 +481,10 @@ contains
                             h_event = H_hi
                             call rk_log(precross_phase, rs_try, X, S, h_event, y_step)
                             y_step(4) = 1d0
-                            rhs_phase = postcross_phase
                             t_phys = X*exp(S)
-                            call reverse_dynamics_rhs(rs_try,t_phys,y_step,D,nstate,mej,v3s,delta0, &
+                            call reverse_dynamics_rhs(postcross_phase,rs_try,t_phys,y_step,D,nstate,mej,v3s,delta0, &
                                                       eta_0,astar,nism,R_tr,f_jump,f_wide,R0,Epsilon_b,Epsilon_e, &
                                                       p_f,f_e,e_r,b_r,p_r,fer,sigma_r)
-                            rhs_phase = 0
                             h_post = HH-h_event
                             if (h_post > 0d0) then
                                 call rk_log(postcross_phase, rs_try, X, S, h_post, y_step)
@@ -537,9 +529,9 @@ contains
 
     end subroutine advance_log
 
-    ! log(time) 下的 RK4 stage。rhs_phase 选择物理分支，
+    ! log(time) 下的 RK4 stage。phase 选择物理分支，
     ! 状态向量仍使用同一个 Y 布局。
-    ! RK4 stage in log(time). rhs_phase selects the physical branch;
+    ! RK4 stage in log(time). phase selects the physical branch;
     ! the state vector keeps the same Y layout.
     subroutine rk_log(phase, rs_step, x_base, s_step, h_phase, y_phase)
     implicit none
@@ -554,9 +546,8 @@ contains
     real(8) :: s_stage,t_phys
 
         a_phase = [0.5d0*h_phase, 0.5d0*h_phase, h_phase, h_phase]
-        rhs_phase = phase
         t_phys = x_base*exp(s_step)
-        call reverse_dynamics_rhs(rs_step,t_phys,y_phase,d_phase,nstate,mej,v3s,delta0, &
+        call reverse_dynamics_rhs(phase,rs_step,t_phys,y_phase,d_phase,nstate,mej,v3s,delta0, &
                                   eta_0,astar,nism,R_tr,f_jump,f_wide,R0,Epsilon_b,Epsilon_e, &
                                   p_f,f_e,e_r,b_r,p_r,fer,sigma_r)
         d_phase = t_phys*d_phase
@@ -567,14 +558,13 @@ contains
             b_phase = b_phase+a_phase(K+1)*d_phase/3.0d0
             s_stage = s_step+a_phase(K)
             t_phys = x_base*exp(s_stage)
-            call reverse_dynamics_rhs(rs_step,t_phys,y_phase,d_phase,nstate,mej,v3s,delta0, &
+            call reverse_dynamics_rhs(phase,rs_step,t_phys,y_phase,d_phase,nstate,mej,v3s,delta0, &
                                       eta_0,astar,nism,R_tr,f_jump,f_wide,R0,Epsilon_b,Epsilon_e, &
                                       p_f,f_e,e_r,b_r,p_r,fer,sigma_r)
             d_phase = t_phys*d_phase
         end do
         y_phase = b_phase+h_phase*d_phase/6.0d0
         s_step = s_step+h_phase
-        rhs_phase = 0
     end subroutine rk_log
 
     ! 推进到目标 lab-frame 时间。磁化 ejecta 在 pressure 和 fast-mode 条件满足前
