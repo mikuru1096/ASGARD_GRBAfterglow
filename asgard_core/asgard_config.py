@@ -106,13 +106,11 @@ class RuntimeConfig:
     index_syn_integr: int = 2
     electron_solver: str = "fullhide_1d"
     cooling_kernel: str = "legacy"
-    radiation_kernel: str = "legacy"
     dynamics_kernel: str = "forward_legacy"
     geometry_kernel: str = "sed_legacy"
     electron_photon_coupling: str = "separated"
     structured_backend: str = "fortran_1d"
     patch_sampling: str = "uniform"
-    patch_projection: str = "auto"
     patch_sampling_pilot_theta: int = 0
     patch_sampling_num_times: int = 12
     patch_sampling_beaming_factor: float = 3.0
