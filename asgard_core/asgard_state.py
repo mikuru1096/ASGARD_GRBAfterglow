@@ -285,7 +285,6 @@ def _hadronstage(
     photon_field: PhotonFieldState,
     timings: dict[str, float] | None,
     *,
-    apply_bh_photon_sink: bool = False,
     merge_secondary_pairs: bool = True,
     exact_egrid: bool = False,
 ) -> tuple[ElectronSolution, object | None, SolverAdapterReport]:
@@ -313,10 +312,6 @@ def _hadronstage(
         )
         hadronic.l_had_bethe_heitler = None
         hadronic.seed_had_bethe_heitler = None
-    if hadronic is not None and hadronic.pg_photon_survival is not None:
-        _photonsurvive(photon_field, hadronic.pg_photon_survival)
-    if apply_bh_photon_sink and hadronic is not None and hadronic.tau_bh is not None:
-        _photonsurvive(photon_field, pgsurvival(hadronic.tau_bh))
     return electron, hadronic, report
 
 
@@ -366,7 +361,6 @@ def _jointstage(
             primary_electron,
             photon_field,
             timings,
-            apply_bh_photon_sink=True,
             merge_secondary_pairs=False,
             exact_egrid=grid_top is not None,
         )
@@ -519,6 +513,8 @@ def solve_setup(
             timings,
             exact_egrid=exact_egrid,
         )
+        if hadronic is not None and hadronic.pg_photon_survival is not None:
+            _photonsurvive(photon_field, hadronic.pg_photon_survival)
 
     reverse_emission = None
     if config.reverse or config.reverse_shock.enabled:
