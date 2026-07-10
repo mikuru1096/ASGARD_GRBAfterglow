@@ -1,3 +1,15 @@
+! Prompt 两壳碰撞的磁化跳跃状态 f2py 入口。
+! Prompt shell-collision MHD jump-state f2py entry.
+subroutine rs_prompt_jump(gamma_rel,sigma,u_down,compression,specific_internal,shock_allowed)
+    use reverse_shock_mhd_jump, only: rs_mhd_state
+    implicit none
+    real(8), intent(in) :: gamma_rel,sigma
+    real(8), intent(out) :: u_down,compression,specific_internal
+    logical, intent(out) :: shock_allowed
+
+    call rs_mhd_state(gamma_rel,sigma,u_down,compression,specific_internal,shock_allowed)
+end subroutine rs_prompt_jump
+
 ! 反向激波动力学 f2py 入口。
 ! Reverse-shock dynamics f2py entry.
 ! first RS 是第 0 个 ejecta 分支；density jump 触发后续分支，同一输出循环内同步推进和记录。
@@ -20,7 +32,7 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,fer,sigma_r,Boundary,n,Num_R, &
                                         jump_count, jump_radius, &
                                         jump_factor, jump_width
     use reverse_jump_conditions, only: reverse_contact
-    use reverse_shock_mhd_jump, only: rs_vegas_ud, rs_vegas_comp, rs_mag_internal
+    use reverse_shock_mhd_jump, only: rs_vegas_ud, rs_mhd_state
     use reverse_shock_state, only: wait_phase, precross_phase, &
                                    postcross_phase, rs_db3, rs_tcross, rs_rcross, rs_e3cross, &
                                    rs_gam20, rs_u3cross, rs_v3cross, rs_m3cross, rs_gammcross, &
@@ -44,12 +56,12 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,fer,sigma_r,Boundary,n,Num_R, &
     real(8) :: R_tr,f_jump,f_wide,R0
     real(8) :: delta0,mej,v3s,m2init,m3init,dmref,rdec,tbase,tdec,tbin,tspan,dB3
     real(8) :: dtgrid,rdecism,rdecwind,tnow,tout,tevent,dbwait,dbevent
-    real(8) :: u2init,u4init,dinit,n4init,g34init,n3init,compinit
+    real(8) :: u2init,u4init,dinit,n4init,g34init,n3init,compinit,udinit,einit
     real(8) :: prev_r,prev_g,prev_t,curr_r,curr_g,curr_t
     real(8), dimension(jmax) :: src_prev,src_cur,jump_r,jump_f,jump_w,diss_prev,gm_prev
     real(8), dimension(:), allocatable :: y_prev,y_cur,Y,ywait,yevent
     logical, dimension(jmax) :: event_done
-    logical :: ready
+    logical :: ready,shockinit
 
     ! Y 状态向量布局：
     ! Y state-vector layout:
@@ -126,11 +138,11 @@ contains
         dinit=max(delta0,R(1)/Eta_0**2)
         n4init=mej/(4d0*pi*Para_m_p*R(1)*R(1)*Eta_0*dinit)
         g34init=(R_Gamma(1)*R_Gamma(1)+Eta_0*Eta_0-1d0)/(Eta_0*R_Gamma(1)+u2init*u4init)
-        compinit=rs_vegas_comp(g34init,sigma_r)
+        call rs_mhd_state(g34init,sigma_r,udinit,compinit,einit,shockinit)
         n3init=compinit*n4init
         v3s=mej/(n3init*Para_m_p)
         Y(1:6)=[R_Gamma(1),R(1),m2init,m3init/mej, &
-                rs_mag_internal(g34init,sigma_r)*m3init/mej, &
+                einit*m3init/mej, &
                 m3init/(n3init*Para_m_p)/v3s]
     end subroutine init_shell
 

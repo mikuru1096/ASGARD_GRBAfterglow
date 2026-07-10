@@ -12,7 +12,7 @@ subroutine reverse_dynamics_rhs(phase,rs_state,T,Y,D,M,mej,V3_scale,Delta_0,eta_
     use dynamics_density_profile, only: density_profile, jump_max, &
                                         jump_count, jump_radius, jump_factor, &
                                         jump_width
-    use reverse_shock_mhd_jump, only: rs_mag_internal, rs_vegas_ud
+    use reverse_shock_mhd_jump, only: rs_mhd_state
     use reverse_shock_state, only: wait_phase, precross_phase, &
                                    rs_db3, rs_tcross, rs_rcross, rs_e3cross, rs_gam20, &
                                    rs_u3cross, rs_v3cross, rs_m3cross, rs_gammcross, rs_b3ordered, rs_nstate
@@ -26,7 +26,7 @@ subroutine reverse_dynamics_rhs(phase,rs_state,T,Y,D,M,mej,V3_scale,Delta_0,eta_
     real(8), intent(out), dimension(M) :: D
     real(8), parameter :: rs_bcoeff=0.39d0, cool_coeff=7.739d8
     real(8) :: gam2,RR,para_m2,para_m3,U3,V3,dNe,u2,u4,Delta,para1,para_n4,beta4,beta2,gam34
-    real(8) :: para_n3,betars,dbrs,u3s,u4s_shock,gamma4s
+    real(8) :: para_n3,betars,dbrs,u3s,u4s_shock,gamma4s,jump_internal
     real(8) :: dB2,gam_c2,gam_m2,eps2,e3,gam_c3,gam_m3,eps3,dgam2_1,dgam2_2,dgam2,dR,dm2,dm3
     real(8) :: thermal_specific3,thermal_response3,thermal_gamma3,ad3,dV3_exp,dV3_shock,dU3_shock,dU3_ad,dU3,dV3
     real(8) :: sec_m,sec_u,sec_v,sec_p,sec_inertia
@@ -38,7 +38,7 @@ subroutine reverse_dynamics_rhs(phase,rs_state,T,Y,D,M,mej,V3_scale,Delta_0,eta_
     integer :: j_inertia,j_density,mi_idx,ui_idx,vi_idx
     integer, parameter :: idb=rs_db3,itc=rs_tcross,irc=rs_rcross,iec=rs_e3cross,ig20=rs_gam20
     integer, parameter :: iuc=rs_u3cross,ivc=rs_v3cross,imc=rs_m3cross,igm=rs_gammcross,ib3=rs_b3ordered
-    logical :: pre_crossing, waiting_reverse
+    logical :: pre_crossing, waiting_reverse, shock_allowed
 
 
     waiting_reverse=(phase == wait_phase)
@@ -71,11 +71,10 @@ subroutine reverse_dynamics_rhs(phase,rs_state,T,Y,D,M,mej,V3_scale,Delta_0,eta_
         dbrs=0d0
         betars=beta4
     else
-        u3s=rs_vegas_ud(gam34,sigma_r)
+        call rs_mhd_state(gam34,sigma_r,u3s,comp_ratio,jump_internal,shock_allowed)
         gsq1=(gam34-1d0)*(gam34+1d0)
         u4s_shock=dsqrt((1d0+u3s*u3s)*gsq1)+u3s*gam34
         gamma4s=dsqrt(1d0+u4s_shock*u4s_shock)
-        comp_ratio=u4s_shock/u3s
         para_n3=comp_ratio*para_n4
         dbrs=u4s_shock/(eta_0*(eta_0*gamma4s-u4*u4s_shock))
         betars=beta4-dbrs
@@ -120,7 +119,7 @@ subroutine reverse_dynamics_rhs(phase,rs_state,T,Y,D,M,mej,V3_scale,Delta_0,eta_
         thermal_specific3=0d0
         thermal_response3=0d0
     else if (pre_crossing) then
-        thermal_specific3=rs_mag_internal(gam34,sigma_r)
+        thermal_specific3=jump_internal
         if (sigma_r <= 0d0) then
             thermal_response3=1d0
         else

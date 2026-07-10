@@ -173,8 +173,7 @@ B_3
 | 物理量 | 公式角色 | 实现入口 |
 | --- | --- | --- |
 | \(M_{\rm ej,b}=E_{\rm iso}/[(1+\sigma)\eta_0c^2]\) | 有限磁化下的 baryonic ejecta mass | `Dynamics_reverse`, `structured_jet_1d` 主流程内显式分支 |
-| \(C=u_{4s}/u_{3s}\) | 有限强度 MHD jump 压缩比 | `rs_vegas_comp`, `rs_vegas_ud` |
-| \(\epsilon_{\rm th,3}\) | 下游热比内能和 \(\mathrm{d}U_{3,{\rm sh}}\) | `rs_mag_internal` |
+| \(u_{3s}, C, \epsilon_{\rm th,3}, \mathcal{S}_{\rm fast}\) | 下游四速度、压缩比、热比内能和快模判据 | `rs_mhd_state` |
 | \(B_{4,{\rm ord}}=\sqrt{4\pi c^2\sigma\rho_4}\) | 上游有序磁场 | `reverse_rhs` 主流程内显式分支 |
 | \(M_{B,{\rm eff}}\) | 有序场磁压焓对 bulk 方程的惯性贡献 | `compute_ordered_magnetic_inertia` |
 

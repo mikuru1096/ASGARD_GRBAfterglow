@@ -2,13 +2,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from math import pi
+from typing import cast
 
 import numpy as np
 
 from prompt.eats import EATSGeometry, EATSNumerics, project_branch_flux
 from prompt.internal_shock import BranchHistory, InternalShockSolution
 from src import Radiation, constants
-from src.Electron import electron_reverse_kernel as electron_reverse_module
+from src.Electron.electron_reverse_kernel import electron_reverse_kernel as reverse_kernel
 
 
 @dataclass(frozen=True)
@@ -127,32 +128,49 @@ def compute_branch_radiation(
     gamma_max = np.zeros(num_r, dtype=float)
     compactness = np.zeros(num_r, dtype=float)
     efficiency = np.zeros(num_r, dtype=float)
-    if branch.valid_shock:
-        gamma_e, d_n_dgamma = _solve_branch_electrons_fortran(branch, microphysics, numerics, seed_frequency, redshift)
-        sync_luminosity, sync_seed, _nu_a = electron_reverse_module.multiple_synch(
-            numerics.index_syn_integr,
-            numerics.num_threads,
-            branch.radius_cm,
-            branch.gamma,
-            branch.total_b_g,
-            gamma_e,
-            d_n_dgamma,
-            seed_frequency,
-            redshift,
+    if not branch.valid_shock:
+        gamma_e = np.logspace(
+            np.log10(numerics.electron_gamma_min),
+            np.log10(numerics.electron_gamma_max),
+            numerics.num_electron_gamma,
         )
-        for i in range(num_r):
-            if branch.electron_luminosity_comoving_erg_s[i] <= 0.0 or branch.total_b_g[i] <= 0.0:
-                continue
-            gamma_m[i] = _gamma_m(branch, i, microphysics)
-            gamma_c[i] = _gamma_c(branch, i)
-            gamma_max[i] = _gamma_max(branch, i, microphysics)
-            compactness[i] = _compactness(branch, i)
-            efficiency[i] = _efficiency(branch, i, microphysics)
-    else:
-        gamma_e = np.logspace(np.log10(numerics.electron_gamma_min), np.log10(numerics.electron_gamma_max), numerics.num_electron_gamma)
-        d_n_dgamma = np.zeros((gamma_e.size, num_r), dtype=float)
-        sync_luminosity = np.zeros((num_nu, num_r), dtype=float)
-        sync_seed = np.zeros((num_nu, num_r), dtype=float)
+        empty_e = np.empty((gamma_e.size, 0), dtype=float)
+        empty_nu = np.empty((num_nu, 0), dtype=float)
+        return BranchRadiation(
+            gamma_e=gamma_e,
+            seed_frequency_hz=seed_frequency,
+            d_n_dgamma=empty_e,
+            sync_luminosity=empty_nu,
+            sync_seed=empty_nu,
+            ssc_luminosity=empty_nu,
+            ssc_seed=empty_nu,
+            gamma_gamma_absorption=empty_nu,
+            gamma_m=gamma_m,
+            gamma_c=gamma_c,
+            gamma_max=gamma_max,
+            compactness=compactness,
+            efficiency=efficiency,
+        )
+    gamma_e, d_n_dgamma = _solve_branch_electrons_fortran(branch, microphysics, numerics, seed_frequency, redshift)
+    sync_luminosity, sync_seed, _nu_a = reverse_kernel.multiple_synch(
+        numerics.index_syn_integr,
+        numerics.num_threads,
+        branch.radius_cm,
+        branch.gamma,
+        branch.total_b_g,
+        gamma_e,
+        d_n_dgamma,
+        seed_frequency,
+        redshift,
+    )
+    for i in range(num_r):
+        if branch.electron_luminosity_comoving_erg_s[i] <= 0.0 or branch.total_b_g[i] <= 0.0:
+            continue
+        gamma_m[i] = _gamma_m(branch, i, microphysics)
+        gamma_c[i] = _gamma_c(branch, i)
+        gamma_max[i] = _gamma_max(branch, i, microphysics)
+        compactness[i] = _compactness(branch, i)
+        efficiency[i] = _efficiency(branch, i, microphysics)
     ssc_luminosity, ssc_seed = Radiation.ssc_spec(
         branch.radius_cm,
         gamma_e,
@@ -171,8 +189,6 @@ def compute_branch_radiation(
         tau_extra,
         numerics.num_threads,
     )
-    if not branch.valid_shock:
-        absorption = np.ones_like(absorption)
     return BranchRadiation(
         gamma_e=np.asarray(gamma_e, dtype=float),
         seed_frequency_hz=seed_frequency,
@@ -199,6 +215,8 @@ def _project(
     geometry: EATSGeometry,
     numerics: EATSNumerics,
 ) -> np.ndarray:
+    if not branch.valid_shock:
+        return np.zeros((observer_frequency_hz.size, observer_time_s.size), dtype=float)
     return project_branch_flux(
         characteristic_time_s=branch.characteristic_time_s,
         gamma=branch.gamma,
@@ -223,7 +241,7 @@ def _solve_branch_electrons_fortran(
     if r_tobs[0] <= 0.0:
         r_tobs[0] = 0.5 * r_tobs[1]
     density_for_grid = float(branch.shell_density_cm3[1])
-    gamma_e, d_n_dgamma = electron_reverse_module.electron_reverse_evolve(
+    gamma_e, d_n_dgamma = reverse_kernel.electron_reverse_evolve(
         branch.upstream_lab_width_cm,
         microphysics.epsilon_e,
         microphysics.epsilon_b,
@@ -285,7 +303,8 @@ def _gamma_max(branch: BranchHistory, index: int, microphysics: InternalShockMic
 
 def _branch_age_comoving(branch: BranchHistory, index: int) -> float:
     shell_index = index + 0.5
-    return branch.jump.crossing_time_lab_s * shell_index / (branch.radius_cm.size * branch.gamma[index])
+    crossing = cast(float, branch.jump.crossing_time_lab_s)
+    return crossing * shell_index / (branch.radius_cm.size * branch.gamma[index])
 
 
 def _compactness(branch: BranchHistory, index: int) -> float:

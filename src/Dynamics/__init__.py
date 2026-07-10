@@ -7,6 +7,7 @@ from typing import Any
 _BINDINGS = {
     "dynamics_forward": "Dynamics_forward",
     "dynamics_reverse": "Dynamics_reverse",
+    "rs_prompt_jump": "Dynamics_reverse",
 }
 
 

@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from math import pi
+from typing import cast
 
 import numpy as np
+from scipy.optimize import brentq
 
-from asgard_core.asgard_runtime import _rs_fast_shock_allowed, _rs_shock_upstream_u, _rs_vegas_downstream_u
 from src import constants
+from src.Dynamics import rs_prompt_jump
 
 
 @dataclass(frozen=True)
@@ -28,8 +30,9 @@ class BranchJump:
     valid_shock: bool
     gamma_rel: float
     beta_upstream: float
-    beta_shock_lab: float
-    crossing_time_lab_s: float
+    beta_shock_lab: float | None
+    axis_rate: float | None
+    crossing_time_lab_s: float | None
     compression: float
     specific_internal_energy: float
     magnetic_fraction: float
@@ -107,8 +110,8 @@ def simulate_internal_shock(
 
     beta_slow = beta_from_gamma(slow.gamma)
     beta_fast = beta_from_gamma(fast.gamma)
-    radius_collision = constants.para_c * engine_gap_s * beta_slow * beta_fast / (beta_fast - beta_slow)
-    lab_collision_time = radius_collision / (beta_slow * constants.para_c)
+    speed_gap = beta_gap(slow.gamma, fast.gamma, beta_slow, beta_fast)
+    radius_collision = constants.para_c * engine_gap_s * beta_slow * beta_fast / speed_gap
     slow_mass = baryonic_mass_g(slow)
     fast_mass = baryonic_mass_g(fast)
     slow_density = shell_proper_number_density(slow, radius_collision)
@@ -139,17 +142,12 @@ def simulate_internal_shock(
         upstream_density_cm3=fast_density,
         shock_direction=-1.0,
     )
-    t0_axis = (lab_collision_time - radius_collision / constants.para_c) * (1.0 + redshift)
-
     fs = _build_branch_history(
         "fs",
         slow,
         fs_jump,
         gamma_contact,
-        beta_contact,
         radius_collision,
-        lab_collision_time,
-        t0_axis,
         redshift,
         epsilon_e,
         epsilon_b,
@@ -160,10 +158,7 @@ def simulate_internal_shock(
         fast,
         rs_jump,
         gamma_contact,
-        beta_contact,
         radius_collision,
-        lab_collision_time,
-        t0_axis,
         redshift,
         epsilon_e,
         epsilon_b,
@@ -188,9 +183,7 @@ def simulate_internal_shock(
 
 
 def fast_shock_allowed(gamma_rel: float, sigma: float) -> bool:
-    if gamma_rel <= 1.0 + 1.0e-10:
-        return False
-    return bool(_rs_fast_shock_allowed(gamma_rel, sigma))
+    return bool(rs_prompt_jump(gamma_rel, sigma)[3])
 
 
 def baryonic_mass_g(shell: InternalShockShell) -> float:
@@ -199,7 +192,12 @@ def baryonic_mass_g(shell: InternalShockShell) -> float:
 
 
 def beta_from_gamma(gamma: float) -> float:
-    return float(np.sqrt(1.0 - gamma**-2))
+    return float(np.sqrt((gamma - 1.0) * (gamma + 1.0)) / gamma)
+
+
+def beta_gap(gamma_a: float, gamma_b: float, beta_a: float, beta_b: float) -> float:
+    numerator = (gamma_b - gamma_a) * (gamma_b + gamma_a)
+    return numerator / (gamma_a**2 * gamma_b**2 * (beta_a + beta_b))
 
 
 def shell_lab_width_cm(shell: InternalShockShell) -> float:
@@ -213,7 +211,10 @@ def shell_proper_number_density(shell: InternalShockShell, radius_cm: float) -> 
 
 
 def relative_gamma(gamma_a: float, gamma_b: float) -> float:
-    return gamma_a * gamma_b * (1.0 - beta_from_gamma(gamma_a) * beta_from_gamma(gamma_b))
+    beta_a = np.sqrt((gamma_a - 1.0) * (gamma_a + 1.0)) / gamma_a
+    beta_b = np.sqrt((gamma_b - 1.0) * (gamma_b + 1.0)) / gamma_b
+    u_rel = (gamma_b - gamma_a) * (gamma_b + gamma_a) / (gamma_a * gamma_b * (beta_a + beta_b))
+    return float(np.hypot(1.0, u_rel))
 
 
 def _validate_shell(name: str, shell: InternalShockShell) -> None:
@@ -233,8 +234,8 @@ def _solve_contact_gamma(
     sigma_slow: float,
     sigma_fast: float,
 ) -> float:
-    lo = gamma_slow * (1.0 + 1.0e-12)
-    hi = gamma_fast * (1.0 - 1.0e-12)
+    lo = gamma_slow
+    hi = gamma_fast
 
     def balance(gamma_contact: float) -> float:
         g_fs = relative_gamma(gamma_contact, gamma_slow)
@@ -243,37 +244,24 @@ def _solve_contact_gamma(
         p_rs = _postshock_pressure(g_rs, n_fast, sigma_fast)
         return p_fs - p_rs
 
-    f_lo = balance(lo)
-    f_hi = balance(hi)
-    if f_lo * f_hi > 0.0:
-        scan = np.linspace(lo, hi, 129)
-        values = np.array([balance(float(gamma)) for gamma in scan], dtype=float)
-        changes = np.flatnonzero(values[1:] * values[:-1] <= 0.0)
-        if changes.size == 0:
-            raise ValueError("contact pressure balance has no bracket between the 2 shell Lorentz factors.")
-        lo = float(scan[changes[0]])
-        hi = float(scan[changes[0] + 1])
-        f_lo = float(values[changes[0]])
-        f_hi = float(values[changes[0] + 1])
-    for _ in range(96):
-        mid = 0.5 * (lo + hi)
-        f_mid = balance(mid)
-        if f_mid == 0.0:
-            return mid
-        if f_lo * f_mid <= 0.0:
-            hi = mid
-            f_hi = f_mid
-        else:
-            lo = mid
-            f_lo = f_mid
-    return 0.5 * (lo + hi)
+    return float(brentq(balance, lo, hi))
 
 
 def _postshock_pressure(gamma_rel: float, upstream_density_cm3: float, sigma: float) -> float:
-    compression = _rs_mag_comp(gamma_rel, sigma)
-    specific_internal = _rs_mag_specific_internal(gamma_rel, sigma)
-    rest_energy_density = upstream_density_cm3 * constants.para_m_p * constants.para_c**2
-    thermal_pressure = compression * specific_internal * rest_energy_density / 3.0
+    _, compression, specific_internal, _ = rs_prompt_jump(gamma_rel, sigma)
+    return _jump_pressure(gamma_rel, upstream_density_cm3, sigma, compression, specific_internal)
+
+
+def _jump_pressure(
+    gamma_rel: float,
+    upstream_n: float,
+    sigma: float,
+    compression: float,
+    specific_internal: float,
+) -> float:
+    gammahat = 4.0 / 3.0 + 1.0 / (3.0 * gamma_rel)
+    rest_energy_density = upstream_n * constants.para_m_p * constants.para_c**2
+    thermal_pressure = (gammahat - 1.0) * compression * specific_internal * rest_energy_density
     ordered_magnetic_pressure = 0.5 * compression * compression * sigma * rest_energy_density
     return thermal_pressure + ordered_magnetic_pressure
 
@@ -288,25 +276,45 @@ def _build_jump(
     shock_direction: float,
 ) -> BranchJump:
     gamma_rel = relative_gamma(gamma_contact, upstream_shell.gamma)
-    compression = _rs_mag_comp(gamma_rel, upstream_shell.sigma)
-    specific_internal = _rs_mag_specific_internal(gamma_rel, upstream_shell.sigma)
-    pressure = _postshock_pressure(gamma_rel, upstream_density_cm3, upstream_shell.sigma)
-    valid = fast_shock_allowed(gamma_rel, upstream_shell.sigma)
+    u_down, compression, specific_internal, shock_allowed = rs_prompt_jump(gamma_rel, upstream_shell.sigma)
+    pressure = _jump_pressure(
+        gamma_rel, upstream_density_cm3, upstream_shell.sigma, compression, specific_internal
+    )
     upstream_beta = beta_from_gamma(upstream_shell.gamma)
-    shock_speed_cd = _shock_speed_contact_frame(gamma_rel, upstream_shell.sigma)
-    if shock_direction > 0.0:
-        beta_shock_lab = (beta_contact + shock_speed_cd) / (1.0 + beta_contact * shock_speed_cd)
-        crossing = shell_lab_width_cm(upstream_shell) / (constants.para_c * (beta_shock_lab - upstream_beta))
-    else:
-        beta_shock_lab = (beta_contact - shock_speed_cd) / (1.0 - beta_contact * shock_speed_cd)
-        crossing = shell_lab_width_cm(upstream_shell) / (constants.para_c * (upstream_beta - beta_shock_lab))
     magnetic_fraction = upstream_shell.sigma / (1.0 + upstream_shell.sigma)
+    if not shock_allowed:
+        return BranchJump(
+            name=name,
+            valid_shock=False,
+            gamma_rel=gamma_rel,
+            beta_upstream=upstream_beta,
+            beta_shock_lab=None,
+            axis_rate=None,
+            crossing_time_lab_s=None,
+            compression=compression,
+            specific_internal_energy=specific_internal,
+            magnetic_fraction=magnetic_fraction,
+            pressure_dyn_cm2=pressure,
+        )
+    shock_speed_cd = u_down / np.sqrt(1.0 + u_down**2)
+    if shock_direction > 0.0:
+        contact_gap = beta_gap(upstream_shell.gamma, gamma_contact, upstream_beta, beta_contact)
+    else:
+        contact_gap = beta_gap(gamma_contact, upstream_shell.gamma, beta_contact, upstream_beta)
+    speed_den = 1.0 + shock_direction * beta_contact * shock_speed_cd
+    one_minus = 0.5 * (gamma_contact**-2 + upstream_shell.gamma**-2 + contact_gap**2)
+    shock_gap = (contact_gap + shock_speed_cd * one_minus) / speed_den
+    contact_axis = gamma_contact**-2 / (1.0 + beta_contact)
+    axis_rate = contact_axis * (1.0 - shock_direction * shock_speed_cd) / speed_den
+    beta_shock_lab = (beta_contact + shock_direction * shock_speed_cd) / speed_den
+    crossing = shell_lab_width_cm(upstream_shell) / (constants.para_c * shock_gap)
     return BranchJump(
         name=name,
-        valid_shock=valid and crossing > 0.0 and compression > 0.0 and specific_internal > 0.0,
+        valid_shock=True,
         gamma_rel=gamma_rel,
         beta_upstream=upstream_beta,
         beta_shock_lab=beta_shock_lab,
+        axis_rate=axis_rate,
         crossing_time_lab_s=crossing,
         compression=compression,
         specific_internal_energy=specific_internal,
@@ -320,52 +328,51 @@ def _build_branch_history(
     shell: InternalShockShell,
     jump: BranchJump,
     gamma_contact: float,
-    beta_contact: float,
     radius_collision_cm: float,
-    lab_collision_time_s: float,
-    t0_axis_s: float,
     redshift: float,
     epsilon_e: float,
     epsilon_b: float,
     num_steps: int,
 ) -> BranchHistory:
-    xi = np.linspace(0.0, 1.0, num_steps, dtype=float)
-    t_lab = xi * jump.crossing_time_lab_s
-    radius = radius_collision_cm + jump.beta_shock_lab * constants.para_c * t_lab
-    characteristic_time = ((lab_collision_time_s + t_lab) - radius / constants.para_c) * (1.0 + redshift)
-    characteristic_time = characteristic_time - t0_axis_s
-    gamma = np.full(num_steps, gamma_contact, dtype=float)
-    upstream_density = shell_proper_number_density(shell, radius)
     if not jump.valid_shock:
-        zeros = np.zeros(num_steps, dtype=float)
+        empty = np.empty(0, dtype=float)
         return BranchHistory(
             name=name,
             valid_shock=False,
-            characteristic_time_s=characteristic_time,
-            gamma=gamma,
-            radius_cm=radius,
-            shell_density_cm3=upstream_density,
-            thermal_energy_density_erg_cm3=zeros,
-            thermal_luminosity_comoving_erg_s=zeros,
-            electron_luminosity_comoving_erg_s=zeros,
-            ordered_b_g=zeros,
-            turbulent_b_g=zeros,
-            total_b_g=zeros,
-            swept_mass_g=zeros,
-            internal_energy_erg=zeros,
-            comoving_volume_cm3=zeros,
+            characteristic_time_s=empty,
+            gamma=empty,
+            radius_cm=empty,
+            shell_density_cm3=empty,
+            thermal_energy_density_erg_cm3=empty,
+            thermal_luminosity_comoving_erg_s=empty,
+            electron_luminosity_comoving_erg_s=empty,
+            ordered_b_g=empty,
+            turbulent_b_g=empty,
+            total_b_g=empty,
+            swept_mass_g=empty,
+            internal_energy_erg=empty,
+            comoving_volume_cm3=empty,
             upstream_gamma=shell.gamma,
             upstream_baryonic_mass_g=baryonic_mass_g(shell),
             upstream_lab_width_cm=shell_lab_width_cm(shell),
             jump=jump,
         )
+    crossing = cast(float, jump.crossing_time_lab_s)
+    beta_shock = cast(float, jump.beta_shock_lab)
+    axis_rate = cast(float, jump.axis_rate)
+    xi = np.linspace(0.0, 1.0, num_steps, dtype=float)
+    t_lab = xi * crossing
+    radius = radius_collision_cm + beta_shock * constants.para_c * t_lab
+    characteristic_time = (1.0 + redshift) * t_lab * axis_rate
+    gamma = np.full(num_steps, gamma_contact, dtype=float)
+    upstream_density = shell_proper_number_density(shell, radius)
     rho_up = upstream_density * constants.para_m_p
     thermal_density = upstream_density * jump.compression * jump.specific_internal_energy
     thermal_density = thermal_density * constants.para_m_p * constants.para_c**2
     ordered_b = _upstream_ordered_b(rho_up, shell.sigma) * jump.compression
     turbulent_b = np.sqrt(8.0 * pi * epsilon_b * thermal_density)
     total_b = np.sqrt(ordered_b**2 + turbulent_b**2)
-    relative_beta = np.abs(jump.beta_shock_lab - jump.beta_upstream)
+    relative_beta = shell_lab_width_cm(shell) / (constants.para_c * crossing)
     dmdt_lab = 4.0 * pi * radius**2 * shell.gamma * upstream_density * constants.para_m_p
     dmdt_lab = dmdt_lab * constants.para_c * relative_beta
     dmdt_comoving = gamma_contact * dmdt_lab
@@ -397,33 +404,5 @@ def _build_branch_history(
     )
 
 
-def _shock_speed_contact_frame(gamma_rel: float, sigma: float) -> float:
-    downstream_u = float(_rs_vegas_downstream_u(gamma_rel, sigma))
-    return downstream_u / np.sqrt(1.0 + downstream_u**2)
-
-
 def _upstream_ordered_b(rho_up_g_cm3: np.ndarray, sigma: float) -> np.ndarray:
     return np.sqrt(4.0 * np.pi * sigma * rho_up_g_cm3 * constants.para_c**2)
-
-
-def _rs_mag_comp(gamma_rel: float, sigma: float) -> float:
-    gamma_eff = max(1.0, float(gamma_rel))
-    if gamma_eff <= 1.0 or sigma <= 1.0e-6:
-        return 4.0 * gamma_eff
-    return _rs_shock_upstream_u(gamma_eff, sigma) / _rs_vegas_downstream_u(gamma_eff, sigma)
-
-
-def _rs_mag_specific_internal(gamma_rel: float, sigma: float) -> float:
-    gamma_eff = max(1.0, float(gamma_rel))
-    if gamma_eff <= 1.0:
-        return 0.0
-    if sigma <= 0.0:
-        return gamma_eff - 1.0
-    adiabatic_index = 4.0 / 3.0 + 1.0 / (3.0 * gamma_eff)
-    u_down = _rs_vegas_downstream_u(gamma_eff, sigma)
-    u_up = _rs_shock_upstream_u(gamma_eff, sigma)
-    gamma_down = np.sqrt(1.0 + u_down * u_down)
-    gamma_up = np.sqrt(1.0 + u_up * u_up)
-    compression = u_up / u_down
-    h_down = (1.0 + sigma) * gamma_up / gamma_down - compression * sigma
-    return float((h_down - 1.0) / adiabatic_index)

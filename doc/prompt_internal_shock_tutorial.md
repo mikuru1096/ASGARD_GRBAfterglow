@@ -70,7 +70,17 @@ t_{\rm col}
 \frac{R_{\rm col}}{\beta_s c}.
 \]
 
-代码对应 `simulate_internal_shock` 中的 `radius_collision` 和 `lab_collision_time`。
+高 Lorentz 因子下不直接相减两个接近 1 的速度，而使用
+
+\[
+\beta_f-\beta_s
+=
+\frac{\Gamma_f^2-\Gamma_s^2}
+{\Gamma_s^2\Gamma_f^2(\beta_f+\beta_s)}.
+\]
+
+代码对应 `simulate_internal_shock` 中的 `speed_gap` 和 `radius_collision`；无需显式构造
+随后会在到达时刻中被消去的 `lab_collision_time`。
 
 ## 3. 磁化能量拆分和壳层密度
 
@@ -108,24 +118,29 @@ n'_i(R_{\rm col})
 接触面 Lorentz 因子 \(\Gamma_c\) 在两壳 Lorentz 因子之间求根。对任一上游壳层 \(i\)，相对 Lorentz 因子是
 
 \[
-\gamma_{{\rm rel},i}
+u_{{\rm rel},i}
 =
-\Gamma_c\Gamma_i(1-\beta_c\beta_i).
+\frac{\Gamma_i^2-\Gamma_c^2}{\Gamma_c\Gamma_i(\beta_c+\beta_i)},
+\qquad
+\gamma_{{\rm rel},i}=\sqrt{1+u_{{\rm rel},i}^2}.
 \]
 
 MHD jump 给出压缩比 \(C_i(\gamma_{\rm rel},\sigma)\) 和下游热比内能 \(\epsilon_{{\rm th},i}(\gamma_{\rm rel},\sigma)\)。代码通过
 
 ```text
-reverse_shock_mhd_jump.rs_vegas_comp
-reverse_shock_mhd_jump.rs_mag_internal
+reverse_shock_mhd_jump.rs_mhd_state  # u_down, compression, specific_internal, shock_allowed
 ```
 
 复用余辉反向激波基线。下游总压强写成热压强加 ordered magnetic pressure：
 
 \[
+\widehat{\gamma}_i
+=
+\frac{4}{3}+\frac{1}{3\gamma_{{\rm rel},i}},
+\qquad
 p_i
 =
-\frac{1}{3}
+(\widehat{\gamma}_i-1)
 C_i\epsilon_{{\rm th},i}
 n'_i m_pc^2
 +
@@ -185,7 +200,18 @@ t_{\rm cross,RS}
 {c(\beta_{\rm fast}-\beta_{\rm sh,RS})}.
 \]
 
-`fast_shock_allowed(gamma_rel, sigma)` 仍调用余辉反向激波共享函数。若 fast magnetosonic 条件不满足，对应 branch 的 `valid_shock=False`，辐射源项为零；这不是后处理裁剪，而是 shock 不存在的物理状态。
+所有接近共速的差值都先有理化。令 \(d=+1\) 表示 FS、\(d=-1\) 表示 RS，
+\(s=\beta_{\rm sh,cd}\)，则轴向到达率直接写成
+
+\[
+1-\beta_{\rm sh,lab}
+=
+\frac{\Gamma_c^{-2}}{1+\beta_c}
+\frac{1-ds}{1+d\beta_cs},
+\]
+
+避免从两个大时空坐标恢复小差值。若 fast magnetosonic 条件不满足，对应 branch 的
+`valid_shock=False`，其穿越量为未定义、历史数组为空，辐射和 EATS 入口直接返回零；这不是后处理裁剪。
 
 每个有效 branch 在 `num_branch_steps` 个点上记录：
 
@@ -198,11 +224,7 @@ R_{\rm col}+\beta_{\rm sh,lab}ct,
 \[
 t_{\rm obs,axis}
 =
-(1+z)
-\left[
-t_{\rm col}+t-\frac{R(t)}{c}
-\right]
--t_{0,{\rm axis}},
+(1+z)t(1-\beta_{\rm sh,lab}),
 \]
 
 \[

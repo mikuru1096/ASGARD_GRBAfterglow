@@ -107,13 +107,63 @@ Bethe--Heitler、强子逆康普顿和次级粒子辐射之和。公开的
 - 用至少一个同时启用 Bethe--Heitler、强子逆康普顿和 pair cascade 的真实算例逐项验证
   代数闭合，并检查频谱/光变连续、非负；不得通过删除诊断输出或事后相减掩盖重复计数。
 
-## prompt internal-shock 入口导入已删除的反向激波私有函数
+## 强子壳层时间与扫掠质量所有权错误
 
-`prompt/internal_shock.py` 在模块导入时仍从 `asgard_core.asgard_runtime` 请求
-`_rs_fast_shock_allowed`、`_rs_shock_upstream_u` 和 `_rs_vegas_downstream_u`，但当前
-运行时已不再定义或导出这三个名字；仓库内也没有其他实现。因而任何 prompt 直接入口都会在
-物理计算前以 `ImportError` 终止，当前无法执行 prompt fixed/adaptive EATS 回归。
+### 当前缺陷
 
-修复不能重新复制一套私有 Python jump 公式或添加兼容兜底。应先确认当前反向激波跳跃条件的
-唯一物理所有者，把 prompt 两壳碰撞显式接到同一纯函数核，并用磁化与非磁化 FS/RS 两支真实
-算例验证压缩比、下游四速度、过激波判据和 EATS 光变连续性；完成后删除本条。
+- `src/Dynamics/Dynamics_forward.f90:55` 输出的 `R_Tobs` 已含红移因子 `(1+z)`，但
+  `src/Hadronic/hadronic_base.f90:96-108::shell_dt` 直接取其相邻差；默认 legacy FS 在
+  `src/Hadronic/hadronic_forward_1d.f90:249-250`、RS 在
+  `src/Hadronic/hadronic_reverse_1d.f90:59-66` 又把该 observer-time 差用于共动粒子冷却。
+  对相同的 `R,Gamma` 轨迹，共动步长必须由 `dR/(beta Gamma c)` 决定，不能随红移改变。
+- formal 路径虽在 `src/Hadronic/hadronic_shell.f90:724-742::shell_geom` 使用
+  `dR/(beta Gamma c)`，但第一个输出点借用 `R(2)-R(1)`，第二个输出点再次使用同一径向间隔，
+  因而首个相邻区间被推进两次；初始状态没有独立的时间所有权。
+- `asgard_core/asgard_runtime.py:1017-1028::solve_hadronic` 以“几何球壳体积乘当前局域密度”
+  重新构造 proton 注入质量，而 dynamics 已提供累计 `swept_mass_g`。纯 wind 的首壳会少算三倍，
+  density jump/tabulated profile 还会把区间积分错误替换为端点密度。
+  `src/Structured/structured_jet_1d.f90:477-485` 已持有累计 `R_mass`，却重复了同一重积分。
+
+### 修复边界与验收
+
+- 粒子输运统一消费由 `R,Gamma` 构造的共动 proper-time 历史；每个相邻径向区间恰好推进一次，
+  第一个输出点只由明确的初始条件定义，不借用未来区间。删除强子输运对 `shell_dt(R_Tobs)` 的依赖，
+  保持现有 FS/RS f2py 参数顺序与数组 shape。
+- FS 注入质量使用相邻累计扫掠质量差
+  `Delta Msw(i)=Msw(i)-Msw(i-1)`；structured 使用 `R_mass` 的同一差分，不再从局域密度重积分。
+- 直接比较同一物理 `R,Gamma,B` 轨迹在不同 `z` 下的局域强子解，结果必须不变；比较至少三组
+  `Num_R` 验证粒子数、注入能量、冷却谱和强子光度收敛。分别运行 `k=0`、wind、density jump
+  真实入口，逐壳验证 `sum(Delta Msw)=Msw` 与 proton 注入能量闭合，并完成受影响模块的
+  `-Wline-truncation -Werror=line-truncation` 检查。
+
+## joint secondary pair 的坐标单位与状态/辐射重复所有权
+
+### 当前缺陷
+
+- fullhide 的输运坐标是 `x=ln(gamma)`：`src/Electron/electron_injection_profiles.f90:168-182`
+  构造 `ln(gamma)` 边界，`src/Electron/electron_transport_common.f90:969-985` 以
+  `dR*dF/dln(gamma)` 更新状态。因此 `dN/dgamma -> dN/dln(gamma)` 只应乘 `gamma`。
+  但 `src/Hadronic/hadronic_shell.f90:372::electron_seq` 与
+  `asgard_core/asgard_state.py:1189-1196::_sourcer` 都额外乘了 `ln(10)`，使 joint BH/pp/cascade
+  secondary source 固定放大 `ln(10)`。
+- `src/Hadronic/hadronic_cascade.f90:182-184::cascade_seq` 输出 `pden=cur` 后以 `prev=cur`
+  把它作为下一壳累计 pair 状态；`_sourcer` 却把完整 `pden` 除以当前 `Delta R` 当作本壳新注入，
+  使旧 pair 在以后每个半径再次进入主电子输运。
+- `asgard_core/asgard_state.py:413-430::_jointfeedback` 同时让 cascade 推进 pair、产生 synch seed/lum，
+  又把同一 pair 状态注入主电子 synch。它还在 `:426` 写入 `hadronic.l_had_pair_production`；
+  `_hadronlum` 已将该量计入强子 aggregate 后，observer 在 `:1008-1020` 重跑 cascade，并在 `:1057`
+  再加一次 `pair_lum_total`。固定 `JOINT_ITERS` 的中间迭代态由此被当作额外物理辐射，而不是被最终态替代。
+
+### 修复所有权与验收
+
+- gamma-gamma secondary pair 由 cascade 独占状态推进和 synch 辐射；主电子输运仍只接收 BH/pp
+  的真实增量 source。cascade 的累计 `pden` 只作为状态/诊断，不再经过 `_sourcer` 注入主电子。
+  最终收敛的 `PairCascade` 随 solve state 保存，observer 直接复用其 luminosity、seed 与 tau，
+  不重算 cascade、不累加 Picard 中间态，也不再通过 `hadronic.l_had_pair_production` 复制所有权。
+- BH/pp source 按自然对数坐标传递，验证
+  `integral dR dln(gamma) Q_R` 等于各壳实际注入 pair 数；禁止用重标定、clamp 或后处理相减修正。
+- 对 gamma-gamma 链逐壳验证 absorbed photon power、pair injected power、pair 储能、synch 与绝热损失闭合；
+  同一真实算例下 cascade synch 在 `fwd_sync`、强子 aggregate 和 pair diagnostic 中只能有一个物理所有者。
+  比较 pair 开/关、joint 迭代收敛、至少三组径向网格与 cascade substep，要求粒子数、频谱、tau
+  和时序曲线收敛且连续非负；构建 `hadronic_forward_1d` 与受影响 electron source closure，并执行严格
+  line-truncation 检查。

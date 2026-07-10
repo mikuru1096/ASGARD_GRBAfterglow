@@ -163,8 +163,9 @@ Fortran 改动后的最低门槛见 `doc/validation_and_benchmarks.md`。文档-
 | --- | ---: | --- | --- |
 | `M` | 1 | `reverse_shock_mhd_jump` | MHD jump 公式模块；不包含时间推进状态。 |
 | `F` | 10 | `rs_vegas_ud` | 有限强度 MHD jump 解析根；不要用 ultra-relativistic 近似替代。 |
-| `F` | 44 | `rs_vegas_comp` | 有限强度 MHD jump 压缩比；sigma->0 极限回到 hydrodynamic baseline。 |
-| `F` | 66 | `rs_mag_internal` | MHD jump 下游热比内能；保持 crossing 前后和 sigma->0 极限连续。 |
+| `F` | 57 | `cubic_max` | 用正判别式与 `atan2` 求原/倒数三次多项式的最大根。 |
+| `F` | 71 | `cubic_disc` | Vegas 三次方程判别式的正系数因式分解，避免近双根消减。 |
+| `S` | 92 | `rs_mhd_state` | 单次解析根返回下游四速度、压缩比、热比内能和快模判据。 |
 
 ### `src/Dynamics/reverse_shock_state.f90`
 
