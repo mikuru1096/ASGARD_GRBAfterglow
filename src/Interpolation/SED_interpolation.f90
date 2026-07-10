@@ -676,9 +676,9 @@ subroutine sed_chiring_batchlum_ray(Boundary,R_Tobs1,R_front, &
     real(8), intent(in) :: F_ring(Num_nu,Num_chi,Num_R,Num_ring), Tau_ring(Num_nu,Num_chi,Num_R,Num_ring)
     real(8), intent(in) :: R_chi(Num_chi,Num_R,Num_ring), Gamma_chi(Num_chi,Num_R,Num_ring), Chi_weight(Num_chi,Num_R,Num_ring)
     real(8), intent(out) :: F_tot_obs(Num_nu_obs,Num_Tobs)
-    real(8), allocatable, dimension(:) :: evsrc,evtau,evtau0,evdepth,evratio,evldop,evpath,evlogw,evamp,evx,evy
-    real(8), allocatable, dimension(:) :: evax,evay,evbx,evby,evdetinv,evxmin,evxmax,evymin,evymax,evrpos,evrin,evrout,evgam,evdrcom
-    real(8), allocatable, dimension(:) :: evdmu,evnth,evnph,evhalfth,evhalfph,hitpath,evnr,evntp,evnpp,evrlo,evrhi,evslo,evshi
+    real(8), allocatable, dimension(:) :: evsrc,evtau,evtau0,evdepth,evratio,evldop,evpath,evamp,evx,evy
+    real(8), allocatable, dimension(:) :: evax,evay,evbx,evby,evdetinv,evxmin,evxmax,evymin,evymax,evrin,evrout,evdrcom
+    real(8), allocatable, dimension(:) :: evhalfth,evhalfph,hitpath,evnr,evntp,evnpp,evrlo,evrhi,evslo,evshi
     real(8), allocatable, dimension(:) :: Vobslog,Vseedlog,leaflo,leafhi,leafc,leafwt,phiwleaf,cphleaf,sphleaf,cthring,sthring
     real(8), allocatable :: logwgrid(:,:),dmugrid(:,:),nthgrid(:,:),nphgrid(:,:)
     integer, allocatable, dimension(:) :: eviring,evichi,evk2,hitfg,hitstart
@@ -712,10 +712,10 @@ subroutine sed_chiring_batchlum_ray(Boundary,R_Tobs1,R_front, &
     call init_tmono()
     maxev = count(tmono) + (Num_R-1)*count(.not. tmono)
     allocate(evsrc(maxev),evtau(maxev),evtau0(maxev),evdepth(maxev))
-    allocate(evratio(maxev),evldop(maxev),evpath(maxev),evlogw(maxev),evamp(maxev))
+    allocate(evratio(maxev),evldop(maxev),evpath(maxev),evamp(maxev))
     allocate(evx(maxev),evy(maxev),evax(maxev),evay(maxev),evbx(maxev),evby(maxev),evdetinv(maxev))
     allocate(evxmin(maxev),evxmax(maxev),evymin(maxev),evymax(maxev))
-    allocate(evrpos(maxev),evrin(maxev),evrout(maxev),evgam(maxev),evdrcom(maxev),evdmu(maxev),evnth(maxev),evnph(maxev))
+    allocate(evrin(maxev),evrout(maxev),evdrcom(maxev))
     allocate(evnr(maxev),evntp(maxev),evnpp(maxev),evrlo(maxev),evrhi(maxev),evslo(maxev),evshi(maxev))
     hitcap = max(1,maxev)
     allocate(evhalfth(maxev),evhalfph(maxev),hitpath(hitcap))
@@ -724,9 +724,9 @@ subroutine sed_chiring_batchlum_ray(Boundary,R_Tobs1,R_front, &
         call leaves_flux(F_tot_obs(:,kobs))
     end do
     deallocate(evsrc,evtau,evtau0,evdepth,Vobslog,Vseedlog)
-    deallocate(evratio,evldop,evpath,evlogw,evamp,evx,evy,evax,evay,evbx,evby,evdetinv)
+    deallocate(evratio,evldop,evpath,evamp,evx,evy,evax,evay,evbx,evby,evdetinv)
     deallocate(evxmin,evxmax,evymin,evymax,eviring,evichi,evk2,hitfg,hitstart)
-    deallocate(evrpos,evrin,evrout,evgam,evdrcom,evdmu,evnth,evnph,evhalfth,evhalfph,hitpath)
+    deallocate(evrin,evrout,evdrcom,evhalfth,evhalfph,hitpath)
     deallocate(evnr,evntp,evnpp,evrlo,evrhi,evslo,evshi)
     deallocate(leaflo,leafhi,leafc,leafwt)
     deallocate(phiwleaf,cphleaf,sphleaf,cthring,sthring,logwgrid,dmugrid,nthgrid,nphgrid)
@@ -900,19 +900,13 @@ subroutine sample_event(iring,ichi,k2,ratio)
     evk2(nev) = k2
     evratio(nev) = ratio
     evldop(nev) = dlog(dop)
-    evlogw(nev) = logw
     evamp(nev) = fluxscale*dexp(logw-3d0*evldop(nev))
     evdepth(nev) = rpos*dmu
     evx(nev) = xsky
     evy(nev) = ysky
-    evrpos(nev) = rpos
     evrin(nev) = rinv
     evrout(nev) = routv
-    evgam(nev) = dg
     evdrcom(nev) = dg*(routv-rinv)
-    evdmu(nev) = dmu
-    evnth(nev) = ntheta
-    evnph(nev) = nphi
     ! 中文：观测方向先做相对局部流体的光行差变换，再用共动 slab 弦长计算 SSA 路径。
     ! English: The observer direction is aberrated into the local comoving frame before the SSA path
     ! is measured as a chord through the comoving slab.
