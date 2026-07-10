@@ -684,20 +684,33 @@ def _electronfinish(
     return_report: bool,
     nu: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None,
     num_chi: int = 1,
-    **solution_kwargs,
+    d_n_gam_e_chi: np.ndarray | None = None, chi_grid: np.ndarray | None = None,
+    l_syn_spec_chi: np.ndarray | None = None, seed_syn_chi: np.ndarray | None = None,
+    tau_syn_chi: np.ndarray | None = None, chi_radius_cm: np.ndarray | None = None,
+    chi_gamma_bulk: np.ndarray | None = None, chi_dvolume_weight: np.ndarray | None = None,
+    b_chi_g: np.ndarray | None = None,
 ) -> ElectronSolution | tuple[ElectronSolution, SolverAdapterReport]:
     if nu is not None:
         _emitnu(config, solver_name, *nu)
     nu_m, nu_c, nu_a = (None, None, None) if nu is None else nu
-    solution = _electronstate(
-        gam_e,
-        d_n_gam_e,
-        l_syn_spec,
-        seed_syn,
-        nu_m=nu_m,
-        nu_c=nu_c,
-        nu_a=nu_a,
-        **solution_kwargs,
+    solution = ElectronSolution(
+        gam_e=np.asarray(gam_e, dtype=float),
+        d_n_gam_e=np.asarray(d_n_gam_e, dtype=float),
+        l_syn_spec=np.asarray(l_syn_spec, dtype=float),
+        seed_syn=np.asarray(seed_syn, dtype=float),
+        d_n_gam_e_bh=None,
+        d_n_gam_e_chi=None if d_n_gam_e_chi is None else np.asarray(d_n_gam_e_chi, dtype=float),
+        chi_grid=None if chi_grid is None else np.asarray(chi_grid, dtype=float),
+        l_syn_spec_chi=None if l_syn_spec_chi is None else np.asarray(l_syn_spec_chi, dtype=float),
+        seed_syn_chi=None if seed_syn_chi is None else np.asarray(seed_syn_chi, dtype=float),
+        tau_syn_chi=None if tau_syn_chi is None else np.asarray(tau_syn_chi, dtype=float),
+        chi_radius_cm=None if chi_radius_cm is None else np.asarray(chi_radius_cm, dtype=float),
+        chi_gamma_bulk=None if chi_gamma_bulk is None else np.asarray(chi_gamma_bulk, dtype=float),
+        chi_dvolume_weight=None if chi_dvolume_weight is None else np.asarray(chi_dvolume_weight, dtype=float),
+        b_chi_g=None if b_chi_g is None else np.asarray(b_chi_g, dtype=float),
+        nu_m=None if nu_m is None else np.asarray(nu_m, dtype=float),
+        nu_c=None if nu_c is None else np.asarray(nu_c, dtype=float),
+        nu_a=None if nu_a is None else np.asarray(nu_a, dtype=float),
     )
     if return_report:
         return solution, _report(
@@ -920,46 +933,6 @@ def _chigrid(config: RuntimeConfig, num_chi: int) -> np.ndarray:
     k_medium = 2 if float(config.a_star) > 0.0 else 0
     alpha = float(4 - k_medium) / float(3 - k_medium)
     return np.power(1.0 - q_grid, -alpha)
-
-
-def _electronstate(
-    gam_e: np.ndarray,
-    d_n_gam_e: np.ndarray,
-    l_syn_spec: np.ndarray,
-    seed_syn: np.ndarray,
-    *,
-    d_n_gam_e_chi: np.ndarray | None = None,
-    chi_grid: np.ndarray | None = None,
-    l_syn_spec_chi: np.ndarray | None = None,
-    seed_syn_chi: np.ndarray | None = None,
-    tau_syn_chi: np.ndarray | None = None,
-    chi_radius_cm: np.ndarray | None = None,
-    chi_gamma_bulk: np.ndarray | None = None,
-    chi_dvolume_weight: np.ndarray | None = None,
-    b_chi_g: np.ndarray | None = None,
-    nu_m: np.ndarray | None = None,
-    nu_c: np.ndarray | None = None,
-    nu_a: np.ndarray | None = None,
-) -> ElectronSolution:
-    return ElectronSolution(
-        gam_e=np.asarray(gam_e, dtype=float),
-        d_n_gam_e=np.asarray(d_n_gam_e, dtype=float),
-        l_syn_spec=np.asarray(l_syn_spec, dtype=float),
-        seed_syn=np.asarray(seed_syn, dtype=float),
-        d_n_gam_e_bh=None,
-        d_n_gam_e_chi=None if d_n_gam_e_chi is None else np.asarray(d_n_gam_e_chi, dtype=float),
-        chi_grid=None if chi_grid is None else np.asarray(chi_grid, dtype=float),
-        l_syn_spec_chi=None if l_syn_spec_chi is None else np.asarray(l_syn_spec_chi, dtype=float),
-        seed_syn_chi=None if seed_syn_chi is None else np.asarray(seed_syn_chi, dtype=float),
-        tau_syn_chi=None if tau_syn_chi is None else np.asarray(tau_syn_chi, dtype=float),
-        chi_radius_cm=None if chi_radius_cm is None else np.asarray(chi_radius_cm, dtype=float),
-        chi_gamma_bulk=None if chi_gamma_bulk is None else np.asarray(chi_gamma_bulk, dtype=float),
-        chi_dvolume_weight=None if chi_dvolume_weight is None else np.asarray(chi_dvolume_weight, dtype=float),
-        b_chi_g=None if b_chi_g is None else np.asarray(b_chi_g, dtype=float),
-        nu_m=None if nu_m is None else np.asarray(nu_m, dtype=float),
-        nu_c=None if nu_c is None else np.asarray(nu_c, dtype=float),
-        nu_a=None if nu_a is None else np.asarray(nu_a, dtype=float),
-    )
 
 
 def _bhsupport(dynamics: DynamicsSolution, config: RuntimeConfig) -> tuple[float, float]:
