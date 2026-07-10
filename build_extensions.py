@@ -41,6 +41,7 @@ DYNAMICS_REVERSE_SOURCES = (
     "reverse_shock.f90",
 )
 F2PY_SKIP_RADIATION_COMMON_INTERNALS = (
+    "pair_delta",
     "pair_sigma",
     "syn_kernel",
 )

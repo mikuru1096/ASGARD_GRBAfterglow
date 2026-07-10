@@ -6,7 +6,7 @@ module rad_common
 
     public :: sampled_weights, rad_interp, transfer_factor, &
               syn_kernel, pair_grid, &
-              pair_sigma, pair_tau, &
+              pair_sigma, pair_delta, pair_tau, &
               syn_seed_chi, syn_flux_chi
 
 contains
@@ -132,19 +132,34 @@ end subroutine pair_grid
 elemental real(8) function pair_sigma(s_center) result(sigma_pair)
     implicit none
     real(8), intent(in) :: s_center
-    real(8) :: beta_sq,beta_loc,log_term
 
     if (s_center <= 1d0) then
         sigma_pair = 0d0
         return
     end if
 
-    beta_sq = 1d0-1d0/s_center
-    beta_loc = dsqrt(beta_sq)
-    log_term = dlog((1d0+beta_loc)/(1d0-beta_loc))
-    sigma_pair = (3.0d0/16.0d0)*Para_sigmaT*(1d0-beta_sq) * &
-                 ((3.0d0-beta_sq*beta_sq)*log_term-2d0*beta_loc*(2d0-beta_sq))
+    sigma_pair=pair_delta(s_center-1d0)
 end function pair_sigma
+
+! Evaluate the Breit-Wheeler cross section from s-1, retaining beta^2 at the nearest threshold.
+elemental real(8) function pair_delta(delta) result(sigma_pair)
+    implicit none
+    real(8), intent(in) :: delta
+    real(8) :: inv_s,beta_sq,beta_loc,log_s,log_term
+
+    inv_s=1d0/(1d0+delta)
+    if (delta < 1d0) then
+        beta_sq=delta*inv_s
+        log_s=2d0*atanh(delta/(2d0+delta))
+    else
+        beta_sq=1d0-inv_s
+        log_s=dlog(1d0+delta)
+    end if
+    beta_loc=dsqrt(beta_sq)
+    log_term=log_s+4d0*atanh(beta_loc/(2d0+beta_loc))
+    sigma_pair=3d0*Para_sigmaT*inv_s*((3d0-beta_sq*beta_sq)*log_term- &
+               2d0*beta_loc*(2d0-beta_sq))/16d0
+end function pair_delta
 
 ! 对头碰撞近似下计算光子-光子对产生光深。
 ! Pair-production optical depth in the head-on approximation.

@@ -2677,57 +2677,74 @@ Here \(\epsilon_1\) and \(\epsilon_{2,j}\) are photon energies in units of
 \(m_ec^2\), \(\Delta\nu_j'\) is the logarithmic cell measure, and the sampled
 target density is \(n_{\nu_{2,j}'}^{\rm tar}\).
 
-\subsubsection{Angular pair-production kernel}
+\subsubsection{Isotropic angular moment}
 
-The shell kernel angle-averages the pair-production cross section with midpoint
-directions,
+For the local comoving isotropic target, define
+\(x_j\equiv\epsilon_1\epsilon_{2,j}\) and
+\(z\equiv(1-\mu)/2\).  The angular average, including the photon relative-speed
+weight, is
 \begin{equation}
 \begin{aligned}
-\Delta\mu&=\frac{2}{N_\mu},\\
-\mu_a&=-1+\left(a-\frac{1}{2}\right)\Delta\mu,\\
-z_a&=\frac{1-\mu_a}{2},\\
-s_{aj}&\equiv\epsilon_1\epsilon_{2,j}z_a .
+K(x)&=\frac{1}{2}\int_{-1}^{1}(1-\mu)
+\sigma_{\gamma\gamma}\!\left[x\frac{1-\mu}{2}\right]d\mu\\
+&=2\int_{1/x}^{1}z\,\sigma_{\gamma\gamma}(xz)\,dz,
+\qquad x>1,
 \end{aligned}
 \end{equation}
-The physical threshold is \(s_{aj}>1\).  Cells with \(s_{aj}\ge s_{\max}\) are
-outside the finite tabulated evaluation window; \(s_{\max}\) is not a physical
-threshold.  The cross section is
+with \(K(x)=0\) for \(x\le1\).  Thus the physical pair threshold fixes the
+integration support; no upper cutoff in \(s=xz\) is introduced.
+
+The Breit--Wheeler cross section is evaluated with
 \begin{equation}
 \begin{aligned}
-\beta_s&=(1-s^{-1})^{1/2},\\
-\Xi(\beta_s)&=(3-\beta_s^4)\ln\frac{1+\beta_s}{1-\beta_s}
--2\beta_s(2-\beta_s^2),\\
+u_s&=s^{-1},\qquad \beta_s=(1-u_s)^{1/2},\\
+L_s&=\ln\frac{1+\beta_s}{1-\beta_s}
+=\ln s+2\ln(1+\beta_s),\\
 \sigma_{\gamma\gamma}(s)&=
 \begin{cases}
-\dfrac{3\sigma_{\rm es}}{16}(1-\beta_s^2)\Xi(\beta_s), & s>1,\\
+\dfrac{3\sigma_{\rm es}}{16}u_s
+\left[(3-\beta_s^4)L_s-2\beta_s(2-\beta_s^2)\right], & s>1,\\
 0, & s\le1 .
 \end{cases}
 \end{aligned}
 \end{equation}
-Here \(\sigma_{\rm es}\) is the electron-scattering cross section, and
-\(\sigma_{\gamma\gamma}=0\) for \(s\le1\) is the physical threshold.
+Near threshold the implementation forms \(\beta_s^2=(s-1)u_s\) and evaluates
+the logarithms through equivalent \(\operatorname{atanh}\) identities.  At large
+\(s\), the \(u_s\) and \(L_s\) forms avoid subtracting nearly equal quantities.
+For each \(x>1\), the change of variable
+\(s=1+(x-1)t^2\) gives
+\begin{equation}
+K(x)=\frac{4(x-1)}{x^2}\int_0^1
+t\,s(t)\,\sigma_{\gamma\gamma}[s(t)]\,dt .
+\end{equation}
+The implementation evaluates this smooth integral with a 16-point
+Gauss--Legendre rule on \(0<t<1\).
 
 \subsubsection{Shell optical-depth assembly}
 
-The shell optical depth sums target photons over frequency and angle.  For a
-shell at \(R_i,\Gamma_i\), with \(\beta_i=(1-\Gamma_i^{-2})^{1/2}\),
+The angular moment is independent of shell radius and is reused when the target
+field is assembled.  For a shell at \(R_i,\Gamma_i\),
 \begin{equation}
 \begin{aligned}
-\Delta'_{\gamma\gamma,i}&=\frac{R_i}{\eta_{\gamma\gamma}\Gamma_i},\\
-W_{ia}&=\Delta\mu(1-\beta_i\mu_a),\\
+\Delta'_{\gamma\gamma,i}&=\frac{R_i}{12\Gamma_i},\\
 n_j&=n_{\nu_{2,j}'}^{\rm tar}(R_i),\\
-P_{ia}&=\sum_j\sigma_{\gamma\gamma}(s_{aj})n_j\Delta\nu_j',\\
 \tau_{\gamma\gamma}(\nu_1',R_i)
-&=\frac{\Delta'_{\gamma\gamma,i}}{2}
-\sum_{a=1}^{N_\mu}W_{ia}P_{ia}
+&=\Delta'_{\gamma\gamma,i}
+\sum_j K(x_j)n_j\Delta\nu_j'
 +\tau_{\rm ex}(\nu_1',R_i).
 \end{aligned}
 \end{equation}
-Here \(\Delta'_{\gamma\gamma,i}\) is the comoving shell depth,
-\(\eta_{\gamma\gamma}\) is its fixed geometry factor, \(W_{ia}\) is the angular
-weight, and \(n_j\) is the target density.  The factor \(1/2\) averages over
-\(-1\le\mu\le1\), while \(\tau_{\rm ex}\) adds optical depth from another local
-module.  The finite-cell survival factor is
+There is no additional factor of \(1/2\): the isotropic angular normalization is
+already contained in \(K\).  The path length is only the current \(k=0\)
+homogeneous-shell approximation.  Indeed,
+\(N_{\rm sw}=4\pi nR^3/3=(4\pi R^2\Delta')(4\Gamma n)\) gives
+\(\Delta'=R/(12\Gamma)\).  This homogeneous-shell estimate uses
+\(n_2'=4\Gamma n\); it is neither an exact compression law at arbitrary
+\(\Gamma\) nor a general Blandford--McKee shell width.  Transrelativistic
+compression and path lengths, a \(k=2\) wind, tabulated density jumps, prompt
+internal shocks, and cascade zones remain registered boundaries of the current
+implementation.  The term \(\tau_{\rm ex}\)
+adds optical depth from another local module.  The finite-cell survival factor is
 \begin{equation}
 \begin{aligned}
 \mathcal{A}_{\gamma\gamma}(\nu_1',R_i)

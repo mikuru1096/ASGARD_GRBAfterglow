@@ -2844,61 +2844,77 @@ n_{\tilde\nu'}^{\rm tar}\,d\tilde\nu' .
 \gptareaderanchor{gpta-seg-000221}%
 这里 \(\epsilon_1\) 和 \(\epsilon_{2,j}\) 是以 \(m_ec^2\) 为单位的光子能量，而 \(\Delta\nu_j'\) 是由对数目标单元表示的频率宽度。该单元中采样的目标密度为 \(n_{\nu_{2,j}'}^{\rm tar}\)。
 
-\subsubsection{角向对产生核}
+\subsubsection{各向同性角矩}
 
 
 \gptareaderanchor{gpta-seg-000222}%
-对产生的截面依赖于碰撞角度。壳核以中点角度对局部光子方向进行平均，
+对于局部共动各向同性靶场，定义
+\(x_j\equiv\epsilon_1\epsilon_{2,j}\) 和
+\(z\equiv(1-\mu)/2\)。包含光子相对速度权重的角平均为
 \begin{equation}
 \begin{aligned}
-\Delta\mu&=\frac{2}{N_\mu},\\
-\mu_a&=-1+\left(a-\frac{1}{2}\right)\Delta\mu,\\
-z_a&=\frac{1-\mu_a}{2},
+K(x)&=\frac{1}{2}\int_{-1}^{1}(1-\mu)
+\sigma_{\gamma\gamma}\!\left[x\frac{1-\mu}{2}\right]d\mu\\
+&=2\int_{1/x}^{1}z\,\sigma_{\gamma\gamma}(xz)\,dz,
+\qquad x>1,
 \end{aligned}
 \end{equation}
-因此，对产生不变量为
-\begin{equation}
-s_{aj}\equiv\epsilon_1\epsilon_{2,j}z_a .
-\end{equation}
+且当 \(x\le1\) 时 \(K(x)=0\)。因此，物理对产生阈值直接确定积分支撑区间，
+无需对 \(s=xz\) 引入上截断。
 
 \gptareaderanchor{gpta-seg-000223}%
-物理阈值是 \(s_{aj}>1\)。满足 \(s_{aj}\ge s_{\max}\) 的单元位于有限列表评估窗口之外；\(s_{\max}\) 并非物理阈值。横截面为
+Breit--Wheeler 截面写为
 \begin{equation}
 \begin{aligned}
-\beta_s&=(1-s^{-1})^{1/2},\\
-\Xi(\beta_s)&=(3-\beta_s^4)\ln\frac{1+\beta_s}{1-\beta_s}
--2\beta_s(2-\beta_s^2),\\
+u_s&=s^{-1},\qquad \beta_s=(1-u_s)^{1/2},\\
+L_s&=\ln\frac{1+\beta_s}{1-\beta_s}
+=\ln s+2\ln(1+\beta_s),\\
 \sigma_{\gamma\gamma}(s)&=
 \begin{cases}
-\dfrac{3\sigma_{\rm es}}{16}(1-\beta_s^2)\Xi(\beta_s), & s>1,\\
+\dfrac{3\sigma_{\rm es}}{16}u_s
+\left[(3-\beta_s^4)L_s-2\beta_s(2-\beta_s^2)\right], & s>1,\\
 0, & s\le1 .
 \end{cases}
 \end{aligned}
 \end{equation}
 
 \gptareaderanchor{gpta-seg-000224}%
-这里 \(\sigma_{\rm es}\) 是电子散射截面。分支 \(\sigma_{\gamma\gamma}=0\) 对 \(s\le1\) 是物理对产生的阈值。
+在阈值附近，实现采用 \(\beta_s^2=(s-1)u_s\)，并以等价的
+\(\operatorname{atanh}\) 恒等式计算对数。在大 \(s\) 区域，\(u_s\) 与 \(L_s\)
+避免了相减两个近乎相等的浮点数。对于每个 \(x>1\)，变量代换
+\(s=1+(x-1)t^2\) 给出
+\begin{equation}
+K(x)=\frac{4(x-1)}{x^2}\int_0^1
+t\,s(t)\,\sigma_{\gamma\gamma}[s(t)]\,dt .
+\end{equation}
+实现对 \(0<t<1\) 上的这一光滑积分采用 16 点 Gauss--Legendre 求积。
 
 \subsubsection{壳层光深组装}
 
 
 \gptareaderanchor{gpta-seg-000225}%
-壳层光学深度将目标光子在频率和角度上求和。对于半径\(R_i\)、洛伦兹因子\(\Gamma_i\)、且\(\beta_i=(1-\Gamma_i^{-2})^{1/2}\)的壳层，定义
+角矩与壳层半径无关，因此可在组装靶场时复用。对于半径 \(R_i\)、洛伦兹因子
+\(\Gamma_i\) 的壳层，定义
 \begin{equation}
 \begin{aligned}
-\Delta'_{\gamma\gamma,i}&=\frac{R_i}{\eta_{\gamma\gamma}\Gamma_i},\\
-W_{ia}&=\Delta\mu(1-\beta_i\mu_a),\\
+\Delta'_{\gamma\gamma,i}&=\frac{R_i}{12\Gamma_i},\\
 n_j&=n_{\nu_{2,j}'}^{\rm tar}(R_i),\\
-P_{ia}&=\sum_j\sigma_{\gamma\gamma}(s_{aj})n_j\Delta\nu_j',\\
 \tau_{\gamma\gamma}(\nu_1',R_i)
-&=\frac{\Delta'_{\gamma\gamma,i}}{2}
-\sum_{a=1}^{N_\mu}W_{ia}P_{ia}
+&=\Delta'_{\gamma\gamma,i}
+\sum_j K(x_j)n_j\Delta\nu_j'
 +\tau_{\rm ex}(\nu_1',R_i).
 \end{aligned}
 \end{equation}
 
 \gptareaderanchor{gpta-seg-000226}%
-此处 \(\Delta'_{\gamma\gamma,i}\) 是共动壳层深度，\(\eta_{\gamma\gamma}\) 是其固定几何因子，\(W_{ia}\) 是角权重，\(n_j\) 是单元 \(j\) 中的靶光子密度。因子 \(1/2\) 是对 \(-1\le\mu\le1\) 进行平均，\(\tau_{\rm ex}\) 添加由其他局部模块提供的光学深度。返回的有限单元存活因子是
+这里不再乘额外的 \(1/2\)，因为 \(K\) 已包含各向同性角归一化。
+该路径长度仅是当前 \(k=0\) 均匀壳层近似：
+\(N_{\rm sw}=4\pi nR^3/3=(4\pi R^2\Delta')(4\Gamma n)\) 给出
+\(\Delta'=R/(12\Gamma)\)。该均匀壳层估计采用 \(n_2'=4\Gamma n\)；它既不是
+任意 \(\Gamma\) 下精确的压缩关系，也不是一般的 Blandford--McKee 壳层宽度。
+跨相对论区的压缩与路径长度、\(k=2\) 风介质、表格密度跃变、prompt 内激波和级联区
+仍是当前实现中已登记的适用边界。\(\tau_{\rm ex}\) 添加其他局部模块给出的光学深度。
+返回的有限单元存活因子为
 \begin{equation}
 \begin{aligned}
 \mathcal{A}_{\gamma\gamma}(\nu_1',R_i)
