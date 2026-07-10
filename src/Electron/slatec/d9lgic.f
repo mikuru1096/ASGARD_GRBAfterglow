@@ -27,6 +27,7 @@ C   900720  Routine changed from user-callable to subsidiary.  (WRB)
 C***END PROLOGUE  D9LGIC
       DOUBLE PRECISION A, X, ALX, EPS, FK, P, R, S, T, XMA, XPA, D1MACH
       SAVE EPS
+C$OMP THREADPRIVATE (EPS)
       DATA EPS / 0.D0 /
 C***FIRST EXECUTABLE STATEMENT  D9LGIC
       IF (EPS.EQ.0.D0) EPS = 0.5D0*D1MACH(3)

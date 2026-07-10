@@ -49,6 +49,7 @@ C     .. Intrinsic Functions ..
       INTRINSIC ICHAR
 C     .. Save statement ..
       SAVE FIRST, IOFF
+C$OMP THREADPRIVATE (FIRST,IOFF)
 C     .. Data statements ..
       DATA FIRST /.TRUE./
 C***FIRST EXECUTABLE STATEMENT  LSAME
