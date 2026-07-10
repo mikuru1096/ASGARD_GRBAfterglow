@@ -352,8 +352,8 @@ subroutine sed_interpolation_chi(Boundary,R_Tobs1,R_front,F_chi,Tau_chi,R_chi,Ga
                                 last_k2 = K2
                             end if
                             Ratio = (Tobs(K1)-R_Tobs_chi(K2))/(R_Tobs_chi(K2+1)-R_Tobs_chi(K2))
-                            call project_chi(I_chi,K2,K1,Ratio,DMu,ldomega, &
-                                                          lgamlo,lgamhi)
+                            call project_chi(I_chi,K2,Ratio,DMu,ldomega, &
+                                                          lgamlo,lgamhi,F_temp(:,K1))
                         end if
                     end do
                 else
@@ -366,8 +366,8 @@ subroutine sed_interpolation_chi(Boundary,R_Tobs1,R_front,F_chi,Tau_chi,R_chi,Ga
                         do K1 = k_start, Num_Tobs
                             if (Tobs(K1) >= segment_hi) exit
                             Ratio = (Tobs(K1)-R_Tobs_chi(K2))/(R_Tobs_chi(K2+1)-R_Tobs_chi(K2))
-                            call project_chi(I_chi,K2,K1,Ratio,DMu,ldomega, &
-                                                          lgamlo,lgamhi)
+                            call project_chi(I_chi,K2,Ratio,DMu,ldomega, &
+                                                          lgamlo,lgamhi,F_temp(:,K1))
                         end do
                     end do
                 end if
@@ -381,10 +381,11 @@ subroutine sed_interpolation_chi(Boundary,R_Tobs1,R_front,F_chi,Tau_chi,R_chi,Ga
 
 contains
 
-subroutine project_chi(I_chi,K2,K1,Ratio,DMu,ldomega,lgamlo,lgamhi)
+subroutine project_chi(I_chi,K2,Ratio,DMu,ldomega,lgamlo,lgamhi,flux_accum)
     implicit none
-    integer, intent(in) :: I_chi,K2,K1
+    integer, intent(in) :: I_chi,K2
     real(8), intent(in) :: Ratio,DMu,ldomega,lgamlo,lgamhi
+    real(8), intent(inout), dimension(Num_nu_obs) :: flux_accum
     real(8), dimension(Num_nu) :: F_theta
     real(8) :: ldopred,lfluxw,doppler
 
@@ -392,7 +393,7 @@ subroutine project_chi(I_chi,K2,K1,Ratio,DMu,ldomega,lgamlo,lgamhi)
                                    ldopred,doppler,F_theta)
     lfluxw = ldomega - 3d0*dlog(doppler)
     call accum_shifted(V_seed_log,F_theta,Num_nu,V_obs_log,Num_nu_obs, &
-                                                     ldopred,lfluxw,F_temp(:,K1))
+                                                     ldopred,lfluxw,flux_accum)
 end subroutine project_chi
 
 subroutine chi_state(I_chi,K2,Ratio,DMu,lgamlo,lgamhi, &
@@ -493,7 +494,9 @@ subroutine sed_chiring_batchlum(Boundary,R_Tobs1,R_front, &
     real(8), intent(in), dimension(Num_Tobs) :: Tobs
     real(8), intent(in), dimension(Num_nu) :: V_seed
     real(8), intent(in), dimension(Num_nu_obs) :: V_obs
-    real(8), intent(in) :: F_ring(Num_nu,Num_chi,Num_R,Num_ring), Tau_ring(Num_nu,Num_chi,Num_R,Num_ring), R_chi(Num_chi,Num_R,Num_ring), Gamma_chi(Num_chi,Num_R,Num_ring), Chi_weight(Num_chi,Num_R,Num_ring)
+    real(8), intent(in) :: F_ring(Num_nu,Num_chi,Num_R,Num_ring),Tau_ring(Num_nu,Num_chi,Num_R,Num_ring)
+    real(8), intent(in) :: R_chi(Num_chi,Num_R,Num_ring),Gamma_chi(Num_chi,Num_R,Num_ring)
+    real(8), intent(in) :: Chi_weight(Num_chi,Num_R,Num_ring)
     real(8), intent(in), dimension(Num_ring) :: theta_lo,theta_hi
     real(8), intent(out), dimension(Num_nu_obs,Num_Tobs) :: F_tot_obs
     real(8), allocatable, dimension(:,:) :: Fring
@@ -520,7 +523,8 @@ subroutine sed_chiring_batchlum_ray(Boundary,R_Tobs1,R_front, &
                              F_ring,Tau_ring,R_chi,Gamma_chi,Chi_weight,V_seed,V_obs,Tobs,theta_lo,theta_hi, &
                              n,Num_nu,Num_nu_obs,Num_Tobs,Num_phi_patch,Num_chi,Num_R,Num_ring,F_tot_obs)
     ! 中文：每个发射 patch 自身作为光线起点；前景 SSA 光深由同一观测时刻的投影遮挡和共动系弦长积分给出。
-    ! English: Each emitting patch is the ray origin; foreground SSA optical depth comes from same-observer-time projected occultation and comoving chord integration.
+    ! English: Each emitting patch is the ray origin; foreground SSA optical depth comes from
+    ! same-observer-time projected occultation and comoving chord integration.
     use constants
     implicit none
     integer, intent(in) :: n,Num_nu,Num_nu_obs,Num_Tobs,Num_phi_patch,Num_chi,Num_R,Num_ring
@@ -533,9 +537,9 @@ subroutine sed_chiring_batchlum_ray(Boundary,R_Tobs1,R_front, &
     real(8), allocatable, dimension(:) :: evax,evay,evbx,evby,evdetinv,evxmin,evxmax,evymin,evymax,evrpos,evrin,evrout,evgam,evdrcom
     real(8), allocatable, dimension(:) :: evdmu,evnth,evnph,evhalfth,evhalfph,hitpath,evnr,evntp,evnpp,evrlo,evrhi,evslo,evshi
     real(8), allocatable, dimension(:) :: Vobslog,Vseedlog,leaflo,leafhi,leafc,leafwt,phiwleaf,cphleaf,sphleaf,cthring,sthring
-    real(8), allocatable :: logwgrid(:,:),dmugrid(:,:),nthgrid(:,:),nphgrid(:,:),tgrid(:,:,:,:)
+    real(8), allocatable :: logwgrid(:,:),dmugrid(:,:),nthgrid(:,:),nphgrid(:,:)
     integer, allocatable, dimension(:) :: eviring,evichi,evk2,hitfg,hitstart
-    real(8) :: Tbase(Num_R,Num_ring), z,DL,fluxscale,Tv,costv,sintv,rootphi,phiw,phi,logzp1,delayfac,mudelay,dvseed
+    real(8) :: Tbase(Num_R,Num_ring), z,DL,fluxscale,Tv,costv,sintv,rootphi,phiw,phi,logzp1,delayfac,dvseed
     real(8) :: theta,cth,sth,cph,sph,dmu,domega,logw,ratio,ntheta,nphi,logg,dg,beta,dop,target,src,tau,rpos,xsky,ysky,ta,tb
     integer :: maxev,nleaf,nev,nhit,hitcap,iring,ichi,inu,kobs,k2,ii,ileaf,ihit
     logical, allocatable :: tmono(:,:,:)
@@ -559,15 +563,11 @@ subroutine sed_chiring_batchlum_ray(Boundary,R_Tobs1,R_front, &
     call init_leaves()
     allocate(phiwleaf(nleaf),cphleaf(nleaf),sphleaf(nleaf),cthring(Num_ring),sthring(Num_ring))
     allocate(logwgrid(Num_ring,nleaf),dmugrid(Num_ring,nleaf),nthgrid(Num_ring,nleaf),nphgrid(Num_ring,nleaf))
-    allocate(tgrid(Num_R,Num_chi,Num_ring,nleaf),tmono(Num_chi,Num_ring,nleaf))
+    allocate(tmono(Num_chi,Num_ring,nleaf))
     call init_geom()
     call init_tbase()
-    call init_tgrid()
-    if (all(tmono)) then
-        maxev = Num_ring*nleaf*Num_chi
-    else
-        maxev = Num_ring*nleaf*Num_chi*(Num_R-1)
-    end if
+    call init_tmono()
+    maxev = count(tmono) + (Num_R-1)*count(.not. tmono)
     allocate(evsrc(maxev),evtau(maxev),evtau0(maxev),evdepth(maxev))
     allocate(evratio(maxev),evldop(maxev),evpath(maxev),evlogw(maxev),evamp(maxev))
     allocate(evx(maxev),evy(maxev),evax(maxev),evay(maxev),evbx(maxev),evby(maxev),evdetinv(maxev))
@@ -587,7 +587,7 @@ subroutine sed_chiring_batchlum_ray(Boundary,R_Tobs1,R_front, &
     deallocate(evnr,evntp,evnpp,evrlo,evrhi,evslo,evshi)
     deallocate(leaflo,leafhi,leafc,leafwt)
     deallocate(phiwleaf,cphleaf,sphleaf,cthring,sthring,logwgrid,dmugrid,nthgrid,nphgrid)
-    deallocate(tgrid,tmono)
+    deallocate(tmono)
     return
 
 contains
@@ -646,21 +646,24 @@ subroutine init_tbase()
     end do
 end subroutine init_tbase
 
-subroutine init_tgrid()
+subroutine init_tmono()
     implicit none
-    integer :: jleaf,jring,jchi
+    integer :: jleaf,jring,jrad
+    real(8) :: mudelay,tprev(Num_chi),tnext(Num_chi)
 
+    tmono = .true.
     do jleaf = 1, nleaf
         do jring = 1, Num_ring
-            dmu = dmugrid(jring,jleaf)
-            mudelay = delayfac*dmu
-            do jchi = 1, Num_chi
-                tgrid(:,jchi,jring,jleaf) = Tbase(:,jring) - mudelay*R_chi(jchi,:,jring)
-                tmono(jchi,jring,jleaf) = all(tgrid(2:Num_R,jchi,jring,jleaf) > tgrid(1:Num_R-1,jchi,jring,jleaf))
+            mudelay = delayfac*dmugrid(jring,jleaf)
+            tprev = Tbase(1,jring) - mudelay*R_chi(:,1,jring)
+            do jrad = 2, Num_R
+                tnext = Tbase(jrad,jring) - mudelay*R_chi(:,jrad,jring)
+                tmono(:,jring,jleaf) = tmono(:,jring,jleaf) .and. tnext > tprev
+                tprev = tnext
             end do
         end do
     end do
-end subroutine init_tgrid
+end subroutine init_tmono
 
 subroutine leaves_flux(fluxvec)
     implicit none
@@ -680,7 +683,10 @@ end subroutine leaves_flux
 subroutine sample_phi(leafid)
     implicit none
     integer, intent(in) :: leafid
+    integer :: mid
+    real(8) :: mudelay,tmid,tview
 
+    tview = Tobs(kobs)
     phiw = phiwleaf(leafid)
     phi = leafc(leafid)
     cph = cphleaf(leafid)
@@ -690,32 +696,39 @@ subroutine sample_phi(leafid)
         sth = sthring(iring)
         logw = logwgrid(iring,leafid)
         dmu = dmugrid(iring,leafid)
+        mudelay = delayfac*dmu
         ntheta = nthgrid(iring,leafid)
         nphi = nphgrid(iring,leafid)
         do ichi = 1, Num_chi
             if (tmono(ichi,iring,leafid)) then
-                ta = tgrid(1,ichi,iring,leafid)
-                tb = tgrid(Num_R,ichi,iring,leafid)
-                if (Tobs(kobs) < ta .or. Tobs(kobs) > tb) cycle
+                ta = Tbase(1,iring) - mudelay*R_chi(ichi,1,iring)
+                tb = Tbase(Num_R,iring) - mudelay*R_chi(ichi,Num_R,iring)
+                if (tview < ta .or. tview >= tb) cycle
                 ii = 1
-                do while (ii < Num_R-1 .and. Tobs(kobs) >= tgrid(ii+1,ichi,iring,leafid))
-                    ii = ii + 1
+                k2 = Num_R
+                do while (ii+1 < k2)
+                    mid = (ii+k2)/2
+                    tmid = Tbase(mid,iring) - mudelay*R_chi(ichi,mid,iring)
+                    if (tview >= tmid) then
+                        ii = mid
+                        ta = tmid
+                    else
+                        k2 = mid
+                        tb = tmid
+                    end if
                 end do
                 k2 = ii
-                ta = tgrid(k2,ichi,iring,leafid)
-                tb = tgrid(k2+1,ichi,iring,leafid)
-                if (Tobs(kobs) >= ta .and. Tobs(kobs) < tb) then
-                    ratio = (Tobs(kobs)-ta)/(tb-ta)
-                    call sample_event(iring,ichi,k2,ratio)
-                end if
+                ratio = (tview-ta)/(tb-ta)
+                call sample_event(iring,ichi,k2,ratio)
             else
+                ta = Tbase(1,iring) - mudelay*R_chi(ichi,1,iring)
                 do k2 = 1, Num_R-1
-                    ta = tgrid(k2,ichi,iring,leafid)
-                    tb = tgrid(k2+1,ichi,iring,leafid)
-                    if (Tobs(kobs) < min(ta,tb)) cycle
-                    if (Tobs(kobs) >= max(ta,tb)) cycle
-                    ratio = (Tobs(kobs)-ta)/(tb-ta)
-                    call sample_event(iring,ichi,k2,ratio)
+                    tb = Tbase(k2+1,iring) - mudelay*R_chi(ichi,k2+1,iring)
+                    if (tview >= min(ta,tb) .and. tview < max(ta,tb)) then
+                        ratio = (tview-ta)/(tb-ta)
+                        call sample_event(iring,ichi,k2,ratio)
+                    end if
+                    ta = tb
                 end do
             end if
         end do
@@ -758,7 +771,8 @@ subroutine sample_event(iring,ichi,k2,ratio)
     evnth(nev) = ntheta
     evnph(nev) = nphi
     ! 中文：观测方向先做相对局部流体的光行差变换，再用共动 slab 弦长计算 SSA 路径。
-    ! English: The observer direction is aberrated into the local comoving frame before the SSA path is measured as a chord through the comoving slab.
+    ! English: The observer direction is aberrated into the local comoving frame before the SSA path
+    ! is measured as a chord through the comoving slab.
     evnr(nev) = (dmu-beta)/(dop/dg)
     evntp(nev) = ntheta/dop
     evnpp(nev) = nphi/dop
