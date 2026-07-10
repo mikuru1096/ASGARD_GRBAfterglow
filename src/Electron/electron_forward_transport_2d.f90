@@ -68,12 +68,12 @@ subroutine fs_transport_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,ng, &
     real(8), allocatable, dimension(:,:) :: rcell_hist,gcell_hist,beta
     real(8), allocatable, dimension(:) :: rcell_chi,gcell_chi,bcell_chi,brel_sh_chi
     real(8), allocatable, dimension(:,:) :: P_local,kappa2_chi
-    real(8), allocatable, dimension(:) :: V_cool,P_emit_shell,Taushell
+    real(8), allocatable, dimension(:) :: V_cool,P_emit_shell,Taushell,hist_inv
     real(8), allocatable, dimension(:,:) :: shell_emit,shell_tau
     real(8), allocatable, dimension(:,:,:) :: pemit,seed,Tau_hist
     real(8), allocatable, dimension(:,:,:) :: pemit_cool,seed_cool,Tau_hist_cool,Tau_pair_hist_cool &
         & ,Tau_prop_hist_cool
-    real(8), allocatable, dimension(:,:) :: peff_cool_chi,seeff_cool_chi,pstream_cool,sstream_cool
+    real(8), allocatable, dimension(:,:) :: peff_cool_chi,seeff_cool_chi,pstream_cool,sstream_cool,hist_prefix
     real(8), allocatable, dimension(:,:) :: cooling_aux_chi,dEl_chi,dEL_mean_chi
     real(8), allocatable, dimension(:) :: adiabatic_log_coeff_chi
 
@@ -140,14 +140,15 @@ subroutine fs_transport_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,ng, &
     emit_full_spectrum = emit_full_chi_spectrum /= 0
     Num_nu_cool = min(6, Num_nu)
     substep_limit = max(1, substep_max)
-    allocate(V_cool(Num_nu_cool), P_emit_shell(Num_nu), Taushell(Num_nu), &
+    allocate(V_cool(Num_nu_cool), P_emit_shell(Num_nu), Taushell(Num_nu), hist_inv(nchi), &
              pemit(Num_nu, nchi, Num_R), &
              seed(Num_nu, nchi, Num_R), Tau_hist(Num_nu, nchi, Num_R), &
              pemit_cool(Num_nu_cool, nchi, Num_R), seed_cool(Num_nu_cool, nchi, Num_R), &
              Tau_hist_cool(Num_nu_cool, nchi, Num_R), &
              Tau_pair_hist_cool(Num_nu_cool, nchi, Num_R), Tau_prop_hist_cool(Num_nu_cool, nchi, Num_R), &
              peff_cool_chi(Num_nu_cool, nchi), seeff_cool_chi(Num_nu_cool, nchi), &
-             pstream_cool(Num_nu_cool, nchi), sstream_cool(Num_nu_cool, nchi))
+             pstream_cool(Num_nu_cool, nchi), sstream_cool(Num_nu_cool, nchi), &
+             hist_prefix(Num_nu_cool,0:nchi))
     call reduce_grid(Num_nu,V_seed,Num_nu_cool,V_cool)
 
     P_syn          = 0d0
@@ -209,7 +210,8 @@ subroutine fs_transport_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,ng, &
 
         call advance_history_stream(I_tobs-1,I_tobs,Num_R,nchi,Num_nu_cool,tprop,V_cool, &
                                              x_comov_face_hist,x_comov_hist,dx_comov_hist,beta, &
-                                             Tau_prop_hist_cool,pemit_cool,seed_cool,pstream_cool,sstream_cool)
+                                             Tau_prop_hist_cool,pemit_cool,seed_cool,pstream_cool,sstream_cool, &
+                                             hist_inv,hist_prefix)
 
         dN_gam_e_total(:, I_tobs) = 0d0
         do ichi = 1, nchi
@@ -225,7 +227,7 @@ subroutine fs_transport_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,ng, &
                xface, x_comov_face_hist, &
                x_comov_hist, dx_comov_hist, rcell_hist, gcell_hist, beta, &
                rcell_chi, gcell_chi, bcell_chi, brel_sh_chi, &
-               P_local, V_cool, P_emit_shell, Taushell, pemit, seed, Tau_hist, &
+               P_local, V_cool, P_emit_shell, Taushell, hist_inv, hist_prefix, pemit, seed, Tau_hist, &
                shell_emit, shell_tau, &
                pemit_cool, seed_cool, Tau_hist_cool, Tau_pair_hist_cool, Tau_prop_hist_cool, &
                peff_cool_chi, seeff_cool_chi, pstream_cool, sstream_cool, &

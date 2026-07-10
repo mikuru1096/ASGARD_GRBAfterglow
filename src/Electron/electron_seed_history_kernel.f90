@@ -8,67 +8,7 @@ module electron_seed_history_kernel
   ! Seed-photon history field: transport older shell emission to the current chi grid in downstream proper time.
   public :: integrate_proper_time, advance_history_stream, history_transfer_weight
 
-  integer, save :: cache_shells=0, cache_chi=0, cache_nu=0, built_shells=0
-  real(8), allocatable, save, dimension(:,:) :: inv_dx
-  real(8), allocatable, save, dimension(:,:,:) :: tau_prefix
-  logical, allocatable, save, dimension(:) :: map_valid
-  integer, allocatable, save, dimension(:) :: map_idx
-  real(8), allocatable, save, dimension(:) :: map_frac
-  integer, save :: seed_nu=0
-  logical, save :: seed_ready=.false.
-  real(8), allocatable, save, dimension(:) :: seed_v,seed_logv,seed_invdlog
-  !$omp threadprivate(cache_shells,cache_chi,cache_nu,built_shells)
-  !$omp threadprivate(inv_dx,tau_prefix,map_valid,map_idx,map_frac)
-  !$omp threadprivate(seed_nu,seed_ready,seed_v,seed_logv)
-  !$omp threadprivate(seed_invdlog)
-
 contains
-
-! 确保历史场工作数组、频率映射和种子频率缓存已按当前网格分配。
-! Ensure history work arrays, frequency maps, and seed-frequency cache match the current grid.
-subroutine ensure_cache(Num_shell,Num_chi,Num_nu,V_seed)
-implicit none
-integer, intent(in) :: Num_shell,Num_chi,Num_nu
-real(8), intent(in), dimension(Num_nu) :: V_seed
-logical :: rebuild_main, rebuild_map, cache_match
-
-    rebuild_main=.not. allocated(inv_dx)
-    if (.not. rebuild_main) then
-        rebuild_main = (cache_shells /= Num_shell) .or. (cache_chi /= Num_chi) .or. (cache_nu /= Num_nu)
-    end if
-    if (rebuild_main) then
-        if (allocated(inv_dx)) deallocate(inv_dx)
-        if (allocated(tau_prefix)) deallocate(tau_prefix)
-        allocate(inv_dx(Num_chi,Num_shell),tau_prefix(Num_nu,0:Num_chi,Num_shell))
-        cache_shells=Num_shell
-        cache_chi=Num_chi
-        cache_nu=Num_nu
-        built_shells=0
-    end if
-
-    rebuild_map=.not. allocated(map_valid)
-    if (.not. rebuild_map) rebuild_map = (size(map_valid) /= Num_nu)
-    if (rebuild_map) then
-        if (allocated(map_valid)) deallocate(map_valid,map_idx,map_frac)
-        allocate(map_valid(Num_nu),map_idx(Num_nu),map_frac(Num_nu))
-    end if
-
-    cache_match = .false.
-    if (seed_ready) then
-        if (seed_nu == Num_nu) then
-            if (allocated(seed_v)) cache_match=all(seed_v == V_seed)
-        end if
-    end if
-    if (cache_match) return
-
-    if (allocated(seed_v)) deallocate(seed_v,seed_logv,seed_invdlog)
-    allocate(seed_v(Num_nu),seed_logv(Num_nu),seed_invdlog(Num_nu-1))
-    seed_v=V_seed
-    seed_logv=dlog(V_seed)
-    seed_invdlog=1d0/(seed_logv(2:Num_nu)-seed_logv(1:Num_nu-1))
-    seed_nu=Num_nu
-    seed_ready=.true.
-end subroutine ensure_cache
 
 ! 沿半径积分下游共动固有时间。
 ! Integrate downstream comoving proper time along the radius grid.
@@ -93,23 +33,26 @@ end subroutine integrate_proper_time
 ! Advance the downstream photon history with first-order characteristics instead of rescanning all past shells.
 subroutine advance_history_stream(prev_t,target_t,Num_shell,Num_chi,Num_nu,tprop,V_seed, &
                                   xface,xmid,dxcell,beta,tau,pemit,seed, &
-                                  pstream,sstream)
+                                  pstream,sstream,hist_inv,hist_prefix)
 implicit none
 integer, intent(in) :: prev_t,target_t,Num_shell,Num_chi,Num_nu
-integer :: isrc,itgt,inu,ilo
+integer :: isrc,itgt
 real(8), intent(in), dimension(Num_shell) :: tprop
 real(8), intent(in), dimension(Num_nu) :: V_seed
 real(8), intent(in), dimension(0:Num_chi,Num_shell) :: xface
 real(8), intent(in), dimension(Num_chi,Num_shell) :: xmid, dxcell, beta
 real(8), intent(in), dimension(Num_nu,Num_chi,Num_shell) :: tau,pemit,seed
 real(8), intent(inout), dimension(Num_nu,Num_chi) :: pstream,sstream
+real(8), intent(out), dimension(Num_chi) :: hist_inv
+real(8), intent(out), dimension(Num_nu,0:Num_chi) :: hist_prefix
 real(8), dimension(Num_nu,Num_chi) :: pnext,snext
-real(8), dimension(Num_nu) :: attenuation
+real(8), dimension(Num_nu) :: attenuation,seed_logv
+real(8), dimension(Num_nu-1) :: seed_invdlog
 real(8) :: dtau, path_hi, path_lo, seg_lo, seg_hi, xsrc, xtgt, doprel, weight, amp_p, amp_seed
 
-    call ensure_cache(Num_shell,Num_chi,Num_nu,V_seed)
-    call build_transfer_cache(target_t,Num_chi,Num_nu,dxcell,tau, &
-                              inv_dx,tau_prefix)
+    seed_logv=dlog(V_seed)
+    seed_invdlog=1d0/(seed_logv(2:Num_nu)-seed_logv(1:Num_nu-1))
+    call build_transfer(Num_chi,Num_nu,dxcell(:,target_t),tau(:,:,target_t),hist_inv,hist_prefix)
     dtau = tprop(target_t)-tprop(prev_t)
     pnext = 0d0
     snext = 0d0
@@ -141,8 +84,10 @@ contains
     subroutine add_mapped_cell(src_chi,xsrcpos,tgt_chi,swgt,P_src,Seed_src)
     implicit none
     integer, intent(in) :: src_chi,tgt_chi
+    integer :: inu,ilo
     real(8), intent(in), dimension(Num_nu,Num_chi) :: P_src,Seed_src
     real(8), intent(in) :: xsrcpos,swgt
+    real(8) :: nusrc,frac
 
         xtgt = xmid(tgt_chi,target_t)
         if (xsrcpos < xtgt) return
@@ -150,56 +95,28 @@ contains
         xsrc = xsrcpos
         doprel = relative_doppler(beta(src_chi,prev_t),beta(tgt_chi,target_t))
         if (doprel <= 0d0) return
-        call build_map(Num_nu,V_seed,doprel,map_valid,map_idx,map_frac)
         attenuation = 1d0
         call apply_path_tau(Num_chi,Num_nu,xsrc,xtgt,xface(:,target_t), &
-                            inv_dx(:,target_t),tau(:,:,target_t), &
-                            tau_prefix(:,:,target_t),attenuation)
+                            hist_inv,tau(:,:,target_t),hist_prefix,attenuation)
         amp_p = swgt*doprel**3
         amp_seed = swgt*doprel**2
+        ilo = 1
         do inu = 1, Num_nu
-            if (.not. map_valid(inu)) cycle
-            ilo = map_idx(inu)
+            nusrc = V_seed(inu)/doprel
+            if (nusrc < V_seed(1) .or. nusrc > V_seed(Num_nu)) cycle
+            do while (ilo < Num_nu-1)
+                if (V_seed(ilo+1) > nusrc) exit
+                ilo = ilo + 1
+            end do
+            if (seed_invdlog(ilo) <= 0d0) cycle
+            frac = (dlog(nusrc)-seed_logv(ilo))*seed_invdlog(ilo)
             pnext(inu,tgt_chi) = pnext(inu,tgt_chi) + amp_p*attenuation(inu) * &
-                log_interp(P_src(ilo,src_chi),P_src(ilo+1,src_chi),map_frac(inu))
+                log_interp(P_src(ilo,src_chi),P_src(ilo+1,src_chi),frac)
             snext(inu,tgt_chi) = snext(inu,tgt_chi) + amp_seed*attenuation(inu) * &
-                log_interp(Seed_src(ilo,src_chi),Seed_src(ilo+1,src_chi),map_frac(inu))
+                log_interp(Seed_src(ilo,src_chi),Seed_src(ilo+1,src_chi),frac)
         end do
     end subroutine add_mapped_cell
 end subroutine advance_history_stream
-
-! 构造当前相对多普勒因子下目标频率到源频率网格的映射。
-! Build the target-to-source frequency map for the current relative Doppler factor.
-subroutine build_map(Num_nu,V_seed,doprel,validmap,idxmap,fracmap)
-implicit none
-integer, intent(in) :: Num_nu
-logical, intent(out), dimension(Num_nu) :: validmap
-integer, intent(out), dimension(Num_nu) :: idxmap
-real(8), intent(in), dimension(Num_nu) :: V_seed
-real(8), intent(in) :: doprel
-real(8), intent(out), dimension(Num_nu) :: fracmap
-integer :: inu,ilo
-real(8) :: nusrc
-
-    validmap = .false.
-    idxmap = 1
-    fracmap = 0d0
-    if (doprel <= 0d0) return
-
-    ilo = 1
-    do inu = 1, Num_nu
-        nusrc = V_seed(inu)/doprel
-        if (nusrc < V_seed(1) .or. nusrc > V_seed(Num_nu)) cycle
-        do while (ilo < Num_nu-1)
-            if (V_seed(ilo+1) > nusrc) exit
-            ilo = ilo + 1
-        end do
-        idxmap(inu) = ilo
-        if (seed_invdlog(ilo) <= 0d0) cycle
-        fracmap(inu) = (dlog(nusrc)-seed_logv(ilo))*seed_invdlog(ilo)
-        validmap(inu) = .true.
-    end do
-end subroutine build_map
 
 ! 按预计算对数分数做 log-log 插值：y = y0 * exp(log_frac * log(y1/y0))。
 ! Use the precomputed logarithmic fraction for log-log interpolation.
@@ -227,31 +144,27 @@ real(8) :: brel,grel
     relative_doppler = grel*(1d0+brel)
 end function relative_doppler
 
-! 缓存每个壳层 chi 单元宽度倒数，供历史光线路径吸收计算复用。
-! Cache inverse chi-cell widths and cumulative log transfer for path absorption reuse.
-subroutine build_transfer_cache(Num_shell,Num_chi,Num_nu,dxcell,tau,inv_dxcell,logprefix)
+! 构造当前目标壳层的 chi 单元宽度倒数和累积对数传输。
+! Build inverse chi-cell widths and cumulative log transfer for the current target shell.
+subroutine build_transfer(Num_chi,Num_nu,dxcell,tau,invcell,prefix)
 implicit none
-integer, intent(in) :: Num_shell,Num_chi,Num_nu
-integer :: ishell,ichi,inu
-real(8), intent(in), dimension(Num_chi,Num_shell) :: dxcell
-real(8), intent(in), dimension(Num_nu,Num_chi,Num_shell) :: tau
-real(8), intent(out), dimension(Num_chi,Num_shell) :: inv_dxcell
-real(8), intent(out), dimension(Num_nu,0:Num_chi,Num_shell) :: logprefix
+integer, intent(in) :: Num_chi,Num_nu
+integer :: ichi,inu
+real(8), intent(in), dimension(Num_chi) :: dxcell
+real(8), intent(in), dimension(Num_nu,Num_chi) :: tau
+real(8), intent(out), dimension(Num_chi) :: invcell
+real(8), intent(out), dimension(Num_nu,0:Num_chi) :: prefix
 
-    if (Num_shell < built_shells) built_shells=0
-    do ishell = built_shells+1, Num_shell
-        logprefix(:,0,ishell) = 0d0
-        do ichi = 1, Num_chi
-            if (dxcell(ichi,ishell) <= 0d0) error stop 'history transfer cache requires positive dxcell'
-            inv_dxcell(ichi,ishell) = 1d0/dxcell(ichi,ishell)
-            do inu = 1, Num_nu
-                logprefix(inu,ichi,ishell) = logprefix(inu,ichi-1,ishell) + &
-                    dlog(history_transfer_weight(tau(inu,ichi,ishell)))
-            end do
+    prefix(:,0) = 0d0
+    do ichi = 1, Num_chi
+        if (dxcell(ichi) <= 0d0) error stop 'history transfer requires positive dxcell'
+        invcell(ichi) = 1d0/dxcell(ichi)
+        do inu = 1, Num_nu
+            prefix(inu,ichi) = prefix(inu,ichi-1) + &
+                dlog(history_transfer_weight(tau(inu,ichi)))
         end do
     end do
-    built_shells=max(built_shells,Num_shell)
-end subroutine build_transfer_cache
+end subroutine build_transfer
 
 ! 用壳层内路径段的吸收权重对 attenuation 做累乘。
 ! Multiply attenuation by the absorption weight of a path segment inside a single shell.
