@@ -149,7 +149,7 @@ subroutine structured_solve_axisymmetric(Boundary,E_iso_grid,Gamma0_grid,active_
                                          track_nu_a,track_set)
     !$ use omp_lib
     use constants
-    use electron_ic_kernel, only: invalidate_ic_cache
+    use electron_cooling_kernel, only: cooling_reset
     implicit none
     integer, intent(in) :: n,Num_theta_patch,Num_phi_patch,Num_nu,Num_R,Num_gam_e,index_dyn,index_Y,index_syn_intger
     integer, intent(in) :: include_reverse_sync,include_forward_ssc,include_hadronic,include_proton_synch
@@ -178,7 +178,7 @@ subroutine structured_solve_axisymmetric(Boundary,E_iso_grid,Gamma0_grid,active_
     end do
 
     !$OMP PARALLEL num_threads(n_threads_outer)
-    !$ if (n_threads_outer > 1) call invalidate_ic_cache()
+    !$ if (n_threads_outer > 1) call cooling_reset()
     !$OMP DO schedule(dynamic,1)
     do iu=1,unique_count
         call solve_axis_patch(solve_reps(iu))
@@ -256,7 +256,7 @@ subroutine structured_solve_nonaxisymmetric(Boundary,E_iso_grid,Gamma0_grid,acti
                                             track_nu_a,track_set)
     !$ use omp_lib
     use constants
-    use electron_ic_kernel, only: invalidate_ic_cache
+    use electron_cooling_kernel, only: cooling_reset
     implicit none
     integer, intent(in) :: n,Num_theta_patch,Num_phi_patch,Num_nu,Num_R,Num_gam_e,index_dyn,index_Y,index_syn_intger
     integer, intent(in) :: include_reverse_sync,include_forward_ssc,include_hadronic,include_proton_synch
@@ -290,7 +290,7 @@ subroutine structured_solve_nonaxisymmetric(Boundary,E_iso_grid,Gamma0_grid,acti
     end do
 
     !$OMP PARALLEL num_threads(n_threads_outer) private(rep_flat,rep_it,rep_ip)
-    !$ if (n_threads_outer > 1) call invalidate_ic_cache()
+    !$ if (n_threads_outer > 1) call cooling_reset()
     !$OMP DO schedule(dynamic,1)
     do iu=1,unique_count
         rep_flat=solve_reps(iu)

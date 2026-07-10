@@ -1,14 +1,24 @@
 !f2py: skip
 module electron_cooling_kernel
   use constants
-  use electron_ssa_kernel, only: electron_ssa_loss
-  use electron_ic_kernel, only: electron_ic_loss, electron_ic_loss_batch
-  use electron_y_kernel, only: electron_y_nakar, electron_y_nakar_batch, electron_y_fan
+  use electron_ssa_kernel, only: electron_ssa_loss, invalidate_ssa_cache
+  use electron_ic_kernel, only: electron_ic_loss, electron_ic_loss_batch, invalidate_ic_cache
+  use electron_y_kernel, only: electron_y_nakar, electron_y_nakar_batch, electron_y_fan, invalidate_y_cache
   private
 
-  public :: forward_cooling
+  public :: forward_cooling, cooling_reset
 
 contains
+
+! 清空当前 OpenMP worker 的电子冷却积分缓存，供外层 structured worker 启动时调用。
+! Clear the current OpenMP worker's cooling quadrature caches when a structured worker starts.
+subroutine cooling_reset()
+implicit none
+
+    call invalidate_ic_cache()
+    call invalidate_ssa_cache()
+    call invalidate_y_cache()
+end subroutine cooling_reset
 
 ! 正向激波电子冷却统一入口：mode=0 只准备 Compton auxiliary，mode=1 由 seed 计算 auxiliary 并组装冷却，
 ! mode=2 复用调用方传入的 auxiliary 组装冷却。

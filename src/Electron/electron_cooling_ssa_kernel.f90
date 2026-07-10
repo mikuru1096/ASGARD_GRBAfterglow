@@ -5,7 +5,7 @@ module electron_ssa_kernel
                                        log_gauss2
   private
 
-  public :: electron_ssa_loss
+  public :: electron_ssa_loss, invalidate_ssa_cache
 
   integer, parameter :: lowseg=1,highseg=2
   integer, save :: nnu_cache=0
@@ -15,6 +15,14 @@ module electron_ssa_kernel
   !$omp threadprivate(vg1_cache,vg2_cache,wg1_cache,wg2_cache)
 
 contains
+subroutine invalidate_ssa_cache()
+implicit none
+
+    if (allocated(v_cache)) deallocate(v_cache,vlow_cache,vhigh_cache,vg1_cache,vg2_cache,wg1_cache,wg2_cache)
+    nnu_cache=0
+    seed_ready=.false.
+end subroutine invalidate_ssa_cache
+
 ! 刷新 SSA 种子频率缓存；线程私有，避免 OpenMP 列计算共享临时状态。
 ! Refresh the SSA seed-frequency cache; it is thread-private for OpenMP column work.
 subroutine ensure_ssa_cache(nnu,vseed)
@@ -35,7 +43,7 @@ logical :: match
 
     if (match) return
 
-    if (allocated(v_cache)) deallocate(v_cache,vlow_cache,vhigh_cache,vg1_cache,vg2_cache,wg1_cache,wg2_cache)
+    call invalidate_ssa_cache()
     allocate(v_cache(nnu),vlow_cache(nnu-1),vhigh_cache(nnu-1),vg1_cache(nnu-1),vg2_cache(nnu-1), &
              wg1_cache(nnu-1),wg2_cache(nnu-1))
     v_cache=vseed

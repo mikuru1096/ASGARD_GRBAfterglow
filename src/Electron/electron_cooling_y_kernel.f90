@@ -5,14 +5,25 @@ module electron_y_kernel
                                        pl_integral, log_gauss2
   private
 
-  public :: electron_y_nakar, electron_y_nakar_batch, electron_y_fan
+  public :: electron_y_nakar, electron_y_nakar_batch, electron_y_fan, invalidate_y_cache
 
   integer, save :: nakar_ng=0,nakar_nnu=0
   integer, allocatable, save, dimension(:) :: idx_cache
-  real(8), allocatable, save, dimension(:) :: hat_cache,prefix_cache,v_cache,vloc_cache,vg1_cache,vg2_cache &
+  real(8), allocatable, save, dimension(:) :: gamma_cache,v_cache,vloc_cache,vg1_cache,vg2_cache &
       & ,wg1_cache,wg2_cache
+  !$omp threadprivate(nakar_ng,nakar_nnu,idx_cache,gamma_cache,v_cache,vloc_cache)
+  !$omp threadprivate(vg1_cache,vg2_cache,wg1_cache,wg2_cache)
 
 contains
+subroutine invalidate_y_cache()
+implicit none
+
+    if (allocated(gamma_cache)) deallocate(gamma_cache,v_cache,vloc_cache,idx_cache, &
+                                           vg1_cache,vg2_cache,wg1_cache,wg2_cache)
+    nakar_ng=0
+    nakar_nnu=0
+end subroutine invalidate_y_cache
+
 ! 准备 Nakar Y 积分缓存：hat_nu、频段 Gauss 节点和查找区间。
 ! Prepare Nakar-Y integration cache: hat_nu, frequency-bin Gauss nodes, and lookup windows.
 subroutine ensure_y_nakar(ng,nnu,gam,vseed)
@@ -22,31 +33,31 @@ real(8), intent(in), dimension(ng) :: gam
 real(8), intent(in), dimension(nnu) :: vseed
 logical :: rebuild
 
-    rebuild=.not. allocated(hat_cache)
+    rebuild=.not. allocated(gamma_cache)
     if (.not. rebuild) rebuild = (nakar_ng /= ng)
     if (.not. rebuild) rebuild = (nakar_nnu /= nnu)
-    if (.not. rebuild) rebuild = any(hat_cache /= Para_m_energy/Para_h/gam)
+    if (.not. rebuild) rebuild = any(gamma_cache /= gam)
     if (.not. rebuild) rebuild = any(v_cache /= vseed)
     if (.not. rebuild) return
 
-    if (allocated(hat_cache)) deallocate(hat_cache,prefix_cache,v_cache,vloc_cache,idx_cache,vg1_cache,vg2_cache, &
-                                         wg1_cache,wg2_cache)
-    allocate(hat_cache(ng),prefix_cache(nnu),v_cache(nnu),vloc_cache(ng),idx_cache(ng),vg1_cache(nnu-1), &
+    call invalidate_y_cache()
+    allocate(gamma_cache(ng),v_cache(nnu),vloc_cache(ng),idx_cache(ng),vg1_cache(nnu-1), &
              vg2_cache(nnu-1),wg1_cache(nnu-1),wg2_cache(nnu-1))
-    hat_cache=Para_m_energy/Para_h/gam
+    gamma_cache=gam
     v_cache=vseed
     do inu=1,nnu-1
         call log_gauss2(vseed(inu),vseed(inu+1),vg1_cache(inu),vg2_cache(inu), &
                                           wg1_cache(inu),wg2_cache(inu))
     end do
     do icomp=1,ng
-        if (hat_cache(icomp) <= vseed(1)) then
+        hatnu=Para_m_energy/Para_h/gamma_cache(icomp)
+        if (hatnu <= vseed(1)) then
             idx_cache(icomp)=0
             vloc_cache(icomp)=vseed(1)
         else
-            call greater_window(vseed,nnu,2,hat_cache(icomp),inu)
+            call greater_window(vseed,nnu,2,hatnu,inu)
             idx_cache(icomp)=inu
-            if (inu <= nnu) vloc_cache(icomp)=min(hat_cache(icomp),vseed(inu))
+            vloc_cache(icomp)=min(hatnu,vseed(nnu))
         end if
     end do
     nakar_ng=ng
@@ -62,13 +73,14 @@ real(8), intent(in), dimension(ng) :: gam
 real(8), intent(in), dimension(nnu) :: vseed,psyn
 real(8), intent(out), dimension(ng) :: comp
 integer :: icomp,inu
+real(8), dimension(nnu) :: prefix
 
     call ensure_y_nakar(ng,nnu,gam,vseed)
 
     comp=0d0
-    prefix_cache(1)=0d0
+    prefix(1)=0d0
     do inu=2,nnu
-       prefix_cache(inu)=prefix_cache(inu-1)+ &
+       prefix(inu)=prefix(inu-1)+ &
             wg1_cache(inu-1)*pl_interp(vseed(inu-1),vseed(inu),psyn(inu-1),psyn(inu),vg1_cache(inu-1))+ &
             wg2_cache(inu-1)*pl_interp(vseed(inu-1),vseed(inu),psyn(inu-1),psyn(inu),vg2_cache(inu-1))
     end do
@@ -78,11 +90,11 @@ integer :: icomp,inu
        inu=idx_cache(icomp)
        if (inu == 0) cycle
        if (inu <= nnu) then
-          comp(icomp)=prefix_cache(inu-1)+pl_integral(vseed(inu-1),vloc_cache(icomp), &
+          comp(icomp)=prefix(inu-1)+pl_integral(vseed(inu-1),vloc_cache(icomp), &
                       psyn(inu-1),pl_interp(vseed(inu-1),vseed(inu),psyn(inu-1),psyn(inu), &
                       vloc_cache(icomp)))
        else
-          comp(icomp)=prefix_cache(nnu)
+          comp(icomp)=prefix(nnu)
        end if
     end do
 end subroutine electron_y_nakar
@@ -98,10 +110,14 @@ real(8), intent(in), dimension(nnu) :: vseed
 real(8), intent(in), dimension(nnu,nchi) :: psyn
 real(8), intent(out), dimension(ng,nchi) :: comp
 real(8), dimension(nnu,nchi) :: prefix
+real(8), dimension(ng) :: vlocal
+integer, dimension(ng) :: idxlocal
 integer :: ic,icomp,inu,work,nt
 logical :: doomp
 
     call ensure_y_nakar(ng,nnu,gam,vseed)
+    idxlocal=idx_cache
+    vlocal=vloc_cache
     comp=0d0
     do ic=1,nchi
         prefix(1,ic)=0d0
@@ -121,12 +137,12 @@ logical :: doomp
     !$OMP& private(ic,icomp,inu)
     do ic=1,nchi
         do icomp=1,ng
-           inu=idx_cache(icomp)
+           inu=idxlocal(icomp)
            if (inu == 0) cycle
            if (inu <= nnu) then
-              comp(icomp,ic)=prefix(inu-1,ic)+pl_integral(vseed(inu-1),vloc_cache(icomp), &
+              comp(icomp,ic)=prefix(inu-1,ic)+pl_integral(vseed(inu-1),vlocal(icomp), &
                           psyn(inu-1,ic),pl_interp(vseed(inu-1),vseed(inu),psyn(inu-1,ic), &
-                          psyn(inu,ic),vloc_cache(icomp)))
+                          psyn(inu,ic),vlocal(icomp)))
            else
               comp(icomp,ic)=prefix(nnu,ic)
            end if
