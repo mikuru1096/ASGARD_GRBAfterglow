@@ -15,9 +15,10 @@ module dynamics_density_profile
     real(8), dimension(jump_max) :: jump_factor= 1d0
     real(8), dimension(jump_max) :: jump_width= 1d0
     real(8), dimension(profile_max) :: profile_radius= 0d0
-    real(8), dimension(profile_max) :: profile_density= 0d0
     real(8), dimension(profile_max) :: profile_logr= 0d0, profile_logn= 0d0, profile_logw= 0d0
     real(8), dimension(profile_max-1) :: profile_power= 0d0
+    !$omp threadprivate(jump_count,profile_count,jump_radius,jump_factor,jump_width, &
+    !$omp& profile_radius,profile_logr,profile_logn,profile_logw,profile_power)
 
 contains
 
@@ -169,19 +170,11 @@ subroutine set_density_profile(Boundary, n)
     integer, intent(in) :: n
     integer :: i, radius_index, factor_index, width_index
     real(8), intent(in), dimension(n) :: Boundary
+    real(8), dimension(profile_max) :: profile_density
     real(real128) :: lr0,lr1,ln0,ln1,ratn,ratr
 
     jump_count = 0
     profile_count = 0
-    jump_radius = 0d0
-    jump_factor = 1d0
-    jump_width = 1d0
-    profile_radius = 0d0
-    profile_density = 0d0
-    profile_logr = 0d0
-    profile_logn = 0d0
-    profile_logw = 0d0
-    profile_power = 0d0
     if (n < jump_slot) return
     jump_count = nint(Boundary(jump_slot))
     if (jump_count < 0 .or. jump_count > jump_max) &
