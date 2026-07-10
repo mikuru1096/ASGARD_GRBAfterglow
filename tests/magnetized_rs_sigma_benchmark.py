@@ -169,7 +169,6 @@ def _model(sigma: float, medium: str, grid: dict[str, int], cooling_mode: str) -
             p=SCENARIO["fwd_p"],
             accelerated_electron_fraction=SCENARIO["fwd_xi"],
             include_ssc=False,
-            include_kn_correction=False,
         ),
         rvs_rad=radiation(
             epsilon_e=SCENARIO["rs_eps_e"],
@@ -177,7 +176,6 @@ def _model(sigma: float, medium: str, grid: dict[str, int], cooling_mode: str) -
             p=SCENARIO["rs_p"],
             accelerated_electron_fraction=SCENARIO["rs_xi"],
             include_ssc=False,
-            include_kn_correction=False,
         ),
         numerics=numerics(
             num_radius=grid["model_r"],

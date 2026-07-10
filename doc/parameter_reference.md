@@ -34,7 +34,6 @@
 | `p` | \(2.0\) 到 \(2.8\) | 非热电子谱指数。 |
 | `accelerated_electron_fraction` | \(10^{-3}\) 到 \(1\) | 参与加速的电子比例。 |
 | `include_ssc` | `True/False` | 是否计算同步自康普顿。 |
-| `include_kn_correction` | `True/False` | 是否使用 KN 相关 IC 修正。 |
 | `proton_energy_fraction` | \(0\) 到问题相关上限 | 正向激波质子能量分数，非零时才有强子能量预算。 |
 | `include_pgamma` | `True/False` | 是否计算 p-gamma 过程。 |
 | `bethe_heitler` | `True/False` | 是否计算 BH pair production。 |

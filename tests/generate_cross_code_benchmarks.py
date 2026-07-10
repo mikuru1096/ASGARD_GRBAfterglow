@@ -293,8 +293,8 @@ def run_pyblast(kind: str, nu_grid: np.ndarray, obs_grid: np.ndarray) -> tuple[n
 
 def run_asgard_rs_ssc() -> tuple[dict[str, np.ndarray], float]:
     model = top_hat_model(
-        fwd_rad=radiation(include_ssc=True, include_kn_correction=True),
-        rvs_rad=radiation(include_ssc=True, include_kn_correction=True),
+        fwd_rad=radiation(include_ssc=True),
+        rvs_rad=radiation(include_ssc=True),
         reverse_shock=reverse_shock(enabled=True, include_ssc=True),
         numerics=numerics(
             num_radius=192,

@@ -75,7 +75,6 @@ def _model(*, with_jumps: bool, grid: dict[str, int]) -> Model:
             p=2.3,
             accelerated_electron_fraction=1.0e-1,
             include_ssc=False,
-            include_kn_correction=False,
         ),
         rvs_rad=radiation(
             epsilon_e=3.0e-1,
@@ -83,7 +82,6 @@ def _model(*, with_jumps: bool, grid: dict[str, int]) -> Model:
             p=2.4,
             accelerated_electron_fraction=1.0e-1,
             include_ssc=False,
-            include_kn_correction=False,
         ),
         numerics=numerics(
             num_radius=grid["num_r"],

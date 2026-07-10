@@ -201,7 +201,6 @@ fwd_rad = Radiation(
     accelerated_electron_fraction=0.1,
     thermal_electrons=False,
     include_ssc=True,
-    include_kn_correction=False,
     proton_synch=True,
     include_pgamma=False,
     bethe_heitler=False,
@@ -232,7 +231,6 @@ fwd_rad = Radiation(
 | 字段 | 意思 | 效果 | 注意事项 |
 | --- | --- | --- | --- |
 | `include_ssc` | 输出 SSC 分量。 | `result.fwd.ssc` 可非零。 | 是否参与冷却还由 `SolverOptions.ssc_cooling_mode` 控制。 |
-| `include_kn_correction` | KN 相关开关字段。 | 影响兼容路径。 | 公开拟合优先通过 `ssc_cooling_mode` 说明冷却模式。 |
 
 ### 6.3 强子相关
 
@@ -301,10 +299,8 @@ solver_options = SolverOptions(
     ssc_cooling_mode="nakar_y_thomson",
     synchrotron_integration="fixed_grid",
     cooling_kernel="legacy",
-    radiation_kernel="legacy",
     structured_backend="fortran_1d",
     patch_sampling="uniform",
-    patch_projection="auto",
     patch_sampling_pilot_theta=0,
     patch_sampling_num_times=12,
     patch_sampling_beaming_factor=3.0,
@@ -348,7 +344,6 @@ solver_options = SolverOptions(
 | `ssc_cooling_mode` | `none`, `numeric_ic_kn`, `nakar_y_thomson` | 电子冷却方程中如何加入 IC/SSC 冷却。 | `none` 不把 SSC/IC 写入电子冷却；`numeric_ic_kn` 对 seed photon field 做含 KN/Jones 核的数值 IC 损失积分；`nakar_y_thomson` 用 Nakar 型 \(Y\) 参数近似放大同步冷却。 |
 | `synchrotron_integration` | `fixed_grid`, `cyclotron` | 同步辐射积分核。 | `fixed_grid` 是默认快速路径；`cyclotron` 在 `γ<2` 电子上加入非相对论回旋基频发射，用于深度牛顿相。 |
 | `cooling_kernel` | `legacy` | 电子冷却核族。 | 目前 public path 只接受 `legacy`。 |
-| `radiation_kernel` | `legacy` | 辐射核族。 | 目前 public path 只接受 `legacy`。 |
 
 `include_ssc=True` 决定是否输出 SSC 光子分量；`ssc_cooling_mode` 决定这些光子场是否以及如何反馈到电子冷却。两者不能混为一个开关。
 
@@ -358,7 +353,6 @@ solver_options = SolverOptions(
 | --- | --- | --- | --- |
 | `structured_backend` | `fortran_1d`, `python_patch` | 选择结构化喷流 patch 求解后端。 | `fortran_1d` 支持 `electron_solver="fullhide_1d"` 或 `"dg_1d"` 的同步路径；`dg_1d` 可接 thermal hybrid branch。 |
 | `patch_sampling` | `uniform`, `dominant_region_ioka_v1`, `dominant_region_ioka_time_v1` | 角向采样策略。 | dominant-region 当前只支持 `structured_backend="python_patch"`。 |
-| `patch_projection` | `auto`, `tophat_cell`, `surface_element` | patch 面元投影方式。 | `auto` 会按采样策略选择。 |
 | `patch_sampling_pilot_theta` | int | dominant-region pilot 中的 theta 采样控制。 | `uniform` 下不改变物理求解。 |
 | `patch_sampling_num_times` | int | time-aware dominant-region 采样使用的时间节点数。 | 只在 `dominant_region_ioka_time_v1` 有决策意义。 |
 | `patch_sampling_beaming_factor` | float | dominant-region 采样中 Doppler cone 宽度因子。 | 过小会漏掉有效角区，需做角向收敛。 |

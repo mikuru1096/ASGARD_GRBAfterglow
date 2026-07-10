@@ -135,7 +135,7 @@ def draw_flow_arrow(ax: plt.Axes, start: tuple[float, float], end: tuple[float, 
 
 def diagnostic_model():
     return top_hat_model(
-        fwd_rad=radiation(include_ssc=True, include_kn_correction=False),
+        fwd_rad=radiation(include_ssc=True),
         numerics=numerics(
             num_radius=24,
             eats_num_theta=12,

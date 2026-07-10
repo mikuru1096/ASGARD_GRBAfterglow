@@ -53,7 +53,6 @@ def benchmark_radiation(*, magnetic_decay: bool):
         p=2.3,
         accelerated_electron_fraction=0.1,
         include_ssc=False,
-        include_kn_correction=False,
     )
     if magnetic_decay:
         params |= dict(

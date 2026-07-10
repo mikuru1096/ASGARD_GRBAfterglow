@@ -99,7 +99,6 @@ def _asgard_model(sigma: float, medium: str, *, num_r: int, num_theta: int, num_
             p=FWD_P,
             accelerated_electron_fraction=FWD_XI,
             include_ssc=False,
-            include_kn_correction=False,
         ),
         rvs_rad=radiation(
             epsilon_e=RVS_EPS_E,
@@ -107,7 +106,6 @@ def _asgard_model(sigma: float, medium: str, *, num_r: int, num_theta: int, num_
             p=RVS_P,
             accelerated_electron_fraction=RVS_XI,
             include_ssc=False,
-            include_kn_correction=False,
         ),
         numerics=numerics(
             num_radius=num_r,

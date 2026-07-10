@@ -91,7 +91,6 @@ def _build_model(case: CaseSpec, grid: dict[str, int]) -> Model:
             epsilon_B=1.0e-3,
             p=2.3,
             include_ssc=True,
-            include_kn_correction=True,
         ),
         rvs_rad=None,
         numerics=numerics(

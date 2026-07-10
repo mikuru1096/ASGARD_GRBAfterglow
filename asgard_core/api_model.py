@@ -497,7 +497,6 @@ class Radiation:
         accelerated_electron_fraction: float,
         thermal_electrons: bool,
         include_ssc: bool,
-        include_kn_correction: bool,
         proton_synch: bool,
         include_pgamma: bool,
         bethe_heitler: bool,
@@ -519,7 +518,6 @@ class Radiation:
         self.xi_N = float(accelerated_electron_fraction)
         self.thermal_electrons = bool(thermal_electrons)
         self.ssc = bool(include_ssc)
-        self.kn = bool(include_kn_correction)
         self.proton_synch = bool(proton_synch)
         self.pg = bool(include_pgamma)
         self.bethe_heitler = bool(bethe_heitler)
@@ -562,14 +560,6 @@ class Radiation:
     @include_ssc.setter
     def include_ssc(self, value: bool) -> None:
         self.ssc = bool(value)
-
-    @property
-    def include_kn_correction(self) -> bool:
-        return self.kn
-
-    @include_kn_correction.setter
-    def include_kn_correction(self, value: bool) -> None:
-        self.kn = bool(value)
 
     @property
     def include_pgamma(self) -> bool:
@@ -630,10 +620,8 @@ class SolverOptions:
     ssc_cooling_mode: str
     synchrotron_integration: str
     cooling_kernel: str
-    radiation_kernel: str
     structured_backend: str
     patch_sampling: str
-    patch_projection: str
     patch_sampling_pilot_theta: int
     patch_sampling_num_times: int
     patch_sampling_beaming_factor: float
