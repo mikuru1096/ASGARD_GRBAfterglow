@@ -409,10 +409,12 @@ def _jointfeedback(
     photon_field: PhotonFieldState,
     hadronic,
 ) -> np.ndarray:
-    source = np.zeros_like(np.asarray(electron.d_n_gam_e, dtype=float))
     hadronic_source = None if hadronic is None else getattr(hadronic, "secondary_electron_source_r", None)
-    if hadronic_source is not None:
-        source = source + np.asarray(hadronic_source, dtype=float)
+    source = (
+        np.zeros_like(electron.d_n_gam_e, dtype=float)
+        if hadronic_source is None
+        else np.array(hadronic_source, dtype=float, copy=True, order="K")
+    )
     if bool(config.hadronic.include_pair_production):
         magnetic_field = magfield(dynamics.r_gamma, dynamics.radius, config)
         paircascade = solve_paircascade(
@@ -429,10 +431,10 @@ def _jointfeedback(
         )
         if hadronic is not None:
             hadronic.l_had_pair_production = paircascade.syn_lum
-        photon_field.hadronic_target_seed = np.asarray(photon_field.hadronic_target_seed, dtype=float) + paircascade.syn_seed
-        photon_field.absorption_syn_seed = np.asarray(photon_field.absorption_syn_seed, dtype=float) + paircascade.syn_seed
+        photon_field.hadronic_target_seed += paircascade.syn_seed
+        photon_field.absorption_syn_seed += paircascade.syn_seed
         _photonsurvive(photon_field, pgsurvival(paircascade.tau_pair))
-        source = source + _sourcer(np.asarray(electron.gam_e, dtype=float), paircascade.density_grid, dynamics.radius)
+        source += _sourcer(np.asarray(electron.gam_e, dtype=float), paircascade.density_grid, dynamics.radius)
     return source
 
 
@@ -441,10 +443,10 @@ def _photonsurvive(
     photon_survival: np.ndarray,
 ) -> None:
     survival = np.asarray(photon_survival, dtype=float)
-    photon_field.hadronic_target_seed = np.asarray(photon_field.hadronic_target_seed, dtype=float) * survival
-    photon_field.absorption_syn_seed = np.asarray(photon_field.absorption_syn_seed, dtype=float) * survival
-    photon_field.absorption_ssc_seed = np.asarray(photon_field.absorption_ssc_seed, dtype=float) * survival
-    photon_field.hadronic_forward_ssc_seed = np.asarray(photon_field.hadronic_forward_ssc_seed, dtype=float) * survival
+    photon_field.hadronic_target_seed *= survival
+    photon_field.absorption_syn_seed *= survival
+    photon_field.absorption_ssc_seed *= survival
+    photon_field.hadronic_forward_ssc_seed *= survival
 
 
 def _freqrange(frequencies_hz: np.ndarray | None) -> tuple[float | None, float | None]:
