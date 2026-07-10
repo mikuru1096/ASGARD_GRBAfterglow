@@ -602,9 +602,15 @@ def main() -> None:
             itp,
             ["../Constants.f90", "../Radiation/rad_common.f90", "interpolation_common.f90", "SED_interpolation.f90"],
             omp_flags,
-            OPENMP_LIBS,
+            [*OPENMP_LIBS, "skip:", "accum_radial_batch", ":"],
         ),
-        ModuleSpec("SED_interpolation_structured", itp, ["../Constants.f90", "interpolation_common.f90", "SED_interpolation_structured.f90"], omp_flags, OPENMP_LIBS),
+        ModuleSpec(
+            "SED_interpolation_structured",
+            itp,
+            ["../Constants.f90", "interpolation_common.f90", "SED_interpolation_structured.f90"],
+            omp_flags,
+            [*OPENMP_LIBS, "skip:", "accum_radial_batch", ":"],
+        ),
         ModuleSpec("pair_absorption", rad, _with_main(RADIATION_COMMON_SOURCES, "pair_absorption.f90"), omp_flags, OPENMP_LIBS, False, ("annihilation",)),
         ModuleSpec("ssc_spectrum", rad, _with_main(RADIATION_COMMON_SOURCES, "ssc_spectrum.f90"), omp_flags, OPENMP_LIBS, True, ("ssc_spec", "ssc_spec_nonuniform")),
         ModuleSpec(

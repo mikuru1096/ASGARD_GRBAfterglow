@@ -81,53 +81,39 @@ leptonic、structured 和 prompt 路径仍不一致。禁止在中间阶段加�
   cascade 光深闭合。光深、频谱与时序曲线不得出现人为跳变，性能比较使用至少
   3 次 median。
 
-## `total_only` 在分量求和前做对数频率插值，拟合总通量与公开分量总和不相等
+## 强子总通量与公开子分量在观测端被重复求和
 
 ### 第一性原理
 
-对正的相邻谱点，投影核在对数频率上使用幂律插值。若两个物理分量分别为
-`F1(nu)` 与 `F2(nu)`，一般有
+`_hadronlum` 返回的 `fwd_hadronic_gamma` 已经是质子同步、光介子以及所有启用的
+Bethe--Heitler、强子逆康普顿和次级粒子辐射之和。公开的
+`fwd_hadronic_bethe_heitler`、`fwd_hadronic_inverse_compton` 与
+`fwd_hadronic_pair_production` 是该总量的诊断分解，不是额外辐射源。因此总通量只能
+包含 `fwd_hadronic_gamma` 一次。
 
-```text
-Ilog[F1 + F2] != Ilog[F1] + Ilog[F2].
-```
+### 当前缺陷
 
-每个辐射分量在一个频率单元内可分别近似为幂律；逐分量对数插值后求和能精确
-保持这两个局部幂律，而先求和再把总谱强制近似成单一幂律会在分量交叉区产生
-系统误差。`paper/main.tex` 的 observer contract 也明确规定返回总通量是 active
-projected components 的代数和，而不是 nodewise total spectrum 的单次投影。
+`asgard_core/asgard_state.py::_sumobs` 遍历 `_OBSERVED_COMPONENT_ATTRS`，同时累加
+`fwd_hadronic` 总量及其公开子分量。于是 `full_components["total"]` 会重复计入已包含在
+强子总量中的通道；`total_only` 的逐分量 batch 只累加 `fwd_hadronic` 总量一次，两种公开模式
+在强子开启后仍存在一项独立于投影算法的系统差异。pair cascade 开启时
+`pair_lum_total` 还会同时写入总强子量和 pair-production 诊断量，重复同样发生。
 
-### 受影响的真实调用
+### 修复时序与验收
 
-- `asgard_core/asgard_state.py::observe_setup`：`mode="total_only"` 直接投影
-  `components.total`；`mode="full_components"` 则逐分量投影后调用 `_sumobs`。
-- `asgard_core/asgard_state.py::_observechi`：同样先合并 non-chi shell 分量，再做
-  一次 shell-level 对数频率插值。
-- `asgard_core/api_fit.py::_eval_cfg` 与
-  `asgard_core/api_model.py::Model._total_matrix`：生产拟合和总通量快速路径均显式
-  请求 `mode="total_only"`，因此该差异会进入 likelihood 与用户返回值。
+- 与强子/电磁级联最终阶段原子修复，不在当前非强子批量 EATS 改动中重定义公开字段。
+- 明确区分“互斥总通量成员”和“总量内部诊断分解”；`total_only` 与
+  `full_components["total"]` 只累加前者，仍原样返回所有诊断分量。
+- 用至少一个同时启用 Bethe--Heitler、强子逆康普顿和 pair cascade 的真实算例逐项验证
+  代数闭合，并检查频谱/光变连续、非负；不得通过删除诊断输出或事后相减掩盖重复计数。
 
-当前真实 `standard` ISM、`fullhide_1d`、`num_nu=201`、正式 `band_freqs()` 入口的
-直接比较得到：最大相对差 `5.617584054906704e-3`，active 点的 95% 分位差
-`2.3393221690766247e-3`；最大差点的逐分量总和为
-`8.86950613238617e-33`，`total_only` 为 `8.919612807067092e-33`。同一状态下
-projection median 分别为 `5.013004e-3 s` 与 `2.321128e-3 s`，说明直接删除快速
-路径虽能修正结果，却会把投影时间提高约 2.16 倍，不能作为最终算法。
+## prompt internal-shock 入口导入已删除的反向激波私有函数
 
-### 验收条件
+`prompt/internal_shock.py` 在模块导入时仍从 `asgard_core.asgard_runtime` 请求
+`_rs_fast_shock_allowed`、`_rs_shock_upstream_u` 和 `_rs_vegas_downstream_u`，但当前
+运行时已不再定义或导出这三个名字；仓库内也没有其他实现。因而任何 prompt 直接入口都会在
+物理计算前以 `ImportError` 终止，当前无法执行 prompt fixed/adaptive EATS 回归。
 
-- `total_only` 与 `full_components["total"]` 必须采用同一个“逐分量频率插值后
-  求和”离散定义；按相同线程数比较时只允许浮点归约顺序误差。
-- 非强子 active 分量应由一个批量 Fortran EATS 核共享角向几何、arrival-time
-  括号、Doppler/redshift 与目标频率定位，同时保留每个分量独立的正值对数插值；
-  禁止继续投影预先求和的节点谱。
-- 保留现有 `sed_interpolation` public f2py ABI、参数顺序与输出 shape；生产 Python
-  路径可调用新的批量核心，单分量入口仍由同一核心退化得到。
-- 受影响构建至少包括 `SED_interpolation`、`SED_interpolation_structured` 与引用
-  投影源文件的 `structured_jet_1d`，并通过干净 source closure 的
-  `-Wline-truncation -Werror=line-truncation` 检查。
-- 直接运行 `Model.flux_density_grid`、拟合 `_eval_cfg`、prompt EATS、structured
-  leptonic 入口；比较升序/乱序频率和观测时刻、单分量、FS synchrotron+SSC、
-  FS+RS/cross-IC。总通量误差达到浮点舍入量级，频谱与光变保持非负、连续、平滑。
-- 性能用相同已求解状态至少 3 次交错 median 比较；批量路径不得退化为逐分量重复
-  调用，目标是在修正精度的同时把默认两分量投影保持在当前 `total_only` 同一量级。
+修复不能重新复制一套私有 Python jump 公式或添加兼容兜底。应先确认当前反向激波跳跃条件的
+唯一物理所有者，把 prompt 两壳碰撞显式接到同一纯函数核，并用磁化与非磁化 FS/RS 两支真实
+算例验证压缩比、下游四速度、过激波判据和 EATS 光变连续性；完成后删除本条。

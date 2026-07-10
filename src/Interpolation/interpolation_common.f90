@@ -4,7 +4,7 @@ module interpolation_common
     implicit none
     private
 
-    public :: accum_logsed, accum_shifted, time_order, time_hit
+    public :: accum_logsed, accum_radial_batch, accum_shifted, time_order, time_hit
 
 contains
 
@@ -115,6 +115,61 @@ subroutine accum_logsed(src_x, src_y, num_src, dst_x, num_dst, accum)
         end if
     end do
 end subroutine accum_logsed
+
+! 径向线性重构后只计算命中的两个频率端点；各分量保持独立的正值对数插值。
+! Evaluate only the two hit frequency endpoints after radial reconstruction; interpolate each component independently.
+subroutine accum_radial_batch(src_x,source,ncomp,num_src,num_rad,k2,radfrac, &
+                              dst_x,num_dst,log_shift,log_weight,accum)
+    implicit none
+    integer, intent(in) :: ncomp,num_src,num_rad,k2,num_dst
+    real(8), intent(in), dimension(num_src) :: src_x
+    real(8), intent(in), dimension(num_src,num_rad,ncomp) :: source
+    real(8), intent(in), dimension(num_dst) :: dst_x
+    real(8), intent(in) :: radfrac,log_shift,log_weight
+    real(8), intent(inout), dimension(:,:) :: accum
+    real(8) :: xlo,xhi,ratio,ylo,yhi,lylo,lyhi,yinterp
+    integer :: i_dst,i_src,i_comp
+
+    i_src = 1
+    do i_dst = 1, num_dst
+        xlo = src_x(1)-log_shift
+        if (dst_x(i_dst) < xlo) cycle
+        xhi = src_x(num_src)-log_shift
+        if (dst_x(i_dst) > xhi) exit
+        xhi = src_x(i_src+1)-log_shift
+        do while (i_src < num_src-1 .and. dst_x(i_dst) > xhi)
+            i_src = i_src+1
+            xhi = src_x(i_src+1)-log_shift
+        end do
+        xlo = src_x(i_src)-log_shift
+        if (dst_x(i_dst) >= xlo .and. dst_x(i_dst) <= xhi) then
+            ratio = (dst_x(i_dst)-xlo)/(xhi-xlo)
+            do i_comp = 1, ncomp
+                ylo = (1d0-radfrac)*source(i_src,k2,i_comp)+radfrac*source(i_src,k2+1,i_comp)
+                yhi = (1d0-radfrac)*source(i_src+1,k2,i_comp)+radfrac*source(i_src+1,k2+1,i_comp)
+                ! A common angular weight stays in log space and cannot change the positive-endpoint interpolation branch.
+                if (ylo > 0d0 .and. yhi > 0d0) then
+                    lylo = dlog(ylo)+log_weight
+                    lyhi = dlog(yhi)+log_weight
+                    yinterp = dexp(lylo+ratio*(lyhi-lylo))
+                else
+                    if (ylo > 0d0) then
+                        ylo = dexp(dlog(ylo)+log_weight)
+                    else
+                        ylo = 0d0
+                    end if
+                    if (yhi > 0d0) then
+                        yhi = dexp(dlog(yhi)+log_weight)
+                    else
+                        yhi = 0d0
+                    end if
+                    yinterp = (1d0-ratio)*ylo+ratio*yhi
+                end if
+                accum(i_dst,i_comp) = accum(i_dst,i_comp)+yinterp
+            end do
+        end if
+    end do
+end subroutine accum_radial_batch
 
 ! 源频率整体平移时，从线性 SED 对目标频率插值并累加。
 ! For a global source-frequency shift, interpolate linear SED values and accumulate.

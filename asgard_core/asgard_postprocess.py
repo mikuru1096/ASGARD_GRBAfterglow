@@ -45,25 +45,38 @@ def observe_flux(
     frequency: np.ndarray,
     config: RuntimeConfig,
 ) -> np.ndarray:
+    sourcebatch = np.asfortranarray(np.asarray(sourceflux, dtype=float)[:, :, None])
+    return observe_flux_batch(setup, chartime, gamma, radius_cm, sourcebatch, frequency, config)[:, :, 0]
+
+
+def observe_flux_batch(
+    setup: SimulationSetup,
+    chartime: np.ndarray,
+    gamma: np.ndarray,
+    radius_cm: np.ndarray,
+    sourceflux: np.ndarray,
+    frequency: np.ndarray,
+    config: RuntimeConfig,
+) -> np.ndarray:
     frequency = np.asarray(frequency, dtype=float)
     order = np.argsort(frequency)
     sortedfreq = frequency[order]
     geometry_kernel = str(config.geometry_kernel).lower()
     if geometry_kernel == "sed_adaptive_theta":
-        kernel = Interpolation.sed_adaptive_theta
+        kernel = Interpolation.sed_adaptive_theta_batch
         args = (
             float(config.projection_adaptive_rtol),
             int(config.projection_adaptive_max_depth),
         )
     else:
-        kernel = Interpolation.sed_interpolation
+        kernel = Interpolation.sed_interpolation_batch
         args = ()
     sortedflux = kernel(
         setup.boundary,
         chartime,
         gamma,
         radius_cm,
-        sourceflux,
+        np.asfortranarray(sourceflux),
         setup.seed_frequency_hz,
         sortedfreq,
         setup.observer_time_s,
@@ -76,7 +89,7 @@ def observe_flux(
         return sortedflux
 
     flux = np.empty_like(sortedflux)
-    flux[order] = sortedflux
+    flux[order, :, :] = sortedflux
     return flux
 
 

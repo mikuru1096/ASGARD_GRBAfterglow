@@ -9,12 +9,8 @@
 ! 顺序: angular EATS geometry -> Doppler/redshift factor -> log-frequency interpolation
 !       -> observer-time accumulation over theta/phi cells.
 subroutine sed_interpolation(Boundary,R_Tobs1,R_gamma,R,F_tot,V_seed,V_obs,Tobs, &
-                             n,Num_nu,Num_nu_obs,Num_Tobs,Num_Theta,Num_R,Num_Phi,n_threads, F_tot_obs)
-    !$ use omp_lib
-    use constants
-    use interpolation_common
+                             n,Num_nu,Num_nu_obs,Num_Tobs,Num_Theta,Num_R,Num_Phi,n_threads,F_tot_obs)
     implicit none
-    !##############################################################################################
     integer, intent(in) :: n,Num_nu,Num_nu_obs,Num_Tobs,Num_Theta,Num_R,Num_Phi,n_threads
     real(8), intent(in), dimension(n) :: Boundary
     real(8), intent(in), dimension(Num_Tobs) :: Tobs
@@ -24,21 +20,40 @@ subroutine sed_interpolation(Boundary,R_Tobs1,R_gamma,R,F_tot,V_seed,V_obs,Tobs,
     real(8), intent(in), dimension(Num_nu,Num_R) :: F_tot
     real(8), intent(out), dimension(Num_nu_obs,Num_Tobs) :: F_tot_obs
 
+    ! With ncomp=1, contiguous rank-2 arrays are the explicit-shape batch storage sequence.
+    call sed_interpolation_batch(Boundary,R_Tobs1,R_gamma,R,F_tot,V_seed,V_obs,Tobs, &
+                                 n,1,Num_nu,Num_nu_obs,Num_Tobs,Num_Theta,Num_R,Num_Phi,n_threads,F_tot_obs)
+end subroutine sed_interpolation
 
-    real(8), allocatable, dimension(:,:) :: F_tot_obs_temp
-    real(8), allocatable, dimension(:) :: V_obs_log,V_seed_log
-    real(8), dimension(Num_R) :: R_Tobs_theta
-    real(8), dimension(Num_nu) :: F_tot_theta,F_tot_log_theta,V_seed_log_theta
+subroutine sed_interpolation_batch(Boundary,R_Tobs1,R_gamma,R,F_comp,V_seed,V_obs,Tobs, &
+                                   n,ncomp,Num_nu,Num_nu_obs,Num_Tobs,Num_Theta,Num_R,Num_Phi,n_threads,F_obs)
+    !$ use omp_lib
+    use constants
+    use interpolation_common
+    implicit none
+    !##############################################################################################
+    integer, intent(in) :: n,ncomp,Num_nu,Num_nu_obs,Num_Tobs,Num_Theta,Num_R,Num_Phi,n_threads
+    real(8), intent(in), dimension(n) :: Boundary
+    real(8), intent(in), dimension(Num_Tobs) :: Tobs
+    real(8), intent(in), dimension(Num_nu) :: V_seed
+    real(8), intent(in), dimension(Num_nu_obs) :: V_obs
+    real(8), intent(in), dimension(Num_R) :: R_Tobs1,R_gamma,R
+    real(8), intent(in), dimension(Num_nu,Num_R,ncomp) :: F_comp
+    real(8), intent(out), dimension(Num_nu_obs,Num_Tobs,ncomp) :: F_obs
+
+
+    real(8), allocatable, dimension(:,:,:) :: fwork
+    real(8), allocatable, dimension(:) :: obslog,seedlog
+    real(8), dimension(Num_R) :: arrival
     real(8), dimension(Num_Tobs) :: T_sorted
     integer, dimension(Num_Tobs) :: T_order
     real(8) :: z,OpeningAngle_jet,Tv,dPhi,phi_scale,dtheta,Taa_lower,Taa_boundary,Taa_center,domega
     real(8) :: Phi_center,DMu,Ratio,DG,Beta,doppler,lgamlo,lgamhi,ldomega,ldopred
     integer :: I_Theta,i_Phi,Iobs,K2,II,last_k2
     logical :: time_ordered
-    allocate (F_tot_obs_temp(Num_nu_obs,Num_Tobs),V_obs_log(Num_nu_obs),V_seed_log(Num_nu))
+    allocate(fwork(Num_nu_obs,Num_Tobs,ncomp),obslog(Num_nu_obs),seedlog(Num_nu))
 
-    F_tot_obs=0d0
-    F_tot_obs_temp=0d0
+    fwork=0d0
 
     z = Boundary(8)
     OpeningAngle_jet = Boundary(9)
@@ -52,12 +67,12 @@ subroutine sed_interpolation(Boundary,R_Tobs1,R_gamma,R,F_tot,V_seed,V_obs,Tobs,
     end if
     dtheta=OpeningAngle_jet/Num_Theta
 
-    V_obs_log = log(V_obs)
-    V_seed_log = log(V_seed)
+    obslog = log(V_obs)
+    seedlog = log(V_seed)
     call time_order(Tobs,Num_Tobs,T_order,T_sorted,time_ordered)
-    !$OMP PARALLEL num_threads(n_threads), reduction(+:F_tot_obs_temp), private(I_Theta, Taa_lower, Taa_boundary, &
+    !$OMP PARALLEL num_threads(n_threads), reduction(+:fwork), private(I_Theta, Taa_lower, Taa_boundary, &
     !$OMP& Taa_center, domega, i_Phi, Phi_center, DMu, Iobs, K2, II, Ratio, DG, Beta, doppler, &
-    !$OMP& R_Tobs_theta, F_tot_theta, F_tot_log_theta, V_seed_log_theta, &
+    !$OMP& arrival, &
     !$OMP& last_k2, lgamlo, lgamhi, ldomega, ldopred)
     !$OMP DO SCHEDULE(GUIDED,4)
     do I_Theta=1,Num_Theta
@@ -69,12 +84,12 @@ subroutine sed_interpolation(Boundary,R_Tobs1,R_gamma,R,F_tot,V_seed,V_obs,Tobs,
        do i_Phi=1,Num_Phi
           Phi_center=(i_Phi-0.5)*dPhi
           DMu=dcos(Tv)*dcos(Taa_center)+dsin(Tv)*dsin(Taa_center)*dcos(Phi_center)
-          R_Tobs_theta=R_Tobs1+R*(1d0-DMu)*(1d0+z)/Para_c
+          arrival=R_Tobs1+R*(1d0-DMu)*(1d0+z)/Para_c
           II=1
           last_k2=0
           do Iobs=1,Num_Tobs
-             if (T_sorted(Iobs) < R_Tobs_theta(1) .or. T_sorted(Iobs) >= R_Tobs_theta(Num_R)) cycle
-             do while (II < Num_R-1 .and. T_sorted(Iobs) >= R_Tobs_theta(II+1))
+             if (T_sorted(Iobs) < arrival(1) .or. T_sorted(Iobs) >= arrival(Num_R)) cycle
+             do while (II < Num_R-1 .and. T_sorted(Iobs) >= arrival(II+1))
                 II=II+1
              end do
              K2=II
@@ -83,20 +98,16 @@ subroutine sed_interpolation(Boundary,R_Tobs1,R_gamma,R,F_tot,V_seed,V_obs,Tobs,
                  lgamhi=log(R_gamma(K2+1))
                  last_k2=K2
              end if
-             Ratio=(T_sorted(Iobs)-R_Tobs_theta(K2))/(R_Tobs_theta(K2+1)-R_Tobs_theta(K2))
+             Ratio=(T_sorted(Iobs)-arrival(K2))/(arrival(K2+1)-arrival(K2))
              DG=exp(lgamlo+Ratio*(lgamhi-lgamlo))
              ! 时间方向用非负通量重构；频率方向仍在 interpolation_common 中按 log SED 插值。
-             F_tot_theta=(1d0-Ratio)*F_tot(:,K2)+Ratio*F_tot(:,K2+1)
-             F_tot_log_theta=-huge(1d0)
-             where(F_tot_theta > 0d0) F_tot_log_theta=log(F_tot_theta)
              Beta=dsqrt(1d0-DG**(-2))
 
              doppler=DG*(1d0-Beta*DMu) !Doppler factor, changed with R
              ldopred=log(doppler)+log(1d0+z)
-             F_tot_log_theta=F_tot_log_theta+ldomega-3d0*log(doppler)
-             V_seed_log_theta=V_seed_log-ldopred
-             call accum_logsed(V_seed_log_theta,F_tot_log_theta, &
-                                                   Num_nu,V_obs_log,Num_nu_obs,F_tot_obs_temp(:,Iobs))
+             call accum_radial_batch(seedlog,F_comp,ncomp,Num_nu,Num_R,K2,Ratio, &
+                                     obslog,Num_nu_obs,ldopred,ldomega-3d0*log(doppler), &
+                                     fwork(:,Iobs,:))
          end do
        end do
     end do
@@ -104,29 +115,25 @@ subroutine sed_interpolation(Boundary,R_Tobs1,R_gamma,R,F_tot,V_seed,V_obs,Tobs,
     !$OMP END PARALLEL
 
     if (time_ordered) then
-        F_tot_obs=F_tot_obs_temp*phi_scale
+        F_obs=fwork*phi_scale
     else
         do Iobs=1,Num_Tobs
-            F_tot_obs(:,T_order(Iobs))=F_tot_obs_temp(:,Iobs)*phi_scale
+            F_obs(:,T_order(Iobs),:)=fwork(:,Iobs,:)*phi_scale
         end do
     end if
 
-    deallocate (F_tot_obs_temp,V_obs_log,V_seed_log)
+    deallocate (fwork,obslog,seedlog)
 
 
     return
-end subroutine sed_interpolation
+end subroutine sed_interpolation_batch
 
 ! Exact arrival support followed by open G3/K7 integration in each theta cell.
 subroutine sed_adaptive_theta(Boundary,R_Tobs1,R_gamma,R,F_tot,V_seed,V_obs,Tobs, &
                              adaptive_rtol,addepthmax, &
                              n,Num_nu,Num_nu_obs,Num_Tobs,Num_Theta,Num_R,Num_Phi,n_threads,F_tot_obs)
-    !$ use omp_lib
-    use constants
-    use interpolation_common
     implicit none
-    integer, intent(in) :: n,Num_nu,Num_nu_obs,Num_Tobs,Num_Theta,Num_R,Num_Phi,n_threads
-    integer, intent(in) :: addepthmax
+    integer, intent(in) :: n,Num_nu,Num_nu_obs,Num_Tobs,Num_Theta,Num_R,Num_Phi,n_threads,addepthmax
     real(8), intent(in), dimension(n) :: Boundary
     real(8), intent(in), dimension(Num_Tobs) :: Tobs
     real(8), intent(in), dimension(Num_nu) :: V_seed
@@ -135,7 +142,31 @@ subroutine sed_adaptive_theta(Boundary,R_Tobs1,R_gamma,R,F_tot,V_seed,V_obs,Tobs
     real(8), intent(in), dimension(Num_nu,Num_R) :: F_tot
     real(8), intent(in) :: adaptive_rtol
     real(8), intent(out), dimension(Num_nu_obs,Num_Tobs) :: F_tot_obs
-    real(8), allocatable, dimension(:,:) :: fobs
+
+    ! With ncomp=1, contiguous rank-2 arrays are the explicit-shape batch storage sequence.
+    call sed_adaptive_theta_batch(Boundary,R_Tobs1,R_gamma,R,F_tot,V_seed,V_obs,Tobs, &
+                                  adaptive_rtol,addepthmax,n,1,Num_nu,Num_nu_obs,Num_Tobs, &
+                                  Num_Theta,Num_R,Num_Phi,n_threads,F_tot_obs)
+end subroutine sed_adaptive_theta
+
+subroutine sed_adaptive_theta_batch(Boundary,R_Tobs1,R_gamma,R,F_comp,V_seed,V_obs,Tobs, &
+                                   adaptive_rtol,addepthmax, &
+                                   n,ncomp,Num_nu,Num_nu_obs,Num_Tobs,Num_Theta,Num_R,Num_Phi,n_threads,F_obs)
+    !$ use omp_lib
+    use constants
+    use interpolation_common
+    implicit none
+    integer, intent(in) :: n,ncomp,Num_nu,Num_nu_obs,Num_Tobs,Num_Theta,Num_R,Num_Phi,n_threads
+    integer, intent(in) :: addepthmax
+    real(8), intent(in), dimension(n) :: Boundary
+    real(8), intent(in), dimension(Num_Tobs) :: Tobs
+    real(8), intent(in), dimension(Num_nu) :: V_seed
+    real(8), intent(in), dimension(Num_nu_obs) :: V_obs
+    real(8), intent(in), dimension(Num_R) :: R_Tobs1,R_gamma,R
+    real(8), intent(in), dimension(Num_nu,Num_R,ncomp) :: F_comp
+    real(8), intent(in) :: adaptive_rtol
+    real(8), intent(out), dimension(Num_nu_obs,Num_Tobs,ncomp) :: F_obs
+    real(8), allocatable, dimension(:,:,:) :: fobs
     real(8), allocatable, dimension(:) :: vobslog,vseedlog
     real(8) :: z,opening,tv,dphi,phiscale,dtheta,delay,costv,sintv,anglog
     real(8) :: tlo,thi,cphi
@@ -151,12 +182,12 @@ subroutine sed_adaptive_theta(Boundary,R_Tobs1,R_gamma,R,F_tot,V_seed,V_obs,Tobs
         error stop "sed_adaptive_theta requires 0 < opening angle <= pi"
     end if
     if (addepthmax == 0) then
-        call sed_interpolation(Boundary,R_Tobs1,R_gamma,R,F_tot,V_seed,V_obs,Tobs, &
-                               n,Num_nu,Num_nu_obs,Num_Tobs,Num_Theta,Num_R,Num_Phi,n_threads,F_tot_obs)
+        call sed_interpolation_batch(Boundary,R_Tobs1,R_gamma,R,F_comp,V_seed,V_obs,Tobs, &
+                                     n,ncomp,Num_nu,Num_nu_obs,Num_Tobs,Num_Theta,Num_R,Num_Phi,n_threads,F_obs)
         return
     end if
 
-    allocate(fobs(Num_nu_obs,Num_Tobs),vobslog(Num_nu_obs),vseedlog(Num_nu))
+    allocate(fobs(Num_nu_obs,Num_Tobs,ncomp),vobslog(Num_nu_obs),vseedlog(Num_nu))
     fobs = 0d0
     z = Boundary(8)
     tv = Boundary(10)
@@ -183,13 +214,13 @@ subroutine sed_adaptive_theta(Boundary,R_Tobs1,R_gamma,R,F_tot,V_seed,V_obs,Tobs
         do iphi = 1, Num_Phi
             cphi = dcos((iphi-0.5d0)*dphi)
             do iobs = 1, Num_Tobs
-                call integratetime(tlo,thi,cphi,iobs,fobs(:,iobs))
+                call integratetime(tlo,thi,cphi,iobs,fobs(:,iobs,:))
             end do
         end do
     end do
     !$OMP END DO
     !$OMP END PARALLEL
-    F_tot_obs = fobs*phiscale
+    F_obs = fobs*phiscale
 
 contains
 
@@ -197,7 +228,7 @@ subroutine integratetime(theta1,theta2,cphi,iobs,accum)
     implicit none
     integer, intent(in) :: iobs
     real(8), intent(in) :: theta1,theta2,cphi
-    real(8), intent(inout), dimension(Num_nu_obs) :: accum
+    real(8), intent(inout), dimension(Num_nu_obs,ncomp) :: accum
     real(8), dimension(6) :: cuts
     real(8) :: qlo,qhi,tmid,dmu
     integer :: ncut,icut
@@ -288,14 +319,14 @@ recursive subroutine gkpanel(theta1,theta2,cphi,iobs,depth,accum)
     implicit none
     integer, intent(in) :: iobs,depth
     real(8), intent(in) :: theta1,theta2,cphi
-    real(8), intent(inout), dimension(Num_nu_obs) :: accum
+    real(8), intent(inout), dimension(Num_nu_obs,ncomp) :: accum
     real(8), parameter, dimension(4) :: node = (/0d0,0.434243749346802558d0, &
                                                  0.774596669241483377d0,0.960491268708020283d0/)
     real(8), parameter, dimension(4) :: kw = (/0.450916538658474142d0,0.401397414775962223d0, &
                                                0.268488089868333441d0,0.104656226026467265d0/)
     real(8), parameter, dimension(4) :: gw = (/0.888888888888888889d0,0d0, &
                                                0.555555555555555556d0,0d0/)
-    real(8), dimension(Num_nu_obs) :: sample,pair,kron,gauss
+    real(8), dimension(Num_nu_obs,ncomp) :: sample,pair,kron,gauss
     real(8) :: center,half
     integer :: i
 
@@ -326,9 +357,8 @@ subroutine projecttime(theta,cphi,iobs,local)
     implicit none
     integer, intent(in) :: iobs
     real(8), intent(in) :: theta,cphi
-    real(8), intent(out), dimension(Num_nu_obs) :: local
+    real(8), intent(out), dimension(Num_nu_obs,ncomp) :: local
     real(8) :: dmu,shift,arrlo,arrhi,ratio,lgamlo,lgamhi,ldomega
-    real(8), dimension(Num_nu) :: ftheta,flog,vshift
     real(8) :: dg,beta,doppler,ldopred
     integer :: lo,hi,k2,mid
 
@@ -353,15 +383,11 @@ subroutine projecttime(theta,cphi,iobs,local)
     ldomega = anglog+dlog(dsin(theta))
     local = 0d0
     dg = dexp(lgamlo+ratio*(lgamhi-lgamlo))
-    ftheta = (1d0-ratio)*F_tot(:,k2)+ratio*F_tot(:,k2+1)
-    flog = -huge(1d0)
-    where(ftheta > 0d0) flog = dlog(ftheta)
     beta = dsqrt(1d0-dg**(-2))
     doppler = dg*(1d0-beta*dmu)
     ldopred = dlog(doppler)+dlog(1d0+z)
-    flog = flog+ldomega-3d0*dlog(doppler)
-    vshift = vseedlog-ldopred
-    call accum_logsed(vshift,flog,Num_nu,vobslog,Num_nu_obs,local)
+    call accum_radial_batch(vseedlog,F_comp,ncomp,Num_nu,Num_R,k2,ratio, &
+                            vobslog,Num_nu_obs,ldopred,ldomega-3d0*dlog(doppler),local)
 end subroutine projecttime
 
 real(8) function viewmu(theta,cphi)
@@ -370,7 +396,7 @@ real(8) function viewmu(theta,cphi)
 
     viewmu = costv*dcos(theta)+sintv*cphi*dsin(theta)
 end function viewmu
-end subroutine sed_adaptive_theta
+end subroutine sed_adaptive_theta_batch
 
 ! 将χ分辨有限厚壳层积分到完整top-hat角网格：θ/φ EATS + χ厚度EATS + 局域Doppler。
 subroutine sed_interpolation_chi(Boundary,R_Tobs1,R_front,F_chi,Tau_chi,R_chi,Gamma_chi,Chi_weight,V_seed,V_obs,Tobs, &

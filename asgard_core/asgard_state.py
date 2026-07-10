@@ -28,7 +28,7 @@ from asgard_core.asgard_physics_utils import (
     reverse_mass,
 )
 from asgard_core.asgard_physics_utils import densityjumps
-from asgard_core.asgard_postprocess import observe_flux
+from asgard_core.asgard_postprocess import observe_flux_batch
 from asgard_core.asgard_runtime import (
     pgsurvival,
     _report,
@@ -671,19 +671,119 @@ _OBSERVED_COMPONENT_ATTRS = (
     ("rev_ssc", "rev_ssc"),
     ("cross_ic", "cross_ic"),
 )
+_FWD_COMPONENTS = tuple(item for item in _OBSERVED_COMPONENT_ATTRS if not item[0].startswith("rev_"))
+_REV_COMPONENTS = tuple(item for item in _OBSERVED_COMPONENT_ATTRS if item[0].startswith("rev_"))
+_TOTAL_COMPONENTS = tuple(
+    item
+    for item in _OBSERVED_COMPONENT_ATTRS
+    if item[0] in (
+        "fwd_sync",
+        "fwd_ssc",
+        "fwd_hadronic",
+        "rev_sync",
+        "rev_hadronic",
+        "rev_ssc",
+        "cross_ic",
+    )
+)
+_TOTAL_FWD = tuple(item for item in _TOTAL_COMPONENTS if not item[0].startswith("rev_"))
+_TOTAL_REV = tuple(item for item in _TOTAL_COMPONENTS if item[0].startswith("rev_"))
 
 
 def _emptyobs(total: np.ndarray | None = None) -> dict[str, np.ndarray | None]:
     return {"total": total, **{key: None for key, _attr in _OBSERVED_COMPONENT_ATTRS}}
 
 
-def _sumobs(observed: dict[str, np.ndarray | None], template: np.ndarray) -> np.ndarray:
+def _sumobs(
+    observed: dict[str, np.ndarray | None],
+    template: np.ndarray,
+    members: tuple[tuple[str, str], ...] = _OBSERVED_COMPONENT_ATTRS,
+) -> np.ndarray:
     total = np.zeros_like(template)
-    for key, _attr in _OBSERVED_COMPONENT_ATTRS:
-        value = observed[key]
+    for key, _attr in members:
+        value = observed.get(key)
         if value is not None:
             total = total + value
     return total
+
+
+def _batchlabel(config: RuntimeConfig, owner: str) -> str:
+    kernel = (
+        "sed_adaptive_theta_batch"
+        if str(config.geometry_kernel).lower() == "sed_adaptive_theta"
+        else "sed_interpolation_batch"
+    )
+    return f"Interpolation.{kernel} [{owner}]"
+
+
+def _projectbatch(
+    setup,
+    branch: BranchState | None,
+    components: FluxComponents,
+    members: tuple[tuple[str, str], ...],
+    frequencies_hz: np.ndarray,
+    config: RuntimeConfig,
+    timings: dict[str, float] | None,
+    owner: str,
+) -> dict[str, np.ndarray]:
+    named = [
+        (key, np.asarray(source, dtype=float))
+        for key, attr in members
+        if (source := getattr(components, attr)) is not None
+    ]
+    if not named:
+        return {}
+    shape = (frequencies_hz.size, setup.observer_time_s.size)
+    active = [(key, source) for key, source in named if np.any(source)]
+    activekeys = {key for key, _source in active}
+    result = {key: np.zeros(shape, dtype=float) for key, _source in named if key not in activekeys}
+    if not active:
+        if timings is not None:
+            timings.setdefault(_batchlabel(config, owner), 0.0)
+        return result
+    _needphi(config)
+    sourcebatch = np.asfortranarray(np.stack([source for _key, source in active], axis=2))
+    projected = _timed(
+        timings,
+        _batchlabel(config, owner),
+        observe_flux_batch,
+        setup,
+        branch.characteristic_time_s,
+        branch.gamma,
+        branch.radius_cm,
+        sourcebatch,
+        frequencies_hz,
+        config,
+    )
+    result.update({key: projected[:, :, index] for index, (key, _source) in enumerate(active)})
+    return result
+
+
+def _projectshells(
+    setup,
+    components: FluxComponents,
+    frequencies_hz: np.ndarray,
+    config: RuntimeConfig,
+    timings: dict[str, float] | None,
+    fwdmembers: tuple[tuple[str, str], ...],
+    revmembers: tuple[tuple[str, str], ...],
+    fwdowner: str = "fwd",
+    revowner: str = "rev",
+) -> dict[str, np.ndarray]:
+    projected = _projectbatch(
+        setup,
+        components.fwd,
+        components,
+        fwdmembers,
+        frequencies_hz,
+        config,
+        timings,
+        fwdowner,
+    )
+    projected.update(
+        _projectbatch(setup, components.rev, components, revmembers, frequencies_hz, config, timings, revowner)
+    )
+    return projected
 
 
 def _projectchisync(
@@ -775,41 +875,27 @@ def _observechi(
 ) -> dict[str, np.ndarray | None]:
     frequencies_hz = np.asarray(frequencies_hz, dtype=float)
     chi_fwd_sync = _projectchisync(state, setup, frequencies_hz, timings)
-    if mode == "total_only":
-        non_chi_total = np.asarray(state.components.total, dtype=float) - np.asarray(state.components.fwd_sync, dtype=float)
-        shell_total_without_fwd_sync = _projectcomp(
-            setup,
-            state.components.fwd.characteristic_time_s,
-            state.components.fwd.gamma,
-            state.components.fwd.radius_cm,
-            non_chi_total,
-            frequencies_hz,
-            state.config,
-            timings=timings,
-            label="Interpolation.sed_interpolation [total_without_fwd_sync]",
-        )
-        return _emptyobs(shell_total_without_fwd_sync + chi_fwd_sync)
-    if mode != "full_components":
+    if mode not in {"full_components", "total_only"}:
         raise ValueError(f"Unsupported observe mode: {mode}")
+    fwdmembers = _TOTAL_FWD if mode == "total_only" else _FWD_COMPONENTS
+    revmembers = _TOTAL_REV if mode == "total_only" else _REV_COMPONENTS
+    fwdmembers = tuple(item for item in fwdmembers if item[0] != "fwd_sync")
+    projected = _projectshells(
+        setup,
+        state.components,
+        frequencies_hz,
+        state.config,
+        timings,
+        fwdmembers,
+        revmembers,
+        fwdowner="fwd_shell",
+        revowner="rev_shell",
+    )
+    projected["fwd_sync"] = chi_fwd_sync
+    if mode == "total_only":
+        return _emptyobs(_sumobs(projected, chi_fwd_sync, _TOTAL_COMPONENTS))
     observed = _emptyobs()
-    for key, attr in _OBSERVED_COMPONENT_ATTRS:
-        if key == "fwd_sync":
-            continue
-        source = getattr(state.components, attr)
-        if source is not None:
-            branch = state.components.rev if key.startswith("rev_") and state.components.rev is not None else state.components.fwd
-            observed[key] = _projectcomp(
-                setup,
-                branch.characteristic_time_s,
-                branch.gamma,
-                branch.radius_cm,
-                source,
-                frequencies_hz,
-                state.config,
-                timings=timings,
-                label=f"Interpolation.sed_interpolation [{key}]",
-            )
-    observed["fwd_sync"] = chi_fwd_sync
+    observed.update(projected)
     observed["total"] = _sumobs(observed, observed["fwd_sync"])
     return observed
 
@@ -825,39 +911,25 @@ def observe_setup(
     frequencies_hz = np.asarray(frequencies_hz, dtype=float)
     if mode not in {"full_components", "total_only"}:
         raise ValueError(f"Unsupported observe mode: {mode}")
+    fwdmembers = _TOTAL_FWD if mode == "total_only" else _FWD_COMPONENTS
+    revmembers = _TOTAL_REV if mode == "total_only" else _REV_COMPONENTS
+    projected = _projectshells(
+        setup,
+        components,
+        frequencies_hz,
+        config,
+        timings,
+        fwdmembers,
+        revmembers,
+    )
     if mode == "total_only":
-        total = _projectcomp(
-            setup,
-            components.fwd.characteristic_time_s,
-            components.fwd.gamma,
-            components.fwd.radius_cm,
-            components.total,
-            frequencies_hz,
-            config,
-            timings=timings,
-            label="Interpolation.sed_interpolation [total]",
-        )
+        template = np.zeros((frequencies_hz.size, setup.observer_time_s.size), dtype=float)
+        total = _sumobs(projected, template, _TOTAL_COMPONENTS)
         return _emptyobs(total)
 
     observed = _emptyobs()
-    for key, attr in _OBSERVED_COMPONENT_ATTRS:
-        source = getattr(components, attr)
-        if source is not None:
-            branch = components.rev if key.startswith("rev_") and components.rev is not None else components.fwd
-            observed[key] = _projectcomp(
-                setup,
-                branch.characteristic_time_s,
-                branch.gamma,
-                branch.radius_cm,
-                source,
-                frequencies_hz,
-                config,
-                timings=timings,
-                label=f"Interpolation.sed_interpolation [{key}]",
-            )
+    observed.update(projected)
     observed["total"] = _sumobs(observed, observed["fwd_sync"])
-    if timings is not None:
-        timings.setdefault("Interpolation.sed_interpolation [total]", 0.0)
     return observed
 
 
@@ -1281,38 +1353,6 @@ def _mergebh(
         nu_m=electron.nu_m,
         nu_c=electron.nu_c,
         nu_a=electron.nu_a,
-    )
-
-
-def _projectcomp(
-    setup,
-    characteristic_time_s: np.ndarray,
-    gamma: np.ndarray,
-    radius_cm: np.ndarray,
-    absorbed_spectral_flux: np.ndarray,
-    frequencies_hz: np.ndarray,
-    config: RuntimeConfig,
-    timings: dict[str, float] | None = None,
-    label: str | None = None,
-) -> np.ndarray:
-    if label is not None and str(config.geometry_kernel).lower() == "sed_adaptive_theta":
-        label = label.replace("Interpolation.sed_interpolation", "Interpolation.sed_adaptive_theta")
-    if not np.any(absorbed_spectral_flux):
-        if timings is not None and label is not None:
-            timings.setdefault(label, 0.0)
-        return np.zeros((frequencies_hz.shape[0], setup.observer_time_s.shape[0]), dtype=float)
-    _needphi(config)
-    return _timed(
-        timings,
-        label,
-        observe_flux,
-        setup,
-        characteristic_time_s,
-        gamma,
-        radius_cm,
-        absorbed_spectral_flux,
-        frequencies_hz,
-        config,
     )
 
 

@@ -6,7 +6,9 @@ from typing import Any
 
 _BINDINGS = {
     "sed_interpolation": "SED_interpolation",
+    "sed_interpolation_batch": "SED_interpolation",
     "sed_adaptive_theta": "SED_interpolation",
+    "sed_adaptive_theta_batch": "SED_interpolation",
     "sed_interpolation_chi": "SED_interpolation",
     "sed_chi_electron": "SED_interpolation",
     "sed_chi_ring": "SED_interpolation",
