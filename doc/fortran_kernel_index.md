@@ -705,18 +705,15 @@ Bethe-Heitler 质子损失、pair source 和 photon loss kernel。
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
 | `M` | 2 | `hadronic_bh` | 模块命名空间；集中声明本文件共享 procedure。 |
-| `S` | 19 | `bh_calc` | Bethe-Heitler 单电荷 pair source、fractional proton loss 与 photon sink 算子。 |
-| `F` | 77 | `loss_point` | 单个 photon bin 对 proton loss 的贡献。 |
-| `F` | 86 | `bh_pair` | Bethe-Heitler pair 产生核；进入 pair source 与 photon sink。 |
-| `F` | 103 | `bh_outer` | Bethe-Heitler 外层 omega 积分核。 |
-| `F` | 124 | `bh_inner` | Bethe-Heitler 内层 ebar 积分核。 |
-| `F` | 141 | `bh_sigma` | Blumenthal 1970 微分截面。 |
-| `F` | 181 | `proton_loss` | Bethe-Heitler 质子能量损失核。 |
-| `F` | 189 | `bh_phi` | Bethe-Heitler 能量损失 phi(x) 近似。 |
-| `F` | 211 | `bh_rk3` | 三参数 RK 3/8 积分器。 |
-| `F` | 213 | `func` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 237 | `bh_rk4` | 四参数 RK 3/8 积分器。 |
-| `F` | 239 | `func` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 25 | `bh_calc` | 单电荷 pair source、photon sink 与同核双电荷 proton energy moment。 |
+| `F` | 85 | `bh_pair` | Bethe-Heitler pair 核；唯一拥有 `omega<=600` 积分支持边界。 |
+| `F` | 101 | `bh_outer` | Bethe-Heitler 外层 omega 积分核。 |
+| `F` | 113 | `bh_inner` | Bethe-Heitler 内层 ebar 积分核。 |
+| `F` | 124 | `bh_sigma` | Blumenthal 1970 微分截面。 |
+| `F` | 158 | `bh_quad3` | 外层预置十二点 Gauss--Legendre quadrature。 |
+| `F` | 160 | `func` | 外层 quadrature procedure 接口。 |
+| `F` | 182 | `bh_quad4` | 内层预置十二点 Gauss--Legendre quadrature。 |
+| `F` | 184 | `func` | 内层 quadrature procedure 接口。 |
 
 ### `src/Hadronic/hadronic_cascade.f90`
 

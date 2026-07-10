@@ -6,8 +6,14 @@ module hadronic_bh
     private
 
     real(8), parameter :: alpha = 1d0/137d0
-    integer, parameter :: nout = 5
-    integer, parameter :: nin = 5
+    real(8), parameter :: qnode(6) = [ &
+        0.12523340851146891547d0, 0.36783149899818019375d0, &
+        0.58731795428661744730d0, 0.76990267419430468704d0, &
+        0.90411725637047485668d0, 0.98156063424671925069d0]
+    real(8), parameter :: qweight(6) = [ &
+        0.24914704581340278500d0, 0.23349253653835480876d0, &
+        0.20316742672306592175d0, 0.16007832854334622633d0, &
+        0.10693932599531843096d0, 0.04717533638651182719d0]
 
     public :: bh_calc
 
@@ -25,7 +31,7 @@ subroutine bh_calc(np,ep,pden,nph,eph,phden,ne,ee,qpair,ploss,phloss)
     real(8), intent(out), dimension(np) :: ploss
     real(8), intent(out), dimension(nph) :: phloss
     integer :: ip,iph,ie
-    real(8) :: dep,dph,de,kinj,kloss,kern
+    real(8) :: dep,dph,de,kinj,kern,emoment
     real(8), dimension(np) :: plog,gp
     real(8), dimension(nph) :: phlog,lphlog,xph
     real(8), dimension(ne) :: qlog,xe
@@ -41,16 +47,14 @@ subroutine bh_calc(np,ep,pden,nph,eph,phden,ne,ee,qpair,ploss,phloss)
     xe = ee/electron_m
 
     kinj = Para_c*3d0*Para_SigmaT*alpha/(16d0*pi)
-    kloss = (3d0/(8d0*pi))*alpha*Para_SigmaT*Para_c*(electron_m/proton_m)
 
     qlog = 0d0
-    ploss = 0d0
     phloss = 0d0
     lphlog = 0d0
 
     do ip=1,np
+        emoment = 0d0
         do iph=1,nph
-            ploss(ip) = ploss(ip) + loss_point(gp(ip),xph(iph),phlog(iph))
             if (2d0*gp(ip)*xph(iph) <= 2d0) cycle
 
             ! 同一 kernel 同时累加 pair source 和 photon sink。
@@ -59,10 +63,13 @@ subroutine bh_calc(np,ep,pden,nph,eph,phden,ne,ee,qpair,ploss,phloss)
                 kern = bh_pair(xe(ie),gp(ip),xph(iph))
                 qlog(ie) = qlog(ie) + kern*plog(ip)*phlog(iph)
                 lphlog(iph) = lphlog(iph) + kern*plog(ip)*phlog(iph)
+                emoment = emoment + kern*ee(ie)*phlog(iph)
             end do
         end do
+        ! Fractional proton loss is the two-charge energy moment of this same
+        ! differential pair kernel, including its omega <= 600 support.
+        ploss(ip) = -2d0*kinj*dph*de*emoment/ep(ip)
     end do
-
     qlog = kinj*dep*dph*qlog
     qpair = qlog/ee
     lphlog = kinj*dep*de*lphlog
@@ -71,68 +78,44 @@ subroutine bh_calc(np,ep,pden,nph,eph,phden,ne,ee,qpair,ploss,phloss)
     elsewhere
         phloss = 0d0
     end where
-
-contains
-
-    real(8) function loss_point(gam,ephoton,phlog1)
-        real(8), intent(in) :: gam,ephoton,phlog1
-
-        loss_point = -kloss*dph*proton_loss(gam,ephoton)*phlog1
-    end function loss_point
 end subroutine bh_calc
 
 ! Bethe-Heitler pair 产生核：给定 p/ph 能量，返回 e± 微分产额。
 ! Bethe-Heitler pair kernel for the differential e+/e- yield.
 real(8) function bh_pair(ee,gam,ephoton)
     real(8), intent(in) :: ee,gam,ephoton
-    real(8) :: upper,lower,diff
+    real(8) :: upper,lower
 
-    upper = 2d0*gam*ephoton
+    upper = min(2d0*gam*ephoton,6d2)
     lower = ((gam + ee)*(gam + ee))/(2d0*gam*ee)
-    diff = (upper - lower)/lower
-    if (diff <= 1d-8) then
+    if (upper <= lower) then
         bh_pair = 0d0
         return
     end if
 
-    bh_pair = bh_rk3(bh_outer,lower,upper,gam,ee,nout)*ee/(2d0*gam*gam*gam*ephoton*ephoton)
+    bh_pair = bh_quad3(bh_outer,lower,upper,gam,ee)*ee/(2d0*gam*gam*gam*ephoton*ephoton)
 end function bh_pair
 
 ! Bethe-Heitler 外层积分核：对 omega 积分。
 ! Outer Bethe-Heitler integral over omega.
 real(8) function bh_outer(gam,ee,omega)
     real(8), intent(in) :: gam,ee,omega
-    real(8), parameter :: eps = 1d-5
-    real(8) :: lower,upper,diff
+    real(8) :: lower,upper
 
-    lower = (gam*gam + ee*ee)/(2d0*gam*ee) + eps
-    upper = omega - 1d0 - eps
-    diff = (upper - lower)/lower
-    if (diff <= -1d-4) then
-        error stop "Bethe-Heitler outer integral received invalid limits."
-    end if
-    if (diff < 1d-4) then
-        bh_outer = 0d0
-        return
-    end if
+    lower = (gam*gam + ee*ee)/(2d0*gam*ee)
+    upper = omega - 1d0
 
-    bh_outer = bh_rk4(bh_inner,lower,upper,gam,ee,omega,nin)
+    bh_outer = bh_quad4(bh_inner,lower,upper,gam,ee,omega)
 end function bh_outer
 
 ! Bethe-Heitler 内层积分核：对 ebar 积分。
 ! Inner Bethe-Heitler integral over ebar.
 real(8) function bh_inner(gam,ee,omega,ebar)
     real(8), intent(in) :: gam,ee,omega,ebar
-    real(8), parameter :: eps = 1d-20
     real(8) :: pbar,ksi
 
-    pbar = dsqrt(ebar*ebar - 1d0 + eps)
+    pbar = dsqrt(ebar*ebar - 1d0)
     ksi = (gam*ebar - ee)/(gam*pbar)
-    if (ksi < -1d0 .or. ksi > 1d0 .or. ebar < 1d0 .or. ebar > omega - 1d0) then
-        bh_inner = 0d0
-        return
-    end if
-
     bh_inner = omega*bh_sigma(omega,ebar,ksi)/pbar
 end function bh_inner
 
@@ -140,22 +123,16 @@ end function bh_inner
 ! Analytic Bethe-Heitler differential cross-section from Blumenthal 1970.
 real(8) function bh_sigma(omega,ebar,ksi)
     real(8), intent(in) :: omega,ebar,ksi
-    real(8), parameter :: eps = 1d-30
     real(8) :: k,g,u,p,g1,p1,dloc,tloc,d1t,y1,yloc
     real(8) :: a0,a1,a2,a3,a4,a50,a51,a52,a53,a6,a7
-
-    if (omega < 2.0001d0 .or. omega > 600d0) then
-        bh_sigma = 0d0
-        return
-    end if
 
     k = omega
     g = ebar
     u = ksi
 
-    p = dsqrt(g*g - 1d0 + eps)
+    p = dsqrt(g*g - 1d0)
     g1 = k - g
-    p1 = dsqrt(g1*g1 - 1d0 + eps)
+    p1 = dsqrt(g1*g1 - 1d0)
     dloc = g - u*p
     tloc = dsqrt(k*k + p*p - 2d0*k*p*u)
     d1t = dlog((tloc + p1)/(tloc - p1))
@@ -176,86 +153,52 @@ real(8) function bh_sigma(omega,ebar,ksi)
     bh_sigma = a0*(a1 + a2 + a3 + a4 + a50*(a51 + a52 + a53) + a6 + a7)
 end function bh_sigma
 
-! Bethe-Heitler 质子能量损失核。
-! Proton energy-loss kernel for Bethe-Heitler interactions.
-real(8) function proton_loss(gam,ephoton)
-    real(8), intent(in) :: gam,ephoton
-
-    proton_loss = 0.5d0*bh_phi(2d0*gam*ephoton)/(gam*gam*ephoton*ephoton)
-end function proton_loss
-
-! Bethe-Heitler 能量损失核 phi(x)：低能多项式，高能对数近似。
-! Piecewise approximation for the Bethe-Heitler energy-loss kernel phi(x).
-real(8) function bh_phi(xval)
-    real(8), intent(in) :: xval
-    real(8) :: zval,zlog
-
-    if (xval < 2d0 + 1d-6) then
-        bh_phi = 0d0
-        return
-    end if
-    if (xval < 25d0) then
-        zval = xval - 2d0
-        bh_phi = (pi/12d0)*zval**4 / &
-                 (1d0 + 0.8048d0*zval + 0.1459d0*zval*zval + 1.137d-3*zval**3 - 3.879d-6*zval**4)
-        return
-    end if
-
-    zlog = dlog(xval)
-    bh_phi = xval*(-86.07d0 + 50.96d0*zlog - 14.45d0*zlog*zlog + (8d0/3d0)*zlog**3) / &
-             (1d0 - 2.910d0/xval - 78.35d0/(xval*xval) - 1837d0/(xval**3))
-end function bh_phi
-
-! 三参数 RK 3/8 积分器；用于 BH 外层核。
-! Three-argument RK 3/8 integrator used by the outer BH kernel.
-real(8) function bh_rk3(func,lower,upper,var0,var1,nbin)
+! BH 外层核使用的十二点 Gauss--Legendre 积分。
+! Twelve-point Gauss-Legendre quadrature used by the outer BH kernel.
+real(8) function bh_quad3(func,lower,upper,var0,var1)
     interface
         function func(arg0,arg1,arg2) result(value)
             real(8), intent(in) :: arg0,arg1,arg2
             real(8) :: value
         end function func
     end interface
-    integer, intent(in) :: nbin
     real(8), intent(in) :: lower,upper,var0,var1
     integer :: i
-    real(8) :: dx,xval,k1,k2,k4
+    real(8) :: half,mid,delta
 
-    dx = (upper - lower)/dble(nbin)
-    xval = lower
-    bh_rk3 = 0d0
-    do i=1,nbin
-        k1 = dx*func(var0,var1,xval)
-        k2 = dx*func(var0,var1,xval + 0.5d0*dx)
-        k4 = dx*func(var0,var1,xval + dx)
-        bh_rk3 = bh_rk3 + (k1 + k4)/6d0 + (2d0/3d0)*k2
-        xval = xval + dx
+    half = 0.5d0*(upper - lower)
+    mid = 0.5d0*(upper + lower)
+    bh_quad3 = 0d0
+    do i=1,6
+        delta = half*qnode(i)
+        bh_quad3 = bh_quad3 + qweight(i)*( &
+            func(var0,var1,mid-delta) + func(var0,var1,mid+delta))
     end do
-end function bh_rk3
+    bh_quad3 = half*bh_quad3
+end function bh_quad3
 
-! 四参数 RK 3/8 积分器；用于 BH 内层核。
-! Four-argument RK 3/8 integrator used by the inner BH kernel.
-real(8) function bh_rk4(func,lower,upper,var0,var1,var2,nbin)
+! BH 内层核使用的十二点 Gauss--Legendre 积分。
+! Twelve-point Gauss-Legendre quadrature used by the inner BH kernel.
+real(8) function bh_quad4(func,lower,upper,var0,var1,var2)
     interface
         function func(arg0,arg1,arg2,arg3) result(value)
             real(8), intent(in) :: arg0,arg1,arg2,arg3
             real(8) :: value
         end function func
     end interface
-    integer, intent(in) :: nbin
     real(8), intent(in) :: lower,upper,var0,var1,var2
     integer :: i
-    real(8) :: dx,xval,k1,k2,k4
+    real(8) :: half,mid,delta
 
-    dx = (upper - lower)/dble(nbin)
-    xval = lower
-    bh_rk4 = 0d0
-    do i=1,nbin
-        k1 = dx*func(var0,var1,var2,xval)
-        k2 = dx*func(var0,var1,var2,xval + 0.5d0*dx)
-        k4 = dx*func(var0,var1,var2,xval + dx)
-        bh_rk4 = bh_rk4 + (k1 + k4)/6d0 + (2d0/3d0)*k2
-        xval = xval + dx
+    half = 0.5d0*(upper - lower)
+    mid = 0.5d0*(upper + lower)
+    bh_quad4 = 0d0
+    do i=1,6
+        delta = half*qnode(i)
+        bh_quad4 = bh_quad4 + qweight(i)*( &
+            func(var0,var1,var2,mid-delta) + func(var0,var1,var2,mid+delta))
     end do
-end function bh_rk4
+    bh_quad4 = half*bh_quad4
+end function bh_quad4
 
 end module hadronic_bh

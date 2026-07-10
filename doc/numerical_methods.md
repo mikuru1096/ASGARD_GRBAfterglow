@@ -760,6 +760,18 @@ Q_s(E_s)\propto n_{p,\mathrm{target}}c\sigma_{pp}(E_p)n_p(E_p).
 
 因此单粒子 \(b_{pp}=|\mathrm{d}\gamma_p/\mathrm{d}t'|\) 不依赖 proton 分布归一化；delta 次级能量取自 \(T_p=E_p-m_p\)，gamma、neutrino 和 pair 源与 proton 分布归一化线性。BH 核返回分数损失率 \(f_{\rm BH}=\dot\gamma_p/\gamma_p\) 以及单一电荷的轻子谱 \(q_{\rm BH}\)；输运使用 \(b_{\rm BH}=-\gamma_p f_{\rm BH}\)，电子方程注入 \(2q_{\rm BH}\) 以计入 \(e^-\) 和 \(e^+\)。
 
+BH proton loss 不再来自独立的 \(\phi\) 近似，而是同一微分 pair response 的双电荷能量矩：
+
+\[
+f_{{\rm BH},i}
+=
+-\frac{2K_{\rm BH}}{E_{p,i}}
+\Delta\ln E_\gamma\,\Delta\ln E_e
+\sum_{j,k}{\cal R}_{ijk}E_{e,k}\left[E_{\gamma,j}n_\gamma(E_{\gamma,j})\right].
+\]
+
+response 的 outer integral 唯一在 `bh_pair` 截到 \(\omega\le600\)，两层积分使用预置十二点 Gauss--Legendre 节点。该写法使 pair 注入功率与 proton 损失功率在当前表示的 electron grid 上逐 proton 能格离散闭合，不需要全局重标定。完整物理闭合还要求 joint electron grid 覆盖 BH 运动学支撑；当前截断缺口记录于 `BUG.md`，不得在 kernel 内用 clamp、补尾或 fallback 掩盖。
+
 ## 15. 联合反馈的数值闭环
 
 `electron_photon_coupling="joint"` 把电子、光子和强子反馈放在同一壳层序列中：
