@@ -720,7 +720,7 @@ def _sumobs(
     for key, _attr in members:
         value = observed.get(key)
         if value is not None:
-            total = total + value
+            total += value
     return total
 
 
