@@ -557,10 +557,20 @@ def _threadplan(model) -> tuple[int, int]:
         raise ValueError("num_threads must be positive for structured jet execution.")
     if cpu_count is not None and total > int(cpu_count):
         raise ValueError("num_threads exceeds the available CPU thread count for structured jet execution.")
-    if bool(model.setups.rvs_shock and model.rvs_rad is not None):
+    if mode not in {"outer", "inner", "nested"}:
+        raise ValueError("structured_parallel_mode must be 'outer', 'inner', or 'nested'.")
+    if mode == "nested" and (outer is None or inner is None):
+        raise ValueError("structured_parallel_mode='nested' requires structured_outer_threads and structured_inner_threads.")
+    reverse_hadronic = bool(
+        model.setups.rvs_shock
+        and model.rvs_rad is not None
+        and model.setups.hadronic_enabled
+        and model.fwd_rad.epsilon_p > 0.0
+    )
+    if reverse_hadronic:
         resolved_inner = int(total if inner is None else inner)
         if outer is not None and int(outer) != 1:
-            raise ValueError("structured reverse-shock execution requires structured_outer_threads=1.")
+            raise ValueError("structured reverse-shock plus forward-hadronic execution requires structured_outer_threads=1.")
         _checkthreads(1, resolved_inner, total, cpu_count)
         return 1, resolved_inner
     if mode == "outer":
@@ -571,14 +581,10 @@ def _threadplan(model) -> tuple[int, int]:
         resolved_inner = int(total if inner is None else inner)
         _checkthreads(1, resolved_inner, total, cpu_count)
         return 1, resolved_inner
-    if mode == "nested":
-        if outer is None or inner is None:
-            raise ValueError("structured_parallel_mode='nested' requires structured_outer_threads and structured_inner_threads.")
-        resolved_outer = int(outer)
-        resolved_inner = int(inner)
-        _checkthreads(resolved_outer, resolved_inner, total, cpu_count)
-        return resolved_outer, resolved_inner
-    raise ValueError("structured_parallel_mode must be 'outer', 'inner', or 'nested'.")
+    resolved_outer = int(outer)
+    resolved_inner = int(inner)
+    _checkthreads(resolved_outer, resolved_inner, total, cpu_count)
+    return resolved_outer, resolved_inner
 
 
 def _checkthreads(outer: int, inner: int, total: int, cpu_count: int | None) -> None:

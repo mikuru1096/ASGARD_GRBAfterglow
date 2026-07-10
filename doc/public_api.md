@@ -363,7 +363,7 @@ solver_options = SolverOptions(
 | `patch_sampling_num_times` | int | time-aware dominant-region 采样使用的时间节点数。 | 只在 `dominant_region_ioka_time_v1` 有决策意义。 |
 | `patch_sampling_beaming_factor` | float | dominant-region 采样中 Doppler cone 宽度因子。 | 过小会漏掉有效角区，需做角向收敛。 |
 | `patch_sampling_beaming_resolution` | float | beaming 区域解析度因子。 | 增大通常增加采样点和成本。 |
-| `structured_parallel_mode` | `outer`, `inner`, `nested` | 结构化喷流并行模式：普通 structured Fortran 路径中 `outer` 并行 patch，`inner` 并行单个 patch 内核，`nested` 同时分配外层和内层线程；structured `chi_eats_2d` ring solve 的 `outer` 路径使用 POSIX `fork` 进程。 | `nested` 必须同时设置 `structured_outer_threads` 和 `structured_inner_threads`；线程乘积不能超过 `num_threads` 和机器 CPU 数。RS structured 执行要求外层为 1。 |
+| `structured_parallel_mode` | `outer`, `inner`, `nested` | 结构化喷流并行模式：普通 structured Fortran 路径中 `outer` 并行 patch，`inner` 并行单个 patch 内核，`nested` 同时分配外层和内层线程；structured `chi_eats_2d` ring solve 的 `outer` 路径使用 POSIX `fork` 进程。 | `nested` 必须同时设置 `structured_outer_threads` 和 `structured_inner_threads`；线程乘积不能超过 `num_threads` 和机器 CPU 数。leptonic RS 使用同一线程策略；RS 与正向强子同时启用时，外层暂固定为 1。 |
 | `structured_outer_threads` | int 或 `None` | 外层 patch 并行线程数。 | `None` 表示由 runtime 默认分配。 |
 | `structured_inner_threads` | int 或 `None` | 单个 patch 内核线程数。 | 小网格不一定随线程数加速。 |
 | `structured_adaptive_rtol` / `structured_adaptive_max_depth` | 非负数 / 非负整数 | axisymmetric structured `chi_eats_2d` 的 theta-ring 自适应窗口误差阈值和最大细分深度。 | 只改变结构化 ring 的 observer projection 采样，不改变动力学、电子输运、强子源项或 seed photon 场；`0` 表示使用固定 `structured_num_theta` ring。 |

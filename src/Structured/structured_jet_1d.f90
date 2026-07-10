@@ -34,11 +34,12 @@ subroutine jet_flux_1d(Boundary,E_iso_grid,Gamma0_grid,active_grid,V_seed,V_obs,
     real(8), intent(out), dimension(Num_R) :: track_nu_m,track_nu_c,track_nu_a
 
     real(8), dimension(n) :: Boundary_sed
-    integer :: track_set,n_threads_projection
+    integer :: n_threads_projection
 
+    if (.not. any(active_grid /= 0)) error stop 'jet_flux_1d requires at least one active patch.'
     fwd_sync_obs=0d0; fwd_ssc_obs=0d0; fwd_hadronic_obs=0d0; rev_sync_obs=0d0; total_obs=0d0
     track_tobs=0d0; track_gamma=0d0; track_radius=0d0; track_mass=0d0; track_bfield=0d0
-    track_nu_m=0d0; track_nu_c=0d0; track_nu_a=0d0; track_set=0
+    track_nu_m=0d0; track_nu_c=0d0; track_nu_a=0d0
     n_threads_projection=max(n_threads_outer,n_threads_inner)
     Boundary_sed=Boundary
 
@@ -80,7 +81,7 @@ contains
                                            substep_max,thermal_electrons,electron_solver_id,rt_axis,rg_axis,rr_axis, &
                                            sync_axis,ssc_axis,had_axis,rev_axis, &
                                            track_tobs,track_gamma,track_radius,track_mass,track_bfield,track_nu_m,track_nu_c, &
-                                           track_nu_a,track_set)
+                                           track_nu_a)
         call sed_interpolation_structured(Boundary_sed,0d0,rt_axis,rg_axis,rr_axis,sync_axis,V_seed,V_obs,Tobs, &
                                           n,Num_nu,Num_nu_obs,Num_Tobs,Num_theta_patch,Num_R,Num_phi_sed, &
                                           n_threads_projection,fwd_sync_obs)
@@ -118,7 +119,7 @@ contains
                                               substep_max,thermal_electrons,electron_solver_id,rt_phi,rg_phi,rr_phi, &
                                               sync_phi,ssc_phi,had_phi,rev_phi, &
                                               track_tobs,track_gamma,track_radius,track_mass,track_bfield,track_nu_m, &
-                                              track_nu_c,track_nu_a,track_set)
+                                              track_nu_c,track_nu_a)
         call sed_structured_phi(Boundary_sed,rt_phi,rg_phi,rr_phi,sync_phi,V_seed,V_obs,Tobs, &
                                               n,Num_nu,Num_nu_obs,Num_Tobs,Num_theta_patch,Num_phi_patch,Num_R, &
                                               n_threads_projection,fwd_sync_obs)
@@ -146,7 +147,7 @@ subroutine structured_solve_axisymmetric(Boundary,E_iso_grid,Gamma0_grid,active_
                                          substep_max,thermal_electrons,electron_solver_id,rt_axis,rg_axis,rr_axis, &
                                          sync_axis,ssc_axis,had_axis,rev_axis, &
                                          track_tobs,track_gamma,track_radius,track_mass,track_bfield,track_nu_m,track_nu_c, &
-                                         track_nu_a,track_set)
+                                         track_nu_a)
     !$ use omp_lib
     use constants
     use electron_cooling_kernel, only: cooling_reset
@@ -157,7 +158,6 @@ subroutine structured_solve_axisymmetric(Boundary,E_iso_grid,Gamma0_grid,active_
     integer, intent(in) :: n_threads_outer,n_threads_inner,adaptive_substeps,substep_min,substep_max,thermal_electrons
     integer, intent(in) :: electron_solver_id
     integer, intent(in), dimension(Num_theta_patch,Num_phi_patch) :: active_grid
-    integer, intent(inout) :: track_set
     real(8), intent(in), dimension(n) :: Boundary
     real(8), intent(in), dimension(Num_theta_patch,Num_phi_patch) :: E_iso_grid,Gamma0_grid
     real(8), intent(in), dimension(Num_nu) :: V_seed
@@ -169,13 +169,14 @@ subroutine structured_solve_axisymmetric(Boundary,E_iso_grid,Gamma0_grid,active_
     real(8), intent(out), dimension(Num_R) :: track_tobs,track_gamma,track_radius,track_mass,track_bfield
     real(8), intent(out), dimension(Num_R) :: track_nu_m,track_nu_c,track_nu_a
     integer, allocatable, dimension(:) :: solve_index,solve_reps
-    integer :: it,iu,rep_idx,unique_count
+    integer :: it,iu,rep_idx,unique_count,owner_it
 
     allocate(solve_index(Num_theta_patch),solve_reps(Num_theta_patch))
     solve_index=0; solve_reps=0; unique_count=0
     do it=1,Num_theta_patch
         if (active_grid(it,1) /= 0) call register_axis_patch(it)
     end do
+    owner_it=solve_reps(1)
 
     !$OMP PARALLEL num_threads(n_threads_outer)
     !$ if (n_threads_outer > 1) call cooling_reset()
@@ -234,10 +235,11 @@ contains
                                       reverse_sigma,hadronic_p_p, &
                                       hadronic_epsilon_p,hadronic_eta_acc,adaptive_substeps, &
                                       substep_rtol,substep_min,substep_max,thermal_electrons,electron_solver_id, &
+                                      it == owner_it, &
                                       rt_axis(:,it),rg_axis(:,it),rr_axis(:,it),sync_axis(:,:,it),ssc_axis(:,:,it), &
                                       had_axis(:,:,it),rev_axis(:,:,it), &
                                       track_tobs,track_gamma,track_radius,track_mass,track_bfield,track_nu_m,track_nu_c, &
-                                      track_nu_a,track_set)
+                                      track_nu_a)
     end subroutine solve_axis_patch
 
 end subroutine structured_solve_axisymmetric
@@ -253,7 +255,7 @@ subroutine structured_solve_nonaxisymmetric(Boundary,E_iso_grid,Gamma0_grid,acti
                                             substep_max,thermal_electrons,electron_solver_id,rt_phi,rg_phi,rr_phi, &
                                             sync_phi,ssc_phi,had_phi,rev_phi, &
                                             track_tobs,track_gamma,track_radius,track_mass,track_bfield,track_nu_m,track_nu_c, &
-                                            track_nu_a,track_set)
+                                            track_nu_a)
     !$ use omp_lib
     use constants
     use electron_cooling_kernel, only: cooling_reset
@@ -264,7 +266,6 @@ subroutine structured_solve_nonaxisymmetric(Boundary,E_iso_grid,Gamma0_grid,acti
     integer, intent(in) :: n_threads_outer,n_threads_inner,adaptive_substeps,substep_min,substep_max,thermal_electrons
     integer, intent(in) :: electron_solver_id
     integer, intent(in), dimension(Num_theta_patch,Num_phi_patch) :: active_grid
-    integer, intent(inout) :: track_set
     real(8), intent(in), dimension(n) :: Boundary
     real(8), intent(in), dimension(Num_theta_patch,Num_phi_patch) :: E_iso_grid,Gamma0_grid
     real(8), intent(in), dimension(Num_nu) :: V_seed
@@ -278,7 +279,7 @@ subroutine structured_solve_nonaxisymmetric(Boundary,E_iso_grid,Gamma0_grid,acti
     real(8), intent(out), dimension(Num_R) :: track_tobs,track_gamma,track_radius,track_mass,track_bfield
     real(8), intent(out), dimension(Num_R) :: track_nu_m,track_nu_c,track_nu_a
     integer, allocatable, dimension(:) :: solve_index,solve_reps
-    integer :: it,ip,flat,iu,rep_flat,rep_it,rep_ip,unique_count
+    integer :: it,ip,flat,iu,rep_flat,rep_it,rep_ip,unique_count,canonical_flat,owner_flat
 
     allocate(solve_index(Num_theta_patch*Num_phi_patch),solve_reps(Num_theta_patch*Num_phi_patch))
     solve_index=0; solve_reps=0; unique_count=0
@@ -288,6 +289,14 @@ subroutine structured_solve_nonaxisymmetric(Boundary,E_iso_grid,Gamma0_grid,acti
             if (active_grid(it,ip) /= 0) call register_phi_patch(it,ip,flat)
         end do
     end do
+    canonical_flat=0
+    do it=1,Num_theta_patch
+        do ip=1,Num_phi_patch
+            if (active_grid(it,ip) /= 0 .and. canonical_flat == 0) &
+                canonical_flat=(ip-1)*Num_theta_patch+it
+        end do
+    end do
+    owner_flat=solve_index(canonical_flat)
 
     !$OMP PARALLEL num_threads(n_threads_outer) private(rep_flat,rep_it,rep_ip)
     !$ if (n_threads_outer > 1) call cooling_reset()
@@ -351,10 +360,11 @@ contains
                                       reverse_sigma,hadronic_p_p, &
                                       hadronic_epsilon_p,hadronic_eta_acc,adaptive_substeps, &
                                       substep_rtol,substep_min,substep_max,thermal_electrons,electron_solver_id, &
+                                      (ip-1)*Num_theta_patch+it == owner_flat, &
                                       rt_phi(:,it,ip),rg_phi(:,it,ip),rr_phi(:,it,ip),sync_phi(:,:,it,ip), &
                                       ssc_phi(:,:,it,ip),had_phi(:,:,it,ip),rev_phi(:,:,it,ip), &
                                       track_tobs,track_gamma,track_radius,track_mass,track_bfield, &
-                                      track_nu_m,track_nu_c,track_nu_a,track_set)
+                                      track_nu_m,track_nu_c,track_nu_a)
     end subroutine solve_phi_patch
 
     subroutine copy_phi_patch(src_it,src_ip,dst_it,dst_ip)
@@ -377,9 +387,9 @@ subroutine structured_solve_element(Boundary,E_iso,Gamma0,V_seed,n,Num_nu,Num_R,
                                     reverse_delta_t_s,reverse_epsilon_e,reverse_epsilon_b,reverse_p,reverse_f_e, &
                                     reverse_sigma,hadronic_p_p,hadronic_epsilon_p,hadronic_eta_acc,adaptive_substeps, &
                                     substep_rtol, &
-                                    substep_min,substep_max,thermal_electrons,electron_solver_id,R_Tobs,R_Gamma,R, &
+                                    substep_min,substep_max,thermal_electrons,electron_solver_id,save_track,R_Tobs,R_Gamma,R, &
                                     sync_abs,ssc_abs,had_abs,rev_abs,track_tobs,track_gamma,track_radius,track_mass,track_bfield, &
-                                    track_nu_m,track_nu_c,track_nu_a,track_set)
+                                    track_nu_m,track_nu_c,track_nu_a)
     !$ use omp_lib
     use constants
     use dynamics_density_profile, only: density_profile, jump_max
@@ -391,7 +401,7 @@ subroutine structured_solve_element(Boundary,E_iso,Gamma0,V_seed,n,Num_nu,Num_R,
     integer, intent(in) :: include_hadronic,include_proton_synch,include_pg,include_neutrino
     integer, intent(in) :: num_gam_p,num_nu_nu,n_threads,adaptive_substeps
     integer, intent(in) :: include_reverse_sync,substep_min,substep_max,thermal_electrons,electron_solver_id
-    integer, intent(inout) :: track_set
+    logical, intent(in) :: save_track
     real(8), intent(in), dimension(n) :: Boundary
     real(8), intent(in), dimension(Num_nu) :: V_seed
     real(8), intent(in) :: E_iso,Gamma0,substep_rtol
@@ -399,8 +409,8 @@ subroutine structured_solve_element(Boundary,E_iso,Gamma0,V_seed,n,Num_nu,Num_R,
     real(8), intent(in) :: hadronic_p_p,hadronic_epsilon_p,hadronic_eta_acc
     real(8), intent(out), dimension(Num_R) :: R_Tobs,R_Gamma,R
     real(8), intent(out), dimension(Num_nu,Num_R) :: sync_abs,ssc_abs,had_abs,rev_abs
-    real(8), intent(out), dimension(Num_R) :: track_tobs,track_gamma,track_radius,track_mass,track_bfield
-    real(8), intent(out), dimension(Num_R) :: track_nu_m,track_nu_c,track_nu_a
+    real(8), intent(inout), dimension(Num_R) :: track_tobs,track_gamma,track_radius,track_mass,track_bfield
+    real(8), intent(inout), dimension(Num_R) :: track_nu_m,track_nu_c,track_nu_a
     real(8), dimension(n) :: B_local
     real(8), dimension(Num_R) :: R_mass,nu_m_local,nu_c_local,nu_a_local
     real(8), dimension(Num_R) :: M3,B3,U3,V3,Gamma34
@@ -530,12 +540,10 @@ subroutine structured_solve_element(Boundary,E_iso,Gamma0,V_seed,n,Num_nu,Num_R,
                                               Num_nu,Num_R,n_threads,include_reverse_sync,include_hadronic, &
                                               include_proton_synch,include_pg,sync_abs,ssc_abs,rev_abs,had_abs)
 
-    !$OMP CRITICAL(structured_track_copy)
-    if (track_set == 0) then
+    if (save_track) then
         track_tobs=R_Tobs; track_gamma=R_Gamma; track_radius=R; track_mass=R_mass; track_bfield=B_field
-        track_nu_m=nu_m_local; track_nu_c=nu_c_local; track_nu_a=nu_a_local; track_set=1
+        track_nu_m=nu_m_local; track_nu_c=nu_c_local; track_nu_a=nu_a_local
     end if
-    !$OMP END CRITICAL(structured_track_copy)
     deallocate(gam_e,dN_gam_e,P_syn,Seed_syn,P_ssc,Seed_ssc,B_field,shell_energy)
 end subroutine structured_solve_element
 
