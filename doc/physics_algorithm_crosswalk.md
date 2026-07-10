@@ -34,8 +34,8 @@ ASGARD 的第一性原理主线是：先在局域壳层坐标中闭合动力学�
 | pair synch cascade | shell-sequence gamma-gamma pair/synch branch。 | `cascade_sequence` | `cascade_seq`, `produce_pairs`, `emit_syn` | `pair_cascade_iterations>1` 仍不是 IC-mediated electromagnetic cascade。 |
 | proton injection/transport | log-gamma 质子源项、连续损失和保守推进。 | `formal_transport_1d` | `proton_inject`, `advance_loggamma`, `proton_step` | 质子数/能量源项、loss 和 photon survival 同壳层对齐。 |
 | p-gamma Hummer response | proton loss、re-injection、photon loss、secondary families。 | `formal_pgamma_operator` | `pg_hummer`, `deposit_pions`, `pgamma_update` | `pgamma_scheme="hummer_2010_response"` 才是正式反馈路径。 |
-| Bethe-Heitler | proton loss、e± pair source 和 photon loss 同一算子。 | `bethe_heitler` | `bh_calc`, `bh_pair`, `proton_loss` | joint 模式必须同时使用 pair source 与 photon sink。 |
-| pp 过程 | baryon target density 上的 pp source/loss。 | `pp_shell` | `pp_shell`, `pi0_source` | target density 和 shell volume 不能从 observer flux 反推。 |
+| Bethe-Heitler | fractional proton loss、单电荷 pair source 和 photon loss 同一算子。 | `bethe_heitler` | `bh_calc`, `bh_pair`, `proton_loss` | 输运乘 \(\gamma_p\)，电子源计入两个电荷；joint 模式同时使用 pair source 与 photon sink。 |
+| pp 过程 | baryon target density 上的单粒子连续 loss 与分布 secondary source。 | `pp_shell` | `pp_source`, `secondary_source` | 截面用总能量，loss 与 delta 能量份额用动能；loss 与 `pden` 无关，secondary source 与其线性。 |
 | secondary species/decay | n、pi、mu 输运与 decay/neutrino/electron channel。 | `formal_transport_1d`, `decay_operator` | `species_advance`, `pion_decay`, `muon_decay` | neutrino 逃逸不反馈；e± source 只有 formal 输出才能进入电子方程。 |
 | hadronic secondary radiation | pion/muon synchrotron 与 IC。 | `formal_transport_1d` | `secondary_rad`, `secondary_calc`, `ic_channel` | 分量可输出/诊断，不能自动回灌 photon field。 |
 | RS hadronic light path | RS proton transport + proton synchrotron。 | `reverse_hadronic_1d` | `advance_shell`, `emit_syn` | full-chain RS hadronic 复用 formal 1D kernel；不是新 2D RS transport。 |

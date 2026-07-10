@@ -74,7 +74,7 @@ subroutine formal_transport(tobs,gbulk,radius,bfield,nuseed,seed,ge, &
     real(8), dimension(nout) :: qprompt,qmunu
     real(8), dimension(nnu) :: qmue
     real(8), dimension(ne) :: qbh
-    real(8), dimension(ngp) :: pbhloss,bhloss
+    real(8), dimension(ngp) :: bhfrac,bhloss
     real(8), dimension(nnu) :: qppg
     real(8), dimension(nout) :: qppnu
     real(8), dimension(ne) :: qpp
@@ -169,9 +169,9 @@ subroutine formal_transport(tobs,gbulk,radius,bfield,nuseed,seed,ge, &
         if (do_bh /= 0) then
             call bh_calc(ngp,ehad,pdens,nnu, &
                                                  eph,phden,ne,ee, &
-                                                 qbh,pbhloss,bhloss_ph(:,ir))
-            if (any(pbhloss > 0d0)) error stop "Bethe-Heitler proton loss rate must be non-positive."
-            bhloss=-pbhloss
+                                                 qbh,bhfrac,bhloss_ph(:,ir))
+            if (any(bhfrac > 0d0)) error stop "Bethe-Heitler fractional loss rate must be non-positive."
+            bhloss=-gp*bhfrac
             call photon_loss(nnu,nr,radius,gbulk,ir,bhloss_ph(:,ir), &
                                                  taubh(:,ir),phtau)
         end if

@@ -705,18 +705,18 @@ Bethe-Heitler 质子损失、pair source 和 photon loss kernel。
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
 | `M` | 2 | `hadronic_bh` | 模块命名空间；集中声明本文件共享 procedure。 |
-| `S` | 18 | `bh_calc` | Bethe-Heitler pair/source/loss 算子。 |
-| `F` | 76 | `loss_point` | 单个 photon bin 对 proton loss 的贡献。 |
-| `F` | 85 | `bh_pair` | Bethe-Heitler pair 产生核；进入 pair source 与 photon sink。 |
-| `F` | 102 | `bh_outer` | Bethe-Heitler 外层 omega 积分核。 |
-| `F` | 123 | `bh_inner` | Bethe-Heitler 内层 ebar 积分核。 |
-| `F` | 140 | `bh_sigma` | Blumenthal 1970 微分截面。 |
-| `F` | 180 | `proton_loss` | Bethe-Heitler 质子能量损失核。 |
-| `F` | 188 | `bh_phi` | Bethe-Heitler 能量损失 phi(x) 近似。 |
-| `F` | 210 | `bh_rk3` | 三参数 RK 3/8 积分器。 |
-| `F` | 212 | `func` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 236 | `bh_rk4` | 四参数 RK 3/8 积分器。 |
-| `F` | 238 | `func` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 19 | `bh_calc` | Bethe-Heitler 单电荷 pair source、fractional proton loss 与 photon sink 算子。 |
+| `F` | 77 | `loss_point` | 单个 photon bin 对 proton loss 的贡献。 |
+| `F` | 86 | `bh_pair` | Bethe-Heitler pair 产生核；进入 pair source 与 photon sink。 |
+| `F` | 103 | `bh_outer` | Bethe-Heitler 外层 omega 积分核。 |
+| `F` | 124 | `bh_inner` | Bethe-Heitler 内层 ebar 积分核。 |
+| `F` | 141 | `bh_sigma` | Blumenthal 1970 微分截面。 |
+| `F` | 181 | `proton_loss` | Bethe-Heitler 质子能量损失核。 |
+| `F` | 189 | `bh_phi` | Bethe-Heitler 能量损失 phi(x) 近似。 |
+| `F` | 211 | `bh_rk3` | 三参数 RK 3/8 积分器。 |
+| `F` | 213 | `func` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 237 | `bh_rk4` | 四参数 RK 3/8 积分器。 |
+| `F` | 239 | `func` | 局部 helper；语义由所在文件的算法阶段决定。 |
 
 ### `src/Hadronic/hadronic_cascade.f90`
 
@@ -892,12 +892,12 @@ Delta 近似 pp 算子和 secondary source。
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
 | `M` | 2 | `hadronic_pp` | 模块命名空间；集中声明本文件共享 procedure。 |
-| `S` | 20 | `pp_source` | pp delta source/loss kernel；输出 gamma、neutrino、e± 源和 proton loss。 |
-| `S` | 49 | `validate_inputs` | pp delta 输入网格和 target density 检查。 |
-| `S` | 60 | `set_options` | pp delta 能量份额和 charged/neutral pion 分支设置。 |
-| `S` | 85 | `emit_secondaries` | 按 delta 能量映射输出三类 secondary source。 |
-| `S` | 94 | `pp_sigma` | Kelner+2006 pp 非弹性截面。 |
-| `F` | 121 | `pp_threshold` | pp 反应阈值动能。 |
+| `S` | 20 | `pp_source` | pp delta kernel；输出随 `pden` 线性的 secondary 源和与其归一化无关的单粒子 proton loss。 |
+| `S` | 51 | `validate_inputs` | pp delta 输入网格和 target density 检查。 |
+| `S` | 62 | `set_options` | pp delta 能量份额和 charged/neutral pion 分支设置。 |
+| `S` | 87 | `emit_secondaries` | 按 delta 动能映射输出三类 secondary source。 |
+| `S` | 96 | `pp_sigma` | Kelner+2006 总能量 pp 非弹性截面。 |
+| `F` | 121 | `pp_threshold` | pp 反应阈值总能量。 |
 | `S` | 127 | `secondary_source` | delta 近似 secondary source。 |
 | `S` | 143 | `pos_interp` | 正值 log-log 插值 helper。 |
 | `F` | 180 | `upper_bracket` | 单调数组 bracket 查找。 |
@@ -973,7 +973,7 @@ formal 1D 强子底层 shell primitive 与单位/投影 helper；f2py wrapper �
 | `S` | 472 | `rate_lum` | rate-per-energy 到 luminosity-per-frequency/energy 的壳层换算。 |
 | `S` | 487 | `project_lum` | source energy grid 到目标 photon grid 的 luminosity 投影。 |
 | `S` | 506 | `project_hic` | hadronic IC 多 species emissivity 投影。 |
-| `S` | 526 | `pair_content` | pp/BH pair source 组合成电子方程使用的 rate source。 |
+| `S` | 526 | `pair_content` | pp source 与两个 BH 轻子电荷组合成电子方程使用的 rate source。 |
 | `S` | 543 | `shell_density` | shell content 到 density-per-GeV 的单位变换。 |
 | `S` | 557 | `gamma_edges` | Lorentz-factor grid edges；守恒积分需要的 bin geometry。 |
 | `S` | 579 | `proc_power` | secondary process power diagnostic。 |

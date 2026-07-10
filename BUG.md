@@ -125,42 +125,22 @@ leptonic、structured 和 prompt 路径仍不一致。禁止在中间阶段加�
   和时序曲线收敛且连续非负；构建 `hadronic_forward_1d` 与受影响 electron source closure，并执行严格
   line-truncation 检查。
 
-## pp 反应率被误作单粒子 proton 冷却率
+## Bethe--Heitler pair kernel 与 proton-loss kernel 能量不闭合
 
 ### 当前缺陷
 
-`src/Hadronic/hadronic_pp.f90::pp_source` 先计算单粒子碰撞率
-`coll = n_target c sigma_pp`，再构造分布反应率 `prate = coll pden`。当前公开输出却写成
-`ploss = -kappa prate`；`src/Hadronic/hadronic_formal.f90` 随后把 `-ploss` 与
-`dγ/dt` 型绝热、同步损失直接相加。因此 proton 冷却的量纲错误，并会随 `pden` 的任意归一化改变；
-把相同 proton 分布放大若干倍会非物理地把每个 proton 的 pp 冷却也放大同样倍数。
+formal 已把 fractional proton loss 正确转换为 `|dγ/dt|=-γ_p ploss`，并把单电荷 `qbh` 以 `2 qbh`
+注入代表 electron 与 positron 的主电子谱。直接离散审计中，单电荷 pair 数率与 absorbed photon 数率闭合到机器精度；
+但总 pair 功率与 proton loss 功率之比在能格 `32, 48, 64, 96` 上分别为
+`0.857143, 0.855777, 0.855861, 0.855711`，不向 1 收敛。
+
+把临时副本的 BH 内外积分阶数从 `5` 提到 `10` 和 `20` 后，该比值仅从 `0.855861` 变为
+`0.855589` 和 `0.855507`。因此约 14.4% 的差异不是固定积分阶数误差，而是 differential pair kernel 与
+proton-loss `phi` 近似或其积分边界语义不一致。
 
 ### 修复边界与验收
 
-- `prate` 只负责 gamma、neutrino 与 pair 的体积分布 source；proton 输出单独返回由
-  `n_target c sigma_pp` 和 inelasticity 定义的连续 `dγ/dt`，保持现有 f2py 参数顺序与数组 shape。
-- 用 Kelner et al. (2006) 的阈值、截面和非弹性损失定义核对能量变量，禁止通过重标定 source
-  掩盖单位错误。
-- 固定 `n_target`、能格与形状，仅改变 `pden` 归一化：secondary source 必须线性变化，而单粒子
-  proton loss 必须不变。逐能格检查 proton 损失功率与 secondary 注入功率，并运行 pp 开/关的真实
-  formal 入口、径向网格收敛、非负连续性和严格 line-truncation 检查。
-
-## Bethe--Heitler proton loss 与 pair multiplicity 单位错误
-
-### 当前缺陷
-
-- `src/Hadronic/hadronic_bh.f90::bh_calc` 返回的 `ploss` 是 proton 的 fractional energy-loss
-  rate；`src/Hadronic/hadronic_formal.f90` 却把 `-ploss` 直接当作 `dγ/dt` 加入输运，漏乘 proton
-  Lorentz factor。直接能量审计显示，按当前错误单位计算时 pair 注入功率与 proton 损失功率之比约为
-  `61.3`，而按 fractional loss 转换后回到离散积分误差量级内。
-- `bh_calc` 的离散数率满足单个轻子谱与被吸收 photon 数率闭合；主 electron population 同时代表
-  electron 与 positron，`pair_content` 当前只加入一次 `qbh`，因此漏掉另一种电荷的同伴粒子。
-
-### 修复边界与验收
-
-- 在唯一 BH operator 边界明确 `ploss` 的 fractional-rate 语义，formal proton 输运使用
-  `dγ/dt = γ (-ploss)`；pair source 显式计入两个轻子，保持 public f2py 参数顺序与 shape。
-- 用 Blumenthal (1970) 的 BH loss/pair kernel 核对离散定义。逐能格比较 absorbed photon 数率、
-  两种电荷的 pair 数率、proton 损失功率和 pair 注入功率；结果必须随能格收敛，不能用全局重标定闭合。
-- 运行 BH 开/关的真实 formal 与 joint 入口，验证 proton/electron 状态、BH synch、总辐射有限非负且连续，
-  并完成受影响 source closure 的严格 line-truncation 检查。
+- 从同一 BH 微分截面推导 proton energy moment，或证明现有 `phi` 近似与 pair kernel 的适用区间和截断完全一致；
+  禁止用全局乘子强制闭合。
+- 同时加密 proton、photon、electron 能格并扩大物理积分边界；总 pair 功率与 proton loss 功率误差必须单调下降，
+  单电荷数率闭合仍保持机器精度，再运行 formal proton/electron 连续非负检查。

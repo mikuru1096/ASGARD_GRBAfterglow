@@ -40,7 +40,9 @@ subroutine pp_source(np,ep,pden,ntarget,ng,egam,nnu,enu,npair,epair, &
     call pp_sigma(np,ep,siginel)
     coll = ntarget*Para_c*siginel
     prate = coll*pden
-    ploss = -kloc*prate
+    ! Continuous proton cooling is a single-particle dgamma/dt; only secondary
+    ! production depends on the proton distribution normalization.
+    ploss = -kloc*coll*(ep/pmass - 1d0)
 
     call emit_secondaries
 
@@ -96,7 +98,7 @@ subroutine pp_sigma(np,ep,sigma)
     real(8), intent(in), dimension(np) :: ep
     real(8), intent(out), dimension(np) :: sigma
     integer :: ip
-    real(8) :: ekin,eth,ratio,lterm,cutoff
+    real(8) :: eth,lterm,cutoff
 
     call check_grid(np,ep,"ep")
     if (minval(ep) <= pmass) then
@@ -106,24 +108,22 @@ subroutine pp_sigma(np,ep,sigma)
     eth = pp_threshold()
     sigma = 0d0
     do ip=1,np
-        ekin = ep(ip) - pmass
-        if (ekin <= eth) cycle
-        ratio = ekin/eth
-        lterm = dlog(ratio)
-        cutoff = 1d0 - (eth/ekin)**4
+        if (ep(ip) <= eth) cycle
+        lterm = dlog(ep(ip)/1d3)
+        cutoff = 1d0 - (eth/ep(ip))**4
         sigma(ip) = (34.3d0 + 1.88d0*lterm + 0.25d0*lterm*lterm) * &
                               cutoff*cutoff*mbarn
     end do
 end subroutine pp_sigma
 
-! pp 反应阈值动能：E_th = 2 m_pi0 + m_pi0^2/(2 m_p)。
-! pp threshold kinetic energy.
+! pp 反应阈值总能量：E_th = m_p + 2 m_pi0 + m_pi0^2/(2 m_p)。
+! Total proton energy at the pp pion-production threshold.
 real(8) function pp_threshold()
-    pp_threshold = 2d0*p0mass + p0mass*p0mass/(2d0*pmass)
+    pp_threshold = pmass + 2d0*p0mass + p0mass*p0mass/(2d0*pmass)
 end function pp_threshold
 
-! delta 近似 source：secondary energy = frac * parent energy，再乘多重数。
-! Delta-approximation source with secondary energy = frac * parent energy.
+! delta 近似 source：secondary energy = frac * parent kinetic energy，再乘多重数。
+! Delta-approximation source with secondary energy = frac * parent kinetic energy.
 subroutine secondary_source(ns,es,npar,epar,rpar,frac,mult,qsec)
     integer, intent(in) :: ns,npar
     real(8), intent(in), dimension(ns) :: es
@@ -133,7 +133,7 @@ subroutine secondary_source(ns,es,npar,epar,rpar,frac,mult,qsec)
     real(8), intent(out), dimension(ns) :: qsec
     real(8), dimension(ns) :: epeval,psamp
 
-    epeval = es/frac
+    epeval = pmass + es/frac
     call pos_interp(npar,epar,rpar,ns,epeval,psamp)
     qsec = (mult/frac)*psamp
 end subroutine secondary_source

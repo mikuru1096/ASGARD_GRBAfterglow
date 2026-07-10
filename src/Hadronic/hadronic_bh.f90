@@ -14,7 +14,8 @@ module hadronic_bh
 contains
 
 ! Bethe-Heitler 主算子：计算 pair 注入、质子损失和光子 sink。
-! Main Bethe-Heitler operator for pair injection, proton loss, and photon sink.
+! Main Bethe-Heitler operator: one-charge pair injection, fractional proton loss,
+! and photon sink. The transport owner converts the fractional loss to dgamma/dt.
 subroutine bh_calc(np,ep,pden,nph,eph,phden,ne,ee,qpair,ploss,phloss)
     integer, intent(in) :: np,nph,ne
     real(8), intent(in), dimension(np) :: ep,pden

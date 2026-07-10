@@ -522,7 +522,7 @@ subroutine project_hic(ns,nd,esrc,epsp,epspi, &
 end subroutine project_hic
 
 ! BH/pp 二级电子源项：把每 GeV 产生率合并为壳层内每 gamma 注入率。
-! Convert BH/pp rates per GeV into shell-integrated rates per gamma.
+! Convert pp rates plus both BH lepton charges per GeV into shell-integrated rates per gamma.
 subroutine pair_content(num_e,ppair,bhpair,include_pp, &
                                            include_bh,vol,src)
     use constants
@@ -535,7 +535,7 @@ subroutine pair_content(num_e,ppair,bhpair,include_pp, &
     if (vol <= 0d0) error stop "hadronic pair source content requires positive shell volume."
     src=0d0
     if (include_pp /= 0) src(1:num_e)=src(1:num_e)+ppair(1:num_e)
-    if (include_bh /= 0) src(1:num_e)=src(1:num_e)+bhpair(1:num_e)
+    if (include_bh /= 0) src(1:num_e)=src(1:num_e)+2d0*bhpair(1:num_e)
     src(1:num_e)=vol*Para_m_e_GeV*src(1:num_e)
 end subroutine pair_content
 

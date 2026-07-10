@@ -748,6 +748,18 @@ Q_{p,{\rm reinj},R}
 
 转换为每 \(R\) 源项或损失项。这样 BH、pp 和 \(\gamma\gamma\) 的二级粒子源可以进入电子方程，而 p-gamma/BH 的光子损失可以进入光子存活率。
 
+pp 连续冷却与次级源共享碰撞率，但所有者不同：
+
+\[
+b_{pp}(\gamma_p)
+=
+\kappa n_{p,\mathrm{target}}c\sigma_{pp}(E_p)(\gamma_p-1),
+\qquad
+Q_s(E_s)\propto n_{p,\mathrm{target}}c\sigma_{pp}(E_p)n_p(E_p).
+\]
+
+因此单粒子 \(b_{pp}=|\mathrm{d}\gamma_p/\mathrm{d}t'|\) 不依赖 proton 分布归一化；delta 次级能量取自 \(T_p=E_p-m_p\)，gamma、neutrino 和 pair 源与 proton 分布归一化线性。BH 核返回分数损失率 \(f_{\rm BH}=\dot\gamma_p/\gamma_p\) 以及单一电荷的轻子谱 \(q_{\rm BH}\)；输运使用 \(b_{\rm BH}=-\gamma_p f_{\rm BH}\)，电子方程注入 \(2q_{\rm BH}\) 以计入 \(e^-\) 和 \(e^+\)。
+
 ## 15. 联合反馈的数值闭环
 
 `electron_photon_coupling="joint"` 把电子、光子和强子反馈放在同一壳层序列中：
