@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from time import perf_counter
 
 import numpy as np
@@ -39,7 +39,6 @@ from asgard_core.asgard_runtime import (
     solve_hadronic,
     solve_rsemission,
 )
-from asgard_core.asgard_setup import build_setup
 from src import Interpolation, Radiation, constants
 
 
@@ -155,18 +154,6 @@ def query_cfg(
     query.t_obs_min_log10 = float(np.log10(observer_time_s.min()))
     query.t_obs_max_log10 = float(np.log10(observer_time_s.max()))
     return query
-
-
-def query_setup(
-    config: RuntimeConfig,
-    observer_time_s: np.ndarray,
-    requested_frequencies_hz: np.ndarray | None = None,
-):
-    observer_time = np.asarray(observer_time_s, dtype=float)
-    return replace(
-        build_setup(query_cfg(config, observer_time), requested_frequencies_hz),
-        observer_time_s=observer_time,
-    )
 
 
 def _solverlabel(config: RuntimeConfig, stage: str) -> str:

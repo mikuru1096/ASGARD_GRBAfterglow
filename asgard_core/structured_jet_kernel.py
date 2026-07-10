@@ -9,7 +9,8 @@ import numpy as np
 
 from asgard_core.angular_sampling import angular_separation as angsep, build_patch_grid as patchgrid, is_axisymmetric_jet as axisjet
 from asgard_core.asgard_physics_utils import doppler_factor
-from asgard_core.asgard_state import query_cfg, query_setup, solve_setup
+from asgard_core.asgard_setup import build_setup
+from asgard_core.asgard_state import query_cfg, solve_setup
 from src import Interpolation, Structured, constants
 
 
@@ -56,7 +57,7 @@ def solve_structured(model, times_s: np.ndarray, nu_hz: np.ndarray, patchbuild: 
     )
     query_config = query_cfg(base_config, solve_times)
     query_config.num_r = max(int(query_config.num_r), int(solve_times.size))
-    setup = query_setup(query_config, solve_times, frequencies)
+    setup = build_setup(query_config, frequencies, observer_time_s=solve_times)
 
     outputs = Structured.jet_flux_1d(
         *_kernelargs(model, query_config, setup, sampled, times, frequencies)
@@ -349,7 +350,7 @@ def _ringsetup(
     query_config = query_cfg(config, solve_times)
     query_config.num_r = max(int(query_config.num_r), int(solve_times.size))
     query_config.num_threads = int(inner_threads)
-    setup = query_setup(query_config, solve_times, frequencies)
+    setup = build_setup(query_config, frequencies, observer_time_s=solve_times)
     return query_config, setup
 
 

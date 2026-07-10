@@ -23,6 +23,8 @@ def _lumdist(redshift: float) -> float:
 def build_setup(
     config: RuntimeConfig,
     requested_frequencies_hz: np.ndarray | None = None,
+    *,
+    observer_time_s: np.ndarray | None = None,
 ) -> SimulationSetup:
     geometry_kernel = str(config.geometry_kernel).lower()
     if geometry_kernel not in {"sed_legacy", "sed_adaptive_theta", "chi_eats_2d"}:
@@ -38,11 +40,16 @@ def build_setup(
         luminosity_distance_cm = _lumdist(float(config.z))
     else:
         luminosity_distance_cm = config.luminosity_distance_cm_override
+    observer_time = (
+        np.logspace(config.t_obs_min_log10, config.t_obs_max_log10, config.num_tobs)
+        if observer_time_s is None
+        else np.asarray(observer_time_s, dtype=float)
+    )
     return SimulationSetup(
         luminosity_distance_cm=luminosity_distance_cm,
         boundary=build_boundary(config, luminosity_distance_cm),
         seed_frequency_hz=seedgrid(config, requested_frequencies_hz),
-        observer_time_s=np.logspace(config.t_obs_min_log10, config.t_obs_max_log10, config.num_tobs),
+        observer_time_s=observer_time,
     )
 
 

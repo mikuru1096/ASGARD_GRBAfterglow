@@ -13,16 +13,16 @@ from asgard_core.asgard_config import (
     MAX_DENSITY_PROFILE_POINTS,
     ReverseShockConfig,
 )
+from asgard_core.asgard_physics_utils import loglog_interp
+from asgard_core.asgard_setup import build_setup
 from asgard_core.asgard_state import (
     FluxComponents,
     SolveState,
     query_cfg,
-    query_setup,
     make_tgrid,
     project_flux,
     solve_setup,
 )
-from asgard_core.asgard_physics_utils import loglog_interp
 from src import constants
 
 class Scale(str, Enum):
@@ -1426,7 +1426,7 @@ def _solve_patch_state(
         solve_times_s = np.logspace(np.log10(solve_t_min), np.log10(solve_t_max), solve_count)
     query_config = query_cfg(config, solve_times_s)
     query_config.num_r = max(int(query_config.num_r), int(solve_times_s.size))
-    setup = query_setup(query_config, solve_times_s, requested_frequencies_hz)
+    setup = build_setup(query_config, requested_frequencies_hz, observer_time_s=solve_times_s)
     return solve_setup(
         query_config,
         setup,

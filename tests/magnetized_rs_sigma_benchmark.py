@@ -17,7 +17,8 @@ ensure_repo_root_on_path()
 
 from asgard_core import Model, Observer, UniformMedium, WindMedium, top_hat_jet
 from asgard_core.asgard_config import ReverseShockConfig, RuntimeConfig
-from asgard_core.asgard_state import query_setup, solve_setup
+from asgard_core.asgard_setup import build_setup
+from asgard_core.asgard_state import query_cfg, solve_setup
 from tests.public_api_builders import hadronic, numerics, observer_grid, radiation, reverse_shock, solver_options
 
 
@@ -269,8 +270,10 @@ def _solve_dynamics_scan(
     series = []
     for sigma in sigmas:
         config = _runtime_config(sigma, medium, grid, cooling_mode)
-        setup = query_setup(config, np.logspace(-2.0, 7.0, 12), np.array([1.0e9, 1.0e14]))
-        state = solve_setup(config, setup)
+        observer_time = np.logspace(-2.0, 7.0, 12)
+        query_config = query_cfg(config, observer_time)
+        setup = build_setup(query_config, np.array([1.0e9, 1.0e14]), observer_time_s=observer_time)
+        state = solve_setup(query_config, setup)
         rs = state.dynamics.reverse_shock
         if rs is None:
             raise RuntimeError("reverse shock state missing")
