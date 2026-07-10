@@ -697,7 +697,7 @@ def _emptyobs(total: np.ndarray | None = None) -> dict[str, np.ndarray | None]:
 def _sumobs(
     observed: dict[str, np.ndarray | None],
     template: np.ndarray,
-    members: tuple[tuple[str, str], ...] = _OBSERVED_COMPONENT_ATTRS,
+    members: tuple[tuple[str, str], ...] = _TOTAL_COMPONENTS,
 ) -> np.ndarray:
     total = np.zeros_like(template)
     for key, _attr in members:

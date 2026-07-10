@@ -81,32 +81,6 @@ leptonic、structured 和 prompt 路径仍不一致。禁止在中间阶段加�
   cascade 光深闭合。光深、频谱与时序曲线不得出现人为跳变，性能比较使用至少
   3 次 median。
 
-## 强子总通量与公开子分量在观测端被重复求和
-
-### 第一性原理
-
-`_hadronlum` 返回的 `fwd_hadronic_gamma` 已经是质子同步、光介子以及所有启用的
-Bethe--Heitler、强子逆康普顿和次级粒子辐射之和。公开的
-`fwd_hadronic_bethe_heitler`、`fwd_hadronic_inverse_compton` 与
-`fwd_hadronic_pair_production` 是该总量的诊断分解，不是额外辐射源。因此总通量只能
-包含 `fwd_hadronic_gamma` 一次。
-
-### 当前缺陷
-
-`asgard_core/asgard_state.py::_sumobs` 遍历 `_OBSERVED_COMPONENT_ATTRS`，同时累加
-`fwd_hadronic` 总量及其公开子分量。于是 `full_components["total"]` 会重复计入已包含在
-强子总量中的通道；`total_only` 的逐分量 batch 只累加 `fwd_hadronic` 总量一次，两种公开模式
-在强子开启后仍存在一项独立于投影算法的系统差异。pair cascade 开启时
-`pair_lum_total` 还会同时写入总强子量和 pair-production 诊断量，重复同样发生。
-
-### 修复时序与验收
-
-- 与强子/电磁级联最终阶段原子修复，不在当前非强子批量 EATS 改动中重定义公开字段。
-- 明确区分“互斥总通量成员”和“总量内部诊断分解”；`total_only` 与
-  `full_components["total"]` 只累加前者，仍原样返回所有诊断分量。
-- 用至少一个同时启用 Bethe--Heitler、强子逆康普顿和 pair cascade 的真实算例逐项验证
-  代数闭合，并检查频谱/光变连续、非负；不得通过删除诊断输出或事后相减掩盖重复计数。
-
 ## 强子壳层时间与扫掠质量所有权错误
 
 ### 当前缺陷
