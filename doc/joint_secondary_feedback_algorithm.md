@@ -108,25 +108,18 @@ hadronic_forward_ssc_seed
 
 ## 6. radius 坐标步长
 
-hadronic Python path 不再用 observer-time shell spacing 推进 formal BH/proton/secondary steps。radius shell 的 comoving 时间步是：
+hadronic FS、RS 与 formal path 都不再用 observer-time shell spacing 推进粒子状态。首输出点是零时长初态；其后在相邻动力学状态之间对 (1/(\beta\Gamma)) 作梯形积分：
 
 ```text
-Delta t'_i = Delta R_i / (beta_i Gamma_i c)
-```
-
-其中
-
-```text
-Delta R_i =
-  R_1 - R_0,          i = 0
-  R_i - R_{i-1},      i > 0
+Delta t'_1 = 0
+Delta t'_i = Delta R_i/(2c) * [1/sqrt(Gamma_{i-1}^2-1) + 1/sqrt(Gamma_i^2-1)], i > 1
 ```
 
 对应实现：
 
-- `asgard_core/asgard_runtime.py::_hadronic_shell_comoving_dt_from_radius`
+- `src/Hadronic/hadronic_shell.f90::shell_geom`
 
-shell-local 推进使用 shell 间隔对应的 comoving time。
+`R_Tobs` 只为既有 f2py ABI 保留，不再参与本地强子输运。每个相邻径向区间只推进一次；首点注入定义初始 proton content，但不借用未来区间。
 
 ## 7. hadronic 输出契约
 

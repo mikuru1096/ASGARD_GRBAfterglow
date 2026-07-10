@@ -1014,16 +1014,11 @@ def solve_hadronic(
             "p-gamma and neutrino channels require an explicit pgamma_scheme. "
             "Choose 'hummer_2010_response'."
         )
-    prev_radius = np.empty_like(dynamics.radius)
-    prev_radius[0] = 0.0
-    prev_radius[1:] = dynamics.radius[:-1]
-    shell_volume_cm3 = (4.0 / 3.0) * np.pi * (dynamics.radius**3 - prev_radius**3)
+    shell_mass = np.diff(np.asarray(dynamics.swept_mass_g, dtype=float), prepend=0.0)
     shell_energy_inj_erg = (
         float(config.hadronic.epsilon_p)
         * (dynamics.r_gamma - 1.0)
-        * shell_volume_cm3
-        * np.asarray(ambient_density(dynamics.radius, config), dtype=float)
-        * constants.para_m_p
+        * shell_mass
         * constants.para_c**2
     )
 
@@ -1326,9 +1321,7 @@ def _rshadronic(
     if not bool(config.hadronic.reverse_enabled) or float(config.hadronic.reverse_epsilon_p) <= 0.0:
         return None
     rs_swept = np.asarray(dynamics.reverse_shock.swept_mass_g, dtype=float)
-    shell_mass = np.empty_like(rs_swept)
-    shell_mass[0] = rs_swept[0]
-    shell_mass[1:] = rs_swept[1:] - rs_swept[:-1]
+    shell_mass = np.diff(rs_swept, prepend=0.0)
     shell_energy = (
         float(config.hadronic.reverse_epsilon_p)
         * shell_mass

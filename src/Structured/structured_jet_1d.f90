@@ -432,7 +432,7 @@ subroutine structured_solve_element(Boundary,E_iso,Gamma0,V_seed,n,Num_nu,Num_R,
     real(8), allocatable, dimension(:) :: gam_e,B_field,shell_energy
     real(8), allocatable, dimension(:,:) :: dN_gam_e,P_syn,Seed_syn,P_ssc,Seed_ssc
     real(8), dimension(Num_nu) :: P_emit_tmp,Tau_syn_tmp
-    real(8) :: dNe,prev_radius,shell_volume
+    real(8) :: dNe
     logical, dimension(jump_max) :: event_on
     integer :: ir
 
@@ -474,15 +474,19 @@ subroutine structured_solve_element(Boundary,E_iso,Gamma0,V_seed,n,Num_nu,Num_R,
     P_ssc=0d0; Seed_ssc=0d0; had_abs=0d0; rev_abs=0d0
     if (include_forward_ssc /= 0) call ssc_spec(R,gam_e,dN_gam_e,V_seed,Seed_syn,Num_nu,Num_R,Num_gam_e,n_threads,P_ssc,Seed_ssc)
 
+    ! 磁场使用局域密度；proton 注入只消费 dynamics 守恒的累计扫掠质量差。
+    ! The field uses local density; proton injection consumes only conserved swept-mass increments.
     do ir=1,Num_R
         call density_profile(B_local(12),B_local(11),R(ir),B_local(n),1,B_local(21),B_local(22),B_local(23),dNe)
         B_field(ir)=0.39d0*dsqrt(B_local(6)*dNe*(R_Gamma(ir)*(R_Gamma(ir)-1d0)))
-        prev_radius=0d0
-        if (ir > 1) prev_radius=R(ir-1)
-        shell_volume=(4d0/3d0)*pi*(R(ir)**3-prev_radius**3)
-        shell_energy(ir)=0d0
-        if (include_hadronic /= 0) shell_energy(ir)=hadronic_epsilon_p*(R_Gamma(ir)-1d0)*shell_volume*dNe*Para_m_p*Para_c**2
     end do
+    shell_energy=0d0
+    if (include_hadronic /= 0) then
+        shell_energy(1)=hadronic_epsilon_p*(R_Gamma(1)-1d0)*R_mass(1)*Para_c**2
+        do ir=2,Num_R
+            shell_energy(ir)=hadronic_epsilon_p*(R_Gamma(ir)-1d0)*(R_mass(ir)-R_mass(ir-1))*Para_c**2
+        end do
+    end if
 
     if (include_hadronic /= 0 .and. (include_proton_synch /= 0 .or. include_pg /= 0)) then
         block

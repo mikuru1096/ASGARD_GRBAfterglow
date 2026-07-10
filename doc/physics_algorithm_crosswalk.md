@@ -9,7 +9,7 @@ ASGARD 的第一性原理主线是：先在局域壳层坐标中闭合动力学�
 | 对象 | 离散变量 | 核心公式 | 程序单元/调用路径 | 验收指纹 |
 | --- | --- | --- | --- | --- |
 | 半径主坐标 | `R(i)` | `dtprime/dR = 1/(beta Gamma c)` | `Dynamics_forward`, `Dynamics_reverse`, `shell_geom` | 所有自然时间率进入电子/强子方程前先换算到 `R` 坐标。 |
-| log 能量谱 | `dN/dlog10(gamma)` | `dN_x = gamma ln(10) dN/dgamma` | `electron_injection_profiles`, `electron_transport_common`, `hadronic_base` | 粒子数积分用 `sum dN_x dx`，不能丢 Jacobian。 |
+| log 能量谱 | `dN/dln(gamma)` | `N_x = gamma dN/dgamma` | electron `log_edges`/transport，hadronic `electron_seq` | 粒子数积分用 `sum N_x dx`，不能丢 Jacobian。 |
 | 2D 厚壳 | `q_grid/q_face/dq` | `chi_BM=(1-q)^[-(4-k)/(3-k)]` | `compute_q_geometry`, `q_geometry_point`, `sed_interpolation_chi` | `chi_grid` 只作 BM-equivalent 诊断，投影读 `chi_radius_cm`、`chi_gamma_bulk`、`chi_dvolume_weight`。 |
 | photon field | `Seed_syn(nu,R)` | `n_nu = u_nu/(h nu)` | `syn_seed_chi`, Python direct `E=h\nu` conversion | Observer luminosity 不能直接当 target density，必须经 shell volume/escape time/单位转换。 |
 

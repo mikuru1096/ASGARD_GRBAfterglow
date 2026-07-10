@@ -5,6 +5,7 @@ subroutine reverse_hadronic_1d(R_Tobs,R_Gamma,R,shell_energy_inj_erg,B_field_g,V
                                   gam_p,dN_gam_p,P_had_syn,Seed_had_syn)
     use constants
     use hadronic_base
+    use hadronic_shell, only: shell_geom
     use hadronic_transport
     use hadronic_rad, only: proton_syn
     implicit none
@@ -16,7 +17,7 @@ subroutine reverse_hadronic_1d(R_Tobs,R_Gamma,R,shell_energy_inj_erg,B_field_g,V
     real(8), intent(out), dimension(num_gam_p,Num_R) :: dN_gam_p
     real(8), intent(out), dimension(Num_nu,Num_R) :: P_had_syn,Seed_had_syn
     integer :: ir
-    real(8) :: gmax,tdyn,dt,gmin,ebudget
+    real(8) :: gmax,tdyn,dt,dr,gmin,ebudget
     real(8), dimension(num_gam_p) :: dnprev,dnnext,qinj
     real(8), dimension(num_gam_p) :: lossad,losssyn,losstot
 
@@ -56,7 +57,7 @@ contains
         implicit none
         integer, intent(in) :: ir
 
-        dt=shell_dt(R_Tobs,ir)
+        call shell_geom(Num_R,R,R_Gamma,ir,dr,dt)
         tdyn=dyn_time(R(ir),R_Gamma(ir))
         if (shell_energy_inj_erg(ir) < 0d0) error stop "reverse hadronic shell injection energy must be non-negative."
         ebudget=shell_energy_inj_erg(ir)

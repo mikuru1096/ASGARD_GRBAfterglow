@@ -425,9 +425,17 @@ Q_{p,{\rm reinj}}
 离散到 \(R\) 坐标：
 
 \[
+\Delta t'_1=0,
+\qquad
 \Delta t'_i
 =
-\frac{\Delta R_i}{\beta_i\Gamma_i c}.
+\frac{\Delta R_i}{2c}
+\left[
+(\Gamma_{i-1}^2-1)^{-1/2}
++
+(\Gamma_i^2-1)^{-1/2}
+\right],
+\quad i>1.
 \]
 
 每个 microphysics operator 返回的 \({\rm s}^{-1}\) rate 都必须乘以 \(\Delta t'_i\) 或 \(\mathrm{d}t'/\mathrm{d}R\) 后才能进入 shell update。

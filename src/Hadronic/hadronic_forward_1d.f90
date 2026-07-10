@@ -199,9 +199,10 @@ subroutine hadronic_1d(R_Tobs,R_Gamma,R,shell_energy_inj_erg,B_field_g,V_seed,Se
     use hadronic_rad, only: proton_syn
     use hadronic_pg, only: pg_hummer
     use hadronic_decay
-    use hadronic_accel, only: inject_rate, gamma_limit
+    use hadronic_accel, only: gamma_limit
     use hadronic_hummer, only: hummer_shell
     use hadronic_remap, only: remap_loggamma
+    use hadronic_shell, only: shell_geom
     implicit none
     integer, intent(in) :: include_proton_synch,include_pg,include_neutrino,nnu,Num_R,num_gam_p,num_nu_nu,n_threads
     real(8), intent(in), dimension(Num_R) :: R_Tobs,R_Gamma,R,shell_energy_inj_erg,B_field_g
@@ -215,7 +216,7 @@ subroutine hadronic_1d(R_Tobs,R_Gamma,R,shell_energy_inj_erg,B_field_g,V_seed,Se
     real(8), intent(out), dimension(num_nu_nu) :: V_nu
     real(8), intent(out), dimension(num_nu_nu,Num_R) :: P_nu_all
     integer :: ir
-    real(8) :: gmax,tdyn,dt,gmin,ebudget,volume
+    real(8) :: gmax,tdyn,dt,dr,gmin,ebudget,volume
     real(8), dimension(2) :: gscan,xrate
     real(8) :: gloc,gdyn,gsyn,gext
     logical :: has_extlim
@@ -246,7 +247,7 @@ subroutine hadronic_1d(R_Tobs,R_Gamma,R,shell_energy_inj_erg,B_field_g,V_seed,Se
     ! 壳层循环：注入 -> 质子输运 -> p-gamma secondary -> 同步辐射。
     ! Shell loop: injection -> proton transport -> p-gamma secondaries -> synchrotron.
     do ir=1,Num_R
-        dt=shell_dt(R_Tobs,ir)
+        call shell_geom(Num_R,R,R_Gamma,ir,dr,dt)
         tdyn=dyn_time(R(ir),R_Gamma(ir))
         if (shell_energy_inj_erg(ir) < 0d0) error stop "hadronic shell injection energy must be non-negative."
         ebudget=shell_energy_inj_erg(ir)
@@ -324,13 +325,7 @@ contains
     end subroutine init_out
 
     subroutine inject_p
-        if (usehum .and. ebudget > 0d0) then
-            call inject_rate(num_gam_p,gam_p,"proton",ebudget/dt,p_p, &
-                                                     gmin,gam_p(num_gam_p),1d0,.false.,qinj)
-            qinj=dt*qinj
-        else
-            call proton_inject(num_gam_p,gam_p,p_p,ebudget,gmin,gam_p(num_gam_p),qinj)
-        end if
+        call proton_inject(num_gam_p,gam_p,p_p,ebudget,gmin,gam_p(num_gam_p),qinj)
     end subroutine inject_p
 
     subroutine advance_p

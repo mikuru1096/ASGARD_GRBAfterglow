@@ -3,7 +3,7 @@ module hadronic_shell
     private
     public :: pp_delta
     public :: hic_shell, hic_project
-    public :: species_step, inject_content
+    public :: species_step
     public :: scan_pmax, secondary_rad
     public :: secondary_project
     public :: loss_rates, electron_seq
@@ -171,29 +171,6 @@ subroutine species_step(ng,ns,gamma,esrc,qnin, &
                                             en,nloss)
     call exp_sink(ng,ntran,nloss,dt,nnext)
 end subroutine species_step
-
-! 单壳层注入 content：按 shell energy/dt 得到源项，再乘回本步 dt。
-subroutine inject_content(ng,species,gamma,eshell,dt,pidx, &
-                                         gmin,ginj,gcut,has_cut,qcont)
-    use hadronic_accel, only: inject_rate
-    implicit none
-    integer, intent(in) :: ng
-    character(len=*), intent(in) :: species
-    real(8), intent(in), dimension(ng) :: gamma
-    real(8), intent(in) :: eshell,dt,pidx
-    real(8), intent(in) :: gmin,ginj,gcut
-    logical, intent(in) :: has_cut
-    real(8), intent(out), dimension(ng) :: qcont
-
-    if (dt <= 0d0) error stop "hadronic injection content requires dt > 0."
-    if (eshell <= 0d0) then
-        qcont=0d0
-        return
-    end if
-    call inject_rate(ng,gamma,species,eshell/dt,pidx, &
-                                             gmin,ginj,gcut,has_cut,qcont)
-    qcont(1:ng)=dt*qcont(1:ng)
-end subroutine inject_content
 
 ! 全局质子最大 Lorentz 因子：逐半径壳层估计并取最大值作为输运网格上界。
 subroutine scan_pmax(nr,rad,bulk,bfield,eta_acc,gmaxall)
@@ -364,12 +341,17 @@ subroutine electron_seq(num_e,num_nu,nr,gamma_e,rad,bulk,bfield, &
         tdyn=rad(ir)/(bulk(ir)*Para_c)
         call loss_rates(num_e,gamma_e,bfield(ir),tdyn, &
                                                Para_m_e_GeV,quantum_syn,ltot)
-        call remap_loggamma(num_e,gamma_e,prev, &
-                                                    src(:,ir),ltot,dt,next)
+        if (ir == 1) then
+            next=prev
+            srcrad(:,ir)=0d0
+        else
+            call remap_loggamma(num_e,gamma_e,prev, &
+                                                        src(:,ir)*dt,ltot,dt,next)
+            srcrad(:,ir)=src(:,ir)*dt/dr*gamma_e(:)
+        end if
         call syn_state(synidx,rad(ir),bfield(ir),num_e,num_nu,nthr, &
                                     gamma_e,next,freq,ptmp,lsyn(:,ir), &
                                     seed(:,ir),tautmp)
-        srcrad(:,ir)=src(:,ir)*dt/dr*gamma_e(:)*dlog(1d1)
         eden(:,ir)=next
         prev=next
     end do
@@ -412,7 +394,7 @@ subroutine effective_time(nrate,rate,dt,teff)
     integer :: i
     real(8) :: tau
 
-    if (dt <= 0d0) error stop "hadronic interaction effective time requires dt > 0."
+    if (dt < 0d0) error stop "hadronic interaction effective time requires dt >= 0."
     if (any(rate < 0d0)) error stop "hadronic interaction effective time requires non-negative rates."
     do i=1,nrate
         if (rate(i) > 0d0) then
@@ -479,7 +461,7 @@ subroutine exp_sink(nval,values,loss,dt,vnext)
     real(8), intent(out), dimension(nval) :: vnext
     integer :: i
 
-    if (dt <= 0d0) error stop "hadronic exponential sink requires dt > 0."
+    if (dt < 0d0) error stop "hadronic exponential sink requires dt >= 0."
     if (any(loss < 0d0)) error stop "hadronic exponential sink requires non-negative rates."
     do i=1,nval
         vnext(i)=values(i)*dexp(-loss(i)*dt)
@@ -539,7 +521,8 @@ subroutine project_hic(ns,nd,esrc,epsp,epspi, &
                                             edst,ldst)
 end subroutine project_hic
 
-! BH/pp 二级电子源项：把每 GeV 产生率合并为壳层内每 gamma 注入 content。
+! BH/pp 二级电子源项：把每 GeV 产生率合并为壳层内每 gamma 注入率。
+! Convert BH/pp rates per GeV into shell-integrated rates per gamma.
 subroutine pair_content(num_e,ppair,bhpair,include_pp, &
                                            include_bh,vol,src)
     use constants
@@ -721,24 +704,28 @@ subroutine align_photon(num_had,num_ph,num_out,ehad,eph, &
     end do
 end subroutine align_photon
 
+! 相邻半径间对 dt'/dR=1/(beta Gamma c) 作梯形积分；首点是零时长初态。
+! Trapezoid-integrate proper time between radii; the first point is the zero-duration initial state.
 subroutine shell_geom(nr,rad,bulk,ir,dr,dt)
     use constants
     implicit none
     integer, intent(in) :: nr,ir
     real(8), intent(in), dimension(nr) :: rad,bulk
     real(8), intent(out) :: dr,dt
-    real(8) :: beta
+    real(8) :: u_prev,u_now
 
-    if (bulk(ir) <= 1d0) error stop "hadronic sequence shell dt requires bulk > 1."
     if (ir == 1) then
-        if (nr < 2) error stop "hadronic sequence shell dt requires at least 2d0 radii."
-        dr=rad(2)-rad(1)
-    else
-        dr=rad(ir)-rad(ir-1)
+        dr=0d0
+        dt=0d0
+        return
     end if
+    if (bulk(ir-1) <= 1d0 .or. bulk(ir) <= 1d0) &
+        error stop "hadronic sequence shell dt requires bulk > 1."
+    dr=rad(ir)-rad(ir-1)
     if (dr <= 0d0) error stop "hadronic sequence shell radii must be strictly increasing."
-    beta=dsqrt(1d0-1d0/(bulk(ir)*bulk(ir)))
-    dt=dr/(beta*bulk(ir)*Para_c)
+    u_prev=dsqrt((bulk(ir-1)-1d0)*(bulk(ir-1)+1d0))
+    u_now=dsqrt((bulk(ir)-1d0)*(bulk(ir)+1d0))
+    dt=0.5d0*dr/Para_c*(1d0/u_prev+1d0/u_now)
 end subroutine shell_geom
 
 ! 半径壳层体积：第一个壳层以内边界 R=0，之后使用相邻半径。

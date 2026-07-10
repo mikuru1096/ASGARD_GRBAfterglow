@@ -72,7 +72,7 @@ subroutine advance_loggamma(ng,gp,prev,qinj,ltot,dt,next)
     real(8) :: ledge,src
 
     call build_edges(ng,gp,edge)
-    if (dt <= 0d0) error stop "hadronic energy advance requires dt > 0."
+    if (dt < 0d0) error stop "hadronic energy advance requires dt >= 0."
     ! 边界通量使用相邻 cell 的损失率平均。 / Boundary flux uses averaged neighboring loss rates.
     flux=0d0
     do ig=2,ng

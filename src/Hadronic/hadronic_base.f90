@@ -15,7 +15,7 @@ module hadronic_base
     real(8), parameter, public :: muon_m = Para_m_mu_GeV
 
     public :: build_grid, source_bounds, build_edges
-    public :: shell_dt, dyn_time, proton_limit
+    public :: dyn_time, proton_limit
     public :: check_grid, quant_factor
 
 contains
@@ -92,20 +92,6 @@ subroutine build_edges(ng,gamma,edge)
     end do
     edge(ng+1) = gamma(ng)*dsqrt(gamma(ng)/gamma(ng-1))
 end subroutine build_edges
-
-! 计算壳层观测者时间步长 dt = t_obs(i) - t_obs(i-1)。
-! Return the observer-time shell step dt = t_obs(i) - t_obs(i-1).
-real(8) function shell_dt(tobs,ishell)
-    integer, intent(in) :: ishell
-    real(8), dimension(*), intent(in) :: tobs
-
-    if (ishell <= 1) then
-        shell_dt = tobs(1)
-    else
-        shell_dt = tobs(ishell) - tobs(ishell-1)
-    end if
-    if (shell_dt <= 0d0) error stop "hadronic shell dt must be positive."
-end function shell_dt
 
 ! 计算共动动力学时标 t_dyn = R / (Gamma * c)。
 ! Compute the comoving dynamical timescale t_dyn = R / (Gamma * c).

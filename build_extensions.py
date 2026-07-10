@@ -152,10 +152,10 @@ HADRONIC_COMMON_SOURCES = (
     "../Electron/electron_radiation_kernel.f90",
     "hadronic_cascade.f90",
     "pp_models.f90",
+    "hadronic_shell.f90",
 )
 HADRONIC_1D_SOURCES = (
     *HADRONIC_COMMON_SOURCES,
-    "hadronic_shell.f90",
     "hadronic_formal.f90",
 )
 STRUCTURED_JET_1D_SOURCES = (

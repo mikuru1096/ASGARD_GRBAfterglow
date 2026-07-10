@@ -101,8 +101,8 @@ subroutine species_advance(ng,gamma,dt,bfield,divr, &
     real(8), intent(out), dimension(ng) :: n1,pip1,pim1,muml1,mumr1,mupl1,mupr1
     real(8), dimension(ng) :: dgpion,dgmuon,dgad,dgtot
 
-    if (dt <= 0d0) then
-        error stop "hadronic species transport: dt must be positive."
+    if (dt < 0d0) then
+        error stop "hadronic species transport: dt must be non-negative."
     end if
 
     call validate_inputs

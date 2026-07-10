@@ -22,6 +22,7 @@ subroutine formal_transport(tobs,gbulk,radius,bfield,nuseed,seed,ge, &
     use hadronic_decay, only: decay_hummer
     use hadronic_pg, only: pg_hummer
     use hadronic_rad, only: proton_syn
+    use hadronic_transport, only: proton_inject
     implicit none
     integer, intent(in) :: synidx,do_psyn,do_pg,do_nu
     integer, intent(in) :: do_bh,do_hic,do_pp,qsyn,nth
@@ -129,8 +130,7 @@ subroutine formal_transport(tobs,gbulk,radius,bfield,nuseed,seed,ge, &
         tdyn=dyn_time(radius(ir),gbulk(ir))
         gmin=max(gp(1),gbulk(ir))
         vol=vols(ir)
-        call inject_content(ngp,"proton",gp,einj(ir),dt, &
-                                           pidx,gmin,gp(ngp),1d0,.false.,qinj)
+        call proton_inject(ngp,gp,pidx,einj(ir),gmin,gp(ngp),qinj)
         call proton_step(ngp,gp,dnprev,qinj,bfield(ir), &
                                                tdyn,Para_m_p_GeV,qsyn,zrate,zrate,zrate, &
                                                zrate,vol,dt,dntry)

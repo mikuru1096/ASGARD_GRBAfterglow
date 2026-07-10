@@ -195,7 +195,8 @@ end subroutine pair_tau
 ! chi 批量同步辐射核心: 同一半径且 chi 上磁场相同时复用 F(nu/nu_c) 核。
 ! Chi-batch synchrotron core: reuse F(nu/nu_c) when B is shared across chi.
 ! 中文：Q_weight 只缩放每个 chi cell 的径向 SSA 光深；发射功率仍保持 cell-local 电子谱定义。
-! English: Q_weight scales only the radial SSA optical depth of each chi cell; emitted power remains defined by the cell-local electron spectrum.
+! English: Q_weight scales only the radial SSA optical depth of each chi cell;
+! emitted power remains defined by the cell-local electron spectrum.
 subroutine syn_seed_chi(R_loc,Num_gam_e,Num_nu,Num_chi,gam_e,DNe_chi,V_seed,DB_chi,Q_weight,ssa_prefactor, &
                                              P_emit,P_syn,Seed_syn,Tau_syn)
     implicit none

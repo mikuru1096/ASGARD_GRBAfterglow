@@ -57,9 +57,17 @@ ASGARD 在输运层统一使用激波半径 \(R\)。任意共动率 \(\lambda'\)
 壳层步长上的共动时间为
 
 \[
+\Delta t'_1=0,
+\qquad
 \Delta t'_i
 =
-\frac{\Delta R_i}{\beta_i\Gamma_i c}.
+\frac{\Delta R_i}{2c}
+\left[
+\frac{1}{\sqrt{\Gamma_{i-1}^2-1}}
++
+\frac{1}{\sqrt{\Gamma_i^2-1}}
+\right],
+\quad i>1.
 \]
 
 这使电子冷却、强子相互作用、二级粒子注入和光子汇可以在同一壳层上比较预算。禁止用观测者时间步长代替 \(\Delta t'\)，因为等到达时间面投影中的 \(t_{\rm obs}\) 已经包含几何延迟。

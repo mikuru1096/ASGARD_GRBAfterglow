@@ -693,11 +693,10 @@ finite-q 几何、q 方向对流/扩散和 2D 能量推进。
 | `S` | 25 | `build_grid` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
 | `S` | 50 | `source_bounds` | 粒子源项或注入谱归一化；必须同时满足粒子数和能量预算。 |
 | `S` | 75 | `build_edges` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `F` | 98 | `shell_dt` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 112 | `dyn_time` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `F` | 122 | `proton_limit` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 136 | `check_grid` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
-| `F` | 161 | `quant_factor` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
+| `F` | 98 | `dyn_time` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `F` | 108 | `proton_limit` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 122 | `check_grid` | 网格、坐标变换、插值或保守重映射 primitive；Jacobians 不能省略。 |
+| `F` | 147 | `quant_factor` | 冷却/损失算子；自然时间率进入 R 坐标前必须乘 dtprime/dR。 |
 
 ### `src/Hadronic/hadronic_bh.f90`
 
@@ -961,31 +960,30 @@ formal 1D 强子底层 shell primitive 与单位/投影 helper；f2py wrapper �
 | `S` | 48 | `hic_shell` | proton/pion/muon hadronic IC operator；输出 IC emissivity 与投影系数。 |
 | `S` | 81 | `hic_project` | hadronic IC shell emissivity 投影到 photon grid。 |
 | `S` | 110 | `species_step` | n、pi、mu secondary species 同壳层保守推进。 |
-| `S` | 176 | `inject_content` | 壳层注入能量预算到 species source content 的归一化。 |
-| `S` | 199 | `scan_pmax` | 沿半径序列估计全局 proton 最大 Lorentz factor。 |
-| `S` | 225 | `secondary_rad` | pion/muon synchrotron 与 IC shell emissivity。 |
-| `S` | 254 | `secondary_project` | secondary radiation 从 hadron grid 投影到 photon grid。 |
-| `S` | 317 | `loss_rates` | adiabatic、synchrotron 和 quantum-synch 连续损失率。 |
-| `S` | 340 | `electron_seq` | secondary e± source 随壳层序列组装。 |
-| `S` | 379 | `photon_loss` | photon loss rate 到 optical-depth/survival closure。 |
-| `S` | 405 | `effective_time` | interaction loss rate 的有效时间积分。 |
-| `S` | 432 | `pgamma_update` | pγ loss/re-injection 对 proton spectrum 的壳层更新。 |
-| `S` | 452 | `proton_step` | proton injection、continuous loss 和 pγ update 的单壳层推进。 |
-| `S` | 473 | `exp_sink` | 指数 sink primitive；用于已定义 interaction/loss closure。 |
-| `S` | 490 | `rate_lum` | rate-per-energy 到 luminosity-per-frequency/energy 的壳层换算。 |
-| `S` | 505 | `project_lum` | source energy grid 到目标 photon grid 的 luminosity 投影。 |
-| `S` | 524 | `project_hic` | hadronic IC 多 species emissivity 投影。 |
-| `S` | 543 | `pair_content` | pp/BH pair source 组合成电子方程使用的 content source。 |
-| `S` | 560 | `shell_density` | shell content 到 density-per-GeV 的单位变换。 |
-| `S` | 574 | `gamma_edges` | Lorentz-factor grid edges；守恒积分需要的 bin geometry。 |
-| `S` | 596 | `proc_power` | secondary process power diagnostic。 |
-| `F` | 625 | `trapz` | 局部 helper；语义由所在文件的算法阶段决定。 |
-| `S` | 639 | `pos_interp` | 正值 log-log grid projection；当前 secondary-feedback Python glue 仍使用。 |
-| `S` | 672 | `gamma_source` | source-per-energy 到 source-per-gamma 的 grid projection。 |
-| `S` | 689 | `dist_gev` | distribution-per-gamma 到 distribution-per-GeV 的 grid projection。 |
-| `S` | 706 | `align_photon` | hadron/photon grid 对齐 helper。 |
-| `S` | 724 | `shell_geom` | shell dr、dt geometry helper。 |
-| `S` | 745 | `shell_volumes` | 壳层体积序列。 |
+| `S` | 176 | `scan_pmax` | 沿半径序列估计全局 proton 最大 Lorentz factor。 |
+| `S` | 202 | `secondary_rad` | pion/muon synchrotron 与 IC shell emissivity。 |
+| `S` | 231 | `secondary_project` | secondary radiation 从 hadron grid 投影到 photon grid。 |
+| `S` | 294 | `loss_rates` | adiabatic、synchrotron 和 quantum-synch 连续损失率。 |
+| `S` | 317 | `electron_seq` | secondary e± source 随壳层序列组装。 |
+| `S` | 361 | `photon_loss` | photon loss rate 到 optical-depth/survival closure。 |
+| `S` | 387 | `effective_time` | interaction loss rate 的有效时间积分。 |
+| `S` | 414 | `pgamma_update` | pγ loss/re-injection 对 proton spectrum 的壳层更新。 |
+| `S` | 434 | `proton_step` | proton injection、continuous loss 和 pγ update 的单壳层推进。 |
+| `S` | 455 | `exp_sink` | 指数 sink primitive；用于已定义 interaction/loss closure。 |
+| `S` | 472 | `rate_lum` | rate-per-energy 到 luminosity-per-frequency/energy 的壳层换算。 |
+| `S` | 487 | `project_lum` | source energy grid 到目标 photon grid 的 luminosity 投影。 |
+| `S` | 506 | `project_hic` | hadronic IC 多 species emissivity 投影。 |
+| `S` | 526 | `pair_content` | pp/BH pair source 组合成电子方程使用的 rate source。 |
+| `S` | 543 | `shell_density` | shell content 到 density-per-GeV 的单位变换。 |
+| `S` | 557 | `gamma_edges` | Lorentz-factor grid edges；守恒积分需要的 bin geometry。 |
+| `S` | 579 | `proc_power` | secondary process power diagnostic。 |
+| `F` | 608 | `trapz` | 局部 helper；语义由所在文件的算法阶段决定。 |
+| `S` | 622 | `pos_interp` | 正值 log-log grid projection；当前 secondary-feedback Python glue 仍使用。 |
+| `S` | 655 | `gamma_source` | source-per-energy 到 source-per-gamma 的 grid projection。 |
+| `S` | 672 | `dist_gev` | distribution-per-gamma 到 distribution-per-GeV 的 grid projection。 |
+| `S` | 689 | `align_photon` | hadron/photon grid 对齐 helper。 |
+| `S` | 709 | `shell_geom` | 对相邻动力学状态的共动 proper time 作梯形积分；首点为零时长初态。 |
+| `S` | 732 | `shell_volumes` | 壳层体积序列。 |
 
 ### `src/Hadronic/hadronic_species.f90`
 
