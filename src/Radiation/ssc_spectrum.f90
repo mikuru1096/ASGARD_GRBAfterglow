@@ -19,7 +19,7 @@ subroutine ssc_spec(R,gam_e,dN_gam_e,V_seed,seed,Num_nu,Num_R,Num_gam_e,n_thread
 
     real(8), dimension(:), allocatable :: gam_weights,V_weights,E_seed,inv_gam,inv_gam2,radius_inv2
     real(8), dimension(:), allocatable :: vinv,x_gam,x_seed
-    real(8), dimension(:,:), allocatable :: q_pref,kn_pref,logq_pref,fkernel,dnwg,weighted_seed
+    real(8), dimension(:,:), allocatable :: q_pref,kn_pref,logq_pref,dnwg,weighted_seed
     real(8), dimension(:,:), allocatable :: tail_dn,tail_inv2
     integer, dimension(:), allocatable :: gamma_start
     integer, dimension(:,:), allocatable :: gamma_bound
@@ -30,7 +30,6 @@ subroutine ssc_spec(R,gam_e,dN_gam_e,V_seed,seed,Num_nu,Num_R,Num_gam_e,n_thread
     allocate (E_seed(Num_nu), inv_gam(Num_gam_e), inv_gam2(Num_gam_e))
     allocate (radius_inv2(Num_R), vinv(Num_nu), x_gam(Num_gam_e), x_seed(Num_nu))
     allocate (q_pref(Num_gam_e,Num_nu), kn_pref(Num_gam_e,Num_nu), logq_pref(Num_gam_e,Num_nu))
-    allocate (fkernel(Num_gam_e,Num_nu))
     allocate (dnwg(Num_gam_e,Num_R), weighted_seed(Num_R,Num_nu))
     allocate (tail_dn(Num_R,Num_gam_e+1), tail_inv2(Num_R,Num_gam_e+1))
     allocate (gamma_start(Num_nu), gamma_bound(Num_nu,Num_nu))
@@ -176,6 +175,7 @@ subroutine uniform_column(i_obs)
     integer, intent(in) :: i_obs
     integer :: i_seed, i_gamma, i_shell, i_start
     real(8) :: q_coeff, q, logq, fssc, ratio_v, integ, gamma_sum
+    real(8), dimension(Num_gam_e) :: fcol
     real(8), dimension(Num_R) :: low_acc, high_acc
 
     if (gamma_start(i_obs) > Num_gam_e) return
@@ -199,13 +199,13 @@ subroutine uniform_column(i_obs)
     else
         do i_seed=1,i_obs-1
             i_start=gamma_bound(i_seed,i_obs)
-            fkernel(i_start:Num_gam_e,i_obs)=kernel_value(q_pref(i_start:Num_gam_e,i_obs), &
+            fcol(i_start:Num_gam_e)=kernel_value(q_pref(i_start:Num_gam_e,i_obs), &
                 logq_pref(i_start:Num_gam_e,i_obs),kn_pref(i_start:Num_gam_e,i_obs),vinv(i_seed),x_seed(i_seed))
             do i_shell=1,Num_R
                 gamma_sum=0d0
                 !$OMP SIMD REDUCTION(+:gamma_sum)
                 do i_gamma=i_start,Num_gam_e
-                    gamma_sum=gamma_sum+dnwg(i_gamma,i_shell)*fkernel(i_gamma,i_obs)
+                    gamma_sum=gamma_sum+dnwg(i_gamma,i_shell)*fcol(i_gamma)
                 end do
                 low_acc(i_shell)=low_acc(i_shell)+weighted_seed(i_shell,i_seed)*gamma_sum
             end do
