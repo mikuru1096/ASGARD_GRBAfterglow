@@ -18,21 +18,22 @@ subroutine ssc_spec(R,gam_e,dN_gam_e,V_seed,seed,Num_nu,Num_R,Num_gam_e,n_thread
     real(8), dimension(Num_nu,Num_R), intent(out) :: P_SSC_spec,seed_SSC
 
     real(8), dimension(:), allocatable :: gam_weights,V_weights,E_seed,inv_gam,inv_gam2,radius_inv2
-    real(8), dimension(:), allocatable :: vinv,logvinv,x_gam,x_seed
-    real(8), dimension(:,:), allocatable :: q_pref,kn_pref,logq_pref,dnwg,weighted_seed
+    real(8), dimension(:), allocatable :: vinv,x_gam,x_seed
+    real(8), dimension(:,:), allocatable :: q_pref,kn_pref,logq_pref,fkernel,dnwg,weighted_seed
     real(8), dimension(:,:), allocatable :: tail_dn,tail_inv2
     integer, dimension(:), allocatable :: gamma_start
-    integer, dimension(:,:), allocatable :: gamma_low,gamma_high
-    integer :: i_r,i_nu
+    integer, dimension(:,:), allocatable :: gamma_bound
+    integer :: i_nu
     real(8) :: para_hEme,tmp,tmp2
 
     allocate (gam_weights(Num_gam_e), V_weights(Num_nu))
     allocate (E_seed(Num_nu), inv_gam(Num_gam_e), inv_gam2(Num_gam_e))
-    allocate (radius_inv2(Num_R), vinv(Num_nu), logvinv(Num_nu), x_gam(Num_gam_e), x_seed(Num_nu))
+    allocate (radius_inv2(Num_R), vinv(Num_nu), x_gam(Num_gam_e), x_seed(Num_nu))
     allocate (q_pref(Num_gam_e,Num_nu), kn_pref(Num_gam_e,Num_nu), logq_pref(Num_gam_e,Num_nu))
-    allocate (dnwg(Num_gam_e,Num_R), weighted_seed(Num_nu,Num_R))
-    allocate (tail_dn(Num_gam_e+1,Num_R), tail_inv2(Num_gam_e+1,Num_R))
-    allocate (gamma_start(Num_nu), gamma_low(Num_nu,Num_nu), gamma_high(Num_nu,Num_nu))
+    allocate (fkernel(Num_gam_e,Num_nu))
+    allocate (dnwg(Num_gam_e,Num_R), weighted_seed(Num_R,Num_nu))
+    allocate (tail_dn(Num_R,Num_gam_e+1), tail_inv2(Num_R,Num_gam_e+1))
+    allocate (gamma_start(Num_nu), gamma_bound(Num_nu,Num_nu))
 
     para_hEme = Para_h/para_m_energy
 
@@ -42,11 +43,7 @@ subroutine ssc_spec(R,gam_e,dN_gam_e,V_seed,seed,Num_nu,Num_R,Num_gam_e,n_thread
     inv_gam = 1d0/gam_e
     inv_gam2 = inv_gam*inv_gam
     vinv = 1d0/V_seed
-    logvinv = log(vinv)
     radius_inv2 = 1d0/(R*R)
-    q_pref = 0d0
-    kn_pref = 0d0
-    logq_pref = 0d0
 
     call build_weights()
     call kn_tables()
@@ -55,12 +52,10 @@ subroutine ssc_spec(R,gam_e,dN_gam_e,V_seed,seed,Num_nu,Num_R,Num_gam_e,n_thread
     P_SSC_spec=0d0
     seed_SSC=0d0
 
-    !$OMP PARALLEL num_threads(n_threads), private(i_r, i_nu)
-    !$OMP DO COLLAPSE(2) SCHEDULE(GUIDED,4)
-    do i_r=1,Num_R
-        do i_nu=1,Num_nu
-            call uniform_point(i_r, i_nu)
-        end do
+    !$OMP PARALLEL num_threads(n_threads), private(i_nu)
+    !$OMP DO SCHEDULE(GUIDED,4)
+    do i_nu=1,Num_nu
+        call uniform_column(i_nu)
     end do
     !$OMP END DO
     !$OMP END PARALLEL
@@ -70,14 +65,6 @@ subroutine ssc_spec(R,gam_e,dN_gam_e,V_seed,seed,Num_nu,Num_R,Num_gam_e,n_thread
 
     tmp2=4d0*pi*Para_c*Para_h
     seed_SSC=seed_SSC/tmp2*tmp
-
-    deallocate(gam_weights, V_weights, E_seed, inv_gam, inv_gam2)
-    deallocate(radius_inv2, vinv, logvinv, x_gam, x_seed)
-    deallocate(q_pref, kn_pref, logq_pref)
-    deallocate(dnwg, weighted_seed, tail_dn, tail_inv2)
-    deallocate(gamma_start, gamma_low, gamma_high)
-
-    return
 
 contains
 
@@ -123,17 +110,17 @@ subroutine build_weights()
     implicit none
     integer :: i_shell, i_gamma
 
-    call sampled_weights(x_gam, gam_weights, Num_gam_e)
-    call sampled_weights(x_seed, V_weights, Num_nu)
+    call sampled_weights(x_gam,gam_weights,Num_gam_e)
+    call sampled_weights(x_seed,V_weights,Num_nu)
     do i_shell=1,Num_R
         dnwg(:,i_shell)=dN_gam_e(:,i_shell)*gam_weights*inv_gam
-        weighted_seed(:,i_shell)=seed(:,i_shell)*V_weights
-        tail_dn(Num_gam_e+1,i_shell)=0d0
-        tail_inv2(Num_gam_e+1,i_shell)=0d0
-        do i_gamma=Num_gam_e,1,-1
-            tail_dn(i_gamma,i_shell)=tail_dn(i_gamma+1,i_shell)+dnwg(i_gamma,i_shell)
-            tail_inv2(i_gamma,i_shell)=tail_inv2(i_gamma+1,i_shell)+dnwg(i_gamma,i_shell)*inv_gam2(i_gamma)
-        end do
+        weighted_seed(i_shell,:)=seed(:,i_shell)*V_weights
+    end do
+    tail_dn(:,Num_gam_e+1)=0d0
+    tail_inv2(:,Num_gam_e+1)=0d0
+    do i_gamma=Num_gam_e,1,-1
+        tail_dn(:,i_gamma)=tail_dn(:,i_gamma+1)+dnwg(i_gamma,:)
+        tail_inv2(:,i_gamma)=tail_inv2(:,i_gamma+1)+dnwg(i_gamma,:)*inv_gam2(i_gamma)
     end do
 end subroutine build_weights
 
@@ -162,69 +149,97 @@ subroutine uniform_bounds()
     do i_obs=1,Num_nu
         do i_seed=1,i_obs-1
             gamma_floor=0.5d0*(E_seed(i_obs)+sqrt(E_seed(i_obs)*E_seed(i_obs)+V_seed(i_obs)*vinv(i_seed)))
-            gamma_high(i_seed,i_obs)=first_gt(gamma_floor, gamma_start(i_obs))
+            gamma_bound(i_seed,i_obs)=first_gt(gamma_floor, gamma_start(i_obs))
         end do
         do i_seed=i_obs,Num_nu
             gamma_floor=0.5d0*sqrt(V_seed(i_seed)/V_seed(i_obs))
-            gamma_low(i_seed,i_obs)=first_ge(gamma_floor, 1)
+            gamma_bound(i_seed,i_obs)=first_ge(gamma_floor, 1)
         end do
     end do
 end subroutine uniform_bounds
 
-real(8) function low_sum(i_shell, i_obs)
+elemental real(8) function kernel_value(qbase,logbase,knbase,vrecip,logseed)
     implicit none
-    integer, intent(in) :: i_shell, i_obs
-    integer :: i_seed, i_gamma
-    real(8) :: q_coeff, q, logq, fssc, gsum
+    real(8), intent(in) :: qbase,logbase,knbase,vrecip,logseed
+    real(8) :: q
 
-    low_sum=0d0
-    do i_seed=1,i_obs-1
-        gsum=0d0
-        !$OMP SIMD REDUCTION(+:gsum)
-        do i_gamma=gamma_high(i_seed,i_obs),Num_gam_e
-            q_coeff=q_pref(i_gamma,i_obs)
-            q=q_coeff*vinv(i_seed)
-            if (q >= 1d0) cycle
-            logq=logq_pref(i_gamma,i_obs)+logvinv(i_seed)
-            fssc=2d0*q*(logq-q)+1d0+q+kn_pref(i_gamma,i_obs)*(1d0-q)
-            gsum=gsum+dnwg(i_gamma,i_shell)*fssc
-        end do
-        low_sum=low_sum+weighted_seed(i_seed,i_shell)*gsum
-    end do
-end function low_sum
+    q=qbase*vrecip
+    if (q >= 1d0) then
+        kernel_value=0d0
+    else
+        kernel_value=2d0*q*(logbase-logseed-q)+1d0+q+knbase*(1d0-q)
+    end if
+end function kernel_value
 
-real(8) function high_tail(i_shell, i_obs)
+subroutine uniform_column(i_obs)
     implicit none
-    integer, intent(in) :: i_shell, i_obs
-    integer :: i_seed, i_gamma
-    real(8) :: ratio_v, gsum
-
-    high_tail=0d0
-    do i_seed=i_obs,Num_nu
-        ratio_v=V_seed(i_obs)*vinv(i_seed)
-        i_gamma=gamma_low(i_seed,i_obs)
-        if (i_gamma <= Num_gam_e) then
-            gsum=ratio_v*tail_dn(i_gamma,i_shell)-0.25d0*tail_inv2(i_gamma,i_shell)
-        else
-            gsum=0d0
-        end if
-        high_tail=high_tail+weighted_seed(i_seed,i_shell)*gsum
-    end do
-end function high_tail
-
-subroutine uniform_point(i_shell, i_obs)
-    implicit none
-    integer, intent(in) :: i_shell, i_obs
-    real(8) :: integ, power, flux
+    integer, intent(in) :: i_obs
+    integer :: i_seed, i_gamma, i_shell, i_start
+    real(8) :: q_coeff, q, logq, fssc, ratio_v, integ, gamma_sum
+    real(8), dimension(Num_R) :: low_acc, high_acc
 
     if (gamma_start(i_obs) > Num_gam_e) return
 
-    integ=low_sum(i_shell, i_obs)+high_tail(i_shell, i_obs)
-    power=integ*V_seed(i_obs)
-    P_SSC_spec(i_obs,i_shell)=P_SSC_spec(i_obs,i_shell)+power
-    flux=integ*radius_inv2(i_shell)
-    seed_SSC(i_obs,i_shell)=seed_SSC(i_obs,i_shell)+flux
-end subroutine uniform_point
+    low_acc=0d0
+    if (Num_R == 1) then
+        do i_seed=1,i_obs-1
+            i_start=gamma_bound(i_seed,i_obs)
+            gamma_sum=0d0
+            !$OMP SIMD REDUCTION(+:gamma_sum)
+            do i_gamma=i_start,Num_gam_e
+                q_coeff=q_pref(i_gamma,i_obs)
+                q=q_coeff*vinv(i_seed)
+                if (q >= 1d0) cycle
+                logq=logq_pref(i_gamma,i_obs)-x_seed(i_seed)
+                fssc=2d0*q*(logq-q)+1d0+q+kn_pref(i_gamma,i_obs)*(1d0-q)
+                gamma_sum=gamma_sum+dnwg(i_gamma,1)*fssc
+            end do
+            low_acc(1)=low_acc(1)+weighted_seed(1,i_seed)*gamma_sum
+        end do
+    else
+        do i_seed=1,i_obs-1
+            i_start=gamma_bound(i_seed,i_obs)
+            fkernel(i_start:Num_gam_e,i_obs)=kernel_value(q_pref(i_start:Num_gam_e,i_obs), &
+                logq_pref(i_start:Num_gam_e,i_obs),kn_pref(i_start:Num_gam_e,i_obs),vinv(i_seed),x_seed(i_seed))
+            do i_shell=1,Num_R
+                gamma_sum=0d0
+                !$OMP SIMD REDUCTION(+:gamma_sum)
+                do i_gamma=i_start,Num_gam_e
+                    gamma_sum=gamma_sum+dnwg(i_gamma,i_shell)*fkernel(i_gamma,i_obs)
+                end do
+                low_acc(i_shell)=low_acc(i_shell)+weighted_seed(i_shell,i_seed)*gamma_sum
+            end do
+        end do
+    end if
+
+    high_acc=0d0
+    if (Num_R == 1) then
+        do i_seed=i_obs,Num_nu
+            ratio_v=V_seed(i_obs)*vinv(i_seed)
+            i_gamma=gamma_bound(i_seed,i_obs)
+            if (i_gamma <= Num_gam_e) high_acc(1)=high_acc(1)+weighted_seed(1,i_seed)* &
+                (ratio_v*tail_dn(1,i_gamma)-0.25d0*tail_inv2(1,i_gamma))
+        end do
+    else
+        do i_seed=i_obs,Num_nu
+            ratio_v=V_seed(i_obs)*vinv(i_seed)
+            i_gamma=gamma_bound(i_seed,i_obs)
+            if (i_gamma <= Num_gam_e) then
+                !$OMP SIMD
+                do i_shell=1,Num_R
+                    high_acc(i_shell)=high_acc(i_shell)+weighted_seed(i_shell,i_seed)* &
+                        (ratio_v*tail_dn(i_shell,i_gamma)-0.25d0*tail_inv2(i_shell,i_gamma))
+                end do
+            end if
+        end do
+    end if
+
+    do i_shell=1,Num_R
+        integ=low_acc(i_shell)+high_acc(i_shell)
+        P_SSC_spec(i_obs,i_shell)=integ*V_seed(i_obs)
+        seed_SSC(i_obs,i_shell)=integ*radius_inv2(i_shell)
+    end do
+end subroutine uniform_column
 
 end subroutine ssc_spec
 
@@ -250,6 +265,7 @@ subroutine ssc_spec_nonuniform(R,x_edge_log10,dN_x,V_seed,seed,Num_nu,Num_R,Num_
 
     real(8), dimension(:), allocatable :: x_seed,radius_inv2
     real(8), dimension(:,:), allocatable :: x_center,slope_q,tail_gamma,tail_inv2
+    real(8), parameter :: gauss_sign(2)=[-1d0,1d0]
     real(8) :: para_hEme,w2,tmp,tmp2
     integer :: i_r,i_nu
 
@@ -281,9 +297,6 @@ subroutine ssc_spec_nonuniform(R,x_edge_log10,dN_x,V_seed,seed,Num_nu,Num_R,Num_
 
     tmp2=4d0*pi*Para_c*Para_h
     seed_SSC=seed_SSC/tmp2*tmp
-
-    deallocate(x_seed,radius_inv2,x_center,slope_q)
-    deallocate(tail_gamma,tail_inv2)
 
 contains
 
@@ -360,18 +373,6 @@ subroutine add_tail(i_shell, i_gamma)
         gamma_moment(x0_cell,x1_cell,dN_x(i_gamma,i_shell),slope_q(i_gamma,i_shell),x_center(i_gamma,i_shell),4d0)
 end subroutine add_tail
 
-real(8) function gauss_point(xm, dx, i_gauss)
-    implicit none
-    real(8), intent(in) :: xm, dx
-    integer, intent(in) :: i_gauss
-
-    if (i_gauss == 1) then
-        gauss_point=xm-dx*w2
-    else
-        gauss_point=xm+dx*w2
-    end if
-end function gauss_point
-
 subroutine nonuniform_point(i_shell, i_obs)
     implicit none
     integer, intent(in) :: i_shell, i_obs
@@ -389,7 +390,7 @@ subroutine nonuniform_point(i_shell, i_obs)
         xm=0.5d0*(x0+x1)
         dx=0.5d0*(x1-x0)
         do i_gauss=1,2
-            xloc=gauss_point(xm, dx, i_gauss)
+            xloc=xm+gauss_sign(i_gauss)*dx*w2
             vseed=dexp(xloc)
             sloc=rad_interp(V_seed(i_seed),V_seed(i_seed+1),seed(i_seed,i_shell),seed(i_seed+1,i_shell),vseed)
             if (sloc <= 0d0) cycle
@@ -491,7 +492,7 @@ end function gamma_moment
 real(8) function low_cell(x0,x1,qbar,slope,xc,vobs,vseed,eobs)
     implicit none
     real(8), intent(in) :: x0,x1,qbar,slope,xc,vobs,vseed,eobs
-    real(8) :: xm,dx,w2_loc,xg,gam,temp,q,q_gamma,kn_coeff,fssc,val,q_loc
+    real(8) :: xm,dx,xg,gam,temp,q,q_gamma,kn_coeff,fssc,val,q_loc
     integer :: i_pt
 
     if (x1 <= x0 .or. qbar == 0d0) then
@@ -501,14 +502,9 @@ real(8) function low_cell(x0,x1,qbar,slope,xc,vobs,vseed,eobs)
 
     xm=0.5d0*(x0+x1)
     dx=0.5d0*(x1-x0)
-    w2_loc=1d0/dsqrt(3d0)
     low_cell=0d0
     do i_pt=1,2
-        if (i_pt == 1) then
-            xg=xm-dx*w2_loc
-        else
-            xg=xm+dx*w2_loc
-        end if
+        xg=xm+gauss_sign(i_pt)*dx*w2
         q_loc=profile_value(xg,qbar,slope,xc)
         if (q_loc <= 0d0) cycle
         gam=1d1**xg
