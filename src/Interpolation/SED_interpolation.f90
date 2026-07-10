@@ -29,9 +29,12 @@ subroutine sed_interpolation(Boundary,R_Tobs1,R_gamma,R,F_tot,V_seed,V_obs,Tobs,
     real(8), allocatable, dimension(:) :: V_obs_log,V_seed_log
     real(8), dimension(Num_R) :: R_Tobs_theta
     real(8), dimension(Num_nu) :: F_tot_theta,F_tot_log_theta,V_seed_log_theta
+    real(8), dimension(Num_Tobs) :: T_sorted
+    integer, dimension(Num_Tobs) :: T_order
     real(8) :: z,OpeningAngle_jet,Tv,dPhi,phi_scale,dtheta,Taa_lower,Taa_boundary,Taa_center,domega
     real(8) :: Phi_center,DMu,Ratio,DG,Beta,doppler,lgamlo,lgamhi,ldomega,ldopred
-    integer :: I_Theta,i_Phi,K1,K2,II,last_k2
+    integer :: I_Theta,i_Phi,Iobs,K2,II,last_k2
+    logical :: time_ordered
     allocate (F_tot_obs_temp(Num_nu_obs,Num_Tobs),V_obs_log(Num_nu_obs),V_seed_log(Num_nu))
 
     F_tot_obs=0d0
@@ -51,8 +54,9 @@ subroutine sed_interpolation(Boundary,R_Tobs1,R_gamma,R,F_tot,V_seed,V_obs,Tobs,
 
     V_obs_log = log(V_obs)
     V_seed_log = log(V_seed)
+    call time_order(Tobs,Num_Tobs,T_order,T_sorted,time_ordered)
     !$OMP PARALLEL num_threads(n_threads), reduction(+:F_tot_obs_temp), private(I_Theta, Taa_lower, Taa_boundary, &
-    !$OMP& Taa_center, domega, i_Phi, Phi_center, DMu, K1, II, K2, Ratio, DG, Beta, doppler, &
+    !$OMP& Taa_center, domega, i_Phi, Phi_center, DMu, Iobs, K2, II, Ratio, DG, Beta, doppler, &
     !$OMP& R_Tobs_theta, F_tot_theta, F_tot_log_theta, V_seed_log_theta, &
     !$OMP& last_k2, lgamlo, lgamhi, ldomega, ldopred)
     !$OMP DO SCHEDULE(GUIDED,4)
@@ -68,40 +72,44 @@ subroutine sed_interpolation(Boundary,R_Tobs1,R_gamma,R,F_tot,V_seed,V_obs,Tobs,
           R_Tobs_theta=R_Tobs1+R*(1d0-DMu)*(1d0+z)/Para_c
           II=1
           last_k2=0
-          do K1=1,Num_Tobs
-             if (Tobs(K1) < R_Tobs_theta(1).or.Tobs(K1) > R_Tobs_theta(Num_R)) cycle
-             do while (II < Num_R-1 .and. Tobs(K1) >= R_Tobs_theta(II+1))
+          do Iobs=1,Num_Tobs
+             if (T_sorted(Iobs) < R_Tobs_theta(1) .or. T_sorted(Iobs) >= R_Tobs_theta(Num_R)) cycle
+             do while (II < Num_R-1 .and. T_sorted(Iobs) >= R_Tobs_theta(II+1))
                 II=II+1
              end do
              K2=II
-             if ((Tobs(K1) >= R_Tobs_theta(K2)).and.(Tobs(K1) < R_Tobs_theta(K2+1))) then
-                 if (K2 /= last_k2) then
-                     lgamlo=log(R_gamma(K2))
-                     lgamhi=log(R_gamma(K2+1))
-                     last_k2=K2
-                 end if
-                 Ratio=(Tobs(K1)-R_Tobs_theta(K2))/(R_Tobs_theta(K2+1)-R_Tobs_theta(K2))
-                 DG=exp(lgamlo+Ratio*(lgamhi-lgamlo))
-                 ! 时间方向用非负通量重构；频率方向仍在 interpolation_common 中按 log SED 插值。
-                 F_tot_theta=(1d0-Ratio)*F_tot(:,K2)+Ratio*F_tot(:,K2+1)
-                 F_tot_log_theta=-huge(1d0)
-                 where(F_tot_theta > 0d0) F_tot_log_theta=log(F_tot_theta)
-                 Beta=dsqrt(1d0-DG**(-2))
-
-                 doppler=DG*(1d0-Beta*DMu) !Doppler factor, changed with R
-                 ldopred=log(doppler)+log(1d0+z)
-                 F_tot_log_theta=F_tot_log_theta+ldomega-3d0*log(doppler)
-                 V_seed_log_theta=V_seed_log-ldopred
-                 call accum_logsed(V_seed_log_theta,F_tot_log_theta, &
-                                                       Num_nu,V_obs_log,Num_nu_obs,F_tot_obs_temp(:,K1))
+             if (K2 /= last_k2) then
+                 lgamlo=log(R_gamma(K2))
+                 lgamhi=log(R_gamma(K2+1))
+                 last_k2=K2
              end if
+             Ratio=(T_sorted(Iobs)-R_Tobs_theta(K2))/(R_Tobs_theta(K2+1)-R_Tobs_theta(K2))
+             DG=exp(lgamlo+Ratio*(lgamhi-lgamlo))
+             ! 时间方向用非负通量重构；频率方向仍在 interpolation_common 中按 log SED 插值。
+             F_tot_theta=(1d0-Ratio)*F_tot(:,K2)+Ratio*F_tot(:,K2+1)
+             F_tot_log_theta=-huge(1d0)
+             where(F_tot_theta > 0d0) F_tot_log_theta=log(F_tot_theta)
+             Beta=dsqrt(1d0-DG**(-2))
+
+             doppler=DG*(1d0-Beta*DMu) !Doppler factor, changed with R
+             ldopred=log(doppler)+log(1d0+z)
+             F_tot_log_theta=F_tot_log_theta+ldomega-3d0*log(doppler)
+             V_seed_log_theta=V_seed_log-ldopred
+             call accum_logsed(V_seed_log_theta,F_tot_log_theta, &
+                                                   Num_nu,V_obs_log,Num_nu_obs,F_tot_obs_temp(:,Iobs))
          end do
        end do
     end do
     !$OMP END DO
     !$OMP END PARALLEL
 
-    F_tot_obs=F_tot_obs_temp*phi_scale
+    if (time_ordered) then
+        F_tot_obs=F_tot_obs_temp*phi_scale
+    else
+        do Iobs=1,Num_Tobs
+            F_tot_obs(:,T_order(Iobs))=F_tot_obs_temp(:,Iobs)*phi_scale
+        end do
+    end if
 
     deallocate (F_tot_obs_temp,V_obs_log,V_seed_log)
 
@@ -130,8 +138,11 @@ subroutine sed_adaptive_theta(Boundary,R_Tobs1,R_gamma,R,F_tot,V_seed,V_obs,Tobs
     real(8), allocatable, dimension(:,:) :: F_tot_obs_temp
     real(8), allocatable, dimension(:) :: V_obs_log,V_seed_log
     real(8), dimension(Num_nu_obs,Num_Tobs) :: cell_obs
+    real(8), dimension(Num_Tobs) :: T_sorted
+    integer, dimension(Num_Tobs) :: T_order
     real(8) :: z,OpeningAngle_jet,Tv,dPhi,phi_scale,dtheta,Taa_lower,Taa_boundary,Phi_center
-    integer :: I_Theta,i_Phi
+    integer :: I_Theta,i_Phi,Iobs
+    logical :: time_ordered
 
     if (addepthmax == 0) then
         call sed_interpolation(Boundary,R_Tobs1,R_gamma,R,F_tot,V_seed,V_obs,Tobs, &
@@ -155,6 +166,7 @@ subroutine sed_adaptive_theta(Boundary,R_Tobs1,R_gamma,R,F_tot,V_seed,V_obs,Tobs
     dtheta = OpeningAngle_jet/Num_Theta
     V_obs_log = dlog(V_obs)
     V_seed_log = dlog(V_seed)
+    call time_order(Tobs,Num_Tobs,T_order,T_sorted,time_ordered)
 
     !$OMP PARALLEL num_threads(n_threads), reduction(+:F_tot_obs_temp), private(I_Theta, &
     !$OMP& i_Phi,Phi_center,Taa_lower,Taa_boundary,cell_obs)
@@ -171,7 +183,13 @@ subroutine sed_adaptive_theta(Boundary,R_Tobs1,R_gamma,R,F_tot,V_seed,V_obs,Tobs
     end do
     !$OMP END DO
     !$OMP END PARALLEL
-    F_tot_obs = F_tot_obs_temp*phi_scale
+    if (time_ordered) then
+        F_tot_obs=F_tot_obs_temp*phi_scale
+    else
+        do Iobs=1,Num_Tobs
+            F_tot_obs(:,T_order(Iobs))=F_tot_obs_temp(:,Iobs)*phi_scale
+        end do
+    end if
     deallocate(F_tot_obs_temp,V_obs_log,V_seed_log)
     return
 
@@ -214,7 +232,7 @@ subroutine project_theta_sample(theta_lo,theta_hi,theta_center,phi_center,local_
     real(8), dimension(Num_R) :: R_Tobs_theta
     real(8) :: lgamlo,lgamhi,ldomega
     real(8) :: domega,DMu,Ratio
-    integer :: K1,K2,II
+    integer :: Iobs,K2,II
     integer :: last_k2
 
     domega = (dcos(theta_lo)-dcos(theta_hi))*dPhi
@@ -223,22 +241,20 @@ subroutine project_theta_sample(theta_lo,theta_hi,theta_center,phi_center,local_
     R_Tobs_theta = R_Tobs1+R*(1d0-DMu)*(1d0+z)/Para_c
     II = 1
     last_k2 = 0
-    do K1 = 1, Num_Tobs
-        if (Tobs(K1) < R_Tobs_theta(1) .or. Tobs(K1) > R_Tobs_theta(Num_R)) cycle
-        do while (II < Num_R-1 .and. Tobs(K1) >= R_Tobs_theta(II+1))
+    do Iobs = 1, Num_Tobs
+        if (T_sorted(Iobs) < R_Tobs_theta(1) .or. T_sorted(Iobs) >= R_Tobs_theta(Num_R)) cycle
+        do while (II < Num_R-1 .and. T_sorted(Iobs) >= R_Tobs_theta(II+1))
             II = II + 1
         end do
         K2 = II
-        if (Tobs(K1) >= R_Tobs_theta(K2) .and. Tobs(K1) < R_Tobs_theta(K2+1)) then
-            if (K2 /= last_k2) then
-                lgamlo = dlog(R_gamma(K2))
-                lgamhi = dlog(R_gamma(K2+1))
-                last_k2 = K2
-            end if
-            Ratio = (Tobs(K1)-R_Tobs_theta(K2))/(R_Tobs_theta(K2+1)-R_Tobs_theta(K2))
-            call projshellseg(K1,K2,Ratio,DMu,ldomega, &
-                                       lgamlo,lgamhi,local_obs)
+        if (K2 /= last_k2) then
+            lgamlo = dlog(R_gamma(K2))
+            lgamhi = dlog(R_gamma(K2+1))
+            last_k2 = K2
         end if
+        Ratio = (T_sorted(Iobs)-R_Tobs_theta(K2))/(R_Tobs_theta(K2+1)-R_Tobs_theta(K2))
+        call projshellseg(Iobs,K2,Ratio,DMu,ldomega, &
+                                   lgamlo,lgamhi,local_obs)
     end do
 end subroutine project_theta_sample
 
@@ -285,11 +301,13 @@ subroutine sed_interpolation_chi(Boundary,R_Tobs1,R_front,F_chi,Tau_chi,R_chi,Ga
     real(8), allocatable, dimension(:,:,:) :: Tau_prefix
     real(8), allocatable, dimension(:) :: Angle_dmu,Angle_logw
     real(8), dimension(Num_R) :: R_Tobs_chi
+    real(8), dimension(Num_Tobs) :: T_sorted
+    integer, dimension(Num_Tobs) :: T_order
     real(8) :: ldomega,z,OpeningAngle_jet,Tv,dPhi,phi_scale,dtheta
     real(8) :: Taa_lower,Taa_boundary,Taa_center,domega,Phi_center,DMu,Ratio
     real(8) :: lgamlo,lgamhi,segment_lo,segment_hi,cos_tv,sin_tv
-    integer :: I_chi,I_Theta,i_Phi,K1,K2,II,I_ang,last_k2,k_start,lowerreal8
-    logical :: monotonic_chi
+    integer :: I_chi,I_Theta,i_Phi,Iobs,K2,II,I_ang,last_k2,k_start,lowerreal8
+    logical :: monotonic_chi,time_ordered
 
     allocate(F_temp(Num_nu_obs,Num_Tobs),V_obs_log(Num_nu_obs),V_seed_log(Num_nu))
     allocate(Tau_prefix(Num_nu,0:Num_chi,Num_R))
@@ -308,6 +326,7 @@ subroutine sed_interpolation_chi(Boundary,R_Tobs1,R_front,F_chi,Tau_chi,R_chi,Ga
     dtheta = OpeningAngle_jet/Num_Theta
     V_obs_log = dlog(V_obs)
     V_seed_log = dlog(V_seed)
+    call time_order(Tobs,Num_Tobs,T_order,T_sorted,time_ordered)
     Tau_prefix(:,0,:) = 0d0
     do I_chi = 1, Num_chi
         Tau_prefix(:,I_chi,:) = Tau_prefix(:,I_chi-1,:) + Tau_chi(:,I_chi,:)
@@ -327,7 +346,7 @@ subroutine sed_interpolation_chi(Boundary,R_Tobs1,R_front,F_chi,Tau_chi,R_chi,Ga
     end do
 
     !$OMP PARALLEL num_threads(n_threads), reduction(+:F_temp), private(I_ang,ldomega,DMu, &
-    !$OMP& I_chi,R_Tobs_chi,monotonic_chi,II,last_k2,K1,K2,Ratio, &
+    !$OMP& I_chi,R_Tobs_chi,monotonic_chi,last_k2,Iobs,K2,II,Ratio, &
     !$OMP& lgamlo,lgamhi,segment_lo,segment_hi,k_start)
     !$OMP DO SCHEDULE(STATIC)
     do I_ang = 1, Num_Theta*Num_Phi
@@ -339,35 +358,33 @@ subroutine sed_interpolation_chi(Boundary,R_Tobs1,R_front,F_chi,Tau_chi,R_chi,Ga
                 if (monotonic_chi) then
                     II = 1
                     last_k2 = 0
-                    do K1 = 1, Num_Tobs
-                        if (Tobs(K1) < R_Tobs_chi(1) .or. Tobs(K1) > R_Tobs_chi(Num_R)) cycle
-                        do while (II < Num_R-1 .and. Tobs(K1) >= R_Tobs_chi(II+1))
+                    do Iobs = 1, Num_Tobs
+                        if (T_sorted(Iobs) < R_Tobs_chi(1) .or. T_sorted(Iobs) >= R_Tobs_chi(Num_R)) cycle
+                        do while (II < Num_R-1 .and. T_sorted(Iobs) >= R_Tobs_chi(II+1))
                             II = II + 1
                         end do
                         K2 = II
-                        if (Tobs(K1) >= R_Tobs_chi(K2) .and. Tobs(K1) < R_Tobs_chi(K2+1)) then
-                            if (K2 /= last_k2) then
-                                lgamlo = dlog(Gamma_chi(I_chi,K2))
-                                lgamhi = dlog(Gamma_chi(I_chi,K2+1))
-                                last_k2 = K2
-                            end if
-                            Ratio = (Tobs(K1)-R_Tobs_chi(K2))/(R_Tobs_chi(K2+1)-R_Tobs_chi(K2))
-                            call project_chi(I_chi,K2,Ratio,DMu,ldomega, &
-                                                          lgamlo,lgamhi,F_temp(:,K1))
+                        if (K2 /= last_k2) then
+                            lgamlo = dlog(Gamma_chi(I_chi,K2))
+                            lgamhi = dlog(Gamma_chi(I_chi,K2+1))
+                            last_k2 = K2
                         end if
+                        Ratio = (T_sorted(Iobs)-R_Tobs_chi(K2))/(R_Tobs_chi(K2+1)-R_Tobs_chi(K2))
+                        call project_chi(I_chi,K2,Ratio,DMu,ldomega, &
+                                                      lgamlo,lgamhi,F_temp(:,Iobs))
                     end do
                 else
                     do K2 = 1, Num_R-1
                         segment_lo = min(R_Tobs_chi(K2),R_Tobs_chi(K2+1))
                         segment_hi = max(R_Tobs_chi(K2),R_Tobs_chi(K2+1))
-                        k_start = lowerreal8(Tobs,Num_Tobs,segment_lo)
+                        k_start = lowerreal8(T_sorted,Num_Tobs,segment_lo)
                         lgamlo = dlog(Gamma_chi(I_chi,K2))
                         lgamhi = dlog(Gamma_chi(I_chi,K2+1))
-                        do K1 = k_start, Num_Tobs
-                            if (Tobs(K1) >= segment_hi) exit
-                            Ratio = (Tobs(K1)-R_Tobs_chi(K2))/(R_Tobs_chi(K2+1)-R_Tobs_chi(K2))
+                        do Iobs = k_start, Num_Tobs
+                            if (T_sorted(Iobs) >= segment_hi) exit
+                            Ratio = (T_sorted(Iobs)-R_Tobs_chi(K2))/(R_Tobs_chi(K2+1)-R_Tobs_chi(K2))
                             call project_chi(I_chi,K2,Ratio,DMu,ldomega, &
-                                                          lgamlo,lgamhi,F_temp(:,K1))
+                                                          lgamlo,lgamhi,F_temp(:,Iobs))
                         end do
                     end do
                 end if
@@ -375,7 +392,13 @@ subroutine sed_interpolation_chi(Boundary,R_Tobs1,R_front,F_chi,Tau_chi,R_chi,Ga
     end do
     !$OMP END DO
     !$OMP END PARALLEL
-    F_tot_obs = F_temp*phi_scale
+    if (time_ordered) then
+        F_tot_obs=F_temp*phi_scale
+    else
+        do Iobs=1,Num_Tobs
+            F_tot_obs(:,T_order(Iobs))=F_temp(:,Iobs)*phi_scale
+        end do
+    end if
     deallocate(F_temp,V_obs_log,V_seed_log,Tau_prefix,Angle_dmu,Angle_logw)
     return
 
@@ -703,7 +726,7 @@ subroutine sample_phi(leafid)
             if (tmono(ichi,iring,leafid)) then
                 ta = Tbase(1,iring) - mudelay*R_chi(ichi,1,iring)
                 tb = Tbase(Num_R,iring) - mudelay*R_chi(ichi,Num_R,iring)
-                if (tview < ta .or. tview >= tb) cycle
+                if (.not.(tview >= ta .and. tview < tb)) cycle
                 ii = 1
                 k2 = Num_R
                 do while (ii+1 < k2)
@@ -1134,9 +1157,11 @@ subroutine sed_chiring_core(Boundary,R_Tobs1,R_front, &
     real(8), intent(out) :: F_tot_obs(Num_nu_obs,Num_Tobs)
     real(8), allocatable :: F_temp(:,:), V_obs_log(:), V_seed_log(:), Tau_prefix(:,:,:)
     real(8) :: R_Tobs_chi(Num_R), ldomega,lgamlo,lgamhi,segment_lo,segment_hi
+    real(8) :: T_sorted(Num_Tobs)
+    integer :: T_order(Num_Tobs)
     real(8) :: z,Tv,cos_tv,sin_tv,theta_center,domega,dPhi,DMu,Ratio,phi_lo,phi_hi
-    integer :: I_chi,i_Phi,K1,K2,II,last_k2,k_start
-    logical :: monotonic_chi
+    integer :: I_chi,i_Phi,Iobs,K2,II,last_k2,k_start
+    logical :: monotonic_chi,time_ordered
 
     allocate(F_temp(Num_nu_obs,Num_Tobs),V_obs_log(Num_nu_obs),V_seed_log(Num_nu))
     allocate(Tau_prefix(Num_nu,0:Num_chi,Num_R))
@@ -1147,6 +1172,7 @@ subroutine sed_chiring_core(Boundary,R_Tobs1,R_front, &
     dPhi = 2d0*pi/Num_phi_patch
     V_obs_log = dlog(V_obs)
     V_seed_log = dlog(V_seed)
+    call time_order(Tobs,Num_Tobs,T_order,T_sorted,time_ordered)
     cos_tv = dcos(Tv)
     sin_tv = dsin(Tv)
 
@@ -1160,7 +1186,13 @@ subroutine sed_chiring_core(Boundary,R_Tobs1,R_front, &
         phi_hi = i_Phi*dPhi
         call projphisamp(phi_lo,phi_hi,0.5d0*(phi_lo+phi_hi),F_temp)
     end do
-    F_tot_obs = F_temp
+    if (time_ordered) then
+        F_tot_obs=F_temp
+    else
+        do Iobs=1,Num_Tobs
+            F_tot_obs(:,T_order(Iobs))=F_temp(:,Iobs)
+        end do
+    end if
     deallocate(F_temp,V_obs_log,V_seed_log,Tau_prefix)
     return
 
@@ -1181,34 +1213,32 @@ subroutine projphisamp(phi_lo,phi_hi,phi_center,local_obs)
         if (monotonic_chi) then
             II = 1
             last_k2 = 0
-            do K1 = 1, Num_Tobs
-                if (Tobs(K1) < R_Tobs_chi(1) .or. Tobs(K1) > R_Tobs_chi(Num_R)) cycle
-                do while (II < Num_R-1 .and. Tobs(K1) >= R_Tobs_chi(II+1))
+            do Iobs = 1, Num_Tobs
+                if (T_sorted(Iobs) < R_Tobs_chi(1) .or. T_sorted(Iobs) >= R_Tobs_chi(Num_R)) cycle
+                do while (II < Num_R-1 .and. T_sorted(Iobs) >= R_Tobs_chi(II+1))
                     II = II + 1
                 end do
                 K2 = II
-                if (Tobs(K1) >= R_Tobs_chi(K2) .and. Tobs(K1) < R_Tobs_chi(K2+1)) then
-                    if (K2 /= last_k2) then
-                        lgamlo = dlog(Gamma_chi(I_chi,K2))
-                        lgamhi = dlog(Gamma_chi(I_chi,K2+1))
-                        last_k2 = K2
-                    end if
-                    Ratio = (Tobs(K1)-R_Tobs_chi(K2))/(R_Tobs_chi(K2+1)-R_Tobs_chi(K2))
-                    call project_ring(I_chi,K2,K1,Ratio,DMu,ldomega, &
-                                      lgamlo,lgamhi,local_obs)
+                if (K2 /= last_k2) then
+                    lgamlo = dlog(Gamma_chi(I_chi,K2))
+                    lgamhi = dlog(Gamma_chi(I_chi,K2+1))
+                    last_k2 = K2
                 end if
+                Ratio = (T_sorted(Iobs)-R_Tobs_chi(K2))/(R_Tobs_chi(K2+1)-R_Tobs_chi(K2))
+                call project_ring(I_chi,K2,Iobs,Ratio,DMu,ldomega, &
+                                  lgamlo,lgamhi,local_obs)
             end do
         else
             do K2 = 1, Num_R-1
                 segment_lo = min(R_Tobs_chi(K2),R_Tobs_chi(K2+1))
                 segment_hi = max(R_Tobs_chi(K2),R_Tobs_chi(K2+1))
-                k_start = lowerreal8(Tobs,Num_Tobs,segment_lo)
+                k_start = lowerreal8(T_sorted,Num_Tobs,segment_lo)
                 lgamlo = dlog(Gamma_chi(I_chi,K2))
                 lgamhi = dlog(Gamma_chi(I_chi,K2+1))
-                do K1 = k_start, Num_Tobs
-                    if (Tobs(K1) >= segment_hi) exit
-                    Ratio = (Tobs(K1)-R_Tobs_chi(K2))/(R_Tobs_chi(K2+1)-R_Tobs_chi(K2))
-                    call project_ring(I_chi,K2,K1,Ratio,DMu,ldomega, &
+                do Iobs = k_start, Num_Tobs
+                    if (T_sorted(Iobs) >= segment_hi) exit
+                    Ratio = (T_sorted(Iobs)-R_Tobs_chi(K2))/(R_Tobs_chi(K2+1)-R_Tobs_chi(K2))
+                    call project_ring(I_chi,K2,Iobs,Ratio,DMu,ldomega, &
                                       lgamlo,lgamhi,local_obs)
                 end do
             end do

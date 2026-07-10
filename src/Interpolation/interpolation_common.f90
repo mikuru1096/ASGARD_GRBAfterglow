@@ -4,9 +4,63 @@ module interpolation_common
     implicit none
     private
 
-    public :: accum_logsed, accum_shifted
+    public :: accum_logsed, accum_shifted, time_order
 
 contains
+
+! 观测时刻仅在入口稳定归并排序一次；升序输入直接返回恒等映射。
+! Stable-sort observer times once at entry; ordered input returns the identity mapping directly.
+pure subroutine time_order(values,n,order,sorted,ordered)
+    implicit none
+    integer, intent(in) :: n
+    real(8), intent(in), dimension(n) :: values
+    integer, intent(out), dimension(n) :: order
+    real(8), intent(out), dimension(n) :: sorted
+    logical, intent(out) :: ordered
+    integer :: work(n),width,left,mid,right,i,j,k
+
+    order=[(i,i=1,n)]
+    ordered=all(values(2:n) >= values(1:n-1))
+    if (ordered) then
+        sorted=values
+        return
+    end if
+    width=1
+    do while (width < n)
+        do left=1,n,2*width
+            mid=min(left+width,n+1)
+            right=min(left+2*width,n+1)
+            i=left
+            j=mid
+            k=left
+            do while (i < mid .and. j < right)
+                if (values(order(i)) <= values(order(j))) then
+                    work(k)=order(i)
+                    i=i+1
+                else
+                    work(k)=order(j)
+                    j=j+1
+                end if
+                k=k+1
+            end do
+            do while (i < mid)
+                work(k)=order(i)
+                i=i+1
+                k=k+1
+            end do
+            do while (j < right)
+                work(k)=order(j)
+                j=j+1
+                k=k+1
+            end do
+        end do
+        order=work
+        width=2*width
+    end do
+    do i=1,n
+        sorted(i)=values(order(i))
+    end do
+end subroutine time_order
 
 ! 在对数-线性空间中插值并累加 SED 到观测网格。
 ! Interpolate in log-linear space and accumulate the SED on the observer grid.

@@ -1254,6 +1254,8 @@ class Model:
     ) -> FluxResult:
         times_s = np.asarray(times_s, dtype=float)
         nu_hz = np.asarray(nu_hz, dtype=float)
+        if times_s.size == 0 or not np.all(np.isfinite(times_s)) or np.any(times_s <= 0.0):
+            raise ValueError("times_s must contain finite positive values.")
         from asgard_core.asgard_state import _projkind
         from .api_adaptive import _array_signature, _observe_parts, _remember_cache_entry
 

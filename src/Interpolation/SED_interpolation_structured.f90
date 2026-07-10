@@ -29,9 +29,12 @@ subroutine sed_interpolation_structured(Boundary, angle_narrow_jet, R_Tobs1,R_ga
     real(8), allocatable, dimension(:) :: V_obs_log,V_seed_log
     real(8), dimension(Num_R) :: R_Tobs_theta
     real(8), dimension(Num_nu) :: specLo,specHi
+    real(8), dimension(Num_Tobs) :: T_sorted
+    integer, dimension(Num_Tobs) :: T_order
     real(8) :: z,OpeningAngle_jet,Tv,dPhi,phi_scale,dtheta,Taa_lower,Taa_boundary,Taa_center,domega
     real(8) :: Phi_center,DMu,Ratio,log_gamma_lo,log_gamma_hi,log_domega_4pi
-    integer :: I_Theta,i_Phi,K1,K2,II,last_k2
+    integer :: I_Theta,i_Phi,Iobs,K2,II,last_k2
+    logical :: time_ordered
     allocate (P_tot_obs_temp(Num_nu_obs,Num_Tobs),V_obs_log(Num_nu_obs),V_seed_log(Num_nu))
 
 
@@ -51,10 +54,11 @@ subroutine sed_interpolation_structured(Boundary, angle_narrow_jet, R_Tobs1,R_ga
     dtheta=OpeningAngle_jet/Num_Theta
     V_obs_log = log(V_obs)
     V_seed_log = log(V_seed)
+    call time_order(Tobs,Num_Tobs,T_order,T_sorted,time_ordered)
 
     !$OMP PARALLEL num_threads(n_threads), reduction(+:P_tot_obs_temp), private(I_Theta, &
     !$OMP& Taa_lower, Taa_boundary, Taa_center, domega, i_Phi, Phi_center, DMu, &
-    !$OMP& K1, II, K2, Ratio, R_Tobs_theta, &
+    !$OMP& Iobs, K2, II, Ratio, R_Tobs_theta, &
     !$OMP& specLo, specHi, last_k2, log_gamma_lo, log_gamma_hi, log_domega_4pi)
     !$OMP DO SCHEDULE(GUIDED,4)
     do I_Theta=1,Num_Theta
@@ -70,31 +74,35 @@ subroutine sed_interpolation_structured(Boundary, angle_narrow_jet, R_Tobs1,R_ga
           R_Tobs_theta=R_Tobs1(:,I_Theta)+R(:,I_Theta)*(1d0-DMu)*(1d0+z)/Para_c
           II=1
           last_k2=0
-          do K1=1,Num_Tobs
-             if (Tobs(K1) < R_Tobs_theta(1) .or. Tobs(K1) > R_Tobs_theta(Num_R)) cycle
-             do while (II < Num_R-1 .and. Tobs(K1) >= R_Tobs_theta(II+1))
+          do Iobs=1,Num_Tobs
+             if (T_sorted(Iobs) < R_Tobs_theta(1) .or. T_sorted(Iobs) >= R_Tobs_theta(Num_R)) cycle
+             do while (II < Num_R-1 .and. T_sorted(Iobs) >= R_Tobs_theta(II+1))
                 II=II+1
              end do
              K2=II
-             if ((Tobs(K1) >= R_Tobs_theta(K2)).and.(Tobs(K1) < R_Tobs_theta(K2+1))) then
-                 if (K2 /= last_k2) then
-                     log_gamma_lo=log(R_gamma(K2,I_Theta))
-                     log_gamma_hi=log(R_gamma(K2+1,I_Theta))
-                     specLo=P_tot(:,K2,I_Theta)
-                     specHi=P_tot(:,K2+1,I_Theta)
-                     last_k2=K2
-                 end if
-                 Ratio=(Tobs(K1)-R_Tobs_theta(K2))/(R_Tobs_theta(K2+1)-R_Tobs_theta(K2))
-                 call project_structured_segment(Ratio,DMu,log_domega_4pi, &
-                                                 log_gamma_lo,log_gamma_hi,specLo,specHi,P_tot_obs_temp(:,K1))
+             if (K2 /= last_k2) then
+                 log_gamma_lo=log(R_gamma(K2,I_Theta))
+                 log_gamma_hi=log(R_gamma(K2+1,I_Theta))
+                 specLo=P_tot(:,K2,I_Theta)
+                 specHi=P_tot(:,K2+1,I_Theta)
+                 last_k2=K2
              end if
+             Ratio=(T_sorted(Iobs)-R_Tobs_theta(K2))/(R_Tobs_theta(K2+1)-R_Tobs_theta(K2))
+             call project_structured_segment(Ratio,DMu,log_domega_4pi, &
+                                             log_gamma_lo,log_gamma_hi,specLo,specHi,P_tot_obs_temp(:,Iobs))
          end do
        end do
     end do
     !$OMP END DO
     !$OMP END PARALLEL
 
-    P_tot_obs=P_tot_obs_temp*phi_scale
+    if (time_ordered) then
+        P_tot_obs=P_tot_obs_temp*phi_scale
+    else
+        do Iobs=1,Num_Tobs
+            P_tot_obs(:,T_order(Iobs))=P_tot_obs_temp(:,Iobs)*phi_scale
+        end do
+    end if
 
     deallocate (P_tot_obs_temp,V_obs_log,V_seed_log)
 
@@ -147,9 +155,12 @@ subroutine sed_structured_phi(Boundary,R_Tobs1,R_gamma,R,P_tot,V_seed,V_obs,Tobs
     real(8), allocatable, dimension(:) :: V_obs_log,V_seed_log
     real(8), dimension(Num_R) :: R_Tobs_theta
     real(8), dimension(Num_nu) :: specLo,specHi
+    real(8), dimension(Num_Tobs) :: T_sorted
+    integer, dimension(Num_Tobs) :: T_order
     real(8) :: z,OpeningAngle_jet,Tv,dtheta,dPhi,Taa_lower,Taa_boundary,Taa_center,domega
     real(8) :: Phi_center,DMu,Ratio,log_gamma_lo,log_gamma_hi,log_domega_4pi
-    integer :: I_Theta,i_Phi,K1,K2,II,last_k2
+    integer :: I_Theta,i_Phi,Iobs,K2,II,last_k2
+    logical :: time_ordered
     allocate (P_tot_obs_temp(Num_nu_obs,Num_Tobs),V_obs_log(Num_nu_obs),V_seed_log(Num_nu))
 
     P_tot_obs_temp=0d0
@@ -161,10 +172,11 @@ subroutine sed_structured_phi(Boundary,R_Tobs1,R_gamma,R,P_tot,V_seed,V_obs,Tobs
     dPhi=2d0*pi/Num_Phi
     V_obs_log = log(V_obs)
     V_seed_log = log(V_seed)
+    call time_order(Tobs,Num_Tobs,T_order,T_sorted,time_ordered)
 
     !$OMP PARALLEL num_threads(n_threads), reduction(+:P_tot_obs_temp), private(I_Theta, &
     !$OMP& Taa_lower,Taa_boundary,Taa_center,domega,i_Phi,Phi_center,DMu, &
-    !$OMP& K1,II,K2,Ratio,R_Tobs_theta,specLo,specHi, &
+    !$OMP& Iobs,K2,II,Ratio,R_Tobs_theta,specLo,specHi, &
     !$OMP& last_k2,log_gamma_lo,log_gamma_hi,log_domega_4pi)
     !$OMP DO COLLAPSE(2) SCHEDULE(GUIDED,4)
     do I_Theta=1,Num_Theta
@@ -179,31 +191,35 @@ subroutine sed_structured_phi(Boundary,R_Tobs1,R_gamma,R,P_tot,V_seed,V_obs,Tobs
           R_Tobs_theta=R_Tobs1(:,I_Theta,i_Phi)+R(:,I_Theta,i_Phi)*(1d0-DMu)*(1d0+z)/Para_c
           II=1
           last_k2=0
-          do K1=1,Num_Tobs
-             if (Tobs(K1) < R_Tobs_theta(1) .or. Tobs(K1) > R_Tobs_theta(Num_R)) cycle
-             do while (II < Num_R-1 .and. Tobs(K1) >= R_Tobs_theta(II+1))
+          do Iobs=1,Num_Tobs
+             if (T_sorted(Iobs) < R_Tobs_theta(1) .or. T_sorted(Iobs) >= R_Tobs_theta(Num_R)) cycle
+             do while (II < Num_R-1 .and. T_sorted(Iobs) >= R_Tobs_theta(II+1))
                 II=II+1
              end do
              K2=II
-             if ((Tobs(K1) >= R_Tobs_theta(K2)).and.(Tobs(K1) < R_Tobs_theta(K2+1))) then
-                 if (K2 /= last_k2) then
-                     log_gamma_lo=log(R_gamma(K2,I_Theta,i_Phi))
-                     log_gamma_hi=log(R_gamma(K2+1,I_Theta,i_Phi))
-                     specLo=P_tot(:,K2,I_Theta,i_Phi)
-                     specHi=P_tot(:,K2+1,I_Theta,i_Phi)
-                     last_k2=K2
-                 end if
-                 Ratio=(Tobs(K1)-R_Tobs_theta(K2))/(R_Tobs_theta(K2+1)-R_Tobs_theta(K2))
-                 call project_phi(Ratio,DMu,log_domega_4pi, &
-                                                     log_gamma_lo,log_gamma_hi,specLo,specHi,P_tot_obs_temp(:,K1))
+             if (K2 /= last_k2) then
+                 log_gamma_lo=log(R_gamma(K2,I_Theta,i_Phi))
+                 log_gamma_hi=log(R_gamma(K2+1,I_Theta,i_Phi))
+                 specLo=P_tot(:,K2,I_Theta,i_Phi)
+                 specHi=P_tot(:,K2+1,I_Theta,i_Phi)
+                 last_k2=K2
              end if
+             Ratio=(T_sorted(Iobs)-R_Tobs_theta(K2))/(R_Tobs_theta(K2+1)-R_Tobs_theta(K2))
+             call project_phi(Ratio,DMu,log_domega_4pi, &
+                                                 log_gamma_lo,log_gamma_hi,specLo,specHi,P_tot_obs_temp(:,Iobs))
           end do
        end do
     end do
     !$OMP END DO
     !$OMP END PARALLEL
 
-    P_tot_obs=P_tot_obs_temp
+    if (time_ordered) then
+        P_tot_obs=P_tot_obs_temp
+    else
+        do Iobs=1,Num_Tobs
+            P_tot_obs(:,T_order(Iobs))=P_tot_obs_temp(:,Iobs)
+        end do
+    end if
     deallocate (P_tot_obs_temp,V_obs_log,V_seed_log)
     return
 
