@@ -381,7 +381,8 @@ subroutine sed_interpolation_chi(Boundary,R_Tobs1,R_front,F_chi,Tau_chi,R_chi,Ga
                         lgamlo = dlog(Gamma_chi(I_chi,K2))
                         lgamhi = dlog(Gamma_chi(I_chi,K2+1))
                         do Iobs = k_start, Num_Tobs
-                            if (T_sorted(Iobs) >= segment_hi) exit
+                            if (T_sorted(Iobs) > segment_hi) exit
+                            if (.not.time_hit(T_sorted(Iobs),R_Tobs_chi(K2),R_Tobs_chi(K2+1))) cycle
                             Ratio = (T_sorted(Iobs)-R_Tobs_chi(K2))/(R_Tobs_chi(K2+1)-R_Tobs_chi(K2))
                             call project_chi(I_chi,K2,Ratio,DMu,ldomega, &
                                                           lgamlo,lgamhi,F_temp(:,Iobs))
@@ -549,6 +550,7 @@ subroutine sed_chiring_batchlum_ray(Boundary,R_Tobs1,R_front, &
     ! English: Each emitting patch is the ray origin; foreground SSA optical depth comes from
     ! same-observer-time projected occultation and comoving chord integration.
     use constants
+    use interpolation_common, only: time_hit
     implicit none
     integer, intent(in) :: n,Num_nu,Num_nu_obs,Num_Tobs,Num_phi_patch,Num_chi,Num_R,Num_ring
     real(8), intent(in) :: Boundary(n), R_Tobs1(Num_R,Num_ring), R_front(Num_R,Num_ring), Tobs(Num_Tobs)
@@ -747,7 +749,7 @@ subroutine sample_phi(leafid)
                 ta = Tbase(1,iring) - mudelay*R_chi(ichi,1,iring)
                 do k2 = 1, Num_R-1
                     tb = Tbase(k2+1,iring) - mudelay*R_chi(ichi,k2+1,iring)
-                    if (tview >= min(ta,tb) .and. tview < max(ta,tb)) then
+                    if (time_hit(tview,ta,tb)) then
                         ratio = (tview-ta)/(tb-ta)
                         call sample_event(iring,ichi,k2,ratio)
                     end if
@@ -1236,7 +1238,8 @@ subroutine projphisamp(phi_lo,phi_hi,phi_center,local_obs)
                 lgamlo = dlog(Gamma_chi(I_chi,K2))
                 lgamhi = dlog(Gamma_chi(I_chi,K2+1))
                 do Iobs = k_start, Num_Tobs
-                    if (T_sorted(Iobs) >= segment_hi) exit
+                    if (T_sorted(Iobs) > segment_hi) exit
+                    if (.not.time_hit(T_sorted(Iobs),R_Tobs_chi(K2),R_Tobs_chi(K2+1))) cycle
                     Ratio = (T_sorted(Iobs)-R_Tobs_chi(K2))/(R_Tobs_chi(K2+1)-R_Tobs_chi(K2))
                     call project_ring(I_chi,K2,Iobs,Ratio,DMu,ldomega, &
                                       lgamlo,lgamhi,local_obs)

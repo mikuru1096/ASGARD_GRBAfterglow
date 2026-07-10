@@ -4,7 +4,7 @@ module interpolation_common
     implicit none
     private
 
-    public :: accum_logsed, accum_shifted, time_order
+    public :: accum_logsed, accum_shifted, time_order, time_hit
 
 contains
 
@@ -61,6 +61,21 @@ pure subroutine time_order(values,n,order,sorted,ordered)
         sorted(i)=values(order(i))
     end do
 end subroutine time_order
+
+! 非平径向段含参数左端、舍右端；平段在匹配时刻无唯一逆像，必须报错。
+! Nonflat radial segments own the parametric left endpoint; a matching flat segment has no unique inverse and must fail.
+pure logical function time_hit(target,ta,tb)
+    implicit none
+    real(8), intent(in) :: target,ta,tb
+
+    if (tb == ta) then
+        if (target == ta) error stop "nonmonotonic EATS flat arrival segment has no unique inverse"
+        time_hit=.false.
+        return
+    end if
+    time_hit=(tb > ta .and. target >= ta .and. target < tb) .or. &
+             (tb < ta .and. target <= ta .and. target > tb)
+end function time_hit
 
 ! 在对数-线性空间中插值并累加 SED 到观测网格。
 ! Interpolate in log-linear space and accumulate the SED on the observer grid.
