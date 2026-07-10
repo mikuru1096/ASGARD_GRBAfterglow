@@ -638,14 +638,25 @@ def solve_electron(
             entry_name = "fs_fullhide_bh_1d"
             grid_semantics = "log-gamma-1d-bh"
         electron_module = _electronmodule(solver_name)
-        gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = _fullhide1d(
-            getattr(electron_module, entry_name),
+        args = (
             boundary,
-            dynamics,
+            dynamics.r_tobs,
+            dynamics.r_gamma,
+            dynamics.radius,
             v_seed,
-            config,
-            grid_top,
+            config.num_gam_e,
+            config.index_y,
+            config.index_syn_integr,
+            config.num_threads,
+            1 if config.electron_adaptive_substeps else 0,
+            config.electron_substep_rtol,
+            config.electron_substep_min,
+            config.electron_substep_max,
+            1 if config.thermal_electrons else 0,
         )
+        kernel = getattr(electron_module, entry_name)
+        outputs = kernel(*args) if grid_top is None else kernel(*args, float(grid_top))
+        gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = outputs
         return _electronfinish(
             config,
             solver_name,
@@ -791,35 +802,6 @@ def _directchi(config: RuntimeConfig) -> bool:
     )
 
 
-def _fullhide1d(
-    kernel,
-    boundary: np.ndarray,
-    dynamics: DynamicsSolution,
-    v_seed: np.ndarray,
-    config: RuntimeConfig,
-    grid_top: float | None,
-) -> tuple[np.ndarray, ...]:
-    args = (
-        boundary,
-        dynamics.r_tobs,
-        dynamics.r_gamma,
-        dynamics.radius,
-        v_seed,
-        config.num_gam_e,
-        config.index_y,
-        config.index_syn_integr,
-        config.num_threads,
-        1 if config.electron_adaptive_substeps else 0,
-        config.electron_substep_rtol,
-        config.electron_substep_min,
-        config.electron_substep_max,
-        1 if config.thermal_electrons else 0,
-    )
-    if grid_top is None:
-        return kernel(*args)
-    return kernel(*args, float(grid_top))
-
-
 def solve_coolingseed(
     boundary: np.ndarray,
     dynamics: DynamicsSolution,
@@ -872,25 +854,17 @@ def solve_coolingseed(
     else:
         outputs = electron_fullhide_1d_module.fs_fullhide_coupled_bh(*args, float(grid_top))
     gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = outputs
-    solution = _electronstate(
+    return _electronfinish(
+        config,
+        solver_name,
+        "log-gamma-1d-joint-cooling",
         gam_e,
         d_n_gam_e,
         l_syn_spec,
         seed_syn,
-        nu_m=nu_m,
-        nu_c=nu_c,
-        nu_a=nu_a,
+        nu=(nu_m, nu_c, nu_a),
+        return_report=return_report,
     )
-    _emitnu(config, solver_name, nu_m, nu_c, nu_a)
-    if return_report:
-        return solution, _report(
-            solver_name,
-            "log-gamma-1d-joint-cooling",
-            "ok",
-            num_gam_e=int(config.num_gam_e),
-            num_chi=1,
-        )
-    return solution
 
 
 def _emitnu(config: RuntimeConfig, label: str, nu_m, nu_c, nu_a) -> None:
