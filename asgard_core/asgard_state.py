@@ -602,21 +602,6 @@ def _bareobserver(setup, config: RuntimeConfig, dynamics) -> ObserverState:
     )
 
 
-def _observersetup(
-    state: SolveState,
-    observer_time_s: np.ndarray,
-) -> SimulationSetup:
-    boundary = np.array(state.setup.boundary, dtype=float, copy=True)
-    boundary[8] = float(state.config.opening_angle_jet)
-    boundary[9] = float(state.config.theta_v)
-    return SimulationSetup(
-        luminosity_distance_cm=state.setup.luminosity_distance_cm,
-        boundary=boundary,
-        seed_frequency_hz=state.setup.seed_frequency_hz,
-        observer_time_s=np.asarray(observer_time_s, dtype=float),
-    )
-
-
 def project_flux(
     state: SolveState,
     observer_time_s: np.ndarray,
@@ -626,7 +611,15 @@ def project_flux(
     projection_kind: str = "lightcurve",
 ) -> ObsState:
     projection_kind = _projkind(projection_kind)
-    setup = _observersetup(state, observer_time_s)
+    boundary = np.array(state.setup.boundary, dtype=float, copy=True)
+    boundary[8] = float(state.config.opening_angle_jet)
+    boundary[9] = float(state.config.theta_v)
+    setup = SimulationSetup(
+        luminosity_distance_cm=state.setup.luminosity_distance_cm,
+        boundary=boundary,
+        seed_frequency_hz=state.setup.seed_frequency_hz,
+        observer_time_s=np.asarray(observer_time_s, dtype=float),
+    )
     if str(state.config.geometry_kernel).lower() == "chi_eats_2d" and projection_kind == "lightcurve":
         observed = _observechi(state, setup, frequencies_hz, timings=timings, mode=mode)
     else:
@@ -724,15 +717,6 @@ def _sumobs(
     return total
 
 
-def _batchlabel(config: RuntimeConfig, owner: str) -> str:
-    kernel = (
-        "sed_adaptive_theta_batch"
-        if str(config.geometry_kernel).lower() == "sed_adaptive_theta"
-        else "sed_interpolation_batch"
-    )
-    return f"Interpolation.{kernel} [{owner}]"
-
-
 def _projectbatch(
     setup,
     branch: BranchState | None,
@@ -750,19 +734,25 @@ def _projectbatch(
     ]
     if not named:
         return {}
+    kernel = (
+        "sed_adaptive_theta_batch"
+        if str(config.geometry_kernel).lower() == "sed_adaptive_theta"
+        else "sed_interpolation_batch"
+    )
+    label = f"Interpolation.{kernel} [{owner}]"
     shape = (frequencies_hz.size, setup.observer_time_s.size)
     active = [(key, source) for key, source in named if np.any(source)]
     activekeys = {key for key, _source in active}
     result = {key: np.zeros(shape, dtype=float) for key, _source in named if key not in activekeys}
     if not active:
         if timings is not None:
-            timings.setdefault(_batchlabel(config, owner), 0.0)
+            timings.setdefault(label, 0.0)
         return result
     _needphi(config)
     sourcebatch = np.asfortranarray(np.stack([source for _key, source in active], axis=2))
     projected = _timed(
         timings,
-        _batchlabel(config, owner),
+        label,
         observe_flux_batch,
         setup,
         branch.characteristic_time_s,
@@ -987,7 +977,7 @@ def _observerstage(
         absorbed_fwd_hadronic_pair_production=None,
     )
     if _coupling(config) == COUPLING_JOINT and hadronic is not None and hadronic.tau_bh is not None:
-        s["tau_extra"] = s["tau_extra"] + np.asarray(hadronic.tau_bh, dtype=float)
+        s["tau_extra"] += np.asarray(hadronic.tau_bh, dtype=float)
         s["joint_ic_seed"] = np.asarray(photon_field.hadronic_target_seed, dtype=float)
     if config.include_forward_ssc:
         seed_for_ssc = s["seed_syn_absorption"] if s["joint_ic_seed"] is None else s["joint_ic_seed"]
@@ -1016,7 +1006,7 @@ def _observerstage(
             seed_frequency_hz=setup.seed_frequency_hz,
             config=config,
         )
-        s["seed_syn_absorption"] = s["seed_syn_absorption"] + _hadronseed(
+        s["seed_syn_absorption"] += _hadronseed(
             hadronic=hadronic,
             radius_cm=dynamics.radius,
             seed_frequency_hz=setup.seed_frequency_hz,
@@ -1038,8 +1028,8 @@ def _observerstage(
         s["pair_lum_total"] = paircascade.syn_lum
         s["pair_seed_total"] = paircascade.syn_seed
         s["tau_pair"] = paircascade.tau_pair
-        s["seed_syn_absorption"] = s["seed_syn_absorption"] + s["pair_seed_total"]
-    s["tau_extra"] = s["tau_extra"] + s["tau_pair"]
+        s["seed_syn_absorption"] += s["pair_seed_total"]
+    s["tau_extra"] += s["tau_pair"]
     pair_active = bool(config.hadronic.include_pair_production)
     annihilation_seed_syn = np.zeros_like(s["seed_syn_absorption"]) if pair_active else s["seed_syn_absorption"]
     annihilation_seed_ssc = np.zeros_like(s["seed_ssc_total"]) if pair_active else s["seed_ssc_total"]
@@ -1081,15 +1071,15 @@ def _observerstage(
 
     total = absorbed_fwd_sync + absorbed_fwd_ssc
     if absorbed_rev_sync is not None:
-        total = total + absorbed_rev_sync
+        total += absorbed_rev_sync
     if absorbed_rev_hadronic is not None:
-        total = total + absorbed_rev_hadronic
+        total += absorbed_rev_hadronic
     if absorbed_rev_ssc is not None:
-        total = total + absorbed_rev_ssc
+        total += absorbed_rev_ssc
     if absorbed_cross_ic is not None:
-        total = total + absorbed_cross_ic
+        total += absorbed_cross_ic
     if s["absorbed_fwd_hadronic_gamma"] is not None:
-        total = total + s["absorbed_fwd_hadronic_gamma"]
+        total += s["absorbed_fwd_hadronic_gamma"]
 
     return ObserverState(
         prefactor=np.asarray(prefactor, dtype=float),
@@ -1131,22 +1121,15 @@ def _reversestage(
 ) -> dict:
     if reverse_emission is not None:
         s["rev_sync"] = reverse_emission.l_syn_spec
-        s["seed_syn_absorption"] = s["seed_syn_absorption"] + reverse_emission.seed_syn
+        s["seed_syn_absorption"] += reverse_emission.seed_syn
         if reverse_emission.rs_hadronic is not None:
             rs_hadronic = reverse_emission.rs_hadronic
-            seed_total = np.asarray(rs_hadronic.seed_had_syn, dtype=float)
-            seed_bh = getattr(rs_hadronic, "seed_had_bethe_heitler", None)
-            if seed_bh is not None:
-                seed_total = seed_total + np.asarray(seed_bh, dtype=float)
-            l_pg = getattr(rs_hadronic, "l_had_pg_gamma", None)
-            for luminosity in (l_pg, *[getattr(rs_hadronic, attr, None) for _name, attr in HADRONOPTIONAL]):
-                if luminosity is not None:
-                    seed_total = seed_total + _seeddensity(
-                        luminosity,
-                        radius_cm=dynamics.radius,
-                        seed_frequency_hz=setup.seed_frequency_hz,
-                    )
-            s["seed_syn_absorption"] = s["seed_syn_absorption"] + seed_total
+            s["seed_syn_absorption"] += _hadronseed(
+                hadronic=rs_hadronic,
+                radius_cm=dynamics.radius,
+                seed_frequency_hz=setup.seed_frequency_hz,
+                ssa_transfer=1.0,
+            )
             s["rev_hadronic"] = _rshadlum(reverse_emission.rs_hadronic)
         s["rev_details"] = BranchState(
             characteristic_time_s=dynamics.r_tobs,
@@ -1168,7 +1151,7 @@ def _reversestage(
                 reverse_emission.seed_syn,
                 config.num_threads,
             )
-            s["seed_ssc_total"] = s["seed_ssc_total"] + seed_ssc_rs
+            s["seed_ssc_total"] += seed_ssc_rs
         if config.reverse_shock.include_cross_zone_ic:
             coupling_geometry = build_shockgeo(dynamics, config)
             seed_fs_to_rs, seed_rs_to_fs = crossseed_fields(
@@ -1199,7 +1182,8 @@ def _reversestage(
                 config.num_threads,
             )
             s["cross_ic"] = l_cic_fs_spec + l_cic_rs_spec
-            s["seed_ssc_total"] = s["seed_ssc_total"] + seed_cic_fs + seed_cic_rs
+            s["seed_ssc_total"] += seed_cic_fs
+            s["seed_ssc_total"] += seed_cic_rs
     return s
 
 
@@ -1276,7 +1260,7 @@ def _hadronlum(hadronic, ssa_transfer: np.ndarray) -> dict[str, np.ndarray | Non
         out[name] = None
         if luminosity is not None:
             out[name] = np.asarray(luminosity, dtype=float) * transfer
-            out["total"] = np.asarray(out["total"], dtype=float) + out[name]
+            out["total"] += out[name]
     return out
 
 
@@ -1304,7 +1288,7 @@ def _hadronseed(
     hadronic,
     radius_cm: np.ndarray,
     seed_frequency_hz: np.ndarray,
-    ssa_transfer: np.ndarray,
+    ssa_transfer: np.ndarray | float,
 ) -> np.ndarray:
     transfer = np.asarray(ssa_transfer, dtype=float)
     seed_total = np.asarray(hadronic.seed_had_syn, dtype=float) * transfer
