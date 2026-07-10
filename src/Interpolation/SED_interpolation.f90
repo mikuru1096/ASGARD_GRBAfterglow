@@ -117,7 +117,7 @@ subroutine sed_interpolation(Boundary,R_Tobs1,R_gamma,R,F_tot,V_seed,V_obs,Tobs,
     return
 end subroutine sed_interpolation
 
-! 壳层级EATS自适应角向积分：每个基础theta cell用一阶/二阶中点规则估计角向积分误差并递归细分。
+! Exact arrival support followed by open G3/K7 integration in each theta cell.
 subroutine sed_adaptive_theta(Boundary,R_Tobs1,R_gamma,R,F_tot,V_seed,V_obs,Tobs, &
                              adaptive_rtol,addepthmax, &
                              n,Num_nu,Num_nu_obs,Num_Tobs,Num_Theta,Num_R,Num_Phi,n_threads,F_tot_obs)
@@ -135,149 +135,241 @@ subroutine sed_adaptive_theta(Boundary,R_Tobs1,R_gamma,R,F_tot,V_seed,V_obs,Tobs
     real(8), intent(in), dimension(Num_nu,Num_R) :: F_tot
     real(8), intent(in) :: adaptive_rtol
     real(8), intent(out), dimension(Num_nu_obs,Num_Tobs) :: F_tot_obs
-    real(8), allocatable, dimension(:,:) :: F_tot_obs_temp
-    real(8), allocatable, dimension(:) :: V_obs_log,V_seed_log
-    real(8), dimension(Num_nu_obs,Num_Tobs) :: cell_obs
-    real(8), dimension(Num_Tobs) :: T_sorted
-    integer, dimension(Num_Tobs) :: T_order
-    real(8) :: z,OpeningAngle_jet,Tv,dPhi,phi_scale,dtheta,Taa_lower,Taa_boundary,Phi_center
-    integer :: I_Theta,i_Phi,Iobs
-    logical :: time_ordered
+    real(8), allocatable, dimension(:,:) :: fobs
+    real(8), allocatable, dimension(:) :: vobslog,vseedlog
+    real(8) :: z,opening,tv,dphi,phiscale,dtheta,delay,costv,sintv,anglog
+    real(8) :: tlo,thi,cphi
+    ! Production -ffinite-math-only removes real NaN checks; inspect binary64 exponent bits at this public boundary.
+    integer(8), parameter :: expmask = int(z'7ff0000000000000',8)
+    integer(8) :: openbits
+    integer :: itheta,iphi,iobs
 
+    opening = Boundary(9)
+    openbits = transfer(opening,0_8)
+    if (iand(openbits,expmask) == expmask .or. &
+        .not. (opening > 0d0 .and. opening <= pi)) then
+        error stop "sed_adaptive_theta requires 0 < opening angle <= pi"
+    end if
     if (addepthmax == 0) then
         call sed_interpolation(Boundary,R_Tobs1,R_gamma,R,F_tot,V_seed,V_obs,Tobs, &
                                n,Num_nu,Num_nu_obs,Num_Tobs,Num_Theta,Num_R,Num_Phi,n_threads,F_tot_obs)
         return
     end if
 
-    allocate(F_tot_obs_temp(Num_nu_obs,Num_Tobs),V_obs_log(Num_nu_obs),V_seed_log(Num_nu))
-
-    F_tot_obs = 0d0
-    F_tot_obs_temp = 0d0
+    allocate(fobs(Num_nu_obs,Num_Tobs),vobslog(Num_nu_obs),vseedlog(Num_nu))
+    fobs = 0d0
     z = Boundary(8)
-    OpeningAngle_jet = Boundary(9)
-    Tv = Boundary(10)
-    dPhi = pi/Num_Phi
-    phi_scale = 2d0
+    tv = Boundary(10)
+    dphi = pi/Num_Phi
+    phiscale = 2d0
     if (Num_Phi == 1) then
-        dPhi = pi/1440d0
-        phi_scale = 2d0*1440d0
+        dphi = pi/1440d0
+        phiscale = 2d0*1440d0
     end if
-    dtheta = OpeningAngle_jet/Num_Theta
-    V_obs_log = dlog(V_obs)
-    V_seed_log = dlog(V_seed)
-    call time_order(Tobs,Num_Tobs,T_order,T_sorted,time_ordered)
+    dtheta = opening/Num_Theta
+    delay = (1d0+z)/Para_c
+    costv = dcos(tv)
+    sintv = dsin(tv)
+    anglog = dlog(dphi)-dlog(4d0*pi)
+    vobslog = dlog(V_obs)
+    vseedlog = dlog(V_seed)
 
-    !$OMP PARALLEL num_threads(n_threads), reduction(+:F_tot_obs_temp), private(I_Theta, &
-    !$OMP& i_Phi,Phi_center,Taa_lower,Taa_boundary,cell_obs)
+    !$OMP PARALLEL num_threads(n_threads), reduction(+:fobs), &
+    !$OMP& private(itheta,iphi,iobs,tlo,thi,cphi)
     !$OMP DO SCHEDULE(GUIDED,4)
-    do I_Theta = 1, Num_Theta
-        Taa_lower = dtheta*(I_Theta-1)
-        Taa_boundary = dtheta*I_Theta
-        do i_Phi = 1, Num_Phi
-            Phi_center = (i_Phi-0.5d0)*dPhi
-            cell_obs = 0d0
-            call integrate_theta_cell(Taa_lower,Taa_boundary,Phi_center,0,cell_obs)
-            F_tot_obs_temp = F_tot_obs_temp + cell_obs
+    do itheta = 1, Num_Theta
+        tlo = dtheta*(itheta-1)
+        thi = dtheta*itheta
+        do iphi = 1, Num_Phi
+            cphi = dcos((iphi-0.5d0)*dphi)
+            do iobs = 1, Num_Tobs
+                call integratetime(tlo,thi,cphi,iobs,fobs(:,iobs))
+            end do
         end do
     end do
     !$OMP END DO
     !$OMP END PARALLEL
-    if (time_ordered) then
-        F_tot_obs=F_tot_obs_temp*phi_scale
-    else
-        do Iobs=1,Num_Tobs
-            F_tot_obs(:,T_order(Iobs))=F_tot_obs_temp(:,Iobs)*phi_scale
-        end do
-    end if
-    deallocate(F_tot_obs_temp,V_obs_log,V_seed_log)
-    return
+    F_tot_obs = fobs*phiscale
 
 contains
 
-recursive subroutine integrate_theta_cell(theta_lo,theta_hi,phi_center,depth,accum_obs)
+subroutine integratetime(theta1,theta2,cphi,iobs,accum)
     implicit none
-    integer, intent(in) :: depth
-    real(8), intent(in) :: theta_lo,theta_hi,phi_center
-    real(8), intent(inout), dimension(Num_nu_obs,Num_Tobs) :: accum_obs
-    real(8) :: theta_mid,theta_lmid,theta_rmid,err_norm,flux_norm
-    real(8), dimension(Num_nu_obs,Num_Tobs) :: coarse_obs,fine_obs
+    integer, intent(in) :: iobs
+    real(8), intent(in) :: theta1,theta2,cphi
+    real(8), intent(inout), dimension(Num_nu_obs) :: accum
+    real(8), dimension(6) :: cuts
+    real(8) :: qlo,qhi,tmid,dmu
+    integer :: ncut,icut
 
-    theta_mid = 0.5d0*(theta_lo+theta_hi)
-    coarse_obs = 0d0
-    call project_theta_sample(theta_lo,theta_hi,theta_mid,phi_center,coarse_obs)
-    if (depth >= addepthmax) then
-        accum_obs = accum_obs + coarse_obs
-        return
-    end if
-    theta_lmid = 0.5d0*(theta_lo+theta_mid)
-    theta_rmid = 0.5d0*(theta_mid+theta_hi)
-    fine_obs = 0d0
-    call project_theta_sample(theta_lo,theta_mid,theta_lmid,phi_center,fine_obs)
-    call project_theta_sample(theta_mid,theta_hi,theta_rmid,phi_center,fine_obs)
-    flux_norm = sum(abs(fine_obs))
-    err_norm = sum(abs(fine_obs-coarse_obs))
-    if (flux_norm == 0d0 .or. err_norm <= adaptive_rtol*flux_norm) then
-        accum_obs = accum_obs + fine_obs
-    else
-        call integrate_theta_cell(theta_lo,theta_mid,phi_center,depth+1,accum_obs)
-        call integrate_theta_cell(theta_mid,theta_hi,phi_center,depth+1,accum_obs)
-    end if
-end subroutine integrate_theta_cell
-
-subroutine project_theta_sample(theta_lo,theta_hi,theta_center,phi_center,local_obs)
-    implicit none
-    real(8), intent(in) :: theta_lo,theta_hi,theta_center,phi_center
-    real(8), intent(inout), dimension(Num_nu_obs,Num_Tobs) :: local_obs
-    real(8), dimension(Num_R) :: R_Tobs_theta
-    real(8) :: lgamlo,lgamhi,ldomega
-    real(8) :: domega,DMu,Ratio
-    integer :: Iobs,K2,II
-    integer :: last_k2
-
-    domega = (dcos(theta_lo)-dcos(theta_hi))*dPhi
-    ldomega = dlog(domega)-dlog(4.0d0*pi)
-    DMu = dcos(Tv)*dcos(theta_center)+dsin(Tv)*dsin(theta_center)*dcos(phi_center)
-    R_Tobs_theta = R_Tobs1+R*(1d0-DMu)*(1d0+z)/Para_c
-    II = 1
-    last_k2 = 0
-    do Iobs = 1, Num_Tobs
-        if (T_sorted(Iobs) < R_Tobs_theta(1) .or. T_sorted(Iobs) >= R_Tobs_theta(Num_R)) cycle
-        do while (II < Num_R-1 .and. T_sorted(Iobs) >= R_Tobs_theta(II+1))
-            II = II + 1
-        end do
-        K2 = II
-        if (K2 /= last_k2) then
-            lgamlo = dlog(R_gamma(K2))
-            lgamhi = dlog(R_gamma(K2+1))
-            last_k2 = K2
+    qlo = 1d0-(Tobs(iobs)-R_Tobs1(1))/(delay*R(1))
+    qhi = 1d0-(Tobs(iobs)-R_Tobs1(Num_R))/(delay*R(Num_R))
+    call supportcuts(theta1,theta2,cphi,qlo,qhi,cuts,ncut)
+    do icut = 1, ncut-1
+        tmid = 0.5d0*(cuts(icut)+cuts(icut+1))
+        dmu = viewmu(tmid,cphi)
+        if (dmu >= qlo .and. dmu < qhi) then
+            call gkpanel(cuts(icut),cuts(icut+1),cphi,iobs,0,accum)
         end if
-        Ratio = (T_sorted(Iobs)-R_Tobs_theta(K2))/(R_Tobs_theta(K2+1)-R_Tobs_theta(K2))
-        call projshellseg(Iobs,K2,Ratio,DMu,ldomega, &
-                                   lgamlo,lgamhi,local_obs)
     end do
-end subroutine project_theta_sample
+end subroutine integratetime
 
-subroutine projshellseg(K1,K2,Ratio,DMu,ldomega,lgamlo,lgamhi,local_obs)
+subroutine supportcuts(theta1,theta2,cphi,qlo,qhi,cuts,ncut)
     implicit none
-    integer, intent(in) :: K1,K2
-    real(8), intent(in) :: Ratio,DMu,ldomega,lgamlo,lgamhi
-    real(8), intent(inout), dimension(Num_nu_obs,Num_Tobs) :: local_obs
-    real(8), dimension(Num_nu) :: F_tot_theta,F_tot_log_theta,V_seed_log_theta
-    real(8) :: DG,Beta,doppler,ldopred
+    integer, intent(out) :: ncut
+    real(8), intent(in) :: theta1,theta2,cphi,qlo,qhi
+    real(8), intent(out), dimension(6) :: cuts
+    real(8) :: rho,phase
 
-    DG = dexp(lgamlo+Ratio*(lgamhi-lgamlo))
-    F_tot_theta = (1d0-Ratio)*F_tot(:,K2)+Ratio*F_tot(:,K2+1)
-    F_tot_log_theta = -huge(1d0)
-    where(F_tot_theta > 0d0) F_tot_log_theta = dlog(F_tot_theta)
-    Beta = dsqrt(1d0-DG**(-2))
-    doppler = DG*(1d0-Beta*DMu)
+    ncut = 0
+    call addcut(theta1,cuts,ncut)
+    call addcut(theta2,cuts,ncut)
+    rho = dsqrt(costv*costv+(sintv*cphi)**2)
+    if (rho > 0d0) then
+        phase = datan2(sintv*cphi,costv)
+        call levelcuts(qlo,theta1,theta2,rho,phase,cuts,ncut)
+        call levelcuts(qhi,theta1,theta2,rho,phase,cuts,ncut)
+    end if
+end subroutine supportcuts
+
+subroutine levelcuts(level,theta1,theta2,rho,phase,cuts,ncut)
+    implicit none
+    integer, intent(inout) :: ncut
+    real(8), intent(in) :: level,theta1,theta2,rho,phase
+    real(8), intent(inout), dimension(6) :: cuts
+    real(8) :: delta,root
+    integer :: k
+
+    if (level > rho .or. level < -rho) return
+    if (level >= rho) then
+        do k = -2, 2
+            root = phase+2d0*k*pi
+            if (root > theta1 .and. root < theta2) call addcut(root,cuts,ncut)
+        end do
+    else if (level <= -rho) then
+        do k = -2, 2
+            root = phase+pi+2d0*k*pi
+            if (root > theta1 .and. root < theta2) call addcut(root,cuts,ncut)
+        end do
+    else
+        delta = dacos(level/rho)
+        do k = -2, 2
+            root = phase+delta+2d0*k*pi
+            if (root > theta1 .and. root < theta2) call addcut(root,cuts,ncut)
+            root = phase-delta+2d0*k*pi
+            if (root > theta1 .and. root < theta2) call addcut(root,cuts,ncut)
+        end do
+    end if
+end subroutine levelcuts
+
+subroutine addcut(value,cuts,ncut)
+    implicit none
+    integer, intent(inout) :: ncut
+    real(8), intent(in) :: value
+    real(8), intent(inout), dimension(6) :: cuts
+    integer :: i,pos
+
+    pos = ncut+1
+    do i = 1, ncut
+        if (value < cuts(i)) then
+            pos = i
+            exit
+        end if
+        if (value <= cuts(i)) return
+    end do
+    do i = ncut, pos, -1
+        cuts(i+1) = cuts(i)
+    end do
+    cuts(pos) = value
+    ncut = ncut+1
+end subroutine addcut
+
+recursive subroutine gkpanel(theta1,theta2,cphi,iobs,depth,accum)
+    implicit none
+    integer, intent(in) :: iobs,depth
+    real(8), intent(in) :: theta1,theta2,cphi
+    real(8), intent(inout), dimension(Num_nu_obs) :: accum
+    real(8), parameter, dimension(4) :: node = (/0d0,0.434243749346802558d0, &
+                                                 0.774596669241483377d0,0.960491268708020283d0/)
+    real(8), parameter, dimension(4) :: kw = (/0.450916538658474142d0,0.401397414775962223d0, &
+                                               0.268488089868333441d0,0.104656226026467265d0/)
+    real(8), parameter, dimension(4) :: gw = (/0.888888888888888889d0,0d0, &
+                                               0.555555555555555556d0,0d0/)
+    real(8), dimension(Num_nu_obs) :: sample,pair,kron,gauss
+    real(8) :: center,half
+    integer :: i
+
+    center = 0.5d0*(theta1+theta2)
+    half = 0.5d0*(theta2-theta1)
+    call projecttime(center,cphi,iobs,sample)
+    kron = kw(1)*sample
+    gauss = gw(1)*sample
+    do i = 2, 4
+        call projecttime(center-half*node(i),cphi,iobs,sample)
+        call projecttime(center+half*node(i),cphi,iobs,pair)
+        sample = sample+pair
+        kron = kron+kw(i)*sample
+        gauss = gauss+gw(i)*sample
+    end do
+    kron = half*kron
+    gauss = half*gauss
+    if (depth >= addepthmax .or. &
+        all(dabs(kron-gauss) <= adaptive_rtol*dabs(kron))) then
+        accum = accum+kron
+    else
+        call gkpanel(theta1,center,cphi,iobs,depth+1,accum)
+        call gkpanel(center,theta2,cphi,iobs,depth+1,accum)
+    end if
+end subroutine gkpanel
+
+subroutine projecttime(theta,cphi,iobs,local)
+    implicit none
+    integer, intent(in) :: iobs
+    real(8), intent(in) :: theta,cphi
+    real(8), intent(out), dimension(Num_nu_obs) :: local
+    real(8) :: dmu,shift,arrlo,arrhi,ratio,lgamlo,lgamhi,ldomega
+    real(8), dimension(Num_nu) :: ftheta,flog,vshift
+    real(8) :: dg,beta,doppler,ldopred
+    integer :: lo,hi,k2,mid
+
+    dmu = viewmu(theta,cphi)
+    shift = delay*(1d0-dmu)
+    lo = 1
+    hi = Num_R-1
+    do while (lo < hi)
+        mid = (lo+hi)/2
+        if (Tobs(iobs) >= R_Tobs1(mid+1)+R(mid+1)*shift) then
+            lo = mid+1
+        else
+            hi = mid
+        end if
+    end do
+    k2 = lo
+    arrlo = R_Tobs1(k2)+R(k2)*shift
+    arrhi = R_Tobs1(k2+1)+R(k2+1)*shift
+    ratio = (Tobs(iobs)-arrlo)/(arrhi-arrlo)
+    lgamlo = dlog(R_gamma(k2))
+    lgamhi = dlog(R_gamma(k2+1))
+    ldomega = anglog+dlog(dsin(theta))
+    local = 0d0
+    dg = dexp(lgamlo+ratio*(lgamhi-lgamlo))
+    ftheta = (1d0-ratio)*F_tot(:,k2)+ratio*F_tot(:,k2+1)
+    flog = -huge(1d0)
+    where(ftheta > 0d0) flog = dlog(ftheta)
+    beta = dsqrt(1d0-dg**(-2))
+    doppler = dg*(1d0-beta*dmu)
     ldopred = dlog(doppler)+dlog(1d0+z)
-    F_tot_log_theta = F_tot_log_theta+ldomega-3d0*dlog(doppler)
-    V_seed_log_theta = V_seed_log-ldopred
-    call accum_logsed(V_seed_log_theta,F_tot_log_theta, &
-                                          Num_nu,V_obs_log,Num_nu_obs,local_obs(:,K1))
-end subroutine projshellseg
+    flog = flog+ldomega-3d0*dlog(doppler)
+    vshift = vseedlog-ldopred
+    call accum_logsed(vshift,flog,Num_nu,vobslog,Num_nu_obs,local)
+end subroutine projecttime
+
+real(8) function viewmu(theta,cphi)
+    implicit none
+    real(8), intent(in) :: theta,cphi
+
+    viewmu = costv*dcos(theta)+sintv*cphi*dsin(theta)
+end function viewmu
 end subroutine sed_adaptive_theta
 
 ! 将χ分辨有限厚壳层积分到完整top-hat角网格：θ/φ EATS + χ厚度EATS + 局域Doppler。
