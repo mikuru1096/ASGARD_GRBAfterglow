@@ -6,6 +6,7 @@ module hadronic_bh
     private
 
     real(8), parameter :: alpha = 1d0/137d0
+    real(8), parameter :: omega_max = 6d2
     real(8), parameter :: qnode(6) = [ &
         0.12523340851146891547d0, 0.36783149899818019375d0, &
         0.58731795428661744730d0, 0.76990267419430468704d0, &
@@ -15,7 +16,7 @@ module hadronic_bh
         0.20316742672306592175d0, 0.16007832854334622633d0, &
         0.10693932599531843096d0, 0.04717533638651182719d0]
 
-    public :: bh_calc
+    public :: bh_calc, bh_pair_edge
 
 contains
 
@@ -86,7 +87,7 @@ real(8) function bh_pair(ee,gam,ephoton)
     real(8), intent(in) :: ee,gam,ephoton
     real(8) :: upper,lower
 
-    upper = min(2d0*gam*ephoton,6d2)
+    upper = min(2d0*gam*ephoton,omega_max)
     lower = ((gam + ee)*(gam + ee))/(2d0*gam*ee)
     if (upper <= lower) then
         bh_pair = 0d0
@@ -95,6 +96,14 @@ real(8) function bh_pair(ee,gam,ephoton)
 
     bh_pair = bh_quad3(bh_outer,lower,upper,gam,ee)*ee/(2d0*gam*gam*gam*ephoton*ephoton)
 end function bh_pair
+
+! BH 运动学电子上边界：由 omega 上限的正根给出最大 gamma_e/gamma_p。
+! BH kinematic electron upper edge from the positive gamma_e/gamma_p root at the omega cap.
+pure real(8) function bh_pair_edge(gpmax) result(edge)
+    real(8), intent(in) :: gpmax
+
+    edge=gpmax*(omega_max-1d0+dsqrt(omega_max*(omega_max-2d0)))
+end function bh_pair_edge
 
 ! Bethe-Heitler 外层积分核：对 omega 积分。
 ! Outer Bethe-Heitler integral over omega.

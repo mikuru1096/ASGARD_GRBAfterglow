@@ -577,7 +577,7 @@ def main() -> None:
             omp_flags,
             OPENMP_LIBS,
             True,
-            ("fs_fullhide_1d", "fs_fullhide_coupled"),
+            ("fs_fullhide_1d", "fs_fullhide_bh_1d", "fs_fullhide_coupled", "fs_fullhide_coupled_bh"),
             ("electron_forward_fullhide",),
         ),
         ModuleSpec("electron_forward_fullhide_1d_hybrid", ele, _with_main(ELECTRON_HISTORY_SOURCES_HZ, "electron_forward_fullhide_1d_hybrid.f90"), omp_flags, OPENMP_LIBS, True, ("fs_fullhide_hz",)),
@@ -623,6 +623,7 @@ def main() -> None:
             (
                 "hadronic_1d",
                 "formal_transport_1d",
+                "bh_support",
                 "had_syn_pol",
                 "pg_operator",
                 "pair_production",

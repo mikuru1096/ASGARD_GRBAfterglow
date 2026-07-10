@@ -770,7 +770,16 @@ f_{{\rm BH},i}
 \sum_{j,k}{\cal R}_{ijk}E_{e,k}\left[E_{\gamma,j}n_\gamma(E_{\gamma,j})\right].
 \]
 
-response 的 outer integral 唯一在 `bh_pair` 截到 \(\omega\le600\)，两层积分使用预置十二点 Gauss--Legendre 节点。该写法使 pair 注入功率与 proton 损失功率在当前表示的 electron grid 上逐 proton 能格离散闭合，不需要全局重标定。完整物理闭合还要求 joint electron grid 覆盖 BH 运动学支撑；当前截断缺口记录于 `BUG.md`，不得在 kernel 内用 clamp、补尾或 fallback 掩盖。
+response 的 outer integral 唯一在 `bh_pair` 截到 \(\omega\le600\)，两层积分使用预置十二点 Gauss--Legendre 节点。该写法使 pair 注入功率与 proton 损失功率逐 proton 能格离散闭合，不需要全局重标定。
+
+forward formal BH 在电子求解前复用 `scan_pmax`，并由
+
+\[
+r_+(\omega)=\omega-1+\sqrt{\omega(\omega-2)},\qquad
+\gamma_{e,\max}=r_+(600)\gamma_{p,\max}
+\]
+
+构造物理上边界。`fs_fullhide_bh_1d`、`fs_fullhide_coupled_bh` 与 `formal_transport_1d` 使用同一组边界为 \([1,\max(30\gamma_{e,\rm native},\gamma_{e,\max})]\) 的 log-cell 几何中心，因此 separated/joint 都不再重建或点值投影 BH pair 谱；旧 f2py 入口和非 BH four-velocity 路径保持不变。热电子源在该网格上逐 cell 积分并以 cell 总和归一。固定物理边界的收敛表明 201 点能量矩处于 few-percent 区，而 number moment 收敛更慢；需要精确 pair 数率时应显式提高 `num_electron_gamma`。reverse-shock BH 网格仍单独记录于 `BUG.md`。
 
 ## 15. 联合反馈的数值闭环
 

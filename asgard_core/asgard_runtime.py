@@ -585,9 +585,12 @@ def solve_electron(
     v_seed: np.ndarray,
     config: RuntimeConfig,
     *,
+    grid_top: float | None = None,
     return_report: bool = False,
 ) -> ElectronSolution | tuple[ElectronSolution, SolverAdapterReport]:
     solver_name = _electronsolver(config)
+    if grid_top is not None and solver_name != "fullhide_1d":
+        raise NotImplementedError("The forward Bethe-Heitler grid requires electron_solver='fullhide_1d'.")
     if config.cooling_kernel.lower() != "legacy":
         raise ValueError(f"Unsupported cooling kernel: {config.cooling_kernel}")
     if config.thermal_electrons and (solver_name not in ("fullhide_1d", "fullhide_1d_hz", "dg_1d")):
@@ -631,6 +634,9 @@ def solve_electron(
 
     if solver_name in _FULLHIDE1D:
         entry_name, grid_semantics = _FULLHIDE1D[solver_name]
+        if grid_top is not None:
+            entry_name = "fs_fullhide_bh_1d"
+            grid_semantics = "log-gamma-1d-bh"
         electron_module = _electronmodule(solver_name)
         gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = _fullhide1d(
             getattr(electron_module, entry_name),
@@ -638,6 +644,7 @@ def solve_electron(
             dynamics,
             v_seed,
             config,
+            grid_top,
         )
         return _electronfinish(
             config,
@@ -790,8 +797,9 @@ def _fullhide1d(
     dynamics: DynamicsSolution,
     v_seed: np.ndarray,
     config: RuntimeConfig,
+    grid_top: float | None,
 ) -> tuple[np.ndarray, ...]:
-    return kernel(
+    args = (
         boundary,
         dynamics.r_tobs,
         dynamics.r_gamma,
@@ -807,6 +815,9 @@ def _fullhide1d(
         config.electron_substep_max,
         1 if config.thermal_electrons else 0,
     )
+    if grid_top is None:
+        return kernel(*args)
+    return kernel(*args, float(grid_top))
 
 
 def solve_coolingseed(
@@ -817,6 +828,7 @@ def solve_coolingseed(
     config: RuntimeConfig,
     *,
     secondary_source_r: np.ndarray | None = None,
+    grid_top: float | None = None,
     return_report: bool = False,
 ) -> ElectronSolution | tuple[ElectronSolution, SolverAdapterReport]:
     solver_name = _electronsolver(config)
@@ -838,25 +850,28 @@ def solve_coolingseed(
         if secondary_source_arr.shape != (int(config.num_gam_e), radius_arr.size):
             raise ValueError("joint secondary electron source must have shape (num_gam_e, num_radius).")
     electron_fullhide_1d_module = _electronmodule("fullhide_1d")
-    gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = (
-        electron_fullhide_1d_module.fs_fullhide_coupled(
-            boundary,
-            dynamics.r_tobs,
-            dynamics.r_gamma,
-            dynamics.radius,
-            v_seed,
-            cooling_seed_arr,
-            secondary_source_arr,
-            config.index_y,
-            config.index_syn_integr,
-            config.num_threads,
-            0,
-            config.electron_substep_rtol,
-            config.electron_substep_min,
-            config.electron_substep_max,
-            1 if config.thermal_electrons else 0,
-        )
+    args = (
+        boundary,
+        dynamics.r_tobs,
+        dynamics.r_gamma,
+        dynamics.radius,
+        v_seed,
+        cooling_seed_arr,
+        secondary_source_arr,
+        config.index_y,
+        config.index_syn_integr,
+        config.num_threads,
+        0,
+        config.electron_substep_rtol,
+        config.electron_substep_min,
+        config.electron_substep_max,
+        1 if config.thermal_electrons else 0,
     )
+    if grid_top is None:
+        outputs = electron_fullhide_1d_module.fs_fullhide_coupled(*args)
+    else:
+        outputs = electron_fullhide_1d_module.fs_fullhide_coupled_bh(*args, float(grid_top))
+    gam_e, d_n_gam_e, l_syn_spec, seed_syn, nu_m, nu_c, nu_a = outputs
     solution = _electronstate(
         gam_e,
         d_n_gam_e,
@@ -973,6 +988,17 @@ def _electronstate(
     )
 
 
+def _bhsupport(dynamics: DynamicsSolution, config: RuntimeConfig) -> tuple[float, float]:
+    magnetic_field_g = np.asarray(magfield(dynamics.r_gamma, dynamics.radius, config), dtype=float)
+    gpmax, edge = hadronic_legacy_module.bh_support(
+        np.asarray(dynamics.r_gamma, dtype=float),
+        np.asarray(dynamics.radius, dtype=float),
+        magnetic_field_g,
+        float(config.hadronic.eta_acc),
+    )
+    return float(gpmax), float(edge)
+
+
 def solve_hadronic(
     boundary: np.ndarray,
     dynamics: DynamicsSolution,
@@ -981,6 +1007,7 @@ def solve_hadronic(
     seed_target: np.ndarray,
     config: RuntimeConfig,
     *,
+    exact_egrid: bool = False,
     return_report: bool = False,
 ) -> HadronicSolution | None | tuple[HadronicSolution | None, SolverAdapterReport]:
     del boundary
@@ -1031,6 +1058,7 @@ def solve_hadronic(
             seed_target_arr,
             shell_energy_inj_erg,
             config,
+            exact_egrid=exact_egrid,
         )
         if return_report:
             return solution, _report(
@@ -1137,6 +1165,7 @@ def _hummertransport(
     shell_energy_inj_erg: np.ndarray,
     config: RuntimeConfig,
     pp_target_density_cm3: np.ndarray | None = None,
+    exact_egrid: bool = False,
 ) -> HadronicSolution:
     radius = dynamics.radius
     gamma_bulk = dynamics.r_gamma
@@ -1152,7 +1181,7 @@ def _hummertransport(
     num_gam_p = int(config.hadronic.num_gam_p)
     num_nu_nu = int(config.hadronic.num_nu_nu)
     gam_e = np.asarray(electron_gamma, dtype=float)
-    hadronic_gam_e = _hadronicgrid(gam_e)
+    hadronic_gam_e = gam_e if exact_egrid else _hadronicgrid(gam_e)
     if pp_target_density_arr is None:
         pp_target_density_arr = ambient_density(radius, config)
     t_total_start = time.perf_counter()
@@ -1189,12 +1218,17 @@ def _hummertransport(
         num_gam_p,
         num_nu_nu,
     )
-    d_n_gam_e_bh, secondary_electron_source_r = _projectelectrons(
-        hadronic_gam_e,
-        gam_e,
-        np.asarray(d_n_gam_e_bh, dtype=float).reshape(hadronic_gam_e.size, num_r),
-        np.asarray(secondary_electron_source_r, dtype=float).reshape(hadronic_gam_e.size, num_r),
+    d_n_gam_e_bh = np.asarray(d_n_gam_e_bh, dtype=float).reshape(hadronic_gam_e.size, num_r)
+    secondary_electron_source_r = np.asarray(secondary_electron_source_r, dtype=float).reshape(
+        hadronic_gam_e.size, num_r
     )
+    if not exact_egrid:
+        d_n_gam_e_bh, secondary_electron_source_r = _projectelectrons(
+            hadronic_gam_e,
+            gam_e,
+            d_n_gam_e_bh,
+            secondary_electron_source_r,
+        )
     timings = {"formal_transport_fortran": time.perf_counter() - t_total_start}
     sed_components = {
         "proton_synchrotron": l_had_syn_spec,

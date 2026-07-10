@@ -11,6 +11,46 @@ module electron_common
     real(8), parameter :: tail_factor = 30d0
 contains
 
+! 构造端点为 [1, top] 的显式 log-gamma cell grid，返回几何中心与边界。
+! Build an explicit log-gamma cell grid on [1, top], returning geometric centers and edges.
+subroutine electron_loggrid(ng,top,gam_e,x_edge)
+    implicit none
+    integer, intent(in) :: ng
+    integer :: ig
+    real(8), intent(in) :: top
+    real(8), intent(out), dimension(ng) :: gam_e
+    real(8), intent(out), dimension(ng+1) :: x_edge
+    real(8) :: dx
+
+    dx=dlog(top)/dble(ng)
+    do ig=1,ng+1
+        x_edge(ig)=dble(ig-1)*dx
+    end do
+    do ig=1,ng
+        gam_e(ig)=dexp((dble(ig)-0.5d0)*dx)
+    end do
+end subroutine electron_loggrid
+
+! 逐半径壳层扫描本征电子截断，返回全局最大 gamma_e,max。
+! Scan the native electron cutoff over every radial shell and return the global maximum gamma_e,max.
+subroutine electron_scanmax(nr,R_Gamma,R,Epsilon_b,A_star,dNe_ISM,R0,R_tr,f_jump,f_wide,gmax)
+    implicit none
+    integer, intent(in) :: nr
+    integer :: ir
+    real(8), intent(in), dimension(nr) :: R_Gamma,R
+    real(8), intent(in) :: Epsilon_b,A_star,dNe_ISM,R0,R_tr,f_jump,f_wide
+    real(8), intent(out) :: gmax
+    real(8) :: dNe,DB,gcur
+
+    gmax=0d0
+    do ir=1,nr
+        call density_profile(A_star,dNe_ISM,R(ir),R0,1,R_tr,f_jump,f_wide,dNe)
+        DB=0.39d0*dsqrt(Epsilon_b*dNe*(R_Gamma(ir)*(R_Gamma(ir)-1d0)))
+        gcur=3d0*Para_m_energy/dsqrt(8d0*DB*Para_e**3)
+        gmax=max(gmax,gcur)
+    end do
+end subroutine electron_scanmax
+
 ! 解包公共 Boundary 数组字段。
 ! Unpack public Boundary-array fields.
 subroutine electron_unpack_boundary(Boundary,n,Eta_0,Epsilon_e,Epsilon_b,p,z,dNe_ISM,A_star, &

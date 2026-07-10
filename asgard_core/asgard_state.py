@@ -30,6 +30,7 @@ from asgard_core.asgard_physics_utils import (
 from asgard_core.asgard_physics_utils import densityjumps
 from asgard_core.asgard_postprocess import observe_flux_batch
 from asgard_core.asgard_runtime import (
+    _bhsupport,
     pgsurvival,
     _report,
     solve_dynamics,
@@ -220,6 +221,22 @@ def _checkjoint(config: RuntimeConfig) -> None:
         raise NotImplementedError("electron_photon_coupling='joint' currently requires fixed electron substeps.")
 
 
+def _formalbh(config: RuntimeConfig) -> bool:
+    hadronic = config.hadronic
+    return (
+        bool(hadronic.enabled)
+        and float(hadronic.epsilon_p) > 0.0
+        and bool(hadronic.include_bethe_heitler)
+        and str(hadronic.solver).lower() == "am3_1d"
+        and str(hadronic.pgamma_scheme).lower() == "hummer_2010_response"
+    )
+
+
+def _checkforwardbh(config: RuntimeConfig) -> None:
+    if _formalbh(config) and str(config.electron_solver).lower() != "fullhide_1d":
+        raise NotImplementedError("Forward Bethe-Heitler transport requires electron_solver='fullhide_1d'.")
+
+
 def _checkmultirs(config: RuntimeConfig) -> None:
     jump_r, _, _ = densityjumps(config)
     if jump_r.size < 1 or not config.reverse_shock.enabled:
@@ -283,6 +300,7 @@ def _hadronstage(
     *,
     apply_bh_photon_sink: bool = False,
     merge_secondary_pairs: bool = True,
+    exact_egrid: bool = False,
 ) -> tuple[ElectronSolution, object | None, SolverAdapterReport]:
     hadronic, report = _timed(
         timings,
@@ -294,6 +312,7 @@ def _hadronstage(
         photon_field.seed_frequency_hz,
         photon_field.hadronic_target_seed,
         config,
+        exact_egrid=exact_egrid,
         return_report=True,
     )
     if merge_secondary_pairs and hadronic is not None and hadronic.d_n_gam_e_bh is not None:
@@ -319,6 +338,7 @@ def _jointstage(
     setup,
     dynamics: DynamicsSolution,
     timings: dict[str, float] | None,
+    grid_top: float | None,
 ) -> tuple[ElectronSolution, PhotonFieldState, object | None, SolverAdapterReport, SolverAdapterReport]:
     _checkjoint(config)
     primary_electron, electron_report = _timed(
@@ -329,6 +349,7 @@ def _jointstage(
         dynamics,
         setup.seed_frequency_hz,
         config,
+        grid_top=grid_top,
         return_report=True,
     )
     electron = primary_electron
@@ -342,6 +363,7 @@ def _jointstage(
         setup.seed_frequency_hz,
         photon_field.hadronic_target_seed,
         config,
+        grid_top=grid_top,
         return_report=True,
     )
     electron = primary_electron
@@ -359,6 +381,7 @@ def _jointstage(
             timings,
             apply_bh_photon_sink=True,
             merge_secondary_pairs=False,
+            exact_egrid=grid_top is not None,
         )
         photon_field = _photonfield(config, setup, dynamics, electron, timings)
         if hadronic is not None and hadronic.pg_photon_survival is not None:
@@ -383,6 +406,7 @@ def _jointstage(
             photon_field.hadronic_target_seed,
             config,
             secondary_source_r=secondary_source_r,
+            grid_top=grid_top,
             return_report=True,
         )
         electron = primary_electron
@@ -461,6 +485,7 @@ def solve_setup(
     assemble_observer: bool = True,
 ) -> SolveState:
     _checkmultirs(config)
+    _checkforwardbh(config)
     execution_policy = ExecutionPolicy(num_threads=config.num_threads) if policy is None else policy
 
     # Physical spine: dynamics -> forward electron/photon/hadronic -> reverse -> observer.
@@ -472,6 +497,10 @@ def solve_setup(
         config,
         return_report=True,
     )
+    grid_top = None
+    exact_egrid = _formalbh(config)
+    if exact_egrid:
+        _, grid_top = _bhsupport(dynamics, config)
 
     if _coupling(config) == COUPLING_JOINT:
         electron, photon_field, hadronic, electron_report, hadronic_report = _jointstage(
@@ -479,6 +508,7 @@ def solve_setup(
             setup,
             dynamics,
             timings,
+            grid_top,
         )
     else:
         electron, electron_report = _timed(
@@ -489,6 +519,7 @@ def solve_setup(
             dynamics,
             setup.seed_frequency_hz,
             config,
+            grid_top=grid_top,
             return_report=True,
         )
         photon_field = _photonfield(config, setup, dynamics, electron, timings)
@@ -499,6 +530,7 @@ def solve_setup(
             electron,
             photon_field,
             timings,
+            exact_egrid=exact_egrid,
         )
 
     reverse_emission = None

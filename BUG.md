@@ -125,23 +125,15 @@ leptonic、structured 和 prompt 路径仍不一致。禁止在中间阶段加�
   和时序曲线收敛且连续非负；构建 `hadronic_forward_1d` 与受影响 electron source closure，并执行严格
   line-truncation 检查。
 
-## Bethe--Heitler electron grid 未覆盖完整运动学支撑
+## Reverse-shock Bethe--Heitler electron grid 仍未覆盖完整运动学支撑
 
-### 当前缺陷
-
-BH pair source、photon sink 与 proton fractional loss 已由同一个 `omega<=600` 微分核计算，且 proton loss
-是当前 electron grid 上双电荷 pair source 的离散能量矩。因此逐 proton 能格和总功率可以闭合到机器精度；
-但这只证明当前离散表示内部闭合，不证明 electron grid 已覆盖完整 BH 运动学支撑。
-
-真实 joint 算例中，formal 接收的 electron Lorentz-factor grid 为
-`[3, 1.915786323e10]`，而当前 active proton/photon support 要求约
-`[1, 2.256860992e12]`：高端缺少 `117.803` 倍，低端支撑也非空。支撑审计中，高端五个正权重 bin
-最高可占完整参考能量注入的 `10.627%`。当前同核能量闭合会同时截掉这些 pair 与相应 proton loss，
-因此仍是截断域闭合。
-
-### 修复边界与验收
-
-- electron-grid owner 必须在进入 BH kernel 前由 joint proton/photon 运动学构造覆盖区间，并同时满足主电子输运的网格契约；
-  禁止在 kernel 内 clamp、补尾、外推或增加 fallback。
-- 对低端和高端支撑分别做 number/energy moment 收敛；扩大 electron grid 后，遗漏功率应单调下降，BH pair、proton loss、
-  formal/joint electron 状态与辐射保持有限、非负、连续。
+- 当前 forward separated/joint 可由 `scan_pmax` 构造统一 BH log-cell grid，但
+  `asgard_core/asgard_runtime.py::_rshadronic` 仍把 reverse electron solver 的原生网格传入
+  `_hummertransport`，然后走 `_hadronicgrid` 与非守恒点投影。
+- reverse 必须用自身 `B3` 扫描质子 `gpmax`，不能复用 forward edge。当前
+  `electron_reverse_evolve` 的注入上限循环只覆盖 `gmax` 而未累计最大值，随后 `gmax0` 又使用 forward ambient
+  `epsilon_B` 与密度估计，而不是 reverse-shock 磁场；因此原生 reverse electron 上界也没有唯一正确 owner。
+- 受影响路径为 `_rselectrons -> _rshadronic -> _hummertransport`。修复需由 reverse
+  `scan_pmax` 所有者在电子求解前生成同一显式 log-cell grid，并验证 reverse formal
+  与 electron 网格 identity、number/energy moment 收敛、径向连续性及公开 reverse ABI；禁止在 BH kernel
+  内截断、补尾或把高能 pair 沉积到边界格。

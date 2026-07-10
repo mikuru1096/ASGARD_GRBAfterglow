@@ -10,10 +10,9 @@ module electron_injection_profiles
     use electron_radiation_kernel, only: besselk
     implicit none
     private
-
     public :: exp_cutoff, dnx_cutoff, pl_params, log_edges, init_powerlaw, init_edges
     public :: init_coord, source_edges, source_coord, kinetic_edges, kinetic_coord
-    public :: add_thermal, thermal_pop
+    public :: add_thermal, add_thermal_edges, thermal_pop
 
 contains
 
@@ -471,6 +470,38 @@ subroutine add_thermal(Num_gam_e,gam_e,four_v,total_count,dF1)
     call thermal_shape(Num_gam_e,gam_e,theta,shape_dnx)
     dF1=dF1+total_count*shape_dnx
 end subroutine add_thermal
+
+! 在显式 log-gamma cell 上积分 Maxwell--Juttner dN/dx，并以 cell 积分和归一。
+! Integrate Maxwell--Juttner dN/dx on explicit log-gamma cells and normalize by the cell sum.
+subroutine add_thermal_edges(ng,x_edge,four_v,total_count,dF1)
+    implicit none
+    integer, intent(in) :: ng
+    integer :: ig,iq
+    real(8), intent(in), dimension(ng+1) :: x_edge
+    real(8), intent(in) :: four_v,total_count
+    real(8), intent(inout), dimension(ng) :: dF1
+    real(8), dimension(ng) :: cell
+    real(8), parameter, dimension(3) :: xi=[-dsqrt(3d0/5d0),0d0,dsqrt(3d0/5d0)], wi=[5d0/9d0,8d0/9d0,5d0/9d0]
+    real(8) :: theta,half,xmid,xval,gam,beta,norm
+
+    if (total_count <= 0d0) return
+    theta=thermal_theta(four_v)
+    do ig=1,ng
+        half=0.5d0*(x_edge(ig+1)-x_edge(ig))
+        xmid=0.5d0*(x_edge(ig+1)+x_edge(ig))
+        cell(ig)=0d0
+        do iq=1,3
+            xval=xmid+half*xi(iq)
+            gam=dexp(xval)
+            beta=dsqrt(1d0-1d0/(gam*gam))
+            cell(ig)=cell(ig)+wi(iq)*gam**3*beta*dexp((1d0-gam)/theta)
+        end do
+        cell(ig)=half*cell(ig)
+    end do
+    norm=sum(cell)
+    if (norm <= 0d0) error stop 'thermal electron cell integral is non-positive'
+    dF1=dF1+total_count*cell/(norm*(x_edge(2:ng+1)-x_edge(1:ng)))
+end subroutine add_thermal_edges
 
 ! 将热电子种群直接加入 dN/dgamma 谱。
 ! Add a thermal-electron population directly into the dN/dgamma spectrum.

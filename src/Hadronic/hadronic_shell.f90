@@ -13,7 +13,7 @@ module hadronic_shell
     public :: rate_lum
     public :: project_lum, project_hic
     public :: pair_content
-    public :: shell_density, gamma_edges
+    public :: shell_density
     public :: proc_power, pos_interp, gamma_source
     public :: dist_gev, align_photon, shell_volumes
     public :: shell_geom
@@ -552,28 +552,6 @@ subroutine shell_density(ng,dgamma,mass,vol, &
     if (vol <= 0d0) error stop "hadronic shell density per GeV requires positive shell volume."
     dgev(1:ng)=dgamma(1:ng)/(vol*mass)
 end subroutine shell_density
-
-! gamma 网格边界：对数中心网格的几何中点边界。
-subroutine gamma_edges(ng,gamma,edge)
-    implicit none
-    integer, intent(in) :: ng
-    real(8), intent(in), dimension(ng) :: gamma
-    real(8), intent(out), dimension(ng+1) :: edge
-    integer :: i
-
-    if (ng < 1) error stop "hadronic gamma edges require at least 1d0 grid point."
-    if (ng == 1) then
-        if (gamma(1) <= 1d0) error stop "single-point hadronic gamma grid must exceed unity."
-        edge(1)=0.5d0*gamma(1)
-        edge(2)=2d0*gamma(1)
-        return
-    end if
-    edge(1)=gamma(1)*dsqrt(gamma(1)/gamma(2))
-    do i=2,ng
-        edge(i)=dsqrt(gamma(i-1)*gamma(i))
-    end do
-    edge(ng+1)=gamma(ng)*dsqrt(gamma(ng)/gamma(ng-1))
-end subroutine gamma_edges
 
 ! AM3 分过程功率归并：积分每个过程 lum，并按质子能量分布投到 hadron grid。
 subroutine proc_power(num_had,nproce,num_process,ehad,dn_had, &

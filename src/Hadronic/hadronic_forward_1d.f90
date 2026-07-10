@@ -417,3 +417,18 @@ subroutine formal_transport_1d(R_Tobs,R_Gamma,R,B_field_g,V_seed,Seed_target,gam
         dN_gam_mu_minus_right,dN_gam_mu_plus_left,dN_gam_mu_plus_right,P_had_pion_synch,P_had_muon_synch, &
         P_had_pion_ic,P_had_muon_ic,tau_pg,pg_photon_survival,am3_process_power)
 end subroutine formal_transport_1d
+
+! Forward BH electron support: reuse the formal proton-grid owner and return its exact kinematic edge.
+! Forward BH 电子支撑：复用 formal 质子网格所有者并返回精确运动学上边界。
+subroutine bh_support(R_Gamma,R,B_field_g,eta_acc,Num_R,gpmax,edge)
+    use hadronic_bh, only: bh_pair_edge
+    use hadronic_shell, only: scan_pmax
+    implicit none
+    integer, intent(in) :: Num_R
+    real(8), intent(in), dimension(Num_R) :: R_Gamma,R,B_field_g
+    real(8), intent(in) :: eta_acc
+    real(8), intent(out) :: gpmax,edge
+
+    call scan_pmax(Num_R,R,R_Gamma,B_field_g,eta_acc,gpmax)
+    edge=bh_pair_edge(gpmax)
+end subroutine bh_support
