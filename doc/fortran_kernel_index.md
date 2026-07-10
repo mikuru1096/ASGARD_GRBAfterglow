@@ -1122,13 +1122,9 @@ SED 插值共享累加 primitive。
 | Kind | Line | Program unit | 算法/物理责任 |
 | --- | ---: | --- | --- |
 | `S` | 7 | `annihilation` | f2py/Python 调用边界；对 photon field、角度权重和 pair 截面积分后返回 absorption factor。 |
-| `S` | 85 | `mid_seed` | 把种子光子场插值到相邻频率 cell 中点。 |
-| `S` | 96 | `angle_weights` | 构造各向异性 gamma-gamma absorption 的角度权重。 |
-| `S` | 109 | `build_sigma` | 预计算 pair-production 截面窗口。 |
-| `S` | 127 | `set_window` | 为给定角度和目标频率定位有效 seed 频率窗口。 |
-| `S` | 149 | `clear_window` | 清空无贡献 pair-production 窗口。 |
-| `F` | 157 | `first_gt` | 有效 seed 频率窗口的下界二分搜索。 |
-| `F` | 176 | `last_lt` | 有效 seed 频率窗口的上界二分搜索。 |
+| `S` | 84 | `weight_seed` | 把 synchrotron+SSC seed 插值到频率 cell 中点并乘积分测度。 |
+| `S` | 98 | `build_moment` | 预计算各向同性 gamma-gamma 角平均截面矩与有效频率支撑。 |
+| `F` | 125 | `first_gt` | 二分定位满足 pair-production 阈值的首个 seed 频率 cell。 |
 
 ### `src/Radiation/quantum_synch.f90`
 
@@ -1151,11 +1147,10 @@ SED 插值共享累加 primitive。
 | `F` | 35 | `rad_interp` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
 | `S` | 63 | `transfer_factor` | 辐射 emissivity、seed、SSA/transfer 或偏振计算。 |
 | `F` | 74 | `syn_kernel` | 近似同步辐射核的低频、指数段和高频分支。 |
-| `S` | 91 | `pair_grid` | gamma-gamma pair-production 能量网格和测度准备。 |
-| `F` | 111 | `pair_sigma` | gamma-gamma pair-production 截面。 |
-| `S` | 130 | `pair_tau` | 对头碰撞近似下的 gamma-gamma 光深。 |
-| `S` | 163 | `syn_seed_chi` | chi-resolved synchrotron/SSA batch kernel；单列调用传 `Num_chi=1`。 |
-| `S` | 284 | `syn_flux_chi` | chi-resolved projection-only synchrotron flux/tau batch kernel。 |
+| `F` | 112 | `pair_sigma` | gamma-gamma pair-production 截面。 |
+| `S` | 146 | `pair_tau` | 对头碰撞近似下的 gamma-gamma 光深。 |
+| `S` | 180 | `syn_seed_chi` | chi-resolved synchrotron/SSA batch kernel；单列调用传 `Num_chi=1`。 |
+| `S` | 301 | `syn_flux_chi` | chi-resolved projection-only synchrotron flux/tau batch kernel。 |
 
 ### `src/Radiation/ssc_spectrum.f90`
 

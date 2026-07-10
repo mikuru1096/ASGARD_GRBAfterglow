@@ -26,11 +26,12 @@ subroutine annihilation(R_gamma,R,V_seed,seed_syn,seed_ssc,tau_extra,Num_nu,Num_
         0.074797994408288354d0,0.084578259697501323d0,0.091301707522461820d0,0.094725305227534320d0, &
         0.094725305227534320d0,0.091301707522461820d0,0.084578259697501323d0,0.074797994408288354d0, &
         0.062314485627767036d0,0.047579255841246303d0,0.031126761969323728d0,0.013576229705877088d0]
-    real(8), dimension(:), allocatable :: dVloc,V_mid,geom
-    real(8), dimension(:,:), allocatable :: ep1,ep2,seedw,kerrel
+    real(8), dimension(:), allocatable :: dVloc,V_mid,geom,ep1,ep2
+    real(8), dimension(:,:), allocatable :: seedw,kerrel
+    real(8), dimension(Num_nu) :: x_seed
     integer, dimension(:), allocatable :: nu_start
     integer :: i_r,n1
-    real(8) :: tau,trans
+    real(8) :: tau,trans,para_hEme
 
     ! 零局域靶场不产生额外 gamma-gamma 光深，只保留 tau_extra 壳层转移。
     ! A zero local target adds no pair opacity, leaving only the tau_extra shell transfer.
@@ -45,7 +46,7 @@ subroutine annihilation(R_gamma,R,V_seed,seed_syn,seed_ssc,tau_extra,Num_nu,Num_
         return
     end if
 
-    allocate(geom(Num_R),ep1(1,Num_nu),ep2(Num_nu-1,1),dVloc(Num_nu-1),V_mid(Num_nu-1), &
+    allocate(geom(Num_R),ep1(Num_nu),ep2(Num_nu-1),dVloc(Num_nu-1),V_mid(Num_nu-1), &
              seedw(Num_nu-1,Num_R))
 
     allocate(kerrel(Num_nu-1,Num_nu))
@@ -53,7 +54,12 @@ subroutine annihilation(R_gamma,R,V_seed,seed_syn,seed_ssc,tau_extra,Num_nu,Num_
 
     geom=R/(12d0*R_gamma)
 
-    call pair_grid(V_seed,Num_nu,ep1,ep2,dVloc,V_mid)
+    para_hEme=Para_h/para_m_energy
+    ep1=para_hEme*V_seed
+    x_seed=dlog(V_seed)
+    V_mid=dexp(0.5d0*(x_seed(1:Num_nu-1)+x_seed(2:Num_nu)))
+    ep2=para_hEme*V_mid
+    dVloc=V_mid*(x_seed(2:Num_nu)-x_seed(1:Num_nu-1))
     call weight_seed()
     call build_moment()
 
@@ -99,11 +105,11 @@ subroutine build_moment()
     !$OMP PARALLEL DO num_threads(n_threads) SCHEDULE(STATIC) &
     !$OMP& private(n1,n2,nlo,iq,xprod,delta,ds,acc)
     do n1=1,Num_nu
-        if (ep2(Num_nu-1,1)*ep1(1,n1) <= 1d0) cycle
+        if (ep2(Num_nu-1)*ep1(n1) <= 1d0) cycle
         nlo=first_gt(n1,1d0)
         nu_start(n1)=nlo
         do n2=nlo,Num_nu-1
-            xprod=ep2(n2,1)*ep1(1,n1)
+            xprod=ep2(n2)*ep1(n1)
             delta=xprod-1d0
             acc=0d0
             do iq=1,nq
@@ -126,7 +132,7 @@ integer function first_gt(n1,target)
     i_high=Num_nu-1
     do while (i_low < i_high)
         i_mid=(i_low+i_high)/2
-        if (ep2(i_mid,1)*ep1(1,n1) <= target) then
+        if (ep2(i_mid)*ep1(n1) <= target) then
             i_low=i_mid+1
         else
             i_high=i_mid

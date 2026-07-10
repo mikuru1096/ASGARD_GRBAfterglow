@@ -30,7 +30,7 @@ ASGARD 的第一性原理主线是：先在局域壳层坐标中闭合动力学�
 | 同步辐射与 SSA | 从电子谱计算 `P_syn`, `Seed_syn`, `Tau_syn`, `nu_a`。 | `syn_state` | `electron_syn_gauss`, `electron_tau_gauss`, `nua_fromtau` | `P_syn/Seed/Tau` 同源；避免重复 root search 造成 runtime 和语义分裂。 |
 | 同步偏振 | 频率相关 F/G kernel 到 Stokes emissivity。 | `synchrotron_polarized_components` | `synchrotron_fg_kernel`, `synchrotron_fg_integral` | 只覆盖同步分支；峰时偏差优先查 dynamics/projection。 |
 | SSC 与 IC cooling | 同一 photon seed 决定 cooling 与 emissivity。 | `ssc_spec`, `ssc_spec_nonuniform`, `electron_cooling_ic_loss` | `prepare_kn_tables`, `accumulate_uniform_point`, `accumulate_nonuniform_point` | joint 预算中不能只改 cooling 不改 photon source。 |
-| gamma-gamma absorption | 目标 photon field 上积分 pair cross-section。 | `annihilation` | `pair_grid`, `sigma_kernel`, `set_window` | 输出是 observer attenuation；不要把它误作局域 cascade 全闭合。 |
+| gamma-gamma absorption | 目标 photon field 上积分 pair cross-section。 | `annihilation` | `weight_seed`, `build_moment`, `pair_delta`, `transfer_factor` | 输出是 observer attenuation；不要把它误作局域 cascade 全闭合。 |
 | pair synch cascade | shell-sequence gamma-gamma pair/synch branch。 | `cascade_sequence` | `cascade_seq`, `produce_pairs`, `emit_syn` | `pair_cascade_iterations>1` 仍不是 IC-mediated electromagnetic cascade。 |
 | proton injection/transport | log-gamma 质子源项、连续损失和保守推进。 | `formal_transport_1d` | `proton_inject`, `advance_loggamma`, `proton_step` | 质子数/能量源项、loss 和 photon survival 同壳层对齐。 |
 | p-gamma Hummer response | proton loss、re-injection、photon loss、secondary families。 | `formal_pgamma_operator` | `pg_hummer`, `deposit_pions`, `pgamma_update` | `pgamma_scheme="hummer_2010_response"` 才是正式反馈路径。 |

@@ -5,7 +5,7 @@ module rad_common
     private
 
     public :: sampled_weights, rad_interp, transfer_factor, &
-              syn_kernel, pair_grid, &
+              syn_kernel, &
               pair_sigma, pair_delta, pair_tau, &
               syn_seed_chi, syn_flux_chi
 
@@ -106,26 +106,6 @@ elemental real(8) function syn_kernel(x, ratio_v_pow, factor) result(Fx)
         Fx = 1.81d0*dexp(-x)/dsqrt(ratio_v_pow+factor)
     end if
 end function syn_kernel
-
-! 准备湮灭计算网格: 归一化光子能量、中心频率和体积元。
-! Prepare pair-production grid: normalized photon energy, midpoint frequency, and measure.
-subroutine pair_grid(V_seed, Num_nu, ep1, ep2, dVloc, V_mid)
-    implicit none
-    integer, intent(in) :: Num_nu
-    real(8), dimension(Num_nu), intent(in) :: V_seed
-    real(8), dimension(1,Num_nu), intent(out) :: ep1
-    real(8), dimension(Num_nu-1,1), intent(out) :: ep2
-    real(8), dimension(Num_nu-1), intent(out) :: dVloc,V_mid
-    real(8), dimension(Num_nu) :: x_seed
-    real(8) :: para_hEme
-
-    para_hEme=Para_h/para_m_energy
-    ep1(1,:)=para_hEme*V_seed
-    x_seed=dlog(V_seed)
-    V_mid=dexp(0.5d0*(x_seed(1:Num_nu-1)+x_seed(2:Num_nu)))
-    ep2(:,1)=para_hEme*V_mid
-    dVloc=V_mid*(x_seed(2:Num_nu)-x_seed(1:Num_nu-1))
-end subroutine pair_grid
 
 ! 光子-光子对产生截面。
 ! Photon-photon pair-production cross section.
