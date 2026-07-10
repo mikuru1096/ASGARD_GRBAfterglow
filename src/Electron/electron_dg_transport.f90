@@ -21,6 +21,8 @@ module electron_dg_transport
     real(8), allocatable, dimension(:) :: reference_r,reference_w,reference_bary
     real(8), allocatable, dimension(:,:) :: reference_dmat,reference_transport
     real(8), allocatable, dimension(:) :: projection_r,projection_w
+    !$omp threadprivate(reference_r,reference_w,reference_bary,reference_dmat, &
+    !$omp& reference_transport,projection_r,projection_w)
 
     ! DG 网格记录：只保存坐标、节点、权重和导数矩阵，不承载推进逻辑。
     ! DG mesh record: stores coordinates, nodes, weights, and matrices without solver behavior.
@@ -869,6 +871,7 @@ integer function dg_filter_mode() result(mode)
     character(len=32) :: env_value
     integer :: env_status
     integer, save :: cached_mode = -1
+    !$omp threadprivate(cached_mode)
 
     if (cached_mode < 0) then
         call get_environment_variable('ASGARD_DG1D_POSITIVE_KERNEL', env_value, status=env_status)
