@@ -69,7 +69,7 @@ def loginterp(x_src: np.ndarray, y_src: np.ndarray, x_dst: np.ndarray) -> np.nda
     return out
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class HummerOutput:
     """Hummer-2010 pγ wrapper output; rate fields are per GeV."""
 

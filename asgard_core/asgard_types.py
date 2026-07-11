@@ -17,7 +17,7 @@ import numpy as np
 # State and Solution Types (from asgard_state.py)
 # ============================================================================
 
-@dataclass(slots=True)
+@dataclass
 class BranchState:
     """State information for a single shock branch (forward or reverse)."""
     characteristic_time_s: np.ndarray
@@ -28,7 +28,7 @@ class BranchState:
     magnetic_field_g: np.ndarray
 
 
-@dataclass(slots=True)
+@dataclass
 class FluxComponents:
     """Flux components from different emission processes."""
     total: np.ndarray
@@ -46,7 +46,7 @@ class FluxComponents:
     rev: BranchState | None
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class SolverAdapterReport:
     """Thin solver-adapter report exposed to the orchestration layer."""
     solver: str
@@ -55,7 +55,7 @@ class SolverAdapterReport:
     diagnostics: dict[str, Any] = field(default_factory=dict)
 
 
-@dataclass(slots=True)
+@dataclass
 class PhotonFieldState:
     """Photon-field contract passed between electron, hadronic, and observer stages."""
     seed_frequency_hz: np.ndarray
@@ -66,7 +66,7 @@ class PhotonFieldState:
     absorption_ssc_seed: np.ndarray
 
 
-@dataclass(slots=True)
+@dataclass
 class ObserverState:
     """Observer-side assembly state prior to interpolation onto query grids."""
     prefactor: np.ndarray
@@ -75,7 +75,7 @@ class ObserverState:
     components: FluxComponents
 
 
-@dataclass(slots=True)
+@dataclass
 class SolveState:
     """Complete state from a simulation solve."""
     config: Any  # RuntimeConfig - avoid circular import
@@ -94,7 +94,7 @@ class SolveState:
     adapter_reports: dict[str, SolverAdapterReport] = field(default_factory=dict)
 
 
-@dataclass(slots=True)
+@dataclass
 class ObsState:
     """Observed state with frequency-dependent components."""
     state: SolveState
@@ -107,7 +107,7 @@ class ObsState:
 # Solver Types (from asgard_runtime.py)
 # ============================================================================
 
-@dataclass(slots=True)
+@dataclass
 class ReverseShockParameters:
     """Parameters for reverse shock physics."""
     delta_t_s: float
@@ -118,7 +118,7 @@ class ReverseShockParameters:
     f_e: float
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class ReverseShockCausalityDiagnostics:
     """Global and local reverse-shock causality diagnostics."""
     medium: str
@@ -148,7 +148,7 @@ class ReverseShockCausalityDiagnostics:
     actual_start_contact_fraction: float
 
 
-@dataclass(slots=True)
+@dataclass
 class ReverseShockDynamics:
     """Dynamics solution for reverse shock."""
     t_cross: float
@@ -198,7 +198,7 @@ class ReverseShockDynamics:
     d_n_gam_e: np.ndarray | None = None
 
 
-@dataclass(slots=True)
+@dataclass
 class DynamicsSolution:
     """Solution from dynamics solver."""
     r_tobs: np.ndarray
@@ -208,7 +208,7 @@ class DynamicsSolution:
     reverse_shock: ReverseShockDynamics | None = None
 
 
-@dataclass(slots=True)
+@dataclass
 class ElectronSolution:
     """Solution from electron solver."""
     gam_e: np.ndarray
@@ -230,7 +230,7 @@ class ElectronSolution:
     nu_a: np.ndarray | None = None
 
 
-@dataclass(slots=True)
+@dataclass
 class ReverseShockEmission:
     """Emission from reverse shock."""
     l_syn_spec: np.ndarray
@@ -239,7 +239,7 @@ class ReverseShockEmission:
     secondary_rs: Any | None = None
 
 
-@dataclass(slots=True)
+@dataclass
 class HadronicSolution:
     """Solution from the 1d hadronic solver."""
     solver: str

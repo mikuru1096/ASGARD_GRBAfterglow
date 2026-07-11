@@ -14,7 +14,7 @@ GEV2ERG = constants.para_gev2erg
 HUMMER_BACKEND = "fortran_wrapped_response"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class HadronicProcessOutput:
     """Process-resolved p-gamma output for a named hadronic backend."""
 

@@ -11,7 +11,7 @@ from src import constants
 ME_GEV = constants.para_m_e_gev
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class PairCascade:
     """γγ pair/synch fields passed back to photon-field assembly."""
 
