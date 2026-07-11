@@ -5,7 +5,7 @@
   "decision_value": "trace n(R) into Gamma(R), B'(R), and the 1e14 Hz total, FS synchrotron, and primary-RS synchrotron observer light curves",
   "explicit_jump_radius_cm": 1e+17,
   "frequency_hz": 100000000000000.0,
-  "git_commit": "dd506fd0ec9057ba9894822d4c11bde41e27a739",
+  "git_commit": "9f25500c878f7ff7249550c7ce37f557d98b4937",
   "git_dirty": true,
   "grid": {
     "num_gam_e": 81,
