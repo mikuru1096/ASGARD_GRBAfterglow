@@ -1,158 +1,141 @@
-# 开发指南
+# 开发与验证指南
 
-本文档记录 ASGARD 当前开发工作流。它补充 `AGENTS.md`，不替代其中的硬性约束。
+本文补充根目录 `AGENTS.md`，后者始终优先。
 
-## 工作区基线
+## 1. 固定环境
 
-默认工作区：
+唯一工作树是：
 
 ```text
 /mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow
 ```
 
-每次开始工作先执行：
+默认使用 WSL Ubuntu、项目 `uv` 和 `/usr/bin/gfortran`。所有命令以 `rtk`
+开头；非交互 WSL 先 `source ~/.wsl_env`。开始前记录 branch、HEAD 和工作树：
 
 ```bash
 rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && git status --short --branch && git log -1 --oneline'
 ```
 
-不要使用旧路径 `~/projects/ASGARD_GRBAfterglow`。
+## 2. 变更原则
 
-## Git 原则
+- 从物理或接口问题出发，不创建没有明确效用的路径；
+- 保留用户已有改动，不使用 destructive Git 命令；
+- Python 负责编排，Fortran 负责数值核；
+- 只在系统边界校验，内部状态遵守已建立 contract；
+- 不添加 fallback、smoothing、经验归一化或事后修补；
+- 新 bug 先登记 `BUG.md`，修复并验收后同轮删除；
+- 临时 driver、profile 和 benchmark 放 `/tmp`，不新增测试文件。
 
-- 不回滚用户已有改动，除非用户明确要求。
-- 不用 `git reset --hard` 或 `git checkout --` 清理未确认改动。
-- 不盲目 `git add .`。
-- 生成 artifact 前后记录 HEAD、status、diff stat、命令和验收口径。
-- 完成任务后提交应只包含本任务文件。
+## 3. 修改前
 
-## 代码分层
+1. 写清收益假设、物理假设和可观察验收量；
+2. 从公开入口沿调用链定位到数值核；
+3. 搜索 Python caller、f2py export 和 build source closure；
+4. 记录旧实现输出、运行时间和峰值临时内存；
+5. 确认未支持边界，避免无意扩大 public API。
 
-Python 负责：
+删除代码必须同时证明没有运行 caller、构建节点和外部契约。删除文档必须修复导航
+与链接，不保留“已删除页面”的占位文件。
 
-- public API
-- config / dataclass contracts
-- runtime dispatch
-- wrapper / orchestration
-- benchmark / plotting
-- fitting
+## 4. Fortran 修改
 
-Fortran 负责：
+优先精简循环、临时数组和薄 wrapper，不引入 manager/context。保持 ABI 参数顺序、
+shape 和 dtype，除非任务明确修改公开接口。
 
-- dynamics kernels
-- electron transport
-- radiation integrals
-- hadronic microphysics
-- observer interpolation kernels
+声明块保持紧凑，同类型、同语义变量合并；新局部变量名最多一个下划线。数值表达式
+的求值顺序若改变，必须用物理预算和精度比较验收。
 
-规则：
-
-- 重要数值物理应在 Fortran。
-- Python 只做 orchestration、wrapping、benchmark、API glue。
-- 不创建大概率无效的代码。
-- 不添加 fallback、heuristic post-processing 或非物理 smoothing。
-
-## 修改 Fortran 的流程
-
-1. 明确物理动机和受影响 kernel。
-2. 阅读调用链和已有 helper。
-3. 做最小改动。
-4. 检查声明块长度和 line truncation。
-5. 强制编译受影响 extension。
-6. 跑最小端到端验证或 benchmark。
-7. 做 review 查 bug，再从第一性原理确认实现是否仍是最简单稳健路径。
-
-声明块规则：
-
-- 同类型声明合并到一行。
-- 语义相近的量分组。
-- B 类子程序声明块不超过 15 行。
-- 禁止每行只声明一个变量。
-
-## 修改 Python 接口的流程
-
-1. 确认 public API 名称和返回类型。
-2. 不改变现有兼容入口，除非任务要求。
-3. API 边界只验证用户输入、外部 API 或文件输入。
-4. 内部状态不做防御性编程。
-5. 更新 `doc/public_api.md` 和相关验证入口。
-
-## 物理结果自检
-
-必须检查：
-
-- 时间演化是否连续。
-- 频谱是否存在非物理断崖。
-- density jump 或 injection event 是否是唯一允许的突变来源。
-- `sigma -> 0`、禁用 process、低阶极限是否回到 baseline。
-- 图像 artifact 是否由脚本生成。
-
-不能做：
-
-- 通过 smoothing 隐藏错位。
-- 通过经验时间因子修正峰时。
-- 通过数值 floor 掩盖负值或振荡，除非 floor 是明确物理边界。
-- 把 comparison backend 当作物理真值。
-
-## 文档更新规则
-
-改动以下内容时需要同步文档：
-
-- Public API 参数或返回类型。
-- 新 solver 或删除 solver。
-- 新 physical switch。
-- 新 benchmark artifact。
-- 新 unsupported boundary。
-- 构建命令变化。
-- 运行路径或环境变化。
-
-文档入口：
-
-- `doc/index.md`
-- `doc/public_api.md`
-- `doc/physics_model.md`
-- `doc/numerical_methods.md`
-- `doc/validation_and_benchmarks.md`
-
-## 最小提交前检查
-
-文档-only：
+受影响扩展强制构建：
 
 ```bash
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && git diff --check'
+TMPDIR=/tmp uv run python build_extensions.py --module MODULE_NAME --force
 ```
 
-Fortran：
+随后从干净 `/tmp` 按 `build_extensions.py` 的真实有序 source closure 执行
+`-Wline-truncation`。不要在仓库根目录拾取旧 `.mod`，也不要用邻近文件集合代替
+真实闭包。
+
+## 5. Python 修改
+
+- 字符串 selector 只在公开边界映射一次；
+- 保留承载单位、坐标、线程 callback 或 f2py ABI 的函数边界；
+- 只在首个运算已产生独立数组后使用原位累加；
+- 不回写 public 输入数组；
+- cache key 必须覆盖所有改变结果的参数；
+- dataclass 字段有物理意义时不为缩行删除。
+
+公开参数或返回值变化时同步 `public_api.md` 和 backend limits。
+
+## 6. 数值验收
+
+结果比较至少覆盖：
+
+- shape、dtype、内存布局和输入不变性；
+- callback 次数、参数和 report 顺序；
+- 禁用新过程时回到 baseline；
+- 低阶/薄厚/无吸收等解析极限；
+- 粒子数、能量和 photon survival 预算；
+- 时间、半径、能量及观测曲线的连续平滑性。
+
+若优化只引入末位浮点差异，可以接受，但必须定位到等价求值顺序或更少临时量。
+性能至少运行三次，使用 median；大型 observer/hadronic 汇总同时记录峰值内存。
+无可测收益的复杂改动撤回。
+
+## 7. 最小验证矩阵
+
+| 变更 | 最小真实入口 |
+|---|---|
+| Dynamics | forward/reverse 强制构建与 reverse smoke |
+| Electron 1D | 对应 solver 构建与公开 `Model` 查询 |
+| Electron 2D | 2D 构建与 χ state/projection 查询 |
+| Radiation | electron/radiation extension 与 SED/lightcurve |
+| Hadronic | forward、必要时 reverse/structured formal 入口 |
+| Observer | lightcurve、SED、total/components |
+| 文档 | encoding、strict MkDocs、diff check |
+
+跨阶段修改运行所有受影响行，不为“完整”执行没有决策价值的穷举。
+
+## 8. 文档验证
 
 ```bash
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && TMPDIR=/tmp uv run python build_extensions.py --module MODULE_NAME --force'
+uv run python tools/check_text_encoding.py
+uv run --with "mkdocs<2" --with "mkdocs-material>=9.5" mkdocs build --strict --site-dir /tmp/asgard_mkdocs_site
+git diff --check
 ```
 
-然后跑 line-truncation 和最小端到端验证。
+文档描述当前实现，不把计划写成事实。源码结构只在 `code_overview.md` 维护，算法
+总式只在 `project_algorithm_design.md` 维护，未完成项只在 `BUG.md`/`TODO.md` 维护。
 
-## Review 检查表
+## 9. Review
 
-提交前逐项确认：
+修改后先查 bug，再从第一性原理审视：
 
-- 变更是否直接服务原始需求。
-- 是否删掉了调试代码、临时文件和失败 artifact。
-- 是否无 fallback、无经验补丁、无不必要防御性代码。
-- 物理路径是否仍由已有优秀算法或正式 kernel 承担。
-- 新文档是否描述当前实现，而非计划。
-- 受影响 benchmark 是否可复现。
-- `git status --short --branch` 是否只显示预期文件。
+1. 是否直接解决原始问题；
+2. 是否还有可删除的中间层、复制数组或重复公式；
+3. 单位、坐标和数组 owner 是否唯一；
+4. 并行 scratch、cache 和 callback 是否仍线程安全；
+5. 是否意外扩大 ABI 或 public selector；
+6. diff 是否只含本任务文件；
+7. 真实运行和物理诊断是否支持结论。
 
-## 发布与推送
+## 10. 提交
 
-推送前：
+只 stage 本任务文件。提交前查看 `git diff --stat`、`git diff --check` 和 status；
+完成状态仅记录 Git 提交号。推送前再次确认 remote、branch、HEAD 和工作树。
 
-1. 确认目标 remote。
-2. 确认 branch。
-3. 确认 HEAD 和远端 ref。
-4. 确认没有未提交改动。
-
-示例：
+## 11. 常用真实入口
 
 ```bash
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && git status --short --branch && git remote -v && git log -1 --oneline'
+TMPDIR=/tmp uv run python build_extensions.py --module Dynamics_forward --module Dynamics_reverse --force
+TMPDIR=/tmp uv run python build_extensions.py --module electron_forward_fullhide_1d --force
+TMPDIR=/tmp uv run python build_extensions.py --module hadronic_forward_1d --force
 ```
+
+命令是入口示例，不替代 source closure 审计。模块名、编译顺序和公开 wrapper 以
+当前 `build_extensions.py` 为准。
+
+文档-only 变更不编译 Fortran，但仍需 strict MkDocs；代码-only 变更也必须检查受
+影响文档是否引用被删除的字段、文件或 selector。
+
+验证失败时修复根因，不降低检查等级。

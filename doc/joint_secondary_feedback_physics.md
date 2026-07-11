@@ -1,246 +1,115 @@
 # 含时二级反馈的物理契约
 
-本文说明 `electron_photon_coupling="joint"` 的物理含义。它固定电子、光子、强子和二级对在同一半径坐标 \(R\) 上闭合的要求；算法执行顺序见 `doc/joint_secondary_feedback_algorithm.md`。
+本页定义 `coupling="joint"` 的物理所有权。它不是在 `separated` 结果上追加更多分量，而是在同一壳层演化中闭合质子、电子/正电子和光子场。
 
-## 1. 为什么使用半径 \(R\)
+## 1. 演化变量
 
-ASGARD 的动力学主状态沿激波半径 \(R\) 存储。若电子、质子、二级 \(e^\pm\) 和光子场在同一个壳层内相互反馈，它们必须使用同一个自变量。
-
-设壳层 bulk Lorentz 因子为 \(\Gamma\)，速度为
+联合状态为
 
 \[
-\beta=\sqrt{1-\Gamma^{-2}}.
+N_p(E_p,R),\qquad N_e(\gamma,R),\qquad n_\gamma(\epsilon,R).
 \]
 
-激波半径满足
+代码沿动力学轨迹使用半径 \(R\)；局域共动时间增量由
 
 \[
-\frac{\mathrm{d}R}{\mathrm{d}t_{\rm lab}}=\beta c.
+dt'=\frac{dR}{\Gamma\beta c}
 \]
 
-共动时间与实验室系时间的关系为
+给出。这里没有把所有壳层宽度泛化为 \(R/(12\Gamma)\)。体积、路径长度和逃逸时间来自当前壳层几何状态。
+
+粒子数组是每个能量单元的谱密度；光子数组是局域共动光子谱。所有源项进入方程前必须与该归一化一致。
+
+## 2. 质子方程
 
 \[
-\mathrm{d}t'=\frac{\mathrm{d}t_{\rm lab}}{\Gamma}.
+\frac{\partial N_p}{\partial t'}+
+\frac{\partial}{\partial E_p}(\dot E_pN_p)
+=Q_p-\frac{N_p}{t'_{p,\rm esc}}.
 \]
 
-因此
+\(\dot E_p\) 可包含绝热、proton synchrotron、pγ、BH 和 pp 损失。每个过程的连续损失与对应产物共用一次能量转移率。
+
+pγ 与 pp 可产生 gamma、pair 和 neutrino；BH 产生 pair。neutrino 离开联合状态，但计入能量预算。
+
+## 3. 电子/正电子方程
 
 \[
-\frac{\mathrm{d}t'}{\mathrm{d}R}
-=\frac{1}{\beta\Gamma c}.
+\frac{\partial N_e}{\partial t'}+
+\frac{\partial}{\partial\gamma}(\dot\gamma N_e)
+=Q_{e,\rm pri}+Q_{e,\gamma\gamma}+Q_{e,\rm BH}
++Q_{e,p\gamma}+Q_{e,pp}-\frac{N_e}{t'_{e,\rm esc}}.
 \]
 
-所有自然单位为 \({\rm s}^{-1}\) 的微物理率进入 \(R\) 坐标输运时必须转换为
+主电子和二级电子在进入辐射核后服从相同的同步、IC 与绝热损失。pair 注入属于联合 solver；observer 不得再次从同一 gamma-gamma 吸收量生成 pair。
+
+正负电子在不需要电荷符号的辐射核中以总 pair 谱演化。任何按单粒子种类定义的响应表必须在注入前处理其 multiplicity。
+
+## 4. 光子方程
 
 \[
-\Lambda_R=\frac{\Lambda_t}{\beta\Gamma c},
-\qquad
-Q_R=\frac{Q_t}{\beta\Gamma c},
+\frac{\partial n_\gamma}{\partial t'}=
+Q_{\rm syn}+Q_{\rm IC}+Q_{p,\rm syn}+Q_{p\gamma}
++Q_{pp}+Q_{\rm ann}-
+\frac{n_\gamma}{t'_{\rm esc}}-
+\dot n_{\gamma\gamma}-\dot n_{\rm abs}.
 \]
 
-\[
-\dot{\gamma}_R=\frac{\dot{\gamma}_t}{\beta\Gamma c},
-\qquad
-\dot{E}_R=\frac{\dot{E}_t}{\beta\Gamma c}.
-\]
+`Q_ann` 表示当前实现允许的 annihilation 光子源。SSA 或其他吸收项只有在联合状态显式回收其能量时才构成反馈；否则它们是传输层衰减，不得虚构热化源。
 
-这里 \(\Lambda\) 是损失或吸收率，\(Q\) 是注入率，\(\dot{\gamma}\) 和 \(\dot{E}\) 是连续冷却漂移速度。
+光子逃逸时间由壳层路径长度确定。逸出谱进入 observer，留在壳层内的谱继续作为 SSC、pγ、BH 和 gamma-gamma 的目标场。
 
-## 2. 变量归一化
+## 5. 交换预算
 
-公式使用连续谱记号：
+每个内部交换必须成对出现：
 
-- \(N_p(E_p,R)\)：质子谱。
-- \(N_e(\gamma_e,R)\)：电子/正电子谱。
-- \(n_\gamma(\epsilon_\gamma,R)\)：目标光子谱。
-- \(Q_{x,R}\)：已经换算到 per-\(R\) 的源项。
-- \(\Lambda_{\gamma,R}\)：已经换算到 per-\(R\) 的光子吸收率。
+| 损失端 | 产物端 |
+|---|---|
+| 电子同步/IC | 同步/IC 光子 |
+| proton synchrotron | proton-synchrotron 光子 |
+| gamma-gamma 光子 sink | 电子–正电子注入 |
+| BH 质子损失 | BH pair 注入 |
+| pγ 质子损失 | gamma、pair、neutrino |
+| pp 质子损失 | gamma、pair、neutrino |
 
-实现中同时存在 shell-integrated spectra 和 local density spectra。任一源项进入某个输运方程前，必须与该方程推进的谱变量使用同一归一化。
+离散能量预算检查采用各网格上的能量加权积分。网格边界逸出和 neutrino 输出是允许的系统 sink；内部交换不能同时算作 sink 和净损失。
 
-## 3. 质子方程
+## 6. `joint` 与 `separated`
 
-formal 1D 强子路径在每个壳层推进
+`separated`：
 
-\[
-\frac{\partial N_p}{\partial R}
-=Q_{p,{\rm shock},R}
--\frac{\partial}{\partial E_p}
-\left(\dot{E}_{p,{\rm loss},R}N_p\right)
-+Q_{p,{\rm reinj},R}.
-\]
+1. 先求主电子和局域辐射；
+2. 再以冻结目标场计算强子与 pair 分量；
+3. 二级产物不回写此前的目标场。
 
-其中
+`joint`：
 
-\[
-\dot{E}_{p,{\rm loss},R}
-=\dot{E}_{{\rm ad},R}
-+\dot{E}_{p{\rm syn},R}
-+\dot{E}_{{\rm BH},R}
-+\dot{E}_{p\gamma,R}
-+\dot{E}_{pp,R}.
-\]
+1. 在每个动力学步共同更新三类状态；
+2. 二级 pair 会改变后续同步、IC 和目标光子场；
+3. 强子反应率随更新后的光子场演化。
 
-若某个过程只输出 photon/neutrino luminosity，而没有给出可回灌的输运源项，则它只能作为辐射输出或诊断，不能伪造成反馈源。
+两种结果不能逐分量相加。联合模式输出已经包含其拥有的二级反馈。
 
-## 4. 电子/正电子方程
+## 7. 当前支持边界
 
-`joint` 模式下，电子方程直接接收强子和 \(\gamma\gamma\) 过程产生的二级源项：
+- 联合输运是壳层平均的一维能量问题。
+- 它不是 `fullhide_2d` q 单元或 chi-resolved 强子输运。
+- `chi_eats_2d` 不投影联合 SSC、强子或 pair 体积分布。
+- reverse hadronic 复用壳层目标场与投影契约，不宣称完整的 RS 空间级联。
+- pp 默认 gamma 模型为 `delta`；AM3 详细模型只改变 π0 gamma 源。
+- 不用经验 clamp、平滑或事后归一化修复能量闭合。
 
-\[
-\frac{\partial N_e}{\partial R}
-=Q_{e,{\rm shock},R}
-+Q_{e,{\rm secondary},R}
--\frac{\partial}{\partial \gamma_e}
-\left[
-\left(
-\dot{\gamma}_{{\rm ad},R}
-+\dot{\gamma}_{{\rm syn},R}
-+\dot{\gamma}_{{\rm IC},R}[n_\gamma]
-\right)N_e
-\right].
-\]
+## 8. 验收
 
-当前实现的二级源项为
+联合路径至少检查：
 
-\[
-Q_{e,{\rm secondary},R}
-=Q_{e,{\rm BH},R}
-+Q_{e,pp,R}
-+Q_{e,\gamma\gamma,R}.
-\]
+1. 关闭二级过程时退化到对应主输运；
+2. 每个源与 sink 有相同单位和网格测度；
+3. gamma-gamma 吸收能与 pair 注入能相符；
+4. BH、pγ、pp 产物不超过质子损失预算；
+5. `separated` 与 `joint` 不重复组装 pair；
+6. 谱有限、非负，阈值以下源为零；
+7. 随半径和时间的物理量连续平滑；
+8. observer 只投影逸出分量，不改变局域联合状态。
 
-未接入的项不能用总能量外推构造谱形。尤其是 \(p\gamma/\pi/\mu\) decay chain 的 \(e^\pm\) 注入，必须等待 formal kernel 输出谱形和归一化后才能进入 \(Q_{e,{\rm secondary},R}\)。
-
-## 5. 光子场方程
-
-joint 光子场同时服务电子 IC 冷却、强子 target field 和吸收。连续形式可写为
-
-\[
-\frac{\partial n_\gamma}{\partial R}
-=Q_{\gamma,e{\rm syn},R}
-+Q_{\gamma,e{\rm IC},R}
-+Q_{\gamma,{\rm pair\,syn},R}
-+Q_{\gamma,{\rm had,out},R}
--\Lambda_{\gamma,R}n_\gamma.
-\]
-
-必须区分两类光子：
-
-- 参与 joint seed 闭合的目标光子场：正向激波电子同步辐射 seed、SSC/IC seed、\(\gamma\gamma\) pair synch seed，以及 \(p\gamma\)、BH、\(\gamma\gamma\) survival 作用后的 field。
-- 作为 observer component 输出的强子辐射 luminosity：质子同步辐射、\(p\gamma\) gamma、BH pair radiation、hadronic IC、pair-production radiation 等。
-
-并非所有 observer-side hadronic photon luminosity 都已经回灌成 target photon density。后续若要加入某个强子 photon source，必须先定义 luminosity 到壳层 photon density 的几何、逃逸时间和吸收归一化。
-
-## 6. 光子 sink
-
-光子吸收率在半径坐标中的形式为
-
-\[
-\Lambda_{\gamma,R}
-=\frac{
-\alpha_{p\gamma}
-+\alpha_{\rm BH}
-+\alpha_{\gamma\gamma}
-+t_{\rm esc}^{-1}
-}{\beta\Gamma c}.
-\]
-
-当前代码中：
-
-- \(p\gamma\) photon depletion 使用 formal \(p\gamma\) kernel 输出的 photon survival。
-- BH photon loss 使用 BH kernel 输出的 photon loss rate，并与 proton loss 和 pair rate 同一归一化。
-- \(\gamma\gamma\) absorption 使用 pair-production branch 的 photon loss rate 或 cascade optical depth。
-- 若某路径没有显式建模 \(t_{\rm esc}^{-1}\)，不能用经验 sink 代替。
-
-## 7. 能量预算
-
-### IC 预算
-
-同一组 \(N_e\) 和 \(n_\gamma\) 必须同时决定
-
-\[
-P_{e,{\rm IC\,loss}}
-\quad{\rm and}\quad
-P_{\gamma,{\rm IC\,source}}.
-\]
-
-如果只改变 electron cooling 而没有同步改变 IC photon source，电子能量会从系统中消失。当前 joint 路径通过同一 seed 传入 coupled electron pass；端到端验证当前会在 formal hadronic electron-energy grid contract 处失败，需先修复该契约后再把它作为绿色验收。
-
-### BH 预算
-
-Bethe-Heitler kernel 同时给出
-
-\[
-\dot{N}_{p,{\rm loss}}(E_p),
-\qquad
-\dot{N}_{e^\pm}(E_e),
-\qquad
-\dot{n}_{\gamma,{\rm loss}}(\epsilon_\gamma).
-\]
-
-三者必须来自同一个微物理算子。允许存在由网格截断、离散积分和未观测逃逸项造成的可解释差异；不允许用经验比例补齐 photon sink 或 pair source。
-
-### \(\gamma\gamma\) 预算
-
-\(\gamma\gamma\) absorption 的当前物理链条是
-
-\[
-\gamma+\gamma
-\rightarrow e^+ + e^-
-\rightarrow \text{pair synchrotron photons}.
-\]
-
-当前接入的是 pair/synch cascade。IC-mediated electromagnetic cascade 需要额外的 photon/\(e^\pm\) source-sink 方程和 IC kernel 预算，尚未实现。
-
-## 8. `separated` 与 `joint`
-
-`separated` 是默认模式：
-
-```text
-primary electron solve
--> photon field
--> hadronic solve
--> BH/secondary post-merge or diagnostic output
-```
-
-它适合 weak-feedback 情况，因为二级对不显著改变电子冷却和目标光子场。
-
-`joint` 是 opt-in 模式：电子、光子场、强子输运和二级对在同一 \(R\) 网格内迭代闭合。它的目标不是改变强子微物理，而是让二级 \(e^\pm\) 与 photon sink/source 在同一壳层坐标下反馈到 electron/photon state。
-
-## 9. 支持边界
-
-当前 `joint` 支持：
-
-- 正向激波。
-- `electron_solver="fullhide_1d"`。
-- `hadronic_solver="am3_1d"`。
-- `bethe_heitler=True`。
-- `ssc=True` 且 `index_y=1`。
-- fixed electron substeps。
-
-当前 `joint` 不支持：
-
-- 反向激波 full-chain feedback。
-- \(\chi\)-resolved / 2D 强子输运。
-- 结构化喷流后端。
-- `fullhide_1d` 之外的 electron solver。
-- 非 `hummer_2010_response` 的 \(p\gamma\) scheme。
-- IC-mediated electromagnetic cascade。
-- formal \(p\gamma/\pi/\mu\) \(e^\pm\) feedback。
-
-这些边界必须显式报错，不能 fallback 到 `separated` 或静默忽略。
-
-## 10. 物理验收
-
-合格结果应满足：
-
-- 默认 `separated` 回归不变。
-- weak-feedback 极限下 `joint` 接近 `separated`。
-- strong-wind / strong-BH 场景中 \(\tau_{\rm BH}\)、二级 pair 谱、photon source 和 light curve 随 \(R\) 或 observer time 平滑演化。
-- \(\gamma\gamma\) 打开时，\(\tau_{\gamma\gamma}\)、pair luminosity 和 cascade synchrotron luminosity 连续。
-- IC electron loss 与 IC photon source 的壳层积分闭合。
-- BH proton loss、BH pair injection 和 BH photon loss 同量级、同谱形来源可追踪。
-
-若图中出现孤立尖峰、锯齿或不可解释断崖，应先查坐标换算、源项归一化、网格映射和 photon survival，而不是后处理 smoothing。
+算法离散与实际入口见 [联合反馈算法](joint_secondary_feedback_algorithm.md)。

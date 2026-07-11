@@ -1,115 +1,72 @@
 # 安装与构建
 
-本文档固定 ASGARD 当前推荐安装、构建和本地运行方式。默认开发环境是 Windows 主机上的 WSL Ubuntu，Python 包管理使用 `uv`，shell 命令需要 `rtk` 前缀。
+推荐 WSL Ubuntu 或 Linux。Windows 原生环境只用于明确要求的 `.pyd` 构建，不是默认开发路径。
 
-## 环境要求
+## 依赖
 
-最低要求：
+- Python 3.12 与 `uv`
+- GCC、G++、GNU Fortran
+- Meson/f2py 相关 Python 依赖由 `uv.lock` 固定
+- Git
 
-- Python `>=3.9`
-- GNU 工具链：`gcc`, `g++`, `gfortran`
-- OpenMP runtime：`libgomp`
-- Python 依赖：`numpy`, `scipy`, `matplotlib`, `astropy`, `extinction`, `h5py`, `tqdm`
-- 构建依赖：`setuptools`, `wheel`, `meson`, `ninja`
-
-推荐开发环境：
-
-- WSL Ubuntu
-- `uv`
-- 非交互式 shell 中先执行 `source ~/.wsl_env`
-- 从 Windows 路径访问项目：`/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow`
-
-## 克隆和安装
+Ubuntu/Debian 可先安装系统工具：
 
 ```bash
-git clone https://github.com/mikuru1096/ASGARD_GRBAfterglow
+sudo apt update
+sudo apt install -y build-essential gfortran python3-dev git
+```
+
+## 克隆与 Python 环境
+
+```bash
+git clone https://github.com/mikuru1096/ASGARD_GRBAfterglow.git
 cd ASGARD_GRBAfterglow
-pip install -r Requirements.txt
-python install.py
+uv sync
+uv run python -c "import asgard_core; print('Python API ready')"
 ```
 
-当前机器推荐命令：
-
-```bash
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv sync'
-```
-
-本地源码安装：
-
-```bash
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv pip install -e .'
-```
+不要从 `asgard-private` URL 克隆公开仓库。依赖变化通过 `uv.lock` 管理，不在系统 Python 中逐个补包。
 
 ## 构建 Fortran 扩展
 
-ASGARD 的高代价数值核由 Fortran + f2py 构建。构建入口是 `build_extensions.py`。
+默认电子路径：
 
 ```bash
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && TMPDIR=/tmp uv run python build_extensions.py --module electron_forward_fullhide_1d --force'
+TMPDIR=/tmp uv run python build_extensions.py \
+  --module electron_forward_fullhide_1d --force
 ```
-
-`TMPDIR=/tmp` 是从 `/mnt/c` 构建时的推荐设置，可避免 Windows temp 目录时间戳和 Meson/f2py 缓存问题。
 
 常用模块：
 
 ```bash
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && TMPDIR=/tmp uv run python build_extensions.py --module electron_forward_fullhide_1d --force'
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && TMPDIR=/tmp uv run python build_extensions.py --module electron_forward_charint_2d --force'
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && TMPDIR=/tmp uv run python build_extensions.py --module electron_reverse_kernel --force'
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && TMPDIR=/tmp uv run python build_extensions.py --module hadronic_forward_1d --force'
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && TMPDIR=/tmp uv run python build_extensions.py --module hadronic_reverse_1d --force'
+TMPDIR=/tmp uv run python build_extensions.py \
+  --module Dynamics_forward --module Dynamics_reverse --force
+TMPDIR=/tmp uv run python build_extensions.py \
+  --module hadronic_forward_1d --module hadronic_reverse_1d --force
+TMPDIR=/tmp uv run python build_extensions.py \
+  --module structured_jet_1d --force
 ```
 
-多个模块可以一次构建：
+可用模块名由 `build_extensions.py` 定义。`/mnt/c` 上构建必须令 `TMPDIR=/tmp`，避免 Meson/f2py 在 Windows temp 路径混用文件语义。
+
+## 验证
 
 ```bash
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && TMPDIR=/tmp uv run python build_extensions.py --module electron_forward_fullhide_1d --module electron_forward_charint_2d --force'
+uv run python - <<'PY'
+from src.Electron.electron_forward_fullhide_1d import fs_electron_fullhide_1d
+print("Fortran extension ready")
+PY
+uv run python tools/check_text_encoding.py
+git diff --check
 ```
 
-## 编译产物
+修改 Fortran 后，用相同 source closure 加 `-Wline-truncation` 编译检查；只导入 Python 包不能替代真实扩展构建。
 
-构建后会生成平台相关扩展：
+## 失败定位
 
-- `src/*.so`
-- `src/Electron/*.so`
-- `src/Radiation/*.so`
-- `src/Hadronic/*.so`
-- `src/Dynamics/*.so`
-- `src/Interpolation/*.so`
+- `ModuleNotFoundError`：先确认目标模块已经由 `build_extensions.py` 构建。
+- 编译器缺失：检查 `gfortran --version`，不要切换到另一个 ABI 的预编译产物。
+- `/mnt/c` 构建异常：确认 `TMPDIR=/tmp` 且命令在 WSL 内执行。
+- 依赖导入失败：运行 `uv sync --frozen`，不要手动改 `.venv`。
 
-这些扩展是本地构建产物，不应把 `.so`, `.o`, `.mod`, `.smod`, `.buildcache/` 作为源码提交。
-
-## 运行 demo
-
-```bash
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python lc_spec_demo.py'
-```
-
-输出：
-
-- `Radiation_Lightcurves.pdf`
-- `Radiation_Spectra.pdf`
-
-## 常见问题
-
-### 找不到 Fortran 扩展
-
-先确认对应模块已构建：
-
-```bash
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && find src -name "*.so" | sort'
-```
-
-若缺失，按上面的 `build_extensions.py --module ... --force` 重建。
-
-### f2py 或 Meson 从 Windows temp 目录失败
-
-使用 `TMPDIR=/tmp`，并从 WSL shell 调用构建命令。
-
-### `gh` 或 GitHub CLI 不存在
-
-项目构建不依赖 `gh`。推送或创建远端仓库时可使用 Windows Git Credential Manager，或使用 Codex GitHub 连接器；构建和测试仍默认走 WSL。
-
-### Windows 原生编译
-
-默认不使用 Windows/MSYS2 编译。只有当目标是 Windows `f2py` / `.pyd` 运行时才进入 Windows 原生工具链。
+正式运行前转到 [快速开始](quickstart.md)；构建矩阵和验证层级见 [开发指南](developer_guide.md)。

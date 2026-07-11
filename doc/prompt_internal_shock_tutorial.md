@@ -1,445 +1,221 @@
 # Prompt 内部激波快照教程
 
-本页说明当前 `prompt/` 目录中的内部激波快照工作流。它是 prompt emission 的研究诊断入口，不是 `asgard_core` 顶层 public API、不是拟合接口，也不是完整 prompt emission 模块。当前目的有三点：
+`prompt/` 用于两壳碰撞的快照、FS/RS jump、辐射与 EATS 诊断。它不是稳定 `asgard_core` 公共 API，也不进入正式拟合链。
 
-- 用两壳碰撞验证磁化 jump condition、FS/RS 分支和 EATS 投影是否能复用 ASGARD 已有数值核。
-- 生成 formal prompt light curve、spectrum、component 和 Band-reference 诊断图。
-- 暴露内部激波 prompt 模型进入正式主线前还缺少的物理契约。
+## 1. 当前入口
 
-## 1. 入口和文件
+- `prompt.internal_shock`：壳层运动学、碰撞与 jump；
+- `prompt.radiation`：电子、同步、SSC 和 gamma-gamma；
+- `prompt.eats`：脉冲到达时投影。
 
-当前入口集中在：
+先查看函数签名和模块内示例；这些入口允许随诊断需求演化。
 
-| 文件 | 角色 |
-| --- | --- |
-| `prompt/internal_shock.py` | 两壳碰撞、接触面 Lorentz 因子、FS/RS jump、branch history。 |
-| `prompt/eats.py` | prompt branch 的 EATS 投影包装，复用 `src/Interpolation/SED_interpolation.f90`。 |
-| `prompt/radiation.py` | 复用现有 reverse electron kernel、SSC、\(\gamma\gamma\) absorption，输出 FS/RS sync/SSC。 |
-| `prompt/run_snapshot.py` | 快速 snapshot 图件入口。 |
-| `prompt/run_formal_results.py` | formal prompt 图件、Band reference、CSV/NPZ 诊断入口。 |
+## 2. 两壳初态
 
-导入方式：
+设慢壳和快壳的实验室系宽度、质量、洛伦兹因子与发射间隔为
+
+\[
+(\Delta_s,M_s,\Gamma_s),\qquad
+(\Delta_f,M_f,\Gamma_f),\qquad \Delta t_{\rm ej},
+\]
+
+且 \(\Gamma_f>\Gamma_s\)。速度由
+
+\[
+\beta_i=\sqrt{1-\Gamma_i^{-2}}
+\]
+
+精确计算。对很大的 \(\Gamma\)，直接相减两个接近 1 的速度会损失精度；实现使用稳定的相对运动表达式。
+
+若壳宽定义为实验室系宽度，未扩展近似下追赶半径由两壳前后沿轨迹相交确定。常见尺度
+
+\[
+R_{\rm col}\sim
+\frac{2\Gamma_s^2c\Delta t_{\rm ej}}
+{1-\Gamma_s^2/\Gamma_f^2}
+\]
+
+只用于估算，实际例程保留有限宽度和边界位置。
+
+碰撞前必须满足壳层次序、正宽度和正质量。没有追赶事件时应暴露无激波状态，而不是生成弱伪激波。
+
+## 3. 壳层密度与磁化
+
+冷壳共动静质量密度由其质量与共动体积确定：
+
+\[
+\rho_i'=\frac{M_i}{\Omega R^2\Delta_i'},
+\qquad \Delta_i'=\Gamma_i\Delta_i
+\]
+
+其中 \(\Omega\) 是壳占据立体角。若输入采用各向同性等效能量，质量与 \(\Omega\) 的换算必须只做一次。
+
+上游磁化定义为
+
+\[
+\sigma_i=\frac{B_i'^2}{4\pi\rho_i'c^2}.
+\]
+
+若总能量包含物质与 Poynting 分量，物质质量不能再按总能量重复归一。代码中的能量拆分必须与该 \(\sigma\) 定义相配。
+
+## 4. 相对洛伦兹因子
+
+两区域相对洛伦兹因子采用
+
+\[
+\Gamma_{ab}=\Gamma_a\Gamma_b(1-\beta_a\beta_b).
+\]
+
+超相对论近似
+
+\[
+\Gamma_{ab}\simeq\frac12
+\left(\frac{\Gamma_a}{\Gamma_b}+
+\frac{\Gamma_b}{\Gamma_a}\right)
+\]
+
+可用于检查，但不能覆盖接近等速壳时的精确分支。
+
+接触面洛伦兹因子 \(\Gamma_c\) 位于 \(\Gamma_s\) 与 \(\Gamma_f\) 之间。其两侧分别形成进入慢壳的 FS 和进入快壳的 RS。
+
+## 5. 压力平衡
+
+接触面两侧下游总压力满足
+
+\[
+p_{2,\rm tot}'(\Gamma_{cs},\rho_s',\sigma_s)
+=p_{3,\rm tot}'(\Gamma_{fc},\rho_f',\sigma_f).
+\]
+
+总压力包含热压与由横向场压缩产生的磁压。求根变量为 \(\Gamma_c\)，物理解必须：
+
+- 位于两壳洛伦兹因子之间；
+- 两侧均存在压缩激波；
+- 在 \(\sigma\to0\) 时连续回到流体 jump；
+- 压力残差随求根收敛。
+
+若一侧相对运动不足以形成激波，应返回无效 shock branch，而不是用任意下限制造耗散。
+
+## 6. FS/RS jump
+
+每侧 jump 由冷上游质量、相对洛伦兹因子和磁化决定。输出至少包含：
+
+\[
+\rho_d',\quad e_{\rm th,d}',\quad B_d',\quad
+u_{u,s},\quad u_{d,s}.
+\]
+
+下标 \(s\) 表示激波静止系。质量通量连续给出
+
+\[
+\rho_u'u_{u,s}=\rho_d'u_{d,s}.
+\]
+
+磁化 jump 使用冷上游、横向场的一维理想 MHD 条件。\(\sigma=0\) 精确落到流体分支；有限 \(\sigma\) 改变可供非热粒子使用的热能。
+
+微物理参数 \(\epsilon_e,\epsilon_B,\xi_e,p\) 应作用于 jump 后可用热能。上游有序场与微湍动 `epsilon_B` 场不能重复计入。
+
+## 7. Crossing 与 branch history
+
+FS 穿过慢壳、RS 穿过快壳的时间由激波系速度与有限壳宽决定。每条 branch 保存其活动区间、扫掠质量和下游状态。
+
+在 crossing 前，新的上游物质持续注入电子；crossing 后，注入终止，已有粒子只经历辐射和绝热冷却。
+
+branch history 必须保持：
+
+- 时间严格递增；
+- 扫掠质量单调且不超过壳质量；
+- crossing 前后状态连续；
+- 无效激波分支不产生辐射。
+
+快照工作流没有把分支历史升级为长期 afterglow 动力学。
+
+## 8. 电子与磁场
+
+每个有效激波区按其热化能注入
+
+\[
+Q_e(\gamma)=Q_0\gamma^{-p},
+\qquad \gamma_m\le\gamma\le\gamma_M.
+\]
+
+\(Q_0\) 同时满足电子数和能量预算。最小电子洛伦兹因子依赖每个加速电子可得能量；最大值由加速和损失时间竞争确定。
+
+辐射磁场由压缩有序场与允许的微湍动分量共同定义。两者的能量来源必须区分，避免同一磁能重复用于 jump 和辐射。
+
+## 9. 同步与 SSA
+
+局域同步频率为
+
+\[
+\nu_c'=\frac{3eB'}{4\pi m_ec}\gamma^2\sin\alpha_p.
+\]
+
+同步发射率与 SSA 系数由同一电子谱积分。均匀区传输采用
+
+\[
+T_{\rm ssa}=\frac{1-e^{-\tau_{\rm ssa}}}{\tau_{\rm ssa}}.
+\]
+
+FS 和 RS 使用各自的体积、路径长度、电子谱和磁场，不共享一个经验自吸频率。
+
+## 10. SSC 与 gamma-gamma
+
+SSC 目标场来自同一区域的同步光子。若计算 cross-zone IC，必须显式变换另一侧光子场的能量、方向与几何稀释。
+
+gamma-gamma 光深由局域目标光子谱与路径长度计算。吸收后的 pair 只有在相应二级链实现时才进入后续辐射；不能把被吸收能量自动等同于可见级联。
+
+## 11. EATS 脉冲
+
+对每个发射事件，观测时间为
+
+\[
+t_{\rm obs}=(1+z)\left(t-\frac{R\cos\alpha}{c}\right),
+\]
+
+Doppler 因子为
+
+\[
+\delta_D=[\Gamma(1-\beta\cos\alpha)]^{-1}.
+\]
+
+EATS 对壳面角度和 branch history 积分。壳宽、激波 crossing 与角延迟共同决定脉冲宽度；文档不把它们统一替换成 \(R/(12\Gamma)\) 或单一角时间尺度。
+
+## 12. 最小诊断流程
 
 ```python
-from prompt.internal_shock import InternalShockShell, InternalShockNumerics, simulate_internal_shock
-from prompt.radiation import InternalShockMicrophysics, RadiationNumerics, compute_prompt_observed_flux
-from prompt.eats import EATSNumerics
+from prompt.internal_shock import simulate_internal_shock
+from prompt.radiation import compute_prompt_observed_flux
+
+shock = simulate_internal_shock(...)
+flux = compute_prompt_observed_flux(shock, ...)
 ```
 
-不要把这些对象写成：
+函数名与参数以当前源码签名为准；该示例表达调用顺序，不承诺 public API 稳定性。
 
-```python
-from asgard_core import InternalShockShell
-```
-
-`asgard_core` 当前只公开余辉 `Model`、`Fitter`、介质、喷流、辐射和求解器对象。
-
-## 2. 两壳碰撞几何
-
-慢壳和快壳由 `InternalShockShell` 给出：
-
-```python
-slow = InternalShockShell(gamma=200.0, total_energy_iso_erg=4.0e52, duration_s=0.2, sigma=0.01)
-fast = InternalShockShell(gamma=600.0, total_energy_iso_erg=4.0e52, duration_s=0.2, sigma=0.03)
-```
-
-壳层宽度为实验室系宽度
-
-\[
-\Delta_i=c\,\Delta t_i .
-\]
-
-若中心引擎发射间隔为 \(t_{\rm gap}\)，慢壳与快壳速度为 \(\beta_s c\) 和 \(\beta_f c\)，碰撞半径由
-
-\[
-\beta_s c\,t_{\rm col}
-=
-\beta_f c\,(t_{\rm col}-t_{\rm gap})
-\]
-
-推出：
-
-\[
-R_{\rm col}
-=
-c\,t_{\rm gap}
-\frac{\beta_s\beta_f}{\beta_f-\beta_s},
-\qquad
-t_{\rm col}
-=
-\frac{R_{\rm col}}{\beta_s c}.
-\]
-
-高 Lorentz 因子下不直接相减两个接近 1 的速度，而使用
-
-\[
-\beta_f-\beta_s
-=
-\frac{\Gamma_f^2-\Gamma_s^2}
-{\Gamma_s^2\Gamma_f^2(\beta_f+\beta_s)}.
-\]
-
-代码对应 `simulate_internal_shock` 中的 `speed_gap` 和 `radius_collision`；无需显式构造
-随后会在到达时刻中被消去的 `lab_collision_time`。
-
-## 3. 磁化能量拆分和壳层密度
-
-`total_energy_iso_erg` 是总 isotropic-equivalent 壳层能量。上游磁化为
-
-\[
-\sigma
-=
-\frac{B_4^2}{4\pi\Gamma_4^2\rho_4c^2}.
-\]
-
-与反向激波余辉主线相同，baryonic matter fraction 是 \(1/(1+\sigma)\)。因此壳层 baryonic mass 为
-
-\[
-M_{b,i}
-=
-\frac{E_{{\rm iso},i}}{(1+\sigma_i)\Gamma_i c^2}.
-\]
-
-代码路径是 `baryonic_mass_g(shell)`，与动力学 Fortran 主流程一样直接使用同一 baryonic mass 闭合。
-
-碰撞半径处的壳层本征数密度为
-
-\[
-n'_i(R_{\rm col})
-=
-\frac{M_{b,i}}
-{4\pi R_{\rm col}^2\,\Gamma_i\,\Delta_i\,m_p}.
-\]
-
-这是 `shell_proper_number_density(shell, radius_collision)` 的输入。增加 \(\sigma\) 不只是增加 ordered field，也会降低同一总能量下的 baryonic mass 和上游密度。
-
-## 4. 接触面压力平衡
-
-接触面 Lorentz 因子 \(\Gamma_c\) 在两壳 Lorentz 因子之间求根。对任一上游壳层 \(i\)，相对 Lorentz 因子是
-
-\[
-u_{{\rm rel},i}
-=
-\frac{\Gamma_i^2-\Gamma_c^2}{\Gamma_c\Gamma_i(\beta_c+\beta_i)},
-\qquad
-\gamma_{{\rm rel},i}=\sqrt{1+u_{{\rm rel},i}^2}.
-\]
-
-MHD jump 给出压缩比 \(C_i(\gamma_{\rm rel},\sigma)\) 和下游热比内能 \(\epsilon_{{\rm th},i}(\gamma_{\rm rel},\sigma)\)。代码通过
-
-```text
-reverse_shock_mhd_jump.rs_mhd_state  # u_down, compression, specific_internal, shock_allowed
-```
-
-复用余辉反向激波基线。下游总压强写成热压强加 ordered magnetic pressure：
-
-\[
-\widehat{\gamma}_i
-=
-\frac{4}{3}+\frac{1}{3\gamma_{{\rm rel},i}},
-\qquad
-p_i
-=
-(\widehat{\gamma}_i-1)
-C_i\epsilon_{{\rm th},i}
-n'_i m_pc^2
-+
-\frac{1}{2}
-C_i^2\sigma_i n'_i m_pc^2 .
-\]
-
-`_solve_contact_gamma` 求解
-
-\[
-p_{\rm FS}(\Gamma_c)-p_{\rm RS}(\Gamma_c)=0.
-\]
-
-若根不在慢壳和快壳 Lorentz 因子之间，代码直接暴露错误，不构造兜底接触面。
-
-## 5. FS/RS jump 与 branch history
-
-`_build_jump` 为 forward branch 和 reverse branch 分别建立 `BranchJump`。相对上游速度满足
-
-\[
-\beta_{\rm sh,lab}
-=
-\frac{\beta_c+\beta_{\rm sh,cd}}
-{1+\beta_c\beta_{\rm sh,cd}}
-\quad({\rm FS}),
-\]
-
-\[
-\beta_{\rm sh,lab}
-=
-\frac{\beta_c-\beta_{\rm sh,cd}}
-{1-\beta_c\beta_{\rm sh,cd}}
-\quad({\rm RS}),
-\]
-
-其中 contact-frame shock speed 来自 MHD jump 返回的 downstream four-velocity：
-
-\[
-\beta_{\rm sh,cd}
-=
-\frac{u_d}{\sqrt{1+u_d^2}}.
-\]
-
-crossing 时间由壳层宽度除以 shock 与上游的实验室系相对扫过速度：
-
-\[
-t_{\rm cross,FS}
-=
-\frac{\Delta_{\rm slow}}
-{c(\beta_{\rm sh,FS}-\beta_{\rm slow})},
-\]
-
-\[
-t_{\rm cross,RS}
-=
-\frac{\Delta_{\rm fast}}
-{c(\beta_{\rm fast}-\beta_{\rm sh,RS})}.
-\]
-
-所有接近共速的差值都先有理化。令 \(d=+1\) 表示 FS、\(d=-1\) 表示 RS，
-\(s=\beta_{\rm sh,cd}\)，则轴向到达率直接写成
-
-\[
-1-\beta_{\rm sh,lab}
-=
-\frac{\Gamma_c^{-2}}{1+\beta_c}
-\frac{1-ds}{1+d\beta_cs},
-\]
-
-避免从两个大时空坐标恢复小差值。若 fast magnetosonic 条件不满足，对应 branch 的
-`valid_shock=False`，其穿越量为未定义、历史数组为空，辐射和 EATS 入口直接返回零；这不是后处理裁剪。
-
-每个有效 branch 在 `num_branch_steps` 个点上记录：
-
-\[
-R(t)
-=
-R_{\rm col}+\beta_{\rm sh,lab}ct,
-\]
-
-\[
-t_{\rm obs,axis}
-=
-(1+z)t(1-\beta_{\rm sh,lab}),
-\]
-
-\[
-\rho'_u(R)=m_p n'_u(R),
-\qquad
-u_{\rm th}
-=
-C\epsilon_{\rm th}\rho'_u c^2.
-\]
-
-ordered field 与 turbulent field 为
-
-\[
-B_{\rm ord}
-=
-C B_4,
-\qquad
-B_{\rm turb}
-=
-\sqrt{8\pi\epsilon_B u_{\rm th}},
-\]
-
-\[
-B_{\rm tot}
-=
-\sqrt{B_{\rm ord}^2+B_{\rm turb}^2}.
-\]
-
-扫过质量率为
-
-\[
-\frac{\mathrm{d}M}{\mathrm{d}t_{\rm lab}}
-=
-4\pi R^2\Gamma_u n'_u m_p c
-|\beta_{\rm sh}-\beta_u|.
-\]
-
-电子注入 luminosity 是
-
-\[
-L'_{e}
-=
-\epsilon_e
-\epsilon_{\rm th}c^2
-\Gamma_c
-\frac{\mathrm{d}M}{\mathrm{d}t_{\rm lab}}.
-\]
-
-这组量对应 `BranchHistory` 的 `thermal_luminosity_comoving_erg_s`、`electron_luminosity_comoving_erg_s`、`ordered_b_g`、`turbulent_b_g`、`total_b_g`、`swept_mass_g`、`internal_energy_erg` 和 `comoving_volume_cm3`。
-
-## 6. 辐射链路
-
-`compute_prompt_observed_flux` 对 FS 和 RS branch 分别执行：
-
-```text
-BranchHistory
--> electron_reverse_kernel.electron_reverse_evolve
--> multiple_synch
--> Radiation.ssc_spec
--> Radiation.annihilation
--> prompt.eats.project_branch_flux
-```
-
-当前复用 reverse electron kernel，是为了先验证 shock history、电子冷却、同步辐射、SSC 和 EATS 投影的组合。它不表示 prompt branch 已经有独立、最终版的 prompt electron kernel。
-
-电子特征 Lorentz 因子按 branch luminosity 估计。若电子谱指数 \(p>2\)，平均能量给出
-
-\[
-\gamma_m
-=
-1+
-\frac{p-2}{p-1}
-\frac{L'_e}{\dot{N}'_e m_ec^2},
-\]
-
-\[
-\dot{N}'_e
-=
-\xi_e
-\frac{\Gamma_c\,\mathrm{d}M/\mathrm{d}t_{\rm lab}}{m_p}.
-\]
-
-冷却 Lorentz 因子和最大 Lorentz 因子诊断为
-
-\[
-\gamma_c
-=
-\frac{6\pi m_ec}
-{\sigma_TB_{\rm tot}^2t'_{\rm age}},
-\]
-
-\[
-\gamma_{\max}
-=
-\left(
-\frac{6\pi e}
-{\sigma_TB_{\rm tot}\eta_{\rm acc}}
-\right)^{1/2}.
-\]
-
-这些量写入 `BranchRadiation.gamma_m`、`gamma_c`、`gamma_max`，用于检查谱峰和冷却 regime。
-
-同步与 SSC 源项都乘以 \(\gamma\gamma\) survival：
-
-\[
-F_{\nu,{\rm source}}
-=
-\frac{1+z}{4\pi d_L^2}
-L'_{\nu'}
-\exp(-\tau_{\gamma\gamma}).
-\]
-
-这里的 \(L'_{\nu'}\) 是对应分量的 comoving luminosity array。若要检查能量预算，应分别看 `fs_sync`、`fs_ssc`、`rs_sync`、`rs_ssc`，不要只看 `total`。
-
-## 7. EATS 投影
-
-`project_branch_flux` 将 branch luminosity 投影到观测者时间和频率。边界向量中：
-
-```text
-boundary[7] = redshift
-boundary[8] = opening_angle_rad
-boundary[9] = viewing_angle_rad
-```
-
-频率先排序传入 Fortran 插值核，返回后恢复用户输入顺序。若
-
-\[
-\theta_{\rm obs}\ne 0
-\quad{\rm and}\quad
-N_\phi=1,
-\]
-
-代码直接拒绝：
-
-```text
-off-axis EATS projection requires num_phi >= 2
-```
-
-这是轴对称 collapse 的几何边界。离轴投影必须显式解析 \(\phi\)。
-
-## 8. 最小运行示例
-
-```python
-import numpy as np
-
-from prompt.eats import EATSNumerics
-from prompt.internal_shock import InternalShockNumerics, InternalShockShell, simulate_internal_shock
-from prompt.radiation import InternalShockMicrophysics, RadiationNumerics, compute_prompt_observed_flux
-
-slow = InternalShockShell(gamma=200.0, total_energy_iso_erg=4.0e52, duration_s=0.2, sigma=0.01)
-fast = InternalShockShell(gamma=600.0, total_energy_iso_erg=4.0e52, duration_s=0.2, sigma=0.03)
-microphysics = InternalShockMicrophysics(epsilon_e=0.1, epsilon_b=0.01, electron_index_p=2.3)
-
-solution = simulate_internal_shock(
-    slow,
-    fast,
-    engine_gap_s=0.2,
-    redshift=0.5,
-    luminosity_distance_cm=1.0e28,
-    opening_angle_rad=0.1,
-    epsilon_e=microphysics.epsilon_e,
-    epsilon_b=microphysics.epsilon_b,
-    numerics=InternalShockNumerics(num_branch_steps=64),
-)
-
-flux = compute_prompt_observed_flux(
-    solution,
-    observer_frequency_hz=np.logspace(16.0, 24.0, 64),
-    observer_time_s=np.linspace(1.0e-4, 2.0, 128),
-    microphysics=microphysics,
-    radiation_numerics=RadiationNumerics(num_electron_gamma=121, num_photon_frequency=161, num_threads=4),
-    eats_numerics=EATSNumerics(num_theta=32, num_phi=1, num_threads=4, adaptive_rtol=3.0e-3, adaptive_max_depth=6),
-)
-
-print(flux.total.shape)
-print(solution.gamma_contact, solution.fs.valid_shock, solution.rs.valid_shock)
-```
-
-`flux.total` 的形状是 `(num_frequency, num_time)`。
-
-## 9. Formal 图件入口
-
-生成当前 formal prompt snapshot 图件：
+## 13. 运行检查
 
 ```bash
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python prompt/run_formal_results.py'
+uv run python -m prompt.run_snapshot
 ```
 
-输出目录是 `prompt/results/`。该目录只提交 `.gitignore`，formal 图件默认作为本地诊断，不自动进入文档资产。
+检查结果应包括：
 
-当前脚本会生成：
+1. \(R_{\rm col}\)、\(\Gamma_c\) 有限且处于物理解区间；
+2. FS/RS 压力残差收敛；
+3. 扫掠质量不超过各自壳质量；
+4. crossing 前后谱和光变连续；
+5. 磁化趋零连续回到流体结果；
+6. 无效 shock branch 的耗散与辐射为零；
+7. 频谱阈值、SSA turnover 和 gamma-gamma cutoff 符合物理次序；
+8. EATS 通量有限、非负，时间轴严格递增。
 
-- `formal_flux.npz`：时间、频率和四个分量矩阵。
-- `formal_diagnostics.json`：碰撞半径、\(\Gamma_c\)、FS/RS jump、磁场、\(\gamma_m/\gamma_c/\gamma_{\max}\)、compactness、\(\gamma\gamma\) survival。
-- `formal_summary.csv`：代表性能段的峰时和峰值。
-- `formal_band_reference.csv`：与 Band function 形状的参考比较。
-- light curve、linear light curve、spectrum、component figures。
+## 14. 当前边界
 
-## 10. 验证口径
+- 这是两壳、局域一维 jump 的诊断模型。
+- 不包含多壳长期碰撞树或全局 MHD 演化。
+- 不自动与 afterglow 拟合参数共享能量预算。
+- 不把快照 pair 产生解释为完整含时级联。
+- 不通过 clamp、平滑或经验 pulse 模板修补不连续。
 
-最小端到端验证检查：
-
-- 离轴 `num_phi=1` 被拒绝。
-- \(\sigma\rightarrow0\) 的弱磁化 case 接近非磁化 hydrodynamic baseline。
-- 磁化 case 的 baryonic mass 下降，ordered field 和 magnetic fraction 上升。
-- fast shock 不允许时对应分量为零。
-- FS/RS sync/SSC 和 total flux 有限、非负，并且活动光变段分段平滑。
-
-当前不要把它解释为 prompt light curve 已经与观测 GRB 拟合一致。它只是代码和物理链路诊断。
-
-## 11. 当前边界
-
-- 不从 `asgard_core` 顶层导出。
-- 不接 `Fitter`，不作为 afterglow posterior 的参数分支。
-- 不含 shell spreading、multi-collision train、curvature-tail engine history、photosphere 或 subphotospheric dissipation。
-- 不含 prompt hadronic cascade、pair photosphere 或 IC-mediated electromagnetic cascade。
-- 当前电子辐射复用 reverse electron kernel；独立 prompt electron kernel 进入前要先写清方程、网格、能量预算和 benchmark。
-- Off-axis 投影必须 `num_phi>=2`；on-axis 可以用 `num_phi=1` 的轴对称 collapse。
+总物理约定见[物理模型](physics_model.md#20-prompt)。

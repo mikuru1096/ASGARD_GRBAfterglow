@@ -1,404 +1,187 @@
-# 磁化反向激波与 DG1D 教程
+# 磁化反向激波与 DG1D
 
-本文面向已经跑通 `quickstart.md` 的用户，说明如何启用修复后的磁化反向激波求解器和 `dg_1d` 高阶电子输运。它不是新手最小路径；默认公开基线仍是 `electron_solver="fullhide_1d"`，`dg_1d` 是需要显式启用的高阶路径。
+本页说明主反向激波（RS）的横向场 MHD jump，以及 crossing 后电子谱的 DG1D 输运。二者共享 RS 状态，但不是同一个算法开关。
 
-## 1. 最小开关
+## 1. 使用范围
 
-完整 `Model(...)` 构造器见 `quickstart.md`。启用本专题路径时只需要改两个对象：
+磁化 RS 描述冷 ejecta 上游进入主 RS 的局域一维 jump。DG1D 是电子能量空间的高阶输运后端，可用于 RS crossing 前后的注入与冷却。
 
-```python
-solver_options = SolverOptions(
-    electron_solver="dg_1d",
-    dynamics_solver="forward_legacy",
-    geometry_projection="sed_legacy",
-    electron_photon_coupling="separated",
-    ssc_cooling_mode="nakar_y_thomson",
-    synchrotron_integration="fixed_grid",
-    cooling_kernel="legacy",
-    structured_backend="fortran_1d",
-    patch_sampling="uniform",
-    patch_sampling_pilot_theta=0,
-    patch_sampling_num_times=12,
-    patch_sampling_beaming_factor=3.0,
-    patch_sampling_beaming_resolution=8.0,
-    structured_parallel_mode="outer",
-    structured_outer_threads=None,
-    structured_inner_threads=None,
-    fullhide2d_transport_model="legacy",
-    fullhide2d_stochastic_accel_norm=0.0,
-    fullhide2d_escape_mode="closed",
-)
+次级密度跳变 RS 当前仍是流体诊断，不继承主 RS 的有序场压缩、磁焓反馈或 DG1D 状态。
 
-reverse_shock = ReverseShock(
-    enabled=True,
-    shell_duration_s=30.0,
-    upstream_sigma=0.1,
-    include_cross_zone_ic=False,
-    include_ssc=True,
-)
-```
+## 2. 上游磁化
 
-需要对照 `fullhide_1d` 时，只把 `electron_solver` 改回 `"fullhide_1d"`，其余物理参数不变。`ReverseShock.upstream_sigma` 是公开 API 字段；内部配置和 Fortran 中的 `reverse_sigma`、`sigma_r` 指同一物理量。
+横向场磁化定义为
 
-受影响扩展的构建命令是：
+\[
+\sigma=\frac{B_u'^2}{4\pi\rho_u'c^2}.
+\]
+
+这里 \(\rho_u'\) 是冷 ejecta 共动静质量密度。\(\sigma\) 表示上游有序 Poynting 能与物质静质量能之比，不等于辐射微物理参数 \(\epsilon_B\)。
+
+RS 与 ejecta 的相对洛伦兹因子为
+
+\[
+\gamma_{34}=\Gamma_3\Gamma_4(1-\beta_3\beta_4).
+\]
+
+区域 3 位于 RS 下游和接触面内侧，区域 4 是未受激 ejecta。
+
+## 3. MHD jump
+
+激波静止系的质量、能量、动量和磁通守恒构成 jump：
+
+\[
+\rho_u'u_{u,s}=\rho_d'u_{d,s},
+\]
+
+\[
+T^{0x}_u=T^{0x}_d,
+\qquad T^{xx}_u=T^{xx}_d,
+\]
+
+\[
+\frac{B_u'}{\rho_u'}=\frac{B_d'}{\rho_d'}
+\]
+
+用于一维横向场理想 MHD 情形。求解量是激波系下游四速度 \(u_{d,s}\)，随后得到压缩比、热能与下游场。
+
+代码使用
+
+\[
+\hat\gamma=\frac43+\frac{1}{3\gamma_{34}}
+\]
+
+跨接相对论与弱相对论状态。对 \(\sigma\le10^{-6}\) 的速度求解，流体支给出
+
+\[
+\frac{u_{u,s}}{u_{d,s}}=4\gamma_{34}
+\]
+
+在该有效绝热指数下是精确结果，不应改写为超相对论近似 \(4\gamma_{34}+3\)。
+
+只有 \(\sigma\le0\) 的热能分支严格返回 \(\gamma_{34}-1\)。在 \(0<\sigma\le10^{-6}\) 内，速度采用流体支，但热化仍保留磁焓表达式，并连续趋向零磁化极限。
+
+## 4. 接触面闭合
+
+接触面洛伦兹因子由 FS 与 RS 下游总压力平衡确定：
+
+\[
+p'_{2,\rm tot}=p'_{3,\rm tot}.
+\]
+
+RS 侧总压力包括热压与压缩有序场的磁压。增大 \(\sigma\) 通常降低可转化为随机热能的份额，但具体趋势需由 jump 解而不是经验 suppression 因子决定。
+
+物理解必须满足：
+
+- \(\Gamma_3\) 位于 ejecta 与 shocked external medium 的允许区间；
+- 质量通量和压力残差收敛；
+- 压缩比大于 1；
+- \(\sigma\to0\) 连续回到流体 RS；
+- crossing 时状态不跳变。
+
+## 5. Crossing
+
+RS crossing 前，未受激 ejecta 持续流入 shock，电子注入率由质量通量和耗散热能决定。穿越完成后：
+
+\[
+Q_e(\gamma,t'>t'_{\times})=0.
+\]
+
+已有电子仍经历同步、IC 和绝热冷却。数值状态必须把接受的流体状态与其积分时间配对；不得用输出网格时间覆盖真正的状态时间。
+
+检查量包括半径、RS 洛伦兹因子、swept ejecta mass 和 crossing fraction。它们应有限、连续，扫掠质量应单调且不超过 ejecta 总质量。
+
+## 6. 电子输运方程
+
+DG1D 求解
+
+\[
+\frac{\partial N}{\partial t'}+
+\frac{\partial}{\partial\gamma}[\dot\gamma N]
+=Q-\frac{N}{t'_{\rm esc}}.
+\]
+
+能量区间划分为单元 \(I_j\)，每个单元内以局域多项式表示 \(N_h\)。弱形式为
+
+\[
+\int_{I_j}\!\phi_k\frac{\partial N_h}{\partial t'}d\gamma
+-\int_{I_j}\!\frac{d\phi_k}{d\gamma}
+(\dot\gamma N_h)d\gamma
++\left[\phi_k\widehat{\dot\gamma N_h}\right]_{j-1/2}^{j+1/2}
+=\int_{I_j}\!\phi_k Q\,d\gamma.
+\]
+
+数值通量按 \(\dot\gamma\) 的符号选择上风状态。辐射冷却通常有 \(\dot\gamma<0\)，信息从高能流向低能。
+
+## 7. DG1D 的阶数
+
+当前 DG1D 使用单元内线性表示，即空间二阶精度的 DG 基础形式。整体收敛阶还受时间积分、非均匀网格、边界和 limiter 影响，不能只凭多项式次数宣称全局阶数。
+
+模态系数分别编码单元平均值和斜率。辐射计算需要在正交点或目标能量网格重构物理解，而不是把所有模态都当作点值。
+
+## 8. 正性与 limiter
+
+电子数密度必须非负。高阶重构在陡峭 cutoff 附近可能产生局域负值，因此仅对被识别为问题的单元缩放高阶模态，保留单元平均值：
+
+\[
+N_h^{\rm lim}=\bar N+\theta(N_h-\bar N),
+\qquad 0\le\theta\le1.
+\]
+
+该操作不是对最终谱逐点 clamp。若单元平均值本身为负，说明时间步或守恒更新已失败，不能由 limiter 掩盖。
+
+limiter 应满足：
+
+- 保持单元粒子数；
+- 光滑正值区 \(\theta=1\)；
+- 只缩放导致负重构的高阶部分；
+- 不平滑真实谱折点或 cutoff。
+
+## 9. 边界与 crossing 后演化
+
+高能边界禁止非物理流入；低能端允许冷却通量离开活动网格，或按当前边界条件累计。escape 是独立物理 sink，不能用边界通量替代。
+
+crossing 后设置 \(Q=0\)，其余输运算子不变。若谱在 crossing 时突跳，优先检查注入积分区间、状态时间和边界通量，而不是对输出平滑。
+
+## 10. 最小配置思路
+
+公开配置应分别选择：
+
+1. reverse shock 是否启用及 ejecta 磁化；
+2. electron solver 是否使用 DG1D；
+3. 同步/SSC 与 observer 分量。
+
+不要把“磁化 RS”编码成 DG solver 的隐式副作用。相同 jump 状态应能供不同电子 solver 使用，DG1D 也应能在明确支持的非磁化状态上运行。
+
+## 11. 验证
+
+真实入口至少运行：
 
 ```bash
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && TMPDIR=/tmp uv run python build_extensions.py --module electron_forward_fullhide_1d --module electron_forward_dg_1d --module electron_reverse_kernel --module structured_jet_1d --force'
+TMPDIR=/tmp uv run python build_extensions.py --module Dynamics_reverse --force
 ```
 
-## 2. 磁化反向激波的物理闭合
+随后用本页配置运行一次公开 `Model.flux_density_grid`，检查 RS crossing 前后状态与光变；仓库不提供单独的测试文件入口。
 
-反向激波使用四区图像。区域 3 是已激波加热的抛射物，区域 4 是未激波抛射物。反向激波电子注入能标来自激波前沿相对 Lorentz 因子：
+电子模块改动还需构建对应 DG1D 扩展，并对完整 source closure 执行 `-Wline-truncation`。
 
-\[
-\gamma_{34}
-=
-\Gamma_3\Gamma_4(1-\beta_3\beta_4)
-=
-\frac{\Gamma_3^2+\eta_0^2-1}
-{\eta_0\Gamma_3+u_3u_4}.
-\]
+物理验收包括：
 
-这里 \(\Gamma_4=\eta_0\)，\(u_i=\sqrt{\Gamma_i^2-1}\)。不要用区域平均 \(\Gamma\) 经验替代 \(\gamma_{34}\)。
+1. \(\sigma=0\) 与流体 jump 一致；
+2. 小正 \(\sigma\) 的热能连续；
+3. 接触面两侧总压力相等；
+4. swept ejecta mass 单调且有界；
+5. crossing 后注入严格为零；
+6. 无源冷却时粒子数变化只来自边界与 escape；
+7. 光滑谱区保持预期收敛，cutoff 附近无负重构；
+8. 光变与谱随时间、\(\sigma\) 和数值分辨率连续。
 
-上游磁化定义为
+## 12. 不支持内容
 
-\[
-\sigma
-=
-\frac{B_4^2}{4\pi\Gamma_4^2\rho_4c^2}.
-\]
+- 三维 oblique MHD shock；
+- ejecta 内磁重联或场拓扑演化；
+- 次级密度跳变 RS 的磁化 jump；
+- 用 limiter 修补负单元平均值；
+- 用经验 suppression 或平滑替代守恒 jump 与输运。
 
-ASGARD 中 `E_iso` 是总抛射物能量；有限 \(\sigma\) 时重子静质量是
-
-\[
-M_{\rm ej,b}
-=
-\frac{E_{\rm iso}}{(1+\sigma)\eta_0c^2}.
-\]
-
-所以增大 `upstream_sigma` 会同时降低 \(n_4\)，而不是只给辐射端增加一个有序磁场。
-
-磁化反向激波真正形成前要通过两个条件。第一，反向波必须是激波分支：
-
-\[
-u_{4s}^2>\sigma .
-\]
-
-第二，已激波外介质压力要压过抛射物磁压：
-
-\[
-p_2^{\rm norm}
-=
-\frac{(4\Gamma_{\rm cd}+3)(\Gamma_{\rm cd}-1)n_1}{3},
-\qquad
-p_{B,4}^{\rm norm}
-=
-\frac12\sigma n_4,
-\]
-
-\[
-\frac{p_2^{\rm norm}}{p_{B,4}^{\rm norm}}\ge1.
-\]
-
-等价地，可定义
-
-\[
-\sigma_{\rm cr}
-=
-\frac{2(4\Gamma_{\rm cd}+3)(\Gamma_{\rm cd}-1)n_1}{3n_4}.
-\]
-
-通过触发条件后，压缩比使用有限强度 MHD jump：
-
-\[
-C(\gamma_{34},\sigma)
-=
-\frac{u_{4s}}{u_{3s}}.
-\]
-
-这条式子替代旧文档里的 ultra-relativistic \(4\gamma_{34}+3\) 近似；\(\sigma\to0\) 的极限回到当前有限强度 hydrodynamic jump。
-
-同一个 MHD jump 给出下游热比内能。设
-
-\[
-\hat\gamma
-=
-\frac{4}{3}+\frac{1}{3\gamma_{34}},
-\qquad
-\gamma_{is}=\sqrt{1+u_{is}^2},
-\]
-
-\[
-h_3
-=
-\frac{(1+\sigma)\gamma_{4s}}{\gamma_{3s}}-C\sigma .
-\]
-
-则
-
-\[
-\epsilon_{\rm th,3}
-=
-\frac{h_3-1}{\hat\gamma},
-\qquad
-\mathrm{d}U_{3,{\rm sh}}
-=
-\epsilon_{\rm th,3}\mathrm{d}M_3c^2.
-\]
-
-\(\sigma=0\) 时 \(\epsilon_{\rm th,3}=\gamma_{34}-1\)。反向激波最小电子 Lorentz factor 因而使用
-
-\[
-\gamma_{m,3}
-=
-1+
-\frac{\epsilon_{e,3}}{\xi_{N,3}}
-\frac{p_3-2}{p_3-1}
-\frac{m_p}{m_e}
-\epsilon_{\rm th,3}.
-\]
-
-反向激波注入源项使用动能幂律：
-
-\[
-Q_{e,3}(\gamma)
-\propto
-(\gamma-1)^{-p_3}
-\exp\!\left(-\frac{\gamma}{\gamma_{M,3}}\right),
-\]
-
-而 FS 注入仍使用 \(\gamma^{-p}\)。
-
-有序场由上游场经 MHD 压缩给出：
-
-\[
-B_{4,{\rm ord}}
-=
-\sqrt{4\pi c^2\sigma\rho_4},
-\qquad
-B_{3,{\rm ord}}
-=
-C B_{4,{\rm ord}}.
-\]
-
-总磁场是
-
-\[
-B_3
-=
-\sqrt{
-8\pi\epsilon_{B,3}\frac{U_3}{V_3}
-+B_{3,{\rm ord}}^2
-}.
-\]
-
-穿越后不再有新的区域 4 物质进入，代码保存 \(B_{3,{\rm ord,cross}}\)、\(R_{\rm cross}\)、\(V_{3,{\rm cross}}\)，并用
-
-\[
-B_{3,{\rm ord}}(R)
-=
-B_{3,{\rm ord,cross}}
-\frac{V_{3,{\rm cross}}}{V_3(R)}
-\frac{R}{R_{\rm cross}}
-\]
-
-推进有序场。有序场还给 bulk 方程贡献磁压焓惯性：
-
-\[
-M_{B,{\rm eff}}
-=
-\frac{E_{B,3}+p_{B,3}V_3}{c^2}
-+
-\frac{p_{B,3}V_3}{\Gamma_3^2c^2},
-\qquad
-p_{B,3}=\frac{B_{3,{\rm ord}}^2}{8\pi}.
-\]
-
-因此 `upstream_sigma -> 0` 的验收不是只看 \(B_3\)，而是同时检查质量、触发条件、压缩比、热状态、有序场和惯性项。
-
-## 3. DG1D 高阶输运机制
-
-`dg_1d` 对外仍输出固定电子网格上的 \(dN/\mathrm{d}\log\gamma_e\)，但内部使用 log-four-velocity 坐标
-
-\[
-y=\log_{10}\left[1+\frac{\gamma_e^2-1}{\gamma_*^2-1}\right],
-\qquad \gamma_*=2.
-\]
-
-守恒变量是
-
-\[
-dN_y=dN_{x_\gamma}\frac{\mathrm{d}x_\gamma}{\mathrm{d}y},
-\qquad
-x_\gamma=\log_{10}\gamma_e.
-\]
-
-对 log-four-velocity 坐标，
-
-\[
-\frac{\mathrm{d}x_\gamma}{\mathrm{d}y}
-=
-\frac{(\gamma_*^2-1)10^y}{2\gamma_e^2}.
-\]
-
-输运方程写成
-
-\[
-\frac{\partial dN_y}{\partial R}
-+\frac{\partial}{\partial y}(a_y dN_y)
-=S_y.
-\]
-
-DG 在每个谱元上使用 P12 LGL 节点：
-
-\[
-dN_y^k(r)
-=
-\sum_{i=0}^{12}U_i^k\ell_i(r).
-\]
-
-弱式离散为
-
-\[
-\frac{\mathrm{d}U_i^k}{\mathrm{d}R}
-=
-\frac{2}{\Delta y^k w_i}
-\sum_{j=0}^{12}w_jD_{ji}a_jU_j^k
-+{\cal F}_i^k
-+S_i^k .
-\]
-
-冷却主导时 \(a_y<0\)，信息从高能流向低能；端面通量按迎风方向取右侧状态。若局部回热使速度反号，代码改用稠密输运矩阵并按端面速度符号选择迎风态。时间推进为后向 Euler：
-
-\[
-(I-\Delta R K)U^{n+1}=U^n+\Delta R S^{n+1}.
-\]
-
-当前基线为 P12、每个物理段 6 个谱元、每个 shell 10 个基础子步；密度跳变时 FS DG 由 jump-aware limiter 缩小步长。RS DG 子步数与 FS 保持一致。
-
-## 4. 当前收敛阶
-
-当前 DG1D 的阶数不是一个单一数字。能量空间和半径方向需要分开判断。
-
-在光滑且未触发正性核的谱元内，P12 LGL-DG 的空间误差满足
-
-\[
-\|dN_y-dN_{y,h}\|_{L^2}
-=
-{\cal O}\!\left((\Delta y)^{13}\right).
-\]
-
-这是 smooth-cell 空间阶数，来自 12 次 Legendre/Lagrange 谱元展开。它要求 \(\gamma_m\)、\(\gamma_c\)、高能 cutoff 或 kinetic bump 不在谱元内部造成不可解析断点；当前移动物理段边界就是为了让这些断点尽量落在谱元边界。
-
-半径/时间方向当前仍是后向 Euler，所以普通注入和冷却推进的全局时间阶数是
-
-\[
-{\cal O}(\Delta R).
-\]
-
-每个 shell 的 10 个 DG 基础子步降低误差幅度，但不改变阶数。密度跳变自适应缩步的作用是解析跳变区宽度和变化率，不是把时间积分提升到二阶或四阶。
-
-磁化 RS 动力学本身在平滑分支上由 RK4 推进，光滑段全局四阶；crossing、waiting-to-shock 和 pressure-balance 触发是物理事件分裂，事件附近用端点捕获保持分支状态连续。耦合到电子输运和光变后，当前端到端 DG 电子结果的限制阶通常仍来自 BE 电子推进，即一阶半径收敛。
-
-troubled 正性核触发的谱元不声明 13 阶点值收敛。该区域的验收目标是保守平均、非负、支撑连续和辐射平滑；断点两侧未滤波的光滑谱元仍保留高阶空间收敛。
-
-主反向激波穿越后纯冷却段使用解析特征线映射。若冷却系数在累计区间内固定，该段对冷却方程本身没有 BE 时间截断误差；实际误差来自穿越时刻电子谱重映射和冷却系数随壳层演化的取样。
-
-## 5. 问题单元正性核
-
-DG 高阶多项式在注入断点和冷却断点附近会出现 Gibbs 振荡。当前默认不是强行截断输出，而是在输运层做局部模态核。
-
-每个谱元先投影到 Legendre 模态：
-
-\[
-dN_y^k(r)
-=
-\sum_{m=0}^{12}\hat U_m^kP_m(r).
-\]
-
-若节点值有负值，或最高 6 个模态占比
-
-\[
-\frac{\sum_{m=m_{\rm hi}}^{12}|\hat U_m^k|}
-{\sum_{m=0}^{12}|\hat U_m^k|}
->2\times10^{-2}
-\]
-
-超过阈值，该谱元标记为问题单元。默认模式只滤波该谱元和相邻谱元，并保持 0 阶模态：
-
-\[
-\hat U_0^{\rm new}=\hat U_0,
-\qquad
-\hat U_m^{\rm new}=\sigma_m^J\hat U_m,\quad m\ge1.
-\]
-
-Jackson 因子为
-
-\[
-\sigma_m^J
-=
-\frac{(N-m+2)\cos\theta_m+\sin\theta_m/\tan\theta_1}{N+2},
-\qquad
-\theta_m=\frac{\pi m}{N+2}.
-\]
-
-环境变量控制诊断模式：
-
-| 环境变量 | 行为 |
-| --- | --- |
-| 未设置或 `troubled` | 默认局部 troubled Jackson |
-| `0`, `off`, `false`, `none` | 关闭 kernel |
-| `1`, `on`, `true`, `jackson` | 全域 Jackson |
-| `fejer` | 全域 Fejer |
-
-这个核保留单元平均值，因此不是输出端平滑。验收重点是非负、活动支撑连续、无元素边界零洞、无多重网格尺度锯齿振荡、最终光变平滑。
-
-## 6. 穿越后纯冷却
-
-主反向激波完全穿越后没有新注入。`fullhide_1d` 和 `dg_1d` 都使用解析特征线更新，避免反复数值输运造成晚期平台、硬截断或过宽高能尾。
-
-若冷却律为
-
-\[
-\frac{\mathrm{d}\gamma}{\mathrm{d}\tau}
-=
--a\gamma^2-b\gamma,
-\]
-
-则
-
-\[
-\gamma(\tau)
-=
-\frac{\gamma_0e^{-b\tau}}
-{1+(a/b)\gamma_0(1-e^{-b\tau})},
-\qquad b\ne0,
-\]
-
-\[
-\gamma(\tau)
-=
-\frac{\gamma_0}{1+a\gamma_0\tau},
-\qquad b=0.
-\]
-
-代码把当前单元边界回溯到穿越时刻的单元边界，再从穿越时刻的电子谱做一次守恒重映射。低能端为闭合边界，冷却到网格下界以下的电子数保留在最低能单元。
-
-## 7. 结果检查
-
-推荐先跑三组对照：
-
-1. `electron_solver="fullhide_1d"`, `upstream_sigma=0`。
-2. `electron_solver="dg_1d"`, `upstream_sigma=0`。
-3. `electron_solver="dg_1d"`, `upstream_sigma>0`。
-
-需要检查：
-
-- \(\Gamma(R)\)、\(\gamma_{34}(R)\)、\(U_3/V_3\)、\(B_{3,{\rm ord}}\) 在穿越前后连续。
-- `upstream_sigma -> 0` 回到非磁化基线。
-- DG 电子谱活动支撑连续；低能峰附近的小振荡若不影响辐射且无零洞，可以接受。
-- 多波段光变从 \(0.1\,{\rm s}\) 或科学问题要求的最早时间开始检查，Y 轴不要压缩到看不见 RS 峰。
-- 结构化喷流 `fortran_1d` 后端可以使用 `fullhide_1d` 或 `dg_1d` 的同步路径；`dg_1d` 支持热电子 hybrid 分支。
-
-对应冒烟测试和基准测试入口见 `validation_and_benchmarks.md`。正式刷新基准测试前记录 git HEAD、命令、构建状态、输出路径和物理验收口径。
+总物理定义见[物理模型](physics_model.md#19)，数值后端见[电子求解器算法](electron_solver_algorithms.md)。

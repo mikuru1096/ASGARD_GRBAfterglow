@@ -1,144 +1,86 @@
-<p align="center">
-  <img src="doc/assets/logo.png" alt="ASGARD logo" width="75%">
-</p>
-
 # ASGARD
 
-ASGARD 是面向伽马射线暴余辉的数值建模、辐射计算和参数拟合工具。项目把高代价的动力学、粒子演化和辐射核放在 Fortran/f2py 数值层中，用 Python 提供公开 API、观测者投影、拟合接口、文档和验证脚本。
+ASGARD 是伽马射线暴余辉的动力学、粒子输运、辐射和参数推断工具。高代价数值核由 Fortran/f2py 实现，Python 公开层负责物理配置、观测者投影和拟合。
 
-当前公开工作流以 `Model` 构建物理模型，以 `flux_density_grid`、`flux_density`、`spectrum`、`sky_image`、`polarization` 查询观测量，以 `Fitter` 连接 `emcee` 或 PyMultiNest 做参数推断。完整导出类型、构造器字段和选项含义见 `doc/public_api.md`。
+## 能力与边界
 
-## 当前能力
+- 正向激波同步辐射、SSC、SSA、γγ 吸收及等到达时间投影。
+- 多种 1D 电子求解器和有限 q-shell 的 2D 输运。
+- 反向激波同步、SSC、跨区 IC 与磁化激波诊断。
+- 1D 强子研究路径：质子同步、pγ、BH、pp、次级粒子与级联诊断。
+- top-hat、Gaussian、power-law 和表格角结构喷流；天图与偏振。
+- `Fitter` 的 `emcee` 与 PyMultiNest 接口。
 
-- 正向激波电子同步辐射、SSC、SSA、gamma-gamma 吸收和观测者等到达时间投影。
-- 多个 1D 电子求解器，以及 finite q-shell `fullhide_2d` / `charint_2d` 输运路径。
-- 反向激波电子同步辐射、反向激波 SSC、FS/RS cross-zone IC。
-- 正向激波和反向激波的 1D hadronic research path，包括 proton synchrotron、p-gamma、BH、pp、secondary 和 pair-cascade 相关诊断。
-- 结构化喷流 patch 投影、偏振 Stokes 投影、天图渲染和频段积分。
-- `prompt/` 内部激波 snapshot 诊断入口，覆盖两壳碰撞、磁化 FS/RS jump、同步/SSC/\(\gamma\gamma\) 和 EATS 投影；它不是 `asgard_core` 顶层 public API。
-- `Fitter.fit(..., sampler="emcee")` 与 `sampler="pymultinest"` 的公开拟合入口。
+`chi_eats_2d` 当前只替换 FS synchrotron+SSA 投影；强子、SSC 和 pair cascade 仍使用 shell-level 契约。Jet spreading、自定义介质 kernel、wind `k != 2` 及若干组合尚未进入公开稳定范围，详见 [后端边界](doc/public_backend_limits.md)。
 
-## 明确边界
+## 安装
 
-- 重要数值物理在 Fortran 核中实现；Python 主要做 API glue、编排、验证和文档示例。
-- `solver_options.geometry_projection="chi_eats_2d"` 当前只替换 FS synchrotron+SSA 的 finite q-shell 观测者投影；SSC、hadronic 和 pair cascade 仍按 shell-level 契约处理。
-- Hadronic 正式路径保持 1D shell 契约，直到 chi-local photon field、hadron density、secondary feedback 和 observer projection 的物理契约完成。
-- Jet spreading、自定义 `Medium` kernel dispatch、wind `k != 2`、`fullhide_1d` 外的 thermal-electron public runtime 是明确未支持边界。见 `doc/public_backend_limits.md`。
-- 光变、谱断频和反映真实物理演化的参数应连续平滑；如果出现孤立跳变，应回到动力学、输运、源项或投影查 bug，不用 smoothing 或经验补丁掩盖。
-
-## 快速开始
-
-推荐环境是 Linux 或 WSL Ubuntu，Python 依赖通过 `uv` 管理，Fortran 扩展通过 `build_extensions.py` 构建。
+推荐 WSL Ubuntu 或 Linux，需 Python 3.12、`uv`、GCC/G++ 和 gfortran。
 
 ```bash
-git clone https://github.com/mikuru1096/ASGARD_private
-cd ASGARD_private
+git clone https://github.com/mikuru1096/ASGARD_GRBAfterglow.git
+cd ASGARD_GRBAfterglow
 uv sync
 TMPDIR=/tmp uv run python build_extensions.py --module electron_forward_fullhide_1d --force
 ```
 
-Ubuntu/Debian 若缺少系统编译工具，先安装 `gcc`、`g++`、`gfortran` 和 Python 开发头文件。
-
-构建后先确认默认扩展能加载：
+验证公开包和扩展：
 
 ```bash
 uv run python - <<'PY'
-from src.Electron.electron_forward_fullhide_1d import fs_electron_fullhide_1d
-print("ASGARD Fortran extension loaded")
+import asgard_core
+from src.Electron.electron_forward_fullhide_1d import fs_fullhide_1d
+print("ASGARD ready")
 PY
 ```
 
-第一次建模请直接读 `doc/quickstart.md`。该文档给出完整可运行的 `Model(...)` 构造器，包括 `Jet`、`Medium`、`Observer`、`Radiation`、`Numerics`、`SolverOptions`、`ReverseShock` 和 `Hadronic` 的显式字段。
+完整环境与按模块构建方法见 [安装指南](doc/installation.md)。
 
-模型构建后，常用查询形状如下：
+## 最小查询
+
+完整 `Model` 构造器见 [快速开始](doc/quickstart.md)。创建 `model` 后：
 
 ```python
 import numpy as np
 
-times_s = np.logspace(2.0, 7.0, 80)
-frequencies_hz = np.array([1.0e9, 1.0e14, 1.0e18])
+times = np.logspace(2, 7, 80)
+frequencies = np.array([1e9, 1e14, 1e18])
+result = model.flux_density_grid(times, frequencies)
+print(result.total.shape)  # (3, 80)
 
-result = model.flux_density_grid(times_s, frequencies_hz)
-print(result.total.shape)  # (num_frequency, num_time)
+points = model.flux_density(times[:3], frequencies)
+sed = model.spectrum(1e4, np.logspace(8, 25, 200))
+band = model.flux(time_s=1e4, nu_min_hz=1e14, nu_max_hz=1e18)
 ```
 
-逐点观测数据使用 `model.flux_density(times_s, frequencies_hz)`；固定时刻宽频谱使用 `model.spectrum(time_s, nu_hz)`；频段积分使用 `model.flux(...)`。返回类型如 `FluxResult`、`SkyImage`、`PolarizationResult` 的字段说明见 `doc/public_api.md`。
+公开量使用 cgs：时间 s、频率 Hz、距离 cm、角度 rad、能量 erg。输出形状和分量见 [公开 API](doc/public_api.md)。
 
-## 验证
+## 文档
 
-文档和文本编码检查：
+- [文档入口](doc/index.md)：按用户、物理和开发任务导航。
+- [快速开始](doc/quickstart.md)：首个可运行模型。
+- [示例](doc/examples.md)：查询、反向激波、2D 和 prompt。
+- [公开 API](doc/public_api.md)：构造器、selector 和返回类型。
+- [拟合工作流](doc/fitting_workflow.md)：数据、参数、likelihood 和采样。
+- [物理模型](doc/physics_model.md)与[数值方法](doc/numerical_methods.md)。
+- [开发指南](doc/developer_guide.md)：代码修改、构建与验证。
+
+活动工作只记在 [TODO](TODO.md)，已知未修缺陷只记在 [BUG](BUG.md)。光变、断频及连续物理参数若出现无物理来源的跳变，应回到动力学、输运、源项或投影查错，不以平滑或经验后处理掩盖。
+
+## 开发验证
 
 ```bash
 uv run python tools/check_text_encoding.py
+uv run --with "mkdocs<2" --with "mkdocs-material>=9.5" mkdocs build --strict --site-dir /tmp/asgard-site
 git diff --check
 ```
 
-网页文档检查：
+修改 Fortran 后必须重建受影响扩展，并用 `-Wline-truncation` 检查干净 source closure；具体命令见[开发指南](doc/developer_guide.md)。临时 benchmark 放 `/tmp`，不提交生成物。
 
-```bash
-uv run --with "mkdocs<2" --with "mkdocs-material>=9.5" mkdocs build --strict --site-dir /tmp/asgard_mkdocs_site
-```
+## 许可与引用
 
-修改 Fortran 后还必须重建受影响模块，并运行 `-Wline-truncation` 语法检查。验证分层见 `doc/validation_and_benchmarks.md`。
+Copyright (c) 2025 Jia Ren。代码采用 BSD 3-Clause License。
 
-## 文档地图
+使用 ASGARD 核心算法时请引用项目，并引用：Ren, Wang & Dai (2024), *ApJ*, 962, 115, DOI [10.3847/1538-4357/ad1bcd](https://doi.org/10.3847/1538-4357/ad1bcd)。
 
-- `doc/quickstart.md`：第一次运行 ASGARD 的完整路径。
-- `doc/public_api.md`：公开 API 选择手册，解释每个关键字的可选值、物理意义、效果和注意事项。
-- `doc/parameter_reference.md`：参数路径、单位和拟合参数建议。
-- `doc/fitting_workflow.md`：从观测数据到 `emcee` 拟合的完整教程。
-- `doc/mcmc_fitting.md`：`emcee` 和 PyMultiNest 专题。
-- `doc/prompt_internal_shock_tutorial.md`：prompt internal-shock snapshot 的物理公式、代码入口和 formal plotting。
-- `doc/physics_model.md`、`doc/physical_processes.md`：已实现物理模块和过程说明。
-- `doc/algorithm_workflow.md`、`doc/numerical_methods.md`：数值链路、离散方程和求解器族。
-- `doc/public_backend_limits.md`：公开 backend 的已知边界。
-- `doc/developer_guide.md`、`doc/source_tree.md`、`doc/call_chain.md`：开发者入口。
-- `doc/web_docs.md`：通过 `asgard-private` 发布合作者文档站。
-
-当前未完成项集中维护在 `TODO.md`；当前计划见 `PLAN.md`。
-
-## 开发约束
-
-- 不添加物理或数值 fallback 来绕过失败；边界外输入应暴露问题。
-- 非数值模拟 Python 代码不添加数值保护。
-- benchmark 和 comparison 入口保留在 `tests/`；临时研究脚本放 `/tmp`。
-- `output/` 下图像和 CSV 只有在可由已提交脚本复现并完成物理验收时才提交。
-
-## 许可
-
-Copyright (c) 2025 Jia Ren
-
-本项目使用 BSD 3-Clause License。
-
-## 引用
-
-如果在论文、报告、网页或其他软件中使用、改写或参考 ASGARD 的核心算法，请注明项目来源。
-
-推荐引用：
-
-```bibtex
-@ARTICLE{2024ApJ...962..115R,
-       author = {{Ren}, Jia and {Wang}, Yun and {Dai}, Zi-Gao},
-       title = "{Jet Structure and Burst Environment of GRB 221009A}",
-       journal = {\apj},
-       keywords = {Gamma-ray bursts, 629, Astrophysics - High Energy Astrophysical Phenomena},
-         year = 2024,
-        month = feb,
-       volume = {962},
-       number = {2},
-          eid = {115},
-        pages = {115},
-          doi = {10.3847/1538-4357/ad1bcd},
-       archivePrefix = {arXiv},
-       eprint = {2310.15886},
-       primaryClass = {astro-ph.HE},
-       adsurl = {https://ui.adsabs.harvard.edu/abs/2024ApJ...962..115R},
-      adsnote = {Provided by the SAO/NASA Astrophysics Data System}
-}
-```
-
-项目地址：<https://github.com/mikuru1096/ASGARD_private>
-
-网页文档：<https://hetools.cn/asgard-doc/>
-
-在线界面：<https://hetools.cn>
+项目：<https://github.com/mikuru1096/ASGARD_GRBAfterglow>

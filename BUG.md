@@ -1,150 +1,61 @@
 # 未修复缺陷
 
-## pp detailed gamma 模型存在固有分段跳变
+这里只记录已经由代码路径或数值结果确认、尚未修复的问题。修复并验收后删除对应条目。
 
-- Kafexhiu et al. (2014) 与 AM3 `ProtonProton` 的分段谱形在 1、4、20 GeV
-  及高能模型切换点并不连续；直接算例得到约 7.4%、19.9%、15.5% 的共同
-  Geant4 功率跳变，100 GeV 的 SIBYLL/QGSJET 跳变约 11.4%/44.5%。
-- 这些跳变来自上游参数化，不能通过 smoothing、clamp 或事后归一化掩盖。
-  `Hadronic.pp_gamma_model` 因此默认使用连续的 `delta` 路径；`geant4`、
-  `sibyll`、`qgsjet` 与 `pythia8` 仅作为明确选择的研究模型。
-- 详细模型已只替换 π⁰ gamma 源；pp 质子损失、neutrino 与二级 pairs 保持
-  delta 链。若以后更换详细模型，必须有可核实的连续截面或新的原始文献依据。
+## 1. Detailed pp gamma 模型存在分段跳变
 
-## γγ/电磁级联的壳层几何与传输所有权未闭合
+`pp_gamma_model` 的 Geant4、SIBYLL、QGSJET 和 Pythia8 路径忠实实现 AM3/Kafexhiu 分段参数化，但模型切换点本身不连续。已测得 1、4、20 GeV 附近约 7.44%、19.88%、15.51% 的功率跳变；100 GeV 处 Geant4 约 8.53%，SIBYLL/QGSJET 更大。
 
-### 第一性原理
+- 默认保持 `delta`；详细模型仅显式 opt-in。
+- `qnu`、`qpair`、`ploss` 不受 gamma selector 影响。
+- 禁止用 smoothing 或事后归一化消除跳变。
+- 验收：采用有文献依据的连续模型，或从原始产生模型重新推导匹配条件，同时保持能量预算。
 
-当前 shell-level `annihilation` 与 pair cascade 固定采用共动路径
-`R/(12 Gamma)`。该式不是一般 Blandford--McKee 壳宽，只能由 `k=0`
-homogeneous slab 的质量守恒推出。若瞬时激波后 proper density 取
-`n2'=4 Gamma n1(R)`，则
+当前证据来自真实 `hadronic_forward_1d` 入口，而非孤立公式绘图。重新评估时必须同时比较微分谱、积分 gamma 功率、阈值行为和对应 pp loss；只让曲线视觉连续不能关闭本条。
 
-```text
-Msw = 4 pi R^2 Delta' mp n2',
-Delta' = Msw/[16 pi R^2 Gamma n1(R) mp].
-```
+当前选择是保留模型原式并清楚标注限制。
 
-对从原点延伸到当前半径的幂律外介质 `n1=A R^-k`，
+## 2. γγ/电磁级联的壳层几何与传输所有权未闭合
 
-```text
-Msw = 4 pi mp n1(R) R^3/(3-k),
-Delta' = R/[4(3-k) Gamma].
-```
+当前 formal hadronic 路径把 shell-level 光度、光子数密度、吸收深度和 observer flux 分散在多个层次。对于有限壳厚、RS/FS 跨区种子场和 pair cascade，路径长度、体积、共动/观测者坐标及转移次数没有统一所有者。
 
-所以仅 `k=0` 给出 `Delta'=R/(12 Gamma)`；纯风 `k=2` 给出
-`Delta'=R/(4 Gamma)`。对 density jump、tabulated profile 和
-transrelativistic 流，`Msw+n1(R)` 至多定义把全部旧物质瞬时压到当前
-激波后密度的 one-zone 等效宽度，不能替代演化后的多区体积与空间柱密度。
+受影响入口包括 forward/reverse hadronic、cross-zone IC、pair injection 与 structured projection。继续扩展前必须：
 
-光深与 transfer 也必须分层。局域 γγ opacity 由目标光子柱密度
-`Nnu=nnu Delta'` 决定；共空间、均匀发射与吸收使用
-`psi(tau)=(1-exp(-tau))/tau`，前景屏使用 `exp(-tau)`，多区问题需要按
-空间顺序积分。不能用一个固定路径或额外常数同时代表这三种几何。
+1. 明确每个数组是 luminosity、emissivity、density 还是 observer flux。
+2. 只在一个边界完成单位与坐标变换。
+3. 由几何层唯一提供 path length、volume 与 SSA/γγ transfer。
+4. 用无吸收极限、薄/厚极限和能量闭合验证真实入口。
 
-### 受影响的真实调用
+不得通过重复乘壳厚、体积或 Doppler 因子补救输出。
 
-- `src/Radiation/pair_absorption.f90::annihilation`：从 `R,Gamma` 猜测
-  `R/(12 Gamma)`，并在同一过程内同时组装 opacity 与有限单元 transfer。
-- `asgard_core/asgard_state.py`：forward、reverse 和 hadronic target 可被合并后
-  共用一个 absorption；pair cascade 开启时局域 target 置零，实际结果完全由
-  `tau_extra` 中的 cascade 几何控制。
-- `src/Structured/structured_jet_1d.f90::apply_absorption`：已有 `R_mass` 与局域
-  density 状态，但仍只向辐射核传 `R,Gamma`；reverse/hadronic 输出复用同一个
-  transfer。
-- `prompt/radiation.py::compute_branch_radiation`：internal-shock branch 已有
-  `comoving_volume_cm3`，仍错误套用外激波的 `R/(12 Gamma)` 路径。
-- `src/Hadronic/hadronic_cascade.f90::cascade_seq`：当前存在三套没有共同所有者的
-  时钟。pair electron 状态以 `Delta tobs/nsub` 推进，`electron_loss` 使用
-  `R/(Gamma c)`，而 `tesc=R/(12 Gamma c)` 控制 `tau_pair`、光子源归一化和
-  光子逃逸。
+建议修复顺序：先冻结单壳层坐标和单位契约，再闭合 FS 内部 transfer，然后加入 RS 跨区种子场，最后才允许 structured/χ 扩展。每一步都需要比较 absorption disabled 的旧路径，避免几何重构同时改变发射核。
 
-`src/Electron/electron_forward_transport_2d.f90` 通过显式 `dx_comov_hist`
-调用 `pair_tau`，不属于这个固定路径缺陷；它说明路径应由几何所有者提供。
+关闭条件包括：
 
-### 修复时序
+- 每个 transfer 数组在接口处标明 shape、单位、坐标系和所有者；
+- SSA 与 γγ optical depth 都只由一次 path integral 产生；
+- observer 层只做投影，不重新解释局部 density；
+- pair cascade 每轮的吸收功率与次级注入功率闭合。
 
-该缺陷必须在强子阶段最后做一次原子修复。若只修改 shell annihilation，
-pair-cascade 开启的公开路径仍由旧 `tau_extra` 控制；若只修改 cascade，普通
-leptonic、structured 和 prompt 路径仍不一致。禁止在中间阶段加入 `k` switch、
-经验系数、clamp、平滑或用 `R,Gamma` 猜测历史相关壳宽。
+## 3. Joint secondary pair 坐标单位与状态/辐射重复所有权
 
-### 验收条件
+joint cooling 中 secondary pair 既作为电子状态参与下一步冷却，又从辐射层的源项重新组装。部分路径以 `dN/dγ` 表示状态，部分中间量接近 `Q(γ)` 或单位体积率，生命周期和归一化边界不够明确，存在重复注入或漏乘时间步的风险。
 
-- 建立纯函数式 opacity 核：输入目标光子柱密度或显式 density/path，输出
-  `tau_gamma_gamma`；核内不读取 density profile，不决定 shell 几何，也不应用
-  transfer。
-- 几何所有者分别构造 FS、RS、prompt、structured 与 cascade 的光子柱密度；
-  支持的 jump/多区路径必须使用演化后的分区体积或 `dx_comov`，没有物理状态的
-  组合在公开边界明确拒绝，不能退回 `R/(12 Gamma)`。
-- transfer 所有者明确区分共空间 `psi(tau)`、前景 `exp(-tau)` 与有序多区积分；
-  FS+RS target 不再无条件合并后套一个共同路径。
-- 保留现有 `Radiation.annihilation` 的 public f2py 参数顺序与数组 shape；通过薄包装
-  明确保留其 `k=0 homogeneous slab` 语义，真实生产调用使用新的显式几何核心。
-- `hadronic_cascade` 的 pair opacity、光子源与逃逸、pair electron 演化和
-  `electron_loss` 时钟统一由显式几何/时钟所有者定义，不再各自使用互不相干的
-  `Delta tobs`、`R/(Gamma c)` 或固定 `R/(12 Gamma c)`。
-- 通过真实构建入口 `pair_absorption`、`structured_jet_1d`、
-  `hadronic_forward_1d` 及受影响 source closure 的严格
-  `-Wline-truncation -Werror=line-truncation` 检查。
-- 直接运行并比较至少 `k=0`、wind、prompt、FS+RS、density jump、pair-cascade
-  开/关路径；验证 `k=0` homogeneous 极限、wind 解析比例、prompt 体积路径和
-  cascade 光深闭合。光深、频谱与时序曲线不得出现人为跳变，性能比较使用至少
-  3 次 median。
+修复要求：
 
-## joint secondary pair 的坐标单位与状态/辐射重复所有权
+- 输运层唯一拥有 pair state，辐射层只返回有明确单位的 source。
+- 在一个位置完成 source × proper-time 到 state increment 的积分。
+- separated 与 joint 对同一冻结背景的单步结果可逐数组比较。
+- 总 pair energy 不超过 BH/pγ/γγ 注入预算，随时间连续。
 
-### 当前缺陷
+还需覆盖 pair source 为零、只启用单个源项和联合源项三种真实配置。零源项必须自然给出零增量，不能依赖阈值 clamp；联合结果应等于相同冻结背景下各线性源项之和，直到反馈真正改变背景。
 
-- fullhide 的输运坐标是 `x=ln(gamma)`：`src/Electron/electron_injection_profiles.f90:168-182`
-  构造 `ln(gamma)` 边界，`src/Electron/electron_transport_common.f90:969-985` 以
-  `dR*dF/dln(gamma)` 更新状态。因此 `dN/dgamma -> dN/dln(gamma)` 只应乘 `gamma`。
-  `src/Hadronic/hadronic_shell.f90::electron_seq` 已按该 Jacobian 输出 BH/pp 径向源；但
-  `asgard_core/asgard_state.py:1189-1196::_sourcer` 仍额外乘 `ln(10)`，使 joint cascade
-  secondary source 固定放大 `ln(10)`。
-- `src/Hadronic/hadronic_cascade.f90:182-184::cascade_seq` 输出 `pden=cur` 后以 `prev=cur`
-  把它作为下一壳累计 pair 状态；`_sourcer` 却把完整 `pden` 除以当前 `Delta R` 当作本壳新注入，
-  使旧 pair 在以后每个半径再次进入主电子输运。
-- `asgard_core/asgard_state.py:413-430::_jointfeedback` 同时让 cascade 推进 pair、产生 synch seed/lum，
-  又把同一 pair 状态注入主电子 synch。它还在 `:426` 写入 `hadronic.l_had_pair_production`；
-  `_hadronlum` 已将该量计入强子 aggregate 后，observer 在 `:1008-1020` 重跑 cascade，并在 `:1057`
-  再加一次 `pair_lum_total`。固定 `JOINT_ITERS` 的中间迭代态由此被当作额外物理辐射，而不是被最终态替代。
-- `src/Hadronic/hadronic_pair.f90` 的 absorbed/injected power 离散积分都漏乘能格宽度
-  `Delta ln E`；两侧同时漏因子让内部相对闭合检查仍通过，但绝对功率被放大 `1/Delta ln E`。
-  一个直接算例中当前值为 `2.7982`，真实离散积分为 `0.64431`，比值恰为 `4.34294=1/dln`。
-- `cascade_seq` 推进后的唯一 photon 状态是 `phden`，当前却把 `cphden` 输出写成尚未传播的
-  `pseed/h`，并在最后一次 pair operator 之前保存 power 诊断；Python 随后丢弃该输出，再用
-  `syn_seed + survival(tau)` 近似重建，重复且不等价于 Fortran 已完成的 transfer。
-- joint 路径已把 BH/pp 增量 source 注入主 electron，故其 synch 已包含在
-  `ElectronSolution.l_syn_spec/seed_syn`；但 `l_had_bethe_heitler/seed_had_bethe_heitler` 仍再次进入
-  `_hadronlum/_hadronseed`。separated 路径已清空这两个字段，joint 尚未执行相同的唯一所有权边界。
+关闭本条前要记录电子状态在 radius step 前后分别代表什么时刻，并确认 observer radiation 读取的是更新后的唯一状态快照。
 
-### 修复所有权与验收
+## 4. Reverse-shock BH electron grid 未覆盖完整运动学支撑
 
-- gamma-gamma secondary pair 由 cascade 独占状态推进和 synch 辐射；主电子输运仍只接收 BH/pp
-  的真实增量 source。cascade 的累计 `pden` 只作为状态/诊断，不再经过 `_sourcer` 注入主电子。
-  最终收敛的 `PairCascade` 随 solve state 保存，observer 直接复用其 luminosity、seed 与 tau，
-  不重算 cascade、不累加 Picard 中间态，也不再通过 `hadronic.l_had_pair_production` 复制所有权。
-- Fortran 直接输出最终传播后的 cascade photon density、最终 power 与 native pair state；下一轮 Picard
-  直接消费这一 photon state，不再以 seed 相加和平均 survival 重建 transfer。删除无调用者的第二套
-  `cascade_step/cool_deposit`，能量推进复用唯一保守 remap kernel。
-- BH/pp source 按自然对数坐标传递，验证
-  `integral dR dln(gamma) Q_R` 等于各壳实际注入 pair 数；禁止用重标定、clamp 或后处理相减修正。
-- 对 gamma-gamma 链逐壳验证 absorbed photon power、pair injected power、pair 储能、synch 与绝热损失闭合；
-  同一真实算例下 cascade synch 在 `fwd_sync`、强子 aggregate 和 pair diagnostic 中只能有一个物理所有者。
-  比较 pair 开/关、joint 迭代收敛、至少三组径向网格与 cascade substep，要求粒子数、频谱、tau
-  和时序曲线收敛且连续非负；构建 `hadronic_forward_1d` 与受影响 electron source closure，并执行严格
-  line-truncation 检查。
+反向激波 Bethe–Heitler 次级电子目前复用有限 electron gamma grid；高能质子与 RS photon field 的组合可把次级电子推到网格上界之外，截断部分能量而没有完整的守恒诊断。
 
-## Reverse-shock Bethe--Heitler electron grid 仍未覆盖完整运动学支撑
+修复要求：由质子与光子运动学确定 secondary grid，上界收敛时 BH luminosity 和 pair energy 同时收敛；不得以末格堆积、外推或经验补偿恢复能量。
 
-- 当前 forward separated/joint 可由 `scan_pmax` 构造统一 BH log-cell grid，但
-  `asgard_core/asgard_runtime.py::_rshadronic` 仍把 reverse electron solver 的原生网格传入
-  `_hummertransport`，然后走 `_hadronicgrid` 与非守恒点投影。
-- reverse 必须用自身 `B3` 扫描质子 `gpmax`，不能复用 forward edge。当前
-  `electron_reverse_evolve` 的注入上限循环只覆盖 `gmax` 而未累计最大值，随后 `gmax0` 又使用 forward ambient
-  `epsilon_B` 与密度估计，而不是 reverse-shock 磁场；因此原生 reverse electron 上界也没有唯一正确 owner。
-- 受影响路径为 `_rselectrons -> _rshadronic -> _hummertransport`。修复需由 reverse
-  `scan_pmax` 所有者在电子求解前生成同一显式 log-cell grid，并验证 reverse formal
-  与 electron 网格 identity、number/energy moment 收敛、径向连续性及公开 reverse ABI；禁止在 BH kernel
-  内截断、补尾或把高能 pair 沉积到边界格。
+验收至少比较三组逐步扩大的上界，记录总 pair 数、总 pair energy 与辐射功率的收敛率；同时检查最低能格，避免扩大上界时隐式降低低能分辨率。FS 与 RS 使用同一运动学公式，但各自 photon field 和体积不得共享状态。

@@ -1,802 +1,388 @@
 # 物理模型
 
-本文档描述当前 ASGARD 已实现的物理模型和边界。这里记录的是代码契约，不是完整教材式推导。全项目物理设计总纲见 `doc/project_physics_design.md`。
+本文是 ASGARD 物理定义的唯一总源。它说明代码实际求解的量、近似与支持边界；离散方法和调用关系分别见[数值方法](numerical_methods.md)与[代码概览](code_overview.md)。
 
-![Afterglow physical geometry](assets/figures/decorative/physics_afterglow_header.png)
+## 1. 计算链
 
-## 总体图像
+一次完整计算依次经过：
 
-ASGARD 的主线是：
+1. 外部介质与喷流角结构；
+2. 正向激波（FS）及可选反向激波（RS）动力学；
+3. 非热电子注入、冷却与输运；
+4. 同步辐射、自吸收（SSA）与可选 SSC；
+5. 可选质子输运、强子辐射和二级粒子；
+6. 可选含时 electron–photon–hadron 联合反馈；
+7. 等到达时面（EATS）投影。
 
-```text
-relativistic blast wave
-  -> electron / proton distribution evolution
-  -> local radiation and photon fields
-  -> absorption / cascade / cross-zone coupling
-  -> equal-arrival-time observer projection
-```
+内部量使用 cgs。观测频率以 Hz 输入，时间以 s 输入，距离以 cm 输入。
 
-Python 层组织状态机、配置和观测投影；Fortran 层求解电子、辐射、动力学和强相互作用微物理核。
+## 2. 坐标与参考系
 
-## 物理过程图示索引
-
-下列示意图由 `tools/generate_doc_schematics.py` 使用 Python/matplotlib 生成，网页使用 PNG，`doc/assets/figures/physics/` 中同时保留可编辑 SVG、PDF 和 TIFF。图中公式用于标记代码必须守住的物理契约；完整公式和边界仍以正文为准。
-
-| 物理过程 | 示意图 |
-| --- | --- |
-| 总体物理链 | ![ASGARD physical chain](assets/figures/physics/physical_chain.png){ width="320" } |
-| 坐标、时间和 Doppler 因子/等到达时间面映射 | ![spacetime observer mapping](assets/figures/physics/spacetime_observer_mapping.png){ width="320" } |
-| 外部介质、密度增强和喷流角向结构 | ![medium and jet structure](assets/figures/physics/medium_jet_structure.png){ width="320" } |
-| 正向激波动力学 | ![forward shock dynamics](assets/figures/physics/forward_shock_dynamics.png){ width="320" } |
-| 电子注入和输运 | ![electron transport](assets/figures/physics/electron_transport.png){ width="320" } |
-| 同步辐射、SSA 与 SSC | ![synchrotron SSA SSC](assets/figures/physics/synch_ssa_ssc.png){ width="320" } |
-| 强子输运 | ![hadronic transport](assets/figures/physics/hadronic_transport.png){ width="320" } |
-| 含时二级反馈 | ![joint secondary feedback](assets/figures/physics/joint_feedback.png){ width="320" } |
-| \(\gamma\gamma\) 对产生与 pair cascade | ![pair cascade](assets/figures/physics/pair_cascade.png){ width="320" } |
-| 反向激波和次级反向激波 | ![reverse shock and secondary reverse shock](assets/figures/physics/reverse_shock_secondary.png){ width="320" } |
-| \(\chi\) 分辨有限厚度投影 | ![chi-resolved EATS projection](assets/figures/physics/chi_eats_projection.png){ width="320" } |
-
-## 正向激波
-
-正向激波分支包含：
-
-- blast-wave dynamics
-- electron injection and transport
-- synchrotron radiation
-- synchrotron self-absorption
-- SSC and Compton cooling
-- gamma-gamma absorption
-- optional hadronic emission and feedback
-- 可选壳层级 electron-photon-hadronic 联合反馈
-- observer-frame projection
-
-重要微物理参数：
-
-- `epsilon_e`：电子能量分数。
-- `epsilon_B`：磁场能量分数。
-- `p`：注入电子谱指数。
-- `accelerated_electron_fraction`：非热电子数分数 \(\xi_N\)。
-- `include_ssc`：是否输出 SSC。
-- `ssc_cooling_mode`：冷却中是否包含 Compton 项以及使用哪种近似。
-
-电子谱演化是核心物理状态，不能用后处理 smoothing 修复不连续结果。
-
-## 电子输运
-
-当前登记求解器：
-
-- `fullhide_1d`：默认稳定基线，适合一般 public runtime 和拟合。
-- `fullhide_1d_hz`：1D hybrid/hz 变体，服务特定诊断和回归路径。
-- `slc1_1d`：semi-Lagrangian / characteristic family path。
-- `charint_1d`：characteristic integration path。
-- `t2g1_1d`：legacy implicit transport path。
-- `weno5_1d`：高阶电子谱解析路径。
-- `fullhide_2d`：energy + chi resolved electron transport。
-- `charint_2d`：2D characteristic path。
-- `fullhide_2d_pic`：当前仓库没有跟踪源码和构建登记，运行时映射已删除。
-
-runtime 默认保留的电子输运状态：
-
-- `gam_e`
-- `d_n_gam_e`
-- `l_syn_spec`
-- `seed_syn`
-
-底层电子核返回的 `nu_m/nu_c/nu_a` 只通过 `SolverOptions.nu_callback` 临时传给调用方，不写入 `details()`、`FitResult` 或常规 runtime state。
-
-2D path 额外输出：
-
-- `d_n_gam_e_chi`
-- `chi_grid`
-- `l_syn_spec_chi`
-- `seed_syn_chi`
-- `tau_syn_chi`
-- `chi_radius_cm`
-- `chi_gamma_bulk`
-- `chi_dvolume_weight`
-
-在 `fullhide_2d` 和 `charint_2d` 中，transport 主网格是有限主动壳层的 \(q\)-mass 坐标。公开状态里的 `chi_grid` 只报告每个 \(q\) cell 的 BM 等效 \(\chi\) 诊断值；observer-side 半径、局域 bulk Lorentz factor 和体积权重以 `chi_radius_cm`、`chi_gamma_bulk`、`chi_dvolume_weight` 为准。
-
-`solver_options.geometry_projection="chi_eats_2d"` 是 `fullhide_2d` / `charint_2d` 的 opt-in observer projection。该 public API 字段会写入底层 `geometry_kernel`。该路径仅对正向激波同步辐射+SSA 使用 \(\chi\) 分辨有限厚壳层等到达时间面；SSC、强子和 pair cascade 仍是壳层级契约。完整几何、输运、SSA survival、transport-to-projection 重映射和薄壳极限见 `doc/shock_shell_adaptive_algorithms.md`。
-
-## 同步辐射、SSA 与 SSC
-
-同步辐射核：
-
-- `src/Electron/electron_radiation_kernel.f90`
-- `src/Radiation/rad_common.f90`
-
-SSA cooling 和 transfer：
-
-- `src/Electron/electron_cooling_kernel.f90`
-- `src/Electron/electron_cooling_ssa_kernel.f90`
-- `src/Radiation/rad_common.f90`
-
-SSC：
-
-- `src/Radiation/ssc_spectrum.f90`
-
-SSC、强子、pair cascade 当前仍是壳层级契约。启用 `chi_eats_2d` 不表示这些通道已经 \(\chi\) 局域自洽。
-
-当前同步辐射积分选择中，`index_syn_integr=1/2` 是固定网格快速路径；adaptive path 只作为显式诊断路径使用，不作为 public 默认。
-
-## 反向激波
-
-反向激波当前基线：
-
-- electron synchrotron
-- RS SSC
-- FS/RS cross-zone IC
-- optional RS hadronic light path
-- 可选 full-chain RS hadronic dispatch，复用 formal 1D 强子核
-
-关键物理约束：
-
-- 注入能标使用 shock-front `gamma34`。
-- 区域 3 湍动磁场和 crossing 后热演化使用显式 `U3/V3` thermal state。
-- 用户字段 `ReverseShock.upstream_sigma` 引入上游磁化；内部 `reverse_sigma`/`sigma_r` 只是同一量的配置名。
-- 有限 \(\sigma\) 下 `E_iso` 仍是总 ejecta 能量，baryonic ejecta mass 使用 \(E_{\rm iso}/[(1+\sigma)\Gamma_0c^2]\)。
-- 磁化 RS 不是单纯增加 ordered field；它同时改变 pressure-balance 触发、MHD jump compression、下游热比内能、有序磁场惯性和 crossing 后 ordered-field evolution。
-- `B3` 是 turbulent + ordered total field。
-- `sigma -> 0` 必须回到当前非磁化 baseline。
-
-VegasAfterglow 在当前项目中只作为 jump-condition comparison backend，不是光变目标或 RS 全局动力学基准。
-
-抛射物反向激波与密度增强触发的次级反向激波的完整四区图像、\(\gamma_{34}\)、区域 3 reservoir、磁化压缩比、热上游 Riemann 问题和新增耗散能公式见 `doc/shock_shell_adaptive_algorithms.md`。
-
-## 强子过程
-
-Forward-shock hadronic solver：
-
-- `legacy_1d`：proton transport + proton synchrotron baseline。
-- `am3_1d`：formal research path，覆盖 p-gamma、BH、pp、hadronic IC、secondary species transport、secondary radiation、pair production branch、neutrino。
-
-Hadronic process switches 使用公开 API 字段名：
-
-- `proton_energy_fraction`：质子能量分数，物理公式中常记为 \(\epsilon_p\)。
-- `proton_synch`
-- `include_pgamma`
-- `bethe_heitler`
-- `hadronic_inverse_compton`
-- `pp`
-- `neutrino`
-- `pair_production`
-- `pgamma_scheme`
-- `acceleration_efficiency`：加速效率参数，物理公式中常写为 \(\eta_{\rm acc}\)。
-
-RS hadronic：
-
-- `hadronic_reverse_1d`：light proton injection/transport + proton synchrotron。
-- Full-chain RS path 使用 `hadronic_forward_1d` formal kernels，并使用 RS seed photons、RS `B3`、shell energy 和 baryon target density。
-
-当前 hadronic 边界：
-
-- Hadronic transport 保持 1D 壳层级。
-- 2D / \(\chi\) 分辨 hadronic transport 有意不实现。
-- 未来若扩展，必须先定义 \(\chi\)-local photon field、hadron density、secondary feedback 和 observer projection。
-
-## 含时二级反馈与光子场闭合
-
-`SolverOptions(electron_photon_coupling="separated" | "joint")` 控制 forward electron、photon field 和 formal hadronic path 的阶段耦合方式。
-
-`separated` 是默认模式：
-
-```text
-electron solver -> photon field -> hadronic -> separated BH merge/recompute seed
-```
-
-`joint` 是 opt-in 模式，只在 forward-shock、`fullhide_1d`、`am3_1d`、BH enabled、SSC cooling enabled 的壳层级 1D 契约下启用：
-
-```text
-electron state -> photon field -> hadronic transport
--> secondary electron source + photon source/sink
--> electron solve with external Qe and IC seed
--> photon field rebuild
-```
-
-物理坐标固定为半径 \(R\)。任一自然单位为 \({\rm s}^{-1}\) 的冷却、反应或吸收率进入输运前都必须乘以
+实验室系半径、时间和激波速度记为
 
 \[
-\frac{\mathrm{d}t'}{\mathrm{d}R}
-=\frac{1}{\beta\Gamma c}.
+R,\qquad t,\qquad \beta c=\frac{dR}{dt},\qquad
+\Gamma=(1-\beta^2)^{-1/2}.
 \]
 
-当前 joint 电子方程接入 BH pairs、pp pairs 和 gamma-gamma pairs。pγ/π/μ 链的 e± 注入只有在 formal kernel 明确输出谱形和能量预算后才能反馈；当前不能用总能量守恒外推构造临时谱。光子场 sink 使用 formal pγ survival、BH photon loss 和 gamma-gamma absorption；不允许用经验 sink 或 smoothing 补齐。
-
-完整物理契约见 `doc/joint_secondary_feedback_physics.md`，算法契约见 `doc/joint_secondary_feedback_algorithm.md`。
-
-## 对产生与级联
-
-当前已实现路径：
-
-- observer-side gamma-gamma attenuation
-- pair-production branch
-- `pair_cascade_iterations > 1` 时使用 shell-sequence time-dependent gamma-gamma pair/synch cascade
-
-未实现：
-
-- IC-mediated electromagnetic cascade。
-
-原因是该扩展需要 photon/e± source-sink 方程、IC kernel 契约和 energy-budget benchmark。见 `doc/pair_cascade_extension_boundary.md`。
-
-## 偏振
-
-偏振路径：
-
-- synchrotron Stokes projection
-- FS/RS electron synch
-- FS/RS hadronic synch
-
-非同步辐射分支不混入 polarization Stokes。当前 Lan 2023 对比记录显示峰值幅度已匹配，峰时仍偏早；现有证据指向 dynamics/jet-evolution benchmark，而不是 projection-layer 修正。
-
-## 观测者投影
-
-Observer stage 组合：
-
-- 等到达时间面/Doppler 因子 interpolation
-- redshift 和 luminosity distance
-- synchrotron/SSC/hadronic/RS/cross-zone components
-- absorption factors
-- structured jet 和 sky image 的 patch integration
-
-主要 Fortran interpolation：
-
-- `src/Interpolation/SED_interpolation.f90`
-- `src/Interpolation/SED_interpolation_structured.f90`
-
-Projection-layer 修正不能用来掩盖 dynamics 或 transport bug。
-
-## 公式级物理模型
-
-本节把当前 ASGARD 的主要物理链写成连续方程形式。代码实现不一定逐项显式使用同一教材符号，但每个公式都对应一个必须守住的物理契约：变量单位、参考系、源项和 sink 不能混用。
-
-### 坐标、时间和 Doppler 变换
-
-主演化坐标是 shock radius \(R\)。共动时间、实验室时间和观测者时间的基本关系为
+撇号量位于局域共动系。对与视线夹角为 \(\alpha\) 的流体元，
 
 \[
-\frac{\mathrm{d}t'}{\mathrm{d}R}
-=
-\frac{1}{\beta\Gamma c},
+\delta_D=[\Gamma(1-\beta\cos\alpha)]^{-1},
 \qquad
-\frac{\mathrm{d}t_{\rm lab}}{\mathrm{d}R}
-=
-\frac{1}{\beta c},
+\nu'=\frac{(1+z)\nu_{\rm obs}}{\delta_D}.
 \]
 
-其中 \(t'\) 是 shocked fluid 共动系时间，\(\Gamma\) 是 bulk Lorentz factor，\(\beta=(1-\Gamma^{-2})^{1/2}\)。任意微物理 rate 若天然单位是 \({\rm s}^{-1}\)，进入 \(R\) 坐标输运时都要乘以 \(\mathrm{d}t'/\mathrm{d}R\)。这是 joint feedback、电子冷却和强子损失共用的单位契约。
-
-观测者时间为
+观测者时间满足
 
 \[
-t_{\rm obs}
-=
-(1+z)
-\left[
-t_{\rm lab}
--
-\frac{R\mu}{c}
-\right],
-\qquad
-\mu=\cos\alpha .
+t_{\rm obs}=(1+z)\left(t-\frac{R\cos\alpha}{c}\right).
 \]
 
-Doppler 因子定义为
+代码从动力学轨迹插值满足该式的发射事件，不以单一的 \(R/\Gamma^2c\) 近似替代 EATS。
+
+## 3. 外部介质
+
+外部质子数密度写为
 
 \[
-\delta
-=
-\frac{1}{\Gamma(1-\beta\mu)} .
+n_{\rm ext}(R)=n_0\left(\frac{R}{R_0}\right)^{-k}.
 \]
 
-频率和谱功率变换为
+当前介质类型包括均匀介质、风介质以及由公开参数定义的分段密度增强。扫掠静质量为
 
 \[
-\nu_{\rm obs}
-=
-\frac{\delta}{1+z}\nu',
-\qquad
-F_{\nu_{\rm obs}}
-=
-\frac{1+z}{4\pi d_L^2}
-\int
-\delta^3 L'_{\nu'}\,\frac{\mathrm{d}\Omega}{4\pi}.
+dm=4\pi R^2 m_p n_{\rm ext}(R)\,dR
 \]
 
-实现中 `SED_interpolation.f90` 的 `doppler` 变量对应 \(D=\delta^{-1}\)，所以代码里常出现 \(D^{-3}\) 和 \(\nu'=(1+z)D\nu_{\rm obs}\)。读代码时不能把该变量名误读为 \(\delta\)。
+的喷流立体角份额。结构化喷流逐角元独立演化；角元间没有横向能量交换，除非启用已有的 spreading 动力学处方。
 
-### 外部介质、喷流结构和 swept-up mass
+密度跳变会改变局域扫掠率并可激发次级 RS。它不是简单的事后光变缩放。
 
-当前公开介质模型为
+## 4. 正向激波动力学
+
+动力学状态包含 \(R,\Gamma\)、扫掠质量、内能和喷流开角等量。绝热情形满足总能量在扫掠、膨胀和几何演化间闭合；辐射效率进入相应能量损失项。
+
+激波后数密度和内能密度由相对论 Rankine–Hugoniot 关系给出。常用超相对论极限
 
 \[
-n_{\rm ISM}(R)=n_0,
-\qquad
-n_{\rm wind}(R)
-=
-\frac{3.0\times10^{35}A_\ast}{R^2},
+n'_2\simeq4\Gamma n_{\rm ext},\qquad
+e'_2\simeq4\Gamma^2 n_{\rm ext}m_pc^2
 \]
 
-以及显式表格密度 \(n(R)\)。多 bump 密度可写为
+只用于理解；内核保留跨相对论区间的表达式。
+
+磁场由
 
 \[
-n(R)
-=
-n_0
-\left[
-1+
-\sum_j(f_j-1)
-\exp\left(
--
-\frac{(\log_{10}R-\log_{10}R_j)^2}{2w_j^2}
-\right)
-\right].
+\frac{B'^2}{8\pi}=\epsilon_B e'
 \]
 
-swept-up mass 的连续形式是
+闭合。该 \(B'\) 是辐射区的无序场强，不等同于 RS 上游的有序磁化参数。
+
+## 5. 电子注入
+
+非热电子获得耗散内能的份额 \(\epsilon_e\)，参与加速的电子份额为 \(\xi_e\)。注入谱通常为
 
 \[
-\frac{\mathrm{d}M_{\rm sw}}{\mathrm{d}R}
-=
-4\pi R^2 n(R)m_p
+Q_e(\gamma)=Q_0\gamma^{-p},
+\qquad \gamma_m\le\gamma\le\gamma_M.
 \]
 
-对 spherical isotropic-equivalent patch 成立。结构化喷流中每个角向 patch 使用自己的 \(E_{\rm iso}(\theta,\phi)\) 和 \(\Gamma_0(\theta,\phi)\)，再经角向权重相加。常用喷流剖面包括：
+归一化同时满足注入粒子数和能量预算。对 \(p\) 接近 2 的情况使用相应积分极限，不用任意小偏移替代对数极限。
+
+最小洛伦兹因子由每个被加速电子可得能量确定；最大洛伦兹因子由加速时间与辐射、动力学时间的竞争确定。
+
+热电子开关增加独立的热分量；它不改变非热谱的定义。
+
+## 6. 电子输运
+
+壳层共动系电子谱满足
 
 \[
-E_{\rm iso}^{\rm top}(\theta)
-=
-\begin{cases}
-E_0,&\theta\le\theta_j,\\
-0,&\theta>\theta_j,
-\end{cases}
+\frac{\partial N_e}{\partial t'}+
+\frac{\partial}{\partial\gamma}(\dot\gamma N_e)
+=Q_e-\frac{N_e}{t'_{\rm esc}}+Q_{e,\rm sec}.
 \]
 
+能损率包括同步、逆康普顿和绝热项：
+
 \[
-E_{\rm iso}^{\rm gauss}(\theta)
-=
-E_0\exp\left(-\frac{\theta^2}{2\theta_c^2}\right),
-\qquad
-\Gamma_0^{\rm gauss}(\theta)-1
-=
-(\Gamma_{0,c}-1)
-\exp\left(-\frac{\theta^2}{2\theta_c^2}\right),
+\dot\gamma=\dot\gamma_{\rm syn}+
+\dot\gamma_{\rm IC}+\dot\gamma_{\rm ad}.
 \]
 
+同步损失为
+
 \[
-E_{\rm iso}^{\rm pl}(\theta)
-=
-\begin{cases}
-E_0,&\theta\le\theta_c,\\
-E_0(\theta/\theta_c)^{-k_E},&\theta_c<\theta\le\theta_{\max},\\
-0,&\theta>\theta_{\max}.
-\end{cases}
+\dot\gamma_{\rm syn}=-\frac{\sigma_TB'^2}{6\pi m_ec}\gamma^2.
 \]
 
-这些是初始角向能量和 Lorentz 因子剖面，不等价于已实现横向扩张动力学。
+逆康普顿核在光子能量接近 Klein–Nishina 区域时直接降低截面；不存在可关闭的额外“KN 修正”后处理开关。
 
-### 正向激波动力学
+公开 1D solver 在单壳能量网格上演化 \(N_e(\gamma)\)。`fullhide_2d` 使用有限 q-mass 壳层坐标。
 
-绝热相对论 blast wave 的能量量级为
+## 7. 有限厚壳层
+
+2D 输运的第二坐标是有限壳层质量坐标 \(q\)，不是无限的 \(\eta=\log_{10}\chi\) 网格。每个 q 单元保存其粒子谱、半径、体积权重与流体状态。
+
+`chi_grid` 是每个 q 单元的 Blandford–McKee 等价诊断坐标。观测投影实际使用
+
+- `chi_radius_cm`；
+- `chi_gamma_bulk`；
+- `chi_dvolume_weight`。
+
+`chi_eats_2d` 当前只替换 FS 同步辐射与 SSA 的 light-curve 投影。SSC、强子过程、pair cascade 和二级反馈仍是壳层级契约，不能被称为 chi-resolved 输运。
+
+## 8. 同步辐射
+
+单电子特征频率为
 
 \[
-E_{\rm iso}
-\simeq
-C_k\Gamma^2M_{\rm sw}c^2,
+\nu'_c=\frac{3eB'}{4\pi m_ec}\gamma^2\sin\alpha_p.
 \]
 
-其中 \(C_k\) 是与密度剖面和精确定义有关的量级系数。由 \(M_{\rm sw}\propto R^{3-k}\) 得到 Blandford-McKee 标度
+各向同性 pitch-angle 分布的体发射率为
 
 \[
-\Gamma(R)\propto R^{-(3-k)/2},
-\qquad
-t_{\rm obs}\propto\frac{R}{\Gamma^2c},
+j'_{\nu'}=\frac{1}{4\pi}\int N_e(\gamma)
+P'_{\nu'}(\gamma)\,d\gamma.
 \]
 
-因此
+默认 `fixed_grid` 核直接积分同步函数。`cyclotron` 路径为深牛顿区 \(\gamma<2\) 提供连续的回旋–同步处理。
+
+SSA 吸收系数由同一电子谱计算，均匀壳层传输因子为
 
 \[
-\Gamma(t_{\rm obs})
-\propto
-t_{\rm obs}^{-(3-k)/[2(4-k)]}.
+T_{\rm ssa}(\tau)=\frac{1-e^{-\tau}}{\tau}.
 \]
 
-均匀介质 \(k=0\) 给出 \(\Gamma\propto R^{-3/2}\)、\(\Gamma\propto t_{\rm obs}^{-3/8}\)；wind \(k=2\) 给出 \(\Gamma\propto R^{-1/2}\)、\(\Gamma\propto t_{\rm obs}^{-1/4}\)。这些标度是验收基线，不替代 Fortran 动力学右端项。
+`fullhide` 路径复用同一同步光深网格确定 \(\nu_a\)，避免另一次物理上重复的根搜索。
 
-若存在能量注入，
+## 9. SSC 与外部种子场
+
+SSC 使用壳层内同步光子作为种子，计算
 
 \[
-\frac{\mathrm{d}E}{\mathrm{d}t_{\rm lab}}
-=
-L_{\rm inj}(t_{\rm lab})-L_{\rm rad}(t_{\rm lab}),
+j'_{\epsilon_s}=c\int d\gamma\,N_e(\gamma)
+\int d\epsilon\,n'_\gamma(\epsilon)
+\frac{d\sigma_{\rm IC}}{d\epsilon_s}.
 \]
 
-则 plateau 或 rebrightening 必须能由 \(L_{\rm inj}\)、介质结构或 shock crossing 的物理时间尺度解释。没有明确源项时，后处理时间平移或 smoothing 不是可接受物理模型。
+核保留完整的 Klein–Nishina 能量依赖。`include_ssc` 控制是否输出 SSC 分量；冷却模型选择决定 IC 损失如何进入电子输运，两者不是同一个键。
 
-### 磁场和电子注入
+FS–RS cross-IC 使用另一激波区的光子场，但仍在接收区电子分布上散射。几何稀释和参考系变换属于显式模型输入。
 
-shock 后内能密度记为 \(u'\)。湍动磁场为
+## 10. Gamma-gamma 吸收
+
+高能光子与目标光子满足
 
 \[
-B'
-=
-\sqrt{8\pi\epsilon_Bu'}.
+\epsilon_1\epsilon_2(1-\cos\theta)\ge2(m_ec^2)^2
 \]
 
-若反向激波 upstream magnetization 为 \(\sigma\)，总磁场写成
+时可产生电子–正电子对。光深由角平均截面与目标光子谱积分得到：
 
 \[
-B_3
-=
-\sqrt{B_{\rm turb}^2+B_{\rm ord}^2},
-\qquad
-\lim_{\sigma\to0}B_3=B_{\rm turb}.
+\tau_{\gamma\gamma}(E_\gamma)=
+\ell'\int n'_\gamma(\epsilon)\,
+\bar\sigma_{\gamma\gamma}(E_\gamma,\epsilon)\,d\epsilon.
 \]
 
-非热电子注入谱为
+transfer 由几何所有者决定。共空间均匀发射与吸收使用
 
 \[
-Q_e(\gamma)
-=
-Q_0\gamma^{-p}
-\exp\left(-\frac{\gamma}{\gamma_{\max}}\right)
-H(\gamma-\gamma_m).
+\psi(\tau)=\frac{1-e^{-\tau}}{\tau},
 \]
 
-数归一化和能量归一化分别为
+前景屏使用 \(e^{-\tau}\)，有序多区则沿传播方向逐区积分。生产路径中仍有从 \(R,\Gamma\) 推测 \(R/(12\Gamma)\) 的历史实现；该长度只对应均匀外介质的 one-zone 极限，wind、density jump、prompt 和多区路径尚未完成几何所有权闭合，见根目录 `BUG.md`。
+
+吸收能量只有在启用对应二级注入时才进入 pair 源项；不能同时由 observer 层和 joint solver 重复拥有。
+
+## 11. Pair cascade
+
+`separated` 模式按已完成的一次辐射解计算 pair 注入和后续辐射；它不回写原电子–光子演化。
+
+`joint` 的目标合同是让 pair 注入只属于含时 electron–photon 系统：光子 sink、pair 源和二级辐射共享同一能量预算，observer 只投影最终分量。当前 joint secondary pair 的坐标 Jacobian、累计状态与辐射所有权仍有已登记缺陷，因此相关组合尚不能视为完成验收。
+
+当前级联是壳层平均的一维能量输运，不是空间分辨 Monte Carlo cascade，也不是 chi-resolved cascade。
+
+## 12. 质子注入与输运
+
+非热质子谱写为
 
 \[
-\int_{\gamma_m}^{\gamma_{\max}}
-Q_e(\gamma)\,\mathrm{d}\gamma
-=
-\xi_N\,\mathrm{d}N_{\rm sh},
+Q_p(E_p)=Q_{p,0}E_p^{-s_p},
+\qquad E_{p,\min}\le E_p\le E_{p,\max}.
 \]
 
+质子输运满足
+
 \[
-m_ec^2
-\int_{\gamma_m}^{\gamma_{\max}}
-(\gamma-1)Q_e(\gamma)\,\mathrm{d}\gamma
-=
-\epsilon_e\,\mathrm{d}E_{\rm sh}.
+\frac{\partial N_p}{\partial t'}+
+\frac{\partial}{\partial E_p}(\dot E_pN_p)
+=Q_p-\frac{N_p}{t'_{p,\rm esc}}.
 \]
 
-当 \(p>2\) 且 cutoff 远高于 \(\gamma_m\) 时，
+损失可包括绝热、质子同步、pγ、Bethe–Heitler（BH）和 pp。过程开关只控制已实现链路，不隐含空间扩散。
+
+## 13. Proton synchrotron
+
+质子同步公式由电子同步表达式作质量替换得到。固定电荷下特征频率随 \(m^{-1}\) 缩放，辐射功率随 \(m^{-2}\) 缩放。该过程同时进入质子损失与光子源，二者必须共享同一能量预算。
+
+## 14. Photopion pγ
+
+pγ 相互作用由共动目标光子谱驱动。当前正式响应模型为 `hummer_2010_response`；`disabled` 完全关闭 pγ 源与损失。
+
+相互作用率具有形式
 
 \[
-\gamma_m
-\simeq
-1+
-\frac{\epsilon_e}{\xi_N}
-\frac{p-2}{p-1}
-\frac{m_p}{m_e}
-(\Gamma_{\rm rel}-1).
-\]
-
-这只是解释性极限。代码必须用精确归一化处理 \(p\to2\)、有限 \(\gamma_{\max}\) 和 thermal branch。
-
-### 电子输运、冷却和特征频率
-
-电子谱在 \(R\) 坐标中的连续方程是
-
-\[
-\frac{\partial N_e}{\partial R}
-+
-\frac{\partial}{\partial\gamma}
-\left[
-\dot{\gamma}_R N_e
-\right]
-=
-Q_{e,R},
-\]
-
-其中
-
-\[
-\dot{\gamma}_R
-=
-\frac{\mathrm{d}\gamma}{\mathrm{d}R}
-=
-\frac{\mathrm{d}t'}{\mathrm{d}R}
-\left(
-\dot{\gamma}'_{\rm ad}
-+
-\dot{\gamma}'_{\rm syn}
-+
-\dot{\gamma}'_{\rm IC}
-+
-\dot{\gamma}'_{\rm SSA}
-\right).
-\]
-
-同步冷却为
-
-\[
-\dot{\gamma}'_{\rm syn}
-=
--
-\frac{\sigma_TB'^2}{6\pi m_ec}
-\gamma^2.
-\]
-
-绝热冷却可抽象为
-
-\[
-\dot{\gamma}'_{\rm ad}
-=
--
-\frac{\gamma}{3}
-\frac{\mathrm{d}\ln V'}{\mathrm{d}t'}.
-\]
-
-Thomson 极限 IC 冷却为
-
-\[
-\dot{\gamma}'_{\rm IC,T}
-=
--
-\frac{4\sigma_T}{3m_ec}
-U'_{\rm ph}\gamma^2,
-\]
-
-KN 路径则把上式中的 Thomson 核替换为频率相关截面积分，不能用常数 \(Y\) 因子替代 joint 反馈路径。
-
-同步特征频率满足
-
-\[
-\nu'_{\rm syn}(\gamma)
-=
-\frac{3q_eB'}{4\pi m_ec}\gamma^2,
-\qquad
-\nu_{\rm obs}
-=
-\frac{\delta}{1+z}\nu'_{\rm syn}.
-\]
-
-因此
-
-\[
-\nu_m\propto \delta B'\gamma_m^2,
-\qquad
-\nu_c\propto \delta B'\gamma_c^2,
-\]
-
-其中 \(\gamma_c\) 由
-
-\[
-t'_{\rm cool}(\gamma_c)
-=
-\left[
-\frac{1}{\gamma_c}
-\left|
-\frac{\mathrm{d}\gamma}{\mathrm{d}t'}
-\right|_{\gamma_c}
-\right]^{-1}
-\simeq
-t'_{\rm dyn}
-\]
-
-定义。若 \(\nu_m,\nu_c,\nu_a\) 随半径无物理事件地跳变，应回查电子输运和冷却项，而不是修投影。
-
-### 同步辐射、SSA 和 SSC
-
-单电子同步谱可写为
-
-\[
-P'_{\nu'}(\gamma)
-=
-\frac{\sqrt{3}q_e^3B'}{m_ec^2}
-F\left(\frac{\nu'}{\nu'_c}\right),
-\qquad
-\nu'_c
-=
-\frac{3q_eB'}{4\pi m_ec}\gamma^2,
-\]
-
-其中
-
-\[
-F(x)=x\int_x^\infty K_{5/3}(\xi)\,\mathrm{d}\xi .
-\]
-
-壳层同步谱为
-
-\[
-L'_{\nu'}
-=
-\int
-N_e(\gamma)
-P'_{\nu'}(\gamma)
-\mathrm{d}\gamma.
-\]
-
-自吸收系数满足
-
-\[
-\alpha'_{\nu'}
-=
--
-\frac{1}{8\pi m_e\nu'^2}
-\int
-P'_{\nu'}(\gamma)
-\gamma^2
-\frac{\partial}{\partial\gamma}
-\left[
-\frac{N_e(\gamma)}{\gamma^2}
-\right]
-\mathrm{d}\gamma.
-\]
-
-对应光深和逃逸因子为
-
-\[
-\tau_{\nu'}=\alpha'_{\nu'}\ell',
-\qquad
-S_{\nu'}=\frac{1-\exp(-\tau_{\nu'})}{\tau_{\nu'}}.
-\]
-
-SSC 光子源项的通用形式是
-
-\[
-j'_{\nu_s}
-=
-c
-\int \mathrm{d}\gamma\,N_e(\gamma)
-\int \mathrm{d}\nu\,n'_\nu
-\frac{\mathrm{d}\sigma_{\rm IC}}{\mathrm{d}\nu_s}
-h\nu_s .
-\]
-
-这里 \(n'_\nu\) 是局域 target photon density，不是 observer luminosity。joint 模式中 IC 冷却和 SSC photon source 必须来自同一个 photon seed；只改冷却而不生成相应 photon source 会破坏能量预算。
-
-### Gamma-gamma 吸收和 pair cascade
-
-两光子湮灭阈值为
-
-\[
-E_1E_2(1-\cos\psi)
-\ge
-2(m_ec^2)^2.
-\]
-
-光深形式为
-
-\[
-\tau_{\gamma\gamma}(E_1)
-=
-\int \mathrm{d}\ell
-\int \mathrm{d}\Omega
-\int \mathrm{d}E_2\,
-n_\gamma(E_2,\Omega)
-(1-\cos\psi)
-\sigma_{\gamma\gamma}(s).
-\]
-
-被吸收的高能光子注入 secondary pairs：
-
-\[
-Q_{e^\pm,\gamma\gamma}(\gamma_e)
-=
-\int \mathrm{d}E_\gamma\,
-Q_\gamma(E_\gamma)
-\left[
-1-\exp(-\tau_{\gamma\gamma})
-\right]
-K_{\gamma\gamma}(E_\gamma,\gamma_e).
-\]
-
-`pair_cascade_iterations > 1` 时，ASGARD 使用 shell-sequence time-dependent \(\gamma\gamma\) pair/synch cascade：pairs 的同步辐射回到后续 shell 的 photon field。当前没有 IC-mediated electromagnetic cascade，因此不能把 pair IC 多代级联当作已实现物理。
-
-### 质子输运和强子微物理
-
-质子注入与电子类似：
-
-\[
-Q_p(\gamma_p)
-=
-Q_{p,0}\gamma_p^{-p_p}
-\exp\left(-\frac{\gamma_p}{\gamma_{p,\max}}\right),
-\]
-
-能量归一化为
-
-\[
-m_pc^2
-\int
-(\gamma_p-1)Q_p(\gamma_p)\,\mathrm{d}\gamma_p
-=
-\epsilon_p\,\mathrm{d}E_{\rm sh}.
-\]
-
-最大能量通常由加速与损失/动力学时间比较决定：
-
-\[
-t'_{\rm acc}
-=
-\eta_{\rm acc}
-\frac{\gamma_pm_pc}{q_eB'},
-\qquad
-t'_{\rm acc}
-=
-\min(t'_{\rm dyn},t'_{\rm syn,p},t'_{p\gamma},t'_{\rm BH},t'_{pp}).
-\]
-
-质子输运方程为
-
-\[
-\frac{\partial N_p}{\partial R}
-+
-\frac{\partial}{\partial\gamma_p}
-\left[
-\dot{\gamma}_{p,R}N_p
-\right]
-=
-Q_{p,R}
-+Q_{p,{\rm reinj},R}.
-\]
-
-质子同步冷却为
-
-\[
-\dot{\gamma}'_{p,{\rm syn}}
-=
--
-\frac{\sigma_TB'^2}{6\pi m_pc}
-\left(\frac{m_e}{m_p}\right)^2
-\gamma_p^2.
-\]
-
-p-gamma 相互作用的损失率可写为
-
-\[
-t_{p\gamma}^{\prime -1}(\gamma_p)
-=
+t_{p\gamma}^{-1}(\gamma_p)=
 \frac{c}{2\gamma_p^2}
-\int_{\bar{\epsilon}_{\rm th}}^\infty
-\mathrm{d}\bar{\epsilon}\,
-\sigma_{p\gamma}(\bar{\epsilon})
-\kappa_{p\gamma}(\bar{\epsilon})
-\bar{\epsilon}
-\int_{\bar{\epsilon}/(2\gamma_p)}^\infty
-\frac{n'_\epsilon}{\epsilon^2}
-\mathrm{d}\epsilon .
+\int_{\bar\epsilon_{\rm th}}^\infty d\bar\epsilon\,
+\sigma_{p\gamma}\kappa\bar\epsilon
+\int_{\bar\epsilon/(2\gamma_p)}^\infty
+\frac{n'_\gamma(\epsilon)}{\epsilon^2}\,d\epsilon.
 \]
 
-BH pair production 有同样的 photon target，但输出是 proton loss、pair source 和 photon sink：
+响应表同时产生光子、电子/正电子和 neutrino。所有产物必须来自同一质子能量损失，不能分别归一化。
+
+## 15. Bethe–Heitler
+
+BH 过程
 
 \[
-p+\gamma\rightarrow p+e^++e^-.
+p+\gamma\rightarrow p+e^-+e^+
 \]
 
-pp 相互作用率由 baryon target density 给出：
+主要把质子能量注入二级 pair。它对目标光子谱的阈值积分同时决定质子损失和 pair 源；`joint` 模式将 pair 注入电子方程，`separated` 模式在主输运后组装。
+
+## 16. Proton-proton
+
+pp 总链始终计算现有的质子损失、neutrino 和二级 pair。π0 衰变 gamma 谱由
+
+`Hadronic.pp_gamma_model` 选择：
+
+- `delta`：默认，保持历史正式结果；
+- `geant4`、`sibyll`、`qgsjet`、`pythia8`：Kafexhiu/AM3 详细谱，显式 opt-in。
+
+模型 ID 只在 Python 边界映射一次。详细模型仅替换 π0 gamma 分量，不改变 pp 的 `ploss/qnu/qpair`。
+
+详细参数化在若干生成器接合能量处继承上游分段跳变；代码不添加平滑、clamp 或事后归一化掩盖这一性质。
+
+## 17. Neutrino
+
+neutrino 来自 pγ 和 pp 的带电介子链。源端谱与电磁分量共享同一强子能量预算；传播振荡若由调用层处理，也不得回写源端输运。
+
+neutrino 不受 SSA 或 gamma-gamma 吸收。红移和几何稀释仍按观测者投影处理。
+
+## 18. 含时联合反馈
+
+`electron_photon_coupling="joint"` 的目标是在同一壳层时间步内联合演化
 
 \[
-t_{pp}^{\prime -1}
-=
-n'_pc\sigma_{pp}\kappa_{pp}.
+\{N_p(E_p),N_e(\gamma),n_\gamma(\epsilon)\}.
 \]
 
-中微子只作为逃逸输出：
+方程通过以下源和 sink 闭合：
+
+- 电子同步与 IC：电子损失对应光子源；
+- gamma-gamma：光子 sink 对应 pair 源；
+- BH：质子损失对应 pair 源；
+- pγ/pp：质子损失对应 gamma、pair 与 neutrino 产物；
+- 光子逃逸：只从局域光子场移除能量。
+
+`separated` 和 `joint` 是互斥算法契约，不应在一个结果中叠加同一二级分量。完整定义见 [含时二级反馈](joint_secondary_feedback_physics.md)。
+
+## 19. 反向激波
+
+RS 由 ejecta 与接触面之间的相对运动驱动。上游磁化定义为
 
 \[
-E_{\nu,{\rm obs}}
-=
-\frac{\delta}{1+z}E'_\nu,
+\sigma=\frac{B_u'^2}{4\pi\rho_u'c^2}.
 \]
 
-不反馈到电子或光子方程。
+主 RS 使用冷上游、横向有序场的一维 MHD jump，压力平衡决定接触面状态。\(\sigma=0\) 恢复流体极限；有限 \(\sigma\) 同时改变压缩、热化和下游磁能。
 
-### 反向激波、次级反向激波和 \(\chi\) 分辨壳层
+RS crossing 前持续注入新电子，crossing 后进入纯冷却/绝热演化。次级密度跳变 RS 当前是流体诊断，不继承主 RS 的有序场压缩与磁焓反馈。
 
-这些专题的完整公式集中维护在 `doc/shock_shell_adaptive_algorithms.md`。本页只记录结论边界：
+## 20. Prompt 内部激波
 
-- 抛射物反向激波使用 shock-front \(\gamma_{34}\)、显式 \(U_3/V_3\) reservoir 和 \(B_3=(B_{\rm turb}^2+B_{\rm ord}^2)^{1/2}\)。
-- 密度增强触发的次级反向激波使用热上游区域 4 的 Riemann 问题，电子注入只来自新增耗散能 \(u_{{\rm diss},3}=e_3-e_4C^{4/3}\)。
-- `chi_eats_2d` 只表示正向激波同步辐射+SSA 的 \(\chi\) 分辨等到达时间面投影；强子、SSC 和 pair cascade 仍是壳层级。
+`prompt/` 是两壳内部激波的快照与诊断工作流，不是稳定 `asgard_core` API 或拟合分支。快壳追上慢壳后，接触面两侧形成 FS/RS；接触面洛伦兹因子由两侧压力平衡求得。
 
-## 物理验收规则
+当前入口为
 
-- 物理 rate 的时间/空间演化应连续且平滑。
-- 非光滑最终物理参数轨道在证明前都应优先视为 bug。
-- 不用经验 smoothing 或 projection-layer time shift 修正物理不连续。
-- 不在真实系统边界之外添加数值保护。
-- Python 不替代最终数值微物理核；Python 只做 orchestration、wrapping 和 benchmark。
+- `prompt.internal_shock`；
+- `prompt.radiation`；
+- `prompt.eats`。
+
+详细假设与例子见 [Prompt 内部激波教程](prompt_internal_shock_tutorial.md)。
+
+## 21. 偏振
+
+局域同步偏振由磁场几何、电子谱和视线方向决定。总 Stokes 参数在 EATS 上线性叠加：
+
+\[
+I=\sum I_i,\qquad Q=\sum Q_i,\qquad U=\sum U_i.
+\]
+
+偏振度和位置角为
+
+\[
+\Pi=\frac{\sqrt{Q^2+U^2}}{I},\qquad
+\chi_P=\frac12\operatorname{atan2}(U,Q).
+\]
+
+不能先平均局域偏振度再乘总光度。
+
+## 22. 观测者投影
+
+观测通量由 EATS 上各角元和壳层贡献积分：
+
+\[
+F_{\nu_{\rm obs}}=
+\frac{1+z}{4\pi d_L^2}
+\int_{\rm EATS}\delta_D^3 L'_{\nu'}\,d\Omega,
+\qquad
+\nu'=\frac{(1+z)\nu_{\rm obs}}{\delta_D}.
+\]
+
+具体 Doppler 次数随被积量是体发射率、谱光度还是已含体积权重的数组而定；实现只在一个层级拥有该变换。
+
+`total_only` 返回总量，`full_components` 保留过程分量。总量按固定顺序求和以保持可复现浮点结果。
+
+## 23. 模型绑定关系
+
+若两个键共同定义一个物理近似，应在公开边界绑定，而不是允许无意义笛卡尔积。当前重要关系是：
+
+- `chi_eats_2d` 只与有限 q-mass 的 `fullhide_2d` FS 同步/SSA 路径配套；
+- `joint` 拥有二级 pair 反馈，observer 不重复注入；
+- pp 详细模型只控制 π0 gamma；
+- Fan–Y 路径尚未公开：必须先按原始文献修正有限 \(\gamma_M\)、分支连续性和自洽 \(\gamma_c\)；
+- RS 与 prompt 的磁化 jump 是不同计算对象，不可互换 selector。
+
+## 24. 支持边界
+
+当前代码不声称支持：
+
+- 全三维 MHD 或角元间磁流体耦合；
+- 空间分辨的 hadronic/SSC/pair chi 输运；
+- Monte Carlo 电磁级联；
+- prompt 与 afterglow 的统一含时拟合；
+- 未经原始文献推导验证的 Fan–Y 公开 selector；
+- 通过平滑或经验重归一化修复微物理参数化。
+
+## 25. 物理验收
+
+每次物理修改至少检查：
+
+1. 粒子数、能量和单位闭合；
+2. 阈值以下源项为零，允许区有限且非负；
+3. 关闭新过程时旧路径不变；
+4. 共享损失的多种产物使用同一预算；
+5. 真实时空演化随参数连续且平滑；
+6. EATS、Doppler、红移和距离因子只应用一次；
+7. 数值差异若来自运算顺序，应同时给出性能收益与误差尺度；
+8. 上游公式本身的不连续必须明确记录，不能用后处理掩盖。
+
+物理问题先记录到 `BUG.md`。修复必须同时通过真实入口、编译和文献核对。

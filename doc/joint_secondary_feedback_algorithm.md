@@ -1,251 +1,103 @@
-# 含时二级反馈的算法契约
+# Joint 二级反馈算法契约
 
-本文档描述 `electron_photon_coupling="joint"` 的实现流程、数据结构、函数入口和验证要求。物理方程与源汇预算见 `doc/joint_secondary_feedback_physics.md`。
+`SolverOptions(electron_photon_coupling="joint")` 在同一半径网格闭合电子、光子、
+强子和二级 (e^\pm)。默认 `separated` 不改变。物理预算见
+[`joint_secondary_feedback_physics.md`](joint_secondary_feedback_physics.md)。
 
-## 1. public 接口
+> **已知缺陷**：pair state、source rate 与 radiation ownership 尚未唯一化，存在
+> 重复注入或漏乘步长风险。正式约束记录在根目录 `BUG.md` 第 3 项；本页描述当前
+> 实现，不宣称该缺陷已解决。
 
-joint 模式只新增一个 public switch：
+## 1. 支持边界
 
-```python
-SolverOptions(electron_photon_coupling="separated" | "joint")
-```
+joint 当前要求：
 
-默认值是 `separated`。`hadronic_solver="am3_1d"` 仍只表示 formal hadronic 微物理核；`electron_photon_coupling` 只控制 electron / photon / hadronic 阶段的耦合方式。
+- `fullhide_1d`、fixed substeps、`ssc_cooling_mode="numeric_ic_kn"`；
+- forward 1D top-hat/Fortran chain，无 reverse shock 和 χ transport；
+- hadronic enabled、`am3_1d`、Hummer pγ 与 BH；
+- 正 proton energy fraction。
 
-不新增 `joint_solver`、`bh_time_solver` 或类似 public 名称。后续扩展仍应复用现有 `Radiation` / `Hadronic` flags：
+不满足时在公开配置边界报错，不自动退回 separated。
 
-```text
-proton_synch
-include_pgamma
-pp
-bethe_heitler
-hadronic_inverse_compton
-pair_production
-pair_cascade_iterations
-neutrino
-```
+## 2. 两条主链
 
-## 2. separated 主链
-
-默认主链保持原语义：
+Separated：
 
 ```text
-solve_dynamics
--> solve_electron
--> build_photon_field
--> solve_hadronic
--> separated BH merge / recompute seed
--> reverse shock
--> observer assembly
+dynamics -> electron -> photon field -> hadronic
+         -> optional BH merge -> observer
 ```
 
-其中 `_mergebh` 只属于 separated 路径。该路径不能被 joint 复用为真实反馈，因为它发生在 electron solve 之后，无法改变本 shell 中电子冷却与 IC photon source。
-
-## 3. joint 主链
-
-joint 主链位于 `asgard_core/asgard_state.py::_jointstage`：
+Joint：
 
 ```text
-validate joint config
-primary_electron = solve_electron()
-photon_field = build_photon_field(primary_electron)
-
-repeat fixed small iteration count:
-    hadronic = solve_hadronic(primary_electron, photon_field)
-    photon_field = rebuild electron photon field
-    apply pγ/BH photon survival
-    secondary_source_R = assemble secondary e± source
-    add gamma-gamma pair/synch feedback when enabled
-    primary_electron = solve_coolingseed(
-        cooling_seed = photon_field.hadronic_target_seed,
-        secondary_source_R = secondary_source_R,
-    )
-    photon_field = rebuild from updated electron
-    apply secondary photon feedback for final observer state
-
-observer assembly
+dynamics -> primary electron -> photon field
+repeat fixed internal passes:
+    formal hadronic transport
+    photon survival
+    BH/pp/gamma-gamma secondary source
+    coupled electron cooling and radiation
+    rebuild photon field
+observer
 ```
 
-当前 fixed iteration count 是内部常量，不是 public convergence knob。第一版目标是 shell-level closure，而不是暴露一个可调非线性求解器接口。
+固定 pass 数是内部算法常量，不是公开 convergence knob。`_mergebh` 只属于
+separated，不能复用为本壳层反馈。
 
-## 4. 配置校验
+## 3. 状态单位
 
-`joint` 在进入主链前校验：
+`PhotonFieldState` 分开保存 forward synch seed、hadronic target、absorption seed
+和 SSC contribution。它们都是局域 photon field，不是 observer luminosity。
 
-- `electron_solver == "fullhide_1d"`。
-- 无 reverse shock。
-- 非 chi-resolved / 2D transport。
-- `structured_backend == "fortran_1d"`。
-- hadronic enabled 且 `epsilon_p > 0`。
-- `bethe_heitler=True`。
-- `hadronic_solver == "am3_1d"`。
-- `pgamma_scheme == "hummer_2010_response"`。
-- `index_y == 1`。
-- `electron_adaptive_substeps=False`。
+`HadronicSolution` 向 joint 提供：
 
-不满足这些条件时直接报错。这里的报错是系统边界校验，不是 fallback。
+- `secondary_electron_source_r(gamma,R)`：电子方程的半径源率；
+- `tau_bh(nu,R)`：当前 shell path 的 BH optical depth；
+- `bh_photon_loss_rate(nu,R)`：共动微物理损失率诊断。
 
-## 5. `PhotonFieldState` 语义
+源率到电子 state increment 的积分只能由输运层执行一次。这正是 BUG.md 所登记
+所有权问题的修复目标。
 
-`PhotonFieldState` public 字段语义保持不变：
+## 4. Proper-time 步长
 
-- `forward_syn_seed`：forward electron synchrotron seed。
-- `hadronic_forward_ssc_seed`：由 forward synch seed 计算的 SSC/IC seed contribution。
-- `hadronic_target_seed`：hadronic 和 joint electron cooling 使用的目标 photon field。
-- `absorption_syn_seed`：synchrotron absorption 使用的 seed。
-- `absorption_ssc_seed`：SSC absorption 使用的 seed。
+首输出点是零时长初态。其后使用
 
-joint 内部允许更新：
+\[
+\Delta t'_i=\frac{R_i-R_{i-1}}{2c}
+\left[\frac1{\sqrt{\Gamma_{i-1}^2-1}}+
+\frac1{\sqrt{\Gamma_i^2-1}}\right].
+\]
 
-```text
-hadronic_target_seed
-absorption_syn_seed
-absorption_ssc_seed
-hadronic_forward_ssc_seed
-```
+`R_Tobs` 仅为既有 ABI 保留，不参与局域强子推进。每个径向区间只能推进一次。
 
-但不改变字段含义。pγ/BH/gamma-gamma photon survival 作用在这些 seed field 上；pair-synch cascade source 以 seed contribution 加回。
+## 5. Electron pass
 
-## 6. radius 坐标步长
+`solve_coolingseed -> fs_fullhide_coupled` 接收 target seed 和 secondary source。
+IC cooling 与 IC photon emissivity使用同一 Jones/KN 响应。secondary source 与
+shock injection 在每个 substep 进入同一守恒方程。
 
-hadronic FS、RS 与 formal path 都不再用 observer-time shell spacing 推进粒子状态。首输出点是零时长初态；其后在相邻动力学状态之间对 (1/(\beta\Gamma)) 作梯形积分：
+## 6. Pair branch
 
-```text
-Delta t'_1 = 0
-Delta t'_i = Delta R_i/(2c) * [1/sqrt(Gamma_{i-1}^2-1) + 1/sqrt(Gamma_i^2-1)], i > 1
-```
+启用 γγ 时，吸收 photon 产生 pair source；pair 继续输运并产生同步 seed。多次
+iteration 是 shell-sequence pair/synch cascade，不包含 IC-mediated 完整电磁级联。
 
-对应实现：
+Photon survival、pair injection 和 pair synch seed 各应用一次。不得用额外 optical
+depth、壳厚或 Doppler 因子修补预算。
 
-- `src/Hadronic/hadronic_shell.f90::shell_geom`
+## 7. Observer
 
-`R_Tobs` 只为既有 f2py ABI 保留，不再参与本地强子输运。每个相邻径向区间只推进一次；首点注入定义初始 proton content，但不借用未来区间。
+joint 只改变 observer 前的局域状态。FS/RS/hadronic component 名称、吸收数组和
+最终 projection API 不变。
 
-## 7. hadronic 输出契约
+## 8. 验收门槛
 
-`HadronicSolution` 在 formal path 中增加内部字段：
+修复 BUG.md 第 3 项前必须证明：
 
-```text
-secondary_electron_source_r(gamma_e, R)
-tau_bh(nu, R)
-bh_photon_loss_rate(nu, R)
-```
+1. 每个 source 的单位和 owner 唯一；
+2. 冻结背景下 separated/joint 单步可逐数组比较；
+3. pair energy 不超过 BH/pγ/γγ 注入预算；
+4. 禁用 secondary 后回到 primary electron；
+5. shell state、辐射和 light curve 连续；
+6. electron 与 hadronic extension 强制构建并通过 line-truncation。
 
-含义：
-
-- `secondary_electron_source_r` 是已经换算为 electron equation 可直接使用的 `Q_e,secondary,R`。
-- `tau_bh` 是 BH photon loss 在当前 shell path 上的 optical depth。
-- `bh_photon_loss_rate` 保留 comoving microphysics rate，用于诊断和预算。
-
-这些字段不是新的 public solver 接口；它们是 `joint` state 内部闭合所需的正式 dataclass contract。
-
-## 8. 电子 coupled pass
-
-joint 电子入口：
-
-```text
-solve_coolingseed(...)
-  -> fs_fullhide_coupled(...)
-```
-
-Fortran entry 位于：
-
-```text
-src/Electron/electron_forward_fullhide_1d.f90
-```
-
-新增输入：
-
-```text
-Seed_cooling(num_nu, num_R)
-sec_source(num_gam_e, num_R)
-```
-
-`Seed_cooling` 用于 IC cooling。`sec_source` 以 `Q_e,secondary,R` 加到每个 shell substep 的电子源项中：
-
-```text
-dF1 = Q_e,shock + sec_source(:, I_tobs)
-```
-
-`fs_fullhide_coupled` 只接受 fixed substeps 和 `index_y=1`，因为当前预算测试依赖同一个数值 IC kernel。
-
-## 9. IC 预算 kernel
-
-IC 冷却预算 kernel 位于：
-
-```text
-src/Electron/electron_cooling_ic_kernel.f90
-electron_cooling_ic_loss_emissivity_budget
-```
-
-目的：用与 SSC emissivity 一致的 Jones/KN kernel 计算 electron IC loss。这样同一个 `N_e,n_gamma` 能同时约束：
-
-```text
-electron cooling
-IC photon production
-```
-
-该局部一致性不再保留独立脚本，joint feedback 的可执行验收收敛到端到端入口。
-
-## 10. gamma-gamma pair branch
-
-joint secondary feedback 入口：
-
-```text
-asgard_core/asgard_state.py::_jointfeedback
-```
-
-当 `pair_production=True`：
-
-```text
-solve_paircascade(photon field)
--> pair injection / photon loss
--> advance pair spectrum in shell sequence
--> compute pair synchrotron seed
--> add pair source to Q_e,secondary,R
--> apply photon survival to photon field
-```
-
-如果 `pair_cascade_iterations > 1`，使用 shell-sequence time-dependent pair/synch cascade path；否则使用 single-pass pair production branch。两条路径都只覆盖 gamma-gamma pair/synch feedback，不覆盖 IC-mediated electromagnetic cascade。
-
-## 11. observer assembly
-
-observer stage 仍在 joint forward stage 之后统一执行：
-
-```text
-_observerstage
-```
-
-hadronic luminosity components、absorption factors、reverse shock 和 final projection 的 public 输出语义不变。joint 改变的是进入 observer stage 前的 electron/photon/hadronic state，而不是 observer projection API。
-
-## 12. benchmark 入口
-
-旧含时 BH / joint Python benchmark 脚本已删除。重新建立 formal benchmark 前必须先说明要回答的物理假设，并把可复用入口放入 `tests/`。
-
-## 13. 最小验证集合
-
-Fortran 改动后：
-
-```bash
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && TMPDIR=/tmp uv run python build_extensions.py --module electron_forward_fullhide_1d --force'
-```
-
-必须额外跑 line-truncation source closure 检查，使用干净 `/tmp` module 目录。
-
-当前工作树中 joint 端到端验证会在 formal hadronic electron-energy grid contract 处失败，错误为 `electron_energy_gev must be logarithmically uniform`。修复时必须回到 hadronic input grid 契约和 joint shell state 构造，不能删除断言、跳过 formal hadronic 分支或添加 fallback。
-
-文档/格式：
-
-```bash
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && uv run python tools/check_text_encoding.py'
-rtk bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Documents/New project/ASGARD_GRBAfterglow" && git diff --check'
-```
-
-## 14. 开发边界
-
-- 不新增 public solver name 表示 joint；继续使用 `electron_photon_coupling`。
-- 不把 separated 的 BH post-merge 当成 joint feedback。
-- 不用 smoothing 修复 light curve 或 shell diagnostics。
-- 不用经验 photon sink/source 补齐 formal kernel 没有输出的项。
-- 不把 observer luminosity 直接当作 local photon density；必须先定义逃逸、体积和吸收归一化。
-- 不在没有 \(\chi\)-local photon/hadron contract 前实现 \(\chi\) 分辨 hadronic transport。
+禁止删除断言、绕过 formal transport、平滑曲线或添加经验 photon sink/source。
