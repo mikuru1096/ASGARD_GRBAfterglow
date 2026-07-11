@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 import argparse
 import csv
+from importlib.metadata import version
 import sys
 
 import matplotlib
@@ -216,7 +217,13 @@ def build_plot(times: np.ndarray, *, mode: str, medium: str, num_r: int, num_the
             for band, time, total_value, rs_value in zip(np.repeat(BANDS_HZ, times.size), np.tile(times, BANDS_HZ.size), total.ravel(), rs.ravel()):
                 writer.writerow((backend, sigma, band, time, total_value, rs_value))
     meta = environment(mode, threads=1, grid={"num_r": num_r, "num_theta": num_theta, "num_tobs": num_tobs, "times": times.size}, repeats=1)
-    meta.update({"medium": medium, "sigmas": SIGMAS, "bands_hz": BANDS_HZ.tolist(), "plot_display_floor_peak_fraction": 1.0e-8})
+    meta.update({
+        "medium": medium,
+        "sigmas": SIGMAS,
+        "bands_hz": BANDS_HZ.tolist(),
+        "vegas_version": version("VegasAfterglow"),
+        "plot_display_floor_peak_fraction": 1.0e-8,
+    })
     write_json(data_dir / f"magnetized_rs_{medium}_vegas_metadata.json", meta)
 
     for sigma in SIGMAS:

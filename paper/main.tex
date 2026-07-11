@@ -4535,29 +4535,27 @@ curves, and component outputs.  Figure~\ref{fig:electron-transport} shows the
 stored electron distribution, seed field, absorption state, and \(\chi\)-resolved
 projection quantities.  Figure~\ref{fig:reverse-shock} shows the primary RS state
 and density-jump RS registers before their flux is added to the observer total.
-Appendix Figure~\ref{fig:hadronic-feedback} shows the activation thresholds and
-survival factors for optional hadronic and pair branches.  Together these figures
+The \(pp\) gamma oracle is intentionally withheld until the official AM3 output
+is available in the locked environment.  Together the completed figures
 show traceability from \(F_\nu(t_{\rm obs})\) back to local stored quantities;
 they do not by themselves establish cross-code agreement.
 
 \subsection{Bounded validation metrics}
 
-The validation dashboard measures bounded numerical behavior for the documented
-paths.  Figure~\ref{fig:validation} uses tracked source data for four checks.
-Panel (a) compares event-split dynamics with reference \(\Gamma(R)\) and
-\(M_{\rm sw}(R)\) tracks for tabulated media and density jumps.  Panel (b)
-measures direct angular projection against a declared angular reference grid.
-Panel (c) compares the RS adaptive observer grid with the direct observer grid at
-the same frequencies.  Panel (d) records the flux change introduced by transport
-remapping in one-dimensional and two-dimensional characteristic diagnostics.
-These metrics support the numerical paths named in the captions.  They do not
+Figure~\ref{fig:validation} refines the radius, electron, photon, and observer-angle
+grids one at a time.  Each panel reports the p95 flux error of the total, FS, and
+RS components against the finest grid; horizontal lines show the difference
+between the two finest levels, which is the declared reference uncertainty.  The
+statistics use only cells above \(10^{-10}\) of the reference peak.  The same run
+records particle-number and secondary-RS energy budgets in the source tables.
+These metrics support the named numerical paths.  They do not
 validate jet spreading, custom media, non-\(k=2\) winds, \(\chi\)-resolved
 hadronic transport, or IC-mediated electromagnetic cascades.
 
 \begin{figure*}[!tp]
   \centering
   \includegraphics[width=\textwidth]{figures/fig5_validation_benchmark.pdf}
-  \caption{Validation and reproducibility dashboard.  (a) Event-split dynamics errors for tabulated and multi-jump media.  (b) Direct angular projection compared with a declared \(N_\theta^{\rm ref}\times N_\phi^{\rm ref}\) grid.  (c) Reverse-shock adaptive-grid differences relative to the direct grid.  (d) Transport-remap flux changes for one- and two-dimensional characteristic diagnostics.  The panels test documented paths only.}
+  \caption{End-to-end convergence.  Panels (a)--(d) refine the radius, electron, photon, and observer-angle grids independently.  Curves give the p95 relative error of total, FS, and RS fluxes above \(10^{-10}\) of the reference peak.  Horizontal lines give the two-finest-level reference uncertainty.}
   \label{fig:validation}
 \end{figure*}
 
@@ -4566,15 +4564,12 @@ hadronic transport, or IC-mediated electromagnetic cascades.
 
 \subsection{Cross-code benchmark evidence}
 
-The cross-code benchmark layer tests only public-output subsets with declared
-common assumptions.  The formal source tables are the FigB1, FigB2, and FigB3 CSV
-files under \texttt{paper/source\_data/}.  FigB1 is the common-minimum FS
-synchrotron case.  FigB2 separates an ASGARD--\vegas\ RS/SSC subset from a
-Gaussian off-axis FS geometry subset.  FigB3 is an ASGARD-only state dashboard
-for hadronic, pair-feedback, and \(\chi\)-resolved quantities.  Thus FigB1 and
-FigB2 audit matched public outputs, while FigB3 audits state visibility inside
-ASGARD.  Unsupported branches are written as unsupported and are not assigned an
-error value.
+The cross-code layer tests only public-output subsets with declared common
+assumptions.  Agreement statistics use jointly finite, positive radio, optical,
+and X-ray cells; SSA, VHE, and cutoff regions remain in the raw table but are not
+counted as agreement evidence.  RS/SSC statistics require both components to
+exceed \(10^{-8}\) of their own peak.  Unsupported branches remain explicit
+boundary rows and receive no error value.
 
 \begin{center}
 \refstepcounter{table}\label{tab:cross-code-capabilities}
@@ -4588,7 +4583,7 @@ error value.
 \hline
 Code & Capability and evidence map\\
 \hline
-ASGARD & Channels: FS synchrotron, FS SSC/IC, optional RS, shell-averaged hadronic and pair feedback, absorption, observer assembly.  Geometry/media: uniform medium, \(k=2\) stellar wind, tabulated medium, structured components.  States: dynamics, particles, photons, components, and diagnostics.  Evidence: Figures~\ref{fig:radius-state}--\ref{fig:validation}, Figure~\ref{fig:hadronic-feedback}, and FigB1--FigB3 source tables.  Boundaries: no \(\chi\)-resolved hadronic transport, no IC-mediated electromagnetic cascade, no jet-spreading backend, no custom medium dispatch, and no wind \(k\ne2\).\\
+ASGARD & Channels: FS synchrotron, FS SSC/IC, optional RS, shell-averaged hadronic and pair feedback, absorption, observer assembly.  Geometry/media: uniform medium, \(k=2\) stellar wind, tabulated medium, structured components.  States: dynamics, particles, photons, components, and diagnostics.  Evidence: Figures~\ref{fig:radius-state}--\ref{fig:validation} and the tracked benchmark source tables.  Boundaries: no \(\chi\)-resolved hadronic transport, no IC-mediated electromagnetic cascade, no jet-spreading backend, no custom medium dispatch, and no wind \(k\ne2\).\\
 \afterglowpy & Channels: FS synchrotron.  Geometry/media: structured jets and off-axis observers.  States: flux products, not ASGARD radius-ordered local state.  Evidence: FigB1 FS rows and FigB2 Gaussian geometry rows.  Boundaries: not used for ASGARD RS, SSC, hadronic, pair, or local-state claims.\\
 \jetsimpy & Channels: FS synchrotron.  Geometry/media: structured jets and off-axis observers.  States: flux products, not ASGARD radius-ordered local state.  Evidence: FigB1 FS rows and FigB2 Gaussian geometry rows.  Boundaries: the public branch used here does not support the ASGARD RS/SSC or local-state dashboard.\\
 \vegas & Channels: public afterglow channels exposed by the package API.  Geometry/media: public geometry and media controls exposed by the package API.  States: flux products, not ASGARD radius-ordered local state.  Evidence: FigB1 FS rows plus FigB2 RS/SSC and Gaussian geometry rows.  Boundaries: used as a matched-interface comparison, not as an ASGARD full-dynamics target.\\
@@ -4601,21 +4596,21 @@ PyBlast & Channels: public afterglow package interface.  Geometry/media: public 
 \refstepcounter{figure}\label{fig:benchmark-fs}
 \includegraphics[width=0.94\textwidth]{figures/fig6_cross_code_fs_benchmark.pdf}
 
-\small \textbf{Figure~\thefigure.} Forward-shock common-minimum benchmark.  The source table is \texttt{paper/source\_data/figB1\_cross\_code\_fs.csv}.  The rows use a top-hat, on-axis, uniform-medium FS synchrotron setup with \(1\le t_{\rm obs}\le10^8\,{\rm s}\) and \(10^8\le\nu\le2.4\times10^{26}\,{\rm Hz}\).  Panel (a) shows ASGARD broad-band light curves.  Panel (b) shows ASGARD SEDs at early, middle, and late observer times.  Panel (c) shows code/ASGARD ratios at the X-ray band for the public tools with numerical rows.  Panel (d) records wall time on the same machine and scenario.  The ratios audit matched assumptions; they do not imply that all packages share the same absorption, cutoff, or high-energy physics.
+\small \textbf{Figure~\thefigure.} Forward-shock common-minimum benchmark from \texttt{paper/source\_data/benchmarks/cross\_code/}.  Panels (a) and (b) show ASGARD light curves and SEDs; panel (c) displays X-ray ratios; panel (d) reports p95 absolute log-ratios only in the common radio, optical, and X-ray domain.  VHE, SSA, and cutoff cells are coverage boundaries, not agreement statistics.
 \end{center}
 
 \begin{center}
-\refstepcounter{figure}\label{fig:benchmark-rs-ssc-geometry}
+\refstepcounter{figure}\label{fig:benchmark-chi-eats}
 \includegraphics[width=0.94\textwidth]{figures/fig7_multiphysics_geometry_benchmark.pdf}
 
-\small \textbf{Figure~\thefigure.} Matched multi-physics and geometry benchmark subsets.  The source table is \texttt{paper/source\_data/figB2\_rs\_ssc\_geometry.csv}.  The RS/SSC subset spans \(1\le t_{\rm obs}\le10^7\,{\rm s}\) and \(10^8\le\nu\le2.4\times10^{26}\,{\rm Hz}\) for the ASGARD--\vegas\ matched top-hat setup.  Panel (a) shows an optical ASGARD component slice.  Panel (b) summarizes the median \vegas/ASGARD component ratios over the broad grid.  The Gaussian off-axis FS subset spans \(10\le t_{\rm obs}\le10^8\,{\rm s}\) and \(10^8\le\nu\le2.4\times10^{23}\,{\rm Hz}\) for ASGARD, \afterglowpy, \jetsimpy, and \vegas.  Panels (c) and (d) show the ASGARD multi-band geometry light curves and the X-ray geometry ratios.  Unsupported channels are explicit boundary rows, not failed benchmark points.
+\small \textbf{Figure~\thefigure.} \(\chi\)-resolved EATS limits and angular convergence.  Panel (a) refines \(N_\chi\), \(N_\theta\), and \(N_\phi\); panel (b) shows the corresponding error--cost frontier; panel (c) tests the SSA-dominated radio band across viewing angle.  Statistics use jointly significant time--frequency cells, and the source table records the thin-shell/one-dimensional limit.
 \end{center}
 
 \begin{center}
-\refstepcounter{figure}\label{fig:benchmark-complex-state}
+\refstepcounter{figure}\label{fig:benchmark-runtime}
 \includegraphics[width=0.94\textwidth]{figures/fig8_asgard_complex_state_dashboard.pdf}
 
-\small \textbf{Figure~\thefigure.} ASGARD complex-state dashboard.  The source table is \texttt{paper/source\_data/figB3\_asgard\_complex\_state.csv}.  Panel (a) shows local hadronic and pair-feedback state energies on the radius-ordered grid.  Panel (b) shows the \(\chi\)-resolved SSA state for the forward-shock synchrotron projection branch.  Panel (c) shows the normalized chain of \(\Gamma\), \(B'\), and electron energy.  This figure tests ASGARD state visibility and component accounting.  It is not a cross-code ratio figure.  The hadronic and pair-feedback rows are one-dimensional and shell-averaged; \(\chi\)-resolved hadronic feedback is unsupported.
+\small \textbf{Figure~\thefigure.} Cold runtime and scaling.  Panel (a) separates complete cold solve, observer projection, and warm cached query; panel (b) shows cold scaling for one and two dimensions in uniform and wind media; panel (c) gives peak resident memory.  Each formal point is the median of seven runs after one warmup; IQR and p95 remain in the source table.
 \end{center}
 
 The benchmark evidence supports only a bounded method claim.  The completed
@@ -4638,9 +4633,9 @@ deceleration, density structure, a cooling transition, angular projection, an RS
 component, SSC cooling, local absorption, or secondary particles.  ASGARD
 addresses this degeneracy by storing the radius-local state before observer
 projection mixes angular and radial contributions.  Figures~\ref{fig:radius-state}
---\ref{fig:reverse-shock} and Figure~\ref{fig:benchmark-complex-state} show the
+--\ref{fig:reverse-shock} and Figure~\ref{fig:complex-state} show the
 local records that can be inspected before a light-curve feature is interpreted.
-Figures~\ref{fig:benchmark-fs} and \ref{fig:benchmark-rs-ssc-geometry} then test
+Figures~\ref{fig:benchmark-fs} and \ref{fig:rs-ssc-geometry} then test
 only the public-output subsets whose assumptions can be matched across codes.
 This evidence supports diagnostic decomposition, not a claim that one light curve
 has a unique physical cause.
@@ -4654,8 +4649,8 @@ at the same shock radius.  The state figures show this link inside ASGARD, and
 the cross-code figures show which projected outputs can be compared to public
 codes.  This separation matters because a public flux ratio does not expose the
 local electron spectrum, photon field, or pair source that produced the flux.
-Figure~\ref{fig:benchmark-complex-state} therefore complements
-Figures~\ref{fig:benchmark-fs}--\ref{fig:benchmark-rs-ssc-geometry}: it checks
+Figure~\ref{fig:complex-state} therefore complements
+Figures~\ref{fig:benchmark-fs} and \ref{fig:rs-ssc-geometry}: it checks
 state completeness where a fair public-code ratio is not available.
 
 \subsection{Boundaries}
@@ -5134,17 +5129,24 @@ state.  If \(N_{\rm cas}>1\), the pair branch follows a shell-sequence
 \(\gamma\gamma\) pair/synchrotron cascade.  IC-mediated electromagnetic cascades
 are unsupported in the present state contract.
 
-Figure~\ref{fig:hadronic-feedback} shows the three quantities that set the scale
-of this optional branch: the target photon density, the interaction thresholds,
-and the finite-shell transfer factor.  These are diagnostics of the active
-one-dimensional branch, not evidence that every hadronic channel is enabled in
-every calculation.
+The formal \(pp\to\pi^0\to\gamma\) oracle is not included in this revision.
+Its generator requires both an official AM3 table and a parent-version delta
+table, and fails before producing an artifact when either input is absent.
+Consequently, this manuscript makes no AM3-accuracy or end-to-end BH,
+\(p\gamma\), or pair-cascade closure claim.
 
 \begin{figure*}[!tp]
   \centering
-  \includegraphics[width=\textwidth]{figures/figA1_hadronic_feedback.pdf}
-  \caption{Hadronic and pair-feedback branch record.  (a) Representative target photon field after conversion from radiation energy density to photon number density.  (b) \(p\gamma\), Bethe-Heitler, and \(\gamma\gamma\) threshold scales written from particle rest-mass energies.  (c) Pure attenuation \(e^{-\tau}\) and finite-shell transfer \((1-e^{-\tau})/\tau\).  The panels document the optional one-dimensional branch; unsupported \(\chi\)-resolved hadronic transport and IC-mediated electromagnetic cascades are not inferred from this figure.}
-  \label{fig:hadronic-feedback}
+  \includegraphics[width=\textwidth]{figures/figA3_rs_ssc_geometry_benchmark.pdf}
+  \caption{Supplementary matched RS/SSC and geometry diagnostics.  RS/SSC ratios use only the jointly active \(10^{-8}\) component windows; unsupported components remain boundary rows.  The Gaussian off-axis comparison is restricted to common finite time--frequency cells.}
+  \label{fig:rs-ssc-geometry}
+\end{figure*}
+
+\begin{figure*}[!tp]
+  \centering
+  \includegraphics[width=\textwidth]{figures/figA4_asgard_complex_state_dashboard.pdf}
+  \caption{ASGARD complex-state diagnostic.  The panels expose radius-ordered particle, radiation, and \(\chi\)-resolved transfer state.  This is a diagnostic of state visibility, not cross-code agreement or end-to-end hadronic closure.}
+  \label{fig:complex-state}
 \end{figure*}
 
 \section{Reverse-Shock Technical Details} \label{app:reverse-shock-technical}

@@ -53,7 +53,7 @@ compare = [
     "pandas==2.3.3",
     "pyblastafterglowmag",
     "uncertainties==3.2.3",
-    "vegasafterglow==2.0.5",
+    "vegasafterglow==2.0.6",
 ]
 
 [project.urls]

@@ -2,6 +2,16 @@
 
 这里只记录已经由代码路径或数值结果确认、尚未修复的问题。修复并验收后删除对应条目。
 
+## 5. Wind fullhide 2D 未回到 1D 极限
+
+在相同 wind 物理参数下，`fullhide_2d` 的薄层/1D 极限相对 `fullhide_1d` 的有效时频单元误差为 median 0.934 dex、p95 2.542 dex。同一 runtime 配置中，1D electron solve 约 0.99 s，2D electron solve 约 0.08 s；这不是可接受的 2D 加速，而是两条路径没有解同一个极限问题。
+
+修复前不得用 wind 1D/2D 的时间比宣称 scaling 收益。验收必须在相同半径、电子网格、冷却模式和投影几何下，先比较每个半径步的电子分布、同步辐射和 SSA，再比 observer flux。
+
+## 6. Skymap 1D/2D 强度不闭合到同一物理极限
+
+Skymap 像素积分与其自身 sample 总通量逐时刻精确闭合，视场也无漏光；但同一输入下 1D/2D 图像通量相差约 5--28 倍。该差异与 `fullhide_2d` 的 1D 极限失败同源，修复第 5 条之前不得把当前 1D/2D skymap 并列作为物理验证。
+
 ## 1. Detailed pp gamma 模型存在分段跳变
 
 `pp_gamma_model` 的 Geant4、SIBYLL、QGSJET 和 Pythia8 路径忠实实现 AM3/Kafexhiu 分段参数化，但模型切换点本身不连续。已测得 1、4、20 GeV 附近约 7.44%、19.88%、15.51% 的功率跳变；100 GeV 处 Geant4 约 8.53%，SIBYLL/QGSJET 更大。

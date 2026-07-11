@@ -1,0 +1,12 @@
+{
+  "schema": "asgard.numerical_validation.v1",
+  "mode": "formal",
+  "git_head": "78f6ac7d3c94d6d0b898ec58dc04979c818ddabf",
+  "python": "3.12.3 (main, Jun 19 2026, 12:46:00) [GCC 13.3.0]",
+  "platform": "Linux-6.6.114.1-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+  "threads": 1,
+  "query_shape": [
+    3,
+    48
+  ]
+}

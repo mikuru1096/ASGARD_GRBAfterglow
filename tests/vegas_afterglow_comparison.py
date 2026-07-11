@@ -462,6 +462,7 @@ def _build_asgard_model(
     epsilon_b_floor: float | None = None,
     include_hadronic: bool = False,
     scenario: str | None = None,
+    num_phi: int | None = None,
 ) -> Model:
     params = _benchmark_scenario(scenario)
     electron_solver = "fullhide_1d" if include_reverse or include_hadronic else electron_solver
@@ -494,7 +495,7 @@ def _build_asgard_model(
         num_photon_frequency=num_nu,
         num_radius=REVERSE_NUM_R if include_reverse else BASE_NUM_R,
         eats_num_theta=80,
-        eats_num_phi=24 if theta_obs > 0.0 else 1,
+        eats_num_phi=(24 if theta_obs > 0.0 else 1) if num_phi is None else num_phi,
         num_observer_time=48,
         electron_adaptive_substeps=False,
         downstream_num_chi=num_chi,
@@ -898,7 +899,7 @@ def _build_photon_quantities() -> Path:
 
 
 def _build_sky_single() -> Path:
-    model_a = _build_asgard_model()
+    model_a = _build_asgard_model(num_phi=192)
     model_v = _build_vegas_model()
     sky_a = model_a.sky_image(SINGLE_SKY_TIME, nu_obs=1.0e9, fov=500.0 * units.uas, npixel=SINGLE_SKY_NPIXEL)
     sky_v = model_v.sky_image(SINGLE_SKY_TIME, nu_obs=1.0e9, fov=500.0 * vegas_units.uas, npixel=SINGLE_SKY_NPIXEL)

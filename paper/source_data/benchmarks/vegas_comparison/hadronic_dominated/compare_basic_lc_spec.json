@@ -1,0 +1,33 @@
+{
+  "builder": "compare_basic_lc_spec",
+  "compiler": "GNU Fortran (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+  "cpu": "x86_64",
+  "git_commit": "78f6ac7d3c94d6d0b898ec58dc04979c818ddabf",
+  "git_dirty": true,
+  "grid": {
+    "frequencies": 160,
+    "num_radius": 80,
+    "times": 160
+  },
+  "mode": "formal",
+  "os": "Linux",
+  "packages": {
+    "afterglowpy": "0.8.1",
+    "jetsimpy": "0.5.0",
+    "matplotlib": "3.10.8",
+    "numpy": "2.4.4",
+    "pyblastafterglowmag": "0.0.0",
+    "scipy": "1.17.1",
+    "vegasafterglow": "2.0.6"
+  },
+  "platform": "Linux-6.6.114.1-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+  "python": "3.12.3",
+  "repeats": 1,
+  "required_packages": {
+    "VegasAfterglow": "2.0.6",
+    "matplotlib": "3.10.8",
+    "numpy": "2.4.4"
+  },
+  "scenario": "hadronic_dominated",
+  "threads": 1
+}
