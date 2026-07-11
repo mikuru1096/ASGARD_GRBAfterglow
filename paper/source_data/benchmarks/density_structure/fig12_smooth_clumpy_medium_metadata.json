@@ -2,7 +2,7 @@
   "compiler": "GNU Fortran (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
   "cpu": "x86_64",
   "decision_value": "trace the early eruptive shell through primary-RS observer flux and tracked secondary-shock branch diagnostics",
-  "git_commit": "f9e059e19285d1b079cf18c70b9277cf41f2f873",
+  "git_commit": "9997398813a56ab920fadfc42005677bc1a826b9",
   "git_dirty": true,
   "grid": {
     "num_gam_e": 81,
