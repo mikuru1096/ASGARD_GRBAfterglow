@@ -133,7 +133,7 @@ def fig2_external_media() -> None:
         ("ism", "ISM", BLUE),
         ("wind_r2", r"wind $R^{-2}$", TEAL),
         ("explicit_jump", "Gaussian jump", RED),
-        ("pion_lbv", r"PION $\eta$ Car CSM", GOLD),
+        ("pion_lbv", r"early PION $\eta$ Car CSM", GOLD),
     )
     fig, axes = plt.subplots(3, 4, figsize=(7.15, 5.0))
     fig.subplots_adjust(left=.07, right=.98, bottom=.10, top=.92, hspace=.34, wspace=.38)
@@ -145,38 +145,27 @@ def fig2_external_media() -> None:
         state_value = np.column_stack([values(state, key) for key in
                                        ("radius_cm", "density_cm3", "gamma_bulk", "bfield_g")])
         flux_value = np.column_stack([values(flux, key) for key in
-                                      ("observer_time_s", "frequency_hz", "flux_cgs")])
-        if not np.all(np.isfinite(state_value)) or not np.all(state_value > 0):
+                                      ("observer_time_s", "flux_cgs", "fs_sync_flux_cgs",
+                                       "primary_rs_sync_flux_cgs")])
+        if not np.all(np.isfinite(state_value)) or not np.all(state_value > 0.0):
             raise ValueError(f"fig2 state contains non-finite or non-positive values for {name}")
-        if not np.all(np.isfinite(flux_value)) or not np.all(flux_value > 0):
-            raise ValueError(f"fig2 flux contains non-finite or non-positive values for {name}")
+        if not np.all(np.isfinite(flux_value)) or not np.all(flux_value[:, 0] > 0.0):
+            raise ValueError(f"fig2 observer time must be finite and positive for {name}")
+        if not np.all(flux_value[:, 1] > 0.0) or np.any(flux_value[:, 2:] < 0.0):
+            raise ValueError(f"fig2 total flux must be positive and component fluxes non-negative for {name}")
         radius = state_value[:, 0]
         if name == "pion_lbv":
             raw = [row for row in table if row["medium"] == name and row["kind"] == "profile_raw"]
             interface = [row for row in table if row["medium"] == name and row["kind"] == "profile_interface"]
-            if len(raw) != 1968 or len(interface) != 96:
-                raise ValueError("fig2 PION panel requires 1968 raw rows and 96 interface rows")
+            if len(raw) != 986 or len(interface) != 96:
+                raise ValueError("fig2 PION panel requires two analytic anchors, 984 raw cells, and 96 knots")
             raw_r, raw_n = values(raw, "radius_cm"), values(raw, "density_cm3")
             interface_r, interface_n = values(interface, "radius_cm"), values(interface, "density_cm3")
-            axes[0, column].loglog(raw_r, raw_n, color=GRAY, lw=.65, alpha=.8, label="PION raw (2048)")
-            axes[0, column].loglog(
-                interface_r, interface_n, color=color, lw=1.35, ls="--", marker="o",
-                markevery=8, ms=1.8, label="ASGARD interface (96)",
-            )
-            boundary_r = float(np.max(radius))
-            for axis in axes[:2, column]:
-                axis.axvspan(boundary_r, raw_r[-1], color=LIGHT, alpha=.65, zorder=0)
-                axis.axvline(boundary_r, color=GRAY, ls=":", lw=.8)
-                axis.set_xlim(raw_r[0], raw_r[-1])
-            boundary_t = float(np.max(flux_value[:, 0]))
-            axes[2, column].axvline(boundary_t, color=GRAY, ls=":", lw=.8)
-            axes[2, column].axvspan(boundary_t, 2.5 * boundary_t, color=LIGHT, alpha=.65, zorder=0)
-            axes[2, column].set_xlim(flux_value[0, 0], 2.5 * boundary_t)
-            axes[0, column].text(
-                .97, .96, "relativistic-solver\nboundary", transform=axes[0, column].transAxes,
-                ha="right", va="top", color=GRAY, fontsize=4.8,
-            )
-            axes[0, column].legend(fontsize=4.6, loc="lower left")
+            axes[0, column].loglog(raw_r[:2], raw_n[:2], color=BLUE, lw=1.0, label="analytic free wind")
+            axes[0, column].loglog(raw_r[2:], raw_n[2:], color=GRAY, lw=.65, label="PION raw (1024)")
+            axes[0, column].loglog(interface_r, interface_n, color=color, lw=1.2, ls="--",
+                                   marker="o", markevery=8, ms=1.7, label="ASGARD (96)")
+            axes[0, column].legend(fontsize=4.4, loc="lower left")
         else:
             axes[0, column].loglog(radius, state_value[:, 1], color=color, lw=1.5)
         axes[1, column].loglog(radius, state_value[:, 2], color=BLUE, lw=1.3)
@@ -184,11 +173,15 @@ def fig2_external_media() -> None:
         field.loglog(radius, state_value[:, 3], color=TEAL, ls="--", lw=1.1)
         field.set_ylabel(r"$B'$ (G)", color=TEAL, fontsize=6)
         field.tick_params(axis="y", labelcolor=TEAL, labelsize=5)
-        axes[2, column].loglog(flux_value[:, 0], flux_value[:, 2], color=color, lw=1.4)
+        axes[2, column].loglog(flux_value[:, 0], flux_value[:, 1], color=GRAY, lw=1.4, label="total")
+        axes[2, column].loglog(flux_value[:, 0], np.ma.masked_equal(flux_value[:, 2], 0.0),
+                               color=TEAL, lw=1.15, ls="--", label="FS sync")
+        axes[2, column].loglog(flux_value[:, 0], np.ma.masked_equal(flux_value[:, 3], 0.0),
+                               color=RED, lw=1.15, ls=":", label="primary RS sync")
         panel(axes[0, column], chr(ord("a") + column))
         panel(axes[1, column], chr(ord("e") + column))
         panel(axes[2, column], chr(ord("i") + column))
-        axes[0, column].set_title(title, fontsize=7.2)
+        axes[0, column].set_title(title, fontsize=7.0)
         axes[0, column].set_ylabel(r"$n_{\rm p,eq}$ (cm$^{-3}$)" if column == 0 else "")
         axes[1, column].set_ylabel(r"$\Gamma$" if column == 0 else "")
         axes[2, column].set_ylabel(r"$F_\nu$" if column == 0 else "")
@@ -196,12 +189,7 @@ def fig2_external_media() -> None:
         axes[2, column].set_xlabel(r"$t_{\rm obs}$ (s)")
         for axis in axes[:, column]:
             axis.grid(color=LIGHT, lw=.5, which="both")
-        axes[0, column].text(.04, .08, r"$1\ n(R)$", transform=axes[0, column].transAxes,
-                             color=color, fontsize=5.5)
-        axes[1, column].text(.04, .08, r"$2\ \Gamma(R),B'(R)$",
-                             transform=axes[1, column].transAxes, color=BLUE, fontsize=5.5)
-        axes[2, column].text(.04, .08, r"$3\ F_\nu(t)$",
-                             transform=axes[2, column].transAxes, color=color, fontsize=5.5)
+    axes[2, 0].legend(fontsize=4.5, loc="lower left")
     save_pub(fig, "fig2_external_media")
 
 
@@ -415,7 +403,7 @@ def density_structure_figure(stem: str, title: str) -> None:
         else: axes[0,1].text(.55,.12+index*.1,f"event {index}: no shock",transform=axes[0,1].transAxes,color=GRAY,fontsize=5.5)
     panel(axes[0,1],"b"); finish(axes[0,1],r"$R$ (cm)","branch internal energy (erg)","Tracked event state"); axes[0,1].legend(fontsize=5)
     light=[row for row in flux if float(row["band_hz"])==1e14]
-    for key,color,line,label in (("forward_sync_flux_cgs",TEAL,"-","FS"),("reverse_sync_flux_cgs",RED,"--","secondary RS"),("total_flux_cgs",GRAY,"-.","total")): axes[1,0].loglog(values(light,"time_s"),values(light,key),color=color,ls=line,lw=1.2,label=label)
+    for key,color,line,label in (("forward_sync_flux_cgs",TEAL,"-","FS"),("reverse_sync_flux_cgs",RED,"--","primary RS"),("total_flux_cgs",GRAY,"-.","total")): axes[1,0].loglog(values(light,"time_s"),values(light,key),color=color,ls=line,lw=1.2,label=label)
     panel(axes[1,0],"c"); finish(axes[1,0],r"$t_{\rm obs}$ (s)",r"$F_\nu$",r"Components at $10^{14}$ Hz"); axes[1,0].legend(fontsize=5)
     event_energy=[row for row in energy if row["event_index"]!="total"]; x=np.arange(len(event_energy)); dissipated=values(event_energy,"secondary_rs_dissipated_energy_erg"); injected=values(event_energy,"secondary_rs_electron_injected_energy_erg")
     axes[1,1].bar(x-.16,dissipated,.32,color=RED,alpha=.8,label="dissipated"); axes[1,1].bar(x+.16,injected,.32,color=GOLD,alpha=.8,label="electron injection")
@@ -450,10 +438,45 @@ def fig11_density_jumps() -> None:
         if float(row["secondary_rs_dissipated_energy_erg"])==0: axes[1,0].text(index,positive.min()/2,"no event",ha="center",va="top",fontsize=5,color=GRAY)
     panel(axes[1,0],"c"); finish(axes[1,0],"","energy (erg)","Secondary energy deposition"); axes[1,0].legend(fontsize=5.2)
     light=[row for row in flux if float(row["band_hz"])==1.0e14]
-    for key,color,line,label in (("jump_forward_sync",TEAL,"-","FS"),("jump_reverse_sync",RED,"--","secondary RS"),("jump_total",GRAY,"-.","total")): axes[1,1].loglog(values(light,"time_s"),values(light,key),color=color,ls=line,lw=1.2,label=label)
+    for key,color,line,label in (("jump_forward_sync",TEAL,"-","FS"),("jump_reverse_sync",RED,"--","primary RS"),("jump_total",GRAY,"-.","total")): axes[1,1].loglog(values(light,"time_s"),values(light,key),color=color,ls=line,lw=1.2,label=label)
     panel(axes[1,1],"d"); finish(axes[1,1],r"$t_{\rm obs}$ (s)",r"$F_\nu$",r"Response at $10^{14}$ Hz"); axes[1,1].legend(fontsize=5.2)
     save_pub(fig,"fig11_density_jumps")
-def fig12_smooth_clumpy_medium() -> None: density_structure_figure("fig12_smooth_clumpy_medium","Smooth tabulated clumps")
+def fig12_smooth_clumpy_medium() -> None:
+    data = BENCH / "density_structure"
+    stem = "fig12_smooth_clumpy_medium"
+    profile = rows(data / f"{stem}_profile.csv")
+    dynamics = rows(data / f"{stem}_dynamics.csv")
+    events = rows(data / f"{stem}_events.csv")
+    flux = rows(data / f"{stem}_flux.csv")
+    metrics = json.loads((DATA_DIR / "csm" / "pion_eta_car_sph1d_n1024_1870_metrics.json").read_text(encoding="utf-8"))
+    analytic = [row for row in profile if row["source"] == "analytic"]
+    pion = [row for row in profile if row["source"] == "PION n1024"]
+    event0 = [row for row in dynamics if row["event_index"] == "0"]
+    light = [row for row in flux if float(row["band_hz"]) == 1.0e14]
+    if len(events) != 2 or events[0]["event_active"] != "True" or events[1]["event_active"] != "False":
+        raise ValueError("fig12 requires one active PION shell event followed by one no-event boundary")
+    fig, axes = plt.subplots(2, 2, figsize=(7.15, 4.0))
+    fig.subplots_adjust(left=.08, right=.99, bottom=.13, top=.91, wspace=.42, hspace=.48)
+    axes[0, 0].loglog(values(analytic, "radius_cm"), values(analytic, "density_cm3"), color=BLUE, lw=1.2, label="analytic free wind")
+    axes[0, 0].loglog(values(pion, "radius_cm"), values(pion, "density_cm3"), color=GRAY, lw=.8, label="PION raw (1024)")
+    axes[0, 0].axvspan(metrics["strongest_compression_front_left_cm"], metrics["strongest_compression_front_right_cm"], color=GOLD, alpha=.18)
+    axes[0, 0].axvline(metrics["shell_peak_radius_cm"], color=RED, ls=":", lw=.8, label="shell peak")
+    panel(axes[0, 0], "a"); finish(axes[0, 0], r"$R$ (cm)", r"$n_{\rm p,eq}$ (cm$^{-3}$)", "Early PION eruption CSM"); axes[0, 0].legend(fontsize=4.8)
+    radius = values(event0, "radius_cm")
+    axes[0, 1].loglog(radius, values(event0, "gamma_bulk"), color=BLUE, lw=1.3)
+    field = axes[0, 1].twinx(); field.loglog(radius, values(event0, "forward_B_g"), color=TEAL, ls="--", lw=1.1)
+    active = events[0]; axes[0, 1].axvspan(float(active["start_radius_cm"]), float(active["shock_end_radius_cm"]), color=RED, alpha=.12)
+    panel(axes[0, 1], "b"); finish(axes[0, 1], r"$R$ (cm)", r"$\Gamma$", "Dynamics and active event window"); field.set_ylabel(r"$B'$ (G)", color=TEAL)
+    for key, color, line, label in (("total_flux_cgs", GRAY, "-", "total"), ("forward_sync_flux_cgs", TEAL, "--", "FS sync"), ("reverse_sync_flux_cgs", RED, ":", "primary RS sync")):
+        value = values(light, key); axes[1, 0].loglog(values(light, "time_s"), np.ma.masked_equal(value, 0.0), color=color, ls=line, lw=1.2, label=label)
+    panel(axes[1, 0], "c"); finish(axes[1, 0], r"$t_{\rm obs}$ (s)", r"$F_\nu$", r"Observer components at $10^{14}$ Hz"); axes[1, 0].legend(fontsize=5)
+    energy = values(event0, "branch_internal_energy_erg"); luminosity = values(event0, "branch_peak_sync_spectral_luminosity")
+    axes[1, 1].loglog(radius, np.ma.masked_equal(energy, 0.0), color=RED, lw=1.25)
+    local = axes[1, 1].twinx(); local.loglog(radius, np.ma.masked_equal(luminosity, 0.0), color=GOLD, ls="--", lw=1.1)
+    axes[1, 1].axvspan(float(active["start_radius_cm"]), float(active["shock_end_radius_cm"]), color=RED, alpha=.10)
+    axes[1, 1].text(.04, .08, "candidate 1: no event", transform=axes[1, 1].transAxes, color=GRAY, fontsize=5.2)
+    panel(axes[1, 1], "d"); finish(axes[1, 1], r"$R$ (cm)", "secondary branch energy (erg)", "Tracked secondary-shock state"); local.set_ylabel("local spectral luminosity", color=GOLD, fontsize=6)
+    save_pub(fig, stem)
 
 
 def fig13_hadronic_pair_state() -> None:

@@ -41,13 +41,12 @@ Fig. 1 的浅色 GRB 场景是唯一生成式视觉资产，只承担非定量�
 `paper/source_data/fig1_visual_overview_imagegen.json`；所有文字、箭头和壳层次序仍由
 正式 Python 入口叠加。其余图件只使用已跟踪数值 source data。
 
-表格介质的 wind-termination 与 smooth-clump 响应由同一公共
-`TabulatedMedium + reverse-shock` 入口产生。正式 artifact 保存在
-`paper/source_data/benchmarks/density_structure/`，每个情景分别记录
-`*_profile.csv`、`*_dynamics.csv`、`*_events.csv`、
-`*_secondary_rs_energy.csv`、`*_flux.csv` 和 `*_metadata.json`。
-表格上升区间只提供 secondary-RS candidate；最终 `event_active` 仍由
-`reverse_contact` 与正耗散条件决定。
+表格介质的 wind-termination、Gaussian jump 与 early PION CSM 响应由同一公共
+`TabulatedMedium + reverse-shock` 入口产生。Fig. 10--11 是受控密度结构，
+Fig. 12 使用 1869.597 AD 的 PION 1024-cell 剖面及解析自由风内延。正式 artifact
+保存在 `paper/source_data/benchmarks/density_structure/`。Observer 光变只区分
+total、FS 与 primary RS；secondary RS 仅由 event、branch internal energy、耗散和
+局部同步谱光度诊断，不声称存在独立 observer secondary-RS flux。
 
 ## 目录约定
 
@@ -62,4 +61,4 @@ Fig. 1 的浅色 GRB 场景是唯一生成式视觉资产，只承担非定量�
 
 ## Circumstellar-medium source data
 
-`source_data/csm/` contains the raw 2048-cell external PION Eta Car profile, the deterministic 96-cell ASGARD interface, convergence metrics, parameter and wind-history inputs, upstream patches, hashes, and full provenance. Figure 2 deliberately distinguishes the complete simulated density profile from the shorter finite relativistic ASGARD trajectory.
+`source_data/csm/` contains the 1869.597 AD, 1024-cell PION Eta Car profile, the analytic free-wind extension from $10^{13}$ to $1.32\times10^{16}$ cm, and the deterministic 96-point ASGARD interface. `PION_PROVENANCE_1870.txt` records the run and reduction; `SHA256SUMS` covers the tracked inputs and derived tables. No 1024/2048 convergence claim is made.

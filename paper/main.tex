@@ -275,44 +275,50 @@ tables whose radii are not ordered.  These checks define the supported medium
 families, not extra physical assumptions.
 
 The fourth column of Figure~\ref{fig:external-media} replaces the illustrative
-clumps by a late-eruption circumstellar medium calculated with the modern
-radiation-hydrodynamics code PION \citep{Mackey2021PION}.  We converted
-the public PION $\eta$ Car wind-history example here to a 1D spherical
-calculation with 2048 radial cells.  Its interacting steady and eruptive LBV
-outflows follow the physical scenario of \citet{Langer1999EtaCar}.
-The ASGARD mass dynamics use the proton-equivalent density
-$n_{\rm p,eq}=\rho/m_p$; the hydrogen diagnostic for the adopted composition,
-$n_{\rm H}=0.33\rho/m_p$, is retained only in the source table.  The external
-domain begins at the first cell center outside the $1.32\times10^{16}$ cm wind
-injection sphere.  A deterministic maximum-residual reduction selects 96
-unchanged simulation cells for the public tabulated-medium interface; it does
-not smooth or refit the profile.  The maximum log-density residual is
-$8.93\times10^{-4}$ dex.  From 1024 to 2048 cells, the shell mass and principal
-structure positions change by at most 1.15 per cent, although the cellwise
-log-density $L_1$ difference is 0.0632 dex and therefore is not fully converged.
+tabulated profile with the public PION $\eta$ Car wind-history example
+\citep{Mackey2021PION}, reduced here to a 1024-cell spherical one-dimensional
+Euler radiation-hydrodynamics calculation at 1869.597 AD.  This epoch is
+11.597 yr after the 1858 transition out of the eruptive wind in the adopted
+history \citep{Langer1999EtaCar}.  No higher-resolution convergence claim is
+made; the 2048-cell rerun was stopped by user decision.
 
-Figure~\ref{fig:external-media} compares the four medium inputs with identical
-forward-shock ejecta and microphysics.  All columns start at the first PION
-interface radius and use $10^2\le t_{\rm obs}\le5\times10^5$ s.  The PION
-trajectory remains finite through its wind-termination structure.  We restrict
-the reported relativistic state to the all-finite domain ending at
-$2.491\times10^{17}$ cm; passage through the main shell at
-$2.667\times10^{17}$ cm remains outside the demonstrated solver domain.  The
-raw density panel therefore shows the complete simulated CSM, whereas the
-shaded region has no reported ASGARD $\Gamma$, $B'$, or flux solution.
+The PION calculation injects the wind at
+$R_{\rm w}=1.32\times10^{16}$ cm.  To give all four columns the same ASGARD
+initial radius, we extend the density inward to $R_0=10^{13}$ cm with the
+current free wind,
+\begin{equation}
+\begin{aligned}
+\rho_{\rm w}(R)&=\frac{\dot M}{4\pi R^2v_\infty},\\
+\dot M&=1.072\times10^{22}\ {\rm g\ s^{-1}},\\
+v_\infty&=1.8\times10^8\ {\rm cm\ s^{-1}} .
+\end{aligned}
+\end{equation}
+The first external PION cell differs from this unrenormalized free-wind density
+at the same radius by $-0.01496$ per cent.  The public tabulated interface
+contains the two analytic anchors and 94 unchanged PION cells selected by a
+deterministic maximum-residual procedure.  Its maximum log-density residual is
+$8.43\times10^{-4}$ dex; no smoothing or boundary normalization is applied.
+ASGARD uses $n_{\rm p,eq}=\rho/m_p$ for the upstream mass density.
+
+Figure~\ref{fig:external-media} uses identical ejecta, microphysics,
+$R_0=10^{13}$ cm, and $1\le t_{\rm obs}\le10^5$ s in all four columns.
+The primary reverse shock is enabled throughout.  The PION trajectory reaches
+$2.8002\times10^{16}$ cm and therefore covers both the compression front and
+the shell-density peak at $2.7974\times10^{16}$ cm.  The bottom row separately
+reports the total, forward-shock synchrotron, and primary-reverse-shock
+synchrotron fluxes.
 
 \begin{figure*}[!tp]
   \centering
   \includegraphics[width=\textwidth]{figures/fig2_external_media.pdf}
-  \caption{Forward-shock propagation through four external media with identical
-  ejecta and microphysics.  The fourth column uses the full 2048-cell PION
-  $\eta$ Car late-eruption CSM (thin gray) and the 96 unchanged cells passed to
-  ASGARD (gold dashed).  Its density panel shows the full simulation domain, but
-  $\Gamma(R)$, $B'(R)$, and the $10^{14}$ Hz light curve stop at the marked
-  relativistic-solver boundary.  The ASGARD solution crosses the wind
-  termination structure but does not calculate passage through the main
-  eruptive shell; the shaded interval is deliberately left unsolved.  All four
-  columns are forward-shock only.}
+  \caption{Common-ejecta forward- and reverse-shock calculations in four
+  external media.  The fourth density panel joins the analytic free wind
+  (blue), the 1024-cell PION profile at 1869.597 AD (gray), and the 96-point
+  ASGARD interface (gold dashed).  The middle row gives $\Gamma(R)$ and
+  $B'(R)$.  The bottom row separates total (dark gray), FS synchrotron
+  (blue-green), and primary-RS synchrotron (warm red) flux at
+  $10^{14}\,\mathrm{Hz}$.  All plotted states and fluxes lie on the common
+  finite domain $1\le t_{\rm obs}\le10^5$ s.}
   \label{fig:external-media}
 \end{figure*}
 
@@ -4148,49 +4154,48 @@ reverse-shock output is therefore a density-structure diagnostic, not a general
 reverse-shock model
 \citep{DaiLu2002,NakarGranot2007,UhmZhang2014,Laskar2016GRB160509A,Alexander2017GRB160625B,Laskar2019GRB181201A,PangDai2024OffaxisRS}.
 
-Figures~\ref{fig:wind-shell}--\ref{fig:smooth-clumps} use a common radial range,
-baseline density, and event locations to distinguish three environmental
-hypotheses.  The sequence asks whether a termination shell, discrete jumps, or a
-continuous clumpy profile produces the returned secondary-shock state and its
-observable counterpart.
+Figures~\ref{fig:wind-shell} and \ref{fig:density-jumps} retain controlled
+termination-shell and Gaussian-jump experiments.  Figure~\ref{fig:smooth-clumps}
+instead uses the same early PION profile as Figure~\ref{fig:external-media}.
+This separation distinguishes tests of prescribed structures from the response
+to an interacting eruptive-wind calculation.
 
 \begin{figure*}[!tp]
   \centering
   \includegraphics[width=\textwidth]{figures/fig10_wind_termination_shell.pdf}
-  \caption{A wind-termination transition followed by a compact-support dense shell can
-  activate a profile-defined secondary reverse shock.  The panels connect the
-  tracked tabulated \(n(R)\), the returned event window and dissipative source,
-  the FS, profile-driven RS, and total light curves, and the corresponding mass,
-  thermal, dissipated, and electron-injection energy budgets.  Activation requires
-  both a rising table interval and positive contact/dissipation criteria.  The
-  profile is a controlled numerical experiment, not a unique progenitor
-  wind-bubble reconstruction.}
+  \caption{A controlled wind-termination transition followed by a
+  compact-support dense shell.  The panels connect the prescribed $n(R)$,
+  tracked secondary-shock event and energy diagnostics, and the total, FS, and
+  primary-RS observer light curves.  A rising table interval is only a
+  candidate; activation additionally requires a physical contact root and
+  positive dissipation.}
   \label{fig:wind-shell}
 \end{figure*}
 
 \begin{figure*}[!tp]
   \centering
   \includegraphics[width=\textwidth]{figures/fig11_density_jumps.pdf}
-  \caption{Three separated Gaussian density structures produce individually traceable
-  secondary-shock events.  Panel (a) gives the tracked density input, panel (b)
-  the three returned event windows, panel (c) the dissipated and electron-injected
-  energies indexed by event and radial shell, and panel (d) the FS, secondary-RS,
-  and total response at \(10^{14}\,\mathrm{Hz}\).  Only the one-dimensional
-  \texttt{fullhide\_1d} or \texttt{dg\_1d} diagnostic path is tested;
-  SSC, hadronic feedback, and cross-zone IC remain excluded from these reservoirs.}
+  \caption{Three separated Gaussian density structures and their tracked
+  secondary-shock diagnostics.  Panel (a) gives the prescribed density, panel
+  (b) the returned event windows, panel (c) the dissipated and
+  electron-injected energies, and panel (d) the FS, primary-RS, and total
+  observer response at $10^{14}\,\mathrm{Hz}$.  The secondary-shock quantities
+  are local branch diagnostics; the reverse observer curve is the primary RS.}
   \label{fig:density-jumps}
 \end{figure*}
 
 \begin{figure*}[!tp]
   \centering
   \includegraphics[width=\textwidth]{figures/fig12_smooth_clumpy_medium.pdf}
-  \caption{A continuous tabulated clump can activate a secondary reverse shock without
-  an explicit Gaussian density structure while preserving a smooth returned state.
-  The panels connect the positive \(n(R)\) profile, the candidate and active event
-  intervals, the directly sampled dynamical/dissipative state, and the FS,
-  profile-driven RS, and total light curves.  A candidate that fails the contact
-  or positive-dissipation criterion is reported as a no-event boundary.  No
-  smoothing, artificial peak, or post-processing correction is applied.}
+  \caption{Early PION eruptive-wind CSM and its tracked shock response.  Panel
+  (a) separates the analytic free wind from the raw 1024-cell PION density and
+  marks the compression front and shell peak.  Panel (b) gives the dynamics and
+  active event window.  Panel (c) separates total, FS synchrotron, and
+  primary-RS synchrotron observer flux; no independent secondary-RS observer
+  flux is available.  Panel (d) shows only local secondary-branch internal
+  energy and synchrotron spectral-luminosity diagnostics.  Candidate 0 is
+  active from $2.7857\times10^{16}$ to $2.7974\times10^{16}$ cm, whereas
+  candidate 1 is explicitly returned as a no-event boundary.}
   \label{fig:smooth-clumps}
 \end{figure*}
 

@@ -1,22 +1,9 @@
 {
-  "active_compression_centers_cm": [
-    1000000000000000.0,
-    1e+16,
-    1e+17
-  ],
-  "baseline_density_cm3": 1.0,
-  "common_event_centers_cm": [
-    1000000000000000.0,
-    1e+16,
-    1e+17
-  ],
   "compiler": "GNU Fortran (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
   "cpu": "x86_64",
-  "decision_value": "test continuity and event attribution for three smooth tabulated clumps",
-  "density_contrast": 100.0,
-  "event_rule": "contiguous dn/dR>0 intervals are candidates; reverse_contact source must be positive",
-  "git_commit": "afff53d0739cbb22938228f3e7ead8747159267e",
-  "git_dirty": false,
+  "decision_value": "trace the early eruptive shell through primary-RS observer flux and tracked secondary-shock branch diagnostics",
+  "git_commit": "dd506fd0ec9057ba9894822d4c11bde41e27a739",
+  "git_dirty": true,
   "grid": {
     "num_gam_e": 81,
     "num_nu": 49,
@@ -26,6 +13,10 @@
     "times": 160
   },
   "mode": "formal",
+  "observer_time_domain_s": [
+    1.0,
+    120000.00000000007
+  ],
   "os": "Linux",
   "packages": {
     "afterglowpy": "0.8.1",
@@ -36,17 +27,12 @@
     "scipy": "1.17.1",
     "vegasafterglow": "2.0.6"
   },
-  "physical_assumptions": "three continuous compact-support clumps on a constant n0 baseline",
+  "physical_assumptions": "PION Eta Car spherical 1D reduction at 1869.597 AD with an analytic free-wind extension from 1e13 to 1.32e16 cm",
   "platform": "Linux-6.6.114.1-microsoft-standard-WSL2-x86_64-with-glibc2.39",
-  "profile_domain_cm": [
-    10000000000000.0,
-    3e+17
-  ],
-  "profile_points": 96,
   "python": "3.12.3",
-  "relative_width": 0.1,
   "repeats": 1,
   "scenario": "fig12",
+  "secondary_observer_flux_available": false,
   "source_data": [
     "paper/source_data/benchmarks/density_structure/fig12_smooth_clumpy_medium_profile.csv",
     "paper/source_data/benchmarks/density_structure/fig12_smooth_clumpy_medium_dynamics.csv",

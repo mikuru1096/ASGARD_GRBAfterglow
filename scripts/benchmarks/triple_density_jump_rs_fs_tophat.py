@@ -33,11 +33,13 @@ PROFILE_DOMAIN_CM = (1.0e13, 3.0e17)
 PROFILE_POINTS = 96
 PROFILE_BASE_DENSITY_CM3 = 1.0
 CSM_DIR = ROOT / "paper" / "source_data" / "csm"
-PION_RAW_PROFILE = CSM_DIR / "pion_eta_car_sph1d_n2048_external_raw.csv"
-PION_INTERFACE_PROFILE = CSM_DIR / "pion_eta_car_sph1d_n2048_external_96knots.csv"
+PION_RAW_PROFILE = CSM_DIR / "pion_eta_car_sph1d_n1024_1870_external_raw.csv"
+PION_ANALYTIC_PROFILE = CSM_DIR / "pion_eta_car_sph1d_n1024_1870_analytic_inner.csv"
+PION_INTERFACE_PROFILE = CSM_DIR / "pion_eta_car_sph1d_n1024_1870_combined_96knots.csv"
+PION_ASGARD_RADIUS_CM = 1.0e13
 PION_INJECTION_RADIUS_CM = 1.32e16
-PION_OBSERVER_TIME_MIN_S = 1.0e2
-PION_OBSERVER_TIME_MAX_S = 5.0e5
+PION_OBSERVER_TIME_MIN_S = 1.0e0
+PION_OBSERVER_TIME_MAX_S = 1.0e5
 MODE_GRIDS = {
     "quick": {"num_r": 60, "num_theta": 32, "num_tobs": 32, "num_gam_e": 41, "num_nu": 31, "times": 80},
     "formal": {"num_r": 120, "num_theta": 80, "num_tobs": 48, "num_gam_e": 81, "num_nu": 49, "times": 160},
@@ -332,29 +334,40 @@ def _secondary_cooling_tail_metrics(track, i_jump: int) -> dict[str, float | int
 
 
 def _pion_lbv_profile() -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    with PION_ANALYTIC_PROFILE.open(encoding="utf-8", newline="") as stream:
+        analytic = list(csv.DictReader(stream))
     with PION_RAW_PROFILE.open(encoding="utf-8", newline="") as stream:
         raw = list(csv.DictReader(stream))
     with PION_INTERFACE_PROFILE.open(encoding="utf-8", newline="") as stream:
         interface = list(csv.DictReader(stream))
-    raw_index = np.asarray([int(row["raw_index"]) for row in raw], dtype=int)
-    raw_r = np.asarray([float(row["r_cm"]) for row in raw], dtype=float)
-    raw_n = np.asarray([float(row["proton_equivalent_n_cm3"]) for row in raw], dtype=float)
-    interface_index = np.asarray([int(row["raw_index"]) for row in interface], dtype=int)
-    interface_r = np.asarray([float(row["r_cm"]) for row in interface], dtype=float)
+    raw_r = np.asarray(
+        [float(row["radius_cm"]) for row in analytic] + [float(row["radius_cm"]) for row in raw],
+        dtype=float,
+    )
+    raw_n = np.asarray(
+        [float(row["proton_equivalent_n_cm3"]) for row in analytic]
+        + [float(row["proton_equivalent_n_cm3"]) for row in raw],
+        dtype=float,
+    )
+    interface_r = np.asarray([float(row["radius_cm"]) for row in interface], dtype=float)
     interface_n = np.asarray([float(row["proton_equivalent_n_cm3"]) for row in interface], dtype=float)
-    if raw_r.size != 1968 or interface_r.size != PROFILE_POINTS:
-        raise RuntimeError("PION CSM source rows do not match the tracked 2048-cell external domain")
-    if raw_r[0] < PION_INJECTION_RADIUS_CM or interface_r[0] != raw_r[0]:
-        raise RuntimeError("PION CSM interface must begin at the first cell center outside the wind injection sphere")
-    if interface_r[-1] != raw_r[-1] or np.any(np.diff(raw_r) <= 0.0) or np.any(np.diff(interface_r) <= 0.0):
-        raise RuntimeError("PION CSM radius grids must share ordered endpoints")
-    if not np.all(np.isfinite(raw_n)) or not np.all(raw_n > 0.0) or not np.all(np.isfinite(interface_n)) or not np.all(interface_n > 0.0):
-        raise RuntimeError("PION proton-equivalent density must be finite and positive")
-    positions = np.searchsorted(raw_index, interface_index)
-    if np.any(positions >= raw_index.size) or not np.array_equal(raw_index[positions], interface_index):
-        raise RuntimeError("PION 96-point interface contains an index absent from the raw profile")
+    if len(analytic) != 2 or len(raw) != 984 or interface_r.size != PROFILE_POINTS:
+        raise RuntimeError("PION CSM source rows do not match the tracked 1024-cell 1870 profile")
+    if raw_r[0] != PION_ASGARD_RADIUS_CM or raw_r[1] != PION_INJECTION_RADIUS_CM:
+        raise RuntimeError("PION analytic extension must anchor ASGARD r0 and the wind injection radius")
+    if interface_r[0] != raw_r[0] or interface_r[-1] != raw_r[-1]:
+        raise RuntimeError("PION CSM interface must share the full analytic-plus-raw domain")
+    if np.any(np.diff(raw_r) <= 0.0) or np.any(np.diff(interface_r) <= 0.0):
+        raise RuntimeError("PION CSM radius grids must be strictly ordered")
+    if not np.all(np.isfinite(raw_n)) or not np.all(raw_n > 0.0):
+        raise RuntimeError("PION source density must be finite and positive")
+    if not np.all(np.isfinite(interface_n)) or not np.all(interface_n > 0.0):
+        raise RuntimeError("PION interface density must be finite and positive")
+    positions = np.searchsorted(raw_r, interface_r)
+    if np.any(positions >= raw_r.size):
+        raise RuntimeError("PION interface contains a radius absent from the analytic-plus-raw source")
     if not np.array_equal(raw_r[positions], interface_r) or not np.array_equal(raw_n[positions], interface_n):
-        raise RuntimeError("PION interface points must be unchanged raw simulation cells")
+        raise RuntimeError("PION interface points must be unchanged analytic endpoints or raw simulation cells")
     return raw_r, raw_n, interface_r, interface_n
 
 
@@ -408,17 +421,21 @@ def _write_profile_dynamics_csv(track, path: Path) -> None:
     volume = np.asarray(track.secondary_rs_branch_comoving_volume_cm3, dtype=float)
     bfield = np.asarray(track.secondary_rs_branch_B, dtype=float)
     gamma_m = np.asarray(track.secondary_rs_branch_gamma_m, dtype=float)
+    luminosity = np.asarray(track.secondary_rs_branch_luminosity_syn, dtype=float)
+    luminosity_peak = np.max(luminosity, axis=1)
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.writer(handle, lineterminator="\n")
         writer.writerow(("event_index", "radius_index", "observer_time_s", "radius_cm", "gamma_bulk",
                          "forward_B_g", "branch_swept_mass_g", "branch_internal_energy_erg",
-                         "branch_comoving_volume_cm3", "branch_B_g", "branch_gamma_m"))
+                         "branch_comoving_volume_cm3", "branch_B_g", "branch_gamma_m",
+                         "branch_peak_sync_spectral_luminosity"))
         for event in range(mass.shape[0]):
             for index in range(mass.shape[1]):
                 writer.writerow((event, index, track.t_obs[index], track.radius[index], track.Gamma[index],
                                  track.B_comv[index], mass[event, index], energy[event, index],
-                                 volume[event, index], bfield[event, index], gamma_m[event, index]))
+                                 volume[event, index], bfield[event, index], gamma_m[event, index],
+                                 luminosity_peak[event, index]))
 
 
 def _write_profile_event_csv(track, centers: tuple[float, ...], path: Path) -> None:
@@ -455,20 +472,61 @@ def build_density_structure(*, scenario: str, mode: str, data_dir: Path,
     grid = dict(MODE_GRIDS[mode])
     if times_count is not None:
         grid["times"] = int(times_count)
-    radius, density, centers = _tabulated_profile(scenario)
-    model = _model(with_jumps=False, grid=grid, medium=TabulatedMedium(radius, density, scenario))
-    times = np.logspace(0.0, 8.0, grid["times"])
+    if scenario == "fig12":
+        raw_r, raw_n, radius, density = _pion_lbv_profile()
+        rising = np.diff(density) > 0.0
+        ends = np.flatnonzero(rising & np.r_[~rising[1:], True]) + 1
+        centers = tuple(float(radius[index]) for index in ends)
+        model = _model(
+            with_jumps=False,
+            grid=grid,
+            medium=TabulatedMedium(radius, density, "Early PION eruption CSM"),
+            initial_radius_cm=PION_ASGARD_RADIUS_CM,
+            observer_time_min_s=1.0,
+            observer_time_max_s=1.2e5,
+            reverse_enabled=True,
+        )
+        times = np.logspace(0.0, np.log10(1.2e5), grid["times"])
+        name = "fig12_smooth_clumpy_medium"
+    else:
+        radius, density, centers = _tabulated_profile(scenario)
+        raw_r, raw_n = radius, density
+        model = _model(with_jumps=False, grid=grid, medium=TabulatedMedium(radius, density, scenario))
+        times = np.logspace(0.0, 8.0, grid["times"])
+        name = "fig10_wind_termination_shell"
+
     flux = model.flux_density_grid(times, BANDS_HZ)
     details = model.details(float(times[0]), float(times[-1]))
     if details.rev is None or details.rev.secondary_rs_event_active is None:
         raise RuntimeError("tabulated density benchmark requires secondary RS diagnostics")
-    name = {"fig10": "fig10_wind_termination_shell", "fig12": "fig12_smooth_clumpy_medium"}[scenario]
+    state = np.column_stack((
+        details.rev.radius, details.rev.t_obs, details.rev.Gamma, details.rev.B_comv,
+    ))
+    if not np.all(np.isfinite(state)) or not np.all(state > 0.0):
+        raise RuntimeError(f"{scenario} contains a non-finite or non-positive dynamical state")
+    total = np.asarray(flux.total, dtype=float)
+    fs_sync = np.asarray(flux.fwd.sync, dtype=float)
+    primary_rs_sync = np.asarray(flux.rev.sync, dtype=float)
+    if not np.all(np.isfinite(total)) or not np.all(total > 0.0):
+        raise RuntimeError(f"{scenario} total flux must be finite and positive")
+    for component, value in (("FS", fs_sync), ("primary RS", primary_rs_sync)):
+        if not np.all(np.isfinite(value)) or np.any(value < 0.0):
+            raise RuntimeError(f"{scenario} {component} flux must be finite and non-negative")
+
     stem = data_dir / name
     profile_path = stem.with_name(name + "_profile.csv")
     dynamics_path = stem.with_name(name + "_dynamics.csv")
     event_path = stem.with_name(name + "_events.csv")
     flux_path = stem.with_name(name + "_flux.csv")
-    _write_profile_csv(profile_path, radius, density)
+    if scenario == "fig12":
+        profile_path.parent.mkdir(parents=True, exist_ok=True)
+        with profile_path.open("w", encoding="utf-8", newline="") as handle:
+            writer = csv.writer(handle, lineterminator="\n")
+            writer.writerow(("source", "radius_cm", "density_cm3"))
+            for index, (value_r, value_n) in enumerate(zip(raw_r, raw_n)):
+                writer.writerow(("analytic" if index < 2 else "PION n1024", value_r, value_n))
+    else:
+        _write_profile_csv(profile_path, radius, density)
     _write_profile_dynamics_csv(details.rev, dynamics_path)
     _write_profile_event_csv(details.rev, centers, event_path)
     energy_path = _write_secondary_energy_csv(details, model, stem)
@@ -476,22 +534,24 @@ def build_density_structure(*, scenario: str, mode: str, data_dir: Path,
     meta = environment(mode, threads=1, grid=grid, repeats=1)
     meta.update({
         "scenario": scenario,
-        "physical_assumptions": ("wind R^-2 to n0 plateau, finite compact-support shell, then n0 plateau"
-                                 if scenario == "fig10"
-                                 else "three continuous compact-support clumps on a constant n0 baseline"),
-        "decision_value": ("isolate the secondary-shock response of a wind termination plus finite shell"
-                           if scenario == "fig10"
-                           else "test continuity and event attribution for three smooth tabulated clumps"),
-        "profile_domain_cm": PROFILE_DOMAIN_CM,
-        "profile_points": PROFILE_POINTS,
-        "baseline_density_cm3": PROFILE_BASE_DENSITY_CM3,
-        "common_event_centers_cm": JUMP_RADII_CM,
-        "active_compression_centers_cm": centers,
-        "density_contrast": JUMP_FACTOR,
-        "relative_width": JUMP_WIDTH_REL,
-        "event_rule": "contiguous dn/dR>0 intervals are candidates; reverse_contact source must be positive",
-        "source_data": [str(profile_path), str(dynamics_path), str(event_path),
-                        str(energy_path), str(flux_path)],
+        "physical_assumptions": (
+            "PION Eta Car spherical 1D reduction at 1869.597 AD with an analytic free-wind "
+            "extension from 1e13 to 1.32e16 cm"
+            if scenario == "fig12"
+            else "wind R^-2 to n0 plateau, finite compact-support shell, then n0 plateau"
+        ),
+        "decision_value": (
+            "trace the early eruptive shell through primary-RS observer flux and tracked "
+            "secondary-shock branch diagnostics"
+            if scenario == "fig12"
+            else "isolate the secondary-shock response of a wind termination plus finite shell"
+        ),
+        "observer_time_domain_s": [float(times[0]), float(times[-1])],
+        "secondary_observer_flux_available": False if scenario == "fig12" else None,
+        "source_data": [
+            f"paper/source_data/benchmarks/density_structure/{path.name}"
+            for path in (profile_path, dynamics_path, event_path, energy_path, flux_path)
+        ],
     })
     metadata_path = stem.with_name(name + "_metadata.json")
     write_json(metadata_path, meta)
@@ -512,10 +572,10 @@ def build_external_media(*, mode: str, data_dir: Path, times_count: int | None =
     )
     common = {
         "grid": grid,
-        "initial_radius_cm": float(profile_r[0]),
+        "initial_radius_cm": PION_ASGARD_RADIUS_CM,
         "observer_time_min_s": PION_OBSERVER_TIME_MIN_S,
         "observer_time_max_s": PION_OBSERVER_TIME_MAX_S,
-        "reverse_enabled": False,
+        "reverse_enabled": True,
     }
     models = {
         "ism": _model(with_jumps=False, **common),
@@ -541,7 +601,8 @@ def build_external_media(*, mode: str, data_dir: Path, times_count: int | None =
     with csv_path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.writer(handle, lineterminator="\n")
         writer.writerow(("medium", "kind", "radius_index", "radius_cm", "density_cm3",
-                         "observer_time_s", "gamma_bulk", "bfield_g", "frequency_hz", "flux_cgs"))
+                         "observer_time_s", "gamma_bulk", "bfield_g", "frequency_hz",
+                         "flux_cgs", "fs_sync_flux_cgs", "primary_rs_sync_flux_cgs"))
         for label, model in models.items():
             flux = model.flux_density_grid(times, np.array([1.0e14]))
             track = model.details(float(times[0]), float(times[-1])).fwd
@@ -549,11 +610,16 @@ def build_external_media(*, mode: str, data_dir: Path, times_count: int | None =
             state_value = np.column_stack(
                 (track.radius, density, track.t_obs, track.Gamma, track.B_comv)
             )
-            flux_value = np.asarray(flux.total, dtype=float)
+            total_flux = np.asarray(flux.total, dtype=float)
+            fs_sync = np.asarray(flux.fwd.sync, dtype=float)
+            primary_rs_sync = np.asarray(flux.rev.sync, dtype=float)
             if not np.all(np.isfinite(state_value)) or not np.all(state_value > 0.0):
                 raise RuntimeError(f"non-finite or non-positive {label} forward-shock state")
-            if not np.all(np.isfinite(flux_value)) or not np.all(flux_value > 0.0):
-                raise RuntimeError(f"non-finite or non-positive {label} forward-shock flux")
+            if not np.all(np.isfinite(total_flux)) or not np.all(total_flux > 0.0):
+                raise RuntimeError(f"non-finite or non-positive {label} total flux")
+            for component, value in (("FS synchrotron", fs_sync), ("primary-RS synchrotron", primary_rs_sync)):
+                if not np.all(np.isfinite(value)) or np.any(value < 0.0):
+                    raise RuntimeError(f"non-finite or negative {label} {component} flux")
             if label == "pion_lbv":
                 if np.min(track.radius) < raw_r[0] or np.max(track.radius) > raw_r[-1]:
                     raise RuntimeError(
@@ -563,41 +629,44 @@ def build_external_media(*, mode: str, data_dir: Path, times_count: int | None =
                     )
                 for index, radius in enumerate(raw_r):
                     writer.writerow((label, "profile_raw", index, radius, raw_n[index],
-                                     "", "", "", "", ""))
+                                     "", "", "", "", "", "", ""))
                 for index, radius in enumerate(profile_r):
                     writer.writerow((label, "profile_interface", index, radius, profile_n[index],
-                                     "", "", "", "", ""))
+                                     "", "", "", "", "", "", ""))
             for index, radius in enumerate(track.radius):
                 writer.writerow((label, "state", index, radius, density[index], track.t_obs[index],
-                                 track.Gamma[index], track.B_comv[index], "", ""))
+                                 track.Gamma[index], track.B_comv[index], "", "", "", ""))
             for index, time in enumerate(times):
-                writer.writerow((label, "flux", "", "", "", time, "", "", 1.0e14, flux.total[0, index]))
+                writer.writerow((label, "flux", "", "", "", time, "", "", 1.0e14,
+                                 total_flux[0, index], fs_sync[0, index],
+                                 primary_rs_sync[0, index]))
 
     meta = environment(mode, threads=1, grid=grid, repeats=1)
     meta.update({
         "physical_assumptions": (
-            "FS-only comparison with the same top-hat ejecta and microphysics for a uniform ISM, "
-            "R^-2 wind, one explicit Gaussian density jump, and the PION Eta Car spherical-reduction "
-            "late-eruption CSM; primary reverse shock disabled in all four columns"
+            "Primary reverse shock enabled in all four columns with identical top-hat ejecta and "
+            "microphysics. The PION column uses the 1869.597 AD spherical 1D reduction at 1024-cell "
+            "resolution plus an analytic free-wind extension from 1e13 to 1.32e16 cm."
         ),
-        "decision_value": "trace n(R) into Gamma(R), B'(R), and the 1e14 Hz forward observer light curve",
+        "decision_value": (
+            "trace n(R) into Gamma(R), B'(R), and the 1e14 Hz total, FS synchrotron, and "
+            "primary-RS synchrotron observer light curves"
+        ),
         "frequency_hz": 1.0e14,
         "explicit_jump_radius_cm": JUMP_RADII_CM[2],
-        "common_initial_radius_cm": float(profile_r[0]),
+        "common_initial_radius_cm": PION_ASGARD_RADIUS_CM,
         "observer_time_min_s": PION_OBSERVER_TIME_MIN_S,
         "observer_time_domain_s": [float(times[0]), float(times[-1])],
         "pion_raw_radius_domain_cm": [float(raw_r[0]), float(raw_r[-1])],
         "pion_injection_radius_cm": PION_INJECTION_RADIUS_CM,
+        "pion_boundary_fractional_error": -1.4958532550046755e-4,
         "pion_density_column": "proton_equivalent_n_cm3 = rho_g_cm3 / m_p",
-        "pion_hydrogen_diagnostic": "nH_X033_cm3 = 0.33 rho_g_cm3 / m_p; not passed to ASGARD dynamics",
-        "pion_resolution": "1D spherical, 2048 cells; external-domain raw rows=1968; interface knots=96",
-        "pion_convergence": (
-            "structure positions and shell mass converge from 1024 to 2048, but cellwise "
-            "log-density L1=0.0632 dex exceeds the 0.05-dex threshold; not fully converged"
-        ),
+        "pion_resolution": "spherical 1D reduction, 1024 cells; analytic anchors=2; raw external rows=984; interface knots=96",
+        "pion_convergence": "n2048 run terminated by user decision; no 1024/2048 convergence claim",
         "pion_formal_angle_patch_dependency": False,
         "source_data": [
-            str(csv_path),
+            "paper/source_data/fig2_external_media_response.csv",
+            str(PION_ANALYTIC_PROFILE.relative_to(ROOT)),
             str(PION_RAW_PROFILE.relative_to(ROOT)),
             str(PION_INTERFACE_PROFILE.relative_to(ROOT)),
         ],

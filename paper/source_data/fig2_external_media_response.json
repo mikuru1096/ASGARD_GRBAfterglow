@@ -1,12 +1,12 @@
 {
-  "common_initial_radius_cm": 1.332495117188e+16,
+  "common_initial_radius_cm": 10000000000000.0,
   "compiler": "GNU Fortran (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
   "cpu": "x86_64",
-  "decision_value": "trace n(R) into Gamma(R), B'(R), and the 1e14 Hz forward observer light curve",
+  "decision_value": "trace n(R) into Gamma(R), B'(R), and the 1e14 Hz total, FS synchrotron, and primary-RS synchrotron observer light curves",
   "explicit_jump_radius_cm": 1e+17,
   "frequency_hz": 100000000000000.0,
-  "git_commit": "4294c240d05eed6f3ac1b0dded194b9504d5eebc",
-  "git_dirty": false,
+  "git_commit": "dd506fd0ec9057ba9894822d4c11bde41e27a739",
+  "git_dirty": true,
   "grid": {
     "num_gam_e": 81,
     "num_nu": 49,
@@ -17,10 +17,10 @@
   },
   "mode": "formal",
   "observer_time_domain_s": [
-    100.0,
-    499999.99999999994
+    1.0,
+    100000.0
   ],
-  "observer_time_min_s": 100.0,
+  "observer_time_min_s": 1.0,
   "os": "Linux",
   "packages": {
     "afterglowpy": "0.8.1",
@@ -31,24 +31,25 @@
     "scipy": "1.17.1",
     "vegasafterglow": "2.0.6"
   },
-  "physical_assumptions": "FS-only comparison with the same top-hat ejecta and microphysics for a uniform ISM, R^-2 wind, one explicit Gaussian density jump, and the PION Eta Car spherical-reduction late-eruption CSM; primary reverse shock disabled in all four columns",
-  "pion_convergence": "structure positions and shell mass converge from 1024 to 2048, but cellwise log-density L1=0.0632 dex exceeds the 0.05-dex threshold; not fully converged",
+  "physical_assumptions": "Primary reverse shock enabled in all four columns with identical top-hat ejecta and microphysics. The PION column uses the 1869.597 AD spherical 1D reduction at 1024-cell resolution plus an analytic free-wind extension from 1e13 to 1.32e16 cm.",
+  "pion_boundary_fractional_error": -0.00014958532550046755,
+  "pion_convergence": "n2048 run terminated by user decision; no 1024/2048 convergence claim",
   "pion_density_column": "proton_equivalent_n_cm3 = rho_g_cm3 / m_p",
   "pion_formal_angle_patch_dependency": false,
-  "pion_hydrogen_diagnostic": "nH_X033_cm3 = 0.33 rho_g_cm3 / m_p; not passed to ASGARD dynamics",
   "pion_injection_radius_cm": 1.32e+16,
   "pion_raw_radius_domain_cm": [
-    1.332495117188e+16,
-    3.389172363281e+17
+    10000000000000.0,
+    3.388344726562e+17
   ],
-  "pion_resolution": "1D spherical, 2048 cells; external-domain raw rows=1968; interface knots=96",
+  "pion_resolution": "spherical 1D reduction, 1024 cells; analytic anchors=2; raw external rows=984; interface knots=96",
   "platform": "Linux-6.6.114.1-microsoft-standard-WSL2-x86_64-with-glibc2.39",
   "python": "3.12.3",
   "repeats": 1,
   "source_data": [
     "paper/source_data/fig2_external_media_response.csv",
-    "paper/source_data/csm/pion_eta_car_sph1d_n2048_external_raw.csv",
-    "paper/source_data/csm/pion_eta_car_sph1d_n2048_external_96knots.csv"
+    "paper/source_data/csm/pion_eta_car_sph1d_n1024_1870_analytic_inner.csv",
+    "paper/source_data/csm/pion_eta_car_sph1d_n1024_1870_external_raw.csv",
+    "paper/source_data/csm/pion_eta_car_sph1d_n1024_1870_combined_96knots.csv"
   ],
   "threads": 1
 }
