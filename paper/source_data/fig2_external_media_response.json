@@ -5,8 +5,8 @@
   "decision_value": "trace n(R) into Gamma(R), B'(R), and the 1e14 Hz forward observer light curve",
   "explicit_jump_radius_cm": 1e+17,
   "frequency_hz": 100000000000000.0,
-  "git_commit": "db412c51be1d813aa5f64e204befe07443b32909",
-  "git_dirty": true,
+  "git_commit": "4294c240d05eed6f3ac1b0dded194b9504d5eebc",
+  "git_dirty": false,
   "grid": {
     "num_gam_e": 81,
     "num_nu": 49,
