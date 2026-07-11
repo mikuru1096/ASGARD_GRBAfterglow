@@ -15,8 +15,8 @@
   "decision_value": "test continuity and event attribution for three smooth tabulated clumps",
   "density_contrast": 100.0,
   "event_rule": "contiguous dn/dR>0 intervals are candidates; reverse_contact source must be positive",
-  "git_commit": "4a6928dbe2d20bd3d33cee10f4ec82fa57f4e76b",
-  "git_dirty": true,
+  "git_commit": "afff53d0739cbb22938228f3e7ead8747159267e",
+  "git_dirty": false,
   "grid": {
     "num_gam_e": 81,
     "num_nu": 49,
