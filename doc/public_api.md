@@ -404,6 +404,7 @@ hadronic = Hadronic(
     num_neutrino_frequency=121,
     pgamma_scheme="disabled",
     pair_cascade_iterations=1,
+    pp_gamma_model="delta",
 )
 ```
 
@@ -414,6 +415,7 @@ hadronic = Hadronic(
 | `num_proton_gamma` | int | 质子能量网格。 | formal 强子结果需做网格收敛。 |
 | `num_neutrino_frequency` | int | neutrino 频率网格。 | 只影响 neutrino 输出。 |
 | `pgamma_scheme` | `disabled`, `hummer_2010_response` | p-gamma 过程核。 | joint feedback 要求 `hummer_2010_response`。 |
+| `pp_gamma_model` | `delta`, `geant4`, `sibyll`, `qgsjet`, `pythia8` | π⁰ 衰变 gamma 谱模型。 | 默认 `delta`；详细模型不改变 pp 质子损失、中微子或二级 pairs。 |
 | `pair_cascade_iterations` | 正整数 | \(\gamma\gamma\) pair/synch cascade 迭代。 | `>1` 使用 shell-sequence time-dependent pair/synch cascade；IC-mediated cascade 未实现。 |
 
 强子路径不支持 2D/\(\chi\) 局域 hadronic transport。若 `electron_solver` 是 2D，不要把 hadronic 输出解释成 \(\chi\)-local 反馈。

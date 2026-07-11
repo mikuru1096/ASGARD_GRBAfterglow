@@ -1160,6 +1160,7 @@ def _hummertransport(
         1 if bool(config.hadronic.include_bethe_heitler) else 0,
         1 if bool(config.hadronic.include_hadronic_inverse_compton) else 0,
         1 if bool(config.hadronic.include_pp) else 0,
+        int(config.hadronic.pp_model),
         1 if bool(config.hadronic.quantum_syn) else 0,
         int(config.num_threads),
         num_gam_p,

@@ -151,7 +151,6 @@ HADRONIC_COMMON_SOURCES = (
     "hadronic_hummer.f90",
     "../Electron/electron_radiation_kernel.f90",
     "hadronic_cascade.f90",
-    "pp_models.f90",
     "hadronic_shell.f90",
 )
 HADRONIC_1D_SOURCES = (
@@ -196,7 +195,6 @@ STRUCTURED_JET_1D_SOURCES = (
     "../Hadronic/hadronic_decay.f90",
     "../Hadronic/hadronic_hummer.f90",
     "../Hadronic/hadronic_cascade.f90",
-    "../Hadronic/pp_models.f90",
     "../Dynamics/Dynamics_forward.f90",
     "../Dynamics/reverse_jump_conditions.f90",
     "../Dynamics/reverse_rhs.f90",

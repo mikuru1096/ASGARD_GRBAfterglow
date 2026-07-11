@@ -70,6 +70,7 @@
 | `fullhide2d_transport_model` | `legacy`, `pwn_cr_v1` | 选择 2D transport 研究路径。 | 普通 afterglow 使用 `legacy`。 |
 | `projection_adaptive_rtol` / `projection_adaptive_max_depth` | 正数 / 非负整数 | 控制 `sed_adaptive_theta` 的角向积分误差阈值和最大递归深度。 | 只控制 observer projection quadrature，不改变动力学、电子输运或强子源项。 |
 | `pair_cascade_iterations` | 正整数 | `1` 为低层诊断路径；`>1` 为 shell-sequence 含时 pair/synch cascade。 | IC-mediated cascade 边界仍按 TODO 记录，不要过度解释为完整 EM cascade。 |
+| `pp_gamma_model` | `delta`, `geant4`, `sibyll`, `qgsjet`, `pythia8` | 选择 pp 的 π⁰ gamma 谱；默认 `delta`。 | 详细模型只改变 gamma 分量，其他 pp 二级产物仍用现有 delta 链。 |
 
 网格加密应服务明确问题：例如峰时定位、谱断点解析、\(\chi\) 投影收敛或强子能量预算。不要为了填满表格做低信息增益扫描。
 

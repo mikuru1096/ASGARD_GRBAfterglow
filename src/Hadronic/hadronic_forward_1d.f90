@@ -78,7 +78,7 @@ subroutine pp_shell(Num_p,proton_energy_gev,proton_density_per_gev,target_proton
 
     call pp_delta(Num_p, proton_energy_gev, proton_density_per_gev, &
         target_proton_density_cm3, Num_gamma, gamma_energy_gev, nnu, neutrino_energy_gev, Num_pair, &
-        pair_energy_gev, kappa_inelastic, pion_energy_fraction, neutral_pion_fraction, gamma_rate_per_gev, &
+        pair_energy_gev, kappa_inelastic, pion_energy_fraction, neutral_pion_fraction, -1, gamma_rate_per_gev, &
         neutrino_rate_per_gev, pair_rate_per_gev, ploss)
 end subroutine pp_shell
 ! Python/f2py ABI wrapper; the shell implementation lives in hadronic_shell.
@@ -369,7 +369,7 @@ end subroutine hadronic_1d
 subroutine formal_transport_1d(R_Tobs,R_Gamma,R,B_field_g,V_seed,Seed_target,gamma_e, &
         shell_energy_inj_erg,pp_target_density_cm3,p_p,eta_acc,index_syn_integr,include_proton_synch, &
         include_pg,include_neutrino,include_bethe_heitler,include_hadronic_inverse_compton,include_pp, &
-        quantum_syn,n_threads,nnu,Num_R,Num_e,num_gam_p,num_nu_nu,gam_p,gam_secondary,dN_gam_p, &
+        pp_gamma_model,quantum_syn,n_threads,nnu,Num_R,Num_e,num_gam_p,num_nu_nu,gam_p,gam_secondary,dN_gam_p, &
         P_had_syn,Seed_had_syn,P_had_pg_gamma,V_nu,P_nu_all,P_had_bh,Seed_had_bh,dN_gam_e_bh, &
         secondary_electron_source_r,tau_bh,bh_phloss,P_had_hic,dN_gam_n,dN_gam_pi_plus, &
         dN_gam_pi_minus,dN_gam_mu_minus_left,dN_gam_mu_minus_right,dN_gam_mu_plus_left, &
@@ -378,7 +378,8 @@ subroutine formal_transport_1d(R_Tobs,R_Gamma,R,B_field_g,V_seed,Seed_target,gam
     use hadronic_formal, only: formal_transport
     implicit none
     integer, intent(in) :: index_syn_integr,include_proton_synch,include_pg,include_neutrino
-    integer, intent(in) :: include_bethe_heitler,include_hadronic_inverse_compton,include_pp,quantum_syn,n_threads
+    integer, intent(in) :: include_bethe_heitler,include_hadronic_inverse_compton,include_pp,pp_gamma_model
+    integer, intent(in) :: quantum_syn,n_threads
     integer, intent(in) :: nnu,Num_R,Num_e,num_gam_p,num_nu_nu
     real(8), intent(in), dimension(Num_R) :: R_Tobs,R_Gamma,R,B_field_g
     real(8), intent(in), dimension(nnu) :: V_seed
@@ -410,7 +411,7 @@ subroutine formal_transport_1d(R_Tobs,R_Gamma,R,B_field_g,V_seed,Seed_target,gam
 
     call formal_transport(R_Tobs,R_Gamma,R,B_field_g,V_seed,Seed_target,gamma_e, &
         shell_energy_inj_erg,pp_target_density_cm3,p_p,eta_acc,index_syn_integr,include_proton_synch,include_pg, &
-        include_neutrino,include_bethe_heitler,include_hadronic_inverse_compton,include_pp,quantum_syn, &
+        include_neutrino,include_bethe_heitler,include_hadronic_inverse_compton,include_pp,pp_gamma_model,quantum_syn, &
         n_threads,nnu,Num_R,Num_e,num_gam_p,num_nu_nu,gam_p,gam_secondary,dN_gam_p,P_had_syn,Seed_had_syn, &
         P_had_pg_gamma,V_nu,P_nu_all,P_had_bh,Seed_had_bh,dN_gam_e_bh,secondary_electron_source_r,tau_bh, &
         bh_phloss,P_had_hic,dN_gam_n,dN_gam_pi_plus,dN_gam_pi_minus,dN_gam_mu_minus_left, &

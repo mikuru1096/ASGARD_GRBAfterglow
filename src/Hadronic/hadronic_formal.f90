@@ -10,7 +10,7 @@ contains
 subroutine formal_transport(tobs,gbulk,radius,bfield,nuseed,seed,ge, &
         einj,ppdens,pidx,eta,synidx,do_psyn, &
         do_pg,do_nu,do_bh,do_hic,do_pp, &
-        qsyn,nth,nnu,nr,ne,ngp,nout,gp,gsec,dnp, &
+        ppmodel,qsyn,nth,nnu,nr,ne,ngp,nout,gp,gsec,dnp, &
         psyn,ssyn,pgam,nuout,pnu,pbh,sbh,dnebh, &
         qesrc,taubh,bhloss_ph,phic,dnn,dnpip, &
         dnpim,dnmuml,dnmumr,dnmupl, &
@@ -25,7 +25,7 @@ subroutine formal_transport(tobs,gbulk,radius,bfield,nuseed,seed,ge, &
     use hadronic_transport, only: proton_inject
     implicit none
     integer, intent(in) :: synidx,do_psyn,do_pg,do_nu
-    integer, intent(in) :: do_bh,do_hic,do_pp,qsyn,nth
+    integer, intent(in) :: do_bh,do_hic,do_pp,ppmodel,qsyn,nth
     integer, intent(in) :: nnu,nr,ne,ngp,nout
     real(8), intent(in), dimension(nr) :: tobs,gbulk,radius,bfield
     real(8), intent(in), dimension(nnu) :: nuseed
@@ -180,7 +180,7 @@ subroutine formal_transport(tobs,gbulk,radius,bfield,nuseed,seed,ge, &
         if (do_pp /= 0) then
             call pp_delta(ngp,ehad,pdens,ppdens(ir), &
                                             nnu,eph,nout,enu,ne,ee, &
-                                            0.5d0,0.17d0,1d0/3d0,qppg,qppnu,qpp, &
+                                            0.5d0,0.17d0,1d0/3d0,ppmodel,qppg,qppnu,qpp, &
                                             pploss)
             if (any(pploss > 0d0)) error stop "pp proton loss rate must be non-positive."
             ppploss=-pploss

@@ -22,11 +22,11 @@ contains
 ! Single-shell pp delta-approximation wrapper.
 subroutine pp_delta(Num_p,ep,pden,ntarget, &
                                       Num_gamma,egam,Num_nu,enu,Num_pair,epair, &
-                                      kappa,fpion,fneutral,qgam, &
+                                      kappa,fpion,fneutral,model,qgam, &
                                       qnu,qpair,ploss)
     use hadronic_pp, only: pp_source
     implicit none
-    integer, intent(in) :: Num_p,Num_gamma,Num_nu,Num_pair
+    integer, intent(in) :: Num_p,Num_gamma,Num_nu,Num_pair,model
     real(8), intent(in), dimension(Num_p) :: ep,pden
     real(8), intent(in) :: ntarget
     real(8), intent(in), dimension(Num_gamma) :: egam
@@ -40,7 +40,7 @@ subroutine pp_delta(Num_p,ep,pden,ntarget, &
 
     call pp_source(Num_p,ep,pden,ntarget, &
                    Num_gamma,egam,Num_nu,enu,Num_pair,epair, &
-                   qgam,qnu,qpair,ploss, &
+                   model,qgam,qnu,qpair,ploss, &
                    kappa,fpion,fneutral)
 end subroutine pp_delta
 

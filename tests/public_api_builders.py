@@ -108,6 +108,7 @@ def hadronic(**updates) -> Hadronic:
         num_neutrino_frequency=121,
         pgamma_scheme="disabled",
         pair_cascade_iterations=1,
+        pp_gamma_model="delta",
     ) | updates))
 
 

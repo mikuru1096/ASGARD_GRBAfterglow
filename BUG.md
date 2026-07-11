@@ -1,5 +1,16 @@
 # 未修复缺陷
 
+## pp detailed gamma 模型存在固有分段跳变
+
+- Kafexhiu et al. (2014) 与 AM3 `ProtonProton` 的分段谱形在 1、4、20 GeV
+  及高能模型切换点并不连续；直接算例得到约 7.4%、19.9%、15.5% 的共同
+  Geant4 功率跳变，100 GeV 的 SIBYLL/QGSJET 跳变约 11.4%/44.5%。
+- 这些跳变来自上游参数化，不能通过 smoothing、clamp 或事后归一化掩盖。
+  `Hadronic.pp_gamma_model` 因此默认使用连续的 `delta` 路径；`geant4`、
+  `sibyll`、`qgsjet` 与 `pythia8` 仅作为明确选择的研究模型。
+- 详细模型已只替换 π⁰ gamma 源；pp 质子损失、neutrino 与二级 pairs 保持
+  delta 链。若以后更换详细模型，必须有可核实的连续截面或新的原始文献依据。
+
 ## γγ/电磁级联的壳层几何与传输所有权未闭合
 
 ### 第一性原理

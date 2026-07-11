@@ -7,6 +7,8 @@ from typing import Callable, NamedTuple, Optional
 
 import numpy as np
 
+_PP_GAMMA_MODELS = {"delta": -1, "sibyll": 0, "qgsjet": 1, "geant4": 2, "pythia8": 3}
+
 from asgard_core.asgard_config import (
     RuntimeConfig,
     HadronicConfig,
@@ -657,6 +659,11 @@ class Hadronic:
     num_neutrino_frequency: int
     pgamma_scheme: str
     pair_cascade_iterations: int
+    pp_gamma_model: str = "delta"
+
+    def __post_init__(self) -> None:
+        if self.pp_gamma_model not in _PP_GAMMA_MODELS:
+            raise ValueError(f"pp_gamma_model must be one of {tuple(_PP_GAMMA_MODELS)}.")
 
 
 @dataclass
@@ -974,7 +981,7 @@ def _build_base_runtime_config(
         reverse_enabled=bool(reverse_shock.enabled and fwd_rad.reverse_epsilon_p > 0.0),
         reverse_epsilon_p=float(fwd_rad.reverse_epsilon_p),
         pair_cascade_iterations=int(hadronic.pair_cascade_iterations),
-        pp_model=int(getattr(fwd_rad, "pp_model", -1)),
+        pp_model=_PP_GAMMA_MODELS[hadronic.pp_gamma_model],
     )
     config.reverse = rvs_rad is not None
     config.reverse_shock = ReverseShockConfig(
