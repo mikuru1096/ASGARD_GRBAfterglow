@@ -20,16 +20,14 @@ from asgard_core.asgard_config import ReverseShockConfig, RuntimeConfig
 from asgard_core.asgard_setup import build_setup
 from asgard_core.asgard_state import query_cfg, solve_setup
 from tests.public_api_builders import hadronic, numerics, observer_grid, radiation, reverse_shock, solver_options
+from scripts.benchmarks.benchmark_common import DATA_ROOT, FIGURE_ROOT, environment, plot_style, save_figure, write_json
 
 
 ROOT = Path(__file__).resolve().parents[1]
-OUTPUT_DIRS = {
-    "ism": ROOT / "output" / "asgard_doc" / "magnetized_rs_sigma_benchmark",
-    "wind": ROOT / "output" / "asgard_doc" / "magnetized_rs_sigma_benchmark_wind",
-}
+OUTPUT_DIRS = {medium: FIGURE_ROOT / "magnetized_rs_sigma" / medium for medium in ("ism", "wind")}
 SIGMAS = (0.0, 1.0e-4, 1.0e-3, 1.0e-2, 1.0e-1, 1.0, 5.0, 10.0, 50.0, 100.0, 500.0, 1000.0)
+PLOT_SIGMAS = (0.0, 1.0e-3, 1.0e-1, 1.0, 10.0, 1000.0)
 COLORS = ("#0072B2", "#D55E00", "#009E73", "#CC79A7", "#E69F00", "#000000")
-LINESTYLES = ("-", "--", "-.", ":", (0, (5, 1, 1, 1)), (0, (3, 1, 1, 1, 1, 1)))
 MARKERS = ("o", "s", "^", "D", "P", "X")
 SCENARIO = {
     "e_iso": 1.0e54,
@@ -58,7 +56,7 @@ MODE_GRIDS = {
         "lc_times": 160,
         "sed_freqs": 96,
     },
-    "full": {
+    "formal": {
         "dyn_r": 120,
         "dyn_theta": 32,
         "model_gam": 81,
@@ -69,18 +67,9 @@ MODE_GRIDS = {
         "lc_times": 160,
         "sed_freqs": 180,
     },
-    "dense": {
-        "dyn_r": 180,
-        "dyn_theta": 40,
-        "model_gam": 81,
-        "model_nu": 101,
-        "model_r": 180,
-        "model_theta": 40,
-        "model_tobs": 72,
-        "lc_times": 160,
-        "sed_freqs": 240,
-    },
 }
+
+plt.rcParams.update(plot_style())
 
 
 def _cooling_index(cooling_mode: str) -> int:
@@ -206,7 +195,7 @@ def _model(sigma: float, medium: str, grid: dict[str, int], cooling_mode: str) -
 def _style(index: int) -> dict[str, object]:
     return {
         "color": COLORS[index % len(COLORS)],
-        "linestyle": LINESTYLES[index % len(LINESTYLES)],
+        "linestyle": "-" if index < len(COLORS) else "--",
         "marker": MARKERS[index % len(MARKERS)],
         "markevery": 14,
         "markersize": 4.0,
@@ -219,28 +208,9 @@ def _positive(values: np.ndarray) -> np.ndarray:
     return arr[np.isfinite(arr) & (arr > 0.0)]
 
 
-def _display_ylim(curves: list[np.ndarray], *, rel_floor: float = 1.0e-10, pad_dex: float = 0.35) -> tuple[float, float]:
-    positives = [_positive(curve) for curve in curves]
-    positives = [curve for curve in positives if curve.size]
-    if not positives:
-        return 1.0e-40, 1.0
-    panel = np.concatenate(positives)
-    ymax = float(np.nanmax(panel))
-    floor = ymax * rel_floor
-    shown = panel[panel >= floor]
-    if shown.size == 0:
-        shown = panel
-    ymin = float(np.nanmin(shown))
-    return 10.0 ** (np.log10(ymin) - pad_dex), 10.0 ** (np.log10(ymax) + pad_dex)
-
-
-def _mask_for_display(values: np.ndarray, *, rel_floor: float = 1.0e-10) -> np.ndarray:
+def _positive_for_log(values: np.ndarray) -> np.ndarray:
     arr = np.asarray(values, dtype=float).copy()
-    positive = _positive(arr)
-    if positive.size == 0:
-        return arr
-    floor = float(np.nanmax(positive)) * rel_floor
-    arr[(arr > 0.0) & (arr < floor)] = np.nan
+    arr[(arr <= 0.0) | ~np.isfinite(arr)] = np.nan
     return arr
 
 
@@ -397,14 +367,12 @@ def _plot_dynamics(path: Path, series, medium: str, cooling_mode: str) -> None:
         ("U3/M3 [erg g^-1]", lambda item: item[4], 1.0e-10),
     ]
     for ax, (ylabel, getter, rel_floor) in zip(axes.flat, panels):
-        curves = [np.asarray(getter(item), dtype=float) for item in series]
         for i, item in enumerate(series):
             sigma, t_obs = item[0], item[1]
-            y_plot = _mask_for_display(getter(item), rel_floor=rel_floor)
+            y_plot = _positive_for_log(getter(item))
             y_plot = np.where(t_obs >= x_min, y_plot, np.nan)
             ax.loglog(t_obs, y_plot, label=f"sigma={sigma:g}", **_style(i))
         ax.set_ylabel(ylabel)
-        ax.set_ylim(*_display_ylim(curves, rel_floor=rel_floor))
         ax.grid(True, which="both", alpha=0.25)
     axes[0, 0].legend(fontsize=8, ncol=2)
     for ax in axes[-1, :]:
@@ -412,7 +380,7 @@ def _plot_dynamics(path: Path, series, medium: str, cooling_mode: str) -> None:
     axes[0, 0].set_xlim(x_min, x_max)
     fig.suptitle(f"ASGARD magnetized RS sigma scan ({medium}, {cooling_mode}): dynamics", y=0.995)
     fig.tight_layout()
-    fig.savefig(path, dpi=180)
+    save_figure(fig, path)
     plt.close(fig)
 
 
@@ -428,25 +396,21 @@ def _plot_lightcurves(
     labels = ("1 GHz", "1e14 Hz", "1e18 Hz")
     fig, axes = plt.subplots(3, 2, figsize=(13, 12), sharex=True)
     for i_band, label in enumerate(labels):
-        total_curves = [lc_data[sigma][0][i_band] for sigma in sigmas]
-        rs_curves = [lc_data[sigma][1][i_band] for sigma in sigmas]
         for i_sigma, sigma in enumerate(sigmas):
             total, rs = lc_data[sigma]
             axes[i_band, 0].loglog(
                 lc_times,
-                _mask_for_display(total[i_band], rel_floor=1.0e-8),
+                _positive_for_log(total[i_band]),
                 label=f"sigma={sigma:g}" if i_band == 0 else None,
                 **_style(i_sigma),
             )
             axes[i_band, 1].loglog(
                 lc_times,
-                _mask_for_display(rs[i_band], rel_floor=1.0e-8),
+                _positive_for_log(rs[i_band]),
                 **_style(i_sigma),
             )
         axes[i_band, 0].set_ylabel(f"total Fnu {label}")
         axes[i_band, 1].set_ylabel(f"RS sync Fnu {label}")
-        axes[i_band, 0].set_ylim(*_display_ylim(total_curves, rel_floor=1.0e-8))
-        axes[i_band, 1].set_ylim(*_display_ylim(rs_curves, rel_floor=1.0e-8))
         for ax in axes[i_band, :]:
             ax.grid(True, which="both", alpha=0.25)
     axes[0, 0].legend(fontsize=8, ncol=2)
@@ -455,7 +419,7 @@ def _plot_lightcurves(
     axes[0, 0].set_xlim(lc_times[0], lc_times[-1])
     fig.suptitle(f"ASGARD magnetized RS sigma scan ({medium}, {cooling_mode}): light curves", y=0.995)
     fig.tight_layout()
-    fig.savefig(path, dpi=180)
+    save_figure(fig, path)
     plt.close(fig)
 
 
@@ -476,23 +440,17 @@ def _plot_sed(
     for component, path, title, rel_floor in panels:
         fig, axes = plt.subplots(2, 2, figsize=(13, 10), sharex=True)
         for i_time, (ax, time_s) in enumerate(zip(axes.flat, sed_times)):
-            curves = []
-            for sigma in sigmas:
-                total, rs = sed_data[sigma]
-                matrix = total if component == "total" else rs
-                curves.append(sed_freqs * matrix[:, i_time])
             for i_sigma, sigma in enumerate(sigmas):
                 total, rs = sed_data[sigma]
                 matrix = total if component == "total" else rs
                 y = sed_freqs * matrix[:, i_time]
                 ax.loglog(
                     sed_freqs,
-                    _mask_for_display(y, rel_floor=rel_floor),
+                    _positive_for_log(y),
                     label=f"sigma={sigma:g}" if i_time == 0 else None,
                     **_style(i_sigma),
                 )
             ax.set_title(f"t = {time_s:g} s")
-            ax.set_ylim(*_display_ylim(curves, rel_floor=rel_floor))
             ax.grid(True, which="both", alpha=0.25)
         for ax in axes[:, 0]:
             ax.set_ylabel("nu Fnu [cgs]")
@@ -502,17 +460,25 @@ def _plot_sed(
         axes[0, 0].set_xlim(sed_freqs[0], sed_freqs[-1])
         fig.suptitle(title, y=0.995)
         fig.tight_layout()
-        fig.savefig(path, dpi=180)
+        save_figure(fig, path)
         plt.close(fig)
 
 
-def run_medium(medium: str, mode: str, cooling_mode: str, output_dir: Path | None) -> Path:
+def run_medium(medium: str, mode: str, cooling_mode: str, output_dir: Path | None, data_root: Path) -> Path:
     grid = MODE_GRIDS[mode]
     outdir = OUTPUT_DIRS[medium] if output_dir is None else output_dir
     outdir.mkdir(parents=True, exist_ok=True)
     dyn_rows, dyn_series = _solve_dynamics_scan(SIGMAS, medium, grid, cooling_mode)
-    _write_csv(outdir / "sigma_scan_summary.csv", dyn_rows)
-    _plot_dynamics(outdir / "magnetized_rs_sigma_dynamics_readable.png", dyn_series, medium, cooling_mode)
+    data_dir = data_root / medium
+    data_dir.mkdir(parents=True, exist_ok=True)
+    _write_csv(data_dir / "sigma_scan_summary.csv", dyn_rows)
+    raw_dyn = []
+    for sigma, time, reverse, energy_density, energy_mass in dyn_series:
+        for values in zip(time, reverse.magnetic_field_g, reverse.gamma34, energy_density, energy_mass):
+            raw_dyn.append(dict(zip(("time_s", "magnetic_field_g", "gamma34", "energy_density_erg_cm3", "specific_energy_erg_g"), values)) | {"sigma": sigma})
+    _write_csv(data_dir / "sigma_scan_dynamics_raw.csv", raw_dyn)
+    plot_series = [item for item in dyn_series if item[0] in PLOT_SIGMAS]
+    _plot_dynamics(outdir / "magnetized_rs_sigma_dynamics", plot_series, medium, cooling_mode)
 
     lc_times, lc_bands, lc_data, lc_rows, sed_times, sed_freqs, sed_data, sed_rows = _solve_observable_scan(
         SIGMAS,
@@ -520,11 +486,23 @@ def run_medium(medium: str, mode: str, cooling_mode: str, output_dir: Path | Non
         grid,
         cooling_mode,
     )
-    _write_csv(outdir / "sigma_scan_lightcurve_summary.csv", lc_rows)
-    _write_csv(outdir / "sigma_scan_sed_summary.csv", sed_rows)
+    _write_csv(data_dir / "sigma_scan_lightcurve_summary.csv", lc_rows)
+    _write_csv(data_dir / "sigma_scan_sed_summary.csv", sed_rows)
+    raw_lc = []
+    raw_sed = []
+    for sigma in SIGMAS:
+        total, reverse = lc_data[sigma]
+        for band, time, total_value, reverse_value in zip(np.repeat(lc_bands, lc_times.size), np.tile(lc_times, lc_bands.size), total.ravel(), reverse.ravel()):
+            raw_lc.append({"sigma": sigma, "band_hz": band, "time_s": time, "total_fnu_cgs": total_value, "reverse_sync_fnu_cgs": reverse_value})
+        total, reverse = sed_data[sigma]
+        for time, frequency, total_value, reverse_value in zip(np.repeat(sed_times, sed_freqs.size), np.tile(sed_freqs, sed_times.size), total.T.ravel(), reverse.T.ravel()):
+            raw_sed.append({"sigma": sigma, "time_s": time, "frequency_hz": frequency, "total_fnu_cgs": total_value, "reverse_sync_fnu_cgs": reverse_value})
+    _write_csv(data_dir / "sigma_scan_lightcurve_raw.csv", raw_lc)
+    _write_csv(data_dir / "sigma_scan_sed_raw.csv", raw_sed)
+    write_json(data_dir / "metadata.json", environment(mode, threads=1, grid=grid, repeats=1) | {"medium": medium, "cooling_mode": cooling_mode, "sigmas": SIGMAS, "plotted_sigmas": PLOT_SIGMAS})
     _plot_lightcurves(
-        outdir / "magnetized_rs_sigma_lightcurves_readable.png",
-        SIGMAS,
+        outdir / "magnetized_rs_sigma_lightcurves",
+        PLOT_SIGMAS,
         lc_times,
         lc_bands,
         lc_data,
@@ -532,9 +510,9 @@ def run_medium(medium: str, mode: str, cooling_mode: str, output_dir: Path | Non
         cooling_mode,
     )
     _plot_sed(
-        outdir / "magnetized_rs_sigma_sed_total_readable.png",
-        outdir / "magnetized_rs_sigma_sed_rs_readable.png",
-        SIGMAS,
+        outdir / "magnetized_rs_sigma_sed_total",
+        outdir / "magnetized_rs_sigma_sed_rs",
+        PLOT_SIGMAS,
         sed_times,
         sed_freqs,
         sed_data,
@@ -547,19 +525,20 @@ def run_medium(medium: str, mode: str, cooling_mode: str, output_dir: Path | Non
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--medium", choices=("ism", "wind", "both"), default="both")
-    parser.add_argument("--mode", choices=tuple(MODE_GRIDS), default="full")
+    parser.add_argument("--mode", choices=tuple(MODE_GRIDS), default="formal")
     parser.add_argument(
         "--cooling-mode",
         choices=("none", "numeric_ic_kn", "nakar_y_thomson"),
         default="nakar_y_thomson",
     )
     parser.add_argument("--output-dir", type=Path, default=None)
+    parser.add_argument("--data-dir", type=Path, default=DATA_ROOT / "magnetized_rs_sigma")
     args = parser.parse_args()
     if args.output_dir is not None and args.medium == "both":
         raise ValueError("--output-dir is only valid when --medium is ism or wind")
     media = ("ism", "wind") if args.medium == "both" else (args.medium,)
     for medium in media:
-        outdir = run_medium(medium, args.mode, args.cooling_mode, args.output_dir)
+        outdir = run_medium(medium, args.mode, args.cooling_mode, args.output_dir, args.data_dir)
         print(f"wrote {outdir}")
 
 

@@ -20,12 +20,13 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet, Wind
-from ASGARD.api_model import _solve_patch_state
-from asgard_core.asgard_config import FitConfig
+from asgard_core import Model, Observer, UniformMedium, top_hat_jet
+from asgard_core.api_model import _solve_patch_state
 from asgard_core.asgard_paths import DOC_ROOT
 from asgard_core.asgard_setup import build_setup
 from asgard_core.asgard_state import query_cfg, project_flux, solve_setup
+from scripts.benchmarks.benchmark_common import DATA_ROOT, FIGURE_ROOT, environment, joint_significant, plot_style, save_figure, write_json
+from tests.public_api_builders import hadronic, numerics, observer_grid, radiation, reverse_shock, solver_options
 
 
 OUTPUT_DIR = DOC_ROOT / "chi_eats_2d_benchmark"
@@ -127,8 +128,9 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--mode", choices=("quick", "formal"), default="quick")
     parser.add_argument("--solver", choices=("fullhide_2d",), default="fullhide_2d")
     parser.add_argument("--medium", choices=("ism", "wind", "both"), default="ism")
-    parser.add_argument("--only", choices=("all", "theta-scan", "chi-grid-scan"), default="all")
+    parser.add_argument("--only", choices=("all", "theta-scan", "chi-grid-scan", "convergence"), default="all")
     parser.add_argument("--output-dir", type=Path, default=OUTPUT_DIR)
+    parser.add_argument("--figure-dir", type=Path)
     return parser.parse_args()
 
 
@@ -769,6 +771,7 @@ def _chi_grid_scan_rows(solver: str, scan_data: dict[int, dict[str, Any]]) -> li
     reference_chi = int(CHI_GRID_SCAN_VALUES[-1])
     reference = scan_data[reference_chi]["lightcurve_nufnu"]
     rows: list[dict[str, Any]] = []
+    flux_rows: list[dict[str, Any]] = []
     for num_chi in CHI_GRID_SCAN_VALUES:
         data = scan_data[int(num_chi)]["lightcurve_nufnu"]
         for i_band, band in enumerate(LIGHTCURVE_BANDS):
@@ -1013,8 +1016,114 @@ def _verify_outputs(paths: list[Path]) -> None:
             raise RuntimeError(f"benchmark output was not written: {path}")
 
 
+def _frontier_values(mode: str) -> dict[str, tuple[int, ...]]:
+    if mode == "formal":
+        return {"num_chi": (16, 32, 64, 128), "num_theta": (40, 80, 160, 320), "num_phi": (8, 16, 32, 64)}
+    return {"num_chi": (8, 16), "num_theta": (24, 48), "num_phi": (4, 8)}
+
+
+def _frontier_grid(mode: str) -> dict[str, int]:
+    if mode == "formal":
+        return dict(num_gam_e=41, num_chi=32, num_nu=51, num_r=240, num_theta=80, num_phi=16, num_tobs=80)
+    return dict(num_gam_e=21, num_chi=16, num_nu=25, num_r=80, num_theta=48, num_phi=8, num_tobs=32)
+
+
+def _frontier_flux(grid: dict[str, int], theta_ratio: float, solver: str = "fullhide_2d") -> tuple[np.ndarray, float]:
+    two_d = solver.endswith("_2d")
+    model = Model(
+        jet=top_hat_jet(energy_iso_erg=E_ISO, initial_lorentz_factor=GAMMA0, opening_angle_rad=THETA_J, shell_duration_s=None, magnetar=None, spreading=False),
+        medium=UniformMedium(number_density_cm3=ISM_N),
+        observer=Observer(z=REDSHIFT, viewing_angle_rad=theta_ratio * THETA_J, viewing_azimuth_rad=0.0, luminosity_distance_cm=LUMINOSITY_DISTANCE_CM),
+        fwd_rad=radiation(epsilon_e=EPSILON_E, epsilon_B=EPSILON_B, p=ELECTRON_P, include_ssc=True),
+        rvs_rad=None,
+        numerics=numerics(num_radius=grid["num_r"], eats_num_theta=grid["num_theta"], eats_num_phi=grid["num_phi"] if theta_ratio else 1, num_observer_time=grid["num_tobs"], num_electron_gamma=grid["num_gam_e"], num_photon_frequency=grid["num_nu"], downstream_num_chi=grid["num_chi"] if two_d else None, num_threads=1, electron_adaptive_substeps=False, initial_radius_cm=1.0e14),
+        observer_grid=observer_grid(time_min_s=float(CHI_GRID_SCAN_TIMES[0]), time_max_s=float(CHI_GRID_SCAN_TIMES[-1])),
+        solver_options=solver_options(electron_solver=solver, geometry_projection="chi_eats_2d" if two_d else "sed_legacy", ssc_cooling_mode="numeric_ic_kn"),
+        reverse_shock=reverse_shock(),
+        hadronic=hadronic(),
+    )
+    start = time.perf_counter()
+    flux = model.flux_density_grid(CHI_GRID_SCAN_TIMES, LIGHTCURVE_BANDS, projection_kind="lightcurve").total
+    return LIGHTCURVE_BANDS[:, None] * np.asarray(flux), time.perf_counter() - start
+
+
+def _frontier_error(values: np.ndarray, reference: np.ndarray) -> tuple[float, float, int]:
+    mask = joint_significant(values, reference, 1.0e-10)
+    error = np.abs(np.log10(values[mask] / reference[mask]))
+    return float(np.median(error)), float(np.percentile(error, 95.0)), int(error.size)
+
+
+def _run_frontier(mode: str, output_dir: Path | None, figure_dir: Path | None) -> None:
+    base = _frontier_grid(mode)
+    scans = _frontier_values(mode)
+    data_dir = output_dir or DATA_ROOT / "chi_eats_limits"
+    figure_dir = figure_dir or FIGURE_ROOT / "chi_eats_limits"
+    rows: list[dict[str, Any]] = []
+    flux_rows: list[dict[str, Any]] = []
+    raw: dict[str, dict[int, tuple[np.ndarray, float]]] = {}
+    for key, values in scans.items():
+        raw[key] = {}
+        for value in values:
+            grid = dict(base)
+            grid[key] = value
+            raw[key][value] = _frontier_flux(grid, 0.5)
+        reference = raw[key][values[-1]][0]
+        uncertainty = _frontier_error(raw[key][values[-2]][0], reference)[1]
+        for value in values:
+            median, p95, count = _frontier_error(raw[key][value][0], reference)
+            rows.append(dict(scan=key, value=value, theta_ratio=0.5, band="all", median_abs_log10=median, p95_abs_log10=p95, valid_count=count, runtime_s=raw[key][value][1], reference_uncertainty_p95=uncertainty))
+            for band, curve in zip(LIGHTCURVE_BANDS, raw[key][value][0]):
+                flux_rows.extend(dict(scan=key, value=value, theta_ratio=0.5, band_hz=float(band), observer_time_s=float(tobs), nu_fnu=float(flux)) for tobs, flux in zip(CHI_GRID_SCAN_TIMES, curve))
+    reference_grid = dict(base)
+    two_d, runtime = _frontier_flux(reference_grid, 0.0)
+    one_grid = dict(reference_grid)
+    one_grid["num_phi"] = 1
+    one_d, _ = _frontier_flux(one_grid, 0.0, "fullhide_1d")
+    median, p95, count = _frontier_error(two_d, one_d)
+    rows.append(dict(scan="one_d_limit", value=base["num_chi"], theta_ratio=0.0, band="all", median_abs_log10=median, p95_abs_log10=p95, valid_count=count, runtime_s=runtime, reference_uncertainty_p95=float("nan")))
+    reference_grid["num_theta"] = scans["num_theta"][-2]
+    reference_grid["num_phi"] = scans["num_phi"][-2]
+    for theta_ratio in (0.0, 0.5, 1.5):
+        flux, runtime = _frontier_flux(reference_grid, theta_ratio)
+        coarse_grid = dict(reference_grid)
+        coarse_grid["num_theta"] = scans["num_theta"][-3]
+        coarse_grid["num_phi"] = scans["num_phi"][-3]
+        coarse, _ = _frontier_flux(coarse_grid, theta_ratio)
+        radio = np.s_[0:1, :]
+        median, p95, count = _frontier_error(coarse[radio], flux[radio])
+        rows.append(dict(scan="view_angle", value=base["num_theta"], theta_ratio=theta_ratio, band="radio_ssa", median_abs_log10=median, p95_abs_log10=p95, valid_count=count, runtime_s=runtime, reference_uncertainty_p95=float("nan")))
+    data_dir.mkdir(parents=True, exist_ok=True)
+    csv_path = data_dir / "chi_eats_convergence.csv"
+    with csv_path.open("w", newline="", encoding="utf-8") as stream:
+        writer = csv.DictWriter(stream, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
+    with (data_dir / "chi_eats_lightcurves.csv").open("w", newline="", encoding="utf-8") as stream:
+        writer = csv.DictWriter(stream, fieldnames=list(flux_rows[0]))
+        writer.writeheader()
+        writer.writerows(flux_rows)
+    write_json(data_dir / "metadata.json", environment(mode, threads=1, grid=base, repeats=1) | {"total_flux_mask": "both arrays exceed 1e-10 of their own peak", "reference": "largest grid value; uncertainty is the p95 difference between the two largest values", "ssa_band_hz": float(LIGHTCURVE_BANDS[0])})
+    plt.rcParams.update(plot_style())
+    fig, axes = plt.subplots(1, 2, figsize=(6.8, 3.0), constrained_layout=True)
+    styles = {"num_chi": ("o", "-"), "num_theta": ("s", "--"), "num_phi": ("^", ":")}
+    for key, (marker, linestyle) in styles.items():
+        subset = [row for row in rows if row["scan"] == key]
+        axes[0].loglog([row["value"] for row in subset], [row["p95_abs_log10"] for row in subset], marker=marker, linestyle=linestyle, label=key.replace("num_", r"$N_\mathrm{") + "}$")
+        axes[1].loglog([row["runtime_s"] for row in subset], [row["p95_abs_log10"] for row in subset], marker=marker, linestyle=linestyle)
+    axes[0].set(xlabel="Grid cells", ylabel=r"p95 $|\log_{10}(F/F_\mathrm{ref})|$")
+    axes[1].set(xlabel="Wall time [s]", ylabel=r"p95 $|\log_{10}(F/F_\mathrm{ref})|$")
+    for axis in axes:
+        axis.grid(alpha=0.18)
+    axes[0].legend()
+    save_figure(fig, figure_dir / "chi_eats_convergence")
+    plt.close(fig)
+
+
 def main() -> None:
     args = _parse_args()
+    if args.only == "convergence":
+        _run_frontier(args.mode, args.output_dir if args.output_dir != OUTPUT_DIR else None, args.figure_dir)
+        return
     grid = QUICK_GRID if args.mode == "quick" else FORMAL_GRID
     theta_grid = THETA_SCAN_QUICK_GRID if args.mode == "quick" else THETA_SCAN_FORMAL_GRID
     solvers = (args.solver,)

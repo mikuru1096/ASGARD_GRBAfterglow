@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import argparse
+import csv
 from dataclasses import dataclass
+import importlib.metadata
+import os
 from pathlib import Path
 from functools import lru_cache
 import time
@@ -23,10 +26,10 @@ if str(ROOT) not in sys.path:
 
 from asgard_core.asgard_paths import DOC_ROOT
 from asgard_core.asgard_state import project_flux
-from ASGARD import ISM, Model, Observer, Radiation, Setups, TophatJet, Wind, units
-from ASGARD import PowerLawJet as ASGARD_PowerLawJet
-from ASGARD import TwoComponentJet
-from ASGARD.api_observe import _build_fit_config_for_patch, _solve_patch_state
+from asgard_core import Jet, Model, Observer, Radiation, UniformMedium, WindMedium, top_hat_jet, units
+from asgard_core.api_model import _build_fit_config_for_patch, _solve_patch_state
+from public_api_builders import hadronic, numerics, observer_grid, reverse_shock, solver_options
+from scripts.benchmarks.benchmark_common import environment, plot_style, save_figure, write_json
 from src import constants
 from VegasAfterglow import ISM as VegasISM
 from VegasAfterglow import Model as VegasModel
@@ -39,8 +42,10 @@ from VegasAfterglow import TwoComponentJet as VegasTwoComponentJet
 from VegasAfterglow import units as vegas_units
 
 
-OUTPUT_DIR = DOC_ROOT / "vegas_afterglow_compare"
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+FIGURE_DIR = ROOT / "paper" / "figures" / "benchmarks" / "vegas_afterglow"
+OUTPUT_DIR = FIGURE_DIR / "baseline"
+DATA_DIR = ROOT / "paper" / "source_data" / "benchmarks" / "vegas_afterglow"
+RUN_MODE = "quick"
 
 # ============================================================================
 # Unified Color Scheme for Scientific Aesthetics
@@ -103,13 +108,7 @@ BENCHMARK_SCENARIOS: dict[str, BenchmarkScenario] = {
 BENCHMARK_SCENARIO = "baseline"
 
 # Plot style settings
-plt.rcParams.update({
-    'font.size': 10,
-    'axes.labelsize': 11,
-    'axes.titlesize': 12,
-    'xtick.labelsize': 9,
-    'ytick.labelsize': 9,
-    'legend.fontsize': 9,
+plt.rcParams.update(plot_style() | {
     'figure.dpi': 180,
     'savefig.dpi': 200,
     'axes.grid': True,
@@ -184,18 +183,113 @@ def _set_benchmark_context(scenario: str) -> None:
     global BENCHMARK_SCENARIO, OUTPUT_DIR
     _benchmark_scenario(scenario)
     BENCHMARK_SCENARIO = scenario
-    OUTPUT_DIR = DOC_ROOT / BENCHMARK_SCENARIOS[scenario].output_subdir
+    OUTPUT_DIR = FIGURE_DIR / scenario
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     _build_asgard_model.cache_clear()
     _build_vegas_model.cache_clear()
     _cached_details_pair.cache_clear()
 
 
+def _set_mode(mode: str) -> None:
+    global RUN_MODE, BASIC_TIMES, BASIC_FREQS, BASIC_EPOCHS, MAGNETIC_DECAY_FREQS
+    global MAGNETIC_DECAY_EPOCHS, OFFAXIS_SKY_TIMES, SINGLE_SKY_NPIXEL
+    global FLUX_SKY_TIMES, FLUX_SKY_NPIXEL, SKY_CENTROID_TIMES, SPEED_TIMES
+    global SPEED_FREQS, SPEED_EXPO, SPEED_SPEC_FREQS, SPEED_SKY_NPIXEL
+    global SPECTRUM_COMPARE_FREQS, ELECTRON_COMPARE_TIMES, BASE_NUM_R, REVERSE_NUM_R
+    RUN_MODE = mode
+    if mode == "formal":
+        return
+    BASIC_TIMES = np.logspace(0.0, 8.0, 48)
+    BASIC_FREQS = np.logspace(5.0, 29.0, 64)
+    BASIC_EPOCHS = np.array([1.0e2, 1.0e4, 1.0e6, 1.0e8])
+    MAGNETIC_DECAY_FREQS = np.logspace(8.0, np.log10(1.0e16 * constants.para_ev2hz), 80)
+    MAGNETIC_DECAY_EPOCHS = np.array([1.0e2, 1.0e6])
+    OFFAXIS_SKY_TIMES = np.logspace(5.0, 8.0, 2)
+    SINGLE_SKY_NPIXEL = FLUX_SKY_NPIXEL = 20
+    FLUX_SKY_TIMES = np.logspace(0.0, 8.0, 8)
+    SKY_CENTROID_TIMES = np.logspace(5.0, 8.0, 6)
+    SPEED_TIMES = np.logspace(2.0, 8.0, 8)
+    SPEED_FREQS = np.logspace(9.0, 18.0, 8)
+    SPEED_EXPO = np.logspace(2.0, 6.0, 4)
+    SPEED_SPEC_FREQS = np.logspace(9.0, 22.0, 12)
+    SPEED_SKY_NPIXEL = 12
+    SPECTRUM_COMPARE_FREQS = np.logspace(8.0, 29.0, 80)
+    ELECTRON_COMPARE_TIMES = np.array([1.0e2, 1.0e3, 1.0e5, 1.0e7])
+    BASE_NUM_R, REVERSE_NUM_R = 32, 48
+
+
+def _figure_data(fig) -> tuple[list[dict[str, object]], dict[str, np.ndarray]]:
+    rows: list[dict[str, object]] = []
+    arrays: dict[str, np.ndarray] = {}
+    for iax, ax in enumerate(fig.axes):
+        for iline, line in enumerate(ax.lines):
+            x = np.asarray(line.get_xdata(), dtype=float).ravel()
+            y = np.asarray(line.get_ydata(), dtype=float).ravel()
+            key = f"axis{iax}_line{iline}"
+            arrays[f"{key}_x"] = x
+            arrays[f"{key}_y"] = y
+            label = line.get_label()
+            rows.extend(
+                {"axis": iax, "kind": "line", "series": iline, "label": label, "x": xv, "y": yv, "value": ""}
+                for xv, yv in zip(x, y)
+            )
+        for iimg, image in enumerate(ax.images):
+            values = np.asarray(image.get_array(), dtype=float)
+            key = f"axis{iax}_image{iimg}"
+            arrays[key] = values
+            rows.extend(
+                {"axis": iax, "kind": "image", "series": iimg, "label": image.get_label(), "x": ix, "y": iy, "value": value}
+                for (iy, ix), value in np.ndenumerate(values)
+            )
+        for icol, collection in enumerate(ax.collections):
+            offsets = np.asarray(collection.get_offsets(), dtype=float)
+            values = collection.get_array()
+            key = f"axis{iax}_collection{icol}"
+            arrays[f"{key}_offsets"] = offsets
+            if values is not None:
+                arrays[f"{key}_values"] = np.asarray(values, dtype=float)
+            if offsets.ndim == 2 and offsets.shape[1] == 2:
+                rows.extend(
+                    {"axis": iax, "kind": "collection", "series": icol, "label": collection.get_label(),
+                     "x": point[0], "y": point[1], "value": ""}
+                    for point in offsets
+                )
+    return rows, arrays
+
+
+def _metadata(stem: str) -> dict[str, object]:
+    packages = ("numpy", "matplotlib", "VegasAfterglow")
+    versions = {name: importlib.metadata.version(name) for name in packages}
+    return environment(
+        RUN_MODE,
+        threads=int(os.environ.get("OMP_NUM_THREADS", "1")),
+        grid={"num_radius": BASE_NUM_R, "times": BASIC_TIMES.size, "frequencies": BASIC_FREQS.size},
+        repeats=1,
+    ) | {
+        "builder": stem,
+        "scenario": BENCHMARK_SCENARIO,
+        "required_packages": versions,
+    }
+
+
 def _save(fig, path: Path) -> Path:
-    fig.savefig(path, dpi=200, bbox_inches="tight")
+    stem = path.stem
+    figdir = OUTPUT_DIR
+    datadir = DATA_DIR / BENCHMARK_SCENARIO
+    figdir.mkdir(parents=True, exist_ok=True)
+    datadir.mkdir(parents=True, exist_ok=True)
+    rows, arrays = _figure_data(fig)
+    save_figure(fig, figdir / stem, png="sky" in stem)
+    np.savez_compressed(datadir / f"{stem}.npz", **arrays)
+    with (datadir / f"{stem}.csv").open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=("axis", "kind", "series", "label", "x", "y", "value"))
+        writer.writeheader()
+        writer.writerows(rows)
+    write_json(datadir / f"{stem}.json", _metadata(stem))
     plt.close(fig)
-    print(f"[save] {path.name}")
-    return path
+    result = figdir / f"{stem}.pdf"
+    print(f"[save] {result.name}")
+    return result
 
 
 def _label(value: float, unit: str) -> str:
@@ -320,23 +414,26 @@ def _asgard_radiation(
     epsilon_b_floor: float | None,
 ) -> Radiation:
     return Radiation(
-        eps_e=params.eps_e,
-        eps_B=params.eps_b,
+        epsilon_e=params.eps_e,
+        epsilon_B=params.eps_b,
         epsilon_b_floor=epsilon_b_floor,
         magnetic_decay_alpha_t=magnetic_decay_alpha_t,
         magnetic_decay_t0_s=magnetic_decay_t0_s,
         p=p,
-        xi_N=params.xi_n,
-        ssc=include_ssc,
-        kn=True,
-        epsilon_p=params.epsilon_p if include_hadronic else 0.0,
+        accelerated_electron_fraction=params.xi_n,
+        include_ssc=include_ssc,
+        proton_energy_fraction=params.epsilon_p if include_hadronic else 0.0,
+        thermal_electrons=False,
         proton_synch=bool(include_hadronic),
-        pg=bool(include_hadronic),
+        include_pgamma=bool(include_hadronic),
         bethe_heitler=bool(include_hadronic),
         hadronic_inverse_compton=bool(include_hadronic),
         pp=bool(include_hadronic),
         neutrino=False,
+        acceleration_efficiency=1.0,
+        reverse_proton_energy_fraction=0.0,
         pgamma_scheme=HADRONIC_PGAMMA_SCHEME if include_hadronic else "disabled",
+        pair_production=False,
     )
 
 
@@ -367,14 +464,22 @@ def _build_asgard_model(
     scenario: str | None = None,
 ) -> Model:
     params = _benchmark_scenario(scenario)
-    medium = ISM(n_ism=params.n_ism)
-    jet = TophatJet(
-        theta_c=params.theta_c,
-        E_iso=params.e_iso,
-        Gamma0=params.gamma0,
-        duration=REVERSE_DURATION_S,
+    electron_solver = "fullhide_1d" if include_reverse or include_hadronic else electron_solver
+    medium = UniformMedium(number_density_cm3=params.n_ism)
+    jet = top_hat_jet(
+        energy_iso_erg=params.e_iso,
+        initial_lorentz_factor=params.gamma0,
+        opening_angle_rad=params.theta_c,
+        shell_duration_s=REVERSE_DURATION_S,
+        magnetar=None,
+        spreading=False,
     )
-    observer = Observer(lumi_dist=params.lumi_dist, z=params.z, theta_obs=theta_obs)
+    observer = Observer(
+        z=params.z,
+        viewing_angle_rad=theta_obs,
+        viewing_azimuth_rad=0.0,
+        luminosity_distance_cm=params.lumi_dist,
+    )
     fwd_rad = _asgard_radiation(
         params,
         p=FWD_P,
@@ -384,20 +489,15 @@ def _build_asgard_model(
         magnetic_decay_t0_s=magnetic_decay_t0_s,
         epsilon_b_floor=epsilon_b_floor,
     )
-    kwargs = dict(
-        num_gam_e=ASGARD_CHARINT_NUM_GAM_E if num_gam_e is None else int(num_gam_e),
-        num_nu=num_nu,
-        num_r=REVERSE_NUM_R if include_reverse else BASE_NUM_R,
-        num_theta=80,
-        num_tobs=48,
+    grid = numerics(
+        num_electron_gamma=ASGARD_CHARINT_NUM_GAM_E if num_gam_e is None else int(num_gam_e),
+        num_photon_frequency=num_nu,
+        num_radius=REVERSE_NUM_R if include_reverse else BASE_NUM_R,
+        eats_num_theta=80,
+        eats_num_phi=24 if theta_obs > 0.0 else 1,
+        num_observer_time=48,
         electron_adaptive_substeps=False,
-        electron_solver=electron_solver,
-        num_chi=num_chi,
-        hadronic_enabled=bool(include_hadronic),
-        hadronic_solver=HADRONIC_SOLVER if include_hadronic else "legacy_1d",
-        num_gam_p=81 if include_hadronic else 161,
-        num_nu_nu=81 if include_hadronic else 121,
-        pgamma_scheme=HADRONIC_PGAMMA_SCHEME if include_hadronic else "disabled",
+        downstream_num_chi=num_chi,
     )
     return Model(
         jet=jet,
@@ -413,14 +513,27 @@ def _build_asgard_model(
             magnetic_decay_t0_s=magnetic_decay_t0_s,
             epsilon_b_floor=epsilon_b_floor,
         ) if include_reverse else None,
-        setups=Setups(reverse_delta_t_s=REVERSE_DURATION_S, **kwargs),
+        numerics=grid,
+        observer_grid=observer_grid(time_min_s=1.0, time_max_s=1.0e8),
+        solver_options=solver_options(electron_solver=electron_solver),
+        reverse_shock=reverse_shock(
+            enabled=include_reverse,
+            shell_duration_s=REVERSE_DURATION_S,
+            include_ssc=include_ssc,
+        ),
+        hadronic=hadronic(
+            enabled=include_hadronic,
+            solver=HADRONIC_SOLVER if include_hadronic else "legacy_1d",
+            num_proton_gamma=81 if include_hadronic else 161,
+            num_neutrino_frequency=81 if include_hadronic else 121,
+            pgamma_scheme=HADRONIC_PGAMMA_SCHEME if include_hadronic else "disabled",
+        ),
     )
 
 
 def _project_asgard_hadronic_flux(model: Model, times_s: np.ndarray, frequencies_hz: np.ndarray) -> np.ndarray:
     config = _build_fit_config_for_patch(
         model,
-        phi_center=0.0,
         theta_v=model.observer.theta_obs,
         opening_angle_jet=model.jet.theta_j,
         e_iso=model.jet.E_iso,
@@ -429,10 +542,7 @@ def _project_asgard_hadronic_flux(model: Model, times_s: np.ndarray, frequencies
     )
     state = _solve_patch_state(model, config, np.asarray(times_s, dtype=float), np.asarray(frequencies_hz, dtype=float))
     observed = project_flux(state, np.asarray(times_s, dtype=float), np.asarray(frequencies_hz, dtype=float))
-    hadronic = observed.components.get("fwd_hadronic")
-    if hadronic is None:
-        return np.zeros((np.asarray(frequencies_hz).size, np.asarray(times_s).size), dtype=float)
-    return np.asarray(hadronic, dtype=float)
+    return np.asarray(observed.components["fwd_hadronic"], dtype=float)
 
 
 @lru_cache(maxsize=None)
@@ -519,7 +629,7 @@ def _build_basic_lc_spec() -> Path:
     if spec_peak > 0.0:
         axes[1].set_ylim(bottom=spec_peak * 1.0e-17)
     axes[0].legend(fontsize=7, ncol=1)
-    axes[1].legend(fontsize=6, ncol=2)
+    axes[1].legend(fontsize=7, ncol=2)
     return _save(fig, OUTPUT_DIR / "compare_basic_lc_spec.png")
 
 
@@ -581,7 +691,7 @@ def _build_reverse_shock_lc() -> Path:
     ax.set_xlabel("Observer time [s]")
     ax.set_ylabel(r"Flux Density (erg/cm$^2$/s/Hz)")
     ax.set_title("Forward + reverse shock")
-    ax.legend(fontsize=6.2, ncol=2)
+    ax.legend(fontsize=7, ncol=2)
     ax.grid(**GRID_STYLE)
     return _save(fig, OUTPUT_DIR / "compare_reverse_shock_lc.png")
 
@@ -589,7 +699,6 @@ def _build_reverse_shock_lc() -> Path:
 def _single_patch_state(model: Model, times_s: np.ndarray, frequencies_hz: np.ndarray):
     config = _build_fit_config_for_patch(
         model,
-        phi_center=0.0,
         theta_v=model.observer.theta_obs,
         opening_angle_jet=model.jet.theta_j,
         e_iso=model.jet.E_iso,
@@ -602,9 +711,7 @@ def _single_patch_state(model: Model, times_s: np.ndarray, frequencies_hz: np.nd
 def _plot_positive_series(ax, x: np.ndarray, y: np.ndarray, *, label: str, color: str, linestyle: str = "-") -> None:
     x_arr = np.asarray(x, dtype=float)
     y_arr = np.asarray(y, dtype=float)
-    mask = np.isfinite(x_arr) & np.isfinite(y_arr) & (x_arr > 0.0) & (y_arr > 0.0)
-    if np.any(mask):
-        ax.loglog(x_arr[mask], y_arr[mask], color=color, ls=linestyle, lw=1.45, label=label)
+    ax.loglog(x_arr, y_arr, color=color, ls=linestyle, lw=1.45, label=label)
 
 
 def _build_reverse_shock_thermal_benchmark() -> Path:
@@ -618,18 +725,15 @@ def _build_reverse_shock_thermal_benchmark() -> Path:
 
     t_ref = _reference_series(detail_asgard.rev.t_obs)
     t_vegas = _reference_series(detail_vegas.rvs.t_obs)
-    attrs = ("Gamma", "B_comv", "N_p", "nu_m", "nu_c", "nu_a")
-    vegas_z = _benchmark_scenario().z
+    attrs = ("Gamma", "B_comv", "N_p")
 
-    fig, axes = plt.subplots(3, 3, figsize=(12.8, 9.2), dpi=200)
-    ratio_axes = axes[:2, :].ravel()
+    fig, axes = plt.subplots(2, 3, figsize=(12.8, 6.4), dpi=200)
+    ratio_axes = axes[0]
     for ax, attr in zip(ratio_axes, attrs):
         asgard_y = _reference_series(getattr(detail_asgard.rev, attr))
         vegas_y = _reference_series(getattr(detail_vegas.rvs, attr))
         if attr == "N_p":
             vegas_y = vegas_y * (4.0 * np.pi)
-        if attr in {"nu_m", "nu_c"}:
-            vegas_y = _to_lab_frequency_frame(vegas_y, _reference_series(detail_vegas.rvs.Doppler), vegas_z)
         vegas_interp = _safe_log_interp(t_ref, t_vegas, vegas_y)
         ratio = np.divide(
             asgard_y,
@@ -650,25 +754,26 @@ def _build_reverse_shock_thermal_benchmark() -> Path:
     pre_cross = radius_dyn <= float(rs.r_cross)
     t_cross_obs = float(t_dyn[int(np.argmin(np.abs(radius_dyn - float(rs.r_cross))))])
     e3 = np.asarray(rs.internal_energy_erg, dtype=float) / np.asarray(rs.comoving_volume_cm3, dtype=float)
-    u3_per_m3 = np.asarray(rs.internal_energy_erg, dtype=float) / np.asarray(rs.swept_mass_g, dtype=float)
+    swept = np.asarray(rs.swept_mass_g, dtype=float)
+    u3_per_m3 = np.divide(rs.internal_energy_erg, swept, out=np.zeros_like(swept), where=swept > 0.0)
     gamma34_injection = np.where(pre_cross, np.asarray(rs.gamma34, dtype=float), np.nan)
 
-    _plot_positive_series(axes[2, 0], t_dyn, gamma34_injection, label=r"$\gamma_{34}$", color=ASGARD_COLOR)
-    axes[2, 0].set_title(r"ASGARD pre-crossing injection $\gamma_{34}$")
-    axes[2, 0].set_xlabel("t_obs [s]")
-    axes[2, 0].set_ylabel(r"$\gamma_{34}$")
+    _plot_positive_series(axes[1, 0], t_dyn, gamma34_injection, label=r"$\gamma_{34}$", color=ASGARD_COLOR)
+    axes[1, 0].set_title(r"ASGARD pre-crossing injection $\gamma_{34}$")
+    axes[1, 0].set_xlabel("t_obs [s]")
+    axes[1, 0].set_ylabel(r"$\gamma_{34}$")
 
-    _plot_positive_series(axes[2, 1], t_dyn, e3, label=r"$U_3/V_3$", color=ASGARD_COLOR)
-    axes[2, 1].set_title(r"ASGARD region-3 thermal density")
-    axes[2, 1].set_xlabel("t_obs [s]")
-    axes[2, 1].set_ylabel(r"$U_3/V_3$ [erg cm$^{-3}$]")
+    _plot_positive_series(axes[1, 1], t_dyn, e3, label=r"$U_3/V_3$", color=ASGARD_COLOR)
+    axes[1, 1].set_title(r"ASGARD region-3 thermal density")
+    axes[1, 1].set_xlabel("t_obs [s]")
+    axes[1, 1].set_ylabel(r"$U_3/V_3$ [erg cm$^{-3}$]")
 
-    _plot_positive_series(axes[2, 2], t_dyn, u3_per_m3, label=r"$U_3/M_3$", color=ASGARD_COLOR)
-    axes[2, 2].set_title(r"ASGARD post-crossing thermal scale")
-    axes[2, 2].set_xlabel("t_obs [s]")
-    axes[2, 2].set_ylabel(r"$U_3/M_3$ [erg g$^{-1}$]")
+    _plot_positive_series(axes[1, 2], t_dyn, u3_per_m3, label=r"$U_3/M_3$", color=ASGARD_COLOR)
+    axes[1, 2].set_title(r"ASGARD post-crossing thermal scale")
+    axes[1, 2].set_xlabel("t_obs [s]")
+    axes[1, 2].set_ylabel(r"$U_3/M_3$ [erg g$^{-1}$]")
 
-    for ax in axes[2, :]:
+    for ax in axes[1]:
         ax.axvline(t_cross_obs, color="black", ls=":", lw=0.9, label="crossing")
         ax.grid(**GRID_STYLE)
         ax.legend(fontsize=8)
@@ -698,7 +803,7 @@ def _build_ssc_lc() -> Path:
     ax.set_xlabel("Time [s]")
     ax.set_ylabel(r"Flux Density (erg/cm$^2$/s/Hz)")
     ax.set_title("Synchrotron and SSC")
-    ax.legend(fontsize=6.8, ncol=2)
+    ax.legend(fontsize=7, ncol=2)
     ax.grid(**GRID_STYLE)
     return _save(fig, OUTPUT_DIR / "compare_ssc_lc.png")
 
@@ -717,7 +822,10 @@ def _plot_two_line_sets(ax, x: np.ndarray, lines: list[tuple[np.ndarray, str, st
 
 def _sample_theta_curve(model, attribute: str, theta: np.ndarray) -> np.ndarray:
     theta = np.asarray(theta, dtype=float)
-    fn = getattr(model, attribute)
+    names = {"jet_E_iso": "energy_iso", "jet_Gamma0": "gamma0"}
+    fn = getattr(model, attribute, None)
+    if fn is None:
+        fn = getattr(model.jet, names[attribute])
     try:
         values = np.asarray(fn(0.0, theta), dtype=float)
         if values.shape == theta.shape:
@@ -730,15 +838,13 @@ def _sample_theta_curve(model, attribute: str, theta: np.ndarray) -> np.ndarray:
 
 def _build_shock_quantities() -> Path:
     da, dv = _cached_details_pair(False, False, 0.0, 1.0, 1.0e8)
-    vegas_z = 0.1
 
-    attrs = ["Gamma", "B_comv", "N_p", "nu_m", "nu_c", "nu_a"]
+    attrs = ["Gamma", "B_comv", "N_p"]
     t_ref = _reference_series(da.fwd.t_obs)
     if t_ref.ndim != 1:
         raise RuntimeError("ASGARD shock details are not 1D; compare_shock_quantities requires a 1D characteristic-time track.")
 
-    fig, axes = plt.subplots(2, 3, figsize=(12.5, 7.0), dpi=200)
-    axes = axes.ravel()
+    fig, axes = plt.subplots(1, 3, figsize=(12.5, 3.6), dpi=200)
     for i, attr in enumerate(attrs):
         ax = axes[i]
         if not (hasattr(da.fwd, attr) and hasattr(dv.fwd, attr)):
@@ -747,9 +853,6 @@ def _build_shock_quantities() -> Path:
         yv = _reference_series(getattr(dv.fwd, attr))
         if attr == "N_p":
             yv = yv * (4.0 * np.pi)
-        if attr in {"nu_m", "nu_c"}:
-            doppler_v = _reference_series(dv.fwd.Doppler)
-            yv = _to_lab_frequency_frame(yv, doppler_v, vegas_z)
         tv = _reference_series(dv.fwd.t_obs)
         yv = _safe_log_interp(t_ref, tv, yv)
         _plot_two_line_sets(ax, t_ref, [(ya, ASGARD_COLOR, f"ASGARD {attr}"), (yv, VEGAS_COLOR, f"Vegas {attr}")], "t_obs [s]")
@@ -823,8 +926,9 @@ def _build_sky_offaxis() -> Path:
     model_a = _build_asgard_model(theta_obs=0.4)
     model_v = _build_vegas_model(theta_obs=0.4)
     times = OFFAXIS_SKY_TIMES
-    img_a = model_a.sky_image(times, nu_obs=1.0e9, fov=5000.0 * units.uas, npixel=40)
-    img_v = model_v.sky_image(times, nu_obs=1.0e9, fov=5000.0 * vegas_units.uas, npixel=40)
+    fov_uas = 5000.0 * (_benchmark_scenario().e_iso / 1.0e52) ** 0.25
+    img_a = model_a.sky_image(times, nu_obs=1.0e9, fov=fov_uas * units.uas, npixel=40)
+    img_v = model_v.sky_image(times, nu_obs=1.0e9, fov=fov_uas * vegas_units.uas, npixel=40)
     vegas_payload = _vegas_sky_compare_payload(img_v)
     idx = -1
     img_v_cal = vegas_payload["image_cal"][idx]
@@ -923,11 +1027,10 @@ def _build_sky_centroid_comparison() -> Path:
 
 
 def _build_introspection_jet() -> Path:
-    model_a = Model(
-        jet=TophatJet(theta_c=0.1, E_iso=1.0e52, Gamma0=300.0),
-        medium=ISM(n_ism=1.0),
-        observer=Observer(lumi_dist=1.0e26, z=0.1, theta_obs=0.0),
-        fwd_rad=Radiation(eps_e=STRONG_IC_EPS_E, eps_B=STRONG_IC_EPS_B, p=FWD_P, xi_N=STRONG_IC_XI),
+    model_a = _build_asgard_model()
+    model_a.jet = top_hat_jet(
+        energy_iso_erg=1.0e52, initial_lorentz_factor=300.0, opening_angle_rad=0.1,
+        shell_duration_s=None, magnetar=None, spreading=False,
     )
     model_v = VegasModel(
         jet=VegasTophatJet(theta_c=0.1, E_iso=1.0e52, Gamma0=300.0),
@@ -962,11 +1065,11 @@ def _build_introspection_jet() -> Path:
 
 
 def _build_introspection_medium() -> Path:
-    model_a = Model(
-        jet=TophatJet(theta_c=0.1, E_iso=1.0e52, Gamma0=300.0),
-        medium=Wind(MEDIUM_WIND_ASTAR, MEDIUM_WIND_NISM, MEDIUM_WIND_N0, MEDIUM_WIND_K),
-        observer=Observer(lumi_dist=1.0e26, z=0.1, theta_obs=0.0),
-        fwd_rad=Radiation(eps_e=STRONG_IC_EPS_E, eps_B=STRONG_IC_EPS_B, p=FWD_P, xi_N=STRONG_IC_XI),
+    model_a = _build_asgard_model()
+    model_a.medium = WindMedium(
+        a_star=MEDIUM_WIND_ASTAR,
+        density_floor_cm3=MEDIUM_WIND_NISM,
+        density_cap_cm3=MEDIUM_WIND_N0,
     )
     model_v = VegasModel(
         jet=VegasTophatJet(theta_c=0.1, E_iso=1.0e52, Gamma0=300.0),
@@ -998,12 +1101,13 @@ def _build_introspection_medium() -> Path:
 
 
 def _build_introspection_twocomp() -> Path:
-    model_a = Model(
-        jet=TwoComponentJet(0.05, 1.0e53, 300.0, 0.15, 1.0e52, 100.0),
-        medium=ISM(n_ism=1.0),
-        observer=Observer(lumi_dist=1.0e26, z=0.1, theta_obs=0.0),
-        fwd_rad=Radiation(eps_e=STRONG_IC_EPS_E, eps_B=STRONG_IC_EPS_B, p=FWD_P, xi_N=STRONG_IC_XI),
+    model_a = _build_asgard_model()
+    model_a.jet = Jet(
+        kind="two_component", theta_max=0.15, theta_n=0.05, E_iso_n=1.0e53,
+        lf_n=300.0, theta_w=0.15, E_iso_w=1.0e52, lf_w=100.0,
     )
+    model_a.jet.energy_iso = lambda phi, theta: 1.0e53 if theta < 0.05 else (1.0e52 if theta < 0.15 else 0.0)
+    model_a.jet.gamma0 = lambda phi, theta: 300.0 if theta < 0.05 else (100.0 if theta < 0.15 else 1.0)
     model_v = VegasModel(
         jet=VegasTwoComponentJet(0.05, 1.0e53, 300.0, 0.15, 1.0e52, 100.0),
         medium=VegasISM(n_ism=1.0),
@@ -1426,7 +1530,7 @@ def _build_magnetic_decay_compare() -> Path:
         axes[0, 0].set_ylim(bottom=lc_peak * 1.0e-20)
     axes[0, 0].set_title("ASGARD 2D Magnetic-Decay Light Curves")
     axes[0, 0].grid(**GRID_STYLE)
-    axes[0, 0].legend(fontsize=5.8, ncol=2)
+    axes[0, 0].legend(fontsize=7, ncol=2)
     axes[1, 0].axhline(1.0, color="k", ls=":", lw=1.0)
     axes[1, 0].set_xlabel("Time [s]")
     axes[1, 0].set_ylabel("decay / baseline")
@@ -1437,49 +1541,24 @@ def _build_magnetic_decay_compare() -> Path:
     time_decay = np.asarray(details_decay.fwd.t_obs, dtype=float)
     t_min_plot = float(np.min(times))
     t_max_plot = float(np.max(times))
-    freq_sets = [
-        (np.asarray(details_base.fwd.nu_m, dtype=float), np.asarray(details_decay.fwd.nu_m, dtype=float), r"$\nu_m$", "C0"),
-        (np.asarray(details_base.fwd.nu_c, dtype=float), np.asarray(details_decay.fwd.nu_c, dtype=float), r"$\nu_c$", "C1"),
-        (np.asarray(details_base.fwd.nu_a, dtype=float), np.asarray(details_decay.fwd.nu_a, dtype=float), r"$\nu_a$", "C2"),
-    ]
-    for base_arr, decay_arr, label, color in freq_sets:
-        for arr, tt, ls, alpha, prefix in [
-            (base_arr, time_base, "-", ASGARD_ALPHA, "baseline"),
-            (decay_arr, time_decay, "--", 0.85, "decay"),
-        ]:
-            mask = (
-                np.isfinite(tt)
-                & np.isfinite(arr)
-                & (tt > 0.0)
-                & (arr > 0.0)
-                & (tt >= t_min_plot)
-                & (tt <= t_max_plot)
-            )
-            if np.any(mask):
-                axes[0, 1].loglog(tt[mask], arr[mask], color=color, lw=1.5, ls=ls, alpha=alpha, label=f"{prefix} {label}")
-        base_mask = np.isfinite(time_base) & np.isfinite(base_arr) & (time_base >= t_min_plot) & (time_base <= t_max_plot)
-        decay_mask = np.isfinite(time_decay) & np.isfinite(decay_arr) & (time_decay >= t_min_plot) & (time_decay <= t_max_plot)
-        if np.any(base_mask) and np.any(decay_mask):
-            time_base_clip = time_base[base_mask]
-            base_clip = base_arr[base_mask]
-            decay_interp = _safe_log_interp(time_base_clip, time_decay[decay_mask], decay_arr[decay_mask])
-            ratio = np.divide(decay_interp, base_clip, out=np.full_like(base_clip, np.nan, dtype=float), where=base_clip > 0.0)
-        else:
-            time_base_clip = np.array([], dtype=float)
-            ratio = np.array([], dtype=float)
-        mask = np.isfinite(time_base_clip) & np.isfinite(ratio) & (time_base_clip > 0.0) & (ratio > 0.0)
-        if np.any(mask):
-            axes[1, 1].semilogx(time_base_clip[mask], ratio[mask], color=color, lw=1.5, label=label)
-    axes[0, 1].set_ylabel("Frequency [Hz]")
+    field_base = np.asarray(details_base.fwd.B_comv, dtype=float)
+    field_decay = np.asarray(details_decay.fwd.B_comv, dtype=float)
+    axes[0, 1].loglog(time_base, field_base, color="C0", lw=1.5, label="baseline")
+    axes[0, 1].loglog(time_decay, field_decay, color="C0", lw=1.5, ls="--", label="decay")
+    field_interp = _safe_log_interp(time_base, time_decay, field_decay)
+    ratio = np.divide(field_interp, field_base, out=np.full_like(field_base, np.nan), where=field_base > 0.0)
+    mask = np.isfinite(ratio) & (ratio > 0.0)
+    axes[1, 1].semilogx(time_base[mask], ratio[mask], color="C0", lw=1.5, label="decay / baseline")
+    axes[0, 1].set_ylabel(r"$B'$ [G]")
     axes[0, 1].set_title(
         rf"$\alpha_t={DECAY_ALPHA_T:.1f},\ t_0'={DECAY_T0_S:.1e}\,$s, "
         rf"$\epsilon_{{B,\rm floor}}/\epsilon_{{B,+}}={DECAY_EPSB_FLOOR_FACTOR:.1e}$"
     )
     axes[0, 1].grid(**GRID_STYLE)
-    axes[0, 1].legend(fontsize=6.5, ncol=2)
+    axes[0, 1].legend(fontsize=7, ncol=2)
     axes[1, 1].axhline(1.0, color="k", ls=":", lw=1.0)
     axes[1, 1].set_xlabel("Time [s]")
-    axes[1, 1].set_ylabel("decay / baseline")
+    axes[1, 1].set_ylabel(r"$B'_{\rm decay}/B'_{\rm base}$")
     axes[1, 1].grid(**GRID_STYLE)
     axes[1, 1].legend(fontsize=7)
     plt.tight_layout()
@@ -1546,11 +1625,11 @@ def _build_magnetic_decay_compare() -> Path:
         if np.isfinite(spec_peak) and spec_peak > 0.0:
             ax_spec.set_ylim(bottom=spec_peak * 1.0e-15)
         ax_spec.grid(**GRID_STYLE)
-        ax_spec.legend(fontsize=5.8, ncol=2)
+        ax_spec.legend(fontsize=7, ncol=2)
         ax_ratio.axhline(1.0, color="k", ls=":", lw=1.0)
         ax_ratio.set_xlabel("Photon energy [eV]")
         ax_ratio.grid(**GRID_STYLE)
-        ax_ratio.legend(fontsize=6.5, ncol=2)
+        ax_ratio.legend(fontsize=7, ncol=2)
         ax_spec.set_xlim(energy_ev[0], energy_ev[-1])
     axes[0, 0].set_ylabel(r"$\nu F_\nu$ (erg/cm$^2$/s)")
     axes[1, 0].set_ylabel("decay / baseline")
@@ -1572,7 +1651,6 @@ def _benchmark_builders(spectrum_quantity: str) -> list[tuple[str, Callable[[], 
         ("electron_spectrum", _build_electron_spectrum_compare),
         ("magnetic_decay_2d", _build_magnetic_decay_compare),
         ("shock_quantities", _build_shock_quantities),
-        ("photon_quantities", _build_photon_quantities),
         ("sky_image_single", _build_sky_single),
         ("sky_image_offaxis", _build_sky_offaxis),
         ("sky_image_flux_comparison", _build_sky_flux_comparison),
@@ -1584,7 +1662,21 @@ def _benchmark_builders(spectrum_quantity: str) -> list[tuple[str, Callable[[], 
     ]
 
 
-def main(*, spectrum_quantity: str = "sed", scenario: str = "baseline", only: tuple[str, ...] | None = None) -> None:
+def main(
+    *,
+    spectrum_quantity: str = "sed",
+    scenario: str = "baseline",
+    only: tuple[str, ...] | None = None,
+    mode: str = "quick",
+    data_dir: Path | None = None,
+    figure_dir: Path | None = None,
+) -> None:
+    global DATA_DIR, FIGURE_DIR
+    if data_dir is not None:
+        DATA_DIR = Path(data_dir)
+    if figure_dir is not None:
+        FIGURE_DIR = Path(figure_dir)
+    _set_mode(mode)
     _set_benchmark_context(scenario)
     params = _benchmark_scenario()
     print(
@@ -1615,10 +1707,28 @@ def main(*, spectrum_quantity: str = "sed", scenario: str = "baseline", only: tu
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate ASGARD/VegasAfterglow comparison figures.")
     parser.add_argument(
+        "--mode",
+        choices=("quick", "formal"),
+        default="quick",
+        help="Quick uses smaller real grids; formal runs every builder for both parameter sets.",
+    )
+    parser.add_argument(
         "--scenario",
         choices=sorted(BENCHMARK_SCENARIOS),
         default="baseline",
         help="Benchmark parameter set.",
+    )
+    parser.add_argument(
+        "--data-dir",
+        type=Path,
+        default=DATA_DIR,
+        help="Root directory for CSV, NPZ, and metadata files.",
+    )
+    parser.add_argument(
+        "--figure-dir",
+        type=Path,
+        default=FIGURE_DIR,
+        help="Root directory for SVG, PDF, TIFF, and PNG figures.",
     )
     parser.add_argument(
         "--spectrum-quantity",
@@ -1633,8 +1743,16 @@ if __name__ == "__main__":
         help="Run selected figure builders only, e.g. reverse_shock_lc reverse_shock_thermal.",
     )
     args = parser.parse_args()
-    main(
-        spectrum_quantity=args.spectrum_quantity,
-        scenario=args.scenario,
-        only=None if args.only is None else tuple(args.only),
-    )
+    selected = None if args.only is None else tuple(args.only)
+    if args.mode == "formal" and selected is not None:
+        parser.error("formal mode runs every builder; --only is available only in quick mode")
+    scenarios = tuple(BENCHMARK_SCENARIOS) if args.mode == "formal" else (args.scenario,)
+    for scenario in scenarios:
+        main(
+            spectrum_quantity=args.spectrum_quantity,
+            scenario=scenario,
+            only=selected,
+            mode=args.mode,
+            data_dir=args.data_dir,
+            figure_dir=args.figure_dir,
+        )

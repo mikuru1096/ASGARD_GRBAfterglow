@@ -219,10 +219,10 @@ subroutine formal_transport(tobs,gbulk,radius,bfield,nuseed,seed,ge, &
         if (do_pg /= 0) then
             call rate_lum(nnu,eph,qgam,vol, &
                                                          pgam(:,ir))
-            if (do_pp /= 0) pgam(:,ir)=pgam(:,ir)+lppg
             call proc_power(ngp,nnu,3,ehad,dnnext,eph, &
                                            qproc,vol,procpow(:,:,ir))
         end if
+        if (do_pp /= 0) pgam(:,ir)=pgam(:,ir)+lppg
         if (do_nu /= 0) then
             call rate_lum(nout,enu,qnu,vol,pnu(:,ir))
             if (do_pp /= 0) pnu(:,ir)=pnu(:,ir)+lppnu

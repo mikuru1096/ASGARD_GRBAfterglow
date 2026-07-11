@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import csv
 from pathlib import Path
 
@@ -546,7 +547,7 @@ def fig3_electron_transport() -> None:
     save_pub(fig, "fig3_transport_projection")
 
 
-def figA1_hadronic_thresholds() -> None:
+def figA0_hadronic_thresholds() -> None:
     eps_ev = np.logspace(np.log10(TARGET_PHOTON_MIN_EV), np.log10(TARGET_PHOTON_MAX_EV), 240)
     eps_erg = eps_ev * EV_TO_ERG
     gamma_p_pg = EPS_PG_THR_EV / (2.0 * eps_ev)
@@ -616,11 +617,40 @@ def figA1_hadronic_thresholds() -> None:
     save_pub(fig, "figA1_hadronic_feedback")
 
 
+def figA1_hadronic_thresholds() -> None:
+    rows = read_csv(DATA_DIR / "benchmarks" / "pp_am3" / "pp_models.csv")
+    finest = max(int(row["grid_size"]) for row in rows)
+    rows = [row for row in rows if int(row["grid_size"]) == finest]
+    models = [row["model"] for row in rows]
+    x = np.arange(len(models))
+    power = np.array([float(row["pp_gamma_sum"]) for row in rows])
+    error = np.array([float(row["oracle_relative_error_median"]) for row in rows])
+    runtime = np.array([float(row["wall_time_median_s"]) for row in rows])
+    colors = [TEAL, RED, BLUE, VIOLET]
+    fig, axes = plt.subplots(1, 3, figsize=(7.1, 2.55))
+    fig.subplots_adjust(left=0.08, right=0.985, bottom=0.25, top=0.84, wspace=0.48)
+    axes[0].bar(x, power, color=colors, edgecolor=NEUTRAL, linewidth=0.5)
+    axes[1].bar(x, error, color=colors, edgecolor=NEUTRAL, linewidth=0.5)
+    axes[2].bar(x, runtime, color=colors, edgecolor=NEUTRAL, linewidth=0.5)
+    labels = [name.upper() if name != "geant4" else "Geant4" for name in models]
+    for label, axis in zip("abc", axes):
+        add_panel(axis, label)
+        axis.set_xticks(x)
+        axis.set_xticklabels(labels, rotation=30, ha="right")
+        axis.grid(axis="y", color=LIGHT, lw=0.5)
+    axes[0].set(ylabel="integrated pp gamma rate", title="Detailed pp models")
+    axes[1].set(ylabel="median relative error", yscale="log", title="Official AM3 oracle")
+    axes[2].set(ylabel="median wall time (s)", title="401$^2$ kernel cost")
+    save_pub(fig, "figA1_hadronic_feedback")
+
+
 def fig4_reverse_shock() -> None:
-    sigma = read_csv(DATA_DIR / "fig4_reverse_shock_sigma_summary.csv")
-    lc = read_csv(DATA_DIR / "fig4_reverse_shock_lightcurve_summary.csv")
-    events = read_csv(DATA_DIR / "fig4_secondary_rs_events.csv")
-    energy = read_csv(DATA_DIR / "fig4_secondary_rs_energy.csv")
+    sigma_dir = DATA_DIR / "benchmarks" / "magnetized_sigma" / "ism"
+    jump_dir = DATA_DIR / "benchmarks" / "density_jump"
+    sigma = read_csv(sigma_dir / "sigma_scan_summary.csv")
+    lc = read_csv(sigma_dir / "sigma_scan_lightcurve_summary.csv")
+    events = read_csv(jump_dir / "triple_density_jump_secondary_rs_events.csv")
+    energy = read_csv(jump_dir / "triple_density_jump_secondary_rs_energy.csv")
 
     sig = np.array([float(r["sigma"]) for r in sigma])
     sigma_floor = np.nanmin(sig[sig > 0.0])
@@ -634,8 +664,9 @@ def fig4_reverse_shock() -> None:
     rs_frac = np.array([float(r["rs_to_total_at_total_peak"]) for r in optical])
     start = np.array([float(r["start_tobs_axis_s"]) for r in events])
     end = np.array([float(r["shock_end_tobs_axis_s"]) for r in events])
-    inj = float(energy[0]["secondary_rs_electron_injected_energy_erg"])
-    diss = float(energy[0]["secondary_rs_dissipated_energy_erg"])
+    total = next(row for row in energy if row["jump_index"] == "total")
+    inj = float(total["secondary_rs_electron_injected_energy_erg"])
+    diss = float(total["secondary_rs_dissipated_energy_erg"])
 
     fig, axes = plt.subplots(1, 3, figsize=(7.1, 2.35))
     fig.subplots_adjust(left=0.08, right=0.98, bottom=0.23, top=0.84, wspace=0.70)
@@ -681,83 +712,33 @@ def fig4_reverse_shock() -> None:
 
 
 def fig5_validation_benchmark() -> None:
-    rows = read_csv(DATA_DIR / "fig5_validation_benchmark.csv")
-    dynamics = [row for row in rows if row["kind"] == "dynamics_event_split"]
-    angular = [row for row in rows if row["kind"] == "angular_projection"]
-    rs = [row for row in rows if row["kind"] == "reverse_shock_adaptive"]
-    transport = [row for row in rows if row["kind"] == "transport_remap"]
-
-    dyn_tab = [row for row in dynamics if row["case"] == "tabulated_csm"]
-    dyn_jump = [row for row in dynamics if row["case"] == "multi_jump"]
-    nr_tab = np.array([float(row["coordinate"]) for row in dyn_tab])
-    nr_jump = np.array([float(row["coordinate"]) for row in dyn_jump])
-    gamma_tab = np.array([float(row["metric_a"]) for row in dyn_tab])
-    mass_tab = np.array([float(row["metric_b"]) for row in dyn_tab])
-    gamma_jump = np.array([float(row["metric_a"]) for row in dyn_jump])
-    mass_jump = np.array([float(row["metric_b"]) for row in dyn_jump])
-
-    theta_values = np.array([float(row["coordinate"]) for row in angular])
-    angular_p95 = np.array([float(row["metric_b"]) for row in angular])
-    angular_median = np.array([float(row["metric_c"]) for row in angular])
-
-    rs_freq = np.array([float(row["case"]) for row in rs])
-    peak_flux = np.array([float(row["metric_b"]) for row in rs])
-    integral = np.array([float(row["metric_c"]) for row in rs])
-    freq_labels = ["1 GHz" if nu == 1.0e9 else "opt." if nu == 1.0e14 else "X-ray" for nu in rs_freq]
-
-    transport_dims = [row["case"] for row in transport]
-    transport_max = [float(row["metric_a"]) for row in transport]
-    transport_p95 = [float(row["metric_b"]) for row in transport]
-
+    rows = read_csv(DATA_DIR / "benchmarks" / "convergence" / "convergence.csv")
     fig, axes = plt.subplots(2, 2, figsize=(7.1, 4.75))
     fig.subplots_adjust(left=0.08, right=0.985, bottom=0.12, top=0.92, wspace=0.42, hspace=0.48)
-    ax = axes[0, 0]
-
-    ax.loglog(nr_tab, gamma_tab, color=BLUE, marker="o", lw=1.4, label=r"$\Gamma$, tabulated")
-    ax.loglog(nr_tab, mass_tab, color=TEAL, marker="s", lw=1.4, label=r"$M_{\rm sw}$, tabulated")
-    ax.loglog(nr_jump, gamma_jump, color=RED, marker="o", lw=1.1, ls=":", label=r"$\Gamma$, jumps")
-    ax.loglog(nr_jump, mass_jump, color=VIOLET, marker="s", lw=1.1, ls=":", label=r"$M_{\rm sw}$, jumps")
-    add_panel(ax, "a")
-    ax.set_xlabel(r"$N_R$")
-    ax.set_ylabel("relative error")
-    ax.set_title("Dynamics event split")
-    ax.legend(fontsize=5.2)
-    ax.grid(color=LIGHT, lw=0.5, which="both")
-
-    ax = axes[0, 1]
-    ax.plot(theta_values, 100.0 * angular_p95, color=BLUE, marker="o", lw=1.4, label="p95")
-    ax.plot(theta_values, 100.0 * angular_median, color=TEAL, marker="s", lw=1.4, label="median")
-    add_panel(ax, "b")
-    ax.set_xlabel(r"$\theta_{\rm obs}/\theta_{\rm c}$")
-    ax.set_ylabel("|relative error| (%)")
-    ax.set_title("Projection vs 300x48")
-    ax.legend(fontsize=5.8)
-    ax.grid(color=LIGHT, lw=0.5)
-
-    ax = axes[1, 0]
-    y = np.arange(len(freq_labels))
-    ax.barh(y - 0.18, 100.0 * peak_flux, height=0.32, color=RED, label="peak flux")
-    ax.barh(y + 0.18, 100.0 * integral, height=0.32, color=VIOLET, label="integral")
-    ax.axvline(0.0, color=NEUTRAL, lw=0.7)
-    add_panel(ax, "c")
-    ax.set_yticks(y)
-    ax.set_yticklabels(freq_labels)
-    ax.set_xlabel("fractional difference (%)")
-    ax.set_title("RS adaptive vs direct")
-    ax.legend(fontsize=5.8)
-    ax.grid(axis="x", color=LIGHT, lw=0.5)
-
-    ax = axes[1, 1]
-    x = np.arange(len(transport_dims))
-    ax.bar(x - 0.18, 100.0 * np.array(transport_max), width=0.32, color=GOLD, label="max flux")
-    ax.bar(x + 0.18, 100.0 * np.array(transport_p95), width=0.32, color=GREEN, label="p95 flux")
-    add_panel(ax, "d")
-    ax.set_xticks(x)
-    ax.set_xticklabels(["1D", "2D"])
-    ax.set_ylabel("|before-after| (%)")
-    ax.set_title("Transport remap")
-    ax.legend(fontsize=5.8)
-    ax.grid(axis="y", color=LIGHT, lw=0.5)
+    styles = {
+        "total": (BLUE, "o", "-"),
+        "forward": (TEAL, "s", "--"),
+        "reverse": (RED, "^", ":"),
+    }
+    for label, axis, dimension in zip("abcd", axes.flat, ("radius", "electron", "photon", "angle")):
+        subset = [row for row in rows if row["dimension"] == dimension]
+        for component, (color, marker, linestyle) in styles.items():
+            values = sorted((row for row in subset if row["component"] == component), key=lambda row: int(row["level"]))
+            axis.loglog(
+                [int(row["level"]) for row in values],
+                [float(row["relative_error_p95"]) for row in values],
+                color=color,
+                marker=marker,
+                linestyle=linestyle,
+                label=component,
+            )
+            axis.axhline(float(values[0]["reference_uncertainty_p95"]), color=color, lw=0.7, alpha=0.45)
+        add_panel(axis, label)
+        axis.set_xlabel(f"{dimension} grid cells")
+        axis.set_ylabel("p95 relative flux error")
+        axis.set_title(f"{dimension.capitalize()} convergence")
+        axis.grid(color=LIGHT, lw=0.5, which="both")
+    axes[0, 0].legend()
     save_pub(fig, "fig5_validation_benchmark")
 
 
@@ -810,7 +791,11 @@ def _representative_freqs(freqs: list[float], targets: list[float]) -> list[floa
 
 
 def fig6_cross_code_fs_benchmark() -> None:
-    rows = [row for row in read_csv(DATA_DIR / "figB1_cross_code_fs.csv") if row["value"]]
+    cross_dir = DATA_DIR / "benchmarks" / "cross_code"
+    rows = [row for row in read_csv(cross_dir / "fs.csv") if row["value"]]
+    agreement_rows = [
+        row for row in read_csv(cross_dir / "agreement.csv") if row["scenario"] == "fs_synch_common_minimum"
+    ]
     codes = ["ASGARD", "afterglowpy", "jetsimpy", "VegasAfterglow", "PyBlastAfterglowMag"]
     labels = {
         "ASGARD": "ASGARD",
@@ -908,23 +893,29 @@ def fig6_cross_code_fs_benchmark() -> None:
     ax.grid(color=LIGHT, lw=0.5, which="both")
 
     ax = axes[1, 1]
-    wall = []
-    for code in codes:
-        code_rows = _rows_for(rows, code=code)
-        wall.append(float(code_rows[0]["wall_time"]))
-    x = np.arange(len(codes))
-    ax.bar(x, wall, color=[colors[code] for code in codes], edgecolor="black", linewidth=0.5)
+    bands = ("radio", "optical", "X-ray")
+    x = np.arange(len(codes) - 1)
+    width = 0.22
+    for index, band in enumerate(bands):
+        values = [
+            float(_rows_for(agreement_rows, code=code, band=band)[0]["p95_abs_log10_ratio"])
+            for code in codes[1:]
+        ]
+        ax.bar(x + (index - 1) * width, values, width=width, label=band, alpha=0.85)
     add_panel(ax, "d")
     ax.set_xticks(x)
-    ax.set_xticklabels([labels[code] for code in codes], rotation=25, ha="right")
-    ax.set_ylabel("wall time (s)")
-    ax.set_title("Same machine, same scenario")
+    ax.set_xticklabels([labels[code] for code in codes[1:]], rotation=25, ha="right")
+    ax.set_ylabel(r"p95 $|\log_{10}(F/F_{\rm ASGARD})|$")
+    ax.set_title("Common-domain agreement")
+    ax.legend()
     ax.grid(axis="y", color=LIGHT, lw=0.5)
     save_pub(fig, "fig6_cross_code_fs_benchmark")
 
 
-def fig7_multiphysics_geometry_benchmark() -> None:
-    rows = read_csv(DATA_DIR / "figB2_rs_ssc_geometry.csv")
+def figA3_rs_ssc_geometry_benchmark() -> None:
+    cross_dir = DATA_DIR / "benchmarks" / "cross_code"
+    rows = read_csv(cross_dir / "rs_ssc_geometry.csv")
+    agreement_rows = [row for row in read_csv(cross_dir / "agreement.csv") if row["scenario"] == "rs_ssc_matched_tophat"]
     rs_rows = [row for row in rows if row["scenario"] == "rs_ssc_matched_tophat" and row["value"]]
     geom_rows = [row for row in rows if row["scenario"] == "gaussian_off_axis_fs_synch" and row["value"]]
     colors = {"ASGARD": BLUE, "VegasAfterglow": VIOLET, "afterglowpy": TEAL, "jetsimpy": RED, "PyBlastAfterglowMag": GOLD}
@@ -971,22 +962,21 @@ def fig7_multiphysics_geometry_benchmark() -> None:
     ratio_values = []
     ratio_labels = []
     for comp, label in comp_labels.items():
+        name = comp.removesuffix("_flux_density_cgs")
         vals = [
-            float(row["asgard_ratio"])
-            for row in rs_rows
-            if row["code"] == "VegasAfterglow" and row["value_name"] == comp and row["asgard_ratio"]
+            float(row["median_abs_log10_ratio"])
+            for row in agreement_rows
+            if row["component"] == name and row["median_abs_log10_ratio"]
         ]
         ratio_values.append(np.nanmedian(vals))
         ratio_labels.append(label)
     x = np.arange(len(ratio_labels))
     ax.bar(x, ratio_values, color=[BLUE, TEAL, RED, VIOLET], edgecolor="black", linewidth=0.5)
-    ax.axhline(1.0, color=NEUTRAL, lw=0.8, ls=":")
     add_panel(ax, "b")
     ax.set_xticks(x)
     ax.set_xticklabels(ratio_labels, rotation=20, ha="right")
-    ax.set_yscale("log")
-    ax.set_ylabel("Vegas / ASGARD")
-    ax.set_title("Median ratio over the broad grid")
+    ax.set_ylabel(r"median $|\log_{10}(F/F_{\rm ASGARD})|$")
+    ax.set_title("Jointly active RS/SSC cells")
     ax.grid(axis="y", color=LIGHT, lw=0.5, which="both")
 
     ax = axes[1, 0]
@@ -1040,11 +1030,56 @@ def fig7_multiphysics_geometry_benchmark() -> None:
     ax.set_ylim(*_positive_limits(np.concatenate(ratio_pool), pad=0.20))
     ax.legend(fontsize=5.2, ncol=2)
     ax.grid(color=LIGHT, lw=0.5, which="both")
+    save_pub(fig, "figA3_rs_ssc_geometry_benchmark")
+
+
+def fig7_multiphysics_geometry_benchmark() -> None:
+    rows = read_csv(DATA_DIR / "benchmarks" / "chi_eats" / "chi_eats_convergence.csv")
+    scans = ("num_chi", "num_theta", "num_phi")
+    styles = ((BLUE, "o", "-"), (TEAL, "s", "--"), (RED, "^", ":"))
+    fig, axes = plt.subplots(1, 3, figsize=(7.1, 2.75))
+    fig.subplots_adjust(left=0.08, right=0.985, bottom=0.21, top=0.84, wspace=0.42)
+    for scan, (color, marker, linestyle) in zip(scans, styles):
+        subset = sorted((row for row in rows if row["scan"] == scan), key=lambda row: int(row["value"]))
+        axes[0].loglog(
+            [int(row["value"]) for row in subset],
+            [float(row["p95_abs_log10"]) for row in subset],
+            color=color,
+            marker=marker,
+            linestyle=linestyle,
+            label=scan.replace("num_", r"$N_") + "$",
+        )
+        axes[1].loglog(
+            [float(row["runtime_s"]) for row in subset],
+            [float(row["p95_abs_log10"]) for row in subset],
+            color=color,
+            marker=marker,
+            linestyle=linestyle,
+        )
+    view = sorted((row for row in rows if row["scan"] == "view_angle"), key=lambda row: float(row["theta_ratio"]))
+    axes[2].plot(
+        [float(row["theta_ratio"]) for row in view],
+        [float(row["p95_abs_log10"]) for row in view],
+        color=VIOLET,
+        marker="D",
+        linestyle="-.",
+    )
+    axes[0].set(xlabel="grid cells", ylabel=r"p95 $|\log_{10}(F/F_{\rm ref})|$", title=r"$\chi$/angle convergence")
+    axes[1].set(xlabel="wall time (s)", ylabel=r"p95 $|\log_{10}(F/F_{\rm ref})|$", title="Error--cost frontier")
+    axes[2].set(xlabel=r"$\theta_{\rm obs}/\theta_j$", ylabel=r"radio p95 $|\log_{10}F/F_{\rm ref}|$", title="SSA/viewing angle")
+    for label, axis in zip("abc", axes):
+        add_panel(axis, label)
+        axis.grid(color=LIGHT, lw=0.5, which="both")
+    axes[0].legend()
     save_pub(fig, "fig7_multiphysics_geometry_benchmark")
 
 
-def fig8_asgard_complex_state_dashboard() -> None:
-    rows = [row for row in read_csv(DATA_DIR / "figB3_asgard_complex_state.csv") if row["code"] == "ASGARD"]
+def figA4_asgard_complex_state_dashboard() -> None:
+    rows = [
+        row
+        for row in read_csv(DATA_DIR / "benchmarks" / "cross_code" / "complex_state.csv")
+        if row["code"] == "ASGARD"
+    ]
     full = [row for row in rows if row["metric_group"] == "full_state_chain" and row["value"]]
     had = [row for row in rows if row["metric_group"] == "hadronic_state" and row["value"]]
     pair = [row for row in rows if row["metric_group"] == "pair_feedback_state" and row["value"]]
@@ -1113,20 +1148,70 @@ def fig8_asgard_complex_state_dashboard() -> None:
     ax.set_title("Full state chain")
     ax.legend(fontsize=5.5)
     ax.grid(color=LIGHT, lw=0.5, which="both")
+    save_pub(fig, "figA4_asgard_complex_state_dashboard")
+
+
+def fig8_asgard_complex_state_dashboard() -> None:
+    rows = read_csv(DATA_DIR / "benchmarks" / "runtime" / "runtime_summary.csv")
+    cases = sorted({(row["medium"], row["dimension"]) for row in rows})
+    fig, axes = plt.subplots(1, 3, figsize=(7.1, 2.75))
+    fig.subplots_adjust(left=0.08, right=0.985, bottom=0.21, top=0.84, wspace=0.42)
+    stages = (("cold_solve", BLUE, "o", "-"), ("projection", TEAL, "s", "--"), ("warm_query", RED, "^", ":"))
+    for case, case_style in zip(cases, ("-", "--", ":", "-.")):
+        subset = sorted((row for row in rows if (row["medium"], row["dimension"]) == case), key=lambda row: int(row["threads"]))
+        for stage, color, marker, linestyle in stages:
+            axes[0].plot(
+                [int(row["threads"]) for row in subset],
+                [float(row[f"{stage}_median"]) for row in subset],
+                color=color,
+                marker=marker,
+                linestyle=case_style if stage == "cold_solve" else linestyle,
+                alpha=1.0 if stage == "cold_solve" else 0.55,
+                label=f"{case[0]} {case[1]} {stage}" if stage == "cold_solve" else None,
+            )
+        axes[1].plot(
+            [int(row["threads"]) for row in subset],
+            [float(row["cold_solve_median"]) for row in subset],
+            marker="o",
+            linestyle=case_style,
+            label=f"{case[0]} {case[1]}",
+        )
+        axes[2].plot(
+            [int(row["threads"]) for row in subset],
+            [float(row["peak_rss_mib_median"]) for row in subset],
+            marker="s",
+            linestyle=case_style,
+        )
+    axes[0].set(xlabel="OpenMP threads", ylabel="wall time (s)", yscale="log", title="Cold, projection, cache")
+    axes[1].set(xlabel="OpenMP threads", ylabel="cold wall time (s)", yscale="log", title="Cold scaling")
+    axes[2].set(xlabel="OpenMP threads", ylabel="peak RSS (MiB)", title="Memory footprint")
+    for label, axis in zip("abc", axes):
+        add_panel(axis, label)
+        axis.grid(color=LIGHT, lw=0.5, which="both")
+    axes[1].legend()
     save_pub(fig, "fig8_asgard_complex_state_dashboard")
 
 
 def main() -> None:
     ensure_dirs()
-    fig1_radius_state()
-    fig2_forward_spectrum()
-    fig3_electron_transport()
-    fig4_reverse_shock()
-    fig5_validation_benchmark()
-    figA1_hadronic_thresholds()
-    fig6_cross_code_fs_benchmark()
-    fig7_multiphysics_geometry_benchmark()
-    fig8_asgard_complex_state_dashboard()
+    builders = {
+        "fig1": fig1_radius_state,
+        "fig2": fig2_forward_spectrum,
+        "fig3": fig3_electron_transport,
+        "fig4": fig4_reverse_shock,
+        "fig5": fig5_validation_benchmark,
+        "fig6": fig6_cross_code_fs_benchmark,
+        "fig7": fig7_multiphysics_geometry_benchmark,
+        "fig8": fig8_asgard_complex_state_dashboard,
+        "figA1": figA1_hadronic_thresholds,
+        "figA3": figA3_rs_ssc_geometry_benchmark,
+        "figA4": figA4_asgard_complex_state_dashboard,
+    }
+    parser = argparse.ArgumentParser(description="Draw ASGARD paper figures from formal source data.")
+    parser.add_argument("--only", nargs="+", choices=tuple(builders))
+    args = parser.parse_args()
+    for name in args.only or builders:
+        builders[name]()
 
 
 if __name__ == "__main__":

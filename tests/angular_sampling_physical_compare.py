@@ -15,6 +15,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from historical_angular_patch import make_gaussian_model, patch_flux_grid
+from scripts.benchmarks.benchmark_common import PALETTE, plot_style, save_figure
 
 
 def _make_model(theta_obs: float, *, sampling: str, patch_theta: int, patch_phi: int):
@@ -40,9 +41,7 @@ def _positive_ylim(values: list[np.ndarray]) -> tuple[float, float]:
     positive = positive[np.isfinite(positive) & (positive > 0.0)]
     if positive.size == 0:
         raise AssertionError("plot has no positive finite flux values")
-    high = float(np.max(positive))
-    low = float(np.min(positive[positive >= high * 1.0e-12]))
-    return low / 2.0, high * 2.0
+    return float(np.min(positive)) / 2.0, float(np.max(positive)) * 2.0
 
 
 def _write_metrics_csv(path: Path, rows: list[dict[str, float]]) -> None:
@@ -85,6 +84,7 @@ def _plot_lightcurves(
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
+    plt.rcParams.update(plot_style())
     fig, axes = plt.subplots(
         len(ratios),
         len(freqs),
@@ -98,8 +98,8 @@ def _plot_lightcurves(
             ax = axes[i_ratio, i_freq]
             uniform = uniform_flux[i_ratio, i_freq]
             adaptive = adaptive_flux[i_ratio, i_freq]
-            ax.loglog(times, uniform, color="#0072B2", lw=1.8, marker="o", ms=3.0, markevery=4, label="uniform300")
-            ax.loglog(times, adaptive, color="#D55E00", lw=1.8, ls="--", marker="s", ms=3.0, markevery=4, label="adaptive300")
+            ax.loglog(times, uniform, color=PALETTE["blue"], marker="o", markevery=4, label="uniform")
+            ax.loglog(times, adaptive, color=PALETTE["vermillion"], ls="--", marker="s", markevery=4, label="adaptive")
             ax.set_ylim(*_positive_ylim([uniform, adaptive]))
             if i_ratio == 0:
                 ax.set_title(f"{freq:.0e} Hz")
@@ -108,9 +108,10 @@ def _plot_lightcurves(
             if i_ratio == len(ratios) - 1:
                 ax.set_xlabel("observer time [s]")
             if i_ratio == 0 and i_freq == len(freqs) - 1:
-                ax.legend(frameon=False, fontsize=8)
-    fig.savefig(path, dpi=180)
+                ax.legend(frameon=False)
+    outputs = save_figure(fig, path)
     plt.close(fig)
+    return outputs
 
 
 def _plot_relative_errors(
@@ -124,6 +125,7 @@ def _plot_relative_errors(
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
+    plt.rcParams.update(plot_style())
     fig, axes = plt.subplots(
         len(ratios),
         len(freqs),
@@ -136,7 +138,7 @@ def _plot_relative_errors(
         for i_freq, freq in enumerate(freqs):
             ax = axes[i_ratio, i_freq]
             rel = adaptive_flux[i_ratio, i_freq] / uniform_flux[i_ratio, i_freq] - 1.0
-            ax.semilogx(times, rel, color="#009E73", lw=1.8, marker="o", ms=3.0, markevery=4)
+            ax.semilogx(times, rel, color=PALETTE["green"], marker="o", markevery=4)
             ax.axhline(0.0, color="0.4", lw=0.8, ls=":")
             pad = max(float(np.max(np.abs(rel))) * 1.15, 1.0e-3)
             ax.set_ylim(-pad, pad)
@@ -146,23 +148,35 @@ def _plot_relative_errors(
                 ax.set_ylabel(rf"$\theta_{{obs}}/\theta_c={ratio:g}$" + "\n" + r"$F_{ad}/F_{uni}-1$")
             if i_ratio == len(ratios) - 1:
                 ax.set_xlabel("observer time [s]")
-    fig.savefig(path, dpi=180)
+    outputs = save_figure(fig, path)
     plt.close(fig)
+    return outputs
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--patch-theta", type=int, default=20)
-    parser.add_argument("--patch-phi", type=int, default=15)
+    parser.add_argument("--mode", choices=("quick", "formal"), default="formal")
+    parser.add_argument("--patch-theta", type=int)
+    parser.add_argument("--patch-phi", type=int)
     parser.add_argument("--theta-c", type=float, default=0.08)
-    parser.add_argument("--ratios", type=float, nargs="+", default=[0.0, 0.5, 1.0, 1.5, 2.0])
+    parser.add_argument("--ratios", type=float, nargs="+")
     parser.add_argument("--times", type=float, nargs="+", default=None)
     parser.add_argument("--time-min", type=float, default=1.0e3)
     parser.add_argument("--time-max", type=float, default=1.0e6)
-    parser.add_argument("--num-times", type=int, default=25)
-    parser.add_argument("--freqs", type=float, nargs="+", default=[1.0e10, 1.0e14, 1.0e17])
-    parser.add_argument("--output-dir", type=Path, default=ROOT / "output" / "asgard_doc" / "angular_sampling_compare")
+    parser.add_argument("--num-times", type=int)
+    parser.add_argument("--freqs", type=float, nargs="+")
+    parser.add_argument("--output-dir", type=Path)
+    parser.add_argument("--figure-dir", type=Path)
     args = parser.parse_args()
+
+    formal = args.mode == "formal"
+    args.patch_theta = args.patch_theta or (20 if formal else 8)
+    args.patch_phi = args.patch_phi or (15 if formal else 6)
+    args.num_times = args.num_times or (25 if formal else 5)
+    args.ratios = args.ratios or ([0.0, 0.5, 1.0, 1.5, 2.0] if formal else [0.0, 1.0])
+    args.freqs = args.freqs or ([1.0e10, 1.0e14, 1.0e17] if formal else [1.0e14])
+    args.output_dir = args.output_dir or ROOT / "paper" / "source_data" / "benchmarks" / "angular_sampling_physical"
+    figure_dir = args.figure_dir or ROOT / "paper" / "figures" / "benchmarks" / "angular_sampling_physical"
 
     times = (
         np.asarray(args.times, dtype=float)
@@ -200,8 +214,8 @@ def main() -> None:
     metrics_csv = args.output_dir / f"{stem}_metrics.csv"
     lightcurve_csv = args.output_dir / f"{stem}_lightcurves.csv"
     npz_path = args.output_dir / f"{stem}.npz"
-    lightcurve_png = args.output_dir / f"{stem}_lightcurve_compare.png"
-    relative_png = args.output_dir / f"{stem}_relative_error.png"
+    lightcurve_path = figure_dir / f"{stem}_lightcurve_compare"
+    relative_path = figure_dir / f"{stem}_relative_error"
     _write_metrics_csv(metrics_csv, rows)
     _write_lightcurve_csv(lightcurve_csv, ratios, times, freqs, uniform_flux, adaptive_flux)
     np.savez(
@@ -212,16 +226,16 @@ def main() -> None:
         uniform_flux=uniform_flux,
         adaptive_flux=adaptive_flux,
     )
-    _plot_lightcurves(lightcurve_png, ratios, times, freqs, uniform_flux, adaptive_flux)
-    _plot_relative_errors(relative_png, ratios, times, freqs, uniform_flux, adaptive_flux)
+    lightcurves = _plot_lightcurves(lightcurve_path, ratios, times, freqs, uniform_flux, adaptive_flux)
+    relatives = _plot_relative_errors(relative_path, ratios, times, freqs, uniform_flux, adaptive_flux)
     print(json.dumps({"summary": rows}, ensure_ascii=False, indent=2))
     print(json.dumps(
         {
             "metrics_csv": str(metrics_csv),
             "lightcurve_csv": str(lightcurve_csv),
             "npz": str(npz_path),
-            "lightcurve_png": str(lightcurve_png),
-            "relative_png": str(relative_png),
+            "lightcurve_figures": [str(path) for path in lightcurves],
+            "relative_figures": [str(path) for path in relatives],
         },
         ensure_ascii=False,
         indent=2,

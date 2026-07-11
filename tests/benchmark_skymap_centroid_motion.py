@@ -27,7 +27,9 @@ from benchmark_theta_j_multiples_magnetic_decay import (
     MAGNETIC_DECAY_T0_S,
     THETA_J_RAD,
     build_model,
+    configure as configure_theta,
 )
+from scripts.benchmarks.benchmark_common import PALETTE, plot_style, save_figure
 
 
 NU_OBS_HZ = 1.0e10
@@ -40,7 +42,18 @@ MAP_NUM_THETA = 48
 MAP_NUM_PHI_FULL = 96
 SKYMAP_NPIX = 150
 RAD_TO_MAS = 180.0 / np.pi * 3600.0 * 1.0e3
-COLORS = ("#0072b2", "#d55e00", "#009e73", "#cc79a7")
+COLORS = (PALETTE["blue"], PALETTE["vermillion"], PALETTE["green"], PALETTE["purple"])
+
+
+def configure(mode: str) -> None:
+    """Select map density; formal reproduces the original benchmark grid."""
+    global THETA_MULTIPLES, CENTROID_TIMES_S, SOLVE_TIMES_S
+    global MAP_NUM_THETA, MAP_NUM_PHI_FULL, SKYMAP_NPIX
+    configure_theta(mode)
+    if mode == "quick":
+        CENTROID_TIMES_S = np.geomspace(1.0e4, 1.0e7, 16)
+        MAP_NUM_THETA, MAP_NUM_PHI_FULL, SKYMAP_NPIX = 12, 24, 48
+    SOLVE_TIMES_S = np.unique(np.concatenate((CENTROID_TIMES_S, SKYMAP_TIMES_S)))
 
 
 @dataclass
@@ -447,8 +460,7 @@ def plot_skymaps(maps: dict[str, MapProduct], output: Path) -> None:
         ax.set_xlabel(r"$x$ (mas)")
     axes[0, 0].set_ylabel("1D thin shell\n" + r"$y$ (mas)")
     axes[1, 0].set_ylabel("2D q-shell B decay\n" + r"$y$ (mas)")
-    fig.savefig(output, dpi=180)
-    fig.savefig(output.with_suffix(".pdf"))
+    save_figure(fig, output, png=True)
     plt.close(fig)
 
 
@@ -476,8 +488,7 @@ def plot_centroid_offset(moments: dict[str, dict[float, MomentSeries]], output: 
     ax.add_artist(leg1)
     ax.legend(handles=model_handles, frameon=False, fontsize=8, loc="lower left")
     fig.tight_layout()
-    fig.savefig(output, dpi=180)
-    fig.savefig(output.with_suffix(".pdf"))
+    save_figure(fig, output)
     plt.close(fig)
 
 
@@ -509,8 +520,7 @@ def plot_apparent_speed(moments: dict[str, dict[float, MomentSeries]], meta: dic
     ax.add_artist(leg1)
     ax.legend(handles=model_handles, frameon=False, fontsize=8, loc="upper left")
     fig.tight_layout()
-    fig.savefig(output, dpi=180)
-    fig.savefig(output.with_suffix(".pdf"))
+    save_figure(fig, output)
     plt.close(fig)
 
 
@@ -538,16 +548,20 @@ def write_npz(moments: dict[str, dict[float, MomentSeries]], maps: dict[str, Map
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--output-dir", type=Path, default=Path("output/benchmark_1d_vs_qshell_skymap_motion_bdecay_alpha04"))
+    parser.add_argument("--mode", choices=("quick", "formal"), default="quick")
+    parser.add_argument("--data-dir", type=Path, required=True)
+    parser.add_argument("--figure-dir", type=Path, required=True)
     args = parser.parse_args()
-    args.output_dir.mkdir(parents=True, exist_ok=True)
+    configure(args.mode)
+    plt.rcParams.update(plot_style())
+    args.data_dir.mkdir(parents=True, exist_ok=True)
     moments, maps, meta = compute_products()
-    write_npz(moments, maps, meta, args.output_dir)
-    write_tables(moments, meta, args.output_dir)
-    plot_skymaps(maps, args.output_dir / "skymap_1d_vs_2d_bdecay.png")
-    plot_centroid_offset(moments, args.output_dir / "centroid_offset_1d_vs_2d_bdecay.png")
-    plot_apparent_speed(moments, meta, args.output_dir / "apparent_speed_1d_vs_2d_bdecay.png")
-    print(args.output_dir)
+    write_npz(moments, maps, meta, args.data_dir)
+    write_tables(moments, meta, args.data_dir)
+    plot_skymaps(maps, args.figure_dir / "skymap_1d_vs_2d_bdecay")
+    plot_centroid_offset(moments, args.figure_dir / "centroid_offset_1d_vs_2d_bdecay")
+    plot_apparent_speed(moments, meta, args.figure_dir / "apparent_speed_1d_vs_2d_bdecay")
+    print(args.figure_dir)
 
 
 if __name__ == "__main__":

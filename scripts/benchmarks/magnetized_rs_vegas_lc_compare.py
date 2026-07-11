@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import argparse
+import csv
 import sys
 
 import matplotlib
@@ -23,9 +24,14 @@ from VegasAfterglow import Observer as VegasObserver
 from VegasAfterglow import Radiation as VegasRadiation
 from VegasAfterglow import Wind as VegasWind
 from VegasAfterglow.VegasAfterglowC import Ejecta as VegasEjecta
+from scripts.benchmarks.benchmark_common import DATA_ROOT, FIGURE_ROOT, PALETTE, environment, plot_style, save_figure, write_json
 
 
 SIGMAS = (0.0, 1.0e-4, 1.0e-3, 1.0e-2, 1.0e-1, 1.0)
+MODE_GRIDS = {
+    "quick": {"times": 48, "num_r": 40, "num_theta": 12, "num_tobs": 24},
+    "formal": {"times": 240, "num_r": 80, "num_theta": 20, "num_tobs": 48},
+}
 BANDS_HZ = np.array([1.0e9, 1.0e14], dtype=float)
 BAND_LABELS = ("1 GHz", "1e14 Hz")
 E_ISO = 1.0e54
@@ -55,9 +61,7 @@ def _top_hat_field(inside: float, outside: float = 0.0):
 
 
 def _output_path(medium: str) -> Path:
-    suffix = "wind" if medium == "wind" else "ism"
-    outdir = ROOT / "output" / "asgard_doc" / ("magnetized_rs_sigma_benchmark_wind" if medium == "wind" else "magnetized_rs_sigma_benchmark")
-    return outdir / f"magnetized_rs_sigma_{suffix}_vegas_lc_compare.png"
+    return FIGURE_ROOT / "magnetized_rs_vegas" / f"magnetized_rs_{medium}_vegas"
 
 
 def _asgard_medium(medium: str):
@@ -169,7 +173,7 @@ def _plot_curve(ax, times: np.ndarray, values: np.ndarray, *, color: str, linest
     ax.loglog(times, arr, color=color, linestyle=linestyle, linewidth=linewidth, label=label)
 
 
-def build_plot(times: np.ndarray, *, medium: str, num_r: int, num_theta: int, num_tobs: int, output: Path) -> None:
+def build_plot(times: np.ndarray, *, mode: str, medium: str, num_r: int, num_theta: int, num_tobs: int, output: Path, data_dir: Path) -> None:
     data: dict[tuple[str, float], tuple[np.ndarray, np.ndarray]] = {}
     for sigma in SIGMAS:
         as_flux = _asgard_model(sigma, medium, num_r=num_r, num_theta=num_theta, num_tobs=num_tobs).flux_density_grid(times, BANDS_HZ)
@@ -178,7 +182,7 @@ def build_plot(times: np.ndarray, *, medium: str, num_r: int, num_theta: int, nu
         data[("Vegas", sigma)] = (np.asarray(vg_flux.total, dtype=float), np.asarray(vg_flux.rvs.sync, dtype=float))
 
     fig, axes = plt.subplots(len(BANDS_HZ), len(SIGMAS), figsize=(24.0, 7.4), dpi=220, sharex=True, squeeze=False)
-    colors = {"ASGARD": "#0072B2", "Vegas": "#D55E00"}
+    colors = {"ASGARD": PALETTE["blue"], "Vegas": PALETTE["vermillion"]}
     for i_band, band_label in enumerate(BAND_LABELS):
         for i_sigma, sigma in enumerate(SIGMAS):
             ax = axes[i_band, i_sigma]
@@ -200,9 +204,20 @@ def build_plot(times: np.ndarray, *, medium: str, num_r: int, num_theta: int, nu
     fig.legend(loc="upper center", ncol=4, frameon=False, bbox_to_anchor=(0.5, 0.99))
     fig.suptitle(f"{medium.upper()} reverse-shock light curves: ASGARD vs VegasAfterglow", y=0.935)
     fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.92))
-    output.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(output)
+    paths = save_figure(fig, output)
     plt.close(fig)
+
+    data_dir.mkdir(parents=True, exist_ok=True)
+    csv_path = data_dir / f"magnetized_rs_{medium}_vegas.csv"
+    with csv_path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.writer(handle, lineterminator="\n")
+        writer.writerow(("backend", "sigma", "band_hz", "time_s", "total_fnu_cgs", "reverse_sync_fnu_cgs"))
+        for (backend, sigma), (total, rs) in data.items():
+            for band, time, total_value, rs_value in zip(np.repeat(BANDS_HZ, times.size), np.tile(times, BANDS_HZ.size), total.ravel(), rs.ravel()):
+                writer.writerow((backend, sigma, band, time, total_value, rs_value))
+    meta = environment(mode, threads=1, grid={"num_r": num_r, "num_theta": num_theta, "num_tobs": num_tobs, "times": times.size}, repeats=1)
+    meta.update({"medium": medium, "sigmas": SIGMAS, "bands_hz": BANDS_HZ.tolist(), "plot_display_floor_peak_fraction": 1.0e-8})
+    write_json(data_dir / f"magnetized_rs_{medium}_vegas_metadata.json", meta)
 
     for sigma in SIGMAS:
         for backend in ("ASGARD", "Vegas"):
@@ -213,20 +228,22 @@ def build_plot(times: np.ndarray, *, medium: str, num_r: int, num_theta: int, nu
                 ratio = float(rs[i_band, idx] / total[i_band, idx]) if total[i_band, idx] > 0.0 else float("nan")
                 msg.append(f"{band_label} RS_peak={rs[i_band, idx]:.3e} ratio_at_rs_peak={ratio:.3g}")
             print(f"sigma={sigma:g} {backend}: " + "; ".join(msg))
-    print(f"wrote {output}")
+    for path in paths:
+        print(f"wrote {path}")
+    print(f"wrote {csv_path}")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--mode", choices=tuple(MODE_GRIDS), default="formal")
     parser.add_argument("--medium", choices=("ism", "wind"), default="wind")
-    parser.add_argument("--times", type=int, default=240)
-    parser.add_argument("--num-r", type=int, default=80)
-    parser.add_argument("--num-tobs", type=int, default=48)
-    parser.add_argument("--num-theta", type=int, default=20)
     parser.add_argument("--output", type=Path, default=None)
+    parser.add_argument("--data-dir", type=Path, default=DATA_ROOT / "magnetized_rs_vegas")
     args = parser.parse_args()
+    grid = MODE_GRIDS[args.mode]
     output = _output_path(args.medium) if args.output is None else args.output
-    build_plot(np.logspace(0.0, 7.0, args.times), medium=args.medium, num_r=args.num_r, num_theta=args.num_theta, num_tobs=args.num_tobs, output=output)
+    plt.rcParams.update(plot_style())
+    build_plot(np.logspace(0.0, 7.0, grid["times"]), mode=args.mode, medium=args.medium, num_r=grid["num_r"], num_theta=grid["num_theta"], num_tobs=grid["num_tobs"], output=output, data_dir=args.data_dir)
 
 
 if __name__ == "__main__":

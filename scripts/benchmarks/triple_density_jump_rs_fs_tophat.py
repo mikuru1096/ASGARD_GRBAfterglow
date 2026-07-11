@@ -17,12 +17,11 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from asgard_core import Model, Observer, UniformMedium, top_hat_jet
-from asgard_core.asgard_paths import DOC_ROOT
 from tests.public_api_builders import hadronic, numerics, observer_grid, radiation, reverse_shock, solver_options
+from scripts.benchmarks.benchmark_common import DATA_ROOT, FIGURE_ROOT, environment, plot_style, save_figure, write_json
 
 
-OUTPUT_DIR = DOC_ROOT / "reverse_density_jump_tests"
-OUTPUT_PATH = OUTPUT_DIR / "triple_density_jump_rs_fs_tophat.png"
+OUTPUT_PATH = FIGURE_ROOT / "triple_density_jump" / "triple_density_jump_rs_fs_tophat"
 JUMP_RADII_CM = (1.0e15, 1.0e16, 1.0e17)
 JUMP_FACTOR = 1.0e2
 JUMP_WIDTH_REL = 1.0e-1
@@ -42,19 +41,7 @@ PALETTE = {
     "jump": "#B64342",
 }
 
-plt.rcParams.update(
-    {
-        "font.family": "sans-serif",
-        "font.sans-serif": ["Arial", "DejaVu Sans", "Liberation Sans"],
-        "svg.fonttype": "none",
-        "pdf.fonttype": 42,
-        "font.size": 7,
-        "axes.spines.right": True,
-        "axes.spines.top": True,
-        "axes.linewidth": 0.7,
-        "legend.frameon": False,
-    }
-)
+plt.rcParams.update(plot_style())
 
 
 def _model(*, with_jumps: bool, grid: dict[str, int]) -> Model:
@@ -170,28 +157,6 @@ def _add_panel_label(ax, label: str, *, x: float = -0.055, y: float = 1.05) -> N
     ax.text(x, y, label, transform=ax.transAxes, fontsize=8, fontweight="bold", ha="left", va="bottom")
 
 
-def _save_figure(fig: plt.Figure, output: Path) -> list[Path]:
-    output.parent.mkdir(parents=True, exist_ok=True)
-    stem = output.with_suffix("")
-    paths = [
-        output,
-        stem.with_suffix(".svg"),
-        stem.with_suffix(".pdf"),
-        stem.with_suffix(".tiff"),
-    ]
-    fig.savefig(paths[0], dpi=600, bbox_inches="tight")
-    fig.savefig(paths[1], bbox_inches="tight")
-    _strip_svg_trailing_whitespace(paths[1])
-    fig.savefig(paths[2], bbox_inches="tight")
-    fig.savefig(paths[3], dpi=600, bbox_inches="tight", pil_kwargs={"compression": "tiff_lzw"})
-    return paths
-
-
-def _strip_svg_trailing_whitespace(path: Path) -> None:
-    lines = path.read_text(encoding="utf-8").splitlines()
-    path.write_text("\n".join(line.rstrip() for line in lines) + "\n", encoding="utf-8")
-
-
 def _write_secondary_event_csv(details, output: Path) -> Path:
     if details.rev is None or details.rev.secondary_rs_event_active is None:
         raise RuntimeError("triple density-jump benchmark requires secondary RS event diagnostics")
@@ -251,17 +216,17 @@ def _write_secondary_energy_csv(details, model: Model, output: Path) -> Path:
     with csv_path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.writer(handle)
         writer.writerow([
+            "jump_index",
             "secondary_rs_dissipated_energy_erg",
             "secondary_rs_electron_injected_energy_erg",
             "expected_electron_energy_erg",
             "electron_energy_fractional_error",
         ])
-        writer.writerow([
-            total_dissipated,
-            total_electron,
-            expected_electron,
-            (total_electron - expected_electron) / expected_electron,
-        ])
+        for index, (dissipated_j, electron_j) in enumerate(zip(dissipated, electron)):
+            expected_j = float(model.rvs_rad.eps_e) * float(dissipated_j)
+            error = (electron_j - expected_j) / expected_j if expected_j > 0.0 else ""
+            writer.writerow([index, dissipated_j, electron_j, expected_j, error])
+        writer.writerow(["total", total_dissipated, total_electron, expected_electron, (total_electron - expected_electron) / expected_electron])
     return csv_path
 
 
@@ -334,7 +299,7 @@ def _secondary_cooling_tail_metrics(track, i_jump: int) -> dict[str, float | int
     }
 
 
-def build_plot(*, mode: str, output: Path, times_count: int | None = None) -> Path:
+def build_plot(*, mode: str, output: Path, data_dir: Path, times_count: int | None = None) -> Path:
     grid = dict(MODE_GRIDS[mode])
     if times_count is not None:
         grid["times"] = int(times_count)
@@ -377,7 +342,7 @@ def build_plot(*, mode: str, output: Path, times_count: int | None = None) -> Pa
         r"$\Gamma_0=100,\ \sigma=0.1$" "\n"
         r"$f_{\rm jump}=100,\ \sigma_R/R_{\rm jump}=0.1$",
         transform=density_ax.transAxes,
-        fontsize=6.6,
+        fontsize=7.0,
         ha="right",
         va="top",
         linespacing=1.35,
@@ -401,16 +366,27 @@ def build_plot(*, mode: str, output: Path, times_count: int | None = None) -> Pa
             ax.set_xlabel("Observer time [s]")
     axes[0].set_ylabel(r"Flux density [erg cm$^{-2}$ s$^{-1}$ Hz$^{-1}$]")
     handles, labels = axes[-1].get_legend_handles_labels()
-    legend = fig.legend(handles, labels, fontsize=6.4, loc="upper center", ncol=4, frameon=False, handlelength=2.5, bbox_to_anchor=(0.5, 0.998))
+    legend = fig.legend(handles, labels, fontsize=7.0, loc="upper center", ncol=4, frameon=False, handlelength=2.5, bbox_to_anchor=(0.5, 0.998))
     for line in legend.get_lines():
         line.set_linewidth(1.6)
     fig.subplots_adjust(top=0.93, bottom=0.075, left=0.12, right=0.985)
-    paths = _save_figure(fig, output)
+    paths = save_figure(fig, output)
     plt.close(fig)
     details = triple_jump_model.details(float(times[0]), float(times[-1]))
-    event_csv = _write_secondary_event_csv(details, output)
-    energy_csv = _write_secondary_energy_csv(details, triple_jump_model, output)
-    adaptive_csv = _write_adaptive_convergence_csv(triple_jump_model, output, times, jump_total)
+    data_stem = data_dir / "triple_density_jump"
+    event_csv = _write_secondary_event_csv(details, data_stem)
+    energy_csv = _write_secondary_energy_csv(details, triple_jump_model, data_stem)
+    adaptive_csv = _write_adaptive_convergence_csv(triple_jump_model, data_stem, times, jump_total)
+    raw_path = data_stem.with_name("triple_density_jump_flux.csv")
+    raw_path.parent.mkdir(parents=True, exist_ok=True)
+    with raw_path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.writer(handle, lineterminator="\n")
+        writer.writerow(("band_hz", "time_s", "no_jump_total", "jump_total", "jump_forward_sync", "jump_reverse_sync"))
+        for band, time, base, total, fwd, rev in zip(np.repeat(BANDS_HZ, times.size), np.tile(times, BANDS_HZ.size), no_jump_total.ravel(), jump_total.ravel(), jump_fwd.ravel(), jump_rev.ravel()):
+            writer.writerow((band, time, base, total, fwd, rev))
+    meta = environment(mode, threads=1, grid=grid, repeats=1)
+    meta.update({"jump_radii_cm": JUMP_RADII_CM, "jump_factor": JUMP_FACTOR, "jump_width_relative": JUMP_WIDTH_REL, "reverse_sigma": REVERSE_SIGMA, "plot_display_floor_peak_fraction": 1.0e-8})
+    write_json(data_dir / "metadata.json", meta)
 
     for i_band, nu_hz in enumerate(BANDS_HZ):
         peak_index = int(np.nanargmax(jump_total[i_band]))
@@ -431,8 +407,9 @@ def main() -> None:
     parser.add_argument("--mode", choices=sorted(MODE_GRIDS), default="formal")
     parser.add_argument("--times", type=int, default=None)
     parser.add_argument("--output", type=Path, default=OUTPUT_PATH)
+    parser.add_argument("--data-dir", type=Path, default=DATA_ROOT / "triple_density_jump")
     args = parser.parse_args()
-    build_plot(mode=args.mode, output=args.output, times_count=args.times)
+    build_plot(mode=args.mode, output=args.output, data_dir=args.data_dir, times_count=args.times)
 
 
 if __name__ == "__main__":

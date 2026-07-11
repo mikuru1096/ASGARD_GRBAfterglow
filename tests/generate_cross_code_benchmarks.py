@@ -34,7 +34,7 @@ from tests.public_api_builders import (
     top_hat_model,
 )
 
-data = root / "paper" / "source_data"
+data = Path(os.environ.get("ASGARD_BENCHMARK_DATA", root / "paper" / "source_data" / "benchmarks" / "cross_code"))
 data.mkdir(parents=True, exist_ok=True)
 
 
@@ -677,6 +677,35 @@ def finite_ratio(value: float, ref: float) -> str:
     return ""
 
 
+def agreement(code: str, scenario: str, component: str, value: np.ndarray, reference: np.ndarray,
+              frequencies: np.ndarray, active_fraction: float) -> list[dict[str, str]]:
+    """Summarize only jointly active radio, optical, and X-ray cells."""
+    rows = []
+    for band, target in (("radio", 1.0e9), ("optical", 5.0e14), ("X-ray", 1.0e18)):
+        index = int(np.argmin(np.abs(np.log(frequencies / target))))
+        sample = np.asarray(value[index], dtype=float)
+        ref = np.asarray(reference[index], dtype=float)
+        mask = (
+            np.isfinite(sample)
+            & np.isfinite(ref)
+            & (sample > np.max(sample) * active_fraction)
+            & (ref > np.max(ref) * active_fraction)
+        )
+        residual = np.abs(np.log10(sample[mask] / ref[mask]))
+        rows.append({
+            "scenario": scenario,
+            "component": component,
+            "code": code,
+            "band": band,
+            "frequency_hz": f"{frequencies[index]:.8e}",
+            "active_fraction": f"{active_fraction:.1e}",
+            "valid_points": str(residual.size),
+            "median_abs_log10_ratio": f"{np.median(residual):.8e}" if residual.size else "",
+            "p95_abs_log10_ratio": f"{np.percentile(residual, 95.0):.8e}" if residual.size else "",
+        })
+    return rows
+
+
 codes = {
     "ASGARD": {
         "version": version("asgard-grb-afterglow"),
@@ -1091,7 +1120,28 @@ cap_rows = [
 ]
 
 
-write_csv("figB1_cross_code_fs.csv", fs_rows)
-write_csv("figB2_rs_ssc_geometry.csv", fig2_rows)
-write_csv("figB3_asgard_complex_state.csv", fig3_rows, fig3_fields)
-write_csv("table_cross_code_capabilities.csv", cap_rows, table_fields)
+summary_rows = []
+for code, (flux, _wall, _note) in measured.items():
+    if code != "ASGARD":
+        summary_rows += agreement(code, "fs_synch_common_minimum", "fs_sync", flux, asgard_flux, freqs, 1.0e-10)
+summary_rows += agreement(
+    "VegasAfterglow", "rs_ssc_matched_tophat", "fs_sync", vegas_rs["fs_sync"], asgard_rs["fs_sync"], rs_freqs, 1.0e-8
+)
+summary_rows += agreement(
+    "VegasAfterglow", "rs_ssc_matched_tophat", "fs_ssc", vegas_rs["fs_ssc"], asgard_rs["fs_ssc"], rs_freqs, 1.0e-8
+)
+summary_rows += agreement(
+    "VegasAfterglow", "rs_ssc_matched_tophat", "rs_sync", vegas_rs["rs_sync"], asgard_rs["rs_sync"], rs_freqs, 1.0e-8
+)
+summary_rows += agreement(
+    "VegasAfterglow", "rs_ssc_matched_tophat", "rs_ssc", vegas_rs["rs_ssc"], asgard_rs["rs_ssc"], rs_freqs, 1.0e-8
+)
+for code, (flux, _wall, _note) in geom_measured.items():
+    if code != "ASGARD":
+        summary_rows += agreement(code, "gaussian_off_axis_fs_synch", "fs_sync", flux, asgard_geom, geom_freqs, 1.0e-10)
+
+write_csv("fs.csv", fs_rows)
+write_csv("rs_ssc_geometry.csv", fig2_rows)
+write_csv("complex_state.csv", fig3_rows, fig3_fields)
+write_csv("capabilities.csv", cap_rows, table_fields)
+write_csv("agreement.csv", summary_rows, list(summary_rows[0]))

@@ -267,7 +267,7 @@ def _time_weight(model: Model, theta: np.ndarray, phi: np.ndarray, gamma_time: n
     theta_mesh, phi_mesh = theta[:, None], phi[None, :]
     energy = model.jet.energy_iso(phi_mesh, theta_mesh)
     sep = _angular_separation(theta_mesh, phi_mesh, model.observer.theta_obs, model.observer.phi_obs)
-    weighted = np.zeros_like(energy, dtype=float)
+    weighted = np.zeros_like(sep, dtype=float)
     for i_time in range(gamma_time.shape[1]):
         weighted += _doppler_factor(gamma_time[:, i_time][:, None], sep) ** 3
     return _with_structure_floor(energy * weighted / float(gamma_time.shape[1]))

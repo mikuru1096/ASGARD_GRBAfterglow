@@ -16,6 +16,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from historical_angular_patch import make_gaussian_model, patch_flux_grid
+from scripts.benchmarks.benchmark_common import PALETTE, plot_style, save_figure
 
 
 def _make_model(
@@ -83,9 +84,7 @@ def _positive_ylim(values: list[np.ndarray]) -> tuple[float, float]:
     positive = positive[np.isfinite(positive) & (positive > 0.0)]
     if positive.size == 0:
         raise AssertionError("plot has no positive finite flux values")
-    high = float(np.max(positive))
-    low = float(np.min(positive[positive >= high * 1.0e-12]))
-    return low / 2.0, high * 2.0
+    return float(np.min(positive)) / 2.0, float(np.max(positive)) * 2.0
 
 
 def _write_metrics_csv(path: Path, rows: list[dict[str, float]]) -> None:
@@ -129,6 +128,7 @@ def _plot_lightcurves(
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
+    plt.rcParams.update(plot_style())
     fig, axes = plt.subplots(
         len(ratios),
         len(freqs),
@@ -142,8 +142,8 @@ def _plot_lightcurves(
             ax = axes[i_ratio, i_freq]
             reference = reference_flux[i_ratio, i_freq]
             candidate = candidate_flux[i_ratio, i_freq]
-            ax.loglog(times, reference, color="#0072B2", lw=1.8, marker="o", ms=3.0, markevery=4, label="uniform300x48")
-            ax.loglog(times, candidate, color="#D55E00", lw=1.8, ls="--", marker="s", ms=3.0, markevery=4, label=candidate_label)
+            ax.loglog(times, reference, color=PALETTE["blue"], marker="o", markevery=4, label="uniform reference")
+            ax.loglog(times, candidate, color=PALETTE["vermillion"], ls="--", marker="s", markevery=4, label=candidate_label)
             ax.set_ylim(*_positive_ylim([reference, candidate]))
             if i_ratio == 0:
                 ax.set_title(f"{freq:.0e} Hz")
@@ -152,9 +152,10 @@ def _plot_lightcurves(
             if i_ratio == len(ratios) - 1:
                 ax.set_xlabel("observer time [s]")
             if i_ratio == 0 and i_freq == len(freqs) - 1:
-                ax.legend(frameon=False, fontsize=8)
-    fig.savefig(path, dpi=180)
+                ax.legend(frameon=False)
+    outputs = save_figure(fig, path)
     plt.close(fig)
+    return outputs
 
 
 def _plot_relative(
@@ -168,6 +169,7 @@ def _plot_relative(
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
+    plt.rcParams.update(plot_style())
     fig, axes = plt.subplots(
         len(ratios),
         len(freqs),
@@ -180,35 +182,47 @@ def _plot_relative(
         for i_freq, freq in enumerate(freqs):
             ax = axes[i_ratio, i_freq]
             rel = candidate_flux[i_ratio, i_freq] / reference_flux[i_ratio, i_freq] - 1.0
-            ax.semilogx(times, rel, color="#009E73", lw=1.8, marker="o", ms=3.0, markevery=4)
+            ax.semilogx(times, rel, color=PALETTE["green"], marker="o", markevery=4)
             ax.axhline(0.0, color="0.4", lw=0.8, ls=":")
             pad = max(float(np.max(np.abs(rel))) * 1.15, 1.0e-3)
             ax.set_ylim(-pad, pad)
             if i_ratio == 0:
                 ax.set_title(f"{freq:.0e} Hz")
             if i_freq == 0:
-                ax.set_ylabel(rf"$\theta_{{obs}}/\theta_c={ratio:g}$" + "\n" + r"$F_{20x15}/F_{300x48}-1$")
+                ax.set_ylabel(rf"$\theta_{{obs}}/\theta_c={ratio:g}$" + "\n" + r"$F_{ad}/F_{ref}-1$")
             if i_ratio == len(ratios) - 1:
                 ax.set_xlabel("observer time [s]")
-    fig.savefig(path, dpi=180)
+    outputs = save_figure(fig, path)
     plt.close(fig)
+    return outputs
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--mode", choices=("quick", "formal"), default="formal")
     parser.add_argument("--theta-c", type=float, default=0.08)
     parser.add_argument("--theta-max", type=float, default=0.24)
     parser.add_argument("--gamma0", type=float, default=120.0)
     parser.add_argument("--beaming-factor", type=float, default=3.0)
     parser.add_argument("--beaming-resolution", type=float, default=8.0)
-    parser.add_argument("--ratios", type=float, nargs="+", default=[0.0, 0.5, 1.0, 1.5, 2.0])
+    parser.add_argument("--ratios", type=float, nargs="+")
     parser.add_argument("--time-min", type=float, default=1.0e3)
     parser.add_argument("--time-max", type=float, default=1.0e6)
-    parser.add_argument("--num-times", type=int, default=25)
-    parser.add_argument("--freqs", type=float, nargs="+", default=[1.0e10, 1.0e14, 1.0e17])
+    parser.add_argument("--num-times", type=int)
+    parser.add_argument("--freqs", type=float, nargs="+")
     parser.add_argument("--candidate-sampling", default="dominant_region_ioka_time_v1")
-    parser.add_argument("--output-dir", type=Path, default=ROOT / "output" / "asgard_doc" / "angular_sampling_compare")
+    parser.add_argument("--output-dir", type=Path)
+    parser.add_argument("--figure-dir", type=Path)
     args = parser.parse_args()
+
+    formal = args.mode == "formal"
+    ref_theta, ref_phi = ((300, 48) if formal else (30, 12))
+    cand_theta, cand_phi = ((20, 15) if formal else (8, 6))
+    args.num_times = args.num_times or (25 if formal else 5)
+    args.ratios = args.ratios or ([0.0, 0.5, 1.0, 1.5, 2.0] if formal else [0.0, 1.0])
+    args.freqs = args.freqs or ([1.0e10, 1.0e14, 1.0e17] if formal else [1.0e14])
+    args.output_dir = args.output_dir or ROOT / "paper" / "source_data" / "benchmarks" / "angular_sampling_full"
+    figure_dir = args.figure_dir or ROOT / "paper" / "figures" / "benchmarks" / "angular_sampling_full"
 
     times = np.logspace(np.log10(args.time_min), np.log10(args.time_max), int(args.num_times))
     freqs = np.asarray(args.freqs, dtype=float)
@@ -230,8 +244,8 @@ def main() -> None:
             gamma0=args.gamma0,
             theta_c=args.theta_c,
             theta_max=args.theta_max,
-            patch_theta=300,
-            patch_phi=48,
+            patch_theta=ref_theta,
+            patch_phi=ref_phi,
         )
     reference_elapsed = time.perf_counter() - reference_start
 
@@ -244,8 +258,8 @@ def main() -> None:
             theta_max=args.theta_max,
             backend="python_patch",
             sampling=args.candidate_sampling,
-            patch_theta=20,
-            patch_phi=15,
+            patch_theta=cand_theta,
+            patch_phi=cand_phi,
             beaming_factor=args.beaming_factor,
             beaming_resolution=args.beaming_resolution,
         )
@@ -254,8 +268,8 @@ def main() -> None:
             times,
             freqs,
             sampling=args.candidate_sampling,
-            patch_theta=20,
-            patch_phi=15,
+            patch_theta=cand_theta,
+            patch_phi=cand_phi,
         )
         candidate_flux[i_ratio] = np.asarray(candidate, dtype=float)
         candidate_patch_counts.append(int(grid.domega.size))
@@ -274,12 +288,12 @@ def main() -> None:
     safe_sampling = args.candidate_sampling.replace("_", "-")
     safe_gamma0 = f"g{args.gamma0:g}".replace(".", "p")
     safe_theta_c = f"tc{args.theta_c:g}".replace(".", "p")
-    stem = f"fullref300x48_vs_{safe_sampling}_20x15_{safe_gamma0}_{safe_theta_c}"
+    stem = f"fullref{ref_theta}x{ref_phi}_vs_{safe_sampling}_{cand_theta}x{cand_phi}_{safe_gamma0}_{safe_theta_c}"
     metrics_csv = args.output_dir / f"{stem}_metrics.csv"
     lightcurve_csv = args.output_dir / f"{stem}_lightcurves.csv"
     npz_path = args.output_dir / f"{stem}.npz"
-    lightcurve_png = args.output_dir / f"{stem}_lightcurve_compare.png"
-    relative_png = args.output_dir / f"{stem}_relative_error.png"
+    lightcurve_path = figure_dir / f"{stem}_lightcurve_compare"
+    relative_path = figure_dir / f"{stem}_relative_error"
     _write_metrics_csv(metrics_csv, rows)
     _write_lightcurve_csv(lightcurve_csv, ratios, times, freqs, reference_flux, candidate_flux)
     np.savez(
@@ -302,12 +316,12 @@ def main() -> None:
         if len(set(candidate_theta_counts)) == 1 and len(set(candidate_phi_counts)) == 1
         else "adaptive-auto"
     )
-    _plot_lightcurves(lightcurve_png, ratios, times, freqs, reference_flux, candidate_flux, candidate_label)
-    _plot_relative(relative_png, ratios, times, freqs, reference_flux, candidate_flux)
+    lightcurves = _plot_lightcurves(lightcurve_path, ratios, times, freqs, reference_flux, candidate_flux, candidate_label)
+    relatives = _plot_relative(relative_path, ratios, times, freqs, reference_flux, candidate_flux)
     print(json.dumps(
         {
-            "reference": "python_surface_axisym uniform 300x48",
-            "candidate": f"python_patch {args.candidate_sampling} patch_theta=20 patch_phi_min=15",
+            "reference": f"python_surface_axisym uniform {ref_theta}x{ref_phi}",
+            "candidate": f"python_patch {args.candidate_sampling} patch_theta={cand_theta} patch_phi_min={cand_phi}",
             "gamma0": args.gamma0,
             "theta_c": args.theta_c,
             "theta_max": args.theta_max,
@@ -315,15 +329,15 @@ def main() -> None:
             "beaming_resolution": args.beaming_resolution,
             "reference_elapsed_s": reference_elapsed,
             "candidate_elapsed_s": candidate_elapsed,
-            "patch_reduction_by_ratio": [1.0 - count / (300 * 48) for count in candidate_patch_counts],
+            "patch_reduction_by_ratio": [1.0 - count / (ref_theta * ref_phi) for count in candidate_patch_counts],
             "candidate_patch_counts": candidate_patch_counts,
             "candidate_theta_counts": candidate_theta_counts,
             "candidate_phi_counts": candidate_phi_counts,
             "metrics_csv": str(metrics_csv),
             "lightcurve_csv": str(lightcurve_csv),
             "npz": str(npz_path),
-            "lightcurve_png": str(lightcurve_png),
-            "relative_png": str(relative_png),
+            "lightcurve_figures": [str(path) for path in lightcurves],
+            "relative_figures": [str(path) for path in relatives],
         },
         ensure_ascii=False,
         indent=2,

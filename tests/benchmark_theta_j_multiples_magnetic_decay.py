@@ -21,6 +21,7 @@ from asgard_core import Observer, top_hat_jet
 from asgard_core.api_model import _direct_tophat_patch_config, _solve_patch_state
 from asgard_core.asgard_state import project_flux
 from tests.public_api_builders import numerics, observer_grid, radiation, solver_options, top_hat_model
+from scripts.benchmarks.benchmark_common import PALETTE, plot_style, save_figure
 
 
 THETA_J_RAD = 0.1
@@ -38,12 +39,26 @@ EPSILON_B_FLOOR = 1.0e-5
 MAGNETIC_DECAY_ALPHA_T = -0.4
 MAGNETIC_DECAY_T0_S = 1.0
 
-COLORS = ("#0072b2", "#d55e00", "#009e73", "#cc79a7")
+COLORS = (PALETTE["blue"], PALETTE["vermillion"], PALETTE["green"], PALETTE["purple"])
+FORMAL = False
 BAND_LABELS = {
     1.0e10: r"$10^{10}$ Hz",
     1.0e14: r"$10^{14}$ Hz",
     1.0e18: r"$10^{18}$ Hz",
 }
+
+
+def configure(mode: str) -> None:
+    """Select calculation density; formal reproduces the original benchmark grid."""
+    global THETA_MULTIPLES, THETA_VALUES, LC_TIMES_S, SPEC_FREQS_HZ
+    global REQUESTED_FREQS_HZ, SOLVE_TIMES_S, FORMAL
+    FORMAL = mode == "formal"
+    if mode == "quick":
+        LC_TIMES_S = np.geomspace(1.0e2, 1.0e7, 20)
+        SPEC_FREQS_HZ = np.geomspace(1.0e8, 1.0e20, 28)
+    THETA_VALUES = THETA_J_RAD * THETA_MULTIPLES
+    REQUESTED_FREQS_HZ = np.unique(np.concatenate((LC_FREQS_HZ, SPEC_FREQS_HZ)))
+    SOLVE_TIMES_S = np.unique(np.concatenate((LC_TIMES_S, SPEC_TIME_S)))
 
 
 def benchmark_radiation(*, magnetic_decay: bool):
@@ -83,13 +98,13 @@ def build_model(solver: str, theta_v: float):
         fwd_rad=benchmark_radiation(magnetic_decay=is_2d),
         rvs_rad=None,
         numerics=numerics(
-            num_radius=88,
-            eats_num_theta=36,
-            eats_num_phi=24,
-            num_observer_time=88,
-            num_electron_gamma=61,
-            num_photon_frequency=72,
-            downstream_num_chi=12 if is_2d else None,
+            num_radius=88 if FORMAL else 28,
+            eats_num_theta=36 if FORMAL else 12,
+            eats_num_phi=24 if FORMAL else 8,
+            num_observer_time=88 if FORMAL else 28,
+            num_electron_gamma=61 if FORMAL else 25,
+            num_photon_frequency=72 if FORMAL else 30,
+            downstream_num_chi=(12 if FORMAL else 6) if is_2d else None,
             num_threads=1,
             electron_adaptive_substeps=True,
             electron_substep_rtol=0.02,
@@ -312,8 +327,7 @@ def plot_lightcurves(data: dict[str, np.ndarray], output: Path) -> None:
         fontsize=9,
     )
     fig.tight_layout(rect=(0, 0, 1, 0.93))
-    fig.savefig(output, dpi=180)
-    fig.savefig(output.with_suffix(".pdf"))
+    save_figure(fig, output)
     plt.close(fig)
 
 
@@ -343,8 +357,7 @@ def plot_spectra(data: dict[str, np.ndarray], output: Path) -> None:
     ax.add_artist(leg1)
     ax.legend(handles=solver_handles, frameon=False, fontsize=8, loc="upper left", bbox_to_anchor=(1.01, 1.0))
     fig.tight_layout(rect=(0, 0, 0.80, 1))
-    fig.savefig(output, dpi=180)
-    fig.savefig(output.with_suffix(".pdf"))
+    save_figure(fig, output)
     plt.close(fig)
 
 
@@ -379,32 +392,31 @@ def plot_multiband(data: dict[str, np.ndarray], output: Path) -> None:
     axes[0, 1].legend(handles=solver_handles, frameon=False, fontsize=8, loc="lower left")
     fig.suptitle(r"Band-by-band light curves")
     fig.tight_layout(rect=(0, 0, 1, 0.95))
-    fig.savefig(output, dpi=180)
-    fig.savefig(output.with_suffix(".pdf"))
+    save_figure(fig, output)
     plt.close(fig)
 
 
-def write_outputs(data: dict[str, np.ndarray], output_dir: Path) -> None:
-    output_dir.mkdir(parents=True, exist_ok=True)
-    np.savez(output_dir / "theta_j_multiples_bdecay_compare_data.npz", **data)
-    write_compare_summary(data, output_dir / "theta_j_multiples_bdecay_compare_summary.csv")
-    write_peak_summary(data, output_dir / "theta_j_multiples_bdecay_peak_summary.csv")
-    plot_lightcurves(data, output_dir / "theta_j_multiples_bdecay_lightcurve_1d_vs_qshell.png")
-    plot_spectra(data, output_dir / "theta_j_multiples_bdecay_spectrum_1d_vs_qshell.png")
-    plot_multiband(data, output_dir / "theta_j_multiples_bdecay_multiband_lightcurve_1d_vs_qshell.png")
+def write_outputs(data: dict[str, np.ndarray], data_dir: Path, figure_dir: Path) -> None:
+    data_dir.mkdir(parents=True, exist_ok=True)
+    np.savez(data_dir / "theta_j_multiples_bdecay_compare_data.npz", **data)
+    write_compare_summary(data, data_dir / "theta_j_multiples_bdecay_compare_summary.csv")
+    write_peak_summary(data, data_dir / "theta_j_multiples_bdecay_peak_summary.csv")
+    plot_lightcurves(data, figure_dir / "theta_j_multiples_bdecay_lightcurve_1d_vs_qshell")
+    plot_spectra(data, figure_dir / "theta_j_multiples_bdecay_spectrum_1d_vs_qshell")
+    plot_multiband(data, figure_dir / "theta_j_multiples_bdecay_multiband_lightcurve_1d_vs_qshell")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--output-dir",
-        type=Path,
-        default=Path("output/benchmark_1d_vs_qshell_theta_j_multiples_bdecay_alpha04"),
-    )
+    parser.add_argument("--mode", choices=("quick", "formal"), default="quick")
+    parser.add_argument("--data-dir", type=Path, required=True)
+    parser.add_argument("--figure-dir", type=Path, required=True)
     args = parser.parse_args()
+    configure(args.mode)
+    plt.rcParams.update(plot_style())
     data = compute()
-    write_outputs(data, args.output_dir)
-    print(args.output_dir)
+    write_outputs(data, args.data_dir, args.figure_dir)
+    print(args.figure_dir)
 
 
 if __name__ == "__main__":
