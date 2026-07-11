@@ -2,7 +2,7 @@
   "compiler": "GNU Fortran (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
   "cpu": "x86_64",
   "decision_value": "trace the early eruptive shell through primary-RS observer flux and tracked secondary-shock branch diagnostics",
-  "git_commit": "9f25500c878f7ff7249550c7ce37f557d98b4937",
+  "git_commit": "f9e059e19285d1b079cf18c70b9277cf41f2f873",
   "git_dirty": true,
   "grid": {
     "num_gam_e": 81,
@@ -15,7 +15,7 @@
   "mode": "formal",
   "observer_time_domain_s": [
     1.0,
-    120000.00000000007
+    100000000.0
   ],
   "os": "Linux",
   "packages": {
@@ -27,7 +27,7 @@
     "scipy": "1.17.1",
     "vegasafterglow": "2.0.6"
   },
-  "physical_assumptions": "PION Eta Car spherical 1D reduction at 1869.597 AD with an analytic free-wind extension from 1e13 to 1.32e16 cm",
+  "physical_assumptions": "PION Eta Car spherical 1D reduction at 1869.597 AD with an analytic free-wind inner extension from 1e13 to 1.32e16 cm and a pre-eruptive steady-wind outer extension to 3e19 cm",
   "platform": "Linux-6.6.114.1-microsoft-standard-WSL2-x86_64-with-glibc2.39",
   "python": "3.12.3",
   "repeats": 1,

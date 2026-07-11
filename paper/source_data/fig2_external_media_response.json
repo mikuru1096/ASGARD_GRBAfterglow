@@ -5,7 +5,7 @@
   "decision_value": "trace n(R) into Gamma(R), B'(R), and the 1e14 Hz total, FS synchrotron, and primary-RS synchrotron observer light curves",
   "explicit_jump_radius_cm": 1e+17,
   "frequency_hz": 100000000000000.0,
-  "git_commit": "9f25500c878f7ff7249550c7ce37f557d98b4937",
+  "git_commit": "f9e059e19285d1b079cf18c70b9277cf41f2f873",
   "git_dirty": true,
   "grid": {
     "num_gam_e": 81,
@@ -18,7 +18,7 @@
   "mode": "formal",
   "observer_time_domain_s": [
     1.0,
-    100000.0
+    100000000.0
   ],
   "observer_time_min_s": 1.0,
   "os": "Linux",
@@ -32,16 +32,20 @@
     "vegasafterglow": "2.0.6"
   },
   "physical_assumptions": "Primary reverse shock enabled in all four columns with identical top-hat ejecta and microphysics. The PION column uses the 1869.597 AD spherical 1D reduction at 1024-cell resolution plus an analytic free-wind extension from 1e13 to 1.32e16 cm.",
-  "pion_boundary_fractional_error": -0.00014958532550046755,
   "pion_convergence": "n2048 run terminated by user decision; no 1024/2048 convergence claim",
   "pion_density_column": "proton_equivalent_n_cm3 = rho_g_cm3 / m_p",
   "pion_formal_angle_patch_dependency": false,
   "pion_injection_radius_cm": 1.32e+16,
-  "pion_raw_radius_domain_cm": [
+  "pion_inner_boundary_fractional_error": -0.00014958532550046755,
+  "pion_outer_boundary_fractional_error": -0.0016569341271114313,
+  "pion_outer_extension_radius_cm": 3e+19,
+  "pion_outer_wind_mdot_g_s": 6.305286e+22,
+  "pion_outer_wind_vinf_cm_s": 45000000.0,
+  "pion_profile_radius_domain_cm": [
     10000000000000.0,
-    3.388344726562e+17
+    3e+19
   ],
-  "pion_resolution": "spherical 1D reduction, 1024 cells; analytic anchors=2; raw external rows=984; interface knots=96",
+  "pion_resolution": "spherical 1D reduction, 1024 cells; inner analytic anchors=2; raw external rows=984; outer analytic anchors=1; interface knots=96",
   "platform": "Linux-6.6.114.1-microsoft-standard-WSL2-x86_64-with-glibc2.39",
   "python": "3.12.3",
   "repeats": 1,
@@ -49,7 +53,8 @@
     "paper/source_data/fig2_external_media_response.csv",
     "paper/source_data/csm/pion_eta_car_sph1d_n1024_1870_analytic_inner.csv",
     "paper/source_data/csm/pion_eta_car_sph1d_n1024_1870_external_raw.csv",
-    "paper/source_data/csm/pion_eta_car_sph1d_n1024_1870_combined_96knots.csv"
+    "paper/source_data/csm/pion_eta_car_sph1d_n1024_1870_analytic_outer.csv",
+    "paper/source_data/csm/pion_eta_car_sph1d_n1024_1870_extended_96knots.csv"
   ],
   "threads": 1
 }

@@ -1,7 +1,9 @@
 PION commit f266658661509f0f391f34fb4bb465631328a2e1; PyPion commit 9b8cd671c2f1de0bbe83d2c1fc7409382535a17b.
 Model: public EtaCar_LGM99 WIND type-1 example converted to a spherical 1D Euler+radiation-hydrodynamics calculation, 1024 uniform radial cells on [0,3.39e17] cm.
 FinishTime=5.90e10 s = 1869.597181 AD, 11.597181 yr after the 1858 wind-table transition. Only step 0 and the terminal state were written.
-Current wind-table state: Mdot=1.072e22 g/s, vinf=1.8e8 cm/s. The analytic inner density is exactly Mdot/(4*pi*r^2*vinf) from ASGARD r0=1e13 cm to the PION injection radius 1.32e16 cm; no normalization, smoothing, or boundary matching was applied.
-The raw external table contains unchanged PION cell-centered rho, VelocityX, Temperature, and WIND1 tracer for r>=1.32e16 cm. The analytic table is density/velocity provenance only; it does not invent a gas-temperature extension.
-The 96-knot interface contains analytic r0 and injection-radius endpoints plus unchanged raw PION cells. Required raw anchors are the first external cell, both cells bracketing the strongest positive log-density gradient, the shell-density peak, and the final cell. Remaining knots iteratively maximize absolute log10-density residual in log-radius interpolation; numpy.argmax gives deterministic lowest-index ties.
+Inner analytic wind: Mdot=1.072e22 g/s, vinf=1.8e8 cm/s, r=[1e13,1.32e16] cm. The first external PION cell differs by -0.0149585% at the same radius.
+Raw PION table: 984 unchanged cell-centered rho, VelocityX, Temperature, and WIND1 tracer rows for r>=1.32e16 cm.
+Outer analytic wind: first wind-table state Mdot=6.305286e22 g/s, vinf=4.5e7 cm/s, outer anchor r=3e19 cm. The last PION cell differs by -0.165693% from this wind at the same radius.
+No density normalization, smoothing, or boundary matching was applied.
+The 96-knot interface contains two inner analytic anchors, 93 unchanged raw PION cells, and one outer analytic anchor. Required raw anchors are the first and last external cells, both cells bracketing the strongest positive log-density gradient, and the shell-density peak. Remaining knots iteratively maximize absolute log10-density residual in log-radius interpolation; numpy.argmax gives deterministic lowest-index ties.
 The n2048 run was terminated at the user's request and is excluded. No 1024/2048 convergence statement is made.

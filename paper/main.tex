@@ -274,51 +274,63 @@ nonpositive table radii or densities; tables with fewer than two points; and
 tables whose radii are not ordered.  These checks define the supported medium
 families, not extra physical assumptions.
 
-The fourth column of Figure~\ref{fig:external-media} replaces the illustrative
-tabulated profile with the public PION $\eta$ Car wind-history example
-\citep{Mackey2021PION}, reduced here to a 1024-cell spherical one-dimensional
-Euler radiation-hydrodynamics calculation at 1869.597 AD.  This epoch is
-11.597 yr after the 1858 transition out of the eruptive wind in the adopted
-history \citep{Langer1999EtaCar}.  No higher-resolution convergence claim is
-made; the 2048-cell rerun was stopped by user decision.
+The fourth column of Figure~\ref{fig:external-media} uses the public PION
+$\eta$ Car wind-history example \citep{Mackey2021PION}, reduced here to a
+1024-cell spherical one-dimensional Euler radiation-hydrodynamics calculation
+at 1869.597 AD.  This epoch is 11.597 yr after the 1858 transition out of the
+eruptive wind \citep{Langer1999EtaCar}.  No 1024/2048 convergence claim is
+made.
 
-The PION calculation injects the wind at
-$R_{\rm w}=1.32\times10^{16}$ cm.  To give all four columns the same ASGARD
-initial radius, we extend the density inward to $R_0=10^{13}$ cm with the
-current free wind,
+The PION source radius is $R_{\rm w}=1.32\times10^{16}$ cm.  We extend the
+profile inward to $R_0=10^{13}$ cm with the current post-eruption free wind,
 \begin{equation}
 \begin{aligned}
-\rho_{\rm w}(R)&=\frac{\dot M}{4\pi R^2v_\infty},\\
-\dot M&=1.072\times10^{22}\ {\rm g\ s^{-1}},\\
-v_\infty&=1.8\times10^8\ {\rm cm\ s^{-1}} .
+\rho_{\rm in}(R)&=\frac{\dot M_{\rm in}}{4\pi R^2v_{\rm in}},\\
+\dot M_{\rm in}&=1.072\times10^{22}\ {\rm g\ s^{-1}},\\
+v_{\rm in}&=1.8\times10^8\ {\rm cm\ s^{-1}} .
 \end{aligned}
 \end{equation}
-The first external PION cell differs from this unrenormalized free-wind density
-at the same radius by $-0.01496$ per cent.  The public tabulated interface
-contains the two analytic anchors and 94 unchanged PION cells selected by a
-deterministic maximum-residual procedure.  Its maximum log-density residual is
-$8.43\times10^{-4}$ dex; no smoothing or boundary normalization is applied.
-ASGARD uses $n_{\rm p,eq}=\rho/m_p$ for the upstream mass density.
+The first external PION cell differs from this unrenormalized continuation by
+$-0.01496$ per cent at the same radius.  Beyond the final PION cell, we use the
+pre-eruption steady wind from the first wind-table state,
+\begin{equation}
+\begin{aligned}
+\rho_{\rm out}(R)&=\frac{\dot M_{\rm out}}{4\pi R^2v_{\rm out}},\\
+\dot M_{\rm out}&=6.305286\times10^{22}\ {\rm g\ s^{-1}},\\
+v_{\rm out}&=4.5\times10^7\ {\rm cm\ s^{-1}} .
+\end{aligned}
+\end{equation}
+with an outer anchor at $3\times10^{19}$ cm.  At the last PION-cell radius,
+the raw density differs from this analytic wind by $-0.165693$ per cent.  No
+normalization or smoothing is applied at either boundary.
+
+The 96-point ASGARD interface contains two inner analytic anchors, 93 unchanged
+PION cells, and one outer analytic anchor.  It explicitly retains the first and
+last raw cells, both cells bracketing the strongest compression front, and the
+shell peak; the remaining points follow a deterministic maximum-residual
+selection.  The maximum log-density residual is
+$9.26\times10^{-4}$ dex.  ASGARD uses
+$n_{\rm p,eq}=\rho/m_p$ for the upstream mass density.
 
 Figure~\ref{fig:external-media} uses identical ejecta, microphysics,
-$R_0=10^{13}$ cm, and $1\le t_{\rm obs}\le10^5$ s in all four columns.
-The primary reverse shock is enabled throughout.  The PION trajectory reaches
-$2.8002\times10^{16}$ cm and therefore covers both the compression front and
-the shell-density peak at $2.7974\times10^{16}$ cm.  The bottom row separately
-reports the total, forward-shock synchrotron, and primary-reverse-shock
+$R_0=10^{13}$ cm, and $1\le t_{\rm obs}\le10^8$ s in all four columns, with
+the primary reverse shock enabled.  The PION trajectory reaches
+$3.2970\times10^{17}$ cm, inside the last raw cell at
+$3.3883\times10^{17}$ cm; the outer analytic segment therefore supplies a
+verified domain extension but is not sampled by this formal trajectory.  The
+bottom row separately reports total, FS synchrotron, and primary-RS
 synchrotron fluxes.
 
 \begin{figure*}[!tp]
   \centering
   \includegraphics[width=\textwidth]{figures/fig2_external_media.pdf}
-  \caption{Common-ejecta forward- and reverse-shock calculations in four
-  external media.  The fourth density panel joins the analytic free wind
-  (blue), the 1024-cell PION profile at 1869.597 AD (gray), and the 96-point
-  ASGARD interface (gold dashed).  The middle row gives $\Gamma(R)$ and
-  $B'(R)$.  The bottom row separates total (dark gray), FS synchrotron
-  (blue-green), and primary-RS synchrotron (warm red) flux at
-  $10^{14}\,\mathrm{Hz}$.  All plotted states and fluxes lie on the common
-  finite domain $1\le t_{\rm obs}\le10^5$ s.}
+  \caption{Common-ejecta forward- and primary-reverse-shock calculations in
+  four external media.  The fourth density panel separates the inner analytic
+  wind (blue), raw 1024-cell PION profile (gray), outer analytic steady wind
+  (violet), and 96-point ASGARD interface (gold dashed).  The middle row gives
+  $\Gamma(R)$ and $B'(R)$; the bottom row separates total, FS synchrotron, and
+  primary-RS synchrotron flux at $10^{14}\,\mathrm{Hz}$ over
+  $1\le t_{\rm obs}\le10^8$ s.}
   \label{fig:external-media}
 \end{figure*}
 
@@ -4187,15 +4199,16 @@ to an interacting eruptive-wind calculation.
 \begin{figure*}[!tp]
   \centering
   \includegraphics[width=\textwidth]{figures/fig12_smooth_clumpy_medium.pdf}
-  \caption{Early PION eruptive-wind CSM and its tracked shock response.  Panel
-  (a) separates the analytic free wind from the raw 1024-cell PION density and
-  marks the compression front and shell peak.  Panel (b) gives the dynamics and
-  active event window.  Panel (c) separates total, FS synchrotron, and
-  primary-RS synchrotron observer flux; no independent secondary-RS observer
-  flux is available.  Panel (d) shows only local secondary-branch internal
-  energy and synchrotron spectral-luminosity diagnostics.  Candidate 0 is
-  active from $2.7857\times10^{16}$ to $2.7974\times10^{16}$ cm, whereas
-  candidate 1 is explicitly returned as a no-event boundary.}
+  \caption{Early PION eruptive-wind CSM followed to $10^8$ s.  Panel (a)
+  separates the inner analytic wind, raw 1024-cell PION density, and outer
+  analytic steady wind, and marks the compression front and shell peak.  Panel
+  (b) gives the dynamics and both active secondary-event windows.  Panel (c)
+  separates total, FS synchrotron, and primary-RS synchrotron observer flux; no
+  independent secondary-RS observer flux is available.  Panel (d) shows local
+  internal-energy and synchrotron spectral-luminosity diagnostics for both
+  tracked secondary branches.  Event 0 spans
+  $2.7856\times10^{16}$--$2.7974\times10^{16}$ cm and event 1 spans
+  $5.3134\times10^{16}$--$6.4059\times10^{16}$ cm.}
   \label{fig:smooth-clumps}
 \end{figure*}
 

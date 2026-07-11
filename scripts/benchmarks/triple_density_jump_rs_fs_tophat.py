@@ -35,11 +35,12 @@ PROFILE_BASE_DENSITY_CM3 = 1.0
 CSM_DIR = ROOT / "paper" / "source_data" / "csm"
 PION_RAW_PROFILE = CSM_DIR / "pion_eta_car_sph1d_n1024_1870_external_raw.csv"
 PION_ANALYTIC_PROFILE = CSM_DIR / "pion_eta_car_sph1d_n1024_1870_analytic_inner.csv"
-PION_INTERFACE_PROFILE = CSM_DIR / "pion_eta_car_sph1d_n1024_1870_combined_96knots.csv"
+PION_OUTER_PROFILE = CSM_DIR / "pion_eta_car_sph1d_n1024_1870_analytic_outer.csv"
+PION_INTERFACE_PROFILE = CSM_DIR / "pion_eta_car_sph1d_n1024_1870_extended_96knots.csv"
 PION_ASGARD_RADIUS_CM = 1.0e13
 PION_INJECTION_RADIUS_CM = 1.32e16
 PION_OBSERVER_TIME_MIN_S = 1.0e0
-PION_OBSERVER_TIME_MAX_S = 1.0e5
+PION_OBSERVER_TIME_MAX_S = 1.0e8
 MODE_GRIDS = {
     "quick": {"num_r": 60, "num_theta": 32, "num_tobs": 32, "num_gam_e": 41, "num_nu": 31, "times": 80},
     "formal": {"num_r": 120, "num_theta": 80, "num_tobs": 48, "num_gam_e": 81, "num_nu": 49, "times": 160},
@@ -338,25 +339,21 @@ def _pion_lbv_profile() -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]
         analytic = list(csv.DictReader(stream))
     with PION_RAW_PROFILE.open(encoding="utf-8", newline="") as stream:
         raw = list(csv.DictReader(stream))
+    with PION_OUTER_PROFILE.open(encoding="utf-8", newline="") as stream:
+        outer = list(csv.DictReader(stream))
     with PION_INTERFACE_PROFILE.open(encoding="utf-8", newline="") as stream:
         interface = list(csv.DictReader(stream))
-    raw_r = np.asarray(
-        [float(row["radius_cm"]) for row in analytic] + [float(row["radius_cm"]) for row in raw],
-        dtype=float,
-    )
-    raw_n = np.asarray(
-        [float(row["proton_equivalent_n_cm3"]) for row in analytic]
-        + [float(row["proton_equivalent_n_cm3"]) for row in raw],
-        dtype=float,
-    )
+    sources = analytic + raw + outer
+    raw_r = np.asarray([float(row["radius_cm"]) for row in sources], dtype=float)
+    raw_n = np.asarray([float(row["proton_equivalent_n_cm3"]) for row in sources], dtype=float)
     interface_r = np.asarray([float(row["radius_cm"]) for row in interface], dtype=float)
     interface_n = np.asarray([float(row["proton_equivalent_n_cm3"]) for row in interface], dtype=float)
-    if len(analytic) != 2 or len(raw) != 984 or interface_r.size != PROFILE_POINTS:
-        raise RuntimeError("PION CSM source rows do not match the tracked 1024-cell 1870 profile")
+    if len(analytic) != 2 or len(raw) != 984 or len(outer) != 1 or interface_r.size != PROFILE_POINTS:
+        raise RuntimeError("PION CSM source rows do not match the analytic plus 1024-cell 1870 profile")
     if raw_r[0] != PION_ASGARD_RADIUS_CM or raw_r[1] != PION_INJECTION_RADIUS_CM:
-        raise RuntimeError("PION analytic extension must anchor ASGARD r0 and the wind injection radius")
+        raise RuntimeError("PION inner analytic extension must anchor ASGARD r0 and the wind injection radius")
     if interface_r[0] != raw_r[0] or interface_r[-1] != raw_r[-1]:
-        raise RuntimeError("PION CSM interface must share the full analytic-plus-raw domain")
+        raise RuntimeError("PION CSM interface must share the full inner-analytic, raw, and outer-analytic domain")
     if np.any(np.diff(raw_r) <= 0.0) or np.any(np.diff(interface_r) <= 0.0):
         raise RuntimeError("PION CSM radius grids must be strictly ordered")
     if not np.all(np.isfinite(raw_n)) or not np.all(raw_n > 0.0):
@@ -365,9 +362,9 @@ def _pion_lbv_profile() -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]
         raise RuntimeError("PION interface density must be finite and positive")
     positions = np.searchsorted(raw_r, interface_r)
     if np.any(positions >= raw_r.size):
-        raise RuntimeError("PION interface contains a radius absent from the analytic-plus-raw source")
+        raise RuntimeError("PION interface contains a radius absent from its source profile")
     if not np.array_equal(raw_r[positions], interface_r) or not np.array_equal(raw_n[positions], interface_n):
-        raise RuntimeError("PION interface points must be unchanged analytic endpoints or raw simulation cells")
+        raise RuntimeError("PION interface points must be unchanged analytic anchors or raw simulation cells")
     return raw_r, raw_n, interface_r, interface_n
 
 
@@ -483,10 +480,10 @@ def build_density_structure(*, scenario: str, mode: str, data_dir: Path,
             medium=TabulatedMedium(radius, density, "Early PION eruption CSM"),
             initial_radius_cm=PION_ASGARD_RADIUS_CM,
             observer_time_min_s=1.0,
-            observer_time_max_s=1.2e5,
+            observer_time_max_s=1.0e8,
             reverse_enabled=True,
         )
-        times = np.logspace(0.0, np.log10(1.2e5), grid["times"])
+        times = np.logspace(0.0, np.log10(1.0e8), grid["times"])
         name = "fig12_smooth_clumpy_medium"
     else:
         radius, density, centers = _tabulated_profile(scenario)
@@ -524,7 +521,10 @@ def build_density_structure(*, scenario: str, mode: str, data_dir: Path,
             writer = csv.writer(handle, lineterminator="\n")
             writer.writerow(("source", "radius_cm", "density_cm3"))
             for index, (value_r, value_n) in enumerate(zip(raw_r, raw_n)):
-                writer.writerow(("analytic" if index < 2 else "PION n1024", value_r, value_n))
+                source = "inner analytic" if index < 2 else (
+                    "outer analytic" if index == len(raw_r) - 1 else "PION n1024"
+                )
+                writer.writerow((source, value_r, value_n))
     else:
         _write_profile_csv(profile_path, radius, density)
     _write_profile_dynamics_csv(details.rev, dynamics_path)
@@ -536,7 +536,7 @@ def build_density_structure(*, scenario: str, mode: str, data_dir: Path,
         "scenario": scenario,
         "physical_assumptions": (
             "PION Eta Car spherical 1D reduction at 1869.597 AD with an analytic free-wind "
-            "extension from 1e13 to 1.32e16 cm"
+            "inner extension from 1e13 to 1.32e16 cm and a pre-eruptive steady-wind outer extension to 3e19 cm"
             if scenario == "fig12"
             else "wind R^-2 to n0 plateau, finite compact-support shell, then n0 plateau"
         ),
@@ -657,17 +657,22 @@ def build_external_media(*, mode: str, data_dir: Path, times_count: int | None =
         "common_initial_radius_cm": PION_ASGARD_RADIUS_CM,
         "observer_time_min_s": PION_OBSERVER_TIME_MIN_S,
         "observer_time_domain_s": [float(times[0]), float(times[-1])],
-        "pion_raw_radius_domain_cm": [float(raw_r[0]), float(raw_r[-1])],
+        "pion_profile_radius_domain_cm": [float(raw_r[0]), float(raw_r[-1])],
         "pion_injection_radius_cm": PION_INJECTION_RADIUS_CM,
-        "pion_boundary_fractional_error": -1.4958532550046755e-4,
+        "pion_inner_boundary_fractional_error": -1.4958532550046755e-4,
+        "pion_outer_boundary_fractional_error": -1.6569341271114313e-3,
+        "pion_outer_wind_mdot_g_s": 6.305286e22,
+        "pion_outer_wind_vinf_cm_s": 4.5e7,
+        "pion_outer_extension_radius_cm": 3.0e19,
         "pion_density_column": "proton_equivalent_n_cm3 = rho_g_cm3 / m_p",
-        "pion_resolution": "spherical 1D reduction, 1024 cells; analytic anchors=2; raw external rows=984; interface knots=96",
+        "pion_resolution": "spherical 1D reduction, 1024 cells; inner analytic anchors=2; raw external rows=984; outer analytic anchors=1; interface knots=96",
         "pion_convergence": "n2048 run terminated by user decision; no 1024/2048 convergence claim",
         "pion_formal_angle_patch_dependency": False,
         "source_data": [
             "paper/source_data/fig2_external_media_response.csv",
             str(PION_ANALYTIC_PROFILE.relative_to(ROOT)),
             str(PION_RAW_PROFILE.relative_to(ROOT)),
+            str(PION_OUTER_PROFILE.relative_to(ROOT)),
             str(PION_INTERFACE_PROFILE.relative_to(ROOT)),
         ],
     })

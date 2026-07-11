@@ -61,4 +61,4 @@ total、FS 与 primary RS；secondary RS 仅由 event、branch internal energy�
 
 ## Circumstellar-medium source data
 
-`source_data/csm/` contains the 1869.597 AD, 1024-cell PION Eta Car profile, the analytic free-wind extension from $10^{13}$ to $1.32\times10^{16}$ cm, and the deterministic 96-point ASGARD interface. `PION_PROVENANCE_1870.txt` records the run and reduction; `SHA256SUMS` covers the tracked inputs and derived tables. No 1024/2048 convergence claim is made.
+source_data/csm/ contains the 1869.597 AD PION profile, distinct inner and outer analytic wind extensions, and the deterministic 96-point interface. The common Fig. 2 and Fig. 12 formal evidence spans 1--1e8 s with the primary RS enabled; secondary shocks remain local tracked branch diagnostics. See PION_PROVENANCE_1870.txt and SHA256SUMS. No 1024/2048 convergence claim is made.

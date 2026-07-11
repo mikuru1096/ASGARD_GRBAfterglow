@@ -157,12 +157,13 @@ def fig2_external_media() -> None:
         if name == "pion_lbv":
             raw = [row for row in table if row["medium"] == name and row["kind"] == "profile_raw"]
             interface = [row for row in table if row["medium"] == name and row["kind"] == "profile_interface"]
-            if len(raw) != 986 or len(interface) != 96:
-                raise ValueError("fig2 PION panel requires two analytic anchors, 984 raw cells, and 96 knots")
+            if len(raw) != 987 or len(interface) != 96:
+                raise ValueError("fig2 PION panel requires two inner anchors, 984 raw cells, one outer anchor, and 96 knots")
             raw_r, raw_n = values(raw, "radius_cm"), values(raw, "density_cm3")
             interface_r, interface_n = values(interface, "radius_cm"), values(interface, "density_cm3")
-            axes[0, column].loglog(raw_r[:2], raw_n[:2], color=BLUE, lw=1.0, label="analytic free wind")
-            axes[0, column].loglog(raw_r[2:], raw_n[2:], color=GRAY, lw=.65, label="PION raw (1024)")
+            axes[0, column].loglog(raw_r[:2], raw_n[:2], color=BLUE, lw=1.0, label="inner analytic wind")
+            axes[0, column].loglog(raw_r[2:-1], raw_n[2:-1], color=GRAY, lw=.65, label="PION raw (1024)")
+            axes[0, column].loglog(raw_r[-2:], raw_n[-2:], color=VIOLET, lw=1.0, label="outer analytic wind")
             axes[0, column].loglog(interface_r, interface_n, color=color, lw=1.2, ls="--",
                                    marker="o", markevery=8, ms=1.7, label="ASGARD (96)")
             axes[0, column].legend(fontsize=4.4, loc="lower left")
@@ -448,34 +449,50 @@ def fig12_smooth_clumpy_medium() -> None:
     dynamics = rows(data / f"{stem}_dynamics.csv")
     events = rows(data / f"{stem}_events.csv")
     flux = rows(data / f"{stem}_flux.csv")
-    metrics = json.loads((DATA_DIR / "csm" / "pion_eta_car_sph1d_n1024_1870_metrics.json").read_text(encoding="utf-8"))
-    analytic = [row for row in profile if row["source"] == "analytic"]
+    metrics = json.loads((DATA_DIR / "csm" / "pion_eta_car_sph1d_n1024_1870_extended_metrics.json").read_text(encoding="utf-8"))
+    inner = [row for row in profile if row["source"] == "inner analytic"]
     pion = [row for row in profile if row["source"] == "PION n1024"]
-    event0 = [row for row in dynamics if row["event_index"] == "0"]
+    outer = [row for row in profile if row["source"] == "outer analytic"]
     light = [row for row in flux if float(row["band_hz"]) == 1.0e14]
-    if len(events) != 2 or events[0]["event_active"] != "True" or events[1]["event_active"] != "False":
-        raise ValueError("fig12 requires one active PION shell event followed by one no-event boundary")
+    if len(events) != 2 or any(event["event_active"] != "True" for event in events):
+        raise ValueError("fig12 requires two active PION compression events")
     fig, axes = plt.subplots(2, 2, figsize=(7.15, 4.0))
     fig.subplots_adjust(left=.08, right=.99, bottom=.13, top=.91, wspace=.42, hspace=.48)
-    axes[0, 0].loglog(values(analytic, "radius_cm"), values(analytic, "density_cm3"), color=BLUE, lw=1.2, label="analytic free wind")
+
+    axes[0, 0].loglog(values(inner, "radius_cm"), values(inner, "density_cm3"), color=BLUE, lw=1.2, label="inner analytic wind")
     axes[0, 0].loglog(values(pion, "radius_cm"), values(pion, "density_cm3"), color=GRAY, lw=.8, label="PION raw (1024)")
+    axes[0, 0].loglog(
+        [float(pion[-1]["radius_cm"]), float(outer[0]["radius_cm"])],
+        [float(pion[-1]["density_cm3"]), float(outer[0]["density_cm3"])],
+        color=VIOLET, lw=1.1, label="outer analytic wind",
+    )
     axes[0, 0].axvspan(metrics["strongest_compression_front_left_cm"], metrics["strongest_compression_front_right_cm"], color=GOLD, alpha=.18)
     axes[0, 0].axvline(metrics["shell_peak_radius_cm"], color=RED, ls=":", lw=.8, label="shell peak")
-    panel(axes[0, 0], "a"); finish(axes[0, 0], r"$R$ (cm)", r"$n_{\rm p,eq}$ (cm$^{-3}$)", "Early PION eruption CSM"); axes[0, 0].legend(fontsize=4.8)
+    panel(axes[0, 0], "a"); finish(axes[0, 0], r"$R$ (cm)", r"$n_{\rm p,eq}$ (cm$^{-3}$)", "Early PION eruption CSM"); axes[0, 0].legend(fontsize=4.6)
+
+    event0 = [row for row in dynamics if row["event_index"] == "0"]
     radius = values(event0, "radius_cm")
     axes[0, 1].loglog(radius, values(event0, "gamma_bulk"), color=BLUE, lw=1.3)
     field = axes[0, 1].twinx(); field.loglog(radius, values(event0, "forward_B_g"), color=TEAL, ls="--", lw=1.1)
-    active = events[0]; axes[0, 1].axvspan(float(active["start_radius_cm"]), float(active["shock_end_radius_cm"]), color=RED, alpha=.12)
-    panel(axes[0, 1], "b"); finish(axes[0, 1], r"$R$ (cm)", r"$\Gamma$", "Dynamics and active event window"); field.set_ylabel(r"$B'$ (G)", color=TEAL)
+    for index, event in enumerate(events):
+        axes[0, 1].axvspan(float(event["start_radius_cm"]), float(event["shock_end_radius_cm"]), color=COLORS[index], alpha=.12)
+    panel(axes[0, 1], "b"); finish(axes[0, 1], r"$R$ (cm)", r"$\Gamma$", "Dynamics and two active event windows"); field.set_ylabel(r"$B'$ (G)", color=TEAL)
+
     for key, color, line, label in (("total_flux_cgs", GRAY, "-", "total"), ("forward_sync_flux_cgs", TEAL, "--", "FS sync"), ("reverse_sync_flux_cgs", RED, ":", "primary RS sync")):
         value = values(light, key); axes[1, 0].loglog(values(light, "time_s"), np.ma.masked_equal(value, 0.0), color=color, ls=line, lw=1.2, label=label)
     panel(axes[1, 0], "c"); finish(axes[1, 0], r"$t_{\rm obs}$ (s)", r"$F_\nu$", r"Observer components at $10^{14}$ Hz"); axes[1, 0].legend(fontsize=5)
-    energy = values(event0, "branch_internal_energy_erg"); luminosity = values(event0, "branch_peak_sync_spectral_luminosity")
-    axes[1, 1].loglog(radius, np.ma.masked_equal(energy, 0.0), color=RED, lw=1.25)
-    local = axes[1, 1].twinx(); local.loglog(radius, np.ma.masked_equal(luminosity, 0.0), color=GOLD, ls="--", lw=1.1)
-    axes[1, 1].axvspan(float(active["start_radius_cm"]), float(active["shock_end_radius_cm"]), color=RED, alpha=.10)
-    axes[1, 1].text(.04, .08, "candidate 1: no event", transform=axes[1, 1].transAxes, color=GRAY, fontsize=5.2)
-    panel(axes[1, 1], "d"); finish(axes[1, 1], r"$R$ (cm)", "secondary branch energy (erg)", "Tracked secondary-shock state"); local.set_ylabel("local spectral luminosity", color=GOLD, fontsize=6)
+
+    local = axes[1, 1].twinx()
+    for index, event in enumerate(events):
+        branch = [row for row in dynamics if row["event_index"] == str(index)]
+        branch_r = values(branch, "radius_cm")
+        energy = values(branch, "branch_internal_energy_erg")
+        luminosity = values(branch, "branch_peak_sync_spectral_luminosity")
+        axes[1, 1].loglog(branch_r, np.ma.masked_equal(energy, 0.0), color=COLORS[index], lw=1.2, label=f"event {index} energy")
+        local.loglog(branch_r, np.ma.masked_equal(luminosity, 0.0), color=COLORS[index], ls="--", lw=1.0)
+        axes[1, 1].axvspan(float(event["start_radius_cm"]), float(event["shock_end_radius_cm"]), color=COLORS[index], alpha=.08)
+    panel(axes[1, 1], "d"); finish(axes[1, 1], r"$R$ (cm)", "secondary branch energy (erg)", "Two tracked secondary-shock branches")
+    local.set_ylabel("local spectral luminosity", color=GOLD, fontsize=6); axes[1, 1].legend(fontsize=4.8)
     save_pub(fig, stem)
 
 
