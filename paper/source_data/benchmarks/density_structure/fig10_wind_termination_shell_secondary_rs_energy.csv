@@ -1,0 +1,3 @@
+event_index,secondary_rs_dissipated_energy_erg,secondary_rs_electron_injected_energy_erg,expected_electron_energy_erg,electron_energy_fractional_error
+0,9.743178848588422e+48,2.9229536545765268e+48,2.9229536545765265e+48,1.1102418717803533e-16
+total,9.743178848588422e+48,2.9229536545765268e+48,2.9229536545765265e+48,1.1102418717803533e-16

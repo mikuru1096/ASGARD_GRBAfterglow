@@ -6,11 +6,15 @@ module dynamics_density_profile
     public :: jump_max, jump_count, profile_count
     public :: jump_radius, jump_factor, jump_width
     public :: density_profile, density_moment, set_density_profile, uniform_density
+    public :: secondary_event_count, secondary_event_window, secondary_branch_density
 
     integer, parameter :: jump_max = 8, profile_max = 96
     integer, parameter :: jump_slot = 28
     integer, parameter :: profile_slot = jump_slot+1+3*jump_max
     integer :: jump_count = 0, profile_count = 0
+    integer :: profile_event_count = 0
+    real(8), dimension(jump_max) :: profile_event_start=0d0, profile_event_end=0d0
+    real(8), dimension(jump_max) :: profile_event_base=0d0
     real(8), dimension(jump_max) :: jump_radius= 0d0
     real(8), dimension(jump_max) :: jump_factor= 1d0
     real(8), dimension(jump_max) :: jump_width= 1d0
@@ -18,7 +22,8 @@ module dynamics_density_profile
     real(8), dimension(profile_max) :: profile_logr= 0d0, profile_logn= 0d0, profile_logw= 0d0
     real(8), dimension(profile_max-1) :: profile_power= 0d0
     !$omp threadprivate(jump_count,profile_count,jump_radius,jump_factor,jump_width, &
-    !$omp& profile_radius,profile_logr,profile_logn,profile_logw,profile_power)
+    !$omp& profile_radius,profile_logr,profile_logn,profile_logw,profile_power, &
+    !$omp& profile_event_count,profile_event_start,profile_event_end,profile_event_base)
 
 contains
 
@@ -175,6 +180,10 @@ subroutine set_density_profile(Boundary, n)
 
     jump_count = 0
     profile_count = 0
+    profile_event_count = 0
+    profile_event_start = 0d0
+    profile_event_end = 0d0
+    profile_event_base = 0d0
     if (n < jump_slot) return
     jump_count = nint(Boundary(jump_slot))
     if (jump_count < 0 .or. jump_count > jump_max) &
@@ -230,7 +239,96 @@ subroutine set_density_profile(Boundary, n)
             profile_power(i-1)=real(((ln1+3*lr1)-(ln0+3*lr0))/(lr1-lr0),kind(1d0))
         end if
     end do
+    call build_profile_events()
 end subroutine set_density_profile
+
+subroutine build_profile_events()
+    implicit none
+    integer :: i, i_start, i_end
+
+    ! q=d ln(r^3 n)/d ln r; q>3 is exactly d n/dR>0 for the log-log table.
+    ! Consecutive rising intervals form one finite-width compression source.
+    profile_event_count = 0
+    if (profile_count < 2) return
+    i = 1
+    do while (i < profile_count)
+        if (profile_power(i) <= 3d0) then
+            i = i + 1
+            cycle
+        end if
+        i_start = i
+        do while (i < profile_count .and. profile_power(i) > 3d0)
+            i = i + 1
+        end do
+        i_end = i
+        profile_event_count = profile_event_count + 1
+        if (profile_event_count > jump_max) &
+            error stop 'tabulated density profile has more than 8 compression intervals'
+        profile_event_start(profile_event_count) = profile_radius(i_start)
+        profile_event_end(profile_event_count) = profile_radius(i_end)
+        profile_event_base(profile_event_count) = exp(profile_logn(i_start))
+    end do
+end subroutine build_profile_events
+
+integer function secondary_event_count()
+    implicit none
+
+    secondary_event_count = jump_count + profile_event_count
+end function secondary_event_count
+
+subroutine secondary_event_window(j, r_left, r_right, width, center)
+    implicit none
+    integer, intent(in) :: j
+    real(8), intent(out) :: r_left, r_right, width, center
+    integer :: jp
+
+    if (j <= jump_count) then
+        center = jump_radius(j)
+        width = jump_width(j)*center
+        r_left = center-4d0*width
+        r_right = center
+    else
+        jp = j-jump_count
+        r_left = profile_event_start(jp)
+        r_right = profile_event_end(jp)
+        center = sqrt(r_left*r_right)
+        width = 0.5d0*(r_right-r_left)
+    end if
+end subroutine secondary_event_window
+
+subroutine secondary_branch_density(A_star,dNe_ISM,RR,R0,apply_jump,R_tr,f_jump,f_wide,j, &
+                                    dens_all,dens_bump)
+    implicit none
+    integer, intent(in) :: apply_jump, j
+    real(8), intent(in) :: A_star,dNe_ISM,RR,R0,R_tr,f_jump,f_wide
+    real(8), intent(out) :: dens_all,dens_bump
+    integer :: k,jp
+    real(8) :: x,width,prof,enh,nbase
+
+    ! The tabulated branch uses the exact local profile minus its pre-rise state;
+    ! no Gaussian replacement or post-processing is applied.
+    call density_profile(A_star,dNe_ISM,RR,R0,apply_jump,R_tr,f_jump,f_wide,dens_all)
+    dens_bump = 0d0
+    if (j > jump_count) then
+        jp = j-jump_count
+        if (RR >= profile_event_start(jp) .and. RR < profile_event_end(jp)) &
+            dens_bump = max(0d0,dens_all-profile_event_base(jp))
+        return
+    end if
+
+    enh = 1d0
+    do k=1,jump_count
+        x=RR-jump_radius(k)
+        width=jump_width(k)*jump_radius(k)
+        prof=(jump_factor(k)-1d0)*exp(-(x*x)/(2d0*width*width))
+        enh=enh+prof
+    end do
+    nbase=dens_all/enh
+    x=RR-jump_radius(j)
+    width=jump_width(j)*jump_radius(j)
+    prof=(jump_factor(j)-1d0)*exp(-(x*x)/(2d0*width*width))
+    if (x >= -4d0*width .and. x < 0d0) dens_bump=nbase*prof
+end subroutine secondary_branch_density
 
 subroutine tab_moment(R,R0,moment)
     implicit none

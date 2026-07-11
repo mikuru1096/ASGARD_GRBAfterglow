@@ -41,6 +41,7 @@ from asgard_core.asgard_physics_utils import (
     densityprofile,
     densityjumps,
     magfield,
+    profile_power,
     profile_crossing,
     reverse_mass,
 )
@@ -464,8 +465,7 @@ def solve_dynamics(
         boundary,
         config.num_r,
     )
-    jump_r, _, _ = densityjumps(config)
-    n_j = jump_r.size
+    n_j = secondary_event_count(config)
     secondary_branch_swept_mass_g = secondary_branch_swept_mass_g[:n_j, :]
     secondary_branch_internal_energy_erg = secondary_branch_internal_energy_erg[:n_j, :]
     secondary_branch_comoving_volume_cm3 = secondary_branch_comoving_volume_cm3[:n_j, :]
@@ -1459,8 +1459,7 @@ def _secondaryrs(
     config: RuntimeConfig,
     reverse_params: ReverseShockParameters,
 ) -> SecondaryReverseShockState | None:
-    jump_r, _, _ = densityjumps(config)
-    if jump_r.size == 0 or dynamics.reverse_shock is None:
+    if secondary_event_count(config) == 0 or dynamics.reverse_shock is None:
         return None
     radius = np.asarray(dynamics.radius, dtype=float)
     if reverse_params.p <= 2.0:
@@ -1540,6 +1539,18 @@ def _secondaryrs(
         branch_reaccelerated_energy_erg=reaccelerated_energy,
         magnetic_field_g=rs.secondary_magnetic_field_g,
     )
+
+
+def secondary_event_count(config: RuntimeConfig) -> int:
+    jump_r, _, _ = densityjumps(config)
+    profile_r, profile_n = densityprofile(config)
+    count = int(jump_r.size)
+    if profile_r.size == 0:
+        return count
+    slope = np.asarray(profile_power(profile_r, profile_n), dtype=float)
+    rising = slope > 3.0
+    count += int(np.count_nonzero(rising & np.concatenate(([True], ~rising[:-1]))))
+    return count
 
 
 def _rsparams(config: RuntimeConfig) -> ReverseShockParameters | None:

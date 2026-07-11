@@ -164,10 +164,32 @@ SPEED_SKY_NPIXEL = 20
 SPECTRUM_COMPARE_FREQS = np.logspace(8.0, 29.0, 240)
 SPECTRUM_COMPARE_NUM_NU = 81
 ELECTRON_COMPARE_TIMES = np.array([1.0e2, 3.0e2, 1.0e3, 1.0e4, 1.0e5, 1.0e6, 1.0e7], dtype=float)
-ELECTRON_COMPARE_SOLVERS = ("fullhide_1d", "fullhide_2d", "slc1_1d", "charint_1d", "charint_2d")
-ELECTRON_COMPARE_NUM_GAM_E = {"fullhide_1d": 81, "fullhide_2d": 81, "slc1_1d": 81, "charint_1d": 41, "charint_2d": 41}
-ELECTRON_COMPARE_NUM_CHI = {"fullhide_1d": None, "fullhide_2d": 8, "slc1_1d": None, "charint_1d": None, "charint_2d": 8}
-ELECTRON_COMPARE_LINESTYLES = {"fullhide_1d": "-", "fullhide_2d": ":", "slc1_1d": "--", "charint_1d": "-.", "charint_2d": (0, (5, 1.4))}
+ELECTRON_COMPARE_SOLVERS = ("fullhide_1d", "fullhide_2d", "dg_1d", "slc1_1d", "charint_1d", "charint_2d")
+ELECTRON_COMPARE_NUM_GAM_E = {
+    "fullhide_1d": 81,
+    "fullhide_2d": 81,
+    "dg_1d": 81,
+    "slc1_1d": 81,
+    "charint_1d": 41,
+    "charint_2d": 41,
+}
+ELECTRON_COMPARE_NUM_CHI = {
+    "fullhide_1d": None,
+    "fullhide_2d": 8,
+    "dg_1d": None,
+    "slc1_1d": None,
+    "charint_1d": None,
+    "charint_2d": 8,
+}
+ELECTRON_COMPARE_LINESTYLES = {
+    "fullhide_1d": "-",
+    "fullhide_2d": ":",
+    "dg_1d": (0, (4, 1.2)),
+    "slc1_1d": "--",
+    "charint_1d": "-.",
+    "charint_2d": (0, (1, 1.2)),
+}
+MEC2_ERG = 8.1871057769e-7
 
 
 def _benchmark_scenario(name: str | None = None) -> BenchmarkScenario:
@@ -280,9 +302,11 @@ def _save(fig, path: Path) -> Path:
     datadir.mkdir(parents=True, exist_ok=True)
     rows, arrays = _figure_data(fig)
     save_figure(fig, figdir / stem, png="sky" in stem)
+    svg_path = figdir / f"{stem}.svg"
+    svg_path.write_text("\n".join(line.rstrip() for line in svg_path.read_text(encoding="utf-8").splitlines()) + "\n", encoding="utf-8")
     np.savez_compressed(datadir / f"{stem}.npz", **arrays)
     with (datadir / f"{stem}.csv").open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=("axis", "kind", "series", "label", "x", "y", "value"))
+        writer = csv.DictWriter(handle, fieldnames=("axis", "kind", "series", "label", "x", "y", "value"), lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
     write_json(datadir / f"{stem}.json", _metadata(stem))
@@ -290,6 +314,15 @@ def _save(fig, path: Path) -> Path:
     result = figdir / f"{stem}.pdf"
     print(f"[save] {result.name}")
     return result
+
+
+def _write_semantic_rows(name: str, fieldnames: tuple[str, ...], table: list[dict[str, object]]) -> None:
+    datadir = DATA_DIR / BENCHMARK_SCENARIO
+    datadir.mkdir(parents=True, exist_ok=True)
+    with (datadir / name).open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames, lineterminator="\n")
+        writer.writeheader()
+        writer.writerows(table)
 
 
 def _label(value: float, unit: str) -> str:
@@ -1288,11 +1321,39 @@ def _build_solver_sed_compare() -> Path:
     times = SPEED_SPEC_TIMES
     freqs_hz = np.logspace(np.log10(SPECTRUM_COMPARE_FREQS[0]), np.log10(1.0e16 * constants.para_ev2hz), 280)
     energy_ev = freqs_hz / constants.para_ev2hz
+    lightcurve_frequency_hz = 1.0e14
 
-    vegas_sed = np.asarray(_build_vegas_model(include_ssc=True).flux_density_grid(times, freqs_hz).total, dtype=float)
+    vegas_model = _build_vegas_model(include_ssc=True)
+    vegas_sed = np.asarray(vegas_model.flux_density_grid(times, freqs_hz).total, dtype=float)
     vegas_sed = vegas_sed * freqs_hz[:, None]
+    vegas_lightcurve = np.asarray(
+        vegas_model.flux_density_grid(ELECTRON_COMPARE_TIMES, np.asarray([lightcurve_frequency_hz])).total,
+        dtype=float,
+    )[0]
 
     asgard_sed: dict[str, np.ndarray] = {}
+    semantic_rows: list[dict[str, object]] = []
+    for i_time, time_s in enumerate(times):
+        semantic_rows.extend(
+            {
+                "kind": "sed",
+                "solver": "VegasAfterglow",
+                "time_s": float(time_s),
+                "frequency_hz": float(frequency_hz),
+                "value": float(vegas_sed[i_frequency, i_time]),
+            }
+            for i_frequency, frequency_hz in enumerate(freqs_hz)
+        )
+    semantic_rows.extend(
+        {
+            "kind": "lightcurve",
+            "solver": "VegasAfterglow",
+            "time_s": float(time_s),
+            "frequency_hz": lightcurve_frequency_hz,
+            "value": float(vegas_lightcurve[i_time]),
+        }
+        for i_time, time_s in enumerate(ELECTRON_COMPARE_TIMES)
+    )
     for solver in ELECTRON_COMPARE_SOLVERS:
         model_asgard = _build_asgard_model(
             include_ssc=True,
@@ -1303,6 +1364,37 @@ def _build_solver_sed_compare() -> Path:
         )
         sed = np.asarray(model_asgard.flux_density_grid(times, freqs_hz).total, dtype=float)
         asgard_sed[solver] = sed * freqs_hz[:, None]
+        lightcurve = np.asarray(
+            model_asgard.flux_density_grid(ELECTRON_COMPARE_TIMES, np.asarray([lightcurve_frequency_hz])).total,
+            dtype=float,
+        )[0]
+        for i_time, time_s in enumerate(times):
+            semantic_rows.extend(
+                {
+                    "kind": "sed",
+                    "solver": solver,
+                    "time_s": float(time_s),
+                    "frequency_hz": float(frequency_hz),
+                    "value": float(asgard_sed[solver][i_frequency, i_time]),
+                }
+                for i_frequency, frequency_hz in enumerate(freqs_hz)
+            )
+        semantic_rows.extend(
+            {
+                "kind": "lightcurve",
+                "solver": solver,
+                "time_s": float(time_s),
+                "frequency_hz": lightcurve_frequency_hz,
+                "value": float(lightcurve[i_time]),
+            }
+            for i_time, time_s in enumerate(ELECTRON_COMPARE_TIMES)
+        )
+
+    _write_semantic_rows(
+        "electron_solver_observables.csv",
+        ("kind", "solver", "time_s", "frequency_hz", "value"),
+        semantic_rows,
+    )
 
     spec_peak = float(max(np.nanmax(vegas_sed), max(np.nanmax(sed) for sed in asgard_sed.values())))
     late_spec_peak = float(
@@ -1386,11 +1478,13 @@ def _build_electron_spectrum_compare(*, magnetic_decay: bool = False) -> Path:
     solver_colors = {
         "fullhide_1d": "#111111",
         "fullhide_2d": "#0072B2",
+        "dg_1d": "#9A4D8E",
         "slc1_1d": "#D55E00",
         "charint_1d": "#009E73",
         "charint_2d": "#D55E00",
     }
     solver_handles: list[Line2D] = []
+    semantic_rows: list[dict[str, object]] = []
     for solver in ELECTRON_COMPARE_SOLVERS:
         solver_handles.append(
             Line2D(
@@ -1434,15 +1528,44 @@ def _build_electron_spectrum_compare(*, magnetic_decay: bool = False) -> Path:
                 & (asgard_slice > 0.0)
             )
             if np.any(mask_a):
+                gamma_slice = gamma_e_asgard[mask_a]
+                spectrum_slice = asgard_slice[mask_a]
                 ax.loglog(
-                    gamma_e_asgard[mask_a],
-                    asgard_slice[mask_a],
+                    gamma_slice,
+                    spectrum_slice,
                     color=solver_colors[solver],
                     lw=1.05,
                     alpha=0.9,
                     ls=ELECTRON_COMPARE_LINESTYLES[solver],
                 )
                 ax.set_title(fr"$t_{{\rm obs}}\approx {t_obs:.1e}\,\rm s$" "\n" fr"shell $t={characteristic_times[i_time]:.2e}\,\rm s$")
+                electron_number = float(np.trapezoid(spectrum_slice, gamma_slice))
+                electron_energy = float(np.trapezoid(gamma_slice * spectrum_slice, gamma_slice) * MEC2_ERG)
+                semantic_rows.extend(
+                    {
+                        "kind": "spectrum",
+                        "solver": solver,
+                        "requested_time_s": float(t_obs),
+                        "state_time_s": float(characteristic_times[i_time]),
+                        "gamma_e": float(gamma_value),
+                        "value": float(spectrum_value),
+                        "electron_number": "",
+                        "electron_energy_erg": "",
+                    }
+                    for gamma_value, spectrum_value in zip(gamma_slice, spectrum_slice)
+                )
+                semantic_rows.append(
+                    {
+                        "kind": "budget",
+                        "solver": solver,
+                        "requested_time_s": float(t_obs),
+                        "state_time_s": float(characteristic_times[i_time]),
+                        "gamma_e": "",
+                        "value": "",
+                        "electron_number": electron_number,
+                        "electron_energy_erg": electron_energy,
+                    }
+                )
 
     for ax in axes_flat[n_times:]:
         ax.set_visible(False)
@@ -1463,6 +1586,21 @@ def _build_electron_spectrum_compare(*, magnetic_decay: bool = False) -> Path:
     else:
         fig.suptitle("ASGARD Electron-Spectrum Evolution", y=0.995)
     fig.tight_layout()
+    suffix = "_magnetic_decay" if magnetic_decay else ""
+    _write_semantic_rows(
+        f"electron_solver_spectra{suffix}.csv",
+        (
+            "kind",
+            "solver",
+            "requested_time_s",
+            "state_time_s",
+            "gamma_e",
+            "value",
+            "electron_number",
+            "electron_energy_erg",
+        ),
+        semantic_rows,
+    )
 
     filename = "compare_electron_spectrum_magnetic_decay.png" if magnetic_decay else "compare_electron_spectrum.png"
     return _save(fig, OUTPUT_DIR / filename)

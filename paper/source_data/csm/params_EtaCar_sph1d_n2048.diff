@@ -1,0 +1,74 @@
+--- /mnt/c/tmp/pion-eta-patched/test_problems/EvolvingStar2D/params_EtaCar_LGM99_d2l3n256_xi043.txt	2026-07-12 02:03:16.493409800 +0800
++++ /mnt/c/tmp/pion-eta-1d/n2048/params_EtaCar_sph1d_n2048.txt	2026-07-12 02:09:53.827409700 +0800
+@@ -4,8 +4,8 @@
+ # 2020.03.10 JM: Setting up a 2D model for Eta Car's colliding winds.
+
+ ########################
+-ndim 2
+-coordinates cylindrical
++ndim 1
++coordinates spherical
+ eqn euler
+ GAMMA 1.6666666666666667
+ ########################
+@@ -44,12 +44,12 @@
+
+ ########################
+ ## Grid Parameters
+-NGridX  256
++NGridX  2048
+ NGridY  128
+ NGridZ  128
+
+ # Boundaries of Simulation box:
+-Xmin  -3.39e17
++Xmin   0.0
+ Ymin   0.0e17
+ Zmin   0.0e17
+ # Max values of x,y,z
+@@ -58,7 +58,7 @@
+ Zmax   0.0e17
+
+ # Nested grid
+-grid_nlevels 3
++grid_nlevels 1
+ grid_aspect_ratio_XX 2
+ grid_aspect_ratio_YY 1
+ grid_aspect_ratio_ZZ 1
+@@ -76,15 +76,15 @@
+ FinishTime 6.46e10
+
+ OutputPath ./
+-OutputFile EtaCar_LGM99_d2l3n256_xi043
++OutputFile EtaCar_sph1d_n2048
+ OutputFileType silo
+ OutputCriterion 0
+-OutputFrequency 512
++OutputFrequency 0
+ OPfreqTime 1.578e99
+ ########################
+
+ ########################
+-BC_XN one-way-outflow
++BC_XN reflecting
+ BC_XP one-way-outflow
+ BC_YN axisymmetric
+ BC_YP one-way-outflow
+@@ -161,7 +161,7 @@
+ WIND_0_pos1  0.0e18
+ WIND_0_pos2  0.0e18
+ WIND_0_radius 13.2e15  # cm (~20 cells wide)
+-WIND_0_type   2
++WIND_0_type   1
+ WIND_0_mdot   0.0  # not needed for evolving wind.
+ WIND_0_vinf   0.0  # not needed for evolving wind.
+ WIND_0_vrot   0.0
+@@ -179,7 +179,7 @@
+ WIND_0_t_scalefac 1.0  # Accelerates evolution by this factor (for MS phase).
+ WIND_0_updatefreq 1.0   # in (seconds)
+ WIND_0_enhance_mdot 0.0
+-WIND_0_xi         -0.43
++WIND_0_xi         0.0
+ WIND_0_ecentricity_fac 0.0
+ WIND_0_orbital_period  0.0
+ WIND_0_periastron_vec_x 0.0

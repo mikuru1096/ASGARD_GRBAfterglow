@@ -1,0 +1,10 @@
+{
+  "use_case": "scientific-educational",
+  "mode": "built-in image_gen",
+  "role": "non-quantitative visual background; all scientific labels and geometry are added by matplotlib",
+  "asset": "paper/figures/assets/fig1_afterglow_source.png",
+  "prompt": "Create a wide, pale-background scientific illustration of a relativistic gamma-ray-burst afterglow on one horizontal bipolar jet axis. Place the compact central engine near the left edge, with the main jet directed to the right and only a short or cropped counter-jet to the left. Along the rightward jet, show nested ejecta, reverse-shock/contact, and forward-shock regions as restrained blue, teal, and warm-orange arcs sweeping an external medium. Leave a circular magnified-detail region and clean whitespace on the right. Cinematic but scientifically restrained. No vertical jet lobes, no extra jet axes, no text, no labels, no arrows, no watermark, no planets, and no decorative unrelated objects.",
+  "sha256": "E8D6DCEBD57FDA0FDF311B9A858F9EAAD4867F469BF8E3A84EEE70BD1C1E732C",
+  "width_px": 1672,
+  "height_px": 941
+}

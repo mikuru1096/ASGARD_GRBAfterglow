@@ -1,7 +1,7 @@
 {
   "compiler": "GNU Fortran (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
   "cpu": "x86_64",
-  "git_commit": "78f6ac7d3c94d6d0b898ec58dc04979c818ddabf",
+  "git_commit": "db412c51be1d813aa5f64e204befe07443b32909",
   "git_dirty": true,
   "grid": {
     "num_gam_e": 81,
@@ -9,7 +9,7 @@
     "num_r": 120,
     "num_theta": 80,
     "num_tobs": 48,
-    "times": 160
+    "times": 480
   },
   "jump_factor": 100.0,
   "jump_radii_cm": [
@@ -27,7 +27,7 @@
     "numpy": "2.4.4",
     "pyblastafterglowmag": "0.0.0",
     "scipy": "1.17.1",
-    "vegasafterglow": "2.0.5"
+    "vegasafterglow": "2.0.6"
   },
   "platform": "Linux-6.6.114.1-microsoft-standard-WSL2-x86_64-with-glibc2.39",
   "plot_display_floor_peak_fraction": 1e-08,

@@ -1,0 +1,46 @@
+diff --git a/source/grid/stellar_wind_angle.cpp b/source/grid/stellar_wind_angle.cpp
+index 6560cf1..c449a12 100644
+--- a/source/grid/stellar_wind_angle.cpp
++++ b/source/grid/stellar_wind_angle.cpp
+@@ -708,7 +708,11 @@ int stellar_wind_angle::add_evolving_source(
+       const double time_offset, ///< time offset = [t(sim)-t(wind_file)] (seconds)
+       const double t_now,       ///< current sim time, to see if src is active.
+       const double update_freq, ///< frequency to update wind properties (seconds).
+-      const double t_scalefactor ///< wind evolves this factor times faster than normal
++      const double t_scalefactor, ///< wind evolves this factor times faster than normal
++      const double ecentricity, ///< orbital eccentricity factor
++      const double PeriastronX, ///< periastron x-vector (cgs units)
++      const double PeriastronY, ///< periastron y-vector (cgs units)
++      const double OrbPeriod ///< orbital period (years)
+       )
+ {
+   if (type != WINDTYPE_ANGLE) {
+@@ -821,6 +825,11 @@ int stellar_wind_angle::add_evolving_source(
+   add_rotating_source(pos,rad,type,mdot,0.0, vinf, vrot, vcrt,Twind,
+                       rstar,Bstar,trv);
+   temp->ws = wlist.back();
++  temp->ws->ecentricity = ecentricity;
++  temp->ws->PeriastronX = PeriastronX;
++  temp->ws->PeriastronY = PeriastronY;
++  temp->ws->OrbPeriod = OrbPeriod;
++  for (int v=0; v<ndim; v++) temp->ws->dpos_init[v] = pos[v];
+
+   wdata_evol.push_back(temp);
+   return 0;
+diff --git a/source/grid/stellar_wind_angle.h b/source/grid/stellar_wind_angle.h
+index e026270..8abbc2d 100644
+--- a/source/grid/stellar_wind_angle.h
++++ b/source/grid/stellar_wind_angle.h
+@@ -57,7 +57,11 @@ class stellar_wind_angle
+       const double,   ///< time offset = [t(sim)-t(wind_file)]
+       const double,   ///< current time.
+       const double,   ///< frequency with which to update wind properties.
+-      const double    ///< scale factor for time (t(sim)=[t(evo_file)-offset]/scalefactor
++      const double,   ///< scale factor for time (t(sim)=[t(evo_file)-offset]/scalefactor
++      const double,   ///< orbital eccentricity factor
++      const double,   ///< periastron x-vector (cgs units)
++      const double,   ///< periastron y-vector (cgs units)
++      const double    ///< orbital period (years)
+       );
+
+   ///

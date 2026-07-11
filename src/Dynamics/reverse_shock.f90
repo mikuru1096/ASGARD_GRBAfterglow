@@ -29,8 +29,8 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,fer,sigma_r,Boundary,n,Num_R, &
                             start_t,end_t)
     use constants
     use dynamics_density_profile, only: set_density_profile, density_profile, density_moment, &
-                                        jump_count, jump_radius, &
-                                        jump_factor, jump_width
+                                        jump_count, secondary_event_count, secondary_event_window, &
+                                        secondary_branch_density
     use reverse_jump_conditions, only: reverse_contact
     use reverse_shock_mhd_jump, only: rs_vegas_ud, rs_mhd_state
     use reverse_shock_state, only: wait_phase, precross_phase, &
@@ -58,7 +58,7 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,fer,sigma_r,Boundary,n,Num_R, &
     real(8) :: dtgrid,rdecism,rdecwind,tnow,tout,tevent,dbwait,dbevent
     real(8) :: u2init,u4init,dinit,n4init,g34init,n3init,compinit,udinit,einit
     real(8) :: prev_r,prev_g,prev_t,curr_r,curr_g,curr_t
-    real(8), dimension(jmax) :: src_prev,src_cur,jump_r,jump_f,jump_w,diss_prev,gm_prev
+    real(8), dimension(jmax) :: src_prev,src_cur,diss_prev,gm_prev
     real(8), dimension(:), allocatable :: y_prev,y_cur,Y,ywait,yevent
     logical, dimension(jmax) :: event_done
     logical :: ready,shockinit
@@ -75,10 +75,7 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,fer,sigma_r,Boundary,n,Num_R, &
     !   volume, cumulative dissipated energy, and gamma_m-weighted cumulative dissipated energy.
     call unpack()
     call set_density_profile(Boundary,n)
-    njump=jump_count
-    jump_r=jump_radius
-    jump_f=jump_factor
-    jump_w=jump_width
+    njump=secondary_event_count()
     nstate=6+5*njump
     allocate(y_prev(nstate),y_cur(nstate),Y(nstate),ywait(nstate),yevent(nstate))
 
@@ -831,26 +828,31 @@ contains
     implicit none
     integer :: j,k,nscan
     real(8) :: rl,rh,gl,gh,tl,th,sl,sh
-    real(8) :: width,ol,oh,drs
+    real(8) :: width,ol,oh,drs,center,frac_lo
     real(8) :: r_root,t_root
     real(8), dimension(nstate) :: yl,yh
     real(8) :: fs
 
         do j=1,njump
-            width=jump_w(j)*jump_r(j)
-            ol=max(prev_r,jump_r(j)-4d0*width)
-            oh=min(curr_r,jump_r(j))
+            call secondary_event_window(j,ol,oh,width,center)
+            ol=max(prev_r,ol)
+            oh=min(curr_r,oh)
+            if (oh <= ol) cycle
             drs=max(0d0,oh-ol)
             nscan=max(1,ceiling(drs/(width/16d0)))
-            rl=prev_r; gl=prev_g
-            tl=prev_t; sl=src_prev(j)
-            yl=y_prev
+            frac_lo=(ol-prev_r)/(curr_r-prev_r)
+            rl=ol
+            gl=prev_g+frac_lo*(curr_g-prev_g)
+            tl=prev_t+frac_lo*(curr_t-prev_t)
+            yl=y_prev+frac_lo*(y_cur-y_prev)
+            call event_source(j,rl,gl,yl,sl)
             do k=1,nscan
                 fs=dble(k)/dble(nscan)
-                rh=prev_r+(curr_r-prev_r)*fs
-                gh=prev_g+(curr_g-prev_g)*fs
-                th=prev_t+(curr_t-prev_t)*fs
-                yh=y_prev+fs*(y_cur-y_prev)
+                rh=ol+drs*fs
+                frac_lo=(rh-prev_r)/(curr_r-prev_r)
+                gh=prev_g+frac_lo*(curr_g-prev_g)
+                th=prev_t+frac_lo*(curr_t-prev_t)
+                yh=y_prev+frac_lo*(y_cur-y_prev)
                 call event_source(j,rh,gh,yh,sh)
                 if (.not. event_on(j)) then
                     if (sl > 0d0) then
@@ -868,7 +870,7 @@ contains
                     if (sl > 0d0 .and. sh <= 0d0) then
                         call event_root(j,rl,rh,gl,gh,tl,th,yl,yh,r_root,t_root)
                         event_done(j)=.true.
-                        if (r_root >= jump_r(j)) r_root=nearest(jump_r(j),-1d0)
+                        if (j <= jump_count .and. r_root >= center) r_root=nearest(center,-1d0)
                         end_r(j)=r_root
                         end_t(j)=t_root
                     end if
@@ -1154,27 +1156,11 @@ contains
     subroutine branch_density(radius,j,dens_all,dens_bump)
     implicit none
     integer, intent(in) :: j
-    integer :: k
     real(8), intent(in) :: radius
     real(8), intent(out) :: dens_all,dens_bump
-    real(8) :: x,width,prof,nall,nbase,enh
 
-        call density_profile(astar,nism,radius,R0,1,R_tr,f_jump,f_wide,nall)
-        enh=1d0; dens_bump=0d0
-        do k=1,njump
-            x=radius-jump_r(k)
-            width=jump_w(k)*jump_r(k)
-            prof=(jump_f(k)-1d0)*dexp(-(x*x)/(2d0*width*width))
-            enh=enh+prof
-        end do
-        nbase=nall/enh
-        do k=1,njump
-            x=radius-jump_r(k)
-            width=jump_w(k)*jump_r(k)
-            prof=(jump_f(k)-1d0)*dexp(-(x*x)/(2d0*width*width))
-            if (k == j .and. x >= -4d0*width .and. x < 0d0) dens_bump=nbase*prof
-        end do
-        dens_all=nall
+        call secondary_branch_density(astar,nism,radius,R0,1,R_tr,f_jump,f_wide, &
+                                      j,dens_all,dens_bump)
     end subroutine branch_density
 
     ! 判断 chained multiple RS 中 parent 分支是否已经可用。

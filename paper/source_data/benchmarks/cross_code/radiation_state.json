@@ -1,0 +1,13 @@
+{
+  "decision_value": "nu_m, nu_c, and nu_a are captured from the electron solver callback; annihilation_transfer is reconstructed exactly from SolveState.observer.prefactor",
+  "num_frequency": 128,
+  "num_radius": 96,
+  "physical_assumptions": "on-axis top-hat forward shock in a uniform 1 cm^-3 medium; E_iso=1e52 erg; Gamma0=300; theta_j=0.1 rad; epsilon_e=0.1; epsilon_B=1e-3; p=2.3; xi_e=0.1; SSC enabled with numeric IC/KN cooling; no hadronic or pair-cascade opacity",
+  "scenario": "radiation_state",
+  "solver": "fullhide_1d",
+  "source": "ASGARD local git db412c51",
+  "tau_extra_max": 0.0,
+  "tau_pair_max": 0.0,
+  "transfer_identity": "T_gg = observer.prefactor * 4*pi*d_L^2/(1+z)",
+  "wall_time_s": 0.11840839700016659
+}

@@ -43,9 +43,10 @@ products.  The central object is the state sequence containing \(\Gamma(R)\),
 luminosities.  This record lets dynamical breaks, angular-projection effects,
 cooling transitions, component crossings, and photon attenuation be traced back
 to local source terms before observer projection mixes them.  Source-data-backed
-figures test the state chain, validation metrics, five-code public-output
-benchmarks where assumptions can be matched, and ASGARD-only complex-state
-dashboard.  The implementation is bounded: PyBlastAfterglowMag is used through a
+figures test the state chain, medium and jet responses, transport solvers,
+reverse and secondary shocks, observer geometry, validation metrics, and
+public-output subsets for which assumptions can be matched across codes.  The
+implementation is bounded: PyBlastAfterglowMag is used through a
 compiled repo-local \texttt{pba.out} for the FS and Gaussian-geometry rows, but
 not for ASGARD RS/SSC or complex-state claims; formal hadronic feedback is
 one-dimensional, \(\chi\)-resolved hadronic transport and IC-mediated
@@ -108,6 +109,27 @@ reproducibility products.  Section~\ref{sec:verification} states the benchmark
 evidence, Section~\ref{sec:discussion} interprets what that evidence can and
 cannot show, and Section~\ref{sec:limits} gives the hard model boundaries.
 
+Figure~\ref{fig:visual-overview} gives the visual route through the calculation.
+The outflow first drives forward and reverse shocks, the shocked regions then
+build particle and photon histories, and the completed local emission is finally
+mapped to the distant observer.  The enlarged shock front fixes the radial
+ordering used throughout the paper; it is a physical guide, not a quantitative
+simulation output.
+
+\begin{figure*}[!tp]
+  \centering
+  \includegraphics[width=\textwidth]{figures/fig1_visual_overview.pdf}
+  \caption{The observable afterglow is the projected record of an ordered shock,
+  particle, and radiation history.  The main scene follows the calculation from
+  the relativistic ejecta through the forward- and reverse-shock regions to the
+  observer, while the enlargement orders the ejecta, reverse shock, contact
+  discontinuity, forward shock, and unshocked external medium.  The background
+  is an explanatory illustration; the labeled geometry and all quantitative
+  results in later figures are constructed from the implemented model and
+  tracked source data.}
+  \label{fig:visual-overview}
+\end{figure*}
+
 \section{Model Definition and Radius-Ordered State} \label{sec:contract}
 
 \asgard\ treats an afterglow calculation as a radial history of a shocked shell.  The public input specifies the jet, external density, observer, microphysics, frequency and time grids, and the optional hadronic or reverse-shock switches.  The code first turns these inputs into one runtime model and then advances the shock from small to large radius.  Observer products are not evolved as independent variables.  They are assembled only after the local emitting and absorbing material has been computed.
@@ -139,13 +161,6 @@ calculation writes a separate region-3 state before the same observer-time
 projection is applied.  Unsupported combinations are absent from the state
 record rather than inferred from partial fields.
 
-\begin{figure*}[!tp]
-  \centering
-  \includegraphics[width=\textwidth]{figures/fig1_radius_state.pdf}
-  \caption{Radius-ordered state for an \asgard\ calculation.  (a) Public inputs are normalized into a fixed sequence: runtime configuration, dynamics, electron and photon state, bounded optional branches, and observer projection.  (b) The blast-wave Lorentz factor and comoving magnetic field are stored on the shock-radius grid before observer products are formed.  (c) The equal-arrival-time mapping uses \(t_{\rm obs}=(1+z)[t_{\rm on}(R)+R(1-\mu)/c]\), so different angular cells map the same local radius sequence to different observer-time sequences.}
-  \label{fig:radius-state}
-\end{figure*}
-
 The supported observer products are derived from this state record: multi-frequency
 fluxes, fixed-time spectra, band-integrated fluxes, exposure-averaged fluxes,
 component-resolved fluxes, and diagnostic state tracks.  The component record
@@ -156,13 +171,6 @@ synchrotron emission, and neutrino outputs.  The diagnostic state exposes the
 radius, Lorentz factor, magnetic field, electron spectra, \(\chi\)-resolved
 electron fields, hadronic species, photon-survival factors, reverse-shock state,
 and secondary reverse-shock event diagnostics when those calculations are active.
-
-\begin{figure*}[!tp]
-  \centering
-  \includegraphics[width=\textwidth]{figures/fig2_forward_api.pdf}
-  \caption{From dynamics to observer products in one forward-shock calculation.  (a) The local \(\Gamma(R)\) and \(B'(R)\) state supplies the source terms for the observer calculation.  (b) Multi-frequency light curves, (c) fixed-time spectra, and (d) the SSC flux fraction are assembled from the same radius-ordered state.  The figure is an accounting diagnostic, not an independent fit to a particular burst.}
-  \label{fig:forward-api}
-\end{figure*}
 
 The public model definition is intentionally bounded.  \asgard\ is not presented
 as a replacement for faster light-curve-only tools.  Its purpose in this paper is
@@ -233,7 +241,10 @@ q_i\equiv\frac{\ln(n_{i+1}/n_i)}{\ln(R_{i+1}/R_i)} .
 The first two table points set the extrapolation below the table, and the last
 two set the extrapolation above it.  The table is therefore extended as a power
 law at both ends.  A tabulated medium and the Gaussian jump model are separate
-input families; they are not combined in one run.
+input families; they are not combined in one run.  For a tabulated profile, a
+contiguous interval with \(dn/dR>0\) is retained as a finite-width compression
+candidate; the same contact-pressure root and positive dissipated-energy source
+used for Gaussian jumps must activate its branch.
 
 Density jumps are local perturbations of an analytic baseline density.  They are
 used only with the analytic medium family.  For several Gaussian structures, the
@@ -262,6 +273,70 @@ tabulated points.  It rejects nonpositive jump radii, factors, or widths;
 nonpositive table radii or densities; tables with fewer than two points; and
 tables whose radii are not ordered.  These checks define the supported medium
 families, not extra physical assumptions.
+
+The fourth column of Figure~\ref{fig:external-media} replaces the illustrative
+clumps by a late-eruption circumstellar medium calculated with the modern
+radiation-hydrodynamics code PION \citep{Mackey2021PION}.  We converted
+the public PION $\eta$ Car wind-history example here to a 1D spherical
+calculation with 2048 radial cells.  Its interacting steady and eruptive LBV
+outflows follow the physical scenario of \citet{Langer1999EtaCar}.
+The ASGARD mass dynamics use the proton-equivalent density
+$n_{\rm p,eq}=\rho/m_p$; the hydrogen diagnostic for the adopted composition,
+$n_{\rm H}=0.33\rho/m_p$, is retained only in the source table.  The external
+domain begins at the first cell center outside the $1.32\times10^{16}$ cm wind
+injection sphere.  A deterministic maximum-residual reduction selects 96
+unchanged simulation cells for the public tabulated-medium interface; it does
+not smooth or refit the profile.  The maximum log-density residual is
+$8.93\times10^{-4}$ dex.  From 1024 to 2048 cells, the shell mass and principal
+structure positions change by at most 1.15 per cent, although the cellwise
+log-density $L_1$ difference is 0.0632 dex and therefore is not fully converged.
+
+Figure~\ref{fig:external-media} compares the four medium inputs with identical
+forward-shock ejecta and microphysics.  All columns start at the first PION
+interface radius and use $10^2\le t_{\rm obs}\le5\times10^5$ s.  The PION
+trajectory remains finite through its wind-termination structure.  We restrict
+the reported relativistic state to the all-finite domain ending at
+$2.491\times10^{17}$ cm; passage through the main shell at
+$2.667\times10^{17}$ cm remains outside the demonstrated solver domain.  The
+raw density panel therefore shows the complete simulated CSM, whereas the
+shaded region has no reported ASGARD $\Gamma$, $B'$, or flux solution.
+
+\begin{figure*}[!tp]
+  \centering
+  \includegraphics[width=\textwidth]{figures/fig2_external_media.pdf}
+  \caption{Forward-shock propagation through four external media with identical
+  ejecta and microphysics.  The fourth column uses the full 2048-cell PION
+  $\eta$ Car late-eruption CSM (thin gray) and the 96 unchanged cells passed to
+  ASGARD (gold dashed).  Its density panel shows the full simulation domain, but
+  $\Gamma(R)$, $B'(R)$, and the $10^{14}$ Hz light curve stop at the marked
+  relativistic-solver boundary.  The ASGARD solution crosses the wind
+  termination structure but does not calculate passage through the main
+  eruptive shell; the shaded interval is deliberately left unsolved.  All four
+  columns are forward-shock only.}
+  \label{fig:external-media}
+\end{figure*}
+
+With these upstream alternatives fixed, Figure~\ref{fig:radius-state} follows
+one calculation through the stored local state to its observer products and to
+the bounded forward-shock comparison.  The matched-input records retain each
+code version together with the declared common medium, energy, Lorentz factor,
+microphysics, geometry, frequency grid, and observer-time grid; comparison
+curves are read from those records rather than inferred to share inputs after
+the calculation.
+
+\begin{figure*}[!tp]
+  \centering
+  \includegraphics[width=\textwidth]{figures/fig3_radius_state.pdf}
+  \caption{A single radius-ordered state connects local dynamics to every
+  observer product without hiding the dynamical history.  Panels (a)--(c) store
+  \(\Gamma\), \(B'\), particle budgets, and the photon/absorption record; panels
+  (d)--(f) show matched forward-shock light curves, code/\asgard\ ratios, and
+  the resulting SED.  The comparison rows use the tracked matched-input records
+  defined above.  Ratios are interpreted only on the jointly finite,
+  positive comparison domain; SSA, VHE, and cutoff cells remain coverage
+  boundaries rather than agreement evidence.}
+  \label{fig:radius-state}
+\end{figure*}
 
 \subsection{Jet angular profiles}
 
@@ -314,6 +389,23 @@ angle, and \(k_E\) and \(k_\Gamma\) set the wing slopes.  The public profile use
 \(k_\Gamma=k_E\) unless a separate Lorentz-factor slope is supplied.  These
 profiles feed independent angular elements; the present backend does not evolve
 lateral spreading.
+
+Figure~\ref{fig:jet-profiles} separates the initial angular structure from the
+viewing-angle transformation.  This distinction is essential because a broad
+off-axis peak need not imply lateral evolution of the jet.
+
+\begin{figure*}[!tp]
+  \centering
+  \includegraphics[width=\textwidth]{figures/fig4_jet_profiles.pdf}
+  \caption{Jet structure and viewing angle produce distinct changes in the projected
+  light curve.  Panels (a) and (b) compare the declared energy and Lorentz-factor
+  profiles for top-hat, Gaussian, and power-law jets.  Panel (c) follows the
+  Gaussian reference light curves across \(\theta_{\rm obs}\), and panel (d) reports
+  the matched Gaussian off-axis comparison on the jointly finite, positive
+  domain.  This comparison tests the declared projection subset; none of the
+  calculations includes lateral spreading.}
+  \label{fig:jet-profiles}
+\end{figure*}
 
 \subsection{Forward-shock dynamical variables}
 
@@ -2414,18 +2506,42 @@ hadronic transport, pair-cascade feedback, and reverse-shock coupling remain
 shell-level or one-dimensional; this wrapper does not make those channels
 \(q\)-local.
 
+Figure~\ref{fig:electron-transport} makes the injection, cooling, and spectral
+aging history visible before the electron state is converted into radiation.
+
 \begin{figure*}[!tp]
   \centering
-  \includegraphics[width=\textwidth]{figures/fig3_transport_projection.pdf}
-  \caption{Electron and photon state diagnostics before observer projection.
-  (a) The one-dimensional \(N_e(\gamma_e,R)\) state remains visible on the radius
-  grid.  (b) Radius slices of \(\gamma_e^2 dN_e/d\gamma_e\) show the transported
-  electron spectrum.  (c) A two-dimensional electron run stores the downstream
-  \(\chi\)-resolved volume weight.  (d) The same run stores the synchrotron
-  optical-depth field used by the \(\chi\)-resolved projection.  The figure
-  documents the exposed state used by the implemented solver paths; it is not a
-  convergence proof for every electron transport option.}
+  \includegraphics[width=\textwidth]{figures/fig5_electron_transport.pdf}
+  \caption{The transported electron distribution records where particles are
+  injected, cool, and age before their radiation is projected.  The panels show
+  \(N_e(\gamma_e,R)\), representative radius slices of
+  \(\gamma_e^2dN_e/d\gamma_e\), and the corresponding electron-number and
+  energy budgets.  These diagnostics expose the one-dimensional transport
+  history for the stated benchmark; they are not a convergence proof for every
+  solver or a claim that shell-averaged transport resolves downstream
+  \(\chi\)-structure.}
   \label{fig:electron-transport}
+\end{figure*}
+
+The solver comparison in Figure~\ref{fig:electron-solvers} holds the dynamics,
+microphysics, radial grid, energy support, and requested observer grid fixed.
+It therefore tests numerical representations of the same transport problem,
+not different physical models.
+
+\begin{figure*}[!tp]
+  \centering
+  \includegraphics[width=\textwidth]{figures/fig6_electron_solvers.pdf}
+  \caption{Six electron solvers expose where the transported particle state is
+  robust and where the numerical representation remains solver dependent.
+  Panels (a)--(c) compare the electron spectra, particle number, and particle
+  energy for \texttt{fullhide\_1d}, \texttt{fullhide\_2d}, \texttt{dg\_1d},
+  \texttt{slc1\_1d}, \texttt{charint\_1d}, and \texttt{charint\_2d} under the
+  same physical inputs.  Panels (d) and (e) propagate those states to the SED
+  and the \(10^{14}\,\mathrm{Hz}\) light curve; the black dashed curve is the
+  matched VegasAfterglow reference.  Panel (f) gives the common-frequency SED
+  ratio to \texttt{fullhide\_1d}.  The curves are not renormalized, and thermal
+  electrons remain restricted to the supported \texttt{fullhide} paths.}
+  \label{fig:electron-solvers}
 \end{figure*}
 
 Thermal electrons have a narrow solver boundary.  They are implemented only in
@@ -2867,7 +2983,26 @@ opacity.  The EBL table factor is external to this local prefactor.  The
 projection module then maps each \(\Delta F_\nu^c(R)\) and the summed
 \(F_\nu^{\rm rad}(R)\) onto observer time.
 
-\section{Reverse Shocks and Density-Jump Secondary Shocks} \label{sec:reverse-shock}
+Figure~\ref{fig:radiation} closes the local leptonic chain before the reverse and
+hadronic branches are introduced.  It separates the radiative components from
+the stored absorption state and from the transfer-operator semantics.
+
+\begin{figure*}[!tp]
+  \centering
+  \includegraphics[width=\textwidth]{figures/fig7_radiation.pdf}
+  \caption{Synchrotron emission, SSC emission, and photon absorption remain separable
+  parts of the same radiation calculation.  Panel (a) separates the synchrotron,
+  SSC, and total SEDs, while panel (b) shows the SSC fraction and the resulting
+  component-dominance transition without rescaling.  Panel (c) gives the stored
+  \(\chi\)-resolved synchrotron self-absorption depth.  Panel (d) shows the exact
+  exponential-survival and finite-cell transfer functions used by the shell
+  \(\gamma\gamma\) sink; it defines operator semantics rather than a measured optical
+  depth.  EBL attenuation is omitted, and the panels do not establish an
+  IC-mediated electromagnetic cascade.}
+  \label{fig:radiation}
+\end{figure*}
+
+\section{Reverse Shocks and Density-Structure Secondary Shocks} \label{sec:reverse-shock}
 
 \subsection{Primary ejecta state and activation}
 
@@ -3021,7 +3156,7 @@ The heat helper returns \(g-1\) only for exactly unmagnetized ejecta; for
 \(0<\sigma\le\sigma_{\rm cut}\) it still evaluates the finite-\(\sigma\) enthalpy
 and approaches \(g-1\) continuously.  The active dynamics do not use the
 ultra-relativistic \(4g+3\) compression approximation.  This MHD jump applies only
-to the primary ejecta reverse shock; density-jump secondary branches remain
+to the primary ejecta reverse shock; density-structure secondary branches remain
 hydrodynamic diagnostics without ordered-field compression or magnetic enthalpy
 feedback.
 
@@ -3124,7 +3259,7 @@ Y_{\rm R}&\equiv
 \frac{U_3}{M_{\rm ej}c^2},\frac{V_3}{V_0},\ldots\right),
 \end{aligned}
 \end{equation}
-where the ellipsis denotes density-jump secondary-shock registers.  The forward
+where the ellipsis denotes density-structure secondary-shock registers.  The forward
 swept mass and volume scale are
 \begin{equation}
 \begin{aligned}
@@ -3417,6 +3552,25 @@ where \(M_{3,{\rm hi}}=M_{3,\times}\) for \(R_i>R_\times\) and
 \(\mathcal Q^{\rm inj}_{R,i}=0\); post-crossing transport cools and expands the
 stored spectrum without fresh injection.
 
+Figure~\ref{fig:primary-rs} connects this shell-local source to the early
+observer signal and shows when the reverse contribution yields to the forward
+shock.
+
+\begin{figure*}[!tp]
+  \centering
+  \includegraphics[width=\textwidth]{figures/fig8_primary_reverse_shock.pdf}
+  \caption{A primary reverse shock can dominate the early emission before the
+  forward shock takes over at later observer times.  Panel (a) identifies the
+  ejecta, reverse shock, contact discontinuity, forward shock, and unshocked
+  medium in radial order.  Panel (b) separates the FS/RS synchrotron and SSC
+  components at \(5\times10^{14}\,\mathrm{Hz}\).  The comparison panel gives
+  the matched \vegas/\asgard\ ratios for both RS synchrotron and RS SSC.
+  Ratios use only cells in which both compared
+  components exceed \(10^{-8}\) of their own peaks; the comparison is not an
+  end-to-end identity of the two dynamics implementations.}
+  \label{fig:primary-rs}
+\end{figure*}
+
 \subsection{Reverse cooling assembly}
 
 The reverse cooling assembly converts local radiation losses into the positive
@@ -3584,9 +3738,28 @@ diagnostic \(dN_e/d\gamma_e\) is reconstructed from \(N_x\) using
 stored electron content subject only to cooling, expansion, and the finite
 transport grid.
 
+The magnetized sequence in Figure~\ref{fig:magnetized-rs} isolates the upstream
+magnetization from the density-structure experiments below.  Its observables are
+read together with the jump-state and crossing diagnostics, rather than from the
+optical peak alone.
+
+\begin{figure*}[!tp]
+  \centering
+  \includegraphics[width=\textwidth]{figures/fig9_magnetized_reverse_shock.pdf}
+  \caption{Upstream magnetization changes both the reverse-shock jump state and its
+  observable contribution.  Panels (a), (b), and (d) follow \(B^{\prime}_3\),
+  \(\gamma_{34}\), and the crossing time across the common \(\sigma\) grid for uniform
+  and wind media.  Panel (c) gives the RS-to-total fraction evaluated at the
+  total-light-curve peak at \(10^{14}\,\mathrm{Hz}\).  Panels (e) and (f) show
+  representative ISM and wind SEDs at \(10^3\,\mathrm{s}\) on common axes.
+  The scan diagnoses the implemented finite-strength MHD branch; it does not
+  extend to lateral evolution or to a general finite-temperature Taub closure.}
+  \label{fig:magnetized-rs}
+\end{figure*}
+
 \subsection{Secondary-reservoir electron transport}
 
-Each density-jump reverse-shock branch \(j\) carries a diagnostic electron
+Each density-structure reverse-shock branch \(j\) carries a diagnostic electron
 reservoir with \(M_j,V_j,B'_j,\gamma_{m,j}\), and its own spectrum.  The transport
 machinery is the same as for the primary reverse shock; the branch is not an
 independent emission model.
@@ -3627,7 +3800,7 @@ secondary-reservoir SSC, hadronic, or pair-feedback branch.
 
 \subsection{Reacceleration diagnostic}
 
-The reacceleration diagnostic follows old electrons when a later density-jump
+The reacceleration diagnostic follows old electrons when a later density-structure
 branch shocks material from an earlier reservoir.  It transfers only available
 parent mass, boosts that seed spectrum, applies a diffusive-shock acceleration
 remap, and injects only the remaining fresh mass.
@@ -3694,9 +3867,9 @@ remaining \(\Delta M_j-\Delta M_j^{\rm tr}\) enters through the fresh kinetic
 source.  \(E_j^s\) and \(E_j^a\) are reprocessing-budget diagnostics, not extra
 radiative components.
 
-\subsection{Density-jump secondary-shock solver}
+\subsection{Density-structure secondary-shock solver}
 
-Secondary reverse shocks are diagnostic branches tied to density-jump events, not
+Secondary reverse shocks are diagnostic branches tied to resolved density-structure events, not
 independent emission components.  A branch opens only if the rising side of an
 external-density bump drives a reverse shock that produces more heat than
 adiabatic compression of the same upstream reservoir.
@@ -3719,7 +3892,7 @@ number densities, not dimensionless multipliers.
 
 \subsubsection{Secondary inertia contribution}
 
-Active density-jump branches add the effective inertia
+Active secondary-shock branches add the effective inertia
 \begin{equation}
 \begin{aligned}
 p'_s&=(\hat\gamma_{\rm h}-1)\frac{U_s}{V_s},\\
@@ -3856,8 +4029,9 @@ the branch electron source, not an inertia term beyond \(M_s\).
 
 \subsection{Secondary event windows and observer diagnostics}
 
-The observer layer opens a secondary density-jump branch only where the hot
-post-shock state exceeds adiabatic compression of the same upstream gas:
+The observer layer opens a secondary branch from either a Gaussian jump or a
+tabulated rising interval only where the hot post-shock state exceeds adiabatic
+compression of the same upstream gas:
 \begin{equation}
 S_j(R)=e'_{3,j}-e'_{4,j}\chi_j^{\hat\gamma_{\rm h}}.
 \end{equation}
@@ -3866,13 +4040,15 @@ Here \(e'_{3,j}\) is the shocked hot-gas energy density and
 
 \subsubsection{Event-root scanner}
 
-The scanner converts the sign of \(S_j\) on the rising bump
-\([R_j-\eta_J\Delta R_j,R_j)\) into
+For a Gaussian jump, the scanner converts the sign of \(S_j\) on the rising bump
+\([R_j-\eta_J\Delta R_j,R_j)\).  For a table, it scans each contiguous
+\(dn/dR>0\) interval \([R_i,R_{i+1})\) into
 \((R_{j,\rm start},R_{j,\rm end},t_{j,\rm start},t_{j,\rm end})\).  It brackets
-with steps no wider than \(\Delta R_j/N_J^{\rm scan}\), linearly interpolates
+with the existing radial step rule, linearly interpolates
 \((Y,\Gamma_2,t_{\rm obs})\) inside each bracket, and bisects sign changes in
 radius.  An open branch at the final sampled state is closed at that last
-physical state.
+physical state; a candidate with no positive source remains an explicit no-event
+boundary.
 
 \subsubsection{Dimensional branch state}
 
@@ -3926,7 +4102,7 @@ No combined secondary state is reported where \(V_s\le0\).
 
 \subsubsection{Break-frequency diagnostics}
 
-The density-jump synchrotron diagnostics use the same dissipation weights for
+The secondary-shock synchrotron diagnostics use the same dissipation weights for
 the injection break,
 \begin{equation}
 \bar{\gamma}_{m,s}=
@@ -3968,15 +4144,54 @@ observer path.  It excludes hadronic processes, forward SSC cooling, reverse
 SSC, cross-zone IC, and coupled electron-photon feedback.  Event windows are
 roots from linearly interpolated adjacent outputs, while adaptive RK refinement
 controls only the primary variables \((\Gamma_2,R,M_2)\).  The secondary
-reverse-shock output is therefore a density-jump diagnostic, not a general
+reverse-shock output is therefore a density-structure diagnostic, not a general
 reverse-shock model
 \citep{DaiLu2002,NakarGranot2007,UhmZhang2014,Laskar2016GRB160509A,Alexander2017GRB160625B,Laskar2019GRB181201A,PangDai2024OffaxisRS}.
 
+Figures~\ref{fig:wind-shell}--\ref{fig:smooth-clumps} use a common radial range,
+baseline density, and event locations to distinguish three environmental
+hypotheses.  The sequence asks whether a termination shell, discrete jumps, or a
+continuous clumpy profile produces the returned secondary-shock state and its
+observable counterpart.
+
 \begin{figure*}[!tp]
   \centering
-  \includegraphics[width=\textwidth]{figures/fig4_reverse_shock.pdf}
-  \caption{Reverse-shock and density-jump secondary diagnostics.  (a) The magnetized reverse-shock state is recorded as a function of upstream \(\sigma\).  (b) The reverse-shock flux fraction at the optical peak gives the component contribution.  (c) Density-jump secondary reverse-shock event windows and the injected-to-dissipated energy ratio are computed from the returned branch state.}
-  \label{fig:reverse-shock}
+  \includegraphics[width=\textwidth]{figures/fig10_wind_termination_shell.pdf}
+  \caption{A wind-termination transition followed by a compact-support dense shell can
+  activate a profile-defined secondary reverse shock.  The panels connect the
+  tracked tabulated \(n(R)\), the returned event window and dissipative source,
+  the FS, profile-driven RS, and total light curves, and the corresponding mass,
+  thermal, dissipated, and electron-injection energy budgets.  Activation requires
+  both a rising table interval and positive contact/dissipation criteria.  The
+  profile is a controlled numerical experiment, not a unique progenitor
+  wind-bubble reconstruction.}
+  \label{fig:wind-shell}
+\end{figure*}
+
+\begin{figure*}[!tp]
+  \centering
+  \includegraphics[width=\textwidth]{figures/fig11_density_jumps.pdf}
+  \caption{Three separated Gaussian density structures produce individually traceable
+  secondary-shock events.  Panel (a) gives the tracked density input, panel (b)
+  the three returned event windows, panel (c) the dissipated and electron-injected
+  energies indexed by event and radial shell, and panel (d) the FS, secondary-RS,
+  and total response at \(10^{14}\,\mathrm{Hz}\).  Only the one-dimensional
+  \texttt{fullhide\_1d} or \texttt{dg\_1d} diagnostic path is tested;
+  SSC, hadronic feedback, and cross-zone IC remain excluded from these reservoirs.}
+  \label{fig:density-jumps}
+\end{figure*}
+
+\begin{figure*}[!tp]
+  \centering
+  \includegraphics[width=\textwidth]{figures/fig12_smooth_clumpy_medium.pdf}
+  \caption{A continuous tabulated clump can activate a secondary reverse shock without
+  an explicit Gaussian density structure while preserving a smooth returned state.
+  The panels connect the positive \(n(R)\) profile, the candidate and active event
+  intervals, the directly sampled dynamical/dissipative state, and the FS,
+  profile-driven RS, and total light curves.  A candidate that fails the contact
+  or positive-dissipation criterion is reported as a no-event boundary.  No
+  smoothing, artificial peak, or post-processing correction is applied.}
+  \label{fig:smooth-clumps}
 \end{figure*}
 
 
@@ -4219,6 +4434,33 @@ diagnostics, not observer-frame fluxes.  The single-shell pair-synchrotron mode
 keeps only the local \(\gamma\gamma\) absorption and synchrotron cooling track; it
 does not carry pairs or update photons in the next shell.
 
+Figure~\ref{fig:hadronic-state} shows only the stored quantities that can be
+audited in the present branch.  It deliberately stops before unsupported
+species or cascade closure could be inferred from partial outputs.  The plotted
+records combine two separately declared solver paths: \texttt{legacy\_1d}
+supplies the proton and proton-synchrotron state, whereas
+\texttt{am3\_1d} with joint coupling supplies the activated \(p\gamma\),
+Bethe--Heitler, and pair-feedback state.  They are not interpreted as one
+simultaneous solver run.
+
+\begin{figure*}[!tp]
+  \centering
+  \includegraphics[width=\textwidth]{figures/fig13_hadronic_pair_state.pdf}
+  \caption{The shell-averaged hadronic branch stores the particle and photon
+  state required to identify activated proton and pair-feedback channels.
+  Panel (a) follows the proton and Bethe--Heitler pair energy with radius.
+  Panel (b) shows the stored proton-synchrotron, \(p\gamma\), and
+  Bethe--Heitler radiative peaks.  Panel (c) records the interaction depths and
+  minimum photon-survival factor, and panel (d) gives the target-photon
+  threshold relation.  Proton-synchrotron rows come from the declared
+  \texttt{legacy\_1d} path, while the \(p\gamma\), Bethe--Heitler, and
+  pair-feedback rows come from the separate joint \texttt{am3\_1d} path.
+  These states do not demonstrate \(\chi\)-resolved
+  hadronic transport, an IC-mediated cascade, or end-to-end closure of pion,
+  muon, and neutrino channels.}
+  \label{fig:hadronic-state}
+\end{figure*}
+
 
 \section{Observer Projection and Component Assembly} \label{sec:projection}
 
@@ -4230,12 +4472,13 @@ factors and maps them to \(F_\nu(t_{\rm obs})\).  For an angular cell
 \begin{equation}
 \begin{aligned}
 \mu&=\cos\theta_v\cos\theta+\sin\theta_v\sin\theta\cos\phi,\\
-t_{\rm arr}(R,\theta,\phi)
-&=t_0(R)+\frac{(1+z)R(1-\mu)}{c},\\
+t_{\rm arr}&\equiv t_{\rm obs},\\
+t_{\rm obs}&=(1+z)\left[t_{\rm on}(R)+\frac{R(1-\mu)}{c}\right],\\
 \delta^{-1}&=\Gamma(1-\beta\mu).
 \end{aligned}
 \end{equation}
-The observer frequency and angular weight are
+Here \(t_{\rm on}(R)\) is the source-frame on-axis arrival delay.  The
+observer frequency and angular weight are
 \begin{equation}
 \nu'=\nu_{\rm obs}(1+z)\delta^{-1},\qquad
 dW=\delta^3\,\frac{d\Omega}{4\pi}.
@@ -4428,6 +4671,58 @@ from another angular cell.  Its convergence must therefore be checked by global
 resolution changes in \(\theta\), \(\phi\), \(\chi\), and radius; local additivity
 between two angular pieces is not a valid convergence test for this branch.
 
+Figures~\ref{fig:eats} and~\ref{fig:sky-maps} separate the arrival-time map from
+the resolved image it produces.  The first tests angular and downstream
+quadrature; the second shows how the same projection redistributes intensity on
+the sky.
+
+\begin{figure*}[!tp]
+  \centering
+  \includegraphics[width=\textwidth]{figures/fig14_eats_projection.pdf}
+  \caption{Equal-arrival-time projection mixes radius, downstream position, and
+  viewing geometry in a measurable but numerically controllable way.  The
+  schematic maps \((R,\mu,\chi,\theta_{\rm obs})\) to \(t_{\rm obs}\), and the
+  quantitative panels refine \(N_\chi\), \(N_\theta\), and \(N_\phi\), report
+  the flux error against the reference, and show the measured runtime cost.
+  The convergence and runtime apply to the named
+  projection grids; ray-traced SSA remains nonlocal and off-axis top-hat
+  calculations require an explicit azimuthal grid.}
+  \label{fig:eats}
+\end{figure*}
+
+\begin{figure*}[!tp]
+  \centering
+  \includegraphics[width=\textwidth]{figures/fig15_sky_maps.pdf}
+  \caption{Observer geometry turns the same local emission history into an evolving
+  surface-brightness map, centroid trajectory, and apparent speed.  Panels
+  (a)--(c) and (e)--(g) compare one- and two-dimensional sky images at three
+  tracked epochs; each map spans six intensity-weighted angular widths and the
+  white cross marks its centroid.  Panels (d) and (h) compare centroid motion and
+  apparent speed for the declared one-/two-dimensional and magnetic-field-decay
+  cases.  The unresolved 1D/2D integrated-intensity mismatch prevents these
+  panels from serving as physical agreement or accuracy evidence; they also do
+  not support non-axisymmetric toroidal polarization or jet spreading.}
+  \label{fig:sky-maps}
+\end{figure*}
+
+The physical figures each retain only the convergence information needed to
+interpret their result.  Figure~\ref{fig:error-budget} gathers the complete grid
+and cost comparison for the tracked total-flux and reverse-shock paths.
+
+\clearpage
+\begin{figure*}[!tp]
+  \centering
+  \includegraphics[width=\textwidth]{figures/fig16_error_budget.pdf}
+  \caption{The numerical error budget identifies which grid controls each
+  supported observable and which path remains unresolved.  The panels summarize
+  radius, electron, photon, and angular refinements, and place their p95 flux
+  errors beside the measured wall-time cost.  These metrics support the named grids and
+  configurations; they do not validate jet spreading, custom media, non-\(k=2\)
+  winds, \(\chi\)-resolved hadronic transport, IC-mediated cascades, or any RS
+  path explicitly marked unconverged.}
+  \label{fig:error-budget}
+\end{figure*}
+
 \section{Fitting, Runtime, and Reproducibility} \label{sec:fitting}
 
 \subsection{Active-variable map}
@@ -4522,45 +4817,50 @@ are read back for flux-density, spectrum, band-flux, exposure-averaged flux, and
 component queries.  The cache does not evolve, renormalize, or reinterpret any
 physical state.
 
+Figure~\ref{fig:runtime-reuse} distinguishes the cost of creating the local
+state from the cost of projecting it.  This separation is the
+runtime counterpart of the radius-ordered physical contract.
+
+\begin{figure*}[!tp]
+  \centering
+  \includegraphics[width=\textwidth]{figures/fig17_runtime_reuse.pdf}
+  \caption{The physical solve, observer projection, and cached query have
+  distinct costs and run-to-run dispersions.  Panels (a) and (b) compare the
+  median and p95 cold-solve, projection, and warm-query times across thread
+  counts for the validated one-dimensional uniform/wind and two-dimensional
+  uniform-medium configurations.
+  Panel (c) summarizes the IQR-to-median ratio across the recorded
+  configurations, and panel (d) gives median and p95 peak resident memory.
+  Timings describe the recorded hardware, grid, and runtime configuration and
+  are not portable performance guarantees.  The wind two-dimensional case is
+  excluded because its physical 1D-limit mismatch is unresolved; its short
+  runtime is therefore not treated as a scaling result.}
+  \label{fig:runtime-reuse}
+\end{figure*}
+
+\clearpage
 \section{Verification and Benchmark Evidence} \label{sec:verification}
 
 \subsection{Figure-backed state checks}
 
 The source-data figures test whether ASGARD keeps the local state needed to
-explain an observer product.  Figure~\ref{fig:radius-state} shows the radius
-record, dynamical variables, and observer-time map, so it checks the coordinate
-chain before any spectrum is projected.  Figure~\ref{fig:forward-api} follows the
-forward-shock path from \(n(R)\), \(\Gamma(R)\), and \(B'(R)\) to spectra, light
-curves, and component outputs.  Figure~\ref{fig:electron-transport} shows the
-stored electron distribution, seed field, absorption state, and \(\chi\)-resolved
-projection quantities.  Figure~\ref{fig:reverse-shock} shows the primary RS state
-and density-jump RS registers before their flux is added to the observer total.
-The \(pp\) gamma oracle is intentionally withheld until the official AM3 output
-is available in the locked environment.  Together the completed figures
-show traceability from \(F_\nu(t_{\rm obs})\) back to local stored quantities;
-they do not by themselves establish cross-code agreement.
+explain an observer product.  Figures~\ref{fig:external-media}--\ref{fig:radiation}
+follow the medium, jet, dynamics, electrons, and photons before projection.
+Figures~\ref{fig:primary-rs}--\ref{fig:hadronic-state} expose the optional
+reverse, secondary-shock, hadronic, and pair states, and
+Figures~\ref{fig:eats}--\ref{fig:runtime-reuse} test observer geometry and state
+reuse.  The completed chain provides traceability from
+\(F_\nu(t_{\rm obs})\) to stored quantities; an internal state plot alone does
+not establish accuracy or cross-code agreement.
 
 \subsection{Bounded validation metrics}
 
-Figure~\ref{fig:validation} refines the radius, electron, photon, and observer-angle
-grids one at a time.  Each panel reports the p95 flux error of the total, FS, and
-RS components against the finest grid; horizontal lines show the difference
-between the two finest levels, which is the declared reference uncertainty.  The
-statistics use only cells above \(10^{-10}\) of the reference peak.  The same run
-records particle-number and secondary-RS energy budgets in the source tables.
-These metrics support the named numerical paths.  They do not
-validate jet spreading, custom media, non-\(k=2\) winds, \(\chi\)-resolved
-hadronic transport, or IC-mediated electromagnetic cascades.
-
-\begin{figure*}[!tp]
-  \centering
-  \includegraphics[width=\textwidth]{figures/fig5_validation_benchmark.pdf}
-  \caption{End-to-end convergence.  Panels (a)--(d) refine the radius, electron, photon, and observer-angle grids independently.  Curves give the p95 relative error of total, FS, and RS fluxes above \(10^{-10}\) of the reference peak.  Horizontal lines give the two-finest-level reference uncertainty.}
-  \label{fig:validation}
-\end{figure*}
-
-\clearpage
-\onecolumngrid
+Figure~\ref{fig:error-budget} refines the radius, electron, photon, and angular
+grids one at a time and places their flux error beside runtime cost.  The figure
+reports both the total-flux path and the tracked reverse-shock component, with
+dotted horizontal lines marking the two-finest-level reference uncertainty.
+It does not replace branch-specific RS diagnostics.  Statistics use only cells above the significance
+threshold recorded in the source table.
 
 \subsection{Cross-code benchmark evidence}
 
@@ -4569,7 +4869,10 @@ assumptions.  Agreement statistics use jointly finite, positive radio, optical,
 and X-ray cells; SSA, VHE, and cutoff regions remain in the raw table but are not
 counted as agreement evidence.  RS/SSC statistics require both components to
 exceed \(10^{-8}\) of their own peak.  Unsupported branches remain explicit
-boundary rows and receive no error value.
+boundary rows and receive no error value.  The corresponding curves are placed
+with their physical subjects in Figures~\ref{fig:radius-state},
+\ref{fig:jet-profiles}, \ref{fig:electron-solvers}, and~\ref{fig:primary-rs}
+rather than repeated in this section.
 
 \begin{center}
 \refstepcounter{table}\label{tab:cross-code-capabilities}
@@ -4583,45 +4886,21 @@ boundary rows and receive no error value.
 \hline
 Code & Capability and evidence map\\
 \hline
-ASGARD & Channels: FS synchrotron, FS SSC/IC, optional RS, shell-averaged hadronic and pair feedback, absorption, observer assembly.  Geometry/media: uniform medium, \(k=2\) stellar wind, tabulated medium, structured components.  States: dynamics, particles, photons, components, and diagnostics.  Evidence: Figures~\ref{fig:radius-state}--\ref{fig:validation} and the tracked benchmark source tables.  Boundaries: no \(\chi\)-resolved hadronic transport, no IC-mediated electromagnetic cascade, no jet-spreading backend, no custom medium dispatch, and no wind \(k\ne2\).\\
-\afterglowpy & Channels: FS synchrotron.  Geometry/media: structured jets and off-axis observers.  States: flux products, not ASGARD radius-ordered local state.  Evidence: FigB1 FS rows and FigB2 Gaussian geometry rows.  Boundaries: not used for ASGARD RS, SSC, hadronic, pair, or local-state claims.\\
-\jetsimpy & Channels: FS synchrotron.  Geometry/media: structured jets and off-axis observers.  States: flux products, not ASGARD radius-ordered local state.  Evidence: FigB1 FS rows and FigB2 Gaussian geometry rows.  Boundaries: the public branch used here does not support the ASGARD RS/SSC or local-state dashboard.\\
-\vegas & Channels: public afterglow channels exposed by the package API.  Geometry/media: public geometry and media controls exposed by the package API.  States: flux products, not ASGARD radius-ordered local state.  Evidence: FigB1 FS rows plus FigB2 RS/SSC and Gaussian geometry rows.  Boundaries: used as a matched-interface comparison, not as an ASGARD full-dynamics target.\\
-PyBlast & Channels: public afterglow package interface.  Geometry/media: public geometry and media controls exposed by the package API.  States: package products, not ASGARD radius-ordered local state.  Evidence: installed source commit, compiled repo-local \texttt{pba.out}, FigB1 FS rows, and FigB2 Gaussian geometry rows.  Boundaries: not used for ASGARD RS/SSC, hadronic, pair, or \(\chi\)-resolved state claims.\\
+ASGARD & Channels: FS synchrotron, FS SSC/IC, optional RS, shell-averaged hadronic and pair feedback, absorption, observer assembly.  Geometry/media: uniform medium, \(k=2\) stellar wind, tabulated medium, structured components.  States: dynamics, particles, photons, components, and diagnostics.  Evidence: Figures~\ref{fig:external-media}--\ref{fig:error-budget} and the tracked source tables.  Boundaries: no \(\chi\)-resolved hadronic transport, no IC-mediated electromagnetic cascade, no jet-spreading backend, no custom medium dispatch, and no wind \(k\ne2\).\\
+\afterglowpy & Channels: FS synchrotron.  Geometry/media: structured jets and off-axis observers.  States: flux products, not ASGARD radius-ordered local state.  Evidence: FS rows in Figure~\ref{fig:radius-state} and Gaussian geometry rows in Figure~\ref{fig:jet-profiles}.  Boundaries: not used for ASGARD RS, SSC, hadronic, pair, or local-state claims.\\
+\jetsimpy & Channels: FS synchrotron.  Geometry/media: structured jets and off-axis observers.  States: flux products, not ASGARD radius-ordered local state.  Evidence: FS rows in Figure~\ref{fig:radius-state} and Gaussian geometry rows in Figure~\ref{fig:jet-profiles}.  Boundaries: the public branch used here does not support ASGARD RS, SSC, or local-state claims.\\
+\vegas & Channels: public afterglow channels exposed by the package API.  Geometry/media: public geometry and media controls exposed by the package API.  States: flux products, not ASGARD radius-ordered local state.  Evidence: FS and Gaussian rows in Figures~\ref{fig:radius-state} and~\ref{fig:jet-profiles}, and matched RS/SSC rows in Figure~\ref{fig:primary-rs}.  Boundaries: used as a matched-interface comparison, not as an ASGARD full-dynamics target.\\
+PyBlast & Channels: public afterglow package interface.  Geometry/media: public geometry and media controls exposed by the package API.  States: package products, not ASGARD radius-ordered local state.  Evidence: installed source commit, compiled repo-local \texttt{pba.out}, and the FS and Gaussian rows in Figures~\ref{fig:radius-state} and~\ref{fig:jet-profiles}.  Boundaries: not used for ASGARD RS/SSC, hadronic, pair, or \(\chi\)-resolved state claims.\\
 \hline
 \end{tabular}
 \end{center}
 
-\begin{center}
-\refstepcounter{figure}\label{fig:benchmark-fs}
-\includegraphics[width=0.94\textwidth]{figures/fig6_cross_code_fs_benchmark.pdf}
-
-\small \textbf{Figure~\thefigure.} Forward-shock common-minimum benchmark from \texttt{paper/source\_data/benchmarks/cross\_code/}.  Panels (a) and (b) show ASGARD light curves and SEDs; panel (c) displays X-ray ratios; panel (d) reports p95 absolute log-ratios only in the common radio, optical, and X-ray domain.  VHE, SSA, and cutoff cells are coverage boundaries, not agreement statistics.
-\end{center}
-
-\begin{center}
-\refstepcounter{figure}\label{fig:benchmark-chi-eats}
-\includegraphics[width=0.94\textwidth]{figures/fig7_multiphysics_geometry_benchmark.pdf}
-
-\small \textbf{Figure~\thefigure.} \(\chi\)-resolved EATS limits and angular convergence.  Panel (a) refines \(N_\chi\), \(N_\theta\), and \(N_\phi\); panel (b) shows the corresponding error--cost frontier; panel (c) tests the SSA-dominated radio band across viewing angle.  Statistics use jointly significant time--frequency cells, and the source table records the thin-shell/one-dimensional limit.
-\end{center}
-
-\begin{center}
-\refstepcounter{figure}\label{fig:benchmark-runtime}
-\includegraphics[width=0.94\textwidth]{figures/fig8_asgard_complex_state_dashboard.pdf}
-
-\small \textbf{Figure~\thefigure.} Cold runtime and scaling.  Panel (a) separates complete cold solve, observer projection, and warm cached query; panel (b) shows cold scaling for one and two dimensions in uniform and wind media; panel (c) gives peak resident memory.  Each formal point is the median of seven runs after one warmup; IQR and p95 remain in the source table.
-\end{center}
-
 The benchmark evidence supports only a bounded method claim.  The completed
 figures expose local state records, component accounting, RS diagnostics,
-projection checks, matched public-output subsets, and ASGARD-only state
-dashboards.  Table~\ref{tab:cross-code-capabilities} states which rows have
+projection checks, and matched public-output subsets.
+Table~\ref{tab:cross-code-capabilities} states which rows have
 numerical evidence and which rows are boundaries.  Unsupported switch
 combinations are not model predictions.
-
-\clearpage
-\twocolumngrid
 
 \section{Discussion} \label{sec:discussion}
 
@@ -4632,11 +4911,12 @@ the same observer flux.  A break in \(F_\nu(t_{\rm obs})\) may trace blast-wave
 deceleration, density structure, a cooling transition, angular projection, an RS
 component, SSC cooling, local absorption, or secondary particles.  ASGARD
 addresses this degeneracy by storing the radius-local state before observer
-projection mixes angular and radial contributions.  Figures~\ref{fig:radius-state}
---\ref{fig:reverse-shock} and Figure~\ref{fig:complex-state} show the
-local records that can be inspected before a light-curve feature is interpreted.
-Figures~\ref{fig:benchmark-fs} and \ref{fig:rs-ssc-geometry} then test
-only the public-output subsets whose assumptions can be matched across codes.
+projection mixes angular and radial contributions.  Figures~\ref{fig:radius-state},
+\ref{fig:electron-transport}, \ref{fig:primary-rs}, and~\ref{fig:hadronic-state}
+show local records that can be inspected before a light-curve feature is
+interpreted.  The comparison panels in Figures~\ref{fig:radius-state},
+\ref{fig:jet-profiles}, and~\ref{fig:primary-rs} test only public-output subsets
+whose assumptions can be matched across codes.
 This evidence supports diagnostic decomposition, not a claim that one light curve
 has a unique physical cause.
 
@@ -4649,9 +4929,10 @@ at the same shock radius.  The state figures show this link inside ASGARD, and
 the cross-code figures show which projected outputs can be compared to public
 codes.  This separation matters because a public flux ratio does not expose the
 local electron spectrum, photon field, or pair source that produced the flux.
-Figure~\ref{fig:complex-state} therefore complements
-Figures~\ref{fig:benchmark-fs} and \ref{fig:rs-ssc-geometry}: it checks
-state completeness where a fair public-code ratio is not available.
+Figures~\ref{fig:electron-transport}, \ref{fig:radiation}, and
+\ref{fig:hadronic-state} therefore provide state evidence where a fair
+public-code ratio is not available, without treating visibility as cross-code
+validation.
 
 \subsection{Boundaries}
 
@@ -4669,16 +4950,18 @@ list is therefore part of the method, not a software footnote.
 
 The runtime configuration boundary states which inputs have a complete
 radius-ordered state sequence and observer projection.  Let \(N_{\rho,\max}\) be
-the tabulated-medium capacity, and let \(N_{J,\max}\) be the density-jump
+the tabulated-medium capacity, and let \(N_{J,\max}\) be the secondary-shock
 register length.  A setup outside the following list is not a supported physical
 model in this manuscript.
 \begin{itemize}
 \item External media are supported as uniform media, \(k=2\) stellar winds, or
 tabulated radial profiles.  User-defined medium kernels are unsupported.
 \item A tabulated medium requires \(2\le N_\rho\le N_{\rho,\max}\) positive
-radius-density points, ordered by increasing radius.
-\item Density jumps require \(N_J\le N_{J,\max}\) Gaussian jumps on an analytic
-medium.
+radius-density points, ordered by increasing radius.  Each contiguous
+\(dn/dR>0\) interval is only a secondary-shock candidate; activation still
+requires a compressive contact root and positive dissipated-energy source.
+\item Explicit density structures require \(N_J\le N_{J,\max}\) Gaussian bumps
+on an analytic medium.
 \item Jet spreading is unsupported.  The angular elements keep the opening
 angles specified by the initial jet profile.
 \item Adaptive observer-time grids are supported only for direct top-hat
@@ -4687,8 +4970,9 @@ kernel-backed models.
 \texttt{fullhide\_1d} or \texttt{dg\_1d}.
 \item Non-uniform dominant-region sampling is a patch-backend option; it is not
 supported by the structured Fortran backend.
-\item Sky-image and synchrotron-Stokes products are unsupported by the current
-manuscript evidence set.
+\item Sky-image products are supported only by the direct top-hat backend used
+in Figure~\ref{fig:sky-maps}; synchrotron-Stokes products remain outside the
+current manuscript evidence set.
 \item Thermal electrons are supported only by the one-dimensional implicit
 electron solvers.
 \end{itemize}
@@ -4737,8 +5021,8 @@ projection rather than only as a final \(F_\nu(t_{\rm obs})\).
 The evidence for this method is reproducible from tracked source data.  The
 figures test the radius state, forward-shock API products, electron and photon
 transport, \(\chi\)-resolved projection, reverse-shock diagnostics,
-hadronic/pair activation checks, the bounded validation dashboard, matched
-public-output subsets, and the ASGARD-only state dashboard.  The capability table
+hadronic/pair activation checks, sky-image diagnostics, the bounded numerical
+error budget, and matched public-output subsets.  The capability table
 states which entries have numerical rows and which entries are explicit
 boundaries.  The PyBlastAfterglowMag source is pinned, its repo-local
 \texttt{pba.out} is compiled, and its numerical rows are quoted only for the
@@ -5135,25 +5419,11 @@ table, and fails before producing an artifact when either input is absent.
 Consequently, this manuscript makes no AM3-accuracy or end-to-end BH,
 \(p\gamma\), or pair-cascade closure claim.
 
-\begin{figure*}[!tp]
-  \centering
-  \includegraphics[width=\textwidth]{figures/figA3_rs_ssc_geometry_benchmark.pdf}
-  \caption{Supplementary matched RS/SSC and geometry diagnostics.  RS/SSC ratios use only the jointly active \(10^{-8}\) component windows; unsupported components remain boundary rows.  The Gaussian off-axis comparison is restricted to common finite time--frequency cells.}
-  \label{fig:rs-ssc-geometry}
-\end{figure*}
-
-\begin{figure*}[!tp]
-  \centering
-  \includegraphics[width=\textwidth]{figures/figA4_asgard_complex_state_dashboard.pdf}
-  \caption{ASGARD complex-state diagnostic.  The panels expose radius-ordered particle, radiation, and \(\chi\)-resolved transfer state.  This is a diagnostic of state visibility, not cross-code agreement or end-to-end hadronic closure.}
-  \label{fig:complex-state}
-\end{figure*}
-
 \section{Reverse-Shock Technical Details} \label{app:reverse-shock-technical}
 
 This appendix holds the reverse-shock algebra that is too detailed for the main
 method section.  It records the finite-strength MHD jump, magnetized upstream
-bookkeeping, event splitting, post-crossing evolution, secondary density-jump
+bookkeeping, event splitting, post-crossing evolution, secondary density-structure
 shock diagnostics, and reacceleration remaps.  The main text keeps the ejecta
 state, activation boundary, jump outputs, reverse-electron injection, radiation
 products, and supported boundaries.

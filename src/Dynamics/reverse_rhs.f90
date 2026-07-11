@@ -10,8 +10,7 @@ subroutine reverse_dynamics_rhs(phase,rs_state,T,Y,D,M,mej,V3_scale,Delta_0,eta_
              Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,fer,sigma_r)
     use constants
     use dynamics_density_profile, only: density_profile, jump_max, &
-                                        jump_count, jump_radius, jump_factor, &
-                                        jump_width
+                                        secondary_event_count, secondary_branch_density
     use reverse_shock_mhd_jump, only: rs_mhd_state
     use reverse_shock_state, only: wait_phase, precross_phase, &
                                    rs_db3, rs_tcross, rs_rcross, rs_e3cross, rs_gam20, &
@@ -33,15 +32,16 @@ subroutine reverse_dynamics_rhs(phase,rs_state,T,Y,D,M,mej,V3_scale,Delta_0,eta_
     real(8) :: comp_ratio,rho4,B4_ordered,B3_ordered,sigma_inertia,n4_inertia
     real(8) :: mag_inertia,magnetic_pressure,magnetic_energy,wait_inertia,shell_frac
     real(8) :: beta_fast,fast_depth,gsq1
-    real(8) :: base_density,enhancement,jump_x,jump_w,jump_p
+    real(8) :: base_density
     real(8), dimension(jump_max) :: branch_weight
-    integer :: j_inertia,j_density,mi_idx,ui_idx,vi_idx
+    integer :: j_inertia,mi_idx,ui_idx,vi_idx,nbranch
     integer, parameter :: idb=rs_db3,itc=rs_tcross,irc=rs_rcross,iec=rs_e3cross,ig20=rs_gam20
     integer, parameter :: iuc=rs_u3cross,ivc=rs_v3cross,imc=rs_m3cross,igm=rs_gammcross,ib3=rs_b3ordered
     logical :: pre_crossing, waiting_reverse, shock_allowed
 
 
     waiting_reverse=(phase == wait_phase)
+    nbranch=secondary_event_count()
     gam2=Y(1); RR=Y(2); para_m2=Y(3); para_m3=Y(4)*mej
     U3=Y(5)*mej*para_c**2; V3=Y(6)*V3_scale
     call density_profile(A_star,dNe_ISM,RR,R0,1,R_tr,f_jump,f_wide,dNe)
@@ -141,10 +141,10 @@ subroutine reverse_dynamics_rhs(phase,rs_state,T,Y,D,M,mej,V3_scale,Delta_0,eta_
     end if
     sec_m=0d0; sec_u=0d0; sec_v=0d0
     sec_p=0d0; sec_inertia=0d0
-    do j_inertia=1,jump_count
+    do j_inertia=1,nbranch
         mi_idx=6+j_inertia
-        ui_idx=6+jump_count+j_inertia
-        vi_idx=6+2*jump_count+j_inertia
+        ui_idx=6+nbranch+j_inertia
+        vi_idx=6+2*nbranch+j_inertia
         sec_m=sec_m+Y(mi_idx)*mej
         sec_u=sec_u+Y(ui_idx)*mej*para_c**2
         sec_v=sec_v+Y(vi_idx)*V3_scale
@@ -207,19 +207,12 @@ subroutine reverse_dynamics_rhs(phase,rs_state,T,Y,D,M,mej,V3_scale,Delta_0,eta_
     dU3=dU3_shock+dU3_ad; dV3=dV3_shock+dV3_exp
     D(1:6)=[dgam2,dR,dm2,dm3/mej,dU3/(mej*para_c**2),dV3/V3_scale]
 
-    ! 各密度跳的 Gaussian 权重每个 RHS 只计算一次，供所有次级反向激波分支共享。
-    ! Evaluate each density-jump Gaussian once per RHS and share it across secondary branches.
-    enhancement=1d0; branch_weight=0d0
-    do j_density=1,jump_count
-        jump_x=RR-jump_radius(j_density)
-        jump_w=jump_width(j_density)*jump_radius(j_density)
-        jump_p=(jump_factor(j_density)-1d0)* &
-               dexp(-(jump_x*jump_x)/(2d0*jump_w*jump_w))
-        enhancement=enhancement+jump_p
-        if (jump_x >= -4d0*jump_w .and. jump_x < 0d0) branch_weight(j_density)=jump_p
+    ! Evaluate exact explicit-jump or tabulated-profile branch excess once per RHS.
+    branch_weight=0d0
+    do j_inertia=1,nbranch
+        call secondary_branch_density(A_star,dNe_ISM,RR,R0,1,R_tr,f_jump,f_wide, &
+                                      j_inertia,base_density,branch_weight(j_inertia))
     end do
-    base_density=dNe/enhancement
-    branch_weight(1:jump_count)=base_density*branch_weight(1:jump_count)
     call branch_derivs()
 
 contains
@@ -241,12 +234,12 @@ contains
     real(8) :: gc_j,gamma43_j,bc_j,n3,dm_dR,dM_shock,dV_shock,dU_shock
     real(8) :: u_sec,v_sec,dv_exp,du_ad,gm_sec,b_i,gemax
 
-        do j=1,jump_count
+        do j=1,nbranch
             m_idx=6+j
-            u_idx=6+jump_count+j
-            v_idx=6+2*jump_count+j
-            e_idx=6+3*jump_count+j
-            g_idx=6+4*jump_count+j
+            u_idx=6+nbranch+j
+            v_idx=6+2*nbranch+j
+            e_idx=6+3*nbranch+j
+            g_idx=6+4*nbranch+j
             u_sec=Y(u_idx)*mej*para_c**2
             v_sec=Y(v_idx)*V3_scale
             D(e_idx)=0d0; D(g_idx)=0d0
@@ -261,8 +254,8 @@ contains
                 D(v_idx)=dv_exp/V3_scale
                 cycle
             end if
-            n1=dNe
-            n_excess=branch_weight(j)
+            call secondary_branch_density(A_star,dNe_ISM,RR,R0,1,R_tr,f_jump,f_wide, &
+                                          j,n1,n_excess)
             n_pre=n1-n_excess
             if (n_pre <= 0d0) error stop 'secondary branch RHS found non-positive pre-bump density'
             n4=4d0*gam2*n_pre
@@ -270,8 +263,8 @@ contains
             p4=e4/3d0
             if (j > 1) then
                 pm_idx=6+j-1
-                pu_idx=6+jump_count+j-1
-                pv_idx=6+2*jump_count+j-1
+                pu_idx=6+nbranch+j-1
+                pv_idx=6+2*nbranch+j-1
                 if (parent_ready(j,Y(pm_idx),Y(pu_idx),Y(pv_idx))) then
                     n4=Y(pm_idx)*mej/(Para_m_p*Y(pv_idx)*V3_scale)
                     e4=Y(pu_idx)*mej*para_c**2/(Y(pv_idx)*V3_scale)

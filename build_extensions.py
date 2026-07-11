@@ -45,6 +45,11 @@ F2PY_SKIP_RADIATION_COMMON_INTERNALS = (
     "pair_sigma",
     "syn_kernel",
 )
+F2PY_SKIP_DENSITY_PROFILE_INTERNALS = (
+    "secondary_event_count",
+    "secondary_event_window",
+    "secondary_branch_density",
+)
 RADIATION_COMMON_SOURCES = (
     "../Constants.f90",
     "rad_common.f90",
@@ -685,6 +690,8 @@ def main() -> None:
         skip_names: list[str] = []
         if any(Path(source).name == "rad_common.f90" for source in spec.sources):
             skip_names.extend(F2PY_SKIP_RADIATION_COMMON_INTERNALS)
+        if any(Path(source).name == "dynamics_density_profile.f90" for source in spec.sources):
+            skip_names.extend(F2PY_SKIP_DENSITY_PROFILE_INTERNALS)
         if skip_names:
             module_extra_args = ["skip:", *skip_names, ":", *module_extra_args]
         elapsed = _build_module(

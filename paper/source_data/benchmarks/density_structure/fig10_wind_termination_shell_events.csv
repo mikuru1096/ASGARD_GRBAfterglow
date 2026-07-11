@@ -1,0 +1,2 @@
+event_index,input_center_cm,event_active,start_radius_cm,shock_end_radius_cm,start_tobs_axis_s,shock_end_tobs_axis_s
+0,1e+16,True,6000000000000012.0,1e+16,11.040482938105185,23.17753391133492

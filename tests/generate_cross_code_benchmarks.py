@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import csv
 import importlib.metadata as meta
+import json
 import os
 import shutil
 import subprocess
@@ -671,6 +672,112 @@ def run_asgard_complex_state() -> tuple[list[dict[str, str]], float]:
     return rows, wall
 
 
+def run_asgard_radiation_state() -> tuple[list[dict[str, str]], dict[str, object]]:
+    """Record characteristic frequencies and the solved annihilation transfer."""
+    from asgard_core.api_model import _currentconfig, _direct_tophat_patch_config, _solve_patch_state
+
+    nu_state: dict[str, tuple[np.ndarray, np.ndarray, np.ndarray]] = {}
+
+    def capture_nu(label: str, nu_m: np.ndarray, nu_c: np.ndarray, nu_a: np.ndarray) -> None:
+        nu_state[label] = tuple(np.asarray(value, dtype=float).copy() for value in (nu_m, nu_c, nu_a))
+
+    state_times = np.logspace(2.0, 6.0, 40, dtype=float)
+    state_frequency = np.logspace(8.0, 28.0, 128, dtype=float)
+    model = top_hat_model(
+        fwd_rad=radiation(include_ssc=True),
+        observer_grid=observer_grid(time_min_s=float(state_times[0]), time_max_s=float(state_times[-1])),
+        solver_options=solver_options(
+            nu_callback=capture_nu,
+            ssc_cooling_mode="numeric_ic_kn",
+        ),
+        numerics=numerics(
+            num_radius=96,
+            num_observer_time=40,
+            num_electron_gamma=96,
+            num_photon_frequency=128,
+            num_threads=1,
+        ),
+    )
+    start = time.perf_counter()
+    base_config = _currentconfig(model)
+    config = _direct_tophat_patch_config(model, baseconfig=base_config)
+    state = _solve_patch_state(model, config, state_times, state_frequency)
+    wall = time.perf_counter() - start
+
+    label, characteristic = next(iter(nu_state.items()))
+    nu_m, nu_c, nu_a = characteristic
+    radius = np.asarray(state.dynamics.radius, dtype=float)
+    observer_time = np.asarray(state.dynamics.r_tobs, dtype=float)
+    seed_frequency = np.asarray(state.setup.seed_frequency_hz, dtype=float)
+    tau_extra = np.asarray(state.observer.tau_extra, dtype=float)
+    tau_pair = np.asarray(state.observer.tau_pair, dtype=float)
+    transfer = (
+        np.asarray(state.observer.prefactor, dtype=float)
+        * (4.0 * np.pi * float(state.setup.luminosity_distance_cm) ** 2)
+        / (1.0 + float(config.z))
+    )
+
+    rows: list[dict[str, str]] = []
+
+    def add_row(
+        metric: str,
+        value: float,
+        units: str,
+        radius_cm: float,
+        tobs_s: float,
+        frequency_hz: float | None = None,
+    ) -> None:
+        rows.append(
+            {
+                "scenario": "radiation_state",
+                "solver": label,
+                "radius_cm": f"{radius_cm:.8e}",
+                "observer_time_s": f"{tobs_s:.8e}",
+                "frequency_hz": "" if frequency_hz is None else f"{frequency_hz:.8e}",
+                "metric": metric,
+                "value": f"{value:.8e}",
+                "units": units,
+                "source_stage": "electron nu_callback" if frequency_hz is None else "SolveState observer annihilation",
+            }
+        )
+
+    for index, radius_cm in enumerate(radius):
+        add_row("nu_m", float(nu_m[index]), "Hz", float(radius_cm), float(observer_time[index]))
+        add_row("nu_c", float(nu_c[index]), "Hz", float(radius_cm), float(observer_time[index]))
+        add_row("nu_a", float(nu_a[index]), "Hz", float(radius_cm), float(observer_time[index]))
+        for nu_index, frequency_hz in enumerate(seed_frequency):
+            add_row(
+                "annihilation_transfer",
+                float(transfer[nu_index, index]),
+                "dimensionless",
+                float(radius_cm),
+                float(observer_time[index]),
+                float(frequency_hz),
+            )
+
+    metadata: dict[str, object] = {
+        "scenario": "radiation_state",
+        "source": f"ASGARD local git {git_head()}",
+        "solver": label,
+        "physical_assumptions": (
+            "on-axis top-hat forward shock in a uniform 1 cm^-3 medium; E_iso=1e52 erg; "
+            "Gamma0=300; theta_j=0.1 rad; epsilon_e=0.1; epsilon_B=1e-3; p=2.3; "
+            "xi_e=0.1; SSC enabled with numeric IC/KN cooling; no hadronic or pair-cascade opacity"
+        ),
+        "decision_value": (
+            "nu_m, nu_c, and nu_a are captured from the electron solver callback; "
+            "annihilation_transfer is reconstructed exactly from SolveState.observer.prefactor"
+        ),
+        "transfer_identity": "T_gg = observer.prefactor * 4*pi*d_L^2/(1+z)",
+        "tau_extra_max": float(np.max(tau_extra)),
+        "tau_pair_max": float(np.max(tau_pair)),
+        "num_radius": int(radius.size),
+        "num_frequency": int(seed_frequency.size),
+        "wall_time_s": wall,
+    }
+    return rows, metadata
+
+
 def finite_ratio(value: float, ref: float) -> str:
     if np.isfinite(value) and np.isfinite(ref) and ref > 0.0:
         return f"{value / ref:.8e}"
@@ -752,6 +859,30 @@ def write_csv(name: str, rows: list[dict[str, str]], fields: list[str] = base) -
         writer = csv.DictWriter(handle, fieldnames=fields, lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
+
+
+def write_json(name: str, payload: dict[str, object]) -> None:
+    with (data / name).open("w", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2, sort_keys=True)
+        handle.write("\n")
+
+
+radiation_fields = [
+    "scenario",
+    "solver",
+    "radius_cm",
+    "observer_time_s",
+    "frequency_hz",
+    "metric",
+    "value",
+    "units",
+    "source_stage",
+]
+if os.environ.get("ASGARD_BENCHMARK_ONLY") == "radiation_state":
+    radiation_rows, radiation_metadata = run_asgard_radiation_state()
+    write_csv("radiation_state.csv", radiation_rows, radiation_fields)
+    write_json("radiation_state.json", radiation_metadata)
+    raise SystemExit(0)
 
 
 asgard_flux, asgard_wall = run_asgard()
@@ -1140,6 +1271,9 @@ for code, (flux, _wall, _note) in geom_measured.items():
     if code != "ASGARD":
         summary_rows += agreement(code, "gaussian_off_axis_fs_synch", "fs_sync", flux, asgard_geom, geom_freqs, 1.0e-10)
 
+radiation_rows, radiation_metadata = run_asgard_radiation_state()
+write_csv("radiation_state.csv", radiation_rows, radiation_fields)
+write_json("radiation_state.json", radiation_metadata)
 write_csv("fs.csv", fs_rows)
 write_csv("rs_ssc_geometry.csv", fig2_rows)
 write_csv("complex_state.csv", fig3_rows, fig3_fields)
