@@ -554,7 +554,15 @@ def main() -> None:
     module_specs = [
         ModuleSpec("Constants", src, ["Constants.f90"]),
         ModuleSpec("Dynamics_reverse", dyn, list(DYNAMICS_REVERSE_SOURCES), COMMON_FLAGS, ["only:", "rs_prompt_jump", "dynamics_reverse", ":"]),
-        ModuleSpec("Dynamics_forward", dyn, _with_main(DYNAMICS_FORWARD_SOURCES, "Dynamics_forward.f90"), COMMON_FLAGS, ["only:", "dynamics_forward", ":"]),
+        ModuleSpec(
+            "Dynamics_forward",
+            dyn,
+            _with_main(DYNAMICS_FORWARD_SOURCES, "Dynamics_forward.f90"),
+            COMMON_FLAGS,
+            None,
+            True,
+            ("dynamics_forward",),
+        ),
         ModuleSpec("electron_forward_weno5_1d", ele, _with_main(ELECTRON_COMMON_SOURCES, "electron_forward_weno5_1d.f90"), omp_flags, OPENMP_LIBS, True, ("fs_weno5_1d",), ("electron_forward_weno5",)),
         ModuleSpec("electron_forward_slc1_1d", ele, _with_main(ELECTRON_COMMON_SOURCES, "electron_forward_slc1_1d.f90"), omp_flags, OPENMP_LIBS, True, ("fs_slc1_1d",), ("electron_forward_slc1",)),
         ModuleSpec("electron_forward_charint_1d", ele, _with_main(ELECTRON_COMMON_SOURCES, "electron_forward_charint_1d.f90"), omp_flags, OPENMP_LIBS, True, ("fs_charint_1d",), ("electron_forward_charint",)),
