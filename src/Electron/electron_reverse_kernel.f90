@@ -14,9 +14,8 @@ module electron_reverse_kernel
                                                coord_to_dgamma, &
                                                solver_dg, solver_fullhide
     use electron_transport_common, only: build_piece_u, remap_edges, &
-                                         dnx_dgamma, trace_affine_u, &
-                                         trace_piece_u, u_edges, &
-                                         flux_split_step
+                                         dnx_dgamma, trace_piece_u, u_edges, &
+                                         flux_split_step, x_from_u
     use electron_dg_transport, only: dg_mesh, dg_char_step, &
                                                dg_advance_step, &
                                                dg_build_mesh, dg_integral, &
@@ -55,6 +54,7 @@ contains
     real(8) :: beta4, beta2, u2, u4, f_r, dDR, dDD, Qshell, coolscale, R_step_mid, vol_lo, vol_hi
     real(8) :: thermloss, adrate, dgscale, coord_scale, dglow, dgmid, dghigh
     real(8) :: injection_rate, inj_hi, inj_width, mass_lo, mass_hi, rhi
+    real(8) :: pc_scale,pc_shift,step_scale,step_shift
     real(8), allocatable, dimension(:) :: dEl,x,dF1,temp3,dN_x,x_edge,coord_edge
     real(8), allocatable, dimension(:) :: pc_log,pc_map,pc_work,pc_back,pc_u,pc_a,pc_b
     real(8), allocatable, dimension(:,:) :: pc_affine
@@ -78,6 +78,8 @@ contains
     active_solver=resolve_solver(solver_id)
     crossed_reverse=(T_cross > 0d0 .and. R_cross > 0d0 .and. M3_cross > 0d0 .and. V3_cross > 0d0)
     pc_ready=.false.
+    pc_scale=1d0
+    pc_shift=0d0
     if (maxval(B3) <= 0d0 .or. maxval(M3_shell) <= M3_shell(1)) then
         do i_empty=1,Num_gam_e
             if (Num_gam_e == 1) then
@@ -252,7 +254,7 @@ contains
     logical :: postonly
 
         postonly = (crossed_reverse .and. R(I_tobs - 1) >= R_cross)
-        if (postonly) then
+        if (postonly .and. active_solver == solver_fullhide) then
             call advance_postcross(I_tobs)
             return
         end if
@@ -265,7 +267,9 @@ contains
             end if
             do L=1,L1
                 rhi=rloc+dDR
-                if (crossed_reverse .and. rloc < R_cross .and. rhi > R_cross) then
+                if (postonly) then
+                    call advance_dgpart(I_tobs,dDR,.false.)
+                else if (crossed_reverse .and. rloc < R_cross .and. rhi > R_cross) then
                     call advance_dgpart(I_tobs,R_cross-rloc,.true.)
                     rloc=R_cross
                     call advance_dgpart(I_tobs,rhi-rloc,.false.)
@@ -367,55 +371,69 @@ contains
 
         dF1=0d0
         if (.not. pc_ready) then
-            if (active_solver == solver_dg) &
-                call dg_project_cells(dg_mesh,dg_state,Num_gam_e,coord_edge,dF1)
-            if (active_solver == solver_fullhide) dF1=dN_x
+            dF1=dN_x
             pc_log=dF1*(coord_edge(2:Num_gam_e+1)-coord_edge(1:Num_gam_e))/ &
                          (x_edge(2:Num_gam_e+1)-x_edge(1:Num_gam_e))
-            pc_map=x_edge
+            if (index_Y /= 0) then
+                call u_edges(Num_gam_e,x_edge,pc_u)
+                pc_map=pc_u
+            end if
             pc_ready=.true.
         end if
         do L=1,L1
             R_step_mid=rloc+0.5d0*dDR
             if (index_Y == 0) then
                 call prepare_substep_state(I_tobs,R_step_mid)
-                call u_edges(Num_gam_e,x_edge,pc_u)
-                call trace_affine_u(Num_gam_e,1,pc_u,[dDR], &
-                                                         f_r,thermloss,pc_affine)
-                pc_back=pc_affine(:,1)
+                if (abs(thermloss) <= 1d-30) then
+                    step_scale=1d0
+                    step_shift=-f_r*dDR
+                else
+                    step_scale=dexp(-thermloss*dDR)
+                    step_shift=(f_r/thermloss)*(step_scale-1d0)
+                end if
+                pc_shift=pc_scale*step_shift+pc_shift
+                pc_scale=pc_scale*step_scale
             else
                 call build_piece_u(Num_gam_e,x_edge,gam_e,dEl,thermloss, &
                                                        pc_u,pc_a,pc_b)
                 call trace_piece_u(Num_gam_e,1,pc_u,pc_u, &
-                                                                   pc_a,pc_b,[dDR], &
-                                                                   pc_affine)
+                                   pc_a,pc_b,[dDR],pc_affine)
                 pc_back=pc_affine(:,1)
+                do i_edge=1,Num_gam_e+1
+                    pc_work(i_edge)=postcross_umap(dexp(-pc_back(i_edge)))
+                end do
+                pc_map=pc_work
             end if
-            do i_edge=1,Num_gam_e+1
-                pc_work(i_edge)=postcross_map(pc_back(i_edge))
-            end do
-            pc_map=pc_work
             rloc=rloc+dDR
         end do
-        call remap_edges(Num_gam_e,x_edge,pc_map,pc_log,dN_x,.true.)
+        if (index_Y == 0) then
+            do i_edge=1,Num_gam_e+1
+                pc_back(i_edge)=x_from_u(pc_scale*dexp(-x_edge(i_edge))+pc_shift)
+            end do
+        else
+            do i_edge=1,Num_gam_e+1
+                pc_back(i_edge)=x_from_u(pc_map(i_edge))
+            end do
+        end if
+        call remap_edges(Num_gam_e,x_edge,pc_back,pc_log,dN_x,.true.)
         call dnx_dgamma(Num_gam_e,x_edge,gam_e,dN_x,dN_gam_e(:,I_tobs))
         where (dN_gam_e(:,I_tobs) <= 0d0) dN_gam_e(:,I_tobs)=0d0
     end subroutine advance_postcross
 
-    real(8) function postcross_map(x_eval) result(x_cross)
+    real(8) function postcross_umap(u_eval) result(u_cross)
     implicit none
     integer :: left,right,mid
-    real(8), intent(in) :: x_eval
+    real(8), intent(in) :: u_eval
     real(8) :: frac
 
-        if (x_eval <= x_edge(1)) then
-            frac=(x_eval-x_edge(1))/(x_edge(2)-x_edge(1))
-            x_cross=pc_map(1)+frac*(pc_map(2)-pc_map(1))
+        if (u_eval >= pc_u(1)) then
+            frac=(u_eval-pc_u(1))/(pc_u(2)-pc_u(1))
+            u_cross=pc_map(1)+frac*(pc_map(2)-pc_map(1))
             return
         end if
-        if (x_eval >= x_edge(Num_gam_e+1)) then
-            frac=(x_eval-x_edge(Num_gam_e+1))/(x_edge(Num_gam_e+1)-x_edge(Num_gam_e))
-            x_cross=pc_map(Num_gam_e+1)+ &
+        if (u_eval <= pc_u(Num_gam_e+1)) then
+            frac=(u_eval-pc_u(Num_gam_e))/(pc_u(Num_gam_e+1)-pc_u(Num_gam_e))
+            u_cross=pc_map(Num_gam_e)+ &
                     frac*(pc_map(Num_gam_e+1)-pc_map(Num_gam_e))
             return
         end if
@@ -423,15 +441,15 @@ contains
         right=Num_gam_e
         do while (left < right)
             mid=(left+right)/2
-            if (x_edge(mid+1) >= x_eval) then
+            if (pc_u(mid+1) <= u_eval) then
                 right=mid
             else
                 left=mid+1
             end if
         end do
-        frac=(x_eval-x_edge(left))/(x_edge(left+1)-x_edge(left))
-        x_cross=pc_map(left)+frac*(pc_map(left+1)-pc_map(left))
-    end function postcross_map
+        frac=(u_eval-pc_u(left))/(pc_u(left+1)-pc_u(left))
+        u_cross=pc_map(left)+frac*(pc_map(left+1)-pc_map(left))
+    end function postcross_umap
 
     subroutine init_dg_state()
     implicit none
