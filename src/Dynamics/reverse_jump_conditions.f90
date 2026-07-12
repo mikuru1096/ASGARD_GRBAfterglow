@@ -18,7 +18,17 @@ subroutine reverse_contact(gamma4,n1,n4,e4,p4,gamma_c,p3,gamma43,comp,beta_rs)
     lo=1d0+1d-10; hi=gamma4*(1d0-1d-10)
     call pressure_difference(lo,f_lo)
     call pressure_difference(hi,f_hi)
-    if (f_lo*f_hi > 0d0) error stop 'reverse_contact has no physical bracket'
+    if (f_lo >= 0d0) error stop 'reverse_contact lower pressure endpoint is not physical'
+    if (f_hi <= 0d0) then
+        ! No compressive reverse-shock root exists.  comp < 0 is the
+        ! established no-shock status; the physical outputs are undefined.
+        gamma_c=0d0
+        p3=0d0
+        gamma43=0d0
+        comp=-1d0
+        beta_rs=0d0
+        return
+    end if
     do I=1,80
         mid=0.5d0*(lo+hi)
         call pressure_difference(mid,f_mid)
