@@ -9,7 +9,6 @@ from typing import Callable
 import numpy as np
 
 MAX_DENSITY_JUMPS = 8
-MAX_DENSITY_PROFILE_POINTS = 96
 
 
 def default_num_threads() -> int:

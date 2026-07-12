@@ -12,7 +12,6 @@ _PP_GAMMA_MODELS = {"delta": -1, "sibyll": 0, "qgsjet": 1, "geant4": 2, "pythia8
 from asgard_core.asgard_config import (
     RuntimeConfig,
     HadronicConfig,
-    MAX_DENSITY_PROFILE_POINTS,
     ReverseShockConfig,
 )
 from asgard_core.asgard_physics_utils import loglog_interp
@@ -175,8 +174,6 @@ def _validate_density_profile(radius: tuple[float, ...], density: tuple[float, .
         raise ValueError("density profile radius and density arrays must have the same length.")
     if radius_arr.size < 2:
         raise ValueError("density profile requires at least 2 points.")
-    if radius_arr.size > MAX_DENSITY_PROFILE_POINTS:
-        raise ValueError(f"At most {MAX_DENSITY_PROFILE_POINTS} density profile points are supported.")
     if not np.all(np.isfinite(radius_arr)) or not np.all(np.isfinite(density_arr)):
         raise ValueError("density profile arrays must contain finite values.")
     if np.any(radius_arr <= 0.0) or np.any(density_arr <= 0.0):

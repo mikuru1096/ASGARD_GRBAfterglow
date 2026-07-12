@@ -8,7 +8,7 @@ module dynamics_density_profile
     public :: density_profile, density_moment, set_density_profile, uniform_density
     public :: secondary_event_count, secondary_event_window, secondary_branch_density
 
-    integer, parameter :: jump_max = 8, profile_max = 96
+    integer, parameter :: jump_max = 8
     integer, parameter :: jump_slot = 28
     integer, parameter :: profile_slot = jump_slot+1+3*jump_max
     integer :: jump_count = 0, profile_count = 0
@@ -18,9 +18,8 @@ module dynamics_density_profile
     real(8), dimension(jump_max) :: jump_radius= 0d0
     real(8), dimension(jump_max) :: jump_factor= 1d0
     real(8), dimension(jump_max) :: jump_width= 1d0
-    real(8), dimension(profile_max) :: profile_radius= 0d0
-    real(8), dimension(profile_max) :: profile_logr= 0d0, profile_logn= 0d0, profile_logw= 0d0
-    real(8), dimension(profile_max-1) :: profile_power= 0d0
+    real(8), allocatable, dimension(:) :: profile_radius
+    real(8), allocatable, dimension(:) :: profile_logr, profile_logn, profile_logw, profile_power
     !$omp threadprivate(jump_count,profile_count,jump_radius,jump_factor,jump_width, &
     !$omp& profile_radius,profile_logr,profile_logn,profile_logw,profile_power, &
     !$omp& profile_event_count,profile_event_start,profile_event_end,profile_event_base)
@@ -175,7 +174,7 @@ subroutine set_density_profile(Boundary, n)
     integer, intent(in) :: n
     integer :: i, radius_index, factor_index, width_index
     real(8), intent(in), dimension(n) :: Boundary
-    real(8), dimension(profile_max) :: profile_density
+    real(8), allocatable, dimension(:) :: profile_density
     real(real128) :: lr0,lr1,ln0,ln1,ratn,ratr
 
     jump_count = 0
@@ -184,6 +183,8 @@ subroutine set_density_profile(Boundary, n)
     profile_event_start = 0d0
     profile_event_end = 0d0
     profile_event_base = 0d0
+    if (allocated(profile_radius)) &
+        deallocate(profile_radius,profile_logr,profile_logn,profile_logw,profile_power)
     if (n < jump_slot) return
     jump_count = nint(Boundary(jump_slot))
     if (jump_count < 0 .or. jump_count > jump_max) &
@@ -203,16 +204,19 @@ subroutine set_density_profile(Boundary, n)
     end do
     if (n < profile_slot) return
     profile_count = nint(Boundary(profile_slot))
-    if (profile_count < 0 .or. profile_count > profile_max) &
+    if (profile_count < 0) &
         error stop 'density profile point count outside supported range'
     if (profile_count > 0 .and. (jump_count > 0 .or. Boundary(22) /= 1d0)) &
         error stop 'density profile and density jumps are mutually exclusive'
     if (profile_count == 1) &
-        error stop 'density profile requires at least 2d0 points'
+        error stop 'density profile requires at least 2 points'
     radius_index = profile_slot+1
-    factor_index = radius_index+profile_max
-    if (profile_count > 0 .and. n < factor_index+profile_max-1) &
+    factor_index = radius_index+profile_count
+    if (profile_count > 0 .and. n < factor_index+profile_count-1) &
         error stop 'boundary is missing density profile arrays'
+    if (profile_count == 0) return
+    allocate(profile_radius(profile_count),profile_logr(profile_count),profile_logn(profile_count), &
+             profile_logw(profile_count),profile_power(profile_count-1),profile_density(profile_count))
     do i = 1, profile_count
         profile_radius(i) = Boundary(radius_index+i-1)
         profile_density(i) = Boundary(factor_index+i-1)

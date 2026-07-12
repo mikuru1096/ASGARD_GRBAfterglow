@@ -6,7 +6,7 @@ import numpy as np
 from astropy import units
 from astropy.cosmology import FlatLambdaCDM
 
-from asgard_core.asgard_config import RuntimeConfig, MAX_DENSITY_JUMPS, MAX_DENSITY_PROFILE_POINTS, SimulationSetup
+from asgard_core.asgard_config import RuntimeConfig, MAX_DENSITY_JUMPS, SimulationSetup
 from asgard_core.asgard_physics_utils import densityjumps, densityprofile
 from src import constants
 
@@ -97,15 +97,10 @@ def build_boundary(config: RuntimeConfig, luminosity_distance_cm: float) -> np.n
         raise ValueError("density profile and density jumps are mutually exclusive.")
     jump_r_pad = np.zeros(MAX_DENSITY_JUMPS, dtype=float)
     jump_factor_pad, jump_width_pad = np.ones((2, MAX_DENSITY_JUMPS), dtype=float)
-    profile_r_pad = np.zeros(MAX_DENSITY_PROFILE_POINTS, dtype=float)
-    profile_n_pad = np.ones(MAX_DENSITY_PROFILE_POINTS, dtype=float)
     if jump_r.size > 0:
         jump_r_pad[: jump_r.size] = jump_r
         jump_factor_pad[: jump_factor.size] = jump_factor
         jump_width_pad[: jump_width.size] = jump_width
-    if profile_r.size > 0:
-        profile_r_pad[: profile_r.size] = profile_r
-        profile_n_pad[: profile_n.size] = profile_n
 
     boundary = [
         config.eta_0,
@@ -140,8 +135,8 @@ def build_boundary(config: RuntimeConfig, luminosity_distance_cm: float) -> np.n
         *jump_factor_pad,
         *jump_width_pad,
         float(profile_r.size),
-        *profile_r_pad,
-        *profile_n_pad,
+        *profile_r,
+        *profile_n,
     ]
     transport_selector = 1.0 if transport_model == "pwn_cr_v1" else 0.0
     escape_selector = 1.0 if escape_mode == "free_outer" else 0.0

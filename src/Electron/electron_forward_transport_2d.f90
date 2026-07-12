@@ -42,7 +42,6 @@ subroutine fs_transport_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,ng, &
     implicit real(8)(a-h,o-z)
 
     integer, intent(in) :: n,Num_nu,Num_R,ng,nchi,index_Y,index_syn_intger,n_threads,substep_max
-    integer, parameter :: pwn_slot=246
     integer, intent(in) :: emit_full_chi_spectrum
     real(8), intent(in), dimension(n) :: Boundary
     real(8), intent(in), dimension(Num_R) :: R_Tobs,R_Gamma,R
@@ -118,17 +117,12 @@ subroutine fs_transport_2d(Boundary,R_Tobs,R_Gamma,R,V_seed,n,Num_nu,Num_R,ng, &
         magnetic_decay_alpha_t = Boundary(25)
         magnetic_decay_t0_s = Boundary(26)
     end if
-    stochastic_accel_norm = 0d0
     block
         real(8) :: transport_model_selector, escape_mode_selector
 
-        transport_model_selector = 0d0
-        escape_mode_selector = 0d0
-        if (n >= pwn_slot + 2) then
-            transport_model_selector = Boundary(pwn_slot)
-            stochastic_accel_norm = Boundary(pwn_slot + 1)
-            escape_mode_selector = Boundary(pwn_slot + 2)
-        end if
+        transport_model_selector = Boundary(n-2)
+        stochastic_accel_norm = Boundary(n-1)
+        escape_mode_selector = Boundary(n)
         pwn_cr_transport = nint(transport_model_selector) == 1
         free_outer_escape = nint(escape_mode_selector) == 1
     end block

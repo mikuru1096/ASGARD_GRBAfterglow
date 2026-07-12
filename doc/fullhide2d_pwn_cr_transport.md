@@ -5,11 +5,12 @@
 
 ## 1. ABI 字段
 
-旧 `Boundary(27)=R_0`，density profile 占 `Boundary(28:245)`。扩展只追加：
+`Boundary(27)=R_0`，density-jump 槽位固定到 `Boundary(52)`；
+`Boundary(53)=N` 后依次存放 N 个 profile radius 和 N 个 density。扩展只追加到动态数组末尾：
 
-- `Boundary(246)`：transport，`0=legacy`、`1=pwn_cr_v1`；
-- `Boundary(247)`：无量纲 stochastic acceleration 强度；
-- `Boundary(248)`：escape，`0=closed`、`1=free_outer`。
+- `Boundary(n-2)`：transport，`0=legacy`、`1=pwn_cr_v1`；
+- `Boundary(n-1)`：无量纲 stochastic acceleration 强度；
+- `Boundary(n)`：escape，`0=closed`、`1=free_outer`。
 
 不得占用旧半径或 density-jump 槽位。
 

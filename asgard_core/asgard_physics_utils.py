@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from asgard_core.asgard_config import MAX_DENSITY_PROFILE_POINTS as PROFILE_MAX
 from src import constants
 
 if TYPE_CHECKING:
@@ -46,8 +45,6 @@ def densityprofile(config: RuntimeConfig) -> tuple[np.ndarray, np.ndarray]:
         raise ValueError("density_profile_radius_cm and density_profile_n_cm3 must have the same length.")
     if profile_r.size < 2:
         raise ValueError("density_profile requires at least 2 radius-density points.")
-    if profile_r.size > PROFILE_MAX:
-        raise ValueError(f"At most {PROFILE_MAX} density profile points are supported.")
     if not np.all(np.isfinite(profile_r)) or not np.all(np.isfinite(profile_n)):
         raise ValueError("density profile arrays must contain finite values.")
     if np.any(profile_r <= 0.0) or np.any(profile_n <= 0.0):
