@@ -35,7 +35,7 @@ module electron_dg_transport
     end type dg_mesh
 
     public :: dg_initial_state, dg_project_state, dg_build_mesh, dg_project_source, dg_kinetic_source
-    public :: dg_advance_step, dg_scale_content, dg_limit_positive, dg_filter_positive, dg_char_step
+    public :: dg_advance_step, dg_scale_content, dg_limit_positive, dg_char_step
     public :: dg_project_cells, dg_integral, dg_tail_fraction
 
 contains
@@ -117,7 +117,6 @@ subroutine dg_project_state(old_mesh, old_state, new_mesh, new_state)
     type(dg_mesh), intent(in) :: old_mesh, new_mesh
     real(8), intent(in), dimension(old_mesh%ntot) :: old_state
     real(8), intent(out), dimension(new_mesh%ntot) :: new_state
-    real(8) :: old_total, new_total
     integer :: k, offset
 
     do k = 1, new_mesh%ndom
@@ -125,13 +124,6 @@ subroutine dg_project_state(old_mesh, old_state, new_mesh, new_state)
         call dg_project_element(old_mesh, old_state, new_mesh, k, &
                                            new_state(offset + 1:offset + new_mesh%nnode))
     enddo
-    call dg_integral(old_mesh, old_state, old_total)
-    call dg_integral(new_mesh, new_state, new_total)
-    if (old_total > 0d0) then
-        if (new_total <= 0d0) error stop 'dg_project_state lost positive content'
-        new_state = new_state*(old_total/new_total)
-    endif
-    call dg_limit_positive(new_mesh, new_state)
 end subroutine dg_project_state
 
 ! 将热后非热电子注入源项投影到 DG 空间。
@@ -262,63 +254,6 @@ subroutine dg_limit_positive(mesh, state)
         end if
     enddo
 end subroutine dg_limit_positive
-
-! 对被标记的单元执行正性核滤波，压制 DG 高频振荡。
-! Apply positive-kernel filtering to flagged elements to damp DG high-order oscillations.
-subroutine dg_filter_positive(mesh, state)
-    type(dg_mesh), intent(in) :: mesh
-    real(8), intent(inout), dimension(mesh%ntot) :: state
-    logical, dimension(mesh%ndom) :: troubled,filter_cell
-    real(8), dimension(mesh%nnode,mesh%ndom) :: modal_all
-    real(8), dimension(mesh%nnode) :: modal,pvals,filtered
-    real(8) :: dx, mid, half_width, x_eval, value
-    integer :: degree, k, q, m, i, offset, filter_mode
-
-    filter_mode = dg_filter_mode()
-    if (filter_mode == 0) return
-    degree = mesh%nnode - 1
-    call ensure_projection_quadrature(mesh%nnode)
-    troubled = .false.
-    filter_cell = .false.
-    do k = 1, mesh%ndom
-        offset = (k - 1)*mesh%nnode
-        dx = mesh%x_right(k) - mesh%x_left(k)
-        mid = 0.5d0*(mesh%x_left(k) + mesh%x_right(k))
-        half_width = 0.5d0*dx
-        modal = 0d0
-        do q = 1, mesh%nnode
-            x_eval = mid + half_width*projection_r(q)
-            value = interpolate_domain(mesh, state, k, x_eval)
-            call legendre_basis_values(degree, projection_r(q), pvals)
-            modal = modal + half_width*projection_w(q)*value*pvals
-        enddo
-        do m = 0, degree
-            modal(m + 1) = dble(2*m + 1)*modal(m + 1)/dx
-        enddo
-        modal_all(:,k) = modal
-        troubled(k) = dg_is_troubled(mesh%nnode,state(offset + 1:offset + mesh%nnode),modal)
-    enddo
-    if (filter_mode == 2) then
-        do k = 1, mesh%ndom
-            if (troubled(k)) filter_cell(max(1,k - 1):min(mesh%ndom,k + 1)) = .true.
-        enddo
-    else
-        filter_cell = .true.
-    endif
-    do k = 1, mesh%ndom
-        if (.not. filter_cell(k)) cycle
-        offset = (k - 1)*mesh%nnode
-        modal = modal_all(:,k)
-        do m = 1, degree
-            modal(m + 1) = modal(m + 1)*dg_filter_factor(filter_mode, m, degree)
-        enddo
-        do i = 1, mesh%nnode
-            call legendre_basis_values(degree, mesh%r(i), pvals)
-            filtered(i) = sum(modal*pvals)
-        enddo
-        state(offset + 1:offset + mesh%nnode) = filtered
-    enddo
-end subroutine dg_filter_positive
 
 ! 隐式 DG 输运步：冷却速度单向时用逐单元回代，符号混合时切到 dense solve。
 ! Implicit DG transport: use element back substitution for single-direction cooling, dense solve for mixed signs.
@@ -651,33 +586,59 @@ subroutine dg_project_element(old_mesh, old_state, new_mesh, k_new, values)
     integer, intent(in) :: k_new
     real(8), intent(in), dimension(old_mesh%ntot) :: old_state
     real(8), intent(out), dimension(new_mesh%nnode) :: values
-    real(8), dimension(new_mesh%nnode) :: modal,pvals
-    real(8) :: dx_new, mid, half_width, x_eval, x_gamma, old_coord, old_value, old_min, old_max, old_jac, new_jac
+    real(8), dimension(new_mesh%nnode) :: modal,pvals,emom
+    real(8) :: dx_new, xgl, xgr, old_l, old_r, lo, hi, mid, half_width
+    real(8) :: old_coord, new_coord, x_gamma, r_new, old_value, contribution
+    real(8) :: target_n,target_e
     integer :: degree, k_old, q, m, i
 
     degree = new_mesh%nnode - 1
     dx_new = new_mesh%x_right(k_new) - new_mesh%x_left(k_new)
-    old_min = old_mesh%x_left(1)
-    old_max = old_mesh%x_right(old_mesh%ndom)
+    xgl = xg_from_coord(new_mesh%coord_kind, new_mesh%coord_scale, new_mesh%x_left(k_new))
+    xgr = xg_from_coord(new_mesh%coord_kind, new_mesh%coord_scale, new_mesh%x_right(k_new))
+    old_l = coord_from_xg(old_mesh%coord_kind, old_mesh%coord_scale, xgl)
+    old_r = coord_from_xg(old_mesh%coord_kind, old_mesh%coord_scale, xgr)
     modal = 0d0
+    target_n = 0d0
+    target_e = 0d0
     call ensure_projection_quadrature(new_mesh%nnode)
-    mid = 0.5d0*(new_mesh%x_left(k_new) + new_mesh%x_right(k_new))
-    half_width = 0.5d0*dx_new
-    do q = 1, new_mesh%nnode
-        x_eval = mid + half_width*projection_r(q)
-        x_gamma = xg_from_coord(new_mesh%coord_kind, new_mesh%coord_scale, x_eval)
-        old_coord = coord_from_xg(old_mesh%coord_kind, old_mesh%coord_scale, x_gamma)
-        if (old_coord < old_min .or. old_coord > old_max) cycle
-        k_old = locate_domain(old_mesh, old_coord)
-        old_value = interpolate_domain(old_mesh, old_state, k_old, old_coord)
-        old_jac = dxg_dcoord(old_mesh%coord_kind, old_mesh%coord_scale, old_coord)
-        new_jac = dxg_dcoord(new_mesh%coord_kind, new_mesh%coord_scale, x_eval)
-        call legendre_basis_values(degree, projection_r(q), pvals)
-        modal = modal + half_width*projection_w(q)*old_value*(new_jac/old_jac)*pvals
+    ! Split every target cell at old DG faces and integrate in the old coordinate.
+    ! The P0/P1 coefficients are constrained by number and kinetic-energy moments.
+    ! 在旧 DG 单元面处分段，并以零阶粒子数和一阶动能矩约束 P0/P1 系数。
+    do k_old = 1, old_mesh%ndom
+        lo = max(old_l, old_mesh%x_left(k_old))
+        hi = min(old_r, old_mesh%x_right(k_old))
+        if (hi <= lo) cycle
+        mid = 0.5d0*(lo + hi)
+        half_width = 0.5d0*(hi - lo)
+        do q = 1, old_mesh%nnode
+            old_coord = mid + half_width*projection_r(q)
+            x_gamma = xg_from_coord(old_mesh%coord_kind, old_mesh%coord_scale, old_coord)
+            new_coord = coord_from_xg(new_mesh%coord_kind, new_mesh%coord_scale, x_gamma)
+            r_new = 2d0*(new_coord - new_mesh%x_left(k_new))/dx_new - 1d0
+            old_value = interpolate_domain(old_mesh, old_state, k_old, old_coord)
+            call legendre_basis_values(degree, r_new, pvals)
+            contribution = half_width*projection_w(q)*old_value
+            modal = modal + contribution*pvals
+            target_n = target_n + contribution
+            target_e = target_e + contribution*(dexp(x_gamma) - 1d0)
+        enddo
     enddo
     do m = 0, degree
         modal(m + 1) = dble(2*m + 1)*modal(m + 1)/dx_new
     enddo
+    emom = 0d0
+    mid = 0.5d0*(new_mesh%x_left(k_new) + new_mesh%x_right(k_new))
+    half_width = 0.5d0*dx_new
+    do q = 1, new_mesh%nnode
+        new_coord = mid + half_width*projection_r(q)
+        x_gamma = xg_from_coord(new_mesh%coord_kind, new_mesh%coord_scale, new_coord)
+        call legendre_basis_values(degree, projection_r(q), pvals)
+        emom = emom + half_width*projection_w(q)*(dexp(x_gamma) - 1d0)*pvals
+    enddo
+    modal(1) = target_n/dx_new
+    modal(2) = (target_e - modal(1)*emom(1) - sum(modal(3:new_mesh%nnode)* &
+                 emom(3:new_mesh%nnode)))/emom(2)
     do i = 1, new_mesh%nnode
         call legendre_basis_values(degree, new_mesh%r(i), pvals)
         values(i) = sum(modal*pvals)
@@ -864,86 +825,6 @@ subroutine dg_tail_fraction(mesh, state, gamma_cut, moment_power, fraction)
         fraction = 0d0
     endif
 end subroutine dg_tail_fraction
-
-! 从环境变量选择 DG 正性核模式。
-! Select the DG positivity-kernel mode from the environment variable.
-integer function dg_filter_mode() result(mode)
-    character(len=32) :: env_value
-    integer :: env_status
-    integer, save :: cached_mode = -1
-    !$omp threadprivate(cached_mode)
-
-    if (cached_mode < 0) then
-        call get_environment_variable('ASGARD_DG1D_POSITIVE_KERNEL', env_value, status=env_status)
-        if (env_status /= 0 .or. len_trim(env_value) == 0) then
-            cached_mode = 2
-        else
-            select case (adjustl(env_value))
-            case ('0', 'off', 'OFF', 'false', 'FALSE', 'none', 'NONE')
-                cached_mode = 0
-            case ('1', 'on', 'ON', 'true', 'TRUE', 'jackson', 'JACKSON')
-                cached_mode = 1
-            case ('troubled', 'TROUBLED')
-                cached_mode = 2
-            case ('fejer', 'FEJER')
-                cached_mode = 3
-            case default
-                error stop 'ASGARD_DG1D_POSITIVE_KERNEL must be 0, 1, jackson, troubled, or fejer'
-            end select
-        endif
-    endif
-    mode = cached_mode
-end function dg_filter_mode
-
-! 用节点正性和高阶模态占比标记问题单元。
-! Flag troubled elements from nodal positivity and high-order modal content.
-logical function dg_is_troubled(nnode, values, modal) result(troubled)
-    integer, intent(in) :: nnode
-    real(8), intent(in), dimension(nnode) :: values,modal
-    real(8) :: modal_sum, high_sum
-    integer :: high_start
-
-    if (minval(values) < 0d0) then
-        troubled = .true.
-        return
-    endif
-    modal_sum = sum(abs(modal))
-    if (modal_sum <= 0d0) then
-        troubled = .false.
-        return
-    endif
-    high_start = max(2, nnode - 5)
-    high_sum = sum(abs(modal(high_start:nnode)))
-    troubled = (high_sum/modal_sum > 2d-2)
-end function dg_is_troubled
-
-! 计算正性核滤波的模态因子。
-! Compute the modal factor used by the positivity-kernel filter.
-pure real(8) function dg_filter_factor(filter_mode, mode, degree) result(factor)
-    integer, intent(in) :: filter_mode, mode, degree
-
-    if (filter_mode == 3) then
-        factor = 1d0 - dble(mode)/dble(degree + 1)
-    else
-        factor = dg_jackson_factor(mode, degree)
-    endif
-end function dg_filter_factor
-
-! Jackson 核模态因子。
-! Jackson-kernel modal factor.
-pure real(8) function dg_jackson_factor(mode, degree) result(factor)
-    integer, intent(in) :: mode, degree
-    real(8) :: theta, denom
-
-    if (mode == 0) then
-        factor = 1d0
-        return
-    endif
-    denom = dble(degree + 2)
-    theta = pi*dble(mode)/denom
-    factor = (dble(degree - mode + 2)*dcos(theta) + dsin(theta)/dtan(pi/denom))/denom
-    factor = max(0d0, min(1d0, factor))
-end function dg_jackson_factor
 
 ! 将用户给出的断点加入活动断点集合。
 ! Add a user-provided break into the active break set.
@@ -1202,26 +1083,6 @@ subroutine differentiation_matrix(nnode, nodes, bary, dmat)
         dmat(i,i) = -sum(dmat(i,:))
     enddo
 end subroutine differentiation_matrix
-
-! 定位包含给定坐标的 DG 单元。
-! Locate the DG element containing the requested coordinate.
-integer function locate_domain(mesh, x_eval) result(k_found)
-    type(dg_mesh), intent(in) :: mesh
-    real(8), intent(in) :: x_eval
-    integer :: k
-
-    if (x_eval <= mesh%x_left(1)) then
-        k_found = 1
-        return
-    endif
-    do k = 1, mesh%ndom
-        if (x_eval <= mesh%x_right(k)) then
-            k_found = k
-            return
-        endif
-    enddo
-    k_found = mesh%ndom
-end function locate_domain
 
 ! 在指定 DG 单元内做重心插值。
 ! Interpolate within a DG element using barycentric interpolation.

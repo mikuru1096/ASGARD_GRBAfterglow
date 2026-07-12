@@ -14,10 +14,9 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
     use electron_dg_transport, only: dg_mesh, dg_build_mesh, &
                                                dg_initial_state, dg_project_state, &
                                                dg_project_source, &
-                                               dg_advance_step, dg_project_cells, &
-                                               dg_limit_positive, dg_integral, &
-                                               dg_tail_fraction, &
-                                               dg_filter_positive
+                                                dg_advance_step, dg_project_cells, &
+                                                dg_limit_positive, dg_integral, &
+                                                dg_tail_fraction
     use electron_shell_transport, only: shell_coord_step, coord_to_dgamma
     use electron_injection_profiles, only: init_coord, &
                                            source_coord
@@ -201,8 +200,6 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
             allocate(projected(new_mesh%ntot), gdg(new_mesh%ntot), deldg(new_mesh%ntot), &
                      delbase(new_mesh%ntot), srcdg(new_mesh%ntot), srctpl(new_mesh%ntot))
         call dg_project_state(mesh, state, new_mesh, projected)
-        call dg_filter_positive(new_mesh, projected)
-        call dg_limit_positive(new_mesh, projected)
         if (size(state) /= new_mesh%ntot) then
             deallocate(state)
             allocate(state(new_mesh%ntot))
@@ -261,7 +258,6 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
             loss_grid = loss_base
         endif
         call dg_advance_step(mesh, 1d0/R_step, dR_local, deldg, srcdg, state, projected)
-        call dg_filter_positive(mesh, projected)
         call dg_limit_positive(mesh, projected)
         state = projected
         if (has_thermal) then

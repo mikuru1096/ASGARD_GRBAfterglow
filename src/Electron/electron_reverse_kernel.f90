@@ -23,8 +23,7 @@ module electron_reverse_kernel
                                                dg_limit_positive, &
                                                dg_kinetic_source, &
                                                dg_project_state, dg_project_cells, &
-                                               dg_scale_content, dg_tail_fraction, &
-                                               dg_filter_positive
+                                               dg_scale_content, dg_tail_fraction
     use electron_radiation_kernel, only: syn_state, nua_fromtau
     use electron_cooling_kernel, only: forward_cooling
     implicit none
@@ -42,7 +41,7 @@ contains
     implicit none
     integer, intent(in) :: Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads
     integer, intent(in), optional :: solver_id
-    integer :: I_tobs,I_gam_e,L1,L,active_solver,i_empty,i_edge,i_coord
+    integer :: I_tobs,I_gam_e,L1,L,active_solver,i_empty,i_edge
     real(8), intent(in) :: Delta_0,e_r,b_r,p_r,f_e_r,eta_0,Epsilon_e,Epsilon_b,z,A_star,dNe_ISM,para_m_ej
     real(8), intent(in) :: R_tr,f_jump,f_wide,R0
     real(8), intent(in) :: T_cross,R_cross,U3_cross,V3_cross,M3_cross
@@ -54,8 +53,8 @@ contains
     real(8), parameter :: tail_thresh=1d-10, tail_power=2d0
     real(8) :: factor2, dB, gamma34, gmax, gm, gc, dNe, DB_min, gmax0, gmin, d_x, rloc, gloc, Delta, rn4
     real(8) :: beta4, beta2, u2, u4, f_r, dDR, dDD, Qshell, coolscale, R_step_mid, vol_lo, vol_hi
-    real(8) :: thermloss, adrate, dgscale, coord_scale, coord_mid, dxdy, dglow, dgmid, dghigh
-    real(8) :: injection_rate, inj_hi, inj_width, mass_lo, mass_hi
+    real(8) :: thermloss, adrate, dgscale, coord_scale, dglow, dgmid, dghigh
+    real(8) :: injection_rate, inj_hi, inj_width, mass_lo, mass_hi, rhi
     real(8), allocatable, dimension(:) :: dEl,x,dF1,temp3,dN_x,x_edge,coord_edge
     real(8), allocatable, dimension(:) :: pc_log,pc_map,pc_work,pc_back,pc_u,pc_a,pc_b
     real(8), allocatable, dimension(:,:) :: pc_affine
@@ -199,12 +198,6 @@ contains
         end if
         L1=reverse_transport_substeps(dDR,dDD,active_solver)
         dDR=dDD/L1
-        do i_coord=1,Num_gam_e
-            coord_mid=0.5d0*(coord_edge(i_coord)+coord_edge(i_coord+1))
-            dxdy=dxg_dcoord(coord_fourvel,coord_scale,coord_mid)
-            dN_x(i_coord)=dN_gam_e(i_coord,I_tobs-1)*gam_e(i_coord)*dxdy
-        end do
-
         call compute_cooling(I_tobs)
         call advance_shell(I_tobs)
     end do
@@ -256,7 +249,6 @@ contains
     implicit none
     integer, intent(in) :: I_tobs
     integer :: i_node
-    real(8) :: srcstep
     logical :: postonly
 
         postonly = (crossed_reverse .and. R(I_tobs - 1) >= R_cross)
@@ -272,54 +264,15 @@ contains
                 end do
             end if
             do L=1,L1
-                if (index_Y == 0) then
-                    R_step_mid=rloc+0.5d0*dDR
-                    call prepare_substep_state(I_tobs,R_step_mid)
+                rhi=rloc+dDR
+                if (crossed_reverse .and. rloc < R_cross .and. rhi > R_cross) then
+                    call advance_dgpart(I_tobs,R_cross-rloc,.true.)
+                    rloc=R_cross
+                    call advance_dgpart(I_tobs,rhi-rloc,.false.)
                 else
-                    R_step_mid=rloc+dDR
+                    call advance_dgpart(I_tobs,dDR,(.not. crossed_reverse) .or. rhi <= R_cross)
                 end if
-                if ((.not. crossed_reverse) .or. R_cross >= R_step_mid) then
-                    srcstep=injection_rate
-                else
-                    srcstep=0d0
-                end if
-                if ((.not. crossed_reverse) .or. R_step_mid <= R_cross) then
-                    adrate=1d0/R_step_mid
-                else
-                    adrate=thermloss
-                end if
-                if (srcstep > 0d0) then
-                    call remesh_dg_state()
-                    if (index_Y /= 0) then
-                        do i_node=1,dg_mesh%ntot
-                            dg_dEl(i_node)=log_interp(Num_gam_e,x_edge,dEl,dg_mesh%x_gamma(i_node))
-                        end do
-                    end if
-                end if
-                if (srcstep > 0d0) then
-                    call dg_kinetic_source(dg_mesh,srcstep,p_r,gm,gmax,dg_source)
-                else
-                    dg_source=0d0
-                end if
-                call dg_scale_content(dg_mesh,srcstep,dg_source)
-                if (index_Y == 0) then
-                    call dg_char_step(dg_mesh,dDR,f_r,adrate,dg_source, &
-                                                                   dg_state,dg_work)
-                else
-                    call dg_advance_step(dg_mesh,adrate,dDR,dg_dEl,dg_source,dg_state,dg_work)
-                    call dg_limit_positive(dg_mesh,dg_work)
-                end if
-                call dg_filter_positive(dg_mesh,dg_work)
-                call dg_limit_positive(dg_mesh,dg_work)
-                dg_state=dg_work
-                if (srcstep > 0d0 .and. dglow <= 1d0) dglow=gm
-                if (dglow > 1d0) call advance_dg_front(dglow)
-                if (srcstep > 0d0) dglow=min(dglow,gm)
-                dglow=max(1d0,dglow)
-                call advance_dg_inject(srcstep)
-                if (dghigh > 1d0) call advance_dg_front(dghigh)
-                if (srcstep > 0d0) dghigh=max(dghigh,gmax)
-                rloc=rloc+dDR
+                rloc=rhi
             end do
             call dg_project_cells(dg_mesh,dg_state,Num_gam_e,coord_edge,dF1)
             call coord_to_dgamma(Num_gam_e,coord_edge,coord_scale, &
@@ -330,31 +283,81 @@ contains
         end if
 
         do L=1,L1
-            if (index_Y == 0) then
-                R_step_mid=rloc+0.5d0*dDR
-                call prepare_substep_state(I_tobs,R_step_mid)
+            rhi=rloc+dDR
+            if (crossed_reverse .and. rloc < R_cross .and. rhi > R_cross) then
+                call advance_fullhidepart(I_tobs,R_cross-rloc,.true.)
+                rloc=R_cross
+                call advance_fullhidepart(I_tobs,rhi-rloc,.false.)
             else
-                rloc=rloc+dDR
-                R_step_mid=rloc
+                call advance_fullhidepart(I_tobs,dDR,(.not. crossed_reverse) .or. rhi <= R_cross)
             end if
-            if ((.not. crossed_reverse) .or. R_cross >= R_step_mid) then
-                call kinetic_coord(Num_gam_e,coord_edge,coord_scale, &
-                                                                               gm,gmax,injection_rate,p_r,dF1)
-            else
-                dF1=0d0
-            end if
-            if ((.not. crossed_reverse) .or. R_step_mid <= R_cross) then
-                adrate=1d0/R_step_mid
-            else
-                adrate=thermloss
-            end if
-            call shell_coord_step(Num_gam_e,dDR,coord_edge,coord_scale,dEl,adrate,dF1,dN_x,x)
-            dN_x=x
-            if (index_Y == 0) rloc=rloc+dDR
-            if (L == L1) call coord_to_dgamma(Num_gam_e,coord_edge,coord_scale, &
-                                                                            gam_e,dN_x,dN_gam_e(:,I_tobs))
+            rloc=rhi
         end do
+        call coord_to_dgamma(Num_gam_e,coord_edge,coord_scale, &
+                                                        gam_e,dN_x,dN_gam_e(:,I_tobs))
     end subroutine advance_shell
+
+    ! 在 RS 穿越事件单侧推进 DG 谱，使注入和绝热系数不跨越物理分支。
+    ! Advance DG on one side of RS crossing so injection and adiabatic coefficients stay branch-local.
+    subroutine advance_dgpart(I_tobs,drseg,preseg)
+    implicit none
+    integer, intent(in) :: I_tobs
+    real(8), intent(in) :: drseg
+    logical, intent(in) :: preseg
+    real(8) :: srcseg
+
+        R_step_mid=rloc+0.5d0*drseg
+        if (index_Y == 0) call prepare_substep_state(I_tobs,R_step_mid)
+        if (preseg) then
+            srcseg=injection_rate
+            adrate=1d0/R_step_mid
+        else
+            srcseg=0d0
+            adrate=thermloss
+        end if
+        if (srcseg > 0d0) then
+            call dg_kinetic_source(dg_mesh,srcseg,p_r,gm,gmax,dg_source)
+        else
+            dg_source=0d0
+        end if
+        call dg_scale_content(dg_mesh,srcseg,dg_source)
+        if (index_Y == 0) then
+            call dg_char_step(dg_mesh,drseg,f_r,adrate,dg_source,dg_state,dg_work)
+        else
+            call dg_advance_step(dg_mesh,adrate,drseg,dg_dEl,dg_source,dg_state,dg_work)
+            call dg_limit_positive(dg_mesh,dg_work)
+        end if
+        dg_state=dg_work
+        if (srcseg > 0d0 .and. dglow <= 1d0) dglow=gm
+        if (dglow > 1d0) call advance_dg_front(dglow,drseg)
+        if (srcseg > 0d0) dglow=min(dglow,gm)
+        dglow=max(1d0,dglow)
+        call advance_dg_inject(srcseg,drseg)
+        if (dghigh > 1d0) call advance_dg_front(dghigh,drseg)
+        if (srcseg > 0d0) dghigh=max(dghigh,gmax)
+    end subroutine advance_dgpart
+
+    ! Advance one side of the exact reverse-shock crossing event.
+    subroutine advance_fullhidepart(I_tobs,drseg,preseg)
+    implicit none
+    integer, intent(in) :: I_tobs
+    real(8), intent(in) :: drseg
+    logical, intent(in) :: preseg
+
+        R_step_mid=rloc+0.5d0*drseg
+        if (index_Y == 0) call prepare_substep_state(I_tobs,R_step_mid)
+        if (preseg) then
+            call kinetic_coord(Num_gam_e,coord_edge,coord_scale, &
+                                                       gm,gmax,injection_rate,p_r,dF1)
+            adrate=1d0/R_step_mid
+        else
+            dF1=0d0
+            adrate=thermloss
+        end if
+        call shell_coord_step(Num_gam_e,drseg,coord_edge,coord_scale, &
+                                                   dEl,adrate,dF1,dN_x,x)
+        dN_x=x
+    end subroutine advance_fullhidepart
 
     ! Crossing 后没有新注入，沿特征线搬运既有电子谱。
     ! After crossing there is no new injection; advect the existing spectrum along characteristics.
@@ -364,7 +367,11 @@ contains
 
         dF1=0d0
         if (.not. pc_ready) then
-            pc_log=dN_gam_e(:,I_tobs-1)*gam_e
+            if (active_solver == solver_dg) &
+                call dg_project_cells(dg_mesh,dg_state,Num_gam_e,coord_edge,dF1)
+            if (active_solver == solver_fullhide) dF1=dN_x
+            pc_log=dF1*(coord_edge(2:Num_gam_e+1)-coord_edge(1:Num_gam_e))/ &
+                         (x_edge(2:Num_gam_e+1)-x_edge(1:Num_gam_e))
             pc_map=x_edge
             pc_ready=.true.
         end if
@@ -444,8 +451,6 @@ contains
                                                     dlog(dg_upper_break()),dgscale,dg_new_mesh)
         call ensure_dg_work(dg_new_mesh%ntot)
         call dg_project_state(dg_mesh,dg_state,dg_new_mesh,dg_work)
-        call dg_filter_positive(dg_new_mesh,dg_work)
-        call dg_limit_positive(dg_new_mesh,dg_work)
         if (size(dg_state) /= dg_new_mesh%ntot) then
             deallocate(dg_state)
             allocate(dg_state(dg_new_mesh%ntot))
@@ -526,14 +531,14 @@ contains
             gamma_break=trans_break
     end function dg_low_break
 
-    subroutine advance_dg_inject(source_norm)
+    subroutine advance_dg_inject(source_norm,drseg)
     implicit none
-    real(8), intent(in) :: source_norm
+    real(8), intent(in) :: source_norm,drseg
 
         if (source_norm > 0d0) then
             dgmid=gm
         else if (dgmid > 1d0) then
-            call advance_dg_front(dgmid)
+            call advance_dg_front(dgmid,drseg)
         end if
         dgmid=max(1d0,dgmid)
     end subroutine advance_dg_inject
@@ -545,21 +550,22 @@ contains
         if (crossed_reverse .and. rloc >= R_cross .and. dgmid > 1d0) gamma_break=dgmid
     end function dg_inject_break
 
-    subroutine advance_dg_front(gamma_front)
+    subroutine advance_dg_front(gamma_front,drseg)
     implicit none
     real(8), intent(inout) :: gamma_front
+    real(8), intent(in) :: drseg
     real(8) :: exp_b,loss_front
 
         if (index_Y == 0) then
-            if (abs(adrate*dDR) <= 1d-10) then
-                gamma_front=gamma_front/(1d0+f_r*gamma_front*dDR)
+            if (abs(adrate*drseg) <= 1d-10) then
+                gamma_front=gamma_front/(1d0+f_r*gamma_front*drseg)
             else
-                exp_b=dexp(-adrate*dDR)
+                exp_b=dexp(-adrate*drseg)
                 gamma_front=gamma_front*exp_b/(1d0+(f_r/adrate)*gamma_front*(1d0-exp_b))
             end if
         else
             loss_front=log_interp(Num_gam_e,x_edge,dEl,dlog(gamma_front))
-            gamma_front=gamma_front*dexp(-(loss_front+adrate)*dDR)
+            gamma_front=gamma_front*dexp(-(loss_front+adrate)*drseg)
         end if
     end subroutine advance_dg_front
 end subroutine electron_reverse_evolve
@@ -940,8 +946,6 @@ subroutine dg_sequence(Num_gam_e,x_edge,gam_e,num_step,dR,rad_coeff,adrate_step,
         end if
         call dg_char_step(mesh,dR,rad_coeff,adrate_step(step), &
                                                        source_nodes,state,advanced)
-        call dg_filter_positive(mesh,advanced)
-        call dg_limit_positive(mesh,advanced)
         state=advanced
     end do
     call dg_integral(mesh,state,dg_content)
