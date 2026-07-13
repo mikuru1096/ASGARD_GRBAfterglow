@@ -77,7 +77,7 @@ real(8), dimension(nnu-1) :: photons
        call accumulate_ic_loss(nnu,ig,photons,loss(ig))
     end do
 
-    loss=loss/gam**3*0.75d0*Para_c*Para_h*Para_SigmaT/para_m_energy
+    loss=loss/gam**4*0.75d0*Para_c*Para_h*Para_SigmaT/para_m_energy
 end subroutine electron_ic_loss
 
 ! 批量 IC 冷却率：多个 chi 列共享同一电子/频率积分网格。
@@ -107,7 +107,7 @@ integer :: ic,ig,inu
     end do
 
     do ic=1,nchi
-        loss(:,ic)=loss(:,ic)/gam**3*0.75d0*Para_c*Para_h*Para_SigmaT/para_m_energy
+        loss(:,ic)=loss(:,ic)/gam**4*0.75d0*Para_c*Para_h*Para_SigmaT/para_m_energy
     end do
 end subroutine electron_ic_loss_batch
 
@@ -225,7 +225,7 @@ real(8) :: ge,g2,seedsum,power,vobs
         power=cnorm*vobs*vobs*seedsum
         rate=rate+wobs(iobs)*power
     end do
-    rate=rate/(ge*g2)
+    rate=rate/(g2*g2)
 end subroutine accumulate_budget
 
 real(8) function low_seed_kernel(gam,i_obs,i_seed)
