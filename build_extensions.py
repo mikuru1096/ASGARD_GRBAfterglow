@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-COMMON_FLAGS = "-Ofast -march=native -funroll-loops -ffast-math -fno-signed-zeros -fno-trapping-math -ffree-line-length-none"
+COMMON_FLAGS = "-Ofast -march=native -funroll-loops -ffast-math -fno-signed-zeros -fno-trapping-math -ffree-line-length-none -flto -fno-semantic-interposition"
 OMP_FLAGS = f"-fopenmp {COMMON_FLAGS}"
 OPENMP_LIBS = ["-lgomp"]
 
@@ -486,9 +486,11 @@ def _build_ordered_object_module(
         object_paths.append(wrapper_object)
 
     output_path = build_dir / f"{module_name}{ext_suffix}"
+    link_flags = [flag for flag in shlex.split(fflags or "") if flag.startswith("-flto")]
     link_command = [
         fc,
         "-shared",
+        *link_flags,
         *(str(path) for path in c_objects),
         *(str(path) for path in object_paths),
         "-o",
