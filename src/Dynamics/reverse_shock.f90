@@ -426,17 +426,17 @@ contains
     use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
     implicit none
     integer, intent(in) :: phase
-    integer :: I,J,N,K
+    integer :: I,J,N
     real(8), intent(inout) :: db_step, tcs, rcs, e3_hot, gam20_step
     real(8), intent(inout) :: u3s, v3sstep, m3sstep, gms, b3ords
     real(8), dimension(nstate), intent(inout) :: y_step
     real(8), intent(inout) :: t_step
     real(8), intent(in) :: h_step
-    logical :: has_reference,sec_check
+    logical :: has_reference
     real(8), parameter :: rk_eps = 1d-5, mtol = 1d-7, ttol = 1d-12
     real(8), dimension(nstate) :: C,G
     real(8), dimension(rs_nstate) :: rs_try
-    real(8) :: HH,P,Q,X,S,HS,ol,oh,width,center
+    real(8) :: HH,P,Q,X,S,HS
 
         N = 1
         HS = log((t_step+h_step)/t_step)
@@ -454,17 +454,7 @@ contains
             end do
             if (has_reference) then
                 P = 0d0
-                sec_check=.false.
-                do K=jump_count+1,njump
-                    call secondary_event_window(K,ol,oh,width,center)
-                    if (C(2) < oh .and. y_step(2) > ol) sec_check=.true.
-                end do
-                if (.not. sec_check .and. njump > 0) then
-                    sec_check=any(y_step(7:6+njump) /= C(7:6+njump)) .or. &
-                              any(y_step(7+3*njump:6+5*njump) /= C(7+3*njump:6+5*njump))
-                end if
-                do I = 1, nstate
-                    if (I > 3 .and. (I < 7 .or. .not. sec_check)) cycle
+                do I = 1, 3
                     if (.not. ieee_is_finite(y_step(I)) .or. .not. ieee_is_finite(G(I))) then
                         P = huge(1d0)
                         exit
@@ -551,8 +541,8 @@ contains
         if (h_post > 0d0) call rk_log(postcross_phase,rs_step,x_base,s_step,h_post,y_step)
     end subroutine rk_piece
 
-    ! 在 tabulated knot 与 secondary source 变号处切分一个 RK 子步。
-    ! Split one RK substep at tabulated knots and secondary-source sign changes.
+    ! 在 tabulated 上升 knot 处切分一个 RK 子步。
+    ! Split one RK substep at tabulated rising knots.
     recursive subroutine rk_event(phase,rs_step,x_base,s_step,h_step,y_step)
     implicit none
     integer, intent(in) :: phase
@@ -563,9 +553,8 @@ contains
     real(8), intent(inout) :: s_step
     real(8), dimension(nstate) :: y_base,y_end,y_mid
     real(8), dimension(rs_nstate) :: rs_base,rs_end,rs_mid
-    real(8) :: s_base,s_end,s_mid,knot,h_lo,h_hi,h_mid,hcut,ol,oh,width,center
-    real(8) :: source0,source1,source2,root
-    logical :: found,cut
+    real(8) :: s_base,s_end,s_mid,knot,h_lo,h_hi,h_mid,hcut
+    logical :: found
 
         y_base=y_step; rs_base=rs_step; s_base=s_step
         y_end=y_base; rs_end=rs_base; s_end=s_base
@@ -590,80 +579,8 @@ contains
             return
         end if
 
-        cut=.false.
-        do j=jump_count+1,njump
-            call secondary_event_window(j,ol,oh,width,center)
-            if (y_base(2) < oh .and. y_end(2) > ol) cut=.true.
-        end do
-        if (.not. cut .and. njump > 0) then
-            cut=any(y_end(7:6+njump) /= y_base(7:6+njump)) .or. &
-                any(y_end(7+3*njump:6+5*njump) /= y_base(7+3*njump:6+5*njump))
-        end if
-        if (.not. cut) then
-            y_step=y_end; rs_step=rs_end; s_step=s_end
-            return
-        end if
-
-        y_mid=y_base; rs_mid=rs_base; s_mid=s_base
-        call rk_piece(phase,rs_mid,x_base,s_mid,0.5d0*h_step,y_mid)
-        cut=.false.; hcut=h_step
-        do j=1,njump
-            call event_source(j,y_base(2),y_base(1),y_base,source0)
-            call event_source(j,y_mid(2),y_mid(1),y_mid,source1)
-            call event_source(j,y_end(2),y_end(1),y_end,source2)
-            if (source0*source1 < 0d0) then
-                call source_h(j,phase,rs_base,x_base,s_base,y_base,0d0,0.5d0*h_step,root)
-            else if (source1*source2 < 0d0) then
-                call source_h(j,phase,rs_base,x_base,s_base,y_base,0.5d0*h_step,h_step,root)
-            else
-                cycle
-            end if
-            if (root < hcut) then
-                hcut=root
-                cut=.true.
-            end if
-        end do
-        if (cut .and. hcut > 1d-10*h_step .and. h_step-hcut > 1d-10*h_step) then
-            y_step=y_base; rs_step=rs_base; s_step=s_base
-            call rk_piece(phase,rs_step,x_base,s_step,hcut,y_step)
-            call rk_event(phase,rs_step,x_base,s_step,h_step-hcut,y_step)
-            return
-        end if
         y_step=y_end; rs_step=rs_end; s_step=s_end
     end subroutine rk_event
-
-    ! 在一个已括住的局部步内二分 secondary source 的零点。
-    ! Bisect a secondary-source zero inside one bracketed local step.
-    subroutine source_h(jump,phase,rs_base,x_base,s_base,y_base,h_left,h_right,root)
-    implicit none
-    integer, intent(in) :: jump,phase
-    integer :: I
-    real(8), dimension(rs_nstate), intent(in) :: rs_base
-    real(8), dimension(nstate), intent(in) :: y_base
-    real(8), intent(in) :: x_base,s_base,h_left,h_right
-    real(8), intent(out) :: root
-    real(8), dimension(rs_nstate) :: rs_mid
-    real(8), dimension(nstate) :: y_mid
-    real(8) :: h_lo,h_hi,h_mid,s_mid,source0,source1
-
-        h_lo=h_left; h_hi=h_right
-        y_mid=y_base; rs_mid=rs_base; s_mid=s_base
-        call rk_piece(phase,rs_mid,x_base,s_mid,h_lo,y_mid)
-        call event_source(jump,y_mid(2),y_mid(1),y_mid,source0)
-        do I=1,32
-            h_mid=0.5d0*(h_lo+h_hi)
-            y_mid=y_base; rs_mid=rs_base; s_mid=s_base
-            call rk_piece(phase,rs_mid,x_base,s_mid,h_mid,y_mid)
-            call event_source(jump,y_mid(2),y_mid(1),y_mid,source1)
-            if (source0*source1 <= 0d0) then
-                h_hi=h_mid
-            else
-                h_lo=h_mid
-                source0=source1
-            end if
-        end do
-        root=0.5d0*(h_lo+h_hi)
-    end subroutine source_h
 
     ! log(time) 下的 RK4 stage。phase 选择物理分支，
     ! 状态向量仍使用同一个 Y 布局。
