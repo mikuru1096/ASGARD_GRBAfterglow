@@ -270,23 +270,16 @@ end subroutine set_density_profile
 subroutine build_profile_events()
     implicit none
     integer :: i, i_start, i_end
-    logical :: rising
 
     ! q=d ln(r^3 n)/d ln r; q>3 is exactly d n/dR>0 for the log-log table.
     ! Consecutive rising intervals form one finite-width compression source.
+    ! 只有连续压缩区的首尾改变 secondary source 拓扑；区内 log-log 节点保持 n(R) 与 RHS 连续。
+    ! Only compression boundaries change secondary-source topology; interior
+    ! log-log nodes keep n(R) and the RHS continuous.
     profile_event_count = 0
     if (profile_count < 2) return
     allocate(profile_knots(profile_count))
     knot_count = 0
-    do i = 1, profile_count
-        rising = .false.
-        if (i < profile_count) rising = profile_power(i) > 3d0
-        if (i > 1) rising = rising .or. profile_power(i-1) > 3d0
-        if (rising) then
-            knot_count = knot_count+1
-            profile_knots(knot_count) = profile_radius(i)
-        end if
-    end do
     i = 1
     do while (i < profile_count)
         if (profile_power(i) <= 3d0) then
@@ -304,6 +297,10 @@ subroutine build_profile_events()
         profile_event_start(profile_event_count) = profile_radius(i_start)
         profile_event_end(profile_event_count) = profile_radius(i_end)
         profile_event_base(profile_event_count) = exp(profile_logn(i_start))
+        knot_count = knot_count+1
+        profile_knots(knot_count) = profile_radius(i_start)
+        knot_count = knot_count+1
+        profile_knots(knot_count) = profile_radius(i_end)
     end do
 end subroutine build_profile_events
 
@@ -333,8 +330,8 @@ subroutine secondary_event_window(j, r_left, r_right, width, center)
     end if
 end subroutine secondary_event_window
 
-! 返回两个半径之间最先遇到的 tabulated 上升段 knot。
-! Return the first tabulated rising-segment knot between two radii.
+! 返回两个半径之间最先遇到的 tabulated 压缩区边界。
+! Return the first tabulated compression boundary between two radii.
 subroutine secondary_knot(r_left,r_right,knot,found)
     implicit none
     integer :: lo,hi,mid

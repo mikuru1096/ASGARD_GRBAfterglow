@@ -459,8 +459,8 @@ contains
         t_step = T0+h_step*(L1+2d0*L2+2d0*L3+L4)/6.0d0
     end subroutine rk_m3
 
-    ! swept-fraction 步先按 tabulated knot，再按 secondary-RS source 变号切分。
-    ! Split a swept-fraction step first at tabulated knots, then at secondary-RS
+    ! swept-fraction 步先按 tabulated 压缩区边界，再按 secondary-RS source 变号切分。
+    ! Split a swept-fraction step first at tabulated compression boundaries, then at secondary-RS
     ! source sign changes.
     recursive subroutine rk_m3_event(db_step,t_step,y_step,h_step)
     implicit none
@@ -667,8 +667,8 @@ contains
         if (h_post > 0d0) call rk_log(postcross_phase,rs_step,x_base,s_step,h_post,y_step)
     end subroutine rk_piece
 
-    ! 在 tabulated 上升 knot 处切分一个 RK 子步。
-    ! Split one RK substep at tabulated rising knots.
+    ! 在 tabulated 压缩区边界处切分一个 RK 子步。
+    ! Split one RK substep at tabulated compression boundaries.
     recursive subroutine rk_event(phase,rs_step,x_base,s_step,h_step,y_step)
     implicit none
     integer, intent(in) :: phase
