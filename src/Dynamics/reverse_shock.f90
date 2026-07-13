@@ -245,14 +245,14 @@ contains
     ! so the crossing event is pinned at Y(4)=1.
     subroutine advance_m3(ttin)
     implicit none
-    integer :: I, J, N, nbracket
+    integer :: N
     real(8), intent(in) :: ttin
-    real(8), parameter :: hmax = 5d-2, rk_eps = 1d-5
-    logical :: crossing_first, has_reference
-    real(8) :: H_bound, h_event, H_lo, H_hi, H_mid, hest, HH, P
-    real(8), dimension(nstate) :: ytry,G,D
+    real(8), parameter :: hmax = 5d-2
+    logical :: crossing_first
+    real(8) :: H_bound,H_hi,hest
+    real(8), dimension(nstate) :: ytry,D
     real(8), dimension(rs_nstate) :: rs
-    real(8) :: dbtry,ttry,tref
+    real(8) :: dbtry,ttry
 
         rs = 0d0
         rs(rs_db3) = dB3
@@ -263,76 +263,16 @@ contains
         H_bound = 1d0-Y(4)
         hest = D(4)*(ttin-tnow)
         H_hi = min(hmax, H_bound, hest)
-        ttry = tnow
-        ytry = Y
-        dbtry = dB3
-        nbracket = max(2, ceiling(H_hi/hmax))
-        HH = H_hi/dble(nbracket)
-        do J = 1, nbracket
-            call rk_m3_event(dbtry,ttry,ytry,HH)
-        end do
+        call m3_converged(H_hi,N,dbtry,ttry,ytry)
         do while (ttry < ttin .and. H_hi < H_bound)
             H_hi = min(H_bound, 2d0*H_hi)
-            ttry = tnow
-            ytry = Y
-            dbtry = dB3
-            nbracket = max(2, ceiling(H_hi/hmax))
-            HH = H_hi/dble(nbracket)
-            do J = 1, nbracket
-                call rk_m3_event(dbtry,ttry,ytry,HH)
-            end do
+            call m3_converged(H_hi,N,dbtry,ttry,ytry)
         end do
         crossing_first = (ttry < ttin)
-        if (crossing_first) then
-            h_event = H_bound
-        else
-            H_lo = 0d0
-            do I = 1, 30
-                H_mid = 0.5d0*(H_lo+H_hi)
-                ttry = tnow
-                ytry = Y
-                dbtry = dB3
-                nbracket = max(2, ceiling(H_mid/hmax))
-                HH = H_mid/dble(nbracket)
-                do J = 1, nbracket
-                    call rk_m3_event(dbtry,ttry,ytry,HH)
-                end do
-                if (ttry >= ttin) then
-                    H_hi = H_mid
-                else
-                    H_lo = H_mid
-                end if
-            end do
-            h_event = H_hi
-        end if
-
-        N = max(1, ceiling(h_event/hmax))
-        P = 1d0+rk_eps
-        has_reference = .false.
-        do while (P >= rk_eps)
-            ttry = tnow
-            ytry = Y
-            dbtry = dB3
-            HH = h_event/dble(N)
-            do J = 1, N
-                call rk_m3_event(dbtry,ttry,ytry,HH)
-            end do
-            if (has_reference) then
-                P=max(state_error(ytry,G),state_error([ttry],[tref]))
-            else
-                P = 1d0+rk_eps
-                has_reference = .true.
-            end if
-            if (P < rk_eps) then
-                dB3 = dbtry
-                tnow = ttry
-                Y = ytry
-            else
-                G = ytry
-                tref = ttry
-                N = N+N
-            end if
-        end do
+        if (.not. crossing_first) call m3_root(ttin,H_hi,N,dbtry,ttry,ytry)
+        dB3 = dbtry
+        tnow = ttry
+        Y = ytry
 
         if (crossing_first) then
             ! crossing 后做一次 RHS 计算，记录冻结的 crossing 半径、热状态、gamma_m 和有序磁场。
@@ -352,6 +292,102 @@ contains
         end if
 
     end subroutine advance_m3
+
+    ! 用 Richardson 收敛后的 swept-fraction 分辨率定义后续目标时间根。
+    ! Define the target-time root with the Richardson-converged swept-fraction resolution.
+    subroutine m3_converged(h_step,n_step,db_out,t_out,y_out)
+    implicit none
+    integer, intent(out) :: n_step
+    real(8), intent(in) :: h_step
+    real(8), intent(out) :: db_out,t_out
+    real(8), dimension(nstate), intent(out) :: y_out
+    real(8), parameter :: hmax=5d-2,rk_eps=1d-5
+    logical :: hasref
+    real(8), dimension(nstate) :: yref
+    real(8) :: p,tref
+
+        n_step=max(1,ceiling(h_step/hmax))
+        p=1d0+rk_eps
+        hasref=.false.
+        do while (p >= rk_eps)
+            call m3_integrate(h_step,n_step,db_out,t_out,y_out)
+            if (hasref) then
+                p=max(state_error(y_out,yref),state_error([t_out],[tref]))
+            else
+                p=1d0+rk_eps
+                hasref=.true.
+            end if
+            if (p < rk_eps) return
+            yref=y_out
+            tref=t_out
+            n_step=n_step+n_step
+        end do
+    end subroutine m3_converged
+
+    ! 从当前 host 状态按固定子步数积分同一个 swept-fraction 映射。
+    ! Integrate one swept-fraction map from the host state with a fixed substep count.
+    subroutine m3_integrate(h_step,n_step,db_out,t_out,y_out)
+    implicit none
+    integer, intent(in) :: n_step
+    integer :: j
+    real(8), intent(in) :: h_step
+    real(8), intent(out) :: db_out,t_out
+    real(8), dimension(nstate), intent(out) :: y_out
+    real(8) :: hh
+
+        db_out=dB3
+        t_out=tnow
+        y_out=Y
+        hh=h_step/dble(n_step)
+        do j=1,n_step
+            call rk_m3_event(db_out,t_out,y_out,hh)
+        end do
+    end subroutine m3_integrate
+
+    ! 沿收敛轨迹前进，只在跨过输出目标的最后一个子步内二分。
+    ! Follow the converged trajectory and bisect only the final substep crossing the output target.
+    subroutine m3_root(ttin,h_bound,n_step,db_out,t_out,y_out)
+    implicit none
+    integer, intent(in) :: n_step
+    integer :: i,j
+    real(8), intent(in) :: ttin,h_bound
+    real(8), intent(out) :: db_out,t_out
+    real(8), dimension(nstate), intent(out) :: y_out
+    real(8), dimension(nstate) :: ybase
+    real(8) :: dbbase,tbase,h_step,h_lo,h_hi,h_mid
+
+        db_out=dB3
+        t_out=tnow
+        y_out=Y
+        h_step=h_bound/dble(n_step)
+        do j=1,n_step
+            dbbase=db_out
+            tbase=t_out
+            ybase=y_out
+            call rk_m3_event(db_out,t_out,y_out,h_step)
+            if (t_out >= ttin) then
+                h_lo=0d0
+                h_hi=h_step
+                do i=1,30
+                    h_mid=0.5d0*(h_lo+h_hi)
+                    db_out=dbbase
+                    t_out=tbase
+                    y_out=ybase
+                    call rk_m3_event(db_out,t_out,y_out,h_mid)
+                    if (t_out >= ttin) then
+                        h_hi=h_mid
+                    else
+                        h_lo=h_mid
+                    end if
+                end do
+                db_out=dbbase
+                t_out=tbase
+                y_out=ybase
+                call rk_m3_event(db_out,t_out,y_out,h_hi)
+                return
+            end if
+        end do
+    end subroutine m3_root
 
     ! swept-mass fraction 下的一步 RK4。第 4 个状态量由步长直接推进，
     ! 其他状态量使用 reverse_dynamics_rhs 给出的 dY/dM3。
