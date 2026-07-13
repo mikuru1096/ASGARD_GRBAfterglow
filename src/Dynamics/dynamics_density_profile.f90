@@ -14,6 +14,7 @@ module dynamics_density_profile
     integer :: jump_count = 0, profile_count = 0
     integer :: profile_event_count = 0
     integer :: knot_count = 0
+    integer :: profile_index = 1
     logical :: density_ready = .false.
     real(8) :: density_rr=0d0,density_r0=0d0,density_value=0d0
     real(8), dimension(jump_max) :: profile_event_start=0d0, profile_event_end=0d0
@@ -27,7 +28,7 @@ module dynamics_density_profile
     !$omp threadprivate(jump_count,profile_count,jump_radius,jump_factor,jump_width, &
     !$omp& profile_radius,profile_logr,profile_logn,profile_logw,profile_power, &
     !$omp& profile_event_count,profile_event_start,profile_event_end,profile_event_base, &
-    !$omp& knot_count,profile_knots,density_ready,density_rr,density_r0,density_value)
+    !$omp& knot_count,profile_knots,profile_index,density_ready,density_rr,density_r0,density_value)
 
 contains
 
@@ -199,6 +200,7 @@ subroutine set_density_profile(Boundary, n)
     profile_count = 0
     profile_event_count = 0
     knot_count = 0
+    profile_index = 1
     density_ready = .false.
     profile_event_start = 0d0
     profile_event_end = 0d0
@@ -480,16 +482,29 @@ function tab_logdensity(RR) result(logn)
     else if (RR >= profile_radius(profile_count)) then
         lo=profile_count-1
     else
-        lo = 1; hi = profile_count
-        do while (hi-lo > 1)
-            mid = (lo+hi)/2
-            if (profile_radius(mid) <= RR) then
-                lo = mid
+        lo=profile_index
+        if (RR < profile_radius(lo) .or. RR >= profile_radius(lo+1)) then
+            if (lo < profile_count-1 .and. RR >= profile_radius(lo+1) .and. &
+                RR < profile_radius(lo+2)) then
+                lo=lo+1
+            else if (lo > 1 .and. RR < profile_radius(lo) .and. &
+                     RR >= profile_radius(lo-1)) then
+                lo=lo-1
             else
-                hi = mid
+                lo=1
+                hi=profile_count
+                do while (hi-lo > 1)
+                    mid=(lo+hi)/2
+                    if (profile_radius(mid) <= RR) then
+                        lo=mid
+                    else
+                        hi=mid
+                    end if
+                end do
             end if
-        end do
+        end if
     end if
+    profile_index=lo
     delta=log(RR)-profile_logr(lo)
     logn=profile_logn(lo)+profile_power(lo)*delta-3d0*delta
 end function tab_logdensity

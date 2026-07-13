@@ -31,7 +31,7 @@ subroutine reverse_dynamics_rhs(phase,rs_state,T,Y,D,M,mej,V3_scale,Delta_0,eta_
     real(8) :: sec_m,sec_u,sec_v,sec_p,sec_inertia
     real(8) :: comp_ratio,rho4,B4_ordered,B3_ordered,sigma_inertia,n4_inertia
     real(8) :: mag_inertia,magnetic_pressure,magnetic_energy,wait_inertia,shell_frac
-    real(8) :: beta_fast,fast_depth,gsq1
+    real(8) :: beta_fast,fast_depth,gsq1,cool_ratio
     real(8) :: base_density
     real(8), dimension(jump_max) :: branch_weight
     integer :: j_inertia,mi_idx,ui_idx,vi_idx,nbranch
@@ -85,7 +85,12 @@ subroutine reverse_dynamics_rhs(phase,rs_state,T,Y,D,M,mej,V3_scale,Delta_0,eta_
     dB2=rs_bcoeff*dsqrt((Epsilon_b*dNe)*(gam2*gam2-1d0))
     gam_c2=cool_coeff/(dB2*dB2*gam2*T)
     gam_m2=Epsilon_e/f_e*Para_m_p_DIV_m_e*(p_f-2d0)*(gam2-1d0)/(p_f-1d0)+1d0
-    eps2=Epsilon_e*min(1d0,(gam_m2/gam_c2)**(p_f-2d0))
+    cool_ratio=gam_m2/gam_c2
+    if ((cool_ratio-1d0)*(p_f-2d0) >= 0d0) then
+        eps2=Epsilon_e
+    else
+        eps2=Epsilon_e*cool_ratio**(p_f-2d0)
+    end if
     e3=U3/V3
     if (waiting_reverse) then
         B3_ordered=0d0
@@ -137,7 +142,12 @@ subroutine reverse_dynamics_rhs(phase,rs_state,T,Y,D,M,mej,V3_scale,Delta_0,eta_
     else
         gam_c3=cool_coeff/(rs_state(idb)*rs_state(idb)*gam2*T)
         gam_m3=e_r/fer*Para_m_p_DIV_m_e*(p_r-2d0)*thermal_specific3/(p_r-1d0)+1d0
-        eps3=e_r*min(1d0,(gam_m3/gam_c3)**(p_r-2d0))
+        cool_ratio=gam_m3/gam_c3
+        if ((cool_ratio-1d0)*(p_r-2d0) >= 0d0) then
+            eps3=e_r
+        else
+            eps3=e_r*cool_ratio**(p_r-2d0)
+        end if
     end if
     sec_m=0d0; sec_u=0d0; sec_v=0d0
     sec_p=0d0; sec_inertia=0d0
@@ -262,8 +272,8 @@ contains
                 D(v_idx)=dv_exp/V3_scale
                 cycle
             end if
-            call secondary_branch_density(A_star,dNe_ISM,RR,R0,1,R_tr,f_jump,f_wide, &
-                                          j,n1,n_excess)
+            n1=dNe
+            n_excess=branch_weight(j)
             n_pre=n1-n_excess
             if (n_pre <= 0d0) error stop 'secondary branch RHS found non-positive pre-bump density'
             n4=4d0*gam2*n_pre
