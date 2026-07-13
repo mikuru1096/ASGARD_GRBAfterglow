@@ -144,14 +144,30 @@ subroutine accum_range(src_x,source,ncomp,num_src,num_rad,k2,radfrac, &
     real(8), intent(in) :: radfrac,log_shift,log_weight
     real(8), intent(inout), dimension(:,:) :: accum
     real(8) :: xlo,xhi,ratio,ylo,yhi,lylo,lyhi,yinterp
-    integer :: i_dst,i_src,i_comp
+    integer :: i_dst,i_src,i_comp,ilo,ihi,imid
+    logical :: located
 
     i_src = 1
+    located = .false.
     do i_dst = first, last
         xlo = src_x(1)-log_shift
         if (dst_x(i_dst) < xlo) cycle
         xhi = src_x(num_src)-log_shift
         if (dst_x(i_dst) > xhi) exit
+        if (.not. located) then
+            ilo = 1
+            ihi = num_src-1
+            do while (ilo < ihi)
+                imid = (ilo+ihi)/2
+                if (dst_x(i_dst) > src_x(imid+1)-log_shift) then
+                    ilo = imid+1
+                else
+                    ihi = imid
+                end if
+            end do
+            i_src = ilo
+            located = .true.
+        end if
         xhi = src_x(i_src+1)-log_shift
         do while (i_src < num_src-1 .and. dst_x(i_dst) > xhi)
             i_src = i_src+1
