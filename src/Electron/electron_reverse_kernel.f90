@@ -636,6 +636,8 @@ contains
     end subroutine write_shell
 end subroutine multiple_synch
 
+! 二次激波分支电子演化：每个 branch 固定 DG mesh，壳层 gamma_m 只定义注入源。
+! Secondary-shock branch evolution: fix one DG mesh per branch and use shell gamma_m only for injection.
 subroutine branch_reaccel(e_r,b_r,p_r,f_e_r,z,R_Tobs,R_Gamma,R, &
                                                            B3_branch,M3_branch,U3_branch,V3_branch, &
                                                            Gam_m_branch,Gamma43_branch,Comp_branch,Parent_branch, &
@@ -668,6 +670,7 @@ subroutine branch_reaccel(e_r,b_r,p_r,f_e_r,z,R_Tobs,R_Gamma,R, &
     real(8), allocatable, dimension(:,:,:) :: dN_gamma_branch
     real(8), allocatable, dimension(:,:) :: seed_dummy
     real(8), allocatable, dimension(:) :: branch_mass_available,fresh_mass_branch
+    type(dg_mesh), allocatable, dimension(:) :: branch_mesh
 
     active_solver=resolve_solver(solver_id)
     allocate(dEl(Num_gam_e),x(Num_gam_e),dF1(Num_gam_e),temp3(Num_gam_e-1),x_edge(Num_gam_e+1), &
@@ -678,6 +681,10 @@ subroutine branch_reaccel(e_r,b_r,p_r,f_e_r,z,R_Tobs,R_Gamma,R, &
 
     call reaccel_grid()
     call log_edges(Num_gam_e,gam_e,x_edge)
+    if (active_solver == solver_dg) then
+        allocate(branch_mesh(Num_jump))
+        call build_meshes(branch_mesh)
+    end if
     d_x=dlog(gam_e(2)/gam_e(1))
     dN_gamma_branch=0d0; dN_total=0d0; dN_x=0d0; branch_mass_available=0d0
     fresh_mass_branch=0d0
@@ -729,6 +736,28 @@ contains
             end if
         end do
     end subroutine reaccel_grid
+
+    ! 一次扫描各分支的活动壳层，以最大 gamma_m 固定 mesh；未耗散分支保持未构造。
+    ! Fix active-branch meshes from maximum gamma_m; leave non-dissipative branches unbuilt.
+    subroutine build_meshes(meshes)
+    implicit none
+    type(dg_mesh), intent(out), dimension(Num_jump) :: meshes
+    integer :: i_branch,i_shell
+    real(8) :: gm_ref,upper_break
+
+        do i_branch=1,Num_jump
+            gm_ref=0d0
+            do i_shell=1,Num_R
+                if (Gam_m_branch(i_branch,i_shell) > 1d0) &
+                    gm_ref=max(gm_ref,Gam_m_branch(i_branch,i_shell))
+            end do
+            if (gm_ref <= 1d0) cycle
+            upper_break=min(gmax0,20d0*gm_ref)
+            call dg_build_mesh(x_edge(1),x_edge(Num_gam_e+1),dlog(gm_ref), &
+                               dlog(upper_break),dlog(dsqrt(upper_break*gmax0)), &
+                               fourvel_scale,meshes(i_branch))
+        end do
+    end subroutine build_meshes
 
     subroutine transfer_parent(i_shell)
     implicit none
@@ -793,8 +822,8 @@ contains
                     dg_source_norm(L)=0d0
                 end if
             end do
-            call dg_sequence(Num_gam_e,x_edge,gam_e,L1,dDR,f_r,dg_adiabatic,dg_source_norm, &
-                                          p_r,gm,gmax,dN_x(jump_index,:),x)
+            call dg_sequence(branch_mesh(jump_index),Num_gam_e,x_edge,gam_e,L1,dDR,f_r, &
+                             dg_adiabatic,dg_source_norm,p_r,gm,gmax,dN_x(jump_index,:),x)
             dN_x(jump_index,:)=x
             dN_gamma_branch(jump_index,:,i_shell)=dN_x(jump_index,:)/gam_e
             deallocate(dg_adiabatic,dg_source_norm)
@@ -918,9 +947,12 @@ integer function reverse_transport_substeps(candidate_dr,shell_dr,solver) result
     end if
 end function reverse_transport_substeps
 
-subroutine dg_sequence(Num_gam_e,x_edge,gam_e,num_step,dR,rad_coeff,adrate_step,srcstep, &
-                                    p,gamma_m,gamma_max,dN_x_in,dN_x_out)
+! 在预建 mesh 上推进单个壳层；gamma_m/gamma_max 只用于真实源项投影。
+! Advance one shell on a prebuilt mesh; gamma_m/gamma_max enter only the physical source projection.
+subroutine dg_sequence(mesh,Num_gam_e,x_edge,gam_e,num_step,dR,rad_coeff,adrate_step,srcstep, &
+                       p,gamma_m,gamma_max,dN_x_in,dN_x_out)
     implicit none
+    type(dg_mesh), intent(in) :: mesh
     integer, intent(in) :: Num_gam_e,num_step
     integer :: i,step
     real(8), intent(in), dimension(Num_gam_e+1) :: x_edge
@@ -930,16 +962,10 @@ subroutine dg_sequence(Num_gam_e,x_edge,gam_e,num_step,dR,rad_coeff,adrate_step,
     real(8), intent(in), dimension(Num_gam_e) :: dN_x_in
     real(8), intent(in) :: p,gamma_m,gamma_max
     real(8), intent(out), dimension(Num_gam_e) :: dN_x_out
-    type(dg_mesh) :: mesh
     real(8), allocatable, dimension(:) :: state,advanced,source_nodes,source_template,dN_coord,dN_dgamma,coord_edge
-    real(8) :: input_content,dg_content,projected_content,kinetic_break
+    real(8) :: input_content,dg_content,projected_content
     logical :: has_source
 
-    kinetic_break=gamma_m
-    if (gamma_max > gamma_m) kinetic_break=min(gamma_max,20d0*max(gamma_m,1d0))
-    call dg_build_mesh(x_edge(1),x_edge(Num_gam_e+1),dlog(gamma_m), &
-                                                dlog(kinetic_break), &
-                                                dlog(gamma_max),fourvel_scale,mesh)
     allocate(state(mesh%ntot),advanced(mesh%ntot),source_nodes(mesh%ntot), &
              source_template(mesh%ntot),dN_coord(Num_gam_e), &
              dN_dgamma(Num_gam_e),coord_edge(Num_gam_e+1))
