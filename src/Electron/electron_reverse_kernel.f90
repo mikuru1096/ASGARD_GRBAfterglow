@@ -844,6 +844,7 @@ contains
         call coord_to_dgamma(Num_gam_e,coordEdge,branch_mesh(jumpIndex)%coord_scale, &
                              gam_e,dNcoord,dNdgamma)
         dNx=dNdgamma*gam_e
+        where(dNx <= 0d0) dNx=0d0
         gridContent=sum(dNx*(x_edge(2:Num_gam_e+1)-x_edge(1:Num_gam_e)))
         if (dgContent > 0d0) then
             if (gridContent <= 0d0) error stop "branch_reaccel: DG output projection lost positive content."
