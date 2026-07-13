@@ -318,7 +318,8 @@ subroutine secondary_knot(r_left,r_right,knot,found)
         if (i < profile_count) rising=profile_power(i) > 3d0
         if (i > 1) rising=rising .or. profile_power(i-1) > 3d0
         if (.not. rising) cycle
-        if (profile_radius(i) > r_left .and. profile_radius(i) < r_right) then
+        if (profile_radius(i) > r_left*(1d0+1d-12) .and. &
+            profile_radius(i) < r_right*(1d0-1d-12)) then
             knot=profile_radius(i)
             found=.true.
             return
