@@ -553,8 +553,8 @@ contains
     real(8), intent(inout) :: s_step
     real(8), dimension(nstate) :: y_base,y_end,y_mid
     real(8), dimension(rs_nstate) :: rs_base,rs_end,rs_mid
-    real(8) :: s_base,s_end,s_mid,knot,h_lo,h_hi,h_mid,hcut
-    logical :: found
+    real(8) :: s_base,s_end,s_mid,knot,h_lo,h_hi,h_mid,hcut,source0,source1,root
+    logical :: found,source_found
 
         y_base=y_step; rs_base=rs_step; s_base=s_step
         y_end=y_base; rs_end=rs_base; s_end=s_base
@@ -579,8 +579,57 @@ contains
             return
         end if
 
+        source_found=.false.
+        hcut=h_step
+        do j=1,njump
+            call event_source(j,y_base(2),y_base(1),y_base,source0)
+            call event_source(j,y_end(2),y_end(1),y_end,source1)
+            if (source0 > 0d0 .and. source1 <= 0d0) then
+                call source_cut(j,phase,rs_base,x_base,s_base,y_base,h_step,root)
+                if (root < hcut) then
+                    hcut=root
+                    source_found=.true.
+                end if
+            end if
+        end do
+        if (source_found) then
+            y_step=y_base; rs_step=rs_base; s_step=s_base
+            call rk_piece(phase,rs_step,x_base,s_step,hcut,y_step)
+            call rk_event(phase,rs_step,x_base,s_step,h_step-hcut,y_step)
+            return
+        end if
+
         y_step=y_end; rs_step=rs_end; s_step=s_end
     end subroutine rk_event
+
+    ! 在已括住的 accepted-step 内定位 secondary-RS 耗散终点。
+    ! Locate a secondary-RS dissipation endpoint inside one accepted-step bracket.
+    subroutine source_cut(jump,phase,rs_base,x_base,s_base,y_base,h_step,root)
+    implicit none
+    integer, intent(in) :: jump,phase
+    integer :: i
+    real(8), dimension(rs_nstate), intent(in) :: rs_base
+    real(8), dimension(nstate), intent(in) :: y_base
+    real(8), intent(in) :: x_base,s_base,h_step
+    real(8), intent(out) :: root
+    real(8), dimension(rs_nstate) :: rs_mid
+    real(8), dimension(nstate) :: y_mid
+    real(8) :: h_lo,h_hi,h_mid,s_mid,source
+
+        h_lo=0d0; h_hi=h_step
+        do i=1,20
+            h_mid=0.5d0*(h_lo+h_hi)
+            y_mid=y_base; rs_mid=rs_base; s_mid=s_base
+            call rk_piece(phase,rs_mid,x_base,s_mid,h_mid,y_mid)
+            call event_source(jump,y_mid(2),y_mid(1),y_mid,source)
+            if (source > 0d0) then
+                h_lo=h_mid
+            else
+                h_hi=h_mid
+            end if
+        end do
+        root=h_hi
+    end subroutine source_cut
 
     ! log(time) 下的 RK4 stage。phase 选择物理分支，
     ! 状态向量仍使用同一个 Y 布局。
