@@ -93,6 +93,32 @@ def observe_flux_batch(
     return flux
 
 
+def observe_pairbatch(
+    setup: SimulationSetup,
+    chartime: np.ndarray,
+    gamma: np.ndarray,
+    radius_cm: np.ndarray,
+    sourceflux: np.ndarray,
+    pairfreq: np.ndarray,
+    pairstart: np.ndarray,
+    config: RuntimeConfig,
+) -> np.ndarray:
+    return Interpolation.sed_pairbatch(
+        setup.boundary,
+        chartime,
+        gamma,
+        radius_cm,
+        np.asfortranarray(sourceflux),
+        setup.seed_frequency_hz,
+        np.asarray(pairfreq, dtype=float),
+        setup.observer_time_s,
+        np.asarray(pairstart, dtype=np.int32),
+        config.eats_num_theta,
+        config.eats_num_phi,
+        config.num_threads,
+    )
+
+
 def light_chi(
     bandflux: np.ndarray,
     obstime: np.ndarray,

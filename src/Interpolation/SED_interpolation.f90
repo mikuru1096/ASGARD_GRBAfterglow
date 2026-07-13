@@ -128,6 +128,98 @@ subroutine sed_interpolation_batch(Boundary,R_Tobs1,R_gamma,R,F_comp,V_seed,V_ob
     return
 end subroutine sed_interpolation_batch
 
+! Sparse shell projection on CSR-like frequency groups attached to the fixed observer-time grid.
+! 稀疏壳层投影：P_start 给出每个固定观测时刻所需频率在 V_pair 中的连续区间。
+subroutine sed_pairbatch(Boundary,R_Tobs1,R_gamma,R,F_comp,V_seed,V_pair,Tobs,P_start, &
+                         n,ncomp,Num_nu,Num_pair,Num_Tobs,Num_Theta,Num_R,Num_Phi,n_threads,F_pair)
+    !$ use omp_lib
+    use constants
+    use interpolation_common
+    implicit none
+    integer, intent(in) :: n,ncomp,Num_nu,Num_pair,Num_Tobs,Num_Theta,Num_R,Num_Phi,n_threads
+    integer, intent(in), dimension(Num_Tobs+1) :: P_start
+    real(8), intent(in), dimension(n) :: Boundary
+    real(8), intent(in), dimension(Num_Tobs) :: Tobs
+    real(8), intent(in), dimension(Num_nu) :: V_seed
+    real(8), intent(in), dimension(Num_pair) :: V_pair
+    real(8), intent(in), dimension(Num_R) :: R_Tobs1,R_gamma,R
+    real(8), intent(in), dimension(Num_nu,Num_R,ncomp) :: F_comp
+    real(8), intent(out), dimension(Num_pair,ncomp) :: F_pair
+
+    real(8), allocatable, dimension(:,:) :: fwork
+    real(8), allocatable, dimension(:) :: pairlog,seedlog
+    real(8), dimension(Num_R) :: arrival
+    real(8) :: z,opening,tv,dphi,phiscale,dtheta,tlo,thi,tcenter,domega
+    real(8) :: phicenter,dmu,ratio,dg,beta,doppler,lgamlo,lgamhi,ldomega,ldop,ldopred
+    real(8) :: delay,costv,sintv,zlog
+    integer :: itheta,iphi,iobs,k2,ii,lastk,pfirst,plast
+
+    allocate(fwork(Num_pair,ncomp),pairlog(Num_pair),seedlog(Num_nu))
+    fwork=0d0
+    z=Boundary(8)
+    opening=Boundary(9)
+    tv=Boundary(10)
+    dphi=pi/Num_Phi
+    phiscale=2d0
+    if (Num_Phi == 1) then
+        dphi=pi/1440d0
+        phiscale=2d0*1440d0
+    end if
+    dtheta=opening/Num_Theta
+    delay=(1d0+z)/Para_c
+    costv=dcos(tv)
+    sintv=dsin(tv)
+    zlog=dlog(1d0+z)
+    pairlog=dlog(V_pair)
+    seedlog=dlog(V_seed)
+
+    !$OMP PARALLEL num_threads(n_threads), reduction(+:fwork), &
+    !$OMP& private(itheta,tlo,thi,tcenter,domega,iphi,phicenter,dmu,iobs,k2,ii,ratio,dg,beta, &
+    !$OMP& doppler,arrival,lastk,lgamlo,lgamhi,ldomega,ldop,ldopred,pfirst,plast)
+    !$OMP DO SCHEDULE(GUIDED,4)
+    do itheta=1,Num_Theta
+        tlo=dtheta*(itheta-1)
+        thi=dtheta*itheta
+        tcenter=dtheta*(itheta-0.5d0)
+        domega=(dcos(tlo)-dcos(thi))*dphi
+        ldomega=dlog(domega)-dlog(4d0*pi)
+        do iphi=1,Num_Phi
+            phicenter=(iphi-0.5d0)*dphi
+            dmu=costv*dcos(tcenter)+sintv*dsin(tcenter)*dcos(phicenter)
+            arrival=R_Tobs1+R*(1d0-dmu)*delay
+            ii=1
+            lastk=0
+            do iobs=1,Num_Tobs
+                pfirst=P_start(iobs)
+                plast=P_start(iobs+1)-1
+                if (pfirst > plast) cycle
+                if (Tobs(iobs) < arrival(1) .or. Tobs(iobs) >= arrival(Num_R)) cycle
+                do while (ii < Num_R-1 .and. Tobs(iobs) >= arrival(ii+1))
+                    ii=ii+1
+                end do
+                k2=ii
+                if (k2 /= lastk) then
+                    lgamlo=dlog(R_gamma(k2))
+                    lgamhi=dlog(R_gamma(k2+1))
+                    lastk=k2
+                end if
+                ratio=(Tobs(iobs)-arrival(k2))/(arrival(k2+1)-arrival(k2))
+                dg=dexp(lgamlo+ratio*(lgamhi-lgamlo))
+                beta=dsqrt(1d0-dg**(-2))
+                doppler=dg*(1d0-beta*dmu)
+                ldop=dlog(doppler)
+                ldopred=ldop+zlog
+                call accum_range(seedlog,F_comp,ncomp,Num_nu,Num_R,k2,ratio, &
+                                 pairlog,Num_pair,pfirst,plast,ldopred,ldomega-3d0*ldop,fwork)
+            end do
+        end do
+    end do
+    !$OMP END DO
+    !$OMP END PARALLEL
+    F_pair=fwork*phiscale
+    deallocate(fwork,pairlog,seedlog)
+end subroutine sed_pairbatch
+
 ! Exact arrival support followed by open G3/K7 integration in each theta cell.
 subroutine sed_adaptive_theta(Boundary,R_Tobs1,R_gamma,R,F_tot,V_seed,V_obs,Tobs, &
                              adaptive_rtol,addepthmax, &

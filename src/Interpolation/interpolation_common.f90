@@ -4,7 +4,7 @@ module interpolation_common
     implicit none
     private
 
-    public :: accum_logsed, accum_radial_batch, accum_shifted, time_order, time_hit
+    public :: accum_logsed, accum_radial_batch, accum_range, accum_shifted, time_order, time_hit
 
 contains
 
@@ -127,11 +127,27 @@ subroutine accum_radial_batch(src_x,source,ncomp,num_src,num_rad,k2,radfrac, &
     real(8), intent(in), dimension(num_dst) :: dst_x
     real(8), intent(in) :: radfrac,log_shift,log_weight
     real(8), intent(inout), dimension(:,:) :: accum
+
+    call accum_range(src_x,source,ncomp,num_src,num_rad,k2,radfrac, &
+                     dst_x,num_dst,1,num_dst,log_shift,log_weight,accum)
+end subroutine accum_radial_batch
+
+! 稀疏投影仅遍历当前观测时刻实际需要的频率区间；完整投影经同一数值核保持原 ABI。
+! Sparse projection visits only the requested frequency range; the full projection shares this kernel.
+subroutine accum_range(src_x,source,ncomp,num_src,num_rad,k2,radfrac, &
+                       dst_x,num_dst,first,last,log_shift,log_weight,accum)
+    implicit none
+    integer, intent(in) :: ncomp,num_src,num_rad,k2,num_dst,first,last
+    real(8), intent(in), dimension(num_src) :: src_x
+    real(8), intent(in), dimension(num_src,num_rad,ncomp) :: source
+    real(8), intent(in), dimension(num_dst) :: dst_x
+    real(8), intent(in) :: radfrac,log_shift,log_weight
+    real(8), intent(inout), dimension(:,:) :: accum
     real(8) :: xlo,xhi,ratio,ylo,yhi,lylo,lyhi,yinterp
     integer :: i_dst,i_src,i_comp
 
     i_src = 1
-    do i_dst = 1, num_dst
+    do i_dst = first, last
         xlo = src_x(1)-log_shift
         if (dst_x(i_dst) < xlo) cycle
         xhi = src_x(num_src)-log_shift
@@ -169,7 +185,7 @@ subroutine accum_radial_batch(src_x,source,ncomp,num_src,num_rad,k2,radfrac, &
             end do
         end if
     end do
-end subroutine accum_radial_batch
+end subroutine accum_range
 
 ! 源频率整体平移时，从线性 SED 对目标频率插值并累加。
 ! For a global source-frequency shift, interpolate linear SED values and accumulate.
