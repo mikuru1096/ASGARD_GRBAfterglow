@@ -486,7 +486,10 @@ def _build_ordered_object_module(
         object_paths.append(wrapper_object)
 
     output_path = build_dir / f"{module_name}{ext_suffix}"
-    link_flags = [flag for flag in shlex.split(fflags or "") if flag.startswith("-flto")]
+    link_flags = [
+        flag for flag in shlex.split(fflags or "")
+        if flag.startswith(("-flto", "-fprofile-"))
+    ]
     link_command = [
         fc,
         "-shared",
