@@ -13,16 +13,19 @@ module dynamics_density_profile
     integer, parameter :: profile_slot = jump_slot+1+3*jump_max
     integer :: jump_count = 0, profile_count = 0
     integer :: profile_event_count = 0
+    integer :: knot_count = 0
     real(8), dimension(jump_max) :: profile_event_start=0d0, profile_event_end=0d0
     real(8), dimension(jump_max) :: profile_event_base=0d0
     real(8), dimension(jump_max) :: jump_radius= 0d0
     real(8), dimension(jump_max) :: jump_factor= 1d0
     real(8), dimension(jump_max) :: jump_width= 1d0
     real(8), allocatable, dimension(:) :: profile_radius
+    real(8), allocatable, dimension(:) :: profile_knots
     real(8), allocatable, dimension(:) :: profile_logr, profile_logn, profile_logw, profile_power
     !$omp threadprivate(jump_count,profile_count,jump_radius,jump_factor,jump_width, &
     !$omp& profile_radius,profile_logr,profile_logn,profile_logw,profile_power, &
-    !$omp& profile_event_count,profile_event_start,profile_event_end,profile_event_base)
+    !$omp& profile_event_count,profile_event_start,profile_event_end,profile_event_base, &
+    !$omp& knot_count,profile_knots)
 
 contains
 
@@ -180,11 +183,13 @@ subroutine set_density_profile(Boundary, n)
     jump_count = 0
     profile_count = 0
     profile_event_count = 0
+    knot_count = 0
     profile_event_start = 0d0
     profile_event_end = 0d0
     profile_event_base = 0d0
     if (allocated(profile_radius)) &
         deallocate(profile_radius,profile_logr,profile_logn,profile_logw,profile_power)
+    if (allocated(profile_knots)) deallocate(profile_knots)
     if (n < jump_slot) return
     jump_count = nint(Boundary(jump_slot))
     if (jump_count < 0 .or. jump_count > jump_max) &
@@ -249,11 +254,23 @@ end subroutine set_density_profile
 subroutine build_profile_events()
     implicit none
     integer :: i, i_start, i_end
+    logical :: rising
 
     ! q=d ln(r^3 n)/d ln r; q>3 is exactly d n/dR>0 for the log-log table.
     ! Consecutive rising intervals form one finite-width compression source.
     profile_event_count = 0
     if (profile_count < 2) return
+    allocate(profile_knots(profile_count))
+    knot_count = 0
+    do i = 1, profile_count
+        rising = .false.
+        if (i < profile_count) rising = profile_power(i) > 3d0
+        if (i > 1) rising = rising .or. profile_power(i-1) > 3d0
+        if (rising) then
+            knot_count = knot_count+1
+            profile_knots(knot_count) = profile_radius(i)
+        end if
+    end do
     i = 1
     do while (i < profile_count)
         if (profile_power(i) <= 3d0) then
@@ -304,27 +321,30 @@ end subroutine secondary_event_window
 ! Return the first tabulated rising-segment knot between two radii.
 subroutine secondary_knot(r_left,r_right,knot,found)
     implicit none
-    integer :: i
+    integer :: lo,hi,mid
     real(8), intent(in) :: r_left,r_right
     real(8), intent(out) :: knot
     logical, intent(out) :: found
-    logical :: rising
+    real(8) :: lower,upper
 
     knot=0d0
     found=.false.
-    if (profile_count < 2 .or. r_right <= r_left) return
-    do i=1,profile_count
-        rising=.false.
-        if (i < profile_count) rising=profile_power(i) > 3d0
-        if (i > 1) rising=rising .or. profile_power(i-1) > 3d0
-        if (.not. rising) cycle
-        if (profile_radius(i) > r_left*(1d0+1d-12) .and. &
-            profile_radius(i) < r_right*(1d0-1d-12)) then
-            knot=profile_radius(i)
-            found=.true.
-            return
+    if (knot_count == 0 .or. r_right <= r_left) return
+    lower=r_left*(1d0+1d-12)
+    upper=r_right*(1d0-1d-12)
+    lo=0
+    hi=knot_count+1
+    do while (hi-lo > 1)
+        mid=(lo+hi)/2
+        if (profile_knots(mid) <= lower) then
+            lo=mid
+        else
+            hi=mid
         end if
     end do
+    if (hi > knot_count .or. profile_knots(hi) >= upper) return
+    knot=profile_knots(hi)
+    found=.true.
 end subroutine secondary_knot
 
 subroutine secondary_branch_density(A_star,dNe_ISM,RR,R0,apply_jump,R_tr,f_jump,f_wide,j, &
