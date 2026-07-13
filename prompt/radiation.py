@@ -30,7 +30,7 @@ class RadiationNumerics:
     photon_frequency_max_hz: float = 1.0e28
     num_photon_frequency: int = 181
     index_syn_integr: int = 2
-    electron_cooling_index_y: int = 0
+    electron_cooling_index_y: int = 2
     electron_solver_id: int = 2
     num_threads: int = 1
 

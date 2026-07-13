@@ -173,7 +173,9 @@ ObserverGrid(time_min_s, time_max_s)
 
 ## SolverOptions
 
-必须显式提供的 selector：
+前四个 selector（电子求解器、动力学、投影和电子--光子耦合）必须显式提供；
+其余字段采用项目规范默认值。其中 `ssc_cooling_mode` 默认采用
+`nakar_y_thomson`，也可显式设为 `none` 或 `numeric_ic_kn`：
 
 | 字段 | 常用值 | 作用 |
 | --- | --- | --- |
@@ -181,7 +183,7 @@ ObserverGrid(time_min_s, time_max_s)
 | `dynamics_solver` | `forward_legacy` | 动力学核 |
 | `geometry_projection` | `sed_legacy`, `sed_adaptive_theta`, `chi_eats_2d` | 观测投影 |
 | `electron_photon_coupling` | `separated`, `joint` | 次级反馈 |
-| `ssc_cooling_mode` | `none`, `numeric_ic_kn`, `nakar_y_thomson` | SSC 冷却 |
+| `ssc_cooling_mode` | `nakar_y_thomson`（默认）, `none`, `numeric_ic_kn` | SSC 冷却 |
 | `synchrotron_integration` | `fixed_grid`, `cyclotron` | 同步核 |
 | `cooling_kernel` | `legacy` | 冷却实现 |
 | `structured_backend` | `fortran_1d` | patch 后端 |

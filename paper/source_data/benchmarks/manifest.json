@@ -1,599 +1,389 @@
 {
   "files": [
     {
-      "bytes": 49750,
+      "bytes": 49814,
       "path": "paper/figures/benchmarks/angular_physical/gaussian_patch20x15_lightcurve_compare.pdf",
-      "sha256": "18cf67712a9bef0cd0522c7a7cad46f0bee82f5e4ea0365a2250340362302751"
+      "sha256": "d2449c85bf627f3f1d55c7072a9072161e4ef90f627bbfcf4e0ca893ecf072c7"
     },
     {
-      "bytes": 447794,
-      "path": "paper/figures/benchmarks/angular_physical/gaussian_patch20x15_lightcurve_compare.svg",
-      "sha256": "883dfbc1189f7255fb9981271d41ba3ecbc3d01a4be428ec097da185d9109507"
+      "bytes": 1278946,
+      "path": "paper/figures/benchmarks/angular_physical/gaussian_patch20x15_lightcurve_compare.png",
+      "sha256": "5d9881a5d8e631dd304c48433aef44f99856a0e53d1e2f98f5ae56e6675d78f4"
     },
     {
-      "bytes": 2938650,
-      "path": "paper/figures/benchmarks/angular_physical/gaussian_patch20x15_lightcurve_compare.tiff",
-      "sha256": "4ef5337ddf7bf7282dc4322ccd3dae5ff8164036e38fd3705194ecd2e9f18352"
-    },
-    {
-      "bytes": 37697,
+      "bytes": 37663,
       "path": "paper/figures/benchmarks/angular_physical/gaussian_patch20x15_relative_error.pdf",
-      "sha256": "bf76e1c39cb9c43547e305275f9f48f5736e319cd554f5e26fab7e2c74838fbf"
+      "sha256": "b261762ac85edc71edf5432b1cefc99b59432d1edc2e24eac72f134f38551dc9"
     },
     {
-      "bytes": 325633,
-      "path": "paper/figures/benchmarks/angular_physical/gaussian_patch20x15_relative_error.svg",
-      "sha256": "6520dc2fb6bd9ea647dde8003dcaeb84fc4964484cc05a0b6e694912b44dd4ad"
+      "bytes": 1060173,
+      "path": "paper/figures/benchmarks/angular_physical/gaussian_patch20x15_relative_error.png",
+      "sha256": "806426db6b34fd69fa0df10ac66c503747ff357bd257379684ce66967c332928"
     },
     {
-      "bytes": 2427978,
-      "path": "paper/figures/benchmarks/angular_physical/gaussian_patch20x15_relative_error.tiff",
-      "sha256": "875566b741fa9f7eab3b7c22733ea33e2be838d58cf1eea595316dd073fcc409"
-    },
-    {
-      "bytes": 50241,
+      "bytes": 50268,
       "path": "paper/figures/benchmarks/angular_reference/fullref300x48_vs_dominant-region-ioka-time-v1_20x15_g120_tc0p08_lightcurve_compare.pdf",
-      "sha256": "7710923124f170cf782bc016878e4f3d743a6e408b08d696b31c7b9b617612e1"
+      "sha256": "54593ce0fcdde723fd3b28790153d526142c6e486054d91b85bd3bbc3bbdffd8"
     },
     {
-      "bytes": 446245,
-      "path": "paper/figures/benchmarks/angular_reference/fullref300x48_vs_dominant-region-ioka-time-v1_20x15_g120_tc0p08_lightcurve_compare.svg",
-      "sha256": "ef0d26a5ae92f780dd67b85836be0e25838ee13e569fb2db3741fd79c745cd3d"
+      "bytes": 1172202,
+      "path": "paper/figures/benchmarks/angular_reference/fullref300x48_vs_dominant-region-ioka-time-v1_20x15_g120_tc0p08_lightcurve_compare.png",
+      "sha256": "4e93869025eb3b88d077c10991a1f25c00ee7bf1ee35821e8dcab44bcc92813c"
     },
     {
-      "bytes": 2796058,
-      "path": "paper/figures/benchmarks/angular_reference/fullref300x48_vs_dominant-region-ioka-time-v1_20x15_g120_tc0p08_lightcurve_compare.tiff",
-      "sha256": "4326177e6321d7a132511de73cb3c5f901f65dd31ac03b0fdd5b0b11294d8dd1"
-    },
-    {
-      "bytes": 37161,
+      "bytes": 37133,
       "path": "paper/figures/benchmarks/angular_reference/fullref300x48_vs_dominant-region-ioka-time-v1_20x15_g120_tc0p08_relative_error.pdf",
-      "sha256": "e32d8d373afccfc09ef7c60ebd28ea8516a215d33e68ec6b7fdee44d9da5ea14"
+      "sha256": "bf2d336045fa03c59c363701298cdb339675bf28aa7fde172e6e973a177192b0"
     },
     {
-      "bytes": 327801,
-      "path": "paper/figures/benchmarks/angular_reference/fullref300x48_vs_dominant-region-ioka-time-v1_20x15_g120_tc0p08_relative_error.svg",
-      "sha256": "1c0ee78a0a675230cf9ee662b57ff5218f38f6ad36545a7aa182c418cca34c15"
+      "bytes": 1168231,
+      "path": "paper/figures/benchmarks/angular_reference/fullref300x48_vs_dominant-region-ioka-time-v1_20x15_g120_tc0p08_relative_error.png",
+      "sha256": "87930d8250057c45e5c48e79d64389862abf215a1e3f6be0b52a0e9eedcec413"
     },
     {
-      "bytes": 2524190,
-      "path": "paper/figures/benchmarks/angular_reference/fullref300x48_vs_dominant-region-ioka-time-v1_20x15_g120_tc0p08_relative_error.tiff",
-      "sha256": "e45f008169071bed9526779fda6abd78bff36abd8ba2ef2585616960170c2e18"
-    },
-    {
-      "bytes": 18946,
+      "bytes": 18968,
       "path": "paper/figures/benchmarks/chi_eats/chi_eats_convergence.pdf",
-      "sha256": "a92dc34856ff0142486616a9e1cfa9fed9949ec14e592950dd5341c756cdd7a8"
+      "sha256": "43483170f43eeac9ff3bd919314dfaa0d8a59ff87b4a638056da80d76bc6d167"
     },
     {
-      "bytes": 67260,
-      "path": "paper/figures/benchmarks/chi_eats/chi_eats_convergence.svg",
-      "sha256": "0dfc8212c57dedba8df8c353c6e40aa0f9955af7a38f88acfc2226bc703aa3c8"
+      "bytes": 184277,
+      "path": "paper/figures/benchmarks/chi_eats/chi_eats_convergence.png",
+      "sha256": "059c992125db29a1e6f1d0895ac71b3736b8e78ef7e00f0d283bb887b59e51ed"
     },
     {
-      "bytes": 547250,
-      "path": "paper/figures/benchmarks/chi_eats/chi_eats_convergence.tiff",
-      "sha256": "459d47c1f4b5ec8823dc6fff674546ab7a412186fc9f1f7efefb8c99d7961665"
-    },
-    {
-      "bytes": 47179,
+      "bytes": 47177,
       "path": "paper/figures/benchmarks/density_jump/triple_density_jump.pdf",
-      "sha256": "e53a67795ad1ec36f4a256aa9b8bb9e1a97f7ba149e1e86c27ef8113a4b03aff"
+      "sha256": "db3aaea659356d26d30c9f15fe22db0cd68bd152a884fd514f41c17683832b60"
     },
     {
-      "bytes": 240692,
-      "path": "paper/figures/benchmarks/density_jump/triple_density_jump.svg",
-      "sha256": "b585b32ab6e774f98df09810638e3f617a22034e40076f87f5cbbf47f6bb4b78"
+      "bytes": 780647,
+      "path": "paper/figures/benchmarks/density_jump/triple_density_jump.png",
+      "sha256": "f454143017781b2d73dab08f117f38c146220f8c8421add79d45b081c5e88d9b"
     },
     {
-      "bytes": 1473248,
-      "path": "paper/figures/benchmarks/density_jump/triple_density_jump.tiff",
-      "sha256": "1c5ed7a71d128ea0ffc6a3c6e1b2f85ee0c0127fdd548a7b396e9b36a73bcea3"
-    },
-    {
-      "bytes": 57767,
+      "bytes": 57845,
       "path": "paper/figures/benchmarks/magnetized_rs_sigma/ism/magnetized_rs_sigma_dynamics.pdf",
-      "sha256": "44c25a3da111bfa5a749aa13cbebe6c1663f3dc3252ec43fa99866004946a508"
+      "sha256": "26040118771861936035a11a9ea4b64500355c913c5b4999719bfa98baa416fc"
     },
     {
-      "bytes": 406196,
-      "path": "paper/figures/benchmarks/magnetized_rs_sigma/ism/magnetized_rs_sigma_dynamics.svg",
-      "sha256": "50f5d8701c7f5deb29b8213b566734ee5f44ea90a4d0b3afc3640fe4a743ead5"
+      "bytes": 1707214,
+      "path": "paper/figures/benchmarks/magnetized_rs_sigma/ism/magnetized_rs_sigma_dynamics.png",
+      "sha256": "33bb9bd9974425d2cdc84b98b2df9eb133ddc6723486fbf66f0035d9c787680f"
     },
     {
-      "bytes": 5976572,
-      "path": "paper/figures/benchmarks/magnetized_rs_sigma/ism/magnetized_rs_sigma_dynamics.tiff",
-      "sha256": "558380b57fc59f2bd2635a09ecb1f5f581bd0c1d6eea5c88da3ef40f6c8a8c98"
-    },
-    {
-      "bytes": 60605,
+      "bytes": 61389,
       "path": "paper/figures/benchmarks/magnetized_rs_sigma/ism/magnetized_rs_sigma_lightcurves.pdf",
-      "sha256": "bb6577f44bf7fdfcbf6e593a7a5064f4612a470ca74f9e3de8c1cf35e9f159d9"
+      "sha256": "a8782878d04e3960df863a52ec16cc588a22db363401ed43d8b73f7875de07fe"
     },
     {
-      "bytes": 485590,
-      "path": "paper/figures/benchmarks/magnetized_rs_sigma/ism/magnetized_rs_sigma_lightcurves.svg",
-      "sha256": "ddb7cdf0c2a92ac5bfeb1a34af60758985926a26543d945a3c39a6048f0b2a3e"
+      "bytes": 1987390,
+      "path": "paper/figures/benchmarks/magnetized_rs_sigma/ism/magnetized_rs_sigma_lightcurves.png",
+      "sha256": "bfd37fe6e8cbe1c945160454fc284eeda53044308b8ef89b837a386202ff7fbe"
     },
     {
-      "bytes": 7294222,
-      "path": "paper/figures/benchmarks/magnetized_rs_sigma/ism/magnetized_rs_sigma_lightcurves.tiff",
-      "sha256": "bfec773a3f38395dddbc19747cf7415c54894f1e23bb29857a9169a40e1ea13f"
-    },
-    {
-      "bytes": 35801,
+      "bytes": 36831,
       "path": "paper/figures/benchmarks/magnetized_rs_sigma/ism/magnetized_rs_sigma_sed_rs.pdf",
-      "sha256": "266293d72cac319a34490356dbf579c11f2ce214832020b4457d53796c4c51f9"
+      "sha256": "9c708151fa6b49a13c3d8430b5b90c3ce189dd696f98a70748a8c594896f5172"
     },
     {
-      "bytes": 158646,
-      "path": "paper/figures/benchmarks/magnetized_rs_sigma/ism/magnetized_rs_sigma_sed_rs.svg",
-      "sha256": "d028f340fa173e243fd68770004af6d6d68edc8d4dc4aa8480cb2619303bd172"
+      "bytes": 1323623,
+      "path": "paper/figures/benchmarks/magnetized_rs_sigma/ism/magnetized_rs_sigma_sed_rs.png",
+      "sha256": "cd7f484899d6eafa3bc4a5cd70cf178335e2d20f051731c86d26e1cead6e8b28"
     },
     {
-      "bytes": 3495734,
-      "path": "paper/figures/benchmarks/magnetized_rs_sigma/ism/magnetized_rs_sigma_sed_rs.tiff",
-      "sha256": "65857bfdf976e713a30242bf51f59cc6d16f69ad8deb75b8c86f27c47f5ba441"
-    },
-    {
-      "bytes": 39453,
+      "bytes": 39288,
       "path": "paper/figures/benchmarks/magnetized_rs_sigma/ism/magnetized_rs_sigma_sed_total.pdf",
-      "sha256": "77dedad8819228816dbda5eab8fe95fda230a8dc90fe77bb3f8758cf58df7901"
+      "sha256": "b182242890c083f43efa11c3567ce162d6c8b154273a6649fe8dc52fd7e9bf17"
     },
     {
-      "bytes": 172003,
-      "path": "paper/figures/benchmarks/magnetized_rs_sigma/ism/magnetized_rs_sigma_sed_total.svg",
-      "sha256": "d8fffece04045bf5ef41cdeb61a8a7f2beaa5a7e3d89d109df4fb80500eece16"
+      "bytes": 1383584,
+      "path": "paper/figures/benchmarks/magnetized_rs_sigma/ism/magnetized_rs_sigma_sed_total.png",
+      "sha256": "1fab8c17359865ea69cf05c902834fcfa4711d585748625498d7680338064ced"
     },
     {
-      "bytes": 3750228,
-      "path": "paper/figures/benchmarks/magnetized_rs_sigma/ism/magnetized_rs_sigma_sed_total.tiff",
-      "sha256": "7372cef01b9026f9cb175b7518b6bfe26bda6ad72cce608072772761aa7e5a3f"
-    },
-    {
-      "bytes": 61192,
+      "bytes": 61202,
       "path": "paper/figures/benchmarks/magnetized_rs_sigma/wind/magnetized_rs_sigma_dynamics.pdf",
-      "sha256": "47484e13bfaad957f560445d06eca81f090bac736aa036cc27ce66c1d6deac02"
+      "sha256": "fd5337ce99c5188b9008d6931e45a9e514182f4b88076a432d9d7f5a79ad71aa"
     },
     {
-      "bytes": 378237,
-      "path": "paper/figures/benchmarks/magnetized_rs_sigma/wind/magnetized_rs_sigma_dynamics.svg",
-      "sha256": "ef25281c053c5298e1c6a00da71f340e45a5ad28e2deb1ae7ba60d95441198f1"
+      "bytes": 1694131,
+      "path": "paper/figures/benchmarks/magnetized_rs_sigma/wind/magnetized_rs_sigma_dynamics.png",
+      "sha256": "78bd5c88aba26a062078dca8e3e5b986f4deef5614571529d5d838d3e7801856"
     },
     {
-      "bytes": 5760444,
-      "path": "paper/figures/benchmarks/magnetized_rs_sigma/wind/magnetized_rs_sigma_dynamics.tiff",
-      "sha256": "85d436fd2a1fcb30f766eb18b74d87a7c682579edf0727b854aa048d4a848758"
-    },
-    {
-      "bytes": 63779,
+      "bytes": 63539,
       "path": "paper/figures/benchmarks/magnetized_rs_sigma/wind/magnetized_rs_sigma_lightcurves.pdf",
-      "sha256": "ef9028ae2a067bcdcf48ad89bec66913c9dcd486267e88721bda636f0a5f9228"
+      "sha256": "d3fd980d7bea54ffacf9238a9a217ed938ef103be8497cd6b2688ea4a49735cb"
     },
     {
-      "bytes": 542025,
-      "path": "paper/figures/benchmarks/magnetized_rs_sigma/wind/magnetized_rs_sigma_lightcurves.svg",
-      "sha256": "c15d7afa984583ade1e245d6dd93f04c558041930c68e4676b1edf72212b9583"
+      "bytes": 2062280,
+      "path": "paper/figures/benchmarks/magnetized_rs_sigma/wind/magnetized_rs_sigma_lightcurves.png",
+      "sha256": "870e838c1a90219082e3e54cdae2e4e1ae9d53ad30d2592daa6cd0e341d036b9"
     },
     {
-      "bytes": 7643760,
-      "path": "paper/figures/benchmarks/magnetized_rs_sigma/wind/magnetized_rs_sigma_lightcurves.tiff",
-      "sha256": "bacb154581387db89286cc0a1899bf3905412a4b0a0bf3ff5524e22a346b7014"
-    },
-    {
-      "bytes": 36034,
+      "bytes": 37162,
       "path": "paper/figures/benchmarks/magnetized_rs_sigma/wind/magnetized_rs_sigma_sed_rs.pdf",
-      "sha256": "fc72fa364d7ce525b7d4a68baa19e27578e193692428528c717aea8ff2b7ea00"
+      "sha256": "4cf24846f020d96e71900e55ba792dc79e622d6ee956ae077d1b3a261c715058"
     },
     {
-      "bytes": 157138,
-      "path": "paper/figures/benchmarks/magnetized_rs_sigma/wind/magnetized_rs_sigma_sed_rs.svg",
-      "sha256": "ea1d1c0cb079cd5c4819f7896ec740cca34e8e914a29c046ea5f0c1538a35971"
+      "bytes": 1279544,
+      "path": "paper/figures/benchmarks/magnetized_rs_sigma/wind/magnetized_rs_sigma_sed_rs.png",
+      "sha256": "54cc2585c86521478c7318a817f2166ffdd859d774a9781201a4161ef68c0f5f"
     },
     {
-      "bytes": 3693278,
-      "path": "paper/figures/benchmarks/magnetized_rs_sigma/wind/magnetized_rs_sigma_sed_rs.tiff",
-      "sha256": "3db949048c9d2685e8528c7b47a890315f1bbe02f308170bbe7a5fcbc87fa965"
-    },
-    {
-      "bytes": 41282,
+      "bytes": 41456,
       "path": "paper/figures/benchmarks/magnetized_rs_sigma/wind/magnetized_rs_sigma_sed_total.pdf",
-      "sha256": "16b331681bbbb19f339f82e82c0ecc2b7909d662f143d97b829c0f574cfdd003"
+      "sha256": "4da3e2035bd6d3c6a6e113f31de71fe79e7891163fb832e5ee6b53f5c81e9b8a"
     },
     {
-      "bytes": 178856,
-      "path": "paper/figures/benchmarks/magnetized_rs_sigma/wind/magnetized_rs_sigma_sed_total.svg",
-      "sha256": "350dc9f9c38019f39f95aa13cc26cd16ffbe52cd56a8c94859b79bd30d878dcd"
+      "bytes": 1321898,
+      "path": "paper/figures/benchmarks/magnetized_rs_sigma/wind/magnetized_rs_sigma_sed_total.png",
+      "sha256": "85b92def4c0fd9d7a71c9f9bf8a1bb3af5722cd3a1dda7e8de998037aba5d0e5"
     },
     {
-      "bytes": 3605504,
-      "path": "paper/figures/benchmarks/magnetized_rs_sigma/wind/magnetized_rs_sigma_sed_total.tiff",
-      "sha256": "fa6794633ffb3faf73a400910cb518c7fe398afc25e50143c5c6500cb298a9d5"
-    },
-    {
-      "bytes": 94255,
+      "bytes": 93174,
       "path": "paper/figures/benchmarks/magnetized_rs_vegas/ism.pdf",
-      "sha256": "449c2b17d4a5ec3c73225d505adce9f70d80c63925bab810a3200ec5c990873e"
+      "sha256": "757d5db6266fa514a66c715a9ff7f974546d0ad42c4fc6e18eb0fccf8beb50eb"
     },
     {
-      "bytes": 1265555,
-      "path": "paper/figures/benchmarks/magnetized_rs_vegas/ism.svg",
-      "sha256": "d55a6dc620785397635230cdf6b925fe466566d2611796e1c08fc672b2d576a1"
+      "bytes": 3949092,
+      "path": "paper/figures/benchmarks/magnetized_rs_vegas/ism.png",
+      "sha256": "18e103d97871558b18000aff95acc283e431fdb729a7199f60a209f2ba02fd9a"
     },
     {
-      "bytes": 10125690,
-      "path": "paper/figures/benchmarks/magnetized_rs_vegas/ism.tiff",
-      "sha256": "01b49867e3543524afcec7a9d3a9dc29d125f96e4bce54a7122203ba4d25243a"
-    },
-    {
-      "bytes": 97940,
+      "bytes": 98007,
       "path": "paper/figures/benchmarks/magnetized_rs_vegas/wind.pdf",
-      "sha256": "d7f48941556874b183a1fc07f9c556481c6eb6075db213b99c832e849257e9d5"
+      "sha256": "de8032683102d1651f1f3a3f4e2dd91c262f1f714bf4a546b20ed41f98fe1860"
     },
     {
-      "bytes": 1281930,
-      "path": "paper/figures/benchmarks/magnetized_rs_vegas/wind.svg",
-      "sha256": "b9eddc0bd0c0a7662847f05869362fd206f696ba87a17f18d868a43548e09211"
+      "bytes": 4230360,
+      "path": "paper/figures/benchmarks/magnetized_rs_vegas/wind.png",
+      "sha256": "75595d26f8424b5694977d775959d69928911e019d5e76425b44fc950763df39"
     },
     {
-      "bytes": 10600736,
-      "path": "paper/figures/benchmarks/magnetized_rs_vegas/wind.tiff",
-      "sha256": "44efa30e3d94585bd0eef7be916e9f81ca612ae14ddc69342b9c150b7c9fffc9"
-    },
-    {
-      "bytes": 25327,
+      "bytes": 25334,
       "path": "paper/figures/benchmarks/runtime/runtime_scaling.pdf",
-      "sha256": "bf29c1a8e49dffd8228c4be1cdafe3c09e711c71f52ad100f0f5294dbd725038"
+      "sha256": "ff1a1ef0c0937b6ad6c4758a6f4f6d592093c6d4eb3dc820d822ed94846777dd"
     },
     {
-      "bytes": 120873,
-      "path": "paper/figures/benchmarks/runtime/runtime_scaling.svg",
-      "sha256": "47ac52dfef9a194ff54ed102ee488b62fded792667a3abbbf6166dce0897813a"
+      "bytes": 291546,
+      "path": "paper/figures/benchmarks/runtime/runtime_scaling.png",
+      "sha256": "db8536e4a494a13f03cc53dad2221f7060edc437a1a30f1ca1916632b76d8c24"
     },
     {
-      "bytes": 1015982,
-      "path": "paper/figures/benchmarks/runtime/runtime_scaling.tiff",
-      "sha256": "2e9a67bc3385cff31384a7531b31eec12fef58c970439f5c345c00451814269f"
-    },
-    {
-      "bytes": 20995,
+      "bytes": 20956,
       "path": "paper/figures/benchmarks/skymap/apparent_speed_1d_vs_2d_bdecay.pdf",
-      "sha256": "de462de7c5191579e1c5c9feb7cb4a673ed9c008cf00d5a063e4c9a41e594e53"
+      "sha256": "5e77feb75f1a6d2faa7e1346e6157ead8e4d7e90f26afce0660befeadef4ea63"
     },
     {
-      "bytes": 64255,
-      "path": "paper/figures/benchmarks/skymap/apparent_speed_1d_vs_2d_bdecay.svg",
-      "sha256": "9ddef337fe71a0d091044848a24ac19a7ccc9dfde5099606d60535866e925b8d"
+      "bytes": 530453,
+      "path": "paper/figures/benchmarks/skymap/apparent_speed_1d_vs_2d_bdecay.png",
+      "sha256": "7c3c13875647cfbf78b2e7c996dbc0ba5bf92576373f67d8267e96329b11d133"
     },
     {
-      "bytes": 1286938,
-      "path": "paper/figures/benchmarks/skymap/apparent_speed_1d_vs_2d_bdecay.tiff",
-      "sha256": "ce426d4e11c90005eeb51bd76dd9e83df5622c42f97e492d93ecc9eee8cc4a9d"
-    },
-    {
-      "bytes": 23194,
+      "bytes": 23226,
       "path": "paper/figures/benchmarks/skymap/centroid_offset_1d_vs_2d_bdecay.pdf",
-      "sha256": "0650704bce75406ea4018b889fb39e958f20a1d11f13b7f486658b5a4aef61bc"
+      "sha256": "cf3e900637796262e19a6536686ef65c36e3e243dab99434c05137c996122fb3"
     },
     {
-      "bytes": 77709,
-      "path": "paper/figures/benchmarks/skymap/centroid_offset_1d_vs_2d_bdecay.svg",
-      "sha256": "6fbab99f750e5d5b07537e809fc3b0a07e478f08fd578c9e703b20a8cf8a3dd9"
+      "bytes": 502571,
+      "path": "paper/figures/benchmarks/skymap/centroid_offset_1d_vs_2d_bdecay.png",
+      "sha256": "32a40fdde0563a648fdc5c4abff5f0259eff86770c080c7a536feaab6639b82f"
     },
     {
-      "bytes": 1369220,
-      "path": "paper/figures/benchmarks/skymap/centroid_offset_1d_vs_2d_bdecay.tiff",
-      "sha256": "833fa5d1cc597124ba39b358d3e522b564ebe99e4854bb6510d049e45eac4ba3"
-    },
-    {
-      "bytes": 45443,
+      "bytes": 45450,
       "path": "paper/figures/benchmarks/skymap/skymap_1d_vs_2d_bdecay.pdf",
-      "sha256": "47933775d5899f169dcf6a8fb6204c2f073687bbf4ac80cadf5f05bdadce34fd"
+      "sha256": "5970861eab23b98a75851e6ef61e28197e685766a042844940e0851142c84b8b"
     },
     {
-      "bytes": 491023,
+      "bytes": 494930,
       "path": "paper/figures/benchmarks/skymap/skymap_1d_vs_2d_bdecay.png",
-      "sha256": "7490230f7762565c3cedc5b7637fc3d2eca17a8085bd9d9bbed83ce4822b49e1"
+      "sha256": "0882d18ea5baed9815db6ec885ea15925a3ada7dd20e22739208d1358d6cacbe"
     },
     {
-      "bytes": 179528,
-      "path": "paper/figures/benchmarks/skymap/skymap_1d_vs_2d_bdecay.svg",
-      "sha256": "8a7c749f5996acb9d94de9403bd9f5af1eb11e702b0290afe98a993a2d241011"
-    },
-    {
-      "bytes": 2989512,
-      "path": "paper/figures/benchmarks/skymap/skymap_1d_vs_2d_bdecay.tiff",
-      "sha256": "fbe89e9a10d2670555c7af32c3956132d0f8e9628dc6ae45aedcc2087eb99637"
-    },
-    {
-      "bytes": 45255,
+      "bytes": 47174,
       "path": "paper/figures/benchmarks/theta_decay/theta_j_multiples_bdecay_lightcurve_1d_vs_qshell.pdf",
-      "sha256": "e512b01a35d2d0191dbdec51fca69df9a7841e14777a78816c6c90d4a8813029"
+      "sha256": "fc952f02cf07987b3f46e790e63e78f023992909102c606b972047600043b8ef"
     },
     {
-      "bytes": 212932,
-      "path": "paper/figures/benchmarks/theta_decay/theta_j_multiples_bdecay_lightcurve_1d_vs_qshell.svg",
-      "sha256": "4473d3d314a6d8d87bf3b17bc469adbc79def6222e3ec296fbd34a88bd211e67"
+      "bytes": 1181797,
+      "path": "paper/figures/benchmarks/theta_decay/theta_j_multiples_bdecay_lightcurve_1d_vs_qshell.png",
+      "sha256": "101bf6fe1090e85b535a252072d411f70b1f78a3a889227013d551d1a2eae1f5"
     },
     {
-      "bytes": 3298520,
-      "path": "paper/figures/benchmarks/theta_decay/theta_j_multiples_bdecay_lightcurve_1d_vs_qshell.tiff",
-      "sha256": "f94433908404047c5b5e24c28cb534782f278aad45c24e34bb0ebdf02f743c2b"
-    },
-    {
-      "bytes": 44248,
+      "bytes": 44199,
       "path": "paper/figures/benchmarks/theta_decay/theta_j_multiples_bdecay_multiband_lightcurve_1d_vs_qshell.pdf",
-      "sha256": "78c05e21ea622fb19a80f64b0c4d6b949becfee476ef958e7826741e2a035751"
+      "sha256": "c8cdeb760c4bf91a875f9b1f8fc692813afa44741f827d6ecf1acfac3846b058"
     },
     {
-      "bytes": 240619,
-      "path": "paper/figures/benchmarks/theta_decay/theta_j_multiples_bdecay_multiband_lightcurve_1d_vs_qshell.svg",
-      "sha256": "a6cce2f9da2176d0a292941e40e9c787fdd505329a8d2ce8bb04f030af78d521"
+      "bytes": 1220864,
+      "path": "paper/figures/benchmarks/theta_decay/theta_j_multiples_bdecay_multiband_lightcurve_1d_vs_qshell.png",
+      "sha256": "b1e36cdecf00cfa1aff36bd2d3c5cc0aa7378056a7db9231d502f3c812b67a49"
     },
     {
-      "bytes": 3621770,
-      "path": "paper/figures/benchmarks/theta_decay/theta_j_multiples_bdecay_multiband_lightcurve_1d_vs_qshell.tiff",
-      "sha256": "347b825d657988f1bae49e13471a48de7da91b0279930e0fdd3d4d3914f4495b"
-    },
-    {
-      "bytes": 25380,
+      "bytes": 25421,
       "path": "paper/figures/benchmarks/theta_decay/theta_j_multiples_bdecay_spectrum_1d_vs_qshell.pdf",
-      "sha256": "4801ca80ab549c004053f778237cb8ee6ead351504eed5b71158b0f473a04f06"
+      "sha256": "02b0a5b95c1cb17aabf6965c9556c6fb657f915bcea125f24a972771962f3509"
     },
     {
-      "bytes": 62712,
-      "path": "paper/figures/benchmarks/theta_decay/theta_j_multiples_bdecay_spectrum_1d_vs_qshell.svg",
-      "sha256": "5cdf7d0c76c4c4c6bf7ec9bfa0cf24d7cf9a0fbe6260bb598b15b753a4a96455"
+      "bytes": 353548,
+      "path": "paper/figures/benchmarks/theta_decay/theta_j_multiples_bdecay_spectrum_1d_vs_qshell.png",
+      "sha256": "2e90996bb8ac08466ddbd3e2a11dbc6e97b5e589a081f855835e42c893130bec"
     },
     {
-      "bytes": 847948,
-      "path": "paper/figures/benchmarks/theta_decay/theta_j_multiples_bdecay_spectrum_1d_vs_qshell.tiff",
-      "sha256": "7c9a28e386c6511826d6be317976048f83a7662d2fcb6912c71371bd326405cd"
-    },
-    {
-      "bytes": 22525,
+      "bytes": 22533,
       "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_basic_bolometric.pdf",
-      "sha256": "d5f0ecd6646b3055cf1c376aa88254921ac6e02ad4755bfc29f5129b4fe6dd68"
+      "sha256": "8b88e22624ba6c9f2ae09eee2e6965a5e1826588de15f9494b1f3e380909bc19"
     },
     {
-      "bytes": 82871,
-      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_basic_bolometric.svg",
-      "sha256": "25306ae28ff5602eb879ad39cc1d2bda669d5c8feac79785b9b64451a164bebd"
+      "bytes": 474905,
+      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_basic_bolometric.png",
+      "sha256": "c6a4fb930df41e202c1d7b75e721b6f7dd5b5bab100f75332e016cabbbe79ce0"
     },
     {
-      "bytes": 997710,
-      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_basic_bolometric.tiff",
-      "sha256": "9ff60e624ab8b4ee228100203c3555d48621b13fc91a5d7a90731a04061418ab"
-    },
-    {
-      "bytes": 41168,
+      "bytes": 41118,
       "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_basic_lc_spec.pdf",
-      "sha256": "8507556d000fa4e48b5f80d862e992108d232333af13cbcb6718fcdfa54a7bca"
+      "sha256": "ce9b41ce0ae68ba31762c6e723875e129254bd167d949d5b8b0637b60aae44ee"
     },
     {
-      "bytes": 239775,
-      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_basic_lc_spec.svg",
-      "sha256": "fdea1fd7cf6d197171f70b583b5fb5d928239d2caeddc127a14cf6619bed7d6a"
+      "bytes": 1622468,
+      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_basic_lc_spec.png",
+      "sha256": "19f52198d2284f32fc82cc566feae5b18293e2c56d378092af250d73e1f93500"
     },
     {
-      "bytes": 2937142,
-      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_basic_lc_spec.tiff",
-      "sha256": "6b2c5f4fc51f196036da6e15117e0a466ed190df9d79e7700d636ce48822920a"
-    },
-    {
-      "bytes": 50040,
+      "bytes": 50072,
       "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_electron_spectrum.pdf",
-      "sha256": "d589b6f94e4130b67157b7eeaf0fefe6c02201070d97a53775abc7a73b62fd9e"
+      "sha256": "95e3874d652cb6b0694c94111eadad85dc90f701ba31ed5f2142693d498ac145"
     },
     {
-      "bytes": 221936,
-      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_electron_spectrum.svg",
-      "sha256": "650d54a902cf813b206c2e9810542283e6abe8e2b1f811d0f36c2ca6873e71bc"
-    },
-    {
-      "bytes": 3613286,
-      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_electron_spectrum.tiff",
-      "sha256": "b5b2feecb18f52df976f083df26cc26216a4f20e17acedbf456f8ff945db06ca"
+      "bytes": 1629054,
+      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_electron_spectrum.png",
+      "sha256": "ff918e11ff113aa583b457ea26e5a20583f27d229881c8ef1ff79f0290e93ca6"
     },
     {
       "bytes": 18359,
       "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_introspection_jet.pdf",
-      "sha256": "8dc99834cd0937f0c675327fd9e3aa35e5b373aff005702637b93989ab1c44e0"
+      "sha256": "9a392cf0990241b86125fee6c6f28db6f22537e3ba046d5249fb119b220f51c1"
     },
     {
-      "bytes": 65647,
-      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_introspection_jet.svg",
-      "sha256": "e32f6e689cff1315ad794ec13ada7ef1d366e87ef99b884e7431c18b3629210a"
-    },
-    {
-      "bytes": 624780,
-      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_introspection_jet.tiff",
-      "sha256": "446f6de8ebd873b6c844d7db5dcca28230e88c208c07230d1e993a93de09b48e"
+      "bytes": 197354,
+      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_introspection_jet.png",
+      "sha256": "88360b2ca7b4b104751116c84b65f96ebbe8ddc0785d67ab2f87558bb51b43e9"
     },
     {
       "bytes": 20325,
       "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_introspection_medium.pdf",
-      "sha256": "f6b71ab9b848f9f224b197a5db859c1d6d40787320ceba634a6cd243739de636"
+      "sha256": "bcc182c878eecd9b658c111a9a12cb6a6ef45dd9fa79726eaf8b10fd438f0ddd"
     },
     {
-      "bytes": 79987,
-      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_introspection_medium.svg",
-      "sha256": "42cd707777206c7edc4c59d7e05980b9cf590e121df2ade57de61a51825d30af"
-    },
-    {
-      "bytes": 552062,
-      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_introspection_medium.tiff",
-      "sha256": "85851975e432a9121300fdd0945e82ae91e806dc5fa364247ed0471e164236f2"
+      "bytes": 235402,
+      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_introspection_medium.png",
+      "sha256": "987253916fd97776115a00aa71252bcdc45c2bf56e31cd67727ffcdd221864d4"
     },
     {
       "bytes": 18162,
       "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_introspection_twocomp.pdf",
-      "sha256": "a35b0c2f4adbbca3a942c384ff0e23e3cd8e20de53b3fa1e0ab6b2bdb2539962"
+      "sha256": "40c21e85a6b97ea288026396e732dc4af345760af2453825622803dc2f118596"
     },
     {
-      "bytes": 65249,
-      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_introspection_twocomp.svg",
-      "sha256": "4048f7c6460469f922642381a688b280b881c8e0f9eb8b519327219e73d1879a"
+      "bytes": 299688,
+      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_introspection_twocomp.png",
+      "sha256": "226a117852b768d8f15320c7ef4ae206fdbd86dcd4c31d8975b2bd4ae637a5e7"
     },
     {
-      "bytes": 826374,
-      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_introspection_twocomp.tiff",
-      "sha256": "c712b7f86b15d959b10a20108ef1a41fc876c169b469171cbcbfd143a8d9d988"
-    },
-    {
-      "bytes": 42019,
+      "bytes": 41978,
       "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_magnetic_decay_2d.pdf",
-      "sha256": "4a30fb1f6234b998817bc3c57de7039ce176baf735d009458ce731910914662a"
+      "sha256": "9e1c79e2f08054b414bd796a60cb94251c62a7b7f6ffc51ce3bf46c8f9ca02e0"
     },
     {
-      "bytes": 231075,
-      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_magnetic_decay_2d.svg",
-      "sha256": "4beb89ce656e49a446f1ea51732b4ab010b081f18a1d8b4449ea3b15517b98cb"
+      "bytes": 1255391,
+      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_magnetic_decay_2d.png",
+      "sha256": "c0f23a27ab08c002758a0c2d2858d25733609263e503332bea20bb57f1eca5b6"
     },
     {
-      "bytes": 2898378,
-      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_magnetic_decay_2d.tiff",
-      "sha256": "e74bf41f0b6d423d0a3cb7182c4206f4584523e753eaac26152e1c41ef950ccf"
-    },
-    {
-      "bytes": 36620,
+      "bytes": 36667,
       "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_magnetic_decay_2d_broadband_spectrum.pdf",
-      "sha256": "8579ae3202ac6baa489c4ee8902402bd99fe121bcc6ac5050eea3ba81affab6d"
+      "sha256": "3c9d6b45c9b112c1ccaf49942e70253f0c1a1cf8228fac8e5a1049ee872a5424"
     },
     {
-      "bytes": 168852,
-      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_magnetic_decay_2d_broadband_spectrum.svg",
-      "sha256": "0f9b99b950d47b01c96ddab13f18c75953f83c52ac78fa3c34edbdc65690e3f6"
+      "bytes": 1511594,
+      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_magnetic_decay_2d_broadband_spectrum.png",
+      "sha256": "f46efd0c52a7f8adadc2c2b93439414a149563e1d1b796e1185091803395a085"
     },
     {
-      "bytes": 3322756,
-      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_magnetic_decay_2d_broadband_spectrum.tiff",
-      "sha256": "800b622edea9f6736f35049fe6f462cc9abb50011e3d25228567b79282b08bc1"
-    },
-    {
-      "bytes": 27114,
+      "bytes": 26998,
       "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_reverse_shock_lc.pdf",
-      "sha256": "da0740d6c27a56f27c6760b82a88f86889de65e1f4266cde3cc5e525f07a69c3"
+      "sha256": "cbfccbc9026ea83834e0bd1cea776ae3524778df694da202e895adb3e42479d4"
     },
     {
-      "bytes": 112626,
-      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_reverse_shock_lc.svg",
-      "sha256": "31c0dd4c8e699e03a3b0392bd881222721e10fe676168fe57664b4ce8c413926"
+      "bytes": 888358,
+      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_reverse_shock_lc.png",
+      "sha256": "c44c09d6c0a3c6b1c1abe204e5352f9665cc4aedd3c18d282e630a2109ec31e5"
     },
     {
-      "bytes": 1353252,
-      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_reverse_shock_lc.tiff",
-      "sha256": "2672be5c071a8bcf03d28c024612dd8ff24218bfeb1963094ee07364e782a4d0"
-    },
-    {
-      "bytes": 31809,
+      "bytes": 31792,
       "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_reverse_shock_thermal_benchmark.pdf",
-      "sha256": "1426d14be05119b824327181940158a6ab21dd0b1ab626c9a95f6c9c8fa50a18"
+      "sha256": "7bb996b321c2cca89249ae952b1b50d63cee6c99c025fe5139f41fa33ea07b43"
     },
     {
-      "bytes": 179973,
-      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_reverse_shock_thermal_benchmark.svg",
-      "sha256": "64081ab68096d8a4768663221b4e82a7a7c3b7822787f8a6a966dd988f4133b7"
+      "bytes": 881206,
+      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_reverse_shock_thermal_benchmark.png",
+      "sha256": "e9930420e8f5a9e2af0ca121f6a0432105edda3973d31f8efb2bd725584f5da5"
     },
     {
-      "bytes": 1970182,
-      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_reverse_shock_thermal_benchmark.tiff",
-      "sha256": "debabae784945e075f8ece8f7c633118d3ccbce88871bea439caf58df558b2f1"
-    },
-    {
-      "bytes": 33028,
+      "bytes": 33091,
       "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_sed_three_solvers_vs_vegas.pdf",
-      "sha256": "7056d6b2350fe1b06e914ab65dfdd05a643b0e3e970a18d0603dd400643cbc1a"
+      "sha256": "198f940cf05b387f57ad51e7214a011ed8995e98af6527794b61aaba80863083"
     },
     {
-      "bytes": 89516,
-      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_sed_three_solvers_vs_vegas.svg",
-      "sha256": "641bb24dab0cfa9a29a2953deb1c698007430bcf2fe215cdc7a1501f262311c0"
+      "bytes": 1190550,
+      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_sed_three_solvers_vs_vegas.png",
+      "sha256": "43f28d50ffcb9faf558502cf509f5b401263e274fb974b85dbc538c868d4ebd1"
     },
     {
-      "bytes": 1700582,
-      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_sed_three_solvers_vs_vegas.tiff",
-      "sha256": "7c207c5063a5c94097f508b20e2b4c0e4cf5b5cdafc95ff4f235217d2b81e95e"
-    },
-    {
-      "bytes": 18674,
+      "bytes": 18645,
       "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_shock_quantities.pdf",
-      "sha256": "e312f7f8280c14084e3da2e8159722034e99b1209a9a3de00f6c51699035604b"
+      "sha256": "41f46fc6d6ed5f847517d738c2b7c90207118de9a0886166cc0f6ffaa81a7d81"
     },
     {
-      "bytes": 87853,
-      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_shock_quantities.svg",
-      "sha256": "fd6307798ec096e2c80e0ef3bae52053bd301c17e980f9bea9216260315055c5"
+      "bytes": 426579,
+      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_shock_quantities.png",
+      "sha256": "af21dcc11fb5a63650bd8d4632c8873775a01655714e503e540d91f66f05192f"
     },
     {
-      "bytes": 1059558,
-      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_shock_quantities.tiff",
-      "sha256": "2c24210b3ee77fce6c4e1372d34265c2306ded5a22f434fc3d9376976a8e3d2f"
-    },
-    {
-      "bytes": 21227,
+      "bytes": 21220,
       "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_sky_image_centroid.pdf",
-      "sha256": "525945155a053ab56d3b68a5cf06099e2725b9dedccd9834bdafe26762e45be9"
+      "sha256": "2f42bc78d4c7ee4818c0313eff2801e8960b690c513309278b871ea26458fd4c"
     },
     {
-      "bytes": 355285,
+      "bytes": 355614,
       "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_sky_image_centroid.png",
-      "sha256": "b4d96b93a11a5c5d3a2ab6ce4f56339e6d0f53923bb879c9e1df367fe769079c"
+      "sha256": "529af6d68554ab0eb6c5cca9630cbb56ddf62df0714866c3e105479cd64fb0ca"
     },
     {
-      "bytes": 69717,
-      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_sky_image_centroid.svg",
-      "sha256": "75bdfd3188d03cdbaaa7f793cdf096a5520b61a90691e8232df85dac1ed6476a"
-    },
-    {
-      "bytes": 843028,
-      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_sky_image_centroid.tiff",
-      "sha256": "4ec367734918737973c46c95a3f689771b5be8eeb5dabf84adfd7dfd4bec9f68"
-    },
-    {
-      "bytes": 23739,
+      "bytes": 23749,
       "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_sky_image_flux_comparison.pdf",
-      "sha256": "488b12e50456c7f2c31b1a43c4e092ac16cb08b41246772b7b94be21f5520687"
+      "sha256": "2cb91867324844b095663fc23936ebef6381f5db8065c14fd99ca3b3c3e79660"
     },
     {
-      "bytes": 395976,
+      "bytes": 395939,
       "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_sky_image_flux_comparison.png",
-      "sha256": "279d57f42e7a6b428bc9f3bcba319a15ab88b05354a37b03b715f1cdd1f6aa28"
+      "sha256": "2ebcea5a4284408019dfdec3992c2e16c51f5945399ed8a14224b9e91492883d"
     },
     {
-      "bytes": 136825,
-      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_sky_image_flux_comparison.svg",
-      "sha256": "546fe5f1fa858ef575089a1c4de21e09bd3c0e9e64389b52cef5f3387001eba2"
-    },
-    {
-      "bytes": 802252,
-      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_sky_image_flux_comparison.tiff",
-      "sha256": "9740bcf9b46b9c51769d3fceca40fd2ca21fb7ddca165d75440d067b3fd5d0e0"
-    },
-    {
-      "bytes": 29612,
+      "bytes": 29577,
       "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_sky_image_offaxis.pdf",
-      "sha256": "d608d60b2aadf6227d922ed7792d7d5f5f5af042b9562772b83a6c5a526f348e"
+      "sha256": "d30686f52ba9927adbd852d3856dad20d5ed8123e27d75d9eb4329a9fab662ba"
     },
     {
       "bytes": 252001,
       "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_sky_image_offaxis.png",
-      "sha256": "3714f0f55a06ab92e978a9786d537765eda389d1c68c39d92a2eed1970bff7e9"
-    },
-    {
-      "bytes": 67960,
-      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_sky_image_offaxis.svg",
-      "sha256": "cc6643b60140fa1548bd6d96de17bb2f71413367876dab081472fbd66d29c4eb"
-    },
-    {
-      "bytes": 1390344,
-      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_sky_image_offaxis.tiff",
-      "sha256": "593f9fdc7b07db9ea94e4662e4f260488a8eae8755cd52ee95d9c406ee556f2d"
+      "sha256": "30d7e0e6fc4e04a09cd1f405acfbe2b78e5c2958ef75f73e774e1a3bc3e322e1"
     },
     {
       "bytes": 33403,
       "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_sky_image_single.pdf",
-      "sha256": "64ebd477b7a843c98087356b0663f3bc73949880d164132a4e7b07aa03958fc6"
+      "sha256": "be0504106dfe20d2c1b9aa31ef00c0242ddc6b4b7f9706d23e2e8a4f986b523c"
     },
     {
       "bytes": 240771,
@@ -601,409 +391,269 @@
       "sha256": "67898400728ac1e4666af4f01d0e28a8b6219ae55bc259e1acd0fc11a8328664"
     },
     {
-      "bytes": 87360,
-      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_sky_image_single.svg",
-      "sha256": "9ae723484bc7376ece74e82d45577c05347899d0d45da001d6bee16a004364f3"
-    },
-    {
-      "bytes": 1689940,
-      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_sky_image_single.tiff",
-      "sha256": "3467ff089309891299883ea6905a5784e137bf6dc75bce14f0ade750ae063199"
-    },
-    {
-      "bytes": 26983,
+      "bytes": 26966,
       "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_spectrum.pdf",
-      "sha256": "c7479c11fdada0f82a0d6a1d36151202916b4c881f566a87b049dda8eae7cedd"
+      "sha256": "126e8f897ac8f5b08c85642b866a70d69a96c2ac5e45aff3a718bac69b5be0d9"
     },
     {
-      "bytes": 93993,
-      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_spectrum.svg",
-      "sha256": "1c3691f8dc995ad6a096553ebb351bb16ab5637b7b5cb5bb31177210e74f9ae5"
+      "bytes": 531871,
+      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_spectrum.png",
+      "sha256": "e67aab9350e8d0eb0643dd277290cff4a9674d6bc9edaf5afca3b6d6925e6fbc"
     },
     {
-      "bytes": 1290824,
-      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_spectrum.tiff",
-      "sha256": "070f440fee329451651291724827a26b895ab83a97bf8012c7ee7176056df85b"
-    },
-    {
-      "bytes": 18736,
+      "bytes": 18772,
       "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_speed_profile.pdf",
-      "sha256": "12a48f3752a2d08b7852c4b155fb92b7c69af0c227985bc3d1e6f41006418bdf"
+      "sha256": "97a3db4d0b3829f7656137ba9e8e2fa2b4270ea849aea0646509e35a71822601"
     },
     {
-      "bytes": 79038,
-      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_speed_profile.svg",
-      "sha256": "527860e82cf9d3d89e8a63d7afa17559828cfa41fd7a9a65add4e41627cf5612"
+      "bytes": 431952,
+      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_speed_profile.png",
+      "sha256": "93a7bdf02717074955e9411d6b2fe40d6ff497ec3dcf43ade17aa990d9517128"
     },
     {
-      "bytes": 3044928,
-      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_speed_profile.tiff",
-      "sha256": "c78b9bdb1d11dff3f2fcdd828a2ee35b0e49a535df19a2fe792ffb40ddf2c647"
-    },
-    {
-      "bytes": 24019,
+      "bytes": 24027,
       "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_ssc_lc.pdf",
-      "sha256": "1829cf23692af6703e0ae5b27e1f4d84c7946c471a8d7582eef1d6bfa61e0c06"
+      "sha256": "32ed9b493f0af6fcdb6e57266cf7f7c9a872741ab007113cdac134013e2a268a"
     },
     {
-      "bytes": 107607,
-      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_ssc_lc.svg",
-      "sha256": "d563f2911dc2e3c05e3885158ff54ed2770ec25718eef03a010e0df5e0d63748"
+      "bytes": 625589,
+      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_ssc_lc.png",
+      "sha256": "8302f47b26a4cef3d522995c174ab84252152acc24390fa8b263bc70dcc409b7"
     },
     {
-      "bytes": 982116,
-      "path": "paper/figures/benchmarks/vegas_comparison/baseline/compare_ssc_lc.tiff",
-      "sha256": "fabedca60d22faaa3b0adb1c9352f754e7a557b59a52b470137f127546d0eb9e"
-    },
-    {
-      "bytes": 22943,
+      "bytes": 22927,
       "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_basic_bolometric.pdf",
-      "sha256": "32523bd8dab41c0f9d3db80d52557b2420e369617973b22a0c90029cdeb36fbd"
+      "sha256": "444ad3583053b6a65efda7ff3d00c3f8a9d1e87708f09c5d9410a10bdd8e0656"
     },
     {
-      "bytes": 83306,
-      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_basic_bolometric.svg",
-      "sha256": "567ecded7afeb49238111b7d2a85a4b762476acd4a93274afa194e6bf12f470e"
+      "bytes": 476241,
+      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_basic_bolometric.png",
+      "sha256": "a5f20238b986ded1ee600d80452a56adc2b1b812cdad0820fe8f265f31dcbb37"
     },
     {
-      "bytes": 1032272,
-      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_basic_bolometric.tiff",
-      "sha256": "c0797d7688cc3d944cb5975ae116d5ad288dc5c65987cc8ba47bc4e1399f9702"
-    },
-    {
-      "bytes": 39289,
+      "bytes": 39216,
       "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_basic_lc_spec.pdf",
-      "sha256": "8ca4521a1ee3cc377551abc17e12df0db1f115bd09d977c9bf07a305fd54aeb8"
+      "sha256": "ce1e80322c4c1953cdd20439d9d2532c90dcb1fb6a2dab48c56baad8bb179a45"
     },
     {
-      "bytes": 208256,
-      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_basic_lc_spec.svg",
-      "sha256": "f90fe8b2dded1da36db642f733ceaa057b5d6286a8781dcc6cf25438081cc3b8"
+      "bytes": 1587576,
+      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_basic_lc_spec.png",
+      "sha256": "281c9fc745c9efdf8d2b50695c728339a38afcca1f148b4b0f9696ef9e29c71e"
     },
     {
-      "bytes": 2830040,
-      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_basic_lc_spec.tiff",
-      "sha256": "d2904ceb5f97c9d0ac267f171fce46d50e6be657600b32c95cb1b35b4e72cc2b"
-    },
-    {
-      "bytes": 44296,
+      "bytes": 49172,
       "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_electron_spectrum.pdf",
-      "sha256": "0cb38d52b1b020376c9a05c09aaabfecfb46fc7e75a82b6f7f87516a374ba722"
+      "sha256": "5aa5b311721e0cffe58e756f0d51e86c26cd09a8726541ed9d13f7d469ec3424"
     },
     {
-      "bytes": 190004,
-      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_electron_spectrum.svg",
-      "sha256": "5f310a66e3b03f3ed368e217aaf48e5dd3f73d06801399491c7722420aad64ef"
-    },
-    {
-      "bytes": 3265886,
-      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_electron_spectrum.tiff",
-      "sha256": "23466a8d323cd563906d615548998d8e4f3931b00bd86512da0fc2ecda41793d"
+      "bytes": 1517473,
+      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_electron_spectrum.png",
+      "sha256": "545e96e4e3e50223737ddb35f8d246262b51b813b01ef912f41ce8f5ddf1b425"
     },
     {
       "bytes": 18359,
       "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_introspection_jet.pdf",
-      "sha256": "91caa169ab827c9a3afb8a4c02d11bd2f0302e71f7c7e4f5e22dcf7829e2d76c"
+      "sha256": "eb56905ef6458ae5031cc19c7711a7435c600947b80c87ae3cfbc2c39db75aab"
     },
     {
-      "bytes": 65647,
-      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_introspection_jet.svg",
-      "sha256": "f0a6bf347768f96d1779dab948bcbca04d59603637a14b1bb968a9a5057cebd4"
-    },
-    {
-      "bytes": 624780,
-      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_introspection_jet.tiff",
-      "sha256": "446f6de8ebd873b6c844d7db5dcca28230e88c208c07230d1e993a93de09b48e"
+      "bytes": 197354,
+      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_introspection_jet.png",
+      "sha256": "88360b2ca7b4b104751116c84b65f96ebbe8ddc0785d67ab2f87558bb51b43e9"
     },
     {
       "bytes": 20325,
       "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_introspection_medium.pdf",
-      "sha256": "39db6a03647a8df918efeea5ce1bdd49b6b3763a3d8f45bfba306c66db08dec3"
+      "sha256": "a3524fcf8ffd01b218a80c503716124c75ed8c60ed112e6e77cdc3f07e603747"
     },
     {
-      "bytes": 79987,
-      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_introspection_medium.svg",
-      "sha256": "15e66324888708c6987012192dac04f80778ccc0914d70843ac58f9d46af48be"
-    },
-    {
-      "bytes": 552062,
-      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_introspection_medium.tiff",
-      "sha256": "85851975e432a9121300fdd0945e82ae91e806dc5fa364247ed0471e164236f2"
+      "bytes": 235402,
+      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_introspection_medium.png",
+      "sha256": "987253916fd97776115a00aa71252bcdc45c2bf56e31cd67727ffcdd221864d4"
     },
     {
       "bytes": 18162,
       "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_introspection_twocomp.pdf",
-      "sha256": "eb33d3a7a4cab56cbdc9d57e9f38ca13e392eb5772265e68abae99b1a669da27"
+      "sha256": "5756e7a6c3c907b0ae9e09ade09fb3744e9b8cb1441852af3a5c448a6a271dac"
     },
     {
-      "bytes": 65249,
-      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_introspection_twocomp.svg",
-      "sha256": "db171d2301776134b347cdf1ceaa7b058ed2d4eaf39c9f4f5f445cf2b6033644"
+      "bytes": 299688,
+      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_introspection_twocomp.png",
+      "sha256": "226a117852b768d8f15320c7ef4ae206fdbd86dcd4c31d8975b2bd4ae637a5e7"
     },
     {
-      "bytes": 826374,
-      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_introspection_twocomp.tiff",
-      "sha256": "c712b7f86b15d959b10a20108ef1a41fc876c169b469171cbcbfd143a8d9d988"
-    },
-    {
-      "bytes": 43405,
+      "bytes": 43398,
       "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_magnetic_decay_2d.pdf",
-      "sha256": "a819aaa250455283a277f4515022f5ef847eef33af977a8e93b5db7006b001c4"
+      "sha256": "51717e6402907b2e3881b850faea907c16f47b6f52f687bebc683dfa52fad93e"
     },
     {
-      "bytes": 235872,
-      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_magnetic_decay_2d.svg",
-      "sha256": "5a0823cb82fc6e2127f6e23bfc5341b23cd1fca3fd99c3c1cc9097ef884fa61a"
+      "bytes": 1289166,
+      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_magnetic_decay_2d.png",
+      "sha256": "d9ceef4896d70c0abe2b73335398b370dacbd7df7c59b03694d1019239072d27"
     },
     {
-      "bytes": 3007362,
-      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_magnetic_decay_2d.tiff",
-      "sha256": "50417d59a92803cdaa3c691916e9c729b436737f35f738891fa71493ecfc533a"
-    },
-    {
-      "bytes": 36120,
+      "bytes": 36122,
       "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_magnetic_decay_2d_broadband_spectrum.pdf",
-      "sha256": "f03ae1b2dfccf1ac4d9714744e567ad35333a04acc09cdf0f993e058a8e85a2c"
+      "sha256": "a1194ab9699b6339e5ea1f360536f524fcc36650694122e41d4bb1361c78bea4"
     },
     {
-      "bytes": 168701,
-      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_magnetic_decay_2d_broadband_spectrum.svg",
-      "sha256": "1bc0a8d4079e09b52a1c96f1d4eac6df80896d51c66f370deb8e0cbff2a62a5e"
+      "bytes": 1654925,
+      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_magnetic_decay_2d_broadband_spectrum.png",
+      "sha256": "6be1cce566d1a3d204d2f6fc51c6c8f418c5d41607465141d2c3a96b98f005b5"
     },
     {
-      "bytes": 3654176,
-      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_magnetic_decay_2d_broadband_spectrum.tiff",
-      "sha256": "29605d82a4cdaf5daa639cfc8d6798d6ac0330c80e7a240ece729995a1975c63"
-    },
-    {
-      "bytes": 26922,
+      "bytes": 26953,
       "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_reverse_shock_lc.pdf",
-      "sha256": "8c66e788f99129d147117ed5817a15f076b101997c03b9a9e57cbcc9f298bb6c"
+      "sha256": "0567854d7c2799519cf08de630219af90bc063d3ce96988f79a0e9dceb76ff53"
     },
     {
-      "bytes": 112152,
-      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_reverse_shock_lc.svg",
-      "sha256": "bccaa38f3ef9cad23af348908c33a98b90087851fa51603203b1a6a13981b005"
+      "bytes": 874040,
+      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_reverse_shock_lc.png",
+      "sha256": "59e4dc1f08b472e210c6a984a5a8252fe06039de3198d65e9da7f2f18d6c0fc4"
     },
     {
-      "bytes": 1351950,
-      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_reverse_shock_lc.tiff",
-      "sha256": "d0a7864081cfcaa048c0ec496d1236bd3597a7600bf54cb983ceb1f16389525e"
-    },
-    {
-      "bytes": 31631,
+      "bytes": 31638,
       "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_reverse_shock_thermal_benchmark.pdf",
-      "sha256": "b3f409bbbe0cc04387c6f6f025392a348d8fb5d16c5e022983cd70e23366d598"
+      "sha256": "253b3f0bc05712f7ab6135c9c6a57cc69d60211eaa43d3dd7e4ad8a75b34b125"
     },
     {
-      "bytes": 176532,
-      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_reverse_shock_thermal_benchmark.svg",
-      "sha256": "d381df00cb1d7bff44e51a6d7949785241eca1130dc86b9a715e7db082e5c451"
+      "bytes": 861207,
+      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_reverse_shock_thermal_benchmark.png",
+      "sha256": "9b82c65274170dd3b7745da078f9dbec2cc555337d8f53091db59b0e4625842e"
     },
     {
-      "bytes": 1946088,
-      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_reverse_shock_thermal_benchmark.tiff",
-      "sha256": "4f69653556e56c4667b0742e6ab9aca110c245e7a5494f80137b3ad49d73ece0"
-    },
-    {
-      "bytes": 30635,
+      "bytes": 32220,
       "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_sed_three_solvers_vs_vegas.pdf",
-      "sha256": "0b1a14d71b90e784eb9b50758de4b22c5e478ff06245764f685444c59b24d8e3"
+      "sha256": "2f3d661557744f43e78ee0da1c42af0c5d29a11f144c9e67d3f47bd4eb914b0e"
     },
     {
-      "bytes": 80417,
-      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_sed_three_solvers_vs_vegas.svg",
-      "sha256": "2a0035650f2ef81c84aa4c284cd0c478b52ab4949e5f562e0745403f15ce75b0"
+      "bytes": 1314955,
+      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_sed_three_solvers_vs_vegas.png",
+      "sha256": "b350c18e40eaff30ea5fa8d462c59f8f74d4278b2db96b46a94f580269d49f14"
     },
     {
-      "bytes": 1780074,
-      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_sed_three_solvers_vs_vegas.tiff",
-      "sha256": "54003d7863cc7349e7cd60231ed21b8ddeb50a1ff42bb6b8da6f0114b78fe815"
-    },
-    {
-      "bytes": 18943,
+      "bytes": 18958,
       "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_shock_quantities.pdf",
-      "sha256": "37752d0e5f98d5872723067c0515f4455aef3304463e5f46c3d640ecb2e6a970"
+      "sha256": "cbe334fa0fc8d71ce1849b41f80ed8638c83493c69f139e2830e767a987284fb"
     },
     {
-      "bytes": 85739,
-      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_shock_quantities.svg",
-      "sha256": "695b245f393fb1b980f923410bb51b466b96bada064ae3941e39beb4864d3063"
+      "bytes": 399935,
+      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_shock_quantities.png",
+      "sha256": "8050df29f2c997f0f9f5d810a9a254c0dc101f4f3236da4b3a008842280cfdcf"
     },
     {
-      "bytes": 1005582,
-      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_shock_quantities.tiff",
-      "sha256": "1d160deada7242a942610401fb83c2a12c2cc546491d0a41d837d714f6f56b05"
-    },
-    {
-      "bytes": 21368,
+      "bytes": 21353,
       "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_sky_image_centroid.pdf",
-      "sha256": "e0a81517bed87b1e4c378b1ef8a5a19cd395f5f33ae1ebb73db9709582bc30bd"
+      "sha256": "7d76b475ed6486e4dac612f60e156aa5c453f5618d939900c61e96dcc83412f6"
     },
     {
-      "bytes": 340492,
+      "bytes": 346696,
       "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_sky_image_centroid.png",
-      "sha256": "a4a4d9a2dde228771060b8a17cb47edfd493d925081c85acf7495458f1124e53"
+      "sha256": "db66ad97b826bfec82a1b344df4fae385b39a26485ef4e2fe0818f0a44acfe77"
     },
     {
-      "bytes": 69042,
-      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_sky_image_centroid.svg",
-      "sha256": "c6c61faf9c19e0d83f5afbd7c2acce3ca594456f911d255d2a95c68643fa9d73"
-    },
-    {
-      "bytes": 830356,
-      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_sky_image_centroid.tiff",
-      "sha256": "e9249b58f922fd62c22e7c997ea6c2c74421f4d7dee6416ee70319cd1f7f14de"
-    },
-    {
-      "bytes": 24108,
+      "bytes": 24098,
       "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_sky_image_flux_comparison.pdf",
-      "sha256": "c8d342b27f6e18be17a21b04bf5b9e5e36118d887282bbf1e2219ead94a39295"
+      "sha256": "c8deb839a33207b1a6d1cc0d39637f31ad5acbe59538a69d26def02ad8fe4582"
     },
     {
-      "bytes": 401413,
+      "bytes": 401460,
       "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_sky_image_flux_comparison.png",
-      "sha256": "b44c63d3cf7623b34701bbc2beb4a199ee1e87f95b4e07e5903115a109b823f5"
+      "sha256": "fd3234ae66eebffaf842dca12db410523cb780e2e777bc78ae41734362385799"
     },
     {
-      "bytes": 144646,
-      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_sky_image_flux_comparison.svg",
-      "sha256": "dc1b6e240b436cb028a5cdf9b7a278f3fd5b1375751eb1f36e9ce941577d1109"
-    },
-    {
-      "bytes": 816760,
-      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_sky_image_flux_comparison.tiff",
-      "sha256": "63837b93324ea40c72f717a1abd6a78e0c53e790f6c1af246821fb4335a3de7b"
-    },
-    {
-      "bytes": 25397,
+      "bytes": 25384,
       "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_sky_image_offaxis.pdf",
-      "sha256": "9c674a8ab490db6d7d68f75da510247c570c48c7afdff505b7da9d5783a0634c"
+      "sha256": "083e45ba3d145e2cdd315f5ea04a79215956d66db492dca92e3cf64d6ecabf58"
     },
     {
-      "bytes": 243964,
+      "bytes": 243993,
       "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_sky_image_offaxis.png",
-      "sha256": "37ac7ca32d367fc06eef8b0688809dffac77e40500cc4e77d600941ea5f57652"
+      "sha256": "733fc301e41226ef623c6658cb6d79c2c848340535cfec4f7072a231249cfb0e"
     },
     {
-      "bytes": 56693,
-      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_sky_image_offaxis.svg",
-      "sha256": "9511f93e3084624cc35ec5f00261d85a961d9969be30cf8bf72d477e8b3a4ec2"
-    },
-    {
-      "bytes": 762714,
-      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_sky_image_offaxis.tiff",
-      "sha256": "67db09be8d5e2a90aa402d13c095485f092a3a7655d29b0d58e852e42df467eb"
-    },
-    {
-      "bytes": 37223,
+      "bytes": 37168,
       "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_sky_image_single.pdf",
-      "sha256": "119eed624c26c8c4ab09bab1a17cfd6943d7e9c2428423ffa74ccb24d3c36836"
+      "sha256": "27c4cb4dfe951c72c77481206ba82cdccb00b43f98aab7ddf0ea04dee1afbf6c"
     },
     {
-      "bytes": 261736,
+      "bytes": 261578,
       "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_sky_image_single.png",
-      "sha256": "f334104e3cbc872c9fff8133bc1d7e56161fb1f2394900f7b2373fc7359e34a2"
+      "sha256": "b16be6d53fa60245db0144b6abc7d187960b9a7d833772c701b955392820d2a0"
     },
     {
-      "bytes": 93336,
-      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_sky_image_single.svg",
-      "sha256": "79a7240d6a08a5287d0224351384abd000d546e02b4dcba59b964a2e9f2d62e2"
-    },
-    {
-      "bytes": 2843382,
-      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_sky_image_single.tiff",
-      "sha256": "0a30fe575e2cff793f0038c260658d1932df68712a572816ea8153bdd3867501"
-    },
-    {
-      "bytes": 27545,
+      "bytes": 27491,
       "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_spectrum.pdf",
-      "sha256": "f00c61307079be27098391c3143f1b9ede7befdbe6bcf4fb03e830c0f216023c"
+      "sha256": "ba6f1509b6de3ea70f953bcfae88f36bc7bd1e0e271bb5cdc3ab84be8beaf703"
     },
     {
-      "bytes": 97034,
-      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_spectrum.svg",
-      "sha256": "675412c6d1033a26bc4851959846550b99e84728ed2971933deabeda31a31a9f"
+      "bytes": 621114,
+      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_spectrum.png",
+      "sha256": "04b0f966cfcfeedef1217135c6d5fb81086360e448fdae27551addce7c4ddbc3"
     },
     {
-      "bytes": 1369702,
-      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_spectrum.tiff",
-      "sha256": "0c09048524453359cdb4d50acaf0d830185bc070982ec1d920c860f25b73ea97"
-    },
-    {
-      "bytes": 19320,
+      "bytes": 19415,
       "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_speed_profile.pdf",
-      "sha256": "50d71a4671713c550b4a1c161f0b0a159c92981643a7c825addd2774d6079af5"
+      "sha256": "93010cf93605da61216c0db11fb02a5ec0ab843a74019cbc29d796da53884086"
     },
     {
-      "bytes": 91869,
-      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_speed_profile.svg",
-      "sha256": "af5d17b7c12e313237e6f4eb2689c9a86ffb1248398b702aeb157e2cd96e53cd"
+      "bytes": 444191,
+      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_speed_profile.png",
+      "sha256": "bcc1a152d358c541a1699d292fcb1171679121a84b2e9e3842bba83bca64cee5"
     },
     {
-      "bytes": 2762810,
-      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_speed_profile.tiff",
-      "sha256": "9bfab2bc1127d2a691372a0e31667314cfa86e84c3f19b7c32cc7c2fa5c245f8"
-    },
-    {
-      "bytes": 24459,
+      "bytes": 24477,
       "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_ssc_lc.pdf",
-      "sha256": "60bd316754f2556e6afa3ca52bcc7a12cef47eb9c1cf24d966875240f1fdc08f"
+      "sha256": "e50eb9832eb01519b06cf0a416ce43ad6f70f2c212310bd34dec0b246158a294"
     },
     {
-      "bytes": 110015,
-      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_ssc_lc.svg",
-      "sha256": "0f76f08a2ed61282e50091623cfca0290028cbb06f1efa84ec5de106a66e4164"
-    },
-    {
-      "bytes": 984376,
-      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_ssc_lc.tiff",
-      "sha256": "b330aef119479b88b672b4640ac1e2e87d6992805162ddf9711eae602e5078bf"
+      "bytes": 627853,
+      "path": "paper/figures/benchmarks/vegas_comparison/hadronic_dominated/compare_ssc_lc.png",
+      "sha256": "d968a3a64b5e0ac02482b328533fb6566fbde3275ce32430c153edaec8044b06"
     },
     {
       "bytes": 7528,
       "path": "paper/source_data/benchmarks/angular_physical/gaussian_patch20x15.npz",
-      "sha256": "f735665bbbf69a6115cd1b06224190be7ddeea2a55f3e19b4e39aea19634cb2f"
+      "sha256": "7814d13328bc6e6a1daaa013bc48163cbf1f2602e52cf2bc73daf0394bc851b7"
     },
     {
-      "bytes": 37346,
+      "bytes": 37333,
       "path": "paper/source_data/benchmarks/angular_physical/gaussian_patch20x15_lightcurves.csv",
-      "sha256": "bb4b2398703ed07a5b013ca8406698cc500a1255e4563be22253014f259c7c28"
+      "sha256": "23ea0cbe74bc5b95030823d1a8cc7bc0600c95b4f8d66f875b5ed45e6a26a9ac"
     },
     {
-      "bytes": 367,
+      "bytes": 368,
       "path": "paper/source_data/benchmarks/angular_physical/gaussian_patch20x15_metrics.csv",
-      "sha256": "74a6e95e78d68d7721a08c26e6a1d554c1b54ab1e065b7fd3b455ae82d27c9f1"
+      "sha256": "380c139ba6c034c35c0a4dc9abd13bea580bafcf8f5e565ec168ffb9a812445c"
     },
     {
       "bytes": 9578,
       "path": "paper/source_data/benchmarks/angular_reference/fullref300x48_vs_dominant-region-ioka-time-v1_20x15_g120_tc0p08.npz",
-      "sha256": "97bd7a48a377c81f20e980ee51e64bcde1282ce89a5c5d8adb215fe46074bc5f"
+      "sha256": "914cc8524aea6c72947977e7bfa0d1a8612c4937ac95c9bef34184e1d4bc6ef4"
     },
     {
-      "bytes": 37544,
+      "bytes": 37537,
       "path": "paper/source_data/benchmarks/angular_reference/fullref300x48_vs_dominant-region-ioka-time-v1_20x15_g120_tc0p08_lightcurves.csv",
-      "sha256": "4a1497277b435e67240ced614ecf77b1ea7a376a735c799922d1acf00d652317"
+      "sha256": "16fbfcda864699a762f40662338049cf86682e6d524dae9a06cd68c0dc485ca9"
     },
     {
-      "bytes": 386,
+      "bytes": 384,
       "path": "paper/source_data/benchmarks/angular_reference/fullref300x48_vs_dominant-region-ioka-time-v1_20x15_g120_tc0p08_metrics.csv",
-      "sha256": "ed08e410bcee065f6c206e9e989f2b1e23ac16938f675a97ce514827c838cb63"
+      "sha256": "49e75de6007275cb3bf323923e57cadee30a22c9dd2e5b7258dd02913990276e"
     },
     {
-      "bytes": 1634,
+      "bytes": 1637,
       "path": "paper/source_data/benchmarks/chi_eats/chi_eats_convergence.csv",
-      "sha256": "03628212bcb0d1173a9dc12eec29547fbb5e636034128581492e659a2e37a98c"
+      "sha256": "509add6c90c80f58f7d85d5b346d12398068cf1bd4f44e3a608f5a8fc589d333"
     },
     {
-      "bytes": 156242,
+      "bytes": 156259,
       "path": "paper/source_data/benchmarks/chi_eats/chi_eats_lightcurves.csv",
-      "sha256": "ccf78081c2c837b343e1a2a191b4e49a2a0a293b9db833df36e202deb3625db7"
+      "sha256": "3f48e687e157e192f45e082fae20b7adc0ec6f960e004b9532b564cca39681de"
     },
     {
       "bytes": 908,
       "path": "paper/source_data/benchmarks/chi_eats/metadata.json",
-      "sha256": "224d3eae04981b6aff4225eeea1e34502fc8e801cb81a1b6748bfa1fa702ae0c"
+      "sha256": "fb1b00f2d139cb4848de35adbb6d48a9e161653eb503510262a0b14544e78ad5"
     },
     {
       "bytes": 5305,
@@ -1041,6 +691,16 @@
       "sha256": "4cd0b461b0869dbf321bf360121343a45168cb4cc7ee289ea28a47f2756250e2"
     },
     {
+      "bytes": 1958967,
+      "path": "paper/source_data/benchmarks/cross_code/radiation_state.csv",
+      "sha256": "69cf6596ffc483720e61a20fba502aec24b267a9615b343d11859ed7d31f1b4d"
+    },
+    {
+      "bytes": 735,
+      "path": "paper/source_data/benchmarks/cross_code/radiation_state.json",
+      "sha256": "a081ed0d6548e269a99811ae84986d91d4053e58ad995f75c1440cf722d647f4"
+    },
+    {
       "bytes": 581483,
       "path": "paper/source_data/benchmarks/cross_code/rs_ssc_geometry.csv",
       "sha256": "acc7746f3f1c3428904d24114167e88cbcea0a70721acbd5674b064dde4fb628"
@@ -1048,47 +708,107 @@
     {
       "bytes": 881,
       "path": "paper/source_data/benchmarks/density_jump/metadata.json",
-      "sha256": "582ca398d335c9628ceb896e49c0865132b6f5b0a96cbb4922912954f2440a46"
+      "sha256": "60f9a0f9619751d7c77753207ec15993f4d172f695363f3d99fc98b1212fdd91"
     },
     {
-      "bytes": 871,
+      "bytes": 879,
       "path": "paper/source_data/benchmarks/density_jump/triple_density_jump_adaptive_convergence.csv",
-      "sha256": "16016b27fa3a21c0cbcd6fc351c29966b74554d5d26112b9c88ebf8917a8b0a6"
+      "sha256": "74475e4035596e89a99162b92d54cb17eecaa89a69e6908d667779bbd829a061"
     },
     {
-      "bytes": 57670,
+      "bytes": 57572,
       "path": "paper/source_data/benchmarks/density_jump/triple_density_jump_flux.csv",
-      "sha256": "4f00534aa4a138f2bd4519b525ebcfca932894390076c047f8325df079968f9e"
+      "sha256": "c763d5fc6b749060e9354f3c0457b74d7b34815708869df6641178fbb77fd5c8"
     },
     {
-      "bytes": 14569,
+      "bytes": 391,
       "path": "paper/source_data/benchmarks/density_jump/triple_density_jump_secondary_rs_energy.csv",
-      "sha256": "3920d08c944b3de70d051e159d31ec999c882e5c9928064e1cdcd1a007cfa55c"
+      "sha256": "add5aa1b25c4a70a9275d5d505599002cd90f3e99a3a41ad9e3ce1f284470d99"
     },
     {
       "bytes": 607,
       "path": "paper/source_data/benchmarks/density_jump/triple_density_jump_secondary_rs_events.csv",
-      "sha256": "234f93be7ac6e63dbffc22de346ad4c49c691ea6c5491d640a495d4017885a1b"
+      "sha256": "7daafaab1fdc82a180a9ce84416a993de7bf116a8f8c4291c3e503d61717c454"
     },
     {
-      "bytes": 491443,
+      "bytes": 109040,
+      "path": "paper/source_data/benchmarks/density_structure/fig10_wind_termination_shell_dynamics.csv",
+      "sha256": "50bffae49e9cf1741ac63eee3798cbfbb9cdb3b00c8547fc88fe503739f9e25c"
+    },
+    {
+      "bytes": 192,
+      "path": "paper/source_data/benchmarks/density_structure/fig10_wind_termination_shell_events.csv",
+      "sha256": "c2aa2de7ddf546cf1afbe3c3cb571fe8f5f270a2535ed46e7bfa20cc685ac3d5"
+    },
+    {
+      "bytes": 45802,
+      "path": "paper/source_data/benchmarks/density_structure/fig10_wind_termination_shell_flux.csv",
+      "sha256": "fa92d64e338e6ae87875bad0aa689bde6eb39a458575762c5dd887b413c4a240"
+    },
+    {
+      "bytes": 1826,
+      "path": "paper/source_data/benchmarks/density_structure/fig10_wind_termination_shell_metadata.json",
+      "sha256": "35718658d2fc8526c0de077b4ddfd96acb9297a5020eac46142cc69c0601762e"
+    },
+    {
+      "bytes": 2908,
+      "path": "paper/source_data/benchmarks/density_structure/fig10_wind_termination_shell_profile.csv",
+      "sha256": "b2ed2dce2111daa357dcc3d7011fe0be7dd5fe74e4d169e10a67f18e4970eb24"
+    },
+    {
+      "bytes": 341,
+      "path": "paper/source_data/benchmarks/density_structure/fig10_wind_termination_shell_secondary_rs_energy.csv",
+      "sha256": "8e85374ab16b0fc1652e0a40a2e56db06d82e39621e4bb70771842e741dd755c"
+    },
+    {
+      "bytes": 189074,
+      "path": "paper/source_data/benchmarks/density_structure/fig12_smooth_clumpy_medium_dynamics.csv",
+      "sha256": "d46c4f77456c2da1d172fbefd30f0ae2f292c438f0eadc6b120463630a5717d7"
+    },
+    {
+      "bytes": 323,
+      "path": "paper/source_data/benchmarks/density_structure/fig12_smooth_clumpy_medium_events.csv",
+      "sha256": "9346933f2a5f3b6315f7af2a27d1401ca7d7a5456ee9b6299e50f53983115194"
+    },
+    {
+      "bytes": 44338,
+      "path": "paper/source_data/benchmarks/density_structure/fig12_smooth_clumpy_medium_flux.csv",
+      "sha256": "4357d58569336e4ff7e88fc74dede0e53d8836cccc4e087f2aca67ed728991a4"
+    },
+    {
+      "bytes": 1652,
+      "path": "paper/source_data/benchmarks/density_structure/fig12_smooth_clumpy_medium_metadata.json",
+      "sha256": "de3e05cb0c01f729dc6e5b2ebd413efd233338b5dc4ae79ff1e2d44e58ccd463"
+    },
+    {
+      "bytes": 44309,
+      "path": "paper/source_data/benchmarks/density_structure/fig12_smooth_clumpy_medium_profile.csv",
+      "sha256": "03b8e561d7262ae382038ed9c01f0818232a0328ba6f94376584d639bee110d5"
+    },
+    {
+      "bytes": 410,
+      "path": "paper/source_data/benchmarks/density_structure/fig12_smooth_clumpy_medium_secondary_rs_energy.csv",
+      "sha256": "38be79fb33d0cd55fbd30533a0faa471f72240bf43079143627c79181189192b"
+    },
+    {
+      "bytes": 494072,
       "path": "paper/source_data/benchmarks/magnetized_rs_vegas/ism/magnetized_rs_ism_vegas.csv",
-      "sha256": "672de1cb0ab967803ff721759b36d9229075aebe62e859fffaa91d878fb40132"
+      "sha256": "b93b18957b9d7cb570172639b3b18304d747d6e4890de5092ca4df828fd1882b"
     },
     {
       "bytes": 878,
       "path": "paper/source_data/benchmarks/magnetized_rs_vegas/ism/magnetized_rs_ism_vegas_metadata.json",
-      "sha256": "7fcff725a4abfde7659bbf3b5ab321c73e6252a8f78153fd8028b57b0eb2f58e"
+      "sha256": "fbd40265920c4695939852115d56b55bd1399a35389890c0ef987e6724c0e038"
     },
     {
-      "bytes": 498214,
+      "bytes": 504828,
       "path": "paper/source_data/benchmarks/magnetized_rs_vegas/wind/magnetized_rs_wind_vegas.csv",
-      "sha256": "4b402004b87369544c7076bd911cffa7ab9e05f05eedeca448cd93f4d6f0ce08"
+      "sha256": "bcf2835e5d561ef5e796f2ab72cd79aab82f8deec2243d4158dda698089c0842"
     },
     {
       "bytes": 879,
       "path": "paper/source_data/benchmarks/magnetized_rs_vegas/wind/magnetized_rs_wind_vegas_metadata.json",
-      "sha256": "f41d1b5795a12f9044be1f4e31d7ffd7607411af7a699021024521900ab197d2"
+      "sha256": "b97bd78e74cb20a5fc36ca472291ebedf4ea0ce9a45f513a1ab036c0e426b82f"
     },
     {
       "bytes": 1042,
@@ -1163,87 +883,87 @@
     {
       "bytes": 980,
       "path": "paper/source_data/benchmarks/runtime/metadata.json",
-      "sha256": "86f12bc7f71c76e1857a57d9ffe063772fec7d29100d0211ef067c1b530e3bbe"
+      "sha256": "1f6544596029c35f5f67a83941750bc8cb824b41dc87d97a81813a7db887ea88"
     },
     {
-      "bytes": 11008,
+      "bytes": 10999,
       "path": "paper/source_data/benchmarks/runtime/runtime_raw.csv",
-      "sha256": "210708974f5ffb60ecf1985793c6239c24c448e3ae9b4cc889c564cb40d71220"
+      "sha256": "c6912d75821c8995f4d92dbd3f849a54024833784a3447726d2289fcd2a8df07"
     },
     {
-      "bytes": 5467,
+      "bytes": 5448,
       "path": "paper/source_data/benchmarks/runtime/runtime_summary.csv",
-      "sha256": "53946ac8d9779cae50b64c822a7832b46a2e98ca95c10ecb244857edd1c0d216"
+      "sha256": "dd635a3f9474a1bb1cec45c45e739811cfbc7df0e2c9a2e81dcb144c3c486a8f"
     },
     {
       "bytes": 1116492,
       "path": "paper/source_data/benchmarks/skymap/skymap_centroid_motion_data.npz",
-      "sha256": "8f5a5b3f9e23f7546bd43fa763f393a2da48608573589d1490d9fb3822b307e1"
+      "sha256": "c121dfc439771e2632ef20734233b5ee3759ab17351a635dbcf08c23b90e21b6"
     },
     {
-      "bytes": 80922,
+      "bytes": 80925,
       "path": "paper/source_data/benchmarks/skymap/skymap_centroid_motion_summary.csv",
-      "sha256": "8f559685058ae560e0c99b48f9bdd0075841d4be4b38f8d493cf17413121aec9"
+      "sha256": "1b39a9883a99eef140cde08c210f4452eec914f996966e867a65c14e400f07a4"
     },
     {
       "bytes": 30566,
       "path": "paper/source_data/benchmarks/theta_decay/theta_j_multiples_bdecay_compare_data.npz",
-      "sha256": "61596395d9baeaf0de2496741b2367cf16099e4033476e29b149bedcb736d0d8"
+      "sha256": "939ee6e1c104e34e8b1b06eff9289a73fd07f7235525b1b2abe02f34d1e96b95"
     },
     {
-      "bytes": 3406,
+      "bytes": 3386,
       "path": "paper/source_data/benchmarks/theta_decay/theta_j_multiples_bdecay_compare_summary.csv",
-      "sha256": "73df3e8835dc665ff358a58236a80f0ca85cd6a9795910615a6079730206260f"
+      "sha256": "25cd0580ca14d66db3768c3525f0395ff75c1af6add4efbe8c75dd1602b45ae1"
     },
     {
-      "bytes": 1869,
+      "bytes": 1876,
       "path": "paper/source_data/benchmarks/theta_decay/theta_j_multiples_bdecay_peak_summary.csv",
-      "sha256": "7a1542e3c6ef08cce1c911154eae15ea8374dfb0b070b0aedfa60010034c464f"
+      "sha256": "4fee8232d8424e7d52f2260050059efee0be892a3c115bea57566dbaf740b0d3"
     },
     {
-      "bytes": 22434,
+      "bytes": 22431,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_basic_bolometric.csv",
-      "sha256": "c11a1597e91bed1fd7408dbb81be111e2d5e8dd861cd615e2b5708733b9bda31"
+      "sha256": "f79493eb83cb57acfe290c866e2e96b250d111442f1d90bc4f46d442f1124ebc"
     },
     {
       "bytes": 812,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_basic_bolometric.json",
-      "sha256": "fa8e3417bf48cd59495815cfa50e27c952f119561f59c714604a3c19aff362bf"
+      "sha256": "a66664b4cdd4cc0eb6b6066ffc0853dfd01a728c769a2e459f50590452f2541c"
     },
     {
-      "bytes": 6943,
+      "bytes": 6949,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_basic_bolometric.npz",
-      "sha256": "fb59d2690e3ff24d92bf54f9bd79ca862728d3151b584d154f307acd71ff8a2a"
+      "sha256": "251c41d5c809facf41bf8e91b9409ecf77aa7544f2b7429efaef1d25ab23451a"
     },
     {
-      "bytes": 492725,
+      "bytes": 492738,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_basic_lc_spec.csv",
-      "sha256": "07cdf34bc74ede699fd26d4dbd806cbbce718f2cd17e6b4c2e9b7014eeac6c3d"
+      "sha256": "0ccd09a64d7414b4cfb732c5f9062b3657cb6a30a18c3ea3b684b91b5ca1ef1e"
     },
     {
       "bytes": 809,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_basic_lc_spec.json",
-      "sha256": "d5be4adb447f4512d39a77689f2214844d033e6a6d5dcbe77c8f19f5b28edf7c"
+      "sha256": "17b1a7d017892f0cc26c5564967fc81387313f8aa42aaa095aa1b0cbb6555a87"
     },
     {
-      "bytes": 110046,
+      "bytes": 110040,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_basic_lc_spec.npz",
-      "sha256": "69d81933ddcba367e8096cffb75ae783a11190a4fe4392305799f4490a39b6be"
+      "sha256": "882077b581f4ade6a7033e6abef0a4d8da8fed779a887a84279924c4e7751849"
     },
     {
-      "bytes": 161473,
+      "bytes": 161552,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_electron_spectrum.csv",
-      "sha256": "32eef679bbb7eac6864fdd33f575eebcd21b3a1d217b75700d802c1ecdde5caf"
+      "sha256": "a01eadfa7d45702dc281c79c6e8630d2ee054c0419fe113783ceb8dbad04291a"
     },
     {
       "bytes": 813,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_electron_spectrum.json",
-      "sha256": "1cd7216fcdd1e1ccb349f46fd646fc2e0c02bcb61f858acf156e76591f0667fb"
+      "sha256": "6ff73cf4a65f4b4d36b76aed3d55b4109eae6fa9f0725f299ca33e3cecc559c7"
     },
     {
-      "bytes": 62978,
+      "bytes": 62975,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_electron_spectrum.npz",
-      "sha256": "a0c0d04ccca1dacd8198ffd4fefb9c793afe5640cad1d72afca07888383d7de9"
+      "sha256": "db849aec67da005f51bcb2f8ee36beffa13dfe091e8f2d484cc94bf6155f599d"
     },
     {
       "bytes": 16109,
@@ -1253,7 +973,7 @@
     {
       "bytes": 813,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_introspection_jet.json",
-      "sha256": "008d987f08bd625f2775ba24c2e4b388cac207c01ad208cc0c82528e5f90647d"
+      "sha256": "9e2014b2295c4942ab724e3a0b1ac405a45c989c571425a2345e373a9e4849a7"
     },
     {
       "bytes": 4002,
@@ -1268,7 +988,7 @@
     {
       "bytes": 816,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_introspection_medium.json",
-      "sha256": "4de63e806432ae52d97963f7145105bc124e24165e3c928d2763a2ecd75d95d5"
+      "sha256": "127881bb16db60171efdf12a09d31c9d9ebb8f3111dfa51a7059bcf301919a43"
     },
     {
       "bytes": 6891,
@@ -1283,7 +1003,7 @@
     {
       "bytes": 817,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_introspection_twocomp.json",
-      "sha256": "1f756c7daf4f38735b7ab8e3a1bf33e6235966e1ce074c7e5c41b7de36d923b8"
+      "sha256": "c66ca6782cc2a332942957fdfdb9dba2daa44d501abb3c41800916eeea21e240"
     },
     {
       "bytes": 7870,
@@ -1291,169 +1011,169 @@
       "sha256": "a3f1f72fa225c2620f3ac3624c6ebd7e7e2f882c651bab9bb3a4f69d6f484771"
     },
     {
-      "bytes": 265763,
+      "bytes": 265745,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_magnetic_decay_2d.csv",
-      "sha256": "9e9b9e3cbecdf128f0a228ebd85379dfb7bb119d4107d9a4cf74306ea3cea3c0"
+      "sha256": "aaf69a097888f78283aa61075d6bcc61448629b10d56705c33bddf855d245ec6"
     },
     {
       "bytes": 813,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_magnetic_decay_2d.json",
-      "sha256": "e050273d34ab1b907f57d0781a2894c1e0692b83b39bba55168ab90affdfdab6"
+      "sha256": "746ec34b9ba3618ae7cdb70382c07513842e1b47078227eee60b6a298f2ad95a"
     },
     {
-      "bytes": 62704,
+      "bytes": 62717,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_magnetic_decay_2d.npz",
-      "sha256": "e5b82eb41c4f35a940e90cebdcf6399ec61a442e527dca6034b76bb22ab1f719"
+      "sha256": "0c0e2c97f281198e11c04e500b398892682d38c41594379855e9f1435fffe6ec"
     },
     {
-      "bytes": 484262,
+      "bytes": 484543,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_magnetic_decay_2d_broadband_spectrum.csv",
-      "sha256": "f1895908032d461d553bfc698d940d6417ddf0565a39beb82557c2737c4054d5"
+      "sha256": "7c04ec8052f5d7bdad0b9d1ea5e2110967324345e5b19d95fd8825b4883a13e7"
     },
     {
       "bytes": 832,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_magnetic_decay_2d_broadband_spectrum.json",
-      "sha256": "e018112624952c873d821483a5978917a7c052dfd7eefed72ac7ac5e78cb56fe"
+      "sha256": "a20347df15e05e02fd2375f7312cf141169e15349ecfe9883f47daccde77a8e0"
     },
     {
-      "bytes": 113482,
+      "bytes": 113512,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_magnetic_decay_2d_broadband_spectrum.npz",
-      "sha256": "721816162cd8fb6138d78ea4d0077639d6912f8e0c4d927d90d480ee75cb7bae"
+      "sha256": "975f4cabd392bf5c2ced04f3e079ed19af4613a813858057129cfb0f3ed13def"
     },
     {
-      "bytes": 158676,
+      "bytes": 159495,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_reverse_shock_lc.csv",
-      "sha256": "fcacc3c6a403cabd0802ab1c490958e5f1cf9fce73051e05e08d1c328115b1c6"
+      "sha256": "c42d810a41918c5ea5a3668e15dd64176df4e1ef1e8233d12acecfa7585f0e41"
     },
     {
       "bytes": 812,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_reverse_shock_lc.json",
-      "sha256": "0b88ad15d490d6042540e1098fc8ec5003e96210b875ef71e114cb1ed1ecf99c"
+      "sha256": "25ddc72865ecae4bf8961fc640af0ffac356d959114faebef4ee997aa46249b6"
     },
     {
-      "bytes": 34555,
+      "bytes": 34882,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_reverse_shock_lc.npz",
-      "sha256": "083b6257584cd718209f315ff9fcdb0f1e7db07c61d226aaad1f937be8a34c28"
+      "sha256": "2ff9758858ad6eb569113817522dc4bae0b3d42e97e2912f4663bd2073519949"
     },
     {
-      "bytes": 50661,
+      "bytes": 50642,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_reverse_shock_thermal_benchmark.csv",
-      "sha256": "0a97709bca919b39e6d5925e8395d3d4f7ac403e7d21061db162a7feb0177314"
+      "sha256": "892e61c09943fa7e9aa95575d486e58fca5d4b3cfc2642c9a68939c672e1c0b2"
     },
     {
       "bytes": 827,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_reverse_shock_thermal_benchmark.json",
-      "sha256": "38ffe915626113b7be73a2c2a2d41348110757150ba7146a95e8c5664df4c1ae"
+      "sha256": "cd14424781f4e1425003e5b76832091e360f484557c3ceae20551d5dc150d2e2"
     },
     {
-      "bytes": 17176,
+      "bytes": 17165,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_reverse_shock_thermal_benchmark.npz",
-      "sha256": "8cbee825b2f1c7b5cfe926077948301bbc29ab752ccfdb5a9cae742ab853fb0a"
+      "sha256": "1c9cacd44b64536c05e0549c2bd9b4de282d4609e8e1bf271c6ec846b44d7946"
     },
     {
-      "bytes": 357163,
+      "bytes": 357218,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_sed_three_solvers_vs_vegas.csv",
-      "sha256": "0266231f8d7a610fec6e2f4818e2eb0e648107dabc7a65a47e531156827620c7"
+      "sha256": "943dc351eb037dc1b82bc0a84055c43292572fe21d7d606c2823751563f09d26"
     },
     {
       "bytes": 822,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_sed_three_solvers_vs_vegas.json",
-      "sha256": "b97d1dd73b608e1311bc9aea2b923cebb20f33ec99806590c27acbc43ae5b6d0"
+      "sha256": "be7b189cefdead4df783ece5d8060006a6702c673391173b029e4f3a5b0b4b41"
     },
     {
-      "bytes": 101420,
+      "bytes": 101373,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_sed_three_solvers_vs_vegas.npz",
-      "sha256": "47aafeb758a125d811fcdb898dfd8d32434711c1bd2eea8bb96126013fdd2767"
+      "sha256": "6c806521abc3b7b312a4f971471f142f1212dc66430326565acc8ad7e7dd2e28"
     },
     {
-      "bytes": 27091,
+      "bytes": 27062,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_shock_quantities.csv",
-      "sha256": "0668516a22839d53ac0d036f34dabad152dc0e91e10fe27925535462f0b46cec"
+      "sha256": "a110ca4b74681e37bc475221c2fd3d8dcafa4b032dde0fbe44322e4cc75c3791"
     },
     {
       "bytes": 812,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_shock_quantities.json",
-      "sha256": "409f891f2dfb19473087b32a5d38a16b74d00c6ccaf44d8ac0e823b18afbe92b"
+      "sha256": "f473264ce4a13817b6c3fae57bc64b71f147bd5117c5932defcee65d27bff57c"
     },
     {
-      "bytes": 9574,
+      "bytes": 9576,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_shock_quantities.npz",
-      "sha256": "0f909ed2bea3e150aa94466e9808f6e2d75bbcf3ffc98c2c26f2d00c8245af60"
+      "sha256": "ab1782d181528e540b1a60e502bacc6a940386dc066cb7bc275fd1fbe1346861"
     },
     {
-      "bytes": 2621,
+      "bytes": 2624,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_sky_image_centroid.csv",
-      "sha256": "a3a0518a1cf55a44d634ac5b603b0f8ada56226e968f18077799d29621b6d426"
+      "sha256": "137acb4ceff5d11e8a40e87da5df30b59abf8a037af1eb2581efd5594644acc8"
     },
     {
       "bytes": 814,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_sky_image_centroid.json",
-      "sha256": "0999ae46701ef246329c59d05cb51acd36d740d57271de5ffb0e0de96ab40f17"
+      "sha256": "c27782427dcbfbf5e66c8c9aaa08de7dbb7dd5abd1d9cdca635f0edaa05e7934"
     },
     {
-      "bytes": 2390,
+      "bytes": 2391,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_sky_image_centroid.npz",
-      "sha256": "083004502b350ec84a3d34aea44b0d8f269d128246a064b8ac8f62640ca1db8a"
+      "sha256": "d56a8943b1c3bfd19b707e7b41066c75b1a581af6a6a83710df635b828a18511"
     },
     {
-      "bytes": 7208,
+      "bytes": 7189,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_sky_image_flux_comparison.csv",
-      "sha256": "1273e9a58a557af8c7cefa19a02d06fa81c392359b48e60ae7f73775a7043cd7"
+      "sha256": "399a6c0e9158a7f5e126791c417ac5d75a9f93a8d1d5006293b77ec256eae24b"
     },
     {
       "bytes": 821,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_sky_image_flux_comparison.json",
-      "sha256": "05146ebd06fdc28da59a7507f2a6f1d3399c91f00758946ab37b7e9dd0b7d6ab"
+      "sha256": "a0889d7fd3666d0fd4696a7172b2029ade1d2db37efec28981479058a561216f"
     },
     {
-      "bytes": 4606,
+      "bytes": 4608,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_sky_image_flux_comparison.npz",
-      "sha256": "f412be90a94980272ae39b8adefa95c8088022141afc3577d10e508e8ee023e1"
+      "sha256": "f88384c7360fa1c45a7bb71c65787b54c647759f5a2089d72a4870bb36f68e1b"
     },
     {
       "bytes": 100840,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_sky_image_offaxis.csv",
-      "sha256": "57c11780e2294d031dc0ee99e0dbed716a1267857dc65f26b672af4d3791a1b5"
+      "sha256": "2fca59ce5e1a9cf9f9e392313dae5d7fa7b68fe2c53bc499edb38addf9a41444"
     },
     {
       "bytes": 813,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_sky_image_offaxis.json",
-      "sha256": "5ed7816fc0369f92c2d5d4cae8732ce2f32243123cd389684367c49128dfcb77"
+      "sha256": "5d085f116ac7e7a9f54188d3445f4b2451fcdd27612f67eee3f84f3eaf772e01"
     },
     {
-      "bytes": 6127,
+      "bytes": 6134,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_sky_image_offaxis.npz",
-      "sha256": "3cd649d9437e7019100c946bda8fbf51cd163cb7795d5117bb951fcb414dece7"
+      "sha256": "d2892144d03bfe459bd9afb8308deaaa3e1007933e093ce70ad409e7381fe98b"
     },
     {
-      "bytes": 163045,
+      "bytes": 163025,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_sky_image_single.csv",
-      "sha256": "fc10eefce1a3ac7488a2be2d463933f6ca8300430659fc139b72b1aaae80240c"
+      "sha256": "0b6ab8828207305e76ab789c80bf713d3498307f059bcba21a04fa345dfd9d73"
     },
     {
       "bytes": 812,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_sky_image_single.json",
-      "sha256": "47a5bc326316493772cfeb830177c48d647ccedbd943b018dc03fc0975497937"
+      "sha256": "7fd00f3f8e2ffc85d225ba79f586e0b69ab90837efac81b4c925d8beb509a549"
     },
     {
-      "bytes": 8582,
+      "bytes": 8583,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_sky_image_single.npz",
-      "sha256": "e9521da2140c9a0074f19a448027a2884f4c9c19ce864b0787785fbc74a0ac55"
+      "sha256": "46edb4c4eadfffe777318f9126860b211ec3b424f00f2fd9da8f889bd8e6bcb8"
     },
     {
-      "bytes": 176892,
+      "bytes": 176944,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_spectrum.csv",
-      "sha256": "759aa6b23e1921820d104c4782db8104ab107da1a84cbebc490c9cb49842c1ce"
+      "sha256": "e9251bf4a6d9bc24086dd7ea6975db76ab84bd965e7f763afe20bdfa854963c4"
     },
     {
       "bytes": 804,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_spectrum.json",
-      "sha256": "72f9de376f5f7e7fb4c7767c7981995bf7a1ef764e6f85dc5e311879882f8098"
+      "sha256": "1054ea032dd1c5d19a27185ac4fb8cd5e2bb6c6905cd4717fec8c33f56be71ec"
     },
     {
-      "bytes": 50481,
+      "bytes": 50480,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_spectrum.npz",
-      "sha256": "c71084b28901956813b3d735bc83a5a3bc888512e3570ef3a4d8f63fe21ac40d"
+      "sha256": "cebe74509ed7c00a112d647e8fa2f5f1e0fe74adbe76278a625ab7cd138420e2"
     },
     {
       "bytes": 33,
@@ -1463,7 +1183,7 @@
     {
       "bytes": 809,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_speed_profile.json",
-      "sha256": "7746fc089678f9560634e7f1dbac5bf389f3ece3626b73dc25634458bf847b48"
+      "sha256": "ee3309e406574889305e81ca0596b9a6f0f363e7e3b03a63fdf574502ab45cfe"
     },
     {
       "bytes": 22,
@@ -1471,74 +1191,74 @@
       "sha256": "8739c76e681f900923b900c9df0ef75cf421d39cabb54650c4b9ad19b6a76d85"
     },
     {
-      "bytes": 162144,
+      "bytes": 162171,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_ssc_lc.csv",
-      "sha256": "33fa4e23a5634886b8802982297be15cc5175e02589b9b9bd86d50d862081518"
+      "sha256": "ee8f0b991ea2b254fc3e6ed19af51ef20da71d899c10547b28d523eda0ec649f"
     },
     {
       "bytes": 802,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_ssc_lc.json",
-      "sha256": "d949007a9108fad711d46922a7fe7e2bfec564d7f45c4fa83280069d43c2d2b7"
+      "sha256": "f644df052137d0dd6fa0691daf78825271bf42a723a2541dfa647fed835b0481"
     },
     {
-      "bytes": 35478,
+      "bytes": 35477,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/compare_ssc_lc.npz",
-      "sha256": "5ff2483058e12fa4fa66f2f835ba55b6ff1b08d33a34d28c76c785c9bb23e772"
+      "sha256": "fcd0677bae9fc657002c64bd9e52faf0998c0d6083eefeb30aa7f513320d3c98"
     },
     {
-      "bytes": 397602,
+      "bytes": 397653,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/electron_solver_observables.csv",
-      "sha256": "e24576ec99ef18209e7c15d84cb5250bbae08624f3cbd36aae111c40d60de1a4"
+      "sha256": "063a9b8f30ef5239e1577f9ce88bf9442538479a7e285fcc904100a61de32fcf"
     },
     {
-      "bytes": 246639,
+      "bytes": 246725,
       "path": "paper/source_data/benchmarks/vegas_comparison/baseline/electron_solver_spectra.csv",
-      "sha256": "834a7a67178e39bd2e8b931b45f258032aa20996cf0da212e35ef9d5619798f9"
+      "sha256": "0f8adaf32d7ae6fa39ae37e7f1d9ac64bb0b0b1229996efb72b116556e65dd8f"
     },
     {
-      "bytes": 22403,
+      "bytes": 22413,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_basic_bolometric.csv",
-      "sha256": "2dca7754c93aae491213a565f5991548e4b603d5c7811f3f339e82606ce42f7e"
+      "sha256": "f534d3757fd2efc8aa2b7a8a0389d30909c0d836078fb72ea811e39b91e36a3f"
     },
     {
       "bytes": 822,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_basic_bolometric.json",
-      "sha256": "f69a4e79abe2f9246fce1c0d558be27ff974f5661cc4acb6d0c89e8da5551ab6"
+      "sha256": "2a3ebfcfe873ac49003a2dcae959436407cfe3687dd2e5e420bae62d510afc26"
     },
     {
-      "bytes": 6945,
+      "bytes": 6940,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_basic_bolometric.npz",
-      "sha256": "3add5102eb411274676ba72f9c9fa71c9a86957f29e662f8e57cb035ff157fa4"
+      "sha256": "06daa4f441cc5055b3de7a8acb6a1cdb39dfaae7a6426c2dc5f95cca229afa67"
     },
     {
-      "bytes": 492756,
+      "bytes": 492754,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_basic_lc_spec.csv",
-      "sha256": "cc8e9f7e5f5df22e8d83e2de5afe6cdda70d16852e02e728c2a5b5b34e6f2183"
+      "sha256": "8a503cc9727586d021057c9b974806d5dee7e9823fe57a2d44c1fe0e0710d746"
     },
     {
       "bytes": 819,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_basic_lc_spec.json",
-      "sha256": "bfa87e99ff9c0378ebcdf076457eb2d037aa7c705a071bd98ad39d1c9ae04911"
+      "sha256": "db6d542ae4436a0ab18163fe5c7318f370e202c4058cbfdbcf700ee3e8c64a99"
     },
     {
-      "bytes": 110299,
+      "bytes": 110296,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_basic_lc_spec.npz",
-      "sha256": "ff3dfac114756c97a39d416614c305b011f19629a7087dbe17a7fafcc6ee1f63"
+      "sha256": "265ffe05ebd3246a15218659d167f574b22959dae9336a03577817d5913bd0bb"
     },
     {
-      "bytes": 130257,
+      "bytes": 161603,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_electron_spectrum.csv",
-      "sha256": "f2231448953a423501fa523d1523ff880da667cadf2f2425ba34bca477e974ef"
+      "sha256": "1b3608deebc96d0edc3348b1a773dc05c3c70954da9c1cd2ff77e4db6a234c6c"
     },
     {
       "bytes": 823,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_electron_spectrum.json",
-      "sha256": "f68a48e1ebda3550c3368b7ed5d07c6c7053c509691d179c97f97e5f9a6fb294"
+      "sha256": "ebff518752ed109c845ee6d9be6fb51d1d7c2f1b4d736e6123363277697fe94f"
     },
     {
-      "bytes": 51084,
+      "bytes": 62853,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_electron_spectrum.npz",
-      "sha256": "be60184cd5e923ac83bd38038a8f40bb588a8dc582c85c56c7987a70c22b7294"
+      "sha256": "0c02c8a5bde1496b90593752fdcd2f970589bbdc3471dbc204144223573cd8b6"
     },
     {
       "bytes": 16109,
@@ -1548,7 +1268,7 @@
     {
       "bytes": 823,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_introspection_jet.json",
-      "sha256": "25baa49f2b84cf67bf9dc256c1c89e8e114256962cd12dac1eb9798b4503d790"
+      "sha256": "4a6db3e9153abb5cbf17fd99cb7cd4d38571337b8231bfd2b5a1d9e2ea2d1773"
     },
     {
       "bytes": 4002,
@@ -1563,7 +1283,7 @@
     {
       "bytes": 826,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_introspection_medium.json",
-      "sha256": "eef6a8ab907900fe0c0d6d44dafd444b732ec200723e7932a9f05b22a00faee9"
+      "sha256": "ebdc00967fad0a6cbe63ef67ffd18ac55758d2c12804518a6062a8b3a703f172"
     },
     {
       "bytes": 6891,
@@ -1578,7 +1298,7 @@
     {
       "bytes": 827,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_introspection_twocomp.json",
-      "sha256": "adb0ca473d1063cf0bc1d917ef242a2336a4b5e5b67ae67e53c29e72a8d1956e"
+      "sha256": "43a447bcb86516361dfdf955eb3be18a188e3d29df981795b3075ca1cdc94e01"
     },
     {
       "bytes": 7870,
@@ -1586,169 +1306,169 @@
       "sha256": "a3f1f72fa225c2620f3ac3624c6ebd7e7e2f882c651bab9bb3a4f69d6f484771"
     },
     {
-      "bytes": 259949,
+      "bytes": 259974,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_magnetic_decay_2d.csv",
-      "sha256": "ff1a400bc941a251994517221aa14d1e7d4d2b1c76db5965da90dc5c541846ee"
+      "sha256": "19132a113d164032b08a798d144b78cdec4df25d07f87251bbeecdab298adf71"
     },
     {
       "bytes": 823,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_magnetic_decay_2d.json",
-      "sha256": "682e54f9e6e9602eb4e93b3a68854ae7746e9ebe02c0e341e5ebbb6c1d9e62e9"
+      "sha256": "f97e6a96049abc2a2d670730e62172dde60faf3cd7a30a488c3ac767fd331ebc"
     },
     {
-      "bytes": 61826,
+      "bytes": 61808,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_magnetic_decay_2d.npz",
-      "sha256": "d6eb8f1a473aeb54859aff92b9bf6913ef825897dbca49c5f2cff19ddef7d8fe"
+      "sha256": "0fc5364f76be987341e65f1efbd40dd4b8daff559abf62544280347df3671ba0"
     },
     {
-      "bytes": 480716,
+      "bytes": 480793,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_magnetic_decay_2d_broadband_spectrum.csv",
-      "sha256": "5299e9587683d0d43cdd65e920198209bc4d5dc5eb5a567eef943ca87d23b424"
+      "sha256": "a4d83dfa3ecf9cb1ba4ee696d8e812b45242f8f6b9ec9ff9fe3beb1e3fcba5f2"
     },
     {
       "bytes": 842,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_magnetic_decay_2d_broadband_spectrum.json",
-      "sha256": "64b7529f869949f65e4971a6641dc9ccf64c83dafed64bb840a7fd2c30fb12cc"
+      "sha256": "140891a0e66af3029ec6b875e2b66bc93bd73633461e354c30918bbd9236588b"
     },
     {
-      "bytes": 112920,
+      "bytes": 112957,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_magnetic_decay_2d_broadband_spectrum.npz",
-      "sha256": "78467477530226ee758dc0d2b69e46d021681f517aae474d4c25d67eb968c984"
+      "sha256": "e98c47786cec3c96a3800a1696cae09fb6960cf35eb98415d95be6585eaacb0b"
     },
     {
-      "bytes": 156776,
+      "bytes": 157914,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_reverse_shock_lc.csv",
-      "sha256": "cd5798fd420504df3b612a460e176784bb6e30c3565a7e0f2013e9b01f36edb1"
+      "sha256": "350da9af1a1e88e998957bab04ec12107cf83d11f8d0bb9dde0e00ac19eed07c"
     },
     {
       "bytes": 822,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_reverse_shock_lc.json",
-      "sha256": "88ffd5f71df44fe4f0b96d1f95e0e9d1a315692822f98358038e37e6ca4fe0ab"
+      "sha256": "d560bb21d158c6430c53e6018b08e8b0c1815f716b0d7f8930692d78ab47cca7"
     },
     {
-      "bytes": 33801,
+      "bytes": 34281,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_reverse_shock_lc.npz",
-      "sha256": "4662abf3e083f30c9a2713683305ace6ef739183745302598110c0d319bd5aaf"
+      "sha256": "94faf1fe71137e5dc2fcb840e285a1f42ae5f7e17fdfbc161acf1cc16025cf94"
     },
     {
-      "bytes": 50536,
+      "bytes": 50533,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_reverse_shock_thermal_benchmark.csv",
-      "sha256": "29bc52f57fd9c8909e799d262d45afc1a5c436987e55165a4375b0fa00f6d04a"
+      "sha256": "6b92f976681ff56d709a22e622bdeb4d739e7061778dde95850c93ecb981de21"
     },
     {
       "bytes": 837,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_reverse_shock_thermal_benchmark.json",
-      "sha256": "de3e48ff42223158b7fb35c2bdad635d6d7eb648cc04d56f251c904e8f018ccb"
+      "sha256": "3b4d4d250678bf87019d3e1d89326f2e99929cffc1ffca754428324edaba0cb9"
     },
     {
-      "bytes": 17177,
+      "bytes": 17201,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_reverse_shock_thermal_benchmark.npz",
-      "sha256": "0712c4811e4816e5e99b88a1c49b66b952c29a2b4b587ca025206c608e0762e7"
+      "sha256": "1211a4db9f736bf5f41d505024b912d289f3834441b5b8fc65acf4ac122819bc"
     },
     {
-      "bytes": 304873,
+      "bytes": 356625,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_sed_three_solvers_vs_vegas.csv",
-      "sha256": "5932d898e52f355d8a7b5655cd2e5fd31be8bdcba5ec7661f79fc537db3da85c"
+      "sha256": "43f55a020637ad08b424f4b8ff98040331683f315b22ade9a8569743988e0074"
     },
     {
       "bytes": 832,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_sed_three_solvers_vs_vegas.json",
-      "sha256": "474636163f6199addaa1d9c19b4f18a8729b6852353e5d270066578517a88d78"
+      "sha256": "bce45a5879bcd8fecb10c9d06388b7ec1b715ae83596abcf534804534e53d77b"
     },
     {
-      "bytes": 86798,
+      "bytes": 101249,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_sed_three_solvers_vs_vegas.npz",
-      "sha256": "6b48be1f23bd78318a619eac7762dbb38abada88328011831336f75a09fa7936"
+      "sha256": "592cb0348dbfac3a1215cb1d1a97776fb55c92862c1e27b2739281a290b54b8f"
     },
     {
-      "bytes": 26645,
+      "bytes": 26638,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_shock_quantities.csv",
-      "sha256": "40f29a9758d9d7090ce04fc7ab0f0ec7b955de702c93d3d22a2d035ca02afad1"
+      "sha256": "ee3408712c44fd110762147ce3c247645abf46f4e5f97fd63344463b85b26eca"
     },
     {
       "bytes": 822,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_shock_quantities.json",
-      "sha256": "bb07be2ce4dda70827645d8ede7e953c8a6d2030e00dd901c528fe889939574d"
+      "sha256": "c506c0d4001596e73fb20caeea88f993f4beb293f336b6ea5eadd612b2b2267c"
     },
     {
       "bytes": 9490,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_shock_quantities.npz",
-      "sha256": "7355a2cb6e5d7a199b7edf7aec972c93ed2ee9e0dc1995891bbeacdc764dcc89"
+      "sha256": "41edbe0811f6c85ff965333acd15c6ddbd6dd2c87993685e723e230dd0ce540f"
     },
     {
-      "bytes": 2621,
+      "bytes": 2622,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_sky_image_centroid.csv",
-      "sha256": "7a1d384a5c4da600e53c98e82ffadaf42627fd7b08536bf226b7a657d41c22a2"
+      "sha256": "ca6a004c74790bbba78648f806bfa31c80e92f012acf5030cd0193fc9bc52569"
     },
     {
       "bytes": 824,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_sky_image_centroid.json",
-      "sha256": "d34e130c27f0b5235216100dca5d9fe168ff253be326d7c50313025f093e89f4"
+      "sha256": "62766fa31962974ff33ad8b7e725e245fdad62eda2facf1e7932c8669c63d441"
     },
     {
       "bytes": 2388,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_sky_image_centroid.npz",
-      "sha256": "68a5757e9707a31e34d35715b9cadc30886d06142ffa651c1314b959a1fa7ba0"
+      "sha256": "dae77e526ad04ec08e87b39cb88b3f925de8e763132ac30030fb707ce1b35568"
     },
     {
       "bytes": 7179,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_sky_image_flux_comparison.csv",
-      "sha256": "82cc818f9ef70c4a24e67132f04c19a86a2099da3017fdf1165a2d4523b5bfcf"
+      "sha256": "c0b35d7e40b4f6687183cb435c947d0ffa34dc02efa13990aba6b1d0673349bb"
     },
     {
       "bytes": 831,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_sky_image_flux_comparison.json",
-      "sha256": "f912f771be6c993557c2f23040746bfe773068de7e81591239b8a09808421f7b"
+      "sha256": "719acecb9768c610e2a7c6a0ff693000f233b6d061d74d2315c03952f8a20d8c"
     },
     {
-      "bytes": 4620,
+      "bytes": 4617,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_sky_image_flux_comparison.npz",
-      "sha256": "5e6583cfaac8a87ac13ed7c8b4a80dafba5ed7f8225370c659d6c3f45d6364c8"
+      "sha256": "5e5e9faceebfd22190a8632bba50bc8ea19fac03ae023eeb8225244e1406f39f"
     },
     {
       "bytes": 88607,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_sky_image_offaxis.csv",
-      "sha256": "4c06fa421e65ef6577d0717047e4091fe908e9405e0048fda1adc9ee547b5b7f"
+      "sha256": "4fd9417ee111fb2f9b8b82710563926f460982e1524fbedf782558e3163e7fec"
     },
     {
       "bytes": 823,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_sky_image_offaxis.json",
-      "sha256": "2c516411afd0e3f96d218d148548b5ba001b74aac96dcf16f5a4e48f6ab8320e"
+      "sha256": "d5ebca0536eb33918384fed43aab25696113515b4301cefccdb3dfbdf7e1e53d"
     },
     {
-      "bytes": 3394,
+      "bytes": 3386,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_sky_image_offaxis.npz",
-      "sha256": "798b6c423f92f02c08e0ffa9f26d369ca62b620c5554950040ede4626e15e9ba"
+      "sha256": "83d62e3fd5b84cd901779dae9cb737facd8b6585d3abff0ab163df387a04e9ae"
     },
     {
-      "bytes": 199185,
+      "bytes": 199165,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_sky_image_single.csv",
-      "sha256": "195d30f7702b81647c3b13a0c361d8d27cfcd8118ed649101ed828d295d5b187"
+      "sha256": "d8024ccd8fdbf2ff459b1b1a196ec4c750c781f8243fe462770c01a9a1a27178"
     },
     {
       "bytes": 822,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_sky_image_single.json",
-      "sha256": "c08a05851060d78c978759ebb57952d9ad7052e89d5765ffa5b24a8a2952a7c8"
+      "sha256": "d304ffaf2dc24068d37c9dd019187f2b3278675c7fabdad14598dd721bf27936"
     },
     {
       "bytes": 10859,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_sky_image_single.npz",
-      "sha256": "5112bb1d51f237f4b425177d4e942b67c6d180ea4156cec75223eb74968732c8"
+      "sha256": "0a8413da398d13e4665ba55b77095f996c81b01fb570aa38348f1280516d9566"
     },
     {
-      "bytes": 176765,
+      "bytes": 176786,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_spectrum.csv",
-      "sha256": "c0b0d649d127f08dba8b244406fc1c64ae7e0248870a82fe0e9b636632c4fc86"
+      "sha256": "d0a39dc1be4e811daab20ba0d8af3f50fa2de6b64457e5b24a1fb83f23f24b2c"
     },
     {
       "bytes": 814,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_spectrum.json",
-      "sha256": "cbc2f75fdc2e5e40bf5ee06f9dae7de108a24c33b45087ba7b9156ec279df8e8"
+      "sha256": "fed30bbc230fb8f910455e4d50aeec47bb9a6b38113112cc5c43026bcff20caa"
     },
     {
-      "bytes": 50472,
+      "bytes": 50470,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_spectrum.npz",
-      "sha256": "38c0643ec38b4990a8c5c0f12ff64fa6678c35ce578cb6c96c3826b7e6a8146f"
+      "sha256": "abd741e9aa91d6ed2b5349e17ed9340ca0570f7778063009e799f563fdd2663c"
     },
     {
       "bytes": 33,
@@ -1758,7 +1478,7 @@
     {
       "bytes": 819,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_speed_profile.json",
-      "sha256": "cafe0f61f78334cd6aa0e8541ffca8b30f82bba26ba1bde53d8f101ecad327ad"
+      "sha256": "33a557e53e77dbaf207852485a6e3d05a1edbbef4f648ab2fa229f4300bcdc17"
     },
     {
       "bytes": 22,
@@ -1766,19 +1486,29 @@
       "sha256": "8739c76e681f900923b900c9df0ef75cf421d39cabb54650c4b9ad19b6a76d85"
     },
     {
-      "bytes": 162119,
+      "bytes": 162102,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_ssc_lc.csv",
-      "sha256": "d3a17a23586538b25936c55fa4390273920afb32203a95e222d7e933f14b86ed"
+      "sha256": "2aee3f05009a4bb0066917cd4f27403849cc51f752fe43a547dc68fa99d7e1dd"
     },
     {
       "bytes": 812,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_ssc_lc.json",
-      "sha256": "a4907b3a4c3a36708138ab229bf3eb3912ead01e0bb70ba98359207ed70adbdf"
+      "sha256": "6dc4dd61bbf3362a01d512f99475623c0259a48faf4108b94e7924bcf3008bfa"
     },
     {
-      "bytes": 35499,
+      "bytes": 35505,
       "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/compare_ssc_lc.npz",
-      "sha256": "1079467b4a8a37822852fda87a52a88bc76b8956503b8ed0b9d18a35e0050593"
+      "sha256": "60111fbb187d742bfa211d95bc59399b46835d7ddca958497327b91f97ef372b"
+    },
+    {
+      "bytes": 397064,
+      "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/electron_solver_observables.csv",
+      "sha256": "a1612130abd0cf3c03f736f7dde53227b9ed4733d9d94999a7fffb956e1fad8a"
+    },
+    {
+      "bytes": 246584,
+      "path": "paper/source_data/benchmarks/vegas_comparison/hadronic_dominated/electron_solver_spectra.csv",
+      "sha256": "b323c8dad2d88738a80a54000723557001e5225d1f592c47a2bf861944b29e77"
     }
   ]
 }

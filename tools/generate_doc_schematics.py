@@ -17,9 +17,7 @@ mpl.rcParams.update(
     {
         "font.family": "sans-serif",
         "font.sans-serif": ["DejaVu Sans", "Arial", "Helvetica", "sans-serif"],
-        "svg.fonttype": "none",
         "pdf.fonttype": 42,
-        "svg.hashsalt": "asgard-doc-schematics",
         "font.size": 7,
         "axes.spines.right": False,
         "axes.spines.top": False,
@@ -43,7 +41,6 @@ COL = {
 }
 
 STATIC_DATE = datetime(2026, 6, 29, tzinfo=timezone.utc)
-SVG_METADATA = {"Date": STATIC_DATE.isoformat()}
 PDF_METADATA = {"CreationDate": STATIC_DATE, "ModDate": STATIC_DATE}
 
 
@@ -111,12 +108,6 @@ def _label(ax, x, y, text, fs=7, color="ink", ha="center", va="center", weight=N
 
 def _save(fig, stem: Path):
     stem.parent.mkdir(parents=True, exist_ok=True)
-    svg = stem.with_suffix(".svg")
-    if svg.exists():
-        svg.unlink()
-    fig.savefig(svg, bbox_inches="tight", facecolor="white", metadata=SVG_METADATA)
-    svg_text = "\n".join(line.rstrip() for line in svg.read_text(encoding="utf-8").splitlines()) + "\n"
-    svg.write_text(svg_text, encoding="utf-8")
     pdf = stem.with_suffix(".pdf")
     if pdf.exists():
         pdf.unlink()
@@ -124,17 +115,7 @@ def _save(fig, stem: Path):
     png = stem.with_suffix(".png")
     if png.exists():
         png.unlink()
-    fig.savefig(png, dpi=300, bbox_inches="tight", facecolor="white")
-    tiff = stem.with_suffix(".tiff")
-    if tiff.exists():
-        tiff.unlink()
-    fig.savefig(
-        tiff,
-        dpi=300,
-        bbox_inches="tight",
-        facecolor="white",
-        pil_kwargs={"compression": "tiff_lzw"},
-    )
+    fig.savefig(png, dpi=600, bbox_inches="tight", facecolor="white")
     plt.close(fig)
 
 

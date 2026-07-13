@@ -301,9 +301,7 @@ def _save(fig, path: Path) -> Path:
     figdir.mkdir(parents=True, exist_ok=True)
     datadir.mkdir(parents=True, exist_ok=True)
     rows, arrays = _figure_data(fig)
-    save_figure(fig, figdir / stem, png="sky" in stem)
-    svg_path = figdir / f"{stem}.svg"
-    svg_path.write_text("\n".join(line.rstrip() for line in svg_path.read_text(encoding="utf-8").splitlines()) + "\n", encoding="utf-8")
+    save_figure(fig, figdir / stem)
     np.savez_compressed(datadir / f"{stem}.npz", **arrays)
     with (datadir / f"{stem}.csv").open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=("axis", "kind", "series", "label", "x", "y", "value"), lineterminator="\n")
@@ -1867,7 +1865,7 @@ if __name__ == "__main__":
         "--figure-dir",
         type=Path,
         default=FIGURE_DIR,
-        help="Root directory for SVG, PDF, TIFF, and PNG figures.",
+        help="Root directory for PDF and 600-dpi PNG figures.",
     )
     parser.add_argument(
         "--spectrum-quantity",

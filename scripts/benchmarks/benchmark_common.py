@@ -83,14 +83,12 @@ def peak_rss() -> float:
     return float(rss / (1024 if sys.platform != "darwin" else 1024**2))
 
 
-def save_figure(figure, path: Path, *, png: bool = False, dpi: int = 600) -> list[Path]:
-    """Export vector masters and a print TIFF; PNG is reserved for raster maps."""
+def save_figure(figure, path: Path, *, dpi: int = 600) -> list[Path]:
+    """Export an editable PDF master and a 600-dpi PNG."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    formats = ("svg", "pdf", "tiff") + (("png",) if png else ())
-    outputs = [path.with_suffix(f".{suffix}") for suffix in formats]
+    outputs = [path.with_suffix(".pdf"), path.with_suffix(".png")]
     for output in outputs:
-        options = {"pil_kwargs": {"compression": "tiff_lzw"}} if output.suffix == ".tiff" else {}
-        figure.savefig(output, dpi=dpi if output.suffix in {".tiff", ".png"} else None, **options)
+        figure.savefig(output, dpi=dpi if output.suffix == ".png" else None)
     return outputs
 
 

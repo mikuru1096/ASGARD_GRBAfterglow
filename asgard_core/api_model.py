@@ -616,21 +616,21 @@ class SolverOptions:
     dynamics_solver: str
     geometry_projection: str
     electron_photon_coupling: str
-    ssc_cooling_mode: str
-    synchrotron_integration: str
-    cooling_kernel: str
-    structured_backend: str
-    patch_sampling: str
-    patch_sampling_pilot_theta: int
-    patch_sampling_num_times: int
-    patch_sampling_beaming_factor: float
-    patch_sampling_beaming_resolution: float
-    structured_parallel_mode: str
-    structured_outer_threads: int | None
-    structured_inner_threads: int | None
-    fullhide2d_transport_model: str
-    fullhide2d_stochastic_accel_norm: float
-    fullhide2d_escape_mode: str
+    ssc_cooling_mode: str = "nakar_y_thomson"
+    synchrotron_integration: str = "fixed_grid"
+    cooling_kernel: str = "legacy"
+    structured_backend: str = "fortran_1d"
+    patch_sampling: str = "uniform"
+    patch_sampling_pilot_theta: int = 0
+    patch_sampling_num_times: int = 12
+    patch_sampling_beaming_factor: float = 3.0
+    patch_sampling_beaming_resolution: float = 8.0
+    structured_parallel_mode: str = "outer"
+    structured_outer_threads: int | None = None
+    structured_inner_threads: int | None = None
+    fullhide2d_transport_model: str = "legacy"
+    fullhide2d_stochastic_accel_norm: float = 0.0
+    fullhide2d_escape_mode: str = "closed"
     adaptive_grid: str = "manual"
     projection_adaptive_rtol: float = 2.0e-2
     projection_adaptive_max_depth: int = 4

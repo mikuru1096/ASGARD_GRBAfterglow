@@ -1,7 +1,7 @@
 {
   "compiler": "GNU Fortran (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
   "cpu": "x86_64",
-  "git_commit": "27decda154116684355d723a1b8539212ccc93cd",
+  "git_commit": "68d3f2169426feca1df28dfbef3c699fcbe73efd",
   "git_dirty": true,
   "grid": {
     "num_gam_e": 81,

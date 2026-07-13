@@ -62,7 +62,6 @@ CHI_GRID_SCAN_GRID = dict(num_gam_e=16, num_chi=32, num_nu=21, num_r=150, num_th
 PLOT_STYLE = {
     "font.family": "sans-serif",
     "font.sans-serif": ["Arial", "Helvetica", "DejaVu Sans", "sans-serif"],
-    "svg.fonttype": "none",
     "pdf.fonttype": 42,
     "font.size": 7.5,
     "axes.labelsize": 8.0,

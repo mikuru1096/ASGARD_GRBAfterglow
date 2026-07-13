@@ -40,7 +40,6 @@ plt.rcParams.update(
         "axes.spines.top": False,
         "axes.spines.right": False,
         "legend.frameon": False,
-        "svg.fonttype": "none",
         "pdf.fonttype": 42,
     }
 )
@@ -57,11 +56,8 @@ def values(table: list[dict[str, str]], key: str) -> np.ndarray:
 
 def save_pub(fig: plt.Figure, stem: str) -> None:
     FIG_DIR.mkdir(parents=True, exist_ok=True)
-    svg_path = FIG_DIR / f"{stem}.svg"
-    fig.savefig(svg_path)
-    svg_path.write_text("\n".join(line.rstrip() for line in svg_path.read_text(encoding="utf-8").splitlines()) + "\n", encoding="utf-8")
     fig.savefig(FIG_DIR / f"{stem}.pdf")
-    fig.savefig(FIG_DIR / f"{stem}.tiff", dpi=600)
+    fig.savefig(FIG_DIR / f"{stem}.png", dpi=600)
     plt.close(fig)
 
 
@@ -320,8 +316,10 @@ def fig7_radiation() -> None:
     fig,axes=plt.subplots(2,2,figsize=(7.15,4.15)); fig.subplots_adjust(left=.08,right=.98,bottom=.13,top=.91,wspace=.40,hspace=.50)
     axes[0,0].loglog(nu,syn,color=TEAL,lw=1.7,label="synchrotron"); axes[0,0].loglog(nu,ssc,color=VIOLET,lw=1.7,label="SSC"); axes[0,0].loglog(nu,total,color=GRAY,lw=.9,label="total")
     panel(axes[0,0],"a"); finish(axes[0,0],r"$\nu$ (Hz)",r"$F_\nu$","Electron spectrum to radiation"); axes[0,0].legend()
-    frac=np.divide(ssc,total,out=np.zeros_like(ssc),where=total>0); axes[0,1].semilogx(nu,frac,color=VIOLET,lw=1.6); axes[0,1].fill_between(nu,0,frac,color=VIOLET,alpha=.12)
-    panel(axes[0,1],"b"); finish(axes[0,1],r"$\nu$ (Hz)",r"$F_\nu^{SSC}/F_\nu$","Component-dominance map"); axes[0,1].set_ylim(0,1)
+    frac=np.divide(ssc,total,out=np.zeros_like(ssc),where=total>0); axes[0,1].loglog(nu,frac,color=VIOLET,lw=1.6)
+    axes[0,1].fill_between(nu,1.0e-14,frac,color=VIOLET,alpha=.12); axes[0,1].axhline(.5,color=GRAY,ls=":",lw=.8)
+    axes[0,1].text(.04,.90,"synchrotron dominated\nSSC fraction $<3.1\\%$",transform=axes[0,1].transAxes,color=TEAL,fontsize=5.3,va="top")
+    panel(axes[0,1],"b"); finish(axes[0,1],r"$\nu$ (Hz)",r"$F_\nu^{SSC}/F_\nu$","Component-dominance map"); axes[0,1].set_ylim(1.0e-14,1)
 
     state=rows(BENCH/"cross_code"/"complex_state.csv")
     tau_rows=[row for row in state if row["metric_group"]=="chi_projection" and row["value_name"]=="max_tau_syn_chi" and row["value"]]

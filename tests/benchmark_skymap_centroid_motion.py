@@ -460,7 +460,7 @@ def plot_skymaps(maps: dict[str, MapProduct], output: Path) -> None:
         ax.set_xlabel(r"$x$ (mas)")
     axes[0, 0].set_ylabel("1D thin shell\n" + r"$y$ (mas)")
     axes[1, 0].set_ylabel("2D q-shell B decay\n" + r"$y$ (mas)")
-    save_figure(fig, output, png=True)
+    save_figure(fig, output)
     plt.close(fig)
 
 

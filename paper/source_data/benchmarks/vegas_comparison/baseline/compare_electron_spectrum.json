@@ -2,7 +2,7 @@
   "builder": "compare_electron_spectrum",
   "compiler": "GNU Fortran (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
   "cpu": "x86_64",
-  "git_commit": "db412c51be1d813aa5f64e204befe07443b32909",
+  "git_commit": "68d3f2169426feca1df28dfbef3c699fcbe73efd",
   "git_dirty": true,
   "grid": {
     "frequencies": 160,

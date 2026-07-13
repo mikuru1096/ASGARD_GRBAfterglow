@@ -32,7 +32,7 @@ rtk wsl.exe -d Ubuntu -- bash -lc 'source ~/.wsl_env && cd "/mnt/c/Users/jia/Doc
 及各专门 benchmark 脚本是 source-data 入口；它们记录物理假设、版本、网格和
 运行统计量。`tests/generate_paper_figures.py` 是唯一正式只读绘图入口，读取已跟踪的
 `paper/source_data/` 并生成正文 17 张图，不在绘图阶段制造或改写数值证据。正式图同时导出
-SVG、PDF 和 600-dpi TIFF；禁止以手工图片、探索性 `output/` 产物或另一个
+PDF 和 600-dpi PNG；禁止以手工图片、探索性 `output/` 产物或另一个
 TeX 主文件替代该链。最终检查包括引用、单位、交叉引用、图例、字体嵌入、
 source-data 对应关系和干净重建。
 

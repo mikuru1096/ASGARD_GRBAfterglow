@@ -69,7 +69,7 @@ def solver_options(**updates) -> SolverOptions:
         dynamics_solver="forward_legacy",
         geometry_projection="sed_legacy",
         electron_photon_coupling="separated",
-        ssc_cooling_mode="none",
+        ssc_cooling_mode="nakar_y_thomson",
         synchrotron_integration="fixed_grid",
         cooling_kernel="legacy",
         structured_backend="fortran_1d",

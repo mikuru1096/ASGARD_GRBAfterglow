@@ -2,7 +2,7 @@
   "builder": "compare_sky_image_single",
   "compiler": "GNU Fortran (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
   "cpu": "x86_64",
-  "git_commit": "78f6ac7d3c94d6d0b898ec58dc04979c818ddabf",
+  "git_commit": "68d3f2169426feca1df28dfbef3c699fcbe73efd",
   "git_dirty": true,
   "grid": {
     "frequencies": 160,
