@@ -1474,8 +1474,11 @@ def _secondaryrs(
     rs = dynamics.reverse_shock
     if not np.any(rs.secondary_swept_mass_g > 0.0):
         return None
+    mass_gain = np.diff(rs.secondary_branch_swept_mass_g, axis=1, prepend=0.0) > 0.0
+    diss_gain = rs.secondary_branch_gamma_m > 1.0
+    branch_active = np.any(mass_gain & diss_gain, axis=1)
     parent_branch = np.zeros(rs.secondary_branch_gamma_43.shape[0], dtype=np.int32)
-    consecutive = event_active[:-1] & event_active[1:]
+    consecutive = branch_active[:-1] & branch_active[1:]
     parent_branch[1:] = np.where(consecutive, np.arange(1, parent_branch.size), 0)
     (
         gam_e_sec, dist, branch_luminosity, luminosity,

@@ -58,7 +58,7 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,fer,sigma_r,Boundary,n,Num_R, &
     real(8) :: dtgrid,rdecism,rdecwind,tnow,tout,tevent,dbwait,dbevent
     real(8) :: u2init,u4init,dinit,n4init,g34init,n3init,compinit,udinit,einit
     real(8) :: prev_r,prev_g,prev_t,curr_r,curr_g,curr_t
-    real(8), dimension(jmax) :: src_prev,src_cur,diss_prev,gm_prev
+    real(8), dimension(jmax) :: src_prev,src_cur,mass_prev,diss_prev,gm_prev
     real(8), dimension(:), allocatable :: y_prev,y_cur,Y,ywait,yevent
     logical, dimension(jmax) :: event_done
     logical :: ready,shockinit
@@ -91,7 +91,6 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,fer,sigma_r,Boundary,n,Num_R, &
     tnow=tbase
     call init_output()
     call init_event()
-    call init_scan()
 
     ! 观测时间网格只走一遍：先推进 first RS，写 first 输出，再用同一对相邻状态扫描
     ! density-jump multiple-RS 事件和分支诊断。
@@ -102,10 +101,8 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,fer,sigma_r,Boundary,n,Num_R, &
         call save_prim(it)
         call save_r3(it)
         call save_g34(it)
-        call step_scan(it)
         call save_multi(it)
     end do
-    call close_events()
 
     deallocate(y_prev,y_cur,Y,ywait,yevent)
 
@@ -506,11 +503,12 @@ contains
             end do
             if (has_reference) then
                 P = 0d0
-                do I = 1, 3
+                do I = 1, nstate
                     if (.not. ieee_is_finite(y_step(I)) .or. .not. ieee_is_finite(G(I))) then
                         P = huge(1d0)
                         exit
                     end if
+                    if (y_step(I) == 0d0 .and. G(I) == 0d0) cycle
                     if (y_step(I)+G(I) <= 0d0) then
                         P = huge(1d0)
                         exit
@@ -750,6 +748,7 @@ contains
     subroutine init_history()
     implicit none
 
+        mass_prev=0d0
         diss_prev=0d0
         gm_prev=0d0
     end subroutine init_history
@@ -1000,7 +999,7 @@ contains
     integer, intent(in) :: i_out,jb
     integer :: im,iu,iv,ie,ig
     real(8), intent(out) :: de,dg
-    real(8) :: ecum,gcum
+    real(8) :: mcum,ecum,gcum,dm
 
         im=6+jb
         iu=6+njump+jb
@@ -1014,16 +1013,34 @@ contains
         if (branch_v3(jb,i_out) > 0d0) &
             branch_b3(jb,i_out)=dsqrt(8d0*pi*b_r*branch_u3(jb,i_out)/branch_v3(jb,i_out))
 
+        mcum=branch_m3(jb,i_out)
         ecum=Y(ie)*mej*para_c**2
         gcum=Y(ig)*mej*para_c**2
+        dm=mcum-mass_prev(jb)
         de=ecum-diss_prev(jb)
         dg=gcum-gm_prev(jb)
+        if (dm < 0d0) error stop 'multiple RS swept mass must not decrease'
         if (de < 0d0) error stop 'multiple RS dissipated energy must not decrease'
 
         diss_e(i_out)=diss_e(i_out)+de
         inj_e(i_out)=inj_e(i_out)+e_r*de
         if (de > 0d0) branch_gm(jb,i_out)=dg/de
+        if (de > 0d0 .and. dm > 0d0) then
+            if (.not. event_on(jb)) then
+                event_on(jb)=.true.
+                if (i_out > 1) then
+                    start_r(jb)=R(i_out-1)
+                    start_t(jb)=R_Tobs(i_out-1)
+                else
+                    start_r(jb)=R(i_out)
+                    start_t(jb)=R_Tobs(i_out)
+                end if
+            end if
+            end_r(jb)=R(i_out)
+            end_t(jb)=R_Tobs(i_out)
+        end if
 
+        mass_prev(jb)=mcum
         diss_prev(jb)=ecum
         gm_prev(jb)=gcum
     end subroutine save_branch
