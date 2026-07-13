@@ -720,7 +720,7 @@ contains
         do I_tobs=2,Num_R
             do I_jump=1,Num_jump
                 dB=(B3_branch(I_jump,I_tobs)+B3_branch(I_jump,I_tobs-1))/2d0
-                if (dB > 0d0 .and. Gam_m_branch(I_jump,I_tobs) > 1d0) then
+                if (dB > 0d0) then
                     gmax=3d0*Para_m_energy/dsqrt(8d0*dB*Para_e**3)
                     gmax0=max(gmax0,gmax)
                 end if
