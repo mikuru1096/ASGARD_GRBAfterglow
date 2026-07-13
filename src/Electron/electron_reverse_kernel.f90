@@ -662,10 +662,12 @@ subroutine branch_reaccel(e_r,b_r,p_r,f_e_r,z,R_Tobs,R_Gamma,R, &
     real(8) :: f_r,dDR,dDD,injection_rate,mass_lo,mass_hi,mass_delta,fresh_mass,adrate
     real(8) :: parent_mass,transfer_mass,transfer_fraction,boost_factor,compression,seed_energy,out_energy
     logical :: dissipative_shell
+    logical, dimension(Num_jump) :: dg_dirty
     real(8), allocatable, dimension(:) :: dEl,x,dF1,temp3,x_edge,coordEdge,dN_cool
     real(8), allocatable, dimension(:) :: cool_emit,cool_syn,cool_seed,cool_tau,cool_aux
     real(8), allocatable, dimension(:,:) :: dN_x,dN_work,dN_branch,spec_branch,branchState
     real(8), allocatable, dimension(:) :: dN_seed,dN_boost,dN_reaccel,nu_a_dummy
+    real(8), allocatable, dimension(:) :: dg_loss,dg_next,dg_source,dg_template
     real(8), allocatable, dimension(:,:,:) :: dN_gamma_branch
     real(8), allocatable, dimension(:,:) :: seed_dummy
     real(8), allocatable, dimension(:) :: branch_mass_available,fresh_mass_branch
@@ -689,7 +691,8 @@ subroutine branch_reaccel(e_r,b_r,p_r,f_e_r,z,R_Tobs,R_Gamma,R, &
         do I_jump=1,Num_jump
             maxNode=max(maxNode,branch_mesh(I_jump)%ntot)
         end do
-        allocate(branchState(maxNode,Num_jump),coordEdge(Num_gam_e+1))
+        allocate(branchState(maxNode,Num_jump),coordEdge(Num_gam_e+1), &
+                 dg_loss(maxNode),dg_next(maxNode),dg_source(maxNode),dg_template(maxNode))
         branchState=0d0
         do I_gam_e=1,Num_gam_e+1
             coordEdge(I_gam_e)=coord_from_xg(branch_mesh(1)%coord_kind, &
@@ -698,6 +701,7 @@ subroutine branch_reaccel(e_r,b_r,p_r,f_e_r,z,R_Tobs,R_Gamma,R, &
     end if
     d_x=dlog(gam_e(2)/gam_e(1))
     dN_gamma_branch=0d0; dN_total=0d0; dN_x=0d0; branch_mass_available=0d0
+    dg_dirty=.false.
     fresh_mass_branch=0d0
     Branch_L_syn_spec=0d0; L_syn_spec=0d0; Branch_seed_energy=0d0; Branch_reaccel_energy=0d0
 
@@ -719,7 +723,8 @@ subroutine branch_reaccel(e_r,b_r,p_r,f_e_r,z,R_Tobs,R_Gamma,R, &
         Branch_L_syn_spec(I_jump,:,:)=spec_branch
         L_syn_spec=L_syn_spec+spec_branch
     end do
-    if (active_solver == solver_dg) deallocate(branch_mesh,branchState,coordEdge)
+    if (active_solver == solver_dg) &
+        deallocate(branch_mesh,branchState,coordEdge,dg_loss,dg_next,dg_source,dg_template)
     deallocate(dEl,x,dF1,temp3,x_edge,dN_cool,cool_emit,cool_syn,cool_seed,cool_tau,cool_aux, &
                dN_x,dN_work,dN_seed,dN_boost,dN_reaccel,dN_gamma_branch, &
                dN_branch,spec_branch,seed_dummy,nu_a_dummy,branch_mass_available,fresh_mass_branch)
@@ -815,6 +820,8 @@ contains
                     if (active_solver == solver_dg) then
                         call import_dg(parent,dN_work(parent,:))
                         call import_dg(I_jump,dN_work(I_jump,:))
+                        dg_dirty(parent)=.true.
+                        dg_dirty(I_jump)=.true.
                     end if
                     branch_mass_available(parent)=branch_mass_available(parent)-transfer_mass
                     branch_mass_available(I_jump)=branch_mass_available(I_jump)+transfer_mass
@@ -878,41 +885,39 @@ contains
     integer, intent(in) :: i_shell,jump_index
     integer :: node,nodeCount
     real(8), dimension(Num_gam_e-1) :: face_speed
-    real(8), allocatable, dimension(:) :: dg_adiabatic,dg_source_norm,dg_loss
+    real(8) :: source_norm
 
         if (M3_branch(jump_index,i_shell) <= 0d0 .and. M3_branch(jump_index,i_shell-1) <= 0d0) then
             dN_gamma_branch(jump_index,:,i_shell)=dN_x(jump_index,:)/gam_e
             return
         end if
-        if (active_solver == solver_dg .and. index_Y /= 0) &
+        if (active_solver == solver_dg .and. index_Y /= 0 .and. dg_dirty(jump_index)) then
             call export_dg(jump_index,dN_x(jump_index,:))
+            dg_dirty(jump_index)=.false.
+        end if
         call prepare_branch_shell(i_shell,jump_index)
         call branch_inject(i_shell,jump_index)
         if (active_solver == solver_dg) then
             nodeCount=branch_mesh(jump_index)%ntot
-            allocate(dg_adiabatic(L1),dg_source_norm(L1),dg_loss(nodeCount))
-            dg_loss=0d0
+            dg_loss(1:nodeCount)=0d0
             if (index_Y /= 0) then
                 do node=1,nodeCount
                     dg_loss(node)=log_interp(Num_gam_e,x_edge,dEl, &
-                                              branch_mesh(jump_index)%x_gamma(node))
+                                             branch_mesh(jump_index)%x_gamma(node))
                 end do
             end if
             do L=1,L1
                 rloc=rloc+dDR
-                dg_adiabatic(L)=adrate
-                if (injection_rate > 0d0) then
-                    dg_source_norm(L)=injection_rate
-                else
-                    dg_source_norm(L)=0d0
-                end if
             end do
-            call dg_sequence(branch_mesh(jump_index),L1,dDR,index_Y,f_r,dg_loss, &
-                             dg_adiabatic,dg_source_norm, &
-                             p_r,gm,gmax,branchState(1:branch_mesh(jump_index)%ntot,jump_index))
+            source_norm=0d0
+            if (injection_rate > 0d0) source_norm=injection_rate
+            call dg_sequence(branch_mesh(jump_index),L1,dDR,index_Y,f_r, &
+                             dg_loss(1:nodeCount),adrate,source_norm,p_r,gm,gmax, &
+                             branchState(1:nodeCount,jump_index),dg_next(1:nodeCount), &
+                             dg_source(1:nodeCount),dg_template(1:nodeCount))
             call export_dg(jump_index,dN_x(jump_index,:))
+            dg_dirty(jump_index)=.false.
             dN_gamma_branch(jump_index,:,i_shell)=dN_x(jump_index,:)/gam_e
-            deallocate(dg_adiabatic,dg_source_norm,dg_loss)
             return
         end if
 
@@ -1058,42 +1063,37 @@ end function reverse_transport_substeps
 ! 在预建 mesh 上推进单个壳层；gamma_m/gamma_max 只用于真实源项投影。
 ! Advance one shell on a prebuilt mesh; gamma_m/gamma_max enter only the physical source projection.
 subroutine dg_sequence(mesh,num_step,dR,cooling_mode,rad_coeff,loss_nodes, &
-                       adrate_step,srcstep,p,gamma_m,gamma_max,state)
+                       adrate,srcnorm,p,gamma_m,gamma_max,state,advanced, &
+                       source_nodes,source_template)
     implicit none
     type(dg_mesh), intent(in) :: mesh
     integer, intent(in) :: num_step,cooling_mode
     integer :: step
     real(8), intent(in) :: dR,rad_coeff
     real(8), intent(in), dimension(mesh%ntot) :: loss_nodes
-    real(8), intent(in), dimension(num_step) :: adrate_step,srcstep
-    real(8), intent(in) :: p,gamma_m,gamma_max
+    real(8), intent(in) :: adrate,srcnorm,p,gamma_m,gamma_max
     real(8), intent(inout), dimension(mesh%ntot) :: state
-    real(8), allocatable, dimension(:) :: advanced,source_nodes,source_template
-    logical :: has_source
+    real(8), intent(out), dimension(mesh%ntot) :: advanced,source_nodes,source_template
 
-    allocate(advanced(mesh%ntot),source_nodes(mesh%ntot),source_template(mesh%ntot))
-    has_source = maxval(srcstep) > 0d0
-    if (has_source) then
+    if (srcnorm > 0d0) then
         call dg_kinetic_source(mesh,1d0,p,gamma_m,gamma_max,source_template)
         call dg_scale_content(mesh,1d0,source_template)
-    endif
+        source_nodes=srcnorm*source_template
+    else
+        source_nodes=0d0
+        source_template=0d0
+    end if
     do step=1,num_step
-        if (srcstep(step) > 0d0) then
-            source_nodes=srcstep(step)*source_template
-        else
-            source_nodes=0d0
-        end if
         if (cooling_mode == 0) then
-            call dg_char_step(mesh,dR,rad_coeff,adrate_step(step), &
+            call dg_char_step(mesh,dR,rad_coeff,adrate, &
                               source_nodes,state,advanced)
         else
-            call dg_advance_step(mesh,adrate_step(step),dR,loss_nodes, &
+            call dg_advance_step(mesh,adrate,dR,loss_nodes, &
                                  source_nodes,state,advanced)
             call dg_limit_positive(mesh,advanced)
         end if
         state=advanced
     end do
-    deallocate(advanced,source_nodes,source_template)
 end subroutine dg_sequence
 
 real(8) function log_interp(Num_gam_e,x_edge,values,x_eval) result(value)
