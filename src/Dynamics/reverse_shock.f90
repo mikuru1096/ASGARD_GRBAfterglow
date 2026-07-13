@@ -459,8 +459,10 @@ contains
                     call secondary_event_window(K,ol,oh,width,center)
                     if (C(2) < oh .and. y_step(2) > ol) sec_check=.true.
                 end do
-                if (.not. sec_check .and. nstate > 6) &
-                    sec_check=any(y_step(7:nstate) /= C(7:nstate))
+                if (.not. sec_check .and. njump > 0) then
+                    sec_check=any(y_step(7:6+njump) /= C(7:6+njump)) .or. &
+                              any(y_step(7+3*njump:6+5*njump) /= C(7+3*njump:6+5*njump))
+                end if
                 do I = 1, nstate
                     if (I > 3 .and. (I < 7 .or. .not. sec_check)) cycle
                     if (.not. ieee_is_finite(y_step(I)) .or. .not. ieee_is_finite(G(I))) then
@@ -561,7 +563,7 @@ contains
     real(8), intent(inout) :: s_step
     real(8), dimension(nstate) :: y_base,y_end,y_mid
     real(8), dimension(rs_nstate) :: rs_base,rs_end,rs_mid
-    real(8) :: s_base,s_end,s_mid,knot,h_lo,h_hi,h_mid,hcut
+    real(8) :: s_base,s_end,s_mid,knot,h_lo,h_hi,h_mid,hcut,ol,oh,width,center
     real(8) :: source0,source1,source2,root
     logical :: found,cut
 
@@ -585,6 +587,20 @@ contains
             y_step=y_base; rs_step=rs_base; s_step=s_base
             call rk_event(phase,rs_step,x_base,s_step,hcut,y_step)
             call rk_event(phase,rs_step,x_base,s_step,h_step-hcut,y_step)
+            return
+        end if
+
+        cut=.false.
+        do j=jump_count+1,njump
+            call secondary_event_window(j,ol,oh,width,center)
+            if (y_base(2) < oh .and. y_end(2) > ol) cut=.true.
+        end do
+        if (.not. cut .and. njump > 0) then
+            cut=any(y_end(7:6+njump) /= y_base(7:6+njump)) .or. &
+                any(y_end(7+3*njump:6+5*njump) /= y_base(7+3*njump:6+5*njump))
+        end if
+        if (.not. cut) then
+            y_step=y_end; rs_step=rs_end; s_step=s_end
             return
         end if
 
