@@ -36,12 +36,12 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
 
     type(dg_mesh) :: mesh, new_mesh
     real(8), allocatable, dimension(:) :: state,projected,gdg,deldg,delbase,srcdg,srctpl
-    real(8), allocatable, dimension(:) :: nxinit,xedge,yedge,srcgrid,pemit,tau
+    real(8), allocatable, dimension(:) :: nxinit,xedge,yedge,srcgrid,pemit,tau,cool_syn,cool_seed
     real(8), allocatable, dimension(:) :: thermal_x,thermal_out,thermal_src,loss_grid,loss_base,dg_dgam,th_dgam
     real(8) :: Eta_0, Epsilon_e, Epsilon_b, p, z, nism, A_star, E_iso, tdur_log, f_e, R_tr
     real(8) :: f_jump, f_wide, R0, dNe, ninit, DB, DB_min, gemax0, gemax, gm, gc, temp_gam, beta_Gam
     real(8) :: dDD, R_loc, gloc, dNe_shell, dNe_step, DB_step, gmax_step, gm_step, gmp_step, source_norm
-    real(8) :: thermal_norm, temp, gmax_inj, gm_inj, gmp_shell, dR_base, dR_step, R_end, R_mid, dgscale
+    real(8) :: thermal_norm, gmax_inj, gm_inj, gmp_shell, dR_base, dR_step, R_end, R_mid, dgscale
     real(8) :: coord_scale, cache_gm, cache_gmax
     real(8), parameter :: dg_substeps = 10d0, jump_sigma = 4d0, jump_nsigma = 8d0, jump_logstep = 5d-2
     real(8), parameter :: tail_thresh = 1d-10, tail_power = 2d0
@@ -49,7 +49,8 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
     logical :: cache_ready, uniform_shell, has_thermal
 
     allocate(nxinit(Num_gam_e), xedge(Num_gam_e+1), yedge(Num_gam_e+1), srcgrid(Num_gam_e), &
-             pemit(Num_nu), tau(Num_nu), thermal_x(Num_gam_e), thermal_out(Num_gam_e), &
+             pemit(Num_nu), tau(Num_nu), cool_syn(Num_nu), cool_seed(Num_nu), &
+             thermal_x(Num_gam_e), thermal_out(Num_gam_e), &
              thermal_src(Num_gam_e), loss_grid(Num_gam_e), loss_base(Num_gam_e), &
              dg_dgam(Num_gam_e), th_dgam(Num_gam_e))
 
@@ -61,6 +62,8 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
     has_thermal = thermal_electrons /= 0 .and. f_e < 1d0
     P_syn = 0d0
     Seed_syn = 0d0
+    cool_syn = 0d0
+    cool_seed = 0d0
     V_m = 0d0
     V_c = 0d0
     V_a = 0d0
@@ -83,10 +86,11 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
     call electron_gm_exact(p, temp_gam, gemax, gm)
     gc = 7.7d8/(1d0 + dsqrt(Epsilon_e/Epsilon_b))/R_Gamma(1)/DB**2/(R_Tobs(1)/2d0)
     call init_fourvel_grid()
+    call write_node_rad(1)
 
     do I_tobs = 2, Num_R
         call prepare_shell(I_tobs)
-        call write_rad_breaks(I_tobs)
+        call prepare_cool(I_tobs)
         call remesh_shell(gemax, gm, gc, gemax)
 
         R_end = R(I_tobs)
@@ -99,11 +103,11 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
             R_loc = R_loc + dR_step
         enddo
         call write_positive_output(I_tobs)
+        call write_node_rad(I_tobs)
     enddo
-    call write_final()
 
-    deallocate(state, nxinit, xedge, yedge, srcgrid, pemit, tau, thermal_x, thermal_out, &
-               thermal_src, loss_grid, loss_base, dg_dgam, th_dgam)
+    deallocate(state, nxinit, xedge, yedge, srcgrid, pemit, tau, cool_syn, cool_seed, &
+               thermal_x, thermal_out, thermal_src, loss_grid, loss_base, dg_dgam, th_dgam)
     if (allocated(projected)) deallocate(projected)
     if (allocated(gdg)) deallocate(gdg, deldg, delbase, srcdg, srctpl)
 
@@ -148,41 +152,41 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
         dDD = R(it) - R(it - 1)
     end subroutine prepare_shell
 
-    ! 写当前壳层的同步辐射谱和三个 break frequency 诊断。
-    ! Write the current shell synchrotron spectrum and the 3 break-frequency diagnostics.
-    subroutine write_rad_breaks(it)
+    ! 推进前用当前壳层状态生成独立冷却辐射场，不写公开节点输出。
+    ! Build the shell cooling radiation field before advancing without writing node output.
+    subroutine prepare_cool(it)
         integer, intent(in) :: it
 
-        V_m(it - 1) = 4.2d6*DB*gm_inj*gm_inj/(gloc*(1d0 - beta_Gam)*(1d0 + z))
-        V_c(it - 1) = 4.2d6*DB*gc*gc/(gloc*(1d0 - beta_Gam)*(1d0 + z))
+        if (index_Y == 0) return
         call syn_state(index_syn_intger, R_loc, DB, Num_gam_e, Num_nu, n_threads, &
                                     gam_e, dN_gam_e(:,it - 1), V_seed, pemit, &
-                                    P_syn(:,it), Seed_syn(:,it), tau)
-        call nua_fromtau(Num_nu, V_seed, tau, temp)
-        V_a(it - 1) = temp/(gloc*(1d0 - beta_Gam)*(1d0 + z))
-    end subroutine write_rad_breaks
+                                    cool_syn, cool_seed, tau)
+    end subroutine prepare_cool
 
-    ! 最后一个输出点没有后续推进，只刷新与最终电子谱一致的辐射诊断。
-    ! The final output point has no following advance, so refresh diagnostics from the final electron spectrum.
-    subroutine write_final()
-        R_loc = R(Num_R)
-        gloc = R_Gamma(Num_R)
-        if (gloc < 1d0) error stop 'fs_dg_1d requires Gamma >= 1'
-        beta_Gam = dsqrt(1d0 - 1d0/gloc**2)
-        call density_profile(A_star, nism, R_loc, R0, 1, R_tr, f_jump, f_wide, dNe_shell)
-        DB = 0.39d0*dsqrt(Epsilon_b*dNe_shell*(gloc*(gloc - 1d0)))
-        gemax = 3d0*Para_m_energy/dsqrt(8d0*DB*Para_e**3)
-        temp_gam = Epsilon_e/f_e*para_m_p/para_m_e*(gloc - 1d0)
-        call electron_gm_exact(p, temp_gam, gemax, gm)
-        gc = 7.7d8*(1d0 + z)/gloc/DB**2/R_Tobs(Num_R)
-        V_m(Num_R) = 4.2d6*DB*gm*gm/(gloc*(1d0 - beta_Gam)*(1d0 + z))
-        V_c(Num_R) = 4.2d6*DB*gc*gc/(gloc*(1d0 - beta_Gam)*(1d0 + z))
-        call syn_state(index_syn_intger, R_loc, DB, Num_gam_e, Num_nu, n_threads, &
-                                    gam_e, dN_gam_e(:,Num_R), V_seed, pemit, &
-                                    P_syn(:,Num_R), Seed_syn(:,Num_R), tau)
-        call nua_fromtau(Num_nu, V_seed, tau, temp)
-        V_a(Num_R) = temp/(gloc*(1d0 - beta_Gam)*(1d0 + z))
-    end subroutine write_final
+    ! 公开辐射严格使用同一输出节点的动力学、介质和电子谱。
+    ! Public radiation uses dynamics, medium, and electrons from the same output node.
+    subroutine write_node_rad(it)
+        integer, intent(in) :: it
+        real(8) :: R_node, Gamma_node, beta_node, density_node, B_node
+        real(8) :: gmax_node, gm_node, gc_node, temp_node, nua_node
+
+        R_node = R(it)
+        Gamma_node = R_Gamma(it)
+        if (Gamma_node < 1d0) error stop 'fs_dg_1d requires Gamma >= 1'
+        beta_node = dsqrt(1d0 - 1d0/Gamma_node**2)
+        call density_profile(A_star, nism, R_node, R0, 1, R_tr, f_jump, f_wide, density_node)
+        B_node = 0.39d0*dsqrt(Epsilon_b*density_node*(Gamma_node*(Gamma_node - 1d0)))
+        gmax_node = 3d0*Para_m_energy/dsqrt(8d0*B_node*Para_e**3)
+        temp_node = Epsilon_e/f_e*para_m_p/para_m_e*(Gamma_node - 1d0)
+        call electron_gm_exact(p, temp_node, gmax_node, gm_node)
+        gc_node = 7.7d8*(1d0 + z)/Gamma_node/B_node**2/R_Tobs(it)
+        V_m(it) = 4.2d6*B_node*gm_node*gm_node/(Gamma_node*(1d0 - beta_node)*(1d0 + z))
+        V_c(it) = 4.2d6*B_node*gc_node*gc_node/(Gamma_node*(1d0 - beta_node)*(1d0 + z))
+        call syn_state(index_syn_intger, R_node, B_node, Num_gam_e, Num_nu, n_threads, &
+                       gam_e, dN_gam_e(:,it), V_seed, pemit, P_syn(:,it), Seed_syn(:,it), tau)
+        call nua_fromtau(Num_nu, V_seed, tau, nua_node)
+        V_a(it) = nua_node/(Gamma_node*(1d0 - beta_node)*(1d0 + z))
+    end subroutine write_node_rad
 
     ! 根据当前 cutoff 和尾部矩判断是否扩展 DG 网格，并守恒投影旧状态。
     ! Resize the DG mesh from the current cutoff and tail moment, then conservatively project the old state.
@@ -210,12 +214,12 @@ subroutine fs_dg_1d(Boundary, R_Tobs, R_Gamma, R, V_seed, n, Num_nu, Num_R, Num_
         gdg = mesh%gamma
         call forward_cooling(1,index_Y, Epsilon_e, Epsilon_b, p, DB, gm, gc, gemax, &
                              R_loc, gloc, beta_Gam, dNe_shell, mesh%ntot, Num_nu, 1, n_threads, &
-                             gdg, V_seed, P_syn(:,I_tobs), Seed_syn(:,I_tobs), Seed_syn(:,I_tobs), &
+                             gdg, V_seed, cool_syn, cool_seed, cool_seed, &
                              deldg, delbase)
         if (has_thermal) then
             call forward_cooling(1,index_Y, Epsilon_e, Epsilon_b, p, DB, gm, gc, gemax, &
                                  R_loc, gloc, beta_Gam, dNe_shell, Num_gam_e, Num_nu, 1, n_threads, &
-                                 gam_e, V_seed, P_syn(:,I_tobs), Seed_syn(:,I_tobs), Seed_syn(:,I_tobs), &
+                                 gam_e, V_seed, cool_syn, cool_seed, cool_seed, &
                                  loss_grid, loss_base)
         endif
 
