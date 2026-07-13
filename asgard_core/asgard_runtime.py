@@ -1407,15 +1407,6 @@ def _rselectrons(
     return np.asarray(gam_e, dtype=float), np.asarray(d_n_gam_e, dtype=float)
 
 
-def _shellsyn(args):
-    i, radius, bfield, index_syn, gam_e, d_n_gam_e_col, v_seed = args
-    if bfield <= 0.0:
-        return i, None, None
-    _, p_syn, seed_syn, _ = electron_radiation_module.syn_state(
-        index_syn, float(radius), float(bfield), 1, gam_e, d_n_gam_e_col, v_seed)
-    return i, p_syn, seed_syn
-
-
 def _rssynch(
     dynamics: DynamicsSolution,
     v_seed: np.ndarray,
@@ -1427,30 +1418,18 @@ def _rssynch(
     d_n_gam_e = dynamics.reverse_shock.d_n_gam_e
     if gam_e is None or d_n_gam_e is None:
         raise ValueError("Reverse shock electrons are required to compute reverse emission.")
-    num_nu, num_r = v_seed.shape[0], dynamics.radius.shape[0]
-    l_syn_spec, seed_syn = np.zeros((2, num_nu, num_r), dtype=float)
-    bfield = dynamics.reverse_shock.magnetic_field_g
-    radius = dynamics.radius
-
-    tasks = [(i, radius[i], bfield[i], config.index_syn_integr,
-              gam_e, d_n_gam_e[:, i], v_seed) for i in range(num_r) if bfield[i] > 0.0]
-    if not tasks:
-        return l_syn_spec, seed_syn
-    workers = min(config.num_threads, len(tasks))
-    if workers > 1:
-        from concurrent.futures import ThreadPoolExecutor
-        with ThreadPoolExecutor(max_workers=workers) as ex:
-            for i, p_syn_i, seed_syn_i in ex.map(_shellsyn, tasks):
-                if p_syn_i is not None:
-                    l_syn_spec[:, i] = p_syn_i
-                    seed_syn[:, i] = seed_syn_i
-    else:
-        for task in tasks:
-            i, p_syn_i, seed_syn_i = _shellsyn(task)
-            if p_syn_i is not None:
-                l_syn_spec[:, i] = p_syn_i
-                seed_syn[:, i] = seed_syn_i
-    return l_syn_spec, seed_syn
+    l_syn_spec, seed_syn, _ = _reversemodule().electron_reverse_kernel.multiple_synch(
+        config.index_syn_integr,
+        config.num_threads,
+        dynamics.radius,
+        dynamics.r_gamma,
+        dynamics.reverse_shock.magnetic_field_g,
+        gam_e,
+        d_n_gam_e,
+        v_seed,
+        config.z,
+    )
+    return np.asarray(l_syn_spec, dtype=float), np.asarray(seed_syn, dtype=float)
 
 
 def _secondaryrs(
