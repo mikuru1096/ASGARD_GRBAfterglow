@@ -378,7 +378,7 @@ def _build_ordered_object_module(
         object_path = build_dir / f"{source_path.stem}.o"
         manifest_path = build_dir / f"{source_path.stem}.manifest"
         manifest_text = f"source={source_path}\nfc={fc}\nflags={shlex.join(compile_flags)}"
-        if dirty_seen or not _object_current(object_path, source_path, manifest_path, manifest_text):
+        if force or dirty_seen or not _object_current(object_path, source_path, manifest_path, manifest_text):
             command = [fc, "-c", *compile_flags, str(source_path), "-o", str(object_path)]
             _run_command(command, cwd, env, log_dir / f"{module_name}_ordered_compile_{source_path.stem}.log")
             manifest_path.write_text(manifest_text, encoding="utf-8")
@@ -389,7 +389,7 @@ def _build_ordered_object_module(
     main_source_name = Path(sources[-1]).name
     main_source_path = (cwd / main_source_name).resolve()
     signature_source_path = build_dir / main_source_name
-    if not signature_source_path.is_file() or signature_source_path.stat().st_mtime < main_source_path.stat().st_mtime:
+    if force or not signature_source_path.is_file() or signature_source_path.stat().st_mtime < main_source_path.stat().st_mtime:
         _write_f2py_signature_source(main_source_path, signature_source_path)
     wrapper_manifest_path = build_dir / "wrapper.manifest"
     wrapper_manifest_text = (
@@ -402,7 +402,7 @@ def _build_ordered_object_module(
         and all(path.is_file() for path in wrapper_outputs)
         and all(path.stat().st_mtime >= (cwd / main_source_name).resolve().stat().st_mtime for path in wrapper_outputs)
     )
-    if not wrapper_current:
+    if force or not wrapper_current:
         signature_command = [
             sys.executable,
             "-m",
@@ -450,7 +450,7 @@ def _build_ordered_object_module(
         ]
         manifest_path = build_dir / f"{source.stem}.manifest"
         manifest_text = "\n".join([f"source={source}", f"cc={cc}", f"flags={shlex.join(c_flags)}"])
-        if not _object_current(object_path, source, manifest_path, manifest_text):
+        if force or not _object_current(object_path, source, manifest_path, manifest_text):
             compile_c = [
                 cc,
                 "-c",
@@ -474,7 +474,7 @@ def _build_ordered_object_module(
         manifest_path = build_dir / f"{wrapper_source.stem}.manifest"
         wrapper_flags = ["-fPIC"]
         manifest_text = "\n".join([f"source={wrapper_source}", f"fc={fc}", f"flags={shlex.join(wrapper_flags)}"])
-        if not _object_current(wrapper_object, wrapper_source, manifest_path, manifest_text):
+        if force or not _object_current(wrapper_object, wrapper_source, manifest_path, manifest_text):
             compile_wrapper = [fc, "-c", *wrapper_flags, str(wrapper_source), "-o", str(wrapper_object)]
             _run_command(
                 compile_wrapper,

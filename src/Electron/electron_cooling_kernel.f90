@@ -95,7 +95,7 @@ real(8) :: cscale,ssascale,fr,qvol
         qvol=4d0*pi*rloc*rloc*para_c
         do ic=1,nchi
             g0=(ic-1)*ng
-            comp=1d0+aux(g0+1:g0+ng)/qvol/(4d0*rg*rg*dens*Para_m_p_E)
+            comp=1d0+aux(g0+1:g0+ng)/qvol/(db*db/(8d0*pi))
             del(g0+1:g0+ng)=(fr*comp-del(g0+1:g0+ng)*ssascale)*gam
         end do
     else

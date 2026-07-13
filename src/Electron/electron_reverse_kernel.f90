@@ -50,7 +50,7 @@ contains
     real(8), intent(out), dimension(Num_gam_e,Num_R) :: dN_gam_e
     real(8), parameter :: gc_coeff=7.7d8, bsyn_coeff=0.39d0, adv_coeff=1.35d-19, trans_break=2d0
     real(8), parameter :: tail_thresh=1d-10, tail_power=2d0
-    real(8) :: factor2, dB, gamma34, gmax, gm, gc, dNe, DB_min, gmax0, gmin, d_x, rloc, gloc, Delta, rn4
+    real(8) :: factor2, dB, gamma34, gmax, gm, gc, dNe, DB_min, gmax0, gmin, d_x, rloc, gloc
     real(8) :: beta4, beta2, u2, u4, f_r, dDR, dDD, Qshell, coolscale, R_step_mid, vol_lo, vol_hi
     real(8) :: thermloss, adrate, dgscale, coord_scale, dglow, dgmid, dghigh
     real(8) :: injection_rate, inj_hi, inj_width, mass_lo, mass_hi, rhi
@@ -147,8 +147,6 @@ contains
     do I_tobs=2,Num_R
         rloc=R(I_tobs-1)
         gloc=(R_Gamma(I_tobs)+R_Gamma(I_tobs-1))/2d0
-        Delta=max(Delta_0,rloc/Eta_0**2)
-        rn4=para_m_ej/(4d0*pi*Para_m_p*rloc*rloc*Eta_0*Delta)
         beta2=dsqrt(1d0-1d0/gloc**2)
         u2=dsqrt(gloc*gloc-1d0)
         gamma34=(gloc*gloc+eta_0*eta_0-1d0)/(eta_0*gloc+u2*u4)
@@ -237,7 +235,7 @@ contains
             dEl=(f_r+cooling_aux*coolscale)*gam_e
         case(2)
             Qshell=4d0*pi*R(I_tobs-1)*R(I_tobs-1)*Para_c
-            Compton=1d0+cooling_aux/Qshell/(4d0*gloc*gloc*rn4*Para_m_p_E)
+            Compton=1d0+cooling_aux/Qshell/(dB*dB/(8d0*pi))
             gmax=gmax/dsqrt(Compton(Num_gam_e))
             dEl=f_r*Compton*gam_e
         case default
@@ -641,11 +639,11 @@ end subroutine multiple_synch
 subroutine branch_reaccel(e_r,b_r,p_r,f_e_r,z,R_Tobs,R_Gamma,R, &
                                                            B3_branch,M3_branch,U3_branch,V3_branch, &
                                                            Gam_m_branch,Gamma43_branch,Comp_branch,Parent_branch, &
-                                                           V_seed,Num_jump,Num_nu,Num_R,Num_gam_e,index_syn_intger, &
+                                                           V_seed,Num_jump,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger, &
                                                            n_threads,gam_e,dN_total,Branch_L_syn_spec,L_syn_spec, &
                                                            Branch_seed_energy,Branch_reaccel_energy,solver_id)
     implicit none
-    integer, intent(in) :: Num_jump,Num_nu,Num_R,Num_gam_e,index_syn_intger,n_threads
+    integer, intent(in) :: Num_jump,Num_nu,Num_R,Num_gam_e,index_Y,index_syn_intger,n_threads
     integer, intent(in), dimension(Num_jump) :: Parent_branch
     integer, intent(in), optional :: solver_id
     integer :: I_tobs,I_jump,I_gam_e,L1,L,parent,active_solver,maxNode
@@ -664,7 +662,8 @@ subroutine branch_reaccel(e_r,b_r,p_r,f_e_r,z,R_Tobs,R_Gamma,R, &
     real(8) :: f_r,dDR,dDD,injection_rate,mass_lo,mass_hi,mass_delta,fresh_mass,adrate
     real(8) :: parent_mass,transfer_mass,transfer_fraction,boost_factor,compression,seed_energy,out_energy
     logical :: dissipative_shell
-    real(8), allocatable, dimension(:) :: dEl,x,dF1,temp3,x_edge,coordEdge
+    real(8), allocatable, dimension(:) :: dEl,x,dF1,temp3,x_edge,coordEdge,dN_cool
+    real(8), allocatable, dimension(:) :: cool_emit,cool_syn,cool_seed,cool_tau,cool_aux
     real(8), allocatable, dimension(:,:) :: dN_x,dN_work,dN_branch,spec_branch,branchState
     real(8), allocatable, dimension(:) :: dN_seed,dN_boost,dN_reaccel,nu_a_dummy
     real(8), allocatable, dimension(:,:,:) :: dN_gamma_branch
@@ -674,6 +673,8 @@ subroutine branch_reaccel(e_r,b_r,p_r,f_e_r,z,R_Tobs,R_Gamma,R, &
 
     active_solver=resolve_solver(solver_id)
     allocate(dEl(Num_gam_e),x(Num_gam_e),dF1(Num_gam_e),temp3(Num_gam_e-1),x_edge(Num_gam_e+1), &
+             dN_cool(Num_gam_e),cool_emit(Num_nu),cool_syn(Num_nu),cool_seed(Num_nu), &
+             cool_tau(Num_nu),cool_aux(Num_gam_e), &
              dN_x(Num_jump,Num_gam_e),dN_work(Num_jump,Num_gam_e),dN_seed(Num_gam_e),dN_boost(Num_gam_e), &
              dN_reaccel(Num_gam_e),dN_gamma_branch(Num_jump,Num_gam_e,Num_R), &
              dN_branch(Num_gam_e,Num_R),spec_branch(Num_nu,Num_R),seed_dummy(Num_nu,Num_R), &
@@ -719,7 +720,8 @@ subroutine branch_reaccel(e_r,b_r,p_r,f_e_r,z,R_Tobs,R_Gamma,R, &
         L_syn_spec=L_syn_spec+spec_branch
     end do
     if (active_solver == solver_dg) deallocate(branch_mesh,branchState,coordEdge)
-    deallocate(dEl,x,dF1,temp3,x_edge,dN_x,dN_work,dN_seed,dN_boost,dN_reaccel,dN_gamma_branch, &
+    deallocate(dEl,x,dF1,temp3,x_edge,dN_cool,cool_emit,cool_syn,cool_seed,cool_tau,cool_aux, &
+               dN_x,dN_work,dN_seed,dN_boost,dN_reaccel,dN_gamma_branch, &
                dN_branch,spec_branch,seed_dummy,nu_a_dummy,branch_mass_available,fresh_mass_branch)
 
 contains
@@ -873,17 +875,28 @@ contains
     subroutine advance_reaccel(i_shell,jump_index)
     implicit none
     integer, intent(in) :: i_shell,jump_index
+    integer :: node,nodeCount
     real(8), dimension(Num_gam_e-1) :: face_speed
-    real(8), allocatable, dimension(:) :: dg_adiabatic,dg_source_norm
+    real(8), allocatable, dimension(:) :: dg_adiabatic,dg_source_norm,dg_loss
 
         if (M3_branch(jump_index,i_shell) <= 0d0 .and. M3_branch(jump_index,i_shell-1) <= 0d0) then
             dN_gamma_branch(jump_index,:,i_shell)=dN_x(jump_index,:)/gam_e
             return
         end if
+        if (active_solver == solver_dg .and. index_Y /= 0) &
+            call export_dg(jump_index,dN_x(jump_index,:))
         call prepare_branch_shell(i_shell,jump_index)
         call branch_inject(i_shell,jump_index)
         if (active_solver == solver_dg) then
-            allocate(dg_adiabatic(L1),dg_source_norm(L1))
+            nodeCount=branch_mesh(jump_index)%ntot
+            allocate(dg_adiabatic(L1),dg_source_norm(L1),dg_loss(nodeCount))
+            dg_loss=0d0
+            if (index_Y /= 0) then
+                do node=1,nodeCount
+                    dg_loss(node)=log_interp(Num_gam_e,x_edge,dEl, &
+                                              branch_mesh(jump_index)%x_gamma(node))
+                end do
+            end if
             do L=1,L1
                 rloc=rloc+dDR
                 dg_adiabatic(L)=adrate
@@ -893,11 +906,12 @@ contains
                     dg_source_norm(L)=0d0
                 end if
             end do
-            call dg_sequence(branch_mesh(jump_index),L1,dDR,f_r,dg_adiabatic,dg_source_norm, &
+            call dg_sequence(branch_mesh(jump_index),L1,dDR,index_Y,f_r,dg_loss, &
+                             dg_adiabatic,dg_source_norm, &
                              p_r,gm,gmax,branchState(1:branch_mesh(jump_index)%ntot,jump_index))
             call export_dg(jump_index,dN_x(jump_index,:))
             dN_gamma_branch(jump_index,:,i_shell)=dN_x(jump_index,:)/gam_e
-            deallocate(dg_adiabatic,dg_source_norm)
+            deallocate(dg_adiabatic,dg_source_norm,dg_loss)
             return
         end if
 
@@ -934,13 +948,37 @@ contains
         dDR=0.7d0/(f_r*gmax+1d0/R(i_shell-1))
         L1=reverse_transport_substeps(dDR,dDD,active_solver)
         dDR=dDD/L1
-        dEl=f_r*gam_e
         if (V3_branch(jump_index,i_shell) <= 0d0 .or. V3_branch(jump_index,i_shell-1) <= 0d0) then
             adrate=0d0
         else
             adrate=dlog(V3_branch(jump_index,i_shell)/V3_branch(jump_index,i_shell-1))/(3d0*dDD)
         end if
+        if (index_Y == 0) then
+            dEl=f_r*gam_e
+        else
+            call prepare_branch_cooling(i_shell,jump_index)
+        end if
     end subroutine prepare_branch_shell
+
+    ! 用本分支当前同步光子场组装能量依赖的 IC/SSA 冷却率。
+    ! Assemble energy-dependent IC/SSA losses from the branch's current synchrotron field.
+    subroutine prepare_branch_cooling(i_shell,jump_index)
+    implicit none
+    integer, intent(in) :: i_shell,jump_index
+    real(8) :: gc_branch,density_branch
+
+        if (M3_branch(jump_index,i_shell) <= 0d0 .or. &
+            V3_branch(jump_index,i_shell) <= 0d0) &
+            error stop "branch_reaccel: cooling branch requires positive mass and volume."
+        density_branch=M3_branch(jump_index,i_shell)/(Para_m_p*V3_branch(jump_index,i_shell))
+        gc_branch=7.7d8*(1d0+z)/(gloc*dB*dB*R_Tobs(i_shell))
+        dN_cool=dN_x(jump_index,:)/gam_e
+        call syn_state(index_syn_intger,R(i_shell-1),dB,Num_gam_e,Num_nu,n_threads, &
+                       gam_e,dN_cool,V_seed,cool_emit,cool_syn,cool_seed,cool_tau)
+        call forward_cooling(1,index_Y,e_r,b_r,p_r,dB,gm,gc_branch,gmax,R(i_shell-1), &
+                             gloc,beta2,density_branch,Num_gam_e,Num_nu,1,n_threads, &
+                             gam_e,V_seed,cool_syn,cool_seed,cool_seed,cool_aux,dEl)
+    end subroutine prepare_branch_cooling
 
     subroutine branch_inject(i_shell,jump_index)
     implicit none
@@ -1018,12 +1056,14 @@ end function reverse_transport_substeps
 
 ! 在预建 mesh 上推进单个壳层；gamma_m/gamma_max 只用于真实源项投影。
 ! Advance one shell on a prebuilt mesh; gamma_m/gamma_max enter only the physical source projection.
-subroutine dg_sequence(mesh,num_step,dR,rad_coeff,adrate_step,srcstep,p,gamma_m,gamma_max,state)
+subroutine dg_sequence(mesh,num_step,dR,cooling_mode,rad_coeff,loss_nodes, &
+                       adrate_step,srcstep,p,gamma_m,gamma_max,state)
     implicit none
     type(dg_mesh), intent(in) :: mesh
-    integer, intent(in) :: num_step
+    integer, intent(in) :: num_step,cooling_mode
     integer :: step
     real(8), intent(in) :: dR,rad_coeff
+    real(8), intent(in), dimension(mesh%ntot) :: loss_nodes
     real(8), intent(in), dimension(num_step) :: adrate_step,srcstep
     real(8), intent(in) :: p,gamma_m,gamma_max
     real(8), intent(inout), dimension(mesh%ntot) :: state
@@ -1042,8 +1082,14 @@ subroutine dg_sequence(mesh,num_step,dR,rad_coeff,adrate_step,srcstep,p,gamma_m,
         else
             source_nodes=0d0
         end if
-        call dg_char_step(mesh,dR,rad_coeff,adrate_step(step), &
-                                                       source_nodes,state,advanced)
+        if (cooling_mode == 0) then
+            call dg_char_step(mesh,dR,rad_coeff,adrate_step(step), &
+                              source_nodes,state,advanced)
+        else
+            call dg_advance_step(mesh,adrate_step(step),dR,loss_nodes, &
+                                 source_nodes,state,advanced)
+            call dg_limit_positive(mesh,advanced)
+        end if
         state=advanced
     end do
     deallocate(advanced,source_nodes,source_template)

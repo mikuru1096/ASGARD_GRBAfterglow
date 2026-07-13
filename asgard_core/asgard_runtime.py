@@ -1502,6 +1502,7 @@ def _secondaryrs(
         np.ascontiguousarray(parent_branch, dtype=np.int32),
         v_seed,
         config.num_gam_e,
+        config.index_y,
         config.index_syn_integr,
         config.num_threads,
         solver_id=_transportid(config),
