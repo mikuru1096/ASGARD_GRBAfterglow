@@ -6,7 +6,7 @@ module dynamics_density_profile
     public :: jump_max, jump_count, profile_count
     public :: jump_radius, jump_factor, jump_width
     public :: density_profile, density_moment, set_density_profile, uniform_density
-    public :: secondary_event_count, secondary_event_window, secondary_branch_density
+    public :: secondary_event_count, secondary_event_window, secondary_branch_density, secondary_knot
 
     integer, parameter :: jump_max = 8
     integer, parameter :: jump_slot = 28
@@ -299,6 +299,32 @@ subroutine secondary_event_window(j, r_left, r_right, width, center)
         width = 0.5d0*(r_right-r_left)
     end if
 end subroutine secondary_event_window
+
+! 返回两个半径之间最先遇到的 tabulated 上升段 knot。
+! Return the first tabulated rising-segment knot between two radii.
+subroutine secondary_knot(r_left,r_right,knot,found)
+    implicit none
+    integer :: i
+    real(8), intent(in) :: r_left,r_right
+    real(8), intent(out) :: knot
+    logical, intent(out) :: found
+    logical :: rising
+
+    knot=0d0
+    found=.false.
+    if (profile_count < 2 .or. r_right <= r_left) return
+    do i=1,profile_count
+        rising=.false.
+        if (i < profile_count) rising=profile_power(i) > 3d0
+        if (i > 1) rising=rising .or. profile_power(i-1) > 3d0
+        if (.not. rising) cycle
+        if (profile_radius(i) > r_left .and. profile_radius(i) < r_right) then
+            knot=profile_radius(i)
+            found=.true.
+            return
+        end if
+    end do
+end subroutine secondary_knot
 
 subroutine secondary_branch_density(A_star,dNe_ISM,RR,R0,apply_jump,R_tr,f_jump,f_wide,j, &
                                     dens_all,dens_bump)

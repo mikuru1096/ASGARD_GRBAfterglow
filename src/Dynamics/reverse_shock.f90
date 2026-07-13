@@ -29,7 +29,7 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,fer,sigma_r,Boundary,n,Num_R, &
                             start_t,end_t)
     use constants
     use dynamics_density_profile, only: set_density_profile, density_profile, density_moment, &
-                                        jump_count, secondary_event_count, secondary_event_window, &
+                                        jump_count, secondary_event_count, secondary_event_window, secondary_knot, &
                                         secondary_branch_density
     use reverse_jump_conditions, only: reverse_contact
     use reverse_shock_mhd_jump, only: rs_vegas_ud, rs_mhd_state
@@ -426,115 +426,132 @@ contains
     use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
     implicit none
     integer, intent(in) :: phase
-    integer :: I, J, N
+    integer :: I
     real(8), intent(inout) :: db_step, tcs, rcs, e3_hot, gam20_step
     real(8), intent(inout) :: u3s, v3sstep, m3sstep, gms, b3ords
     real(8), dimension(nstate), intent(inout) :: y_step
     real(8), intent(inout) :: t_step
     real(8), intent(in) :: h_step
-    logical :: has_reference
+    logical :: found
     real(8), parameter :: rk_eps = 1d-5, mtol = 1d-7, ttol = 1d-12
-    real(8), dimension(nstate) :: C,G,D,y_trial
-    real(8), dimension(rs_nstate) :: rs_try,rs_trial
-    real(8) :: HH,P,Q,X,S,HS,s_trial,H_lo,H_hi,H_mid,h_event,h_post,t_phys
+    real(8), dimension(nstate) :: y_base,y_full,y_half,y_mid
+    real(8), dimension(rs_nstate) :: rs_base,rs_full,rs_half,rs_mid
+    real(8) :: HH,P,Q,X,S,HS,s_full,s_half,s_mid,knot,h_lo,h_hi,h_mid
 
-        N = 1
         HS = log((t_step+h_step)/t_step)
-        HH = HS
-        P = 1d0+rk_eps
         X = t_step
-        C = y_step
-        has_reference = .false.
-        do while (P >= rk_eps)
-            y_step = C
-            S = 0d0
-            rs_try=[db_step,tcs,rcs,e3_hot,gam20_step, &
-                        u3s,v3sstep,m3sstep,gms,b3ords]
-            do J = 1, N
-                select case (phase)
-                case (wait_phase)
-                call rk_log(wait_phase, rs_try, X, S, HH, y_step)
-                case (precross_phase)
-                    if (rs_try(rs_tcross) >= 0d0 .or. y_step(4) >= 1d0) then
-                        call rk_log(postcross_phase, rs_try, X, S, HH, y_step)
-                    else
-                        y_trial = y_step
-                        s_trial = S
-                        rs_trial = rs_try
-                        call rk_log(precross_phase, rs_trial, X, s_trial, HH, y_trial)
-                        if (y_trial(4) < 1d0) then
-                            rs_try = rs_trial
-                            S = s_trial
-                            y_step = y_trial
+        S = 0d0
+        HH = HS
+        rs_base=[db_step,tcs,rcs,e3_hot,gam20_step,u3s,v3sstep,m3sstep,gms,b3ords]
+        do while (S < HS)
+            HH=min(HH,HS-S)
+            y_base=y_step
+            do
+                y_full=y_base; rs_full=rs_base; s_full=S
+                call rk_piece(phase,rs_full,X,s_full,HH,y_full)
+                y_half=y_base; rs_half=rs_base; s_half=S
+                call rk_piece(phase,rs_half,X,s_half,0.5d0*HH,y_half)
+                call rk_piece(phase,rs_half,X,s_half,0.5d0*HH,y_half)
+
+                call secondary_knot(y_base(2),y_half(2),knot,found)
+                if (found) then
+                    h_lo=0d0; h_hi=HH
+                    do I=1,40
+                        h_mid=0.5d0*(h_lo+h_hi)
+                        y_mid=y_base; rs_mid=rs_base; s_mid=S
+                        call rk_piece(phase,rs_mid,X,s_mid,h_mid,y_mid)
+                        if (y_mid(2) >= knot) then
+                            h_hi=h_mid
                         else
-                            H_lo = 0d0
-                            H_hi = HH
-                            do I = 1, 60
-                                H_mid = 0.5d0*(H_lo+H_hi)
-                                y_trial = y_step
-                                s_trial = S
-                                rs_trial = rs_try
-                                call rk_log(precross_phase, rs_trial, &
-                                                                   X, s_trial, H_mid, y_trial)
-                                if (y_trial(4) >= 1d0) then
-                                    H_hi = H_mid
-                                else
-                                    H_lo = H_mid
-                                end if
-                                if (abs(y_trial(4)-1d0) <= mtol) exit
-                                if (H_hi-H_lo <= ttol*abs(HH)) exit
-                            end do
-                            h_event = H_hi
-                            call rk_log(precross_phase, rs_try, X, S, h_event, y_step)
-                            y_step(4) = 1d0
-                            t_phys = X*exp(S)
-                            call reverse_dynamics_rhs(postcross_phase,rs_try,t_phys,y_step,D,nstate,mej,v3s,delta0, &
-                                                      eta_0,astar,nism,R_tr,f_jump,f_wide,R0,Epsilon_b,Epsilon_e, &
-                                                      p_f,f_e,e_r,b_r,p_r,fer,sigma_r)
-                            h_post = HH-h_event
-                            if (h_post > 0d0) then
-                                call rk_log(postcross_phase, rs_try, X, S, h_post, y_step)
-                            end if
+                            h_lo=h_mid
                         end if
-                    end if
-                case (postcross_phase)
-                    call rk_log(postcross_phase, rs_try, X, S, HH, y_step)
-                end select
-            end do
-            if (has_reference) then
+                    end do
+                    HH=h_hi
+                    cycle
+                end if
+
                 P = 0d0
                 do I = 1, nstate
-                    if (.not. ieee_is_finite(y_step(I)) .or. .not. ieee_is_finite(G(I))) then
+                    if (.not. ieee_is_finite(y_half(I)) .or. .not. ieee_is_finite(y_full(I))) then
                         P = huge(1d0)
                         exit
                     end if
-                    if (y_step(I) == 0d0 .and. G(I) == 0d0) cycle
-                    if (y_step(I)+G(I) <= 0d0) then
+                    if (y_half(I) == 0d0 .and. y_full(I) == 0d0) cycle
+                    if (y_half(I)+y_full(I) <= 0d0) then
                         P = huge(1d0)
                         exit
                     end if
-                    Q = 2d0*abs(y_step(I)-G(I))/(y_step(I)+G(I))
+                    Q = 2d0*abs(y_half(I)-y_full(I))/(y_half(I)+y_full(I))
                     if (Q > P) P = Q
                 end do
-            else
-                P = 1d0+rk_eps
-                has_reference = .true.
-            end if
-            if (P < rk_eps) then
-                db_step=rs_try(rs_db3); tcs=rs_try(rs_tcross); rcs=rs_try(rs_rcross)
-                e3_hot=rs_try(rs_e3cross); gam20_step=rs_try(rs_gam20)
-                u3s=rs_try(rs_u3cross); v3sstep=rs_try(rs_v3cross)
-                m3sstep=rs_try(rs_m3cross); gms=rs_try(rs_gammcross)
-                b3ords=rs_try(rs_b3ordered)
-            else
-                G = y_step
+                if (P < rk_eps) exit
                 HH = 0.5d0*HH
-                N = N+N
-            end if
+            end do
+            y_step=y_half; rs_base=rs_half; S=s_half
+            if (P < rk_eps/16d0) HH=2d0*HH
         end do
+        db_step=rs_base(rs_db3); tcs=rs_base(rs_tcross); rcs=rs_base(rs_rcross)
+        e3_hot=rs_base(rs_e3cross); gam20_step=rs_base(rs_gam20)
+        u3s=rs_base(rs_u3cross); v3sstep=rs_base(rs_v3cross)
+        m3sstep=rs_base(rs_m3cross); gms=rs_base(rs_gammcross)
+        b3ords=rs_base(rs_b3ordered)
         t_step = X
 
     end subroutine advance_log
+
+    ! 推进一个局部 log-time 步，并在 primary-RS crossing 上精确切分。
+    ! Advance one local log-time step, split exactly at primary-RS crossing.
+    subroutine rk_piece(phase,rs_step,x_base,s_step,h_step,y_step)
+    implicit none
+    integer, intent(in) :: phase
+    integer :: I
+    real(8), dimension(rs_nstate), intent(inout) :: rs_step
+    real(8), dimension(nstate), intent(inout) :: y_step
+    real(8), intent(in) :: x_base,h_step
+    real(8), intent(inout) :: s_step
+    real(8), dimension(nstate) :: y_trial,D
+    real(8), dimension(rs_nstate) :: rs_trial
+    real(8), parameter :: mtol=1d-7,ttol=1d-12
+    real(8) :: s_trial,h_lo,h_hi,h_mid,h_event,h_post,t_phys
+
+        if (phase /= precross_phase) then
+            call rk_log(phase,rs_step,x_base,s_step,h_step,y_step)
+            return
+        end if
+        if (rs_step(rs_tcross) >= 0d0 .or. y_step(4) >= 1d0) then
+            call rk_log(postcross_phase,rs_step,x_base,s_step,h_step,y_step)
+            return
+        end if
+        y_trial=y_step; s_trial=s_step; rs_trial=rs_step
+        call rk_log(precross_phase,rs_trial,x_base,s_trial,h_step,y_trial)
+        if (y_trial(4) < 1d0) then
+            y_step=y_trial; s_step=s_trial; rs_step=rs_trial
+            return
+        end if
+
+        h_lo=0d0; h_hi=h_step
+        do I=1,60
+            h_mid=0.5d0*(h_lo+h_hi)
+            y_trial=y_step; s_trial=s_step; rs_trial=rs_step
+            call rk_log(precross_phase,rs_trial,x_base,s_trial,h_mid,y_trial)
+            if (y_trial(4) >= 1d0) then
+                h_hi=h_mid
+            else
+                h_lo=h_mid
+            end if
+            if (abs(y_trial(4)-1d0) <= mtol) exit
+            if (h_hi-h_lo <= ttol*abs(h_step)) exit
+        end do
+        h_event=h_hi
+        call rk_log(precross_phase,rs_step,x_base,s_step,h_event,y_step)
+        y_step(4)=1d0
+        t_phys=x_base*exp(s_step)
+        call reverse_dynamics_rhs(postcross_phase,rs_step,t_phys,y_step,D,nstate,mej,v3s,delta0, &
+                                  eta_0,astar,nism,R_tr,f_jump,f_wide,R0,Epsilon_b,Epsilon_e, &
+                                  p_f,f_e,e_r,b_r,p_r,fer,sigma_r)
+        h_post=h_step-h_event
+        if (h_post > 0d0) call rk_log(postcross_phase,rs_step,x_base,s_step,h_post,y_step)
+    end subroutine rk_piece
 
     ! log(time) 下的 RK4 stage。phase 选择物理分支，
     ! 状态向量仍使用同一个 Y 布局。
