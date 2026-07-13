@@ -218,9 +218,9 @@ contains
         Gamma34_inst(i_out)=(Y(1)*Y(1)+Eta_0*Eta_0-1d0)/(Eta_0*Y(1)+dsqrt(Y(1)*Y(1)-1d0)*u4init)
     end subroutine save_g34
 
-    ! 全状态 Richardson 对称误差；零状态不贡献，非有限状态拒绝该步。
-    ! Symmetric Richardson error over the full state; zero pairs do not contribute,
-    ! and non-finite states reject the step.
+    ! 标量 Richardson 对称相对误差；零值对不贡献，非有限值拒绝该步。
+    ! Symmetric relative error for scalar Richardson control; zero pairs do not
+    ! contribute, and non-finite values reject the step.
     real(8) function state_error(a,b)
     use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
     implicit none
@@ -239,6 +239,41 @@ contains
             if (err > state_error) state_error=err
         end do
     end function state_error
+
+    ! 物理状态误差控制 primary 1:6 及会反馈 RHS 的 secondary mass/U/V。
+    ! 后四个 secondary 累计块只验 finite；新生分支以对应 primary 量作物理尺度。
+    ! Control primary 1:6 and RHS-coupled secondary mass/U/V. The four cumulative
+    ! blocks are finite-only; newborn branches use the matching primary scale.
+    real(8) function physical_error(a,b)
+    use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
+    implicit none
+    integer :: i,j,k,idx
+    real(8), dimension(:), intent(in) :: a,b
+    real(8) :: denom,err
+
+        physical_error=0d0
+        do i=1,size(a)
+            if (.not. ieee_is_finite(a(i)) .or. .not. ieee_is_finite(b(i))) then
+                physical_error=huge(1d0)
+                return
+            end if
+        end do
+        do i=1,6
+            denom=abs(a(i))+abs(b(i))
+            if (denom == 0d0) cycle
+            err=2d0*abs(a(i)-b(i))/denom
+            if (err > physical_error) physical_error=err
+        end do
+        do j=1,njump
+            do k=0,2
+                idx=6+k*njump+j
+                denom=max(abs(a(idx))+abs(b(idx)),abs(a(4+k))+abs(b(4+k)))
+                if (denom == 0d0) cycle
+                err=2d0*abs(a(idx)-b(idx))/denom
+                if (err > physical_error) physical_error=err
+            end do
+        end do
+    end function physical_error
 
     ! crossing 前用 swept ejecta fraction Y(4) 作自变量推进，因此 crossing 事件固定在 Y(4)=1。
     ! Before crossing, integrate with swept ejecta fraction Y(4) as the independent variable,
@@ -312,7 +347,7 @@ contains
         do while (p >= rk_eps)
             call m3_integrate(ttin,h_step,n_step,db_out,t_out,y_out,dbtrial,ttrial,ytrial)
             if (hasref) then
-                p=max(state_error(y_out,yref),state_error([t_out],[tref]))
+                p=max(physical_error(y_out,yref),state_error([t_out],[tref]))
             else
                 p=1d0+rk_eps
                 hasref=.true.
@@ -457,8 +492,8 @@ contains
         t_step = T0+h_step*(L1+2d0*L2+2d0*L3+L4)/6.0d0
     end subroutine rk_m3
 
-    ! swept-fraction 步先按 tabulated knot，再按 secondary-RS source 变号切分。
-    ! Split a swept-fraction step first at tabulated knots, then at secondary-RS
+    ! swept-fraction 步先按 tabulated 压缩区边界，再按 secondary-RS source 变号切分。
+    ! Split a swept-fraction step first at tabulated compression boundaries, then at secondary-RS
     ! source sign changes.
     recursive subroutine rk_m3_event(db_step,t_step,y_step,h_step)
     implicit none
@@ -590,7 +625,7 @@ contains
                 call rk_event(phase,rs_try,X,S,HH,y_step)
             end do
             if (has_reference) then
-                P=state_error(y_step,G)
+                P=physical_error(y_step,G)
             else
                 P=1d0+rk_eps
                 has_reference=.true.
@@ -665,8 +700,8 @@ contains
         if (h_post > 0d0) call rk_log(postcross_phase,rs_step,x_base,s_step,h_post,y_step)
     end subroutine rk_piece
 
-    ! 在 tabulated 上升 knot 处切分一个 RK 子步。
-    ! Split one RK substep at tabulated rising knots.
+    ! 在 tabulated 压缩区边界和 midpoint 括住的 secondary-source 拓扑变化处切分 RK 子步。
+    ! Split an RK substep at compression boundaries and midpoint-bracketed source changes.
     recursive subroutine rk_event(phase,rs_step,x_base,s_step,h_step,y_step)
     implicit none
     integer, intent(in) :: phase
@@ -677,8 +712,9 @@ contains
     real(8), intent(inout) :: s_step
     real(8), dimension(nstate) :: y_base,y_end,y_mid
     real(8), dimension(rs_nstate) :: rs_base,rs_end,rs_mid
-    real(8) :: s_base,s_end,s_mid,knot,h_lo,h_hi,h_mid,hcut,source0,source1,root
-    logical :: found,source_found
+    real(8) :: s_base,s_end,s_mid,knot,h_lo,h_hi,h_mid,hcut
+    real(8) :: source0,source1,source2,root,rleft,rright,width,center
+    logical :: found,source_found,check_mid
 
         y_base=y_step; rs_base=rs_step; s_base=s_step
         y_end=y_base; rs_end=rs_base; s_end=s_base
@@ -705,17 +741,34 @@ contains
 
         source_found=.false.
         hcut=h_step
+        check_mid=.false.
         do j=1,njump
-            call event_source(j,y_base(2),y_base(1),y_base,source0)
-            call event_source(j,y_end(2),y_end(1),y_end,source1)
-            if (source0*source1 < 0d0) then
-                call source_cut(j,phase,rs_base,x_base,s_base,y_base,h_step,root)
+            call secondary_event_window(j,rleft,rright,width,center)
+            if (y_base(2) < rright .and. y_end(2) > rleft) then
+                check_mid=.true.
+                exit
+            end if
+        end do
+        if (check_mid) then
+            y_mid=y_base; rs_mid=rs_base; s_mid=s_base
+            call rk_piece(phase,rs_mid,x_base,s_mid,0.5d0*h_step,y_mid)
+            do j=1,njump
+                call event_source(j,y_base(2),y_base(1),y_base,source0)
+                call event_source(j,y_mid(2),y_mid(1),y_mid,source1)
+                call event_source(j,y_end(2),y_end(1),y_end,source2)
+                if (source_change(source0,source1)) then
+                    call source_cut(j,phase,rs_base,x_base,s_base,y_base,0d0,0.5d0*h_step,root)
+                else if (source_change(source1,source2)) then
+                    call source_cut(j,phase,rs_base,x_base,s_base,y_base,0.5d0*h_step,h_step,root)
+                else
+                    cycle
+                end if
                 if (root < hcut) then
                     hcut=root
                     source_found=.true.
                 end if
-            end if
-        end do
+            end do
+        end if
         if (source_found) then
             y_step=y_base; rs_step=rs_base; s_step=s_base
             call rk_piece(phase,rs_step,x_base,s_step,hcut,y_step)
@@ -728,41 +781,46 @@ contains
 
     ! 在已括住的 accepted step 内定位 secondary-RS source onset 或 termination。
     ! Locate either secondary-RS source onset or termination inside an accepted-step bracket.
-    subroutine source_cut(jump,phase,rs_base,x_base,s_base,y_base,h_step,root)
+    subroutine source_cut(jump,phase,rs_base,x_base,s_base,y_base,h_left,h_right,root)
     implicit none
     integer, intent(in) :: jump,phase
     integer :: i
     real(8), dimension(rs_nstate), intent(in) :: rs_base
     real(8), dimension(nstate), intent(in) :: y_base
-    real(8), intent(in) :: x_base,s_base,h_step
+    real(8), intent(in) :: x_base,s_base,h_left,h_right
     real(8), intent(out) :: root
     real(8), dimension(rs_nstate) :: rs_mid
     real(8), dimension(nstate) :: y_mid
     real(8) :: h_lo,h_hi,h_mid,s_mid,source0,source
 
-        call event_source(jump,y_base(2),y_base(1),y_base,source0)
-        h_lo=0d0; h_hi=h_step
+        h_lo=h_left; h_hi=h_right
+        y_mid=y_base; rs_mid=rs_base; s_mid=s_base
+        call rk_piece(phase,rs_mid,x_base,s_mid,h_lo,y_mid)
+        call event_source(jump,y_mid(2),y_mid(1),y_mid,source0)
         do i=1,20
             h_mid=0.5d0*(h_lo+h_hi)
             y_mid=y_base; rs_mid=rs_base; s_mid=s_base
             call rk_piece(phase,rs_mid,x_base,s_mid,h_mid,y_mid)
             call event_source(jump,y_mid(2),y_mid(1),y_mid,source)
-            if (source0 > 0d0) then
-                if (source > 0d0) then
-                    h_lo=h_mid
-                else
-                    h_hi=h_mid
-                end if
+            if (source_change(source0,source)) then
+                h_hi=h_mid
             else
-                if (source < 0d0) then
-                    h_lo=h_mid
-                else
-                    h_hi=h_mid
-                end if
+                h_lo=h_mid
+                source0=source
             end if
         end do
-        root=h_hi
+        root=0.5d0*(h_lo+h_hi)
     end subroutine source_cut
+
+    ! source>0 表示 secondary shock 激活；零端点属于未激活侧。
+    ! source>0 marks an active secondary shock; a zero endpoint is inactive.
+    pure logical function source_change(left,right)
+    implicit none
+    real(8), intent(in) :: left,right
+
+        source_change=(left <= 0d0 .and. right > 0d0) .or. &
+                      (left > 0d0 .and. right <= 0d0)
+    end function source_change
 
     ! log(time) 下的 RK4 stage。phase 选择物理分支，
     ! 状态向量仍使用同一个 Y 布局。
