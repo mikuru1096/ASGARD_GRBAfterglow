@@ -79,7 +79,6 @@ subroutine reverse_dynamics_rhs(phase,rs_state,T,Y,D,M,mej,V3_scale,Delta_0,eta_
         dbrs=u4s_shock/(eta_0*(eta_0*gamma4s-u4*u4s_shock))
         betars=beta4-dbrs
     end if
-    D=0d0
     pre_crossing=(phase == precross_phase)
 
     dB2=rs_bcoeff*dsqrt((Epsilon_b*dNe)*(gam2*gam2-1d0))
@@ -213,7 +212,6 @@ subroutine reverse_dynamics_rhs(phase,rs_state,T,Y,D,M,mej,V3_scale,Delta_0,eta_
     D(6)=dV3/V3_scale
 
     ! Evaluate exact explicit-jump or tabulated-profile branch excess once per RHS.
-    branch_weight=0d0
     do j_inertia=1,nbranch
         call secondary_branch_density(A_star,dNe_ISM,RR,R0,1,R_tr,f_jump,f_wide, &
                                       j_inertia,base_density,branch_weight(j_inertia))

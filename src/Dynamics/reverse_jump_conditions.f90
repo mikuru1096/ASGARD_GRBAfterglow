@@ -11,10 +11,11 @@ subroutine reverse_contact(gamma4,n1,n4,e4,p4,gamma_c,p3,gamma43,comp,beta_rs)
     integer :: I
     real(8), intent(in) :: gamma4,n1,n4,e4,p4
     real(8), intent(out) :: gamma_c,p3,gamma43,comp,beta_rs
-    real(8) :: lo,hi,mid,f_lo,f_hi,f_mid,beta_c,beta4
+    real(8) :: lo,hi,mid,f_lo,f_hi,f_mid,beta_c,beta4,e3_trial,w4
 
     if (gamma4 <= 1d0 .or. n1 <= 0d0 .or. n4 <= 0d0 .or. e4 <= 0d0 .or. p4 <= 0d0) &
         error stop 'reverse_contact requires positive hot upstream state'
+    beta4=dsqrt(1d0-gamma4**(-2))
     lo=1d0+1d-10; hi=gamma4*(1d0-1d-10)
     call pressure_difference(lo,f_lo)
     call pressure_difference(hi,f_hi)
@@ -40,9 +41,11 @@ subroutine reverse_contact(gamma4,n1,n4,e4,p4,gamma_c,p3,gamma43,comp,beta_rs)
         end if
     end do
     gamma_c=0.5d0*(lo+hi)
-    beta_c=dsqrt(1d0-gamma_c**(-2)); beta4=dsqrt(1d0-gamma4**(-2))
+    beta_c=dsqrt(1d0-gamma_c**(-2))
     gamma43=gamma_c*gamma4*(1d0-beta_c*beta4)
     p3=p4+(4d0/3d0)*(gamma43*gamma43-1d0)*(e4+p4)
+    e3_trial=3d0*p3
+    w4=n4*Para_m_p*Para_c**2+e4+p4
     call solve_comp(comp,beta_rs)
 
 contains
@@ -51,10 +54,10 @@ contains
     implicit none
     real(8), intent(in) :: gamma_trial
     real(8), intent(out) :: diff
-    real(8) :: beta_trial,beta_up,gamma_rel,p2_trial,p3_trial
+    real(8) :: beta_trial,gamma_rel,p2_trial,p3_trial
 
-        beta_trial=dsqrt(1d0-gamma_trial**(-2)); beta_up=dsqrt(1d0-gamma4**(-2))
-        gamma_rel=gamma_trial*gamma4*(1d0-beta_trial*beta_up)
+        beta_trial=dsqrt(1d0-gamma_trial**(-2))
+        gamma_rel=gamma_trial*gamma4*(1d0-beta_trial*beta4)
         p2_trial=(4d0/3d0)*(gamma_trial*gamma_trial-1d0)*n1*Para_m_p*Para_c**2
         p3_trial=p4+(4d0/3d0)*(gamma_rel*gamma_rel-1d0)*(e4+p4)
         diff=p2_trial-p3_trial
@@ -98,15 +101,15 @@ contains
     real(8), intent(in) :: beta_lo,beta_hi
     real(8), intent(out) :: beta_one
     integer :: K
-    real(8) :: lo_c,hi_c,mid_c,c_lo,c_mid,comp_tmp,diff_tmp
+    real(8) :: lo_c,hi_c,mid_c,c_lo,c_mid,comp_tmp,u4_tmp,u3_tmp
 
         lo_c=beta_lo; hi_c=beta_hi
-        call shock_diff(lo_c,diff_tmp,comp_tmp)
+        call shock_kinematics(lo_c,beta4,beta_c,u4_tmp,u3_tmp,comp_tmp)
         c_lo=comp_tmp-1d0
         do K=1,80
             mid_c=0.5d0*(lo_c+hi_c)
             if (mid_c == lo_c .or. mid_c == hi_c) exit
-            call shock_diff(mid_c,diff_tmp,comp_tmp)
+            call shock_kinematics(mid_c,beta4,beta_c,u4_tmp,u3_tmp,comp_tmp)
             c_mid=comp_tmp-1d0
             if (c_lo*c_mid <= 0d0) then
                 hi_c=mid_c
@@ -117,21 +120,28 @@ contains
         beta_one=0.5d0*(lo_c+hi_c)
     end subroutine unity_comp
 
-    subroutine shock_diff(beta_s,diff,comp)
+    pure subroutine shock_kinematics(beta_s,beta_up,beta_dn,u4_s,u3_s,comp_out)
     implicit none
-    real(8), intent(in) :: beta_s
-    real(8), intent(out) :: diff,comp
-    real(8) :: beta4_s,beta3_s,gamma4_s,gamma3_s,u4_s,u3_s,w4,w3,e3_trial
+    real(8), intent(in) :: beta_s,beta_up,beta_dn
+    real(8), intent(out) :: u4_s,u3_s,comp_out
+    real(8) :: beta4_s,beta3_s,gamma4_s,gamma3_s
 
-        beta4_s=(beta4-beta_s)/(1d0-beta4*beta_s)
-        beta3_s=(beta_c-beta_s)/(1d0-beta_c*beta_s)
+        beta4_s=(beta_up-beta_s)/(1d0-beta_up*beta_s)
+        beta3_s=(beta_dn-beta_s)/(1d0-beta_dn*beta_s)
         gamma4_s=1d0/dsqrt(1d0-beta4_s*beta4_s)
         gamma3_s=1d0/dsqrt(1d0-beta3_s*beta3_s)
         u4_s=gamma4_s*dabs(beta4_s)
         u3_s=gamma3_s*dabs(beta3_s)
-        comp=u4_s/u3_s
-        e3_trial=3d0*p3
-        w4=n4*Para_m_p*Para_c**2+e4+p4
+        comp_out=u4_s/u3_s
+    end subroutine shock_kinematics
+
+    subroutine shock_diff(beta_s,diff,comp)
+    implicit none
+    real(8), intent(in) :: beta_s
+    real(8), intent(out) :: diff,comp
+    real(8) :: u4_s,u3_s,w3
+
+        call shock_kinematics(beta_s,beta4,beta_c,u4_s,u3_s,comp)
         w3=comp*n4*Para_m_p*Para_c**2+e3_trial+p3
         diff=(w4*u4_s*u4_s+p4)-(w3*u3_s*u3_s+p3)
     end subroutine shock_diff
