@@ -19,10 +19,11 @@ module electron_dg_transport
     real(8), parameter, dimension(dg_quadn) :: dg_qweights= [5.8639022562157604d-4, &
         1.1796387950693022d-1, 4.3814275798321245d-1, 4.4330715288489519d-1]
     real(8), allocatable, dimension(:) :: reference_r,reference_w,reference_bary
-    real(8), allocatable, dimension(:,:) :: reference_dmat,reference_transport
+    real(8), allocatable, dimension(:,:) :: reference_dmat,reference_transport,reference_basis
     real(8), allocatable, dimension(:) :: projection_r,projection_w
+    real(8), allocatable, dimension(:,:) :: projection_basis
     !$omp threadprivate(reference_r,reference_w,reference_bary,reference_dmat, &
-    !$omp& reference_transport,projection_r,projection_w)
+    !$omp& reference_transport,reference_basis,projection_r,projection_w,projection_basis)
 
     ! DG 网格记录：只保存坐标、节点、权重和导数矩阵，不承载推进逻辑。
     ! DG mesh record: stores coordinates, nodes, weights, and matrices without solver behavior.
@@ -156,14 +157,14 @@ subroutine dg_project_source(mesh, source_norm, p, gamma_m, gamma_max, source)
                     source_norm, p, gamma_max)* &
                     dxg_dcoord(mesh%coord_kind, mesh%coord_scale, x_eval)
             endif
-            call legendre_basis_values(degree, projection_r(q), pvals)
+            pvals = projection_basis(:,q)
             modal = modal + half_width*projection_w(q)*value*pvals
         enddo
         do m = 0, degree
             modal(m + 1) = dble(2*m + 1)*modal(m + 1)/dx
         enddo
         do i = 1, mesh%nnode
-            call legendre_basis_values(degree, mesh%r(i), pvals)
+            pvals = reference_basis(:,i)
             source(offset + i) = sum(modal*pvals)
         enddo
     enddo
@@ -197,14 +198,14 @@ subroutine dg_kinetic_source(mesh, source_norm, p, gamma_m, gamma_max, source)
             if (gamma > gamma_m) value = source_norm*gamma*(gamma - 1d0)**(-p)* &
                                          exp_cutoff(gamma, gamma_max)* &
                                          dxg_dcoord(mesh%coord_kind, mesh%coord_scale, x_eval)
-            call legendre_basis_values(degree, projection_r(q), pvals)
+            pvals = projection_basis(:,q)
             modal = modal + half_width*projection_w(q)*value*pvals
         enddo
         do m = 0, degree
             modal(m + 1) = dble(2*m + 1)*modal(m + 1)/dx
         enddo
         do i = 1, mesh%nnode
-            call legendre_basis_values(degree, mesh%r(i), pvals)
+            pvals = reference_basis(:,i)
             source(offset + i) = sum(modal*pvals)
         enddo
     enddo
@@ -884,12 +885,19 @@ end subroutine allocate_spectral_mesh
 ! Initialize reference LGL nodes, weights, barycentric weights, and differentiation matrices.
 subroutine ensure_reference_spectral(nnode)
     integer, intent(in) :: nnode
-    integer :: i, j
+    real(8), dimension(nnode) :: pvals
+    integer :: degree, i, j
 
     if (allocated(reference_r)) return
     allocate(reference_r(nnode), reference_w(nnode), reference_bary(nnode), &
-             reference_dmat(nnode,nnode), reference_transport(nnode,nnode))
+             reference_dmat(nnode,nnode), reference_transport(nnode,nnode), &
+             reference_basis(nnode,nnode))
     call lgl_nodes_weights(nnode, reference_r, reference_w)
+    degree = nnode - 1
+    do i = 1, nnode
+        call legendre_basis_values(degree, reference_r(i), pvals)
+        reference_basis(:,i) = pvals
+    enddo
     call barycentric_weights(nnode, reference_r, reference_bary)
     call differentiation_matrix(nnode, reference_r, reference_bary, reference_dmat)
     do j = 1, nnode
@@ -903,10 +911,17 @@ end subroutine ensure_reference_spectral
 ! Initialize Gauss-Legendre quadrature nodes for projection.
 subroutine ensure_projection_quadrature(nnode)
     integer, intent(in) :: nnode
+    real(8), dimension(nnode) :: pvals
+    integer :: degree, q
 
     if (allocated(projection_r)) return
-    allocate(projection_r(nnode), projection_w(nnode))
+    allocate(projection_r(nnode), projection_w(nnode), projection_basis(nnode,nnode))
     call gauss_nodes_weights(nnode, projection_r, projection_w)
+    degree = nnode - 1
+    do q = 1, nnode
+        call legendre_basis_values(degree, projection_r(q), pvals)
+        projection_basis(:,q) = pvals
+    enddo
 end subroutine ensure_projection_quadrature
 
 ! 根据活动断点设置每个 DG 单元的坐标边界。
