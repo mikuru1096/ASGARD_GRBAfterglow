@@ -10,7 +10,7 @@ subroutine reverse_dynamics_rhs(phase,rs_state,T,Y,D,M,mej,V3_scale,Delta_0,eta_
              Epsilon_b,Epsilon_e,p_f,f_e,e_r,b_r,p_r,fer,sigma_r)
     use constants
     use dynamics_density_profile, only: density_profile, jump_max, &
-                                        secondary_event_count, secondary_branch_density
+                                        secondary_branch_density
     use reverse_shock_mhd_jump, only: rs_mhd_state
     use reverse_shock_state, only: wait_phase, precross_phase, &
                                    rs_db3, rs_tcross, rs_rcross, rs_e3cross, rs_gam20, &
@@ -41,7 +41,7 @@ subroutine reverse_dynamics_rhs(phase,rs_state,T,Y,D,M,mej,V3_scale,Delta_0,eta_
 
 
     waiting_reverse=(phase == wait_phase)
-    nbranch=secondary_event_count()
+    nbranch=(M-6)/7
     gam2=Y(1); RR=Y(2); para_m2=Y(3); para_m3=Y(4)*mej
     U3=Y(5)*mej*para_c**2; V3=Y(6)*V3_scale
     call density_profile(A_star,dNe_ISM,RR,R0,1,R_tr,f_jump,f_wide,dNe)
@@ -214,7 +214,7 @@ subroutine reverse_dynamics_rhs(phase,rs_state,T,Y,D,M,mej,V3_scale,Delta_0,eta_
     ! Evaluate exact explicit-jump or tabulated-profile branch excess once per RHS.
     do j_inertia=1,nbranch
         call secondary_branch_density(A_star,dNe_ISM,RR,R0,1,R_tr,f_jump,f_wide, &
-                                      j_inertia,base_density,branch_weight(j_inertia))
+                                      j_inertia,base_density,branch_weight(j_inertia),dNe)
     end do
     call branch_derivs()
 
@@ -260,8 +260,8 @@ contains
                 D(v_idx)=dv_exp/V3_scale
                 cycle
             end if
-            call secondary_branch_density(A_star,dNe_ISM,RR,R0,1,R_tr,f_jump,f_wide, &
-                                          j,n1,n_excess)
+            n1=dNe
+            n_excess=branch_weight(j)
             n_pre=n1-n_excess
             if (n_pre <= 0d0) error stop 'secondary branch RHS found non-positive pre-bump density'
             n4=4d0*gam2*n_pre

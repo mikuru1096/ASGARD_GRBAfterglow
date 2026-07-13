@@ -151,7 +151,7 @@ subroutine sed_pairbatch(Boundary,R_Tobs1,R_gamma,R,F_comp,V_seed,V_pair,Tobs,P_
     real(8), dimension(Num_R) :: arrival
     real(8) :: z,opening,tv,dphi,phiscale,dtheta,tlo,thi,tcenter,domega
     real(8) :: phicenter,dmu,ratio,dg,beta,doppler,lgamlo,lgamhi,ldomega,ldop,ldopred
-    real(8) :: delay,costv,sintv,zlog
+    real(8) :: delay,costv,sintv,zlog,seedinv
     integer :: itheta,iphi,iobs,k2,ii,lastk,pfirst,plast
 
     allocate(fwork(Num_pair,ncomp),pairlog(Num_pair),seedlog(Num_nu))
@@ -172,6 +172,7 @@ subroutine sed_pairbatch(Boundary,R_Tobs1,R_gamma,R,F_comp,V_seed,V_pair,Tobs,P_
     zlog=dlog(1d0+z)
     pairlog=dlog(V_pair)
     seedlog=dlog(V_seed)
+    seedinv=dble(Num_nu-1)/(seedlog(Num_nu)-seedlog(1))
 
     !$OMP PARALLEL num_threads(n_threads), reduction(+:fwork), &
     !$OMP& private(itheta,tlo,thi,tcenter,domega,iphi,phicenter,dmu,iobs,k2,ii,ratio,dg,beta, &
@@ -210,7 +211,8 @@ subroutine sed_pairbatch(Boundary,R_Tobs1,R_gamma,R,F_comp,V_seed,V_pair,Tobs,P_
                 ldop=dlog(doppler)
                 ldopred=ldop+zlog
                 call accum_range(seedlog,F_comp,ncomp,Num_nu,Num_R,k2,ratio, &
-                                 pairlog,Num_pair,pfirst,plast,ldopred,ldomega-3d0*ldop,fwork)
+                                 pairlog,Num_pair,pfirst,plast,ldopred,ldomega-3d0*ldop, &
+                                 .true.,seedinv,fwork)
             end do
         end do
     end do

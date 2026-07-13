@@ -129,21 +129,22 @@ subroutine accum_radial_batch(src_x,source,ncomp,num_src,num_rad,k2,radfrac, &
     real(8), intent(inout), dimension(:,:) :: accum
 
     call accum_range(src_x,source,ncomp,num_src,num_rad,k2,radfrac, &
-                     dst_x,num_dst,1,num_dst,log_shift,log_weight,accum)
+                     dst_x,num_dst,1,num_dst,log_shift,log_weight,.false.,0d0,accum)
 end subroutine accum_radial_batch
 
 ! 稀疏投影仅遍历当前观测时刻实际需要的频率区间；完整投影经同一数值核保持原 ABI。
 ! Sparse projection visits only the requested frequency range; the full projection shares this kernel.
 subroutine accum_range(src_x,source,ncomp,num_src,num_rad,k2,radfrac, &
-                       dst_x,num_dst,first,last,log_shift,log_weight,accum)
+                       dst_x,num_dst,first,last,log_shift,log_weight,uniform,step_inv,accum)
     implicit none
     integer, intent(in) :: ncomp,num_src,num_rad,k2,num_dst,first,last
     real(8), intent(in), dimension(num_src) :: src_x
     real(8), intent(in), dimension(num_src,num_rad,ncomp) :: source
     real(8), intent(in), dimension(num_dst) :: dst_x
-    real(8), intent(in) :: radfrac,log_shift,log_weight
+    real(8), intent(in) :: radfrac,log_shift,log_weight,step_inv
+    logical, intent(in) :: uniform
     real(8), intent(inout), dimension(:,:) :: accum
-    real(8) :: xlo,xhi,ratio,ylo,yhi,lylo,lyhi,yinterp
+    real(8) :: xlo,xhi,ratio,ylo,yhi,lylo,lyhi,yinterp,target
     integer :: i_dst,i_src,i_comp,ilo,ihi,imid
     logical :: located
 
@@ -154,26 +155,38 @@ subroutine accum_range(src_x,source,ncomp,num_src,num_rad,k2,radfrac, &
         if (dst_x(i_dst) < xlo) cycle
         xhi = src_x(num_src)-log_shift
         if (dst_x(i_dst) > xhi) exit
-        if (.not. located) then
-            ilo = 1
-            ihi = num_src-1
-            do while (ilo < ihi)
-                imid = (ilo+ihi)/2
-                if (dst_x(i_dst) > src_x(imid+1)-log_shift) then
-                    ilo = imid+1
-                else
-                    ihi = imid
-                end if
+        if (uniform) then
+            target = dst_x(i_dst)+log_shift
+            i_src = max(1,min(num_src-1,int((target-src_x(1))*step_inv)+1))
+            do while (i_src > 1 .and. target <= src_x(i_src))
+                i_src = i_src-1
             end do
-            i_src = ilo
-            located = .true.
-        end if
-        xhi = src_x(i_src+1)-log_shift
-        do while (i_src < num_src-1 .and. dst_x(i_dst) > xhi)
-            i_src = i_src+1
+            do while (i_src < num_src-1 .and. target > src_x(i_src+1))
+                i_src = i_src+1
+            end do
+        else
+            if (.not. located) then
+                ilo = 1
+                ihi = num_src-1
+                do while (ilo < ihi)
+                    imid = (ilo+ihi)/2
+                    if (dst_x(i_dst) > src_x(imid+1)-log_shift) then
+                        ilo = imid+1
+                    else
+                        ihi = imid
+                    end if
+                end do
+                i_src = ilo
+                located = .true.
+            end if
             xhi = src_x(i_src+1)-log_shift
-        end do
+            do while (i_src < num_src-1 .and. dst_x(i_dst) > xhi)
+                i_src = i_src+1
+                xhi = src_x(i_src+1)-log_shift
+            end do
+        end if
         xlo = src_x(i_src)-log_shift
+        xhi = src_x(i_src+1)-log_shift
         if (dst_x(i_dst) >= xlo .and. dst_x(i_dst) <= xhi) then
             ratio = (dst_x(i_dst)-xlo)/(xhi-xlo)
             do i_comp = 1, ncomp

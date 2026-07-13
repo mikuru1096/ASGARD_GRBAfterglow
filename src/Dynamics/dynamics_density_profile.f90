@@ -11,7 +11,7 @@ module dynamics_density_profile
     integer, parameter :: jump_max = 8
     integer, parameter :: jump_slot = 28
     integer, parameter :: profile_slot = jump_slot+1+3*jump_max
-    integer :: jump_count = 0, profile_count = 0
+    integer :: jump_count = 0, profile_count = 0, profile_step = 0
     integer :: profile_event_count = 0
     integer :: knot_count = 0
     logical :: density_ready = .false.
@@ -24,7 +24,7 @@ module dynamics_density_profile
     real(8), allocatable, dimension(:) :: profile_radius
     real(8), allocatable, dimension(:) :: profile_knots
     real(8), allocatable, dimension(:) :: profile_logr, profile_logn, profile_logw, profile_power
-    !$omp threadprivate(jump_count,profile_count,jump_radius,jump_factor,jump_width, &
+    !$omp threadprivate(jump_count,profile_count,profile_step,jump_radius,jump_factor,jump_width, &
     !$omp& profile_radius,profile_logr,profile_logn,profile_logw,profile_power, &
     !$omp& profile_event_count,profile_event_start,profile_event_end,profile_event_base, &
     !$omp& knot_count,profile_knots,density_ready,density_rr,density_r0,density_value)
@@ -197,6 +197,7 @@ subroutine set_density_profile(Boundary, n)
 
     jump_count = 0
     profile_count = 0
+    profile_step = 0
     profile_event_count = 0
     knot_count = 0
     density_ready = .false.
@@ -236,6 +237,10 @@ subroutine set_density_profile(Boundary, n)
     if (profile_count > 0 .and. n < factor_index+profile_count-1) &
         error stop 'boundary is missing density profile arrays'
     if (profile_count == 0) return
+    profile_step = 1
+    do while (2*profile_step < profile_count)
+        profile_step = 2*profile_step
+    end do
     allocate(profile_radius(profile_count),profile_logr(profile_count),profile_logn(profile_count), &
              profile_logw(profile_count),profile_power(profile_count-1),profile_density(profile_count))
     do i = 1, profile_count
@@ -364,17 +369,22 @@ subroutine secondary_knot(r_left,r_right,knot,found)
 end subroutine secondary_knot
 
 subroutine secondary_branch_density(A_star,dNe_ISM,RR,R0,apply_jump,R_tr,f_jump,f_wide,j, &
-                                    dens_all,dens_bump)
+                                    dens_all,dens_bump,dens_known)
     implicit none
     integer, intent(in) :: apply_jump, j
     real(8), intent(in) :: A_star,dNe_ISM,RR,R0,R_tr,f_jump,f_wide
+    real(8), intent(in), optional :: dens_known
     real(8), intent(out) :: dens_all,dens_bump
     integer :: k,jp
     real(8) :: x,width,prof,enh,nbase
 
     ! The tabulated branch uses the exact local profile minus its pre-rise state;
     ! no Gaussian replacement or post-processing is applied.
-    call density_profile(A_star,dNe_ISM,RR,R0,apply_jump,R_tr,f_jump,f_wide,dens_all)
+    if (present(dens_known)) then
+        dens_all=dens_known
+    else
+        call density_profile(A_star,dNe_ISM,RR,R0,apply_jump,R_tr,f_jump,f_wide,dens_all)
+    end if
     dens_bump = 0d0
     if (j > jump_count) then
         jp = j-jump_count
@@ -471,26 +481,17 @@ end subroutine gauss_moments
 
 function tab_logdensity(RR) result(logn)
     implicit none
-    integer :: lo, hi, mid
+    integer :: lo, mid, step
     real(8), intent(in) :: RR
     real(8) :: logn,delta
 
-    if (RR <= profile_radius(1)) then
-        lo=1
-    else if (RR >= profile_radius(profile_count)) then
-        lo=profile_count-1
-    else
-        lo=1
-        hi=profile_count
-        do while (hi-lo > 1)
-            mid=(lo+hi)/2
-            if (profile_radius(mid) <= RR) then
-                lo=mid
-            else
-                hi=mid
-            end if
-        end do
-    end if
+    lo=1
+    step=profile_step
+    do while (step > 0)
+        mid=min(lo+step,profile_count-1)
+        if (profile_radius(mid) <= RR) lo=mid
+        step=step/2
+    end do
     delta=log(RR)-profile_logr(lo)
     logn=profile_logn(lo)+profile_power(lo)*delta-3d0*delta
 end function tab_logdensity
