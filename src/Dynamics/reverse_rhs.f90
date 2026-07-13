@@ -205,7 +205,12 @@ subroutine reverse_dynamics_rhs(phase,rs_state,T,Y,D,M,mej,V3_scale,Delta_0,eta_
         dU3_ad=-(ad3-1d0)*U3*dV3_exp/V3
     end if
     dU3=dU3_shock+dU3_ad; dV3=dV3_shock+dV3_exp
-    D(1:6)=[dgam2,dR,dm2,dm3/mej,dU3/(mej*para_c**2),dV3/V3_scale]
+    D(1)=dgam2
+    D(2)=dR
+    D(3)=dm2
+    D(4)=dm3/mej
+    D(5)=dU3/(mej*para_c**2)
+    D(6)=dV3/V3_scale
 
     ! Evaluate exact explicit-jump or tabulated-profile branch excess once per RHS.
     branch_weight=0d0
