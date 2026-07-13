@@ -384,23 +384,28 @@ subroutine dg_transport_matrix(mesh, speed, kmat)
     enddo
 end subroutine dg_transport_matrix
 
-! 特征线 DG 步：先沿解析冷却轨道回溯，再叠加源项积分。
-! DG characteristic step: trace analytic cooling characteristics, then add source quadrature.
+! 特征线 DG 步：分别投影并限制旧谱响应与源响应，再线性叠加。
+! DG characteristic step: project and limit homogeneous and source responses separately, then add them.
 subroutine dg_char_step(mesh, dr, a_rad, b_ad, source, state_in, state_out)
     type(dg_mesh), intent(in) :: mesh
     real(8), intent(in), dimension(mesh%ntot) :: source,state_in
     real(8), intent(in) :: dr,a_rad,b_ad
     real(8), intent(out), dimension(mesh%ntot) :: state_out
+    real(8), dimension(mesh%ntot) :: source_response
     integer :: q
 
     state_out = 0d0
     call dg_project_char(mesh, state_in, a_rad, b_ad, dr, 1d0, state_out)
-    do q = 1, dg_quadn
-        call dg_project_char(mesh, source, a_rad, b_ad, &
-                            dg_qnodes(q)*dr,dg_qweights(q)*dr, state_out)
-    enddo
     call dg_zero_bad(mesh, state_out)
     call dg_limit_positive(mesh, state_out)
+    source_response = 0d0
+    do q = 1, dg_quadn
+        call dg_project_char(mesh, source, a_rad, b_ad, &
+                            dg_qnodes(q)*dr,dg_qweights(q)*dr, source_response)
+    enddo
+    call dg_zero_bad(mesh, source_response)
+    call dg_limit_positive(mesh, source_response)
+    state_out = state_out + source_response
 end subroutine dg_char_step
 
 ! 清空非有限或负平均的单元，避免坏单元参与后续投影。
