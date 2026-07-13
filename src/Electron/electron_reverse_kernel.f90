@@ -648,7 +648,7 @@ subroutine branch_reaccel(e_r,b_r,p_r,f_e_r,z,R_Tobs,R_Gamma,R, &
     integer, intent(in) :: Num_jump,Num_nu,Num_R,Num_gam_e,index_syn_intger,n_threads
     integer, intent(in), dimension(Num_jump) :: Parent_branch
     integer, intent(in), optional :: solver_id
-    integer :: I_tobs,I_jump,I_gam_e,L1,L,parent,active_solver
+    integer :: I_tobs,I_jump,I_gam_e,L1,L,parent,active_solver,maxNode
     real(8), intent(in) :: e_r,b_r,p_r,f_e_r,z
     real(8), intent(in), dimension(Num_R) :: R_Tobs,R_Gamma,R
     real(8), intent(in), dimension(Num_nu) :: V_seed
@@ -664,8 +664,8 @@ subroutine branch_reaccel(e_r,b_r,p_r,f_e_r,z,R_Tobs,R_Gamma,R, &
     real(8) :: f_r,dDR,dDD,injection_rate,mass_lo,mass_hi,mass_delta,fresh_mass,adrate
     real(8) :: parent_mass,transfer_mass,transfer_fraction,boost_factor,seed_energy,out_energy
     logical :: dissipative_shell
-    real(8), allocatable, dimension(:) :: dEl,x,dF1,temp3,x_edge
-    real(8), allocatable, dimension(:,:) :: dN_x,dN_work,dN_branch,spec_branch
+    real(8), allocatable, dimension(:) :: dEl,x,dF1,temp3,x_edge,coordEdge
+    real(8), allocatable, dimension(:,:) :: dN_x,dN_work,dN_branch,spec_branch,branchState
     real(8), allocatable, dimension(:) :: dN_seed,dN_boost,dN_reaccel,nu_a_dummy
     real(8), allocatable, dimension(:,:,:) :: dN_gamma_branch
     real(8), allocatable, dimension(:,:) :: seed_dummy
@@ -684,6 +684,15 @@ subroutine branch_reaccel(e_r,b_r,p_r,f_e_r,z,R_Tobs,R_Gamma,R, &
     if (active_solver == solver_dg) then
         allocate(branch_mesh(Num_jump))
         call build_meshes(branch_mesh)
+        maxNode=0
+        do I_jump=1,Num_jump
+            maxNode=max(maxNode,branch_mesh(I_jump)%ntot)
+        end do
+        allocate(branchState(maxNode,Num_jump),coordEdge(Num_gam_e+1))
+        branchState=0d0
+        do I_gam_e=1,Num_gam_e+1
+            coordEdge(I_gam_e)=coord_from_xg(coord_fourvel,fourvel_scale,x_edge(I_gam_e))
+        end do
     end if
     d_x=dlog(gam_e(2)/gam_e(1))
     dN_gamma_branch=0d0; dN_total=0d0; dN_x=0d0; branch_mass_available=0d0
@@ -691,7 +700,8 @@ subroutine branch_reaccel(e_r,b_r,p_r,f_e_r,z,R_Tobs,R_Gamma,R, &
     Branch_L_syn_spec=0d0; L_syn_spec=0d0; Branch_seed_energy=0d0; Branch_reaccel_energy=0d0
 
     do I_tobs=2,Num_R
-        dN_work=dN_gamma_branch(:,:,I_tobs-1)*spread(gam_e,1,Num_jump)
+        if (active_solver /= solver_dg) &
+            dN_work=dN_gamma_branch(:,:,I_tobs-1)*spread(gam_e,1,Num_jump)
         call transfer_parent(I_tobs)
         do I_jump=1,Num_jump
             call advance_reaccel(I_tobs,I_jump)
@@ -707,6 +717,7 @@ subroutine branch_reaccel(e_r,b_r,p_r,f_e_r,z,R_Tobs,R_Gamma,R, &
         Branch_L_syn_spec(I_jump,:,:)=spec_branch
         L_syn_spec=L_syn_spec+spec_branch
     end do
+    if (active_solver == solver_dg) deallocate(branch_mesh,branchState,coordEdge)
     deallocate(dEl,x,dF1,temp3,x_edge,dN_x,dN_work,dN_seed,dN_boost,dN_reaccel,dN_gamma_branch, &
                dN_branch,spec_branch,seed_dummy,nu_a_dummy,branch_mass_available,fresh_mass_branch)
 
@@ -759,6 +770,8 @@ contains
         end do
     end subroutine build_meshes
 
+    ! 仅在真实 parent transfer 时把相关 DG 状态投到公共 gamma 网格，转移后守恒投回。
+    ! Project only real parent transfers to the common gamma grid and conservatively return both DG states.
     subroutine transfer_parent(i_shell)
     implicit none
     integer, intent(in) :: i_shell
@@ -776,6 +789,10 @@ contains
                 if (parent_mass > 0d0) then
                     transfer_mass=min(mass_delta,parent_mass)
                     transfer_fraction=transfer_mass/parent_mass
+                    if (active_solver == solver_dg) then
+                        call export_dg(parent,dN_work(parent,:))
+                        call export_dg(I_jump,dN_work(I_jump,:))
+                    end if
                     dN_seed=dN_work(parent,:)*transfer_fraction
                     dN_work(parent,:)=dN_work(parent,:)-dN_seed
                     boost_factor=Gamma43_branch(I_jump,i_shell)
@@ -788,6 +805,10 @@ contains
                     Branch_seed_energy(I_jump,i_shell)=Branch_seed_energy(I_jump,i_shell)+seed_energy
                     Branch_reaccel_energy(I_jump,i_shell)=Branch_reaccel_energy(I_jump,i_shell)+out_energy
                     dN_work(I_jump,:)=dN_work(I_jump,:)+dN_reaccel
+                    if (active_solver == solver_dg) then
+                        call import_dg(parent,dN_work(parent,:))
+                        call import_dg(I_jump,dN_work(I_jump,:))
+                    end if
                     branch_mass_available(parent)=branch_mass_available(parent)-transfer_mass
                     branch_mass_available(I_jump)=branch_mass_available(I_jump)+transfer_mass
                     fresh_mass=mass_delta-transfer_mass
@@ -795,10 +816,55 @@ contains
             end if
             fresh_mass_branch(I_jump)=fresh_mass
             branch_mass_available(I_jump)=branch_mass_available(I_jump)+fresh_mass
-            dN_x(I_jump,:)=dN_work(I_jump,:)
+            if (active_solver /= solver_dg) dN_x(I_jump,:)=dN_work(I_jump,:)
         end do
     end subroutine transfer_parent
 
+    ! 把常驻 DG 状态守恒投影到公共 dN/dln(gamma) 网格；该输出不参与后续推进。
+    ! Conservatively export persistent DG state to the common dN/dln(gamma) grid without changing it.
+    subroutine export_dg(jumpIndex,dNx)
+    implicit none
+    integer, intent(in) :: jumpIndex
+    real(8), intent(out), dimension(Num_gam_e) :: dNx
+    real(8), dimension(Num_gam_e) :: dNcoord,dNdgamma
+    real(8) :: dgContent,gridContent
+    integer :: nodeCount
+
+        nodeCount=branch_mesh(jumpIndex)%ntot
+        call dg_integral(branch_mesh(jumpIndex),branchState(1:nodeCount,jumpIndex),dgContent)
+        call dg_project_cells(branch_mesh(jumpIndex),branchState(1:nodeCount,jumpIndex), &
+                              Num_gam_e,coordEdge,dNcoord)
+        call coord_to_dgamma(Num_gam_e,coordEdge,branch_mesh(jumpIndex)%coord_scale, &
+                             gam_e,dNcoord,dNdgamma)
+        dNx=dNdgamma*gam_e
+        gridContent=sum(dNx*(x_edge(2:Num_gam_e+1)-x_edge(1:Num_gam_e)))
+        if (dgContent > 0d0) then
+            if (gridContent <= 0d0) error stop "branch_reaccel: DG output projection lost positive content."
+            dNx=dNx*(dgContent/gridContent)
+        end if
+    end subroutine export_dg
+
+    ! 只在 parent transfer 后把公共网格状态守恒导回对应 branch mesh。
+    ! Import a common-grid state conservatively to its branch mesh only after parent transfer.
+    subroutine import_dg(jumpIndex,dNx)
+    implicit none
+    integer, intent(in) :: jumpIndex
+    real(8), intent(in), dimension(Num_gam_e) :: dNx
+    real(8) :: gridContent
+    integer :: node,nodeCount
+
+        nodeCount=branch_mesh(jumpIndex)%ntot
+        do node=1,nodeCount
+            branchState(node,jumpIndex)=log_interp(Num_gam_e,x_edge,dNx, &
+                                                   branch_mesh(jumpIndex)%x_gamma(node))* &
+                                         branch_mesh(jumpIndex)%dxgamma_dcoord(node)
+        end do
+        gridContent=sum(dNx*(x_edge(2:Num_gam_e+1)-x_edge(1:Num_gam_e)))
+        call dg_scale_content(branch_mesh(jumpIndex),gridContent,branchState(1:nodeCount,jumpIndex))
+    end subroutine import_dg
+
+    ! 常驻 DG 状态在本壳层直接推进；壳层输出仅由 export_dg 生成。
+    ! Advance persistent DG state directly in this shell; export_dg alone creates the shell output.
     subroutine advance_reaccel(i_shell,jump_index)
     implicit none
     integer, intent(in) :: i_shell,jump_index
@@ -806,6 +872,8 @@ contains
     real(8), allocatable, dimension(:) :: dg_adiabatic,dg_source_norm
 
         if (M3_branch(jump_index,i_shell) <= 0d0 .and. M3_branch(jump_index,i_shell-1) <= 0d0) then
+            if (active_solver == solver_dg .and. branch_mesh(jump_index)%ntot > 0) &
+                call export_dg(jump_index,dN_x(jump_index,:))
             dN_gamma_branch(jump_index,:,i_shell)=dN_x(jump_index,:)/gam_e
             return
         end if
@@ -822,9 +890,9 @@ contains
                     dg_source_norm(L)=0d0
                 end if
             end do
-            call dg_sequence(branch_mesh(jump_index),Num_gam_e,x_edge,gam_e,L1,dDR,f_r, &
-                             dg_adiabatic,dg_source_norm,p_r,gm,gmax,dN_x(jump_index,:),x)
-            dN_x(jump_index,:)=x
+            call dg_sequence(branch_mesh(jump_index),L1,dDR,f_r,dg_adiabatic,dg_source_norm, &
+                             p_r,gm,gmax,branchState(1:branch_mesh(jump_index)%ntot,jump_index))
+            call export_dg(jump_index,dN_x(jump_index,:))
             dN_gamma_branch(jump_index,:,i_shell)=dN_x(jump_index,:)/gam_e
             deallocate(dg_adiabatic,dg_source_norm)
             return
@@ -949,34 +1017,19 @@ end function reverse_transport_substeps
 
 ! 在预建 mesh 上推进单个壳层；gamma_m/gamma_max 只用于真实源项投影。
 ! Advance one shell on a prebuilt mesh; gamma_m/gamma_max enter only the physical source projection.
-subroutine dg_sequence(mesh,Num_gam_e,x_edge,gam_e,num_step,dR,rad_coeff,adrate_step,srcstep, &
-                       p,gamma_m,gamma_max,dN_x_in,dN_x_out)
+subroutine dg_sequence(mesh,num_step,dR,rad_coeff,adrate_step,srcstep,p,gamma_m,gamma_max,state)
     implicit none
     type(dg_mesh), intent(in) :: mesh
-    integer, intent(in) :: Num_gam_e,num_step
-    integer :: i,step
-    real(8), intent(in), dimension(Num_gam_e+1) :: x_edge
-    real(8), intent(in), dimension(Num_gam_e) :: gam_e
+    integer, intent(in) :: num_step
+    integer :: step
     real(8), intent(in) :: dR,rad_coeff
     real(8), intent(in), dimension(num_step) :: adrate_step,srcstep
-    real(8), intent(in), dimension(Num_gam_e) :: dN_x_in
     real(8), intent(in) :: p,gamma_m,gamma_max
-    real(8), intent(out), dimension(Num_gam_e) :: dN_x_out
-    real(8), allocatable, dimension(:) :: state,advanced,source_nodes,source_template,dN_coord,dN_dgamma,coord_edge
-    real(8) :: input_content,dg_content,projected_content
+    real(8), intent(inout), dimension(mesh%ntot) :: state
+    real(8), allocatable, dimension(:) :: advanced,source_nodes,source_template
     logical :: has_source
 
-    allocate(state(mesh%ntot),advanced(mesh%ntot),source_nodes(mesh%ntot), &
-             source_template(mesh%ntot),dN_coord(Num_gam_e), &
-             dN_dgamma(Num_gam_e),coord_edge(Num_gam_e+1))
-    do i=1,Num_gam_e+1
-        coord_edge(i)=coord_from_xg(mesh%coord_kind,mesh%coord_scale,x_edge(i))
-    end do
-    do i=1,mesh%ntot
-        state(i)=log_interp(Num_gam_e,x_edge,dN_x_in,mesh%x_gamma(i))*mesh%dxgamma_dcoord(i)
-    end do
-    input_content=sum(dN_x_in*(x_edge(2:Num_gam_e+1)-x_edge(1:Num_gam_e)))
-    call dg_scale_content(mesh,input_content,state)
+    allocate(advanced(mesh%ntot),source_nodes(mesh%ntot),source_template(mesh%ntot))
     has_source = maxval(srcstep) > 0d0
     if (has_source) then
         call dg_kinetic_source(mesh,1d0,p,gamma_m,gamma_max,source_template)
@@ -992,16 +1045,7 @@ subroutine dg_sequence(mesh,Num_gam_e,x_edge,gam_e,num_step,dR,rad_coeff,adrate_
                                                        source_nodes,state,advanced)
         state=advanced
     end do
-    call dg_integral(mesh,state,dg_content)
-    call dg_project_cells(mesh,state,Num_gam_e,coord_edge,dN_coord)
-    call coord_to_dgamma(Num_gam_e,coord_edge,mesh%coord_scale,gam_e,dN_coord,dN_dgamma)
-    dN_x_out=dN_dgamma*gam_e
-    projected_content=sum(dN_x_out*(x_edge(2:Num_gam_e+1)-x_edge(1:Num_gam_e)))
-    if (dg_content > 0d0) then
-        if (projected_content <= 0d0) error stop "dg_sequence: projection lost positive content."
-        dN_x_out=dN_x_out*(dg_content/projected_content)
-    end if
-    deallocate(state,advanced,source_nodes,source_template,dN_coord,dN_dgamma,coord_edge)
+    deallocate(advanced,source_nodes,source_template)
 end subroutine dg_sequence
 
 real(8) function log_interp(Num_gam_e,x_edge,values,x_eval) result(value)
