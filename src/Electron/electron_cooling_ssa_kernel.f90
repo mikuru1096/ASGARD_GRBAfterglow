@@ -11,16 +11,27 @@ module electron_ssa_kernel
   integer, save :: nnu_cache=0
   logical, save :: seed_ready=.false.
   real(8), allocatable, save, dimension(:) :: v_cache,vlow_cache,vhigh_cache,vg1_cache,vg2_cache,wg1_cache,wg2_cache
+  integer, save :: loss_ng=0,loss_nnu=0,loss_nchi=0
+  logical, save :: loss_ready=.false.
+  real(8), save :: loss_db=0d0
+  real(8), allocatable, save, dimension(:) :: loss_gam
+  real(8), allocatable, save, dimension(:,:) :: loss_seed,loss_value
   !$omp threadprivate(nnu_cache,seed_ready,v_cache,vlow_cache,vhigh_cache)
   !$omp threadprivate(vg1_cache,vg2_cache,wg1_cache,wg2_cache)
+  !$omp threadprivate(loss_ng,loss_nnu,loss_nchi,loss_ready,loss_db,loss_gam,loss_seed,loss_value)
 
 contains
 subroutine invalidate_ssa_cache()
 implicit none
 
     if (allocated(v_cache)) deallocate(v_cache,vlow_cache,vhigh_cache,vg1_cache,vg2_cache,wg1_cache,wg2_cache)
+    if (allocated(loss_gam)) deallocate(loss_gam,loss_seed,loss_value)
     nnu_cache=0
     seed_ready=.false.
+    loss_ng=0
+    loss_nnu=0
+    loss_nchi=0
+    loss_ready=.false.
 end subroutine invalidate_ssa_cache
 
 ! 刷新 SSA 种子频率缓存；线程私有，避免 OpenMP 列计算共享临时状态。
@@ -137,15 +148,16 @@ real(8), intent(in), dimension(nnu,nchi) :: seed
 real(8), intent(in) :: db
 real(8), intent(out), dimension(ng,nchi) :: loss
 integer, parameter :: work_min=512
-integer, dimension(ng) :: lowpos,lowfirst,lowlast,highfirst
-integer :: inu,ic,ig,work,nt
-logical :: doomp
+integer, dimension(ng) :: lowpos,lowfirst,lowlast,highfirst,reuse
+integer :: inu,ic,ig,work,nt,oldpos
+logical :: doomp,same_field
 real(8), dimension(nnu-1) :: vlow,vhigh,vg1,vg2,wg1,wg2
 real(8), dimension(ng) :: siglow,sighigh
 real(8), dimension(nnu-1,nchi) :: seedg1,seedg2
 real(8) :: cyclonu
 real(8), dimension(0:nnu-1,nchi) :: lowpref
 real(8), dimension(nnu-1,nchi) :: high1,high2
+real(8), dimension(ng,nchi) :: old_loss
 
     call ensure_ssa_cache(nnu,vseed)
     vlow=vlow_cache
@@ -154,6 +166,24 @@ real(8), dimension(nnu-1,nchi) :: high1,high2
     vg2=vg2_cache
     wg1=wg1_cache
     wg2=wg2_cache
+    reuse=0
+    old_loss=0d0
+    same_field=.false.
+    if (loss_ready .and. loss_ng > 0 .and. loss_nnu == nnu .and. loss_nchi == nchi) then
+        if (loss_db == db .and. all(loss_seed == seed)) same_field=.true.
+    end if
+    if (same_field) then
+        oldpos=1
+        do ig=1,ng
+            do while (oldpos < loss_ng .and. loss_gam(oldpos) < gam(ig))
+                oldpos=oldpos+1
+            end do
+            if (loss_gam(oldpos) == gam(ig)) then
+                reuse(ig)=oldpos
+                old_loss(ig,:)=loss_value(oldpos,:)
+            end if
+        end do
+    end if
     lowpref(0,:)=0d0
     do ic=1,nchi
         do inu=1,nnu-1
@@ -175,10 +205,28 @@ real(8), dimension(nnu-1,nchi) :: high1,high2
     !$OMP& private(ic,ig)
     do ic=1,nchi
         do ig=1,ng
-            call accumulate_ssa_cell(ig,ic,loss(ig,ic))
+            if (reuse(ig) > 0) then
+                loss(ig,ic)=old_loss(ig,ic)
+            else
+                call accumulate_ssa_cell(ig,ic,loss(ig,ic))
+            end if
         end do
     end do
     !$OMP END PARALLEL DO
+
+    if (allocated(loss_gam)) then
+        if (loss_ng /= ng .or. loss_nnu /= nnu .or. loss_nchi /= nchi) &
+            deallocate(loss_gam,loss_seed,loss_value)
+    end if
+    if (.not. allocated(loss_gam)) allocate(loss_gam(ng),loss_seed(nnu,nchi),loss_value(ng,nchi))
+    loss_ng=ng
+    loss_nnu=nnu
+    loss_nchi=nchi
+    loss_db=db
+    loss_gam=gam
+    loss_seed=seed
+    loss_value=loss
+    loss_ready=.true.
 
 contains
 
