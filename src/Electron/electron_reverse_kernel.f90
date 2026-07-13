@@ -263,6 +263,13 @@ contains
                     dg_dEl(i_node)=log_interp(Num_gam_e,x_edge,dEl,dg_mesh%x_gamma(i_node))
                 end do
             end if
+            if (index_Y /= 0) then
+                if (postonly) then
+                    dg_source=0d0
+                else
+                    call build_dgsource(injection_rate)
+                end if
+            end if
             do L=1,L1
                 rhi=rloc+dDR
                 if (postonly) then
@@ -317,15 +324,11 @@ contains
             srcseg=0d0
             adrate=thermloss
         end if
-        if (srcseg > 0d0) then
-            call dg_kinetic_source(dg_mesh,srcseg,p_r,gm,gmax,dg_source)
-        else
-            dg_source=0d0
-        end if
-        call dg_scale_content(dg_mesh,srcseg,dg_source)
         if (index_Y == 0) then
+            call build_dgsource(srcseg)
             call dg_char_step(dg_mesh,drseg,f_r,adrate,dg_source,dg_state,dg_work)
         else
+            if (.not. preseg) dg_source=0d0
             call dg_advance_step(dg_mesh,adrate,drseg,dg_dEl,dg_source,dg_state,dg_work)
             call dg_limit_positive(dg_mesh,dg_work)
         end if
@@ -338,6 +341,18 @@ contains
         if (dghigh > 1d0) call advance_dg_front(dghigh,drseg)
         if (srcseg > 0d0) dghigh=max(dghigh,gmax)
     end subroutine advance_dgpart
+
+    subroutine build_dgsource(srcval)
+    implicit none
+    real(8), intent(in) :: srcval
+
+        if (srcval > 0d0) then
+            call dg_kinetic_source(dg_mesh,srcval,p_r,gm,gmax,dg_source)
+        else
+            dg_source=0d0
+        end if
+        call dg_scale_content(dg_mesh,srcval,dg_source)
+    end subroutine build_dgsource
 
     ! Advance one side of the exact reverse-shock crossing event.
     subroutine advance_fullhidepart(I_tobs,drseg,preseg)
