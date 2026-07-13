@@ -14,6 +14,8 @@ module dynamics_density_profile
     integer :: jump_count = 0, profile_count = 0
     integer :: profile_event_count = 0
     integer :: knot_count = 0
+    logical :: density_ready = .false.
+    real(8) :: density_rr=0d0,density_r0=0d0,density_value=0d0
     real(8), dimension(jump_max) :: profile_event_start=0d0, profile_event_end=0d0
     real(8), dimension(jump_max) :: profile_event_base=0d0
     real(8), dimension(jump_max) :: jump_radius= 0d0
@@ -25,7 +27,7 @@ module dynamics_density_profile
     !$omp threadprivate(jump_count,profile_count,jump_radius,jump_factor,jump_width, &
     !$omp& profile_radius,profile_logr,profile_logn,profile_logw,profile_power, &
     !$omp& profile_event_count,profile_event_start,profile_event_end,profile_event_base, &
-    !$omp& knot_count,profile_knots)
+    !$omp& knot_count,profile_knots,density_ready,density_rr,density_r0,density_value)
 
 contains
 
@@ -44,6 +46,13 @@ subroutine density_profile(A_star, dNe_ISM, RR, R0, apply_jump, R_tr, f_jump, f_
     real(8), intent(in) :: A_star, dNe_ISM, RR, R0, R_tr, f_jump, f_wide
     real(8), intent(out) :: dNe
     real(8) :: dNe_base, dNe_wind, enhancement, width_cm
+
+    if (profile_count > 0 .and. density_ready) then
+        if (RR == density_rr .and. R0 == density_r0) then
+            dNe = density_value
+            return
+        end if
+    end if
 
     select case (profile_count)
     case (0)
@@ -91,6 +100,12 @@ subroutine density_profile(A_star, dNe_ISM, RR, R0, apply_jump, R_tr, f_jump, f_
         case default
             call tab_density(R0, dNe)
         end select
+    end if
+    if (profile_count > 0) then
+        density_rr = RR
+        density_r0 = R0
+        density_value = dNe
+        density_ready = .true.
     end if
 end subroutine density_profile
 
@@ -184,6 +199,7 @@ subroutine set_density_profile(Boundary, n)
     profile_count = 0
     profile_event_count = 0
     knot_count = 0
+    density_ready = .false.
     profile_event_start = 0d0
     profile_event_end = 0d0
     profile_event_base = 0d0
