@@ -229,7 +229,7 @@ contains
 
     subroutine branch_derivs()
     implicit none
-    integer :: j, m_idx, u_idx, v_idx, e_idx, g_idx, pm_idx, pu_idx, pv_idx
+    integer :: j, m_idx, u_idx, v_idx, e_idx, g_idx, h_idx, c_idx, pm_idx, pu_idx, pv_idx
     real(8) :: n1,n_excess,n_pre,n4,e4,p4,p3,e3_sec,e_ad,comp,beta_s
     real(8) :: gc_j,gamma43_j,bc_j,n3,dm_dR,dM_shock,dV_shock,dU_shock
     real(8) :: u_sec,v_sec,dv_exp,du_ad,gm_sec,b_i,gemax
@@ -240,9 +240,12 @@ contains
             v_idx=6+2*nbranch+j
             e_idx=6+3*nbranch+j
             g_idx=6+4*nbranch+j
+            h_idx=6+5*nbranch+j
+            c_idx=6+6*nbranch+j
             u_sec=Y(u_idx)*mej*para_c**2
             v_sec=Y(v_idx)*V3_scale
             D(e_idx)=0d0; D(g_idx)=0d0
+            D(h_idx)=0d0; D(c_idx)=0d0
             dv_exp=0d0; du_ad=0d0
             if (v_sec > 0d0) then
                 dv_exp=v_sec*(3d0*dR/RR-dgam2/gam2)
@@ -302,6 +305,8 @@ contains
             D(v_idx)=(dV_shock+dv_exp)/V3_scale
             D(e_idx)=dU_shock/(mej*para_c**2)
             D(g_idx)=gm_sec*dU_shock/(mej*para_c**2)
+            D(h_idx)=gamma43_j*dM_shock/mej
+            D(c_idx)=comp*dM_shock/mej
         end do
     end subroutine branch_derivs
 

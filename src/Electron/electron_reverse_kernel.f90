@@ -662,7 +662,7 @@ subroutine branch_reaccel(e_r,b_r,p_r,f_e_r,z,R_Tobs,R_Gamma,R, &
     real(8), parameter :: secondary_adv_coeff=1.35d-19
     real(8) :: dB,gmax,gm,gmax0,gmin,d_x,rloc,gloc,beta2
     real(8) :: f_r,dDR,dDD,injection_rate,mass_lo,mass_hi,mass_delta,fresh_mass,adrate
-    real(8) :: parent_mass,transfer_mass,transfer_fraction,boost_factor,seed_energy,out_energy
+    real(8) :: parent_mass,transfer_mass,transfer_fraction,boost_factor,compression,seed_energy,out_energy
     logical :: dissipative_shell
     real(8), allocatable, dimension(:) :: dEl,x,dF1,temp3,x_edge,coordEdge
     real(8), allocatable, dimension(:,:) :: dN_x,dN_work,dN_branch,spec_branch,branchState
@@ -691,7 +691,8 @@ subroutine branch_reaccel(e_r,b_r,p_r,f_e_r,z,R_Tobs,R_Gamma,R, &
         allocate(branchState(maxNode,Num_jump),coordEdge(Num_gam_e+1))
         branchState=0d0
         do I_gam_e=1,Num_gam_e+1
-            coordEdge(I_gam_e)=coord_from_xg(coord_fourvel,fourvel_scale,x_edge(I_gam_e))
+            coordEdge(I_gam_e)=coord_from_xg(branch_mesh(1)%coord_kind, &
+                                             branch_mesh(1)%coord_scale,x_edge(I_gam_e))
         end do
     end if
     d_x=dlog(gam_e(2)/gam_e(1))
@@ -748,25 +749,21 @@ contains
         end do
     end subroutine reaccel_grid
 
-    ! 一次扫描各分支的活动壳层，以最大 gamma_m 固定 mesh；未耗散分支保持未构造。
-    ! Fix active-branch meshes from maximum gamma_m; leave non-dissipative branches unbuilt.
+    ! 初始 ejecta 的每质子最大可用能量给出参数连续的 gamma_m 上界；所有分支共用该固定 mesh。
+    ! The initial ejecta energy per proton gives a parameter-continuous gamma_m bound shared by all branches.
     subroutine build_meshes(meshes)
     implicit none
     type(dg_mesh), intent(out), dimension(Num_jump) :: meshes
-    integer :: i_branch,i_shell
-    real(8) :: gm_ref,upper_break
+    integer :: branch
+    real(8) :: gammaBound,lowBreak,highBreak
 
-        do i_branch=1,Num_jump
-            gm_ref=0d0
-            do i_shell=1,Num_R
-                if (Gam_m_branch(i_branch,i_shell) > 1d0) &
-                    gm_ref=max(gm_ref,Gam_m_branch(i_branch,i_shell))
-            end do
-            if (gm_ref <= 1d0) cycle
-            upper_break=min(gmax0,20d0*gm_ref)
-            call dg_build_mesh(x_edge(1),x_edge(Num_gam_e+1),dlog(gm_ref), &
-                               dlog(upper_break),dlog(dsqrt(upper_break*gmax0)), &
-                               fourvel_scale,meshes(i_branch))
+        gammaBound=1d0+e_r/f_e_r*(p_r-2d0)/(p_r-1d0)*Para_m_p/Para_m_e* &
+                   (R_Gamma(1)-1d0)
+        lowBreak=dsqrt(gammaBound)
+        highBreak=dsqrt(gammaBound*gmax0)
+        do branch=1,Num_jump
+            call dg_build_mesh(x_edge(1),x_edge(Num_gam_e+1),dlog(lowBreak), &
+                               dlog(gammaBound),dlog(highBreak),fourvel_scale,meshes(branch))
         end do
     end subroutine build_meshes
 
@@ -780,10 +777,12 @@ contains
         do I_jump=1,Num_jump
             mass_delta=M3_branch(I_jump,i_shell)-M3_branch(I_jump,i_shell-1)
             if (mass_delta < 0d0) error stop "branch_reaccel: branch mass decreased."
-            dissipative_shell=Gam_m_branch(I_jump,i_shell) > 1d0 .and. Gamma43_branch(I_jump,i_shell) > 1d0
+            dissipative_shell=mass_delta > 0d0
+            if (dissipative_shell .and. Gam_m_branch(I_jump,i_shell) <= 1d0) &
+                error stop "branch_reaccel: swept interval lacks gamma_m."
             fresh_mass=0d0
             if (dissipative_shell) fresh_mass=mass_delta
-            if (Parent_branch(I_jump) > 0 .and. dissipative_shell .and. mass_delta > 0d0) then
+            if (Parent_branch(I_jump) > 0 .and. dissipative_shell) then
                 parent=Parent_branch(I_jump)
                 parent_mass=branch_mass_available(parent)
                 if (parent_mass > 0d0) then
@@ -795,9 +794,15 @@ contains
                     end if
                     dN_seed=dN_work(parent,:)*transfer_fraction
                     dN_work(parent,:)=dN_work(parent,:)-dN_seed
+                    ! Dynamics 存储本输出区间按扫过质量加权的 shock 诊断量。
+                    ! Dynamics stores swept-mass-weighted shock diagnostics for this output interval.
                     boost_factor=Gamma43_branch(I_jump,i_shell)
-                    if (Comp_branch(I_jump,i_shell) > 1d0) &
-                        boost_factor=boost_factor*Comp_branch(I_jump,i_shell)**(1d0/3d0)
+                    compression=Comp_branch(I_jump,i_shell)
+                    if (boost_factor <= 1d0) &
+                        error stop "branch_reaccel: dissipative interval lacks a shock boost."
+                    if (compression <= 0d0) &
+                        error stop "branch_reaccel: dissipative interval has non-positive compression."
+                    boost_factor=boost_factor*compression**(1d0/3d0)
                     call boost_log(boost_factor,dN_seed,dN_boost)
                     call dsa_reaccel(p_r,dN_boost,dN_reaccel)
                     seed_energy=log_energy(dN_seed)
@@ -872,8 +877,6 @@ contains
     real(8), allocatable, dimension(:) :: dg_adiabatic,dg_source_norm
 
         if (M3_branch(jump_index,i_shell) <= 0d0 .and. M3_branch(jump_index,i_shell-1) <= 0d0) then
-            if (active_solver == solver_dg .and. branch_mesh(jump_index)%ntot > 0) &
-                call export_dg(jump_index,dN_x(jump_index,:))
             dN_gamma_branch(jump_index,:,i_shell)=dN_x(jump_index,:)/gam_e
             return
         end if
@@ -922,11 +925,9 @@ contains
         beta2=dsqrt(1d0-1d0/gloc**2)
         dB=(B3_branch(jump_index,i_shell)+B3_branch(jump_index,i_shell-1))/2d0
         if (dB <= 0d0) error stop "branch_reaccel: active branch requires B3 > 0."
-        if (Gam_m_branch(jump_index,i_shell-1) > 1d0) then
-            gm=(Gam_m_branch(jump_index,i_shell)+Gam_m_branch(jump_index,i_shell-1))/2d0
-        else
-            gm=Gam_m_branch(jump_index,i_shell)
-        end if
+        ! Dynamics 已把当前壳层 gamma_m 保存为 Δ(gamma_m E_diss)/ΔE_diss。
+        ! Dynamics already stores this shell's gamma_m as Δ(gamma_m E_diss)/ΔE_diss.
+        gm=Gam_m_branch(jump_index,i_shell)
         gmax=3d0*Para_m_energy/dsqrt(8d0*dB*Para_e**3)
         f_r=secondary_adv_coeff/beta2/gloc*dB**2/pi
         dDD=R(i_shell)-R(i_shell-1)

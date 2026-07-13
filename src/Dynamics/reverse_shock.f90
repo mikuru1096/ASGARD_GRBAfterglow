@@ -58,7 +58,7 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,fer,sigma_r,Boundary,n,Num_R, &
     real(8) :: dtgrid,rdecism,rdecwind,tnow,tout,tevent,dbwait,dbevent
     real(8) :: u2init,u4init,dinit,n4init,g34init,n3init,compinit,udinit,einit
     real(8) :: prev_r,prev_g,prev_t,curr_r,curr_g,curr_t
-    real(8), dimension(jmax) :: src_prev,src_cur,mass_prev,diss_prev,gm_prev
+    real(8), dimension(jmax) :: src_prev,src_cur,mass_prev,diss_prev,gm_prev,g43_prev,comp_prev
     real(8), dimension(:), allocatable :: y_prev,y_cur,Y,ywait,yevent
     logical, dimension(jmax) :: event_done
     logical :: ready,shockinit
@@ -69,14 +69,15 @@ subroutine dynamics_reverse(Delta_t,e_r,b_r,p_r,fer,sigma_r,Boundary,n,Num_R, &
     !   1: contact Lorentz factor, 2: radius, 3: swept external mass.
     !   4: first RS 扫过 ejecta 分数，5: first RS U3/(Mej c^2)，6: first RS V3/v3s。
     !   4: first-RS swept ejecta fraction, 5: first-RS U3/(Mej c^2), 6: first-RS V3/v3s.
-    !   每个 density jump 后面五段依次存 multiple-RS 分支质量、热能、体积、累计耗散能、
-    !   以及 gamma_m 加权的累计耗散能。
-    !   For each density jump, the next five blocks store branch mass, thermal energy,
-    !   volume, cumulative dissipated energy, and gamma_m-weighted cumulative dissipated energy.
+    !   每个 density jump 后面七段依次存 multiple-RS 分支质量、热能、体积、累计耗散能、
+    !   gamma_m 加权的累计耗散能、gamma43 加权的累计扫过质量和压缩比加权的累计扫过质量。
+    !   For each density jump, the next seven blocks store branch mass, thermal energy,
+    !   volume, cumulative dissipated energy, gamma_m-weighted cumulative dissipated energy,
+    !   gamma43-weighted cumulative swept mass, and compression-weighted cumulative swept mass.
     call unpack()
     call set_density_profile(Boundary,n)
     njump=secondary_event_count()
-    nstate=6+5*njump
+    nstate=6+7*njump
     allocate(y_prev(nstate),y_cur(nstate),Y(nstate),ywait(nstate),yevent(nstate))
 
     Y=0d0
@@ -217,17 +218,38 @@ contains
         Gamma34_inst(i_out)=(Y(1)*Y(1)+Eta_0*Eta_0-1d0)/(Eta_0*Y(1)+dsqrt(Y(1)*Y(1)-1d0)*u4init)
     end subroutine save_g34
 
+    ! 全状态 Richardson 对称误差；零状态不贡献，非有限状态拒绝该步。
+    ! Symmetric Richardson error over the full state; zero pairs do not contribute,
+    ! and non-finite states reject the step.
+    real(8) function state_error(a,b)
+    use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
+    implicit none
+    integer :: i
+    real(8), dimension(:), intent(in) :: a,b
+    real(8) :: err
+
+        state_error=0d0
+        do i=1,size(a)
+            if (.not. ieee_is_finite(a(i)) .or. .not. ieee_is_finite(b(i))) then
+                state_error=huge(1d0)
+                return
+            end if
+            if (a(i) == 0d0 .and. b(i) == 0d0) cycle
+            err=2d0*abs(a(i)-b(i))/(abs(a(i))+abs(b(i)))
+            if (err > state_error) state_error=err
+        end do
+    end function state_error
+
     ! crossing 前用 swept ejecta fraction Y(4) 作自变量推进，因此 crossing 事件固定在 Y(4)=1。
     ! Before crossing, integrate with swept ejecta fraction Y(4) as the independent variable,
     ! so the crossing event is pinned at Y(4)=1.
     subroutine advance_m3(ttin)
-    use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
     implicit none
     integer :: I, J, N, nbracket
     real(8), intent(in) :: ttin
     real(8), parameter :: hmax = 5d-2, rk_eps = 1d-5
     logical :: crossing_first, has_reference
-    real(8) :: H_bound, h_event, H_lo, H_hi, H_mid, hest, HH, P, Q
+    real(8) :: H_bound, h_event, H_lo, H_hi, H_mid, hest, HH, P
     real(8), dimension(nstate) :: ytry,G,D
     real(8), dimension(rs_nstate) :: rs
     real(8) :: dbtry,ttry,tref
@@ -247,7 +269,7 @@ contains
         nbracket = max(2, ceiling(H_hi/hmax))
         HH = H_hi/dble(nbracket)
         do J = 1, nbracket
-            call rk_m3(dbtry, ttry, ytry, HH)
+            call rk_m3_event(dbtry,ttry,ytry,HH)
         end do
         do while (ttry < ttin .and. H_hi < H_bound)
             H_hi = min(H_bound, 2d0*H_hi)
@@ -257,7 +279,7 @@ contains
             nbracket = max(2, ceiling(H_hi/hmax))
             HH = H_hi/dble(nbracket)
             do J = 1, nbracket
-                call rk_m3(dbtry, ttry, ytry, HH)
+                call rk_m3_event(dbtry,ttry,ytry,HH)
             end do
         end do
         crossing_first = (ttry < ttin)
@@ -273,7 +295,7 @@ contains
                 nbracket = max(2, ceiling(H_mid/hmax))
                 HH = H_mid/dble(nbracket)
                 do J = 1, nbracket
-                    call rk_m3(dbtry, ttry, ytry, HH)
+                    call rk_m3_event(dbtry,ttry,ytry,HH)
                 end do
                 if (ttry >= ttin) then
                     H_hi = H_mid
@@ -293,24 +315,10 @@ contains
             dbtry = dB3
             HH = h_event/dble(N)
             do J = 1, N
-                call rk_m3(dbtry, ttry, ytry, HH)
+                call rk_m3_event(dbtry,ttry,ytry,HH)
             end do
             if (has_reference) then
-                P = 0d0
-                do I = 1, 3
-                    if (.not. ieee_is_finite(ytry(I)) .or. .not. ieee_is_finite(G(I))) then
-                        P = huge(1d0)
-                        exit
-                    end if
-                    if (ytry(I)+G(I) <= 0d0) then
-                        P = huge(1d0)
-                        exit
-                    end if
-                    Q = 2d0*abs(ytry(I)-G(I))/(ytry(I)+G(I))
-                    if (Q > P) P = Q
-                end do
-                Q = 2d0*abs(ttry-tref)/(ttry+tref)
-                if (Q > P) P = Q
+                P=max(state_error(ytry,G),state_error([ttry],[tref]))
             else
                 P = 1d0+rk_eps
                 has_reference = .true.
@@ -415,6 +423,102 @@ contains
         t_step = T0+h_step*(L1+2d0*L2+2d0*L3+L4)/6.0d0
     end subroutine rk_m3
 
+    ! swept-fraction 步先按 tabulated knot，再按 secondary-RS source 变号切分。
+    ! Split a swept-fraction step first at tabulated knots, then at secondary-RS
+    ! source sign changes.
+    recursive subroutine rk_m3_event(db_step,t_step,y_step,h_step)
+    implicit none
+    integer :: j
+    real(8), dimension(nstate), intent(inout) :: y_step
+    real(8), intent(inout) :: db_step,t_step
+    real(8), intent(in) :: h_step
+    real(8), dimension(nstate) :: y_base,y_end,y_mid
+    real(8) :: db_base,db_end,db_mid,t_base,t_end,t_mid
+    real(8) :: knot,h_lo,h_hi,h_mid,hcut,source0,source1,root
+    logical :: found,source_found
+
+        y_base=y_step; db_base=db_step; t_base=t_step
+        y_end=y_base; db_end=db_base; t_end=t_base
+        call rk_m3(db_end,t_end,y_end,h_step)
+        call secondary_knot(y_base(2),y_end(2),knot,found)
+        if (found) then
+            h_lo=0d0; h_hi=h_step
+            do j=1,24
+                h_mid=0.5d0*(h_lo+h_hi)
+                y_mid=y_base; db_mid=db_base; t_mid=t_base
+                call rk_m3(db_mid,t_mid,y_mid,h_mid)
+                if (y_mid(2) >= knot) then
+                    h_hi=h_mid
+                else
+                    h_lo=h_mid
+                end if
+            end do
+            hcut=0.5d0*(h_lo+h_hi)
+            y_step=y_base; db_step=db_base; t_step=t_base
+            call rk_m3_event(db_step,t_step,y_step,hcut)
+            call rk_m3_event(db_step,t_step,y_step,h_step-hcut)
+            return
+        end if
+
+        source_found=.false.
+        hcut=h_step
+        do j=1,njump
+            call event_source(j,y_base(2),y_base(1),y_base,source0)
+            call event_source(j,y_end(2),y_end(1),y_end,source1)
+            if (source0*source1 < 0d0) then
+                call m3_source_cut(j,db_base,t_base,y_base,h_step,root)
+                if (root < hcut) then
+                    hcut=root
+                    source_found=.true.
+                end if
+            end if
+        end do
+        if (source_found) then
+            y_step=y_base; db_step=db_base; t_step=t_base
+            call rk_m3(db_step,t_step,y_step,hcut)
+            call rk_m3_event(db_step,t_step,y_step,h_step-hcut)
+            return
+        end if
+
+        y_step=y_end; db_step=db_end; t_step=t_end
+    end subroutine rk_m3_event
+
+    ! 在 swept-fraction accepted step 内定位 source onset 或 termination。
+    ! Locate either source onset or termination inside a swept-fraction accepted step.
+    subroutine m3_source_cut(jump,db_base,t_base,y_base,h_step,root)
+    implicit none
+    integer, intent(in) :: jump
+    integer :: i
+    real(8), dimension(nstate), intent(in) :: y_base
+    real(8), intent(in) :: db_base,t_base,h_step
+    real(8), intent(out) :: root
+    real(8), dimension(nstate) :: y_mid
+    real(8) :: db_mid,t_mid,h_lo,h_hi,h_mid,source0,source
+
+        call event_source(jump,y_base(2),y_base(1),y_base,source0)
+        h_lo=0d0; h_hi=h_step
+        do i=1,20
+            h_mid=0.5d0*(h_lo+h_hi)
+            y_mid=y_base; db_mid=db_base; t_mid=t_base
+            call rk_m3(db_mid,t_mid,y_mid,h_mid)
+            call event_source(jump,y_mid(2),y_mid(1),y_mid,source)
+            if (source0 > 0d0) then
+                if (source > 0d0) then
+                    h_lo=h_mid
+                else
+                    h_hi=h_mid
+                end if
+            else
+                if (source < 0d0) then
+                    h_lo=h_mid
+                else
+                    h_hi=h_mid
+                end if
+            end if
+        end do
+        root=h_hi
+    end subroutine m3_source_cut
+
     ! log(time) RK driver，覆盖 waiting、pre-crossing 和 post-crossing 三个阶段。
     ! 如果 pre-crossing 步内碰到 Y(4)=1，就在事件点切步。
     ! Log-time RK driver for waiting, pre-crossing, and post-crossing phases.
@@ -423,20 +527,19 @@ contains
                                         u3s, v3sstep, m3sstep, &
                                         gms, b3ords, &
                                         t_step, h_step, y_step, phase)
-    use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
     implicit none
     integer, intent(in) :: phase
-    integer :: I,J,N
+    integer :: J,N
     real(8), intent(inout) :: db_step, tcs, rcs, e3_hot, gam20_step
     real(8), intent(inout) :: u3s, v3sstep, m3sstep, gms, b3ords
     real(8), dimension(nstate), intent(inout) :: y_step
     real(8), intent(inout) :: t_step
     real(8), intent(in) :: h_step
     logical :: has_reference
-    real(8), parameter :: rk_eps = 1d-5, mtol = 1d-7, ttol = 1d-12
+    real(8), parameter :: rk_eps = 1d-5
     real(8), dimension(nstate) :: C,G
     real(8), dimension(rs_nstate) :: rs_try
-    real(8) :: HH,P,Q,X,S,HS
+    real(8) :: HH,P,X,S,HS
 
         N = 1
         HS = log((t_step+h_step)/t_step)
@@ -453,20 +556,7 @@ contains
                 call rk_event(phase,rs_try,X,S,HH,y_step)
             end do
             if (has_reference) then
-                P = 0d0
-                do I = 1, 3
-                    if (.not. ieee_is_finite(y_step(I)) .or. .not. ieee_is_finite(G(I))) then
-                        P = huge(1d0)
-                        exit
-                    end if
-                    if (y_step(I) == 0d0 .and. G(I) == 0d0) cycle
-                    if (y_step(I)+G(I) <= 0d0) then
-                        P = huge(1d0)
-                        exit
-                    end if
-                    Q = 2d0*abs(y_step(I)-G(I))/(y_step(I)+G(I))
-                    if (Q > P) P = Q
-                end do
+                P=state_error(y_step,G)
             else
                 P=1d0+rk_eps
                 has_reference=.true.
@@ -584,7 +674,7 @@ contains
         do j=1,njump
             call event_source(j,y_base(2),y_base(1),y_base,source0)
             call event_source(j,y_end(2),y_end(1),y_end,source1)
-            if (source0 > 0d0 .and. source1 <= 0d0) then
+            if (source0*source1 < 0d0) then
                 call source_cut(j,phase,rs_base,x_base,s_base,y_base,h_step,root)
                 if (root < hcut) then
                     hcut=root
@@ -602,8 +692,8 @@ contains
         y_step=y_end; rs_step=rs_end; s_step=s_end
     end subroutine rk_event
 
-    ! 在已括住的 accepted-step 内定位 secondary-RS 耗散终点。
-    ! Locate a secondary-RS dissipation endpoint inside one accepted-step bracket.
+    ! 在已括住的 accepted step 内定位 secondary-RS source onset 或 termination。
+    ! Locate either secondary-RS source onset or termination inside an accepted-step bracket.
     subroutine source_cut(jump,phase,rs_base,x_base,s_base,y_base,h_step,root)
     implicit none
     integer, intent(in) :: jump,phase
@@ -614,18 +704,27 @@ contains
     real(8), intent(out) :: root
     real(8), dimension(rs_nstate) :: rs_mid
     real(8), dimension(nstate) :: y_mid
-    real(8) :: h_lo,h_hi,h_mid,s_mid,source
+    real(8) :: h_lo,h_hi,h_mid,s_mid,source0,source
 
+        call event_source(jump,y_base(2),y_base(1),y_base,source0)
         h_lo=0d0; h_hi=h_step
         do i=1,20
             h_mid=0.5d0*(h_lo+h_hi)
             y_mid=y_base; rs_mid=rs_base; s_mid=s_base
             call rk_piece(phase,rs_mid,x_base,s_mid,h_mid,y_mid)
             call event_source(jump,y_mid(2),y_mid(1),y_mid,source)
-            if (source > 0d0) then
-                h_lo=h_mid
+            if (source0 > 0d0) then
+                if (source > 0d0) then
+                    h_lo=h_mid
+                else
+                    h_hi=h_mid
+                end if
             else
-                h_hi=h_mid
+                if (source < 0d0) then
+                    h_lo=h_mid
+                else
+                    h_hi=h_mid
+                end if
             end if
         end do
         root=h_hi
@@ -846,6 +945,8 @@ contains
         mass_prev=0d0
         diss_prev=0d0
         gm_prev=0d0
+        g43_prev=0d0
+        comp_prev=0d0
     end subroutine init_history
 
     subroutine init_event()
@@ -1087,20 +1188,23 @@ contains
         call freqs(i_out,wd,wg,bt)
     end subroutine save_multi
 
-    ! 写一个 multiple-RS 分支，并返回本输出步新增的耗散能。
-    ! Store 1 multiple-RS branch and return the newly dissipated energy.
+    ! 写一个 multiple-RS 分支，并用扫过质量累计量恢复本输出区间的 shock 诊断量。
+    ! Store 1 multiple-RS branch and recover this output interval's shock diagnostics
+    ! from swept-mass cumulative quantities.
     subroutine save_branch(i_out,jb,de,dg)
     implicit none
     integer, intent(in) :: i_out,jb
-    integer :: im,iu,iv,ie,ig
+    integer :: im,iu,iv,ie,ig,ih,ic
     real(8), intent(out) :: de,dg
-    real(8) :: mcum,ecum,gcum,dm
+    real(8) :: mcum,ecum,gcum,g43cum,compcum,dm
 
         im=6+jb
         iu=6+njump+jb
         iv=6+2*njump+jb
         ie=6+3*njump+jb
         ig=6+4*njump+jb
+        ih=6+5*njump+jb
+        ic=6+6*njump+jb
 
         branch_m3(jb,i_out)=Y(im)*mej
         branch_u3(jb,i_out)=Y(iu)*mej*para_c**2
@@ -1111,6 +1215,8 @@ contains
         mcum=branch_m3(jb,i_out)
         ecum=Y(ie)*mej*para_c**2
         gcum=Y(ig)*mej*para_c**2
+        g43cum=Y(ih)*mej
+        compcum=Y(ic)*mej
         dm=mcum-mass_prev(jb)
         de=ecum-diss_prev(jb)
         dg=gcum-gm_prev(jb)
@@ -1120,6 +1226,10 @@ contains
         diss_e(i_out)=diss_e(i_out)+de
         inj_e(i_out)=inj_e(i_out)+e_r*de
         if (de > 0d0) branch_gm(jb,i_out)=dg/de
+        if (dm > 0d0) then
+            branch_g43(jb,i_out)=(g43cum-g43_prev(jb))/dm
+            branch_comp(jb,i_out)=(compcum-comp_prev(jb))/dm
+        end if
         if (de > 0d0 .and. dm > 0d0) then
             if (.not. event_on(jb)) then
                 event_on(jb)=.true.
@@ -1138,6 +1248,8 @@ contains
         mass_prev(jb)=mcum
         diss_prev(jb)=ecum
         gm_prev(jb)=gcum
+        g43_prev(jb)=g43cum
+        comp_prev(jb)=compcum
     end subroutine save_branch
 
     ! 总质量、总热能和总体积是各分支直接求和。
@@ -1238,8 +1350,6 @@ contains
         avg_brs(i_out)=avg_brs(i_out)+de*beta_rs
         total_ud(i_out)=total_ud(i_out)+(e3_hot-e_ad)
         branch_gc(jb,i_out)=contact_g
-        branch_g43(jb,i_out)=shock_g
-        branch_comp(jb,i_out)=comp
         branch_brs(jb,i_out)=beta_rs
         branch_ud(jb,i_out)=e3_hot-e_ad
     end subroutine sum_weight

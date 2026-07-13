@@ -31,6 +31,7 @@ subroutine reverse_contact(gamma4,n1,n4,e4,p4,gamma_c,p3,gamma43,comp,beta_rs)
     end if
     do I=1,80
         mid=0.5d0*(lo+hi)
+        if (mid == lo .or. mid == hi) exit
         call pressure_difference(mid,f_mid)
         if (f_lo*f_mid <= 0d0) then
             hi=mid; f_hi=f_mid
@@ -80,6 +81,7 @@ contains
         end if
         do K=1,80
             bs_mid=0.5d0*(bs_lo+bs_hi)
+            if (bs_mid == bs_lo .or. bs_mid == bs_hi) exit
             call shock_diff(bs_mid,g_mid,comp)
             if (g_lo*g_mid <= 0d0) then
                 bs_hi=bs_mid; g_hi=g_mid
@@ -103,6 +105,7 @@ contains
         c_lo=comp_tmp-1d0
         do K=1,80
             mid_c=0.5d0*(lo_c+hi_c)
+            if (mid_c == lo_c .or. mid_c == hi_c) exit
             call shock_diff(mid_c,diff_tmp,comp_tmp)
             c_mid=comp_tmp-1d0
             if (c_lo*c_mid <= 0d0) then

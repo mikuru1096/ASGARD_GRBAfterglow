@@ -530,7 +530,17 @@ def _build_module(
     if not force and not _sources_newer_than(outputs, cwd, sources):
         return 0.0
 
-    command = [sys.executable, "-m", "numpy.f2py", "-m", module_name, "-c", *sources]
+    command = [
+        sys.executable,
+        "-m",
+        "numpy.f2py",
+        "-m",
+        module_name,
+        "-c",
+        "--backend",
+        "meson",
+        *sources,
+    ]
     if fflags:
         command.extend([f"--f77flags={fflags}", f"--f90flags={fflags}"])
     if extra_args:
@@ -558,7 +568,15 @@ def main() -> None:
     omp_flags = OMP_FLAGS
     module_specs = [
         ModuleSpec("Constants", src, ["Constants.f90"]),
-        ModuleSpec("Dynamics_reverse", dyn, list(DYNAMICS_REVERSE_SOURCES), COMMON_FLAGS, ["only:", "rs_prompt_jump", "dynamics_reverse", ":"]),
+        ModuleSpec(
+            "Dynamics_reverse",
+            dyn,
+            list(DYNAMICS_REVERSE_SOURCES),
+            COMMON_FLAGS,
+            None,
+            True,
+            ("rs_prompt_jump", "dynamics_reverse"),
+        ),
         ModuleSpec(
             "Dynamics_forward",
             dyn,
